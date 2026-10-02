@@ -57,7 +57,7 @@ automod_text_array	p_value jsonb	text[]	invoker	public, pg_temp	service_role	unr
 backfill_timeline_entries		integer	invoker	public, extensions, pg_temp	service_role	unreferenced
 backfill_timeline_on_follow		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 ban_server_member	p_server_id uuid, p_user_id uuid, p_reason text, p_delete_message_seconds integer	jsonb	definer	public, extensions, pg_temp	anon+authenticated+service_role	client
-batch_set_instance_config	p_keys text[], p_values jsonb[]	boolean	definer	public, pg_temp	anon+authenticated+service_role	client
+batch_set_instance_config	p_keys text[], p_values jsonb[]	boolean	definer	public, pg_temp	authenticated+service_role	client
 broadcast_bot_installation_change		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_bot_presence_change		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_category_change		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
@@ -451,7 +451,7 @@ set_channel_encryption	p_channel_id uuid, p_messages_encrypted boolean, p_voice_
 set_conversation_hidden	p_conversation_id uuid, p_hidden boolean	void	definer	public, pg_temp	anon+authenticated+service_role	client
 set_custom_status	p_user_id uuid, p_type text, p_text text, p_emoji text, p_emoji_url text, p_details text, p_state text, p_duration_minutes integer	jsonb	definer	public, pg_temp	anon+authenticated+service_role	client
 set_domain_moderation	p_domain text, p_policy text, p_reason text	void	definer	public, pg_temp	authenticated+service_role	client
-set_instance_config	p_key text, p_value jsonb, p_user_id uuid, p_description text	boolean	definer	public, pg_temp	anon+authenticated+service_role	client
+set_instance_config	p_key text, p_value jsonb, p_user_id uuid, p_description text	boolean	definer	public, pg_temp	authenticated+service_role	client
 set_kofi_webhook_token	p_token text	void	definer	public, pg_temp	authenticated+service_role	client
 set_member_instance		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 set_server_featured	p_server_id uuid, p_is_featured boolean, p_order integer	void	definer	public, extensions, pg_temp	anon+authenticated+service_role	client

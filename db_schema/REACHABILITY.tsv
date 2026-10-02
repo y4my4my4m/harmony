@@ -57,7 +57,7 @@ automod_text_array	invoker	text[]	service_role	client, trigger	called by automod
 backfill_timeline_entries	invoker	integer	service_role	service key	nothing references it
 backfill_timeline_on_follow	definer	trigger	anon+authenticated+service_role	trigger	trigger public.follows AFTER INSERT/UPDATE (backfill_timeline_on_follow_trigger)
 ban_server_member	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/ModerationService.ts
-batch_set_instance_config	definer	boolean	anon+authenticated+service_role	client	rpc in src/services/AdminService.ts
+batch_set_instance_config	definer	boolean	authenticated+service_role	client	rpc in src/services/AdminService.ts
 broadcast_bot_installation_change	definer	trigger	service_role	trigger	trigger public.bot_server_permissions AFTER INSERT/DELETE/UPDATE (broadcast_bot_installation_change)
 broadcast_bot_presence_change	definer	trigger	service_role	trigger	trigger public.bot_presence AFTER INSERT/UPDATE (broadcast_bot_presence_change)
 broadcast_category_change	definer	trigger	anon+authenticated+service_role	trigger	trigger public.channel_categories AFTER INSERT/DELETE/UPDATE (trg_broadcast_category_change)
@@ -343,7 +343,7 @@ jsonb_text_content_length	invoker	integer	anon+authenticated+service_role	client
 keep_welcome_managed_server_rules	definer	trigger	service_role	trigger	trigger public.servers BEFORE UPDATE (a_servers_welcome_rules_guard)
 kick_server_member	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/ModerationService.ts
 list_my_sessions	definer	TABLE(id uuid, created_at timestamp with time zone, last_active_at timestamp with time zone, user_agent text, ip text, aal text, is_current boolean, push_transports text[])	authenticated+service_role	client	rpc in src/services/AccountSecurityService.ts
-log_admin_action	definer	uuid	service_role	client	called by admin_moderate_post, moderate_report, moderate_user, +4
+log_admin_action	definer	uuid	service_role	client	called by admin_moderate_post, batch_set_instance_config, moderate_report, +6
 log_key_generation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.user_key_pairs AFTER INSERT (audit_key_generation)
 lookup_discord_bridge_pairing_public	definer	TABLE(server_id uuid)	anon+authenticated+service_role	client	rpc in bot-gateway/src/index.ts
 lookup_invite_by_code	definer	TABLE(id uuid, code text, server_id uuid, created_by uuid, uses integer, max_uses integer, used boolean, temporary boolean, expires_at timestamp with time zone, created_at timestamp with time zone, server_name text, server_icon text)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
@@ -451,7 +451,7 @@ set_channel_encryption	definer	jsonb	authenticated+service_role	client	rpc in sr
 set_conversation_hidden	definer	void	anon+authenticated+service_role	client	rpc in src/stores/useDM.ts
 set_custom_status	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/userDataService.ts
 set_domain_moderation	definer	void	authenticated+service_role	client	rpc in src/services/AdminService.ts
-set_instance_config	definer	boolean	anon+authenticated+service_role	client	rpc in src/services/AdminService.ts, src/services/NewcomerAlertService.ts
+set_instance_config	definer	boolean	authenticated+service_role	client	rpc in src/services/AdminService.ts, src/services/NewcomerAlertService.ts
 set_kofi_webhook_token	definer	void	authenticated+service_role	client	rpc in src/services/FundingService.ts
 set_member_instance	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.user_servers BEFORE INSERT (auto_set_member_instance)
 set_server_featured	definer	void	anon+authenticated+service_role	client	rpc in src/services/AdminService.ts
