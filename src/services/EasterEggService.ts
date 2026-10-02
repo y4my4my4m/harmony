@@ -41,8 +41,10 @@ class EasterEggService {
     this.channelName = `easter-egg:${channelId}`
     debug.log('[EasterEgg] Initializing for channel:', channelId)
 
+    // Private: voice room access only, as harmony-voice-{room}.
     this.channel = supabase.channel(this.channelName, {
       config: {
+        private: true,
         broadcast: { self: true },
       },
     })

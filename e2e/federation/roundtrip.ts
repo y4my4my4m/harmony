@@ -31,10 +31,22 @@
 // The proxy authenticates its caller with a Supabase JWT; roundtrip.ts signs
 // those itself and gateway.conf answers /auth/v1/user (auth-user-shim.sql).
 //
+// Voice crosses in both directions too, against the stack's LiveKit, which
+// stands in for both instances' SFUs:
+//   - a DM call the local instance hosts: the peer's user is rung, fetches its
+//     token from /api/livekit/federated-token signed with its own key, and
+//     accepts; a DM call the peer hosts: fx_bob accepts and the local instance
+//     fetches fx_bob's token from the peer, signed with fx_bob's key;
+//   - a voice channel of the peer's Group joined by fx_bob, and one of the
+//     hosted private server joined by the peer's user.
+// Each ends with both sides' tokens joined to the same LiveKit room over its
+// signalling WebSocket.
+//
 // Not covered: the BullMQ worker, Redis (the rate limiters fall back to their
-// in-memory store) and realtime broadcast (the gateway answers 501 and the
-// voice handler ignores the result). The signed-GET and reading cases fetch
-// the local actor's key back over HTTP to verify signatures.
+// in-memory store), Realtime delivery (user events stay in realtime.messages
+// and are read back through realtime-shim.sql; the voice presence broadcast is
+// answered 501) and media. The signed-GET and reading cases fetch the local
+// actor's key back over HTTP to verify signatures.
 //
 // Run: e2e/federation/stack.sh verify
 //
@@ -46,6 +58,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import http from 'node:http'
 import path from 'node:path'
+import { createRequire } from 'node:module'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
@@ -87,6 +100,12 @@ const REMOTE_CHANNEL_NEW = 'fed00000-0000-0000-0000-000000000042'
 
 // A local post the peer reports.
 const ALICE_POST = 'fed00000-0000-0000-0000-000000000050'
+
+// Voice channels: one in the peer's Group, two in the hosted private server,
+// the second hidden from @everyone.
+const REMOTE_VOICE = 'fed00000-0000-0000-0000-000000000043'
+const PRIV_VOICE = 'fed00000-0000-0000-0000-000000000023'
+const PRIV_VOICE_HIDDEN = 'fed00000-0000-0000-0000-000000000024'
 
 // REPORTING
 
@@ -152,6 +171,11 @@ class Peer {
   readonly secureGetRequests: Captured[] = []
   // GETs to the peer-hosted private Group and its channel, in arrival order.
   readonly groupGetRequests: Captured[] = []
+  // POSTs to the peer's /api/livekit/federated-token, and the rooms it hosts:
+  // room name -> the local actor it rang there.
+  readonly tokenRequests: Captured[] = []
+  readonly hostedRooms = new Map<string, string>()
+  livekit: LiveKit | null = null
   actorFetches = 0
   private server?: http.Server
   base = ''
@@ -231,6 +255,16 @@ class Peer {
             raw,
           })
           void this.handleGroupGet(req, res)
+          return
+        }
+        if (req.method === 'POST' && req.url === '/api/livekit/federated-token') {
+          this.tokenRequests.push({
+            method: req.method,
+            url: req.url ?? '',
+            headers: req.headers as Record<string, string>,
+            raw,
+          })
+          void this.handleTokenRequest(req, raw, res)
           return
         }
         // Authorized-fetch object: 401 unless the request carries a valid
@@ -328,6 +362,63 @@ class Peer {
     } catch {
       return null
     }
+  }
+
+  /**
+   * Actor URL of the local user whose key signed this POST, digest included,
+   * fetched back from the local instance; null for anything else.
+   */
+  private async localPostSigner(req: http.IncomingMessage, raw: Buffer): Promise<string | null> {
+    try {
+      const params = parseSignatureHeader(String(req.headers.signature ?? ''))
+      if (params.headers !== '(request-target) host date digest' || !params.keyId || !params.signature) return null
+      const digest = `SHA-256=${crypto.createHash('sha256').update(raw).digest('base64')}`
+      if (req.headers.digest !== digest || !req.headers.host || !req.headers.date) return null
+
+      const actorUrl = params.keyId.split('#')[0]
+      if (!actorUrl.startsWith(`https://${INSTANCE_DOMAIN}/users/`)) return null
+      const actor = await getJson(actorUrl.replace(`https://${INSTANCE_DOMAIN}`, this.localUrl))
+      const pem = actor?.publicKey?.publicKeyPem
+      if (!pem) return null
+
+      const signingString = [
+        `(request-target): post ${req.url}`,
+        `host: ${req.headers.host}`,
+        `date: ${req.headers.date}`,
+        `digest: ${digest}`,
+      ].join('\n')
+      return crypto.createVerify('SHA256').update(signingString).verify(pem, params.signature, 'base64')
+        ? actorUrl
+        : null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * The peer's /api/livekit/federated-token, with the rules a Harmony caller
+   * instance applies: a signed request whose actorId is the signer, for a room
+   * this peer rang that actor in.
+   */
+  private async handleTokenRequest(req: http.IncomingMessage, raw: Buffer, res: http.ServerResponse): Promise<void> {
+    const reply = (status: number, body: unknown) => {
+      res.writeHead(status, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(body))
+    }
+    const signer = await this.localPostSigner(req, raw)
+    let body: any = null
+    try {
+      body = JSON.parse(raw.toString('utf-8'))
+    } catch {
+      body = null
+    }
+    if (!signer) return reply(401, { error: 'signature required' })
+    if (body?.actorId !== signer) return reply(403, { error: 'actorId does not match the signing key owner' })
+    if (!this.livekit || body?.roomType !== 'dm_call' || this.hostedRooms.get(body?.roomName) !== signer) {
+      return reply(403, { error: 'Not authorized for this room' })
+    }
+    const token = await this.livekit.mint(`federated:${signer}`, body.roomName)
+    reply(200, { token, wsUrl: this.livekit.url, roomName: body.roomName, identity: `federated:${signer}` })
   }
 
   private sendActor(res: http.ServerResponse, id: string, type: string, name: string, publicKeyPem: string) {
@@ -564,6 +655,126 @@ function getJson(url: string): Promise<any> {
   })
 }
 
+// LIVEKIT
+//
+// One LiveKit server stands in for both instances' SFUs: the local backend
+// issues tokens with the stack's key, and the peer mints its own with the same
+// key. A token is accepted when LiveKit answers its signalling WebSocket with a
+// join naming the token's room and identity.
+
+interface LiveKitJoin {
+  room: string
+  identity: string
+  close: () => void
+}
+
+class LiveKit {
+  private readonly sdk: any
+  private readonly protocol: any
+
+  constructor(
+    readonly url: string,
+    private readonly key: string,
+    private readonly secret: string,
+  ) {
+    // Resolved from the backend's dependencies, as the backend itself loads them.
+    const load = createRequire(path.join(BACKEND_ROOT, 'package.json'))
+    this.sdk = load('livekit-server-sdk')
+    this.protocol = load('@livekit/protocol')
+  }
+
+  mint(identity: string, room: string): Promise<string> {
+    const at = new this.sdk.AccessToken(this.key, this.secret, { identity, ttl: '10m' })
+    at.addGrant({ roomJoin: true, room, canPublish: true, canSubscribe: true })
+    return at.toJwt()
+  }
+
+  /** Claims of a token signed with the stack's key; null for any other signature. */
+  claims(token: unknown): any {
+    if (typeof token !== 'string') return null
+    const [header, payload, sig] = token.split('.')
+    const expected = crypto.createHmac('sha256', this.secret).update(`${header}.${payload}`).digest('base64url')
+    if (!sig || sig !== expected) return null
+    return JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8'))
+  }
+
+  join(token: string): Promise<LiveKitJoin> {
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket(`${this.url}/rtc?access_token=${encodeURIComponent(token)}&auto_subscribe=1&sdk=js&protocol=15`)
+      ws.binaryType = 'arraybuffer'
+      const timer = setTimeout(() => {
+        ws.close()
+        reject(new Error('no join response within 10 s'))
+      }, 10_000)
+      ws.onmessage = (event) => {
+        try {
+          const msg = this.protocol.SignalResponse.fromBinary(new Uint8Array(event.data as ArrayBuffer))
+          if (msg.message?.case !== 'join') return
+          clearTimeout(timer)
+          const join = msg.message.value
+          resolve({ room: join.room?.name ?? '', identity: join.participant?.identity ?? '', close: () => ws.close() })
+        } catch (e) {
+          clearTimeout(timer)
+          ws.close()
+          reject(e)
+        }
+      }
+      ws.onerror = () => {
+        clearTimeout(timer)
+        reject(new Error('LiveKit refused the signalling connection'))
+      }
+    })
+  }
+
+  async participants(room: string): Promise<string[]> {
+    const rooms = new this.sdk.RoomServiceClient(this.url.replace(/^ws/, 'http'), this.key, this.secret)
+    return (await rooms.listParticipants(room)).map((p: any) => p.identity).sort()
+  }
+}
+
+interface RoomToken {
+  who: string
+  token: unknown
+  identity: string
+}
+
+/**
+ * Both tokens carry the stack's signature and name `room`, and LiveKit seats
+ * both identities in it at once.
+ */
+async function bothInRoom(lk: LiveKit, room: string, a: RoomToken, b: RoomToken, label: string) {
+  for (const side of [a, b]) {
+    const claims = lk.claims(side.token)
+    assert(
+      claims?.sub === side.identity && claims?.video?.room === room && claims?.video?.roomJoin === true,
+      `${side.who}'s token is for ${label} as ${side.identity}`,
+      JSON.stringify(claims),
+    )
+  }
+  const joined: LiveKitJoin[] = []
+  try {
+    for (const side of [a, b]) {
+      const join = await lk.join(side.token as string)
+      joined.push(join)
+      assert(
+        join.room === room && join.identity === side.identity,
+        `LiveKit admits ${side.who} to ${label}`,
+        `${join.identity} in ${join.room}`,
+      )
+    }
+    const seated = await lk.participants(room)
+    assert(
+      seated.includes(a.identity) && seated.includes(b.identity),
+      `LiveKit holds both sides in ${label} at once`,
+      JSON.stringify(seated),
+    )
+  } catch (e) {
+    fail(`LiveKit admits both sides to ${label}`, (e as Error)?.message ?? e)
+  } finally {
+    joined.forEach((j) => j.close())
+  }
+}
+
 // FIXTURE
 
 async function seed(db: SupabaseClient, peer: Peer) {
@@ -646,9 +857,11 @@ async function must(what: string, p: PromiseLike<{ data: any; error: { message: 
 async function seedServers(db: SupabaseClient, peer: Peer) {
   const peerHost = new URL(peer.base).host
 
+  // A bulk insert sends every key of every row: a key absent from a row is
+  // NULL there, not the column default.
   await must('seed servers', db.from('servers').insert([
-    { id: PRIV_SERVER, name: 'Hosted private', owner: ALICE, public: false },
-    { id: PUB_SERVER, name: 'Hosted public', owner: ALICE, public: true },
+    { id: PRIV_SERVER, name: 'Hosted private', owner: ALICE, public: false, is_local_server: true },
+    { id: PUB_SERVER, name: 'Hosted public', owner: ALICE, public: true, is_local_server: true },
     {
       id: REMOTE_REF,
       name: 'Peer private',
@@ -1164,6 +1377,374 @@ async function caseSyncSignsAsMember(db: SupabaseClient, peer: Peer, localUrl: s
   )
 }
 
+// VOICE
+
+const VOICE_CONTEXT = ['https://www.w3.org/ns/activitystreams', 'https://harmony.social/ns/voice']
+const LOCAL_ALICE = `https://${INSTANCE_DOMAIN}/users/fx_alice`
+const LOCAL_BOB = `https://${INSTANCE_DOMAIN}/users/fx_bob`
+
+async function seedVoice(db: SupabaseClient, peer: Peer) {
+  await must('seed voice channels', db.from('channels').insert([
+    { id: PRIV_VOICE, server_id: PRIV_SERVER, name: 'voice', type: 1 },
+    { id: PRIV_VOICE_HIDDEN, server_id: PRIV_SERVER, name: 'staff-voice', type: 1 },
+    { id: REMOTE_VOICE, server_id: REMOTE_REF, name: 'peer-voice', type: 1, is_remote: true, ap_id: peer.channelUrl(REMOTE_VOICE) },
+  ]))
+  const everyone = await must('everyone role', db
+    .from('server_roles').select('id').eq('server_id', PRIV_SERVER).eq('is_default', true).single())
+  await must('hide staff-voice', db.from('channel_permission_overrides').insert({
+    channel_id: PRIV_VOICE_HIDDEN,
+    target_type: 'role',
+    role_id: everyone.id,
+    allow_permissions: 0,
+    deny_permissions: 2,
+  }))
+  // authorizeVoiceChannel admits a remote actor only on a federated server.
+  await must('federate the hosted server', db.from('servers').update({ federation_enabled: true }).eq('id', PRIV_SERVER))
+}
+
+/** A voice activity signed by a peer actor and posted to a local inbox. */
+function peerSends(
+  peer: Peer,
+  target: string,
+  activity: Record<string, unknown>,
+  signer: { key: string; actor: string } = { key: peer.key.privateKey, actor: peer.actorUrl },
+) {
+  const body = JSON.stringify({ '@context': VOICE_CONTEXT, published: new Date().toISOString(), ...activity })
+  return post(target, signedHeaders(target, body, signer.key, `${signer.actor}#main-key`), body)
+}
+
+async function postJson(url: string, headers: Record<string, string>, payload: unknown) {
+  const res = await post(url, { 'Content-Type': 'application/json', ...headers }, JSON.stringify(payload))
+  let json: any = null
+  try {
+    json = JSON.parse(res.body)
+  } catch {
+    json = null
+  }
+  return { ...res, json }
+}
+
+/** Events of one type Realtime would deliver on a profile's private user channel. */
+async function userEvents(db: SupabaseClient, profileId: string, type: string): Promise<any[]> {
+  const { data, error } = await db.rpc('hmfed_broadcasts', { p_topic: `user:${profileId}` })
+  if (error) throw new Error(`hmfed_broadcasts: ${error.message}`)
+  return ((data ?? []) as any[]).filter((p) => p?.type === type)
+}
+
+/** Requests the peer received at `url` since `before`, with parsed bodies. */
+function deliveries(peer: Peer, before: number, url: string) {
+  return peer.captured
+    .slice(before)
+    .filter((c) => c.url === url)
+    .map((c) => ({ req: c, body: JSON.parse(c.raw.toString('utf-8')) }))
+}
+
+async function callRow(db: SupabaseClient, apId: unknown) {
+  const { data } = await db
+    .from('federated_voice_calls')
+    .select('direction, status, caller_id, recipient_id, conversation_id, room_name')
+    .eq('ap_id', apId as string)
+    .maybeSingle()
+  return data
+}
+
+async function caseHostedDmCall(db: SupabaseClient, peer: Peer, localUrl: string, jwtSecret: string, lk: LiveKit, backend: Backend) {
+  console.log('\nDM call hosted here -> the peer\'s user takes its token from this instance and joins alice\'s room')
+
+  const room = `federated-dm-${CONVERSATION}-${Date.now()}`
+  const asAlice = { Authorization: `Bearer ${userToken(ALICE_AUTH, jwtSecret)}` }
+  const before = peer.captured.length
+
+  const invite = await postJson(`${localUrl}/api/livekit/federated-call/invite`, asAlice, {
+    calleeFederatedId: peer.actorUrl,
+    callType: 'voice',
+    conversationId: CONVERSATION,
+    roomName: room,
+  })
+  eq(invite.status, 200, 'alice rings the peer\'s user')
+  const inviteId = invite.json?.activityId
+
+  const sent = deliveries(peer, before, '/users/fx_remote/inbox')
+  eq(sent.length, 1, 'the invite reaches the callee\'s inbox')
+  eq(sent[0]?.body?.type, 'harmony:VoiceCallInvite', 'it is a harmony:VoiceCallInvite')
+  eq(sent[0]?.body?.object?.roomName, room, 'it names alice\'s room')
+  eq(sent[0]?.body?.object?.livekitUrl, lk.url, 'on this instance\'s LiveKit')
+  if (sent[0]) {
+    const v = await backend.verifySignature(sent[0].req.headers.signature, sent[0].req.headers, 'POST', sent[0].req.url, sent[0].req.raw)
+    eq(v.actorUrl, LOCAL_ALICE, 'the invite is signed with alice\'s key')
+  }
+
+  const row = await callRow(db, inviteId)
+  assert(
+    row?.direction === 'outbound' && row?.status === 'pending' && row?.caller_id === ALICE
+      && row?.recipient_id === REMOTE && row?.room_name === room && row?.conversation_id === CONVERSATION,
+    'the invite is stored as an outbound call to the peer\'s user for alice\'s room',
+    JSON.stringify(row),
+  )
+
+  const tokenUrl = `${localUrl}/api/livekit/federated-token`
+  const ask = (key: string, actor: string, actorId: string, roomName = room) => {
+    const body = JSON.stringify({ actorId, roomName, roomType: 'dm_call' })
+    return post(tokenUrl, signedHeaders(tokenUrl, body, key, `${actor}#main-key`), body)
+  }
+  eq((await ask(peer.strangerKey.privateKey, peer.strangerUrl, peer.strangerUrl)).status, 403,
+    'a signed stranger gets no token for the room')
+  eq((await ask(peer.strangerKey.privateKey, peer.strangerUrl, peer.actorUrl)).status, 403,
+    'a token for the callee signed with another key is refused')
+  eq((await ask(peer.key.privateKey, peer.actorUrl, peer.actorUrl, `federated-dm-${CONVERSATION}-1`)).status, 403,
+    'the callee gets no token for a room it was not rung to')
+  const granted = await ask(peer.key.privateKey, peer.actorUrl, peer.actorUrl)
+  eq(granted.status, 200, 'the callee, signing as itself, gets a token for the room while it rings')
+  const callee = granted.status === 200 ? JSON.parse(granted.body) : {}
+  eq(callee.roomName, room, 'the token answer names the room')
+  eq(callee.wsUrl, lk.url, 'and this instance\'s LiveKit')
+
+  const acceptRes = await peerSends(peer, `${localUrl}/users/fx_alice/inbox`, {
+    type: 'harmony:VoiceCallAccept',
+    id: `${peer.actorUrl}/activities/${crypto.randomUUID()}`,
+    actor: peer.actorUrl,
+    to: [LOCAL_ALICE],
+    object: inviteId,
+  })
+  eq(acceptRes.status, 202, 'the callee\'s signed accept is acknowledged (202)')
+  eq((await callRow(db, inviteId))?.status, 'accepted', 'the outbound call is accepted')
+  const accepted = await userEvents(db, ALICE, 'federated_call:accepted')
+  assert(
+    accepted.some((e) => e.callId === inviteId && e.conversationId === CONVERSATION && e.roomName === room && e.partyId === REMOTE),
+    'alice hears of the accept on her private user channel',
+    JSON.stringify(accepted),
+  )
+
+  const own = await postJson(`${localUrl}/api/livekit/token`, asAlice, { roomName: room, roomType: 'dm_call' })
+  eq(own.status, 200, 'alice gets her own token for her room')
+
+  await bothInRoom(
+    lk,
+    room,
+    { who: 'alice', token: own.json?.token, identity: `federated:${LOCAL_ALICE}` },
+    { who: 'the peer\'s user', token: callee.token, identity: `federated:${peer.actorUrl}` },
+    'the DM call hosted here',
+  )
+
+  const endRes = await peerSends(peer, `${localUrl}/users/fx_alice/inbox`, {
+    type: 'harmony:VoiceCallEnd',
+    id: `${peer.actorUrl}/activities/${crypto.randomUUID()}`,
+    actor: peer.actorUrl,
+    to: [LOCAL_ALICE],
+    object: inviteId,
+  })
+  eq(endRes.status, 202, 'the callee\'s signed end is acknowledged (202)')
+  eq((await callRow(db, inviteId))?.status, 'ended', 'the outbound call is ended')
+  const ended = await userEvents(db, ALICE, 'federated_call:ended')
+  assert(ended.some((e) => e.callId === inviteId), 'alice hears of the end', JSON.stringify(ended))
+  eq((await ask(peer.key.privateKey, peer.actorUrl, peer.actorUrl)).status, 403, 'an ended call grants no further token')
+}
+
+async function casePeerHostedDmCall(db: SupabaseClient, peer: Peer, localUrl: string, jwtSecret: string, lk: LiveKit, backend: Backend) {
+  console.log('\nDM call hosted by the peer -> fx_bob accepts and this instance fetches his token from the peer')
+
+  const asBob = { Authorization: `Bearer ${userToken(BOB_AUTH, jwtSecret)}` }
+  const ring = async (room: string) => {
+    const apId = `${peer.actorUrl}/activities/${crypto.randomUUID()}`
+    const activity = voiceInvite(peer, apId, new Date().toISOString())
+    activity.object.roomName = room
+    activity.object.livekitUrl = lk.url
+    const body = JSON.stringify(activity)
+    const target = `${localUrl}/users/fx_bob/inbox`
+    const res = await post(target, signedHeaders(target, body, peer.key.privateKey, `${peer.actorUrl}#main-key`), body)
+    return { apId, status: res.status }
+  }
+  const accept = () => postJson(`${localUrl}/api/livekit/federated-call/accept`, asBob, {
+    conversationId: CALL_CONVERSATION,
+    callerFederatedId: peer.actorUrl,
+  })
+
+  const room = `federated-dm-${PEER_CONVERSATION}-${Date.now()}`
+  peer.hostedRooms.set(room, LOCAL_BOB)
+  const call = await ring(room)
+  eq(call.status, 202, 'the peer rings fx_bob')
+  const incoming = await userEvents(db, BOB, 'federated_call:incoming')
+  assert(
+    incoming.some((e) => e.callId === call.apId && e.conversationId === CALL_CONVERSATION && e.roomName === room),
+    'fx_bob is rung on his private user channel with his own conversation',
+    JSON.stringify(incoming),
+  )
+
+  const tokensBefore = peer.tokenRequests.length
+  const before = peer.captured.length
+  const res = await accept()
+  eq(res.status, 200, 'fx_bob accepts')
+  eq(res.json?.roomName, room, 'the answer names the peer\'s room')
+  eq(res.json?.livekitUrl, lk.url, 'on the peer\'s LiveKit')
+
+  const asked = peer.tokenRequests.slice(tokensBefore)
+  eq(asked.length, 1, 'the peer saw one token request')
+  eq(
+    asked[0]?.headers.signature ? parseSignatureHeader(asked[0].headers.signature).keyId : undefined,
+    `${LOCAL_BOB}#main-key`,
+    'signed with fx_bob\'s own key',
+  )
+  eq((await callRow(db, call.apId))?.status, 'accepted', 'the inbound call is accepted')
+
+  const acks = deliveries(peer, before, '/users/fx_remote/inbox')
+  eq(acks.length, 1, 'the accept reaches the caller\'s inbox')
+  eq(acks[0]?.body?.type, 'harmony:VoiceCallAccept', 'it is a harmony:VoiceCallAccept')
+  eq(acks[0]?.body?.object, call.apId, 'naming the invite')
+  if (acks[0]) {
+    const v = await backend.verifySignature(acks[0].req.headers.signature, acks[0].req.headers, 'POST', acks[0].req.url, acks[0].req.raw)
+    eq(v.actorUrl, LOCAL_BOB, 'signed with fx_bob\'s key')
+  }
+
+  await bothInRoom(
+    lk,
+    room,
+    { who: 'fx_bob', token: res.json?.token, identity: `federated:${LOCAL_BOB}` },
+    { who: 'the peer\'s caller', token: await lk.mint(`federated:${peer.actorUrl}`, room), identity: `federated:${peer.actorUrl}` },
+    'the peer\'s DM call',
+  )
+
+  eq((await accept()).status, 404, 'a second accept finds no ringing call')
+
+  const endBefore = peer.captured.length
+  eq((await postJson(`${localUrl}/api/livekit/federated-call/end`, asBob, { conversationId: CALL_CONVERSATION })).status, 200,
+    'fx_bob hangs up')
+  eq((await callRow(db, call.apId))?.status, 'ended', 'the inbound call is ended')
+  const ends = deliveries(peer, endBefore, '/users/fx_remote/inbox')
+  assert(
+    ends.length === 1 && ends[0].body.type === 'harmony:VoiceCallEnd' && ends[0].body.object === call.apId,
+    'the end reaches the caller\'s inbox, naming the invite',
+    JSON.stringify(ends.map((e) => e.body)),
+  )
+
+  const unknownRoom = `federated-dm-${PEER_CONVERSATION}-${Date.now() + 1}`
+  const refused = await ring(unknownRoom)
+  eq(refused.status, 202, 'the peer rings fx_bob for a room it will not issue')
+  eq((await accept()).status, 502, 'with no token from the caller\'s instance the accept fails')
+  eq((await callRow(db, refused.apId))?.status, 'pending', 'and the call still rings')
+}
+
+async function caseRemoteVoiceJoin(db: SupabaseClient, peer: Peer, localUrl: string, jwtSecret: string, lk: LiveKit, backend: Backend) {
+  console.log('\nvoice channel of the peer\'s Group -> fx_bob joins; the peer\'s token reaches his private user channel')
+
+  const asBob = { Authorization: `Bearer ${userToken(BOB_AUTH, jwtSecret)}` }
+  const before = peer.captured.length
+  const join = await postJson(`${localUrl}/api/federation/voice/join`, asBob, { channelId: REMOTE_VOICE, serverId: REMOTE_REF })
+  eq(join.status, 200, 'fx_bob asks to join the peer\'s voice channel')
+  const joinId = join.json?.joinId
+  eq(join.json?.serverHost, new URL(peer.base).host, 'the join is bound to the peer\'s host')
+
+  const sent = deliveries(peer, before, `/servers/${REMOTE_REF}/inbox`)
+  eq(sent.length, 1, 'the join reaches the Group\'s inbox')
+  eq(sent[0]?.body?.type, 'harmony:VoiceChannelJoin', 'it is a harmony:VoiceChannelJoin')
+  eq(sent[0]?.body?.id, joinId, 'under the join id fx_bob was given')
+  eq(sent[0]?.body?.object?.id, peer.channelUrl(REMOTE_VOICE), 'naming the channel by its remote id')
+  if (sent[0]) {
+    const v = await backend.verifySignature(sent[0].req.headers.signature, sent[0].req.headers, 'POST', sent[0].req.url, sent[0].req.raw)
+    eq(v.actorUrl, LOCAL_BOB, 'signed with fx_bob\'s key')
+  }
+
+  const room = `channel-${REMOTE_VOICE}`
+  const bobToken = await lk.mint(`federated:${LOCAL_BOB}`, room)
+  const answer = (object: unknown) => peerSends(peer, `${localUrl}/inbox`, {
+    type: 'harmony:VoiceChannelJoinAccept',
+    id: `${peer.actorUrl}/activities/${crypto.randomUUID()}`,
+    actor: peer.actorUrl,
+    to: [LOCAL_BOB],
+    object,
+    result: { type: 'harmony:VoiceToken', livekitUrl: lk.url, token: bobToken, roomName: room, expiresAt: new Date(Date.now() + 3_600_000).toISOString() },
+  })
+
+  const forged = `${LOCAL_BOB}/activities/voice-join/${crypto.randomBytes(9).toString('base64url')}.9999999999999.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA`
+  eq((await answer(forged)).status, 202, 'an answer to a join fx_bob never sent is acknowledged (202)')
+  const answering = async (id: unknown) =>
+    (await userEvents(db, BOB, 'federated_voice:token')).filter((t) => t.originalJoinId === id)
+  eq((await answering(forged)).length, 0, 'and delivers nothing')
+
+  eq((await answer(joinId)).status, 202, 'the peer\'s signed answer is acknowledged (202)')
+  const tokens = await answering(joinId)
+  assert(
+    tokens.length === 1 && tokens[0].serverHost === join.json?.serverHost
+      && tokens[0].token === bobToken && tokens[0].roomName === room,
+    'the token reaches fx_bob on his private user channel, naming his join and the host',
+    JSON.stringify(tokens.map((t) => ({ ...t, token: t.token === bobToken ? '<minted>' : '<other>' }))),
+  )
+
+  await bothInRoom(
+    lk,
+    room,
+    { who: 'fx_bob', token: tokens[0]?.token, identity: `federated:${LOCAL_BOB}` },
+    { who: 'the peer\'s member', token: await lk.mint(`federated:${peer.actorUrl}`, room), identity: `federated:${peer.actorUrl}` },
+    'the peer\'s voice channel',
+  )
+}
+
+async function caseHostedVoiceJoin(db: SupabaseClient, peer: Peer, localUrl: string, jwtSecret: string, lk: LiveKit, backend: Backend) {
+  console.log('\nvoice channel of the hosted private server -> the peer\'s user joins; the token reaches its instance')
+
+  const target = `${localUrl}/servers/${PRIV_SERVER}/inbox`
+  const join = (channel: string, signer = { key: peer.key.privateKey, actor: peer.actorUrl }) => {
+    const id = `${signer.actor}/activities/voice-join/${crypto.randomUUID()}`
+    return peerSends(peer, target, {
+      type: 'harmony:VoiceChannelJoin',
+      id,
+      actor: signer.actor,
+      object: { type: 'harmony:VoiceChannel', id: `https://${INSTANCE_DOMAIN}/servers/${PRIV_SERVER}/channels/${channel}`, name: 'voice' },
+      target: `https://${INSTANCE_DOMAIN}/servers/${PRIV_SERVER}`,
+    }, signer).then((res) => ({ id, status: res.status }))
+  }
+  const answers = (before: number) =>
+    deliveries(peer, before, '/inbox').filter((d) => d.body?.type === 'harmony:VoiceChannelJoinAccept')
+
+  let before = peer.captured.length
+  eq((await join(PRIV_VOICE_HIDDEN)).status, 202, 'a join to a voice channel the member cannot view is acknowledged (202)')
+  eq(answers(before).length, 0, 'and answered with no token')
+
+  before = peer.captured.length
+  eq((await join(PRIV_VOICE, { key: peer.strangerKey.privateKey, actor: peer.strangerUrl })).status, 202,
+    'a non-member\'s join is acknowledged (202)')
+  eq(answers(before).length, 0, 'and answered with no token')
+
+  before = peer.captured.length
+  const member = await join(PRIV_VOICE)
+  eq(member.status, 202, 'the member\'s join is acknowledged (202)')
+  const got = answers(before)
+  eq(got.length, 1, 'the member\'s join is answered once, at its instance\'s shared inbox')
+  const accept = got[0]
+  eq(accept?.body?.actor, LOCAL_ALICE, 'the answer is the server owner\'s')
+  eq(accept?.body?.object, member.id, 'naming the join')
+  if (accept) {
+    const v = await backend.verifySignature(accept.req.headers.signature, accept.req.headers, 'POST', accept.req.url, accept.req.raw)
+    assert(v.verified && v.actorUrl === LOCAL_ALICE, 'signed with the owner\'s key', JSON.stringify(v))
+  }
+  const room = `channel-${PRIV_VOICE}`
+  eq(accept?.body?.result?.roomName, room, 'the token is for the channel\'s room')
+  eq(accept?.body?.result?.livekitUrl, lk.url, 'on this instance\'s LiveKit')
+
+  const { data: present } = await db
+    .from('voice_channel_participants')
+    .select('user_id, is_federated')
+    .eq('channel_id', PRIV_VOICE)
+  assert(
+    (present ?? []).some((p) => p.user_id === REMOTE && p.is_federated === true),
+    'the peer\'s user is recorded in the channel',
+    JSON.stringify(present),
+  )
+
+  const own = await postJson(`${localUrl}/api/livekit/token`, { Authorization: `Bearer ${userToken(ALICE_AUTH, jwtSecret)}` }, {
+    roomName: room,
+    roomType: 'voice_channel',
+  })
+  eq(own.status, 200, 'alice gets her token for the channel')
+
+  await bothInRoom(
+    lk,
+    room,
+    { who: 'the peer\'s user', token: accept?.body?.result?.token, identity: `federated:${peer.actorUrl}` },
+    { who: 'alice', token: own.json?.token, identity: `federated:${LOCAL_ALICE}` },
+    'the hosted voice channel',
+  )
+}
+
 // REPORTS
 
 async function seedReports(db: SupabaseClient) {
@@ -1396,8 +1977,17 @@ async function main() {
   process.env.INSTANCE_DOMAIN = INSTANCE_DOMAIN
   process.env.REQUIRE_VALID_SIGNATURES = 'true'
   process.env.LOG_LEVEL = process.env.HMFED_LOG_LEVEL ?? 'error'
+  if (!env.HMFED_LIVEKIT_URL || !env.HMFED_LIVEKIT_KEY || !env.HMFED_LIVEKIT_SECRET) {
+    throw new Error('stack.env names no LiveKit - run: e2e/federation/stack.sh up')
+  }
+  process.env.LIVEKIT_URL = env.HMFED_LIVEKIT_URL
+  process.env.LIVEKIT_API_KEY = env.HMFED_LIVEKIT_KEY
+  process.env.LIVEKIT_API_SECRET = env.HMFED_LIVEKIT_SECRET
+  process.env.ALLOW_FEDERATED_VOICE = 'true'
+  const lk = new LiveKit(env.HMFED_LIVEKIT_URL, env.HMFED_LIVEKIT_KEY, env.HMFED_LIVEKIT_SECRET)
 
   const peer = new Peer()
+  peer.livekit = lk
   await peer.start(env.HMFED_PEER_HOST)
   console.log(`peer instance on ${peer.base}`)
 
@@ -1431,6 +2021,11 @@ async function main() {
     await caseHostedPrivateServer(peer, localUrl)
     await caseProxyReadsAsMember(peer, localUrl, env.HMFED_JWT_SECRET)
     await caseSyncSignsAsMember(db, peer, localUrl, env.HMFED_JWT_SECRET)
+    await seedVoice(db, peer)
+    await caseHostedDmCall(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
+    await casePeerHostedDmCall(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
+    await caseRemoteVoiceJoin(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
+    await caseHostedVoiceJoin(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
   } finally {
     await new Promise<void>((resolve) => local.close(() => resolve()))
     await peer.stop()

@@ -1,9 +1,7 @@
 import { defineStore } from 'pinia';
 import { onSessionRejected, signOutAndForget, supabase } from '@/supabase';
 import type { Session } from '@supabase/supabase-js';
-import { updateUserStatus } from '@/services/ProfileService';
 import { useActivityPubStore } from '@/stores/useActivityPub';
-import { UserStatus } from '@/types';
 import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
 import { realtimeApiService } from '@/services/RealtimeApiService';
@@ -480,19 +478,11 @@ export const useAuthStore = defineStore('auth', {
       });
     },
 
-    async setUserOnline(userId: string) {
+    /** Ends this tab's presence; profiles.status keeps the chosen status. */
+    async setUserOffline(_userId: string) {
       try {
-        await updateUserStatus(userId, UserStatus.Online);
-        debug.log('User set to online:', userId);
-      } catch (error) {
-        debug.error('Error setting user online:', error);
-      }
-    },
-
-    async setUserOffline(userId: string) {
-      try {
-        await updateUserStatus(userId, UserStatus.Offline);
-        debug.log('User set to offline:', userId);
+        const { userDataService } = await import('@/services/userDataService');
+        await userDataService.goOffline();
       } catch (error) {
         debug.error('Error setting user offline:', error);
       }

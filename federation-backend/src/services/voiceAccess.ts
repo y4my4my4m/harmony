@@ -160,6 +160,28 @@ export async function isConversationParticipant(
   return !error && !!data;
 }
 
+/**
+ * An outbound federated call to `recipientId` names `roomName` and is live:
+ * accepted, or pending before its expiry.
+ */
+export async function isLiveOutboundCallFor(
+  supabase: Supabase,
+  roomName: string,
+  recipientId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('federated_voice_calls')
+    .select('status, expires_at')
+    .eq('direction', 'outbound')
+    .eq('room_name', roomName)
+    .eq('recipient_id', recipientId)
+    .in('status', ['pending', 'accepted']);
+  if (error) return false;
+  const now = Date.now();
+  return (data ?? []).some((c: any) =>
+    c.status === 'accepted' || (!!c.expires_at && Date.parse(c.expires_at) > now));
+}
+
 /** A direct or group conversation in which both profiles are active participants. */
 export async function sharedConversation(
   supabase: Supabase,

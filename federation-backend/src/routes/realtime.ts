@@ -4,12 +4,46 @@ import { presenceService, type PresenceStatus } from '../services/PresenceServic
 import { typingService } from '../services/TypingService.js';
 import { profileCacheService } from '../services/ProfileCacheService.js';
 import { redis } from '../services/RedisService.js';
+import { getSupabaseClient } from '../config/supabase.js';
+import { logger } from '../utils/logger.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 
 const router = Router();
 
 const VALID_STATUSES: PresenceStatus[] = ['online', 'idle', 'dnd', 'offline', 'invisible'];
 const VALID_CONTEXT_TYPES = ['channel', 'conversation', 'thread'] as const;
+const RELATED_BATCH = 1000;
+
+/**
+ * Profiles among `ids` whose presence `viewer` may read (presence_related_ids:
+ * a server or conversation in common, or a follow). Empty on a failed lookup.
+ */
+async function relatedProfiles(viewer: string, ids: string[]): Promise<Set<string>> {
+  const related = new Set<string>();
+  const unique = [...new Set(ids.filter((id) => typeof id === 'string'))];
+  for (let i = 0; i < unique.length; i += RELATED_BATCH) {
+    const { data, error } = await getSupabaseClient()
+      .rpc('presence_related_ids', { p_viewer: viewer, p_ids: unique.slice(i, i + RELATED_BATCH) });
+    if (error) {
+      logger.warn(`presence_related_ids failed: ${error.message}`);
+      return new Set();
+    }
+    for (const id of (data ?? []) as string[]) related.add(id);
+  }
+  return related;
+}
+
+/** The typing context is one `viewer` may read, by the Realtime topic rules (topic_readable_by). */
+async function canUseTypingContext(viewer: string, contextType: string, contextId: unknown): Promise<boolean> {
+  if (typeof contextId !== 'string' || contextId.length > 64) return false;
+  const { data, error } = await getSupabaseClient()
+    .rpc('topic_readable_by', { p_profile_id: viewer, p_topic: `typing:${contextType}:${contextId}` });
+  if (error) {
+    logger.warn(`topic_readable_by failed: ${error.message}`);
+    return false;
+  }
+  return data === true;
+}
 
 // ─── Presence ────────────────────────────────────────────────────────────────
 
@@ -51,13 +85,15 @@ router.post('/offline', requireAuth, async (req: Request, res: Response) => {
  * Returns presence for a batch of users (max 200).
  */
 router.post('/presence/bulk', requireAuth, async (req: Request, res: Response) => {
+  const { profileId } = req as AuthenticatedRequest;
+  if (!profileId) return sendError(res, 'No profile found');
   const { profileIds } = req.body;
   if (!Array.isArray(profileIds)) {
     return sendError(res, 'profileIds must be an array');
   }
 
-  const capped = profileIds.slice(0, 200);
-  const statuses = await presenceService.getBulkStatus(capped);
+  const related = await relatedProfiles(profileId, profileIds.slice(0, 200));
+  const statuses = await presenceService.getBulkStatus([...related]);
 
   const result: Record<string, { status: string; customStatus?: string; lastSeen: number }> = {};
   for (const [id, data] of statuses) {
@@ -71,11 +107,13 @@ router.post('/presence/bulk', requireAuth, async (req: Request, res: Response) =
 
 /**
  * GET /presence/online
- * Returns list of all online profile IDs (for sidebar).
+ * Online profile IDs among the profiles the caller may see.
  */
-router.get('/presence/online', requireAuth, async (_req: Request, res: Response) => {
+router.get('/presence/online', requireAuth, async (req: Request, res: Response) => {
+  const { profileId } = req as AuthenticatedRequest;
+  if (!profileId) return sendError(res, 'No profile found');
   const ids = await presenceService.getOnlineIds();
-  return sendSuccess(res, { online: ids });
+  return sendSuccess(res, { online: [...await relatedProfiles(profileId, ids)] });
 });
 
 // ─── Typing ──────────────────────────────────────────────────────────────────
@@ -92,6 +130,9 @@ router.post('/typing/start', requireAuth, async (req: Request, res: Response) =>
 
   if (!VALID_CONTEXT_TYPES.includes(contextType) || !contextId || !username) {
     return sendError(res, 'Missing contextType, contextId, or username');
+  }
+  if (!(await canUseTypingContext(profileId, contextType, contextId))) {
+    return sendError(res, 'Not a member of this context', 403);
   }
 
   await typingService.startTyping(contextType, contextId, profileId, username);
@@ -111,6 +152,9 @@ router.post('/typing/stop', requireAuth, async (req: Request, res: Response) => 
   if (!VALID_CONTEXT_TYPES.includes(contextType) || !contextId) {
     return sendError(res, 'Missing contextType or contextId');
   }
+  if (!(await canUseTypingContext(profileId, contextType, contextId))) {
+    return sendError(res, 'Not a member of this context', 403);
+  }
 
   await typingService.stopTyping(contextType, contextId, profileId);
   return sendSuccess(res);
@@ -123,10 +167,15 @@ router.post('/typing/stop', requireAuth, async (req: Request, res: Response) => 
  * Returns currently typing users in a context.
  */
 router.post('/typing/active', requireAuth, async (req: Request, res: Response) => {
+  const { profileId } = req as AuthenticatedRequest;
+  if (!profileId) return sendError(res, 'No profile found');
   const { contextType, contextId } = req.body;
 
   if (!VALID_CONTEXT_TYPES.includes(contextType) || !contextId) {
     return sendError(res, 'Missing contextType or contextId');
+  }
+  if (!(await canUseTypingContext(profileId, contextType, contextId))) {
+    return sendError(res, 'Not a member of this context', 403);
   }
 
   const users = await typingService.getTypingUsers(contextType, contextId);

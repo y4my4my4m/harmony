@@ -33,7 +33,7 @@
         <strong>Active Contexts:</strong> {{ stats.contexts }}
       </div>
       <div class="debug-item">
-        <strong>Global Channel:</strong> {{ stats.globalChannelConnected ? 'Connected' : 'Disconnected' }}
+        <strong>Presence:</strong> {{ stats.presenceActive ? 'Active' : 'Inactive' }}
       </div>
       <div class="debug-item">
         <strong>Initialized:</strong> {{ stats.initialized ? 'Yes' : 'No' }}

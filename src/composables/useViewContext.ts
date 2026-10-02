@@ -6,6 +6,8 @@
  * whether any device is active. A row counts for 150 s after its last write, so the
  * context is rewritten every 60 s while the tab is visible, and replaced by 'away'
  * when the tab hides or has had no input for IDLE_MS.
+ *
+ * Nothing else carries the view: no Realtime channel, so no other client reads it.
  */
 
 import { watch } from 'vue'
@@ -14,7 +16,6 @@ import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { viewContextTracker } from '@/services/ViewContextTracker'
 import { sessionHeartbeat } from '@/services/SessionHeartbeat'
-import { authContextService } from '@/services/AuthContextService'
 import { getClientDeviceId } from '@/utils/clientDeviceId'
 
 type ViewType = 'server_channel' | 'dm' | 'activitypub_home' | 'settings' | 'home'
@@ -29,7 +30,6 @@ interface SyncedView {
 const HEARTBEAT_MS = 60_000
 const IDLE_MS = 10 * 60_000
 
-let viewContextChannel: ReturnType<typeof supabase.channel> | null = null
 let lastView: SyncedView = { viewType: 'home' }
 let away = false
 let lastInputAt = Date.now()
@@ -37,16 +37,7 @@ let heartbeat: ReturnType<typeof setInterval> | null = null
 let accessToken: string | null = null
 let detachListeners: (() => void) | null = null
 
-/**
- * Get the view context presence channel (for use in other modules)
- */
-export function getViewContextChannel() {
-  return viewContextChannel
-}
-
-/**
- * Get current view context from presence state
- */
+/** The view this tab reports. */
 export function getCurrentViewContext() {
   return viewContextTracker.getCurrentContext()
 }
@@ -154,8 +145,8 @@ function attachListeners(): void {
 }
 
 /**
- * Records the view this tab shows: local suppression immediately, then presence
- * and the database. A hidden or idle tab keeps reporting 'away' until it is used.
+ * Records the view this tab shows: local suppression immediately, then the
+ * database. A hidden or idle tab keeps reporting 'away' until it is used.
  */
 export async function updateViewContext(
   viewType: ViewType,
@@ -183,30 +174,6 @@ export async function updateViewContext(
       away = false
       viewContextTracker.setAttentive(true)
     }
-
-    if (!viewContextChannel) {
-      // Use the cached auth context instead of a fresh network getUser() call.
-      const userId = (await authContextService.getCurrentContext()).authUser?.id
-      if (!userId) return
-
-      viewContextChannel = supabase.channel(`view-context:${userId}`)
-        .on('presence', { event: 'sync' }, () => {
-          debug.log('View context presence synced')
-        })
-        .subscribe(async (status) => {
-          if (status === 'SUBSCRIBED') {
-            debug.log('View context presence channel subscribed')
-          }
-        })
-    }
-
-    await viewContextChannel.track({
-      view_type: viewType,
-      server_id: serverId || null,
-      channel_id: channelId || null,
-      conversation_id: conversationId || null,
-      updated_at: new Date().toISOString()
-    })
 
     void syncView(away ? { viewType: 'away' } : lastView)
 
@@ -251,10 +218,6 @@ export async function cleanupViewContext(): Promise<void> {
   }
   lastView = { viewType: 'home' }
   away = false
-  if (viewContextChannel) {
-    await supabase.removeChannel(viewContextChannel)
-    viewContextChannel = null
-  }
   viewContextTracker.reset()
 
   await sessionHeartbeat.stop()
@@ -276,7 +239,7 @@ export function useViewContextTracking() {
     'PostView', 'PostDetail', 'ConversationThread' // Post routes
   ]
 
-  // Watch for route changes and update view context in presence
+  // Watch for route changes and record the view context
   watch(
     () => [route.name, route.path, route.params.serverId, route.params.channelId, route.params.conversationId],
     ([routeName, routePath, serverId, channelId, conversationId]) => {

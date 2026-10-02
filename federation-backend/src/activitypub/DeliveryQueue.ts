@@ -348,6 +348,20 @@ export class DeliveryQueue {
       SignatureService.signRequest(url, method, body, senderId));
   }
 
+  /** One delivery signed by a local profile. Nothing is queued; a retry is the caller's. */
+  static async deliverOnce(
+    activityData: any,
+    targetInbox: string,
+    senderId: string
+  ): Promise<DirectDeliveryResult> {
+    try {
+      return await this.deliverActivityDirect(activityData, targetInbox, senderId);
+    } catch (error) {
+      logger.warn(`Delivery to ${targetInbox} failed:`, error);
+      return { delivered: false, retry: false };
+    }
+  }
+
   /**
    * One delivery signed by the instance actor. Nothing is queued, since
    * federation_delivery_queue.sender_id names a profile; when `retry` is set the

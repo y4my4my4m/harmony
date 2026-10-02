@@ -20,6 +20,7 @@ import {
 import { SignatureService } from './SignatureService.js';
 import { remoteServerHosts, type ChannelWriteServer } from './channelWriteAuthz.js';
 import { sameOrigin, urlHost } from '../utils/apOrigin.js';
+import { safeFetch } from '../utils/ssrfProtection.js';
 import type { 
   VoiceCallInvite, 
   VoiceCallAccept, 
@@ -50,8 +51,17 @@ export const HARMONY_VOICE_TYPES = {
 } as const;
 
 // A federated call rings for 60 s, matching federated_voice_calls.expires_at.
-const RING_TTL_MS = 60_000;
+export const RING_TTL_MS = 60_000;
 const MAX_CALL_RECIPIENTS = 10;
+const MAX_TOKEN_LENGTH = 8192;
+
+export type CallDirection = 'inbound' | 'outbound';
+
+export interface CallToken {
+  token: string;
+  wsUrl: string;
+  roomName: string;
+}
 
 function hostnameOf(url: unknown): string | null {
   if (typeof url !== 'string') return null;
@@ -59,6 +69,32 @@ function hostnameOf(url: unknown): string | null {
     return new URL(url).hostname.toLowerCase();
   } catch {
     return null;
+  }
+}
+
+/**
+ * Voice presence over Realtime's REST broadcast with the service key: on the
+ * private voice-channels:{serverId} topic for an open channel, on
+ * voice-channel:{channelId} for one some member cannot view (channel_is_restricted;
+ * a failed lookup counts as restricted). A public send reaches no member:
+ * public and private topics are separate namespaces.
+ */
+async function broadcastVoicePresence(
+  serverId: string,
+  payload: Record<string, unknown> & { channelId: string },
+): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { data: restricted, error } = await supabase
+    .rpc('channel_is_restricted', { p_channel_id: payload.channelId });
+  const topic = error || restricted !== false
+    ? `voice-channel:${payload.channelId}`
+    : `voice-channels:${serverId}`;
+  try {
+    await supabase
+      .channel(topic, { config: { private: true } })
+      .httpSend('voice-channel-event', payload);
+  } catch (sendError) {
+    logger.warn(`Voice presence broadcast on ${topic} failed:`, sendError);
   }
 }
 
@@ -116,6 +152,10 @@ export class VoiceActivityHandler {
     const actorUrl = activity.actor;
     const call = activity.object;
 
+    if (!config.ALLOW_FEDERATED_VOICE) {
+      logger.info(`Voice invite ${activity.id} ignored: federated voice is off`);
+      return;
+    }
     if (typeof activity.id !== 'string' || !sameOrigin(activity.id, actorUrl)) {
       logger.warn(`Voice invite ${activity.id} is not on the host of ${actorUrl}`);
       return;
@@ -177,6 +217,7 @@ export class VoiceActivityHandler {
           livekit_url: call.livekitUrl,
           room_name: call.roomName,
           status: 'pending',
+          direction: 'inbound',
           created_at: new Date(now).toISOString(),
           expires_at: new Date(now + RING_TTL_MS).toISOString(),
         }, {
@@ -227,19 +268,21 @@ export class VoiceActivityHandler {
   }
 
   /**
-   * Call row named by an Accept/Reject/End, with the profiles of both parties.
-   * Rows exist for inbound invites only: the caller is remote, the recipient local.
+   * Call row named by an Accept/Reject/End, with the federated id of its
+   * recipient. inbound: remote caller, local recipient. outbound: local
+   * caller, remote recipient.
    */
   private static async loadCall(apId: unknown): Promise<{
-    id: string; status: string; expires_at: string | null;
+    id: string; status: string; expires_at: string | null; direction: CallDirection;
     caller_id: string | null; caller_federated_id: string; recipient_id: string;
-    recipient_federated_id: string | null; livekit_url: string; room_name: string;
+    recipient_federated_id: string | null; conversation_id: string | null;
+    livekit_url: string; room_name: string;
   } | null> {
     if (typeof apId !== 'string' || !apId) return null;
     const supabase = getSupabaseClient();
     const { data: call } = await supabase
       .from('federated_voice_calls')
-      .select('id, status, expires_at, caller_id, caller_federated_id, recipient_id, livekit_url, room_name')
+      .select('id, status, expires_at, direction, caller_id, caller_federated_id, recipient_id, conversation_id, livekit_url, room_name')
       .eq('ap_id', apId)
       .maybeSingle();
     if (!call) return null;
@@ -248,21 +291,38 @@ export class VoiceActivityHandler {
       .select('federated_id')
       .eq('id', call.recipient_id)
       .maybeSingle();
-    return { ...call, recipient_federated_id: recipient?.federated_id ?? null };
+    return {
+      ...call,
+      direction: call.direction === 'outbound' ? 'outbound' : 'inbound',
+      recipient_federated_id: recipient?.federated_id ?? null,
+    };
   }
 
   private static isRinging(call: { status: string; expires_at: string | null }): boolean {
     return call.status === 'pending' && !!call.expires_at && Date.parse(call.expires_at) > Date.now();
   }
 
-  /** Accept comes from the invited recipient, while the call still rings. */
+  /** The remote recipient of an outbound call is the actor. */
+  private static isRemoteRecipient(
+    call: { direction: CallDirection; recipient_federated_id: string | null },
+    actor: string,
+  ): boolean {
+    return call.direction === 'outbound' && !!call.recipient_federated_id
+      && SignatureService.verifyActorMatch(actor, call.recipient_federated_id);
+  }
+
+  /**
+   * Accept of an outbound call, from its remote recipient while it rings.
+   * The recipient's instance has already fetched its token for the room from
+   * POST /api/livekit/federated-token.
+   */
   private static async handleVoiceCallAccept(activity: VoiceCallAccept): Promise<void> {
     const supabase = getSupabaseClient();
     const call = await this.loadCall(activity.object);
     if (!call) return;
 
-    if (!call.recipient_federated_id || !SignatureService.verifyActorMatch(activity.actor, call.recipient_federated_id)) {
-      logger.warn(`Rejecting VoiceCallAccept from ${activity.actor}: not the recipient of ${activity.object}`);
+    if (!this.isRemoteRecipient(call, activity.actor)) {
+      logger.warn(`Rejecting VoiceCallAccept from ${activity.actor}: not the remote recipient of ${activity.object}`);
       return;
     }
     if (!this.isRinging(call)) {
@@ -270,96 +330,160 @@ export class VoiceActivityHandler {
       return;
     }
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('federated_voice_calls')
       .update({ status: 'accepted', accepted_at: new Date().toISOString() })
       .eq('id', call.id)
-      .eq('status', 'pending');
+      .eq('status', 'pending')
+      .select('id');
 
     if (error) {
       logger.error(`Failed to update voice call status:`, error);
       return;
     }
+    if (!updated?.length) return;
 
     logger.info(`Voice call accepted: ${activity.object}`);
 
     if (call.caller_id) {
       await this.notifyCallParty(call.caller_id, 'accepted', {
         callId: activity.object,
+        conversationId: call.conversation_id,
+        partyId: call.recipient_id,
         acceptedBy: activity.actor,
-        livekitUrl: call.livekit_url,
         roomName: call.room_name,
       });
     }
   }
 
-  /** Reject comes from the invited recipient, while the call still rings. */
+  /** Reject of an outbound call, from its remote recipient while it rings. */
   private static async handleVoiceCallReject(activity: VoiceCallReject): Promise<void> {
     const supabase = getSupabaseClient();
     const call = await this.loadCall(activity.object);
     if (!call) return;
 
-    if (!call.recipient_federated_id || !SignatureService.verifyActorMatch(activity.actor, call.recipient_federated_id)) {
-      logger.warn(`Rejecting VoiceCallReject from ${activity.actor}: not the recipient of ${activity.object}`);
+    if (!this.isRemoteRecipient(call, activity.actor)) {
+      logger.warn(`Rejecting VoiceCallReject from ${activity.actor}: not the remote recipient of ${activity.object}`);
       return;
     }
     if (call.status !== 'pending') return;
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('federated_voice_calls')
       .update({ status: 'rejected', ended_at: new Date().toISOString() })
       .eq('id', call.id)
-      .eq('status', 'pending');
+      .eq('status', 'pending')
+      .select('id');
 
     if (error) {
       logger.error(`Failed to update voice call status:`, error);
       return;
     }
+    if (!updated?.length) return;
 
     logger.info(`Voice call rejected: ${activity.object}`);
 
     if (call.caller_id) {
       await this.notifyCallParty(call.caller_id, 'rejected', {
         callId: activity.object,
+        conversationId: call.conversation_id,
+        partyId: call.recipient_id,
         rejectedBy: activity.actor,
+        roomName: call.room_name,
       });
     }
   }
 
-  /** End comes from the caller or the recipient. */
+  /**
+   * End from the remote party: the caller of an inbound call, the recipient
+   * of an outbound one. The local party is told.
+   */
   private static async handleVoiceCallEnd(activity: VoiceCallEnd): Promise<void> {
     const supabase = getSupabaseClient();
     const call = await this.loadCall(activity.object);
     if (!call) return;
 
-    const isCaller = SignatureService.verifyActorMatch(activity.actor, call.caller_federated_id);
-    const isRecipient = !!call.recipient_federated_id
-      && SignatureService.verifyActorMatch(activity.actor, call.recipient_federated_id);
-    if (!isCaller && !isRecipient) {
-      logger.warn(`Rejecting VoiceCallEnd from ${activity.actor}: not a party to ${activity.object}`);
+    const fromRemoteParty = call.direction === 'inbound'
+      ? SignatureService.verifyActorMatch(activity.actor, call.caller_federated_id)
+      : this.isRemoteRecipient(call, activity.actor);
+    if (!fromRemoteParty) {
+      logger.warn(`Rejecting VoiceCallEnd from ${activity.actor}: not the remote party of ${activity.object}`);
       return;
     }
     if (call.status !== 'pending' && call.status !== 'accepted') return;
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('federated_voice_calls')
       .update({ status: 'ended', ended_at: new Date().toISOString() })
       .eq('id', call.id)
-      .in('status', ['pending', 'accepted']);
+      .in('status', ['pending', 'accepted'])
+      .select('id');
 
     if (error) {
       logger.error(`Failed to update voice call status:`, error);
       return;
     }
+    if (!updated?.length) return;
 
     logger.info(`Voice call ended: ${activity.object}`);
 
-    for (const userId of [call.caller_id, call.recipient_id]) {
-      if (!userId) continue;
-      await this.notifyCallParty(userId, 'ended', {
+    const [localParty, remoteParty] = call.direction === 'inbound'
+      ? [call.recipient_id, call.caller_id]
+      : [call.caller_id, call.recipient_id];
+    if (localParty) {
+      await this.notifyCallParty(localParty, 'ended', {
         callId: activity.object,
+        conversationId: call.conversation_id,
+        partyId: remoteParty,
         endedBy: activity.actor,
+        roomName: call.room_name,
       });
+    }
+  }
+
+  /**
+   * Token for the caller's room, from the caller's instance: a POST to
+   * /api/livekit/federated-token at the caller's origin, signed with the
+   * accepting recipient's key. That instance grants it to the recipient of
+   * its live outbound invite for the room (LiveKitService.validateFederatedRoomAccess).
+   * Null when the instance refuses or answers for another room.
+   */
+  static async requestCallToken(
+    call: { caller_federated_id: string; room_name: string },
+    recipient: { id: string; federated_id: string },
+  ): Promise<CallToken | null> {
+    let endpoint: string;
+    try {
+      endpoint = new URL('/api/livekit/federated-token', call.caller_federated_id).href;
+    } catch {
+      return null;
+    }
+    const body = JSON.stringify({ actorId: recipient.federated_id, roomName: call.room_name, roomType: 'dm_call' });
+
+    try {
+      const { headers } = await SignatureService.signRequest(endpoint, 'POST', body, recipient.id);
+      const res = await safeFetch(endpoint, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json', Accept: 'application/json' },
+        body,
+        timeoutMs: 8000,
+        maxRedirects: 0,
+        maxBodyBytes: 64 * 1024,
+      });
+      if (!res.ok) {
+        logger.warn(`Caller instance refused a token for ${call.room_name}: HTTP ${res.status}`);
+        return null;
+      }
+      const data: any = await res.json();
+      if (data?.roomName !== call.room_name || !isLiveKitUrl(data?.wsUrl)
+          || typeof data?.token !== 'string' || !data.token || data.token.length > MAX_TOKEN_LENGTH) {
+        logger.warn(`Caller instance answered a token request for ${call.room_name} with a malformed token`);
+        return null;
+      }
+      return { token: data.token, wsUrl: data.wsUrl, roomName: data.roomName };
+    } catch (error) {
+      logger.warn(`Token request to ${endpoint} failed:`, error);
+      return null;
     }
   }
 
@@ -432,7 +556,7 @@ export class VoiceActivityHandler {
 
     const { data: user } = await supabase
       .from('profiles')
-      .select('id, username, display_name, avatar_url, federated_id, is_local, is_suspended')
+      .select('id, username, display_name, avatar_url, federated_id, inbox_url, shared_inbox_url, is_local, is_suspended')
       .eq('federated_id', actorUrl)
       .maybeSingle();
 
@@ -495,22 +619,15 @@ export class VoiceActivityHandler {
       logger.debug('voice_channel_participants table not found, continuing anyway');
     }
 
-    // Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`.
-    await supabase
-      .channel(`voice-channels:${channel.server_id}`)
-      .send({
-        type: 'broadcast',
-        event: 'voice-channel-event',
-        payload: {
-          event: 'user-joined',
-          userId: user.id,
-          channelId: channel.id,
-          username: user.username,
-          displayName: user.display_name,
-          avatar: user.avatar_url,
-          federated: true,
-        },
-      });
+    await broadcastVoicePresence(channel.server_id, {
+      event: 'user-joined',
+      userId: user.id,
+      channelId: channel.id,
+      username: user.username,
+      displayName: user.display_name,
+      avatar: user.avatar_url,
+      federated: true,
+    });
 
     // The signing actor must own the key, so the owner's AP ID is required.
     const { data: ownerProfile, error: ownerError } = await supabase
@@ -543,12 +660,18 @@ export class VoiceActivityHandler {
       `channel-${channel.id}`
     );
 
-    // Delivered to the remote user's instance, signed as the server owner.
-    const userDomain = new URL(actorUrl).hostname;
-    const inbox = `https://${userDomain}/inbox`;
-    
+    // Delivered once to an inbox on the joining actor's host, signed as the
+    // server owner. Not queued: a retry lands after the client gave up, and the
+    // queue row would hold the token.
+    const inbox = [user.shared_inbox_url, user.inbox_url].find((u) => sameOrigin(u, actorUrl))
+      ?? new URL('/inbox', actorUrl).href;
+
     const { DeliveryQueue } = await import('./DeliveryQueue.js');
-    await DeliveryQueue.enqueue(acceptActivity, inbox, server.owner);
+    const delivery = await DeliveryQueue.deliverOnce(acceptActivity, inbox, server.owner);
+    if (!delivery.delivered) {
+      logger.warn(`VoiceChannelJoinAccept for ${actorUrl} was not delivered to ${inbox}`);
+      return;
+    }
 
     logger.info(`Federated user ${user.username} joined voice channel ${channelInfo?.name}, token sent`);
   }
@@ -602,22 +725,15 @@ export class VoiceActivityHandler {
       logger.debug('voice_channel_participants update failed, continuing anyway');
     }
 
-    // Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`.
-    await supabase
-      .channel(`voice-channels:${channel.server_id}`)
-      .send({
-        type: 'broadcast',
-        event: 'voice-channel-event',
-        payload: {
-          event: 'user-joined',
-          userId: user.id,
-          channelId: channel.id,
-          username: user.username,
-          displayName: user.display_name,
-          avatar: user.avatar_url,
-          federated: true,
-        },
-      });
+    await broadcastVoicePresence(channel.server_id, {
+      event: 'user-joined',
+      userId: user.id,
+      channelId: channel.id,
+      username: user.username,
+      displayName: user.display_name,
+      avatar: user.avatar_url,
+      federated: true,
+    });
 
     logger.info(`Updated presence for federated user ${user.username} in voice channel ${channel.id}`);
   }
@@ -784,20 +900,13 @@ export class VoiceActivityHandler {
       logger.debug('voice_channel_participants table not found');
     }
 
-    // Frontend listens on `voice-channels:${serverId}`, not `voice:${channelId}`.
-    await supabase
-      .channel(`voice-channels:${channel.server_id}`)
-      .send({
-        type: 'broadcast',
-        event: 'voice-channel-event',
-        payload: {
-          event: 'user-left',
-          userId: user.id,
-          channelId: channel.id,
-          username: user.username,
-          federated: true,
-        },
-      });
+    await broadcastVoicePresence(channel.server_id, {
+      event: 'user-left',
+      userId: user.id,
+      channelId: channel.id,
+      username: user.username,
+      federated: true,
+    });
 
     logger.info(`Federated user ${user.username} left voice channel ${channel.id}`);
   }

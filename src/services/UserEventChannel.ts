@@ -40,6 +40,8 @@ type UserEventType =
   | 'federated_voice:token' | 'federated_voice:rejected'
   // Federated DM call signalling (VoiceActivityHandler).
   | 'federated_call:incoming' | 'federated_call:accepted' | 'federated_call:rejected' | 'federated_call:ended'
+  // A DM partner's presence change (presence_publish).
+  | 'presence:update'
   | '_reconnected'
 type EventHandler = (payload: Record<string, any>) => void | Promise<void>
 

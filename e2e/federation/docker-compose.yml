@@ -7,6 +7,10 @@
 # service_role with a static JWT. User tokens are HS256 JWTs roundtrip.ts
 # signs itself; gateway.conf answers /auth/v1/user from them.
 #
+# LiveKit serves the voice round trips: both instances' rooms live on it, and
+# roundtrip.ts joins each issued token over its signalling WebSocket. No media
+# crosses it; the RTC ports stay unpublished.
+#
 # The default network carries an explicit subnet from RFC 5737 TEST-NET-3.
 # The bridge gateway address (.1) is an address on the host, and the federation
 # backend's SSRF guard rejects loopback, RFC 1918 and link-local destinations -
@@ -47,6 +51,23 @@ services:
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${HMFED_JWT_SECRET:-unset}
       PGRST_LOG_LEVEL: error
+
+  livekit:
+    image: ${HMFED_LIVEKIT_IMAGE:-livekit/livekit-server:v1.9.4}
+    environment:
+      LIVEKIT_CONFIG: |
+        port: 7880
+        rtc:
+          tcp_port: 7881
+          port_range_start: 50000
+          port_range_end: 50010
+          use_external_ip: false
+        keys:
+          ${HMFED_LIVEKIT_KEY:-unset}: ${HMFED_LIVEKIT_SECRET:-unset}
+        logging:
+          level: warn
+    ports:
+      - "127.0.0.1:${HMFED_LIVEKIT_PORT:-54581}:7880"
 
   # supabase-js addresses one origin and splits by path prefix.
   gateway:

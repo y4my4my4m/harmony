@@ -94,6 +94,7 @@
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRoute, useRouter } from 'vue-router'
+import { useToast } from 'vue-toastification'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import ServerSidebar from '@/components/ServerSidebar.vue'
 import UserProfileComponent from '@/components/UserProfileComponent.vue'
@@ -233,34 +234,35 @@ const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
 
   try {
     if (incomingCall.isFederated && incomingCall.callerFederatedId) {
-      // Federated: accept over ActivityPub, then join the remote LiveKit room.
+      // Federated: this instance accepts over ActivityPub and returns a token
+      // for the caller's room on the caller's LiveKit.
       debug.log('[Federated] Accepting federated call from:', incomingCall.callerFederatedId)
 
-      await dmCallSignaling.acceptFederatedCall(
+      const credentials = await dmCallSignaling.acceptFederatedCall(
         incomingCall.conversationId,
         currentUserId,
         incomingCall.callerFederatedId
       )
+      if (!credentials) {
+        voiceStore.isOverlayVisible = false
+        useToast().error('Could not join the call')
+        return
+      }
 
       await router.push(`/dm/${incomingCall.conversationId}`)
 
-      // Room name comes from the invite.
-      const roomName = incomingCall.roomName
-      if (roomName) {
-        const success = await voiceStore.joinVoiceChannel(roomName, 'dm')
+      const success = await voiceStore.joinVoiceChannel(credentials.roomName, 'dm', {
+        livekit: { wsUrl: credentials.wsUrl, token: credentials.token },
+      })
 
-        if (success) {
-          if (acceptWithVideo) {
-            await voiceStore.toggleVideo()
-          }
-          await new Promise(resolve => setTimeout(resolve, 100))
-          debug.log('[Federated] Joined federated call')
-        } else {
-          voiceStore.isOverlayVisible = false
+      if (success) {
+        if (acceptWithVideo) {
+          await voiceStore.toggleVideo()
         }
+        await new Promise(resolve => setTimeout(resolve, 100))
+        debug.log('[Federated] Joined federated call')
       } else {
         voiceStore.isOverlayVisible = false
-        debug.error('[Federated] No room name available for federated call')
       }
     } else {
       // Local: Supabase Realtime signaling.
