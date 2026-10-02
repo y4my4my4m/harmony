@@ -240,12 +240,14 @@ SELECT is(pg_temp.leaks('22222222-0000-0000-0000-000000000002', 'a5d00000-0000-0
           ARRAY['badwords are a whole other word', 'I am a cat', 'the bad words', 'nitrogen is free'],
           'whole-word keywords leave longer words and unrelated text alone');
 
-SELECT is(pg_temp.post('22222222-0000-0000-0000-000000000002', 'a5d00000-0000-0000-0000-000000000001',
-                       '[{"type":"text","text":"badword"}]'::jsonb, true, '{"type":"group_created"}'::jsonb),
-          0, 'a client-written is_system row is still evaluated');
-SELECT is(pg_temp.post('22222222-0000-0000-0000-000000000002', 'a5d00000-0000-0000-0000-000000000001',
-                       '[{"type":"text","text":"badword"}]'::jsonb, false, '{"federated": true, "bot": true}'::jsonb),
-          0, 'metadata claiming federation or a bot is ignored');
+-- Clients cannot write system rows or server-only metadata (20261005600001); AutoMod never
+-- sees either.
+SELECT throws_ok($q$SELECT pg_temp.post('22222222-0000-0000-0000-000000000002', 'a5d00000-0000-0000-0000-000000000001',
+                       '[{"type":"text","text":"badword"}]'::jsonb, true, '{"type":"group_created"}'::jsonb)$q$,
+          '42501', NULL, 'a client cannot write an is_system row');
+SELECT throws_ok($q$SELECT pg_temp.post('22222222-0000-0000-0000-000000000002', 'a5d00000-0000-0000-0000-000000000001',
+                       '[{"type":"text","text":"badword"}]'::jsonb, false, '{"federated": true, "bot": true}'::jsonb)$q$,
+          '42501', NULL, 'metadata claiming federation or a bot is refused');
 
 SELECT is(pg_temp.say('22222222-0000-0000-0000-000000000002', 'a5d00000-0000-0000-0000-000000000001', 'hello there'),
           1, 'a clean message is written');
@@ -276,11 +278,12 @@ SELECT throws_ok($q$SELECT pg_temp.say('33333333-0000-0000-0000-000000000003', '
                  '42501', NULL, 'a non-member''s blocked word still fails RLS');
 
 SELECT tests.clear_authentication();
+-- 19: the two client rows refused by the write guard above never reach AutoMod.
 SELECT results_eq(
     $q$SELECT event_type, hits, actions FROM public.automod_events
         WHERE user_id = '22222222-0000-0000-0000-000000000002' AND rule_id = current_setting('tests.words_rule')::uuid
         ORDER BY event_type$q$,
-    $q$VALUES ('edit'::text, 1, ARRAY['alert', 'block']), ('message'::text, 21, ARRAY['alert', 'block'])$q$,
+    $q$VALUES ('edit'::text, 1, ARRAY['alert', 'block']), ('message'::text, 19, ARRAY['alert', 'block'])$q$,
     'repeats within 30 s fold into one event per kind');
 SELECT is((SELECT count(*)::integer FROM public.messages
             WHERE channel_id = 'a5d00000-0000-0000-0000-000000000002'
@@ -414,7 +417,7 @@ SELECT tests.authenticate_as('a5a00000-0000-0000-0000-000000000006');
 SELECT throws_like($q$SELECT pg_temp.say('a5b00000-0000-0000-0000-000000000006', 'a5d00000-0000-0000-0000-000000000003', 'hello')$q$,
                    'MEMBER_TIMED_OUT:%', 'a timed-out member cannot post');
 SELECT throws_like($q$UPDATE public.messages SET content = '[{"type":"text","text":"edited"}]'::jsonb
-                       WHERE user_id = 'a5b00000-0000-0000-0000-000000000006'$q$,
+                       WHERE user_id = 'a5b00000-0000-0000-0000-000000000006' AND is_system IS NOT TRUE$q$,
                    'MEMBER_TIMED_OUT:%', 'a timed-out member cannot edit');
 SELECT tests.clear_authentication();
 SELECT lives_ok($q$DELETE FROM public.user_servers
