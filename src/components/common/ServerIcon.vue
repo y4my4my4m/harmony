@@ -226,7 +226,7 @@ const handleFileSelect = async (event: Event) => {
   const file = target.files?.[0]
   
   if (file) {
-    // Bucket limits apply after shrinking, at upload.
+    // Bucket limits apply at upload, to the original or its shrunk copy.
     const validationError = imageSourceError(file)
     if (validationError) {
       toast.error(validationError)

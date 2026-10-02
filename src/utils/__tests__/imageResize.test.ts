@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  IMAGE_UPLOAD_LIMITS,
+  IMAGE_SHRINK_BOUNDS,
   MAX_IMAGE_SOURCE_BYTES,
   fitWithin,
   immutableObjectPath,
@@ -13,6 +13,7 @@ import {
   sniffImageFormat,
   type ImageCodec,
   type RenderTarget,
+  type UploadBudget,
 } from '@/utils/imageResize'
 
 const bytes = (...parts: Array<number[] | Uint8Array | string>): Uint8Array => {
@@ -69,24 +70,29 @@ interface FakeCodecOptions {
   height: number
   rotates?: boolean
   alpha?: boolean
-  /** Bytes produced for each requested type; a type absent here comes back as image/png. */
-  sizes?: Partial<Record<string, number>>
+  /**
+   * Bytes produced per requested type, or per (type, quality, target). A type
+   * with no entry comes back as image/png, as engines without that encoder do.
+   */
+  sizes?: Partial<Record<string, number>> | ((type: string, quality: number | undefined, target: RenderTarget) => number | undefined)
 }
 
 function fakeCodec(o: FakeCodecOptions) {
   const renders: RenderTarget[] = []
   const requested: string[] = []
   const decode = vi.fn(async () => ({ width: o.width, height: o.height, source: {} as CanvasImageSource, close: () => {} }))
+  const sizeOf = (type: string, quality: number | undefined, target: RenderTarget) =>
+    typeof o.sizes === 'function' ? o.sizes(type, quality, target) : o.sizes?.[type]
   const codec: ImageCodec = {
     decode,
     appliesOrientation: async () => o.rotates ?? true,
     render: (_image, target) => {
       renders.push(target)
       return {
-        encode: async type => {
-          requested.push(type)
-          const size = o.sizes?.[type]
-          if (size === undefined) return new Blob([padding(o.sizes?.['image/png'] ?? 500)], { type: 'image/png' })
+        encode: async (type, quality) => {
+          requested.push(quality === undefined ? type : `${type}@${quality}`)
+          const size = sizeOf(type, quality, target)
+          if (size === undefined) return new Blob([padding(sizeOf('image/png', undefined, target) ?? 500)], { type: 'image/png' })
           return new Blob([padding(size)], { type })
         },
         hasAlpha: () => o.alpha ?? false,
@@ -95,6 +101,11 @@ function fakeCodec(o: FakeCodecOptions) {
   }
   return { codec, renders, requested, decode }
 }
+
+const IMAGE_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/apng']
+const budget = (maxBytes: number, allowedMime: string[] | null = IMAGE_MIME): UploadBudget => ({ maxBytes, allowedMime })
+const sameBytes = async (a: Blob, b: Blob) =>
+  Buffer.from(await a.arrayBuffer()).equals(Buffer.from(await b.arrayBuffer()))
 
 describe('fitWithin', () => {
   it('scales down to the binding bound and keeps the aspect', () => {
@@ -110,12 +121,12 @@ describe('fitWithin', () => {
   })
 
   it('bounds each kind', () => {
-    expect(IMAGE_UPLOAD_LIMITS.server_banner.maxWidth).toBe(2560)
-    expect(IMAGE_UPLOAD_LIMITS.profile_banner.maxWidth).toBe(2560)
-    expect(IMAGE_UPLOAD_LIMITS.avatar.maxWidth).toBe(1024)
-    expect(IMAGE_UPLOAD_LIMITS.server_icon.maxWidth).toBe(1024)
-    expect(IMAGE_UPLOAD_LIMITS.group_icon.maxWidth).toBe(1024)
-    expect(IMAGE_UPLOAD_LIMITS.emoji).toMatchObject({ maxWidth: 256, maxHeight: 256, reencodeWithinBounds: false })
+    expect(IMAGE_SHRINK_BOUNDS.server_banner.maxWidth).toBe(2560)
+    expect(IMAGE_SHRINK_BOUNDS.profile_banner.maxWidth).toBe(2560)
+    expect(IMAGE_SHRINK_BOUNDS.avatar.maxWidth).toBe(1024)
+    expect(IMAGE_SHRINK_BOUNDS.server_icon.maxWidth).toBe(1024)
+    expect(IMAGE_SHRINK_BOUNDS.group_icon.maxWidth).toBe(1024)
+    expect(IMAGE_SHRINK_BOUNDS.emoji).toEqual({ maxWidth: 256, maxHeight: 256 })
   })
 })
 
@@ -189,49 +200,90 @@ describe('orientation', () => {
     expect(orientationMatrix(1, 4, 3)).toEqual([1, 0, 0, 1, 0, 0])
   })
 
+  it('keeps EXIF orientation by keeping an original that fits', async () => {
+    const { codec, decode } = fakeCodec({ width: 4000, height: 3000, rotates: false })
+    const original = fileOf(jpegWithOrientation(6), 'photo.jpg', 'image/jpeg')
+    const result = await prepareImageUpload(original, 'avatar', budget(original.size), codec)
+    expect(result.file).toBe(original)
+    expect(readJpegOrientation(new Uint8Array(await result.file.arrayBuffer()))).toBe(6)
+    expect(decode).not.toHaveBeenCalled()
+  })
+
   it('draws EXIF rotation itself when the decoder does not', async () => {
-    const { codec, renders } = fakeCodec({ width: 4000, height: 3000, rotates: false, sizes: { 'image/webp': 900 } })
-    const result = await prepareImageUpload(fileOf(jpegWithOrientation(6), 'photo.jpg', 'image/jpeg'), 'avatar', codec)
+    const { codec, renders } = fakeCodec({ width: 4000, height: 3000, rotates: false, sizes: { 'image/jpeg': 900 } })
+    const result = await prepareImageUpload(fileOf(jpegWithOrientation(6), 'photo.jpg', 'image/jpeg'), 'avatar', budget(1000), codec)
     expect(renders).toEqual([{ width: 768, height: 1024, orientation: 6 }])
     expect(result.reencoded).toBe(true)
   })
 
   it('leaves rotation to a decoder that already applies it', async () => {
-    const { codec, renders } = fakeCodec({ width: 3000, height: 4000, rotates: true, sizes: { 'image/webp': 900 } })
-    await prepareImageUpload(fileOf(jpegWithOrientation(6), 'photo.jpg', 'image/jpeg'), 'avatar', codec)
+    const { codec, renders } = fakeCodec({ width: 3000, height: 4000, rotates: true, sizes: { 'image/jpeg': 900 } })
+    await prepareImageUpload(fileOf(jpegWithOrientation(6), 'photo.jpg', 'image/jpeg'), 'avatar', budget(1000), codec)
     expect(renders).toEqual([{ width: 768, height: 1024, orientation: 1 }])
   })
 })
 
 describe('prepareImageUpload', () => {
-  it('shrinks a large banner to WebP', async () => {
-    const { codec, renders } = fakeCodec({ width: 3000, height: 1000, sizes: { 'image/webp': 1200 } })
-    const original = fileOf(png(), 'banner.png', 'image/png')
-    const result = await prepareImageUpload(original, 'server_banner', codec)
-    expect(renders).toEqual([{ width: 2560, height: 853, orientation: 1 }])
-    expect(result).toMatchObject({ extension: 'webp', contentType: 'image/webp', reencoded: true })
-    expect(result.file.name).toBe('banner.webp')
-    expect(result.file.type).toBe('image/webp')
-    expect(result.file.size).toBe(1200)
+  it('uploads a file the bucket accepts byte for byte, without decoding it', async () => {
+    const { codec, decode } = fakeCodec({ width: 3000, height: 1000, sizes: { 'image/webp': 10 } })
+    const original = fileOf(png(), 'banner.png', 'image/png', 50_000)
+    const result = await prepareImageUpload(original, 'server_banner', budget(original.size), codec)
+    expect(result).toEqual({ file: original, extension: 'png', contentType: 'image/png', reencoded: false })
+    expect(decode).not.toHaveBeenCalled()
   })
 
-  it('keeps the original when the WebP is not smaller', async () => {
-    const original = fileOf(png(), 'icon.png', 'image/png', 100)
-    const { codec } = fakeCodec({ width: 800, height: 800, sizes: { 'image/webp': original.size + 1 } })
-    const result = await prepareImageUpload(original, 'server_icon', codec)
-    expect(result.file).toBe(original)
+  it('treats a non-positive limit as no limit', async () => {
+    const { codec, decode } = fakeCodec({ width: 8000, height: 8000 })
+    const original = fileOf(png(), 'huge.png', 'image/png', 90_000)
+    expect((await prepareImageUpload(original, 'avatar', budget(0, null), codec)).file).toBe(original)
+    expect(decode).not.toHaveBeenCalled()
+  })
+
+  it('relabels a file whose type the bytes contradict and keeps its bytes', async () => {
+    const original = fileOf(png(), 'icon.jpg', 'image/jpg')
+    const result = await prepareImageUpload(original, 'server_icon', budget(original.size), fakeCodec({ width: 1, height: 1 }).codec)
     expect(result).toMatchObject({ extension: 'png', contentType: 'image/png', reencoded: false })
+    expect(result.file.type).toBe('image/png')
+    expect(await sameBytes(result.file, original)).toBe(true)
   })
 
-  it('keeps an oversized original when the downscaled WebP is still larger', async () => {
-    const original = fileOf(png(), 'flat.png', 'image/png', 100)
-    const { codec, renders } = fakeCodec({ width: 3000, height: 1000, sizes: { 'image/webp': original.size * 3 } })
-    const result = await prepareImageUpload(original, 'profile_banner', codec)
-    expect(renders).toHaveLength(1)
+  it('redraws an oversized image in its own format at the bounds first', async () => {
+    const { codec, renders, requested } = fakeCodec({ width: 3000, height: 1000, sizes: { 'image/png': 3000, 'image/webp': 10 } })
+    const result = await prepareImageUpload(fileOf(png(), 'banner.png', 'image/png'), 'server_banner', budget(3500), codec)
+    expect(renders).toEqual([{ width: 2560, height: 853, orientation: 1 }])
+    expect(requested).toEqual(['image/png'])
+    expect(result).toMatchObject({ extension: 'png', contentType: 'image/png', reencoded: true })
+    expect(result.file.name).toBe('banner.png')
+    expect(result.file.size).toBe(3000)
+  })
+
+  it('falls to WebP when its own format still exceeds the limit', async () => {
+    const { codec, requested } = fakeCodec({ width: 4032, height: 3024, sizes: { 'image/jpeg': 2500, 'image/webp': 1500 } })
+    const result = await prepareImageUpload(fileOf(JPEG_NO_EXIF, 'phone.jpg', 'image/jpeg', 9000), 'avatar', budget(2000), codec)
+    expect(requested).toEqual(['image/jpeg@0.92', 'image/webp@0.82'])
+    expect(result).toMatchObject({ extension: 'webp', contentType: 'image/webp', reencoded: true })
+    expect(result.file.name).toBe('phone.webp')
+  })
+
+  it('steps down in size until the WebP fits', async () => {
+    const { codec, renders } = fakeCodec({
+      width: 4000, height: 4000,
+      sizes: (type, _q, t) => (type === 'image/webp' ? t.width : type === 'image/png' ? 99_999 : undefined),
+    })
+    const result = await prepareImageUpload(fileOf(png(), 'icon.png', 'image/png', 9000), 'avatar', budget(600), codec)
+    expect(renders.map(t => t.width)).toEqual([1024, 768, 576])
+    expect(result.file.size).toBe(576)
+  })
+
+  it('uploads the original for the bucket check to refuse when nothing fits', async () => {
+    const original = fileOf(png(), 'noise.png', 'image/png', 9000)
+    const { codec, renders } = fakeCodec({ width: 3000, height: 3000, sizes: { 'image/png': 50_000, 'image/webp': 50_000 } })
+    const result = await prepareImageUpload(original, 'avatar', budget(1000), codec)
+    expect(renders).toHaveLength(5)
     expect(result.file).toBe(original)
   })
 
-  it('never decodes animated images', async () => {
+  it('never decodes animated images, over the limit or not', async () => {
     const { codec, decode } = fakeCodec({ width: 2000, height: 2000, sizes: { 'image/webp': 10 } })
     for (const [data, name, type] of [
       [gif(2), 'party.gif', 'image/gif'],
@@ -239,44 +291,56 @@ describe('prepareImageUpload', () => {
       [webp(webpChunk('VP8X', [0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0])), 'loop.webp', 'image/webp'],
     ] as const) {
       const original = fileOf(data, name, type)
-      const result = await prepareImageUpload(original, 'emoji', codec)
-      expect(result.file).toBe(original)
-      expect(result.reencoded).toBe(false)
+      for (const limit of [original.size, 100]) {
+        const result = await prepareImageUpload(original, 'emoji', budget(limit), codec)
+        expect(result.file).toBe(original)
+        expect(result.reencoded).toBe(false)
+      }
     }
     expect(decode).not.toHaveBeenCalled()
   })
 
-  it('leaves emoji within 256 px alone and downscales larger ones', async () => {
-    const small = fakeCodec({ width: 200, height: 200, sizes: { 'image/webp': 10 } })
-    const kept = fileOf(png(), 'small.png', 'image/png')
-    expect((await prepareImageUpload(kept, 'emoji', small.codec)).file).toBe(kept)
-    expect(small.renders).toHaveLength(0)
+  it('applies the same rule to emoji, bounded at 256 px when it shrinks', async () => {
+    const big = fakeCodec({ width: 1024, height: 1024, sizes: { 'image/png': 900, 'image/webp': 10 } })
+    const fitting = fileOf(png(), 'big.png', 'image/png')
+    expect((await prepareImageUpload(fitting, 'emoji', budget(fitting.size), big.codec)).file).toBe(fitting)
+    expect(big.renders).toHaveLength(0)
 
-    const large = fakeCodec({ width: 512, height: 384, sizes: { 'image/webp': 10 } })
-    const shrunk = await prepareImageUpload(fileOf(png(), 'large.png', 'image/png'), 'emoji', large.codec)
-    expect(large.renders).toEqual([{ width: 256, height: 192, orientation: 1 }])
-    expect(shrunk.extension).toBe('webp')
+    const shrunk = await prepareImageUpload(fileOf(png(), 'big.png', 'image/png'), 'emoji', budget(1000), big.codec)
+    expect(big.renders).toEqual([{ width: 256, height: 256, orientation: 1 }])
+    expect(shrunk).toMatchObject({ extension: 'png', reencoded: true })
   })
 
-  it('re-encodes icons already within bounds when that is smaller', async () => {
-    const { codec, renders } = fakeCodec({ width: 512, height: 512, sizes: { 'image/webp': 300 } })
-    const result = await prepareImageUpload(fileOf(png(), 'icon.png', 'image/png'), 'server_icon', codec)
-    expect(renders).toEqual([{ width: 512, height: 512, orientation: 1 }])
+  it('redraws a format the bucket refuses even when it is small', async () => {
+    const bmp = fileOf(bytes('BM', padding(24)), 'scan.bmp', 'image/bmp', 100)
+    const { codec, requested } = fakeCodec({ width: 300, height: 200, sizes: { 'image/webp': 40 } })
+    const result = await prepareImageUpload(bmp, 'avatar', budget(10_000), codec)
+    expect(requested).toEqual(['image/webp@0.82'])
+    expect(result).toMatchObject({ extension: 'webp', contentType: 'image/webp', reencoded: true })
+  })
+
+  it('skips its own format when the bucket refuses it', async () => {
+    const { codec, requested } = fakeCodec({ width: 2000, height: 2000, sizes: { 'image/png': 10, 'image/webp': 20 } })
+    const result = await prepareImageUpload(fileOf(png(), 'icon.png', 'image/png', 9000), 'avatar', budget(5000, ['image/webp']), codec)
+    expect(requested).toEqual(['image/webp@0.82'])
     expect(result.contentType).toBe('image/webp')
   })
 
   it('falls back to JPEG for opaque pixels where WebP encoding is absent', async () => {
-    const { codec, requested } = fakeCodec({ width: 3000, height: 1000, alpha: false, sizes: { 'image/jpeg': 700 } })
-    const result = await prepareImageUpload(fileOf(png(), 'shot.png', 'image/png'), 'server_banner', codec)
-    expect(requested).toEqual(['image/webp', 'image/jpeg'])
+    const { codec, requested } = fakeCodec({ width: 3000, height: 1000, alpha: false, sizes: { 'image/jpeg': 700, 'image/png': 5000 } })
+    const result = await prepareImageUpload(fileOf(png(), 'shot.png', 'image/png', 9000), 'server_banner', budget(1000), codec)
+    expect(requested).toEqual(['image/png', 'image/webp@0.82', 'image/jpeg@0.85'])
     expect(result).toMatchObject({ extension: 'jpg', contentType: 'image/jpeg', reencoded: true })
     expect(result.file.name).toBe('shot.jpg')
   })
 
   it('falls back to PNG for transparent pixels where WebP encoding is absent', async () => {
-    const { codec, requested } = fakeCodec({ width: 2000, height: 2000, alpha: true, sizes: { 'image/png': 600 } })
-    const result = await prepareImageUpload(fileOf(png(), 'logo.png', 'image/png'), 'server_icon', codec)
-    expect(requested).toEqual(['image/webp', 'image/png'])
+    const { codec, requested } = fakeCodec({
+      width: 2000, height: 2000, alpha: true,
+      sizes: (type, _q, t) => (type === 'image/png' ? (t.width === 1024 ? 5000 : 600) : undefined),
+    })
+    const result = await prepareImageUpload(fileOf(png(), 'logo.png', 'image/png', 9000), 'server_icon', budget(1000), codec)
+    expect(requested).toEqual(['image/png', 'image/webp@0.82', 'image/png', 'image/webp@0.82', 'image/png'])
     expect(result).toMatchObject({ extension: 'png', contentType: 'image/png', reencoded: true })
   })
 
@@ -284,7 +348,7 @@ describe('prepareImageUpload', () => {
     const { codec, decode } = fakeCodec({ width: 6000, height: 4000, sizes: { 'image/webp': 10 } })
     const huge = new File([png(), padding(MAX_IMAGE_SOURCE_BYTES)], 'huge.png', { type: 'image/png' })
     const read = vi.spyOn(huge, 'arrayBuffer')
-    const result = await prepareImageUpload(huge, 'avatar', codec)
+    const result = await prepareImageUpload(huge, 'avatar', budget(1000), codec)
     expect(result.file).toBe(huge)
     expect(read).not.toHaveBeenCalled()
     expect(decode).not.toHaveBeenCalled()
@@ -293,10 +357,10 @@ describe('prepareImageUpload', () => {
   it('keeps files it cannot decode or does not recognise', async () => {
     const undecodable: ImageCodec = { ...fakeCodec({ width: 1, height: 1 }).codec, decode: async () => null }
     const broken = fileOf(png(), 'broken.png', 'image/png')
-    expect((await prepareImageUpload(broken, 'avatar', undecodable)).file).toBe(broken)
+    expect((await prepareImageUpload(broken, 'avatar', budget(100), undecodable)).file).toBe(broken)
 
     const svg = new File(['<svg xmlns="http://www.w3.org/2000/svg"/>'], 'logo.svg', { type: 'image/svg+xml' })
-    const result = await prepareImageUpload(svg, 'avatar', undecodable)
+    const result = await prepareImageUpload(svg, 'avatar', budget(10), undecodable)
     expect(result).toMatchObject({ file: svg, extension: 'svg', contentType: 'image/svg+xml', reencoded: false })
   })
 })

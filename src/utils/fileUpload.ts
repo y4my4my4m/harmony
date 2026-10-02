@@ -1,6 +1,6 @@
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug'
-import { imageSourceError, validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
+import { getBucketLimits, imageSourceError, validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
 import {
   immutableObjectPath,
   immutableUploadOptions,
@@ -48,8 +48,9 @@ export function getMimeTypeFromFilename(filename: string): string {
 }
 
 /**
- * Shrinks an image for `kind` and uploads it to `bucket` under a new
- * `<folder>/<stem>-<ms>.<ext>` name; existing objects are never overwritten.
+ * Uploads an image to `bucket` under a new `<folder>/<stem>-<ms>.<ext>` name;
+ * existing objects are never overwritten. The file goes up as picked unless it
+ * exceeds the bucket's limits (see prepareImageUpload).
  */
 export async function uploadImageObject(
   file: File,
@@ -63,8 +64,7 @@ export async function uploadImageObject(
     if (sourceError) {
       return { success: false, error: sourceError };
     }
-    const prepared = await prepareImageUpload(file, kind);
-    // Limits apply to the bytes that reach storage, after shrinking.
+    const prepared = await prepareImageUpload(file, kind, await getBucketLimits(bucket));
     const validationError = await validateImageUpload(prepared.file, bucket);
     if (validationError) {
       return { success: false, error: validationError };

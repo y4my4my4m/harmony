@@ -361,8 +361,8 @@ const handleEmojiFile = async (file: File) => {
     return
   }
 
-  // uploadEmoji applies the emojis bucket limits after shrinking; those reject
-  // SVG, an XSS vector (<script>, event handlers).
+  // uploadEmoji applies the emojis bucket limits to the file it uploads; those
+  // reject SVG, an XSS vector (<script>, event handlers).
   const sourceError = imageSourceError(file)
   if (sourceError) {
     toast.error(sourceError)

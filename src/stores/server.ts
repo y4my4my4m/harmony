@@ -6,7 +6,7 @@ import { removeReplacedObject } from '@/utils/storageImageUtils'
 import type { Server, Emoji } from '@/types';
 import { debug } from '@/utils/debug'
 import { invalidateServerMemberCache } from '@/services/usersService'
-import { imageSourceError, validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
+import { getBucketLimits, imageSourceError, validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
 import { usePublicServersStore } from '@/stores/usePublicServers'
 import { pickServerSettings } from '@/utils/serverSettings'
 
@@ -48,7 +48,7 @@ export const useServerStore = defineStore('server', {
         }
 
         if (file && serverData.id) {
-          const icon = await prepareImageUpload(file, 'server_icon');
+          const icon = await prepareImageUpload(file, 'server_icon', await getBucketLimits('server_icons'));
           const iconValidationError = await validateImageUpload(icon.file, 'server_icons');
           if (iconValidationError) {
             toast.error(iconValidationError);
@@ -75,7 +75,7 @@ export const useServerStore = defineStore('server', {
         }
 
         if (bannerFile && serverData.id) {
-          const banner = await prepareImageUpload(bannerFile, 'server_banner');
+          const banner = await prepareImageUpload(bannerFile, 'server_banner', await getBucketLimits('server_banners'));
           const bannerValidationError = await validateImageUpload(banner.file, 'server_banners');
           if (bannerValidationError) {
             toast.error(bannerValidationError);

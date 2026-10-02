@@ -1,11 +1,13 @@
 /**
- * Client-side shrinking of profile, server and emoji images before upload.
+ * Upload preparation for profile, server and emoji images.
  *
- * Static images are drawn onto a canvas no larger than the kind's bounds and
- * re-encoded as WebP. The original file is uploaded unchanged when it is
- * animated, cannot be decoded, or when the re-encode is not smaller.
+ * A file the bucket accepts is uploaded byte for byte. A static image over the
+ * bucket's size limit, or in a format the bucket refuses, is redrawn within
+ * the kind's bounds: first in its own format, then as WebP, then smaller,
+ * until it fits. Animated and undecodable files are never redrawn.
  */
 
+import { mimeAllowed } from './mimeMatch'
 export type ImageUploadKind =
   | 'avatar'
   | 'profile_banner'
@@ -14,27 +16,32 @@ export type ImageUploadKind =
   | 'group_icon'
   | 'emoji'
 
-interface KindLimits {
-  maxWidth: number
-  maxHeight: number
-  /** false: images already within bounds are uploaded as they are. */
-  reencodeWithinBounds: boolean
+/** Largest output size per kind, used only when a file must shrink. */
+export const IMAGE_SHRINK_BOUNDS: Record<ImageUploadKind, { maxWidth: number; maxHeight: number }> = {
+  avatar: { maxWidth: 1024, maxHeight: 1024 },
+  server_icon: { maxWidth: 1024, maxHeight: 1024 },
+  group_icon: { maxWidth: 1024, maxHeight: 1024 },
+  profile_banner: { maxWidth: 2560, maxHeight: 2560 },
+  server_banner: { maxWidth: 2560, maxHeight: 2560 },
+  emoji: { maxWidth: 256, maxHeight: 256 },
 }
 
-export const IMAGE_UPLOAD_LIMITS: Record<ImageUploadKind, KindLimits> = {
-  avatar: { maxWidth: 1024, maxHeight: 1024, reencodeWithinBounds: true },
-  server_icon: { maxWidth: 1024, maxHeight: 1024, reencodeWithinBounds: true },
-  group_icon: { maxWidth: 1024, maxHeight: 1024, reencodeWithinBounds: true },
-  profile_banner: { maxWidth: 2560, maxHeight: 2560, reencodeWithinBounds: true },
-  server_banner: { maxWidth: 2560, maxHeight: 2560, reencodeWithinBounds: true },
-  emoji: { maxWidth: 256, maxHeight: 256, reencodeWithinBounds: false },
+/** What the target bucket accepts; maxBytes <= 0 and allowedMime null mean no limit. */
+export interface UploadBudget {
+  maxBytes: number
+  allowedMime: string[] | null
 }
 
+/** Redraw in the source format. */
+const SAME_FORMAT_QUALITY = 0.92
 export const WEBP_QUALITY = 0.82
+const JPEG_QUALITY = 0.85
+/** Each further attempt scales the previous size by this factor. */
+const STEP_SCALE = 0.75
+const SMALLER_STEPS = 4
 
 /** Largest input decoded for shrinking; larger files are uploaded as they are and fail the bucket limit. */
 export const MAX_IMAGE_SOURCE_BYTES = 25 * 1024 * 1024
-const JPEG_QUALITY = 0.85
 
 /**
  * Cache-Control max-age, in seconds, for objects written under a fresh name.
@@ -401,44 +408,69 @@ function replaceExtension(name: string, extension: string): string {
   return `${dot > 0 ? name.slice(0, dot) : name || 'image'}.${extension}`
 }
 
+/** The file as picked; a type the bytes contradict is replaced by the sniffed one. */
 function keepOriginal(file: File, format: ImageFormat | null): PreparedImage {
   const fromName = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : ''
+  const contentType = format ? FORMAT_MIME[format] : file.type || 'application/octet-stream'
   return {
-    file,
+    file: format && file.type !== contentType ? new File([file], file.name, { type: contentType }) : file,
     extension: format ? FORMAT_EXTENSION[format] : fromName || 'bin',
-    contentType: file.type || (format ? FORMAT_MIME[format] : 'application/octet-stream'),
+    contentType,
     reencoded: false,
   }
+}
+
+/** Formats the canvas encoders write. */
+const ENCODABLE: Partial<Record<ImageFormat, { type: string; extension: string; quality?: number }>> = {
+  png: { type: 'image/png', extension: 'png' },
+  jpeg: { type: 'image/jpeg', extension: 'jpg', quality: SAME_FORMAT_QUALITY },
+  webp: { type: 'image/webp', extension: 'webp', quality: SAME_FORMAT_QUALITY },
+}
+
+interface Encoded {
+  blob: Blob
+  type: string
+  extension: string
+}
+
+async function encodeAs(raster: Raster, type: string, extension: string, quality?: number): Promise<Encoded | null> {
+  const blob = await raster.encode(type, quality)
+  // Engines without an encoder for `type` return PNG.
+  return blob?.type === type ? { blob, type, extension } : null
 }
 
 /**
  * WebP; where the engine has no WebP encoder (WebKit returns PNG), JPEG for
  * opaque pixels and PNG otherwise.
  */
-async function encodeCompact(
-  raster: Raster,
-  source: ImageFormat,
-): Promise<{ blob: Blob; type: string; extension: string } | null> {
-  const webp = await raster.encode('image/webp', WEBP_QUALITY)
-  if (webp?.type === 'image/webp') return { blob: webp, type: 'image/webp', extension: 'webp' }
-  const opaque = source === 'jpeg' || source === 'bmp' || !raster.hasAlpha()
-  if (opaque) {
-    const jpeg = await raster.encode('image/jpeg', JPEG_QUALITY)
-    if (jpeg?.type === 'image/jpeg') return { blob: jpeg, type: 'image/jpeg', extension: 'jpg' }
+async function encodeCompact(raster: Raster, source: ImageFormat): Promise<Encoded | null> {
+  const webp = await encodeAs(raster, 'image/webp', 'webp', WEBP_QUALITY)
+  if (webp) return webp
+  if (source === 'jpeg' || source === 'bmp' || !raster.hasAlpha()) {
+    const jpeg = await encodeAs(raster, 'image/jpeg', 'jpg', JPEG_QUALITY)
+    if (jpeg) return jpeg
   }
-  const png = await raster.encode('image/png')
-  if (png?.type === 'image/png') return { blob: png, type: 'image/png', extension: 'png' }
-  return null
+  return encodeAs(raster, 'image/png', 'png')
+}
+
+function accepts(budget: UploadBudget, type: string): boolean {
+  return mimeAllowed(budget.allowedMime, type)
+}
+
+function fits(budget: UploadBudget, type: string, size: number): boolean {
+  return accepts(budget, type) && (budget.maxBytes <= 0 || size <= budget.maxBytes)
 }
 
 /**
- * Shrinks `file` to the bounds of `kind`. Returns the original untouched when
- * it is animated or undecodable, when an emoji is already within bounds, or
- * when the re-encode is not smaller than the original.
+ * The file to upload for `kind` into a bucket with `budget`. The original
+ * when the bucket accepts it as is, when it is animated, or when it cannot be
+ * decoded; otherwise the first redraw that fits (see the module comment). An
+ * original that never fits is returned unchanged for the bucket check to refuse.
  */
 export async function prepareImageUpload(
   file: File,
   kind: ImageUploadKind,
+  budget: UploadBudget,
   codec: ImageCodec = browserImageCodec,
 ): Promise<PreparedImage> {
   if (file.size > MAX_IMAGE_SOURCE_BYTES) return keepOriginal(file, null)
@@ -449,31 +481,46 @@ export async function prepareImageUpload(
     return keepOriginal(file, null)
   }
   const format = sniffImageFormat(bytes)
-  if (!format || isAnimatedImage(bytes)) return keepOriginal(file, format)
+  const original = keepOriginal(file, format)
+  if (fits(budget, original.contentType, file.size)) return original
+  if (!format || isAnimatedImage(bytes)) return original
 
-  const limits = IMAGE_UPLOAD_LIMITS[kind]
   const decoded = await codec.decode(file).catch(() => null)
-  if (!decoded) return keepOriginal(file, format)
+  if (!decoded) return original
 
   try {
     const exif = format === 'jpeg' ? readJpegOrientation(bytes) : 1
     const pending = exif > 1 && !(await codec.appliesOrientation()) ? exif : 1
     const upright = orientedSize(pending, decoded.width, decoded.height)
-    const target = fitWithin(upright.width, upright.height, limits.maxWidth, limits.maxHeight)
-    const shrinks = target.width < upright.width || target.height < upright.height
-    if (!shrinks && !limits.reencodeWithinBounds) return keepOriginal(file, format)
+    const bounds = IMAGE_SHRINK_BOUNDS[kind]
+    let target = fitWithin(upright.width, upright.height, bounds.maxWidth, bounds.maxHeight)
 
-    const raster = codec.render(decoded, { ...target, orientation: pending })
-    if (!raster) return keepOriginal(file, format)
-    const encoded = await encodeCompact(raster, format)
-    if (!encoded || encoded.blob.size >= file.size) return keepOriginal(file, format)
-
-    return {
-      file: new File([encoded.blob], replaceExtension(file.name, encoded.extension), { type: encoded.type }),
-      extension: encoded.extension,
-      contentType: encoded.type,
-      reencoded: true,
+    const sameFormat = ENCODABLE[format]
+    for (let step = 0; step <= SMALLER_STEPS; step++) {
+      const raster = codec.render(decoded, { ...target, orientation: pending })
+      if (!raster) return original
+      const attempts: Array<() => Promise<Encoded | null>> = []
+      if (step === 0 && sameFormat && accepts(budget, sameFormat.type)) {
+        attempts.push(() => encodeAs(raster, sameFormat.type, sameFormat.extension, sameFormat.quality))
+      }
+      attempts.push(() => encodeCompact(raster, format))
+      for (const attempt of attempts) {
+        const encoded = await attempt()
+        if (encoded && fits(budget, encoded.type, encoded.blob.size)) {
+          return {
+            file: new File([encoded.blob], replaceExtension(file.name, encoded.extension), { type: encoded.type }),
+            extension: encoded.extension,
+            contentType: encoded.type,
+            reencoded: true,
+          }
+        }
+      }
+      target = {
+        width: Math.max(1, Math.round(target.width * STEP_SCALE)),
+        height: Math.max(1, Math.round(target.height * STEP_SCALE)),
+      }
     }
+    return original
   } finally {
     decoded.close()
   }
