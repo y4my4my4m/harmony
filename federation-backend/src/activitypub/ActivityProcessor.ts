@@ -19,6 +19,7 @@ import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
 import { fetchAuthoritativeDocument, sameOrigin } from '../utils/apOrigin.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { flagComment, flagObjectUris, parseLocalObjectUri } from './flag.js';
+import { evaluateInboundCreate } from '../services/FederationSpamGuard.js';
 
 /**
  * Extract message UUID from a URL like https://domain/messages/{uuid}
@@ -169,7 +170,11 @@ export class ActivityProcessor {
     }
   }
 
-  static async processIncomingActivity(activity: any): Promise<void> {
+  /**
+   * @param options.skipSpamGuard - set when an admin released a held activity
+   *   (job 'release-held-activity'); the mention/DM spam heuristics are not run.
+   */
+  static async processIncomingActivity(activity: any, options: { skipSpamGuard?: boolean } = {}): Promise<void> {
     const actorUrl = normalizeActor(activity.actor);
     if (actorUrl && await this.isActorSuspended(actorUrl)) {
       logger.info(`Ignoring activity from suspended user: ${actorUrl}`);
@@ -187,7 +192,7 @@ export class ActivityProcessor {
         await this.processReject(activity);
         break;
       case 'Create':
-        await this.processCreate(activity);
+        await this.processCreate(activity, options);
         break;
       case 'Update':
         await this.processUpdate(activity);
@@ -493,7 +498,7 @@ export class ActivityProcessor {
   /**
    * Create activity: post, DM, channel message, or poll.
    */
-  private static async processCreate(activity: any): Promise<void> {
+  private static async processCreate(activity: any, options: { skipSpamGuard?: boolean } = {}): Promise<void> {
     const object = activity.object;
     const supabase = getSupabaseClient();
 
@@ -583,8 +588,26 @@ export class ActivityProcessor {
 
       // Direct messages go to `messages`; everything else to `posts`.
       if (visibility === 'direct' || visibility === 'private') {
-        await this.handleDirectMessage(object, author.id, content);
+        await this.handleDirectMessage(object, author.id, content, activity, options);
       } else {
+        if (!options.skipSpamGuard) {
+          const mentionedLocalIds = await this.localMentionTargets(content, author.id);
+          if (mentionedLocalIds.length > 0) {
+            const verdict = await evaluateInboundCreate({
+              activity,
+              object,
+              authorId: author.id,
+              authorUri: normalizeActor(activity.actor),
+              kind: 'federation_mention',
+              targetIds: mentionedLocalIds,
+            });
+            if (verdict.action === 'hold' || verdict.action === 'reject') {
+              logger.info(`Post ${object.id} ${verdict.action === 'hold' ? 'held' : 'rejected'} as suspected spam`);
+              return;
+            }
+          }
+        }
+
         // Reply threading: fetch missing parents and locate the conversation root.
         let parentPostId: string | null = null;
         let conversationRootId: string | null = null;
@@ -2877,8 +2900,12 @@ export class ActivityProcessor {
         profileRecord.shared_inbox_url = actor.endpoints.sharedInbox;
       }
 
-      // Persist custom emoji metadata so the frontend can render shortcodes
-      if (profileData.display_name_emojis?.length || profileData.bio_emojis?.length) {
+      // Persist custom emoji metadata so the frontend can render shortcodes, and
+      // the actor's creation date, which the spam heuristics read as account age.
+      const apPublished = typeof actor.published === 'string' && Number.isFinite(Date.parse(actor.published))
+        ? new Date(actor.published).toISOString()
+        : null;
+      if (profileData.display_name_emojis?.length || profileData.bio_emojis?.length || apPublished) {
         const existingMeta = (existing as any)?.federation_metadata || {};
         const meta = typeof existingMeta === 'string' ? JSON.parse(existingMeta) : { ...existingMeta };
         if (profileData.display_name_emojis?.length) {
@@ -2886,6 +2913,9 @@ export class ActivityProcessor {
         }
         if (profileData.bio_emojis?.length) {
           meta.bio_emojis = profileData.bio_emojis;
+        }
+        if (apPublished) {
+          meta.ap_published = apPublished;
         }
         profileRecord.federation_metadata = meta;
       }
@@ -3092,7 +3122,7 @@ export class ActivityProcessor {
       Object.assign(messageMetadata, voiceFromAp);
     }
 
-    const { data: insertedMsg, error: insertError } = await supabase
+    const { data: insertedRows, error: insertError } = await supabase
       .from('messages')
       .insert({
         id: messageId,
@@ -3108,11 +3138,17 @@ export class ActivityProcessor {
         encrypted: object['harmony:encrypted'] === true,
         metadata: messageMetadata,
       })
-      .select('id, content, metadata')
-      .single();
+      // Array response: the server's AutoMod drops a blocked row (zero rows), and
+      // PostgREST rolls a zero-row .single() request back with the AutoMod event in it.
+      .select('id, content, metadata');
 
     if (insertError) {
       logger.error(`Failed to create channel message:`, insertError);
+      return;
+    }
+    const insertedMsg = insertedRows?.[0];
+    if (!insertedMsg) {
+      logger.info(`Channel message ${object.id} from ${author.username} dropped by the server's AutoMod`);
       return;
     }
 
@@ -3249,10 +3285,28 @@ export class ActivityProcessor {
   /**
    * Direct message. Stored in `messages`, not `posts`.
    */
+  /** Local profile ids named by the mention parts of converted content. */
+  private static async localMentionTargets(content: any[], authorId: string): Promise<string[]> {
+    const usernames = [...new Set(
+      (Array.isArray(content) ? content : [])
+        .filter((p: any) => p?.type === 'mention' && p.isLocal && typeof p.username === 'string')
+        .map((p: any) => p.username.toLowerCase()),
+    )].slice(0, 100);
+    if (usernames.length === 0) return [];
+    const { data } = await getSupabaseClient()
+      .from('profiles')
+      .select('id, username')
+      .eq('is_local', true)
+      .in('username', usernames);
+    return (data ?? []).map((p: any) => p.id).filter((id: string) => id !== authorId);
+  }
+
   private static async handleDirectMessage(
     object: any,
     authorId: string,
-    content: any[]
+    content: any[],
+    activity: any = null,
+    options: { skipSpamGuard?: boolean } = {},
   ): Promise<void> {
     const supabase = getSupabaseClient();
     
@@ -3272,6 +3326,27 @@ export class ActivityProcessor {
     if (recipientIds.length === 0) {
       logger.warn(`Direct message ${object.id} has no local recipients`);
       return;
+    }
+
+    // Checked before the conversation exists: a held or rejected DM leaves nothing behind.
+    if (!options.skipSpamGuard) {
+      const { data: localRecipients } = await supabase
+        .from('profiles')
+        .select('id')
+        .in('id', recipientIds)
+        .eq('is_local', true);
+      const verdict = await evaluateInboundCreate({
+        activity: activity ?? { id: object.id, type: 'Create', actor: object.attributedTo, object },
+        object,
+        authorId,
+        authorUri: typeof object.attributedTo === 'string' ? object.attributedTo : normalizeActor(activity?.actor),
+        kind: 'federation_dm',
+        targetIds: (localRecipients ?? []).map((r: any) => r.id).filter((id: string) => id !== authorId),
+      });
+      if (verdict.action === 'hold' || verdict.action === 'reject') {
+        logger.info(`DM ${object.id} ${verdict.action === 'hold' ? 'held' : 'rejected'} as suspected spam`);
+        return;
+      }
     }
 
     // Group vs 1:1 is decided by sender metadata or recipient count.

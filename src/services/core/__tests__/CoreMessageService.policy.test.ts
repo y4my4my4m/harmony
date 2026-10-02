@@ -65,7 +65,8 @@ vi.mock('@/services/encryption/MegolmMessageEncryptionService', () => ({
 import { CoreMessageService } from '@/services/core/CoreMessageService'
 
 // Tiny chainable mock for supabase.from(...).select(...).eq(...).maybeSingle()
-// and supabase.from('messages').insert(...).select('*').single().
+// and supabase.from('messages').insert(...).select('*'), awaited as an array
+// (channel sends) or through .single() (DMs).
 function setupSupabase({
   channelEncrypted,
   rpcError,
@@ -73,6 +74,8 @@ function setupSupabase({
   maxMediaConfig,
   insertedMessage,
   insertError,
+  insertDropped,
+  blockNotice,
 }: {
   channelEncrypted?: boolean
   rpcError?: boolean
@@ -80,10 +83,14 @@ function setupSupabase({
   maxMediaConfig?: number
   insertedMessage?: any
   insertError?: { message: string }
+  /** Channel insert returns no row, as when AutoMod drops it. */
+  insertDropped?: boolean
+  blockNotice?: any
 } = {}) {
   const insertedRows: any[] = []
 
   ;(supabase.rpc as any).mockImplementation((fn: string, args: any) => {
+    if (fn === 'get_automod_block_notice') return Promise.resolve({ data: blockNotice ?? null, error: null })
     if (fn !== 'effective_channel_encryption') throw new Error(`Unhandled rpc in test mock: ${fn}`)
     if (rpcError) return Promise.resolve({ data: null, error: { message: 'rpc down' } })
     return Promise.resolve({
@@ -147,11 +154,15 @@ function setupSupabase({
       return {
         insert: (row: any) => {
           insertedRows.push(row)
+          const one = insertedMessage ?? { id: 'msg-1', ...row }
           return {
             select: () => ({
               single: () => Promise.resolve(insertError
                 ? { data: null, error: insertError }
-                : { data: insertedMessage ?? { id: 'msg-1', ...row }, error: null }),
+                : { data: one, error: null }),
+              then: (resolve: any) => resolve(insertError
+                ? { data: null, error: insertError }
+                : { data: insertDropped ? [] : [one], error: null }),
             }),
           }
         },
@@ -287,6 +298,30 @@ describe('CoreMessageService - encryption policy (fail-closed by default)', () =
       await expect(
         service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [{ type: 'text', text: 'hi' }] as any),
       ).rejects.toMatchObject({ code: 'ENCRYPTION_REQUIRED', reason: 'changed' })
+    })
+
+    it('reports a row AutoMod dropped with the server\'s reason', async () => {
+      setupSupabase({
+        channelEncrypted: false,
+        insertDropped: true,
+        blockNotice: { rule_type: 'keyword', rule_name: 'Words', event_type: 'message', message: 'Keep it clean.', timeout_until: null },
+      })
+
+      await expect(
+        service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [{ type: 'text', text: 'bad' }] as any),
+      ).rejects.toMatchObject({ code: 'AUTOMOD_BLOCKED', message: 'Keep it clean.' })
+      expect(supabase.rpc).toHaveBeenCalledWith('get_automod_block_notice', { p_channel_id: CHANNEL_ID })
+    })
+
+    it('reports a member timeout raised by the database', async () => {
+      setupSupabase({
+        channelEncrypted: false,
+        insertError: { message: 'MEMBER_TIMED_OUT:1790000000' },
+      })
+
+      await expect(
+        service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [{ type: 'text', text: 'hi' }] as any),
+      ).rejects.toMatchObject({ code: 'MEMBER_TIMED_OUT' })
     })
   })
 

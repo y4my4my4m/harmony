@@ -232,3 +232,49 @@ describe('PATCH /messages/:id/metadata', () => {
     expect(res.status).toBe(403)
   })
 })
+
+describe('AutoMod rejections', () => {
+  const CHANNEL_ID = '00000000-0000-0000-0000-0000000000c1'
+
+  function sendFixtures(messages: Result) {
+    routeTables({
+      channels: { data: { server_id: '00000000-0000-0000-0000-0000000000s1' }, error: null },
+      instance_config: { data: null, error: null },
+      bot_audit_log: { data: null, error: null },
+      messages,
+    })
+    routeRpc({ check_bot_permission: () => ({ data: true, error: null }) })
+  }
+
+  it('answers 403 AUTOMOD_BLOCKED when the insert returns no row', async () => {
+    sendFixtures({ data: [], error: null })
+    const res = await supertest(makeApp())
+      .post(`/api/v1/channels/${CHANNEL_ID}/messages`)
+      .send({ content: 'blocked words' })
+
+    expect(res.status).toBe(403)
+    expect(res.body.code).toBe('AUTOMOD_BLOCKED')
+  })
+
+  it('answers 403 when the database raises AUTOMOD_BLOCKED', async () => {
+    sendFixtures({ data: null, error: { message: 'AUTOMOD_BLOCKED:keyword', details: '{}' } })
+    const res = await supertest(makeApp())
+      .post(`/api/v1/channels/${CHANNEL_ID}/messages`)
+      .send({ content: 'blocked words' })
+
+    expect(res.status).toBe(403)
+    expect(res.body.code).toBe('AUTOMOD_BLOCKED')
+  })
+
+  it('returns the created message otherwise', async () => {
+    sendFixtures({
+      data: [{ id: 'm1', channel_id: CHANNEL_ID, content: [{ type: 'text', text: 'hi' }], bot_id: BOT_ID }],
+      error: null,
+    })
+    const res = await supertest(makeApp())
+      .post(`/api/v1/channels/${CHANNEL_ID}/messages`)
+      .send({ content: 'hi' })
+
+    expect(res.status).toBe(201)
+  })
+})

@@ -16,6 +16,7 @@ import { userEventChannel } from '@/services/UserEventChannel'
 import { getRandomId, createTempMessageId, findOptimisticMatchIndex } from '@/stores/shared/optimisticMessages'
 import { routeMessageEvent } from '@/stores/shared/realtimeMessageEvent'
 import { insertMessageSorted, evictOldestCacheEntry, trimCachedMessages, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils'
+import { isModerationRejectionCode } from '@/services/AutoModService'
 
 export interface DMUser {
   id: string
@@ -1823,13 +1824,19 @@ export const useDMStore = defineStore('dm', () => {
       // removed so a cancelled fallback prompt leaves no phantom "failed" row.
       // Accepting re-calls with `allowPlaintextFallback: true`, which creates a
       // fresh optimistic message.
-      const code = (error?.code || error?.message || '').toString()
+      const code = [error?.code, error?.message].filter(Boolean).join(' ')
       const isEncryptionPolicyError =
         code.includes('ENCRYPTION_REQUIRED') ||
         code.includes('ENCRYPTION_LOCKED') ||
         code.includes('ENCRYPTION_UNAVAILABLE') ||
         code.includes('ENCRYPTION_FAILED_NO_FALLBACK')
       if (isEncryptionPolicyError) {
+        removeMessageFromCache(tempId)
+        throw error
+      }
+
+      // Anti-spam limits for new accounts answer the same way on every retry.
+      if (isModerationRejectionCode(code)) {
         removeMessageFromCache(tempId)
         throw error
       }

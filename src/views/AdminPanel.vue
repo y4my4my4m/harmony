@@ -132,6 +132,10 @@
       <ReportsModeration />
     </div>
 
+    <div v-else-if="activeAdminTab === 'antispam'" class="admin-grid single">
+      <AntiSpamAdmin />
+    </div>
+
     <div v-else-if="activeAdminTab === 'content'" class="admin-grid">
       <AnnouncementsAdmin />
       <FeaturedCommunities />
@@ -185,6 +189,7 @@ const PerformanceMonitoring = defineAsyncComponent(() => import('@/components/ad
 const FederationManagement = defineAsyncComponent(() => import('@/components/admin/FederationManagement.vue'))
 const UserManagement = defineAsyncComponent(() => import('@/components/admin/UserManagement.vue'))
 const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/ReportsModeration.vue'))
+const AntiSpamAdmin = defineAsyncComponent(() => import('@/components/admin/AntiSpamAdmin.vue'))
 const AnnouncementsAdmin = defineAsyncComponent(() => import('@/components/admin/AnnouncementsAdmin.vue'))
 const FeaturedCommunities = defineAsyncComponent(() => import('@/components/admin/FeaturedCommunities.vue'))
 const InstanceConfig = defineAsyncComponent(() => import('@/components/admin/InstanceConfig.vue'))
@@ -200,6 +205,7 @@ const adminTabs = [
   { key: 'federation', label: 'Federation', icon: 'federation' },
   { key: 'users', label: 'Users', icon: 'users' },
   { key: 'reports', label: 'Reports', icon: 'flag' },
+  { key: 'antispam', label: 'Anti-spam', icon: 'shield' },
   { key: 'content', label: 'Content', icon: 'megaphone' },
   { key: 'config', label: 'Config', icon: 'settings' },
   { key: 'funding', label: 'Funding', icon: 'heart' },

@@ -17,6 +17,7 @@ import {
   encryptChannelContent,
   getEncryptionService,
 } from '@/services/core/channelMessageEncryption'
+import { blockedMessageRejection, moderationRejectionFromError } from '@/services/AutoModService'
 
 export interface SendMessageData {
   content: MessagePart[]
@@ -185,23 +186,28 @@ export class CoreMessageService {
 
       debug.log('Inserting message to database:', { ...messageData, content: encrypted ? '[encrypted]' : messageData.content })
       
-      const { data: message, error } = await supabase
+      // Array response, not .single(): AutoMod drops a blocked row and the
+      // statement returns zero rows. PostgREST rolls a zero-row singular
+      // request back, which would discard the AutoMod event and timeout.
+      const { data: rows, error } = await supabase
         .from('messages')
         .insert(messageData)
         .select('*')
-        .single()
 
       if (error) {
         debug.error('DATABASE INSERT FAILED:', error)
         if ((error.message || '').includes('CHANNEL_ENCRYPTED')) {
           throw channelEncryptionError('changed', error)
         }
+        const rejection = moderationRejectionFromError(error)
+        if (rejection) throw this.createError(rejection.code, rejection.message, rejection.details)
         throw this.createError('INSERT_FAILED', error.message, error)
       }
-      
+
+      const message = rows?.[0]
       if (!message) {
-        debug.error('No message returned from insert!')
-        throw this.createError('INSERT_FAILED', 'No message returned from database')
+        const rejection = await blockedMessageRejection(channelId)
+        throw this.createError(rejection.code, rejection.message, rejection.details)
       }
 
       debug.log('Message inserted to database successfully:', message.id)
@@ -267,7 +273,11 @@ export class CoreMessageService {
           .insert(messageData)
           .select('*')
           .single()
-        if (error) throw this.createError('INSERT_FAILED', error.message, error)
+        if (error) {
+          const rejection = moderationRejectionFromError(error)
+          if (rejection) throw this.createError(rejection.code, rejection.message, rejection.details)
+          throw this.createError('INSERT_FAILED', error.message, error)
+        }
         debug.log('System message sent successfully')
         return message
       }
@@ -364,7 +374,11 @@ export class CoreMessageService {
         .select('*')
         .single()
 
-      if (error) throw this.createError('INSERT_FAILED', error.message, error)
+      if (error) {
+        const rejection = moderationRejectionFromError(error)
+        if (rejection) throw this.createError(rejection.code, rejection.message, rejection.details)
+        throw this.createError('INSERT_FAILED', error.message, error)
+      }
 
       debug.log('DM message sent successfully (local only)')
       return message
@@ -466,10 +480,20 @@ export class CoreMessageService {
         .eq('id', messageId)
         .select('*')
 
-      if (error) throw this.createError('UPDATE_FAILED', error.message, error)
+      if (error) {
+        const rejection = moderationRejectionFromError(error)
+        if (rejection) throw this.createError(rejection.code, rejection.message, rejection.details)
+        throw this.createError('UPDATE_FAILED', error.message, error)
+      }
 
       const message = messages?.[0]
       if (!message) {
+        // The row was readable above, so zero rows from the update is AutoMod
+        // dropping an edit in a server channel.
+        if (originalMessage.channel_id) {
+          const rejection = await blockedMessageRejection(originalMessage.channel_id)
+          throw this.createError(rejection.code, rejection.message, rejection.details)
+        }
         throw this.createError('UPDATE_FAILED', 'Message not found or you do not have permission to edit it')
       }
 

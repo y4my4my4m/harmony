@@ -61,7 +61,12 @@ function setup(channelEncrypted: boolean) {
       return {
         insert: (row: any) => {
           inserted.push(row)
-          return { select: () => ({ single: () => Promise.resolve({ data: { id: 'm1', ...row }, error: null }) }) }
+          return {
+            select: () => ({
+              single: () => Promise.resolve({ data: { id: 'm1', ...row }, error: null }),
+              then: (resolve: any) => resolve({ data: [{ id: 'm1', ...row }], error: null }),
+            }),
+          }
         },
       }
     }

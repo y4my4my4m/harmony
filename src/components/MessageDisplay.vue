@@ -300,6 +300,39 @@
                     {{ $t(channelEncryptionEventKey(item.message.metadata?.type)!) }}
                   </div>
                 </template>
+                <!-- AutoMod alert. Only the database writes authorless rows; a
+                     client row always carries its author, so it cannot pose as one. -->
+                <template v-else-if="item.message.metadata?.type === 'automod_alert' && !item.message.user_id && !item.message.bot_id">
+                  <Icon name="shield" :size="16" class="system-icon automod-icon" />
+                  <div class="system-text automod-alert-text">
+                    <span class="automod-badge">AutoMod</span>
+                    <template v-if="item.message.metadata?.automod?.event_type === 'raid'">
+                      {{ $t('automod.alert.raid', {
+                        joins: item.message.metadata?.automod?.joins,
+                        seconds: item.message.metadata?.automod?.window_seconds,
+                      }) }}
+                    </template>
+                    <template v-else>
+                      {{ $t(item.message.metadata?.automod?.actions?.includes('block')
+                        ? (item.message.metadata?.automod?.event_type === 'edit' ? 'automod.alert.blockedEdit' : 'automod.alert.blocked')
+                        : 'automod.alert.flagged') }}
+                      <span
+                        v-if="item.message.metadata?.automod?.user_id"
+                        class="system-user-mention"
+                        @click="showUserProfile(item.message.metadata.automod.user_id)"
+                        :style="{ color: resolveChatUserColor(item.message.metadata.automod.user_id) }"
+                      ><DisplayName :userId="item.message.metadata.automod.user_id" /></span>
+                      <span v-else class="system-user-mention">{{ $t('automod.alert.aBot') }}</span>
+                      <span class="automod-rule">{{ item.message.metadata?.automod?.rule_name }}</span>
+                      <span v-if="item.message.metadata?.automod?.actions?.includes('timeout')" class="automod-timeout">
+                        {{ $t('automod.alert.timedOut') }}
+                      </span>
+                      <div v-if="item.message.metadata?.automod?.excerpt" class="automod-alert-excerpt">
+                        {{ item.message.metadata.automod.excerpt }}
+                      </div>
+                    </template>
+                  </div>
+                </template>
                 <!-- Default system message -->
                 <template v-else>
                   <Icon name="info" :size="16" class="system-icon" />
@@ -632,6 +665,8 @@ import { useServerRolesStore } from '@/stores/useServerRoles';
 import { useProfileStore } from '@/stores/useProfile';
 import { useNotificationStore } from '@/stores/useNotification';
 import { useActivityPubStore } from '@/stores/useActivityPub';
+import { isModerationRejectionCode } from '@/services/AutoModService';
+import { useToast } from 'vue-toastification';
 import { dmCallSignaling } from '@/services/DMCallSignaling';
 import { supabase } from '@/supabase'; 
 import { throttle } from '@/utils/throttle';
@@ -808,6 +843,7 @@ const captureReadBoundary = () => {
 };
 const chatStore = useChatStore();
 const dmStore = useDMStore();
+const toast = useToast();
 const authStore = useAuthStore();
 const profileStore = useProfileStore();
 const activityPubStore = useActivityPubStore();
@@ -2807,8 +2843,12 @@ const saveEdit = async (messageId: string, newContent?: string, retainedFiles: F
       await dmStore.editMessage(messageId, finalContent);
     }
     cancelEdit();
-  } catch (error) {
+  } catch (error: any) {
     debug.error('Error saving message edit:', error);
+    // An AutoMod block leaves the edit open with the reason; the text is kept.
+    if (isModerationRejectionCode(error?.code) && error?.message) {
+      toast.error(error.message);
+    }
   }
 };
 
@@ -4126,6 +4166,51 @@ defineExpose({ editLastOwnMessage });
 
 .system-text :deep(.system-message-content) {
   color: inherit !important;
+}
+
+/* AutoMod alert */
+.system-icon.automod-icon {
+  color: var(--warning, #f0b232);
+}
+
+.automod-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-on-accent, #fff);
+  background: var(--harmony-primary);
+  vertical-align: 1px;
+}
+
+.automod-rule {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.automod-timeout {
+  margin-left: 6px;
+  font-size: 0.75rem;
+  color: var(--error);
+}
+
+.automod-alert-excerpt {
+  margin-top: 4px;
+  padding: 4px 8px;
+  border-left: 3px solid var(--warning, #f0b232);
+  border-radius: 2px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* Thread created system message */

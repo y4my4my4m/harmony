@@ -164,6 +164,7 @@
   import { useThemeStore } from '@/stores/useTheme';
   import { useDraftsStore } from '@/stores/drafts';
   import type { Message, Gif, Emoji, MessagePart } from '@/types';
+  import { isModerationRejectionCode } from '@/services/AutoModService';
   import { recordEmojiUsage } from '@/services/emojiService';
   import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver';
   import { readFile } from '@tauri-apps/plugin-fs';
@@ -982,6 +983,14 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
             // The chat store already dispatched harmony:slowmode-hit to sync the
             // input countdown. This surfaces the human-readable reason.
             toast.info(msg)
+            if (content && !messageContent.value.trim()) {
+              messageContent.value = content
+            }
+          } else if (isModerationRejectionCode(code)) {
+            // AutoMod block, member timeout or new-account limit. The message
+            // carries the server's reason; the draft comes back for editing.
+            toast.error(msg)
+            messageInputRef.value?.flashRejection?.()
             if (content && !messageContent.value.trim()) {
               messageContent.value = content
             }

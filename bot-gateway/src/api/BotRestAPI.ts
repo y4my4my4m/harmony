@@ -3,6 +3,22 @@ import { supabase } from '../config/supabase.js'
 import { botAuthMiddleware } from '../auth/BotAuthMiddleware.js'
 import { applyBridgeAttachmentPolicy } from '../utils/mirrorExternalMedia.js'
 
+const AUTOMOD_BLOCKED_BODY = {
+  error: "Blocked by the server's AutoMod",
+  code: 'AUTOMOD_BLOCKED',
+} as const
+
+// Rejections raised by the messages trigger (20261005100001_server_automod.sql).
+function moderationErrorResponse(error: { message?: string; details?: string; hint?: string }):
+  { status: number; body: { error: string; code: string } } | null {
+  const text = [error.message, error.details].filter(Boolean).join(' ')
+  if (text.includes('AUTOMOD_BLOCKED')) return { status: 403, body: { ...AUTOMOD_BLOCKED_BODY } }
+  if (text.includes('MEMBER_TIMED_OUT')) {
+    return { status: 403, body: { error: error.hint || 'Timed out in this server', code: 'MEMBER_TIMED_OUT' } }
+  }
+  return null
+}
+
 export interface BotRequest extends Request {
   bot?: {
     id: string
@@ -182,7 +198,10 @@ export class BotRestAPI {
         ...metadata
       }
       
-      const { data: message, error } = await supabase
+      // Array response, not .single(): the server's AutoMod drops a blocked row and
+      // the insert returns zero rows. PostgREST rolls a zero-row singular request
+      // back, which would discard the AutoMod event.
+      const { data: rows, error } = await supabase
         .from('messages')
         .insert({
           channel_id: channelId,
@@ -195,11 +214,17 @@ export class BotRestAPI {
           *,
           bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
         `)
-        .single()
       
       if (error) {
         console.error('Error sending message:', error)
+        const blocked = moderationErrorResponse(error)
+        if (blocked) return res.status(blocked.status).json(blocked.body)
         return res.status(500).json({ error: error.message })
+      }
+
+      const message = rows?.[0]
+      if (!message) {
+        return res.status(403).json(AUTOMOD_BLOCKED_BODY)
       }
       
       await this.logBotAction(botId, 'message_sent', { channel_id: channelId, message_id: message.id })
@@ -451,7 +476,7 @@ export class BotRestAPI {
         botId,
       )
       
-      const { data: updated, error } = await supabase
+      const { data: updatedRows, error } = await supabase
         .from('messages')
         .update({ 
           content: messageContent
@@ -462,10 +487,18 @@ export class BotRestAPI {
           user:profiles!messages_user_id_fkey(id, username, display_name, avatar_url),
           bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)
         `)
-        .single()
       
       if (error) {
+        const blocked = moderationErrorResponse(error)
+        if (blocked) return res.status(blocked.status).json(blocked.body)
         return res.status(500).json({ error: error.message })
+      }
+
+      // The row exists and belongs to this bot (checked above), so zero rows is
+      // AutoMod dropping the edit.
+      const updated = updatedRows?.[0]
+      if (!updated) {
+        return res.status(403).json(AUTOMOD_BLOCKED_BODY)
       }
       
       await this.logBotAction(botId, 'message_edited', { message_id: messageId })

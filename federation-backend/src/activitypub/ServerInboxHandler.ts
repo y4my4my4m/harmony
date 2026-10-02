@@ -731,7 +731,9 @@ async function processCreateActivity(
     Object.assign(messageMetadata, voiceFromAp);
   }
 
-  const { data: insertedMessage, error } = await supabase.from('messages').insert({
+  // Array response: the server's AutoMod drops a blocked row (zero rows), and PostgREST
+  // rolls a zero-row .single() request back with the AutoMod event in it.
+  const { data: insertedRows, error } = await supabase.from('messages').insert({
     channel_id: channel.id,
     user_id: author.id,
     content: messageContent,
@@ -742,10 +744,16 @@ async function processCreateActivity(
     created_at: messageTimestamp,
     updated_at: object.updated || messageTimestamp,
     federation_status: 'completed',
-  }).select('id, content, metadata').single();
+  }).select('id, content, metadata');
 
   if (error) {
     logger.error('Failed to insert server message:', error);
+    return;
+  }
+  const insertedMessage = insertedRows?.[0];
+  if (!insertedMessage) {
+    // Not re-broadcast to member instances either.
+    logger.info(`Server message ${object.id} from ${author.username} dropped by AutoMod`);
     return;
   }
 

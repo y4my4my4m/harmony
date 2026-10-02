@@ -95,6 +95,14 @@
             </button>
           </div>
 
+          <AutoModOptInBanner
+            v-if="permissions.canEditBasicInfo && activeSection !== 'automod'"
+            :server-id="serverId"
+            :status="automodStatus"
+            @review="setActiveSection('automod')"
+            @status-change="automodStatus = $event"
+          />
+
           <!-- Server Overview Section -->
           <ServerBasicInfo
             v-if="activeSection === 'overview'"
@@ -124,6 +132,13 @@
           <ReportsModeration
             v-if="activeSection === 'reports' && permissions.canModerateReports"
             :server-id="serverId"
+          />
+
+          <!-- AutoMod Section -->
+          <ServerAutoMod
+            v-if="activeSection === 'automod' && permissions.canEditBasicInfo"
+            :server-id="serverId"
+            @status-change="automodStatus = $event"
           />
 
           <!-- Emoji Management Section -->
@@ -204,6 +219,9 @@ import ServerBotsSettings from '@/components/settings/ServerBotsSettings.vue'
 import DiscordBridgeSetup from '@/components/settings/DiscordBridgeSetup.vue'
 import RoleManagement from '@/components/settings/RoleManagement.vue'
 import ServerBans from '@/components/settings/server/ServerBans.vue'
+import ServerAutoMod from '@/components/settings/server/ServerAutoMod.vue'
+import AutoModOptInBanner from '@/components/settings/server/AutoModOptInBanner.vue'
+import { getServerAutoMod, type AutoModState } from '@/services/AutoModService'
 const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/ReportsModeration.vue'))
 
 interface Props {
@@ -261,6 +279,18 @@ const currentSectionLabel = computed(() => {
 // Computed permissions
 const permissions = computed(() => serverSettingsPermissions.value)
 
+const automodStatus = ref<AutoModState['status'] | null>(null)
+
+const loadAutoModStatus = async () => {
+  if (!permissions.value.canEditBasicInfo) return
+  try {
+    automodStatus.value = (await getServerAutoMod(props.serverId)).status
+  } catch (error) {
+    debug.warn('AutoMod status unavailable:', error)
+  }
+}
+watch(() => [props.serverId, permissions.value.canEditBasicInfo], loadAutoModStatus, { immediate: true })
+
 const emojiPermissions = computed(() => ({
   canUpload: permissions.value.canUploadEmojis,
   canDelete: permissions.value.canDeleteEmojis,
@@ -274,6 +304,8 @@ const availableSections = computed(() => {
     { id: 'overview', label: t('server.overview') },
     { id: 'roles', label: t('server.roles', 'Roles') },
     { id: 'bans', label: t('server.bans') },
+    // MANAGE_SERVER on a local server; the RPCs refuse anyone else.
+    ...(permissions.value.canEditBasicInfo ? [{ id: 'automod', label: t('automod.title') }] : []),
     { id: 'emoji', label: t('server.emoji') },
     { id: 'privacy', label: t('server.privacySettings') },
     { id: 'advanced', label: t('server.advancedSettings') }

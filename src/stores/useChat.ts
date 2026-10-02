@@ -14,6 +14,7 @@ import { debug } from '@/utils/debug';
 import { realtimeConnectionManager, type ConnectionStatus } from '@/services/RealtimeConnectionManager';
 import { getRandomId, createTempMessageId, findOptimisticMatchIndex } from '@/stores/shared/optimisticMessages';
 import { insertMessageSorted, evictOldestCacheEntry, trimCachedMessages, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils';
+import { isModerationRejectionCode } from '@/services/AutoModService';
 
 export const useChatStore = defineStore('chat', {
   state: () => ({
@@ -640,7 +641,7 @@ export const useChatStore = defineStore('chat', {
         
       } catch (error: any) {
         debug.error('Error editing message via service:', error);
-        throw new Error(error.message || 'Failed to edit message');
+        throw Object.assign(new Error(error.message || 'Failed to edit message'), { code: error?.code });
       }
     },
 
@@ -720,7 +721,9 @@ export const useChatStore = defineStore('chat', {
         // `allowPlaintextFallback: true` and creates a fresh optimistic. A
         // lingering "failed" entry reads as sent-then-rejected on Cancel.
         // BUGS.md.
-        const code = (error?.code || error?.message || '').toString();
+        // CoreMessageService wraps database errors as INSERT_FAILED with the
+        // database message in `message`; both carry codes.
+        const code = [error?.code, error?.message].filter(Boolean).join(' ');
         const isEncryptionPolicyError =
           code.includes('ENCRYPTION_REQUIRED') ||
           code.includes('ENCRYPTION_LOCKED') ||
@@ -742,6 +745,13 @@ export const useChatStore = defineStore('chat', {
             detail: { seconds: waitSeconds, channelId },
           }));
           throw new Error(`Slowmode is on - you can send again in ${waitSeconds}s`);
+        }
+
+        // AutoMod blocks, timeouts and anti-spam limits answer the same way on
+        // every retry.
+        if (isModerationRejectionCode(code)) {
+          this.removeMessageFromCache(tempId);
+          throw error;
         }
 
         // Length-limit and structural validation errors are not transient
