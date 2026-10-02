@@ -317,39 +317,6 @@ export function createUndoBlockActivity(blocker: any, blocked: any): any {
 }
 
 /**
- * Create a Flag activity (report user/post to remote instance)
- */
-export function createFlagActivity(
-  reporter: any, 
-  reportedUser: any, 
-  reportedPost: any | null,
-  reason: string
-): any {
-  const domain = config.INSTANCE_DOMAIN;
-  const reporterUrl = `https://${domain}/users/${reporter.username}`;
-  
-  const objects: string[] = [];
-  
-  // Always include the user
-  const userUrl = reportedUser.federated_id || `https://${reportedUser.domain}/users/${reportedUser.username}`;
-  objects.push(userUrl);
-  
-  // Include the post if specified
-  if (reportedPost?.ap_id) {
-    objects.push(reportedPost.ap_id);
-  }
-  
-  return {
-    '@context': 'https://www.w3.org/ns/activitystreams',
-    id: `${reporterUrl}/flags/${Date.now()}`,
-    type: 'Flag',
-    actor: reporterUrl,
-    object: objects,
-    content: reason,
-  };
-}
-
-/**
  * Create an Update activity for an edited post
  */
 export async function createPostUpdateActivity(post: any, author: any): Promise<any> {

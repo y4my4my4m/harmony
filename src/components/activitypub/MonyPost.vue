@@ -514,7 +514,7 @@
       :target-user-id="displayAuthor.id"
       :target-post-id="post.id"
       :target-post-preview="postTextPreview"
-      :target-user="{ username: displayAuthor.username, display_name: displayAuthor.display_name, avatar_url: displayAuthor.avatar_url }"
+      :target-user="{ username: displayAuthor.username, display_name: displayAuthor.display_name, avatar_url: displayAuthor.avatar_url, domain: displayAuthor.domain, is_local: displayAuthor.is_local }"
       @close="showReportModal = false"
     />
 

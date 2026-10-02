@@ -217,6 +217,7 @@
               <div class="instance-badges">
                 <span v-if="instance.is_trusted" class="badge trusted">Trusted</span>
                 <span v-if="instance.is_blocked" class="badge blocked">Blocked</span>
+                <span v-if="instance.limited_at" class="badge limited" title="Accounts from this domain are silenced">Limited</span>
                 <span v-if="isInstanceInactive(instance)" class="badge inactive">Inactive</span>
               </div>
             </div>
@@ -261,6 +262,22 @@
               title="Remove trust"
             >
               <Icon name="check" :size="14" />
+            </button>
+            <button
+              v-if="!instance.is_blocked && !instance.limited_at"
+              @click="toggleInstanceLimit(instance.domain, true)"
+              class="action-btn-sm"
+              title="Limit: silence this domain's accounts"
+            >
+              <Icon name="volume-x" :size="14" />
+            </button>
+            <button
+              v-if="instance.limited_at"
+              @click="toggleInstanceLimit(instance.domain, false)"
+              class="action-btn-sm"
+              title="Lift the limit"
+            >
+              <Icon name="volume-2" :size="14" />
             </button>
             <button 
               v-if="!instance.is_blocked"
@@ -697,6 +714,19 @@ const toggleInstanceBlock = async (instanceId: string, blocked: boolean) => {
   } catch (error) {
     debug.error('Failed to update instance block status:', error)
     toast.error('Failed to update instance block status')
+  }
+}
+
+const toggleInstanceLimit = async (domain: string, limit: boolean) => {
+  try {
+    const reason = limit ? prompt(`Reason for limiting ${domain}:`) : null
+    if (limit && reason === null) return
+    await adminService.setDomainModeration(domain, limit ? 'limit' : 'none', reason ?? undefined)
+    toast.success(limit ? `${domain} limited` : `Limit on ${domain} lifted`)
+    await loadFederatedInstances()
+  } catch (error) {
+    debug.error('Failed to change domain limit:', error)
+    toast.error('Failed to change the domain limit')
   }
 }
 

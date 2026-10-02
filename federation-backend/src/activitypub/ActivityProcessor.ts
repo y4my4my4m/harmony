@@ -18,6 +18,7 @@ import { pgrstOrValue } from '../utils/postgrestFilter.js';
 import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
 import { fetchAuthoritativeDocument, sameOrigin } from '../utils/apOrigin.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
+import { flagComment, flagObjectUris, parseLocalObjectUri } from './flag.js';
 
 /**
  * Extract message UUID from a URL like https://domain/messages/{uuid}
@@ -2554,77 +2555,103 @@ export class ActivityProcessor {
   }
 
   /**
-   * Flag activity: a report from another instance.
+   * Flag: a report from another instance about local accounts or posts.
+   *
+   * Mirrors Mastodon ActivityPub::Activity::Flag: one report per local account
+   * named, each carrying the named local posts that account wrote; posts by
+   * anyone else and every non-local object are ignored. The report belongs to
+   * the sending domain, not to a profile (create_federated_report). Redelivery
+   * of the same Flag id is a no-op, and a domain is held to 30 reports an hour.
    */
-  private static async processFlag(activity: any): Promise<void> {
+  static async processFlag(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
     const actorUrl = normalizeActor(activity.actor);
-    const objects = Array.isArray(activity.object) ? activity.object : [activity.object];
-    const content = activity.content || 'No reason provided';
-
-    logger.info(`Processing Flag from ${actorUrl}: ${objects.length} objects`);
-
-    await this.ensureRemoteUser(actorUrl);
-
-    const { data: reporter } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('federated_id', actorUrl)
-      .single();
-
-    if (!reporter) {
-      logger.warn(`Could not find reporter for Flag activity`);
+    let sourceDomain: string;
+    try {
+      sourceDomain = new URL(actorUrl).hostname.toLowerCase();
+    } catch {
+      logger.warn('Flag with an unparseable actor ignored');
+      return;
+    }
+    if (typeof activity.id !== 'string' || !activity.id) {
+      logger.warn(`Flag from ${actorUrl} without an id ignored`);
       return;
     }
 
-    for (const obj of objects) {
-      const objectUrl = typeof obj === 'string' ? obj : obj?.id;
-      if (!objectUrl) continue;
+    const uris = flagObjectUris(activity.object);
+    const accountIds = new Set<string>();
+    const postAuthors = new Map<string, string>();
 
-      const isUserReport = objectUrl.includes('/users/');
-      
-      if (isUserReport) {
-        const { data: reportedUser } = await supabase
+    for (const uri of uris) {
+      const ref = parseLocalObjectUri(uri, config.INSTANCE_DOMAIN);
+      if (ref?.kind === 'account') {
+        const { data } = await supabase
           .from('profiles')
           .select('id')
-          .eq('federated_id', objectUrl)
+          .ilike('username', ref.username.replace(/_/g, '\\_'))
+          .eq('is_local', true)
           .maybeSingle();
-
-        if (reportedUser) {
-          await supabase.from('reports').insert({
-            reporter_id: reporter.id,
-            reported_user_id: reportedUser.id,
-            reason: content,
-            report_type: 'user',
-            source: 'federation',
-            source_instance: new URL(actorUrl).hostname,
-            status: 'pending',
-            ap_id: activity.id,
-          });
-          logger.info(`Created user report for ${objectUrl}`);
-        }
-      } else {
-        const { data: reportedPost } = await supabase
+        if (data) accountIds.add(data.id);
+        continue;
+      }
+      if (ref?.kind === 'post') {
+        const { data } = await supabase
           .from('posts')
           .select('id, author_id')
-          .eq('ap_id', objectUrl)
+          .eq('id', ref.id)
+          .eq('is_local', true)
           .maybeSingle();
-
-        if (reportedPost) {
-          await supabase.from('reports').insert({
-            reporter_id: reporter.id,
-            reported_user_id: reportedPost.author_id,
-            reported_post_id: reportedPost.id,
-            reason: content,
-            report_type: 'post',
-            source: 'federation',
-            source_instance: new URL(actorUrl).hostname,
-            status: 'pending',
-            ap_id: activity.id,
-          });
-          logger.info(`Created post report for ${objectUrl}`);
-        }
+        if (data) postAuthors.set(data.id, data.author_id);
+        continue;
       }
+      if (!sameOrigin(uri, `https://${config.INSTANCE_DOMAIN}/`)) continue;
+
+      // Local URIs in another form: stored actor or post ids.
+      const { data: account } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('federated_id', uri)
+        .eq('is_local', true)
+        .maybeSingle();
+      if (account) {
+        accountIds.add(account.id);
+        continue;
+      }
+      const { data: post } = await supabase
+        .from('posts')
+        .select('id, author_id')
+        .eq('ap_id', uri)
+        .eq('is_local', true)
+        .maybeSingle();
+      if (post) postAuthors.set(post.id, post.author_id);
+    }
+
+    if (accountIds.size === 0) {
+      for (const author of postAuthors.values()) accountIds.add(author);
+    }
+    if (accountIds.size === 0) {
+      logger.info(`Flag ${activity.id} from ${sourceDomain} names nothing local; ignored`);
+      return;
+    }
+
+    const comment = flagComment(activity.content);
+    for (const accountId of accountIds) {
+      const postIds = [...postAuthors.entries()]
+        .filter(([, author]) => author === accountId)
+        .map(([postId]) => postId);
+      const { data, error } = await supabase.rpc('create_federated_report', {
+        p_ap_id: activity.id,
+        p_actor: actorUrl,
+        p_source_domain: sourceDomain,
+        p_reported_user_id: accountId,
+        p_post_ids: postIds,
+        p_comment: comment,
+        p_object_uris: uris,
+      });
+      if (error) {
+        throw new Error(`Flag ${activity.id}: report not stored: ${error.message}`);
+      }
+      logger.info(`Flag ${activity.id} from ${sourceDomain} on ${accountId}: ${data?.status ?? 'unknown'}`);
     }
   }
 

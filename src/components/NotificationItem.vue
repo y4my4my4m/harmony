@@ -234,6 +234,7 @@ const TYPE_ICONS: Record<string, { icon: string; tone: string }> = {
   activitypub_follow_request: { icon: 'user-plus', tone: 'follow' },
   activitypub_follow_accepted: { icon: 'user-check', tone: 'follow' },
   report_update: { icon: 'shield', tone: 'system' },
+  moderation_warning: { icon: 'shield', tone: 'system' },
   server_invite: { icon: 'server', tone: 'system' },
   voice_channel_activity: { icon: 'headphones', tone: 'system' },
 }

@@ -149,18 +149,6 @@ export async function startDatabaseListener(): Promise<void> {
     .on(
       'postgres_changes',
       {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'reports',
-      },
-      async (payload) => {
-        logger.info('New report detected:', payload.new.id);
-        await handleNewReport(payload.new);
-      }
-    )
-    .on(
-      'postgres_changes',
-      {
         event: 'DELETE',
         schema: 'public',
         table: 'follows',
@@ -772,64 +760,6 @@ async function handleUnblock(block: any): Promise<void> {
     }
   } catch (error) {
     logger.error('Failed to handle unblock:', error);
-  }
-}
-
-/** Sends Flag to the reported user's instance inbox. */
-async function handleNewReport(report: any): Promise<void> {
-  try {
-    if (report.source === 'federation') {
-      logger.debug('Report is from federation, not re-federating');
-      return;
-    }
-
-    const supabase = getSupabaseClient();
-
-    const { data: reporter } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', report.reporter_id)
-      .single();
-
-    if (!reporter?.is_local) {
-      return;
-    }
-
-    const { data: reportedUser } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', report.reported_user_id)
-      .single();
-
-    if (!reportedUser) {
-      return;
-    }
-
-    if (reportedUser.is_local) {
-      logger.debug('Reported user is local, no federation needed');
-      return;
-    }
-
-    let reportedPost = null;
-    if (report.reported_post_id) {
-      const { data: post } = await supabase
-        .from('posts')
-        .select('*')
-        .eq('id', report.reported_post_id)
-        .single();
-      reportedPost = post;
-    }
-
-    const { createFlagActivity } = await import('./FederationHandlers.js');
-    const activity = createFlagActivity(reporter, reportedUser, reportedPost, report.reason);
-
-    const instanceDomain = reportedUser.domain;
-    const instanceInbox = `https://${instanceDomain}/inbox`;
-
-    await DeliveryQueue.sendToInbox(instanceInbox, activity, reporter.id);
-    logger.info(`Report federated to ${instanceInbox}`);
-  } catch (error) {
-    logger.error('Failed to handle new report:', error);
   }
 }
 

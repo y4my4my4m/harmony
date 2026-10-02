@@ -384,6 +384,15 @@ const MESSAGE_TEMPLATES = {
     shortTitle: () => 'Report update'
   },
 
+  moderation_warning: {
+    title: () => 'Warning from the moderators',
+    message: (data: any) => {
+      const text = typeof data.text === 'string' ? data.text.trim() : ''
+      return text || 'The moderators issued a warning about your account.'
+    },
+    shortTitle: () => 'Moderation warning'
+  },
+
   /**
    * Sent to all admins + moderators when a webhook donation arrives that
    * couldn't be auto-matched to a user (no handle in message, or no profile
@@ -573,6 +582,10 @@ export class NotificationFormatter {
       return data.inviter.display_name || data.inviter.username || 'Unknown'
     }
 
+    if (notification.type === 'moderation_warning') {
+      return 'Moderators'
+    }
+
     // Report updates: default to generic label (harassment/backlash prevention); show resolver only if moderator opted in
     if (notification.type === 'report_update') {
       if (data.show_resolver && (data.resolver_display_name || data.resolver_username)) {
@@ -615,6 +628,9 @@ export class NotificationFormatter {
     }
 
     // Report updates: use resolver avatar only if show_resolver; otherwise generic default
+    if (notification.type === 'moderation_warning') {
+      return utilGetAvatarUrl(null) || '/default_avatar.webp'
+    }
     if (notification.type === 'report_update' && !data.show_resolver) {
       return utilGetAvatarUrl(null) || '/default_avatar.webp'
     }

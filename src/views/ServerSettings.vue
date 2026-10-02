@@ -120,6 +120,12 @@
             :server-id="serverId"
           />
 
+          <!-- Reports about messages in this server -->
+          <ReportsModeration
+            v-if="activeSection === 'reports' && permissions.canModerateReports"
+            :server-id="serverId"
+          />
+
           <!-- Emoji Management Section -->
           <ServerEmojiManagement
             v-if="activeSection === 'emoji'"
@@ -176,7 +182,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed, watch, onUnmounted } from 'vue'
+import { onMounted, ref, computed, watch, onUnmounted, defineAsyncComponent } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
@@ -198,6 +204,7 @@ import ServerBotsSettings from '@/components/settings/ServerBotsSettings.vue'
 import DiscordBridgeSetup from '@/components/settings/DiscordBridgeSetup.vue'
 import RoleManagement from '@/components/settings/RoleManagement.vue'
 import ServerBans from '@/components/settings/server/ServerBans.vue'
+const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/ReportsModeration.vue'))
 
 interface Props {
   serverId: string
@@ -271,6 +278,9 @@ const availableSections = computed(() => {
     { id: 'privacy', label: t('server.privacySettings') },
     { id: 'advanced', label: t('server.advancedSettings') }
   ]
+  if (permissions.value.canModerateReports) {
+    sections.splice(3, 0, { id: 'reports', label: t('server.reports', 'Reports') })
+  }
   return sections
 })
 

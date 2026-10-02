@@ -221,6 +221,11 @@
   color: var(--error);
 }
 
+.badge.limited {
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--warning);
+}
+
 
 
 .badge.inactive {

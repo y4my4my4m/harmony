@@ -10,6 +10,11 @@
 // signatures, the local instance fetches the peer's key over HTTP to verify
 // them, and every assertion reads a row back through PostgREST.
 //
+// Reports cross in both directions: the peer's instance actor sends a signed
+// Flag that becomes a report owned by the peer's domain, and a forwarded local
+// report reaches the peer as a Flag signed by the local instance actor, which
+// the peer checks against the actor document the local instance publishes.
+//
 // Two paths carry the defects this harness exists to catch:
 //   - public.federated_voice_calls, whose column set an inbound
 //     harmony:VoiceCallInvite writes directly;
@@ -74,6 +79,9 @@ const PUB_GENERAL = 'fed00000-0000-0000-0000-000000000031'
 const REMOTE_REF = 'fed00000-0000-0000-0000-000000000040'
 const REMOTE_CHANNEL = 'fed00000-0000-0000-0000-000000000041'
 const REMOTE_CHANNEL_NEW = 'fed00000-0000-0000-0000-000000000042'
+
+// A local post the peer reports.
+const ALICE_POST = 'fed00000-0000-0000-0000-000000000050'
 
 // REPORTING
 
@@ -1128,10 +1136,198 @@ async function caseSyncSignsAsMember(db: SupabaseClient, peer: Peer, localUrl: s
   )
 }
 
+// REPORTS
+
+async function seedReports(db: SupabaseClient) {
+  await must('seed reported post', db.from('posts').insert({
+    id: ALICE_POST,
+    author_id: ALICE,
+    content: [{ type: 'text', text: 'post the peer reports' }],
+    visibility: 'public',
+    is_local: true,
+  }))
+}
+
+function flagActivity(peer: Peer, id: string | undefined, object: string[], content: string) {
+  return {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    ...(id ? { id } : {}),
+    type: 'Flag',
+    actor: peer.instanceActorUrl,
+    object,
+    content,
+  }
+}
+
+async function caseInboundFlag(db: SupabaseClient, peer: Peer, localUrl: string) {
+  console.log('\ninbound Flag from the peer instance actor -> report owned by the peer domain')
+
+  const peerDomain = new URL(peer.base).hostname
+  const target = `${localUrl}/inbox`
+  const keyId = `${peer.instanceActorUrl}#main-key`
+  const id = `${peer.base}/flags/${crypto.randomUUID()}`
+  const body = JSON.stringify(flagActivity(peer, id, [
+    `https://${INSTANCE_DOMAIN}/users/fx_alice`,
+    `https://${INSTANCE_DOMAIN}/posts/${ALICE_POST}`,
+    `${peer.base}/notes/not-ours`,
+  ], 'Spam from your user'))
+
+  const res = await post(target, signedHeaders(target, body, peer.instanceKey.privateKey, keyId), body)
+  eq(res.status, 202, 'a Flag signed by the peer instance actor is accepted (202)')
+
+  const { data: rows, error } = await db
+    .from('reports')
+    .select('reporter_id, reported_user_id, reported_post_id, report_type, source, source_instance, comment, metadata, federation_status, content_snapshot')
+    .eq('ap_id', id)
+  if (error) {
+    fail('reports readable', error.message)
+    return
+  }
+  eq(rows?.length, 1, 'one report for the one local account named')
+  const row = rows?.[0]
+  if (row) {
+    eq(row.reporter_id, null, 'no profile stands in for the reporter')
+    eq(row.source, 'federation', 'the report is federated')
+    eq(row.source_instance, peerDomain, 'the report belongs to the peer domain')
+    eq(row.reported_user_id, ALICE, 'the named local account is reported')
+    eq(row.reported_post_id, ALICE_POST, "the account's own post is attached")
+    eq(row.report_type, 'post', 'a Flag naming a post files a post report')
+    eq(row.comment, 'Spam from your user', 'the Flag content is the comment')
+    eq(row.metadata?.actor, peer.instanceActorUrl, 'the sending actor is recorded')
+    eq(row.federation_status, 'skipped', 'an inbound report is never forwarded back')
+    eq(row.content_snapshot?.posts?.[0]?.content?.[0]?.text, 'post the peer reports', 'the post is snapshotted')
+  }
+
+  const { data: actorProfiles } = await db.from('profiles').select('id').eq('federated_id', peer.instanceActorUrl)
+  eq(actorProfiles?.length, 0, 'no profile is created for the peer instance actor')
+
+  const again = await post(target, signedHeaders(target, body, peer.instanceKey.privateKey, keyId), body)
+  eq(again.status, 202, 'redelivery is acknowledged (202)')
+  const { data: afterAgain } = await db.from('reports').select('id').eq('ap_id', id)
+  eq(afterAgain?.length, 1, 'redelivery files no second report')
+
+  // Mastodon and Misskey deliver a Flag to the reported account's own inbox.
+  const personalId = `${peer.base}/flags/${crypto.randomUUID()}`
+  const personalBody = JSON.stringify(flagActivity(peer, personalId, [`https://${INSTANCE_DOMAIN}/users/fx_alice`], 'to her inbox'))
+  const personalTarget = `${localUrl}/users/fx_alice/inbox`
+  const personal = await post(personalTarget, signedHeaders(personalTarget, personalBody, peer.instanceKey.privateKey, keyId), personalBody)
+  eq(personal.status, 202, "a Flag delivered to the account's personal inbox is accepted (202)")
+  const { data: personalRows } = await db.from('reports').select('reported_user_id, report_type').eq('ap_id', personalId)
+  assert(
+    personalRows?.length === 1 && personalRows[0].reported_user_id === ALICE && personalRows[0].report_type === 'user',
+    "a Flag at the personal inbox files the report",
+    JSON.stringify(personalRows),
+  )
+
+  const unsignedId = `${peer.base}/flags/${crypto.randomUUID()}`
+  const unsignedBody = JSON.stringify(flagActivity(peer, unsignedId, [`https://${INSTANCE_DOMAIN}/users/fx_alice`], 'x'))
+  const unsigned = await post(target, { 'Content-Type': 'application/activity+json' }, unsignedBody)
+  eq(unsigned.status, 401, 'an unsigned Flag is rejected (401)')
+  const { data: unsignedRows } = await db.from('reports').select('id').eq('ap_id', unsignedId)
+  eq(unsignedRows?.length, 0, 'an unsigned Flag files nothing')
+
+  const strangerId = `${peer.base}/flags/${crypto.randomUUID()}`
+  const strangerBody = JSON.stringify(flagActivity(peer, strangerId, [peer.actorUrl, `${peer.base}/notes/x`], 'x'))
+  const stranger = await post(target, signedHeaders(target, strangerBody, peer.instanceKey.privateKey, keyId), strangerBody)
+  eq(stranger.status, 202, 'a Flag about remote objects only is acknowledged (202)')
+  const { data: strangerRows } = await db.from('reports').select('id').eq('ap_id', strangerId)
+  eq(strangerRows?.length, 0, 'a Flag naming nothing local files nothing')
+
+  const idlessBody = JSON.stringify(flagActivity(peer, undefined, [`https://${INSTANCE_DOMAIN}/users/fx_bob`], 'no id'))
+  const idless = await post(target, signedHeaders(target, idlessBody, peer.instanceKey.privateKey, keyId), idlessBody)
+  eq(idless.status, 202, 'a Flag without an id is accepted (202)')
+  const { data: idlessRows } = await db
+    .from('reports')
+    .select('ap_id')
+    .eq('source', 'federation')
+    .eq('reported_user_id', BOB)
+  assert(
+    idlessRows?.length === 1 && (idlessRows[0].ap_id ?? '').startsWith(`${peer.instanceActorUrl}#flag-`),
+    'an id-less Flag is filed under an id derived from its body',
+    JSON.stringify(idlessRows),
+  )
+}
+
+async function caseOutboundFlag(db: SupabaseClient, peer: Peer, localUrl: string, env: Record<string, string>, backend: Backend) {
+  console.log('\nforwarded report -> Flag from the local instance actor to the peer shared inbox')
+
+  const alice = createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+    global: { headers: { Authorization: `Bearer ${userToken(ALICE_AUTH, env.HMFED_JWT_SECRET)}` } },
+  })
+  const { data: reportId, error } = await alice.rpc('create_report', {
+    p_report_type: 'user',
+    p_reported_user_id: REMOTE,
+    p_reason: 'spam',
+    p_comment: 'Forwarded comment',
+    p_forward: true,
+  })
+  if (error || typeof reportId !== 'string') {
+    fail('create_report as a local user', error?.message ?? JSON.stringify(reportId))
+    return
+  }
+
+  const { data: queued } = await db.from('reports').select('forward, federation_status').eq('id', reportId).single()
+  eq(queued?.federation_status, 'queued', 'a forwarded report about a remote account is queued')
+
+  const before = peer.captured.length
+  await backend.handleReportJob({ type: 'create', report_id: reportId })
+  const delivered = peer.captured.slice(before)
+  eq(delivered.length, 1, 'the peer received exactly one delivery')
+  const req = delivered[0]
+  if (!req) return
+
+  eq(req.url, '/inbox', 'the Flag goes to the shared inbox')
+  const raw = req.raw.toString('utf-8')
+  const sent = JSON.parse(raw)
+  eq(sent.type, 'Flag', 'the delivered activity is a Flag')
+  eq(sent.actor, `https://${INSTANCE_DOMAIN}/users/instance.actor`, 'the Flag comes from the instance actor')
+  eq(JSON.stringify(sent.object), JSON.stringify([peer.actorUrl]), 'the Flag names the reported account')
+  eq(sent.content, 'Forwarded comment', "the Flag carries the reporter's comment")
+  assert(!raw.includes('fx_alice') && !raw.includes(ALICE), 'nothing in the Flag names the reporter', raw)
+
+  const params = parseSignatureHeader(req.headers.signature ?? '')
+  eq(params.keyId, `https://${INSTANCE_DOMAIN}/users/instance.actor#main-key`, 'the Flag is signed with the instance actor key')
+  eq(req.headers.digest, backend.createDigest(req.raw), 'Digest covers the bytes the peer received')
+
+  const actorDoc = await getJson(`${localUrl}/users/instance.actor`)
+  eq(actorDoc?.type, 'Application', 'the instance actor is published as an Application')
+  eq(actorDoc?.publicKey?.id, params.keyId, 'the published key is the signing key')
+  const signingString = [
+    `(request-target): post ${req.url}`,
+    `host: ${req.headers.host}`,
+    `date: ${req.headers.date}`,
+    `digest: ${req.headers.digest}`,
+  ].join('\n')
+  assert(
+    !!actorDoc?.publicKey?.publicKeyPem &&
+      crypto.createVerify('SHA256').update(signingString).verify(actorDoc.publicKey.publicKeyPem, params.signature, 'base64'),
+    'the Flag signature verifies against the published instance actor key',
+  )
+
+  const wf = await get(
+    `${localUrl}/.well-known/webfinger?resource=${encodeURIComponent(`acct:instance.actor@${INSTANCE_DOMAIN}`)}`,
+    { Accept: 'application/jrd+json' },
+  )
+  assert(
+    wf.status === 200 && (wf.json?.links ?? []).some((l: any) => l.rel === 'self' && l.href === actorDoc?.id),
+    'WebFinger resolves the instance actor to its id',
+    wf.body,
+  )
+
+  const { data: after } = await db.from('reports').select('federation_status, forwarded_at').eq('id', reportId).single()
+  eq(after?.federation_status, 'completed', 'the report records the delivery')
+  assert(!!after?.forwarded_at, 'forwarded_at is set')
+
+  await backend.handleReportJob({ type: 'create', report_id: reportId })
+  eq(peer.captured.length - before, 1, 'a forwarded report is not sent twice')
+}
+
 // WIRING
 
 interface Backend {
   handleNewDM: (message: unknown) => Promise<void>
+  handleReportJob: (data: { type: 'create'; report_id: string }) => Promise<void>
   verifySignature: (
     signature: string,
     headers: Record<string, string>,
@@ -1145,14 +1341,16 @@ interface Backend {
 
 async function loadBackend(): Promise<Backend> {
   const mod = (p: string) => import(pathToFileURL(path.join(BACKEND_ROOT, 'src', p)).href)
-  const [server, listener, signature] = await Promise.all([
+  const [server, listener, signature, reports] = await Promise.all([
     mod('server.ts'),
     mod('listeners/DatabaseListener.ts'),
     mod('activitypub/SignatureService.ts'),
+    mod('queue/handlers/reportHandler.ts'),
   ])
   return {
     createApp: server.createApp,
     handleNewDM: listener.handleNewDM,
+    handleReportJob: reports.handleReportJob,
     verifySignature: signature.SignatureService.verifySignature.bind(signature.SignatureService),
     createDigest: signature.SignatureService.createDigest.bind(signature.SignatureService),
   }
@@ -1197,6 +1395,9 @@ async function main() {
     await caseInboundDM(db, peer, localUrl)
     await caseOutboundDM(db, peer, backend)
     await caseSignedGetRetry(peer, localUrl, db)
+    await seedReports(db)
+    await caseInboundFlag(db, peer, localUrl)
+    await caseOutboundFlag(db, peer, localUrl, env, backend)
     await seedServers(db, peer)
     await caseHostedPrivateServer(peer, localUrl)
     await caseProxyReadsAsMember(peer, localUrl, env.HMFED_JWT_SECRET)

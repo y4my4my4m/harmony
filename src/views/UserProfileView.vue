@@ -310,7 +310,7 @@
     v-if="showReportModal && user"
     report-type="user"
     :target-user-id="user.id"
-    :target-user="{ username: user.username, display_name: user.display_name, avatar_url: user.avatar_url }"
+    :target-user="{ username: user.username, display_name: user.display_name, avatar_url: user.avatar_url, domain: user.domain, is_local: user.is_local }"
     @close="showReportModal = false"
   />
 </template>

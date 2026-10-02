@@ -3,7 +3,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(17);
+SELECT plan(12);
 
 -- Grants ----------------------------------------------------------------------
 SELECT ok(NOT has_function_privilege('anon', 'public.update_message_embeds(uuid, jsonb)', 'EXECUTE')
@@ -22,11 +22,6 @@ SELECT ok(NOT has_function_privilege('anon', 'public.pin_message(uuid, uuid)', '
 SELECT ok(has_function_privilege('service_role', 'public.update_message_embeds(uuid, jsonb)', 'EXECUTE')
           AND has_function_privilege('service_role', 'public.update_message_content_silent(uuid, jsonb, jsonb)', 'EXECUTE'),
           'the service role keeps the embed and silent-content writers');
-
--- Report fixture: bob reported something, alice resolved it.
-INSERT INTO public.reports (id, reporter_id, reason, status, resolved_by)
-VALUES ('abababab-0000-0000-0000-00000000000a', '22222222-0000-0000-0000-000000000002',
-        'spam', 'resolved', '11111111-0000-0000-0000-000000000001');
 
 -- Pinning -------------------------------------------------------------------------
 -- bob holds neither PIN_MESSAGES nor MANAGE_MESSAGES; naming the owner does not lend him hers.
@@ -57,34 +52,10 @@ SELECT throws_ok(
 SELECT ok(NOT has_function_privilege('authenticated', 'public.send_notification_to_user(character varying, uuid, jsonb, uuid, uuid, uuid, uuid, character varying)', 'EXECUTE'),
           'clients cannot call send_notification_to_user');
 
-SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
-SELECT throws_ok(
-    $q$SELECT public.notify_report_update('abababab-0000-0000-0000-00000000000a')$q$,
-    'P0001', 'Unauthorized: not a report this caller may update',
-    'a reporter cannot send updates about its own report');
-
-SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
-SELECT throws_ok(
-    $q$SELECT public.notify_report_update('abababab-0000-0000-0000-00000000000a')$q$,
-    'P0001', 'Unauthorized: not a report this caller may update',
-    'a stranger cannot send report updates');
-
-SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
-SELECT lives_ok(
-    $q$SELECT public.notify_report_update('abababab-0000-0000-0000-00000000000a',
-        '{"status":"pending","report_id":"00000000-0000-0000-0000-000000000000"}'::jsonb, true)$q$,
-    'the resolver notifies the reporter');
-
-RESET role;
-SELECT is((SELECT count(*)::int FROM public.notifications
-            WHERE user_id = '22222222-0000-0000-0000-000000000002' AND type = 'report_update'),
-          1, 'exactly one report_update reached the reporter');
-SELECT is((SELECT data->>'status' FROM public.notifications
-            WHERE user_id = '22222222-0000-0000-0000-000000000002' AND type = 'report_update'),
-          'resolved', 'status comes from the report, not the caller');
-SELECT is((SELECT data->>'report_id' FROM public.notifications
-            WHERE user_id = '22222222-0000-0000-0000-000000000002' AND type = 'report_update'),
-          'abababab-0000-0000-0000-00000000000a', 'report_id comes from the argument, not the payload');
+-- notify_report_update is superseded by moderate_report (20261005000001, 51_reports.sql).
+SELECT is((SELECT count(*)::int FROM pg_proc
+            WHERE pronamespace = 'public'::regnamespace AND proname = 'notify_report_update'),
+          0, 'notify_report_update no longer exists');
 
 SELECT * FROM finish();
 ROLLBACK;

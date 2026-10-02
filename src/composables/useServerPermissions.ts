@@ -347,7 +347,8 @@ export function useServerPermissions() {
     canViewSettings: true,
     canSaveChanges: canManageServer.value,
     canDeleteServer: isCurrentUserServerOwner.value,
-    canManageRoles: canManageRoles.value
+    canManageRoles: canManageRoles.value,
+    canModerateReports: canManageMessages.value
   }))
 
   const channelPermissions = computed(() => ({

@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getSupabaseClient } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import config from '../config/index.js';
+import { INSTANCE_ACTOR_USERNAME, instanceActorUrl, isInstanceActorUsername } from './InstanceActor.js';
 
 const router = Router();
 
@@ -33,6 +34,25 @@ router.get(
     if (domain.toLowerCase() !== config.INSTANCE_DOMAIN.toLowerCase()) {
       return res.status(404).json({
         error: 'User not found on this instance',
+      });
+    }
+
+    // Mastodon resolves a signer's preferredUsername through WebFinger and
+    // requires the self link to be the actor id.
+    if (isInstanceActorUsername(username)) {
+      const actorUrl = instanceActorUrl();
+      res.setHeader('Content-Type', 'application/jrd+json');
+      return res.json({
+        subject: `acct:${INSTANCE_ACTOR_USERNAME}@${config.INSTANCE_DOMAIN}`,
+        aliases: [actorUrl],
+        links: [
+          {
+            rel: 'self',
+            type: 'application/activity+json',
+            href: actorUrl,
+            properties: { 'https://www.w3.org/ns/activitystreams#type': 'Application' },
+          },
+        ],
       });
     }
 

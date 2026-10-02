@@ -1559,7 +1559,7 @@ const showReportModal = ref(false);
 const reportTargetUserId = ref<string | undefined>();
 const reportTargetMessageId = ref<string | undefined>();
 const reportTargetMessagePreview = ref<string | undefined>();
-const reportTargetUser = ref<{ username: string; display_name?: string; avatar_url?: string } | undefined>();
+const reportTargetUser = ref<{ username: string; display_name?: string; avatar_url?: string; domain?: string | null; is_local?: boolean | null } | undefined>();
 
 const isLightboxOpen = ref(false);
 const indexRef = ref(0);
@@ -2996,7 +2996,8 @@ const handleReportMessage = (message: Message) => {
   } else if (typeof message.content === 'string') {
     preview = message.content;
   }
-  reportTargetMessagePreview.value = preview.slice(0, 200) || undefined;
+  // Also the reporter's evidence for an encrypted message, whose stored content is ciphertext.
+  reportTargetMessagePreview.value = preview.slice(0, 4000) || undefined;
 
   const profile = getUserProfile(authorId);
   const displayName = getUserDisplayName(authorId);
@@ -3005,6 +3006,8 @@ const handleReportMessage = (message: Message) => {
     username: profile?.value?.username || displayName?.value || 'Unknown',
     display_name: displayName?.value || undefined,
     avatar_url: avatarUrl?.value || undefined,
+    domain: profile?.value?.domain ?? null,
+    is_local: profile?.value?.is_local ?? null,
   };
 
   showReportModal.value = true;

@@ -8,6 +8,8 @@ import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { inboxLimiter, instanceInboxLimiter } from '../middleware/rateLimit.js';
 import { pgrstEscape } from '../utils/postgrestFilter.js';
+import { isInstanceActorUsername } from './InstanceActor.js';
+import { syntheticFlagId } from './flag.js';
 
 const router = Router();
 
@@ -65,7 +67,8 @@ router.post(
       'digest': req.headers.digest ? 'present' : 'missing',
       'user-agent': req.headers['user-agent']
     });
-    await handleInbox(req, res, req.params.username);
+    // The instance actor's inbox is the shared inbox.
+    await handleInbox(req, res, isInstanceActorUsername(req.params.username) ? null : req.params.username);
   })
 );
 
@@ -349,8 +352,17 @@ async function handleInbox(
   // 4. activity.actor must match the signing key's owner.
 
   const signature = req.headers.signature as string;
+  // Flag creates moderation work attributed to the signer's domain, so it is
+  // refused unsigned or unverified whatever REQUIRE_VALID_SIGNATURES says.
+  const isFlag = activity.type === 'Flag';
+  let signatureVerified = false;
 
   if (!signature) {
+    if (isFlag) {
+      logger.warn(`Rejecting unsigned Flag from ${actorUrl}`);
+      res.status(401).json({ error: 'Missing HTTP Signature - Flag activities must be signed' });
+      return;
+    }
     if (config.REQUIRE_VALID_SIGNATURES) {
       logger.warn(`Rejecting unsigned activity from ${actorUrl}`);
       res.status(401).json({ error: 'Missing HTTP Signature - all ActivityPub requests must be signed' });
@@ -372,7 +384,7 @@ async function handleInbox(
     );
 
     if (!verification.verified) {
-      if (config.REQUIRE_VALID_SIGNATURES) {
+      if (config.REQUIRE_VALID_SIGNATURES || isFlag) {
         logger.warn(`Rejecting activity with invalid signature from ${actorUrl}: ${verification.error}`);
         res.status(401).json({ error: `Invalid HTTP Signature: ${verification.error}` });
         return;
@@ -383,7 +395,7 @@ async function handleInbox(
       if (verification.actorUrl && actorUrl) {
         const actorMatch = SignatureService.verifyActorMatch(actorUrl, verification.actorUrl);
         if (!actorMatch) {
-          if (config.REQUIRE_VALID_SIGNATURES) {
+          if (config.REQUIRE_VALID_SIGNATURES || isFlag) {
             logger.warn(`Rejecting activity: actor mismatch. Activity actor: ${actorUrl}, Signing key: ${verification.actorUrl}`);
             res.status(403).json({ error: 'Actor mismatch - activity.actor must match the signing key owner' });
             return;
@@ -392,8 +404,23 @@ async function handleInbox(
           }
         }
       }
+      signatureVerified = !!verification.actorUrl
+        && SignatureService.verifyActorMatch(actorUrl as string, verification.actorUrl);
       logger.info(`Signature verified for ${actorUrl}`);
     }
+  }
+
+  if (isFlag && !signatureVerified) {
+    logger.warn(`Rejecting Flag from ${actorUrl}: signer does not match the actor`);
+    res.status(401).json({ error: 'Flag activities must be signed by their actor' });
+    return;
+  }
+
+  // A Flag without an id is named from its actor and body, so redeliveries of
+  // the same body deduplicate.
+  if (isFlag && (typeof activity.id !== 'string' || !activity.id)) {
+    const rawBody = (req as any).rawBody as Buffer | undefined;
+    activity.id = syntheticFlagId(actorUrl as string, rawBody ?? JSON.stringify(activity));
   }
 
   if (actorUrl) {
@@ -415,8 +442,10 @@ async function handleInbox(
     }
 
     // Like/Undo/Accept/Reject/Follow are implicitly addressed: they reference
-    // the user's own content.
-    const implicitTypes = ['Like', 'Undo', 'Accept', 'Reject', 'Follow'];
+    // the user's own content. Flag carries no audience; Mastodon
+    // (ReportService#forward_to_origin!) and Misskey deliver it to the
+    // reported account's personal inbox.
+    const implicitTypes = ['Like', 'Undo', 'Accept', 'Reject', 'Follow', 'Flag'];
     if (!implicitTypes.includes(activity.type)) {
       const to = Array.isArray(activity.to) ? activity.to : [activity.to].filter(Boolean);
       const cc = Array.isArray(activity.cc) ? activity.cc : [activity.cc].filter(Boolean);
