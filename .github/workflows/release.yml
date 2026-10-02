@@ -12,25 +12,115 @@ on:
         description: "Existing tag to build a release for (e.g. v1.4.0)"
         required: true
 
+# One run per tag: a dispatch for a tag whose push run is still going waits.
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 env:
+  RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
   VITE_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL != '' && secrets.TEST_SUPABASE_URL || 'https://placeholder.supabase.co' }}
   VITE_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY != '' && secrets.TEST_SUPABASE_ANON_KEY || 'placeholder-key' }}
 
+# Jobs build the tag's tree and run helper scripts from .ci, a checkout of the
+# workflow's own commit: a dispatch can rebuild a tag that predates them, and
+# names cannot drift from tauri.yml, which runs the same scripts.
+#
+# release -> desktop (Windows, macOS) -> latest-json
+#         -> android (after desktop)
+# The draft release exists before any build uploads, so concurrent jobs cannot
+# each create one. latest.json has a single writer that runs after every
+# desktop build has uploaded.
 jobs:
+  release:
+    name: Draft release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      id: ${{ steps.release.outputs.id }}
+      version: ${{ steps.names.outputs.version }}
+      windows-stem: ${{ steps.names.outputs.windows }}
+      macos-stem: ${{ steps.names.outputs.macos }}
+      updater-args: ${{ steps.updater.outputs.args }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .ci
+          sparse-checkout: scripts
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .ci/.nvmrc
+      # Absent from tags cut before 2026-07-07; those trees carry their version
+      # inline, so skipping the stamp is correct rather than fatal.
+      - name: Stamp version from tag
+        run: |
+          if [ -f scripts/set-version.mjs ]; then
+            node scripts/set-version.mjs "$RELEASE_TAG"
+          else
+            echo "::notice::scripts/set-version.mjs absent at this tag; using the version committed in the tree."
+          fi
+      # Updater artifacts (minisign-signed installers and latest.json) need the
+      # private key in secrets and the matching public key committed in
+      # tauri.conf.json; tauri build fails when they are enabled without the
+      # private key. Without both, installers still ship and installed apps are
+      # not offered the release.
+      - name: Resolve updater signing
+        id: updater
+        env:
+          HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          if [ "$HAS_UPDATER_KEY" != "true" ]; then
+            echo "::warning::TAURI_SIGNING_PRIVATE_KEY is not set; building installers without updater artifacts. Installed apps will not be offered this release."
+          elif grep -q 'HARMONY_UPDATER_PUBKEY' src-tauri/tauri.conf.json; then
+            echo "::warning::plugins.updater.pubkey in src-tauri/tauri.conf.json is still the placeholder; building installers without updater artifacts."
+          else
+            echo "args=--config src-tauri/tauri.updater.conf.json" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Name release assets
+        id: names
+        # Assignments, not inline substitutions, so a failing helper fails the step.
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          windows=$(bash .ci/scripts/name-artifact.sh --release Windows release)
+          macos=$(bash .ci/scripts/name-artifact.sh --release macOS release)
+          {
+            echo "version=$version"
+            echo "windows=$windows"
+            echo "macos=$macos"
+          } >> "$GITHUB_OUTPUT"
+      # Also deletes a latest.json left by an earlier run of this tag, so the
+      # release carries one only when this run's builds all uploaded.
+      - name: Find or draft the release
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.names.outputs.version }}
+        run: |
+          node .ci/scripts/github-release.mjs ensure --tag "$RELEASE_TAG" \
+            --name "Harmony $VERSION" --body "Download the installer for your platform below."
+
   # Proper signing/notarization needs paid certs as secrets — follow-up.
   desktop:
+    needs: release
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: windows-latest
+          - name: Windows
+            stem: windows-stem
+            platform: windows-latest
             args: --target x86_64-pc-windows-msvc --bundles nsis
             rust-targets: x86_64-pc-windows-msvc
-            asset-name: Harmony_Windows_V[version][ext]
-          - platform: macos-latest
+          - name: macOS
+            stem: macos-stem
+            platform: macos-latest
             args: --target universal-apple-darwin
             rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
-            asset-name: Harmony_macOS_V[version][ext]
     runs-on: ${{ matrix.platform }}
     permissions:
       contents: write
@@ -42,16 +132,19 @@ jobs:
         with:
           node-version-file: ".nvmrc"
           cache: npm
-      # Absent from tags cut before 2026-07-07; those trees carry their version
-      # inline, so skipping the stamp is correct rather than fatal.
       - name: Stamp version from tag
+        shell: bash
+        env:
+          EXPECTED: ${{ needs.release.outputs.version }}
         run: |
           if [ -f scripts/set-version.mjs ]; then
-            node scripts/set-version.mjs "${{ github.event.inputs.tag || github.ref_name }}"
-          else
-            echo "::notice::scripts/set-version.mjs absent at this tag; using the version committed in the tree."
+            node scripts/set-version.mjs "$RELEASE_TAG"
           fi
-        shell: bash
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          if [ "$version" != "$EXPECTED" ]; then
+            echo "::error::Tree version $version differs from the release job's $EXPECTED."
+            exit 1
+          fi
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.rust-targets }}
@@ -59,48 +152,53 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
-      # Updater artifacts (minisign-signed installers and latest.json) need the
-      # private key in secrets and the matching public key committed in
-      # tauri.conf.json; tauri build fails when they are enabled without the
-      # private key. Without both, installers still ship and installed apps are
-      # not offered the release.
-      - name: Resolve updater signing
-        id: updater
-        shell: bash
-        env:
-          HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
-        run: |
-          if [ "$HAS_UPDATER_KEY" != "true" ]; then
-            echo "::warning::TAURI_SIGNING_PRIVATE_KEY is not set; building installers without updater artifacts. Installed apps will not be offered this release."
-          elif grep -q 'HARMONY_UPDATER_PUBKEY' src-tauri/tauri.conf.json; then
-            echo "::warning::plugins.updater.pubkey in src-tauri/tauri.conf.json is still the placeholder; building installers without updater artifacts."
-          else
-            echo "args=--config src-tauri/tauri.updater.conf.json" >> "$GITHUB_OUTPUT"
-          fi
-      # latest.json lands on this draft release. The updater endpoint
-      # (releases/latest/download/latest.json) resolves only to the newest
-      # published non-prerelease release, so publishing the draft is the
-      # rollout.
+      # Uploads the installer and, with updater signing, its .sig (macOS: also
+      # .app.tar.gz and .sig). latest.json is the latest-json job's.
       # assetNamePattern names every uploaded file: [ext] is the full suffix
-      # (.exe, .exe.sig, .dmg, .app.tar.gz, .app.tar.gz.sig), so each .sig is its
-      # payload's name plus .sig, and latest.json is written from the renamed
-      # assets (src/upload-version-json.ts). Pinned to v0.6.2: v1 renames the
-      # input to releaseAssetNamePattern.
+      # (.exe, .exe.sig, .dmg, .app.tar.gz, .app.tar.gz.sig), so each .sig is
+      # its payload's name plus .sig. With releaseId set the action neither
+      # looks up nor creates a release. Pinned to v0.6.2: v1 renames the input
+      # to releaseAssetNamePattern.
       - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.event.inputs.tag || github.ref_name }}
-          releaseName: Harmony __VERSION__
-          releaseBody: Download the installer for your platform below.
-          releaseDraft: true
-          prerelease: false
-          includeUpdaterJson: true
-          updaterJsonPreferNsis: true
-          assetNamePattern: ${{ matrix.asset-name }}
-          args: ${{ matrix.args }} ${{ steps.updater.outputs.args }}
+          releaseId: ${{ needs.release.outputs.id }}
+          includeUpdaterJson: false
+          assetNamePattern: ${{ needs.release.outputs[matrix.stem] }}[ext]
+          args: ${{ matrix.args }} ${{ needs.release.outputs.updater-args }}
+
+  # The updater endpoint (releases/latest/download/latest.json) resolves only
+  # to the newest published non-prerelease release, so publishing the draft is
+  # the rollout. Skipped when a desktop build failed: the draft then has no
+  # latest.json, and publishing it offers installed apps nothing.
+  latest-json:
+    name: Updater manifest
+    needs: [release, desktop]
+    if: needs.release.outputs.updater-args != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          sparse-checkout: scripts
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Write latest.json from the release's assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.release.outputs.id }}
+          VERSION: ${{ needs.release.outputs.version }}
+          WINDOWS: ${{ needs.release.outputs.windows-stem }}.exe
+          MACOS: ${{ needs.release.outputs.macos-stem }}.app.tar.gz
+        run: |
+          node scripts/github-release.mjs latest-json --release-id "$RELEASE_ID" \
+            --tag "$RELEASE_TAG" --version "$VERSION" --windows "$WINDOWS" --macos "$MACOS"
 
   android:
     needs: desktop
@@ -115,20 +213,20 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .ci
+          sparse-checkout: scripts
       - uses: actions/setup-node@v4
         with:
           node-version-file: ".nvmrc"
           cache: npm
-      # Absent from tags cut before 2026-07-07; those trees carry their version
-      # inline, so skipping the stamp is correct rather than fatal.
       - name: Stamp version from tag
         run: |
           if [ -f scripts/set-version.mjs ]; then
-            node scripts/set-version.mjs "${{ github.event.inputs.tag || github.ref_name }}"
-          else
-            echo "::notice::scripts/set-version.mjs absent at this tag; using the version committed in the tree."
+            node scripts/set-version.mjs "$RELEASE_TAG"
           fi
-        shell: bash
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -210,23 +308,20 @@ jobs:
           export NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
           npx tauri android build --debug --target aarch64
 
-      # Inline rather than scripts/name-artifact.sh: a dispatch can rebuild a tag
-      # that predates the script. Renamed in place, so the attach step's glob
-      # matches it.
+      # Renamed in place, so the attach step's glob matches it.
       - name: Name APK
         run: |
-          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
-          suffix=$([ "$HAS_KEYSTORE" = true ] || echo _debug)
+          profile=$([ "$HAS_KEYSTORE" = true ] && echo release || echo debug)
           set -- src-tauri/gen/android/app/build/outputs/apk/universal/*/*.apk
           if [ $# -ne 1 ] || [ ! -f "$1" ]; then
             echo "::error::Expected one APK, found: $*"
             exit 1
           fi
-          mv -- "$1" "$(dirname "$1")/Harmony_Android_V${version}${suffix}.apk"
+          bash .ci/scripts/name-artifact.sh --release Android "$profile" "$1"
 
       - name: Attach APK to release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          tag_name: ${{ env.RELEASE_TAG }}
           draft: true
           files: src-tauri/gen/android/app/build/outputs/apk/universal/*/*.apk
