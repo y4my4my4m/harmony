@@ -135,6 +135,9 @@ $$;
 -- Existing federated rows: Flag text out of reason, remote actor profile out of reporter_id
 -- ---------------------------------------------------------------------------
 
+-- Nullable as in the baseline (ON DELETE SET NULL); staging carries NOT NULL.
+ALTER TABLE public.reports ALTER COLUMN reporter_id DROP NOT NULL;
+
 UPDATE public.reports
    SET comment = reason,
        reason = 'other'
