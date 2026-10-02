@@ -41,6 +41,9 @@ vi.mock('@/stores/useServerChannel', () => ({
   useServerChannelStore: () => ({ folders: [], currentServerId: null }),
 }))
 vi.mock('@/stores/useActivityPub', () => ({ useActivityPubStore: () => ({}) }))
+vi.mock('@/stores/usePublicServers', () => ({
+  usePublicServersStore: () => ({ fetchPublicServers: vi.fn() }),
+}))
 vi.mock('@/stores/useNotification', () => ({
   useNotificationStore: () => ({ notifications: [], unreadDMs: 0, unreadServerMentions: () => 0 }),
 }))

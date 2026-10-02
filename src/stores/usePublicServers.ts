@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
+import { toRaw } from 'vue'
 import { supabase } from '@/supabase'
+import { getServerMemberCounts } from '@/services/serverMembershipService'
 import type { Server } from '@/types'
 import { debug } from '@/utils/debug'
 import {
@@ -7,6 +9,7 @@ import {
   buildServerSearchFilter,
   normalizeSearchTerm,
   resolveServerCategory,
+  reuseUnchangedRows,
   type ServerCategory,
 } from '@/utils/serverDiscovery'
 
@@ -32,6 +35,9 @@ export interface PublicServersState {
 }
 
 const MAX_FEATURED = 6
+
+// Age past which an open revalidates the list in the background.
+const STALE_AFTER_MS = 60 * 1000
 
 const PUBLIC_SERVER_COLUMNS = `
   id,
@@ -59,19 +65,19 @@ function publicServersQuery() {
 }
 
 async function withStats(rows: PublicServerWithStats[]): Promise<PublicServerWithStats[]> {
-  let memberCounts = new Map<string, number>()
-  try {
-    const { getServerMemberCounts } = await import('@/services/serverMembershipService')
-    memberCounts = await getServerMemberCounts(rows.map(s => s.id))
-  } catch (memberError) {
-    debug.warn('Could not batch get member counts:', memberError)
-  }
-
+  // Started before the member-count await so both requests run concurrently.
   const ownerIds = [...new Set(rows.map(s => s.owner).filter((id): id is string => !!id))]
   if (ownerIds.length > 0) {
     void import('@/services/userDataService')
       .then(({ userDataService }) => userDataService.ensureUsersLoaded(ownerIds))
       .catch(err => debug.warn('Could not preload server owners:', err))
+  }
+
+  let memberCounts = new Map<string, number>()
+  try {
+    memberCounts = await getServerMemberCounts(rows.map(s => s.id))
+  } catch (memberError) {
+    debug.warn('Could not batch get member counts:', memberError)
   }
 
   return rows.map(server => ({
@@ -122,28 +128,31 @@ export const usePublicServersStore = defineStore('publicServers', {
 
     hasActiveFilter: (state) => !!state.searchQuery || !!state.selectedCategory,
 
+    /** First load only; a refresh keeps the cached list on screen. */
+    isInitialLoading: (state) => state.isLoading && !state.hasLoaded,
+
     totalServers: (state) => state.servers.length,
 
     isEmpty: (state) => state.hasLoaded && state.servers.length === 0,
 
     isDataStale: (state) => {
       if (!state.lastFetchTime) return true
-      return Date.now() - state.lastFetchTime > 5 * 60 * 1000
+      return Date.now() - state.lastFetchTime > STALE_AFTER_MS
     }
   },
 
   actions: {
+    /**
+     * Loads the list when absent or stale. A refresh replaces only rows that
+     * changed, so unchanged cards keep their props and do not re-render; a
+     * failed refresh keeps the cached list.
+     */
     async fetchPublicServers(force = false): Promise<void> {
       if (this.isLoading) {
         return
       }
 
-      const shouldFetch = force ||
-                         !this.hasLoaded ||
-                         this.servers.length === 0 ||
-                         this.isDataStale
-
-      if (!shouldFetch) {
+      if (!force && !this.needsFreshData()) {
         return
       }
 
@@ -157,12 +166,15 @@ export const usePublicServersStore = defineStore('publicServers', {
 
         if (error) throw error
 
-        this.servers = await withStats((data || []) as PublicServerWithStats[])
+        const rows = await withStats((data || []) as PublicServerWithStats[])
+        const prev = toRaw(this.servers)
+        const next = reuseUnchangedRows(prev, rows)
+        if (next !== prev) this.servers = next
         this.hasLoaded = true
         this.lastFetchTime = Date.now()
       } catch (error) {
         debug.error('Error fetching public servers:', error)
-        this.error = 'Failed to load servers. Please try again.'
+        if (!this.hasLoaded) this.error = 'Failed to load servers. Please try again.'
       } finally {
         this.isLoading = false
       }
@@ -225,7 +237,6 @@ export const usePublicServersStore = defineStore('publicServers', {
     },
 
     async forceRefresh(): Promise<void> {
-      this.hasLoaded = false
       this.lastFetchTime = null
       await this.fetchPublicServers(true)
     },

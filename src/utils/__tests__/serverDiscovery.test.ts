@@ -12,6 +12,7 @@ import {
   isServerCategory,
   normalizeSearchTerm,
   resolveServerCategory,
+  reuseUnchangedRows,
   MAX_SEARCH_TERM_LENGTH,
 } from '../serverDiscovery'
 
@@ -165,5 +166,51 @@ describe('buildServerSearchFilter', () => {
 
   it('maps * to the single-character wildcard', () => {
     expect(buildServerSearchFilter('a*b')).toBe('name.ilike."%a_b%",description.ilike."%a_b%"')
+  })
+})
+
+describe('reuseUnchangedRows', () => {
+  const row = (id: string, name = id, extra: Record<string, unknown> = {}) => ({ id, name, member_count: 1, ...extra })
+
+  it('returns prev itself when every row is equal and in order', () => {
+    const prev = [row('a'), row('b')]
+    expect(reuseUnchangedRows(prev, [row('a'), row('b')])).toBe(prev)
+  })
+
+  it('keeps unchanged objects and takes changed ones from next', () => {
+    const prev = [row('a'), row('b')]
+    const next = [row('a'), row('b', 'renamed')]
+    const merged = reuseUnchangedRows(prev, next)
+    expect(merged).not.toBe(prev)
+    expect(merged[0]).toBe(prev[0])
+    expect(merged[1]).toBe(next[1])
+  })
+
+  it('follows the order of next and drops rows absent from it', () => {
+    const prev = [row('a'), row('b'), row('c')]
+    const merged = reuseUnchangedRows(prev, [row('c'), row('a')])
+    expect(merged).toEqual([row('c'), row('a')])
+    expect(merged[0]).toBe(prev[2])
+    expect(merged[1]).toBe(prev[0])
+  })
+
+  it('treats an added row as a change', () => {
+    const prev = [row('a')]
+    const next = [row('new'), row('a')]
+    const merged = reuseUnchangedRows(prev, next)
+    expect(merged).toHaveLength(2)
+    expect(merged[0]).toBe(next[0])
+    expect(merged[1]).toBe(prev[0])
+  })
+
+  it('compares key sets, not only values', () => {
+    const prev = [{ id: 'a', x: undefined } as { id: string; x?: number; y?: number }]
+    const next = [{ id: 'a', y: undefined } as { id: string; x?: number; y?: number }]
+    expect(reuseUnchangedRows(prev, next)[0]).toBe(next[0])
+  })
+
+  it('reuses nothing from an empty prev', () => {
+    const next = [row('a')]
+    expect(reuseUnchangedRows([], next)).toEqual(next)
   })
 })
