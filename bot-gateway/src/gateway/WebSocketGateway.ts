@@ -14,7 +14,47 @@ export interface BotConnection {
   scopes: string[]
   lastHeartbeat: number
   sessionId: string
+  // SHA-256 hex of the IDENTIFY token; bot_tokens.token_hash.
+  tokenHash: string
 }
+
+interface TokenRow {
+  bot_id?: string
+  token_hash?: string
+  is_active?: boolean | null
+  revoked_at?: string | null
+  expires_at?: string | null
+}
+
+interface BotRow {
+  id: string
+  is_active?: boolean | null
+}
+
+/**
+ * Why a session's credential no longer authenticates, or null. Mirrors verify_bot_token(): the
+ * token row is active and unexpired, and the bot active. Staging's bot_tokens has no is_active;
+ * there revoked_at marks revocation.
+ */
+export function sessionRevocationReason(
+  conn: Pick<BotConnection, 'botId' | 'tokenHash'>,
+  tokens: TokenRow[],
+  bots: BotRow[],
+  now: number,
+): string | null {
+  const token = tokens.find(t => t.token_hash === conn.tokenHash && t.bot_id === conn.botId)
+  if (!token) return 'Token revoked'
+  const revoked = 'is_active' in token ? token.is_active !== true : token.revoked_at != null
+  if (revoked) return 'Token revoked'
+  if (token.expires_at != null && Date.parse(token.expires_at) <= now) return 'Token expired'
+
+  const bot = bots.find(b => b.id === conn.botId)
+  if (!bot || bot.is_active !== true) return 'Bot inactive'
+  return null
+}
+
+// Token hashes per bot_tokens lookup; 64 hex characters each in the query string.
+const REVALIDATE_CHUNK = 50
 
 // Bridged user info, sent by the Discord bridge.
 export interface BridgedDiscordRole {
@@ -50,6 +90,8 @@ export interface ChannelBridgeData {
 export class WebSocketGateway {
   private connections = new Map<WebSocket, BotConnection>()
   private heartbeatInterval: NodeJS.Timeout | null = null
+  private revalidateInterval: NodeJS.Timeout | null = null
+  private revalidating = false
   
   // Harmony channel ID -> bridged users.
   private bridgedUsersByChannel = new Map<string, BridgedUser[]>()
@@ -58,6 +100,7 @@ export class WebSocketGateway {
   constructor(private wss: WebSocketServer) {
     this.wss.on('connection', this.handleConnection.bind(this))
     this.startHeartbeatCheck()
+    this.startSessionRevalidation()
     console.log('WebSocket Gateway initialized')
   }
   
@@ -160,7 +203,8 @@ export class WebSocketGateway {
       username: verification.username,
       scopes: verification.scopes || [],
       lastHeartbeat: Date.now(),
-      sessionId: crypto.randomUUID()
+      sessionId: crypto.randomUUID(),
+      tokenHash
     }
     
     this.connections.set(ws, botConnection)
@@ -244,6 +288,66 @@ export class WebSocketGateway {
     }, config.websocket.heartbeatInterval)
   }
   
+  // Polled rather than subscribed: works with any number of gateway processes and needs no
+  // Realtime publication on bot_tokens or bots.
+  private startSessionRevalidation() {
+    this.revalidateInterval = setInterval(() => {
+      this.revalidateSessions().catch(err => {
+        console.error('Session revalidation failed:', err)
+      })
+    }, config.websocket.revalidateIntervalMs)
+  }
+
+  /**
+   * Closes, with 4004, every session whose token was revoked, rotated, deleted or expired, or
+   * whose bot was deactivated or deleted. Reads the tables directly: verify_bot_token() counts a
+   * use per call. A failed lookup closes nothing; the next run retries.
+   */
+  async revalidateSessions(): Promise<void> {
+    if (this.revalidating || this.connections.size === 0) return
+    this.revalidating = true
+    try {
+      const sessions = Array.from(this.connections.entries())
+      const hashes = Array.from(new Set(sessions.map(([, conn]) => conn.tokenHash)))
+      const botIds = Array.from(new Set(sessions.map(([, conn]) => conn.botId)))
+
+      const tokens: TokenRow[] = []
+      for (let i = 0; i < hashes.length; i += REVALIDATE_CHUNK) {
+        // '*': staging's bot_tokens has no is_active column.
+        const { data, error } = await supabase
+          .from('bot_tokens')
+          .select('*')
+          .in('token_hash', hashes.slice(i, i + REVALIDATE_CHUNK))
+        if (error || !Array.isArray(data)) {
+          console.error('Session revalidation: bot_tokens lookup failed:', error?.message)
+          return
+        }
+        tokens.push(...(data as TokenRow[]))
+      }
+
+      const { data: bots, error: botsError } = await supabase
+        .from('bots')
+        .select('id, is_active')
+        .in('id', botIds)
+      if (botsError || !Array.isArray(bots)) {
+        console.error('Session revalidation: bots lookup failed:', botsError?.message)
+        return
+      }
+
+      const now = Date.now()
+      for (const [ws, conn] of sessions) {
+        if (this.connections.get(ws) !== conn) continue
+        const reason = sessionRevocationReason(conn, tokens, bots as BotRow[], now)
+        if (!reason) continue
+        console.warn(`Closing session ${conn.sessionId} of bot ${conn.botId}: ${reason}`)
+        this.connections.delete(ws)
+        ws.close(4004, reason)
+      }
+    } finally {
+      this.revalidating = false
+    }
+  }
+
   // EVENT BROADCASTING
   
   sendToBot(botId: string, event: any) {
@@ -444,6 +548,10 @@ export class WebSocketGateway {
   shutdown() {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval)
+    }
+    if (this.revalidateInterval) {
+      clearInterval(this.revalidateInterval)
+      this.revalidateInterval = null
     }
     
     for (const [ws] of this.connections) {

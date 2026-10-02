@@ -131,9 +131,11 @@ export function useContentRenderer(
     return result;
   };
 
-  // Normalized content as MessagePart[]
+  // Normalized content as MessagePart[]. `system` parts are dropped: posts and
+  // bios carry none from the server, so any present are author-supplied.
   const renderableContent = computed(() => {
-    let normalized = normalizeContent(content.value);
+    let normalized = normalizeContent(content.value)
+      .filter((p) => !(p && typeof p === 'object' && String((p as any).type).toLowerCase() === 'system'));
     normalized = cleanStrayMentionPrefixes(normalized);
     
     if (renderOptions.mode === 'preview' && renderOptions.maxPreviewLength) {
@@ -341,7 +343,9 @@ export function useContentRenderer(
               const resolved = resolveEmoji(match);
               if (resolved.display.type === 'svg') {
                 const sizeClass = isSingleEmoji.value ? 'inline-emoji single' : 'inline-emoji';
-                return `<img class="${sizeClass}" src="${resolved.display.content}" alt="${resolved.shortcode || match}" draggable="false" />`;
+                const src = escapeHtml(sanitizeUrl(resolved.display.content));
+                const alt = escapeHtml(String(resolved.shortcode || match));
+                return `<img class="${sizeClass}" src="${src}" alt="${alt}" draggable="false" />`;
               }
               return match;
             });
@@ -430,7 +434,7 @@ export function useContentRenderer(
             // `sanitizeFormattedHtml` (applied to this output) also strips
             // inline event handlers as defense-in-depth.
             const safeName = escapeHtml(String(emoji.name ?? ''));
-            const safeUrl = escapeHtml(url);
+            const safeUrl = escapeHtml(sanitizeUrl(url));
             return `<img src="${safeUrl}" alt=":${safeName}:" title=":${safeName}:" class="emoji-icon ${sizeClass}" draggable="false" />`;
           }
           
@@ -452,7 +456,7 @@ export function useContentRenderer(
             } else if (emojiServiceLoaded.value) {
               const resolved = resolveEmoji(unicode);
               if (resolved.display.type === 'svg') {
-                const safeSvgUrl = escapeHtml(resolved.display.content);
+                const safeSvgUrl = escapeHtml(sanitizeUrl(resolved.display.content));
                 return `<img src="${safeSvgUrl}" alt=":${safeName}:" title=":${safeName}:" class="emoji-icon ${sizeClass}" draggable="false" />`;
               }
             }
@@ -462,7 +466,7 @@ export function useContentRenderer(
           if (emoji.name && emojiServiceLoaded.value) {
             const resolved = resolveEmoji(emoji.name);
             if (resolved.display.type === 'svg' && !isNativePack.value) {
-              const safeSvgUrl = escapeHtml(resolved.display.content);
+              const safeSvgUrl = escapeHtml(sanitizeUrl(resolved.display.content));
               return `<img src="${safeSvgUrl}" alt=":${safeName}:" title=":${safeName}:" class="emoji-icon ${sizeClass}" draggable="false" />`;
             } else if (resolved.unicode) {
               const safeResolved = escapeHtml(resolved.unicode);
@@ -548,7 +552,7 @@ export function useContentRenderer(
         
         case 'file': {
           const fileName = escapeHtml(part.fileName || 'file');
-          const fileSize = part.fileSize ? ` (${formatFileSize(part.fileSize)})` : '';
+          const fileSize = Number(part.fileSize) > 0 ? ` (${escapeHtml(formatFileSize(Number(part.fileSize)))})` : '';
           const safeFileUrl = escapeHtml(sanitizeUrl(part.url || ''));
           
           if (renderOptions.mode === 'preview') {
@@ -582,10 +586,6 @@ export function useContentRenderer(
           return `<a href="${safeFileUrl}" target="_blank" rel="noopener noreferrer" class="file-link">
             <span class="file-icon">📎</span>${fileName}${fileSize}
           </a>`;
-        }
-        
-        case 'system': {
-          return `<span class="system-message">[${part.event_type}]</span>`;
         }
         
         default:

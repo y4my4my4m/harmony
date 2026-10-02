@@ -23,11 +23,9 @@
         }
       ],
       "security": {
-        "csp": "default-src 'self' blob: data: ipc: asset:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' wss: ws: https: http: ipc:; img-src 'self' blob: data: https: asset:; media-src 'self' blob: data: https: asset:; font-src 'self' data: asset:;",
-        "dangerousDisableAssetCspModification": false,
         "assetProtocol": {
           "enable": true,
-          "scope": ["**/*"]
+          "scope": []
         }
       },
       "withGlobalTauri": true

@@ -60,6 +60,11 @@ const BOB = 'fed00000-0000-0000-0000-000000000002' // local, receives calls and 
 const REMOTE = 'fed00000-0000-0000-0000-000000000003' // mirror of the peer's user
 const CAROL = 'fed00000-0000-0000-0000-000000000004' // local, member of nothing
 const CONVERSATION = 'fed00000-0000-0000-0000-000000000010'
+// fx_bob <-> the peer's user: a federated call rings only a DM partner.
+const CALL_CONVERSATION = 'fed00000-0000-0000-0000-000000000011'
+// The calling instance's own conversation id, named by its room.
+const PEER_CONVERSATION = 'fed00000-0000-0000-0000-0000000000aa'
+const PEER_ROOM = `federated-dm-${PEER_CONVERSATION}-1700000000000`
 
 // auth.users rows seeded by auth-user-shim.sql.
 const ALICE_AUTH = 'fed0a000-0000-0000-0000-000000000001'
@@ -614,15 +619,20 @@ async function seed(db: SupabaseClient, peer: Peer) {
   ])
   if (error) throw new Error(`seed profiles: ${error.message}`)
 
-  await db.from('conversations').delete().eq('id', CONVERSATION)
+  await db.from('conversations').delete().in('id', [CONVERSATION, CALL_CONVERSATION])
   const conv = await db
     .from('conversations')
-    .insert({ id: CONVERSATION, type: 'direct', created_by: ALICE })
+    .insert([
+      { id: CONVERSATION, type: 'direct', created_by: ALICE },
+      { id: CALL_CONVERSATION, type: 'direct', created_by: BOB },
+    ])
   if (conv.error) throw new Error(`seed conversation: ${conv.error.message}`)
 
   const parts = await db.from('conversation_participants').insert([
     { conversation_id: CONVERSATION, user_id: ALICE },
     { conversation_id: CONVERSATION, user_id: REMOTE },
+    { conversation_id: CALL_CONVERSATION, user_id: BOB },
+    { conversation_id: CALL_CONVERSATION, user_id: REMOTE },
   ])
   if (parts.error) throw new Error(`seed participants: ${parts.error.message}`)
 }
@@ -697,11 +707,11 @@ function voiceInvite(peer: Peer, apId: string, published: string) {
       type: 'harmony:VoiceCall',
       id: `${apId}#object`,
       callType: 'video',
-      // Minted by the calling instance and not a UUID;
-      // federated_voice_calls.conversation_id is text.
+      // Minted by the calling instance; this instance stores its own
+      // conversation with the caller instead.
       conversationId: 'remote-room-7f3c',
       livekitUrl: 'wss://livekit.remote.example',
-      roomName: 'fed-call-7f3c',
+      roomName: PEER_ROOM,
     },
   }
 }
@@ -735,9 +745,9 @@ async function caseVoiceInvite(db: SupabaseClient, peer: Peer, localUrl: string)
   eq(row.caller_federated_id, peer.actorUrl, 'caller_federated_id is the actor URL')
   eq(row.recipient_id, BOB, 'recipient_id is the addressed local profile')
   eq(row.call_type, 'video', 'call_type comes from object.callType')
-  eq(row.conversation_id, 'remote-room-7f3c', 'conversation_id keeps the remote instance-minted id verbatim')
+  eq(row.conversation_id, CALL_CONVERSATION, 'conversation_id is the local DM shared with the caller')
   eq(row.livekit_url, 'wss://livekit.remote.example', 'livekit_url comes from the invite')
-  eq(row.room_name, 'fed-call-7f3c', 'room_name comes from the invite')
+  eq(row.room_name, PEER_ROOM, 'room_name comes from the invite')
   eq(row.status, 'pending', 'status is pending')
 
   const ringMs = new Date(row.expires_at).getTime() - Date.parse(published)
@@ -797,37 +807,55 @@ async function caseTamperedBody(db: SupabaseClient, peer: Peer, localUrl: string
   eq(stored?.length, 0, 'a rejected activity is not stored')
 }
 
+async function caseUnsharedInvite(db: SupabaseClient, peer: Peer, localUrl: string) {
+  console.log('\ninvite to a user the caller shares no DM with, or naming a channel room')
+
+  const target = `${localUrl}/users/fx_carol/inbox`
+  const toCarol = voiceInvite(peer, `${peer.actorUrl}#call-${crypto.randomUUID()}`, new Date().toISOString())
+  toCarol.to = [`https://${INSTANCE_DOMAIN}/users/fx_carol`]
+  let body = JSON.stringify(toCarol)
+  let res = await post(target, signedHeaders(target, body, peer.key.privateKey, `${peer.actorUrl}#main-key`), body)
+  eq(res.status, 202, 'the invite is acknowledged (202)')
+  let { data: rows } = await db.from('federated_voice_calls').select('id').eq('ap_id', toCarol.id)
+  eq(rows?.length, 0, 'a user with no DM shared with the caller is not rung')
+
+  const channelRoom = voiceInvite(peer, `${peer.actorUrl}#call-${crypto.randomUUID()}`, new Date().toISOString())
+  channelRoom.object.roomName = `channel-${PRIV_GENERAL}`
+  const bobTarget = `${localUrl}/users/fx_bob/inbox`
+  body = JSON.stringify(channelRoom)
+  res = await post(bobTarget, signedHeaders(bobTarget, body, peer.key.privateKey, `${peer.actorUrl}#main-key`), body)
+  eq(res.status, 202, 'the channel-room invite is acknowledged (202)')
+  ;({ data: rows } = await db.from('federated_voice_calls').select('id').eq('ap_id', channelRoom.id))
+  eq(rows?.length, 0, 'an invite naming a channel room is not stored')
+}
+
 async function caseVoiceAccept(db: SupabaseClient, peer: Peer, localUrl: string, callApId: string) {
-  console.log('\ninbound harmony:VoiceCallAccept -> status')
+  console.log('\ninbound harmony:VoiceCallAccept/End from the caller -> status')
 
-  const published = new Date().toISOString()
-  const activity = {
-    '@context': ['https://www.w3.org/ns/activitystreams', 'https://harmony.social/ns/voice'],
-    id: `${peer.actorUrl}#accept-${crypto.randomUUID()}`,
-    type: 'harmony:VoiceCallAccept',
-    actor: peer.actorUrl,
-    to: [`https://${INSTANCE_DOMAIN}/users/fx_bob`],
-    object: callApId,
-    published,
+  const send = async (type: string) => {
+    const activity = {
+      '@context': ['https://www.w3.org/ns/activitystreams', 'https://harmony.social/ns/voice'],
+      id: `${peer.actorUrl}#${type}-${crypto.randomUUID()}`,
+      type,
+      actor: peer.actorUrl,
+      to: [`https://${INSTANCE_DOMAIN}/users/fx_bob`],
+      object: callApId,
+      published: new Date().toISOString(),
+    }
+    const body = JSON.stringify(activity)
+    const target = `${localUrl}/users/fx_bob/inbox`
+    return post(target, signedHeaders(target, body, peer.key.privateKey, `${peer.actorUrl}#main-key`), body)
   }
-  const body = JSON.stringify(activity)
-  const target = `${localUrl}/users/fx_bob/inbox`
+  const status = async () => {
+    const { data: rows } = await db.from('federated_voice_calls').select('status').eq('ap_id', callApId)
+    return rows?.[0]?.status
+  }
 
-  const res = await post(target, signedHeaders(target, body, peer.key.privateKey, `${peer.actorUrl}#main-key`), body)
-  eq(res.status, 202, 'signed accept is accepted (202)')
+  eq((await send('harmony:VoiceCallAccept')).status, 202, 'signed accept is acknowledged (202)')
+  eq(await status(), 'pending', 'the caller cannot accept its own call; only the invited recipient does')
 
-  const { data: rows } = await db
-    .from('federated_voice_calls')
-    .select('status, accepted_at')
-    .eq('ap_id', callApId)
-  eq(rows?.[0]?.status, 'accepted', 'the pending call moves to accepted')
-  // Postgres renders the offset as +00:00; compare instants, not spellings.
-  const acceptedAt = rows?.[0]?.accepted_at
-  assert(
-    Date.parse(acceptedAt ?? '') === Date.parse(published),
-    'accepted_at is the accept activity timestamp',
-    `expected ${published}, got ${acceptedAt}`,
-  )
+  eq((await send('harmony:VoiceCallEnd')).status, 202, 'signed end is acknowledged (202)')
+  eq(await status(), 'ended', 'the caller ends its own call')
 }
 
 async function caseInboundDM(db: SupabaseClient, peer: Peer, localUrl: string) {
@@ -1391,6 +1419,7 @@ async function main() {
     const callApId = await caseVoiceInvite(db, peer, localUrl)
     await caseRedelivery(db, peer, localUrl, callApId)
     await caseTamperedBody(db, peer, localUrl)
+    await caseUnsharedInvite(db, peer, localUrl)
     await caseVoiceAccept(db, peer, localUrl, callApId)
     await caseInboundDM(db, peer, localUrl)
     await caseOutboundDM(db, peer, backend)

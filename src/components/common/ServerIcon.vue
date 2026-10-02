@@ -5,12 +5,20 @@
       :src="imgSrc"
       :alt="alt"
       class="server-image"
-      :class="[classes, `shape-${shape}`]"
+      :class="[classes, `shape-${shape}`, { 'server-image--expandable': fullSize }]"
+      :width="sizeMap[size]"
+      :height="sizeMap[size]"
       loading="lazy"
+      decoding="async"
+      :role="fullSize ? 'button' : undefined"
+      :tabindex="fullSize ? 0 : undefined"
       @click="handleClick"
+      @keydown.enter.prevent="handleClick"
       @error="onImgError"
       @load="onImgLoad"
     />
+
+    <MediaLightbox v-if="lightboxOpen && fullSize" :visible="true" :imgs="[fullSize]" @hide="lightboxOpen = false" />
 
     <!-- Loading State -->
     <div v-if="loading" class="server-loading">
@@ -49,10 +57,12 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useToast } from 'vue-toastification'
-import { getServerIconUrl } from '../../utils/serverUtils'
+import { getRawServerIconUrl, getServerIconUrl } from '../../utils/serverUtils'
+import { devicePixels } from '@/utils/imageTransformUtils'
 import { debug } from '@/utils/debug'
-import { validateImageUpload } from '@/utils/uploadValidation'
+import { imageSourceError } from '@/utils/uploadValidation'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import MediaLightbox from '@/components/common/MediaLightbox.vue'
 import CameraIcon from '@/components/icons/Camera.vue'
 
 const toast = useToast()
@@ -76,12 +86,13 @@ interface Props {
   shape?: ImageShape
   showTitle?: boolean
   /**
-   * Override the imgproxy render width/height (px) independent of display size.
-   * Use to reuse an already-cached variant: e.g. the small context-bar icon can
-   * request the same 96px variant the server rail already loaded (cache hit, no
-   * extra fetch) instead of a unique tiny variant.
+   * Render width/height in device pixels, in place of the display size times
+   * devicePixelRatio. Reuses a variant another placement already fetched: the
+   * context-bar icon requests the 96px variant the rail loads at 2x.
    */
   fetchSize?: number
+  /** Click opens the stored icon in MediaLightbox; ignored for the default icon. */
+  expandable?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -91,7 +102,8 @@ const props = withDefaults(defineProps<Props>(), {
   interactive: false,
   loading: false,
   shape: 'rounded',
-  showTitle: true
+  showTitle: true,
+  expandable: false
 })
 
 // Emits
@@ -157,7 +169,7 @@ const scheduleRetry = () => {
 watch(
   () => [props.src, props.size, props.fetchSize],
   () => {
-    const pixelSize = props.fetchSize ?? (sizeMap[props.size] || 48)
+    const pixelSize = props.fetchSize ?? devicePixels(sizeMap[props.size] || 48)
     const resolved = getServerIconUrl(props.src, pixelSize) || fallbackImage
     realImgSrc.value = resolved
     imgSrc.value = resolved
@@ -191,8 +203,12 @@ onUnmounted(() => {
   clearRetryTimer()
 })
 
+const lightboxOpen = ref(false)
+const fullSize = computed(() => (props.expandable && !props.editable ? getRawServerIconUrl(props.src) : null))
+
 // Methods
 const handleClick = () => {
+  if (fullSize.value) lightboxOpen.value = true
   if (props.interactive) {
     emit('click', props.id)
   }
@@ -210,9 +226,8 @@ const handleFileSelect = async (event: Event) => {
   const file = target.files?.[0]
   
   if (file) {
-    // Validate against the server_icons bucket's real size/type limits and
-    // surface any problem through the toast system (not a native alert).
-    const validationError = await validateImageUpload(file, 'server_icons')
+    // Bucket limits apply after shrinking, at upload.
+    const validationError = imageSourceError(file)
     if (validationError) {
       toast.error(validationError)
       target.value = ''
@@ -244,6 +259,10 @@ const handleFileSelect = async (event: Event) => {
 }
 
 /* Shape variants */
+.server-image--expandable {
+  cursor: zoom-in;
+}
+
 .server-image.shape-square {
   border-radius: 0;
 }

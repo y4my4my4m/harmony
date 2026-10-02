@@ -5,6 +5,9 @@ export const BOT_TOKEN_PREFIX = 'harmony_bot_'
 
 export const BOT_API_DOCS_URL = 'https://github.com/y4my4my4m/harmony/blob/master/docs/bot-api.md'
 
+/** Name colour of bot authors in chat. */
+export const BOT_NAME_COLOR = '#0EA5E9'
+
 export const BOT_USERNAME_MIN = 3
 export const BOT_USERNAME_MAX = 32
 
@@ -41,9 +44,22 @@ export interface BotPresenceRow {
 }
 
 export function isBotOnline(presence: BotPresenceRow | null | undefined, now = Date.now()): boolean {
-  if (!presence || presence.status !== 'online' || !presence.last_heartbeat_at) return false
+  return botMemberStatus(presence, now) === 'online'
+}
+
+export type BotMemberStatus = 'online' | 'away' | 'busy' | 'offline'
+
+/** bot_presence.status in member-list terms: idle is away, dnd is busy. A stale heartbeat is offline. */
+export function botMemberStatus(presence: BotPresenceRow | null | undefined, now = Date.now()): BotMemberStatus {
+  if (!presence?.last_heartbeat_at) return 'offline'
   const heartbeat = Date.parse(presence.last_heartbeat_at)
-  return Number.isFinite(heartbeat) && now - heartbeat <= BOT_PRESENCE_STALE_MS
+  if (!Number.isFinite(heartbeat) || now - heartbeat > BOT_PRESENCE_STALE_MS) return 'offline'
+  switch (presence.status) {
+    case 'online': return 'online'
+    case 'idle': return 'away'
+    case 'dnd': return 'busy'
+    default: return 'offline'
+  }
 }
 
 /**
@@ -58,6 +74,7 @@ export const ENFORCED_BOT_PERMISSIONS = [
   'add_reactions',
   'manage_messages',
   'manage_channels',
+  'manage_roles',
 ] as const
 
 export type EnforcedBotPermission = (typeof ENFORCED_BOT_PERMISSIONS)[number]
@@ -75,6 +92,7 @@ export function defaultBotPermissions(botType?: string | null): Record<EnforcedB
     add_reactions: true,
     manage_messages: false,
     manage_channels: botType === 'bridge',
+    manage_roles: false,
   }
 }
 

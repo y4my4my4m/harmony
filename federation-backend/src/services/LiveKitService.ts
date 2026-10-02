@@ -2,14 +2,19 @@ import { AccessToken, RoomServiceClient, VideoGrant } from 'livekit-server-sdk';
 import config from '../config/index.js';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
-import { pgrstOrValue } from '../utils/postgrestFilter.js';
+import {
+  authorizeVoiceChannel,
+  isConversationParticipant,
+  parseRoomName,
+  type RoomType,
+} from './voiceAccess.js';
 
 // TYPES
 
 export interface TokenRequest {
   userId: string;
   roomName: string;
-  roomType: 'voice_channel' | 'dm_call' | 'stage';
+  roomType: RoomType;
   canPublish?: boolean;
   canSubscribe?: boolean;
   canPublishData?: boolean;
@@ -19,7 +24,7 @@ export interface TokenRequest {
 export interface FederatedTokenRequest {
   actorId: string; // ActivityPub actor ID (e.g., https://remote.instance/@user)
   roomName: string;
-  roomType: 'voice_channel' | 'dm_call' | 'stage';
+  roomType: RoomType;
   canPublish?: boolean;
   canSubscribe?: boolean;
   canPublishData?: boolean;
@@ -46,6 +51,9 @@ export interface LiveKitConfig {
   mode: 'sfu' | 'p2p' | 'hybrid';
   allowFederatedVoice: boolean;
 }
+
+type RoomAccess = { ok: true; canPublish: boolean } | { ok: false };
+const DENIED: RoomAccess = { ok: false };
 
 // LIVEKIT SERVICE
 
@@ -96,9 +104,9 @@ class LiveKitService {
     }
     
     // request.userId is auth_user_id from Supabase auth.
-    const hasPermission = await this.validateRoomPermission(request.userId, request.roomName, request.roomType);
-    if (!hasPermission) {
-      throw new Error('User does not have permission to join this room');
+    const access = await this.validateRoomPermission(request.userId, request.roomName, request.roomType);
+    if (!access.ok) {
+      throw new Error('permission denied: not a member of this room');
     }
     
     const supabase = getSupabaseClient();
@@ -107,18 +115,6 @@ class LiveKitService {
       .select('id, username, display_name, avatar_url, federated_id')
       .eq('auth_user_id', request.userId)
       .single();
-    
-    // AUTHORIZATION: the caller must belong to the room the token is minted
-    // for. Without this check any authenticated user can mint a publish or
-    // subscribe token for any voice channel or DM call and join it.
-    const allowed = await this.validateRoomPermission(
-      request.userId,
-      request.roomName,
-      request.roomType,
-    );
-    if (!allowed) {
-      throw new Error('permission denied: not a member of this room');
-    }
 
     // Identity uses the federated format so it is stable across instances.
     const profileId = profile?.id || request.userId;
@@ -150,25 +146,30 @@ class LiveKitService {
       }),
     });
     
-    const videoGrant: VideoGrant = {
-      roomJoin: true,
-      room: request.roomName,
-      canPublish: request.canPublish ?? true,
-      canSubscribe: request.canSubscribe ?? true,
-      canPublishData: request.canPublishData ?? true,
-    };
-    
-    // Stage rooms default to listener; only speakers publish.
-    if (request.roomType === 'stage' && request.canPublish === undefined) {
-      videoGrant.canPublish = false;
-    }
-    
-    at.addGrant(videoGrant);
+    at.addGrant(this.videoGrant(request, access.canPublish));
     
     const token = await at.toJwt();
     logger.info(`Generated LiveKit token for profile ${profileId} in room ${request.roomName}`);
     
     return { token, profileId };
+  }
+
+  /**
+   * Requested grants narrowed by the room decision. Stage rooms default to
+   * listener; publishing in a channel room needs SPEAK.
+   */
+  private videoGrant(
+    request: { roomName: string; roomType: RoomType; canPublish?: boolean; canSubscribe?: boolean; canPublishData?: boolean },
+    mayPublish: boolean,
+  ): VideoGrant {
+    const wantsPublish = request.canPublish ?? request.roomType !== 'stage';
+    return {
+      roomJoin: true,
+      room: request.roomName,
+      canPublish: wantsPublish && mayPublish,
+      canSubscribe: request.canSubscribe ?? true,
+      canPublishData: request.canPublishData ?? true,
+    };
   }
   
   async generateFederatedToken(request: FederatedTokenRequest): Promise<string> {
@@ -203,12 +204,12 @@ class LiveKitService {
     }
 
     // AUTHORIZATION: the remote actor must belong to the requested room.
-    const allowed = await this.validateFederatedRoomAccess(
+    const access = await this.validateFederatedRoomAccess(
       request.actorId,
       request.roomName,
       request.roomType,
     );
-    if (!allowed) {
+    if (!access.ok) {
       throw new Error('permission denied: federated actor is not authorized for this room');
     }
 
@@ -226,20 +227,7 @@ class LiveKitService {
       }),
     });
     
-    const videoGrant: VideoGrant = {
-      roomJoin: true,
-      room: request.roomName,
-      canPublish: request.canPublish ?? true,
-      canSubscribe: request.canSubscribe ?? true,
-      canPublishData: request.canPublishData ?? true,
-    };
-    
-    // Stage rooms: federated actors are listeners unless told otherwise.
-    if (request.roomType === 'stage' && request.canPublish === undefined) {
-      videoGrant.canPublish = false;
-    }
-    
-    at.addGrant(videoGrant);
+    at.addGrant(this.videoGrant(request, access.canPublish));
     
     const token = await at.toJwt();
     logger.info(`Generated federated LiveKit token for actor ${request.actorId} in room ${request.roomName}`);
@@ -247,183 +235,90 @@ class LiveKitService {
     return token;
   }
   
+  /**
+   * Room authorization for a local user (auth UUID).
+   *  - voice_channel / stage: authorizeVoiceChannel.
+   *  - dm_call: active participant of the conversation the room names.
+   * Fails closed on any lookup error.
+   */
   private async validateRoomPermission(
     authUserId: string,
     roomName: string,
-    roomType: 'voice_channel' | 'dm_call' | 'stage'
-  ): Promise<boolean> {
+    roomType: RoomType,
+  ): Promise<RoomAccess> {
     const supabase = getSupabaseClient();
-    
-    logger.debug(`Validating room permission: authUserId=${authUserId}, roomName=${roomName}, roomType=${roomType}`);
-    
-    // auth_user_id is the Supabase auth UUID; app tables key off profiles.id.
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('auth_user_id', authUserId)
-      .single();
-    
-    if (profileError || !profile) {
-      logger.warn(`Profile not found for auth_user_id: ${authUserId}`, profileError);
-      return false;
-    }
-    
-    const userId = profile.id;
-    logger.debug(`Found profile.id: ${userId}`);
-    
-    if (roomType === 'voice_channel' || roomType === 'stage') {
-      // Room name format: channel-{channelId} or stage-{channelId}
-      const channelId = roomName.replace(/^(channel|stage)-/, '');
-      logger.debug(`Extracted channelId: ${channelId}`);
-      
-      // Access follows from server membership, so resolve the channel's server.
-      const { data: channel, error: channelError } = await supabase
-        .from('channels')
-        .select('server_id')
-        .eq('id', channelId)
-        .single();
-      
-      if (channelError || !channel) {
-        logger.warn(`Channel not found: ${channelId}`, channelError);
-        return false;
-      }
-      
-      logger.debug(`Found channel, server_id: ${channel.server_id}`);
-      
-      // Membership table is user_servers, not server_members.
-      const { data: member, error: memberError } = await supabase
-        .from('user_servers')
+    try {
+      const room = parseRoomName(roomName, roomType);
+      if (!room) return DENIED;
+
+      // auth_user_id is the Supabase auth UUID; app tables key off profiles.id.
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
         .select('id')
-        .eq('server_id', channel.server_id)
-        .eq('user_id', userId)
-        .single();
-      
-      if (memberError) {
-        logger.warn(`Server member check failed: userId=${userId}, serverId=${channel.server_id}`, memberError);
+        .eq('auth_user_id', authUserId)
+        .maybeSingle();
+      if (profileError || !profile) {
+        logger.warn(`Profile not found for auth_user_id: ${authUserId}`);
+        return DENIED;
       }
-      
-      const hasPermission = !!member;
-      logger.debug(`Permission check result: ${hasPermission}`);
-      return hasPermission;
+
+      if (room.kind === 'channel') {
+        const decision = await authorizeVoiceChannel(supabase, {
+          profileId: profile.id, channelId: room.channelId, remote: false,
+        });
+        if (!decision.ok) logger.debug(`Room ${roomName} refused for ${profile.id}: ${decision.reason}`);
+        return decision.ok ? { ok: true, canPublish: decision.canPublish } : DENIED;
+      }
+
+      return (await isConversationParticipant(supabase, room.conversationId, profile.id))
+        ? { ok: true, canPublish: true }
+        : DENIED;
+    } catch (error) {
+      logger.warn(`Room permission check failed for ${authUserId} / ${roomName}:`, error);
+      return DENIED;
     }
-    
-    if (roomType === 'dm_call') {
-      // Room name formats:
-      //   Local: dm-{conversationId}
-      //   Federated: federated-dm-{conversationId}-{timestamp}
-      let conversationId: string;
-      const federatedMatch = roomName.match(/^federated-dm-([a-f0-9-]{36})/i);
-      if (federatedMatch) {
-        conversationId = federatedMatch[1];
-      } else {
-        conversationId = roomName.replace(/^dm-/, '');
-      }
-      logger.debug(`Extracted conversationId: ${conversationId}`);
-      
-      const { data: participant, error: participantError } = await supabase
-        .from('conversation_participants')
-        .select('id')
-        .eq('conversation_id', conversationId)
-        .eq('user_id', userId)
-        .is('left_at', null)
-        .single();
-      
-      if (participantError) {
-        logger.warn(`DM participant check failed: userId=${userId}, conversationId=${conversationId}`, participantError);
-      }
-      
-      const hasPermission = !!participant;
-      logger.debug(`DM permission check result: ${hasPermission}`);
-      return hasPermission;
-    }
-    
-    logger.warn(`Unknown room type: ${roomType}`);
-    return false;
   }
   
   /**
-   * Room authorization for a remote actor. Mirrors validateRoomPermission but
-   * resolves the actor by ActivityPub `federated_id` rather than a local auth
-   * user, and adds a DM-call fallback.
-   *
-   *  - voice_channel / stage: the actor's mirrored local profile must be an
-   *    accepted member of the channel's server - the same gate the AP
-   *    VoiceChannelJoin handler applies before minting a token.
-   *  - dm_call: the actor is either a participant of the conversation or a
-   *    party to an active federated_voice_calls row for this room. Either
-   *    branch covers both call directions.
-   *
+   * Room authorization for a remote actor, resolved by `federated_id`.
+   *  - voice_channel / stage: authorizeVoiceChannel on a server hosted here
+   *    with federation enabled.
+   *  - dm_call: the actor is an active participant of the conversation the
+   *    room names. federated_voice_calls rows are signalling only and grant
+   *    nothing: their room names and URLs are sender-chosen.
    * Fails closed on any lookup error.
    */
   private async validateFederatedRoomAccess(
     actorId: string,
     roomName: string,
-    roomType: 'voice_channel' | 'dm_call' | 'stage',
-  ): Promise<boolean> {
+    roomType: RoomType,
+  ): Promise<RoomAccess> {
     const supabase = getSupabaseClient();
     try {
-      // Resolve the remote actor to its mirrored local profile (if any).
+      const room = parseRoomName(roomName, roomType);
+      if (!room) return DENIED;
+
       const { data: profile } = await supabase
         .from('profiles')
-        .select('id')
+        .select('id, is_local, is_suspended')
         .eq('federated_id', actorId)
         .maybeSingle();
-      const profileId = profile?.id as string | undefined;
+      if (!profile?.id || profile.is_local === true || profile.is_suspended === true) return DENIED;
 
-      if (roomType === 'voice_channel' || roomType === 'stage') {
-        if (!profileId) return false;
-        const channelId = roomName.replace(/^(channel|stage)-/, '');
-        const { data: channel } = await supabase
-          .from('channels')
-          .select('server_id')
-          .eq('id', channelId)
-          .maybeSingle();
-        if (!channel?.server_id) return false;
-        const { data: member } = await supabase
-          .from('user_servers')
-          .select('id')
-          .eq('server_id', channel.server_id)
-          .eq('user_id', profileId)
-          .eq('status', 'accepted')
-          .maybeSingle();
-        return !!member;
+      if (room.kind === 'channel') {
+        const decision = await authorizeVoiceChannel(supabase, {
+          profileId: profile.id, channelId: room.channelId, remote: true,
+        });
+        if (!decision.ok) logger.info(`Federated room ${roomName} refused for ${actorId}: ${decision.reason}`);
+        return decision.ok ? { ok: true, canPublish: decision.canPublish } : DENIED;
       }
 
-      if (roomType === 'dm_call') {
-        const federatedMatch = roomName.match(/^federated-dm-([a-f0-9-]{36})/i);
-        const conversationId = federatedMatch
-          ? federatedMatch[1]
-          : roomName.replace(/^dm-/, '');
-
-        // (a) Mirrored profile is an active participant of the conversation.
-        if (profileId) {
-          const { data: participant } = await supabase
-            .from('conversation_participants')
-            .select('id')
-            .eq('conversation_id', conversationId)
-            .eq('user_id', profileId)
-            .is('left_at', null)
-            .maybeSingle();
-          if (participant) return true;
-        }
-
-        // (b) The actor is party to an active federated call for this room.
-        let q = supabase
-          .from('federated_voice_calls')
-          .select('id')
-          .eq('room_name', roomName)
-          .in('status', ['pending', 'accepted']);
-        q = profileId
-          ? q.or(`caller_federated_id.eq.${pgrstOrValue(actorId)},recipient_id.eq.${profileId}`)
-          : q.eq('caller_federated_id', actorId);
-        const { data: call } = await q.maybeSingle();
-        return !!call;
-      }
-
-      return false;
+      return (await isConversationParticipant(supabase, room.conversationId, profile.id))
+        ? { ok: true, canPublish: true }
+        : DENIED;
     } catch (error) {
       logger.warn(`Federated room access check failed for ${actorId} / ${roomName}:`, error);
-      return false;
+      return DENIED;
     }
   }
 
@@ -433,11 +328,11 @@ class LiveKitService {
    * for rooms they belong to.
    */
   async userCanAccessRoom(authUserId: string, roomName: string): Promise<boolean> {
-    const roomType: 'voice_channel' | 'dm_call' | 'stage' =
+    const roomType: RoomType =
       roomName.startsWith('stage-') ? 'stage'
       : roomName.startsWith('channel-') ? 'voice_channel'
       : 'dm_call';
-    return this.validateRoomPermission(authUserId, roomName, roomType);
+    return (await this.validateRoomPermission(authUserId, roomName, roomType)).ok;
   }
 
   async getRoomInfo(roomName: string): Promise<RoomInfo | null> {

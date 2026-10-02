@@ -101,20 +101,24 @@ class TodayDigestService {
     return typeof (globalThis as any).Summarizer?.availability === 'function'
   }
 
+  /** The model is on the device and ready; 'downloadable' and 'downloading' are not. */
+  async isOnDeviceAiAvailable(): Promise<boolean> {
+    if (!this.isOnDeviceAiSupported()) return false
+    try {
+      return await (globalThis as any).Summarizer.availability() === 'available'
+    } catch {
+      return false
+    }
+  }
+
   /**
    * Per-channel summaries built from the last 30 plaintext messages of the
    * top-ranked unread channels. Encrypted messages are skipped; ciphertext
    * never reaches the model. Empty when the model is unavailable.
    */
   async getChannelHighlights(channels: ActiveChannelEntry[], maxChannels = 3): Promise<ChannelHighlight[]> {
+    if (!(await this.isOnDeviceAiAvailable())) return []
     const Summarizer = (globalThis as any).Summarizer
-    if (typeof Summarizer?.availability !== 'function') return []
-
-    try {
-      if (await Summarizer.availability() !== 'available') return []
-    } catch {
-      return []
-    }
 
     const targets = await this.rankChannelsForHighlights(channels, maxChannels)
     const highlights: ChannelHighlight[] = []

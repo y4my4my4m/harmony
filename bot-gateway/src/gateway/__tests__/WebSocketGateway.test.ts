@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
     port: 3002,
     nodeEnv: 'test',
     instanceDomain: 'harmony.test',
-    websocket: { heartbeatInterval: 30_000, maxConnectionsPerBot: 5 },
+    websocket: { heartbeatInterval: 30_000, maxConnectionsPerBot: 5, revalidateIntervalMs: 30_000 },
     rateLimit: { windowMs: 60_000, maxRequests: 100 },
   },
 }))
@@ -25,7 +25,8 @@ vi.mock('../../config/supabase.js', () => ({
   config: mocks.config,
 }))
 
-import { WebSocketGateway } from '../WebSocketGateway.js'
+import { WebSocketGateway, sessionRevocationReason } from '../WebSocketGateway.js'
+import { FakeDb } from '../../__tests__/fakeSupabase.js'
 
 const VALID_VERIFICATION = {
   valid: true,
@@ -116,6 +117,7 @@ beforeEach(async () => {
   mocks.rpc.mockReset()
   tableCalls.length = 0
   mocks.config.websocket.heartbeatInterval = 30_000
+  mocks.config.websocket.revalidateIntervalMs = 30_000
   stubTables()
   vi.spyOn(console, 'log').mockImplementation(() => {})
   vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -269,5 +271,114 @@ describe('gateway frames', () => {
 
     ws.close()
     await vi.waitFor(() => expect(gateway.getConnectedBotCount()).toBe(0))
+  })
+})
+
+describe('session revalidation', () => {
+  const TOKEN_ROW = {
+    id: '00000000-0000-0000-0000-0000000000f1',
+    bot_id: BOT_ID,
+    token_hash: TOKEN_SHA256,
+    is_active: true,
+    revoked_at: null,
+    expires_at: null,
+  }
+
+  function seed() {
+    const db = new FakeDb({
+      bot_tokens: [TOKEN_ROW],
+      bots: [{ id: BOT_ID, username: 'testbot', is_active: true }],
+      bot_presence: [],
+    })
+    mocks.from.mockImplementation((table: string) => db.from(table))
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+    return db
+  }
+
+  function closeOf(ws: WebSocket, timeoutMs = 2000): Promise<{ code: number; reason: string }> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`no close within ${timeoutMs}ms`)), timeoutMs)
+      ws.once('close', (code, reason) => {
+        clearTimeout(timer)
+        resolve({ code, reason: reason.toString() })
+      })
+    })
+  }
+
+  /** The server-side close handler has run: it writes status offline to bot_presence. */
+  async function serverClosed(db: FakeDb) {
+    await vi.waitFor(() =>
+      expect(db.writesTo('bot_presence', 'update').some((w) => w.rows.some((r) => r.status === 'offline'))).toBe(true),
+    )
+  }
+
+  const revocations: Array<[string, (db: FakeDb) => void, string]> = [
+    ['the token is revoked', (db) => Object.assign(db.rows('bot_tokens')[0], { is_active: false, revoked_at: new Date().toISOString() }), 'Token revoked'],
+    ['the token row is gone', (db) => db.rows('bot_tokens').splice(0), 'Token revoked'],
+    ['the token has expired', (db) => Object.assign(db.rows('bot_tokens')[0], { expires_at: '2020-01-01T00:00:00Z' }), 'Token expired'],
+    ['the bot is deactivated', (db) => Object.assign(db.rows('bots')[0], { is_active: false }), 'Bot inactive'],
+    ['the bot is deleted', (db) => db.rows('bots').splice(0), 'Bot inactive'],
+  ]
+
+  for (const [when, mutate, reason] of revocations) {
+    it(`closes an open session with 4004 when ${when}`, async () => {
+      const db = seed()
+      const { ws, event } = await identify(TOKEN)
+      expect(event.frame.t).toBe('READY')
+
+      mutate(db)
+      const closed = closeOf(ws)
+      await gateway.revalidateSessions()
+
+      expect(await closed).toEqual({ code: 4004, reason })
+      expect(gateway.isBotConnected(BOT_ID)).toBe(false)
+      await serverClosed(db)
+    })
+  }
+
+  it('keeps a session whose token and bot are valid', async () => {
+    seed()
+    const { ws } = await identify(TOKEN)
+    await gateway.revalidateSessions()
+
+    expect(ws.readyState).toBe(WebSocket.OPEN)
+    expect(gateway.isBotConnected(BOT_ID)).toBe(true)
+  })
+
+  // A database hiccup must not disconnect every bot; 4004 tells clients not to reconnect.
+  it('closes nothing when the lookup fails', async () => {
+    const db = seed()
+    const { ws } = await identify(TOKEN)
+    db.rows('bot_tokens').splice(0)
+    db.failures.bot_tokens = { message: 'connection reset' }
+    await gateway.revalidateSessions()
+
+    expect(ws.readyState).toBe(WebSocket.OPEN)
+  })
+
+  it('runs on the configured interval', async () => {
+    gateway.shutdown()
+    wss.removeAllListeners('connection')
+    mocks.config.websocket.revalidateIntervalMs = 50
+    gateway = new WebSocketGateway(wss)
+
+    const db = seed()
+    const { ws } = await identify(TOKEN)
+    const closed = closeOf(ws)
+    db.rows('bot_tokens')[0].is_active = false
+
+    expect(await closed).toEqual({ code: 4004, reason: 'Token revoked' })
+    await serverClosed(db)
+  })
+
+  it('reads revocation from revoked_at where bot_tokens has no is_active column', () => {
+    const conn = { botId: BOT_ID, tokenHash: TOKEN_SHA256 }
+    const { is_active: _dropped, ...stagingRow } = TOKEN_ROW
+    const bots = [{ id: BOT_ID, is_active: true }]
+
+    expect(sessionRevocationReason(conn, [stagingRow], bots, Date.now())).toBeNull()
+    expect(
+      sessionRevocationReason(conn, [{ ...stagingRow, revoked_at: '2026-10-01T00:00:00Z' }], bots, Date.now()),
+    ).toBe('Token revoked')
   })
 })

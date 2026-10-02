@@ -17,6 +17,7 @@ import { updateFaviconBadge } from '@/utils/faviconBadge'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { resolveNotificationRoute } from '@/utils/notificationRoute'
 import { isMobileUserAgent } from '@/utils/pwaUtils'
+import { i18n } from '@/i18n'
 import { UserStatus } from '@/types'
 import type { 
   Notification, 
@@ -91,6 +92,7 @@ const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   activitypub_follow_accepted: 'friend_request',
   report_update: 'server_update',
   moderation_warning: 'server_update',
+  newcomer_message: 'server_update',
   security: 'server_update',
   error: 'server_update',
   ui_success: 'ui_success',
@@ -115,6 +117,7 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, 'id' | 'user_id' | 'cre
   push_mentions: true,
   push_dms: true,
   push_offline_only: true,
+  newcomer_alerts: true,
   email_notifications: false,
   email_digest: false,
   email_digest_frequency: 'weekly' as const,
@@ -1112,6 +1115,7 @@ export const useNotificationStore = defineStore('notification', {
             activitypub_reaction: 'Reacted to your post',
             activitypub_favorite: 'Favorited your post',
             activitypub_reblog: 'Reblogged your post',
+            newcomer_message: i18n.global.t('newcomerAlerts.notification.nativePrefix'),
           }
           let message = formatted.message
           const action = contentAction[notification.type]

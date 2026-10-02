@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   BOT_PRESENCE_STALE_MS,
   ENFORCED_BOT_PERMISSIONS,
+  botMemberStatus,
   botSearchFilter,
   botUsernameError,
   buildBotEndpoints,
@@ -71,12 +72,36 @@ describe('botUtils', () => {
       expect(isBotOnline({ status: 'online', last_heartbeat_at: null }, now)).toBe(false)
       expect(isBotOnline({ status: 'online', last_heartbeat_at: 'not-a-date' }, now)).toBe(false)
     })
+
+    it('treats idle and dnd as present but not online', () => {
+      expect(isBotOnline({ status: 'idle', last_heartbeat_at: ago(1_000) }, now)).toBe(false)
+      expect(isBotOnline({ status: 'dnd', last_heartbeat_at: ago(1_000) }, now)).toBe(false)
+    })
+  })
+
+  describe('botMemberStatus', () => {
+    const now = Date.parse('2026-09-30T12:00:00Z')
+    const ago = (ms: number) => new Date(now - ms).toISOString()
+
+    it('maps gateway statuses to member-list statuses', () => {
+      expect(botMemberStatus({ status: 'online', last_heartbeat_at: ago(1_000) }, now)).toBe('online')
+      expect(botMemberStatus({ status: 'idle', last_heartbeat_at: ago(1_000) }, now)).toBe('away')
+      expect(botMemberStatus({ status: 'dnd', last_heartbeat_at: ago(1_000) }, now)).toBe('busy')
+      expect(botMemberStatus({ status: 'offline', last_heartbeat_at: ago(1_000) }, now)).toBe('offline')
+      expect(botMemberStatus({ status: 'streaming', last_heartbeat_at: ago(1_000) }, now)).toBe('offline')
+    })
+
+    it('reads any status as offline once the heartbeat is stale or absent', () => {
+      expect(botMemberStatus({ status: 'dnd', last_heartbeat_at: ago(BOT_PRESENCE_STALE_MS + 1) }, now)).toBe('offline')
+      expect(botMemberStatus({ status: 'online', last_heartbeat_at: null }, now)).toBe('offline')
+      expect(botMemberStatus(null, now)).toBe('offline')
+    })
   })
 
   describe('permissions', () => {
     it('offers only the flags the gateway checks', () => {
       expect([...ENFORCED_BOT_PERMISSIONS].sort()).toEqual(
-        ['add_reactions', 'manage_channels', 'manage_messages', 'read_messages', 'send_messages'],
+        ['add_reactions', 'manage_channels', 'manage_messages', 'manage_roles', 'read_messages', 'send_messages'],
       )
     })
 
@@ -87,8 +112,10 @@ describe('botUtils', () => {
         add_reactions: true,
         manage_messages: false,
         manage_channels: false,
+        manage_roles: false,
       })
       expect(defaultBotPermissions('bridge').manage_channels).toBe(true)
+      expect(defaultBotPermissions('bridge').manage_roles).toBe(false)
       expect(defaultBotPermissions(null).manage_channels).toBe(false)
     })
 
@@ -99,6 +126,7 @@ describe('botUtils', () => {
         add_reactions: true,
         manage_messages: true,
         manage_channels: false,
+        manage_roles: true,
         kick_members: true,
       }
       expect(enforcedPermissionsFrom(row)).toEqual({
@@ -107,6 +135,7 @@ describe('botUtils', () => {
         add_reactions: true,
         manage_messages: true,
         manage_channels: false,
+        manage_roles: true,
       })
     })
   })

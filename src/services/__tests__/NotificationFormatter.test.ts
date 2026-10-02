@@ -1,10 +1,11 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeAll } from 'vitest'
 
 vi.mock('@/utils/avatarUtils', () => ({
   getAvatarUrl: vi.fn((url: string | null) => url || '/default_avatar.webp'),
 }))
 
 import { NotificationFormatter } from '@/services/NotificationFormatter'
+import { waitForInitialLocale } from '@/i18n'
 
 function makeNotification(type: string, data: Record<string, any> = {}) {
   return {
@@ -82,6 +83,60 @@ describe('NotificationFormatter', () => {
       const result = NotificationFormatter.formatNotification(notif)
       expect(result.title).toBeTruthy()
       expect(typeof result.message).toBe('string')
+    })
+  })
+
+  describe('newcomer_message', () => {
+    beforeAll(async () => {
+      await waitForInitialLocale()
+    })
+
+    const newcomer = (extra: Record<string, any> = {}) => makeNotification('newcomer_message', {
+      data: {
+        sender: { user_id: 'u-alice', username: 'alice', display_name: 'Alice', avatar_url: 'a.webp' },
+        message: { id: 'm-1', content_preview: 'hi all, just joined' },
+        location: { server_id: 's-1', server_name: 'Garden', channel_id: 'c-1', channel_name: 'general' },
+        message_id: 'm-1',
+        server_id: 's-1',
+        channel_id: 'c-1',
+        preview: 'hi all, just joined',
+        ...extra,
+      },
+    })
+
+    it('names the new member and the channel and previews the message', () => {
+      const result = NotificationFormatter.formatNotification(newcomer())
+      expect(result.title).toBe('Alice is new here and posted in #general')
+      expect(result.titleAction).toBe(' is new here and posted in #general')
+      expect(result.message).toBe('hi all, just joined')
+      expect(result.shortTitle).toBe('New member in #general')
+    })
+
+    it('suggests a greeting when the message has no text', () => {
+      const notif = newcomer({ message: { id: 'm-1' }, preview: undefined })
+      expect(NotificationFormatter.formatNotification(notif).message).toBe('Say hello')
+    })
+
+    it('shows no content for an encrypted message', () => {
+      const notif = newcomer({ encrypted: true, message: { id: 'm-1', content_preview: 'Encrypted message' }, preview: undefined })
+      expect(NotificationFormatter.formatNotification(notif).message).toBe('Encrypted message')
+    })
+
+    it('gives the toast the author and the text after their name', () => {
+      expect(NotificationFormatter.getActorInfo(newcomer())).toEqual({
+        actorUserId: 'u-alice',
+        titleSuffix: ' is new here and posted in #general',
+      })
+      expect(NotificationFormatter.getAvatarUrl(newcomer())).toBe('a.webp')
+    })
+
+    it('opens the message in its channel', () => {
+      expect(NotificationFormatter.getNavigationData(newcomer())).toEqual({
+        type: 'channel',
+        serverId: 's-1',
+        channelId: 'c-1',
+        messageId: 'm-1',
+      })
     })
   })
 

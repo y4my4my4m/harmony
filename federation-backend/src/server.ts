@@ -46,7 +46,9 @@ import { redis } from './services/RedisService.js';
 export function createApp(): Application {
   const app: Application = express();
 
-  app.set('trust proxy', 1);
+  // Only a proxy peer may name the client (rateLimit.clientIp); a hop count
+  // trusts whatever connects, and with it a client-supplied X-Forwarded-For.
+  app.set('trust proxy', config.TRUST_PROXY.split(',').map((v) => v.trim()).filter(Boolean));
 
   app.use(helmet());
   // Native (Tauri) clients are cross-origin by construction: the frontend is

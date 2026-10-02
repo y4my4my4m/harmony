@@ -1,5 +1,7 @@
 import { supabase } from '@/supabase'
+import { i18n } from '@/i18n'
 import { debug } from '@/utils/debug'
+import { MAX_IMAGE_SOURCE_BYTES } from '@/utils/imageResize'
 
 /**
  * Client-side validation and error humanization for storage uploads.
@@ -92,6 +94,21 @@ async function getBucketLimits(bucket: string): Promise<BucketLimitConfig> {
   liveLimits.set(bucket, fallback)
   return fallback
 }
+
+/**
+ * Size check for a picked image before it is shrunk; bucket limits apply to
+ * the shrunk result. Returns an error message, or null.
+ */
+export function imageSourceError(file: File): string | null {
+  if (file.size <= MAX_IMAGE_SOURCE_BYTES) return null
+  return i18n.global.t('files.imageTooLarge', {
+    size: formatBytes(file.size),
+    max: formatBytes(MAX_IMAGE_SOURCE_BYTES),
+  })
+}
+
+/** An upload refused before it reached storage; `message` is user-facing. */
+export class UploadRejectedError extends Error {}
 
 /** Returns an error message, or null if the file is within the bucket limits. */
 export async function validateImageUpload(file: File, bucket: string): Promise<string | null> {

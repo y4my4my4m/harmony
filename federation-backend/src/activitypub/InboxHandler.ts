@@ -6,7 +6,7 @@ import { ActivityProcessor } from './ActivityProcessor.js';
 import { FederatedInstanceService } from '../services/FederatedInstanceService.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
-import { inboxLimiter, instanceInboxLimit, signerInstanceKey } from '../middleware/rateLimit.js';
+import { clientIp, inboxLimiter, instanceInboxLimit, signerInstanceKey } from '../middleware/rateLimit.js';
 import { pgrstEscape } from '../utils/postgrestFilter.js';
 import { isInstanceActorUsername } from './InstanceActor.js';
 import { syntheticFlagId } from './flag.js';
@@ -43,7 +43,7 @@ router.post(
   '/inbox',
   inboxLimiter,
   asyncHandler(async (req: Request, res: Response) => {
-    logger.info(`POST to /inbox (shared inbox) from ${req.ip}`);
+    logger.info(`POST to /inbox (shared inbox) from ${clientIp(req)}`);
     logger.info(`Headers:`, {
       'content-type': req.headers['content-type'],
       'signature': req.headers.signature ? 'present' : 'missing',
@@ -58,7 +58,7 @@ router.post(
   '/users/:username/inbox',
   inboxLimiter,
   asyncHandler(async (req: Request, res: Response) => {
-    logger.info(`POST to /users/${req.params.username}/inbox from ${req.ip}`);
+    logger.info(`POST to /users/${req.params.username}/inbox from ${clientIp(req)}`);
     logger.info(`Headers:`, {
       'content-type': req.headers['content-type'],
       'signature': req.headers.signature ? 'present' : 'missing',
@@ -424,7 +424,7 @@ async function handleInbox(
   }
 
   // Per-instance budget, keyed on the verified signer, never on the body.
-  if (!(await instanceInboxLimit(res, signerInstanceKey(verifiedSigner, req.ip)))) {
+  if (!(await instanceInboxLimit(res, signerInstanceKey(verifiedSigner, clientIp(req))))) {
     return;
   }
 

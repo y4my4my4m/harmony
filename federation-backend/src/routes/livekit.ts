@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { livekitService, type TokenRequest, type FederatedTokenRequest } from '../services/LiveKitService.js';
+import { eitherBlocks, isConversationParticipant, isFederatedDmRoomFor } from '../services/voiceAccess.js';
 import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { SignatureService } from '../activitypub/SignatureService.js';
 import { logger } from '../utils/logger.js';
@@ -272,6 +273,9 @@ router.post('/federated-token', requireLiveKit, async (req: Request, res: Respon
       if (error.message.includes('not enabled')) {
         return res.status(403).json({ error: error.message });
       }
+      if (error.message.includes('permission denied')) {
+        return res.status(403).json({ error: 'Not authorized for this room' });
+      }
     }
 
     return res.status(500).json({ error: 'Failed to generate federated token' });
@@ -460,6 +464,41 @@ router.post('/rooms/:roomName/participants/:identity/permissions', requireAuth, 
 });
 
 // FEDERATED CALL ROUTES
+//
+// federated_voice_calls holds inbound invites only: a remote caller and a local
+// recipient. The routes act for the authenticated profile: an invite goes out
+// under its own actor for a conversation it shares with the callee; accept and
+// reject touch calls it was invited to while they ring; end touches calls it
+// is a party to.
+
+const RING_TTL_MS = 60_000;
+
+/** Profile of the authenticated user. */
+async function callerProfile(authUserId: string): Promise<{ id: string; federated_id: string | null } | null> {
+  const { data } = await getSupabaseClient()
+    .from('profiles')
+    .select('id, federated_id')
+    .eq('auth_user_id', authUserId)
+    .maybeSingle();
+  return data ?? null;
+}
+
+/** Pending, unexpired inbound call to `recipientId` from `callerFederatedId` in `conversationId`. */
+async function ringingCallFor(recipientId: string, conversationId: unknown, callerFederatedId: unknown) {
+  if (typeof conversationId !== 'string' || typeof callerFederatedId !== 'string') return null;
+  const { data } = await getSupabaseClient()
+    .from('federated_voice_calls')
+    .select('*')
+    .eq('conversation_id', conversationId)
+    .eq('caller_federated_id', callerFederatedId)
+    .eq('recipient_id', recipientId)
+    .eq('status', 'pending')
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data ?? null;
+}
 
 /**
  * POST /api/livekit/federated-call/invite
@@ -468,17 +507,50 @@ router.post('/rooms/:roomName/participants/:identity/permissions', requireAuth, 
 router.post('/federated-call/invite', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
-    const { callerFederatedId, calleeFederatedId, callType, conversationId, livekitUrl, roomName } = req.body;
+    const { calleeFederatedId, callType, conversationId, roomName } = req.body ?? {};
     
-    if (!callerFederatedId || !calleeFederatedId || !callType || !livekitUrl || !roomName) {
+    if (typeof calleeFederatedId !== 'string' || (callType !== 'voice' && callType !== 'video')
+        || typeof conversationId !== 'string' || typeof roomName !== 'string') {
       return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const caller = await callerProfile(user.id);
+    if (!caller?.federated_id) {
+      return res.status(400).json({ error: 'User has no federated ID' });
+    }
+    if (!isFederatedDmRoomFor(roomName, conversationId)) {
+      return res.status(400).json({ error: 'roomName must be federated-dm-{conversationId}-{timestamp}' });
+    }
+
+    const supabase = getSupabaseClient();
+    const { data: callee } = await supabase
+      .from('profiles')
+      .select('id, inbox_url, is_local')
+      .eq('federated_id', calleeFederatedId)
+      .maybeSingle();
+    
+    if (!callee?.inbox_url || callee.is_local) {
+      return res.status(404).json({ error: 'Callee not found or no inbox URL' });
+    }
+
+    if (!(await isConversationParticipant(supabase, conversationId, caller.id))
+        || !(await isConversationParticipant(supabase, conversationId, callee.id))) {
+      return res.status(403).json({ error: 'Not a conversation shared with the callee' });
+    }
+    if (await eitherBlocks(supabase, caller.id, callee.id)) {
+      return res.status(403).json({ error: 'Cannot call this user' });
+    }
+
+    const livekitUrl = livekitService.getClientConfig().wsUrl;
+    if (!livekitUrl) {
+      return res.status(503).json({ error: 'LiveKit is not configured' });
     }
     
     const { VoiceActivityHandler } = await import('../activitypub/VoiceActivityHandler.js');
     const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
     
     const activity = VoiceActivityHandler.createVoiceCallInvite(
-      callerFederatedId,
+      caller.federated_id,
       calleeFederatedId,
       callType,
       conversationId,
@@ -486,24 +558,14 @@ router.post('/federated-call/invite', requireAuth, requireLiveKit, async (req: R
       roomName
     );
     
-    const supabase = getSupabaseClient();
-    const { data: callee } = await supabase
-      .from('profiles')
-      .select('inbox_url')
-      .eq('federated_id', calleeFederatedId)
-      .single();
+    await DeliveryQueue.sendToInbox(callee.inbox_url, activity, caller.id);
     
-    if (!callee?.inbox_url) {
-      return res.status(404).json({ error: 'Callee not found or no inbox URL' });
-    }
-    
-    await DeliveryQueue.sendToInbox(callee.inbox_url, activity, user.id);
-    
-    logger.info(`Sent federated call invite from ${callerFederatedId} to ${calleeFederatedId}`);
+    logger.info(`Sent federated call invite from ${caller.federated_id} to ${calleeFederatedId}`);
 
     return res.json({
       success: true,
       activityId: activity.id,
+      expiresInMs: RING_TTL_MS,
     });
   } catch (error) {
     logger.error('Failed to send federated call invite:', error);
@@ -518,61 +580,53 @@ router.post('/federated-call/invite', requireAuth, requireLiveKit, async (req: R
 router.post('/federated-call/accept', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
-    const { conversationId, callerFederatedId } = req.body;
+    const { conversationId, callerFederatedId } = req.body ?? {};
     
     if (!conversationId || !callerFederatedId) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
-    // Get acceptor's federated ID (user.id is auth UUID)
-    const supabase = getSupabaseClient();
-    const { data: acceptor } = await supabase
-      .from('profiles')
-      .select('federated_id')
-      .eq('auth_user_id', user.id)
-      .single();
-    
+    const acceptor = await callerProfile(user.id);
     if (!acceptor?.federated_id) {
       return res.status(400).json({ error: 'User has no federated ID' });
     }
     
-    const { data: call } = await supabase
-      .from('federated_voice_calls')
-      .select('*')
-      .eq('conversation_id', conversationId)
-      .eq('caller_federated_id', callerFederatedId)
-      .eq('status', 'pending')
-      .single();
-    
+    const call = await ringingCallFor(acceptor.id, conversationId, callerFederatedId);
     if (!call) {
       return res.status(404).json({ error: 'Call not found' });
     }
     
-    await supabase
+    const supabase = getSupabaseClient();
+    const { data: updated } = await supabase
       .from('federated_voice_calls')
       .update({ status: 'accepted', accepted_at: new Date().toISOString() })
-      .eq('id', call.id);
+      .eq('id', call.id)
+      .eq('status', 'pending')
+      .select('id');
+    if (!updated?.length) {
+      return res.status(409).json({ error: 'Call is no longer ringing' });
+    }
     
     const { VoiceActivityHandler } = await import('../activitypub/VoiceActivityHandler.js');
     const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
     
     const activity = VoiceActivityHandler.createVoiceCallAccept(
       acceptor.federated_id,
-      callerFederatedId,
+      call.caller_federated_id,
       call.ap_id
     );
     
     const { data: caller } = await supabase
       .from('profiles')
       .select('inbox_url')
-      .eq('federated_id', callerFederatedId)
-      .single();
+      .eq('federated_id', call.caller_federated_id)
+      .maybeSingle();
     
     if (caller?.inbox_url) {
-      await DeliveryQueue.sendToInbox(caller.inbox_url, activity, user.id);
+      await DeliveryQueue.sendToInbox(caller.inbox_url, activity, acceptor.id);
     }
     
-    logger.info(`Accepted federated call from ${callerFederatedId}`);
+    logger.info(`Accepted federated call from ${call.caller_federated_id}`);
     
     return res.json({
       success: true,
@@ -592,61 +646,49 @@ router.post('/federated-call/accept', requireAuth, requireLiveKit, async (req: R
 router.post('/federated-call/reject', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
-    const { conversationId, callerFederatedId } = req.body;
+    const { conversationId, callerFederatedId } = req.body ?? {};
     
     if (!conversationId || !callerFederatedId) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
-    // Get rejector's federated ID (user.id is auth UUID)
-    const supabase = getSupabaseClient();
-    const { data: rejector } = await supabase
-      .from('profiles')
-      .select('federated_id')
-      .eq('auth_user_id', user.id)
-      .single();
-    
+    const rejector = await callerProfile(user.id);
     if (!rejector?.federated_id) {
       return res.status(400).json({ error: 'User has no federated ID' });
     }
     
-    const { data: call } = await supabase
-      .from('federated_voice_calls')
-      .select('*')
-      .eq('conversation_id', conversationId)
-      .eq('caller_federated_id', callerFederatedId)
-      .eq('status', 'pending')
-      .single();
-    
+    const call = await ringingCallFor(rejector.id, conversationId, callerFederatedId);
     if (!call) {
       return res.status(404).json({ error: 'Call not found' });
     }
     
+    const supabase = getSupabaseClient();
     await supabase
       .from('federated_voice_calls')
       .update({ status: 'rejected', ended_at: new Date().toISOString() })
-      .eq('id', call.id);
+      .eq('id', call.id)
+      .eq('status', 'pending');
     
     const { VoiceActivityHandler } = await import('../activitypub/VoiceActivityHandler.js');
     const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
     
     const activity = VoiceActivityHandler.createVoiceCallReject(
       rejector.federated_id,
-      callerFederatedId,
+      call.caller_federated_id,
       call.ap_id
     );
     
     const { data: caller } = await supabase
       .from('profiles')
       .select('inbox_url')
-      .eq('federated_id', callerFederatedId)
-      .single();
+      .eq('federated_id', call.caller_federated_id)
+      .maybeSingle();
     
     if (caller?.inbox_url) {
-      await DeliveryQueue.sendToInbox(caller.inbox_url, activity, user.id);
+      await DeliveryQueue.sendToInbox(caller.inbox_url, activity, rejector.id);
     }
     
-    logger.info(`Rejected federated call from ${callerFederatedId}`);
+    logger.info(`Rejected federated call from ${call.caller_federated_id}`);
 
     return res.json({ success: true });
   } catch (error) {
@@ -662,51 +704,48 @@ router.post('/federated-call/reject', requireAuth, requireLiveKit, async (req: R
 router.post('/federated-call/end', requireAuth, requireLiveKit, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
-    const { conversationId, otherParticipantFederatedId } = req.body;
+    const { conversationId } = req.body ?? {};
     
-    if (!conversationId) {
+    if (typeof conversationId !== 'string' || !conversationId) {
       return res.status(400).json({ error: 'Missing conversationId' });
     }
     
-    // Get user's federated ID (user.id is auth UUID)
+    const ender = await callerProfile(user.id);
+    if (!ender) {
+      return res.status(400).json({ error: 'Profile not found' });
+    }
+
     const supabase = getSupabaseClient();
-    const { data: ender } = await supabase
-      .from('profiles')
-      .select('federated_id')
-      .eq('auth_user_id', user.id)
-      .single();
-    
-    await supabase
+    const { data: calls } = await supabase
       .from('federated_voice_calls')
-      .update({ status: 'ended', ended_at: new Date().toISOString() })
+      .select('id, ap_id, caller_id, recipient_id, caller_federated_id')
       .eq('conversation_id', conversationId)
-      .in('status', ['pending', 'accepted']);
-    
-    if (ender?.federated_id && otherParticipantFederatedId) {
-      const { VoiceActivityHandler } = await import('../activitypub/VoiceActivityHandler.js');
-      const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
-      
-      const { data: call } = await supabase
+      .in('status', ['pending', 'accepted'])
+      .or(`caller_id.eq.${ender.id},recipient_id.eq.${ender.id}`);
+
+    for (const call of calls ?? []) {
+      await supabase
         .from('federated_voice_calls')
-        .select('ap_id')
-        .eq('conversation_id', conversationId)
-        .single();
-      
-      if (call) {
+        .update({ status: 'ended', ended_at: new Date().toISOString() })
+        .eq('id', call.id)
+        .in('status', ['pending', 'accepted']);
+
+      // The other party of an inbound call is its remote caller.
+      if (ender.federated_id && call.recipient_id === ender.id) {
+        const { VoiceActivityHandler } = await import('../activitypub/VoiceActivityHandler.js');
+        const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
         const activity = VoiceActivityHandler.createVoiceCallEnd(
           ender.federated_id,
-          otherParticipantFederatedId,
+          call.caller_federated_id,
           call.ap_id
         );
-        
         const { data: other } = await supabase
           .from('profiles')
           .select('inbox_url')
-          .eq('federated_id', otherParticipantFederatedId)
-          .single();
-        
+          .eq('federated_id', call.caller_federated_id)
+          .maybeSingle();
         if (other?.inbox_url) {
-          await DeliveryQueue.sendToInbox(other.inbox_url, activity, user.id);
+          await DeliveryQueue.sendToInbox(other.inbox_url, activity, ender.id);
         }
       }
     }

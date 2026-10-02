@@ -7,6 +7,7 @@
  * federated_id equals it, never a field of the object.
  *
  * Every write requires:
+ *   - an author profile that is not suspended;
  *   - the channel belongs to the server named by the activity or the route;
  *   - an accepted user_servers row and no server_bans row;
  *   - on a local server, VIEW_CHANNEL and the kind's permission through
@@ -20,6 +21,12 @@ import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 
 type Supabase = ReturnType<typeof getSupabaseClient>;
+
+/**
+ * federation_status of a thread created from a message that names a thread not
+ * yet known here. The thread's own Create claims it; no other row changes owner.
+ */
+export const THREAD_STUB_STATUS = 'stub';
 
 export type ChannelWriteKind =
   | 'message'
@@ -121,10 +128,11 @@ export async function authorizeChannelWrite(
 
   const { data: author } = await supabase
     .from('profiles')
-    .select('id')
+    .select('id, is_suspended')
     .eq('federated_id', actorUrl)
     .maybeSingle();
   if (!author) return { ok: false, reason: 'unknown author' };
+  if (author.is_suspended === true) return { ok: false, reason: 'suspended' };
 
   const isLocal = server.is_local_server !== false;
   if (!isLocal) {

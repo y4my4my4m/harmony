@@ -14,6 +14,9 @@ interface InstanceSettings {
   /** Instance-wide rules shown once to joining users (string array). */
   instanceRules: string[]
 
+  /** Server suggested to new users; get_onboarding_servers treats a non-public one as unset. */
+  welcomeServerId: string | null
+
   // Legal / policy URLs
   termsUrl: string
   privacyUrl: string
@@ -71,6 +74,7 @@ const DEFAULT_SETTINGS: InstanceSettings = {
   instanceDescription: '',
   instanceIcon: '',
   instanceRules: [],
+  welcomeServerId: null,
   termsUrl: import.meta.env.VITE_TERMS_URL || '',
   privacyUrl: import.meta.env.VITE_PRIVACY_URL || '',
   openRegistration: true,
@@ -215,6 +219,9 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
             this.settings.instanceRules = Array.isArray(value)
               ? value.filter((r: unknown): r is string => typeof r === 'string' && r.trim().length > 0)
               : []
+            break
+          case 'welcome_server_id':
+            this.settings.welcomeServerId = typeof value === 'string' && value ? value : null
             break
           case 'terms_url':
             this.settings.termsUrl = value || ''

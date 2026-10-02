@@ -1035,6 +1035,15 @@ class PushNotificationServiceClass {
         break;
       }
       
+      case 'newcomer_message': {
+        const channelName = data.location?.channel_name || data.channel_name;
+        title = channelName
+          ? `${senderName}${senderDomain} is new here and posted in #${channelName}`
+          : `${senderName}${senderDomain} is new here and posted for the first time`;
+        message = this.extractContentPreview(data) || 'Say hello';
+        break;
+      }
+
       case 'reaction':
         title = `${senderName}${senderDomain} reacted to your message`;
         message = data.reaction?.emoji_name || '❤️';

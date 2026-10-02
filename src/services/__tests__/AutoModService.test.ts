@@ -28,6 +28,16 @@ describe('moderationRejectionFromError', () => {
     expect(moderationRejectionFromError({ message: 'ANTISPAM_STRANGER_MENTIONS:3' })?.code).toBe('ANTISPAM_STRANGER_MENTIONS')
   })
 
+  it('maps a rules rejection with its server id', () => {
+    const r = moderationRejectionFromError({
+      code: 'P0001',
+      message: 'RULES_NOT_ACCEPTED:55555555-0000-0000-0000-000000000005',
+    })
+    expect(r?.code).toBe('RULES_NOT_ACCEPTED')
+    expect(r?.details).toEqual({ serverId: '55555555-0000-0000-0000-000000000005' })
+    expect(isModerationRejectionCode('INSERT_FAILED RULES_NOT_ACCEPTED')).toBe(true)
+  })
+
   it('ignores unrelated errors', () => {
     expect(moderationRejectionFromError({ message: 'new row violates row-level security policy' })).toBeNull()
     expect(moderationRejectionFromError(null)).toBeNull()

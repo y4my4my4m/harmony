@@ -53,21 +53,58 @@ export async function botAuthMiddleware(
       username: verification.username,
       scopes: verification.scopes || []
     }
-    
-    // Check rate limits
-    const isRateLimited = await checkRateLimit(verification.bot_id, req.path)
-    if (isRateLimited) {
-      return res.status(429).json({ 
-        error: 'Rate limit exceeded',
-        retry_after: 60 
-      })
-    }
-    
+
     next()
   } catch (error) {
     console.error('Auth middleware error:', error)
     res.status(500).json({ error: 'Internal server error' })
   }
+}
+
+// Requests no route matches share one bucket per bot. Their paths are caller-chosen; keying on
+// them would mint a bucket, and a bot_rate_limits row, per request.
+export const UNMATCHED_BUCKET = 'unmatched'
+
+// Route parameters that name the resource a bucket is per, as Discord's major parameters.
+const MAJOR_PARAMS = new Set(['channelId', 'serverId', 'guildId'])
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Bucket for a request: the matched route pattern with its major parameters filled in, e.g.
+ * /api/v1/channels/<channel uuid>/messages. Express matches routes case-insensitively and with an
+ * optional trailing slash, and the query string is not part of the route, so every spelling of
+ * one route on one resource shares a bucket. baseUrl is the URL's own spelling of the mount path
+ * and is lowercased; a major parameter that is not a UUID is one shared `:invalid` value.
+ */
+export function rateLimitBucket(req: Request): string {
+  const routePath = req.route?.path
+  if (typeof routePath !== 'string') return UNMATCHED_BUCKET
+  const filled = routePath.replace(/:(\w+)/g, (param: string, name: string) => {
+    if (!MAJOR_PARAMS.has(name)) return param
+    const value = req.params?.[name]
+    return typeof value === 'string' && UUID.test(value) ? value.toLowerCase() : ':invalid'
+  })
+  return `${req.baseUrl.toLowerCase()}${filled}`
+}
+
+/**
+ * Per-route rate limit. Runs after botAuthMiddleware and after route matching: as a route
+ * handler, or as router middleware behind every route for requests none matched.
+ */
+export async function botRateLimit(req: BotRequest, res: Response, next: NextFunction) {
+  if (!req.bot) {
+    return res.status(401).json({ error: 'Missing Authorization header' })
+  }
+
+  const isRateLimited = await checkRateLimit(req.bot.id, rateLimitBucket(req))
+  if (isRateLimited) {
+    return res.status(429).json({
+      error: 'Rate limit exceeded',
+      retry_after: 60
+    })
+  }
+
+  next()
 }
 
 /**

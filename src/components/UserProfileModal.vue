@@ -8,7 +8,15 @@
     <div class="profile-modal-content">
       <!-- Cover Banner -->
       <div class="profile-banner" :style="bannerStyle">
-        <div class="banner-gradient" :style="bannerStyle"></div>
+        <BannerImage
+          v-if="bannerSrc"
+          :src="bannerSrc"
+          :fallback-src="bannerFullSize"
+          :width="BANNER_BOX.width"
+          :height="BANNER_BOX.height"
+          expandable
+        />
+        <div class="banner-gradient"></div>
         <div class="banner-actions">
           <button 
             v-if="!isCurrentUser && !isBridgedDiscord" 
@@ -71,6 +79,7 @@
                 :src="avatarUrl" 
                 :alt="`${displayName}'s avatar`"
                 class="profile-avatar"
+                expandable
                 @error="handleAvatarError"
               />
               <div class="status-indicator" :class="userStatus"></div>
@@ -190,7 +199,7 @@
             </div>
             <div class="federation-item">
               <span class="federation-label">Profile URL:</span>
-              <a :href="getProfileUrl(user)" 
+              <a :href="safeHref(getProfileUrl(user))" 
                  target="_blank" 
                  rel="noopener noreferrer" 
                  class="federation-link">
@@ -414,7 +423,7 @@
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { apiUrl } from '@/services/instanceConfig';
 import { debug } from '@/utils/debug'
-import { escapeHtml } from '@/utils/sanitize'
+import { escapeHtml, safeHref } from '@/utils/sanitize'
 import DOMPurify from 'dompurify'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
@@ -424,7 +433,8 @@ import { useServerChannelStore } from '../stores/useServerChannel'
 import { showInstanceStaffBadge } from '@/utils/instanceBadge'
 import { useUserData } from '@/composables/useUserData'
 import { useLayoutState } from '@/composables/useLayoutState'
-import { getBannerUrl } from '@/utils/bannerUtils'
+import { getBannerUrl, getRawBannerUrl } from '@/utils/bannerUtils'
+import BannerImage from '@/components/common/BannerImage.vue'
 import { formatCustomStatusDisplay } from '@/utils/customStatusDisplay'
 import { coreProfileService } from '@/services/core/CoreProfileService'
 import { roleService, type ServerRole, Permission } from '@/services/RoleService'
@@ -894,17 +904,14 @@ const bannerUrl = computed(() => {
   return getUserBannerUrl(props.user.id).value || (props.user as any).banner_url || null
 })
 
+// Banner box in CSS px: BaseModal is at most 540 wide, the banner 120 tall.
+const BANNER_BOX = { width: 540, height: 120 } as const
+
+const bannerSrc = computed(() => getBannerUrl(bannerUrl.value, BANNER_BOX))
+const bannerFullSize = computed(() => getRawBannerUrl(bannerUrl.value))
+
+// Colour under the banner image, and the whole banner when there is none.
 const bannerStyle = computed(() => {
-  const banner = bannerUrl.value
-  if (banner) {
-    const optimizedBanner = getBannerUrl(banner, { width: 640, height: 350, quality: 80 })
-    return {
-      backgroundImage: `url(${optimizedBanner || banner})`,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      backgroundRepeat: 'no-repeat'
-    }
-  }
   if (isBridgedDiscord.value && bridgedProfile.value?.accent_color) {
     return { backgroundColor: bridgedProfile.value.accent_color }
   }
@@ -1485,6 +1492,7 @@ onMounted(() => {
   position: absolute;
   inset: 0;
   background: linear-gradient(135deg, transparent 0%, rgba(0, 0, 0, 0.3) 100%);
+  pointer-events: none;
 }
 
 .banner-actions {

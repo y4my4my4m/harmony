@@ -527,6 +527,7 @@ const newLinkLabel = ref('')
 
 // Ko-fi webhook config
 const kofiWebhookToken = ref('')
+let savedKofiWebhookToken = ''
 const kofiAutoAssignTier = ref(true)
 const showKofiToken = ref(false)
 const kofiWebhookUrl = computed(() => {
@@ -621,9 +622,10 @@ const loadFundingData = async () => {
     fundingDescription.value = config.goal_description || ''
     fundingThankYou.value = config.thank_you_message || ''
     fundingLinks.value = config.funding_links || []
-    kofiWebhookToken.value = config.kofi_webhook_token || ''
     kofiAutoAssignTier.value = config.kofi_auto_assign_tier !== false
   }
+  kofiWebhookToken.value = await fundingService.getKofiWebhookToken()
+  savedKofiWebhookToken = kofiWebhookToken.value
   supporterTiers.value = await fundingService.getTiers()
   supporters.value = await fundingService.getSupporters()
   donationHistory.value = await fundingService.getDonationHistory()
@@ -722,7 +724,7 @@ const addFundingLink = () => {
 }
 
 const saveFundingConfig = async () => {
-  const success = await fundingService.updateFundingConfig({
+  const configSaved = await fundingService.updateFundingConfig({
     enabled: fundingEnabled.value,
     show_in_context_bar: fundingShowInBar.value,
     show_progress_bar: fundingShowProgress.value,
@@ -733,9 +735,15 @@ const saveFundingConfig = async () => {
     goal_description: fundingDescription.value || null,
     thank_you_message: fundingThankYou.value || null,
     funding_links: fundingLinks.value,
-    kofi_webhook_token: kofiWebhookToken.value.trim() || null,
     kofi_auto_assign_tier: kofiAutoAssignTier.value,
   } as any)
+  const token = kofiWebhookToken.value.trim()
+  let tokenSaved = true
+  if (configSaved && token !== savedKofiWebhookToken) {
+    tokenSaved = await fundingService.setKofiWebhookToken(token)
+    if (tokenSaved) savedKofiWebhookToken = token
+  }
+  const success = configSaved && tokenSaved
   if (success) {
     fundingChanged.value = false
     toast.success('Funding settings saved')

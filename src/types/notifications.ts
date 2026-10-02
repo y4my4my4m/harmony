@@ -36,6 +36,7 @@ export type NotificationType =
   | 'activitypub_follow_accepted'
   | 'report_update'
   | 'moderation_warning'
+  | 'newcomer_message'
   | 'security'
   | 'error'
   // Generic UI feedback toasts (also valid AudioActions for themed sounds)
@@ -109,6 +110,9 @@ export interface NotificationPreferences {
   push_mentions: boolean;
   push_dms: boolean;
   push_offline_only: boolean;
+
+  /** newcomer_message for servers the user owns or moderates. */
+  newcomer_alerts: boolean;
   
   // Email notifications
   email_notifications: boolean;

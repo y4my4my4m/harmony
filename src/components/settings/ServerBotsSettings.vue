@@ -1,5 +1,5 @@
 <template>
-  <div class="server-bots-settings">
+  <div id="server-bots" ref="rootEl" class="server-bots-settings">
     <div class="settings-section">
       <h2 class="section-title">{{ t('bots.server.title') }}</h2>
       <p class="section-description">{{ t('bots.server.description') }}</p>
@@ -210,6 +210,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { formatDistanceToNow } from 'date-fns'
 import { supabase } from '@/supabase'
@@ -424,6 +425,16 @@ async function addBot() {
     })
     if (error) throw error
 
+    // add_bot_to_server writes no manage_roles; the install row keeps its default (false).
+    if (selectedPermissions.value.manage_roles) {
+      const { error: rolesError } = await supabase
+        .from('bot_server_permissions')
+        .update({ manage_roles: true })
+        .eq('bot_id', bot.id)
+        .eq('server_id', props.serverId)
+      if (rolesError) throw rolesError
+    }
+
     toast.success(t('bots.server.addSuccess', { name: botName(bot) }))
     selectedBot.value = null
     await loadInstalled()
@@ -504,7 +515,11 @@ async function removeBot(installation: Installation) {
   }
 }
 
+const route = useRoute()
+const rootEl = ref<HTMLElement | null>(null)
+
 onMounted(() => {
+  if (route.hash === '#server-bots') rootEl.value?.scrollIntoView({ block: 'start' })
   loadInstalled()
   loadDirectoryPage(true)
 })

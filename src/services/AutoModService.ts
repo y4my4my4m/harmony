@@ -328,6 +328,7 @@ export type ModerationRejectionCode =
   | 'ANTISPAM_RATE_LIMITED'
   | 'ANTISPAM_LINKS_BLOCKED'
   | 'ANTISPAM_STRANGER_MENTIONS'
+  | 'RULES_NOT_ACCEPTED'
 
 export interface ModerationRejection {
   code: ModerationRejectionCode
@@ -336,7 +337,7 @@ export interface ModerationRejection {
 }
 
 const REJECTION_PATTERN =
-  /(AUTOMOD_BLOCKED|MEMBER_TIMED_OUT|ANTISPAM_RATE_LIMITED|ANTISPAM_LINKS_BLOCKED|ANTISPAM_STRANGER_MENTIONS)(?::([^\s"]+))?/
+  /(AUTOMOD_BLOCKED|MEMBER_TIMED_OUT|ANTISPAM_RATE_LIMITED|ANTISPAM_LINKS_BLOCKED|ANTISPAM_STRANGER_MENTIONS|RULES_NOT_ACCEPTED)(?::([^\s"]+))?/
 
 export function isModerationRejectionCode(code: string | null | undefined): boolean {
   return !!code && REJECTION_PATTERN.test(code)
@@ -406,6 +407,9 @@ export function moderationRejectionFromError(error: any): ModerationRejection | 
       return { code, message: t('automod.antispam.linksBlocked') }
     case 'ANTISPAM_STRANGER_MENTIONS':
       return { code, message: t('automod.antispam.strangerMentions', { count: arg ?? '0' }) }
+    // 20261006300001_welcome_server_and_rules.sql; arg is the server id.
+    case 'RULES_NOT_ACCEPTED':
+      return { code, message: t('serverWelcome.rulesRequired'), details: { serverId: arg ?? null } }
   }
   return null
 }

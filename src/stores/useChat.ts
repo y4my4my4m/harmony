@@ -285,6 +285,9 @@ export const useChatStore = defineStore('chat', {
           debug.log(`Discarding stale response for channel ${channelId} (current: ${this.currentChannelId})`);
           return;
         }
+        // A list replaced during the fetch no longer starts with the row this
+        // page precedes.
+        if (oldestMessageId !== '' && this.messages[0]?.id !== oldestMessageId) return;
 
         if (!messages || messages.length === 0) {
           debug.log('No older messages found');
@@ -1314,6 +1317,39 @@ export const useChatStore = defineStore('chat', {
         debug.error('Error jumping to message:', error);
         return false;
       }
+    },
+
+    /**
+     * Replaces the loaded rows with the channel's newest page, the page a cold
+     * open loads, and drops jumped-to rows and their gaps. Rows newer than that
+     * page (realtime arrivals, sends in flight) stay.
+     */
+    async reloadNewestPage(channelId: string): Promise<void> {
+      const { messages, hasMore } = await services.messages.loadChannelMessages(channelId, {
+        limit: 20,
+        isRemote: this._knownIsRemote(channelId),
+      });
+      if (this.currentChannelId !== channelId || !messages || messages.length === 0) return;
+      try { ensureMessageEmbeds(messages); } catch (e) { debug.warn('Failed to prepare embeds for the newest page:', e); }
+
+      const pageIds = new Set(messages.map((m: Message) => m.id));
+      const newestAt = new Date(messages[messages.length - 1].created_at).getTime();
+      const later = this.messages.filter((m: Message) =>
+        m.channel_id === channelId && !pageIds.has(m.id) && new Date(m.created_at).getTime() > newestAt
+      );
+      const merged = [...messages, ...later];
+      this.messages = merged;
+      this.allMessagesLoaded = !hasMore;
+      this.clearJumpedMessages();
+
+      this.evictOldestCache();
+      this.messageCache.set(channelId, {
+        messages: [...merged],
+        lastFetchedAt: new Date(),
+        oldestMessageId: merged[0]?.id || null,
+        allMessagesLoaded: !hasMore,
+        lastModified: new Date(),
+      });
     },
 
     shouldShowGapBefore(message: Message, insertIndex: number): boolean {

@@ -462,10 +462,13 @@ export class ProfileService {
     try {
       // Import the utility function dynamically to avoid circular imports
       const { uploadBanner } = await import('@/utils/bannerUtils')
+      const { removeReplacedObject } = await import('@/utils/storageImageUtils')
+      const previous = await this.getCurrentProfile().then(p => p.banner_url ?? null, () => null)
       const result = await uploadBanner(file, userId)
       
       if (result.success && result.url) {
         await this.updateCurrentProfile({ banner_url: result.url })
+        await removeReplacedObject('banners', previous, result.url, userId)
       }
       
       return result

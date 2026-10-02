@@ -90,7 +90,7 @@
           <button type="button" class="btn-primary" @click="copyText(discordInviteUrl, 'Invite URL')">
             Copy invite URL
           </button>
-          <a :href="discordInviteUrl" target="_blank" rel="noopener noreferrer" class="btn-secondary link-btn">
+          <a :href="safeHref(discordInviteUrl)" target="_blank" rel="noopener noreferrer" class="btn-secondary link-btn">
             Open in Discord
           </a>
         </div>
@@ -118,6 +118,7 @@
 </template>
 
 <script setup lang="ts">
+import { safeHref } from '@/utils/sanitize';
 import { ref, computed } from 'vue'
 import { useToast } from 'vue-toastification'
 import {

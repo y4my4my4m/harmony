@@ -259,7 +259,7 @@
     "fileNotImageSkipped": "{filename} ist keine Bilddatei und wird übersprungen",
     "fileTooLargeSkipped": "{filename} ist zu groß (über 1 MB) und wird übersprungen",
     "filesNotImageSkipped": "{count} Datei(en) übersprungen: keine Bilddateien",
-    "filesTooLargeSkipped": "{count} Datei(en) übersprungen: über 1 MB",
+    "filesTooLargeSkipped": "{count} Datei(en) übersprungen: über 25 MB",
     "noValidImageFiles": "Keine gültigen Bilddateien ausgewählt",
     "cannotUploadEmojisLimit": "Kann {count} Emojis nicht hochladen. Serverlimit ist 50 Emojis (aktuell {current})",
     "emojisUploadedSuccess": "{count} Emoji{plural} erfolgreich hochgeladen!",

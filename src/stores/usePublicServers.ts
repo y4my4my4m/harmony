@@ -5,21 +5,23 @@ import { debug } from '@/utils/debug'
 import {
   SERVER_CATEGORIES,
   buildServerSearchFilter,
-  inferServerCategory,
   normalizeSearchTerm,
+  resolveServerCategory,
+  type ServerCategory,
 } from '@/utils/serverDiscovery'
 
 export interface PublicServerWithStats extends Server {
   member_count?: number
   is_featured?: boolean
   featured_order?: number | null
-  category?: string
+  /** servers.category when set, otherwise inferred; see resolveServerCategory. */
+  discovery_category?: ServerCategory
 }
 
 export interface PublicServersState {
   servers: PublicServerWithStats[]
   searchResults: PublicServerWithStats[]
-  categories: string[]
+  categories: ServerCategory[]
   isLoading: boolean
   isSearching: boolean
   searchQuery: string
@@ -43,7 +45,8 @@ const PUBLIC_SERVER_COLUMNS = `
   created_at,
   is_local_server,
   is_featured,
-  featured_order
+  featured_order,
+  category
 `
 
 // Discovery lists local public servers only; remote reference rows are excluded.
@@ -74,7 +77,7 @@ async function withStats(rows: PublicServerWithStats[]): Promise<PublicServerWit
   return rows.map(server => ({
     ...server,
     member_count: memberCounts.get(server.id) ?? 0,
-    category: inferServerCategory(server.name, server.description),
+    discovery_category: resolveServerCategory(server),
     is_featured: server.is_featured || false,
     allow_cross_server_emojis: server.allow_cross_server_emojis || false,
   }))
@@ -103,7 +106,7 @@ export const usePublicServersStore = defineStore('publicServers', {
 
       if (state.selectedCategory) {
         servers = servers.filter(server =>
-          server.category === state.selectedCategory
+          server.discovery_category === state.selectedCategory
         )
       }
 
@@ -233,6 +236,10 @@ export const usePublicServersStore = defineStore('publicServers', {
       } else {
         await this.forceRefresh()
       }
+    },
+
+    markStale(): void {
+      this.lastFetchTime = null
     },
 
     needsFreshData(): boolean {

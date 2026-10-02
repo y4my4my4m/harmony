@@ -146,6 +146,33 @@ export interface InstanceStats {
   recently_discovered: number;
 }
 
+export type CohortPeriod = 'month' | 'week';
+
+/**
+ * One row of get_signup_cohorts: a signup period (UTC month or ISO week, 'YYYY-MM-DD') and
+ * account counts. Each *_eligible is the number of accounts whose window has ended, the
+ * denominator of the count that follows it.
+ */
+export interface SignupCohort {
+  cohort_start: string;
+  signups: number;
+  joined_server: number;
+  joined_other_server: number;
+  day1_eligible: number;
+  wrote_day1: number;
+  days1_7_eligible: number;
+  active_days1_7: number;
+  days8_30_eligible: number;
+  active_days8_30: number;
+  days31_90_eligible: number;
+  active_days31_90: number;
+  first_message_eligible: number;
+  answered_1h: number;
+  answered_24h: number;
+  has_push: number;
+  follows_anyone: number;
+}
+
 class AdminService {
   async getSystemStats(): Promise<SystemStats> {
     try {
@@ -486,6 +513,18 @@ class AdminService {
       debug.error('Failed to get user counts:', error);
       return { total: 0, local: 0, federated: 0, suspended: 0 };
     }
+  }
+
+  /**
+   * Signup cohorts of local accounts, oldest first. Instance admins only.
+   */
+  async getSignupCohorts(months: number = 12, period: CohortPeriod = 'month'): Promise<SignupCohort[]> {
+    const { data, error } = await supabase.rpc('get_signup_cohorts', {
+      p_months: months,
+      p_period: period
+    });
+    if (error) throw error;
+    return (data ?? []) as SignupCohort[];
   }
 
   async getRecentActivity(limit: number = 20): Promise<AdminActivity[]> {

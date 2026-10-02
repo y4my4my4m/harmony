@@ -109,7 +109,7 @@
               </button>
               <a
                 v-if="report.reported_post_url || report.reported_post_ap_id"
-                :href="report.reported_post_url || report.reported_post_ap_id!"
+                :href="safeHref(report.reported_post_url || report.reported_post_ap_id!)"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="report-link-btn"
@@ -195,7 +195,7 @@ import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
-import { escapeHtml } from '@/utils/sanitize'
+import { escapeHtml, safeHref } from '@/utils/sanitize'
 import Icon from '@/components/common/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Avatar from '@/components/common/Avatar.vue'

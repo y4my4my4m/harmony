@@ -1,7 +1,8 @@
 // Journey: the message list holds its position. At the bottom it keeps the
 // newest message in view while the composer grows, sending from history
 // returns to the bottom, and older history loads above the view without
-// moving what is on screen.
+// moving what is on screen. Jump to present returns to the newest message,
+// from history and from a jump to an old message.
 //
 // No realtime in the e2e stack: every arrival here is the user's own send.
 
@@ -20,6 +21,7 @@ import {
 const admin = adminClient()
 let user: SpecUser
 let server: SeededServer
+let oldestId: string
 
 // Three pages of history at the client's page size of 20.
 const SEEDED = 60
@@ -34,8 +36,9 @@ test.beforeAll(async () => {
     content: [{ type: 'text', text: `seed ${i}: ` + 'lorem ipsum dolor sit amet '.repeat(1 + (i % 5)) }],
     created_at: new Date(base + i * 30_000).toISOString(),
   }))
-  const { error } = await admin.from('messages').insert(rows)
-  if (error) throw new Error(`seed messages: ${error.message}`)
+  const { data, error } = await admin.from('messages').insert(rows).select('id, created_at')
+  if (error || !data) throw new Error(`seed messages: ${error?.message}`)
+  oldestId = [...data].sort((a, b) => a.created_at.localeCompare(b.created_at))[0].id
 })
 
 test.afterAll(async () => {
@@ -46,6 +49,7 @@ const list = (page: Page) => page.locator('[data-testid="message-list"]')
 const editor = (page: Page) => page.locator('[data-testid="message-input"] .rich-text-editor')
 const distanceFromBottom = (page: Page) =>
   list(page).evaluate((el) => el.scrollHeight - el.clientHeight - el.scrollTop)
+const jumpToPresent = (page: Page) => page.getByTestId('jump-to-present')
 
 test('the list holds its position', async ({ page }) => {
   test.setTimeout(180_000)
@@ -110,5 +114,31 @@ test('the list holds its position', async ({ page }) => {
       return item.getBoundingClientRect().top - el.getBoundingClientRect().top
     }, anchor.id)
     expect(Math.abs(top - anchor.top)).toBeLessThanOrEqual(1)
+  })
+
+  await test.step('jump to present returns from more than a viewport up', async () => {
+    await list(page).evaluate((el) => { el.scrollTop = el.scrollHeight - 2.5 * el.clientHeight })
+    await expect(jumpToPresent(page)).toBeVisible()
+    await expect(jumpToPresent(page)).toHaveAttribute('aria-label', 'Jump to present')
+    await jumpToPresent(page).click()
+    await expect.poll(() => distanceFromBottom(page)).toBeLessThanOrEqual(1)
+    await expect(jumpToPresent(page)).toBeHidden()
+  })
+
+  // The jump splices the oldest message in ahead of the newest page; the seeds
+  // between the two stay unloaded.
+  await test.step('jump to present replaces a jump to an old message with the newest page', async () => {
+    await page.goto(`/chat/${server.id}/${server.generalChannelId}?messageId=${oldestId}`)
+    await expect(list(page).getByText('seed 0:')).toBeVisible({ timeout: 30000 })
+    await expect(list(page).getByText('seed 1:')).toHaveCount(0)
+    await expect(jumpToPresent(page)).toBeVisible()
+    await jumpToPresent(page).click()
+    await expect(list(page).getByText(`seed ${SEEDED - 1}:`)).toBeInViewport({ timeout: 15000 })
+    await expect.poll(() => distanceFromBottom(page)).toBeLessThanOrEqual(1)
+    await expect(list(page).getByText('seed 0:')).toHaveCount(0)
+    await expect(jumpToPresent(page)).toBeHidden()
+    // History above the newest page loads without the hole.
+    await list(page).evaluate((el) => { el.scrollTop = 0 })
+    await expect(list(page).getByText('seed 30:')).toBeAttached({ timeout: 15000 })
   })
 })

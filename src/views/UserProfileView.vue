@@ -33,7 +33,16 @@
       <div v-else-if="user" class="profile-content">
         <!-- Profile Header -->
         <div class="profile-header">
-          <div class="profile-banner" :style="bannerStyle"></div>
+          <div class="profile-banner">
+            <BannerImage
+              v-if="bannerSrc"
+              :src="bannerSrc"
+              :fallback-src="bannerFullSize"
+              :width="BANNER_BOX.width"
+              :height="BANNER_BOX.height"
+              expandable
+            />
+          </div>
 
           <!-- Profile info container -->
           <div class="profile-info-container">
@@ -44,6 +53,7 @@
                   :alt="plainDisplayName"
                   size="xl"
                   class="profile-avatar"
+                  expandable
                 />
                 <div v-if="!user.is_local" class="federation-badge" :title="t('activitypub.fromDomain', { domain: user.domain })">
                   <Icon name="federation" size="12" />
@@ -79,7 +89,7 @@
                   <!-- View in remote instance (for federated users) -->
                   <a 
                     v-if="!user.is_local && remoteProfileUrl" 
-                    :href="remoteProfileUrl" 
+                    :href="safeHref(remoteProfileUrl)" 
                     target="_blank" 
                     rel="noopener noreferrer"
                     class="action-item"
@@ -318,6 +328,7 @@
 </template>
 
 <script setup lang="ts">
+import { safeHref } from '@/utils/sanitize';
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { debug } from '@/utils/debug'
@@ -335,7 +346,8 @@ const { t } = useI18n();
 
 import { activityPubService } from '@/services/activityPubService';
 import { services } from '@/services';
-import { getBannerUrl } from '@/utils/bannerUtils';
+import { getBannerUrl, getRawBannerUrl } from '@/utils/bannerUtils';
+import BannerImage from '@/components/common/BannerImage.vue';
 import { getOriginalPost, getOriginalPostId } from '@/utils/postReblog';
 import type { FederatedUser, TimelinePost } from '@/types';
 import { format } from 'date-fns';
@@ -548,12 +560,11 @@ const bannerUrl = computed(() => {
   return getUserBannerUrl(user.value.id).value || (user.value as any).banner_url || null
 })
 
-const bannerStyle = computed(() => {
-  const banner = bannerUrl.value
-  if (!banner) return {}
-  const optimizedBanner = getBannerUrl(banner, { width: 1200, height: 400, quality: 80 })
-  return { backgroundImage: `url(${optimizedBanner || banner})` }
-})
+// Banner box in CSS px: the profile column is at most 600 wide, the banner 3:1.
+const BANNER_BOX = { width: 600, height: 200 } as const
+
+const bannerSrc = computed(() => getBannerUrl(bannerUrl.value, BANNER_BOX))
+const bannerFullSize = computed(() => getRawBannerUrl(bannerUrl.value))
 
 // Infinite scroll for the posts tab.
 const handleScroll = throttle(() => {
@@ -1313,12 +1324,11 @@ onUnmounted(() => {
 }
 
 .profile-banner {
+  position: relative;
+  overflow: hidden;
   aspect-ratio: 3 / 1;
   width: 100%;
   background-color: var(--background-tertiary);
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
 }
 
 .profile-info-container {

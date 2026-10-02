@@ -1,12 +1,15 @@
 import { supabase } from '../config/supabase.js'
 import type { WebSocketGateway } from './WebSocketGateway.js'
 import { TTLCache } from '../utils/TTLCache.js'
+import {
+  type EveryoneLayer,
+  type InstallRow,
+  botCanReadChannel,
+  loadEveryoneLayer,
+} from '../auth/botPermissions.js'
 
-// Cached bot-permission row. Only the fields downstream code reads.
-interface BotPermissionRow {
-  bot_id: string
-  read_messages: boolean | null
-}
+// Cached bot_server_permissions row, every column: see loadInstall().
+type BotPermissionRow = InstallRow & { bot_id: string }
 
 // BUGS.md PC1: without these caches each handled message costs two extra DB
 // queries (channel → server, then server → bot permissions), across three
@@ -22,6 +25,10 @@ const CHANNEL_TO_SERVER_TTL_MS = 60 * 60 * 1000
 const CHANNEL_TO_SERVER_MAX = 10_000
 const BOT_PERMISSIONS_TTL_MS = 5 * 60 * 1000
 const BOT_PERMISSIONS_MAX = 1_000
+// @everyone's channel layer decides whether a bot sees a channel. A channel hidden from
+// @everyone stops reaching bots within this bound.
+const CHANNEL_LAYER_TTL_MS = 10 * 1000
+const CHANNEL_LAYER_MAX = 10_000
 
 export class EventDispatcher {
   private subscriptions: any[] = []
@@ -53,6 +60,10 @@ export class EventDispatcher {
   private botPermissionsCache = new TTLCache<string, BotPermissionRow[]>(
     BOT_PERMISSIONS_MAX,
     BOT_PERMISSIONS_TTL_MS,
+  )
+  private channelLayerCache = new TTLCache<string, EveryoneLayer>(
+    CHANNEL_LAYER_MAX,
+    CHANNEL_LAYER_TTL_MS,
   )
   // Author (user or bot) lookup cache. Username/display_name/avatar are
   // read-mostly; 10 minutes of staleness costs nothing for event dispatch and
@@ -242,8 +253,8 @@ export class EventDispatcher {
     const serverId = await this.resolveServerId(reaction.channel_id)
     if (!serverId) return
 
-    const botPermissions = await this.resolveBotPermissions(serverId)
-    if (botPermissions.length === 0) return
+    const botIds = await this.resolveReaders(serverId, reaction.channel_id)
+    if (botIds.length === 0) return
 
     // Emoji descriptor shape expected by consumers (e.g. the Discord bridge):
     // { id, name }. For unicode emoji, name is the character itself.
@@ -268,7 +279,6 @@ export class EventDispatcher {
       },
     }
 
-    const botIds = botPermissions.map(bp => bp.bot_id)
     this.gateway.sendToMultipleBots(botIds, event)
     console.log(`Dispatched ${type} to ${botIds.length} bots`)
   }
@@ -321,9 +331,10 @@ export class EventDispatcher {
     const cached = this.botPermissionsCache.get(serverId)
     if (cached !== undefined) return cached
 
+    // '*': allowed_channel_ids exists in production only; naming it fails the query elsewhere.
     const { data: botPermissions, error } = await supabase
       .from('bot_server_permissions')
-      .select('bot_id, read_messages')
+      .select('*')
       .eq('server_id', serverId)
       .eq('read_messages', true)
       .eq('is_active', true)
@@ -333,9 +344,38 @@ export class EventDispatcher {
       return []
     }
 
-    const list = botPermissions ?? []
+    const list = (botPermissions ?? []) as BotPermissionRow[]
     this.botPermissionsCache.set(serverId, list)
     return list
+  }
+
+  /** @everyone's layer on a channel. Failed lookups are not cached. */
+  private async resolveEveryoneLayer(serverId: string, channelId: string): Promise<EveryoneLayer | null> {
+    const cached = this.channelLayerCache.get(channelId)
+    if (cached !== undefined) return cached
+    const layer = await loadEveryoneLayer(serverId, channelId)
+    if (layer) this.channelLayerCache.set(channelId, layer)
+    return layer
+  }
+
+  /**
+   * Bots that may read a channel: read_messages, the install's allowed_channel_ids, and
+   * VIEW_CHANNEL as a holder of @everyone (botCanReadChannel). None when visibility cannot be
+   * established.
+   */
+  private async resolveReaders(serverId: string, channelId: string): Promise<string[]> {
+    const botPermissions = await this.resolveBotPermissions(serverId)
+    if (botPermissions.length === 0) return []
+
+    const layer = await this.resolveEveryoneLayer(serverId, channelId)
+    if (!layer) {
+      console.warn(`Channel ${channelId}: visibility unknown, dispatching to no bot`)
+      return []
+    }
+
+    return botPermissions
+      .filter(row => botCanReadChannel(row, layer, channelId))
+      .map(row => row.bot_id)
   }
   
   private async pollEditsAndDeletes() {
@@ -504,12 +544,11 @@ export class EventDispatcher {
       return
     }
     
-    const botPermissions = await this.resolveBotPermissions(serverId)
+    const botIds = await this.resolveReaders(serverId, message.channel_id)
     
-    console.log(`Found ${botPermissions.length} bots with read_messages permission in server ${serverId}`);
+    console.log(`Found ${botIds.length} bots that can read channel ${message.channel_id} in server ${serverId}`);
     
-    if (botPermissions.length === 0) {
-      console.log('No bots have permission to read messages in this server');
+    if (botIds.length === 0) {
       return
     }
     
@@ -519,7 +558,6 @@ export class EventDispatcher {
       d: await this.formatMessage(message)
     }
     
-    const botIds = botPermissions.map(bp => bp.bot_id)
     this.gateway.sendToMultipleBots(botIds, event)
     
     console.log(`Dispatched MESSAGE_CREATE to ${botIds.length} bots:`, botIds)
@@ -534,8 +572,8 @@ export class EventDispatcher {
     const serverId = await this.resolveServerId(message.channel_id)
     if (!serverId) return
     
-    const botPermissions = await this.resolveBotPermissions(serverId)
-    if (botPermissions.length === 0) return
+    const botIds = await this.resolveReaders(serverId, message.channel_id)
+    if (botIds.length === 0) return
     
     const formattedMessage = await this.formatMessage(message)
     const event = {
@@ -544,7 +582,6 @@ export class EventDispatcher {
       d: formattedMessage
     }
     
-    const botIds = botPermissions.map(bp => bp.bot_id)
     this.gateway.sendToMultipleBots(botIds, event)
     
     console.log(`Dispatched MESSAGE_UPDATE to ${botIds.length} bots`)
@@ -564,8 +601,8 @@ export class EventDispatcher {
       return
     }
     
-    const botPermissions = await this.resolveBotPermissions(serverId)
-    if (botPermissions.length === 0) {
+    const botIds = await this.resolveReaders(serverId, message.channel_id)
+    if (botIds.length === 0) {
       return
     }
     
@@ -579,7 +616,6 @@ export class EventDispatcher {
       }
     }
     
-    const botIds = botPermissions.map(bp => bp.bot_id)
     this.gateway.sendToMultipleBots(botIds, event)
     
     console.log(`Dispatched MESSAGE_DELETE to ${botIds.length} bots`)
@@ -744,6 +780,7 @@ export class EventDispatcher {
     this.subscriptions = []
     this.channelToServerCache.clear()
     this.botPermissionsCache.clear()
+    this.channelLayerCache.clear()
     this.authorCache.clear()
     this.emojiNameCache.clear()
     console.log('Event Dispatcher shut down')

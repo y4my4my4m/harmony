@@ -21,6 +21,15 @@ describe('resolveNotificationRoute', () => {
     })).toBe('/chat/s1/thread/t1?messageId=m3')
   })
 
+  it('opens a newcomer alert at the newcomer\'s message, in its thread when it has one', () => {
+    expect(route('newcomer_message', {
+      location: { server_id: 's1', channel_id: 'ch1' }, message: { id: 'm4' }, message_id: 'm4',
+    })).toBe('/chat/s1/ch1?messageId=m4')
+    expect(route('newcomer_message', {
+      location: { server_id: 's1', channel_id: 'ch1' }, thread: { id: 't2' }, thread_id: 't2', message_id: 'm5',
+    })).toBe('/chat/s1/thread/t2?messageId=m5')
+  })
+
   it('opens social posts under /social/post', () => {
     expect(route('activitypub_favorite', { post_id: 'p1' })).toBe('/social/post/p1')
     expect(route('activitypub_mention', { post: { id: 'p2' } })).toBe('/social/post/p2')

@@ -1,6 +1,7 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
-import { validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
+import { uploadImageObject } from '@/utils/fileUpload'
+import { removeReplacedObject } from '@/utils/storageImageUtils'
 
 /**
  * Group Icon Utilities
@@ -122,27 +123,18 @@ export async function uploadGroupIcon(
   _onProgress?: (progress: number) => void
 ): Promise<{ success: boolean; iconPath?: string; error?: string }> {
   try {
-    const validationError = await validateImageUpload(file, BUCKET_NAME)
-    if (validationError) {
-      return { success: false, error: validationError }
+    const { data: conversation } = await supabase
+      .from('conversations')
+      .select('metadata')
+      .eq('id', conversationId)
+      .single()
+    const previousPath: string | null = conversation?.metadata?.icon_url ?? null
+
+    const uploaded = await uploadImageObject(file, 'group_icon', BUCKET_NAME, conversationId, 'icon')
+    if (!uploaded.success || !uploaded.path) {
+      return { success: false, error: uploaded.error }
     }
-
-    const fileExt = file.name.split('.').pop()
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
-    const filePath = `${conversationId}/${fileName}`
-
-    // Upload to storage
-    const { error: uploadError } = await supabase.storage
-      .from(BUCKET_NAME)
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: true // Allow overwriting existing group icons
-      })
-
-    if (uploadError) {
-      debug.error('Upload error:', uploadError)
-      return { success: false, error: humanizeUploadError(uploadError, BUCKET_NAME) }
-    }
+    const filePath = uploaded.path
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -159,17 +151,20 @@ export async function uploadGroupIcon(
       throw new Error('User profile not found')
     }
 
-    const { error: updateError } = await supabase.rpc('update_group_icon', {
+    const { data: updated, error: updateError } = await supabase.rpc('update_group_icon', {
       conversation_uuid: conversationId,
       user_profile_id: profile.id,
       icon_path: filePath
     })
 
-    if (updateError) {
-      debug.error('Database update error:', updateError)
+    // update_group_icon reports refusals as { success: false } rather than an error.
+    if (updateError || updated?.success === false) {
+      debug.error('Database update error:', updateError ?? updated?.error)
       await supabase.storage.from(BUCKET_NAME).remove([filePath])
       return { success: false, error: 'Failed to update group settings' }
     }
+
+    await removeReplacedObject(BUCKET_NAME, previousPath, filePath, conversationId)
 
     return { success: true, iconPath: filePath }
 

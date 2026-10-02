@@ -1,7 +1,7 @@
 <template>
   <article class="fedi-post" :class="{ 'has-cw': fediverse.contentWarning && !showContent }">
     <div class="fedi-post__header">
-      <a :href="fediverse.authorUrl" target="_blank" rel="noopener noreferrer" class="fedi-post__author">
+      <a :href="safeHref(fediverse.authorUrl)" target="_blank" rel="noopener noreferrer" class="fedi-post__author">
         <img
           v-if="fediverse.authorAvatar"
           :src="fediverse.authorAvatar"
@@ -86,7 +86,7 @@
           {{ formatCount(fediverse.stats.favourites) }}
         </span>
       </div>
-      <a :href="fediverse.postUrl" target="_blank" rel="noopener noreferrer" class="fedi-post__view-link">
+      <a :href="safeHref(fediverse.postUrl)" target="_blank" rel="noopener noreferrer" class="fedi-post__view-link">
         View on {{ sourceDomain }}
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
@@ -98,6 +98,7 @@
 </template>
 
 <script setup lang="ts">
+import { safeHref } from '@/utils/sanitize';
 import Icon from '@/components/common/Icon.vue';
 import { softwareDisplayName } from '@/utils/fediverseSoftware';
 import { computed, ref } from 'vue';

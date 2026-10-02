@@ -57,7 +57,7 @@
                 <a
                   v-for="(link, i) in config.funding_links"
                   :key="i"
-                  :href="link.url"
+                  :href="safeHref(link.url)"
                   target="_blank"
                   rel="noopener noreferrer"
                   class="funding-link"
@@ -176,6 +176,7 @@
 </template>
 
 <script setup lang="ts">
+import { safeHref } from '@/utils/sanitize';
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { fundingService, type FundingConfigWithProgress, type SupporterTier, type SupporterBadge, type DonationRecord } from '@/services/FundingService'
 import SupporterBadgeIcon from '@/components/common/SupporterBadgeIcon.vue'

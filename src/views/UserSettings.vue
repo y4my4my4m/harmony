@@ -210,7 +210,6 @@ import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
 import { updateProfile, uploadAvatar, uploadBanner } from '@/services/ProfileService'
 import { normalizeAvatarForStorage } from '@/utils/avatarUtils'
-import { invalidateBannerCache } from '@/utils/bannerUtils'
 import { createSettingsNavigator, type SettingsSection } from '@/utils/settingsUtils'
 import { useUserData } from '@/composables/useUserData'
 import { useMobileGestures } from '@/composables/useMobileGestures'
@@ -497,7 +496,6 @@ const handleBannerUpload = async (file: File) => {
     
     const storagePath = result.url || ''
     
-    invalidateBannerCache()
     profile.value = { ...profile.value, banner_url: storagePath } as User
     if (profileStore.profile) {
       profileStore.profile = { ...profileStore.profile, banner_url: storagePath } as typeof profileStore.profile

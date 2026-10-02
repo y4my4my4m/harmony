@@ -25,6 +25,7 @@
 <script lang="ts">
 import { defineComponent, ref, computed } from 'vue';
 import { debug } from '@/utils/debug';
+import { sanitizeHighlightedCode } from '@/utils/sanitize';
 import CopyIcon from '@/components/icons/Copy.vue';
 import CheckIcon from '@/components/icons/Check.vue';
 
@@ -90,8 +91,10 @@ export default defineComponent({
       document.body.removeChild(textArea);
     };
 
+    // The highlighters splice spans into escaped text with regexes; the result is
+    // reduced to span/class before v-html.
     const highlightedCode = computed(() => {
-      return highlightCode(props.code, props.language);
+      return sanitizeHighlightedCode(highlightCode(props.code, props.language));
     });
 
     // Enhanced syntax highlighting function

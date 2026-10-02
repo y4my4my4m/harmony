@@ -137,6 +137,10 @@
       <UserManagement />
     </div>
 
+    <div v-else-if="activeAdminTab === 'retention'" class="admin-grid single">
+      <RetentionCohorts />
+    </div>
+
     <div v-else-if="activeAdminTab === 'reports'" class="admin-grid single">
       <ReportsModeration />
     </div>
@@ -147,6 +151,7 @@
 
     <div v-else-if="activeAdminTab === 'content'" class="admin-grid">
       <AnnouncementsAdmin />
+      <WelcomeServerAdmin />
       <FeaturedCommunities />
     </div>
 
@@ -189,6 +194,7 @@ import { ref, computed, onMounted, watch, defineAsyncComponent } from 'vue'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import Icon from '@/components/common/Icon.vue'
 import { useLayoutState } from '@/composables/useLayoutState'
 import ActivityLog from '@/components/admin/ActivityLog.vue'
@@ -198,10 +204,12 @@ const EmojiImporter = defineAsyncComponent(() => import('@/components/admin/Emoj
 const PerformanceMonitoring = defineAsyncComponent(() => import('@/components/admin/PerformanceMonitoring.vue'))
 const FederationManagement = defineAsyncComponent(() => import('@/components/admin/FederationManagement.vue'))
 const UserManagement = defineAsyncComponent(() => import('@/components/admin/UserManagement.vue'))
+const RetentionCohorts = defineAsyncComponent(() => import('@/components/admin/RetentionCohorts.vue'))
 const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/ReportsModeration.vue'))
 const AntiSpamAdmin = defineAsyncComponent(() => import('@/components/admin/AntiSpamAdmin.vue'))
 const AnnouncementsAdmin = defineAsyncComponent(() => import('@/components/admin/AnnouncementsAdmin.vue'))
 const FeaturedCommunities = defineAsyncComponent(() => import('@/components/admin/FeaturedCommunities.vue'))
+const WelcomeServerAdmin = defineAsyncComponent(() => import('@/components/admin/WelcomeServerAdmin.vue'))
 const InstanceConfig = defineAsyncComponent(() => import('@/components/admin/InstanceConfig.vue'))
 const FundingSupporters = defineAsyncComponent(() => import('@/components/admin/FundingSupporters.vue'))
 import { adminService } from '@/services/AdminService'
@@ -210,11 +218,13 @@ const authStore = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 const { isMobile, openLeftSidebar } = useLayoutState()
+const { t } = useI18n()
 
 const adminTabs = [
   { key: 'overview', label: 'Overview', icon: 'dashboard' },
   { key: 'federation', label: 'Federation', icon: 'federation' },
   { key: 'users', label: 'Users', icon: 'users' },
+  { key: 'retention', label: t('adminRetention.tab'), icon: 'trending-up' },
   { key: 'reports', label: 'Reports', icon: 'flag' },
   { key: 'antispam', label: 'Anti-spam', icon: 'shield' },
   { key: 'content', label: 'Content', icon: 'megaphone' },

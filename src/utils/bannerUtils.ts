@@ -1,55 +1,45 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
-import { validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
+import { uploadImageObject } from '@/utils/fileUpload'
+import { bannerRenderSize } from '@/utils/imageTransformUtils'
+import { rawStorageUrl, storageObjectPath } from '@/utils/storageImageUtils'
 
-let bannerCacheBuster = Date.now()
-
-/**
- * Invalidate cached banner URLs so the next call to getBannerUrl
- * produces a URL the browser treats as new.
- */
-export function invalidateBannerCache(): void {
-  bannerCacheBuster = Date.now()
-}
+const BANNERS_BUCKET = 'banners'
 
 /**
- * Get banner URL for a user
- * Returns a public URL for banner stored in Supabase storage, or fallback to external URL
+ * Display URL for a profile banner shown in a cssWidth×cssHeight box.
+ *
+ * Banners in this instance's storage come back as render URLs sized to the
+ * box at the current devicePixelRatio, snapped to shared variants. Remote
+ * URLs pass through. Pair with getRawBannerUrl as the fallback where
+ * transforms are disabled.
  */
 export function getBannerUrl(bannerUrl?: string | null, options?: { width?: number; height?: number; quality?: number }): string | null {
   if (!bannerUrl) return null
-  
-  // If it's already a full URL (external), return as-is
-  if (bannerUrl.startsWith('http')) {
-    return bannerUrl
-  }
-  
-  // If it's a storage path, get the public URL with optional optimization
-  return getPublicBannerUrl(bannerUrl, options)
+  const path = storageObjectPath(BANNERS_BUCKET, bannerUrl)
+  if (!path) return bannerUrl.startsWith('http') ? bannerUrl : null
+  return getPublicBannerUrl(path, options)
 }
 
-/**
- * Get public banner URL from storage path.
- * Uses raw public URL (no server-side transforms) - CSS handles sizing via background-size: cover.
- * This avoids dependency on imgproxy/render endpoint which may not be available on all deployments.
- */
-export function getPublicBannerUrl(storagePath: string, _options?: { width?: number; height?: number; quality?: number }): string | null {
+/** Render URL for a banner object path; see getBannerUrl. */
+export function getPublicBannerUrl(storagePath: string, options?: { width?: number; height?: number; quality?: number }): string | null {
   try {
+    const { width, height } = bannerRenderSize(options?.width ?? 640, options?.height ?? 200)
     const { data } = supabase.storage
-      .from('banners')
-      .getPublicUrl(storagePath)
-
-    if (!data.publicUrl) {
-      debug.error('Error getting public banner URL: No public URL returned')
-      return null
-    }
-
-    const separator = data.publicUrl.includes('?') ? '&' : '?'
-    return `${data.publicUrl}${separator}v=${bannerCacheBuster}`
+      .from(BANNERS_BUCKET)
+      .getPublicUrl(storagePath, {
+        transform: { width, height, resize: 'cover', quality: options?.quality ?? 80 },
+      })
+    return data.publicUrl || null
   } catch (error) {
     debug.error('Error getting public banner URL:', error)
     return null
   }
+}
+
+/** Stored banner object, untransformed; remote URLs pass through. */
+export function getRawBannerUrl(bannerUrl?: string | null): string | null {
+  return rawStorageUrl(BANNERS_BUCKET, bannerUrl)
 }
 
 /**
@@ -58,7 +48,7 @@ export function getPublicBannerUrl(storagePath: string, _options?: { width?: num
  */
 export function normalizeBannerForStorage(bannerUrl?: string | null): string | null {
   if (!bannerUrl) return null
-  
+
   // If it's a signed URL from our storage, extract the path
   if (bannerUrl.includes('/storage/v1/object/sign/banners/')) {
     const pathMatch = bannerUrl.match(/\/storage\/v1\/object\/sign\/banners\/([^?]+)/)
@@ -66,70 +56,28 @@ export function normalizeBannerForStorage(bannerUrl?: string | null): string | n
       return pathMatch[1]
     }
   }
-  
+
   // If it's a direct storage path, return as-is
   if (!bannerUrl.startsWith('http')) {
     return bannerUrl
   }
-  
+
   // External URL, return as-is
   return bannerUrl
 }
 
 /**
- * Upload banner file to storage.
- * Removes stale files from a previous upload (e.g. different extension) before uploading.
+ * Uploads a profile banner under a new `<userId>/banner-<ms>.<ext>` name.
+ * `url` is the object path.
  */
 export async function uploadBanner(file: File, userId: string): Promise<{ success: boolean; url?: string; error?: string }> {
-  try {
-    if (!file || file.size === 0) {
-      return { success: false, error: 'Choose a non-empty image file' }
-    }
-    const validationError = await validateImageUpload(file, 'banners')
-    if (validationError) {
-      return { success: false, error: validationError }
-    }
-    const ext = file.name.split('.').pop()?.toLowerCase()
-    if (!ext) {
-      return { success: false, error: 'File must have an extension' }
-    }
-    
-    const filePath = `${userId}/${userId}_banner.${ext}`
-
-    try {
-      const { data: existing } = await supabase.storage
-        .from('banners')
-        .list(userId, { limit: 20 })
-      if (existing?.length) {
-        const stale = existing
-          .filter(f => f.name.startsWith(`${userId}_banner.`) && f.name !== `${userId}_banner.${ext}`)
-          .map(f => `${userId}/${f.name}`)
-        if (stale.length) {
-          await supabase.storage.from('banners').remove(stale)
-        }
-      }
-    } catch {
-      // Non-critical - continue with upload even if cleanup fails
-    }
-    
-    // Explicit contentType: some browsers hand over File objects with an empty
-    // type, and storage then serves the banner as application/octet-stream.
-    const extContentTypes: Record<string, string> = {
-      jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
-      gif: 'image/gif', webp: 'image/webp', avif: 'image/avif',
-    }
-    const { error } = await supabase.storage
-      .from('banners')
-      .upload(filePath, file, { upsert: true, contentType: file.type || extContentTypes[ext] })
-
-    if (error) {
-      return { success: false, error: humanizeUploadError(error, 'banners') }
-    }
-
-    return { success: true, url: filePath }
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+  if (!file || file.size === 0) {
+    return { success: false, error: 'Choose a non-empty image file' }
   }
+  const result = await uploadImageObject(file, 'profile_banner', BANNERS_BUCKET, userId, 'banner')
+  return result.success && result.path
+    ? { success: true, url: result.path }
+    : { success: false, error: result.error }
 }
 
 /**
@@ -138,7 +86,7 @@ export async function uploadBanner(file: File, userId: string): Promise<{ succes
 export async function deleteBanner(storagePath: string): Promise<{ success: boolean; error?: string }> {
   try {
     const { error } = await supabase.storage
-      .from('banners')
+      .from(BANNERS_BUCKET)
       .remove([storagePath])
 
     if (error) {

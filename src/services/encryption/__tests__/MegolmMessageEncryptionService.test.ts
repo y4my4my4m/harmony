@@ -626,4 +626,76 @@ describe('MegolmMessageEncryptionService', () => {
       expect(upsertedRows).toHaveLength(0)
     })
   })
+
+  describe('session sharing recipients', () => {
+    const MEMBER_ID = 'eeeeeeee-1111-2222-3333-444444444444'
+    const BANNED_ID = 'ffffffff-1111-2222-3333-444444444444'
+    let upserted: any[]
+    let rpcResult: { data: unknown; error: unknown }
+
+    beforeEach(async () => {
+      upserted = []
+      ;(messageService as any).roomMemberCache.clear()
+      const myKp = await crypto.subtle.generateKey(
+        { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveKey', 'deriveBits'],
+      ) as CryptoKeyPair
+      const { identityKeyStore } = await import('../SecureSessionKeyStore')
+      await identityKeyStore.store(TEST_USER_ID, myKp.privateKey)
+
+      const publicKeys = new Map<string, string>()
+      for (const id of [MEMBER_ID, BANNED_ID]) {
+        const kp = await crypto.subtle.generateKey(
+          { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey', 'deriveBits'],
+        ) as CryptoKeyPair
+        const raw = await crypto.subtle.exportKey('raw', kp.publicKey)
+        publicKeys.set(id, btoa(String.fromCharCode(...new Uint8Array(raw))))
+      }
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === 'user_key_pairs') {
+          let ids: string[] = []
+          const builder: any = {
+            select: () => builder,
+            in: (_field: string, values: string[]) => { ids = values; return builder },
+            eq: () => builder,
+            then: (resolve: any) => resolve({
+              data: ids.filter((id) => publicKeys.has(id))
+                .map((id) => ({ user_id: id, identity_public_key: publicKeys.get(id) })),
+              error: null,
+            }),
+          }
+          return builder
+        }
+        if (table === 'megolm_session_shares') {
+          return { upsert: (rows: any) => { upserted.push(...rows); return Promise.resolve({ error: null }) } }
+        }
+        return userKeyPairsFromMock(topPublicLookup)(table)
+      })
+      ;(supabase.rpc as any).mockImplementation(async (fn: string) =>
+        fn === 'get_room_member_ids' ? rpcResult : { data: [], error: null })
+
+      await megolm.getOrCreateOutboundSession(TEST_ROOM_ID)
+    })
+
+    afterEach(async () => {
+      const { identityKeyStore } = await import('../SecureSessionKeyStore')
+      await identityKeyStore.clear(TEST_USER_ID).catch(() => {})
+    })
+
+    function sessionId(): string {
+      return megolm.getSessionKeyForSharing(TEST_ROOM_ID)!.sessionId
+    }
+
+    it('shares only with recipients the room admits', async () => {
+      rpcResult = { data: [TEST_USER_ID, MEMBER_ID], error: null }
+      await (messageService as any).ensureSessionShared(TEST_ROOM_ID, sessionId(), [MEMBER_ID, BANNED_ID])
+      expect(upserted.map((r) => r.recipient_user_id)).toEqual([MEMBER_ID])
+    })
+
+    it('shares with every recipient when the member list is unavailable', async () => {
+      rpcResult = { data: null, error: { message: 'function does not exist' } }
+      await (messageService as any).ensureSessionShared(TEST_ROOM_ID, sessionId(), [MEMBER_ID, BANNED_ID])
+      expect(upserted.map((r) => r.recipient_user_id).sort()).toEqual([MEMBER_ID, BANNED_ID].sort())
+    })
+  })
 })

@@ -8,6 +8,8 @@ import { debug } from '@/utils/debug'
 import { removeFrequentEmoji } from '@/composables/useFrequentEmojis';
 import { EmojiFavoriteService } from '@/services/EmojiFavoriteService';
 import { invalidateEmojiResolverCache } from '@/services/emojiShortcodeResolver';
+import { immutableUploadOptions, isAnimatedImage, prepareImageUpload } from '@/utils/imageResize';
+import { UploadRejectedError, imageSourceError, validateImageUpload } from '@/utils/uploadValidation';
 
 const cleanFileName = (originalName: string) => {
     let name = originalName.replace(/[^\w\s.-]/gi, '').trim();
@@ -190,6 +192,8 @@ const PIXEL_ART_UPSCALE_SIZE = 128;
  */
 async function upscalePixelArt(file: File): Promise<File> {
     if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') return file;
+    // Redrawing keeps one frame.
+    if (isAnimatedImage(new Uint8Array(await file.arrayBuffer()))) return file;
 
     const img = await createImageBitmap(file);
     const { width, height } = img;
@@ -214,13 +218,21 @@ async function upscalePixelArt(file: File): Promise<File> {
     return new File([blob], newName, { type: 'image/png' });
 }
 
-// Uploads an emoji and invalidates the cache.
+// Uploads an emoji and invalidates the cache. Throws UploadRejectedError when
+// the file fails the emojis bucket limits after shrinking.
 async function uploadEmoji(serverId: string, userId: string, file: File): Promise<Emoji | null> {
     const emojiCache = useEmojiCacheStore();
-    
+
+    const sourceError = imageSourceError(file);
+    if (sourceError) throw new UploadRejectedError(sourceError);
+    // Upscale tiny pixel art before upload so imgproxy only downscales
+    file = await upscalePixelArt(file).catch(() => file);
+    const prepared = await prepareImageUpload(file, 'emoji');
+    file = prepared.file;
+    const validationError = await validateImageUpload(file, 'emojis');
+    if (validationError) throw new UploadRejectedError(validationError);
+
     try {
-        // Upscale tiny pixel art before upload so imgproxy only downscales
-        file = await upscalePixelArt(file);
 
         const { name: cleanedName, extension } = cleanFileName(file.name);
         
@@ -236,7 +248,7 @@ async function uploadEmoji(serverId: string, userId: string, file: File): Promis
         
         const { error } = await supabase.storage
             .from('emojis')
-            .upload(filePath, file);
+            .upload(filePath, file, immutableUploadOptions(prepared));
 
         if (error) throw error;
 

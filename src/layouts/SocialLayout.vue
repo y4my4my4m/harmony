@@ -205,6 +205,7 @@ import { useViewContextTracking } from '@/composables/useViewContext'
 import { useLayoutState, useSidebarPanel } from '@/composables/useLayoutState'
 import { getOriginalPost } from '@/utils/postReblog'
 import FundingModal from '@/components/FundingModal.vue'
+import { showsFundingGoal } from '@/services/FundingService'
 import type { FederatedUser, TimelinePost } from '@/types'
 
 interface Props {
@@ -648,10 +649,7 @@ const handleUserCardClick = (user: any) => {
   selectedUser.value = user as FederatedUser
 }
 
-const showFunding = computed(() => {
-  const cfg = fundingConfig.value
-  return !!(cfg && cfg.enabled && cfg.show_in_context_bar && cfg.goal_amount)
-})
+const showFunding = computed(() => showsFundingGoal(fundingConfig.value))
 
 const fundingPercent = computed(() => {
   const cfg = fundingConfig.value

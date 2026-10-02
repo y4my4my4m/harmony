@@ -41,8 +41,12 @@ router.post(
     logger.info(`Voice join request from user ${user.id} for channel ${channelId}`);
 
     try {
-      await VoiceActivityHandler.federateVoiceChannelJoin(user.id, channelId, serverId);
-      sendSuccess(res, { message: 'Voice join request sent' });
+      const join = await VoiceActivityHandler.federateVoiceChannelJoin(user.id, channelId, serverId);
+      if (!join) {
+        sendError(res, 'Channel is not a voice channel of a federated server', 404);
+        return;
+      }
+      sendSuccess(res, { message: 'Voice join request sent', joinId: join.joinId, serverHost: join.serverHost });
     } catch (error: any) {
       logger.error('Failed to federate voice join:', error);
       sendError(res, error.message || 'Failed to send voice join request', 500);

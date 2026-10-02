@@ -16,6 +16,7 @@
         :aria-pressed="!selectedCategory"
         @click="emit('update:selectedCategory', null)"
       >
+        <Icon name="grid" :size="14" class="category-chip__icon" />
         {{ $t('server.allCategories') }}
       </button>
       <button
@@ -27,6 +28,7 @@
         :aria-pressed="category === selectedCategory"
         @click="selectCategory(category)"
       >
+        <Icon :name="categoryIcon(category) ?? 'tag'" :size="14" class="category-chip__icon" />
         {{ translateCategory(category) }}
       </button>
     </div>
@@ -41,7 +43,8 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import SearchInput from '@/components/common/SearchInput.vue'
-import { categoryLabelKey } from '@/utils/serverDiscovery'
+import Icon from '@/components/common/Icon.vue'
+import { categoryIcon, categoryLabelKey } from '@/utils/serverDiscovery'
 
 const { t } = useI18n()
 
@@ -143,6 +146,9 @@ const statsText = computed(() => {
 }
 
 .category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 12px;
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-full);
@@ -157,6 +163,11 @@ const statsText = computed(() => {
     background-color var(--transition-fast),
     border-color var(--transition-fast),
     color var(--transition-fast);
+}
+
+.category-chip__icon {
+  flex-shrink: 0;
+  opacity: 0.85;
 }
 
 .category-chip:hover {

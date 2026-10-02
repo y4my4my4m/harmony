@@ -129,6 +129,7 @@ import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
 import { getServerIconUrl, getServerBannerUrl } from '@/utils/serverUtils'
+import { devicePixels } from '@/utils/imageTransformUtils'
 import { durationParts, timeUntil } from '@/utils/inviteLink'
 import type { Invite } from '@/services/inviteService'
 import { useServerInvites } from '@/composables/useServerInvites'
@@ -194,14 +195,15 @@ const memberCount = computed(() => liveMemberCount.value ?? props.serverData?.me
 
 const resolvedIcon = computed(() => {
   const raw = props.serverData?.icon ?? props.serverData?.icon_url ?? null
-  return raw ? getServerIconUrl(raw, 96) : null
+  return raw ? getServerIconUrl(raw, devicePixels(44)) : null
 })
 
 // Appearance setting gates the blurred banner behind the dialog (default on).
 const modalBanner = computed(() => {
   if (visualTheme.settings.value.inviteBannerBackground === false) return null
   const raw = props.serverData?.banner ?? props.serverData?.banner_url ?? null
-  return raw ? getServerBannerUrl(raw, { width: 960, height: 540 }) : null
+  // BaseModal draws the banner under a 24px blur.
+  return raw ? getServerBannerUrl(raw, { width: 480, height: 270 }) : null
 })
 
 function expiryLabel(minutes: number): string {

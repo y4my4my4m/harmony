@@ -13,7 +13,7 @@ import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { validateExternalHostname, validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 import { discoveryLimiter } from '../middleware/rateLimit.js';
-import { sameOrigin } from '../utils/apOrigin.js';
+import { actorOwnsKeys, fetchAuthoritativeDocument, readApDocument, sameOrigin } from '../utils/apOrigin.js';
 import { actorTombstone, deletedActorByProfile, deletedActorByUsername } from './deletedActors.js';
 
 const router = Router();
@@ -272,29 +272,34 @@ router.post(
       logger.info(`Fetching actor: ${selfLink.href}`);
       // BUGS.md H15: selfLink.href comes from the remote webfinger response.
       // safeFetch re-validates the URL/DNS and follows redirects manually.
-      const actorResponse = await SignatureService.fetchApWithSignatureFallback(selfLink.href, {
-        headers: { 
-          'Accept': 'application/activity+json, application/ld+json',
-          'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
-        },
-        timeoutMs: 10000,
+      // The profile is upserted under the document's own id and domain, so the
+      // document must be served from its own id (fetchAuthoritativeDocument),
+      // own its keys, and name the account that was looked up.
+      const actor = await fetchAuthoritativeDocument(selfLink.href, async (url) => {
+        const response = await SignatureService.fetchApWithSignatureFallback(url, {
+          headers: {
+            'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+            'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+          },
+          timeoutMs: 10000,
+        });
+        return readApDocument(response, url);
       });
 
-      if (!actorResponse.ok) {
-        logger.warn(`Actor fetch failed: ${actorResponse.status}`);
-        return res.status(404).json({ 
+      if (!actor) {
+        logger.warn(`No authoritative actor document at ${selfLink.href}`);
+        return res.status(404).json({
           error: 'Failed to fetch user profile from remote instance'
         });
       }
-
-      const actor = await actorResponse.json();
-      // The profile is upserted under the document's own id and domain; an id
-      // on another host would overwrite that host's actor and key.
-      if (!sameOrigin(actor?.id, selfLink.href)) {
-        logger.warn(`Actor document at ${selfLink.href} claims foreign id ${actor?.id}`);
-        return res.status(502).json({
-          error: 'Remote actor document id does not match its host'
-        });
+      if (!actorOwnsKeys(actor)) {
+        logger.warn(`Actor ${actor.id} publishes a key it does not own`);
+        return res.status(502).json({ error: 'Remote actor key owner does not match the actor' });
+      }
+      if (typeof actor.preferredUsername !== 'string'
+          || actor.preferredUsername.toLowerCase() !== username.toLowerCase()) {
+        logger.warn(`Actor ${actor.id} is ${actor.preferredUsername}, not the looked-up ${username}`);
+        return res.status(502).json({ error: 'Remote actor does not match the looked-up account' });
       }
       logger.info(`Actor fetched: ${actor.preferredUsername || actor.name}`);
       
@@ -377,6 +382,19 @@ router.post(
         });
       }
       
+      // A stored account stays bound to its actor id; a different document
+      // for the same username@domain does not take it over.
+      const { data: boundUser } = await supabase
+        .from('profiles')
+        .select('id, federated_id')
+        .eq('username', profileData.username)
+        .eq('domain', profileData.domain)
+        .maybeSingle();
+      if (boundUser?.federated_id && boundUser.federated_id !== profileData.federated_id) {
+        logger.warn(`Refusing to rebind ${profileData.username}@${profileData.domain} from ${boundUser.federated_id} to ${profileData.federated_id}`);
+        return res.status(409).json({ error: 'Account is bound to a different actor' });
+      }
+
       const profileRecord: any = {
         username: profileData.username,
         domain: profileData.domain,

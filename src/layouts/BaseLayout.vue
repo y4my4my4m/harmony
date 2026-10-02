@@ -130,6 +130,7 @@ const {
     rightSidebarOpen, 
     hasRightSidebar,
     leftDrawerWidth,
+    rightDrawerWidth,
     isMobile, 
   voicePanelOpen,
   mobileProfileOpen,
@@ -138,7 +139,6 @@ const {
   leftSidebarDragOffset,
   rightSidebarDragOffset,
   serverSidebarDragStyle,
-  SIDEBAR_WIDTH,
   toggleLeftSidebar,
   toggleRightSidebar,
   // eslint-disable-next-line unused-imports/no-unused-vars
@@ -199,7 +199,7 @@ const overlayStyle = computed(() => {
   
   const progress = dragDirection.value === 'left'
     ? leftSidebarDragOffset.value / leftDrawerWidth.value
-    : rightSidebarDragOffset.value / SIDEBAR_WIDTH
+    : rightSidebarDragOffset.value / rightDrawerWidth.value
   
   return {
     opacity: progress * 0.6,
@@ -928,7 +928,8 @@ const shouldIgnoreSidebarGesture = (event: TouchEvent) => {
 
 const wrappedTouchStart = (event: TouchEvent) => {
   if (shouldIgnoreSidebarGesture(event)) return
-  handleTouchStart(event, isMobile.value)
+  const openSide = leftSidebarOpen.value ? 'left' : rightSidebarOpen.value && hasRightSidebar.value ? 'right' : null
+  handleTouchStart(event, isMobile.value, openSide)
 }
 
 const wrappedTouchMove = (event: TouchEvent) => {

@@ -406,6 +406,8 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   const highlightedMessageId = ref<string | null>(null)
+  // Ids of rows a jump spliced in from outside the loaded range.
+  const jumpedMessageIds = ref(new Set<string>())
 
   const jumpToMessage = async (messageId: string): Promise<boolean> => {
     const existingMessage = currentDMMessages.value.find(msg => msg.id === messageId)
@@ -442,6 +444,7 @@ export const useDMStore = defineStore('dm', () => {
         insertIndex = i + 1
       }
       currentDMMessages.value.splice(insertIndex, 0, toConversationMessages(conversationId, [message])[0])
+      jumpedMessageIds.value.add(messageId)
 
       setTimeout(() => {
         highlightedMessageId.value = messageId
@@ -1589,6 +1592,9 @@ export const useDMStore = defineStore('dm', () => {
         debug.log(`Discarding stale DM response for ${conversationId} (current: ${currentConversationId.value})`)
         return
       }
+      // A list replaced during the fetch no longer starts with the row this
+      // page precedes.
+      if (beforeMessageId && currentDMMessages.value[0]?.id !== beforeMessageId) return
 
       if (!messagesData) return
 
@@ -1664,6 +1670,35 @@ export const useDMStore = defineStore('dm', () => {
     } finally {
       pendingMessagesFetch.value.delete(fetchKey)
     }
+  }
+
+  /**
+   * Replaces the loaded rows with the conversation's newest page and drops
+   * jumped-to rows. Mirrors useChat.reloadNewestPage.
+   */
+  const reloadNewestPage = async (conversationId: string) => {
+    const { messages: rows, hasMore } = await services.messages.loadConversationMessages(conversationId, { limit: 20 })
+    if (currentConversationId.value !== conversationId || !rows || rows.length === 0) return
+    const page = toConversationMessages(conversationId, rows)
+
+    const pageIds = new Set(page.map(m => m.id))
+    const newestAt = new Date(page[page.length - 1].created_at).getTime()
+    const later = currentDMMessages.value.filter(m =>
+      !pageIds.has(m.id) && new Date(m.created_at).getTime() > newestAt
+    )
+    const merged = [...page, ...later]
+    currentDMMessages.value = merged
+    allMessagesLoaded.value = !hasMore
+    jumpedMessageIds.value.clear()
+
+    evictOldestCache()
+    messageCache.value.set(conversationId, {
+      messages: [...merged],
+      lastFetchedAt: new Date(),
+      oldestMessageId: merged[0]?.id || null,
+      allMessagesLoaded: !hasMore,
+      lastModified: new Date(),
+    })
   }
 
   const searchUsers = async (query: string, currentUserId: string) => {
@@ -2600,6 +2635,7 @@ export const useDMStore = defineStore('dm', () => {
     if (resetData) {
       conversations.value = []
       messageCache.value.clear()
+      jumpedMessageIds.value.clear()
     }
     // Otherwise `conversations` and the message cache stay warm.
     
@@ -3165,6 +3201,8 @@ export const useDMStore = defineStore('dm', () => {
     editMessage,
     deleteMessage,
     jumpToMessage,
+    jumpedMessageIds,
+    reloadNewestPage,
     highlightedMessageId,
     initializeDMEnvironment,
     initializeDMEnvironmentForDirectAccess,

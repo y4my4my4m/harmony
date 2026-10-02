@@ -1,6 +1,12 @@
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug'
-import { validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
+import { imageSourceError, validateImageUpload, humanizeUploadError } from '@/utils/uploadValidation'
+import {
+  immutableObjectPath,
+  immutableUploadOptions,
+  prepareImageUpload,
+  type ImageUploadKind,
+} from '@/utils/imageResize'
 
 export interface UploadResult {
   success: boolean;
@@ -41,41 +47,44 @@ export function getMimeTypeFromFilename(filename: string): string {
   return EXTENSION_MIME[ext] || 'application/octet-stream';
 }
 
-export async function uploadFile(
+/**
+ * Shrinks an image for `kind` and uploads it to `bucket` under a new
+ * `<folder>/<stem>-<ms>.<ext>` name; existing objects are never overwritten.
+ */
+export async function uploadImageObject(
   file: File,
+  kind: ImageUploadKind,
   bucket: string,
-  path: string
+  folder: string,
+  stem: string
 ): Promise<UploadResult> {
   try {
-    // Bucket's real size/type limits yield a precise reason
-    // (e.g. "too large - max 2 MB") rather than a generic failure.
-    const validationError = await validateImageUpload(file, bucket);
+    const sourceError = imageSourceError(file);
+    if (sourceError) {
+      return { success: false, error: sourceError };
+    }
+    const prepared = await prepareImageUpload(file, kind);
+    // Limits apply to the bytes that reach storage, after shrinking.
+    const validationError = await validateImageUpload(prepared.file, bucket);
     if (validationError) {
       return { success: false, error: validationError };
     }
 
-    debug.log(`Uploading file to ${bucket}/${path}...`);
+    const path = immutableObjectPath(folder, stem, prepared.extension);
+    debug.log(`Uploading ${bucket}/${path} (${file.size} -> ${prepared.file.size} bytes)`);
 
     const { data, error } = await supabase.storage
       .from(bucket)
-      .upload(path, file, {
-        cacheControl: '3600',
-        upsert: true // Overwrite existing objects (avatar updates)
-      });
+      .upload(path, prepared.file, immutableUploadOptions(prepared));
 
     if (error) {
       debug.error('Upload error:', error);
-      return {
-        success: false,
-        error: humanizeUploadError(error, bucket)
-      };
+      return { success: false, path, error: humanizeUploadError(error, bucket) };
     }
 
     const { data: urlData } = supabase.storage
       .from(bucket)
       .getPublicUrl(data.path);
-
-    debug.log(`File uploaded successfully: ${urlData.publicUrl}`);
 
     return {
       success: true,
@@ -92,23 +101,12 @@ export async function uploadFile(
 }
 
 // Avatar upload lives here rather than in ProfileService.ts.
-export async function uploadAvatar(file: File, userId: string): Promise<UploadResult> {
-  // Folder prefix only; Supabase assigns the object UUID.
-  const filePath = `${userId}/${file.name}`;
-
-  const processedFile: UploadResult = await uploadFile(file, 'avatars', filePath);
-  if (!processedFile.success) {
-    processedFile.path = filePath; // Path reported even on failure
-  }
-  return processedFile;
+export function uploadAvatar(file: File, userId: string): Promise<UploadResult> {
+  return uploadImageObject(file, 'avatar', 'avatars', userId, 'avatar');
 }
 
-export async function uploadServerIcon(file: File, serverId: string): Promise<UploadResult> {
-  const fileExt = file.name.split('.').pop() || 'jpg';
-  // Folder prefix only; Supabase assigns the object UUID.
-  const filePath = `${serverId}/icon.${fileExt}`;
-  
-  return uploadFile(file, 'server_icons', filePath);
+export function uploadServerIcon(file: File, serverId: string): Promise<UploadResult> {
+  return uploadImageObject(file, 'server_icon', 'server_icons', serverId, 'icon');
 }
 
 export async function downloadAndUploadImage(

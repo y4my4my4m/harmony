@@ -154,11 +154,11 @@
           <!-- Terms -->
           <p v-if="!isLogin && (instanceSettings.settings.termsUrl || instanceSettings.settings.privacyUrl)" class="terms">
             {{ $t('auth.termsPrefix') || 'By registering, you agree to our' }}
-            <a v-if="instanceSettings.settings.termsUrl" :href="instanceSettings.settings.termsUrl" target="_blank" rel="noopener">{{ $t('auth.termsOfService') || 'Terms of Service' }}</a>
+            <a v-if="instanceSettings.settings.termsUrl" :href="safeHref(instanceSettings.settings.termsUrl)" target="_blank" rel="noopener">{{ $t('auth.termsOfService') || 'Terms of Service' }}</a>
             <template v-if="instanceSettings.settings.termsUrl && instanceSettings.settings.privacyUrl">
               {{ $t('auth.and') || ' and ' }}
             </template>
-            <a v-if="instanceSettings.settings.privacyUrl" :href="instanceSettings.settings.privacyUrl" target="_blank" rel="noopener">{{ $t('auth.privacyPolicy') || 'Privacy Policy' }}</a>
+            <a v-if="instanceSettings.settings.privacyUrl" :href="safeHref(instanceSettings.settings.privacyUrl)" target="_blank" rel="noopener">{{ $t('auth.privacyPolicy') || 'Privacy Policy' }}</a>
           </p>
         </div>
       </div>
@@ -323,6 +323,7 @@
 </template>
 
 <script setup lang="ts">
+import { safeHref } from '@/utils/sanitize';
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'

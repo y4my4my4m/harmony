@@ -219,6 +219,30 @@
 
           <div class="today-side">
             <TodaySection
+              v-if="todayAiSummariesEnabled && status === 'ready' && (highlightsPending || highlights.length > 0)"
+              id="highlights"
+              icon="sparkles"
+              class="order-highlights"
+              :title="t('today.highlights.title')"
+              :state="highlights.length > 0 ? 'ready' : 'loading'"
+              :skeleton-rows="2"
+            >
+              <template #actions>
+                <span class="today-tag" :title="t('today.highlights.onDeviceHint')">{{ t('today.highlights.onDevice') }}</span>
+              </template>
+              <ul class="today-list">
+                <li v-for="h in highlights" :key="h.channelId" class="today-highlight">
+                  <RouterLink :to="channelRoute(h.serverId, h.channelId)" class="today-chip">
+                    <Icon name="hash" :size="12" aria-hidden="true" />
+                    <span class="today-chip-name">{{ h.channelName }}</span>
+                  </RouterLink>
+                  <span class="today-highlight-server">{{ h.serverName }}</span>
+                  <p class="today-highlight-text">{{ h.summary }}</p>
+                </li>
+              </ul>
+            </TodaySection>
+
+            <TodaySection
               id="voice"
               icon="volume-2"
               class="order-voice"
@@ -470,30 +494,6 @@
                       <span><Icon name="heart" :size="12" /> {{ post.favoritesCount }}</span>
                     </div>
                   </div>
-                </li>
-              </ul>
-            </TodaySection>
-
-            <TodaySection
-              v-if="todayAiSummariesEnabled && status === 'ready' && (highlightsPending || highlights.length > 0)"
-              id="highlights"
-              icon="sparkles"
-              class="order-highlights"
-              :title="t('today.highlights.title')"
-              :state="highlights.length > 0 ? 'ready' : 'loading'"
-              :skeleton-rows="2"
-            >
-              <template #actions>
-                <span class="today-tag" :title="t('today.highlights.onDeviceHint')">{{ t('today.highlights.onDevice') }}</span>
-              </template>
-              <ul class="today-list">
-                <li v-for="h in highlights" :key="h.channelId" class="today-highlight">
-                  <RouterLink :to="channelRoute(h.serverId, h.channelId)" class="today-chip">
-                    <Icon name="hash" :size="12" aria-hidden="true" />
-                    <span class="today-chip-name">{{ h.channelName }}</span>
-                  </RouterLink>
-                  <span class="today-highlight-server">{{ h.serverName }}</span>
-                  <p class="today-highlight-text">{{ h.summary }}</p>
                 </li>
               </ul>
             </TodaySection>
@@ -768,33 +768,38 @@ const writeAiCache = (entry: AiCacheEntry) => {
   } catch { /* storage full; the cache is best-effort */ }
 }
 
-const runHighlights = () => {
-  if (!todayAiSummariesEnabled.value || aiRunning) return
+// Probed while the summary loads. Without the model nothing renders, cached
+// highlights included.
+const aiAvailable = todayDigestService.isOnDeviceAiAvailable()
+
+// The skeleton holds the section's slot from the summary's first render, through
+// the probe and the model run, so neither moves the sections below it.
+const runHighlights = async () => {
+  if (!todayAiSummariesEnabled.value || aiRunning || !todayDigestService.isOnDeviceAiSupported()) return
   const channels = todayDigestService.activeChannels(summary.value.servers)
   const signature = todayDigestService.highlightSignature(channels)
   const cached = readAiCache()
-  const fresh = cached !== null && Date.now() - cached.at < AI_CACHE_MAX_AGE_MS
-  const force = aiForce
+  const reuse = cached !== null && Date.now() - cached.at < AI_CACHE_MAX_AGE_MS && !aiForce
   aiForce = false
-
-  if (fresh && !force) {
-    highlights.value = cached.highlights
-    if (cached.signature === signature) return
-  }
-  if (channels.length === 0) return
+  if (!reuse && channels.length === 0) return
 
   aiRunning = true
   highlightsPending.value = true
-  todayDigestService.getChannelHighlights(channels)
-    .then(result => {
-      highlights.value = result
-      writeAiCache({ version: AI_CACHE_VERSION, signature, highlights: result, at: Date.now() })
-    })
-    .catch(() => {})
-    .finally(() => {
-      aiRunning = false
-      highlightsPending.value = false
-    })
+  try {
+    if (!(await aiAvailable)) return
+    if (reuse) {
+      highlights.value = cached.highlights
+      if (cached.signature === signature || channels.length === 0) return
+    }
+    const result = await todayDigestService.getChannelHighlights(channels)
+    highlights.value = result
+    writeAiCache({ version: AI_CACHE_VERSION, signature, highlights: result, at: Date.now() })
+  } catch {
+    /* highlights are optional */
+  } finally {
+    aiRunning = false
+    highlightsPending.value = false
+  }
 }
 
 // Highlights follow the first load and explicit refreshes, not realtime reloads.
@@ -802,11 +807,11 @@ let highlightsSeeded = false
 watch(status, (value) => {
   if (value === 'ready' && (!highlightsSeeded || aiForce)) {
     highlightsSeeded = true
-    runHighlights()
+    void runHighlights()
   }
 })
 watch(refreshing, (value, previous) => {
-  if (previous && !value && aiForce && status.value === 'ready') runHighlights()
+  if (previous && !value && aiForce && status.value === 'ready') void runHighlights()
 })
 </script>
 
@@ -1578,13 +1583,13 @@ a.today-chip:hover {
   }
 
   .order-mentions { order: 1; }
-  .order-conversations { order: 2; }
-  .order-voice { order: 3; }
-  .order-catch-up { order: 4; }
-  .order-threads { order: 5; }
-  .order-social { order: 6; }
-  .order-posts { order: 7; }
-  .order-highlights { order: 8; }
+  .order-highlights { order: 2; }
+  .order-conversations { order: 3; }
+  .order-voice { order: 4; }
+  .order-catch-up { order: 5; }
+  .order-threads { order: 6; }
+  .order-social { order: 7; }
+  .order-posts { order: 8; }
 }
 
 @media (max-width: 600px) {

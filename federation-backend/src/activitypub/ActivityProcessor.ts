@@ -17,7 +17,7 @@ import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.j
 import { pgrstOrValue } from '../utils/postgrestFilter.js';
 import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
 import { isFavouriteLike, isHeartReaction, storeFavourite } from '../utils/heartReaction.js';
-import { fetchAuthoritativeDocument, sameOrigin } from '../utils/apOrigin.js';
+import { fetchActorById, fetchAuthoritativeDocument, readApDocument, sameOrigin, type FetchedDocument } from '../utils/apOrigin.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { flagComment, flagObjectUris, parseLocalObjectUri } from './flag.js';
 import { evaluateInboundCreate } from '../services/FederationSpamGuard.js';
@@ -28,6 +28,7 @@ import {
   notAfterNow,
   actorInConversation,
   logDenied,
+  THREAD_STUB_STATUS,
 } from './channelWriteAuthz.js';
 
 /**
@@ -122,6 +123,11 @@ async function resolveProfileByActorUrl(actorUrl: string): Promise<{ id: string 
   return null;
 }
 
+/** Visibilities a boost or quote may copy (posts BEFORE INSERT, 20261005650001). */
+function isBoostableVisibility(visibility: unknown): boolean {
+  return visibility === 'public' || visibility === 'unlisted';
+}
+
 export class ActivityProcessor {
   /**
    * Maximum reply-chain depth for federated post resolution. Bounds total
@@ -145,11 +151,12 @@ export class ActivityProcessor {
   }
 
   /**
-   * GET an ActivityPub document; parsed body or null. Retries signed on
-   * 401/403 for remotes running authorized fetch. Blocked hosts are never
-   * contacted, so a boost, reply or quote cannot import their content.
+   * GET an ActivityPub document with the URL it was served from. Retries
+   * signed on 401/403 for remotes running authorized fetch. Blocked hosts are
+   * never contacted, so a boost, reply or quote cannot import their content.
+   * The response must carry an ActivityPub media type.
    */
-  private static async fetchApJson(url: string): Promise<any | null> {
+  private static async fetchApDocument(url: string): Promise<FetchedDocument | null> {
     let host: string;
     try {
       host = new URL(url).hostname.toLowerCase();
@@ -164,15 +171,12 @@ export class ActivityProcessor {
     try {
       const response = await SignatureService.fetchApWithSignatureFallback(url, {
         headers: {
-          'Accept': 'application/activity+json, application/ld+json',
+          'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
         },
       });
-
-      if (!response.ok) {
-        logger.warn(`AP fetch failed for ${url}: ${response.status}`);
-        return null;
-      }
-      return await response.json();
+      const fetched = await readApDocument(response, url);
+      if (!fetched) logger.warn(`AP fetch for ${url} returned ${response.status} ${response.headers.get('content-type') ?? ''}`);
+      return fetched;
     } catch (error) {
       logger.warn(`AP fetch error for ${url}:`, error);
       return null;
@@ -631,6 +635,11 @@ export class ActivityProcessor {
         if (quoteUrl) {
           logger.info(`Processing quote post, quoted URL: ${quoteUrl}`);
           quotedPostData = await this.resolveQuotedPost(quoteUrl);
+          // A quote embeds the quoted content; public and unlisted posts only.
+          if (quotedPostData && (quotedPostData.is_deleted === true || !isBoostableVisibility(quotedPostData.visibility))) {
+            logger.info(`Dropping quote of ${quotedPostData.id}: ${quotedPostData.is_deleted ? 'deleted' : quotedPostData.visibility}`);
+            quotedPostData = null;
+          }
         }
 
         const metadata: any = {};
@@ -742,7 +751,7 @@ export class ActivityProcessor {
 
     const { data: existingPost } = await supabase
       .from('posts')
-      .select('id, content, created_at, visibility, author_id')
+      .select('id, content, created_at, visibility, is_deleted, author_id')
       .eq('ap_id', quoteUrl)
       .maybeSingle();
 
@@ -757,7 +766,7 @@ export class ActivityProcessor {
       if (uuidMatch) {
         const { data: postById } = await supabase
           .from('posts')
-          .select('id, content, created_at, visibility, author_id')
+          .select('id, content, created_at, visibility, is_deleted, author_id')
           .eq('id', uuidMatch[1])
           .maybeSingle();
         
@@ -770,12 +779,15 @@ export class ActivityProcessor {
 
     logger.info(`Fetching quoted post from remote: ${quoteUrl}`);
     const fetchedPost = await this.fetchAndCreateRemotePost(quoteUrl);
-    
-    if (fetchedPost) {
-      logger.info(`Created quoted post from remote: ${fetchedPost.id}`);
-    }
-    
-    return fetchedPost;
+    if (!fetchedPost) return null;
+
+    logger.info(`Created quoted post from remote: ${fetchedPost.id}`);
+    const { data: stored } = await supabase
+      .from('posts')
+      .select('id, content, created_at, visibility, is_deleted, author_id')
+      .eq('id', fetchedPost.id)
+      .maybeSingle();
+    return stored ?? null;
   }
 
   /**
@@ -1003,8 +1015,8 @@ export class ActivityProcessor {
       }
 
       // BUGS.md H15: postUrl comes from inbox-supplied AP objects (attacker-
-      // influenced); fetchApJson goes through safeFetch.
-      const remoteObject = await fetchAuthoritativeDocument(postUrl, (u) => this.fetchApJson(u));
+      // influenced); fetchApDocument goes through safeFetch.
+      const remoteObject = await fetchAuthoritativeDocument(postUrl, (u) => this.fetchApDocument(u));
       if (!remoteObject) {
         logger.warn(`Failed to fetch remote post ${postUrl}`);
         return null;
@@ -1281,11 +1293,10 @@ export class ActivityProcessor {
         return;
       }
 
-      // Group actor ownership: signer must match the server's stored actor URL.
-      // Same-domain delegation is allowed here because the server inbox is
-      // the canonical Group inbox (see SignatureService.verifyActorMatch docs).
+      // Group actor ownership: the signer is the server's own actor. Another
+      // actor on the same host is not the server.
       const serverActorUrl = (existingServer as any).ap_id as string | null | undefined;
-      if (!serverActorUrl || !SignatureService.verifyActorMatch(actorUrl, serverActorUrl, true)) {
+      if (!serverActorUrl || !SignatureService.verifyActorMatch(actorUrl, serverActorUrl)) {
         logger.warn(
           `🚫 Update Group rejected: actor ${actorUrl} does not own server ${object.id} (server actor=${serverActorUrl ?? 'unknown'})`,
         );
@@ -1660,7 +1671,7 @@ export class ActivityProcessor {
 
     let originalPost: any = null;
     
-    const originalPostColumns = 'id, content, visibility, author_id, created_at, ap_id, is_sensitive, content_warning, favorites_count, replies_count, reblogs_count, media_attachments, url';
+    const originalPostColumns = 'id, content, visibility, is_deleted, author_id, created_at, ap_id, is_sensitive, content_warning, favorites_count, replies_count, reblogs_count, media_attachments, url';
 
     // Original post lookup, method 1: by ap_id.
     const { data: postByApId } = await supabase
@@ -1695,7 +1706,7 @@ export class ActivityProcessor {
       logger.info(`Original post not found locally, attempting to fetch: ${objectUrl}`);
       try {
         // BUGS.md H15: objectUrl is from inbox payload (attacker-influenced).
-        const remotePost = await fetchAuthoritativeDocument(objectUrl, (u) => this.fetchApJson(u));
+        const remotePost = await fetchAuthoritativeDocument(objectUrl, (u) => this.fetchApDocument(u));
 
         if (remotePost) {
           const authorUrl = normalizeActor(remotePost.attributedTo || remotePost.actor);
@@ -1708,9 +1719,9 @@ export class ActivityProcessor {
               .eq('federated_id', authorUrl)
               .single();
             
-            if (author) {
+            const visibility = this.determineVisibility(remotePost);
+            if (author && isBoostableVisibility(visibility)) {
               const content = noteToContent(remotePost);
-              const visibility = this.determineVisibility(remotePost);
               
               const { data: newPost, error: createError } = await supabase
                 .from('posts')
@@ -1744,6 +1755,13 @@ export class ActivityProcessor {
 
     if (!originalPost) {
       logger.warn(`Original post not found for announce: ${objectUrl}`);
+      return;
+    }
+
+    // Same rule as a local boost (posts BEFORE INSERT): public and unlisted
+    // posts only. The reblog row is public and carries the original content.
+    if (originalPost.is_deleted === true || !isBoostableVisibility(originalPost.visibility)) {
+      logDenied('Announce', actorUrl, `post ${originalPost.id} is ${originalPost.is_deleted ? 'deleted' : originalPost.visibility}`);
       return;
     }
 
@@ -2889,10 +2907,11 @@ export class ActivityProcessor {
     // BUGS.md H15: actorUrl is attacker-influenced (from inbox or Follow
     // activity); safeFetch handles SSRF, redirect re-validation, and timeout.
     try {
-      // The stored profile is keyed by the document's own id; a document
-      // claiming an id on another host would overwrite that host's actor,
-      // public key included.
-      const actor = await fetchAuthoritativeDocument(actorUrl, (u) => this.fetchApJson(u));
+      // The stored profile is keyed by the document's own id. The document
+      // must be served from exactly actorUrl: another URL on the same host
+      // could carry a forged id and key, and callers treat the returned
+      // profile as actorUrl's.
+      const actor = await fetchActorById(actorUrl, (u) => this.fetchApDocument(u));
       if (!actor) {
         logger.error(`Failed to fetch actor ${actorUrl}`);
         return existing || null;
@@ -3231,7 +3250,7 @@ export class ActivityProcessor {
             name: threadName,
             created_by: author.id,
             ap_id: threadApIdValue,
-            federation_status: 'synced',
+            federation_status: THREAD_STUB_STATUS,
             message_count: 1,
             member_count: 1,
           });
@@ -3367,6 +3386,11 @@ export class ActivityProcessor {
         });
       if (convError || !convId) {
         logger.error(`Failed to get/create group conversation:`, convError);
+        return;
+      }
+      // A conversation found by remote id is not joined by posting into it.
+      if (!(await actorInConversation(supabase, convId, authorId))) {
+        logDenied('group DM', normalizeActor(activity?.actor ?? object.attributedTo), `not a participant of ${convId}`);
         return;
       }
       conversationId = convId;
@@ -3556,6 +3580,13 @@ export class ActivityProcessor {
       return;
     }
 
+    // update_group_name / update_group_icon: the updater is an active participant.
+    const updater = await resolveProfileByActorUrl(normalizeActor(activity.actor));
+    if (!updater || !(await actorInConversation(supabase, conversation.id, updater.id))) {
+      logDenied('group conversation Update', normalizeActor(activity.actor), 'not a participant');
+      return;
+    }
+
     const localId = conversation.id;
 
     if (updateType === 'name') {
@@ -3620,6 +3651,32 @@ export class ActivityProcessor {
     if (!removedUser) {
       logger.warn(`User not found for removal: ${removedUserUrl}`);
       return;
+    }
+
+    // The sender is an active participant. Its instance speaks for its own
+    // users, and the instance of the conversation's creator for everyone.
+    // groupParticipantHandler signs with any local participant of the sending
+    // instance, so the remover itself is not known here.
+    const actorUrl = normalizeActor(activity.actor);
+    const actor = await resolveProfileByActorUrl(actorUrl);
+    if (!actor || !(await actorInConversation(supabase, conversation.id, actor.id))) {
+      logDenied('group conversation Remove', actorUrl, 'not a participant');
+      return;
+    }
+    if (!sameOrigin(removedUserUrl, actorUrl)) {
+      const { data: conv } = await supabase
+        .from('conversations')
+        .select('created_by')
+        .eq('id', conversation.id)
+        .maybeSingle();
+      const { data: creator } = conv?.created_by
+        ? await supabase.from('profiles').select('federated_id').eq('id', conv.created_by).maybeSingle()
+        : { data: null };
+      const creatorUrl = creator?.federated_id as string | null | undefined;
+      if (!creatorUrl || !sameOrigin(creatorUrl, actorUrl)) {
+        logDenied('group conversation Remove', actorUrl, `${removedUserUrl} is not on the sender's instance`);
+        return;
+      }
     }
 
     const { error } = await supabase

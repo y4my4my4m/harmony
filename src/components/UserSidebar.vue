@@ -146,6 +146,40 @@
             </div>
 
             <div
+              v-else-if="item.bot"
+              class="user-item bot-member"
+              :class="{ 'offline-user': item.isOffline }"
+              :title="`@${item.bot.username}`"
+              role="button"
+              tabindex="0"
+              @click="openBotCard(item.bot)"
+              @keydown.enter.self.prevent="openBotCard(item.bot)"
+            >
+              <Avatar
+                :src="item.bot.avatarUrl"
+                :alt="item.bot.displayName"
+                size="sm"
+                :status="item.bot.status"
+                class="user-avatar"
+              />
+              <div class="user-info">
+                <div class="user-name-row">
+                  <span class="user-name" :style="botNameStyle">{{ item.bot.displayName }}</span>
+                  <span class="bot-tag">{{ $t('bots.badge.bot') }}</span>
+                </div>
+                <div v-if="item.showStatus !== 'none' && item.bot.statusText" class="user-custom-status">
+                  <ActivityIcon
+                    v-if="item.showStatus === 'full' && item.bot.activityType"
+                    :type="item.bot.activityType"
+                    :size="14"
+                    class="status-activity-icon"
+                  />
+                  <span class="status-text">{{ item.bot.statusText }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div
               v-else
               class="user-item"
               :class="{ 'offline-user': item.isOffline }"
@@ -230,6 +264,15 @@
       @invite="openInviteModal"
     />
 
+    <BotProfileModal
+      v-if="selectedBot"
+      :show="true"
+      :bot-id="selectedBot.id"
+      :server-id="serverChannelStore.currentServerId"
+      :preview="selectedBot"
+      @close="selectedBot = null"
+    />
+
     <!-- Invite Modal -->
     <InviteModal 
       :show="showInviteModal" 
@@ -271,6 +314,7 @@ import { useRouter } from 'vue-router';
 import { debug } from '@/utils/debug'
 import type { User } from '@/types';
 import UserProfileModal from '@/components/UserProfileModal.vue';
+import BotProfileModal from '@/components/BotProfileModal.vue';
 import UserContextMenu from '@/components/UserContextMenu.vue';
 import KickBanModal from '@/components/moderation/KickBanModal.vue';
 import InviteModal from './InviteModal.vue';
@@ -297,6 +341,9 @@ import {
   type BridgedChannelUser,
   resolveBridgedUserColor,
 } from '@/services/bridgedChannelUsersService';
+import { useServerBots } from '@/composables/useServerBots';
+import { groupServerBots, type ServerBot } from '@/services/serverBotsService';
+import { BOT_NAME_COLOR } from '@/utils/botUtils';
 
 // Props
 interface Props {
@@ -324,6 +371,7 @@ const memberNameColor = (userId: string): string | undefined => {
 // from it.
 const memberNameStyle = (color?: string | null) =>
   color ? { '--member-name-color': color } : undefined;
+const botNameStyle = memberNameStyle(BOT_NAME_COLOR);
 const activityPubStore = useActivityPubStore();
 const router = useRouter();
 const { isMobile } = useLayoutState();
@@ -717,6 +765,13 @@ const {
   hasBridge: channelHasBridge,
 } = useBridgedChannelUsers(() => serverChannelStore.currentChannelId);
 
+const { bots: serverBots } = useServerBots(() => serverChannelStore.currentServerId);
+
+const selectedBot = ref<ServerBot | null>(null);
+const openBotCard = (bot: ServerBot) => {
+  selectedBot.value = bot;
+};
+
 // Members are the user IDs reported by the server-presence subscription for
 // the selected server. No fallback to `getAllUsers`: that map holds every
 // profile cached for any reason (DM partners, mention authors, recently
@@ -934,6 +989,9 @@ const groupedUsers = computed(() => {
   return groups;
 });
 
+// Bots carry no roles; they join the presence groups after the members.
+const groupedBots = computed(() => groupServerBots(serverBots.value, searchQuery.value, nameCollator));
+
 // eslint-disable-next-line unused-imports/no-unused-vars
 const getRoleForGroup = (groupKey: string): ServerRole | null => {
   if (!groupKey.startsWith('role:')) return null;
@@ -941,9 +999,11 @@ const getRoleForGroup = (groupKey: string): ServerRole | null => {
   return serverRoles.value.find(r => r.id === roleId) || null;
 };
 
-// Harmony members plus ephemeral Discord bridge members.
+// Harmony members, installed bots and ephemeral Discord bridge members.
 const totalMemberCount = computed(() => {
-  return users.value.length + (channelHasBridge.value ? bridgedDiscordUsers.value.length : 0);
+  return users.value.length
+    + serverBots.value.length
+    + (channelHasBridge.value ? bridgedDiscordUsers.value.length : 0);
 });
 
 const currentServerData = computed(() => {
@@ -1011,6 +1071,7 @@ interface SidebarItem {
   roleColor?: string;
   isCollapsed?: boolean;
   user?: User;
+  bot?: ServerBot;
   bridgedUser?: BridgedChannelUser;
   nameColor?: string | null;
   isOffline?: boolean;
@@ -1049,19 +1110,27 @@ const sidebarDisplayItems = computed((): SidebarItem[] => {
     title: string,
     users: User[],
     bridgedMembers: BridgedChannelUser[] = [],
-    opts: { roleColor?: string; nameColor?: string | null; isOffline?: boolean; showStatus?: 'full' | 'partial' | 'none' } = {}
+    opts: { roleColor?: string; nameColor?: string | null; isOffline?: boolean; showStatus?: 'full' | 'partial' | 'none' } = {},
+    bots: ServerBot[] = []
   ) => {
-    if (users.length === 0 && bridgedMembers.length === 0) return;
+    if (users.length === 0 && bots.length === 0 && bridgedMembers.length === 0) return;
     const collapsed = !!collapsedGroups.value[groupKey];
     items.push({
       type: 'header', key: `h-${groupKey}`, groupKey, title,
-      count: users.length + bridgedMembers.length, roleColor: opts.roleColor, isCollapsed: collapsed
+      count: users.length + bots.length + bridgedMembers.length, roleColor: opts.roleColor, isCollapsed: collapsed
     });
     if (!collapsed) {
       for (const user of users) {
         items.push({
           type: 'user', key: `u-${user.id}-${groupKey}`, groupKey, user,
           nameColor: opts.nameColor ?? null,
+          isOffline: opts.isOffline ?? false,
+          showStatus: opts.showStatus ?? 'full'
+        });
+      }
+      for (const bot of bots) {
+        items.push({
+          type: 'user', key: `b-${bot.id}-${groupKey}`, groupKey, bot,
           isOffline: opts.isOffline ?? false,
           showStatus: opts.showStatus ?? 'full'
         });
@@ -1083,11 +1152,12 @@ const sidebarDisplayItems = computed((): SidebarItem[] => {
       nameColor: role.color,
     });
   }
-  addGroup('online', 'Online', groupedUsers.value.online, bridgedDiscordGrouping.value.byPresence.online, { showStatus: 'full' });
-  addGroup('away', 'Away', groupedUsers.value.away, bridgedDiscordGrouping.value.byPresence.away, { showStatus: 'partial' });
-  addGroup('busy', 'Busy', groupedUsers.value.busy, bridgedDiscordGrouping.value.byPresence.busy, { showStatus: 'none' });
+  const bots = groupedBots.value;
+  addGroup('online', 'Online', groupedUsers.value.online, bridgedDiscordGrouping.value.byPresence.online, { showStatus: 'full' }, bots.online);
+  addGroup('away', 'Away', groupedUsers.value.away, bridgedDiscordGrouping.value.byPresence.away, { showStatus: 'partial' }, bots.away);
+  addGroup('busy', 'Busy', groupedUsers.value.busy, bridgedDiscordGrouping.value.byPresence.busy, { showStatus: 'none' }, bots.busy);
   addGroup('federated', 'Federated', groupedUsers.value.federated, [], { showStatus: 'full' });
-  addGroup('offline', 'Offline', groupedUsers.value.offline, bridgedDiscordGrouping.value.byPresence.offline, { isOffline: true, showStatus: 'none' });
+  addGroup('offline', 'Offline', groupedUsers.value.offline, bridgedDiscordGrouping.value.byPresence.offline, { isOffline: true, showStatus: 'none' }, bots.offline);
   }
 
   return items;
@@ -1098,6 +1168,9 @@ const sidebarVirtualizer = useVirtualizer<HTMLElement, Element>(
     count: sidebarDisplayItems.value.length,
     getScrollElement: () => sidebarGroupsRef.value,
     estimateSize: (index: number) => sidebarDisplayItems.value[index]?.type === 'header' ? 30 : 44,
+    // Sizes follow the row, not its index: bots, roles and bridged members arrive after the
+    // first paint and shift every later row, whose element is measured once.
+    getItemKey: (index: number) => sidebarDisplayItems.value[index]?.key ?? index,
     overscan: 10,
   })) as any
 );
@@ -1664,6 +1737,19 @@ const closeInviteModal = () => {
 
 .user-item:hover .federation-icon {
   opacity: 1;
+}
+
+.bot-tag {
+  flex-shrink: 0;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--harmony-primary);
+  color: var(--text-on-primary, #ffffff);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  text-transform: uppercase;
 }
 
 .discord-bridge-badge {
