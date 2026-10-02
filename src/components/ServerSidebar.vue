@@ -376,13 +376,9 @@ const emit = defineEmits<{
 const showPublicServers = ref(false);
 const showFundingModal = ref(false);
 
-// On desktop the context bar's goal pill opens the same modal. The heart stays
-// on mobile, where the pill is hidden, and wherever no context bar is mounted.
 const fundingStore = useFundingStore();
 const { isMobileViewport } = useViewport();
-const showFundingButton = computed(() =>
-  !!fundingStore.config?.enabled && (isMobileViewport.value || !fundingStore.goalPillMounted)
-);
+const showFundingButton = computed(() => !!fundingStore.config?.enabled && isMobileViewport.value);
 
 const { t } = useI18n();
 const { state: updaterState, isReady: updateReady, openUpdatePrompt } = useDesktopUpdater();

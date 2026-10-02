@@ -47,16 +47,18 @@
       <!-- Timeline View -->
       <div v-else class="content-timeline" data-testid="timeline-feed">
         <!-- Composer (if home timeline) -->
-        <div 
-          v-if="currentView === 'home'" 
-          class="composer-section feed-column"
+        <div
+          v-if="currentView === 'home'"
+          class="composer-row"
           :class="{ 'composer-hidden': composerHidden }"
         >
-          <Composer 
-            mode="inline"
-            type="post"
-            @posted="$emit('post-created', $event)"
-          />
+          <div class="composer-section feed-column">
+            <Composer
+              mode="inline"
+              type="post"
+              @posted="$emit('post-created', $event)"
+            />
+          </div>
         </div>
 
         <div class="timeline-list">
@@ -423,18 +425,24 @@ const getSpecialViewEmptyMessage = (viewType: any) => {
   outline-offset: 2px;
 }
 
+/* Scroll container with a stable gutter, like the feed scroller below it: both centre
+   the feed column on the same axis, so the composer and the posts share their edges. */
+.composer-row {
+  flex-shrink: 0;
+  overflow: hidden;
+  scrollbar-gutter: stable;
+  transition: transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+              opacity 0.25s ease,
+              margin 0.25s ease;
+}
+
 .composer-section {
   padding: var(--space-4);
   border-bottom: 1px solid var(--border-color);
   position: relative;
-  flex-shrink: 0;
-  transition: transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-              opacity 0.25s ease,
-              margin 0.25s ease;
-  overflow: visible;
 }
 
-.composer-section.composer-hidden {
+.composer-row.composer-hidden {
   transform: translateY(-100%);
   opacity: 0;
   margin-bottom: -200px; /* Collapse space without clipping */
