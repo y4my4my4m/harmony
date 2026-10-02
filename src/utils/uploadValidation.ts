@@ -67,7 +67,7 @@ function describeMimeList(mimes: string[]): string {
  * Live bucket metadata (per-instance dashboard overrides) wins over the
  * bundled defaults. Result is cached per session.
  */
-async function getBucketLimits(bucket: string): Promise<BucketLimitConfig> {
+export async function getBucketLimits(bucket: string): Promise<BucketLimitConfig> {
   const fallback = BUCKET_LIMITS[bucket] || { maxBytes: 0, allowedMime: null, label: 'file' }
   if (liveLimits.has(bucket)) return liveLimits.get(bucket)!
 

@@ -9,7 +9,7 @@ import { removeFrequentEmoji } from '@/composables/useFrequentEmojis';
 import { EmojiFavoriteService } from '@/services/EmojiFavoriteService';
 import { invalidateEmojiResolverCache } from '@/services/emojiShortcodeResolver';
 import { immutableUploadOptions, isAnimatedImage, prepareImageUpload } from '@/utils/imageResize';
-import { UploadRejectedError, imageSourceError, validateImageUpload } from '@/utils/uploadValidation';
+import { UploadRejectedError, getBucketLimits, imageSourceError, validateImageUpload } from '@/utils/uploadValidation';
 
 const cleanFileName = (originalName: string) => {
     let name = originalName.replace(/[^\w\s.-]/gi, '').trim();
@@ -219,7 +219,7 @@ async function upscalePixelArt(file: File): Promise<File> {
 }
 
 // Uploads an emoji and invalidates the cache. Throws UploadRejectedError when
-// the file fails the emojis bucket limits after shrinking.
+// the prepared file fails the emojis bucket limits.
 async function uploadEmoji(serverId: string, userId: string, file: File): Promise<Emoji | null> {
     const emojiCache = useEmojiCacheStore();
 
@@ -227,7 +227,7 @@ async function uploadEmoji(serverId: string, userId: string, file: File): Promis
     if (sourceError) throw new UploadRejectedError(sourceError);
     // Upscale tiny pixel art before upload so imgproxy only downscales
     file = await upscalePixelArt(file).catch(() => file);
-    const prepared = await prepareImageUpload(file, 'emoji');
+    const prepared = await prepareImageUpload(file, 'emoji', await getBucketLimits('emojis'));
     file = prepared.file;
     const validationError = await validateImageUpload(file, 'emojis');
     if (validationError) throw new UploadRejectedError(validationError);

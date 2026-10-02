@@ -45,6 +45,19 @@ describe('imageSourceError', () => {
 })
 
 describe('uploadImageObject', () => {
+  it('uploads what preparation returns for a file within the bucket limit', async () => {
+    const icon = sized(300_000, 'icon.png', 'image/png')
+    prepare.mockResolvedValue({ file: icon, extension: 'png', contentType: 'image/png', reencoded: false })
+
+    const result = await uploadAvatar(icon, 'uid')
+
+    expect(result.success).toBe(true)
+    const [path, body, options] = upload.mock.calls[0]
+    expect(path).toMatch(/^uid\/avatar-\d+\.png$/)
+    expect(body).toBe(icon)
+    expect(options).toEqual({ contentType: 'image/png', cacheControl: '31536000', upsert: false })
+  })
+
   it('accepts a photo over the bucket limit once shrinking brings it under', async () => {
     const photo = sized(8 * MB, 'phone.jpg', 'image/jpeg')
     const shrunk = sized(120_000, 'phone.webp', 'image/webp')
@@ -53,7 +66,7 @@ describe('uploadImageObject', () => {
     const result = await uploadAvatar(photo, 'uid')
 
     expect(result.success).toBe(true)
-    expect(prepare).toHaveBeenCalledWith(photo, 'avatar')
+    expect(prepare).toHaveBeenCalledWith(photo, 'avatar', expect.objectContaining({ maxBytes: 5 * MB }))
     const [path, body, options] = upload.mock.calls[0]
     expect(path).toMatch(/^uid\/avatar-\d+\.webp$/)
     expect(body).toBe(shrunk)
