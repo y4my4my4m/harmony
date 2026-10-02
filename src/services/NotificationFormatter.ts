@@ -9,6 +9,7 @@ import type { Notification } from '@/types'
 import { getAvatarUrl as utilGetAvatarUrl } from '@/utils/avatarUtils'
 import { debug } from '@/utils/debug'
 import { securityNoticeText } from '@/utils/securityNotice'
+import { i18n } from '@/i18n'
 
 export interface NotificationMessage {
   title: string
@@ -114,6 +115,17 @@ function replyTitleAction(data: Record<string, any>): string {
 function threadReplyTitleAction(data: Record<string, any>): string {
   const channelName = data.location?.channel_name || data.channel_name || 'a thread'
   return ` replied in a thread in #${channelName}`
+}
+
+function newcomerChannel(data: Record<string, any>): string | null {
+  return data.location?.channel_name || data.channel_name || null
+}
+
+function newcomerTitleAction(data: Record<string, any>): string {
+  const channel = newcomerChannel(data)
+  return channel
+    ? i18n.global.t('newcomerAlerts.notification.action', { channel })
+    : i18n.global.t('newcomerAlerts.notification.actionNoChannel')
 }
 
 // Message templates - easy to replace for internationalization
@@ -398,6 +410,25 @@ const MESSAGE_TEMPLATES = {
       return text || 'The moderators issued a warning about your account.'
     },
     shortTitle: () => 'Moderation warning'
+  },
+
+  newcomer_message: {
+    titleAction: newcomerTitleAction,
+    title: (data: any) => getActorDisplayName(data) + newcomerTitleAction(data),
+    message: (data: any) => {
+      const text = extractContentText(data.message?.content_preview)
+        || extractContentText(data.preview)
+      if (text) {
+        return text.length > 100 ? text.substring(0, 100) + '...' : text
+      }
+      return i18n.global.t('newcomerAlerts.notification.noPreview')
+    },
+    shortTitle: (data: any) => {
+      const channel = newcomerChannel(data)
+      return channel
+        ? i18n.global.t('newcomerAlerts.notification.short', { channel })
+        : i18n.global.t('newcomerAlerts.notification.shortNoChannel')
+    }
   },
 
   /**

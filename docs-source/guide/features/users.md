@@ -103,6 +103,14 @@ The notification system tracks:
 - Replies to your posts
 - Server invites
 - DM messages
+- A new member's first message in a server you own or moderate (`newcomer_message`)
+
+When someone who joined in the last 30 days posts in a server for the first time, a newcomer alert
+goes to at most ten people: the owner first, then members whose roles carry Administrator, Manage
+Server, Kick, Ban or Timeout Members. Opening it jumps to that message. Each recipient can turn it off under
+Notifications → New members; a server turns it off under Server Settings → Overview → Newcomer
+alerts, and the instance admin sets the default for servers that have not chosen under Admin →
+Configuration → General.
 
 Notification preferences are granular with per-category toggles for desktop notifications, sounds, and DND scheduling. See `NotificationSettings` and `ActivityPubNotificationSettings` components.
 

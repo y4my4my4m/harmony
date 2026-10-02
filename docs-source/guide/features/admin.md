@@ -63,6 +63,7 @@ Individual servers have their own settings managed by server owners:
 | Section | Component | Features |
 |---------|-----------|----------|
 | Basic Info | `ServerBasicInfo` | Name, description, icon |
+| Newcomer alerts | `ServerNewcomerAlerts` | Alert the owner and moderators on a new member's first message; Manage Server |
 | Roles | `RoleManagement` | Role hierarchy with bigint permission bitmasks |
 | Privacy | `ServerPrivacySettings` | Visibility, join requirements |
 | Encryption | `ServerEncryptionSettings` | Encryption mode (disabled/optional/required) |

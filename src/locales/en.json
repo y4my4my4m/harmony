@@ -1225,6 +1225,36 @@
       "unreadHint": "Read notifications stay under All."
     }
   },
+  "newcomerAlerts": {
+    "notification": {
+      "action": " is new here and posted in #{channel}",
+      "actionNoChannel": " is new here and posted for the first time",
+      "short": "New member in #{channel}",
+      "shortNoChannel": "New member posted",
+      "noPreview": "Say hello",
+      "nativePrefix": "New member"
+    },
+    "server": {
+      "title": "Newcomer alerts",
+      "description": "When someone who joined in the last 30 days posts for the first time, the owner and moderators get a notification so someone can greet them.",
+      "toggle": "Alert the owner and moderators",
+      "followsDefault": "Uses this instance's default.",
+      "useDefault": "Use instance default",
+      "saveFailed": "Couldn't update newcomer alerts.",
+      "loadFailed": "Couldn't load newcomer alerts."
+    },
+    "preference": {
+      "label": "New members",
+      "description": "When a new member posts for the first time in a server you own or moderate"
+    },
+    "admin": {
+      "title": "Newcomer alerts",
+      "toggle": "Alert server staff when a new member posts for the first time",
+      "hint": "Default for servers whose owners have not chosen. Owners and members with Manage Server change it in Server Settings.",
+      "saved": "Newcomer alert default saved",
+      "saveFailed": "Couldn't save the newcomer alert default"
+    }
+  },
   "time": {
     "now": "now",
     "justNow": "just now",

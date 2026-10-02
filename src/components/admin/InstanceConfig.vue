@@ -52,6 +52,8 @@
         </label>
       </div>
 
+      <NewcomerAlertsDefault />
+
       <h3 style="margin-top: 24px;">Bridge attachments</h3>
       <p class="setting-hint" style="margin-bottom: 12px;">
         Instance-wide policy for bridged images/files from external platforms (Discord, etc.). Bot owners cannot override this.
@@ -607,6 +609,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import Icon from '@/components/common/Icon.vue'
 import ColorPicker from '@/components/common/ColorPicker.vue'
+import NewcomerAlertsDefault from '@/components/admin/NewcomerAlertsDefault.vue'
 import { adminService } from '@/services/AdminService'
 import { trendingService } from '@/services/TrendingService'
 import { supabase } from '@/supabase'

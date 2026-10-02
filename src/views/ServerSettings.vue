@@ -116,6 +116,11 @@
             @banner-change="handleBannerChange"
           />
 
+          <ServerNewcomerAlerts
+            v-if="activeSection === 'overview' && permissions.canEditBasicInfo"
+            :server-id="serverId"
+          />
+
           <!-- Roles Section -->
           <RoleManagement
             v-if="activeSection === 'roles'"
@@ -219,6 +224,7 @@ import ServerBotsSettings from '@/components/settings/ServerBotsSettings.vue'
 import DiscordBridgeSetup from '@/components/settings/DiscordBridgeSetup.vue'
 import RoleManagement from '@/components/settings/RoleManagement.vue'
 import ServerBans from '@/components/settings/server/ServerBans.vue'
+import ServerNewcomerAlerts from '@/components/settings/server/ServerNewcomerAlerts.vue'
 import ServerAutoMod from '@/components/settings/server/ServerAutoMod.vue'
 import AutoModOptInBanner from '@/components/settings/server/AutoModOptInBanner.vue'
 import { getServerAutoMod, type AutoModState } from '@/services/AutoModService'
