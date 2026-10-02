@@ -11,7 +11,7 @@ const envSchema = z.object({
 
   // Software version, surfaced via NodeInfo, /health, and the federation User-Agent.
   // Bump this on each release (single source of truth for the federation backend).
-  VERSION: z.string().default('1.6.2'),
+  VERSION: z.string().default('1.6.7'),
   
   // Supabase
   SUPABASE_URL: z.string().url(),

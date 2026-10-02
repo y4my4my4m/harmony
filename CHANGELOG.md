@@ -7,6 +7,56 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [1.6.7] - 2026-10-02
+
+### Added
+- **Private calls and presence.** Voice, video and call events travel on
+  private channels only the people in the room can join. Online status is
+  visible only to people you share a server or conversation with and to
+  followers; invisible means offline to everyone. DM calls work across
+  instances.
+- **QR device pairing.** Link a new device by scanning a code, in either
+  direction, instead of typing the recovery phrase. A device can keep a copy of
+  its keys so it can link more devices later (opt-in, removable in
+  Settings › Encryption).
+- **Reactions count as favourites.** Reacting to a post favourites it; removing
+  your last reaction removes it. Up to 10 different reactions per person per
+  post (instance setting) and 20 different emoji per chat message. Mastodon,
+  Misskey and Pleroma each receive reactions in the form they understand.
+- **Moderation.** Reports from messages and posts with evidence, forwarding to
+  remote instances, a moderator queue; AutoMod rules per server; newcomer
+  alerts for owners and moderators.
+- **Bots** appear in the member list with a profile card; server owners choose
+  which channels a bot may post in.
+- **Onboarding.** A suggested welcome server at signup, server welcome screens
+  with rules, and discovery categories chosen by the owner.
+- **Two-factor authentication** enforced by the server, session management and
+  data export.
+- **Translations.** German, Spanish, French, Japanese, Korean and Chinese
+  cover every string, including the new security, pairing and moderation
+  screens.
+
+### Changed
+- **Attachments are private.** New chat and DM files are readable only by
+  people in that room, through signed links; remote instances get links bound
+  to them. Deleted messages' files are removed.
+- **Uploads keep the original file**; only files over the size limit are
+  shrunk. Images are displayed at the size shown.
+- **Discover communities** opens on every click and reopens instantly from
+  cache.
+- **Unread counts** are computed on read: sending a message no longer slows
+  down large servers, and switching servers is much faster.
+- The funding heart shows only on phones; desktop uses the sidebar.
+
+### Fixed
+- Mentions of users on instances with subdomains, and email addresses turning
+  into mentions.
+- Chat video and audio uploads were refused.
+- Chat jumping while reading history; jumps to a message landing above it.
+- The composer and the feed, and the profile page's edges, no longer misalign.
+- Ticking a checkbox in Voice & Video settings no longer slides the page.
+- Many security fixes across the database, federation and the app.
+
 ## [1.6.2] - 2026-10-01
 
 ### Added
