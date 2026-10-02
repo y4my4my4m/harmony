@@ -1,22 +1,39 @@
 name: Tauri
 
-# Public repo = unlimited free Actions minutes, but keep native builds off every
-# feature-branch commit: pre-merge check on PRs to master, post-merge on master,
-# and manual dispatch on demand. Skipped when only docs/backend change.
+# Native builds run after a push to master and on manual dispatch, never on pull
+# requests or other branches. A dispatch builds the chosen branch with the chosen
+# platforms and profile. Pushes that change only docs/backend are skipped.
 on:
   push:
     branches: [master]
     paths-ignore: ['**.md', 'docs/**', 'federation-backend/**']
-  pull_request:
-    branches: [master]
-    paths-ignore: ['**.md', 'docs/**', 'federation-backend/**']
   workflow_dispatch:
+    inputs:
+      windows:
+        description: Windows installer
+        type: boolean
+        default: true
+      macos:
+        description: macOS dmg
+        type: boolean
+        default: true
+      android:
+        description: Android APK
+        type: boolean
+        default: true
+      profile:
+        description: Build profile. An Android release build without the signing secrets falls back to debug.
+        type: choice
+        options: [release, debug]
+        default: release
 
 concurrency:
   group: tauri-${{ github.ref }}
   cancel-in-progress: true
 
 env:
+  # `inputs` is empty on push.
+  BUILD_PROFILE: ${{ inputs.profile || 'release' }}
   # Frontend needs Supabase vars at build; the native client picks the real
   # instance at runtime, so build-time placeholders are fine.
   VITE_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL != '' && secrets.TEST_SUPABASE_URL || 'https://placeholder.supabase.co' }}
@@ -27,6 +44,7 @@ jobs:
   # (LiveKit/wgpu) is Linux-target-gated, so it is never pulled here.
   windows:
     name: Windows build
+    if: github.event_name == 'push' || inputs.windows
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,16 +62,21 @@ jobs:
       # NSIS only. The WiX .msi is a second installer for the same payload and
       # is not published, so building it wastes several minutes per run.
       - name: Build Windows installer
-        run: npx tauri build --target x86_64-pc-windows-msvc --bundles nsis
-      - uses: actions/upload-artifact@v4
+        run: npx tauri build ${{ env.BUILD_PROFILE == 'debug' && '--debug' || '' }} --target x86_64-pc-windows-msvc --bundles nsis
+      - name: Name installer
+        id: artifact
+        shell: bash
+        run: bash scripts/name-artifact.sh Windows "$BUILD_PROFILE" src-tauri/target/x86_64-pc-windows-msvc/"$BUILD_PROFILE"/bundle/nsis/*.exe
+      # archive: false uploads the file itself; the artifact takes its name.
+      - uses: actions/upload-artifact@v7
         with:
-          name: harmony-windows
-          path: |
-            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          path: ${{ steps.artifact.outputs.path }}
+          archive: false
           if-no-files-found: error
 
   macos:
     name: macOS build
+    if: github.event_name == 'push' || inputs.macos
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -71,20 +94,25 @@ jobs:
       # Universal .dmg/.app. Unsigned: users must right-click > Open on first
       # launch (Gatekeeper). Notarization needs an Apple Developer cert (secrets).
       - name: Build macOS app
-        run: npx tauri build --target universal-apple-darwin
-      - uses: actions/upload-artifact@v4
+        run: npx tauri build ${{ env.BUILD_PROFILE == 'debug' && '--debug' || '' }} --target universal-apple-darwin
+      - name: Name dmg
+        id: artifact
+        run: bash scripts/name-artifact.sh macOS "$BUILD_PROFILE" src-tauri/target/universal-apple-darwin/"$BUILD_PROFILE"/bundle/dmg/*.dmg
+      - uses: actions/upload-artifact@v7
         with:
-          name: harmony-macos
-          path: |
-            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          path: ${{ steps.artifact.outputs.path }}
+          archive: false
           if-no-files-found: error
 
   android:
     name: Android APK
+    if: github.event_name == 'push' || inputs.android
     runs-on: ubuntu-latest
     env:
       NDK_VERSION: 28.2.13676358
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      # A release APK needs the signing keystore; without it the build is debug.
+      APK_PROFILE: ${{ (inputs.profile || 'release') == 'release' && secrets.ANDROID_KEYSTORE_BASE64 != '' && 'release' || 'debug' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -115,7 +143,7 @@ jobs:
       # cannot break the shell. Whitespace is stripped before decoding: base64
       # -d rejects the whole input on a stray CR or wrapped line.
       - name: Configure release signing
-        if: env.HAS_KEYSTORE == 'true'
+        if: env.APK_PROFILE == 'release'
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -139,15 +167,17 @@ jobs:
           EOF
 
       - name: Build signed release APK
-        if: env.HAS_KEYSTORE == 'true'
+        if: env.APK_PROFILE == 'release'
         run: |
           export NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
           npx tauri android build --target aarch64
 
-      - name: Build debug APK (no keystore configured)
-        if: env.HAS_KEYSTORE != 'true'
+      - name: Build debug APK
+        if: env.APK_PROFILE == 'debug'
         run: |
-          echo "::warning::No ANDROID_KEYSTORE_BASE64 secret - building a debug-signed APK. Add signing secrets for proper release builds."
+          if [ "$BUILD_PROFILE" = release ]; then
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret - building a debug-signed APK. Add signing secrets for proper release builds."
+          fi
           export NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
           npx tauri android build --debug --target aarch64
 
@@ -158,8 +188,12 @@ jobs:
         working-directory: src-tauri/gen/android
         run: ./gradlew :tauri-plugin-harmony-push:testDebugUnitTest --console=plain
 
-      - uses: actions/upload-artifact@v4
+      - name: Name APK
+        id: artifact
+        run: bash scripts/name-artifact.sh Android "$APK_PROFILE" src-tauri/gen/android/app/build/outputs/apk/universal/"$APK_PROFILE"/*.apk
+
+      - uses: actions/upload-artifact@v7
         with:
-          name: harmony-android
-          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          path: ${{ steps.artifact.outputs.path }}
+          archive: false
           if-no-files-found: error

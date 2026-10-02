@@ -26,9 +26,11 @@ jobs:
           - platform: windows-latest
             args: --target x86_64-pc-windows-msvc --bundles nsis
             rust-targets: x86_64-pc-windows-msvc
+            asset-name: Harmony_Windows_V[version][ext]
           - platform: macos-latest
             args: --target universal-apple-darwin
             rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            asset-name: Harmony_macOS_V[version][ext]
     runs-on: ${{ matrix.platform }}
     permissions:
       contents: write
@@ -79,7 +81,12 @@ jobs:
       # (releases/latest/download/latest.json) resolves only to the newest
       # published non-prerelease release, so publishing the draft is the
       # rollout.
-      - uses: tauri-apps/tauri-action@v0
+      # assetNamePattern names every uploaded file: [ext] is the full suffix
+      # (.exe, .exe.sig, .dmg, .app.tar.gz, .app.tar.gz.sig), so each .sig is its
+      # payload's name plus .sig, and latest.json is written from the renamed
+      # assets (src/upload-version-json.ts). Pinned to v0.6.2: v1 renames the
+      # input to releaseAssetNamePattern.
+      - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -92,6 +99,7 @@ jobs:
           prerelease: false
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
+          assetNamePattern: ${{ matrix.asset-name }}
           args: ${{ matrix.args }} ${{ steps.updater.outputs.args }}
 
   android:
@@ -201,6 +209,20 @@ jobs:
           echo "::warning::No ANDROID_KEYSTORE_BASE64 secret - building a debug-signed APK. Add signing secrets for proper release builds."
           export NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
           npx tauri android build --debug --target aarch64
+
+      # Inline rather than scripts/name-artifact.sh: a dispatch can rebuild a tag
+      # that predates the script. Renamed in place, so the attach step's glob
+      # matches it.
+      - name: Name APK
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          suffix=$([ "$HAS_KEYSTORE" = true ] || echo _debug)
+          set -- src-tauri/gen/android/app/build/outputs/apk/universal/*/*.apk
+          if [ $# -ne 1 ] || [ ! -f "$1" ]; then
+            echo "::error::Expected one APK, found: $*"
+            exit 1
+          fi
+          mv -- "$1" "$(dirname "$1")/Harmony_Android_V${version}${suffix}.apk"
 
       - name: Attach APK to release
         uses: softprops/action-gh-release@v2
