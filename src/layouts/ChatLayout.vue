@@ -4,7 +4,7 @@
     @showPublicServers="$emit('showPublicServers')"
   />
   
-  <div v-else class="chat-layout" :class="{ 'is-dragging': isDragging }">
+  <div v-else class="chat-layout" :class="{ 'is-dragging': isDragging }" :style="panelWidthVars">
     <div class="context-bar-container">
       <UnifiedContextBar
         mode="chat"
@@ -226,7 +226,14 @@ const serverChannelStore = useServerChannelStore()
 const router = useRouter()
 const route = useRoute()
 
-const { SIDEBAR_WIDTH, closeMobileSidebars } = useLayoutState()
+const {
+  SERVER_SIDEBAR_WIDTH,
+  leftDrawerWidth,
+  rightDrawerWidth,
+  channelPanelWidth,
+  memberPanelWidth,
+  closeMobileSidebars,
+} = useLayoutState()
 
 useUserData();
 
@@ -267,23 +274,29 @@ const shouldShowNoServersSplash = computed(() => {
 })
 
 // The splash replaces both panels; DMs have no member list.
-useSidebarPanel('left', () => !shouldShowNoServersSplash.value)
-useSidebarPanel('right', () => !props.isDM && !shouldShowNoServersSplash.value)
+useSidebarPanel('left', () => !shouldShowNoServersSplash.value, () => channelPanelWidth.value)
+useSidebarPanel('right', () => !props.isDM && !shouldShowNoServersSplash.value, () => memberPanelWidth.value)
+
+// Widths for the max-width 768px rules below: the values registered above as
+// the drag spans.
+const panelWidthVars = computed(() => ({
+  '--channel-panel-width': `${channelPanelWidth.value}px`,
+  '--member-panel-width': `${memberPanelWidth.value}px`,
+}))
 
 const leftSidebarStyle = computed(() => {
   if (!props.isMobile) return {}
   
   if (props.isDragging && props.dragDirection === 'left') {
     // Slides in from the left, interpolated by drag offset. Open position
-    // clears the 72px server sidebar.
-    const progress = props.leftSidebarDragOffset / SIDEBAR_WIDTH
-    const closedPosition = -240 // Hidden position (width of sidebar)
-    const openPosition = 72 // Open position (server sidebar width)
+    // clears the server rail, which moves with it (BaseLayout).
+    const progress = props.leftSidebarDragOffset / leftDrawerWidth.value
+    const closedPosition = -channelPanelWidth.value
+    const openPosition = SERVER_SIDEBAR_WIDTH
     const currentPosition = closedPosition + (openPosition - closedPosition) * progress
     
     return {
       transform: `translateX(${currentPosition}px)`,
-      width: '240px',
       transition: 'none'
     }
   }
@@ -296,7 +309,7 @@ const rightSidebarStyle = computed(() => {
   
   if (props.isDragging && props.dragDirection === 'right') {
     // Right sidebar slides in from right
-    const progress = props.rightSidebarDragOffset / SIDEBAR_WIDTH
+    const progress = props.rightSidebarDragOffset / rightDrawerWidth.value
     const closedPosition = 100 // Hidden off screen (percentage)
     // eslint-disable-next-line unused-imports/no-unused-vars
     const openPosition = 0 // Fully visible
@@ -304,7 +317,6 @@ const rightSidebarStyle = computed(() => {
     
     return {
       transform: `translateX(${currentPosition}%)`,
-      width: '280px',
       transition: 'none'
     }
   }
@@ -658,23 +670,23 @@ onMounted(() => {
 
   .channel-sidebar-container.mobile-open {
     transform: translateX(72px);
-    width: 240px;
+    width: var(--channel-panel-width, 240px);
     left: 0;
   }
   .channel-sidebar-container {
-    transform: translateX(-240px);
-    width: 240px;
+    transform: translateX(calc(-1 * var(--channel-panel-width, 240px)));
+    width: var(--channel-panel-width, 240px);
     left: 0;
   }
   .right-sidebar-container {
     transform: translateX(100%);
-    width: 280px;
+    width: var(--member-panel-width, 280px);
     right: 0;
     background: var(--background-secondary);
   }
   .right-sidebar-container.sidebar-open {
     transform: translateX(0);
-    width: 280px;
+    width: var(--member-panel-width, 280px);
   }
   
   .main-content-area {

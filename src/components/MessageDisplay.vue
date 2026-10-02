@@ -356,7 +356,7 @@
             </div>
             
             <!-- Message actions for system messages (if hovered); on mobile with tap use floating popup -->
-            <div class="message-actions" v-if="hoveredMessageId === item.message.id && !(isMobile && mobileActionTapPosition)">
+            <div class="message-actions" v-if="hoveredMessageId === item.message.id && !(isMobile && mobileActionTapPosition)" :style="actionBarShift ? { right: `${actionBarShift}px` } : undefined">
               <div class="action-btn" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></div>
               <div class="action-btn" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></div>
               <div class="action-btn" @click="openContextMenu(item.message, $event)"><MoreIcon/></div>
@@ -515,7 +515,7 @@
         </div>
 
         <!-- Message actions; on mobile with tap use floating popup -->
-        <div class="message-actions" v-if="!item.message.failed && hoveredMessageId === item.message.id && !(isMobile && mobileActionTapPosition)">
+        <div class="message-actions" v-if="!item.message.failed && hoveredMessageId === item.message.id && !(isMobile && mobileActionTapPosition)" :style="actionBarShift ? { right: `${actionBarShift}px` } : undefined">
           <div ref="reactionBtn" class="action-btn" data-testid="msg-action-react" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></div>
           <div class="action-btn" data-testid="msg-action-reply" @click="replyTo(item.message)"><ReplyIcon/></div>
           <div class="action-btn thread-btn" data-testid="msg-action-thread" v-if="!props.hideThreadActions" @click="createThread(item.message)" title="Create thread"><ThreadIcon/></div>
@@ -548,11 +548,21 @@
     </div>
   </div>
 
-    <!-- Messages that arrived while scrolled up. The view stays put until asked. -->
-    <div v-if="unseenCount > 0 && !isPinned" class="jump-present-anchor">
-      <button type="button" class="jump-present-pill" data-testid="jump-to-present" @click="jumpToPresent">
-        <span>{{ $t('message.newMessagesBelow', { count: unseenCount }, unseenCount) }}</span>
-        <Icon name="chevron-down" :size="14" />
+    <!-- Jump to present; rules in utils/chatScroll showJumpToPresent. With messages
+         that arrived while scrolled up it carries their count. -->
+    <div v-if="showJump" class="jump-present-anchor">
+      <button
+        ref="jumpButtonRef"
+        type="button"
+        class="jump-present"
+        :class="{ 'has-count': unseenCount > 0 }"
+        data-testid="jump-to-present"
+        :aria-label="unseenCount > 0 ? undefined : $t('message.jumpToPresent')"
+        :title="$t('message.jumpToPresent')"
+        @click="jumpToPresent"
+      >
+        <span v-if="unseenCount > 0">{{ $t('message.newMessagesBelow', { count: unseenCount }, unseenCount) }}</span>
+        <Icon :name="unseenCount > 0 ? 'chevron-down' : 'arrow-down'" :size="unseenCount > 0 ? 14 : 18" />
       </button>
     </div>
   </div>
@@ -745,6 +755,7 @@ import {
   nextPinState,
   scrollTopAfterPrepend,
   scrollTopAfterResize,
+  showJumpToPresent,
   type PinState,
 } from '@/utils/chatScroll';
 
@@ -1637,12 +1648,69 @@ const pinState: PinState = { pinned: true, lastScrollTop: 0 };
 const isPinned = ref(true);
 // Messages from others appended while not pinned.
 const unseenCount = ref(0);
+// distanceFromBottom and clientHeight at the last scroll, resize or list update.
+const distanceToEnd = ref(0);
+const viewportHeight = ref(0);
 
 const setPinned = (pinned: boolean) => {
   pinState.pinned = pinned;
   isPinned.value = pinned;
   if (pinned) unseenCount.value = 0;
 };
+
+// Landing retries (open, jumpToMessageRow) run while they hold the current
+// value; a newer jump to a message or to the present ends them.
+let seatGeneration = 0;
+
+const measureEnd = () => {
+  const el = messageDisplayContainer.value;
+  if (!el) return;
+  distanceToEnd.value = distanceFromBottom(el);
+  viewportHeight.value = el.clientHeight;
+};
+
+// The list holds rows a jump to an older message spliced in; the history
+// between them and the newest page is not loaded.
+const listJumped = computed(() => {
+  const ids = props.conversationId ? dmStore.jumpedMessageIds : props.channelId ? chatStore.jumpedToMessages : null;
+  if (!ids?.size) return false;
+  return props.messages.some(m => ids.has(m.id));
+});
+
+const showJump = computed(() => showJumpToPresent({
+  distance: distanceToEnd.value,
+  viewport: viewportHeight.value,
+  pinned: isPinned.value,
+  unseen: unseenCount.value,
+  jumped: listJumped.value,
+}));
+
+// The control sits at the bottom-right of the viewport, where the action bar of
+// a message near the bottom edge opens. That bar moves left of the control
+// instead of under it. Offset in px from the bar's resting `right: 0`.
+const jumpButtonRef = ref<HTMLButtonElement | null>(null);
+const actionBarShift = ref(0);
+const ACTION_BAR_GAP_PX = 8;
+
+const updateActionBarShift = () => {
+  const btn = jumpButtonRef.value;
+  const id = hoveredMessageId.value;
+  const bar = btn && id ? document.getElementById(`message-${id}`)?.querySelector<HTMLElement>('.message-actions') : null;
+  const item = bar?.offsetParent;
+  if (!btn || !bar || !item) {
+    actionBarShift.value = 0;
+    return;
+  }
+  // Resting box: the shift moves the bar horizontally only.
+  const a = bar.getBoundingClientRect();
+  const right = item.getBoundingClientRect().right;
+  const left = right - a.width;
+  const b = btn.getBoundingClientRect();
+  const overlaps = left < b.right && b.left < right && a.top < b.bottom && b.top < a.bottom;
+  actionBarShift.value = overlaps ? Math.ceil(right - b.left + ACTION_BAR_GAP_PX) : 0;
+};
+
+watch([hoveredMessageId, showJump], () => nextTick(updateActionBarShift));
 
 // Seats a pinned view at the end. Synchronous, so a call before paint leaves no
 // frame with the end uncovered.
@@ -2094,8 +2162,12 @@ watch(() => props.messages, (newMessages) => {
           debug.log('Pending images to load:', pendingImages.length, 'out of', imageUrlsInMessages.size);
           debug.log('Total embeds to load:', totalEmbeds);
           
+          // A jump to a message or to the present ends these retries.
+          const landing = seatGeneration;
+
           let scrollAttempts = 0;
           const scrollToBottom = () => {
+            if (landing !== seatGeneration) return;
             scrollAttempts++;
             const count = displayItems.value.length;
             if (count > 0) {
@@ -2124,6 +2196,7 @@ watch(() => props.messages, (newMessages) => {
           // measures real row heights so it settles on the right spot.
           let dividerScrollAttempts = 0;
           const scrollToDivider = () => {
+            if (landing !== seatGeneration) return;
             dividerScrollAttempts++;
             const idx = displayItems.value.findIndex(
               it => it.type === 'message' && it.message.id === dividerMsgId
@@ -2137,7 +2210,7 @@ watch(() => props.messages, (newMessages) => {
             rowVirtualizer.value.scrollToIndex(idx, { align: 'start' });
             requestAnimationFrame(() => {
               const c = messageDisplayContainer.value;
-              if (!c) return;
+              if (!c || landing !== seatGeneration) return;
               // Positioned from the divider's REAL rendered position, not the
               // virtualizer's height estimate, which lands above the divider
               // when rows are taller than estimated. Measuring the DOM node
@@ -2158,6 +2231,7 @@ watch(() => props.messages, (newMessages) => {
           // Centres the floating video's placeholder; retries while rows measure.
           let returnScrollAttempts = 0;
           const scrollToReturn = () => {
+            if (landing !== seatGeneration) return;
             returnScrollAttempts++;
             const idx = displayItems.value.findIndex(
               it => it.type === 'message' && it.message.id === returnMsgId
@@ -2168,6 +2242,7 @@ watch(() => props.messages, (newMessages) => {
             }
             rowVirtualizer.value.scrollToIndex(idx, { align: 'center' });
             requestAnimationFrame(() => {
+              if (landing !== seatGeneration) return;
               const c = messageDisplayContainer.value;
               const placeholder = c?.querySelector('.floating-video-placeholder') as HTMLElement | null;
               if (c && placeholder) {
@@ -2261,7 +2336,7 @@ watch(() => props.messages, (newMessages) => {
         checkScrollable();
         isAtTop.value = messageDisplayContainer.value.scrollTop === 0;
         emit('update:isAtBottom', distanceFromBottom(messageDisplayContainer.value) <= PIN_THRESHOLD_PX);
-
+        measureEnd();
       }
       lastKnownDisplayItemCount.value = displayItems.value.length;
     });
@@ -2480,7 +2555,10 @@ let resizeObserver: ResizeObserver | null = null;
 
 const setupResizeObserver = () => {
   if (resizeObserver || !messageDisplayContainer.value) return;
-  resizeObserver = new ResizeObserver(() => stickToBottom());
+  resizeObserver = new ResizeObserver(() => {
+    stickToBottom();
+    measureEnd();
+  });
   resizeObserver.observe(messageDisplayContainer.value);
   if (virtualListRef.value) resizeObserver.observe(virtualListRef.value);
 };
@@ -2491,9 +2569,32 @@ watch(virtualListRef, (el, prev) => {
   if (el) resizeObserver.observe(el);
 });
 
-const jumpToPresent = () => {
+// Pins and seats the view at the end. scrollToOffset replaces a scrollToIndex
+// reconcile still running from a jump; that loop re-targets its index when
+// rows change and would pull the view back to it.
+const seatAtEnd = () => {
+  const el = messageDisplayContainer.value;
+  if (!el) return;
   setPinned(true);
+  rowVirtualizer.value.scrollToOffset(bottomScrollTop(el));
   stickToBottom();
+};
+
+// A list holding jumped-to rows is then replaced by the newest page, as a cold
+// open loads it, and the view seats at its end.
+const jumpToPresent = async () => {
+  const reload = listJumped.value;
+  seatGeneration++;
+  seatAtEnd();
+  if (!reload) return;
+  try {
+    if (props.conversationId) await dmStore.reloadNewestPage(props.conversationId);
+    else if (props.channelId) await chatStore.reloadNewestPage(props.channelId);
+  } catch (error) {
+    debug.error('Failed to reload the newest messages:', error);
+  }
+  await nextTick();
+  seatAtEnd();
 };
 
 // Centres a message row and highlights it. The virtualizer's smooth scroll targets
@@ -2506,13 +2607,16 @@ const jumpToMessageRow = (messageId: string): boolean => {
   );
   if (indexOf() < 0) return false;
   setPinned(false);
+  const generation = ++seatGeneration;
   let attempts = 0;
   const seat = () => {
+    if (generation !== seatGeneration) return;
     attempts++;
     const idx = indexOf();
     if (idx < 0) return;
     rowVirtualizer.value.scrollToIndex(idx, { align: 'center' });
     requestAnimationFrame(() => {
+      if (generation !== seatGeneration) return;
       const c = messageDisplayContainer.value;
       const el = document.getElementById(`message-${messageId}`);
       if (c && el) {
@@ -2541,6 +2645,7 @@ onMounted(() => {
   if (messageDisplayContainer.value) {
     isAtTop.value = messageDisplayContainer.value.scrollTop === 0;
     checkScrollable();
+    measureEnd();
   }
   setupTopSentinelObserver();
   setupResizeObserver();
@@ -2645,6 +2750,7 @@ const handleScrollThrottled = throttle(() => {
   }
 
   emit('update:isAtBottom', distanceFromBottom(messageDisplayContainer.value) <= PIN_THRESHOLD_PX);
+  if (hoveredMessageId.value) updateActionBarShift();
 }, 16);
 
 // Not throttled: a size change in the same frame reads the pin, and a stale
@@ -2660,6 +2766,7 @@ const handleScroll = () => {
       // A deliberate scroll-up ends the post-open grace window.
       if (!next.pinned) openFollowBottomUntil = 0;
     }
+    measureEnd();
   }
   handleScrollThrottled();
 };
@@ -4360,8 +4467,9 @@ defineExpose({ editLastOwnMessage });
   pointer-events: none;
 }
 
-/* Zero-height sticky box at the end of the list: the pill floats over the
-   bottom edge of the viewport without adding to scrollHeight. */
+/* Zero-height sticky box at the end of the list: the control floats over the
+   bottom edge of the viewport without adding to scrollHeight, so it rides
+   above the composer as that grows. */
 .jump-present-anchor {
   position: sticky;
   bottom: 0;
@@ -4369,28 +4477,58 @@ defineExpose({ editLastOwnMessage });
   z-index: 2;
 }
 
-.jump-present-pill {
+.jump-present {
   position: absolute;
+  right: 16px;
   bottom: 12px;
-  left: 50%;
-  transform: translateX(-50%);
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 6px 14px;
-  border: none;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--border-color);
   border-radius: 999px;
+  background: var(--background-floating);
+  color: var(--text-primary);
+  cursor: pointer;
+  box-shadow: var(--shadow-medium);
+}
+
+.jump-present.has-count {
+  width: auto;
+  height: 32px;
+  padding: 0 14px;
+  border: none;
   background-color: var(--harmony-secondary);
   color: var(--text-on-primary);
   font-size: 0.8125rem;
   font-weight: 600;
   white-space: nowrap;
-  cursor: pointer;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-.jump-present-pill:hover {
+.jump-present:hover {
   filter: brightness(1.1);
+}
+
+.jump-present:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* 44 px touch target, inside the thumb's reach at the right edge. */
+@media (max-width: 768px) {
+  .jump-present {
+    right: 12px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .jump-present.has-count {
+    height: 36px;
+  }
 }
 
 /* An in-flow row here shifts the list by its height whenever it toggles and

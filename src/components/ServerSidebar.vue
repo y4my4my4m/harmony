@@ -287,7 +287,7 @@
       @close="showInviteModal = false"
     />
 
-    <div v-if="fundingEnabled || updateReady" class="fixed-footer">
+    <div v-if="showFundingButton || updateReady" class="fixed-footer">
       <div class="separator"></div>
       <button
         v-if="updateReady"
@@ -303,7 +303,7 @@
         </svg>
       </button>
       <button
-        v-if="fundingEnabled"
+        v-if="showFundingButton"
         type="button"
         class="funding-button"
         aria-label="Instance funding"
@@ -354,7 +354,7 @@ import ServerFolderContextMenu from '@/components/ServerFolderContextMenu.vue';
 import ServerFolderSettingsModal from '@/components/ServerFolderSettingsModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
 import FundingModal from '@/components/FundingModal.vue';
-import { fundingService } from '@/services/FundingService';
+import { useFundingStore } from '@/stores/useFunding';
 import { useTodayDashboard } from '@/composables/useTodayDashboard';
 import { useViewport } from '@/composables/useViewport';
 import { useAnchoredTooltip } from '@/composables/useAnchoredTooltip';
@@ -375,7 +375,14 @@ const emit = defineEmits<{
 
 const showPublicServers = ref(false);
 const showFundingModal = ref(false);
-const fundingEnabled = ref(false);
+
+// On desktop the context bar's goal pill opens the same modal. The heart stays
+// on mobile, where the pill is hidden, and wherever no context bar is mounted.
+const fundingStore = useFundingStore();
+const { isMobileViewport } = useViewport();
+const showFundingButton = computed(() =>
+  !!fundingStore.config?.enabled && (isMobileViewport.value || !fundingStore.goalPillMounted)
+);
 
 const { t } = useI18n();
 const { state: updaterState, isReady: updateReady, openUpdatePrompt } = useDesktopUpdater();
@@ -493,9 +500,8 @@ const isSelected = (serverId: string) => {
   return serverId === activeServerId.value;
 };
 
-onMounted(async () => {
-  const config = await fundingService.getFundingConfig()
-  fundingEnabled.value = config?.enabled ?? false
+onMounted(() => {
+  void fundingStore.load()
 })
 
 watch(showPublicServers, (value) => {

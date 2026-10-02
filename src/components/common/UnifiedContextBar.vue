@@ -38,7 +38,7 @@
       </div>
       <div class="context-right">
         <button
-          v-if="fundingConfig && fundingConfig.enabled && fundingConfig.show_in_context_bar && fundingConfig.goal_amount"
+          v-if="showsFundingGoal(fundingConfig)"
           type="button"
           class="funding-indicator"
           :title="fundingTooltip"
@@ -61,10 +61,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, onMounted } from 'vue';
 import Icon from '@/components/common/Icon.vue';
 import type { Server, Channel } from '@/types';
-import type { FundingConfig } from '@/services/FundingService';
+import { showsFundingGoal, type FundingConfig } from '@/services/FundingService';
+import { useFundingStore } from '@/stores/useFunding';
 import ServerIcon from './ServerIcon.vue';
 
 interface Props {
@@ -99,6 +100,10 @@ defineEmits<{
   'toggle-left-sidebar': [];
   'open-funding': [];
 }>();
+
+const fundingStore = useFundingStore();
+onMounted(() => { fundingStore.contextBars++; });
+onBeforeUnmount(() => { fundingStore.contextBars--; });
 
 const fundingPercent = computed(() => {
   if (!props.fundingConfig?.goal_amount) return 0;

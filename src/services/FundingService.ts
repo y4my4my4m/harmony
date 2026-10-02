@@ -38,6 +38,13 @@ export interface FundingConfigWithProgress extends FundingConfig {
   displayed_amount: number
 }
 
+/** Condition of the goal progress pill (context bar) and card (social sidebar). */
+export function showsFundingGoal<T extends Pick<FundingConfig, 'enabled' | 'show_in_context_bar' | 'goal_amount'>>(
+  config: T | null | undefined,
+): config is T & { goal_amount: number } {
+  return !!(config?.enabled && config.show_in_context_bar && config.goal_amount)
+}
+
 export interface FundingLink {
   platform: string
   url: string

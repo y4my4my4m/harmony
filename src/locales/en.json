@@ -419,6 +419,7 @@
     "newMessages": "New",
     "loadingOlder": "Loading older messages...",
     "newMessagesBelow": "{count} new message | {count} new messages",
+    "jumpToPresent": "Jump to present",
     "conversationBeginning": "This is the beginning of your conversation",
     "conversationBeginningSubtitle": "This is the start of your conversation.",
     "channelWelcome": "Welcome to #{name}",

@@ -1,6 +1,7 @@
 import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { debug } from '@/utils/debug'
+import { useViewport } from '@/composables/useViewport'
 
 const STORAGE_KEY_ACTIVITYPUB_RIGHT_SIDEBAR = 'harmony_activitypub_right_sidebar_open'
 // Chat (member list) right sidebar persists independently of the ActivityPub
@@ -29,38 +30,72 @@ const rightSidebarWasOpen = ref(false)
 const SIDEBAR_WIDTH = 280
 const SERVER_SIDEBAR_WIDTH = 72
 
+// Chat beside an open mobile drawer on a phone: the tap and swipe target that
+// closes it.
+export const DRAWER_PEEK_PX = 56
+// Wider viewports (tablets, phones in landscape) keep the fixed panel widths.
+const PHONE_MAX_WIDTH = 480
+
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
+
+/** ChatLayout's channel panel beside the server rail at max-width 768px, px. */
+export function mobileChannelPanelWidth(viewportWidth: number): number {
+  if (viewportWidth > PHONE_MAX_WIDTH) return 240
+  return clamp(viewportWidth - SERVER_SIDEBAR_WIDTH - DRAWER_PEEK_PX, 240, 300)
+}
+
+/** ChatLayout's member list at max-width 768px, px. */
+export function mobileMemberPanelWidth(viewportWidth: number): number {
+  if (viewportWidth > PHONE_MAX_WIDTH) return 280
+  return clamp(viewportWidth - DRAWER_PEEK_PX, 280, 380)
+}
+
 // Side panels the mounted layout renders, by registering component. The left
 // drawer is the server rail plus, when registered, the layout's channel or
 // navigation panel; the right drawer exists only when registered. Pages that
 // render neither (Today, settings) get a rail-only left drawer and no right one.
 type PanelSide = 'left' | 'right'
-const panelSources = {
-  left: reactive(new Map<symbol, () => boolean>()),
-  right: reactive(new Map<symbol, () => boolean>()),
+interface PanelSource {
+  present: () => boolean
+  /** Mobile panel width, px. */
+  width?: () => number
 }
-const hasPanel = (side: PanelSide) => computed(() => {
-  for (const present of panelSources[side].values()) {
-    if (present()) return true
-  }
-  return false
-})
+const panelSources = {
+  left: reactive(new Map<symbol, PanelSource>()),
+  right: reactive(new Map<symbol, PanelSource>()),
+}
+const presentPanels = (side: PanelSide) => [...panelSources[side].values()].filter(p => p.present())
+const hasPanel = (side: PanelSide) => computed(() => presentPanels(side).length > 0)
 const hasLeftPanel = hasPanel('left')
 const hasRightPanel = hasPanel('right')
+const panelWidth = (side: PanelSide) => computed(() => presentPanels(side).find(p => p.width)?.width?.())
+const leftPanelWidth = panelWidth('left')
+const rightPanelWidth = panelWidth('right')
 
 /**
  * Declares a side panel for the calling component's lifetime. `present` gates
  * it on component state, e.g. a layout that renders the panel conditionally.
+ * `width` is the panel's mobile width in px; without it the drag spans
+ * SIDEBAR_WIDTH.
  */
-export function useSidebarPanel(side: PanelSide, present: () => boolean = () => true): void {
+export function useSidebarPanel(side: PanelSide, present: () => boolean = () => true, width?: () => number): void {
   const id = Symbol(side)
-  panelSources[side].set(id, present)
+  panelSources[side].set(id, { present, width })
   onBeforeUnmount(() => {
     panelSources[side].delete(id)
   })
 }
 
-// Width the left drag gesture spans: rail plus panel, or the rail alone.
-const leftDrawerWidth = computed(() => (hasLeftPanel.value ? SIDEBAR_WIDTH : SERVER_SIDEBAR_WIDTH))
+// Distance each drag gesture spans, px. Left: rail plus panel, or the rail alone.
+const leftDrawerWidth = computed(() => {
+  if (!hasLeftPanel.value) return SERVER_SIDEBAR_WIDTH
+  return leftPanelWidth.value === undefined ? SIDEBAR_WIDTH : SERVER_SIDEBAR_WIDTH + leftPanelWidth.value
+})
+const rightDrawerWidth = computed(() => rightPanelWidth.value ?? SIDEBAR_WIDTH)
+
+const { viewportWidth } = useViewport()
+const channelPanelWidth = computed(() => mobileChannelPanelWidth(viewportWidth.value))
+const memberPanelWidth = computed(() => mobileMemberPanelWidth(viewportWidth.value))
 
 // Mobile breakpoint: 768px.
 // Sidebar state is mutated only on desktop<->mobile transitions and first mount.
@@ -273,7 +308,7 @@ export function useLayoutState() {
       rightSidebarOpen.value = false // Close other sidebar
     } else {
       rightSidebarWasOpen.value = rightSidebarOpen.value
-      rightSidebarDragOffset.value = rightSidebarOpen.value ? SIDEBAR_WIDTH : 0
+      rightSidebarDragOffset.value = rightSidebarOpen.value ? rightDrawerWidth.value : 0
       leftSidebarOpen.value = false // Close other sidebar
     }
     
@@ -301,15 +336,16 @@ export function useLayoutState() {
       leftSidebarDragOffset.value = Math.max(0, Math.min(width, newOffset))
     } else {
       // Right sidebar: -deltaX opens, +deltaX closes.
+      const width = rightDrawerWidth.value
       let newOffset: number
       if (rightSidebarWasOpen.value) {
         // Started open: offset shrinks as deltaX goes positive.
-        newOffset = SIDEBAR_WIDTH - deltaX
+        newOffset = width - deltaX
       } else {
         // Started closed: offset grows with negative deltaX.
         newOffset = -deltaX
       }
-      rightSidebarDragOffset.value = Math.max(0, Math.min(SIDEBAR_WIDTH, newOffset))
+      rightSidebarDragOffset.value = Math.max(0, Math.min(width, newOffset))
     }
   }
 
@@ -335,7 +371,7 @@ export function useLayoutState() {
         mobileProfileOpen.value = false
       }
     } else {
-      const progress = rightSidebarDragOffset.value / SIDEBAR_WIDTH
+      const progress = rightSidebarDragOffset.value / rightDrawerWidth.value
       const shouldBeOpen = progress > COMPLETION_THRESHOLD
       
       debug.log('endDrag right:', { 
@@ -386,7 +422,7 @@ export function useLayoutState() {
         mobileProfileOpen.value = false
       }
     } else {
-      const progress = rightSidebarDragOffset.value / SIDEBAR_WIDTH
+      const progress = rightSidebarDragOffset.value / rightDrawerWidth.value
       
       let shouldBeOpen: boolean
       if (!hasRightSidebar.value) {
@@ -436,8 +472,8 @@ export function useLayoutState() {
     if (!isMobile.value) return {}
     
     if (isDragging.value && dragDirection.value === 'left') {
-      // Left sidebar translateX: -SIDEBAR_WIDTH closed, 0 open.
-      const translateX = leftSidebarDragOffset.value - SIDEBAR_WIDTH
+      // Left sidebar translateX: -leftDrawerWidth closed, 0 open.
+      const translateX = leftSidebarDragOffset.value - leftDrawerWidth.value
       return {
         transform: `translateX(${translateX}px)`,
         transition: 'none'
@@ -451,8 +487,8 @@ export function useLayoutState() {
     if (!isMobile.value) return {}
     
     if (isDragging.value && dragDirection.value === 'right') {
-      // Right sidebar translateX: SIDEBAR_WIDTH closed, 0 open.
-      const translateX = SIDEBAR_WIDTH - rightSidebarDragOffset.value
+      // Right sidebar translateX: rightDrawerWidth closed, 0 open.
+      const translateX = rightDrawerWidth.value - rightSidebarDragOffset.value
       return {
         transform: `translateX(${translateX}px)`,
         transition: 'none'
@@ -484,6 +520,9 @@ export function useLayoutState() {
     rightSidebarOpen: computed(() => rightSidebarOpen.value),
     hasRightSidebar,
     leftDrawerWidth,
+    rightDrawerWidth,
+    channelPanelWidth,
+    memberPanelWidth,
     voicePanelOpen: computed(() => voicePanelOpen.value),
     mobileProfileOpen: computed(() => mobileProfileOpen.value),
     isMobile: computed(() => isMobile.value),
