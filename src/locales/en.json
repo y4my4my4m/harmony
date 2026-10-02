@@ -1036,6 +1036,8 @@
     "favoritesLabel": "favorite | favorites",
     "favorite": "Favorite",
     "unfavorite": "Remove favorite",
+    "unfavoriteWithReactions": "Remove favorite and your reaction | Remove favorite and your {count} reactions",
+    "reactionLimitReached": "You can react to a post with at most {count} different emoji",
     "removeBookmark": "Remove bookmark",
     "moreOptions": "More options",
     "browseFederatedTimeline": "Browse the federated timeline",
@@ -1169,6 +1171,8 @@
     "noneFound": "No {kind} found"
   },
   "emoji": {
+    "messageReactionLimit": "This message has {count} different reactions. Add to one of them.",
+    "postReactionLimit": "You have {count} reactions on this post. Remove one to add another.",
     "search": "Search emoji...",
     "searchEmojis": "Search emojis...",
     "aiGenerate": "Generate",

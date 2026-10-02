@@ -102,6 +102,7 @@ vi.mock('@/services/AdminService', () => ({
   adminService: { refetchRemotePost: vi.fn() },
 }))
 
+import { createPinia } from 'pinia'
 import MonyPost from '../MonyPost.vue'
 
 // Feed posts are store-owned reactive objects; the store rewrites counts in
@@ -134,6 +135,7 @@ const mountPost = (post: any) =>
     props: { post },
     shallow: true,
     global: {
+      plugins: [createPinia()],
       directives: { 'click-outside': {} },
     },
   })

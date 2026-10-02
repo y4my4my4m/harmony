@@ -115,6 +115,8 @@
       @click.stop
       @sendEmoji="handleSendEmoji"
       :closeEmojiList="closeReactionEmoji"
+      :isEmojiBlocked="isReactionEmojiBlocked"
+      :limitNotice="reactionLimitNotice"
       :emojiIconClicked="emojiIconClicked"
       :position="'left'"
       :triggerElement="(reactionTriggerElement as unknown as HTMLElement | null) || undefined"
@@ -182,6 +184,7 @@
   import { attachmentParts, mediaRoom } from '@/services/privateMedia';
   import MediaPickerPopup from '@/components/MediaPickerPopup.vue';
   import EmojiPopup from '@/components/EmojiPopup.vue';
+  import { useMessageReactionLimit } from '@/composables/useReactionLimits';
   import ThreadView from '@/components/threads/ThreadView.vue';
   import type { FilePreviewData } from '@/components/FilePreview.vue';
   import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
@@ -284,6 +287,8 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   const reactionEmojiOpen = ref(false);
   const isPopupForReaction = ref(false);
   const selectedMessageId = ref('');
+  const { isEmojiBlocked: isReactionEmojiBlocked, limitNotice: reactionLimitNotice } =
+    useMessageReactionLimit(selectedMessageId);
   const replyToMessageId = ref('');
   const messageContent = ref('');
 

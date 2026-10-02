@@ -209,6 +209,7 @@
         :post="displayPostForReactions"
         @show-reaction-tooltip="handleShowReactionTooltip"
         @hide-reaction-tooltip="handleHideReactionTooltip"
+        @reactions-changed="handleReactionsChanged"
       />
 
       <!-- Focused post (thread view): full timestamp and counts -->
@@ -540,6 +541,8 @@
         :position="'above'"
         :is-reaction="true"
         :close-emoji-list="closeEmojiPopup"
+        :is-emoji-blocked="isReactionEmojiBlocked"
+        :limit-notice="reactionLimitNotice"
         @send-emoji="handleEmojiSelected"
         @reset-emoji-icon-clicked="closeEmojiPopup"
       />
@@ -626,6 +629,10 @@ import { getEmojiUrl } from '@/utils/emojiUtils';
 import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
 import { getOriginalPost } from '@/utils/postReblog';
 import { isHeartEmoji } from '@/utils/heartReaction';
+import { ownPostReactions } from '@/utils/reactionLimits';
+import { usePostReactionLimit } from '@/composables/useReactionLimits';
+import { usePostReactionsStore } from '@/stores/postReactions';
+import { services } from '@/services';
 import { supabase } from '@/supabase';
 import type { TimelinePost, DisplayNamePart } from '@/types';
 
@@ -697,6 +704,7 @@ const activityPubStore = useActivityPubStore();
 const notificationStore = useNotificationStore();
 const themeStore = useThemeStore();
 const toast = useToast();
+const postReactionsStore = usePostReactionsStore();
 
 // Composables for clean interaction handling
 const { toggleFavorite, toggleReblog, toggleBookmark, togglePinPost } = usePostInteractions();
@@ -1272,6 +1280,13 @@ const originalPostId = computed(() => {
   return props.post.id;
 });
 
+const { isEmojiBlocked: isReactionEmojiBlocked, limitNotice: reactionLimitNotice } =
+  usePostReactionLimit(originalPostId);
+
+// The heart covers the caller's reactions: unfavouriting removes them too.
+const ownReactionCount = computed(() =>
+  ownPostReactions(postReactionsStore.getPostReactions(originalPostId.value) ?? []).length);
+
 // The post that "Reply" should address. For *pure* reblogs we hand the
 // original post to the Composer so the mention targets the original author
 // and the reply is threaded under the original note (Mastodon/Pleroma/Misskey
@@ -1444,8 +1459,11 @@ const boostLabel = computed(() => {
   return counts.is_reblogged ? t('activitypub.undoBoost') : t('activitypub.boost');
 });
 
-const favoriteLabel = computed(() =>
-  displayInteractionCounts.value.is_favorited ? t('activitypub.unfavorite') : t('activitypub.favorite'));
+const favoriteLabel = computed(() => {
+  if (!displayInteractionCounts.value.is_favorited) return t('activitypub.favorite');
+  const reactions = ownReactionCount.value;
+  return reactions > 0 ? t('activitypub.unfavoriteWithReactions', reactions) : t('activitypub.unfavorite');
+});
 
 const bookmarkLabel = computed(() =>
   displayInteractionCounts.value.is_bookmarked ? t('activitypub.removeBookmark') : t('activitypub.bookmark'));
@@ -1515,9 +1533,11 @@ const handleEmojiSelected = async (emoji: any) => {
       // Don't block the reaction if audio fails
     }
     
-    // ❤ is the favourite, not a chip: picking it toggles the heart.
+    // ❤ is the favourite, not a chip. On a heart only reactions filled it makes the
+    // favourite explicit, as add_post_emoji_reaction does; otherwise it toggles the heart.
     if (isHeartEmoji(emoji)) {
       closeEmojiPopup();
+      if (await keepImpliedFavourite()) return;
       await handleToggleFavorite();
       return;
     }
@@ -1557,6 +1577,7 @@ const handleEmojiSelected = async (emoji: any) => {
         if (postReactionsRef.value) {
           await (postReactionsRef.value as any).loadReactions?.();
         }
+        await handleReactionsChanged({ added: true });
       }
     }
   } catch (error) {
@@ -1979,6 +2000,8 @@ const handleToggleFavorite = async () => {
     is_favorited: !wasFavorited,
     favorites_count: Math.max(0, prevCount + (wasFavorited ? -1 : 1))
   }
+  // Deleting the favourite deletes the caller's reactions (trg_favourite_follows_reactions).
+  if (wasFavorited) postReactionsStore.dropOwnReactions(postId)
 
   const result = await toggleFavorite(postId)
 
@@ -1990,6 +2013,7 @@ const handleToggleFavorite = async () => {
   } else {
     favoriteOverride.value = null
   }
+  if (wasFavorited) void postReactionsStore.fetchPostReactions(postId, true)
 
   // Also update the reblog interaction ref so it stays in sync
   if (isPureReblog.value && originalPostInteractions.value) {
@@ -1999,6 +2023,51 @@ const handleToggleFavorite = async () => {
     }
   }
 }
+
+/** True when the caller's favourite was implied by reactions and is now explicit. */
+const keepImpliedFavourite = async (): Promise<boolean> => {
+  const postId = originalPostId.value;
+  if (!postId || !displayInteractionCounts.value.is_favorited) return false;
+  try {
+    const state = await services.posts.getFavouriteState(postId);
+    if (!state.favorited || !state.implied) return false;
+    await services.posts.keepFavourite(postId);
+    favoriteOverride.value = { is_favorited: true, favorites_count: state.count };
+    return true;
+  } catch (error) {
+    debug.warn('Failed to keep the favourite:', error);
+    return true;
+  }
+};
+
+/**
+ * A reaction implies the caller's favourite and the last one's removal takes an implied
+ * favourite with it (trg_reaction_implies_favourite), so the heart is read back.
+ */
+const handleReactionsChanged = async ({ added }: { added: boolean }) => {
+  const postId = originalPostId.value;
+  if (!postId) return;
+
+  const counts = displayInteractionCounts.value;
+  if (added && !counts.is_favorited) {
+    favoriteOverride.value = { is_favorited: true, favorites_count: counts.favorites_count + 1 };
+  }
+
+  try {
+    const state = await services.posts.getFavouriteState(postId);
+    favoriteOverride.value = { is_favorited: state.favorited, favorites_count: state.count };
+    activityPubStore.updatePostInteractionInAllFeeds(postId, 'favorite', state.favorited);
+  } catch (error) {
+    debug.warn('Failed to read the favourite back after a reaction:', error);
+  }
+
+  if (isPureReblog.value && originalPostInteractions.value && favoriteOverride.value) {
+    originalPostInteractions.value = {
+      ...originalPostInteractions.value,
+      is_favorited: favoriteOverride.value.is_favorited
+    }
+  }
+};
 
 // Reblog menu handlers
 const handleReblogClick = async () => {

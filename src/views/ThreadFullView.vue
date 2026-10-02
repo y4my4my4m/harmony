@@ -210,6 +210,8 @@
       @click.stop
       @sendEmoji="handleSendEmoji"
       :closeEmojiList="closeReactionEmoji"
+      :isEmojiBlocked="isReactionEmojiBlocked"
+      :limitNotice="reactionLimitNotice"
       :emojiIconClicked="emojiIconClicked"
       :position="'left'"
       :triggerElement="(reactionTriggerElement as unknown as HTMLElement | null) || undefined"
@@ -247,6 +249,7 @@ import UnifiedMessageContent from '@/components/UnifiedMessageContent.vue'
 import MessageInput from '@/components/MessageInput.vue'
 import MessageDisplay from '@/components/MessageDisplay.vue'
 import EmojiPopup from '@/components/EmojiPopup.vue'
+import { useMessageReactionLimit } from '@/composables/useReactionLimits'
 import MediaPickerPopup from '@/components/MediaPickerPopup.vue'
 import { useChatStore } from '@/stores/useChat'
 import { useReactionsStore } from '@/stores/useReactions'
@@ -306,6 +309,8 @@ const threadMessageDisplayRef = ref<InstanceType<typeof MessageDisplay> | null>(
 const reactionEmojiOpen = ref(false)
 const reactionTriggerElement = ref<HTMLElement | null>(null)
 const selectedMessageId = ref<string>('')
+const { isEmojiBlocked: isReactionEmojiBlocked, limitNotice: reactionLimitNotice } =
+  useMessageReactionLimit(selectedMessageId)
 const isPopupForReaction = ref(false)
 const emojiIconClicked = ref(false)
 

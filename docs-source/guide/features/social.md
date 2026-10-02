@@ -49,6 +49,11 @@ Posts support emoji reactions via `PostReactions`:
 - Grouped reaction counts
 - One-click to add/remove
 - ❤ is the favorite: picking it fills the heart and counts as a favorite, never as a chip
+- Any other reaction also fills the heart: one favorite per person, however many reactions.
+  Removing the last reaction empties a heart the reactions filled; a heart clicked first stays
+- Unfavoriting removes your reactions on the post as well
+- At most 10 different emoji per person on a post (instance setting), and 20 different emoji
+  on a chat message
 
 ### Standard Actions
 

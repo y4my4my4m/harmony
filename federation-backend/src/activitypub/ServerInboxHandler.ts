@@ -1281,9 +1281,10 @@ async function processReactionActivity(
     return;
   }
 
-  const { error } = await supabase
+  const { data: inserted, error } = await supabase
     .from('reactions')
-    .insert(reactionData);
+    .insert(reactionData)
+    .select('id');
 
   if (error) {
     // 23505: unique violation from a concurrent insert.
@@ -1294,7 +1295,13 @@ async function processReactionActivity(
     logger.error('Failed to add reaction:', error);
     return;
   }
-  
+
+  if (!inserted?.length) {
+    // check_message_emoji_reaction_limit drops a federated 21st emoji; nothing to relay.
+    logger.info(`Reaction on message ${message.id} dropped: the message holds 20 different emoji`);
+    return;
+  }
+
   logger.info(`Added reaction to message ${message.id}`);
 
   // Re-broadcast reaction to other remote instances

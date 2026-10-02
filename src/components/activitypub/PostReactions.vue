@@ -56,7 +56,11 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { debug } from '@/utils/debug'
 import { useProfileStore } from '@/stores/useProfile';
 import { useThemeStore } from '@/stores/useTheme';
-import { usePostReactionsStore } from '@/stores/postReactions';
+import { matchesPostReactionGroup, usePostReactionsStore } from '@/stores/postReactions';
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
+import { isReactionLimitError } from '@/utils/reactionLimits';
+import { useI18n } from 'vue-i18n';
+import { useToast } from 'vue-toastification';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
@@ -99,6 +103,8 @@ interface Props {
 interface Emits {
   (e: 'show-reaction-tooltip', event: MouseEvent, reaction: PostEmojiReaction): void;
   (e: 'hide-reaction-tooltip'): void;
+  /** A reaction of the current user was added or removed; the favourite may follow. */
+  (e: 'reactions-changed', change: { added: boolean }): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -112,6 +118,20 @@ const themeStore = useThemeStore();
 const postReactionsStore = usePostReactionsStore();
 const { triggerReaction } = useHapticSettings();
 const { recordEmojiUsage } = useFrequentEmojis();
+const { t } = useI18n();
+const toast = useToast();
+const instanceSettings = useInstanceSettingsStore();
+
+const holdsReaction = (emoji: { id?: string; native?: string; name?: string; url?: string }): boolean =>
+  (postReactionsStore.getPostReactions(props.post.id) ?? [])
+    .some((g) => g.current_user_reacted && matchesPostReactionGroup(g, emoji));
+
+/** Reports a refused toggle; true when it was the per-person limit. */
+const reportRefusal = (reason: string | undefined): boolean => {
+  if (!isReactionLimitError(reason)) return false;
+  toast.info(t('activitypub.reactionLimitReached', { count: instanceSettings.settings.maxPostReactionsPerUser }));
+  return true;
+};
 
 // Strip @domain from shortcodes for comparison: ":name@domain:" → ":name:"
 const normalizeEmojiKey = (name: string | null | undefined): string => {
@@ -249,7 +269,8 @@ const handleReactionClick = async (reaction: PostEmojiReaction) => {
     if (result.success) {
       const action = reaction.current_user_reacted ? 'Removed' : 'Added';
       debug.log(`${action === 'Added' ? '' : ''} ${action} reaction ${reaction.emoji_name} to post ${props.post.id}`);
-    } else {
+      emit('reactions-changed', { added: !reaction.current_user_reacted });
+    } else if (!reportRefusal(result.reason)) {
       debug.warn('Failed to toggle reaction:', result.reason);
     }
     
@@ -286,6 +307,7 @@ const handleEmojiSelected = async (emoji: any): Promise<boolean> => {
   }
   
   try {
+    const held = holdsReaction(emoji);
     const result = await postReactionsStore.toggleReaction(
       props.post.id,
       emoji,
@@ -293,10 +315,11 @@ const handleEmojiSelected = async (emoji: any): Promise<boolean> => {
     );
     
     if (result.success) {
-      debug.log(`Added reaction ${emoji.name} to post ${props.post.id}`);
+      debug.log(`${held ? 'Removed' : 'Added'} reaction ${emoji.name} on post ${props.post.id}`);
+      emit('reactions-changed', { added: !held });
       return true;
     } else {
-      debug.warn('Failed to add reaction:', result.reason);
+      if (!reportRefusal(result.reason)) debug.warn('Failed to add reaction:', result.reason);
       return false;
     }
     

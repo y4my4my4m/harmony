@@ -338,3 +338,23 @@ describe('AutoMod rejections', () => {
     expect(res.status).toBe(201)
   })
 })
+
+describe('PUT /messages/:id/reactions/:emoji', () => {
+  const MESSAGE_ID = '00000000-0000-0000-0000-0000000000a1'
+
+  it('answers a twenty-first emoji on a message with Discord\'s 30010', async () => {
+    const install = OPEN_CHANNEL_FIXTURES.bot_server_permissions.data as Record<string, unknown>
+    routeTables({
+      ...OPEN_CHANNEL_FIXTURES,
+      bot_server_permissions: { data: { ...install, add_reactions: true }, error: null },
+      messages: { data: { channel_id: 'c1' }, error: null },
+      channels: { data: { server_id: 's1' }, error: null },
+      reactions: { data: null, error: { code: '23514', message: 'REACTION_LIMIT: 20 different emoji per message' } },
+    })
+
+    const res = await supertest(makeApp()).put(`/api/v1/messages/${MESSAGE_ID}/reactions/%F0%9F%9A%80`).send({})
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ error: 'Maximum number of reactions reached (20)', code: 30010 })
+  })
+})

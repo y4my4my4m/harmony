@@ -18,6 +18,7 @@ import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.j
 import { pgrstOrValue } from '../utils/postgrestFilter.js';
 import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
 import { isFavouriteLike, isHeartReaction, storeFavourite } from '../utils/heartReaction.js';
+import { noteDocumentSoftware } from './instanceSoftware.js';
 import { fetchActorById, fetchAuthoritativeDocument, readApDocument, sameOrigin, type FetchedDocument } from '../utils/apOrigin.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { flagComment, flagObjectUris, parseLocalObjectUri } from './flag.js';
@@ -177,6 +178,7 @@ export class ActivityProcessor {
       });
       const fetched = await readApDocument(response, url);
       if (!fetched) logger.warn(`AP fetch for ${url} returned ${response.status} ${response.headers.get('content-type') ?? ''}`);
+      else noteDocumentSoftware(fetched.finalUrl, fetched.doc);
       return fetched;
     } catch (error) {
       logger.warn(`AP fetch error for ${url}:`, error);
@@ -1179,6 +1181,7 @@ export class ActivityProcessor {
         return;
       }
 
+      noteDocumentSoftware(actorUrl, object);
       const profileData = actorToProfile(object);
 
       const updateData: any = {
@@ -1564,7 +1567,10 @@ export class ActivityProcessor {
       // Store the AP activity ID for traceability
       reactionData.metadata = { ...reactionData.metadata, ap_id: activity.id };
 
-      const { error: reactionError } = await supabase.from('reactions').insert(reactionData);
+      const { data: inserted, error: reactionError } = await supabase
+        .from('reactions')
+        .insert(reactionData)
+        .select('id');
 
       if (reactionError) {
         // 23505: unique violation from a concurrent insert.
@@ -1573,6 +1579,9 @@ export class ActivityProcessor {
         } else {
           logger.error('Failed to insert message reaction:', reactionError);
         }
+      } else if (!inserted?.length) {
+        // check_message_emoji_reaction_limit drops a federated 21st emoji.
+        logger.info(`Reaction on message ${message.id} dropped: the message holds 20 different emoji`);
       } else {
         logger.info(`Added reaction to message ${message.id}: ${emoji || ''}`);
       }
@@ -1629,17 +1638,24 @@ export class ActivityProcessor {
         return;
       }
       
-      const { error: interactionError } = await supabase.from('post_interactions').insert({
-        post_id: post.id,
-        user_id: user.id,
-        interaction_type: 'emoji_reaction',
-        emoji_id: emojiId,
-        custom_emoji_content: normalizedEmoji,
-        is_local: false,
-      });
+      // The insert implies the actor's favourite (trg_reaction_implies_favourite).
+      const { data: inserted, error: interactionError } = await supabase
+        .from('post_interactions')
+        .insert({
+          post_id: post.id,
+          user_id: user.id,
+          interaction_type: 'emoji_reaction',
+          emoji_id: emojiId,
+          custom_emoji_content: normalizedEmoji,
+          is_local: false,
+        })
+        .select('id');
 
       if (interactionError) {
         logger.error('Failed to insert reaction:', interactionError);
+      } else if (!inserted?.length) {
+        // check_emoji_reaction_limit drops a remote reaction past the per-person limit.
+        logger.info(`Reaction on post ${post.id} from ${actorUrl} dropped: over the per-person limit`);
       } else {
         logger.info(`Added reaction to post ${post.id}: ${normalizedEmoji}${emojiUrl ? ` with URL: ${emojiUrl}` : ' (no URL)'}`);
       }
@@ -2001,9 +2017,34 @@ export class ActivityProcessor {
       return;
     }
 
-    const doomed = (rows ?? []).filter(matchesUndo).map((row: any) => row.id);
-    if (doomed.length === 0) {
+    const matched = (rows ?? []).filter(matchesUndo);
+    if (matched.length === 0) {
       logger.info(`No matching reaction to undo on ${objectUrl}`);
+      return;
+    }
+
+    // Undoing the favourite of an actor who still holds reactions leaves it implied by
+    // them: deleting it would delete the reactions too (trg_favourite_follows_reactions),
+    // and Pleroma and Akkoma keep an EmojiReact past an Undo of the Like.
+    const keepsReactions = (rows ?? []).some(
+      (row: any) => row.interaction_type === 'emoji_reaction' && !matched.includes(row),
+    );
+    const favourite = matched.find((row: any) => row.interaction_type === 'favorite');
+    if (favourite && keepsReactions) {
+      const { error: impliedError } = await supabase
+        .from('post_interactions')
+        .update({ implied_by_reaction: true })
+        .eq('id', favourite.id);
+      if (impliedError) {
+        logger.error(`Failed to leave the favourite implied:`, impliedError);
+      }
+    }
+
+    const doomed = matched
+      .filter((row: any) => !(keepsReactions && row === favourite))
+      .map((row: any) => row.id);
+    if (doomed.length === 0) {
+      logger.info(`Undid the favourite on ${objectUrl}; the actor's reactions keep it implied`);
       return;
     }
 

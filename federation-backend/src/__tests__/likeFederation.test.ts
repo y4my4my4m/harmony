@@ -23,10 +23,8 @@ vi.mock('../utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-const sendToInbox = vi.fn().mockResolvedValue(undefined);
-const broadcastToFollowers = vi.fn().mockResolvedValue(undefined);
 vi.mock('../activitypub/DeliveryQueue.js', () => ({
-  DeliveryQueue: { sendToInbox, broadcastToFollowers },
+  DeliveryQueue: { sendToInbox: vi.fn(), broadcastToFollowers: vi.fn() },
 }));
 
 type Row = Record<string, any>;
@@ -98,9 +96,6 @@ vi.mock('../config/supabase.js', () => ({
 
 const { ActivityProcessor } = await import('../activitypub/ActivityProcessor.js');
 const { isHeartReaction, isFavouriteLike } = await import('../utils/heartReaction.js');
-const { buildPostInteractionLike } = await import('../activitypub/postInteractionLike.js');
-const { createUndoLikeActivity } = await import('../listeners/FederationHandlers.js');
-const { handleReactionJob } = await import('../queue/handlers/reactionHandler.js');
 
 const AP = ActivityProcessor as any;
 vi.spyOn(AP, 'ensureRemoteUser').mockResolvedValue({});
@@ -121,8 +116,6 @@ const undo = (inner: any) => AP.processUndo({ type: 'Undo', actor: inner.actor, 
 
 beforeEach(() => {
   nextId = 0;
-  sendToInbox.mockClear();
-  broadcastToFollowers.mockClear();
   tables = {
     profiles: [
       { id: 'bob', federated_id: MASTODON_BOB, is_local: false },
@@ -206,6 +199,17 @@ describe('inbound Like', () => {
     expect(tables.post_interactions[0].custom_emoji_content).toBe(':blobcat:');
   });
 
+  it('makes an implied favourite explicit on a plain Like', async () => {
+    tables.post_interactions.push({
+      id: 'implied-1', user_id: 'carol', post_id: POST_ID, interaction_type: 'favorite', implied_by_reaction: true,
+    });
+
+    await receive({ type: 'Like', actor: AKKOMA_CAROL, object: POST_AP_ID });
+
+    expect(rows()).toEqual(['carol:favorite:-']);
+    expect(tables.post_interactions[0].implied_by_reaction).toBe(false);
+  });
+
   it('stores an EmojiReact as a reaction chip, separate from the favourite', async () => {
     await receive({ type: 'Like', actor: AKKOMA_CAROL, object: POST_AP_ID });
     await receive({ type: 'EmojiReact', actor: AKKOMA_CAROL, object: POST_AP_ID, content: '👀' });
@@ -233,10 +237,18 @@ describe('inbound Undo', () => {
     expect(rows()).toHaveLength(4);
   });
 
-  it('removes the favourite on a Misskey Undo of its ❤ Like, leaving its custom reaction', async () => {
+  it('leaves the favourite implied on an Undo of the ❤ Like while the actor holds a reaction', async () => {
     await undo({ type: 'Like', actor: MISSKEY_ALICE, object: POST_AP_ID, content: '❤', _misskey_reaction: '❤' });
 
-    expect(rows()).toEqual(['bob:favorite:-', 'carol:emoji_reaction:👀', 'carol:favorite:-', 'alice:emoji_reaction:emoji-blobcat']);
+    expect(rows()).toEqual(['bob:favorite:-', 'alice:favorite:-', 'carol:emoji_reaction:👀', 'carol:favorite:-', 'alice:emoji_reaction:emoji-blobcat']);
+    expect(tables.post_interactions.find((r) => r.user_id === 'alice' && r.interaction_type === 'favorite')?.implied_by_reaction).toBe(true);
+  });
+
+  it('removes a favourite on an Undo Like when the actor holds no reaction', async () => {
+    await undo({ type: 'EmojiReact', actor: AKKOMA_CAROL, object: POST_AP_ID, content: '👀' });
+    await undo({ type: 'Like', actor: AKKOMA_CAROL, object: POST_AP_ID });
+
+    expect(rows()).not.toContain('carol:favorite:-');
   });
 
   it('removes only the custom emoji on an Undo of a custom emoji Like', async () => {
@@ -262,99 +274,5 @@ describe('inbound Undo', () => {
     });
 
     expect(rows()).toHaveLength(5);
-  });
-});
-
-describe('outbound Like', () => {
-  const me = { username: 'me' };
-  const favourite = { interaction_id: 'int-1', interaction_type: 'favorite' };
-
-  it('sends a favourite as a bare Like, which Misskey maps to its like', async () => {
-    const like = await buildPostInteractionLike(me, POST_AP_ID, favourite);
-
-    expect(like).toMatchObject({ type: 'Like', id: 'https://harmony.test/users/me/likes/int-1', object: POST_AP_ID });
-    expect(like).not.toHaveProperty('content');
-    expect(like).not.toHaveProperty('_misskey_reaction');
-    expect(like).not.toHaveProperty('tag');
-  });
-
-  it('sends a unicode reaction in content and _misskey_reaction', async () => {
-    const like = await buildPostInteractionLike(me, POST_AP_ID, {
-      interaction_id: 'int-2', interaction_type: 'emoji_reaction', custom_emoji_content: '🎉',
-    });
-
-    expect(like).toMatchObject({ type: 'Like', content: '🎉', _misskey_reaction: '🎉' });
-    expect(like).not.toHaveProperty('tag');
-  });
-
-  it('sends a custom emoji reaction with an Emoji tag and an unqualified shortcode', async () => {
-    const like = await buildPostInteractionLike(me, POST_AP_ID, {
-      interaction_id: 'int-3', interaction_type: 'emoji_reaction', emoji_id: 'emoji-blobcat', custom_emoji_content: ':blobcat:',
-    }, 'mastodon.test');
-
-    expect(like._misskey_reaction).toBe(':blobcat:');
-    expect(like.tag).toEqual([
-      expect.objectContaining({ type: 'Emoji', name: ':blobcat:', icon: expect.objectContaining({ url: BLOBCAT_URL }) }),
-    ]);
-  });
-
-  it('sends a heart reaction row queued before the fold as a bare Like', async () => {
-    const like = await buildPostInteractionLike(me, POST_AP_ID, {
-      interaction_id: 'int-4', interaction_type: 'emoji_reaction', custom_emoji_content: '❤️',
-    });
-
-    expect(like).not.toHaveProperty('_misskey_reaction');
-  });
-
-  it('undoes a Like by embedding it under the same id', async () => {
-    const like = await buildPostInteractionLike(me, POST_AP_ID, {
-      interaction_id: 'int-2', interaction_type: 'emoji_reaction', custom_emoji_content: '🎉',
-    }, undefined, ['https://misskey.test/users/author']);
-    const undoActivity = createUndoLikeActivity(me, POST_AP_ID, like);
-
-    expect(undoActivity.type).toBe('Undo');
-    expect(undoActivity.id).toBe('https://harmony.test/users/me/likes/int-2/undo');
-    expect(undoActivity.object).toEqual({
-      id: 'https://harmony.test/users/me/likes/int-2',
-      type: 'Like',
-      actor: 'https://harmony.test/users/me',
-      object: POST_AP_ID,
-      content: '🎉',
-      _misskey_reaction: '🎉',
-    });
-  });
-});
-
-describe('federate-reaction job', () => {
-  const job = (fields: Record<string, any>) => ({
-    post_id: 'remote-post', user_id: 'me', interaction_id: 'int-9', ...fields,
-  }) as any;
-
-  it('delivers a favourite to the remote author as a bare Like', async () => {
-    await handleReactionJob(job({ type: 'create', interaction_type: 'favorite' }));
-
-    expect(sendToInbox).toHaveBeenCalledTimes(1);
-    const [inbox, activity] = sendToInbox.mock.calls[0];
-    expect(inbox).toBe('https://misskey.test/inbox');
-    expect(activity).toMatchObject({ type: 'Like', id: 'https://harmony.test/users/me/likes/int-9', to: ['https://misskey.test/users/author'] });
-    expect(activity).not.toHaveProperty('_misskey_reaction');
-  });
-
-  it('undoes a reaction with the Like it sent', async () => {
-    await handleReactionJob(job({ type: 'delete', interaction_type: 'emoji_reaction', custom_emoji_content: '🎉' }));
-
-    const [, activity] = sendToInbox.mock.calls[0];
-    expect(activity.type).toBe('Undo');
-    expect(activity.object).toMatchObject({ id: 'https://harmony.test/users/me/likes/int-9', _misskey_reaction: '🎉' });
-  });
-
-  it('sends nothing for a reblog row: the boost post carries the Announce', async () => {
-    tables.post_interactions.push({ id: 'int-9', interaction_type: 'reblog', federation_status: 'queued' });
-
-    await handleReactionJob(job({ type: 'create', interaction_type: 'reblog' }));
-
-    expect(sendToInbox).not.toHaveBeenCalled();
-    expect(broadcastToFollowers).not.toHaveBeenCalled();
-    expect(tables.post_interactions[0].federation_status).toBe('skipped');
   });
 });

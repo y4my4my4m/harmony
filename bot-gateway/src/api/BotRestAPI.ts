@@ -640,6 +640,10 @@ export class BotRestAPI {
         .insert(insertData)
       
       if (error) {
+        // check_message_emoji_reaction_limit: 20 different emoji per message, as Discord's 30010.
+        if (error.code === '23514' && error.message?.startsWith('REACTION_LIMIT')) {
+          return res.status(400).json({ error: 'Maximum number of reactions reached (20)', code: 30010 })
+        }
         console.error('Reaction insert error:', error);
         return res.status(500).json({ error: error.message })
       }

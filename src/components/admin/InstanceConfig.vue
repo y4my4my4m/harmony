@@ -207,6 +207,20 @@
         <input v-model.number="config.federation.retryAttempts" type="number" class="cyber-input" />
       </div>
       <div class="setting-group">
+        <label>Max reactions per person on a post</label>
+        <input
+          v-model.number="config.federation.maxPostReactionsPerUser"
+          type="number"
+          class="cyber-input"
+          min="1"
+          max="100"
+          data-testid="max-post-reactions-input"
+        />
+        <span class="setting-hint">
+          Different emoji one person can react with on a post (1-100). Default: 10. Reactions arriving from other servers past the limit are dropped. Chat messages hold at most 20 different emoji.
+        </span>
+      </div>
+      <div class="setting-group">
         <label>Max custom emojis per server</label>
         <input v-model.number="config.federation.maxCustomEmojisPerServer" type="number" class="cyber-input" min="0" />
         <span class="setting-hint">Maximum custom emojis allowed per server. 0 = unlimited.</span>
@@ -689,6 +703,7 @@ const config = ref({
     maxCustomEmojisPerServer: 0,
     customEmojiTransformQuality: 80,
     allowCustomEmojisInDisplayNames: true,
+    maxPostReactionsPerUser: 10,
     enableOutbound: true,
     enableInbound: true
   },
@@ -813,6 +828,10 @@ const saveConfig = async () => {
         Math.max(1, Math.round(Number(config.value.federation.customEmojiTransformQuality) || 100))
       ),
       allow_custom_emojis_in_display_names: config.value.federation.allowCustomEmojisInDisplayNames,
+      max_post_reactions_per_user: Math.min(
+        100,
+        Math.max(1, Math.round(Number(config.value.federation.maxPostReactionsPerUser) || 10))
+      ),
     }, userId)
 
     await adminService.updateWebRTCSettings({

@@ -9,7 +9,7 @@ import { getSupabaseClient } from '../config/supabase.js';
 import config from '../config/index.js';
 import { DeliveryQueue } from '../activitypub/DeliveryQueue.js';
 import { createLikeActivity } from '../activitypub/converters/toActivityPub.js';
-import { buildPostInteractionLike, isLikeInteraction } from '../activitypub/postInteractionLike.js';
+import { federatePostEngagement, isLikeInteraction } from '../activitypub/postEngagement.js';
 import { resolveOutboundEmoji } from '../utils/emojiResolvers.js';
 import { logger } from '../utils/logger.js';
 import { convertContentToHTML, extractActivityPubTags, extractAttachments } from '../utils/contentUtils.js';
@@ -405,69 +405,23 @@ export async function startDatabaseListener(): Promise<void> {
   }, 2000);
 }
 
+/**
+ * Legacy CDC path of federate-reaction, with the same encoding. A row the backfill of
+ * 20261007200001 wrote carries federation_status skipped and federates nothing.
+ */
 async function handleNewReaction(interaction: any): Promise<void> {
   try {
-    const supabase = getSupabaseClient();
-
-    const { data: post } = await supabase
-      .from('posts')
-      .select('id, author_id, ap_id')
-      .eq('id', interaction.post_id)
-      .single();
-
-    if (!post || !post.ap_id) {
-      // NOTE: for local posts a trigger sets ap_id after the INSERT, and this
-      // listener fires before that trigger, so ap_id is null here. Reaction
-      // federation then comes from the frontend's FederationActivityService,
-      // which inserts into ap_activities.
-      logger.debug('Reaction on post without ap_id (likely handled via ap_activities table), skipping realtime handler');
-      return;
-    }
-
-    const { data: user } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', interaction.user_id)
-      .single();
-
-    if (!user || !user.is_local) {
-      logger.debug('Reaction from remote user, skipping');
-      return;
-    }
-
-    const { data: postAuthor } = await supabase
-      .from('profiles')
-      .select('inbox_url, is_local, federated_id, username, domain')
-      .eq('id', post.author_id)
-      .single();
-
-    if (!postAuthor) {
-      logger.debug('Post author not found, skipping federation');
-      return;
-    }
-
-    const targetDomain = postAuthor.is_local ? undefined : (postAuthor.domain || undefined);
-    const ref = {
+    if (!interaction?.id || interaction.federation_status === 'skipped') return;
+    await federatePostEngagement({
+      type: 'create',
       interaction_id: interaction.id,
       interaction_type: interaction.interaction_type,
+      post_id: interaction.post_id,
+      user_id: interaction.user_id,
       emoji_id: interaction.emoji_id,
       custom_emoji_content: interaction.custom_emoji_content,
-    };
-
-    logger.info(`Federating ${interaction.interaction_type} on post ${post.id}`);
-
-    if (!postAuthor.is_local && postAuthor.inbox_url) {
-      const authorUrl = postAuthor.federated_id
-        || `https://${postAuthor.domain}/users/${postAuthor.username}`;
-      const activity = await buildPostInteractionLike(user, post.ap_id, ref, targetDomain, [authorUrl]);
-      await DeliveryQueue.sendToInbox(postAuthor.inbox_url, activity, user.id);
-      logger.info(`Reaction sent to post author ${postAuthor.inbox_url}`);
-    }
-
-    // Broadcast so every instance holding a copy of the post shows the reaction.
-    const broadcastActivity = await buildPostInteractionLike(user, post.ap_id, ref, targetDomain);
-    await DeliveryQueue.broadcastToFollowers(post.author_id, broadcastActivity);
-    logger.info(`Reaction broadcast to post author's remote followers`);
+      implied: interaction.implied_by_reaction,
+    });
   } catch (error) {
     logger.error('Failed to handle new reaction:', error);
   }
@@ -623,73 +577,23 @@ async function handleUnfollow(deletedFollow: any): Promise<void> {
   }
 }
 
-/** Sends Undo Like for removed reactions and favorites. */
+/** Legacy CDC path of a federate-reaction delete job. */
 async function handleInteractionRemoval(deletedInteraction: any): Promise<void> {
   try {
-    if (!deletedInteraction) {
-      logger.debug('No interaction data in deletion event');
+    if (!deletedInteraction?.id || !isLikeInteraction(deletedInteraction.interaction_type)) {
+      // Reblog removals federate through post deletion as Undo Announce.
       return;
     }
-
-    const supabase = getSupabaseClient();
-
-    const { data: user } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', deletedInteraction.user_id)
-      .single();
-
-    if (!user || !user.is_local) {
-      logger.debug('Interaction removal from remote user, skipping');
-      return;
-    }
-
-    const { data: post } = await supabase
-      .from('posts')
-      .select('id, ap_id, author_id')
-      .eq('id', deletedInteraction.post_id)
-      .single();
-
-    if (!post) {
-      logger.debug('Post not found for interaction removal');
-      return;
-    }
-
-    if (!post.ap_id) {
-      // ap_id may be unset for local posts; see handleNewReaction.
-      logger.debug('Interaction removal on post without ap_id, skipping realtime handler');
-      return;
-    }
-
-    const { data: postAuthor } = await supabase
-      .from('profiles')
-      .select('inbox_url, is_local, domain')
-      .eq('id', post.author_id)
-      .single();
-
-    if (!postAuthor || postAuthor.is_local) {
-      logger.debug('Post author is local, no federation needed for interaction removal');
-      return;
-    }
-
-    if (isLikeInteraction(deletedInteraction.interaction_type)) {
-      logger.info(`Federating reaction removal on post ${post.id}`);
-      
-      const { createUndoLikeActivity } = await import('./FederationHandlers.js');
-      const like = await buildPostInteractionLike(user, post.ap_id, {
-        interaction_id: deletedInteraction.id,
-        interaction_type: deletedInteraction.interaction_type,
-        emoji_id: deletedInteraction.emoji_id,
-        custom_emoji_content: deletedInteraction.custom_emoji_content,
-      }, postAuthor.domain || undefined);
-      const activity = createUndoLikeActivity(user, post.ap_id, like);
-
-      if (postAuthor.inbox_url) {
-        await DeliveryQueue.sendToInbox(postAuthor.inbox_url, activity, user.id);
-        logger.info(`Undo Like queued for delivery to ${postAuthor.inbox_url}`);
-      }
-    }
-    // NOTE: reblog removals federate through post deletion as Undo Announce.
+    await federatePostEngagement({
+      type: 'delete',
+      interaction_id: deletedInteraction.id,
+      interaction_type: deletedInteraction.interaction_type,
+      post_id: deletedInteraction.post_id,
+      user_id: deletedInteraction.user_id,
+      emoji_id: deletedInteraction.emoji_id,
+      custom_emoji_content: deletedInteraction.custom_emoji_content,
+      implied: deletedInteraction.implied_by_reaction,
+    });
   } catch (error) {
     logger.error('Failed to handle interaction removal:', error);
   }

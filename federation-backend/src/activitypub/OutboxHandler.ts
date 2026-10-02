@@ -346,7 +346,8 @@ function render404Page(): string {
 }
 
 /**
- * Likes collection for a post
+ * Likes collection for a post: one Like per person holding a favourite, emoji reactions
+ * implying one included. Mastodon reads totalItems as the favourites count.
  * GET /posts/:postId/likes
  */
 router.get(
@@ -374,7 +375,7 @@ router.get(
       .from('post_interactions')
       .select('id', { count: 'exact', head: true })
       .eq('post_id', postId)
-      .in('interaction_type', ['emoji_reaction', 'favorite']);
+      .eq('interaction_type', 'favorite');
 
     const page = req.query.page as string | undefined;
     const collectionUrl = `${postUrl}/likes`;
@@ -397,12 +398,11 @@ router.get(
     const { data: interactions } = await supabase
       .from('post_interactions')
       .select(`
-        id, interaction_type, created_at, custom_emoji_content,
-        profile:profiles!post_interactions_user_id_fkey ( id, username, domain, is_local, federated_id ),
-        emoji:emojis ( name, url )
+        id, created_at,
+        profile:profiles!post_interactions_user_id_fkey ( id, username, domain, is_local, federated_id )
       `)
       .eq('post_id', postId)
-      .in('interaction_type', ['emoji_reaction', 'favorite'])
+      .eq('interaction_type', 'favorite')
       .order('created_at', { ascending: true })
       .range(offset, offset + limit - 1);
 
@@ -412,18 +412,11 @@ router.get(
         ? `https://${config.INSTANCE_DOMAIN}/users/${profile.username}`
         : profile?.federated_id || `https://${profile?.domain}/users/${profile?.username}`;
 
-      const item: any = {
+      return {
         type: 'Like',
         actor: actorUrl,
         object: post.ap_id || postUrl,
       };
-
-      if (i.emoji?.name) {
-        item.content = i.emoji.url ? `:${i.emoji.name}:` : i.emoji.name;
-      } else if (i.custom_emoji_content) {
-        item.content = i.custom_emoji_content;
-      }
-      return item;
     });
 
     const totalItems = count || 0;

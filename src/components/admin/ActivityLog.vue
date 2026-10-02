@@ -91,6 +91,7 @@ const CONFIG_KEY_LABELS: Record<string, string> = {
   max_server_size: 'Max server size',
   max_message_length: 'Max message length',
   max_custom_emojis_per_server: 'Max custom emojis per server',
+  max_post_reactions_per_user: 'Max reactions per person on a post',
   custom_emoji_transform_quality: 'Custom emoji image quality',
   allow_file_uploads: 'Allow file uploads',
   enable_voice_channels: 'Enable voice channels',

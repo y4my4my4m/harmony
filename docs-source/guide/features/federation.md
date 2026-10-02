@@ -164,59 +164,34 @@ async function handleCreateActivity(activity: CreateActivity) {
 
 ## Reaction Federation
 
-### Misskey Reactions
+A post holds one favourite per person. An emoji reaction implies the reactor's favourite;
+removing the last reaction removes a favourite the reaction implied, and unfavouriting
+removes the person's reactions. What a delivery carries depends on the receiving
+software (`federation-backend/src/activitypub/postEngagement.ts`). It is read from
+`federated_instances.software`: a value an admin set is used as is; otherwise the
+instance's NodeInfo, read again weekly, and failing that the actor and object documents
+fetched from it (Misskey's `isCat` and `_misskey_*` terms, Pleroma and Akkoma's litepub
+context, GoToSocial's namespace):
 
-```typescript
-// Handle Misskey-style reactions
-async function handleMisskeyReaction(activity: LikeActivity) {
-  const reaction = activity._misskey_reaction || activity.content || '👍'
-  
-  await supabase.from('message_reactions').insert({
-    message_id: extractMessageId(activity.object),
-    user_uri: activity.actor,
-    emoji: reaction,
-    federated: true
-  })
-  
-  // Notify local users of the reaction
-  await sendRealtimeUpdate('reaction_added', {
-    messageId: extractMessageId(activity.object),
-    reaction: {
-      emoji: reaction,
-      user_uri: activity.actor
-    }
-  })
-}
-`
+| Receiving software | Favourite | Reaction | Removing one of several reactions |
+|---|---|---|---|
+| Mastodon, glitch-soc, GoToSocial | `Like` | nothing | nothing |
+| Misskey and forks (Sharkey, Firefish, Iceshrimp, CherryPick, ...) | bare `Like` | `Like` with `_misskey_reaction`, the newest held reaction | `Like` with the next reaction |
+| Pleroma, Akkoma, Harmony, anything else | `Like` | `EmojiReact` | `Undo` of that `EmojiReact` |
 
-### Standard Reactions
+Mastodon and GoToSocial drop the favourite on any `Undo Like`, and Misskey deletes the
+actor's single reaction on any `Undo`, so a reaction's removal never reaches them as an
+`Undo`. A Misskey delivery is built when each attempt is sent, retries included, from the
+person's reactions at that moment; a retry with nothing left to send is cancelled. Unfavouriting sends `Undo` of the favourite's `Like`, and, to Pleroma-family
+servers, an `Undo` of each `EmojiReact`.
 
-```typescript
-// Send reaction to federated servers
-async function federateReaction(messageId: string, emoji: string, userId: string) {
-  const activity: LikeActivity = {
-    "@context": [
-      "https://www.w3.org/ns/activitystreams",
-      {
-        "toot": "http://joinmastodon.org/ns#",
-        "_misskey_reaction": "https://misskey-hub.net/ns#_misskey_reaction"
-      }
-    ],
-    type: "Like",
-    id: `${BASE_URL}/activities/${generateId()}`,
-    actor: `${BASE_URL}/users/${userId}`,
-    object: `${BASE_URL}/messages/${messageId}`,
-    content: emoji,
-    _misskey_reaction: emoji
-  }
-  
-  // Send to servers that might be interested
-  const interestedServers = await getInterestedServers(messageId)
-  for (const server of interestedServers) {
-    await sendActivity(server.inbox_url, activity)
-  }
-}
-`
+Inbound, a `Like` without an emoji (or with ❤) is the favourite; a `Like` with
+`_misskey_reaction` or `content`, and an `EmojiReact`, are reactions, which imply the
+remote actor's favourite.
+
+Limits: a person holds at most `max_post_reactions_per_user` (admin setting, default 10)
+different emoji on a post, and a chat message holds at most 20 different emoji. Remote
+reactions past either limit are dropped.
 
 ## Server Discovery
 

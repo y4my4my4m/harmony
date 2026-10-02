@@ -119,6 +119,10 @@ const POST_FOLLOWERS = 'fed00000-0000-0000-0000-000000000062'
 const POST_DIRECT = 'fed00000-0000-0000-0000-000000000063'
 const DM_MESSAGE = 'fed00000-0000-0000-0000-000000000064'
 
+// A local post the peer reacts to, and a peer note fx_bob reacts to.
+const REACTED_POST = 'fed00000-0000-0000-0000-000000000070'
+const PEER_NOTE_POST = 'fed00000-0000-0000-0000-000000000071'
+
 // REPORTING
 
 let failures = 0
@@ -2037,11 +2041,198 @@ async function caseOutboundFlag(db: SupabaseClient, peer: Peer, localUrl: string
   eq(peer.captured.length - before, 1, 'a forwarded report is not sent twice')
 }
 
+// REACTIONS
+//
+// Inbound: the peer's EmojiReact is a reaction implying its actor's favourite; Undo of
+// one reaction keeps that favourite while another remains; reactions past the
+// per-person limit are dropped while the inbox answers 202.
+//
+// Outbound: fx_bob reacts to a peer note. The job handler encodes for the software
+// federated_instances names for the peer's host (no NodeInfo: the peer serves none).
+
+function emojiReact(peer: Peer, objectUrl: string, content: string) {
+  return {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: `${peer.actorUrl}#react-${crypto.randomUUID()}`,
+    type: 'EmojiReact',
+    actor: peer.actorUrl,
+    object: objectUrl,
+    content,
+  }
+}
+
+async function deliverAsPeer(peer: Peer, localUrl: string, activity: unknown): Promise<number> {
+  const body = JSON.stringify(activity)
+  const target = `${localUrl}/inbox`
+  const res = await post(target, signedHeaders(target, body, peer.key.privateKey, `${peer.actorUrl}#main-key`), body)
+  return res.status
+}
+
+async function engagementRows(db: SupabaseClient, postId: string, userId: string) {
+  const { data } = await db
+    .from('post_interactions')
+    .select('id, interaction_type, custom_emoji_content, implied_by_reaction, emoji_id')
+    .eq('post_id', postId)
+    .eq('user_id', userId)
+    .in('interaction_type', ['favorite', 'emoji_reaction'])
+    .order('created_at')
+  return (data ?? []) as Array<{ id: string; interaction_type: string; custom_emoji_content: string | null; implied_by_reaction: boolean; emoji_id: string | null }>
+}
+
+async function favouritesCount(db: SupabaseClient, postId: string): Promise<number> {
+  const { data } = await db.from('posts').select('favorites_count').eq('id', postId).single()
+  return data?.favorites_count ?? -1
+}
+
+async function caseInboundReactions(db: SupabaseClient, peer: Peer, localUrl: string) {
+  console.log('\ninbound EmojiReact -> reaction implying the favourite; limit')
+
+  const objectUrl = `https://${INSTANCE_DOMAIN}/posts/${REACTED_POST}`
+  await must('seed reacted post', db.from('posts').insert({
+    id: REACTED_POST,
+    author_id: ALICE,
+    content: [{ type: 'text', text: 'post the peer reacts to' }],
+    visibility: 'public',
+    is_local: true,
+  }))
+
+  const party = emojiReact(peer, objectUrl, '🎉')
+  const eyes = emojiReact(peer, objectUrl, '👀')
+  eq(await deliverAsPeer(peer, localUrl, party), 202, 'the EmojiReact is accepted (202)')
+  eq(await deliverAsPeer(peer, localUrl, eyes), 202, 'a second EmojiReact is accepted (202)')
+
+  let rows = await engagementRows(db, REACTED_POST, REMOTE)
+  eq(rows.map((r) => `${r.interaction_type}:${r.custom_emoji_content ?? '-'}:${r.implied_by_reaction}`).sort().join(' '),
+    'emoji_reaction:🎉:false emoji_reaction:👀:false favorite:-:true',
+    'two reactions and one implied favourite')
+  eq(await favouritesCount(db, REACTED_POST), 1, 'the remote reactor counts as one favourite')
+
+  eq(await deliverAsPeer(peer, localUrl, { type: 'Undo', id: `${party.id}/undo`, actor: peer.actorUrl, object: party }), 202,
+    'the Undo of one reaction is accepted (202)')
+  rows = await engagementRows(db, REACTED_POST, REMOTE)
+  eq(rows.map((r) => `${r.interaction_type}:${r.custom_emoji_content ?? '-'}`).sort().join(' '),
+    'emoji_reaction:👀 favorite:-', 'undoing one reaction keeps the favourite the other implies')
+
+  await deliverAsPeer(peer, localUrl, { type: 'Undo', id: `${eyes.id}/undo`, actor: peer.actorUrl, object: eyes })
+  eq((await engagementRows(db, REACTED_POST, REMOTE)).length, 0, 'the last reaction\'s Undo takes the implied favourite')
+  eq(await favouritesCount(db, REACTED_POST), 0, 'and the count')
+
+  await must('lower the limit', db.from('instance_config')
+    .upsert({ config_key: 'max_post_reactions_per_user', config_value: 2 }, { onConflict: 'config_key' }))
+  try {
+    const statuses: number[] = []
+    for (const emoji of ['🎉', '👀', '🔥']) {
+      statuses.push(await deliverAsPeer(peer, localUrl, emojiReact(peer, objectUrl, emoji)))
+    }
+    eq(statuses.join(','), '202,202,202', 'reactions past the limit are still answered 202')
+    rows = await engagementRows(db, REACTED_POST, REMOTE)
+    eq(rows.filter((r) => r.interaction_type === 'emoji_reaction').map((r) => r.custom_emoji_content).join(' '),
+      '🎉 👀', 'the reaction past the limit is dropped')
+  } finally {
+    await must('restore the limit', db.from('instance_config')
+      .upsert({ config_key: 'max_post_reactions_per_user', config_value: 10 }, { onConflict: 'config_key' }))
+  }
+}
+
+async function caseOutboundReactions(db: SupabaseClient, peer: Peer, backend: Backend) {
+  console.log('\noutbound reactions -> encoded per receiving software')
+
+  const peerHost = new URL(peer.base).host
+  const noteUrl = `${peer.base}/notes/reacted`
+  await must('seed peer note', db.from('posts').insert({
+    id: PEER_NOTE_POST,
+    author_id: REMOTE,
+    content: [{ type: 'text', text: 'peer note' }],
+    visibility: 'public',
+    is_local: false,
+    ap_id: noteUrl,
+  }))
+
+  const setSoftware = async (software: string) => {
+    await must('federated_instances', db.from('federated_instances')
+      .upsert({ domain: peerHost, software }, { onConflict: 'domain' }))
+    backend.forgetInstanceSoftware(peerHost)
+  }
+
+  // A reaction row's job, then its implied favourite's when it was created or removed with it.
+  const react = async (emoji: string) => {
+    const before = (await engagementRows(db, PEER_NOTE_POST, BOB)).some((r) => r.interaction_type === 'favorite')
+    const row = await must('react', db.from('post_interactions').insert({
+      post_id: PEER_NOTE_POST, user_id: BOB, interaction_type: 'emoji_reaction', custom_emoji_content: emoji, is_local: true,
+    }).select('id').single())
+    await backend.handleReactionJob({ type: 'create', interaction_id: row.id, interaction_type: 'emoji_reaction',
+      post_id: PEER_NOTE_POST, user_id: BOB, custom_emoji_content: emoji, implied: false })
+    const favourite = (await engagementRows(db, PEER_NOTE_POST, BOB)).find((r) => r.interaction_type === 'favorite')
+    if (!before && favourite) {
+      await backend.handleReactionJob({ type: 'create', interaction_id: favourite.id, interaction_type: 'favorite',
+        post_id: PEER_NOTE_POST, user_id: BOB, implied: favourite.implied_by_reaction })
+    }
+    return row.id as string
+  }
+  const unreact = async (id: string, emoji: string) => {
+    const favourite = (await engagementRows(db, PEER_NOTE_POST, BOB)).find((r) => r.interaction_type === 'favorite')
+    await must('unreact', db.from('post_interactions').delete().eq('id', id))
+    await backend.handleReactionJob({ type: 'delete', interaction_id: id, interaction_type: 'emoji_reaction',
+      post_id: PEER_NOTE_POST, user_id: BOB, custom_emoji_content: emoji, implied: false })
+    const still = (await engagementRows(db, PEER_NOTE_POST, BOB)).some((r) => r.interaction_type === 'favorite')
+    if (favourite && !still) {
+      await backend.handleReactionJob({ type: 'delete', interaction_id: favourite.id, interaction_type: 'favorite',
+        post_id: PEER_NOTE_POST, user_id: BOB, implied: favourite.implied_by_reaction })
+    }
+  }
+  const sent = (from: number) => peer.captured.slice(from).map((c) => JSON.parse(c.raw.toString('utf-8')))
+
+  // Misskey: one reaction per actor, any Undo deletes it.
+  await setSoftware('misskey')
+  let mark = peer.captured.length
+  const party = await react('🎉')
+  const fire = await react('🔥')
+  await unreact(fire, '🔥')
+  let got = sent(mark)
+  eq(got.map((a) => `${a.type}:${a._misskey_reaction ?? '-'}`).join(' '), 'Like:🎉 Like:🔥 Like:🎉',
+    'misskey: each change sends the newest reaction; removing one of two sends the other, not an Undo')
+  eq(peer.captured.slice(mark).every((c) => c.url === '/users/fx_remote/inbox'), true, 'misskey: delivered to the author\'s inbox')
+  const verification = await backend.verifySignature(
+    peer.captured[mark].headers.signature, peer.captured[mark].headers, 'POST', peer.captured[mark].url, peer.captured[mark].raw)
+  eq(verification.actorUrl, `https://${INSTANCE_DOMAIN}/users/fx_bob`, 'the reaction is signed by the reactor')
+  mark = peer.captured.length
+  await unreact(party, '🎉')
+  got = sent(mark)
+  eq(got.map((a) => `${a.type}:${a.object?.type ?? '-'}`).join(' '), 'Undo:Like', 'misskey: the last reaction\'s removal is the Undo')
+
+  // Mastodon: the favourite alone.
+  await setSoftware('mastodon')
+  mark = peer.captured.length
+  const eyes = await react('👀')
+  const star = await react('⭐')
+  await unreact(star, '⭐')
+  got = sent(mark)
+  eq(got.map((a) => `${a.type}:${a.content ?? '-'}`).join(' '), 'Like:-',
+    'mastodon: one bare Like for the implied favourite; reactions and their removal send nothing')
+  mark = peer.captured.length
+  await unreact(eyes, '👀')
+  got = sent(mark)
+  eq(got.map((a) => `${a.type}:${a.object?.type}:${a.object?.id === got[0]?.object?.id}`).join(' '), 'Undo:Like:true',
+    'mastodon: the favourite\'s Undo when the last reaction goes')
+
+  // Akkoma: EmojiReact per reaction, each undone by id.
+  await setSoftware('akkoma')
+  mark = peer.captured.length
+  const tada = await react('🎉')
+  await unreact(tada, '🎉')
+  got = sent(mark)
+  eq(got.map((a) => `${a.type}:${a.content ?? a.object?.type ?? '-'}`).join(' '), 'EmojiReact:🎉 Like:- Undo:EmojiReact Undo:Like',
+    'akkoma: EmojiReact and the favourite\'s Like, each undone by its own id')
+  eq(got[2]?.object?.id, got[0]?.id, 'the Undo names the EmojiReact it reverses')
+}
+
 // WIRING
 
 interface Backend {
   handleNewDM: (message: unknown) => Promise<void>
   handleReportJob: (data: { type: 'create'; report_id: string }) => Promise<void>
+  handleReactionJob: (data: Record<string, unknown> & { type: 'create' | 'delete' }) => Promise<void>
+  forgetInstanceSoftware: (host?: string) => void
   verifySignature: (
     signature: string,
     headers: Record<string, string>,
@@ -2055,16 +2246,20 @@ interface Backend {
 
 async function loadBackend(): Promise<Backend> {
   const mod = (p: string) => import(pathToFileURL(path.join(BACKEND_ROOT, 'src', p)).href)
-  const [server, listener, signature, reports] = await Promise.all([
+  const [server, listener, signature, reports, reactions, software] = await Promise.all([
     mod('server.ts'),
     mod('listeners/DatabaseListener.ts'),
     mod('activitypub/SignatureService.ts'),
     mod('queue/handlers/reportHandler.ts'),
+    mod('queue/handlers/reactionHandler.ts'),
+    mod('activitypub/instanceSoftware.ts'),
   ])
   return {
     createApp: server.createApp,
     handleNewDM: listener.handleNewDM,
     handleReportJob: reports.handleReportJob,
+    handleReactionJob: reactions.handleReactionJob,
+    forgetInstanceSoftware: software.forgetInstanceSoftware,
     verifySignature: signature.SignatureService.verifySignature.bind(signature.SignatureService),
     createDigest: signature.SignatureService.createDigest.bind(signature.SignatureService),
   }
@@ -2123,6 +2318,8 @@ async function main() {
     await seedReports(db)
     await caseInboundFlag(db, peer, localUrl)
     await caseOutboundFlag(db, peer, localUrl, env, backend)
+    await caseInboundReactions(db, peer, localUrl)
+    await caseOutboundReactions(db, peer, backend)
     await seedServers(db, peer)
     await caseHostedPrivateServer(peer, localUrl)
     await caseProxyReadsAsMember(peer, localUrl, env.HMFED_JWT_SECRET)
