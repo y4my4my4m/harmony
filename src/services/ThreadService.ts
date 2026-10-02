@@ -886,6 +886,7 @@ class ThreadService {
     let finalContent: any[] = content
     let encrypted = false
     let encryptionMetadata: any = null
+    const insertExtra: { media_paths?: string[] } = {}
     const extra: Record<string, any> = { ...(extraMetadata || {}) }
 
     if (await channelRequiresEncryption(thread.channel_id)) {
@@ -909,6 +910,7 @@ class ThreadService {
       finalContent = payload.content
       encrypted = true
       encryptionMetadata = payload.encryption_metadata
+      insertExtra.media_paths = payload.media_paths
     }
 
     const insertData: any = {
@@ -918,6 +920,7 @@ class ThreadService {
       content: finalContent,
       encrypted,
       encryption_metadata: encryptionMetadata,
+      ...insertExtra,
     }
 
     if (replyTo) insertData.reply_to = replyTo

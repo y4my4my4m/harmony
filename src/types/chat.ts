@@ -494,6 +494,8 @@ export interface Message {
     message_index?: number;
     sender_user_id?: string;
   };
+  /** message_media objects an encrypted message names; null when unknown. */
+  media_paths?: string[] | null;
   metadata?: Record<string, any> & {
     embeds?: Record<string, EmbedPayload>;
   }; // for federated messages and other metadata

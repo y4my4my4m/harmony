@@ -12,6 +12,7 @@ import {
   mediaRoom,
   mediaRoomOfPath,
   messageMediaPath,
+  messageMediaPathsIn,
   placeUploadInRoom,
   reportMediaPartError,
   resetMediaPartSources,
@@ -80,6 +81,22 @@ describe('room prefixes', () => {
       new RegExp(`^c/${CHANNEL}/${UID}/[0-9a-f-]{36}\\.jpg$`))
     expect(messageMediaPath(`c/${CHANNEL}`, UID, 'README')).toMatch(/\.bin$/)
     expect(messageMediaPath(`c/${CHANNEL}`, UID, 'evil.p/hp')).toMatch(/\.bin$/)
+  })
+
+  it('lists the objects of the room that file parts name, sorted and distinct', () => {
+    const b = `c/${CHANNEL}/${UID}/b.png`
+    const a = `c/${CHANNEL}/${UID}/a.png`
+    expect(messageMediaPathsIn([
+      { type: 'text', text: 'x' },
+      { type: 'file', url: '', path: b },
+      { type: 'file', url: '', path: a },
+      { type: 'file', url: '', path: b },
+      { type: 'file', url: '', path: `c/${OTHER_CHANNEL}/${UID}/c.png` },
+      { type: 'file', url: 'https://cdn.example/legacy.png' },
+      { type: 'image', path: `c/${CHANNEL}/${UID}/not-a-file-part.png` },
+    ], `c/${CHANNEL}`)).toEqual([a, b])
+    expect(messageMediaPathsIn([{ type: 'file', url: '', path: a }], null)).toEqual([])
+    expect(messageMediaPathsIn([{ type: 'text', text: 'x' }], `c/${CHANNEL}`)).toEqual([])
   })
 
   it('tells private parts from legacy ones', () => {

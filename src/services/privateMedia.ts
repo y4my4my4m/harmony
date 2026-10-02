@@ -91,6 +91,23 @@ export function isPrivateMediaPart(part: unknown): part is MediaPartLike & { pat
   return typeof path === 'string' && mediaRoomOfPath(path) !== null
 }
 
+/**
+ * Objects of `room` the file parts of `content` name, sorted and distinct: messages.media_paths
+ * of an encrypted message, whose parts the server cannot read. Message media cleanup keeps
+ * these objects while the message lives and deletes them when an edit or delete drops them.
+ */
+export function messageMediaPathsIn(content: readonly unknown[], room: string | null): string[] {
+  if (!room) return []
+  const paths = new Set<string>()
+  for (const part of content) {
+    if ((part as { type?: unknown })?.type === 'file' && isPrivateMediaPart(part)
+        && mediaRoomOfPath(part.path) === room) {
+      paths.add(part.path)
+    }
+  }
+  return [...paths].sort()
+}
+
 /** Unsigned reference to an object; resolves for nobody without a bearer token. */
 export function messageMediaReferenceUrl(path: string): string {
   return `${SUPABASE_URL}/storage/v1/object/authenticated/${MESSAGE_MEDIA_BUCKET}/${path}`
