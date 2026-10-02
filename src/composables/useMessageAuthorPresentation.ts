@@ -1,5 +1,5 @@
 import { computed, ref, toValue, watch, type MaybeRefOrGetter, type Ref } from 'vue'
-import { useUserData } from '@/composables/useUserData'
+import { useUserData, DEFAULT_USER_COLOR } from '@/composables/useUserData'
 import { useServerRolesStore } from '@/stores/useServerRoles'
 import { supabase } from '@/supabase'
 import type { Message } from '@/types'
@@ -83,7 +83,7 @@ export function useMessageAuthorPresentation(
 
   const usernameColor = computed(() => {
     const msg = message.value
-    if (!msg) return '#dddddd'
+    if (!msg) return DEFAULT_USER_COLOR
     if (isBridgedAuthorMessage(msg)) {
       const discordId = msg.metadata?.discord_user?.id
       if (discordId) {
@@ -99,7 +99,7 @@ export function useMessageAuthorPresentation(
       const roleColor = serverId ? serverRolesStore.getUserRoleColor(serverId, msg.user_id) : null
       return roleColor || getUserColor(msg.user_id).value
     }
-    return '#dddddd'
+    return DEFAULT_USER_COLOR
   })
 
   return {

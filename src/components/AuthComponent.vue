@@ -843,6 +843,10 @@ onMounted(async () => {
   --text: #ffffff;
   --text-muted: rgba(255, 255, 255, 0.6);
   --text-dim: rgba(255, 255, 255, 0.4);
+  --scrim: rgba(0, 0, 0, 0.6);
+  --brand-card-bg: rgba(255, 255, 255, 0.03);
+  --brand-card-border: rgba(255, 255, 255, 0.06);
+  --autofill-bg: rgb(17, 17, 23);
   
   min-height: 100vh;
   width: 100%;
@@ -853,13 +857,29 @@ onMounted(async () => {
   overflow: hidden;
 }
 
+/* Light themes, including the signed-out system-light preset. On --surface:
+   --text 16.5:1, --text-muted 6.1:1. */
+:root[data-theme-type="light"] .auth-wrapper {
+  --surface: rgba(255, 255, 255, 0.94);
+  --surface-light: rgba(0, 0, 0, 0.03);
+  --surface-hover: rgba(0, 0, 0, 0.06);
+  --border: rgba(0, 0, 0, 0.12);
+  --text: #1e1f22;
+  --text-muted: rgba(30, 31, 34, 0.7);
+  --text-dim: rgba(30, 31, 34, 0.55);
+  --scrim: rgba(255, 255, 255, 0.55);
+  --brand-card-bg: rgba(255, 255, 255, 0.7);
+  --brand-card-border: rgba(0, 0, 0, 0.08);
+  --autofill-bg: #ffffff;
+}
+
 /* ========================================
    Background Effects
    ======================================== */
 .bg-gradient-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--scrim);
   backdrop-filter: blur(4px);
   pointer-events: none;
 }
@@ -889,8 +909,8 @@ onMounted(async () => {
 .brand-card {
   position: relative;
   z-index: 1;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--brand-card-bg);
+  border: 1px solid var(--brand-card-border);
   border-radius: 32px;
   padding: 48px 40px;
   max-width: 460px;
@@ -1119,7 +1139,7 @@ onMounted(async () => {
 .input-group input:-webkit-autofill:hover,
 .input-group input:-webkit-autofill:focus,
 .input-group input:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 30px rgba(17, 17, 23, 1) inset !important;
+  -webkit-box-shadow: 0 0 0 30px var(--autofill-bg) inset !important;
   -webkit-text-fill-color: var(--text) !important;
   transition: background-color 5000s ease-in-out 0s;
   font-size: 1rem;

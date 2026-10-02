@@ -520,6 +520,10 @@ onUnmounted(() => {
 
 .mobile-menu-btn {
   display: none;
+  min-width: 40px;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   color: var(--text-primary);

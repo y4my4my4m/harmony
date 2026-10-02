@@ -232,7 +232,7 @@
               :is-loading="isLoadingPosts"
               :has-more="hasMorePosts"
               :empty-title="t('activitypub.noMoniesHereYet')"
-              :empty-message="(isCurrentUser ? 'You haven\'t' : `${plainDisplayName} hasn\'t`) + ' posted anything yet.'"
+              :empty-message="isCurrentUser ? t('empty.profilePosts.self') : t('empty.profilePosts.other', { name: plainDisplayName })"
               empty-icon="message-circle"
               @load-more="loadMorePosts"
               @reply="replyToPost"
@@ -259,11 +259,12 @@
 
           <!-- Following Tab -->
           <div v-else-if="activeTab === 'following'" class="following-tab">
-            <div v-if="followingUsers.length === 0" class="empty-state">
-              <Icon name="users" :size="48" />
-              <h3>{{ t('activitypub.notFollowingAnyone') }}</h3>
-              <p>{{ isCurrentUser ? t('activitypub.notFollowingAnyoneYet') : `${plainDisplayName} ${t('activitypub.notFollowingAnyoneYet')}` }}</p>
-            </div>
+            <EmptyState
+              v-if="followingUsers.length === 0"
+              icon="users"
+              :title="t('activitypub.notFollowingAnyone')"
+              :description="isCurrentUser ? t('activitypub.notFollowingAnyoneYet') : t('empty.profileFollowing.other', { name: plainDisplayName })"
+            />
             
             <div v-else class="users-grid">
               <ProfileCard
@@ -278,11 +279,12 @@
 
           <!-- Followers Tab -->
           <div v-else-if="activeTab === 'followers'" class="followers-tab">
-            <div v-if="followerUsers.length === 0" class="empty-state">
-              <Icon name="users" :size="48" />
-              <h3>No followers</h3>
-              <p>{{ isCurrentUser ? "You don't" : `${plainDisplayName} doesn't` }} have any followers yet.</p>
-            </div>
+            <EmptyState
+              v-if="followerUsers.length === 0"
+              icon="users"
+              :title="t('empty.profileFollowers.title')"
+              :description="isCurrentUser ? t('empty.profileFollowers.self') : t('empty.profileFollowers.other', { name: plainDisplayName })"
+            />
             
             <div v-else class="users-grid">
               <ProfileCard
@@ -346,6 +348,7 @@ import DisplayName from '@/components/DisplayName.vue'
 import MonyContent from '@/components/activitypub/MonyContent.vue';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import PostsContainer from '@/components/common/PostsContainer.vue';
+import EmptyState from '@/components/common/EmptyState.vue';
 import ProfileMediaGrid from '@/components/activitypub/ProfileMediaGrid.vue';
 import ProfileCard from '@/components/common/ProfileCard.vue';
 import UserProfileModal from '@/components/UserProfileModal.vue';
@@ -1237,8 +1240,7 @@ onUnmounted(() => {
 /* ===== MODERN PROFILE VIEW ===== */
 
 .user-profile-wrapper {
-  height: 100vh;
-  height: 100dvh;
+  height: 100%;
   display: flex;
   flex-direction: column;
   background: var(--background-primary);
@@ -1722,22 +1724,6 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1rem;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  color: var(--text-tertiary);
-  padding: 3rem 2rem;
-}
-
-.empty-state h3 {
-  color: var(--text-primary);
-  margin: 1rem 0 0.5rem;
-  font-size: 1.25rem;
 }
 
 /* Blocked User Banner */

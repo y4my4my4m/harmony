@@ -27,15 +27,12 @@
 
           <!-- Participants section -->
           <div class="participants-section">
-            <div v-if="participants.length === 0" class="empty-state">
-              <div class="empty-icon">
-                <svg viewBox="0 0 24 24" width="48" height="48">
-                  <path fill="currentColor" d="M17,12V3A1,1 0 0,0 16,2H3A1,1 0 0,0 2,3V17L6,13H16A1,1 0 0,0 17,12M21,6H19V15H6V17A1,1 0 0,0 7,18H18L22,22V7A1,1 0 0,0 21,6Z"/>
-                </svg>
-              </div>
-              <span class="empty-text">No one's here yet!</span>
-              <span class="empty-subtext">When you're ready to talk, just hop in.</span>
-            </div>
+            <EmptyState
+              v-if="participants.length === 0"
+              icon="headphones"
+              :title="$t('empty.voiceParticipants.title')"
+              :description="$t('empty.voiceParticipants.description')"
+            />
             <div v-else class="participants-list">
               <div v-for="participant in participants" :key="participant.id" class="participant-item">
                 <Avatar
@@ -77,6 +74,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import Avatar from '@/components/common/Avatar.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import { useUserData } from '@/composables/useUserData'
 
@@ -224,33 +222,6 @@ const handleOpenChat = () => {
   padding: 24px 16px;
   overflow-y: auto;
   min-height: 200px;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 24px;
-  text-align: center;
-}
-
-.empty-icon {
-  color: var(--text-secondary, #b9bbbe);
-  margin-bottom: 16px;
-  opacity: 0.5;
-}
-
-.empty-text {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary, #fff);
-  margin-bottom: 4px;
-}
-
-.empty-subtext {
-  font-size: 14px;
-  color: var(--text-secondary, #b9bbbe);
 }
 
 .participants-list {

@@ -620,6 +620,7 @@
     "viewPast": "View past announcements"
   },
   "user": {
+    "panelToggle": "Your account and voice controls",
     "profile": "Profile",
     "editProfile": "Edit profile",
     "viewProfile": "View profile",
@@ -721,7 +722,9 @@
       "screenReader": "Screen reader support",
       "screenReaderDesc": "Optimize for screen readers.",
       "saveChanges": "Save changes",
-      "resetSettings": "Reset"
+      "resetSettings": "Reset",
+      "unsavedChanges": "You have unsaved appearance changes",
+      "changesDiscarded": "Unsaved appearance changes discarded"
     },
     "audio": {
       "title": "Sounds",
@@ -1153,7 +1156,9 @@
     "clipUnmute": "Play with sound",
     "clipMute": "Mute",
     "loadFailed": "Couldn't load {kind}",
-    "tryDifferentSearch": "Try a different search term"
+    "tryDifferentSearch": "Try a different search term",
+    "noFavoritesOf": "No favorite {kind} yet",
+    "noneFound": "No {kind} found"
   },
   "emoji": {
     "search": "Search emoji...",
@@ -1366,7 +1371,48 @@
     "openServer": "Open server",
     "joining": "Joining…",
     "accept": "Accept invite",
-    "noThanks": "No thanks"
+    "noThanks": "No thanks",
+    "modal": {
+      "title": "Invite people",
+      "subtitle": "Anyone with the link can join this server.",
+      "thisServer": "This server",
+      "members": "{count} member | {count} members",
+      "linkLabel": "Invite link",
+      "loading": "Creating link…",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyFailed": "Couldn't copy the link",
+      "share": "Share",
+      "shareTitle": "Join {server} on Harmony",
+      "editLink": "Link settings",
+      "revoke": "Revoke",
+      "revokeCode": "Revoke invite {code}",
+      "revoked": "Invite revoked",
+      "revokeFailed": "Couldn't revoke the invite",
+      "noLink": "No active link.",
+      "noPermission": "You don't have permission to create invites for this server.",
+      "expires": "Expires {when}",
+      "neverExpires": "Never expires",
+      "usesOf": "{used} of {max} uses",
+      "usesCount": "No uses yet | {count} use | {count} uses",
+      "expireAfter": "Expire after",
+      "maxUses": "Max uses",
+      "never": "Never",
+      "unlimited": "No limit",
+      "usesOption": "{count} use | {count} uses",
+      "duration": {
+        "minute": "{count} minute | {count} minutes",
+        "hour": "{count} hour | {count} hours",
+        "day": "{count} day | {count} days"
+      },
+      "newLink": "Create new link",
+      "newLinkHint": "Creates a link with these settings. Existing links keep working until they expire or you revoke them.",
+      "creating": "Creating…",
+      "created": "New invite link created",
+      "createFailed": "Couldn't create an invite link",
+      "otherLinks": "Your other active links ({count})",
+      "showLink": "Show this link"
+    }
   },
   "languages": {
     "en": "English",
@@ -2107,5 +2153,148 @@
       "aBot": "a bot",
       "timedOut": "timed out"
     }
+  },
+  "empty": {
+    "pins": {
+      "title": "No pinned messages yet",
+      "description": "Pin important messages to find them here."
+    },
+    "threads": {
+      "title": "No threads yet",
+      "description": "Start a thread from any message.",
+      "noMatchTitle": "No threads match your search",
+      "noMatchDescription": "Try a different name."
+    },
+    "threadMessages": {
+      "title": "No messages yet",
+      "description": "Be the first to reply in this thread."
+    },
+    "lists": {
+      "title": "No lists yet",
+      "description": "Lists group the accounts you follow into their own timelines.",
+      "action": "Create a list"
+    },
+    "listMembers": {
+      "title": "No members yet",
+      "description": "Search above to add accounts you follow."
+    },
+    "listTimeline": {
+      "title": "No posts yet",
+      "description": "Add members to this list to see their posts here."
+    },
+    "posts": {
+      "title": "No posts yet",
+      "description": "Posts appear here as they arrive."
+    },
+    "profilePosts": {
+      "self": "You haven't posted anything yet.",
+      "other": "{name} hasn't posted anything yet."
+    },
+    "profileFollowing": {
+      "other": "{name} isn't following anyone yet."
+    },
+    "profileFollowers": {
+      "title": "No followers yet",
+      "self": "You don't have any followers yet.",
+      "other": "{name} doesn't have any followers yet."
+    },
+    "followers": {
+      "title": "No followers yet",
+      "description": "When people follow you, they'll appear here."
+    },
+    "following": {
+      "title": "Not following anyone yet",
+      "description": "When you follow people, they'll appear here.",
+      "action": "Discover people"
+    },
+    "requests": {
+      "title": "No pending requests",
+      "description": "When people ask to follow you, they'll appear here."
+    },
+    "instancePosts": {
+      "title": "No recent posts from this instance"
+    },
+    "emojiSearch": {
+      "title": "No emoji found for \"{query}\""
+    },
+    "funding": {
+      "title": "Funding information is not available."
+    },
+    "roleMembers": {
+      "noMatch": "No matching members",
+      "noFilterMatch": "No members match that filter",
+      "none": "No members have this role yet"
+    },
+    "voiceParticipants": {
+      "title": "No one's here yet",
+      "description": "When you're ready to talk, hop in."
+    },
+    "bans": {
+      "title": "No banned users",
+      "description": "Nobody is banned from this server."
+    },
+    "blocked": {
+      "title": "You haven't blocked anyone"
+    },
+    "muted": {
+      "title": "You haven't muted anyone"
+    },
+    "devices": {
+      "title": "No devices registered yet",
+      "description": "Devices appear here once you unlock encryption on them."
+    },
+    "screenSources": {
+      "screens": "No screens available",
+      "windows": "No windows available"
+    },
+    "admin": {
+      "discoveredInstances": {
+        "title": "No instances discovered from user interactions yet",
+        "action": "Scan for interactions"
+      },
+      "featured": {
+        "title": "No public communities yet",
+        "description": "Make a server public to feature it here."
+      },
+      "userServers": {
+        "title": "This user isn't a member of any servers"
+      },
+      "announcements": {
+        "title": "No announcements",
+        "description": "Create one to notify users."
+      },
+      "slowQueries": {
+        "title": "No slow queries detected",
+        "description": "Queries slower than 100 ms appear here."
+      },
+      "federationHealth": {
+        "title": "No federation health data",
+        "description": "Metrics appear once inbound or outbound federation activity is recorded."
+      },
+      "remoteEmoji": {
+        "title": "No remote emoji found",
+        "description": "Emoji from remote instances appear here as you interact with federated content."
+      },
+      "tiers": {
+        "title": "No tiers configured"
+      },
+      "supporters": {
+        "title": "No active supporters"
+      },
+      "donations": {
+        "title": "No donations recorded"
+      },
+      "reports": {
+        "title": "No reports",
+        "filtered": "No reports with status \"{status}\""
+      }
+    }
+  },
+  "pwa": {
+    "installTitle": "Install Harmony",
+    "installDescription": "Faster loading and offline access",
+    "install": "Install",
+    "installing": "Installing…",
+    "dismiss": "Dismiss install prompt"
   }
 }

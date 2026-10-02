@@ -209,5 +209,10 @@ const goBack = () => {
     width: 40px;
     height: 40px;
   }
+
+  .header-icon-btn {
+    width: 40px;
+    height: 40px;
+  }
 }
 </style>

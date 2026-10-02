@@ -362,20 +362,6 @@
 }
 
 
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: 40px;
-  text-align: center;
-  color: var(--text-secondary);
-}
-
-
-
 .search-bar .cyber-input {
   padding-left: 36px;
   max-width: 200px;

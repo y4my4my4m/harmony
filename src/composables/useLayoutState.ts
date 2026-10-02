@@ -389,7 +389,9 @@ export function useLayoutState() {
       const progress = rightSidebarDragOffset.value / SIDEBAR_WIDTH
       
       let shouldBeOpen: boolean
-      if (Math.abs(velocity) > VELOCITY_THRESHOLD) {
+      if (!hasRightSidebar.value) {
+        shouldBeOpen = false
+      } else if (Math.abs(velocity) > VELOCITY_THRESHOLD) {
         // Flick: leftward opens the right sidebar.
         shouldBeOpen = velocity < 0
       } else {

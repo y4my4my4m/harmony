@@ -75,20 +75,20 @@ function cancel() {
 .instance-picker {
   position: fixed;
   inset: 0;
-  z-index: 10000;
+  z-index: var(--z-gate);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #16161e;
-  color: #e6e6ef;
+  background: var(--background-primary);
+  color: var(--text-primary);
 }
 
 .instance-picker__card {
   width: min(420px, 90vw);
   padding: 2rem;
   border-radius: 12px;
-  background: #1f1f2b;
-  border: 1px solid #33334a;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-primary);
   text-align: center;
 }
 
@@ -105,7 +105,7 @@ function cancel() {
 
 .instance-picker__hint {
   font-size: 0.9rem;
-  opacity: 0.75;
+  color: var(--text-secondary);
   margin-bottom: 1.25rem;
 }
 
@@ -119,18 +119,18 @@ function cancel() {
   display: flex;
   align-items: center;
   border-radius: 8px;
-  border: 1px solid #3c3c55;
-  background: #14141c;
+  border: 1px solid var(--border-hover);
+  background: var(--background-tertiary);
   overflow: hidden;
 }
 
 .instance-picker__field:focus-within {
-  border-color: #6d6df0;
+  border-color: var(--border-focus);
 }
 
 .instance-picker__scheme {
   padding-left: 0.9rem;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-muted);
   font-size: 1rem;
   user-select: none;
   flex-shrink: 0;
@@ -154,8 +154,8 @@ function cancel() {
   padding: 0.7rem;
   border-radius: 8px;
   border: none;
-  background: #5865f2;
-  color: white;
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
@@ -168,20 +168,20 @@ function cancel() {
 
 .instance-picker__error {
   margin-top: 1rem;
-  color: #f47070;
+  color: var(--error);
   font-size: 0.9rem;
 }
 
 .instance-picker__current {
   margin-top: 1.25rem;
   font-size: 0.85rem;
-  opacity: 0.8;
+  color: var(--text-secondary);
 }
 
 .instance-picker__link {
   background: none;
   border: none;
-  color: #8ab4ff;
+  color: var(--harmony-primary);
   cursor: pointer;
   font-size: 0.85rem;
   text-decoration: underline;

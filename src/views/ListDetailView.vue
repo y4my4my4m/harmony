@@ -78,9 +78,13 @@
             Remove
           </button>
         </div>
-        <div v-if="members.length === 0" class="empty-members">
-          No members yet. Search above to add followed users.
-        </div>
+        <EmptyState
+          v-if="members.length === 0"
+          size="sm"
+          icon="users"
+          :title="$t('empty.listMembers.title')"
+          :description="$t('empty.listMembers.description')"
+        />
       </div>
     </div>
 
@@ -91,8 +95,9 @@
         :is-loading="isLoading || isLoadingMore"
         :has-more="hasMore"
         loading-message="Loading timeline..."
-        empty-title="No posts yet"
-        empty-message="Add members to this list to see their posts here."
+        :empty-title="$t('empty.listTimeline.title')"
+        :empty-message="$t('empty.listTimeline.description')"
+        empty-icon="list"
         @load-more="loadMore"
         @reply="$emit('reply-to-post', $event)"
         @favorite="$emit('favorite-post', $event)"
@@ -111,6 +116,7 @@ import { debug } from '@/utils/debug'
 import { useActivityPubStore, type UserListMember } from '@/stores/useActivityPub'
 import { supabase } from '@/supabase'
 import PostsContainer from '@/components/common/PostsContainer.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import type { TimelinePost } from '@/types'
 
 const router = useRouter()
@@ -394,13 +400,6 @@ onMounted(async () => {
   color: var(--text-primary);
 }
 
-.empty-members {
-  text-align: center;
-  padding: 20px;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
 .list-timeline {
   flex: 1;
   overflow-y: auto;
@@ -426,30 +425,6 @@ onMounted(async () => {
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
-
-.empty-timeline {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 48px;
-  text-align: center;
-}
-
-.empty-icon {
-  font-size: 48px;
-  margin-bottom: 12px;
-}
-
-.empty-timeline h3 {
-  margin: 0 0 8px;
-  color: var(--text-primary);
-}
-
-.empty-timeline p {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 14px;
-}
 
 .load-more-btn {
   display: block;

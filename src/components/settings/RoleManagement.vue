@@ -221,9 +221,12 @@
                     <span class="member-action-icon" title="Add to role">+</span>
                   </button>
                 </div>
-                <div v-else-if="addMemberSearch && !searchingMembers" class="no-members">
-                  No matching members.
-                </div>
+                <EmptyState
+                  v-else-if="addMemberSearch && !searchingMembers"
+                  size="sm"
+                  icon="search"
+                  :title="$t('empty.roleMembers.noMatch')"
+                />
               </div>
 
               <!-- Current Members -->
@@ -245,9 +248,12 @@
                 <div v-if="loadingMembers" class="loading-members">
                   <div class="spinner small"></div>
                 </div>
-                <div v-else-if="filteredMembers.length === 0" class="no-members">
-                  {{ memberSearch ? 'No members match that filter.' : 'No members have this role yet.' }}
-                </div>
+                <EmptyState
+                  v-else-if="filteredMembers.length === 0"
+                  size="sm"
+                  :icon="memberSearch ? 'search' : 'users'"
+                  :title="memberSearch ? $t('empty.roleMembers.noFilterMatch') : $t('empty.roleMembers.none')"
+                />
                 <div v-else class="member-result-list">
                   <div
                     v-for="member in filteredMembers"
@@ -324,6 +330,7 @@ import { supabase } from '@/supabase'
 import { roleService } from '@/services/RoleService'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import Avatar from '@/components/common/Avatar.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import ColorPicker from '@/components/common/ColorPicker.vue'
 import type { ServerRole } from '@/services/RoleService'
 import {
@@ -1477,13 +1484,6 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   padding: 16px;
-}
-
-.no-members {
-  padding: 16px;
-  text-align: center;
-  color: var(--text-secondary);
-  font-size: 13px;
 }
 
 /* ===== Editor footer ===== */

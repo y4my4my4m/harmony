@@ -52,9 +52,12 @@
     <div class="settings-section">
       <h3 class="section-title">Blocked users</h3>
       
-      <div v-if="blockedUsers.length === 0" class="empty-state">
-        <p>You haven't blocked anyone yet.</p>
-      </div>
+      <EmptyState
+        v-if="blockedUsers.length === 0"
+        size="sm"
+        icon="shield"
+        :title="$t('empty.blocked.title')"
+      />
       
       <div v-else class="blocked-users-list">
         <div 
@@ -82,9 +85,12 @@
     <div class="settings-section">
       <h3 class="section-title">Muted users</h3>
       
-      <div v-if="mutedUsers.length === 0" class="empty-state">
-        <p>You haven't muted anyone yet.</p>
-      </div>
+      <EmptyState
+        v-if="mutedUsers.length === 0"
+        size="sm"
+        icon="volume-x"
+        :title="$t('empty.muted.title')"
+      />
       
       <div v-else class="blocked-users-list">
         <div 
@@ -142,6 +148,7 @@ import { isUrlTrackingStrippingEnabled, setUrlTrackingStrippingEnabled } from '@
 // Components
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import Avatar from '@/components/common/Avatar.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import ShieldIcon from '@/components/icons/Shield.vue'
 import EncryptionSettings from '@/components/encryption/EncryptionSettings.vue'
 import DataExportPanel from './DataExportPanel.vue'
@@ -419,12 +426,6 @@ onMounted(async () => {
   font-size: var(--font-size-sm);
   color: var(--text-primary);
   cursor: pointer;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 40px 20px;
-  color: var(--text-secondary);
 }
 
 .blocked-users-list {

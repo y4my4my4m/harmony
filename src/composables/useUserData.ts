@@ -12,6 +12,10 @@ import { UserStatus, type DisplayNamePart } from '@/types'
 import { getAvatarUrl } from '@/utils/avatarUtils'
 import { debug } from '@/utils/debug'
 
+/** Name colour for users without a profile or role colour. A theme token,
+ *  not white: white names vanish on light themes. */
+export const DEFAULT_USER_COLOR = 'var(--text-primary)'
+
 // Module scope, not per call. userDataService is a singleton; one counter and
 // one listener set serve every caller.
 const forceUpdate = ref(0)
@@ -156,9 +160,9 @@ export function useUserData() {
   
   const getUserColor = (userId: string | null | undefined) => computed(() => {
     forceUpdate.value // Force reactivity
-    if (!userId) return '#ffffff'
+    if (!userId) return DEFAULT_USER_COLOR
     const user = userDataService.getUser(userId)
-    return user?.color || '#ffffff'
+    return user?.color || DEFAULT_USER_COLOR
   })
   
   const isUserOnline = (userId: string) => computed(() => {

@@ -2316,6 +2316,20 @@ const closeLightbox = () => {
   text-decoration: underline;
 }
 
+/* The timestamp is the post's only link to its detail view; on touch screens
+   its hit area grows to about 40px square without moving the layout. */
+@media (pointer: coarse) {
+  .post-time {
+    position: relative;
+  }
+
+  .post-time::after {
+    content: '';
+    position: absolute;
+    inset: -11px -12px;
+  }
+}
+
 .visibility-indicator {
   display: inline-flex;
   align-items: center;

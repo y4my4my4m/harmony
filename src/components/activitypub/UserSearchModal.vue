@@ -58,19 +58,23 @@
           </div>
 
           <!-- Empty State -->
-          <div v-else-if="!isSearching && searchResults.length === 0 && searchQuery" class="empty-state">
-            <Icon name="users" :size="48" />
-            <h3>{{ $t('activitypub.noUsersFound') }}</h3>
-            <p>{{ $t('activitypub.tryDifferentSearch') }}</p>
-            <div class="search-tips">
-              <h4>{{ $t('activitypub.searchTips') }}</h4>
-              <ul>
-                <li>{{ $t('activitypub.searchTipsExactMatch') }}</li>
-                <li>{{ $t('activitypub.searchTipsPartial') }}</li>
-                <li>{{ $t('activitypub.searchTipsDomain') }}</li>
-              </ul>
-            </div>
-          </div>
+          <EmptyState
+            v-else-if="!isSearching && searchResults.length === 0 && searchQuery"
+            icon="users"
+            :title="$t('activitypub.noUsersFound')"
+            :description="$t('activitypub.tryDifferentSearch')"
+          >
+            <template #actions>
+              <div class="search-tips">
+                <h4>{{ $t('activitypub.searchTips') }}</h4>
+                <ul>
+                  <li>{{ $t('activitypub.searchTipsExactMatch') }}</li>
+                  <li>{{ $t('activitypub.searchTipsPartial') }}</li>
+                  <li>{{ $t('activitypub.searchTipsDomain') }}</li>
+                </ul>
+              </div>
+            </template>
+          </EmptyState>
 
           <!-- Initial State -->
           <div v-else-if="!searchQuery" class="initial-state">
@@ -153,6 +157,7 @@ import { debug } from '@/utils/debug'
 import { activityPubService } from '@/services/activityPubService';
 import type { FederatedUser } from '@/types';
 import Icon from '@/components/common/Icon.vue';
+import EmptyState from '@/components/common/EmptyState.vue';
 import UserCard from './UserCard.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
@@ -510,7 +515,6 @@ onUnmounted(() => {
 }
 
 .loading-state,
-.empty-state,
 .initial-state {
   display: flex;
   flex-direction: column;
@@ -521,7 +525,6 @@ onUnmounted(() => {
   padding: 2rem;
 }
 
-.empty-state h3,
 .initial-state h3 {
   color: var(--text-primary);
   margin: 1rem 0 0.5rem;
@@ -532,9 +535,9 @@ onUnmounted(() => {
   background: var(--background-tertiary);
   border-radius: var(--radius-md);
   padding: 1rem;
-  margin-top: 1rem;
   text-align: left;
   max-width: 300px;
+  color: var(--text-secondary);
 }
 
 .search-tips h4 {

@@ -120,11 +120,12 @@
     </div>
 
     <!-- Empty State -->
-    <div v-else class="empty-state">
-      <Icon name="inbox" :size="48" />
-      <h3>No remote emojis found</h3>
-      <p>Emojis from remote instances will appear here as you interact with federated content.</p>
-    </div>
+    <EmptyState
+      v-else
+      icon="smile"
+      :title="$t('empty.admin.remoteEmoji.title')"
+      :description="$t('empty.admin.remoteEmoji.description')"
+    />
 
     <!-- Pagination -->
     <div v-if="emojiTotal > emojiPageSize" class="emoji-pagination">
@@ -184,6 +185,7 @@ import { ref, computed, onMounted } from 'vue';
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug';
 import Icon from '@/components/common/Icon.vue';
+import EmptyState from '@/components/common/EmptyState.vue';
 import { useToast } from 'vue-toastification'
 
 interface RemoteEmoji {
@@ -645,17 +647,6 @@ onMounted(() => {
   font-size: 0.875rem;
 }
 
-/* Empty State */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 2rem;
-  text-align: center;
-  color: var(--text-secondary);
-}
-
 .emoji-pagination {
   display: flex;
   align-items: center;
@@ -687,11 +678,6 @@ onMounted(() => {
 .page-info {
   font-size: 14px;
   color: var(--text-secondary);
-}
-
-.empty-state h3 {
-  color: var(--text-primary);
-  margin: 1rem 0 0.5rem;
 }
 
 /* Modal */

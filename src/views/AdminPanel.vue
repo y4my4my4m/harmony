@@ -2,6 +2,15 @@
   <div class="admin-panel">
     <div class="admin-header">
       <div class="admin-title">
+        <button
+          v-if="isMobile"
+          type="button"
+          class="nav-menu-btn"
+          :aria-label="$t('activitypub.openNavigation')"
+          @click="openLeftSidebar"
+        >
+          <Icon name="menu" :size="20" />
+        </button>
         <Icon name="admin-terminal" :size="24" />
         <h1>Instance control panel</h1>
         <div class="system-status" :class="systemStatus.class">
@@ -181,6 +190,7 @@ import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter, useRoute } from 'vue-router'
 import Icon from '@/components/common/Icon.vue'
+import { useLayoutState } from '@/composables/useLayoutState'
 import ActivityLog from '@/components/admin/ActivityLog.vue'
 
 // Modules load lazily per tab so opening the panel only fetches Overview.
@@ -199,6 +209,7 @@ import { adminService } from '@/services/AdminService'
 const authStore = useAuthStore()
 const router = useRouter()
 const route = useRoute()
+const { isMobile, openLeftSidebar } = useLayoutState()
 
 const adminTabs = [
   { key: 'overview', label: 'Overview', icon: 'dashboard' },
@@ -410,6 +421,27 @@ const formatNumber = (num: number | undefined) => {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* The page has no header of the social or chat layouts; on mobile this is the
+   way to the navigation drawer besides the edge swipe. */
+.nav-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.nav-menu-btn:hover {
+  background: var(--background-modifier-hover);
 }
 
 
@@ -2272,9 +2304,12 @@ const formatNumber = (num: number | undefined) => {
 
 
   .admin-title {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-wrap: wrap;
     gap: 8px;
+  }
+
+  .admin-tab-btn {
+    min-height: 40px;
   }
 
 

@@ -8,7 +8,7 @@
  * - Persistence to localStorage and Supabase
  */
 
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick, effectScope, toRaw } from 'vue'
 import {
   generateThemePalette,
   applyThemePalette,
@@ -261,35 +261,58 @@ const PRESET_THEMES = {
   },
 }
 
+/** Preset matching the OS colour scheme; dark where matchMedia is absent. */
+function systemPreset(): 'light' | 'dark' {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'dark'
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+}
+
+function createDefaultSettings(theme: VisualThemeSettings['theme'] = 'dark'): VisualThemeSettings {
+  return {
+    theme,
+    customThemeMode: 'dark',
+    customPrimaryColor: '#0EA5E9',
+    customAccentColor: '#0EA5E9',
+    customBackgroundColor: '#0EA5E9',
+    customBackgroundLightness: 0,
+    customBackgroundChroma: 0,
+    customCssOverrides: {},
+    fontSize: 14,
+    zoomLevel: 100,
+    showTimestamps: true,
+    use24HourTime: false,
+    compactMode: false,
+    highContrast: false,
+    reduceMotion: false,
+    screenReaderSupport: false,
+    showCustomEmojisInDisplayNames: true,
+    greentextEnabled: true,
+    inviteBannerBackground: true,
+    bridgeSourceBadge: 'icon',
+    fontFamily: 'system',
+    glassEffectsEnabled: true,
+    activeSkinId: null,
+    customSkinCss: '',
+  }
+}
+
 // Global state (singleton pattern)
-const settings = ref<VisualThemeSettings>({
-  theme: 'dark',
-  customThemeMode: 'dark',
-  customPrimaryColor: '#0EA5E9',
-  customAccentColor: '#0EA5E9',
-  customBackgroundColor: '#0EA5E9',
-  customBackgroundLightness: 0,
-  customBackgroundChroma: 0,
-  fontSize: 14,
-  zoomLevel: 100,
-  showTimestamps: true,
-  use24HourTime: false,
-  compactMode: false,
-  highContrast: false,
-  reduceMotion: false,
-  screenReaderSupport: false,
-  showCustomEmojisInDisplayNames: true,
-  greentextEnabled: true,
-  inviteBannerBackground: true,
-  bridgeSourceBadge: 'icon',
-  fontFamily: 'system',
-  glassEffectsEnabled: true,
-  activeSkinId: null,
-  customSkinCss: '',
-})
+const settings = ref<VisualThemeSettings>(createDefaultSettings(systemPreset()))
 
 const isInitialized = ref(false)
 const isSaving = ref(false)
+
+// Auth user whose settings are applied; null while signed out, undefined
+// before the first initialize().
+let appliedFor: string | null | undefined
+let pendingLoad: { userId: string | null; promise: Promise<void> } | null = null
+// Signed out, the theme tracks prefers-color-scheme and nothing persists.
+let followSystem = false
+// Set while stored settings are written into `settings`; the persist watcher
+// skips those writes.
+let loadingStored = false
+let persistWatcherStarted = false
+let systemSchemeListenerAttached = false
 
 let saveTimeout: ReturnType<typeof setTimeout> | null = null
 
@@ -354,7 +377,9 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
     root.style.setProperty('--background-primary', '#1e2124')
     root.style.setProperty('--background-secondary', '#13151a')
     root.style.setProperty('--background-tertiary', '#0f1012')
-    root.style.setProperty('--background-quaternary', '#1a1d20')
+    // Raised surface (composer, inputs): CIE L* 17.4 over the 12.6 chat
+    // surface, +4.8. The dark preset sits at +4.3.
+    root.style.setProperty('--background-quaternary', '#282b30')
     root.style.setProperty('--background-quinary', '#13151a')
     // Alpha variants
     root.style.setProperty('--background-primary-alpha', '#1e2124aa')
@@ -398,11 +423,21 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
   debug.log(`Applied ${themeName} theme`)
 }
 
+// Override variables the last applySettings wrote inline on :root.
+let appliedOverrideVars = new Set<string>()
+
 /**
  * Apply all visual settings to DOM
  */
 function applySettings(settings: VisualThemeSettings) {
   const root = document.documentElement
+
+  // Overrides dropped since the last apply leave the inline value behind; the
+  // theme pass below rewrites the variables it owns.
+  const overrides = settings.customCssOverrides ?? {}
+  for (const varName of appliedOverrideVars) {
+    if (!overrides[varName]) root.style.removeProperty(varName)
+  }
   
   if (settings.theme === 'custom' && settings.customAccentColor) {
     try {
@@ -425,11 +460,11 @@ function applySettings(settings: VisualThemeSettings) {
   }
   
   // Apply CSS variable overrides (runs after theme so overrides take precedence)
-  if (settings.customCssOverrides) {
-    for (const [varName, value] of Object.entries(settings.customCssOverrides)) {
-      if (varName.startsWith('--') && value) {
-        root.style.setProperty(varName, value)
-      }
+  appliedOverrideVars = new Set()
+  for (const [varName, value] of Object.entries(overrides)) {
+    if (varName.startsWith('--') && value) {
+      root.style.setProperty(varName, value)
+      appliedOverrideVars.add(varName)
     }
   }
   
@@ -681,64 +716,186 @@ function debouncedSaveToSupabase(settings: VisualThemeSettings) {
   }, 1000)
 }
 
+/** Deep copy through JSON; settings are JSON by construction (persisted as JSONB). */
+export function cloneSettings(s: VisualThemeSettings): VisualThemeSettings {
+  return JSON.parse(JSON.stringify(toRaw(s)))
+}
+
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.keys(v).sort().filter((k) => v[k] !== undefined).map((k) => [k, v[k]]))
+      : v,
+  )
+}
+
+/** Equality ignoring key order and undefined-valued keys. */
+export function settingsEqual(a: VisualThemeSettings, b: VisualThemeSettings): boolean {
+  return canonicalJson(a) === canonicalJson(b)
+}
+
+/** Values of every key a skin can change; taken before the first skin applies. */
+function snapshotSkinTargets(s: VisualThemeSettings): Partial<VisualThemeSettings> {
+  return {
+    theme: s.theme,
+    customThemeMode: s.customThemeMode,
+    customPrimaryColor: s.customPrimaryColor,
+    customAccentColor: s.customAccentColor,
+    customBackgroundColor: s.customBackgroundColor,
+    customSidebarColor: s.customSidebarColor,
+    customBackgroundLightness: s.customBackgroundLightness,
+    customBackgroundChroma: s.customBackgroundChroma,
+    customCssOverrides: s.customCssOverrides ? { ...s.customCssOverrides } : {},
+    fontFamily: s.fontFamily,
+  }
+}
+
+/**
+ * Settings after applying a skin, or clearing it with null or an unknown id.
+ * No side effects; the linked audio theme is the caller's.
+ *
+ * Applying merges the skin's `themeOverrides`, sets `activeSkinId` and keeps
+ * the skin's CSS in `customSkinCss` so it round-trips through
+ * `appearance_settings` without the registry. The first skin applied takes a
+ * `_preSkinSnapshot`, so apply A, apply B, clear restores the state from
+ * before A. Clearing restores that snapshot, or the defaults of the
+ * skin-affected keys when none exists. `glassEffectsEnabled` is never
+ * touched; a skin needing blur off does so in its scoped CSS.
+ */
+export function resolveSkin(base: VisualThemeSettings, skinId: string | null): VisualThemeSettings {
+  const next = cloneSettings(base)
+  const skin = skinId ? BUILTIN_SKINS.find((s) => s.id === skinId) : undefined
+  if (!skin) {
+    if (next._preSkinSnapshot) {
+      Object.assign(next, next._preSkinSnapshot)
+    } else if (next.activeSkinId) {
+      next.theme = 'dark'
+      next.customCssOverrides = {}
+      next.fontFamily = 'system'
+    }
+    next._preSkinSnapshot = undefined
+    next.activeSkinId = null
+    next.customSkinCss = ''
+    return next
+  }
+  if (!next.activeSkinId && !next._preSkinSnapshot) {
+    next._preSkinSnapshot = snapshotSkinTargets(next)
+  }
+  Object.assign(next, JSON.parse(JSON.stringify(skin.themeOverrides)))
+  next.activeSkinId = skin.id
+  next.customSkinCss = skin.globalCss || ''
+  return next
+}
+
+/** Settings after applying a community preset; overrides come only from the preset. */
+export function withPreset(base: VisualThemeSettings, preset: ThemePreset): VisualThemeSettings {
+  const next = cloneSettings(base)
+  Object.assign(next, JSON.parse(JSON.stringify(preset.settings)))
+  next.customCssOverrides = { ...(preset.settings.customCssOverrides ?? {}) }
+  if (next.customBackgroundColor) {
+    next.customBackgroundColor = canonicalizeBackgroundTone(
+      next.customBackgroundColor,
+      next.customBackgroundLightness ?? 0,
+      next.customBackgroundChroma ?? 0,
+      (next.customThemeMode || 'dark') as 'light' | 'dark',
+    )
+  }
+  return next
+}
+
 /**
  * Main composable
  */
 export function useVisualTheme() {
   /**
-   * Initialize theme system
+   * Load and apply the settings for the current session. Signed out, the
+   * preset follows prefers-color-scheme; signed in, stored settings win and a
+   * user with none starts from the system preset. Re-runs when the session
+   * user changes, so an in-app sign-in applies the stored theme.
    */
   async function initialize() {
-    if (isInitialized.value) return
-    
-    debug.log('Initializing visual theme system...')
-    
-    // Try to load from localStorage first (instant)
-    const localSettings = loadFromLocalStorage()
-    let appliedFromLocal = false
-    if (localSettings) {
-      migrateLegacyBlurSetting(localSettings)
-      Object.assign(settings.value, localSettings)
-      applySettings(settings.value)
-      appliedFromLocal = true
-    }
-    
-    // Then load from Supabase and override if different
-    const supabaseSettings = await loadFromSupabase()
-    if (supabaseSettings) {
-      migrateLegacyBlurSetting(supabaseSettings)
-      // Re-apply only when the remote settings differ from localStorage.
-      const needsUpdate = !appliedFromLocal || 
-        supabaseSettings.theme !== localSettings?.theme ||
-        supabaseSettings.customAccentColor !== localSettings?.customAccentColor
-      
-      Object.assign(settings.value, supabaseSettings)
-      
-      if (needsUpdate) {
-        applySettings(settings.value)
-      }
-      saveToLocalStorage(settings.value)
-    } else if (!appliedFromLocal) {
-      // No localStorage or Supabase settings - apply defaults
-      applySettings(settings.value)
-    }
-    
-    // Watch for changes and persist
-    watch(
-      settings,
-      (newSettings) => {
-        applySettings(newSettings)
-        saveToLocalStorage(newSettings)
-        // Debounce save to Supabase
-        debouncedSaveToSupabase(newSettings)
-      },
-      { deep: true, immediate: false }
-    )
-    
-    syncLinkedAudioOnInit(settings.value.activeSkinId)
+    const userId = useAuthStore().session?.user?.id ?? null
+    if (isInitialized.value && appliedFor === userId) return
+    if (pendingLoad?.userId === userId) return pendingLoad.promise
+    const promise = loadFor(userId).finally(() => {
+      if (pendingLoad?.promise === promise) pendingLoad = null
+    })
+    pendingLoad = { userId, promise }
+    return promise
+  }
 
-    isInitialized.value = true
-    debug.log('Visual theme system initialized')
+  async function loadFor(userId: string | null) {
+    debug.log('Initializing visual theme system...')
+    attachSystemSchemeListener()
+    loadingStored = true
+    try {
+      if (!userId) {
+        followSystem = true
+        settings.value = createDefaultSettings(systemPreset())
+        applySettings(settings.value)
+      } else {
+        followSystem = false
+        const next = createDefaultSettings(systemPreset())
+
+        // localStorage first (sync, no flash), then the profile copy.
+        const localSettings = loadFromLocalStorage()
+        if (localSettings) {
+          migrateLegacyBlurSetting(localSettings)
+          Object.assign(next, localSettings)
+          settings.value = { ...next }
+          applySettings(settings.value)
+        }
+
+        const supabaseSettings = await loadFromSupabase()
+        if (supabaseSettings) {
+          migrateLegacyBlurSetting(supabaseSettings)
+          Object.assign(next, supabaseSettings)
+        }
+        settings.value = next
+        applySettings(settings.value)
+        if (supabaseSettings) saveToLocalStorage(settings.value)
+      }
+
+      appliedFor = userId
+      isInitialized.value = true
+      startPersistWatcher()
+      syncLinkedAudioOnInit(settings.value.activeSkinId)
+      // Pre-flush watcher runs queued by the writes above see loadingStored.
+      await nextTick()
+      debug.log('Visual theme system initialized')
+    } finally {
+      loadingStored = false
+    }
+  }
+
+  /** Applies every change; persists only for a signed-in user. */
+  function startPersistWatcher() {
+    if (persistWatcherStarted) return
+    persistWatcherStarted = true
+    // Detached scope: a component scope active at the first initialize() call
+    // would stop the watcher on unmount.
+    effectScope(true).run(() => {
+      watch(
+        settings,
+        (newSettings) => {
+          applySettings(newSettings)
+          if (loadingStored || !appliedFor) return
+          saveToLocalStorage(newSettings)
+          debouncedSaveToSupabase(newSettings)
+        },
+        { deep: true }
+      )
+    })
+  }
+
+  function attachSystemSchemeListener() {
+    if (systemSchemeListenerAttached) return
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+    systemSchemeListenerAttached = true
+    const query = window.matchMedia('(prefers-color-scheme: light)')
+    query.addEventListener?.('change', () => {
+      if (followSystem) settings.value.theme = systemPreset()
+    })
   }
   
   /**
@@ -874,89 +1031,44 @@ export function useVisualTheme() {
     return stored ?? option.default
   }
 
-  /**
-   * Capture the values of every key a skin can mutate. Used to take a
-   * snapshot before `applySkin` so `clearSkin` can restore them.
-   */
-  function snapshotSkinTargets(s: VisualThemeSettings): Partial<VisualThemeSettings> {
-    return {
-      theme: s.theme,
-      customThemeMode: s.customThemeMode,
-      customPrimaryColor: s.customPrimaryColor,
-      customAccentColor: s.customAccentColor,
-      customBackgroundColor: s.customBackgroundColor,
-      customSidebarColor: s.customSidebarColor,
-      customBackgroundLightness: s.customBackgroundLightness,
-      customBackgroundChroma: s.customBackgroundChroma,
-      customCssOverrides: s.customCssOverrides ? { ...s.customCssOverrides } : {},
-      fontFamily: s.fontFamily,
-    }
+  /** Switches the linked audio theme when the active skin changes. */
+  function syncSkinAudio(prevSkinId: string | null, nextSkinId: string | null): void {
+    if (prevSkinId === nextSkinId) return
+    if (nextSkinId) applySkinLinkedAudioTheme(nextSkinId)
+    else restorePreSkinAudioTheme()
   }
 
   /**
-   * Apply a skin by id. Merges the skin's `themeOverrides` into the live
-   * settings, sets `activeSkinId`, and stashes the skin's `globalCss` in
-   * `customSkinCss` so it round-trips through the `appearance_settings`
-   * sync flow without needing the skin registry on the receiving device.
-   *
-   * The pre-skin snapshot is stored alongside the rest of settings in
-   * `_preSkinSnapshot`, so it persists through reloads and across
-   * devices via the `appearance_settings` JSONB column. This means
-   * `clearSkin` can faithfully revert font / theme / colours even after
-   * a fresh page load with a persisted active skin.
-   *
-   * The skin deliberately does NOT touch the user's `glassEffectsEnabled`
-   * preference - any "this skin needs blur off" requirements are
-   * enforced by the skin's own scoped CSS (`[data-skin="..."] *
-   * { backdrop-filter: none }`) so the user's separate opt-out toggle
-   * is preserved when they go back to "None".
+   * Apply a skin by id, or clear it with null. See resolveSkin for the
+   * settings change; the linked audio theme follows.
    */
   function applySkin(skinId: string | null) {
-    if (!skinId) {
-      clearSkin()
-      return
-    }
-    const skin = BUILTIN_SKINS.find((s) => s.id === skinId)
-    if (!skin) {
+    if (skinId && !BUILTIN_SKINS.some((s) => s.id === skinId)) {
       debug.warn(`applySkin: unknown skin id "${skinId}", clearing`)
-      clearSkin()
-      return
     }
-    // Capture the pre-skin state once, only if no skin is currently
-    // active. `apply A → apply B → clear` restores the state from
-    // before A, not the half-skin state from between A and B.
-    if (!settings.value.activeSkinId && !settings.value._preSkinSnapshot) {
-      settings.value._preSkinSnapshot = snapshotSkinTargets(settings.value)
-    }
-    Object.assign(settings.value, skin.themeOverrides)
-    settings.value.activeSkinId = skin.id
-    settings.value.customSkinCss = skin.globalCss || ''
-    applySkinLinkedAudioTheme(skin.id)
+    const prev = settings.value.activeSkinId ?? null
+    settings.value = resolveSkin(settings.value, skinId)
+    syncSkinAudio(prev, settings.value.activeSkinId ?? null)
+  }
+
+  function clearSkin() {
+    applySkin(null)
   }
 
   /**
-   * Remove the active skin's contribution AND restore the pre-skin
-   * snapshot. The snapshot is stored on `settings._preSkinSnapshot`
-   * so it survives page reloads / cross-device sync.
-   *
-   * If no snapshot exists (e.g. a skin somehow ended up active without
-   * one), fall back to the static defaults for the skin-affected keys
-   * so the user still gets a clean revert.
+   * Writes `draft` to the DOM without storing it. The next applySettings call
+   * (reapplySettings, or any stored change) replaces the preview.
    */
-  function clearSkin() {
-    const snapshot = settings.value._preSkinSnapshot
-    if (snapshot) {
-      Object.assign(settings.value, snapshot)
-    } else if (settings.value.activeSkinId) {
-      // Snapshot missing - return the skin-mutated keys to defaults.
-      settings.value.theme = 'dark'
-      settings.value.customCssOverrides = {}
-      settings.value.fontFamily = 'system'
-    }
-    settings.value._preSkinSnapshot = undefined
-    settings.value.activeSkinId = null
-    settings.value.customSkinCss = ''
-    restorePreSkinAudioTheme()
+  function previewSettings(draft: VisualThemeSettings) {
+    applySettings(draft)
+  }
+
+  /** Stores and applies `next` as a whole, with the skin's audio side effect. */
+  function commitSettings(next: VisualThemeSettings) {
+    const prev = settings.value.activeSkinId ?? null
+    settings.value = cloneSettings(next)
+    syncSkinAudio(prev, settings.value.activeSkinId ?? null)
+    applySettings(settings.value)
   }
   
   /**
@@ -1039,33 +1151,7 @@ export function useVisualTheme() {
    * Apply a community preset
    */
   function applyPreset(preset: ThemePreset) {
-    const previousOverrides = { ...(settings.value.customCssOverrides || {}) }
-    const newOverrides = preset.settings.customCssOverrides
-      ? { ...preset.settings.customCssOverrides }
-      : {}
-
-    // Drop stale DOM overrides so presets without overrides don't inherit
-    // harmony-primary etc. from a previously applied preset.
-    for (const varName of Object.keys(previousOverrides)) {
-      if (!(varName in newOverrides)) {
-        document.documentElement.style.removeProperty(varName)
-      }
-    }
-
-    Object.assign(settings.value, {
-      ...preset.settings,
-      customCssOverrides: newOverrides,
-    })
-
-    const mode = (settings.value.customThemeMode || 'dark') as 'light' | 'dark'
-    if (settings.value.customBackgroundColor) {
-      settings.value.customBackgroundColor = canonicalizeBackgroundTone(
-        settings.value.customBackgroundColor,
-        settings.value.customBackgroundLightness ?? 0,
-        settings.value.customBackgroundChroma ?? 0,
-        mode,
-      )
-    }
+    settings.value = withPreset(settings.value, preset)
   }
   
   /**
@@ -1126,38 +1212,16 @@ export function useVisualTheme() {
   }
   
   /**
-   * Reset theme system completely (call on logout)
-   * This ensures the next user gets a fresh theme initialization
+   * Signed-out state (call on logout): defaults, system preset, no
+   * persistence. The next sign-in loads that user's settings.
    */
   function reset() {
-    isInitialized.value = false
-    settings.value = {
-      theme: 'dark',
-      customThemeMode: 'dark',
-      customPrimaryColor: '#0EA5E9',
-      customAccentColor: '#0EA5E9',
-      customBackgroundColor: '#0EA5E9',
-      customBackgroundLightness: 0,
-      customBackgroundChroma: 0,
-      customCssOverrides: {},
-      fontSize: 14,
-      zoomLevel: 100,
-      showTimestamps: true,
-      use24HourTime: false,
-      compactMode: false,
-      highContrast: false,
-      reduceMotion: false,
-      screenReaderSupport: false,
-      showCustomEmojisInDisplayNames: true,
-      greentextEnabled: true,
-      inviteBannerBackground: true,
-      bridgeSourceBadge: 'icon',
-      fontFamily: 'system',
-      glassEffectsEnabled: true,
-      activeSkinId: null,
-      customSkinCss: '',
-    }
-    applyPresetTheme('dark')
+    followSystem = true
+    appliedFor = null
+    pendingLoad = null
+    isInitialized.value = true
+    settings.value = createDefaultSettings(systemPreset())
+    applySettings(settings.value)
     debug.log('Visual theme reset for new user')
   }
 
@@ -1165,32 +1229,7 @@ export function useVisualTheme() {
    * Reset to defaults
    */
   function resetToDefaults() {
-    settings.value = {
-      theme: 'dark',
-      customThemeMode: 'dark',
-      customPrimaryColor: '#0EA5E9',
-      customAccentColor: '#0EA5E9',
-      customBackgroundColor: '#0EA5E9',
-      customBackgroundLightness: 0,
-      customBackgroundChroma: 0,
-      customCssOverrides: {},
-      fontSize: 14,
-      zoomLevel: 100,
-      showTimestamps: true,
-      use24HourTime: false,
-      compactMode: false,
-      highContrast: false,
-      reduceMotion: false,
-      screenReaderSupport: false,
-      showCustomEmojisInDisplayNames: true,
-      greentextEnabled: true,
-      inviteBannerBackground: true,
-      bridgeSourceBadge: 'icon',
-      fontFamily: 'system',
-      glassEffectsEnabled: true,
-      activeSkinId: null,
-      customSkinCss: '',
-    }
+    settings.value = createDefaultSettings(systemPreset())
   }
   
   /**
@@ -1220,68 +1259,75 @@ export function useVisualTheme() {
    */
   const currentSettings = computed(() => ({ ...settings.value }))
   
-  /**
-   * Export current theme as JSON string (for custom themes)
-   */
-  function exportThemeAsJson(): string {
+  /** Theme-only JSON of `source` (the stored settings by default). */
+  function exportThemeAsJson(source: VisualThemeSettings = settings.value): string {
     const themeOnly: Partial<VisualThemeSettings> = {
-      theme: settings.value.theme,
-      customThemeMode: settings.value.customThemeMode,
-      customPrimaryColor: settings.value.customPrimaryColor,
-      customAccentColor: settings.value.customAccentColor,
-      customBackgroundColor: settings.value.customBackgroundColor,
-      customSidebarColor: settings.value.customSidebarColor,
-      customBackgroundLightness: settings.value.customBackgroundLightness,
-      customBackgroundChroma: settings.value.customBackgroundChroma,
-      customCssOverrides: settings.value.customCssOverrides ? { ...settings.value.customCssOverrides } : undefined,
+      theme: source.theme,
+      customThemeMode: source.customThemeMode,
+      customPrimaryColor: source.customPrimaryColor,
+      customAccentColor: source.customAccentColor,
+      customBackgroundColor: source.customBackgroundColor,
+      customSidebarColor: source.customSidebarColor,
+      customBackgroundLightness: source.customBackgroundLightness,
+      customBackgroundChroma: source.customBackgroundChroma,
+      customCssOverrides: source.customCssOverrides ? { ...source.customCssOverrides } : undefined,
     }
     return JSON.stringify(themeOnly, null, 2)
+  }
+
+  /**
+   * Theme fields from an exported JSON string, merged over `base` and forced
+   * to the custom theme; null when the text is not a theme object.
+   */
+  function parseThemeJson(json: string, base: VisualThemeSettings = settings.value): Partial<VisualThemeSettings> | null {
+    try {
+      const parsed = JSON.parse(json) as Partial<VisualThemeSettings>
+      if (!parsed || typeof parsed !== 'object') return null
+      return {
+        theme: 'custom',
+        customThemeMode: parsed.customThemeMode ?? 'dark',
+        customPrimaryColor: parsed.customPrimaryColor ?? base.customPrimaryColor,
+        customAccentColor: parsed.customAccentColor ?? base.customAccentColor,
+        customBackgroundColor: parsed.customBackgroundColor ?? base.customBackgroundColor,
+        customSidebarColor: parsed.customSidebarColor ?? base.customSidebarColor,
+        customBackgroundLightness: parsed.customBackgroundLightness ?? base.customBackgroundLightness,
+        customBackgroundChroma: parsed.customBackgroundChroma ?? base.customBackgroundChroma,
+        customCssOverrides: parsed.customCssOverrides ? { ...parsed.customCssOverrides } : undefined,
+      }
+    } catch {
+      return null
+    }
   }
   
   /**
    * Import and apply theme from JSON string
    */
   function importThemeFromJson(json: string): boolean {
-    try {
-      const parsed = JSON.parse(json) as Partial<VisualThemeSettings>
-      if (!parsed || typeof parsed !== 'object') return false
-      // Ensure we're in custom mode and merge theme-relevant fields
-      const toApply: Partial<VisualThemeSettings> = {
-        theme: 'custom',
-        customThemeMode: parsed.customThemeMode ?? 'dark',
-        customPrimaryColor: parsed.customPrimaryColor ?? settings.value.customPrimaryColor,
-        customAccentColor: parsed.customAccentColor ?? settings.value.customAccentColor,
-        customBackgroundColor: parsed.customBackgroundColor ?? settings.value.customBackgroundColor,
-        customSidebarColor: parsed.customSidebarColor ?? settings.value.customSidebarColor,
-        customBackgroundLightness: parsed.customBackgroundLightness ?? settings.value.customBackgroundLightness,
-        customBackgroundChroma: parsed.customBackgroundChroma ?? settings.value.customBackgroundChroma,
-        customCssOverrides: parsed.customCssOverrides ? { ...parsed.customCssOverrides } : undefined,
-      }
-      Object.assign(settings.value, toApply)
-      return true
-    } catch {
-      return false
-    }
+    const theme = parseThemeJson(json)
+    if (!theme) return false
+    Object.assign(settings.value, theme)
+    return true
   }
   
-  /**
-   * Save current theme to "My themes" in localStorage
-   */
-  function saveCurrentThemeAsCustom(name: string): SavedCustomTheme | null {
+  /** Saves the colours of `source` (the stored settings by default) to "My themes". */
+  function saveCurrentThemeAsCustom(
+    name: string,
+    source: VisualThemeSettings = settings.value,
+  ): SavedCustomTheme | null {
     if (!name?.trim()) return null
     const theme: SavedCustomTheme = {
       id: crypto.randomUUID(),
       name: name.trim(),
       settings: {
         theme: 'custom',
-        customThemeMode: settings.value.customThemeMode,
-        customPrimaryColor: settings.value.customPrimaryColor,
-        customAccentColor: settings.value.customAccentColor,
-        customBackgroundColor: settings.value.customBackgroundColor,
-        customSidebarColor: settings.value.customSidebarColor,
-        customBackgroundLightness: settings.value.customBackgroundLightness,
-        customBackgroundChroma: settings.value.customBackgroundChroma,
-        customCssOverrides: settings.value.customCssOverrides ? { ...settings.value.customCssOverrides } : undefined,
+        customThemeMode: source.customThemeMode,
+        customPrimaryColor: source.customPrimaryColor,
+        customAccentColor: source.customAccentColor,
+        customBackgroundColor: source.customBackgroundColor,
+        customSidebarColor: source.customSidebarColor,
+        customBackgroundLightness: source.customBackgroundLightness,
+        customBackgroundChroma: source.customBackgroundChroma,
+        customCssOverrides: source.customCssOverrides ? { ...source.customCssOverrides } : undefined,
       },
       createdAt: new Date().toISOString(),
     }
@@ -1343,6 +1389,8 @@ export function useVisualTheme() {
     setGlassEffectsEnabled,
     applySkin,
     clearSkin,
+    previewSettings,
+    commitSettings,
     setSkinOption,
     getSkinOption,
     toggleShowTimestamps,
@@ -1363,6 +1411,7 @@ export function useVisualTheme() {
     getThemableVariables,
     exportThemeAsJson,
     importThemeFromJson,
+    parseThemeJson,
     getSavedCustomThemes,
     saveCurrentThemeAsCustom,
     loadSavedTheme,

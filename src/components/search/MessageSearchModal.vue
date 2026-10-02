@@ -91,18 +91,22 @@
             <p>{{ t('messageSearch.searching') }}</p>
           </div>
 
-          <div v-else-if="error" class="search-state">
-            <Icon name="alert-circle" :size="40" class="search-state-icon" />
-            <h3>{{ t('messageSearch.error') }}</h3>
-            <p>{{ error }}</p>
-            <button type="button" class="search-button" @click="runSearch(page)">{{ t('common.retry') }}</button>
-          </div>
+          <EmptyState
+            v-else-if="error"
+            tone="error"
+            icon="alert-circle"
+            :title="t('messageSearch.error')"
+            :description="error"
+            :action-label="t('common.retry')"
+            @action="runSearch(page)"
+          />
 
-          <div v-else-if="results.length === 0" class="search-state">
-            <Icon name="search" :size="40" class="search-state-icon" />
-            <h3>{{ t('messageSearch.empty') }}</h3>
-            <p>{{ t('messageSearch.emptyHint') }}</p>
-          </div>
+          <EmptyState
+            v-else-if="results.length === 0"
+            icon="search"
+            :title="t('messageSearch.empty')"
+            :description="t('messageSearch.emptyHint')"
+          />
 
           <div v-else class="search-results" :class="{ stale: isSearching }">
             <section v-for="group in groups" :key="group.key" class="search-group">
@@ -150,6 +154,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UnifiedModal from '@/components/shared/UnifiedModal.vue'
 import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import SearchQueryInput from '@/components/search/SearchQueryInput.vue'
 import SearchResultItem from '@/components/search/SearchResultItem.vue'

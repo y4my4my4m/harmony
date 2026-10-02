@@ -71,8 +71,8 @@
     </div>
 
     <!-- User Profile at Bottom (desktop only; mobile uses server rail above) -->
-    <div v-if="!isMobile" class="user-profile-section">
-      <UserProfileComponent />
+    <div v-if="!isMobile" class="user-profile-section" :class="{ docked: userPanelDocked }">
+      <UserProfileComponent :docked="userPanelDocked" />
     </div>
     
     <!-- Always mounted; visibility is driven by the show prop -->
@@ -97,6 +97,7 @@ import { useRoute, useRouter } from 'vue-router'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import ServerSidebar from '@/components/ServerSidebar.vue'
 import UserProfileComponent from '@/components/UserProfileComponent.vue'
+import { userPanelDocked } from '@/composables/useUserPanelDock'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
@@ -1106,6 +1107,9 @@ onBeforeUnmount(() => {
   background: var(--background-tertiary);
   z-index: 100;
   padding-top: 26px;
+  /* The user panel (72px tall, 10px off the bottom) covers the rail's foot. */
+  padding-bottom: 92px;
+  box-sizing: border-box;
   will-change: transform;
 }
 
@@ -1124,8 +1128,21 @@ onBeforeUnmount(() => {
   z-index: 101;
 }
 
+/* Docked: the 64px avatar centred in the 72px rail. */
+.user-profile-section.docked {
+  left: 4px;
+}
+
 /* Mobile responsiveness */
 @media (max-width: 768px) {
+  /* Safe-area insets (status bar, notch, home indicator) are non-zero only
+     where the page draws under them: iOS with viewport-fit=cover. The Android
+     shell consumes them natively. Fixed drawers pad themselves. */
+  .base-layout {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
   .base-layout.sidebar-open .server-sidebar-container {
     transform: translateX(0);
   }
@@ -1138,7 +1155,8 @@ onBeforeUnmount(() => {
     height: 100dvh;
     z-index: 200;
     transform: translateX(-100%);
-    padding-top: 0;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
     /* Spring settle on release */
     transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
   }
@@ -1164,7 +1182,7 @@ onBeforeUnmount(() => {
   .user-profile-section {
     position: absolute;
     left: 6px;
-    bottom: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
     width: 64px;
     z-index: 101;
     margin: 0 auto;

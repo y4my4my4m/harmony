@@ -521,8 +521,7 @@ watch(hasChanges, (newValue) => {
 .server-settings {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
+  height: 100%;
   background-color: var(--background-tertiary);
   color: var(--text-primary);
 }
@@ -543,6 +542,11 @@ watch(hasChanges, (newValue) => {
 }
 
 .mobile-menu-btn {
+  display: flex;
+  min-width: 40px;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   padding: 8px;
@@ -586,6 +590,8 @@ watch(hasChanges, (newValue) => {
 }
 
 .mobile-back-btn {
+  min-width: 40px;
+  min-height: 40px;
   background: none;
   border: none;
   padding: 8px;
@@ -796,12 +802,14 @@ watch(hasChanges, (newValue) => {
   }
   
 
+  /* Below the mobile nav, which BaseLayout insets by the top safe area. */
   .server-settings-sidebar {
     position: fixed;
-    top: 60px; /* Below mobile nav */
+    top: calc(60px + env(safe-area-inset-top, 0px));
+    bottom: 0;
     left: 0;
     width: 280px;
-    height: calc(100vh - 60px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     z-index: 1000;
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
   }

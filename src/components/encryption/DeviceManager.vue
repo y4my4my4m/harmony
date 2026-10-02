@@ -17,9 +17,13 @@
 
     <div v-if="loading" class="dm-loading">Loading devices…</div>
 
-    <div v-else-if="devices.length === 0" class="dm-empty">
-      No devices registered yet. They appear here once you unlock encryption.
-    </div>
+    <EmptyState
+      v-else-if="devices.length === 0"
+      size="sm"
+      icon="devices"
+      :title="$t('empty.devices.title')"
+      :description="$t('empty.devices.description')"
+    />
 
     <ul v-else class="dm-list">
       <li v-for="d in activeDevices" :key="d.id" class="dm-item" :class="{ revoked: !!d.revoked_at }">
@@ -92,6 +96,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import { useDeviceApprovals } from '@/composables/useDeviceApprovals'
 import { deviceIdentityService, type UserDevice, type DeviceApprovalRequest } from '@/services/encryption/DeviceIdentityService'
 import { debug } from '@/utils/debug'
@@ -294,12 +299,6 @@ onMounted(async () => {
 }
 
 .dm-loading,
-.dm-empty {
-  color: var(--text-secondary, #888);
-  font-size: 13px;
-  padding: 8px 0;
-}
-
 .dm-list {
   list-style: none;
   margin: 0;

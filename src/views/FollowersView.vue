@@ -44,21 +44,19 @@
         <p>Loading {{ currentView }}...</p>
       </div>
 
-      <div v-else-if="users.length === 0" class="empty-state">
-        <div class="empty-icon">
-          <Icon :name="currentView === 'followers' ? 'users' : currentView === 'requests' ? 'user-plus' : 'user-check'" :size="64" />
-        </div>
-        <h3>{{ emptyStateTitle }}</h3>
-        <p>{{ emptyStateMessage }}</p>
-        <router-link 
-          v-if="currentView === 'following'"
-          to="/social/public" 
-          class="discover-btn"
-        >
-          <Icon name="globe" />
-          Discover users
-        </router-link>
-      </div>
+      <EmptyState
+        v-else-if="users.length === 0"
+        :icon="currentView === 'followers' ? 'users' : currentView === 'requests' ? 'user-plus' : 'user-check'"
+        :title="t(`empty.${currentView}.title`)"
+        :description="t(`empty.${currentView}.description`)"
+      >
+        <template v-if="currentView === 'following'" #actions>
+          <router-link to="/social/public" class="list-empty__button">
+            <Icon name="globe" :size="16" />
+            {{ t('empty.following.action') }}
+          </router-link>
+        </template>
+      </EmptyState>
 
       <!-- Virtualized list -->
       <div v-else class="users-list">
@@ -141,10 +139,11 @@ import { interactionService } from '@/services/InteractionService';
 import { supabase } from '@/supabase';
 import type { FederatedUser } from '@/types';
 
-useI18n();
+const { t } = useI18n();
 
 import UserCard from '@/components/activitypub/UserCard.vue';
 import Icon from '@/components/common/Icon.vue';
+import EmptyState from '@/components/common/EmptyState.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 
 const activityPubStore = useActivityPubStore();
@@ -232,21 +231,6 @@ const viewSubtitle = computed(() => {
   return currentView.value === 'followers'
     ? `${count} ${count === 1 ? 'person follows' : 'people follow'} you`
     : `${count} ${count === 1 ? 'person' : 'people'} you follow`;
-});
-
-const emptyStateTitle = computed(() => {
-  const { t } = useI18n();
-  if (currentView.value === 'requests') return 'No pending requests';
-  return currentView.value === 'followers' ? t('activitypub.noFollowingYet') : t('activitypub.notFollowingAnyoneYet');
-});
-
-const emptyStateMessage = computed(() => {
-  if (currentView.value === 'requests') {
-    return 'When people request to follow you, they\'ll appear here.';
-  }
-  return currentView.value === 'followers'
-    ? 'When people follow you, they\'ll appear here.'
-    : 'When you follow people, they\'ll appear here.';
 });
 
 const loadUsers = async (refresh = false) => {
@@ -563,8 +547,7 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 
-.loading-state,
-.empty-state {
+.loading-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -572,42 +555,6 @@ onUnmounted(() => {
   padding: 48px 24px;
   text-align: center;
   color: var(--text-secondary);
-}
-
-.empty-icon {
-  color: var(--text-tertiary);
-  margin-bottom: 16px;
-}
-
-.empty-state h3 {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-semibold);
-  margin: 0 0 8px 0;
-  color: var(--text-primary);
-}
-
-.empty-state p {
-  font-size: var(--font-size-base);
-  margin: 0 0 24px 0;
-  max-width: 400px;
-  line-height: 1.5;
-}
-
-.discover-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 24px;
-  background: var(--harmony-primary);
-  color: var(--text-on-primary);
-  text-decoration: none;
-  border-radius: var(--radius-md);
-  font-weight: var(--font-weight-semibold);
-  transition: background-color var(--transition-fast);
-}
-
-.discover-btn:hover {
-  background: var(--harmony-primary-hover);
 }
 
 .users-container {

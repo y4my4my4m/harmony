@@ -510,8 +510,9 @@ onMounted(() => {
 <style scoped>
 .chat-layout {
   width: 100%;
-  height: 100vh;
-  height: 100dvh; /* mobile: keyboard/URL bar no longer hides the input */
+  /* Fills BaseLayout's content area, which is 100dvh less the safe-area
+     padding on mobile. */
+  height: 100%;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -635,6 +636,8 @@ onMounted(() => {
     position: fixed;
     top: 0;
     bottom: 0;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     z-index: 200;
     /* spring easing, applied on drag release */
     transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1), width 0.2s cubic-bezier(0.32, 0.72, 0, 1);

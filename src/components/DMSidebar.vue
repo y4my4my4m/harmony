@@ -57,9 +57,12 @@
         <div v-if="dmStore.isSearching" class="search-loading">
           {{ $t('common.search') }}...
         </div>
-        <div v-else-if="filteredSearchResults.length === 0" class="no-results">
-          {{ $t('dm.noUsersFound') }}
-        </div>
+        <EmptyState
+          v-else-if="filteredSearchResults.length === 0"
+          size="sm"
+          icon="search"
+          :title="$t('dm.noUsersFound')"
+        />
         <div 
           v-else
           v-for="user in filteredSearchResults"
@@ -110,16 +113,15 @@
         </div>
       </div>
       
-      <div v-else-if="sortedConversations.length === 0" class="empty-state">
-        <div class="empty-icon">
-          <Icon name="message-circle" :size="48" />
-        </div>
-        <h3>{{ $t('dm.noConversations') }}</h3>
-        <p>{{ $t('dm.startBySearching') }}</p>
-        <button class="empty-cta" type="button" @click="showUserSearch = true">
-          {{ $t('dm.newMessage') }}
-        </button>
-      </div>
+      <EmptyState
+        v-else-if="sortedConversations.length === 0"
+        size="sm"
+        icon="message-circle"
+        :title="$t('dm.noConversations')"
+        :description="$t('dm.startBySearching')"
+        :action-label="$t('dm.newMessage')"
+        @action="showUserSearch = true"
+      />
 
       <div v-else class="conversations-list">
         <div 
@@ -225,6 +227,7 @@
 // TODO: Consider virtualizing conversation list for users with many DMs
 import { ref, computed, onUnmounted, watch, nextTick } from 'vue'
 import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import { useDMStore, type DMUser, type DMConversation } from '@/stores/useDM'
 import { useActivityPubStore } from '@/stores/useActivityPub'
 import { useUserData } from '@/composables/useUserData'
@@ -626,13 +629,6 @@ onUnmounted(() => {
 }
 
 .search-loading,
-.no-results {
-  padding: 12px;
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 14px;
-}
-
 .search-result-item {
   display: flex;
   align-items: center;
@@ -718,57 +714,12 @@ onUnmounted(() => {
   }
 }
 
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
-  text-align: center;
-  color: var(--text-muted);
-  flex: 1;
-}
-
-.empty-icon {
-  width: 48px;
-  height: 48px;
-  margin-bottom: 16px;
-  opacity: 0.6;
-}
-
-.empty-state h3 {
-  margin: 0 0 8px 0;
-  font-size: 16px;
-  color: var(--text-primary);
-}
-
-.empty-state p {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.4;
-}
-
-.empty-cta {
-  margin-top: 16px;
-  padding: 8px 16px;
-  border: none;
-  border-radius: 6px;
-  background: var(--harmony-primary);
-  color: var(--text-on-primary);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.empty-cta:hover {
-  background: var(--harmony-primary-hover);
-}
-
 .conversations-list {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 8px 0;
+  /* Bottom strip reserved for the floating user panel, as in ChannelSidebar. */
+  padding: 8px 0 96px;
 }
 
 .conversation-item {

@@ -49,9 +49,13 @@
               </span>
             </button>
 
-            <div v-if="visibleSources.length === 0" class="picker-empty">
-              No {{ activeTab === 'screens' ? 'screens' : 'windows' }} available
-            </div>
+            <EmptyState
+              v-if="visibleSources.length === 0"
+              class="picker-empty"
+              size="sm"
+              :icon="activeTab === 'screens' ? 'monitor' : 'layers'"
+              :title="activeTab === 'screens' ? $t('empty.screenSources.screens') : $t('empty.screenSources.windows')"
+            />
           </div>
         </div>
       </div>
@@ -64,6 +68,7 @@ import { ref, computed, watch } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { nativeLiveKit, type NativeScreenSource } from '@/services/nativeLiveKit';
 import Icon from '@/components/common/Icon.vue';
+import EmptyState from '@/components/common/EmptyState.vue';
 
 const voiceStore = useUnifiedVoiceChannelStore();
 
@@ -253,10 +258,6 @@ const cancel = () => {
 
 .picker-empty {
   grid-column: 1 / -1;
-  text-align: center;
-  padding: 32px;
-  color: var(--text-secondary);
-  opacity: 0.7;
 }
 
 .picker-fade-enter-active,

@@ -1,7 +1,16 @@
 <template>
   <div class="lists-view">
     <div class="lists-header">
-      <h1 class="lists-title">Lists</h1>
+      <button
+        v-if="isMobile"
+        type="button"
+        class="nav-menu-btn"
+        :aria-label="$t('activitypub.openNavigation')"
+        @click="openLeftSidebar"
+      >
+        <Icon name="menu" :size="20" />
+      </button>
+      <h1 class="lists-title">{{ $t('activitypub.lists') }}</h1>
       <button class="create-list-btn" @click="showCreateModal = true">
         <span class="icon">+</span>
         New list
@@ -15,14 +24,14 @@
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="lists.length === 0" class="lists-empty">
-      <div class="empty-icon"><Icon name="list" :size="40" /></div>
-      <h2>No lists yet</h2>
-      <p>Lists let you organize followed accounts and create custom timelines.</p>
-      <button class="create-first-btn" @click="showCreateModal = true">
-        Create your first list
-      </button>
-    </div>
+    <EmptyState
+      v-else-if="lists.length === 0"
+      icon="list"
+      :title="$t('empty.lists.title')"
+      :description="$t('empty.lists.description')"
+      :action-label="$t('empty.lists.action')"
+      @action="showCreateModal = true"
+    />
 
     <!-- Lists Grid -->
     <div v-else class="lists-grid">
@@ -150,14 +159,17 @@
 
 <script setup lang="ts">
 import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import { computed, onMounted, ref, reactive } from 'vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useRouter } from 'vue-router'
 import { debug } from '@/utils/debug'
 import { useActivityPubStore, type UserList } from '@/stores/useActivityPub'
+import { useLayoutState } from '@/composables/useLayoutState'
 
 // Router
 const router = useRouter()
+const { isMobile, openLeftSidebar } = useLayoutState()
 
 const activityPubStore = useActivityPubStore()
 
@@ -291,12 +303,34 @@ onMounted(() => {
 
 .lists-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: var(--space-2);
   margin-bottom: 1.5rem;
 }
 
+/* The page has no header of the social or chat layouts; on mobile this is the
+   way to the navigation drawer besides the edge swipe. */
+.nav-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.nav-menu-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
 .lists-title {
+  flex: 1;
   font-size: 1.5rem;
   font-weight: var(--font-weight-bold);
   color: var(--text-primary);
@@ -337,47 +371,6 @@ onMounted(() => {
   color: var(--text-secondary);
 }
 
-
-/* Empty State */
-.lists-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 3rem;
-  text-align: center;
-}
-
-.empty-icon {
-  font-size: 4rem;
-  margin-bottom: 1rem;
-}
-
-.lists-empty h2 {
-  color: var(--text-primary);
-  margin: 0 0 0.5rem 0;
-}
-
-.lists-empty p {
-  color: var(--text-secondary);
-  max-width: 300px;
-  margin: 0 0 1.5rem 0;
-}
-
-.create-first-btn {
-  padding: 0.75rem 1.5rem;
-  background: var(--harmony-primary);
-  color: var(--text-on-primary);
-  border: none;
-  border-radius: 0.5rem;
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.create-first-btn:hover {
-  background: var(--harmony-primary-hover);
-}
 
 /* Lists Grid */
 .lists-grid {

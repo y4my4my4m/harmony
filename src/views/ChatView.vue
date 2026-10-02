@@ -379,6 +379,10 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
 @media (max-width: 768px) {
   .mobile-menu-btn {
     display: flex;
+    min-width: 40px;
+    min-height: 40px;
+    align-items: center;
+    justify-content: center;
   }
 }
 </style>

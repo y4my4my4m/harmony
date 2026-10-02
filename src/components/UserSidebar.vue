@@ -122,7 +122,7 @@
                 <div class="user-name-row">
                   <span
                     class="user-name"
-                    :style="item.nameColor ? { color: item.nameColor } : undefined"
+                    :style="memberNameStyle(item.nameColor)"
                   >
                     {{ item.bridgedUser.displayName || item.bridgedUser.username }}
                   </span>
@@ -170,7 +170,7 @@
                 <div class="user-name-row">
                   <span
                     class="user-name"
-                    :style="{ color: item.nameColor || memberNameColor(item.user!.id) }"
+                    :style="memberNameStyle(item.nameColor || memberNameColor(item.user!.id))"
                   >
                     <DisplayName :user-id="item.user!.id" :truncate="true" />
                   </span>
@@ -284,7 +284,7 @@ import { useDMStore } from '@/stores/useDM';
 import { authContextService } from '@/services/AuthContextService';
 import { getUserIdsForServer} from '@/services/usersService';
 import { UserStatus } from '@/types';
-import { useUserData } from '@/composables/useUserData';
+import { useUserData, DEFAULT_USER_COLOR } from '@/composables/useUserData';
 import { useLayoutState } from '@/composables/useLayoutState';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { roleService, type ServerRole } from '@/services/RoleService';
@@ -311,12 +311,19 @@ const serverChannelStore = useServerChannelStore();
 const serverRolesStore = useServerRolesStore();
 
 // Same precedence as chat authors (MessageDisplay.resolveChatUserColor):
-// highest colored role in the current server, then profile color.
+// highest colored role in the current server, then profile color. Uncoloured
+// members return undefined and take the .user-name token.
 const memberNameColor = (userId: string): string | undefined => {
   const serverId = serverChannelStore.currentServerId;
   const roleColor = serverId ? serverRolesStore.getUserRoleColor(serverId, userId) : null;
-  return roleColor || getUserColor(userId).value || undefined;
+  const color = roleColor || getUserColor(userId).value;
+  return color && color !== DEFAULT_USER_COLOR ? color : undefined;
 };
+
+// A custom property, not `color`: the offline rule derives its dimmed colour
+// from it.
+const memberNameStyle = (color?: string | null) =>
+  color ? { '--member-name-color': color } : undefined;
 const activityPubStore = useActivityPubStore();
 const router = useRouter();
 const { isMobile } = useLayoutState();
@@ -1408,13 +1415,25 @@ const closeInviteModal = () => {
   color: var(--text-muted);
 }
 
-.offline-user {
-  opacity: 0.55;
+/* Offline rows dim the avatar and pull the name 40% toward --text-tertiary.
+   The mix lies between two readable colours and never drops below the lower
+   of the two. Uncoloured offline names measure 6.4:1 or more on the dark,
+   light and midnight presets, custom palettes and SDR-001. */
+.offline-user .user-avatar {
+  opacity: 0.5;
   transition: opacity 0.2s ease;
 }
 
-.offline-user:hover {
-  opacity: 1.0;
+.offline-user .user-name {
+  color: color-mix(in oklab, var(--member-name-color, var(--text-secondary)) 60%, var(--text-tertiary));
+}
+
+.offline-user:hover .user-avatar {
+  opacity: 1;
+}
+
+.offline-user:hover .user-name {
+  color: var(--member-name-color, var(--text-secondary));
 }
 
 /* Loading Indicator */
@@ -1609,7 +1628,7 @@ const closeInviteModal = () => {
 }
 
 .user-name {
-  color: var(--text-secondary);
+  color: var(--member-name-color, var(--text-secondary));
   font-size: 14px;
   font-weight: 500;
   white-space: nowrap;

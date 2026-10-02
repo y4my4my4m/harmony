@@ -352,13 +352,13 @@
 
     <!-- Discovered Instances -->
     <div v-if="discoveryTab === 'discovered'" class="discovery-content">
-      <div v-if="discoveredInstances.length === 0" class="empty-state">
-        <Icon name="search" :size="32" />
-        <p>No instances discovered from user interactions yet.</p>
-        <button @click="loadDiscoveredInstances" class="primary-btn">
-          Scan for interactions
-        </button>
-      </div>
+      <EmptyState
+        v-if="discoveredInstances.length === 0"
+        icon="search"
+        :title="$t('empty.admin.discoveredInstances.title')"
+        :action-label="$t('empty.admin.discoveredInstances.action')"
+        @action="loadDiscoveredInstances"
+      />
       <div v-else class="discovered-list">
         <div
           v-for="discovered in discoveredInstances"
@@ -447,6 +447,7 @@ import { ref, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
 import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { adminService, type FederatedInstance, type InstanceStats, type InstanceSearchResult, type FederationStats, type DeadEndpoint } from '@/services/AdminService'
 import { formatNumber, formatTimeAgo, formatRelativeTime } from './adminFormat'

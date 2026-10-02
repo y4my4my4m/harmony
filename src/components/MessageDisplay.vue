@@ -23,9 +23,12 @@
       </div>
     </div>
     
-    <div class="no-messages" v-else-if="!isLoading && messages.length === 0">
-      {{ $t('message.noMessagesHere') }}
-    </div>
+    <EmptyState
+      v-else-if="!isLoading && messages.length === 0"
+      class="no-messages"
+      icon="message-circle"
+      :title="$t('message.noMessagesHere')"
+    />
     <!-- Sentinel for auto-loading older messages when the top is visible -->
     <div ref="topSentinelRef" class="top-sentinel"></div>
 
@@ -659,6 +662,7 @@
 defineOptions({ inheritAttrs: false })
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import Icon from '@/components/common/Icon.vue';
+import EmptyState from '@/components/common/EmptyState.vue';
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import { getAvatarUrl } from '@/utils/avatarUtils';
@@ -683,7 +687,7 @@ import { supabase } from '@/supabase';
 import { throttle } from '@/utils/throttle';
 import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
 import { useServerPermissions } from '@/composables/useServerPermissions';
-import { useUserData } from '@/composables/useUserData';
+import { useUserData, DEFAULT_USER_COLOR } from '@/composables/useUserData';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useQuickReactSettings } from '@/composables/useQuickReactSettings';
 import { useLayoutState } from '@/composables/useLayoutState';
@@ -816,7 +820,7 @@ const effectiveColoringServerId = computed(() =>
  * to the user's profile color (and ultimately the default in `getUserColor`).
  */
 const resolveChatUserColor = (userId: string | null | undefined): string => {
-  if (!userId) return '#ffffff';
+  if (!userId) return DEFAULT_USER_COLOR;
   const serverId = effectiveColoringServerId.value;
   const roleColor = serverId ? serverRolesStore.getUserRoleColor(serverId, userId) : null;
   return roleColor || getUserColor(userId).value;
@@ -4005,13 +4009,7 @@ defineExpose({ editLastOwnMessage });
 
 /* No messages state */
 .no-messages {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
   height: 100%;
-  color: var(--text-muted);
-  font-size: 1rem;
 }
 
 /* Loading skeletons */

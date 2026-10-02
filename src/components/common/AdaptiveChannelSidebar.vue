@@ -132,6 +132,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/useNotification';
 import { authContextService } from '@/services/AuthContextService';
 import { useLayoutState } from '@/composables/useLayoutState';
+import { useUserPanelHost } from '@/composables/useUserPanelDock';
 import type { Server, Channel, Category } from '@/types';
 
 // I18n
@@ -190,6 +191,8 @@ const emit = defineEmits<{
 
 const route = useRoute();
 const router = useRouter();
+// Every mode reserves its bottom strip for the floating user panel.
+useUserPanelHost();
 const activityPubStore = useActivityPubStore();
 const profileStore = useProfileStore();
 const authStore = useAuthStore();

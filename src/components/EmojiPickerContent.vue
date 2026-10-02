@@ -198,13 +198,13 @@
       </LazyEmojiSection>
       
       <!-- No Results -->
-      <div v-if="searchQuery && !filteredEmojiList.length && !displayedCategories.length" class="no-results">
-        <div class="no-results-content">
-          <Icon name="search" :size="32" class="no-results-icon" />
-          <p>No emojis found for "{{ searchQuery }}"</p>
-          <small>Try a different search term.</small>
-        </div>
-      </div>
+      <EmptyState
+        v-if="searchQuery && !filteredEmojiList.length && !displayedCategories.length"
+        size="sm"
+        icon="search"
+        :title="$t('empty.emojiSearch.title', { query: searchQuery })"
+        :description="$t('gif.tryDifferentSearch')"
+      />
     </div>
 
     <!-- Emoji preview bar -->
@@ -270,6 +270,7 @@ import LazyEmojiSection from '@/components/LazyEmojiSection.vue';
 import ServerIcon from '@/components/common/ServerIcon.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import Icon from '@/components/common/Icon.vue';
+import EmptyState from '@/components/common/EmptyState.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 
 // Types
@@ -1043,38 +1044,6 @@ onUnmounted(() => {
   padding: 24px;
   color: var(--text-secondary);
   font-size: 13px;
-}
-
-.no-results {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 200px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  text-align: center;
-  padding: 16px;
-}
-
-.no-results-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.no-results-icon {
-  opacity: 0.6;
-}
-
-.no-results p {
-  margin: 0;
-  font-weight: 500;
-}
-
-.no-results small {
-  color: var(--text-muted);
-  font-size: 12px;
 }
 
 /* AI generation form */

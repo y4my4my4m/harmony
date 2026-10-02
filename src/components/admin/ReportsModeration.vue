@@ -182,10 +182,11 @@
     </button>
   </div>
 
-  <div v-else class="reports-empty">
-    <Icon name="check-circle" :size="32" />
-    <p>No reports{{ activeReportFilter !== 'all' ? ` with status "${activeReportFilter}"` : '' }}</p>
-  </div>
+  <EmptyState
+    v-else
+    icon="check-circle"
+    :title="activeReportFilter !== 'all' ? $t('empty.admin.reports.filtered', { status: activeReportFilter }) : $t('empty.admin.reports.title')"
+  />
 </div>
 </template>
 
@@ -196,6 +197,7 @@ import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import { escapeHtml } from '@/utils/sanitize'
 import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import { adminService } from '@/services/AdminService'
@@ -1166,21 +1168,6 @@ onMounted(async () => {
   background: var(--background-modifier-active);
   color: var(--text-primary);
 }
-
-
-
-
-
-.reports-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 40px 20px;
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-
 .report-category-badge {
   font-size: 10px;
   font-weight: 600;

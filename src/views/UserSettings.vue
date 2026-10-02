@@ -1,5 +1,6 @@
 <template>
-  <div class="user-settings">
+  <!-- Full-screen overlay: edge swipes would open the layout's drawers behind it. -->
+  <div class="user-settings" data-block-sidebar-gestures>
     <div class="user-settings-container">
       <!--          <UserAccountSettings 
             v-if="activeSection === 'account'"
@@ -691,6 +692,11 @@ onUnmounted(() => {
 }
 
 .mobile-menu-btn {
+  display: flex;
+  min-width: 40px;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   padding: 8px;
@@ -734,6 +740,8 @@ onUnmounted(() => {
 }
 
 .mobile-close-btn {
+  min-width: 40px;
+  min-height: 40px;
   background: none;
   border: none;
   padding: 8px;
@@ -921,20 +929,26 @@ onUnmounted(() => {
   
   .user-settings-container {
     height: 100vh;
+    height: 100dvh;
     border-radius: 0;
     max-width: none;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   .mobile-nav {
     display: flex;
+    top: env(safe-area-inset-top, 0px);
   }
   
+  /* Offsets include the safe-area insets the container pads by. */
   .settings-sidebar {
     position: fixed;
-    top: 60px; /* Below mobile nav */
+    top: calc(60px + env(safe-area-inset-top, 0px));
+    bottom: 0;
     left: 0;
     width: 280px;
-    height: calc(100vh - 60px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     z-index: 1000;
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
   }

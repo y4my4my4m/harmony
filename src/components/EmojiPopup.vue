@@ -181,13 +181,13 @@
       </LazyEmojiSection>
       
       <!-- No Results -->
-      <div v-if="searchQuery && !filteredEmojiList.length && !displayedCategories.length" class="no-results">
-        <div class="no-results-content">
-          <Icon :name="noResultsInfo.icon" :size="32" class="no-results-icon" />
-          <p>{{ noResultsInfo.title }}</p>
-          <small>{{ noResultsInfo.subtitle }}</small>
-        </div>
-      </div>
+      <EmptyState
+        v-if="searchQuery && !filteredEmojiList.length && !displayedCategories.length"
+        size="sm"
+        icon="search"
+        :title="$t('empty.emojiSearch.title', { query: searchQuery })"
+        :description="$t('gif.tryDifferentSearch')"
+      />
     </div>
 
     <!-- Emoji preview bar -->
@@ -253,6 +253,7 @@ import LazyEmojiSection from '@/components/LazyEmojiSection.vue';
 import ServerIcon from '@/components/common/ServerIcon.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import Icon from '@/components/common/Icon.vue';
+import EmptyState from '@/components/common/EmptyState.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 
 // --- Types ---
@@ -568,21 +569,6 @@ function getFrequentEmojiSvgUrl(emoji: { id: string; native?: string; name: stri
 /**
  * Provides content for the "no results" message.
  */
-const noResultsInfo = computed(() => {
-  if (searchQuery.value.trim()) {
-    return {
-      icon: 'search',
-      title: `No emojis found for "${searchQuery.value}"`,
-      subtitle: 'Try a different search term.',
-    };
-  }
-  return {
-    icon: 'smile',
-    title: 'No custom emojis available',
-    subtitle: 'Ask a server admin to add some.',
-  };
-});
-
 // --- Logic & Handlers ---
 
 /**
@@ -1204,38 +1190,6 @@ watch(
   padding: 24px;
   color: var(--color-text-secondary, var(--text-secondary));
   font-size: 13px;
-}
-
-.no-results {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 200px;
-  color: var(--color-text-secondary, var(--text-muted));
-  font-size: 14px;
-  text-align: center;
-  padding: 16px;
-}
-
-.no-results-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.no-results-icon {
-  opacity: 0.6;
-}
-
-.no-results p {
-  margin: 0;
-  font-weight: 500;
-}
-
-.no-results small {
-  color: var(--text-muted);
-  font-size: 12px;
 }
 
 /* Scrollbar styling */

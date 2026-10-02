@@ -597,6 +597,24 @@ const toggleRecoveryCode = () => {
   pointer-events: none;
 }
 
+/* Light themes, including the signed-out system-light preset. */
+:root[data-theme-type="light"] .bg-overlay {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.75) 0%,
+    rgba(255, 255, 255, 0.5) 50%,
+    rgba(255, 255, 255, 0.8) 100%
+  );
+}
+
+:root[data-theme-type="light"] .brand-title {
+  color: var(--text-primary);
+}
+
+:root[data-theme-type="light"] .brand-subtitle {
+  color: var(--text-secondary);
+}
+
 .reset-password-container {
   position: relative;
   z-index: 10;

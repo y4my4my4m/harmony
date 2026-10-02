@@ -43,10 +43,12 @@
             <Icon name="loader" class="spinning" />
             <span>Searching...</span>
           </div>
-          <div v-else-if="searchResults.length === 0" class="no-results">
-            <Icon name="search" />
-            <span>No users found</span>
-          </div>
+          <EmptyState
+            v-else-if="searchResults.length === 0"
+            size="sm"
+            icon="search"
+            :title="$t('dm.noUsersFound')"
+          />
           <div 
             v-else
             v-for="user in searchResults"
@@ -206,6 +208,7 @@ import { useAuthStore } from '@/stores/auth'
 import BaseModal from '@/components/common/BaseModal.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import type { DMUser } from '@/stores/useDM'
 
@@ -600,8 +603,7 @@ watch(() => props.show, (show) => {
   background: var(--background-primary);
 }
 
-.search-loading,
-.no-results {
+.search-loading {
   display: flex;
   align-items: center;
   justify-content: center;
