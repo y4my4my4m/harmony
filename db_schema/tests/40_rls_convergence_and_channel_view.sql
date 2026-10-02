@@ -336,21 +336,21 @@ SELECT isnt_empty(
           AND data->>'message_id' = 'f4030000-0000-0000-0000-000000000003'$q$,
     'an @everyone mention in a hidden channel notifies a member who can view it');
 
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
 SELECT is_empty(
-    $q$SELECT 1 FROM public.unread_counts
-        WHERE user_id = '22222222-0000-0000-0000-000000000002'
-          AND channel_id = 'f4020000-0000-0000-0000-000000000001'$q$,
-    'a hidden channel''s messages leave no unread row for a plain member');
+    $q$SELECT 1 FROM public.get_unread_counts()
+        WHERE channel_id = 'f4020000-0000-0000-0000-000000000001'$q$,
+    'a hidden channel''s messages are not unread for a plain member');
 SELECT isnt_empty(
-    $q$SELECT 1 FROM public.unread_counts
-        WHERE user_id = 'f4010000-0000-0000-0000-0000000000a2'
-          AND channel_id = 'f4020000-0000-0000-0000-000000000001'$q$,
-    'a hidden channel''s messages count as unread for a member who can view it');
-SELECT isnt_empty(
-    $q$SELECT 1 FROM public.unread_counts
-        WHERE user_id = '22222222-0000-0000-0000-000000000002'
-          AND channel_id = '66666666-0000-0000-0000-000000000006'$q$,
+    $q$SELECT 1 FROM public.get_unread_counts()
+        WHERE channel_id = '66666666-0000-0000-0000-000000000006' AND unread_messages > 0$q$,
     'an open channel''s messages count as unread for a plain member');
+SELECT tests.authenticate_as('f4000000-0000-0000-0000-0000000000a2');
+SELECT isnt_empty(
+    $q$SELECT 1 FROM public.get_unread_counts()
+        WHERE channel_id = 'f4020000-0000-0000-0000-000000000001' AND unread_messages > 0$q$,
+    'a hidden channel''s messages count as unread for a member who can view it');
+SELECT tests.clear_authentication();
 
 -- EQUIVALENCE WITH has_permission --------------------------------------------------------
 CREATE TEMP TABLE vis40 (user_id uuid, channel_id uuid);

@@ -1034,20 +1034,10 @@ const handleMarkFolderAsRead = async (folder: ServerFolderType) => {
       .in('server_id', serverIds);
 
     const channelIds = (channels || []).map(c => c.id);
-    if (channelIds.length > 0) {
-      const { error: unreadError } = await supabase
-        .from('unread_counts')
-        .update({
-          unread_messages: 0,
-          unread_mentions: 0,
-          last_read_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', profileId)
-        .in('channel_id', channelIds);
-      if (unreadError) {
-        debug.error('Failed to clear folder unread counts:', unreadError);
-      }
+    const { markServerRead } = await import('@/services/readState');
+    const cleared = await Promise.allSettled(serverIds.map(id => markServerRead(id)));
+    for (const result of cleared) {
+      if (result.status === 'rejected') debug.error('Failed to clear folder unread counts:', result.reason);
     }
 
     // Mark in-app notifications for these channels read so the bell badge and

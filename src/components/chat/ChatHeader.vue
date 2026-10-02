@@ -195,6 +195,7 @@ import { supabase } from '@/supabase'
 import { usePinsStore, pinScopeKey } from '@/stores/usePins'
 import { useNotificationStore } from '@/stores/useNotification'
 import { authContextService } from '@/services/AuthContextService'
+import { markChannelRead } from '@/services/readState'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import { useChannelEncryptionStore } from '@/stores/useChannelEncryption'
 import { debug } from '@/utils/debug'
@@ -393,20 +394,9 @@ const handleMarkAsRead = async () => {
     const ctx = await authContextService.getCurrentContext()
     if (!ctx.isAuthenticated) return
 
-    // RLS-aware identity: unread_counts.user_id references profiles.id,
-    // not auth.users.id. Mixing the two silently mutates zero rows.
-    const { error } = await supabase
-      .from('unread_counts')
-      .update({
-        unread_messages: 0,
-        unread_mentions: 0,
-        last_read_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('user_id', ctx.profileId)
-      .eq('channel_id', props.channel.id)
-
-    if (error) {
+    try {
+      await markChannelRead(props.channel.id)
+    } catch (error) {
       debug.error('Failed to clear channel unread counts:', error)
       return
     }

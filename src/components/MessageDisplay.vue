@@ -693,6 +693,7 @@ import { useQuickReactSettings } from '@/composables/useQuickReactSettings';
 import { useLayoutState } from '@/composables/useLayoutState';
 import { useUnreadCounts } from '@/composables/useUnreadCounts';
 import { useReadDivider } from '@/composables/useReadDivider';
+import { markChannelRead, markConversationRead } from '@/services/readState';
 import { format, isToday, isYesterday, isSameDay, isValid } from 'date-fns';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
@@ -2365,13 +2366,9 @@ const clearUnreadCount = async (messageId: string) => {
   if (!props.channelId && !props.conversationId) return;
 
   try {
-    // unread_counts.user_id is a profile id, not an auth user id. The wrong
-    // identity silently no-ops the UPDATE and leaves the sidebar badge stuck
-    // until the next fetch.
     const { authContextService } = await import('@/services/AuthContextService');
     const ctx = await authContextService.getCurrentContext();
     if (!ctx.isAuthenticated) return;
-    const profileId = ctx.profileId;
 
     const message = props.messages.find(m => m.id === messageId);
     if (!message) return;
@@ -2381,22 +2378,12 @@ const clearUnreadCount = async (messageId: string) => {
     
     if (!channelId && !conversationId) return;
     
-    const { error } = await supabase
-      .from('unread_counts')
-      .update({
-        unread_messages: 0,
-        unread_mentions: 0,
-        last_read_message_id: messageId,
-        last_read_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('user_id', profileId)
-      .eq(channelId ? 'channel_id' : 'conversation_id', channelId || conversationId);
-    
-    if (error) {
-      debug.error('Failed to clear unread count:', error);
-    } else {
+    try {
+      if (channelId) await markChannelRead(channelId, messageId);
+      else await markConversationRead(conversationId!, messageId);
       debug.log('Cleared unread count for', channelId ? 'channel' : 'conversation', channelId || conversationId);
+    } catch (error) {
+      debug.error('Failed to clear unread count:', error);
     }
     
     // Batch mark related notifications as read

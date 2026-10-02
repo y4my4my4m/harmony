@@ -14,6 +14,7 @@ import { processMessageDecryption } from '@/utils/messageDecryption'
 import { debug } from '@/utils/debug'
 import { realtimeConnectionManager, type ConnectionStatus } from '@/services/RealtimeConnectionManager'
 import { userEventChannel } from '@/services/UserEventChannel'
+import { fetchUnreadCounts, markConversationRead } from '@/services/readState'
 import { getRandomId, createTempMessageId, findOptimisticMatchIndex } from '@/stores/shared/optimisticMessages'
 import { routeMessageEvent } from '@/stores/shared/realtimeMessageEvent'
 import { insertMessageSorted, evictOldestCacheEntry, trimCachedMessages, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils'
@@ -753,21 +754,15 @@ export const useDMStore = defineStore('dm', () => {
       
       conversations.value = preserveCurrentConversation(mergedConversations)
 
-      const convIds = mergedConversations.map(c => c.id)
-      if (convIds.length > 0) {
-        const { data: unreadData } = await supabase
-          .from('unread_counts')
-          .select('conversation_id, unread_messages, unread_mentions')
-          .eq('user_id', userId)
-          .in('conversation_id', convIds)
-          .or('unread_messages.gt.0,unread_mentions.gt.0')
-
-        if (unreadData) {
-          for (const row of unreadData) {
-            const conv = mergedConversations.find(c => c.id === row.conversation_id)
-            if (conv) {
-              conv.unread_count = row.unread_messages || 0
-            }
+      if (mergedConversations.length > 0) {
+        const unreadData = await fetchUnreadCounts().catch((err) => {
+          debug.warn('Failed to fetch DM unread counts:', err)
+          return []
+        })
+        for (const row of unreadData) {
+          const conv = row.conversation_id ? mergedConversations.find(c => c.id === row.conversation_id) : undefined
+          if (conv) {
+            conv.unread_count = row.unread_messages || 0
           }
         }
       }
@@ -1995,27 +1990,13 @@ export const useDMStore = defineStore('dm', () => {
         // Write to the DB only when there is something to clear.
         // setCurrentConversation runs several times per load (route setup,
         // switchToConversation, watchers); each unguarded call would fire a
-        // redundant unread_counts PATCH for an already-read conversation.
+        // redundant mark_conversation_as_read for an already-read conversation.
         const hadUnread = (conversation.unread_count || 0) > 0
         conversation.unread_count = 0
         debug.log('Marked conversation as read:', conversationId);
         if (!hadUnread) return
-        import('@/services/AuthContextService').then(({ authContextService: acs }) => acs.getCurrentContext()).then(ctx => {
-          if (!ctx.isAuthenticated) return
-          supabase
-            .from('unread_counts')
-            .update({
-              unread_messages: 0,
-              unread_mentions: 0,
-              last_read_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            })
-            .eq('user_id', ctx.profileId)
-            .eq('conversation_id', conversationId)
-            .then(({ error }) => {
-              if (error) debug.warn('Failed to reset DM unread count:', error)
-            })
-        })
+        markConversationRead(conversationId)
+          .catch((error) => debug.warn('Failed to reset DM unread count:', error))
       } else {
         debug.warn('Could not find conversation to mark as read:', conversationId);
       }
@@ -2488,9 +2469,9 @@ export const useDMStore = defineStore('dm', () => {
       const unread = typeof payload.unread_messages === 'number'
         ? payload.unread_messages
         : (conv.unread_count || 0)
-      // The trigger fires on every unread_counts write, including the
-      // read-marking PATCH. Only a rising count means a new message, so only
-      // then does the sidebar's sort key move.
+      // Events arrive for new messages and for reads on any of the user's
+      // devices. Only a rising count means a new message, so only then does
+      // the sidebar's sort key move.
       const isNewMessage = unread > (conv.unread_count || 0)
       conv.unread_count = unread
       if (isNewMessage) conv.last_activity = new Date().toISOString()
