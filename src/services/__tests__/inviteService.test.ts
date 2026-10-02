@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
 import { supabase } from '@/supabase'
 
 vi.mock('../permissionsService', () => ({
@@ -12,6 +12,11 @@ vi.mock('../permissionsService', () => ({
 }))
 
 import { generateInviteUrl, acceptInvite, getInviteInfo } from '@/services/inviteService'
+import { waitForInitialLocale } from '@/i18n'
+
+beforeAll(async () => {
+  await waitForInitialLocale()
+})
 
 type InviteRow = {
   id: string

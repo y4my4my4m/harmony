@@ -6,6 +6,8 @@
  * desktop app runs WebKitGTK (a Safari-shaped agent on Linux), Windows runs WebView2 (Edge).
  */
 
+import { i18n } from '@/i18n'
+
 export type DeviceKind = 'phone' | 'tablet' | 'desktop' | 'unknown'
 
 export interface DeviceDescription {
@@ -28,7 +30,8 @@ export function describeUserAgent(userAgent: string | null | undefined): DeviceD
     : null
 
   const linuxWebKit = os === 'Linux' && /AppleWebKit/.test(ua) && !/Chrome\/|Chromium\//.test(ua)
-  const browser = /; wv\)/.test(ua) || linuxWebKit ? 'Harmony app'
+  const t = i18n.global.t
+  const browser = /; wv\)/.test(ua) || linuxWebKit ? t('security.device.app')
     : /Edg\//.test(ua) ? 'Edge'
     : /OPR\//.test(ua) ? 'Opera'
     : /Firefox\//.test(ua) ? 'Firefox'
@@ -41,6 +44,6 @@ export function describeUserAgent(userAgent: string | null | undefined): DeviceD
     : os ? 'desktop'
     : 'unknown'
 
-  const label = browser && os ? `${browser} on ${os}` : browser ?? os
+  const label = browser && os ? t('security.device.browserOnOs', { browser, os }) : browser ?? os
   return { label, kind }
 }

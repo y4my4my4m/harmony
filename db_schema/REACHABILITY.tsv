@@ -440,7 +440,7 @@ remove_timeline_on_unfollow	definer	trigger	anon+authenticated+service_role	trig
 report_content_snapshot	invoker	jsonb	service_role	client	called by create_federated_report, create_report
 request_my_data_export	definer	jsonb	authenticated+service_role	client	rpc in src/services/DataExportService.ts
 request_room_epoch_bump	definer	integer	anon+authenticated+service_role	client	rpc in src/services/encryption/RoomEpochService.ts
-reset_daily_hashtag_counters	definer	void	service_role	client, cron	cron 0 0 * * * (reset-daily-hashtag-counters); rpc in src/services/TrendingService.ts
+reset_daily_hashtag_counters	definer	void	service_role	cron	cron 0 0 * * * (reset-daily-hashtag-counters)
 reset_my_encryption_identity	definer	void	anon+authenticated+service_role	client	rpc in src/services/encryption/MegolmMessageEncryptionService.ts
 reset_unread_on_join	definer	trigger	service_role	trigger	trigger public.conversation_participants AFTER INSERT/UPDATE (trg_reset_unread_on_join), public.user_servers AFTER INSERT/UPDATE (trg_reset_unread_on_join)
 reset_user_encryption	definer	jsonb	service_role	service key	nothing references it
@@ -472,7 +472,7 @@ search_messages	definer	TABLE(message_id uuid, relevance real, content_text text
 seed_channel_encryption_on_insert	definer	trigger	service_role	trigger	trigger public.channels AFTER INSERT (trg_seed_channel_encryption)
 seed_channel_encryption_settings	definer	void	service_role	client, trigger	called by apply_server_encryption_floor, seed_channel_encryption_on_insert, set_channel_encryption
 send_notification	definer	uuid[]	service_role	client, trigger	called by handle_message_federation, handle_newcomer_first_message, notify_admins_on_pending_donation, +1
-send_notification_to_user	definer	uuid	service_role	client, trigger	rpc in federation-backend/src/activitypub/ActivityProcessor.ts, src/services/NotificationService.ts
+send_notification_to_user	definer	uuid	service_role	client, trigger	rpc in federation-backend/src/activitypub/ActivityProcessor.ts
 server_has_remote_members	invoker	boolean	service_role	service key	nothing references it
 server_newcomer_alerts_state	invoker	jsonb	service_role	client, trigger	called by get_server_newcomer_alerts, handle_newcomer_first_message, set_server_newcomer_alerts
 session_meets_aal	definer	boolean	anon+authenticated+service_role	policy	policy public.messages SELECT on messages_session_aal, realtime.messages ALL on realtime_messages_session_aal, storage.objects ALL on storage_objects_session_aal

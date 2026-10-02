@@ -98,6 +98,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import { useAuthStore } from '@/stores/auth'
 import { supabase } from '@/supabase'
@@ -109,6 +110,7 @@ import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACE
 import { securityErrorMessage } from '@/services/AccountSecurityService'
 
 const router = useRouter()
+const { t } = useI18n()
 const authStore = useAuthStore()
 const toast = useToast()
 
@@ -191,11 +193,11 @@ const finalizeLoginAndRedirect = async (session: Session) => {
 const handleMFAVerification = async () => {
   if (useRecoveryCode.value) {
     if (recoveryCodeLength(mfaCode.value) < RECOVERY_CODE_MIN_LENGTH) {
-      mfaError.value = 'Enter one of your recovery codes, for example ABCDE-12345.'
+      mfaError.value = t('security.mfa.recoveryCodeExample')
       return
     }
   } else if (!/^\d{6}$/.test(mfaCode.value)) {
-    mfaError.value = 'Enter the 6-digit code from your authenticator app.'
+    mfaError.value = t('security.mfa.enterAuthenticatorCode')
     return
   }
 
@@ -210,14 +212,14 @@ const handleMFAVerification = async () => {
       ? await authStore.completeRecoverySignIn(mfaCode.value)
       : await authStore.verify2FA(pendingFactorId.value, pendingChallengeId.value, mfaCode.value)
     if (useRecoveryCode.value) {
-      toast.warning('Signed in with a recovery code. Two-factor authentication is now off; set it up again.', { timeout: 10000 })
+      toast.warning(t('security.mfa.recoverySignedIn'), { timeout: 10000 })
     }
     await finalizeLoginAndRedirect(session)
   } catch (error: any) {
     debug.error('OAuth callback MFA verification error:', error)
     mfaError.value = securityErrorMessage(error, useRecoveryCode.value
-      ? 'That recovery code is not valid or was already used.'
-      : 'Verification failed. Try again.')
+      ? t('security.mfa.recoveryCodeInvalid')
+      : t('security.mfa.verificationFailed'))
   } finally {
     mfaLoading.value = false
   }

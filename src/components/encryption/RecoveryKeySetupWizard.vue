@@ -53,7 +53,7 @@
             <div class="feature-card">
               <span class="feature-icon"><Icon name="smartphone" :size="18" /></span>
               <h4>Multi-device</h4>
-              <p>Link a new device by scanning a QR code from this one; your recovery key is the fallback</p>
+              <p>{{ $t('encryption.recoverySetup.multiDevice') }}</p>
             </div>
             <div class="feature-card">
               <span class="feature-icon"><Icon name="refresh-cw" :size="18" /></span>
@@ -120,15 +120,13 @@
               @click="toggleQRCode"
             >
               <Icon :name="showQRCode ? 'chevron-down' : 'chevron-right'" :size="14" />
-              {{ showQRCode ? 'Hide the recovery key QR code' : 'Show the recovery key as a QR code' }}
+              {{ showQRCode ? $t('encryption.recoverySetup.hideQr') : $t('encryption.recoverySetup.showQr') }}
             </button>
 
             <div v-if="showQRCode && qrCodeDataUrl" class="qr-code-panel">
               <img :src="qrCodeDataUrl" alt="Recovery key QR code" class="qr-code-image" />
               <p class="hint">
-                Anyone who sees this code can read your encrypted messages; don't screenshot it.
-                To set up another device, link it instead: sign in there and scan the code it
-                shows from this device.
+                {{ $t('encryption.recoverySetup.qrHint') }}
               </p>
             </div>
 
@@ -198,18 +196,17 @@
 
             <div class="reminder-box">
               <span class="reminder-icon"><Icon name="smartphone" :size="16" /></span>
-              <p>
-                <strong>New device?</strong> Sign in there and choose <em>Another device</em>,
-                then scan its code from this device. Your messages unlock without typing the
-                recovery key.
-              </p>
+              <i18n-t keypath="encryption.recoverySetup.newDeviceReminder" tag="p">
+                <template #label><strong>{{ $t('encryption.recoverySetup.newDeviceLabel') }}</strong></template>
+                <template #another><em>{{ $t('encryption.recovery.anotherDevice') }}</em></template>
+              </i18n-t>
             </div>
 
             <div class="reminder-box">
               <span class="reminder-icon"><Icon name="pin" :size="16" /></span>
               <p>
                 <strong>Remember:</strong> Keep your 12-word recovery key safe.
-                You'll need it if you lose access to all your signed-in devices or clear your browser data.
+                {{ $t('encryption.recoverySetup.rememberNeed') }}
               </p>
             </div>
           </div>

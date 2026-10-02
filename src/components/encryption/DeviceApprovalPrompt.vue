@@ -15,30 +15,24 @@
         <div class="dap-body">
           <strong class="dap-title">New login{{ currentApprover.requesting_label ? ` on ${currentApprover.requesting_label}` : '' }}</strong>
           <template v-if="currentIsPairing">
-            <p class="dap-text">
-              That device is waiting for your encrypted messages. If it is yours and in front
-              of you, scan the code it shows: keys go only to the device whose code you scan.
-            </p>
+            <p class="dap-text">{{ $t('encryption.approval.pairingText') }}</p>
             <div class="dap-actions">
               <button class="dap-btn dap-btn-approve" :disabled="busy" data-testid="approval-scan" @click="linkMode = 'scan'">
-                Yes, scan its code
+                {{ $t('encryption.approval.scanItsCode') }}
               </button>
               <button class="dap-btn dap-btn-deny" :disabled="busy" @click="onDeny">
-                Not me
+                {{ $t('encryption.approval.notMe') }}
               </button>
             </div>
             <button class="dap-link" :disabled="busy" @click="linkMode = 'show'">
-              Can't scan? Show a code instead
+              {{ $t('encryption.approval.showInstead') }}
             </button>
           </template>
           <template v-else>
-            <p class="dap-text">
-              A new device signed in to your account and unlocked your encrypted messages
-              itself; nothing is sent from here. If this wasn't you, secure your account.
-            </p>
+            <p class="dap-text">{{ $t('encryption.approval.plainText') }}</p>
             <div class="dap-actions">
               <button class="dap-btn dap-btn-approve" :disabled="busy" @click="onApprove">
-                That was me
+                {{ $t('encryption.approval.thatWasMe') }}
               </button>
               <button class="dap-btn dap-btn-deny" :disabled="busy" @click="onDeny">
                 No, secure my account

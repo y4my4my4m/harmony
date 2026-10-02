@@ -33,6 +33,7 @@ import {
   type DeviceApprovalRequest,
 } from '@/services/encryption/DeviceIdentityService'
 import { debug } from '@/utils/debug'
+import { i18n } from '@/i18n'
 
 const pendingApprovals = ref<DeviceApprovalRequest[]>([])
 const ownPendingRequest = ref<DeviceApprovalRequest | null>(null)
@@ -204,7 +205,9 @@ export function useDeviceApprovals() {
         useNotificationStore().showToast(
           'server_update',
           'Login approved',
-          `${req.requesting_label || 'The new device'} stays signed in.`,
+          i18n.global.t('encryption.approval.staysSignedIn', {
+            device: req.requesting_label || i18n.global.t('encryption.approval.newDeviceFallback'),
+          }),
           5000,
         )
       } catch { /* non-fatal */ }

@@ -20,6 +20,10 @@ function makeNotification(type: string, data: Record<string, any> = {}) {
 }
 
 describe('NotificationFormatter', () => {
+  beforeAll(async () => {
+    await waitForInitialLocale()
+  })
+
   describe('formatNotification', () => {
     it('formats a mention notification', () => {
       const notif = makeNotification('mention', {

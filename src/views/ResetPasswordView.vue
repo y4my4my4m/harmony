@@ -180,7 +180,7 @@
           </div>
           <h2 class="modal-title">Two-factor authentication</h2>
           <p class="modal-subtitle">
-            {{ useRecoveryCode ? 'Enter one of your recovery codes' : 'Enter the 6-digit code from your authenticator app' }}
+            {{ useRecoveryCode ? $t('security.mfa.enterRecoveryCode') : 'Enter the 6-digit code from your authenticator app' }}
           </p>
         </div>
 
@@ -238,6 +238,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { supabase } from '@/supabase'
 import { useToast } from 'vue-toastification'
 import { useAuthStore } from '@/stores/auth'
@@ -246,6 +247,7 @@ import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACE
 import { securityErrorMessage } from '@/services/AccountSecurityService'
 
 const router = useRouter()
+const { t } = useI18n()
 const toast = useToast()
 const authStore = useAuthStore()
 
@@ -510,11 +512,11 @@ const goToLogin = async () => {
 const handleMFAVerification = async () => {
   if (useRecoveryCode.value) {
     if (recoveryCodeLength(mfaCode.value) < RECOVERY_CODE_MIN_LENGTH) {
-      mfaError.value = 'Enter one of your recovery codes, for example ABCDE-12345.'
+      mfaError.value = t('security.mfa.recoveryCodeExample')
       return
     }
   } else if (!/^\d{6}$/.test(mfaCode.value)) {
-    mfaError.value = 'Enter the 6-digit code from your authenticator app.'
+    mfaError.value = t('security.mfa.enterAuthenticatorCode')
     return
   }
 
@@ -529,13 +531,13 @@ const handleMFAVerification = async () => {
         p_code: mfaCode.value,
       })
       if (error) throw error
-      if (!redeemed) throw new Error('That recovery code is not valid or was already used.')
+      if (!redeemed) throw new Error(t('security.mfa.recoveryCodeInvalid'))
 
       requiresMFA.value = false
       showMFAModal.value = false
       mfaCode.value = ''
       await performPasswordReset()
-      toast.warning('Two-factor authentication is off. Set it up again after you sign in.', { timeout: 10000 })
+      toast.warning(t('security.mfa.recoveryResetOff'), { timeout: 10000 })
     } else {
       const { error: verifyError } = await supabase.auth.mfa.verify({
         factorId: mfaFactorId.value,
@@ -552,8 +554,8 @@ const handleMFAVerification = async () => {
   } catch (error: any) {
     debug.error('MFA verification error:', error)
     mfaError.value = securityErrorMessage(error, useRecoveryCode.value
-      ? 'That recovery code is not valid or was already used.'
-      : 'Invalid code. Try again.')
+      ? t('security.mfa.recoveryCodeInvalid')
+      : t('security.mfa.invalidCode'))
   } finally {
     mfaLoading.value = false
   }

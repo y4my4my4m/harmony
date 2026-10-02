@@ -2,60 +2,54 @@
   <section class="sec-card" aria-labelledby="twofa-title">
     <header class="sec-card-header">
       <div>
-        <h3 id="twofa-title" class="sec-card-title">Two-factor authentication</h3>
-        <p class="sec-card-description">
-          A code from an authenticator app is required at sign-in, on every device and in the
-          desktop and Android apps.
-        </p>
+        <h3 id="twofa-title" class="sec-card-title">{{ $t('auth.twoFactorAuth') }}</h3>
+        <p class="sec-card-description">{{ $t('security.twoFactor.description') }}</p>
       </div>
       <span v-if="!loading" class="sec-badge" :class="enabled ? 'sec-badge-on' : 'sec-badge-off'">
         <Icon :name="enabled ? 'shield-check' : 'shield-off'" :size="14" />
-        {{ enabled ? 'On' : 'Off' }}
+        {{ enabled ? $t('security.twoFactor.on') : $t('security.twoFactor.off') }}
       </span>
     </header>
 
-    <div v-if="loading" class="sec-muted">Checking two-factor status…</div>
+    <div v-if="loading" class="sec-muted">{{ $t('security.twoFactor.checking') }}</div>
 
     <!-- Off -->
     <div v-else-if="!enabled && step === 'idle'" class="sec-row">
-      <p class="sec-muted">
-        Use Aegis, 2FAS, Google Authenticator, 1Password or any app that supports TOTP.
-        Turning it on signs out your other sessions.
-      </p>
+      <p class="sec-muted">{{ $t('security.twoFactor.offDescription') }}</p>
       <button class="sec-btn sec-btn-primary" :disabled="busy" @click="startEnroll">
-        Set up two-factor authentication
+        {{ $t('security.twoFactor.setUp') }}
       </button>
     </div>
 
     <!-- Enrolment -->
     <div v-else-if="step === 'scan' || step === 'verify'" class="sec-steps">
-      <ol class="sec-stepper" aria-label="Setup steps">
-        <li :class="{ active: step === 'scan', done: step === 'verify' }">Scan</li>
-        <li :class="{ active: step === 'verify' }">Verify</li>
-        <li>Save codes</li>
+      <ol class="sec-stepper" :aria-label="$t('security.twoFactor.steps.label')">
+        <li :class="{ active: step === 'scan', done: step === 'verify' }">{{ $t('security.twoFactor.steps.scan') }}</li>
+        <li :class="{ active: step === 'verify' }">{{ $t('auth.verify') }}</li>
+        <li>{{ $t('security.twoFactor.steps.saveCodes') }}</li>
       </ol>
 
       <div v-if="step === 'scan'" class="sec-step">
-        <p class="sec-text">Scan this QR code with your authenticator app.</p>
+        <p class="sec-text">{{ $t('security.twoFactor.scanQr') }}</p>
         <div class="sec-qr">
-          <img v-if="qrCodeDataUrl" :src="qrCodeDataUrl" alt="QR code for your authenticator app" />
-          <span v-else class="sec-muted">Generating…</span>
+          <img v-if="qrCodeDataUrl" :src="qrCodeDataUrl" :alt="$t('security.twoFactor.qrAlt')" />
+          <span v-else class="sec-muted">{{ $t('security.twoFactor.generating') }}</span>
         </div>
-        <p class="sec-text">Can't scan it? Enter this key in the app (time-based, 6 digits):</p>
+        <p class="sec-text">{{ $t('security.twoFactor.manualKey') }}</p>
         <div class="sec-secret">
-          <code aria-label="Setup key">{{ formattedSecret }}</code>
-          <button class="sec-icon-btn" title="Copy setup key" @click="copyText(totpSecret, 'Setup key copied')">
+          <code :aria-label="$t('security.twoFactor.setupKey')">{{ formattedSecret }}</code>
+          <button class="sec-icon-btn" :title="$t('security.twoFactor.copySetupKey')" @click="copyText(totpSecret, $t('security.twoFactor.setupKeyCopied'))">
             <Icon name="copy" :size="16" />
           </button>
         </div>
         <div class="sec-actions">
-          <button class="sec-btn sec-btn-secondary" @click="cancelEnroll">Cancel</button>
-          <button class="sec-btn sec-btn-primary" :disabled="!totpSecret" @click="goToVerify">Next</button>
+          <button class="sec-btn sec-btn-secondary" @click="cancelEnroll">{{ $t('common.cancel') }}</button>
+          <button class="sec-btn sec-btn-primary" :disabled="!totpSecret" @click="goToVerify">{{ $t('common.next') }}</button>
         </div>
       </div>
 
       <form v-else class="sec-step" @submit.prevent="verifyEnroll">
-        <label class="sec-label" for="twofa-enroll-code">Enter the 6-digit code your app shows</label>
+        <label class="sec-label" for="twofa-enroll-code">{{ $t('security.twoFactor.enterEnrollCode') }}</label>
         <input
           id="twofa-enroll-code"
           ref="enrollInput"
@@ -70,9 +64,9 @@
         />
         <p v-if="enrollError" class="sec-error" role="alert">{{ enrollError }}</p>
         <div class="sec-actions">
-          <button type="button" class="sec-btn sec-btn-secondary" :disabled="busy" @click="step = 'scan'">Back</button>
+          <button type="button" class="sec-btn sec-btn-secondary" :disabled="busy" @click="step = 'scan'">{{ $t('common.back') }}</button>
           <button type="submit" class="sec-btn sec-btn-primary" :disabled="busy || enrollCode.length !== 6">
-            {{ busy ? 'Verifying…' : 'Turn on' }}
+            {{ busy ? $t('security.twoFactor.verifying') : $t('security.twoFactor.turnOn') }}
           </button>
         </div>
       </form>
@@ -82,28 +76,25 @@
     <div v-else-if="step === 'codes'" class="sec-step">
       <div class="sec-callout">
         <Icon name="alert-triangle" :size="16" />
-        <span>
-          Save these recovery codes somewhere safe, such as a password manager. Each signs you in
-          once if you lose your authenticator. They will not be shown again.
-        </span>
+        <span>{{ $t('security.twoFactor.saveCodesWarning') }}</span>
       </div>
-      <ul class="sec-codes" aria-label="Recovery codes">
+      <ul class="sec-codes" :aria-label="$t('security.twoFactor.recoveryCodes')">
         <li v-for="code in recoveryCodes" :key="code"><code>{{ code }}</code></li>
       </ul>
       <div class="sec-actions sec-actions-start">
-        <button class="sec-btn sec-btn-secondary" @click="copyText(recoveryCodes.join('\n'), 'Recovery codes copied')">
-          <Icon name="copy" :size="14" /> Copy
+        <button class="sec-btn sec-btn-secondary" @click="copyText(recoveryCodes.join('\n'), $t('security.twoFactor.recoveryCodesCopied'))">
+          <Icon name="copy" :size="14" /> {{ $t('common.copy') }}
         </button>
         <button class="sec-btn sec-btn-secondary" @click="downloadCodes">
-          <Icon name="download" :size="14" /> Download .txt
+          <Icon name="download" :size="14" /> {{ $t('security.twoFactor.downloadTxt') }}
         </button>
       </div>
       <label class="sec-check">
         <input v-model="codesSaved" type="checkbox" />
-        I saved my recovery codes
+        {{ $t('security.twoFactor.codesSavedCheck') }}
       </label>
       <div class="sec-actions">
-        <button class="sec-btn sec-btn-primary" :disabled="!codesSaved" @click="finishCodes">Done</button>
+        <button class="sec-btn sec-btn-primary" :disabled="!codesSaved" @click="finishCodes">{{ $t('common.done') }}</button>
       </div>
     </div>
 
@@ -111,23 +102,23 @@
     <div v-else class="sec-rows">
       <div class="sec-row">
         <div>
-          <div class="sec-row-title">Recovery codes</div>
+          <div class="sec-row-title">{{ $t('security.twoFactor.recoveryCodes') }}</div>
           <div class="sec-muted" :class="{ 'sec-warn': recoveryRemaining !== null && recoveryRemaining <= 3 }">
-            <template v-if="recoveryRemaining === null">Unavailable</template>
-            <template v-else-if="recoveryRemaining === 0">None left. Generate new codes now.</template>
-            <template v-else>{{ recoveryRemaining }} of {{ recoveryTotal }} unused</template>
+            <template v-if="recoveryRemaining === null">{{ $t('security.twoFactor.unavailable') }}</template>
+            <template v-else-if="recoveryRemaining === 0">{{ $t('security.twoFactor.noneLeft') }}</template>
+            <template v-else>{{ $t('security.twoFactor.remaining', { remaining: recoveryRemaining, total: recoveryTotal }) }}</template>
           </div>
         </div>
         <button class="sec-btn sec-btn-secondary" :disabled="busy" @click="openCodeModal('regenerate')">
-          Generate new codes
+          {{ $t('security.twoFactor.generateNew') }}
         </button>
       </div>
       <div class="sec-row">
         <div>
-          <div class="sec-row-title">Turn off two-factor authentication</div>
-          <div class="sec-muted">Sign-ins will need only your password.</div>
+          <div class="sec-row-title">{{ $t('security.twoFactor.turnOffTitle') }}</div>
+          <div class="sec-muted">{{ $t('security.twoFactor.turnOffDescription') }}</div>
         </div>
-        <button class="sec-btn sec-btn-danger" :disabled="busy" @click="openCodeModal('disable')">Turn off</button>
+        <button class="sec-btn sec-btn-danger" :disabled="busy" @click="openCodeModal('disable')">{{ $t('security.twoFactor.turnOff') }}</button>
       </div>
     </div>
 
@@ -135,16 +126,14 @@
       <div v-if="codeModal" class="sec-modal-overlay" @click.self="closeCodeModal">
         <form class="sec-modal" role="dialog" aria-modal="true" aria-labelledby="twofa-modal-title" @submit.prevent="submitCodeModal">
           <h3 id="twofa-modal-title" class="sec-modal-title">
-            {{ codeModal === 'disable' ? 'Turn off two-factor authentication?' : 'Generate new recovery codes?' }}
+            {{ codeModal === 'disable' ? $t('security.twoFactor.disableModal.title') : $t('security.twoFactor.regenerateModal.title') }}
           </h3>
           <p class="sec-text">
             <template v-if="codeModal === 'disable'">
-              Your account will be protected by your password only. Enter
-              {{ useRecoveryCode ? 'a recovery code' : 'the 6-digit code from your authenticator' }} to confirm.
+              {{ useRecoveryCode ? $t('security.twoFactor.disableModal.textRecovery') : $t('security.twoFactor.disableModal.textTotp') }}
             </template>
             <template v-else>
-              Your current recovery codes will stop working. Enter the 6-digit code from your
-              authenticator to continue.
+              {{ $t('security.twoFactor.regenerateModal.text') }}
             </template>
           </p>
           <input
@@ -165,17 +154,17 @@
             class="sec-link"
             @click="toggleRecoveryMode"
           >
-            {{ useRecoveryCode ? 'Use my authenticator instead' : 'Lost your authenticator? Use a recovery code' }}
+            {{ useRecoveryCode ? $t('security.twoFactor.useAuthenticator') : $t('security.twoFactor.useRecoveryCode') }}
           </button>
           <div class="sec-actions">
-            <button type="button" class="sec-btn sec-btn-secondary" :disabled="busy" @click="closeCodeModal">Cancel</button>
+            <button type="button" class="sec-btn sec-btn-secondary" :disabled="busy" @click="closeCodeModal">{{ $t('common.cancel') }}</button>
             <button
               type="submit"
               class="sec-btn"
               :class="codeModal === 'disable' ? 'sec-btn-danger' : 'sec-btn-primary'"
               :disabled="busy || !modalCodeValid"
             >
-              {{ busy ? 'Working…' : codeModal === 'disable' ? 'Turn off' : 'Generate' }}
+              {{ busy ? $t('security.twoFactor.working') : codeModal === 'disable' ? $t('security.twoFactor.turnOff') : $t('security.twoFactor.generate') }}
             </button>
           </div>
         </form>
@@ -188,6 +177,7 @@
 import './securitySettings.css'
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useToast } from 'vue-toastification'
+import { useI18n } from 'vue-i18n'
 import QRCode from 'qrcode'
 import Icon from '@/components/common/Icon.vue'
 import { supabase } from '@/supabase'
@@ -212,6 +202,7 @@ type Step = 'idle' | 'scan' | 'verify' | 'codes'
 type CodeModal = 'disable' | 'regenerate' | null
 
 const toast = useToast()
+const { t } = useI18n()
 const authStore = useAuthStore()
 
 const loading = ref(true)
@@ -259,7 +250,7 @@ async function refresh() {
     }
   } catch (error) {
     debug.error('2FA status check failed:', error)
-    toast.error(securityErrorMessage(error, 'Could not check two-factor status.'))
+    toast.error(securityErrorMessage(error, t('security.twoFactor.errors.statusFailed')))
   } finally {
     loading.value = false
   }
@@ -291,7 +282,7 @@ async function startEnroll() {
     step.value = 'scan'
   } catch (error) {
     debug.error('2FA enrolment failed:', error)
-    toast.error(securityErrorMessage(error, 'Could not start two-factor setup.'))
+    toast.error(securityErrorMessage(error, t('security.twoFactor.errors.setupFailed')))
   } finally {
     busy.value = false
   }
@@ -325,7 +316,7 @@ async function verifyEnroll() {
     emit('changed')
   } catch (error) {
     debug.error('2FA verification failed:', error)
-    enrollError.value = securityErrorMessage(error, 'Verification failed. Try again.')
+    enrollError.value = securityErrorMessage(error, t('security.mfa.verificationFailed'))
     enrollCode.value = ''
   } finally {
     busy.value = false
@@ -354,7 +345,7 @@ async function copyText(text: string, done: string) {
     await navigator.clipboard.writeText(text)
     toast.success(done)
   } catch {
-    toast.error('Copy failed. Select the text and copy it manually.')
+    toast.error(t('security.twoFactor.errors.copyFailed'))
   }
 }
 
@@ -415,7 +406,7 @@ async function submitCodeModal() {
         p_code: modalCode.value,
       })
       if (error) throw error
-      if (!valid) throw new Error('That recovery code is not valid or was already used.')
+      if (!valid) throw new Error(t('security.mfa.recoveryCodeInvalid'))
     } else {
       await accountSecurityService.stepUpWithTotp(modalCode.value)
     }
@@ -423,12 +414,12 @@ async function submitCodeModal() {
     const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: factorId.value })
     if (unenrollError) throw unenrollError
     codeModal.value = null
-    toast.success('Two-factor authentication is off')
+    toast.success(t('security.twoFactor.disabledToast'))
     emit('changed')
     await refresh()
   } catch (error) {
     debug.error('2FA action failed:', error)
-    modalError.value = securityErrorMessage(error, 'That did not work. Try again.')
+    modalError.value = securityErrorMessage(error, t('security.twoFactor.errors.actionFailed'))
     if (!useRecoveryCode.value) modalCode.value = ''
   } finally {
     busy.value = false

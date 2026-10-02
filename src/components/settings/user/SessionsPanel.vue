@@ -2,19 +2,16 @@
   <section class="sec-card" aria-labelledby="sessions-title">
     <header class="sec-card-header">
       <div>
-        <h3 id="sessions-title" class="sec-card-title">Devices</h3>
-        <p class="sec-card-description">
-          Everywhere your account is signed in. Signing a device out also stops its push
-          notifications. Locations are shown as the IP address the sign-in came from.
-        </p>
+        <h3 id="sessions-title" class="sec-card-title">{{ $t('security.sessions.title') }}</h3>
+        <p class="sec-card-description">{{ $t('security.sessions.description') }}</p>
       </div>
-      <button class="sec-icon-btn" title="Refresh" :disabled="loading" @click="load">
+      <button class="sec-icon-btn" :title="$t('security.sessions.refresh')" :disabled="loading" @click="load">
         <Icon name="refresh-cw" :size="16" />
       </button>
     </header>
 
     <p v-if="error" class="sec-error" role="alert">{{ error }}</p>
-    <div v-else-if="loading && sessions.length === 0" class="sec-muted">Loading devices…</div>
+    <div v-else-if="loading && sessions.length === 0" class="sec-muted">{{ $t('security.sessions.loading') }}</div>
 
     <ul v-else class="sec-list">
       <li v-for="session in sessions" :key="session.id" class="sec-list-item">
@@ -24,16 +21,16 @@
         <div class="sec-device-body">
           <div class="sec-row-title">
             {{ deviceLabel(session) }}
-            <span v-if="session.is_current" class="sec-pill sec-pill-current">This device</span>
-            <span v-if="session.push_transports.length" class="sec-pill" :title="pushTitle(session)">Push</span>
+            <span v-if="session.is_current" class="sec-pill sec-pill-current">{{ $t('security.sessions.thisDevice') }}</span>
+            <span v-if="session.push_transports.length" class="sec-pill" :title="pushTitle(session)">{{ $t('security.sessions.push') }}</span>
           </div>
           <div class="sec-muted">
             <span v-if="session.ip">{{ session.ip }} · </span>
             <span :title="absolute(session.last_active_at || session.created_at)">
-              Active {{ relative(session.last_active_at || session.created_at) }}
+              {{ $t('security.sessions.active', { time: relative(session.last_active_at || session.created_at) }) }}
             </span>
-            <span> · Signed in {{ absoluteDate(session.created_at) }}</span>
-            <span v-if="session.aal === 'aal1' && mfaEnabled" class="sec-warn"> · Two-factor not completed</span>
+            <span> · {{ $t('security.sessions.signedIn', { date: absoluteDate(session.created_at) }) }}</span>
+            <span v-if="session.aal === 'aal1' && mfaEnabled" class="sec-warn"> · {{ $t('security.sessions.mfaIncomplete') }}</span>
           </div>
         </div>
         <button
@@ -42,32 +39,32 @@
           :disabled="revoking === session.id"
           @click="revoke(session)"
         >
-          {{ revoking === session.id ? 'Signing out…' : 'Sign out' }}
+          {{ revoking === session.id ? $t('security.sessions.signingOut') : $t('security.sessions.signOut') }}
         </button>
       </li>
     </ul>
 
     <div v-if="otherCount > 0" class="sec-actions sec-actions-start">
       <button class="sec-btn sec-btn-danger" :disabled="revokingAll" @click="revokeOthers">
-        {{ revokingAll ? 'Signing out…' : `Sign out all other devices (${otherCount})` }}
+        {{ revokingAll ? $t('security.sessions.signingOut') : $t('security.sessions.signOutOthers', { count: otherCount }) }}
       </button>
     </div>
 
     <div v-if="unlinkedPush.length" class="sec-subsection">
-      <div class="sec-row-title">Other push notification targets</div>
-      <p class="sec-muted">Registered before devices were linked to sign-ins, or by a device that is no longer signed in.</p>
+      <div class="sec-row-title">{{ $t('security.sessions.otherPush.title') }}</div>
+      <p class="sec-muted">{{ $t('security.sessions.otherPush.description') }}</p>
       <ul class="sec-list">
         <li v-for="sub in unlinkedPush" :key="sub.id" class="sec-list-item">
           <div class="sec-device-icon"><Icon :name="iconForKind(describeUserAgent(sub.user_agent).kind)" :size="20" /></div>
           <div class="sec-device-body">
             <div class="sec-row-title">
-              {{ sub.device_name || describeUserAgent(sub.user_agent).label || 'Unknown device' }}
+              {{ sub.device_name || describeUserAgent(sub.user_agent).label || $t('security.sessions.unknownDevice') }}
               <span class="sec-pill">{{ transportLabel(sub.transport) }}</span>
             </div>
-            <div class="sec-muted">Added {{ absoluteDate(sub.created_at) }}<template v-if="sub.failure_count >= 5"> · Not reachable</template></div>
+            <div class="sec-muted">{{ $t('security.sessions.otherPush.added', { date: absoluteDate(sub.created_at) }) }}<template v-if="sub.failure_count >= 5"> · {{ $t('security.sessions.otherPush.unreachable') }}</template></div>
           </div>
           <button class="sec-btn sec-btn-secondary sec-btn-sm" :disabled="removingPush === sub.id" @click="removePush(sub)">
-            Remove
+            {{ $t('common.remove') }}
           </button>
         </li>
       </ul>
@@ -79,6 +76,7 @@
 import './securitySettings.css'
 import { computed, onMounted, ref } from 'vue'
 import { useToast } from 'vue-toastification'
+import { useI18n } from 'vue-i18n'
 import Icon from '@/components/common/Icon.vue'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
@@ -93,6 +91,7 @@ import {
 } from '@/services/AccountSecurityService'
 
 const toast = useToast()
+const { t, locale } = useI18n()
 const push = usePushNotifications()
 const { confirm } = useConfirmDialog()
 
@@ -125,23 +124,24 @@ function deviceIcon(session: AccountSession): string {
 }
 
 function deviceLabel(session: AccountSession): string {
-  return describeUserAgent(session.user_agent).label ?? 'Unknown device'
+  return describeUserAgent(session.user_agent).label ?? t('security.sessions.unknownDevice')
 }
 
 function transportLabel(transport?: string): string {
   if (transport === 'fcm') return 'Google (FCM)'
   if (transport === 'unifiedpush') return 'UnifiedPush'
-  return 'Web Push'
+  return t('security.sessions.webPush')
 }
 
 function pushTitle(session: AccountSession): string {
-  return `Push notifications: ${session.push_transports.map(transportLabel).join(', ')}`
+  return t('security.sessions.pushTitle', { transports: session.push_transports.map(transportLabel).join(', ') })
 }
 
 function relative(iso: string | null): string {
-  if (!iso) return 'unknown'
-  const short = formatShortRelativeTime(iso)
-  return short === 'now' || !/^\d/.test(short) ? short : `${short} ago`
+  if (!iso) return t('security.sessions.unknown')
+  const nowLabel = t('time.now')
+  const short = formatShortRelativeTime(iso, { locale: locale.value, nowLabel })
+  return short === nowLabel || !/^\d/.test(short) ? short : t('security.sessions.ago', { time: short })
 }
 
 function absolute(iso: string | null): string {
@@ -149,7 +149,7 @@ function absolute(iso: string | null): string {
 }
 
 function absoluteDate(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleDateString() : 'unknown'
+  return iso ? new Date(iso).toLocaleDateString() : t('security.sessions.unknown')
 }
 
 async function load() {
@@ -165,7 +165,7 @@ async function load() {
     mfaEnabled.value = !!factors.data?.totp?.some((f) => f.status === 'verified')
   } catch (err) {
     debug.error('Loading sessions failed:', err)
-    error.value = securityErrorMessage(err, 'Could not load your devices.')
+    error.value = securityErrorMessage(err, t('security.sessions.errors.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -173,19 +173,21 @@ async function load() {
 
 async function revoke(session: AccountSession) {
   const ok = await confirm({
-    title: 'Sign out this device?',
-    message: `${deviceLabel(session)}${session.ip ? ` (${session.ip})` : ''} will need to sign in again. Its push notifications stop.`,
-    confirmButtonText: 'Sign out',
+    title: t('security.sessions.revokeConfirm.title'),
+    message: t('security.sessions.revokeConfirm.message', {
+      device: session.ip ? `${deviceLabel(session)} (${session.ip})` : deviceLabel(session),
+    }),
+    confirmButtonText: t('security.sessions.signOut'),
     dangerAction: true,
   })
   if (!ok) return
   revoking.value = session.id
   try {
     await accountSecurityService.revokeSession(session.id)
-    toast.success('Device signed out')
+    toast.success(t('security.sessions.revoked'))
     await load()
   } catch (err) {
-    toast.error(securityErrorMessage(err, 'Could not sign that device out.'))
+    toast.error(securityErrorMessage(err, t('security.sessions.errors.revokeFailed')))
   } finally {
     revoking.value = null
   }
@@ -193,19 +195,19 @@ async function revoke(session: AccountSession) {
 
 async function revokeOthers() {
   const ok = await confirm({
-    title: 'Sign out all other devices?',
-    message: 'Every device except this one will need to sign in again.',
-    confirmButtonText: 'Sign out all',
+    title: t('security.sessions.revokeOthersConfirm.title'),
+    message: t('security.sessions.revokeOthersConfirm.message'),
+    confirmButtonText: t('security.sessions.revokeOthersConfirm.confirm'),
     dangerAction: true,
   })
   if (!ok) return
   revokingAll.value = true
   try {
     await accountSecurityService.signOutOtherSessions()
-    toast.success('Signed out of all other devices')
+    toast.success(t('security.sessions.revokedOthers'))
     await load()
   } catch (err) {
-    toast.error(securityErrorMessage(err, 'Could not sign out the other devices.'))
+    toast.error(securityErrorMessage(err, t('security.sessions.errors.revokeOthersFailed')))
   } finally {
     revokingAll.value = false
   }
@@ -215,10 +217,10 @@ async function removePush(sub: PushSubscriptionInfo) {
   removingPush.value = sub.id
   try {
     const result = await push.removeSubscription(sub)
-    if (!result.success) throw new Error(result.error || 'Could not remove that push target.')
-    toast.success('Push notifications removed for that device')
+    if (!result.success) throw new Error(result.error || t('security.sessions.errors.removePushFailed'))
+    toast.success(t('security.sessions.pushRemoved'))
   } catch (err) {
-    toast.error(securityErrorMessage(err, 'Could not remove that push target.'))
+    toast.error(securityErrorMessage(err, t('security.sessions.errors.removePushFailed')))
   } finally {
     removingPush.value = null
   }

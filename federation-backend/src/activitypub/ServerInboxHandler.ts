@@ -8,6 +8,7 @@
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { stripIncomingMediaPaths } from '../utils/privateMedia.js';
+import { normalizeInboundMentions, actorHostname } from '../utils/mentionParts.js';
 import { ActivityProcessor } from './ActivityProcessor.js';
 import { DeliveryQueue } from './DeliveryQueue.js';
 import { SignatureService } from './SignatureService.js';
@@ -145,17 +146,12 @@ export async function actorOwnsMessage(
 }
 
 /**
- * Incoming `harmony:rawContent` carries `isLocal` relative to the sending
- * instance. Re-evaluated here against this instance's domain. File parts lose
- * `path`, which only this instance's own content may carry.
+ * Incoming `harmony:rawContent`: mention locality re-derived for this
+ * instance (normalizeInboundMentions). File parts lose `path`, which only
+ * this instance's own content may carry.
  */
-function normalizeMentionDomains(content: any[]): any[] {
-  return stripIncomingMediaPaths(content).map((part: any) => {
-    if (part.type === 'mention' && part.domain) {
-      return { ...part, isLocal: part.domain === config.INSTANCE_DOMAIN };
-    }
-    return part;
-  });
+function normalizeMentionDomains(content: any[], senderUrl: unknown): any[] {
+  return normalizeInboundMentions(stripIncomingMediaPaths(content), actorHostname(senderUrl));
 }
 
 // MAIN HANDLER
@@ -670,11 +666,11 @@ async function processCreateActivity(
 
   let messageContent: any[];
   if (object['harmony:rawContent'] && Array.isArray(object['harmony:rawContent'])) {
-    messageContent = normalizeMentionDomains(object['harmony:rawContent']);
+    messageContent = normalizeMentionDomains(object['harmony:rawContent'], actorUrl);
   } else if (typeof object.content === 'string') {
     messageContent = noteToContent(object);
   } else if (Array.isArray(object.content)) {
-    messageContent = normalizeMentionDomains(object.content);
+    messageContent = normalizeMentionDomains(object.content, actorUrl);
   } else {
     messageContent = [{ type: 'text', text: String(object.content || '') }];
   }
@@ -1055,11 +1051,11 @@ async function processUpdateActivity(
 
   let messageContent: any[];
   if (object['harmony:rawContent'] && Array.isArray(object['harmony:rawContent'])) {
-    messageContent = normalizeMentionDomains(object['harmony:rawContent']);
+    messageContent = normalizeMentionDomains(object['harmony:rawContent'], editorUrl);
   } else if (typeof object.content === 'string') {
     messageContent = noteToContent(object);
   } else {
-    messageContent = normalizeMentionDomains(object.content || []);
+    messageContent = normalizeMentionDomains(object.content || [], editorUrl);
   }
 
   const voicePatch = harmonyVoiceMessageFromObject(object);

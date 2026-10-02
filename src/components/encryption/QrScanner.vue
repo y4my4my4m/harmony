@@ -5,14 +5,14 @@
         <video ref="videoRef" class="qs-video" autoplay playsinline muted data-testid="qr-scanner-video"></video>
         <div class="qs-frame" aria-hidden="true"></div>
       </div>
-      <p class="qs-hint">{{ hint }}</p>
-      <button type="button" class="btn btn-secondary btn-sm" @click="stopCamera">Stop camera</button>
+      <p class="qs-hint">{{ hintText }}</p>
+      <button type="button" class="btn btn-secondary btn-sm" @click="stopCamera">{{ $t('encryption.qrScanner.stopCamera') }}</button>
     </div>
 
     <div v-else class="qs-idle">
       <Icon :name="problem ? 'camera-off' : 'camera'" :size="28" class="qs-idle-icon" />
       <p v-if="problemText" class="qs-problem" role="status">{{ problemText }}</p>
-      <p v-else class="qs-hint">{{ hint }}</p>
+      <p v-else class="qs-hint">{{ hintText }}</p>
       <button
         v-if="canTryCamera"
         type="button"
@@ -21,14 +21,14 @@
         data-testid="qr-scanner-start"
         @click="startCamera"
       >
-        {{ state === 'starting' ? 'Starting camera…' : problem === 'denied' ? 'Try the camera again' : 'Use camera' }}
+        {{ state === 'starting' ? $t('encryption.qrScanner.startingCamera') : problem === 'denied' ? $t('encryption.qrScanner.tryCameraAgain') : $t('encryption.qrScanner.useCamera') }}
       </button>
     </div>
 
     <div class="qs-alternatives">
       <label class="btn btn-secondary btn-sm qs-file">
         <Icon name="image" :size="14" />
-        {{ decodingFile ? 'Reading image…' : 'Scan from an image' }}
+        {{ decodingFile ? $t('encryption.qrScanner.readingImage') : $t('encryption.qrScanner.scanImage') }}
         <input
           type="file"
           accept="image/*"
@@ -42,10 +42,10 @@
     </div>
 
     <div v-if="allowPaste" class="qs-paste">
-      <label :for="pasteId">{{ pasteLabel }}</label>
-      <textarea :id="pasteId" v-model="pasted" rows="2" spellcheck="false" placeholder="Paste the code here"></textarea>
+      <label :for="pasteId">{{ pasteLabelText }}</label>
+      <textarea :id="pasteId" v-model="pasted" rows="2" spellcheck="false" :placeholder="$t('encryption.qrScanner.pastePlaceholder')"></textarea>
       <button type="button" class="btn btn-secondary btn-sm" :disabled="!pasted.trim()" @click="submitPasted">
-        Use pasted code
+        {{ $t('encryption.qrScanner.usePasted') }}
       </button>
     </div>
   </div>
@@ -53,6 +53,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import Icon from '@/components/common/Icon.vue'
 import {
   VideoQrDecoder,
@@ -70,13 +71,17 @@ const props = withDefaults(defineProps<{
   allowPaste?: boolean
   pasteLabel?: string
 }>(), {
-  hint: 'Point the camera at the QR code.',
+  hint: '',
   autoStart: false,
   allowPaste: true,
-  pasteLabel: 'Or paste the code',
+  pasteLabel: '',
 })
 
 const emit = defineEmits<{ decoded: [text: string] }>()
+const { t } = useI18n()
+
+const hintText = computed(() => props.hint || t('encryption.qrScanner.defaultHint'))
+const pasteLabelText = computed(() => props.pasteLabel || t('encryption.qrScanner.defaultPasteLabel'))
 
 const state = ref<'idle' | 'starting' | 'scanning'>('idle')
 const problem = ref<CameraProblem | null>(cameraPrecheck())
@@ -96,17 +101,17 @@ const canTryCamera = computed(() => !problem.value || problem.value === 'denied'
 const problemText = computed(() => {
   switch (problem.value) {
     case 'unsupported':
-      return 'This app has no camera access here. Scan from an image or paste the code instead.'
+      return t('encryption.qrScanner.problems.unsupported')
     case 'insecure':
-      return 'The camera needs a secure (https) connection. Scan from an image or paste the code instead.'
+      return t('encryption.qrScanner.problems.insecure')
     case 'denied':
-      return 'Camera access is blocked. Allow it in your browser or system settings, or scan from an image.'
+      return t('encryption.qrScanner.problems.denied')
     case 'no-camera':
-      return 'No camera found. Scan from an image or paste the code instead.'
+      return t('encryption.qrScanner.problems.noCamera')
     case 'in-use':
-      return 'The camera is in use by another app. Close it and try again, or scan from an image.'
+      return t('encryption.qrScanner.problems.inUse')
     case 'failed':
-      return 'The camera could not start. Scan from an image or paste the code instead.'
+      return t('encryption.qrScanner.problems.failed')
     default:
       return ''
   }
@@ -187,9 +192,9 @@ async function onFile(event: Event) {
   try {
     const text = await decodeQrFromImageFile(file)
     if (text) deliver(text)
-    else fileError.value = 'No QR code found in that image. Try a sharper, closer picture.'
+    else fileError.value = t('encryption.qrScanner.noQrInImage')
   } catch {
-    fileError.value = 'That file could not be read as an image.'
+    fileError.value = t('encryption.qrScanner.unreadableFile')
   } finally {
     decodingFile.value = false
   }

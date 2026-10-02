@@ -16,6 +16,7 @@
     "search": "検索",
     "send": "送信",
     "copy": "コピー",
+    "copied": "コピーしました",
     "paste": "貼り付け",
     "cut": "切り取り",
     "undo": "元に戻す",
@@ -55,6 +56,7 @@
     "createAccount": "アカウントを作成",
     "welcomeBackSubtitle": "メールアドレスとパスワードでログインしてください。",
     "createAccountSubtitle": "次にユーザー名とプロフィールを設定します。",
+    "confirmEmailSent": "{email} に確認リンクを送信しました。リンクを開いてからログインしてください。",
     "forgotPassword": "パスワードをお忘れですか？",
     "dontHaveAccount": "アカウントをお持ちでないですか？",
     "alreadyHaveAccount": "すでにアカウントをお持ちですか？",
@@ -136,6 +138,8 @@
     "serverName": "サーバー名",
     "description": "説明",
     "privacySettings": "プライバシー設定",
+    "privacySettingsDesc": "このサーバーを見つけて参加できるユーザーを管理します。",
+    "privacySettingsViewDesc": "このサーバーを見つけて参加できるユーザー。",
     "public": "公開",
     "private": "非公開",
     "publicDesc": "誰でもこのサーバーに参加できます",
@@ -156,6 +160,9 @@
     "moderation": "モデレーション",
     "overview": "概要",
     "serverDescription": "サーバーについて説明してください...",
+    "rulesLabel": "サーバールール",
+    "rulesPlaceholder": "1行に1つのルール（例）\n他者を尊重する\nスパム禁止",
+    "rulesHint": "招待を受け入れる前に表示されます（最大25件）。",
     "myAwesomeServer": "素晴らしいサーバー",
     "noServers": "サーバーがありません",
     "noServersAvailable": "利用可能なサーバーがありません",
@@ -192,6 +199,11 @@
     "leaving": "退出中...",
     "join": "参加",
     "joining": "参加中...",
+    "open": "開く",
+    "allCategories": "すべて",
+    "noCommunitiesInCategory": "このカテゴリにはコミュニティがありません",
+    "creating": "作成中...",
+    "iconUploadHint": "正方形の画像が最適です。最大5 MB。",
     "member": "メンバー",
     "categoryGaming": "ゲーム",
     "categoryTechnology": "テクノロジー",
@@ -203,15 +215,24 @@
     "categoryScience": "科学",
     "categorySports": "スポーツ",
     "categoryOther": "その他",
+    "discoveryCategory": "カテゴリ",
+    "discoveryCategoryHint": "発見ページに表示され、トピックからサーバーを探せるようになります。",
+    "discoveryCategoryNone": "未設定",
+    "discoveryCategoryNoneHint": "名前と説明から発見ページがカテゴリを自動で選択します。",
     "placeholders": {
       "serverName": "素晴らしいサーバー",
       "description": "サーバーについて説明してください..."
     },
     "errors": {
+      "nameRequired": "サーバー名は必須です",
       "nameTooShort": "サーバー名は2文字以上である必要があります",
       "nameTooLong": "サーバー名は50文字未満である必要があります",
-      "invalidName": "サーバー名に無効な文字が含まれています"
+      "invalidName": "サーバー名に無効な文字が含まれています",
+      "notSignedIn": "サーバーを作成するにはサインインしてください。",
+      "createFailed": "サーバーを作成できませんでした。もう一度お試しください。"
     },
+    "bannedFromServer": "このサーバーから BAN されています。",
+    "joinRequiresInvite": "このサーバーには招待で参加します。",
     "serverSettings": "サーバー設定",
     "serverInformation": "サーバー情報",
     "saveChanges": "変更を保存",
@@ -291,49 +312,48 @@
     "copyEmojiName": "絵文字名をコピー",
     "renameEmoji": "絵文字名を変更",
     "deleteEmojiTitle": "絵文字を削除",
-    "emojiViewOnlyAccess": "閲覧専用アクセス",
-    "emojiViewOnlyMessage": "サーバー絵文字を閲覧できますが、アップロードや削除はできません。サーバー所有者と絵文字管理権限を持つユーザーのみが絵文字を変更できます。",
     "noPermissionUploadEmojis": "絵文字をアップロードする権限がありません",
     "selectImageFile": "画像ファイルを選択してください",
     "fileSizeMustBeLessThan1MB": "ファイルサイズは1MB未満である必要があります",
-    "maxEmojisReached": "サーバーあたり最大50個の絵文字が許可されています",
+    "maxEmojisReached": "絵文字の上限（{max}）に達しました",
     "emojiUploadedSuccess": "絵文字 :{name}: のアップロードに成功しました！",
     "failedToUploadEmoji": "絵文字のアップロードに失敗しました",
     "noPermissionDeleteEmojis": "絵文字を削除する権限がありません",
     "confirmDeleteEmoji": ":{name}: を削除してもよろしいですか？",
     "emojiDeletedSuccess": "絵文字 :{name}: の削除に成功しました！",
     "failedToDeleteEmoji": "絵文字の削除に失敗しました",
-    "fileNotImageSkipped": "{filename}は画像ファイルではないため、スキップされます",
-    "fileTooLargeSkipped": "{filename}が大きすぎます（1MB超過）- スキップされます",
     "filesNotImageSkipped": "{count}件のファイルをスキップ：画像ファイルではありません",
     "filesTooLargeSkipped": "{count}件のファイルをスキップ：25 MBを超えています",
     "noValidImageFiles": "有効な画像ファイルが選択されていません",
-    "cannotUploadEmojisLimit": "{count}個の絵文字をアップロードできません。サーバー制限は50個です（現在{current}個）",
+    "cannotUploadEmojisLimit": "{count} 個の絵文字をアップロードできません：上限の {max} 個を超えます（現在 {current} 個）",
     "emojisUploadedSuccess": "{count}個の絵文字{plural}のアップロードに成功しました！",
     "emojisFailedToUpload": "{count}個の絵文字{plural}のアップロードに失敗しました",
     "failedToUploadEmojis": "絵文字のアップロードに失敗しました",
-    "confirmDeleteEmojis": "{count}個の絵文字{plural}を削除してもよろしいですか？",
-    "emojisDeletedSuccess": "{count}個の絵文字{plural}の削除に成功しました！",
-    "emojisFailedToDelete": "{count}個の絵文字{plural}の削除に失敗しました",
+    "confirmDeleteEmojis": "{count} 個の絵文字を削除してもよろしいですか？この操作は元に戻せません。",
+    "emojisDeletedSuccess": "{count} 個の絵文字を削除しました",
+    "emojisFailedToDelete": "{count} 個の絵文字の削除に失敗しました",
     "failedToDeleteEmojis": "絵文字の削除に失敗しました",
     "emojiRenamedSuccess": "絵文字名を :{name}: に変更しました",
     "failedToRenameEmoji": "絵文字名の変更に失敗しました",
     "failedToLoadServerSettings": "サーバー設定の読み込みに失敗しました",
     "failedToLoadEmojis": "絵文字の読み込みに失敗しました",
-    "emojiUploadedSuccessToast": "絵文字のアップロードに成功しました",
     "noPermissionSaveChanges": "変更を保存する権限がありません",
     "serverUpdatedSuccess": "サーバーの更新に成功しました",
     "failedToUpdateServer": "サーバーの更新に失敗しました",
     "advancedSettings": "高度な設定",
     "back": "戻る",
     "bots": "ボット",
+    "bans": "BAN",
+    "reports": "報告",
     "encryption": "暗号化",
     "federationEnabled": "連合を有効化",
     "federationEnabledDesc": "他の Harmony インスタンスのユーザーがこのサーバーに参加して交流できるようにします。インスタンス間通信に必要です。",
     "federationActive": "連合が有効",
     "federationBenefit1": "他のインスタンスのユーザーが招待リンク経由で参加できます",
     "federationBenefit2": "メッセージは連合メンバーとリアルタイムで共有されます",
-    "federationBenefit3": "サーバーが連合サーバーの検出に表示されます"
+    "federationBenefit3": "サーバーが連合サーバーの検出に表示されます",
+    "federationHandle": "サーバーハンドル",
+    "federationHandleDesc": "このハンドルを共有すると、他のインスタンスのユーザーがこのサーバーを見つけて参加できます。"
   },
   "channel": {
     "create": "チャンネルを作成",
@@ -386,10 +406,16 @@
     "jumpTo": "メッセージに移動",
     "copyID": "メッセージIDをコピー",
     "noMessagesHere": "ここにはメッセージがありません。何か入力してください！",
+    "newMessages": "新着",
     "loadingOlder": "古いメッセージを読み込み中...",
     "newMessagesBelow": "{count} 件の新しいメッセージ",
+    "jumpToPresent": "最新に移動",
     "conversationBeginning": "これは会話の始まりです",
     "conversationBeginningSubtitle": "チャットを始めて、思い出に残るものにしましょう！",
+    "channelWelcome": "#{name} へようこそ",
+    "channelWelcomeSubtitle": "ここは #{name} チャンネルの始まりです。",
+    "dmBeginning": "ここが {name} とのダイレクトメッセージの始まりです。",
+    "groupBeginning": "ここが {name} グループの始まりです。",
     "jumpInConversation": "会話にジャンプ",
     "reactions": {
       "add": "リアクションを追加",
@@ -402,6 +428,71 @@
       "three": "、{name2}、{name3} が入力中...",
       "many": "複数のユーザーが入力中です..."
     }
+  },
+  "messageSearch": {
+    "title": "メッセージを検索",
+    "intro": "検索する語句を入力するか、from:、mentions:、has:、in:、before:、during:、after:、pinned: で絞り込みます。",
+    "placeholderServer": "このサーバーを検索",
+    "placeholderDm": "この会話を検索",
+    "close": "検索を閉じる",
+    "clear": "検索をクリア",
+    "removeFilter": "{filter} フィルターを削除",
+    "unresolved": "この値に一致するものがないため、検索から除外されます",
+    "options": "検索オプション",
+    "members": "メンバー",
+    "channels": "チャンネル",
+    "date": "日付",
+    "contains": "含む",
+    "pickDate": "日付を選択",
+    "today": "今日",
+    "yesterday": "昨日",
+    "enterToSearch": "Enter キーで検索",
+    "hint": {
+      "from": "ユーザーから",
+      "mentions": "ユーザーへのメンション",
+      "has": "リンク、埋め込み、ファイル、画像、動画、音声",
+      "in": "チャンネル内",
+      "before": "日付より前",
+      "during": "日付当日",
+      "after": "日付より後",
+      "pinned": "ピン留めの有無"
+    },
+    "has": {
+      "link": "リンクを含む",
+      "embed": "埋め込みあり",
+      "file": "添付ファイルあり",
+      "image": "画像あり",
+      "video": "動画あり",
+      "sound": "音声あり"
+    },
+    "pinnedHint": {
+      "true": "ピン留めされたメッセージ",
+      "false": "ピン留めされていないメッセージ"
+    },
+    "recent": "最近の検索",
+    "clearRecent": "クリア",
+    "encryptedNote": "暗号化されたメッセージは、このデバイスで読み込み済みのメッセージのみが検索対象です。",
+    "onThisDevice": "暗号化、このデバイス上",
+    "searching": "検索中…",
+    "results": "結果なし | {count} 件の結果 | {count} 件の結果",
+    "resultsCapped": "{count} 件以上の結果",
+    "sort": "結果を並べ替え",
+    "newest": "新しい順",
+    "oldest": "古い順",
+    "relevant": "関連度順",
+    "error": "検索に失敗しました",
+    "empty": "結果なし",
+    "emptyHint": "別の語句を試すか、フィルターを減らしてください。",
+    "unknownChannel": "不明なチャンネル",
+    "threadIn": "{channel} のスレッド",
+    "pages": "結果ページ",
+    "previous": "前へ",
+    "next": "次へ",
+    "jumpTo": "メッセージに移動",
+    "jump": "移動",
+    "bot": "ボット",
+    "pinned": "ピン留め",
+    "encrypted": "エンドツーエンド暗号化"
   },
   "voice": {
     "join": "ボイスに参加",
@@ -428,7 +519,66 @@
     "outputVolume": "出力音量",
     "echoCancellation": "エコーキャンセル",
     "noiseSuppression": "ノイズ抑制",
-    "testMicrophone": "マイクをテスト"
+    "testMicrophone": "マイクをテスト",
+    "userVolume": "ユーザー音量",
+    "streamVolume": "配信音量",
+    "muteUser": "ミュート",
+    "muteStream": "配信をミュート",
+    "localOnlyHint": "自分に聞こえる音のみ変更します",
+    "noStreamAudio": "この配信には音声がありません",
+    "watchStream": "配信を視聴",
+    "stopWatching": "視聴を停止",
+    "fullScreen": "全画面表示",
+    "exitFullScreen": "全画面表示を終了",
+    "popOut": "ポップアウト",
+    "closePopOut": "ポップアウトを閉じる",
+    "focus": "フォーカス",
+    "exitFocus": "フォーカスを終了",
+    "gridView": "グリッド表示",
+    "focusView": "フォーカス表示",
+    "moreOptions": "その他のオプション",
+    "live": "ライブ",
+    "mutedByYou": "あなたがミュート中",
+    "streamMutedByYou": "あなたが配信をミュート中",
+    "streamQuality": "配信品質",
+    "streamSettings": "配信設定",
+    "streamAudioQuality": "配信音声",
+    "shareYourScreen": "画面を共有",
+    "goLive": "配信を開始",
+    "stopStreaming": "配信を停止",
+    "streamAudioHint": "音声を含めるには、ブラウザの選択画面で音声の共有をオンにしてください。",
+    "qualityHint": "設定を高くするほど、より多くのアップロード帯域が必要です。",
+    "source": "ソース",
+    "fps": "{n} fps",
+    "kbps": "{n} kbps",
+    "audioBlocked": "ブラウザが通話音声を一時停止しました。",
+    "enableAudio": "音声を有効化",
+    "reconnecting": "再接続中…",
+    "statusInVoice": "ボイス参加中",
+    "statusSpeaking": "発言中",
+    "statusStreaming": "配信中",
+    "statusCameraOn": "カメラオン",
+    "statusMuted": "ミュート中",
+    "statusDeafened": "スピーカーミュート中",
+    "quality": {
+      "excellent": "接続状態：非常に良好",
+      "good": "接続状態：良好",
+      "poor": "接続状態：不安定",
+      "lost": "接続が切れました",
+      "unknown": "接続品質不明"
+    },
+    "autoWatchStreams": "配信を自動で視聴",
+    "autoWatchStreamsHint": "「配信を視聴」を押さなくても、誰かが配信を開始するとすぐに受信します。",
+    "inputVolumeHint": "送信前にマイクの音量を調整します。100% では加工せずに送信されます。",
+    "inputVolumeAgcHint": " 自動ゲイン制御がオンのため、ブラウザも音量レベルを調整します。",
+    "switchCallTitle": "通話を切り替えますか？",
+    "switchCallMessage": "すでに {channel} に参加しています。退出してこの通話に参加しますか？",
+    "switchCallConfirm": "切り替え",
+    "callDuration": "通話時間",
+    "inCallWith": "通話中",
+    "incomingGroupCall": "{name} がグループに発信しています",
+    "ringing": "呼び出し中…",
+    "joinCallFailed": "通話に参加できませんでした"
   },
   "dm": {
     "directMessages": "ダイレクトメッセージ",
@@ -441,6 +591,9 @@
     "startBySearching": "送受信したメッセージはここに表示されます。",
     "followingEmptyHint": "フォローしている人がここに表示され、すぐにメッセージを送れます。",
     "loadingConversations": "会話を読み込み中...",
+    "dismissConversation": "会話を非表示",
+    "conversationDismissed": "会話を非表示にしました。新しいメッセージが届くと再表示されます。",
+    "failedToDismissConversation": "会話を非表示にできませんでした",
     "noUsersFound": "ユーザーが見つかりません",
     "call": "通話",
     "videoCall": "ビデオ通話",
@@ -454,11 +607,13 @@
     "unavailable": "ユーザーは不在です",
     "missedCall": "不在着信",
     "title": "ダイレクトメッセージ",
+    "recipientDeleted": "このアカウントは削除されています。メッセージは配信されません。",
     "sendMessage": "メッセージを送信",
     "callInProgress": "通話中です",
     "joinCall": "通話に参加"
   },
   "user": {
+    "panelToggle": "アカウントと音声のコントロール",
     "profile": "プロフィール",
     "editProfile": "プロフィールを編集",
     "viewProfile": "プロフィールを表示",
@@ -500,6 +655,8 @@
     "privacy": "プライバシーと安全",
     "authorizedApps": "承認済みアプリ",
     "connections": "接続",
+    "administration": "管理",
+    "instanceAdmin": "インスタンス管理",
     "appearance": {
       "title": "外観",
       "description": "Harmonyの見た目をカスタマイズします。",
@@ -530,6 +687,10 @@
       "use24HourDesc": "時刻を24時間形式で表示します。",
       "compactMode": "コンパクトモード",
       "compactModeDesc": "間隔を狭めてより多くのメッセージを表示します。",
+      "bridgeSourceBadge": "ブリッジ元の表示",
+      "bridgeSourceBadgeDesc": "ブリッジされたメッセージ（Discord など）の送信元を投稿者名の横にどう表示するかを設定します。",
+      "bridgeSourceBadgeIcon": "プラットフォームアイコン",
+      "bridgeSourceBadgeText": "テキストラベル（DISCORD）",
       "floatingVideo": "フローティング動画プレーヤー",
       "floatingVideoDesc": "スクロールすると再生中の動画が隅に移動します。YouTubeとネイティブ動画で動作します。",
       "highContrast": "ハイコントラスト",
@@ -540,10 +701,19 @@
       "screenReaderDesc": "スクリーンリーダー向けに最適化します。",
       "saveChanges": "変更を保存",
       "resetSettings": "リセット",
+      "unsavedChanges": "保存されていない外観の変更があります",
+      "changesDiscarded": "保存されていない外観の変更を破棄しました",
       "showCustomEmojisInDisplayNames": "表示名に絵文字を表示",
       "showCustomEmojisInDisplayNamesDesc": "有効にすると、他のユーザーの表示名に絵文字画像が表示されます。無効にすると、絵文字とショートコードが完全に非表示になります。",
       "greentext": "Greentext",
-      "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. > text with a space is always a quote regardless of this setting."
+      "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. > text with a space is always a quote regardless of this setting.",
+      "inviteBannerBg": "招待ダイアログのサーバーバナー",
+      "inviteBannerBgDesc": "サーバーにバナーがある場合、招待ダイアログの背後にぼかして暗くしたバナーを表示します。",
+      "quickReact": "クイックリアクション",
+      "quickReactEnable": "ダブルタップでクイックリアクション",
+      "quickReactEnableDesc": "メッセージをダブルタップ（モバイル）またはダブルクリック（デスクトップ）すると、選択した絵文字ですぐにリアクションします。",
+      "quickReactEmoji": "クイックリアクションの絵文字",
+      "quickReactEmojiDesc": "メッセージをダブルタップしたときに付ける絵文字です。"
     },
     "voice": {
       "title": "音声とビデオ",
@@ -581,6 +751,30 @@
       "enableDMs": "ダイレクトメッセージの通知",
       "muteAll": "すべてをミュート",
       "muteDuration": "ミュート期間"
+    },
+    "announcements": {
+      "title": "お知らせ",
+      "description": "このインスタンスの管理者からの過去と現在のお知らせを確認できます。",
+      "loading": "お知らせを読み込み中…",
+      "loadError": "お知らせを読み込めませんでした。もう一度お試しください。",
+      "endsAt": "{date} に終了",
+      "filters": {
+        "unread": "未読",
+        "all": "すべて",
+        "pinned": "ピン留め"
+      },
+      "empty": {
+        "unread": "すべて確認済みです。未読のお知らせはありません。",
+        "all": "お知らせはまだ投稿されていません。",
+        "pinned": "現在ピン留めされたお知らせはありません。"
+      },
+      "badges": {
+        "unread": "新着",
+        "pinned": "ピン留め",
+        "inactive": "非アクティブ",
+        "expired": "期限切れ",
+        "scheduled": "予約済み"
+      }
     },
     "language": {
       "title": "言語",
@@ -655,6 +849,23 @@
     "bookmarks": "ブックマーク",
     "lists": "リスト",
     "trending": "トレンド",
+    "trendingRising": "急上昇",
+    "trendingSections": "トレンドのセクション",
+    "trendingHashtagsTab": "ハッシュタグ",
+    "trendingPeopleTab": "ユーザー",
+    "trendingFilters": "フィルター",
+    "trendingTimeRange": "期間",
+    "trendingSource": "ソース",
+    "clearFilters": "フィルターをクリア",
+    "trendingNoPosts": "まだトレンドはありません",
+    "trendingNoPostsHint": "返信、ブースト、お気に入りを受けた投稿がここに表示されます。",
+    "trendingNoMedia": "トレンドのメディアはありません",
+    "trendingNoMediaHint": "返信、ブースト、お気に入りを受けた写真や動画がここに表示されます。",
+    "trendingFilteredHint": "これらのフィルターに一致するものはありません。期間を長くするか、フィルターをクリアしてください。",
+    "trendingNoPeople": "表示するユーザーはまだいません",
+    "trendingNoPeopleHint": "このインスタンスと連合先のインスタンスのアカウントがここに表示されます。",
+    "trendingLoadFailed": "トレンドを読み込めませんでした",
+    "hashtagPeopleCount": "{count} 人",
     "home": "ホーム",
     "local": "ローカル",
     "federated": "グローバル",
@@ -709,6 +920,7 @@
     "searchTipsDomain": "グローバルユーザーにはドメインを含める",
     "withMedia": "メディア付き",
     "allInstances": "すべてのインスタンス",
+    "thisInstance": "このインスタンス",
     "lastHour": "過去1時間",
     "last6Hours": "過去6時間",
     "last24Hours": "過去24時間",
@@ -743,6 +955,7 @@
     "notShownInPublicTimelines": "公開タイムラインに表示されない",
     "onlyVisibleToFollowers": "フォロワーのみ表示",
     "onlyMentionedUsers": "メンションされたユーザーのみ",
+    "directRequiresMention": "ダイレクト投稿では、少なくとも1人を{'@'}メンションする必要があります。",
     "publicVisibleToEveryone": "公開 - すべての人に表示",
     "unlistedNotShown": "未公開リスト - 公開タイムラインに表示されない",
     "followersOnly": "フォロワーのみ",
@@ -760,6 +973,7 @@
     "mony": "投稿",
     "replying": "返信中...",
     "posting": "投稿中...",
+    "failedToSendPost": "投稿の送信に失敗しました。内容は保持されています。もう一度お試しください。",
     "quoting": "引用中...",
     "saving": "保存中...",
     "quote": "引用",
@@ -773,7 +987,111 @@
     "searchAction": "検索",
     "composeAction": "新規投稿を作成",
     "refreshAction": "タイムラインを更新",
-    "toggleSidebarAction": "サイドバーを切り替え"
+    "toggleSidebarAction": "サイドバーを切り替え",
+    "addAComment": "コメントを追加",
+    "addEmoji": "絵文字を追加",
+    "addMedia": "画像または動画を追加",
+    "addReaction": "リアクションを追加",
+    "adminBadge": "管理者",
+    "modBadge": "モデレーター",
+    "instanceAdmin": "サーバー管理者",
+    "instanceModerator": "サーバーモデレーター",
+    "altTextEdit": "説明を編集",
+    "altTextLabel": "見ることができない人のために説明を追加してください",
+    "altTextMissing": "説明なし",
+    "altTextPlaceholder": "画像や動画には何が写っていますか？",
+    "altTextShow": "説明を表示",
+    "image": "画像",
+    "video": "動画",
+    "audio": "音声",
+    "file": "ファイル",
+    "beFirstToUseHashtag": "#{tag} で最初に投稿しましょう",
+    "boost": "ブースト",
+    "boosted": "がブースト",
+    "undoBoost": "ブーストを取り消す",
+    "boostedToast": "ブーストしました",
+    "boostRemoved": "ブーストを取り消しました",
+    "boostRemoveFailed": "ブーストを取り消せませんでした",
+    "boostDisabled": "この投稿はブーストできません",
+    "boostDisabledDirect": "ダイレクト投稿はブーストできません",
+    "boostDisabledFollowers": "フォロワー限定の投稿はブーストできません",
+    "boostedFromAnotherInstance": "別のサーバーからブースト",
+    "boostsLabel": "ブースト",
+    "repliesLabel": "返信",
+    "favoritesLabel": "お気に入り",
+    "favorite": "お気に入り",
+    "unfavorite": "お気に入りを解除",
+    "unfavoriteWithReactions": "お気に入りとリアクションを解除 | お気に入りと {count} 件のリアクションを解除",
+    "reactionLimitReached": "1つの投稿にリアクションできる絵文字は最大 {count} 種類です",
+    "removeBookmark": "ブックマークを削除",
+    "moreOptions": "その他のオプション",
+    "browseFederatedTimeline": "連合タイムラインを閲覧",
+    "clearAllBookmarks": "すべてクリア",
+    "clearAllBookmarksTitle": "すべてのブックマークをクリアしますか？",
+    "clearAllBookmarksMessage": "保存したすべての投稿がブックマークから削除されます。この操作は元に戻せません。",
+    "clearAllBookmarksFailed": "ブックマークをクリアできませんでした。もう一度お試しください。",
+    "sensitiveContent": "センシティブな内容",
+    "clickToShow": "クリックして表示",
+    "hideMedia": "メディアを非表示",
+    "contentWarning": "閲覧注意",
+    "contentWarningPlaceholder": "ここに注意書きを入力",
+    "markMediaSensitive": "メディアをセンシティブとしてマーク",
+    "draftSaved": "下書きを保存しました",
+    "postVisibility": "公開範囲",
+    "visibilityLabel": "公開範囲：{visibility}",
+    "mentionedOnly": "メンションした人のみ",
+    "charactersRemaining": "残り {count} 文字",
+    "whatsOnYourMind": "いまどうしてる？",
+    "newPost": "新規投稿",
+    "newPostsCount": "{count} 件の新しい投稿",
+    "timelines": "タイムライン",
+    "openNavigation": "ナビゲーションを開く",
+    "editProfile": "プロフィールを編集",
+    "followUser": "{'@'}{handle} をフォロー",
+    "unfollowUser": "{'@'}{handle} のフォローを解除",
+    "mentionUser": "{'@'}{handle} にメンション",
+    "requested": "リクエスト済み",
+    "cancelFollowRequest": "リクエストを取り消す",
+    "fromDomain": "{domain} から",
+    "viewOnDomain": "{domain} で表示",
+    "postsCountLabel": "{count} 件の投稿",
+    "participantsCount": "{count} 人の参加者",
+    "todayCount": "今日 {count} 件",
+    "loadFailedTitle": "投稿を読み込めませんでした",
+    "loadFailedMessage": "接続を確認して、もう一度お試しください。",
+    "loadMoreFailed": "さらに投稿を読み込めませんでした。",
+    "loadingMore": "さらに投稿を読み込み中",
+    "noBookmarksYet": "ブックマークはまだありません",
+    "noBookmarksHint": "投稿をブックマークすると、後でここから見つけられます。",
+    "noMentionsYet": "メンションはまだありません",
+    "noMentionsHint": "あなたにメンションした投稿がここに表示されます。フォローしていない人からのものも含まれます。",
+    "now": "今",
+    "pinned": "ピン留め",
+    "edited": "編集済み",
+    "editedTitle": "この投稿は編集されています",
+    "replyToUser": "{name} に返信",
+    "replyingTo": "返信先",
+    "viewThread": "スレッドを表示",
+    "viewOriginalPost": "元の投稿を表示",
+    "showMore": "もっと見る",
+    "showLess": "折りたたむ",
+    "removeAttachment": "添付ファイルを削除",
+    "supportInstance": "このインスタンスを支援",
+    "openMedia": "メディアを開く",
+    "gifLabel": "GIF",
+    "noMediaYet": "メディアはまだありません",
+    "noMediaOwn": "投稿した写真や動画がここに表示されます。",
+    "noMediaOther": "{name} はまだ写真や動画を投稿していません。",
+    "loadMediaFailed": "メディアを読み込めませんでした",
+    "loadMoreMediaFailed": "さらにメディアを読み込めませんでした。",
+    "loadingMedia": "メディアを読み込み中",
+    "mediaGridLabel": "{name} のメディア",
+    "mediaItemsCount": "{count} 件",
+    "revealMediaLabel": "{warning}。メディアを表示",
+    "viewPost": "投稿を表示",
+    "fetchOlderFromDomain": "{domain} から古い投稿を読み込む",
+    "fetchingOlderFromDomain": "{domain} で古い投稿を確認中",
+    "fetchOlderFailed": "{domain} に接続できませんでした。"
   },
   "moderation": {
     "report": "報告",
@@ -798,7 +1116,57 @@
     "spam": "スパム",
     "inappropriate": "不適切なコンテンツ",
     "impersonation": "なりすまし",
-    "other": "その他"
+    "other": "その他",
+    "reportCategories": {
+      "spam": "スパム",
+      "legal": "違法なコンテンツ",
+      "violation": "ルール違反",
+      "other": "その他"
+    },
+    "reportReasons": {
+      "spam": "スパムまたは迷惑なコンテンツ",
+      "harassment": "ハラスメントまたはいじめ",
+      "illegal_content": "違法なコンテンツ",
+      "impersonation": "なりすまし",
+      "nsfw": "不適切/NSFW なコンテンツ",
+      "other": "その他"
+    },
+    "reportSource": {
+      "fromInstance": "{domain} から",
+      "fromRemote": "リモートインスタンスから",
+      "local": "ローカル"
+    },
+    "evidence": {
+      "backfilledNote": "報告の送信後に取得",
+      "post": "報告時の投稿",
+      "contentWarning": "CW：{warning}",
+      "encryptedMessage": "暗号化されたメッセージ",
+      "ciphertextOnly": "［暗号文のみ］",
+      "reporterSuppliedNote": "報告者が提供したテキストで、サーバーでは検証できません",
+      "message": "報告時のメッセージ",
+      "server": "報告時のサーバー"
+    },
+    "reportErrors": {
+      "rateLimited": "最近報告を送信しすぎています。しばらくしてからもう一度お試しください。",
+      "unavailable": "このコンテンツはもう報告できません。",
+      "forbidden": "このアカウントからは報告を送信できません。",
+      "self": "自分自身を報告することはできません。",
+      "failed": "報告を送信できませんでした。しばらくしてからもう一度お試しください。",
+      "actionFailed": "操作に失敗しました"
+    },
+    "reportForward": {
+      "label": "この報告の匿名コピーを {domain} にも送信する",
+      "hint": "相手のモデレーターにはコンテンツとあなたのコメントが表示されますが、あなたが誰かは表示されません。"
+    },
+    "warningNotification": {
+      "title": "モデレーターからの警告",
+      "defaultMessage": "モデレーターがあなたのアカウントに警告を出しました。",
+      "short": "モデレーションの警告",
+      "sender": "モデレーター"
+    },
+    "securityNotification": {
+      "short": "アカウントのセキュリティ"
+    }
   },
   "files": {
     "upload": "ファイルをアップロード",
@@ -814,9 +1182,13 @@
     "uploadSuccess": "アップロード成功",
     "uploadError": "アップロード失敗",
     "tooLarge": "ファイルが大きすぎます",
-    "invalidType": "無効なファイルタイプ"
+    "invalidType": "無効なファイルタイプ",
+    "viewFullSize": "フルサイズで表示",
+    "imageTooLarge": "この画像は {size} です。アップロードできるのは {max} までの画像です。"
   },
   "emoji": {
+    "messageReactionLimit": "このメッセージには {count} 種類のリアクションがあります。既存のリアクションに追加してください。",
+    "postReactionLimit": "この投稿に {count} 件のリアクションを付けています。追加するには1つ削除してください。",
     "search": "絵文字を検索...",
     "recent": "最近使った絵文字",
     "smileys": "スマイリーと人々",
@@ -829,7 +1201,85 @@
     "flags": "旗",
     "custom": "カスタム",
     "noResults": "絵文字が見つかりません",
-    "searchEmojis": "絵文字を検索..."
+    "searchEmojis": "絵文字を検索...",
+    "aiGenerate": "生成",
+    "aiGenerating": "生成中…",
+    "aiGeneratePlaceholder": "生成する絵文字を説明してください…",
+    "aiGenerateHint": "プロンプトを入力して自分だけの絵文字を生成できます。1日の上限があります。",
+    "aiGenerateEmpty": "生成した絵文字はまだありません",
+    "aiGenerateEmptyHint": "上のプロンプトを使って最初の絵文字を作成しましょう。",
+    "aiQuotaUser": "本日の残り生成回数：{remaining} / {total}",
+    "aiQuotaInstance": "本日のインスタンス全体の残り生成回数：{remaining} / {total}"
+  },
+  "inbox": {
+    "title": "通知",
+    "bellLabel": "通知",
+    "bellLabelUnread": "通知、未読 {count} 件",
+    "newCount": "{count} 件の新着",
+    "tabsLabel": "通知を絞り込む",
+    "tabLabelUnread": "{tab}、未読 {count} 件",
+    "tabs": {
+      "all": "すべて",
+      "mentions": "メンション",
+      "social": "ソーシャル"
+    },
+    "unreadOnly": "未読のみ",
+    "markAllRead": "すべて既読にする",
+    "clearAll": "すべてクリア",
+    "clearConfirm": "すべての通知をクリアしますか？この操作は元に戻せません。",
+    "settings": "通知設定",
+    "close": "閉じる",
+    "markRead": "既読にする",
+    "markUnread": "未読にする",
+    "remove": "削除",
+    "unread": "未読",
+    "loadMore": "古い通知を表示",
+    "loading": "通知を読み込み中",
+    "error": "通知を読み込めませんでした。",
+    "retry": "再試行",
+    "silenced": "おやすみモードがオンです。通知は音なしで届きます。",
+    "accept": "承認",
+    "reject": "拒否",
+    "empty": {
+      "all": "すべて確認済みです",
+      "allHint": "メンション、返信、メッセージがここに表示されます。",
+      "mentions": "メンションはありません",
+      "mentionsHint": "誰かがあなたにメンションまたは返信すると、ここに表示されます。",
+      "social": "ソーシャル通知はありません",
+      "socialHint": "Fediverse からのフォロー、いいね、ブーストがここに表示されます。",
+      "unread": "未読はありません",
+      "unreadHint": "既読の通知は「すべて」に残ります。"
+    }
+  },
+  "newcomerAlerts": {
+    "notification": {
+      "action": " が新しく参加し、#{channel} に投稿しました",
+      "actionNoChannel": " が新しく参加し、初めて投稿しました",
+      "short": "#{channel} に新しいメンバー",
+      "shortNoChannel": "新しいメンバーが投稿しました",
+      "noPreview": "あいさつしましょう",
+      "nativePrefix": "新しいメンバー"
+    },
+    "server": {
+      "title": "新規メンバー通知",
+      "description": "過去30日以内に参加した人が初めて投稿すると、所有者とモデレーターに通知が届き、誰かが歓迎できるようにします。",
+      "toggle": "所有者とモデレーターに通知する",
+      "followsDefault": "このインスタンスのデフォルトを使用しています。",
+      "useDefault": "インスタンスのデフォルトを使用",
+      "saveFailed": "新規メンバー通知を更新できませんでした。",
+      "loadFailed": "新規メンバー通知を読み込めませんでした。"
+    },
+    "preference": {
+      "label": "新しいメンバー",
+      "description": "自分が所有またはモデレートしているサーバーで、新しいメンバーが初めて投稿したとき"
+    },
+    "admin": {
+      "title": "新規メンバー通知",
+      "toggle": "新しいメンバーが初めて投稿したときにサーバースタッフに通知する",
+      "hint": "所有者が設定していないサーバーのデフォルトです。所有者と「サーバーの管理」権限を持つメンバーはサーバー設定で変更できます。",
+      "saved": "新規メンバー通知のデフォルトを保存しました",
+      "saveFailed": "新規メンバー通知のデフォルトを保存できませんでした"
+    }
   },
   "time": {
     "now": "今",
@@ -945,7 +1395,8 @@
   "announcements": {
     "title": "お知らせ",
     "markRead": "既読にする",
-    "markAllRead": "すべて既読にする"
+    "markAllRead": "すべて既読にする",
+    "viewPast": "過去のお知らせを表示"
   },
   "gif": {
     "search": "GIF を検索...",
@@ -958,7 +1409,13 @@
     "noFavorites": "お気に入りの GIF はまだありません",
     "noFavoritesHint": "任意の GIF の星をクリックするとここに保存されます",
     "addToFavorites": "お気に入りに追加",
-    "removeFromFavorites": "お気に入りから削除"
+    "removeFromFavorites": "お気に入りから削除",
+    "clipUnmute": "音声付きで再生",
+    "clipMute": "ミュート",
+    "loadFailed": "{kind} を読み込めませんでした",
+    "tryDifferentSearch": "別の検索語句をお試しください",
+    "noFavoritesOf": "お気に入りの {kind} はまだありません",
+    "noneFound": "{kind} が見つかりません"
   },
   "federation": {
     "joinRemoteServer": "リモートサーバーに参加",
@@ -971,6 +1428,9 @@
     "channels": "チャンネル",
     "more": "もっと見る",
     "joinServer": "サーバーに参加",
+    "openServer": "サーバーを開く",
+    "alreadyJoined": "すでにこのサーバーのメンバーです。",
+    "joinPending": "参加リクエストを送信しました。サーバーが承認するとアクセスできるようになります。",
     "federatedNotice": "これは別の Harmony インスタンスでホストされている連合サーバーです。メッセージはネットワーク経由で送信されます。",
     "joinByUrl": "URL で参加",
     "haveInviteLink": "招待リンクをお持ちですか?ここに貼り付けてください",
@@ -988,14 +1448,72 @@
   "chat": {
     "uploading": "アップロード中...",
     "dropFilesHere": "ファイルをここにドロップしてください。",
-    "setupNow": "今すぐ設定"
+    "setupNow": "今すぐ設定",
+    "unlockNow": "ロック解除",
+    "pinFailed": "メッセージをピン留めできませんでした。もう一度お試しください。",
+    "unpinFailed": "メッセージのピン留めを解除できませんでした。もう一度お試しください。",
+    "pinLimitReached": "ピン留めの上限に達しました。別のメッセージをピン留めするには、いずれかのピン留めを解除してください。",
+    "threadCreateFailed": "スレッドを開始できませんでした。もう一度お試しください。",
+    "threadReplyFailed": "返信を送信できませんでした。もう一度お試しください。"
   },
   "invite": {
     "accepting": "招待を受け入れ中...",
     "accepted": "招待を受け入れました",
     "failed": "招待の受け入れに失敗しました",
     "noCode": "招待コードが見つかりません",
-    "notLoggedIn": "招待を受け入れるにはログインが必要です"
+    "notLoggedIn": "招待を受け入れるにはログインが必要です",
+    "loading": "招待を読み込み中…",
+    "invalidTitle": "無効な招待",
+    "alreadyMember": "すでにメンバーになっているサーバー",
+    "invitedToJoin": "サーバーに招待されています",
+    "member": "メンバー",
+    "members": "メンバー",
+    "openServer": "サーバーを開く",
+    "joining": "参加中…",
+    "accept": "招待を受け入れる",
+    "noThanks": "参加しない",
+    "modal": {
+      "title": "メンバーを招待",
+      "subtitle": "リンクを知っている人は誰でもこのサーバーに参加できます。",
+      "thisServer": "このサーバー",
+      "members": "{count} 人のメンバー",
+      "linkLabel": "招待リンク",
+      "loading": "リンクを作成中…",
+      "copy": "コピー",
+      "copied": "コピーしました",
+      "copyFailed": "リンクをコピーできませんでした",
+      "share": "共有",
+      "shareTitle": "Harmony で {server} に参加しよう",
+      "editLink": "リンク設定",
+      "revoke": "取り消す",
+      "revokeCode": "招待 {code} を取り消す",
+      "revoked": "招待を取り消しました",
+      "revokeFailed": "招待を取り消せませんでした",
+      "noLink": "有効なリンクはありません。",
+      "noPermission": "このサーバーの招待を作成する権限がありません。",
+      "expires": "有効期限：{when}",
+      "neverExpires": "無期限",
+      "usesOf": "{used} / {max} 回使用",
+      "usesCount": "未使用 | {count} 回使用 | {count} 回使用",
+      "expireAfter": "有効期限",
+      "maxUses": "最大使用回数",
+      "never": "なし",
+      "unlimited": "無制限",
+      "usesOption": "{count} 回",
+      "duration": {
+        "minute": "{count} 分",
+        "hour": "{count} 時間",
+        "day": "{count} 日"
+      },
+      "newLink": "新しいリンクを作成",
+      "newLinkHint": "この設定でリンクを作成します。既存のリンクは期限切れになるか取り消すまで引き続き使用できます。",
+      "creating": "作成中…",
+      "created": "新しい招待リンクを作成しました",
+      "createFailed": "招待リンクを作成できませんでした",
+      "otherLinks": "その他の有効なリンク（{count}）",
+      "showLink": "このリンクを表示"
+    },
+    "bannedFromServer": "このサーバーから BAN されています"
   },
   "nav": {
     "chat": "チャット",
@@ -1016,5 +1534,1521 @@
     "chatNotFound": "このチャットまたは会話は存在しないか、アクセス権限がありません。",
     "settingsNotFound": "この設定ページは存在しません。",
     "defaultNotFound": "お探しのページは存在しないか、移動されました。"
+  },
+  "onboarding": {
+    "title": "プロフィールを設定",
+    "subtitle": "{instance} や他のサーバーの人からはこのように表示されます。",
+    "avatarLabel": "プロフィール画像",
+    "avatarHint": "任意。後で変更できます。",
+    "addAvatar": "プロフィール画像を追加",
+    "changeAvatar": "プロフィール画像を変更",
+    "removeAvatar": "削除",
+    "avatarTooLarge": "画像は5 MB以下にしてください。",
+    "avatarFailed": "プロフィールは作成されましたが、画像をアップロードできませんでした。設定から追加できます。",
+    "displayName": "表示名",
+    "displayNameHint": "チャットに表示される名前です。いつでも変更できます。",
+    "displayNameRequired": "表示名を入力してください。",
+    "displayNameTooLong": "表示名は50文字までです。",
+    "username": "ユーザー名",
+    "usernameHint": "英字、数字、アンダースコアが使えます。後から変更することはできません。",
+    "usernameChecking": "利用可能か確認中…",
+    "usernameAvailable": "{handle} は利用可能です",
+    "usernameTaken": "このユーザー名は使用されています。",
+    "usernameTooShort": "{min} 文字以上にしてください。",
+    "usernameCheckFailed": "利用可能か確認できませんでした。もう一度お試しください。",
+    "bio": "自己紹介",
+    "optional": "（任意）",
+    "submit": "続ける",
+    "creating": "プロフィールを作成中…",
+    "createFailed": "プロフィールを作成できませんでした。接続を確認して、もう一度お試しください。",
+    "instanceUnavailable": "サーバーの構成を読み込めませんでした。しばらくしてからもう一度お試しください。",
+    "sessionExpired": "セッションの有効期限が切れました。もう一度サインインしてください。",
+    "signedInAs": "{email} としてサインイン中。",
+    "signOut": "サインアウト"
+  },
+  "emptyServers": {
+    "title": "まだどのサーバーにも参加していません",
+    "subtitle": "サーバーは {instance} で会話が行われる場所です。招待で参加するか、公開サーバーを閲覧するか、自分のサーバーを作成しましょう。",
+    "inviteLabel": "招待で参加",
+    "invitePlaceholder": "招待リンクまたはコード",
+    "inviteHint": "他の Harmony サーバーのリンクも使用できます。",
+    "inviteInvalid": "招待リンクまたはコードではないようです。",
+    "join": "参加",
+    "or": "または",
+    "createTitle": "サーバーを作成",
+    "createDesc": "友達やコミュニティのためのスペースを作りましょう。",
+    "browseTitle": "公開サーバーを閲覧",
+    "browseDesc": "{instance} で参加できるサーバーを見てみましょう。",
+    "findPeople": "ユーザーを探す",
+    "messages": "メッセージ"
+  },
+  "welcomeServer": {
+    "stepTitle": "{instance} へようこそ",
+    "stepSubtitle": "プロフィールの準備ができました。サーバーに参加して会話を始めましょう。",
+    "recommendedHeading": "おすすめのサーバー",
+    "recommendedSubheading": "ほとんどの人はここから始めます。いつでも退出できます。",
+    "featuredHeading": "{instance} で人気",
+    "featuredSubheading": "このインスタンスの運営者が選んだコミュニティです。",
+    "memberCount": "{count} 人のメンバー",
+    "join": "参加",
+    "joinNamed": "{server} に参加",
+    "joining": "参加中…",
+    "skip": "スキップ",
+    "skipForNow": "今はスキップ",
+    "dismiss": "おすすめを非表示",
+    "admin": {
+      "title": "ウェルカムサーバー",
+      "hint": "新しいユーザーが登録を完了したとき、およびどのサーバーにも参加していない間におすすめされます。ワンクリックで参加でき、自動で参加させることはありません。",
+      "label": "サーバー",
+      "none": "なし（おすすめコミュニティを提案）",
+      "option": "{name} · {count} 人のメンバー",
+      "unavailableOption": "現在の設定（公開されていません）",
+      "unavailable": "選択したサーバーは公開されていないか、存在しません。未設定として扱われ、代わりにおすすめコミュニティが提案されます。",
+      "selectedNote": "新しいユーザーにはこのサーバーが最初に提案されます。このサーバーのメンバーには提案は表示されません。",
+      "noneNote": "ウェルカムサーバーがない場合、最大3つのおすすめコミュニティが提案されます。おすすめコミュニティもない場合は何も提案されません。",
+      "save": "保存",
+      "saved": "ウェルカムサーバーを保存しました",
+      "saveFailed": "ウェルカムサーバーを保存できませんでした"
+    }
+  },
+  "serverWelcome": {
+    "kicker": "ようこそ",
+    "rulesHeading": "サーバールール",
+    "empty": "このサーバーにはまだウェルカムメッセージやルールがありません。",
+    "close": "閉じる",
+    "gotIt": "了解しました",
+    "acceptRules": "ルールに同意",
+    "accepting": "同意中…",
+    "acceptNote": "ここでメッセージを送信するには、これらのルールに同意してください。",
+    "acceptedOn": "{date} にこれらのルールに同意しました。",
+    "menuEntry": "サーバールールとウェルカム",
+    "promptText": "メッセージを送信するには {server} のルールに同意してください。",
+    "thisServer": "このサーバー",
+    "rulesRequired": "メッセージを送信する前に、このサーバーのルールに同意してください。",
+    "settings": {
+      "navLabel": "ウェルカムとルール",
+      "title": "ウェルカム画面とルール",
+      "description": "メッセージとサーバーのルールで新しいメンバーを迎えましょう。メンバーには参加時に一度表示され、サーバーメニューから再度開くことができます。",
+      "enabled": "新しいメンバーにウェルカム画面を表示",
+      "enabledHint": "オンにした後に参加したメンバーに一度表示されます。",
+      "message": "ウェルカムメッセージ",
+      "messagePlaceholder": "あいさつし、サーバーの目的を説明して、適切なチャンネルを案内しましょう。",
+      "messageHint": "**太字**、*斜体*、`コード`、引用、リンクに対応しています。",
+      "rules": "ルール",
+      "rulesHint": "各ルールの短いタイトルと、任意で詳細を入力します。ルールのタイトルは招待を開いた人にも表示されます。",
+      "noRules": "ルールはまだありません。",
+      "ruleTitlePlaceholder": "他者を尊重する",
+      "ruleTitleLabel": "ルール {n} のタイトル",
+      "ruleDescriptionPlaceholder": "詳細（任意）",
+      "ruleDescriptionLabel": "ルール {n} の詳細",
+      "moveUp": "ルール {n} を上に移動",
+      "moveDown": "ルール {n} を下に移動",
+      "removeRule": "ルール {n} を削除",
+      "addRule": "ルールを追加",
+      "ruleNeedsTitle": "すべてのルールにタイトルが必要です。",
+      "requireAcceptance": "メッセージを送信する前にルールへの同意を必須にする",
+      "requireAcceptanceHint": "同意するまで、新しいメンバーにはメッセージ入力欄の代わりに「ルールに同意」ボタンが表示されます。所有者と「サーバーの管理」または「管理者」権限を持つメンバーは対象外です。",
+      "requireAcceptanceNeedsRules": "同意を必須にするには、ルールを1つ以上追加してください。",
+      "grandfatherNote": "既存のメンバーには求められません。保存後に参加した人のみ同意が必要です。",
+      "preview": "プレビュー",
+      "save": "保存",
+      "saving": "保存中…",
+      "saved": "ウェルカム画面を保存しました",
+      "saveFailed": "ウェルカム画面を保存できませんでした",
+      "loadFailed": "ウェルカム画面を読み込めませんでした",
+      "rulesMovedHint": "招待を受け入れる前に表示されます。ルールはウェルカム画面と一緒に編集します。",
+      "editRules": "ルールを編集"
+    }
+  },
+  "bots": {
+    "pageDescription": "ボットは、あなたのコードが Bot API を通じて操作するアカウントです。ボットを作成してトークンを取得し、ゲートウェイに接続してください。",
+    "newBot": "新しいボット",
+    "loading": "ボットを読み込み中…",
+    "loadFailed": "ボットを読み込めませんでした",
+    "listTitle": "ボット（{count}）",
+    "noDescription": "説明なし",
+    "serverCount": "どのサーバーにも未参加 | {count} 個のサーバーに参加 | {count} 個のサーバーに参加",
+    "lastConnected": "最終接続：{time}",
+    "neverConnected": "未接続",
+    "back": "すべてのボット",
+    "badge": {
+      "bot": "ボット",
+      "bridge": "ブリッジ",
+      "private": "非公開",
+      "verified": "認証済み"
+    },
+    "status": {
+      "online": "オンライン",
+      "away": "退席中",
+      "busy": "取り込み中",
+      "offline": "オフライン"
+    },
+    "profile": {
+      "about": "概要",
+      "created": "作成日",
+      "status": "ステータス",
+      "commands": "コマンド",
+      "commandsTitle": "コマンド（{count}）",
+      "showAllCommands": "{count} 件すべて表示",
+      "showFewerCommands": "表示を減らす",
+      "website": "ウェブサイト",
+      "supportServer": "サポートサーバー",
+      "openServer": "開く",
+      "joinServer": "参加",
+      "settings": "ボット設定",
+      "remove": "サーバーから削除",
+      "addToServer": "サーバーに追加",
+      "yourServers": "所有しているサーバー",
+      "loadFailed": "このボットの詳細を読み込めませんでした",
+      "close": "閉じる"
+    },
+    "empty": {
+      "title": "ボットはまだありません",
+      "body": "ボットを作成すると、ゲートウェイと REST API 用のトークンを取得できます。",
+      "action": "ボットを作成"
+    },
+    "fields": {
+      "avatar": "アバター",
+      "changeAvatar": "アバターを変更",
+      "removeAvatar": "削除",
+      "uploading": "アップロード中…",
+      "avatarHint": "PNG、JPG、WebP、GIF、最大4 MB。",
+      "username": "ユーザー名",
+      "usernamePlaceholder": "my-bot",
+      "usernameHint": "英小文字、数字、ハイフン、アンダースコア；3〜32文字。",
+      "usernameLocked": "ユーザー名は作成後に変更できません。",
+      "displayName": "表示名",
+      "displayNamePlaceholder": "My Bot",
+      "description": "説明",
+      "descriptionPlaceholder": "このボットは何をしますか？",
+      "type": "種類",
+      "public": "公開ボット",
+      "publicHint": "公開ボットはどのサーバー所有者も見つけて追加できます。非公開ボットを追加できるのはあなただけです。"
+    },
+    "type": {
+      "bot": "標準",
+      "botHint": "トークンで接続し、ゲートウェイと REST API を通じて動作します。",
+      "bridge": "ブリッジ",
+      "bridgeHint": "Harmony と他のプラットフォーム間でメッセージを中継します。ボットのページにブリッジの設定ガイドが追加されます。"
+    },
+    "usernameErrors": {
+      "tooShort": "3文字以上にしてください。",
+      "tooLong": "32文字以内にしてください。",
+      "invalidChars": "英小文字、数字、ハイフン、アンダースコアのみ使用できます。"
+    },
+    "general": {
+      "title": "基本情報",
+      "description": "追加されたサーバーでのボットの表示方法です。",
+      "save": "変更を保存",
+      "saving": "保存中…",
+      "saved": "変更を保存しました",
+      "saveFailed": "変更を保存できませんでした"
+    },
+    "token": {
+      "title": "トークン",
+      "description": "トークンはゲートウェイと REST API でボットを認証します。Harmony はハッシュのみを保存するため、完全なトークンは生成時に一度だけ表示されます。",
+      "legacyHint": "トークンヒントの記録開始前に発行",
+      "created": "作成：{time}",
+      "lastUsed": "最終使用：{time}",
+      "neverUsed": "未使用",
+      "none": "有効なトークンがありません。ボットを接続するにはトークンを生成してください。",
+      "reset": "トークンをリセット",
+      "generate": "トークンを生成",
+      "resetConfirmTitle": "トークンをリセットしますか？",
+      "resetConfirmBody": "現在のトークンは直ちに無効になり、それを使用する REST リクエストと新しいゲートウェイ接続は拒否されます。すでに開いているゲートウェイセッションは閉じるまで接続されたままなので、新しいトークンでボットを再起動してください。",
+      "resetFailed": "トークンのリセットに失敗しました。現在のトークンは引き続き使用できます。",
+      "loadFailed": "トークンの詳細を読み込めませんでした",
+      "revealTitle": "ボットトークンをコピー",
+      "revealWarning": "トークンが表示されるのはこの一度だけです。シークレットマネージャーまたは環境変数に保存してください。トークンを持つ人は誰でもボットを操作できます。",
+      "copyFailed": "コピーできませんでした。トークンを選択して手動でコピーしてください。",
+      "done": "トークンを保存しました"
+    },
+    "connection": {
+      "title": "接続",
+      "description": "ボットのコードで使用する識別子とエンドポイントです。",
+      "botId": "ボット ID",
+      "gatewayUrl": "ゲートウェイ URL",
+      "restUrl": "REST ベース URL",
+      "authHeader": "Authorization ヘッダー",
+      "docs": "Bot API ドキュメント",
+      "copy": "{label} をコピー",
+      "copied": "{label} をコピーしました",
+      "copyFailed": "{label} をコピーできませんでした"
+    },
+    "install": {
+      "title": "サーバーに追加",
+      "description": "所有しているサーバーです。ボットはメッセージの閲覧、送信、リアクションの権限で参加します。権限はサーバー設定で変更できます。",
+      "add": "追加",
+      "added": "追加済み",
+      "noServers": "所有しているサーバーがありません。",
+      "success": "{bot} を {server} に追加しました",
+      "failed": "ボットを追加できませんでした",
+      "loadFailed": "サーバーを読み込めませんでした"
+    },
+    "delete": {
+      "title": "ボットを削除",
+      "description": "すべてのサーバーからボットを削除し、トークンを無効にします。この操作は元に戻せません。",
+      "action": "ボットを削除",
+      "confirmTitle": "{name} を削除しますか？",
+      "confirmBody": "{name} はすべてのサーバーから削除され、トークンは無効になります。この操作は元に戻せません。",
+      "success": "{name} を削除しました",
+      "failed": "ボットを削除できませんでした"
+    },
+    "create": {
+      "title": "ボットを作成",
+      "submit": "ボットを作成",
+      "creating": "作成中…",
+      "success": "{name} を作成しました",
+      "failed": "ボットを作成できませんでした"
+    },
+    "avatar": {
+      "tooLarge": "アバターは4 MB以下にしてください。",
+      "uploaded": "アバターをアップロードしました。適用するには変更を保存してください。",
+      "failed": "アバターのアップロードに失敗しました"
+    },
+    "server": {
+      "title": "サーバーのボット",
+      "description": "ボットは Bot API を通じてこのサーバーで動作し、ここで付与された権限に制限されます。",
+      "browseTitle": "ボットを追加",
+      "searchPlaceholder": "ボットを検索",
+      "emptyDirectory": "利用可能なボットはまだありません。ユーザーは誰でも「ユーザー設定 → マイボット」でボットを作成できます。",
+      "noResults": "「{query}」に一致するボットはありません。",
+      "loadMore": "さらに読み込む",
+      "installedTitle": "追加済み（{count}）",
+      "add": "サーバーに追加",
+      "added": "追加済み",
+      "addedOn": "追加日：{time}",
+      "permissions": "権限",
+      "channels": "チャンネル",
+      "remove": "削除",
+      "addTitle": "サーバーにボットを追加",
+      "addSubmit": "ボットを追加",
+      "adding": "追加中…",
+      "permissionsTitle": "ボットの権限",
+      "permissionsHint": "ボットゲートウェイによって適用されます。REST リクエストには直ちに、イベント配信には5分以内に反映されます。閲覧と送信は必須です。",
+      "required": "必須",
+      "save": "変更を保存",
+      "saving": "保存中…",
+      "addSuccess": "{name} を追加しました",
+      "addFailed": "ボットを追加できませんでした",
+      "removeConfirmTitle": "{name} を削除しますか？",
+      "removeConfirmBody": "ボットはこのサーバーへの REST アクセスを直ちに失い、5分以内にイベントの受信を停止します。",
+      "removeSuccess": "{name} を削除しました",
+      "removeFailed": "ボットを削除できませんでした",
+      "permissionsSaved": "権限を保存しました",
+      "permissionsFailed": "権限を保存できませんでした",
+      "loadFailed": "ボットを読み込めませんでした",
+      "hiddenBot": "非公開ボット",
+      "channelsTitle": "チャンネルへのアクセス",
+      "channelsHint": "サーバー所有者と「サーバーの管理」権限を持つメンバーが変更できます。自分が閲覧できないチャンネルは追加できません。",
+      "channelsAll": "{'@'}everyone が閲覧できるチャンネル",
+      "channelsAllDescription": "ボットは {'@'}everyone が閲覧できるすべてのチャンネルを読み、{'@'}everyone が可能な場所で投稿とリアクションを行います。{'@'}everyone に非表示のチャンネルはボットにも非表示のままで、読み取り専用のチャンネルは読み取り専用のままです。",
+      "channelsSelected": "選択したチャンネル",
+      "channelsSelectedDescription": "ボットはチェックしたチャンネルでのみ動作し、それぞれで保持するすべての権限を使用します：{'@'}everyone に非表示のチャンネルも閲覧でき、{'@'}everyone が読み取り専用の場所でも投稿とリアクションができます。",
+      "channelsEmpty": "選択できるチャンネルがありません",
+      "channelHidden": "{'@'}everyone には非表示",
+      "channelsSaved": "チャンネルへのアクセスを保存しました",
+      "channelsFailed": "チャンネルへのアクセスを保存できませんでした",
+      "channelsLoadFailed": "チャンネルへのアクセスを読み込めませんでした"
+    },
+    "permissions": {
+      "read_messages": {
+        "label": "メッセージを読む",
+        "description": "メッセージとリアクションのイベントを受信し、チャンネルの履歴を読みます。"
+      },
+      "send_messages": {
+        "label": "メッセージを送信",
+        "description": "メッセージを投稿し、自分のメッセージを編集します。"
+      },
+      "add_reactions": {
+        "label": "リアクションを追加",
+        "description": "自分のリアクションを追加・削除します。"
+      },
+      "manage_messages": {
+        "label": "メッセージの管理",
+        "description": "他のユーザーが送信したメッセージを削除します。"
+      },
+      "manage_channels": {
+        "label": "チャンネルの管理",
+        "description": "チャンネル、カテゴリ、チャンネル権限の上書きを作成・編集します。"
+      },
+      "manage_roles": {
+        "label": "ロールの管理",
+        "description": "インストールしたユーザーの最上位ロールより下のロールを、自身が持つ権限の範囲で作成・編集・削除します。"
+      }
+    }
+  },
+  "floatingVideo": {
+    "region": "動画プレーヤー",
+    "video": "動画",
+    "openSource": "元の動画を開く",
+    "pictureInPicture": "ピクチャーインピクチャー",
+    "returnToMessage": "メッセージに戻る",
+    "close": "閉じる",
+    "placeholder": "動画プレーヤーで再生中",
+    "placeholderHint": "選択するとここに戻します"
+  },
+  "channelEncryption": {
+    "encryptedMessage": "暗号化されたメッセージ",
+    "lock": {
+      "messages": "エンドツーエンド暗号化",
+      "voice": "音声とビデオはエンドツーエンドで暗号化されています"
+    },
+    "status": {
+      "active": "エンドツーエンド暗号化",
+      "locked": "このチャンネルはエンドツーエンドで暗号化されています。メッセージを読み書きするには暗号化のロックを解除してください。",
+      "setup": "このチャンネルはエンドツーエンドで暗号化されています。メッセージを読み書きするには暗号化を設定してください。",
+      "recommended": "このサーバーでは暗号化の設定が推奨されています。"
+    },
+    "settings": {
+      "heading": "暗号化",
+      "loading": "暗号化設定を読み込み中...",
+      "unavailable": "暗号化設定を読み込めませんでした。",
+      "messagesLabel": "メッセージをエンドツーエンドで暗号化",
+      "voiceLabel": "音声とビデオをエンドツーエンドで暗号化",
+      "messagesOnHint": "メッセージはメンバーのデバイス上で暗号化されるため、サーバーは読み取れません。",
+      "messagesOffHint": "メッセージは平文で保存されます。暗号化をオンにすると新しいメッセージに適用されます。",
+      "serverDisabled": "このサーバーでは暗号化が無効になっています。サーバー所有者は「サーバー設定 > プライバシー設定」で許可できます。",
+      "serverRequired": "このサーバーではすべてのチャンネルで暗号化が必須です。",
+      "voiceHint": "通話はメディアサーバーに届く前に暗号化されます。暗号化を設定していないメンバーは参加できません。",
+      "voiceRequired": "このサーバーではすべてのボイスチャンネルで音声とビデオの暗号化が必須です。",
+      "turnedOn": "暗号化をオンにしました",
+      "turnedOff": "暗号化をオフにしました",
+      "voiceTurnedOn": "音声の暗号化をオンにしました",
+      "voiceTurnedOff": "音声の暗号化をオフにしました",
+      "saveFailed": "暗号化を変更できませんでした。もう一度お試しください。"
+    },
+    "integrations": {
+      "bots": "このサーバーの {count} 個のボットは、暗号化されたメッセージを読んだりこのチャンネルに投稿したりできません。",
+      "bridges": "このサーバーの {count} 個のブリッジは、暗号化されたメッセージを読んだり中継したりできません。",
+      "both": "このサーバーのボット（{bots}）とブリッジ（{bridges}）は、暗号化されたメッセージを読んだりこのチャンネルに投稿したりできません。"
+    },
+    "confirmOn": {
+      "title": "暗号化をオンにしますか？",
+      "confirm": "暗号化をオンにする"
+    },
+    "confirmOff": {
+      "title": "暗号化をオフにしますか？",
+      "message": "このチャンネルの新しいメッセージは、サーバーが読み取れる平文で保存されます。以前のメッセージは暗号化されたままで、チャンネルにはあなたが暗号化をオフにしたことが表示されます。",
+      "confirm": "暗号化をオフにする"
+    },
+    "confirmVoiceOff": {
+      "title": "音声の暗号化をオフにしますか？",
+      "message": "このチャンネルの通話はエンドツーエンドで暗号化されなくなり、メディアサーバーが音声とビデオにアクセスできるようになります。",
+      "confirm": "音声の暗号化をオフにする"
+    },
+    "system": {
+      "enabled": "がこのチャンネルのエンドツーエンド暗号化をオンにしました。",
+      "disabled": "がこのチャンネルのエンドツーエンド暗号化をオフにしました。",
+      "voiceEnabled": "が音声とビデオのエンドツーエンド暗号化をオンにしました。",
+      "voiceDisabled": "が音声とビデオのエンドツーエンド暗号化をオフにしました。"
+    },
+    "create": {
+      "label": "エンドツーエンド暗号化",
+      "hint": "このチャンネルのメッセージを暗号化し、サーバーが読み取れないようにします。",
+      "integrationWarning": "このサーバーのボットとブリッジは、暗号化されたメッセージを読んだりこのチャンネルに投稿したりできません。",
+      "failed": "チャンネルは作成されましたが、暗号化をオンにできませんでした。チャンネル設定でオンにしてください。"
+    }
+  },
+  "today": {
+    "beta": "ベータ",
+    "back": "戻る",
+    "refresh": "更新",
+    "refreshing": "更新中",
+    "loading": "今日の情報を読み込み中",
+    "loadFailed": "今日の情報を読み込めませんでした",
+    "refreshFailed": "更新できませんでした。以前の結果を表示しています。",
+    "sinceVisit": "前回の訪問（{time}）以降",
+    "sinceVisitMoments": "前回の訪問（たった今）以降",
+    "firstVisit": "あなたを待っている情報です",
+    "allCaughtUp": "すべて確認済みです",
+    "statsLabel": "概要",
+    "seeAll": "すべて表示",
+    "showAll": "すべて表示（{count}）",
+    "showLess": "折りたたむ",
+    "unread": "未読",
+    "unknownUser": "不明なユーザー",
+    "noText": "テキストなし",
+    "attachments": "{count} 件の添付ファイル",
+    "greeting": {
+      "night": "夜更かしですか？",
+      "morning": "おはようございます",
+      "afternoon": "こんにちは",
+      "evening": "こんばんは"
+    },
+    "stats": {
+      "mentions": "{count} 件の新しいメンション",
+      "conversations": "{count} 件の未読の会話",
+      "channels": "{count} 件の未読メッセージ",
+      "threads": "返信のあるスレッド {count} 件",
+      "voice": "ボイスに {count} 人",
+      "followRequests": "{count} 件のフォローリクエスト"
+    },
+    "errors": {
+      "markRead": "既読にできませんでした。もう一度お試しください。",
+      "followRequest": "フォローリクエストに応答できませんでした。もう一度お試しください。",
+      "announcement": "お知らせを閉じられませんでした。もう一度お試しください。"
+    },
+    "announcements": {
+      "title": "お知らせ",
+      "pinned": "ピン留め",
+      "dismiss": "お知らせを閉じる：{title}",
+      "dismissShort": "閉じる",
+      "more": "設定にあと {count} 件"
+    },
+    "mentions": {
+      "title": "メンションと返信",
+      "empty": "過去2週間にメンションや返信はありません。",
+      "error": "メンションを読み込めませんでした。",
+      "mention": "メンション",
+      "reply": "返信",
+      "inThread": "{thread} · {server}",
+      "inChannel": "{channel} · {server}",
+      "inGroup": "{name}",
+      "inUnnamedGroup": "グループメッセージ",
+      "inDirect": "ダイレクトメッセージ",
+      "linkLabel": "{author} からの{kind}、{location}、{time}"
+    },
+    "conversations": {
+      "title": "ダイレクトメッセージ",
+      "empty": "未読のダイレクトメッセージはありません。",
+      "error": "ダイレクトメッセージを読み込めませんでした。",
+      "more": "ダイレクトメッセージにあと {count} 件の未読",
+      "you": "あなた",
+      "group": "グループ",
+      "groupNamesMore": "{names} 他 {count} 人",
+      "unreadCount": "{count} 件の未読メッセージ",
+      "linkLabel": "{name}、{count} 件の未読メッセージ"
+    },
+    "catchUp": {
+      "title": "未読をチェック",
+      "empty": "未読のチャンネルはありません。",
+      "error": "未読のチャンネルを読み込めませんでした。",
+      "markAllRead": "すべて既読にする",
+      "markRead": "既読にする",
+      "markServerRead": "{server} を既読にする",
+      "serverCounts": "{count} 件の未読",
+      "serverMentions": "{count} 件のメンション",
+      "moreChannels": "他 {count} 件",
+      "channelLabel": "#{channel}、{count} 件の未読メッセージ",
+      "channelLabelMentions": "#{channel}、{count} 件の未読、うち {mentions} 件があなたへのメンション"
+    },
+    "voice": {
+      "title": "ライブ中",
+      "empty": "現在ボイスには誰もいません。",
+      "error": "ボイスチャンネルを読み込めませんでした。",
+      "since": "{time} 経過",
+      "join": "参加",
+      "open": "開く",
+      "joinLabel": "{server} の {channel} に参加",
+      "openLabel": "{channel} を開く（接続中）",
+      "participantsMore": "{names} 他 {count} 人",
+      "joinFailed": "ボイスチャンネルに参加できませんでした。"
+    },
+    "threads": {
+      "title": "あなたのスレッド",
+      "empty": "あなたのスレッドに新しい返信はありません。",
+      "error": "スレッドを読み込めませんでした。",
+      "newReplies": "{count} 件の新しい返信",
+      "linkLabel": "{name}、{count} 件の新しい返信"
+    },
+    "social": {
+      "title": "ソーシャル",
+      "empty": "新しいフォロワーや投稿へのアクティビティはありません。",
+      "error": "ソーシャルアクティビティを読み込めませんでした。",
+      "followRequests": "{count} 件のフォローリクエスト",
+      "accept": "承認",
+      "decline": "拒否",
+      "acceptLabel": "{name} からのフォローリクエストを承認",
+      "declineLabel": "{name} からのフォローリクエストを拒否",
+      "allRequests": "{count} 件のリクエストをすべて表示",
+      "activityLabel": "投稿への未読アクティビティ",
+      "activity": {
+        "favorite": "{count} 件のお気に入り",
+        "reblog": "{count} 件のブースト",
+        "reaction": "{count} 件のリアクション",
+        "mention": "{count} 件のメンション",
+        "reply": "{count} 件の返信"
+      },
+      "followedOne": "{name} があなたをフォローしました",
+      "followedTwo": "{a} と {b} があなたをフォローしました",
+      "followedMany": "{name} 他 {count} 人があなたをフォローしました",
+      "mentioned": "あなたにメンションしました",
+      "replied": "返信しました",
+      "mentionLabel": "あなたにメンションした {name} の投稿",
+      "replyLabel": "あなたの投稿への {name} からの返信"
+    },
+    "posts": {
+      "title": "フォロー中のユーザーから",
+      "empty": "フォロー中のユーザーからの新しい投稿はありません。",
+      "error": "投稿を読み込めませんでした。",
+      "linkLabel": "{name} の投稿"
+    },
+    "highlights": {
+      "title": "概要",
+      "onDevice": "デバイス上の AI",
+      "onDeviceHint": "チャンネルの要約はローカルで生成されます。データがデバイスの外に送信されることはありません。"
+    }
+  },
+  "updater": {
+    "readyTitle": "アップデートの準備ができました",
+    "readyBody": "Harmony {version} をダウンロードしました。再起動するとアップデートが完了します（数秒で終わります）。",
+    "readyToast": "Harmony {version} の準備ができました。クリックして再起動し、アップデートします。",
+    "restartToUpdate": "再起動してアップデート",
+    "later": "後で",
+    "indicatorLabel": "アップデートの準備完了：再起動して Harmony {version} をインストール",
+    "installFailed": "アップデートをインストールできませんでした：{error}",
+    "settings": {
+      "title": "アップデート",
+      "versionLabel": "Harmony {version}",
+      "versionUnknown": "Harmony",
+      "idle": "Harmony は自動的にアップデートを確認します。",
+      "upToDate": "最新バージョンを使用しています。",
+      "lastChecked": "最終確認：{time}。",
+      "checking": "アップデートを確認中…",
+      "available": "Harmony {version} が利用可能です。",
+      "downloading": "Harmony {version} をダウンロード中…",
+      "downloadingPercent": "Harmony {version} をダウンロード中… {percent}%",
+      "ready": "Harmony {version} の準備ができました。再起動するとアップデートが完了します。",
+      "installing": "アップデートをインストール中…",
+      "failed": "アップデートできませんでした：{error}",
+      "notConfigured": "このビルドでは自動アップデートが設定されていません。",
+      "unsupported": "Linux で自動アップデートを使うには AppImage 版が必要です。このインストールはインストールしたときと同じ方法でアップデートしてください。",
+      "check": "アップデートを確認",
+      "download": "ダウンロード",
+      "autoDownload": "アップデートを自動でダウンロード",
+      "autoDownloadDescription": "オフの場合も Harmony はアップデートを確認し、ダウンロード前に確認します。"
+    },
+    "android": {
+      "available": "Harmony {version} が利用可能です。",
+      "download": "ダウンロード",
+      "dismiss": "アップデートの通知を閉じる"
+    }
+  },
+  "automod": {
+    "title": "AutoMod",
+    "description": "AutoMod は、サーバー上のすべてのメッセージを誰かが見る前にチェックします。スパム、連投、指定した語句をブロックし、モデレーターに通知し、メンバーをタイムアウトすることもできます。「サーバーの管理」および「管理者」権限を持つメンバーは対象外です。",
+    "enabled": "AutoMod",
+    "enabledOn": "オン。以下のルールがすべてのメッセージに適用されます。",
+    "enabledOff": "オフ。ルールは適用されませんが、タイムアウトは引き続き有効です。",
+    "alertChannel": "通知チャンネル",
+    "alertChannelHint": "AutoMod がブロックまたはフラグしたものを投稿する場所です。すべてのアクションは下のログにも記録されます。",
+    "noAlertChannel": "通知チャンネルなし",
+    "exemptBots": "ボットを除外",
+    "exemptBotsHint": "追加済みのボットとブリッジからのメッセージはチェックされません。",
+    "rules": "ルール",
+    "rulesHint": "各ルールにはトリガー、1つ以上のアクション、任意の除外設定があります。",
+    "addRule": "ルールを追加",
+    "noRules": "ルールはまだありません。フィルタリングを始めるにはルールを追加してください。",
+    "saved": "AutoMod の設定を保存しました",
+    "ruleSaved": "ルールを保存しました",
+    "ruleDeleted": "ルールを削除しました",
+    "setup": {
+      "title": "AutoMod でこのサーバーを保護",
+      "body": "推奨設定では以下がオンになります：",
+      "mention": "メンションスパム：1つのメッセージで20人以上、または1分間に50人以上へのメンション",
+      "flood": "連投：10秒間に10件を超えるメッセージ",
+      "duplicate": "クロスチャンネルスパム：5分以内に同じメッセージを3つ以上のチャンネルに投稿",
+      "raid": "レイド検出：1分以内に10人のメンバーが参加すると通知",
+      "note": "語句フィルター、招待・リンクフィルター、新規メンバー制限はオフの状態で追加されます。必要なときにオンにしてください。",
+      "enable": "推奨の保護をオンにする",
+      "enabled": "AutoMod はオンです"
+    },
+    "optin": {
+      "title": "このサーバーで AutoMod を利用できます",
+      "body": "スパム、メンションレイド、連投を自動でブロックします。オンにするまで何も変わりません。",
+      "enable": "オンにする",
+      "review": "ルールを確認",
+      "dismiss": "後で"
+    },
+    "types": {
+      "keyword": {
+        "name": "カスタム語句",
+        "description": "指定した単語、フレーズ、パターンを含むメッセージをブロックします。"
+      },
+      "keyword_preset": {
+        "name": "語句プリセット",
+        "description": "差別用語、性的コンテンツ、卑語の既製リストです。"
+      },
+      "mention_spam": {
+        "name": "メンションスパム",
+        "description": "多すぎる人やロールにメンションするメッセージや、複数のメッセージにわたるメンションレイド。"
+      },
+      "message_flood": {
+        "name": "連投",
+        "description": "すべてのチャンネルを通じて、上限を超える速さでメッセージを送信するメンバー。"
+      },
+      "duplicate_spam": {
+        "name": "クロスチャンネルスパム",
+        "description": "短時間に複数のチャンネルに投稿された同じメッセージ。"
+      },
+      "invites": {
+        "name": "サーバー招待",
+        "description": "Harmony や Discord の他のサーバーへの招待。このサーバー自身の招待は許可されます。"
+      },
+      "links": {
+        "name": "リンク",
+        "description": "リストのドメインへのリンクのみ許可するか、リストのドメインをブロックします。"
+      },
+      "new_member": {
+        "name": "新規メンバー",
+        "description": "新しいアカウントや参加したばかりのメンバーからのリンク、添付ファイル、メンションを保留します。"
+      }
+    },
+    "presets": {
+      "slurs": {
+        "name": "差別用語",
+        "description": "人種、同性愛者、トランスジェンダー、障害者に対する深刻な差別用語。"
+      },
+      "sexual": {
+        "name": "性的コンテンツ",
+        "description": "露骨な性的表現と勧誘。"
+      },
+      "profanity": {
+        "name": "卑語",
+        "description": "一般的な罵り言葉。"
+      }
+    },
+    "rule": {
+      "enabled": "ルールを有効化",
+      "name": "ルール名",
+      "trigger": "トリガー",
+      "actions": "アクション",
+      "exemptions": "除外",
+      "exemptionsHint": "選択したロールを持つメンバーと、選択したチャンネルやカテゴリ内のメッセージは、このルールの対象外です。",
+      "exemptRoles": "ロール",
+      "exemptChannels": "チャンネルとカテゴリ",
+      "category": "カテゴリ",
+      "delete": "ルールを削除",
+      "deleteConfirm": "ルール「{name}」を削除しますか？このルールでブロックされていたメッセージは再び許可されます。",
+      "revert": "元に戻す",
+      "save": "保存"
+    },
+    "keyword": {
+      "keywords": "単語とフレーズ",
+      "keywordsPlaceholder": "1行に1つ、またはカンマ区切り",
+      "keywordsHint": "デフォルトは単語単位で一致します。word* は前方一致、*word は後方一致、*word* は部分一致です。大文字小文字、アクセント、似た文字、スペースを使ったごまかし、繰り返し文字は無視して照合します。",
+      "regex": "正規表現",
+      "regexPlaceholder": "1行に1つ（例：free\\s*nitro）",
+      "regexHint": "最大10個、各260文字まで、大文字小文字を区別しません。後方参照には対応していません。",
+      "allowList": "許可する語句",
+      "allowListHint": "このルールに一致させない語句です（例：ブロック対象の語を含む地名）。"
+    },
+    "mention": {
+      "maxMentions": "1メッセージあたりのメンション数",
+      "windowMentions": "期間内のメンション数（0 = オフ）",
+      "everyone": "「全員にメンション」権限のないメンバーからの everyone メンションをブロック"
+    },
+    "flood": {
+      "maxMessages": "許可するメッセージ数"
+    },
+    "duplicate": {
+      "maxChannels": "許可するチャンネル数",
+      "minLength": "最小文字数"
+    },
+    "links": {
+      "mode": "モード",
+      "allowList": "これらのドメインのみ許可",
+      "blockList": "これらのドメインをブロック",
+      "domains": "ドメイン",
+      "domainsHint": "1行に1つ。サブドメインも含まれます。"
+    },
+    "newMember": {
+      "accountAge": "アカウント作成からの期間が次より短い",
+      "membership": "または参加からの期間が次より短い",
+      "any": "チェックしない",
+      "links": "リンク",
+      "attachments": "添付ファイル",
+      "mentions": "メンション"
+    },
+    "common": {
+      "windowSeconds": "期間（秒）"
+    },
+    "actions": {
+      "block": "メッセージをブロック",
+      "blockHint": "メッセージは投稿されず、投稿者には理由が表示されます。",
+      "blockMessage": "投稿者に表示するカスタム理由",
+      "blockMessagePlaceholder": "任意、150文字まで",
+      "alert": "通知を送信",
+      "alertHint": "通知チャンネルにイベントを投稿します。",
+      "alertHintNoChannel": "上で通知チャンネルを選択してください。選択するまでイベントはログにのみ表示されます。",
+      "timeout": "メンバーをタイムアウト",
+      "noTimeout": "タイムアウトなし",
+      "blockShort": "ブロック",
+      "alertShort": "通知"
+    },
+    "duration": {
+      "weeks": "{n} 週間",
+      "days": "{n} 日",
+      "hours": "{n} 時間",
+      "minutes": "{n} 分",
+      "seconds": "{n} 秒"
+    },
+    "summary": {
+      "keyword": "{n} 個の語句またはパターン",
+      "noPresets": "プリセット未選択",
+      "mention": "{n} 件を超えるメンション",
+      "flood": "{s} 秒間に {n} 件を超えるメッセージ",
+      "duplicate": "{s} 秒間に {n} 個を超えるチャンネルで同じメッセージ",
+      "invites": "他のサーバーへの招待",
+      "linksAllow": "許可ドメイン {n} 件のみ",
+      "linksBlock": "ブロックするドメイン {n} 件",
+      "newMember": "新しいアカウントとメンバー"
+    },
+    "raid": {
+      "title": "レイド対策",
+      "hint": "短時間の大量参加を監視します。通知のみ、またはすべてのテキストチャンネルを自動的に低速化します。",
+      "active": "レイドロックダウン中：{since} からテキストチャンネルに {seconds} 秒の低速モード。",
+      "lift": "ロックダウンを解除",
+      "threshold": "参加数",
+      "action": "検出時の動作",
+      "actionAlert": "通知のみ",
+      "actionSlowmode": "通知してチャンネルを低速化",
+      "slowmode": "低速モード（秒）",
+      "lockNow": "今すぐロックダウン",
+      "lockConfirm": "すべてのテキストチャンネルに {seconds} 秒の低速モードを設定しますか？ロックダウンを解除すると以前の値に戻ります。",
+      "locked": "ロックダウン中",
+      "lifted": "ロックダウンを解除しました"
+    },
+    "timeouts": {
+      "title": "タイムアウト中のメンバー",
+      "until": "{time} までタイムアウト",
+      "remove": "タイムアウトを解除",
+      "removed": "タイムアウトを解除しました"
+    },
+    "log": {
+      "title": "AutoMod ログ",
+      "refresh": "更新",
+      "empty": "まだブロックやフラグされたものはありません。",
+      "raid": "レイドの可能性：{s} 秒間に {n} 人が参加",
+      "matched": "一致：{text}",
+      "more": "さらに読み込む",
+      "action": {
+        "block": "ブロック",
+        "alert": "通知",
+        "timeout": "タイムアウト",
+        "slowmode": "低速モード"
+      }
+    },
+    "errors": {
+      "generic": "AutoMod はその変更を保存できませんでした。",
+      "load": "AutoMod の設定を読み込めませんでした。"
+    },
+    "blocked": {
+      "keyword": "メッセージはブロックされました：このサーバーで許可されていない語句が含まれています。",
+      "keyword_preset": "メッセージはブロックされました：このサーバーで許可されていない表現が含まれています。",
+      "mention_spam": "メッセージはブロックされました：メンションする人数が多すぎます。",
+      "message_flood": "メッセージの送信が速すぎます。数秒待ってからもう一度お試しください。",
+      "duplicate_spam": "メッセージはブロックされました：同じメッセージがすでに他のチャンネルに投稿されています。",
+      "invites": "メッセージはブロックされました：ここでは他のサーバーへの招待は許可されていません。",
+      "links": "メッセージはブロックされました：ここではそのサイトへのリンクは許可されていません。",
+      "new_member": "新しいメンバーはまだリンク、ファイル、メンションを投稿できません。しばらくしてからもう一度お試しください。",
+      "generic": "メッセージはこのサーバーの AutoMod によってブロックされました。",
+      "timedOutUntil": "{time} までタイムアウト中です。"
+    },
+    "timedOut": "このサーバーでは {time} までタイムアウト中のため、メッセージを送信できません。",
+    "antispam": {
+      "rateLimited": "新しいアカウントは一度に少数のメッセージしか送信できません。{seconds} 秒後にもう一度お試しください。",
+      "linksBlocked": "新しいアカウントはまだリンクを投稿できません。",
+      "strangerMentions": "新しいアカウントがメンションできるのは、自分をフォローしていない人のうち最大 {count} 人までです。"
+    },
+    "alert": {
+      "raid": "レイドの可能性：{seconds} 秒以内に {joins} 人のメンバーが参加しました。",
+      "blocked": "メッセージをブロック：",
+      "blockedEdit": "編集をブロック：",
+      "flagged": "メッセージをフラグ：",
+      "aBot": "ボット",
+      "timedOut": "タイムアウト"
+    }
+  },
+  "empty": {
+    "pins": {
+      "title": "ピン留めされたメッセージはまだありません",
+      "description": "重要なメッセージをピン留めすると、ここで見つけられます。"
+    },
+    "threads": {
+      "title": "スレッドはまだありません",
+      "description": "任意のメッセージからスレッドを開始できます。",
+      "noMatchTitle": "検索に一致するスレッドはありません",
+      "noMatchDescription": "別の名前をお試しください。"
+    },
+    "threadMessages": {
+      "title": "メッセージはまだありません",
+      "description": "このスレッドで最初に返信しましょう。"
+    },
+    "lists": {
+      "title": "リストはまだありません",
+      "description": "リストを使うと、フォロー中のアカウントをグループ化して専用のタイムラインにできます。",
+      "action": "リストを作成"
+    },
+    "listMembers": {
+      "title": "メンバーはまだいません",
+      "description": "上で検索して、フォロー中のアカウントを追加してください。"
+    },
+    "listTimeline": {
+      "title": "投稿はまだありません",
+      "description": "このリストにメンバーを追加すると、その投稿がここに表示されます。"
+    },
+    "posts": {
+      "title": "投稿はまだありません",
+      "description": "投稿は届き次第ここに表示されます。"
+    },
+    "profilePosts": {
+      "self": "まだ何も投稿していません。",
+      "other": "{name} はまだ何も投稿していません。"
+    },
+    "profileFollowing": {
+      "other": "{name} はまだ誰もフォローしていません。"
+    },
+    "profileFollowers": {
+      "title": "フォロワーはまだいません",
+      "self": "まだフォロワーはいません。",
+      "other": "{name} にはまだフォロワーがいません。"
+    },
+    "followers": {
+      "title": "フォロワーはまだいません",
+      "description": "誰かがあなたをフォローすると、ここに表示されます。"
+    },
+    "following": {
+      "title": "まだ誰もフォローしていません",
+      "description": "誰かをフォローすると、ここに表示されます。",
+      "action": "人を発見"
+    },
+    "requests": {
+      "title": "保留中のリクエストはありません",
+      "description": "誰かがあなたにフォローをリクエストすると、ここに表示されます。"
+    },
+    "instancePosts": {
+      "title": "このインスタンスからの最近の投稿はありません"
+    },
+    "emojiSearch": {
+      "title": "「{query}」に一致する絵文字は見つかりません"
+    },
+    "funding": {
+      "title": "支援情報はありません。"
+    },
+    "roleMembers": {
+      "noMatch": "一致するメンバーはいません",
+      "noFilterMatch": "そのフィルターに一致するメンバーはいません",
+      "none": "このロールを持つメンバーはまだいません"
+    },
+    "voiceParticipants": {
+      "title": "まだ誰もいません",
+      "description": "話す準備ができたら参加しましょう。"
+    },
+    "bans": {
+      "title": "BAN されたユーザーはいません",
+      "description": "このサーバーから BAN されている人はいません。"
+    },
+    "blocked": {
+      "title": "誰もブロックしていません"
+    },
+    "muted": {
+      "title": "誰もミュートしていません"
+    },
+    "devices": {
+      "title": "登録されたデバイスはまだありません",
+      "description": "デバイスで暗号化のロックを解除すると、ここに表示されます。"
+    },
+    "screenSources": {
+      "screens": "利用できる画面がありません",
+      "windows": "利用できるウィンドウがありません"
+    },
+    "admin": {
+      "discoveredInstances": {
+        "title": "ユーザーのやり取りから発見されたインスタンスはまだありません",
+        "action": "やり取りをスキャン"
+      },
+      "featured": {
+        "title": "公開コミュニティはまだありません",
+        "description": "サーバーを公開すると、ここでおすすめに設定できます。"
+      },
+      "userServers": {
+        "title": "このユーザーはどのサーバーのメンバーでもありません"
+      },
+      "announcements": {
+        "title": "お知らせはありません",
+        "description": "お知らせを作成してユーザーに通知しましょう。"
+      },
+      "slowQueries": {
+        "title": "遅いクエリは検出されていません",
+        "description": "100 ms より遅いクエリがここに表示されます。"
+      },
+      "federationHealth": {
+        "title": "連合の状態データはありません",
+        "description": "受信または送信の連合アクティビティが記録されると、メトリクスが表示されます。"
+      },
+      "remoteEmoji": {
+        "title": "リモート絵文字は見つかりません",
+        "description": "連合コンテンツとやり取りすると、リモートインスタンスの絵文字がここに表示されます。"
+      },
+      "tiers": {
+        "title": "ティアが設定されていません"
+      },
+      "supporters": {
+        "title": "アクティブなサポーターはいません"
+      },
+      "donations": {
+        "title": "寄付の記録はありません"
+      },
+      "reports": {
+        "title": "報告はありません",
+        "filtered": "ステータスが「{status}」の報告はありません"
+      }
+    }
+  },
+  "adminRetention": {
+    "tab": "定着率",
+    "title": "登録者の定着率",
+    "intro": "ローカルアカウントの登録コホートごとに、参加後の行動を示します。集計値のみで、個々のアカウントは表示されません。",
+    "period": "コホート",
+    "month": "月",
+    "week": "週",
+    "range": "期間",
+    "rangeMonths": "過去 {n} か月",
+    "refresh": "更新",
+    "loading": "定着率を読み込み中",
+    "loadFailed": "定着率を読み込めませんでした",
+    "emptyTitle": "この期間に登録はありません",
+    "emptyDescription": "ローカルアカウントが登録した月または週ごとにグループ化されて表示されます。",
+    "tableLabel": "登録コホート別の定着率",
+    "weekOf": "{date} の週",
+    "total": "全コホート",
+    "cellTitle": "{d} 中 {n}（{pct}）",
+    "notReached": "このコホートのアカウントはまだこの期間に達していません",
+    "smallCohort": "登録数 {n} 未満",
+    "noteSmall": "小さなコホートはばらつきが大きくなります：{n} 人のコホートでは、1アカウントで率が {points} ポイント変動します。",
+    "noteWindows": "率は期間が終了したアカウントのみを集計します。ダッシュはまだ該当がないことを示します。サーバー、プッシュ、フォローの数値は現在の状態です。",
+    "legend": "各列の意味",
+    "columns": {
+      "cohort": "コホート",
+      "signups": "登録数",
+      "joinedServer": "サーバーに参加",
+      "joinedOther": "他人のサーバーに参加",
+      "wroteDay1": "1日目に書き込み",
+      "activeDays1to7": "1〜7日目に活動",
+      "activeDays8to30": "8〜30日目に活動",
+      "activeDays31to90": "31〜90日目に活動",
+      "answered1h": "1時間以内に応答あり",
+      "answered24h": "24時間以内に応答あり",
+      "push": "プッシュ通知オン",
+      "follows": "フォローあり"
+    },
+    "help": {
+      "signups": "期間中に作成されたローカルアカウント。",
+      "joinedServer": "現在、1つ以上のサーバーのメンバーである。",
+      "joinedOther": "現在、自分が所有していないサーバーのメンバーである。",
+      "wroteDay1": "登録から24時間以内にメッセージまたは投稿を送信した。",
+      "activeDays1to7": "最初の7日間に1回以上書き込んだ。",
+      "activeDays8to30": "8日目から30日目の間に1回以上書き込んだ。",
+      "activeDays31to90": "31日目から90日目の間に1回以上書き込んだ。",
+      "answered1h": "最初のメッセージから1時間以内に、同じチャンネル、DM、スレッドで他の誰かが書き込んだ。",
+      "answered24h": "同上、24時間以内。",
+      "push": "1つ以上のデバイスでプッシュ通知がオン。",
+      "follows": "1つ以上のアカウントをフォローしている。"
+    }
+  },
+  "pwa": {
+    "installTitle": "Harmony をインストール",
+    "installDescription": "高速な読み込みとオフラインアクセス",
+    "install": "インストール",
+    "installing": "インストール中…",
+    "dismiss": "インストールの案内を閉じる"
+  },
+  "security": {
+    "subtitle": "パスワード、二要素認証、アカウントにサインインしているデバイス。",
+    "privacyLink": "パスワード、二要素認証、サインイン中のデバイスは {link} にあります。",
+    "password": {
+      "setTitle": "パスワードを設定",
+      "changeDescription": "パスワードを変更すると、他のすべてのデバイスからサインアウトされます。",
+      "providerDescription": "あなたのアカウントは {providers} でサインインしています。パスワードを設定すると、メールアドレスでもサインインできます。",
+      "externalProvider": "外部プロバイダー",
+      "hint": "8文字以上。関連のない単語をいくつか組み合わせたパスフレーズがおすすめです。",
+      "saving": "保存中…",
+      "setPassword": "パスワードを設定",
+      "changed": "パスワードを変更しました。他のデバイスはサインアウトされました。",
+      "set": "パスワードを設定しました。",
+      "changeFailed": "パスワードを変更できませんでした。",
+      "errors": {
+        "tooShort": "8文字以上にしてください。",
+        "mismatch": "パスワードが一致しません。",
+        "sameAsCurrent": "現在のパスワードとは異なるパスワードを選択してください。",
+        "wrongCurrent": "現在のパスワードが正しくありません。"
+      }
+    },
+    "twoFactor": {
+      "description": "サインイン時に、すべてのデバイスとデスクトップ版・Android 版アプリで認証アプリのコードが必要になります。",
+      "on": "オン",
+      "off": "オフ",
+      "checking": "二要素認証の状態を確認中…",
+      "offDescription": "Aegis、2FAS、Google Authenticator、1Password など、TOTP に対応したアプリを使用してください。オンにすると他のセッションはサインアウトされます。",
+      "setUp": "二要素認証を設定",
+      "steps": {
+        "label": "設定手順",
+        "scan": "スキャン",
+        "saveCodes": "コードを保存"
+      },
+      "scanQr": "認証アプリでこの QR コードをスキャンしてください。",
+      "qrAlt": "認証アプリ用の QR コード",
+      "generating": "生成中…",
+      "manualKey": "スキャンできない場合は、このキーをアプリに入力してください（時間ベース、6桁）：",
+      "setupKey": "セットアップキー",
+      "copySetupKey": "セットアップキーをコピー",
+      "setupKeyCopied": "セットアップキーをコピーしました",
+      "enterEnrollCode": "アプリに表示される6桁のコードを入力してください",
+      "verifying": "確認中…",
+      "turnOn": "オンにする",
+      "saveCodesWarning": "これらのリカバリーコードをパスワードマネージャーなどの安全な場所に保存してください。認証アプリを紛失した場合、各コードで1回サインインできます。再表示はされません。",
+      "recoveryCodes": "リカバリーコード",
+      "recoveryCodesCopied": "リカバリーコードをコピーしました",
+      "downloadTxt": ".txt をダウンロード",
+      "codesSavedCheck": "リカバリーコードを保存しました",
+      "unavailable": "利用不可",
+      "noneLeft": "残りがありません。今すぐ新しいコードを生成してください。",
+      "remaining": "未使用 {remaining} / {total}",
+      "generateNew": "新しいコードを生成",
+      "turnOffTitle": "二要素認証をオフにする",
+      "turnOffDescription": "サインインにはパスワードのみが必要になります。",
+      "turnOff": "オフにする",
+      "generate": "生成",
+      "working": "処理中…",
+      "useAuthenticator": "代わりに認証アプリを使用",
+      "useRecoveryCode": "認証アプリを紛失しましたか？リカバリーコードを使用",
+      "disabledToast": "二要素認証をオフにしました",
+      "disableModal": {
+        "title": "二要素認証をオフにしますか？",
+        "textTotp": "アカウントはパスワードのみで保護されます。確認のため、認証アプリの6桁のコードを入力してください。",
+        "textRecovery": "アカウントはパスワードのみで保護されます。確認のため、リカバリーコードを入力してください。"
+      },
+      "regenerateModal": {
+        "title": "新しいリカバリーコードを生成しますか？",
+        "text": "現在のリカバリーコードは使用できなくなります。続行するには認証アプリの6桁のコードを入力してください。"
+      },
+      "errors": {
+        "statusFailed": "二要素認証の状態を確認できませんでした。",
+        "setupFailed": "二要素認証の設定を開始できませんでした。",
+        "copyFailed": "コピーに失敗しました。テキストを選択して手動でコピーしてください。",
+        "actionFailed": "うまくいきませんでした。もう一度お試しください。"
+      }
+    },
+    "sessions": {
+      "title": "デバイス",
+      "description": "アカウントがサインインしているすべての場所です。デバイスをサインアウトすると、そのプッシュ通知も停止します。場所はサインイン元の IP アドレスで表示されます。",
+      "refresh": "更新",
+      "loading": "デバイスを読み込み中…",
+      "thisDevice": "このデバイス",
+      "push": "プッシュ",
+      "pushTitle": "プッシュ通知：{transports}",
+      "webPush": "Web Push",
+      "active": "アクティブ：{time}",
+      "ago": "{time}前",
+      "unknown": "不明",
+      "signedIn": "サインイン日：{date}",
+      "mfaIncomplete": "二要素認証が未完了",
+      "signOut": "サインアウト",
+      "signingOut": "サインアウト中…",
+      "signOutOthers": "他のすべてのデバイスからサインアウト（{count}）",
+      "unknownDevice": "不明なデバイス",
+      "revoked": "デバイスをサインアウトしました",
+      "revokedOthers": "他のすべてのデバイスからサインアウトしました",
+      "pushRemoved": "そのデバイスのプッシュ通知を削除しました",
+      "revokeConfirm": {
+        "title": "このデバイスをサインアウトしますか？",
+        "message": "{device} は再度サインインが必要になります。プッシュ通知も停止します。"
+      },
+      "revokeOthersConfirm": {
+        "title": "他のすべてのデバイスからサインアウトしますか？",
+        "message": "このデバイス以外のすべてのデバイスで再度サインインが必要になります。",
+        "confirm": "すべてサインアウト"
+      },
+      "otherPush": {
+        "title": "その他のプッシュ通知先",
+        "description": "デバイスがサインインと紐付けられる前に登録されたもの、またはサインインしていないデバイスによって登録されたものです。",
+        "added": "追加日：{date}",
+        "unreachable": "到達不可"
+      },
+      "errors": {
+        "loadFailed": "デバイスを読み込めませんでした。",
+        "revokeFailed": "そのデバイスをサインアウトできませんでした。",
+        "revokeOthersFailed": "他のデバイスをサインアウトできませんでした。",
+        "removePushFailed": "そのプッシュ通知先を削除できませんでした。"
+      }
+    },
+    "export": {
+      "title": "データをダウンロード",
+      "description": "アカウントの ZIP アーカイブです：プロフィールと設定、サーバーや会話で送信したメッセージ、投稿、フォロー、ブロック、アップロードしたファイル、サインイン中のデバイスが含まれます。他の人のメッセージは含まれません。リクエストは10分に1回、1日5回までです。",
+      "preparing": "準備中…",
+      "request": "データをリクエスト",
+      "collecting": "アカウントデータを収集中…",
+      "exportingMessages": "メッセージをエクスポート中：{total} 件中 {done} 件",
+      "packaging": "アーカイブを作成中…",
+      "downloading": "データをダウンロードしています",
+      "failed": "エクスポートに失敗しました。しばらくしてからもう一度お試しください。"
+    },
+    "deleteAccount": {
+      "description": "アカウントを完全に削除します。送信したメッセージはそのまま残り、「削除されたユーザー」として表示されます。プロフィール、ログイン、デバイス、暗号鍵、フォローは削除され、他の Fediverse サーバーにはアカウントが削除されたことが通知されます。",
+      "bullets": {
+        "permanent": "この操作は元に戻せません。ユーザー名は他の人が使用できるようになります。",
+        "messages": "書いたメッセージや投稿は「削除されたユーザー」として表示されたまま残ります。消したいものは先に削除してください。",
+        "removed": "プロフィール、アバター、バナー、ログイン、デバイス、プッシュ通知、暗号鍵、フォロー、ブロック、ボットは機能しなくなり、削除されます。",
+        "federation": "あなたのアカウントを知っている他のインスタンスのサーバーには削除通知が送信されます。"
+      },
+      "exportFirst": "先にデータをダウンロード",
+      "ownsServers": "他のメンバーがいるサーバーを所有しています：{servers}。先に所有権を譲渡するか、サーバーを削除してください。",
+      "noPassword": "アカウントにパスワードがありません。削除するには過去10分以内のサインインが必要です。",
+      "signInAgain": "サインアウトして再度サインイン",
+      "errors": {
+        "mfaRequired": "認証アプリのコードを入力してください。",
+        "wrongPassword": "パスワードが正しくありません。",
+        "reauthRequired": "再度サインインし、10分以内にアカウントを削除してください。"
+      }
+    },
+    "mfa": {
+      "recoveryCodeExample": "リカバリーコードを1つ入力してください（例：ABCDE-12345）。",
+      "enterAuthenticatorCode": "認証アプリの6桁のコードを入力してください。",
+      "enterRecoveryCode": "リカバリーコードを1つ入力してください",
+      "recoveryCodeInvalid": "そのリカバリーコードは無効か、すでに使用されています。",
+      "verificationFailed": "確認に失敗しました。もう一度お試しください。",
+      "invalidCode": "無効なコードです。もう一度お試しください。",
+      "recoverySignedIn": "リカバリーコードでサインインしました。二要素認証はオフになったので、再度設定してください。",
+      "recoveryResetOff": "二要素認証はオフです。サインイン後に再度設定してください。",
+      "recoveryNoSession": "リカバリーコードでサインインしましたが、セッションが返されませんでした。もう一度サインインしてください。"
+    },
+    "signOutReason": {
+      "sessionRevoked": "別のデバイスからサインアウトされました。",
+      "insufficientAal": "再度サインインして、認証アプリのコードを入力してください。"
+    },
+    "notice": {
+      "newSignIn": {
+        "title": "アカウントへの新しいサインイン",
+        "message": "心当たりがない場合は、パスワードを変更してそのセッションをサインアウトしてください。",
+        "messageWithDevice": "{where}。心当たりがない場合は、パスワードを変更してそのセッションをサインアウトしてください。"
+      },
+      "mfaEnabled": {
+        "title": "二要素認証がオンになりました",
+        "message": "今後のサインインには認証アプリが必要です。"
+      },
+      "mfaDisabled": {
+        "title": "二要素認証がオフになりました",
+        "message": "アカウントで認証アプリのコードを求められなくなりました。",
+        "messageRecoveryCode": "リカバリーコードを使ってサインインしました。二要素認証を再度設定してください。"
+      },
+      "recoveryCodeUsed": {
+        "title": "リカバリーコードが使用されました",
+        "message": "リカバリーコードの1つが使用されました。"
+      },
+      "recoveryCodesRegenerated": {
+        "title": "新しいリカバリーコード",
+        "message": "以前のリカバリーコードは使用できなくなりました。"
+      },
+      "passwordChanged": {
+        "title": "パスワードが変更されました",
+        "message": "パスワードが変更され、他のセッションはサインアウトされました。"
+      },
+      "default": {
+        "title": "アカウントのセキュリティ",
+        "message": "アカウントのセキュリティに変更がありました。"
+      }
+    },
+    "errors": {
+      "generic": "問題が発生しました。もう一度お試しください。",
+      "tooManyAttemptsSoon": "誤った試行が多すぎます。数分後にもう一度お試しください。",
+      "tooManyAttemptsMinutes": "誤った試行が多すぎます。{count} 分後にもう一度お試しください。",
+      "tooManyAttemptsHours": "誤った試行が多すぎます。約 {count} 時間後にもう一度お試しください。",
+      "exportRateLimitedSoon": "数分後に再度エクスポートをリクエストできます。",
+      "exportRateLimitedMinutes": "{count} 分後に再度エクスポートをリクエストできます。",
+      "exportRateLimitedHours": "約 {count} 時間後に再度エクスポートをリクエストできます。",
+      "exportExpired": "このエクスポートは期限切れです。新しく開始してください。",
+      "stepUpRequired": "先に認証アプリのコードを入力してください。",
+      "insufficientAal": "二要素認証が必要です。認証アプリを使って再度サインインしてください。",
+      "sessionRevoked": "このセッションはサインアウトされました。再度サインインしてください。",
+      "codeMismatch": "コードが一致しませんでした。アプリの最新のコードを使用し、デバイスの時刻が自動設定になっているか確認してください。",
+      "challengeExpired": "確認の有効期限が切れました。新しいコードを入力してください。",
+      "rateLimited": "試行回数が多すぎます。少し待ってからもう一度お試しください。",
+      "mfaNotEnabled": "二要素認証が有効になっていません。"
+    },
+    "device": {
+      "app": "Harmony アプリ",
+      "browserOnOs": "{os} 上の {browser}"
+    }
+  },
+  "encryption": {
+    "code": {
+      "expiresIn": "残り {time} で期限切れ",
+      "expired": "このコードは期限切れです。",
+      "newCode": "新しいコード",
+      "copyCode": "コードをコピー"
+    },
+    "linkDevice": {
+      "title": "新しいデバイスをリンク",
+      "subtitle": "サインインしたばかりのデバイスに、暗号化されたメッセージへのアクセスを許可します。",
+      "enterPhrase": "リカバリーフレーズを入力",
+      "scanHint": "新しいデバイスの QR コードにカメラを向けてください。",
+      "scanPasteLabel": "または新しいデバイスからコピーしたコードを貼り付け",
+      "showInstead": "新しいデバイスにカメラがありますか？代わりにそのデバイスでスキャンするコードを表示",
+      "showLead": "新しいデバイスで {another}、次に {scanInstead} を選択し、カメラをここに向けてください。あなたのアカウントにサインインしている人がこのコードをスキャンすると鍵を受け取れるため、他人に見せないでください。",
+      "showLeadAnother": "別のデバイス",
+      "showLeadScanInstead": "代わりにそのデバイスのコードをスキャン",
+      "qrAlt": "デバイスリンク用の QR コード",
+      "scanInstead": "代わりに新しいデバイスのコードをスキャン",
+      "newDevice": "新しいデバイス",
+      "signedIn": "{ago}にサインイン。",
+      "answeredCode": "このデバイスが表示したコードに応答しました。",
+      "keyMatches": "鍵はスキャンしたコードと一致しています。",
+      "warning": "このデバイスはあなたの暗号化されたメッセージをすべて読めるようになります。自分のデバイスで、目の前にある場合のみ続行してください。",
+      "keepCopyTitle": "今後はリカバリーフレーズなしでここからデバイスをリンクする",
+      "keepCopyNote": "このデバイスは暗号鍵の読み取り可能なコピーを保持します。このデバイス上の Harmony でコードを実行できる人は誰でもそれをコピーできます。「設定 › 暗号化」でいつでも削除できます。",
+      "confirm": "このデバイスをリンク",
+      "sending": "鍵を送信中…",
+      "linked": "{device} をリンクしました。",
+      "tryAgain": "再試行",
+      "needUnlockLocked": "このデバイスでは暗号化がロックされているため、共有できる鍵がありません。先にリカバリーフレーズでロックを解除してください。",
+      "needUnlockPhrase": "鍵を共有するには、このデバイスにリカバリーフレーズが必要です。ここに入力してから、新しいデバイスをスキャンしてください。",
+      "signInAgain": "デバイスをリンクするには再度サインインしてください。",
+      "notPairingCode": "Harmony のペアリングコードではありません。新しいデバイスのコードをスキャンしてください。",
+      "approverCode": "そのコードはサインイン済みのデバイスが表示するものです。新しいデバイスのコードをスキャンしてください。",
+      "errors": {
+        "securityCheck": "セキュリティチェックに失敗しました：サーバーが返したデバイスの鍵が、スキャンしたコードと一致しません。何も送信されていません。このデバイスをリンクしないでください。",
+        "notFound": "このコードに対応するサインインがあなたのアカウントにありません。両方のデバイスが同じアカウントを使用しているか確認してください。",
+        "alreadyUsed": "このコードには複数のデバイスが応答しました。何も送信されていません。新しいコードを表示してください。",
+        "generic": "リンクに失敗しました。"
+      }
+    },
+    "pairing": {
+      "lead": "すでにサインインしているデバイスで、新しいログインの通知から {scanCode} を選ぶか、「プライバシー → あなたのデバイス」で {linkDevice} を選び、このコードをスキャンしてください。",
+      "qrAlt": "デバイスペアリング用の QR コード",
+      "scanInstead": "もう一方のデバイスでスキャンできませんか？代わりにそのデバイスのコードをスキャン",
+      "scanHint": "サインイン済みのデバイスで「デバイスをリンク」、次に「コードを表示」を選び、このカメラをそのコードに向けてください。",
+      "scanPasteLabel": "またはもう一方のデバイスのコードを貼り付け",
+      "showInstead": "代わりにこのデバイスでコードを表示",
+      "waiting": "リンクを完了するには、もう一方のデバイスで確認してください。",
+      "importing": "暗号化されたメッセージのロックを解除中…",
+      "done": "このデバイスをリンクしました。暗号化されたメッセージのロックを解除しています。",
+      "startAgain": "やり直す",
+      "signInAgain": "このデバイスをリンクするには再度サインインしてください。",
+      "notPairingCode": "Harmony のペアリングコードではありません。サインイン済みのデバイスで「デバイスをリンク」、次に「コードを表示」を選んでください。",
+      "newDeviceCode": "そのコードは新しいデバイスのものです。サインイン済みのデバイスが表示するコードをスキャンしてください。",
+      "errors": {
+        "expired": "コードの有効期限が切れました。やり直して新しいコードを取得してください。",
+        "denied": "もう一方のデバイスがこのサインインを拒否しました。",
+        "bundleInvalid": "もう一方のデバイスからの鍵を検証できなかったため、何もインポートされていません。やり直してください。",
+        "generic": "リンクに失敗しました。やり直してください。"
+      }
+    },
+    "pairingErrors": {
+      "malformed": "Harmony のペアリングコードではありません",
+      "wrongAccount": "そのコードは別のアカウントのものです。",
+      "notPending": "このサインインにはすでに応答済みです。",
+      "notPairing": "このリクエストは鍵を受け付けません",
+      "ownDevice": "このコードはこのデバイスが表示したものです",
+      "alreadyUsed": "このペアリングコードはすでに使用されています",
+      "keysUnavailable": "先にこのデバイスで暗号化のロックを解除してください。",
+      "keysStale": "このデバイスの暗号鍵は古くなっています。先にこのデバイスで現在のリカバリーフレーズを入力してください。",
+      "registerFailed": "このデバイスを登録できませんでした",
+      "alreadyUnlocked": "このデバイスでは暗号化のロックがすでに解除されています。"
+    },
+    "qrScanner": {
+      "stopCamera": "カメラを停止",
+      "startingCamera": "カメラを起動中…",
+      "tryCameraAgain": "カメラを再試行",
+      "useCamera": "カメラを使用",
+      "readingImage": "画像を読み取り中…",
+      "scanImage": "画像からスキャン",
+      "pastePlaceholder": "ここにコードを貼り付け",
+      "usePasted": "貼り付けたコードを使用",
+      "defaultHint": "QR コードにカメラを向けてください。",
+      "defaultPasteLabel": "またはコードを貼り付け",
+      "noQrInImage": "その画像に QR コードが見つかりません。より鮮明で近い写真をお試しください。",
+      "unreadableFile": "そのファイルを画像として読み取れませんでした。",
+      "problems": {
+        "unsupported": "このアプリはここでカメラにアクセスできません。代わりに画像からスキャンするか、コードを貼り付けてください。",
+        "insecure": "カメラには安全な（https）接続が必要です。代わりに画像からスキャンするか、コードを貼り付けてください。",
+        "denied": "カメラへのアクセスがブロックされています。ブラウザまたはシステムの設定で許可するか、画像からスキャンしてください。",
+        "noCamera": "カメラが見つかりません。代わりに画像からスキャンするか、コードを貼り付けてください。",
+        "inUse": "カメラは別のアプリで使用中です。そのアプリを閉じて再試行するか、画像からスキャンしてください。",
+        "failed": "カメラを起動できませんでした。代わりに画像からスキャンするか、コードを貼り付けてください。"
+      }
+    },
+    "devices": {
+      "linkDevice": "デバイスをリンク",
+      "linkHint": "新しいデバイスでサインインし、表示されたコードをスキャンしてください。",
+      "pendingPairing": "リンク待ちです。表示されたコードをスキャンしてください。",
+      "pendingPlain": "サインインし、暗号化されたメッセージのロックを解除しました。",
+      "scanCode": "コードをスキャン"
+    },
+    "approval": {
+      "pairingText": "そのデバイスはあなたの暗号化されたメッセージを待っています。自分のデバイスで目の前にある場合は、表示されたコードをスキャンしてください。鍵はスキャンしたコードのデバイスにのみ送信されます。",
+      "scanItsCode": "はい、コードをスキャンします",
+      "notMe": "自分ではない",
+      "showInstead": "スキャンできませんか？代わりにコードを表示",
+      "plainText": "新しいデバイスがあなたのアカウントにサインインし、自身で暗号化されたメッセージのロックを解除しました。ここからは何も送信されません。心当たりがない場合は、アカウントを保護してください。",
+      "thatWasMe": "自分です",
+      "staysSignedIn": "{device} はサインインしたままです。",
+      "newDeviceFallback": "新しいデバイス"
+    },
+    "settings": {
+      "devicesDescription": "アカウントにサインインしているデバイスです。新しいデバイスで暗号化されたメッセージを読めるようにするには、リンクしてください：そのデバイスでサインインし、表示されたコードをロック解除済みのデバイスでスキャンします。",
+      "linkDescription": "新しくサインインしたデバイスが表示するコードをスキャンします。そのデバイスでリカバリーフレーズを入力する必要はありません",
+      "link": "リンク",
+      "pairingCopyTitle": "リンク用に保持している鍵",
+      "pairingCopyDescription": "このデバイスは、リカバリーフレーズなしでデバイスをリンクできるよう、暗号鍵の読み取り可能なコピーを保持しています。削除すると、ここからのリンク時に再びフレーズを求められます。",
+      "pairingCopyRemoved": "このデバイスから鍵のコピーを削除しました",
+      "pairingCopyRemoveFailed": "鍵のコピーを削除できませんでした"
+    },
+    "recovery": {
+      "anotherDevice": "別のデバイス",
+      "recommended": "推奨",
+      "qrToggle": "リカバリーキーを QR コードで持っていますか？",
+      "qrHint": "リカバリーキーの QR コードにカメラを向けてください。",
+      "qrPasteLabel": "または QR コードのデータを貼り付け",
+      "pairingCodeScanned": "それはデバイスのペアリングコードです。「別のデバイス」タブを使用してください。",
+      "notRecoveryKey": "その QR コードは Harmony のリカバリーキーではありません",
+      "qrReadFailed": "QR コードを読み取れませんでした"
+    },
+    "recoverySetup": {
+      "multiDevice": "このデバイスから QR コードをスキャンして新しいデバイスをリンクできます。リカバリーキーは予備の手段です",
+      "hideQr": "リカバリーキーの QR コードを隠す",
+      "showQr": "リカバリーキーを QR コードで表示",
+      "qrHint": "このコードを見た人は誰でもあなたの暗号化されたメッセージを読めます。スクリーンショットを撮らないでください。別のデバイスを設定するには、代わりにリンクしてください：そのデバイスでサインインし、表示されたコードをこのデバイスでスキャンします。",
+      "newDeviceLabel": "新しいデバイスですか？",
+      "newDeviceReminder": "{label} そのデバイスでサインインして {another} を選び、このデバイスでコードをスキャンしてください。リカバリーキーを入力せずにメッセージのロックが解除されます。",
+      "rememberNeed": "サインイン済みのすべてのデバイスにアクセスできなくなった場合や、ブラウザのデータを消去した場合に必要になります。"
+    }
+  },
+  "admin": {
+    "reports": {
+      "titleServer": "このサーバーの報告",
+      "anonymousReporter": "匿名の報告者",
+      "suspended": "停止中",
+      "silenced": "サイレンス中",
+      "openOnTargetTitle": "このアカウントに対する未対応の報告 {count} 件",
+      "openOnTarget": "未対応 {count} 件",
+      "forwarded": "転送済み",
+      "forwardedTitle": "アカウントのインスタンスに匿名のコピーを送信しました",
+      "commentFrom": "{instance} からのコメント",
+      "messageNow": "現在のメッセージ",
+      "postNow": "現在の投稿",
+      "noteSentToReporter": "報告者に送信されたメモ",
+      "statusBy": "{'@'}{username} により{status}",
+      "notePlaceholder": "報告者へのメモ（任意、解決または却下時に送信）",
+      "showResolverTitle": "モデレーターを報復から守るため、デフォルトはオフです",
+      "showResolver": "報告者に自分の名前を表示する",
+      "loadMore": "さらに読み込む（{count}）",
+      "actions": {
+        "investigate": "調査中にする",
+        "resolve": "解決",
+        "dismiss": "却下",
+        "reopen": "再オープン",
+        "assign": "自分に割り当て",
+        "unassign": "割り当てを解除",
+        "forward": "{domain} に転送",
+        "deletePost": "投稿を削除",
+        "markSensitive": "センシティブとしてマーク",
+        "deleteMessage": "メッセージを削除",
+        "warn": "アカウントに警告",
+        "silenceAccount": "アカウントをサイレンス",
+        "suspendAccount": "アカウントを停止",
+        "forceSensitiveAccount": "メディアを強制的にセンシティブにする",
+        "limitDomain": "{domain} を制限",
+        "suspendDomain": "{domain} を停止"
+      },
+      "prompts": {
+        "warn": "アカウントに送信する警告文：",
+        "limitDomain": "{domain} を制限する理由：",
+        "suspendDomain": "{domain} を停止する理由：",
+        "reason": "理由（アカウントに記録されます）："
+      },
+      "confirmAction": "{action}を実行しますか？この報告は解決済みになります。",
+      "actionDone": "{action}：完了"
+    },
+    "federation": {
+      "limited": "制限中",
+      "limitedTitle": "このドメインのアカウントはサイレンスされています",
+      "limitAction": "制限：このドメインのアカウントをサイレンス",
+      "liftLimitAction": "制限を解除",
+      "limitReasonPrompt": "{domain} を制限する理由：",
+      "limitApplied": "{domain} を制限しました",
+      "limitLifted": "{domain} の制限を解除しました",
+      "limitFailed": "ドメインの制限を変更できませんでした"
+    },
+    "instance": {
+      "maxPostReactions": "投稿1件あたりの1人の最大リアクション数",
+      "maxPostReactionsHint": "1人が1つの投稿にリアクションできる絵文字の種類数（1〜100）。デフォルト：10。上限を超えて他のサーバーから届いたリアクションは破棄されます。チャットメッセージの絵文字は最大20種類です。"
+    },
+    "activityLog": {
+      "configKeys": {
+        "maxPostReactionsPerUser": "投稿1件あたりの1人の最大リアクション数"
+      }
+    },
+    "antiSpam": {
+      "title": "スパム対策",
+      "hint": "インスタンス全体の制限です。サーバー所有者はサーバー設定で独自の AutoMod を設定しますが、これらの制限はその上に、すべてのサーバー、DM、投稿に適用されます。ここでの制限は、変更するまですべてオフまたは緩い設定です。",
+      "loadingSettings": "設定を読み込み中...",
+      "saved": "スパム対策の設定を保存しました",
+      "newAccounts": {
+        "title": "新しいローカルアカウント",
+        "hours": "新しいアカウントとみなす期間（時間）",
+        "messagesPerMinute": "1分あたりのメッセージ数（0 = 無制限）",
+        "messagesPerMinuteHint": "チャンネルメッセージと DM の合計。",
+        "postsPerHour": "1時間あたりの投稿数（0 = 無制限）",
+        "strangerMentions": "投稿1件あたりの見知らぬ人へのメンション数（0 = 無制限）",
+        "strangerMentionsHint": "見知らぬ人とは、ローカルかリモートかを問わず、投稿者をフォローしていない人のことです。",
+        "blockLinks": "新しいアカウントはリンクを投稿できない",
+        "staffExempt": "インスタンスの管理者とモデレーターは制限されません。"
+      },
+      "federation": {
+        "title": "連合のメンションスパム",
+        "mode": "リモートの投稿や DM がスパムと思われる場合",
+        "modes": {
+          "off": "何もしない",
+          "flag": "配信し、レビューキューに追加する",
+          "hold": "解放されるまでレビューキューで保留する",
+          "reject": "拒否し、レビューキューに追加する"
+        },
+        "maxMentions": "大量メンションとみなす1投稿あたりのメンション数",
+        "newActorDays": "新しいアカウントとみなすリモートアカウントの経過日数（日）",
+        "heuristicHint": "スパムと判定される条件：大量メンションの人数以上にメンションしている、またはローカルユーザーが誰もフォローしておらず、メンションされたユーザーの誰とも過去にやり取りのない新しいリモートアカウントからのもの。"
+      },
+      "queue": {
+        "title": "不審なアクティビティ",
+        "filterByStatus": "ステータスで絞り込む",
+        "statuses": {
+          "open": "未対応",
+          "all": "すべて",
+          "released": "解放済み",
+          "confirmed": "確認済み",
+          "dismissed": "却下済み"
+        },
+        "actions": {
+          "flagged": "フラグ",
+          "held": "保留",
+          "rejected": "拒否"
+        },
+        "refresh": "更新",
+        "hint": "スパム判定に一致した受信連合アクティビティです。保留中の項目は解放されたときにのみ配信されます。",
+        "empty": "レビューするものはありません。",
+        "kindDm": "DM",
+        "kindMention": "メンション",
+        "targets": "宛先：{users}",
+        "release": "解放",
+        "confirmSpam": "スパムと確認",
+        "dismiss": "却下",
+        "released": "配信のため解放しました",
+        "reviewed": "レビュー済み"
+      },
+      "reasons": {
+        "mass_mention": "大量メンション",
+        "new_actor": "新しいアカウント",
+        "no_followers": "ローカルのフォロワーなし",
+        "no_relationship": "過去のやり取りなし",
+        "unknown_age": "アカウントの作成時期が不明"
+      },
+      "errors": {
+        "loadSettings": "スパム対策の設定を読み込めませんでした",
+        "save": "保存に失敗しました",
+        "loadQueue": "レビューキューを読み込めませんでした",
+        "review": "レビューに失敗しました"
+      }
+    }
   }
 }

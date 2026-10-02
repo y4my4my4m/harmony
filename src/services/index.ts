@@ -30,10 +30,7 @@ export { profileService, ProfileService } from './ProfileService'
 export type { ProfileServiceError, ProfileData } from './ProfileService'
 
 export { notificationService, NotificationService } from './NotificationService'
-export type { 
-  NotificationServiceError, 
-  NotificationResult 
-} from './NotificationService'
+export type { NotificationServiceError } from './NotificationService'
 
 // Legacy services (to be migrated)
 export { activityPubService, ActivityPubService } from './activityPubService'

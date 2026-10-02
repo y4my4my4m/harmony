@@ -53,7 +53,7 @@ export async function resolveMentionUserIds(content: any[]): Promise<any[]> {
 
   if (mentions.length === 0) return content;
 
-  const localDomain = config.INSTANCE_DOMAIN;
+  const localDomain = String(config.INSTANCE_DOMAIN || '').toLowerCase();
   const resolvedMap = new Map<string, ResolvedProfile>();
 
   // Separate mentions into cached vs uncached
@@ -61,7 +61,7 @@ export async function resolveMentionUserIds(content: any[]): Promise<any[]> {
   const uncachedRemoteFederatedIds: string[] = [];
 
   for (const m of mentions) {
-    const domain = m.domain;
+    const domain = typeof m.domain === 'string' ? m.domain.toLowerCase() : m.domain;
     const username = (m.username || '').replace(/^@+/, '');
     if (!username) continue;
 
@@ -128,7 +128,7 @@ export async function resolveMentionUserIds(content: any[]): Promise<any[]> {
     if (part.type !== 'mention' || !part.username) return part;
 
     const username = (part.username || '').replace(/^@+/, '');
-    const domain = part.domain;
+    const domain = typeof part.domain === 'string' ? part.domain.toLowerCase() : part.domain;
     const isLocal = !domain || domain === localDomain;
 
     const cacheKey = isLocal

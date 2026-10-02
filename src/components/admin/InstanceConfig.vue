@@ -207,7 +207,7 @@
         <input v-model.number="config.federation.retryAttempts" type="number" class="cyber-input" />
       </div>
       <div class="setting-group">
-        <label>Max reactions per person on a post</label>
+        <label>{{ $t('admin.instance.maxPostReactions') }}</label>
         <input
           v-model.number="config.federation.maxPostReactionsPerUser"
           type="number"
@@ -216,9 +216,7 @@
           max="100"
           data-testid="max-post-reactions-input"
         />
-        <span class="setting-hint">
-          Different emoji one person can react with on a post (1-100). Default: 10. Reactions arriving from other servers past the limit are dropped. Chat messages hold at most 20 different emoji.
-        </span>
+        <span class="setting-hint">{{ $t('admin.instance.maxPostReactionsHint') }}</span>
       </div>
       <div class="setting-group">
         <label>Max custom emojis per server</label>

@@ -44,6 +44,13 @@ function mentionHref(item: any, mentionActorUrls?: Map<string, string>): string 
   return `https://${domain}/users/${item.username || 'unknown'}`;
 }
 
+/** Visible handle: `@user` on this instance's host, `@user@host` otherwise. */
+function mentionLabel(item: any): string {
+  const username = item.username || 'unknown';
+  const domain = String(item.domain || config.INSTANCE_DOMAIN).toLowerCase();
+  return domain === String(config.INSTANCE_DOMAIN).toLowerCase() ? `@${username}` : `@${username}@${domain}`;
+}
+
 /**
  * Convert internal post format to ActivityPub Note
  * Supports quote posts via quoteUrl (Fediverse) and _misskey_quote (Misskey)
@@ -650,10 +657,8 @@ function extractContentAsHtml(content: any, mentionActorUrls?: Map<string, strin
         // MessagePart, so escape both before splicing them into the URL
         // and the visible label. Receiving servers do further sanitisation,
         // but we shouldn't emit broken HTML in the first place.
-        const domain = item.domain || config.INSTANCE_DOMAIN;
-        const username = item.username || 'unknown';
         const href = safeAttrUrlOutbound(mentionHref(item, mentionActorUrls));
-        const displayName = item.isLocal ? `@${username}` : `@${username}@${domain}`;
+        const displayName = mentionLabel(item);
         return `<a href="${escapeHtmlAttr(href)}" class="mention">${escapeHtmlAttr(displayName)}</a>`;
       }
       else if (item.type === 'hashtag') {
@@ -824,10 +829,8 @@ function extractTags(content: any, mentionActorUrls?: Map<string, string>): any[
       }));
       
       // MessagePart format uses username and domain, not mention string
-      const domain = item.domain || config.INSTANCE_DOMAIN;
-      const username = item.username || 'unknown';
       const href = mentionHref(item, mentionActorUrls);
-      const name = item.isLocal ? `@${username}` : `@${username}@${domain}`;
+      const name = mentionLabel(item);
       
       tags.push({
         type: 'Mention',

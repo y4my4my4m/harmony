@@ -1,5 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import { retryAfterSeconds, securityErrorMessage, recoveryCodesText } from '@/services/AccountSecurityService'
+import { waitForInitialLocale } from '@/i18n'
+
+beforeAll(async () => {
+  await waitForInitialLocale()
+})
 
 describe('securityErrorMessage', () => {
   it('turns the attempt budget into a wait time', () => {

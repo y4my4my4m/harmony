@@ -9,6 +9,7 @@
  */
 
 import { supabase } from '@/supabase'
+import { i18n } from '@/i18n'
 import { megolmService, type MegolmEncryptedMessage } from './MegolmService'
 import { recoveryKeyService, type DerivedKeys } from './RecoveryKeyService'
 import { PairingError, type PairingKeyMaterial } from './devicePairing'
@@ -296,7 +297,7 @@ export class MegolmMessageEncryptionService {
       throw new Error('Not initialized')
     }
     if (this.isUnlocked()) {
-      throw new Error('Encryption is already unlocked on this device.')
+      throw new Error(i18n.global.t('encryption.pairingErrors.alreadyUnlocked'))
     }
     const importAes = (raw: Uint8Array) =>
       crypto.subtle.importKey('raw', raw.slice().buffer as ArrayBuffer, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt'])

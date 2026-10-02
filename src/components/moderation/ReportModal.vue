@@ -1,9 +1,16 @@
 <template>
   <Teleport to="body">
     <div class="report-overlay" @click.self="$emit('close')">
-      <div class="report-modal">
+      <div
+        ref="dialogRef"
+        class="report-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="report-modal-title"
+        tabindex="-1"
+      >
         <div class="modal-header">
-          <h2>Report {{ reportTypeLabel }}</h2>
+          <h2 id="report-modal-title">Report {{ reportTypeLabel }}</h2>
           <button @click="$emit('close')" class="close-btn">
             <svg width="20" height="20" viewBox="0 0 24 24">
               <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
@@ -76,8 +83,8 @@
           <label v-if="remoteDomain" class="forward-option">
             <input type="checkbox" v-model="forward" />
             <span>
-              Also send an anonymous copy of this report to {{ remoteDomain }}
-              <span class="forward-hint">Their moderators see the content and your comment, not who you are.</span>
+              {{ t('moderation.reportForward.label', { domain: remoteDomain }) }}
+              <span class="forward-hint">{{ t('moderation.reportForward.hint') }}</span>
             </span>
           </label>
 
@@ -116,7 +123,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { reportService, REPORT_REASONS, type ReportReason } from '@/services/ReportService'
 import { remoteDomainOf } from '@/utils/reportModeration'
 import Avatar from '@/components/common/Avatar.vue'
@@ -141,6 +149,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const { t } = useI18n()
 
 const emit = defineEmits<{
   close: []
@@ -204,6 +213,30 @@ const hideAndClose = () => {
   }
   emit('close')
 }
+
+const dialogRef = ref<HTMLElement | null>(null)
+let returnFocusTo: HTMLElement | null = null
+
+const onKeydown = (event: KeyboardEvent) => {
+  if (event.key !== 'Escape' || event.isComposing) return
+  event.stopPropagation()
+  if (!isSubmitting.value) emit('close')
+}
+
+onMounted(() => {
+  const active = document.activeElement
+  if (active instanceof HTMLElement && active !== document.body) returnFocusTo = active
+  document.addEventListener('keydown', onKeydown)
+  dialogRef.value?.focus()
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onKeydown)
+})
+
+onUnmounted(() => {
+  if (returnFocusTo?.isConnected) returnFocusTo.focus()
+})
 </script>
 
 <style scoped>
@@ -229,6 +262,7 @@ const hideAndClose = () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  outline: none;
 }
 
 .modal-header {

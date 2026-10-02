@@ -86,7 +86,7 @@ Higher-level services that may coordinate multiple core services or external int
 | `ThreadService` | Thread messages (bypasses encryption, sent as plaintext) |
 | `FileService` | File upload and management |
 | `TrendingService` | Trending hashtags and posts |
-| `NotificationService` | Notification delivery and management |
+| `NotificationService` | Notification reads, read state, deletes and preferences |
 | `ProfileService` | Full profile operations including federation triggers |
 
 ## Encryption Services (`src/services/encryption/`)

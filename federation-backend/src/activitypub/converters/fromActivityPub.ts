@@ -1,5 +1,42 @@
 import { config } from '../../config/index.js';
 import { decodeHtmlEntities } from '../../utils/contentUtils.js';
+import { findHandles } from '../../utils/mentionGrammar.js';
+
+interface MentionTagInfo {
+  username: string;
+  /** Handle host from the tag name, else the href host. */
+  domain: string | null;
+  hrefHost: string | null;
+  href: string | null;
+}
+
+/**
+ * Identity of a Mention tag. The name supplies the handle (`@user@host`);
+ * the href supplies the actor and, when the name lacks one, the host and
+ * user. Misskey hrefs carry an id (`/users/<id>`), so a named user wins.
+ */
+function mentionTagInfo(tag: any): MentionTagInfo | null {
+  const name = typeof tag?.name === 'string' ? tag.name.replace(/^@+/, '') : '';
+  const [nameUser, nameHost] = name.split('@');
+  let username = nameUser || '';
+  let domain: string | null = nameHost ? nameHost.toLowerCase() : null;
+  const href = typeof tag?.href === 'string' ? tag.href : null;
+  let hrefHost: string | null = null;
+  if (href) {
+    try {
+      const url = new URL(href);
+      hrefHost = url.hostname.toLowerCase();
+      const path = url.pathname || '';
+      // Mastodon/Pleroma: /users/<name>; GoToSocial/Misskey: /@<name>
+      const hrefUser = path.match(/\/users\/([^/]+)\/?$/)?.[1] ?? path.match(/^\/@([^/]+)\/?$/)?.[1];
+      if (!username && hrefUser) username = hrefUser;
+      if (!domain) domain = hrefHost;
+    } catch { /* href not a valid URL */ }
+  }
+  username = username.replace(/^@+/, '');
+  if (!username) return null;
+  return { username, domain, hrefHost, href };
+}
 
 /**
  * Convert ActivityPub Note to internal MessagePart[] format
@@ -75,9 +112,14 @@ export function noteToContent(note: any): any[] {
     return parts.length > 0 ? parts : [{ type: 'text', text: '' }];
   }
   
-  // Step 2: Find positions of all tags in the clean text
-  const tagPositions: Array<{position: number, length: number, tag: any, text: string}> = [];
-  
+  // Step 2: Find positions of all tags in the clean text. A Mention tag
+  // claims the first unclaimed handle token (shared grammar) naming the same
+  // user, written either `@user` or `@user@host` with the tag's host or href
+  // host. Tags with no such token produce no part.
+  const tagPositions: Array<{position: number, length: number, tag: any, text: string, mention?: MentionTagInfo}> = [];
+  const handleTokens = findHandles(cleanText);
+  const claimed = new Set<number>();
+
   for (const tag of allTags) {
     let searchText = '';
     let position = -1;
@@ -90,19 +132,18 @@ export function noteToContent(note: any): any[] {
       position = cleanText.indexOf(searchText);
     }
     else if (tag.type === 'Mention') {
-      // Try different mention formats
-      let username = tag.name || '';
-      if (username.startsWith('@')) username = username.slice(1);
-      
-      // Try @username@domain first
-      searchText = `@${username}`;
-      position = cleanText.indexOf(searchText);
-      
-      // Fall back to the bare localpart
-      if (position === -1) {
-        searchText = username.split('@')[0];
-        position = cleanText.indexOf(searchText);
-      }
+      const info = mentionTagInfo(tag);
+      if (!info) continue;
+      const user = info.username.toLowerCase();
+      const idx = handleTokens.findIndex((h, i) =>
+        !claimed.has(i) &&
+        h.username.toLowerCase() === user &&
+        (!h.domain || h.domain === info.domain || h.domain === info.hrefHost));
+      if (idx === -1) continue;
+      claimed.add(idx);
+      const token = handleTokens[idx];
+      tagPositions.push({ position: token.start, length: token.end - token.start, tag, text: token.raw, mention: info });
+      continue;
     }
     else if (tag.type === 'Hashtag') {
       const hashtagName = tag.name?.startsWith('#') ? tag.name : `#${tag.name}`;
@@ -122,6 +163,9 @@ export function noteToContent(note: any): any[] {
   let currentIndex = 0;
   
   for (const tagPos of tagPositions) {
+    // Overlapping tags: the earlier one owns the span.
+    if (tagPos.position < currentIndex) continue;
+
     // Add text before this tag (with URL detection)
     if (tagPos.position > currentIndex) {
       const textBefore = cleanText.substring(currentIndex, tagPos.position);
@@ -145,47 +189,18 @@ export function noteToContent(note: any): any[] {
         }
       });
     }
-    else if (tagPos.tag.type === 'Mention') {
-      let username = tagPos.tag.name || '';
-      if (username.startsWith('@')) username = username.slice(1);
-      
-      const usernameParts = username.split('@');
-      let actualUsername = usernameParts[0];
-      let domain = usernameParts[1] || null;
+    else if (tagPos.tag.type === 'Mention' && tagPos.mention) {
+      const { username, domain, href } = tagPos.mention;
       const currentDomain = config.INSTANCE_DOMAIN;
+      const isLocal = !domain || domain === String(currentDomain).toLowerCase();
 
-      // Mastodon/Pleroma often send name as "@username" without domain; extract from href
-      const href = tagPos.tag.href;
-      if (href && typeof href === 'string') {
-        try {
-          const url = new URL(href);
-          const hrefDomain = url.hostname;
-          const hrefPath = url.pathname || '';
-          // Mastodon/Pleroma: /users/username
-          const usersMatch = hrefPath.match(/\/users\/([^/]+)\/?$/);
-          // GoToSocial/Misskey: /@username
-          const atMatch = !usersMatch && hrefPath.match(/^\/@([^/]+)\/?$/);
-          if (usersMatch) {
-            actualUsername = usersMatch[1];
-            if (!domain) domain = hrefDomain;
-          } else if (atMatch) {
-            actualUsername = atMatch[1];
-            if (!domain) domain = hrefDomain;
-          }
-        } catch { /* href not a valid URL */ }
-      }
-      
-      const isLocal = !domain || domain === currentDomain;
-      // Ensure username never has leading @ (prevents @@ in display)
-      const cleanUsername = actualUsername.replace(/^@+/, '');
-      
       parts.push({
         type: 'mention',
-        username: cleanUsername,
+        username,
         domain: domain || currentDomain,
         isLocal,
-        userId: href || `remote-${cleanUsername}`,
-        displayName: cleanUsername
+        userId: href || `remote-${username}`,
+        displayName: username
       });
     }
     else if (tagPos.tag.type === 'Hashtag') {

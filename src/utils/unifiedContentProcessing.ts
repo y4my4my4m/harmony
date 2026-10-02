@@ -11,6 +11,7 @@ import { resolveEmoji, loadEmojiData, isLoaded as unifiedEmojiLoaded } from '@/s
 import { stripTrackingParameters, isUrlTrackingStrippingEnabled } from '@/utils/urlTrackerStripper'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { parseUrlMatchContext, URL_TOKEN_REGEX } from '@/utils/urlSplitting'
+import { HANDLE_PATTERN, createHandleRegex, parseHandle } from '@/utils/mentionGrammar'
 
 // UUID-based emojis (legacy) and shortcode emojis are both supported.
 import {
@@ -29,10 +30,40 @@ const emojiShortcodeRegex = createShortcodeRegex();
 // Hoisted to module scope; these helpers run per-segment per message, so a
 // fresh RegExp per call is hot-path waste (BUGS.md Pattern P-β, review M4).
 // Stateful 'g' patterns require a lastIndex reset at each call site.
-const MENTION_REGEX = /@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?/g;
+const MENTION_REGEX = createHandleRegex();
 const URL_PRESCAN_REGEX = URL_TOKEN_REGEX;
 const URL_MATCH_REGEX = new RegExp(`(${URL_TOKEN_REGEX.source})`, 'g');
-const COMBINED_MENTION_HASHTAG_REGEX = /(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))|(@d!(\d+):([a-zA-Z0-9_.-]+))|(@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?)|(?<![&\w])#([\p{L}\p{N}_-]+)/gu;
+const COMBINED_MENTION_HASHTAG_REGEX = new RegExp(
+  '(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))' +
+  '|(@d!(\\d+):([a-zA-Z0-9_.-]+))' +
+  `|(${HANDLE_PATTERN})` +
+  '|(?<![&\\w])#([\\p{L}\\p{N}_-]+)',
+  'gu',
+);
+// Mirrors the inline-code rule of chatMessageTextRenderer.
+const INLINE_CODE_REGEX = /`[^`]+`/g;
+
+function localDomain(): string {
+  return ((import.meta.env.VITE_DOMAIN as string) || '').toLowerCase();
+}
+
+/** Map key of a handle: bare username for local users, user@host otherwise. */
+function mentionKey(username: string, domain: string | undefined): string {
+  return domain && domain !== localDomain() ? `${username}@${domain}` : username;
+}
+
+function opaqueRanges(content: string): Array<{ start: number; end: number }> {
+  const ranges: Array<{ start: number; end: number }> = [];
+  for (const re of [URL_PRESCAN_REGEX, INLINE_CODE_REGEX]) {
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(content)) !== null) {
+      ranges.push({ start: m.index, end: m.index + m[0].length });
+      if (m[0].length === 0) re.lastIndex++;
+    }
+  }
+  return ranges;
+}
 const COMBINED_EMOJI_REGEX = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-zA-Z0-9_+~-]+):/g;
 
 /**
@@ -42,26 +73,18 @@ const COMBINED_EMOJI_REGEX = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-
 export async function resolveMentionsUserData(content: string): Promise<Record<string, { userId: string; isLocal: boolean }>> {
   const userDataMap: Record<string, { userId: string; isLocal: boolean }> = {};
   
-  // URL ranges are excluded so @mentions inside URLs are not resolved.
-  const urlRanges: Array<{ start: number; end: number }> = [];
-  URL_PRESCAN_REGEX.lastIndex = 0;
-  let urlScan;
-  while ((urlScan = URL_PRESCAN_REGEX.exec(content)) !== null) {
-    urlRanges.push({ start: urlScan.index, end: urlScan.index + urlScan[0].length });
-  }
-  const isInsideUrl = (pos: number): boolean =>
-    urlRanges.some(r => pos >= r.start && pos < r.end);
+  // Handles inside URLs and inline code are not resolved.
+  const skipRanges = opaqueRanges(content);
+  const isOpaque = (pos: number): boolean =>
+    skipRanges.some(r => pos >= r.start && pos < r.end);
 
   let match;
   const uniqueUsernames = new Set<string>();
   
   MENTION_REGEX.lastIndex = 0;
   while ((match = MENTION_REGEX.exec(content)) !== null) {
-    if (isInsideUrl(match.index)) continue;
-    const username = match[1];
-    const domain = match[2];
-    const mentionKey = domain ? `${username}@${domain}` : username;
-    uniqueUsernames.add(mentionKey);
+    if (isOpaque(match.index)) continue;
+    uniqueUsernames.add(mentionKey(match[1], match[2]?.toLowerCase()));
   }
   
   if (uniqueUsernames.size === 0) return userDataMap;
@@ -72,10 +95,13 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
     const remoteUsernames = usernameList.filter(u => u.includes('@'));
     
     if (localUsernames.length > 0) {
+      // A bare @user names a local account only; a remote profile with the
+      // same username is a different person.
       const { data: localUsers } = await supabase
         .from('profiles')
         .select('id, username, display_name, is_local')
-        .in('username', localUsernames);
+        .in('username', localUsernames)
+        .eq('is_local', true);
       
       if (localUsers) {
         localUsers.forEach(user => {
@@ -90,19 +116,16 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
     // Remote users (username@domain). One PostgREST .or() filter unions all
     // (username, domain) pairs into a single request.
     //
-    // MENTION_REGEX constrains the charsets to `[a-zA-Z0-9_-]+` and
-    // `[a-zA-Z0-9.-]+`; neither admits commas, parens, or quotes, so the
-    // values interpolate into PostgREST filter syntax without escaping.
+    // The handle grammar admits no commas, parens or quotes in either
+    // component, so the values interpolate into PostgREST filter syntax
+    // without escaping.
     if (remoteUsernames.length > 0) {
       try {
         const pairs = remoteUsernames
           .map(ud => {
-            const [username, domain] = ud.split('@');
-            if (!username || !domain) return null;
-            // Defence in depth: re-validate charset before interpolation.
-            if (!/^[a-zA-Z0-9_-]+$/.test(username)) return null;
-            if (!/^[a-zA-Z0-9.-]+$/.test(domain)) return null;
-            return { username, domain };
+            const parsed = parseHandle(`@${ud}`);
+            if (!parsed?.domain) return null;
+            return { username: parsed.username, domain: parsed.domain };
           })
           .filter((p): p is { username: string; domain: string } => p !== null);
 
@@ -122,7 +145,7 @@ export async function resolveMentionsUserData(content: string): Promise<Record<s
 
           if (remoteUsers) {
             remoteUsers.forEach(user => {
-              const key = `${user.username}@${user.domain}`;
+              const key = `${user.username}@${String(user.domain).toLowerCase()}`;
               userDataMap[key] = {
                 userId: user.id,
                 isLocal: user.is_local
@@ -406,16 +429,11 @@ async function parseContentSegment(
 ): Promise<MessagePart[]> {
   if (!content) return [];
 
-  // URL ranges are skipped when matching @mentions and #hashtags
-  // (e.g. https://mastodon.social/@user/12345).
-  const urlRanges: Array<{ start: number; end: number }> = [];
-  URL_PRESCAN_REGEX.lastIndex = 0;
-  let urlScan;
-  while ((urlScan = URL_PRESCAN_REGEX.exec(content)) !== null) {
-    urlRanges.push({ start: urlScan.index, end: urlScan.index + urlScan[0].length });
-  }
+  // URL and inline-code ranges are skipped when matching @mentions and
+  // #hashtags (e.g. https://mastodon.social/@user/12345, `@user`).
+  const skipRanges = opaqueRanges(content);
   const isInsideUrl = (pos: number): boolean =>
-    urlRanges.some(r => pos >= r.start && pos < r.end);
+    skipRanges.some(r => pos >= r.start && pos < r.end);
 
   // COMBINED_MENTION_HASHTAG_REGEX alternatives, in group order:
   //   @role:UUID        role mention
@@ -465,25 +483,22 @@ async function parseContentSegment(
         bridgeSource: 'discord'
       } as MessagePart);
     } else if (match[6]) {
-      // Regular mention (@username or @username@domain)
+      // User mention: @username or @username@host. A remote handle resolves
+      // only under its own user@host key; the local host is never assigned
+      // to a remote handle.
       const username = match[7];
-      const domain = match[8];
-      
-      const mentionKey = domain ? `${username}@${domain}` : username;
-      const userData = usernameToUserDataMap[mentionKey] || usernameToUserDataMap[username];
-      
-      const currentDomain = import.meta.env.VITE_DOMAIN as string;
-      const isLocal = userData?.isLocal ?? (!domain || domain === currentDomain);
-      const userId = userData?.userId ?? `unresolved-${username}${domain ? '@' + domain : ''}`;
-      
-      const finalDomain = domain || currentDomain;
-      
+      const typedDomain = match[8]?.toLowerCase();
+      const currentDomain = localDomain();
+      const isLocalHandle = !typedDomain || typedDomain === currentDomain;
+      const userData = usernameToUserDataMap[mentionKey(username, typedDomain)];
+      const userId = userData?.userId ?? `unresolved-${username}${isLocalHandle ? '' : '@' + typedDomain}`;
+
       parts.push({
         type: 'mention',
         userId: userId,
         username: username,
-        domain: finalDomain,
-        isLocal: isLocal
+        domain: isLocalHandle ? currentDomain : typedDomain!,
+        isLocal: isLocalHandle,
       });
     } else if (match[9]) {
       // '#word' meaning depends on parseOptions.hashtags:
@@ -789,11 +804,11 @@ export function convertMessagePartsToActivityPubHTML(parts: MessagePart[]): stri
         return part.text || '';
         
       case 'mention': {
-        const currentDomain = import.meta.env.VITE_DOMAIN as string;
+        const currentDomain = localDomain();
         const username = (part.username || '').replace(/^@+/, ''); // prevent @@
-        const domain = part.domain || currentDomain;
+        const domain = (part.domain || currentDomain).toLowerCase();
         const href = `https://${domain}/users/${username}`;
-        const displayName = part.isLocal ? `@${username}` : `@${username}@${part.domain}`;
+        const displayName = domain === currentDomain ? `@${username}` : `@${username}@${domain}`;
         return `<span class="h-card"><a href="${href}" class="u-url mention">${displayName}</a></span>`;
       }
       
@@ -878,10 +893,10 @@ export function extractMentionsFromMessageParts(parts: MessagePart[]): Array<{
   return parts
     .filter((part): part is Extract<MessagePart, { type: 'mention' }> => part.type === 'mention')
     .map(part => {
-      const currentDomain = import.meta.env.VITE_DOMAIN as string;
-      const domain = part.domain || currentDomain;
+      const currentDomain = localDomain();
+      const domain = (part.domain || currentDomain).toLowerCase();
       const href = `https://${domain}/users/${part.username}`;  // /users/ form, not /@user
-      const name = part.isLocal ? `@${part.username}` : `@${part.username}@${part.domain}`;
+      const name = domain === currentDomain ? `@${part.username}` : `@${part.username}@${domain}`;
       
       return {
         username: part.username,
@@ -927,10 +942,10 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
         const href = element.getAttribute('href') || '';
         const text = element.textContent || '';
         
-        const mentionMatch = text.match(/^@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?$/);
+        const mentionMatch = parseHandle(text.trim());
         if (mentionMatch) {
-          const username = mentionMatch[1];
-          let domain = mentionMatch[2];
+          const username = mentionMatch.username;
+          let domain = mentionMatch.domain;
           
           // Domain absent from the text: take it from href
           // (e.g. https://misskey.io/users/rec8bit).

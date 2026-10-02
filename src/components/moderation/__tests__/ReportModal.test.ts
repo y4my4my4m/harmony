@@ -1,7 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { supabase } from '@/supabase'
+import { waitForInitialLocale } from '@/i18n'
 import ReportModal from '@/components/moderation/ReportModal.vue'
+
+// Partial: ReportService reaches @/i18n, which calls createI18n.
+vi.mock('vue-i18n', async (importOriginal) => {
+  const messages = (await import('@/locales/en.json')).default as Record<string, any>
+  const t = (key: string, params: Record<string, unknown> = {}) => {
+    const message = key.split('.').reduce<any>((node, part) => node?.[part], messages)
+    if (typeof message !== 'string') return key
+    return message.replace(/\{(\w+)\}/g, (_, name) => String(params[name] ?? `{${name}}`))
+  }
+  return { ...(await importOriginal<typeof import('vue-i18n')>()), useI18n: () => ({ t }) }
+})
 
 // The modal submits through create_report: the forward option appears only for
 // a remote account, and a message report carries what the reporter saw.
@@ -18,6 +30,10 @@ function mountModal(props: Record<string, unknown>) {
 }
 
 const rpc = vi.mocked(supabase.rpc)
+
+beforeAll(async () => {
+  await waitForInitialLocale()
+})
 
 beforeEach(() => {
   rpc.mockReset()

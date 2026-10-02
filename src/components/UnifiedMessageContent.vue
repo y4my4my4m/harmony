@@ -163,7 +163,7 @@
         <span 
           v-else-if="part && typeof part === 'object' && part.type === 'mention'" 
           class="mention" 
-          :class="{ 'bridged-mention': isBridgedMention(part), 'discord-mention': part.domain === 'discord.com', 'federated-mention': !part.isLocal && part.domain && part.domain !== 'discord.com' }"
+          :class="{ 'bridged-mention': isBridgedMention(part), 'discord-mention': part.domain === 'discord.com', 'federated-mention': !!mentionSuffix(part) }"
           @click="handleMentionClick(part, $event)"
           :title="getMentionTooltip(part)"
         >
@@ -172,11 +172,10 @@
             <DisplayName :userId="part.userId" :fallback="part.username" :truncate="false" />
           </template>
           <template v-else>{{ part.username }}</template>
-          <!-- Federated mentions always show @domain -->
           <span
-            v-if="!part.isLocal && part.domain && part.domain !== 'discord.com'"
+            v-if="mentionSuffix(part)"
             class="mention-domain"
-          >@{{ part.domain }}</span>
+          >@{{ mentionSuffix(part) }}</span>
         </span>
 
         <!-- Role mentions -->
@@ -571,6 +570,8 @@ import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import { userDataService } from '@/services/userDataService';
+import { useUserData } from '@/composables/useUserData';
+import { mentionDisplayDomain } from '@/utils/mentionGrammar';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import EncryptedGlyphPreview from '@/components/encryption/EncryptedGlyphPreview.vue';
 import ProviderEmbedSwitch from '@/components/embeds/ProviderEmbedSwitch.vue';
@@ -1260,12 +1261,23 @@ export default defineComponent({
       return part?.isBridged || part?.domain === 'discord.com';
     };
     
+    const { getUser } = useUserData();
+    const mentionSuffix = (part: any): string | null => {
+      const user = part?.userId ? getUser(part.userId).value : null;
+      return mentionDisplayDomain(
+        part,
+        user ? { domain: user.domain, isLocal: user.isLocal } : null,
+        import.meta.env.VITE_DOMAIN as string,
+      );
+    };
+
     const getMentionTooltip = (part: any): string => {
       if (part?.domain === 'discord.com') {
         return `Discord user: ${part.username}`;
       }
-      if (!part?.isLocal && part?.domain) {
-        return `@${part.username}@${part.domain}`;
+      const suffix = mentionSuffix(part);
+      if (suffix) {
+        return `@${part.username}@${suffix}`;
       }
       return part?.username || '';
     };
@@ -1360,6 +1372,7 @@ export default defineComponent({
       handleChannelMentionClick,
       handleMentionClick,
       isBridgedMention,
+      mentionSuffix,
       getMentionTooltip,
       resolveEmbedPayload,
       embedMedia,

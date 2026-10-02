@@ -379,7 +379,7 @@ const MESSAGE_TEMPLATES = {
   security: {
     title: (data: any) => securityNoticeText(data).title,
     message: (data: any) => securityNoticeText(data).message,
-    shortTitle: () => 'Account security'
+    shortTitle: () => i18n.global.t('moderation.securityNotification.short')
   },
 
   report_update: {
@@ -404,12 +404,12 @@ const MESSAGE_TEMPLATES = {
   },
 
   moderation_warning: {
-    title: () => 'Warning from the moderators',
+    title: () => i18n.global.t('moderation.warningNotification.title'),
     message: (data: any) => {
       const text = typeof data.text === 'string' ? data.text.trim() : ''
-      return text || 'The moderators issued a warning about your account.'
+      return text || i18n.global.t('moderation.warningNotification.defaultMessage')
     },
-    shortTitle: () => 'Moderation warning'
+    shortTitle: () => i18n.global.t('moderation.warningNotification.short')
   },
 
   newcomer_message: {
@@ -621,7 +621,7 @@ export class NotificationFormatter {
     }
 
     if (notification.type === 'moderation_warning') {
-      return 'Moderators'
+      return i18n.global.t('moderation.warningNotification.sender')
     }
 
     // Report updates: default to generic label (harassment/backlash prevention); show resolver only if moderator opted in

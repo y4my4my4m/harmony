@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { supabase } from '@/supabase'
 
@@ -37,6 +37,11 @@ vi.mock('@/services/RealtimeApiService', () => ({
 
 import { useAuthStore } from '@/stores/auth'
 import { userStorage } from '@/utils/userScopedStorage'
+import { waitForInitialLocale } from '@/i18n'
+
+beforeAll(async () => {
+  await waitForInitialLocale()
+})
 
 function jwtWithAAL(aal: 'aal1' | 'aal2'): string {
   const payload = { aal, sub: 'sub-1' }
