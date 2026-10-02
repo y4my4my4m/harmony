@@ -9,8 +9,8 @@
         placeholder="Edit message"
         :min-height="44"
         :max-height="200"
-        :auto-suggest-active="autoSuggest.state.value.isActive"
-        :auto-suggest-selected-id="autoSuggest.state.value.isActive ? 'suggest-' + autoSuggest.state.value.selectedIndex : undefined"
+        :auto-suggest-active="!!autoSuggest?.state.value.isActive"
+        :auto-suggest-selected-id="autoSuggest?.state.value.isActive ? 'suggest-' + autoSuggest.state.value.selectedIndex : undefined"
         @update:model-value="handleRichEditorUpdate"
         @keydown="handleKeyDown"
       />
@@ -62,6 +62,7 @@
         </span>
       </div>
       <AutoSuggest
+        v-if="autoSuggest"
         :isVisible="autoSuggest.state.value.isActive"
         :suggestions="autoSuggest.suggestions.value"
         :position="autoSuggest.state.value.position"
@@ -545,6 +546,7 @@
     </div>
 
     <ConfirmationModal
+      v-if="removeAttachmentConfirmMounted"
       :show="showRemoveAttachmentConfirm"
       title="Are you sure?"
       message="This will remove this attachment from this message permanently."
@@ -556,7 +558,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, watch, ref, nextTick, reactive, onMounted, onUnmounted, computed } from 'vue';
+import { defineComponent, watch, ref, nextTick, reactive, onMounted, onUnmounted, computed, shallowRef, effectScope, type EffectScope } from 'vue';
 import type { PropType } from 'vue';
 import type { EmbedPayload, MessagePart, FileContent } from '@/types';
 import { coalesceInlineContentForMarkdown, extractFileParts } from '@/utils/messageContentUtils';
@@ -740,12 +742,20 @@ export default defineComponent({
     onMounted(maybeRefreshExpiredAttachments);
     watch(() => props.content, maybeRefreshExpiredAttachments);
 
+    // Mounted on first use: an always-mounted modal costs four component
+    // instances per message row.
+    const removeAttachmentConfirmMounted = ref(false);
     const showRemoveAttachmentConfirm = ref(false);
     const pendingRemoveAttachmentUrl = ref<string | null>(null);
 
-    const requestRemoveAttachment = (url: string) => {
+    const requestRemoveAttachment = async (url: string) => {
       if (!props.canEditAttachments) return;
       pendingRemoveAttachmentUrl.value = url;
+      if (!removeAttachmentConfirmMounted.value) {
+        // Mounts closed first so the enter transition runs.
+        removeAttachmentConfirmMounted.value = true;
+        await nextTick();
+      }
       showRemoveAttachmentConfirm.value = true;
     };
 
@@ -893,7 +903,25 @@ export default defineComponent({
         }
       });
     };
-    const autoSuggest = useAutoSuggest(editRichEditorRef, getCurrentText, updateText);
+    // Edit mode only. An instance carries a useServerPermissions instance and
+    // five window listeners, so a row creates it on its first edit rather than
+    // on mount.
+    let autoSuggestScope: EffectScope | null = null;
+    const autoSuggest = shallowRef<ReturnType<typeof useAutoSuggest> | null>(null);
+    const ensureAutoSuggest = (): ReturnType<typeof useAutoSuggest> => {
+      if (!autoSuggest.value) {
+        autoSuggestScope = effectScope();
+        autoSuggest.value = autoSuggestScope.run(() => useAutoSuggest(editRichEditorRef, getCurrentText, updateText))!;
+      }
+      return autoSuggest.value;
+    };
+    // Pre-flush: the instance exists before the edit block renders.
+    watch(() => props.editableMessageId === props.messageId, (editing) => {
+      if (editing) ensureAutoSuggest();
+    }, { immediate: true });
+    onUnmounted(() => {
+      autoSuggestScope?.stop();
+    });
 
     const isImageUrl = (url: string): boolean => {
       if (!url) return false;
@@ -1148,18 +1176,19 @@ export default defineComponent({
       emit('update:content', value);
       nextTick(() => {
         const pos = editRichEditorRef.value?.getCursorPosition?.() ?? value.length;
-        autoSuggest.handleInput(value, pos);
+        ensureAutoSuggest().handleInput(value, pos);
       });
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      const suggest = ensureAutoSuggest();
       // Auto-suggest claims keys first.
-      if (autoSuggest.handleKeyDown(event)) {
+      if (suggest.handleKeyDown(event)) {
         return;
       }
       
       if (event.key === 'Enter' && !event.shiftKey) {
-        if (!autoSuggest.state.value.isActive) {
+        if (!suggest.state.value.isActive) {
           event.preventDefault();
           handleSaveEdit();
         }
@@ -1175,15 +1204,16 @@ export default defineComponent({
 
     const handleSuggestionSelect = (suggestion: SuggestionItem) => {
       if (!editRichEditorRef.value) return;
-      const newValue = autoSuggest.selectSuggestion(suggestion);
+      const suggest = ensureAutoSuggest();
+      const newValue = suggest.selectSuggestion(suggestion);
       if (newValue !== localEditableContent.value) {
-        const cursorPosition = autoSuggest.state.value.triggerPosition + (suggestion.insertText?.length ?? 0);
+        const cursorPosition = suggest.state.value.triggerPosition + (suggestion.insertText?.length ?? 0);
         updateText(newValue, cursorPosition);
       }
     };
 
     const handleSaveEdit = () => {
-      autoSuggest.closeSuggestions();
+      autoSuggest.value?.closeSuggestions();
       
       const content = localEditableContent.value.trim();
 
@@ -1201,7 +1231,7 @@ export default defineComponent({
     };
 
     const handleCancelEdit = () => {
-      autoSuggest.closeSuggestions();
+      autoSuggest.value?.closeSuggestions();
       emit('cancel-edit');
     };
 
@@ -1348,6 +1378,7 @@ export default defineComponent({
       toggleGifFavorite,
       requestRemoveAttachment,
       showRemoveAttachmentConfirm,
+      removeAttachmentConfirmMounted,
       cancelRemoveAttachment,
       confirmRemoveAttachment,
     };

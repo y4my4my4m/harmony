@@ -265,7 +265,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue';
+import { ref, computed, watch, onUnmounted, nextTick } from 'vue';
 import { useVirtualizer } from '@tanstack/vue-virtual';
 import { useRouter } from 'vue-router';
 import { debug } from '@/utils/debug'
@@ -857,6 +857,9 @@ const hoistedRolesSorted = computed(() => {
     .sort((a, b) => b.position - a.position);
 });
 
+// Same ordering as String.prototype.localeCompare with no arguments.
+const nameCollator = new Intl.Collator();
+
 // Grouping order: present users with a hoisted role go to their highest
 // hoisted role group; other present users go to online/away/busy; absent users
 // go to federated or offline.
@@ -914,12 +917,18 @@ const groupedUsers = computed(() => {
     }
   });
 
+  // One name lookup per user, not two per comparison.
+  const sortKeys = new Map<string, string>();
+  const sortKey = (id: string): string => {
+    let key = sortKeys.get(id);
+    if (key === undefined) {
+      key = getUserDisplayName(id).value.toLowerCase();
+      sortKeys.set(id, key);
+    }
+    return key;
+  };
   Object.values(groups).forEach(group => {
-    group.sort((a, b) => {
-      const nameA = getUserDisplayName(a.id).value.toLowerCase();
-      const nameB = getUserDisplayName(b.id).value.toLowerCase();
-      return nameA.localeCompare(nameB);
-    });
+    group.sort((a, b) => nameCollator.compare(sortKey(a.id), sortKey(b.id)));
   });
 
   return groups;
@@ -1096,8 +1105,20 @@ const sidebarVirtualizer = useVirtualizer<HTMLElement, Element>(
 const sidebarVirtualRows = computed(() => sidebarVirtualizer.value.getVirtualItems());
 const sidebarTotalSize = computed(() => sidebarVirtualizer.value.getTotalSize());
 
+// The first measurement of a connected row registers it with the
+// virtualizer's ResizeObserver, which reports later size changes; see
+// MessageDisplay's measureElement.
+const measuredSidebarRows = new WeakSet<HTMLElement>();
 const sidebarMeasureElement = (el: any) => {
   if (!el || !(el instanceof HTMLElement)) return;
+  if (measuredSidebarRows.has(el)) return;
+  if (!el.isConnected) {
+    nextTick(() => {
+      if (el.isConnected && !measuredSidebarRows.has(el)) sidebarMeasureElement(el);
+    });
+    return;
+  }
+  if (!sidebarVirtualizer.value.isScrolling) measuredSidebarRows.add(el);
   sidebarVirtualizer.value.measureElement(el);
 };
 
@@ -1114,7 +1135,7 @@ const fetchAndSetUsers = async (serverId: string | null) => {
     
     lastFetchedServerId.value = serverId;
     
-    let users = getUsersInContext(serverId).value;
+    const users = getUsersInContext(serverId).value;
     
     if (users.length > 0) {
       debug.log(`UserSidebar: Using cached users for server ${serverId} (${users.length} members)`);
@@ -1125,28 +1146,16 @@ const fetchAndSetUsers = async (serverId: string | null) => {
     // Loading state is entered only with no cached data for the server.
     debug.log(`UserSidebar: No cached users found, loading for server ${serverId}...`);
     isLoadingUsers.value = true;
+
+    // One frame first: the message list of the same navigation paints before
+    // member hydration and the member-list sort take the main thread.
+    await new Promise<void>(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    // A later switch owns the loading state from here.
+    if (serverChannelStore.currentServerId !== serverId) return;
     
     try {
-      // On initial app load BaseLayout establishes the context asynchronously.
-      if (users.length === 0) {
-        debug.log(`⏳ UserSidebar: Waiting for server context to be established...`);
-        
-        const maxWaitTime = 500; // ms
-        const checkInterval = 50; // ms
-        let waitTime = 0;
-        
-        while (users.length === 0 && waitTime < maxWaitTime) {
-          await new Promise(resolve => setTimeout(resolve, checkInterval));
-          waitTime += checkInterval;
-          users = getUsersInContext(serverId).value;
-        }
-        
-        if (users.length > 0) {
-          debug.log(`UserSidebar: Server context ready after ${waitTime}ms wait`);
-          return; // Context arrived during the wait.
-        }
-      }
-      
+      // BaseLayout subscribes the startup server's context too; a concurrent
+      // subscribeToContext awaits the call already in flight.
       debug.log(`UserSidebar: Creating new subscription for server ${serverId}...`);
       const userIds = await getUserIdsForServer(serverId);
       await subscribeToContext(serverId, 'server', userIds);

@@ -110,8 +110,10 @@
             @keydown.enter.prevent="handleServerClick(server.id)"
             @keydown.space.prevent="handleServerClick(server.id)"
             @contextmenu.prevent.stop="openServerContextMenu($event, server)"
-            @mouseenter="showServerTooltip($event, server.name)"
-            @mouseleave="hideServerTooltip"
+            @mouseenter="showServerTooltip($event, server.name); emitServerHover(server.id)"
+            @mouseleave="hideServerTooltip(); emitServerLeave()"
+            @focus="emitServerHover(server.id)"
+            @blur="emitServerLeave"
           >
             <div class="server-pill" :class="{ 'visible': isSelected(server.id), 'has-unread': hasServerUnread(server.id) && !isSelected(server.id) }"></div>
             <ServerIcon
@@ -185,14 +187,18 @@ interface Props {
   selectedServerId: string | null;
 }
 
+// Named-tuple form. With nine call signatures vue-tsc resolves the emits to
+// any[] and every listener in ServerSidebar fails to type-check.
 interface Emits {
-  (e: 'select-server', serverId: string): void;
-  (e: 'open-context-menu', event: MouseEvent, folder: ServerFolder): void;
-  (e: 'servers-reordered', servers: Server[]): void;
-  (e: 'server-dropped', serverId: string, folderId: string): void;
-  (e: 'server-removed', serverId: string): void;
-  (e: 'show-folder-tooltip', event: MouseEvent, name: string, serverCount: number): void;
-  (e: 'hide-folder-tooltip'): void;
+  'select-server': [serverId: string];
+  'hover-server': [serverId: string];
+  'leave-server': [];
+  'open-context-menu': [event: MouseEvent, folder: ServerFolder];
+  'servers-reordered': [servers: Server[]];
+  'server-dropped': [serverId: string, folderId: string];
+  'server-removed': [serverId: string];
+  'show-folder-tooltip': [event: MouseEvent, name: string, serverCount: number];
+  'hide-folder-tooltip': [];
 }
 
 const props = defineProps<Props>();
@@ -389,6 +395,9 @@ onBeforeUnmount(() => {
   hideServerTooltip();
   hideFolderTooltip();
 });
+
+const emitServerHover = (serverId: string) => emit('hover-server', serverId);
+const emitServerLeave = () => emit('leave-server');
 
 // Folder tooltip handlers (emit to parent)
 const showFolderTooltip = (event: MouseEvent) => {

@@ -17,6 +17,9 @@ import { insertMessageSorted, evictOldestCacheEntry, trimCachedMessages, waitFor
 import { isModerationRejectionCode } from '@/services/AutoModService';
 import { releaseFloatingVideo } from '@/composables/useFloatingVideo';
 
+// Newest-page loads started by prefetchChannelMessages, by channel id.
+const pendingPrefetch = new Map<string, Promise<void>>();
+
 export const useChatStore = defineStore('chat', {
   state: () => ({
     messages: [] as Message[],
@@ -214,28 +217,15 @@ export const useChatStore = defineStore('chat', {
 
       if (oldestMessageId === '') {
         // Time-based validation only; no database round-trip.
-        if (this.messageCache.has(channelId)) {
-          const cached = this.messageCache.get(channelId)!;
-          const now = new Date();
-          const cacheAge = now.getTime() - cached.lastFetchedAt.getTime();
-          
-          debug.log(`Found cache for channel ${channelId}, age: ${Math.round(cacheAge / 1000)}s, valid: ${cacheAge < this.cacheValidityDuration}`);
+        if (this._showFreshCache(channelId)) return;
 
-          if (cacheAge < this.cacheValidityDuration) {
-            debug.log(`Loading ${cached.messages.length} messages from cache instantly (cache is fresh)`);
-            this.messages = [...cached.messages];
-            this.allMessagesLoaded = cached.allMessagesLoaded;
-            this.currentChannelId = channelId;
-            // Stale-while-revalidate: per-channel realtime only delivers to the
-            // active subscription, so messages sent while another channel was
-            // open never reached this cache. Show cache instantly, then catch up.
-            void this.revalidateRecentMessages(channelId);
-            return;
-          } else {
-            debug.log(`Cache is stale (${Math.round(cacheAge / 1000)}s old), fetching from database`);
-          }
-        } else {
-          debug.log(`No cache found for channel ${channelId}, fetching from database`);
+        // A prefetch already requested this page; reuse it instead of a second load.
+        const pending = pendingPrefetch.get(channelId);
+        if (pending) {
+          await pending;
+          if (signal?.aborted) throw new Error('AbortError');
+          if (this.currentChannelId !== channelId) return;
+          if (this._showFreshCache(channelId)) return;
         }
       }
 
@@ -264,13 +254,7 @@ export const useChatStore = defineStore('chat', {
         // service can skip its channels + servers lookup round trips. When the
         // channel isn't in the store (direct URL open before structure loads),
         // leave undefined and let the service resolve it from the DB.
-        let isRemote: boolean | undefined;
-        const serverChannelStore = useServerChannelStore();
-        const channel = serverChannelStore.channels.find(c => c.id === channelId);
-        if (channel) {
-          const server = serverChannelStore.servers.find(s => s.id === channel.server_id);
-          isRemote = channel.is_remote === true || server?.is_local_server === false;
-        }
+        const isRemote = this._knownIsRemote(channelId);
 
         const { messages, hasMore } = await services.messages.loadChannelMessages(
           channelId,
@@ -402,6 +386,93 @@ export const useChatStore = defineStore('chat', {
     },
 
     /**
+     * Shows a fresh cache entry for `channelId` and starts a catch-up fetch.
+     * False when no entry is younger than cacheValidityDuration.
+     */
+    _showFreshCache(channelId: string): boolean {
+      const cached = this.messageCache.get(channelId);
+      if (!cached) return false;
+      const cacheAge = Date.now() - cached.lastFetchedAt.getTime();
+      if (cacheAge >= this.cacheValidityDuration) {
+        debug.log(`Cache is stale (${Math.round(cacheAge / 1000)}s old), fetching from database`);
+        return false;
+      }
+      this.messages = [...cached.messages];
+      this.allMessagesLoaded = cached.allMessagesLoaded;
+      this.currentChannelId = channelId;
+      // Stale-while-revalidate: per-channel realtime only delivers to the
+      // active subscription, so messages sent while another channel was
+      // open never reached this cache. Show cache instantly, then catch up.
+      void this.revalidateRecentMessages(channelId);
+      return true;
+    },
+
+    /**
+     * is_remote from the loaded channel and server rows. Undefined when the
+     * channel is not in the store; the service then resolves it with two
+     * sequential lookups.
+     */
+    _knownIsRemote(channelId: string): boolean | undefined {
+      const serverChannelStore = useServerChannelStore();
+      const channel = serverChannelStore.channels.find(c => c.id === channelId)
+        ?? Object.values(serverChannelStore._structureCacheByServer)
+          .flatMap(s => s.channels)
+          .find(c => c.id === channelId);
+      if (!channel) return undefined;
+      const server = serverChannelStore.servers.find(s => s.id === channel.server_id);
+      return channel.is_remote === true || server?.is_local_server === false;
+    },
+
+    /**
+     * Loads a channel's newest page into messageCache without touching the
+     * on-screen list, so opening the channel takes the cache path.
+     */
+    prefetchChannelMessages(channelId: string): Promise<void> {
+      if (!channelId || channelId === this.currentChannelId) return Promise.resolve();
+      const cached = this.messageCache.get(channelId);
+      if (cached && Date.now() - cached.lastFetchedAt.getTime() < this.cacheValidityDuration) {
+        return Promise.resolve();
+      }
+      const inFlight = pendingPrefetch.get(channelId);
+      if (inFlight) return inFlight;
+
+      const work = (async () => {
+        try {
+          const { messages, hasMore } = await services.messages.loadChannelMessages(channelId, {
+            limit: 20,
+            isRemote: this._knownIsRemote(channelId),
+          });
+          // Empty pages stay with the cold path, which also binds the channel.
+          if (!messages || messages.length === 0) return;
+          // Opened and loaded meanwhile: that entry is at least as new.
+          const current = this.messageCache.get(channelId);
+          if (current && Date.now() - current.lastFetchedAt.getTime() < this.cacheValidityDuration) return;
+
+          try { ensureMessageEmbeds(messages); } catch (e) { debug.warn('Failed to prepare prefetched embeds:', e); }
+          const userIds = [...new Set(messages.map((m: Message) => m.user_id).filter(Boolean))] as string[];
+          if (userIds.length > 0) {
+            void useServerUsersStore().fetchMultipleUserProfiles(userIds).catch(() => {});
+          }
+
+          this.evictOldestCache();
+          this.messageCache.set(channelId, {
+            messages: [...messages],
+            lastFetchedAt: new Date(),
+            oldestMessageId: messages[0]?.id || null,
+            allMessagesLoaded: !hasMore,
+            lastModified: new Date(),
+          });
+        } catch (error) {
+          debug.warn('Channel prefetch failed (non-fatal):', error);
+        } finally {
+          pendingPrefetch.delete(channelId);
+        }
+      })();
+      pendingPrefetch.set(channelId, work);
+      return work;
+    },
+
+    /**
      * Catch up on messages that arrived for `channelId` while it wasn't the
      * active realtime subscription. Fetches only messages newer than the
      * currently-loaded newest one (`after` cursor) and merges them in; the
@@ -418,6 +489,7 @@ export const useChatStore = defineStore('chat', {
         const { messages } = await services.messages.loadChannelMessages(channelId, {
           limit: 50,
           after: afterTs,
+          isRemote: this._knownIsRemote(channelId),
         });
         if (!messages || messages.length === 0) return;
         // Discard if the active channel changed during the fetch.

@@ -1731,8 +1731,25 @@ rowVirtualizer.value.shouldAdjustScrollPositionOnItemSizeChange = adjustForItemR
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems());
 const totalSize = computed(() => rowVirtualizer.value.getTotalSize());
 
+// Vue invokes a function ref on every patch of the row. The first measurement
+// of a connected row registers it with the virtualizer's ResizeObserver, which
+// reports every later size change; measuring again reads offsetHeight, which
+// forces a synchronous layout per row on each list re-render.
+// A row mounted inside a not yet inserted container is disconnected at its
+// first call; the virtualizer skips it then, so it is measured again after
+// the patch. A smooth scroll defers measurement of rows outside its target
+// window, so rows patched while scrolling stay eligible for the next call.
+const measuredRows = new WeakSet<HTMLElement>();
 const measureElement = (el: any) => {
   if (!el || !(el instanceof HTMLElement)) return;
+  if (measuredRows.has(el)) return;
+  if (!el.isConnected) {
+    nextTick(() => {
+      if (el.isConnected && !measuredRows.has(el)) measureElement(el);
+    });
+    return;
+  }
+  if (!rowVirtualizer.value.isScrolling) measuredRows.add(el);
   rowVirtualizer.value.measureElement(el);
 };
 

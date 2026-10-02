@@ -182,7 +182,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   import { coreMessageService } from '@/services/core/CoreMessageService';
   import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt';
   import { ENCRYPTION_STATE_CHANGED_EVENT, reportChannelEncryptionError } from '@/composables/useEncryptionAction';
-  import { fetchEffectiveChannelEncryption } from '@/services/ChannelEncryptionService';
+  import { fetchEffectiveChannelEncryption, fetchServerForceKeySetup, invalidateServerForceKeySetup } from '@/services/ChannelEncryptionService';
   import { getEncryptionService } from '@/services/core/channelMessageEncryption';
   import { useChannelEncryptionStore } from '@/stores/useChannelEncryption';
   import { supabase } from '@/supabase';
@@ -370,18 +370,14 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
           return
         }
         try {
-          const [state, { data: settings }] = await Promise.all([
+          const [state, forceKeySetup] = await Promise.all([
             fetchEffectiveChannelEncryption(channelId),
-            supabase
-              .from('server_encryption_settings')
-              .select('force_key_setup')
-              .eq('server_id', serverId)
-              .maybeSingle(),
+            fetchServerForceKeySetup(serverId),
           ])
           if (state) channelEncryptionStore.applyEffective(state)
 
           const channelEncrypted = state?.messagesEncrypted === true
-          const recommendSetup = settings?.force_key_setup === true && state?.serverMode !== 'disabled'
+          const recommendSetup = forceKeySetup && state?.serverMode !== 'disabled'
           if (!channelEncrypted && !recommendSetup) {
             encryptionStatusData.value = null
             return
@@ -507,9 +503,11 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
       function handleServerSettingsChange(event: Event) {
         const detail = (event as CustomEvent).detail
         if (props.isDM) return
-        if (detail?.table === 'server_encryption_settings'
-            || (detail?.table === 'channel_encryption_settings'
-                && detail?.new?.channel_id === (props.channelId || serverChannelStore.currentChannelId))) {
+        if (detail?.table === 'server_encryption_settings') {
+          invalidateServerForceKeySetup(detail?.new?.server_id ?? serverChannelStore.currentServerId)
+          checkEncryptionStatus()
+        } else if (detail?.table === 'channel_encryption_settings'
+            && detail?.new?.channel_id === (props.channelId || serverChannelStore.currentChannelId)) {
           checkEncryptionStatus()
         }
       }
@@ -518,9 +516,11 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         checkEncryptionStatus()
       }
 
+      // A string source; a fresh array compares unequal on every dependency
+      // trigger, which repeats the check several times per switch.
       watch(
-        () => [serverChannelStore.currentServerId, props.channelId || serverChannelStore.currentChannelId],
-        () => { if (!props.isDM) checkEncryptionStatus() },
+        () => props.isDM ? null : `${serverChannelStore.currentServerId}:${props.channelId || serverChannelStore.currentChannelId}`,
+        (key) => { if (key) checkEncryptionStatus() },
         { immediate: true }
       )
 

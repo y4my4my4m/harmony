@@ -4,10 +4,11 @@
  * the service itself holds plain, non-reactive state.
  */
 
-import { computed, ref } from 'vue'
+import { computed, ref, type ComputedRef } from 'vue'
 import { userDataService } from '@/services/userDataService'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useVisualTheme } from '@/composables/useVisualTheme'
+import type { VisualThemeSettings } from '@/composables/useVisualTheme.types'
 import { UserStatus, type DisplayNamePart } from '@/types'
 import { getAvatarUrl } from '@/utils/avatarUtils'
 import { debug } from '@/utils/debug'
@@ -36,6 +37,22 @@ const SERVICE_EVENTS = [
 
 // Bound once for the module's lifetime; the service outlives every consumer.
 const isInitialized = ref(false)
+
+// useVisualTheme() allocates ~50 closures and four computeds per call, and
+// currentSettings spreads the whole settings object. Display-name getters run
+// inside member-list sort comparators, so the settings ref is taken once. A
+// computed is not owned by an effect scope (Vue 3.5); the first caller's
+// unmount leaves it live.
+let visualThemeSettings: ComputedRef<VisualThemeSettings> | null = null
+
+function customEmojisAllowedByInstance(): boolean {
+  return !!useInstanceSettingsStore().settings.allowCustomEmojisInDisplayNames
+}
+
+function customEmojisShownByTheme(): boolean {
+  visualThemeSettings ??= useVisualTheme().settings
+  return visualThemeSettings?.value?.showCustomEmojisInDisplayNames !== false
+}
 
 const bindServiceListeners = () => {
   if (isInitialized.value) return
@@ -98,10 +115,7 @@ export function useUserData() {
     const trimmedDisplay = (user?.displayName || '').trim()
     const trimmedUsername = (user?.username || '').trim()
     let name = trimmedDisplay || trimmedUsername || 'Unknown User'
-    const instanceSettings = useInstanceSettingsStore()
-    const theme = useVisualTheme()
-    const hideEmojis = !instanceSettings.settings.allowCustomEmojisInDisplayNames ||
-      theme.currentSettings.value?.showCustomEmojisInDisplayNames === false
+    const hideEmojis = !customEmojisAllowedByInstance() || !customEmojisShownByTheme()
     if (hideEmojis && name) name = stripEmojiShortcodes(name)
     // A name consisting only of shortcodes strips to empty; fall back again
     // rather than render a blank pill.
@@ -118,12 +132,7 @@ export function useUserData() {
    */
   const getUserDisplayNameParts = (userId: string) => computed<DisplayNamePart[] | undefined>(() => {
     forceUpdate.value
-    const instanceSettings = useInstanceSettingsStore()
-    if (!instanceSettings.settings.allowCustomEmojisInDisplayNames) {
-      return undefined
-    }
-    const theme = useVisualTheme()
-    if (theme.currentSettings.value?.showCustomEmojisInDisplayNames === false) {
+    if (!customEmojisAllowedByInstance() || !customEmojisShownByTheme()) {
       return undefined
     }
     return userDataService.getUser(userId)?.displayNameParts

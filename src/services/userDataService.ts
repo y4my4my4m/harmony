@@ -58,8 +58,8 @@ class UserDataService extends EventTarget {
   private globalChannel: RealtimeChannel | null = null
   private initialized = false
   
-  // Subscription tracking to prevent duplicates
-  private pendingSubscriptions = new Set<string>()
+  // In-flight subscribeToContext calls; a second caller awaits the first.
+  private pendingSubscriptions = new Map<string, Promise<void>>()
   
   // Status management
   private wasManuallySet = false
@@ -807,12 +807,14 @@ class UserDataService extends EventTarget {
       return
     }
     
-    if (this.pendingSubscriptions.has(contextId)) {
-      debug.log(`Subscription already in progress for ${type} context:`, contextId, '- skipping duplicate')
-      return
+    const pending = this.pendingSubscriptions.get(contextId)
+    if (pending) {
+      debug.log(`Subscription already in progress for ${type} context:`, contextId, '- awaiting it')
+      return pending
     }
     
-    this.pendingSubscriptions.add(contextId)
+    let release!: () => void
+    this.pendingSubscriptions.set(contextId, new Promise<void>(resolve => { release = resolve }))
     
     try {
       debug.log(`Subscribing to ${type} context:`, contextId, `(${userIds.length} users)`)
@@ -863,6 +865,7 @@ class UserDataService extends EventTarget {
       debug.log(`Subscribed to ${type} context:`, contextId)
     } finally {
       this.pendingSubscriptions.delete(contextId)
+      release()
     }
   }
 
@@ -877,9 +880,11 @@ class UserDataService extends EventTarget {
       if (!this.contexts.has(contextId)) return
       const chunk = userIds.slice(i, i + PROFILE_BACKFILL_CHUNK)
       try {
-        await this.loadUsersData(chunk)
+        const fetched = await this.loadUsersData(chunk)
         if (!this.contexts.has(contextId)) return
-        this.emitEvent('context-updated', { contextId })
+        // A fully cached chunk is already in the list from the subscribe-time
+        // notify; re-emitting re-sorts the member list once per chunk.
+        if (fetched) this.emitEvent('context-updated', { contextId })
       } catch (error) {
         debug.warn(`Profile backfill chunk failed for context ${contextId}:`, error)
       }
@@ -1175,7 +1180,8 @@ class UserDataService extends EventTarget {
     })
   }
   
-  private async loadUsersData(userIds: string[]): Promise<void> {
+  /** Resolves true when any id needed a fetch. */
+  private async loadUsersData(userIds: string[]): Promise<boolean> {
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     
     // Filter: load if missing, stale, has Unknown username, or presence snapshot
@@ -1193,7 +1199,7 @@ class UserDataService extends EventTarget {
       return !existing || this.isUserDataStale(id) || hasUnknownUsername || needsPresenceEnrichment
     })
     
-    if (missingUserIds.length === 0) return
+    if (missingUserIds.length === 0) return false
 
     // Coalesced into a single batched fetch. Many UI elements (e.g. one
     // <DisplayName> per message) call this with a single id in the same
@@ -1213,7 +1219,8 @@ class UserDataService extends EventTarget {
       })
     }
 
-    return this.userLoadBatchPromise
+    await this.userLoadBatchPromise
+    return true
   }
 
   /**

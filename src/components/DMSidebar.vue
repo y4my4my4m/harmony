@@ -136,7 +136,8 @@
             'muted': conversation.is_muted
           }"
           @click="selectConversation(conversation.id)"
-          @mouseenter="handleConversationHover(conversation.id)"
+          @mouseenter="handleConversationHover(conversation.id); scheduleConversationPrefetch(conversation.id)"
+          @mouseleave="cancelConversationPrefetch"
         >
           <!-- Group Chat Avatar: Uses group icon from metadata -->
           <GroupIcon
@@ -382,6 +383,7 @@ const startConversation = async (user: DMUser) => {
 }
 
 const selectConversation = (conversationId: string) => {
+  cancelConversationPrefetch()
   emit('conversationSelected', conversationId)
 }
 
@@ -476,6 +478,27 @@ const getMessagePreviewText = (message: Message): string => {
   return 'Message'
 }
 
+// Same intent threshold as the server rail and channel list.
+const CONVERSATION_PREFETCH_DELAY_MS = 100
+let conversationPrefetchTimer: ReturnType<typeof setTimeout> | null = null
+
+const cancelConversationPrefetch = () => {
+  if (conversationPrefetchTimer) {
+    clearTimeout(conversationPrefetchTimer)
+    conversationPrefetchTimer = null
+  }
+}
+
+/** Loads a hovered conversation's newest page into the DM message cache. */
+const scheduleConversationPrefetch = (conversationId: string) => {
+  cancelConversationPrefetch()
+  if (conversationId === dmStore.currentConversationId) return
+  conversationPrefetchTimer = setTimeout(() => {
+    conversationPrefetchTimer = null
+    void dmStore.prefetchConversationMessages(conversationId)
+  }, CONVERSATION_PREFETCH_DELAY_MS)
+}
+
 // Lazy user profile loading
 const hoveredConversations = ref(new Set<string>())
 
@@ -506,6 +529,7 @@ const handleConversationHover = async (conversationId: string) => {
 // store on their own. Profiles/presence load on-demand on hover.
 
 onUnmounted(() => {
+  cancelConversationPrefetch()
   if (searchTimeout.value) {
     clearTimeout(searchTimeout.value)
   }

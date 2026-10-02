@@ -27,6 +27,10 @@ const rolesCache = reactive<Map<string, ServerRole[]>>(new Map())
 const loadingStates = reactive<Map<string, boolean>>(new Map())
 // Reactive version counter to force computed re-evaluation when cache updates
 const cacheVersion = ref(0)
+// One load per user-server key for every instance. Each message row creates
+// an instance, and each settled load bumps cacheVersion for all consumers.
+const pendingPermissionLoads = new Map<string, Promise<Record<Permission, boolean>>>()
+const pendingRoleLoads = new Map<string, Promise<ServerRole[]>>()
 
 /**
  * BUGS.md H50 / Pattern B: clear ALL module-level permission caches. These
@@ -39,6 +43,8 @@ export function clearAllPermissionCaches() {
   permissionsCache.clear()
   rolesCache.clear()
   loadingStates.clear()
+  pendingPermissionLoads.clear()
+  pendingRoleLoads.clear()
   cacheVersion.value++
 }
 
@@ -58,9 +64,11 @@ export function useServerPermissions() {
     try {
       const context = await authContextService.getCurrentContext()
       if (context.isAuthenticated && context.profileId) {
+        // Instance state; this instance's computeds read currentProfileId.
+        // cacheVersion stays untouched: every permission consumer in the app
+        // depends on it, and this runs once per mounting instance.
         fetchedProfileId.value = context.profileId
         profileIdLoaded.value = true
-        cacheVersion.value++ // Force re-evaluation of permission computed properties
         debug.log('Profile ID loaded:', context.profileId)
       } else {
         fetchedProfileId.value = null
@@ -91,7 +99,6 @@ export function useServerPermissions() {
     if (userId && !fetchedProfileId.value) {
       fetchedProfileId.value = userId
       profileIdLoaded.value = true
-      cacheVersion.value++ // Force re-evaluation of permission computed properties
       debug.log('Profile ID from getCurrentUser:', userId)
     }
   }, { immediate: true })
@@ -112,27 +119,28 @@ export function useServerPermissions() {
       return permissionsCache.get(cacheKey)!
     }
 
-    if (loadingStates.get(cacheKey)) {
-      // Wait a bit and check cache again
-      await new Promise(resolve => setTimeout(resolve, 100))
-      if (permissionsCache.has(cacheKey)) {
-        return permissionsCache.get(cacheKey)!
-      }
-    }
+    const pending = pendingPermissionLoads.get(cacheKey)
+    if (pending) return pending
 
     loadingStates.set(cacheKey, true)
 
-    try {
-      const permissions = await roleService.getUserPermissions(userId, serverId)
-      permissionsCache.set(cacheKey, permissions)
-      cacheVersion.value++ // Trigger reactivity for computed properties
-      return permissions
-    } catch (error) {
-      debug.error('Failed to load permissions:', error)
-      return {} as Record<Permission, boolean>
-    } finally {
-      loadingStates.set(cacheKey, false)
-    }
+    const load: { work?: Promise<Record<Permission, boolean>> } = {}
+    load.work = (async () => {
+      try {
+        const permissions = await roleService.getUserPermissions(userId, serverId)
+        permissionsCache.set(cacheKey, permissions)
+        cacheVersion.value++ // Trigger reactivity for computed properties
+        return permissions
+      } catch (error) {
+        debug.error('Failed to load permissions:', error)
+        return {} as Record<Permission, boolean>
+      } finally {
+        loadingStates.set(cacheKey, false)
+        if (pendingPermissionLoads.get(cacheKey) === load.work) pendingPermissionLoads.delete(cacheKey)
+      }
+    })()
+    pendingPermissionLoads.set(cacheKey, load.work)
+    return load.work
   }
 
   const loadUserRoles = async (userId: string, serverId: string): Promise<ServerRole[]> => {
@@ -142,15 +150,25 @@ export function useServerPermissions() {
       return rolesCache.get(cacheKey)!
     }
 
-    try {
-      const roles = await roleService.getUserRoles(userId, serverId)
-      rolesCache.set(cacheKey, roles)
-      cacheVersion.value++ // Trigger reactivity for computed properties
-      return roles
-    } catch (error) {
-      debug.error('Failed to load user roles:', error)
-      return []
-    }
+    const pending = pendingRoleLoads.get(cacheKey)
+    if (pending) return pending
+
+    const load: { work?: Promise<ServerRole[]> } = {}
+    load.work = (async () => {
+      try {
+        const roles = await roleService.getUserRoles(userId, serverId)
+        rolesCache.set(cacheKey, roles)
+        cacheVersion.value++ // Trigger reactivity for computed properties
+        return roles
+      } catch (error) {
+        debug.error('Failed to load user roles:', error)
+        return []
+      } finally {
+        if (pendingRoleLoads.get(cacheKey) === load.work) pendingRoleLoads.delete(cacheKey)
+      }
+    })()
+    pendingRoleLoads.set(cacheKey, load.work)
+    return load.work
   }
 
   const isServerOwner = (serverId: string, profileId?: string): boolean => {
@@ -398,6 +416,13 @@ export function useServerPermissions() {
       if (key.endsWith(`-${serverId}`)) {
         rolesCache.delete(key)
       }
+    }
+    // A load started before the change would settle with the old values.
+    for (const key of pendingPermissionLoads.keys()) {
+      if (key.endsWith(`-${serverId}`)) pendingPermissionLoads.delete(key)
+    }
+    for (const key of pendingRoleLoads.keys()) {
+      if (key.endsWith(`-${serverId}`)) pendingRoleLoads.delete(key)
     }
     roleService.clearServerCache(serverId)
   }

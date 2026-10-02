@@ -439,6 +439,13 @@ const navigateToDefaultIfNeeded = async () => {
         await serverChannelStore.fetchCategoriesAndChannels(targetServerId)
       }
       
+      // currentChannelId outlives a server switch. Mid-switch it names the
+      // previous server's channel, and routing to it loads that channel's
+      // messages under the new server before the default channel resolves.
+      if (targetChannelId && !serverChannelStore.channels.some(c => c.id === targetChannelId)) {
+        targetChannelId = null
+      }
+
       if (!targetChannelId && serverChannelStore.channels.length > 0) {
         targetChannelId = serverChannelStore.getDefaultChannel()
         if (targetChannelId) {

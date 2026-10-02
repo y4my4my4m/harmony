@@ -276,6 +276,15 @@ export interface UpdateRoleParams {
   unicode_emoji?: string
 }
 
+interface RoleAssignment {
+  user_id: string
+  role_id: string
+}
+
+// Assignment reads within this window share one query; writes through this
+// service and clearServerCache drop the entry early.
+const ASSIGNMENTS_TTL_MS = 30_000
+
 // Role Service Class
 
 class RoleService {
@@ -287,6 +296,10 @@ class RoleService {
   private pendingUserRolesRequests = new Map<string, Promise<ServerRole[]>>()
   private pendingPermissionsRequests = new Map<string, Promise<Record<Permission, boolean>>>()
   private pendingServerRolesRequests = new Map<string, Promise<ServerRole[]>>()
+
+  // Every user_roles row of a server. Role member counts, the role-colour
+  // store and the member list's hoisted groups each read a slice of it.
+  private assignmentsCache = new Map<string, { at: number; rows: Promise<RoleAssignment[]> }>()
 
   // Role CRUD Operations
 
@@ -320,30 +333,27 @@ class RoleService {
   private async _fetchServerRoles(serverId: string): Promise<ServerRole[]> {
     try {
       // Fetch roles (simple query without embedded resource to avoid user_roles RLS issues)
-      const { data, error } = await supabase
-        .from('server_roles')
-        .select('*')
-        .eq('server_id', serverId)
-        .order('position', { ascending: false })
+      const [{ data, error }, assignments] = await Promise.all([
+        supabase
+          .from('server_roles')
+          .select('*')
+          .eq('server_id', serverId)
+          .order('position', { ascending: false }),
+        this.loadServerAssignments(serverId).catch((countError) => {
+          debug.warn('Role member counts unavailable:', countError)
+          return [] as RoleAssignment[]
+        }),
+      ])
 
       if (error) {
         debug.error('getServerRoles query error:', error)
         throw error
       }
 
-      const roleIds = (data || []).map((r: any) => r.id)
+      const roleIds = new Set((data || []).map((r: any) => r.id))
       const memberCounts: Record<string, number> = {}
-      if (roleIds.length > 0) {
-        const { data: countData } = await supabase
-          .from('user_roles')
-          .select('role_id')
-          .in('role_id', roleIds)
-
-        if (countData) {
-          countData.forEach((ur: any) => {
-            memberCounts[ur.role_id] = (memberCounts[ur.role_id] || 0) + 1
-          })
-        }
+      for (const ur of assignments) {
+        if (roleIds.has(ur.role_id)) memberCounts[ur.role_id] = (memberCounts[ur.role_id] || 0) + 1
       }
 
       const roles = (data || []).map((r: any) => ({
@@ -628,22 +638,35 @@ class RoleService {
    */
   async getRoleMembersForServer(serverId: string, roleIds?: string[]): Promise<{ user_id: string; role_id: string }[]> {
     try {
-      let query = supabase
-        .from('user_roles')
-        .select('user_id, role_id')
-        .eq('server_id', serverId)
-
+      const rows = await this.loadServerAssignments(serverId)
       if (roleIds && roleIds.length > 0) {
-        query = query.in('role_id', roleIds)
+        const wanted = new Set(roleIds)
+        return rows.filter(r => wanted.has(r.role_id))
       }
-
-      const { data, error } = await query
-      if (error) throw error
-      return data || []
+      // The cached array is shared; callers get their own.
+      return rows.slice()
     } catch (error) {
       debug.error('Failed to fetch server role assignments:', error)
       return []
     }
+  }
+
+  private loadServerAssignments(serverId: string): Promise<RoleAssignment[]> {
+    const cached = this.assignmentsCache.get(serverId)
+    if (cached && Date.now() - cached.at < ASSIGNMENTS_TTL_MS) return cached.rows
+
+    const rows = Promise.resolve(
+      supabase.from('user_roles').select('user_id, role_id').eq('server_id', serverId),
+    ).then(({ data, error }) => {
+      if (error) throw error
+      return (data || []) as RoleAssignment[]
+    })
+    const entry = { at: Date.now(), rows }
+    this.assignmentsCache.set(serverId, entry)
+    rows.catch(() => {
+      if (this.assignmentsCache.get(serverId) === entry) this.assignmentsCache.delete(serverId)
+    })
+    return rows
   }
 
   /**
@@ -663,6 +686,7 @@ class RoleService {
 
       // Invalidate caches
       this.userRolesCache.delete(`${userId}-${serverId}`)
+      this.assignmentsCache.delete(serverId)
       this.permissionCache.clear()
 
       return true
@@ -727,6 +751,7 @@ class RoleService {
       if (data) {
         // Invalidate caches
         this.userRolesCache.delete(`${userId}-${data.server_id}`)
+        this.assignmentsCache.delete(data.server_id)
         this.permissionCache.clear()
       }
 
@@ -1017,6 +1042,7 @@ class RoleService {
     this.roleCache.clear()
     this.userRolesCache.clear()
     this.permissionCache.clear()
+    this.assignmentsCache.clear()
   }
 
   /**
@@ -1024,6 +1050,7 @@ class RoleService {
    */
   clearServerCache(serverId: string): void {
     this.roleCache.delete(serverId)
+    this.assignmentsCache.delete(serverId)
     for (const key of this.userRolesCache.keys()) {
       if (key.endsWith(`-${serverId}`)) {
         this.userRolesCache.delete(key)

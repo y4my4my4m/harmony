@@ -1446,6 +1446,76 @@ export const useDMStore = defineStore('dm', () => {
     return result
   }
 
+  /**
+   * Rows from loadConversationMessages in the store's Message shape.
+   * CoreMessageService returns decrypted messages; the flags carry over.
+   * `user_id` is `string | undefined` on the source rows, so the mapped array
+   * is cast to `Message[]` to bridge the optional/required mismatch.
+   */
+  const toConversationMessages = (conversationId: string, rows: any[]): Message[] => {
+    const formatted = (rows.map(msg => ({
+      ...msg,
+      created_at: new Date(msg.created_at),
+      updated_at: msg.updated_at ? new Date(msg.updated_at) : undefined,
+      channel_id: '', // DMs have no channel
+      conversation_id: conversationId,
+      reactions: msg.reactions || [],
+      metadata: msg.metadata || null,
+      encrypted: msg.encrypted || false,
+      decrypted: msg.decrypted || false
+    })) as unknown as Message[])
+
+    try {
+      ensureMessageEmbeds(formatted)
+    } catch (error) {
+      debug.warn('Failed to prepare DM embeds:', error)
+    }
+    return formatted
+  }
+
+  // Newest-page loads started by prefetchConversationMessages, by conversation id.
+  const pendingPrefetch = new Map<string, Promise<void>>()
+
+  /**
+   * Loads a conversation's newest page into messageCache without touching the
+   * open conversation, so opening it takes the cache path.
+   */
+  const prefetchConversationMessages = (conversationId: string): Promise<void> => {
+    if (!conversationId || conversationId === currentConversationId.value) return Promise.resolve()
+    if (isCacheValid(conversationId)) return Promise.resolve()
+    const inFlight = pendingPrefetch.get(conversationId)
+    if (inFlight) return inFlight
+
+    const work = (async () => {
+      try {
+        const { messages: rows, hasMore } = await services.messages.loadConversationMessages(conversationId, { limit: 20 })
+        // Empty pages stay with the cold path; a fresher entry is kept.
+        if (!rows || rows.length === 0 || isCacheValid(conversationId)) return
+        const formatted = toConversationMessages(conversationId, rows)
+
+        const userIds = [...new Set(formatted.map(m => m.user_id).filter(Boolean))] as string[]
+        if (userIds.length > 0) {
+          void useServerUsersStore().fetchMultipleUserProfiles(userIds).catch(() => {})
+        }
+
+        evictOldestCache()
+        messageCache.value.set(conversationId, {
+          messages: [...formatted],
+          lastFetchedAt: new Date(),
+          oldestMessageId: formatted[0]?.id || null,
+          allMessagesLoaded: !hasMore,
+          lastModified: new Date(),
+        })
+      } catch (error) {
+        debug.warn('Conversation prefetch failed (non-fatal):', error)
+      } finally {
+        pendingPrefetch.delete(conversationId)
+      }
+    })()
+    pendingPrefetch.set(conversationId, work)
+    return work
+  }
+
   const fetchConversationMessages = async (conversationId: string, beforeMessageId?: string, signal?: AbortSignal) => {
     if (loadingMessages.value && beforeMessageId !== undefined) return
 
@@ -1465,6 +1535,19 @@ export const useDMStore = defineStore('dm', () => {
         // conversation was not the active subscription. Mirrors the channel path.
         void revalidateRecentDMMessages(conversationId)
         return
+      }
+
+      // A prefetch already requested this page; reuse it instead of a second load.
+      const prefetch = pendingPrefetch.get(conversationId)
+      if (prefetch) {
+        await prefetch
+        if (signal?.aborted) throw new Error('AbortError')
+        if (currentConversationId.value !== conversationId) return
+        if (isCacheValid(conversationId)) {
+          loadCachedMessages(conversationId)
+          void revalidateRecentDMMessages(conversationId)
+          return
+        }
       }
     }
 
@@ -1524,29 +1607,8 @@ export const useDMStore = defineStore('dm', () => {
 
       // loadConversationMessages returns oldest-first. Both the initial load and
       // the prepend-on-pagination path consume that order unchanged.
-      const orderedMessages = messagesData
       const allLoaded = !hasMore
-
-      // CoreMessageService returns decrypted messages; the flags carry over.
-      // `user_id` is `string | undefined` on the source rows, so the mapped
-      // array is cast to `Message[]` to bridge the optional/required mismatch.
-      const formattedMessages: Message[] = (orderedMessages.map(msg => ({
-        ...msg,
-        created_at: new Date(msg.created_at),
-        updated_at: msg.updated_at ? new Date(msg.updated_at) : undefined,
-        channel_id: '', // DMs have no channel
-        conversation_id: conversationId,
-        reactions: msg.reactions || [],
-        metadata: msg.metadata || null,
-        encrypted: msg.encrypted || false,
-        decrypted: msg.decrypted || false
-      })) as unknown as Message[])
-
-      try {
-        ensureMessageEmbeds(formattedMessages)
-      } catch (error) {
-        debug.warn('Failed to prepare DM embeds:', error)
-      }
+      const formattedMessages = toConversationMessages(conversationId, messagesData)
 
       const decryptedCount = formattedMessages.filter(m => m.decrypted).length
       const encryptedCount = formattedMessages.filter(m => m.encrypted).length
@@ -3108,6 +3170,7 @@ export const useDMStore = defineStore('dm', () => {
     fetchUserConversationsMetadata,
     hideConversation,
     fetchConversationMessages,
+    prefetchConversationMessages,
     searchUsers,
     createOrGetConversation,
     sendDMMessage,
