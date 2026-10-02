@@ -17,7 +17,6 @@ archive_popular_hashtags	service key	service_role
 backfill_timeline_entries	service key	service_role
 check_encryption_policy	service key	service_role
 cleanup_expired_statuses	service key	service_role
-cleanup_expired_voice_calls	service key	service_role
 cleanup_inactive_hashtags	service key	service_role
 cleanup_old_notifications	service key	service_role
 cleanup_old_trending_data	service key	service_role
