@@ -2,24 +2,43 @@
   <Teleport to="body">
     <!-- Established device: approve/deny someone else's login -->
     <transition name="device-approval-fade">
-      <div v-if="currentApprover" class="device-approval-card" role="dialog" aria-live="polite">
+      <div
+        v-if="currentApprover"
+        class="device-approval-card"
+        role="dialog"
+        aria-live="polite"
+        data-testid="device-approval-card"
+      >
         <div class="dap-icon">
           <Icon name="smartphone" :size="22" />
         </div>
         <div class="dap-body">
           <strong class="dap-title">New login{{ currentApprover.requesting_label ? ` on ${currentApprover.requesting_label}` : '' }}</strong>
-          <p class="dap-text">
-            A new device signed in to your account. If this was you, approve it to unlock
-            encrypted message history on that device.
-          </p>
-          <div class="dap-actions">
-            <button class="dap-btn dap-btn-approve" :disabled="busy" @click="onApprove">
-              Yes, it's me
+          <template v-if="currentIsPairing">
+            <p class="dap-text">{{ $t('encryption.approval.pairingText') }}</p>
+            <div class="dap-actions">
+              <button class="dap-btn dap-btn-approve" :disabled="busy" data-testid="approval-scan" @click="linkMode = 'scan'">
+                {{ $t('encryption.approval.scanItsCode') }}
+              </button>
+              <button class="dap-btn dap-btn-deny" :disabled="busy" @click="onDeny">
+                {{ $t('encryption.approval.notMe') }}
+              </button>
+            </div>
+            <button class="dap-link" :disabled="busy" @click="linkMode = 'show'">
+              {{ $t('encryption.approval.showInstead') }}
             </button>
-            <button class="dap-btn dap-btn-deny" :disabled="busy" @click="onDeny">
-              No, secure my account
-            </button>
-          </div>
+          </template>
+          <template v-else>
+            <p class="dap-text">{{ $t('encryption.approval.plainText') }}</p>
+            <div class="dap-actions">
+              <button class="dap-btn dap-btn-approve" :disabled="busy" @click="onApprove">
+                {{ $t('encryption.approval.thatWasMe') }}
+              </button>
+              <button class="dap-btn dap-btn-deny" :disabled="busy" @click="onDeny">
+                No, secure my account
+              </button>
+            </div>
+          </template>
           <p v-if="pendingApprovals.length > 1" class="dap-more">
             +{{ pendingApprovals.length - 1 }} more login{{ pendingApprovals.length - 1 > 1 ? 's' : '' }} waiting
           </p>
@@ -57,19 +76,23 @@
       </div>
     </transition>
   </Teleport>
+  <DeviceLinkModal v-if="linkMode" :mode="linkMode" @close="linkMode = null" />
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, defineAsyncComponent, ref, onMounted } from 'vue'
 import Icon from '@/components/common/Icon.vue'
 import { useDeviceApprovals } from '@/composables/useDeviceApprovals'
-import type { DeviceApprovalRequest } from '@/services/encryption/DeviceIdentityService'
+import { isPairingRequest, type DeviceApprovalRequest } from '@/services/encryption/DeviceIdentityService'
 import { debug } from '@/utils/debug'
+
+const DeviceLinkModal = defineAsyncComponent(() => import('./DeviceLinkModal.vue'))
 
 const {
   pendingApprovals,
   ownPendingRequest,
   ownPendingDismissed,
+  linkInProgress,
   start,
   approve,
   deny,
@@ -77,10 +100,12 @@ const {
   secureThisLogin,
 } = useDeviceApprovals()
 const busy = ref(false)
+const linkMode = ref<'scan' | 'show' | null>(null)
 
 const currentApprover = computed<DeviceApprovalRequest | null>(
-  () => pendingApprovals.value[0] || null,
+  () => (linkInProgress.value ? null : pendingApprovals.value[0] || null),
 )
+const currentIsPairing = computed(() => !!currentApprover.value && isPairingRequest(currentApprover.value))
 
 const showOwnPending = computed(
   () => !!ownPendingRequest.value && !ownPendingDismissed.value && !currentApprover.value,
@@ -253,6 +278,22 @@ onMounted(async () => {
 
 .dap-btn-deny:hover:not(:disabled) {
   background: var(--bg-tertiary);
+}
+
+.dap-link {
+  margin-top: 8px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.dap-link:hover:not(:disabled) {
+  color: var(--text-primary);
 }
 
 .dap-more {

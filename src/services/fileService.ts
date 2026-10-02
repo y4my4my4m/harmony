@@ -1,7 +1,6 @@
-import { supabase } from '@/supabase';
-import { v4 as uuidv4 } from 'uuid';
 import { debug } from '@/utils/debug'
 import { validateImageUpload } from '@/utils/uploadValidation'
+import { uploadMessageMedia, type UploadedMessageMedia } from '@/services/privateMedia'
 
 export interface UploadProgressCallback {
   (progress: number): void;
@@ -9,53 +8,29 @@ export interface UploadProgressCallback {
 
 /**
  * Client-side pre-upload gate (BUGS.md H28). The bucket enforces size limits
- * server-side, but only after the whole upload, and applies no MIME check.
- * SVGs are rejected here: they can embed script and are served same-origin.
+ * server-side, but only after the whole upload. SVGs are rejected here: they can
+ * embed script.
  */
 async function validateChatUpload(file: File): Promise<void> {
     if (file.type === 'image/svg+xml' || /\.svg$/i.test(file.name || '')) {
         throw new Error('SVG uploads are not allowed (they can contain embedded scripts). Please convert to PNG or WebP.');
     }
-    const validationError = await validateImageUpload(file, 'user_media');
+    const validationError = await validateImageUpload(file, 'message_media');
     if (validationError) {
         throw new Error(validationError);
     }
 }
 
-async function handleFileDrop(userId: string, file: any) {
-    try {
-        await validateChatUpload(file);
-        const uniqueFileName = `${uuidv4()}.${file.name.split('.').pop()}`;
-        const filePath = `${userId}/${uniqueFileName}`;
-
-        const { error } = await supabase.storage
-        .from('user_media')
-        .upload(filePath, file);
-
-        if (error) throw error;
-
-        const { data } = await supabase.storage
-        .from('user_media')
-        .getPublicUrl(filePath);
-
-        debug.log(data);
-
-        return data.publicUrl;
-    } catch (error) {
-        debug.error('Error uploading file:', error);
-        return null;
-    }
-}
-
+/** Uploads a chat attachment into `room` (see privateMedia.ts). */
 async function handleFileUploadWithProgress(
-    userId: string, 
-    file: File, 
+    userId: string,
+    file: File,
+    room: string | null,
     onProgress?: UploadProgressCallback
-): Promise<string | null> {
+): Promise<UploadedMessageMedia> {
     try {
         await validateChatUpload(file);
-        const uniqueFileName = `${uuidv4()}.${file.name.split('.').pop()}`;
-        const filePath = `${userId}/${uniqueFileName}`;
+        if (!room) throw new Error('Attachments need a channel or conversation');
 
         let uploadedBytes = 0;
         const totalBytes = file.size;
@@ -69,27 +44,15 @@ async function handleFileUploadWithProgress(
             }
         }, 200);
 
-        let error;
+        let uploaded: UploadedMessageMedia;
         try {
-            ({ error } = await supabase.storage
-                .from('user_media')
-                .upload(filePath, file));
+            uploaded = await uploadMessageMedia(room, userId, file, { fileName: file.name });
         } finally {
             clearInterval(progressInterval);
         }
 
-        if (error) {
-            if (onProgress) onProgress(0);
-            throw error;
-        }
-
         if (onProgress) onProgress(100);
-
-        const { data } = await supabase.storage
-            .from('user_media')
-            .getPublicUrl(filePath);
-
-        return data.publicUrl;
+        return uploaded;
     } catch (error) {
         debug.error('Error uploading file:', error);
         if (onProgress) onProgress(0);
@@ -99,15 +62,16 @@ async function handleFileUploadWithProgress(
 
 // Background upload manager
 class BackgroundUploadManager {
-    private uploads = new Map<string, Promise<string | null>>();
+    private uploads = new Map<string, Promise<UploadedMessageMedia | null>>();
     private callbacks = new Map<string, UploadProgressCallback>();
 
     async startUpload(
         uploadId: string,
         userId: string,
         file: File,
+        room: string | null,
         onProgress?: UploadProgressCallback
-    ): Promise<string | null> {
+    ): Promise<UploadedMessageMedia | null> {
         if (onProgress) {
             this.callbacks.set(uploadId, onProgress);
         }
@@ -115,6 +79,7 @@ class BackgroundUploadManager {
         const uploadPromise = handleFileUploadWithProgress(
             userId,
             file,
+            room,
             (progress) => {
                 const callback = this.callbacks.get(uploadId);
                 if (callback) callback(progress);
@@ -144,4 +109,4 @@ class BackgroundUploadManager {
 
 export const backgroundUploadManager = new BackgroundUploadManager();
 
-export { handleFileDrop, handleFileUploadWithProgress };
+export { handleFileUploadWithProgress };

@@ -1,11 +1,18 @@
 /**
  * User Data Service
  *
- * Single source of truth for user data: fetching and caching, realtime
- * presence sync, and context-based subscriptions.
+ * Single source of truth for user data: fetching and caching, presence, and
+ * context-based subscriptions.
+ *
+ * Presence is kept in the database, keyed by the caller's profile: each tab
+ * calls presence_heartbeat every HEARTBEAT_INTERVAL and presence_offline when it
+ * closes. Others' presence comes from get_presence, which answers only for
+ * profiles sharing a server or a conversation with the viewer, or that it
+ * follows, and changes arrive as presence:update on server-presence:{serverId}
+ * and on the private user channel (DM partners).
  */
 
-import { supabase } from '@/supabase'
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/supabase'
 import { UserStatus, type UserData, type UserContext, type CustomUserStatus, type DisplayNamePart } from '@/types'
 import { activityTracker } from '@/services/ActivityTracker'
 import { debug } from '@/utils/debug'
@@ -13,6 +20,8 @@ import { userStorage } from '@/utils/userScopedStorage'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { loadEmojiData, isLoaded as unifiedEmojiLoaded } from '@/services/unifiedEmojiService'
 import { realtimeApiService } from '@/services/RealtimeApiService'
+import { userEventChannel } from '@/services/UserEventChannel'
+import { getClientDeviceId } from '@/utils/clientDeviceId'
 import {
   createShortcodeRegex,
   parseEmojiShortcodeToken,
@@ -47,6 +56,16 @@ function detectMobileDevice(): boolean {
  */
 const PROFILE_BACKFILL_CHUNK = 30
 
+/** get_presence answers at most this many profiles per call. */
+const PRESENCE_BATCH = 1000
+
+interface PresenceRow {
+  profile_id: string
+  status: UserStatus
+  online: boolean
+  is_mobile: boolean
+}
+
 /** Bulk member-list hydration - omit federation_metadata (large JSONB, rarely needed). */
 const PROFILE_BULK_SELECT =
   'id, username, web_handle, display_name, avatar_url, banner_url, bio, color, status, domain, updated_at, created_at, is_local, custom_status, is_admin, is_moderator'
@@ -55,8 +74,12 @@ class UserDataService extends EventTarget {
   private users = new Map<string, UserData>()
   private contexts = new Map<string, UserContext>()
   private currentUserId: string | null = null
-  private globalChannel: RealtimeChannel | null = null
   private initialized = false
+  // Handlers on the private user channel, and the access token the unload path
+  // signs presence_offline with.
+  private presenceOffs: Array<() => void> = []
+  private presenceAccessToken: string | null = null
+  private presenceAuthUnsub: (() => void) | null = null
   
   // In-flight subscribeToContext calls; a second caller awaits the first.
   private pendingSubscriptions = new Map<string, Promise<void>>()
@@ -332,8 +355,13 @@ class UserDataService extends EventTarget {
       }
       
       if (profile) {
-        // Database is authoritative; localStorage is the backup.
+        // Database is authoritative; localStorage is the backup. The chosen
+        // status lives in presence (Invisible included); profiles.status holds
+        // a manual choice only and answers for a profile with no presence yet.
         let finalStatus = UserStatus.Online // default for an active user
+        const { data: ownPresence } = await supabase.rpc('get_presence', { p_profile_ids: [userId] })
+        const storedStatus: UserStatus | null | undefined =
+          ((ownPresence ?? []) as PresenceRow[]).find(r => r.profile_id === userId)?.status ?? profile.status
 
         // The manual status flag survives tab close.
         const savedManualFlag = this.getManualStatusFlag()
@@ -343,13 +371,13 @@ class UserDataService extends EventTarget {
         }
 
         // Primary: Use database status if it exists and is valid
-        if (profile.status !== null && profile.status !== undefined) {
-          if (profile.status === UserStatus.Away || profile.status === UserStatus.Busy || profile.status === UserStatus.Invisible) {
-            if (this.wasManuallySet && this.manualStatus === profile.status) {
+        if (storedStatus !== null && storedStatus !== undefined) {
+          if (storedStatus === UserStatus.Away || storedStatus === UserStatus.Busy || storedStatus === UserStatus.Invisible) {
+            if (this.wasManuallySet && this.manualStatus === storedStatus) {
               // User explicitly chose this status - preserve it
-              finalStatus = profile.status
+              finalStatus = storedStatus
               debug.log('Preserving manually-set status from database:', UserStatus[finalStatus])
-            } else if (profile.status === UserStatus.Away && !this.wasManuallySet) {
+            } else if (storedStatus === UserStatus.Away && !this.wasManuallySet) {
               // Away in DB but no manual flag → was auto-idle, reset to Online
               finalStatus = UserStatus.Online
               debug.log('User was auto-idle Away, resetting to Online (user just opened the app)')
@@ -358,29 +386,16 @@ class UserDataService extends EventTarget {
               finalStatus = this.manualStatus
               debug.log('Restoring manual status:', UserStatus[finalStatus])
             } else {
-              finalStatus = profile.status
+              finalStatus = storedStatus
               debug.log('Preserving status from database:', UserStatus[finalStatus])
             }
-          } else if (profile.status === UserStatus.Online) {
+          } else if (storedStatus === UserStatus.Online) {
             finalStatus = UserStatus.Online
             debug.log('Status loaded from database:', UserStatus[finalStatus])
           } else {
             // Offline in DB - user is actively opening the app, reset to Online
             finalStatus = UserStatus.Online
             debug.log('User was offline in DB but is now active, setting to Online')
-          }
-
-          // If final status differs from DB, sync it
-          if (finalStatus !== profile.status) {
-            try {
-              await supabase
-                .from('profiles')
-                .update({ status: finalStatus })
-                .eq('id', userId)
-              debug.log('Updated database status to', UserStatus[finalStatus])
-            } catch (syncError) {
-              debug.warn('Failed to update status in database:', syncError)
-            }
           }
         } else {
           // No status in database - use manual flag if set, otherwise localStorage backup
@@ -391,17 +406,6 @@ class UserDataService extends EventTarget {
           } else if (backupStatus === UserStatus.Busy || backupStatus === UserStatus.Invisible) {
             finalStatus = backupStatus
             debug.log('Using user-preferred status from localStorage backup:', UserStatus[finalStatus])
-            
-            // Sync backup to database for consistency
-            try {
-              await supabase
-                .from('profiles')
-                .update({ status: finalStatus })
-                .eq('id', userId)
-              debug.log('Synced localStorage status to database')
-            } catch (syncError) {
-              debug.warn('Failed to sync status to database:', syncError)
-            }
           } else {
             // Default to Online - user is actively using the app
             debug.log('No valid status found, defaulting to Online (user is active)')
@@ -519,236 +523,183 @@ class UserDataService extends EventTarget {
   }
   
   /**
-   * Global presence channel for cross-context online/offline tracking.
-   * Presence is tracked once per subscription.
+   * Starts this tab's presence. The unload hook is installed first (BUGS.md
+   * H31 v2): a tab closed during start-up still reaches it.
    */
   private async setupGlobalPresence(): Promise<void> {
     if (!this.currentUserId) return
 
-    // BUGS.md H31 v2: the beforeunload cleanup hook is installed BEFORE any
-    // presence channel opens. Assigning it after
-    // `supabase.channel(...).subscribe(...)` leaves a window where a tab
-    // close (or a fast initial-session restore + close cycle) reaches
-    // `auth.ts.setupOfflineHandlers`' `__harmonyPresenceCleanup?.()` before
-    // the function exists. The closure captures only `this`, and
-    // `untrackFromAll...` checks `this.globalChannel` / context channels and
-    // no-ops when nothing is open.
     if (typeof window !== 'undefined') {
-      ;(window as any).__harmonyPresenceCleanup = () => {
-        // Fires untrack calls and lets browser keepalive flush them. No
-        // `await`: `beforeunload` is synchronous and promises are unreliable
-        // past unload.
-        this.untrackFromAllPresenceChannels().catch(err => {
-          debug.warn('__harmonyPresenceCleanup untrack failed:', err)
-        })
-      }
+      ;(window as any).__harmonyPresenceCleanup = () => this.presenceOfflineKeepalive()
     }
 
-    this.globalChannel = supabase.channel('harmony-global-presence')
-      .on('presence', { event: 'sync' }, () => {
-        this.handleGlobalPresenceSync()
-      })
-      .on('presence', { event: 'join' }, ({ newPresences }: { newPresences: any[] }) => {
-        this.handleGlobalPresenceJoin(newPresences)
-      })
-      .on('presence', { event: 'leave' }, ({ leftPresences }: { leftPresences: any[] }) => {
-        this.handleGlobalPresenceLeave(leftPresences)
-      })
-      .subscribe(async (status: string) => {
-        if (status === 'SUBSCRIBED') {
-          debug.log('Global presence channel connected')
-          await this.trackCurrentUserGlobally()
-        }
-      })
+    this.presenceAuthUnsub?.()
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      this.presenceAccessToken = session?.access_token ?? null
+    })
+    this.presenceAuthUnsub = () => data.subscription.unsubscribe()
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      this.presenceAccessToken = session?.access_token ?? this.presenceAccessToken
+    })
+
+    this.presenceOffs.forEach(off => off())
+    this.presenceOffs = [
+      userEventChannel.on('presence:update', (payload) => this.applyPresenceUpdate(payload)),
+      userEventChannel.on('_reconnected', () => { void this.refreshContextPresence(true) }),
+    ]
+
+    await this.publishPresence()
   }
-  
-  /**
-   * Track the current user in global presence.
-   *
-   * IMPORTANT: call only on initial connection, status changes, and profile
-   * updates (avatar, color, etc.). Calling it on heartbeat or route changes
-   * causes join/leave churn.
-   */
-  private async trackCurrentUserGlobally(): Promise<void> {
-    if (!this.globalChannel || !this.currentUserId) return
-    
+
+  /** This tab's presence: the chosen status, or offline for UserStatus.Offline. */
+  private async publishPresence(): Promise<void> {
+    if (!this.currentUserId) return
     const userData = this.users.get(this.currentUserId)
     if (!userData) return
-    
-    if (userData.status === UserStatus.Offline || userData.status === UserStatus.Invisible) {
-      try {
-        await this.globalChannel.untrack()
-      } catch {
-        // Ignore untrack errors
-      }
-      return
-    }
-    
+
+    const deviceId = getClientDeviceId()
+    const { error } = userData.status === UserStatus.Offline
+      ? await supabase.rpc('presence_offline', { p_device_id: deviceId })
+      : await supabase.rpc('presence_heartbeat', {
+          p_device_id: deviceId,
+          p_status: userData.status,
+          p_is_mobile: !!userData.isMobile,
+        })
+    if (error) debug.warn('Presence update failed:', error.message)
+  }
+
+  /** Ends this tab's presence from an unloading page, which may not finish a normal request. */
+  private presenceOfflineKeepalive(): void {
+    if (!this.presenceAccessToken) return
     try {
-      await this.globalChannel.track({
-        user_id: this.currentUserId,
-        username: userData.username,
-        display_name: userData.displayName,
-        avatar_url: userData.avatarUrl,
-        color: userData.color,
-        status: userData.status,
-        custom_status: userData.customStatus,
-        is_mobile: userData.isMobile,
-        online_at: new Date().toISOString()
-      })
-      
-      debug.log(`User ${this.currentUserId} tracked globally with status: ${UserStatus[userData.status]}`)
-    } catch (error) {
-      debug.warn('Global presence track failed:', error)
+      void fetch(`${SUPABASE_URL}/rest/v1/rpc/presence_offline`, {
+        method: 'POST',
+        keepalive: true,
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${this.presenceAccessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ p_device_id: getClientDeviceId() }),
+      }).catch(() => {})
+    } catch {
+      // The page is going away; presence_sweep ends the tab after 150 s.
     }
   }
-  
-  /** Updates online/offline status only; kept minimal to avoid churn. */
-  private handleGlobalPresenceSync(): void {
-    if (!this.globalChannel) return
-    
-    const state = this.globalChannel.presenceState()
-    // eslint-disable-next-line unused-imports/no-unused-vars
-    const userCount = Object.keys(state).length
-    
-    const globallyOnlineUserIds = new Set<string>()
-    
-    Object.values(state).forEach((presences: any[]) => {
-      presences.forEach((presence: any) => {
-        if (presence.user_id) {
-          globallyOnlineUserIds.add(presence.user_id)
-          this.updateUserFromGlobalPresence(presence.user_id, presence)
-        }
+
+  /** Ends this tab's presence, for sign-out. */
+  async goOffline(): Promise<void> {
+    if (!this.currentUserId) return
+    const { error } = await supabase.rpc('presence_offline', { p_device_id: getClientDeviceId() })
+    if (error) debug.warn('presence_offline failed:', error.message)
+  }
+
+  /** presence:update from server-presence or the user channel, or a get_presence row. */
+  private applyPresenceUpdate(data: any): void {
+    const userId = data?.user_id
+    if (typeof userId !== 'string' || userId === this.currentUserId) return
+    if (data.online === true) {
+      this.updateUserFromGlobalPresence(userId, {
+        status: data.status,
+        is_mobile: data.is_mobile === true,
+        online_at: new Date().toISOString(),
       })
-    })
-    
-    // Users absent from global presence go offline; a non-Online status
-    // (Away/Busy) is preserved.
-    this.users.forEach((userData, userId) => {
-      if (userId !== this.currentUserId && !globallyOnlineUserIds.has(userId)) {
-        if (userData.isOnline) {
-          userData.isOnline = false
-          userData.lastSeen = new Date().toISOString()
-
-          if (userData.status === UserStatus.Online) {
-            userData.status = UserStatus.Offline
-          }
-
-          this.emitEvent('user-updated', { userId })
-        }
-      }
-    })
-    
-    debug.log(`Global presence: ${globallyOnlineUserIds.size} users online globally`)
+    } else {
+      this.markUserOffline(userId)
+    }
   }
-  
-  private handleGlobalPresenceJoin(newPresences: any[]): void {
-    newPresences.forEach((presence: any) => {
-      if (presence.user_id) {
-        this.updateUserFromGlobalPresence(presence.user_id, presence)
-      }
-    })
-  }
-  
-  private handleGlobalPresenceLeave(leftPresences: any[]): void {
-    leftPresences.forEach((presence: any) => {
-      if (presence.user_id && presence.user_id !== this.currentUserId) {
-        const userData = this.users.get(presence.user_id)
-        if (userData) {
-          userData.isOnline = false
-          userData.lastSeen = new Date().toISOString()
-          
-          // Away/Busy is preserved; only Online becomes Offline.
-          if (userData.status === UserStatus.Online) {
-            userData.status = UserStatus.Offline
-          }
 
-          this.emitEvent('user-updated', { userId: presence.user_id })
-          this.emitEvent('global-presence-updated', { userId: presence.user_id, isOnline: false })
-        }
+  /** Online rows of get_presence for these profiles, keyed by profile id. */
+  private async fetchPresenceRows(userIds: string[]): Promise<Map<string, PresenceRow>> {
+    const rows = new Map<string, PresenceRow>()
+    const ids = [...new Set(userIds)].filter(id => id && id !== this.currentUserId)
+    for (let i = 0; i < ids.length; i += PRESENCE_BATCH) {
+      const { data, error } = await supabase.rpc('get_presence', { p_profile_ids: ids.slice(i, i + PRESENCE_BATCH) })
+      if (error) {
+        debug.warn('get_presence failed:', error.message)
+        continue
       }
-    })
+      for (const row of (data ?? []) as PresenceRow[]) {
+        if (row.online && row.profile_id !== this.currentUserId) rows.set(row.profile_id, row)
+      }
+    }
+    return rows
   }
-  
-  private updateUserFromGlobalPresence(userId: string, presence: any): void {
+
+  /** Applies get_presence rows to cached profiles; a profile without a row is offline. */
+  private applyPresenceRows(userIds: string[], rows: Map<string, PresenceRow>): void {
+    for (const id of userIds) {
+      const row = rows.get(id)
+      if (row) {
+        this.applyPresenceUpdate({ user_id: id, online: true, status: row.status, is_mobile: row.is_mobile })
+      } else if (id !== this.currentUserId) {
+        this.markUserOffline(id)
+      }
+    }
+  }
+
+  async fetchPresence(userIds: string[]): Promise<void> {
+    this.applyPresenceRows(userIds, await this.fetchPresenceRows(userIds))
+  }
+
+  /**
+   * Re-reads presence for subscribed contexts. Server contexts receive their
+   * members' changes on server-presence and are re-read only when `all`.
+   */
+  private async refreshContextPresence(all: boolean): Promise<void> {
+    const ids = new Set<string>()
+    for (const context of this.contexts.values()) {
+      if (!all && context.type === 'server') continue
+      context.userIds.forEach(id => ids.add(id))
+    }
+    if (ids.size > 0) await this.fetchPresence([...ids])
+  }
+
+  private markUserOffline(userId: string): void {
+    if (userId === this.currentUserId) return
+    const userData = this.users.get(userId)
+    if (!userData?.isOnline) return
+
+    userData.isOnline = false
+    userData.lastSeen = new Date().toISOString()
+    // Away/Busy is preserved; only Online becomes Offline.
+    if (userData.status === UserStatus.Online) {
+      userData.status = UserStatus.Offline
+    }
+
+    this.emitEvent('user-updated', { userId })
+    this.emitEvent('global-presence-updated', { userId, isOnline: false })
+  }
+
+  /** Presence carries no profile fields; a profile not in the cache is skipped. */
+  private updateUserFromGlobalPresence(userId: string, presence: { status?: UserStatus; is_mobile?: boolean; online_at?: string }): void {
     const existing = this.users.get(userId)
-    const userStatus = presence.status ?? existing?.status ?? UserStatus.Online
+    if (!existing) return
+    const userStatus = presence.status ?? existing.status ?? UserStatus.Online
+    const nextMobile = presence.is_mobile ?? existing.isMobile ?? false
 
-    // Offline status means invisible: never shown as online. Unreachable
-    // given the trackCurrentUserGlobally() checks; handled as a safety net.
-    if (userStatus === UserStatus.Offline) {
-      debug.log(`User ${userId} has offline status in global presence - skipping update (they should be invisible)`)
-      if (existing) {
-        existing.isOnline = false
-        existing.lastSeen = presence.online_at || new Date().toISOString()
-        this.emitEvent('user-updated', { userId })
-        this.emitEvent('global-presence-updated', { userId, isOnline: false })
-      }
-      return
-    }
-
-    const nextUsername = presence.username || existing?.username || 'Unknown'
-    const nextDisplayName = presence.display_name || presence.username || existing?.displayName || 'Unknown'
-    // Cache/DB wins - presence can be stale (tracked before avatar upload)
-    const nextAvatar = existing?.avatarUrl || presence.avatar_url
-    const nextColor = presence.color || existing?.color
-    const nextCustomStatus = presence.custom_status || existing?.customStatus
-    const nextMobile = presence.is_mobile || existing?.isMobile || false
-
-    // Fast path: nothing user-visible changed and the user is already
-    // online, so only bookkeeping fields are bumped - no reactive write, no
-    // event emit. Otherwise Supabase Realtime Presence sync events (fired on
-    // every join/leave/track from any peer) re-render every
-    // Avatar/DisplayName/Status component, remounting <img> elements and
-    // forcing a fresh fetch through R2/imgproxy: avatar flicker under
-    // network latency.
-    if (
-      existing &&
-      existing.isOnline === true &&
-      existing.username === nextUsername &&
-      existing.displayName === nextDisplayName &&
-      existing.avatarUrl === nextAvatar &&
-      existing.color === nextColor &&
-      existing.status === userStatus &&
-      existing.isMobile === nextMobile &&
-      JSON.stringify(existing.customStatus) === JSON.stringify(nextCustomStatus)
-    ) {
+    // Fast path: nothing user-visible changed, so no reactive write and no event.
+    // Each emit re-renders every Avatar/DisplayName/Status component, remounting
+    // <img> elements: avatar flicker under network latency.
+    if (existing.isOnline === true && existing.status === userStatus && existing.isMobile === nextMobile) {
       existing.lastSeen = presence.online_at || new Date().toISOString()
       existing.lastHeartbeat = existing.lastSeen
       return
     }
 
-    const userData: UserData = {
+    this.users.set(userId, {
       ...existing,
-      id: userId,
-      username: nextUsername,
-      displayName: nextDisplayName,
-      avatarUrl: nextAvatar,
-      bannerUrl: existing?.bannerUrl,
-      bio: existing?.bio,
-      color: nextColor,
-      domain: existing?.domain,
-      isLocal: existing?.isLocal ?? true,
       status: userStatus,
-      customStatus: nextCustomStatus,
       isOnline: true,
       isMobile: nextMobile,
       lastSeen: presence.online_at || new Date().toISOString(),
       lastHeartbeat: presence.online_at || new Date().toISOString(),
       lastCacheUpdate: new Date().toISOString(),
-      createdAt: existing?.createdAt || new Date().toISOString(),
-      source: 'presence'
-    }
-    
-    this.users.set(userId, userData)
+    })
 
     this.emitEvent('user-updated', { userId })
     this.emitEvent('global-presence-updated', { userId, isOnline: true })
   }
-
-  // updateUserFromPresence removed with the per-server Supabase Presence
-  // handlers (see the comment in the server presence block). Presence-based
-  // user data flows through `updateUserFromGlobalPresence` above.
 
   
   /**
@@ -784,6 +735,8 @@ class UserDataService extends EventTarget {
         if (userData) {
           userData.lastHeartbeat = new Date().toISOString()
         }
+        await this.publishPresence()
+        await this.refreshContextPresence(false)
       }
     }, this.HEARTBEAT_INTERVAL)
   }
@@ -825,9 +778,10 @@ class UserDataService extends EventTarget {
       // the background. Keeps big servers from blocking the member list on
       // every profile.
       let offlineBackfillIds: string[] = []
+      const presence = await this.fetchPresenceRows(userIds)
       if (type === 'server' && userIds.length > PROFILE_BACKFILL_CHUNK) {
-        const onlineIds = userIds.filter(id => this.users.get(id)?.isOnline === true)
-        const offlineIds = userIds.filter(id => this.users.get(id)?.isOnline !== true)
+        const onlineIds = userIds.filter(id => presence.has(id))
+        const offlineIds = userIds.filter(id => !presence.has(id))
         const firstBatch = onlineIds.length > 0 ? onlineIds : offlineIds.slice(0, PROFILE_BACKFILL_CHUNK)
         offlineBackfillIds = onlineIds.length > 0 ? offlineIds : offlineIds.slice(PROFILE_BACKFILL_CHUNK)
         await this.loadUsersData(firstBatch)
@@ -835,6 +789,8 @@ class UserDataService extends EventTarget {
         // Small contexts (DMs, friends, small servers): load everyone.
         await this.loadUsersData(userIds)
       }
+
+      this.applyPresenceRows(userIds, presence)
 
       const context: UserContext = {
         id: contextId,
@@ -859,7 +815,7 @@ class UserDataService extends EventTarget {
 
       // Backfill the remaining (offline) profiles in the background.
       if (offlineBackfillIds.length > 0) {
-        void this.backfillContextProfiles(contextId, offlineBackfillIds)
+        void this.backfillContextProfiles(contextId, offlineBackfillIds, presence)
       }
 
       debug.log(`Subscribed to ${type} context:`, contextId)
@@ -875,13 +831,14 @@ class UserDataService extends EventTarget {
    * the member list fills in without blocking the initial paint. Bails if the
    * context is torn down mid-backfill.
    */
-  private async backfillContextProfiles(contextId: string, userIds: string[]): Promise<void> {
+  private async backfillContextProfiles(contextId: string, userIds: string[], presence: Map<string, PresenceRow>): Promise<void> {
     for (let i = 0; i < userIds.length; i += PROFILE_BACKFILL_CHUNK) {
       if (!this.contexts.has(contextId)) return
       const chunk = userIds.slice(i, i + PROFILE_BACKFILL_CHUNK)
       try {
         const fetched = await this.loadUsersData(chunk)
         if (!this.contexts.has(contextId)) return
+        this.applyPresenceRows(chunk, presence)
         // A fully cached chunk is already in the list from the subscribe-time
         // notify; re-emitting re-sorts the member list once per chunk.
         if (fetched) this.emitEvent('context-updated', { contextId })
@@ -897,26 +854,17 @@ class UserDataService extends EventTarget {
    *
    * This channel is BROADCAST-ONLY. It receives:
    *   - profile_update broadcasts from peers
-   *   - presence_event broadcasts from DB triggers (member join/leave,
-   *     profile updates, emoji changes)
+   *   - presence_event broadcasts from the database: member join/leave,
+   *     profile updates, emoji changes, and presence:update for members
    *
-   * It does NOT use Supabase Presence (`.track()` + `.on('presence', ...)`).
-   * Per-server presence broke in two ways:
-   *   - Switching servers unsubscribes the user from this channel, which
-   *     fires `presence:leave` on every peer subscribed to the same channel,
-   *     making the user appear OFFLINE to other members of the server they
-   *     just left despite still being logged in.
-   *   - `handleServerSync` force-marked every member absent from the
-   *     per-server presence state as offline, even when global presence
-   *     showed them online.
-   *
-   * Presence is GLOBAL: one user, one online/offline state.
-   * `harmony-global-presence` is the single source of truth. Per-server
-   * channels are pure pub/sub.
+   * It does NOT use Supabase Presence (`.track()` + `.on('presence', ...)`):
+   * unsubscribing on a server switch fired `presence:leave` for every peer and
+   * read as going offline, and a peer could track another member's key.
+   * Online/offline comes from the database (presence_heartbeat, get_presence).
    *
    * BUGS.md C14 retry behaviour for `CHANNEL_ERROR` is preserved.
    */
-  private async setupServerPresence(serverId: string, userIds: string[]): Promise<void> {
+  private async setupServerPresence(serverId: string, userIds: string[], isRetry = false): Promise<void> {
     const channelName = `server-presence:${serverId}`
     debug.log('Subscribing to server broadcast channel:', serverId, 'with', userIds.length, 'users')
 
@@ -948,6 +896,8 @@ class UserDataService extends EventTarget {
           this.handleServerMemberLeave(serverId, { old: { user_id: data.user_id } })
         } else if (type === 'profile:updated') {
           this.handleProfileUpdate(serverId, { new: data })
+        } else if (type === 'presence:update') {
+          this.applyPresenceUpdate(data)
         } else if (type?.startsWith('emoji:')) {
           this.handleEmojiBroadcast(data)
         }
@@ -955,8 +905,8 @@ class UserDataService extends EventTarget {
       .subscribe(async (status: string) => {
         if (status === 'SUBSCRIBED') {
           console.log(`[Realtime] server-presence:${serverId} → SUBSCRIBED`)
-          // No .track() call: this channel does not participate in presence
-          // tracking. Online/offline is owned by `harmony-global-presence`.
+          // A resubscribe after an error re-reads what it missed.
+          if (isRetry) void this.fetchPresence(userIds)
         } else if (status === 'CHANNEL_ERROR') {
           console.error(`[Realtime] server-presence:${serverId} → CHANNEL_ERROR`)
           // The timer lives on the context so unsubscribing cancels it.
@@ -973,7 +923,7 @@ class UserDataService extends EventTarget {
             ;(ctx as any)._presenceRetryTimer = null
             // Re-check context still exists when timer fires.
             if (!this.contexts.has(serverId)) return
-            this.setupServerPresence(serverId, userIds).catch(err => {
+            this.setupServerPresence(serverId, userIds, true).catch(err => {
               debug.error(`[Realtime] server-presence:${serverId} retry failed:`, err)
             })
           }, 5000)
@@ -988,20 +938,6 @@ class UserDataService extends EventTarget {
     }
   }
   
-  // REMOVED: trackCurrentUserInServer / handleServerSync / executeServerSync
-  //          / handleServerUserJoin / handleServerUserLeave
-  //
-  // These coupled per-server Supabase Presence to online/offline state:
-  //   - Switching servers triggered `presence:leave` on the old server's
-  //     channel, marking the user OFFLINE for every peer there while still
-  //     logged in.
-  //   - `executeServerSync` force-set every member absent from the
-  //     per-server presence to offline, regardless of global presence.
-  //
-  // `server-presence:{serverId}` is a BROADCAST topic for profile/member/
-  // emoji events. Online/offline lives entirely on
-  // `harmony-global-presence`.
-
   private async handleServerMemberJoin(serverId: string, payload: any): Promise<void> {
     const newUserId = payload.new.user_id
     debug.log(`New member joined server ${serverId}:`, newUserId)
@@ -1059,10 +995,6 @@ class UserDataService extends EventTarget {
         userData.displayName = updatedProfile.display_name
         userData.displayNameParts = this.resolveDisplayNameParts(updatedProfile.display_name, userData.displayNameEmojis)
       }
-      const avatarChanged = updatedProfile.avatar_url !== undefined &&
-        updatedProfile.avatar_url !== userData.avatarUrl
-      const bannerChanged = updatedProfile.banner_url !== undefined &&
-        updatedProfile.banner_url !== userData.bannerUrl
       if (updatedProfile.avatar_url !== undefined) {
         userData.avatarUrl = updatedProfile.avatar_url
       }
@@ -1086,10 +1018,6 @@ class UserDataService extends EventTarget {
       userData.source = 'database'
       
       this.emitEvent('user-updated', { userId })
-
-      if (userId === this.currentUserId && (avatarChanged || bannerChanged)) {
-        await this.refreshPresenceMediaFields()
-      }
       
       debug.log(`Updated user data for ${userData.displayName} in server ${serverId}`)
     } else {
@@ -1461,26 +1389,20 @@ class UserDataService extends EventTarget {
     userData.lastHeartbeat = new Date().toISOString()
     
     try {
-      // The update selects back `status` to verify what was persisted.
-      const { data, error } = await supabase
-        .from('profiles')
-        .update({ 
-          status,
-        })
-        .eq('id', this.currentUserId)
-        .select('status')
-      
-      if (error) {
-        throw new Error(`Database update failed: ${error.message}`)
+      // profiles.status is readable by anyone and push reads Busy from it: it
+      // holds a manual choice only, Invisible as Online. Automatic changes and
+      // liveness go to presence alone.
+      if (isManual) {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ status: status === UserStatus.Invisible ? UserStatus.Online : status })
+          .eq('id', this.currentUserId)
+        if (error) {
+          throw new Error(`Database update failed: ${error.message}`)
+        }
       }
-      
-      if (data && data[0] && data[0].status !== status) {
-        throw new Error(`Status verification failed. Expected: ${status}, Got: ${data[0].status}`)
-      }
-      
-      debug.log('Status verified in database:', UserStatus[status])
-      
-      await this.updatePresenceStatus(status)
+
+      await this.publishPresence()
 
       // Sync to Redis presence
       const redisStatus = status === UserStatus.Online ? 'online'
@@ -1648,16 +1570,6 @@ class UserDataService extends EventTarget {
     return this.users.get(this.currentUserId)?.isMobile || false
   }
   
-  /** Re-tracks presence so other clients see the new status. */
-  private async updatePresenceStatus(status: UserStatus): Promise<void> {
-    if (status === UserStatus.Invisible) {
-      debug.log(`User going Invisible - untracking from all presence channels`)
-      await this.untrackFromAllPresenceChannels()
-      return
-    }
-    
-    await this.trackCurrentUserGlobally()
-  }
   
   /**
    * Broadcasts only to contexts the user shares, so only users who can
@@ -1691,10 +1603,6 @@ class UserDataService extends EventTarget {
     
     try {
       await this.broadcastProfileToContexts(profileData)
-
-      if (profileData.avatarUrl !== undefined || profileData.bannerUrl !== undefined) {
-        await this.refreshPresenceMediaFields()
-      }
       
       this.emitEvent('user-updated', { userId: this.currentUserId })
       debug.log('Profile updated and broadcast to relevant contexts')
@@ -1927,10 +1835,8 @@ class UserDataService extends EventTarget {
   }
 
   /**
-   * No-op. Supabase maintains the presence connection once tracked at
-   * initial connection; only status/profile changes update presence.
-   * NOTE: calling trackCurrentUserGlobally() on route changes causes
-   * join/leave churn.
+   * No-op: presence is read per context and kept current by heartbeats and
+   * presence:update events, not on route changes.
    */
   async refreshGlobalPresence(): Promise<void> {
     // Intentionally empty.
@@ -1963,10 +1869,11 @@ class UserDataService extends EventTarget {
       }
     }
     
-    if (this.globalChannel) {
-      await this.globalChannel.unsubscribe()
-      this.globalChannel = null
-    }
+    this.presenceOffs.forEach(off => off())
+    this.presenceOffs = []
+    this.presenceAuthUnsub?.()
+    this.presenceAuthUnsub = null
+    this.presenceAccessToken = null
 
     // Clears the beforeunload hook installed by `setupGlobalPresence`
     // (BUGS.md H31). Otherwise a logout followed by a tab close calls
@@ -2011,18 +1918,20 @@ class UserDataService extends EventTarget {
       contexts: this.contexts.size,
       currentUser: this.currentUserId,
       initialized: this.initialized,
-      globalChannelConnected: !!this.globalChannel
+      presenceActive: this.presenceOffs.length > 0
     }
   }
   
   /** Used for mention parsing. Searches the cache only. */
   findUserIdByUsername(username: string, domain?: string): string | null {
-    // With a domain the key is username@domain, otherwise username.
+    // The local host is the bare form. A bare username matches local users
+    // only; a remote user of the same name is a different account.
+    const localDomain = ((import.meta.env.VITE_DOMAIN as string) || '').toLowerCase();
+    if (domain && domain.toLowerCase() === localDomain) domain = undefined;
     const searchKey = domain ? `${username}@${domain}`.toLowerCase() : username.toLowerCase();
     
     for (const [userId, userData] of this.users.entries()) {
-      // Local users match on username alone.
-      if (!domain && userData.username.toLowerCase() === searchKey) {
+      if (!domain && userData.isLocal && userData.username.toLowerCase() === searchKey) {
         return userId;
       }
       
@@ -2057,38 +1966,6 @@ class UserDataService extends EventTarget {
     const offline = users.filter(user => !user.isOnline)
     
     return { online, offline }
-  }
-  
-  /**
-   * Re-track presence after avatar/banner changes so other clients don't keep
-   * seeing stale media from an old track payload.
-   *
-   * Only the global presence channel needs re-tracking; per-server channels
-   * are broadcast-only and carry no presence payload.
-   */
-  private async refreshPresenceMediaFields(): Promise<void> {
-    await this.trackCurrentUserGlobally()
-  }
-
-  /**
-   * Untrack current user from presence (for invisible status).
-   *
-   * Only the global channel carries a presence payload; per-server channels
-   * are broadcast-only and have nothing to untrack.
-   */
-  private async untrackFromAllPresenceChannels(): Promise<void> {
-    if (!this.currentUserId) return
-
-    if (this.globalChannel) {
-      try {
-        await this.globalChannel.untrack()
-        debug.log('Untracked from global presence channel')
-      } catch (error) {
-        debug.warn('Failed to untrack from global presence:', error)
-      }
-    }
-
-    debug.log('User is now invisible to all other users')
   }
 }
 

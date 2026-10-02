@@ -24,6 +24,9 @@
         class="search-input"
       />
     </div>
+    <div v-if="limitNotice" class="emoji-limit-notice" role="status" data-testid="emoji-limit-notice">
+      {{ limitNotice }}
+    </div>
 
     <!-- Emoji Content Area -->
     <div class="emoji-content">
@@ -43,7 +46,8 @@
               v-for="fav in favoriteEmojis"
               :key="fav.emoji_id"
               class="emoji-item"
-              :class="{ 'native-emoji-item': isNativePack && !fav.emoji_url, 'svg-emoji-item': !isNativePack || fav.emoji_url }"
+              :class="{ 'native-emoji-item': isNativePack && !fav.emoji_url, 'svg-emoji-item': !isNativePack || fav.emoji_url, 'emoji-item--blocked': isBlocked(favoriteAsEmoji(fav)) }"
+              :aria-disabled="isBlocked(favoriteAsEmoji(fav)) || undefined"
               @click="selectFavoriteEmoji(fav)"
               @contextmenu.prevent="openEmojiCtxFavorite(fav, $event)"
               @touchstart="handleTouchHold($event, (e) => openEmojiCtxFavorite(fav, e))"
@@ -84,7 +88,8 @@
             v-for="emoji in topEmojisForPicker"
             :key="emoji.id"
             class="emoji-item"
-            :class="{ 'native-emoji-item': isNativePack, 'svg-emoji-item': !isNativePack }"
+            :class="{ 'native-emoji-item': isNativePack, 'svg-emoji-item': !isNativePack, 'emoji-item--blocked': isBlocked(frequentAsEmoji(emoji)) }"
+            :aria-disabled="isBlocked(frequentAsEmoji(emoji)) || undefined"
             @click="selectFrequentEmoji(emoji)"
             @contextmenu.prevent="openEmojiCtxFrequent(emoji, $event)"
             @touchstart="handleTouchHold($event, (e) => openEmojiCtxFrequent(emoji, e))"
@@ -123,6 +128,8 @@
               v-for="emoji in group.emojis"
               :key="emoji.id"
               class="emoji-item"
+              :class="{ 'emoji-item--blocked': isBlocked(emoji) }"
+              :aria-disabled="isBlocked(emoji) || undefined"
               @click="selectEmoji(emoji)"
               @contextmenu.prevent="openEmojiCtxServer(emoji, $event)"
               @touchstart="handleTouchHold($event, (e) => openEmojiCtxServer(emoji, e))"
@@ -161,7 +168,8 @@
             v-for="emoji in category.emojis"
             :key="emoji.shortcode"
             class="emoji-item"
-            :class="{ 'svg-emoji-item': !isNativePack, 'native-emoji-item': isNativePack }"
+            :class="{ 'svg-emoji-item': !isNativePack, 'native-emoji-item': isNativePack, 'emoji-item--blocked': isBlocked({ id: emoji.unicode, name: emoji.shortcode }) }"
+            :aria-disabled="isBlocked({ id: emoji.unicode, name: emoji.shortcode }) || undefined"
             @click="selectUnifiedEmoji(emoji)"
             @contextmenu.prevent="openEmojiCtxUnified(emoji, $event)"
             @touchstart="handleTouchHold($event, (e) => openEmojiCtxUnified(emoji, e))"
@@ -255,6 +263,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import Icon from '@/components/common/Icon.vue';
 import EmptyState from '@/components/common/EmptyState.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import type { PickedEmoji } from '@/utils/reactionLimits';
 
 // --- Types ---
 
@@ -290,6 +299,10 @@ const props = withDefaults(
     triggerElement?: HTMLElement;
     /** The desired position relative to the trigger element. */
     position?: 'above' | 'below' | 'left' | 'right';
+    /** True for an emoji a reaction limit refuses; it is shown dimmed and not sent. */
+    isEmojiBlocked?: (emoji: PickedEmoji) => boolean;
+    /** Shown above the list while a reaction limit is reached. */
+    limitNotice?: string | null;
   }>(),
   {
     emojiIconClicked: false,
@@ -297,6 +310,8 @@ const props = withDefaults(
     position: 'above',
     triggerElement: undefined,
     closeEmojiList: () => {},
+    isEmojiBlocked: undefined,
+    limitNotice: null,
   },
 );
 
@@ -576,7 +591,25 @@ function getFrequentEmojiSvgUrl(emoji: { id: string; native?: string; name: stri
  * Stores the unicode character, never a pack-specific id, for portability
  * across packs.
  */
+const isBlocked = (emoji: PickedEmoji): boolean => props.isEmojiBlocked?.(emoji) ?? false;
+
+const favoriteAsEmoji = (fav: EmojiFavorite): PickedEmoji =>
+  ({ id: fav.emoji_id, name: fav.emoji_name, url: fav.emoji_url || undefined });
+
+const frequentAsEmoji = (emoji: { id: string; native?: string; name: string; url?: string }): PickedEmoji => {
+  const url = getFrequentEmojiDisplayUrl(emoji);
+  return url ? { id: emoji.id, name: emoji.name, url } : { id: emoji.native || emoji.id, name: emoji.name };
+};
+
+/** A refused pick shows the limit and sends nothing. */
+const refuse = (emoji: PickedEmoji): boolean => {
+  if (!isBlocked(emoji)) return false;
+  if (props.limitNotice) showFavToast(props.limitNotice);
+  return true;
+};
+
 const selectUnifiedEmoji = (emoji: EmojiEntry): void => {
+  if (refuse({ id: emoji.unicode, name: emoji.shortcode })) return;
   triggerReaction();
   
   // Record usage with the unicode character
@@ -599,6 +632,7 @@ const selectUnifiedEmoji = (emoji: EmojiEntry): void => {
 };
 
 const selectEmoji = (emoji: Emoji): void => {
+  if (refuse(emoji)) return;
   triggerReaction();
   
   // Record usage for frequently used list (with URL for custom emojis)
@@ -613,6 +647,7 @@ const selectEmoji = (emoji: Emoji): void => {
 
 // Select from frequently used emojis (handles all types)
 const selectFrequentEmoji = (emoji: { id: string; native?: string; name: string; url?: string }): void => {
+  if (refuse(frequentAsEmoji(emoji))) return;
   triggerReaction();
   
   let unicode = emoji.native || emoji.id;
@@ -680,6 +715,7 @@ async function removeFavoriteEmoji(emojiId: string) {
 }
 
 function selectFavoriteEmoji(fav: EmojiFavorite) {
+  if (refuse(favoriteAsEmoji(fav))) return;
   triggerReaction();
   recordEmojiUsage({ id: fav.emoji_id, name: fav.emoji_name, url: fav.emoji_url || undefined });
   emit('sendEmoji', {
@@ -1110,6 +1146,22 @@ watch(
   -webkit-touch-callout: none; /* Prevent iOS image selection/callout on long press */
   -webkit-user-select: none;
   user-select: none;
+}
+
+.emoji-item--blocked {
+  opacity: 0.3;
+  filter: grayscale(1);
+  cursor: not-allowed;
+}
+
+.emoji-limit-notice {
+  margin: 0 var(--space-2, 8px) var(--space-2, 8px);
+  padding: 6px 8px;
+  border-radius: var(--radius-md, 6px);
+  background: var(--background-quaternary);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.3;
 }
 
 .emoji-item:hover {

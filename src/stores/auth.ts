@@ -1,10 +1,9 @@
 import { defineStore } from 'pinia';
 import { onSessionRejected, signOutAndForget, supabase } from '@/supabase';
 import type { Session } from '@supabase/supabase-js';
-import { updateUserStatus } from '@/services/ProfileService';
 import { useActivityPubStore } from '@/stores/useActivityPub';
-import { UserStatus } from '@/types';
 import { debug } from '@/utils/debug';
+import { i18n } from '@/i18n';
 import { userStorage } from '@/utils/userScopedStorage';
 import { realtimeApiService } from '@/services/RealtimeApiService';
 
@@ -480,19 +479,11 @@ export const useAuthStore = defineStore('auth', {
       });
     },
 
-    async setUserOnline(userId: string) {
+    /** Ends this tab's presence; profiles.status keeps the chosen status. */
+    async setUserOffline(_userId: string) {
       try {
-        await updateUserStatus(userId, UserStatus.Online);
-        debug.log('User set to online:', userId);
-      } catch (error) {
-        debug.error('Error setting user online:', error);
-      }
-    },
-
-    async setUserOffline(userId: string) {
-      try {
-        await updateUserStatus(userId, UserStatus.Offline);
-        debug.log('User set to offline:', userId);
+        const { userDataService } = await import('@/services/userDataService');
+        await userDataService.goOffline();
       } catch (error) {
         debug.error('Error setting user offline:', error);
       }
@@ -715,11 +706,11 @@ export const useAuthStore = defineStore('auth', {
           p_code: code,
         });
         if (error) throw error;
-        if (!redeemed) throw new Error('That recovery code is not valid or was already used.');
+        if (!redeemed) throw new Error(i18n.global.t('security.mfa.recoveryCodeInvalid'));
 
         const { data: refreshed } = await supabase.auth.refreshSession();
         const session = refreshed.session ?? (await supabase.auth.getSession()).data.session;
-        if (!session) throw new Error('Signed in with a recovery code, but no session was returned. Sign in again.');
+        if (!session) throw new Error(i18n.global.t('security.mfa.recoveryNoSession'));
 
         await this.finalizeSignIn(session);
         return { session };

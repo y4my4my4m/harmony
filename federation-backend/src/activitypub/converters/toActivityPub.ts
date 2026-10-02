@@ -44,6 +44,13 @@ function mentionHref(item: any, mentionActorUrls?: Map<string, string>): string 
   return `https://${domain}/users/${item.username || 'unknown'}`;
 }
 
+/** Visible handle: `@user` on this instance's host, `@user@host` otherwise. */
+function mentionLabel(item: any): string {
+  const username = item.username || 'unknown';
+  const domain = String(item.domain || config.INSTANCE_DOMAIN).toLowerCase();
+  return domain === String(config.INSTANCE_DOMAIN).toLowerCase() ? `@${username}` : `@${username}@${domain}`;
+}
+
 /**
  * Convert internal post format to ActivityPub Note
  * Supports quote posts via quoteUrl (Fediverse) and _misskey_quote (Misskey)
@@ -368,15 +375,46 @@ export function createRejectActivity(actor: any, followActivity: any): any {
 }
 
 /**
- * Id of the Like federated for a post_interactions row. An Undo names the same id: Pleroma
- * and Akkoma resolve the undone activity by id, Mastodon and Misskey by actor and object.
+ * Id of the Like or EmojiReact federated for a post_interactions row. An Undo names the same
+ * id: Pleroma and Akkoma resolve the undone activity by id, Mastodon, GoToSocial and Misskey
+ * by actor and object.
  */
 export function likeActivityId(user: { username: string }, interactionId: string): string {
   return `https://${config.INSTANCE_DOMAIN}/users/${user.username}/likes/${interactionId}`;
 }
 
 /**
- * Create a Like activity: a favourite when `emojiContent` is absent, otherwise a reaction.
+ * `:name@domain:` -> `:name:` when an Emoji tag carries the image. Misskey's
+ * isCustomEmojiRegexp /^:([\w+-]+)(?:@\.)?:$/ matches only `:name:` or `:name@.:` and
+ * infers the origin from the actor's host; Pleroma and Akkoma match the tag name against
+ * the content with colons trimmed.
+ */
+function reactionContent(emojiContent: string, emojiData?: { name: string; url: string }): string {
+  return emojiData ? emojiContent.replace(/@[\w.-]+(?=:$)/, '') : emojiContent;
+}
+
+/** Emoji tag for a custom emoji reaction, named `:name:` without a domain. */
+function emojiReactionTag(emojiData: { name: string; url: string }): any {
+  const ext = emojiData.url.split('.').pop()?.toLowerCase().split('?')[0] || '';
+  const mediaType = ext === 'gif' ? 'image/gif'
+    : ext === 'webp' ? 'image/webp'
+    : ext === 'svg' ? 'image/svg+xml'
+    : 'image/png';
+  return {
+    type: 'Emoji',
+    id: emojiData.url,
+    name: `:${emojiData.name}:`,
+    icon: {
+      type: 'Image',
+      mediaType,
+      url: emojiData.url,
+    },
+  };
+}
+
+/**
+ * Create a Like activity: a favourite when `emojiContent` is absent, otherwise a Misskey
+ * reaction.
  *
  * A favourite carries no `content` or `_misskey_reaction`. Mastodon reads every Like as a
  * favourite; Misskey maps a bare Like to the instance's like reaction.
@@ -418,14 +456,7 @@ export function createLikeActivity(
   };
 
   if (emojiContent) {
-    // Misskey's isCustomEmojiRegexp /^:([\w+-]+)(?:@\.)?:$/ only matches
-    // `:name:` or `:name@.:` - NOT `:name@domain:`.  Sending the qualified
-    // form causes Misskey to fall back to a generic.  Strip @domain here;
-    // Misskey infers the origin domain from the actor's host and the tag data
-    // provides the icon URL.
-    const reactionValue = emojiData
-      ? emojiContent.replace(/@[\w.-]+(?=:$)/, '')
-      : emojiContent;
+    const reactionValue = reactionContent(emojiContent, emojiData);
     activity.content = reactionValue;
     activity._misskey_reaction = reactionValue;
   }
@@ -435,27 +466,67 @@ export function createLikeActivity(
   }
 
   if (emojiContent && emojiData?.url) {
-    const ext = emojiData.url.split('.').pop()?.toLowerCase().split('?')[0] || '';
-    const mediaType = ext === 'gif' ? 'image/gif'
-      : ext === 'webp' ? 'image/webp'
-      : ext === 'svg' ? 'image/svg+xml'
-      : 'image/png';
-    // Tag name uses base shortcode `:name:` (without @domain).
-    // Misskey matches by stripping @domain from _misskey_reaction.
-    const tagName = `:${emojiData.name}:`;
-    activity.tag = [{
-      type: 'Emoji',
-      id: emojiData.url,
-      name: tagName,
-      icon: {
-        type: 'Image',
-        mediaType,
-        url: emojiData.url,
-      }
-    }];
+    activity.tag = [emojiReactionTag(emojiData)];
   }
 
   return activity;
+}
+
+/**
+ * Create an EmojiReact activity (FEP-c0e0; Pleroma and Akkoma's native reaction). The emoji
+ * is in `content`; a custom emoji adds an Emoji tag whose name, colons trimmed, equals the
+ * content's (Pleroma EmojiReactValidator.maybe_validate_tag_presence).
+ */
+export function createEmojiReactActivity(
+  user: any,
+  objectUrl: string,
+  emojiContent: string,
+  emojiData: { name: string; url: string } | undefined,
+  recipientUrls: string[] | undefined,
+  activityId: string,
+): any {
+  const userUrl = `https://${config.INSTANCE_DOMAIN}/users/${user.username}`;
+  const activity: any = {
+    '@context': [
+      'https://www.w3.org/ns/activitystreams',
+      {
+        'toot': 'http://joinmastodon.org/ns#',
+        'Emoji': 'toot:Emoji',
+        'litepub': 'http://litepub.social/ns#',
+        'EmojiReact': 'litepub:EmojiReact',
+      }
+    ],
+    id: activityId,
+    type: 'EmojiReact',
+    actor: userUrl,
+    object: objectUrl,
+    content: reactionContent(emojiContent, emojiData),
+  };
+
+  if (recipientUrls && recipientUrls.length > 0) {
+    activity.to = recipientUrls;
+  }
+
+  if (emojiData?.url) {
+    activity.tag = [emojiReactionTag(emojiData)];
+  }
+
+  return activity;
+}
+
+/**
+ * Undo of `activity`, embedded under `${activity.id}/undo`. The embedded copy keeps no
+ * @context and no per-delivery audience; the Undo takes the inner @context.
+ */
+export function createUndoActivity(user: { username: string }, activity: any): any {
+  const { '@context': context, to: _to, ...embedded } = activity;
+  return {
+    '@context': context,
+    id: `${activity.id}/undo`,
+    type: 'Undo',
+    actor: `https://${config.INSTANCE_DOMAIN}/users/${user.username}`,
+    object: embedded,
+  };
 }
 
 /**
@@ -586,10 +657,8 @@ function extractContentAsHtml(content: any, mentionActorUrls?: Map<string, strin
         // MessagePart, so escape both before splicing them into the URL
         // and the visible label. Receiving servers do further sanitisation,
         // but we shouldn't emit broken HTML in the first place.
-        const domain = item.domain || config.INSTANCE_DOMAIN;
-        const username = item.username || 'unknown';
         const href = safeAttrUrlOutbound(mentionHref(item, mentionActorUrls));
-        const displayName = item.isLocal ? `@${username}` : `@${username}@${domain}`;
+        const displayName = mentionLabel(item);
         return `<a href="${escapeHtmlAttr(href)}" class="mention">${escapeHtmlAttr(displayName)}</a>`;
       }
       else if (item.type === 'hashtag') {
@@ -760,10 +829,8 @@ function extractTags(content: any, mentionActorUrls?: Map<string, string>): any[
       }));
       
       // MessagePart format uses username and domain, not mention string
-      const domain = item.domain || config.INSTANCE_DOMAIN;
-      const username = item.username || 'unknown';
       const href = mentionHref(item, mentionActorUrls);
-      const name = item.isLocal ? `@${username}` : `@${username}@${domain}`;
+      const name = mentionLabel(item);
       
       tags.push({
         type: 'Mention',

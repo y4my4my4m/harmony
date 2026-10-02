@@ -34,6 +34,7 @@ export const BUCKET_LIMITS: Record<string, BucketLimitConfig> = {
   // Emoji excludes SVG: SVG carries scriptable markup.
   emojis: { maxBytes: 1 * 1024 * 1024, allowedMime: ['image/png', 'image/gif', 'image/webp', 'image/apng', 'image/jpeg'], label: 'emoji' },
   user_media: { maxBytes: 50 * 1024 * 1024, allowedMime: null, label: 'file' },
+  message_media: { maxBytes: 50 * 1024 * 1024, allowedMime: null, label: 'file' },
 }
 
 const FRIENDLY_MIME: Record<string, string> = {

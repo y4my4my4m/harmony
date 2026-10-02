@@ -55,17 +55,27 @@
             {{ formatCurrency(fundingConfig.goal_amount, fundingConfig.goal_currency) }}
           </span>
         </button>
+        <!-- Funding without a goal shown: desktop's only entry; phones have the rail heart. -->
+        <button
+          v-else-if="fundingConfig?.enabled && !isMobile"
+          type="button"
+          class="funding-indicator"
+          data-testid="funding-support"
+          @click="$emit('open-funding')"
+        >
+          <Icon name="heart" :size="12" class="funding-heart" />
+          <span class="funding-text">{{ $t('activitypub.supportInstance') }}</span>
+        </button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from 'vue';
+import { computed } from 'vue';
 import Icon from '@/components/common/Icon.vue';
 import type { Server, Channel } from '@/types';
 import { showsFundingGoal, type FundingConfig } from '@/services/FundingService';
-import { useFundingStore } from '@/stores/useFunding';
 import ServerIcon from './ServerIcon.vue';
 
 interface Props {
@@ -100,10 +110,6 @@ defineEmits<{
   'toggle-left-sidebar': [];
   'open-funding': [];
 }>();
-
-const fundingStore = useFundingStore();
-onMounted(() => { fundingStore.contextBars++; });
-onBeforeUnmount(() => { fundingStore.contextBars--; });
 
 const fundingPercent = computed(() => {
   if (!props.fundingConfig?.goal_amount) return 0;

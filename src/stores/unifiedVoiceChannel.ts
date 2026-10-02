@@ -312,8 +312,16 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
   
   actions: {
-    // Leaves any current voice channel before joining.
-    async joinVoiceChannel(channelId: string, serverId: string): Promise<boolean> {
+    /**
+     * Leaves any current voice channel before joining. `livekit` carries
+     * credentials another instance issued, used instead of a token from this
+     * one: the callee's side of a federated DM call.
+     */
+    async joinVoiceChannel(
+      channelId: string,
+      serverId: string,
+      opts: { livekit?: { wsUrl: string; token: string } } = {},
+    ): Promise<boolean> {
       try {
         const authStore = useAuthStore();
         const serverChannelStore = useServerChannelStore();
@@ -399,7 +407,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         debug.log('Joining voice channel:', channelId, 'on server:', serverId);
         
-        const isRemoteServer = serverChannelStore.currentServer?.is_local_server === false;
+        // DM calls never go through a remote server's voice join, whichever
+        // server was viewed last.
+        const isRemoteServer = serverId !== 'dm'
+          && serverChannelStore.currentServer?.is_local_server === false;
         this.isFederatedChannel = isRemoteServer;
         
         if (isRemoteServer) {
@@ -407,7 +418,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           return await this.joinFederatedVoiceChannel(channelId, serverId, userId, abortSignal);
         }
         
-        return await this.joinLocalVoiceChannel(channelId, serverId, userId, abortSignal);
+        return await this.joinLocalVoiceChannel(channelId, serverId, userId, abortSignal, opts.livekit);
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
           debug.log('Connection attempt cancelled by user');
@@ -441,7 +452,13 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
     },
     
-    async joinLocalVoiceChannel(channelId: string, serverId: string, userId: string, abortSignal?: AbortSignal): Promise<boolean> {
+    async joinLocalVoiceChannel(
+      channelId: string,
+      serverId: string,
+      userId: string,
+      abortSignal?: AbortSignal,
+      livekit?: { wsUrl: string; token: string },
+    ): Promise<boolean> {
       const serverUsersStore = useServerUsersStore();
       const serverChannelStore = useServerChannelStore();
       
@@ -475,7 +492,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       
       // Gate must be current before the mic publishes; a PTT join must not go out hot.
       this.syncTransmitGate();
-      const webrtcSuccess = await webrtcManager.joinChannel(channelId, userId, roomType, abortSignal, requireE2EE);
+      const webrtcSuccess = livekit
+        ? await webrtcManager.joinWithToken(livekit.wsUrl, livekit.token, channelId, userId)
+        : await webrtcManager.joinChannel(channelId, userId, roomType, abortSignal, requireE2EE);
       
       if (abortSignal?.aborted) {
         if (webrtcSuccess) {
@@ -509,7 +528,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         let conversationId: string;
         const federatedMatch = channelId.match(/^federated-dm-([a-f0-9-]{36})/i);
         if (federatedMatch) {
-          conversationId = federatedMatch[1];
+          conversationId = dmCallSignaling.conversationForRoom(channelId) ?? federatedMatch[1];
         } else {
           conversationId = channelId.replace('dm-', '');
         }
@@ -891,8 +910,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
               const { authContextService } = await import('@/services/AuthContextService');
               const profileId = await authContextService.getCurrentProfileId();
               if (optimisticChannelId?.startsWith('federated-dm-')) {
-                const parts = optimisticChannelId.replace('federated-dm-', '').split('-');
-                const conversationId = parts.slice(0, -1).join('-');
+                const conversationId = dmCallSignaling.conversationForRoom(optimisticChannelId);
                 if (profileId && conversationId) {
                   await dmCallSignaling.endFederatedCall(conversationId, profileId);
                 }
@@ -942,13 +960,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             const { authContextService } = await import('@/services/AuthContextService');
             const profileId = await authContextService.getCurrentProfileId();
 
-            // Federated DM room name: federated-dm-{conversationId}-{timestamp}.
+            // Federated DM room: federated-dm-{caller's conversationId}-{timestamp}.
             // Ends via ActivityPub rather than local signaling.
             if (channelId?.startsWith('federated-dm-')) {
-              const parts = channelId.replace('federated-dm-', '').split('-');
-              // conversationId is a UUID: 5 hyphen-separated parts. The trailing
-              // segment is the timestamp.
-              const conversationId = parts.slice(0, -1).join('-');
+              const conversationId = dmCallSignaling.conversationForRoom(channelId);
               if (profileId && conversationId) {
                 await dmCallSignaling.endFederatedCall(conversationId, profileId);
               }

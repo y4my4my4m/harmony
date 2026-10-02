@@ -199,6 +199,14 @@ export const gifLimiter = createRateLimiter({
   },
 });
 
+// Federated attachments: remote instances fetch on receipt, remote browsers on view.
+export const mediaLimiter = createRateLimiter({
+  name: 'media',
+  windowMs: 60 * 1000,
+  maxRequests: 600,
+  message: 'Too many media requests, please slow down.',
+});
+
 export const discoveryLimiter = createRateLimiter({
   name: 'discovery',
   windowMs: 60 * 1000,

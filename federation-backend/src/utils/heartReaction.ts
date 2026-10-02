@@ -31,8 +31,10 @@ export function isFavouriteLike(like: { emoji?: string; emojiUrl?: string; emoji
 }
 
 /**
- * Inserts the actor's favourite on a post unless one exists. idx_post_interactions_unique
- * holds one `favorite` row per (user, post); 23505 is a concurrent insert of the same row.
+ * Inserts the actor's favourite on a post, or makes an implied one explicit: a plain Like
+ * is a favourite the actor gave, which their last reaction's removal leaves standing.
+ * idx_post_interactions_unique holds one `favorite` row per (user, post); 23505 is a
+ * concurrent insert of the same row.
  */
 export async function storeFavourite(
   supabase: any,
@@ -42,13 +44,22 @@ export async function storeFavourite(
 ): Promise<'inserted' | 'exists' | 'failed'> {
   const { data: existing } = await supabase
     .from('post_interactions')
-    .select('id')
+    .select('id, implied_by_reaction')
     .eq('post_id', postId)
     .eq('user_id', userId)
     .eq('interaction_type', 'favorite')
     .maybeSingle();
 
-  if (existing) return 'exists';
+  if (existing) {
+    if (existing.implied_by_reaction) {
+      const { error } = await supabase
+        .from('post_interactions')
+        .update({ implied_by_reaction: false })
+        .eq('id', existing.id);
+      if (error) return 'failed';
+    }
+    return 'exists';
+  }
 
   const row: Record<string, unknown> = {
     post_id: postId,

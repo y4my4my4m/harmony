@@ -70,6 +70,7 @@ export interface SupporterTier {
   removes_ads?: boolean
 }
 
+/** A supporter as admin_list_supporters() returns it; amount, platform and external_id are admin-only. */
 export interface Supporter {
   id: string
   user_id: string
@@ -79,7 +80,8 @@ export interface Supporter {
   expires_at: string | null
   is_active: boolean
   platform: string | null
-  tier?: SupporterTier
+  external_id?: string | null
+  tier?: SupporterTier | null
   user?: {
     username: string
     display_name: string
@@ -200,13 +202,19 @@ function queueBadgeLoad(userId: string): Promise<SupporterBadge | null> {
   })
 }
 
-// Normalizes the PostgREST embed `author.supporter_membership[*]` into the
-// SupporterBadge shape returned by getSupporterBadge. Takes the raw embed array.
+type SupporterMembership = {
+  is_active: boolean
+  tier: { name: string; badge_icon: string | null; badge_color: string | null } | null
+}
+
+// Normalizes the PostgREST embed `author.supporter_membership` into the SupporterBadge shape
+// returned by getSupporterBadge. instance_supporters.user_id is unique, so PostgREST embeds it
+// as one object or null; get_home_timeline_page builds an array.
 export function badgeFromMembership(
-  membership: Array<{ is_active: boolean; tier: { name: string; badge_icon: string | null; badge_color: string | null } | null }> | null | undefined
+  membership: SupporterMembership | SupporterMembership[] | null | undefined
 ): SupporterBadge | null {
-  if (!membership || membership.length === 0) return null
-  const active = membership.find(m => m?.is_active && m.tier)
+  const rows = Array.isArray(membership) ? membership : membership ? [membership] : []
+  const active = rows.find(m => m?.is_active && m.tier)
   if (!active || !active.tier) return null
   return {
     tier_name: active.tier.name,
@@ -377,20 +385,12 @@ class FundingService {
     }
   }
 
+  /** Active supporters, newest first. Instance admins only. */
   async getSupporters(): Promise<Supporter[]> {
     try {
-      const { data, error } = await supabase
-        .from('instance_supporters')
-        .select(`
-          *,
-          tier:instance_supporter_tiers(*),
-          user:profiles(username, display_name, avatar_url)
-        `)
-        .eq('is_active', true)
-        .order('started_at', { ascending: false })
-
+      const { data, error } = await supabase.rpc('admin_list_supporters')
       if (error) throw error
-      return data || []
+      return Array.isArray(data) ? (data as Supporter[]) : []
     } catch (error) {
       debug.error('Failed to get supporters:', error)
       return []
@@ -412,19 +412,15 @@ class FundingService {
     }
   }
 
+  /** Creates or reactivates a supporter row; platform defaults to 'manual'. Instance admins only. */
   async addSupporter(userId: string, tierId?: string, amount?: number, platform?: string): Promise<boolean> {
     try {
-      const { error } = await supabase
-        .from('instance_supporters')
-        .upsert({
-          user_id: userId,
-          tier_id: tierId || null,
-          amount: amount || null,
-          platform: platform || 'manual',
-          is_active: true,
-          started_at: new Date().toISOString()
-        }, { onConflict: 'user_id' })
-
+      const { error } = await supabase.rpc('admin_add_supporter', {
+        p_user_id: userId,
+        p_tier_id: tierId || null,
+        p_amount: amount || null,
+        p_platform: platform || null,
+      })
       if (error) throw error
       badgeCache.delete(userId)
       return true
@@ -435,19 +431,7 @@ class FundingService {
   }
 
   async removeSupporter(userId: string): Promise<boolean> {
-    try {
-      const { error } = await supabase
-        .from('instance_supporters')
-        .update({ is_active: false })
-        .eq('user_id', userId)
-
-      if (error) throw error
-      badgeCache.delete(userId)
-      return true
-    } catch (error) {
-      debug.error('Failed to remove supporter:', error)
-      return false
-    }
+    return this.updateSupporter(userId, { is_active: false })
   }
 
   async getSupporterBadge(userId: string): Promise<SupporterBadge | null> {
@@ -543,16 +527,19 @@ class FundingService {
     }
   }
 
-  async updateSupporter(userId: string, updates: { tier_id?: string | null; amount?: number | null; platform?: string | null }): Promise<boolean> {
+  /** Sets the given fields of a supporter row; absent fields keep their value. Instance admins only. */
+  async updateSupporter(
+    userId: string,
+    updates: { tier_id?: string | null; amount?: number | null; platform?: string | null; is_active?: boolean },
+  ): Promise<boolean> {
     try {
-      const { error } = await supabase
-        .from('instance_supporters')
-        .update(updates)
-        .eq('user_id', userId)
-
+      const { data, error } = await supabase.rpc('admin_update_supporter', {
+        p_user_id: userId,
+        p_changes: updates,
+      })
       if (error) throw error
       badgeCache.delete(userId)
-      return true
+      return data === true
     } catch (error) {
       debug.error('Failed to update supporter:', error)
       return false
@@ -663,84 +650,20 @@ class FundingService {
   }
 
   /**
-   * Resolves a pending donation by attributing it to a user. Creates the
-   * matching supporter + donation_history rows, then recomputes the user's
-   * tier from their cumulative cycle total (so multiple small donations
-   * aggregate into a tier). Idempotent on retry via the
-   * (platform, external_reference) unique index.
+   * Attributes a pending donation to a user in one transaction: supporter row, donation_history
+   * row (skipped when the webhook already recorded it), the pending row resolved, then the tier
+   * recomputed from the cumulative cycle total. A row already resolved is left as it is.
+   * Instance admins only.
    *
-   * The `tierId` parameter is ignored; the cumulative recompute is
-   * authoritative. Kept in the signature for API compatibility.
+   * `tierId` is ignored; the cumulative recompute decides the tier.
    */
   async resolvePendingDonation(pendingId: string, userId: string, _tierId?: string | null): Promise<boolean> {
     try {
-      const { data: pending, error: fetchErr } = await supabase
-        .from('instance_pending_donations')
-        .select('*')
-        .eq('id', pendingId)
-        .maybeSingle()
-
-      if (fetchErr) throw fetchErr
-      if (!pending) {
-        debug.warn('resolvePendingDonation: pending row not found', pendingId)
-        return false
-      }
-      if (pending.resolved_at) {
-        debug.warn('resolvePendingDonation: already resolved', pendingId)
-        return true
-      }
-
-      const { data: supporter, error: upsertErr } = await supabase
-        .from('instance_supporters')
-        .upsert(
-          {
-            user_id: userId,
-            // tier_id intentionally omitted: recompute_supporter_tier below
-            // sets it from the cumulative cycle total.
-            amount: pending.amount,
-            platform: pending.platform,
-            is_active: true,
-            started_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id' },
-        )
-        .select('id')
-        .single()
-
-      if (upsertErr || !supporter) throw upsertErr ?? new Error('Supporter upsert failed')
-
-      const { error: histErr } = await supabase
-        .from('instance_donation_history')
-        .insert({
-          supporter_id: supporter.id,
-          user_id: userId,
-          amount: pending.amount,
-          currency: pending.currency,
-          platform: pending.platform,
-          external_reference: pending.external_reference,
-          note: pending.donor_message,
-        })
-      // Tolerate duplicate-key: the webhook may have already inserted on retry.
-      if (histErr && histErr.code !== '23505') throw histErr
-
-      const { data: { user } } = await supabase.auth.getUser()
-      const { error: resolveErr } = await supabase
-        .from('instance_pending_donations')
-        .update({
-          resolved_at: new Date().toISOString(),
-          resolved_by: user?.id ?? null,
-          resolved_user_id: userId,
-        })
-        .eq('id', pendingId)
-
-      if (resolveErr) throw resolveErr
-
-      // Recompute from cumulative cycle total; this assigns the badge.
-      // Below the lowest tier, tier_id becomes NULL: the supporter row
-      // remains but no badge displays.
-      const { error: rpcErr } = await supabase.rpc('recompute_supporter_tier', { p_user_id: userId })
-      if (rpcErr) debug.warn('resolvePendingDonation: tier recompute failed:', rpcErr)
-
+      const { error } = await supabase.rpc('admin_resolve_pending_donation', {
+        p_pending_id: pendingId,
+        p_user_id: userId,
+      })
+      if (error) throw error
       badgeCache.delete(userId)
       return true
     } catch (error) {

@@ -11,7 +11,7 @@ const envSchema = z.object({
 
   // Software version, surfaced via NodeInfo, /health, and the federation User-Agent.
   // Bump this on each release (single source of truth for the federation backend).
-  VERSION: z.string().default('1.6.2'),
+  VERSION: z.string().default('1.6.7'),
   
   // Supabase
   SUPABASE_URL: z.string().url(),
@@ -131,6 +131,18 @@ const envSchema = z.object({
   AI_EMOJI_WEBHOOK_SECRET: z.preprocess(
     (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined),
     z.string().optional(),
+  ),
+  // HMAC key of federated attachment URLs (utils/privateMedia.ts). Derived from the
+  // service-role key when unset; rotating either key invalidates URLs already delivered.
+  MEDIA_URL_SECRET: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined),
+    z.string().min(32).optional(),
+  ),
+  // Public base of the media route, the prefix nginx forwards to this backend.
+  // Default: https://<INSTANCE_DOMAIN>/api/federation
+  MEDIA_PUBLIC_BASE_URL: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined),
+    z.string().url().optional(),
   ),
 });
 

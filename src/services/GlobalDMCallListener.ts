@@ -1,8 +1,9 @@
 /**
  * Global DM Call Listener
  *
- * One channel per user, dm-calls:{profileId}, plus the federated_call:* events of
- * the private user channel (UserEventChannel).
+ * One private channel per user, dm-calls:{profileId}: its owner alone reads it,
+ * no client sends on it (rings come from ring_dm_call), plus the federated_call:*
+ * events of the private user channel (UserEventChannel).
  * Receives incoming calls without knowing conversation ids in advance.
  */
 
@@ -11,7 +12,7 @@ import { supabase } from '@/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { dmCallPermissions } from './DMCallPermissions'
 import { userEventChannel } from './UserEventChannel'
-import { dmCallSignaling, type CallSignal } from './DMCallSignaling'
+import { dmCallSignaling, type CallSignal, type FederatedCallEvent } from './DMCallSignaling'
 import { authContextService } from './AuthContextService'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
@@ -102,7 +103,7 @@ class GlobalDMCallListenerService {
     debug.log(`Channel: ${channelName}`)
     debug.log(`================================================`)
     
-    this.userChannel = supabase.channel(channelName)
+    this.userChannel = supabase.channel(channelName, { config: { private: true } })
     
     this.userChannel
       .on('broadcast', { event: 'incoming-call' }, (payload) => {
@@ -138,20 +139,22 @@ class GlobalDMCallListenerService {
       }),
       userEventChannel.on('federated_call:accepted', (payload) => {
         debug.log('[Federated] Call accepted:', payload)
-        const call = dmCallSignaling.getActiveCall(payload.callId)
-        if (call?.timeoutTimer) {
-          clearTimeout(call.timeoutTimer)
-          call.timeoutTimer = undefined
-        }
+        dmCallSignaling.handleFederatedCallEvent('accepted', payload as FederatedCallEvent)
       }),
       userEventChannel.on('federated_call:rejected', (payload) => {
         debug.log('[Federated] Call rejected:', payload)
-        const toast = useToast()
-        toast.info('Call declined')
+        dmCallSignaling.handleFederatedCallEvent('rejected', payload as FederatedCallEvent)
+        void this.leaveFederatedRoom(payload as FederatedCallEvent)
+        useToast().info('Call declined')
       }),
       userEventChannel.on('federated_call:ended', (payload) => {
         debug.log('[Federated] Call ended:', payload)
-        this.dismissIncomingCall()
+        const event = payload as FederatedCallEvent
+        if (!event.conversationId || this.incomingCall.value?.conversationId === event.conversationId) {
+          this.dismissIncomingCall()
+        }
+        dmCallSignaling.handleFederatedCallEvent('ended', event)
+        void this.leaveFederatedRoom(event)
       }),
     ]
     this.federatedOff = () => offs.forEach((off) => off())
@@ -365,6 +368,16 @@ class GlobalDMCallListenerService {
     this.armRingDismissTimer(payload.conversationId)
 
     debug.log('[Federated] Showing incoming call modal')
+  }
+
+  /** Leaves the voice room of a federated call the remote party rejected or ended. */
+  private async leaveFederatedRoom(event: FederatedCallEvent): Promise<void> {
+    if (!event.roomName) return
+    const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel')
+    const voiceStore = useUnifiedVoiceChannelStore()
+    if (voiceStore.currentChannelId === event.roomName || voiceStore.optimisticChannelId === event.roomName) {
+      await voiceStore.leaveVoiceChannel()
+    }
   }
 
   dismissIncomingCall(): void {

@@ -7,6 +7,8 @@ import {
   ALL_BITS,
   VIEW_CHANNEL,
   botCanReadChannel,
+  botCanSeeChannel,
+  botCanWriteChannel,
   botChannelMask,
   grantableRoleBits,
   installMask,
@@ -84,6 +86,63 @@ describe('channel visibility', () => {
     expect(botCanReadChannel({ ...READER, allowed_channel_ids: [CHANNEL] }, open, CHANNEL)).toBe(true)
     expect(botCanReadChannel({ ...READER, allowed_channel_ids: [OTHER_CHANNEL] }, open, CHANNEL)).toBe(false)
     expect(botCanReadChannel({ ...READER, allowed_channel_ids: [] }, open, CHANNEL)).toBe(false)
+  })
+})
+
+describe('allowed_channel_ids grant', () => {
+  const hidden = { ...open, deny: VIEW_CHANNEL }
+
+  it('shows a listed channel whatever @everyone\'s override denies', () => {
+    expect(botCanSeeChannel({ allowed_channel_ids: [CHANNEL] }, hidden, CHANNEL)).toBe(true)
+    expect(botCanReadChannel({ ...READER, allowed_channel_ids: [CHANNEL] }, hidden, CHANNEL)).toBe(true)
+  })
+
+  it('matches a channel id in any case', () => {
+    expect(botCanSeeChannel({ allowed_channel_ids: [CHANNEL] }, hidden, CHANNEL.toUpperCase())).toBe(true)
+  })
+
+  it('shows nothing a NULL list leaves hidden', () => {
+    expect(botCanSeeChannel({ ...READER, allowed_channel_ids: null }, hidden, CHANNEL)).toBe(false)
+  })
+
+  it('adds nothing to the mask that bounds override writes', () => {
+    expect(botChannelMask({ ...READER, allowed_channel_ids: [CHANNEL] }, hidden, CHANNEL) & VIEW_CHANNEL).toBe(0n)
+  })
+})
+
+describe('botCanWriteChannel', () => {
+  const hidden = { ...open, deny: VIEW_CHANNEL }
+
+  it('requires the flag and visibility', () => {
+    expect(botCanWriteChannel(READER, open, CHANNEL, 'send_messages')).toBe(true)
+    expect(botCanWriteChannel(READER, hidden, CHANNEL, 'send_messages')).toBe(false)
+    expect(botCanWriteChannel(READER, open, CHANNEL, 'add_reactions')).toBe(false)
+    expect(botCanWriteChannel({ ...READER, allowed_channel_ids: [CHANNEL] }, hidden, CHANNEL, 'send_messages')).toBe(true)
+  })
+
+  it('does not require read_messages', () => {
+    expect(botCanWriteChannel({ send_messages: true }, open, CHANNEL, 'send_messages')).toBe(true)
+  })
+
+  it('follows @everyone\'s deny of the flag\'s bit unless the channel is listed', () => {
+    const readOnly = { ...open, deny: permissionMask('SEND_MESSAGES', 'ADD_REACTIONS') }
+    const reacting = { ...READER, add_reactions: true }
+    expect(botCanWriteChannel(reacting, readOnly, CHANNEL, 'send_messages')).toBe(false)
+    expect(botCanWriteChannel(reacting, readOnly, CHANNEL, 'add_reactions')).toBe(false)
+    expect(botCanWriteChannel({ ...reacting, allowed_channel_ids: [CHANNEL] }, readOnly, CHANNEL, 'send_messages')).toBe(true)
+    expect(botCanWriteChannel({ ...reacting, allowed_channel_ids: [CHANNEL] }, readOnly, CHANNEL, 'add_reactions')).toBe(true)
+  })
+
+  it('lets an @everyone allow restore the bit, and never grants a flag the install lacks', () => {
+    const reopened = { ...open, deny: permissionMask('SEND_MESSAGES'), allow: permissionMask('SEND_MESSAGES') }
+    expect(botCanWriteChannel(READER, reopened, CHANNEL, 'send_messages')).toBe(true)
+    expect(botCanWriteChannel({ read_messages: true, allowed_channel_ids: [CHANNEL] }, open, CHANNEL, 'send_messages')).toBe(false)
+  })
+
+  it('needs visibility alone without a flag', () => {
+    expect(botCanWriteChannel({}, open, CHANNEL, null)).toBe(true)
+    expect(botCanWriteChannel({}, hidden, CHANNEL, null)).toBe(false)
+    expect(botCanWriteChannel({ allowed_channel_ids: [OTHER_CHANNEL] }, open, CHANNEL, null)).toBe(false)
   })
 })
 

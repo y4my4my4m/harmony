@@ -53,7 +53,7 @@
             <div class="feature-card">
               <span class="feature-icon"><Icon name="smartphone" :size="18" /></span>
               <h4>Multi-device</h4>
-              <p>Use your recovery key to access messages on any device</p>
+              <p>{{ $t('encryption.recoverySetup.multiDevice') }}</p>
             </div>
             <div class="feature-card">
               <span class="feature-icon"><Icon name="refresh-cw" :size="18" /></span>
@@ -110,20 +110,23 @@
               >
                 Download
               </button>
-              <button
-                class="btn btn-secondary"
-                @click="toggleQRCode"
-                :disabled="recoveryWords.length === 0"
-              >
-                {{ showQRCode ? 'Hide QR code' : 'Show QR code' }}
-              </button>
             </div>
+
+            <button
+              type="button"
+              class="qr-toggle"
+              :aria-expanded="showQRCode"
+              :disabled="recoveryWords.length === 0"
+              @click="toggleQRCode"
+            >
+              <Icon :name="showQRCode ? 'chevron-down' : 'chevron-right'" :size="14" />
+              {{ showQRCode ? $t('encryption.recoverySetup.hideQr') : $t('encryption.recoverySetup.showQr') }}
+            </button>
 
             <div v-if="showQRCode && qrCodeDataUrl" class="qr-code-panel">
               <img :src="qrCodeDataUrl" alt="Recovery key QR code" class="qr-code-image" />
               <p class="hint">
-                Scan this from another device's recovery screen. Anyone who sees
-                this code can read your encrypted messages - don't screenshot it.
+                {{ $t('encryption.recoverySetup.qrHint') }}
               </p>
             </div>
 
@@ -192,10 +195,18 @@
             </div>
 
             <div class="reminder-box">
+              <span class="reminder-icon"><Icon name="smartphone" :size="16" /></span>
+              <i18n-t keypath="encryption.recoverySetup.newDeviceReminder" tag="p">
+                <template #label><strong>{{ $t('encryption.recoverySetup.newDeviceLabel') }}</strong></template>
+                <template #another><em>{{ $t('encryption.recovery.anotherDevice') }}</em></template>
+              </i18n-t>
+            </div>
+
+            <div class="reminder-box">
               <span class="reminder-icon"><Icon name="pin" :size="16" /></span>
               <p>
                 <strong>Remember:</strong> Keep your 12-word recovery key safe.
-                You'll need it to restore access on new devices or after clearing your browser data.
+                {{ $t('encryption.recoverySetup.rememberNeed') }}
               </p>
             </div>
           </div>
@@ -707,6 +718,28 @@ onMounted(() => {
   min-width: 0;
 }
 
+.qr-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 4px 0;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+
+.qr-toggle:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.qr-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .qr-code-panel {
   display: flex;
   flex-direction: column;
@@ -890,6 +923,10 @@ onMounted(() => {
 .reminder-icon {
   font-size: var(--font-size-2xl);
   flex-shrink: 0;
+}
+
+.reminder-box + .reminder-box {
+  margin-top: 12px;
 }
 
 .reminder-box p {

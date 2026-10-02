@@ -19,6 +19,7 @@ const CHANNEL = '00000000-0000-4000-8000-0000000000c1'
 const MESSAGE = '00000000-0000-4000-8000-0000000000e1'
 
 let recipients: { data: any; error: any }
+let messageContent: any[] = [{ type: 'text', text: 'hi' }]
 const rpc = vi.fn(async (name: string, _args: any) =>
   name === 'federation_channel_recipients' ? recipients : { data: null, error: { message: `unexpected ${name}` } })
 const messageUpdates: any[] = []
@@ -37,7 +38,7 @@ vi.mock('../config/supabase.js', () => ({
               data: {
                 id: MESSAGE,
                 channel_id: CHANNEL,
-                content: [{ type: 'text', text: 'hi' }],
+                content: messageContent,
                 created_at: '2026-01-01T00:00:00Z',
                 updated_at: '2026-01-01T00:00:00Z',
                 federation_status: 'pending',
@@ -74,6 +75,7 @@ beforeEach(() => {
   rpc.mockClear()
   enqueue.mockClear()
   messageUpdates.length = 0
+  messageContent = [{ type: 'text', text: 'hi' }]
   recipients = {
     data: [
       { instance: 'remote.test', member_ap_ids: ['https://remote.test/users/rm'], member_count: 1, shared_inbox: 'https://remote.test/inbox' },
@@ -140,5 +142,33 @@ describe('channel message fan-out', () => {
       'https://remote.test/inbox', 'https://other.test/inbox',
       'https://remote.test/inbox', 'https://other.test/inbox',
     ])
+  })
+})
+
+describe('channel attachments', () => {
+  const PATH = `c/${CHANNEL}/aaaaaaaa-0000-4000-8000-000000000001/cat.png`
+
+  it('gives each recipient instance its own attachment URL and never the path', async () => {
+    messageContent = [
+      { type: 'text', text: 'look' },
+      { type: 'file', fileType: 'image', fileName: 'cat.png', url: 'https://db.harmony.test/storage/v1/object/sign/x?token=t', path: PATH },
+    ]
+    await handleChannelMessageFederation({
+      message_id: MESSAGE, channel_id: CHANNEL, server_id: SERVER, channel_name: 'general', author_id: 'alice',
+    })
+
+    const delivered = enqueue.mock.calls.map(c => (c[0] as any).object)
+    expect(delivered).toHaveLength(2)
+    for (const [object, instance] of [[delivered[0], 'remote.test'], [delivered[1], 'other.test']] as const) {
+      const file = object['harmony:rawContent'][1]
+      expect(file).not.toHaveProperty('path')
+      const url = new URL(file.url)
+      expect(url.origin + url.pathname).toBe(`https://harmony.test/api/federation/media/${PATH}`)
+      expect(url.searchParams.get('to')).toBe(instance)
+      expect(object.attachment).toEqual([
+        { type: 'Document', mediaType: 'image/png', url: file.url, name: 'cat.png' },
+      ])
+    }
+    expect(delivered[0]['harmony:rawContent'][1].url).not.toBe(delivered[1]['harmony:rawContent'][1].url)
   })
 })

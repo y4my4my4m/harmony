@@ -98,7 +98,9 @@ Individual servers have their own settings managed by server owners:
 The admin panel has no bot section. Any user creates and manages bots under User Settings → My Bots
 (`UserBotsManagement`): token issue and reset, connection endpoints, and adding the bot to servers the
 user owns. Server owners grant per-server permissions under Server Settings → Advanced → Server Bots
-(`ServerBotsSettings`). See the [Bot API reference](/bot-api).
+(`ServerBotsSettings`); the owner and members with Manage Server choose the channels each bot uses.
+A chosen channel is open to the bot even where @everyone cannot view it or is read-only. See the
+[Bot API reference](/bot-api).
 
 ## Performance Monitoring
 

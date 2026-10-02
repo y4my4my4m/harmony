@@ -32,6 +32,7 @@ import { handleGroupInviteJob } from './handlers/groupInviteHandler.js';
 import { handleGroupUpdateJob } from './handlers/groupUpdateHandler.js';
 import { handleGroupParticipantChangeJob } from './handlers/groupParticipantHandler.js';
 import { handleReleaseHeldActivityJob } from './handlers/heldActivityHandler.js';
+import { handleMessageMediaCleanupJob } from './handlers/messageMediaCleanupHandler.js';
 
 export type JobType =
   | 'federate-post'
@@ -59,6 +60,7 @@ export type JobType =
   | 'dismiss-push-notifications'
   | 'release-held-activity'
   | 'account-deleted'
+  | 'delete-message-media'
   | 'sweep-pending'
   | 'maintenance';
 
@@ -96,6 +98,7 @@ const JOB_TYPES: JobType[] = [
   'dismiss-push-notifications',
   'release-held-activity',
   'account-deleted',
+  'delete-message-media',
   'maintenance',
 ];
 
@@ -211,6 +214,7 @@ class BullMQManagerService {
     this.handlerMap.set('dismiss-push-notifications', handlePushDismissalJob as unknown as HandlerFn);
     this.handlerMap.set('release-held-activity', handleReleaseHeldActivityJob as unknown as HandlerFn);
     this.handlerMap.set('account-deleted', handleAccountDeletedJob as unknown as HandlerFn);
+    this.handlerMap.set('delete-message-media', handleMessageMediaCleanupJob as unknown as HandlerFn);
     this.handlerMap.set('maintenance', handleMaintenanceJob as unknown as HandlerFn);
   }
 
@@ -238,6 +242,16 @@ class BullMQManagerService {
         },
       );
       logger.info('Scheduled daily cleanup-orphans at 04:00 UTC');
+
+      await maintenanceQueue.upsertJobScheduler(
+        'sweep-message-media-hourly',
+        { pattern: '17 * * * *' },
+        {
+          name: 'maintenance',
+          data: { type: 'create' as const, task: 'sweep-message-media', triggered_by: 'scheduled' },
+        },
+      );
+      logger.info('Scheduled hourly sweep-message-media at :17');
     } catch (err) {
       logger.warn('Failed to schedule maintenance jobs:', (err as Error).message);
     }

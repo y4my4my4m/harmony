@@ -8,6 +8,11 @@ import { updateUserStatus } from '@/services/ProfileService';
 import { userDataService } from '@/services/userDataService';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { debug } from '@/utils/debug'
+
+/** A DM call room id (dm-{conversation} or federated-dm-{conversation}-{millis}), not a server channel. */
+function isDmRoom(channelId: string | null | undefined): boolean {
+  return !!channelId && (channelId.startsWith('dm-') || channelId.startsWith('federated-dm-'));
+}
   
 export const useServerUsersStore = defineStore('serverUsers', {
   state: () => ({
@@ -16,6 +21,11 @@ export const useServerUsersStore = defineStore('serverUsers', {
     voiceChannelCallStartTimes: {} as Record<string, Date>,
     presenceChannel: null as RealtimeChannel | null,
     voiceChannelBroadcast: null as RealtimeChannel | null,
+    // Server whose voice-channels topic voiceChannelBroadcast holds.
+    voiceBroadcastServerId: null as string | null,
+    // voice-channel:{channelId} topics of that server's restricted channels
+    // this user can view (get_restricted_voice_channels).
+    restrictedVoiceBroadcasts: {} as Record<string, RealtimeChannel>,
     onlineUsers: new Set<string>(),
     offlineBroadcastChannel: null as RealtimeChannel | null,
     currentServerId: null as string | null,
@@ -216,6 +226,8 @@ export const useServerUsersStore = defineStore('serverUsers', {
         this.voiceChannelBroadcast.unsubscribe()
         this.voiceChannelBroadcast = null
       }
+      this.voiceBroadcastServerId = null
+      this.closeRestrictedVoiceBroadcasts()
       if (this.offlineBroadcastChannel) {
         this.offlineBroadcastChannel.unsubscribe()
         this.offlineBroadcastChannel = null
@@ -232,80 +244,113 @@ export const useServerUsersStore = defineStore('serverUsers', {
       this.currentServerId = null
     },
 
+    closeRestrictedVoiceBroadcasts() {
+      for (const channel of Object.values(this.restrictedVoiceBroadcasts)) {
+        void supabase.removeChannel(channel)
+      }
+      this.restrictedVoiceBroadcasts = {}
+    },
+
+    /**
+     * Voice occupancy of a server. Open channels share the private
+     * voice-channels:{serverId} topic (accepted members); a channel some member
+     * cannot view has its own voice-channel:{channelId} topic, opened here only
+     * for the restricted channels this user can view.
+     */
     async setupVoiceChannelBroadcast(serverId: string) {
       if (this.voiceChannelBroadcast) {
         await this.voiceChannelBroadcast.unsubscribe();
       }
+      this.closeRestrictedVoiceBroadcasts()
 
       debug.log('Setting up voice channel broadcast for server:', serverId);
 
       // Voice channel state is ephemeral (broadcast-only, no DB table for initial state).
       this.voiceChannelBroadcast = supabase.channel(`voice-channels:${serverId}`, {
         config: {
+          private: true,
           broadcast: { self: true },
         },
       });
-
-      this.voiceChannelBroadcast.on('broadcast', { event: 'voice-channel-event' }, async (payload) => {
-        debug.log('Received voice channel event:', payload);
-        const { event, userId, channelId, callStartTime, federated } = payload.payload;
-
-        if (event === 'user-joined') {
-          if (!this.usersInVoiceChannels[channelId]) {
-            this.usersInVoiceChannels[channelId] = [];
-          }
-          if (!this.usersInVoiceChannels[channelId].includes(userId)) {
-            this.usersInVoiceChannels[channelId].push(userId);
-          }
-          
-          if (callStartTime && !this.voiceChannelCallStartTimes[channelId]) {
-            this.voiceChannelCallStartTimes[channelId] = new Date(callStartTime);
-            debug.log(`Set call start time for channel ${channelId}:`, this.voiceChannelCallStartTimes[channelId]);
-          }
-          
-          if (federated && userId) {
-            debug.log(`Loading profile for federated voice user: ${userId}`);
-            userDataService.ensureUsersLoaded([userId]).catch((err) => {
-              debug.warn('Failed to load federated user profile:', err);
-            });
-          }
-          
-          debug.log(`User ${userId} joined voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
-        } else if (event === 'user-left') {
-          if (this.usersInVoiceChannels[channelId]) {
-            this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
-            debug.log(`User ${userId} left voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
-            
-            if (this.usersInVoiceChannels[channelId].length === 0) {
-              delete this.voiceChannelCallStartTimes[channelId];
-              debug.log(`Cleared call start time for channel ${channelId} (empty)`);
-            }
-          }
-        } else if (event === 'call-start-time-sync') {
-          if (callStartTime) {
-            this.voiceChannelCallStartTimes[channelId] = new Date(callStartTime);
-            debug.log(`Synced call start time for channel ${channelId}:`, this.voiceChannelCallStartTimes[channelId]);
-          }
-        } else if (event === 'request-state') {
-          const voiceStore = useUnifiedVoiceChannelStore();
-          if (voiceStore.isConnected && voiceStore.currentChannelId) {
-            debug.log('Responding to state request with our voice channel presence');
-            this.broadcastVoiceChannelEvent(
-              serverId,
-              voiceStore.currentChannelId,
-              'user-joined',
-              voiceStore.localState.userId,
-              voiceStore.callStartTime?.toISOString()
-            );
-          }
-        }
-      });
-
+      this.voiceBroadcastServerId = serverId;
+      this.voiceChannelBroadcast.on('broadcast', { event: 'voice-channel-event' },
+        (payload) => this.handleVoiceChannelEvent(serverId, payload.payload));
       await this.voiceChannelBroadcast.subscribe();
+
+      const { data: restricted, error } = await supabase.rpc('get_restricted_voice_channels', { p_server_id: serverId });
+      if (error) {
+        debug.warn('get_restricted_voice_channels failed:', error.message);
+      }
+      if (this.voiceBroadcastServerId !== serverId) return;
+      for (const channelId of (restricted ?? []) as string[]) {
+        const channel = supabase.channel(`voice-channel:${channelId}`, {
+          config: { private: true, broadcast: { self: true } },
+        });
+        channel.on('broadcast', { event: 'voice-channel-event' },
+          (payload) => this.handleVoiceChannelEvent(serverId, payload.payload));
+        channel.subscribe();
+        this.restrictedVoiceBroadcasts[channelId] = channel;
+      }
       debug.log('Voice channel broadcast subscribed for server:', serverId);
       
       this.broadcastVoiceChannelEvent(serverId, '', 'request-state', '');
       debug.log('Requested current voice channel state from active users');
+    },
+
+    handleVoiceChannelEvent(serverId: string, data: any) {
+      debug.log('Received voice channel event:', data);
+      const { event, userId, channelId, callStartTime, federated } = data ?? {};
+
+      if (event === 'user-joined') {
+        if (!this.usersInVoiceChannels[channelId]) {
+          this.usersInVoiceChannels[channelId] = [];
+        }
+        if (!this.usersInVoiceChannels[channelId].includes(userId)) {
+          this.usersInVoiceChannels[channelId].push(userId);
+        }
+
+        if (callStartTime && !this.voiceChannelCallStartTimes[channelId]) {
+          this.voiceChannelCallStartTimes[channelId] = new Date(callStartTime);
+          debug.log(`Set call start time for channel ${channelId}:`, this.voiceChannelCallStartTimes[channelId]);
+        }
+
+        if (federated && userId) {
+          debug.log(`Loading profile for federated voice user: ${userId}`);
+          userDataService.ensureUsersLoaded([userId]).catch((err) => {
+            debug.warn('Failed to load federated user profile:', err);
+          });
+        }
+
+        debug.log(`User ${userId} joined voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
+      } else if (event === 'user-left') {
+        if (this.usersInVoiceChannels[channelId]) {
+          this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
+          debug.log(`User ${userId} left voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
+
+          if (this.usersInVoiceChannels[channelId].length === 0) {
+            delete this.voiceChannelCallStartTimes[channelId];
+            debug.log(`Cleared call start time for channel ${channelId} (empty)`);
+          }
+        }
+      } else if (event === 'call-start-time-sync') {
+        if (callStartTime) {
+          this.voiceChannelCallStartTimes[channelId] = new Date(callStartTime);
+          debug.log(`Synced call start time for channel ${channelId}:`, this.voiceChannelCallStartTimes[channelId]);
+        }
+      } else if (event === 'request-state') {
+        const voiceStore = useUnifiedVoiceChannelStore();
+        if (voiceStore.isConnected && voiceStore.currentChannelId
+            && voiceStore.currentServerId === serverId && !isDmRoom(voiceStore.currentChannelId)) {
+          debug.log('Responding to state request with our voice channel presence');
+          this.broadcastVoiceChannelEvent(
+            serverId,
+            voiceStore.currentChannelId,
+            'user-joined',
+            voiceStore.localState.userId,
+            voiceStore.callStartTime?.toISOString()
+          );
+        }
+      }
     },
 
     async fetchVoiceChannelState(serverId: string) {
@@ -346,17 +391,36 @@ export const useServerUsersStore = defineStore('serverUsers', {
       }
     },
 
+    /**
+     * Sends on the voice topic of the server it was opened for, and only for
+     * that server's channels: a DM call or another server's channel would
+     * reach the members of whichever server was viewed last.
+     */
     broadcastVoiceChannelEvent(serverId: string, channelId: string, event: string, userId: string, callStartTime?: string) {
       if (!this.voiceChannelBroadcast) {
         debug.error('Voice channel broadcast not initialized');
         return;
       }
+      if (serverId !== this.voiceBroadcastServerId || isDmRoom(channelId)) {
+        return;
+      }
 
-      this.voiceChannelBroadcast.send({
-        type: 'broadcast',
+      // A restricted channel's occupancy stays on its own topic; a request for
+      // state goes to every topic of the server.
+      const message = {
+        type: 'broadcast' as const,
         event: 'voice-channel-event',
         payload: { event, userId, channelId, callStartTime }
-      });
+      };
+      const restricted = channelId ? this.restrictedVoiceBroadcasts[channelId] : undefined;
+      if (restricted) {
+        restricted.send(message);
+      } else {
+        this.voiceChannelBroadcast.send(message);
+      }
+      if (!channelId) {
+        for (const channel of Object.values(this.restrictedVoiceBroadcasts)) channel.send(message);
+      }
       
       debug.log(`Broadcasted ${event} for user ${userId} in channel ${channelId}`, callStartTime ? `with start time ${callStartTime}` : '');
     },

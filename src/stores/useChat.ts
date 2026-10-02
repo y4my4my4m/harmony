@@ -577,9 +577,10 @@ export const useChatStore = defineStore('chat', {
       insertMessageSorted(arr, msg);
     },
 
+    // roomId '*' (unlock, pairing) re-decrypts every loaded channel.
     async reprocessEncryptedMessages(roomId?: string) {
       try {
-        if (roomId) {
+        if (roomId && roomId !== '*') {
           if (this.currentChannelId === roomId && this.messages.length > 0) {
             const hasEncrypted = this.messages.some((m: Message) => m.encrypted && !m.decrypted);
             if (hasEncrypted) {

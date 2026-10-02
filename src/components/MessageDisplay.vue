@@ -311,7 +311,7 @@
                 <template v-else-if="item.message.metadata?.type === 'automod_alert' && !item.message.user_id && !item.message.bot_id">
                   <Icon name="shield" :size="16" class="system-icon automod-icon" />
                   <div class="system-text automod-alert-text">
-                    <span class="automod-badge">AutoMod</span>
+                    <span class="automod-badge">{{ $t('automod.title') }}</span>
                     <template v-if="item.message.metadata?.automod?.event_type === 'raid'">
                       {{ $t('automod.alert.raid', {
                         joins: item.message.metadata?.automod?.joins,
@@ -689,6 +689,7 @@ import { GroupIconPresets } from '@/utils/groupIconUtils';
 import type { PropType, Ref, ComputedRef } from 'vue';
 import type { Message, MessagePart, User, Emoji, Reaction, FileContent } from '@/types';
 import { hasSubstantiveMessageContent, removeFilePartByUrl } from '@/utils/messageContentUtils';
+import { ensureMediaPartSources, isPrivateMediaPart, mediaPartSource } from '@/services/privateMedia';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { useDMStore } from '@/stores/useDM';
@@ -1845,10 +1846,12 @@ const remeasureItem = (messageId: string) => {
 };
 
 // --- COMPUTED PROPERTIES ---
+// Images of the loaded messages, keyed by part.url. Private parts resolve to
+// signed URLs when the lightbox opens.
 const lightboxImages = computed(() => {
-  let urls: Array<string> = [];
+  const images: Array<{ url: string; path?: string }> = [];
   if (!props.messages || !Array.isArray(props.messages)) {
-    return urls;
+    return images;
   }
   
   props.messages.forEach(message => {
@@ -1862,14 +1865,14 @@ const lightboxImages = computed(() => {
       }
       
       if (part.type === 'file' && part.fileType === 'image' && part.url) {
-        urls.push(part.url);
+        images.push(isPrivateMediaPart(part) ? { url: part.url, path: part.path } : { url: part.url });
       }
       else if (part.type === 'url' && part.url && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp'))) {
-        urls.push(part.url);
+        images.push({ url: part.url });
       }
     });
   });
-  return urls;
+  return images;
 });
 
 const currentServerData = computed(() => {
@@ -3442,11 +3445,13 @@ const handleDecryptMessage = async (message: Message) => {
   }
 };
 
-const handleOpenLightbox = (url: string) => {
-  const index = lightboxImages.value.indexOf(url);
+const handleOpenLightbox = async (url: string) => {
+  const images = lightboxImages.value;
+  const index = images.findIndex((image) => image.url === url);
   if (index !== -1) {
+    await ensureMediaPartSources(images);
     indexRef.value = index;
-    activeLightboxImages.value = lightboxImages.value;
+    activeLightboxImages.value = images.map((image) => mediaPartSource(image) ?? image.url);
   } else {
     // Image from an embed not in the pre-computed list - show standalone
     activeLightboxImages.value = [url];

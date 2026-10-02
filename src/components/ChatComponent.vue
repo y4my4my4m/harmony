@@ -81,6 +81,7 @@
       :reply-message-id="replyToMessageId"
       :channel-id="props.channelId"
       :conversation-id="props.conversationId"
+      :media-room="composerMediaRoom"
       :server-id="serverChannelStore.currentServerId ?? undefined"
       :channel-name="effectiveChannelName"
       :username="effectiveDMUsername"
@@ -114,6 +115,8 @@
       @click.stop
       @sendEmoji="handleSendEmoji"
       :closeEmojiList="closeReactionEmoji"
+      :isEmojiBlocked="isReactionEmojiBlocked"
+      :limitNotice="reactionLimitNotice"
       :emojiIconClicked="emojiIconClicked"
       :position="'left'"
       :triggerElement="(reactionTriggerElement as unknown as HTMLElement | null) || undefined"
@@ -178,8 +181,10 @@
   import { readFile } from '@tauri-apps/plugin-fs';
   import { isTauriRuntime } from '@/services/instanceConfig';
   import { getMimeTypeFromFilename } from '@/utils/fileUpload';
+  import { attachmentParts, mediaRoom } from '@/services/privateMedia';
   import MediaPickerPopup from '@/components/MediaPickerPopup.vue';
   import EmojiPopup from '@/components/EmojiPopup.vue';
+  import { useMessageReactionLimit } from '@/composables/useReactionLimits';
   import ThreadView from '@/components/threads/ThreadView.vue';
   import type { FilePreviewData } from '@/components/FilePreview.vue';
   import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
@@ -282,6 +287,8 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   const reactionEmojiOpen = ref(false);
   const isPopupForReaction = ref(false);
   const selectedMessageId = ref('');
+  const { isEmojiBlocked: isReactionEmojiBlocked, limitNotice: reactionLimitNotice } =
+    useMessageReactionLimit(selectedMessageId);
   const replyToMessageId = ref('');
   const messageContent = ref('');
 
@@ -868,6 +875,15 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
 
 
 
+      // Room of composer uploads, and of the send target; attachmentParts copies an
+      // upload whose room differs from the send's.
+      const composerMediaRoom = computed(() => props.isDM
+        ? mediaRoom({ conversationId: props.conversationId || dmStore.currentConversationId })
+        : mediaRoom({ channelId: props.channelId || serverChannelStore.currentChannelId }));
+      const sendMediaRoom = () => props.isDM
+        ? mediaRoom({ conversationId: dmStore.currentConversationId })
+        : mediaRoom({ channelId: serverChannelStore.currentChannelId });
+
       // Handles both DMs and server channels.
       const handleSendMessage = async (content: string, files: FilePreviewData[] = [], replyMessageId?: string) => {
         if (!authStore.session?.user) {
@@ -911,26 +927,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
           }
 
           // Files are uploaded before this point.
-          for (const fileData of files) {
-            if (fileData.uploadStatus === 'completed' && fileData.uploadedUrl) {
-              let fileType: 'image' | 'video' | 'audio' | 'file' = 'file';
-              
-              if (fileData.type.startsWith('image/')) {
-                fileType = 'image';
-              } else if (fileData.type.startsWith('video/')) {
-                fileType = 'video';
-              } else if (fileData.type.startsWith('audio/')) {
-                fileType = 'audio';
-              }
-              
-              messageParts.push({
-                type: "file",
-                url: fileData.uploadedUrl,
-                fileType,
-                fileName: fileData.name
-              });
-            }
-          }
+          messageParts.push(...await attachmentParts(files, sendMediaRoom()));
 
           if (messageParts.length > 0) {
             // eslint-disable-next-line unused-imports/no-unused-vars
@@ -1108,6 +1105,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
 
       const handleSendVoiceMessage = async (data: {
         url: string
+        path: string
         duration: number
         waveform: number[]
         mimeType: string
@@ -1115,6 +1113,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         const messageParts: MessagePart[] = [{
           type: 'file',
           url: data.url,
+          path: data.path,
           fileType: 'audio',
           fileName: 'Voice message',
         }]

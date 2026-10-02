@@ -1,21 +1,17 @@
 /**
- * Notification CRUD over the `notifications` table, plus sends through the
- * send_notification_to_user() database function.
+ * Notification reads, read state and deletes over the `notifications` table,
+ * plus `notification_preferences`. Clients create no notifications: triggers
+ * and SECURITY DEFINER functions insert them.
  */
 
 import { supabase } from '@/supabase'
-import type { Notification, NotificationType, NotificationPreferences } from '@/types'
+import type { Notification, NotificationPreferences } from '@/types'
 import { debug } from '@/utils/debug'
 
 export interface NotificationServiceError {
   code: string
   message: string
   details?: any
-}
-
-export interface NotificationResult {
-  success: boolean
-  notificationIds?: string[]
 }
 
 export class NotificationService {
@@ -26,50 +22,6 @@ export class NotificationService {
       this.instance = new NotificationService()
     }
     return this.instance
-  }
-
-  async sendNotification(
-    type: NotificationType,
-    toUserId: string,
-    data: Record<string, any>,
-    options?: {
-      serverId?: string
-      channelId?: string
-      conversationId?: string
-      fromUserId?: string
-      priority?: string
-      activityId?: string
-    }
-  ): Promise<NotificationResult> {
-    try {
-      debug.log('Sending notification via unified system:', { type, toUserId, data })
-
-      // activity_id is a key of the data payload, not an argument.
-      const notificationData = options?.activityId
-        ? { ...data, activity_id: options.activityId }
-        : data
-
-      const { data: result, error } = await supabase.rpc('send_notification_to_user', {
-        p_notification_type: type,
-        p_to_user_id: toUserId,
-        p_notification_data: notificationData,
-        p_server_id: options?.serverId ?? null,
-        p_channel_id: options?.channelId ?? null,
-        p_conversation_id: options?.conversationId ?? null,
-        p_from_user_id: options?.fromUserId ?? null,
-        p_priority: options?.priority ?? 'normal'
-      })
-
-      if (error) {
-        throw this.createError('SEND_FAILED', error.message, error)
-      }
-
-      debug.log('Notification sent successfully via unified system')
-      return { success: true, notificationIds: result ? [result] : [] }
-    } catch (error) {
-      debug.error('Failed to send notification:', error)
-      throw error
-    }
   }
 
   /**

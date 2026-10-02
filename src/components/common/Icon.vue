@@ -148,7 +148,7 @@ import {
   Wifi, WifiOff, CircleHelp, Clock, Repeat2, Pin, PinOff,
   DollarSign, Layers, AudioLines, Megaphone, Wrench, Tag, Menu, SmilePlus, ArrowUp, ArrowDown, PanelRight,
   PictureInPicture2,
-  Gamepad2, Cpu, Palette, GraduationCap, Clapperboard, FlaskConical, Trophy, Shapes,
+  Gamepad2, Cpu, Palette, GraduationCap, Clapperboard, FlaskConical, Trophy, Shapes, QrCode,
 } from 'lucide-vue-next'
 
 const ICON_MAP: Record<string, Component> = {
@@ -157,6 +157,7 @@ const ICON_MAP: Record<string, Component> = {
   'ban': Ban,
   'camera': Camera,
   'camera-off': CameraOff,
+  'qr-code': QrCode,
   'video': Video,
   'video-off': VideoOff,
   'send': Send,

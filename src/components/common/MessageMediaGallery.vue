@@ -27,19 +27,19 @@
           draggable="false"
           v-show="imageLoaded[item.url]"
           @load="onImageLoad(item.url)"
-          @error="onItemError(item.url)"
+          @error="onItemError(item, 'thumbnail')"
           @click="!item.isSticker && $emit('open-lightbox', item.url)"
         />
         <video
           v-else-if="item.fileType === 'video'"
-          :src="item.url"
+          :src="sourceFor(item)"
           class="content-video"
           controls
           preload="metadata"
           :data-video-index="(videoIndexBase ?? 0) + index"
           @play="$emit('video-play', $event)"
           @pause="$emit('video-pause', $event)"
-          @error="onItemError(item.url)"
+          @error="onItemError(item)"
         />
       </div>
     </div>
@@ -56,6 +56,7 @@ import {
 } from '@/utils/mediaGalleryUtils';
 import { stripKlipyAttributionFragment, isStickerMessageUrl, isAiEmojiMessageUrl } from '@/utils/klipyAttribution';
 import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
+import { isPrivateMediaPart, mediaPartSource, reportMediaPartError } from '@/services/privateMedia';
 import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.vue';
 import {
   isDiscordCdnUrl,
@@ -65,6 +66,8 @@ import {
 
 export interface GalleryMediaItem {
   url: string;
+  /** message_media object name of a private part. */
+  path?: string;
   fileType: 'image' | 'video';
   isSticker: boolean;
   isAiEmoji: boolean;
@@ -78,8 +81,9 @@ const props = defineProps<{
   messageId?: string;
 }>();
 
-const onItemError = (url: string) => {
-  if (isDiscordCdnUrl(url)) requestAttachmentRefresh(props.messageId);
+const onItemError = (item: GalleryMediaItem, variant: 'original' | 'thumbnail' = 'original') => {
+  if (isDiscordCdnUrl(item.url)) requestAttachmentRefresh(props.messageId);
+  reportMediaPartError(item, variant);
 };
 
 const maybeRefreshExpired = () => {
@@ -116,6 +120,7 @@ function partToGalleryItem(part: MessagePart): GalleryMediaItem | null {
 
   return {
     url,
+    ...(isPrivateMediaPart(part) ? { path: part.path } : {}),
     fileType,
     isSticker: isStickerMessageUrl(url),
     isAiEmoji: isAiEmojiMessageUrl(url),
@@ -144,9 +149,14 @@ function onImageLoad(url: string) {
 
 // Inline thumbnail (downscaled for local uploads); lightbox still opens item.url
 // at full size. Stickers/AI emoji stay raw to preserve animation.
-function thumbnailFor(item: GalleryMediaItem): string {
+function thumbnailFor(item: GalleryMediaItem): string | undefined {
+  if (item.path) return mediaPartSource(item, 'thumbnail');
   if (item.isSticker || item.isAiEmoji) return item.url;
   return getAttachmentThumbnailUrl(item.url);
+}
+
+function sourceFor(item: GalleryMediaItem): string | undefined {
+  return item.path ? mediaPartSource(item) : item.url;
 }
 </script>
 

@@ -13,23 +13,35 @@
 
       <div class="modal-content">
         <!-- Tab Selection -->
-        <div class="recovery-tabs">
-          <button 
+        <div class="recovery-tabs" role="tablist">
+          <button
             class="tab-btn"
+            role="tab"
+            :aria-selected="activeTab === 'device'"
+            :class="{ active: activeTab === 'device' }"
+            data-testid="recovery-tab-device"
+            @click="activeTab = 'device'"
+          >
+            <Icon name="smartphone" :size="16" class="tab-icon" />
+            {{ $t('encryption.recovery.anotherDevice') }}
+            <span class="tab-badge">{{ $t('encryption.recovery.recommended') }}</span>
+          </button>
+          <button
+            class="tab-btn"
+            role="tab"
+            :aria-selected="activeTab === 'phrase'"
             :class="{ active: activeTab === 'phrase' }"
+            data-testid="recovery-tab-phrase"
             @click="activeTab = 'phrase'"
           >
             <Icon name="file" :size="16" class="tab-icon" />
             Recovery phrase
           </button>
-          <button 
-            class="tab-btn"
-            :class="{ active: activeTab === 'qr' }"
-            @click="activeTab = 'qr'"
-          >
-            <Icon name="smartphone" :size="16" class="tab-icon" />
-            QR code
-          </button>
+        </div>
+
+        <!-- Another device: QR pairing -->
+        <div v-if="activeTab === 'device'" class="tab-content">
+          <DevicePairingPanel @restored="emit('restored')" />
         </div>
 
         <!-- Recovery Phrase Tab -->
@@ -75,46 +87,23 @@
           <div v-if="validationMessage" class="validation-message" :class="{ error: !isValid }">
             {{ validationMessage }}
           </div>
-        </div>
 
-        <!-- QR Code Tab -->
-        <div v-if="activeTab === 'qr'" class="tab-content">
-          <div class="qr-section">
-            <p class="description">
-              Scan a QR code from another device to restore your encryption keys.
-            </p>
-
-            <div v-if="isScanning" class="qr-scanner-live">
-              <video ref="scannerVideoRef" class="scanner-video" autoplay playsinline muted></video>
-              <button class="btn btn-secondary btn-sm" @click="stopQRScanner">Stop scanner</button>
-            </div>
-            <div v-else class="qr-scanner-placeholder">
-              <div class="scanner-icon"><Icon name="camera" :size="32" /></div>
-              <p>QR scanner</p>
-              <p class="hint">{{ scannerSupported ? 'Point your camera at the QR code from your other device' : 'Camera scanning is not supported in this browser - paste the code below instead' }}</p>
-              <button v-if="scannerSupported" class="btn btn-secondary" @click="startQRScanner">
-                Start scanner
-              </button>
-            </div>
-
-            <div class="divider">
-              <span>or</span>
-            </div>
-
-            <div class="qr-input">
-              <label>Paste QR code data</label>
-              <textarea 
-                v-model="qrData"
-                placeholder="Paste the QR code data here..."
-                rows="3"
-              ></textarea>
-              <button 
-                class="btn btn-secondary btn-sm"
-                @click="parseQRData"
-                :disabled="!qrData"
-              >
-                Parse QR data
-              </button>
+          <div class="recovery-qr">
+            <button
+              type="button"
+              class="recovery-qr-toggle"
+              :aria-expanded="showRecoveryQrScanner"
+              @click="showRecoveryQrScanner = !showRecoveryQrScanner"
+            >
+              <Icon :name="showRecoveryQrScanner ? 'chevron-down' : 'chevron-right'" :size="14" />
+              {{ $t('encryption.recovery.qrToggle') }}
+            </button>
+            <div v-if="showRecoveryQrScanner" class="recovery-qr-body">
+              <QrScanner
+                :hint="$t('encryption.recovery.qrHint')"
+                :paste-label="$t('encryption.recovery.qrPasteLabel')"
+                @decoded="onRecoveryQr"
+              />
             </div>
           </div>
         </div>
@@ -143,6 +132,7 @@
           Cancel
         </button>
         <button 
+          v-if="activeTab === 'phrase'"
           class="btn btn-primary"
           @click="restoreEncryption"
           :disabled="!canRestore || isRestoring"
@@ -161,31 +151,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onUnmounted } from 'vue'
+import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
+import DevicePairingPanel from './DevicePairingPanel.vue'
+import QrScanner from './QrScanner.vue'
+
+const props = withDefaults(defineProps<{ initialTab?: 'device' | 'phrase' }>(), { initialTab: 'device' })
 
 const toast = useToast()
+const { t } = useI18n()
 const emit = defineEmits(['close', 'restored'])
 
 // State
-const activeTab = ref<'phrase' | 'qr'>('phrase')
+const activeTab = ref<'device' | 'phrase'>(props.initialTab)
 const recoveryWords = ref<string[]>(Array(12).fill(''))
-const qrData = ref('')
 const verificationCode = ref('')
 const isRestoring = ref(false)
-const isScanning = ref(false)
+const showRecoveryQrScanner = ref(false)
 const validationMessage = ref('')
 const isValid = ref(false)
-
-// Import validation wordlist from recovery service
-// eslint-disable-next-line unused-imports/no-unused-vars
-let WORDLIST: string[] = []
-import('@/services/encryption/RecoveryKeyService').then(_module => {
-  // The wordlist is embedded in the service
-  // We'll validate by trying to derive keys
-})
 
 // Can restore?
 const canRestore = computed(() => {
@@ -254,75 +241,23 @@ function clearWords() {
   isValid.value = false
 }
 
-// QR scanning via the native BarcodeDetector API (no library needed).
-// Unsupported browsers (Firefox, older Safari) fall back to the paste box.
-const scannerVideoRef = ref<HTMLVideoElement | null>(null)
-const scannerSupported = typeof window !== 'undefined' && 'BarcodeDetector' in window
-let scannerStream: MediaStream | null = null
-let scannerRafId = 0
-
-async function startQRScanner() {
-  try {
-    scannerStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment' },
-      audio: false,
-    })
-    isScanning.value = true
-    await nextTick()
-    const video = scannerVideoRef.value
-    if (!video) return stopQRScanner()
-    video.srcObject = scannerStream
-    await video.play()
-
-    const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] })
-    const scanFrame = async () => {
-      if (!isScanning.value || !scannerVideoRef.value) return
-      try {
-        const codes = await detector.detect(scannerVideoRef.value)
-        if (codes.length > 0 && codes[0].rawValue) {
-          qrData.value = codes[0].rawValue
-          stopQRScanner()
-          await parseQRData()
-          return
-        }
-      } catch { /* frame not ready yet */ }
-      scannerRafId = requestAnimationFrame(scanFrame)
-    }
-    scannerRafId = requestAnimationFrame(scanFrame)
-  } catch (err: any) {
-    stopQRScanner()
-    toast.error(err?.name === 'NotAllowedError'
-      ? 'Camera access denied - paste the QR data below instead'
-      : 'Could not start the camera - paste the QR data below instead')
-  }
-}
-
-function stopQRScanner() {
-  isScanning.value = false
-  cancelAnimationFrame(scannerRafId)
-  scannerStream?.getTracks().forEach(t => t.stop())
-  scannerStream = null
-}
-
-onUnmounted(stopQRScanner)
-
-async function parseQRData() {
-  if (!qrData.value) return
-
+// Recovery-key QR: base64 JSON {v, m, t} from RecoveryKeySetupWizard.
+async function onRecoveryQr(text: string) {
   try {
     const { recoveryKeyService } = await import('@/services/encryption/RecoveryKeyService')
-    const words = recoveryKeyService.parseQRData(qrData.value)
-    
+    const words = recoveryKeyService.parseQRData(text)
     if (words) {
       recoveryWords.value = words
-      activeTab.value = 'phrase'
+      showRecoveryQrScanner.value = false
       await validateWords()
       toast.success('QR code read')
+    } else if (text.startsWith('HMP:')) {
+      toast.error(t('encryption.recovery.pairingCodeScanned'))
     } else {
-      toast.error('Invalid QR code data')
+      toast.error(t('encryption.recovery.notRecoveryKey'))
     }
   } catch {
-    toast.error('Failed to parse QR code')
+    toast.error(t('encryption.recovery.qrReadFailed'))
   }
 }
 
@@ -468,6 +403,20 @@ async function restoreEncryption() {
   flex-shrink: 0;
 }
 
+.tab-badge {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  background: color-mix(in srgb, var(--success) 18%, transparent);
+  color: var(--success);
+}
+
+.tab-btn.active .tab-badge {
+  background: color-mix(in srgb, #fff 22%, transparent);
+  color: inherit;
+}
+
 .tab-btn:hover {
   border-color: var(--harmony-primary-alpha, color-mix(in srgb, var(--harmony-primary) 50%, transparent));
   color: var(--text-primary);
@@ -601,103 +550,35 @@ async function restoreEncryption() {
   color: var(--error);
 }
 
-/* QR Section */
-.qr-section {
-  text-align: center;
+/* Recovery-key QR (secondary) */
+.recovery-qr {
+  margin-top: 18px;
 }
 
-.qr-scanner-live {
-  display: flex;
-  flex-direction: column;
+.recovery-qr-toggle {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
+  padding: 4px 0;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
 }
 
-.scanner-video {
-  width: 100%;
-  max-width: 320px;
-  aspect-ratio: 1;
-  object-fit: cover;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-color);
-  background: #000;
-}
-
-.qr-scanner-placeholder {
-  padding: 40px;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-lg);
-  border: 2px dashed var(--border-color);
-  margin-bottom: 24px;
-}
-
-.scanner-icon {
-  font-size: 48px;
-  margin-bottom: 12px;
-}
-
-.qr-scanner-placeholder p {
-  margin: 0;
+.recovery-qr-toggle:hover {
   color: var(--text-primary);
+}
+
+.recovery-qr-body {
+  margin-top: 10px;
 }
 
 .hint {
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
   margin-top: 8px;
-}
-
-.qr-scanner-placeholder .btn {
-  margin-top: 16px;
-}
-
-.divider {
-  display: flex;
-  align-items: center;
-  margin: 24px 0;
-}
-
-.divider::before,
-.divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border-color);
-}
-
-.divider span {
-  padding: 0 16px;
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
-}
-
-.qr-input {
-  text-align: left;
-}
-
-.qr-input label {
-  display: block;
-  font-size: var(--font-size-sm);
-  color: var(--text-primary);
-  margin-bottom: 8px;
-}
-
-.qr-input textarea {
-  width: 100%;
-  padding: 12px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: var(--font-size-xs);
-  resize: vertical;
-  margin-bottom: 8px;
-}
-
-.qr-input textarea:focus {
-  outline: none;
-  border-color: var(--harmony-primary);
 }
 
 /* Verification Section */

@@ -400,6 +400,31 @@ Voice activities use a separate context namespace: `https://harmony.social/ns/vo
 | `harmony:VoiceChannel` | Join/Leave object | Voice channel reference |
 | `harmony:VoiceToken` | `VoiceChannelJoinAccept` result | LiveKit token and connection metadata |
 
+### DM calls across instances
+
+The caller's LiveKit hosts the room, `federated-dm-{conversationId}-{millis}`, where
+`conversationId` is the caller instance's conversation.
+
+1. The caller's instance stores the invite as an outbound call and delivers
+   `harmony:VoiceCallInvite` to the callee's inbox.
+2. The callee's instance rings its user only for a direct or group conversation it shares with
+   the caller, with no block either way.
+3. On accept, the callee's instance sends `POST /api/livekit/federated-token` to the caller's
+   origin (the host of the caller's actor URL) with
+   `{ "actorId": <callee actor>, "roomName": <room>, "roomType": "dm_call" }`, signed with the
+   callee's key (draft-cavage, `(request-target) host date digest`). The caller's instance
+   grants a token when `actorId` is the signer, the signer is the recipient of a live outbound
+   call (ringing or accepted) naming that room, and the signer participates in the
+   conversation. The answer is `{ token, wsUrl, roomName, identity }`.
+4. The callee's instance then delivers `harmony:VoiceCallAccept`.
+5. `harmony:VoiceCallReject` and `harmony:VoiceCallAccept` are accepted only from the remote
+   recipient of an outbound call; `harmony:VoiceCallEnd` only from the remote party of the call.
+
+A voice channel join is answered with `harmony:VoiceChannelJoinAccept` from the server owner's
+actor, naming the join id. The join id is minted and verified by the joining user's instance;
+only the host the join went to can answer it. The answer is delivered once, to an inbox on the
+joining actor's host.
+
 ---
 
 ## 11. Compatibility Notes

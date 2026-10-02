@@ -2,13 +2,8 @@
   <section class="sec-card" aria-labelledby="export-title">
     <header class="sec-card-header">
       <div>
-        <h3 id="export-title" class="sec-card-title">Download your data</h3>
-        <p class="sec-card-description">
-          A ZIP archive of your account: profile and settings, the messages you sent in servers
-          and conversations, your posts, follows, blocks, the files you uploaded and the devices
-          signed in. Other people's messages are not included. You can request one every ten
-          minutes, five a day.
-        </p>
+        <h3 id="export-title" class="sec-card-title">{{ $t('security.export.title') }}</h3>
+        <p class="sec-card-description">{{ $t('security.export.description') }}</p>
       </div>
     </header>
 
@@ -21,7 +16,7 @@
     <div class="sec-actions sec-actions-start">
       <button class="sec-btn sec-btn-primary" :disabled="busy" @click="start">
         <Icon name="download" :size="14" />
-        {{ busy ? 'Preparing…' : 'Request my data' }}
+        {{ busy ? $t('security.export.preparing') : $t('security.export.request') }}
       </button>
     </div>
   </section>
@@ -30,6 +25,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useToast } from 'vue-toastification'
+import { useI18n } from 'vue-i18n'
 import Icon from '@/components/common/Icon.vue'
 import { debug } from '@/utils/debug'
 import { exportAccountData, type ExportProgress } from '@/services/DataExportService'
@@ -37,6 +33,7 @@ import { saveBlob, securityErrorMessage } from '@/services/AccountSecurityServic
 import './securitySettings.css'
 
 const toast = useToast()
+const { t } = useI18n()
 
 const busy = ref(false)
 const error = ref('')
@@ -44,9 +41,9 @@ const progress = ref<ExportProgress | null>(null)
 
 const progressText = computed(() => {
   const p = progress.value
-  if (!p || p.phase === 'account') return 'Collecting your account data…'
-  if (p.phase === 'messages') return `Exporting messages: ${p.done.toLocaleString()} of ${p.total.toLocaleString()}`
-  return 'Packaging the archive…'
+  if (!p || p.phase === 'account') return t('security.export.collecting')
+  if (p.phase === 'messages') return t('security.export.exportingMessages', { done: p.done.toLocaleString(), total: p.total.toLocaleString() })
+  return t('security.export.packaging')
 })
 
 const progressPercent = computed(() => {
@@ -63,10 +60,10 @@ async function start() {
   try {
     const { blob, filename } = await exportAccountData((p) => { progress.value = p })
     saveBlob(blob, filename)
-    toast.success('Your data is downloading')
+    toast.success(t('security.export.downloading'))
   } catch (err) {
     debug.error('Data export failed:', err)
-    error.value = securityErrorMessage(err, 'The export failed. Try again later.')
+    error.value = securityErrorMessage(err, t('security.export.failed'))
   } finally {
     busy.value = false
   }

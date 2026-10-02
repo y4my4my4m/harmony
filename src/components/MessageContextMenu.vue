@@ -160,6 +160,7 @@ import { usePinActions } from '@/composables/usePinActions';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { messagePartsToPlainText } from '@/utils/messageContentUtils';
 import { downloadMediaFromUrl, filenameFromUrl } from '@/utils/downloadMedia';
+import { resolveMediaPartUrl } from '@/services/privateMedia';
 import { getMessageShareUrl } from '@/utils/messageShareUrl';
 import type { Message } from '@/types';
 import Icon from '@/components/common/Icon.vue';
@@ -434,7 +435,7 @@ const copyLinkURL = async () => {
       linkURL = part.url;
       break;
     } else if (part.type === 'file' && part.url) {
-      linkURL = part.url;
+      linkURL = (await resolveMediaPartUrl(part)) ?? part.url;
       break;
     }
   }
@@ -530,9 +531,10 @@ const copyImage = async () => {
     emit('close');
     return;
   }
+  const url = (await resolveMediaPartUrl(attachment)) ?? attachment.url;
   try {
     if (typeof window !== 'undefined' && 'ClipboardItem' in window) {
-      const response = await fetch(attachment.url);
+      const response = await fetch(url);
       const blob = await response.blob();
       // ClipboardItem accepts most image MIME types; coerce non-png to
       // png so paste targets that only accept image/png still work.
@@ -541,14 +543,14 @@ const copyImage = async () => {
       await (navigator.clipboard as any).write([item]);
       debug.log('Image copied to clipboard');
     } else {
-      await navigator.clipboard.writeText(attachment.url);
+      await navigator.clipboard.writeText(url);
       debug.log('Image URL copied to clipboard (no ClipboardItem support)');
     }
   } catch (error) {
     debug.error('Failed to copy image:', error);
     // Last-resort fallback: copy the URL.
     try {
-      await navigator.clipboard.writeText(attachment.url);
+      await navigator.clipboard.writeText(url);
     } catch {
       // give up silently
     }
@@ -562,8 +564,8 @@ const saveImage = async () => {
     emit('close');
     return;
   }
-  const filename = (attachment as any).name || filenameFromUrl(attachment.url, 'image');
-  await downloadMediaFromUrl(attachment.url, filename);
+  const filename = (attachment as any).name || (attachment as any).fileName || filenameFromUrl(attachment.url, 'image');
+  await downloadMediaFromUrl((await resolveMediaPartUrl(attachment)) ?? attachment.url, filename);
   emit('close');
 };
 
@@ -573,8 +575,8 @@ const saveVideo = async () => {
     emit('close');
     return;
   }
-  const filename = (attachment as any).name || filenameFromUrl(attachment.url, 'video');
-  await downloadMediaFromUrl(attachment.url, filename);
+  const filename = (attachment as any).name || (attachment as any).fileName || filenameFromUrl(attachment.url, 'video');
+  await downloadMediaFromUrl((await resolveMediaPartUrl(attachment)) ?? attachment.url, filename);
   emit('close');
 };
 
@@ -584,8 +586,8 @@ const saveAudio = async () => {
     emit('close');
     return;
   }
-  const filename = (attachment as any).name || filenameFromUrl(attachment.url, 'audio');
-  await downloadMediaFromUrl(attachment.url, filename);
+  const filename = (attachment as any).name || (attachment as any).fileName || filenameFromUrl(attachment.url, 'audio');
+  await downloadMediaFromUrl((await resolveMediaPartUrl(attachment)) ?? attachment.url, filename);
   emit('close');
 };
 

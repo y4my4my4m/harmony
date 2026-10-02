@@ -19,6 +19,7 @@ import {
   getEncryptionService,
 } from '@/services/core/channelMessageEncryption'
 import { blockedMessageRejection, moderationRejectionFromError } from '@/services/AutoModService'
+import { mediaRoom, messageMediaPathsIn } from '@/services/privateMedia'
 
 export interface SendMessageData {
   content: MessagePart[]
@@ -162,6 +163,7 @@ export class CoreMessageService {
       let finalContent = content
       let encrypted = false
       let encryptionMetadata = null
+      let mediaPaths: string[] | null = null
 
       if (await channelRequiresEncryption(channelId)) {
         const payload = await encryptChannelContent({
@@ -173,6 +175,7 @@ export class CoreMessageService {
         finalContent = payload.content
         encrypted = true
         encryptionMetadata = payload.encryption_metadata
+        mediaPaths = payload.media_paths
       }
 
       const messageData = {
@@ -182,6 +185,7 @@ export class CoreMessageService {
         reply_to: replyTo || null,
         encrypted,
         encryption_metadata: encryptionMetadata,
+        ...(mediaPaths ? { media_paths: mediaPaths } : {}),
         metadata: { created_via: 'harmony_client', ...extraMetadata }
       }
 
@@ -255,6 +259,7 @@ export class CoreMessageService {
       let finalContent = content
       let encrypted = false
       let encryptionMetadata = null
+      let mediaPaths: string[] | null = null
 
       const { data: convSettings } = await supabase
         .from('conversation_encryption_settings')
@@ -294,6 +299,7 @@ export class CoreMessageService {
               finalContent = encryptedData.content
               encrypted = true
               encryptionMetadata = encryptedData.encryption_metadata
+              mediaPaths = messageMediaPathsIn(content, mediaRoom({ conversationId }))
               debug.log(`DM encrypted with Megolm (session: ${encryptionMetadata.session_id?.substring(0, 8)}...)`)
             } catch (error) {
               debug.error('DM encryption failed:', error)
@@ -339,6 +345,7 @@ export class CoreMessageService {
         reply_to: replyTo || null,
         encrypted,
         encryption_metadata: encryptionMetadata,
+        ...(mediaPaths ? { media_paths: mediaPaths } : {}),
         metadata: { created_via: 'harmony_client', ...extraMetadata }
       }
 
@@ -397,6 +404,7 @@ export class CoreMessageService {
       let finalContent = newContent
       let encrypted = false
       let encryptionMetadata = null
+      let mediaPaths: string[] | null = null
 
       const wasEncrypted = !!(originalMessage.encrypted && originalMessage.encryption_metadata)
 
@@ -418,6 +426,7 @@ export class CoreMessageService {
           finalContent = payload.content
           encrypted = true
           encryptionMetadata = payload.encryption_metadata
+          mediaPaths = payload.media_paths
         }
       } else if (wasEncrypted && originalMessage.conversation_id) {
         const encryptionService = await getEncryptionService()
@@ -440,6 +449,7 @@ export class CoreMessageService {
           finalContent = encryptedData.content
           encrypted = true
           encryptionMetadata = encryptedData.encryption_metadata
+          mediaPaths = messageMediaPathsIn(newContent, mediaRoom({ conversationId: originalMessage.conversation_id }))
         } catch (error) {
           debug.error('Re-encryption failed:', error)
           throw this.createError('ENCRYPTION_FAILED', 'Failed to re-encrypt edited message', error)
@@ -452,6 +462,7 @@ export class CoreMessageService {
           content: finalContent,
           encrypted,
           encryption_metadata: encryptionMetadata,
+          ...(mediaPaths ? { media_paths: mediaPaths } : {}),
           updated_at: new Date().toISOString(),
         })
         .eq('id', messageId)

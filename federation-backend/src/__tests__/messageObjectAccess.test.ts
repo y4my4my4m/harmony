@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import express from 'express'
 import supertest from 'supertest'
 
-// GET /messages/:id serves a channel message under its channel's read rules.
+// GET /messages/:id serves a channel message under its channel's read rules, and a
+// conversation message to a signer whose instance has a participant.
 
 vi.mock('../config/index.js', () => ({
   default: { INSTANCE_DOMAIN: 'harmony.test' },
@@ -25,8 +26,15 @@ const MESSAGES: Record<string, any> = {
   [DM]: { channel_id: null, channel: null, conversation: { id: 'conv', type: 'direct' } },
 }
 
+const rpc = vi.fn(async (name: string, args: any) =>
+  name === 'federation_conversation_access'
+    ? { data: args.p_conversation_id === 'conv' && args.p_domain === signerHost, error: null }
+    : { data: null, error: { message: `unexpected ${name}` } })
+let signerHost = 'remote.test'
+
 vi.mock('../config/supabase.js', () => ({
   getSupabaseClient: () => ({
+    rpc: (name: string, args: any) => rpc(name, args),
     from: () => {
       let id: string | undefined
       const q: any = {
@@ -71,6 +79,8 @@ function get(id: string, signed = false) {
 
 beforeEach(() => {
   verifiedSigner.mockClear()
+  rpc.mockClear()
+  signerHost = 'remote.test'
 })
 
 describe('GET /messages/:id', () => {
@@ -92,9 +102,23 @@ describe('GET /messages/:id', () => {
     expect(res.headers['cache-control']).toBe('max-age=300')
   })
 
-  it('leaves direct messages to the existing rules', async () => {
+  it('is 404 for a direct message without a signature', async () => {
     const res = await get(DM)
+    expect(res.status).toBe(404)
+    expect(res.body).toEqual({ error: 'Not found' })
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it('serves a direct message, uncacheable, to a participant\'s instance', async () => {
+    const res = await get(DM, true)
     expect(res.status).toBe(200)
-    expect(verifiedSigner).not.toHaveBeenCalled()
+    expect(res.headers['cache-control']).toBe('private, no-store')
+    expect(rpc).toHaveBeenCalledWith('federation_conversation_access', { p_conversation_id: 'conv', p_domain: 'remote.test' })
+  })
+
+  it('is 404 for a direct message signed by an instance without a participant', async () => {
+    signerHost = 'elsewhere.test'
+    const res = await get(DM, true)
+    expect(res.status).toBe(404)
   })
 })

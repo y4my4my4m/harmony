@@ -382,3 +382,67 @@ describe('session revalidation', () => {
     ).toBe('Token revoked')
   })
 })
+
+describe('bridge data registration (op 6)', () => {
+  const SERVER_ID = '00000000-0000-0000-0000-00000000005a'
+  const OTHER_SERVER = '00000000-0000-0000-0000-00000000005b'
+  const GENERAL = '00000000-0000-0000-0000-0000000000c1'
+  const MODS_ONLY = '00000000-0000-0000-0000-0000000000c2'
+  const ELSEWHERE = '00000000-0000-0000-0000-0000000000c9'
+  const EVERYONE_ROLE = '00000000-0000-0000-0000-0000000000e0'
+  const MEMBER = { id: '80351110224678912', username: 'alice', displayName: 'Alice', avatarUrl: '', source: 'discord' }
+  const conn = { botId: BOT_ID, username: 'bridge', scopes: [], lastHeartbeat: 0, sessionId: 's', tokenHash: 'h' }
+
+  function seed(install: Record<string, unknown> = {}) {
+    const db = new FakeDb({
+      channels: [
+        { id: GENERAL, server_id: SERVER_ID },
+        { id: MODS_ONLY, server_id: SERVER_ID },
+        { id: ELSEWHERE, server_id: OTHER_SERVER },
+      ],
+      server_roles: [{ id: EVERYONE_ROLE, server_id: SERVER_ID, permissions: 122646786, is_default: true }],
+      channel_permission_overrides: [
+        { id: 'ov1', channel_id: MODS_ONLY, role_id: EVERYONE_ROLE, user_id: null, allow_permissions: 0, deny_permissions: 2 },
+      ],
+      bot_server_permissions: [
+        { id: 'i1', bot_id: BOT_ID, server_id: SERVER_ID, is_active: true, read_messages: true, ...install },
+      ],
+    })
+    mocks.from.mockImplementation((table: string) => db.from(table))
+  }
+
+  const register = () =>
+    (gateway as any).handleBridgeDataRegistration(conn, {
+      channels: [{ harmonyChannelId: GENERAL }, { harmonyChannelId: MODS_ONLY }, { harmonyChannelId: ELSEWHERE }],
+      members: [MEMBER],
+    })
+
+  it('keeps channels the bot sees and drops hidden ones and other servers', async () => {
+    seed()
+    await register()
+
+    expect(gateway.getBridgedUsers(GENERAL)).toEqual([MEMBER])
+    expect(gateway.getBridgedUsers(MODS_ONLY)).toEqual([])
+    expect(gateway.getBridgedUsers(ELSEWHERE)).toEqual([])
+  })
+
+  it('keeps a hidden channel named in allowed_channel_ids', async () => {
+    seed({ allowed_channel_ids: [GENERAL, MODS_ONLY] })
+    await register()
+
+    expect(gateway.getBridgedUsers(MODS_ONLY)).toEqual([MEMBER])
+  })
+
+  it('drops every channel when visibility cannot be established', async () => {
+    seed()
+    const db = new FakeDb({})
+    db.failures.channel_permission_overrides = { message: 'connection reset' }
+    const from = mocks.from.getMockImplementation()!
+    mocks.from.mockImplementation((table: string) =>
+      table === 'channel_permission_overrides' ? db.from(table) : from(table),
+    )
+    await register()
+
+    expect(gateway.getBridgedUsers(GENERAL)).toEqual([])
+  })
+})

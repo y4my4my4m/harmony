@@ -32,7 +32,7 @@ type UserEventType =
   | 'post:embeds_ready'
   | 'follow:change'
   | 'encryption:key_request' | 'encryption:key_fulfilled'
-  | 'device:approval_request' | 'device:approved' | 'device:denied'
+  | 'device:approval_request' | 'device:approved' | 'device:denied' | 'device:approval_expired'
   | 'mute:insert' | 'mute:delete'
   | 'block:insert' | 'block:delete'
   | 'ai_emoji:generated' | 'ai_emoji:failed'
@@ -40,6 +40,8 @@ type UserEventType =
   | 'federated_voice:token' | 'federated_voice:rejected'
   // Federated DM call signalling (VoiceActivityHandler).
   | 'federated_call:incoming' | 'federated_call:accepted' | 'federated_call:rejected' | 'federated_call:ended'
+  // A DM partner's presence change (presence_publish).
+  | 'presence:update'
   | '_reconnected'
 type EventHandler = (payload: Record<string, any>) => void | Promise<void>
 

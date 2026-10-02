@@ -147,6 +147,18 @@
                 {{ formatCurrency(fundingConfig.goal_amount ?? 0, fundingConfig.goal_currency) }}
               </span>
             </button>
+            <button
+              v-else-if="fundingConfig?.enabled"
+              type="button"
+              class="funding-card"
+              data-testid="funding-support"
+              @click="showFundingModal = true"
+            >
+              <span class="funding-head">
+                <Icon name="heart" :size="14" class="funding-heart" />
+                <span class="funding-label">{{ $t('activitypub.supportInstance') }}</span>
+              </span>
+            </button>
           </div>
           </div>
         </div>

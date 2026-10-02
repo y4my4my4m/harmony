@@ -5,6 +5,7 @@ import { AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import { safeFetch, type SafeFetchOptions } from '../utils/ssrfProtection.js';
 import { actorOwnsKeys, readApDocument, sameUrl } from '../utils/apOrigin.js';
+import { noteDocumentSoftware } from './instanceSoftware.js';
 
 // In-memory LRU of PEM public keys, keyed by actorUrl.
 //
@@ -649,6 +650,8 @@ export class SignatureService {
           logger.debug('Failed to update profile public key:', profileError);
         }
         
+        noteDocumentSoftware(actorUrl, actor);
+
         try {
           const actorUrlObj = new URL(actorUrl);
           await supabase

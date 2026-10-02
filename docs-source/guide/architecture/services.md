@@ -86,7 +86,7 @@ Higher-level services that may coordinate multiple core services or external int
 | `ThreadService` | Thread messages (bypasses encryption, sent as plaintext) |
 | `FileService` | File upload and management |
 | `TrendingService` | Trending hashtags and posts |
-| `NotificationService` | Notification delivery and management |
+| `NotificationService` | Notification reads, read state, deletes and preferences |
 | `ProfileService` | Full profile operations including federation triggers |
 
 ## Encryption Services (`src/services/encryption/`)
@@ -98,6 +98,8 @@ Higher-level services that may coordinate multiple core services or external int
 | `RecoveryKeyService` | Mnemonic derivation, key wrapping, recovery |
 | `SecureSessionKeyStore` | IndexedDB storage for non-extractable CryptoKeys |
 | `MegolmKeyBackupService` | Server-side key backup and restore |
+| `DeviceIdentityService` | Per-device signing identity, device rows, approval and pairing requests |
+| `DevicePairingService` | QR device pairing: a signed-in device seals the recovery-derived keys to a new device after checking its key against the scanned code (protocol and threat model in `devicePairing.ts`) |
 | `WebRTCEncryptionService` | Signal Protocol encryption for WebRTC streams |
 
 ## Federation Services (`src/services/federation/`)

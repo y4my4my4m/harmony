@@ -7,8 +7,14 @@
  * every client converges on the same participant set. Broadcasts carry only
  * transient UX: ringing, accept, decline, cancel.
  *
+ * Every topic is a private channel: dm-call:{conversationId} admits active
+ * participants (can_subscribe_to_topic / can_send_to_topic). A ring goes to the
+ * receiver's own dm-calls:{profileId} through the ring_dm_call RPC, which sets
+ * callerId server-side; no client sends on another user's topic.
+ *
  * Federated calls run over ActivityPub voice extensions and have no presence -
- * the remote party lives on another instance.
+ * the remote party lives on another instance. The caller's LiveKit hosts the
+ * room; the callee's token comes back from its own instance on accept.
  */
 
 import { ref } from 'vue'
@@ -69,6 +75,21 @@ export interface FederatedCallInfo {
   roomName: string
 }
 
+/** LiveKit credentials for the caller's room, issued by the caller's instance. */
+export interface FederatedCallToken {
+  token: string
+  wsUrl: string
+  roomName: string
+}
+
+/** federated_call:* event of the private user channel (VoiceActivityHandler.notifyCallParty). */
+export interface FederatedCallEvent {
+  callId?: string
+  conversationId?: string
+  roomName?: string
+  partyId?: string
+}
+
 class DMCallSignalingService {
   private channels: Map<string, RealtimeChannel> = new Map()
   private channelSetup: Map<string, Promise<RealtimeChannel>> = new Map()
@@ -123,8 +144,10 @@ class DMCallSignalingService {
     // Presence key is the profile id; participant identity is profile ids throughout.
     const profileId = await authContextService.getCurrentProfileId().catch(() => null)
 
+    // realtime-js keeps one channel per topic and the first config wins, so
+    // this is the only place the topic is opened.
     const channel = supabase.channel(`dm-call:${conversationId}`, {
-      config: { presence: { key: profileId ?? `anon-${Date.now()}` } }
+      config: { private: true, presence: { key: profileId ?? `anon-${Date.now()}` } }
     })
 
     channel
@@ -326,9 +349,10 @@ class DMCallSignalingService {
   }
 
   /**
-   * Broadcast a call signal on the conversation channel. Falls back to a
-   * temporary channel when no subscription exists, e.g. accepting from the
-   * global incoming-call modal before DMHeader mounts.
+   * Broadcast a call signal on the conversation channel. Opens it when no
+   * subscription exists, e.g. accepting from the global incoming-call modal
+   * before DMHeader mounts, and releases it afterwards unless a listener or
+   * presence claimed it meanwhile.
    */
   async sendSignal(conversationId: string, signal: CallSignal): Promise<void> {
     debug.log('Sending call signal:', {
@@ -338,37 +362,45 @@ class DMCallSignalingService {
       callType: signal.callType
     })
 
-    const existingChannel = this.channels.get(conversationId)
-
-    if (existingChannel) {
-      await existingChannel.send({
+    const held = this.channels.has(conversationId) || this.channelSetup.has(conversationId)
+    try {
+      const channel = await this.ensureChannel(conversationId)
+      await channel.send({
         type: 'broadcast',
         event: 'call-signal',
         payload: signal
       })
-    } else {
-      const channelName = `dm-call:${conversationId}`
-      debug.log(`No existing subscription - using temp channel: ${channelName}`)
-      const tempChannel = supabase.channel(channelName)
-      await new Promise<void>((resolve, reject) => {
-        tempChannel.subscribe((status) => {
-          if (status === 'SUBSCRIBED') resolve()
-          else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') reject(new Error(`Channel ${status}`))
-        })
-      })
-      await tempChannel.send({
-        type: 'broadcast',
-        event: 'call-signal',
-        payload: signal
-      })
-      await tempChannel.unsubscribe()
+      debug.log('Call signal sent successfully')
+    } finally {
+      if (!held) this.releaseChannelIfUnused(conversationId)
     }
-
-    debug.log('Call signal sent successfully')
   }
 
   /**
-   * Ring each receiver on their own user channel (dm-calls:{receiverId}) and
+   * Rings, or stops ringing, each receiver on its own dm-calls topic through
+   * ring_dm_call. The server names the caller and skips non-participants and
+   * blocked receivers.
+   */
+  private async ringReceivers(
+    conversationId: string,
+    receiverIds: string[],
+    signal: 'initiate' | 'end' | 'timeout',
+    callType: 'voice' | 'video',
+    systemMessageId?: string | null
+  ): Promise<void> {
+    if (receiverIds.length === 0) return
+    const { error } = await supabase.rpc('ring_dm_call', {
+      p_conversation_id: conversationId,
+      p_receiver_ids: receiverIds,
+      p_signal: signal,
+      p_call_type: callType,
+      p_system_message_id: systemMessageId ?? null,
+    })
+    if (error) debug.error(`ring_dm_call(${signal}) failed:`, error.message)
+  }
+
+  /**
+   * Ring each receiver on their own ring topic (dm-calls:{receiverId}) and
    * arm the CALL_TIMEOUT_MS no-answer timer. Posts the call notice through
    * start_dm_call_message first so its id can ride along in the signal.
    */
@@ -395,15 +427,6 @@ class DMCallSignalingService {
       debug.error('Failed to post call system message:', error)
     }
     
-    const signal: CallSignal = {
-      type: 'initiate',
-      callerId,
-      callType,
-      timestamp: Date.now(),
-      conversationId,
-      systemMessageId: systemMessageId ?? undefined,
-    }
-    
     const timeoutTimer = window.setTimeout(() => {
       this.handleCallTimeout(conversationId, callerId)
     }, this.CALL_TIMEOUT_MS)
@@ -422,33 +445,7 @@ class DMCallSignalingService {
       systemMessageId,
     })
 
-    for (const receiverId of receiverIds) {
-      await this.sendSignalToUser(receiverId, signal)
-    }
-  }
-  
-  private async sendSignalToUser(userId: string, signal: CallSignal): Promise<void> {
-    const channelName = `dm-calls:${userId}`
-    debug.log(`Sending call signal to user ${userId} on channel ${channelName}`)
-    
-    const tempChannel = supabase.channel(channelName)
-    
-    await new Promise<void>((resolve, reject) => {
-      tempChannel.subscribe((status) => {
-        if (status === 'SUBSCRIBED') resolve()
-        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') reject(new Error(`Channel ${status}`))
-      })
-    })
-    
-    await tempChannel.send({
-      type: 'broadcast',
-      event: 'incoming-call',
-      payload: signal
-    })
-    
-    debug.log('Signal sent to user:', userId)
-    
-    await tempChannel.unsubscribe()
+    await this.ringReceivers(conversationId, receiverIds, 'initiate', callType, systemMessageId)
   }
   
   /**
@@ -479,10 +476,8 @@ class DMCallSignalingService {
       // Conversation channel reaches the caller's DMHeader.
       await this.sendSignal(conversationId, timeoutSignal)
       
-      // User channels reach GlobalDMCallListener, which dismisses the modal.
-      for (const receiverId of call.receiverIds) {
-        await this.sendSignalToUser(receiverId, timeoutSignal)
-      }
+      // Ring topics reach GlobalDMCallListener, which dismisses the modal.
+      await this.ringReceivers(conversationId, call.receiverIds, 'timeout', call.callType)
       
       this.deleteActiveCall(conversationId)
     } else {
@@ -651,10 +646,8 @@ class DMCallSignalingService {
 
       await this.sendSignal(conversationId, endSignal)
 
-      // User channels reach GlobalDMCallListener, which dismisses the modal.
-      for (const receiverId of call.receiverIds) {
-        await this.sendSignalToUser(receiverId, endSignal)
-      }
+      // Ring topics reach GlobalDMCallListener, which dismisses the modal.
+      await this.ringReceivers(conversationId, call.receiverIds, 'end', call.callType)
       return
     }
 
@@ -939,11 +932,16 @@ class DMCallSignalingService {
     }
   }
 
+  /**
+   * Accepts over the callee's own instance, which fetches this user's token
+   * for the caller's room from the caller's instance. Null when no token came
+   * back; the call keeps ringing.
+   */
   async acceptFederatedCall(
     conversationId: string,
     userId: string,
     callerFederatedId: string
-  ): Promise<{ token: string; wsUrl: string; roomName: string } | null> {
+  ): Promise<FederatedCallToken | null> {
     debug.log('[Federated] Accepting federated call from:', callerFederatedId)
     
     try {
@@ -952,17 +950,6 @@ class DMCallSignalingService {
         debug.error('No federated call found for conversation')
         return null
       }
-      
-      if (call.timeoutTimer) {
-        clearTimeout(call.timeoutTimer)
-        call.timeoutTimer = undefined
-      }
-      call.ringing = false
-
-      if (!call.participants.includes(userId)) {
-        call.participants.push(userId)
-      }
-      this.bumpVersion()
 
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) {
@@ -970,7 +957,7 @@ class DMCallSignalingService {
         return null
       }
       
-      await fetch(apiUrl('/api/livekit/federated-call/accept'), {
+      const response = await fetch(apiUrl('/api/livekit/federated-call/accept'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -981,12 +968,27 @@ class DMCallSignalingService {
           callerFederatedId,
         }),
       })
-      
-      return {
-        token: '', // Fetched at connect time.
-        wsUrl: call.livekitUrl || '',
-        roomName: call.roomName || '',
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok || typeof body?.token !== 'string' || typeof body?.livekitUrl !== 'string'
+          || typeof body?.roomName !== 'string') {
+        debug.error('[Federated] Accept refused:', response.status, body?.error)
+        return null
       }
+
+      if (call.timeoutTimer) {
+        clearTimeout(call.timeoutTimer)
+        call.timeoutTimer = undefined
+      }
+      call.ringing = false
+      this.clearRingWatchdog(conversationId)
+      if (!call.participants.includes(userId)) {
+        call.participants.push(userId)
+      }
+      call.livekitUrl = body.livekitUrl
+      call.roomName = body.roomName
+      this.bumpVersion()
+
+      return { token: body.token, wsUrl: body.livekitUrl, roomName: body.roomName }
     } catch (error) {
       debug.error('[Federated] Failed to accept call:', error)
       return null
@@ -1027,20 +1029,26 @@ class DMCallSignalingService {
     }
   }
 
+  /**
+   * Ends this user's live federated calls in the conversation, either
+   * direction; the backend tells the remote party. Sent whether or not local
+   * state still holds the call: a timed-out ring has already dropped it.
+   */
   async endFederatedCall(
     conversationId: string,
     _userId: string
   ): Promise<void> {
     debug.log('[Federated] Ending federated call')
     
+    const call = this.activeCalls.get(conversationId)
+    if (call?.timeoutTimer) {
+      clearTimeout(call.timeoutTimer)
+    }
+    if (call?.isFederated) {
+      this.deleteActiveCall(conversationId)
+    }
+
     try {
-      const call = this.activeCalls.get(conversationId)
-      if (!call?.isFederated) return
-      
-      if (call.timeoutTimer) {
-        clearTimeout(call.timeoutTimer)
-      }
-      
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.access_token) {
         await fetch(apiUrl('/api/livekit/federated-call/end'), {
@@ -1049,43 +1057,96 @@ class DMCallSignalingService {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({
-            conversationId,
-            otherParticipantFederatedId: call.calleeFederatedId || call.callerFederatedId,
-          }),
+          body: JSON.stringify({ conversationId }),
         })
       }
-      
-      this.deleteActiveCall(conversationId)
     } catch (error) {
       debug.error('[Federated] Failed to end call:', error)
     }
   }
 
-  /** Federated calls have no broadcast channel; notify local listeners directly. */
+  /**
+   * Unanswered outbound ring. Ends it on the backend, which tells the callee's
+   * instance, and notifies local listeners: federated calls have no broadcast
+   * channel.
+   */
   private handleFederatedCallTimeout(conversationId: string, callerId: string): void {
     debug.log('⏰ [Federated] Call timeout for:', conversationId)
     
     const call = this.activeCalls.get(conversationId)
-    if (!call?.isFederated) return
+    if (!call?.isFederated || !call.ringing) return
 
-    if (call.ringing) {
-      this.deleteActiveCall(conversationId)
-      
-      const listeners = this.listeners.get(conversationId)
-      if (listeners) {
-        const signal: CallSignal = {
-          type: 'timeout',
-          callerId,
-          callType: call.callType,
-          timestamp: Date.now(),
-          conversationId,
-          reason: 'timeout',
-          isFederated: true,
-        }
-        listeners.forEach(listener => listener(signal))
-      }
+    this.deleteActiveCall(conversationId)
+    void this.endFederatedCall(conversationId, callerId)
+
+    this.notifyListeners(conversationId, {
+      type: 'timeout',
+      callerId,
+      callType: call.callType,
+      timestamp: Date.now(),
+      conversationId,
+      reason: 'timeout',
+      isFederated: true,
+    })
+  }
+
+  /**
+   * Remote party's answer to a federated call, from the private user channel:
+   * accepted and rejected reach the local caller of an outbound call, ended
+   * reaches the local party of either direction. Local listeners (DMHeader)
+   * see it as accept, decline or end.
+   */
+  handleFederatedCallEvent(event: 'accepted' | 'rejected' | 'ended', payload: FederatedCallEvent): void {
+    const conversationId = payload.conversationId
+    if (!conversationId) return
+    const call = this.activeCalls.get(conversationId)
+    if (call && !call.isFederated) return
+    if (call?.roomName && payload.roomName && call.roomName !== payload.roomName) return
+
+    const signal: CallSignal = {
+      type: event === 'accepted' ? 'accept' : event === 'rejected' ? 'decline' : 'end',
+      callerId: payload.partyId ?? '',
+      callType: call?.callType ?? 'voice',
+      timestamp: Date.now(),
+      conversationId,
+      isFederated: true,
     }
+
+    if (event === 'accepted') {
+      if (!call) return
+      if (call.timeoutTimer) {
+        clearTimeout(call.timeoutTimer)
+        call.timeoutTimer = undefined
+      }
+      call.ringing = false
+      if (payload.partyId && !call.participants.includes(payload.partyId)) {
+        call.participants.push(payload.partyId)
+        call.allParticipants.push(payload.partyId)
+      }
+      this.bumpVersion()
+    } else if (call) {
+      if (call.timeoutTimer) clearTimeout(call.timeoutTimer)
+      this.deleteActiveCall(conversationId)
+    }
+
+    this.notifyListeners(conversationId, signal)
+  }
+
+  private notifyListeners(conversationId: string, signal: CallSignal): void {
+    this.listeners.get(conversationId)?.forEach(listener => listener(signal))
+  }
+
+  /**
+   * This instance's conversation for a federated DM room. The room names the
+   * caller's conversation, which on the callee's instance is another id; the
+   * active call maps it back.
+   */
+  conversationForRoom(roomName: string): string | null {
+    for (const call of this.activeCalls.values()) {
+      if (call.isFederated && call.roomName === roomName) return call.conversationId
+    }
+    const match = roomName.match(/^federated-dm-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-\d+$/i)
+    return match ? match[1] : null
   }
 
   isFederatedCall(conversationId: string): boolean {

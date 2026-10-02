@@ -5,6 +5,7 @@ import { logger } from '../utils/logger.js';
 import {
   authorizeVoiceChannel,
   isConversationParticipant,
+  isLiveOutboundCallFor,
   parseRoomName,
   type RoomType,
 } from './voiceAccess.js';
@@ -53,6 +54,14 @@ export interface LiveKitConfig {
 }
 
 type RoomAccess = { ok: true; canPublish: boolean } | { ok: false };
+
+/** An expected refusal of a token; `answer` is what the caller is told. */
+export class TokenRefused extends Error {
+  constructor(message: string, readonly answer: string) {
+    super(message);
+    this.name = 'TokenRefused';
+  }
+}
 const DENIED: RoomAccess = { ok: false };
 
 // LIVEKIT SERVICE
@@ -106,7 +115,7 @@ class LiveKitService {
     // request.userId is auth_user_id from Supabase auth.
     const access = await this.validateRoomPermission(request.userId, request.roomName, request.roomType);
     if (!access.ok) {
-      throw new Error('permission denied: not a member of this room');
+      throw new TokenRefused('permission denied: not a member of this room', 'Not authorized for this room');
     }
     
     const supabase = getSupabaseClient();
@@ -179,7 +188,7 @@ class LiveKitService {
     }
     
     if (!cfg.allowFederatedVoice) {
-      throw new Error('Federated voice is not enabled on this instance');
+      throw new TokenRefused('Federated voice is not enabled on this instance', 'Federated voice is not enabled on this instance');
     }
 
     // NOTE: the HTTP Signature and the actorId<->signer binding are verified by
@@ -200,7 +209,7 @@ class LiveKitService {
       .single();
     
     if (blocked) {
-      throw new Error('Instance is blocked');
+      throw new TokenRefused(`Instance ${remoteDomain} is blocked`, 'Instance is blocked');
     }
 
     // AUTHORIZATION: the remote actor must belong to the requested room.
@@ -210,7 +219,7 @@ class LiveKitService {
       request.roomType,
     );
     if (!access.ok) {
-      throw new Error('permission denied: federated actor is not authorized for this room');
+      throw new TokenRefused('permission denied: federated actor is not authorized for this room', 'Not authorized for this room');
     }
 
     const federatedIdentity = `federated:${request.actorId}`;
@@ -284,8 +293,9 @@ class LiveKitService {
    *  - voice_channel / stage: authorizeVoiceChannel on a server hosted here
    *    with federation enabled.
    *  - dm_call: the actor is an active participant of the conversation the
-   *    room names. federated_voice_calls rows are signalling only and grant
-   *    nothing: their room names and URLs are sender-chosen.
+   *    room names. A federated-dm room additionally needs a live outbound
+   *    call naming it, whose recipient is the actor (isLiveOutboundCallFor).
+   *    Inbound rows grant nothing: their room names and URLs are sender-chosen.
    * Fails closed on any lookup error.
    */
   private async validateFederatedRoomAccess(
@@ -313,6 +323,10 @@ class LiveKitService {
         return decision.ok ? { ok: true, canPublish: decision.canPublish } : DENIED;
       }
 
+      if (room.federated && !(await isLiveOutboundCallFor(supabase, roomName, profile.id))) {
+        logger.info(`Federated room ${roomName} refused for ${actorId}: no live outbound call to it`);
+        return DENIED;
+      }
       return (await isConversationParticipant(supabase, room.conversationId, profile.id))
         ? { ok: true, canPublish: true }
         : DENIED;

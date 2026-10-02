@@ -16,6 +16,7 @@ import config from '../config/index.js';
 import { convertContentToHTML, extractActivityPubTags, extractAttachments } from '../utils/contentUtils.js';
 import { harmonyVoiceMessageExtension } from '../utils/voiceMessageFederation.js';
 import { getChannelRecipientGroups, type RemoteMemberGroup } from '../utils/federationUtils.js';
+import { federateContentParts, fileAttachmentsToAp } from '../utils/privateMedia.js';
 
 // TYPES
 
@@ -118,7 +119,8 @@ export async function handleChannelMessageFederation(
         server,
         channel_id,
         channel_name,
-        'Create'
+        'Create',
+        remoteServerAudience(server)
       );
 
       // Deliver to remote server's inbox (static method)
@@ -184,15 +186,11 @@ export async function handleChannelMessageFederation(
       return;
     }
 
-    const activity = createMessageActivity(
-      message,
-      server,
-      channel_id,
-      channel_name,
-      'Create'
+    await deliverToRemoteInstances(
+      remoteMemberGroups,
+      (audience) => createMessageActivity(message, server, channel_id, channel_name, 'Create', audience),
+      message.author.id
     );
-
-    await deliverToRemoteInstances(remoteMemberGroups, activity, message.author.id);
 
     // Update federation status (preserve updated_at to avoid showing as edited)
     await supabase
@@ -275,7 +273,7 @@ export async function handleChannelMessageUpdate(
 
       const activity = createMessageActivity(
         message, server, channel_id,
-        message.channel?.name || 'channel', 'Update'
+        message.channel?.name || 'channel', 'Update', remoteServerAudience(server)
       );
 
       await DeliveryQueue.enqueue(
@@ -297,12 +295,13 @@ export async function handleChannelMessageUpdate(
       return;
     }
 
-    const activity = createMessageActivity(
-      message, server, channel_id,
-      message.channel?.name || 'channel', 'Update'
+    await deliverToRemoteInstances(
+      remoteMemberGroups,
+      (audience) => createMessageActivity(
+        message, server, channel_id, message.channel?.name || 'channel', 'Update', audience
+      ),
+      message.author.id
     );
-
-    await deliverToRemoteInstances(remoteMemberGroups, activity, message.author.id);
 
     logger.info(`Message update federated to ${remoteMemberGroups.length} instances`);
   } catch (error) {
@@ -373,7 +372,7 @@ export async function handleChannelMessageDelete(
       return;
     }
 
-    await deliverToRemoteInstances(remoteMemberGroups, activity, server.owner);
+    await deliverToRemoteInstances(remoteMemberGroups, () => activity, server.owner);
 
     logger.info(`Message deletion federated to ${remoteMemberGroups.length} instances`);
   } catch (error) {
@@ -383,6 +382,18 @@ export async function handleChannelMessageDelete(
 
 // HELPER FUNCTIONS
 
+/** Attachment audience of a remote server's channel: the instance hosting it. */
+function remoteServerAudience(server: any): string {
+  for (const url of [server.federation_inbox_url, server.ap_id]) {
+    try {
+      if (url) return new URL(url).hostname.toLowerCase();
+    } catch {
+      // next candidate
+    }
+  }
+  return '';
+}
+
 /**
  * Create ActivityPub activity for a message
  */
@@ -391,7 +402,8 @@ function createMessageActivity(
   server: any,
   channelId: string,
   channelName: string,
-  activityType: 'Create' | 'Update'
+  activityType: 'Create' | 'Update',
+  audience: string
 ): any {
   const hostDomain = config.INSTANCE_DOMAIN;
   const serverUrl = `https://${hostDomain}/servers/${server.id}`;
@@ -407,11 +419,14 @@ function createMessageActivity(
 
   const contentHtml = convertContentToHTML(message.content);
   const tags = extractActivityPubTags(message.content);
-  const attachments = extractAttachments(message.content);
+  const attachments = [
+    ...extractAttachments(message.content),
+    ...fileAttachmentsToAp(message.content, audience),
+  ];
 
-  // Transform emoji URLs to absolute URLs for federation
-  const federatedContent = Array.isArray(message.content) 
-    ? message.content.map((item: any) => {
+  // Emoji URLs become absolute; attachments carry the audience's capability URLs.
+  const federatedContent = Array.isArray(message.content)
+    ? federateContentParts(message.content, audience).map((item: any) => {
         if (item.type === 'emoji' && item.emoji?.url) {
           let emojiUrl = item.emoji.url;
           if (!emojiUrl.startsWith('http://') && !emojiUrl.startsWith('https://')) {
@@ -511,17 +526,19 @@ function createMessageActivity(
 }
 
 /**
- * Deliver activity to remote instances
+ * Deliver activity to remote instances. The activity is built per instance: attachment
+ * URLs name the instance they are delivered to.
  */
 async function deliverToRemoteInstances(
   groups: RemoteMemberGroup[],
-  activity: any,
+  activityFor: (audience: string) => any,
   senderId: string
 ): Promise<void> {
   for (const group of groups) {
     // Use shared inbox for efficiency
     const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
 
+    const activity = activityFor(group.instance);
     const activityWithRecipients = {
       ...activity,
       to: group.member_ap_ids,

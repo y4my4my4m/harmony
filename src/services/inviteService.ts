@@ -1,6 +1,7 @@
 import { supabase } from '@/supabase';
 import { canUserCreateInvites, getInviteConstraints } from './permissionsService';
 import { debug } from '@/utils/debug'
+import { i18n } from '@/i18n';
 
 export interface InviteOptions {
   expiresIn?: number; // minutes, 0 = never expires
@@ -104,12 +105,12 @@ async function generateInviteUrl(
     return { success: false, error: 'Failed to generate invite link' };
   }
 }
-const INVITE_ERRORS: Array<[string, string]> = [
-  ['INVITE_EXHAUSTED', 'This invite has reached its usage limit'],
-  ['INVITE_REVOKED', 'This invite has been revoked'],
-  ['INVITE_EXPIRED', 'This invite has expired'],
-  ['INVITE_NOT_FOUND', 'Invalid invite code'],
-  ['BANNED_FROM_SERVER', 'You are banned from this server'],
+const INVITE_ERRORS: Array<[string, () => string]> = [
+  ['INVITE_EXHAUSTED', () => 'This invite has reached its usage limit'],
+  ['INVITE_REVOKED', () => 'This invite has been revoked'],
+  ['INVITE_EXPIRED', () => 'This invite has expired'],
+  ['INVITE_NOT_FOUND', () => 'Invalid invite code'],
+  ['BANNED_FROM_SERVER', () => i18n.global.t('invite.bannedFromServer')],
 ];
 
 /**
@@ -123,7 +124,7 @@ async function acceptInvite(code: string): Promise<{ success: boolean; serverId?
     if (error) {
       const known = INVITE_ERRORS.find(([marker]) => (error.message || '').includes(marker));
       if (!known) debug.error('Error redeeming invite:', error);
-      return { success: false, error: known ? known[1] : 'Failed to join server' };
+      return { success: false, error: known ? known[1]() : 'Failed to join server' };
     }
 
     const serverId = (data as { server_id?: string } | null)?.server_id;

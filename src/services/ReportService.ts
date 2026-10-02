@@ -1,3 +1,4 @@
+import { i18n } from '@/i18n'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import {
@@ -212,7 +213,7 @@ class ReportService {
     })
     if (error) {
       debug.error(`moderate_report ${action} failed:`, error)
-      return { ok: false, message: error.message || 'The action failed' }
+      return { ok: false, message: error.message || i18n.global.t('moderation.reportErrors.actionFailed') }
     }
     return { ok: true, status: (data as { status: ReportStatus }).status }
   }

@@ -16,6 +16,7 @@
     "search": "Suchen",
     "send": "Senden",
     "copy": "Kopieren",
+    "copied": "Kopiert",
     "paste": "Einfügen",
     "cut": "Ausschneiden",
     "undo": "Rückgängig",
@@ -55,6 +56,7 @@
     "createAccount": "Konto erstellen",
     "welcomeBackSubtitle": "Melde dich mit E-Mail und Passwort an.",
     "createAccountSubtitle": "Als Nächstes wählst du einen Benutzernamen und dein Profil.",
+    "confirmEmailSent": "Wir haben einen Bestätigungslink an {email} gesendet. Öffne ihn und melde dich dann an.",
     "forgotPassword": "Passwort vergessen?",
     "dontHaveAccount": "Noch kein Konto?",
     "alreadyHaveAccount": "Bereits ein Konto?",
@@ -136,6 +138,8 @@
     "serverName": "Servername",
     "description": "Beschreibung",
     "privacySettings": "Datenschutzeinstellungen",
+    "privacySettingsDesc": "Lege fest, wer diesen Server finden und ihm beitreten kann.",
+    "privacySettingsViewDesc": "Wer diesen Server finden und ihm beitreten kann.",
     "public": "Öffentlich",
     "private": "Privat",
     "publicDesc": "Jeder kann diesem Server beitreten",
@@ -156,6 +160,9 @@
     "moderation": "Moderation",
     "overview": "Übersicht",
     "serverDescription": "Erzähle anderen, worum es in deinem Server geht...",
+    "rulesLabel": "Serverregeln",
+    "rulesPlaceholder": "Eine Regel pro Zeile, z. B.\nSei respektvoll\nKein Spam",
+    "rulesHint": "Wird Personen angezeigt, bevor sie eine Einladung annehmen (max. 25 Regeln).",
     "myAwesomeServer": "Mein toller Server",
     "noServers": "Noch keine Server",
     "noServersAvailable": "Keine Server verfügbar",
@@ -244,36 +251,31 @@
     "copyEmojiName": "Emoji-Namen kopieren",
     "renameEmoji": "Emoji umbenennen",
     "deleteEmojiTitle": "Emoji löschen",
-    "emojiViewOnlyAccess": "Nur-Ansicht-Zugriff",
-    "emojiViewOnlyMessage": "Sie können Server-Emojis ansehen, aber nicht hochladen oder löschen. Nur der Serverbesitzer und Benutzer mit Emoji-Verwaltungsberechtigungen können Emojis ändern.",
     "noPermissionUploadEmojis": "Sie haben keine Berechtigung, Emojis hochzuladen",
     "selectImageFile": "Bitte wählen Sie eine Bilddatei aus",
     "fileSizeMustBeLessThan1MB": "Die Dateigröße muss weniger als 1 MB betragen",
-    "maxEmojisReached": "Maximal 50 Emojis pro Server erlaubt",
+    "maxEmojisReached": "Maximale Anzahl an Emojis erreicht ({max})",
     "emojiUploadedSuccess": "Emoji :{name}: erfolgreich hochgeladen!",
     "failedToUploadEmoji": "Emoji konnte nicht hochgeladen werden",
     "noPermissionDeleteEmojis": "Sie haben keine Berechtigung, Emojis zu löschen",
     "confirmDeleteEmoji": "Sind Sie sicher, dass Sie :{name}: löschen möchten?",
     "emojiDeletedSuccess": "Emoji :{name}: erfolgreich gelöscht!",
     "failedToDeleteEmoji": "Emoji konnte nicht gelöscht werden",
-    "fileNotImageSkipped": "{filename} ist keine Bilddatei und wird übersprungen",
-    "fileTooLargeSkipped": "{filename} ist zu groß (über 1 MB) und wird übersprungen",
     "filesNotImageSkipped": "{count} Datei(en) übersprungen: keine Bilddateien",
     "filesTooLargeSkipped": "{count} Datei(en) übersprungen: über 25 MB",
     "noValidImageFiles": "Keine gültigen Bilddateien ausgewählt",
-    "cannotUploadEmojisLimit": "Kann {count} Emojis nicht hochladen. Serverlimit ist 50 Emojis (aktuell {current})",
+    "cannotUploadEmojisLimit": "{count} Emoji(s) können nicht hochgeladen werden: Das Limit von {max} würde überschritten (aktuell {current})",
     "emojisUploadedSuccess": "{count} Emoji{plural} erfolgreich hochgeladen!",
     "emojisFailedToUpload": "{count} Emoji{plural} konnte(n) nicht hochgeladen werden",
     "failedToUploadEmojis": "Emojis konnten nicht hochgeladen werden",
-    "confirmDeleteEmojis": "Sind Sie sicher, dass Sie {count} Emoji{plural} löschen möchten?",
-    "emojisDeletedSuccess": "{count} Emoji{plural} erfolgreich gelöscht!",
-    "emojisFailedToDelete": "{count} Emoji{plural} konnte(n) nicht gelöscht werden",
+    "confirmDeleteEmojis": "Möchtest du {count} Emoji(s) wirklich löschen? Dies kann nicht rückgängig gemacht werden.",
+    "emojisDeletedSuccess": "{count} Emoji(s) gelöscht",
+    "emojisFailedToDelete": "{count} Emoji(s) konnten nicht gelöscht werden",
     "failedToDeleteEmojis": "Emojis konnten nicht gelöscht werden",
     "emojiRenamedSuccess": "Emoji umbenannt zu :{name}:",
     "failedToRenameEmoji": "Emoji konnte nicht umbenannt werden",
     "failedToLoadServerSettings": "Server-Einstellungen konnten nicht geladen werden",
     "failedToLoadEmojis": "Emojis konnten nicht geladen werden",
-    "emojiUploadedSuccessToast": "Emoji erfolgreich hochgeladen",
     "noPermissionSaveChanges": "Sie haben keine Berechtigung, Änderungen zu speichern",
     "serverUpdatedSuccess": "Server erfolgreich aktualisiert",
     "failedToUpdateServer": "Server konnte nicht aktualisiert werden",
@@ -306,6 +308,11 @@
     "leaving": "Verlasse...",
     "join": "Beitreten",
     "joining": "Tritt bei...",
+    "open": "Öffnen",
+    "allCategories": "Alle",
+    "noCommunitiesInCategory": "Keine Communities in dieser Kategorie",
+    "creating": "Wird erstellt...",
+    "iconUploadHint": "Quadratische Bilder eignen sich am besten. Max. 5 MB.",
     "member": "Mitglied",
     "categoryGaming": "Gaming",
     "categoryTechnology": "Technologie",
@@ -317,23 +324,36 @@
     "categoryScience": "Wissenschaft",
     "categorySports": "Sport",
     "categoryOther": "Sonstiges",
+    "discoveryCategory": "Kategorie",
+    "discoveryCategoryHint": "Wird unter Entdecken angezeigt, damit Leute den Server nach Thema finden.",
+    "discoveryCategoryNone": "Nicht festgelegt",
+    "discoveryCategoryNoneHint": "Entdecken wählt anhand von Name und Beschreibung eine Kategorie.",
     "placeholders": {
       "serverName": "Mein toller Server",
       "description": "Erzähle anderen, worum es in deinem Server geht..."
     },
     "errors": {
+      "nameRequired": "Servername ist erforderlich",
       "nameTooShort": "Servername muss mindestens 2 Zeichen lang sein",
       "nameTooLong": "Servername muss weniger als 50 Zeichen lang sein",
-      "invalidName": "Servername enthält ungültige Zeichen"
+      "invalidName": "Servername enthält ungültige Zeichen",
+      "notSignedIn": "Melde dich an, um einen Server zu erstellen.",
+      "createFailed": "Der Server konnte nicht erstellt werden. Bitte versuche es erneut."
     },
+    "bannedFromServer": "Du bist von diesem Server gebannt.",
+    "joinRequiresInvite": "Diesem Server tritt man über eine Einladung bei.",
     "bots": "Bots",
+    "bans": "Sperren",
+    "reports": "Meldungen",
     "encryption": "Verschlüsselung",
     "federationEnabled": "Föderation aktivieren",
     "federationEnabledDesc": "Erlaubt Benutzern von anderen Harmony-Instanzen, diesem Server beizutreten und zu interagieren. Erforderlich für die Kommunikation zwischen Instanzen.",
     "federationActive": "Föderation aktiv",
     "federationBenefit1": "Benutzer aus anderen Instanzen können über Einladungslinks beitreten",
     "federationBenefit2": "Nachrichten werden in Echtzeit mit föderierten Mitgliedern geteilt",
-    "federationBenefit3": "Server erscheint in der föderierten Server-Suche"
+    "federationBenefit3": "Server erscheint in der föderierten Server-Suche",
+    "federationHandle": "Server-Handle",
+    "federationHandleDesc": "Teile dieses Handle, damit Leute auf anderen Instanzen diesen Server finden und ihm beitreten können."
   },
   "channel": {
     "create": "Kanal erstellen",
@@ -362,7 +382,7 @@
     }
   },
   "message": {
-    "typeMessage": "Nachricht eingeben...",
+    "typeMessage": "Nachricht an {to}",
     "addComment": "Kommentar hinzufügen...",
     "editMessage": "Nachricht bearbeiten",
     "deleteMessage": "Nachricht löschen",
@@ -386,10 +406,16 @@
     "jumpTo": "Zur Nachricht springen",
     "copyID": "Nachrichten-ID kopieren",
     "noMessagesHere": "Hier gibt es noch keine Nachrichten, schreibe etwas!",
+    "newMessages": "Neu",
     "loadingOlder": "Lade ältere Nachrichten...",
     "newMessagesBelow": "{count} neue Nachricht | {count} neue Nachrichten",
+    "jumpToPresent": "Zur Gegenwart springen",
     "conversationBeginning": "Dies ist der Beginn deiner Unterhaltung",
     "conversationBeginningSubtitle": "Beginne zu chatten und mache es unvergesslich!",
+    "channelWelcome": "Willkommen in #{name}",
+    "channelWelcomeSubtitle": "Dies ist der Anfang des Kanals #{name}.",
+    "dmBeginning": "Dies ist der Anfang deiner Direktnachrichten mit {name}.",
+    "groupBeginning": "Dies ist der Anfang der Gruppe {name}.",
     "jumpInConversation": "Sprung in der Unterhaltung",
     "reactions": {
       "add": "Reaktion hinzufügen",
@@ -402,6 +428,71 @@
       "three": ", {name2} und {name3} tippen...",
       "many": "Viele Benutzer tippen..."
     }
+  },
+  "messageSearch": {
+    "title": "Nachrichten durchsuchen",
+    "intro": "Gib Suchbegriffe ein oder grenze die Suche mit from:, mentions:, has:, in:, before:, during:, after: und pinned: ein.",
+    "placeholderServer": "Diesen Server durchsuchen",
+    "placeholderDm": "Diese Unterhaltung durchsuchen",
+    "close": "Suche schließen",
+    "clear": "Suche leeren",
+    "removeFilter": "Filter {filter} entfernen",
+    "unresolved": "Nichts passt zu diesem Wert, daher lässt die Suche ihn weg",
+    "options": "Suchoptionen",
+    "members": "Mitglieder",
+    "channels": "Kanäle",
+    "date": "Datum",
+    "contains": "Enthält",
+    "pickDate": "Datum wählen",
+    "today": "Heute",
+    "yesterday": "Gestern",
+    "enterToSearch": "Enter drücken zum Suchen",
+    "hint": {
+      "from": "Von einem Benutzer",
+      "mentions": "Erwähnt einen Benutzer",
+      "has": "Link, Einbettung, Datei, Bild, Video oder Ton",
+      "in": "In einem Kanal",
+      "before": "Vor einem Datum",
+      "during": "An einem Datum",
+      "after": "Nach einem Datum",
+      "pinned": "Angeheftet oder nicht"
+    },
+    "has": {
+      "link": "Enthält einen Link",
+      "embed": "Hat eine Einbettung",
+      "file": "Hat einen Anhang",
+      "image": "Hat ein Bild",
+      "video": "Hat ein Video",
+      "sound": "Hat Audio"
+    },
+    "pinnedHint": {
+      "true": "Angeheftete Nachrichten",
+      "false": "Nicht angeheftete Nachrichten"
+    },
+    "recent": "Letzte Suchen",
+    "clearRecent": "Leeren",
+    "encryptedNote": "Verschlüsselte Nachrichten werden nur auf diesem Gerät durchsucht, unter den bereits geladenen Nachrichten.",
+    "onThisDevice": "Verschlüsselt, auf diesem Gerät",
+    "searching": "Suche läuft…",
+    "results": "Keine Ergebnisse | {count} Ergebnis | {count} Ergebnisse",
+    "resultsCapped": "Mehr als {count} Ergebnisse",
+    "sort": "Ergebnisse sortieren",
+    "newest": "Neueste",
+    "oldest": "Älteste",
+    "relevant": "Relevanteste",
+    "error": "Suche fehlgeschlagen",
+    "empty": "Keine Ergebnisse",
+    "emptyHint": "Versuche andere Begriffe oder weniger Filter.",
+    "unknownChannel": "unbekannter Kanal",
+    "threadIn": "Thread in {channel}",
+    "pages": "Ergebnisseiten",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "jumpTo": "Zur Nachricht springen",
+    "jump": "Springen",
+    "bot": "Bot",
+    "pinned": "Angeheftet",
+    "encrypted": "Ende-zu-Ende-verschlüsselt"
   },
   "voice": {
     "join": "Sprache beitreten",
@@ -428,7 +519,66 @@
     "outputVolume": "Ausgabelautstärke",
     "echoCancellation": "Echounterdrückung",
     "noiseSuppression": "Rauschunterdrückung",
-    "testMicrophone": "Mikrofon testen"
+    "testMicrophone": "Mikrofon testen",
+    "userVolume": "Benutzerlautstärke",
+    "streamVolume": "Stream-Lautstärke",
+    "muteUser": "Stummschalten",
+    "muteStream": "Stream stummschalten",
+    "localOnlyHint": "Ändert nur, was du hörst",
+    "noStreamAudio": "Dieser Stream hat keinen Ton",
+    "watchStream": "Stream ansehen",
+    "stopWatching": "Nicht mehr ansehen",
+    "fullScreen": "Vollbild",
+    "exitFullScreen": "Vollbild beenden",
+    "popOut": "Herauslösen",
+    "closePopOut": "Separates Fenster schließen",
+    "focus": "Fokus",
+    "exitFocus": "Fokus beenden",
+    "gridView": "Rasteransicht",
+    "focusView": "Fokusansicht",
+    "moreOptions": "Weitere Optionen",
+    "live": "Live",
+    "mutedByYou": "Von dir stummgeschaltet",
+    "streamMutedByYou": "Stream von dir stummgeschaltet",
+    "streamQuality": "Stream-Qualität",
+    "streamSettings": "Stream-Einstellungen",
+    "streamAudioQuality": "Stream-Audio",
+    "shareYourScreen": "Bildschirm teilen",
+    "goLive": "Live gehen",
+    "stopStreaming": "Streaming beenden",
+    "streamAudioHint": "Um Ton einzuschließen, aktiviere die Audiofreigabe in der Auswahl des Browsers.",
+    "qualityHint": "Höhere Einstellungen benötigen mehr Upload-Bandbreite.",
+    "source": "Quelle",
+    "fps": "{n} fps",
+    "kbps": "{n} kbps",
+    "audioBlocked": "Dein Browser hat den Anrufton pausiert.",
+    "enableAudio": "Audio aktivieren",
+    "reconnecting": "Verbindung wird wiederhergestellt…",
+    "statusInVoice": "Im Sprachkanal",
+    "statusSpeaking": "Spricht",
+    "statusStreaming": "Streamt",
+    "statusCameraOn": "Kamera an",
+    "statusMuted": "Stummgeschaltet",
+    "statusDeafened": "Taub geschaltet",
+    "quality": {
+      "excellent": "Ausgezeichnete Verbindung",
+      "good": "Gute Verbindung",
+      "poor": "Schlechte Verbindung",
+      "lost": "Verbindung verloren",
+      "unknown": "Verbindungsqualität unbekannt"
+    },
+    "autoWatchStreams": "Streams automatisch ansehen",
+    "autoWatchStreamsHint": "Einen Stream empfangen, sobald jemand live geht, statt auf „Stream ansehen“ zu warten.",
+    "inputVolumeHint": "Skaliert dein Mikrofon vor dem Senden. Bei 100 % wird es unverändert gesendet.",
+    "inputVolumeAgcHint": " Die automatische Verstärkungsregelung ist aktiv, daher passt dein Browser deinen Pegel ebenfalls an.",
+    "switchCallTitle": "Anruf wechseln?",
+    "switchCallMessage": "Du bist bereits in {channel}. Verlassen und diesem Anruf beitreten?",
+    "switchCallConfirm": "Wechseln",
+    "callDuration": "Anrufdauer",
+    "inCallWith": "Im Anruf",
+    "incomingGroupCall": "{name} ruft die Gruppe an",
+    "ringing": "Klingelt…",
+    "joinCallFailed": "Dem Anruf konnte nicht beigetreten werden"
   },
   "dm": {
     "directMessages": "Direktnachrichten",
@@ -441,6 +591,9 @@
     "startBySearching": "Hier erscheinen Nachrichten, die du sendest und empfängst.",
     "followingEmptyHint": "Personen, denen du folgst, erscheinen hier, damit du ihnen schnell schreiben kannst.",
     "loadingConversations": "Lade Unterhaltungen...",
+    "dismissConversation": "Unterhaltung ausblenden",
+    "conversationDismissed": "Unterhaltung ausgeblendet. Sie erscheint bei einer neuen Nachricht wieder.",
+    "failedToDismissConversation": "Unterhaltung konnte nicht ausgeblendet werden",
     "noUsersFound": "Keine Benutzer gefunden",
     "call": "Anrufen",
     "videoCall": "Videoanruf",
@@ -454,11 +607,13 @@
     "unavailable": "Benutzer ist nicht verfügbar",
     "missedCall": "Verpasster Anruf",
     "title": "Direktnachrichten",
+    "recipientDeleted": "Dieses Konto wurde gelöscht. Nachrichten an es werden nicht zugestellt.",
     "sendMessage": "Nachricht senden",
     "callInProgress": "Ein Anruf läuft",
     "joinCall": "Anruf beitreten"
   },
   "user": {
+    "panelToggle": "Dein Konto und Sprachsteuerung",
     "profile": "Profil",
     "editProfile": "Profil bearbeiten",
     "viewProfile": "Profil anzeigen",
@@ -500,6 +655,8 @@
     "privacy": "Privatsphäre & Sicherheit",
     "authorizedApps": "Autorisierte Apps",
     "connections": "Verbindungen",
+    "administration": "Administration",
+    "instanceAdmin": "Instanz-Admin",
     "appearance": {
       "title": "Erscheinungsbild",
       "description": "Passe an, wie Harmony aussieht und sich anfühlt.",
@@ -530,6 +687,10 @@
       "use24HourDesc": "Zeit im 24-Stunden-Format anzeigen.",
       "compactMode": "Kompaktmodus",
       "compactModeDesc": "Mehr Nachrichten auf einmal mit reduziertem Abstand anzeigen.",
+      "bridgeSourceBadge": "Bridge-Quellenanzeige",
+      "bridgeSourceBadgeDesc": "Wie gebridgte Nachrichten (z. B. von Discord) ihre Quelle neben dem Autorennamen anzeigen.",
+      "bridgeSourceBadgeIcon": "Plattform-Symbol",
+      "bridgeSourceBadgeText": "Textlabel (DISCORD)",
       "floatingVideo": "Schwebendes Video-Player",
       "floatingVideoDesc": "Abgespielte Videos schweben in die Ecke, wenn wegscrollt wird. Funktioniert mit YouTube und nativen Videos.",
       "highContrast": "Hoher Kontrast",
@@ -540,10 +701,19 @@
       "screenReaderDesc": "Für Bildschirmleser optimieren.",
       "saveChanges": "Änderungen speichern",
       "resetSettings": "Zurücksetzen",
+      "unsavedChanges": "Du hast ungespeicherte Änderungen am Erscheinungsbild",
+      "changesDiscarded": "Ungespeicherte Änderungen am Erscheinungsbild verworfen",
       "showCustomEmojisInDisplayNames": "Emojis in Anzeigenamen anzeigen",
       "showCustomEmojisInDisplayNamesDesc": "Wenn aktiviert, werden in den Anzeigenamen anderer Benutzer Emoji-Bilder angezeigt. Wenn deaktiviert, werden Emojis und Shortcodes vollständig ausgeblendet.",
       "greentext": "Greentext",
-      "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. > text with a space is always a quote regardless of this setting."
+      "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. > text with a space is always a quote regardless of this setting.",
+      "inviteBannerBg": "Serverbanner im Einladungsdialog",
+      "inviteBannerBgDesc": "Ein unscharfes, abgedunkeltes Serverbanner hinter dem Einladungsdialog anzeigen, wenn der Server eines hat.",
+      "quickReact": "Schnellreaktion",
+      "quickReactEnable": "Doppeltippen für Schnellreaktion",
+      "quickReactEnableDesc": "Doppeltippe (Mobilgerät) oder doppelklicke (Desktop) auf eine Nachricht, um sofort mit deinem gewählten Emoji zu reagieren.",
+      "quickReactEmoji": "Emoji für Schnellreaktion",
+      "quickReactEmojiDesc": "Das Emoji, das beim Doppeltippen auf eine Nachricht verwendet wird."
     },
     "voice": {
       "title": "Sprache & Video",
@@ -581,6 +751,30 @@
       "enableDMs": "Bei Direktnachrichten benachrichtigen",
       "muteAll": "Alle stummschalten",
       "muteDuration": "Stummschaltungsdauer"
+    },
+    "announcements": {
+      "title": "Ankündigungen",
+      "description": "Lies frühere und aktuelle Ankündigungen der Admins dieser Instanz.",
+      "loading": "Ankündigungen werden geladen…",
+      "loadError": "Ankündigungen konnten nicht geladen werden. Bitte versuche es erneut.",
+      "endsAt": "endet {date}",
+      "filters": {
+        "unread": "Ungelesen",
+        "all": "Alle",
+        "pinned": "Angeheftet"
+      },
+      "empty": {
+        "unread": "Du bist auf dem neuesten Stand – keine ungelesenen Ankündigungen.",
+        "all": "Es wurden noch keine Ankündigungen veröffentlicht.",
+        "pinned": "Derzeit keine angehefteten Ankündigungen."
+      },
+      "badges": {
+        "unread": "Neu",
+        "pinned": "Angeheftet",
+        "inactive": "Inaktiv",
+        "expired": "Abgelaufen",
+        "scheduled": "Geplant"
+      }
     },
     "language": {
       "title": "Sprache",
@@ -655,6 +849,23 @@
     "bookmarks": "Lesezeichen",
     "lists": "Listen",
     "trending": "Trends",
+    "trendingRising": "Im Aufwind",
+    "trendingSections": "Trend-Bereiche",
+    "trendingHashtagsTab": "Hashtags",
+    "trendingPeopleTab": "Personen",
+    "trendingFilters": "Filter",
+    "trendingTimeRange": "Zeitraum",
+    "trendingSource": "Quelle",
+    "clearFilters": "Filter zurücksetzen",
+    "trendingNoPosts": "Noch keine Trends",
+    "trendingNoPostsHint": "Beiträge mit Antworten, Boosts oder Favoriten erscheinen hier.",
+    "trendingNoMedia": "Keine Medien im Trend",
+    "trendingNoMediaHint": "Fotos und Videos mit Antworten, Boosts oder Favoriten erscheinen hier.",
+    "trendingFilteredHint": "Nichts passt zu diesen Filtern. Versuche einen längeren Zeitraum oder setze sie zurück.",
+    "trendingNoPeople": "Noch niemand anzuzeigen",
+    "trendingNoPeopleHint": "Konten dieser Instanz und der Instanzen, mit denen sie föderiert, erscheinen hier.",
+    "trendingLoadFailed": "Trends konnten nicht geladen werden",
+    "hashtagPeopleCount": "{count} Person | {count} Personen",
     "forYou": "Für dich",
     "latest": "Neueste",
     "whatsHappening": "Was passiert?",
@@ -705,6 +916,7 @@
     "mony": "Beitrag",
     "replying": "Antwortet...",
     "posting": "Postet...",
+    "failedToSendPost": "Beitrag konnte nicht gesendet werden. Dein Inhalt wurde beibehalten – versuche es erneut.",
     "home": "Startseite",
     "local": "Lokal",
     "federated": "Föderiert",
@@ -717,8 +929,113 @@
     "composeAction": "Neuen Beitrag erstellen",
     "refreshAction": "Timeline aktualisieren",
     "toggleSidebarAction": "Seitenleiste umschalten",
+    "addAComment": "Kommentar hinzufügen",
+    "addEmoji": "Emoji hinzufügen",
+    "addMedia": "Bilder oder Video hinzufügen",
+    "addReaction": "Reaktion hinzufügen",
+    "adminBadge": "Admin",
+    "modBadge": "Mod",
+    "instanceAdmin": "Serveradministrator",
+    "instanceModerator": "Servermoderator",
+    "altTextEdit": "Beschreibung bearbeiten",
+    "altTextLabel": "Beschreibe dies für Menschen, die es nicht sehen können",
+    "altTextMissing": "Keine Beschreibung",
+    "altTextPlaceholder": "Was ist auf dem Bild oder Video zu sehen?",
+    "altTextShow": "Beschreibung anzeigen",
+    "image": "Bild",
+    "video": "Video",
+    "audio": "Audio",
+    "file": "Datei",
+    "beFirstToUseHashtag": "Poste als Erste/r mit #{tag}",
+    "boost": "Boosten",
+    "boosted": "hat geboostet",
+    "undoBoost": "Boost rückgängig machen",
+    "boostedToast": "Geboostet",
+    "boostRemoved": "Boost entfernt",
+    "boostRemoveFailed": "Boost konnte nicht entfernt werden",
+    "boostDisabled": "Dieser Beitrag kann nicht geboostet werden",
+    "boostDisabledDirect": "Direktbeiträge können nicht geboostet werden",
+    "boostDisabledFollowers": "Beiträge nur für Follower können nicht geboostet werden",
+    "boostedFromAnotherInstance": "Von einem anderen Server geboostet",
+    "boostsLabel": "Boost | Boosts",
+    "repliesLabel": "Antwort | Antworten",
+    "favoritesLabel": "Favorit | Favoriten",
+    "favorite": "Favorisieren",
+    "unfavorite": "Favorit entfernen",
+    "unfavoriteWithReactions": "Favorit und deine Reaktion entfernen | Favorit und deine {count} Reaktionen entfernen",
+    "reactionLimitReached": "Du kannst auf einen Beitrag mit höchstens {count} verschiedenen Emojis reagieren",
+    "removeBookmark": "Lesezeichen entfernen",
+    "moreOptions": "Weitere Optionen",
+    "browseFederatedTimeline": "Föderierte Timeline durchsuchen",
+    "clearAllBookmarks": "Alle entfernen",
+    "clearAllBookmarksTitle": "Alle Lesezeichen entfernen?",
+    "clearAllBookmarksMessage": "Alle gespeicherten Beiträge werden aus deinen Lesezeichen entfernt. Dies kann nicht rückgängig gemacht werden.",
+    "clearAllBookmarksFailed": "Lesezeichen konnten nicht entfernt werden. Versuche es erneut.",
+    "sensitiveContent": "Sensibler Inhalt",
+    "clickToShow": "Zum Anzeigen klicken",
+    "hideMedia": "Medien ausblenden",
+    "contentWarning": "Inhaltswarnung",
+    "contentWarningPlaceholder": "Schreibe deine Warnung hier",
+    "markMediaSensitive": "Medien als sensibel markieren",
+    "draftSaved": "Entwurf gespeichert",
+    "postVisibility": "Sichtbarkeit des Beitrags",
+    "visibilityLabel": "Sichtbarkeit: {visibility}",
+    "mentionedOnly": "Nur erwähnte Personen",
+    "charactersRemaining": "Noch {count} Zeichen",
+    "whatsOnYourMind": "Was beschäftigt dich?",
+    "newPost": "Neuer Beitrag",
+    "newPostsCount": "{count} neuer Beitrag | {count} neue Beiträge",
+    "timelines": "Timelines",
+    "openNavigation": "Navigation öffnen",
+    "editProfile": "Profil bearbeiten",
+    "followUser": "{'@'}{handle} folgen",
+    "unfollowUser": "{'@'}{handle} entfolgen",
+    "mentionUser": "{'@'}{handle} erwähnen",
+    "requested": "Angefragt",
+    "cancelFollowRequest": "Anfrage zurückziehen",
+    "fromDomain": "Von {domain}",
+    "viewOnDomain": "Auf {domain} ansehen",
+    "postsCountLabel": "{count} Beitrag | {count} Beiträge",
+    "participantsCount": "{count} Teilnehmer | {count} Teilnehmer",
+    "todayCount": "{count} heute",
+    "loadFailedTitle": "Beiträge konnten nicht geladen werden",
+    "loadFailedMessage": "Prüfe deine Verbindung und versuche es erneut.",
+    "loadMoreFailed": "Weitere Beiträge konnten nicht geladen werden.",
+    "loadingMore": "Weitere Beiträge werden geladen",
+    "noBookmarksYet": "Noch keine Lesezeichen",
+    "noBookmarksHint": "Setze ein Lesezeichen für einen Beitrag, um ihn später hier zu finden.",
+    "noMentionsYet": "Noch keine Erwähnungen",
+    "noMentionsHint": "Beiträge, die dich erwähnen, erscheinen hier – auch von Leuten, denen du nicht folgst.",
+    "now": "jetzt",
+    "pinned": "Angeheftet",
+    "edited": "Bearbeitet",
+    "editedTitle": "Dieser Beitrag wurde bearbeitet",
+    "replyToUser": "{name} antworten",
+    "replyingTo": "Antwort an",
+    "viewThread": "Thread anzeigen",
+    "viewOriginalPost": "Originalbeitrag anzeigen",
+    "showMore": "Mehr anzeigen",
+    "showLess": "Weniger anzeigen",
+    "removeAttachment": "Anhang entfernen",
+    "supportInstance": "Diese Instanz unterstützen",
+    "openMedia": "Medien öffnen",
+    "gifLabel": "GIF",
+    "noMediaYet": "Noch keine Medien",
+    "noMediaOwn": "Fotos und Videos, die du postest, erscheinen hier.",
+    "noMediaOther": "{name} hat noch keine Fotos oder Videos gepostet.",
+    "loadMediaFailed": "Medien konnten nicht geladen werden",
+    "loadMoreMediaFailed": "Weitere Medien konnten nicht geladen werden.",
+    "loadingMedia": "Medien werden geladen",
+    "mediaGridLabel": "Medien von {name}",
+    "mediaItemsCount": "{count} Element | {count} Elemente",
+    "revealMediaLabel": "{warning}. Medien anzeigen",
+    "viewPost": "Beitrag anzeigen",
+    "fetchOlderFromDomain": "Ältere Beiträge von {domain} laden",
+    "fetchingOlderFromDomain": "{domain} wird nach älteren Beiträgen durchsucht",
+    "fetchOlderFailed": "{domain} konnte nicht erreicht werden.",
     "withMedia": "Mit Medien",
     "allInstances": "Alle Instanzen",
+    "thisInstance": "Diese Instanz",
     "lastHour": "Letzte Stunde",
     "last6Hours": "Letzte 6 Stunden",
     "last24Hours": "Letzte 24 Stunden",
@@ -753,6 +1070,7 @@
     "notShownInPublicTimelines": "Nicht in öffentlichen Timelines angezeigt",
     "onlyVisibleToFollowers": "Nur für Follower sichtbar",
     "onlyMentionedUsers": "Nur erwähnte Benutzer",
+    "directRequiresMention": "Direktbeiträge müssen mindestens eine Person per {'@'}Erwähnung ansprechen.",
     "publicVisibleToEveryone": "Öffentlich - für alle sichtbar",
     "unlistedNotShown": "Nicht gelistet - nicht in öffentlichen Timelines angezeigt",
     "followersOnly": "Nur Follower",
@@ -798,7 +1116,57 @@
     "spam": "Spam",
     "inappropriate": "Unangemessener Inhalt",
     "impersonation": "Identitätsdiebstahl",
-    "other": "Sonstiges"
+    "other": "Sonstiges",
+    "reportCategories": {
+      "spam": "Spam",
+      "legal": "Illegale Inhalte",
+      "violation": "Regelverstoß",
+      "other": "Sonstiges"
+    },
+    "reportReasons": {
+      "spam": "Spam oder unerwünschte Inhalte",
+      "harassment": "Belästigung oder Mobbing",
+      "illegal_content": "Illegale Inhalte",
+      "impersonation": "Identitätsdiebstahl",
+      "nsfw": "Unangemessene/NSFW-Inhalte",
+      "other": "Sonstiges"
+    },
+    "reportSource": {
+      "fromInstance": "von {domain}",
+      "fromRemote": "von einer Remote-Instanz",
+      "local": "lokal"
+    },
+    "evidence": {
+      "backfilledNote": "nach Einreichung der Meldung erfasst",
+      "post": "Beitrag wie gemeldet",
+      "contentWarning": "CW: {warning}",
+      "encryptedMessage": "Verschlüsselte Nachricht",
+      "ciphertextOnly": "[nur Chiffretext]",
+      "reporterSuppliedNote": "vom Meldenden bereitgestellter Text, vom Server nicht überprüfbar",
+      "message": "Nachricht wie gemeldet",
+      "server": "Server wie gemeldet"
+    },
+    "reportErrors": {
+      "rateLimited": "Du hast in letzter Zeit zu viele Meldungen gesendet. Versuche es später erneut.",
+      "unavailable": "Dieser Inhalt kann nicht mehr gemeldet werden.",
+      "forbidden": "Von diesem Konto aus kannst du keine Meldungen senden.",
+      "self": "Du kannst dich nicht selbst melden.",
+      "failed": "Die Meldung konnte nicht gesendet werden. Versuche es später erneut.",
+      "actionFailed": "Die Aktion ist fehlgeschlagen"
+    },
+    "reportForward": {
+      "label": "Zusätzlich eine anonyme Kopie dieser Meldung an {domain} senden",
+      "hint": "Die dortigen Moderatoren sehen den Inhalt und deinen Kommentar, aber nicht, wer du bist."
+    },
+    "warningNotification": {
+      "title": "Verwarnung von den Moderatoren",
+      "defaultMessage": "Die Moderatoren haben eine Verwarnung zu deinem Konto ausgesprochen.",
+      "short": "Moderationsverwarnung",
+      "sender": "Moderatoren"
+    },
+    "securityNotification": {
+      "short": "Kontosicherheit"
+    }
   },
   "files": {
     "upload": "Dateien hochladen",
@@ -814,7 +1182,9 @@
     "uploadSuccess": "Upload erfolgreich",
     "uploadError": "Upload fehlgeschlagen",
     "tooLarge": "Datei ist zu groß",
-    "invalidType": "Ungültiger Dateityp"
+    "invalidType": "Ungültiger Dateityp",
+    "viewFullSize": "In voller Größe anzeigen",
+    "imageTooLarge": "Dieses Bild ist {size} groß. Bilder bis {max} können hochgeladen werden."
   },
   "gif": {
     "search": "GIF suchen...",
@@ -827,11 +1197,27 @@
     "noFavorites": "Noch keine Favoriten-GIFs",
     "noFavoritesHint": "Klicken Sie auf den Stern eines GIFs, um es hier zu speichern",
     "addToFavorites": "Zu Favoriten hinzufügen",
-    "removeFromFavorites": "Aus Favoriten entfernen"
+    "removeFromFavorites": "Aus Favoriten entfernen",
+    "clipUnmute": "Mit Ton abspielen",
+    "clipMute": "Stummschalten",
+    "loadFailed": "{kind} konnten nicht geladen werden",
+    "tryDifferentSearch": "Versuche einen anderen Suchbegriff",
+    "noFavoritesOf": "Noch keine favorisierten {kind}",
+    "noneFound": "Keine {kind} gefunden"
   },
   "emoji": {
+    "messageReactionLimit": "Diese Nachricht hat {count} verschiedene Reaktionen. Schließe dich einer davon an.",
+    "postReactionLimit": "Du hast {count} Reaktionen auf diesen Beitrag. Entferne eine, um eine weitere hinzuzufügen.",
     "search": "Emoji suchen...",
     "searchEmojis": "Emojis suchen...",
+    "aiGenerate": "Generieren",
+    "aiGenerating": "Wird generiert…",
+    "aiGeneratePlaceholder": "Beschreibe ein Emoji zum Generieren…",
+    "aiGenerateHint": "Gib einen Prompt ein, um dein eigenes Emoji zu generieren. Es gelten Tageslimits.",
+    "aiGenerateEmpty": "Noch keine generierten Emojis",
+    "aiGenerateEmptyHint": "Nutze den Prompt oben, um dein erstes zu erstellen.",
+    "aiQuotaUser": "Heute noch {remaining} von {total} Generierungen übrig",
+    "aiQuotaInstance": "Heute noch {remaining} von {total} Instanz-Generierungen übrig",
     "recent": "Kürzlich verwendet",
     "smileys": "Smileys & Personen",
     "animals": "Tiere & Natur",
@@ -843,6 +1229,76 @@
     "flags": "Flaggen",
     "custom": "Benutzerdefiniert",
     "noResults": "Kein Emoji gefunden"
+  },
+  "inbox": {
+    "title": "Benachrichtigungen",
+    "bellLabel": "Benachrichtigungen",
+    "bellLabelUnread": "Benachrichtigungen, {count} ungelesen",
+    "newCount": "{count} neu",
+    "tabsLabel": "Benachrichtigungen filtern",
+    "tabLabelUnread": "{tab}, {count} ungelesen",
+    "tabs": {
+      "all": "Alle",
+      "mentions": "Erwähnungen",
+      "social": "Social"
+    },
+    "unreadOnly": "Nur ungelesene",
+    "markAllRead": "Alle als gelesen markieren",
+    "clearAll": "Alle löschen",
+    "clearConfirm": "Alle Benachrichtigungen löschen? Dies kann nicht rückgängig gemacht werden.",
+    "settings": "Benachrichtigungseinstellungen",
+    "close": "Schließen",
+    "markRead": "Als gelesen markieren",
+    "markUnread": "Als ungelesen markieren",
+    "remove": "Entfernen",
+    "unread": "Ungelesen",
+    "loadMore": "Ältere anzeigen",
+    "loading": "Benachrichtigungen werden geladen",
+    "error": "Benachrichtigungen konnten nicht geladen werden.",
+    "retry": "Erneut versuchen",
+    "silenced": "„Nicht stören“ ist aktiv. Benachrichtigungen kommen lautlos an.",
+    "accept": "Annehmen",
+    "reject": "Ablehnen",
+    "empty": {
+      "all": "Du bist auf dem neuesten Stand",
+      "allHint": "Erwähnungen, Antworten und Nachrichten erscheinen hier.",
+      "mentions": "Keine Erwähnungen",
+      "mentionsHint": "Wenn dich jemand erwähnt oder dir antwortet, erscheint das hier.",
+      "social": "Keine Social-Benachrichtigungen",
+      "socialHint": "Follows, Likes und Boosts aus dem Fediverse erscheinen hier.",
+      "unread": "Nichts Ungelesenes",
+      "unreadHint": "Gelesene Benachrichtigungen bleiben unter „Alle“."
+    }
+  },
+  "newcomerAlerts": {
+    "notification": {
+      "action": " ist neu hier und hat in #{channel} gepostet",
+      "actionNoChannel": " ist neu hier und hat zum ersten Mal gepostet",
+      "short": "Neues Mitglied in #{channel}",
+      "shortNoChannel": "Neues Mitglied hat gepostet",
+      "noPreview": "Sag Hallo",
+      "nativePrefix": "Neues Mitglied"
+    },
+    "server": {
+      "title": "Neulingsbenachrichtigungen",
+      "description": "Wenn jemand, der in den letzten 30 Tagen beigetreten ist, zum ersten Mal postet, werden Besitzer und Moderatoren benachrichtigt, damit jemand die Person begrüßen kann.",
+      "toggle": "Besitzer und Moderatoren benachrichtigen",
+      "followsDefault": "Verwendet die Standardeinstellung dieser Instanz.",
+      "useDefault": "Instanz-Standard verwenden",
+      "saveFailed": "Neulingsbenachrichtigungen konnten nicht aktualisiert werden.",
+      "loadFailed": "Neulingsbenachrichtigungen konnten nicht geladen werden."
+    },
+    "preference": {
+      "label": "Neue Mitglieder",
+      "description": "Wenn ein neues Mitglied zum ersten Mal in einem Server postet, den du besitzt oder moderierst"
+    },
+    "admin": {
+      "title": "Neulingsbenachrichtigungen",
+      "toggle": "Serverteam benachrichtigen, wenn ein neues Mitglied zum ersten Mal postet",
+      "hint": "Standard für Server, deren Besitzer nichts gewählt haben. Besitzer und Mitglieder mit „Server verwalten“ ändern dies in den Servereinstellungen.",
+      "saved": "Standard für Neulingsbenachrichtigungen gespeichert",
+      "saveFailed": "Standard für Neulingsbenachrichtigungen konnte nicht gespeichert werden"
+    }
   },
   "time": {
     "now": "jetzt",
@@ -958,7 +1414,8 @@
   "announcements": {
     "title": "Ankündigungen",
     "markRead": "Als gelesen markieren",
-    "markAllRead": "Alle als gelesen markieren"
+    "markAllRead": "Alle als gelesen markieren",
+    "viewPast": "Frühere Ankündigungen anzeigen"
   },
   "federation": {
     "joinRemoteServer": "Remote-Server beitreten",
@@ -971,6 +1428,9 @@
     "channels": "Kanäle",
     "more": "mehr",
     "joinServer": "Server beitreten",
+    "openServer": "Server öffnen",
+    "alreadyJoined": "Du bist bereits Mitglied dieses Servers.",
+    "joinPending": "Beitrittsanfrage gesendet. Du erhältst Zugang, sobald der Server sie annimmt.",
     "federatedNotice": "Dies ist ein föderierter Server, der auf einer anderen Harmony-Instanz gehostet wird. Ihre Nachrichten werden über das Netzwerk gesendet.",
     "joinByUrl": "Per URL beitreten",
     "haveInviteLink": "Haben Sie einen Einladungslink? Fügen Sie ihn hier ein",
@@ -988,14 +1448,72 @@
   "chat": {
     "uploading": "Wird hochgeladen...",
     "dropFilesHere": "Dateien hier ablegen.",
-    "setupNow": "Jetzt einrichten"
+    "setupNow": "Jetzt einrichten",
+    "unlockNow": "Entsperren",
+    "pinFailed": "Die Nachricht konnte nicht angeheftet werden. Versuche es erneut.",
+    "unpinFailed": "Die Nachricht konnte nicht gelöst werden. Versuche es erneut.",
+    "pinLimitReached": "Limit für angeheftete Nachrichten erreicht. Löse eine Nachricht, um eine andere anzuheften.",
+    "threadCreateFailed": "Der Thread konnte nicht gestartet werden. Versuche es erneut.",
+    "threadReplyFailed": "Die Antwort konnte nicht gesendet werden. Versuche es erneut."
   },
   "invite": {
     "accepting": "Einladung wird angenommen...",
     "accepted": "Einladung erfolgreich angenommen",
     "failed": "Einladung konnte nicht angenommen werden",
     "noCode": "Kein Einladungscode gefunden",
-    "notLoggedIn": "Sie müssen angemeldet sein, um Einladungen anzunehmen"
+    "notLoggedIn": "Sie müssen angemeldet sein, um Einladungen anzunehmen",
+    "loading": "Einladung wird geladen…",
+    "invalidTitle": "Einladung ungültig",
+    "alreadyMember": "Du bist bereits Mitglied von",
+    "invitedToJoin": "Du wurdest eingeladen, beizutreten:",
+    "member": "Mitglied",
+    "members": "Mitglieder",
+    "openServer": "Server öffnen",
+    "joining": "Tritt bei…",
+    "accept": "Einladung annehmen",
+    "noThanks": "Nein danke",
+    "modal": {
+      "title": "Leute einladen",
+      "subtitle": "Jeder mit dem Link kann diesem Server beitreten.",
+      "thisServer": "Dieser Server",
+      "members": "{count} Mitglied | {count} Mitglieder",
+      "linkLabel": "Einladungslink",
+      "loading": "Link wird erstellt…",
+      "copy": "Kopieren",
+      "copied": "Kopiert",
+      "copyFailed": "Der Link konnte nicht kopiert werden",
+      "share": "Teilen",
+      "shareTitle": "Tritt {server} auf Harmony bei",
+      "editLink": "Link-Einstellungen",
+      "revoke": "Widerrufen",
+      "revokeCode": "Einladung {code} widerrufen",
+      "revoked": "Einladung widerrufen",
+      "revokeFailed": "Die Einladung konnte nicht widerrufen werden",
+      "noLink": "Kein aktiver Link.",
+      "noPermission": "Du hast keine Berechtigung, Einladungen für diesen Server zu erstellen.",
+      "expires": "Läuft ab {when}",
+      "neverExpires": "Läuft nie ab",
+      "usesOf": "{used} von {max} Nutzungen",
+      "usesCount": "Noch keine Nutzungen | {count} Nutzung | {count} Nutzungen",
+      "expireAfter": "Läuft ab nach",
+      "maxUses": "Max. Nutzungen",
+      "never": "Nie",
+      "unlimited": "Kein Limit",
+      "usesOption": "{count} Nutzung | {count} Nutzungen",
+      "duration": {
+        "minute": "{count} Minute | {count} Minuten",
+        "hour": "{count} Stunde | {count} Stunden",
+        "day": "{count} Tag | {count} Tage"
+      },
+      "newLink": "Neuen Link erstellen",
+      "newLinkHint": "Erstellt einen Link mit diesen Einstellungen. Bestehende Links funktionieren weiter, bis sie ablaufen oder du sie widerrufst.",
+      "creating": "Wird erstellt…",
+      "created": "Neuer Einladungslink erstellt",
+      "createFailed": "Einladungslink konnte nicht erstellt werden",
+      "otherLinks": "Deine anderen aktiven Links ({count})",
+      "showLink": "Diesen Link anzeigen"
+    },
+    "bannedFromServer": "Du bist von diesem Server gebannt"
   },
   "nav": {
     "chat": "Chat",
@@ -1016,5 +1534,1521 @@
     "chatNotFound": "Dieser Chat oder diese Konversation existiert nicht oder Sie haben keinen Zugriff darauf.",
     "settingsNotFound": "Diese Einstellungsseite existiert nicht.",
     "defaultNotFound": "Die gesuchte Seite existiert nicht oder wurde verschoben."
+  },
+  "onboarding": {
+    "title": "Richte dein Profil ein",
+    "subtitle": "So sehen dich Leute auf {instance} und anderen Servern.",
+    "avatarLabel": "Profilbild",
+    "avatarHint": "Optional. Du kannst es später ändern.",
+    "addAvatar": "Profilbild hinzufügen",
+    "changeAvatar": "Profilbild ändern",
+    "removeAvatar": "Entfernen",
+    "avatarTooLarge": "Bilder dürfen höchstens 5 MB groß sein.",
+    "avatarFailed": "Dein Profil ist fertig, aber das Bild wurde nicht hochgeladen. Du kannst es in den Einstellungen hinzufügen.",
+    "displayName": "Anzeigename",
+    "displayNameHint": "Dein Name, wie er in Chats angezeigt wird. Du kannst ihn jederzeit ändern.",
+    "displayNameRequired": "Gib einen Anzeigenamen ein.",
+    "displayNameTooLong": "Anzeigenamen sind auf 50 Zeichen begrenzt.",
+    "username": "Benutzername",
+    "usernameHint": "Buchstaben, Zahlen und Unterstriche. Kann später nicht geändert werden.",
+    "usernameChecking": "Verfügbarkeit wird geprüft…",
+    "usernameAvailable": "{handle} ist verfügbar",
+    "usernameTaken": "Dieser Benutzername ist vergeben.",
+    "usernameTooShort": "Verwende mindestens {min} Zeichen.",
+    "usernameCheckFailed": "Verfügbarkeit konnte nicht geprüft werden. Versuche es erneut.",
+    "bio": "Über dich",
+    "optional": "(optional)",
+    "submit": "Weiter",
+    "creating": "Profil wird erstellt…",
+    "createFailed": "Dein Profil konnte nicht erstellt werden. Prüfe deine Verbindung und versuche es erneut.",
+    "instanceUnavailable": "Die Konfiguration des Servers konnte nicht geladen werden. Versuche es gleich noch einmal.",
+    "sessionExpired": "Deine Sitzung ist abgelaufen. Melde dich erneut an.",
+    "signedInAs": "Angemeldet als {email}.",
+    "signOut": "Abmelden"
+  },
+  "emptyServers": {
+    "title": "Du bist noch auf keinem Server",
+    "subtitle": "Auf Servern finden die Unterhaltungen auf {instance} statt. Tritt einem per Einladung bei, durchsuche öffentliche Server oder erstelle deinen eigenen.",
+    "inviteLabel": "Mit einer Einladung beitreten",
+    "invitePlaceholder": "Einladungslink oder -code",
+    "inviteHint": "Links von anderen Harmony-Servern funktionieren auch.",
+    "inviteInvalid": "Das sieht nicht nach einem Einladungslink oder -code aus.",
+    "join": "Beitreten",
+    "or": "oder",
+    "createTitle": "Server erstellen",
+    "createDesc": "Erstelle einen Ort für deine Freunde oder Community.",
+    "browseTitle": "Öffentliche Server durchsuchen",
+    "browseDesc": "Sieh nach, was auf {instance} offen zum Beitreten ist.",
+    "findPeople": "Leute finden",
+    "messages": "Nachrichten"
+  },
+  "welcomeServer": {
+    "stepTitle": "Willkommen auf {instance}",
+    "stepSubtitle": "Dein Profil ist fertig. Tritt einem Server bei, um mit Leuten zu reden.",
+    "recommendedHeading": "Empfohlener Server",
+    "recommendedSubheading": "Die meisten fangen hier an. Du kannst jederzeit wieder austreten.",
+    "featuredHeading": "Beliebt auf {instance}",
+    "featuredSubheading": "Communities, ausgewählt von den Betreibern dieser Instanz.",
+    "memberCount": "{count} Mitglied | {count} Mitglieder",
+    "join": "Beitreten",
+    "joinNamed": "{server} beitreten",
+    "joining": "Tritt bei…",
+    "skip": "Überspringen",
+    "skipForNow": "Vorerst überspringen",
+    "dismiss": "Vorschlag ausblenden",
+    "admin": {
+      "title": "Willkommensserver",
+      "hint": "Wird neuen Benutzern nach der Registrierung vorgeschlagen und solange sie auf keinem Server sind. Der Beitritt erfolgt mit einem Klick; niemand wird automatisch hinzugefügt.",
+      "label": "Server",
+      "none": "Keiner (empfohlene Communities vorschlagen)",
+      "option": "{name} · {count} Mitglied | {name} · {count} Mitglieder",
+      "unavailableOption": "Aktuelle Einstellung (nicht mehr öffentlich)",
+      "unavailable": "Der ausgewählte Server ist nicht mehr öffentlich oder existiert nicht mehr. Er gilt als nicht festgelegt, daher werden stattdessen empfohlene Communities vorgeschlagen.",
+      "selectedNote": "Neuen Benutzern wird zuerst dieser Server angeboten. Seinen Mitgliedern wird der Vorschlag nicht angezeigt.",
+      "noneNote": "Ohne Willkommensserver werden bis zu drei empfohlene Communities vorgeschlagen. Gibt es auch keine empfohlenen Communities, wird nichts vorgeschlagen.",
+      "save": "Speichern",
+      "saved": "Willkommensserver gespeichert",
+      "saveFailed": "Willkommensserver konnte nicht gespeichert werden"
+    }
+  },
+  "serverWelcome": {
+    "kicker": "Willkommen auf",
+    "rulesHeading": "Serverregeln",
+    "empty": "Dieser Server hat noch keine Willkommensnachricht oder Regeln.",
+    "close": "Schließen",
+    "gotIt": "Verstanden",
+    "acceptRules": "Regeln akzeptieren",
+    "accepting": "Wird akzeptiert…",
+    "acceptNote": "Akzeptiere diese Regeln, um hier Nachrichten zu senden.",
+    "acceptedOn": "Du hast diese Regeln am {date} akzeptiert.",
+    "menuEntry": "Serverregeln & Willkommen",
+    "promptText": "Akzeptiere die Regeln von {server}, um Nachrichten zu senden.",
+    "thisServer": "diesem Server",
+    "rulesRequired": "Akzeptiere die Regeln dieses Servers, bevor du Nachrichten sendest.",
+    "settings": {
+      "navLabel": "Willkommen & Regeln",
+      "title": "Willkommensbildschirm & Regeln",
+      "description": "Begrüße neue Mitglieder mit einer Nachricht und den Regeln deines Servers. Mitglieder sehen sie einmal beim Beitritt und können sie über das Servermenü erneut öffnen.",
+      "enabled": "Neuen Mitgliedern einen Willkommensbildschirm anzeigen",
+      "enabledHint": "Wird Mitgliedern einmal angezeigt, die nach dem Aktivieren beitreten.",
+      "message": "Willkommensnachricht",
+      "messagePlaceholder": "Sag Hallo, erkläre, wofür der Server da ist, und verweise auf die richtigen Kanäle.",
+      "messageHint": "Unterstützt **fett**, *kursiv*, `Code`, Zitate und Links.",
+      "rules": "Regeln",
+      "rulesHint": "Ein kurzer Titel pro Regel, optional mit Details. Regeltitel werden auch Personen angezeigt, die eine Einladung öffnen.",
+      "noRules": "Noch keine Regeln.",
+      "ruleTitlePlaceholder": "Sei respektvoll",
+      "ruleTitleLabel": "Titel von Regel {n}",
+      "ruleDescriptionPlaceholder": "Optionale Details",
+      "ruleDescriptionLabel": "Details zu Regel {n}",
+      "moveUp": "Regel {n} nach oben verschieben",
+      "moveDown": "Regel {n} nach unten verschieben",
+      "removeRule": "Regel {n} entfernen",
+      "addRule": "Regel hinzufügen",
+      "ruleNeedsTitle": "Jede Regel braucht einen Titel.",
+      "requireAcceptance": "Mitglieder müssen die Regeln akzeptieren, bevor sie Nachrichten senden",
+      "requireAcceptanceHint": "Bis zur Zustimmung sehen neue Mitglieder statt des Nachrichtenfelds eine Schaltfläche „Regeln akzeptieren“. Der Besitzer und Mitglieder mit „Server verwalten“ oder „Administrator“ sind ausgenommen.",
+      "requireAcceptanceNeedsRules": "Füge mindestens eine Regel hinzu, um eine Zustimmung zu verlangen.",
+      "grandfatherNote": "Bestehende Mitglieder werden nicht gefragt. Nur Personen, die nach dem Speichern beitreten, müssen zustimmen.",
+      "preview": "Vorschau",
+      "save": "Speichern",
+      "saving": "Wird gespeichert…",
+      "saved": "Willkommensbildschirm gespeichert",
+      "saveFailed": "Willkommensbildschirm konnte nicht gespeichert werden",
+      "loadFailed": "Willkommensbildschirm konnte nicht geladen werden",
+      "rulesMovedHint": "Wird Personen angezeigt, bevor sie eine Einladung annehmen. Regeln werden zusammen mit dem Willkommensbildschirm bearbeitet.",
+      "editRules": "Regeln bearbeiten"
+    }
+  },
+  "bots": {
+    "pageDescription": "Bots sind Konten, die dein Code über die Bot-API steuert. Erstelle einen, um ein Token zu erhalten, und verbinde ihn dann mit dem Gateway.",
+    "newBot": "Neuer Bot",
+    "loading": "Bots werden geladen…",
+    "loadFailed": "Deine Bots konnten nicht geladen werden",
+    "listTitle": "Bots ({count})",
+    "noDescription": "Keine Beschreibung",
+    "serverCount": "Auf keinem Server | Auf {count} Server | Auf {count} Servern",
+    "lastConnected": "Zuletzt verbunden {time}",
+    "neverConnected": "Nie verbunden",
+    "back": "Alle Bots",
+    "badge": {
+      "bot": "Bot",
+      "bridge": "Bridge",
+      "private": "Privat",
+      "verified": "Verifiziert"
+    },
+    "status": {
+      "online": "Online",
+      "away": "Abwesend",
+      "busy": "Nicht stören",
+      "offline": "Offline"
+    },
+    "profile": {
+      "about": "Über",
+      "created": "Erstellt",
+      "status": "Status",
+      "commands": "Befehle",
+      "commandsTitle": "Befehle ({count})",
+      "showAllCommands": "Alle {count} anzeigen",
+      "showFewerCommands": "Weniger anzeigen",
+      "website": "Website",
+      "supportServer": "Support-Server",
+      "openServer": "Öffnen",
+      "joinServer": "Beitreten",
+      "settings": "Bot-Einstellungen",
+      "remove": "Vom Server entfernen",
+      "addToServer": "Zum Server hinzufügen",
+      "yourServers": "Server, die du besitzt",
+      "loadFailed": "Details dieses Bots konnten nicht geladen werden",
+      "close": "Schließen"
+    },
+    "empty": {
+      "title": "Noch keine Bots",
+      "body": "Erstelle einen Bot, um ein Token für das Gateway und die REST-API zu erhalten.",
+      "action": "Bot erstellen"
+    },
+    "fields": {
+      "avatar": "Avatar",
+      "changeAvatar": "Avatar ändern",
+      "removeAvatar": "Entfernen",
+      "uploading": "Wird hochgeladen…",
+      "avatarHint": "PNG, JPG, WebP oder GIF, bis zu 4 MB.",
+      "username": "Benutzername",
+      "usernamePlaceholder": "my-bot",
+      "usernameHint": "Kleinbuchstaben, Ziffern, Bindestriche und Unterstriche; 3 bis 32 Zeichen.",
+      "usernameLocked": "Benutzernamen können nach dem Erstellen nicht geändert werden.",
+      "displayName": "Anzeigename",
+      "displayNamePlaceholder": "Mein Bot",
+      "description": "Beschreibung",
+      "descriptionPlaceholder": "Was macht dieser Bot?",
+      "type": "Typ",
+      "public": "Öffentlicher Bot",
+      "publicHint": "Jeder Serverbesitzer kann einen öffentlichen Bot finden und hinzufügen. Einen privaten Bot kannst nur du hinzufügen."
+    },
+    "type": {
+      "bot": "Standard",
+      "botHint": "Verbindet sich mit seinem Token und agiert über das Gateway und die REST-API.",
+      "bridge": "Bridge",
+      "bridgeHint": "Leitet Nachrichten zwischen Harmony und einer anderen Plattform weiter. Fügt der Seite des Bots die Bridge-Einrichtungsanleitung hinzu."
+    },
+    "usernameErrors": {
+      "tooShort": "Verwende mindestens 3 Zeichen.",
+      "tooLong": "Verwende höchstens 32 Zeichen.",
+      "invalidChars": "Verwende nur Kleinbuchstaben, Ziffern, Bindestriche und Unterstriche."
+    },
+    "general": {
+      "title": "Allgemeine Informationen",
+      "description": "Wie der Bot auf Servern erscheint, zu denen er hinzugefügt wird.",
+      "save": "Änderungen speichern",
+      "saving": "Wird gespeichert…",
+      "saved": "Änderungen gespeichert",
+      "saveFailed": "Änderungen konnten nicht gespeichert werden"
+    },
+    "token": {
+      "title": "Token",
+      "description": "Das Token authentifiziert den Bot beim Gateway und bei der REST-API. Harmony speichert nur seinen Hash, daher wird das vollständige Token nur einmal angezeigt, wenn es generiert wird.",
+      "legacyHint": "Ausgestellt, bevor Token-Hinweise erfasst wurden",
+      "created": "Erstellt {time}",
+      "lastUsed": "Zuletzt verwendet {time}",
+      "neverUsed": "Nie verwendet",
+      "none": "Kein aktives Token. Generiere eines, um den Bot zu verbinden.",
+      "reset": "Token zurücksetzen",
+      "generate": "Token generieren",
+      "resetConfirmTitle": "Token zurücksetzen?",
+      "resetConfirmBody": "Das aktuelle Token wird sofort widerrufen: REST-Anfragen und neue Gateway-Verbindungen, die es verwenden, werden abgelehnt. Eine bereits offene Gateway-Sitzung bleibt verbunden, bis sie geschlossen wird, also starte den Bot mit dem neuen Token neu.",
+      "resetFailed": "Zurücksetzen des Tokens fehlgeschlagen. Das aktuelle Token funktioniert weiterhin.",
+      "loadFailed": "Token-Details konnten nicht geladen werden",
+      "revealTitle": "Kopiere dein Bot-Token",
+      "revealWarning": "Das Token wird nur dieses eine Mal angezeigt. Bewahre es in einem Secret-Manager oder einer Umgebungsvariable auf; wer es besitzt, kontrolliert den Bot.",
+      "copyFailed": "Kopieren fehlgeschlagen. Markiere das Token und kopiere es manuell.",
+      "done": "Ich habe das Token gespeichert"
+    },
+    "connection": {
+      "title": "Verbindung",
+      "description": "Kennungen und Endpunkte für den Code des Bots.",
+      "botId": "Bot-ID",
+      "gatewayUrl": "Gateway-URL",
+      "restUrl": "REST-Basis-URL",
+      "authHeader": "Authorization-Header",
+      "docs": "Bot-API-Dokumentation",
+      "copy": "{label} kopieren",
+      "copied": "{label} kopiert",
+      "copyFailed": "{label} konnte nicht kopiert werden"
+    },
+    "install": {
+      "title": "Zum Server hinzufügen",
+      "description": "Server, die du besitzt. Der Bot tritt mit der Berechtigung zum Lesen, Senden und Reagieren bei; ändere seine Berechtigungen in den Servereinstellungen.",
+      "add": "Hinzufügen",
+      "added": "Hinzugefügt",
+      "noServers": "Du besitzt keine Server.",
+      "success": "{bot} zu {server} hinzugefügt",
+      "failed": "Der Bot konnte nicht hinzugefügt werden",
+      "loadFailed": "Deine Server konnten nicht geladen werden"
+    },
+    "delete": {
+      "title": "Bot löschen",
+      "description": "Entfernt den Bot von allen Servern und widerruft sein Token. Dies kann nicht rückgängig gemacht werden.",
+      "action": "Bot löschen",
+      "confirmTitle": "{name} löschen?",
+      "confirmBody": "{name} wird von allen Servern entfernt und sein Token widerrufen. Dies kann nicht rückgängig gemacht werden.",
+      "success": "{name} gelöscht",
+      "failed": "Der Bot konnte nicht gelöscht werden"
+    },
+    "create": {
+      "title": "Bot erstellen",
+      "submit": "Bot erstellen",
+      "creating": "Wird erstellt…",
+      "success": "{name} erstellt",
+      "failed": "Der Bot konnte nicht erstellt werden"
+    },
+    "avatar": {
+      "tooLarge": "Der Avatar darf höchstens 4 MB groß sein.",
+      "uploaded": "Avatar hochgeladen. Speichere die Änderungen, um ihn zu übernehmen.",
+      "failed": "Hochladen des Avatars fehlgeschlagen"
+    },
+    "server": {
+      "title": "Server-Bots",
+      "description": "Bots agieren auf diesem Server über die Bot-API, beschränkt auf die hier erteilten Berechtigungen.",
+      "browseTitle": "Bot hinzufügen",
+      "searchPlaceholder": "Bots suchen",
+      "emptyDirectory": "Es sind noch keine Bots verfügbar. Jeder Benutzer kann unter Benutzereinstellungen → Meine Bots einen erstellen.",
+      "noResults": "Keine Bots passen zu „{query}“.",
+      "loadMore": "Mehr laden",
+      "installedTitle": "Installiert ({count})",
+      "add": "Zum Server hinzufügen",
+      "added": "Hinzugefügt",
+      "addedOn": "Hinzugefügt {time}",
+      "permissions": "Berechtigungen",
+      "channels": "Kanäle",
+      "remove": "Entfernen",
+      "addTitle": "Bot zum Server hinzufügen",
+      "addSubmit": "Bot hinzufügen",
+      "adding": "Wird hinzugefügt…",
+      "permissionsTitle": "Bot-Berechtigungen",
+      "permissionsHint": "Wird vom Bot-Gateway durchgesetzt. REST-Anfragen sehen Änderungen sofort, die Ereigniszustellung innerhalb von fünf Minuten. Lesen und Senden sind erforderlich.",
+      "required": "Erforderlich",
+      "save": "Änderungen speichern",
+      "saving": "Wird gespeichert…",
+      "addSuccess": "{name} hinzugefügt",
+      "addFailed": "Der Bot konnte nicht hinzugefügt werden",
+      "removeConfirmTitle": "{name} entfernen?",
+      "removeConfirmBody": "Der Bot verliert sofort den REST-Zugriff auf diesen Server und erhält innerhalb von fünf Minuten keine Ereignisse mehr.",
+      "removeSuccess": "{name} entfernt",
+      "removeFailed": "Der Bot konnte nicht entfernt werden",
+      "permissionsSaved": "Berechtigungen gespeichert",
+      "permissionsFailed": "Berechtigungen konnten nicht gespeichert werden",
+      "loadFailed": "Bots konnten nicht geladen werden",
+      "hiddenBot": "Privater Bot",
+      "channelsTitle": "Kanalzugriff",
+      "channelsHint": "Wird vom Serverbesitzer und von Mitgliedern mit „Server verwalten“ geändert. Ein Kanal, den du nicht sehen kannst, kann nicht hinzugefügt werden.",
+      "channelsAll": "Kanäle, die {'@'}everyone sehen kann",
+      "channelsAllDescription": "Der Bot liest jeden Kanal, den {'@'}everyone sehen kann, und postet und reagiert dort, wo {'@'}everyone es kann. Vor {'@'}everyone verborgene Kanäle bleiben ihm verborgen, und schreibgeschützte Kanäle bleiben schreibgeschützt.",
+      "channelsSelected": "Ausgewählte Kanäle",
+      "channelsSelectedDescription": "Der Bot arbeitet nur in den markierten Kanälen und nutzt dort jede Berechtigung, die er hat: Er sieht einen vor {'@'}everyone verborgenen Kanal und postet und reagiert dort, wo {'@'}everyone nur lesen kann.",
+      "channelsEmpty": "Keine Kanäle zur Auswahl",
+      "channelHidden": "Vor {'@'}everyone verborgen",
+      "channelsSaved": "Kanalzugriff gespeichert",
+      "channelsFailed": "Kanalzugriff konnte nicht gespeichert werden",
+      "channelsLoadFailed": "Kanalzugriff konnte nicht geladen werden"
+    },
+    "permissions": {
+      "read_messages": {
+        "label": "Nachrichten lesen",
+        "description": "Nachrichten- und Reaktionsereignisse empfangen und den Kanalverlauf lesen."
+      },
+      "send_messages": {
+        "label": "Nachrichten senden",
+        "description": "Nachrichten posten und eigene bearbeiten."
+      },
+      "add_reactions": {
+        "label": "Reaktionen hinzufügen",
+        "description": "Eigene Reaktionen hinzufügen und entfernen."
+      },
+      "manage_messages": {
+        "label": "Nachrichten verwalten",
+        "description": "Von anderen gesendete Nachrichten löschen."
+      },
+      "manage_channels": {
+        "label": "Kanäle verwalten",
+        "description": "Kanäle, Kategorien und Kanalberechtigungen erstellen und bearbeiten."
+      },
+      "manage_roles": {
+        "label": "Rollen verwalten",
+        "description": "Rollen unterhalb der höchsten Rolle dessen, der ihn installiert hat, erstellen, bearbeiten und löschen – mit Berechtigungen, die er selbst hat."
+      }
+    }
+  },
+  "floatingVideo": {
+    "region": "Videoplayer",
+    "video": "Video",
+    "openSource": "Original öffnen",
+    "pictureInPicture": "Bild-in-Bild",
+    "returnToMessage": "Zurück zur Nachricht",
+    "close": "Schließen",
+    "placeholder": "Wird im Videoplayer abgespielt",
+    "placeholderHint": "Auswählen, um es hierher zurückzuholen"
+  },
+  "channelEncryption": {
+    "encryptedMessage": "Verschlüsselte Nachricht",
+    "lock": {
+      "messages": "Ende-zu-Ende-verschlüsselt",
+      "voice": "Sprache und Video sind Ende-zu-Ende-verschlüsselt"
+    },
+    "status": {
+      "active": "Ende-zu-Ende-verschlüsselt",
+      "locked": "Dieser Kanal ist Ende-zu-Ende-verschlüsselt. Entsperre die Verschlüsselung, um Nachrichten zu lesen und zu senden.",
+      "setup": "Dieser Kanal ist Ende-zu-Ende-verschlüsselt. Richte die Verschlüsselung ein, um Nachrichten zu lesen und zu senden.",
+      "recommended": "Dieser Server empfiehlt, die Verschlüsselung einzurichten."
+    },
+    "settings": {
+      "heading": "Verschlüsselung",
+      "loading": "Verschlüsselungseinstellungen werden geladen...",
+      "unavailable": "Verschlüsselungseinstellungen konnten nicht geladen werden.",
+      "messagesLabel": "Nachrichten Ende-zu-Ende verschlüsseln",
+      "voiceLabel": "Sprache und Video Ende-zu-Ende verschlüsseln",
+      "messagesOnHint": "Nachrichten werden auf den Geräten der Mitglieder verschlüsselt, sodass der Server sie nicht lesen kann.",
+      "messagesOffHint": "Nachrichten werden als Klartext gespeichert. Das Aktivieren der Verschlüsselung gilt für neue Nachrichten.",
+      "serverDisabled": "Die Verschlüsselung ist für diesen Server deaktiviert. Der Serverbesitzer kann sie unter Servereinstellungen > Datenschutzeinstellungen erlauben.",
+      "serverRequired": "Dieser Server verlangt Verschlüsselung in jedem Kanal.",
+      "voiceHint": "Anrufe werden verschlüsselt, bevor sie den Medienserver erreichen. Mitglieder ohne eingerichtete Verschlüsselung können nicht beitreten.",
+      "voiceRequired": "Dieser Server verlangt verschlüsselte Sprache und Video in jedem Sprachkanal.",
+      "turnedOn": "Verschlüsselung aktiviert",
+      "turnedOff": "Verschlüsselung deaktiviert",
+      "voiceTurnedOn": "Sprachverschlüsselung aktiviert",
+      "voiceTurnedOff": "Sprachverschlüsselung deaktiviert",
+      "saveFailed": "Verschlüsselung konnte nicht geändert werden. Versuche es erneut."
+    },
+    "integrations": {
+      "bots": "{count} Bot auf diesem Server kann verschlüsselte Nachrichten nicht lesen und in diesem Kanal nicht posten. | {count} Bots auf diesem Server können verschlüsselte Nachrichten nicht lesen und in diesem Kanal nicht posten.",
+      "bridges": "{count} Bridge auf diesem Server kann verschlüsselte Nachrichten nicht lesen oder weiterleiten. | {count} Bridges auf diesem Server können verschlüsselte Nachrichten nicht lesen oder weiterleiten.",
+      "both": "Bots ({bots}) und Bridges ({bridges}) auf diesem Server können verschlüsselte Nachrichten nicht lesen und in diesem Kanal nicht posten."
+    },
+    "confirmOn": {
+      "title": "Verschlüsselung aktivieren?",
+      "confirm": "Verschlüsselung aktivieren"
+    },
+    "confirmOff": {
+      "title": "Verschlüsselung deaktivieren?",
+      "message": "Neue Nachrichten in diesem Kanal werden als Klartext gespeichert, den der Server lesen kann. Frühere Nachrichten bleiben verschlüsselt, und der Kanal zeigt an, dass du die Verschlüsselung deaktiviert hast.",
+      "confirm": "Verschlüsselung deaktivieren"
+    },
+    "confirmVoiceOff": {
+      "title": "Sprachverschlüsselung deaktivieren?",
+      "message": "Anrufe in diesem Kanal sind dann nicht mehr Ende-zu-Ende-verschlüsselt, und der Medienserver kann auf Audio und Video zugreifen.",
+      "confirm": "Sprachverschlüsselung deaktivieren"
+    },
+    "system": {
+      "enabled": "hat die Ende-zu-Ende-Verschlüsselung für diesen Kanal aktiviert.",
+      "disabled": "hat die Ende-zu-Ende-Verschlüsselung für diesen Kanal deaktiviert.",
+      "voiceEnabled": "hat die Ende-zu-Ende-Verschlüsselung für Sprache und Video aktiviert.",
+      "voiceDisabled": "hat die Ende-zu-Ende-Verschlüsselung für Sprache und Video deaktiviert."
+    },
+    "create": {
+      "label": "Ende-zu-Ende-Verschlüsselung",
+      "hint": "Nachrichten in diesem Kanal verschlüsseln, damit der Server sie nicht lesen kann.",
+      "integrationWarning": "Bots und Bridges auf diesem Server können verschlüsselte Nachrichten nicht lesen und in diesem Kanal nicht posten.",
+      "failed": "Der Kanal wurde erstellt, aber die Verschlüsselung konnte nicht aktiviert werden. Aktiviere sie in den Kanaleinstellungen."
+    }
+  },
+  "today": {
+    "beta": "Beta",
+    "back": "Zurück",
+    "refresh": "Aktualisieren",
+    "refreshing": "Wird aktualisiert",
+    "loading": "Dein Tag wird geladen",
+    "loadFailed": "Dein Tag konnte nicht geladen werden",
+    "refreshFailed": "Aktualisierung fehlgeschlagen. Es werden frühere Ergebnisse angezeigt.",
+    "sinceVisit": "Seit deinem letzten Besuch {time}",
+    "sinceVisitMoments": "Seit deinem letzten Besuch vor wenigen Augenblicken",
+    "firstVisit": "Das wartet auf dich",
+    "allCaughtUp": "Du bist auf dem neuesten Stand",
+    "statsLabel": "Zusammenfassung",
+    "seeAll": "Alle ansehen",
+    "showAll": "Alle anzeigen ({count})",
+    "showLess": "Weniger anzeigen",
+    "unread": "Ungelesen",
+    "unknownUser": "Unbekannter Benutzer",
+    "noText": "Kein Text",
+    "attachments": "{count} Anhang | {count} Anhänge",
+    "greeting": {
+      "night": "Noch wach?",
+      "morning": "Guten Morgen",
+      "afternoon": "Guten Tag",
+      "evening": "Guten Abend"
+    },
+    "stats": {
+      "mentions": "{count} neue Erwähnung | {count} neue Erwähnungen",
+      "conversations": "{count} ungelesene Unterhaltung | {count} ungelesene Unterhaltungen",
+      "channels": "{count} ungelesene Nachricht | {count} ungelesene Nachrichten",
+      "threads": "{count} Thread mit Antworten | {count} Threads mit Antworten",
+      "voice": "{count} Person im Sprachkanal | {count} Personen im Sprachkanal",
+      "followRequests": "{count} Folgeanfrage | {count} Folgeanfragen"
+    },
+    "errors": {
+      "markRead": "Konnte nicht als gelesen markiert werden. Versuche es erneut.",
+      "followRequest": "Die Folgeanfrage konnte nicht beantwortet werden. Versuche es erneut.",
+      "announcement": "Die Ankündigung konnte nicht ausgeblendet werden. Versuche es erneut."
+    },
+    "announcements": {
+      "title": "Ankündigungen",
+      "pinned": "Angeheftet",
+      "dismiss": "Ankündigung ausblenden: {title}",
+      "dismissShort": "Ausblenden",
+      "more": "{count} weitere in den Einstellungen"
+    },
+    "mentions": {
+      "title": "Erwähnungen und Antworten",
+      "empty": "Keine Erwähnungen oder Antworten in den letzten zwei Wochen.",
+      "error": "Erwähnungen konnten nicht geladen werden.",
+      "mention": "Erwähnung",
+      "reply": "Antwort",
+      "inThread": "{thread} · {server}",
+      "inChannel": "{channel} · {server}",
+      "inGroup": "{name}",
+      "inUnnamedGroup": "Gruppennachricht",
+      "inDirect": "Direktnachricht",
+      "linkLabel": "{kind} von {author}, {location}, {time}"
+    },
+    "conversations": {
+      "title": "Direktnachrichten",
+      "empty": "Keine ungelesenen Direktnachrichten.",
+      "error": "Direktnachrichten konnten nicht geladen werden.",
+      "more": "{count} weitere ungelesen in Direktnachrichten",
+      "you": "Du",
+      "group": "Gruppe",
+      "groupNamesMore": "{names} und {count} weitere",
+      "unreadCount": "{count} ungelesene Nachricht | {count} ungelesene Nachrichten",
+      "linkLabel": "{name}, {count} ungelesene Nachricht | {name}, {count} ungelesene Nachrichten"
+    },
+    "catchUp": {
+      "title": "Aufholen",
+      "empty": "Keine ungelesenen Kanäle.",
+      "error": "Ungelesene Kanäle konnten nicht geladen werden.",
+      "markAllRead": "Alle als gelesen markieren",
+      "markRead": "Als gelesen markieren",
+      "markServerRead": "{server} als gelesen markieren",
+      "serverCounts": "{count} ungelesen | {count} ungelesen",
+      "serverMentions": "{count} Erwähnung | {count} Erwähnungen",
+      "moreChannels": "{count} weitere",
+      "channelLabel": "#{channel}, {count} ungelesene Nachricht | #{channel}, {count} ungelesene Nachrichten",
+      "channelLabelMentions": "#{channel}, {count} ungelesen, {mentions} erwähnen dich"
+    },
+    "voice": {
+      "title": "Jetzt live",
+      "empty": "Gerade ist niemand im Sprachkanal.",
+      "error": "Sprachkanäle konnten nicht geladen werden.",
+      "since": "seit {time}",
+      "join": "Beitreten",
+      "open": "Öffnen",
+      "joinLabel": "{channel} auf {server} beitreten",
+      "openLabel": "{channel} öffnen, du bist verbunden",
+      "participantsMore": "{names} und {count} weitere",
+      "joinFailed": "Dem Sprachkanal konnte nicht beigetreten werden."
+    },
+    "threads": {
+      "title": "Deine Threads",
+      "empty": "Keine neuen Antworten in deinen Threads.",
+      "error": "Threads konnten nicht geladen werden.",
+      "newReplies": "{count} neue Antwort | {count} neue Antworten",
+      "linkLabel": "{name}, {count} neue Antwort | {name}, {count} neue Antworten"
+    },
+    "social": {
+      "title": "Social",
+      "empty": "Keine neuen Follower oder Aktivitäten bei deinen Beiträgen.",
+      "error": "Social-Aktivität konnte nicht geladen werden.",
+      "followRequests": "{count} Folgeanfrage | {count} Folgeanfragen",
+      "accept": "Annehmen",
+      "decline": "Ablehnen",
+      "acceptLabel": "Folgeanfrage von {name} annehmen",
+      "declineLabel": "Folgeanfrage von {name} ablehnen",
+      "allRequests": "Alle {count} Anfragen ansehen",
+      "activityLabel": "Ungelesene Aktivität bei deinen Beiträgen",
+      "activity": {
+        "favorite": "{count} Favorit | {count} Favoriten",
+        "reblog": "{count} Boost | {count} Boosts",
+        "reaction": "{count} Reaktion | {count} Reaktionen",
+        "mention": "{count} Erwähnung | {count} Erwähnungen",
+        "reply": "{count} Antwort | {count} Antworten"
+      },
+      "followedOne": "{name} folgt dir jetzt",
+      "followedTwo": "{a} und {b} folgen dir jetzt",
+      "followedMany": "{name} und {count} weitere Person folgen dir jetzt | {name} und {count} weitere folgen dir jetzt",
+      "mentioned": "Hat dich erwähnt",
+      "replied": "Hat geantwortet",
+      "mentionLabel": "Beitrag von {name}, der dich erwähnt",
+      "replyLabel": "Antwort von {name} auf deinen Beitrag"
+    },
+    "posts": {
+      "title": "Von Leuten, denen du folgst",
+      "empty": "Keine neuen Beiträge von Leuten, denen du folgst.",
+      "error": "Beiträge konnten nicht geladen werden.",
+      "linkLabel": "Beitrag von {name}"
+    },
+    "highlights": {
+      "title": "Zusammenfassung",
+      "onDevice": "KI auf dem Gerät",
+      "onDeviceHint": "Kanalzusammenfassungen werden lokal erstellt. Nichts verlässt dein Gerät."
+    }
+  },
+  "updater": {
+    "readyTitle": "Update bereit",
+    "readyBody": "Harmony {version} wurde heruntergeladen. Starte neu, um das Update abzuschließen; das dauert nur wenige Sekunden.",
+    "readyToast": "Harmony {version} ist bereit. Klicke zum Neustarten und Aktualisieren.",
+    "restartToUpdate": "Neu starten zum Aktualisieren",
+    "later": "Später",
+    "indicatorLabel": "Update bereit: Neu starten, um Harmony {version} zu installieren",
+    "installFailed": "Das Update konnte nicht installiert werden: {error}",
+    "settings": {
+      "title": "Updates",
+      "versionLabel": "Harmony {version}",
+      "versionUnknown": "Harmony",
+      "idle": "Harmony sucht automatisch nach Updates.",
+      "upToDate": "Du verwendest die neueste Version.",
+      "lastChecked": "Zuletzt geprüft {time}.",
+      "checking": "Suche nach Updates…",
+      "available": "Harmony {version} ist verfügbar.",
+      "downloading": "Harmony {version} wird heruntergeladen…",
+      "downloadingPercent": "Harmony {version} wird heruntergeladen… {percent} %",
+      "ready": "Harmony {version} ist bereit. Starte neu, um das Update abzuschließen.",
+      "installing": "Update wird installiert…",
+      "failed": "Aktualisierung fehlgeschlagen: {error}",
+      "notConfigured": "Automatische Updates sind für diesen Build nicht konfiguriert.",
+      "unsupported": "Automatische Updates unter Linux erfordern den AppImage-Build. Aktualisiere diese Installation auf dem Weg, auf dem du sie installiert hast.",
+      "check": "Nach Updates suchen",
+      "download": "Herunterladen",
+      "autoDownload": "Updates automatisch herunterladen",
+      "autoDownloadDescription": "Wenn deaktiviert, sucht Harmony weiterhin nach Updates und fragt vor dem Herunterladen."
+    },
+    "android": {
+      "available": "Harmony {version} ist verfügbar.",
+      "download": "Herunterladen",
+      "dismiss": "Update-Hinweis ausblenden"
+    }
+  },
+  "automod": {
+    "title": "AutoMod",
+    "description": "AutoMod prüft jede Nachricht auf dem Server, bevor jemand sie sieht. Es blockiert Spam, Nachrichtenfluten und von dir gewählte Wörter, benachrichtigt deine Moderatoren und kann Mitglieder in den Timeout schicken. Mitglieder mit „Server verwalten“ und „Administrator“ sind nie betroffen.",
+    "enabled": "AutoMod",
+    "enabledOn": "An. Die Regeln unten werden bei jeder Nachricht angewendet.",
+    "enabledOff": "Aus. Keine Regel wird angewendet; Timeouts gelten weiterhin.",
+    "alertChannel": "Benachrichtigungskanal",
+    "alertChannelHint": "Wo AutoMod meldet, was es blockiert oder markiert hat. Jede Aktion wird zusätzlich im Protokoll unten festgehalten.",
+    "noAlertChannel": "Kein Benachrichtigungskanal",
+    "exemptBots": "Bots überspringen",
+    "exemptBotsHint": "Nachrichten von installierten Bots und Bridges werden nicht geprüft.",
+    "rules": "Regeln",
+    "rulesHint": "Jede Regel hat einen Auslöser, eine oder mehrere Aktionen und optionale Ausnahmen.",
+    "addRule": "Regel hinzufügen",
+    "noRules": "Noch keine Regeln. Füge eine hinzu, um mit dem Filtern zu beginnen.",
+    "saved": "AutoMod-Einstellungen gespeichert",
+    "ruleSaved": "Regel gespeichert",
+    "ruleDeleted": "Regel gelöscht",
+    "setup": {
+      "title": "Schütze diesen Server mit AutoMod",
+      "body": "Die empfohlene Einrichtung aktiviert:",
+      "mention": "Erwähnungsspam: mehr als 20 erwähnte Personen in einer Nachricht oder 50 in einer Minute",
+      "flood": "Nachrichtenfluten: mehr als 10 Nachrichten in 10 Sekunden",
+      "duplicate": "Kanalübergreifender Spam: dieselbe Nachricht in mehr als 2 Kanälen innerhalb von 5 Minuten",
+      "raid": "Raid-Erkennung: eine Benachrichtigung, wenn 10 Mitglieder innerhalb einer Minute beitreten",
+      "note": "Wortfilter, Einladungs- und Linkfilter sowie Einschränkungen für neue Mitglieder werden deaktiviert hinzugefügt; aktiviere sie, wenn du sie brauchst.",
+      "enable": "Empfohlenen Schutz aktivieren",
+      "enabled": "AutoMod ist aktiv"
+    },
+    "optin": {
+      "title": "AutoMod ist für diesen Server verfügbar",
+      "body": "Blockiere Spam, Erwähnungs-Raids und Nachrichtenfluten automatisch. Nichts ändert sich, bis du es aktivierst.",
+      "enable": "Aktivieren",
+      "review": "Regeln prüfen",
+      "dismiss": "Nicht jetzt"
+    },
+    "types": {
+      "keyword": {
+        "name": "Eigene Wörter",
+        "description": "Blockiert Nachrichten mit Wörtern, Phrasen oder Mustern aus deiner Liste."
+      },
+      "keyword_preset": {
+        "name": "Wortvorlagen",
+        "description": "Fertige Listen mit Beleidigungen, sexuellen Inhalten und Schimpfwörtern."
+      },
+      "mention_spam": {
+        "name": "Erwähnungsspam",
+        "description": "Nachrichten, die zu viele Personen oder Rollen erwähnen, sowie Erwähnungs-Raids über mehrere Nachrichten."
+      },
+      "message_flood": {
+        "name": "Nachrichtenflut",
+        "description": "Mitglieder, die schneller als erlaubt Nachrichten senden, über alle Kanäle hinweg."
+      },
+      "duplicate_spam": {
+        "name": "Kanalübergreifender Spam",
+        "description": "Dieselbe Nachricht in kurzer Zeit in mehreren Kanälen gepostet."
+      },
+      "invites": {
+        "name": "Servereinladungen",
+        "description": "Einladungen zu anderen Servern, auf Harmony oder Discord. Einladungen dieses Servers sind erlaubt."
+      },
+      "links": {
+        "name": "Links",
+        "description": "Nur Links zu aufgeführten Domains erlauben oder aufgeführte Domains blockieren."
+      },
+      "new_member": {
+        "name": "Neue Mitglieder",
+        "description": "Hält Links, Anhänge oder Erwähnungen von neuen Konten und gerade beigetretenen Mitgliedern zurück."
+      }
+    },
+    "presets": {
+      "slurs": {
+        "name": "Beleidigungen",
+        "description": "Schwere rassistische, homophobe, transphobe und ableistische Beleidigungen."
+      },
+      "sexual": {
+        "name": "Sexuelle Inhalte",
+        "description": "Explizite sexuelle Begriffe und Anbahnung."
+      },
+      "profanity": {
+        "name": "Schimpfwörter",
+        "description": "Gängige Schimpfwörter."
+      }
+    },
+    "rule": {
+      "enabled": "Regel aktiviert",
+      "name": "Regelname",
+      "trigger": "Auslöser",
+      "actions": "Aktionen",
+      "exemptions": "Ausnahmen",
+      "exemptionsHint": "Mitglieder mit einer ausgewählten Rolle sowie Nachrichten in ausgewählten Kanälen oder Kategorien überspringen diese Regel.",
+      "exemptRoles": "Rollen",
+      "exemptChannels": "Kanäle und Kategorien",
+      "category": "Kategorie",
+      "delete": "Regel löschen",
+      "deleteConfirm": "Die Regel „{name}“ löschen? Nachrichten, die sie blockiert hätte, sind dann wieder erlaubt.",
+      "revert": "Zurücksetzen",
+      "save": "Speichern"
+    },
+    "keyword": {
+      "keywords": "Wörter und Phrasen",
+      "keywordsPlaceholder": "eins pro Zeile oder durch Kommas getrennt",
+      "keywordsHint": "Standardmäßig ganze Wörter. wort* trifft ein Präfix, *wort ein Suffix, *wort* überall. Der Abgleich ignoriert Groß-/Kleinschreibung, Akzente, ähnlich aussehende Buchstaben, Leerzeichentricks und wiederholte Buchstaben.",
+      "regex": "Reguläre Ausdrücke",
+      "regexPlaceholder": "einer pro Zeile, z. B. free\\s*nitro",
+      "regexHint": "Bis zu 10, je höchstens 260 Zeichen, ohne Beachtung der Groß-/Kleinschreibung. Rückverweise werden nicht unterstützt.",
+      "allowList": "Erlaubte Wörter",
+      "allowListHint": "Wörter, die diese Regel nie auslösen, z. B. ein Ortsname, der ein blockiertes Wort enthält."
+    },
+    "mention": {
+      "maxMentions": "Erwähnungen pro Nachricht",
+      "windowMentions": "Erwähnungen pro Zeitfenster (0 = aus)",
+      "everyone": "Everyone-Pings von Mitgliedern ohne die Berechtigung „Everyone erwähnen“ blockieren"
+    },
+    "flood": {
+      "maxMessages": "Erlaubte Nachrichten"
+    },
+    "duplicate": {
+      "maxChannels": "Erlaubte Kanäle",
+      "minLength": "Mindestlänge"
+    },
+    "links": {
+      "mode": "Modus",
+      "allowList": "Nur diese Domains erlauben",
+      "blockList": "Diese Domains blockieren",
+      "domains": "Domains",
+      "domainsHint": "Eine pro Zeile. Subdomains sind eingeschlossen."
+    },
+    "newMember": {
+      "accountAge": "Konto jünger als",
+      "membership": "Oder beigetreten vor weniger als",
+      "any": "Nicht geprüft",
+      "links": "Links",
+      "attachments": "Anhänge",
+      "mentions": "Erwähnungen"
+    },
+    "common": {
+      "windowSeconds": "Zeitfenster (Sekunden)"
+    },
+    "actions": {
+      "block": "Nachricht blockieren",
+      "blockHint": "Die Nachricht wird nicht gepostet; der Verfasser sieht den Grund.",
+      "blockMessage": "Eigener Grund, der dem Verfasser angezeigt wird",
+      "blockMessagePlaceholder": "Optional, bis zu 150 Zeichen",
+      "alert": "Benachrichtigung senden",
+      "alertHint": "Das Ereignis im Benachrichtigungskanal posten.",
+      "alertHintNoChannel": "Wähle oben einen Benachrichtigungskanal; bis dahin erscheinen Ereignisse nur im Protokoll.",
+      "timeout": "Mitglied in den Timeout schicken",
+      "noTimeout": "Kein Timeout",
+      "blockShort": "blockieren",
+      "alertShort": "benachrichtigen"
+    },
+    "duration": {
+      "weeks": "{n} Woche | {n} Wochen",
+      "days": "{n} Tag | {n} Tage",
+      "hours": "{n} Stunde | {n} Stunden",
+      "minutes": "{n} Minute | {n} Minuten",
+      "seconds": "{n} Sekunde | {n} Sekunden"
+    },
+    "summary": {
+      "keyword": "{n} Wörter oder Muster",
+      "noPresets": "Keine Vorlage ausgewählt",
+      "mention": "Mehr als {n} Erwähnungen",
+      "flood": "Mehr als {n} Nachrichten in {s} s",
+      "duplicate": "Dieselbe Nachricht in mehr als {n} Kanälen in {s} s",
+      "invites": "Einladungen zu anderen Servern",
+      "linksAllow": "Nur {n} erlaubte Domains",
+      "linksBlock": "{n} blockierte Domains",
+      "newMember": "Neue Konten und Mitglieder"
+    },
+    "raid": {
+      "title": "Raid-Schutz",
+      "hint": "Achtet auf eine Häufung von Beitritten. Nur benachrichtigen oder alle Textkanäle automatisch verlangsamen.",
+      "active": "Raid-Sperre ist aktiv: Slowmode {seconds} s in Textkanälen seit {since}.",
+      "lift": "Sperre aufheben",
+      "threshold": "Beitritte",
+      "action": "Bei Auslösung",
+      "actionAlert": "Nur benachrichtigen",
+      "actionSlowmode": "Benachrichtigen und Kanäle verlangsamen",
+      "slowmode": "Slowmode (Sekunden)",
+      "lockNow": "Jetzt sperren",
+      "lockConfirm": "Einen Slowmode von {seconds} Sekunden für jeden Textkanal festlegen? Beim Aufheben der Sperre werden die vorherigen Werte wiederhergestellt.",
+      "locked": "Sperre aktiv",
+      "lifted": "Sperre aufgehoben"
+    },
+    "timeouts": {
+      "title": "Mitglieder im Timeout",
+      "until": "Im Timeout bis {time}",
+      "remove": "Timeout aufheben",
+      "removed": "Timeout aufgehoben"
+    },
+    "log": {
+      "title": "AutoMod-Protokoll",
+      "refresh": "Aktualisieren",
+      "empty": "Bisher wurde nichts blockiert oder markiert.",
+      "raid": "Möglicher Raid: {n} Beitritte in {s} s",
+      "matched": "Treffer: {text}",
+      "more": "Mehr laden",
+      "action": {
+        "block": "blockiert",
+        "alert": "benachrichtigt",
+        "timeout": "Timeout",
+        "slowmode": "Slowmode"
+      }
+    },
+    "errors": {
+      "generic": "AutoMod konnte diese Änderung nicht speichern.",
+      "load": "AutoMod-Einstellungen konnten nicht geladen werden."
+    },
+    "blocked": {
+      "keyword": "Deine Nachricht wurde blockiert: Sie enthält ein Wort, das auf diesem Server nicht erlaubt ist.",
+      "keyword_preset": "Deine Nachricht wurde blockiert: Sie enthält Ausdrücke, die auf diesem Server nicht erlaubt sind.",
+      "mention_spam": "Deine Nachricht wurde blockiert: Sie erwähnt zu viele Personen.",
+      "message_flood": "Du sendest Nachrichten zu schnell. Warte ein paar Sekunden und versuche es erneut.",
+      "duplicate_spam": "Deine Nachricht wurde blockiert: Dieselbe Nachricht wurde bereits in anderen Kanälen gepostet.",
+      "invites": "Deine Nachricht wurde blockiert: Einladungen zu anderen Servern sind hier nicht erlaubt.",
+      "links": "Deine Nachricht wurde blockiert: Links zu dieser Website sind hier nicht erlaubt.",
+      "new_member": "Neue Mitglieder können noch keine Links, Dateien oder Erwähnungen posten. Versuche es etwas später erneut.",
+      "generic": "Deine Nachricht wurde vom AutoMod dieses Servers blockiert.",
+      "timedOutUntil": "Du bist bis {time} im Timeout."
+    },
+    "timedOut": "Du bist auf diesem Server bis {time} im Timeout und kannst keine Nachrichten senden.",
+    "antispam": {
+      "rateLimited": "Neue Konten können nur wenige Nachrichten auf einmal senden. Versuche es in {seconds} s erneut.",
+      "linksBlocked": "Neue Konten können noch keine Links posten.",
+      "strangerMentions": "Neue Konten können höchstens {count} Personen erwähnen, die ihnen nicht folgen."
+    },
+    "alert": {
+      "raid": "Möglicher Raid: {joins} Mitglieder sind innerhalb von {seconds} Sekunden beigetreten.",
+      "blocked": "hat eine Nachricht blockiert von",
+      "blockedEdit": "hat eine Bearbeitung blockiert von",
+      "flagged": "hat eine Nachricht markiert von",
+      "aBot": "einem Bot",
+      "timedOut": "in den Timeout geschickt"
+    }
+  },
+  "empty": {
+    "pins": {
+      "title": "Noch keine angehefteten Nachrichten",
+      "description": "Hefte wichtige Nachrichten an, um sie hier zu finden."
+    },
+    "threads": {
+      "title": "Noch keine Threads",
+      "description": "Starte einen Thread von einer beliebigen Nachricht aus.",
+      "noMatchTitle": "Keine Threads passen zu deiner Suche",
+      "noMatchDescription": "Versuche einen anderen Namen."
+    },
+    "threadMessages": {
+      "title": "Noch keine Nachrichten",
+      "description": "Antworte als Erste/r in diesem Thread."
+    },
+    "lists": {
+      "title": "Noch keine Listen",
+      "description": "Listen fassen Konten, denen du folgst, in eigenen Timelines zusammen.",
+      "action": "Liste erstellen"
+    },
+    "listMembers": {
+      "title": "Noch keine Mitglieder",
+      "description": "Suche oben, um Konten hinzuzufügen, denen du folgst."
+    },
+    "listTimeline": {
+      "title": "Noch keine Beiträge",
+      "description": "Füge dieser Liste Mitglieder hinzu, um ihre Beiträge hier zu sehen."
+    },
+    "posts": {
+      "title": "Noch keine Beiträge",
+      "description": "Beiträge erscheinen hier, sobald sie eintreffen."
+    },
+    "profilePosts": {
+      "self": "Du hast noch nichts gepostet.",
+      "other": "{name} hat noch nichts gepostet."
+    },
+    "profileFollowing": {
+      "other": "{name} folgt noch niemandem."
+    },
+    "profileFollowers": {
+      "title": "Noch keine Follower",
+      "self": "Du hast noch keine Follower.",
+      "other": "{name} hat noch keine Follower."
+    },
+    "followers": {
+      "title": "Noch keine Follower",
+      "description": "Wenn dir Leute folgen, erscheinen sie hier."
+    },
+    "following": {
+      "title": "Du folgst noch niemandem",
+      "description": "Wenn du Leuten folgst, erscheinen sie hier.",
+      "action": "Leute entdecken"
+    },
+    "requests": {
+      "title": "Keine offenen Anfragen",
+      "description": "Wenn Leute dir folgen möchten, erscheinen sie hier."
+    },
+    "instancePosts": {
+      "title": "Keine aktuellen Beiträge von dieser Instanz"
+    },
+    "emojiSearch": {
+      "title": "Kein Emoji für „{query}“ gefunden"
+    },
+    "funding": {
+      "title": "Finanzierungsinformationen sind nicht verfügbar."
+    },
+    "roleMembers": {
+      "noMatch": "Keine passenden Mitglieder",
+      "noFilterMatch": "Keine Mitglieder passen zu diesem Filter",
+      "none": "Noch keine Mitglieder haben diese Rolle"
+    },
+    "voiceParticipants": {
+      "title": "Noch niemand hier",
+      "description": "Wenn du bereit zum Reden bist, komm rein."
+    },
+    "bans": {
+      "title": "Keine gesperrten Benutzer",
+      "description": "Niemand ist von diesem Server gesperrt."
+    },
+    "blocked": {
+      "title": "Du hast niemanden blockiert"
+    },
+    "muted": {
+      "title": "Du hast niemanden stummgeschaltet"
+    },
+    "devices": {
+      "title": "Noch keine Geräte registriert",
+      "description": "Geräte erscheinen hier, sobald du die Verschlüsselung auf ihnen entsperrst."
+    },
+    "screenSources": {
+      "screens": "Keine Bildschirme verfügbar",
+      "windows": "Keine Fenster verfügbar"
+    },
+    "admin": {
+      "discoveredInstances": {
+        "title": "Noch keine Instanzen aus Benutzerinteraktionen entdeckt",
+        "action": "Nach Interaktionen suchen"
+      },
+      "featured": {
+        "title": "Noch keine öffentlichen Communities",
+        "description": "Mache einen Server öffentlich, um ihn hier hervorzuheben."
+      },
+      "userServers": {
+        "title": "Dieser Benutzer ist auf keinem Server Mitglied"
+      },
+      "announcements": {
+        "title": "Keine Ankündigungen",
+        "description": "Erstelle eine, um Benutzer zu benachrichtigen."
+      },
+      "slowQueries": {
+        "title": "Keine langsamen Abfragen erkannt",
+        "description": "Abfragen, die länger als 100 ms dauern, erscheinen hier."
+      },
+      "federationHealth": {
+        "title": "Keine Daten zum Föderationszustand",
+        "description": "Metriken erscheinen, sobald eingehende oder ausgehende Föderationsaktivität erfasst wird."
+      },
+      "remoteEmoji": {
+        "title": "Keine Remote-Emojis gefunden",
+        "description": "Emojis von Remote-Instanzen erscheinen hier, wenn du mit föderierten Inhalten interagierst."
+      },
+      "tiers": {
+        "title": "Keine Stufen konfiguriert"
+      },
+      "supporters": {
+        "title": "Keine aktiven Unterstützer"
+      },
+      "donations": {
+        "title": "Keine Spenden erfasst"
+      },
+      "reports": {
+        "title": "Keine Meldungen",
+        "filtered": "Keine Meldungen mit dem Status „{status}“"
+      }
+    }
+  },
+  "adminRetention": {
+    "tab": "Bindung",
+    "title": "Nutzerbindung nach Registrierung",
+    "intro": "Was jede Registrierungskohorte lokaler Konten nach dem Beitritt getan hat. Nur Zahlen; es werden keine Konten aufgelistet.",
+    "period": "Kohorte",
+    "month": "Monat",
+    "week": "Woche",
+    "range": "Zeitraum",
+    "rangeMonths": "Letzte {n} Monate",
+    "refresh": "Aktualisieren",
+    "loading": "Bindungsdaten werden geladen",
+    "loadFailed": "Bindungsdaten konnten nicht geladen werden",
+    "emptyTitle": "Keine Registrierungen in diesem Zeitraum",
+    "emptyDescription": "Lokale Konten erscheinen hier, gruppiert nach dem Monat oder der Woche ihrer Registrierung.",
+    "tableLabel": "Bindung nach Registrierungskohorte",
+    "weekOf": "Woche vom {date}",
+    "total": "Alle Kohorten",
+    "cellTitle": "{n} von {d} ({pct})",
+    "notReached": "Noch kein Konto dieser Kohorte hat dieses Zeitfenster erreicht",
+    "smallCohort": "Weniger als {n} Registrierungen",
+    "noteSmall": "Kleine Kohorten schwanken stark: In einer Kohorte von {n} verschiebt ein Konto eine Rate um {points} Prozentpunkte.",
+    "noteWindows": "Eine Rate zählt nur Konten, deren Zeitfenster abgelaufen ist; ein Strich bedeutet, dass das noch bei keinem der Fall ist. Server-, Push- und Folge-Werte geben den aktuellen Stand wieder.",
+    "legend": "Was die Spalten bedeuten",
+    "columns": {
+      "cohort": "Kohorte",
+      "signups": "Registrierungen",
+      "joinedServer": "Einem Server beigetreten",
+      "joinedOther": "Fremdem Server beigetreten",
+      "wroteDay1": "Am 1. Tag geschrieben",
+      "activeDays1to7": "Aktiv Tag 1–7",
+      "activeDays8to30": "Aktiv Tag 8–30",
+      "activeDays31to90": "Aktiv Tag 31–90",
+      "answered1h": "Antwort innerhalb 1 h",
+      "answered24h": "Antwort innerhalb 24 h",
+      "push": "Push an",
+      "follows": "Folgt jemandem"
+    },
+    "help": {
+      "signups": "Im Zeitraum erstellte lokale Konten.",
+      "joinedServer": "Ist aktuell Mitglied mindestens eines Servers.",
+      "joinedOther": "Ist aktuell Mitglied eines Servers, der ihm nicht gehört.",
+      "wroteDay1": "Hat innerhalb von 24 Stunden nach der Registrierung eine Nachricht oder einen Beitrag gesendet.",
+      "activeDays1to7": "Hat in den ersten 7 Tagen mindestens einmal geschrieben.",
+      "activeDays8to30": "Hat zwischen Tag 8 und Tag 30 mindestens einmal geschrieben.",
+      "activeDays31to90": "Hat zwischen Tag 31 und Tag 90 mindestens einmal geschrieben.",
+      "answered1h": "Jemand anderes hat innerhalb einer Stunde nach der ersten Nachricht im selben Kanal, in derselben DM oder im selben Thread geschrieben.",
+      "answered24h": "Dasselbe, innerhalb von 24 Stunden.",
+      "push": "Hat Push-Benachrichtigungen auf mindestens einem Gerät aktiviert.",
+      "follows": "Folgt mindestens einem Konto."
+    }
+  },
+  "pwa": {
+    "installTitle": "Harmony installieren",
+    "installDescription": "Schnelleres Laden und Offline-Zugriff",
+    "install": "Installieren",
+    "installing": "Wird installiert…",
+    "dismiss": "Installationshinweis ausblenden"
+  },
+  "security": {
+    "subtitle": "Dein Passwort, die Zwei-Faktor-Authentifizierung und die Geräte, die bei deinem Konto angemeldet sind.",
+    "privacyLink": "Passwort, Zwei-Faktor-Authentifizierung und angemeldete Geräte findest du unter {link}.",
+    "password": {
+      "setTitle": "Passwort festlegen",
+      "changeDescription": "Wenn du dein Passwort änderst, werden alle anderen Geräte abgemeldet.",
+      "providerDescription": "Dein Konto meldet sich über {providers} an. Mit einem Passwort kannst du dich auch mit deiner E-Mail anmelden.",
+      "externalProvider": "einen externen Anbieter",
+      "hint": "Mindestens 8 Zeichen. Eine Passphrase aus ein paar zusammenhanglosen Wörtern eignet sich gut.",
+      "saving": "Wird gespeichert…",
+      "setPassword": "Passwort festlegen",
+      "changed": "Passwort geändert. Deine anderen Geräte wurden abgemeldet.",
+      "set": "Passwort festgelegt.",
+      "changeFailed": "Dein Passwort konnte nicht geändert werden.",
+      "errors": {
+        "tooShort": "Verwende mindestens 8 Zeichen.",
+        "mismatch": "Die Passwörter stimmen nicht überein.",
+        "sameAsCurrent": "Wähle ein anderes Passwort als das aktuelle.",
+        "wrongCurrent": "Das ist nicht dein aktuelles Passwort."
+      }
+    },
+    "twoFactor": {
+      "description": "Bei der Anmeldung ist ein Code aus einer Authentifizierungs-App erforderlich – auf jedem Gerät sowie in der Desktop- und Android-App.",
+      "on": "An",
+      "off": "Aus",
+      "checking": "Zwei-Faktor-Status wird geprüft…",
+      "offDescription": "Verwende Aegis, 2FAS, Google Authenticator, 1Password oder eine andere App, die TOTP unterstützt. Beim Aktivieren werden deine anderen Sitzungen abgemeldet.",
+      "setUp": "Zwei-Faktor-Authentifizierung einrichten",
+      "steps": {
+        "label": "Einrichtungsschritte",
+        "scan": "Scannen",
+        "saveCodes": "Codes speichern"
+      },
+      "scanQr": "Scanne diesen QR-Code mit deiner Authentifizierungs-App.",
+      "qrAlt": "QR-Code für deine Authentifizierungs-App",
+      "generating": "Wird generiert…",
+      "manualKey": "Scannen klappt nicht? Gib diesen Schlüssel in der App ein (zeitbasiert, 6 Ziffern):",
+      "setupKey": "Einrichtungsschlüssel",
+      "copySetupKey": "Einrichtungsschlüssel kopieren",
+      "setupKeyCopied": "Einrichtungsschlüssel kopiert",
+      "enterEnrollCode": "Gib den 6-stelligen Code ein, den deine App anzeigt",
+      "verifying": "Wird überprüft…",
+      "turnOn": "Aktivieren",
+      "saveCodesWarning": "Bewahre diese Wiederherstellungscodes an einem sicheren Ort auf, z. B. in einem Passwort-Manager. Jeder meldet dich einmal an, falls du deinen Authenticator verlierst. Sie werden nicht erneut angezeigt.",
+      "recoveryCodes": "Wiederherstellungscodes",
+      "recoveryCodesCopied": "Wiederherstellungscodes kopiert",
+      "downloadTxt": ".txt herunterladen",
+      "codesSavedCheck": "Ich habe meine Wiederherstellungscodes gespeichert",
+      "unavailable": "Nicht verfügbar",
+      "noneLeft": "Keine mehr übrig. Generiere jetzt neue Codes.",
+      "remaining": "{remaining} von {total} unbenutzt",
+      "generateNew": "Neue Codes generieren",
+      "turnOffTitle": "Zwei-Faktor-Authentifizierung deaktivieren",
+      "turnOffDescription": "Für die Anmeldung reicht dann dein Passwort.",
+      "turnOff": "Deaktivieren",
+      "generate": "Generieren",
+      "working": "Wird bearbeitet…",
+      "useAuthenticator": "Stattdessen meinen Authenticator verwenden",
+      "useRecoveryCode": "Authenticator verloren? Verwende einen Wiederherstellungscode",
+      "disabledToast": "Zwei-Faktor-Authentifizierung ist deaktiviert",
+      "disableModal": {
+        "title": "Zwei-Faktor-Authentifizierung deaktivieren?",
+        "textTotp": "Dein Konto ist dann nur noch durch dein Passwort geschützt. Gib zur Bestätigung den 6-stelligen Code aus deinem Authenticator ein.",
+        "textRecovery": "Dein Konto ist dann nur noch durch dein Passwort geschützt. Gib zur Bestätigung einen Wiederherstellungscode ein."
+      },
+      "regenerateModal": {
+        "title": "Neue Wiederherstellungscodes generieren?",
+        "text": "Deine aktuellen Wiederherstellungscodes funktionieren dann nicht mehr. Gib den 6-stelligen Code aus deinem Authenticator ein, um fortzufahren."
+      },
+      "errors": {
+        "statusFailed": "Zwei-Faktor-Status konnte nicht geprüft werden.",
+        "setupFailed": "Die Zwei-Faktor-Einrichtung konnte nicht gestartet werden.",
+        "copyFailed": "Kopieren fehlgeschlagen. Markiere den Text und kopiere ihn manuell.",
+        "actionFailed": "Das hat nicht funktioniert. Versuche es erneut."
+      }
+    },
+    "sessions": {
+      "title": "Geräte",
+      "description": "Überall, wo dein Konto angemeldet ist. Wenn du ein Gerät abmeldest, erhält es auch keine Push-Benachrichtigungen mehr. Standorte werden als die IP-Adresse angezeigt, von der die Anmeldung kam.",
+      "refresh": "Aktualisieren",
+      "loading": "Geräte werden geladen…",
+      "thisDevice": "Dieses Gerät",
+      "push": "Push",
+      "pushTitle": "Push-Benachrichtigungen: {transports}",
+      "webPush": "Web Push",
+      "active": "Aktiv {time}",
+      "ago": "vor {time}",
+      "unknown": "unbekannt",
+      "signedIn": "Angemeldet am {date}",
+      "mfaIncomplete": "Zwei-Faktor nicht abgeschlossen",
+      "signOut": "Abmelden",
+      "signingOut": "Wird abgemeldet…",
+      "signOutOthers": "Alle anderen Geräte abmelden ({count})",
+      "unknownDevice": "Unbekanntes Gerät",
+      "revoked": "Gerät abgemeldet",
+      "revokedOthers": "Alle anderen Geräte abgemeldet",
+      "pushRemoved": "Push-Benachrichtigungen für dieses Gerät entfernt",
+      "revokeConfirm": {
+        "title": "Dieses Gerät abmelden?",
+        "message": "{device} muss sich erneut anmelden. Seine Push-Benachrichtigungen werden beendet."
+      },
+      "revokeOthersConfirm": {
+        "title": "Alle anderen Geräte abmelden?",
+        "message": "Alle Geräte außer diesem müssen sich erneut anmelden.",
+        "confirm": "Alle abmelden"
+      },
+      "otherPush": {
+        "title": "Weitere Push-Benachrichtigungsziele",
+        "description": "Registriert, bevor Geräte mit Anmeldungen verknüpft wurden, oder von einem Gerät, das nicht mehr angemeldet ist.",
+        "added": "Hinzugefügt am {date}",
+        "unreachable": "Nicht erreichbar"
+      },
+      "errors": {
+        "loadFailed": "Deine Geräte konnten nicht geladen werden.",
+        "revokeFailed": "Dieses Gerät konnte nicht abgemeldet werden.",
+        "revokeOthersFailed": "Die anderen Geräte konnten nicht abgemeldet werden.",
+        "removePushFailed": "Dieses Push-Ziel konnte nicht entfernt werden."
+      }
+    },
+    "export": {
+      "title": "Deine Daten herunterladen",
+      "description": "Ein ZIP-Archiv deines Kontos: Profil und Einstellungen, die Nachrichten, die du in Servern und Unterhaltungen gesendet hast, deine Beiträge, Follows, Blockierungen, die Dateien, die du hochgeladen hast, und die angemeldeten Geräte. Nachrichten anderer Personen sind nicht enthalten. Du kannst alle zehn Minuten eines anfordern, fünf pro Tag.",
+      "preparing": "Wird vorbereitet…",
+      "request": "Meine Daten anfordern",
+      "collecting": "Deine Kontodaten werden gesammelt…",
+      "exportingMessages": "Nachrichten werden exportiert: {done} von {total}",
+      "packaging": "Archiv wird gepackt…",
+      "downloading": "Deine Daten werden heruntergeladen",
+      "failed": "Der Export ist fehlgeschlagen. Versuche es später erneut."
+    },
+    "deleteAccount": {
+      "description": "Lösche dein Konto dauerhaft. Gesendete Nachrichten bleiben erhalten und werden als „Gelöschter Benutzer“ angezeigt. Dein Profil, Login, Geräte, Verschlüsselungsschlüssel und Follows werden entfernt, und andere Fediverse-Server werden informiert, dass das Konto nicht mehr existiert.",
+      "bullets": {
+        "permanent": "Dies kann nicht rückgängig gemacht werden. Dein Benutzername wird für andere frei.",
+        "messages": "Nachrichten und Beiträge, die du geschrieben hast, bleiben als „Gelöschter Benutzer“ sichtbar; lösche vorher alle, die verschwinden sollen.",
+        "removed": "Dein Profil, Avatar, Banner, Login, Geräte, Push-Benachrichtigungen, Verschlüsselungsschlüssel, Follows, Blockierungen und Bots funktionieren nicht mehr und werden entfernt.",
+        "federation": "Server auf anderen Instanzen, die dein Konto kennen, erhalten eine Löschmitteilung."
+      },
+      "exportFirst": "Lade zuerst deine Daten herunter",
+      "ownsServers": "Du besitzt einen Server mit anderen Mitgliedern: {servers}. Übertrage zuerst die Inhaberschaft oder lösche ihn. | Du besitzt Server mit anderen Mitgliedern: {servers}. Übertrage zuerst die Inhaberschaft oder lösche sie.",
+      "noPassword": "Dein Konto hat kein Passwort. Für die Löschung ist eine Anmeldung innerhalb der letzten zehn Minuten nötig.",
+      "signInAgain": "Abmelden und erneut anmelden",
+      "errors": {
+        "mfaRequired": "Gib einen Code aus deiner Authentifizierungs-App ein.",
+        "wrongPassword": "Dieses Passwort ist nicht korrekt.",
+        "reauthRequired": "Melde dich erneut an und lösche dein Konto dann innerhalb von zehn Minuten."
+      }
+    },
+    "mfa": {
+      "recoveryCodeExample": "Gib einen deiner Wiederherstellungscodes ein, zum Beispiel ABCDE-12345.",
+      "enterAuthenticatorCode": "Gib den 6-stelligen Code aus deiner Authentifizierungs-App ein.",
+      "enterRecoveryCode": "Gib einen deiner Wiederherstellungscodes ein",
+      "recoveryCodeInvalid": "Dieser Wiederherstellungscode ist ungültig oder wurde bereits verwendet.",
+      "verificationFailed": "Überprüfung fehlgeschlagen. Versuche es erneut.",
+      "invalidCode": "Ungültiger Code. Versuche es erneut.",
+      "recoverySignedIn": "Mit einem Wiederherstellungscode angemeldet. Die Zwei-Faktor-Authentifizierung ist jetzt deaktiviert; richte sie erneut ein.",
+      "recoveryResetOff": "Die Zwei-Faktor-Authentifizierung ist deaktiviert. Richte sie nach der Anmeldung erneut ein.",
+      "recoveryNoSession": "Mit einem Wiederherstellungscode angemeldet, aber es wurde keine Sitzung zurückgegeben. Melde dich erneut an."
+    },
+    "signOutReason": {
+      "sessionRevoked": "Du wurdest von einem anderen Gerät aus abgemeldet.",
+      "insufficientAal": "Melde dich erneut an und gib deinen Authentifizierungscode ein."
+    },
+    "notice": {
+      "newSignIn": {
+        "title": "Neue Anmeldung bei deinem Konto",
+        "message": "Warst du das nicht? Ändere dein Passwort und melde diese Sitzung ab.",
+        "messageWithDevice": "{where}. Warst du das nicht? Ändere dein Passwort und melde diese Sitzung ab."
+      },
+      "mfaEnabled": {
+        "title": "Zwei-Faktor-Authentifizierung aktiviert",
+        "message": "Für Anmeldungen ist jetzt dein Authenticator nötig."
+      },
+      "mfaDisabled": {
+        "title": "Zwei-Faktor-Authentifizierung deaktiviert",
+        "message": "Dein Konto fragt nicht mehr nach einem Authentifizierungscode.",
+        "messageRecoveryCode": "Zur Anmeldung wurde ein Wiederherstellungscode verwendet. Richte die Zwei-Faktor-Authentifizierung erneut ein."
+      },
+      "recoveryCodeUsed": {
+        "title": "Wiederherstellungscode verwendet",
+        "message": "Einer deiner Wiederherstellungscodes wurde verwendet."
+      },
+      "recoveryCodesRegenerated": {
+        "title": "Neue Wiederherstellungscodes",
+        "message": "Deine bisherigen Wiederherstellungscodes funktionieren nicht mehr."
+      },
+      "passwordChanged": {
+        "title": "Passwort geändert",
+        "message": "Dein Passwort wurde geändert und deine anderen Sitzungen wurden abgemeldet."
+      },
+      "default": {
+        "title": "Kontosicherheit",
+        "message": "An der Sicherheit deines Kontos wurde etwas geändert."
+      }
+    },
+    "errors": {
+      "generic": "Etwas ist schiefgelaufen. Versuche es erneut.",
+      "tooManyAttemptsSoon": "Zu viele falsche Versuche. Versuche es in ein paar Minuten erneut.",
+      "tooManyAttemptsMinutes": "Zu viele falsche Versuche. Versuche es in {count} Minute erneut. | Zu viele falsche Versuche. Versuche es in {count} Minuten erneut.",
+      "tooManyAttemptsHours": "Zu viele falsche Versuche. Versuche es in etwa {count} Stunden erneut.",
+      "exportRateLimitedSoon": "Du kannst in ein paar Minuten einen weiteren Export anfordern.",
+      "exportRateLimitedMinutes": "Du kannst in {count} Minute einen weiteren Export anfordern. | Du kannst in {count} Minuten einen weiteren Export anfordern.",
+      "exportRateLimitedHours": "Du kannst in etwa {count} Stunden einen weiteren Export anfordern.",
+      "exportExpired": "Dieser Export ist abgelaufen. Starte einen neuen.",
+      "stepUpRequired": "Gib zuerst einen Code aus deiner Authentifizierungs-App ein.",
+      "insufficientAal": "Dafür ist die Zwei-Faktor-Authentifizierung nötig. Melde dich erneut mit deiner Authentifizierungs-App an.",
+      "sessionRevoked": "Diese Sitzung wurde abgemeldet. Melde dich erneut an.",
+      "codeMismatch": "Dieser Code passt nicht. Verwende den neuesten Code aus deiner App und prüfe, ob die Uhr deines Geräts automatisch eingestellt wird.",
+      "challengeExpired": "Die Überprüfung ist abgelaufen. Gib einen neuen Code ein.",
+      "rateLimited": "Zu viele Versuche. Warte einen Moment und versuche es erneut.",
+      "mfaNotEnabled": "Die Zwei-Faktor-Authentifizierung ist nicht aktiviert."
+    },
+    "device": {
+      "app": "Harmony-App",
+      "browserOnOs": "{browser} unter {os}"
+    }
+  },
+  "encryption": {
+    "code": {
+      "expiresIn": "Läuft ab in {time}",
+      "expired": "Dieser Code ist abgelaufen.",
+      "newCode": "Neuer Code",
+      "copyCode": "Code kopieren"
+    },
+    "linkDevice": {
+      "title": "Neues Gerät verknüpfen",
+      "subtitle": "Gib einem Gerät, auf dem du dich gerade angemeldet hast, Zugriff auf deine verschlüsselten Nachrichten.",
+      "enterPhrase": "Wiederherstellungsphrase eingeben",
+      "scanHint": "Richte die Kamera auf den QR-Code auf dem neuen Gerät.",
+      "scanPasteLabel": "Oder füge den vom neuen Gerät kopierten Code ein",
+      "showInstead": "Hat das neue Gerät eine Kamera? Zeige stattdessen einen Code zum Scannen an",
+      "showLead": "Wähle auf dem neuen Gerät {another}, dann {scanInstead}, und richte seine Kamera hierher. Jeder, der bei deinem Konto angemeldet ist und diesen Code scannt, kann deine Schlüssel erhalten – behalte ihn also für dich.",
+      "showLeadAnother": "Anderes Gerät",
+      "showLeadScanInstead": "Stattdessen einen Code davon scannen",
+      "qrAlt": "QR-Code zur Geräteverknüpfung",
+      "scanInstead": "Stattdessen den Code des neuen Geräts scannen",
+      "newDevice": "Neues Gerät",
+      "signedIn": "Angemeldet {ago}.",
+      "answeredCode": "Es hat auf den Code geantwortet, den dieses Gerät angezeigt hat.",
+      "keyMatches": "Sein Schlüssel stimmt mit dem gescannten Code überein.",
+      "warning": "Dieses Gerät kann dann alle deine verschlüsselten Nachrichten lesen. Fahre nur fort, wenn es dir gehört und vor dir liegt.",
+      "keepCopyTitle": "Später von hier aus Geräte ohne Wiederherstellungsphrase verknüpfen",
+      "keepCopyNote": "Dieses Gerät behält eine lesbare Kopie deiner Verschlüsselungsschlüssel. Wer auf diesem Gerät Code in Harmony ausführen kann, könnte sie kopieren. Du kannst sie jederzeit unter Einstellungen › Verschlüsselung entfernen.",
+      "confirm": "Dieses Gerät verknüpfen",
+      "sending": "Deine Schlüssel werden gesendet…",
+      "linked": "{device} ist verknüpft.",
+      "tryAgain": "Erneut versuchen",
+      "needUnlockLocked": "Die Verschlüsselung ist auf diesem Gerät gesperrt, daher hat es keine Schlüssel zum Teilen. Entsperre sie zuerst mit deiner Wiederherstellungsphrase.",
+      "needUnlockPhrase": "Um deine Schlüssel zu teilen, braucht dieses Gerät deine Wiederherstellungsphrase. Gib sie hier ein und scanne dann das neue Gerät.",
+      "signInAgain": "Melde dich erneut an, um ein Gerät zu verknüpfen.",
+      "notPairingCode": "Das ist kein Harmony-Kopplungscode. Scanne den Code auf dem neuen Gerät.",
+      "approverCode": "Dieser Code wird von einem angemeldeten Gerät angezeigt. Scanne den Code auf dem neuen Gerät.",
+      "errors": {
+        "securityCheck": "Sicherheitsprüfung fehlgeschlagen: Der vom Server zurückgegebene Geräteschlüssel stimmt nicht mit dem gescannten Code überein. Es wurde nichts gesendet. Verknüpfe dieses Gerät nicht.",
+        "notFound": "Keine Anmeldung zu diesem Code in deinem Konto. Prüfe, ob beide Geräte dasselbe Konto verwenden.",
+        "alreadyUsed": "Auf diesen Code hat mehr als ein Gerät geantwortet. Es wurde nichts gesendet. Zeige einen neuen Code an.",
+        "generic": "Verknüpfung fehlgeschlagen."
+      }
+    },
+    "pairing": {
+      "lead": "Wähle auf einem Gerät, auf dem du bereits angemeldet bist, in der Meldung zur neuen Anmeldung {scanCode} oder unter Privatsphäre → Deine Geräte {linkDevice} und scanne diesen Code.",
+      "qrAlt": "QR-Code zur Gerätekopplung",
+      "scanInstead": "Das andere Gerät kann nicht scannen? Scanne stattdessen einen Code davon",
+      "scanHint": "Wähle auf deinem angemeldeten Gerät „Gerät verknüpfen“, dann „Code anzeigen“, und richte diese Kamera darauf.",
+      "scanPasteLabel": "Oder füge den Code von deinem anderen Gerät ein",
+      "showInstead": "Stattdessen einen Code auf diesem Gerät anzeigen",
+      "waiting": "Bestätige auf deinem anderen Gerät, um die Verknüpfung abzuschließen.",
+      "importing": "Deine verschlüsselten Nachrichten werden entsperrt…",
+      "done": "Dieses Gerät ist verknüpft. Deine verschlüsselten Nachrichten werden entsperrt.",
+      "startAgain": "Neu beginnen",
+      "signInAgain": "Melde dich erneut an, um dieses Gerät zu verknüpfen.",
+      "notPairingCode": "Das ist kein Harmony-Kopplungscode. Wähle auf deinem angemeldeten Gerät „Gerät verknüpfen“, dann „Code anzeigen“.",
+      "newDeviceCode": "Dieser Code gehört zu einem neuen Gerät. Scanne den Code, den dein angemeldetes Gerät anzeigt.",
+      "errors": {
+        "expired": "Der Code ist abgelaufen. Beginne neu, um einen neuen zu erhalten.",
+        "denied": "Dein anderes Gerät hat diese Anmeldung abgelehnt.",
+        "bundleInvalid": "Die Schlüssel vom anderen Gerät konnten nicht verifiziert werden, daher wurde nichts importiert. Beginne neu.",
+        "generic": "Verknüpfung fehlgeschlagen. Beginne neu."
+      }
+    },
+    "pairingErrors": {
+      "malformed": "Kein Harmony-Kopplungscode",
+      "wrongAccount": "Dieser Code gehört zu einem anderen Konto.",
+      "notPending": "Diese Anmeldung wurde bereits beantwortet.",
+      "notPairing": "Diese Anfrage nimmt keine Schlüssel an",
+      "ownDevice": "Dieser Code wurde von diesem Gerät angezeigt",
+      "alreadyUsed": "Dieser Kopplungscode wurde bereits verwendet",
+      "keysUnavailable": "Entsperre zuerst die Verschlüsselung auf diesem Gerät.",
+      "keysStale": "Dieses Gerät hat veraltete Verschlüsselungsschlüssel. Gib dort zuerst deine aktuelle Wiederherstellungsphrase ein.",
+      "registerFailed": "Dieses Gerät konnte nicht registriert werden",
+      "alreadyUnlocked": "Die Verschlüsselung ist auf diesem Gerät bereits entsperrt."
+    },
+    "qrScanner": {
+      "stopCamera": "Kamera stoppen",
+      "startingCamera": "Kamera wird gestartet…",
+      "tryCameraAgain": "Kamera erneut versuchen",
+      "useCamera": "Kamera verwenden",
+      "readingImage": "Bild wird gelesen…",
+      "scanImage": "Aus einem Bild scannen",
+      "pastePlaceholder": "Code hier einfügen",
+      "usePasted": "Eingefügten Code verwenden",
+      "defaultHint": "Richte die Kamera auf den QR-Code.",
+      "defaultPasteLabel": "Oder füge den Code ein",
+      "noQrInImage": "In diesem Bild wurde kein QR-Code gefunden. Versuche ein schärferes, näheres Bild.",
+      "unreadableFile": "Diese Datei konnte nicht als Bild gelesen werden.",
+      "problems": {
+        "unsupported": "Diese App hat hier keinen Kamerazugriff. Scanne stattdessen aus einem Bild oder füge den Code ein.",
+        "insecure": "Die Kamera benötigt eine sichere (https-)Verbindung. Scanne stattdessen aus einem Bild oder füge den Code ein.",
+        "denied": "Der Kamerazugriff ist blockiert. Erlaube ihn in deinen Browser- oder Systemeinstellungen oder scanne aus einem Bild.",
+        "noCamera": "Keine Kamera gefunden. Scanne stattdessen aus einem Bild oder füge den Code ein.",
+        "inUse": "Die Kamera wird von einer anderen App verwendet. Schließe sie und versuche es erneut, oder scanne aus einem Bild.",
+        "failed": "Die Kamera konnte nicht starten. Scanne stattdessen aus einem Bild oder füge den Code ein."
+      }
+    },
+    "devices": {
+      "linkDevice": "Gerät verknüpfen",
+      "linkHint": "Melde dich auf dem neuen Gerät an und scanne dann den Code, den es anzeigt.",
+      "pendingPairing": "Wartet auf Verknüpfung. Scanne den Code, den es anzeigt.",
+      "pendingPlain": "Angemeldet und hat deine verschlüsselten Nachrichten entsperrt.",
+      "scanCode": "Code scannen"
+    },
+    "approval": {
+      "pairingText": "Dieses Gerät wartet auf deine verschlüsselten Nachrichten. Wenn es dir gehört und vor dir liegt, scanne den Code, den es anzeigt: Die Schlüssel gehen nur an das Gerät, dessen Code du scannst.",
+      "scanItsCode": "Ja, Code scannen",
+      "notMe": "Das war ich nicht",
+      "showInstead": "Scannen nicht möglich? Zeige stattdessen einen Code an",
+      "plainText": "Ein neues Gerät hat sich bei deinem Konto angemeldet und deine verschlüsselten Nachrichten selbst entsperrt; von hier wird nichts gesendet. Wenn du das nicht warst, sichere dein Konto.",
+      "thatWasMe": "Das war ich",
+      "staysSignedIn": "{device} bleibt angemeldet.",
+      "newDeviceFallback": "Das neue Gerät"
+    },
+    "settings": {
+      "devicesDescription": "Geräte, die bei deinem Konto angemeldet sind. Um einem neuen Gerät deine verschlüsselten Nachrichten zu geben, verknüpfe es: Melde dich dort an und scanne den angezeigten Code mit einem bereits entsperrten Gerät.",
+      "linkDescription": "Scanne den Code, den ein neu angemeldetes Gerät anzeigt; dort musst du deine Wiederherstellungsphrase nicht eingeben",
+      "link": "Verknüpfen",
+      "pairingCopyTitle": "Für die Verknüpfung gespeicherte Schlüssel",
+      "pairingCopyDescription": "Dieses Gerät behält eine lesbare Kopie deiner Verschlüsselungsschlüssel, damit es Geräte ohne Wiederherstellungsphrase verknüpfen kann. Entfernst du sie, fragt die Verknüpfung von hier aus wieder nach der Phrase.",
+      "pairingCopyRemoved": "Die Kopie deiner Schlüssel wurde von diesem Gerät entfernt",
+      "pairingCopyRemoveFailed": "Die Kopie deiner Schlüssel konnte nicht entfernt werden"
+    },
+    "recovery": {
+      "anotherDevice": "Anderes Gerät",
+      "recommended": "Empfohlen",
+      "qrToggle": "Hast du deinen Wiederherstellungsschlüssel als QR-Code?",
+      "qrHint": "Richte die Kamera auf den QR-Code des Wiederherstellungsschlüssels.",
+      "qrPasteLabel": "Oder füge die QR-Code-Daten ein",
+      "pairingCodeScanned": "Das ist ein Gerätekopplungscode. Verwende den Tab „Anderes Gerät“.",
+      "notRecoveryKey": "Dieser QR-Code ist kein Harmony-Wiederherstellungsschlüssel",
+      "qrReadFailed": "Der QR-Code konnte nicht gelesen werden"
+    },
+    "recoverySetup": {
+      "multiDevice": "Verknüpfe ein neues Gerät, indem du einen QR-Code mit diesem scannst; dein Wiederherstellungsschlüssel ist die Rückfalloption",
+      "hideQr": "QR-Code des Wiederherstellungsschlüssels ausblenden",
+      "showQr": "Wiederherstellungsschlüssel als QR-Code anzeigen",
+      "qrHint": "Wer diesen Code sieht, kann deine verschlüsselten Nachrichten lesen; mache keinen Screenshot davon. Um ein weiteres Gerät einzurichten, verknüpfe es stattdessen: Melde dich dort an und scanne den angezeigten Code mit diesem Gerät.",
+      "newDeviceLabel": "Neues Gerät?",
+      "newDeviceReminder": "{label} Melde dich dort an, wähle {another} und scanne dann seinen Code mit diesem Gerät. Deine Nachrichten werden entsperrt, ohne dass du den Wiederherstellungsschlüssel eingeben musst.",
+      "rememberNeed": "Du brauchst ihn, wenn du den Zugriff auf alle angemeldeten Geräte verlierst oder deine Browserdaten löschst."
+    }
+  },
+  "admin": {
+    "reports": {
+      "titleServer": "Meldungen auf diesem Server",
+      "anonymousReporter": "Anonyme meldende Person",
+      "suspended": "gesperrt",
+      "silenced": "stummgeschaltet",
+      "openOnTargetTitle": "{count} offene Meldungen zu diesem Konto",
+      "openOnTarget": "{count} offen",
+      "forwarded": "weitergeleitet",
+      "forwardedTitle": "Eine anonyme Kopie wurde an die Instanz des Kontos gesendet",
+      "commentFrom": "Kommentar von {instance}",
+      "messageNow": "Nachricht jetzt",
+      "postNow": "Beitrag jetzt",
+      "noteSentToReporter": "Notiz an die meldende Person gesendet",
+      "statusBy": "{status} von {'@'}{username}",
+      "notePlaceholder": "Notiz an die meldende Person (optional, wird beim Erledigen oder Verwerfen gesendet)",
+      "showResolverTitle": "Standardmäßig aus, um Moderatoren vor Vergeltung zu schützen",
+      "showResolver": "Meinen Namen der meldenden Person anzeigen",
+      "loadMore": "Mehr laden ({count})",
+      "actions": {
+        "investigate": "Als in Prüfung markieren",
+        "resolve": "Erledigen",
+        "dismiss": "Verwerfen",
+        "reopen": "Wieder öffnen",
+        "assign": "Mir zuweisen",
+        "unassign": "Zuweisung aufheben",
+        "forward": "An {domain} weiterleiten",
+        "deletePost": "Beitrag löschen",
+        "markSensitive": "Als sensibel markieren",
+        "deleteMessage": "Nachricht löschen",
+        "warn": "Konto verwarnen",
+        "silenceAccount": "Konto stummschalten",
+        "suspendAccount": "Konto sperren",
+        "forceSensitiveAccount": "Medien als sensibel erzwingen",
+        "limitDomain": "{domain} einschränken",
+        "suspendDomain": "{domain} sperren"
+      },
+      "prompts": {
+        "warn": "Verwarnungstext, der an das Konto gesendet wird:",
+        "limitDomain": "Grund für die Einschränkung von {domain}:",
+        "suspendDomain": "Grund für die Sperrung von {domain}:",
+        "reason": "Grund (wird beim Konto gespeichert):"
+      },
+      "confirmAction": "{action}? Damit wird die Meldung erledigt.",
+      "actionDone": "{action}: erledigt"
+    },
+    "federation": {
+      "limited": "Eingeschränkt",
+      "limitedTitle": "Konten von dieser Domain sind stummgeschaltet",
+      "limitAction": "Einschränken: Konten dieser Domain stummschalten",
+      "liftLimitAction": "Einschränkung aufheben",
+      "limitReasonPrompt": "Grund für die Einschränkung von {domain}:",
+      "limitApplied": "{domain} eingeschränkt",
+      "limitLifted": "Einschränkung von {domain} aufgehoben",
+      "limitFailed": "Die Domain-Einschränkung konnte nicht geändert werden"
+    },
+    "instance": {
+      "maxPostReactions": "Max. Reaktionen pro Person auf einen Beitrag",
+      "maxPostReactionsHint": "Verschiedene Emojis, mit denen eine Person auf einen Beitrag reagieren kann (1-100). Standard: 10. Reaktionen von anderen Servern über dem Limit werden verworfen. Chatnachrichten haben höchstens 20 verschiedene Emojis."
+    },
+    "activityLog": {
+      "configKeys": {
+        "maxPostReactionsPerUser": "Max. Reaktionen pro Person auf einen Beitrag"
+      }
+    },
+    "antiSpam": {
+      "title": "Anti-Spam",
+      "hint": "Instanzweite Limits. Serverbesitzer konfigurieren ihren eigenen AutoMod in den Servereinstellungen; diese Limits gelten zusätzlich für jeden Server, jede DM und jeden Beitrag. Jedes Limit hier ist aus oder großzügig, bis du es änderst.",
+      "loadingSettings": "Einstellungen werden geladen...",
+      "saved": "Anti-Spam-Einstellungen gespeichert",
+      "newAccounts": {
+        "title": "Neue lokale Konten",
+        "hours": "Ein Konto gilt als neu für (Stunden)",
+        "messagesPerMinute": "Nachrichten pro Minute (0 = kein Limit)",
+        "messagesPerMinuteHint": "Kanalnachrichten und DMs zusammen.",
+        "postsPerHour": "Beiträge pro Stunde (0 = kein Limit)",
+        "strangerMentions": "Erwähnungen von Fremden pro Beitrag (0 = kein Limit)",
+        "strangerMentionsHint": "Fremd ist jeder, der dem Verfasser nicht folgt, ob lokal oder remote.",
+        "blockLinks": "Neue Konten können keine Links posten",
+        "staffExempt": "Instanz-Admins und -Moderatoren werden nie eingeschränkt."
+      },
+      "federation": {
+        "title": "Erwähnungsspam aus der Föderation",
+        "mode": "Wenn ein Remote-Beitrag oder eine Remote-DM nach Spam aussieht",
+        "modes": {
+          "off": "Nichts tun",
+          "flag": "Zustellen und zur Prüfwarteschlange hinzufügen",
+          "hold": "In der Prüfwarteschlange zurückhalten, bis freigegeben",
+          "reject": "Ablehnen und zur Prüfwarteschlange hinzufügen"
+        },
+        "maxMentions": "Erwähnungen in einem Beitrag, die als Massenerwähnung gelten",
+        "newActorDays": "Remote-Konten jünger als (Tage) gelten als neu",
+        "heuristicHint": "Sieht nach Spam aus: Erwähnt mindestens so viele Personen wie die Massenerwähnungsgrenze, oder stammt von einem neuen Remote-Konto, dem kein lokaler Benutzer folgt und mit dem keiner der erwähnten Benutzer zuvor Kontakt hatte."
+      },
+      "queue": {
+        "title": "Verdächtige Aktivität",
+        "filterByStatus": "Nach Status filtern",
+        "statuses": {
+          "open": "Offen",
+          "all": "Alle",
+          "released": "Freigegeben",
+          "confirmed": "Bestätigt",
+          "dismissed": "Verworfen"
+        },
+        "actions": {
+          "flagged": "markiert",
+          "held": "zurückgehalten",
+          "rejected": "abgelehnt"
+        },
+        "refresh": "Aktualisieren",
+        "hint": "Eingehende Föderationsaktivität, auf die die Spam-Heuristiken angeschlagen haben. Zurückgehaltene Einträge werden erst nach Freigabe zugestellt.",
+        "empty": "Nichts zu prüfen.",
+        "kindDm": "DM",
+        "kindMention": "Erwähnung",
+        "targets": "an {users}",
+        "release": "Freigeben",
+        "confirmSpam": "Spam bestätigen",
+        "dismiss": "Verwerfen",
+        "released": "Zur Zustellung freigegeben",
+        "reviewed": "Geprüft"
+      },
+      "reasons": {
+        "mass_mention": "Massenerwähnung",
+        "new_actor": "neues Konto",
+        "no_followers": "keine lokalen Follower",
+        "no_relationship": "kein vorheriger Kontakt",
+        "unknown_age": "Kontoalter unbekannt"
+      },
+      "errors": {
+        "loadSettings": "Anti-Spam-Einstellungen konnten nicht geladen werden",
+        "save": "Speichern fehlgeschlagen",
+        "loadQueue": "Prüfwarteschlange konnte nicht geladen werden",
+        "review": "Prüfung fehlgeschlagen"
+      }
+    }
   }
 }

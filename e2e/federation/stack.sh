@@ -10,8 +10,8 @@
 #   e2e/federation/stack.sh logs    compose logs
 #
 # Project name and port differ from e2e/stack.sh so both stacks can be up at
-# once; HMFED_PROJECT, HMFED_PORT and HMFED_SUBNET separate two runs of this
-# one. A failed `up` leaves its containers for inspection; `down` clears them
+# once; HMFED_PROJECT, HMFED_PORT, HMFED_LIVEKIT_PORT and HMFED_SUBNET separate
+# two runs of this one. A failed `up` leaves its containers for inspection; `down` clears them
 # whatever state they reached, and `up` runs `down` first.
 #
 # The schema is built exactly as e2e/stack.sh builds it:
@@ -33,11 +33,14 @@ ENV_FILE="$FED/stack.env"
 PORT="${HMFED_PORT:-54580}"
 BASE_URL="http://localhost:$PORT"
 SUBNET="${HMFED_SUBNET:-203.0.113.0/24}"
+LIVEKIT_PORT="${HMFED_LIVEKIT_PORT:-54581}"
 
 # Throwaway values. The database publishes no port and the stack is destroyed
 # by `down`, so these are configuration, not credentials.
 DB_PASSWORD="hmfed-local-postgres"
 JWT_SECRET="hmfed-local-jwt-secret-at-least-32-characters"
+LIVEKIT_KEY="hmfedkey"
+LIVEKIT_SECRET="hmfed-local-livekit-secret-at-least-32-characters"
 
 log()  { printf '\033[36m==>\033[0m %s\n' "$*"; }
 ok()   { printf '\033[32mok \033[0m %s\n' "$*"; }
@@ -77,12 +80,16 @@ HMFED_PORT=$PORT
 HMFED_SUBNET=$SUBNET
 HMFED_DB_PASSWORD=$DB_PASSWORD
 HMFED_JWT_SECRET=$JWT_SECRET
+HMFED_LIVEKIT_PORT=$LIVEKIT_PORT
+HMFED_LIVEKIT_KEY=$LIVEKIT_KEY
+HMFED_LIVEKIT_SECRET=$LIVEKIT_SECRET
 
 # Consumed by e2e/federation/roundtrip.ts.
 HMFED_SUPABASE_URL=$BASE_URL
 HMFED_SUPABASE_ANON_KEY=$anon
 HMFED_SUPABASE_SERVICE_ROLE_KEY=$service
 HMFED_PEER_HOST=$(peer_host)
+HMFED_LIVEKIT_URL=ws://127.0.0.1:$LIVEKIT_PORT
 EOF
   ok "wrote e2e/federation/stack.env"
 }
@@ -142,9 +149,10 @@ ALTER ROLE authenticator WITH LOGIN PASSWORD :qpw;
 ALTER ROLE postgres WITH PASSWORD :qpw;
 SQL
 
-  log "starting rest and gateway"
+  log "starting rest, gateway and livekit"
   compose up -d
   wait_http "$BASE_URL/health" '^200$' "gateway"
+  wait_http "http://127.0.0.1:$LIVEKIT_PORT/" '^200$' "livekit"
 
   build_schema
 
@@ -194,6 +202,12 @@ build_schema() {
   docker exec "$cid" psql -U supabase_admin -h 127.0.0.1 -d postgres -q \
     -v ON_ERROR_STOP=1 -f /auth-user-shim.sql
 
+  # Realtime is absent; its broadcasts stay in realtime.messages, read back
+  # through this function.
+  docker cp "$FED/realtime-shim.sql" "$cid:/realtime-shim.sql" >/dev/null
+  docker exec "$cid" psql -U supabase_admin -h 127.0.0.1 -d postgres -q \
+    -v ON_ERROR_STOP=1 -f /realtime-shim.sql
+
   # The inbox stores every activity through this RPC; without it every case
   # fails at the same place for a reason unrelated to what it covers.
   docker exec "$cid" psql -U postgres -d postgres -tAc \
@@ -234,7 +248,7 @@ cmd_down() {
 }
 
 cmd_status() {
-  printf 'project %s, url %s, peer %s\n' "$PROJECT" "$BASE_URL" "$(peer_host)"
+  printf 'project %s, url %s, livekit %s, peer %s\n' "$PROJECT" "$BASE_URL" "ws://127.0.0.1:$LIVEKIT_PORT" "$(peer_host)"
   docker ps -a --filter "label=com.docker.compose.project=$PROJECT" \
     --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
   [ -f "$ENV_FILE" ] && printf 'stack.env present\n' || printf 'stack.env absent\n'

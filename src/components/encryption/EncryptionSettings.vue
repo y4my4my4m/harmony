@@ -108,8 +108,7 @@
       <div v-if="encryptionStatus.hasRecoveryKey" class="subsection">
         <h4 class="subsection-title">Your devices</h4>
         <p class="subsection-description">
-          Devices signed in to your account. New logins can read new messages right away;
-          approving a device lets it unlock your encrypted message history.
+          {{ $t('encryption.settings.devicesDescription') }}
         </p>
         <DeviceManager />
       </div>
@@ -154,10 +153,26 @@
           <div class="option-card">
             <Icon name="smartphone" class="option-icon" :size="22" />
             <div class="option-info">
-              <strong>Restore on new device</strong>
-              <p>Use your recovery key to restore encryption on another device</p>
+              <strong>{{ $t('encryption.linkDevice.title') }}</strong>
+              <p>{{ $t('encryption.settings.linkDescription') }}</p>
             </div>
-            <button @click="showRecoveryModal = true" class="btn btn-secondary">Restore</button>
+            <button @click="showLinkModal = true" class="btn btn-secondary">{{ $t('encryption.settings.link') }}</button>
+          </div>
+
+          <div v-if="hasPairingCopy" class="option-card" data-testid="pairing-copy">
+            <Icon name="key" class="option-icon" :size="22" />
+            <div class="option-info">
+              <strong>{{ $t('encryption.settings.pairingCopyTitle') }}</strong>
+              <p>{{ $t('encryption.settings.pairingCopyDescription') }}</p>
+            </div>
+            <button
+              class="btn btn-secondary"
+              data-testid="pairing-copy-remove"
+              :disabled="isRemovingCopy"
+              @click="removePairingCopy"
+            >
+              {{ $t('common.remove') }}
+            </button>
           </div>
         </div>
       </div>
@@ -213,10 +228,13 @@
     <Teleport to="body">
       <KeyRecoveryModal
         v-if="showRecoveryModal"
+        :initial-tab="encryptionStatus.hasRecoveryKey ? 'device' : 'phrase'"
         @close="showRecoveryModal = false"
         @restored="handleRecoveryComplete"
       />
     </Teleport>
+
+    <DeviceLinkModal v-if="showLinkModal" mode="scan" @close="onLinkModalClosed" />
     
     <Teleport to="body">
       <div v-if="showViewRecoveryInfo" class="modal-overlay" @click.self="showViewRecoveryInfo = false">
@@ -306,13 +324,16 @@
 import { ref, computed, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
+import { useI18n } from 'vue-i18n'
 import RecoveryKeySetupWizard from './RecoveryKeySetupWizard.vue'
 import KeyRecoveryModal from './KeyRecoveryModal.vue'
 import DeviceManager from './DeviceManager.vue'
+import DeviceLinkModal from './DeviceLinkModal.vue'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 const toast = useToast()
+const { t } = useI18n()
 
 const isInitialized = ref(false)
 const encryptionStatus = ref({
@@ -328,6 +349,9 @@ const recoveryMetadata = ref<any>(null)
 
 const showSetupWizard = ref(false)
 const showRecoveryModal = ref(false)
+const showLinkModal = ref(false)
+const hasPairingCopy = ref(false)
+const isRemovingCopy = ref(false)
 const showViewRecoveryInfo = ref(false)
 const showImportModal = ref(false)
 const confirmReset = ref(false)
@@ -385,6 +409,7 @@ async function loadEncryptionStatus() {
 
     const status = await megolmMessageEncryptionService.getEncryptionStatus()
     encryptionStatus.value = status
+    hasPairingCopy.value = megolmMessageEncryptionService.hasPairingCopy()
 
     // maybeSingle: the metadata row may not exist.
     if (status.hasRecoveryKey) {
@@ -614,6 +639,27 @@ async function autoSyncAfterEnable() {
     window.dispatchEvent(new CustomEvent('megolm-key-received', { detail: { roomId: '*', sessionId: '*' } }))
   } catch (error) {
     // Non-critical - encryption is already enabled
+  }
+}
+
+async function onLinkModalClosed() {
+  showLinkModal.value = false
+  const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
+  hasPairingCopy.value = megolmMessageEncryptionService.hasPairingCopy()
+}
+
+async function removePairingCopy() {
+  isRemovingCopy.value = true
+  try {
+    const { megolmMessageEncryptionService } = await import('@/services/encryption/MegolmMessageEncryptionService')
+    await megolmMessageEncryptionService.removePairingCopy()
+    hasPairingCopy.value = false
+    toast.success(t('encryption.settings.pairingCopyRemoved'))
+  } catch (error) {
+    debug.error('Failed to remove the pairing copy:', error)
+    toast.error(t('encryption.settings.pairingCopyRemoveFailed'))
+  } finally {
+    isRemovingCopy.value = false
   }
 }
 

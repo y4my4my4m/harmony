@@ -153,7 +153,7 @@
     "leaveServer": "Leave server",
     "settings": "Server settings",
     "inviteUsers": "Invite users",
-    "members": "Members",
+    "members": "members",
     "membersCount": "{count} member | {count} members",
     "channels": "Channels",
     "roles": "Roles",
@@ -236,7 +236,6 @@
     "consideration3": "Consider reviewing your server rules and moderation settings",
     "consideration4": "You can change this setting back to private at any time",
     "privateServerInfo": "Your server is currently private. Only members with an invite link can join. This provides better control over who can access your community.",
-    "inviteOnly": "Invite only",
     "inviteOnlyDesc": "Members can only join through invite links created by server moderators",
     "publicDirectory": "Public directory",
     "publicDirectoryDesc": "Anyone can discover and join your server through the public server list",
@@ -275,7 +274,6 @@
     "creating": "Creating...",
     "iconUploadHint": "Square images work best. Max 5 MB.",
     "member": "member",
-    "members": "members",
     "categoryGaming": "Gaming",
     "categoryTechnology": "Technology",
     "categoryArtDesign": "Art & design",
@@ -353,7 +351,9 @@
       "invalidName": "Server name contains invalid characters",
       "notSignedIn": "Sign in to create a server.",
       "createFailed": "Couldn't create the server. Please try again."
-    }
+    },
+    "bannedFromServer": "You're banned from this server.",
+    "joinRequiresInvite": "This server is joined through an invite."
   },
   "channel": {
     "create": "Create channel",
@@ -585,7 +585,8 @@
     "callDuration": "Call duration",
     "inCallWith": "In call",
     "incomingGroupCall": "{name} is calling the group",
-    "ringing": "Ringing…"
+    "ringing": "Ringing…",
+    "joinCallFailed": "Could not join the call"
   },
   "dm": {
     "title": "Direct messages",
@@ -892,7 +893,7 @@
     "mony": "Post",
     "replying": "Replying...",
     "posting": "Posting...",
-    "failedToSendPost": "Failed to send post. Your content has been preserved \u2014 try again.",
+    "failedToSendPost": "Failed to send post. Your content has been preserved — try again.",
     "quoting": "Quoting...",
     "saving": "Saving...",
     "quote": "Quote",
@@ -943,13 +944,12 @@
     "unknown": "Unknown",
     "public": "Public",
     "unlisted": "Unlisted",
-    "followers": "Followers",
     "direct": "Direct",
     "visibleToEveryone": "Visible to everyone",
     "notShownInPublicTimelines": "Not shown in public timelines",
     "onlyVisibleToFollowers": "Only visible to followers",
     "onlyMentionedUsers": "Only mentioned users",
-    "directRequiresMention": "Direct posts must @mention at least one person.",
+    "directRequiresMention": "Direct posts must {'@'}mention at least one person.",
     "publicVisibleToEveryone": "Public - visible to everyone",
     "unlistedNotShown": "Unlisted - not shown in public timelines",
     "followersOnly": "Followers only",
@@ -983,7 +983,6 @@
     "noFollowingYet": "No following yet",
     "followSomeone": "Follow someone to get started",
     "instance": "Instance",
-    "online": "Online",
     "yourActivity": "Your activity",
     "suggestedFollows": "Suggested follows",
     "instanceInfo": "Instance info",
@@ -1036,6 +1035,8 @@
     "favoritesLabel": "favorite | favorites",
     "favorite": "Favorite",
     "unfavorite": "Remove favorite",
+    "unfavoriteWithReactions": "Remove favorite and your reaction | Remove favorite and your {count} reactions",
+    "reactionLimitReached": "You can react to a post with at most {count} different emoji",
     "removeBookmark": "Remove bookmark",
     "moreOptions": "More options",
     "browseFederatedTimeline": "Browse the federated timeline",
@@ -1129,7 +1130,57 @@
     "spam": "Spam",
     "inappropriate": "Inappropriate content",
     "impersonation": "Impersonation",
-    "other": "Other"
+    "other": "Other",
+    "reportCategories": {
+      "spam": "Spam",
+      "legal": "Illegal content",
+      "violation": "Rule violation",
+      "other": "Other"
+    },
+    "reportReasons": {
+      "spam": "Spam or unwanted content",
+      "harassment": "Harassment or bullying",
+      "illegal_content": "Illegal content",
+      "impersonation": "Impersonation",
+      "nsfw": "Inappropriate/NSFW content",
+      "other": "Other"
+    },
+    "reportSource": {
+      "fromInstance": "from {domain}",
+      "fromRemote": "from a remote instance",
+      "local": "local"
+    },
+    "evidence": {
+      "backfilledNote": "captured after the report was filed",
+      "post": "Post as reported",
+      "contentWarning": "CW: {warning}",
+      "encryptedMessage": "Encrypted message",
+      "ciphertextOnly": "[ciphertext only]",
+      "reporterSuppliedNote": "text supplied by the reporter, not verifiable by the server",
+      "message": "Message as reported",
+      "server": "Server as reported"
+    },
+    "reportErrors": {
+      "rateLimited": "You have sent too many reports recently. Try again later.",
+      "unavailable": "This content is no longer available to report.",
+      "forbidden": "You cannot send reports from this account.",
+      "self": "You cannot report yourself.",
+      "failed": "The report could not be sent. Try again later.",
+      "actionFailed": "The action failed"
+    },
+    "reportForward": {
+      "label": "Also send an anonymous copy of this report to {domain}",
+      "hint": "Their moderators see the content and your comment, not who you are."
+    },
+    "warningNotification": {
+      "title": "Warning from the moderators",
+      "defaultMessage": "The moderators issued a warning about your account.",
+      "short": "Moderation warning",
+      "sender": "Moderators"
+    },
+    "securityNotification": {
+      "short": "Account security"
+    }
   },
   "files": {
     "upload": "Upload files",
@@ -1169,6 +1220,8 @@
     "noneFound": "No {kind} found"
   },
   "emoji": {
+    "messageReactionLimit": "This message has {count} different reactions. Add to one of them.",
+    "postReactionLimit": "You have {count} reactions on this post. Remove one to add another.",
     "search": "Search emoji...",
     "searchEmojis": "Search emojis...",
     "aiGenerate": "Generate",
@@ -1450,7 +1503,8 @@
       "createFailed": "Couldn't create an invite link",
       "otherLinks": "Your other active links ({count})",
       "showLink": "Show this link"
-    }
+    },
+    "bannedFromServer": "You are banned from this server"
   },
   "languages": {
     "en": "English",
@@ -1765,6 +1819,7 @@
       "added": "Added",
       "addedOn": "Added {time}",
       "permissions": "Permissions",
+      "channels": "Channels",
       "remove": "Remove",
       "addTitle": "Add bot to server",
       "addSubmit": "Add bot",
@@ -1783,7 +1838,18 @@
       "permissionsSaved": "Permissions saved",
       "permissionsFailed": "Could not save permissions",
       "loadFailed": "Could not load bots",
-      "hiddenBot": "Private bot"
+      "hiddenBot": "Private bot",
+      "channelsTitle": "Channel access",
+      "channelsHint": "Changed by the server owner and members with Manage Server. A channel you cannot view cannot be added.",
+      "channelsAll": "Channels {'@'}everyone can view",
+      "channelsAllDescription": "The bot reads every channel {'@'}everyone can view, and posts and reacts where {'@'}everyone can. Channels hidden from {'@'}everyone stay hidden from it, and read-only channels stay read-only.",
+      "channelsSelected": "Selected channels",
+      "channelsSelectedDescription": "The bot works only in the checked channels, and in each of them uses every permission it holds: it sees a channel hidden from {'@'}everyone, and posts and reacts where {'@'}everyone is read-only.",
+      "channelsEmpty": "No channels to choose from",
+      "channelHidden": "Hidden from {'@'}everyone",
+      "channelsSaved": "Channel access saved",
+      "channelsFailed": "Could not save channel access",
+      "channelsLoadFailed": "Could not load channel access"
     },
     "permissions": {
       "read_messages": {
@@ -2484,5 +2550,501 @@
     "install": "Install",
     "installing": "Installing…",
     "dismiss": "Dismiss install prompt"
+  },
+  "security": {
+    "subtitle": "Your password, two-factor authentication and the devices signed in to your account.",
+    "privacyLink": "Password, two-factor authentication and signed-in devices are under {link}.",
+    "password": {
+      "setTitle": "Set a password",
+      "changeDescription": "Changing your password signs out every other device.",
+      "providerDescription": "Your account signs in through {providers}. A password lets you sign in with your email too.",
+      "externalProvider": "an external provider",
+      "hint": "At least 8 characters. A passphrase of a few unrelated words works well.",
+      "saving": "Saving…",
+      "setPassword": "Set password",
+      "changed": "Password changed. Your other devices were signed out.",
+      "set": "Password set.",
+      "changeFailed": "Could not change your password.",
+      "errors": {
+        "tooShort": "Use at least 8 characters.",
+        "mismatch": "The passwords do not match.",
+        "sameAsCurrent": "Choose a password different from the current one.",
+        "wrongCurrent": "That is not your current password."
+      }
+    },
+    "twoFactor": {
+      "description": "A code from an authenticator app is required at sign-in, on every device and in the desktop and Android apps.",
+      "on": "On",
+      "off": "Off",
+      "checking": "Checking two-factor status…",
+      "offDescription": "Use Aegis, 2FAS, Google Authenticator, 1Password or any app that supports TOTP. Turning it on signs out your other sessions.",
+      "setUp": "Set up two-factor authentication",
+      "steps": {
+        "label": "Setup steps",
+        "scan": "Scan",
+        "saveCodes": "Save codes"
+      },
+      "scanQr": "Scan this QR code with your authenticator app.",
+      "qrAlt": "QR code for your authenticator app",
+      "generating": "Generating…",
+      "manualKey": "Can't scan it? Enter this key in the app (time-based, 6 digits):",
+      "setupKey": "Setup key",
+      "copySetupKey": "Copy setup key",
+      "setupKeyCopied": "Setup key copied",
+      "enterEnrollCode": "Enter the 6-digit code your app shows",
+      "verifying": "Verifying…",
+      "turnOn": "Turn on",
+      "saveCodesWarning": "Save these recovery codes somewhere safe, such as a password manager. Each signs you in once if you lose your authenticator. They will not be shown again.",
+      "recoveryCodes": "Recovery codes",
+      "recoveryCodesCopied": "Recovery codes copied",
+      "downloadTxt": "Download .txt",
+      "codesSavedCheck": "I saved my recovery codes",
+      "unavailable": "Unavailable",
+      "noneLeft": "None left. Generate new codes now.",
+      "remaining": "{remaining} of {total} unused",
+      "generateNew": "Generate new codes",
+      "turnOffTitle": "Turn off two-factor authentication",
+      "turnOffDescription": "Sign-ins will need only your password.",
+      "turnOff": "Turn off",
+      "generate": "Generate",
+      "working": "Working…",
+      "useAuthenticator": "Use my authenticator instead",
+      "useRecoveryCode": "Lost your authenticator? Use a recovery code",
+      "disabledToast": "Two-factor authentication is off",
+      "disableModal": {
+        "title": "Turn off two-factor authentication?",
+        "textTotp": "Your account will be protected by your password only. Enter the 6-digit code from your authenticator to confirm.",
+        "textRecovery": "Your account will be protected by your password only. Enter a recovery code to confirm."
+      },
+      "regenerateModal": {
+        "title": "Generate new recovery codes?",
+        "text": "Your current recovery codes will stop working. Enter the 6-digit code from your authenticator to continue."
+      },
+      "errors": {
+        "statusFailed": "Could not check two-factor status.",
+        "setupFailed": "Could not start two-factor setup.",
+        "copyFailed": "Copy failed. Select the text and copy it manually.",
+        "actionFailed": "That did not work. Try again."
+      }
+    },
+    "sessions": {
+      "title": "Devices",
+      "description": "Everywhere your account is signed in. Signing a device out also stops its push notifications. Locations are shown as the IP address the sign-in came from.",
+      "refresh": "Refresh",
+      "loading": "Loading devices…",
+      "thisDevice": "This device",
+      "push": "Push",
+      "pushTitle": "Push notifications: {transports}",
+      "webPush": "Web Push",
+      "active": "Active {time}",
+      "ago": "{time} ago",
+      "unknown": "unknown",
+      "signedIn": "Signed in {date}",
+      "mfaIncomplete": "Two-factor not completed",
+      "signOut": "Sign out",
+      "signingOut": "Signing out…",
+      "signOutOthers": "Sign out all other devices ({count})",
+      "unknownDevice": "Unknown device",
+      "revoked": "Device signed out",
+      "revokedOthers": "Signed out of all other devices",
+      "pushRemoved": "Push notifications removed for that device",
+      "revokeConfirm": {
+        "title": "Sign out this device?",
+        "message": "{device} will need to sign in again. Its push notifications stop."
+      },
+      "revokeOthersConfirm": {
+        "title": "Sign out all other devices?",
+        "message": "Every device except this one will need to sign in again.",
+        "confirm": "Sign out all"
+      },
+      "otherPush": {
+        "title": "Other push notification targets",
+        "description": "Registered before devices were linked to sign-ins, or by a device that is no longer signed in.",
+        "added": "Added {date}",
+        "unreachable": "Not reachable"
+      },
+      "errors": {
+        "loadFailed": "Could not load your devices.",
+        "revokeFailed": "Could not sign that device out.",
+        "revokeOthersFailed": "Could not sign out the other devices.",
+        "removePushFailed": "Could not remove that push target."
+      }
+    },
+    "export": {
+      "title": "Download your data",
+      "description": "A ZIP archive of your account: profile and settings, the messages you sent in servers and conversations, your posts, follows, blocks, the files you uploaded and the devices signed in. Other people's messages are not included. You can request one every ten minutes, five a day.",
+      "preparing": "Preparing…",
+      "request": "Request my data",
+      "collecting": "Collecting your account data…",
+      "exportingMessages": "Exporting messages: {done} of {total}",
+      "packaging": "Packaging the archive…",
+      "downloading": "Your data is downloading",
+      "failed": "The export failed. Try again later."
+    },
+    "deleteAccount": {
+      "description": "Permanently delete your account. Messages you sent stay where they are, shown as \"Deleted User\". Your profile, login, devices, encryption keys and follows are removed, and other fediverse servers are told the account is gone.",
+      "bullets": {
+        "permanent": "This cannot be undone. Your username becomes free for someone else.",
+        "messages": "Messages and posts you wrote stay visible as \"Deleted User\"; delete any you want gone first.",
+        "removed": "Your profile, avatar, banner, login, devices, push notifications, encryption keys, follows, blocks and bots stop working and are removed.",
+        "federation": "Servers on other instances that know your account are sent a deletion notice."
+      },
+      "exportFirst": "Download your data first",
+      "ownsServers": "You own a server with other members: {servers}. Transfer ownership or delete it first. | You own servers with other members: {servers}. Transfer ownership or delete them first.",
+      "noPassword": "Your account has no password. Deletion needs a sign-in within the last ten minutes.",
+      "signInAgain": "Sign out and sign in again",
+      "errors": {
+        "mfaRequired": "Enter a code from your authenticator app.",
+        "wrongPassword": "That password is not correct.",
+        "reauthRequired": "Sign in again, then delete your account within ten minutes."
+      }
+    },
+    "mfa": {
+      "recoveryCodeExample": "Enter one of your recovery codes, for example ABCDE-12345.",
+      "enterAuthenticatorCode": "Enter the 6-digit code from your authenticator app.",
+      "enterRecoveryCode": "Enter one of your recovery codes",
+      "recoveryCodeInvalid": "That recovery code is not valid or was already used.",
+      "verificationFailed": "Verification failed. Try again.",
+      "invalidCode": "Invalid code. Try again.",
+      "recoverySignedIn": "Signed in with a recovery code. Two-factor authentication is now off; set it up again.",
+      "recoveryResetOff": "Two-factor authentication is off. Set it up again after you sign in.",
+      "recoveryNoSession": "Signed in with a recovery code, but no session was returned. Sign in again."
+    },
+    "signOutReason": {
+      "sessionRevoked": "You were signed out from another device.",
+      "insufficientAal": "Sign in again and enter your authenticator code."
+    },
+    "notice": {
+      "newSignIn": {
+        "title": "New sign-in to your account",
+        "message": "Not you? Change your password and sign that session out.",
+        "messageWithDevice": "{where}. Not you? Change your password and sign that session out."
+      },
+      "mfaEnabled": {
+        "title": "Two-factor authentication turned on",
+        "message": "Sign-ins now need your authenticator."
+      },
+      "mfaDisabled": {
+        "title": "Two-factor authentication turned off",
+        "message": "Your account no longer asks for an authenticator code.",
+        "messageRecoveryCode": "A recovery code was used to sign in. Set up two-factor authentication again."
+      },
+      "recoveryCodeUsed": {
+        "title": "Recovery code used",
+        "message": "One of your recovery codes was used."
+      },
+      "recoveryCodesRegenerated": {
+        "title": "New recovery codes",
+        "message": "Your previous recovery codes no longer work."
+      },
+      "passwordChanged": {
+        "title": "Password changed",
+        "message": "Your password was changed and your other sessions were signed out."
+      },
+      "default": {
+        "title": "Account security",
+        "message": "There was a change to your account security."
+      }
+    },
+    "errors": {
+      "generic": "Something went wrong. Try again.",
+      "tooManyAttemptsSoon": "Too many incorrect attempts. Try again in a few minutes.",
+      "tooManyAttemptsMinutes": "Too many incorrect attempts. Try again in {count} minute. | Too many incorrect attempts. Try again in {count} minutes.",
+      "tooManyAttemptsHours": "Too many incorrect attempts. Try again in about {count} hours.",
+      "exportRateLimitedSoon": "You can request another export in a few minutes.",
+      "exportRateLimitedMinutes": "You can request another export in {count} minute. | You can request another export in {count} minutes.",
+      "exportRateLimitedHours": "You can request another export in about {count} hours.",
+      "exportExpired": "This export expired. Start a new one.",
+      "stepUpRequired": "Enter a code from your authenticator app first.",
+      "insufficientAal": "This needs two-factor authentication. Sign in again with your authenticator app.",
+      "sessionRevoked": "This session was signed out. Sign in again.",
+      "codeMismatch": "That code didn't match. Use the newest code from your app and check that your device clock is set automatically.",
+      "challengeExpired": "The verification expired. Enter a new code.",
+      "rateLimited": "Too many attempts. Wait a moment and try again.",
+      "mfaNotEnabled": "Two-factor authentication is not enabled."
+    },
+    "device": {
+      "app": "Harmony app",
+      "browserOnOs": "{browser} on {os}"
+    }
+  },
+  "encryption": {
+    "code": {
+      "expiresIn": "Expires in {time}",
+      "expired": "This code expired.",
+      "newCode": "New code",
+      "copyCode": "Copy code"
+    },
+    "linkDevice": {
+      "title": "Link a new device",
+      "subtitle": "Give a device you just signed in on access to your encrypted messages.",
+      "enterPhrase": "Enter recovery phrase",
+      "scanHint": "Point the camera at the QR code on the new device.",
+      "scanPasteLabel": "Or paste the code copied from the new device",
+      "showInstead": "New device has a camera? Show a code for it to scan instead",
+      "showLead": "On the new device, choose {another}, then {scanInstead}, and point its camera here. Anyone signed in to your account who scans this code can receive your keys, so keep it to yourself.",
+      "showLeadAnother": "Another device",
+      "showLeadScanInstead": "Scan a code from it instead",
+      "qrAlt": "Device linking QR code",
+      "scanInstead": "Scan the new device's code instead",
+      "newDevice": "New device",
+      "signedIn": "Signed in {ago}.",
+      "answeredCode": "It answered the code this device showed.",
+      "keyMatches": "Its key matches the code you scanned.",
+      "warning": "This device will be able to read all your encrypted messages. Continue only if it is yours and in front of you.",
+      "keepCopyTitle": "Link devices from here later without the recovery phrase",
+      "keepCopyNote": "This device keeps a readable copy of your encryption keys. Anyone able to run code in Harmony on this device could copy them. Remove it any time in Settings › Encryption.",
+      "confirm": "Link this device",
+      "sending": "Sending your keys…",
+      "linked": "{device} is linked.",
+      "tryAgain": "Try again",
+      "needUnlockLocked": "Encryption is locked on this device, so it has no keys to share. Unlock it with your recovery phrase first.",
+      "needUnlockPhrase": "To share your keys, this device needs your recovery phrase. Enter it here, then scan the new device.",
+      "signInAgain": "Sign in again to link a device.",
+      "notPairingCode": "That is not a Harmony pairing code. Scan the code on the new device.",
+      "approverCode": "That code is shown by a signed-in device. Scan the code on the new device.",
+      "errors": {
+        "securityCheck": "Security check failed: the device key the server returned does not match the code you scanned. Nothing was sent. Do not link this device.",
+        "notFound": "No sign-in for this code on your account. Check that both devices use the same account.",
+        "alreadyUsed": "This code was answered by more than one device. Nothing was sent. Show a new code.",
+        "generic": "Linking failed."
+      }
+    },
+    "pairing": {
+      "lead": "On a device where you're already signed in, choose {scanCode} on the new-login prompt, or {linkDevice} under Privacy → Your devices, and scan this code.",
+      "qrAlt": "Device pairing QR code",
+      "scanInstead": "Other device can't scan? Scan a code from it instead",
+      "scanHint": "On your signed-in device choose Link a device, then Show a code, and point this camera at it.",
+      "scanPasteLabel": "Or paste the code from your other device",
+      "showInstead": "Show a code on this device instead",
+      "waiting": "Confirm on your other device to finish linking.",
+      "importing": "Unlocking your encrypted messages…",
+      "done": "This device is linked. Your encrypted messages are unlocking.",
+      "startAgain": "Start again",
+      "signInAgain": "Sign in again to link this device.",
+      "notPairingCode": "That is not a Harmony pairing code. On your signed-in device choose Link a device, then Show a code.",
+      "newDeviceCode": "That code belongs to a new device. Scan the code your signed-in device shows.",
+      "errors": {
+        "expired": "The code expired. Start again for a new one.",
+        "denied": "Your other device declined this sign-in.",
+        "bundleInvalid": "The keys from the other device did not verify, so nothing was imported. Start again.",
+        "generic": "Linking failed. Start again."
+      }
+    },
+    "pairingErrors": {
+      "malformed": "Not a Harmony pairing code",
+      "wrongAccount": "That code belongs to a different account.",
+      "notPending": "This sign-in was already answered.",
+      "notPairing": "This request does not accept keys",
+      "ownDevice": "This code was shown by this device",
+      "alreadyUsed": "This pairing code was already used",
+      "keysUnavailable": "Unlock encryption on this device first.",
+      "keysStale": "This device holds out-of-date encryption keys. Enter your current recovery phrase on it first.",
+      "registerFailed": "Could not register this device",
+      "alreadyUnlocked": "Encryption is already unlocked on this device."
+    },
+    "qrScanner": {
+      "stopCamera": "Stop camera",
+      "startingCamera": "Starting camera…",
+      "tryCameraAgain": "Try the camera again",
+      "useCamera": "Use camera",
+      "readingImage": "Reading image…",
+      "scanImage": "Scan from an image",
+      "pastePlaceholder": "Paste the code here",
+      "usePasted": "Use pasted code",
+      "defaultHint": "Point the camera at the QR code.",
+      "defaultPasteLabel": "Or paste the code",
+      "noQrInImage": "No QR code found in that image. Try a sharper, closer picture.",
+      "unreadableFile": "That file could not be read as an image.",
+      "problems": {
+        "unsupported": "This app has no camera access here. Scan from an image or paste the code instead.",
+        "insecure": "The camera needs a secure (https) connection. Scan from an image or paste the code instead.",
+        "denied": "Camera access is blocked. Allow it in your browser or system settings, or scan from an image.",
+        "noCamera": "No camera found. Scan from an image or paste the code instead.",
+        "inUse": "The camera is in use by another app. Close it and try again, or scan from an image.",
+        "failed": "The camera could not start. Scan from an image or paste the code instead."
+      }
+    },
+    "devices": {
+      "linkDevice": "Link a device",
+      "linkHint": "Sign in on the new device, then scan the code it shows.",
+      "pendingPairing": "Waiting to be linked. Scan the code it shows.",
+      "pendingPlain": "Signed in and unlocked your encrypted messages.",
+      "scanCode": "Scan code"
+    },
+    "approval": {
+      "pairingText": "That device is waiting for your encrypted messages. If it is yours and in front of you, scan the code it shows: keys go only to the device whose code you scan.",
+      "scanItsCode": "Yes, scan its code",
+      "notMe": "Not me",
+      "showInstead": "Can't scan? Show a code instead",
+      "plainText": "A new device signed in to your account and unlocked your encrypted messages itself; nothing is sent from here. If this wasn't you, secure your account.",
+      "thatWasMe": "That was me",
+      "staysSignedIn": "{device} stays signed in.",
+      "newDeviceFallback": "The new device"
+    },
+    "settings": {
+      "devicesDescription": "Devices signed in to your account. To give a new device your encrypted messages, link it: sign in there and scan the code it shows from a device that is already unlocked.",
+      "linkDescription": "Scan the code a newly signed-in device shows; no need to type your recovery phrase there",
+      "link": "Link",
+      "pairingCopyTitle": "Keys kept for linking",
+      "pairingCopyDescription": "This device keeps a readable copy of your encryption keys so it can link devices without the recovery phrase. Remove it and linking from here asks for the phrase again.",
+      "pairingCopyRemoved": "Removed the copy of your keys from this device",
+      "pairingCopyRemoveFailed": "Could not remove the copy of your keys"
+    },
+    "recovery": {
+      "anotherDevice": "Another device",
+      "recommended": "Recommended",
+      "qrToggle": "Have your recovery key as a QR code?",
+      "qrHint": "Point the camera at the recovery-key QR code.",
+      "qrPasteLabel": "Or paste the QR code data",
+      "pairingCodeScanned": "That is a device pairing code. Use the Another device tab.",
+      "notRecoveryKey": "That QR code is not a Harmony recovery key",
+      "qrReadFailed": "Failed to read the QR code"
+    },
+    "recoverySetup": {
+      "multiDevice": "Link a new device by scanning a QR code from this one; your recovery key is the fallback",
+      "hideQr": "Hide the recovery key QR code",
+      "showQr": "Show the recovery key as a QR code",
+      "qrHint": "Anyone who sees this code can read your encrypted messages; don't screenshot it. To set up another device, link it instead: sign in there and scan the code it shows from this device.",
+      "newDeviceLabel": "New device?",
+      "newDeviceReminder": "{label} Sign in there and choose {another}, then scan its code from this device. Your messages unlock without typing the recovery key.",
+      "rememberNeed": "You'll need it if you lose access to all your signed-in devices or clear your browser data."
+    }
+  },
+  "admin": {
+    "reports": {
+      "titleServer": "Reports in this server",
+      "anonymousReporter": "Anonymous reporter",
+      "suspended": "suspended",
+      "silenced": "silenced",
+      "openOnTargetTitle": "{count} open reports on this account",
+      "openOnTarget": "{count} open",
+      "forwarded": "forwarded",
+      "forwardedTitle": "An anonymous copy was sent to the account's instance",
+      "commentFrom": "Comment from {instance}",
+      "messageNow": "Message now",
+      "postNow": "Post now",
+      "noteSentToReporter": "Note sent to the reporter",
+      "statusBy": "{status} by {'@'}{username}",
+      "notePlaceholder": "Note to the reporter (optional, sent on resolve or dismiss)",
+      "showResolverTitle": "Off by default, to protect moderators from retaliation",
+      "showResolver": "Show my name to the reporter",
+      "loadMore": "Load more ({count})",
+      "actions": {
+        "investigate": "Mark investigating",
+        "resolve": "Resolve",
+        "dismiss": "Dismiss",
+        "reopen": "Reopen",
+        "assign": "Assign to me",
+        "unassign": "Unassign",
+        "forward": "Forward to {domain}",
+        "deletePost": "Delete post",
+        "markSensitive": "Mark sensitive",
+        "deleteMessage": "Delete message",
+        "warn": "Warn account",
+        "silenceAccount": "Silence account",
+        "suspendAccount": "Suspend account",
+        "forceSensitiveAccount": "Force sensitive media",
+        "limitDomain": "Limit {domain}",
+        "suspendDomain": "Suspend {domain}"
+      },
+      "prompts": {
+        "warn": "Warning text sent to the account:",
+        "limitDomain": "Reason for limiting {domain}:",
+        "suspendDomain": "Reason for suspending {domain}:",
+        "reason": "Reason (kept with the account):"
+      },
+      "confirmAction": "{action}? This resolves the report.",
+      "actionDone": "{action}: done"
+    },
+    "federation": {
+      "limited": "Limited",
+      "limitedTitle": "Accounts from this domain are silenced",
+      "limitAction": "Limit: silence this domain's accounts",
+      "liftLimitAction": "Lift the limit",
+      "limitReasonPrompt": "Reason for limiting {domain}:",
+      "limitApplied": "{domain} limited",
+      "limitLifted": "Limit on {domain} lifted",
+      "limitFailed": "Failed to change the domain limit"
+    },
+    "instance": {
+      "maxPostReactions": "Max reactions per person on a post",
+      "maxPostReactionsHint": "Different emoji one person can react with on a post (1-100). Default: 10. Reactions arriving from other servers past the limit are dropped. Chat messages hold at most 20 different emoji."
+    },
+    "activityLog": {
+      "configKeys": {
+        "maxPostReactionsPerUser": "Max reactions per person on a post"
+      }
+    },
+    "antiSpam": {
+      "title": "Anti-spam",
+      "hint": "Instance-wide limits. Server owners configure their own AutoMod in Server Settings; these apply on top of it, to every server, DM and post. Every limit here is off or permissive until you change it.",
+      "loadingSettings": "Loading settings...",
+      "saved": "Anti-spam settings saved",
+      "newAccounts": {
+        "title": "New local accounts",
+        "hours": "An account counts as new for (hours)",
+        "messagesPerMinute": "Messages per minute (0 = no limit)",
+        "messagesPerMinuteHint": "Channel messages and DMs together.",
+        "postsPerHour": "Posts per hour (0 = no limit)",
+        "strangerMentions": "Mentions of strangers per post (0 = no limit)",
+        "strangerMentionsHint": "A stranger is anyone who does not follow the author, local or remote.",
+        "blockLinks": "New accounts cannot post links",
+        "staffExempt": "Instance admins and moderators are never limited."
+      },
+      "federation": {
+        "title": "Federation mention spam",
+        "mode": "When a remote post or DM looks like spam",
+        "modes": {
+          "off": "Do nothing",
+          "flag": "Deliver it and add it to the review queue",
+          "hold": "Hold it in the review queue until released",
+          "reject": "Reject it and add it to the review queue"
+        },
+        "maxMentions": "Mentions in one post that count as a mass mention",
+        "newActorDays": "Remote accounts younger than (days) count as new",
+        "heuristicHint": "Looks like spam: it mentions at least the mass-mention count of people, or it comes from a new remote account that no local user follows and that none of the mentioned users has talked to before."
+      },
+      "queue": {
+        "title": "Suspicious activity",
+        "filterByStatus": "Filter by status",
+        "statuses": {
+          "open": "Open",
+          "all": "All",
+          "released": "Released",
+          "confirmed": "Confirmed",
+          "dismissed": "Dismissed"
+        },
+        "actions": {
+          "flagged": "flagged",
+          "held": "held",
+          "rejected": "rejected"
+        },
+        "refresh": "Refresh",
+        "hint": "Inbound federation activity the spam heuristics matched. Held items are delivered only when released.",
+        "empty": "Nothing to review.",
+        "kindDm": "DM",
+        "kindMention": "mention",
+        "targets": "to {users}",
+        "release": "Release",
+        "confirmSpam": "Confirm spam",
+        "dismiss": "Dismiss",
+        "released": "Released for delivery",
+        "reviewed": "Reviewed"
+      },
+      "reasons": {
+        "mass_mention": "mass mention",
+        "new_actor": "new account",
+        "no_followers": "no local followers",
+        "no_relationship": "no prior contact",
+        "unknown_age": "account age unknown"
+      },
+      "errors": {
+        "loadSettings": "Failed to load anti-spam settings",
+        "save": "Failed to save",
+        "loadQueue": "Failed to load the review queue",
+        "review": "Review failed"
+      }
+    }
   }
 }

@@ -2,16 +2,16 @@
   <div class="security-settings">
     <div class="sec-header">
       <h2 class="sec-title">{{ $t('settings.security') }}</h2>
-      <p class="sec-subtitle">Your password, two-factor authentication and the devices signed in to your account.</p>
+      <p class="sec-subtitle">{{ $t('security.subtitle') }}</p>
     </div>
 
     <section class="sec-card" aria-labelledby="password-title">
       <header class="sec-card-header">
         <div>
-          <h3 id="password-title" class="sec-card-title">{{ hasPassword ? 'Password' : 'Set a password' }}</h3>
+          <h3 id="password-title" class="sec-card-title">{{ hasPassword ? $t('auth.password') : $t('security.password.setTitle') }}</h3>
           <p class="sec-card-description">
-            <template v-if="hasPassword">Changing your password signs out every other device.</template>
-            <template v-else>Your account signs in through {{ providerNames }}. A password lets you sign in with your email too.</template>
+            <template v-if="hasPassword">{{ $t('security.password.changeDescription') }}</template>
+            <template v-else>{{ $t('security.password.providerDescription', { providers: providerNames }) }}</template>
           </p>
         </div>
       </header>
@@ -19,7 +19,7 @@
       <form class="sec-form" autocomplete="on" @submit.prevent="changePassword">
         <input type="email" class="sec-visually-hidden" autocomplete="username" :value="email" tabindex="-1" aria-hidden="true" readonly />
         <div v-if="hasPassword" class="sec-field">
-          <label class="sec-label" for="current-password">Current password</label>
+          <label class="sec-label" for="current-password">{{ $t('auth.currentPassword') }}</label>
           <input
             id="current-password"
             v-model="currentPassword"
@@ -32,7 +32,7 @@
           <p v-if="errors.current" class="sec-error">{{ errors.current }}</p>
         </div>
         <div class="sec-field">
-          <label class="sec-label" for="new-password">New password</label>
+          <label class="sec-label" for="new-password">{{ $t('auth.newPassword') }}</label>
           <input
             id="new-password"
             v-model="newPassword"
@@ -44,10 +44,10 @@
             @input="errors.next = ''"
           />
           <p v-if="errors.next" class="sec-error">{{ errors.next }}</p>
-          <p v-else class="sec-hint">At least 8 characters. A passphrase of a few unrelated words works well.</p>
+          <p v-else class="sec-hint">{{ $t('security.password.hint') }}</p>
         </div>
         <div class="sec-field">
-          <label class="sec-label" for="confirm-password">Confirm new password</label>
+          <label class="sec-label" for="confirm-password">{{ $t('auth.confirmNewPassword') }}</label>
           <input
             id="confirm-password"
             v-model="confirmPassword"
@@ -61,7 +61,7 @@
         </div>
         <div class="sec-actions sec-actions-start">
           <button type="submit" class="sec-btn sec-btn-primary" :disabled="passwordBusy || !passwordFormReady">
-            {{ passwordBusy ? 'Saving…' : hasPassword ? 'Change password' : 'Set password' }}
+            {{ passwordBusy ? $t('security.password.saving') : hasPassword ? $t('auth.changePassword') : $t('security.password.setPassword') }}
           </button>
         </div>
       </form>
@@ -75,6 +75,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useToast } from 'vue-toastification'
+import { useI18n } from 'vue-i18n'
 import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { debug } from '@/utils/debug'
@@ -84,6 +85,7 @@ import SessionsPanel from './SessionsPanel.vue'
 import './securitySettings.css'
 
 const toast = useToast()
+const { t } = useI18n()
 const authStore = useAuthStore()
 
 const sessionsPanel = ref<InstanceType<typeof SessionsPanel> | null>(null)
@@ -96,7 +98,7 @@ const hasPassword = computed(() => providers.value.length === 0 || providers.val
 const providerNames = computed(() => providers.value
   .filter((p) => p !== 'email')
   .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-  .join(', ') || 'an external provider')
+  .join(', ') || t('security.password.externalProvider'))
 const email = computed(() => authStore.session?.user?.email ?? '')
 
 const currentPassword = ref('')
@@ -113,15 +115,15 @@ const passwordFormReady = computed(() =>
 async function changePassword() {
   errors.value = { current: '', next: '', confirm: '' }
   if (newPassword.value.length < 8) {
-    errors.value.next = 'Use at least 8 characters.'
+    errors.value.next = t('security.password.errors.tooShort')
     return
   }
   if (newPassword.value !== confirmPassword.value) {
-    errors.value.confirm = 'The passwords do not match.'
+    errors.value.confirm = t('security.password.errors.mismatch')
     return
   }
   if (hasPassword.value && newPassword.value === currentPassword.value) {
-    errors.value.next = 'Choose a password different from the current one.'
+    errors.value.next = t('security.password.errors.sameAsCurrent')
     return
   }
 
@@ -130,14 +132,14 @@ async function changePassword() {
     if (hasPassword.value) {
       const ok = await accountSecurityService.verifyPassword(currentPassword.value)
       if (!ok) {
-        errors.value.current = 'That is not your current password.'
+        errors.value.current = t('security.password.errors.wrongCurrent')
         return
       }
     }
     const { error } = await supabase.auth.updateUser({ password: newPassword.value })
     if (error) {
       if (/different from the old password|same/i.test(error.message)) {
-        errors.value.next = 'Choose a password different from the current one.'
+        errors.value.next = t('security.password.errors.sameAsCurrent')
       } else if (/at least|weak|characters/i.test(error.message)) {
         errors.value.next = error.message
       } else {
@@ -149,12 +151,12 @@ async function changePassword() {
     newPassword.value = ''
     confirmPassword.value = ''
     toast.success(hasPassword.value
-      ? 'Password changed. Your other devices were signed out.'
-      : 'Password set.')
+      ? t('security.password.changed')
+      : t('security.password.set'))
     void sessionsPanel.value?.load()
   } catch (error) {
     debug.error('Password change failed:', error)
-    toast.error(securityErrorMessage(error, 'Could not change your password.'))
+    toast.error(securityErrorMessage(error, t('security.password.changeFailed')))
   } finally {
     passwordBusy.value = false
   }

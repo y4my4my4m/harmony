@@ -8,6 +8,7 @@ import {
   createAnnounceActivity as createAnnounce,
   createUpdateActivity,
   createDeleteActivity as createDelete,
+  createUndoActivity,
 } from '../activitypub/converters/toActivityPub.js';
 import config from '../config/index.js';
 import { getSupabaseClient } from '../config/supabase.js';
@@ -220,15 +221,7 @@ export function createUndoLikeActivity(user: any, objectUrl: string, like?: any)
   const userUrl = `https://${domain}/users/${user.username}`;
 
   if (like) {
-    // The embedded Like keeps no @context of its own and no per-delivery audience.
-    const { '@context': context, to: _to, ...embedded } = like;
-    return {
-      '@context': context,
-      id: `${like.id}/undo`,
-      type: 'Undo',
-      actor: userUrl,
-      object: embedded,
-    };
+    return createUndoActivity(user, like);
   }
 
   const likeActivity = {

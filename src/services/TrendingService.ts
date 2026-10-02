@@ -586,15 +586,6 @@ class TrendingService {
     }
   }
 
-  /** Intended for a daily schedule; caller owns the cadence. */
-  async resetDailyCounters(): Promise<void> {
-    try {
-      await supabase.rpc('reset_daily_hashtag_counters');
-    } catch (error) {
-      debug.error('Failed to reset daily counters:', error);
-    }
-  }
-
   // PRIVATE HELPER METHODS
 
   private calculateTrend(changePercent: number): 'up' | 'down' | 'stable' {

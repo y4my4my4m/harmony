@@ -34,13 +34,15 @@ vi.mock('../services/BlockedInstancesCache.js', () => ({
   BlockedInstancesCache: { isBlocked: vi.fn(() => false) },
 }))
 vi.mock('../activitypub/DeliveryQueue.js', () => ({
-  DeliveryQueue: { enqueue: vi.fn(), sendToInbox: vi.fn() },
+  DeliveryQueue: { enqueue: vi.fn(), sendToInbox: vi.fn(), deliverOnce: vi.fn() },
 }))
 
 type Row = Record<string, any>
 let tables: Record<string, Row[]> = {}
-let broadcasts: Array<{ channel: string; msg: any }> = []
+let broadcasts: Array<{ channel: string; msg: any; private?: boolean }> = []
 let granted: Record<string, Set<string>> = {}
+// Channels channel_is_restricted reports; undefined fails the lookup.
+let restrictedChannels: Set<string> | undefined = new Set()
 let nextId = 1
 
 const read = (row: Row, col: string) => {
@@ -55,13 +57,25 @@ function fakeSupabase() {
   return {
     rpc: (fn: string, args: any) => {
       if (fn === 'broadcast_user_event') broadcasts.push({ channel: `user:${args.p_user_id}`, msg: args.p_payload })
+      if (fn === 'channel_is_restricted') {
+        return Promise.resolve(restrictedChannels
+          ? { data: restrictedChannels.has(args.p_channel_id), error: null }
+          : { data: null, error: { message: 'lookup failed' } })
+      }
       return Promise.resolve({
         data: fn === 'has_permission' ? granted[args.p_user_id]?.has(args.p_permission) === true : null,
         error: null,
       })
     },
-    channel(name: string) {
-      return { send: (msg: any) => { broadcasts.push({ channel: name, msg }); return Promise.resolve('ok') } }
+    channel(name: string, opts?: { config?: { private?: boolean } }) {
+      const priv = opts?.config?.private === true
+      return {
+        send: (msg: any) => { broadcasts.push({ channel: name, msg, private: priv }); return Promise.resolve('ok') },
+        httpSend: (event: string, payload: any) => {
+          broadcasts.push({ channel: name, msg: { event, payload }, private: priv })
+          return Promise.resolve({ success: true })
+        },
+      }
     },
     from(table: string) {
       const filters: Array<(row: Row) => boolean> = []
@@ -142,12 +156,15 @@ function fakeSupabase() {
 
 vi.mock('../config/supabase.js', () => ({ getSupabaseClient: () => fakeSupabase() }))
 
+const { default: config } = await import('../config/index.js')
 const { VoiceActivityHandler } = await import('../activitypub/VoiceActivityHandler.js')
 const { livekitService } = await import('../services/LiveKitService.js')
 const { mintVoiceJoinId } = await import('../services/voiceAccess.js')
 const { handleThreadActivity } = await import('../activitypub/ThreadActivityHandler.js')
 const { processServerInboxActivity } = await import('../activitypub/ServerInboxHandler.js')
 const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js')
+const { SignatureService } = await import('../activitypub/SignatureService.js')
+const { safeFetch } = await import('../utils/ssrfProtection.js')
 
 const FRESH = new Date().toISOString()
 const LATER = '2999-01-01T00:00:00.000Z'
@@ -174,7 +191,9 @@ beforeEach(() => {
   nextId = 1
   broadcasts = []
   granted = {}
+  restrictedChannels = new Set()
   vi.mocked(DeliveryQueue.enqueue).mockReset()
+  vi.mocked(DeliveryQueue.deliverOnce).mockReset().mockResolvedValue({ delivered: true, retry: false })
   tables = {
     profiles: [
       { id: 'alice-id', username: 'alice', is_local: true, auth_user_id: 'alice-auth', federated_id: LOCAL_ALICE, updated_at: FRESH },
@@ -279,6 +298,17 @@ describe('VoiceCallInvite', () => {
     expect(broadcasts).toHaveLength(0)
   })
 
+  it('rings nobody while federated voice is off', async () => {
+    config.ALLOW_FEDERATED_VOICE = false
+    try {
+      await voice(invite(BOB, `federated-dm-${REMOTE_CONV}-1700000000000`))
+    } finally {
+      config.ALLOW_FEDERATED_VOICE = true
+    }
+    expect(tables.federated_voice_calls).toHaveLength(0)
+    expect(broadcasts).toHaveLength(0)
+  })
+
   it('refuses an invite id on another host than the caller', async () => {
     await voice(invite(BOB, `federated-dm-${REMOTE_CONV}-1700000000000`, { id: 'https://evil.test/activities/1' }))
     expect(tables.federated_voice_calls).toHaveLength(0)
@@ -290,7 +320,7 @@ describe('VoiceCallAccept/Reject/End', () => {
   beforeEach(() => {
     tables.federated_voice_calls.push({
       id: 'call-1', ap_id: callId, caller_id: 'bob-id', caller_federated_id: BOB, recipient_id: 'alice-id',
-      status: 'pending', room_name: 'r', livekit_url: 'u', expires_at: LATER,
+      status: 'pending', room_name: 'r', livekit_url: 'u', expires_at: LATER, direction: 'inbound', conversation_id: DM,
     })
   })
 
@@ -310,7 +340,138 @@ describe('VoiceCallAccept/Reject/End', () => {
   it('the caller ends its own call', async () => {
     await voice({ type: 'harmony:VoiceCallEnd', id: `${BOB}/a/3`, actor: BOB, object: callId, published: FRESH })
     expect(tables.federated_voice_calls[0].status).toBe('ended')
-    expect(broadcasts).toContainEqual({ channel: 'user:alice-id', msg: expect.objectContaining({ type: 'federated_call:ended' }) })
+    expect(broadcasts).toEqual([
+      { channel: 'user:alice-id', msg: expect.objectContaining({ type: 'federated_call:ended', conversationId: DM, callId }) },
+    ])
+  })
+})
+
+describe('Outbound calls: VoiceCallAccept/Reject/End from the remote recipient', () => {
+  const callId = `${LOCAL_ALICE}/activities/outbound-1`
+  const room = `federated-dm-${DM}-1700000000000`
+  const send = (type: string, actor: string) =>
+    voice({ type, id: `${actor}/a/${type}-${nextId++}`, actor, to: [LOCAL_ALICE], object: callId, published: FRESH })
+  const status = () => tables.federated_voice_calls[0].status
+
+  beforeEach(() => {
+    tables.federated_voice_calls.push({
+      id: 'call-out', ap_id: callId, direction: 'outbound', caller_id: 'alice-id', caller_federated_id: LOCAL_ALICE,
+      recipient_id: 'bob-id', conversation_id: DM, status: 'pending', room_name: room,
+      livekit_url: 'wss://livekit.harmony.test', expires_at: LATER,
+    })
+  })
+
+  it('the recipient accepts; the local caller hears of it on its own user channel', async () => {
+    await send('harmony:VoiceCallAccept', BOB)
+    expect(status()).toBe('accepted')
+    expect(broadcasts).toEqual([{
+      channel: 'user:alice-id',
+      msg: expect.objectContaining({ type: 'federated_call:accepted', conversationId: DM, roomName: room, callId }),
+    }])
+  })
+
+  it('nobody else accepts, rejects or ends it', async () => {
+    for (const type of ['harmony:VoiceCallAccept', 'harmony:VoiceCallReject', 'harmony:VoiceCallEnd']) {
+      await send(type, MALLORY)
+      await send(type, CAROL)
+      await send(type, LOCAL_ALICE)
+    }
+    expect(status()).toBe('pending')
+    expect(broadcasts).toHaveLength(0)
+  })
+
+  it('an expired ring is not accepted', async () => {
+    tables.federated_voice_calls[0].expires_at = '2000-01-01T00:00:00.000Z'
+    await send('harmony:VoiceCallAccept', BOB)
+    expect(status()).toBe('pending')
+  })
+
+  it('the recipient rejects while it rings', async () => {
+    await send('harmony:VoiceCallReject', BOB)
+    expect(status()).toBe('rejected')
+    expect(broadcasts[0]).toMatchObject({ channel: 'user:alice-id', msg: { type: 'federated_call:rejected', conversationId: DM } })
+    await send('harmony:VoiceCallAccept', BOB)
+    expect(status()).toBe('rejected')
+  })
+
+  it('the recipient ends an accepted call', async () => {
+    tables.federated_voice_calls[0].status = 'accepted'
+    await send('harmony:VoiceCallEnd', BOB)
+    expect(status()).toBe('ended')
+    expect(broadcasts).toEqual([{ channel: 'user:alice-id', msg: expect.objectContaining({ type: 'federated_call:ended', conversationId: DM }) }])
+  })
+})
+
+describe('Federated DM room tokens', () => {
+  const room = `federated-dm-${DM}-1700000000000`
+  const outbound = (extra: Record<string, any> = {}) => tables.federated_voice_calls.push({
+    id: `call-${nextId++}`, ap_id: `${LOCAL_ALICE}/activities/${nextId++}`, direction: 'outbound', caller_id: 'alice-id',
+    caller_federated_id: LOCAL_ALICE, recipient_id: 'bob-id', conversation_id: DM, status: 'pending',
+    room_name: room, livekit_url: 'wss://livekit.harmony.test', expires_at: LATER, ...extra,
+  })
+  const ask = (actorId: string, roomName = room) =>
+    livekitService.generateFederatedToken({ actorId, roomName, roomType: 'dm_call' })
+
+  it('the recipient of a live outbound call gets a token for its room', async () => {
+    outbound()
+    const token = await ask(BOB)
+    expect(jwtPayload(token)).toMatchObject({ sub: `federated:${BOB}`, video: { room, roomJoin: true, canPublish: true } })
+    tables.federated_voice_calls[0].status = 'accepted'
+    tables.federated_voice_calls[0].expires_at = '2000-01-01T00:00:00.000Z'
+    await expect(ask(BOB)).resolves.toBeTruthy()
+  })
+
+  it('no live outbound call, no token: none stored, an inbound one, expired, ended, or for another room', async () => {
+    await expect(ask(BOB)).rejects.toThrow(/permission denied/)
+    outbound({ direction: 'inbound' })
+    await expect(ask(BOB)).rejects.toThrow(/permission denied/)
+    tables.federated_voice_calls = []
+    outbound({ expires_at: '2000-01-01T00:00:00.000Z' })
+    await expect(ask(BOB)).rejects.toThrow(/permission denied/)
+    tables.federated_voice_calls = []
+    outbound({ status: 'ended' })
+    await expect(ask(BOB)).rejects.toThrow(/permission denied/)
+    tables.federated_voice_calls = []
+    outbound()
+    await expect(ask(BOB, `federated-dm-${DM}-1800000000000`)).rejects.toThrow(/permission denied/)
+  })
+
+  it('a live outbound call admits only its recipient, who must share the conversation', async () => {
+    outbound()
+    await expect(ask(CAROL)).rejects.toThrow(/permission denied/)
+    tables.conversation_participants = tables.conversation_participants.filter((p) => p.user_id !== 'bob-id')
+    await expect(ask(BOB)).rejects.toThrow(/permission denied/)
+  })
+})
+
+describe('requestCallToken', () => {
+  const call = { caller_federated_id: BOB, room_name: `federated-dm-${REMOTE_CONV}-1700000000000` }
+  const respond = (status: number, body: any) =>
+    vi.mocked(safeFetch).mockResolvedValue(new Response(JSON.stringify(body), { status }))
+
+  beforeEach(() => {
+    vi.mocked(safeFetch).mockReset()
+    vi.spyOn(SignatureService, 'signRequest').mockResolvedValue({ headers: { Signature: 'sig', Host: 'mastodon.test', Date: 'd', Digest: 'x' } })
+  })
+
+  it('posts a signed request for the room to the caller\'s origin, as the recipient', async () => {
+    respond(200, { token: 'T', wsUrl: 'wss://livekit.mastodon.test', roomName: call.room_name })
+    await expect(VoiceActivityHandler.requestCallToken(call, { id: 'alice-id', federated_id: LOCAL_ALICE }))
+      .resolves.toEqual({ token: 'T', wsUrl: 'wss://livekit.mastodon.test', roomName: call.room_name })
+    const [url, init] = vi.mocked(safeFetch).mock.calls[0] as any[]
+    expect(url).toBe('https://mastodon.test/api/livekit/federated-token')
+    expect(JSON.parse(init.body)).toEqual({ actorId: LOCAL_ALICE, roomName: call.room_name, roomType: 'dm_call' })
+    expect(init.headers.Signature).toBe('sig')
+    expect(vi.mocked(SignatureService.signRequest).mock.calls[0]).toEqual([url, 'POST', init.body, 'alice-id'])
+  })
+
+  it('refuses an answer for another room, a non-LiveKit URL, or a refusal', async () => {
+    respond(200, { token: 'T', wsUrl: 'wss://livekit.mastodon.test', roomName: 'federated-dm-other-1' })
+    expect(await VoiceActivityHandler.requestCallToken(call, { id: 'alice-id', federated_id: LOCAL_ALICE })).toBeNull()
+    respond(200, { token: 'T', wsUrl: 'https://livekit.mastodon.test', roomName: call.room_name })
+    expect(await VoiceActivityHandler.requestCallToken(call, { id: 'alice-id', federated_id: LOCAL_ALICE })).toBeNull()
+    respond(403, { error: 'Not authorized for this room' })
+    expect(await VoiceActivityHandler.requestCallToken(call, { id: 'alice-id', federated_id: LOCAL_ALICE })).toBeNull()
   })
 })
 
@@ -368,7 +529,7 @@ describe('VoiceChannelJoin on a local server', () => {
     grant('mallory-id', 'VIEW_CHANNEL', 'CONNECT', 'SPEAK')
     tables.server_member_timeouts.push({ user_id: 'mallory-id', server_id: S, until: LATER })
     await join()
-    expect(DeliveryQueue.enqueue).not.toHaveBeenCalled()
+    expect(DeliveryQueue.deliverOnce).not.toHaveBeenCalled()
   })
 
   it('mints no token without VIEW_CHANNEL and CONNECT', async () => {
@@ -376,7 +537,7 @@ describe('VoiceChannelJoin on a local server', () => {
     await join()
     grant('mallory-id', 'CONNECT')
     await join()
-    expect(DeliveryQueue.enqueue).not.toHaveBeenCalled()
+    expect(DeliveryQueue.deliverOnce).not.toHaveBeenCalled()
   })
 
   it('mints no token for a banned or pending member, or with federation off', async () => {
@@ -389,24 +550,56 @@ describe('VoiceChannelJoin on a local server', () => {
     tables.user_servers[0].status = 'accepted'
     tables.servers[0].federation_enabled = false
     await join()
-    expect(DeliveryQueue.enqueue).not.toHaveBeenCalled()
+    expect(DeliveryQueue.deliverOnce).not.toHaveBeenCalled()
   })
 
   it('a member without SPEAK listens only', async () => {
     grant('mallory-id', 'VIEW_CHANNEL', 'CONNECT')
     tables.profiles[0].federated_id = LOCAL_ALICE
     await join()
-    expect(DeliveryQueue.enqueue).toHaveBeenCalledTimes(1)
-    const [accept, inbox] = vi.mocked(DeliveryQueue.enqueue).mock.calls[0] as any[]
+    expect(DeliveryQueue.deliverOnce).toHaveBeenCalledTimes(1)
+    const [accept, inbox, signer] = vi.mocked(DeliveryQueue.deliverOnce).mock.calls[0] as any[]
     expect(inbox).toBe('https://evil.test/inbox')
+    expect(signer).toBe('alice-id')
     expect(jwtPayload(accept.result.token).video).toMatchObject({ room: `channel-${V}`, canSubscribe: true, canPublish: false })
+    expect(DeliveryQueue.enqueue).not.toHaveBeenCalled()
   })
 
   it('a member with SPEAK publishes', async () => {
     grant('mallory-id', 'VIEW_CHANNEL', 'CONNECT', 'SPEAK')
     await join()
-    const [accept] = vi.mocked(DeliveryQueue.enqueue).mock.calls[0] as any[]
+    const [accept] = vi.mocked(DeliveryQueue.deliverOnce).mock.calls[0] as any[]
     expect(jwtPayload(accept.result.token).video).toMatchObject({ canPublish: true })
+  })
+
+  it('answers to the joining actor\'s stored inbox on its own host, never another host', async () => {
+    grant('mallory-id', 'VIEW_CHANNEL', 'CONNECT')
+    Object.assign(tables.profiles[1], { shared_inbox_url: 'https://elsewhere.test/inbox', inbox_url: 'https://evil.test/users/mallory/inbox' })
+    await join()
+    expect((vi.mocked(DeliveryQueue.deliverOnce).mock.calls[0] as any[])[1]).toBe('https://evil.test/users/mallory/inbox')
+  })
+
+  it('tells members on the private voice topic', async () => {
+    grant('mallory-id', 'VIEW_CHANNEL', 'CONNECT')
+    await join()
+    expect(broadcasts.filter((b) => b.channel === `voice-channels:${S}`)).toEqual([
+      { channel: `voice-channels:${S}`, private: true, msg: { event: 'voice-channel-event', payload: expect.objectContaining({ event: 'user-joined', userId: 'mallory-id', channelId: V }) } },
+    ])
+  })
+
+  it('tells only the viewers of a restricted channel, on its own topic', async () => {
+    grant('mallory-id', 'VIEW_CHANNEL', 'CONNECT')
+    restrictedChannels = new Set([V])
+    await join()
+    expect(broadcasts.map((b) => b.channel)).toEqual([`voice-channel:${V}`])
+    expect(broadcasts[0].private).toBe(true)
+  })
+
+  it('treats a failed restriction lookup as restricted', async () => {
+    grant('mallory-id', 'VIEW_CHANNEL', 'CONNECT')
+    restrictedChannels = undefined
+    await join()
+    expect(broadcasts.map((b) => b.channel)).toEqual([`voice-channel:${V}`])
   })
 })
 
@@ -467,7 +660,7 @@ describe('VoiceChannelJoin on a remote server copy', () => {
     expect(tables.voice_channel_participants).toEqual([
       expect.objectContaining({ channel_id: RV, server_id: R, user_id: 'dave-id', is_federated: true }),
     ])
-    expect(broadcasts.some((b) => b.channel === `voice-channels:${R}`)).toBe(true)
+    expect(broadcasts.some((b) => b.channel === `voice-channels:${R}` && b.private === true)).toBe(true)
   })
 })
 

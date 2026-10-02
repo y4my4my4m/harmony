@@ -5,6 +5,7 @@
  */
 
 import { describeUserAgent } from '@/utils/userAgent'
+import { i18n } from '@/i18n'
 
 export type SecurityEvent =
   | 'new_sign_in'
@@ -22,31 +23,34 @@ export interface SecurityNoticeData {
 }
 
 export function securityNoticeText(data: SecurityNoticeData = {}): { title: string; message: string } {
+  const t = i18n.global.t
   switch (data.event) {
     case 'new_sign_in': {
       const device = describeUserAgent(data.user_agent).label
       const where = [device, data.ip].filter(Boolean).join(' · ')
       return {
-        title: 'New sign-in to your account',
-        message: `${where ? `${where}. ` : ''}Not you? Change your password and sign that session out.`,
+        title: t('security.notice.newSignIn.title'),
+        message: where
+          ? t('security.notice.newSignIn.messageWithDevice', { where })
+          : t('security.notice.newSignIn.message'),
       }
     }
     case 'mfa_enabled':
-      return { title: 'Two-factor authentication turned on', message: 'Sign-ins now need your authenticator.' }
+      return { title: t('security.notice.mfaEnabled.title'), message: t('security.notice.mfaEnabled.message') }
     case 'mfa_disabled':
       return {
-        title: 'Two-factor authentication turned off',
+        title: t('security.notice.mfaDisabled.title'),
         message: data.reason === 'recovery_code'
-          ? 'A recovery code was used to sign in. Set up two-factor authentication again.'
-          : 'Your account no longer asks for an authenticator code.',
+          ? t('security.notice.mfaDisabled.messageRecoveryCode')
+          : t('security.notice.mfaDisabled.message'),
       }
     case 'recovery_code_used':
-      return { title: 'Recovery code used', message: 'One of your recovery codes was used.' }
+      return { title: t('security.notice.recoveryCodeUsed.title'), message: t('security.notice.recoveryCodeUsed.message') }
     case 'recovery_codes_regenerated':
-      return { title: 'New recovery codes', message: 'Your previous recovery codes no longer work.' }
+      return { title: t('security.notice.recoveryCodesRegenerated.title'), message: t('security.notice.recoveryCodesRegenerated.message') }
     case 'password_changed':
-      return { title: 'Password changed', message: 'Your password was changed and your other sessions were signed out.' }
+      return { title: t('security.notice.passwordChanged.title'), message: t('security.notice.passwordChanged.message') }
     default:
-      return { title: 'Account security', message: 'There was a change to your account security.' }
+      return { title: t('security.notice.default.title'), message: t('security.notice.default.message') }
   }
 }

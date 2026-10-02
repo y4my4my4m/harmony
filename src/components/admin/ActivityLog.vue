@@ -30,9 +30,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import Icon from '@/components/common/Icon.vue'
 import { adminService, type AdminActivity } from '@/services/AdminService'
+
+const i18n = useI18n()
 
 
 
@@ -98,6 +101,10 @@ const CONFIG_KEY_LABELS: Record<string, string> = {
   oauth_providers: 'OAuth providers'
 }
 
+const CONFIG_KEY_I18N: Record<string, string> = {
+  max_post_reactions_per_user: 'admin.activityLog.configKeys.maxPostReactionsPerUser',
+}
+
 const formatConfigValue = (v: unknown): string => {
   if (v == null || (typeof v === 'string' && v === '')) return '(empty)'
   if (Array.isArray(v)) return v.join(', ')
@@ -121,7 +128,7 @@ const formatActivityMessage = (event: { type: string; message: string | object; 
 
     // Config change: key, new_value, old_value
     if (obj.key != null && ('new_value' in obj || 'old_value' in obj)) {
-      const label = CONFIG_KEY_LABELS[obj.key] || obj.key.replace(/_/g, ' ')
+      const label = (CONFIG_KEY_I18N[obj.key] && i18n.t(CONFIG_KEY_I18N[obj.key])) || CONFIG_KEY_LABELS[obj.key] || obj.key.replace(/_/g, ' ')
       const newVal = formatConfigValue(obj.new_value)
       const oldVal = formatConfigValue(obj.old_value)
       if (oldVal !== '(empty)' && newVal !== oldVal) {

@@ -8,8 +8,14 @@
  * - Keys are stored as non-extractable CryptoKey objects
  * - JavaScript cannot read the raw key material (only use for encrypt/decrypt)
  * - XSS can use keys while the page is open, but cannot exfiltrate them
- * - Keys persist until explicitly cleared (logout/lock)
+ * - Keys persist until explicitly cleared: sign-out, lock, encryption reset, or this
+ *   device being signed out or removed from another device
  * - Same-origin scoped (standard IndexedDB policy)
+ *
+ * Exception: the pairing copy. A user who links devices by QR may keep extractable copies
+ * of the encryption and backup keys in the same record (`pairingCopy`), so this device can
+ * seal them to a new device after a reload without the recovery phrase. Script running in
+ * the page can then read those two keys out. Opt-in per device; cleared with the record.
  */
 
 import { debug } from '@/utils/debug'
@@ -22,6 +28,12 @@ export interface StoredSessionKeys {
   encryptionKey: CryptoKey
   backupKey: CryptoKey
   signingKey: CryptoKey
+}
+
+/** Extractable encryption and backup keys kept for QR device pairing. */
+export interface PairingKeyCopy {
+  encryptionKey: CryptoKey
+  backupKey: CryptoKey
 }
 
 class SecureSessionKeyStore {
@@ -60,6 +72,8 @@ class SecureSessionKeyStore {
   /**
    * Store non-extractable CryptoKeys for a user.
    * If the source keys are extractable, they are re-imported as non-extractable.
+   * An existing pairing copy is replaced by the new keys when they are extractable and
+   * dropped otherwise, so it never outlives the keys it copies.
    */
   async store(userId: string, keys: StoredSessionKeys): Promise<void> {
     const db = await this.open()
@@ -69,15 +83,78 @@ class SecureSessionKeyStore {
       backupKey: await this.ensureNonExtractable(keys.backupKey),
       signingKey: await this.ensureNonExtractable(keys.signingKey),
     }
+    const copyable = keys.encryptionKey.extractable && keys.backupKey.extractable
 
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite')
       const store = tx.objectStore(STORE_NAME)
-      store.put({ userId, ...safeKeys, storedAt: Date.now() })
+      const existing = store.get(userId)
+      existing.onsuccess = () => {
+        const row: Record<string, unknown> = { userId, ...safeKeys, storedAt: Date.now() }
+        if (existing.result?.pairingCopy && copyable) {
+          row.pairingCopy = { encryptionKey: keys.encryptionKey, backupKey: keys.backupKey }
+        }
+        store.put(row)
+      }
       tx.oncomplete = () => {
         debug.log('Session keys stored securely in IndexedDB (non-extractable)')
         resolve()
       }
+      tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error)
+    })
+  }
+
+  /** Adds the pairing copy to the user's stored record. The keys must be extractable. */
+  async storePairingCopy(userId: string, copy: PairingKeyCopy): Promise<void> {
+    if (!copy.encryptionKey.extractable || !copy.backupKey.extractable) {
+      throw new Error('Pairing copy needs extractable keys')
+    }
+    const db = await this.open()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite')
+      const store = tx.objectStore(STORE_NAME)
+      const existing = store.get(userId)
+      existing.onsuccess = () => {
+        if (!existing.result) {
+          tx.abort()
+          return
+        }
+        store.put({ ...existing.result, pairingCopy: { encryptionKey: copy.encryptionKey, backupKey: copy.backupKey } })
+      }
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error ?? new Error('No stored session keys for this user'))
+    })
+  }
+
+  async loadPairingCopy(userId: string): Promise<PairingKeyCopy | null> {
+    const db = await this.open()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly')
+      const request = tx.objectStore(STORE_NAME).get(userId)
+      request.onsuccess = () => {
+        const copy = request.result?.pairingCopy
+        resolve(copy?.encryptionKey?.extractable && copy?.backupKey?.extractable
+          ? { encryptionKey: copy.encryptionKey, backupKey: copy.backupKey }
+          : null)
+      }
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async clearPairingCopy(userId: string): Promise<void> {
+    const db = await this.open()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite')
+      const store = tx.objectStore(STORE_NAME)
+      const existing = store.get(userId)
+      existing.onsuccess = () => {
+        if (!existing.result?.pairingCopy) return
+        const { pairingCopy: _dropped, ...rest } = existing.result
+        store.put(rest)
+      }
+      tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
       tx.onabort = () => reject(tx.error)
     })

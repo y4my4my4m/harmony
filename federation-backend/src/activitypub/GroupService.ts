@@ -21,6 +21,7 @@ import config from '../config/index.js';
 import { SignatureService } from './SignatureService.js';
 import { clientIp, inboxLimiter, instanceInboxLimit, signerInstanceKey } from '../middleware/rateLimit.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
+import { PUBLIC_AUDIENCE, federateContentParts } from '../utils/privateMedia.js';
 import {
   canReadServer,
   isPublicView,
@@ -564,11 +565,16 @@ router.get(
     const serverUrl = `https://${hostDomain}/servers/${serverId}`;
     const outboxUrl = `${serverUrl}/outbox`;
 
-    const access = await accessFor(req);
+    const signer = await verifiedSigner(req);
+    const access = await loadGroupAccess(serverId, signer);
     if (!access || !canReadServer(access)) {
       notFound(res, 'Server');
       return;
     }
+    // Attachment URLs name the member's instance; anyone else reads public channels only.
+    const mediaAudience = access.memberId && signer
+      ? new URL(signer).host.toLowerCase()
+      : PUBLIC_AUDIENCE;
 
     const channelIds = [...readableChannelIds(access)];
     const shareable = isPublicView(access, channelIds);
@@ -645,7 +651,7 @@ router.get(
           id: `https://${hostDomain}/messages/${message.id}`,
           attributedTo: authorApId,
           content: contentHtml,
-          'harmony:rawContent': message.content,
+          'harmony:rawContent': federateContentParts(message.content, mediaAudience),
           context: channelUrl,
           'harmony:channelName': message.channel?.name,
           'harmony:serverId': serverId,

@@ -134,6 +134,15 @@ describe('event fan-out follows channel visibility', () => {
     expect(sent.map((s) => [s.event.t, s.event.d.channel_id])).toEqual([['MESSAGE_UPDATE', GENERAL]])
   })
 
+  it('delivers a hidden channel to a bot whose allowed_channel_ids names it', async () => {
+    db.rows('bot_server_permissions').push(
+      installRow('00000000-0000-0000-0000-0000000000b3', { allowed_channel_ids: [GENERAL, MODS_ONLY] }),
+    )
+    await dispatcher.handleMessageCreate({ new: message(MODS_ONLY, 'bridged mod note') })
+
+    expect(recipients('MESSAGE_CREATE', MODS_ONLY)).toEqual(['00000000-0000-0000-0000-0000000000b3'])
+  })
+
   it('delivers nothing when visibility cannot be established', async () => {
     db.failures.channel_permission_overrides = { message: 'connection reset' }
     await dispatcher.handleMessageCreate({ new: message(GENERAL, 'hello') })

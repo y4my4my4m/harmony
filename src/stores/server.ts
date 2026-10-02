@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { supabase } from '@/supabase';
 import { useToast } from 'vue-toastification';
+import { i18n } from '@/i18n';
 import { immutableObjectPath, immutableUploadOptions, prepareImageUpload } from '@/utils/imageResize'
 import { removeReplacedObject } from '@/utils/storageImageUtils'
 import type { Server, Emoji } from '@/types';
@@ -148,11 +149,11 @@ export const useServerStore = defineStore('server', {
 
         if (error) {
           if ((error.message || '').includes('BANNED_FROM_SERVER')) {
-            toast.error("You're banned from this server.");
+            toast.error(i18n.global.t('server.bannedFromServer'));
             return false;
           }
           if ((error.message || '').includes('SERVER_NOT_PUBLIC')) {
-            toast.error('This server is joined through an invite.');
+            toast.error(i18n.global.t('server.joinRequiresInvite'));
             return false;
           }
           throw error;

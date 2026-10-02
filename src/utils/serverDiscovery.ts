@@ -134,3 +134,32 @@ export function buildServerSearchFilter(raw: string): string | null {
   const quoted = `"${pattern.replace(/["\\]/g, c => `\\${c}`)}"`
   return `name.ilike.${quoted},description.ilike.${quoted}`
 }
+
+function shallowEqual(a: object, b: object): boolean {
+  const keys = Object.keys(a)
+  if (keys.length !== Object.keys(b).length) return false
+  return keys.every(k =>
+    Object.prototype.hasOwnProperty.call(b, k) &&
+    Object.is((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]))
+}
+
+/**
+ * `next`, with each row that shallow-equals the `prev` row of the same id
+ * replaced by that `prev` object. Returns `prev` itself when every row is
+ * unchanged and in the same order. Kept identities let a keyed list skip
+ * re-rendering unchanged items.
+ */
+export function reuseUnchangedRows<T extends { id: string }>(prev: T[], next: T[]): T[] {
+  const byId = new Map(prev.map(row => [row.id, row]))
+  let unchanged = prev.length === next.length
+  const merged = next.map((row, i) => {
+    const old = byId.get(row.id)
+    if (old && shallowEqual(old, row)) {
+      if (prev[i] !== old) unchanged = false
+      return old
+    }
+    unchanged = false
+    return row
+  })
+  return unchanged ? prev : merged
+}

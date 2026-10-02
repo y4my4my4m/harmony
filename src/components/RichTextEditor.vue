@@ -51,6 +51,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useUndoRedo, type UndoState } from '@/composables/useUndoRedo';
 import { findEmojiByName } from '@/services/emojiShortcodeResolver';
 import { applyInlineFormatToggle, type InlineFormatKind } from '@/utils/richTextFormatting';
+import { HANDLE_PATTERN, continuesHandle } from '@/utils/mentionGrammar';
 
 interface Props {
   modelValue: string;
@@ -138,12 +139,11 @@ const getPlainText = (): string => {
   
   let text = '';
   let lastWasMention = false;
-  const MERGEABLE_AFTER_MENTION = /[A-Za-z0-9._@-]/;
 
   const processNode = (node: Node) => {
     if (node.nodeType === Node.TEXT_NODE) {
       const content = node.textContent || '';
-      if (lastWasMention && content && MERGEABLE_AFTER_MENTION.test(content[0])) {
+      if (lastWasMention && continuesHandle(content)) {
         text += ' ';
       }
       lastWasMention = false;
@@ -430,7 +430,10 @@ const processMentionsInText = (text: string): DocumentFragment => {
   // @role:UUID          role
   // @username@domain    remote user
   // @username           local user
-  const mentionRegex = /(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))|(@([a-zA-Z0-9_-]+)(?:@([a-zA-Z0-9.-]+))?)/g;
+  const mentionRegex = new RegExp(
+    `(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))|(${HANDLE_PATTERN})`,
+    'gu',
+  );
   
   let lastIndex = 0;
   let match;
@@ -493,7 +496,7 @@ const processMentionsInText = (text: string): DocumentFragment => {
         lastIndex = matchStart; // Held back so the trailing-text branch emits it
       } else {
         const username = match[4];
-        const domain = match[5];
+        const domain = match[5]?.toLowerCase();
         const mentionElement = createMentionElementFromDisplay(match[0], username, domain);
         fragment.appendChild(mentionElement);
       }

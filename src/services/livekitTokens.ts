@@ -100,30 +100,3 @@ export async function getLiveKitToken(
 
   return response.json();
 }
-
-export async function getFederatedLiveKitToken(
-  instanceUrl: string,
-  actorId: string,
-  roomName: string,
-  roomType: LiveKitRoomType
-): Promise<TokenResponse> {
-  // TODO: Implement HTTP signature for federated requests
-  const response = await fetch(`${instanceUrl}/api/livekit/federated-token`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      actorId,
-      roomName,
-      roomType,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-    throw new Error(error.error || 'Failed to get federated token');
-  }
-
-  return response.json();
-}

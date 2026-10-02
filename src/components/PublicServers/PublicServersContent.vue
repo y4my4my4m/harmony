@@ -79,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ServerCard from '@/components/common/ServerCard.vue'
 import ServerCardSkeleton from '@/components/common/ServerCardSkeleton.vue'
@@ -108,7 +108,13 @@ const props = defineProps<Props>()
 defineEmits<Emits>()
 
 const PAGE_SIZE = 20
+// Cards that render with the first frame of a new list or page: three grid
+// rows at desktop width. The rest of the page renders one frame later.
+const FIRST_FRAME_CARDS = 9
+
 const displayLimit = ref(PAGE_SIZE)
+const renderLimit = ref(Math.max(0, FIRST_FRAME_CARDS - props.featuredServers.length))
+let revealFrame = 0
 
 const listedServers = computed(() => {
   if (props.featuredServers.length === 0) return props.servers
@@ -116,16 +122,42 @@ const listedServers = computed(() => {
   return props.servers.filter(s => !featuredIds.has(s.id))
 })
 
-const displayedServers = computed(() => listedServers.value.slice(0, displayLimit.value))
+const displayedServers = computed(() =>
+  listedServers.value.slice(0, Math.min(displayLimit.value, renderLimit.value)))
 
 const hasMoreServers = computed(() => displayLimit.value < listedServers.value.length)
 
-const loadMore = () => {
-  displayLimit.value += PAGE_SIZE
+// Lifts the cap two animation frames out, after the capped batch has painted.
+function liftRenderLimit() {
+  cancelAnimationFrame(revealFrame)
+  revealFrame = requestAnimationFrame(() => {
+    revealFrame = requestAnimationFrame(() => {
+      revealFrame = 0
+      renderLimit.value = Number.POSITIVE_INFINITY
+    })
+  })
 }
+
+function stageReveal(firstFrame: number) {
+  renderLimit.value = Math.max(0, firstFrame)
+  liftRenderLimit()
+}
+
+const loadMore = () => {
+  const shown = displayedServers.value.length
+  displayLimit.value += PAGE_SIZE
+  stageReveal(shown + FIRST_FRAME_CARDS)
+}
+
+onMounted(liftRenderLimit)
 
 watch(() => props.servers, () => {
   displayLimit.value = PAGE_SIZE
+  stageReveal(FIRST_FRAME_CARDS - props.featuredServers.length)
+})
+
+onBeforeUnmount(() => {
+  cancelAnimationFrame(revealFrame)
 })
 </script>
 

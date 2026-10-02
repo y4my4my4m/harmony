@@ -226,7 +226,7 @@ const adminTabs = [
   { key: 'users', label: 'Users', icon: 'users' },
   { key: 'retention', label: t('adminRetention.tab'), icon: 'trending-up' },
   { key: 'reports', label: 'Reports', icon: 'flag' },
-  { key: 'antispam', label: 'Anti-spam', icon: 'shield' },
+  { key: 'antispam', label: t('admin.antiSpam.title'), icon: 'shield' },
   { key: 'content', label: 'Content', icon: 'megaphone' },
   { key: 'config', label: 'Config', icon: 'settings' },
   { key: 'funding', label: 'Funding', icon: 'heart' },
