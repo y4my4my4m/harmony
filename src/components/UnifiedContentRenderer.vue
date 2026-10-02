@@ -48,7 +48,7 @@
             <span class="mention-at">@</span>
             <DisplayName :userId="part.userId" :fallback="part.displayName || part.username" :truncate="false" />
             <!-- Show @domain suffix for federated users so the handle is unambiguous -->
-            <span v-if="isFederatedMention(part)" class="mention-domain">@{{ part.domain }}</span>
+            <span v-if="isFederatedMention(part)" class="mention-domain">@{{ mentionSuffix(part) }}</span>
           </template>
           <template v-else>{{ renderer.formatMentionDisplay(part) }}</template>
         </span>
@@ -199,6 +199,8 @@ import { escapeHtml, sanitizeMessageHtml, safeHref } from '@/utils/sanitize';
 import { isTauriRuntime } from '@/services/instanceConfig';
 import { openExternalUrl } from '@/services/tauriLinks';
 import DisplayName from '@/components/DisplayName.vue';
+import { useUserData } from '@/composables/useUserData';
+import { mentionDisplayDomain } from '@/utils/mentionGrammar';
 import Icon from '@/components/common/Icon.vue';
 import EncryptedGlyphPreview from '@/components/encryption/EncryptedGlyphPreview.vue';
 
@@ -334,18 +336,23 @@ const handleMentionClick = (mention: MessagePart) => {
 
 const currentDomain = import.meta.env.VITE_DOMAIN as string;
 
-const isFederatedMention = (part: MessagePart): boolean => {
-  if (part.type !== 'mention') return false;
-  return !part.isLocal && !!part.domain && part.domain !== currentDomain && part.domain !== 'discord.com';
+const { getUser } = useUserData();
+const mentionSuffix = (part: MessagePart): string | null => {
+  if (part.type !== 'mention') return null;
+  const user = part.userId ? getUser(part.userId).value : null;
+  return mentionDisplayDomain(part, user ? { domain: user.domain, isLocal: user.isLocal } : null, currentDomain);
 };
+
+const isFederatedMention = (part: MessagePart): boolean => !!mentionSuffix(part);
 
 const getMentionTooltip = (part: MessagePart): string => {
   if (part.type !== 'mention') return '';
   if (part.domain === 'discord.com') {
     return `Discord user: ${part.displayName || part.username}`;
   }
-  if (!part.isLocal && part.domain) {
-    return `@${part.username}@${part.domain}`;
+  const suffix = mentionSuffix(part);
+  if (suffix) {
+    return `@${part.username}@${suffix}`;
   }
   return part.displayName || part.username || '';
 };

@@ -9,6 +9,7 @@ import { debug } from '@/utils/debug'
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { sanitizeInlineHtml } from '@/utils/sanitize';
 import { apiUrl } from '@/services/instanceConfig'
+import { findHandles } from '@/utils/mentionGrammar'
 
 export interface MentionMatch {
   full: string;          // "@tester004@mastodon.social"
@@ -167,22 +168,15 @@ export function extractMentions(text: string): MentionMatch[] {
   const isInsideUrl = (pos: number): boolean =>
     urlRanges.some(r => pos >= r.start && pos < r.end);
 
-  const mentionRegex = /@([a-zA-Z0-9_]+)(?:@([a-zA-Z0-9.-]+))?/g;
-  const mentions: MentionMatch[] = [];
-  let match;
-
-  while ((match = mentionRegex.exec(text)) !== null) {
-    if (isInsideUrl(match.index)) continue;
-    mentions.push({
-      full: match[0],
-      username: match[1],
-      domain: match[2],
-      startIndex: match.index,
-      endIndex: match.index + match[0].length
-    });
-  }
-
-  return mentions;
+  return findHandles(text)
+    .filter(h => !isInsideUrl(h.start))
+    .map(h => ({
+      full: h.raw,
+      username: h.username,
+      domain: h.domain,
+      startIndex: h.start,
+      endIndex: h.end,
+    }));
 }
 
 /**

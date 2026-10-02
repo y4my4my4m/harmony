@@ -1924,12 +1924,14 @@ class UserDataService extends EventTarget {
   
   /** Used for mention parsing. Searches the cache only. */
   findUserIdByUsername(username: string, domain?: string): string | null {
-    // With a domain the key is username@domain, otherwise username.
+    // The local host is the bare form. A bare username matches local users
+    // only; a remote user of the same name is a different account.
+    const localDomain = ((import.meta.env.VITE_DOMAIN as string) || '').toLowerCase();
+    if (domain && domain.toLowerCase() === localDomain) domain = undefined;
     const searchKey = domain ? `${username}@${domain}`.toLowerCase() : username.toLowerCase();
     
     for (const [userId, userData] of this.users.entries()) {
-      // Local users match on username alone.
-      if (!domain && userData.username.toLowerCase() === searchKey) {
+      if (!domain && userData.isLocal && userData.username.toLowerCase() === searchKey) {
         return userId;
       }
       
