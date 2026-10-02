@@ -169,7 +169,7 @@ export class ActivityPubService {
         return {
           ...post,
           is_bookmarked: interactions.some((i: any) => i.interaction_type === 'bookmark'),
-          is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite' || i.interaction_type === 'emoji_reaction'),
+          is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite'),
           is_reblogged: interactions.some((i: any) => i.interaction_type === 'reblog'),
         };
       });
@@ -215,7 +215,7 @@ export class ActivityPubService {
           return {
             ...post,
             is_bookmarked: interactions.some((i: any) => i.interaction_type === 'bookmark'),
-            is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite' || i.interaction_type === 'emoji_reaction'),
+            is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite'),
             is_reblogged: interactions.some((i: any) => i.interaction_type === 'reblog'),
           };
         });
@@ -632,7 +632,7 @@ export class ActivityPubService {
       const interactions = post.my_interactions || [];
       return {
         ...post,
-        is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite' || i.interaction_type === 'emoji_reaction'),
+        is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite'),
         is_reblogged: interactions.some((i: any) => i.interaction_type === 'reblog'),
         is_bookmarked: interactions.some((i: any) => i.interaction_type === 'bookmark'),
       };
@@ -1712,7 +1712,7 @@ export class ActivityPubService {
             return {
               ...post,
               is_bookmarked: interactions.some((i: any) => i.interaction_type === 'bookmark'),
-              is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite' || i.interaction_type === 'emoji_reaction'),
+              is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite'),
               is_reblogged: interactions.some((i: any) => i.interaction_type === 'reblog'),
             };
           });
@@ -1783,7 +1783,7 @@ export class ActivityPubService {
         return {
           ...post,
           is_bookmarked: interactions.some((i: any) => i.interaction_type === 'bookmark'),
-          is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite' || i.interaction_type === 'emoji_reaction'),
+          is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite'),
           is_reblogged: interactions.some((i: any) => i.interaction_type === 'reblog'),
         };
       });
@@ -1874,7 +1874,6 @@ export class ActivityPubService {
     return `https://${domain}/posts/${postId}`;
   }
 
-  // emoji_reaction counts as favorited.
   async getPostInteractionState(postId: string): Promise<{
     is_favorited: boolean;
     is_reblogged: boolean;
@@ -1898,7 +1897,7 @@ export class ActivityPubService {
     };
 
     interactions?.forEach(interaction => {
-      if (interaction.interaction_type === 'favorite' || interaction.interaction_type === 'emoji_reaction') state.is_favorited = true;
+      if (interaction.interaction_type === 'favorite') state.is_favorited = true;
       if (interaction.interaction_type === 'reblog') state.is_reblogged = true;
       if (interaction.interaction_type === 'bookmark') state.is_bookmarked = true;
     });

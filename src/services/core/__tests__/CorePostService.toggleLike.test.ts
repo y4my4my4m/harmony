@@ -24,9 +24,8 @@ interface InteractionRow {
 
 /**
  * post_interactions plus the two behaviours toggleLike depends on:
- * update_post_reaction_counts (favorite and emoji_reaction each move
- * posts.favorites_count by one) and the federated base count posts carries
- * independently of local rows.
+ * update_post_reaction_counts (a favorite row moves posts.favorites_count by
+ * one) and the federated base count posts carries independently of local rows.
  */
 class FakeDb {
   rows: InteractionRow[] = []
@@ -45,19 +44,16 @@ class FakeDb {
       this.rows.filter(
         (r) =>
           r.post_id === postId &&
-          (r.interaction_type === 'favorite' || r.interaction_type === 'emoji_reaction'),
+          r.interaction_type === 'favorite',
       ).length
     )
   }
 
   // The predicate every read path applies: RPC is_favorited and
-  // CorePostService.loadPost both OR the two types together.
+  // CorePostService.loadPost read the favorite row alone.
   isFavorited(postId: string, userId: string): boolean {
     return this.rows.some(
-      (r) =>
-        r.post_id === postId &&
-        r.user_id === userId &&
-        (r.interaction_type === 'favorite' || r.interaction_type === 'emoji_reaction'),
+      (r) => r.post_id === postId && r.user_id === userId && r.interaction_type === 'favorite',
     )
   }
 }
@@ -162,35 +158,34 @@ describe('CorePostService.toggleLike', () => {
     service = CorePostService.getInstance()
   })
 
-  it('clears the heart for a user who only emoji-reacted, instead of raising the count', async () => {
+  it('favourites a post the user has only emoji-reacted to, keeping the reaction', async () => {
     db.add({ post_id: POST_ID, user_id: PROFILE_ID, interaction_type: 'emoji_reaction', emoji_id: 'thumbsup' })
 
-    // The heart renders filled off this predicate, over a count of 1.
-    expect(db.isFavorited(POST_ID, PROFILE_ID)).toBe(true)
-    expect(db.favoritesCount(POST_ID)).toBe(1)
+    // A reaction is a chip; the heart is empty over a count of 0.
+    expect(db.isFavorited(POST_ID, PROFILE_ID)).toBe(false)
+    expect(db.favoritesCount(POST_ID)).toBe(0)
 
     const result = await service.toggleLike(POST_ID)
 
-    expect(result.newCount).toBe(0)
-    expect(result.liked).toBe(false)
-    expect(db.favoritesCount(POST_ID)).toBe(0)
-    expect(db.isFavorited(POST_ID, PROFILE_ID)).toBe(false)
-    expect(db.rows.filter((r) => r.interaction_type === 'favorite')).toHaveLength(0)
+    expect(result.liked).toBe(true)
+    expect(result.newCount).toBe(1)
+    expect(db.isFavorited(POST_ID, PROFILE_ID)).toBe(true)
+    expect(db.rows.map((r) => r.interaction_type).sort()).toEqual(['emoji_reaction', 'favorite'])
   })
 
-  it('clears favourite and every emoji reaction in one press, leaving the federated base', async () => {
+  it('unfavourites without touching the emoji reactions, leaving the federated base', async () => {
     db.base = 554
     db.add({ post_id: POST_ID, user_id: PROFILE_ID, interaction_type: 'favorite' })
     for (const emoji of ['thumbsup', 'eyes', 'skull']) {
       db.add({ post_id: POST_ID, user_id: PROFILE_ID, interaction_type: 'emoji_reaction', emoji_id: emoji })
     }
-    expect(db.favoritesCount(POST_ID)).toBe(558)
+    expect(db.favoritesCount(POST_ID)).toBe(555)
 
     const result = await service.toggleLike(POST_ID)
 
     expect(result.liked).toBe(false)
     expect(result.newCount).toBe(554)
-    expect(db.rows).toHaveLength(0)
+    expect(db.rows.map((r) => r.emoji_id)).toEqual(['thumbsup', 'eyes', 'skull'])
   })
 
   it('favourites a post the user has not touched', async () => {
@@ -220,9 +215,10 @@ describe('CorePostService.toggleLike', () => {
   })
 
   it('leaves other users rows and other interaction types alone', async () => {
-    db.add({ post_id: POST_ID, user_id: OTHER_ID, interaction_type: 'emoji_reaction', emoji_id: 'thumbsup' })
+    db.add({ post_id: POST_ID, user_id: OTHER_ID, interaction_type: 'favorite' })
     db.add({ post_id: POST_ID, user_id: PROFILE_ID, interaction_type: 'bookmark' })
     db.add({ post_id: POST_ID, user_id: PROFILE_ID, interaction_type: 'reblog' })
+    db.add({ post_id: POST_ID, user_id: PROFILE_ID, interaction_type: 'favorite' })
     db.add({ post_id: POST_ID, user_id: PROFILE_ID, interaction_type: 'emoji_reaction', emoji_id: 'eyes' })
 
     const result = await service.toggleLike(POST_ID)
@@ -231,8 +227,9 @@ describe('CorePostService.toggleLike', () => {
     expect(result.newCount).toBe(1)
     expect(db.rows.map((r) => `${r.user_id}:${r.interaction_type}`).sort()).toEqual([
       `${PROFILE_ID}:bookmark`,
+      `${PROFILE_ID}:emoji_reaction`,
       `${PROFILE_ID}:reblog`,
-      `${OTHER_ID}:emoji_reaction`,
+      `${OTHER_ID}:favorite`,
     ])
   })
 })

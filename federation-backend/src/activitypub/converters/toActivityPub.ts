@@ -368,11 +368,27 @@ export function createRejectActivity(actor: any, followActivity: any): any {
 }
 
 /**
- * Create a Like activity (for reactions).
+ * Id of the Like federated for a post_interactions row. An Undo names the same id: Pleroma
+ * and Akkoma resolve the undone activity by id, Mastodon and Misskey by actor and object.
+ */
+export function likeActivityId(user: { username: string }, interactionId: string): string {
+  return `https://${config.INSTANCE_DOMAIN}/users/${user.username}/likes/${interactionId}`;
+}
+
+/**
+ * Create a Like activity: a favourite when `emojiContent` is absent, otherwise a reaction.
+ *
+ * A favourite carries no `content` or `_misskey_reaction`. Mastodon reads every Like as a
+ * favourite; Misskey maps a bare Like to the instance's like reaction.
+ *
+ * A reaction carries the emoji in `content` and `_misskey_reaction`, and a custom emoji
+ * adds an Emoji tag. Misskey and its forks read `_misskey_reaction`; Pleroma and Akkoma
+ * rewrite such a Like into an EmojiReact.
  *
  * @param recipientUrls - ActivityPub actor URLs to address the activity to.
  *   For post reactions pass the post author URL; for DM reactions pass all
  *   remote conversation participants. Omit for backwards-compat (no `to`).
+ * @param activityId - Stable id, from likeActivityId for a post interaction.
  */
 export function createLikeActivity(
   user: any, 
@@ -380,21 +396,10 @@ export function createLikeActivity(
   emojiContent?: string,
   emojiData?: { name: string; url: string },
   recipientUrls?: string[],
+  activityId?: string,
 ): any {
   const domain = config.INSTANCE_DOMAIN;
   const userUrl = `https://${domain}/users/${user.username}`;
-  const activityId = `${userUrl}/likes/${Date.now()}`;
-
-  const rawReaction = emojiContent || '❤';
-
-  // Misskey's isCustomEmojiRegexp /^:([\w+-]+)(?:@\.)?:$/ only matches
-  // `:name:` or `:name@.:` - NOT `:name@domain:`.  Sending the qualified
-  // form causes Misskey to fall back to a generic.  Strip @domain here;
-  // Misskey infers the origin domain from the actor's host and the tag data
-  // provides the icon URL.
-  const reactionValue = emojiData
-    ? rawReaction.replace(/@[\w.-]+(?=:$)/, '')
-    : rawReaction;
 
   const activity: any = {
     '@context': [
@@ -406,19 +411,30 @@ export function createLikeActivity(
         '_misskey_reaction': 'misskey:_misskey_reaction',
       }
     ],
-    id: activityId,
+    id: activityId || `${userUrl}/likes/${Date.now()}`,
     type: 'Like',
     actor: userUrl,
     object: objectUrl,
-    content: reactionValue,
-    _misskey_reaction: reactionValue,
   };
+
+  if (emojiContent) {
+    // Misskey's isCustomEmojiRegexp /^:([\w+-]+)(?:@\.)?:$/ only matches
+    // `:name:` or `:name@.:` - NOT `:name@domain:`.  Sending the qualified
+    // form causes Misskey to fall back to a generic.  Strip @domain here;
+    // Misskey infers the origin domain from the actor's host and the tag data
+    // provides the icon URL.
+    const reactionValue = emojiData
+      ? emojiContent.replace(/@[\w.-]+(?=:$)/, '')
+      : emojiContent;
+    activity.content = reactionValue;
+    activity._misskey_reaction = reactionValue;
+  }
 
   if (recipientUrls && recipientUrls.length > 0) {
     activity.to = recipientUrls;
   }
 
-  if (emojiData?.url) {
+  if (emojiContent && emojiData?.url) {
     const ext = emojiData.url.split('.').pop()?.toLowerCase().split('?')[0] || '';
     const mediaType = ext === 'gif' ? 'image/gif'
       : ext === 'webp' ? 'image/webp'

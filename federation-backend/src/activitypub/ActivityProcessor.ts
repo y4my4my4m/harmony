@@ -16,6 +16,7 @@ import config from '../config/index.js';
 import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.js';
 import { pgrstOrValue } from '../utils/postgrestFilter.js';
 import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
+import { isFavouriteLike, isHeartReaction, storeFavourite } from '../utils/heartReaction.js';
 import { fetchAuthoritativeDocument, sameOrigin } from '../utils/apOrigin.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { flagComment, flagObjectUris, parseLocalObjectUri } from './flag.js';
@@ -1537,6 +1538,17 @@ export class ActivityProcessor {
     }
 
     if (post) {
+      // Mastodon Like, Misskey default like, heart EmojiReact: one favourite per actor.
+      if (isFavouriteLike({ emoji, emojiUrl, emojiName })) {
+        const outcome = await storeFavourite(supabase, post.id, user.id);
+        if (outcome === 'failed') {
+          logger.error(`Failed to insert favourite on post ${post.id} from ${actorUrl}`);
+        } else {
+          logger.info(`Favourite on post ${post.id} from ${actorUrl}: ${outcome}`);
+        }
+        return;
+      }
+
       // Only image-backed custom emoji resolve to an emoji_id; unicode reactions
       // are grouped purely by custom_emoji_content (matches local behavior and
       // avoids creating url-less rows in the emojis table).
@@ -1544,15 +1556,12 @@ export class ActivityProcessor {
       const emojiId = isCustomEmoji
         ? await this.resolveInboundEmojiId(supabase, emojiName, emojiUrl, user.id)
         : null;
-      
-      // Normalize heart variants so Mastodon plain Likes group together.
-      let normalizedEmoji = emoji || '❤️';
-      if (!emoji || normalizedEmoji === '❤' || normalizedEmoji === '❤️') {
-        normalizedEmoji = '❤️';
-      }
+
+      // Not a favourite, so either a unicode emoji or an Emoji tag is present.
+      const reactionContent = emoji ?? `:${emojiName!.replace(/:/g, '')}:`;
       // A reaction emitted here returns qualified with our own domain, which the duplicate
       // check below compares literally against the `:name:` already stored.
-      normalizedEmoji = stripOwnEmojiDomain(normalizedEmoji) ?? normalizedEmoji;
+      const normalizedEmoji = stripOwnEmojiDomain(reactionContent) ?? reactionContent;
       
       logger.info(`Inserting reaction: emoji_id=${emojiId}, custom_content=${normalizedEmoji}`);
       
@@ -1963,8 +1972,9 @@ export class ActivityProcessor {
 
   /**
    * Predicate selecting the rows an Undo of Like/EmojiReaction removes: the
-   * actor's rows carrying the emoji the Undo names. A Like naming no emoji is
-   * the plain favourite, which processLike stores as a heart.
+   * actor's rows carrying the emoji the Undo names. A Like naming no emoji or a
+   * unicode heart is the favourite (isFavouriteLike); on a message, which has no
+   * favourite, it is the heart reaction.
    *
    * One custom emoji has two stored representations, (emoji_id, ':name:') from
    * a local reaction and (NULL, ':name:') from an inbound one; either column
@@ -1978,7 +1988,7 @@ export class ActivityProcessor {
     emojiName: string | undefined,
   ): Promise<(row: any) => boolean> {
     const isCustomEmoji = !!(emojiUrl && emojiName);
-    const isPlainLike = !isCustomEmoji && !emoji;
+    const undoesFavourite = isFavouriteLike({ emoji, emojiUrl, emojiName });
 
     // Lookup only: an Undo naming an unknown emoji matches nothing rather than
     // creating a row.
@@ -1992,21 +2002,20 @@ export class ActivityProcessor {
       emojiId = emojiRow?.id ?? null;
     }
 
-    // Content strings processLike writes for this emoji. Both heart variants
-    // count as one reaction, matching the insert-side normalization.
+    // Content strings processLike writes for this emoji.
     const contents = new Set<string>();
-    if (isPlainLike || emoji === '❤️' || emoji === '❤') {
-      contents.add('❤️');
-      contents.add('❤');
-    } else if (emoji) {
+    if (emoji && !undoesFavourite) {
       contents.add(emoji);
+      const unqualified = stripOwnEmojiDomain(emoji);
+      if (unqualified) contents.add(unqualified);
     }
     if (isCustomEmoji) {
       contents.add(`:${emojiName!.replace(/:/g, '')}:`);
     }
 
     return (row: any) => {
-      if (row.interaction_type === 'favorite') return isPlainLike;
+      if (row.interaction_type === 'favorite') return undoesFavourite;
+      if (undoesFavourite) return isHeartReaction(row.custom_emoji_content);
       if (emojiId !== null && row.emoji_id === emojiId) return true;
       return typeof row.custom_emoji_content === 'string' && contents.has(row.custom_emoji_content);
     };

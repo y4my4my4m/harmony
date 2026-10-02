@@ -1305,28 +1305,8 @@ export const useActivityPubStore = defineStore('activitypub', {
       if (isCurrentUser) {
         switch (interactionType) {
           case 'favorite':
-          case 'emoji_reaction': {
-            // is_favorited is EXISTS(favorite OR emoji_reaction), and a user
-            // holds one row per emoji. A removal leaves the other rows
-            // standing, so re-read instead of clearing the heart.
-            if (eventType === 'INSERT') {
-              userStateUpdates.is_favorited = true;
-              break;
-            }
-            const { data: hearts, error: heartsError } = await supabase
-              .from('post_interactions')
-              .select('id')
-              .eq('post_id', postId)
-              .eq('user_id', userId)
-              .in('interaction_type', ['favorite', 'emoji_reaction'])
-              .limit(1);
-            if (heartsError) {
-              debug.error('Failed to re-read heart interactions for realtime update:', heartsError);
-              break;
-            }
-            userStateUpdates.is_favorited = (hearts?.length ?? 0) > 0;
+            userStateUpdates.is_favorited = eventType === 'INSERT';
             break;
-          }
           case 'reblog':
             userStateUpdates.is_reblogged = eventType === 'INSERT';
             break;
@@ -1549,7 +1529,7 @@ export const useActivityPubStore = defineStore('activitypub', {
           const postInteractions = interactionMap.get(post.reblog.id) || new Set();
           post.reblog = {
             ...post.reblog,
-            is_favorited: postInteractions.has('favorite') || postInteractions.has('emoji_reaction'),
+            is_favorited: postInteractions.has('favorite'),
             is_reblogged: postInteractions.has('reblog'),
             is_bookmarked: postInteractions.has('bookmark')
           };
@@ -2498,7 +2478,7 @@ export const useActivityPubStore = defineStore('activitypub', {
             const interactions = interactionMap.get(post.id) || new Set();
             return {
               ...post,
-              is_favorited: interactions.has('favorite') || interactions.has('emoji_reaction'),
+              is_favorited: interactions.has('favorite'),
               is_reblogged: interactions.has('reblog'),
               is_bookmarked: interactions.has('bookmark')
             };
@@ -3306,7 +3286,7 @@ export const useActivityPubStore = defineStore('activitypub', {
              return {
                ...post,
                is_bookmarked: interactions.some((i: any) => i.interaction_type === 'bookmark'),
-               is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite' || i.interaction_type === 'emoji_reaction'),
+               is_favorited: interactions.some((i: any) => i.interaction_type === 'favorite'),
                is_reblogged: interactions.some((i: any) => i.interaction_type === 'reblog'),
              };
            });

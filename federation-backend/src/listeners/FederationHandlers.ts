@@ -209,12 +209,28 @@ export function createUndoFollowActivity(follower: any, following: any, followRe
 }
 
 /**
- * Create an Undo Like activity (remove reaction)
+ * Create an Undo Like activity (remove reaction).
+ *
+ * `like` is the Like being undone, as createLikeActivity built it: same id, same
+ * `_misskey_reaction` and tag, so a receiver holding several reactions from one actor
+ * removes the one named. Without it the Undo carries a bare Like under a fresh id.
  */
-export function createUndoLikeActivity(user: any, objectUrl: string): any {
+export function createUndoLikeActivity(user: any, objectUrl: string, like?: any): any {
   const domain = config.INSTANCE_DOMAIN;
   const userUrl = `https://${domain}/users/${user.username}`;
-  
+
+  if (like) {
+    // The embedded Like keeps no @context of its own and no per-delivery audience.
+    const { '@context': context, to: _to, ...embedded } = like;
+    return {
+      '@context': context,
+      id: `${like.id}/undo`,
+      type: 'Undo',
+      actor: userUrl,
+      object: embedded,
+    };
+  }
+
   const likeActivity = {
     '@context': 'https://www.w3.org/ns/activitystreams',
     id: `${userUrl}/likes/${Date.now()}`,

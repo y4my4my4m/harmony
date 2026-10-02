@@ -269,9 +269,8 @@ describe('useActivityPub realtime count fan-out', () => {
     expect((store.homeFeed.posts[0] as any).is_favorited).toBe(false)
   })
 
-  // is_favorited spans favorite and emoji_reaction, and a user holds one row
-  // per emoji.
-  it('keeps the heart when a removed emoji reaction leaves a favorite', async () => {
+  // is_favorited is the favourite row alone; emoji reactions are chips.
+  it('keeps the heart when an emoji reaction is removed', async () => {
     seedDb({
       posts: [{ id: 'p1', favorites_count: 1, reblogs_count: 0, replies_count: 0 }],
       post_interactions: [{ id: 'i1', post_id: 'p1', user_id: 'me', interaction_type: 'favorite' }],
@@ -284,7 +283,7 @@ describe('useActivityPub realtime count fan-out', () => {
     expect((store.homeFeed.posts[0] as any).is_favorited).toBe(true)
   })
 
-  it('empties the heart once the last heart row is gone', async () => {
+  it('empties the heart when the favourite is removed', async () => {
     seedDb({
       posts: [{ id: 'p1', favorites_count: 0, reblogs_count: 0, replies_count: 0 }],
       post_interactions: [],
@@ -297,12 +296,22 @@ describe('useActivityPub realtime count fan-out', () => {
     expect((store.homeFeed.posts[0] as any).is_favorited).toBe(false)
   })
 
-  it('lights the heart on an emoji reaction insert', async () => {
-    seedDb({ posts: [{ id: 'p1', favorites_count: 1, reblogs_count: 0, replies_count: 0 }] })
+  it('leaves the heart empty on an emoji reaction insert', async () => {
+    seedDb({ posts: [{ id: 'p1', favorites_count: 0, reblogs_count: 0, replies_count: 0 }] })
     const store = useActivityPubStore()
     store.homeFeed.posts = [{ id: 'p1', is_favorited: false } as any]
 
     await store.updatePostInteractionFromRealtime('p1', 'emoji_reaction', 'INSERT', 'me')
+
+    expect((store.homeFeed.posts[0] as any).is_favorited).toBe(false)
+  })
+
+  it('lights the heart on a favourite insert', async () => {
+    seedDb({ posts: [{ id: 'p1', favorites_count: 1, reblogs_count: 0, replies_count: 0 }] })
+    const store = useActivityPubStore()
+    store.homeFeed.posts = [{ id: 'p1', is_favorited: false } as any]
+
+    await store.updatePostInteractionFromRealtime('p1', 'favorite', 'INSERT', 'me')
 
     expect((store.homeFeed.posts[0] as any).is_favorited).toBe(true)
   })
