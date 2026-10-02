@@ -3,6 +3,7 @@ import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { profileToActor } from './converters/toActivityPub.js';
 import { actorToProfile, noteToContent } from './converters/fromActivityPub.js';
+import { misskeyDisplayNameEmojis } from '../utils/misskeyEmojis.js';
 import { resolveLocalProfileEmojis } from './emojiResolver.js';
 import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
 import { isHeartReaction, storeFavourite } from '../utils/heartReaction.js';
@@ -890,6 +891,7 @@ function aggregateRemoteReactions(
       entry.reactors.push({
         username: r.actor.username,
         display_name: r.actor.display_name || r.actor.username,
+        display_name_emojis: r.actor.display_name_emojis,
         avatar_url: r.actor.avatar_url,
         domain: r.actor.domain,
       });
@@ -1114,16 +1116,7 @@ async function fetchMisskeyReactions(
         }
       }
       
-      let displayNameEmojis: Array<{name: string, url: string}> = [];
-      if (user?.emojis && typeof user.emojis === 'object') {
-        displayNameEmojis = Object.entries(user.emojis).map(([name, url]) => ({
-          name,
-          url: url as string,
-        }));
-        if (displayNameEmojis.length > 0) {
-          logger.debug(`Found ${displayNameEmojis.length} display name emojis for ${user?.username}`);
-        }
-      }
+      const displayNameEmojis = misskeyDisplayNameEmojis(user, domain);
       
       if (user?.host !== null && user?.host !== undefined) {
         logger.debug(`Reactor ${user?.username} has host: "${user.host}"`);
