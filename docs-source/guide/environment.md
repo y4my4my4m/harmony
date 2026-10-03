@@ -62,6 +62,7 @@ All frontend environment variables are prefixed with `VITE_` and accessible at b
 | Variable | Description |
 |----------|-------------|
 | `VITE_HARMONY_ALT_DOMAINS` | Comma-separated alternate domains for embed detection |
+| `VITE_DEFAULT_INSTANCE_URL` | Native clients only: instance pre-filled in the first-launch picker (e.g., `https://har.mony.lol`). Unset leaves the field blank. CI reads it from the `DEFAULT_INSTANCE_URL` repository variable |
 
 ## Federation Backend (`federation-backend/.env`)
 

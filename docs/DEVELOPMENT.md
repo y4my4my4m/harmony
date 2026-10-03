@@ -753,6 +753,25 @@ tauri's original file name; it is signed but not compared with anything.
 `node --test scripts/github-release.test.mjs` runs the release scripts against
 a stand-in for the GitHub releases API; CI runs it with the unit tests.
 
+### Default instance
+
+On first launch the native clients ask which instance to connect to.
+`VITE_DEFAULT_INSTANCE_URL` pre-fills that field at build time and focuses
+Connect; the field stays editable, and the instance is still checked through
+`/api/federation/instance-info` before it is stored. Unset or empty, the field
+starts blank. A previously chosen instance takes precedence over the default.
+
+Both `tauri.yml` and `release.yml` read it from the `DEFAULT_INSTANCE_URL`
+repository variable. It is a variable, not a secret: the value ships in the
+client.
+
+```bash
+gh variable set DEFAULT_INSTANCE_URL --repo y4my4my4m/harmony --body https://har.mony.lol
+```
+
+Forks set their own variable, or leave it unset for a blank picker. For a
+local build, put `VITE_DEFAULT_INSTANCE_URL=https://your.instance` in `.env`.
+
 ### Android push
 
 The Android app receives push while closed through one of two transports, chosen

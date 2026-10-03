@@ -67,6 +67,21 @@ export function getInstanceDomain(): string {
   return 'your-instance';
 }
 
+// Picker prefill from VITE_DEFAULT_INSTANCE_URL. Returns the host for https
+// (the field shows the https:// prefix), the full origin otherwise, '' when unset or invalid.
+export function defaultInstanceInput(
+  raw: string | undefined = import.meta.env.VITE_DEFAULT_INSTANCE_URL as string | undefined
+): string {
+  const value = raw?.trim();
+  if (!value) return '';
+  try {
+    const url = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`);
+    return url.protocol === 'https:' ? url.host : url.origin;
+  } catch {
+    return '';
+  }
+}
+
 function normalizeOrigin(input: string): string {
   let value = input.trim();
   if (!value) throw new Error('Enter an instance domain');
