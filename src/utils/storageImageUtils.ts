@@ -91,6 +91,31 @@ export function rawStorageUrl(bucket: string, value: string | null | undefined):
     : value
 }
 
+const RENDER_PUBLIC_SEGMENT = '/storage/v1/render/image/public/'
+const OBJECT_PUBLIC_SEGMENT = '/storage/v1/object/public/'
+const TRANSFORM_PARAMS = ['width', 'height', 'resize', 'quality', 'format']
+
+/**
+ * Object URL behind a public render URL: same host and object, transform
+ * parameters dropped, other query parameters kept. Null for any other URL,
+ * including signed render URLs, whose token does not cover the object route.
+ */
+export function renderToObjectUrl(url: string | null | undefined): string | null {
+  if (!url || typeof url !== 'string') return null
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return null
+  }
+  const at = parsed.pathname.indexOf(RENDER_PUBLIC_SEGMENT)
+  if (at < 0) return null
+  parsed.pathname =
+    parsed.pathname.slice(0, at) + OBJECT_PUBLIC_SEGMENT + parsed.pathname.slice(at + RENDER_PUBLIC_SEGMENT.length)
+  for (const param of TRANSFORM_PARAMS) parsed.searchParams.delete(param)
+  return parsed.toString()
+}
+
 /**
  * Best-effort removal of the object a new upload replaced. Only objects under
  * `folder/` other than `current` are removed.

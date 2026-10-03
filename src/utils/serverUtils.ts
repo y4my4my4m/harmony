@@ -3,6 +3,7 @@ import { debug } from '@/utils/debug'
 import { uploadImageObject } from '@/utils/fileUpload'
 import { bannerRenderSize, canonicalSquareSize } from '@/utils/imageTransformUtils'
 import { rawStorageUrl } from '@/utils/storageImageUtils'
+import { knownRenderFallback } from '@/utils/renderFallback'
 
 // Constants
 const DEFAULT_SERVER_ICON = '/default_server.webp'
@@ -56,7 +57,7 @@ function transformSupabaseStoragePath(path: string, size: number): string {
       },
     })
 
-  return data.publicUrl
+  return knownRenderFallback(data.publicUrl)
 }
 
 /**
@@ -174,7 +175,7 @@ function transformServerBannerPath(
         quality: options?.quality || 80,
       },
     })
-  return data.publicUrl
+  return knownRenderFallback(data.publicUrl)
 }
 
 function rawServerBannerPath(path: string): string {

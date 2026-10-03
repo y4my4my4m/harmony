@@ -88,7 +88,7 @@ interface Props {
   /**
    * Render width/height in device pixels, in place of the display size times
    * devicePixelRatio. Reuses a variant another placement already fetched: the
-   * context-bar icon requests the 96px variant the rail loads at 2x.
+   * context-bar icon requests the variant the rail loads.
    */
   fetchSize?: number
   /** Click opens the stored icon in MediaLightbox; ignored for the default icon. */

@@ -3,6 +3,7 @@ import { debug } from '@/utils/debug'
 import { uploadImageObject } from '@/utils/fileUpload'
 import { bannerRenderSize } from '@/utils/imageTransformUtils'
 import { rawStorageUrl, storageObjectPath } from '@/utils/storageImageUtils'
+import { knownRenderFallback } from '@/utils/renderFallback'
 
 const BANNERS_BUCKET = 'banners'
 
@@ -30,7 +31,7 @@ export function getPublicBannerUrl(storagePath: string, options?: { width?: numb
       .getPublicUrl(storagePath, {
         transform: { width, height, resize: 'cover', quality: options?.quality ?? 80 },
       })
-    return data.publicUrl || null
+    return knownRenderFallback(data.publicUrl) || null
   } catch (error) {
     debug.error('Error getting public banner URL:', error)
     return null

@@ -2,6 +2,7 @@ import { supabase } from '@/supabase'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { canonicalEmojiSize } from '@/utils/imageTransformUtils'
 import { isLocalStorageHostname } from '@/utils/storageImageUtils'
+import { knownRenderFallback } from '@/utils/renderFallback'
 
 const DEFAULT_EMOJI_TRANSFORM_QUALITY = 80
 
@@ -60,7 +61,7 @@ export function getEmojiUrl(emojiUrl: string | null | undefined, size: number = 
                     .getPublicUrl(emojiPath, {
                         transform: { width: optimizedSize, height: optimizedSize, resize: 'contain', quality }
                     });
-                return data.publicUrl;
+                return knownRenderFallback(data.publicUrl);
             }
             return emojiUrl;
         } catch (_) {
@@ -74,5 +75,5 @@ export function getEmojiUrl(emojiUrl: string | null | undefined, size: number = 
         .getPublicUrl(emojiUrl, {
             transform: { width: canonicalEmojiSize(size), height: canonicalEmojiSize(size), resize: 'contain', quality }
         });
-    return data.publicUrl;
+    return knownRenderFallback(data.publicUrl);
 }

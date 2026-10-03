@@ -30,6 +30,7 @@ import { debug } from '@/utils/debug'
 import { webrtcManager } from '@/services/webrtcManager';
 import { livekitWebRTC } from '@/services/livekitWebRTC';
 import { detectAvailablePacks } from '@/services/emojiPackService';
+import { installRenderFallback } from '@/utils/renderFallback';
 
 // Expose for debugging in browser console
 if (typeof window !== 'undefined') {
@@ -37,6 +38,8 @@ if (typeof window !== 'undefined') {
   (window as any).livekitWebRTC = livekitWebRTC;
   (window as any).pwaManager = pwaManager;
 }
+
+installRenderFallback();
 
 const app = createApp(App);
 

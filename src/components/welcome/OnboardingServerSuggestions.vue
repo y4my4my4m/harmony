@@ -55,6 +55,7 @@ import { useId } from 'vue'
 import Icon from '@/components/common/Icon.vue'
 import ServerIcon from '@/components/common/ServerIcon.vue'
 import { getServerBannerUrl } from '@/utils/serverUtils'
+import { withRenderFallback } from '@/utils/renderFallback'
 import type { OnboardingServer } from '@/services/ServerWelcomeService'
 
 withDefaults(defineProps<{
@@ -81,7 +82,7 @@ function formatCount(count: number): string {
 }
 
 function bannerUrl(server: OnboardingServer): string | null {
-  return getServerBannerUrl(server.banner, { width: 960, height: 240 })
+  return withRenderFallback(getServerBannerUrl(server.banner, { width: 960, height: 240 }))
 }
 
 function bannerStyle(server: OnboardingServer): Record<string, string> {

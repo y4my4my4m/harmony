@@ -199,6 +199,7 @@ import {
 import type { ServerBot } from '@/services/serverBotsService'
 import { BOT_NAME_COLOR } from '@/utils/botUtils'
 import { getBannerUrl } from '@/utils/bannerUtils'
+import { withRenderFallback } from '@/utils/renderFallback'
 import { debug } from '@/utils/debug'
 
 /** Commands listed before the list collapses. */
@@ -251,7 +252,7 @@ const view = computed(() => {
 const bannerStyle = computed(() => {
   const banner = profile.value?.bannerUrl
   if (!banner) return undefined
-  const url = getBannerUrl(banner, { width: 640, height: 350, quality: 80 }) || banner
+  const url = withRenderFallback(getBannerUrl(banner, { width: 640, height: 350, quality: 80 })) || banner
   return {
     backgroundImage: `url(${JSON.stringify(url)})`,
     backgroundSize: 'cover',

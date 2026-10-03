@@ -44,7 +44,6 @@
             :src="currentUser?.avatar_url"
             :alt="currentUser?.display_name || currentUser?.username"
             size="md"
-            :fetch-size="256"
             :interactive="true"
             @click="$emit('profile-click')"
           />
