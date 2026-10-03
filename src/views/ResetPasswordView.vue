@@ -239,7 +239,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { supabase } from '@/supabase'
+import { signOutAndForget, supabase } from '@/supabase'
 import { useToast } from 'vue-toastification'
 import { useAuthStore } from '@/stores/auth'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -502,7 +502,7 @@ const performPasswordReset = async () => {
 
 const goToLogin = async () => {
   if (isPasswordResetMode.value && !isSuccess.value) {
-    await supabase.auth.signOut()
+    await signOutAndForget('local')
     authStore.session = null
     authStore.clearPasswordResetMode()
   }

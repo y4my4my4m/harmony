@@ -279,7 +279,10 @@ describe('useAuthStore', () => {
         user: { id: 'new-user' },
       } as any)
 
-      expect(signOutSpy).toHaveBeenCalled()
+      // Local scope: a global logout from an aal1 token deletes the account's aal2 sessions too.
+      const { signOutAndForget } = await import('@/supabase')
+      expect(signOutAndForget).toHaveBeenCalledWith('local')
+      expect(signOutSpy).not.toHaveBeenCalled()
       expect(userStorage.clearCurrentUser).toHaveBeenCalled()
       expect(store.session).toBeNull()
     })
@@ -608,6 +611,77 @@ describe('useAuthStore', () => {
       await expect(store.completeRecoverySignIn('WRONGWRONG')).rejects.toThrow('not valid')
       expect(store.session).toBeNull()
       expect(store._pendingMFAVerification).toBe(false)
+    })
+  })
+
+  describe('abandoned MFA challenge', () => {
+    const aal1Session = { access_token: jwtWithAAL('aal1'), user: { id: 'mfa-user' } }
+
+    function mfaLoginMocks() {
+      let handler: ((event: string, session: any) => Promise<void>) | null = null
+      ;(supabase.auth as any).onAuthStateChange = vi.fn((fn: any) => {
+        handler = fn
+        return { data: { subscription: { unsubscribe: vi.fn() } } }
+      })
+      ;(supabase.auth as any).getSession = vi.fn().mockResolvedValue({ data: { session: null } })
+      ;(supabase.auth as any).signInWithPassword = vi.fn(async () => {
+        // GoTrue-js dispatches SIGNED_IN before signInWithPassword resolves.
+        await handler?.('SIGNED_IN', aal1Session)
+        return { data: { user: aal1Session.user, session: aal1Session }, error: null }
+      })
+      ;(supabase.auth as any).mfa = {
+        listFactors: vi.fn().mockResolvedValue({ data: { totp: [{ id: 'factor-1', status: 'verified' }] }, error: null }),
+        challenge: vi.fn().mockResolvedValue({ data: { id: 'challenge-1' }, error: null }),
+      }
+      const chain: any = { select: () => chain, eq: () => chain, maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }
+      ;(supabase.from as any).mockReturnValue(chain)
+      const signOut = vi.fn().mockResolvedValue({ error: null })
+      ;(supabase.auth as any).signOut = signOut
+      return signOut
+    }
+
+    it('cancel ends only this device\'s pending session', async () => {
+      const { signOutAndForget } = await import('@/supabase')
+      const signOut = mfaLoginMocks()
+      const store = useAuthStore()
+      store._pendingMFAVerification = true
+
+      await store.cancelPendingSignIn()
+
+      expect(signOutAndForget).toHaveBeenCalledTimes(1)
+      expect(signOutAndForget).toHaveBeenCalledWith('local')
+      expect(signOut).not.toHaveBeenCalled()
+      expect(store._pendingMFAVerification).toBe(false)
+      expect(store.session).toBeNull()
+    })
+
+    it('login, cancel, login again never revokes other sessions', async () => {
+      const { signOutAndForget } = await import('@/supabase')
+      const signOut = mfaLoginMocks()
+      const store = useAuthStore()
+      await store.initializeAuth()
+
+      const first = await store.login('mfa@example.com', 'pw')
+      expect(first.requires2FA).toBe(true)
+      await store.cancelPendingSignIn()
+      const second = await store.login('mfa@example.com', 'pw')
+
+      expect(second).toMatchObject({ requires2FA: true, factorId: 'factor-1', challengeId: 'challenge-1' })
+      expect(store._pendingMFAVerification).toBe(true)
+      expect(signOut).not.toHaveBeenCalled()
+      expect((signOutAndForget as any).mock.calls).toEqual([['local']])
+    })
+
+    it('a restored aal1 session of an enrolled account is dropped locally', async () => {
+      const { signOutAndForget } = await import('@/supabase')
+      const signOut = mfaLoginMocks()
+      ;(supabase.auth as any).getSession = vi.fn().mockResolvedValue({ data: { session: aal1Session } })
+      const store = useAuthStore()
+      await store.initializeAuth()
+
+      expect(store.session).toBeNull()
+      expect(signOutAndForget).toHaveBeenCalledWith('local')
+      expect(signOut).not.toHaveBeenCalled()
     })
   })
 

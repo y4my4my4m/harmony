@@ -101,7 +101,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import { useAuthStore } from '@/stores/auth'
-import { supabase } from '@/supabase'
+import { signOutAndForget, supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { isTauriRuntime } from '@/services/instanceConfig'
 import type { Session } from '@supabase/supabase-js'
@@ -148,11 +148,7 @@ const cancelMfaAndGoToLogin = async () => {
   // Tear down the AAL1 session. Left in storage, another tab picks it up via
   // INITIAL_SESSION, hits validateSessionForMFA's reject branch and signs out
   // anyway; clearing here closes the window where the stale token lives.
-  authStore._pendingMFAVerification = false
-  try { await supabase.auth.signOut() } catch (err) {
-    debug.error('Failed to sign out AAL1 session on MFA cancel:', err)
-  }
-  authStore.session = null
+  await authStore.cancelPendingSignIn()
   router.push('/login')
 }
 
@@ -312,7 +308,7 @@ onMounted(async () => {
       const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors()
       if (factorsError) {
         debug.error('Failed to list factors after AAL1 rejection:', factorsError)
-        try { await supabase.auth.signOut() } catch { /* ignore */ }
+        await signOutAndForget('local')
         authStore.session = null
         throw new Error('Authentication failed. Please try again.')
       }
@@ -321,7 +317,7 @@ onMounted(async () => {
       if (!totpFactor) {
         // No factor → not the "needs MFA" case. Bail.
         debug.warn('OAuth callback rejected at AAL1 with no MFA factor - unexpected, signing out')
-        try { await supabase.auth.signOut() } catch { /* ignore */ }
+        await signOutAndForget('local')
         authStore.session = null
         throw new Error('Authentication failed. Please try again.')
       }
@@ -340,7 +336,7 @@ onMounted(async () => {
       if (challengeError) {
         debug.error('Failed to create MFA challenge in OAuth callback:', challengeError)
         authStore._pendingMFAVerification = false
-        try { await supabase.auth.signOut() } catch { /* ignore */ }
+        await signOutAndForget('local')
         authStore.session = null
         throw new Error('Failed to start two-factor verification. Please try again.')
       }

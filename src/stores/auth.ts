@@ -178,7 +178,7 @@ export const useAuthStore = defineStore('auth', {
               this._mfaValidatedForSession = refetched.access_token
             } else {
               debug.warn('Cached-path session restoration blocked: AAL1 with MFA enabled')
-              try { await supabase.auth.signOut() } catch { /* ignore */ }
+              await signOutAndForget('local')
               this.session = null
             }
           } else {
@@ -240,7 +240,7 @@ export const useAuthStore = defineStore('auth', {
           } else {
             debug.warn('Session restoration blocked - AAL1 session with MFA enabled (MFA bypass prevented)');
             // Sign out the incomplete session to prevent other tabs from using it
-            await supabase.auth.signOut();
+            await signOutAndForget('local');
             this.session = null;
           }
         } else {
@@ -383,11 +383,7 @@ export const useAuthStore = defineStore('auth', {
             // picks it up and logs in without MFA.
             this.session = null;
             this.isPasswordResetMode = false;
-            try {
-              await supabase.auth.signOut();
-            } catch (signOutError) {
-              debug.error('Failed to sign out invalid AAL1 session:', signOutError);
-            }
+            await signOutAndForget('local');
             userStorage.clearCurrentUser();
             this.cleanupNotificationSystem();
             return;
@@ -431,7 +427,7 @@ export const useAuthStore = defineStore('auth', {
             const isValid = alreadyValidated || (await this.validateSessionForMFA(session))
             if (!isValid) {
               debug.warn('INITIAL_SESSION blocked: AAL1 session with MFA enabled (BUGS.md C11)')
-              try { await supabase.auth.signOut() } catch { /* ignore */ }
+              await signOutAndForget('local')
               this.session = null
               this.cleanupNotificationSystem()
               return
@@ -469,7 +465,7 @@ export const useAuthStore = defineStore('auth', {
           const isValid = await this.validateSessionForMFA(session);
           if (!isValid) {
             debug.warn(`${event} blocked: AAL1 session with MFA enabled (BUGS.md C11)`)
-            try { await supabase.auth.signOut() } catch { /* ignore */ }
+            await signOutAndForget('local')
             this.session = null
             return
           }
@@ -648,6 +644,17 @@ export const useAuthStore = defineStore('auth', {
         this._pendingMFAVerification = false;
         throw err;
       }
+    },
+
+    /**
+     * Abandons a sign-in held at its MFA challenge. The pending session is aal1; GoTrue's
+     * default global logout from it deletes every session of the account, aal2 ones
+     * included, so only this device's session is ended.
+     */
+    async cancelPendingSignIn() {
+      this._pendingMFAVerification = false;
+      await signOutAndForget('local');
+      this.session = null;
     },
 
     async verify2FA(factorId: string, challengeId: string, code: string) {

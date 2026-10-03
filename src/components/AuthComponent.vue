@@ -255,9 +255,10 @@
     <!-- 2FA Modal -->
     <Teleport to="body">
       <Transition name="modal">
-        <div v-if="show2FAModal" class="modal-backdrop" @click.self="close2FAModal">
-          <div class="modal-card">
-            <button class="modal-close" @click="close2FAModal">
+        <!-- The pending aal1 session ends only through an explicit cancel: no backdrop or Escape dismissal. -->
+        <div v-if="show2FAModal" class="modal-backdrop" data-testid="twofa-backdrop">
+          <div class="modal-card" role="dialog" aria-modal="true">
+            <button class="modal-close" data-testid="twofa-close" :disabled="twoFactorLoading" @click="cancel2FA">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"/>
                 <line x1="6" y1="6" x2="18" y2="18"/>
@@ -292,7 +293,7 @@
                 </div>
 
                 <div class="modal-actions">
-                  <button type="button" class="btn-secondary" @click="close2FAModal" :disabled="twoFactorLoading">
+                  <button type="button" class="btn-secondary" data-testid="twofa-cancel" @click="cancel2FA" :disabled="twoFactorLoading">
                     {{ $t('common.cancel') }}
                   </button>
                   <button 
@@ -631,26 +632,14 @@ const handleCodeInput = () => {
   }
 }
 
-const close2FAModal = async () => {
+const cancel2FA = async () => {
   show2FAModal.value = false
   twoFactorCode.value = ''
   twoFactorError.value = ''
   pendingFactorId.value = ''
   pendingChallengeId.value = ''
   useRecoveryCode.value = false
-  authStore._pendingMFAVerification = false
-
-  // Defense-in-depth: sign out the AAL1 session that signInWithPassword
-  // wrote to localStorage. Without this, the unfinished MFA session
-  // lingers in shared browser storage until the next page load triggers
-  // INITIAL_SESSION → validateSessionForMFA → signOut. That self-heal already
-  // blocks access (validateSessionForMFA rejects the AAL1+MFA combination);
-  // this clears the token at cancel time instead of at next load.
-  try {
-    await supabase.auth.signOut()
-  } catch (err) {
-    debug.error('Failed to sign out AAL1 session on 2FA modal cancel:', err)
-  }
+  await authStore.cancelPendingSignIn()
 }
 
 // Forgot Password
