@@ -58,7 +58,7 @@ and catch-all branches of `onAuthStateChange`.
 
 Accepted: `aal2`; `aal1` with `totp` in `amr`; `aal1` with no verified factor.
 Rejected: `aal1` without `totp` while a verified factor exists, and any `listFactors`
-error. Rejection signs the session out so another tab cannot adopt it.
+error. Rejection signs the session out with `scope: 'local'` so another tab cannot adopt it.
 
 `_pendingMFAVerification` suppresses these checks while a challenge is in flight. It must
 be set before `signInWithPassword`: the awaits that follow yield to the queued
@@ -84,7 +84,11 @@ password reset (`ResetPasswordView.vue`) share the challenge.
   session is a full session; the user is sent to Security to enrol again. The password
   reset view redeems the same way before setting the new password.
 
-Cancelling the challenge signs the pending `aal1` session out.
+The challenge dialog has no backdrop or Escape dismissal. Its cancel control calls
+`authStore.cancelPendingSignIn()`, which signs the pending `aal1` session out with
+`scope: 'local'`. GoTrue's `/logout` checks no assurance level: the default global scope
+from an `aal1` token deletes every session of the account, `aal2` ones included. Every
+sign-out of a rejected or abandoned `aal1` session is therefore local.
 
 ## Recovery codes
 

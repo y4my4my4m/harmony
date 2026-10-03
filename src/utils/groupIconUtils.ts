@@ -2,6 +2,7 @@ import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { uploadImageObject } from '@/utils/fileUpload'
 import { removeReplacedObject } from '@/utils/storageImageUtils'
+import { knownRenderFallback } from '@/utils/renderFallback'
 
 /**
  * Group Icon Utilities
@@ -71,7 +72,7 @@ export function getGroupIconUrl(
       return getDefaultGroupIcon(conversationId, size)
     }
 
-    return data.publicUrl
+    return knownRenderFallback(data.publicUrl)
   } catch (error) {
     debug.error('Failed to get group icon URL:', error)
     return getDefaultGroupIcon(conversationId, options.size)

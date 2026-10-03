@@ -20,10 +20,10 @@
             autocorrect="off"
             spellcheck="false"
             :disabled="busy"
-            autofocus
+            :autofocus="!prefilled"
           />
         </div>
-        <button type="submit" :disabled="busy || !domain.trim()">
+        <button ref="connectButton" type="submit" :disabled="busy || !domain.trim()">
           {{ busy ? 'Connecting…' : 'Connect' }}
         </button>
       </form>
@@ -38,8 +38,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import {
+  defaultInstanceInput,
   fetchInstanceInfo,
   getStoredInstance,
   setStoredInstance,
@@ -48,7 +49,9 @@ import {
 const emit = defineEmits<{ (e: 'close'): void }>();
 
 const current = getStoredInstance();
-const domain = ref(current ? new URL(current.origin).hostname : '');
+const prefilled = !current && defaultInstanceInput() !== '';
+const domain = ref(current ? new URL(current.origin).hostname : defaultInstanceInput());
+const connectButton = ref<HTMLButtonElement | null>(null);
 const busy = ref(false);
 const error = ref('');
 
@@ -65,6 +68,10 @@ async function connect() {
     busy.value = false;
   }
 }
+
+onMounted(() => {
+  if (prefilled) connectButton.value?.focus();
+});
 
 function cancel() {
   emit('close');

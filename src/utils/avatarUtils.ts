@@ -1,6 +1,7 @@
 import { supabase } from '@/supabase'
 import { canonicalSquareSize } from '@/utils/imageTransformUtils'
 import { rawStorageUrl } from '@/utils/storageImageUtils'
+import { knownRenderFallback } from '@/utils/renderFallback'
 
 /**
  * Normalizes an avatar URL. Accepts full URLs and path-only forms; Supabase
@@ -50,18 +51,18 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
       return urlObj.toString()
     }
 
-    const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/public\/avatars\/(.+?)\/*$/)
+    // Local render URLs are re-derived at `size`; callers pass URLs sized for another box.
+    const pathMatch = urlObj.pathname.match(/\/storage\/v1\/(?:object|render\/image)\/public\/avatars\/(.+?)\/*$/)
     if (pathMatch) {
       if (isRemote) {
         return avatarUrl
       }
-      // Local Supabase URL - extract path and use local storage transformation
       const { data } = supabase.storage
         .from('avatars')
         .getPublicUrl(cleanStoragePath(pathMatch[1]), {
           transform: { width: renderSize, height: renderSize, resize: 'contain', quality: 80 }
         })
-      return data.publicUrl
+      return knownRenderFallback(data.publicUrl)
     }
     // External URLs (not Supabase storage) - return as-is
     return avatarUrl
@@ -75,7 +76,7 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
         transform: { width: renderSize, height: renderSize, resize: 'contain', quality: 80 }
       })
 
-    return data.publicUrl
+    return knownRenderFallback(data.publicUrl)
   }
 
   // If it's a local path (starts with /), return as-is

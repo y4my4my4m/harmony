@@ -200,11 +200,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Server } from '@/types'
 import { useNotificationStore } from '@/stores/useNotification'
-import { getServerBannerUrl, getRawServerBannerUrl } from '@/utils/serverUtils'
+import { getServerBannerUrl } from '@/utils/serverUtils'
+import { withRenderFallback } from '@/utils/renderFallback'
 import { imageSourceError } from '@/utils/uploadValidation'
 import ServerIcon from '@/components/common/ServerIcon.vue'
 
@@ -258,8 +259,6 @@ const iconPreviewUrl = computed(() => {
   return props.server.icon || null
 })
 
-const bannerTransformFailed = ref(false)
-
 const bannerPreviewUrl = computed(() => {
   if (currentBannerBlobUrl) {
     URL.revokeObjectURL(currentBannerBlobUrl)
@@ -270,20 +269,8 @@ const bannerPreviewUrl = computed(() => {
     return currentBannerBlobUrl
   }
   if (!props.server.banner) return null
-  if (bannerTransformFailed.value) {
-    return getRawServerBannerUrl(props.server.banner)
-  }
-  return getServerBannerUrl(props.server.banner, { width: 640, height: 200 })
+  return withRenderFallback(getServerBannerUrl(props.server.banner, { width: 640, height: 200 }))
 })
-
-watch(() => props.server.banner, (bannerPath) => {
-  bannerTransformFailed.value = false
-  const transformed = getServerBannerUrl(bannerPath, { width: 640, height: 200 })
-  if (!transformed) return
-  const img = new Image()
-  img.onerror = () => { bannerTransformFailed.value = true }
-  img.src = transformed
-}, { immediate: true })
 
 const triggerBannerInput = () => {
   if (!props.permissions.canChangeServerIcon) return

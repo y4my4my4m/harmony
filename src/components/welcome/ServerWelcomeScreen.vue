@@ -72,6 +72,7 @@ import { computed, useId } from 'vue'
 import Icon from '@/components/common/Icon.vue'
 import ServerIcon from '@/components/common/ServerIcon.vue'
 import { getServerBannerUrl } from '@/utils/serverUtils'
+import { withRenderFallback } from '@/utils/renderFallback'
 import { renderWelcomeMessage } from '@/utils/welcomeMessage'
 import type { WelcomeRule } from '@/services/ServerWelcomeService'
 
@@ -104,7 +105,7 @@ const titleId = `ws-${useId()}`
 
 const renderedMessage = computed(() => renderWelcomeMessage(props.message.trim()))
 
-const bannerUrl = computed(() => getServerBannerUrl(props.server.banner, { width: 1080, height: 300 }))
+const bannerUrl = computed(() => withRenderFallback(getServerBannerUrl(props.server.banner, { width: 1080, height: 300 })))
 const bannerStyle = computed(() => (bannerUrl.value ? { backgroundImage: `url("${bannerUrl.value}")` } : {}))
 
 const formattedAcceptedAt = computed(() => {
