@@ -727,6 +727,15 @@ Each build is uploaded as one unzipped artifact named after its file:
 | `tauri.yml`, release profile | `Harmony_Windows_V1.6.5_dev-master-1a2b3c4.exe` |
 | `tauri.yml`, debug profile | `Harmony_Android_V1.6.5_debug-feat-push-1a2b3c4.apk` |
 
+`gh run download` expects zip archives and fails on these with "not a valid zip
+file". Fetch them through the API instead; each artifact downloads as the file
+itself:
+
+```bash
+gh api repos/y4my4my4m/harmony/actions/runs/<run-id>/artifacts -q '.artifacts[]|"\(.id) \(.name)"' |
+  while read -r id name; do gh api "repos/y4my4my4m/harmony/actions/artifacts/$id/zip" > "$name"; done
+```
+
 Both workflows take every name from `scripts/name-artifact.sh`: tagged
 releases with `--release`, `tauri.yml` without. The version is the one in
 `src-tauri/tauri.conf.json`, which `release.yml` stamps from the tag. The
