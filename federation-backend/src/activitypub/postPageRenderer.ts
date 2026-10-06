@@ -42,6 +42,16 @@ function resolveStorageUrl(
   return `${base}/storage/v1/object/public/${bucket}/${raw}`;
 }
 
+/**
+ * Original object of a storage image, for link-preview crawlers: a render can answer WebP,
+ * which some crawlers do not display.
+ */
+function originalStorageUrl(raw: string | null | undefined, bucket: string): string {
+  const url = resolveStorageUrl(raw, bucket);
+  if (!url.includes('/storage/v1/render/image/public/')) return url;
+  return url.replace('/storage/v1/render/image/public/', '/storage/v1/object/public/').split('?')[0];
+}
+
 function escapeHtml(str: string): string {
   return String(str ?? '')
     .replace(/&/g, '&amp;')
@@ -354,6 +364,7 @@ export function renderPostPage(post: any, author: any): string {
     : `${displayNamePlain}: "${ogDescription.substring(0, 80)}${ogDescription.length > 80 ? '...' : ''}"`;
 
   const avatarUrl = resolveStorageUrl(author.avatar_url, 'avatars', 96) || `https://${domain}/default-avatar.png`;
+  const ogAvatarUrl = originalStorageUrl(author.avatar_url, 'avatars') || `https://${domain}/default-avatar.png`;
 
   const favorites = post.favorites_count || 0;
   const reblogs = post.reblogs_count || 0;
@@ -375,7 +386,7 @@ export function renderPostPage(post: any, author: any): string {
   <meta property="og:url" content="${escapeHtml(postUrl)}">
   ${firstImage ? `<meta property="og:image" content="${escapeHtml(firstImage.url)}">
   ${firstImage.width ? `<meta property="og:image:width" content="${firstImage.width}">` : ''}
-  ${firstImage.height ? `<meta property="og:image:height" content="${firstImage.height}">` : ''}` : `<meta property="og:image" content="${escapeHtml(avatarUrl)}">`}
+  ${firstImage.height ? `<meta property="og:image:height" content="${firstImage.height}">` : ''}` : `<meta property="og:image" content="${escapeHtml(ogAvatarUrl)}">`}
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="${firstImage ? 'summary_large_image' : 'summary'}">
