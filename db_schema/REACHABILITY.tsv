@@ -157,7 +157,7 @@ create_notification_with_spam_prevention	definer	uuid	service_role	service key	n
 create_or_get_direct_conversation	definer	uuid	anon+authenticated+service_role	client	rpc in src/stores/useDM.ts
 create_report	definer	uuid	authenticated+service_role	client	rpc in src/services/ReportService.ts
 create_thread	definer	uuid	anon+authenticated+service_role	client	rpc in src/services/ThreadService.ts
-current_jwt_claims	invoker	jsonb	service_role	client, policy	called by delete_my_account, enforce_request_assurance, generate_mfa_recovery_codes, +4
+current_jwt_claims	invoker	jsonb	service_role	client, policy	called by delete_my_account, enforce_request_assurance, generate_mfa_recovery_codes, +5
 current_user_block_peer_ids	definer	SETOF uuid	anon+authenticated+service_role	client, policy	policy public.posts SELECT on posts_select_public
 current_user_is_member_of_server	definer	boolean	anon+authenticated+service_role	http anon	nothing references it
 current_user_server_ids	definer	SETOF uuid	authenticated+service_role	client, policy	policy public.channel_categories SELECT on channel_categories_select_member, public.server_roles SELECT on server_roles_select_member, public.servers SELECT on servers_select_member, +2
@@ -187,6 +187,7 @@ enforce_message_reply_scope	definer	trigger	service_role	trigger	trigger public.
 enforce_post_length	invoker	trigger	anon+authenticated+service_role	client, trigger	named in src/utils/messageContentUtils.ts; trigger public.posts BEFORE INSERT/UPDATE (trg_enforce_post_length)
 enforce_request_assurance	definer	void	anon+authenticated+service_role	http anon	nothing references it
 enforce_server_rules_acceptance	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT (a_messages_rules_acceptance)
+ensure_realtime_partitions	definer	integer	-	cron	cron 5 * * * * (realtime-partitions)
 export_my_messages	definer	jsonb	authenticated+service_role	client	rpc in src/services/DataExportService.ts
 extract_hashtags_from_content	invoker	text[]	anon+authenticated+service_role	trigger	called by process_post_hashtags
 extract_message_text	invoker	text	anon+authenticated+service_role	trigger	called by handle_local_post_mention_notifications, handle_message_federation, handle_newcomer_first_message, +5
@@ -437,6 +438,7 @@ remove_group_icon	definer	jsonb	authenticated+service_role	client	rpc in src/uti
 remove_message_from_index	definer	trigger	anon+authenticated+service_role	trigger	trigger public.messages AFTER DELETE (trigger_remove_message_index)
 remove_post_emoji_reaction	definer	boolean	anon+authenticated+service_role	client	named in src/stores/postReactions.ts
 remove_timeline_on_unfollow	definer	trigger	anon+authenticated+service_role	trigger	trigger public.follows BEFORE DELETE (remove_timeline_on_unfollow_trigger)
+remove_voice_participant	definer	boolean	service_role	client	rpc in federation-backend/src/services/voiceParticipantReconciler.ts
 report_content_snapshot	invoker	jsonb	service_role	client	called by create_federated_report, create_report
 request_my_data_export	definer	jsonb	authenticated+service_role	client	rpc in src/services/DataExportService.ts
 request_room_epoch_bump	definer	integer	anon+authenticated+service_role	client	rpc in src/services/encryption/RoomEpochService.ts
@@ -475,7 +477,7 @@ send_notification	definer	uuid[]	service_role	client, trigger	called by handle_m
 send_notification_to_user	definer	uuid	service_role	client, trigger	rpc in federation-backend/src/activitypub/ActivityProcessor.ts
 server_has_remote_members	invoker	boolean	service_role	service key	nothing references it
 server_newcomer_alerts_state	invoker	jsonb	service_role	client, trigger	called by get_server_newcomer_alerts, handle_newcomer_first_message, set_server_newcomer_alerts
-session_meets_aal	definer	boolean	anon+authenticated+service_role	policy	policy public.messages SELECT on messages_session_aal, realtime.messages ALL on realtime_messages_session_aal, storage.objects ALL on storage_objects_session_aal
+session_meets_aal	definer	boolean	anon+authenticated+service_role	client, policy	policy public.messages SELECT on messages_session_aal, realtime.messages ALL on realtime_messages_session_aal, storage.objects ALL on storage_objects_session_aal
 session_step_up_fresh	invoker	boolean	service_role	client	called by delete_my_account, generate_mfa_recovery_codes
 set_bot_allowed_channels	definer	uuid[]	authenticated+service_role	client	rpc in src/components/settings/ServerBotsSettings.vue
 set_channel_encryption	definer	jsonb	authenticated+service_role	client	rpc in src/services/ChannelEncryptionService.ts
@@ -492,6 +494,7 @@ set_server_raid_lockdown	definer	jsonb	authenticated+service_role	client	rpc in 
 set_server_welcome	definer	jsonb	authenticated+service_role	client	rpc in src/services/ServerWelcomeService.ts
 set_welcome_server	definer	jsonb	authenticated+service_role	client	rpc in src/services/ServerWelcomeService.ts
 should_show_gif_ads	definer	boolean	anon+authenticated+service_role	client	rpc in federation-backend/src/routes/gifs.ts
+sign_out_my_sessions	definer	integer	authenticated+service_role	client	rpc in src/services/AccountSecurityService.ts, src/supabase.ts
 skip_share_outside_room	definer	trigger	service_role	trigger	trigger public.megolm_session_shares BEFORE INSERT (a_megolm_session_shares_room_guard)
 slugify_server_name	invoker	text	anon+authenticated+service_role	trigger	called by generate_unique_server_slug
 start_dm_call_message	definer	uuid	authenticated+service_role	client	rpc in src/services/DMCallSignaling.ts
@@ -573,3 +576,4 @@ user_has_encryption	invoker	boolean	service_role	service key	called by get_conve
 verify_bot_token	definer	jsonb	anon+authenticated+service_role	client	rpc in bot-gateway/src/auth/BotAuthMiddleware.ts, bot-gateway/src/gateway/WebSocketGateway.ts
 verify_my_password	definer	boolean	authenticated+service_role	client	rpc in src/services/AccountSecurityService.ts
 verify_recovery_code	definer	boolean	authenticated+service_role	client	rpc in src/components/settings/user/TwoFactorSettings.vue
+voice_participant_joined_at	invoker	trigger	service_role	trigger	trigger public.voice_channel_participants BEFORE INSERT/UPDATE (a_voice_participants_joined_at)
