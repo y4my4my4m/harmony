@@ -18,6 +18,7 @@ import { startPushNotificationListener } from './listeners/PushNotificationHandl
 import { DeliveryQueue } from './activitypub/DeliveryQueue.js';
 import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
 import { redis } from './services/RedisService.js';
+import { startVoiceParticipantSweep, stopVoiceParticipantSweep } from './services/voiceParticipantSweep.js';
 
 let deliveryRetryIntervalId: ReturnType<typeof setInterval> | null = null;
 let notificationListener: NotificationListener | null = null;
@@ -95,6 +96,8 @@ export async function startWorker(): Promise<void> {
   }, 30000);
 
   logger.info('Delivery queue retry processor started (30s interval)');
+
+  startVoiceParticipantSweep();
   logger.info('Harmony Federation Worker is ready');
 }
 
@@ -105,6 +108,7 @@ export async function stopWorker(): Promise<void> {
     clearInterval(deliveryRetryIntervalId);
     deliveryRetryIntervalId = null;
   }
+  stopVoiceParticipantSweep();
 
   if (notificationListener) {
     await notificationListener.stop();

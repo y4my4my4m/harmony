@@ -50,6 +50,29 @@ export function parseRoomName(roomName: unknown, roomType: RoomType): ParsedRoom
   return null;
 }
 
+/** Channel id of a `channel-{id}` or `stage-{id}` room; null for any other name. */
+export function channelIdOfRoom(roomName: unknown): string | null {
+  const room = parseRoomName(roomName, 'voice_channel') ?? parseRoomName(roomName, 'stage');
+  return room?.kind === 'channel' ? room.channelId : null;
+}
+
+/**
+ * LiveKit identity of a profile's room token:
+ *   federated:{federated_id}                         a profile with a federated id
+ *   federated:https://{instanceDomain}/users/{name}  a local profile
+ *   {profile id}                                     no instance domain
+ * Stable across instances; a remote actor's token carries `federated:{actorId}`,
+ * which is its profile's federated_id.
+ */
+export function liveKitIdentity(
+  profile: { id: string; username?: string | null; federated_id?: string | null },
+  instanceDomain: string | undefined,
+): string {
+  if (profile.federated_id) return `federated:${profile.federated_id}`;
+  if (instanceDomain) return `federated:https://${instanceDomain}/users/${profile.username || 'unknown'}`;
+  return profile.id;
+}
+
 /** `federated-dm-{conversationId}-{millis}` for exactly this conversation. */
 export function isFederatedDmRoomFor(roomName: unknown, conversationId: string): boolean {
   if (typeof roomName !== 'string') return false;

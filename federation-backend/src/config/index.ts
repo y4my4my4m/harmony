@@ -82,6 +82,9 @@ const envSchema = z.object({
   
   // WebRTC Mode: 'sfu' | 'p2p' | 'hybrid' (sfu with p2p fallback)
   WEBRTC_MODE: z.enum(['sfu', 'p2p', 'hybrid']).default('hybrid'),
+
+  // Worker: seconds between voice_channel_participants / LiveKit reconciliations; 0 disables.
+  VOICE_RECONCILE_INTERVAL_SECONDS: z.coerce.number().int().min(0).default(60),
   
   // Allow federated voice/video calls
   ALLOW_FEDERATED_VOICE: z.string().transform(v => v === 'true').default('true'),

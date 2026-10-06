@@ -517,6 +517,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.connectionState = 'connected';
       this.isEncrypted = webrtcManager.isE2EEEnabled();
       this.applyAudioPrefs();
+      if (this.connectionMode === 'p2p' && serverId !== 'dm') {
+        void serverUsersStore.markVoiceTransport(channelId, userId, 'p2p');
+      }
       debug.log(`[VoiceChannel] Connected via ${this.connectionMode?.toUpperCase() || 'unknown'} mode (${roomType}), E2EE: ${this.isEncrypted}`);
       
       if (abortSignal?.aborted) {
@@ -1378,6 +1381,18 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       
       // From authStore: localState.userId can still be empty here.
       const currentUserId = authStore.session?.user?.id;
+
+      // A closing page leaves its server voice channel; a crash or kill is left to the
+      // server's LiveKit reconciliation.
+      if (typeof window !== 'undefined') {
+        window.addEventListener('pagehide', () => {
+          const serverId = this.currentServerId;
+          const channelId = this.currentChannelId;
+          if (!this.isConnected || !serverId || !channelId || serverId === 'dm' || this.isFederatedChannel) return;
+          serverUsersStore.leaveVoiceChannelOnUnload(
+            serverId, channelId, this.localState.userId, authStore.session?.access_token);
+        });
+      }
       
       webrtcManager.on('channel-joined', (data: any) => {
         debug.log('Channel joined:', data);

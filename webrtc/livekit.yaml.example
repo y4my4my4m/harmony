@@ -89,7 +89,11 @@ redis:
 # =============================================================================
 # Webhooks (Optional)
 # =============================================================================
+# participant_left / room_finished remove the voice_channel_participants row of
+# a dropped client within seconds; without them the federation worker removes it
+# on its next 60 s check. api_key is the federation backend's LIVEKIT_API_KEY
+# (a key from `keys` above); the URL reaches the federation server.
 # webhook:
+#   api_key: YOUR_API_KEY
 #   urls:
-#     - https://your-backend.com/api/livekit/webhook
-#   api_key: devkey
+#     - https://yourdomain.com/api/livekit/webhook
