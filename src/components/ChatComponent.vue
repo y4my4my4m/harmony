@@ -103,6 +103,7 @@
       :closePopup="closeMediaPicker"
       :position="'above'"
       :triggerElement="(mediaPickerTriggerElement as unknown as HTMLElement | null) || undefined"
+      :composerElement="composerElement || undefined"
       :initialTab="mediaPickerInitialTab"
     />
 
@@ -337,6 +338,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   
   // Media picker uses GIF trigger as default
   const mediaPickerTriggerElement = computed(() => gifTriggerElement.value || emojiTriggerElement.value);
+  const composerElement = computed(() => messageInputRef.value?.composerRef || null);
   
       const messageDisplayRef = ref<InstanceType<typeof MessageDisplay> | null>(null);
       // Messages, reactions and emoji usage key on profiles.id, not the auth

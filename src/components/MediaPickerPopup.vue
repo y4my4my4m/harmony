@@ -3,12 +3,14 @@
     class="media-picker-popup"
     :class="{
       'media-picker-popup--mobile': isMobile,
+      'media-picker-popup--composer': !!composerAnchoredStyle,
       'media-picker-popup--keyboard-open': isMobile && keyboardOpen,
     }"
     data-block-sidebar-gestures
     ref="popupRef"
     :style="popupStyle"
   >
+    <span ref="safeAreaProbeRef" class="safe-area-probe" aria-hidden="true"></span>
     <!-- Tab Navigation Header (horizontally scrollable) -->
     <div class="picker-tabs">
       <div class="picker-tabs-scroll" ref="tabsScrollRef" @wheel="onTabsWheel">
@@ -61,7 +63,11 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, nextTick, computed, type Ref } from 'vue';
-import { usePopupPositioning, type PopupPosition } from '@/composables/usePopupPositioning';
+import {
+  usePopupPositioning,
+  calculateComposerAnchoredRect,
+  type PopupPosition,
+} from '@/composables/usePopupPositioning';
 import { useLayoutState } from '@/composables/useLayoutState';
 import { useElasticHorizontalScroll } from '@/composables/useElasticHorizontalScroll';
 import GifPickerContent from '@/components/GifPickerContent.vue';
@@ -76,6 +82,8 @@ interface Props {
   closePopup?: () => void;
   position?: PopupPosition;
   triggerElement?: HTMLElement;
+  /** Docked composer strip. On mobile the picker sits above its top edge. */
+  composerElement?: HTMLElement;
   initialTab?: PickerTab;
   initialSearchQuery?: string;
 }
@@ -159,6 +167,48 @@ const visualViewportRect = ref({
 
 const layoutHeight = ref(typeof window !== 'undefined' ? window.innerHeight : 700);
 
+// Matches the compact composer's 8px strip padding (MessageInput.vue).
+const COMPOSER_EDGE = 8;
+// Tab bar, search field and about one row of results.
+const COMPOSER_PICKER_MIN_HEIGHT = 200;
+
+const composerRect = ref<{ top: number; left: number; right: number } | null>(null);
+const safeAreaProbeRef = ref<HTMLElement | null>(null);
+const safeAreaTop = ref(0);
+
+const updateComposerAnchor = () => {
+  const composer = props.composerElement;
+  if (!isMobile.value || !composer?.isConnected) {
+    composerRect.value = null;
+    return;
+  }
+  const r = composer.getBoundingClientRect();
+  composerRect.value = { top: r.top, left: r.left, right: r.right };
+  const probe = safeAreaProbeRef.value;
+  safeAreaTop.value = probe ? parseFloat(getComputedStyle(probe).paddingTop) || 0 : 0;
+};
+
+// The composer's top edge moves with its height: draft lines, reply bar,
+// attachments.
+let composerObserver: ResizeObserver | null = null;
+
+const unobserveComposer = () => {
+  composerObserver?.disconnect();
+  composerObserver = null;
+};
+
+watch(
+  [isMobile, () => props.composerElement] as const,
+  ([mobile, composer]) => {
+    unobserveComposer();
+    updateComposerAnchor();
+    if (!mobile || !composer || typeof ResizeObserver === 'undefined') return;
+    composerObserver = new ResizeObserver(updateComposerAnchor);
+    composerObserver.observe(composer, { box: 'border-box' });
+  },
+  { immediate: true },
+);
+
 const KEYBOARD_OPEN_THRESHOLD = 120;
 
 const syncVisualViewport = () => {
@@ -180,6 +230,7 @@ const syncVisualViewport = () => {
     };
   }
   updateTriggerAnchor();
+  updateComposerAnchor();
 };
 
 const keyboardOpen = computed(() => {
@@ -188,7 +239,7 @@ const keyboardOpen = computed(() => {
 });
 
 /**
- * Mobile positioning:
+ * Mobile positioning without a docked composer:
  * - Keyboard open → compact panel at top of visible viewport.
  * - Keyboard closed → bottom edge sits just above the message input trigger.
  */
@@ -224,7 +275,31 @@ const mobilePopupStyle = computed(() => {
   };
 });
 
-const popupStyle = computed(() => (isMobile.value ? mobilePopupStyle.value : positionStyle.value));
+const composerAnchoredStyle = computed(() => {
+  const composer = composerRect.value;
+  if (!composer) return null;
+  const box = calculateComposerAnchoredRect(composer, visualViewportRect.value, {
+    edge: COMPOSER_EDGE,
+    safeTop: safeAreaTop.value,
+    minHeight: COMPOSER_PICKER_MIN_HEIGHT,
+    maxHeight: POPUP_DIMENSIONS.height,
+  });
+  return {
+    position: 'fixed' as const,
+    left: `${box.left}px`,
+    top: `${box.top}px`,
+    width: `${box.width}px`,
+    height: `${box.height}px`,
+    maxHeight: `${box.height}px`,
+    zIndex: 1050,
+    visibility: 'visible' as const,
+  };
+});
+
+const popupStyle = computed(() => {
+  if (!isMobile.value) return positionStyle.value;
+  return composerAnchoredStyle.value ?? mobilePopupStyle.value;
+});
 
 const handleSendGif = (gif: Gif) => {
   emit('sendGif', gif);
@@ -282,6 +357,7 @@ onUnmounted(() => {
   window.visualViewport?.removeEventListener('scroll', syncVisualViewport);
   window.removeEventListener('resize', syncVisualViewport);
   window.removeEventListener('scroll', updateTriggerAnchor, true);
+  unobserveComposer();
 });
 </script>
 
@@ -378,10 +454,27 @@ onUnmounted(() => {
   color: var(--warning);
 }
 
+/* Reads env(safe-area-inset-top) into script through computed padding. */
+.safe-area-probe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  padding-top: env(safe-area-inset-top, 0px);
+  visibility: hidden;
+  pointer-events: none;
+}
+
 @media (max-width: 768px) {
   .media-picker-popup--mobile {
     border-radius: 12px;
     transition: top 0.22s ease, max-height 0.22s ease;
+  }
+
+  /* An eased top trails a growing composer and overlaps it. */
+  .media-picker-popup--composer {
+    transition: none;
   }
 
   .picker-tabs-scroll {

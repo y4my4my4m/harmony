@@ -244,3 +244,102 @@ describe('federated calls', () => {
     }))
   })
 })
+
+describe('join liveness', () => {
+  const presenceSync = (channel: any) => channel.on.mock.calls.find((c: any[]) => c[0] === 'presence')[2] as () => void
+  const meta = (isCaller: boolean, systemMessageId: string | null = null) =>
+    [{ callType: 'voice', joinedAt: new Date().toISOString(), isCaller, systemMessageId }]
+  const answered = () => {
+    dmCallSignaling.registerRemoteCall(CONV, 'caller', 'voice', 'msg-1')
+    dmCallSignaling.handleRemoteSignal({ type: 'join', callerId: 'them', callType: 'voice', timestamp: 1, conversationId: CONV })
+  }
+  const finalized = () => realtime.rpc.mock.calls.filter((c: any[]) => c[0] === 'finalize_dm_call_message')
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('a ringing or federated call is live without opening its channel', async () => {
+    dmCallSignaling.registerRemoteCall(CONV, 'caller', 'voice')
+    await expect(dmCallSignaling.isCallLive(CONV)).resolves.toBe(true)
+    Object.assign(dmCallSignaling.getActiveCall(CONV)!, { ringing: false, isFederated: true })
+    await expect(dmCallSignaling.isCallLive(CONV)).resolves.toBe(true)
+    expect(realtime.opened).toEqual([])
+  })
+
+  it('with no tracked call, one presence check on the call topic finds a live call and follows it', async () => {
+    const live = dmCallSignaling.isCallLive(CONV)
+    await flush()
+    expect(realtime.opened.map((o) => o.topic)).toEqual([`dm-call:${CONV}`])
+    const { channel } = realtime.opened[0]
+
+    channel.presenceState.mockReturnValue({ them: meta(true, 'msg-1') })
+    presenceSync(channel)()
+    await expect(live).resolves.toBe(true)
+    expect(dmCallSignaling.getActiveCall(CONV)).toMatchObject({ ringing: false, participants: ['them'], systemMessageId: 'msg-1' })
+    expect(channel.unsubscribe).not.toHaveBeenCalled()
+
+    dmCallSignaling.handleRemoteSignal({ type: 'end', callerId: 'them', callType: 'voice', timestamp: 1, conversationId: CONV })
+    expect(channel.unsubscribe).toHaveBeenCalled()
+  })
+
+  it('with no tracked call and nobody present the call is not live and the channel closes', async () => {
+    const live = dmCallSignaling.isCallLive(CONV)
+    await flush()
+    const { channel } = realtime.opened[0]
+    presenceSync(channel)()
+    await expect(live).resolves.toBe(false)
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
+    expect(channel.unsubscribe).toHaveBeenCalled()
+  })
+
+  it('a stale tracked call nobody is present in ends on the check, without a channel left open', async () => {
+    answered()
+    expect(dmCallSignaling.getActiveCall(CONV)?.ringing).toBe(false)
+
+    const live = dmCallSignaling.isCallLive(CONV)
+    await flush()
+    const { channel } = realtime.opened[0]
+    presenceSync(channel)()
+    await expect(live).resolves.toBe(false)
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
+    expect(finalized()).toHaveLength(1)
+    expect(channel.unsubscribe).toHaveBeenCalled()
+  })
+
+  it('a synced channel is read at once: a call emptied during its grace ends on the check', async () => {
+    vi.useFakeTimers()
+    const off = dmCallSignaling.subscribeToConversation(CONV, () => {})
+    await vi.advanceTimersByTimeAsync(0)
+    const { channel } = realtime.opened[0]
+    channel.presenceState.mockReturnValue({ them: meta(true, 'msg-1') })
+    presenceSync(channel)()
+    channel.presenceState.mockReturnValue({})
+    presenceSync(channel)()
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(true)
+
+    // Timers stay frozen: a check that waited for a sync would never resolve.
+    await expect(dmCallSignaling.isCallLive(CONV)).resolves.toBe(false)
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(finalized()).toHaveLength(1)
+    expect(channel.unsubscribe).not.toHaveBeenCalled()
+    off()
+  })
+
+  it('no presence sync within the check window leaves the decision to tracked state', async () => {
+    vi.useFakeTimers()
+    answered()
+    const live = dmCallSignaling.isCallLive(CONV)
+    await vi.advanceTimersByTimeAsync(3000)
+    await expect(live).resolves.toBe(true)
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(true)
+    expect(realtime.opened[0].channel.unsubscribe).toHaveBeenCalled()
+
+    dmCallSignaling.cleanup()
+    const none = dmCallSignaling.isCallLive(CONV)
+    await vi.advanceTimersByTimeAsync(3000)
+    await expect(none).resolves.toBe(false)
+  })
+})

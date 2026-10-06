@@ -8,10 +8,12 @@ import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { debug } from '@/utils/debug'
 
 /**
- * Joins the live call of a DM conversation by its id. An unanswered federated
- * ring is accepted through this instance, which returns credentials for the
- * caller's room, as BaseLayout handleGlobalCallAccept does; every other call is
- * the local room dm-{conversationId}. Resolves true once connected.
+ * Joins the live call of a DM conversation by its id. A call that
+ * DMCallSignaling.isCallLive rejects is not joined and reads "Call ended". An
+ * unanswered federated ring is accepted through this instance, which returns
+ * credentials for the caller's room, as BaseLayout handleGlobalCallAccept
+ * does; every other call is the local room dm-{conversationId}. Resolves true
+ * once connected.
  */
 export function useDMCallJoin() {
   const voiceStore = useUnifiedVoiceChannelStore()
@@ -19,17 +21,24 @@ export function useDMCallJoin() {
   const toast = useToast()
 
   async function joinConversationCall(conversationId: string): Promise<boolean> {
-    const call = dmCallSignaling.getActiveCall(conversationId)
-    if (!call) return false
-    // An answered federated call names no room this client can rejoin.
-    if (call.isFederated && !(call.ringing && call.callerFederatedId)) return false
-
-    const room = call.isFederated ? null : `dm-${conversationId}`
-    if (!(await leaveCurrentCallFor(room))) return false
-    if (room && voiceStore.isConnected && voiceStore.currentChannelId === room) {
+    const localRoom = `dm-${conversationId}`
+    if (voiceStore.isConnected && voiceStore.currentChannelId === localRoom) {
       voiceStore.isOverlayVisible = true
       return true
     }
+
+    const call = (await dmCallSignaling.isCallLive(conversationId))
+      ? dmCallSignaling.getActiveCall(conversationId)
+      : undefined
+    if (!call) {
+      toast.info('Call ended')
+      return false
+    }
+    // An answered federated call names no room this client can rejoin.
+    if (call.isFederated && !(call.ringing && call.callerFederatedId)) return false
+
+    const room = call.isFederated ? null : localRoom
+    if (!(await leaveCurrentCallFor(room))) return false
     globalDMCallListener.dismissIncomingCall(conversationId)
 
     const failed = i18n.global.t('voice.joinCallFailed')
@@ -46,7 +55,11 @@ export function useDMCallJoin() {
           livekit: { wsUrl: credentials.wsUrl, token: credentials.token },
         })
       } else {
-        if (!(await dmCallSignaling.joinCall(conversationId, profileId))) return false
+        // Gone when the call ended during the switch prompt.
+        if (!(await dmCallSignaling.joinCall(conversationId, profileId))) {
+          toast.info('Call ended')
+          return false
+        }
         joined = await voiceStore.joinVoiceChannel(room!, 'dm')
       }
 

@@ -4,7 +4,7 @@
  * answer that lands while the caller's own join is in flight. A busy answer
  * ends a direct call. A refused call never asks to switch calls or leaves the
  * caller's current channel. As a receiver, a caller's ring timeout shows
- * nothing.
+ * nothing. Join does not join a call nobody is present in any more.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -313,5 +313,29 @@ describe('DMHeader outgoing call', () => {
     await settle()
     expect(useUnifiedVoiceChannelStore().leaveVoiceChannel).toHaveBeenCalled()
     expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
+  })
+})
+
+describe('DMHeader Join', () => {
+  const present = () => [{ callType: 'voice', joinedAt: new Date().toISOString(), isCaller: true, systemMessageId: null }]
+
+  it('Join on a call everyone has left does not join, says the call ended and goes', async () => {
+    const header = mountHeader()
+    await settle()
+    const channel = rt.channels.find((c) => c.topic === `dm-call:${CONV}`)
+    channel.presenceState.mockReturnValue({ them: present() })
+    channel.handlers['presence:sync']()
+    await settle()
+    expect(header.find('.join-call-btn').exists()).toBe(true)
+
+    channel.presenceState.mockReturnValue({})
+    channel.handlers['presence:sync']()
+    await header.find('.join-call-btn').trigger('click')
+    await settle()
+
+    expect(useUnifiedVoiceChannelStore().joinVoiceChannel).not.toHaveBeenCalled()
+    expect(channel.sent.filter((m: any) => m.payload?.type === 'join')).toEqual([])
+    expect(toast.info).toHaveBeenCalledWith('Call ended')
+    expect(header.find('.join-call-btn').exists()).toBe(false)
   })
 })

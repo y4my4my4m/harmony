@@ -101,7 +101,7 @@ import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import Icon from '@/components/common/Icon.vue'
 import DMHeader from '@/components/dm/DMHeader.vue'
 import Avatar from '@/components/common/Avatar.vue'
-import { useCallSwitch } from '@/composables/useCallSwitch'
+import { useDMCallJoin } from '@/composables/useDMCallJoin'
 import FollowersList from '@/components/dm/FollowersList.vue'
 import GroupChatInviteModal from '@/components/dm/GroupChatInviteModal.vue'
 import IncomingCallModal from '@/components/dm/IncomingCallModal.vue'
@@ -133,7 +133,7 @@ const emit = defineEmits<{
 
 const dmStore = useDMStore()
 const voiceStore = useUnifiedVoiceChannelStore()
-const { leaveCurrentCallFor } = useCallSwitch()
+const { joinConversationCall } = useDMCallJoin()
 const route = useRoute()
 const router = useRouter()
 
@@ -169,25 +169,7 @@ const bannerParticipants = computed<string[]>(() => {
 
 const joinCallFromBanner = async () => {
   if (!currentConversation.value) return
-  const dmChannelId = `dm-${currentConversation.value.id}`
-
-  if (!(await leaveCurrentCallFor(dmChannelId))) return
-  
-  try {
-    const { authContextService } = await import('@/services/AuthContextService')
-    const profileId = await authContextService.getCurrentProfileId()
-    await dmCallSignaling.joinCall(currentConversation.value.id, profileId)
-    
-    const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
-    if (success) {
-      voiceStore.isOverlayVisible = true
-    } else {
-      toast.error(voiceStore.joinError || 'Failed to join call')
-    }
-  } catch (error) {
-    debug.error('Error joining call from banner:', error)
-    toast.error('Failed to join call')
-  }
+  await joinConversationCall(currentConversation.value.id)
 }
 
 const chatMessages = computed(() => dmStore.currentDMMessages)

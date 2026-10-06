@@ -250,6 +250,7 @@
       :closePopup="closeMediaPicker"
       :position="'above'"
       :triggerElement="mediaPickerTriggerElement || undefined"
+      :composerElement="composerElement || undefined"
       :initialTab="mediaPickerInitialTab"
     />
   </Teleport>
@@ -386,6 +387,7 @@ const emojiListOpen = computed(() => mediaPickerOpen.value && mediaPickerInitial
 const mediaPickerTriggerElement = computed(() => {
   return messageInputRef.value?.gifTriggerRef || messageInputRef.value?.emojiTriggerRef || null
 })
+const composerElement = computed(() => messageInputRef.value?.composerRef || null)
 
 // State
 const thread = ref<ThreadWithDetails | null>(null)

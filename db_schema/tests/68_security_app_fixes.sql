@@ -9,7 +9,7 @@
 --   banned   user_servers row with status banned
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(82);
+SELECT plan(81);
 
 -- Setup, as postgres. -------------------------------------------------------------------
 UPDATE public.profiles SET is_admin = true WHERE id = '11111111-0000-0000-0000-000000000001';
@@ -216,7 +216,7 @@ SELECT ok(NOT EXISTS (
                        'get_unread_announcements', 'get_admin_user_counts', 'recompute_supporter_tier',
                        'update_group_name', 'update_group_icon', 'remove_group_icon',
                        'add_bot_to_server', 'is_room_member', 'get_room_member_ids',
-                       'get_kofi_webhook_token', 'set_kofi_webhook_token', 'is_profile_in_voice')
+                       'get_kofi_webhook_token', 'set_kofi_webhook_token')
      AND has_function_privilege('anon', p.oid, 'EXECUTE')),
   'anon cannot execute the client definers');
 SELECT ok(NOT has_function_privilege('authenticated', 'public.can_manage_group_icon(uuid, uuid)', 'EXECUTE'),
@@ -372,9 +372,6 @@ SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
 SELECT is((SELECT count(*)::int FROM public.voice_channel_participants
             WHERE channel_id = 'f6800000-0000-0000-0000-000000000002'),
   0, 'a non-member does not see voice occupancy');
-SELECT ok(public.is_profile_in_voice('22222222-0000-0000-0000-000000000002')
-          AND NOT public.is_profile_in_voice('33333333-0000-0000-0000-000000000003'),
-  'is_profile_in_voice answers busy without the channel');
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT is((SELECT count(*)::int FROM public.voice_channel_participants
             WHERE channel_id = 'f6800000-0000-0000-0000-000000000002'),

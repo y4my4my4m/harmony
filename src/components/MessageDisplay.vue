@@ -210,13 +210,10 @@
                     </template>
                     <template v-else>
                       started a {{ item.message.metadata?.call_type || 'voice' }} call
-                      <button
-                        v-if="isCallJoinable(item.message)"
-                        class="call-join-btn"
-                        @click="joinCallFromSystemMessage(item.message)"
-                      >
-                        Join call
-                      </button>
+                      <CallJoinButton
+                        :message-id="item.message.id"
+                        :conversation-id="item.message.conversation_id || props.conversationId"
+                      />
                     </template>
                   </div>
                 </template>
@@ -702,7 +699,6 @@ import { useNotificationStore } from '@/stores/useNotification';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { isModerationRejectionCode } from '@/services/AutoModService';
 import { useToast } from 'vue-toastification';
-import { dmCallSignaling } from '@/services/DMCallSignaling';
 import { supabase } from '@/supabase'; 
 import { throttle } from '@/utils/throttle';
 import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
@@ -732,6 +728,7 @@ import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import ReactionTooltip from '@/components/messages/ReactionTooltip.vue';
 import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue';
+import CallJoinButton from '@/components/messages/CallJoinButton.vue';
 import {
   findBridgedUserInCache,
   resolveBridgedUserColor,
@@ -2902,46 +2899,6 @@ const isMissedCall = (message: any): boolean => {
   return !Array.isArray(meta.participants) || meta.participants.length < 2;
 };
 
-// A "started a call" message offers Join only while the call is live
-// (presence-derived); messages whose call ended stay inert.
-const isCallJoinable = (message: any): boolean => {
-  dmCallSignaling.callStateVersion.value;
-  const conversationId = message.conversation_id || props.conversationId;
-  if (!conversationId) return false;
-  const call = dmCallSignaling.getActiveCall(conversationId);
-  if (!call) return false;
-  return !call.systemMessageId || call.systemMessageId === message.id;
-};
-
-const joinCallFromSystemMessage = async (message: any) => {
-  const conversationId = message.conversation_id || props.conversationId;
-  if (!conversationId) return;
-
-  try {
-    const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel');
-    const { authContextService } = await import('@/services/AuthContextService');
-    const voiceStore = useUnifiedVoiceChannelStore();
-    
-    const dmChannelId = `dm-${conversationId}`;
-    const { useCallSwitch } = await import('@/composables/useCallSwitch');
-    if (!(await useCallSwitch().leaveCurrentCallFor(dmChannelId))) return;
-    if (voiceStore.isConnected && voiceStore.currentChannelId === dmChannelId) {
-      voiceStore.isOverlayVisible = true;
-      return;
-    }
-
-    const profileId = await authContextService.getCurrentProfileId();
-    
-    await dmCallSignaling.joinCall(conversationId, profileId);
-    const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm');
-    if (success) {
-      voiceStore.isOverlayVisible = true;
-    }
-  } catch (error) {
-    debug.error('Failed to join call from system message:', error);
-  }
-};
-
 const formatDateSeparator = (timestamp: Date): string => {
   const date = new Date(timestamp);
   if (!isValid(date)) return '';
@@ -4421,23 +4378,6 @@ defineExpose({ editLastOwnMessage });
 .call-duration {
   color: var(--text-muted);
   font-size: 0.8rem;
-}
-
-.call-join-btn {
-  background: var(--success);
-  color: var(--text-on-primary);
-  border: none;
-  border-radius: var(--radius-sm);
-  padding: 2px 12px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  margin-left: 4px;
-  transition: background-color 0.15s;
-}
-
-.call-join-btn:hover {
-  background: var(--success-hover);
 }
 
 .system-timestamp {
