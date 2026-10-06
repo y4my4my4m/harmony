@@ -99,6 +99,7 @@ class WebRTCManagerService implements WebRTCManager {
       'audio-level',
       'connection-state-changed',
       'connection-lost',
+      'microphone-unavailable',
       'connection-quality-changed',
       'stream-watch-changed',
       'error',

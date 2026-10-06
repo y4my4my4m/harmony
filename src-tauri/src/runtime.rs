@@ -1,6 +1,9 @@
 // CEF runtime configuration for the Linux desktop build.
 
-use tauri::webview::{PermissionKind, PermissionResponse, Webview};
+use std::collections::BTreeSet;
+use std::sync::Mutex;
+
+use tauri::webview::{PageLoadPayload, PermissionKind, PermissionResponse, Webview};
 use tauri_runtime_cef::Cef;
 
 pub fn cef() -> Cef {
@@ -72,18 +75,38 @@ pub fn cef() -> Cef {
 // Chromium's source picker either way.
 pub fn on_permission_request(webview: Webview, kind: PermissionKind) -> PermissionResponse {
   match kind {
-    PermissionKind::Microphone | PermissionKind::Camera if is_app_origin(&webview) => {
+    PermissionKind::Microphone | PermissionKind::Camera if shows_app_origin(&webview) => {
       PermissionResponse::Allow
     }
     _ => PermissionResponse::Default,
   }
 }
 
+// Labels of the webviews whose main frame last loaded the app origin. The
+// permission handler runs on CEF's UI thread, which is the event loop thread;
+// Webview::url() there queues a request for that same loop and blocks on the
+// reply, so the browser process hangs on the first getUserMedia
+// (tauri-runtime-cef 3.0.0-alpha.4, CefWebviewDispatcher::url). Page-load events
+// carry the main-frame URL without a round trip.
+static APP_ORIGIN_WEBVIEWS: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
+
+pub fn on_page_load(webview: &Webview, payload: &PageLoadPayload<'_>) {
+  let mut labels = APP_ORIGIN_WEBVIEWS.lock().unwrap_or_else(|e| e.into_inner());
+  if is_app_url(payload.url()) {
+    labels.insert(webview.label().to_owned());
+  } else {
+    labels.remove(webview.label());
+  }
+}
+
+fn shows_app_origin(webview: &Webview) -> bool {
+  APP_ORIGIN_WEBVIEWS.lock().unwrap_or_else(|e| e.into_inner()).contains(webview.label())
+}
+
 // CEF serves bundled assets from http://tauri.localhost; dev builds load the Vite server.
 const APP_ORIGIN: &str = "http://tauri.localhost";
 
-fn is_app_origin(webview: &Webview) -> bool {
-  let Ok(url) = webview.url() else { return false };
+fn is_app_url(url: &tauri::Url) -> bool {
   let host = url.host_str();
   let dev_server = cfg!(dev) && matches!(host, Some("localhost") | Some("127.0.0.1"));
   url.scheme() == "http" && (host == Some("tauri.localhost") || dev_server)

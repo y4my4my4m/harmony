@@ -12,6 +12,25 @@
 #      pre-seeded where quick-sharun looks before downloading, so it fetches nothing.
 #   3. Signs both for tauri-plugin-updater when TAURI_SIGNING_PRIVATE_KEY is set.
 #
+# The AppImage runs on its bundled glibc (sharun's ld-linux). A host library linked
+# against a newer glibc than the bundled one does not load there, so everything
+# Chromium dlopens is bundled from the build host:
+#   - libpulse.so.0 and its deps. Chromium's audio output and input go to any
+#     PulseAudio or pipewire-pulse server through its socket. Without it Chromium
+#     falls back to ALSA, where the bundled libasound reads the host's ALSA config
+#     but cannot load the host's pulse/pipewire PCM plugins.
+#   - libpipewire-0.3 and its client modules: WebRTC screen capture on Wayland.
+#   - glvnd (libGL, libGLX, libEGL, libGLdispatch) and Mesa (libgallium, links
+#     libLLVM). Intel/AMD render through the bundled Mesa. On NVIDIA, glvnd picks the
+#     vendor the X server names and loads libGLX_nvidia.so.0 from the host through
+#     sharun's fallback library path (/usr/lib, /usr/lib64, ...); sharun adds the
+#     host's EGL vendor file when /sys/module/nvidia is present. The NVIDIA libraries
+#     need only old glibc symbols, but link librt.so.1, which the glibc deployment
+#     bundles; the host's own librt requires its own libc.
+# The build host must have these installed (checked below): libpulse0,
+# libpipewire-0.3-0t64, libpipewire-0.3-modules, libspa-0.2-modules, libgl1,
+# libegl1, libgl1-mesa-dri, libglx-mesa0, libegl-mesa0.
+#
 # Usage: package.sh <Harmony_x.y.z_amd64.deb> [out-dir]
 # Needs: ar, tar, gzip, curl, sha256sum, perl, cc, patchelf, file, strace, xvfb-run;
 # npx (tauri CLI) for signing. CEF_TOOLS_DIR caches the pinned downloads.
@@ -24,8 +43,13 @@ tools=${CEF_TOOLS_DIR:-$here/../target/linux-tools}
 product=Harmony
 
 # Anylinux-AppImages fork that tauri-bundler 3.0.0-alpha.2 fetches quick-sharun from,
-# at the commit its main branch held on 2026-10-01.
+# at the commit its main branch held on 2026-10-01. Hooks only.
 fork=https://raw.githubusercontent.com/FabianLars/Anylinux-AppImages/3e280d1b2270fecfcb2c2c823b490c782ecf1277/useful-tools
+# quick-sharun.sh from upstream at the commit the fork last merged (#811). The fork's
+# own head commit expands the forced deployment list without eval, so every DEPLOY_*
+# entry (glibc compat libs, OpenGL, PipeWire, PulseAudio, p11-kit) reaches lib4bin
+# wrapped in literal quotes and is skipped as a missing file.
+qs=https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/908896b77df9991e5048b1f2f7d2e68b5644199c/useful-tools
 # anylinux.c before upstream moved it (404 on the branch URL since 2026-09-10).
 upstream=https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/df9cd3246ccbcf61eb22fc321a52277351047b4b/useful-tools
 
@@ -38,7 +62,7 @@ fetch() { # fetch <file> <sha256> <url>
 }
 
 mkdir -p "$tools/dwarfs"
-fetch quick-sharun.sh 9704dbcc9c75a9e77d8ffffe00f480b72d7a7fa91ea9d11698043f88f9fecdaf "$fork/quick-sharun.sh"
+fetch quick-sharun.sh f26beefa4fa97b8be2df631da2c03e190e44df718cdac508430a278befbd48e5 "$qs/quick-sharun.sh"
 fetch fix-namespaces.hook 437eb252e4f7be25f8674c83f705d6c3faf63a7045790a3df415fb3634f38012 "$fork/hooks/fix-namespaces.hook"
 fetch vulkan-check.hook 76fa49f9cfd37ef80c5c41262675717cf5e62096cfe4dd39717e2162744fe746 "$fork/hooks/vulkan-check.hook"
 fetch fix-gnome-csd.hook 21277a2a050343cabe3e156dbbfe573e3451b4560ae812b1d016c9283199eb24 "$fork/hooks/fix-gnome-csd.hook"
@@ -54,6 +78,13 @@ fetch uruntime-x86_64 b3c2916153e089d703cee5a7ebc540941d2f1d71baa90eb3092b15eef4
 fetch dwarfs/mkdwarfs 50891c38ba359db8271819a6cbf6aaa8068681523f0c4f2b8242007a45edaa28 \
   https://github.com/mhx/dwarfs/releases/download/v0.15.6/dwarfs-universal-0.15.6-Linux-x86_64
 chmod +x "$tools/sharun-x86_64" "$tools/appimagetool-x86_64" "$tools/uruntime-x86_64" "$tools/dwarfs/mkdwarfs"
+
+# quick-sharun's DEPLOY_* lists are globs over LIB_DIR; a missing package is skipped
+# without a message.
+lib_dir=/usr/lib/x86_64-linux-gnu
+for lib in libpulse.so.0 libpipewire-0.3.so.0 libGL.so.1 libGLX.so.0 libEGL.so.1 libEGL_mesa.so.0 libGLX_mesa.so.0; do
+  [ -e "$lib_dir/$lib" ] || { echo "package.sh: $lib_dir/$lib missing on the build host" >&2; exit 1; }
+done
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -109,6 +140,9 @@ rm -f "$out/appimage/$outname" "$out/appimage/$outname.sig"
     DEPLOY_CHROMIUM=1 ADD_HOOKS=fix-namespaces.hook \
     sh "$tools/quick-sharun.sh" "$@"
 )
+for lib in libpulse.so.0 libpipewire-0.3.so.0 librt.so.1 libGLX.so.0 libEGL.so.1 libEGL_mesa.so.0 libGLX_mesa.so.0; do
+  [ -e "$appdir/lib/$lib" ] || { echo "package.sh: $lib not bundled" >&2; exit 1; }
+done
 
 # 3. Updater signatures.
 if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then

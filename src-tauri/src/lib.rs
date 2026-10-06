@@ -110,6 +110,7 @@ pub fn run() {
   #[cfg(target_os = "linux")]
   let builder = builder
     .runtime(runtime::cef())
+    .on_page_load(runtime::on_page_load)
     .on_permission_request(runtime::on_permission_request);
   #[cfg(not(target_os = "linux"))]
   let builder = builder.runtime(tauri_runtime_wry::Wry::default());

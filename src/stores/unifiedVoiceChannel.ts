@@ -37,6 +37,18 @@ let webrtcListenersRegistered = false;
 // Handlers for the remote server's answer to a pending federated voice join.
 let federatedAnswerUnsubscribe: (() => void) | null = null;
 
+// A link still reconnecting after this long is dropped like a lost one.
+// livekit-client 2.16 gives up only minutes in: DefaultReconnectPolicy retries
+// 10 times, each attempt bounded by websocketTimeout and peerConnectionTimeout
+// (15 s each).
+export const VOICE_RECONNECT_GIVE_UP_MS = 45_000;
+let reconnectGiveUp: ReturnType<typeof setTimeout> | null = null;
+
+function clearReconnectGiveUp(): void {
+  if (reconnectGiveUp) clearTimeout(reconnectGiveUp);
+  reconnectGiveUp = null;
+}
+
 
 interface RecentSpeaker {
   userId: string;
@@ -1286,6 +1298,20 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       });
     },
 
+    /** Tears down a session whose link is gone, like a leave, and says so. */
+    async dropLostVoiceConnection(): Promise<void> {
+      clearReconnectGiveUp();
+      if (!this.isConnected) return;
+      debug.warn('Voice connection lost; leaving channel');
+      await this.leaveVoiceChannel();
+      useNotificationStore().showToast(
+        'server_update',
+        'Disconnected from voice',
+        'The connection to the voice server was lost.',
+        6000
+      );
+    },
+
     /** Resumes audio the browser blocked. Bound to a click. */
     async unlockAudio(): Promise<boolean> {
       const ok = await webrtcManager.startAudio();
@@ -1578,21 +1604,27 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const state = data?.state;
         if (state === 'reconnecting' || state === 'signalReconnecting') {
           this.connectionState = 'reconnecting';
+          reconnectGiveUp ??= setTimeout(() => {
+            reconnectGiveUp = null;
+            void this.dropLostVoiceConnection();
+          }, VOICE_RECONNECT_GIVE_UP_MS);
         } else if (state === 'connected') {
           this.connectionState = 'connected';
+          clearReconnectGiveUp();
         }
       });
 
       // The transport gave up (server gone, network lost past the retry
-      // window, duplicate session). The session is torn down like a leave.
-      webrtcManager.on('connection-lost', async () => {
-        if (!this.isConnected) return;
-        debug.warn('Voice connection lost; leaving channel');
-        await this.leaveVoiceChannel();
+      // window, duplicate session).
+      webrtcManager.on('connection-lost', () => this.dropLostVoiceConnection());
+
+      // Joined listen-only: the microphone never came up.
+      webrtcManager.on('microphone-unavailable', () => {
+        if (!this.isConnectedOrJoining) return;
         useNotificationStore().showToast(
           'server_update',
-          'Disconnected from voice',
-          'The connection to the voice server was lost.',
+          'Microphone unavailable',
+          'Joined muted: the microphone could not be opened.',
           6000
         );
       });
@@ -1993,6 +2025,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.connectionMode = null;
       this.isEncrypted = false;
       this.connectionState = null;
+      clearReconnectGiveUp();
       this.connectionQuality = {};
       this.watchedStreamUserIds = [];
       this.audioPlaybackBlocked = false;
