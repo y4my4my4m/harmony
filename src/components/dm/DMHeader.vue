@@ -300,6 +300,7 @@ import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { dmConversationIdFromChannel, useCallSwitch } from '@/composables/useCallSwitch'
+import { useDMCallJoin } from '@/composables/useDMCallJoin'
 
 const router = useRouter()
 const { confirm } = useConfirmDialog()
@@ -307,6 +308,7 @@ const toast = useToast()
 const voiceStore = useUnifiedVoiceChannelStore()
 const authStore = useAuthStore()
 const { leaveCurrentCallFor } = useCallSwitch()
+const { joinConversationCall } = useDMCallJoin()
 
 let callerRingtoneInterval: ReturnType<typeof setInterval> | null = null
 let callerRingtoneCap: ReturnType<typeof setTimeout> | null = null
@@ -1094,20 +1096,7 @@ const joinActiveCall = async () => {
       }
     }
     
-    const dmChannelId = `dm-${props.conversation.id}`
-    if (!(await leaveCurrentCallFor(dmChannelId))) return
-
-    // Gone when the ring ended before this answer.
-    if (!(await dmCallSignaling.joinCall(props.conversation.id, profileId))) return
-
-    const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm')
-
-    if (success) {
-      voiceStore.isOverlayVisible = true
-      debug.log('Joined group call (maximized)')
-    } else {
-      toast.error(voiceStore.joinError || 'Failed to join call')
-    }
+    await joinConversationCall(props.conversation.id)
   } catch (error) {
     debug.error('Error joining call:', error)
     toast.error('Failed to join call')

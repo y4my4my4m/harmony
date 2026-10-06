@@ -1,16 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Joining a conversation's live call from the conversation list: the local
-// room for local calls, the federated accept for an unanswered federated ring.
+// Joining a conversation's live call: the local room for local calls, the
+// federated accept for an unanswered federated ring, nothing for a dead call.
 
 const calls = vi.hoisted(() => ({ active: new Map<string, any>() }))
 const signaling = vi.hoisted(() => ({
+  isCallLive: vi.fn(async (id: string) => calls.active.has(id)),
   joinCall: vi.fn(async () => true),
   acceptFederatedCall: vi.fn(async () => ({ token: 'T', wsUrl: 'wss://livekit.remote.test', roomName: 'federated-dm-x-1' })),
 }))
 vi.mock('@/services/DMCallSignaling', () => ({
   dmCallSignaling: {
     getActiveCall: (id: string) => calls.active.get(id),
+    isCallLive: signaling.isCallLive,
     joinCall: signaling.joinCall,
     acceptFederatedCall: signaling.acceptFederatedCall,
   },
@@ -19,7 +21,7 @@ const listener = vi.hoisted(() => ({ dismissIncomingCall: vi.fn() }))
 vi.mock('@/services/GlobalDMCallListener', () => ({ globalDMCallListener: listener }))
 vi.mock('@/services/AuthContextService', () => ({ authContextService: { getCurrentProfileId: async () => 'me' } }))
 vi.mock('@/i18n', () => ({ i18n: { global: { t: (key: string) => key } } }))
-const toast = vi.hoisted(() => ({ error: vi.fn() }))
+const toast = vi.hoisted(() => ({ error: vi.fn(), info: vi.fn() }))
 vi.mock('vue-toastification', () => ({ useToast: () => toast }))
 const callSwitch = vi.hoisted(() => ({ leaveCurrentCallFor: vi.fn(async () => true) }))
 vi.mock('@/composables/useCallSwitch', () => ({ useCallSwitch: () => callSwitch }))
@@ -37,8 +39,11 @@ import { useDMCallJoin } from '@/composables/useDMCallJoin'
 beforeEach(() => {
   calls.active.clear()
   Object.values(signaling).forEach((fn) => fn.mockClear())
+  signaling.isCallLive.mockImplementation(async (id: string) => calls.active.has(id))
+  signaling.joinCall.mockResolvedValue(true)
   listener.dismissIncomingCall.mockClear()
   toast.error.mockClear()
+  toast.info.mockClear()
   callSwitch.leaveCurrentCallFor.mockReset().mockResolvedValue(true)
   voice.joinVoiceChannel.mockReset().mockResolvedValue(true)
   voice.isConnected = false
@@ -74,6 +79,35 @@ describe('useDMCallJoin', () => {
     calls.active.set('conv', { ringing: true })
     callSwitch.leaveCurrentCallFor.mockResolvedValue(false)
     await expect(useDMCallJoin().joinConversationCall('conv')).resolves.toBe(false)
+    expect(voice.joinVoiceChannel).not.toHaveBeenCalled()
+  })
+
+  it('a tracked call that is not live is not joined and reads Call ended', async () => {
+    calls.active.set('conv', { ringing: false, callerId: 'caller' })
+    signaling.isCallLive.mockResolvedValue(false)
+    await expect(useDMCallJoin().joinConversationCall('conv')).resolves.toBe(false)
+
+    expect(signaling.isCallLive).toHaveBeenCalledWith('conv')
+    expect(toast.info).toHaveBeenCalledWith('Call ended')
+    expect(callSwitch.leaveCurrentCallFor).not.toHaveBeenCalled()
+    expect(signaling.joinCall).not.toHaveBeenCalled()
+    expect(voice.joinVoiceChannel).not.toHaveBeenCalled()
+  })
+
+  it('a call that ends during the switch prompt reads Call ended', async () => {
+    calls.active.set('conv', { ringing: false, callerId: 'caller' })
+    signaling.joinCall.mockResolvedValue(false)
+    await expect(useDMCallJoin().joinConversationCall('conv')).resolves.toBe(false)
+    expect(toast.info).toHaveBeenCalledWith('Call ended')
+    expect(voice.joinVoiceChannel).not.toHaveBeenCalled()
+  })
+
+  it('the call this client is in shows the overlay', async () => {
+    voice.isConnected = true
+    voice.currentChannelId = 'dm-conv'
+    await expect(useDMCallJoin().joinConversationCall('conv')).resolves.toBe(true)
+    expect(voice.isOverlayVisible).toBe(true)
+    expect(signaling.isCallLive).not.toHaveBeenCalled()
     expect(voice.joinVoiceChannel).not.toHaveBeenCalled()
   })
 

@@ -74,6 +74,9 @@ Direct message calls use `DMCallSignaling`:
 - A callee who muted the conversation or the caller gets no ringtone and no
   incoming-call modal. The caller rings as usual, and the callee's
   conversation list marks the call, with Join, while it is live.
+- Every Join (conversation list, DM banner, header, call message) checks the
+  call first: it is live while ringing or while anyone is in it. A call nobody
+  is in reads "Call ended" and loses its Join.
 
 ## Spatial Audio
 
