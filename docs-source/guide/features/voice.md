@@ -69,6 +69,11 @@ Direct message calls use `DMCallSignaling`:
 - Global listener (`GlobalDMCallListener`) for receiving calls from any view
 - Group calls run in this instance's room and ring its local members; members
   on other instances are not reached. Federated calls are one-to-one.
+- A callee already in another DM call answers busy, which ends a one-to-one
+  call. A server voice channel is not busy; answering leaves it.
+- A callee who muted the conversation or the caller gets no ringtone and no
+  incoming-call modal. The caller rings as usual, and the callee's
+  conversation list marks the call, with Join, while it is live.
 
 ## Spatial Audio
 

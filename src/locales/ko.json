@@ -384,6 +384,7 @@
   "message": {
     "typeMessage": "메시지 {to}",
     "addComment": "댓글 추가...",
+    "moreActions": "추가 작업",
     "editMessage": "메시지 편집",
     "deleteMessage": "메시지 삭제",
     "copyMessage": "메시지 복사",
@@ -578,7 +579,11 @@
     "inCallWith": "통화 중",
     "incomingGroupCall": "{name}님이 그룹에 전화를 걸고 있습니다",
     "ringing": "벨 울리는 중…",
-    "joinCallFailed": "통화에 참여하지 못했습니다"
+    "joinCallFailed": "통화에 참여하지 못했습니다",
+    "onVideo": "영상 {n}명",
+    "showVideo": "영상 표시",
+    "hideVideo": "영상 숨기기",
+    "inCallWindow": "통화 창에서 표시 중"
   },
   "dm": {
     "directMessages": "다이렉트 메시지",

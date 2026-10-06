@@ -267,8 +267,13 @@ const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
         voiceStore.isOverlayVisible = false
       }
     } else {
-      // Local: Supabase Realtime signaling.
-      await dmCallSignaling.acceptCall(incomingCall.conversationId, currentUserId)
+      // Local: Supabase Realtime signaling. The ring can end (timeout, cancel)
+      // between the click and the accept.
+      if (!(await dmCallSignaling.acceptCall(incomingCall.conversationId, currentUserId))) {
+        voiceStore.isOverlayVisible = false
+        useToast().info('Call ended')
+        return
+      }
 
       await router.push(`/dm/${incomingCall.conversationId}`)
 

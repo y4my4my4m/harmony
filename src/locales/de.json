@@ -384,6 +384,7 @@
   "message": {
     "typeMessage": "Nachricht an {to}",
     "addComment": "Kommentar hinzufügen...",
+    "moreActions": "Weitere Aktionen",
     "editMessage": "Nachricht bearbeiten",
     "deleteMessage": "Nachricht löschen",
     "copyMessage": "Nachricht kopieren",
@@ -578,7 +579,11 @@
     "inCallWith": "Im Anruf",
     "incomingGroupCall": "{name} ruft die Gruppe an",
     "ringing": "Klingelt…",
-    "joinCallFailed": "Dem Anruf konnte nicht beigetreten werden"
+    "joinCallFailed": "Dem Anruf konnte nicht beigetreten werden",
+    "onVideo": "{n} mit Video",
+    "showVideo": "Video anzeigen",
+    "hideVideo": "Video ausblenden",
+    "inCallWindow": "Im Anruffenster"
   },
   "dm": {
     "directMessages": "Direktnachrichten",

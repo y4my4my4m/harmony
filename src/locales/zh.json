@@ -384,6 +384,7 @@
   "message": {
     "typeMessage": "消息 {to}",
     "addComment": "添加评论...",
+    "moreActions": "更多操作",
     "editMessage": "编辑消息",
     "deleteMessage": "删除消息",
     "copyMessage": "复制消息",
@@ -578,7 +579,11 @@
     "inCallWith": "通话中",
     "incomingGroupCall": "{name} 正在呼叫群组",
     "ringing": "正在响铃…",
-    "joinCallFailed": "无法加入通话"
+    "joinCallFailed": "无法加入通话",
+    "onVideo": "{n} 人开启视频",
+    "showVideo": "显示视频",
+    "hideVideo": "隐藏视频",
+    "inCallWindow": "在通话窗口中显示"
   },
   "dm": {
     "directMessages": "私信",

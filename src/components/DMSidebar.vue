@@ -133,7 +133,8 @@
             'active': conversation.id === dmStore.currentConversationId,
             'unread': conversation.unread_count && conversation.unread_count > 0,
             'group-chat': conversation.type === 'group',
-            'muted': conversation.is_muted
+            'muted': conversation.is_muted,
+            'in-call': liveCallIds.has(conversation.id)
           }"
           @click="selectConversation(conversation.id)"
           @mouseenter="handleConversationHover(conversation.id); scheduleConversationPrefetch(conversation.id)"
@@ -189,9 +190,24 @@
             </div>
             
             <div class="conversation-preview">
-              <div class="last-message">
+              <div v-if="liveCallIds.has(conversation.id)" class="last-message call-live" data-testid="dm-conversation-call">
+                <Icon name="phone" :size="12" class="call-live-icon" />
+                {{ $t('dm.callInProgress') }}
+              </div>
+              <div v-else class="last-message">
                 {{ getLastMessagePreview(conversation) }}
               </div>
+              <button
+                v-if="liveCallIds.has(conversation.id) && joinedCallId !== conversation.id"
+                class="conversation-join-call"
+                type="button"
+                data-testid="dm-conversation-join-call"
+                :title="$t('dm.joinCall')"
+                :aria-label="$t('dm.joinCall')"
+                @click.stop="joinCallFromList(conversation.id)"
+              >
+                <Icon name="phone" :size="14" />
+              </button>
               <div 
                 v-if="conversation.unread_count && conversation.unread_count > 0"
                 class="unread-count"
@@ -237,6 +253,10 @@ import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import GroupIcon from '@/components/common/GroupIcon.vue'
 import GroupChatInviteModal from '@/components/dm/GroupChatInviteModal.vue'
+import { dmCallSignaling } from '@/services/DMCallSignaling'
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
+import { dmConversationIdFromChannel } from '@/composables/useCallSwitch'
+import { useDMCallJoin } from '@/composables/useDMCallJoin'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import { useI18n } from 'vue-i18n'
@@ -279,6 +299,30 @@ const searchTimeout = ref<NodeJS.Timeout | null>(null)
 
 // Computed
 const sortedConversations = computed(() => dmStore.getSortedConversations)
+
+const voiceStore = useUnifiedVoiceChannelStore()
+const { joinConversationCall } = useDMCallJoin()
+
+// Conversations with a live call: placed, ringing (a silenced ring included),
+// or in progress. Reading callStateVersion establishes the reactive dependency.
+const liveCallIds = computed(() => {
+  dmCallSignaling.callStateVersion.value
+  return new Set(sortedConversations.value.filter(c => dmCallSignaling.hasActiveCall(c.id)).map(c => c.id))
+})
+
+// Conversation whose call this client is in or joining.
+const joinedCallId = computed(() => {
+  if (!voiceStore.isConnectedOrJoining) return null
+  const room = voiceStore.effectiveChannelId
+  return room?.startsWith('federated-dm-')
+    ? dmCallSignaling.conversationForRoom(room)
+    : dmConversationIdFromChannel(room)
+})
+
+const joinCallFromList = async (conversationId: string) => {
+  selectConversation(conversationId)
+  await joinConversationCall(conversationId)
+}
 
 // Filter out blocked users from search results (uses store getter for reactivity)
 const filteredSearchResults = computed(() => {
@@ -835,6 +879,44 @@ onUnmounted(() => {
   opacity: 0.75;
 }
 
+/* A live call stays legible in a muted conversation: the ring was silenced, not the call. */
+.conversation-item.muted.in-call {
+  opacity: 1;
+}
+
+.conversation-item .conversation-preview .last-message.call-live {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--success);
+  font-weight: 500;
+}
+
+.call-live-icon {
+  flex-shrink: 0;
+}
+
+.conversation-join-call {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-left: 8px;
+  padding: 0;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--success);
+  color: var(--text-on-primary);
+  cursor: pointer;
+  transition: filter 0.12s ease;
+}
+
+.conversation-join-call:hover {
+  filter: brightness(1.1);
+}
+
 .muted-icon {
   color: var(--text-tertiary);
   flex-shrink: 0;
@@ -1039,6 +1121,11 @@ onUnmounted(() => {
   .conversation-item:active {
     transform: scale(0.98);
     background: var(--background-modifier-active);
+  }
+
+  .conversation-join-call {
+    width: 32px;
+    height: 32px;
   }
 
   .user-avatar {

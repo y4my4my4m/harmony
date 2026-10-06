@@ -351,7 +351,7 @@ is_federation_enabled_for_user	user_id uuid	boolean	invoker	public, pg_temp	anon
 is_heart_reaction	p_content text	boolean	invoker	public, extensions, pg_temp	anon+authenticated+service_role	unreferenced
 is_muted_by	target_user_id uuid	boolean	definer	public, pg_temp	service_role	unreferenced
 is_plaintext_mention_part	p_part jsonb	boolean	invoker	public, extensions, pg_temp	authenticated+service_role	unreferenced
-is_profile_in_voice	p_profile_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	client
+is_profile_in_voice	p_profile_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	unreferenced
 is_room_member	p_room_id text, p_user_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	client
 is_user_viewing_context	p_user_id uuid, p_server_id uuid, p_channel_id uuid, p_conversation_id uuid	boolean	definer	public, extensions, pg_temp	service_role	unreferenced
 is_user_viewing_push_context	p_user_id uuid, p_server_id uuid, p_channel_id uuid, p_conversation_id uuid	boolean	definer	public, extensions, pg_temp	service_role	client

@@ -7,7 +7,7 @@
  * Receives incoming calls without knowing conversation ids in advance.
  */
 
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { supabase } from '@/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { dmCallPermissions } from './DMCallPermissions'
@@ -39,6 +39,14 @@ class GlobalDMCallListenerService {
   // Auto-dismiss for rings whose caller died before sending cancel or timeout.
   private ringDismissTimer: ReturnType<typeof setTimeout> | null = null
   private readonly RING_DISMISS_MS = 45000
+  // Ring per conversation whose permission gate is in flight; end or timeout drops it.
+  private pendingRings = new Map<string, CallSignal>()
+  // Conversations whose ring was silenced by mute: no ringtone, popup or missed-call toast.
+  private silencedRings = new Set<string>()
+  private ringTimeoutOff: (() => void) | null = null
+  // Per conversation, the wait for the join of an answer whose ring already ended.
+  private lostAnswerWatches = new Map<string, () => void>()
+  private readonly LOST_ANSWER_WATCH_MS = 10000
 
   public incomingCall = ref<IncomingCallData | null>(null)
   public showIncomingCallModal = ref(false)
@@ -93,6 +101,9 @@ class GlobalDMCallListenerService {
 
     this.federatedOff?.()
     this.federatedOff = null
+    this.ringTimeoutOff ??= dmCallSignaling.onRingTimeout((conversationId) => {
+      void this.handleOwnRingTimeout(conversationId)
+    })
 
     this.currentUserId = profileId
     const channelName = `dm-calls:${profileId}`
@@ -150,6 +161,7 @@ class GlobalDMCallListenerService {
       userEventChannel.on('federated_call:ended', (payload) => {
         debug.log('[Federated] Call ended:', payload)
         const event = payload as FederatedCallEvent
+        if (event.conversationId) this.silencedRings.delete(event.conversationId)
         if (!event.conversationId || this.incomingCall.value?.conversationId === event.conversationId) {
           this.dismissIncomingCall()
         }
@@ -178,12 +190,8 @@ class GlobalDMCallListenerService {
 
     switch (signal.type) {
       case 'initiate':
-        dmCallSignaling.registerRemoteCall(
-          signal.conversationId,
-          signal.callerId,
-          signal.callType,
-          signal.systemMessageId
-        )
+        this.lostAnswerWatches.get(signal.conversationId)?.()
+        this.pendingRings.set(signal.conversationId, signal)
         await this.handleIncomingCall(signal.conversationId, signal)
         break
         
@@ -210,18 +218,23 @@ class GlobalDMCallListenerService {
         break
         
       case 'timeout':
-        debug.log('⏰ Call timed out - dismissing incoming call modal')
+      case 'end': {
+        debug.log(`Call ${signal.type} - dismissing incoming call modal`)
+        this.pendingRings.delete(signal.conversationId)
+        const silenced = this.silencedRings.delete(signal.conversationId)
+        // The ring ends only while the caller saw no answer: an answer from
+        // this client crossed it in flight.
+        const answered = !!dmCallSignaling.getActiveCall(signal.conversationId)?.participants.includes(this.currentUserId)
         dmCallSignaling.handleRemoteSignal(signal)
-        this.dismissIncomingCall()
-        // info routes to the corner toast; warn would go top-center.
-        toast.info('Missed call')
+        this.dismissIncomingCall(signal.conversationId)
+        if (answered) {
+          void this.endLostAnswer(signal.conversationId)
+        } else if (signal.type === 'timeout' && !silenced) {
+          // info routes to the corner toast; warn would go top-center.
+          toast.info('Missed call')
+        }
         break
-        
-      case 'end':
-        debug.log('Call ended/cancelled - dismissing incoming call modal')
-        dmCallSignaling.handleRemoteSignal(signal)
-        this.dismissIncomingCall()
-        break
+      }
       
       case 'join':
       case 'leave':
@@ -230,7 +243,11 @@ class GlobalDMCallListenerService {
     }
   }
 
-  /** Permission gate runs before any UI or call-state side effect. */
+  /**
+   * Permission gate runs before any UI or call-state side effect. An allowed
+   * ring is recorded and its conversation followed until the call ends; a
+   * silent ring stops there.
+   */
   private async handleIncomingCall(conversationId: string, signal: CallSignal): Promise<void> {
     if (!this.currentUserId) {
       debug.error('No current user ID')
@@ -251,6 +268,10 @@ class GlobalDMCallListenerService {
 
     debug.log('Permission result:', permissionCheck)
 
+    // Cancelled, timed out or rung again while the gate ran.
+    if (this.pendingRings.get(conversationId) !== signal) return
+    this.pendingRings.delete(conversationId)
+
     if (!permissionCheck.allowed) {
       debug.log('Auto-declining:', permissionCheck.reason)
       await dmCallSignaling.declineCall(
@@ -260,6 +281,21 @@ class GlobalDMCallListenerService {
       )
       return
     }
+
+    dmCallSignaling.registerRemoteCall(
+      conversationId,
+      signal.callerId,
+      signal.callType,
+      signal.systemMessageId
+    )
+    dmCallSignaling.followCall(conversationId)
+
+    if (permissionCheck.silent) {
+      debug.log('Caller or conversation muted - ring silenced')
+      this.silencedRings.add(conversationId)
+      return
+    }
+    this.silencedRings.delete(conversationId)
 
     debug.log('Loading caller data...')
     const { userDataService } = await import('./userDataService')
@@ -310,19 +346,12 @@ class GlobalDMCallListenerService {
     roomName: string
   }): Promise<void> {
     if (!this.currentUserId) return
-    
-    const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel')
-    const voiceStore = useUnifiedVoiceChannelStore()
-    if (voiceStore.isConnected) {
-      debug.log('[Federated] Already in a call, ignoring incoming')
-      return
-    }
 
     // BUGS.md H5: federated calls run the same permission gate as the local
     // path, before any UI or call-state side effect. Skipping it let any
-    // remote actor ring a blocked / DND / muted user. No federation-side
-    // decline channel exists, so a denial only suppresses the local ring and
-    // the caller's own timeout ends the call.
+    // remote actor ring a blocked / DND user. No federation-side decline
+    // channel exists, so a denial (busy included) only suppresses the local
+    // ring and the caller's own timeout ends the call.
     const permissionCheck = await dmCallPermissions.canReceiveCall(
       payload.callerId,
       this.currentUserId,
@@ -347,6 +376,13 @@ class GlobalDMCallListenerService {
       call.roomName = payload.roomName
     }
 
+    if (permissionCheck.silent) {
+      debug.log('[Federated] Caller or conversation muted - ring silenced')
+      this.silencedRings.add(payload.conversationId)
+      return
+    }
+    this.silencedRings.delete(payload.conversationId)
+
     const { getAvatarUrl } = await import('@/utils/avatarUtils')
 
     const incomingCallData: IncomingCallData = {
@@ -370,6 +406,52 @@ class GlobalDMCallListenerService {
     debug.log('[Federated] Showing incoming call modal')
   }
 
+  /** Caller side: this client's ring went unanswered. Leaves the call's room. */
+  private async handleOwnRingTimeout(conversationId: string): Promise<void> {
+    const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel')
+    const voiceStore = useUnifiedVoiceChannelStore()
+    const room = voiceStore.effectiveChannelId
+    const inCall = room === `dm-${conversationId}`
+      || (!!room?.startsWith('federated-dm-') && dmCallSignaling.conversationForRoom(room) === conversationId)
+    if (inCall) await voiceStore.leaveVoiceChannel()
+    useToast().info('No answer')
+  }
+
+  /**
+   * This client answered a ring that ended before the caller saw the answer.
+   * Leaves the call's room now, or when the answer's join reaches it within
+   * LOST_ANSWER_WATCH_MS. A new ring, or a call this client places, in the
+   * conversation cancels the wait.
+   */
+  private async endLostAnswer(conversationId: string): Promise<void> {
+    const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel')
+    const voiceStore = useUnifiedVoiceChannelStore()
+    const room = `dm-${conversationId}`
+    const leave = () => {
+      void voiceStore.leaveVoiceChannel()
+      useToast().info('Call ended')
+    }
+    this.lostAnswerWatches.get(conversationId)?.()
+    if (voiceStore.effectiveChannelId === room) {
+      leave()
+      return
+    }
+
+    const stop = watch(() => voiceStore.effectiveChannelId, (current) => {
+      if (dmCallSignaling.getActiveCall(conversationId)?.callerId === this.currentUserId) return cancel()
+      if (current !== room) return
+      cancel()
+      leave()
+    })
+    const expiry = setTimeout(() => cancel(), this.LOST_ANSWER_WATCH_MS)
+    const cancel = () => {
+      stop()
+      clearTimeout(expiry)
+      if (this.lostAnswerWatches.get(conversationId) === cancel) this.lostAnswerWatches.delete(conversationId)
+    }
+    this.lostAnswerWatches.set(conversationId, cancel)
+  }
+
   /** Leaves the voice room of a federated call the remote party rejected or ended. */
   private async leaveFederatedRoom(event: FederatedCallEvent): Promise<void> {
     if (!event.roomName) return
@@ -380,7 +462,9 @@ class GlobalDMCallListenerService {
     }
   }
 
-  dismissIncomingCall(): void {
+  /** With a conversation id, dismisses only the ring of that conversation. */
+  dismissIncomingCall(conversationId?: string): void {
+    if (conversationId && this.incomingCall.value && this.incomingCall.value.conversationId !== conversationId) return
     if (this.ringDismissTimer) {
       clearTimeout(this.ringDismissTimer)
       this.ringDismissTimer = null
@@ -401,7 +485,12 @@ class GlobalDMCallListenerService {
     }
     this.federatedOff?.()
     this.federatedOff = null
+    this.ringTimeoutOff?.()
+    this.ringTimeoutOff = null
+    this.lostAnswerWatches.forEach(cancel => cancel())
     this.currentUserId = null
+    this.pendingRings.clear()
+    this.silencedRings.clear()
     this.incomingCall.value = null
     this.showIncomingCallModal.value = false
   }
