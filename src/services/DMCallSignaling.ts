@@ -101,6 +101,9 @@ class DMCallSignalingService {
   private emptyGraceTimers: Map<string, number> = new Map()
   // Callee-side watchdogs bounding a ring whose caller vanished.
   private ringWatchdogs: Map<string, number> = new Map()
+  // Rung conversations whose channel stays open until the call ends (followCall).
+  private followedCalls: Set<string> = new Set()
+  private ringTimeoutHandlers: Set<(conversationId: string) => void> = new Set()
 
   // Reactive counter. Vue computeds must read callStateVersion.value to
   // re-evaluate on call state changes; the Maps themselves are not reactive.
@@ -116,6 +119,7 @@ class DMCallSignalingService {
     this.clearRingWatchdog(conversationId)
     this.activeCalls.delete(conversationId)
     this.bumpVersion()
+    if (this.followedCalls.delete(conversationId)) this.releaseChannelIfUnused(conversationId)
   }
 
   private readonly CALL_TIMEOUT_MS = 30000
@@ -159,6 +163,9 @@ class DMCallSignalingService {
           from: signal.callerId,
           callType: signal.callType
         })
+        // An answer stops the caller's ring timer whether or not a listener is
+        // mounted; presence confirms it only once the answerer has connected.
+        if (signal.type === 'accept' || signal.type === 'join') this.handleRemoteSignal(signal)
         this.listeners.get(conversationId)?.forEach(listener => listener(signal))
       })
       .on('presence', { event: 'sync' }, () => {
@@ -186,7 +193,7 @@ class DMCallSignalingService {
 
   private releaseChannelIfUnused(conversationId: string): void {
     const hasListeners = (this.listeners.get(conversationId)?.size ?? 0) > 0
-    if (hasListeners || this.trackedPresence.has(conversationId)) return
+    if (hasListeners || this.trackedPresence.has(conversationId) || this.followedCalls.has(conversationId)) return
 
     const channel = this.channels.get(conversationId)
     if (channel) {
@@ -316,7 +323,9 @@ class DMCallSignalingService {
           call.timeoutTimer = undefined
         }
       }
-      this.clearRingWatchdog(conversationId)
+      // A ringing call does not end on empty presence; the watchdog bounds it
+      // until someone answers.
+      if (!call.ringing) this.clearRingWatchdog(conversationId)
       this.bumpVersion()
       return
     }
@@ -428,7 +437,7 @@ class DMCallSignalingService {
     }
     
     const timeoutTimer = window.setTimeout(() => {
-      this.handleCallTimeout(conversationId, callerId)
+      void this.handleCallTimeout(conversationId)
     }, this.CALL_TIMEOUT_MS)
     
     this.setActiveCall(conversationId, {
@@ -449,48 +458,43 @@ class DMCallSignalingService {
   }
   
   /**
-   * No answer within CALL_TIMEOUT_MS. Mirrors Discord: ringing stops on both
-   * sides and the call reads as "No Answer".
+   * Caller side: this client's ring went unanswered for CALL_TIMEOUT_MS, or a
+   * federated ring timed out. Runs after the call has left activeCalls.
+   * Returns an unsubscribe function.
    */
-  private async handleCallTimeout(conversationId: string, callerId: string): Promise<void> {
+  onRingTimeout(handler: (conversationId: string) => void): () => void {
+    this.ringTimeoutHandlers.add(handler)
+    return () => this.ringTimeoutHandlers.delete(handler)
+  }
+
+  /**
+   * No answer within CALL_TIMEOUT_MS. The call ends here, synchronously: an
+   * answer applied before this runs wins; one applied after finds no call,
+   * and its sender gets the 'timeout' ring and ends the call on its side.
+   */
+  private async handleCallTimeout(conversationId: string): Promise<void> {
     const call = this.activeCalls.get(conversationId)
-    if (!call) {
-      debug.log('⏰ Timeout fired but call already ended/answered')
+    if (!call?.ringing) {
+      debug.log('⏰ Timeout fired but call was answered or ended')
       return
     }
 
-    if (call.ringing) {
-      debug.log('⏰ Call timeout - no answer after 30 seconds')
-      
-      await this.finalizeCallMessage(call)
-      
-      const timeoutSignal: CallSignal = {
-        type: 'timeout',
-        callerId,
-        callType: call.callType,
-        timestamp: Date.now(),
-        conversationId,
-        reason: 'timeout'
-      }
-      
-      // Conversation channel reaches the caller's DMHeader.
-      await this.sendSignal(conversationId, timeoutSignal)
-      
-      // Ring topics reach GlobalDMCallListener, which dismisses the modal.
-      await this.ringReceivers(conversationId, call.receiverIds, 'timeout', call.callType)
-      
-      this.deleteActiveCall(conversationId)
-    } else {
-      debug.log('⏰ Timeout fired but call was answered')
-    }
+    debug.log('⏰ Call timeout - no answer')
+    call.timeoutTimer = undefined
+    this.deleteActiveCall(conversationId)
+    this.ringTimeoutHandlers.forEach(handler => handler(conversationId))
+
+    await this.finalizeCallMessage(call)
+    await this.ringReceivers(conversationId, call.receiverIds, 'timeout', call.callType)
   }
 
+  /** False when the call is gone: the ring ended before this answer. */
   async acceptCall(
     conversationId: string,
     userId: string
-  ): Promise<void> {
+  ): Promise<boolean> {
     const call = this.activeCalls.get(conversationId)
-    if (!call) return
+    if (!call) return false
 
     if (call.timeoutTimer) {
       debug.log('⏰ Clearing timeout timer - call accepted')
@@ -520,6 +524,7 @@ class DMCallSignalingService {
     await this.sendSignal(conversationId, signal)
 
     debug.log('Accept signal sent on conversation channel:', conversationId)
+    return true
   }
 
   async declineCall(
@@ -576,13 +581,13 @@ class DMCallSignalingService {
     await this.sendSignal(conversationId, signal)
   }
 
-  /** Join an ongoing call. Group DMs only. */
+  /** Join an ongoing call. False when the call is gone. */
   async joinCall(
     conversationId: string,
     userId: string
-  ): Promise<void> {
+  ): Promise<boolean> {
     const call = this.activeCalls.get(conversationId)
-    if (!call) return
+    if (!call) return false
 
     const signal: CallSignal = {
       type: 'join',
@@ -606,6 +611,7 @@ class DMCallSignalingService {
     this.bumpVersion()
 
     await this.sendSignal(conversationId, signal)
+    return true
   }
 
   /**
@@ -723,6 +729,20 @@ class DMCallSignalingService {
     this.ringWatchdogs.set(conversationId, watchdog)
 
     debug.log('Registered remote call for conversation:', conversationId)
+  }
+
+  /**
+   * Holds the conversation channel open for a call this client was rung for,
+   * until the call ends. Presence then tracks who answers and when the call
+   * empties, whether or not this client joins or shows the ring. Local calls
+   * only: federated calls have no presence.
+   */
+  followCall(conversationId: string): void {
+    if (!this.activeCalls.has(conversationId) || this.followedCalls.has(conversationId)) return
+    this.followedCalls.add(conversationId)
+    this.ensureChannel(conversationId).catch(error => {
+      debug.error('Failed to follow call channel:', conversationId, error)
+    })
   }
 
   /**
@@ -1065,11 +1085,7 @@ class DMCallSignalingService {
     }
   }
 
-  /**
-   * Unanswered outbound ring. Ends it on the backend, which tells the callee's
-   * instance, and notifies local listeners: federated calls have no broadcast
-   * channel.
-   */
+  /** Unanswered outbound ring. Ends it on the backend, which tells the callee's instance. */
   private handleFederatedCallTimeout(conversationId: string, callerId: string): void {
     debug.log('⏰ [Federated] Call timeout for:', conversationId)
     
@@ -1077,17 +1093,8 @@ class DMCallSignalingService {
     if (!call?.isFederated || !call.ringing) return
 
     this.deleteActiveCall(conversationId)
+    this.ringTimeoutHandlers.forEach(handler => handler(conversationId))
     void this.endFederatedCall(conversationId, callerId)
-
-    this.notifyListeners(conversationId, {
-      type: 'timeout',
-      callerId,
-      callType: call.callType,
-      timestamp: Date.now(),
-      conversationId,
-      reason: 'timeout',
-      isFederated: true,
-    })
   }
 
   /**
@@ -1169,6 +1176,7 @@ class DMCallSignalingService {
     this.listeners.clear()
     this.activeCalls.clear()
     this.trackedPresence.clear()
+    this.followedCalls.clear()
     this.emptyGraceTimers.clear()
     this.ringWatchdogs.clear()
   }

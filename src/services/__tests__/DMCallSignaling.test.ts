@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Call signalling over private Realtime channels: the conversation topic is
 // private, rings go through ring_dm_call, and federated calls take their token
@@ -81,6 +81,110 @@ describe('local calls', () => {
     expect(opts.config.private).toBe(true)
     expect(channel.sent[0]).toMatchObject({ type: 'broadcast', event: 'call-signal', payload: { type: 'decline' } })
     expect(channel.unsubscribe).toHaveBeenCalled()
+  })
+})
+
+describe('caller ring timeout', () => {
+  const broadcast = (channel: any) => channel.on.mock.calls.find((c: any[]) => c[0] === 'broadcast')[2] as (p: any) => void
+  const answer = (type: 'accept' | 'join') => ({ payload: { type, callerId: 'them', callType: 'voice', timestamp: 1, conversationId: CONV } })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('an unanswered ring ends on the caller: the call goes, timeout handlers run, receivers get the timeout ring', async () => {
+    vi.useFakeTimers()
+    const expired: string[] = []
+    const off = dmCallSignaling.onRingTimeout((id) => expired.push(id))
+    await dmCallSignaling.initiateCall(CONV, 'me', 'voice', ['them'])
+
+    await vi.advanceTimersByTimeAsync(30000)
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
+    expect(expired).toEqual([CONV])
+    expect(realtime.rpc).toHaveBeenLastCalledWith('ring_dm_call', expect.objectContaining({ p_signal: 'timeout', p_receiver_ids: ['them'] }))
+    off()
+  })
+
+  it('an answer broadcast stops the ring with no listener mounted', async () => {
+    vi.useFakeTimers()
+    const expired: string[] = []
+    const off = dmCallSignaling.onRingTimeout((id) => expired.push(id))
+    await dmCallSignaling.initiateCall(CONV, 'me', 'voice', ['them'])
+    await dmCallSignaling.trackCallPresence(CONV, { callType: 'voice', isCaller: true, systemMessageId: null })
+    broadcast(realtime.opened[0].channel)(answer('accept'))
+
+    await vi.advanceTimersByTimeAsync(30000)
+    expect(expired).toEqual([])
+    expect(dmCallSignaling.getActiveCall(CONV)).toMatchObject({ ringing: false, participants: ['me', 'them'] })
+    off()
+  })
+
+  it('an answer that lands after the timeout finds no call', async () => {
+    vi.useFakeTimers()
+    await dmCallSignaling.initiateCall(CONV, 'me', 'voice', ['them'])
+    await vi.advanceTimersByTimeAsync(30000)
+    await expect(dmCallSignaling.acceptCall(CONV, 'them')).resolves.toBe(false)
+    await expect(dmCallSignaling.joinCall(CONV, 'them')).resolves.toBe(false)
+  })
+})
+
+describe('rung calls', () => {
+  const presenceSync = (channel: any) => channel.on.mock.calls.find((c: any[]) => c[0] === 'presence')[2] as () => void
+  const meta = (isCaller: boolean) => [{ callType: 'voice', joinedAt: new Date().toISOString(), isCaller, systemMessageId: null }]
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('a followed call holds the conversation channel until it ends', async () => {
+    dmCallSignaling.registerRemoteCall(CONV, 'caller', 'voice')
+    dmCallSignaling.followCall(CONV)
+    await flush()
+    expect(realtime.opened.map((o) => o.topic)).toEqual([`dm-call:${CONV}`])
+    const { channel } = realtime.opened[0]
+    expect(channel.unsubscribe).not.toHaveBeenCalled()
+
+    dmCallSignaling.handleRemoteSignal({ type: 'end', callerId: 'caller', callType: 'voice', timestamp: 1, conversationId: CONV })
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
+    expect(channel.unsubscribe).toHaveBeenCalled()
+  })
+
+  it('a ring whose present caller vanishes expires with the watchdog', async () => {
+    vi.useFakeTimers()
+    dmCallSignaling.registerRemoteCall(CONV, 'caller', 'voice')
+    dmCallSignaling.followCall(CONV)
+    await vi.advanceTimersByTimeAsync(0)
+    const { channel } = realtime.opened[0]
+
+    channel.presenceState.mockReturnValue({ caller: meta(true) })
+    presenceSync(channel)()
+    channel.presenceState.mockReturnValue({})
+    presenceSync(channel)()
+    expect(dmCallSignaling.getActiveCall(CONV)?.ringing).toBe(true)
+
+    await vi.advanceTimersByTimeAsync(45000)
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
+    expect(channel.unsubscribe).toHaveBeenCalled()
+  })
+
+  it('a followed group call answered by another member stays live until presence empties', async () => {
+    vi.useFakeTimers()
+    dmCallSignaling.registerRemoteCall(CONV, 'caller', 'voice')
+    dmCallSignaling.followCall(CONV)
+    await vi.advanceTimersByTimeAsync(0)
+    const { channel } = realtime.opened[0]
+
+    channel.presenceState.mockReturnValue({ caller: meta(true), member: meta(false) })
+    presenceSync(channel)()
+    expect(dmCallSignaling.getActiveCall(CONV)).toMatchObject({ ringing: false, participants: ['caller', 'member'] })
+
+    await vi.advanceTimersByTimeAsync(60000)
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(true)
+
+    channel.presenceState.mockReturnValue({})
+    presenceSync(channel)()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(dmCallSignaling.hasActiveCall(CONV)).toBe(false)
   })
 })
 
