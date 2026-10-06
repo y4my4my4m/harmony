@@ -483,8 +483,9 @@ const performPasswordReset = async () => {
     
     authStore.clearPasswordResetMode()
     
-    // Recovery session is discarded; login uses the new password.
-    await supabase.auth.signOut()
+    // GoTrue's password update deleted every other session of the account; the recovery
+    // session is the one left.
+    await signOutAndForget()
     authStore.session = null
     
     toast.success('Password reset. Log in with your new password.')
@@ -502,7 +503,7 @@ const performPasswordReset = async () => {
 
 const goToLogin = async () => {
   if (isPasswordResetMode.value && !isSuccess.value) {
-    await signOutAndForget('local')
+    await signOutAndForget()
     authStore.session = null
     authStore.clearPasswordResetMode()
   }

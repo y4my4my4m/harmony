@@ -113,6 +113,9 @@ Copy from `federation-backend/env.template`.
 | `LIVEKIT_PUBLIC_URL` | Public-facing LiveKit URL |
 | `WEBRTC_MODE` | `sfu`, `p2p`, or `hybrid` |
 | `ALLOW_FEDERATED_VOICE` | Allow voice across federated instances |
+| `VOICE_RECONCILE_INTERVAL_SECONDS` | Worker: seconds between checks of `voice_channel_participants` against the LiveKit rooms (default `60`, `0` disables). A row whose profile is not connected to the channel's room two minutes after joining is removed. Off when LiveKit is not configured or `WEBRTC_MODE=p2p` |
+
+LiveKit webhooks shorten that to seconds after a client drops. In `livekit.yaml`, `webhook.api_key` must be `LIVEKIT_API_KEY` (one of its `keys`) and `webhook.urls` must reach the federation server's `/api/livekit/webhook` (`https://<domain>/api/livekit/webhook` through the reverse proxy, or `http://<federation-server>:3001/api/livekit/webhook` on a shared network). The backend verifies each call with `LIVEKIT_API_SECRET`.
 
 ### Push Notifications
 

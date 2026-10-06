@@ -47,10 +47,7 @@ import {
   electKeyCoordinator,
   type VoiceKeyEnvelope,
 } from './encryption/VoiceE2EEService';
-import {
-  getLiveKitConfig,
-  getLiveKitToken,
-} from './livekitTokens';
+import { getLiveKitToken } from './livekitTokens';
 
 // FEDERATED IDENTITY HELPERS
 
@@ -295,13 +292,6 @@ export interface UserMediaState {
 /** Link quality as LiveKit grades it, per participant. */
 export type VoiceConnectionQuality = 'excellent' | 'good' | 'poor' | 'lost' | 'unknown';
 
-export interface LiveKitConfig {
-  enabled: boolean;
-  mode: 'sfu' | 'p2p' | 'hybrid';
-  wsUrl: string | null;
-  allowFederatedVoice: boolean;
-}
-
 interface TokenResponse {
   token: string;
   wsUrl: string;
@@ -440,17 +430,6 @@ export class LiveKitWebRTCService {
     };
   }
 
-  // CONFIGURATION
-  
-  async getConfig(forceRefresh = false): Promise<LiveKitConfig> {
-    return getLiveKitConfig(forceRefresh);
-  }
-  
-  async isAvailable(): Promise<boolean> {
-    const config = await this.getConfig();
-    return config.enabled && !!config.wsUrl;
-  }
-  
   // TOKEN MANAGEMENT
   
   private async getToken(roomName: string, roomType: 'voice_channel' | 'dm_call' | 'stage'): Promise<TokenResponse> {

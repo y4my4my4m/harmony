@@ -156,6 +156,18 @@ describe('contentUtils', () => {
       expect(tags[0].name).toBe('@bob@remote.host')
     })
 
+    it('links a mention of a known profile to its stored actor id', () => {
+      const content = [
+        { type: 'mention', userId: 'p1', username: 'doesnm', domain: 'understars.test' },
+        { type: 'mention', userId: 'p2', username: 'bob', domain: 'remote.host' },
+      ]
+      const tags = extractActivityPubTags(content, new Map([['p1', 'https://chat.understars.test/users/doesnm']]))
+      expect(tags.map((t) => [t.href, t.name])).toEqual([
+        ['https://chat.understars.test/users/doesnm', '@doesnm@understars.test'],
+        ['https://remote.host/users/bob', '@bob@remote.host'],
+      ])
+    })
+
     it('extracts hashtag tags', () => {
       const content = [{ type: 'hashtag', tag: 'fediverse' }]
       const tags = extractActivityPubTags(content)

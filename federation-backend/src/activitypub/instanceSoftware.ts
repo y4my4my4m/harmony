@@ -14,6 +14,7 @@
 
 import { getSupabaseClient } from '../config/supabase.js';
 import { safeFetch } from '../utils/ssrfProtection.js';
+import { SignatureService } from './SignatureService.js';
 import { logger } from '../utils/logger.js';
 
 export type EngagementFamily = 'mastodon' | 'misskey' | 'emojiReact';
@@ -174,8 +175,9 @@ async function fetchNodeinfoSoftware(host: string): Promise<{ name: string; vers
       typeof l?.rel === 'string' && /nodeinfo\.diaspora\.software\/ns\/schema\/2\.[01]$/.test(l.rel))?.href;
     if (typeof href !== 'string') return null;
 
-    // The href is remote input; safeFetch validates every hop.
-    const nodeinfo = await safeFetch(href, {
+    // The href is remote input; safeFetch validates every hop. Signed: an
+    // instance in authorized fetch mode may refuse unsigned NodeInfo reads.
+    const nodeinfo = await SignatureService.signedApFetch(href, {
       headers: { Accept: 'application/json' },
       timeoutMs: NODEINFO_TIMEOUT_MS,
     });

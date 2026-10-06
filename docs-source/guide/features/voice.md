@@ -10,7 +10,12 @@ The voice system supports multiple transport modes configured via `WEBRTC_MODE`:
 |------|-----------|----------|
 | `sfu` | LiveKit server | Larger rooms, better scalability |
 | `p2p` | Direct peer connections | Small groups, lower latency |
-| `hybrid` | LiveKit with P2P fallback | Flexibility |
+| `hybrid` | LiveKit when configured, P2P otherwise | Instances that may run without LiveKit |
+
+The transport belongs to the instance, not to a client: every participant of a
+call computes it from `GET /api/livekit/config` and lands on the same one. A
+client that cannot reach that transport fails its join with the reason; it never
+falls back to P2P on its own.
 
 ### Service Stack
 
@@ -62,6 +67,8 @@ Direct message calls use `DMCallSignaling`:
 - Incoming call modal (`IncomingCallModal`)
 - Ring/accept/decline flow
 - Global listener (`GlobalDMCallListener`) for receiving calls from any view
+- Group calls run in this instance's room and ring its local members; members
+  on other instances are not reached. Federated calls are one-to-one.
 
 ## Spatial Audio
 

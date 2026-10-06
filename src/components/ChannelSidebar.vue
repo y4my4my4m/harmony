@@ -1021,6 +1021,9 @@ const joinVoiceChannel = async (channelId: string): Promise<boolean> => {
     // Disconnect sound signals the failed join.
     themeStore.playAudio('voice_disconnect');
     triggerVoice('warning');
+    if (voiceChannelStore.joinError) {
+      notificationStore.showToast('server_update', 'Could not join voice', voiceChannelStore.joinError, 6000);
+    }
   }
   
   return success;

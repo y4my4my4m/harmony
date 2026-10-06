@@ -1,7 +1,7 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { uploadImageObject } from '@/utils/fileUpload'
-import { removeReplacedObject } from '@/utils/storageImageUtils'
+import { publicImageUrl, removeReplacedObject } from '@/utils/storageImageUtils'
 import { knownRenderFallback } from '@/utils/renderFallback'
 
 /**
@@ -55,24 +55,15 @@ export function getGroupIconUrl(
   const { size = DEFAULT_SIZE, quality = DEFAULT_QUALITY } = options
 
   try {
-    const { data } = supabase.storage
-      .from(BUCKET_NAME)
-      .getPublicUrl(iconPath, {
-        transform: {
-          width: size,
-          height: size,
-          quality: quality,
-          resize: 'cover'
-        }
-      })
+    const url = publicImageUrl(BUCKET_NAME, iconPath, { width: size, height: size, quality, resize: 'cover' })
 
     // Ensure we have a valid URL before returning
-    if (!data.publicUrl) {
+    if (!url) {
       debug.warn('No public URL returned for icon path:', iconPath)
       return getDefaultGroupIcon(conversationId, size)
     }
 
-    return knownRenderFallback(data.publicUrl)
+    return knownRenderFallback(url)
   } catch (error) {
     debug.error('Failed to get group icon URL:', error)
     return getDefaultGroupIcon(conversationId, options.size)

@@ -234,7 +234,7 @@ async function uploadEmoji(serverId: string, userId: string, file: File): Promis
 
     try {
 
-        const { name: cleanedName, extension } = cleanFileName(file.name);
+        const { name: cleanedName } = cleanFileName(file.name);
         
         let uniqueName = cleanedName;
         let counter = 1;
@@ -243,7 +243,7 @@ async function uploadEmoji(serverId: string, userId: string, file: File): Promis
             counter++;
         }
 
-        const uniqueEmojiName = `${uuidv4()}.${extension}`;
+        const uniqueEmojiName = `${uuidv4()}.${prepared.extension}`;
         const filePath = `${serverId}/${userId}/${uniqueEmojiName}`;
         
         const { error } = await supabase.storage

@@ -105,10 +105,14 @@ export const accountSecurityService = {
     return data === true
   },
 
-  /** GoTrue's own logout scope; the current session stays signed in. */
-  async signOutOtherSessions(): Promise<void> {
-    const { error } = await supabase.auth.signOut({ scope: 'others' })
+  /**
+   * Deletes every other session of the account; the current one stays. GoTrue's own
+   * `scope: 'others'` is refused at the API host because it accepts an aal1 token.
+   */
+  async signOutOtherSessions(): Promise<number> {
+    const { data, error } = await supabase.rpc('sign_out_my_sessions', { p_scope: 'others' })
     if (error) throw error
+    return typeof data === 'number' ? data : 0
   },
 
   /** Current-password check for the password form; shares the server's attempt budget. */

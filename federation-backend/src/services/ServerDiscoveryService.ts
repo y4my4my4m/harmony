@@ -1004,16 +1004,18 @@ export class ServerDiscoveryService {
   /**
    * Fetch a Group by its ActivityPub URL. With `signAs`, the GET is signed as
    * that local user, which a private server requires before it lists
-   * channels; without it the GET is unsigned and sees the public view.
+   * channels; without it the instance actor signs and sees the public view.
    */
   static async fetchServerByUrl(url: string, opts: { signAs?: string } = {}): Promise<any | null> {
     try {
       logger.info(`Fetching remote server: ${url}`);
 
       const headers = { 'Accept': 'application/activity+json, application/ld+json' };
-      const response = opts.signAs
-        ? await SignatureService.signedApFetch(url, { headers, timeoutMs: 10000, signAs: opts.signAs })
-        : await safeFetch(url, { headers });
+      const response = await SignatureService.signedApFetch(url, {
+        headers,
+        timeoutMs: 10000,
+        ...(opts.signAs ? { signAs: opts.signAs } : {}),
+      });
 
       if (!response.ok) {
         logger.warn(`Failed to fetch server: ${response.status}`);
@@ -1578,9 +1580,11 @@ export class ServerDiscoveryService {
         'Accept': 'application/activity+json, application/json',
         'User-Agent': `Harmony/${config.VERSION} (+https://${config.INSTANCE_DOMAIN})`,
       };
-      const response = opts.signAs
-        ? await SignatureService.signedApFetch(membersUrl + '?page=1', { headers, timeoutMs: 10000, signAs: opts.signAs })
-        : await safeFetch(membersUrl + '?page=1', { headers });
+      const response = await SignatureService.signedApFetch(membersUrl + '?page=1', {
+        headers,
+        timeoutMs: 10000,
+        ...(opts.signAs ? { signAs: opts.signAs } : {}),
+      });
 
       if (!response.ok) {
         logger.warn(`Failed to fetch members collection: ${response.status}`);

@@ -64,7 +64,7 @@ beforeEach(() => {
 
 describe('fetchServerByUrl', () => {
   it('rejects a Group whose id is on another host', async () => {
-    vi.mocked(safeFetch).mockResolvedValue(json({
+    vi.mocked(SignatureService.signedApFetch).mockResolvedValue(json({
       type: 'Group',
       id: 'https://harmony.test/servers/22222222-2222-4222-8222-222222222222',
       inbox: 'https://harmony.test/servers/22222222-2222-4222-8222-222222222222/inbox',
@@ -74,7 +74,7 @@ describe('fetchServerByUrl', () => {
   })
 
   it('rejects a Group whose inbox is on another host', async () => {
-    vi.mocked(safeFetch).mockResolvedValue(json({
+    vi.mocked(SignatureService.signedApFetch).mockResolvedValue(json({
       type: 'Group',
       id: 'https://remote.test/servers/1',
       inbox: 'https://evil.test/inbox',
@@ -84,7 +84,7 @@ describe('fetchServerByUrl', () => {
   })
 
   it('accepts a Group served by its own host', async () => {
-    vi.mocked(safeFetch).mockResolvedValue(json({
+    vi.mocked(SignatureService.signedApFetch).mockResolvedValue(json({
       type: 'Group',
       id: 'https://remote.test/servers/1',
       inbox: 'https://remote.test/servers/1/inbox',

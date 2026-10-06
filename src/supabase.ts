@@ -188,14 +188,19 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
 });
 
 /**
- * Signs out and drops the stored session. auth-js maps GoTrue's `session_not_found` to
- * AuthSessionMissingError and then keeps the token in storage, so a session revoked from
- * another device would survive its own sign-out and be restored on the next load.
+ * Signs this device out and drops the stored session. auth-js maps GoTrue's
+ * `session_not_found` to AuthSessionMissingError and then keeps the token in storage, so a
+ * session revoked from another device would survive its own sign-out and be restored on
+ * the next load.
+ *
+ * Local scope only. GoTrue's global and others scopes accept an aal1 token; the API host
+ * refuses them (dev/nginx-auth-logout.template.conf). Other devices are signed out
+ * through `sign_out_my_sessions`, which requires aal2 once a factor is verified.
  */
-export async function signOutAndForget(scope: 'global' | 'local' = 'global'): Promise<void> {
+export async function signOutAndForget(): Promise<void> {
   let failed = false;
   try {
-    const { error } = await supabase.auth.signOut({ scope });
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
     failed = !!error;
   } catch {
     failed = true;
@@ -206,6 +211,20 @@ export async function signOutAndForget(scope: 'global' | 'local' = 'global'): Pr
   for (const suffix of ['', '-code-verifier', '-user']) {
     sessionAwareStorage.removeItem(key + suffix);
   }
+}
+
+/**
+ * Ends every session of the account: `sign_out_my_sessions('others')` deletes the other
+ * devices' sessions, then this device signs out. A refused or failed call still signs this
+ * device out.
+ */
+export async function signOutEverywhere(): Promise<void> {
+  try {
+    await supabase.rpc('sign_out_my_sessions', { p_scope: 'others' });
+  } catch {
+    /* this device signs out regardless */
+  }
+  await signOutAndForget();
 }
 
 // Retained for backward compatibility. Connection management lives in the

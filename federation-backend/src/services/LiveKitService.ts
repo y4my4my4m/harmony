@@ -6,6 +6,7 @@ import {
   authorizeVoiceChannel,
   isConversationParticipant,
   isLiveOutboundCallFor,
+  liveKitIdentity,
   parseRoomName,
   type RoomType,
 } from './voiceAccess.js';
@@ -87,6 +88,11 @@ class LiveKitService {
     return this.getConfig().isConfigured;
   }
   
+  /** Throws when LiveKit is not configured; callers that must fail closed use this. */
+  roomServiceClient(): RoomServiceClient {
+    return this.getRoomService();
+  }
+
   // Client is constructed on first use.
   private getRoomService(): RoomServiceClient {
     if (!this.roomService) {
@@ -125,22 +131,12 @@ class LiveKitService {
       .eq('auth_user_id', request.userId)
       .single();
 
-    // Identity uses the federated format so it is stable across instances.
     const profileId = profile?.id || request.userId;
-    const username = profile?.username || 'unknown';
-    
-    let identity: string;
-    if (profile?.federated_id) {
-      // Remote user mirrored onto this instance.
-      identity = `federated:${profile.federated_id}`;
-    } else if (config.INSTANCE_DOMAIN) {
-      // Local user: derive the federated ID from the instance domain.
-      identity = `federated:https://${config.INSTANCE_DOMAIN}/users/${username}`;
-    } else {
-      // Non-federated instance: bare profile UUID.
-      identity = profileId;
-    }
-    
+    const identity = liveKitIdentity(
+      { id: profileId, username: profile?.username, federated_id: profile?.federated_id },
+      config.INSTANCE_DOMAIN,
+    );
+
     const at = new AccessToken(cfg.apiKey, cfg.apiSecret, {
       identity,
       name: profile?.display_name || profile?.username || 'Unknown User',

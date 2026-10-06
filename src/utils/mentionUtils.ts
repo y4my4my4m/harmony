@@ -353,7 +353,7 @@ export async function resolveRemoteMention(username: string, domain: string, for
     }
 
     const savedUser = result.user;
-    debug.log(`${result.refreshed ? 'Refreshed' : (result.cached ? 'Found cached' : 'Created')} remote user: ${username}@${domain}`);
+    debug.log(`${result.refreshed ? 'Refreshed' : (result.cached ? 'Found cached' : 'Created')} remote user: ${savedUser.username}@${savedUser.domain}`);
 
     let bioEmojis: Array<{name: string, url: string}> = [];
     let displayNameEmojis: Array<{name: string, url: string}> = [];
@@ -393,7 +393,9 @@ export async function resolveRemoteMention(username: string, domain: string, for
       domain: savedUser.domain,
       avatar_url: savedUser.avatar_url,
       banner_url: savedUser.banner_url,
-      handle: `@${username}@${domain}`,
+      // The stored account: a split-domain account looked up by its web
+      // domain is named by its account domain.
+      handle: `@${savedUser.username}@${savedUser.domain}`,
       is_local: false,
       // Same `bio` shape concern as `display_name` above.
       bio: bio as any,

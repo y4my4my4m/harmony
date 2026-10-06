@@ -25,6 +25,12 @@
 // participant, its user key and its instance actor, as Mastodon and Misskey fetch on
 // receipt) and signed by a second instance with no follower and no participant.
 //
+// Authorized fetch: an object and an actor of the peer are served only to a GET
+// signed by a local actor, 400 Missing signature otherwise. The local instance
+// signs every GET as its instance actor, the key fetch that verifies an inbound
+// signature included. Inbound RFC 9421 signatures (Signature-Input) are
+// verified on GETs and deliveries alike.
+//
 // Private servers are exercised from both sides, one real instance each way:
 //   - hosting: the local instance serves a private server; the peer reads it
 //     with GETs signed by a member, a non-member, its instance actor, or
@@ -180,11 +186,14 @@ class Peer {
   // A second user with no membership anywhere, and the instance actor.
   readonly strangerKey = rsaKeyPair()
   readonly instanceKey = rsaKeyPair()
+  // A user whose actor document, like every object of an instance in
+  // authorized fetch mode, is served only to a signed GET.
+  readonly secureKey = rsaKeyPair()
 
   readonly captured: Captured[] = []
-  // GETs to the authorized-fetch object, recorded in arrival order so a case
-  // can tell the unsigned attempt from the signed retry.
+  // GETs to the authorized-fetch object and actor, in arrival order.
   readonly secureGetRequests: Captured[] = []
+  readonly secureActorGets: Captured[] = []
   // GETs to the peer-hosted private Group and its channel, in arrival order.
   readonly groupGetRequests: Captured[] = []
   // POSTs to the peer's /api/livekit/federated-token, and the rooms it hosts:
@@ -214,6 +223,9 @@ class Peer {
   }
   get instanceActorUrl() {
     return `${this.base}/actor`
+  }
+  get secureActorUrl() {
+    return `${this.base}/users/fx_secure`
   }
   get groupUrl() {
     return `${this.base}/servers/${REMOTE_REF}`
@@ -283,9 +295,8 @@ class Peer {
           void this.handleTokenRequest(req, raw, res)
           return
         }
-        // Authorized-fetch object: 401 unless the request carries a valid
-        // HTTP signature from a local actor. This is the endpoint that proves
-        // the backend's signed GET retry works against a secure peer.
+        // Authorized-fetch object and actor: served only to a GET carrying a
+        // valid HTTP signature from a local actor.
         if (req.method === 'GET' && req.url === '/objects/secure-note') {
           this.secureGetRequests.push({
             method: req.method,
@@ -294,6 +305,18 @@ class Peer {
             raw,
           })
           void this.handleSecureGet(req, res)
+          return
+        }
+        if (req.method === 'GET' && req.url === '/users/fx_secure') {
+          this.secureActorGets.push({
+            method: req.method,
+            url: req.url ?? '',
+            headers: req.headers as Record<string, string>,
+            raw,
+          })
+          void this.requireLocalSignature(req, res).then((ok) => {
+            if (ok) this.sendActor(res, this.secureActorUrl, 'Person', 'fx_secure', this.secureKey.publicKey)
+          })
           return
         }
         if (req.method === 'POST') {
@@ -317,17 +340,29 @@ class Peer {
   }
 
   /**
-   * Answer the authorized-fetch object. Reads the signed headers and verifies
-   * the signature against the signing actor's published key, fetched back from
-   * the local instance. A missing or invalid signature is 401.
+   * Authorized fetch: the signature is verified against the signing actor's
+   * published key, fetched back from the local instance. A missing signature
+   * is 400 Missing signature, as some authorized-fetch servers answer; an invalid one
+   * is 401. True when the request may be served.
    */
-  private async handleSecureGet(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  private async requireLocalSignature(req: http.IncomingMessage, res: http.ServerResponse): Promise<boolean> {
     const signature = req.headers.signature as string | undefined
-    if (!signature || !(await this.verifyLocalSignature(req, signature))) {
-      res.writeHead(401, { 'Content-Type': 'application/json' })
-      res.end('{"error":"authorized fetch requires a signature"}')
-      return
+    if (!signature) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end('{"code":400,"message":"Missing signature"}')
+      return false
     }
+    if (!(await this.verifyLocalSignature(req, signature))) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end('{"error":"authorized fetch requires a valid signature"}')
+      return false
+    }
+    return true
+  }
+
+  /** The authorized-fetch object. */
+  private async handleSecureGet(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    if (!(await this.requireLocalSignature(req, res))) return
 
     res.writeHead(200, { 'Content-Type': 'application/activity+json' })
     res.end(
@@ -540,6 +575,36 @@ function signedHeaders(targetUrl: string, bodyString: string, privateKey: string
       `signature="${signature}"`,
     ].join(','),
   }
+}
+
+// RFC 9421 signature as Fedify signs first and Mastodon 4.7 signs a retry:
+// @method, @target-uri and, with a body, content-digest (RFC 9530);
+// rsa-v1_5-sha256. Written out, like signedHeaders, rather than imported.
+function rfc9421Headers(
+  method: string,
+  targetUrl: string,
+  body: string | null,
+  privateKey: string,
+  keyId: string,
+  covered?: string[],
+): Record<string, string> {
+  const u = new URL(targetUrl)
+  const headers: Record<string, string> = { Host: u.host, Accept: 'application/activity+json' }
+  const components = covered ?? (body === null ? ['@method', '@target-uri'] : ['@method', '@target-uri', 'content-digest'])
+  if (body !== null) {
+    headers['Content-Type'] = 'application/activity+json'
+    headers['Content-Digest'] = `sha-256=:${crypto.createHash('sha256').update(body).digest('base64')}:`
+  }
+  const params = `(${components.map((c) => `"${c}"`).join(' ')});created=${Math.floor(Date.now() / 1000)};keyid="${keyId}";alg="rsa-v1_5-sha256"`
+  const value = (c: string) =>
+    c === '@method' ? method
+      : c === '@target-uri' ? `${u.protocol}//${u.host}${u.pathname}${u.search}`
+        : headers[Object.keys(headers).find((k) => k.toLowerCase() === c) ?? '']
+  const base = [...components.map((c) => `"${c}": ${value(c)}`), `"@signature-params": ${params}`].join('\n')
+  const signature = crypto.sign('sha256', Buffer.from(base), { key: privateKey, padding: crypto.constants.RSA_PKCS1_PADDING })
+  headers['Signature-Input'] = `sig1=${params}`
+  headers.Signature = `sig1=:${signature.toString('base64')}:`
+  return headers
 }
 
 // node:http, not fetch: the Host header is signed, and fetch owns it.
@@ -1224,8 +1289,8 @@ async function caseOutboundDM(db: SupabaseClient, peer: Peer, backend: Backend) 
   )
 }
 
-async function caseSignedGetRetry(peer: Peer, localUrl: string, db: SupabaseClient) {
-  console.log('\noutbound GET against authorized fetch -> signed retry')
+async function caseSignedGet(peer: Peer, localUrl: string, db: SupabaseClient) {
+  console.log('\noutbound GET against authorized fetch -> signed as the instance actor')
 
   peer.localUrl = localUrl
   const before = peer.secureGetRequests.length
@@ -1235,22 +1300,17 @@ async function caseSignedGetRetry(peer: Peer, localUrl: string, db: SupabaseClie
     { 'Content-Type': 'application/json' },
     JSON.stringify({ url: peer.secureNoteUrl }),
   )
-  eq(res.status, 200, 'resolve-post succeeds against the secure peer')
+  eq(res.status, 200, 'resolve-post succeeds against a peer that answers an unsigned GET 400')
 
   const reqs = peer.secureGetRequests.slice(before)
-  eq(reqs.length, 2, 'the peer saw an unsigned attempt and exactly one signed retry')
-
-  const first = reqs[0]
-  const second = reqs[1]
-  assert(!first?.headers.signature, 'the first attempt carries no Signature header')
-  assert(!!second?.headers.signature, 'the retry carries a Signature header')
-
-  const params = second?.headers.signature ? parseSignatureHeader(second.headers.signature) : {}
-  eq(params.headers, '(request-target) host date', 'the retry signs (request-target), host and date')
-  assert(
-    (params.keyId ?? '').startsWith(`https://${INSTANCE_DOMAIN}/users/`),
-    'the retry is signed by a local actor key',
+  eq(reqs.length, 1, 'the peer saw one GET, with no unsigned attempt')
+  const params = reqs[0]?.headers.signature ? parseSignatureHeader(reqs[0].headers.signature) : {}
+  eq(params.headers, '(request-target) host date', 'the GET signs (request-target), host and date')
+  eq(params.algorithm, 'rsa-sha256', 'the GET is signed rsa-sha256')
+  eq(
     params.keyId,
+    `https://${INSTANCE_DOMAIN}/users/instance.actor#main-key`,
+    'the GET is signed by the instance actor, not a user',
   )
 
   const { data: row } = await db
@@ -1260,6 +1320,52 @@ async function caseSignedGetRetry(peer: Peer, localUrl: string, db: SupabaseClie
     .maybeSingle()
   assert(!!row, 'the resolved note is stored locally')
   eq(row?.is_local, false, 'the stored note is marked remote')
+}
+
+async function caseSignedOnlyActor(db: SupabaseClient, peer: Peer, localUrl: string) {
+  console.log('\ninbound Follow from an actor served only to signed GETs -> key fetched signed')
+
+  peer.localUrl = localUrl
+  // The profile domain is the actor's hostname, without the peer's port, so
+  // a row from an earlier run on another port holds the same username@domain.
+  await db.from('profiles').delete().eq('username', 'fx_secure').eq('is_local', false)
+  const before = peer.secureActorGets.length
+
+  const activity = {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: `${peer.secureActorUrl}#follow-${crypto.randomUUID()}`,
+    type: 'Follow',
+    actor: peer.secureActorUrl,
+    object: `https://${INSTANCE_DOMAIN}/users/fx_carol`,
+  }
+  const body = JSON.stringify(activity)
+  const target = `${localUrl}/users/fx_carol/inbox`
+  const res = await post(target, signedHeaders(target, body, peer.secureKey.privateKey, `${peer.secureActorUrl}#main-key`), body)
+  eq(res.status, 202, 'the Follow is verified against the key behind authorized fetch (202)')
+
+  const gets = peer.secureActorGets.slice(before)
+  assert(gets.length >= 1, 'the actor document was fetched', gets.length)
+  assert(
+    gets.every((g) => parseSignatureHeader(g.headers.signature ?? '').keyId === `https://${INSTANCE_DOMAIN}/users/instance.actor#main-key`),
+    'every actor fetch is signed by the instance actor',
+    JSON.stringify(gets.map((g) => g.headers.signature ?? null)),
+  )
+
+  const { data: profile } = await db
+    .from('profiles')
+    .select('id, username, federated_id, public_key, is_local')
+    .eq('federated_id', peer.secureActorUrl)
+    .maybeSingle()
+  eq(profile?.is_local, false, 'the follower is stored as a remote profile')
+  eq(profile?.public_key, peer.secureKey.publicKey, 'the stored key is the one behind authorized fetch')
+
+  const { data: follow } = await db
+    .from('follows')
+    .select('status')
+    .eq('follower_id', profile?.id ?? '')
+    .eq('following_id', CAROL)
+    .maybeSingle()
+  assert(!!follow, 'the follow is recorded', JSON.stringify(follow))
 }
 
 async function caseHostedPrivateServer(peer: Peer, localUrl: string) {
@@ -1854,6 +1960,49 @@ async function casePostVisibility(db: SupabaseClient, peer: Peer, localUrl: stri
   }
 }
 
+async function caseRfc9421Inbound(db: SupabaseClient, peer: Peer, localUrl: string) {
+  console.log('\ninbound RFC 9421 signatures -> verified like draft-cavage')
+
+  const direct = `${localUrl}/posts/${POST_DIRECT}`
+  const instanceKeyId = `${peer.instanceActorUrl}#main-key`
+  eq((await get(direct, rfc9421Headers('GET', direct, null, peer.instanceKey.privateKey, instanceKeyId))).status, 200,
+    'the recipient\'s instance reads the direct post with an RFC 9421 signature')
+  eq((await get(direct, rfc9421Headers('GET', direct, null, peer.instanceKey.privateKey, instanceKeyId, ['@method']))).status, 404,
+    'an RFC 9421 signature that leaves out the target reads as unsigned')
+
+  const noteId = `${peer.base}/notes/${crypto.randomUUID()}`
+  const published = new Date().toISOString()
+  const body = JSON.stringify({
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: `${peer.actorUrl}#create-${crypto.randomUUID()}`,
+    type: 'Create',
+    actor: peer.actorUrl,
+    published,
+    to: [`https://${INSTANCE_DOMAIN}/users/fx_bob`],
+    cc: [],
+    object: {
+      id: noteId,
+      type: 'Note',
+      attributedTo: peer.actorUrl,
+      published,
+      content: '<p>dm signed per RFC 9421</p>',
+      to: [`https://${INSTANCE_DOMAIN}/users/fx_bob`],
+      cc: [],
+      directMessage: true,
+    },
+  })
+  const inbox = `${localUrl}/users/fx_bob/inbox`
+  const headers = rfc9421Headers('POST', inbox, body, peer.key.privateKey, `${peer.actorUrl}#main-key`)
+
+  const tampered = await post(inbox, headers, body.replace('dm signed', 'dm forged'))
+  eq(tampered.status, 401, 'a body that differs from its Content-Digest is rejected (401)')
+
+  eq((await post(inbox, headers, body)).status, 202, 'an RFC 9421 signed delivery is accepted (202)')
+  const { data: rows } = await db.from('messages').select('user_id, content').contains('metadata', { ap_id: noteId })
+  eq(rows?.length, 1, 'the delivery became one message')
+  eq(rows?.[0]?.user_id, REMOTE, 'the message is attributed to the signer')
+}
+
 // REPORTS
 
 async function seedReports(db: SupabaseClient) {
@@ -2313,8 +2462,9 @@ async function main() {
     await caseVoiceAccept(db, peer, localUrl, callApId)
     await caseInboundDM(db, peer, localUrl)
     await caseOutboundDM(db, peer, backend)
-    await caseSignedGetRetry(peer, localUrl, db)
+    await caseSignedGet(peer, localUrl, db)
     await casePostVisibility(db, peer, localUrl)
+    await caseRfc9421Inbound(db, peer, localUrl)
     await seedReports(db)
     await caseInboundFlag(db, peer, localUrl)
     await caseOutboundFlag(db, peer, localUrl, env, backend)
@@ -2329,6 +2479,7 @@ async function main() {
     await casePeerHostedDmCall(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
     await caseRemoteVoiceJoin(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
     await caseHostedVoiceJoin(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
+    await caseSignedOnlyActor(db, peer, localUrl)
   } finally {
     await new Promise<void>((resolve) => local.close(() => resolve()))
     await peer.stop()

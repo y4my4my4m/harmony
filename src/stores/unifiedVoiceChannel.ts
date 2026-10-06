@@ -120,6 +120,9 @@ interface VoiceChannelState {
   // End-to-end encryption of call media. Supported on LiveKit only.
   isEncrypted: boolean;
 
+  // Why the last join failed; null after a successful join.
+  joinError: string | null;
+
   // Last-seen voice-channel user IDs; short-circuits
   // `ensureProfilesAvailable` when membership has not changed.
   previousUserIds: string[];
@@ -194,6 +197,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     
     connectionMode: null,
     isEncrypted: false,
+    joinError: null,
 
     previousUserIds: [],
   }),
@@ -256,6 +260,13 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     
     effectiveChannelName: (state) => {
       return state.currentChannelName || state.optimisticChannelName;
+    },
+
+    /** Badge text: native carries LiveKit too, so it reads SFU. Null while not connected. */
+    transportLabel: (state): 'SFU' | 'P2P' | null => {
+      if (state.connectionMode === 'p2p') return 'P2P';
+      if (state.connectionMode === 'livekit' || state.connectionMode === 'native') return 'SFU';
+      return null;
     },
 
     connectionStats: (state) => {
@@ -326,6 +337,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       serverId: string,
       opts: { livekit?: { wsUrl: string; token: string } } = {},
     ): Promise<boolean> {
+      this.joinError = null;
       try {
         const authStore = useAuthStore();
         const serverChannelStore = useServerChannelStore();
@@ -430,6 +442,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
         
         debug.error('Failed to join voice channel:', error);
+        this.joinError = error instanceof Error && error.message ? error.message : 'Could not join the call.';
         this.isConnecting = false;
         this.connectionAbortController = null;
         this.optimisticChannelId = null;
@@ -510,13 +523,16 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       
       if (!webrtcSuccess) {
         await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
-        throw new Error('Failed to join WebRTC channel');
+        throw new Error(webrtcManager.getLastJoinError() ?? 'Could not connect to the call.');
       }
       
       this.connectionMode = webrtcManager.getActiveService();
       this.connectionState = 'connected';
       this.isEncrypted = webrtcManager.isE2EEEnabled();
       this.applyAudioPrefs();
+      if (this.connectionMode === 'p2p' && serverId !== 'dm') {
+        void serverUsersStore.markVoiceTransport(channelId, userId, 'p2p');
+      }
       debug.log(`[VoiceChannel] Connected via ${this.connectionMode?.toUpperCase() || 'unknown'} mode (${roomType}), E2EE: ${this.isEncrypted}`);
       
       if (abortSignal?.aborted) {
@@ -709,7 +725,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             }
             
             if (!success) {
-              throw new Error('Failed to connect to remote LiveKit server');
+              throw new Error(webrtcManager.getLastJoinError() ?? 'Could not connect to the remote voice server.');
             }
             
             this.connectionMode = webrtcManager.getActiveService() ?? 'livekit';
@@ -1378,11 +1394,28 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       
       // From authStore: localState.userId can still be empty here.
       const currentUserId = authStore.session?.user?.id;
+
+      // A closing page leaves its server voice channel; a crash or kill is left to the
+      // server's LiveKit reconciliation.
+      if (typeof window !== 'undefined') {
+        window.addEventListener('pagehide', () => {
+          const serverId = this.currentServerId;
+          const channelId = this.currentChannelId;
+          if (!this.isConnected || !serverId || !channelId || serverId === 'dm' || this.isFederatedChannel) return;
+          serverUsersStore.leaveVoiceChannelOnUnload(
+            serverId, channelId, this.localState.userId, authStore.session?.access_token);
+        });
+      }
       
       webrtcManager.on('channel-joined', (data: any) => {
         debug.log('Channel joined:', data);
         this.connectionMode = webrtcManager.getActiveService();
         this.isEncrypted = webrtcManager.isE2EEEnabled();
+        // The optimistic roster came from voice presence; from here on the
+        // roster is whoever the media transport connects. P2P lists the local
+        // user among its users; allUsers holds remote users only.
+        const self = data?.userId || this.localState.userId;
+        this.allUsers = webrtcManager.getAllUsers().filter((u) => u.userId !== self);
       });
 
       webrtcManager.on('channel-left', (data: any) => {

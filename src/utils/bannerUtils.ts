@@ -2,7 +2,7 @@ import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { uploadImageObject } from '@/utils/fileUpload'
 import { bannerRenderSize } from '@/utils/imageTransformUtils'
-import { rawStorageUrl, storageObjectPath } from '@/utils/storageImageUtils'
+import { publicImageUrl, rawStorageUrl, storageObjectPath } from '@/utils/storageImageUtils'
 import { knownRenderFallback } from '@/utils/renderFallback'
 
 const BANNERS_BUCKET = 'banners'
@@ -26,12 +26,8 @@ export function getBannerUrl(bannerUrl?: string | null, options?: { width?: numb
 export function getPublicBannerUrl(storagePath: string, options?: { width?: number; height?: number; quality?: number }): string | null {
   try {
     const { width, height } = bannerRenderSize(options?.width ?? 640, options?.height ?? 200)
-    const { data } = supabase.storage
-      .from(BANNERS_BUCKET)
-      .getPublicUrl(storagePath, {
-        transform: { width, height, resize: 'cover', quality: options?.quality ?? 80 },
-      })
-    return knownRenderFallback(data.publicUrl) || null
+    const url = publicImageUrl(BANNERS_BUCKET, storagePath, { width, height, resize: 'cover', quality: options?.quality ?? 80 })
+    return knownRenderFallback(url) || null
   } catch (error) {
     debug.error('Error getting public banner URL:', error)
     return null

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { supabase } from '@/supabase';
+import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from '@/supabase';
 import type { User } from '@/types';
 import { UserStatus } from '@/types';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -13,6 +13,9 @@ import { debug } from '@/utils/debug'
 function isDmRoom(channelId: string | null | undefined): boolean {
   return !!channelId && (channelId.startsWith('dm-') || channelId.startsWith('federated-dm-'));
 }
+
+// Last voice_channel_participants upsert; a later update of the same row waits for it.
+let voiceRowWrite: PromiseLike<unknown> = Promise.resolve();
   
 export const useServerUsersStore = defineStore('serverUsers', {
   state: () => ({
@@ -323,6 +326,16 @@ export const useServerUsersStore = defineStore('serverUsers', {
 
         debug.log(`User ${userId} joined voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
       } else if (event === 'user-left') {
+        // The server removes a row LiveKit does not vouch for (reason 'reconciled'). This
+        // client is still in that call: the removal raced a reconnect, so the row returns.
+        const voiceStore = useUnifiedVoiceChannelStore();
+        if (data?.reason === 'reconciled' && userId && userId === voiceStore.localState.userId
+            && voiceStore.isConnected && voiceStore.currentChannelId === channelId
+            && voiceStore.currentServerId === serverId && !voiceStore.isFederatedChannel) {
+          debug.log(`Voice row for ${channelId} removed by the server while connected; rejoining`);
+          void this.joinVoiceChannel(serverId, channelId, userId, true);
+          return;
+        }
         if (this.usersInVoiceChannels[channelId]) {
           this.usersInVoiceChannels[channelId] = this.usersInVoiceChannels[channelId].filter(id => id !== userId);
           debug.log(`User ${userId} left voice channel ${channelId}. Total: ${this.usersInVoiceChannels[channelId].length}`);
@@ -456,7 +469,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
         // DM/federated calls use non-UUID IDs; only local server channels write to voice_channel_participants.
         const isDMCall = serverId === 'dm' || channelId.startsWith('dm-') || channelId.startsWith('federated-dm-');
         if (isLocalServer && !isDMCall) {
-          supabase
+          voiceRowWrite = supabase
             .from('voice_channel_participants')
             .upsert({
               channel_id: channelId,
@@ -464,6 +477,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
               user_id: userId,
               joined_at: new Date().toISOString(),
               is_federated: false,
+              metadata: {},
             }, { onConflict: 'channel_id,user_id' })
             .then(({ error }) => {
               if (error) {
@@ -527,6 +541,40 @@ export const useServerUsersStore = defineStore('serverUsers', {
         debug.error('Error leaving voice channel:', error);
         return false;
       }
+    },
+
+    /**
+     * Records the transport of this client's row. A 'p2p' row is left alone by the
+     * server's LiveKit reconciliation.
+     */
+    async markVoiceTransport(channelId: string, userId: string, transport: 'p2p' | 'livekit') {
+      if (isDmRoom(channelId)) return;
+      await voiceRowWrite;
+      const { error } = await supabase
+        .from('voice_channel_participants')
+        .update({ metadata: { transport } })
+        .eq('channel_id', channelId)
+        .eq('user_id', userId);
+      if (error) debug.warn('Failed to record voice transport:', error.message);
+    },
+
+    /**
+     * Leave from an unloading page: the row delete outlives the page (fetch keepalive),
+     * and user-left goes out on the open voice topic.
+     */
+    leaveVoiceChannelOnUnload(serverId: string, channelId: string, userId: string, accessToken: string | undefined) {
+      if (isDmRoom(channelId) || !accessToken) return;
+      try {
+        const query = `channel_id=eq.${encodeURIComponent(channelId)}&user_id=eq.${encodeURIComponent(userId)}`;
+        void fetch(`${SUPABASE_URL}/rest/v1/voice_channel_participants?${query}`, {
+          method: 'DELETE',
+          keepalive: true,
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}` },
+        }).catch(() => {});
+      } catch {
+        // The server's LiveKit reconciliation removes the row.
+      }
+      this.broadcastVoiceChannelEvent(serverId, channelId, 'user-left', userId);
     },
 
     isUserInVoiceChannel(userId: string, channelId: string): boolean {

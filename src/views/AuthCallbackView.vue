@@ -101,7 +101,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import { useAuthStore } from '@/stores/auth'
-import { signOutAndForget, supabase } from '@/supabase'
+import { signOutAndForget, signOutEverywhere, supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { isTauriRuntime } from '@/services/instanceConfig'
 import type { Session } from '@supabase/supabase-js'
@@ -287,7 +287,7 @@ onMounted(async () => {
         .maybeSingle()
 
       if (profile?.is_suspended) {
-        await supabase.auth.signOut()
+        await signOutEverywhere()
         throw new Error(
           profile.suspension_reason
             ? `Your account has been suspended: ${profile.suspension_reason}`
@@ -308,7 +308,7 @@ onMounted(async () => {
       const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors()
       if (factorsError) {
         debug.error('Failed to list factors after AAL1 rejection:', factorsError)
-        await signOutAndForget('local')
+        await signOutAndForget()
         authStore.session = null
         throw new Error('Authentication failed. Please try again.')
       }
@@ -317,7 +317,7 @@ onMounted(async () => {
       if (!totpFactor) {
         // No factor → not the "needs MFA" case. Bail.
         debug.warn('OAuth callback rejected at AAL1 with no MFA factor - unexpected, signing out')
-        await signOutAndForget('local')
+        await signOutAndForget()
         authStore.session = null
         throw new Error('Authentication failed. Please try again.')
       }
@@ -336,7 +336,7 @@ onMounted(async () => {
       if (challengeError) {
         debug.error('Failed to create MFA challenge in OAuth callback:', challengeError)
         authStore._pendingMFAVerification = false
-        await signOutAndForget('local')
+        await signOutAndForget()
         authStore.session = null
         throw new Error('Failed to start two-factor verification. Please try again.')
       }

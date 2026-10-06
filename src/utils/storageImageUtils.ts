@@ -116,6 +116,36 @@ export function renderToObjectUrl(url: string | null | undefined): string | null
   return parsed.toString()
 }
 
+const UNRENDERED_EXT = /\.apng$/i
+const UNRENDERED_MIME = 'image/apng'
+
+/**
+ * Whether a stored image loads untransformed: APNG, by the final extension of
+ * the object path (or URL path) or by `mimeType` when known. imgproxy v3.8
+ * renders APNG as its first frame. GIF renders keep every frame and, as WebP,
+ * are usually smaller than the source. A `.webp` name is rendered: 1.6.5
+ * wrote static WebP; animated WebP refused by imgproxy is covered by
+ * renderFallback.
+ */
+export function skipsRender(pathOrUrl: string | null | undefined, mimeType?: string | null): boolean {
+  if (mimeType?.toLowerCase() === UNRENDERED_MIME) return true
+  if (!pathOrUrl) return false
+  return UNRENDERED_EXT.test(pathOrUrl.split(/[?#]/)[0])
+}
+
+export interface ImageTransform {
+  width: number
+  height: number
+  resize: 'cover' | 'contain' | 'fill'
+  quality: number
+}
+
+/** Public URL of `path` in `bucket`: rendered with `transform`, or the object URL where skipsRender holds. */
+export function publicImageUrl(bucket: string, path: string, transform: ImageTransform): string {
+  const options = skipsRender(path) ? undefined : { transform }
+  return supabase.storage.from(bucket).getPublicUrl(path, options).data.publicUrl
+}
+
 /**
  * Best-effort removal of the object a new upload replaced. Only objects under
  * `folder/` other than `current` are removed.
@@ -142,7 +172,8 @@ export async function removeReplacedObject(
  *
  * Only local `user_media` uploads are transformed. Remote URLs (Discord CDN,
  * federated/misskey, pasted links) can't be transformed and pass through.
- * Animated formats are left raw too - imgproxy would flatten them to one frame.
+ * Only .jpg/.jpeg/.png names are transformed, and not a PNG whose `mimeType`
+ * is APNG (skipsRender).
  */
 const USER_MEDIA_PATTERN = /\/storage\/v1\/object\/public\/user_media\/(.+)$/
 const STATIC_IMAGE_EXT = /\.(jpe?g|png)(\?|$)/i
@@ -155,10 +186,11 @@ const THUMBNAIL_QUALITY = 80
 export function getAttachmentThumbnailUrl(
   url: string | null | undefined,
   box: number = THUMBNAIL_BOX,
+  mimeType?: string | null,
 ): string {
   if (!url || typeof url !== 'string') return ''
   if (!url.startsWith('http://') && !url.startsWith('https://')) return url
-  if (!STATIC_IMAGE_EXT.test(url)) return url
+  if (!STATIC_IMAGE_EXT.test(url) || skipsRender(url, mimeType)) return url
   if (!isLocalStorageUrl(url)) return url
 
   const pathMatch = url.match(USER_MEDIA_PATTERN)

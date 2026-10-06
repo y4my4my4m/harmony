@@ -3,7 +3,8 @@ import express from 'express'
 import supertest from 'supertest'
 
 // Harmony as the reading instance: every read of a remote server's Group,
-// channels or members is signed as a local member, never sent unsigned first.
+// channels or members is signed, as a local member where one reads on its
+// own behalf and as the instance actor otherwise.
 
 vi.mock('../config/index.js', () => ({
   default: { INSTANCE_DOMAIN: 'harmony.test', VERSION: 'test' },
@@ -283,11 +284,12 @@ describe('signer selection for background reads', () => {
     expect(writes).toEqual([])
   })
 
-  it('fetches a Group unsigned when no signer is given', async () => {
-    vi.mocked(safeFetch).mockResolvedValue(json({ type: 'Group', id: GROUP, inbox: `${GROUP}/inbox` }))
+  it('signs a Group fetch as the instance actor when no member is named', async () => {
+    signedApFetch.mockResolvedValue(json({ type: 'Group', id: GROUP, inbox: `${GROUP}/inbox` }))
     await ServerDiscoveryService.fetchServerByUrl(GROUP)
-    expect(safeFetch).toHaveBeenCalledTimes(1)
-    expect(signedApFetch).not.toHaveBeenCalled()
+    expect(signedApFetch).toHaveBeenCalledTimes(1)
+    expect(signedApFetch.mock.calls[0][1]?.signAs).toBeUndefined()
+    expect(safeFetch).not.toHaveBeenCalled()
   })
 
   it('refuses to sign a members fetch off the server\'s host', async () => {
@@ -306,11 +308,12 @@ describe('signer selection for background reads', () => {
 
 describe('POST /servers/join', () => {
   it('reads the joined Group again signed as the joiner, so a private one yields its channels', async () => {
-    vi.mocked(safeFetch).mockResolvedValue(json({ type: 'Group', id: GROUP, inbox: `${GROUP}/inbox`, name: 'Stub' }))
-    signedApFetch.mockResolvedValue(json({
-      type: 'Group', id: GROUP, inbox: `${GROUP}/inbox`, name: 'Full',
-      'harmony:channels': [{ id: `${GROUP}/channels/${CHANNEL}`, type: 'harmony:TextChannel', name: 'general' }],
-    }))
+    signedApFetch
+      .mockResolvedValueOnce(json({ type: 'Group', id: GROUP, inbox: `${GROUP}/inbox`, name: 'Stub' }))
+      .mockResolvedValue(json({
+        type: 'Group', id: GROUP, inbox: `${GROUP}/inbox`, name: 'Full',
+        'harmony:channels': [{ id: `${GROUP}/channels/${CHANNEL}`, type: 'harmony:TextChannel', name: 'general' }],
+      }))
 
     const res = await supertest(app())
       .post('/servers/join')
@@ -318,10 +321,11 @@ describe('POST /servers/join', () => {
       .send({ serverUrl: GROUP, userId: 'dan', inviteCode: 'CODE' })
 
     expect(res.status).toBe(200)
-    expect(safeFetch).toHaveBeenCalledTimes(1)
-    expect(signedApFetch).toHaveBeenCalledTimes(1)
-    expect(signedApFetch.mock.calls[0][0]).toBe(GROUP)
-    expect(signedApFetch.mock.calls[0][1]?.signAs).toBe('dan')
+    expect(safeFetch).not.toHaveBeenCalled()
+    expect(signedApFetch).toHaveBeenCalledTimes(2)
+    expect(signedApFetch.mock.calls[0][1]?.signAs).toBeUndefined()
+    expect(signedApFetch.mock.calls[1][0]).toBe(GROUP)
+    expect(signedApFetch.mock.calls[1][1]?.signAs).toBe('dan')
   })
 })
 

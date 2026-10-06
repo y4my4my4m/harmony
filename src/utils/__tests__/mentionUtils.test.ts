@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { extractMentions, parseBioWithEmojis, generateMentionTags, getDeliveryInboxes } from '@/utils/mentionUtils'
 
 describe('mentionUtils', () => {
@@ -139,5 +139,34 @@ describe('mentionUtils', () => {
       const inboxes = getDeliveryInboxes(resolved as any)
       expect(inboxes).toHaveLength(1)
     })
+  })
+})
+
+describe('resolveRemoteMention', () => {
+  it('names a split-domain account by the stored account, not the queried web domain', async () => {
+    const { resolveRemoteMention } = await import('@/utils/mentionUtils')
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+      cached: false,
+      user: {
+        id: 'p1',
+        username: 'doesnm',
+        domain: 'understars.test',
+        display_name: 'doesnm',
+        federated_id: 'https://chat.understars.test/users/doesnm',
+      },
+    }), { status: 200, headers: { 'content-type': 'application/json' } }))
+
+    try {
+      const user = await resolveRemoteMention('doesnm', 'chat.understars.test')
+      expect(JSON.parse(String(fetchSpy.mock.calls[0][1]?.body)).handle).toBe('doesnm@chat.understars.test')
+      expect(user).toMatchObject({
+        handle: '@doesnm@understars.test',
+        domain: 'understars.test',
+        federated_id: 'https://chat.understars.test/users/doesnm',
+      })
+    } finally {
+      fetchSpy.mockRestore()
+    }
   })
 })

@@ -16,7 +16,7 @@ ALTER TABLE storage.objects ADD COLUMN IF NOT EXISTS level integer;
 -- realtime.messages is created by the Realtime service at start, not by the
 -- Postgres image. Without it 98_enable_rls.sql skips the policies on it, and
 -- can_subscribe_to_topic - whose only caller is that policy - reads as
--- unreachable. Column set matches what realtime.send() writes.
+-- unreachable.
 -- The realtime schema is owned by supabase_admin and postgres is not superuser
 -- in this image, so this file must be applied as supabase_admin; pg_hba trusts
 -- that role over 127.0.0.1. Run as postgres the whole block raises
@@ -24,19 +24,32 @@ ALTER TABLE storage.objects ADD COLUMN IF NOT EXISTS level integer;
 -- neither stub is created.
 DO $compat$
 BEGIN
-  -- id is uuid, not a sequence: realtime.send generates it and reuses the same
-  -- value inside the payload. Real deployments partition this table by
-  -- inserted_at; a single table is enough here and keeps the PK simple.
+  -- Role, schema grant and membership from Realtime's
+  -- 20240401105812_create_realtime_admin_and_move_ownership.
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_realtime_admin') THEN
+    CREATE ROLE supabase_realtime_admin WITH NOINHERIT NOLOGIN NOREPLICATION;
+  END IF;
+  GRANT ALL PRIVILEGES ON SCHEMA realtime TO supabase_realtime_admin;
+  GRANT supabase_realtime_admin TO postgres;
+
+  -- Table as Realtime leaves it after 20241030150047_messages_partitioning and
+  -- 20241108114728_messages_using_uuid: partitioned by day on inserted_at, no
+  -- default partition, owned by supabase_realtime_admin. No partition is created
+  -- here; 20261007800001_realtime_partition_fallback creates them, and until it
+  -- runs every realtime.send fails as it does on an instance Realtime has not
+  -- partitioned.
   CREATE TABLE IF NOT EXISTS realtime.messages (
-      id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      topic       text,
-      extension   text,
+      topic       text NOT NULL,
+      extension   text NOT NULL,
       payload     jsonb,
       event       text,
       private     boolean DEFAULT false,
-      inserted_at timestamptz DEFAULT now(),
-      updated_at  timestamptz DEFAULT now()
-  );
+      updated_at  timestamp NOT NULL DEFAULT now(),
+      inserted_at timestamp NOT NULL DEFAULT now(),
+      id          uuid NOT NULL DEFAULT gen_random_uuid(),
+      PRIMARY KEY (id, inserted_at)
+  ) PARTITION BY RANGE (inserted_at);
+  ALTER TABLE realtime.messages OWNER TO supabase_realtime_admin;
   GRANT USAGE ON SCHEMA realtime TO authenticated;
   GRANT SELECT, INSERT ON realtime.messages TO authenticated;
   GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA realtime TO authenticated;

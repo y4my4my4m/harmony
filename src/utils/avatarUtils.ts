@@ -1,6 +1,5 @@
-import { supabase } from '@/supabase'
 import { canonicalSquareSize } from '@/utils/imageTransformUtils'
-import { rawStorageUrl } from '@/utils/storageImageUtils'
+import { publicImageUrl, rawStorageUrl, type ImageTransform } from '@/utils/storageImageUtils'
 import { knownRenderFallback } from '@/utils/renderFallback'
 
 /**
@@ -15,6 +14,10 @@ function cleanStoragePath(path: string): string {
     try { p = decodeURIComponent(p) } catch { /* keep original */ }
   }
   return p
+}
+
+function avatarTransform(size: number): ImageTransform {
+  return { width: size, height: size, resize: 'contain', quality: 80 }
 }
 
 export function getAvatarUrl(avatarUrl: string | null | undefined, size: number = 256): string {
@@ -57,12 +60,7 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
       if (isRemote) {
         return avatarUrl
       }
-      const { data } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(cleanStoragePath(pathMatch[1]), {
-          transform: { width: renderSize, height: renderSize, resize: 'contain', quality: 80 }
-        })
-      return knownRenderFallback(data.publicUrl)
+      return knownRenderFallback(publicImageUrl('avatars', cleanStoragePath(pathMatch[1]), avatarTransform(renderSize)))
     }
     // External URLs (not Supabase storage) - return as-is
     return avatarUrl
@@ -70,13 +68,7 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
 
   // If it's a Supabase storage path (contains user ID folder structure)
   if (avatarUrl.includes('/') && !avatarUrl.startsWith('/')) {
-    const { data } = supabase.storage
-      .from('avatars')
-      .getPublicUrl(cleanStoragePath(avatarUrl), {
-        transform: { width: renderSize, height: renderSize, resize: 'contain', quality: 80 }
-      })
-
-    return knownRenderFallback(data.publicUrl)
+    return knownRenderFallback(publicImageUrl('avatars', cleanStoragePath(avatarUrl), avatarTransform(renderSize)))
   }
 
   // If it's a local path (starts with /), return as-is
