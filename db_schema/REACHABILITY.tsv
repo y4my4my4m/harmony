@@ -351,7 +351,6 @@ is_federation_enabled_for_user	invoker	boolean	anon+authenticated+service_role	c
 is_heart_reaction	invoker	boolean	anon+authenticated+service_role	client, trigger	called by add_post_emoji_reaction, fold_heart_reaction, remove_post_emoji_reaction
 is_muted_by	definer	boolean	service_role	service key	nothing references it
 is_plaintext_mention_part	invoker	boolean	authenticated+service_role	trigger	called by is_encrypted_channel_content
-is_profile_in_voice	definer	boolean	authenticated+service_role	http authenticated	nothing references it
 is_room_member	definer	boolean	authenticated+service_role	client, policy, trigger	policy public.megolm_session_shares INSERT on megolm_session_shares_insert, public.megolm_session_shares UPDATE on megolm_session_shares_update; rpc in src/services/encryption/MegolmKeyBackupService.ts
 is_user_viewing_context	definer	boolean	service_role	client, trigger	called by is_user_viewing_push_context, send_notification
 is_user_viewing_push_context	definer	boolean	service_role	client	rpc in federation-backend/src/services/PushNotificationService.ts
