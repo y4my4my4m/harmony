@@ -73,6 +73,25 @@
 # --- Supabase API gateway ----------------------------------------------------
 {$DB_DOMAIN} {
 	tls {$CADDY_TLS}
+
+	# GoTrue's /logout accepts an aal1 token, and its global and others scopes
+	# delete every session of the account: a password without the second factor
+	# would sign every device out. Only ?scope=local passes; a missing scope is
+	# GoTrue's global default. Other devices are signed out through
+	# public.sign_out_my_sessions(). Same rule as dev/nginx-auth-logout.template.conf.
+	# The path matcher compares the decoded, cleaned path, case-insensitively.
+	@logoutScope {
+		path /auth/v1/logout /auth/v1/logout/
+		not method OPTIONS
+		not expression {http.request.uri.query} == "scope=local"
+	}
+	handle @logoutScope {
+		header Content-Type application/json
+		header Access-Control-Allow-Origin *
+		header Cache-Control no-store
+		respond `{"code":403,"error_code":"logout_scope_forbidden","msg":"Only this device can be signed out here. Sign out other devices from Settings, Sessions."}` 403
+	}
+
 	reverse_proxy supabase-kong:8000
 }
 
