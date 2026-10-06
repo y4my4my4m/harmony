@@ -1,7 +1,6 @@
 // shared by the browser and native transports; URLs stay backend-relative
 import { supabase } from '@/supabase';
 import { apiUrl } from '@/services/instanceConfig';
-import { debug } from '@/utils/debug';
 
 export interface LiveKitConfig {
   enabled: boolean;
@@ -20,49 +19,29 @@ export interface TokenResponse {
 export type LiveKitRoomType = 'voice_channel' | 'dm_call' | 'stage';
 
 let configCache: LiveKitConfig | null = null;
-let configCacheTime = 0;
-const CONFIG_CACHE_TTL = 60_000;
 
-export async function getLiveKitConfig(forceRefresh = false): Promise<LiveKitConfig> {
-  const now = Date.now();
-
-  if (!forceRefresh && configCache && now - configCacheTime < CONFIG_CACHE_TTL) {
-    return configCache;
-  }
-
+/** The instance's voice config, fetched now; null when the request fails. */
+export async function fetchLiveKitConfig(): Promise<LiveKitConfig | null> {
   try {
     const response = await fetch(apiUrl('/api/livekit/config'));
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch LiveKit config');
-    }
+    if (!response.ok) return null;
 
     const config = await response.json();
-
     configCache = {
       enabled: config.enabled ?? false,
       mode: config.mode ?? 'hybrid',
       wsUrl: config.wsUrl ?? null,
       allowFederatedVoice: config.allowFederatedVoice ?? true,
     };
-    configCacheTime = now;
-
     return configCache;
   } catch {
-    debug.warn('Could not fetch LiveKit config, using defaults');
-
-    return {
-      enabled: false,
-      mode: 'hybrid',
-      wsUrl: null,
-      allowFederatedVoice: true,
-    };
+    return null;
   }
 }
 
-export async function isLiveKitAvailable(): Promise<boolean> {
-  const config = await getLiveKitConfig();
-  return config.enabled && !!config.wsUrl;
+/** Last config fetched successfully in this session, whatever its age. */
+export function lastLiveKitConfig(): LiveKitConfig | null {
+  return configCache;
 }
 
 export function liveKitRoomName(channelId: string, roomType: LiveKitRoomType): string {

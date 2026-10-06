@@ -182,7 +182,7 @@ const joinCallFromBanner = async () => {
     if (success) {
       voiceStore.isOverlayVisible = true
     } else {
-      toast.error('Failed to join call')
+      toast.error(voiceStore.joinError || 'Failed to join call')
     }
   } catch (error) {
     debug.error('Error joining call from banner:', error)
@@ -360,7 +360,7 @@ const handleAcceptCall = async (acceptWithVideo: boolean) => {
       toast.success('Joined call')
     } else {
       voiceStore.isOverlayVisible = false
-      toast.error('Failed to join call')
+      toast.error(voiceStore.joinError || 'Failed to join call')
     }
   } catch (error) {
     debug.error('Error accepting call:', error)

@@ -7,7 +7,6 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { UserMediaState, VideoSource } from './livekitWebRTC';
 import {
   getLiveKitToken,
-  isLiveKitAvailable,
   liveKitRoomName,
   type LiveKitRoomType,
 } from './livekitTokens';
@@ -212,12 +211,6 @@ export class NativeLiveKitService {
     invoke('media_broadcast', { payload: JSON.stringify(message), topic: null }).catch(() => {
       debug.warn('[NativeLiveKit] Failed to broadcast data message');
     });
-  }
-
-  // CONFIG
-
-  async isAvailable(): Promise<boolean> {
-    return isLiveKitAvailable();
   }
 
   // CONNECTION

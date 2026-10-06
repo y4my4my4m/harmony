@@ -562,12 +562,12 @@
       <div class="setting-group">
         <label>WebRTC mode</label>
         <select v-model="config.webrtc.mode" class="cyber-input">
-          <option value="hybrid">Hybrid (SFU with P2P fallback)</option>
+          <option value="hybrid">Hybrid (SFU when configured, else P2P)</option>
           <option value="sfu">SFU only (LiveKit)</option>
           <option value="p2p">P2P only (peer-to-peer)</option>
         </select>
         <span class="setting-hint">
-          Hybrid uses LiveKit server when available, falls back to P2P
+          Hybrid uses the LiveKit server when one is configured and P2P otherwise. Every participant of a call uses the same transport.
         </span>
       </div>
       <div class="setting-group">

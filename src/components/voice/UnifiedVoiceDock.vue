@@ -47,8 +47,12 @@
             <DisplayName v-if="voiceStore.dmOtherUserId" :user-id="voiceStore.dmOtherUserId" :fallback="channelName" :truncate="true" />
             <template v-else>{{ channelName }}</template>
             <span v-if="voiceStore.isConnecting || voiceStore.connectionState === 'reconnecting'" class="dock-connecting-spinner" :title="voiceStore.isConnecting ? 'Connecting…' : t('voice.reconnecting')"></span>
-            <span v-else class="dock-connection-badge" :class="voiceStore.connectionMode || 'unknown'">
-              {{ voiceStore.connectionMode === 'livekit' ? 'SFU' : voiceStore.connectionMode === 'p2p' ? 'P2P' : '' }}
+            <span
+              v-else-if="voiceStore.transportLabel"
+              class="dock-connection-badge"
+              :class="voiceStore.transportLabel === 'SFU' ? 'livekit' : 'p2p'"
+            >
+              {{ voiceStore.transportLabel }}
             </span>
             <Icon
               v-if="ownQualityWarning"

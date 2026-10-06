@@ -1,29 +1,25 @@
 /**
  * WebRTC Manager
- * 
- * Manages the switching between SFU (LiveKit) and P2P (unifiedWebRTC) modes.
- * Provides a unified interface for voice/video regardless of the underlying transport.
- * 
- * Connection Priority:
- * 1. SFU (LiveKit) - if configured and available
- * 2. P2P (unifiedWebRTC) - fallback
- * 
- * Mode Configuration:
- * - 'sfu': Only use LiveKit (fail if unavailable)
- * - 'p2p': Only use P2P (never try LiveKit)
- * - 'hybrid': Try LiveKit first, fallback to P2P
+ *
+ * One interface over the call transports: LiveKit (SFU) in the page, LiveKit
+ * through the native media engine (Linux desktop), and peer-to-peer
+ * (unifiedWebRTC). The transport of a local room comes from the instance's
+ * voice config alone (voice/transportPolicy.ts), so every participant of a
+ * room lands on the same one. A transport that fails to connect fails the
+ * join; there is no per-client fallback.
  */
 
-import { livekitWebRTC, preloadLiveKit, type UserMediaState, type LiveKitConfig, type VideoSource } from './livekitWebRTC';
+import { livekitWebRTC, preloadLiveKit, type UserMediaState, type VideoSource } from './livekitWebRTC';
 import { unifiedWebRTC } from './unifiedWebRTC';
 import { nativeLiveKit, isNativeMediaSupported } from './nativeLiveKit';
+import { fetchLiveKitConfig, lastLiveKitConfig, type LiveKitConfig } from './livekitTokens';
+import { selectCallTransport } from './voice/transportPolicy';
 import { VoiceSettingsService } from './VoiceSettingsService';
 import { remoteAudioMixer, type RemoteAudioKind } from './voice/remoteAudioMixer';
 import { debug } from '@/utils/debug';
 
 // TYPES
 
-export type WebRTCMode = 'sfu' | 'p2p' | 'hybrid';
 export type ActiveWebRTCService = 'livekit' | 'p2p' | 'native' | null;
 
 export interface WebRTCManager {
@@ -71,11 +67,18 @@ export interface WebRTCManager {
 
 // WEBRTC MANAGER SERVICE
 
+const CONFIG_PRELOAD_TTL_MS = 30_000;
+
 class WebRTCManagerService implements WebRTCManager {
-  private currentMode: WebRTCMode = 'hybrid';
   private activeService: ActiveWebRTCService = null;
   private transmitGateOpen = true;
-  private configCache: LiveKitConfig | null = null;
+  // Config request started by preloadTransport, consumed by the next join
+  // within CONFIG_PRELOAD_TTL_MS.
+  private configRequest: { at: number; request: Promise<LiveKitConfig | null> } | null = null;
+  // Why the last join failed, and the last error a transport reported;
+  // both cleared when a join starts.
+  private lastJoinError: string | null = null;
+  private lastTransportError: string | null = null;
   private eventListeners = new Map<string, Function[]>();
   
   constructor() {
@@ -135,21 +138,6 @@ class WebRTCManagerService implements WebRTCManager {
   }
   
   /**
-   * Set the WebRTC mode
-   */
-  setMode(mode: WebRTCMode): void {
-    debug.log(`[WebRTCManager] Setting mode to: ${mode}`);
-    this.currentMode = mode;
-  }
-  
-  /**
-   * Get the current mode setting
-   */
-  getMode(): WebRTCMode {
-    return this.currentMode;
-  }
-  
-  /**
    * Get the currently active service
    */
   getActiveService(): ActiveWebRTCService {
@@ -175,41 +163,48 @@ class WebRTCManagerService implements WebRTCManager {
     return false;
   }
   
-  /**
-   * Check if SFU is available and should be used
-   */
-  private async shouldUseSFU(): Promise<boolean> {
-    if (this.currentMode === 'p2p') {
-      return false;
-    }
-    
-    if (this.currentMode === 'sfu') {
-      return true; // Force SFU (will fail if unavailable)
-    }
-    
-    // Hybrid mode: check if LiveKit is available
-    try {
-      const isAvailable = await livekitWebRTC.isAvailable();
-      debug.log(`[WebRTCManager] LiveKit available: ${isAvailable}`);
-      return isAvailable;
-    } catch (error) {
-      debug.warn('[WebRTCManager] Failed to check LiveKit availability:', error);
-      return false;
-    }
-  }
-  
   // CONNECTION METHODS
   
-  /** Starts the SFU library download ahead of a join. P2P mode never loads it. */
+  /**
+   * Starts the config request and the SFU library download ahead of a join.
+   * The library is skipped when the last known config selects P2P.
+   */
   preloadTransport(): void {
-    if (this.currentMode !== 'p2p') {
+    this.configRequest = { at: Date.now(), request: fetchLiveKitConfig() };
+    const known = lastLiveKitConfig();
+    const decision = known ? selectCallTransport(known, { native: false, requireE2EE: false }) : null;
+    if (!decision?.ok || decision.transport === 'sfu') {
       preloadLiveKit();
     }
   }
 
   /**
-   * Join a voice channel
-   * Automatically selects the best available transport
+   * Fresh config, else the last one fetched in this session. Instance voice
+   * config changes only with a backend restart, so a stale copy still names
+   * the transport every other participant uses.
+   */
+  private async resolveConfig(): Promise<LiveKitConfig | null> {
+    const preloaded = this.configRequest;
+    this.configRequest = null;
+    const pending = preloaded && Date.now() - preloaded.at < CONFIG_PRELOAD_TTL_MS
+      ? preloaded.request
+      : fetchLiveKitConfig();
+    return (await pending) ?? lastLiveKitConfig();
+  }
+
+  getLastJoinError(): string | null {
+    return this.lastJoinError;
+  }
+
+  private failJoin(message: string): false {
+    this.lastJoinError = message;
+    this.emit('error', new Error(message));
+    return false;
+  }
+
+  /**
+   * Join a local room (voice channel, stage, DM call) on the instance's
+   * transport. Resolves false on failure; getLastJoinError() says why.
    */
   async joinChannel(
     channelId: string,
@@ -219,176 +214,80 @@ class WebRTCManagerService implements WebRTCManager {
     requireE2EE = false
   ): Promise<boolean> {
     debug.log(`[WebRTCManager] Joining channel: ${channelId} as: ${userId}, E2EE: ${requireE2EE}`);
-    
-    // Voice E2EE exists only on the LiveKit (SFU) transport. A channel that
-    // requires it cannot be served by the P2P fallback, so refuse rather than
-    // silently downgrade.
-    if (requireE2EE && this.currentMode === 'p2p') {
-      this.emit('error', new Error('This channel requires end-to-end encrypted voice, which needs the SFU transport.'));
-      return false;
-    }
-    
-    // Check for cancellation before starting
+    this.lastJoinError = null;
+    this.lastTransportError = null;
+
     if (abortSignal?.aborted) {
       debug.log('[WebRTCManager] Connection cancelled before starting');
       return false;
     }
 
-    // Leave any existing connection
     if (this.activeService) {
       await this.leaveChannel();
     }
 
-    // Check for cancellation after cleanup
+    const native = await isNativeMediaSupported();
+    const decision = selectCallTransport(await this.resolveConfig(), { native, requireE2EE });
+
     if (abortSignal?.aborted) {
-      debug.log('[WebRTCManager] Connection cancelled after cleanup');
+      debug.log('[WebRTCManager] Connection cancelled after transport selection');
       return false;
     }
+    if (!decision.ok) {
+      debug.error('[WebRTCManager] No transport for this room:', decision.reason);
+      return this.failJoin(decision.reason);
+    }
+    debug.log(`[WebRTCManager] Transport: ${native && decision.transport === 'sfu' ? 'native SFU' : decision.transport}`);
 
-    // Native media engine (Linux Tauri): LiveKit through Rust, no P2P.
-    if (await isNativeMediaSupported()) {
-      if (this.currentMode === 'p2p') {
-        this.emit('error', new Error('P2P calls are not available on the Linux desktop client yet. Voice channels use the server (SFU) transport.'));
-        return false;
-      }
-      if (abortSignal?.aborted) {
-        debug.log('[WebRTCManager] Connection cancelled before native attempt');
-        return false;
-      }
-
-      debug.log('[WebRTCManager] Using native media engine');
-      this.activeService = 'native';
-      nativeLiveKit.setTransmitGate(this.transmitGateOpen);
-      try {
-        const success = await nativeLiveKit.joinChannel(channelId, userId, roomType, abortSignal, requireE2EE);
-        if (abortSignal?.aborted) {
-          if (success) {
-            await nativeLiveKit.leaveChannel();
-          }
-          this.activeService = null;
-          return false;
-        }
-        if (success) {
-          debug.log('[WebRTCManager] Connected via native LiveKit');
-          return true;
-        }
-      } catch (error) {
-        debug.error('[WebRTCManager] Native connection failed:', error);
-        this.emit('error', error);
-      }
-      this.activeService = null;
-      return false;
+    // activeService is set before the join so events are forwarded during it.
+    if (decision.transport === 'sfu') {
+      this.activeService = native ? 'native' : 'livekit';
+      const service = native ? nativeLiveKit : livekitWebRTC;
+      service.setTransmitGate(this.transmitGateOpen);
+      return this.runJoin(service, 'SFU', () => service.joinChannel(channelId, userId, roomType, abortSignal, requireE2EE), abortSignal);
     }
 
-    const useSFU = await this.shouldUseSFU();
-    
-    // Check for cancellation after checking SFU availability
-    if (abortSignal?.aborted) {
-      debug.log('[WebRTCManager] Connection cancelled after SFU check');
-      return false;
-    }
-    
-    if (useSFU) {
-      // Try LiveKit first
-      debug.log('[WebRTCManager] Attempting LiveKit connection...');
-      
-      // Set activeService BEFORE joining so events are forwarded during connection
-      this.activeService = 'livekit';
-      livekitWebRTC.setTransmitGate(this.transmitGateOpen);
-
-      try {
-        const success = await livekitWebRTC.joinChannel(channelId, userId, roomType, abortSignal, requireE2EE);
-        
-        // Check for cancellation after LiveKit join attempt
-        if (abortSignal?.aborted) {
-          if (success) {
-            await livekitWebRTC.leaveChannel();
-          }
-          this.activeService = null;
-          debug.log('[WebRTCManager] Connection cancelled after LiveKit join');
-          return false;
-        }
-        
-        if (success) {
-          debug.log('[WebRTCManager] Connected via LiveKit SFU');
-          return true;
-        }
-        
-        // Connection failed, reset activeService
-        this.activeService = null;
-      } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
-          this.activeService = null;
-          debug.log('[WebRTCManager] LiveKit connection cancelled');
-          return false;
-        }
-        debug.warn('[WebRTCManager] LiveKit connection failed:', error);
-        this.activeService = null;
-      }
-      
-      // If SFU-only mode, don't fallback
-      if (this.currentMode === 'sfu') {
-        debug.error('[WebRTCManager] SFU connection failed and mode is sfu-only');
-        this.emit('error', new Error('SFU connection failed'));
-        return false;
-      }
-      
-      // E2EE-required channels must not fall back to the (currently
-      // unencrypted) P2P transport.
-      if (requireE2EE) {
-        debug.error('[WebRTCManager] SFU failed and channel requires E2EE; not falling back to P2P');
-        this.emit('error', new Error('Could not establish an end-to-end encrypted call'));
-        return false;
-      }
-      
-      debug.log('[WebRTCManager] Falling back to P2P...');
-    }
-    
-    // Check for cancellation before trying P2P
-    if (abortSignal?.aborted) {
-      debug.log('[WebRTCManager] Connection cancelled before P2P attempt');
-      return false;
-    }
-    
-    // Use P2P (unifiedWebRTC)
-    // Set activeService BEFORE joining so events are forwarded during connection
     this.activeService = 'p2p';
     void remoteAudioMixer.setOutputDevice(VoiceSettingsService.getDevices().outputDevice);
     unifiedWebRTC.setTransmitGate(this.transmitGateOpen);
+    return this.runJoin(unifiedWebRTC, 'P2P', () => unifiedWebRTC.joinChannel(channelId, userId, abortSignal), abortSignal);
+  }
 
+  private async runJoin(
+    service: { leaveChannel(): Promise<void> },
+    label: 'SFU' | 'P2P',
+    join: () => Promise<boolean>,
+    abortSignal?: AbortSignal,
+  ): Promise<boolean> {
     try {
-      const success = await unifiedWebRTC.joinChannel(channelId, userId, abortSignal);
-      
-      // Check for cancellation after P2P join attempt
+      const success = await join();
       if (abortSignal?.aborted) {
-        if (success) {
-          await unifiedWebRTC.leaveChannel();
-        }
+        if (success) await service.leaveChannel();
         this.activeService = null;
-        debug.log('[WebRTCManager] Connection cancelled after P2P join');
+        debug.log(`[WebRTCManager] Connection cancelled after ${label} join`);
         return false;
       }
-      
       if (success) {
-        debug.log('[WebRTCManager] Connected via P2P');
+        debug.log(`[WebRTCManager] Connected via ${label}`);
         return true;
       }
-      
-      this.activeService = null;
     } catch (error) {
+      this.activeService = null;
       if (error instanceof Error && error.name === 'AbortError') {
-        this.activeService = null;
-        debug.log('[WebRTCManager] P2P connection cancelled');
+        debug.log(`[WebRTCManager] ${label} connection cancelled`);
         return false;
       }
-      debug.error('[WebRTCManager] P2P connection failed:', error);
-      this.activeService = null;
+      debug.error(`[WebRTCManager] ${label} connection failed:`, error);
       this.emit('error', error);
     }
-    
+    this.activeService = null;
+    const target = label === 'SFU' ? 'the voice server' : 'the call';
+    this.lastJoinError = this.lastTransportError
+      ? `Could not connect to ${target}: ${this.lastTransportError}`
+      : `Could not connect to ${target}.`;
     return false;
   }
-  
+
   /**
    * Join a voice channel with a pre-obtained token (for federated voice)
    * Used when connecting to a remote instance's LiveKit server
@@ -400,8 +299,9 @@ class WebRTCManagerService implements WebRTCManager {
     userId: string
   ): Promise<boolean> {
     debug.log(`[WebRTCManager] Joining federated channel: ${channelId} with remote token`);
-    
-    // Leave any existing connection
+    this.lastJoinError = null;
+    this.lastTransportError = null;
+
     if (this.activeService) {
       await this.leaveChannel();
     }
@@ -409,27 +309,10 @@ class WebRTCManagerService implements WebRTCManager {
     const useNative = await isNativeMediaSupported();
     const service = useNative ? nativeLiveKit : livekitWebRTC;
 
-    // Set activeService BEFORE joining so events are forwarded during connection
+    // activeService is set before the join so events are forwarded during it.
     this.activeService = useNative ? 'native' : 'livekit';
     service.setTransmitGate(this.transmitGateOpen);
-
-    try {
-      const success = await service.joinWithToken(wsUrl, token, channelId, userId);
-
-      if (success) {
-        debug.log('[WebRTCManager] Connected to federated LiveKit server');
-        return true;
-      }
-
-      // Connection failed, reset activeService
-      this.activeService = null;
-      return false;
-    } catch (error) {
-      debug.error('[WebRTCManager] Federated connection failed:', error);
-      this.activeService = null;
-      this.emit('error', error);
-      return false;
-    }
+    return this.runJoin(service, 'SFU', () => service.joinWithToken(wsUrl, token, channelId, userId));
   }
   
   /**
@@ -977,6 +860,9 @@ class WebRTCManagerService implements WebRTCManager {
    * Emit an event
    */
   private emit(event: string, data?: any): void {
+    if (event === 'error' && data instanceof Error && data.message) {
+      this.lastTransportError = data.message;
+    }
     const listeners = this.eventListeners.get(event);
     if (listeners) {
       listeners.forEach(callback => {

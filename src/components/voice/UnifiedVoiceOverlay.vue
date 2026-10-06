@@ -51,9 +51,13 @@
               size="md"
               show-label
             />
-            <div class="connection-mode-indicator" :class="voiceStore.connectionMode || 'unknown'">
-              <Icon :name="voiceStore.connectionMode === 'livekit' ? 'server' : 'users'" />
-              <span>{{ voiceStore.connectionMode === 'livekit' ? 'SFU' : 'P2P' }}</span>
+            <div
+              v-if="voiceStore.transportLabel"
+              class="connection-mode-indicator"
+              :class="voiceStore.transportLabel === 'SFU' ? 'livekit' : 'p2p'"
+            >
+              <Icon :name="voiceStore.transportLabel === 'SFU' ? 'server' : 'users'" />
+              <span>{{ voiceStore.transportLabel }}</span>
             </div>
 
             <button
@@ -977,11 +981,6 @@ onUnmounted(() => {
   border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
-.connection-mode-indicator.unknown {
-  background: var(--background-modifier-active);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-primary);
-}
 .connection-mode-indicator :deep(span) {
   display: flex;
 }

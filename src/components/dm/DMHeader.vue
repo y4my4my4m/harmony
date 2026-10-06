@@ -294,6 +294,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useToast } from 'vue-toastification'
 import { dmCallSignaling, type CallSignal } from '@/services/DMCallSignaling'
 import { dmCallPermissions } from '@/services/DMCallPermissions'
+import { dmCallRoute, localCallReceivers } from '@/services/dmCallRouting'
 import { authContextService } from '@/services/AuthContextService'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
@@ -740,9 +741,7 @@ const otherUserStatus = computed(() => {
   return status
 })
 
-const isFederatedUser = computed(() => {
-  return !props.conversation.other_user?.is_local
-})
+const isFederatedUser = computed(() => dmCallRoute(props.conversation) === 'federated')
 
 const getStatusText = (status: string): string => {
   switch (status) {
@@ -924,26 +923,7 @@ const toggleVoiceCall = async () => {
       }
 
       if (!(await leaveCurrentCallFor())) return
-      
-      // For 1-on-1 DMs, check permissions (skip for federated - permissions are local only)
-      if (props.conversation.type !== 'group' && props.conversation.other_user?.id && !isFederatedUser.value) {
-        const permissionCheck = await dmCallPermissions.canReceiveCall(
-          profileId,
-          props.conversation.other_user.id,
-          props.conversation.id
-        )
-        
-        if (!permissionCheck.allowed) {
-          toast.error(permissionCheck.message || 'Cannot call this user')
-          return
-        }
-      }
-      
-      if (isFederatedUser.value) {
-        await startFederatedCall(profileId, 'voice')
-      } else {
-        await startLocalCall(profileId, 'voice')
-      }
+      await startCall(profileId, 'voice')
     }
   } catch (error) {
     debug.error('Error toggling voice call:', error)
@@ -951,12 +931,38 @@ const toggleVoiceCall = async () => {
   }
 }
 
+// Route per dmCallRoute; a peer still loading is resolved from its profile.
+const startCall = async (profileId: string, callType: 'voice' | 'video') => {
+  let route = dmCallRoute(props.conversation)
+  const peer = props.conversation.type === 'group' ? null : props.conversation.other_user
+  if (route === 'unknown' && peer?.id) {
+    const { data } = await supabase.from('profiles').select('is_local').eq('id', peer.id).maybeSingle()
+    route = data?.is_local === false ? 'federated' : 'local'
+  }
+
+  if (route === 'federated') {
+    await startFederatedCall(profileId, callType)
+    return
+  }
+
+  if (peer?.id) {
+    const permissionCheck = await dmCallPermissions.canReceiveCall(profileId, peer.id, props.conversation.id)
+    if (!permissionCheck.allowed) {
+      toast.error(permissionCheck.message || 'Cannot call this user')
+      return
+    }
+  }
+  await startLocalCall(profileId, callType)
+}
+
 const startLocalCall = async (profileId: string, callType: 'voice' | 'video') => {
   const dmChannelId = `dm-${props.conversation.id}`
   
   const receiverIds = getReceiverIds()
   if (receiverIds.length === 0) {
-    toast.error('No participants to call')
+    toast.error(props.conversation.type === 'group'
+      ? 'No members on this instance to call. Group calls do not reach other instances.'
+      : 'No participants to call')
     return
   }
   
@@ -972,13 +978,18 @@ const startLocalCall = async (profileId: string, callType: 'voice' | 'video') =>
     voiceStore.isOverlayVisible = true
     debug.log(`${callType} call overlay opened for caller`)
   } else {
-    toast.error('Failed to start call')
+    toast.error(voiceStore.joinError || 'Failed to start call')
   }
 }
 
 const startFederatedCall = async (profileId: string, callType: 'voice' | 'video') => {
   const otherUser = props.conversation.other_user
-  if (!otherUser?.federated_id) {
+  let calleeFederatedId = otherUser?.federated_id
+  if (!calleeFederatedId && otherUser?.id) {
+    const { data } = await supabase.from('profiles').select('federated_id').eq('id', otherUser.id).maybeSingle()
+    calleeFederatedId = data?.federated_id ?? undefined
+  }
+  if (!calleeFederatedId) {
     toast.error('Cannot determine federated identity for this user')
     return
   }
@@ -1000,7 +1011,7 @@ const startFederatedCall = async (profileId: string, callType: 'voice' | 'video'
     props.conversation.id,
     profileId,
     callerFederatedId,
-    otherUser.federated_id,
+    calleeFederatedId,
     callType
   )
 
@@ -1020,7 +1031,7 @@ const startFederatedCall = async (profileId: string, callType: 'voice' | 'video'
     voiceStore.isOverlayVisible = true
     debug.log(`Federated ${callType} call initiated`)
   } else {
-    toast.error('Failed to start call')
+    toast.error(voiceStore.joinError || 'Failed to start call')
   }
 }
 
@@ -1055,7 +1066,7 @@ const joinActiveCall = async () => {
       voiceStore.isOverlayVisible = true
       debug.log('Joined group call (maximized)')
     } else {
-      toast.error('Failed to join call')
+      toast.error(voiceStore.joinError || 'Failed to join call')
     }
   } catch (error) {
     debug.error('Error joining call:', error)
@@ -1073,26 +1084,7 @@ const toggleVideoCall = async () => {
     
     if (!isInVoiceCall.value) {
       if (!(await leaveCurrentCallFor())) return
-      
-      // For 1-on-1 DMs, check permissions (skip for federated)
-      if (props.conversation.type !== 'group' && props.conversation.other_user?.id && !isFederatedUser.value) {
-        const permissionCheck = await dmCallPermissions.canReceiveCall(
-          profileId,
-          props.conversation.other_user.id,
-          props.conversation.id
-        )
-        
-        if (!permissionCheck.allowed) {
-          toast.error(permissionCheck.message || 'Cannot call this user')
-          return
-        }
-      }
-      
-      if (isFederatedUser.value) {
-        await startFederatedCall(profileId, 'video')
-      } else {
-        await startLocalCall(profileId, 'video')
-      }
+      await startCall(profileId, 'video')
     } else {
       await voiceStore.toggleVideo()
 
@@ -1106,19 +1098,7 @@ const toggleVideoCall = async () => {
   }
 }
 
-const getReceiverIds = (): string[] => {
-  const currentUserId = authStore.session?.user?.id
-  if (!currentUserId) return []
-  
-  if (props.conversation.type === 'group') {
-    return (props.conversation.participants || [])
-      .map(p => p.id || (p as any).user_id)
-      .filter(id => id && id !== currentUserId)
-  } else {
-    const otherUserId = props.conversation.other_user?.id
-    return otherUserId ? [otherUserId] : []
-  }
-}
+const getReceiverIds = (): string[] => localCallReceivers(props.conversation, authStore.session?.user?.id)
 
 const stripShortcodes = (text: string): string => {
   if (!text) return text
