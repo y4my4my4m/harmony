@@ -11,9 +11,18 @@
       @touchstart="startDockDrag"
       @click="handleDockClick"
     >
-      <!-- Call problems: reconnecting, autoplay-blocked audio -->
-      <div class="dock-banner" @mousedown.stop @touchstart.stop>
-        <VoiceCallBanner compact />
+      <div class="dock-above" @mousedown.stop @touchstart.stop>
+        <!-- Call problems: reconnecting, autoplay-blocked audio -->
+        <div class="dock-banner">
+          <VoiceCallBanner compact />
+        </div>
+        <DockVideoStrip
+          :tiles="stripTiles"
+          :collapsed="stripCollapsed"
+          :hidden="stripHidden"
+          @update:collapsed="setStripCollapsed"
+          @open="openFocused"
+        />
       </div>
       <!-- Tapping expands to overlay on viewports <= 480px -->
       <div 
@@ -149,7 +158,7 @@
       />
 
       <div 
-        v-if="activeVideoUser && !voiceStore.pipActive" 
+        v-if="activeVideoUser && !voiceStore.pipActive && !stripExpanded"
         class="dock-video-preview"
         @click="expandToOverlay"
         @mousedown.stop
@@ -162,6 +171,7 @@
           playsinline
           muted
           class="dock-video"
+          :class="{ mirrored: activeVideoIsSelfCamera }"
         />
         <div class="dock-video-badge">
           <Icon :name="activeVideoUser.isScreenSharing ? 'screen-share' : 'video'" />
@@ -224,6 +234,7 @@
           playsinline
           muted
           class="mini-video"
+          :class="{ mirrored: activeVideoIsSelfCamera }"
         />
         <div class="mini-video-overlay">
           <span class="mini-video-label">
@@ -358,7 +369,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted, defineAsyncComponent, type Ref } from 'vue';
 import { debug } from '@/utils/debug'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
@@ -375,6 +386,8 @@ import VoiceEncryptionBadge from './VoiceEncryptionBadge.vue';
 import PushToTalkButton from './PushToTalkButton.vue';
 import VoiceCallBanner from './VoiceCallBanner.vue';
 import StreamQualityPicker from './StreamQualityPicker.vue';
+import DockVideoStrip from './DockVideoStrip.vue';
+import { useDockVideoStrip } from './useDockVideoStrip';
 import type { Rect } from './voiceMenuModel';
 import { isMobileUserAgent } from '@/utils/platform';
 import { useI18n } from 'vue-i18n';
@@ -410,6 +423,15 @@ const showParticipantsDropdown = ref(false);
 const minimizedVideoRef = ref<HTMLVideoElement | null>(null);
 const dockVideoRef = ref<HTMLVideoElement | null>(null);
 const minimizedContainerRef = ref<HTMLElement | null>(null);
+
+// An expanded strip replaces the single thumbnail.
+const {
+  tiles: stripTiles,
+  collapsed: stripCollapsed,
+  autoCollapsed: stripHidden,
+  expanded: stripExpanded,
+  setCollapsed: setStripCollapsed,
+} = useDockVideoStrip();
 
 // Drag state for minimized dock
 const isDragging = ref(false);
@@ -577,6 +599,20 @@ const activeVideoUser = computed(() => {
   return null;
 });
 
+// The publication 'auto' resolves to for activeVideoUser, made explicit so
+// the attached track and the mirror class agree.
+type ThumbnailSource = 'camera' | 'screen';
+const activeVideoSource = computed<ThumbnailSource>(() =>
+  activeVideoUser.value?.isScreenSharing ? 'screen' : 'camera'
+);
+
+// Self view reads as a mirror; the published track is not flipped.
+const activeVideoIsSelfCamera = computed(() =>
+  !!activeVideoUser.value &&
+  activeVideoUser.value.userId === voiceStore.localState.userId &&
+  activeVideoSource.value === 'camera'
+);
+
 const activeVideoStream = computed(() => {
   if (!activeVideoUser.value) return null;
   return voiceStore.getUserStream(activeVideoUser.value.userId);
@@ -610,6 +646,11 @@ const onDockShareButton = () => {
 const expandToOverlay = () => {
   currentMode.value = 'overlay';
   voiceStore.isOverlayVisible = true;
+};
+
+const openFocused = (userId: string, source: 'camera' | 'screen') => {
+  voiceStore.enterFullscreen(userId, source);
+  expandToOverlay();
 };
 
 const expandToDock = () => {
@@ -1088,78 +1129,51 @@ const handleDockClick = (e: MouseEvent) => {
 
 // WATCHERS
 
-// Repeated attach calls flash the video element; track what is already attached.
-let lastAttachedUserId: string | null = null;
-let lastAttachedElement: HTMLVideoElement | null = null;
-let lastDockAttachedUserId: string | null = null;
+// One attachment per thumbnail element. LiveKit holds an attached element
+// until detached, including after unmount; re-attaching a live one flashes it.
+const useThumbnailAttachment = (elRef: Ref<HTMLVideoElement | null>) => {
+  let current: { userId: string; source: ThumbnailSource; el: HTMLVideoElement } | null = null;
 
-// Attach through LiveKit. Re-attach only on user change, not on every counter tick.
-watch(
-  [activeVideoUser, minimizedVideoRef],
-  ([user, videoEl]) => {
-    const userId = user?.userId || null;
-    
-    // Already attached to this element.
-    if (userId === lastAttachedUserId && videoEl === lastAttachedElement && videoEl?.srcObject) {
+  const detach = () => {
+    if (!current) return;
+    voiceStore.detachVideoFromElement(current.userId, current.el, current.source);
+    current.el.srcObject = null;
+    current = null;
+  };
+
+  const sync = () => {
+    const user = activeVideoUser.value;
+    const source = activeVideoSource.value;
+    const el = elRef.value;
+    if (current && user && el && current.userId === user.userId && current.source === source && current.el === el && el.srcObject) {
       return;
     }
-    
-    if (user && videoEl) {
-      const attached = voiceStore.attachVideoToElement(user.userId, videoEl);
-      if (!attached && activeVideoStream.value) {
-        // P2P has no LiveKit track; fall back to srcObject.
-        (videoEl as HTMLVideoElement).srcObject = activeVideoStream.value;
-      }
-      lastAttachedUserId = userId;
-      lastAttachedElement = videoEl as any;
-    } else if (videoEl) {
-      voiceStore.detachVideoFromElement(lastAttachedUserId || '', videoEl as unknown as HTMLVideoElement);
-      (videoEl as HTMLVideoElement).srcObject = null;
-      lastAttachedUserId = null;
-      lastAttachedElement = null;
-    }
-  },
-  { immediate: true }
-);
 
-watch(
-  [activeVideoUser, dockVideoRef],
-  ([user, videoEl]) => {
-    const userId = user?.userId || null;
-    
-    // Already attached.
-    if (userId === lastDockAttachedUserId && videoEl?.srcObject) {
-      return;
-    }
-    
-    if (user && videoEl) {
-      const attached = voiceStore.attachVideoToElement(user.userId, videoEl);
-      if (!attached && activeVideoStream.value) {
-        videoEl.srcObject = activeVideoStream.value;
-      }
-      lastDockAttachedUserId = userId;
-    } else if (videoEl) {
-      voiceStore.detachVideoFromElement(lastDockAttachedUserId || '', videoEl);
-      videoEl.srcObject = null;
-      lastDockAttachedUserId = null;
-    }
-  },
-  { immediate: true }
-);
+    detach();
+    if (!user || !el) return;
 
-// Counter ticks only matter when the element lost its stream.
+    const attached = voiceStore.attachVideoToElement(user.userId, el, source);
+    if (!attached && activeVideoStream.value) {
+      el.srcObject = activeVideoStream.value;
+    }
+    current = { userId: user.userId, source, el };
+  };
+
+  // Keyed by id: activeVideoUser is a new object on every audio level update.
+  watch([() => activeVideoUser.value?.userId, activeVideoSource, elRef], sync, { immediate: true });
+
+  return { sync, detach };
+};
+
+const minimizedThumbnail = useThumbnailAttachment(minimizedVideoRef);
+const dockThumbnail = useThumbnailAttachment(dockVideoRef);
+
+// Counter ticks matter only to an element that lost its stream.
 watch(
   () => voiceStore.streamUpdateCounter,
   () => {
-    const user = activeVideoUser.value;
-    const videoEl = minimizedVideoRef.value;
-    
-    if (user && videoEl && !videoEl.srcObject) {
-      const attached = voiceStore.attachVideoToElement(user.userId, videoEl);
-      if (!attached && activeVideoStream.value) {
-        videoEl.srcObject = activeVideoStream.value;
-      }
-    }
+    minimizedThumbnail.sync();
+    dockThumbnail.sync();
   }
 );
 
@@ -1209,6 +1223,8 @@ onMounted(() => {
 onUnmounted(() => {
   stopDrag();
   stopDockDrag();
+  minimizedThumbnail.detach();
+  dockThumbnail.detach();
   
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
@@ -1514,6 +1530,11 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.dock-video.mirrored,
+.mini-video.mirrored {
+  transform: scaleX(-1);
 }
 
 .dock-video-badge {
@@ -2032,15 +2053,27 @@ onUnmounted(() => {
   to { transform: rotate(360deg); }
 }
 
-/* Above the dock, following it while dragged. */
-.dock-banner {
+/* Above the dock, following it while dragged. Banner stacks over the video strip. */
+.dock-above {
   position: absolute;
-  left: 50%;
+  left: 0;
+  right: 0;
   bottom: calc(100% + 8px);
-  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: default;
+  pointer-events: none;
+}
+
+.dock-above > * {
+  pointer-events: auto;
+}
+
+.dock-banner {
   width: max-content;
   max-width: min(420px, calc(100vw - 16px));
-  cursor: default;
 }
 
 .dock-banner:empty {

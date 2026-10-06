@@ -29,7 +29,7 @@
       playsinline
       :muted="isSelf"
       class="tile-video"
-      :class="fitClass"
+      :class="[fitClass, { mirrored: isSelf && source === 'camera' }]"
     />
 
     <!-- Native transport: video lives in the wgpu call window -->
@@ -500,6 +500,11 @@ onBeforeUnmount(detach);
 
 .tile-video.fit-contain {
   object-fit: contain;
+}
+
+/* Self view reads as a mirror; the published track is not flipped. */
+.tile-video.mirrored {
+  transform: scaleX(-1);
 }
 
 /* Avatar fallback */

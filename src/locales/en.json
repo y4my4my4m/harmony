@@ -587,7 +587,11 @@
     "inCallWith": "In call",
     "incomingGroupCall": "{name} is calling the group",
     "ringing": "Ringing…",
-    "joinCallFailed": "Could not join the call"
+    "joinCallFailed": "Could not join the call",
+    "onVideo": "{n} on video",
+    "showVideo": "Show video",
+    "hideVideo": "Hide video",
+    "inCallWindow": "In call window"
   },
   "dm": {
     "title": "Direct messages",

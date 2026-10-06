@@ -579,7 +579,11 @@
     "inCallWith": "通話中",
     "incomingGroupCall": "{name} がグループに発信しています",
     "ringing": "呼び出し中…",
-    "joinCallFailed": "通話に参加できませんでした"
+    "joinCallFailed": "通話に参加できませんでした",
+    "onVideo": "ビデオ {n}人",
+    "showVideo": "ビデオを表示",
+    "hideVideo": "ビデオを非表示",
+    "inCallWindow": "通話ウィンドウで表示中"
   },
   "dm": {
     "directMessages": "ダイレクトメッセージ",

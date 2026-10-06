@@ -579,7 +579,11 @@
     "inCallWith": "En llamada",
     "incomingGroupCall": "{name} está llamando al grupo",
     "ringing": "Sonando…",
-    "joinCallFailed": "No se pudo unir a la llamada"
+    "joinCallFailed": "No se pudo unir a la llamada",
+    "onVideo": "{n} con vídeo",
+    "showVideo": "Mostrar vídeo",
+    "hideVideo": "Ocultar vídeo",
+    "inCallWindow": "En la ventana de llamada"
   },
   "dm": {
     "directMessages": "Mensajes directos",

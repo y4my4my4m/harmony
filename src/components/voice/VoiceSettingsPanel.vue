@@ -917,6 +917,8 @@ export default defineComponent({
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /* Self view reads as a mirror; the published track is not flipped. */
+  transform: scaleX(-1);
 }
 
 .preview-placeholder {
