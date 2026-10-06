@@ -1,5 +1,5 @@
 <template>
-  <div class="message-input" :class="{'replying': replyMessageId, 'has-files': attachedFiles.length > 0}" data-testid="message-input" data-floating-video-avoid>
+  <div ref="composerRef" class="message-input" :class="{'replying': replyMessageId, 'has-files': attachedFiles.length > 0}" data-testid="message-input" data-floating-video-avoid>
     <TypingIndicator
       :typing-users="typingUsers"
       class="typing-indicator-wrapper"
@@ -307,6 +307,7 @@ const attachedFiles = ref<FilePreviewData[]>([]);
 const isDragging = ref(false);
 const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
 const isEditorFocused = ref(false);
+const composerRef = ref<HTMLElement | null>(null);
 const gifTriggerRef = ref<HTMLElement | null>(null);
 const emojiTriggerRef = ref<HTMLElement | null>(null);
 const isVoiceRecording = ref(false);
@@ -1060,6 +1061,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     };
 
     defineExpose({
+      composerRef,
       gifTriggerRef,
       emojiTriggerRef,
       flashRejection
