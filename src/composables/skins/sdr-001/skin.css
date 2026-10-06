@@ -340,6 +340,19 @@
 :root[data-skin="sdr-001"] .message-input .message-container:focus-within {
   border-color: var(--sdr-red-line);
 }
+/* Compact composer: the text field is the frame, the button row is bare. */
+@media (max-width: 768px) {
+  :root[data-skin="sdr-001"] .message-input .message-container {
+    border: none;
+  }
+  :root[data-skin="sdr-001"] .message-input .textarea-wrapper {
+    border: 1px solid var(--sdr-steel-line);
+    border-radius: 2px;
+  }
+  :root[data-skin="sdr-001"] .message-input .textarea-wrapper:focus-within {
+    border-color: var(--sdr-red-line);
+  }
+}
 
 /* 2.14 Reactions. */
 :root[data-skin="sdr-001"] .reaction {

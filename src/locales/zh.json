@@ -384,6 +384,7 @@
   "message": {
     "typeMessage": "消息 {to}",
     "addComment": "添加评论...",
+    "moreActions": "更多操作",
     "editMessage": "编辑消息",
     "deleteMessage": "删除消息",
     "copyMessage": "复制消息",

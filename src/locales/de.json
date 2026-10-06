@@ -384,6 +384,7 @@
   "message": {
     "typeMessage": "Nachricht an {to}",
     "addComment": "Kommentar hinzufügen...",
+    "moreActions": "Weitere Aktionen",
     "editMessage": "Nachricht bearbeiten",
     "deleteMessage": "Nachricht löschen",
     "copyMessage": "Nachricht kopieren",

@@ -384,6 +384,7 @@
   "message": {
     "typeMessage": "{to}にメッセージを送信",
     "addComment": "コメントを追加...",
+    "moreActions": "その他の操作",
     "editMessage": "メッセージを編集",
     "deleteMessage": "メッセージを削除",
     "copyMessage": "メッセージをコピー",
