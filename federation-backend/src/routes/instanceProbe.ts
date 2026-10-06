@@ -10,6 +10,7 @@ import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { validateExternalHostname, safeFetch } from '../utils/ssrfProtection.js';
 import { logger } from '../utils/logger.js';
+import { SignatureService } from '../activitypub/SignatureService.js';
 import { discoveryLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
@@ -54,8 +55,8 @@ async function probeNodeinfo(domain: string): Promise<InstanceProbeResult | null
 
     // BUGS.md H16: nodeinfoUrl is a `href` returned by the remote
     // well-known endpoint - attacker-controlled. safeFetch re-validates
-    // the resolved IP per hop.
-    const nodeinfoResponse = await safeFetch(nodeinfoUrl, {
+    // the resolved IP per hop. Signed for instances in authorized fetch mode.
+    const nodeinfoResponse = await SignatureService.signedApFetch(nodeinfoUrl, {
       headers: { Accept: 'application/json' },
       timeoutMs: PROBE_TIMEOUT,
     });
@@ -155,7 +156,7 @@ async function probeActivityPubActor(domain: string): Promise<InstanceProbeResul
       );
       if (actorLink?.href) {
         // BUGS.md H16: actorLink.href is from the remote webfinger response.
-        const actorResp = await safeFetch(actorLink.href, {
+        const actorResp = await SignatureService.signedApFetch(actorLink.href, {
           headers: { Accept: 'application/activity+json, application/ld+json' },
           timeoutMs: PROBE_TIMEOUT,
         });
@@ -309,7 +310,7 @@ router.get(
         ? infoUrl
         : `${protocol}://${cleanDomain}${infoUrl.startsWith('/') ? '' : '/'}${infoUrl}`;
 
-      const infoRes = await safeFetch(url, {
+      const infoRes = await SignatureService.signedApFetch(url, {
         headers: { Accept: 'application/json' },
         timeoutMs: 8000,
       });

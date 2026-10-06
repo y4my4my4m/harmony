@@ -256,6 +256,43 @@ describe('safeFetch', () => {
     expect(resolve4Spy).toHaveBeenCalledTimes(2);
   });
 
+  it('strips a signature on a cross-origin hop', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(mockResponse({ status: 302, headers: { location: 'https://second.example/x' } }) as any)
+      .mockResolvedValueOnce(mockResponse({ status: 200 }) as any);
+    await safeFetch('https://first.example/a', {
+      headers: { Accept: 'application/activity+json', Host: 'first.example', Signature: 'keyId="k",signature="s"' },
+    });
+    const second = fetchSpy.mock.calls[1][1] as any;
+    expect(second.headers.Signature).toBeUndefined();
+    expect(second.headers.Host).toBeUndefined();
+    expect(second.headers.Accept).toBe('application/activity+json');
+  });
+
+  it('applies redirectHeaders for each redirect target, over the carried headers', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(mockResponse({ status: 301, headers: { location: '/b' } }) as any)
+      .mockResolvedValueOnce(mockResponse({ status: 302, headers: { location: 'https://second.example/c?d=1' } }) as any)
+      .mockResolvedValueOnce(mockResponse({ status: 200 }) as any);
+    const signedFor: string[] = [];
+    const sign = async (url: string) => {
+      signedFor.push(url);
+      return { Host: new URL(url).host, Signature: `sig-for ${url}` };
+    };
+
+    const res = await safeFetch('https://first.example/a', {
+      headers: { Accept: 'application/activity+json', host: 'first.example', Signature: 'sig-for https://first.example/a' },
+      redirectHeaders: sign,
+    });
+
+    expect(res.status).toBe(200);
+    expect(signedFor).toEqual(['https://first.example/b', 'https://second.example/c?d=1']);
+    const hop2 = fetchSpy.mock.calls[1][1] as any;
+    const hop3 = fetchSpy.mock.calls[2][1] as any;
+    expect(hop2.headers).toEqual({ Accept: 'application/activity+json', Host: 'first.example', Signature: 'sig-for https://first.example/b' });
+    expect(hop3.headers).toEqual({ Accept: 'application/activity+json', Host: 'second.example', Signature: 'sig-for https://second.example/c?d=1' });
+  });
+
   it('rejects a redirect to a private IP literal', async () => {
     fetchSpy.mockResolvedValueOnce(
       mockResponse({ status: 302, headers: { location: 'http://10.0.0.5/admin' } }) as any,

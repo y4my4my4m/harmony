@@ -119,6 +119,19 @@ The response links `self` to the `Person` actor (`application/activity+json`) an
 a `profile-page` to the human-readable profile. `host-meta` is served too, in
 both XRD and JSON, pointing back at the WebFinger template.
 
+Looking up a remote `user@domain` follows Mastodon: WebFinger on that domain
+(redirects followed; on a 404 the `lrdd` template of its `host-meta`), then,
+when the subject names an account on another domain, WebFinger for that
+subject. The actor is fetched from the `self` link. Its account is confirmed
+from the actor's side: WebFinger for the actor's `webfinger` property
+(FEP-2c59), else for `preferredUsername` at the actor's host, and once more
+for the subject when it names another domain, must link back to the actor id.
+A split-domain instance (Mastodon `LOCAL_DOMAIN` + `WEB_DOMAIN`) therefore
+resolves `@alice@social.example.com` and `@alice@example.com` to the same
+actor, stored once, keyed by actor id, and shown as `@alice@example.com`.
+Without that confirmation an account is named by its actor's host. WebFinger
+and host-meta requests are not signed.
+
 Only `acct:` resources are resolved right now. There is an open gap here: the
 server-discovery code expects remote instances to answer a `harmony://server@…`
 WebFinger query for resolving a chat server by handle, but the local WebFinger
@@ -137,12 +150,38 @@ instance crawlers and "what is this server" probes to classify a Harmony node.
 
 Inbound POSTs to any inbox must carry a valid HTTP Signature. The backend fetches
 the signing actor's public key (and caches it), verifies the signature, and only
-then processes the activity. Unsigned or badly-signed activities are rejected.
+then processes the activity. Unsigned or badly-signed activities are rejected
+with 401. Two signature formats are accepted:
+
+- draft-cavage-12 (`Signature: keyId=...,headers=...`), covering `date` within
+  five minutes, and `digest` on a body. This is what Mastodon, Misskey,
+  Pleroma and GoToSocial send.
+- RFC 9421 HTTP Message Signatures (`Signature-Input` + `Signature`),
+  `rsa-v1_5-sha256`, covering `@method` and the target (`@target-uri`, or
+  `@authority` with `@path`/`@query` or `@request-target`) and, on a body,
+  `content-digest` (RFC 9530); `created` within five minutes. Mastodon 4.5+
+  accepts and 4.7 retries with it; Fedify sends it first.
 
 Outbound activities are signed with the relevant actor's key - the user's key for
 user activities, the server's own key for server/moderation activities. Delivery
 is fanned out through the queue, with retries, so a remote instance being briefly
 unreachable doesn't drop the activity.
+
+Every outbound GET of an ActivityPub resource - actors, keys, objects,
+collections, outboxes, NodeInfo documents - is signed (draft-cavage over
+`(request-target) host date`), as Mastodon signs its fetches: as the local user
+when a read is on a member's behalf (a private server's Group, channels and
+members), otherwise as the instance actor (`/users/instance.actor`). Instances
+in authorized fetch / secure mode refuse unsigned GETs (Mastodon and
+GoToSocial with 401, some with 400). A redirect is signed again for its
+target. A 401 or 403 to a signed GET is final; the GET is not retried unsigned.
+
+Served GETs follow the same rules in reverse: actors, public posts, public
+servers and their collections are served to anyone, signed or not, and a
+signature that does not verify reads as anonymous. Followers-only and direct
+posts and DM messages need a verified signature from an instance with a reader,
+private servers one from a member (see above); anyone else gets the answer an
+unknown id gets.
 
 There is a per-user shared inbox advertised at `/inbox`. Note that the `Person`
 actor also advertises a `sharedOutbox` endpoint that is not actually served -

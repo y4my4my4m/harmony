@@ -6,6 +6,7 @@ import { logger } from '../utils/logger.js';
 import { safeFetch, type SafeFetchOptions } from '../utils/ssrfProtection.js';
 import { actorOwnsKeys, readApDocument, sameUrl } from '../utils/apOrigin.js';
 import { noteDocumentSoftware } from './instanceSoftware.js';
+import { contentDigestMatches, coversRequest, parseMessageSignature, signatureBase, verifyRsaV15Sha256 } from './messageSignatures.js';
 
 // In-memory LRU of PEM public keys, keyed by actorUrl.
 //
@@ -274,20 +275,29 @@ export class SignatureService {
   }
 
   /**
-   * Verify an inbound HTTP signature.
+   * Verify an inbound HTTP signature: RFC 9421 when a Signature-Input header
+   * is present (verifyMessageSignature), draft-cavage otherwise.
    *
-   * The actor URL is the keyId with its fragment removed; its public key is
-   * fetched over HTTPS, the signing string is rebuilt from the signed header
-   * list, and the signature is checked against it. A body additionally
-   * requires a signature-covered Digest header.
+   * draft-cavage: the key owner is resolved from keyId and its public key
+   * fetched, the signing string is rebuilt from the signed header list, and
+   * the signature is checked against it. A body additionally requires a
+   * signature-covered Digest header.
+   *
+   * @param scheme Scheme the request reached this instance by (Express
+   *   `req.protocol`), part of an RFC 9421 `@target-uri`.
    */
   static async verifySignature(
     signature: string,
     headers: Record<string, string>,
     method: string,
     path: string,
-    body?: any
+    body?: any,
+    scheme = 'https',
   ): Promise<{ verified: boolean; actorUrl?: string; error?: string }> {
+    const signatureInput = headers['signature-input'];
+    if (typeof signatureInput === 'string' && signatureInput) {
+      return this.verifyMessageSignature(signatureInput, signature, headers, method, path, body, scheme);
+    }
     try {
       const signatureParts = this.parseSignatureHeader(signature);
 
@@ -424,6 +434,75 @@ export class SignatureService {
   }
 
   /**
+   * RFC 9421 verification of an inbound request, in the profile
+   * messageSignatures.ts accepts. Freshness, the request target and body
+   * integrity are required as for draft-cavage: `created` within ±5 minutes,
+   * `@method` and the target covered, a body covered by a matching
+   * Content-Digest.
+   */
+  private static async verifyMessageSignature(
+    signatureInput: string,
+    signature: string,
+    headers: Record<string, string>,
+    method: string,
+    path: string,
+    body: any,
+    scheme: string,
+  ): Promise<{ verified: boolean; actorUrl?: string; error?: string }> {
+    try {
+      const sig = parseMessageSignature(signatureInput, signature ?? '');
+      if ('error' in sig) return { verified: false, error: sig.error };
+
+      if (sig.alg !== null && sig.alg !== 'rsa-v1_5-sha256') {
+        return { verified: false, error: `Unsupported signature algorithm ${sig.alg}` };
+      }
+      if (!coversRequest(sig, path)) {
+        return { verified: false, error: 'Signature does not cover the method and target' };
+      }
+      const now = Math.floor(Date.now() / 1000);
+      if (Math.abs(now - sig.created) > 5 * 60) {
+        return { verified: false, error: 'Signature created outside allowed clock skew (possible replay)' };
+      }
+      if (sig.expires !== null && sig.expires < now) {
+        return { verified: false, error: 'Signature expired' };
+      }
+
+      const hasBody = body !== undefined && body !== null
+        && !(Buffer.isBuffer(body) && body.length === 0) && body !== '';
+      if (hasBody) {
+        const digest = headers['content-digest'];
+        if (!sig.components.includes('content-digest') || typeof digest !== 'string') {
+          return { verified: false, error: 'Content-Digest not covered by the signature' };
+        }
+        const bytes = Buffer.isBuffer(body) || typeof body === 'string' ? body : JSON.stringify(body);
+        if (!contentDigestMatches(digest, bytes)) {
+          return { verified: false, error: 'Content-Digest mismatch - body may have been tampered' };
+        }
+      }
+
+      const base = signatureBase(sig, { method, scheme, target: path, headers });
+      if (typeof base !== 'string') return { verified: false, error: base.error };
+
+      const actorUrl = await this.resolveKeyOwner(sig.keyId);
+      if (!actorUrl) return { verified: false, error: 'Could not resolve key owner' };
+      const publicKey = await this.fetchActorPublicKey(actorUrl);
+      if (!publicKey) return { verified: false, actorUrl, error: 'Could not fetch public key' };
+
+      if (verifyRsaV15Sha256(base, sig.signature, publicKey)) return { verified: true, actorUrl };
+
+      // One retry against a freshly fetched key; covers remote key rotation.
+      const fresh = await this.fetchActorPublicKey(actorUrl, true);
+      if (fresh && fresh !== publicKey && verifyRsaV15Sha256(base, sig.signature, fresh)) {
+        return { verified: true, actorUrl };
+      }
+      return { verified: false, actorUrl, error: 'Signature does not verify' };
+    } catch (error) {
+      logger.error('RFC 9421 signature verification error:', error);
+      return { verified: false, error: String(error) };
+    }
+  }
+
+  /**
    * Verify that the actor in the activity matches the signing key's owner.
    *
    * Two modes:
@@ -514,10 +593,11 @@ export class SignatureService {
     }
 
     try {
-      const response = await safeFetch(keyId, {
+      const response = await this.signedApFetch(keyId, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
         },
+        timeoutMs: 10_000,
       });
       const fetched = await readApDocument(response, keyId);
       if (!fetched || !sameUrl(fetched.finalUrl, keyId)) {
@@ -599,13 +679,15 @@ export class SignatureService {
       invalidatePublicKey(actorUrl);
     }
     
-    // Tier 3: remote fetch. safeFetch performs URL+DNS validation, manual
-    // redirect re-validation, and a 10s timeout. BUGS.md H15.
+    // Tier 3: remote fetch, signed: a remote in secure mode serves its
+    // actors only to signed GETs. safeFetch performs URL+DNS validation,
+    // manual redirect re-validation, and the timeout. BUGS.md H15.
     try {
-      const response = await safeFetch(actorUrl, {
+      const response = await this.signedApFetch(actorUrl, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
         },
+        timeoutMs: 10_000,
       });
 
       if (!response.ok) {
@@ -690,26 +772,33 @@ export class SignatureService {
   }
 
   /**
-   * Signed GET for an ActivityPub object, for remotes running authorized
-   * fetch / secure mode.
+   * GET signed with a draft-cavage HTTP signature over (request-target), host
+   * and date, as Mastodon, Misskey, Pleroma and GoToSocial sign theirs.
+   * Remotes in authorized fetch / secure mode refuse unsigned GETs (Mastodon
+   * and GoToSocial with 401, some with 400).
    *
-   * With `signAs`, the request is signed with that local user's key and a
-   * signing failure throws: a read on a member's behalf is never sent unsigned
-   * or under another key. Without it, any local user's key signs, and the
-   * request goes unsigned when no local user exists or signing fails.
+   * With `signAs`, that local user's key signs and a signing failure throws:
+   * a read on a member's behalf is never sent unsigned or under another key.
+   * Without it the instance actor signs, as Mastodon signs with
+   * Account.representative and Misskey with instance.actor; the request goes
+   * unsigned only when the instance actor key cannot be read.
    *
-   * `options` is forwarded to `safeFetch` so callers keep their own Accept,
-   * User-Agent, timeout, and abort signal. The signature headers
-   * (`Host`/`Date`/`Signature`) are applied last and always win.
+   * A 401 or 403 is returned as received: the remote refused this instance,
+   * and an unsigned retry would only bypass that refusal. Each redirect hop
+   * is signed for its own target.
+   *
+   * `options` is forwarded to `safeFetch`; the signature headers
+   * (`Host`/`Date`/`Signature`) are applied over the caller's.
    */
   static async signedApFetch(url: string, options: SignedApFetchOptions = {}): Promise<Response> {
-    const { timeoutMs = 8000, headers: callerHeaders, signal, maxRedirects, maxBodyBytes, signAs } = options;
+    const { timeoutMs = 10_000, headers: callerHeaders, signal, maxRedirects, maxBodyBytes, signAs } = options;
 
     const headers: Record<string, string> = {
       'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams", application/json',
       ...(callerHeaders as Record<string, string> | undefined),
     };
 
+    let sign: (target: string) => Promise<Record<string, string>>;
     if (signAs) {
       // signRequest generates and stores a key pair for a profile without
       // one; a remote profile's published key would be replaced.
@@ -721,74 +810,29 @@ export class SignatureService {
       if (signer?.is_local !== true) {
         throw new AppError(500, `Cannot sign as ${signAs}: not a local profile`);
       }
-      const signed = await this.signRequest(url, 'GET', null, signAs);
-      Object.assign(headers, signed.headers);
+      sign = async (target) => (await this.signRequest(target, 'GET', null, signAs)).headers;
     } else {
-      const signingUserId = await this.anyLocalSigner();
-      if (signingUserId) {
+      sign = async (target) => {
         try {
-          const signed = await this.signRequest(url, 'GET', null, signingUserId);
-          Object.assign(headers, signed.headers);
+          const { signAsInstanceActor } = await import('./InstanceActor.js');
+          return (await signAsInstanceActor(target, 'GET', null)).headers;
         } catch (err) {
-          logger.debug(`Could not sign AP GET request, proceeding unsigned: ${err}`);
+          logger.warn(`Instance actor cannot sign the GET of ${target}; sending it unsigned: ${err}`);
+          return {};
         }
-      }
+      };
     }
 
-    // safeFetch enforces URL+DNS validation per hop, follows manual redirects
-    // with re-validation (max 3 hops by default), and bounds each attempt
-    // with timeoutMs.
+    Object.assign(headers, await sign(url));
+
     return safeFetch(url, {
       headers,
       timeoutMs,
+      redirectHeaders: sign,
       ...(signal !== undefined ? { signal } : {}),
       ...(maxRedirects !== undefined ? { maxRedirects } : {}),
       ...(maxBodyBytes !== undefined ? { maxBodyBytes } : {}),
     });
-  }
-
-  /** A local user holding a stored key, else the first local user (signRequest generates its pair). */
-  private static async anyLocalSigner(): Promise<string | undefined> {
-    const supabase = getSupabaseClient();
-
-    const { data: signer } = await supabase
-      .from('user_private_keys')
-      .select('user_id')
-      .limit(1)
-      .maybeSingle();
-    if (signer?.user_id) return signer.user_id;
-
-    const { data: firstUser } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('is_local', true)
-      .limit(1)
-      .maybeSingle();
-    return firstUser?.id;
-  }
-
-  /**
-   * GET an ActivityPub resource, retrying with an HTTP signature when the
-   * remote requires authorized fetch.
-   *
-   * The unsigned request is tried first, so peers that serve public objects
-   * pay no signing cost. Only an authentication rejection (401/403) triggers
-   * a signed retry; every other status - including 404/410/500 - is returned
-   * unchanged so callers keep their existing error handling. On a remote that
-   * exposes nothing, the signed retry is the only successful path.
-   */
-  static async fetchApWithSignatureFallback(
-    url: string,
-    options: SafeFetchOptions = {},
-  ): Promise<Response> {
-    const response = await safeFetch(url, options);
-
-    if (response.status !== 401 && response.status !== 403) {
-      return response;
-    }
-
-    logger.debug(`AP GET got ${response.status}, retrying with HTTP signature: ${url}`);
-    return this.signedApFetch(url, options);
   }
 
   /** Digest header value: `SHA-256=<base64 sha256 of the body bytes>`. */

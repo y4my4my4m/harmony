@@ -275,7 +275,8 @@ router.post('/federated-token', requireLiveKit, async (req: Request, res: Respon
       req.headers as Record<string, string>,
       req.method,
       req.originalUrl || req.path,
-      rawBody || req.body
+      rawBody || req.body,
+      req.protocol,
     );
 
     if (!verification.verified) {

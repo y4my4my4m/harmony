@@ -1161,7 +1161,10 @@ export async function handleNewDM(message: any): Promise<void> {
     
     const htmlContent = convertContentToHTML(message.content);
     const attachments = extractAttachments(message.content);
-    const baseTags = extractActivityPubTags(message.content);
+    const baseTags = extractActivityPubTags(
+      message.content,
+      new Map(remoteUsers.filter((p: any) => p.federated_id).map((p: any) => [p.id, p.federated_id])),
+    );
 
     // to: carries every participant so the receiver can rebuild the group.
     const allParticipantProfiles = profiles || [];
@@ -1206,7 +1209,9 @@ export async function handleNewDM(message: any): Promise<void> {
       content: htmlContent,
       contentMap: { en: htmlContent },
       attachment: attachments,
-      tag: [...baseTags, ...mentionTags],
+      // One Mention per actor; a participant named in the text appears once.
+      tag: [...baseTags, ...mentionTags].filter((t: any, i: number, all: any[]) =>
+        t.type !== 'Mention' || all.findIndex((u: any) => u.type === 'Mention' && u.href === t.href) === i),
       to: allToUrls,
       cc: [],
       directMessage: true,
