@@ -239,6 +239,18 @@ describe('prepareImageUpload', () => {
     expect(decode).not.toHaveBeenCalled()
   })
 
+  it('names an animated PNG .apng and keeps it image/png; a single-frame PNG stays .png', async () => {
+    const { codec } = fakeCodec({ width: 64, height: 64 })
+    const animated = fileOf(apng(4), 'spin.png', 'image/png')
+    expect(await prepareImageUpload(animated, 'emoji', budget(animated.size), codec))
+      .toEqual({ file: animated, extension: 'apng', contentType: 'image/png', reencoded: false })
+    const oneFrame = fileOf(apng(1), 'still.png', 'image/png')
+    expect(await prepareImageUpload(oneFrame, 'emoji', budget(oneFrame.size), codec))
+      .toMatchObject({ extension: 'png', contentType: 'image/png' })
+    const overLimit = await prepareImageUpload(fileOf(apng(4), 'spin.apng', 'image/apng'), 'emoji', budget(100), codec)
+    expect(overLimit).toMatchObject({ extension: 'apng', contentType: 'image/png', reencoded: false })
+  })
+
   it('relabels a file whose type the bytes contradict and keeps its bytes', async () => {
     const original = fileOf(png(), 'icon.jpg', 'image/jpg')
     const result = await prepareImageUpload(original, 'server_icon', budget(original.size), fakeCodec({ width: 1, height: 1 }).codec)

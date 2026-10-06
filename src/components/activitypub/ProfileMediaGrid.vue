@@ -241,7 +241,7 @@ const lightboxMedia = computed(() => lightbox.value.entries.map(toLightboxAttach
 
 function thumbnailFor(item: ProfileMediaItem): string {
   if (item.previewUrl) return item.previewUrl;
-  return item.kind === 'image' ? getAttachmentThumbnailUrl(item.url, THUMB_BOX) : item.url;
+  return item.kind === 'image' ? getAttachmentThumbnailUrl(item.url, THUMB_BOX, item.mimeType) : item.url;
 }
 
 function durationLabel(item: ProfileMediaItem): string | null {

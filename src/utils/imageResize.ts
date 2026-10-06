@@ -408,13 +408,17 @@ function replaceExtension(name: string, extension: string): string {
   return `${dot > 0 ? name.slice(0, dot) : name || 'image'}.${extension}`
 }
 
-/** The file as picked; a type the bytes contradict is replaced by the sniffed one. */
-function keepOriginal(file: File, format: ImageFormat | null): PreparedImage {
+/**
+ * The file as picked; a type the bytes contradict is replaced by the sniffed
+ * one. An animated PNG keeps image/png and is named `.apng`: a stored path
+ * carries no other animation marker.
+ */
+function keepOriginal(file: File, format: ImageFormat | null, animatedPng = false): PreparedImage {
   const fromName = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : ''
   const contentType = format ? FORMAT_MIME[format] : file.type || 'application/octet-stream'
   return {
     file: format && file.type !== contentType ? new File([file], file.name, { type: contentType }) : file,
-    extension: format ? FORMAT_EXTENSION[format] : fromName || 'bin',
+    extension: animatedPng ? 'apng' : format ? FORMAT_EXTENSION[format] : fromName || 'bin',
     contentType,
     reencoded: false,
   }
@@ -481,7 +485,7 @@ export async function prepareImageUpload(
     return keepOriginal(file, null)
   }
   const format = sniffImageFormat(bytes)
-  const original = keepOriginal(file, format)
+  const original = keepOriginal(file, format, format === 'png' && isAnimatedPng(bytes))
   if (fits(budget, original.contentType, file.size)) return original
   if (!format || isAnimatedImage(bytes)) return original
 

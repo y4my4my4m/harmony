@@ -382,6 +382,93 @@ certbot --nginx -d harmony.yourdomain.com
 systemctl reload nginx
 ```
 
+### Image caching behind Cloudflare
+
+Storage serves public objects at `/storage/v1/object/public/<bucket>/<path>` and imgproxy
+renders at `/storage/v1/render/image/public/<bucket>/<path>?width=&height=&resize=&quality=`.
+With `IMGPROXY_ENABLE_WEBP_DETECTION`, a render is WebP when the request's `Accept` names
+`image/webp` and the source format otherwise, under the same ETag and with no `Vary`. A cache
+keyed by URL serves whichever variant it stored first, so the proxy in front of Kong pins
+`Accept` on public renders. Every Harmony client decodes WebP.
+
+nginx on the API host, ahead of `location /`, repeating its body:
+
+```nginx
+location ^~ /storage/v1/render/image/public/ {
+    proxy_pass http://localhost:8000;
+    # every other directive of `location /`, unchanged
+    proxy_set_header Accept "image/webp,*/*;q=0.8";
+}
+```
+
+A location that sets any `proxy_set_header` inherits none from the server block, so the copy
+carries every header of `location /`. Storage's `format` parameter accepts only `origin` and
+`avif`: `origin` gives up WebP, `avif` encodes slower, and neither reaches render URLs that
+clients already hold.
+
+Clients load APNG (uploads named `.apng`) from the object route: imgproxy renders it as
+its first frame. GIF, WebP and static formats go through renders.
+
+Cloudflare Cache Rules (Caching → Cache Rules), in this order. Rules combine, and where two
+set the same option the last matching rule wins.
+
+1. API host bypass. Skip when an equivalent rule already covers the host.
+   ```
+   (http.host eq "db.example.com")
+   ```
+   Cache eligibility: **Bypass cache**. Auth, REST, realtime and signed or authenticated
+   storage URLs stay uncached, including paths ending in `.png` or `.jpg` that the default
+   extension list would cache.
+2. Public storage objects:
+   ```
+   (http.host eq "db.example.com" and starts_with(http.request.uri.path, "/storage/v1/object/public/") and not starts_with(http.request.uri.path, "/storage/v1/object/public/message_media/"))
+   ```
+3. Public storage renders:
+   ```
+   (http.host eq "db.example.com" and starts_with(http.request.uri.path, "/storage/v1/render/image/public/") and not starts_with(http.request.uri.path, "/storage/v1/render/image/public/message_media/"))
+   ```
+
+Rules 2 and 3 set:
+
+| Setting | Value |
+|---|---|
+| Cache eligibility | Eligible for cache |
+| Edge TTL | Use cache-control header if present, bypass cache if not |
+| Status code TTL | Greater than or equal `400`: no-store |
+| Browser TTL | Respect origin |
+| Cache key | default |
+
+As `action_parameters` of a `set_cache_settings` rule in the `http_request_cache_settings`
+phase:
+
+```json
+{
+  "cache": true,
+  "edge_ttl": {
+    "mode": "bypass_by_default",
+    "status_code_ttl": [{ "status_code_range": { "from": 400, "to": 599 }, "value": -1 }]
+  },
+  "browser_ttl": { "mode": "respect_origin" }
+}
+```
+
+- The default cache key is the full URL including the query string, so each
+  `width`/`height`/`resize`/`quality` combination is its own entry. Query-string cache key
+  options are Enterprise-only and not needed; leave "Ignore query string" off.
+- Only 200 responses are stored. Storage answers a missing object with 400 and a render
+  imgproxy refuses with 422, both without cache-control; the status code TTL keeps them out
+  even if one gains a cache-control header. 206 (Range) and 304 (revalidation) answer from or
+  refresh the stored 200 and stay outside the status code TTL.
+- Signed (`/object/sign/`, `/render/image/sign/`) and authenticated (`/object/authenticated/`)
+  paths match neither rule 2 nor rule 3. `message_media` is private and excluded by name.
+- Deleting or replacing an object does not purge the edge: the stored copy serves until its
+  max-age ends, one year for uploads written under a fresh name (1.6.5 and later), one hour
+  for older ones. Purge by URL when an image has to disappear sooner.
+
+Check: the same URL requested twice answers `cf-cache-status: HIT` the second time, and a
+render answers the same `content-type` and `content-length` for `Accept: image/webp` and
+`Accept: image/png`.
+
 ## 8. Configure Firewall
 
 ```bash
