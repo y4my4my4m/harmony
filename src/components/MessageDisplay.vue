@@ -325,6 +325,10 @@
                         @click="showUserProfile(item.message.metadata.automod.user_id)"
                         :style="{ color: resolveChatUserColor(item.message.metadata.automod.user_id) }"
                       ><DisplayName :userId="item.message.metadata.automod.user_id" /></span>
+                      <span
+                        v-else-if="item.message.metadata?.automod?.author_name"
+                        class="system-user-mention"
+                      >{{ item.message.metadata.automod.author_name }} · Discord</span>
                       <span v-else class="system-user-mention">{{ $t('automod.alert.aBot') }}</span>
                       <span class="automod-rule">{{ item.message.metadata?.automod?.rule_name }}</span>
                       <span v-if="item.message.metadata?.automod?.actions?.includes('timeout')" class="automod-timeout">

@@ -3076,11 +3076,12 @@
       "title": "Où la passerelle doit-elle tourner ?",
       "needs": "Il vous faut un compte Discord avec l'autorisation « Gérer le serveur » sur le serveur Discord à connecter. La configuration prend une dizaine de minutes.",
       "hosted": {
-        "title": "La faire tourner sur cette instance",
+        "title": "Utiliser votre propre bot, sur cette instance",
+        "lead": "Créez un bot Discord avec votre propre nom et votre propre avatar et collez son jeton ici ; cette instance le fait tourner.",
         "point1": "Rien à installer.",
-        "point2": "Vous créez un bot Discord et collez son jeton ici. Cette instance fait tourner la passerelle pour vous.",
+        "point2": "Dans Discord, le bot porte le nom et l'avatar que vous lui donnez.",
         "tradeoff": "L'opérateur de cette instance détient le jeton de votre bot et pourrait lire tout salon Discord que le bot peut voir. Ne donnez au bot accès qu'aux salons que vous reliez.",
-        "choose": "La faire tourner sur cette instance"
+        "choose": "Utiliser mon propre bot ici"
       },
       "self": {
         "title": "La faire tourner vous-même",
@@ -3406,7 +3407,7 @@
       "maintain": {
         "self": "Déplacer la passerelle sur un autre ordinateur, ou la réinstaller",
         "hosted": "Remplacer le jeton du bot Discord",
-        "instance": "Lier un autre serveur Discord"
+        "instance": "Relier de nouveau le bot ou lier un autre serveur Discord"
       },
       "disconnectTitle": "Déconnecter la passerelle",
       "disconnectBody": {
@@ -3598,17 +3599,21 @@
       "invite": "Collez l'ID de votre application Discord (General Information → Application ID) pour obtenir un lien d'invitation.",
       "applicationId": "Discord Application ID"
     },
+    "adminSection": {
+      "title": "Passerelle Discord",
+      "lead": "Les communautés connectent un serveur Discord dans Paramètres du serveur → Passerelle Discord. Proposez-leur le bot de cette instance, laissez-les apporter le leur, ou les deux. Faire tourner la passerelle sur leur propre ordinateur reste toujours possible."
+    },
     "admin": {
-      "title": "Hébergement de passerelles Discord",
-      "lead": "Permet aux administrateurs de serveur de choisir « La faire tourner sur cette instance » pour leur passerelle Discord : ils collent le jeton de leur propre bot Discord, et cette instance fait tourner la passerelle.",
-      "toggle": "Faire tourner des passerelles Discord pour les communautés",
+      "title": "Laisser les communautés apporter leur propre bot",
+      "lead": "Les communautés créent leur propre bot Discord, avec leur propre nom et leur propre avatar, et collent son jeton ; cette instance le fait tourner. Les admins de serveur voient cette option sous le nom « Utiliser votre propre bot, sur cette instance ».",
+      "toggle": "Faire tourner les bots des communautés",
       "toggleHint": "Vous détenez le jeton du bot Discord de chaque communauté. Un jeton donne accès à tous les salons Discord que son bot peut voir.",
       "limit": "Nombre maximal de passerelles hébergées",
       "limitHint": "Au-delà de ce nombre, les nouvelles passerelles hébergées sont refusées. Celles qui existent continuent de tourner.",
       "limitInvalid": "Saisissez un nombre entier, 0 ou plus.",
       "note": "L'activer ne fait que proposer l'option. Il faut aussi faire tourner le service hôte de passerelles ({service}) à côté de cette instance ; voir le {docs}.",
       "docs": "guide d'auto-hébergement",
-      "save": "Enregistrer les réglages d'hébergement",
+      "saveLimit": "Enregistrer la limite",
       "saving": "Enregistrement…",
       "saved": "Réglages d'hébergement des passerelles enregistrés",
       "saveFailed": "Impossible d'enregistrer les réglages d'hébergement des passerelles",
@@ -3620,9 +3625,9 @@
       "step2": "Choisissez votre serveur Discord (il vous faut la permission Gérer le serveur) et cliquez sur {authorize}.",
       "step3": "Discord vous ramène ici pour relier les salons.",
       "privacy": "Le bot appartient à l'opérateur de cette instance, qui peut lire tout salon Discord auquel le bot a accès. Ne lui donnez accès qu'aux salons que vous reliez.",
-      "relink": "La passerelle est liée à {guild}. Ajouter le bot à un autre serveur Discord y déplace la passerelle et supprime les paires de salons ; le bot quitte {guild} de lui-même en une dizaine de minutes.",
+      "relink": "La passerelle est liée à {guild}. Ajouter de nouveau le bot à {guild} conserve les paires de salons et accorde les permissions qui manquent à une liaison plus ancienne, comme « Gérer les messages » : sans elle, le message d'un membre Discord supprimé ici reste sur Discord. Ajouter le bot à un autre serveur Discord y déplace la passerelle et supprime les paires de salons ; le bot quitte {guild} de lui-même en une dizaine de minutes.",
       "add": "Ajouter à Discord",
-      "addOther": "Ajouter à un autre serveur Discord",
+      "addOther": "Ajouter de nouveau à Discord",
       "opening": "Ouverture de Discord…",
       "linked": "Lié à {guild}. Reliez maintenant les salons.",
       "retry": "Réessayer",
@@ -3677,7 +3682,6 @@
       "limit": "Nombre maximal de serveurs Discord liés",
       "limitHint": "Les nouvelles liaisons sont refusées dès que ce nombre de serveurs Discord est atteint. Discord en autorise 100 tant que le bot n'est pas vérifié.",
       "hostNote": "Les serveurs liés sont relayés par le service hôte des passerelles ({service}, passerelle 2.1.0 ou plus récente) à côté de cette instance ; voir le {docs}.",
-      "saveSettings": "Enregistrer les réglages du bot",
       "credentialsSaved": "Identifiants du bot Discord enregistrés",
       "cleared": "Bot Discord retiré",
       "settingsSaved": "Réglages du bot Discord enregistrés",

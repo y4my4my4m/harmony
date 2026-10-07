@@ -83,13 +83,13 @@ function bridge(overrides: Partial<DiscordBridgeRow> = {}): DiscordBridgeRow {
 }
 
 describe('buildDiscordInviteUrl', () => {
-  it('asks for bot + applications.commands and exactly the seven bridge permissions', () => {
-    expect(DISCORD_BRIDGE_PERMISSIONS_VALUE).toBe('536988736')
+  it('asks for bot + applications.commands and exactly the eight bridge permissions', () => {
+    expect(DISCORD_BRIDGE_PERMISSIONS_VALUE).toBe('536996928')
     const url = new URL(buildDiscordInviteUrl('111111111111111111'))
     expect(url.origin + url.pathname).toBe('https://discord.com/oauth2/authorize')
     expect(url.searchParams.get('client_id')).toBe('111111111111111111')
     expect(url.searchParams.get('scope')).toBe('bot applications.commands')
-    expect(url.searchParams.get('permissions')).toBe('536988736')
+    expect(url.searchParams.get('permissions')).toBe('536996928')
   })
 
   it('returns nothing for a missing or malformed application id', () => {

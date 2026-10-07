@@ -9,13 +9,16 @@ export const DISCORD_AUTHORIZE_URL = 'https://discord.com/oauth2/authorize'
 /**
  * Permission bits the bridge program needs in a guild
  * (https://discord.com/developers/docs/topics/permissions): its README's invite set (View
- * Channels, Send Messages, Embed Links, Attach Files, Read Message History, Add Reactions,
- * Manage Webhooks) plus Use External Emojis.
+ * Channels, Send Messages, Manage Messages, Embed Links, Attach Files, Read Message History,
+ * Add Reactions, Manage Webhooks) plus Use External Emojis. Manage Messages deletes the
+ * Discord original of a Discord-origin message deleted on Harmony (bridge 2.2.0); a guild
+ * linked with an earlier set lacks it until linked again.
  */
 export const INSTANCE_BOT_PERMISSION_BITS = {
   addReactions: 1n << 6n,
   viewChannel: 1n << 10n,
   sendMessages: 1n << 11n,
+  manageMessages: 1n << 13n,
   embedLinks: 1n << 14n,
   attachFiles: 1n << 15n,
   readMessageHistory: 1n << 16n,
@@ -23,7 +26,7 @@ export const INSTANCE_BOT_PERMISSION_BITS = {
   manageWebhooks: 1n << 29n,
 } as const
 
-/** 537250880. */
+/** 537259072. */
 export const INSTANCE_BOT_PERMISSIONS = Object.values(INSTANCE_BOT_PERMISSION_BITS)
   .reduce((acc, bit) => acc | bit, 0n)
   .toString()

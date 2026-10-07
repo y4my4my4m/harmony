@@ -49,7 +49,7 @@ automod_post_alert	p_alert_channel uuid, p_event_id uuid, p_text text, p_details
 automod_preset_terms	p_preset text	text[]	invoker	public, pg_temp	service_role	unreferenced
 automod_purge		void	definer	public, pg_temp	service_role	unreferenced
 automod_recompile_server	p_server_id uuid	void	definer	public, pg_temp	service_role	unreferenced
-automod_record_match	p_server_id uuid, p_channel_id uuid, p_user_id uuid, p_bot_id uuid, p_message_id uuid, p_event_type text, p_rule jsonb, p_hit text, p_blocked boolean, p_content jsonb, p_alert_channel uuid	void	definer	public, pg_temp	service_role	unreferenced
+automod_record_match	p_server_id uuid, p_channel_id uuid, p_user_id uuid, p_bot_id uuid, p_message_id uuid, p_event_type text, p_rule jsonb, p_hit text, p_blocked boolean, p_content jsonb, p_alert_channel uuid, p_author_key text, p_author_name text	void	definer	public, pg_temp	service_role	unreferenced
 automod_regex_compiles	p_pattern text	boolean	invoker	public, pg_temp	service_role	unreferenced
 automod_require	p_server_id uuid, p_permissions text[]	uuid	definer	public, pg_temp	service_role	unreferenced
 automod_rules_changed		trigger	definer	public, pg_temp	service_role	trigger

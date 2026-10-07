@@ -96,6 +96,10 @@ describe('DiscordBridgeSetup — no bridge', () => {
     await flushPromises()
     const hosted = w.find('[data-testid="mode-hosted"]')
     expect(hosted.exists()).toBe(true)
+    expect(hosted.find('h4').text()).toBe('Use your own bot, run on this instance')
+    expect(hosted.find('[data-testid="hosted-lead"]').text()).toBe(
+      'Create a Discord bot with your own name and avatar and paste its token here; this instance runs it.',
+    )
     expect(hosted.text()).toContain('could read any Discord channel the bot can see')
     expect(w.find('[data-testid="hosting-unavailable"]').exists()).toBe(false)
     expect(w.text()).toContain('Either way, messages in bridged channels pass through this instance')

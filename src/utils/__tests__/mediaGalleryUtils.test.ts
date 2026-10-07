@@ -37,6 +37,21 @@ describe('groupMediaGalleryParts', () => {
     expect((grouped[0] as { parts: MessagePart[] }).parts).toHaveLength(2);
   });
 
+  // Discord voice messages are .ogg, which also names a video container.
+  it('leaves audio file parts out of the gallery, whatever their extension', () => {
+    const voice = {
+      type: 'file',
+      url: 'https://cdn.discordapp.com/attachments/1/2/voice-message.ogg?ex=1',
+      fileType: 'audio',
+    } as MessagePart;
+    const clip = { type: 'file', url: 'https://cdn/song.webm', fileType: 'audio' } as MessagePart;
+    const image = { type: 'file', url: 'https://cdn/a.png', fileType: 'image' } as MessagePart;
+    const video = { type: 'file', url: 'https://cdn/b.ogg', fileType: 'video' } as MessagePart;
+
+    expect(groupMediaGalleryParts([voice, image, clip, video])).toEqual([voice, image, clip, video]);
+    expect(groupMediaGalleryParts([voice, clip])).toEqual([voice, clip]);
+  });
+
   it('keeps a single image as a plain file part', () => {
     const parts: MessagePart[] = [
       { type: 'file', url: 'https://cdn/a.png', fileType: 'image' } as MessagePart,

@@ -26,6 +26,25 @@ export function hasDiscordCdnFilePart(content: unknown): boolean {
   )
 }
 
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+
+/**
+ * An animated PNG: an acTL chunk precedes the first IDAT (APNG specification). Discord serves
+ * APNG stickers and attachments as image/png with a .png name. Chunk layout: 4-byte big-endian
+ * data length, 4-byte type, data, 4-byte CRC.
+ */
+export function isAnimatedPng(buffer: Buffer): boolean {
+  if (buffer.byteLength < 8 || !buffer.subarray(0, 8).equals(PNG_SIGNATURE)) return false
+  let offset = 8
+  while (offset + 8 <= buffer.byteLength) {
+    const type = buffer.toString('latin1', offset + 4, offset + 8)
+    if (type === 'acTL') return true
+    if (type === 'IDAT' || type === 'IEND') return false
+    offset += 12 + buffer.readUInt32BE(offset)
+  }
+  return false
+}
+
 function fileTypeOf(contentType: string): 'image' | 'video' | 'audio' | 'file' {
   if (contentType.startsWith('image/')) return 'image'
   if (contentType.startsWith('video/')) return 'video'
@@ -70,13 +89,19 @@ export async function mirrorExternalMediaToStorage(
     throw new Error(`Download failed (${response.status})`)
   }
 
-  const contentType = opts.contentType || response.headers.get('content-type') || 'application/octet-stream'
   const buffer = Buffer.from(await response.arrayBuffer())
   if (buffer.byteLength > MAX_BYTES) {
     throw new Error(`Attachment too large (${buffer.byteLength} bytes)`)
   }
 
-  const storagePath = `c/${opts.channelId.toLowerCase()}/bridge/${opts.botId}/${randomUUID()}.${extensionFrom(opts.fileName, contentType, sourceUrl)}`
+  // An APNG stored as .png is served as a static thumbnail: clients downscale .png only.
+  const animatedPng = isAnimatedPng(buffer)
+  const contentType = animatedPng
+    ? 'image/apng'
+    : opts.contentType || response.headers.get('content-type') || 'application/octet-stream'
+  const extension = animatedPng ? 'apng' : extensionFrom(opts.fileName, contentType, sourceUrl)
+
+  const storagePath = `c/${opts.channelId.toLowerCase()}/bridge/${opts.botId}/${randomUUID()}.${extension}`
   const { error } = await supabase.storage.from(MESSAGE_MEDIA_BUCKET).upload(storagePath, buffer, {
     contentType,
     upsert: false,

@@ -22,6 +22,8 @@ import {
 } from '../auth/botPermissions.js'
 import { applyBridgeAttachmentPolicy } from '../utils/mirrorExternalMedia.js'
 import { stripBotSuppliedPaths } from '../utils/messageMedia.js'
+import { absoluteAvatarUrl } from '../utils/avatarUrl.js'
+import { isDiscordCdnUrl } from '../utils/emojiUrl.js'
 
 const AUTOMOD_BLOCKED_BODY = {
   error: "Blocked by the server's AutoMod",
@@ -57,11 +59,29 @@ const SERVER_METADATA_KEYS = new Set([
   'bot', 'created_via',
 ])
 
+// Metadata a bridge bot records on a message it did not write (bridge 2.2): the Discord
+// message ids of its copy, whether a webhook posted it, and the files uploaded with it.
+const BRIDGE_MAPPING_KEYS = new Set([
+  'discord_message_id', 'discord_message_ids', 'discord_via_webhook', 'discord_uploaded_files',
+])
+
 export function botSuppliedMetadata(input: unknown): Record<string, unknown> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return {}
   return Object.fromEntries(
     Object.entries(input as Record<string, unknown>).filter(([key]) => !SERVER_METADATA_KEYS.has(key)),
   )
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** A reaction's bot-supplied metadata; remote_emoji_url is kept only when it is an https Discord CDN URL. */
+export function reactionMetadata(input: unknown): unknown {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return input || null
+  const metadata = { ...(input as Record<string, unknown>) }
+  if ('remote_emoji_url' in metadata && !isDiscordCdnUrl(metadata.remote_emoji_url)) {
+    delete metadata.remote_emoji_url
+  }
+  return metadata
 }
 
 export class BotRestAPI {
@@ -197,7 +217,7 @@ export class BotRestAPI {
       const { data: updated, error } = await supabase.rpc('update_message_content_silent', {
         p_message_id: messageId,
         p_old_content: message.content,
-        p_content: content,
+        p_content: await this.resolveMentionParts(content, message.channel_id),
       })
       if (error) {
         return res.status(400).json({ error: error.message })
@@ -232,7 +252,7 @@ export class BotRestAPI {
       // Instance attachment policy (e.g. mirroring Discord CDN URLs into
       // user_media) is applied here, keeping bots policy-agnostic.
       const messageContent = await applyBridgeAttachmentPolicy(
-        this.formatContent(content, embeds),
+        await this.resolveMentionParts(this.formatContent(content, embeds), channelId),
         botId,
         channelId,
       )
@@ -380,9 +400,15 @@ export class BotRestAPI {
 
       // Service-role write: without this check a bot could rewrite any
       // message's metadata, including the discord_user field that sets the
-      // displayed author.
-      if (message.bot_id !== botId) {
-        return res.status(403).json({ error: 'Bots can only update metadata on their own messages' })
+      // displayed author. On another author's message a bridge bot records its Discord
+      // mapping alone, in a channel its bridge pairs.
+      const own = message.bot_id === botId
+      if (!own) {
+        const keys = Object.keys(metadata)
+        const mappingOnly = keys.length > 0 && keys.every((key) => BRIDGE_MAPPING_KEYS.has(key))
+        if (!mappingOnly || !(await this.bridgePairsChannel(botId, message.channel_id))) {
+          return res.status(403).json({ error: 'Bots can only update metadata on their own messages' })
+        }
       }
 
       const access = await this.channelWriteAccess(botId, message.channel_id, 'send_messages')
@@ -392,7 +418,7 @@ export class BotRestAPI {
 
       const mergedMetadata = {
         ...(message.metadata || {}),
-        ...botSuppliedMetadata(metadata),
+        ...(own ? botSuppliedMetadata(metadata) : metadata),
       }
 
       const { error: updateError } = await supabase
@@ -517,7 +543,7 @@ export class BotRestAPI {
       }
       
       const messageContent = await applyBridgeAttachmentPolicy(
-        this.formatContent(content),
+        await this.resolveMentionParts(this.formatContent(content), message.channel_id),
         botId,
         message.channel_id,
       )
@@ -623,7 +649,7 @@ export class BotRestAPI {
       const insertData: any = {
         message_id: messageId,
         bot_id: botId,
-        metadata: metadata || null
+        metadata: reactionMetadata(metadata)
       }
       
       if (isUUID) {
@@ -1545,6 +1571,47 @@ export class BotRestAPI {
   
   // PERMISSION HELPERS
   
+  /**
+   * The bot is a bridge bot (bot_type 'bridge') and its bridge relays the channel: a
+   * discord_bridge_channels pair of the v2 bridge whose bot it is, or, for a bot that is no v2
+   * bridge's bot, a v1 discord_bridge_pairings row of the channel's server. False on any
+   * failed lookup.
+   */
+  private async bridgePairsChannel(botId: string, channelId: string | null | undefined): Promise<boolean> {
+    if (!channelId) return false
+    const { data: bot, error: botError } = await supabase
+      .from('bots')
+      .select('bot_type')
+      .eq('id', botId)
+      .maybeSingle()
+    if (botError || bot?.bot_type !== 'bridge') return false
+
+    const { data: bridges, error: bridgeError } = await supabase
+      .from('discord_bridges')
+      .select('id')
+      .eq('bot_id', botId)
+    if (bridgeError || !Array.isArray(bridges)) return false
+
+    if (bridges.length > 0) {
+      const { data: pairs, error: pairError } = await supabase
+        .from('discord_bridge_channels')
+        .select('id')
+        .in('bridge_id', bridges.map((b: { id: string }) => b.id))
+        .eq('harmony_channel_id', channelId)
+        .limit(1)
+      return !pairError && Array.isArray(pairs) && pairs.length > 0
+    }
+
+    const serverId = await this.channelServerId(channelId)
+    if (!serverId) return false
+    const { data: pairing, error: pairingError } = await supabase
+      .from('discord_bridge_pairings')
+      .select('server_id')
+      .eq('server_id', serverId)
+      .maybeSingle()
+    return !pairingError && !!pairing
+  }
+
   private async channelServerId(channelId: string): Promise<string | null> {
     const { data: channel } = await supabase
       .from('channels')
@@ -1628,29 +1695,68 @@ export class BotRestAPI {
   
   // FORMATTERS
   
-  /**
-   * Resolves a Supabase storage path to an absolute URL; external URLs pass
-   * through. Base is PUBLIC_URL so the result is reachable by external
-   * consumers (Discord, ActivityPub).
-   */
   private formatAvatarUrl(avatarPath: string | null | undefined): string | undefined {
-    if (!avatarPath) return undefined
-    
-    if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
-      return avatarPath
-    }
-    
-    const publicUrl = process.env.PUBLIC_URL || process.env.SUPABASE_URL
-    if (!publicUrl) {
-      console.warn('PUBLIC_URL or SUPABASE_URL not set, cannot construct avatar URL')
-      return undefined
-    }
-    
-    const cleanPath = avatarPath.startsWith('/') ? avatarPath.slice(1) : avatarPath
-    
-    return `${publicUrl}/storage/v1/render/image/public/avatars/${cleanPath}?width=256&height=256&resize=contain&quality=80`
+    return absoluteAvatarUrl(avatarPath)
   }
   
+  /**
+   * role_mention and channel_mention parts against the channel's server: a role or channel of
+   * that server keeps its part, carrying the stored name (and the role's color); any other part
+   * of those types becomes the text `@name` or `#name`. Notifications of a kept role mention
+   * follow handle_role_mention_notifications (MENTION_EVERYONE, mentionable roles).
+   */
+  private async resolveMentionParts(parts: any[], channelId: string | null | undefined): Promise<any[]> {
+    if (!Array.isArray(parts)) return parts
+    const isRole = (p: any) => p?.type === 'role_mention'
+    const isChannel = (p: any) => p?.type === 'channel_mention'
+    if (!parts.some((p) => isRole(p) || isChannel(p))) return parts
+
+    const serverId = channelId ? await this.channelServerId(channelId) : null
+    const uuids = (values: unknown[]) =>
+      [...new Set(values.filter((v): v is string => typeof v === 'string' && UUID_PATTERN.test(v)))]
+    const roleIds = uuids(parts.filter(isRole).map((p) => p.roleId))
+    const channelIds = uuids(parts.filter(isChannel).map((p) => p.channelId))
+
+    const roles = new Map<string, { name: string; color: string | null }>()
+    if (serverId && roleIds.length > 0) {
+      const { data } = await supabase
+        .from('server_roles')
+        .select('id, name, color')
+        .eq('server_id', serverId)
+        .in('id', roleIds)
+      for (const r of (data ?? []) as Array<{ id: string; name: string; color: string | null }>) {
+        roles.set(r.id, { name: r.name, color: r.color ?? null })
+      }
+    }
+    const channels = new Map<string, string>()
+    if (serverId && channelIds.length > 0) {
+      const { data } = await supabase
+        .from('channels')
+        .select('id, name')
+        .eq('server_id', serverId)
+        .in('id', channelIds)
+      for (const c of (data ?? []) as Array<{ id: string; name: string }>) channels.set(c.id, c.name)
+    }
+
+    const label = (value: unknown, fallback: string) =>
+      typeof value === 'string' && value.trim() !== '' ? value : fallback
+    return parts.map((part) => {
+      if (isRole(part)) {
+        const role = roles.get(part.roleId)
+        if (!role) return { type: 'text', text: `@${label(part.roleName, 'role')}` }
+        return { type: 'role_mention', roleId: part.roleId, roleName: role.name, roleColor: role.color }
+      }
+      if (isChannel(part)) {
+        const name = channels.get(part.channelId)
+        if (name === undefined) return { type: 'text', text: `#${label(part.name, 'channel')}` }
+        const out: Record<string, unknown> = { type: 'channel_mention', channelId: part.channelId, serverId, name }
+        if (typeof part.messageId === 'string' && UUID_PATTERN.test(part.messageId)) out.messageId = part.messageId
+        return out
+      }
+      return part
+    })
+  }
+
   private formatContent(content: string | any[], embeds?: any[]): any[] {
     const parts: any[] = []
     
@@ -1839,9 +1945,26 @@ export class BotRestAPI {
 
   // EMOJI METHODS
   
+  // Every emojis row is readable by every account (policy emojis_select_all), so every row
+  // is visible to a bot.
   private async getEmojis(req: BotRequest, res: Response) {
     try {
-      const { url } = req.query
+      const { url, id } = req.query
+
+      // ?id= answers one emoji: its object, or 404.
+      if (id !== undefined) {
+        if (typeof id !== 'string' || !UUID_PATTERN.test(id)) {
+          return res.status(400).json({ error: 'id must be an emoji UUID' })
+        }
+        const { data: emoji, error } = await supabase.from('emojis').select('*').eq('id', id).maybeSingle()
+        if (error) {
+          return res.status(500).json({ error: error.message })
+        }
+        if (!emoji) {
+          return res.status(404).json({ error: 'Emoji not found' })
+        }
+        return res.json(emoji)
+      }
       
       let query = supabase.from('emojis').select('*')
       

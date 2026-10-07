@@ -229,6 +229,7 @@
             <div class="event-head">
               <span class="event-who">
                 <template v-if="ev.event_type === 'raid'">{{ t('automod.log.raid', { n: ev.details?.joins, s: ev.details?.window_seconds }) }}</template>
+                <template v-else-if="!ev.user_id && ev.details?.author_name">{{ ev.details.author_name }}<span class="event-domain"> · Discord</span></template>
                 <template v-else>{{ ev.display_name || ev.username || ev.bot_name || t('automod.alert.aBot') }}<span v-if="ev.is_local === false" class="event-domain">@{{ ev.domain }}</span></template>
               </span>
               <span v-if="ev.channel_name" class="event-channel">#{{ ev.channel_name }}</span>

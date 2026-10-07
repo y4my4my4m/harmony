@@ -21,6 +21,13 @@ export const INSTANCE_BOT_LIMIT_KEY = 'discord_bridge_instance_bot_limit'
 /** Discord's server cap for an unverified bot. */
 export const DEFAULT_INSTANCE_BOT_LIMIT = 100
 
+export type BridgeInstanceConfigKey =
+  | typeof HOSTING_ENABLED_KEY
+  | typeof HOSTING_LIMIT_KEY
+  | typeof INSTANCE_BOT_ENABLED_KEY
+  | typeof INSTANCE_BOT_PRESENCE_KEY
+  | typeof INSTANCE_BOT_LIMIT_KEY
+
 const BRIDGE_COLUMNS =
   'id, server_id, bot_id, mode, discord_guild_id, discord_guild_name, discord_application_id, discord_bot_name, settings, snapshot, status, bridge_version, last_seen_at, created_at, updated_at'
 const PAIR_COLUMNS = 'id, bridge_id, harmony_channel_id, discord_channel_id, discord_channel_name, direction, created_at'
@@ -284,14 +291,11 @@ export async function fetchHostingConfig(): Promise<HostingConfig> {
   }
 }
 
-/** batch_set_instance_config requires an instance admin. */
-export async function saveHostingConfig(config: HostingConfig): Promise<void> {
-  const { data, error } = await supabase.rpc('batch_set_instance_config', {
-    p_keys: [HOSTING_ENABLED_KEY, HOSTING_LIMIT_KEY],
-    p_values: [config.enabled, config.limit],
-  })
+/** Writes one bridge instance_config key; batch_set_instance_config requires an instance admin. */
+export async function saveBridgeInstanceConfig(key: BridgeInstanceConfigKey, value: boolean | number): Promise<void> {
+  const { data, error } = await supabase.rpc('batch_set_instance_config', { p_keys: [key], p_values: [value] })
   if (error) throw new Error(error.message)
-  if (data === false) throw new Error('batch_set_instance_config refused the bridge hosting settings')
+  if (data === false) throw new Error(`batch_set_instance_config refused ${key}`)
 }
 
 /** discord_bridge_instance_bot_status(): never carries a secret. */
@@ -348,20 +352,4 @@ export async function saveInstanceBotCredentials(input: {
 export async function clearInstanceBot(): Promise<void> {
   const { error } = await supabase.rpc('discord_bridge_instance_bot_clear')
   raise(error)
-}
-
-export interface InstanceBotSettings {
-  enabled: boolean
-  presence: boolean
-  limit: number
-}
-
-/** batch_set_instance_config requires an instance admin. */
-export async function saveInstanceBotSettings(settings: InstanceBotSettings): Promise<void> {
-  const { data, error } = await supabase.rpc('batch_set_instance_config', {
-    p_keys: [INSTANCE_BOT_ENABLED_KEY, INSTANCE_BOT_PRESENCE_KEY, INSTANCE_BOT_LIMIT_KEY],
-    p_values: [settings.enabled, settings.presence, settings.limit],
-  })
-  if (error) throw new Error(error.message)
-  if (data === false) throw new Error('batch_set_instance_config refused the instance bot settings')
 }

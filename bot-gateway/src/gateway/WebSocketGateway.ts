@@ -138,6 +138,31 @@ export function parsePresenceDeltas(data: unknown): PresenceDelta[] {
   return out
 }
 
+// Frames one connection may send per window, op 1 heartbeats excluded. The frame over the
+// limit closes the connection with 4008 'rate limited'.
+export const FRAME_LIMIT = 120
+export const FRAME_WINDOW_MS = 60_000
+
+/** Sliding-window frame count of one connection. */
+export class FrameRateLimiter {
+  // Arrival times in ms, oldest first; at most `limit` entries.
+  private stamps: number[] = []
+
+  constructor(
+    private readonly limit = FRAME_LIMIT,
+    private readonly windowMs = FRAME_WINDOW_MS,
+  ) {}
+
+  /** Counts a frame arriving at `now`; false when the window already holds `limit` frames. */
+  hit(now: number): boolean {
+    const cutoff = now - this.windowMs
+    while (this.stamps.length > 0 && this.stamps[0] <= cutoff) this.stamps.shift()
+    if (this.stamps.length >= this.limit) return false
+    this.stamps.push(now)
+    return true
+  }
+}
+
 export interface ChannelBridgeData {
   botId: string
   harmonyChannelId: string
@@ -167,12 +192,26 @@ export class WebSocketGateway {
   
   private handleConnection(ws: WebSocket) {
     let botConnection: BotConnection | null = null
+    const frames = new FrameRateLimiter()
+    let rateLimited = false
     
     console.log('New WebSocket connection')
     
     ws.on('message', async (data) => {
+      // Frames already buffered behind the closing one are dropped.
+      if (rateLimited) return
       try {
         const payload = JSON.parse(data.toString())
+
+        if (payload?.op !== 1 && !frames.hit(Date.now())) {
+          rateLimited = true
+          console.warn(
+            `Gateway connection of ${botConnection?.botId ?? 'an unidentified client'} sent more than ` +
+              `${FRAME_LIMIT} frames in ${FRAME_WINDOW_MS / 1000} s; closing`,
+          )
+          ws.close(4008, 'rate limited')
+          return
+        }
         
         switch (payload.op) {
           case 2: // IDENTIFY

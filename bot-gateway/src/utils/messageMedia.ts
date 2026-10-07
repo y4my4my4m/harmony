@@ -14,6 +14,11 @@ export const BOT_MEDIA_URL_TTL_SECONDS = 7 * 24 * 60 * 60
 
 const SIGN_BATCH = 100
 
+// render_url of a message's still images: a bounded rendition for consumers with upload limits
+// (Discord). The web client downscales the same extensions (src/services/privateMedia.ts).
+export const BOT_RENDER_TRANSFORM = { width: 1600, height: 1600, resize: 'contain', quality: 82 } as const
+const RENDERABLE_IMAGE = /\.(jpe?g|png)$/i
+
 /** Room prefix of a message: `c/<channel id>` or `d/<conversation id>`. */
 export function messageMediaRoom(message: { channel_id?: string | null; conversation_id?: string | null }): string | null {
   if (message.channel_id) return `c/${String(message.channel_id).toLowerCase()}`
@@ -56,22 +61,59 @@ export async function signMessageMediaPaths(
   return out
 }
 
-/** Message content for bots: file parts of the message's room carry a fresh signed `url`. */
+/**
+ * Signed URLs of BOT_RENDER_TRANSFORM renditions, by object name; names that fail to sign are
+ * absent. Storage signs a transform per object (no batch form).
+ */
+export async function signMessageMediaRenders(
+  paths: string[],
+  ttlSeconds: number = BOT_MEDIA_URL_TTL_SECONDS,
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>()
+  for (const path of new Set(paths)) {
+    try {
+      const { data, error } = await supabase.storage
+        .from(MESSAGE_MEDIA_BUCKET)
+        .createSignedUrl(path, ttlSeconds, { transform: { ...BOT_RENDER_TRANSFORM } })
+      if (error || !data?.signedUrl) {
+        console.warn(`Signing a message media rendition failed: ${error?.message ?? 'no URL'}`)
+        continue
+      }
+      out.set(path, publicStorageUrl(data.signedUrl))
+    } catch (error) {
+      console.warn('Signing a message media rendition failed:', error)
+    }
+  }
+  return out
+}
+
+/**
+ * Message content for bots: file parts of the message's room carry a fresh signed `url`; image
+ * parts of a .jpg, .jpeg or .png object also carry `render_url`, a signed BOT_RENDER_TRANSFORM
+ * rendition, absent when it fails to sign.
+ */
 export async function withSignedMessageMedia(
   content: unknown,
   message: { channel_id?: string | null; conversation_id?: string | null },
 ): Promise<unknown> {
   if (!Array.isArray(content)) return content
   const room = messageMediaRoom(message)
-  const paths = content
-    .filter((part) => part?.type === 'file' && isRoomMediaPath(part.path, room))
-    .map((part) => part.path as string)
-  if (paths.length === 0) return content
-  const signed = await signMessageMediaPaths(paths)
+  const roomParts = content.filter((part) => part?.type === 'file' && isRoomMediaPath(part.path, room))
+  if (roomParts.length === 0) return content
+  const renderable = (part: any) => part.fileType === 'image' && RENDERABLE_IMAGE.test(part.path)
+  const [signed, renders] = await Promise.all([
+    signMessageMediaPaths(roomParts.map((part) => part.path as string)),
+    signMessageMediaRenders(roomParts.filter(renderable).map((part) => part.path as string)),
+  ])
   return content.map((part) => {
     if (part?.type !== 'file' || !isRoomMediaPath(part.path, room)) return part
     const url = signed.get(part.path)
-    return url ? { ...part, url } : part
+    const renderUrl = renderable(part) ? renders.get(part.path) : undefined
+    return {
+      ...part,
+      ...(url ? { url } : {}),
+      ...(renderUrl ? { render_url: renderUrl } : {}),
+    }
   })
 }
 

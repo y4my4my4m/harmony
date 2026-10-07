@@ -5,7 +5,7 @@ import type { ReactionGroup, ReactionActor, Emoji } from '@/types'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { useProfileStore } from '@/stores/useProfile'
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService'
-import { discordCustomEmojiUrlFromIdentifier } from '@/utils/emojiUtils'
+import { discordCustomEmojiUrlFromIdentifier, remoteReactionEmojiUrl } from '@/utils/emojiUtils'
 import { createReactionEngine } from '@/stores/shared/reactionEngine'
 import { isReactionLimitError, MESSAGE_REACTION_KINDS } from '@/utils/reactionLimits'
 import { i18n } from '@/i18n'
@@ -174,11 +174,15 @@ export const useReactionsStore = defineStore('reactions', () => {
       const metadata = payload.metadata ?? undefined
       const discordUserId = metadata?.discord_user?.id as string | undefined
       // Custom (server) emoji carry name/url in the payload so a brand-new chip
-      // renders even when this client hasn't cached the emoji.
+      // renders even when this client hasn't cached the emoji. A row without an emoji_id
+      // takes its image from metadata.remote_emoji_url, Discord's CDN only.
+      const remoteUrl = payload.emoji_id
+        ? null
+        : remoteReactionEmojiUrl(emojiId, payload.emoji_url ?? metadata?.remote_emoji_url)
       const emojiData = payload.emoji_id
         ? ({ id: payload.emoji_id, name: payload.emoji_name, url: payload.emoji_url } as Emoji)
-        : payload.emoji_url
-          ? ({ id: emojiId, name: payload.emoji_name || emojiId, url: payload.emoji_url } as Emoji)
+        : remoteUrl
+          ? ({ id: emojiId, name: payload.emoji_name || emojiId, url: remoteUrl } as Emoji)
           : undefined
       return buildOptimisticGroups(
         base,

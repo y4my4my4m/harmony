@@ -16,6 +16,33 @@ export function discordCustomEmojiUrlFromIdentifier(
   return `https://cdn.discordapp.com/emojis/${match[1]}.png`
 }
 
+// Hosts a reaction's metadata.remote_emoji_url may name. Any bot writes reaction metadata,
+// and the url is fetched by every viewer of the message.
+const DISCORD_CDN_HOSTS = new Set(['cdn.discordapp.com', 'media.discordapp.net'])
+
+/** `url` when it is an https URL on Discord's CDN; null otherwise. */
+export function discordCdnUrl(url: unknown): string | null {
+  if (typeof url !== 'string') return null
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'https:' && DISCORD_CDN_HOSTS.has(parsed.hostname.toLowerCase()) ? url : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Image of a reaction stored without an emojis row (custom_emoji_content): its
+ * metadata.remote_emoji_url when that is on Discord's CDN, animated .gif included, else the
+ * .png of a discord:name:id identifier, else null (a unicode emoji).
+ */
+export function remoteReactionEmojiUrl(
+  identifier: string | null | undefined,
+  remoteUrl: unknown,
+): string | null {
+  return discordCdnUrl(remoteUrl) ?? discordCustomEmojiUrlFromIdentifier(identifier)
+}
+
 function getEmojiTransformQuality(): number {
   try {
     const store = useInstanceSettingsStore()

@@ -62,6 +62,8 @@ describe('BridgeHostingAdmin', () => {
       'https://github.com/y4my4my4m/harmony/blob/master/self-host/README.md#discord-bridge-hosting',
     )
     expect(w.find('[data-testid="hosting-save"]').attributes('disabled')).toBeDefined()
+    expect(w.find('h4').text()).toBe('Let communities bring their own bot')
+    expect(w.text()).toContain('Communities create their own Discord bot, with their own name and avatar, and paste its token; this instance runs it.')
   })
 
   it('defaults to off with a limit of 25', async () => {
@@ -72,18 +74,23 @@ describe('BridgeHostingAdmin', () => {
     expect((w.find('[data-testid="hosting-limit"]').element as HTMLInputElement).value).toBe('25')
   })
 
-  it('saves the toggle and the limit through batch_set_instance_config', async () => {
+  it('saves the switch as it changes and the limit on its button', async () => {
     installBackend({ instance_config: [] }, () => true)
     const w = mountAdmin()
     await flushPromises()
     await w.find('[role="switch"]').trigger('click')
+    await flushPromises()
+    expect(rpcCalls('batch_set_instance_config')).toEqual([
+      { p_keys: ['discord_bridge_hosting_enabled'], p_values: [true] },
+    ])
+    expect(toast.success).toHaveBeenCalledWith('Bridge hosting settings saved')
+    expect(w.find('[data-testid="hosting-save"]').attributes('disabled')).toBeDefined()
+
     await w.find('[data-testid="hosting-limit"]').setValue('10')
     await w.find('[data-testid="hosting-save"]').trigger('click')
     await flushPromises()
-    expect(rpcCalls('batch_set_instance_config')).toEqual([
-      { p_keys: ['discord_bridge_hosting_enabled', 'discord_bridge_hosting_limit'], p_values: [true, 10] },
-    ])
-    expect(toast.success).toHaveBeenCalledWith('Bridge hosting settings saved')
+    expect(rpcCalls('batch_set_instance_config')[1]).toEqual({ p_keys: ['discord_bridge_hosting_limit'], p_values: [10] })
+    expect(w.find('[data-testid="hosting-save"]').text()).toBe('Save limit')
     expect(w.find('[data-testid="hosting-save"]').attributes('disabled')).toBeDefined()
   })
 
@@ -96,14 +103,14 @@ describe('BridgeHostingAdmin', () => {
     expect(w.find('[data-testid="hosting-save"]').attributes('disabled')).toBeDefined()
   })
 
-  it('reports a refused save', async () => {
+  it('reports a refused save and returns the switch to its position', async () => {
     installBackend({ instance_config: [] }, () => false)
     const w = mountAdmin()
     await flushPromises()
     await w.find('[role="switch"]').trigger('click')
-    await w.find('[data-testid="hosting-save"]').trigger('click')
     await flushPromises()
     expect(toast.error).toHaveBeenCalledWith("Couldn't save the bridge hosting settings")
+    expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('false')
   })
 })
 

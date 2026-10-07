@@ -302,9 +302,9 @@ chooses which Discord bot relays and where the bridge runs:
   click **Add to Discord**, pick their Discord server and come back to pair
   channels. Offered first when you set up the
   [instance bot](#this-instance-s-discord-bot), below.
-- **Run it on this instance**: your server runs the bridge for them; they
-  paste their Discord bot token into Harmony. Offered only when you turn on
-  hosting, below.
+- **Use your own bot, run on this instance**: they create their own Discord
+  bot, with their own name and avatar, and paste its token into Harmony; your
+  server runs it. Offered only when you turn on hosting, below.
 - **Run it myself**: they run the bridge on a computer of theirs with one
   Docker command and a setup code from that page. Their Discord bot token
   never reaches your server. Nothing to do on your side beyond bots.
@@ -317,8 +317,9 @@ chooses which Discord bot relays and where the bridge runs:
    `ghcr.io/y4my4my4m/harmony-discord-bridge`) with a secret it shares with the
    bot gateway (`BRIDGE_HOST_SECRET` in `bot-gateway.env` and
    `discord-bridge.env`).
-2. In the admin panel, Instance: turn on **Run Discord bridges for
-   communities** and set **Maximum hosted bridges**.
+2. In the admin panel, Instance, **Discord bridge**, **Let communities bring
+   their own bot**: turn on **Run communities' own bots** (it saves at once)
+   and set **Maximum hosted bridges** (**Save limit**).
 
 The host runs every hosted bridge and picks up new ones within a minute. You
 hold each community's Discord bot token, and a token reads every Discord
@@ -340,20 +341,27 @@ Discord connection.
    `https://chat.example.com/bot-gateway/bridge/v2/discord/callback`: the
    bot gateway builds this address from `INSTANCE_DOMAIN` (or `PUBLIC_URL`) and
    Discord compares it exactly.
-2. In the admin panel, Instance, **This instance's Discord bot**: paste the
-   Application ID, the client secret (OAuth2, Reset Secret) and the bot token
-   (Bot, Reset Token). Both secrets go to Supabase Vault and are never shown
-   again. Then turn on **Offer this bot to communities**; **Presence sync** and
-   **Maximum linked Discord servers** (default 100) sit beside it.
+2. In the admin panel, Instance, **Discord bridge**, **This instance's
+   Discord bot**: paste the Application ID, the client secret (OAuth2, Reset
+   Secret) and the bot token (Bot, Reset Token) and **Save credentials**. Both
+   secrets go to Supabase Vault and are never shown again. Then turn on
+   **Offer this bot to communities**; **Presence sync** sits beside it. Both
+   switches save at once; **Maximum linked Discord servers** (default 100) has
+   its own **Save limit**.
 
 With the code grant on, the bot joins a Discord server only when the gateway
 exchanges the authorization code for a link the community started in Harmony.
 The bridge host makes it leave a Discord server that no instance bridge has
 linked for ten minutes (the bridge was disconnected or moved to another Discord
 server); while Harmony is unreachable it leaves none. The invite carries the permissions the
-bridge needs (`537250880`: View Channels, Send Messages, Embed Links, Attach
-Files, Read Message History, Add Reactions, Use External Emojis, Manage
-Webhooks). Discord caps an unverified bot at 100 servers; past that, apply for
+bridge needs (`537259072`: View Channels, Send Messages, Manage Messages,
+Embed Links, Attach Files, Read Message History, Add Reactions, Use External
+Emojis, Manage Webhooks). Manage Messages lets bridge 2.2.0 delete a Discord
+member's message on Discord when it is deleted on Harmony. A Discord server
+linked under Harmony 1.6.15 or earlier lacks it until the community links the
+same Discord server again (Server Settings, Discord Bridge, Maintenance,
+**Re-link the bot**); until then such deletions stay on Harmony. Discord caps
+an unverified bot at 100 servers; past that, apply for
 verification and for the Message Content and Server Members intents (and
 Presence, which Discord rarely grants). You run the bot, so you can read every
 Discord channel a community gives it; the app tells communities so before they

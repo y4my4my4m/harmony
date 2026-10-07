@@ -2,6 +2,8 @@ import { supabase } from '../config/supabase.js'
 import type { WebSocketGateway } from './WebSocketGateway.js'
 import { TTLCache } from '../utils/TTLCache.js'
 import { withSignedMessageMedia } from '../utils/messageMedia.js'
+import { absoluteAvatarUrl } from '../utils/avatarUrl.js'
+import { absoluteEmojiUrl, isAnimatedEmojiUrl, isDiscordCdnUrl } from '../utils/emojiUrl.js'
 import {
   type EveryoneLayer,
   type InstallRow,
@@ -72,6 +74,10 @@ const BOT_PERMISSIONS_REFRESH_BATCH = 100
 // @everyone stops reaching bots within this bound.
 const CHANNEL_LAYER_TTL_MS = 10 * 1000
 const CHANNEL_LAYER_MAX = 10_000
+// user_servers.nickname per server and user. A nickname change reaches message events within
+// this bound.
+const NICKNAME_TTL_MS = 60 * 1000
+const NICKNAME_MAX = 20_000
 
 export class EventDispatcher {
   private subscriptions: any[] = []
@@ -120,6 +126,8 @@ export class EventDispatcher {
     avatar_url: string | null
     isBot: boolean
   } | null>(5_000, 10 * 60 * 1000)
+  // Key `${server_id}:${user_id}`; null is cached for an author without a nickname.
+  private nicknameCache = new TTLCache<string, string | null>(NICKNAME_MAX, NICKNAME_TTL_MS)
   
   constructor(private gateway: WebSocketGateway) {}
   
@@ -311,13 +319,19 @@ export class EventDispatcher {
     const botIds = await this.resolveReaders(serverId, channelId)
     if (botIds.length === 0) return
 
-    // Emoji descriptor shape expected by consumers (e.g. the Discord bridge): { id, name, url }.
-    // For unicode emoji, name is the character itself and id and url are null.
-    let emoji: { id: string | null, name: string | null, url: string | null }
+    // { id, name, url, animated }. A custom emoji has its emojis row's id, name and absolute url.
+    // A reaction without an emoji_id has id null and name its custom_emoji_content, a unicode
+    // character or a bridged identifier (discord:name:id); its url is metadata.remote_emoji_url
+    // when that is on Discord's CDN, else null.
+    let emoji: { id: string | null, name: string | null, url: string | null, animated: boolean }
     if (reaction.emoji_id) {
-      emoji = { id: reaction.emoji_id, ...(await this.resolveEmoji(reaction.emoji_id)) }
+      const resolved = await this.resolveEmoji(reaction.emoji_id)
+      const url = absoluteEmojiUrl(resolved.url)
+      emoji = { id: reaction.emoji_id, name: resolved.name, url, animated: isAnimatedEmojiUrl(url) }
     } else {
-      emoji = { id: null, name: reaction.custom_emoji_content ?? null, url: null }
+      const remote = reaction.metadata?.remote_emoji_url
+      const url = isDiscordCdnUrl(remote) ? remote : null
+      emoji = { id: null, name: reaction.custom_emoji_content ?? null, url, animated: isAnimatedEmojiUrl(url) }
     }
 
     const event = {
@@ -652,7 +666,7 @@ export class EventDispatcher {
     const event = {
       op: 0,
       t: 'MESSAGE_CREATE',
-      d: await this.formatMessage(message)
+      d: await this.formatMessage(message, serverId)
     }
     
     this.gateway.sendToMultipleBots(botIds, event)
@@ -672,7 +686,7 @@ export class EventDispatcher {
     const botIds = await this.resolveReaders(serverId, message.channel_id)
     if (botIds.length === 0) return
     
-    const formattedMessage = await this.formatMessage(message)
+    const formattedMessage = await this.formatMessage(message, serverId)
     const event = {
       op: 0,
       t: 'MESSAGE_UPDATE',
@@ -720,27 +734,8 @@ export class EventDispatcher {
   
   // FORMATTERS
   
-  /**
-   * Resolves a Supabase storage path to an absolute URL; external URLs pass
-   * through. Base is PUBLIC_URL so the result is reachable by external
-   * consumers (Discord, ActivityPub).
-   */
   private formatAvatarUrl(avatarPath: string | null | undefined): string | undefined {
-    if (!avatarPath) return undefined
-    
-    if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
-      return avatarPath
-    }
-    
-    const publicUrl = process.env.PUBLIC_URL || process.env.SUPABASE_URL
-    if (!publicUrl) {
-      console.warn('PUBLIC_URL or SUPABASE_URL not set, cannot construct avatar URL')
-      return undefined
-    }
-    
-    const cleanPath = avatarPath.startsWith('/') ? avatarPath.slice(1) : avatarPath
-    
-    return `${publicUrl}/storage/v1/render/image/public/avatars/${cleanPath}?width=256&height=256&resize=contain&quality=80`
+    return absoluteAvatarUrl(avatarPath)
   }
   
   private async resolveAuthor(userId: string | null, botId: string | null) {
@@ -781,7 +776,33 @@ export class EventDispatcher {
     }
   }
 
-  private async formatMessage(message: any) {
+  /**
+   * The author's user_servers.nickname in a server; null when unset, blank or not a member.
+   * Failed lookups are not cached.
+   */
+  private async resolveNickname(serverId: string, userId: string): Promise<string | null> {
+    const key = `${serverId}:${userId}`
+    const cached = this.nicknameCache.get(key)
+    if (cached !== undefined) return cached
+
+    const { data, error } = await supabase
+      .from('user_servers')
+      .select('nickname')
+      .eq('server_id', serverId)
+      .eq('user_id', userId)
+      .limit(1)
+    if (error) {
+      console.warn(`user_servers lookup for ${userId} in ${serverId} returned a transient error; skipping cache:`, error)
+      return null
+    }
+    const raw = Array.isArray(data) ? data[0]?.nickname : null
+    const nickname = typeof raw === 'string' && raw.trim() !== '' ? raw : null
+    this.nicknameCache.set(key, nickname)
+    return nickname
+  }
+
+  /** `serverId` is the channel's server; author.nickname is resolved in it. */
+  private async formatMessage(message: any, serverId: string | null) {
     let author = null
 
     // Discord-bridged messages carry the original user's profile inline; no DB hit.
@@ -792,6 +813,7 @@ export class EventDispatcher {
         username: discordUser.username,
         display_name: discordUser.display_name,
         avatar: discordUser.avatar_url, // Discord URLs are already complete
+        nickname: null,
         bot: false, // Treat as regular user for display
         discord_user: true
       }
@@ -803,6 +825,7 @@ export class EventDispatcher {
           username: entry.username,
           display_name: entry.display_name,
           avatar: this.formatAvatarUrl(entry.avatar_url),
+          nickname: !entry.isBot && serverId ? await this.resolveNickname(serverId, entry.id) : null,
           bot: entry.isBot
         }
       }
