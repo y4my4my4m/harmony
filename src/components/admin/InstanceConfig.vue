@@ -73,6 +73,8 @@
         </span>
       </div>
 
+      <BridgeHostingAdmin />
+
       <h3 style="margin-top: 24px;">Media picker (Klipy)</h3>
       <p class="setting-hint" style="margin-bottom: 16px;">
         GIF/media search is proxied through the federation backend. API keys live in the backend
@@ -622,11 +624,13 @@ import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import Icon from '@/components/common/Icon.vue'
 import ColorPicker from '@/components/common/ColorPicker.vue'
 import NewcomerAlertsDefault from '@/components/admin/NewcomerAlertsDefault.vue'
+import BridgeHostingAdmin from '@/components/settings/discord-bridge/BridgeHostingAdmin.vue'
 import { adminService } from '@/services/AdminService'
 import { trendingService } from '@/services/TrendingService'
 import { supabase } from '@/supabase'
 import { humanizeUploadError, imageSourceError } from '@/utils/uploadValidation'
 import { uploadImageObject } from '@/utils/fileUpload'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 const authStore = useAuthStore()
 const toast = useToast()
@@ -653,7 +657,7 @@ const configTab = ref<'general' | 'federation' | 'branding' | 'oauth' | 'webrtc'
 // Instance configuration
 const instanceConfig = ref({
   name: 'Harmony Instance',
-  domain: import.meta.env.VITE_DOMAIN as string,
+  domain: runtimeConfig.domain as string,
   description: 'A federated social platform',
   termsUrl: '',
   privacyUrl: '',
@@ -735,7 +739,7 @@ const loadInstanceConfig = async () => {
     if (cfg?.instance) {
       instanceConfig.value = {
         name: cfg.instance.name || 'Harmony Instance',
-        domain: cfg.instance.domain || import.meta.env.VITE_DOMAIN as string,
+        domain: cfg.instance.domain || runtimeConfig.domain as string,
         description: cfg.instance.description || 'A federated social platform',
         termsUrl: cfg.instance.termsUrl || '',
         privacyUrl: cfg.instance.privacyUrl || '',

@@ -505,6 +505,7 @@ import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver'
 import type { Emoji } from '@/types'
 import { formatDate } from './adminFormat'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 const toast = useToast()
 const { confirm } = useConfirmDialog()
@@ -533,12 +534,12 @@ const showKofiToken = ref(false)
 const kofiWebhookUrl = computed(() => {
   // Federation backend exposes /webhooks/kofi. Prefer explicit federation URL,
   // fall back to current origin.
-  const base = (import.meta.env.VITE_FEDERATION_URL as string | undefined)
+  const base = runtimeConfig.federationUrl
     || (typeof window !== 'undefined' ? window.location.origin : '')
   return `${base.replace(/\/$/, '')}/webhooks/kofi`
 })
 const instanceDomain = computed(() =>
-  (import.meta.env.VITE_DOMAIN as string | undefined) || 'your-domain'
+  runtimeConfig.domain || 'your-domain'
 )
 
 // Pending donations (webhooks awaiting admin resolution)
@@ -833,7 +834,7 @@ const onSupporterSearchInput = () => {
   supporterSearchTimeout = setTimeout(async () => {
     try {
       const byKey = new Map<string, typeof supporterSuggestions.value[0]>()
-      const currentDomain = (import.meta.env.VITE_DOMAIN as string || '').toLowerCase()
+      const currentDomain = (runtimeConfig.domain as string || '').toLowerCase()
       const currentHost = currentDomain.split(':')[0]
 
       // Domain is "ours" (localhost, 127.0.0.1, or matches instance)

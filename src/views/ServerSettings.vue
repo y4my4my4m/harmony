@@ -200,11 +200,13 @@
               v-if="permissions.canEditBasicInfo"
               :server-id="serverId"
             />
-            <DiscordBridgeSetup
-              v-if="permissions.canEditBasicInfo"
-              :server-id="serverId"
-            />
           </template>
+
+          <DiscordBridgeSetup
+            v-if="activeSection === 'discord-bridge' && permissions.canEditBasicInfo"
+            :server-id="serverId"
+            :server-name="server.name"
+          />
         </div>
       </div>
     </div>
@@ -334,6 +336,8 @@ const availableSections = computed(() => {
       : []),
     { id: 'emoji', label: t('server.emoji') },
     { id: 'privacy', label: t('server.privacySettings') },
+    // The discord_bridge_* RPCs require MANAGE_SERVER.
+    ...(p.canEditBasicInfo ? [{ id: 'discord-bridge', label: t('discordBridge.navLabel') }] : []),
     { id: 'advanced', label: t('server.advancedSettings') }
   ]
 })

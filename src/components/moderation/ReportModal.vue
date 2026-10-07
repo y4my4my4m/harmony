@@ -130,6 +130,7 @@ import { remoteDomainOf } from '@/utils/reportModeration'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 interface Props {
   reportType: 'user' | 'post' | 'message' | 'server'
@@ -165,7 +166,7 @@ const errorMessage = ref('')
 const reportReasons = REPORT_REASONS
 
 const remoteDomain = computed(() =>
-  remoteDomainOf(props.targetUser, import.meta.env.VITE_DOMAIN as string))
+  remoteDomainOf(props.targetUser, runtimeConfig.domain as string))
 
 const reportTypeLabel = computed(() => {
   switch (props.reportType) {

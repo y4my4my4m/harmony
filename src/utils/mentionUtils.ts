@@ -10,6 +10,7 @@ import { getEmojiUrl } from '@/utils/emojiUtils';
 import { sanitizeInlineHtml } from '@/utils/sanitize';
 import { apiUrl } from '@/services/instanceConfig'
 import { findHandles } from '@/utils/mentionGrammar'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 export interface MentionMatch {
   full: string;          // "@tester004@mastodon.social"
@@ -184,7 +185,7 @@ export function extractMentions(text: string): MentionMatch[] {
  */
 export async function resolveMentions(mentions: MentionMatch[]): Promise<ResolvedMention[]> {
   const resolved: ResolvedMention[] = [];
-  const currentDomain = import.meta.env.VITE_DOMAIN as string;
+  const currentDomain = runtimeConfig.domain as string;
 
   for (const mention of mentions) {
     try {

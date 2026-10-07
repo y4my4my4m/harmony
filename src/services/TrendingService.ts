@@ -1,6 +1,7 @@
 import { supabase } from '@/supabase';
 import type { TimelinePost, FederatedUser } from '@/types';
 import { debug } from '@/utils/debug'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 // INTERFACES
 
@@ -357,7 +358,7 @@ class TrendingService {
       query = query.eq('domain', instance);
     } else if (includeLocal && !includeFederated) {
       // "This instance" only. Filters on is_local so local users with a NULL
-      // domain are included; they do not match domain = VITE_DOMAIN.
+      // domain are included; they do not match domain = runtimeConfig.domain.
       query = query.eq('is_local', true);
     } else if (!includeLocal && includeFederated) {
       query = query.eq('is_local', false);
@@ -379,7 +380,7 @@ class TrendingService {
       throw error;
     }
 
-    const localDomain = import.meta.env.VITE_DOMAIN as string;
+    const localDomain = runtimeConfig.domain as string;
     return (data || []).map((row: any, index: number) => ({
       user: {
         id: row.id,
@@ -676,12 +677,12 @@ class TrendingService {
       author: post.author ? ({
         id: post.author.id,
         username: post.author.username,
-        domain: post.author.domain || import.meta.env.VITE_DOMAIN as string,
-        handle: `@${post.author.username}${post.author.domain && post.author.domain !== import.meta.env.VITE_DOMAIN as string ? '@' + post.author.domain : ''}`,
+        domain: post.author.domain || runtimeConfig.domain as string,
+        handle: `@${post.author.username}${post.author.domain && post.author.domain !== runtimeConfig.domain as string ? '@' + post.author.domain : ''}`,
         display_name: post.author.display_name || post.author.username,
         avatar_url: post.author.avatar_url || '/default_avatar.webp',
         bio: post.author.bio || '',
-        is_local: !post.author.domain || post.author.domain === import.meta.env.VITE_DOMAIN as string,
+        is_local: !post.author.domain || post.author.domain === runtimeConfig.domain as string,
         verified: post.author.verified || false,
         followers_count: 0, // counts are not selected by this query
         following_count: 0,
@@ -691,7 +692,7 @@ class TrendingService {
       } as any) : {
         id: post.author_id,
         username: 'Unknown',
-        domain: import.meta.env.VITE_DOMAIN as string,
+        domain: runtimeConfig.domain as string,
         handle: '@Unknown',
         display_name: 'Unknown User',
         avatar_url: '/default_avatar.webp',

@@ -341,6 +341,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
 import { useUserData } from '@/composables/useUserData'
 import { useFeedRealtime, type FeedKind } from '@/composables/useFeedRealtime'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 const { t } = useI18n(); 
 
@@ -727,8 +728,8 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
             user.value = {
               id: currentUser.id,
               username: profile.username || currentUsername,
-              domain: import.meta.env.VITE_DOMAIN as string,
-              handle: `@${profile.username || currentUsername}@${import.meta.env.VITE_DOMAIN as string}`,
+              domain: runtimeConfig.domain as string,
+              handle: `@${profile.username || currentUsername}@${runtimeConfig.domain as string}`,
               display_name: profile.display_name || profile.username || currentUsername,
               avatar_url: profile.avatar_url || currentUser.user_metadata?.avatar_url || '/default_avatar.webp',
               bio: profile.bio || 'Fediverse user',
@@ -753,8 +754,8 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
           user.value = {
             id: handle,
             username: handle,
-            domain: import.meta.env.VITE_DOMAIN as string,
-            handle: `@${handle}@${import.meta.env.VITE_DOMAIN as string}`,
+            domain: runtimeConfig.domain as string,
+            handle: `@${handle}@${runtimeConfig.domain as string}`,
             display_name: handle,
             avatar_url: '/default_avatar.webp',
             bio: 'Fediverse user',
@@ -1110,7 +1111,7 @@ const navigateToProfile = (clickedUser: FederatedUser) => {
   let handle = clickedUser.handle?.replace(/^@/, '') || clickedUser.username;
   
   // Local handles route without the domain suffix.
-  const currentDomain = import.meta.env.VITE_DOMAIN as string;
+  const currentDomain = runtimeConfig.domain as string;
   if (handle.endsWith(`@${currentDomain}`)) {
     handle = handle.replace(`@${currentDomain}`, '');
   }

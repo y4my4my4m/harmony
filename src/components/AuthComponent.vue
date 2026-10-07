@@ -342,6 +342,7 @@ import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACE
 import { securityErrorMessage } from '@/services/AccountSecurityService'
 import { authErrorMessage } from '@/utils/authErrorMessage'
 import { consumePostAuthRedirect } from '@/utils/postAuthRedirect'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 // Props
 interface Props {
@@ -766,7 +767,7 @@ const loadEnabledOAuthProviders = async () => {
 
     // Method 3: Fallback to environment variable
     if (enabledProviders.length === 0) {
-      const envProviders = import.meta.env.VITE_ENABLED_OAUTH_PROVIDERS
+      const envProviders = runtimeConfig.oauthProviders
       if (envProviders) {
         enabledProviders = envProviders.split(',').map((p: string) => p.trim().toLowerCase())
       }

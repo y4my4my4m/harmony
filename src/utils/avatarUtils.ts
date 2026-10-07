@@ -1,6 +1,7 @@
 import { canonicalSquareSize } from '@/utils/imageTransformUtils'
 import { publicImageUrl, rawStorageUrl, type ImageTransform } from '@/utils/storageImageUtils'
 import { knownRenderFallback } from '@/utils/renderFallback'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 /**
  * Normalizes an avatar URL. Accepts full URLs and path-only forms; Supabase
@@ -40,7 +41,7 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
     } catch {
       return '/default_avatar.webp'
     }
-    const localSupabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+    const localSupabaseUrl = runtimeConfig.supabaseUrl || ''
     const localSupabaseHost = localSupabaseUrl ? new URL(localSupabaseUrl).hostname : ''
     const isRemote = !!localSupabaseHost && urlObj.hostname !== localSupabaseHost
 

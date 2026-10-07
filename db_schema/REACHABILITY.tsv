@@ -61,7 +61,7 @@ automod_text_array	invoker	text[]	service_role	client, trigger	called by automod
 backfill_timeline_entries	invoker	integer	service_role	service key	nothing references it
 backfill_timeline_on_follow	definer	trigger	anon+authenticated+service_role	trigger	trigger public.follows AFTER INSERT/UPDATE (backfill_timeline_on_follow_trigger)
 ban_server_member	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/ModerationService.ts
-batch_set_instance_config	definer	boolean	authenticated+service_role	client	rpc in src/services/AdminService.ts
+batch_set_instance_config	definer	boolean	authenticated+service_role	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts, src/services/AdminService.ts
 broadcast_bot_installation_change	definer	trigger	service_role	trigger	trigger public.bot_server_permissions AFTER INSERT/DELETE/UPDATE (broadcast_bot_installation_change)
 broadcast_bot_presence_change	definer	trigger	service_role	trigger	trigger public.bot_presence AFTER INSERT/UPDATE (broadcast_bot_presence_change)
 broadcast_category_change	definer	trigger	anon+authenticated+service_role	trigger	trigger public.channel_categories AFTER INSERT/DELETE/UPDATE (trg_broadcast_category_change)
@@ -99,14 +99,15 @@ bump_room_epoch	definer	integer	service_role	client, trigger	called by bump_serv
 bump_server_channel_epochs	definer	void	service_role	trigger	called by trg_server_epoch_bump
 can_current_user_manage_messages_in_channel	definer	boolean	anon+authenticated+service_role	policy	policy public.messages DELETE on messages_delete_authorized, public.messages UPDATE on messages_update_authorized
 can_current_user_moderate_server_reports	definer	boolean	authenticated+service_role	client, policy	policy public.reports SELECT on Moderators can view reports they moderate
+can_manage_discord_bridge	definer	boolean	authenticated+service_role	client, policy	policy public.discord_bridge_channels SELECT on discord_bridge_channels_select_manager, public.discord_bridges SELECT on discord_bridges_select_manager
 can_manage_group_icon	definer	boolean	service_role	client	called by remove_group_icon, update_group_icon, update_group_name
 can_send_to_topic	definer	boolean	authenticated+service_role	policy	policy realtime.messages INSERT on authenticated_users_can_send
 can_subscribe_to_topic	definer	boolean	anon+authenticated+service_role	policy	policy realtime.messages SELECT on authenticated_users_can_receive
-can_view_channel	definer	boolean	service_role	client, policy, trigger	called by create_report, create_thread, get_bot_channel_access, +10
+can_view_channel	definer	boolean	service_role	client, policy, trigger	called by create_report, create_thread, discord_bridge_pair, +11
 cancel_device_pairing_request	definer	boolean	authenticated+service_role	client	rpc in src/services/encryption/DeviceIdentityService.ts
 cascade_delete_reblogs	definer	trigger	anon+authenticated+service_role	trigger	trigger public.posts AFTER UPDATE (cascade_delete_reblogs_trigger)
 channel_is_restricted	definer	boolean	service_role	client, policy, trigger	rpc in federation-backend/src/activitypub/VoiceActivityHandler.ts
-channel_messages_encrypted	definer	boolean	authenticated+service_role	client, trigger	called by effective_channel_encryption, enforce_channel_message_encryption, set_channel_encryption, +5
+channel_messages_encrypted	definer	boolean	authenticated+service_role	client, trigger	called by discord_bridge_encrypted_channel_ids, effective_channel_encryption, enforce_channel_message_encryption, +6
 channel_viewer_ids	definer	SETOF uuid	service_role	trigger	called by handle_new_message_unread
 check_and_increment_bot_rate_limit	definer	boolean	service_role	client	rpc in bot-gateway/src/auth/BotAuthMiddleware.ts
 check_bot_permission	invoker	boolean	anon+authenticated+service_role	client, trigger	rpc in bot-gateway/src/api/BotRestAPI.ts
@@ -172,6 +173,34 @@ detect_embed_provider	invoker	text	anon+authenticated+service_role	trigger	calle
 detect_message_features	invoker	jsonb	service_role	trigger	called by message_search_flags
 determine_message_federation_type	invoker	text	anon+authenticated+service_role	trigger	called by handle_message_federation
 disable_federation_triggers	definer	void	service_role	service key	nothing references it
+discord_bridge_assert_vault	invoker	void	-	client	called by discord_bridge_create, discord_bridge_hosted_list, discord_bridge_set_hosted_token
+discord_bridge_bot_pair	definer	uuid	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
+discord_bridge_bot_unpair	definer	boolean	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
+discord_bridge_channels_check	definer	trigger	-	trigger	trigger public.discord_bridge_channels BEFORE INSERT/UPDATE (discord_bridge_channels_check)
+discord_bridge_channels_touch	definer	trigger	-	trigger	trigger public.discord_bridge_channels AFTER INSERT/DELETE/UPDATE (discord_bridge_channels_touch)
+discord_bridge_create	definer	uuid	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridge_delete	definer	void	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridge_encrypted_channel_ids	definer	SETOF uuid	service_role	client	rpc in bot-gateway/src/bridge/bridgeConfig.ts
+discord_bridge_for_manager	definer	discord_bridges	-	client	called by discord_bridge_delete, discord_bridge_pair, discord_bridge_set_guild, +4
+discord_bridge_guild_channels	invoker	SETOF jsonb	-	client	called by discord_bridge_pair_internal, discord_bridge_report_status, discord_bridge_set_guild
+discord_bridge_hosted_list	definer	TABLE(bridge_id uuid, harmony_token text, discord_token text)	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
+discord_bridge_hosting_enabled	definer	boolean	-	client	named in bot-gateway/src/api/BridgeV2API.ts, bot-gateway/src/api/__tests__/BridgeV2API.test.ts, src/components/settings/discord-bridge/__tests__/BridgeAdminAndMenus.test.ts, +2
+discord_bridge_hosting_limit	definer	integer	-	client	named in src/components/settings/discord-bridge/__tests__/BridgeAdminAndMenus.test.ts, src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridge_issue_token	definer	text	-	client	called by discord_bridge_redeem_code, discord_bridge_set_hosted_token
+discord_bridge_normalize_code	invoker	text	-	client	called by discord_bridge_redeem_code
+discord_bridge_pair	definer	uuid	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridge_pair_internal	definer	uuid	-	client	called by discord_bridge_bot_pair, discord_bridge_pair
+discord_bridge_provision_bot	definer	uuid	-	client	called by discord_bridge_create, discord_bridge_set_hosted_token, discord_bridge_setup_code
+discord_bridge_redeem_code	definer	jsonb	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
+discord_bridge_report_status	definer	jsonb	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
+discord_bridge_secrets_purge	definer	trigger	-	trigger	trigger public.discord_bridge_secrets AFTER DELETE (discord_bridge_secrets_purge)
+discord_bridge_set_guild	definer	void	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridge_set_hosted_token	definer	void	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridge_setup_code	definer	text	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridge_unpair	definer	boolean	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridge_update_settings	definer	jsonb	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridges_retire_bot	definer	trigger	-	trigger	trigger public.discord_bridges AFTER DELETE (discord_bridges_retire_bot)
+discord_bridges_touch	invoker	trigger	-	trigger	trigger public.discord_bridges BEFORE UPDATE (discord_bridges_touch)
 dismiss_server_automod_prompt	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
 effective_channel_encryption	definer	jsonb	authenticated+service_role	client	rpc in src/services/ChannelEncryptionService.ts
 enable_conversation_encryption	definer	jsonb	service_role	service key	nothing references it
@@ -247,7 +276,7 @@ get_my_key_pair	definer	TABLE(id uuid, user_id uuid, device_id text, identity_pu
 get_next_folder_position	invoker	integer	service_role	service key	nothing references it
 get_next_server_position	invoker	integer	service_role	service key	nothing references it
 get_onboarding_servers	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/ServerWelcomeService.ts
-get_or_create_discord_bridge_pairing	definer	text	anon+authenticated+service_role	client	rpc in src/components/settings/DiscordBridgeSetup.vue
+get_or_create_discord_bridge_pairing	definer	text	anon+authenticated+service_role	http anon	nothing references it
 get_or_create_dm_conversation	definer	uuid	service_role	client	rpc in federation-backend/src/activitypub/ActivityProcessor.ts
 get_or_create_federated_group_conversation	definer	uuid	service_role	client	rpc in federation-backend/src/activitypub/ActivityProcessor.ts
 get_owned_bot_server_counts	definer	TABLE(bot_id uuid, server_count integer)	authenticated+service_role	client	rpc in src/components/settings/user/UserBotsManagement.vue
@@ -354,7 +383,7 @@ is_plaintext_mention_part	invoker	boolean	authenticated+service_role	trigger	cal
 is_room_member	definer	boolean	authenticated+service_role	client, policy, trigger	policy public.megolm_session_shares INSERT on megolm_session_shares_insert, public.megolm_session_shares UPDATE on megolm_session_shares_update; rpc in src/services/encryption/MegolmKeyBackupService.ts
 is_user_viewing_context	definer	boolean	service_role	client, trigger	called by is_user_viewing_push_context, send_notification
 is_user_viewing_push_context	definer	boolean	service_role	client	rpc in federation-backend/src/services/PushNotificationService.ts
-issue_bot_token	definer	jsonb	service_role	client	called by create_bot, rotate_bot_token
+issue_bot_token	definer	jsonb	service_role	client	called by create_bot, discord_bridge_issue_token, rotate_bot_token
 join_public_server	definer	jsonb	authenticated+service_role	client	rpc in src/stores/server.ts
 jsonb_text_content_length	invoker	integer	anon+authenticated+service_role	client, declarative, trigger	check public.messages messages_text_length_check, public.posts posts_text_length_check
 keep_welcome_managed_server_rules	definer	trigger	service_role	trigger	trigger public.servers BEFORE UPDATE (a_servers_welcome_rules_guard)
@@ -431,7 +460,7 @@ redeem_recovery_code_and_disable_mfa	definer	boolean	authenticated+service_role	
 refuse_banned_membership	definer	trigger	service_role	trigger	trigger public.user_servers BEFORE INSERT/UPDATE (a_user_servers_ban_guard)
 refuse_client_system_parts	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_system_part_guard), public.posts BEFORE INSERT/UPDATE (a_posts_system_part_guard), public.profiles BEFORE INSERT/UPDATE (a_profiles_system_part_guard)
 refuse_message_to_deleted_recipient	definer	trigger	service_role	trigger	trigger public.messages BEFORE INSERT (a_messages_deleted_recipient_guard)
-regenerate_discord_bridge_pairing	definer	text	anon+authenticated+service_role	client	rpc in src/components/settings/DiscordBridgeSetup.vue
+regenerate_discord_bridge_pairing	definer	text	anon+authenticated+service_role	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
 register_recovery_key	definer	recovery_key_metadata	authenticated+service_role	client	rpc in src/services/encryption/MegolmMessageEncryptionService.ts
 remove_group_icon	definer	jsonb	authenticated+service_role	client	rpc in src/utils/groupIconUtils.ts
 remove_message_from_index	definer	trigger	anon+authenticated+service_role	trigger	trigger public.messages AFTER DELETE (trigger_remove_message_index)

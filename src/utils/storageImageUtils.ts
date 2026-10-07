@@ -1,5 +1,6 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 /**
  * Shared helpers for Supabase-storage-backed images.
@@ -10,14 +11,14 @@ import { debug } from '@/utils/debug'
  * instead of each re-deriving it from env.
  */
 
-/** Hostnames serving local Supabase storage. Set via VITE_SUPABASE_URL
- *  plus optional comma-separated VITE_STORAGE_DOMAIN. */
+/** Hostnames serving local Supabase storage: the Supabase URL plus the
+ *  optional comma-separated storage domains (runtimeConfig.ts). */
 function computeLocalStorageHostnames(): Set<string> {
   const out = new Set<string>()
   try {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+    const supabaseUrl = runtimeConfig.supabaseUrl
     if (supabaseUrl) out.add(new URL(supabaseUrl).hostname)
-    const storageDomain = import.meta.env.VITE_STORAGE_DOMAIN as string | undefined
+    const storageDomain = runtimeConfig.storageDomain
     if (storageDomain) {
       storageDomain
         .split(',')

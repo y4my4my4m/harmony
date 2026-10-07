@@ -169,9 +169,6 @@ describe('gateway IDENTIFY', () => {
     expect(gateway.getConnectedBotCount()).toBe(1)
   })
 
-  // WebSocketGateway.ts:131 does not destructure `error`, so an RPC failure reaches
-  // the same branch as a rejected token. Fail-closed is correct; the log line reads
-  // "Invalid bot token attempt" either way.
   it('refuses the connection when the RPC fails', async () => {
     mocks.rpc.mockResolvedValue({
       data: null,
@@ -182,6 +179,25 @@ describe('gateway IDENTIFY', () => {
     expect(event.close).toBe(4004)
     expect(gateway.getConnectedBotCount()).toBe(0)
   })
+
+  const refusals: Array<[string, { data: unknown; error: unknown }, string]> = [
+    ['a rejected token', { data: { valid: false, error: 'Invalid or expired token' }, error: null }, 'Invalid or expired token'],
+    ['an inactive bot', { data: { valid: false, error: 'Bot not found or inactive' }, error: null }, 'Bot not found or inactive'],
+    ['a refusal without a reason', { data: { valid: false }, error: null }, 'Invalid or expired token'],
+    ['a failed lookup', { data: null, error: { code: '57014', message: 'canceling statement' } }, 'Token verification unavailable'],
+  ]
+  for (const [what, verification, reason] of refusals) {
+    it(`closes 4004 naming the cause for ${what}`, async () => {
+      mocks.rpc.mockResolvedValue(verification)
+      const ws = await connect()
+      const closed = new Promise<{ code: number; reason: string }>((resolve) =>
+        ws.once('close', (code, raw) => resolve({ code, reason: raw.toString() })),
+      )
+      ws.send(JSON.stringify({ op: 2, d: { token: TOKEN } }))
+
+      expect(await closed).toEqual({ code: 4004, reason })
+    })
+  }
 })
 
 describe('gateway frames', () => {
@@ -444,5 +460,111 @@ describe('bridge data registration (op 6)', () => {
     await register()
 
     expect(gateway.getBridgedUsers(GENERAL)).toEqual([])
+  })
+})
+
+describe('bridge data registration (op 6) across servers', () => {
+  const SERVER_A = '00000000-0000-0000-0000-00000000006a'
+  const SERVER_B = '00000000-0000-0000-0000-00000000006b'
+  const CHANNEL_A = '00000000-0000-0000-0000-0000000006c1'
+  const CHANNEL_A2 = '00000000-0000-0000-0000-0000000006c2'
+  const CHANNEL_B = '00000000-0000-0000-0000-0000000006c3'
+  const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const ALICE = { id: '80351110224678912', username: 'alice', displayName: 'Alice', avatarUrl: '', source: 'discord' }
+  const BOB = { id: '80351110224678913', username: 'bob', displayName: 'Bob', avatarUrl: '', source: 'discord' }
+  const conn = { botId: BOT_ID, username: 'bridge', scopes: [], lastHeartbeat: 0, sessionId: 's', tokenHash: 'h' }
+  let db: FakeDb
+
+  /** PostgREST refuses an `in` list holding a value its uuid column cannot parse. */
+  function strictFrom(table: string) {
+    const query = db.from(table)
+    const inFilter = query.in.bind(query)
+    ;(query as any).in = (column: string, values: readonly unknown[]) => {
+      if (column === 'id' && table === 'channels' && values.some((v) => typeof v !== 'string' || !UUID_SHAPE.test(v))) {
+        return Promise.resolve({ data: null, error: { code: '22P02', message: 'invalid input syntax for type uuid' } })
+      }
+      return inFilter(column, values)
+    }
+    return query
+  }
+
+  beforeEach(() => {
+    db = new FakeDb({
+      channels: [
+        { id: CHANNEL_A, server_id: SERVER_A },
+        { id: CHANNEL_A2, server_id: SERVER_A },
+        { id: CHANNEL_B, server_id: SERVER_B },
+      ],
+      server_roles: [
+        { id: 'ea', server_id: SERVER_A, permissions: 122646786, is_default: true },
+        { id: 'eb', server_id: SERVER_B, permissions: 122646786, is_default: true },
+      ],
+      channel_permission_overrides: [],
+      bot_server_permissions: [
+        { id: 'ia', bot_id: BOT_ID, server_id: SERVER_A, is_active: true, read_messages: true },
+        { id: 'ib', bot_id: BOT_ID, server_id: SERVER_B, is_active: true, read_messages: true },
+      ],
+    })
+    mocks.from.mockImplementation(strictFrom)
+  })
+
+  const register = (d: unknown) => (gateway as any).handleBridgeDataRegistration(conn, d)
+
+  // v1 HarmonyClient.registerBridgeData sends the first guild's members at the root and every
+  // channel's own list, empty for a guild whose members are not cached yet.
+  it('keeps one guild\'s members out of another server\'s channels', async () => {
+    await register({
+      channels: [
+        { harmonyChannelId: CHANNEL_A, discordChannelId: '1', members: [ALICE] },
+        { harmonyChannelId: CHANNEL_B, discordChannelId: '2', members: [] },
+      ],
+      members: [ALICE],
+    })
+
+    expect(gateway.getBridgedUsers(CHANNEL_A)).toEqual([ALICE])
+    expect(gateway.getBridgedUsers(CHANNEL_B)).toEqual([])
+    expect(gateway.getBridgedUsersForServer([CHANNEL_B])).toEqual([])
+  })
+
+  it('applies root members to channels without a list of their own in one server', async () => {
+    await register({ channels: [{ harmonyChannelId: CHANNEL_A }, { harmonyChannelId: CHANNEL_A2 }], members: [ALICE] })
+
+    expect(gateway.getBridgedUsers(CHANNEL_A)).toEqual([ALICE])
+    expect(gateway.getBridgedUsers(CHANNEL_A2)).toEqual([ALICE])
+  })
+
+  it('ignores root members that would span servers', async () => {
+    await register({ channels: [{ harmonyChannelId: CHANNEL_A }, { harmonyChannelId: CHANNEL_B }], members: [ALICE] })
+
+    expect(gateway.getBridgedUsers(CHANNEL_A)).toEqual([])
+    expect(gateway.getBridgedUsers(CHANNEL_B)).toEqual([])
+  })
+
+  it('drops a mapping that is not a uuid and keeps the rest', async () => {
+    await register({
+      channels: [
+        { harmonyChannelId: 'general', members: [BOB] },
+        { harmonyChannelId: CHANNEL_A, members: [ALICE] },
+      ],
+    })
+
+    expect(gateway.getBridgedUsers(CHANNEL_A)).toEqual([ALICE])
+    expect(gateway.getBridgedUsers('general')).toEqual([])
+  })
+
+  it('keeps the previous registration when a lookup fails', async () => {
+    await register({ channels: [{ harmonyChannelId: CHANNEL_A, members: [ALICE] }] })
+    db.failures.bot_server_permissions = { message: 'connection reset' }
+    await register({ channels: [{ harmonyChannelId: CHANNEL_A, members: [BOB] }] })
+
+    expect(gateway.getBridgedUsers(CHANNEL_A)).toEqual([ALICE])
+  })
+
+  it('replaces the previous registration', async () => {
+    await register({ channels: [{ harmonyChannelId: CHANNEL_A, members: [ALICE] }, { harmonyChannelId: CHANNEL_B, members: [BOB] }] })
+    await register({ channels: [{ harmonyChannelId: CHANNEL_A, members: [BOB] }] })
+
+    expect(gateway.getBridgedUsers(CHANNEL_A)).toEqual([BOB])
+    expect(gateway.getBridgedUsers(CHANNEL_B)).toEqual([])
   })
 })

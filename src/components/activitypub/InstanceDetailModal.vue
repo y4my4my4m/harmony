@@ -207,9 +207,10 @@ import EmptyState from '@/components/common/EmptyState.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import { softwareDisplayName, instanceMonogram } from '@/utils/fediverseSoftware';
+import { runtimeConfig } from '@/services/runtimeConfig';
 
 const router = useRouter();
-const currentDomain = import.meta.env.VITE_DOMAIN as string;
+const currentDomain = runtimeConfig.domain as string;
 
 interface Props {
   instance: FederatedInstance;

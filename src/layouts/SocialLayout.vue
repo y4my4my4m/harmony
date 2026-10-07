@@ -219,6 +219,7 @@ import { getOriginalPost } from '@/utils/postReblog'
 import FundingModal from '@/components/FundingModal.vue'
 import { showsFundingGoal } from '@/services/FundingService'
 import type { FederatedUser, TimelinePost } from '@/types'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 interface Props {
   leftSidebarOpen: boolean
@@ -258,7 +259,7 @@ const props = withDefaults(defineProps<Props>(), {
   hasMoreSpecialData: false,
   followingCount: 0,
   followersCount: 0,
-  instanceDomain: import.meta.env.VITE_DOMAIN as string,
+  instanceDomain: runtimeConfig.domain as string,
   instanceUserCount: 0,
   instancePostCount: 0,
   isDragging: false,

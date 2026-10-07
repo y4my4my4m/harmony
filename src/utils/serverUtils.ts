@@ -4,6 +4,7 @@ import { uploadImageObject } from '@/utils/fileUpload'
 import { bannerRenderSize, canonicalSquareSize } from '@/utils/imageTransformUtils'
 import { publicImageUrl, rawStorageUrl } from '@/utils/storageImageUtils'
 import { knownRenderFallback } from '@/utils/renderFallback'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 // Constants
 const DEFAULT_SERVER_ICON = '/default_server.webp'
@@ -33,7 +34,7 @@ function getUrlOrigin(url: string): string | null {
  * Check if a URL is from our Supabase instance
  */
 function isOurSupabaseUrl(url: string): boolean {
-  const ourSupabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  const ourSupabaseUrl = runtimeConfig.supabaseUrl
   if (!ourSupabaseUrl) return false
 
   const urlOrigin = getUrlOrigin(url)

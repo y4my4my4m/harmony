@@ -99,6 +99,7 @@ bump_room_epoch	p_room_id text, p_reason text	integer	definer	public, pg_temp	se
 bump_server_channel_epochs	p_server_id uuid, p_reason text	void	definer	public, pg_temp	service_role	unreferenced
 can_current_user_manage_messages_in_channel	p_channel_id uuid	boolean	definer	public, pg_temp	anon+authenticated+service_role	policy
 can_current_user_moderate_server_reports	p_server_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	policy
+can_manage_discord_bridge	p_server_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	policy
 can_manage_group_icon	conversation_uuid uuid, user_profile_id uuid	boolean	definer	public, pg_temp	service_role	unreferenced
 can_send_to_topic	p_topic text	boolean	definer	public, pg_temp	authenticated+service_role	policy
 can_subscribe_to_topic	p_topic text	boolean	definer	public, pg_temp	anon+authenticated+service_role	policy
@@ -172,6 +173,34 @@ detect_embed_provider	p_url text	text	invoker	public, extensions, pg_temp	anon+a
 detect_message_features	content_parts jsonb	jsonb	invoker	public, extensions, pg_temp	service_role	unreferenced
 determine_message_federation_type	p_message_id uuid	text	invoker	public, extensions, pg_temp	anon+authenticated+service_role	unreferenced
 disable_federation_triggers		void	definer	public, pg_temp	service_role	unreferenced
+discord_bridge_assert_vault		void	invoker	public, pg_temp		unreferenced
+discord_bridge_bot_pair	p_bot_id uuid, p_harmony_channel_id uuid, p_discord_channel_id text, p_discord_channel_name text, p_direction text	uuid	definer	public, pg_temp	service_role	client
+discord_bridge_bot_unpair	p_bot_id uuid, p_discord_channel_id text	boolean	definer	public, pg_temp	service_role	client
+discord_bridge_channels_check		trigger	definer	public, pg_temp		trigger
+discord_bridge_channels_touch		trigger	definer	public, pg_temp		trigger
+discord_bridge_create	p_server_id uuid, p_mode text	uuid	definer	public, pg_temp	authenticated	client
+discord_bridge_delete	p_bridge_id uuid	void	definer	public, pg_temp	authenticated	client
+discord_bridge_encrypted_channel_ids	p_bridge_id uuid	SETOF uuid	definer	public, pg_temp	service_role	client
+discord_bridge_for_manager	p_bridge_id uuid	discord_bridges	definer	public, pg_temp		unreferenced
+discord_bridge_guild_channels	p_snapshot jsonb, p_guild_id text	SETOF jsonb	invoker	public, pg_temp		unreferenced
+discord_bridge_hosted_list		TABLE(bridge_id uuid, harmony_token text, discord_token text)	definer	public, pg_temp	service_role	client
+discord_bridge_hosting_enabled		boolean	definer	public, pg_temp		client
+discord_bridge_hosting_limit		integer	definer	public, pg_temp		client
+discord_bridge_issue_token	p_bot_id uuid	text	definer	public, pg_temp		unreferenced
+discord_bridge_normalize_code	p_code text	text	invoker	public, pg_temp		unreferenced
+discord_bridge_pair	p_bridge_id uuid, p_harmony_channel_id uuid, p_discord_channel_id text, p_direction text	uuid	definer	public, pg_temp	authenticated	client
+discord_bridge_pair_internal	p_bridge_id uuid, p_harmony_channel_id uuid, p_discord_channel_id text, p_discord_channel_name text, p_direction text, p_actor uuid	uuid	definer	public, pg_temp		unreferenced
+discord_bridge_provision_bot	p_bridge_id uuid, p_owner uuid	uuid	definer	public, extensions, pg_temp		unreferenced
+discord_bridge_redeem_code	p_code text	jsonb	definer	public, pg_temp	service_role	client
+discord_bridge_report_status	p_bot_id uuid, p_status jsonb, p_snapshot jsonb, p_version text	jsonb	definer	public, pg_temp	service_role	client
+discord_bridge_secrets_purge		trigger	definer	public, pg_temp		trigger
+discord_bridge_set_guild	p_bridge_id uuid, p_guild_id text	void	definer	public, pg_temp	authenticated	client
+discord_bridge_set_hosted_token	p_bridge_id uuid, p_discord_token text	void	definer	public, pg_temp	authenticated	client
+discord_bridge_setup_code	p_bridge_id uuid	text	definer	public, extensions, pg_temp	authenticated	client
+discord_bridge_unpair	p_bridge_id uuid, p_harmony_channel_id uuid	boolean	definer	public, pg_temp	authenticated	client
+discord_bridge_update_settings	p_bridge_id uuid, p_settings jsonb	jsonb	definer	public, pg_temp	authenticated	client
+discord_bridges_retire_bot		trigger	definer	public, pg_temp		trigger
+discord_bridges_touch		trigger	invoker	public, pg_temp		trigger
 dismiss_server_automod_prompt	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 effective_channel_encryption	p_channel_id uuid	jsonb	definer	public, extensions, pg_temp	authenticated+service_role	client
 enable_conversation_encryption	p_conversation_id uuid	jsonb	definer	public, pg_temp	service_role	unreferenced
@@ -247,7 +276,7 @@ get_my_key_pair		TABLE(id uuid, user_id uuid, device_id text, identity_public_ke
 get_next_folder_position	p_user_id uuid	integer	invoker	public, extensions, pg_temp	service_role	unreferenced
 get_next_server_position	p_user_id uuid, p_folder_id uuid	integer	invoker	public, extensions, pg_temp	service_role	unreferenced
 get_onboarding_servers		jsonb	definer	public, pg_temp	anon+authenticated+service_role	client
-get_or_create_discord_bridge_pairing	p_server_id uuid	text	definer	public, pg_temp	anon+authenticated+service_role	client
+get_or_create_discord_bridge_pairing	p_server_id uuid	text	definer	public, pg_temp	anon+authenticated+service_role	unreferenced
 get_or_create_dm_conversation	p_user1_id uuid, p_user2_id uuid	uuid	definer	public, extensions, pg_temp	service_role	client
 get_or_create_federated_group_conversation	p_actor_id uuid, p_local_recipient_ids uuid[], p_remote_conversation_id text	uuid	definer	public, pg_temp	service_role	client
 get_owned_bot_server_counts		TABLE(bot_id uuid, server_count integer)	definer	public, pg_temp	authenticated+service_role	client

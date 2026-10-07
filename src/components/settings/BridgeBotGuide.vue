@@ -1,340 +1,131 @@
 <template>
-  <div class="bridge-bot-guide">
-    <p class="intro">
-      This bot bridges a Discord guild with a Harmony server. Each community runs its
-      <strong>own</strong> Discord application (you keep the bot token). Set the Discord side up
-      here, then wire it to a specific server under
-      <strong>Server Settings → Advanced → Discord Bridge</strong>.
+  <section class="bridge-bot-guide" data-testid="bridge-bot-guide">
+    <h3 class="guide-title">{{ t('discordBridge.botGuide.title') }}</h3>
+
+    <p v-if="owner" class="guide-text" data-testid="bridge-owner">
+      {{ t('discordBridge.botGuide.managed', { server: owner.serverName || t('discordBridge.botGuide.aServer') }) }}
+      <router-link :to="settingsLink(owner.serverId)">{{ t('discordBridge.botGuide.openSettings') }}</router-link>
     </p>
+    <p v-else class="guide-text" data-testid="bridge-unmanaged">{{ t('discordBridge.botGuide.unmanaged') }}</p>
 
-    <!-- Harmony bot permissions -->
-    <div class="guide-card">
-      <div class="card-header">
-        <h3>1. Harmony bot permissions</h3>
-      </div>
-
-      <ul class="checklist">
-        <li v-for="perm in harmonyPermissions" :key="perm.key">
-          <span class="check-icon">{{ perm.required ? '●' : '○' }}</span>
-          <span>
-            <strong>{{ perm.label }}</strong>
-            <span v-if="perm.required" class="badge required">Required</span>
-            <span v-else class="badge optional">For /bridge clone-server</span>
-            — {{ perm.description }}
-          </span>
+    <details class="legacy">
+      <summary>{{ t('discordBridge.botGuide.legacyTitle') }}</summary>
+      <p class="guide-muted">{{ t('discordBridge.botGuide.legacyLead') }}</p>
+      <ul class="guide-list">
+        <li>{{ t('discordBridge.botGuide.harmonyPermissions') }}</li>
+        <li>
+          {{ t('discordBridge.botGuide.intents', { messageContent: DISCORD_INTENT_NAMES.message_content, members: DISCORD_INTENT_NAMES.members, presence: DISCORD_INTENT_NAMES.presence }) }}
         </li>
+        <li>{{ t('discordBridge.botGuide.invite') }}</li>
       </ul>
-
-      <p class="hint">
-        Add this bot under <strong>Server Settings → Advanced → Server Bots</strong>
-        with at least Read + Send Messages.
-      </p>
-    </div>
-
-    <!-- Discord application -->
-    <div class="guide-card highlight">
-      <div class="card-header">
-        <h3>2. Discord application</h3>
-      </div>
-
-      <p class="intro">
-        Create your application at the
-        <a href="https://discord.com/developers/applications" target="_blank" rel="noopener noreferrer">
-          Discord Developer Portal
-        </a>.
-      </p>
-
-      <div class="form-group">
-        <label for="bridge-guide-client-id">Application Client ID</label>
+      <div class="db-field client-id">
+        <label :for="inputId" class="db-label">{{ t('discordBridge.botGuide.applicationId') }}</label>
         <input
-          id="bridge-guide-client-id"
-          v-model="discordClientId"
+          :id="inputId"
+          v-model="applicationId"
           type="text"
-          class="text-input"
-          placeholder="Paste from Developer Portal → OAuth2 → Client ID"
+          inputmode="numeric"
+          class="db-input"
           autocomplete="off"
           spellcheck="false"
         />
       </div>
-
-      <div class="subsection">
-        <h4>Privileged gateway intents</h4>
-        <p class="hint">Bot → Privileged Gateway Intents in the Developer Portal:</p>
-        <ul class="checklist">
-          <li v-for="intent in discordIntents" :key="intent.name">
-            <span class="check-icon">{{ intent.required ? '●' : '○' }}</span>
-            <span>
-              <strong>{{ intent.name }}</strong>
-              <span v-if="intent.required" class="badge required">Required</span>
-              <span v-else class="badge optional">Optional</span>
-              — {{ intent.description }}
-            </span>
-          </li>
-        </ul>
-      </div>
-
-      <div class="subsection">
-        <h4>Bot invite URL</h4>
-        <p class="hint">
-          Scopes: <code>bot</code> + <code>applications.commands</code>.
-          Permissions are pre-filled for bridging (including Manage Webhooks for avatar puppeting).
-        </p>
-
-        <label class="toggle-row">
-          <input v-model="includeClonePermissions" type="checkbox" />
-          <span>Also include Manage Channels (for <code>/bridge clone-server</code>)</span>
-        </label>
-
-        <div v-if="discordInviteUrl" class="invite-box">
-          <code class="invite-url">{{ discordInviteUrl }}</code>
-          <button type="button" class="btn-primary" @click="copyText(discordInviteUrl, 'Invite URL')">
-            Copy invite URL
-          </button>
-          <a :href="safeHref(discordInviteUrl)" target="_blank" rel="noopener noreferrer" class="btn-secondary link-btn">
-            Open in Discord
-          </a>
-        </div>
-        <p v-else class="hint">Enter your Client ID above to generate the invite link.</p>
-      </div>
-
-      <div class="subsection">
-        <h4>3. After inviting the bot</h4>
-        <ol class="numbered-steps">
-          <li>Developer Portal → <strong>Bot</strong> → <strong>Reset Token</strong> → copy token into <code>discord.token</code></li>
-          <li>Enable <strong>Developer Mode</strong> in Discord → right-click your server → <strong>Copy Server ID</strong> → <code>discord.guildId</code></li>
-          <li>Right-click channels → <strong>Copy Channel ID</strong> for mappings (or use <code>/bridge link</code> later)</li>
-        </ol>
-      </div>
-    </div>
-
-    <p class="hint repo-hint">
-      Bridge source &amp; full docs:
-      <a href="https://github.com/y4my4my4m/harmony-discord-bridge" target="_blank" rel="noopener noreferrer">
-        harmony-discord-bridge
-      </a>. Wire this bot to a server under <strong>Server Settings → Advanced → Discord Bridge</strong>
-      to get its pairing code and downloadable <code>bridge-config.yml</code>.
-    </p>
-  </div>
+      <a v-if="inviteUrl" :href="inviteUrl" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
+        {{ t('discordBridge.actions.invite') }}
+      </a>
+      <p class="guide-muted">
+        <a :href="BRIDGE_REPO_URL" target="_blank" rel="noopener noreferrer">harmony-discord-bridge</a>
+      </p>
+    </details>
+  </section>
 </template>
 
 <script setup lang="ts">
-import { safeHref } from '@/utils/sanitize';
-import { ref, computed } from 'vue'
-import { useToast } from 'vue-toastification'
-import {
-  buildDiscordInviteUrl,
-  HARMONY_BRIDGE_BOT_PERMISSIONS,
-  DISCORD_BRIDGE_INTENTS,
-} from '@/utils/discordBridgeSetup'
+import { computed, ref, useId, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { buildDiscordInviteUrl } from '@/utils/discordBridgeSetup'
+import { fetchBridgeForBot, type BridgeOwnerServer } from './discord-bridge/bridgeApi'
+import { DISCORD_INTENT_NAMES } from './discord-bridge/portalLabels'
 
-const toast = useToast()
+const props = defineProps<{ botId?: string }>()
 
-const discordClientId = ref('')
-const includeClonePermissions = ref(true)
+const BRIDGE_REPO_URL = 'https://github.com/y4my4my4m/harmony-discord-bridge'
 
-const harmonyPermissions = HARMONY_BRIDGE_BOT_PERMISSIONS
-const discordIntents = DISCORD_BRIDGE_INTENTS
+const { t } = useI18n()
+const inputId = `bridge-guide-app-id-${useId()}`
+const applicationId = ref('')
+const owner = ref<BridgeOwnerServer | null>(null)
+const inviteUrl = computed(() => buildDiscordInviteUrl(applicationId.value))
 
-const discordInviteUrl = computed(() =>
-  buildDiscordInviteUrl(discordClientId.value, {
-    includeClonePermissions: includeClonePermissions.value,
-  }),
-)
-
-async function copyText(text: string, label: string) {
-  try {
-    await navigator.clipboard.writeText(text)
-    toast.success(`${label} copied`)
-  } catch {
-    toast.error('Failed to copy')
-  }
+function settingsLink(serverId: string) {
+  return { name: 'ServerSettings', params: { serverId }, query: { section: 'discord-bridge' } }
 }
+
+watch(
+  () => props.botId,
+  async (botId) => {
+    owner.value = botId ? await fetchBridgeForBot(botId) : null
+  },
+  { immediate: true },
+)
 </script>
 
+<style scoped src="./discord-bridge/bridge.css"></style>
 <style scoped>
 .bridge-bot-guide {
-  margin-top: 8px;
-}
-
-.guide-card {
-  background: var(--color-background-primary);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
   padding: 20px;
-  margin-bottom: 20px;
+  border-radius: 8px;
+  border: 1px solid var(--background-quaternary);
+  background: var(--background-secondary);
 }
 
-.guide-card.highlight {
-  border-color: color-mix(in srgb, var(--harmony-primary) 45%, transparent);
-}
-
-.card-header h3 {
-  margin: 0 0 16px;
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-semibold);
-}
-
-.intro {
-  margin: 0 0 16px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
-
-.intro a,
-.repo-hint a {
-  color: var(--harmony-primary);
-}
-
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 13px;
-  font-weight: var(--font-weight-semibold);
-}
-
-.text-input {
-  width: 100%;
-  max-width: 420px;
-  padding: 10px 12px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--input-border);
-  background: var(--input-bg);
-  color: var(--text-primary);
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 13px;
-}
-
-.subsection {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-primary);
-}
-
-.subsection h4 {
+.guide-title {
   margin: 0 0 8px;
-  font-size: var(--font-size-sm);
-}
-
-.checklist {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.checklist li {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 10px;
-  font-size: var(--font-size-sm);
-  line-height: 1.45;
-}
-
-.check-icon {
-  color: var(--harmony-primary);
-  flex-shrink: 0;
-  width: 14px;
-}
-
-.badge {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: var(--font-weight-semibold);
-  padding: 1px 6px;
-  border-radius: var(--radius-sm);
-  margin-left: 6px;
-  vertical-align: middle;
-}
-
-.badge.required {
-  background: color-mix(in srgb, var(--success) 15%, transparent);
-  color: var(--success);
-}
-
-.badge.optional {
-  background: var(--background-modifier-selected);
-  color: var(--text-secondary);
-}
-
-.toggle-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  margin-bottom: 12px;
-}
-
-.toggle-row input {
-  margin-top: 3px;
-}
-
-.hint {
-  margin: 12px 0 0;
-  font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-
-.hint code {
-  font-size: var(--font-size-xs);
-}
-
-.repo-hint {
-  margin-top: 4px;
-}
-
-.invite-box {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.invite-url {
-  display: block;
-  word-break: break-all;
-  font-size: var(--font-size-xs);
-  padding: 10px;
-  background: var(--surface-inset);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-primary);
-}
-
-.numbered-steps {
-  margin: 0;
-  padding-left: 20px;
-  font-size: var(--font-size-sm);
-  line-height: 1.6;
-}
-
-.btn-primary,
-.btn-secondary {
-  padding: 10px 16px;
-  border-radius: var(--radius-md);
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  border: none;
-}
-
-.btn-primary {
-  background: var(--harmony-primary);
-  color: var(--text-on-primary);
-}
-
-.btn-secondary {
-  background: transparent;
-  border: 1px solid var(--border-primary);
+  font-size: 16px;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
-.link-btn {
-  text-align: center;
-  text-decoration: none;
-  display: inline-block;
+.guide-text {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-primary);
+}
+
+.guide-text a,
+.guide-muted a {
+  color: var(--harmony-primary);
+}
+
+.guide-muted {
+  margin: 8px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.legacy > summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.legacy > summary:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
+}
+
+.guide-list {
+  margin: 8px 0 12px;
+  padding-left: 20px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-primary);
+}
+
+.client-id {
+  max-width: 360px;
 }
 </style>

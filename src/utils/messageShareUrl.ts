@@ -1,3 +1,5 @@
+import { runtimeConfig } from '@/services/runtimeConfig'
+
 /**
  * Build a shareable deep link for a chat/DM/thread message.
  */
@@ -14,7 +16,7 @@ export function getMessageShareUrl(options: {
 
   const domain =
     options.domain ||
-    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_DOMAIN) ||
+    runtimeConfig.domain ||
     (typeof window !== 'undefined' ? window.location.host : '')
 
   if (!domain) return null

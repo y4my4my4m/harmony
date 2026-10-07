@@ -302,12 +302,6 @@ Tests use `fake-indexeddb` to simulate browser IndexedDB.
 
 ## Configuration
 
-### Environment Variables
-
-```env
-VITE_ENABLE_E2E_ENCRYPTION=true
-```
-
 ### Server Settings
 
 Each server configures its encryption mode via `EncryptionSettings` component or the admin panel. The setting is stored in `server_encryption_settings`.

@@ -16,6 +16,7 @@ import { isYouTubeUrl, buildYouTubeEmbedUrl, parseEmbedUrl } from '@/utils/embed
 import { escapeHtml, sanitizeFormattedHtml, sanitizeUrl } from '@/utils/sanitize';
 import { findEmojiByName as resolveEmojiByShortcode } from '@/services/emojiShortcodeResolver';
 import { stripTrackingParameters, isUrlTrackingStrippingEnabled } from '@/utils/urlTrackerStripper';
+import { runtimeConfig } from '@/services/runtimeConfig';
 
 export interface ContentRenderOptions {
   mode?: 'display' | 'preview' | 'edit';
@@ -181,7 +182,7 @@ export function useContentRenderer(
     // Build mention display from parts - strip stray @ from username to prevent @@
     const username = (mention.username || 'unknown').replace(/^@+/, '');
     const domain = mention.domain;
-    const currentDomain = import.meta.env.VITE_DOMAIN as string;
+    const currentDomain = runtimeConfig.domain as string;
     
     // Determine if user is local
     // A user is local if:

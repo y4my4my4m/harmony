@@ -167,3 +167,91 @@ describe('event fan-out follows channel visibility', () => {
     expect(sent).toEqual([])
   })
 })
+
+describe('reaction removal', () => {
+  const EMOJI_ID = '00000000-0000-0000-0000-0000000000f1'
+  const BLOBCAT = { id: EMOJI_ID, name: 'blobcat', url: 'https://harmony.test/emoji/blobcat.png' }
+
+  function reaction(id: string, extra: Row): Row {
+    return {
+      id,
+      message_id: 'm1',
+      channel_id: GENERAL,
+      user_id: OWNER_ID,
+      bot_id: null,
+      emoji_id: null,
+      custom_emoji_content: null,
+      metadata: {},
+      ...extra,
+    }
+  }
+
+  const events = (type: string) => sent.filter((s) => s.event.t === type).map((s) => s.event.d)
+
+  beforeEach(() => {
+    db.rows('emojis').push(BLOBCAT)
+  })
+
+  // A bridge started after the add never saw it; the removal alone must name the emoji and user.
+  it('describes a reaction known only from startup by its emoji and user', async () => {
+    db.rows('reactions').push(reaction('r1', {
+      emoji_id: EMOJI_ID,
+      metadata: { source: 'harmony' },
+      created_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+    }))
+    const d = dispatcher as any
+    await d.initializeKnownReactions()
+    db.rows('reactions').splice(0)
+    await d.pollReactions()
+
+    expect(events('MESSAGE_REACTION_REMOVE')).toEqual([{
+      reaction_id: 'r1',
+      message_id: 'm1',
+      channel_id: GENERAL,
+      user_id: OWNER_ID,
+      bot_id: null,
+      emoji: { id: EMOJI_ID, name: 'blobcat', url: 'https://harmony.test/emoji/blobcat.png' },
+      metadata: { source: 'harmony' },
+    }])
+  })
+
+  it('describes a removal exactly as its add', async () => {
+    const d = dispatcher as any
+    db.rows('reactions').push(reaction('r2', {
+      custom_emoji_content: '👍',
+      created_at: new Date(Date.now() + 1_000).toISOString(),
+    }))
+    await d.pollReactions()
+    db.rows('reactions').splice(0)
+    await d.pollReactions()
+
+    const [added] = events('MESSAGE_REACTION_ADD')
+    expect(added).toMatchObject({ reaction_id: 'r2', user_id: OWNER_ID, emoji: { id: null, name: '👍', url: null } })
+    expect(events('MESSAGE_REACTION_REMOVE')).toEqual([added])
+  })
+
+  it('dispatches no removal when the presence lookup fails', async () => {
+    db.rows('reactions').push(reaction('r3', {
+      custom_emoji_content: '👍',
+      created_at: new Date(Date.now() - 60_000).toISOString(),
+    }))
+    const d = dispatcher as any
+    await d.initializeKnownReactions()
+    let calls = 0
+    const from = mocks.from.getMockImplementation()!
+    mocks.from.mockImplementation((table: string) => {
+      if (table === 'reactions' && ++calls === 2) {
+        const failing = new FakeDb({})
+        failing.failures.reactions = { message: 'connection reset' }
+        return failing.from(table)
+      }
+      return from(table)
+    })
+    await d.pollReactions()
+
+    expect(events('MESSAGE_REACTION_REMOVE')).toEqual([])
+    mocks.from.mockImplementation(from)
+    await d.pollReactions()
+    expect(events('MESSAGE_REACTION_REMOVE')).toEqual([])
+  })
+})

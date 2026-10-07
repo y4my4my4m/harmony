@@ -142,6 +142,7 @@ import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import LinkEmbedCard from './LinkEmbedCard.vue';
 import ServerInviteCard from './ServerInviteCard.vue';
+import { runtimeConfig } from '@/services/runtimeConfig';
 
 const props = defineProps<{
   payload: EmbedPayload;
@@ -174,7 +175,7 @@ const isServerInvite = computed(() => {
     // Match /invite/CODE pattern on any harmony instance
     const inviteMatch = url.pathname.match(/^\/invite\/([A-Za-z0-9]+)$/);
     if (inviteMatch) {
-      const harmonyDomains = [import.meta.env.VITE_DOMAIN as string, 'har.mony.local', 'localhost'];
+      const harmonyDomains = [runtimeConfig.domain as string, 'har.mony.local', 'localhost'];
       const isHarmonyDomain = harmonyDomains.some(d => url.hostname.includes(d)) || 
                               url.origin === window.location.origin;
       return isHarmonyDomain;

@@ -18,6 +18,7 @@ import {
   fetchBridgedChannelUsers,
   type BridgedChannelUser,
 } from '@/services/bridgedChannelUsersService';
+import { runtimeConfig } from '@/services/runtimeConfig';
 
 export { clearBridgedUsersCache };
 
@@ -269,7 +270,7 @@ export function useAutoSuggest(
 
         if (displayName.includes(query) || usernameStr.includes(query)) {
           const isLocal = userData.isLocal;
-          const currentDomain = import.meta.env.VITE_DOMAIN as string;
+          const currentDomain = runtimeConfig.domain as string;
           const userDomain = userData.domain || currentDomain;
           const displayText = isLocal ? `@${userData.username}` : `@${userData.username}@${userDomain}`;
           

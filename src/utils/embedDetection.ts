@@ -1,7 +1,8 @@
 import type { EmbedProvider } from '@/types';
+import { runtimeConfig } from '@/services/runtimeConfig';
 
-const primaryDomain = (import.meta.env.VITE_DOMAIN as string || window.location.hostname).toLowerCase();
-const extraDomains = (import.meta.env.VITE_HARMONY_ALT_DOMAINS as string || '')
+const primaryDomain = (runtimeConfig.domain as string || window.location.hostname).toLowerCase();
+const extraDomains = (runtimeConfig.altDomains as string || '')
   .split(',')
   .map((domain) => domain.trim().toLowerCase())
   .filter(Boolean);

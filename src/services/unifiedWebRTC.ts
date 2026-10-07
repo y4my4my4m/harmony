@@ -4,6 +4,8 @@ import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
 import { VoiceSettingsService } from './VoiceSettingsService';
 import { remoteAudioMixer } from './voice/remoteAudioMixer';
+import { spatialAudioService } from './spatialAudio';
+import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import {
   INPUT_VOLUME_UNITY,
   MicGainStage,
@@ -795,15 +797,13 @@ export class UnifiedWebRTCService {
     // Check spatial audio state to avoid double audio on undeafen
     let isSpatialAudioActive = false;
     try {
-      const { useSpatialAudioStore } = require('@/stores/spatialAudio');
-      const { spatialAudioService } = require('@/services/spatialAudio');
       const spatialStore = useSpatialAudioStore();
       const spatialStatus = spatialAudioService.getStatus();
       isSpatialAudioActive = spatialStore.settings.enabled && spatialStatus.isInitialized;
       
       spatialAudioService.setDeafened(this.localMediaState.isDeafened);
     } catch (e) {
-      // Spatial audio not available, ignore
+      // No active Pinia (tests, teardown): spatial audio is off.
     }
     
     // On undeafen the traditional path stays muted while spatial audio is active.

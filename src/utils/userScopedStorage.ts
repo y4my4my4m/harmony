@@ -19,6 +19,7 @@
  */
 
 import { debug } from './debug'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 const STORAGE_PREFIX = 'harmony_'
 const USER_ID_KEY = `${STORAGE_PREFIX}current_user_id`
@@ -32,22 +33,23 @@ const USER_DATA_PREFIX = `${STORAGE_PREFIX}user_`
  * different backends) share one localStorage namespace, so the theme/appearance
  * config of one silently overwrites the others.
  *
- * Preference order (all build-time / synchronous, so this never races app init):
- *   1. VITE_DOMAIN / VITE_INSTANCE_DOMAIN - the federation domain
- *   2. VITE_SUPABASE_URL host - uniquely identifies the backend even when the
+ * Preference order (runtimeConfig.ts resolves before this module evaluates,
+ * so this never races app init):
+ *   1. domain / instanceDomain - the federation domain
+ *   2. Supabase URL host - uniquely identifies the backend even when the
  *      frontend origin is shared
  *   3. window.location.host - last resort
  */
 function resolveInstanceScope(): string {
-  const env = (import.meta as any).env || {}
   let raw: string =
-    env.VITE_DOMAIN ||
-    env.VITE_INSTANCE_DOMAIN ||
+    runtimeConfig.domain ||
+    runtimeConfig.instanceDomain ||
     ''
 
-  if (!raw && env.VITE_SUPABASE_URL) {
+  const supabaseUrl = runtimeConfig.supabaseUrl
+  if (!raw && supabaseUrl) {
     try {
-      raw = new URL(env.VITE_SUPABASE_URL).host
+      raw = new URL(supabaseUrl).host
     } catch {
       /* malformed URL - fall through */
     }

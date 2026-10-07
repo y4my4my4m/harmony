@@ -379,7 +379,10 @@
       "invalidName": "Channel name can only contain letters, numbers, and hyphens",
       "limitReached": "This server has reached the maximum limit of {max} channels",
       "createFailed": "Failed to create channel. Please try again."
-    }
+    },
+    "copyId": "Copy channel ID",
+    "idCopied": "Channel ID copied",
+    "idCopyFailed": "Couldn't copy the channel ID"
   },
   "category": {
     "create": "Create category",
@@ -1734,7 +1737,7 @@
       "bot": "Standard",
       "botHint": "Connects with its token and acts through the gateway and the REST API.",
       "bridge": "Bridge",
-      "bridgeHint": "Relays messages between Harmony and another platform. Adds the bridge setup guide to the bot's page."
+      "bridgeHint": "Relays messages between Harmony and another platform. For Discord, use Server Settings → Discord Bridge instead: it creates and manages its own bot."
     },
     "usernameErrors": {
       "tooShort": "Use at least 3 characters.",
@@ -3054,6 +3057,521 @@
         "loadQueue": "Failed to load the review queue",
         "review": "Review failed"
       }
+    }
+  },
+  "discordBridge": {
+    "navLabel": "Discord Bridge",
+    "title": "Discord bridge",
+    "intro": "A bridge links channels on this server with channels on a Discord server. Messages sent on either side show up on the other, with each sender's name and picture.",
+    "loading": "Loading the Discord bridge…",
+    "common": {
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyFailed": "Couldn't copy. Select the text and copy it by hand.",
+      "retry": "Try again",
+      "commandLabel": "Command"
+    },
+    "start": {
+      "title": "Where should the bridge run?",
+      "needs": "You need a Discord account with the Manage Server permission on the Discord server you want to connect. Setup takes about ten minutes.",
+      "hosted": {
+        "title": "Run it on this instance",
+        "point1": "Nothing to install.",
+        "point2": "You create a Discord bot and paste its token here. This instance runs the bridge for you.",
+        "tradeoff": "This instance's operator holds your bot's token and could read any Discord channel the bot can see. Give the bot access only to the channels you bridge.",
+        "choose": "Run it on this instance"
+      },
+      "self": {
+        "title": "Run it yourself",
+        "point1": "Your Discord bot's token stays with you.",
+        "point2": "You run one command (Docker) on any computer that's always on: a home server, a VPS, a Raspberry Pi.",
+        "tradeoff": "The bridge works only while that computer is on and online.",
+        "choose": "Run it myself"
+      },
+      "hostingUnavailable": "This instance doesn't run bridges for its communities, so the bridge runs on a computer of yours.",
+      "bothWays": "Either way, messages in bridged channels pass through this instance like any other message here.",
+      "presenceNote": "Presence sync (Discord online status) starts off: it sends an update every time any member's status changes, a heavy, constant load in big servers. You can turn it on later."
+    },
+    "steps": {
+      "navLabel": "Setup steps",
+      "navItem": "Step {n}: {name}",
+      "count": "Step {n} of {total}",
+      "doneSr": "(done)",
+      "bot": {
+        "title": "Create your Discord bot"
+      },
+      "connect": {
+        "self": "Start the bridge",
+        "hosted": "Give this instance the token"
+      },
+      "check": {
+        "title": "Check the connection"
+      },
+      "guild": {
+        "title": "Choose the Discord server"
+      },
+      "channels": {
+        "title": "Pair channels"
+      },
+      "options": {
+        "title": "Options",
+        "lead": "Choose what the bridge copies between Discord and Harmony. You can change these at any time."
+      },
+      "back": "Back",
+      "next": {
+        "bot": "I have the token",
+        "connect": {
+          "self": "I ran the command",
+          "hosted": "Next"
+        },
+        "check": "Next",
+        "guild": "Next",
+        "channels": "Next"
+      },
+      "finish": "Finish setup",
+      "blocked": {
+        "check": "Continue once every item above has a green check.",
+        "guild": "Choose a Discord server to continue.",
+        "channels": "Pair at least one channel to continue."
+      },
+      "startOver": {
+        "prompt": "Chose the wrong option?",
+        "action": "Start over"
+      }
+    },
+    "bot": {
+      "lead": "The bridge talks to Discord through a bot that belongs to you. You create it once in the Discord Developer Portal; it's free.",
+      "portalName": "Discord Developer Portal",
+      "open": "Open the {portal} and log in with your Discord account.",
+      "newApp": "Click {newApplication} (top right). Type a name people will see in Discord, for example {example}, tick the box to accept Discord's terms, and click {create}.",
+      "exampleName": "{server} Bridge",
+      "openBot": "In the menu on the left, click {bot}.",
+      "intents": "Scroll down to {section} and set the switches like this:",
+      "switchOn": "Switch on",
+      "leaveOff": "Leave off",
+      "why": {
+        "message_content": {
+          "on": "Always needed: without it the bridge can't read what people write.",
+          "off": "Always needed."
+        },
+        "members": {
+          "on": "Needed because member list sync is on.",
+          "off": "Not needed while member list sync is off."
+        },
+        "presence": {
+          "on": "Needed because presence sync is on.",
+          "off": "Not needed while presence sync is off."
+        }
+      },
+      "optionsLead": "These two options decide which switches you need. You can change them later; the list above follows.",
+      "save": "Click {save} at the bottom of the page.",
+      "token": "Scroll back up to {token} and click {reset}, then {confirm} (Discord may ask for your password or two-factor code). Click {copy} to copy the token.",
+      "secret": "Treat the token like a password: anyone who has it controls your bot. Discord shows it only once; if you lose it, click Reset Token again.",
+      "hostedAccess": "You'll paste it into this page in the next step. This instance stores it encrypted, but its operator can still use it."
+    },
+    "self": {
+      "lead": "The bridge is a small program that runs in Docker on a computer that stays on, such as a home server, a VPS or a Raspberry Pi.",
+      "docker": "On Windows or macOS, install and start {desktop}, then paste the command into PowerShell (Windows) or Terminal (macOS). On Linux, install {engine}.",
+      "issuing": "Getting a setup code…",
+      "codeLabel": "Setup code",
+      "codeExpires": "expires in {count} minute | expires in {count} minutes",
+      "codeExpired": "expired",
+      "newCode": "New code",
+      "codeOnce": "The command below contains this code. The bridge uses it once, to sign in to this server the first time it starts. Getting a new code cancels older ones.",
+      "expiredHelp": "This setup code has expired. Click New code, then copy the command again.",
+      "getCode": "Get a setup code",
+      "variantLabel": "How to start the bridge",
+      "variant": {
+        "run": "Docker command",
+        "compose": "Docker Compose"
+      },
+      "run": {
+        "copy": "Copy this command:",
+        "label": "Docker command",
+        "paste": "Paste it into a terminal on that computer and press Enter. The bridge starts, and starts again by itself after a reboot."
+      },
+      "compose": {
+        "copy": "Save this as docker-compose.yml in an empty folder:",
+        "label": "docker-compose.yml",
+        "run": "Open a terminal in that folder and run {command}."
+      },
+      "replaceToken": "Replace {placeholder} with the bot token you copied in step 1.",
+      "troubleTitle": "Something went wrong?",
+      "troubleLogs": "See what the bridge is doing:",
+      "troubleNameInUse": "“The container name is already in use”: remove the old bridge, then run the command again.",
+      "troubleReset": "Start completely fresh. This also forgets the bridge's sign-in, so get a new setup code afterwards."
+    },
+    "hosted": {
+      "lead": "Paste the bot token you copied in step 1. This instance stores it encrypted and never shows it again, not even to you.",
+      "access": "This instance's operator can use this token. Give the bot access only to the Discord channels you bridge.",
+      "tokenLabel": "Discord bot token",
+      "tokenPlaceholder": "Paste the token here",
+      "tokenHint": "Saving replaces any token saved before.",
+      "show": "Show",
+      "hide": "Hide",
+      "save": "Save token",
+      "saving": "Saving…",
+      "saved": "Token saved. This instance starts your bridge within a minute or two.",
+      "issue": {
+        "empty": "Paste the token first.",
+        "applicationId": "That's the Application ID. You need the bot token: Bot → Reset Token → Copy.",
+        "publicKey": "That's the Public Key. You need the bot token: Bot → Reset Token → Copy.",
+        "clientSecret": "That looks like the Client Secret. You need the bot token: Bot → Reset Token → Copy.",
+        "harmonyToken": "That's a Harmony bot token. You need the Discord bot token from the Developer Portal: Bot → Reset Token → Copy.",
+        "notToken": "That doesn't look like a Discord bot token. In the Developer Portal, open Bot → Reset Token → Copy and paste the whole value."
+      }
+    },
+    "check": {
+      "lead": "This list updates by itself every few seconds.",
+      "waiting": {
+        "self": "Waiting for your bridge to connect. Run the command from step 2; it usually connects within a minute.",
+        "hosted": "Waiting for this instance to start your bridge. This usually takes a minute or two."
+      },
+      "state": {
+        "ok": "done",
+        "fail": "needs attention",
+        "waiting": "waiting"
+      },
+      "items": {
+        "bridge": {
+          "ok": "Bridge connected",
+          "fail": "Bridge is offline",
+          "waiting": "Waiting for the bridge to connect"
+        },
+        "token": {
+          "ok": "Discord accepted the bot token",
+          "fail": "Discord rejected the bot token",
+          "waiting": "Discord bot token"
+        },
+        "intents": {
+          "ok": "Discord intents are switched on",
+          "fail": "A Discord intent is switched off",
+          "waiting": "Discord intents"
+        },
+        "invited": {
+          "ok": "The bot is in your Discord server",
+          "fail": "The bot isn't in your Discord server yet",
+          "waiting": "Bot invited to your Discord server"
+        },
+        "harmony": {
+          "ok": "Bridge signed in to Harmony",
+          "fail": "The bridge can't sign in to Harmony",
+          "waiting": "Bridge signed in to Harmony"
+        }
+      },
+      "inviteHint": "Pick your server in the Discord window that opens, then click Authorize.",
+      "notConnecting": {
+        "title": "Not connecting?",
+        "self": {
+          "docker": "Check that Docker is running on that computer and that the command printed no error.",
+          "logs": "Look at the bridge's log:",
+          "code": "If the log says the setup code is invalid or expired, get a new code in step 2 and run the command again."
+        },
+        "hosted": {
+          "token": "Check that you saved the token in step 2. Saving it again does no harm.",
+          "host": "If nothing happens after a few minutes, this instance's bridge service may be down. Contact the instance's admin."
+        }
+      }
+    },
+    "guild": {
+      "none": "The bot isn't in any Discord server yet. Invite it, then come back: this page notices within a few seconds.",
+      "current": "Bridging the Discord server {name}.",
+      "selecting": "Selecting {name}…",
+      "onlyOne": "It's the only Discord server your bot is in, so it was picked for you.",
+      "lockedHint": "To bridge a different Discord server, remove all channel pairs first.",
+      "pick": "Your bot is in several Discord servers. Which one should be bridged?",
+      "chosen": "Bridged",
+      "use": "Bridge this server",
+      "missing": "Server missing from the list?"
+    },
+    "pairs": {
+      "noGuild": "Choose the Discord server to bridge first. Its channels show up here after that.",
+      "lead": "Each pair links one channel here with one channel in {guild}.",
+      "empty": "No channels are paired yet.",
+      "listLabel": "Paired channels",
+      "harmony": "Harmony",
+      "discord": "Discord",
+      "ok": "Working",
+      "discordGone": "Discord channel not found",
+      "discordGoneFix": "The bot can no longer find this Discord channel: it was deleted, or the bot lost access to it. Remove the pair, or give the bot access again.",
+      "remove": "Remove",
+      "removeLabel": "Remove the pair #{harmony} and #{discord}",
+      "direction": {
+        "both": "Both ways",
+        "to_harmony": "Discord → Harmony only",
+        "to_discord": "Harmony → Discord only"
+      },
+      "directionLabel": "Direction",
+      "issue": {
+        "not_visible": {
+          "short": "Bot can't see it",
+          "fix": "In Discord, right-click {channel} → Edit Channel → Permissions. Add the bot (or its role) and allow View Channel and Read Message History."
+        },
+        "cannot_send": {
+          "short": "Bot can't post",
+          "fix": "In Discord, right-click {channel} → Edit Channel → Permissions, and allow Send Messages for the bot."
+        },
+        "cannot_manage_webhooks": {
+          "short": "No webhook permission",
+          "fix": "Messages from Harmony arrive under the bot's name instead of each sender's name and picture. To fix it, allow Manage Webhooks for the bot in the permissions of {channel}."
+        }
+      },
+      "match": {
+        "title": "Channels with the same name",
+        "lead": "These channels have the same name on both sides. Pair them all at once, both ways?",
+        "action": "Pair this channel | Pair these {count} channels",
+        "done": "Paired {count} channel | Paired {count} channels",
+        "failed": "{count} pair failed. Add it below. | {count} pairs failed. Add them below."
+      },
+      "addTitle": "Add a pair",
+      "harmonyChannel": "Harmony channel",
+      "discordChannel": "Discord channel",
+      "choose": "Choose…",
+      "optionWithIssue": "#{name} ({issue})",
+      "noHarmonyLeft": "Every text channel on this server is already paired.",
+      "noDiscordLeft": "The bot sees no unpaired text channels in {guild}. Give the bot access to more channels in Discord; this list updates by itself.",
+      "validation": {
+        "both": "Choose a Harmony channel and a Discord channel.",
+        "blocked": "The bot can't use {channel} yet. Fix its permissions in Discord first, as described above."
+      },
+      "add": "Add pair",
+      "fromDiscord": "You can also pair from Discord with {command}. It asks for the Harmony channel's ID: right-click the channel here and choose {copyId}."
+    },
+    "settings": {
+      "needsIntent": "Needs the {intent} in the Developer Portal.",
+      "sync_member_list": {
+        "label": "Sync member list",
+        "hint": "Show Discord members in this server's member list."
+      },
+      "sync_presence": {
+        "label": "Sync presence",
+        "hint": "Show whether Discord members are online. Off by default: in big servers it is a constant stream of updates for the bridge and this instance."
+      },
+      "sync_reactions": {
+        "label": "Sync reactions",
+        "hint": "Copy emoji reactions in both directions."
+      },
+      "sync_edits": {
+        "label": "Sync edits",
+        "hint": "When someone edits a message, update the copy on the other side."
+      },
+      "sync_deletes": {
+        "label": "Sync deletions",
+        "hint": "When someone deletes a message, delete the copy on the other side."
+      }
+    },
+    "status": {
+      "online": "Bridge is online",
+      "degraded": "Bridge is online, with problems",
+      "offline": "Bridge is offline",
+      "never": "Bridge hasn't connected yet",
+      "lastSeen": "Last heard from {ago}.",
+      "neverSeen": "It hasn't reported in yet.",
+      "runs": "Runs",
+      "mode": {
+        "self": "On your computer",
+        "hosted": "On this instance"
+      },
+      "discordServer": "Discord server",
+      "discordBot": "Discord bot",
+      "version": "Bridge version",
+      "none": "None chosen",
+      "unknown": "Not reported yet",
+      "showSetup": "Show setup steps",
+      "problemsTitle": "{count} problem to fix | {count} problems to fix",
+      "pairsTitle": "Paired channels",
+      "settingsTitle": "Options",
+      "maintainTitle": "Maintenance",
+      "maintain": {
+        "self": "Move the bridge to another computer, or reinstall it",
+        "hosted": "Replace the Discord bot token"
+      },
+      "disconnectTitle": "Disconnect the bridge",
+      "disconnectBody": {
+        "self": "Stops bridging and removes all channel pairs and the bridge's Harmony bot. Messages that were already bridged stay. Your Discord bot isn't deleted; remove it in the Developer Portal if you no longer need it.",
+        "hosted": "Stops bridging, removes all channel pairs and the bridge's Harmony bot, and deletes the stored Discord token. Messages that were already bridged stay. Your Discord bot isn't deleted; remove it in the Developer Portal if you no longer need it."
+      },
+      "disconnect": "Disconnect bridge",
+      "disconnected": "Bridge disconnected",
+      "finished": "The bridge is set up."
+    },
+    "confirm": {
+      "disconnect": {
+        "title": "Disconnect the bridge?",
+        "message": "Bridging stops right away and every channel pair is removed. This can't be undone; to bridge again you set it up from the start.",
+        "button": "Disconnect"
+      },
+      "startOver": {
+        "title": "Start over?",
+        "message": "This removes the bridge you started setting up, so you can choose again.",
+        "button": "Start over"
+      },
+      "selfNote": "Also stop the program on your computer: {command}"
+    },
+    "problems": {
+      "listLabel": "Problems",
+      "aChannel": "a channel",
+      "yourServer": "your Discord server",
+      "bridge_offline": {
+        "title": "The bridge is offline.",
+        "fixSelf": "Make sure the computer running it is on and Docker is running, then start the bridge with the first command below. If it stops again, the second command shows why.",
+        "fixHosted": "This instance isn't running your bridge right now. Wait a few minutes; if it stays offline, contact the instance's admin."
+      },
+      "discord_token_invalid": {
+        "title": "Discord rejected the bot token.",
+        "fixSelf": "In the Developer Portal, open your application → Bot → Reset Token and copy the new token. Remove the old bridge with the command below, then run the setup command again with the new token. The bridge remembers its Harmony sign-in.",
+        "fixHosted": "In the Developer Portal, open your application → Bot → Reset Token, copy the new token and save it here."
+      },
+      "intent_missing": {
+        "title": "Discord refused the {intent}.",
+        "fixSelf": "In the Developer Portal, open your application → Bot → Privileged Gateway Intents, switch on {intent} and click Save Changes. Then restart the bridge with the command below.",
+        "fixHosted": "In the Developer Portal, open your application → Bot → Privileged Gateway Intents, switch on {intent} and click Save Changes. The bridge picks it up when it reconnects, within a few minutes."
+      },
+      "bot_not_in_guild": {
+        "title": "The bot isn't in {guild}.",
+        "fix": "Use “Invite the bot to your Discord server” (you need the Manage Server permission there), or choose another Discord server."
+      },
+      "no_guild": {
+        "title": "The bot isn't in any Discord server yet.",
+        "fix": "Use “Invite the bot to your Discord server” and pick your server in the Discord window that opens. You need the Manage Server permission there."
+      },
+      "guild_not_selected": {
+        "title": "No Discord server chosen yet.",
+        "fix": "Choose which Discord server to bridge."
+      },
+      "channel_not_visible": {
+        "title": "The bot can't see {channel}.",
+        "fix": "In Discord, right-click {channel} → Edit Channel → Permissions. Add the bot (or its role) and allow View Channel and Read Message History."
+      },
+      "cannot_send": {
+        "title": "The bot can't post in {channel}.",
+        "fix": "In Discord, right-click {channel} → Edit Channel → Permissions, and allow Send Messages for the bot."
+      },
+      "cannot_manage_webhooks": {
+        "title": "The bot can't manage webhooks in {channel}.",
+        "fix": "Messages from Harmony arrive under the bot's name instead of each sender's name and picture. To fix it, allow Manage Webhooks for the bot in the channel's permissions."
+      },
+      "harmony_auth_failed": {
+        "title": "The bridge can no longer sign in to Harmony.",
+        "fixSelf": "Reset the bridge with the command below, then run the setup command again with a new setup code.",
+        "fixHosted": "This is on the instance's side. Contact the instance's admin. If it keeps failing, disconnect the bridge below and set it up again."
+      },
+      "harmony_channel_missing": {
+        "title": "A paired Harmony channel no longer exists.",
+        "fix": "Remove its pair from the paired channels."
+      },
+      "harmony_channel_encrypted": {
+        "title": "{channel} is end-to-end encrypted, so the bridge can't read it.",
+        "fix": "Remove that pair and pair a channel without end-to-end encryption instead."
+      },
+      "rate_limited": {
+        "title": "Discord is slowing the bridge down.",
+        "fix": "Nothing to do: messages are delayed, not lost. If it keeps happening, turn off presence sync or member list sync."
+      },
+      "discord_unreachable": {
+        "title": "The bridge can't reach Discord.",
+        "fixSelf": "Check that the computer running the bridge is online. If Discord itself is down, the bridge reconnects once it's back.",
+        "fixHosted": "Discord may be down, or this instance has network trouble. The bridge keeps retrying; if it lasts, contact the instance's admin."
+      },
+      "harmony_unreachable": {
+        "title": "The bridge can't reach this Harmony instance.",
+        "fixSelf": "Check that the computer running the bridge can open {url}. The bridge keeps retrying.",
+        "fixHosted": "This is on the instance's side, and the bridge keeps retrying. If it lasts, contact the instance's admin."
+      },
+      "unknown": {
+        "title": "The bridge reported a problem ({code}).",
+        "fixSelf": "The bridge's log has the details:",
+        "fixHosted": "If it doesn't go away within a few minutes, contact the instance's admin."
+      }
+    },
+    "actions": {
+      "invite": "Invite the bot to your Discord server",
+      "openPortal": "Open the Developer Portal",
+      "turnOff": "Turn off {setting}",
+      "go": {
+        "connect": {
+          "self": "Show the setup command",
+          "hosted": "Replace the token"
+        },
+        "guild": {
+          "self": "Choose the Discord server",
+          "hosted": "Choose the Discord server"
+        },
+        "channels": {
+          "self": "Go to paired channels",
+          "hosted": "Go to paired channels"
+        }
+      }
+    },
+    "upgrade": {
+      "title": "Upgrade to the new Discord bridge",
+      "body": "This server uses the old Discord bridge. The new one is set up entirely from this page, checks itself, and lets you pair channels here instead of in a config file. The old bridge keeps working until you switch.",
+      "doubleRelay": "Once the new bridge works, stop the old bridge program, or every message gets copied twice."
+    },
+    "legacy": {
+      "title": "Old bridge setup (v1)",
+      "lead": "For the old harmony-discord-bridge program that reads a config file.",
+      "pairingCode": "Pairing code",
+      "serverId": "Harmony server ID",
+      "coLocated": "The old bridge runs on the same machine as this Harmony instance",
+      "configHint": "Save as {file} in the bridge folder, fill in the tokens and channel IDs, then run {command}.",
+      "configLabel": "bridge-config.yml",
+      "download": "Download",
+      "regenerate": "New pairing code",
+      "regenerated": "New pairing code created",
+      "intents": "Discord intents for the old bridge: Message Content is required; Server Members only if it syncs the member list; Presence only if presence sync is on."
+    },
+    "errors": {
+      "unavailable": "The new Discord bridge isn't available on this instance yet. Its admin needs to update Harmony.",
+      "load": "Couldn't load the Discord bridge.",
+      "permission": "You need the Manage Server permission on this server to do that.",
+      "hostingOff": "This instance doesn't run bridges for communities at the moment. Choose “Run it yourself” instead.",
+      "hostingFull": "This instance already runs as many bridges as it allows. Choose “Run it yourself” instead, or ask the instance's admin.",
+      "alreadyExists": "That already exists. Reload the page to see it.",
+      "create": "Couldn't create the bridge. Try again.",
+      "setupCode": "Couldn't get a setup code. Try again.",
+      "saveToken": "Couldn't save the token. Try again.",
+      "setGuild": "Couldn't choose that Discord server. Make sure the bot is still in it, then try again.",
+      "pair": "Couldn't pair these channels. Try again.",
+      "unpair": "Couldn't remove the pair. Try again.",
+      "settings": "Couldn't save the option. Try again.",
+      "delete": "Couldn't disconnect the bridge. Try again.",
+      "generic": "Something went wrong. Try again."
+    },
+    "time": {
+      "secondsAgo": "just now | {count} second ago | {count} seconds ago",
+      "minutesAgo": "{count} minute ago | {count} minutes ago",
+      "hoursAgo": "{count} hour ago | {count} hours ago",
+      "daysAgo": "{count} day ago | {count} days ago"
+    },
+    "botGuide": {
+      "title": "Discord bridge",
+      "managed": "This bot is the Discord bridge of {server}. It is set up and managed there; there is nothing to configure here.",
+      "aServer": "one of your servers",
+      "openSettings": "Open the bridge settings",
+      "unmanaged": "Discord bridges are set up from a server's settings: Server Settings → Discord Bridge. That page creates and manages the bridge's bot for you, so you don't need to create one here.",
+      "legacyTitle": "Manual setup for the old bridge (v1)",
+      "legacyLead": "Only for the old harmony-discord-bridge program that reads a config file.",
+      "harmonyPermissions": "Add this bot to the server with Read Messages and Send Messages (and Manage Channels for /bridge clone-server).",
+      "intents": "Discord intents: {messageContent} is required; {members} only if the bridge syncs the member list; {presence} only if presence sync is on.",
+      "invite": "Paste your Discord application's ID (General Information → Application ID) to get an invite link.",
+      "applicationId": "Discord Application ID"
+    },
+    "admin": {
+      "title": "Discord bridge hosting",
+      "lead": "Lets server admins choose “Run it on this instance” for their Discord bridge: they paste their own Discord bot's token, and this instance runs the bridge.",
+      "toggle": "Run Discord bridges for communities",
+      "toggleHint": "You hold each community's Discord bot token. A token gives access to every Discord channel its bot can see.",
+      "limit": "Maximum hosted bridges",
+      "limitHint": "New hosted bridges are refused once this many exist. Existing ones keep running.",
+      "limitInvalid": "Enter a whole number, 0 or more.",
+      "note": "Turning this on only offers the option. You also need to run the bridge host service ({service}) next to this instance; see the {docs}.",
+      "docs": "self-hosting guide",
+      "save": "Save hosting settings",
+      "saving": "Saving…",
+      "saved": "Bridge hosting settings saved",
+      "saveFailed": "Couldn't save the bridge hosting settings",
+      "loadFailed": "Couldn't load the bridge hosting settings."
     }
   }
 }

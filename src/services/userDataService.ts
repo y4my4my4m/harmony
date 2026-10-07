@@ -19,6 +19,7 @@ import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { loadEmojiData, isLoaded as unifiedEmojiLoaded } from '@/services/unifiedEmojiService'
+import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { realtimeApiService } from '@/services/RealtimeApiService'
 import { userEventChannel } from '@/services/UserEventChannel'
 import { getClientDeviceId } from '@/utils/clientDeviceId'
@@ -31,6 +32,7 @@ import {
   isDbMissCached,
   resolveUnifiedEmojiDisplay,
 } from '@/services/emojiShortcodeResolver'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 const EMOJI_SHORTCODE_TEST_REGEX = createShortcodeRegex()
 
@@ -463,10 +465,10 @@ class UserDataService extends EventTarget {
           bannerUrl: profile.banner_url,
           bio: profile.bio,
           color: profile.color,
-          domain: profile.domain || import.meta.env.VITE_DOMAIN as string,
+          domain: profile.domain || runtimeConfig.domain as string,
           isLocal: profile.is_local ?? (
             !profile.domain || 
-            profile.domain === import.meta.env.VITE_DOMAIN
+            profile.domain === runtimeConfig.domain
           ),
           status: finalStatus,
           customStatus: customStatus,
@@ -1039,7 +1041,6 @@ class UserDataService extends EventTarget {
    */
   private handleEmojiBroadcast(data: any): void {
     try {
-      const { useEmojiCacheStore } = require('@/stores/useEmojiCache')
       const emojiStore = useEmojiCacheStore()
       const eventType = data.type === 'emoji:insert' ? 'INSERT'
                       : data.type === 'emoji:update' ? 'UPDATE'
@@ -1194,10 +1195,10 @@ class UserDataService extends EventTarget {
             bannerUrl: profile.banner_url,
             bio: profile.bio,
             color: profile.color,
-            domain: profile.domain || import.meta.env.VITE_DOMAIN as string,
+            domain: profile.domain || runtimeConfig.domain as string,
             isLocal: profile.is_local ?? (
               !profile.domain ||
-              profile.domain === import.meta.env.VITE_DOMAIN
+              profile.domain === runtimeConfig.domain
             ),
             status: profile.status ?? existing?.status ?? UserStatus.Offline,
             customStatus: this.parseCustomStatus(profile.custom_status),
@@ -1926,7 +1927,7 @@ class UserDataService extends EventTarget {
   findUserIdByUsername(username: string, domain?: string): string | null {
     // The local host is the bare form. A bare username matches local users
     // only; a remote user of the same name is a different account.
-    const localDomain = ((import.meta.env.VITE_DOMAIN as string) || '').toLowerCase();
+    const localDomain = ((runtimeConfig.domain as string) || '').toLowerCase();
     if (domain && domain.toLowerCase() === localDomain) domain = undefined;
     const searchKey = domain ? `${username}@${domain}`.toLowerCase() : username.toLowerCase();
     
