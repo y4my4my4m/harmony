@@ -8,11 +8,16 @@ import { config, supabase } from './config/supabase.js'
 import { WebSocketGateway } from './gateway/WebSocketGateway.js'
 import { EventDispatcher } from './gateway/EventDispatcher.js'
 import { BotRestAPI } from './api/BotRestAPI.js'
+import { BridgeV2API, MIN_HOST_SECRET_LENGTH } from './api/BridgeV2API.js'
+import { BridgeConfigWatcher } from './gateway/BridgeConfigWatcher.js'
 import { TTLCache } from './utils/TTLCache.js'
 import { getBridgeAttachmentMode, hasDiscordCdnFilePart } from './utils/mirrorExternalMedia.js'
 import { meetsAssurance } from './utils/sessionAssurance.js'
 
 const app = express()
+
+// req.ip and req.protocol come from the reverse proxy's X-Forwarded-* headers; see config.trustProxy.
+app.set('trust proxy', config.trustProxy)
 
 app.use(helmet())
 app.use(cors())
@@ -46,6 +51,15 @@ eventDispatcher.start().catch(error => {
 // Bot API routes require bot token authentication.
 const botAPI = new BotRestAPI()
 app.use('/api/v1', botAPI.router)
+
+// Discord bridge v2: setup-code redeem, hosted list, and the bridge bot's config, status and pairs.
+app.use('/bridge/v2', new BridgeV2API().router)
+
+const bridgeConfigWatcher = new BridgeConfigWatcher(gateway)
+bridgeConfigWatcher.start()
+if (config.bridge.hostSecret && config.bridge.hostSecret.length < MIN_HOST_SECRET_LENGTH) {
+  console.warn(`BRIDGE_HOST_SECRET is shorter than ${MIN_HOST_SECRET_LENGTH} characters; GET /bridge/v2/hosted stays disabled`)
+}
 
 // USER-AUTHENTICATED ENDPOINTS
 //
@@ -328,6 +342,8 @@ process.on('SIGINT', shutdown)
 async function shutdown() {
   console.log('Received shutdown signal')
   
+  bridgeConfigWatcher.stop()
+
   gateway.shutdown()
   
   await eventDispatcher.shutdown()

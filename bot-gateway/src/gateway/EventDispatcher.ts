@@ -12,6 +12,33 @@ import {
 // Cached bot_server_permissions row, every column: see loadInstall().
 type BotPermissionRow = InstallRow & { bot_id: string }
 
+// A reactions row as MESSAGE_REACTION_ADD and MESSAGE_REACTION_REMOVE describe it.
+interface ReactionRow {
+  id: string
+  message_id: string
+  channel_id: string | null
+  user_id?: string | null
+  bot_id?: string | null
+  emoji_id?: string | null
+  custom_emoji_content?: string | null
+  metadata?: Record<string, unknown> | null
+}
+
+const REACTION_COLUMNS = 'id, message_id, channel_id, user_id, bot_id, emoji_id, custom_emoji_content, metadata, created_at'
+
+function reactionRow(r: ReactionRow): ReactionRow {
+  return {
+    id: r.id,
+    message_id: r.message_id,
+    channel_id: r.channel_id,
+    user_id: r.user_id ?? null,
+    bot_id: r.bot_id ?? null,
+    emoji_id: r.emoji_id ?? null,
+    custom_emoji_content: r.custom_emoji_content ?? null,
+    metadata: r.metadata ?? null,
+  }
+}
+
 // BUGS.md PC1: without these caches each handled message costs two extra DB
 // queries (channel → server, then server → bot permissions), across three
 // handlers (create/update/delete), on top of the polling baseline.
@@ -43,10 +70,11 @@ export class EventDispatcher {
 
   // Reactions are hard-deleted. Removals are detected, as with message
   // deletes, by diffing a window of known reaction IDs against what exists.
+  // The row is kept so a removal describes the reaction as its add did.
   private knownReactionIds: Set<string> = new Set()
-  private reactionContext: Map<string, { channel_id: string | null, message_id: string }> = new Map()
-  // emoji_id -> shortcode name (for custom emoji reactions). Read-mostly.
-  private emojiNameCache = new TTLCache<string, string | null>(5_000, 30 * 60 * 1000)
+  private reactionContext: Map<string, ReactionRow> = new Map()
+  // emoji_id -> custom emoji name and url. Read-mostly.
+  private emojiCache = new TTLCache<string, { name: string | null; url: string | null }>(5_000, 30 * 60 * 1000)
   
   // Message versions for edit detection; channel_id is carried for delete dispatch.
   private messageVersions: Map<string, { updated_at: string, content: string, channel_id: string, metadata: any }> = new Map()
@@ -153,7 +181,7 @@ export class EventDispatcher {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     const { data: reactions } = await supabase
       .from('reactions')
-      .select('id, message_id, channel_id, created_at')
+      .select(REACTION_COLUMNS)
       .gt('created_at', twentyFourHoursAgo)
       .order('created_at', { ascending: false })
       .limit(5000)
@@ -161,7 +189,7 @@ export class EventDispatcher {
     if (reactions) {
       for (const r of reactions) {
         this.knownReactionIds.add(r.id)
-        this.reactionContext.set(r.id, { channel_id: r.channel_id, message_id: r.message_id })
+        this.reactionContext.set(r.id, reactionRow(r))
       }
       console.log(`Initialized ${reactions.length} known reactions for add/remove tracking (last 24h)`)
     }
@@ -172,7 +200,7 @@ export class EventDispatcher {
       // --- new reactions (adds) ---
       const { data: newReactions, error } = await supabase
         .from('reactions')
-        .select('id, message_id, channel_id, user_id, bot_id, emoji_id, custom_emoji_content, metadata, created_at')
+        .select(REACTION_COLUMNS)
         .gt('created_at', this.lastReactionTimestamp.toISOString())
         .order('created_at', { ascending: true })
         .limit(100)
@@ -184,7 +212,7 @@ export class EventDispatcher {
           if (!this.knownReactionIds.has(r.id)) {
             await this.handleReactionEvent('MESSAGE_REACTION_ADD', r)
             this.knownReactionIds.add(r.id)
-            this.reactionContext.set(r.id, { channel_id: r.channel_id, message_id: r.message_id })
+            this.reactionContext.set(r.id, reactionRow(r))
           }
           this.lastReactionTimestamp = new Date(r.created_at)
         }
@@ -193,7 +221,7 @@ export class EventDispatcher {
         if (this.knownReactionIds.size > 10000) {
           const ids = Array.from(this.knownReactionIds).slice(-10000)
           this.knownReactionIds = new Set(ids)
-          const ctx = new Map<string, { channel_id: string | null, message_id: string }>()
+          const ctx = new Map<string, ReactionRow>()
           for (const id of ids) {
             const c = this.reactionContext.get(id)
             if (c) ctx.set(id, c)
@@ -206,23 +234,24 @@ export class EventDispatcher {
       // Any ID in the recent window that no longer exists was removed.
       const idsToCheck = Array.from(this.knownReactionIds).slice(-200)
       if (idsToCheck.length > 0) {
-        const { data: stillThere } = await supabase
+        const { data: stillThere, error: presentError } = await supabase
           .from('reactions')
           .select('id')
           .in('id', idsToCheck)
 
-        const present = new Set((stillThere || []).map(r => r.id))
+        // A failed lookup reads as every reaction gone; nothing is removed until one succeeds.
+        if (presentError || !Array.isArray(stillThere)) {
+          console.error('Error checking reaction removals:', presentError?.message)
+          return
+        }
+        const present = new Set(stillThere.map(r => r.id))
         for (const id of idsToCheck) {
           if (!present.has(id)) {
             const ctx = this.reactionContext.get(id)
             this.knownReactionIds.delete(id)
             this.reactionContext.delete(id)
             if (ctx) {
-              await this.handleReactionEvent('MESSAGE_REACTION_REMOVE', {
-                id,
-                message_id: ctx.message_id,
-                channel_id: ctx.channel_id,
-              })
+              await this.handleReactionEvent('MESSAGE_REACTION_REMOVE', ctx)
             }
           }
         }
@@ -233,37 +262,40 @@ export class EventDispatcher {
   }
 
   /**
-   * Resolves a custom emoji's shortcode name; cached. Native/unicode reactions
-   * store the character in custom_emoji_content and have no emoji_id.
+   * Resolves a custom emoji's shortcode name and image url; cached. Native/unicode reactions
+   * store the character in custom_emoji_content and have no emoji_id. A failed lookup is not
+   * cached.
    */
-  private async resolveEmojiName(emojiId: string): Promise<string | null> {
-    const cached = this.emojiNameCache.get(emojiId)
+  private async resolveEmoji(emojiId: string): Promise<{ name: string | null; url: string | null }> {
+    const cached = this.emojiCache.get(emojiId)
     if (cached !== undefined) return cached
     const { data, error } = await supabase
       .from('emojis')
-      .select('name')
+      .select('name, url')
       .eq('id', emojiId)
       .single()
-    if (error && error.code !== 'PGRST116') return null
-    const name = data?.name ?? null
-    this.emojiNameCache.set(emojiId, name)
-    return name
+    if (error && error.code !== 'PGRST116') return { name: null, url: null }
+    const entry = { name: data?.name ?? null, url: data?.url ?? null }
+    this.emojiCache.set(emojiId, entry)
+    return entry
   }
 
-  private async handleReactionEvent(type: 'MESSAGE_REACTION_ADD' | 'MESSAGE_REACTION_REMOVE', reaction: any) {
-    const serverId = await this.resolveServerId(reaction.channel_id)
-    if (!serverId) return
+  /** ADD and REMOVE carry the same description of the reaction; REMOVE uses the row seen at add. */
+  private async handleReactionEvent(type: 'MESSAGE_REACTION_ADD' | 'MESSAGE_REACTION_REMOVE', reaction: ReactionRow) {
+    const channelId = reaction.channel_id
+    const serverId = await this.resolveServerId(channelId)
+    if (!channelId || !serverId) return
 
-    const botIds = await this.resolveReaders(serverId, reaction.channel_id)
+    const botIds = await this.resolveReaders(serverId, channelId)
     if (botIds.length === 0) return
 
-    // Emoji descriptor shape expected by consumers (e.g. the Discord bridge):
-    // { id, name }. For unicode emoji, name is the character itself.
-    let emoji: { id: string | null, name: string | null }
+    // Emoji descriptor shape expected by consumers (e.g. the Discord bridge): { id, name, url }.
+    // For unicode emoji, name is the character itself and id and url are null.
+    let emoji: { id: string | null, name: string | null, url: string | null }
     if (reaction.emoji_id) {
-      emoji = { id: reaction.emoji_id, name: await this.resolveEmojiName(reaction.emoji_id) }
+      emoji = { id: reaction.emoji_id, ...(await this.resolveEmoji(reaction.emoji_id)) }
     } else {
-      emoji = { id: null, name: reaction.custom_emoji_content ?? null }
+      emoji = { id: null, name: reaction.custom_emoji_content ?? null, url: null }
     }
 
     const event = {
@@ -784,7 +816,7 @@ export class EventDispatcher {
     this.botPermissionsCache.clear()
     this.channelLayerCache.clear()
     this.authorCache.clear()
-    this.emojiNameCache.clear()
+    this.emojiCache.clear()
     console.log('Event Dispatcher shut down')
   }
 }
