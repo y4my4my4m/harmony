@@ -256,6 +256,7 @@ import { useChatStore } from '@/stores/useChat'
 import { useReactionsStore } from '@/stores/useReactions'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData } from '@/utils/unifiedContentProcessing'
+import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver'
 import { buildChatParseOptions } from '@/utils/chatParseOptions'
 import { debug } from '@/utils/debug'
 import { isVideoMessageUrl } from '@/utils/klipyAttribution'
@@ -846,7 +847,7 @@ const handleSendGif = async (gif: Gif) => {
 
 const handleSendEmojiToInput = (emoji: Emoji) => {
   closeMediaPicker()
-  messageText.value += `:${emoji.name}:`
+  messageText.value += getEmojiShortcodeForInsert(emoji)
 }
 
 const handleReplyingTo = (messageId: string, displayName?: string, userId?: string) => {

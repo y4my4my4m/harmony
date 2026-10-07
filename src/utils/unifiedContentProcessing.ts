@@ -15,7 +15,7 @@ import { HANDLE_PATTERN, createHandleRegex, parseHandle } from '@/utils/mentionG
 
 // UUID-based emojis (legacy) and shortcode emojis are both supported.
 import {
-  createShortcodeRegex,
+  EMOJI_SHORTCODE_INNER,
   parseEmojiShortcodeToken,
   findCustomEmojiInCache,
   getDbCachedEmoji,
@@ -23,10 +23,17 @@ import {
   listCachedEmojisInDisambiguationOrder,
 } from '@/services/emojiShortcodeResolver'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import {
+  DISCORD_EMOJI_TOKEN_INNER,
+  discordEmojiObject,
+  discordEmojiPartText,
+  parseDiscordEmojiToken,
+} from '@/utils/discordEmoji'
 
 const emojiUuidRegex = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):/g;
 // Module-scoped regex; reset lastIndex per use to avoid cross-call interference.
-const emojiShortcodeRegex = createShortcodeRegex();
+// Discord tokens come first so their colons are not read as shortcode delimiters.
+const emojiShortcodeRegex = new RegExp(`:(${DISCORD_EMOJI_TOKEN_INNER}|${EMOJI_SHORTCODE_INNER}):`, 'g');
 
 // Hoisted to module scope; these helpers run per-segment per message, so a
 // fresh RegExp per call is hot-path waste (BUGS.md Pattern P-β, review M4).
@@ -65,7 +72,12 @@ function opaqueRanges(content: string): Array<{ start: number; end: number }> {
   }
   return ranges;
 }
-const COMBINED_EMOJI_REGEX = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-zA-Z0-9_+~-]+):/g;
+// Alternation order: a Discord token wins over the shortcode split
+// `:discord:` + name + `:id:` at the same position.
+const COMBINED_EMOJI_REGEX = new RegExp(
+  `:(${DISCORD_EMOJI_TOKEN_INNER}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|${EMOJI_SHORTCODE_INNER}):`,
+  'g',
+);
 
 /**
  * Batch-resolves @mention user data. Call before parseContentToMessageParts;
@@ -224,7 +236,8 @@ export async function resolveEmojisData(content: string): Promise<Record<string,
   emojiShortcodeRegex.lastIndex = 0;
   while ((match = emojiShortcodeRegex.exec(content)) !== null) {
     const token = match[1];
-    if (token) {
+    // Discord tokens need no lookup; parseTextForEmojis builds their part.
+    if (token && !parseDiscordEmojiToken(token)) {
       uniqueEmojiTokens.add(token);
     }
   }
@@ -749,6 +762,13 @@ async function parseTextForEmojis(text: string, emojiDataMap: Record<string, any
     
     const emojiIdentifier = emojiMatch[1];
     
+    const discordEmoji = parseDiscordEmojiToken(emojiIdentifier);
+    if (discordEmoji) {
+      parts.push({ type: 'emoji', emoji: discordEmojiObject(discordEmoji) });
+      lastIndex = emojiIndex + emojiMatch[0].length;
+      continue;
+    }
+    
     // emojiDataMap is keyed by both id and token.
     let emojiData = emojiDataMap[emojiIdentifier];
     
@@ -866,7 +886,7 @@ export function convertMessagePartsToText(parts: MessagePart[]): string {
         return part.url;
         
       case 'emoji':
-        return `:${part.emoji.name}:`;
+        return discordEmojiPartText(part.emoji) ?? `:${part.emoji.name}:`;
         
       case 'file':
         return `[${part.fileType} file]`;
