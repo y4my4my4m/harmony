@@ -179,6 +179,7 @@ import ServerCategoryPicker from '@/components/common/ServerCategoryPicker.vue';
 import { usePublicServersStore } from '@/stores/usePublicServers';
 import type { ServerCategory } from '@/utils/serverDiscovery';
 import { imageSourceError } from '@/utils/uploadValidation';
+import { useImageCrop } from '@/composables/useImageCrop';
 import type { Server } from '@/types';
 
 const emit = defineEmits<{
@@ -192,6 +193,7 @@ const DESCRIPTION_MAX = 500;
 
 const { t } = useI18n();
 const toast = useToast();
+const { cropImage } = useImageCrop();
 const serverChannelStore = useServerChannelStore();
 const authStore = useAuthStore();
 const openServer = useOpenServer();
@@ -223,18 +225,20 @@ const triggerIconUpload = () => {
   iconInput.value?.click();
 };
 
-const handleIconUpload = (event: Event) => {
+const handleIconUpload = async (event: Event) => {
   const target = event.target as HTMLInputElement;
-  const file = target.files?.[0];
-  if (!file) return;
+  const picked = target.files?.[0];
+  target.value = '';
+  if (!picked) return;
 
-  const sourceError = imageSourceError(file);
+  const sourceError = imageSourceError(picked);
   if (sourceError) {
     toast.error(sourceError);
-    target.value = '';
     return;
   }
 
+  const file = await cropImage(picked, 'server_icon');
+  if (!file) return;
   iconFile.value = file;
   const reader = new FileReader();
   reader.onload = (e) => {

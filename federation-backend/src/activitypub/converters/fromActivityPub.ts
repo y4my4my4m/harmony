@@ -1,6 +1,7 @@
 import { config } from '../../config/index.js';
 import { decodeHtmlEntities } from '../../utils/contentUtils.js';
 import { findHandles } from '../../utils/mentionGrammar.js';
+import { parseFocalPoint } from '../../utils/focalPoint.js';
 
 interface MentionTagInfo {
   username: string;
@@ -298,7 +299,8 @@ function addAttachments(parts: any[], attachments: any): void {
       
       if (attachment.blurhash) filePart.blurhash = attachment.blurhash;
       
-      if (attachment.focalPoint) filePart.focalPoint = attachment.focalPoint;
+      const focalPoint = parseFocalPoint(attachment.focalPoint);
+      if (focalPoint) filePart.focalPoint = focalPoint;
       
       parts.push(filePart);
     });

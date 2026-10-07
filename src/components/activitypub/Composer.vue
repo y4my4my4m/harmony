@@ -165,11 +165,7 @@
               v-if="mediaAttachments.length > 0"
               :attachments="mediaAttachments"
               @remove="removeMediaAttachment"
-              @update-description="(index, desc) => {
-                if (mediaAttachments[index]) {
-                  mediaAttachments[index].description = desc;
-                }
-              }"
+              @edit="applyMediaEdit"
             />
 
             <div class="compose-options">
@@ -372,6 +368,8 @@ import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 
 import { getOriginalPost, getOriginalPostId, getReplyMentionAuthor } from '@/utils/postReblog';
+import { attachmentFocus } from '@/utils/focalPoint';
+import type { MediaEdit } from '@/utils/mediaEdit';
 import { messagePartsToRawText } from '@/utils/messageContentUtils';
 
 import MonyContent from './MonyContent.vue';
@@ -635,6 +633,16 @@ const contentClasses = computed(() => {
   };
 });
 
+/** Composer media type of a posts.media_attachments row: composer rows say 'Image', imports 'Document' with a mediaType. */
+const storedMediaType = (m: any): 'image' | 'video' | 'audio' | 'unknown' => {
+  const type = String(m?.type || '').toLowerCase();
+  const mime = String(m?.mediaType || m?.mime_type || '').toLowerCase();
+  if (type === 'image' || mime.startsWith('image/')) return 'image';
+  if (type === 'video' || type === 'gifv' || mime.startsWith('video/')) return 'video';
+  if (type === 'audio' || mime.startsWith('audio/')) return 'audio';
+  return 'unknown';
+};
+
 const handleContentUpdate = (newContent: string) => {
   content.value = newContent;
 };
@@ -709,6 +717,24 @@ const toggleContentWarning = () => {
   showContentWarning.value = !showContentWarning.value;
   if (!showContentWarning.value) {
     contentWarning.value = '';
+  }
+};
+
+const applyMediaEdit = (index: number, edit: MediaEdit) => {
+  const media = mediaAttachments.value[index];
+  if (!media) return;
+  media.description = edit.description || undefined;
+  media.focus = edit.focus;
+  if (edit.crop !== undefined) media.crop = edit.crop;
+  if (edit.originalFile) media.originalFile = edit.originalFile;
+  if (edit.file) {
+    if (media.url?.startsWith('blob:')) URL.revokeObjectURL(media.url);
+    const url = URL.createObjectURL(edit.file);
+    media.file = edit.file;
+    media.url = url;
+    media.preview_url = url;
+    media.filename = edit.file.name;
+    media.size = edit.file.size;
   }
 };
 
@@ -878,11 +904,13 @@ onMounted(() => {
     if (props.editPost.media_attachments?.length) {
       mediaAttachments.value = props.editPost.media_attachments.map((m: any) => ({
         id: m.id || m.url,
-        type: m.type || 'image',
+        type: storedMediaType(m),
         url: m.url,
         preview_url: m.preview_url || m.url,
         filename: m.filename,
         description: m.description,
+        focus: attachmentFocus(m),
+        stored: m,
       }));
     }
   } else if (props.type === 'reply' && props.replyToPost) {

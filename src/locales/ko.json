@@ -3573,5 +3573,47 @@
       "saveFailed": "브리지 호스팅 설정을 저장하지 못했습니다",
       "loadFailed": "브리지 호스팅 설정을 불러오지 못했습니다."
     }
+  },
+  "imageEditor": {
+    "title": {
+      "avatar": "프로필 사진 자르기",
+      "profile_banner": "프로필 배너 자르기",
+      "server_icon": "서버 아이콘 자르기",
+      "server_banner": "서버 배너 자르기",
+      "group_icon": "그룹 아이콘 자르기",
+      "media": "미디어 편집"
+    },
+    "loading": "이미지를 여는 중…",
+    "cropArea": "자르기 영역",
+    "cropHint": "드래그하여 위치를 조정하세요. 스크롤하거나 두 손가락으로 확대·축소하세요. 화살표 키로 영역을 이동하고, + 와 − 로 확대·축소하며, Enter 로 적용합니다.",
+    "zoom": "확대/축소",
+    "zoomIn": "확대",
+    "zoomOut": "축소",
+    "zoomValue": "{percent}%",
+    "rotateLeft": "왼쪽으로 회전",
+    "rotateRight": "오른쪽으로 회전",
+    "apply": "적용",
+    "useOriginal": "원본 사용",
+    "animatedNote": "움직이는 이미지는 자르지 않습니다. 이 이미지는 프레임 가운데에 맞춰 그대로 업로드됩니다.",
+    "animatedMediaNote": "움직이는 이미지는 자르지 않습니다. 초점은 그대로 적용됩니다.",
+    "decodeFailed": "이 이미지는 자르기용으로 열 수 없습니다. 그대로 업로드할 수 있습니다.",
+    "exportFailed": "자른 이미지를 만들지 못했습니다.",
+    "edit": "편집",
+    "editMedia": "이미지 편집: 자르기, 초점, 설명",
+    "tabCrop": "자르기",
+    "tabFocalPoint": "초점",
+    "aspect": "화면 비율",
+    "aspectOriginal": "원본",
+    "aspectSquare": "정사각형",
+    "focalPoint": "초점",
+    "focalHint": "피사체를 클릭하거나 탭하세요. 미리보기 이미지는 이 지점을 중심으로 잘립니다.",
+    "focalValue": "초점: 왼쪽에서 {x}%, 위에서 {y}%",
+    "focalPreviews": "미리보기 이미지",
+    "focalReset": "가운데로",
+    "previewShape": {
+      "wide": "가로형",
+      "square": "정사각형",
+      "tall": "세로형"
+    }
   }
 }

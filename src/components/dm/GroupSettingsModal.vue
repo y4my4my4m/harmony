@@ -224,6 +224,8 @@ import GroupChatInviteModal from '@/components/dm/GroupChatInviteModal.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import ConfirmationModal from '@/components/ConfirmationModal.vue'
 import { uploadGroupIcon, deleteGroupIcon } from '@/utils/groupIconUtils'
+import { imageSourceError } from '@/utils/uploadValidation'
+import { useImageCrop } from '@/composables/useImageCrop'
 import { useDMStore, type DMConversation, type DMUser } from '@/stores/useDM'
 import { useUserData } from '@/composables/useUserData'
 import { supabase } from '@/supabase'
@@ -254,6 +256,7 @@ const displayParticipants = computed(() => {
 
 // Composables
 const toast = useToast()
+const { cropImage } = useImageCrop()
 const router = useRouter()
 const dmStore = useDMStore()
 const { getCurrentUser } = useUserData()
@@ -332,6 +335,7 @@ function triggerIconUpload() {
 function handleFileSelect(event: Event) {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
+  target.value = ''
   if (file) {
     uploadIconFile(file)
   }
@@ -349,8 +353,15 @@ function handleDrop(event: DragEvent) {
   }
 }
 
-async function uploadIconFile(file: File) {
+async function uploadIconFile(picked: File) {
   if (uploadingIcon.value) return
+  const sourceError = imageSourceError(picked)
+  if (sourceError) {
+    toast.error(sourceError)
+    return
+  }
+  const file = await cropImage(picked, 'group_icon')
+  if (!file) return
   
   uploadingIcon.value = true
   uploadProgress.value = 0

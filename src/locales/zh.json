@@ -3573,5 +3573,47 @@
       "saveFailed": "无法保存桥接托管设置",
       "loadFailed": "无法加载桥接托管设置。"
     }
+  },
+  "imageEditor": {
+    "title": {
+      "avatar": "裁剪头像",
+      "profile_banner": "裁剪个人横幅",
+      "server_icon": "裁剪服务器图标",
+      "server_banner": "裁剪服务器横幅",
+      "group_icon": "裁剪群组图标",
+      "media": "编辑媒体"
+    },
+    "loading": "正在打开图片…",
+    "cropArea": "裁剪区域",
+    "cropHint": "拖动以调整位置。滚动或双指缩放。方向键移动裁剪框，+ 和 − 缩放，Enter 应用。",
+    "zoom": "缩放",
+    "zoomIn": "放大",
+    "zoomOut": "缩小",
+    "zoomValue": "{percent}%",
+    "rotateLeft": "向左旋转",
+    "rotateRight": "向右旋转",
+    "apply": "应用",
+    "useOriginal": "使用原图",
+    "animatedNote": "动图不会被裁剪：此图片将按原样上传，并在框内居中显示。",
+    "animatedMediaNote": "动图不会被裁剪，但焦点仍然生效。",
+    "decodeFailed": "无法打开此图片进行裁剪。你可以按原样上传。",
+    "exportFailed": "无法生成裁剪后的图片。",
+    "edit": "编辑",
+    "editMedia": "编辑图片：裁剪、焦点和描述",
+    "tabCrop": "裁剪",
+    "tabFocalPoint": "焦点",
+    "aspect": "宽高比",
+    "aspectOriginal": "原始",
+    "aspectSquare": "正方形",
+    "focalPoint": "焦点",
+    "focalHint": "点击主体。缩略图将围绕此点裁剪。",
+    "focalValue": "焦点位于距左侧 {x}%、距顶部 {y}% 处",
+    "focalPreviews": "缩略图预览",
+    "focalReset": "居中",
+    "previewShape": {
+      "wide": "宽",
+      "square": "方",
+      "tall": "高"
+    }
   }
 }

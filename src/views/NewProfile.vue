@@ -159,6 +159,7 @@ import { useToast } from 'vue-toastification';
 import { apiUrl } from '@/services/instanceConfig';
 import { debug } from '@/utils/debug';
 import { imageSourceError } from '@/utils/uploadValidation';
+import { useImageCrop } from '@/composables/useImageCrop';
 import { useProfileStore } from '@/stores/useProfile';
 import { useAuthStore } from '@/stores/auth';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
@@ -175,6 +176,7 @@ const DEFAULT_PROFILE_COLOR = '#0EA5E9';
 const { t } = useI18n();
 const router = useRouter();
 const toast = useToast();
+const { cropImage } = useImageCrop();
 const profileStore = useProfileStore();
 const authStore = useAuthStore();
 const instanceSettings = useInstanceSettingsStore();
@@ -285,14 +287,18 @@ function triggerAvatarUpload() {
   avatarInput.value?.click();
 }
 
-function handleAvatarUpload(event: Event) {
-  const file = (event.target as HTMLInputElement).files?.[0];
-  if (!file) return;
-  const sourceError = imageSourceError(file);
+async function handleAvatarUpload(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const picked = input.files?.[0];
+  input.value = '';
+  if (!picked) return;
+  const sourceError = imageSourceError(picked);
   if (sourceError) {
     toast.error(sourceError);
     return;
   }
+  const file = await cropImage(picked, 'avatar');
+  if (!file) return;
   avatarFile.value = file;
   const reader = new FileReader();
   reader.onload = e => { avatarPreview.value = e.target?.result as string; };

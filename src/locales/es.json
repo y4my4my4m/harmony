@@ -3573,5 +3573,47 @@
       "saveFailed": "No se pudieron guardar los ajustes de alojamiento de puentes",
       "loadFailed": "No se pudieron cargar los ajustes de alojamiento de puentes."
     }
+  },
+  "imageEditor": {
+    "title": {
+      "avatar": "Recortar foto de perfil",
+      "profile_banner": "Recortar banner del perfil",
+      "server_icon": "Recortar icono del servidor",
+      "server_banner": "Recortar banner del servidor",
+      "group_icon": "Recortar icono del grupo",
+      "media": "Editar multimedia"
+    },
+    "loading": "Abriendo imagen…",
+    "cropArea": "Área de recorte",
+    "cropHint": "Arrastra para reposicionar. Desplaza o pellizca para hacer zoom. Las flechas mueven el recorte, + y − hacen zoom, Intro aplica.",
+    "zoom": "Zoom",
+    "zoomIn": "Acercar",
+    "zoomOut": "Alejar",
+    "zoomValue": "{percent} %",
+    "rotateLeft": "Girar a la izquierda",
+    "rotateRight": "Girar a la derecha",
+    "apply": "Aplicar",
+    "useOriginal": "Usar original",
+    "animatedNote": "Las imágenes animadas no se recortan: esta se sube tal cual, centrada en el marco.",
+    "animatedMediaNote": "Las imágenes animadas no se recortan. El punto focal sí se aplica.",
+    "decodeFailed": "Esta imagen no se puede abrir para recortarla. Puedes subirla tal cual.",
+    "exportFailed": "No se pudo crear la imagen recortada.",
+    "edit": "Editar",
+    "editMedia": "Editar imagen: recorte, punto focal y descripción",
+    "tabCrop": "Recortar",
+    "tabFocalPoint": "Punto focal",
+    "aspect": "Relación de aspecto",
+    "aspectOriginal": "Original",
+    "aspectSquare": "Cuadrado",
+    "focalPoint": "Punto focal",
+    "focalHint": "Haz clic o toca el motivo. Las miniaturas se recortan alrededor de este punto.",
+    "focalValue": "Punto focal al {x} % desde la izquierda y al {y} % desde arriba",
+    "focalPreviews": "Vista previa de miniaturas",
+    "focalReset": "Centrar",
+    "previewShape": {
+      "wide": "Ancha",
+      "square": "Cuadrada",
+      "tall": "Alta"
+    }
   }
 }

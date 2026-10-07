@@ -11,6 +11,8 @@ import { userStorage } from '@/utils/userScopedStorage';
 import { userDataService } from '@/services/userDataService';
 import { fetchedReactionsThisSession } from '@/composables/useRemotePostSync';
 import { insertRealtimePost, flushPendingPosts } from '@/utils/realtimeFeed';
+import { attachmentFocus } from '@/utils/focalPoint';
+import { isStoredMedia, withMediaEdits } from '@/utils/mediaEdit';
 import type { 
   Post, 
   TimelinePost, 
@@ -1960,8 +1962,12 @@ export const useActivityPubStore = defineStore('activitypub', {
       const authUserId = ctx.authUser.id;
 
       const uploadPromises = attachments.map(async (attachment) => {
-        const file = await this.convertMediaAttachmentToFile(attachment);
         const description = typeof attachment?.description === 'string' ? attachment.description.trim() : '';
+        const focus = attachment instanceof File ? null : attachmentFocus(attachment);
+        if (isStoredMedia(attachment)) {
+          return withMediaEdits(attachment.stored ?? { type: attachment.type, url: attachment.url }, description, focus);
+        }
+        const file = await this.convertMediaAttachmentToFile(attachment);
 
         const fileExt = file.name.split('.').pop() || 'bin';
         const fileName = `${crypto.randomUUID()}.${fileExt}`;
@@ -1989,35 +1995,25 @@ export const useActivityPubStore = defineStore('activitypub', {
             throw error;
           }
 
-          return {
+          const { data: { publicUrl } } = supabase.storage
+            .from('user_media')
+            .getPublicUrl(data.path);
+
+          return withMediaEdits({
             type: file.type.startsWith('image/') ? 'Image' : 
                   file.type.startsWith('video/') ? 'Video' : 
                   file.type.startsWith('audio/') ? 'Audio' : 'Document',
-            url: data.path,
+            url: publicUrl,
             mediaType: file.type,
             name: file.name,
-            ...(description ? { description } : {})
-          };
+          }, description, focus);
         } catch (error: any) {
           debug.error(`Failed to upload file "${file.name}":`, error);
           throw error;
         }
       });
 
-      const uploadedMedia = await Promise.all(uploadPromises);
-      
-      const mediaWithPublicUrls = uploadedMedia.map(media => {
-        const { data: { publicUrl } } = supabase.storage
-          .from('user_media')
-          .getPublicUrl(media.url);
-        
-        return {
-          ...media,
-          url: publicUrl
-        };
-      });
-      
-      return mediaWithPublicUrls;
+      return Promise.all(uploadPromises);
     },
 
     /** Resolves mentions, emojis and hashtags into MessagePart[] for storage. */

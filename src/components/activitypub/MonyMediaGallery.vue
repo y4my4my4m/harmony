@@ -23,6 +23,7 @@
         :src="media.preview_url || media.url"
         :alt="media.description || 'Image'"
         class="media-image"
+        :style="coverStyle(media)"
         loading="lazy"
         @error="handleImageError"
       />
@@ -33,6 +34,7 @@
         :src="media.url"
         :poster="media.preview_url"
         class="media-video"
+        :style="coverStyle(media)"
         :controls="media.type !== 'gifv'"
         preload="metadata"
         :loop="media.type === 'gifv'"
@@ -135,6 +137,7 @@ import type { MediaAttachment } from '@/types';
 import Icon from '@/components/common/Icon.vue';
 import MonyMediaLightbox from './MonyMediaLightbox.vue';
 import { downloadMediaFromUrl, filenameFromUrl } from '@/utils/downloadMedia';
+import { attachmentObjectPosition } from '@/utils/focalPoint';
 
 interface Props {
   mediaAttachments: MediaAttachment[];
@@ -172,6 +175,13 @@ const galleryClass = computed(() => {
     'sensitive': props.isSensitive && !showSensitive.value
   };
 });
+
+// Multi-item cells are object-fit: cover; a single item is contain and stays centred.
+function coverStyle(media: MediaAttachment): Record<string, string> | undefined {
+  if (props.mediaAttachments.length < 2) return undefined;
+  const position = attachmentObjectPosition(media);
+  return position ? { objectPosition: position } : undefined;
+}
 
 function isVideoUrl(url: string): boolean {
   return /\.(mp4|webm|ogv|mov|gif)(\?|$)/i.test(url);

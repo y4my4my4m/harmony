@@ -49,6 +49,17 @@
     @cancel="handleClose"
   />
 
+  <!-- Crop step for avatar, banner and icon uploads; `useImageCrop().cropImage()`
+       resolves once it closes. -->
+  <ImageCropDialog
+    v-if="cropRequest"
+    :key="cropRequest.id"
+    :file="cropRequest.file"
+    :kind="cropRequest.kind"
+    @confirm="settleCrop"
+    @cancel="settleCrop(null)"
+  />
+
   <!-- Discord-style "new login - was this you?" device-approval prompt.
        Non-blocking and skippable; not a mandatory verification wall. -->
   <DeviceApprovalPrompt v-if="!isAuthRoute" />
@@ -100,7 +111,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, defineAsyncComponent } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import { installInternalLinkInterceptor } from '@/utils/internalLinks'
@@ -132,6 +143,7 @@ import { isAndroidApp } from '@/services/androidReleaseNotice'
 import { isTauriDesktop } from '@/utils/platform'
 import { useStatusBarTheme } from '@/composables/useStatusBarTheme'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { useImageCrop } from '@/composables/useImageCrop'
 import { useDesktopUpdater } from '@/composables/useDesktopUpdater'
 
 const isTauriClient = isTauriRuntime()
@@ -152,6 +164,9 @@ const {
   handleConfirm,
   handleClose,
 } = useConfirmDialog()
+
+const ImageCropDialog = defineAsyncComponent(() => import('@/components/common/ImageCropDialog.vue'))
+const { cropRequest, settle: settleCrop } = useImageCrop()
 import { onMounted, onUnmounted } from 'vue'
 import { hapticManager } from '@/utils/hapticFeedback'
 import { initializeAppSettings } from '@/services/AppInitService'

@@ -396,6 +396,8 @@ import { getInstanceDomain } from '@/services/instanceConfig'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { useToast } from 'vue-toastification'
+import { imageSourceError } from '@/utils/uploadValidation'
+import { useImageCrop } from '@/composables/useImageCrop'
 
 // Props
 interface Props {
@@ -417,6 +419,7 @@ const emit = defineEmits<{
 const authStore = useAuthStore()
 const instanceSettings = useInstanceSettingsStore()
 const toast = useToast()
+const { cropImage } = useImageCrop()
 
 // State
 const localProfile = ref<Partial<User>>({})
@@ -669,14 +672,21 @@ const triggerBannerUpload = () => {
   bannerInput.value?.click()
 }
 
-const handleBannerFileSelect = (event: Event) => {
+const handleBannerFileSelect = async (event: Event) => {
   debug.log('Banner file selected')
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
   if (file) {
-    debug.log('Emitting banner upload event:', file.name, file.size)
-    emit('upload-banner', file)
     target.value = ''
+    const sourceError = imageSourceError(file)
+    if (sourceError) {
+      toast.error(sourceError)
+      return
+    }
+    const cropped = await cropImage(file, 'profile_banner')
+    if (!cropped) return
+    debug.log('Emitting banner upload event:', cropped.name, cropped.size)
+    emit('upload-banner', cropped)
   } else {
     debug.log('No file selected')
   }

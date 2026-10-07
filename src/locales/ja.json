@@ -3573,5 +3573,47 @@
       "saveFailed": "ブリッジのホスティング設定を保存できませんでした",
       "loadFailed": "ブリッジのホスティング設定を読み込めませんでした。"
     }
+  },
+  "imageEditor": {
+    "title": {
+      "avatar": "プロフィール画像を切り抜く",
+      "profile_banner": "プロフィールバナーを切り抜く",
+      "server_icon": "サーバーアイコンを切り抜く",
+      "server_banner": "サーバーバナーを切り抜く",
+      "group_icon": "グループアイコンを切り抜く",
+      "media": "メディアを編集"
+    },
+    "loading": "画像を開いています…",
+    "cropArea": "切り抜き範囲",
+    "cropHint": "ドラッグで位置を調整。スクロールまたはピンチで拡大・縮小。矢印キーで範囲を移動、+ と − で拡大・縮小、Enter で適用。",
+    "zoom": "ズーム",
+    "zoomIn": "拡大",
+    "zoomOut": "縮小",
+    "zoomValue": "{percent}%",
+    "rotateLeft": "左に回転",
+    "rotateRight": "右に回転",
+    "apply": "適用",
+    "useOriginal": "元の画像を使う",
+    "animatedNote": "アニメーション画像は切り抜かれません。この画像はそのまま、枠の中央に合わせてアップロードされます。",
+    "animatedMediaNote": "アニメーション画像は切り抜かれません。焦点は適用されます。",
+    "decodeFailed": "この画像は切り抜き用に開けません。そのままアップロードできます。",
+    "exportFailed": "切り抜いた画像を作成できませんでした。",
+    "edit": "編集",
+    "editMedia": "画像を編集: 切り抜き、焦点、説明",
+    "tabCrop": "切り抜き",
+    "tabFocalPoint": "焦点",
+    "aspect": "縦横比",
+    "aspectOriginal": "オリジナル",
+    "aspectSquare": "正方形",
+    "focalPoint": "焦点",
+    "focalHint": "被写体をクリックまたはタップしてください。サムネイルはこの点を中心に切り抜かれます。",
+    "focalValue": "焦点: 左から {x}%、上から {y}%",
+    "focalPreviews": "サムネイルのプレビュー",
+    "focalReset": "中央に戻す",
+    "previewShape": {
+      "wide": "横長",
+      "square": "正方形",
+      "tall": "縦長"
+    }
   }
 }

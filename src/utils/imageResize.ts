@@ -271,9 +271,9 @@ export interface ImageCodec {
   render(image: DecodedImage, target: RenderTarget): Raster | null
 }
 
-type Canvas2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
+export type Canvas2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
 
-function createCanvas(width: number, height: number): { ctx: Canvas2D; encode: Raster['encode'] } | null {
+export function createCanvas(width: number, height: number): { ctx: Canvas2D; encode: Raster['encode'] } | null {
   if (typeof OffscreenCanvas !== 'undefined') {
     try {
       const canvas = new OffscreenCanvas(width, height)
@@ -403,7 +403,7 @@ export interface PreparedImage {
   reencoded: boolean
 }
 
-function replaceExtension(name: string, extension: string): string {
+export function replaceExtension(name: string, extension: string): string {
   const dot = name.lastIndexOf('.')
   return `${dot > 0 ? name.slice(0, dot) : name || 'image'}.${extension}`
 }

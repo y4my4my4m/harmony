@@ -3573,5 +3573,47 @@
       "saveFailed": "Couldn't save the bridge hosting settings",
       "loadFailed": "Couldn't load the bridge hosting settings."
     }
+  },
+  "imageEditor": {
+    "title": {
+      "avatar": "Crop profile picture",
+      "profile_banner": "Crop profile banner",
+      "server_icon": "Crop server icon",
+      "server_banner": "Crop server banner",
+      "group_icon": "Crop group icon",
+      "media": "Edit media"
+    },
+    "loading": "Opening image…",
+    "cropArea": "Crop area",
+    "cropHint": "Drag to reposition. Scroll or pinch to zoom. Arrow keys move the crop, + and − zoom, Enter applies.",
+    "zoom": "Zoom",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "zoomValue": "{percent}%",
+    "rotateLeft": "Rotate left",
+    "rotateRight": "Rotate right",
+    "apply": "Apply",
+    "useOriginal": "Use original",
+    "animatedNote": "Animated images are not cropped: this one uploads as is, centred in the frame.",
+    "animatedMediaNote": "Animated images are not cropped. The focal point still applies.",
+    "decodeFailed": "This image can't be opened for cropping. You can upload it as is.",
+    "exportFailed": "The cropped image couldn't be created.",
+    "edit": "Edit",
+    "editMedia": "Edit image: crop, focal point and description",
+    "tabCrop": "Crop",
+    "tabFocalPoint": "Focal point",
+    "aspect": "Aspect ratio",
+    "aspectOriginal": "Original",
+    "aspectSquare": "Square",
+    "focalPoint": "Focal point",
+    "focalHint": "Click or tap the subject. Thumbnails crop around this point.",
+    "focalValue": "Focal point at {x}% from the left, {y}% from the top",
+    "focalPreviews": "Thumbnail previews",
+    "focalReset": "Centre",
+    "previewShape": {
+      "wide": "Wide",
+      "square": "Square",
+      "tall": "Tall"
+    }
   }
 }

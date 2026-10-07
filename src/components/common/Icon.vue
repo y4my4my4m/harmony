@@ -149,6 +149,7 @@ import {
   DollarSign, Layers, AudioLines, Megaphone, Wrench, Tag, Menu, SmilePlus, ArrowUp, ArrowDown, PanelRight,
   PictureInPicture2,
   Gamepad2, Cpu, Palette, GraduationCap, Clapperboard, FlaskConical, Trophy, Shapes, QrCode,
+  RotateCw, ZoomIn, ZoomOut, Crop, Crosshair,
 } from 'lucide-vue-next'
 
 const ICON_MAP: Record<string, Component> = {
@@ -220,6 +221,11 @@ const ICON_MAP: Record<string, Component> = {
   'shield-off': ShieldOff,
   'gavel': Gavel,
   'rotate-ccw': RotateCcw,
+  'rotate-cw': RotateCw,
+  'zoom-in': ZoomIn,
+  'zoom-out': ZoomOut,
+  'crop': Crop,
+  'crosshair': Crosshair,
   'corner-down-right': CornerDownRight,
   'corner-down-left': CornerDownLeft,
   'message-square': MessageSquare,
