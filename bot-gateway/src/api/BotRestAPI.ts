@@ -61,9 +61,15 @@ const SERVER_METADATA_KEYS = new Set([
 
 // Metadata a bridge bot records on a message it did not write (bridge 2.2): the Discord
 // message ids of its copy, whether a webhook posted it, and the files uploaded with it.
+// bridge_source is accepted only as 'harmony', which marks the message as Harmony-origin;
+// the bridge reads the persisted ids back only when it is set.
 const BRIDGE_MAPPING_KEYS = new Set([
   'discord_message_id', 'discord_message_ids', 'discord_via_webhook', 'discord_uploaded_files',
 ])
+
+function isBridgeMappingEntry([key, value]: [string, unknown]): boolean {
+  return BRIDGE_MAPPING_KEYS.has(key) || (key === 'bridge_source' && value === 'harmony')
+}
 
 export function botSuppliedMetadata(input: unknown): Record<string, unknown> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return {}
@@ -404,8 +410,8 @@ export class BotRestAPI {
       // mapping alone, in a channel its bridge pairs.
       const own = message.bot_id === botId
       if (!own) {
-        const keys = Object.keys(metadata)
-        const mappingOnly = keys.length > 0 && keys.every((key) => BRIDGE_MAPPING_KEYS.has(key))
+        const entries = Object.entries(metadata)
+        const mappingOnly = entries.length > 0 && entries.every(isBridgeMappingEntry)
         if (!mappingOnly || !(await this.bridgePairsChannel(botId, message.channel_id))) {
           return res.status(403).json({ error: 'Bots can only update metadata on their own messages' })
         }

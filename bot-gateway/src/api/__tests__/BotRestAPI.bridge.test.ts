@@ -138,11 +138,22 @@ describe('PATCH /messages/:id/metadata on a Harmony-origin message', () => {
     expect(metadataOf(HARMONY_MESSAGE)).toEqual({ source: 'harmony', ...MAPPING })
   })
 
+  // Bridge 2.2 sends the mapping with bridge_source 'harmony' in one request.
+  it('accepts the mapping with bridge_source harmony', async () => {
+    seed()
+    const metadata = { ...MAPPING, bridge_source: 'harmony' }
+    const res = await supertest(app()).patch(`/api/v1/messages/${HARMONY_MESSAGE}/metadata`).send({ metadata })
+
+    expect(res.status).toBe(200)
+    expect(metadataOf(HARMONY_MESSAGE)).toEqual({ source: 'harmony', ...metadata })
+  })
+
   it('refuses any other key, alone or beside the mapping', async () => {
     seed()
     for (const metadata of [
       { discord_user: { id: '1', username: 'spoofed' } },
       { ...MAPPING, bridge_source: 'discord' },
+      { bridge_source: 'harmony', discord_user: { id: '1', username: 'spoofed' } },
       {},
     ]) {
       const res = await supertest(app()).patch(`/api/v1/messages/${HARMONY_MESSAGE}/metadata`).send({ metadata })
