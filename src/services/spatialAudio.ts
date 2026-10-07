@@ -924,7 +924,7 @@ export class SpatialAudioService {
   }
 
   /** Console-only dump; reachable via window.spatialAudioService. */
-  debugAudioState(): void {
+  async debugAudioState(): Promise<void> {
     debug.log('Spatial Audio Debug State:');
     debug.log('- Initialized:', this.isInitialized);
     debug.log('- AudioContext state:', this.audioContext?.state || 'not-created');
@@ -969,7 +969,7 @@ export class SpatialAudioService {
     debug.log('- User positions:', Array.from(spatialStore.userPositions.entries()));
     
     debug.log('\nChecking traditional audio elements...');
-    const { unifiedWebRTC } = require('@/services/unifiedWebRTC');
+    const { unifiedWebRTC } = await import('@/services/unifiedWebRTC');
     const connections = unifiedWebRTC.getAllUsers();
     connections.forEach((user: any) => {
       debug.log(`- User ${user.userId}: audioElement exists?`, !!user.audioElement);

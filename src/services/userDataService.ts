@@ -19,6 +19,7 @@ import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { loadEmojiData, isLoaded as unifiedEmojiLoaded } from '@/services/unifiedEmojiService'
+import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { realtimeApiService } from '@/services/RealtimeApiService'
 import { userEventChannel } from '@/services/UserEventChannel'
 import { getClientDeviceId } from '@/utils/clientDeviceId'
@@ -1039,7 +1040,6 @@ class UserDataService extends EventTarget {
    */
   private handleEmojiBroadcast(data: any): void {
     try {
-      const { useEmojiCacheStore } = require('@/stores/useEmojiCache')
       const emojiStore = useEmojiCacheStore()
       const eventType = data.type === 'emoji:insert' ? 'INSERT'
                       : data.type === 'emoji:update' ? 'UPDATE'

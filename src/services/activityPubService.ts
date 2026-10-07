@@ -2012,9 +2012,10 @@ export class ActivityPubService {
 
   // Federation proxy helpers
 
-  private getFederationApiUrl(): string {
+  /** Store value honors instance_config's federation_backend_url. The store imports this module, so it loads lazily. */
+  private async getFederationApiUrl(): Promise<string> {
     try {
-      const { useActivityPubStore } = require('@/stores/useActivityPub');
+      const { useActivityPubStore } = await import('@/stores/useActivityPub');
       return useActivityPubStore().federationApiUrl;
     } catch {
       return apiUrl('/api/federation');
@@ -2023,7 +2024,7 @@ export class ActivityPubService {
 
   async fetchRemoteReactions(postApId: string, postId: string): Promise<{ count: number; remote_reactions?: any } | null> {
     try {
-      const response = await fetch(`${this.getFederationApiUrl()}/fetch-reactions`, {
+      const response = await fetch(`${await this.getFederationApiUrl()}/fetch-reactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ post_ap_id: postApId, post_id: postId }),
@@ -2038,7 +2039,7 @@ export class ActivityPubService {
 
   async fetchRemoteReplies(postApId: string, postId: string, limit = 10): Promise<{ count: number } | null> {
     try {
-      const response = await fetch(`${this.getFederationApiUrl()}/fetch-replies`, {
+      const response = await fetch(`${await this.getFederationApiUrl()}/fetch-replies`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ post_ap_id: postApId, post_id: postId, limit }),

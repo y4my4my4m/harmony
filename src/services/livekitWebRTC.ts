@@ -25,6 +25,7 @@ import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
 import { VoiceSettingsService } from './VoiceSettingsService';
 import { remoteAudioMixer } from './voice/remoteAudioMixer';
+import { spatialAudioService } from './spatialAudio';
 import { getVoiceAudioContext } from './voice/voiceAudioContext';
 import {
   INPUT_VOLUME_UNITY,
@@ -1149,13 +1150,8 @@ export class LiveKitWebRTCService {
       this.applyMicGate();
     }
 
-    // Spatial audio master output, when active.
-    try {
-      const { spatialAudioService } = require('@/services/spatialAudio');
-      spatialAudioService.setDeafened(this.localMediaState.isDeafened);
-    } catch (e) {
-      // Spatial audio not available.
-    }
+    // Spatial audio master output; no-op until spatial audio initializes.
+    spatialAudioService.setDeafened(this.localMediaState.isDeafened);
 
     remoteAudioMixer.setDeafened(this.localMediaState.isDeafened);
 
