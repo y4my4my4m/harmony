@@ -293,6 +293,7 @@ import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Composer from './Composer.vue'
 import type { TimelinePost, FederatedUser } from '@/types'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 type TrendingTab = 'posts' | 'hashtags' | 'people'
 
@@ -413,7 +414,7 @@ const rangeLabel = (range: TrendingTimeRange): string => {
 const knownDomains = ref<string[]>([])
 
 const sourceDomains = computed(() => {
-  const local = (import.meta.env.VITE_DOMAIN as string | undefined)?.toLowerCase()
+  const local = runtimeConfig.domain?.toLowerCase()
   const set = new Set(knownDomains.value.filter(d => d && d !== local))
   if (source.value && source.value !== 'local') set.add(source.value)
   return Array.from(set).sort((a, b) => a.localeCompare(b))

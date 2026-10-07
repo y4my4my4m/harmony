@@ -3,6 +3,7 @@
 import { supabase } from '@/supabase';
 import { apiUrl } from '@/services/instanceConfig';
 import { trendingService } from './TrendingService';
+import { runtimeConfig } from '@/services/runtimeConfig';
 
 const POST_AUTHOR_EMBED = `
   author:profiles!posts_author_id_fkey(
@@ -56,7 +57,7 @@ export class ActivityPubService {
   private readonly PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
   constructor() {
-    this.currentDomain = import.meta.env.VITE_DOMAIN as string;
+    this.currentDomain = runtimeConfig.domain as string;
     this.instanceUrl = `https://${this.currentDomain}`;
   }
 
@@ -1466,7 +1467,7 @@ export class ActivityPubService {
           domain: existingProfile.domain,
           avatar_url: existingProfile.avatar_url,
           banner_url: existingProfile.banner_url,
-          handle: existingProfile.domain === import.meta.env.VITE_DOMAIN as string
+          handle: existingProfile.domain === runtimeConfig.domain as string
             ? `@${existingProfile.username}`
             : `@${existingProfile.username}@${existingProfile.domain}`,
           is_local: existingProfile.is_local,
@@ -1548,7 +1549,7 @@ export class ActivityPubService {
         domain: newProfile.domain,
         avatar_url: newProfile.avatar_url,
         banner_url: newProfile.banner_url,
-        handle: newProfile.domain === import.meta.env.VITE_DOMAIN as string
+        handle: newProfile.domain === runtimeConfig.domain as string
           ? `@${newProfile.username}`
           : `@${newProfile.username}@${newProfile.domain}`,
         is_local: newProfile.is_local,
@@ -1595,7 +1596,7 @@ export class ActivityPubService {
         display_name: data.display_name,
         domain: data.domain,
         avatar_url: data.avatar_url,
-        handle: data.domain === import.meta.env.VITE_DOMAIN as string
+        handle: data.domain === runtimeConfig.domain as string
           ? `@${data.username}`
           : `@${data.username}@${data.domain}`,
         is_local: data.is_local,
@@ -1908,7 +1909,7 @@ export class ActivityPubService {
         username: post.author.username,
         display_name: post.author.display_name || post.author.username,
         avatar_url: post.author.avatar_url || '/default_avatar.webp',
-        domain: post.author.domain || import.meta.env.VITE_DOMAIN as string,
+        domain: post.author.domain || runtimeConfig.domain as string,
         bio: post.author.bio || '',
         is_local: post.author.is_local !== false,
         // Counts are not in the post embed; a separate profile query supplies them.
@@ -1922,7 +1923,7 @@ export class ActivityPubService {
         username: 'Unknown',
         display_name: 'Unknown User',
         avatar_url: '/default_avatar.webp',
-        domain: import.meta.env.VITE_DOMAIN as string,
+        domain: runtimeConfig.domain as string,
         bio: '',
         is_local: true,
         followers_count: 0,
@@ -1985,15 +1986,15 @@ export class ActivityPubService {
           username: data.author.username,
           display_name: data.author.display_name || data.author.username,
           avatar_url: data.author.avatar_url || '/default_avatar.webp',
-          domain: data.author.domain || import.meta.env.VITE_DOMAIN as string,
+          domain: data.author.domain || runtimeConfig.domain as string,
           bio: data.author.bio || '',
-          is_local: !data.author.domain || data.author.domain === import.meta.env.VITE_DOMAIN as string,
+          is_local: !data.author.domain || data.author.domain === runtimeConfig.domain as string,
           followers_count: 0,
           following_count: 0,
           posts_count: 0,
           created_at: data.author.created_at,
           updated_at: data.author.updated_at,
-          handle: data.author.domain && data.author.domain !== import.meta.env.VITE_DOMAIN as string 
+          handle: data.author.domain && data.author.domain !== runtimeConfig.domain as string
             ? `@${data.author.username}@${data.author.domain}` 
             : `@${data.author.username}`
         },

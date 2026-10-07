@@ -534,8 +534,9 @@ class LoggingService {
       debug.warn('Failed to setup performance observers:', error)
     }
 
-    // Page load timing
-    window.addEventListener('load', () => {
+    // Page load timing. The load event can precede construction: module
+    // evaluation waits on /config.json (runtimeConfig.ts).
+    const logPageLoad = () => {
       setTimeout(() => {
         const timing = performance.timing
         if (timing) {
@@ -548,7 +549,9 @@ class LoggingService {
           this.logPerformance('ttfb', ttfb, 'ms')
         }
       }, 0)
-    })
+    }
+    if (document.readyState === 'complete') logPageLoad()
+    else window.addEventListener('load', logPageLoad, { once: true })
   }
 
   // Export/Debug

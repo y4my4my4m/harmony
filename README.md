@@ -26,46 +26,53 @@ Harmony is a federated social app: Discord-style servers and chat with ActivityP
 - Federation: Node service in `federation-backend/` ([README](federation-backend/README.md)) - HTTP **server** and queue **worker** split in production Docker; **Redis** for BullMQ and related features
 - Desktop: Tauri (`src-tauri/`)
 
+## Self-hosting
+
+On a blank Linux server with a domain pointing at it:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/y4my4my4m/harmony/master/self-host/install.sh | bash
+```
+
+The installer puts Harmony in `/opt/harmony`, asks for the domain, the admin
+account and the optional services (voice, bots, Discord bridge hosting, email),
+and runs the whole instance in Docker from prebuilt images: the app, Supabase,
+the federation server and worker, Redis, and Caddy with automatic HTTPS. The
+host (x86_64 or arm64) needs Docker Engine with Compose 2.24.4 or later and
+nothing else; the installer offers to install Docker. From a checkout,
+`bash self-host/install.sh` does the same. Afterwards the `harmony` command
+updates, backs up and checks the instance.
+
+Guide: [docs/self-hosting.md](docs/self-hosting.md).
+
 ## Quick start (development)
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/y4my4my4m/harmony.git
 cd harmony
 
 npm install
 cd federation-backend && npm install && cd ..
 
-cp .env.example .env
-cp federation-backend/env.template federation-backend/.env
-# Fill in Supabase URL, anon key, instance domain.
+cp .env.example .env                                         # VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
+cp federation-backend/env.template federation-backend/.env   # Supabase keys, INSTANCE_DOMAIN
 
-# Database: db_schema/migrations/*.sql, applied in version order.
-# self-host/bootstrap.sh --migrations-only applies whatever is pending.
+# With the upstream Supabase Docker stack running (container supabase-db):
+bash self-host/bootstrap.sh --migrations-only               # applies db_schema/migrations
 
 npm run dev
-# Optional second terminal: cd federation-backend && npm run dev
+# Second terminal: cd federation-backend && npm run dev
 ```
 
-App: http://localhost:5173 - With federation running, health is http://localhost:3001/health.
-
-**Self-host in one command (recommended):** a complete instance (app + trimmed
-Supabase + federation + automatic-HTTPS reverse proxy) via Docker, no host
-toolchain needed:
-
-```bash
-cd self-host
-bash configure.sh && docker compose up -d && bash bootstrap.sh
-```
-
-See [self-host/README.md](self-host/README.md). Manual setup, including a host-native
-install with nginx and certbot, is in [docs/self-hosting.md](docs/self-hosting.md).
+App: http://localhost:5173. Federation backend health: http://localhost:3001/health.
+Details: [docs-source/guide/installation.md](docs-source/guide/installation.md).
 
 ## Documentation
 
 | Topic | Link |
 |--------|------|
-| One-command self-host (Docker + Caddy + trimmed Supabase) | [self-host/README.md](self-host/README.md) |
-| Self-hosting / Docker / Redis / federation-server & worker | [docs/self-hosting.md](docs/self-hosting.md) |
+| Self-hosting: install, update, backup, manual setups | [docs/self-hosting.md](docs/self-hosting.md) |
+| Self-host stack: compose, Caddy, scripts | [self-host/README.md](self-host/README.md) |
 | Federation / ActivityPub interop | [docs/FEDERATION.md](docs/FEDERATION.md) |
 | Roadmap | [ROADMAP.md](ROADMAP.md) |
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |

@@ -344,6 +344,7 @@ import {
 import { useServerBots } from '@/composables/useServerBots';
 import { groupServerBots, type ServerBot } from '@/services/serverBotsService';
 import { BOT_NAME_COLOR } from '@/utils/botUtils';
+import { runtimeConfig } from '@/services/runtimeConfig';
 
 // Props
 interface Props {
@@ -592,7 +593,7 @@ function dispatchMentionInsert(user: User) {
 
   // Federated users are inserted in `user@domain` form.
   const u: any = user;
-  const isRemote = u.is_local === false || (u.domain && u.domain !== (import.meta.env.VITE_DOMAIN as string));
+  const isRemote = u.is_local === false || (u.domain && u.domain !== (runtimeConfig.domain as string));
   const handle = isRemote && u.domain
     ? `${username}@${u.domain}`
     : username;

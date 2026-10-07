@@ -319,7 +319,6 @@ supabase
 
 ### 1. **Horizontal Scaling**
 - Stateless service design - federation workers scale by adding containers
-- Database connection pooling via Supavisor (`DATABASE_POOL_URL`, port 6543)
 - Redis-backed distributed rate limiting, caching, and job queues (BullMQ)
 - CDN for asset delivery
 

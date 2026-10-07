@@ -1,41 +1,39 @@
 # =============================================================================
-# Harmony frontend image - builds the Vue SPA and serves it with nginx.
+# Harmony web image - builds the Vue SPA and serves it with nginx.
 # =============================================================================
-# Build context is the repo root. VITE_* values are build-time inputs (Vite
-# inlines them into the bundle), passed as build args by docker-compose.yml.
+# Build context is the repo root. One image serves any instance: at container
+# start self-host/web-entrypoint.d/40-harmony-config.sh writes /config.json
+# from the environment (SUPABASE_URL, SUPABASE_ANON_KEY, DOMAIN, INSTANCE_NAME,
+# ...), and the app reads it before mounting.
+#
+# The VITE_* build args are optional. A value passed here is inlined into the
+# bundle and serves as the fallback for a key /config.json leaves out; images
+# published for every instance are built without them.
 # =============================================================================
+
+ARG NODE_VERSION=24
 
 # --- build stage -------------------------------------------------------------
-FROM node:20-alpine AS build
+# The bundle is architecture-independent: one native build feeds every platform.
+FROM --platform=${BUILDPLATFORM:-linux} node:${NODE_VERSION}-alpine AS build
 WORKDIR /app
 
-# Install deps first for better layer caching.
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 
-# Build-time configuration (consumed by Vite as import.meta.env.*)
+# An ARG passed no value stays out of the environment, so Vite sees it unset.
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
-ARG VITE_INSTANCE_DOMAIN
-ARG VITE_INSTANCE_NAME=Harmony
 ARG VITE_DOMAIN
+ARG VITE_INSTANCE_DOMAIN
+ARG VITE_INSTANCE_NAME
 ARG VITE_APP_URL
-ARG VITE_FEDERATION_API_URL
-ARG VITE_LIVEKIT_URL
-ARG VITE_ENABLE_FEDERATION=true
-ARG VITE_ENABLE_VOICE=true
-ARG VITE_ENABLE_E2E_ENCRYPTION=true
-ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
-    VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY \
-    VITE_INSTANCE_DOMAIN=$VITE_INSTANCE_DOMAIN \
-    VITE_INSTANCE_NAME=$VITE_INSTANCE_NAME \
-    VITE_DOMAIN=$VITE_DOMAIN \
-    VITE_APP_URL=$VITE_APP_URL \
-    VITE_FEDERATION_API_URL=$VITE_FEDERATION_API_URL \
-    VITE_LIVEKIT_URL=$VITE_LIVEKIT_URL \
-    VITE_ENABLE_FEDERATION=$VITE_ENABLE_FEDERATION \
-    VITE_ENABLE_VOICE=$VITE_ENABLE_VOICE \
-    VITE_ENABLE_E2E_ENCRYPTION=$VITE_ENABLE_E2E_ENCRYPTION
+ARG VITE_FEDERATION_URL
+ARG VITE_STORAGE_DOMAIN
+ARG VITE_HARMONY_ALT_DOMAINS
+ARG VITE_TERMS_URL
+ARG VITE_PRIVACY_URL
+ARG VITE_ENABLED_OAUTH_PROVIDERS
 
 COPY . .
 RUN npm run build-only
@@ -44,4 +42,8 @@ RUN npm run build-only
 FROM nginx:alpine AS serve
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY self-host/web-nginx.conf /etc/nginx/conf.d/default.conf
+COPY self-host/web-entrypoint.d/40-harmony-config.sh /docker-entrypoint.d/40-harmony-config.sh
+RUN chmod 0755 /docker-entrypoint.d/40-harmony-config.sh
 EXPOSE 80
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -q --spider http://127.0.0.1/ || exit 1

@@ -39,10 +39,8 @@ Create a `.env` file with the following variables:
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
-# Optional: Development overrides
-VITE_DEV_MODE=true
-VITE_DEBUG_FEDERATION=true
-VITE_DEBUG_VOICE=true
+# Optional: debug.log/warn/info output in development builds
+VITE_DEBUG_LOGGING=true
 ```
 
 ## Project Structure

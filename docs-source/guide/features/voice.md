@@ -124,9 +124,8 @@ Direct message calls use `DMCallSignaling`:
 
 Voice features require:
 
-1. `VITE_ENABLE_VOICE=true` in the frontend `.env`
-2. A LiveKit server (for SFU mode) with `LIVEKIT_*` env vars configured
-3. The federation backend running (for token generation)
+1. A LiveKit server (for SFU mode) with `LIVEKIT_*` env vars configured
+2. The federation backend running (for token generation)
 
 See [Environment Variables](../environment) for all voice-related settings.
 

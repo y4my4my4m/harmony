@@ -3,6 +3,16 @@ import { z } from 'zod';
 
 dotenvConfig();
 
+/**
+ * VAPID_SUBJECT is held as a bare address; `mailto:` is prepended when sending.
+ * Accepts `admin@x` and `mailto:admin@x`; blank reads as unset.
+ */
+export function normalizeVapidSubject(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const bare = value.trim().replace(/^mailto:/i, '').trim();
+  return bare || undefined;
+}
+
 // Environment validation schema
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -58,7 +68,7 @@ const envSchema = z.object({
   // Generate keys with: npx web-push generate-vapid-keys
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
-  VAPID_SUBJECT: z.string().email().optional(), // mailto: email for VAPID
+  VAPID_SUBJECT: z.preprocess(normalizeVapidSubject, z.string().email().optional()),
 
   // Firebase Cloud Messaging for the Android app. The service account JSON from the Firebase
   // console, raw or base64 (FCM_SERVICE_ACCOUNT_JSON), or a path to it

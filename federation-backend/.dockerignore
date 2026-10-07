@@ -1,8 +1,9 @@
 node_modules
 dist
 .env
-.env.local
-.env.production
+.env.*
+*.env
+!.env.example
 *.log
 .DS_Store
 coverage
@@ -14,4 +15,3 @@ Dockerfile
 .dockerignore
 .git
 .gitignore
-

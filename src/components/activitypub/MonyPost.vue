@@ -657,6 +657,7 @@ import { useToast } from 'vue-toastification';
 import router from '@/router';
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { messagePartsToRawText } from '@/utils/messageContentUtils'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 // Props
 interface Props {
@@ -769,7 +770,7 @@ const authorFallback = computed(() => {
     username: 'Loading...',
     display_name: 'Loading...',
     avatar_url: null,
-    domain: import.meta.env.VITE_DOMAIN as string,
+    domain: runtimeConfig.domain as string,
     is_local: props.post.is_local ?? true
   };
 });
@@ -779,7 +780,7 @@ const displayAuthorSafe = computed(() => {
   return author.value || authorFallback.value;
 });
 
-const LOCAL_DOMAIN = import.meta.env.VITE_DOMAIN as string;
+const LOCAL_DOMAIN = runtimeConfig.domain as string;
 
 type HandleSource = { username?: string; domain?: string | null; is_local?: boolean } | null | undefined;
 
@@ -801,7 +802,7 @@ const formatHandle = (author: HandleSource) => {
 
 const instanceDomain = computed(() => {
   const domain = props.post.author?.domain || displayAuthorSafe.value?.domain;
-  return domain || import.meta.env.VITE_DOMAIN as string;
+  return domain || runtimeConfig.domain as string;
 });
 
 // Remote post detection (for fetching reactions)
@@ -965,7 +966,7 @@ const authorInstanceBadge = computed(() => {
 const originalInstanceDomain = computed(() => {
   if (!isPureReblog.value || !props.post.reblog_author) return instanceDomain.value;
   const { domain } = props.post.reblog_author;
-  return domain || import.meta.env.VITE_DOMAIN as string;
+  return domain || runtimeConfig.domain as string;
 });
 
 const displayHandle = computed(() => {
@@ -1188,7 +1189,7 @@ const loadReplyContext = async () => {
             username: author.username,
             display_name: author.display_name || author.username,
             avatar_url: author.avatar_url || '/default_avatar.webp',
-            domain: author.domain || import.meta.env.VITE_DOMAIN as string
+            domain: author.domain || runtimeConfig.domain as string
           },
           created_at: parentPost.created_at,
           visibility: parentPost.visibility

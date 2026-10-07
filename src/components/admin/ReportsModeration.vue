@@ -219,6 +219,7 @@ import {
   snapshotEvidence,
   type ReportAction,
 } from '@/utils/reportModeration'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 const props = defineProps<{
   /** Lists only this server's reports, as a server moderator. */
@@ -442,7 +443,7 @@ const extractStorageUrls = (report: ReportWithDetails): string[] => {
     report.reported_message_preview || report.reported_post_preview || '',
     ...snapshotEvidence(report.content_snapshot).map((item) => item.text),
   ].join(' ')
-  const supabaseHost = import.meta.env.VITE_SUPABASE_URL || ''
+  const supabaseHost = runtimeConfig.supabaseUrl || ''
   const urls = new Set<string>()
   const urlRegex = /https?:\/\/[^\s\]]+/g
   let match
@@ -494,7 +495,7 @@ const navigateToReportUser = (report: ReportWithDetails, which: 'reporter' | 're
     domain = report.reported_user_domain
   }
   if (!username) return
-  const localDomain = import.meta.env.VITE_DOMAIN as string
+  const localDomain = runtimeConfig.domain as string
   const handle = (domain && domain !== localDomain) ? `${username}@${domain}` : username
   router.push({ name: 'UserProfile', params: { handle } })
 }

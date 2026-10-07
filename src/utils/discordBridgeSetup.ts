@@ -3,6 +3,7 @@
  * the copy-paste commands shown in Server Settings → Discord Bridge.
  */
 import { getStoredInstance } from '@/services/instanceConfig'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 // ---------------------------------------------------------------------------
 // Discord invite
@@ -55,10 +56,10 @@ export function httpBaseToWsUrl(baseUrl: string): string {
 export function resolveHarmonyBaseUrl(): string {
   const stored = getStoredInstance()
   if (stored?.origin) return stored.origin.replace(/\/$/, '')
-  const fromEnv = import.meta.env.VITE_APP_URL as string | undefined
+  const fromEnv = runtimeConfig.appUrl
   if (fromEnv) return fromEnv.replace(/\/$/, '')
   if (typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol)) return window.location.origin
-  const domain = import.meta.env.VITE_DOMAIN as string | undefined
+  const domain = runtimeConfig.domain
   if (domain) return `https://${domain}`
   return 'https://your-harmony-instance.example'
 }

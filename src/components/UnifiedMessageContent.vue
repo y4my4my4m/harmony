@@ -606,6 +606,7 @@ import {
   isAiEmojiMessageUrl,
   parseKlipyKind,
 } from '@/utils/klipyAttribution';
+import { runtimeConfig } from '@/services/runtimeConfig';
 
 export default defineComponent({
   name: 'UnifiedMessageContent',
@@ -1267,7 +1268,7 @@ export default defineComponent({
       return mentionDisplayDomain(
         part,
         user ? { domain: user.domain, isLocal: user.isLocal } : null,
-        import.meta.env.VITE_DOMAIN as string,
+        runtimeConfig.domain as string,
       );
     };
 

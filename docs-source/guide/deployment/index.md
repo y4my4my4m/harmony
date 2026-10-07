@@ -1,470 +1,126 @@
 # Production Deployment
 
-This guide covers deploying Harmony to production environments with proper security, scalability, and monitoring.
+Harmony runs in production in one of two ways:
 
-## Deployment Architecture
+- **The self-host stack** (`self-host/`): one command on a blank Linux server installs Caddy, the web app, the federation server and worker, Redis and Supabase, plus LiveKit, the bot gateway and Discord bridge hosting when chosen, all in Docker from prebuilt images. [Self-Hosting](/self-hosting) is the guide.
+- **Your own Supabase and reverse proxy**: the root `docker-compose.prod.yml` or `docker-compose.full.yml`, or the services run on the host, behind nginx. [Docker](./docker) describes the compose files; the requirements below apply to every manual setup.
+
+## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/y4my4my4m/harmony/master/self-host/install.sh | bash
+```
+
+The installer puts Harmony in `/opt/harmony`, checks DNS, asks for the domain, admin email, admin username and password, instance name, voice, bots, Discord bridge hosting, optional SMTP and registration (open, invite or closed), then starts the stack and creates the admin account. From a checkout, `bash self-host/install.sh` does the same.
+
+## Architecture
 
 ```mermaid
-graph TB
-    subgraph "Client"
-        BROWSER[Web Browser]
-        PWA[PWA App]
-    end
-    
-    subgraph "Load Balancer"
-        CLOUDFLARE[Cloudflare]
-        SSL[SSL Termination]
-    end
-    
-    subgraph "Application Server"
-        NGINX[Nginx Proxy]
-        HARMONY[Harmony App]
-        STATIC[Static Files]
-    end
-    
-    subgraph "Backend Services"
-        SUPABASE[Supabase]
-        POSTGRES[(PostgreSQL)]
-        REALTIME[Realtime Engine]
-        EDGE_FUNC[Edge Functions]
-    end
-    
-    subgraph "Storage"
-        OBJECT_STORAGE[Object Storage]
-        MEDIA_CDN[Media CDN]
-    end
-    
-    BROWSER --> CLOUDFLARE
-    PWA --> CLOUDFLARE
-    CLOUDFLARE --> SSL
-    SSL --> NGINX
-    NGINX --> HARMONY
-    NGINX --> STATIC
-    HARMONY --> SUPABASE
-    SUPABASE --> POSTGRES
-    SUPABASE --> REALTIME
-    SUPABASE --> EDGE_FUNC
-    HARMONY --> OBJECT_STORAGE
-    OBJECT_STORAGE --> MEDIA_CDN
-`
-
-## Prerequisites
-
-### Domain & DNS Setup
-
-1. **Domain Registration**
-   - Register your domain (e.g., `yourserver.social`)
-   - Set up DNS records pointing to your server
-
-2. **SSL Certificate**
-   - Use Let's Encrypt for free SSL certificates
-   - Configure automatic renewal
-
-3. **Email Service**
-   - Set up SMTP for user registration emails
-   - Configure SPF/DKIM records
-
-### Server Requirements
-
-**Minimum Specs:**
-- 2 CPU cores
-- 4GB RAM
-- 50GB SSD storage
-- Ubuntu 22.04 LTS or similar
-
-**Recommended Specs:**
-- 4+ CPU cores
-- 8GB+ RAM
-- 100GB+ SSD storage
-- Dedicated server or VPS
-
-## Docker Deployment
-
-### Production Docker Compose
-
-```yaml
-# docker-compose.prod.yml
-version: '3.8'
-
-services:
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      - ./ssl:/etc/nginx/ssl
-      - ./dist:/usr/share/nginx/html
-    depends_on:
-      - harmony
-    restart: unless-stopped
-
-  harmony:
-    build:
-      context: .
-      dockerfile: Dockerfile.prod
-    environment:
-      - NODE_ENV=production
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-      - DOMAIN=${DOMAIN}
-    restart: unless-stopped
-    networks:
-      - harmony-network
-
-  watchtower:
-    image: containrrr/watchtower
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_POLL_INTERVAL=3600
-    restart: unless-stopped
-
-networks:
-  harmony-network:
-    driver: bridge
-`
-
-### Production Dockerfile
-
-```dockerfile
-# Dockerfile.prod
-FROM node:18-alpine AS builder
-
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-
-COPY . .
-RUN npm run build
-
-FROM nginx:alpine
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/nginx.conf
-
-EXPOSE 80 443
-CMD ["nginx", "-g", "daemon off;"]
-`
-
-## Environment Configuration
-
-### Production Environment Variables
-
-```bash
-# .env.production
-NODE_ENV=production
-DOMAIN=yourserver.social
-BASE_URL=https://yourserver.social
-
-# Supabase Configuration
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-
-# Security
-JWT_SECRET=your-very-secure-jwt-secret
-ENCRYPTION_KEY=your-32-character-encryption-key
-
-# Federation
-FEDERATION_ENABLED=true
-ACTIVITYPUB_DOMAIN=yourserver.social
-
-# Media Storage
-STORAGE_BACKEND=supabase
-MAX_FILE_SIZE=50MB
-ALLOWED_FILE_TYPES=image/*,video/*,audio/*
-
-# Email
-SMTP_HOST=smtp.mailgun.org
-SMTP_PORT=587
-SMTP_USER=postmaster@mg.yourserver.social
-SMTP_PASS=your-smtp-password
-FROM_EMAIL=noreply@yourserver.social
-
-# Monitoring
-SENTRY_DSN=your-sentry-dsn
-LOG_LEVEL=info
-`
-
-## Nginx Configuration
-
-### Production Nginx Config
-
-```nginx
-# nginx.conf
-events {
-    worker_connections 1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-
-    # Gzip compression
-    gzip on;
-    gzip_vary on;
-    gzip_min_length 1024;
-    gzip_types
-        text/plain
-        text/css
-        text/xml
-        text/javascript
-        application/javascript
-        application/json
-        application/xml+rss;
-
-    # Rate limiting
-    limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
-    limit_req_zone $binary_remote_addr zone=login:10m rate=1r/s;
-
-    server {
-        listen 80;
-        server_name yourserver.social;
-        return 301 https://$server_name$request_uri;
-    }
-
-    server {
-        listen 443 ssl http2;
-        server_name yourserver.social;
-
-        # SSL Configuration
-        ssl_certificate /etc/nginx/ssl/fullchain.pem;
-        ssl_certificate_key /etc/nginx/ssl/privkey.pem;
-        ssl_protocols TLSv1.2 TLSv1.3;
-        ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512;
-        ssl_prefer_server_ciphers off;
-
-        # Security Headers
-        add_header X-Frame-Options DENY;
-        add_header X-Content-Type-Options nosniff;
-        add_header X-XSS-Protection "1; mode=block";
-        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains";
-
-        # Static files
-        location / {
-            root /usr/share/nginx/html;
-            try_files $uri $uri/ /index.html;
-            
-            # Cache static assets
-            location ~* .(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
-                expires 1y;
-                add_header Cache-Control "public, immutable";
-            }
-        }
-
-        # API proxy
-        location /api/ {
-            limit_req zone=api burst=20 nodelay;
-            proxy_pass http://supabase:3000;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-        }
-
-        # WebSocket proxy for real-time
-        location /realtime/ {
-            proxy_pass http://supabase:3000;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "upgrade";
-            proxy_set_header Host $host;
-        }
-
-        # ActivityPub endpoints
-        location /.well-known/ {
-            limit_req zone=api burst=10 nodelay;
-            proxy_pass http://supabase:3000;
-            proxy_set_header Host $host;
-        }
-    }
-}
-`
-
-## Database Setup
-
-### Supabase Production Setup
-
-1. **Create the database**
-
-   Hosted:
-   ```bash
-   npx supabase projects create harmony-prod --org-id your-org-id
-   npx supabase link --project-ref your-project-ref
-   ```
-
-   Self-hosted needs no link — every command below takes `--db-url`.
-
-2. **Load the schema, then record the migration history**
-
-   A fresh database is built from `init/`, not by replaying migrations:
-   `init/` already contains what they produce, and six of them assume a
-   pre-init state.
-
-   ```bash
-   for f in db_schema/migrations/*.sql; do psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"; done
-   scripts/baseline-migrations.sh --url "$DATABASE_URL"
-   ```
-
-   Afterwards, only migrations added later are applied:
-
-   ```bash
-   supabase db push --dry-run --db-url "$DATABASE_URL"
-   supabase db push          --db-url "$DATABASE_URL"
-   ```
-
-
-3. **Configure Database**
-   ```sql
-   -- Enable required extensions
-   CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-   CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-   
-   -- Set up Row Level Security
-   ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
-   ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-   
-   -- Create indexes for performance
-   CREATE INDEX idx_messages_channel_id ON messages(channel_id);
-   CREATE INDEX idx_messages_created_at ON messages(created_at DESC);
-   ```
-
-4. **Database Backup**
-   ```bash
-   # Set up automated backups
-   npx supabase db dump --file backup.sql
-   ```
-
-## Security Configuration
-
-### SSL/TLS Setup
-
-```bash
-# Install Certbot
-sudo apt install certbot python3-certbot-nginx
-
-# Obtain SSL certificate
-sudo certbot --nginx -d yourserver.social
-
-# Auto-renewal
-sudo systemctl enable certbot.timer
+graph LR
+    Client[Browser / app] -->|443| Caddy
+    Remote[Other instances] -->|443| Caddy
+    Caddy -->|DOMAIN| Web[web]
+    Caddy -->|DOMAIN: federation paths| Server[federation-server :3001]
+    Caddy -->|DOMAIN /bot-gateway/| Bots[bot-gateway :3002]
+    Caddy -->|db.DOMAIN| Kong[supabase-kong :8000]
+    Caddy -->|live.DOMAIN| LiveKit[livekit :7880]
+    Client -->|7881/tcp, 7882/udp| LiveKit
+    Server --> Redis[(redis)]
+    Worker[federation-worker] --> Redis
+    Worker -->|LISTEN federation_jobs| DB[(supabase-db)]
+    Server --> Kong
+    Worker --> Kong
+    Kong --> DB
+    Worker -->|signed HTTP| Remote
 ```
 
-### Firewall Configuration
+The browser talks to Supabase through Kong at `db.DOMAIN` and to everything else at `DOMAIN`. Database triggers queue federation and push jobs; the worker picks them up, builds link previews, sends push notifications and delivers activities to other instances.
 
-```bash
-# Configure UFW firewall
-sudo ufw enable
-sudo ufw allow ssh
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
+## Requirements
 
-# Block common attack patterns
-sudo ufw deny from 192.168.0.0/16
-sudo ufw deny from 10.0.0.0/8
-```
+- A Linux server (x86_64 or arm64) with Docker Engine and Compose 2.24.4 or later; the installer offers to install Docker when it is missing. Node and Python are not needed on the host.
+- DNS records pointing at the server: `DOMAIN` and `db.DOMAIN`, plus `live.DOMAIN` with voice.
+- Inbound ports: 80/tcp and 443/tcp (Let's Encrypt validates through both), 443/udp for HTTP/3, and with voice 7881/tcp and 7882/udp.
+- TLS: Caddy obtains Let's Encrypt certificates when `CADDY_TLS` is a contact email, or uses its own CA when it is `internal` (LAN or NAS without public DNS).
 
-### Security Headers
+## Containers
 
-```nginx
-# Additional security headers
-add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' wss: https:";
-add_header Referrer-Policy "strict-origin-when-cross-origin";
-add_header Permissions-Policy "geolocation=(), microphone=(), camera=()";
-```
+| Container | Profile | Port | Role |
+|---|---|---|---|
+| `harmony-caddy` | | 80, 443, 443/udp (published) | Reverse proxy and TLS |
+| `harmony-web` | | 80 (internal) | The SPA; writes `/config.json` at start |
+| `harmony-federation-server` | | 3001 (internal) | ActivityPub, WebFinger, NodeInfo, push, link previews, GIFs, LiveKit tokens |
+| `harmony-federation-worker` | | none | Queues, delivery, push sending, maintenance |
+| `harmony-redis` | | 6379 (internal) | BullMQ, cache, presence, rate limits, LiveKit state |
+| `harmony-bot-gateway` | `bots` | 3002 (internal) | Bot REST API and WebSocket gateway |
+| `harmony-discord-bridge-host` | `discord` | none | Hosted Discord bridges |
+| `harmony-livekit` | `voice` | 7880 (through Caddy), 7881/tcp, 7882/udp (published) | Voice and video SFU |
 
-## Monitoring & Logging
+Supabase runs as `supabase-db`, `supabase-auth`, `supabase-rest`, `realtime-dev.supabase-realtime`, `supabase-storage`, `supabase-imgproxy`, `supabase-kong`, `supabase-meta`, `supabase-studio`, `supabase-analytics` and `supabase-vector`, from the upstream Supabase Docker stack with `self-host/supabase-overrides.yml` merged over it. None of them publishes a port; Edge Functions and Supavisor stay defined but never start.
 
-### Application Monitoring
+`COMPOSE_PROFILES` in `self-host/.env` lists the enabled profiles.
 
-```typescript
-// Sentry integration
-import * as Sentry from "@sentry/vue"
+## Images
 
-Sentry.init({
-  app,
-  dsn: process.env.SENTRY_DSN,
-  environment: process.env.NODE_ENV,
-  tracesSampleRate: 0.1,
-})
-```
+| Image | Built from |
+|---|---|
+| `ghcr.io/y4my4my4m/harmony-web` | `self-host/web.Dockerfile` |
+| `ghcr.io/y4my4my4m/harmony-federation` | `federation-backend/Dockerfile` (server and worker) |
+| `ghcr.io/y4my4my4m/harmony-bot-gateway` | `bot-gateway/Dockerfile` |
 
-### System Monitoring
+`.github/workflows/images.yml` publishes them for `linux/amd64` and `linux/arm64`. A release tag `vX.Y.Z` produces `X.Y.Z`, `X.Y` and `latest`; master produces `edge` and `sha-<short>`. `HARMONY_VERSION` in `self-host/.env` selects the tag. `HARMONY_BUILD=1 bash configure.sh` adds `self-host/docker-compose.build.yml`, which builds the three images from the checkout instead.
 
-```yaml
-# docker-compose.monitoring.yml
-version: '3.8'
+The images run Node 24; the federation and bot gateway images run as uid 1000 (`node`). The web image carries no instance values: its environment (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `DOMAIN`, ...) becomes `/config.json` at start, so one image serves every instance.
 
-services:
-  prometheus:
-    image: prom/prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+## Operating an instance
 
-  grafana:
-    image: grafana/grafana
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - grafana-storage:/var/lib/grafana
+The operator CLI is `self-host/harmony`, linked as `harmony` when installed as root:
 
-volumes:
-  grafana-storage:
-```
+| Command | Effect |
+|---|---|
+| `harmony install` | Install, or re-run the installation safely |
+| `harmony status` | URL, version, profiles and container states |
+| `harmony logs [service]` | Follow logs; `federation` is the server and the worker |
+| `harmony doctor` | Check the instance |
+| `harmony update [--version X.Y.Z]` | New code and images, a backup, pending migrations, then recreated containers |
+| `harmony backup` | Database, configuration files (every secret) and uploads into `self-host/backups/<time>/` |
+| `harmony restore <backup>` | Restore a backup |
+| `harmony admin create`, `reset-password`, `invite` | Admin account, password reset, invite link |
+| `harmony registration open\|invite\|closed` | Who can sign up |
+| `harmony config` | Change the installation answers and apply them |
 
-### Log Management
+The configuration files (`self-host/.env`, `federation.env`, `bot-gateway.env`, `discord-bridge.env`, `livekit.yaml`, `supabase/.env`) hold the only copy of the instance's secrets.
 
-```bash
-# Configure log rotation
-sudo nano /etc/logrotate.d/harmony
+## Manual setup requirements
 
-/var/log/harmony/*.log {
-    daily
-    missingok
-    rotate 52
-    compress
-    delaycompress
-    notifempty
-    create 0644 harmony harmony
-}
-```
+A setup that does not use the self-host stack reproduces what it configures:
 
-## Performance Optimization
+- **Reverse proxy**: `dev/nginx-harmony.template.conf` routes the app, the federation backend and the bot gateway for host nginx. nginx strips the `/api/federation` prefix, since the backend mounts most routes at the root:
 
-### Caching Strategy
+  ```nginx
+  location /api/federation/ {
+      proxy_pass http://localhost:3001/;
+  }
+  ```
 
-```nginx
-# Nginx caching
-proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=harmony_cache:10m max_size=1g inactive=60m;
+  Every location proxied to the backend sets `X-Real-IP`; the backend keys its rate limits on it (`TRUST_PROXY`).
+- **Supabase API host**: include `dev/nginx-auth-logout.template.conf` in the server block of `db.DOMAIN`. It refuses `POST /auth/v1/logout` without `?scope=local`, which would otherwise sign every device out with only a password. Kong (8000), GoTrue (9999) and Postgres must not be reachable from outside.
+- **Image cache**: a cache in front of `/storage/v1/render/image/public/` pins the `Accept` header, or one client's format is served to all:
 
-location /api/public/ {
-    proxy_cache harmony_cache;
-    proxy_cache_valid 200 5m;
-    proxy_cache_key "$scheme$request_method$host$request_uri";
-    add_header X-Cache-Status $upstream_cache_status;
-}
-```
+  ```nginx
+  proxy_set_header Accept "image/webp,*/*;q=0.8";
+  ```
 
-### Database Optimization
+- **LiveKit**: `dev/nginx-livekit.template.conf` proxies `live.DOMAIN` to signalling on 7880. Media uses 7881/tcp and 7882/udp directly.
+- **Schema and listener role**: `self-host/bootstrap.sh` applies `db_schema/migrations/` to the Postgres container and records them in `supabase_migrations.schema_migrations`; it creates the `harmony_listener` role when `self-host/federation.env` holds `__LISTENER_PW`. [Supabase Setup](./supabase) has the SQL for a database outside Docker.
+- **Instance domain**: `instance_config.domain` holds the public domain. `bootstrap.sh` writes it on a new database when `DOMAIN` is set in `self-host/.env`; otherwise:
 
-```sql
--- Optimize database queries
-ANALYZE;
-
--- Monitor slow queries
-CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
-
--- Set up connection pooling
-ALTER SYSTEM SET max_connections = 100;
-ALTER SYSTEM SET shared_buffers = '256MB';
-```
+  ```sql
+  UPDATE public.instance_config
+     SET config_value = to_jsonb('chat.example.com'::text)
+   WHERE config_key = 'domain';
+  ```
 
 ---
 
-> 📝 **Next Steps**: Learn about [Monitoring](./monitoring.md) for comprehensive monitoring setup.
+> **Note**: This page is protected from auto-generation. Edit the content in `docs-source/guide/deployment/index.md` and run `npm run docs:generate-guide` to update.

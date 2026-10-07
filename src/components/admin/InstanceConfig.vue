@@ -630,6 +630,7 @@ import { trendingService } from '@/services/TrendingService'
 import { supabase } from '@/supabase'
 import { humanizeUploadError, imageSourceError } from '@/utils/uploadValidation'
 import { uploadImageObject } from '@/utils/fileUpload'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 const authStore = useAuthStore()
 const toast = useToast()
@@ -656,7 +657,7 @@ const configTab = ref<'general' | 'federation' | 'branding' | 'oauth' | 'webrtc'
 // Instance configuration
 const instanceConfig = ref({
   name: 'Harmony Instance',
-  domain: import.meta.env.VITE_DOMAIN as string,
+  domain: runtimeConfig.domain as string,
   description: 'A federated social platform',
   termsUrl: '',
   privacyUrl: '',
@@ -738,7 +739,7 @@ const loadInstanceConfig = async () => {
     if (cfg?.instance) {
       instanceConfig.value = {
         name: cfg.instance.name || 'Harmony Instance',
-        domain: cfg.instance.domain || import.meta.env.VITE_DOMAIN as string,
+        domain: cfg.instance.domain || runtimeConfig.domain as string,
         description: cfg.instance.description || 'A federated social platform',
         termsUrl: cfg.instance.termsUrl || '',
         privacyUrl: cfg.instance.privacyUrl || '',

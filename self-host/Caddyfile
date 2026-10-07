@@ -1,57 +1,39 @@
 # =============================================================================
 # Harmony reverse proxy (Caddy)
 # =============================================================================
-# Caddy terminates TLS and routes:
-#   - https://{$DOMAIN}        -> Vue SPA (web) + federation (ActivityPub) paths
-#   - https://{$DB_DOMAIN}     -> Supabase API gateway (Kong)
-#   - https://{$LIVEKIT_DOMAIN}-> LiveKit (only used if the voice profile is up)
+#   https://{$DOMAIN}          app (web) + federation backend + bot gateway
+#   https://{$DB_DOMAIN}       Supabase API gateway (Kong)
+#   https://{$LIVEKIT_DOMAIN}  LiveKit, defined only when ENABLE_VOICE=true
 #
-# TLS is controlled by {$CADDY_TLS}: a contact email enables public Let's
-# Encrypt; the literal "internal" uses Caddy's local CA (LAN/NAS, no public DNS).
+# {$CADDY_TLS} is a contact email (public ACME) or the word "internal" (Caddy's
+# local CA, for LAN/NAS without public DNS).
 #
-# Federation endpoints must be matched BEFORE the SPA fallback so crawlers and
-# remote instances reach the federation backend instead of the Vue index.html.
+# Routing mirrors dev/nginx-harmony.template.conf location by location. nginx
+# matches paths case-sensitively, hence path_regexp below where Caddy's `path`
+# matcher would fold case.
 # =============================================================================
 
-# Reusable federation routing, imported into the main site block.
-# X-Real-IP is the client address the federation backend keys its rate limits on
-# (TRUST_PROXY); Caddy's own address would put every client in one bucket.
-(federation) {
-	# ActivityPub discovery + machine endpoints -> federation backend
-	@fed {
-		path /.well-known/webfinger /.well-known/host-meta /.well-known/host-meta.json /.well-known/nodeinfo
-		path /nodeinfo/2.0 /nodeinfo/2.1
-		path /inbox /outbox /oembed /health
-		path /link-preview /link-preview/*
-		path /api/federation/* /api/livekit/*
-		path /webhooks/*
-		path /servers/*
-		path /users/*/inbox /users/*/outbox /users/*/followers /users/*/following /users/*/featured
-		path /posts/*/likes /posts/*/replies
+# X-Real-IP is the address the federation backend keys its rate limits on
+# (TRUST_PROXY names the trusted peers). {client_ip} is the peer address unless
+# global trusted_proxies is set, then the forwarded client.
+(federation_upstream) {
+	reverse_proxy federation-server:3001 {
+		header_up X-Real-IP {client_ip}
 	}
-	reverse_proxy @fed federation-server:3001 {
-		header_up X-Real-IP {remote_host}
-	}
+}
 
-	# Actor profile + post permalinks: the federation backend performs content
-	# negotiation (ActivityPub JSON for fediverse clients, HTML w/ OpenGraph
-	# tags for browsers and link-preview crawlers), so always proxy these.
-	@apActor {
-		path_regexp ^/users/[^/]+$
-		header_regexp Accept (application/(activity\+json|ld\+json|json))
+# Voice site, imported as voice-{$ENABLE_VOICE}. Without voice no site block
+# exists for the live domain, so Caddy requests no certificate for it.
+(voice-true) {
+	{$LIVEKIT_DOMAIN} {
+		tls {$CADDY_TLS}
+		# WebSocket upgrades pass through; streams have no read timeout.
+		reverse_proxy livekit:7880 {
+			header_up X-Real-IP {client_ip}
+		}
 	}
-	reverse_proxy @apActor federation-server:3001 {
-		header_up X-Real-IP {remote_host}
-	}
-
-	# Browser hitting /users/:name directly -> send them to the in-app profile.
-	@humanActor path_regexp humanActor ^/users/([^/]+)$
-	redir @humanActor /social/profile/{re.humanActor.1} 302
-
-	@post path_regexp ^/posts/[0-9a-f-]+$
-	reverse_proxy @post federation-server:3001 {
-		header_up X-Real-IP {remote_host}
-	}
+}
+(voice-false) {
 }
 
 # --- Main app + federation ---------------------------------------------------
@@ -59,15 +41,138 @@
 	tls {$CADDY_TLS}
 	encode zstd gzip
 
-	import federation
-
-	# Optional bot gateway (only reachable if the bots profile is running).
-	handle_path /bot-gateway/* {
-		reverse_proxy bot-gateway:3002
+	# nginx: client_max_body_size 50M.
+	request_body {
+		max_size 50MB
 	}
 
-	# Everything else -> the SPA container (which handles its own SPA fallback).
-	reverse_proxy web:80
+	# nginx adds these on every response; `?` keeps a value the upstream set.
+	header {
+		?X-Frame-Options SAMEORIGIN
+		?X-Content-Type-Options nosniff
+		?X-XSS-Protection "1; mode=block"
+		?Referrer-Policy strict-origin-when-cross-origin
+	}
+
+	# --- Federation backend ----------------------------------------------------
+
+	# WebFinger, host-meta, NodeInfo discovery. CORS open as in nginx; the
+	# deferred set replaces rather than duplicates a value from the backend.
+	@fedDiscovery path_regexp ^/\.well-known/(webfinger|host-meta|host-meta\.json|nodeinfo)$
+	handle @fedDiscovery {
+		header Access-Control-Allow-Origin "*" {
+			defer
+		}
+		import federation_upstream
+	}
+
+	@fedNodeinfo path_regexp ^/nodeinfo/2\.(0|1)$
+	handle @fedNodeinfo {
+		header Access-Control-Allow-Origin "*" {
+			defer
+		}
+		import federation_upstream
+	}
+
+	# Shared inbox/outbox, oEmbed, actor collections, Group actors, post
+	# collections: always ActivityPub.
+	@fedExact path_regexp ^/(inbox|outbox|oembed)$
+	handle @fedExact {
+		import federation_upstream
+	}
+	@fedActorCollections path_regexp ^/users/[^/]+/(inbox|outbox|followers|following|featured)$
+	handle @fedActorCollections {
+		import federation_upstream
+	}
+	@fedServers path_regexp ^/servers/
+	handle @fedServers {
+		import federation_upstream
+	}
+	@fedPostCollections path_regexp ^/posts/[0-9a-f-]+/(likes|replies)
+	handle @fedPostCollections {
+		import federation_upstream
+	}
+
+	# Post permalinks: the backend negotiates (AP Note JSON for fediverse
+	# clients, HTML with OpenGraph tags for browsers and crawlers).
+	@fedPost path_regexp ^/posts/[0-9a-f-]+$
+	handle @fedPost {
+		import federation_upstream
+	}
+
+	# Actor profile: ActivityPub clients get the actor, browsers the in-app
+	# profile. nginx tests Accept with ~* (case-insensitive).
+	@fedActor {
+		path_regexp ^/users/[^/]+$
+		header_regexp Accept (?i)application/(activity\+json|ld\+json|json)
+	}
+	handle @fedActor {
+		import federation_upstream
+	}
+	@humanActor {
+		path_regexp humanActor ^/users/([^/]+)$
+		not header_regexp Accept (?i)application/(activity\+json|ld\+json|json)
+	}
+	handle @humanActor {
+		# `*`: a first argument starting with / would parse as a path matcher.
+		redir * /social/profile/{re.humanActor.1} 302
+	}
+
+	# Prefix locations without a trailing slash in nginx: /health matches
+	# /health/maintenance, /link-preview matches /link-preview/enrich-message.
+	@fedPrefix path_regexp ^/(health|link-preview)
+	handle @fedPrefix {
+		import federation_upstream
+	}
+
+	# LiveKit token API: mounted at /api/livekit on the backend, no rewrite.
+	@fedLivekit path_regexp ^/api/livekit/
+	handle @fedLivekit {
+		import federation_upstream
+	}
+
+	# Federation API: the backend mounts most routes at the root only
+	# (/lookup-user, /gifs/*, /invites/*, /instances/probe, /health/*, ...).
+	# nginx: `location /api/federation/ { proxy_pass http://localhost:3001/; }`.
+	@fedApi path_regexp ^/api/federation/
+	handle @fedApi {
+		uri strip_prefix /api/federation
+		import federation_upstream
+	}
+
+	# Donation webhooks (Ko-fi posts form-encoded bodies). nginx caps them at 64k.
+	@fedWebhooks path_regexp ^/webhooks/
+	handle @fedWebhooks {
+		request_body {
+			max_size 64KB
+		}
+		import federation_upstream
+	}
+
+	# --- Bot gateway (bots profile) --------------------------------------------
+	# /bot-gateway/gateway is the WebSocket; the rest is the REST API. Both map
+	# to the gateway's root, as nginx's `proxy_pass http://localhost:3002/;`.
+	@botGateway path_regexp ^/bot-gateway/
+	handle @botGateway {
+		uri strip_prefix /bot-gateway
+		reverse_proxy bot-gateway:3002 {
+			header_up X-Real-IP {client_ip}
+		}
+	}
+
+	# nginx answers a proxied prefix location requested without its trailing
+	# slash with a 301 to the slashed form, query kept.
+	@slashless path_regexp ^/(api/livekit|api/federation|webhooks|bot-gateway)$
+	handle @slashless {
+		redir * {path}/{?query} 301
+	}
+
+	# --- Frontend ----------------------------------------------------------------
+	# The web container serves the SPA with its own index.html fallback and
+	# cache headers (self-host/web-nginx.conf).
+	handle {
+		reverse_proxy web:80
+	}
 }
 
 # --- Supabase API gateway ----------------------------------------------------
@@ -92,13 +197,15 @@
 		respond `{"code":403,"error_code":"logout_scope_forbidden","msg":"Only this device can be signed out here. Sign out other devices from Settings, Sessions."}` 403
 	}
 
+	# imgproxy answers a public render in WebP when Accept names image/webp and
+	# in the source format otherwise, under one ETag and without Vary. A cache
+	# in front (Cloudflare) would serve one client's format to all; the pinned
+	# Accept makes every render WebP. Every Harmony client decodes WebP. Same
+	# rule as the nginx Accept pin in docs/self-hosting.md.
+	@publicRender path /storage/v1/render/image/public/*
+	request_header @publicRender Accept "image/webp,*/*;q=0.8"
+
 	reverse_proxy supabase-kong:8000
 }
 
-# --- LiveKit (voice/video) ---------------------------------------------------
-# Harmless to keep defined; only proxies successfully when the voice profile
-# is running. Clients connect over WebSocket, which Caddy upgrades transparently.
-{$LIVEKIT_DOMAIN} {
-	tls {$CADDY_TLS}
-	reverse_proxy livekit:7880
-}
+import voice-{$ENABLE_VOICE:false}

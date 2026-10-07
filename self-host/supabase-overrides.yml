@@ -1,0 +1,48 @@
+# Harmony's changes to the upstream Supabase stack in ./supabase, merged over its
+# docker-compose.yml by the `include:` in docker-compose.yml. The upstream files
+# stay unmodified, so configure.sh --refresh-supabase replaces them wholesale.
+#
+# Requires Docker Compose 2.24.4 or later (include with a file list, !reset).
+
+services:
+  # Edge runtime: federation runs as its own Node service.
+  # Supavisor: the federation listener connects to db directly as
+  # harmony_listener; supavisor would also publish Postgres on the host.
+  # A profile no command enables keeps both defined and never started.
+  functions:
+    profiles: [supabase-unused]
+  supavisor:
+    profiles: [supabase-unused]
+
+  # Caddy reaches Kong as supabase-kong:8000 on the shared network; Logflare
+  # has no public role. Only Caddy publishes ports.
+  kong:
+    ports: !reset []
+  analytics:
+    ports: !reset []
+
+  # Animated emoji and large images: frames count toward the source resolution
+  # limit (megapixels).
+  imgproxy:
+    environment:
+      IMGPROXY_MAX_SRC_RESOLUTION: 50
+      IMGPROXY_MAX_ANIMATION_FRAMES: 120
+
+  # Sign-in with Google, GitHub or Twitch: set <PROVIDER>_ENABLED=true,
+  # <PROVIDER>_CLIENT_ID and <PROVIDER>_SECRET in supabase/.env. The provider's
+  # callback URL is API_EXTERNAL_URL/auth/v1/callback (https://db.DOMAIN/...).
+  # Admin, Instance, OAuth chooses which buttons the sign-in page shows.
+  auth:
+    environment:
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOOGLE_ENABLED:-false}
+      GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOOGLE_SECRET:-}
+      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: ${API_EXTERNAL_URL}/auth/v1/callback
+      GOTRUE_EXTERNAL_GITHUB_ENABLED: ${GITHUB_ENABLED:-false}
+      GOTRUE_EXTERNAL_GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_GITHUB_SECRET: ${GITHUB_SECRET:-}
+      GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI: ${API_EXTERNAL_URL}/auth/v1/callback
+      GOTRUE_EXTERNAL_TWITCH_ENABLED: ${TWITCH_ENABLED:-false}
+      GOTRUE_EXTERNAL_TWITCH_CLIENT_ID: ${TWITCH_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_TWITCH_SECRET: ${TWITCH_SECRET:-}
+      GOTRUE_EXTERNAL_TWITCH_REDIRECT_URI: ${API_EXTERNAL_URL}/auth/v1/callback

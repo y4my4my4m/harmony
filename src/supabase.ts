@@ -1,22 +1,23 @@
 // src/supabase.ts
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { getStoredInstance, isTauriRuntime } from '@/services/instanceConfig';
+import { runtimeConfig } from '@/services/runtimeConfig';
 
-// native clients pick their instance at runtime; web builds use build-time env
+// native clients pick their instance at runtime; web builds read /config.json, else build-time env
 const storedInstance = getStoredInstance();
 const supabaseUrl: string =
   storedInstance?.supabaseUrl ||
-  import.meta.env.VITE_SUPABASE_URL ||
+  runtimeConfig.supabaseUrl ||
   // placeholder before instance selection; picker gates the UI so it's never used
   'https://instance-not-selected.invalid';
 const supabaseAnonKey: string =
   storedInstance?.supabaseAnonKey ||
-  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  runtimeConfig.supabaseAnonKey ||
   'instance-not-selected';
 
 if (supabaseUrl === 'https://instance-not-selected.invalid' && !isTauriRuntime()) {
   throw new Error(
-    'Missing Supabase configuration. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.'
+    'Missing Supabase configuration. Serve /config.json with supabaseUrl and supabaseAnonKey, or set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY at build time.'
   );
 }
 

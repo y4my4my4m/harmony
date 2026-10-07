@@ -23,6 +23,7 @@ import type {
   PostContextOptions,
   MessagePart
 } from '@/types';
+import { runtimeConfig } from '@/services/runtimeConfig';
 
 // Module-level guards make initialize() idempotent. Callers include auth
 // session-restore, SIGNED_IN, INITIAL_SESSION, login, 2FA and route guards,
@@ -191,7 +192,7 @@ export const useActivityPubStore = defineStore('activitypub', {
     
       knownInstances: [],
     blockedInstances: new Set(),
-    instanceDomain: import.meta.env.VITE_DOMAIN || window.location.hostname,
+    instanceDomain: runtimeConfig.domain || window.location.hostname,
     instanceUserCount: 0,
     instancePostCount: 0,
     instanceStatsFetchedAt: null,

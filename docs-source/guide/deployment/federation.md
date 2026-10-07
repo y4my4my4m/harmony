@@ -1,144 +1,106 @@
 # Federation Deployment
 
-The federation backend enables ActivityPub interoperability with Mastodon, Pleroma, Misskey, and other fediverse platforms.
+The federation backend (`federation-backend/`) speaks ActivityPub with Mastodon, Misskey, Pleroma and other Harmony instances, and serves Harmony's own server-side API: push subscriptions, link previews, the GIF proxy, LiveKit tokens, presence and typing, and attachment URLs for other instances. The self-host stack runs and routes it; this page covers what that setup provides.
 
 ## Architecture
 
 ```mermaid
 graph LR
-    DB[(PostgreSQL)] -->|trigger + LISTEN/NOTIFY| Bridge[NotificationListener]
-    Bridge --> Queue[BullMQ Queue<br/>Redis-backed]
-    Queue --> FedBackend[Federation Backend]
-    FedBackend -->|HTTP POST| Remote[Remote Instances]
-    Remote -->|HTTP POST| Nginx
-    Nginx --> FedBackend
-    FedBackend --> DB
+    DB[(PostgreSQL)] -->|pg_notify federation_jobs| Listener[NotificationListener]
+    Listener --> Queue[BullMQ<br/>Redis]
+    Queue --> Worker[federation-worker]
+    Worker -->|signed POST| Remote[Remote instances]
+    Remote -->|POST /inbox| Proxy[Caddy or nginx]
+    Proxy --> Server[federation-server]
+    Server --> DB
+    Worker --> DB
 ```
 
-Local operations (posts, follows, reactions) insert into the database. PostgreSQL triggers call `queue_federation_job()` to enqueue federation activities. The federation backend consumes the queue and delivers activities to remote instances via signed HTTP requests.
+Local actions write to the database. Triggers call `queue_federation_job()`, which publishes the job on the `federation_jobs` channel with `pg_notify`. The worker's `NotificationListener` holds a `LISTEN` connection and turns each notification into a BullMQ job in Redis; `BullMQManager` runs the handlers, retrying a failed job up to five times with exponential backoff. Deliveries carry HTTP Signatures. A 60 s sweep re-queues work whose notification was missed, and a 30 s retry processes `federation_delivery_queue`.
 
-## Setup
+Inbound activities reach the server's inboxes, which verify their HTTP Signatures.
 
-### 1. Configure Environment
+## Process modes
+
+One image (`ghcr.io/y4my4my4m/harmony-federation`) serves every role through `FEDERATION_MODE`:
+
+| Mode | Runs |
+|---|---|
+| `server` | HTTP on `PORT` (3001): inboxes, actors, WebFinger, NodeInfo, the API |
+| `worker` | Queues, the `LISTEN` bridge, delivery, push sending, voice reconciliation; no HTTP |
+| `unified` | Both in one process (the default, and `npm run dev`) |
+
+Production runs a server and a worker apart (`harmony-federation-server`, `harmony-federation-worker`), so a heavy delivery batch never delays inbound requests.
+
+## Configuration
+
+Required: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `INSTANCE_DOMAIN`. For the queue:
+
+| Variable | Meaning |
+|---|---|
+| `REDIS_URL` | Redis for BullMQ, e.g. `redis://:<password>@redis:6379` |
+| `USE_BULLMQ_QUEUE` | `true` (default). `false` processes events through a Supabase Realtime subscription: no job persistence, and events raised while the worker is down are missed |
+| `FEDERATION_LISTENER_URL` | Session-mode Postgres URL with the `harmony_listener` role, for instant pickup. Unset, the 60 s sweep picks jobs up |
+| `REQUIRE_VALID_SIGNATURES` | `true` (default); `false` is refused with `NODE_ENV=production` |
+| `TRUST_PROXY` | Peers trusted to set `X-Real-IP`, on which rate limits key |
+
+[Environment Variables](../environment) lists the rest.
+
+## Routing
+
+The backend expects these paths on the public domain. `self-host/Caddyfile` and `dev/nginx-harmony.template.conf` route them identically:
+
+| Path | Upstream path |
+|---|---|
+| `/.well-known/webfinger`, `/.well-known/host-meta`, `/.well-known/host-meta.json`, `/.well-known/nodeinfo` | unchanged |
+| `/nodeinfo/2.0`, `/nodeinfo/2.1` | unchanged |
+| `/inbox` (shared inbox), `/oembed` | unchanged |
+| `/users/{name}/inbox`, `outbox`, `followers`, `following`, `featured` | unchanged |
+| `/users/{name}` with `Accept: application/activity+json`, `ld+json` or `json` | unchanged; browsers are redirected to `/social/profile/{name}` |
+| `/servers/*` | unchanged (servers as ActivityPub Groups) |
+| `/posts/{id}`, `/posts/{id}/likes`, `/posts/{id}/replies` | unchanged; `/posts/{id}` answers browsers with an HTML page |
+| `/health*`, `/link-preview*` | unchanged |
+| `/api/livekit/*` | unchanged |
+| `/webhooks/*` | unchanged (Ko-fi) |
+| `/api/federation/*` | prefix stripped: `/api/federation/push/vapid-key` reaches `/push/vapid-key` |
+
+The backend mounts most routes at the root only, so nginx strips the prefix with a trailing slash on both sides:
+
+```nginx
+location /api/federation/ {
+    proxy_pass http://localhost:3001/;
+}
+```
+
+Every proxied location sets `X-Real-IP` to the client address, and passes the `Signature`, `Date`, `Digest` and `Accept` headers through unchanged.
+
+## Domain
+
+- Federation needs a public domain with HTTPS on port 443.
+- `INSTANCE_DOMAIN` and `instance_config.domain` hold the same domain.
+- Actor ids embed the domain. Changing it later leaves every remote copy of the instance's accounts on the old one, so the domain is chosen once.
+
+## Verifying
 
 ```bash
-cd federation-backend
-cp env.template .env
+curl https://chat.example.com/api/federation/health
+curl "https://chat.example.com/.well-known/webfinger?resource=acct:alice@chat.example.com"
+curl https://chat.example.com/.well-known/nodeinfo
+curl -H 'Accept: application/activity+json' https://chat.example.com/users/alice
 ```
 
-Required variables:
-
-| Variable | Description |
-|----------|-------------|
-| `SUPABASE_URL` | Supabase API URL |
-| `SUPABASE_ANON_KEY` | Supabase anonymous key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role key (admin access) |
-| `INSTANCE_DOMAIN` | Your domain (e.g., `har.mony.lol`) |
-| `CORS_ORIGIN` | Frontend origin |
-
-For reliable delivery (recommended):
-
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | Direct PostgreSQL connection string (for `LISTEN/NOTIFY` bridge) |
-| `REDIS_URL` | Redis connection string (BullMQ job persistence) |
-| `USE_BULLMQ_QUEUE` | Set to `true` (default). Backward compat: `USE_PGBOSS_QUEUE` is accepted as an alias |
-
-### 2. Nginx Configuration
-
-The nginx config must proxy ActivityPub endpoints to the federation backend (port 3001). Key routes:
-
-| Path | Purpose |
-|------|---------|
-| `/.well-known/webfinger` | User discovery |
-| `/.well-known/nodeinfo` | Instance metadata |
-| `/nodeinfo/2.0`, `/nodeinfo/2.1` | NodeInfo details |
-| `/users/{handle}` | Actor profiles (content-negotiated) |
-| `/users/{handle}/inbox` | User inbox |
-| `/users/{handle}/outbox` | User outbox |
-| `/users/{handle}/followers` | Followers collection |
-| `/users/{handle}/following` | Following collection |
-| `/servers/{id}/*` | Server (Group) federation |
-| `/inbox` | Shared inbox |
-| `/outbox` | Shared outbox |
-
-User profile URLs (`/users/{handle}`) use content negotiation:
-- ActivityPub clients (Accept: `application/activity+json`) get JSON from the federation backend
-- Browsers get redirected to `/social/profile/{handle}` on the frontend
-
-All proxied requests must forward the `Signature`, `Date`, and `Digest` headers for HTTP signature verification.
-
-See `dev/nginx-harmony.template.conf` for the complete app configuration and `dev/nginx-docs.template.conf` for the documentation site.
-
-### 3. Domain Requirements
-
-Federation requires:
-
-- A publicly accessible domain with HTTPS
-- DNS pointing to your server
-- Port 443 open for inbound federation traffic
-- SSL certificate (Let's Encrypt recommended)
-
-### 4. Start the Backend
-
-**Development:**
-
-```bash
-cd federation-backend
-npm install
-npm run dev
-```
-
-**Docker:**
-
-```bash
-docker compose -f docker-compose.prod.yml up -d
-```
-
-### 5. Verify
-
-Check the health endpoint:
-
-```bash
-curl https://your-domain.com/api/federation/health
-```
-
-Test WebFinger discovery:
-
-```bash
-curl "https://your-domain.com/.well-known/webfinger?resource=acct:username@your-domain.com"
-```
-
-## Job Queue (BullMQ)
-
-When `USE_BULLMQ_QUEUE=true` (the default), federation activities are processed through a Redis-backed BullMQ job queue:
-
-- Database triggers call `queue_federation_job()`, which uses `pg_notify` to publish a `federation_job` channel event
-- The federation backend's `NotificationListener` subscribes via PostgreSQL `LISTEN/NOTIFY` and bridges each event into a typed BullMQ job
-- `BullMQManager` consumes jobs with retries, exponential backoff, and persistence in Redis
-- The Bull Board dashboard (`bull-board/`) provides a web UI for queue monitoring
-
-> **Note**: pg-boss was the legacy backend and is no longer used. The `USE_PGBOSS_QUEUE` env var is still accepted as a backward-compatibility alias for `USE_BULLMQ_QUEUE`, but the pgboss schema is dropped on fresh deployments.
-
-Without BullMQ (`USE_BULLMQ_QUEUE=false`), federation events are processed synchronously through `DatabaseListener` using Supabase Realtime CDC - simpler but less reliable, with no retries or job persistence.
-
-## Federation Features
-
-- **WebFinger**: Standard user discovery protocol
-- **NodeInfo**: Instance metadata for the fediverse
-- **HTTP Signatures**: Signed requests for authenticity
-- **Actor endpoints**: User profiles, inboxes, outboxes
-- **Group federation**: Servers represented as ActivityPub Groups
-- **Content types**: Posts, replies, favorites, reblogs, follows, blocks
+`/health` answers `"status": "healthy"` with the database, Redis and queue state. From another fediverse server, a search for `@alice@chat.example.com` finds the account.
 
 ## Security
 
-| Setting | Description |
-|---------|-------------|
-| `REQUIRE_VALID_SIGNATURES` | Enforce HTTP signature verification on incoming activities |
-| Instance blocking | Admin panel can block specific instances |
-| Instance trust | Admin-only flag (`federated_instances.is_trusted`). Currently a UI badge + filter for trending/instance lists; delivery-priority gating in the federation backend is on the roadmap, not yet shipped. |
-| Rate limiting | `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX_REQUESTS`, keyed on the `X-Real-IP` a `TRUST_PROXY` peer sets |
+| Control | Where |
+|---|---|
+| HTTP Signature verification on inbound activities | `REQUIRE_VALID_SIGNATURES` |
+| Instance blocks | Admin panel, Federation; cached by the backend |
+| Domain moderation (`limit`) | Admin panel, Federation |
+| Instance trust (`federated_instances.is_trusted`) | Admin panel; a badge and filter in instance lists and trending |
+| Rate limits | `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS`, keyed on `X-Real-IP` from a `TRUST_PROXY` peer |
+| Outbound fetches | Deliveries, actor and WebFinger lookups, link previews, instance probes and push endpoints go through the SSRF guard (`federation-backend/src/utils/ssrfProtection.ts`) |
 
 ---
 

@@ -3,6 +3,7 @@ import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { setBaseFavicon } from '@/utils/faviconBadge'
 import { DEFAULT_POST_REACTIONS_PER_USER } from '@/utils/reactionLimits'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 interface InstanceSettings {
   // Instance identity
@@ -72,14 +73,14 @@ interface InstanceSettingsState {
 }
 
 const DEFAULT_SETTINGS: InstanceSettings = {
-  domain: import.meta.env.VITE_INSTANCE_DOMAIN || window.location.hostname,
-  instanceName: import.meta.env.VITE_INSTANCE_NAME || 'Harmony',
+  domain: runtimeConfig.instanceDomain || window.location.hostname,
+  instanceName: runtimeConfig.instanceName || 'Harmony',
   instanceDescription: '',
   instanceIcon: '',
   instanceRules: [],
   welcomeServerId: null,
-  termsUrl: import.meta.env.VITE_TERMS_URL || '',
-  privacyUrl: import.meta.env.VITE_PRIVACY_URL || '',
+  termsUrl: runtimeConfig.termsUrl || '',
+  privacyUrl: runtimeConfig.privacyUrl || '',
   openRegistration: true,
   approvalRequired: false,
   federationEnabled: true,

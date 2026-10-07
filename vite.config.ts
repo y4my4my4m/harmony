@@ -1,5 +1,5 @@
 import { fileURLToPath, URL } from 'node:url'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, type DepOptimizationOptions, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { selectivePreload } from './vite-plugin-selective-preload'
 
@@ -47,6 +47,25 @@ function stripHtmlComments(): Plugin {
         return html.replace(/<!--[\s\S]*?-->/g, '')
       }
     }
+  }
+}
+
+type EsbuildPlugin = NonNullable<NonNullable<DepOptimizationOptions['esbuildOptions']>['plugins']>[number]
+
+/**
+ * Dependency scan: leaves require('@/...') calls unresolved. esbuild refuses
+ * to follow a require() into a module graph holding a top-level await
+ * (src/services/runtimeConfig.ts) and aborts the scan. Browsers have no
+ * require, so those calls throw at runtime in dev and production alike.
+ */
+function skipAppRequires(): EsbuildPlugin {
+  return {
+    name: 'skip-app-requires',
+    setup(build) {
+      build.onResolve({ filter: /^@\// }, (args) =>
+        args.kind === 'require-call' ? { path: args.path, external: true } : undefined
+      )
+    },
   }
 }
 
@@ -113,6 +132,9 @@ export default defineConfig({
     __INTLIFY_DROP_MESSAGE_COMPILER__: false,
   },
   optimizeDeps: {
+    esbuildOptions: {
+      plugins: [skipAppRequires()],
+    },
     include: [
       'simple-peer',
       '@privacyresearch/libsignal-protocol-typescript',  // Browser-compatible Signal Protocol

@@ -7,6 +7,68 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Added
+- **One-command self-hosting.** `curl -fsSL https://raw.githubusercontent.com/y4my4my4m/harmony/master/self-host/install.sh | bash`
+  installs an instance on a blank Linux server: it checks the host (offering
+  Docker and a swap file), asks a few questions, checks DNS, starts the
+  stack, loads the database and creates the admin account. Re-running it is
+  safe.
+- **`harmony` command** for operators: `update`, `doctor`, `backup`,
+  `restore`, `status`, `logs`, `admin create | reset-password | invite`,
+  `registration open | invite | closed`, `config`.
+- **`harmony doctor`** checks DNS, certificates, containers, migrations, the
+  instance domain, federation through the public URL, the bot gateway, voice,
+  push, email, disk, memory, backup age and versions, each with a fix.
+- **Discord bridge hosting** on self-hosted instances: the `discord` profile
+  runs communities' bridges once hosting is enabled in Admin, Instance.
+- Prebuilt images on GHCR: `harmony-web`, `harmony-federation` and
+  `harmony-bot-gateway` for amd64 and arm64.
+
+### Notes for self-hosters
+- `self-host/` runs Harmony's services from `ghcr.io/y4my4my4m/harmony-*`
+  images instead of building them: `HARMONY_VERSION` in `.env` follows the
+  checkout (`X.Y.Z` on a release tag, `edge` on master). `HARMONY_BUILD=1
+  bash configure.sh` keeps building locally (`docker-compose.build.yml`).
+- The web image reads its configuration at start (`/config.json` from the
+  container environment): one image serves every instance, and a domain or
+  key change needs `docker compose up -d`, no rebuild. `VITE_SUPABASE_URL`
+  and `VITE_SUPABASE_ANON_KEY` leave `.env`; `SUPABASE_ANON_KEY` replaces them.
+- Caddy strips `/api/federation` before the federation backend, as nginx
+  does: user lookups, GIFs, server invites, instance probes and federation
+  key generation failed on Caddy installs. Caddy also pins `Accept` on public
+  image renders, and `harmony update` restarts Caddy when the Caddyfile
+  changes.
+- `update.sh` (behind `harmony update`) merges new configuration keys, pulls
+  images, backs up the database, roles and configuration into
+  `self-host/backups/` before migrating, then recreates containers. An install
+  on a release tag updates to the newest release.
+- A new install keeps sign-up disabled (`DISABLE_SIGNUP=true` in
+  `supabase/.env`) until the installer has created the admin account, then
+  applies `REGISTRATION` from `.env`. Existing installs keep their sign-up
+  setting; `harmony registration` changes it.
+- Docker Compose 2.24.4 or later is required. Python is no longer needed:
+  `supabase-overrides.yml` replaces `trim-supabase.py`.
+- The Supabase stack is pinned (`SUPABASE_REF_DEFAULT` in `configure.sh`,
+  Postgres `15.8.1.060`). Installs made from master keep their current
+  `self-host/supabase/` until `bash configure.sh --refresh-supabase`; take a
+  backup first.
+- `configure.sh` generates the Web Push (VAPID) keys, LiveKit keys and the
+  internal API secret when absent, and accepts `admin@example.com` or
+  `mailto:admin@example.com` as `VAPID_SUBJECT`.
+- `bootstrap.sh` removes `app.settings.jwt_secret` and `app.settings.jwt_exp`
+  from the database settings, where upstream Supabase's init stores the JWT
+  secret for any session to read; nothing reads them there. It keeps them, with
+  a warning, when a function body refers to them. `update.sh` runs it.
+- `harmony doctor` checks for the traces of a known attack on exposed
+  Postgres (unexpected event triggers, superusers and login roles, functions
+  that manage roles or reach server files) and for database, Kong, Logflare
+  and Redis ports published or reachable on the public address.
+- Google, GitHub and Twitch sign-in are configured with
+  `<PROVIDER>_ENABLED`, `<PROVIDER>_CLIENT_ID` and `<PROVIDER>_SECRET` in
+  `supabase/.env`.
+- Images run Node 24; the federation and bot gateway images run as uid 1000
+  (`node`): a volume mounted at the backend's `logs/` must be writable by it.
+
 ## [1.6.7] - 2026-10-02
 
 ### Added
