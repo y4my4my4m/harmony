@@ -17,6 +17,7 @@ import { actorOwnsKeys, fetchAuthoritativeDocument, readApDocument, sameOrigin }
 import { noteDocumentSoftware } from './instanceSoftware.js';
 import { confirmActorAcct, parseAcct, resolveActorUrl, sameAcct, withCanonicalAcct, type WebFingerCache } from './webfingerClient.js';
 import { actorTombstone, deletedActorByProfile, deletedActorByUsername } from './deletedActors.js';
+import { parseFocalPoint } from '../utils/focalPoint.js';
 
 const router = Router();
 
@@ -3000,6 +3001,7 @@ function extractMediaAttachments(attachments: any): any[] {
     width: att.width || null,
     height: att.height || null,
     blurhash: att.blurhash || null,
+    focalPoint: parseFocalPoint(att.focalPoint),
   })).filter((att: any) => att.url);
 }
 

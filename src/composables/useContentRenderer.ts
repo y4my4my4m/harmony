@@ -17,6 +17,7 @@ import { escapeHtml, sanitizeFormattedHtml, sanitizeUrl } from '@/utils/sanitize
 import { findEmojiByName as resolveEmojiByShortcode } from '@/services/emojiShortcodeResolver';
 import { stripTrackingParameters, isUrlTrackingStrippingEnabled } from '@/utils/urlTrackerStripper';
 import { runtimeConfig } from '@/services/runtimeConfig';
+import { attachmentObjectPosition } from '@/utils/focalPoint';
 
 export interface ContentRenderOptions {
   mode?: 'display' | 'preview' | 'edit';
@@ -275,28 +276,38 @@ export function useContentRenderer(
     return false;
   };
 
-  const renderMediaItemHtml = (p: MessagePart): string => {
+  /**
+   * Focal point as an inline object-position for `object-fit: cover` grid
+   * cells; the value is two numeric percentages.
+   */
+  const coverPositionAttr = (p: MessagePart): string => {
+    const position = attachmentObjectPosition(p);
+    return position ? ` style="object-position: ${position}"` : '';
+  };
+
+  const renderMediaItemHtml = (p: MessagePart, cover = false): string => {
     const partType = String((p as any).type || '').toLowerCase();
+    const position = cover ? coverPositionAttr(p) : '';
     if (partType === 'file') {
       const fileName = escapeHtml((p as any).fileName || (p as any).filename || 'file');
       const safeUrl = escapeHtml(sanitizeUrl((p as any).url || ''));
       const ft = getPartFileType(p);
       if (ft === 'image') {
-        return `<div class="media-gallery__item"><img src="${safeUrl}" alt="${fileName}" class="content-image" loading="lazy" draggable="false" /></div>`;
+        return `<div class="media-gallery__item"><img src="${safeUrl}" alt="${fileName}" class="content-image" loading="lazy" draggable="false"${position} /></div>`;
       }
       if (ft === 'video') {
-        return `<div class="media-gallery__item"><video src="${safeUrl}" controls class="content-video"></video></div>`;
+        return `<div class="media-gallery__item"><video src="${safeUrl}" controls class="content-video"${position}></video></div>`;
       }
     }
     // Some formats use type: 'image' or type: 'video' directly
     if (partType === 'image' || partType === 'gifv') {
       const safeUrl = escapeHtml(sanitizeUrl((p as any).url || ''));
       const alt = escapeHtml((p as any).description || (p as any).alt || 'Image');
-      return `<div class="media-gallery__item"><img src="${safeUrl}" alt="${alt}" class="content-image" loading="lazy" draggable="false" /></div>`;
+      return `<div class="media-gallery__item"><img src="${safeUrl}" alt="${alt}" class="content-image" loading="lazy" draggable="false"${position} /></div>`;
     }
     if (partType === 'video') {
       const safeUrl = escapeHtml(sanitizeUrl((p as any).url || ''));
-      return `<div class="media-gallery__item"><video src="${safeUrl}" controls class="content-video"></video></div>`;
+      return `<div class="media-gallery__item"><video src="${safeUrl}" controls class="content-video"${position}></video></div>`;
     }
     if (partType === 'url') {
       const url = (p as any).url || '';
@@ -605,7 +616,8 @@ export function useContentRenderer(
         }
         const count = Math.min(mediaGroup.length, 4);
         const gridClass = `media-gallery media-gallery-count-${count}`;
-        const itemsHtml = mediaGroup.map(p => renderMediaItemHtml(p)).join('');
+        // A single item is object-fit: contain; grids of two or more crop with cover.
+        const itemsHtml = mediaGroup.map(p => renderMediaItemHtml(p, mediaGroup.length > 1)).join('');
         chunks.push(`<div class="${gridClass}">${itemsHtml}</div>`);
       } else {
         chunks.push(renderPart(part));

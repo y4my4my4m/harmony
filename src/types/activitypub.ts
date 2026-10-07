@@ -75,6 +75,8 @@ export interface MediaAttachment {
     size?: string;
     aspect?: number;
     duration?: number;
+    /** Mastodon meta.focus: x right-positive, y up-positive, both in [-1, 1]. */
+    focus?: { x: number; y: number };
   };
   description?: string;
   blurhash?: string;

@@ -3573,5 +3573,47 @@
       "saveFailed": "Die Hosting-Einstellungen für Bridges konnten nicht gespeichert werden",
       "loadFailed": "Die Hosting-Einstellungen für Bridges konnten nicht geladen werden."
     }
+  },
+  "imageEditor": {
+    "title": {
+      "avatar": "Profilbild zuschneiden",
+      "profile_banner": "Profilbanner zuschneiden",
+      "server_icon": "Server-Icon zuschneiden",
+      "server_banner": "Serverbanner zuschneiden",
+      "group_icon": "Gruppen-Icon zuschneiden",
+      "media": "Medien bearbeiten"
+    },
+    "loading": "Bild wird geöffnet …",
+    "cropArea": "Zuschnittbereich",
+    "cropHint": "Zum Verschieben ziehen. Zum Zoomen scrollen oder mit zwei Fingern ziehen. Pfeiltasten verschieben den Ausschnitt, + und − zoomen, Eingabe übernimmt.",
+    "zoom": "Zoom",
+    "zoomIn": "Vergrößern",
+    "zoomOut": "Verkleinern",
+    "zoomValue": "{percent} %",
+    "rotateLeft": "Nach links drehen",
+    "rotateRight": "Nach rechts drehen",
+    "apply": "Übernehmen",
+    "useOriginal": "Original verwenden",
+    "animatedNote": "Animierte Bilder werden nicht zugeschnitten: Dieses wird unverändert und zentriert hochgeladen.",
+    "animatedMediaNote": "Animierte Bilder werden nicht zugeschnitten. Der Fokuspunkt gilt trotzdem.",
+    "decodeFailed": "Dieses Bild lässt sich nicht zum Zuschneiden öffnen. Du kannst es unverändert hochladen.",
+    "exportFailed": "Das zugeschnittene Bild konnte nicht erstellt werden.",
+    "edit": "Bearbeiten",
+    "editMedia": "Bild bearbeiten: Zuschnitt, Fokuspunkt und Beschreibung",
+    "tabCrop": "Zuschneiden",
+    "tabFocalPoint": "Fokuspunkt",
+    "aspect": "Seitenverhältnis",
+    "aspectOriginal": "Original",
+    "aspectSquare": "Quadrat",
+    "focalPoint": "Fokuspunkt",
+    "focalHint": "Klicke oder tippe auf das Motiv. Vorschaubilder werden um diesen Punkt zugeschnitten.",
+    "focalValue": "Fokuspunkt bei {x} % von links, {y} % von oben",
+    "focalPreviews": "Vorschaubilder",
+    "focalReset": "Zentrieren",
+    "previewShape": {
+      "wide": "Breit",
+      "square": "Quadrat",
+      "tall": "Hoch"
+    }
   }
 }

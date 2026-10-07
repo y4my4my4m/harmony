@@ -65,11 +65,13 @@ import { debug } from '@/utils/debug'
 import { getAvatarUrl, getFullSizeAvatarUrl } from '@/utils/avatarUtils'
 import { devicePixels } from '@/utils/imageTransformUtils'
 import { imageSourceError } from '@/utils/uploadValidation'
+import { useImageCrop } from '@/composables/useImageCrop'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MediaLightbox from '@/components/common/MediaLightbox.vue'
 import CameraIcon from '@/components/icons/Camera.vue'
 
 const toast = useToast()
+const { cropImage } = useImageCrop()
 
 type AvatarSize = 'mini' | 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 type UserStatus = 'online' | 'away' | 'busy' | 'offline' | 'invisible'
@@ -150,20 +152,19 @@ const handleEdit = () => {
 const handleFileSelect = async (event: Event) => {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
-  
+  target.value = ''
+
   if (file) {
     // Bucket limits apply at upload, to the original or its shrunk copy.
     const validationError = imageSourceError(file)
     if (validationError) {
       toast.error(validationError)
-      target.value = ''
       return
     }
-    
-    emit('upload', file)
+
+    const cropped = await cropImage(file, 'avatar')
+    if (cropped) emit('upload', cropped)
   }
-  
-  target.value = ''
 }
 
 // Transient imgproxy/R2 failures must not pin the avatar to the default.

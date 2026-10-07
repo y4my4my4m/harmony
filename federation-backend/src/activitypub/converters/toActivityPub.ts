@@ -2,6 +2,7 @@ import config from '../../config/index.js';
 import { logger } from '../../utils/logger.js';
 import { getFullAvatarUrl, getFullBannerUrl } from '../../utils/urlUtils.js';
 import { getSupabaseClient } from '../../config/supabase.js';
+import { FOCAL_POINT_CONTEXT, storedFocalPoint } from '../../utils/focalPoint.js';
 
 /**
  * Insert zero-width spaces around :shortcode: patterns so parsers like
@@ -124,6 +125,7 @@ export function postToNote(
   }
   if (attachments.length > 0) {
     note.attachment = attachments;
+    if (attachments.some((a) => a.focalPoint)) Object.assign(note['@context'][1], FOCAL_POINT_CONTEXT);
   }
 
   const tags = extractTags(post.content, mentionActorUrls);
@@ -713,7 +715,8 @@ function extractAttachments(content: any): any[] {
       
       if (item.blurhash) attachment.blurhash = item.blurhash;
       
-      if (item.focalPoint) attachment.focalPoint = item.focalPoint;
+      const focalPoint = storedFocalPoint(item);
+      if (focalPoint) attachment.focalPoint = focalPoint;
       
       return attachment;
     });
@@ -729,9 +732,10 @@ function firstText(...values: unknown[]): string | null {
 
 /**
  * `posts.media_attachments` → AP attachments. Composer rows are
- * `{ type, url, mediaType, name, description }` where `name` is the upload's
- * file name and `description` the alt text; `name` is never sent as alt text.
- * Imported rows may follow the Mastodon API shape (`meta`, `description`).
+ * `{ type, url, mediaType, name, description, meta?: { focus } }` where `name`
+ * is the upload's file name and `description` the alt text; `name` is never
+ * sent as alt text. Imported rows may follow the Mastodon API shape (`meta`,
+ * `description`).
  */
 function mediaAttachmentsToAp(media: any): any[] {
   if (!Array.isArray(media)) return [];
@@ -750,6 +754,8 @@ function mediaAttachmentsToAp(media: any): any[] {
       if (width) attachment.width = width;
       if (height) attachment.height = height;
       if (m.blurhash) attachment.blurhash = m.blurhash;
+      const focalPoint = storedFocalPoint(m);
+      if (focalPoint) attachment.focalPoint = focalPoint;
       return attachment;
     });
 }

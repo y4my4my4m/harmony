@@ -21,6 +21,13 @@ services:
   analytics:
     ports: !reset []
 
+  # PostgREST copies its app settings into every request transaction; with this
+  # one, any SQL run through the API can read the JWT secret as
+  # current_setting('app.settings.jwt_secret'). No function reads it.
+  rest:
+    environment:
+      PGRST_APP_SETTINGS_JWT_SECRET: !reset null
+
   # Animated emoji and large images: frames count toward the source resolution
   # limit (megapixels).
   imgproxy:

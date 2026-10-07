@@ -48,6 +48,7 @@
               v-else-if="!tile.items[0].isVideoFile || tile.items[0].previewUrl"
               class="media-tile-img"
               :src="thumbnailFor(tile.items[0])"
+              :style="tile.items[0].objectPosition ? { objectPosition: tile.items[0].objectPosition } : undefined"
               :alt="tile.items[0].alt"
               loading="lazy"
               decoding="async"
@@ -58,6 +59,7 @@
               v-else
               class="media-tile-img"
               :src="`${tile.items[0].url}#t=0.1`"
+              :style="tile.items[0].objectPosition ? { objectPosition: tile.items[0].objectPosition } : undefined"
               preload="metadata"
               muted
               playsinline

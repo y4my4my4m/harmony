@@ -345,7 +345,7 @@ export async function createPostUpdateActivity(post: any, author: any): Promise<
     : new Date().toISOString();
 
   return {
-    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@context': note['@context'] || 'https://www.w3.org/ns/activitystreams',
     id: activityId,
     type: 'Update',
     actor: authorUrl,

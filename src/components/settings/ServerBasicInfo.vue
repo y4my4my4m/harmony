@@ -207,10 +207,12 @@ import { useNotificationStore } from '@/stores/useNotification'
 import { getServerBannerUrl } from '@/utils/serverUtils'
 import { withRenderFallback } from '@/utils/renderFallback'
 import { imageSourceError } from '@/utils/uploadValidation'
+import { useImageCrop } from '@/composables/useImageCrop'
 import ServerIcon from '@/components/common/ServerIcon.vue'
 
 const { t } = useI18n()
 const notificationStore = useNotificationStore()
+const { cropImage } = useImageCrop()
 
 interface ServerPermissions {
   canEditBasicInfo: boolean
@@ -277,25 +279,28 @@ const triggerBannerInput = () => {
   bannerFileInput.value?.click()
 }
 
-const handleBannerFileChange = (event: Event) => {
+const handleBannerFileChange = async (event: Event) => {
   if (!props.permissions.canChangeServerIcon) return
   const input = event.target as HTMLInputElement
-  const file = input.files?.[0] || null
+  const picked = input.files?.[0] || null
+  if (input) input.value = ''
+  let file: File | null = null
 
-  if (file) {
-    const sourceError = imageSourceError(file)
+  if (picked) {
+    const sourceError = imageSourceError(picked)
     if (sourceError) {
       notificationStore.showToast('error', t('common.error'), sourceError, 3000)
       return
     }
-    if (!file.type.startsWith('image/')) {
+    if (!picked.type.startsWith('image/')) {
       notificationStore.showToast('error', t('common.error'), t('server.selectValidImageFile'), 3000)
       return
     }
+    file = await cropImage(picked, 'server_banner')
+    if (!file) return
   }
 
   emit('banner-change', file)
-  if (input) input.value = ''
 }
 
 const removeBanner = () => {
@@ -310,30 +315,30 @@ const triggerFileInput = () => {
   fileInput.value?.click()
 }
 
-const handleFileInputChange = (event: Event) => {
+const handleFileInputChange = async (event: Event) => {
   if (!props.permissions.canChangeServerIcon) return
   
   const input = event.target as HTMLInputElement
-  const file = input.files?.[0] || null
+  const picked = input.files?.[0] || null
+  if (input) input.value = ''
+  let file: File | null = null
   
-  if (file) {
-    const sourceError = imageSourceError(file)
+  if (picked) {
+    const sourceError = imageSourceError(picked)
     if (sourceError) {
       notificationStore.showToast('error', t('common.error'), sourceError, 3000)
       return
     }
     
-    if (!file.type.startsWith('image/')) {
+    if (!picked.type.startsWith('image/')) {
       notificationStore.showToast('error', t('common.error'), t('server.selectValidImageFile'), 3000)
       return
     }
+    file = await cropImage(picked, 'server_icon')
+    if (!file) return
   }
   
   emit('file-change', file)
-  
-  if (input) {
-    input.value = ''
-  }
 }
 
 const removeIcon = () => {

@@ -1668,6 +1668,18 @@ const setPinned = (pinned: boolean) => {
   if (pinned) unseenCount.value = 0;
 };
 
+// Pin state after the scroll position moved; rules in nextPinState.
+const applyScroll = (el: HTMLElement) => {
+  const settling = Date.now() < openFollowBottomUntil;
+  const next = nextPinState(pinState, el, { settling });
+  pinState.lastScrollTop = next.lastScrollTop;
+  if (next.pinned !== pinState.pinned) {
+    setPinned(next.pinned);
+    // A deliberate scroll-up ends the post-open grace window.
+    if (!next.pinned) openFollowBottomUntil = 0;
+  }
+};
+
 // Landing retries (open, jumpToMessageRow) run while they hold the current
 // value; a newer jump to a message or to the present ends them.
 let seatGeneration = 0;
@@ -2002,6 +2014,14 @@ watch(() => props.messages, (newMessages) => {
   if (dividerBeforeMessageId.value && appendedOwn > 0) {
     clearReadDivider();
   }
+
+  // A scroll event trails its scrollTop change by up to a frame. An update
+  // landing in that frame applies the scroll first; otherwise a pin the scroll
+  // released still holds and re-seats the view at the end. Read before the
+  // patch: the prepend correction below moves scrollTop down and hides a
+  // scroll up.
+  const scroller = messageDisplayContainer.value;
+  if (scroller && Math.abs(scroller.scrollTop - pinState.lastScrollTop) > 0.5) applyScroll(scroller);
 
   const oldScrollHeight = messageDisplayContainer.value?.scrollHeight ?? 0;
   // scrollTop is snapshotted alongside scrollHeight so the prepend handler
@@ -2770,14 +2790,7 @@ const handleScrollThrottled = throttle(() => {
 const handleScroll = () => {
   const el = messageDisplayContainer.value;
   if (el) {
-    const settling = Date.now() < openFollowBottomUntil;
-    const next = nextPinState(pinState, el, { settling });
-    pinState.lastScrollTop = next.lastScrollTop;
-    if (next.pinned !== pinState.pinned) {
-      setPinned(next.pinned);
-      // A deliberate scroll-up ends the post-open grace window.
-      if (!next.pinned) openFollowBottomUntil = 0;
-    }
+    applyScroll(el);
     measureEnd();
   }
   handleScrollThrottled();

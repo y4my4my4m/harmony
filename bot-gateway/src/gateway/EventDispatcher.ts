@@ -26,6 +26,15 @@ interface ReactionRow {
 
 const REACTION_COLUMNS = 'id, message_id, channel_id, user_id, bot_id, emoji_id, custom_emoji_content, metadata, created_at'
 
+// A server's install rows as one comparable string; column and row order are not significant.
+function installsFingerprint(rows: BotPermissionRow[]): string {
+  return JSON.stringify(
+    rows
+      .map(row => JSON.stringify(Object.entries(row).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))))
+      .sort(),
+  )
+}
+
 function reactionRow(r: ReactionRow): ReactionRow {
   return {
     id: r.id,
@@ -46,13 +55,19 @@ function reactionRow(r: ReactionRow): ReactionRow {
 // channel.server_id changes only through admin moves between servers, so the
 // 1 hour TTL keeps the cache warm for the life of the gateway.
 //
-// bot_server_permissions changes when an admin edits bot permissions or
-// activates/deactivates a bot. 5 minutes bounds staleness of a read-mostly
-// access control list.
+// bot_server_permissions changes when a server owner installs, edits or removes
+// a bot. The web client writes it directly, so no change reaches this process:
+// refreshBotPermissions re-reads every cached server each
+// BOT_PERMISSIONS_REFRESH_MS and drops entries that differ, which bounds how
+// long a removed or narrowed install keeps receiving events. The TTL bounds the
+// refreshed set to servers with recent traffic.
 const CHANNEL_TO_SERVER_TTL_MS = 60 * 60 * 1000
 const CHANNEL_TO_SERVER_MAX = 10_000
 const BOT_PERMISSIONS_TTL_MS = 5 * 60 * 1000
 const BOT_PERMISSIONS_MAX = 1_000
+const BOT_PERMISSIONS_REFRESH_MS = 10 * 1000
+// server_id values per refresh query; 100 UUIDs keep the PostgREST URL near 4 KB.
+const BOT_PERMISSIONS_REFRESH_BATCH = 100
 // @everyone's channel layer decides whether a bot sees a channel. A channel hidden from
 // @everyone stops reaching bots within this bound.
 const CHANNEL_LAYER_TTL_MS = 10 * 1000
@@ -63,6 +78,7 @@ export class EventDispatcher {
   private pollingInterval: NodeJS.Timeout | null = null
   private editPollingInterval: NodeJS.Timeout | null = null
   private reactionPollingInterval: NodeJS.Timeout | null = null
+  private permissionRefreshInterval: NodeJS.Timeout | null = null
   private pollsInFlight = new Set<string>()
   private lastProcessedTimestamp: Date = new Date()
   private lastReactionTimestamp: Date = new Date()
@@ -157,6 +173,12 @@ export class EventDispatcher {
     // Reaction polling feeds MESSAGE_REACTION_ADD / MESSAGE_REACTION_REMOVE to
     // bots and the Discord bridge.
     this.reactionPollingInterval = this.schedulePoll('reactions', 2000, () => this.pollReactions())
+
+    this.permissionRefreshInterval = this.schedulePoll(
+      'permissions',
+      BOT_PERMISSIONS_REFRESH_MS,
+      () => this.refreshBotPermissions(),
+    )
   }
 
   // A tick that finds its previous run unfinished is skipped. Overlapping runs
@@ -355,7 +377,7 @@ export class EventDispatcher {
 
   /**
    * Resolves the bots holding read_messages in a server. Cached for 5
-   * minutes; permissions are read-mostly.
+   * minutes; refreshBotPermissions drops entries that change sooner.
    *
    * As in `resolveServerId`, only clean responses are cached. Caching `[]`
    * from a transient error silences every bot on that server for the TTL.
@@ -380,6 +402,48 @@ export class EventDispatcher {
     const list = (botPermissions ?? []) as BotPermissionRow[]
     this.botPermissionsCache.set(serverId, list)
     return list
+  }
+
+  /**
+   * Re-reads the installs of every cached server, with resolveBotPermissions' filters, and
+   * deletes each entry whose rows differ in any column; the next event for that server
+   * queries again.
+   *
+   * A batch that errors keeps its entries. A batch truncated by PostgREST max-rows reads as
+   * changed: it costs a re-query, never a stale grant.
+   */
+  async refreshBotPermissions(): Promise<void> {
+    const cached = this.botPermissionsCache.entries()
+
+    for (let i = 0; i < cached.length; i += BOT_PERMISSIONS_REFRESH_BATCH) {
+      const batch = cached.slice(i, i + BOT_PERMISSIONS_REFRESH_BATCH)
+
+      const { data, error } = await supabase
+        .from('bot_server_permissions')
+        .select('*')
+        .in('server_id', batch.map(([serverId]) => serverId))
+        .eq('read_messages', true)
+        .eq('is_active', true)
+
+      if (error) {
+        console.warn('bot_server_permissions refresh returned a transient error; keeping cache:', error)
+        continue
+      }
+
+      const current = new Map<string, BotPermissionRow[]>()
+      for (const row of (data ?? []) as BotPermissionRow[]) {
+        const serverId = row.server_id as string
+        const rows = current.get(serverId)
+        if (rows) rows.push(row)
+        else current.set(serverId, [row])
+      }
+
+      for (const [serverId, rows] of batch) {
+        if (installsFingerprint(rows) !== installsFingerprint(current.get(serverId) ?? [])) {
+          this.botPermissionsCache.delete(serverId)
+        }
+      }
+    }
   }
 
   /** @everyone's layer on a channel. Failed lookups are not cached. */
@@ -807,7 +871,11 @@ export class EventDispatcher {
       clearInterval(this.reactionPollingInterval)
       this.reactionPollingInterval = null
     }
-    
+    if (this.permissionRefreshInterval) {
+      clearInterval(this.permissionRefreshInterval)
+      this.permissionRefreshInterval = null
+    }
+
     for (const channel of this.subscriptions) {
       await channel.unsubscribe()
     }

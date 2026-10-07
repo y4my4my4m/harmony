@@ -3573,5 +3573,47 @@
       "saveFailed": "Impossible d'enregistrer les réglages d'hébergement des passerelles",
       "loadFailed": "Impossible de charger les réglages d'hébergement des passerelles."
     }
+  },
+  "imageEditor": {
+    "title": {
+      "avatar": "Recadrer la photo de profil",
+      "profile_banner": "Recadrer la bannière du profil",
+      "server_icon": "Recadrer l'icône du serveur",
+      "server_banner": "Recadrer la bannière du serveur",
+      "group_icon": "Recadrer l'icône du groupe",
+      "media": "Modifier le média"
+    },
+    "loading": "Ouverture de l'image…",
+    "cropArea": "Zone de recadrage",
+    "cropHint": "Faites glisser pour repositionner. Faites défiler ou pincez pour zoomer. Les flèches déplacent le cadre, + et − zooment, Entrée applique.",
+    "zoom": "Zoom",
+    "zoomIn": "Zoom avant",
+    "zoomOut": "Zoom arrière",
+    "zoomValue": "{percent} %",
+    "rotateLeft": "Pivoter à gauche",
+    "rotateRight": "Pivoter à droite",
+    "apply": "Appliquer",
+    "useOriginal": "Utiliser l'original",
+    "animatedNote": "Les images animées ne sont pas recadrées : celle-ci est envoyée telle quelle, centrée dans le cadre.",
+    "animatedMediaNote": "Les images animées ne sont pas recadrées. Le point focal s'applique quand même.",
+    "decodeFailed": "Cette image ne peut pas être ouverte pour le recadrage. Vous pouvez l'envoyer telle quelle.",
+    "exportFailed": "L'image recadrée n'a pas pu être créée.",
+    "edit": "Modifier",
+    "editMedia": "Modifier l'image : recadrage, point focal et description",
+    "tabCrop": "Recadrer",
+    "tabFocalPoint": "Point focal",
+    "aspect": "Format d'image",
+    "aspectOriginal": "Original",
+    "aspectSquare": "Carré",
+    "focalPoint": "Point focal",
+    "focalHint": "Cliquez ou touchez le sujet. Les miniatures sont recadrées autour de ce point.",
+    "focalValue": "Point focal à {x} % depuis la gauche et {y} % depuis le haut",
+    "focalPreviews": "Aperçu des miniatures",
+    "focalReset": "Centrer",
+    "previewShape": {
+      "wide": "Large",
+      "square": "Carré",
+      "tall": "Haut"
+    }
   }
 }

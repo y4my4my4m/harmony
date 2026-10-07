@@ -158,6 +158,48 @@ describe('toActivityPub converters', () => {
       ])
     })
 
+    it('sends the composer meta.focus as focalPoint with the toot context term', () => {
+      const post = {
+        id: 'p1',
+        visibility: 'public',
+        created_at: '',
+        content: [{ type: 'text', text: 'look' }],
+        media_attachments: [
+          { type: 'Image', url: 'https://storage.harmony.test/user_media/u/posts/1.webp', mediaType: 'image/webp', meta: { focus: { x: 0.42, y: -0.3 } } },
+          { type: 'Image', url: 'https://storage.harmony.test/user_media/u/posts/2.png', mediaType: 'image/png' },
+        ],
+      }
+      const note = postToNote(post, author)
+      expect(note.attachment[0].focalPoint).toEqual([0.42, -0.3])
+      expect(note.attachment[1]).not.toHaveProperty('focalPoint')
+      expect(note['@context'][1]).toMatchObject({
+        toot: 'http://joinmastodon.org/ns#',
+        focalPoint: { '@container': '@list', '@id': 'toot:focalPoint' },
+        quoteUrl: 'as:quoteUrl',
+      })
+    })
+
+    it('sends a content file part focalPoint and drops a malformed one', () => {
+      const post = {
+        id: 'p1',
+        visibility: 'public',
+        created_at: '',
+        content: [
+          { type: 'file', fileType: 'image', url: 'https://r.example/1.png', focalPoint: [-0.25, 0.75] },
+          { type: 'file', fileType: 'image', url: 'https://r.example/2.png', focalPoint: ['left', 'top'] },
+        ],
+      }
+      const note = postToNote(post, author)
+      expect(note.attachment[0].focalPoint).toEqual([-0.25, 0.75])
+      expect(note.attachment[1]).not.toHaveProperty('focalPoint')
+    })
+
+    it('leaves the context alone without focal points', () => {
+      const note = postToNote({ id: 'p1', visibility: 'public', created_at: '', content: [{ type: 'text', text: 'hi' }] }, author)
+      expect(note['@context'][1]).not.toHaveProperty('focalPoint')
+      expect(note['@context'][1]).not.toHaveProperty('toot')
+    })
+
     it('does not duplicate an attachment present in both content and media_attachments', () => {
       const url = 'https://storage.harmony.test/user_media/u/posts/1.png'
       const post = {
@@ -655,6 +697,20 @@ describe('fromActivityPub converters', () => {
       expect(file.url).toBe('https://cdn.mastodon.social/media/photo.jpg')
       expect(file.altText).toBe('A nice sunset')
       expect(file.width).toBe(1920)
+    })
+
+    it('keeps a Mastodon focalPoint on the file part', () => {
+      const note = {
+        content: '<p>photo</p>',
+        attachment: [
+          { type: 'Document', mediaType: 'image/jpeg', url: 'https://cdn.example/a.jpg', focalPoint: [0.5, -0.25] },
+          { type: 'Image', mediaType: 'image/png', url: 'https://cdn.example/b.png', focalPoint: { '@list': [-1, 1] } },
+          { type: 'Document', mediaType: 'image/png', url: 'https://cdn.example/c.png', focalPoint: { x: 'evil' } },
+          { type: 'Document', mediaType: 'image/png', url: 'https://cdn.example/d.png', focalPoint: [3, -7.123] },
+        ],
+      }
+      const files = noteToContent(note).filter((p: any) => p.type === 'file')
+      expect(files.map((f: any) => f.focalPoint)).toEqual([[0.5, -0.25], [-1, 1], undefined, [1, -1]])
     })
 
     it('handles video attachments', () => {

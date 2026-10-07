@@ -1,4 +1,4 @@
-<!-- Media attachments in the composer: preview, alt text, removal. -->
+<!-- Media attachments in the composer: preview, edit (crop, focal point, alt text), removal. -->
 <template>
   <div class="media-upload">
     <div class="media-preview-grid">
@@ -13,6 +13,7 @@
               :src="attachment.preview_url || attachment.url"
               :alt="attachment.description || ''"
               class="preview-image"
+              :style="thumbStyle(attachment)"
             />
           </div>
           <div v-else-if="attachment.type === 'video'" class="media-thumb">
@@ -37,14 +38,26 @@
           </div>
 
           <button
+            v-if="attachment.type === 'image'"
+            type="button"
+            class="edit-btn"
+            :aria-label="t('imageEditor.editMedia')"
+            :title="t('imageEditor.editMedia')"
+            data-testid="media-edit-open"
+            @click="openEditor(index, 'crop')"
+          >
+            <Icon name="edit" :size="14" />
+            <span class="edit-btn-label">{{ t('imageEditor.edit') }}</span>
+          </button>
+
+          <button
             v-if="supportsAlt(attachment)"
             type="button"
             class="alt-btn"
             :class="{ 'has-alt': !!attachment.description }"
-            :aria-expanded="editingIndex === index"
-            :aria-controls="`media-alt-${uid}-${index}`"
+            aria-haspopup="dialog"
             :title="t('activitypub.altTextEdit')"
-            @click="toggleEditor(index)"
+            @click="openEditor(index, 'alt')"
           >
             <Icon v-if="attachment.description" name="check" :size="14" />
             ALT
@@ -61,33 +74,6 @@
           </button>
         </div>
 
-        <div
-          v-if="editingIndex === index"
-          :id="`media-alt-${uid}-${index}`"
-          class="alt-editor"
-        >
-          <label :for="`media-alt-input-${uid}-${index}`" class="alt-label">
-            {{ t('activitypub.altTextLabel') }}
-          </label>
-          <textarea
-            :id="`media-alt-input-${uid}-${index}`"
-            ref="altInputRef"
-            class="alt-input"
-            rows="3"
-            :maxlength="ALT_TEXT_MAX"
-            :placeholder="t('activitypub.altTextPlaceholder')"
-            :value="attachment.description || ''"
-            @input="updateDescription(index, ($event.target as HTMLTextAreaElement).value)"
-            @keydown.esc.stop="editingIndex = null"
-          />
-          <div class="alt-footer">
-            <span class="alt-count">{{ (attachment.description || '').length }} / {{ ALT_TEXT_MAX }}</span>
-            <button type="button" class="alt-done" @click="editingIndex = null">
-              {{ t('common.done') }}
-            </button>
-          </div>
-        </div>
-
         <!-- Upload Progress -->
         <div v-if="attachment.uploading" class="upload-progress">
           <div class="progress-bar">
@@ -100,70 +86,74 @@
         </div>
       </div>
     </div>
+
+    <MediaEditDialog
+      v-if="editing && attachments[editing.index]"
+      :attachment="attachments[editing.index]"
+      :initial-focus="editing.target"
+      @save="saveEdit"
+      @cancel="editing = null"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref } from 'vue';
+import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Icon from '@/components/common/Icon.vue';
+import MediaEditDialog from './MediaEditDialog.vue';
+import { attachmentObjectPosition } from '@/utils/focalPoint';
+import type { EditableMedia, MediaEdit } from '@/utils/mediaEdit';
 
-// Mastodon's media description limit.
-const ALT_TEXT_MAX = 1500;
-
-interface MediaAttachment {
+type UploadAttachment = EditableMedia & {
   id?: string;
-  type: 'image' | 'video' | 'audio' | 'unknown';
-  url: string;
-  preview_url?: string;
-  description?: string;
   filename?: string;
   size?: number;
   uploading?: boolean;
   progress?: number;
-}
+};
 
 interface Props {
-  attachments: MediaAttachment[];
+  attachments: UploadAttachment[];
 }
 
 defineProps<Props>();
 
 const emit = defineEmits<{
   remove: [index: number];
-  'update-description': [index: number, description: string];
+  edit: [index: number, edit: MediaEdit];
 }>();
 
 const { t } = useI18n();
-const uid = Math.random().toString(36).slice(2, 8);
-const editingIndex = ref<number | null>(null);
-const altInputRef = ref<HTMLTextAreaElement[] | HTMLTextAreaElement | null>(null);
+const editing = ref<{ index: number; target: 'crop' | 'alt' } | null>(null);
 
-const supportsAlt = (attachment: MediaAttachment) =>
+const supportsAlt = (attachment: UploadAttachment) =>
   attachment.type === 'image' || attachment.type === 'video';
 
-const fallbackName = (type: MediaAttachment['type']) => {
+const thumbStyle = (attachment: UploadAttachment) => {
+  const position = attachmentObjectPosition(attachment);
+  return position ? { objectPosition: position } : undefined;
+};
+
+const fallbackName = (type: UploadAttachment['type']) => {
   if (type === 'image') return t('activitypub.image');
   if (type === 'video') return t('activitypub.video');
   if (type === 'audio') return t('activitypub.audio');
   return t('activitypub.file');
 };
 
-const toggleEditor = async (index: number) => {
-  editingIndex.value = editingIndex.value === index ? null : index;
-  if (editingIndex.value === null) return;
-  await nextTick();
-  const el = Array.isArray(altInputRef.value) ? altInputRef.value[0] : altInputRef.value;
-  el?.focus();
+const openEditor = (index: number, target: 'crop' | 'alt') => {
+  editing.value = { index, target };
 };
 
-const updateDescription = (index: number, description: string) => {
-  emit('update-description', index, description);
+const saveEdit = (edit: MediaEdit) => {
+  if (editing.value) emit('edit', editing.value.index, edit);
+  editing.value = null;
 };
 
 const handleRemove = (index: number) => {
-  if (editingIndex.value === index) editingIndex.value = null;
-  else if (editingIndex.value !== null && editingIndex.value > index) editingIndex.value -= 1;
+  if (editing.value?.index === index) editing.value = null;
+  else if (editing.value && editing.value.index > index) editing.value = { ...editing.value, index: editing.value.index - 1 };
   emit('remove', index);
 };
 
@@ -253,6 +243,33 @@ const formatFileSize = (bytes?: number): string => {
   color: var(--warning);
 }
 
+.edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 28px;
+  padding: 0 var(--space-2);
+  flex-shrink: 0;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.edit-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
+@media (max-width: 380px) {
+  .edit-btn-label {
+    display: none;
+  }
+}
+
 .alt-btn {
   display: inline-flex;
   align-items: center;
@@ -301,63 +318,9 @@ const formatFileSize = (bytes?: number): string => {
   background-color: color-mix(in srgb, var(--error) 12%, transparent);
 }
 
-.alt-editor {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.alt-label {
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-}
-
-.alt-input {
-  width: 100%;
-  min-height: 64px;
-  padding: var(--space-2);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-sm);
-  background: var(--background-secondary);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: var(--font-size-sm);
-  line-height: 1.4;
-  resize: vertical;
-}
-
-.alt-input:focus {
-  outline: none;
-  border-color: var(--harmony-primary);
-}
-
-.alt-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.alt-count {
-  color: var(--text-muted);
-  font-size: var(--font-size-xs);
-  font-variant-numeric: tabular-nums;
-}
-
-.alt-done {
-  padding: var(--space-1) var(--space-3);
-  border: none;
-  border-radius: var(--radius-full);
-  background: var(--harmony-primary);
-  color: var(--text-on-primary);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-}
-
+.edit-btn:focus-visible,
 .alt-btn:focus-visible,
-.remove-btn:focus-visible,
-.alt-done:focus-visible {
+.remove-btn:focus-visible {
   outline: 2px solid var(--harmony-primary);
   outline-offset: 2px;
 }

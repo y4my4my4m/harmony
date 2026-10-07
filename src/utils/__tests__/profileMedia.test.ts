@@ -202,3 +202,22 @@ describe('formatMediaDuration', () => {
     expect(formatMediaDuration(Number.POSITIVE_INFINITY)).toBeNull()
   })
 })
+
+describe('focal points', () => {
+  it('positions tiles from composer meta.focus and from content part focalPoint', () => {
+    expect(normalizeAttachment({ type: 'Image', url: 'https://h/a.jpg', mediaType: 'image/jpeg', meta: { focus: { x: 0.5, y: 0.5 } } })?.objectPosition)
+      .toBe('75% 25%')
+    expect(normalizeContentPart({ type: 'file', fileType: 'image', url: 'https://r/1.png', focalPoint: [-0.5, -1] })?.objectPosition)
+      .toBe('25% 100%')
+    expect(normalizeAttachment({ type: 'Image', url: 'https://h/a.jpg', mediaType: 'image/jpeg' })?.objectPosition).toBeNull()
+  })
+
+  it('takes the focal point from a duplicate when the first entry has none', () => {
+    const tile = toProfileMediaTile(row({
+      id: 'p1',
+      media_attachments: [{ type: 'Document', url: 'https://r/1.png', mediaType: 'image/png' }],
+      content_media: [{ type: 'file', fileType: 'image', url: 'https://r/1.png', focalPoint: [1, 1] }],
+    }))
+    expect(tile?.items[0].objectPosition).toBe('100% 0%')
+  })
+})
