@@ -1,3 +1,5 @@
+import { DISCORD_EMOJI_TOKEN_INNER } from '@/utils/discordEmoji';
+
 export interface MarkdownNode {
   type: 'text' | 'bold' | 'italic' | 'underline' | 'strikethrough' | 'code' | 'codeblock' | 'emoji' | 'newline';
   content: string;
@@ -19,6 +21,10 @@ export interface MarkdownToken {
   children?: MarkdownToken[];
 }
 
+// Discord token first: its colons are not shortcode delimiters.
+const emojiPattern = (shortcode: string): RegExp =>
+  new RegExp(`:(${DISCORD_EMOJI_TOKEN_INNER}|${shortcode}):`, 'g');
+
 const PATTERNS = {
   codeblock: /```(\w+)?\n?([\s\S]*?)```/g,
   code: /`([^`]+)`/g,
@@ -26,7 +32,7 @@ const PATTERNS = {
   italic: /\*([^*]+)\*/g,
   underline: /__((?:(?!__).)+?)__/g,
   strikethrough: /~~((?:(?!~~).)+?)~~/g,
-  emoji: /:([a-zA-Z0-9_+~-]+):/g,
+  emoji: emojiPattern('[a-zA-Z0-9_+~-]+'),
   newline: /\n/g
 };
 
@@ -41,7 +47,7 @@ const STREAMING_OTHER_PATTERNS = {
   italic: /(?<!\*)\*([^*\n]+)\*(?!\*)/g,
   underline: /__((?:(?!__).)+?)__/g,
   strikethrough: /~~((?:(?!~~).)+?)~~/g,
-  emoji: /:([a-zA-Z0-9_+-]+):/g
+  emoji: emojiPattern('[a-zA-Z0-9_+-]+')
 } as const;
 
 export function parseMarkdownToNodes(text: string): MarkdownNode[] {
@@ -232,7 +238,7 @@ function parseInlineChildren(content: string, parentType: string): MarkdownToken
   if (parentType !== 'underline') innerPatterns.underline = /__((?:(?!__).)+?)__/g;
   if (parentType !== 'strikethrough') innerPatterns.strikethrough = /~~((?:(?!~~).)+?)~~/g;
   innerPatterns.code = /`([^`\n]+)`/g;
-  innerPatterns.emoji = /:([a-zA-Z0-9_+~-]+):/g;
+  innerPatterns.emoji = emojiPattern('[a-zA-Z0-9_+~-]+');
 
   interface InnerMatch {
     type: string;

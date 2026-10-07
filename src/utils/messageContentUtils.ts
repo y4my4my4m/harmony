@@ -1,4 +1,5 @@
 import type { MessagePart, MentionContent } from '@/types';
+import { discordEmojiPartText } from '@/utils/discordEmoji';
 
 /**
  * Absolute hard ceiling on the number of text characters in a single
@@ -91,7 +92,7 @@ export function messagePartsToMarkdown(
         return part.text || '';
       
       case 'emoji':
-        return part.emoji?.name ? `:${part.emoji.name}:` : '';
+        return discordEmojiPartText(part.emoji) ?? (part.emoji?.name ? `:${part.emoji.name}:` : '');
       
       case 'mention':
         // `MentionContent` has `username` / `displayName`, not `mention`; this
@@ -211,7 +212,7 @@ export function messagePartsToRawText(parts: MessagePart[] | string): string {
         if (!part.isLocal && part.domain) return `@${part.username}@${part.domain}`;
         return `@${part.username}`;
       }
-      case 'emoji': return `:${part.emoji?.name || 'emoji'}:`;
+      case 'emoji': return discordEmojiPartText(part.emoji) ?? `:${part.emoji?.name || 'emoji'}:`;
       case 'hashtag': return `#${part.name}`;
       default: return '';
     }

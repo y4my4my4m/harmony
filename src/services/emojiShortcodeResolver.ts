@@ -7,6 +7,7 @@ import { supabase } from '@/supabase'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { getSvgUrl, resolveEmoji, getTwemojiUrl, loadEmojiData, isLoaded as unifiedEmojiLoaded } from '@/services/unifiedEmojiService'
 import { debug } from '@/utils/debug'
+import { discordEmojiObject, discordEmojiRefFromPicked, discordEmojiToken, parseDiscordEmojiToken } from '@/utils/discordEmoji'
 import type { Emoji } from '@/types'
 
 /**
@@ -56,6 +57,9 @@ export function parseEmojiShortcodeToken(token: string): ParsedEmojiShortcode {
 
 /** Shortcode string to store when user picks an emoji (uses display_name~N when disambiguated). */
 export function getEmojiShortcodeForInsert(emoji: Emoji & { display_name?: string }): string {
+  // Bridged Discord emoji have no emojis row; they insert as the Discord token form.
+  const discord = discordEmojiRefFromPicked(emoji)
+  if (discord) return `:${discordEmojiToken(discord)}:`
   if (!emoji.url) {
     return typeof emoji.id === 'string' ? emoji.id : emoji.name
   }
@@ -155,6 +159,9 @@ export function findCustomEmojiInCache(
 
 /** Drop-in replacement for scattered findEmojiByName helpers. */
 export function findEmojiByName(name: string): Emoji | null {
+  const discord = parseDiscordEmojiToken(name)
+  if (discord) return discordEmojiObject(discord)
+
   const custom = findCustomEmojiInCache(name)
   if (custom) return custom
 
