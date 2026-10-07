@@ -42,6 +42,7 @@ get_custom_status	service key	service_role
 get_livekit_config	service key	service_role
 get_next_folder_position	service key	service_role
 get_next_server_position	service key	service_role
+get_or_create_discord_bridge_pairing	http anon	anon+authenticated+service_role
 get_supporter_badge	service key	service_role
 get_timeline	service key	service_role
 get_unread_notification_count	service key	service_role
