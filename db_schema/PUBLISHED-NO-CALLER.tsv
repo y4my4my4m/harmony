@@ -30,7 +30,6 @@ current_user_is_member_of_server	http anon	anon+authenticated+service_role
 disable_federation_triggers	service key	service_role
 enable_conversation_encryption	service key	service_role
 enable_federation_triggers	service key	service_role
-end_user_session	service key	service_role
 enforce_request_assurance	http anon	anon+authenticated+service_role
 generate_livekit_token	service key	service_role
 get_batch_post_reactions	http anon	anon+authenticated+service_role
@@ -39,7 +38,6 @@ get_conversation_encryption_status	service key	service_role
 get_conversation_participants	service key	service_role
 get_conversation_thread	service key	service_role
 get_custom_status	service key	service_role
-get_livekit_config	service key	service_role
 get_next_folder_position	service key	service_role
 get_next_server_position	service key	service_role
 get_or_create_discord_bridge_pairing	http anon	anon+authenticated+service_role
@@ -59,6 +57,4 @@ rotate_prekeys	service key	service_role
 run_trending_maintenance	service key	service_role
 safe_upsert_remote_profile	service key	service_role
 server_has_remote_members	service key	service_role
-update_session_context	service key	service_role
-update_session_heartbeat	service key	service_role
 user_has_encryption	service key	service_role
