@@ -361,7 +361,7 @@ describe('toActivityPub converters', () => {
       expect(actor.following).toBe('https://harmony.test/users/alice/following')
       expect(actor.publicKey.id).toBe('https://harmony.test/users/alice#main-key')
       expect(actor.publicKey.publicKeyPem).toContain('BEGIN PUBLIC KEY')
-      expect(actor.endpoints.sharedInbox).toBe('https://harmony.test/inbox')
+      expect(actor.endpoints).toEqual({ sharedInbox: 'https://harmony.test/inbox' })
     })
 
     it('includes avatar as icon', () => {

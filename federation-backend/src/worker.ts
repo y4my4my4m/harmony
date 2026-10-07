@@ -42,8 +42,8 @@ export async function startWorker(): Promise<void> {
     // LISTEN/NOTIFY bridge for instant (sub-second) job pickup. This needs a
     // direct, session-mode Postgres connection (LISTEN cannot go through
     // PostgREST/poolers). An optimization, not a hard requirement.
-    // FEDERATION_LISTENER_URL is preferred (a dedicated least-privilege
-    // `harmony_listener` role - see 20260607_federation_listener_role.sql),
+    // FEDERATION_LISTENER_URL is preferred (the least-privilege
+    // `harmony_listener` role, created by self-host/bootstrap.sh),
     // with DATABASE_URL accepted for backward compatibility.
     //
     // Without a listener connection the 60s periodic sweep and 30s

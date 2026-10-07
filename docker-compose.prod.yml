@@ -5,22 +5,23 @@
 #
 # Prerequisites:
 #   1. Build frontend: npm run build-only
-#   2. Copy env.example to .env and configure
+#   2. Copy .env.example to .env and configure (REDIS_PASSWORD)
 #   3. Copy federation-backend/env.template to federation-backend/.env
-#      - Set SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, REDIS_URL, USE_BULLMQ_QUEUE=true
+#      - Set SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
+#        INSTANCE_DOMAIN and REDIS_URL
 #      - Optional: set FEDERATION_LISTENER_URL (a least-privilege, session-mode
 #        Postgres connection) for instant job pickup. If omitted, jobs are still
-#        processed by the periodic sweep - the worker no longer requires it.
-#      - (USE_PGBOSS_QUEUE is accepted as a backward-compat alias)
+#        processed by the periodic sweep.
 #
 # Usage:
 #   docker compose -f docker-compose.prod.yml up -d
 #
 # Services:
-#   - federation-backend: ActivityPub federation, link previews
-#   - bot-gateway: Bot plugin system (optional)
+#   - federation-server, federation-worker: ActivityPub federation, link previews
+#   - redis: BullMQ job persistence, caching, presence, rate limiting
 #   - nginx: Reverse proxy with SSL
-  #   - redis: BullMQ job persistence, caching, presence, rate limiting
+#   - bot-gateway: Bot plugin system (profile bots)
+#   - bull-board: Queue dashboard (profile monitoring)
 # =============================================================================
 
 version: "3.8"
@@ -33,13 +34,9 @@ services:
   # isolation. A heavy delivery batch in the worker cannot block incoming
   # ActivityPub requests on the server.
   #
-  # Required in .env file:
-  #   - SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
-  #   - INSTANCE_DOMAIN
-  #   - DATABASE_URL, REDIS_URL, USE_BULLMQ_QUEUE=true
-  #
-  # For simple single-container mode instead, use --profile simple:
-  #   docker compose -f docker-compose.prod.yml --profile simple up -d
+  # FEDERATION_MODE=unified (the image default) runs both roles in one
+  # process. A profile only adds services and cannot replace this pair, so
+  # this file has no single-process variant.
   # ---------------------------------------------------------------------------
   federation-server:
     build:
@@ -83,33 +80,6 @@ services:
         condition: service_healthy
     networks:
       - harmony
-
-  # Single-container mode (simple deployments / development)
-  # Activate with: docker compose --profile simple up -d
-  federation-backend:
-    build:
-      context: ./federation-backend
-      dockerfile: Dockerfile
-    container_name: harmony-federation
-    restart: unless-stopped
-    ports:
-      - "3001:3001"
-    env_file:
-      - ./federation-backend/.env
-    environment:
-      - NODE_ENV=production
-      - PORT=3001
-      - FEDERATION_MODE=unified
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    networks:
-      - harmony
-    profiles:
-      - simple
 
   # ---------------------------------------------------------------------------
   # Bot Gateway (Optional)
@@ -165,7 +135,9 @@ services:
     environment:
       - REDIS_URL=${REDIS_URL:-redis://localhost:6379}
       - BULL_BOARD_USER=${BULL_BOARD_USER:-admin}
-      - BULL_BOARD_PASSWORD=${BULL_BOARD_PASSWORD:?Set BULL_BOARD_PASSWORD in .env}
+      # bull-board exits at start without a password. `:?` would refuse the
+      # whole file, whatever profiles are active.
+      - BULL_BOARD_PASSWORD=${BULL_BOARD_PASSWORD:-}
       - BULL_BOARD_BASE_PATH=${BULL_BOARD_BASE_PATH:-}
       - PORT=3003
     depends_on:

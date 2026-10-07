@@ -70,7 +70,7 @@ Every service shares the `harmony` network, so Harmony and Supabase reach each o
 
 `docker-compose.full.yml` adds profile `voice` (`livekit`, mounting `./webrtc/livekit.yaml`; publishes 7880, 7881/tcp+udp, 7882/udp and 3478/tcp+udp), sets `SUPABASE_URL=http://supabase-kong:8000` and `FEDERATION_LISTENER_URL` (`harmony_listener`, password `LISTENER_PASSWORD`), and joins the external `supabase_default` network of the upstream Supabase stack, which must run first.
 
-Both files read `REDIS_PASSWORD` and `BULL_BOARD_PASSWORD` from the root `.env`; Compose refuses either file while one is unset, whatever profiles are active.
+Both files read `REDIS_PASSWORD` and `BULL_BOARD_PASSWORD` from the root `.env`. Compose refuses either file while `REDIS_PASSWORD` is unset; `bull-board` exits at start without `BULL_BOARD_PASSWORD`.
 
 ### Preparing
 
@@ -78,7 +78,7 @@ Both files read `REDIS_PASSWORD` and `BULL_BOARD_PASSWORD` from the root `.env`;
 npm install
 npm run build-only                                # the SPA, into dist/
 cp federation-backend/env.template federation-backend/.env
-cp bot-gateway/.env.example bot-gateway/.env      # with the bots profile
+cp bot-gateway/env.template bot-gateway/.env      # with the bots profile
 cp dev/nginx-harmony.template.conf dev/nginx-harmony.conf
 cp dev/nginx-docs.template.conf dev/nginx-docs.conf
 ```
