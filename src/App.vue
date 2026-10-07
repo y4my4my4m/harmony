@@ -67,9 +67,6 @@
   <!-- Persistent Voice Connection (only when authenticated) -->
   <PersistentVoiceConnection v-if="!isAuthRoute" />
 
-  <!-- Native (Linux X11) screenshare source picker -->
-  <ScreenSharePicker v-if="!isAuthRoute" />
-  
   <!-- PWA Components. The install prompt waits for sign-in; on auth routes it
        covers the form on small screens. -->
   <PWAInstallBanner v-if="!isAuthRoute" />
@@ -134,7 +131,6 @@ import AnnouncementPopup from '@/components/announcements/AnnouncementPopup.vue'
 import ThemeCustomizerPanel from '@/components/settings/user/ThemeCustomizerPanel.vue'
 import UnifiedConfirmationModal from '@/components/shared/UnifiedConfirmationModal.vue'
 import InstancePicker from '@/components/InstancePicker.vue'
-import ScreenSharePicker from '@/components/voice/ScreenSharePicker.vue'
 import FloatingVideoPlayer from '@/components/embeds/FloatingVideoPlayer.vue'
 import DesktopUpdatePrompt from '@/components/updater/DesktopUpdatePrompt.vue'
 import AndroidUpdateNotice from '@/components/updater/AndroidUpdateNotice.vue'

@@ -97,7 +97,6 @@ const onVideoLabel = computed(() => t('voice.onVideo', { n: onVideoCount.value }
 // out, else the stream focused in the overlay, else the first received stream.
 
 const popOutTarget = computed<DockVideoTileModel | null>(() => {
-  if (voiceStore.connectionMode === 'native') return null;
   const streams = props.tiles.filter(
     tile => tile.source === 'screen' && voiceStore.isWatchingStream(tile.userState.userId)
   );

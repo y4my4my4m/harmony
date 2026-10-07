@@ -585,8 +585,7 @@
     "joinCallFailed": "无法加入通话",
     "onVideo": "{n} 人开启视频",
     "showVideo": "显示视频",
-    "hideVideo": "隐藏视频",
-    "inCallWindow": "在通话窗口中显示"
+    "hideVideo": "隐藏视频"
   },
   "dm": {
     "directMessages": "私信",

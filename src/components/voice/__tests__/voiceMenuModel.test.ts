@@ -46,7 +46,7 @@ describe('buildVoiceMenu', () => {
     expect(m.actions).toEqual(['focus']);
   });
 
-  it('treats streams as always received without opt-in (P2P, native)', () => {
+  it('treats streams as always received without opt-in (P2P)', () => {
     const m = buildVoiceMenu({ ...remote, isStreaming: true, canWatch: false });
     expect(m.actions).toEqual(['focus', 'fullscreen', 'pop-out']);
   });

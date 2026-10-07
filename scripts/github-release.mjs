@@ -8,11 +8,16 @@
 //     is set.
 //
 //   node scripts/github-release.mjs latest-json --release-id <id> --tag <tag>
-//       --version <x.y.z> --windows <asset> --macos <asset> [--out <file>]
+//       --version <x.y.z> --windows <asset> --macos <asset> [--linux <asset>]
+//       [--out <file>]
 //     Writes the updater manifest from the release's uploaded assets and
 //     replaces the release's latest.json with it. <asset> is the updater
 //     payload; its signature is the asset named <asset>.sig. Exits non-zero,
 //     uploading nothing, when a payload or signature is absent or malformed.
+//
+//   node scripts/github-release.mjs upload --release-id <id> <file>...
+//     Uploads each file as an asset named after its basename, replacing an
+//     asset of that name.
 //
 // Environment: GITHUB_TOKEN, GITHUB_REPOSITORY (owner/repo), GITHUB_API_URL
 // (default https://api.github.com), GITHUB_SHA (commitish of a new release).
@@ -24,8 +29,9 @@
 // read-merge-write per build job, so concurrent jobs cannot drop each other's
 // platforms; entries are rebuilt from scratch, where tauri-action keeps stale
 // darwin-* entries of an earlier run; a missing platform is an error, where
-// tauri-action uploads what it has.
-import { writeFileSync, appendFileSync } from 'node:fs';
+// tauri-action uploads what it has. `upload` mirrors uploadAssets.
+import { writeFileSync, appendFileSync, readFileSync } from 'node:fs';
+import { basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
@@ -36,10 +42,15 @@ const MANIFEST = 'latest.json';
 // `${os}-${arch}-${bundle}` with os windows, arch x64 -> x86_64, bundle nsis.
 // universal-apple-darwin .app.tar.gz.sig: the universal build fills both
 // darwin arches, bundle app; no darwin-universal key.
+// x86_64-unknown-linux-gnu AppImage, unzipped .AppImage.sig: the AppImage
+// sorts first (signaturePriority 100), so it takes `${os}-${arch}` as well as
+// `${os}-${arch}-${bundle}`, with os linux, arch amd64 -> x86_64, bundle
+// appimage.
 // tauri-plugin-updater 2.9.0 reads `${os}-${arch}` only.
 export const PLATFORM_KEYS = {
   windows: ['windows-x86_64', 'windows-x86_64-nsis'],
   macos: ['darwin-aarch64', 'darwin-x86_64', 'darwin-aarch64-app', 'darwin-x86_64-app'],
+  linux: ['linux-x86_64', 'linux-x86_64-appimage'],
 };
 
 export class ReleaseError extends Error {}
@@ -208,6 +219,26 @@ export async function uploadManifest(gh, { releaseId, manifest }) {
   return uploaded;
 }
 
+export async function uploadAssets(gh, { releaseId, files }) {
+  const release = await gh.json('GET', `/releases/${releaseId}`);
+  const base = release.upload_url.replace(/\{.*\}$/, '');
+  const assets = await gh.paginate(`/releases/${releaseId}/assets`);
+  const uploaded = [];
+  for (const file of files) {
+    const name = basename(file);
+    for (const a of assets.filter((x) => x.name === name)) {
+      await gh.json('DELETE', `/releases/assets/${a.id}`);
+    }
+    uploaded.push(
+      await gh.json('POST', `${base}?name=${encodeURIComponent(name)}`, {
+        body: readFileSync(file),
+        contentType: 'application/octet-stream',
+      }),
+    );
+  }
+  return uploaded;
+}
+
 function required(values, keys) {
   for (const k of keys) {
     if (!values[k]) throw new ReleaseError(`--${k} is required`);
@@ -216,8 +247,9 @@ function required(values, keys) {
 
 export async function main(argv, { gh: ghOverride, log = console.log } = {}) {
   const [command, ...rest] = argv;
-  const { values } = parseArgs({
+  const { values, positionals } = parseArgs({
     args: rest,
+    allowPositionals: command === 'upload',
     options: {
       tag: { type: 'string' },
       name: { type: 'string' },
@@ -226,6 +258,7 @@ export async function main(argv, { gh: ghOverride, log = console.log } = {}) {
       version: { type: 'string' },
       windows: { type: 'string' },
       macos: { type: 'string' },
+      linux: { type: 'string' },
       out: { type: 'string' },
     },
   });
@@ -255,7 +288,11 @@ export async function main(argv, { gh: ghOverride, log = console.log } = {}) {
       releaseId,
       tag: values.tag,
       version: values.version,
-      payloads: { windows: values.windows, macos: values.macos },
+      payloads: {
+        windows: values.windows,
+        macos: values.macos,
+        ...(values.linux ? { linux: values.linux } : {}),
+      },
     });
     const text = JSON.stringify(manifest, null, 2);
     if (values.out) writeFileSync(values.out, text);
@@ -265,7 +302,15 @@ export async function main(argv, { gh: ghOverride, log = console.log } = {}) {
     return manifest;
   }
 
-  throw new ReleaseError(`usage: github-release.mjs <ensure|latest-json> [options]`);
+  if (command === 'upload') {
+    required(values, ['release-id']);
+    if (!positionals.length) throw new ReleaseError('upload needs at least one file');
+    const uploaded = await uploadAssets(gh, { releaseId: values['release-id'], files: positionals });
+    for (const a of uploaded) log(`Uploaded ${a.name} to release ${values['release-id']}`);
+    return uploaded;
+  }
+
+  throw new ReleaseError(`usage: github-release.mjs <ensure|latest-json|upload> [options]`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

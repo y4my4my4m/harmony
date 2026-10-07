@@ -585,8 +585,7 @@
     "joinCallFailed": "Dem Anruf konnte nicht beigetreten werden",
     "onVideo": "{n} mit Video",
     "showVideo": "Video anzeigen",
-    "hideVideo": "Video ausblenden",
-    "inCallWindow": "Im Anruffenster"
+    "hideVideo": "Video ausblenden"
   },
   "dm": {
     "directMessages": "Direktnachrichten",

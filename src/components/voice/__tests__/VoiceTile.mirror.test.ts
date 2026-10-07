@@ -11,8 +11,6 @@ const { stub } = vi.hoisted(() => ({ stub: (name: string) => ({ __esModule: true
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/stores/unifiedVoiceChannel', () => ({ useUnifiedVoiceChannelStore: () => h.store }))
-vi.mock('@/services/webrtcManager', () => ({ webrtcManager: { isNativeBackend: () => false } }))
-vi.mock('@/services/nativeLiveKit', () => ({ nativeLiveKit: { openCallWindow: vi.fn() } }))
 vi.mock('@/composables/useUserData', () => ({ useUserData: () => ({ getUserProfile: () => ({ value: null }) }) }))
 vi.mock('@/utils/bannerUtils', () => ({ getBannerUrl: () => null }))
 vi.mock('@/utils/renderFallback', () => ({ withRenderFallback: (url: string | null) => url }))

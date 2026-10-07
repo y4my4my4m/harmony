@@ -40,7 +40,6 @@ vi.mock('@/utils/userScopedStorage', () => ({
   },
 }))
 vi.mock('@/utils/platform', () => ({ isMobileUserAgent: () => false }))
-vi.mock('@/services/nativeLiveKit', () => ({ nativeLiveKit: { openCallWindow: vi.fn() } }))
 vi.mock('@/components/common/Icon.vue', () => stub('Icon'))
 vi.mock('@/components/common/Avatar.vue', () => stub('Avatar'))
 vi.mock('@/components/DisplayName.vue', () => stub('DisplayName'))

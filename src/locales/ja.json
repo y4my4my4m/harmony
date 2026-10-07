@@ -585,8 +585,7 @@
     "joinCallFailed": "通話に参加できませんでした",
     "onVideo": "ビデオ {n}人",
     "showVideo": "ビデオを表示",
-    "hideVideo": "ビデオを非表示",
-    "inCallWindow": "通話ウィンドウで表示中"
+    "hideVideo": "ビデオを非表示"
   },
   "dm": {
     "directMessages": "ダイレクトメッセージ",

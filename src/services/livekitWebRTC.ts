@@ -775,6 +775,7 @@ export class LiveKitWebRTCService {
       this.localMediaState.isMuted = true;
       this.localMediaState.isAudioEnabled = false;
       this.emit('local-state-changed', this.localMediaState);
+      this.emit('microphone-unavailable', { error });
       // Not rethrown: the join continues without audio.
     }
   }

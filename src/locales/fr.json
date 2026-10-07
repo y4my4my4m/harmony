@@ -585,8 +585,7 @@
     "joinCallFailed": "Impossible de rejoindre l'appel",
     "onVideo": "{n} en vidéo",
     "showVideo": "Afficher la vidéo",
-    "hideVideo": "Masquer la vidéo",
-    "inCallWindow": "Dans la fenêtre d'appel"
+    "hideVideo": "Masquer la vidéo"
   },
   "dm": {
     "directMessages": "Messages directs",

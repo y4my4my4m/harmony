@@ -13,7 +13,6 @@ const m = vi.hoisted(() => ({
   store: null as any,
   storage: new Map<string, string>(),
   mobile: { value: false },
-  openCallWindow: () => {},
 }))
 
 vi.mock('vue-i18n', () => ({
@@ -41,7 +40,6 @@ vi.mock('@/composables/useUserData', () => ({
     getUserDisplayName: (id: string) => ({ value: id }),
   }),
 }))
-vi.mock('@/services/nativeLiveKit', () => ({ nativeLiveKit: { openCallWindow: () => m.openCallWindow() } }))
 vi.mock('@/components/common/Icon.vue', () => ({ default: { name: 'Icon', render: () => null } }))
 vi.mock('@/components/common/Avatar.vue', () => ({ default: { name: 'Avatar', render: () => null } }))
 vi.mock('@/components/DisplayName.vue', () => ({ default: { name: 'DisplayName', render: () => null } }))
@@ -120,7 +118,6 @@ let wrapper: VueWrapper | null = null
 beforeEach(() => {
   m.storage.clear()
   m.mobile.value = false
-  m.openCallWindow = vi.fn()
 })
 
 afterEach(() => {
@@ -212,18 +209,6 @@ describe('DockVideoStrip', () => {
     expect(wrapper.find('.dock-tile-watch').exists()).toBe(false)
     expect(m.store.attachVideoToElement).toHaveBeenCalledWith('dave', expect.anything(), 'screen')
     expect(m.store.watchStream).not.toHaveBeenCalled()
-  })
-
-  it('points native transport tiles at the call window', async () => {
-    m.store = makeStore(member('me'), [member('bob', { isVideoEnabled: true, isScreenSharing: true })], { connectionMode: 'native' })
-    wrapper = await mountStrip()
-
-    expect(wrapper.find('video').exists()).toBe(false)
-    expect(wrapper.find('.strip-popout').exists()).toBe(false)
-    await wrapper.find('.dock-tile-native').trigger('click')
-    expect(m.openCallWindow).toHaveBeenCalledTimes(1)
-    expect(wrapper.emitted('open')).toBeUndefined()
-    expect(m.store.attachVideoToElement).not.toHaveBeenCalled()
   })
 
   it('emits open with the participant and source on tile click', async () => {

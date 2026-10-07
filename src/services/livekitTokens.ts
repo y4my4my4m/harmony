@@ -1,4 +1,4 @@
-// shared by the browser and native transports; URLs stay backend-relative
+// LiveKit config and tokens; URLs stay backend-relative
 import { supabase } from '@/supabase';
 import { apiUrl } from '@/services/instanceConfig';
 

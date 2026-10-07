@@ -17,15 +17,10 @@ const transport = () => ({
 })
 const livekit = vi.hoisted(() => ({} as ReturnType<typeof transport>))
 const p2p = vi.hoisted(() => ({} as ReturnType<typeof transport>))
-const native = vi.hoisted(() => ({ supported: false, service: {} as ReturnType<typeof transport> }))
 
 vi.mock('../livekitTokens', () => tokens)
 vi.mock('../livekitWebRTC', () => ({ livekitWebRTC: livekit, preloadLiveKit: vi.fn() }))
 vi.mock('../unifiedWebRTC', () => ({ unifiedWebRTC: p2p }))
-vi.mock('../nativeLiveKit', () => ({
-  nativeLiveKit: native.service,
-  isNativeMediaSupported: async () => native.supported,
-}))
 vi.mock('../VoiceSettingsService', () => ({ VoiceSettingsService: { getDevices: () => ({ outputDevice: null }) } }))
 vi.mock('../voice/remoteAudioMixer', () => ({
   remoteAudioMixer: { setOutputDevice: vi.fn(async () => undefined), reset: vi.fn() },
@@ -42,8 +37,6 @@ async function manager() {
 beforeEach(() => {
   Object.assign(livekit, transport())
   Object.assign(p2p, transport())
-  Object.assign(native.service, transport())
-  native.supported = false
   tokens.fetchLiveKitConfig.mockReset()
   tokens.lastLiveKitConfig.mockReset().mockReturnValue(null)
 })
@@ -114,20 +107,6 @@ describe('webrtcManager transport selection', () => {
     m.preloadTransport()
     await m.joinChannel('c1', 'u1')
     expect(tokens.fetchLiveKitConfig).toHaveBeenCalledTimes(1)
-  })
-
-  it('takes the native engine for the SFU and refuses P2P there', async () => {
-    native.supported = true
-    tokens.fetchLiveKitConfig.mockResolvedValue(configured)
-    let m = await manager()
-    await expect(m.joinChannel('c1', 'u1')).resolves.toBe(true)
-    expect(native.service.joinChannel).toHaveBeenCalled()
-    expect(m.getActiveService()).toBe('native')
-
-    tokens.fetchLiveKitConfig.mockResolvedValue(unconfigured)
-    m = await manager()
-    await expect(m.joinChannel('c1', 'u1')).resolves.toBe(false)
-    expect(p2p.joinChannel).not.toHaveBeenCalled()
   })
 
   it('refuses P2P for a room that requires E2EE', async () => {

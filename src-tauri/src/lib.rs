@@ -1,8 +1,8 @@
-#[cfg(all(feature = "native-media", target_os = "linux"))]
-mod call_window;
 mod commands;
 #[cfg(desktop)]
 mod overlay;
+#[cfg(target_os = "linux")]
+mod runtime;
 #[cfg(desktop)]
 mod updater;
 
@@ -16,7 +16,10 @@ fn setup_desktop(app: &tauri::AppHandle) -> tauri::Result<()> {
   let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
   let menu = Menu::with_items(app, &[&show, &quit])?;
 
-  TrayIconBuilder::with_id("main")
+  // The Linux tray is a StatusNotifierItem (ksni). Registration fails where no
+  // StatusNotifierWatcher runs (GNOME without the AppIndicator extension); the
+  // app then runs without a tray and closing the window quits.
+  let tray = TrayIconBuilder::with_id("main")
     .icon(app.default_window_icon().cloned().expect("no window icon"))
     .tooltip("Harmony")
     .menu(&menu)
@@ -43,7 +46,14 @@ fn setup_desktop(app: &tauri::AppHandle) -> tauri::Result<()> {
         }
       }
     })
-    .build(app)?;
+    .build(app);
+  let has_tray = match tray {
+    Ok(_) => true,
+    Err(e) => {
+      eprintln!("[tray] unavailable: {e}");
+      false
+    }
+  };
 
   // hotkey toggles overlay click-through <-> interactive (non-fatal if it fails)
   {
@@ -59,15 +69,17 @@ fn setup_desktop(app: &tauri::AppHandle) -> tauri::Result<()> {
 
   // X on the main window minimizes to tray instead of quitting (Discord-style)
   if let Some(win) = app.get_webview_window("main") {
-    let w = win.clone();
-    win.on_window_event(move |event| {
-      if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-        api.prevent_close();
-        let _ = w.hide();
-      }
-    });
+    if has_tray {
+      let w = win.clone();
+      win.on_window_event(move |event| {
+        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+          api.prevent_close();
+          let _ = w.hide();
+        }
+      });
+    }
     // autostart with --minimized launches hidden to tray
-    if std::env::args().any(|a| a == "--minimized") {
+    if has_tray && std::env::args().any(|a| a == "--minimized") {
       let _ = win.hide();
     }
   }
@@ -87,7 +99,21 @@ fn reveal_main(app: &tauri::AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let context = tauri::generate_context!();
+
+  #[cfg(target_os = "linux")]
+  if runtime::hand_off_to_running_instance(&context.config().identifier) {
+    return;
+  }
+
   let builder = tauri::Builder::default();
+
+  #[cfg(target_os = "linux")]
+  let builder = builder
+    .runtime(runtime::cef())
+    .on_page_load(runtime::on_page_load)
+    .on_permission_request(runtime::on_permission_request);
+  #[cfg(not(target_os = "linux"))]
+  let builder = builder.runtime(tauri_runtime_wry::Wry::default());
 
   #[cfg(desktop)]
   let builder = builder
@@ -117,11 +143,9 @@ pub fn run() {
 
   let builder = builder
     .plugin(tauri_plugin_fs::init())
-    .plugin(tauri_plugin_shell::init())
+    .plugin(tauri_plugin_opener::init())
     .plugin(tauri_plugin_notification::init())
     .setup(|app| {
-      #[cfg(all(feature = "native-media", target_os = "linux"))]
-      commands::media::init(&app.handle().clone());
       #[cfg(desktop)]
       {
         use tauri::Manager;
@@ -129,45 +153,22 @@ pub fn run() {
         app.manage(overlay::OverlayInteractive::default());
         setup_desktop(&app.handle().clone())?;
       }
+      #[cfg(target_os = "linux")]
+      {
+        use tauri::Manager;
+        if runtime::destroy_chromium_work_source() == 0 {
+          eprintln!("[cef] no Chromium GLib work source to destroy");
+        }
+        if let Some(main) = app.get_webview_window("main") {
+          runtime::allow_local_network(&main);
+        }
+      }
       let _ = app;
       Ok(())
     });
 
-  // desktop + linux native media engine
-  #[cfg(all(feature = "native-media", target_os = "linux"))]
+  #[cfg(desktop)]
   let builder = builder.invoke_handler(tauri::generate_handler![
-    commands::media::native_media_supported,
-    commands::media::media_connect,
-    commands::media::media_disconnect,
-    commands::media::media_get_state,
-    commands::media::media_set_muted,
-    commands::media::media_set_deafened,
-    commands::media::media_list_devices,
-    commands::media::media_set_input_device,
-    commands::media::media_set_output_device,
-    commands::media::media_set_user_volume,
-    commands::media::media_broadcast,
-    commands::media::media_enable_camera,
-    commands::media::media_set_screenshare,
-    commands::media::media_set_video_device,
-    commands::media::media_list_screen_sources,
-    commands::media::media_screen_thumbnail,
-    commands::media::call_window_open,
-    commands::media::call_window_close,
-    commands::media::set_system_bar_colors,
-    commands::presence::presence_start,
-    commands::presence::presence_stop,
-    commands::presence::presence_current,
-    commands::ptt::ptt_set_binding,
-    overlay::overlay_open,
-    overlay::overlay_close,
-    overlay::overlay_set_interactive,
-    updater::updater_status
-  ]);
-  // desktop without the linux native engine (windows/macos, or linux feature-off)
-  #[cfg(all(desktop, not(all(feature = "native-media", target_os = "linux"))))]
-  let builder = builder.invoke_handler(tauri::generate_handler![
-    commands::media::native_media_supported,
     commands::media::set_system_bar_colors,
     commands::presence::presence_start,
     commands::presence::presence_stop,
@@ -181,14 +182,16 @@ pub fn run() {
   // mobile (android/ios) — no desktop-only commands
   #[cfg(mobile)]
   let builder = builder.invoke_handler(tauri::generate_handler![
-    commands::media::native_media_supported,
     commands::media::set_system_bar_colors,
     commands::media::android_call_service,
     commands::media::android_open_url,
     commands::media::android_video_thumbnail
   ]);
 
-  builder
-    .run(context)
-    .expect("error running tauri");
+  if let Err(e) = builder.run(context) {
+    // Linux: CEF also fails here when its process singleton handed the launch to a
+    // running instance that the D-Bus hand-off above could not reach.
+    eprintln!("Harmony failed to start: {e}");
+    std::process::exit(1);
+  }
 }

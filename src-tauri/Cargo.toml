@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "crates/harmony-media"]
+members = ["."]
 
 [workspace.dependencies]
 serde = { version = "1.0", features = ["derive"] }
@@ -15,33 +15,49 @@ license = "AGPL-3.0"
 repository = ""
 default-run = "app"
 edition = "2021"
-rust-version = "1.77"
+rust-version = "1.95"
 
 [lib]
 name = "app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.5.2", features = [] }
+tauri-build = { version = "=3.0.0-alpha.2", features = [] }
 
 [dependencies]
 serde_json = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
 log = "0.4"
-tauri = { version = "=2.9.3", features = ["protocol-asset", "devtools", "unstable", "tray-icon", "macos-private-api"] }
-tauri-plugin-fs = "2.4.4"
-tauri-plugin-shell = "2.3.3"
-tauri-plugin-notification = "2"
+# Tauri 3 alpha: every tauri crate and plugin is pinned to one release set.
+tauri = { version = "=3.0.0-alpha.3", features = ["protocol-asset", "devtools", "unstable", "tray-icon", "macos-private-api"] }
+tauri-plugin-fs = "=3.0.0-alpha.2"
+# shell 3 removed open(); opener replaces it.
+tauri-plugin-opener = "=3.0.0-alpha.2"
+tauri-plugin-notification = "=3.0.0-alpha.2"
+
+# Runtime per target. Linux desktop runs CEF: WebKitGTK has no RTCPeerConnection
+# (2.52 builds carry no peer-connection backend; 2.54 disables WebRTC). Windows,
+# macOS and Android keep the system webview. A Linux process can load only one
+# GTK major (CEF: GTK 4, wry: GTK 3), so the runtimes never share a target.
+[target.'cfg(target_os = "linux")'.dependencies]
+tauri-runtime-cef = { version = "=3.0.0-alpha.4", features = ["devtools", "unstable"] }
+# Same glib-sys the CEF runtime's GTK 4 stack links; see runtime::destroy_chromium_work_source.
+glib-sys = "0.22"
+libc = "0.2"
+# Same zbus tauri-plugin-single-instance links; see runtime::hand_off_to_running_instance.
+zbus = "5"
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+tauri-runtime-wry = { version = "=3.0.0-alpha.3", features = ["devtools", "unstable", "macos-private-api"] }
 
 # desktop-only UX plugins; not applicable to mobile
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-single-instance = "2"
-tauri-plugin-autostart = "2"
-tauri-plugin-global-shortcut = "=2.2.0"
-# Newest releases compatible with tauri =2.9.3: updater 2.10+ needs tauri ^2.10, process 2.4+ needs ^2.12.
-tauri-plugin-updater = "=2.9.0"
-tauri-plugin-process = "=2.3.1"
+tauri-plugin-single-instance = "=3.0.0-alpha.2"
+tauri-plugin-autostart = "=3.0.0-alpha.2"
+tauri-plugin-global-shortcut = "=3.0.0-alpha.2"
+tauri-plugin-updater = "=3.0.0-alpha.2"
+tauri-plugin-process = "=3.0.0-alpha.2"
 # Pubkey check mirrors tauri-plugin-updater's verify_signature decode; same crate versions.
 base64 = "0.22"
 minisign-verify = "0.2"
@@ -49,20 +65,13 @@ sysinfo = "0.30"
 # non-grabbing global input observation for push-to-talk (X11/Windows/macOS; no Wayland)
 rdev = "0.5"
 
-[target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dependencies.wgpu]
-version = "30"
-optional = true
-
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
 ndk-context = "0.1"
 tauri-plugin-harmony-push = { path = "crates/tauri-plugin-harmony-push" }
 
-# native media engine is desktop-linux only; webview WebRTC covers other platforms
-[target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dependencies]
-harmony-media = { path = "crates/harmony-media", optional = true }
-
 [features]
-default = ["native-media"]
+default = []
 custom-protocol = ["tauri/custom-protocol"]
-native-media = ["dep:harmony-media", "dep:wgpu"]
+# Test builds (Linux CEF): DevTools port and fake-media switches; see runtime::cef.
+e2e = []

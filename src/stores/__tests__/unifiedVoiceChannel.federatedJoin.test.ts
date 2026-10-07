@@ -29,7 +29,6 @@ vi.mock('@/supabase', () => ({
 vi.mock('@/services/UserEventChannel', () => ({ userEventChannel: userEvents }))
 vi.mock('@/services/instanceConfig', () => ({ apiUrl: (p: string) => p }))
 vi.mock('@/services/webrtcManager', () => ({ webrtcManager: webrtc }))
-vi.mock('@/services/nativeLiveKit', () => ({ nativeLiveKit: {} }))
 vi.mock('@/services/voice/remoteAudioMixer', () => ({ clampVolume: (v: number) => v, remoteAudioMixer: {} }))
 vi.mock('@/services/voice/voiceAudioPrefs', () => ({ loadAudioPrefs: () => ({}), saveMutes: vi.fn(), saveVolumes: vi.fn() }))
 vi.mock('@/services/voice/voiceAudioContext', () => ({ closeVoiceAudioContext: vi.fn() }))

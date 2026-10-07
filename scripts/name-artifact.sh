@@ -2,7 +2,7 @@
 # Names a CI build output. One helper for tauri.yml and release.yml, so dev
 # builds and releases share one scheme:
 #
-#   bash scripts/name-artifact.sh [--release] <Windows|macOS|Android> <release|debug> [file]
+#   bash scripts/name-artifact.sh [--release] <Windows|macOS|Android|Linux> <release|debug> [file]
 #
 # With <file>, renames it in place to <stem>.<ext>, prints the new path and
 # appends `path=<new path>` to GITHUB_OUTPUT when that is set. Without <file>,
@@ -23,7 +23,7 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 [--release] <Windows|macOS|Android> <release|debug> [file]" >&2
+  echo "usage: $0 [--release] <Windows|macOS|Android|Linux> <release|debug> [file]" >&2
   exit 2
 }
 
@@ -38,7 +38,7 @@ profile=$2
 file=${3:-}
 
 case $platform in
-  Windows | macOS | Android) ;;
+  Windows | macOS | Android | Linux) ;;
   *) usage ;;
 esac
 case $profile in

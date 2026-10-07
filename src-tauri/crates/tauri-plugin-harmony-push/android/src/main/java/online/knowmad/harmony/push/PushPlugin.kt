@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import android.webkit.WebView
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -58,15 +59,15 @@ class PushPlugin(private val activity: Activity) : Plugin(activity) {
     if (intake(intent)) trigger("tap", JSObject())
   }
 
-  override fun onResume() {
+  override fun onResume(activity: AppCompatActivity) {
     PushState.foreground = true
   }
 
-  override fun onStop() {
+  override fun onStop(activity: AppCompatActivity) {
     PushState.foreground = false
   }
 
-  override fun onDestroy() {
+  override fun onDestroy(activity: AppCompatActivity) {
     PushState.detach(this)
   }
 

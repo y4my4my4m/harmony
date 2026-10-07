@@ -2,7 +2,6 @@ import { defineStore } from 'pinia';
 import { apiUrl } from '@/services/instanceConfig';
 import { nextTick, watch, type WatchStopHandle } from 'vue';
 import { webrtcManager } from '@/services/webrtcManager';
-import { nativeLiveKit, type NativeScreenSource } from '@/services/nativeLiveKit';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import type { VideoSource, VoiceConnectionQuality } from '@/services/livekitWebRTC';
 import { clampVolume, remoteAudioMixer, type RemoteAudioKind } from '@/services/voice/remoteAudioMixer';
@@ -37,6 +36,18 @@ let webrtcListenersRegistered = false;
 
 // Handlers for the remote server's answer to a pending federated voice join.
 let federatedAnswerUnsubscribe: (() => void) | null = null;
+
+// A link still reconnecting after this long is dropped like a lost one.
+// livekit-client 2.16 gives up only minutes in: DefaultReconnectPolicy retries
+// 10 times, each attempt bounded by websocketTimeout and peerConnectionTimeout
+// (15 s each).
+export const VOICE_RECONNECT_GIVE_UP_MS = 45_000;
+let reconnectGiveUp: ReturnType<typeof setTimeout> | null = null;
+
+function clearReconnectGiveUp(): void {
+  if (reconnectGiveUp) clearTimeout(reconnectGiveUp);
+  reconnectGiveUp = null;
+}
 
 
 interface RecentSpeaker {
@@ -94,8 +105,6 @@ interface VoiceChannelState {
   recentSpeakers: RecentSpeaker[];
   
   isOverlayVisible: boolean;
-  // native (Linux X11) screenshare source picker
-  screenSourcePicker: { visible: boolean; sources: NativeScreenSource[] };
   layoutMode: 'grid' | 'speaker' | 'gallery';
   viewMode: 'normal' | 'maximized' | 'fullscreen';
   fullscreenUserId: string | null;
@@ -115,7 +124,7 @@ interface VoiceChannelState {
   streamUpdateCounter: number;
   
   // Active WebRTC transport ('livekit' for SFU, 'p2p' for peer-to-peer, null when disconnected)
-  connectionMode: 'livekit' | 'p2p' | 'native' | null;
+  connectionMode: 'livekit' | 'p2p' | null;
 
   // End-to-end encryption of call media. Supported on LiveKit only.
   isEncrypted: boolean;
@@ -176,7 +185,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     recentSpeakers: [],
     
     isOverlayVisible: false,
-    screenSourcePicker: { visible: false, sources: [] },
     layoutMode: 'grid',
     viewMode: 'normal',
     fullscreenUserId: null,
@@ -262,10 +270,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       return state.currentChannelName || state.optimisticChannelName;
     },
 
-    /** Badge text: native carries LiveKit too, so it reads SFU. Null while not connected. */
+    /** Badge text. Null while not connected. */
     transportLabel: (state): 'SFU' | 'P2P' | null => {
       if (state.connectionMode === 'p2p') return 'P2P';
-      if (state.connectionMode === 'livekit' || state.connectionMode === 'native') return 'SFU';
+      if (state.connectionMode === 'livekit') return 'SFU';
       return null;
     },
 
@@ -294,7 +302,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       return (kind === 'mic' ? state.userMicMutes : state.userStreamMutes).has(userId);
     },
 
-    /** Own stream, P2P and native streams are always received. */
+    /** Own stream and P2P streams are always received. */
     isWatchingStream: (state) => (userId: string): boolean => {
       if (userId === state.localState.userId) return true;
       if (state.connectionMode !== 'livekit') return true;
@@ -1056,26 +1064,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     async toggleScreenShare(): Promise<boolean> {
-      // Native Linux X11 has no OS screenshare picker, so an in-app one runs
-      // first. Wayland returns no sources because its portal picks. Stopping
-      // never needs a picker.
-      if (webrtcManager.isNativeBackend() && !this.localState.isScreenSharing) {
-        const sources = await nativeLiveKit.listScreenSources();
-        if (sources.length > 1) {
-          this.screenSourcePicker = { visible: true, sources };
-          return false;
-        }
-      }
-      return this.startScreenShare();
-    },
-
-    /** Starts or stops screenshare. `source` picks the display on native X11. */
-    async startScreenShare(source?: NativeScreenSource): Promise<boolean> {
-      this.screenSourcePicker = { visible: false, sources: [] };
-
-      const enabled = webrtcManager.isNativeBackend()
-        ? await nativeLiveKit.toggleScreenShare(source)
-        : await webrtcManager.toggleScreenShare();
+      const enabled = await webrtcManager.toggleScreenShare();
 
       this.localState = webrtcManager.getLocalState();
       this.localStream = webrtcManager.getLocalStream();
@@ -1090,10 +1079,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.refreshStreamState();
 
       return enabled;
-    },
-
-    cancelScreenSharePicker(): void {
-      this.screenSourcePicker = { visible: false, sources: [] };
     },
 
     /**
@@ -1327,6 +1312,20 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         streamVolumes: this.userScreenShareVolumes,
         mutes: { mic: this.userMicMutes, screen: this.userStreamMutes },
       });
+    },
+
+    /** Tears down a session whose link is gone, like a leave, and says so. */
+    async dropLostVoiceConnection(): Promise<void> {
+      clearReconnectGiveUp();
+      if (!this.isConnected) return;
+      debug.warn('Voice connection lost; leaving channel');
+      await this.leaveVoiceChannel();
+      useNotificationStore().showToast(
+        'server_update',
+        'Disconnected from voice',
+        'The connection to the voice server was lost.',
+        6000
+      );
     },
 
     /** Resumes audio the browser blocked. Bound to a click. */
@@ -1638,21 +1637,27 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const state = data?.state;
         if (state === 'reconnecting' || state === 'signalReconnecting') {
           this.connectionState = 'reconnecting';
+          reconnectGiveUp ??= setTimeout(() => {
+            reconnectGiveUp = null;
+            void this.dropLostVoiceConnection();
+          }, VOICE_RECONNECT_GIVE_UP_MS);
         } else if (state === 'connected') {
           this.connectionState = 'connected';
+          clearReconnectGiveUp();
         }
       });
 
       // The transport gave up (server gone, network lost past the retry
-      // window, duplicate session). The session is torn down like a leave.
-      webrtcManager.on('connection-lost', async () => {
-        if (!this.isConnected) return;
-        debug.warn('Voice connection lost; leaving channel');
-        await this.leaveVoiceChannel();
+      // window, duplicate session).
+      webrtcManager.on('connection-lost', () => this.dropLostVoiceConnection());
+
+      // Joined listen-only: the microphone never came up.
+      webrtcManager.on('microphone-unavailable', () => {
+        if (!this.isConnectedOrJoining) return;
         useNotificationStore().showToast(
           'server_update',
-          'Disconnected from voice',
-          'The connection to the voice server was lost.',
+          'Microphone unavailable',
+          'Joined muted: the microphone could not be opened.',
           6000
         );
       });
@@ -2053,10 +2058,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.connectionMode = null;
       this.isEncrypted = false;
       this.connectionState = null;
+      clearReconnectGiveUp();
       this.connectionQuality = {};
       this.watchedStreamUserIds = [];
       this.audioPlaybackBlocked = false;
-      this.screenSourcePicker = { visible: false, sources: [] };
     },
 
     getUserProfile(userId: string) {

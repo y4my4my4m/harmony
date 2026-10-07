@@ -593,8 +593,7 @@
     "joinCallFailed": "Could not join the call",
     "onVideo": "{n} on video",
     "showVideo": "Show video",
-    "hideVideo": "Hide video",
-    "inCallWindow": "In call window"
+    "hideVideo": "Hide video"
   },
   "dm": {
     "title": "Direct messages",
@@ -2457,10 +2456,6 @@
     "devices": {
       "title": "No devices registered yet",
       "description": "Devices appear here once you unlock encryption on them."
-    },
-    "screenSources": {
-      "screens": "No screens available",
-      "windows": "No windows available"
     },
     "admin": {
       "discoveredInstances": {

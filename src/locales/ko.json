@@ -585,8 +585,7 @@
     "joinCallFailed": "통화에 참여하지 못했습니다",
     "onVideo": "영상 {n}명",
     "showVideo": "영상 표시",
-    "hideVideo": "영상 숨기기",
-    "inCallWindow": "통화 창에서 표시 중"
+    "hideVideo": "영상 숨기기"
   },
   "dm": {
     "directMessages": "다이렉트 메시지",

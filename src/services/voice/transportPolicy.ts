@@ -12,8 +12,6 @@
  *   hybrid   yes                  sfu
  *   hybrid   no                   p2p
  *   p2p      either               p2p
- *
- * The native media engine (Linux desktop) carries LiveKit only.
  */
 
 import type { LiveKitConfig } from '../livekitTokens';
@@ -30,7 +28,7 @@ export function isLiveKitConfigured(config: Pick<LiveKitConfig, 'enabled' | 'wsU
 
 export function selectCallTransport(
   config: LiveKitConfig | null,
-  opts: { native: boolean; requireE2EE: boolean },
+  opts: { requireE2EE: boolean },
 ): TransportDecision {
   if (!config) {
     return { ok: false, reason: 'The voice server settings could not be loaded. Try again in a moment.' };
@@ -47,9 +45,6 @@ export function selectCallTransport(
     transport = 'p2p';
   }
 
-  if (transport === 'p2p' && opts.native) {
-    return { ok: false, reason: 'P2P calls are not available on the Linux desktop client yet. This instance has no voice server (SFU).' };
-  }
   if (transport === 'p2p' && opts.requireE2EE) {
     return { ok: false, reason: 'This channel requires end-to-end encrypted voice, which needs the voice server (SFU).' };
   }

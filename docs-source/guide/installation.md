@@ -99,10 +99,15 @@ docker run -d --name harmony-dev-redis -p 127.0.0.1:6379:6379 redis:7-alpine
 
 ## Desktop app (Tauri)
 
-Additional prerequisites: Rust via [rustup](https://rustup.rs) and the platform's WebView (Linux: WebKit2GTK; Windows: WebView2).
+Additional prerequisites: Rust 1.95+ via [rustup](https://rustup.rs), plus per platform:
+
+- Linux: GTK 4, CMake and Ninja. The app runs on the Chromium Embedded Framework, which the first
+  build downloads. The full package list, AppImage packaging and sandbox notes are in
+  `docs/DEVELOPMENT.md`, "Linux Build (CEF)".
+- Windows: WebView2.
 
 ```bash
-npm run tauri:dev       # development; sets WEBKIT_DISABLE_DMABUF_RENDERER=1
+npm run tauri:dev       # development
 npm run tauri:dev:x11   # Linux sessions that need GDK_BACKEND=x11
 npm run tauri:build     # release build
 ```

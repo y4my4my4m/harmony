@@ -21,19 +21,13 @@
     />
 
     <!-- Unwatched stream: nothing is received until the listener opts in -->
-    <div v-else-if="needsWatch" class="dock-tile-placeholder">
+    <div v-else class="dock-tile-placeholder">
       <Avatar :src="avatarUrl" :alt="fallbackName" size="sm" class="dock-tile-avatar" />
       <button type="button" class="dock-tile-watch" @click.stop="emit('watch')">
         <Icon name="eye" :size="14" />
         <span>{{ t('voice.watchStream') }}</span>
       </button>
     </div>
-
-    <!-- Native transport: video renders in the call window, not the webview -->
-    <button v-else type="button" class="dock-tile-placeholder dock-tile-native" @click.stop="openCallWindow">
-      <Icon :name="source === 'screen' ? 'screen-share' : 'video'" :size="18" />
-      <span>{{ t('voice.inCallWindow') }}</span>
-    </button>
 
     <div class="dock-tile-label">
       <Icon :name="source === 'screen' ? 'screen-share' : 'video'" :size="12" class="dock-tile-label-icon" />
@@ -49,7 +43,6 @@ import { computed, ref, watch, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
-import { nativeLiveKit } from '@/services/nativeLiveKit';
 import { useUserData } from '@/composables/useUserData';
 import { debug } from '@/utils/debug';
 import Icon from '@/components/common/Icon.vue';
@@ -90,12 +83,7 @@ const isSpeaking = computed(() => {
 const needsWatch = computed(() =>
   props.source === 'screen' && !voiceStore.isWatchingStream(props.userState.userId)
 );
-const isNative = computed(() => voiceStore.connectionMode === 'native');
-const showVideo = computed(() => !needsWatch.value && !isNative.value);
-
-const openCallWindow = () => {
-  nativeLiveKit.openCallWindow();
-};
+const showVideo = computed(() => !needsWatch.value);
 
 // VIDEO ATTACHMENT
 // Through the store: LiveKit track.attach() keeps adaptive stream informed of
@@ -226,17 +214,6 @@ onBeforeUnmount(detach);
   gap: 8px;
   background: var(--background-tertiary);
   color: var(--text-secondary);
-}
-
-.dock-tile-native {
-  border: none;
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.dock-tile-native:hover {
-  color: var(--text-primary);
 }
 
 .dock-tile-watch {
