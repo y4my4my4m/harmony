@@ -186,6 +186,20 @@ discord_bridge_guild_channels	p_snapshot jsonb, p_guild_id text	SETOF jsonb	invo
 discord_bridge_hosted_list		TABLE(bridge_id uuid, harmony_token text, discord_token text)	definer	public, pg_temp	service_role	client
 discord_bridge_hosting_enabled		boolean	definer	public, pg_temp		client
 discord_bridge_hosting_limit		integer	definer	public, pg_temp		client
+discord_bridge_instance_bot_clear		void	definer	public, pg_temp	authenticated	client
+discord_bridge_instance_bot_configured		boolean	definer	public, pg_temp		unreferenced
+discord_bridge_instance_bot_enabled		boolean	definer	public, pg_temp		client
+discord_bridge_instance_bot_limit		integer	definer	public, pg_temp		client
+discord_bridge_instance_bot_purge		trigger	definer	public, pg_temp		trigger
+discord_bridge_instance_bot_secrets		TABLE(client_id text, client_secret text)	definer	public, pg_temp	service_role	client
+discord_bridge_instance_bot_set	p_application_id text, p_client_secret text, p_bot_token text	jsonb	definer	public, pg_temp	authenticated	client
+discord_bridge_instance_bot_status		jsonb	definer	public, pg_temp	authenticated	client
+discord_bridge_instance_hosted		jsonb	definer	public, pg_temp	service_role	client
+discord_bridge_instance_link	p_server_id uuid	jsonb	definer	public, extensions, pg_temp	authenticated	client
+discord_bridge_instance_link_check	p_state text, p_guild_id text	jsonb	definer	public, pg_temp	service_role	client
+discord_bridge_instance_link_complete	p_state text, p_guild_id text, p_guild_name text	jsonb	definer	public, pg_temp	service_role	client
+discord_bridge_instance_linked_count	p_except uuid	integer	definer	public, pg_temp		unreferenced
+discord_bridge_instance_presence		boolean	definer	public, pg_temp		client
 discord_bridge_issue_token	p_bot_id uuid	text	definer	public, pg_temp		unreferenced
 discord_bridge_normalize_code	p_code text	text	invoker	public, pg_temp		unreferenced
 discord_bridge_pair	p_bridge_id uuid, p_harmony_channel_id uuid, p_discord_channel_id text, p_direction text	uuid	definer	public, pg_temp	authenticated	client
