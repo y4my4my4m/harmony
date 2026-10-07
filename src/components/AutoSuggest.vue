@@ -1,4 +1,8 @@
 <template>
+  <!-- Teleported: a transformed or paint-contained ancestor (virtual list
+       rows, `.message-display`) becomes the containing block of a fixed
+       element, offsets its viewport coordinates and clips it. -->
+  <Teleport to="body">
   <div
     v-if="props.isVisible && props.suggestions.length > 0"
     ref="suggestContainer"
@@ -7,6 +11,7 @@
     class="auto-suggest"
     :class="{ 'auto-suggest-commands': isCommandList }"
     :style="positionStyle"
+    @mousedown.prevent
   >
     <div v-if="props.headerText" class="suggest-header">
       {{ props.headerText }}
@@ -103,6 +108,7 @@
       </slot>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">

@@ -26,6 +26,8 @@
     @focus="handleFocus"
     @blur="handleBlur"
     @paste="handlePaste"
+    @copy="handleCopy"
+    @cut="handleCut"
     :data-placeholder="placeholder"
     :style="{
       '--min-height': `${props.minHeight}px`,
@@ -52,6 +54,7 @@ import { useUndoRedo, type UndoState } from '@/composables/useUndoRedo';
 import { findEmojiByName } from '@/services/emojiShortcodeResolver';
 import { applyInlineFormatToggle, type InlineFormatKind } from '@/utils/richTextFormatting';
 import { HANDLE_PATTERN, continuesHandle } from '@/utils/mentionGrammar';
+import { pastedText, writeTokenTextToClipboard } from '@/utils/emojiClipboard';
 
 interface Props {
   modelValue: string;
@@ -1121,16 +1124,47 @@ const handlePaste = (event: ClipboardEvent) => {
     }
   }
 
-  // Text-only paste.
-  const text = event.clipboardData?.getData('text/plain') || '';
-  insertTextAtCursor(text);
+  // Text only: pasted HTML is reduced to text with emoji tokens; renderContent
+  // turns the tokens back into emoji.
+  insertTextAtCursor(pastedText(event.clipboardData));
+};
+
+// Composer text of a selection holding emoji, emoji as their tokens. Null
+// when the selection is collapsed, outside the editor, or holds no emoji:
+// that copy keeps the browser's default.
+const selectedPlainText = (): { text: string; start: number; end: number } | null => {
+  if (!editorRef.value) return null;
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return null;
+  const range = selection.getRangeAt(0);
+  if (!editorRef.value.contains(range.commonAncestorContainer)) return null;
+  if (!range.cloneContents().querySelector('.editor-emoji')) return null;
+  const { start, end } = getSelectionOffsets();
+  if (start === end) return null;
+  return { text: getPlainText().slice(start, end), start, end };
+};
+
+const handleCopy = (event: ClipboardEvent) => {
+  const selected = selectedPlainText();
+  if (selected) writeTokenTextToClipboard(event, selected.text);
+};
+
+const handleCut = (event: ClipboardEvent) => {
+  const selected = selectedPlainText();
+  if (!selected || !writeTokenTextToClipboard(event, selected.text)) return;
+  const full = getPlainText();
+  applyEditorTextChange(full.slice(0, selected.start) + full.slice(selected.end), selected.start, selected.start);
 };
 
 const insertTextAtCursor = (text: string) => {
   if (!editorRef.value) return;
   
   const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0) {
+  if (
+    !selection ||
+    selection.rangeCount === 0 ||
+    !editorRef.value.contains(selection.getRangeAt(0).commonAncestorContainer)
+  ) {
     // Appending a text node preserves emoji, mention and formatting spans;
     // setting textContent would flatten them.
     editorRef.value.appendChild(document.createTextNode(text));

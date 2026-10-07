@@ -12,6 +12,7 @@
         :auto-suggest-active="!!autoSuggest?.state.value.isActive"
         :auto-suggest-selected-id="autoSuggest?.state.value.isActive ? 'suggest-' + autoSuggest.state.value.selectedIndex : undefined"
         @update:model-value="handleRichEditorUpdate"
+        @cursor-position-changed="handleEditCursorPositionChanged"
         @keydown="handleKeyDown"
       />
       <!-- Existing attachments as removable thumbnails. Removal affects the
@@ -209,6 +210,7 @@
           :src="getEmojiUrl(part.emoji.url, 96)"
           :alt="`:${part.emoji?.name || '?'}:`"
           :title="`:${part.emoji?.name}:`"
+          :data-emoji-token="emojiPartToken(part.emoji)"
           draggable="false"
           @error="handleEmojiLoadError"
         />
@@ -573,6 +575,7 @@ import { userDataService } from '@/services/userDataService';
 import { useUserData } from '@/composables/useUserData';
 import { mentionDisplayDomain } from '@/utils/mentionGrammar';
 import { getEmojiUrl } from '@/utils/emojiUtils';
+import { discordEmojiPartText } from '@/utils/discordEmoji';
 import EncryptedGlyphPreview from '@/components/encryption/EncryptedGlyphPreview.vue';
 import ProviderEmbedSwitch from '@/components/embeds/ProviderEmbedSwitch.vue';
 import MessageMediaGallery from '@/components/common/MessageMediaGallery.vue';
@@ -898,7 +901,7 @@ export default defineComponent({
       floatingObserverCleanups.length = 0;
     });
     
-    const getCurrentText = () => localEditableContent.value;
+    const getCurrentText = () => editRichEditorRef.value?.getPlainText?.() ?? localEditableContent.value;
     const updateText = (newText: string, cursorPosition?: number) => {
       localEditableContent.value = newText;
       emit('update:content', newText);
@@ -915,14 +918,14 @@ export default defineComponent({
       });
     };
     // Edit mode only. An instance carries a useServerPermissions instance and
-    // five window listeners, so a row creates it on its first edit rather than
-    // on mount.
+    // window listeners, so a row creates it on its first edit rather than on
+    // mount.
     let autoSuggestScope: EffectScope | null = null;
     const autoSuggest = shallowRef<ReturnType<typeof useAutoSuggest> | null>(null);
     const ensureAutoSuggest = (): ReturnType<typeof useAutoSuggest> => {
       if (!autoSuggest.value) {
         autoSuggestScope = effectScope();
-        autoSuggest.value = autoSuggestScope.run(() => useAutoSuggest(editRichEditorRef, getCurrentText, updateText))!;
+        autoSuggest.value = autoSuggestScope.run(() => useAutoSuggest(editRichEditorRef, getCurrentText, updateText, { mode: 'chat', enableCommands: false }))!;
       }
       return autoSuggest.value;
     };
@@ -933,6 +936,15 @@ export default defineComponent({
     onUnmounted(() => {
       autoSuggestScope?.stop();
     });
+
+    // Composer text of an emoji part; the document copy handler
+    // (utils/emojiClipboard) writes it for the image.
+    const emojiPartToken = (emoji: unknown): string | undefined => {
+      const discord = discordEmojiPartText(emoji);
+      if (discord) return discord;
+      const name = (emoji as { name?: unknown } | null)?.name;
+      return typeof name === 'string' && name ? `:${name}:` : undefined;
+    };
 
     const isImageUrl = (url: string): boolean => {
       if (!url) return false;
@@ -1178,16 +1190,22 @@ export default defineComponent({
     const handleRichEditorUpdate = (value: string) => {
       localEditableContent.value = value;
       emit('update:content', value);
-      nextTick(() => {
-        const pos = editRichEditorRef.value?.getCursorPosition?.() ?? value.length;
-        ensureAutoSuggest().handleInput(value, pos);
-      });
+    };
+
+    // Mirrors MessageInput.handleCursorPositionChanged. The editor emits the
+    // caret offset before it re-renders formatted text; a caret read after
+    // that re-render sees the rebuilt DOM without a selection.
+    const handleEditCursorPositionChanged = (position: number) => {
+      const text = editRichEditorRef.value?.getPlainText?.() ?? localEditableContent.value;
+      ensureAutoSuggest().handleInput(text, position);
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       const suggest = ensureAutoSuggest();
-      // Auto-suggest claims keys first.
+      // Auto-suggest claims keys first. Escape with the popup open closes the
+      // popup only; the edit stays open.
       if (suggest.handleKeyDown(event)) {
+        if (event.key === 'Escape') event.stopPropagation();
         return;
       }
       
@@ -1352,6 +1370,8 @@ export default defineComponent({
       handleCancelEdit,
       handleKeyDown,
       handleRichEditorUpdate,
+      handleEditCursorPositionChanged,
+      emojiPartToken,
       autoResizeEditArea,
       autoSuggest,
       handleSuggestionSelect,

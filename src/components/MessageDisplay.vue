@@ -690,6 +690,7 @@ import { GroupIconPresets } from '@/utils/groupIconUtils';
 import type { PropType, Ref, ComputedRef } from 'vue';
 import type { Message, MessagePart, User, Emoji, Reaction, FileContent } from '@/types';
 import { hasSubstantiveMessageContent, removeFilePartByUrl } from '@/utils/messageContentUtils';
+import { isBridgedAuthorMessage } from '@/utils/messageAuthor';
 import { ensureMediaPartSources, isPrivateMediaPart, mediaPartSource } from '@/services/privateMedia';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
@@ -2931,6 +2932,9 @@ const canEditMessage = (message: Message) => {
   if (message.id.startsWith('temp-')) return false;
   if (message.sending) return false;
   if (message.encrypted && !message.decrypted) return false;
+  // A relayed message's author lives on the bridged platform; an edit made
+  // here never reaches that copy. Applies to admins and moderators too.
+  if (isBridgedAuthorMessage(message)) return false;
 
   const currentProfileId = profileStore.profile?.id;
   const messageUserId = message.user_id;

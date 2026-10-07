@@ -40,6 +40,8 @@ if (typeof window !== 'undefined') {
 }
 
 installRenderFallback();
+// Copying rendered messages and posts writes custom emoji as their tokens.
+void import('@/utils/emojiClipboard').then(({ installRenderedEmojiCopy }) => installRenderedEmojiCopy());
 
 const app = createApp(App);
 
