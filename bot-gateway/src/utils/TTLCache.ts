@@ -49,6 +49,16 @@ export class TTLCache<K, V> {
     this.store.set(key, { value, expiresAt: Date.now() + this.ttlMs });
   }
 
+  /** Live entries, least recently used first. Recency is not touched. */
+  entries(): Array<[K, V]> {
+    const now = Date.now();
+    const live: Array<[K, V]> = [];
+    for (const [key, hit] of this.store) {
+      if (hit.expiresAt > now) live.push([key, hit.value]);
+    }
+    return live;
+  }
+
   delete(key: K): boolean {
     return this.store.delete(key);
   }
