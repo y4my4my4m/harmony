@@ -583,8 +583,12 @@ check_security() {
 		  AND EXISTS (SELECT 1 FROM unnest(s.setconfig) c WHERE c LIKE 'app.settings.jwt\_secret=%')" 2>/dev/null)" != 0 ]]; then
 		report WARN "jwt secret" "app.settings.jwt_secret is a database default: any session can read the JWT secret" \
 			"bash bootstrap.sh --migrations-only (removes it)"
+	elif docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$(svc_id rest)" 2>/dev/null |
+		grep -q '^PGRST_APP_SETTINGS_JWT_SECRET='; then
+		report WARN "jwt secret" "PostgREST sets app.settings.jwt_secret in every request: SQL run through the API can read the JWT secret" \
+			"harmony update (supabase-overrides.yml removes PGRST_APP_SETTINGS_JWT_SECRET)"
 	else
-		report OK "jwt secret" "not stored in the database settings"
+		report OK "jwt secret" "not stored in the database settings or PostgREST's"
 	fi
 
 	local key ex cur weak=()

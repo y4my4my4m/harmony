@@ -433,7 +433,9 @@ open even when the firewall says otherwise.
   example values survive an install.
 - `bootstrap.sh` removes the JWT secret that upstream Supabase stores as a
   database setting (`app.settings.jwt_secret`), where any database session
-  could read it; no Harmony or Supabase service reads it there.
+  could read it, and `supabase-overrides.yml` drops the copy PostgREST would
+  set in every API request (`PGRST_APP_SETTINGS_JWT_SECRET`); no Harmony or
+  Supabase service reads it there.
 
 `harmony doctor` checks, under Security:
 
@@ -444,7 +446,7 @@ open even when the firewall says otherwise.
 | login roles | a role that can log in beyond the stack's (`authenticator`, `harmony_listener`, `pgbouncer`, `postgres`, `supabase_admin`, `supabase_auth_admin`, `supabase_functions_admin`, `supabase_read_only_user`, `supabase_replication_admin`, `supabase_storage_admin`) |
 | functions (WARN) | a function body creates or alters roles, grants `SUPERUSER`, or reaches the server's files or programs (`COPY ... PROGRAM`, `pg_read_server_files`, `pg_execute_server_program`, `lo_import`, `dblink_exec`) |
 | extensions (WARN) | an untrusted language (`plpython3u`, `plperlu`, `pltclu`) or `dblink`, `adminpack`, `file_fdw` is installed |
-| jwt secret (WARN) | `app.settings.jwt_secret` is still a database setting |
+| jwt secret (WARN) | `app.settings.jwt_secret` is still a database setting, or PostgREST still sets it per request |
 | secrets | `supabase/.env` holds Supabase's example `POSTGRES_PASSWORD`, `JWT_SECRET` or `DASHBOARD_PASSWORD` |
 | published | this stack publishes 5432, 6543, 54322, 8000, 8443, 4000 or 6379 beyond 127.0.0.1 (other containers on the host doing so: WARN) |
 | reachable | one of those ports answers on the server's public IPv4 or IPv6 address |
