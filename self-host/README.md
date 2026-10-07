@@ -102,8 +102,10 @@ HARMONY_BUILD=0 bash configure.sh --non-interactive   # back to published images
 
 Communities connect a Discord server in Server Settings, Discord Bridge.
 The bridge runs either on a computer of theirs ("Run it myself") or, when the
-operator offers it, on this instance ("Run it on this instance": they paste
-their Discord bot token into Harmony).
+operator offers it, on this instance: with their own Discord bot ("Run it on
+this instance": they paste its token into Harmony) or with the instance's
+Discord bot ("Use this instance's bot": they add it to their Discord server
+from that page).
 
 Offering it takes the `discord` profile and a switch in the app:
 
@@ -115,6 +117,14 @@ Offering it takes the `discord` profile and a switch in the app:
    `BRIDGE_MODE=host`, reaching the gateway at `http://bot-gateway:3002`).
 2. In Harmony, Admin, Instance: turn on "Run Discord bridges for
    communities" and set the maximum number of hosted bridges.
+
+The instance's Discord bot needs the same service, bridge 2.1.0 or later, and
+a Discord application set up in Admin, Instance, "This instance's Discord bot"
+(the steps are on that page; the OAuth2 redirect is
+`https://<domain>/bot-gateway/bridge/v2/discord/callback`, built from
+`INSTANCE_DOMAIN` in `bot-gateway.env`). The host runs it on one Discord
+connection for every linked server, and makes it leave a Discord server no
+instance bridge has linked for ten minutes.
 
 The host runs every hosted bridge, one Discord connection each, and picks up
 new ones within a minute. The operator holds each community's Discord bot

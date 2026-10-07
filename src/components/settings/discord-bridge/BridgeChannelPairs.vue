@@ -1,6 +1,24 @@
 <template>
   <div data-testid="channel-pairs">
-    <div v-if="!guild" class="db-banner db-banner--warn" role="status">
+    <div
+      v-if="!guild && bridge.mode === 'instance' && bridge.discord_guild_id && !bridge.snapshot"
+      class="db-banner"
+      role="status"
+      data-testid="pairs-waiting-instance"
+    >
+      <p>{{ t('discordBridge.pairs.waitingInstance', { guild: bridge.discord_guild_name || bridge.discord_guild_id }) }}</p>
+    </div>
+
+    <div
+      v-else-if="!guild && bridge.mode === 'instance' && bridge.discord_guild_id"
+      class="db-banner db-banner--warn"
+      role="status"
+      data-testid="pairs-instance-gone"
+    >
+      <p>{{ t('discordBridge.pairs.instanceGone', { guild: bridge.discord_guild_name || bridge.discord_guild_id }) }}</p>
+    </div>
+
+    <div v-else-if="!guild" class="db-banner db-banner--warn" role="status">
       <p>{{ t('discordBridge.pairs.noGuild') }}</p>
     </div>
 

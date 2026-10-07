@@ -3069,7 +3069,8 @@
       "copied": "Copied",
       "copyFailed": "Couldn't copy. Select the text and copy it by hand.",
       "retry": "Try again",
-      "commandLabel": "Command"
+      "commandLabel": "Command",
+      "dismiss": "Dismiss"
     },
     "start": {
       "title": "Where should the bridge run?",
@@ -3090,7 +3091,17 @@
       },
       "hostingUnavailable": "This instance doesn't run bridges for its communities, so the bridge runs on a computer of yours.",
       "bothWays": "Either way, messages in bridged channels pass through this instance like any other message here.",
-      "presenceNote": "Presence sync (Discord online status) starts off: it sends an update every time any member's status changes, a heavy, constant load in big servers. You can turn it on later."
+      "presenceNote": "Presence sync (Discord online status) starts off. When it is on, only changes of status are sent, but the bot needs Discord's Presence intent. You can turn it on later.",
+      "needsInstance": "You need the Manage Server permission on the Discord server you want to connect.",
+      "instance": {
+        "title": "Use {instance}'s bot",
+        "recommended": "Recommended",
+        "point1": "Nothing to create or install: you add the bot to your Discord server in one click.",
+        "point2": "This instance runs the bridge for you.",
+        "tradeoff": "The bot belongs to this instance's operator, who can read every Discord channel the bot has access to. Give it access only to the channels you bridge.",
+        "choose": "Use {instance}'s bot"
+      },
+      "ownBot": "Or use a Discord bot of your own:"
     },
     "steps": {
       "navLabel": "Setup steps",
@@ -3126,17 +3137,22 @@
         },
         "check": "Next",
         "guild": "Next",
-        "channels": "Next"
+        "channels": "Next",
+        "link": "Next"
       },
       "finish": "Finish setup",
       "blocked": {
         "check": "Continue once every item above has a green check.",
         "guild": "Choose a Discord server to continue.",
-        "channels": "Pair at least one channel to continue."
+        "channels": "Pair at least one channel to continue.",
+        "link": "Add the bot to your Discord server to continue."
       },
       "startOver": {
         "prompt": "Chose the wrong option?",
         "action": "Start over"
+      },
+      "link": {
+        "title": "Add the bot to Discord"
       }
     },
     "bot": {
@@ -3335,7 +3351,9 @@
         "blocked": "The bot can't use {channel} yet. Fix its permissions in Discord first, as described above."
       },
       "add": "Add pair",
-      "fromDiscord": "You can also pair from Discord with {command}. It asks for the Harmony channel's ID: right-click the channel here and choose {copyId}."
+      "fromDiscord": "You can also pair from Discord with {command}. It asks for the Harmony channel's ID: right-click the channel here and choose {copyId}.",
+      "waitingInstance": "Connecting to {guild}… this takes up to a minute. The channels show up here by themselves.",
+      "instanceGone": "The bot isn't in {guild} anymore. Add it to Discord again to keep bridging."
     },
     "settings": {
       "needsIntent": "Needs the {intent} in the Developer Portal.",
@@ -3345,7 +3363,7 @@
       },
       "sync_presence": {
         "label": "Sync presence",
-        "hint": "Show whether Discord members are online. Off by default: in big servers it is a constant stream of updates for the bridge and this instance."
+        "hint": "Show whether Discord members are online. Only changes of status are sent, so it stays light."
       },
       "sync_reactions": {
         "label": "Sync reactions",
@@ -3358,7 +3376,9 @@
       "sync_deletes": {
         "label": "Sync deletions",
         "hint": "When someone deletes a message, delete the copy on the other side."
-      }
+      },
+      "needsInstanceIntent": "Works only while this instance's bot has the {intent}.",
+      "presenceInstance": "The instance's admin also has to turn presence on for the bot, and Discord grants the Presence intent to bots in more than 100 servers only after a review."
     },
     "status": {
       "online": "Bridge is online",
@@ -3370,7 +3390,8 @@
       "runs": "Runs",
       "mode": {
         "self": "On your computer",
-        "hosted": "On this instance"
+        "hosted": "On this instance",
+        "instance": "With this instance's Discord bot"
       },
       "discordServer": "Discord server",
       "discordBot": "Discord bot",
@@ -3384,12 +3405,14 @@
       "maintainTitle": "Maintenance",
       "maintain": {
         "self": "Move the bridge to another computer, or reinstall it",
-        "hosted": "Replace the Discord bot token"
+        "hosted": "Replace the Discord bot token",
+        "instance": "Link a different Discord server"
       },
       "disconnectTitle": "Disconnect the bridge",
       "disconnectBody": {
         "self": "Stops bridging and removes all channel pairs and the bridge's Harmony bot. Messages that were already bridged stay. Your Discord bot isn't deleted; remove it in the Developer Portal if you no longer need it.",
-        "hosted": "Stops bridging, removes all channel pairs and the bridge's Harmony bot, and deletes the stored Discord token. Messages that were already bridged stay. Your Discord bot isn't deleted; remove it in the Developer Portal if you no longer need it."
+        "hosted": "Stops bridging, removes all channel pairs and the bridge's Harmony bot, and deletes the stored Discord token. Messages that were already bridged stay. Your Discord bot isn't deleted; remove it in the Developer Portal if you no longer need it.",
+        "instance": "Stops bridging and removes all channel pairs and the bridge's Harmony bot. Messages that were already bridged stay. The bot leaves your Discord server by itself within about ten minutes."
       },
       "disconnect": "Disconnect bridge",
       "disconnected": "Bridge disconnected",
@@ -3406,7 +3429,8 @@
         "message": "This removes the bridge you started setting up, so you can choose again.",
         "button": "Start over"
       },
-      "selfNote": "Also stop the program on your computer: {command}"
+      "selfNote": "Also stop the program on your computer: {command}",
+      "instanceNote": "This instance's bot leaves your Discord server by itself within about ten minutes. There is nothing to remove in Discord."
     },
     "problems": {
       "listLabel": "Problems",
@@ -3415,29 +3439,35 @@
       "bridge_offline": {
         "title": "The bridge is offline.",
         "fixSelf": "Make sure the computer running it is on and Docker is running, then start the bridge with the first command below. If it stops again, the second command shows why.",
-        "fixHosted": "This instance isn't running your bridge right now. Wait a few minutes; if it stays offline, contact the instance's admin."
+        "fixHosted": "This instance isn't running your bridge right now. Wait a few minutes; if it stays offline, contact the instance's admin.",
+        "fixInstance": "This instance isn't running your bridge right now. Wait a few minutes; if it stays offline, contact the instance's admin."
       },
       "discord_token_invalid": {
         "title": "Discord rejected the bot token.",
         "fixSelf": "In the Developer Portal, open your application → Bot → Reset Token and copy the new token. Remove the old bridge with the command below, then run the setup command again with the new token. The bridge remembers its Harmony sign-in.",
-        "fixHosted": "In the Developer Portal, open your application → Bot → Reset Token, copy the new token and save it here."
+        "fixHosted": "In the Developer Portal, open your application → Bot → Reset Token, copy the new token and save it here.",
+        "fixInstance": "This is on the instance's side: its bot needs a new token. Contact the instance's admin."
       },
       "intent_missing": {
         "title": "Discord refused the {intent}.",
         "fixSelf": "In the Developer Portal, open your application → Bot → Privileged Gateway Intents, switch on {intent} and click Save Changes. Then restart the bridge with the command below.",
-        "fixHosted": "In the Developer Portal, open your application → Bot → Privileged Gateway Intents, switch on {intent} and click Save Changes. The bridge picks it up when it reconnects, within a few minutes."
+        "fixHosted": "In the Developer Portal, open your application → Bot → Privileged Gateway Intents, switch on {intent} and click Save Changes. The bridge picks it up when it reconnects, within a few minutes.",
+        "fixInstance": "This instance's bot doesn't have the {intent}. Turn off the option that needs it, or ask the instance's admin."
       },
       "bot_not_in_guild": {
         "title": "The bot isn't in {guild}.",
-        "fix": "Use “Invite the bot to your Discord server” (you need the Manage Server permission there), or choose another Discord server."
+        "fix": "Use “Invite the bot to your Discord server” (you need the Manage Server permission there), or choose another Discord server.",
+        "fixInstance": "The bot was removed from {guild}. Add it to Discord again to keep bridging."
       },
       "no_guild": {
         "title": "The bot isn't in any Discord server yet.",
-        "fix": "Use “Invite the bot to your Discord server” and pick your server in the Discord window that opens. You need the Manage Server permission there."
+        "fix": "Use “Invite the bot to your Discord server” and pick your server in the Discord window that opens. You need the Manage Server permission there.",
+        "fixInstance": "Add the bot to your Discord server again."
       },
       "guild_not_selected": {
         "title": "No Discord server chosen yet.",
-        "fix": "Choose which Discord server to bridge."
+        "fix": "Choose which Discord server to bridge.",
+        "fixInstance": "Add the bot to your Discord server to link it."
       },
       "channel_not_visible": {
         "title": "The bot can't see {channel}.",
@@ -3454,7 +3484,8 @@
       "harmony_auth_failed": {
         "title": "The bridge can no longer sign in to Harmony.",
         "fixSelf": "Reset the bridge with the command below, then run the setup command again with a new setup code.",
-        "fixHosted": "This is on the instance's side. Contact the instance's admin. If it keeps failing, disconnect the bridge below and set it up again."
+        "fixHosted": "This is on the instance's side. Contact the instance's admin. If it keeps failing, disconnect the bridge below and set it up again.",
+        "fixInstance": "This is on the instance's side. Contact the instance's admin. If it keeps failing, disconnect the bridge below and set it up again."
       },
       "harmony_channel_missing": {
         "title": "A paired Harmony channel no longer exists.",
@@ -3471,17 +3502,20 @@
       "discord_unreachable": {
         "title": "The bridge can't reach Discord.",
         "fixSelf": "Check that the computer running the bridge is online. If Discord itself is down, the bridge reconnects once it's back.",
-        "fixHosted": "Discord may be down, or this instance has network trouble. The bridge keeps retrying; if it lasts, contact the instance's admin."
+        "fixHosted": "Discord may be down, or this instance has network trouble. The bridge keeps retrying; if it lasts, contact the instance's admin.",
+        "fixInstance": "Discord may be down, or this instance has network trouble. The bridge keeps retrying; if it lasts, contact the instance's admin."
       },
       "harmony_unreachable": {
         "title": "The bridge can't reach this Harmony instance.",
         "fixSelf": "Check that the computer running the bridge can open {url}. The bridge keeps retrying.",
-        "fixHosted": "This is on the instance's side, and the bridge keeps retrying. If it lasts, contact the instance's admin."
+        "fixHosted": "This is on the instance's side, and the bridge keeps retrying. If it lasts, contact the instance's admin.",
+        "fixInstance": "This is on the instance's side, and the bridge keeps retrying. If it lasts, contact the instance's admin."
       },
       "unknown": {
         "title": "The bridge reported a problem ({code}).",
         "fixSelf": "The bridge's log has the details:",
-        "fixHosted": "If it doesn't go away within a few minutes, contact the instance's admin."
+        "fixHosted": "If it doesn't go away within a few minutes, contact the instance's admin.",
+        "fixInstance": "If it doesn't go away within a few minutes, contact the instance's admin."
       }
     },
     "actions": {
@@ -3491,15 +3525,18 @@
       "go": {
         "connect": {
           "self": "Show the setup command",
-          "hosted": "Replace the token"
+          "hosted": "Replace the token",
+          "instance": "Add the bot to Discord again"
         },
         "guild": {
           "self": "Choose the Discord server",
-          "hosted": "Choose the Discord server"
+          "hosted": "Choose the Discord server",
+          "instance": "Add the bot to Discord again"
         },
         "channels": {
           "self": "Go to paired channels",
-          "hosted": "Go to paired channels"
+          "hosted": "Go to paired channels",
+          "instance": "Go to paired channels"
         }
       }
     },
@@ -3536,7 +3573,11 @@
       "unpair": "Couldn't remove the pair. Try again.",
       "settings": "Couldn't save the option. Try again.",
       "delete": "Couldn't disconnect the bridge. Try again.",
-      "generic": "Something went wrong. Try again."
+      "generic": "Something went wrong. Try again.",
+      "bridgeExists": "This server already has a Discord bridge set up another way. Disconnect it first to use this instance's bot.",
+      "instanceFull": "This instance's bot is already in as many Discord servers as it allows. Ask the instance's admin, or use a Discord bot of your own instead.",
+      "instanceOff": "This instance doesn't offer its Discord bot at the moment. Use a Discord bot of your own instead.",
+      "link": "Couldn't start linking with Discord. Try again."
     },
     "time": {
       "secondsAgo": "just now | {count} second ago | {count} seconds ago",
@@ -3572,6 +3613,76 @@
       "saved": "Bridge hosting settings saved",
       "saveFailed": "Couldn't save the bridge hosting settings",
       "loadFailed": "Couldn't load the bridge hosting settings."
+    },
+    "instance": {
+      "lead": "This instance's Discord bot does the bridging. Add it to your Discord server: Discord asks which server and shows what the bot may do there.",
+      "step1": "Click {button}. Discord opens.",
+      "step2": "Pick your Discord server (you need the Manage Server permission there) and click {authorize}.",
+      "step3": "Discord sends you back here to pair channels.",
+      "privacy": "The bot belongs to this instance's operator, who can read every Discord channel the bot has access to. Give it access only to the channels you bridge.",
+      "relink": "The bridge is linked to {guild}. Adding the bot to another Discord server moves the bridge there and removes the channel pairs; the bot leaves {guild} by itself within about ten minutes.",
+      "add": "Add to Discord",
+      "addOther": "Add to another Discord server",
+      "opening": "Opening Discord…",
+      "linked": "Linked to {guild}. Now pair the channels.",
+      "retry": "Try again",
+      "linkError": {
+        "state_invalid": "That link expired or was already used. Click Try again to get a new one.",
+        "guild_linked_elsewhere": "That Discord server is already bridged to another server on this instance. Pick a different Discord server, or remove the bridge there first.",
+        "discord_denied": "The bot wasn't added: the request was cancelled in Discord. Click Try again and choose Authorize.",
+        "exchange_failed": "Discord didn't confirm the link. Try again in a moment; if it keeps failing, contact the instance's admin.",
+        "limit_reached": "This instance's bot is already in as many Discord servers as it allows. Ask the instance's admin, or use a Discord bot of your own instead."
+      }
+    },
+    "instanceAdmin": {
+      "title": "This instance's Discord bot",
+      "lead": "One public Discord bot run by this instance. Communities add it to their Discord server in one click instead of creating a bot of their own, and this instance runs their bridges.",
+      "loadFailed": "Couldn't load the Discord bot settings.",
+      "configured": "Bot set up: {name}.",
+      "notConfigured": "No bot set up yet.",
+      "linkedCount": "Linked Discord servers: {count} of {limit}.",
+      "portal": {
+        "title": "Set up the bot in the Discord Developer Portal",
+        "create": "Open the {portal} and click {newApplication}. Name it, for example {example}, accept Discord's terms and click {create}.",
+        "applicationId": "On {generalInformation}, copy the {applicationId} into the field below.",
+        "bot": "Open {bot}. Switch {publicBot} on and {codeGrant} on.",
+        "codeGrantWhy": "With the code grant on, the bot joins a Discord server only when a community links it from Harmony.",
+        "intents": "Under {section}, switch on {messageContent} and {members}. Switch on {presence} only if you turn on presence sync below. Click {save}.",
+        "token": "Click {reset}, then {copy}, and paste the token into {field} below.",
+        "redirect": "Open {oauth2}. Under {redirects}, click {addRedirect}, paste this address and click {save}:",
+        "redirectExact": "It has to match exactly, including https and the path.",
+        "secret": "Still in {oauth2}, click {resetSecret} under {clientSecret}, copy it and paste it into {field} below.",
+        "finish": "Save the credentials below, then switch on “Offer this bot to communities”.",
+        "verification": "Discord limits a bot to 100 servers until it is verified. Before that, apply for verification in the Developer Portal (App Verification) and request the Message Content and Server Members intents, and the Presence intent if you use presence sync. Discord rarely grants Presence."
+      },
+      "applicationId": "Application ID",
+      "appIdInvalid": "An Application ID is a number of 17 to 20 digits.",
+      "clientSecret": "Client secret",
+      "botToken": "Bot token",
+      "stored": "Stored",
+      "notStored": "Not set",
+      "keepPlaceholder": "Stored. Leave empty to keep it.",
+      "writeOnly": "Secrets are stored encrypted and never shown again. Paste a new value only to replace one.",
+      "secretIsToken": "That's the bot token. The client secret is under OAuth2 → Client Secret.",
+      "secretInvalid": "That doesn't look like a client secret. Copy it from OAuth2 → Client Secret.",
+      "saveCredentials": "Save credentials",
+      "clear": "Remove bot",
+      "clearConfirm": "Remove the bot's credentials? Linked communities stop bridging until a bot is set up again. Their bridges and channel pairs stay.",
+      "cancel": "Cancel",
+      "enable": "Offer this bot to communities",
+      "enableHint": "Server admins see “Use this instance's bot” first in Server Settings → Discord Bridge.",
+      "enableNeedsConfig": "Save the Application ID, client secret and bot token first.",
+      "presence": "Presence sync",
+      "presenceHint": "Requests Discord's Presence intent for every linked server, so communities can show who is online. Only changes of status are sent. Turn it on only while the Presence intent is on in the Developer Portal; past 100 servers, Discord has to approve it.",
+      "limit": "Maximum linked Discord servers",
+      "limitHint": "New links are refused once this many Discord servers are linked. Discord allows 100 until the bot is verified.",
+      "hostNote": "Linked servers are bridged by the bridge host service ({service}, bridge 2.1.0 or later) next to this instance; see the {docs}.",
+      "saveSettings": "Save bot settings",
+      "credentialsSaved": "Discord bot credentials saved",
+      "cleared": "Discord bot removed",
+      "settingsSaved": "Discord bot settings saved",
+      "saveFailed": "Couldn't save the Discord bot settings",
+      "redirectLabel": "Redirect address"
     }
   },
   "imageEditor": {

@@ -9,6 +9,10 @@ export function bridgeErrorKey(error: unknown, fallback: string): string {
   if (error instanceof BridgeUnavailableError) return 'discordBridge.errors.unavailable'
   const code = (error as { code?: string } | null)?.code ?? ''
   const message = error instanceof Error ? error.message : String(error ?? '')
+  // discord_bridge_instance_link raises these as bare codes.
+  if (message === 'bridge_exists') return 'discordBridge.errors.bridgeExists'
+  if (message === 'limit_reached') return 'discordBridge.errors.instanceFull'
+  if (message === 'instance_bot_unavailable') return 'discordBridge.errors.instanceOff'
   if (code === '42501' || /permission|manage_server|not allowed|forbidden|unauthori[sz]ed/i.test(message)) {
     return 'discordBridge.errors.permission'
   }
@@ -20,5 +24,7 @@ export function bridgeErrorKey(error: unknown, fallback: string): string {
 
 export function errorDetail(error: unknown): string {
   if (error instanceof BridgeUnavailableError) return ''
-  return error instanceof Error ? error.message : ''
+  const message = error instanceof Error ? error.message : ''
+  // A bare code (bridge_exists, limit_reached) is already said by the translated message.
+  return /^[a-z_]+$/.test(message) ? '' : message
 }

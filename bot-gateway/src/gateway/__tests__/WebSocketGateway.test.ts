@@ -25,7 +25,7 @@ vi.mock('../../config/supabase.js', () => ({
   config: mocks.config,
 }))
 
-import { WebSocketGateway, sessionRevocationReason } from '../WebSocketGateway.js'
+import { WebSocketGateway, parsePresenceDeltas, sessionRevocationReason } from '../WebSocketGateway.js'
 import { FakeDb } from '../../__tests__/fakeSupabase.js'
 
 const VALID_VERIFICATION = {
@@ -566,5 +566,150 @@ describe('bridge data registration (op 6) across servers', () => {
 
     expect(gateway.getBridgedUsers(CHANNEL_A)).toEqual([BOB])
     expect(gateway.getBridgedUsers(CHANNEL_B)).toEqual([])
+  })
+})
+
+describe('bridge presence deltas (op 7)', () => {
+  const SERVER_A = '00000000-0000-0000-0000-00000000007a'
+  const CHANNEL_A = '00000000-0000-0000-0000-0000000007c1'
+  const CHANNEL_A2 = '00000000-0000-0000-0000-0000000007c2'
+  const OTHER_BOT = '00000000-0000-0000-0000-0000000000b7'
+  const ALICE_ID = '80351110224678912'
+  const BOB_ID = '80351110224678913'
+  const member = (id: string, name: string) => ({
+    id, username: name, displayName: name, avatarUrl: '', source: 'discord',
+    presenceStatus: 'offline', customStatus: null,
+  })
+  const conn = (botId: string) => ({ botId, username: 'bridge', scopes: [], lastHeartbeat: 0, sessionId: 's', tokenHash: 'h' })
+  const register = (botId: string, d: unknown) => (gateway as any).handleBridgeDataRegistration(conn(botId), d)
+
+  beforeEach(() => {
+    const db = new FakeDb({
+      channels: [
+        { id: CHANNEL_A, server_id: SERVER_A },
+        { id: CHANNEL_A2, server_id: SERVER_A },
+      ],
+      server_roles: [{ id: 'ea', server_id: SERVER_A, permissions: 122646786, is_default: true }],
+      channel_permission_overrides: [],
+      bot_server_permissions: [
+        { id: 'ia', bot_id: BOT_ID, server_id: SERVER_A, is_active: true, read_messages: true },
+        { id: 'io', bot_id: OTHER_BOT, server_id: SERVER_A, is_active: true, read_messages: true },
+      ],
+    })
+    mocks.from.mockImplementation((table: string) => db.from(table))
+  })
+
+  const statusOf = (channelId: string, id: string) => gateway.getBridgedUsers(channelId).find((u) => u.id === id)
+
+  it('updates the status and custom status of a registered member in every channel holding it', async () => {
+    await register(BOT_ID, {
+      channels: [
+        { harmonyChannelId: CHANNEL_A, members: [member(ALICE_ID, 'alice'), member(BOB_ID, 'bob')] },
+        { harmonyChannelId: CHANNEL_A2, members: [member(ALICE_ID, 'alice')] },
+      ],
+    })
+
+    const changed = gateway.applyBridgePresence(BOT_ID, {
+      updates: [{ id: ALICE_ID, presenceStatus: 'busy', customStatus: { text: 'shipping', emoji: '🚀' } }],
+    })
+
+    expect(changed).toBe(2)
+    for (const channel of [CHANNEL_A, CHANNEL_A2]) {
+      expect(statusOf(channel, ALICE_ID)).toMatchObject({ presenceStatus: 'busy', customStatus: { text: 'shipping', emoji: '🚀' } })
+    }
+    expect(statusOf(CHANNEL_A, BOB_ID)).toMatchObject({ presenceStatus: 'offline', customStatus: null })
+    expect(gateway.getBridgedUsersForServer([CHANNEL_A, CHANNEL_A2]).find((u) => u.id === ALICE_ID)?.presenceStatus).toBe('busy')
+  })
+
+  it('updates members of the shared root list once and every channel sees it', async () => {
+    await register(BOT_ID, {
+      channels: [{ harmonyChannelId: CHANNEL_A }, { harmonyChannelId: CHANNEL_A2 }],
+      members: [member(ALICE_ID, 'alice')],
+    })
+
+    expect(gateway.applyBridgePresence(BOT_ID, { updates: [{ id: ALICE_ID, presenceStatus: 'online' }] })).toBe(1)
+    expect(statusOf(CHANNEL_A, ALICE_ID)?.presenceStatus).toBe('online')
+    expect(statusOf(CHANNEL_A2, ALICE_ID)?.presenceStatus).toBe('online')
+  })
+
+  it('keeps a field the delta leaves out and clears a custom status sent as null', async () => {
+    await register(BOT_ID, {
+      channels: [{ harmonyChannelId: CHANNEL_A, members: [{ ...member(ALICE_ID, 'alice'), customStatus: { text: 'away', emoji: null } }] }],
+    })
+
+    gateway.applyBridgePresence(BOT_ID, { updates: [{ id: ALICE_ID, presenceStatus: 'away' }] })
+    expect(statusOf(CHANNEL_A, ALICE_ID)).toMatchObject({ presenceStatus: 'away', customStatus: { text: 'away', emoji: null } })
+
+    gateway.applyBridgePresence(BOT_ID, { updates: [{ id: ALICE_ID, customStatus: null }] })
+    expect(statusOf(CHANNEL_A, ALICE_ID)).toMatchObject({ presenceStatus: 'away', customStatus: null })
+  })
+
+  it('ignores members outside the registration and malformed entries', async () => {
+    await register(BOT_ID, { channels: [{ harmonyChannelId: CHANNEL_A, members: [member(ALICE_ID, 'alice')] }] })
+
+    const changed = gateway.applyBridgePresence(BOT_ID, {
+      updates: [
+        { id: '99999999999999999', presenceStatus: 'online' },
+        { id: ALICE_ID, presenceStatus: 'invisible' },
+        { id: 'alice', presenceStatus: 'online' },
+        null,
+        'online',
+      ],
+    })
+
+    expect(changed).toBe(0)
+    expect(statusOf(CHANNEL_A, ALICE_ID)?.presenceStatus).toBe('offline')
+    expect(gateway.applyBridgePresence(BOT_ID, { updates: 'all' })).toBe(0)
+    expect(gateway.applyBridgePresence(BOT_ID, null)).toBe(0)
+  })
+
+  it('changes nothing another bot registered', async () => {
+    await register(OTHER_BOT, { channels: [{ harmonyChannelId: CHANNEL_A, members: [member(ALICE_ID, 'alice')] }] })
+
+    expect(gateway.applyBridgePresence(BOT_ID, { updates: [{ id: ALICE_ID, presenceStatus: 'online' }] })).toBe(0)
+    expect(statusOf(CHANNEL_A, ALICE_ID)?.presenceStatus).toBe('offline')
+  })
+
+  it('applies to the members of the latest registration', async () => {
+    await register(BOT_ID, { channels: [{ harmonyChannelId: CHANNEL_A, members: [member(ALICE_ID, 'alice')] }] })
+    await register(BOT_ID, { channels: [{ harmonyChannelId: CHANNEL_A, members: [member(ALICE_ID, 'alice2')] }] })
+
+    expect(gateway.applyBridgePresence(BOT_ID, { updates: [{ id: ALICE_ID, presenceStatus: 'online' }] })).toBe(1)
+    expect(statusOf(CHANNEL_A, ALICE_ID)).toMatchObject({ username: 'alice2', presenceStatus: 'online' })
+  })
+
+  it('takes op 7 frames from an identified bridge and none from an unidentified socket', async () => {
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+    await register(BOT_ID, { channels: [{ harmonyChannelId: CHANNEL_A, members: [member(ALICE_ID, 'alice')] }] })
+
+    const stranger = await connect()
+    stranger.send(JSON.stringify({ op: 7, d: { updates: [{ id: ALICE_ID, presenceStatus: 'busy' }] } }))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(statusOf(CHANNEL_A, ALICE_ID)?.presenceStatus).toBe('offline')
+
+    const { ws } = await identify(TOKEN)
+    ws.send(JSON.stringify({ op: 7, d: { updates: [{ id: ALICE_ID, presenceStatus: 'online' }] } }))
+    await vi.waitFor(() => expect(statusOf(CHANNEL_A, ALICE_ID)?.presenceStatus).toBe('online'))
+    expect(ws.readyState).toBe(WebSocket.OPEN)
+
+    // The server-side close handler writes bot_presence; it runs before the mocks are restored.
+    ws.close()
+    await vi.waitFor(() => expect(gateway.getConnectedBotCount()).toBe(0))
+  })
+
+  it('forgets the registration index when the bot disconnects', async () => {
+    await register(BOT_ID, { channels: [{ harmonyChannelId: CHANNEL_A, members: [member(ALICE_ID, 'alice')] }] })
+    ;(gateway as any).cleanupBotBridgeData(BOT_ID)
+
+    expect(gateway.applyBridgePresence(BOT_ID, { updates: [{ id: ALICE_ID, presenceStatus: 'online' }] })).toBe(0)
+    expect(gateway.getBridgedUsers(CHANNEL_A)).toEqual([])
+  })
+
+  it('bounds custom status text and emoji', () => {
+    const [delta] = parsePresenceDeltas({
+      updates: [{ id: ALICE_ID, customStatus: { text: 'x'.repeat(500), emoji: 'e'.repeat(500) } }],
+    })
+    expect(delta.customStatus).toEqual({ text: 'x'.repeat(128), emoji: 'e'.repeat(64) })
+    expect(parsePresenceDeltas({ updates: [{ id: ALICE_ID, customStatus: { emoji: '🔥' } }] })).toEqual([])
   })
 })

@@ -3069,7 +3069,8 @@
       "copied": "已复制",
       "copyFailed": "无法复制。请选中文字后手动复制。",
       "retry": "重试",
-      "commandLabel": "命令"
+      "commandLabel": "命令",
+      "dismiss": "关闭"
     },
     "start": {
       "title": "桥接要在哪里运行？",
@@ -3090,7 +3091,17 @@
       },
       "hostingUnavailable": "此实例不为社区运行桥接，因此桥接需要运行在您自己的电脑上。",
       "bothWays": "无论哪种方式，桥接频道中的消息都会像这里的其他消息一样经过此实例。",
-      "presenceNote": "在线状态同步（Discord 在线状态）默认关闭：任何成员的状态每次变化都会发送一次更新，在大型服务器上会造成持续的高负载。您可以稍后开启。"
+      "presenceNote": "在线状态同步（Discord 在线状态）默认关闭。开启后只发送状态的变化，但机器人需要 Discord 的 Presence 意图。您可以稍后开启。",
+      "needsInstance": "您需要在要连接的 Discord 服务器上拥有“管理服务器”权限。",
+      "instance": {
+        "title": "使用 {instance} 的机器人",
+        "recommended": "推荐",
+        "point1": "无需创建或安装任何东西：一键把机器人添加到您的 Discord 服务器。",
+        "point2": "此实例替您运行桥接。",
+        "tradeoff": "机器人属于此实例的运营者，运营者可以读取机器人能访问的任何 Discord 频道。请只授予它访问您要桥接的频道。",
+        "choose": "使用 {instance} 的机器人"
+      },
+      "ownBot": "或者使用您自己的 Discord 机器人："
     },
     "steps": {
       "navLabel": "设置步骤",
@@ -3126,17 +3137,22 @@
         },
         "check": "下一步",
         "guild": "下一步",
-        "channels": "下一步"
+        "channels": "下一步",
+        "link": "下一步"
       },
       "finish": "完成设置",
       "blocked": {
         "check": "上面的每一项都出现绿色对勾后即可继续。",
         "guild": "请选择一个 Discord 服务器以继续。",
-        "channels": "请至少配对一个频道以继续。"
+        "channels": "请至少配对一个频道以继续。",
+        "link": "请先把机器人添加到您的 Discord 服务器再继续。"
       },
       "startOver": {
         "prompt": "选错了方式？",
         "action": "重新开始"
+      },
+      "link": {
+        "title": "把机器人添加到 Discord"
       }
     },
     "bot": {
@@ -3335,7 +3351,9 @@
         "blocked": "机器人暂时无法使用 {channel}。请先按上面的说明在 Discord 中修正其权限。"
       },
       "add": "添加配对",
-      "fromDiscord": "您也可以在 Discord 中用 {command} 配对。它会要求提供 Harmony 频道的 ID：在这里右键点击该频道并选择 {copyId}。"
+      "fromDiscord": "您也可以在 Discord 中用 {command} 配对。它会要求提供 Harmony 频道的 ID：在这里右键点击该频道并选择 {copyId}。",
+      "waitingInstance": "正在连接 {guild}…最多需要一分钟。频道会自动显示在这里。",
+      "instanceGone": "机器人已不在 {guild} 中。请重新把它添加到 Discord 以继续桥接。"
     },
     "settings": {
       "needsIntent": "需要在 Developer Portal 中开启 {intent}。",
@@ -3345,7 +3363,7 @@
       },
       "sync_presence": {
         "label": "同步在线状态",
-        "hint": "显示 Discord 成员是否在线。默认关闭：在大型服务器上，这会给桥接和此实例带来源源不断的更新。"
+        "hint": "显示 Discord 成员是否在线。只发送状态的变化，因此负载很轻。"
       },
       "sync_reactions": {
         "label": "同步表情回应",
@@ -3358,7 +3376,9 @@
       "sync_deletes": {
         "label": "同步删除",
         "hint": "有人删除消息时，同时删除另一边的副本。"
-      }
+      },
+      "needsInstanceIntent": "仅当此实例的机器人拥有 {intent} 时才有效。",
+      "presenceInstance": "实例管理员还需要为机器人开启在线状态同步，而且对于加入超过 100 个服务器的机器人，Discord 只在审核后才授予 Presence 意图。"
     },
     "status": {
       "online": "桥接在线",
@@ -3370,7 +3390,8 @@
       "runs": "运行位置",
       "mode": {
         "self": "您的电脑",
-        "hosted": "此实例"
+        "hosted": "此实例",
+        "instance": "使用此实例的 Discord 机器人"
       },
       "discordServer": "Discord 服务器",
       "discordBot": "Discord 机器人",
@@ -3384,12 +3405,14 @@
       "maintainTitle": "维护",
       "maintain": {
         "self": "把桥接迁移到另一台电脑，或重新安装",
-        "hosted": "替换 Discord 机器人令牌"
+        "hosted": "替换 Discord 机器人令牌",
+        "instance": "关联另一个 Discord 服务器"
       },
       "disconnectTitle": "断开桥接",
       "disconnectBody": {
         "self": "停止桥接，并移除所有频道配对和桥接的 Harmony 机器人。已桥接的消息会保留。您的 Discord 机器人不会被删除；如果不再需要，请在 Developer Portal 中删除它。",
-        "hosted": "停止桥接，移除所有频道配对和桥接的 Harmony 机器人，并删除已保存的 Discord 令牌。已桥接的消息会保留。您的 Discord 机器人不会被删除；如果不再需要，请在 Developer Portal 中删除它。"
+        "hosted": "停止桥接，移除所有频道配对和桥接的 Harmony 机器人，并删除已保存的 Discord 令牌。已桥接的消息会保留。您的 Discord 机器人不会被删除；如果不再需要，请在 Developer Portal 中删除它。",
+        "instance": "停止桥接，并删除所有频道配对和桥接的 Harmony 机器人。已经桥接的消息会保留。机器人会在大约十分钟内自动离开您的 Discord 服务器。"
       },
       "disconnect": "断开桥接",
       "disconnected": "桥接已断开",
@@ -3406,7 +3429,8 @@
         "message": "这会移除您正在设置的桥接，让您可以重新选择。",
         "button": "重新开始"
       },
-      "selfNote": "也请停止您电脑上的程序：{command}"
+      "selfNote": "也请停止您电脑上的程序：{command}",
+      "instanceNote": "此实例的机器人会在大约十分钟内自动离开您的 Discord 服务器，无需在 Discord 中移除。"
     },
     "problems": {
       "listLabel": "问题",
@@ -3415,29 +3439,35 @@
       "bridge_offline": {
         "title": "桥接已离线。",
         "fixSelf": "请确认运行桥接的电脑已开机且 Docker 正在运行，然后用下面第一条命令启动桥接。如果它再次停止，第二条命令可以显示原因。",
-        "fixHosted": "此实例目前没有运行您的桥接。请等几分钟；如果仍然离线，请联系实例管理员。"
+        "fixHosted": "此实例目前没有运行您的桥接。请等几分钟；如果仍然离线，请联系实例管理员。",
+        "fixInstance": "此实例目前没有运行您的桥接。请等几分钟；如果仍然离线，请联系实例管理员。"
       },
       "discord_token_invalid": {
         "title": "Discord 拒绝了机器人令牌。",
         "fixSelf": "在 Developer Portal 中打开您的应用 → Bot → Reset Token，复制新令牌。用下面的命令删除旧的桥接，然后用新令牌重新运行设置命令。桥接会记住它在 Harmony 的登录信息。",
-        "fixHosted": "在 Developer Portal 中打开您的应用 → Bot → Reset Token，复制新令牌并保存到这里。"
+        "fixHosted": "在 Developer Portal 中打开您的应用 → Bot → Reset Token，复制新令牌并保存到这里。",
+        "fixInstance": "这是实例方面的问题：它的机器人需要新的令牌。请联系实例管理员。"
       },
       "intent_missing": {
         "title": "Discord 拒绝了 {intent}。",
         "fixSelf": "在 Developer Portal 中打开您的应用 → Bot → Privileged Gateway Intents，开启 {intent} 并点击 Save Changes。然后用下面的命令重启桥接。",
-        "fixHosted": "在 Developer Portal 中打开您的应用 → Bot → Privileged Gateway Intents，开启 {intent} 并点击 Save Changes。桥接会在下次重新连接时（几分钟内）生效。"
+        "fixHosted": "在 Developer Portal 中打开您的应用 → Bot → Privileged Gateway Intents，开启 {intent} 并点击 Save Changes。桥接会在下次重新连接时（几分钟内）生效。",
+        "fixInstance": "此实例的机器人没有 {intent}。请关闭需要它的选项，或联系实例管理员。"
       },
       "bot_not_in_guild": {
         "title": "机器人不在 {guild} 中。",
-        "fix": "使用“邀请机器人加入您的 Discord 服务器”（您需要在该服务器拥有“管理服务器”权限），或选择另一个 Discord 服务器。"
+        "fix": "使用“邀请机器人加入您的 Discord 服务器”（您需要在该服务器拥有“管理服务器”权限），或选择另一个 Discord 服务器。",
+        "fixInstance": "机器人已被从 {guild} 移除。请重新把它添加到 Discord 以继续桥接。"
       },
       "no_guild": {
         "title": "机器人还没有加入任何 Discord 服务器。",
-        "fix": "使用“邀请机器人加入您的 Discord 服务器”，并在打开的 Discord 窗口中选择您的服务器。您需要在该服务器拥有“管理服务器”权限。"
+        "fix": "使用“邀请机器人加入您的 Discord 服务器”，并在打开的 Discord 窗口中选择您的服务器。您需要在该服务器拥有“管理服务器”权限。",
+        "fixInstance": "请重新把机器人添加到您的 Discord 服务器。"
       },
       "guild_not_selected": {
         "title": "还没有选择 Discord 服务器。",
-        "fix": "请选择要桥接的 Discord 服务器。"
+        "fix": "请选择要桥接的 Discord 服务器。",
+        "fixInstance": "请把机器人添加到您的 Discord 服务器以完成关联。"
       },
       "channel_not_visible": {
         "title": "机器人看不到 {channel}。",
@@ -3454,7 +3484,8 @@
       "harmony_auth_failed": {
         "title": "桥接无法再登录 Harmony。",
         "fixSelf": "用下面的命令重置桥接，然后用新的设置码重新运行设置命令。",
-        "fixHosted": "这是实例方面的问题。请联系实例管理员。如果一直失败，请在下方断开桥接并重新设置。"
+        "fixHosted": "这是实例方面的问题。请联系实例管理员。如果一直失败，请在下方断开桥接并重新设置。",
+        "fixInstance": "这是实例方面的问题。请联系实例管理员。如果一直失败，请在下方断开桥接并重新设置。"
       },
       "harmony_channel_missing": {
         "title": "某个已配对的 Harmony 频道已不存在。",
@@ -3471,17 +3502,20 @@
       "discord_unreachable": {
         "title": "桥接无法连接 Discord。",
         "fixSelf": "请确认运行桥接的电脑已联网。如果是 Discord 本身故障，恢复后桥接会自动重新连接。",
-        "fixHosted": "可能是 Discord 故障，或此实例网络有问题。桥接会持续重试；如果持续很久，请联系实例管理员。"
+        "fixHosted": "可能是 Discord 故障，或此实例网络有问题。桥接会持续重试；如果持续很久，请联系实例管理员。",
+        "fixInstance": "可能是 Discord 故障，或此实例网络有问题。桥接会持续重试；如果持续很久，请联系实例管理员。"
       },
       "harmony_unreachable": {
         "title": "桥接无法连接此 Harmony 实例。",
         "fixSelf": "请确认运行桥接的电脑能打开 {url}。桥接会持续重试。",
-        "fixHosted": "这是实例方面的问题，桥接会持续重试。如果持续很久，请联系实例管理员。"
+        "fixHosted": "这是实例方面的问题，桥接会持续重试。如果持续很久，请联系实例管理员。",
+        "fixInstance": "这是实例方面的问题，桥接会持续重试。如果持续很久，请联系实例管理员。"
       },
       "unknown": {
         "title": "桥接报告了一个问题（{code}）。",
         "fixSelf": "桥接的日志中有详细信息：",
-        "fixHosted": "如果几分钟内没有消失，请联系实例管理员。"
+        "fixHosted": "如果几分钟内没有消失，请联系实例管理员。",
+        "fixInstance": "如果几分钟内没有消失，请联系实例管理员。"
       }
     },
     "actions": {
@@ -3491,15 +3525,18 @@
       "go": {
         "connect": {
           "self": "显示设置命令",
-          "hosted": "替换令牌"
+          "hosted": "替换令牌",
+          "instance": "重新把机器人添加到 Discord"
         },
         "guild": {
           "self": "选择 Discord 服务器",
-          "hosted": "选择 Discord 服务器"
+          "hosted": "选择 Discord 服务器",
+          "instance": "重新把机器人添加到 Discord"
         },
         "channels": {
           "self": "前往已配对的频道",
-          "hosted": "前往已配对的频道"
+          "hosted": "前往已配对的频道",
+          "instance": "前往已配对的频道"
         }
       }
     },
@@ -3536,7 +3573,11 @@
       "unpair": "无法移除配对。请重试。",
       "settings": "无法保存该选项。请重试。",
       "delete": "无法断开桥接。请重试。",
-      "generic": "出了点问题。请重试。"
+      "generic": "出了点问题。请重试。",
+      "bridgeExists": "此服务器已经有以其他方式设置的 Discord 桥接。要使用此实例的机器人，请先断开它。",
+      "instanceFull": "此实例的机器人已加入允许的最大数量的 Discord 服务器。请联系实例管理员，或改用您自己的 Discord 机器人。",
+      "instanceOff": "此实例目前不提供它的 Discord 机器人。请改用您自己的 Discord 机器人。",
+      "link": "无法开始与 Discord 关联。请重试。"
     },
     "time": {
       "secondsAgo": "刚刚 | {count} 秒前 | {count} 秒前",
@@ -3572,6 +3613,76 @@
       "saved": "桥接托管设置已保存",
       "saveFailed": "无法保存桥接托管设置",
       "loadFailed": "无法加载桥接托管设置。"
+    },
+    "instance": {
+      "lead": "由此实例的 Discord 机器人负责桥接。把它添加到您的 Discord 服务器：Discord 会询问是哪个服务器，并显示机器人在那里可以做什么。",
+      "step1": "点击 {button}，Discord 会打开。",
+      "step2": "选择您的 Discord 服务器（您需要在那里拥有“管理服务器”权限），然后点击 {authorize}。",
+      "step3": "Discord 会把您带回这里来配对频道。",
+      "privacy": "机器人属于此实例的运营者，运营者可以读取机器人能访问的任何 Discord 频道。请只授予它访问您要桥接的频道。",
+      "relink": "桥接已关联到 {guild}。把机器人添加到另一个 Discord 服务器会把桥接移到那里，并删除频道配对；机器人会在大约十分钟内自动离开 {guild}。",
+      "add": "添加到 Discord",
+      "addOther": "添加到另一个 Discord 服务器",
+      "opening": "正在打开 Discord…",
+      "linked": "已关联到 {guild}。现在请配对频道。",
+      "retry": "重试",
+      "linkError": {
+        "state_invalid": "此链接已过期或已被使用。请点击“重试”获取新的链接。",
+        "guild_linked_elsewhere": "这个 Discord 服务器已经与此实例上的另一个服务器桥接。请选择其他 Discord 服务器，或先删除那里的桥接。",
+        "discord_denied": "机器人未被添加：请求在 Discord 中被取消。请点击“重试”并选择 Authorize。",
+        "exchange_failed": "Discord 没有确认关联。请稍后重试；如果一直失败，请联系实例管理员。",
+        "limit_reached": "此实例的机器人已加入允许的最大数量的 Discord 服务器。请联系实例管理员，或改用您自己的 Discord 机器人。"
+      }
+    },
+    "instanceAdmin": {
+      "title": "此实例的 Discord 机器人",
+      "lead": "由此实例运行的公开 Discord 机器人。社区无需创建自己的机器人，一键即可把它添加到自己的 Discord 服务器，并由此实例运行他们的桥接。",
+      "loadFailed": "无法加载 Discord 机器人设置。",
+      "configured": "已设置机器人：{name}。",
+      "notConfigured": "尚未设置机器人。",
+      "linkedCount": "已关联的 Discord 服务器：{count} / {limit}。",
+      "portal": {
+        "title": "在 Discord Developer Portal 中设置机器人",
+        "create": "打开 {portal} 并点击 {newApplication}。为它命名，例如 {example}，接受 Discord 的条款，然后点击 {create}。",
+        "applicationId": "在 {generalInformation} 中，把 {applicationId} 复制到下面的字段。",
+        "bot": "打开 {bot}。开启 {publicBot}，并开启 {codeGrant}。",
+        "codeGrantWhy": "开启代码授权后，只有当社区从 Harmony 关联时，机器人才会加入 Discord 服务器。",
+        "intents": "在 {section} 下开启 {messageContent} 和 {members}。只有在下面开启在线状态同步时才开启 {presence}。点击 {save}。",
+        "token": "点击 {reset}，然后点击 {copy}，把令牌粘贴到下面的 {field}。",
+        "redirect": "打开 {oauth2}。在 {redirects} 下点击 {addRedirect}，粘贴这个地址，然后点击 {save}：",
+        "redirectExact": "它必须完全一致，包括 https 和路径。",
+        "secret": "仍在 {oauth2} 中，点击 {clientSecret} 下方的 {resetSecret}，复制后粘贴到下面的 {field}。",
+        "finish": "在下面保存凭据，然后开启“向社区提供此机器人”。",
+        "verification": "在通过验证之前，Discord 会把机器人限制在 100 个服务器内。在此之前，请在 Developer Portal 中申请验证（App Verification）以及 Message Content 和 Server Members 意图；如果使用在线状态同步，还要申请 Presence 意图。Discord 很少授予 Presence。"
+      },
+      "applicationId": "Application ID",
+      "appIdInvalid": "Application ID 是 17 到 20 位的数字。",
+      "clientSecret": "客户端密钥",
+      "botToken": "机器人令牌",
+      "stored": "已保存",
+      "notStored": "未设置",
+      "keepPlaceholder": "已保存。留空即可保留。",
+      "writeOnly": "密钥会加密保存，并且不会再次显示。只有要替换时才粘贴新值。",
+      "secretIsToken": "那是机器人令牌。客户端密钥位于 OAuth2 → Client Secret。",
+      "secretInvalid": "这看起来不像客户端密钥。请从 OAuth2 → Client Secret 复制。",
+      "saveCredentials": "保存凭据",
+      "clear": "移除机器人",
+      "clearConfirm": "要移除机器人的凭据吗？在重新设置机器人之前，已关联的社区将停止桥接。他们的桥接和频道配对会保留。",
+      "cancel": "取消",
+      "enable": "向社区提供此机器人",
+      "enableHint": "服务器管理员会在 服务器设置 → Discord 桥接 中首先看到“使用此实例的机器人”。",
+      "enableNeedsConfig": "请先保存 Application ID、客户端密钥和机器人令牌。",
+      "presence": "在线状态同步",
+      "presenceHint": "为每个已关联的服务器请求 Discord 的 Presence 意图，让社区可以显示谁在线。只发送状态的变化。仅在 Developer Portal 中开启了 Presence 意图时才开启；超过 100 个服务器后，需要 Discord 批准。",
+      "limit": "可关联的 Discord 服务器上限",
+      "limitHint": "关联的 Discord 服务器达到此数量后，新的关联会被拒绝。在机器人通过验证之前，Discord 最多允许 100 个。",
+      "hostNote": "已关联的服务器由运行在此实例旁的桥接主机服务（{service}，桥接 2.1.0 或更高版本）负责桥接；请参阅{docs}。",
+      "saveSettings": "保存机器人设置",
+      "credentialsSaved": "Discord 机器人凭据已保存",
+      "cleared": "Discord 机器人已移除",
+      "settingsSaved": "Discord 机器人设置已保存",
+      "saveFailed": "无法保存 Discord 机器人设置",
+      "redirectLabel": "重定向地址"
     }
   },
   "imageEditor": {

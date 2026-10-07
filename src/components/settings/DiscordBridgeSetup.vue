@@ -29,13 +29,39 @@
           <p v-if="actionDetail" class="db-muted">{{ actionDetail }}</p>
         </div>
 
+        <div v-if="linkError" class="db-banner db-banner--error" role="alert" data-testid="bridge-link-error">
+          <p>{{ t(`discordBridge.instance.linkError.${linkError}`) }}</p>
+          <div class="db-actions">
+            <button
+              v-if="linkError !== 'limit_reached'"
+              type="button"
+              class="btn btn-secondary btn-sm"
+              :disabled="busy"
+              data-testid="link-retry"
+              @click="retryLink"
+            >
+              {{ t('discordBridge.instance.retry') }}
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" data-testid="link-error-dismiss" @click="linkError = null">
+              {{ t('discordBridge.common.dismiss') }}
+            </button>
+          </div>
+        </div>
+
         <section v-if="!bridge && legacy" class="db-card upgrade" aria-labelledby="bridge-upgrade-title" data-testid="upgrade-card">
           <h3 id="bridge-upgrade-title" class="db-card-title">{{ t('discordBridge.upgrade.title') }}</h3>
           <p class="db-text">{{ t('discordBridge.upgrade.body') }}</p>
           <p class="db-muted">{{ t('discordBridge.upgrade.doubleRelay') }}</p>
         </section>
 
-        <BridgeModeChooser v-if="!bridge" :hosting-enabled="hostingEnabled" :busy="busy" @choose="create" />
+        <BridgeModeChooser
+          v-if="!bridge"
+          :hosting-enabled="hostingEnabled"
+          :instance-bot-enabled="instanceBotEnabled"
+          :instance-name="instanceName"
+          :busy="busy"
+          @choose="create"
+        />
 
         <BridgeStatusView
           v-else-if="view === 'status'"
@@ -76,7 +102,7 @@
       :show="confirm !== null"
       :title="confirm ? t(`discordBridge.confirm.${confirm}.title`) : ''"
       :message="confirm ? t(`discordBridge.confirm.${confirm}.message`) : ''"
-      :secondary-message="confirm && bridge?.mode === 'self' ? t('discordBridge.confirm.selfNote', { command: BRIDGE_REMOVE_COMMAND }) : ''"
+      :secondary-message="confirmNote"
       :confirm-button-text="confirm ? t(`discordBridge.confirm.${confirm}.button`) : ''"
       @confirm="runDelete"
       @close="confirm = null"
@@ -86,7 +112,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -95,7 +121,10 @@ import { debug } from '@/utils/debug'
 import {
   BRIDGE_REMOVE_COMMAND,
   resolveHarmonyBaseUrl,
+  resolveInstanceName,
+  type BridgeLinkReturn,
   type BridgeMode,
+  type LinkErrorCode,
   type BridgePairRow,
   type DiscordBridgeRow,
   type HarmonyChannelOption,
@@ -104,21 +133,32 @@ import {
 import {
   BridgeUnavailableError,
   createBridge,
+  createInstanceLink,
   deleteBridge,
   fetchBridge,
   fetchBridgePairs,
   fetchHostingEnabled,
+  fetchInstanceBotEnabled,
   fetchLegacyPairing,
   fetchServerTextChannels,
   type LegacyPairing,
 } from './discord-bridge/bridgeApi'
 import { bridgeErrorKey, errorDetail } from './discord-bridge/bridgeErrors'
+import { startInstanceLink } from './discord-bridge/instanceLink'
 import BridgeModeChooser from './discord-bridge/BridgeModeChooser.vue'
 import BridgeSetupStepper from './discord-bridge/BridgeSetupStepper.vue'
 import BridgeStatusView from './discord-bridge/BridgeStatusView.vue'
 import BridgeLegacyInfo from './discord-bridge/BridgeLegacyInfo.vue'
 
-const props = withDefaults(defineProps<{ serverId: string; serverName?: string }>(), { serverName: '' })
+const props = withDefaults(
+  defineProps<{
+    serverId: string
+    serverName?: string
+    /** The instance bot's OAuth2 callback outcome, read from ?linked / ?link_error. */
+    linkReturn?: BridgeLinkReturn | null
+  }>(),
+  { serverName: '', linkReturn: null },
+)
 
 /** Status and snapshot refresh; the bridge heartbeats every 30 s and on change. */
 const POLL_MS = 5000
@@ -126,6 +166,7 @@ const POLL_MS = 5000
 const { t } = useI18n()
 const toast = useToast()
 const harmonyUrl = resolveHarmonyBaseUrl()
+const instanceName = resolveInstanceName()
 
 const loading = ref(true)
 const loadError = ref('')
@@ -139,12 +180,21 @@ const pairs = ref<BridgePairRow[]>([])
 const channels = ref<HarmonyChannelOption[]>([])
 const legacy = ref<LegacyPairing | null>(null)
 const hostingEnabled = ref(false)
+const instanceBotEnabled = ref(false)
+const linkError = ref<LinkErrorCode | null>(props.linkReturn?.error ?? null)
 const now = ref(Date.now())
 
 const view = ref<'setup' | 'status'>('setup')
 const initialStep = ref<SetupStep | null>(null)
 const stepperKey = ref(0)
 const confirm = ref<'disconnect' | 'startOver' | null>(null)
+
+const confirmNote = computed(() => {
+  if (!confirm.value) return ''
+  if (bridge.value?.mode === 'self') return t('discordBridge.confirm.selfNote', { command: BRIDGE_REMOVE_COMMAND })
+  if (bridge.value?.mode === 'instance' && bridge.value.discord_guild_id) return t('discordBridge.confirm.instanceNote')
+  return ''
+})
 
 let timer: ReturnType<typeof setInterval> | null = null
 let refreshSeq = 0
@@ -162,14 +212,16 @@ async function load() {
   loading.value = true
   loadError.value = ''
   unavailable.value = false
-  const [bridgeResult, channelResult, hostingResult, legacyResult] = await Promise.allSettled([
+  const [bridgeResult, channelResult, hostingResult, legacyResult, instanceResult] = await Promise.allSettled([
     readBridge(),
     fetchServerTextChannels(props.serverId),
     fetchHostingEnabled(),
     fetchLegacyPairing(props.serverId),
+    fetchInstanceBotEnabled(),
   ])
   if (channelResult.status === 'fulfilled') channels.value = channelResult.value
   hostingEnabled.value = hostingResult.status === 'fulfilled' && hostingResult.value
+  instanceBotEnabled.value = instanceResult.status === 'fulfilled' && instanceResult.value
   legacy.value = legacyResult.status === 'fulfilled' ? legacyResult.value : null
   if (bridgeResult.status === 'rejected') {
     if (bridgeResult.reason instanceof BridgeUnavailableError) {
@@ -185,6 +237,9 @@ async function load() {
   view.value = pairs.value.length > 0 ? 'status' : 'setup'
   now.value = Date.now()
   loading.value = false
+  if (props.linkReturn?.linked && bridge.value?.discord_guild_id) {
+    toast.success(t('discordBridge.instance.linked', { guild: bridge.value.discord_guild_name || bridge.value.discord_guild_id }))
+  }
 }
 
 async function refresh() {
@@ -212,11 +267,13 @@ function clearAction() {
   actionDetail.value = ''
 }
 
+/** The instance bridge is created by its first link request; that state is not used. */
 async function create(mode: BridgeMode) {
   busy.value = true
   clearAction()
   try {
-    await createBridge(props.serverId, mode)
+    if (mode === 'instance') await createInstanceLink(props.serverId)
+    else await createBridge(props.serverId, mode)
     await refresh()
     view.value = 'setup'
     initialStep.value = null
@@ -224,6 +281,21 @@ async function create(mode: BridgeMode) {
   } catch (error) {
     debug.error('discord_bridge_create failed:', error)
     actionError.value = t(bridgeErrorKey(error, 'discordBridge.errors.create'))
+    actionDetail.value = errorDetail(error)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function retryLink() {
+  busy.value = true
+  clearAction()
+  try {
+    await startInstanceLink(props.serverId)
+    linkError.value = null
+  } catch (error) {
+    debug.error('discord_bridge_instance_link failed:', error)
+    actionError.value = t(bridgeErrorKey(error, 'discordBridge.errors.link'))
     actionDetail.value = errorDetail(error)
   } finally {
     busy.value = false

@@ -3069,7 +3069,8 @@
       "copied": "Copié",
       "copyFailed": "Impossible de copier. Sélectionnez le texte et copiez-le à la main.",
       "retry": "Réessayer",
-      "commandLabel": "Commande"
+      "commandLabel": "Commande",
+      "dismiss": "Masquer"
     },
     "start": {
       "title": "Où la passerelle doit-elle tourner ?",
@@ -3090,7 +3091,17 @@
       },
       "hostingUnavailable": "Cette instance ne fait pas tourner de passerelles pour ses communautés : la passerelle tournera donc sur un de vos ordinateurs.",
       "bothWays": "Dans les deux cas, les messages des canaux reliés passent par cette instance comme n'importe quel autre message.",
-      "presenceNote": "La synchronisation de présence (statut en ligne sur Discord) est désactivée au départ : elle envoie une mise à jour à chaque changement de statut de chaque membre, une charge lourde et continue sur les gros serveurs. Vous pourrez l'activer plus tard."
+      "presenceNote": "La synchronisation de présence (statut en ligne sur Discord) est désactivée au départ. Une fois activée, elle n'envoie que les changements de statut, mais le bot a besoin de l'intent Presence de Discord. Vous pourrez l'activer plus tard.",
+      "needsInstance": "Il vous faut la permission Gérer le serveur sur le serveur Discord que vous voulez relier.",
+      "instance": {
+        "title": "Utiliser le bot de {instance}",
+        "recommended": "Recommandé",
+        "point1": "Rien à créer ni à installer : vous ajoutez le bot à votre serveur Discord en un clic.",
+        "point2": "Cette instance fait tourner la passerelle pour vous.",
+        "tradeoff": "Le bot appartient à l'opérateur de cette instance, qui peut lire tout salon Discord auquel le bot a accès. Ne lui donnez accès qu'aux salons que vous reliez.",
+        "choose": "Utiliser le bot de {instance}"
+      },
+      "ownBot": "Ou utilisez votre propre bot Discord :"
     },
     "steps": {
       "navLabel": "Étapes de configuration",
@@ -3126,17 +3137,22 @@
         },
         "check": "Suivant",
         "guild": "Suivant",
-        "channels": "Suivant"
+        "channels": "Suivant",
+        "link": "Suivant"
       },
       "finish": "Terminer la configuration",
       "blocked": {
         "check": "Vous pourrez continuer quand chaque élément ci-dessus aura une coche verte.",
         "guild": "Choisissez un serveur Discord pour continuer.",
-        "channels": "Reliez au moins un canal pour continuer."
+        "channels": "Reliez au moins un canal pour continuer.",
+        "link": "Ajoutez le bot à votre serveur Discord pour continuer."
       },
       "startOver": {
         "prompt": "Mauvaise option choisie ?",
         "action": "Recommencer"
+      },
+      "link": {
+        "title": "Ajouter le bot à Discord"
       }
     },
     "bot": {
@@ -3335,7 +3351,9 @@
         "blocked": "Le bot ne peut pas encore utiliser {channel}. Corrigez d'abord ses permissions dans Discord, comme indiqué ci-dessus."
       },
       "add": "Ajouter la paire",
-      "fromDiscord": "Vous pouvez aussi relier depuis Discord avec {command}. Il vous demandera l'ID du canal Harmony : faites un clic droit sur le canal ici et choisissez {copyId}."
+      "fromDiscord": "Vous pouvez aussi relier depuis Discord avec {command}. Il vous demandera l'ID du canal Harmony : faites un clic droit sur le canal ici et choisissez {copyId}.",
+      "waitingInstance": "Connexion à {guild}… cela prend jusqu'à une minute. Les salons apparaîtront ici d'eux-mêmes.",
+      "instanceGone": "Le bot n'est plus sur {guild}. Ajoutez-le de nouveau à Discord pour continuer la passerelle."
     },
     "settings": {
       "needsIntent": "Nécessite le {intent} dans le Developer Portal.",
@@ -3345,7 +3363,7 @@
       },
       "sync_presence": {
         "label": "Synchroniser la présence",
-        "hint": "Afficher si les membres Discord sont en ligne. Désactivé par défaut : sur les gros serveurs, c'est un flux continu de mises à jour pour la passerelle et pour cette instance."
+        "hint": "Afficher si les membres Discord sont en ligne. Seuls les changements de statut sont envoyés, la charge reste donc légère."
       },
       "sync_reactions": {
         "label": "Synchroniser les réactions",
@@ -3358,7 +3376,9 @@
       "sync_deletes": {
         "label": "Synchroniser les suppressions",
         "hint": "Quand quelqu'un supprime un message, supprimer la copie de l'autre côté."
-      }
+      },
+      "needsInstanceIntent": "Ne fonctionne que tant que le bot de cette instance dispose du {intent}.",
+      "presenceInstance": "L'administration de l'instance doit aussi activer la présence pour le bot, et Discord n'accorde l'intent Presence aux bots présents sur plus de 100 serveurs qu'après examen."
     },
     "status": {
       "online": "La passerelle est en ligne",
@@ -3370,7 +3390,8 @@
       "runs": "Tourne",
       "mode": {
         "self": "Sur votre ordinateur",
-        "hosted": "Sur cette instance"
+        "hosted": "Sur cette instance",
+        "instance": "Avec le bot Discord de cette instance"
       },
       "discordServer": "Serveur Discord",
       "discordBot": "Bot Discord",
@@ -3384,12 +3405,14 @@
       "maintainTitle": "Maintenance",
       "maintain": {
         "self": "Déplacer la passerelle sur un autre ordinateur, ou la réinstaller",
-        "hosted": "Remplacer le jeton du bot Discord"
+        "hosted": "Remplacer le jeton du bot Discord",
+        "instance": "Lier un autre serveur Discord"
       },
       "disconnectTitle": "Déconnecter la passerelle",
       "disconnectBody": {
         "self": "Arrête la passerelle et supprime toutes les paires de canaux ainsi que le bot Harmony de la passerelle. Les messages déjà relayés restent. Votre bot Discord n'est pas supprimé ; retirez-le dans le Developer Portal si vous n'en avez plus besoin.",
-        "hosted": "Arrête la passerelle, supprime toutes les paires de canaux et le bot Harmony de la passerelle, et efface le jeton Discord enregistré. Les messages déjà relayés restent. Votre bot Discord n'est pas supprimé ; retirez-le dans le Developer Portal si vous n'en avez plus besoin."
+        "hosted": "Arrête la passerelle, supprime toutes les paires de canaux et le bot Harmony de la passerelle, et efface le jeton Discord enregistré. Les messages déjà relayés restent. Votre bot Discord n'est pas supprimé ; retirez-le dans le Developer Portal si vous n'en avez plus besoin.",
+        "instance": "Arrête la passerelle et supprime toutes les paires de salons ainsi que le bot Harmony de la passerelle. Les messages déjà relayés restent. Le bot quitte votre serveur Discord de lui-même en une dizaine de minutes."
       },
       "disconnect": "Déconnecter la passerelle",
       "disconnected": "Passerelle déconnectée",
@@ -3406,7 +3429,8 @@
         "message": "Cela supprime la passerelle en cours de configuration pour que vous puissiez choisir à nouveau.",
         "button": "Recommencer"
       },
-      "selfNote": "Arrêtez aussi le programme sur votre ordinateur : {command}"
+      "selfNote": "Arrêtez aussi le programme sur votre ordinateur : {command}",
+      "instanceNote": "Le bot de cette instance quitte votre serveur Discord de lui-même en une dizaine de minutes. Il n'y a rien à retirer dans Discord."
     },
     "problems": {
       "listLabel": "Problèmes",
@@ -3415,29 +3439,35 @@
       "bridge_offline": {
         "title": "La passerelle est hors ligne.",
         "fixSelf": "Vérifiez que l'ordinateur qui la fait tourner est allumé et que Docker tourne, puis démarrez la passerelle avec la première commande ci-dessous. Si elle s'arrête encore, la deuxième commande montre pourquoi.",
-        "fixHosted": "Cette instance ne fait pas tourner votre passerelle en ce moment. Attendez quelques minutes ; si elle reste hors ligne, contactez l'administration de l'instance."
+        "fixHosted": "Cette instance ne fait pas tourner votre passerelle en ce moment. Attendez quelques minutes ; si elle reste hors ligne, contactez l'administration de l'instance.",
+        "fixInstance": "Cette instance ne fait pas tourner votre passerelle en ce moment. Attendez quelques minutes ; si elle reste hors ligne, contactez l'administration de l'instance."
       },
       "discord_token_invalid": {
         "title": "Discord a refusé le jeton du bot.",
         "fixSelf": "Dans le Developer Portal, ouvrez votre application → Bot → Reset Token et copiez le nouveau jeton. Supprimez l'ancienne passerelle avec la commande ci-dessous, puis relancez la commande de configuration avec le nouveau jeton. La passerelle garde sa connexion à Harmony.",
-        "fixHosted": "Dans le Developer Portal, ouvrez votre application → Bot → Reset Token, copiez le nouveau jeton et enregistrez-le ici."
+        "fixHosted": "Dans le Developer Portal, ouvrez votre application → Bot → Reset Token, copiez le nouveau jeton et enregistrez-le ici.",
+        "fixInstance": "Le problème vient de l'instance : son bot a besoin d'un nouveau jeton. Contactez l'administration de l'instance."
       },
       "intent_missing": {
         "title": "Discord a refusé le {intent}.",
         "fixSelf": "Dans le Developer Portal, ouvrez votre application → Bot → Privileged Gateway Intents, activez {intent} et cliquez sur Save Changes. Redémarrez ensuite la passerelle avec la commande ci-dessous.",
-        "fixHosted": "Dans le Developer Portal, ouvrez votre application → Bot → Privileged Gateway Intents, activez {intent} et cliquez sur Save Changes. La passerelle le prend en compte à sa prochaine reconnexion, d'ici quelques minutes."
+        "fixHosted": "Dans le Developer Portal, ouvrez votre application → Bot → Privileged Gateway Intents, activez {intent} et cliquez sur Save Changes. La passerelle le prend en compte à sa prochaine reconnexion, d'ici quelques minutes.",
+        "fixInstance": "Le bot de cette instance n'a pas le {intent}. Désactivez l'option qui en a besoin, ou demandez à l'administration de l'instance."
       },
       "bot_not_in_guild": {
         "title": "Le bot n'est pas sur {guild}.",
-        "fix": "Utilisez « Inviter le bot sur votre serveur Discord » (il faut l'autorisation « Gérer le serveur » sur ce serveur), ou choisissez un autre serveur Discord."
+        "fix": "Utilisez « Inviter le bot sur votre serveur Discord » (il faut l'autorisation « Gérer le serveur » sur ce serveur), ou choisissez un autre serveur Discord.",
+        "fixInstance": "Le bot a été retiré de {guild}. Ajoutez-le de nouveau à Discord pour continuer la passerelle."
       },
       "no_guild": {
         "title": "Le bot n'est encore sur aucun serveur Discord.",
-        "fix": "Utilisez « Inviter le bot sur votre serveur Discord » et choisissez votre serveur dans la fenêtre Discord qui s'ouvre. Il faut l'autorisation « Gérer le serveur » sur ce serveur."
+        "fix": "Utilisez « Inviter le bot sur votre serveur Discord » et choisissez votre serveur dans la fenêtre Discord qui s'ouvre. Il faut l'autorisation « Gérer le serveur » sur ce serveur.",
+        "fixInstance": "Ajoutez de nouveau le bot à votre serveur Discord."
       },
       "guild_not_selected": {
         "title": "Aucun serveur Discord choisi pour l'instant.",
-        "fix": "Choisissez le serveur Discord à relier."
+        "fix": "Choisissez le serveur Discord à relier.",
+        "fixInstance": "Ajoutez le bot à votre serveur Discord pour le lier."
       },
       "channel_not_visible": {
         "title": "Le bot ne voit pas {channel}.",
@@ -3454,7 +3484,8 @@
       "harmony_auth_failed": {
         "title": "La passerelle n'arrive plus à se connecter à Harmony.",
         "fixSelf": "Réinitialisez la passerelle avec la commande ci-dessous, puis relancez la commande de configuration avec un nouveau code de configuration.",
-        "fixHosted": "Le problème vient de l'instance. Contactez son administration. Si cela continue, déconnectez la passerelle ci-dessous et reconfigurez-la."
+        "fixHosted": "Le problème vient de l'instance. Contactez son administration. Si cela continue, déconnectez la passerelle ci-dessous et reconfigurez-la.",
+        "fixInstance": "Le problème vient de l'instance. Contactez son administration. Si cela continue, déconnectez la passerelle ci-dessous et reconfigurez-la."
       },
       "harmony_channel_missing": {
         "title": "Un canal Harmony relié n'existe plus.",
@@ -3471,17 +3502,20 @@
       "discord_unreachable": {
         "title": "La passerelle n'arrive pas à joindre Discord.",
         "fixSelf": "Vérifiez que l'ordinateur de la passerelle est connecté à Internet. Si Discord est en panne, la passerelle se reconnecte quand il revient.",
-        "fixHosted": "Discord est peut-être en panne, ou cette instance a des problèmes de réseau. La passerelle réessaie ; si cela dure, contactez l'administration de l'instance."
+        "fixHosted": "Discord est peut-être en panne, ou cette instance a des problèmes de réseau. La passerelle réessaie ; si cela dure, contactez l'administration de l'instance.",
+        "fixInstance": "Discord est peut-être en panne, ou cette instance a des problèmes de réseau. La passerelle réessaie ; si cela dure, contactez l'administration de l'instance."
       },
       "harmony_unreachable": {
         "title": "La passerelle n'arrive pas à joindre cette instance Harmony.",
         "fixSelf": "Vérifiez que l'ordinateur de la passerelle peut ouvrir {url}. La passerelle réessaie.",
-        "fixHosted": "Le problème vient de l'instance, et la passerelle réessaie. Si cela dure, contactez l'administration de l'instance."
+        "fixHosted": "Le problème vient de l'instance, et la passerelle réessaie. Si cela dure, contactez l'administration de l'instance.",
+        "fixInstance": "Le problème vient de l'instance, et la passerelle réessaie. Si cela dure, contactez l'administration de l'instance."
       },
       "unknown": {
         "title": "La passerelle a signalé un problème ({code}).",
         "fixSelf": "Le journal de la passerelle donne les détails :",
-        "fixHosted": "Si cela ne disparaît pas d'ici quelques minutes, contactez l'administration de l'instance."
+        "fixHosted": "Si cela ne disparaît pas d'ici quelques minutes, contactez l'administration de l'instance.",
+        "fixInstance": "Si cela ne disparaît pas d'ici quelques minutes, contactez l'administration de l'instance."
       }
     },
     "actions": {
@@ -3491,15 +3525,18 @@
       "go": {
         "connect": {
           "self": "Afficher la commande de configuration",
-          "hosted": "Remplacer le jeton"
+          "hosted": "Remplacer le jeton",
+          "instance": "Ajouter de nouveau le bot à Discord"
         },
         "guild": {
           "self": "Choisir le serveur Discord",
-          "hosted": "Choisir le serveur Discord"
+          "hosted": "Choisir le serveur Discord",
+          "instance": "Ajouter de nouveau le bot à Discord"
         },
         "channels": {
           "self": "Aller aux canaux reliés",
-          "hosted": "Aller aux canaux reliés"
+          "hosted": "Aller aux canaux reliés",
+          "instance": "Aller aux canaux reliés"
         }
       }
     },
@@ -3536,7 +3573,11 @@
       "unpair": "Impossible de supprimer la paire. Réessayez.",
       "settings": "Impossible d'enregistrer l'option. Réessayez.",
       "delete": "Impossible de déconnecter la passerelle. Réessayez.",
-      "generic": "Une erreur s'est produite. Réessayez."
+      "generic": "Une erreur s'est produite. Réessayez.",
+      "bridgeExists": "Ce serveur a déjà une passerelle Discord configurée autrement. Déconnectez-la d'abord pour utiliser le bot de cette instance.",
+      "instanceFull": "Le bot de cette instance est déjà sur autant de serveurs Discord qu'elle le permet. Demandez à l'administration de l'instance, ou utilisez plutôt votre propre bot Discord.",
+      "instanceOff": "Cette instance ne propose pas son bot Discord pour le moment. Utilisez plutôt votre propre bot Discord.",
+      "link": "Impossible de lancer la liaison avec Discord. Réessayez."
     },
     "time": {
       "secondsAgo": "à l'instant | il y a {count} seconde | il y a {count} secondes",
@@ -3572,6 +3613,76 @@
       "saved": "Réglages d'hébergement des passerelles enregistrés",
       "saveFailed": "Impossible d'enregistrer les réglages d'hébergement des passerelles",
       "loadFailed": "Impossible de charger les réglages d'hébergement des passerelles."
+    },
+    "instance": {
+      "lead": "Le bot Discord de cette instance assure la passerelle. Ajoutez-le à votre serveur Discord : Discord vous demande quel serveur et montre ce que le bot pourra y faire.",
+      "step1": "Cliquez sur {button}. Discord s'ouvre.",
+      "step2": "Choisissez votre serveur Discord (il vous faut la permission Gérer le serveur) et cliquez sur {authorize}.",
+      "step3": "Discord vous ramène ici pour relier les salons.",
+      "privacy": "Le bot appartient à l'opérateur de cette instance, qui peut lire tout salon Discord auquel le bot a accès. Ne lui donnez accès qu'aux salons que vous reliez.",
+      "relink": "La passerelle est liée à {guild}. Ajouter le bot à un autre serveur Discord y déplace la passerelle et supprime les paires de salons ; le bot quitte {guild} de lui-même en une dizaine de minutes.",
+      "add": "Ajouter à Discord",
+      "addOther": "Ajouter à un autre serveur Discord",
+      "opening": "Ouverture de Discord…",
+      "linked": "Lié à {guild}. Reliez maintenant les salons.",
+      "retry": "Réessayer",
+      "linkError": {
+        "state_invalid": "Ce lien a expiré ou a déjà servi. Cliquez sur Réessayer pour en obtenir un nouveau.",
+        "guild_linked_elsewhere": "Ce serveur Discord est déjà relié à un autre serveur de cette instance. Choisissez un autre serveur Discord, ou retirez d'abord la passerelle de l'autre côté.",
+        "discord_denied": "Le bot n'a pas été ajouté : la demande a été annulée dans Discord. Cliquez sur Réessayer et choisissez Authorize.",
+        "exchange_failed": "Discord n'a pas confirmé la liaison. Réessayez dans un instant ; si l'échec persiste, contactez l'administration de l'instance.",
+        "limit_reached": "Le bot de cette instance est déjà sur autant de serveurs Discord qu'elle le permet. Demandez à l'administration de l'instance, ou utilisez plutôt votre propre bot Discord."
+      }
+    },
+    "instanceAdmin": {
+      "title": "Bot Discord de cette instance",
+      "lead": "Un bot Discord public géré par cette instance. Les communautés l'ajoutent à leur serveur Discord en un clic au lieu de créer leur propre bot, et cette instance fait tourner leurs passerelles.",
+      "loadFailed": "Impossible de charger les réglages du bot Discord.",
+      "configured": "Bot configuré : {name}.",
+      "notConfigured": "Aucun bot configuré pour l'instant.",
+      "linkedCount": "Serveurs Discord liés : {count} sur {limit}.",
+      "portal": {
+        "title": "Configurer le bot dans le Discord Developer Portal",
+        "create": "Ouvrez le {portal} et cliquez sur {newApplication}. Donnez-lui un nom, par exemple {example}, acceptez les conditions de Discord et cliquez sur {create}.",
+        "applicationId": "Dans {generalInformation}, copiez l'{applicationId} dans le champ ci-dessous.",
+        "bot": "Ouvrez {bot}. Activez {publicBot} et activez {codeGrant}.",
+        "codeGrantWhy": "Avec le code grant activé, le bot ne rejoint un serveur Discord que lorsqu'une communauté le lie depuis Harmony.",
+        "intents": "Sous {section}, activez {messageContent} et {members}. N'activez {presence} que si vous activez la synchronisation de présence ci-dessous. Cliquez sur {save}.",
+        "token": "Cliquez sur {reset}, puis sur {copy}, et collez le jeton dans {field} ci-dessous.",
+        "redirect": "Ouvrez {oauth2}. Sous {redirects}, cliquez sur {addRedirect}, collez cette adresse et cliquez sur {save} :",
+        "redirectExact": "Elle doit correspondre exactement, https et chemin compris.",
+        "secret": "Toujours dans {oauth2}, cliquez sur {resetSecret} sous {clientSecret}, copiez-le et collez-le dans {field} ci-dessous.",
+        "finish": "Enregistrez les identifiants ci-dessous, puis activez « Proposer ce bot aux communautés ».",
+        "verification": "Discord limite un bot à 100 serveurs tant qu'il n'est pas vérifié. Avant cela, demandez la vérification dans le Developer Portal (App Verification) ainsi que les intents Message Content et Server Members, et Presence si vous utilisez la synchronisation de présence. Discord accorde rarement Presence."
+      },
+      "applicationId": "Application ID",
+      "appIdInvalid": "Un Application ID est un nombre de 17 à 20 chiffres.",
+      "clientSecret": "Client secret",
+      "botToken": "Jeton du bot",
+      "stored": "Enregistré",
+      "notStored": "Non défini",
+      "keepPlaceholder": "Enregistré. Laissez vide pour le conserver.",
+      "writeOnly": "Les secrets sont stockés chiffrés et ne sont plus jamais affichés. Collez une nouvelle valeur uniquement pour en remplacer une.",
+      "secretIsToken": "C'est le jeton du bot. Le client secret se trouve dans OAuth2 → Client Secret.",
+      "secretInvalid": "Cela ne ressemble pas à un client secret. Copiez-le depuis OAuth2 → Client Secret.",
+      "saveCredentials": "Enregistrer les identifiants",
+      "clear": "Retirer le bot",
+      "clearConfirm": "Retirer les identifiants du bot ? Les communautés liées ne sont plus relayées tant qu'aucun bot n'est reconfiguré. Leurs passerelles et paires de salons sont conservées.",
+      "cancel": "Annuler",
+      "enable": "Proposer ce bot aux communautés",
+      "enableHint": "Les admins de serveur voient d'abord « Utiliser le bot de cette instance » dans Paramètres du serveur → Passerelle Discord.",
+      "enableNeedsConfig": "Enregistrez d'abord l'Application ID, le client secret et le jeton du bot.",
+      "presence": "Synchronisation de présence",
+      "presenceHint": "Demande l'intent Presence de Discord pour chaque serveur lié, pour que les communautés puissent afficher qui est en ligne. Seuls les changements de statut sont envoyés. Ne l'activez que tant que l'intent Presence est activé dans le Developer Portal ; au-delà de 100 serveurs, Discord doit l'approuver.",
+      "limit": "Nombre maximal de serveurs Discord liés",
+      "limitHint": "Les nouvelles liaisons sont refusées dès que ce nombre de serveurs Discord est atteint. Discord en autorise 100 tant que le bot n'est pas vérifié.",
+      "hostNote": "Les serveurs liés sont relayés par le service hôte des passerelles ({service}, passerelle 2.1.0 ou plus récente) à côté de cette instance ; voir le {docs}.",
+      "saveSettings": "Enregistrer les réglages du bot",
+      "credentialsSaved": "Identifiants du bot Discord enregistrés",
+      "cleared": "Bot Discord retiré",
+      "settingsSaved": "Réglages du bot Discord enregistrés",
+      "saveFailed": "Impossible d'enregistrer les réglages du bot Discord",
+      "redirectLabel": "Adresse de redirection"
     }
   },
   "imageEditor": {

@@ -6,7 +6,14 @@
         <span :id="`${uid}-${key}-hint`" class="setting-hint">
           {{ t(`discordBridge.settings.${key}.hint`) }}
           <template v-if="INTENT_FOR[key] && local[key]">
-            {{ t('discordBridge.settings.needsIntent', { intent: DISCORD_INTENT_NAMES[INTENT_FOR[key]!] }) }}
+            {{
+              t(mode === 'instance' ? 'discordBridge.settings.needsInstanceIntent' : 'discordBridge.settings.needsIntent', {
+                intent: DISCORD_INTENT_NAMES[INTENT_FOR[key]!],
+              })
+            }}
+          </template>
+          <template v-if="key === 'sync_presence' && mode === 'instance'">
+            {{ t('discordBridge.settings.presenceInstance') }}
           </template>
         </span>
       </div>
@@ -29,6 +36,7 @@ import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import { debug } from '@/utils/debug'
 import {
   BRIDGE_SETTING_KEYS,
+  type BridgeMode,
   type BridgeSettingKey,
   type BridgeSettings,
   type DiscordIntent,
@@ -42,6 +50,8 @@ const props = defineProps<{
   settings: BridgeSettings
   keys?: readonly BridgeSettingKey[]
   disabled?: boolean
+  /** The instance bot's intents are the operator's; the hints say so. */
+  mode?: BridgeMode
 }>()
 
 const emit = defineEmits<{ changed: [settings: BridgeSettings] }>()

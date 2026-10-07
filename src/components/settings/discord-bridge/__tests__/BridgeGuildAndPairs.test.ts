@@ -220,7 +220,7 @@ describe('BridgeSettingsPanel', () => {
     const w = mount(BridgeSettingsPanel, { props: { bridgeId: 'b1', settings: { ...DEFAULT_BRIDGE_SETTINGS } }, global: global() })
     const presence = w.find('[data-testid="setting-sync_presence"] [role="switch"]')
     expect(presence.attributes('aria-checked')).toBe('false')
-    expect(w.find('[data-testid="setting-sync_presence"]').text()).toContain('Off by default')
+    expect(w.find('[data-testid="setting-sync_presence"]').text()).toContain('Only changes of status are sent')
     await presence.trigger('click')
     await flushPromises()
     expect(rpcCalls('discord_bridge_update_settings')).toEqual([

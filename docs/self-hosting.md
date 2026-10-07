@@ -295,15 +295,19 @@ With bots on, the bot gateway serves the bot API at
 My bots; [the bot API](/bot-api) documents it.
 
 The Discord bridge mirrors channels between a Discord server and a Harmony
-server. A community sets it up in **Server Settings, Discord Bridge**, which
-walks them through creating a Discord bot and choosing where the bridge runs:
+server. A community sets it up in **Server Settings, Discord Bridge** and
+chooses which Discord bot relays and where the bridge runs:
 
-- **Run it myself**: they run the bridge on a computer of theirs with one
-  Docker command and a setup code from that page. Their Discord bot token
-  never reaches your server. Nothing to do on your side beyond bots.
+- **Use this instance's bot**: your server's own public Discord bot. They
+  click **Add to Discord**, pick their Discord server and come back to pair
+  channels. Offered first when you set up the
+  [instance bot](#this-instance-s-discord-bot), below.
 - **Run it on this instance**: your server runs the bridge for them; they
   paste their Discord bot token into Harmony. Offered only when you turn on
   hosting, below.
+- **Run it myself**: they run the bridge on a computer of theirs with one
+  Docker command and a setup code from that page. Their Discord bot token
+  never reaches your server. Nothing to do on your side beyond bots.
 
 ### Discord bridge hosting
 
@@ -321,6 +325,39 @@ hold each community's Discord bot token, and a token reads every Discord
 channel its bot can see; the app explains this to communities before they
 choose. `harmony doctor` checks the shared secret and the service;
 `harmony logs discord-bridge-host` shows what it runs.
+
+### This instance's Discord bot
+
+One public Discord application, owned by you, serves every community that
+links it. The bridge host runs it (step 1 above; bridge 2.1.0 or later) on one
+Discord connection.
+
+1. In the [Discord Developer Portal](https://discord.com/developers/applications):
+   **New Application**. Under **Bot**, switch on **Public Bot** and **Requires
+   OAuth2 Code Grant**, and under **Privileged Gateway Intents** switch on
+   **Message Content** and **Server Members** (**Presence** only for presence
+   sync). Under **OAuth2**, **Redirects**, add
+   `https://chat.example.com/bot-gateway/bridge/v2/discord/callback`: the
+   bot gateway builds this address from `INSTANCE_DOMAIN` (or `PUBLIC_URL`) and
+   Discord compares it exactly.
+2. In the admin panel, Instance, **This instance's Discord bot**: paste the
+   Application ID, the client secret (OAuth2, Reset Secret) and the bot token
+   (Bot, Reset Token). Both secrets go to Supabase Vault and are never shown
+   again. Then turn on **Offer this bot to communities**; **Presence sync** and
+   **Maximum linked Discord servers** (default 100) sit beside it.
+
+With the code grant on, the bot joins a Discord server only when the gateway
+exchanges the authorization code for a link the community started in Harmony.
+The bridge host makes it leave a Discord server that no instance bridge has
+linked for ten minutes (the bridge was disconnected or moved to another Discord
+server); while Harmony is unreachable it leaves none. The invite carries the permissions the
+bridge needs (`537250880`: View Channels, Send Messages, Embed Links, Attach
+Files, Read Message History, Add Reactions, Use External Emojis, Manage
+Webhooks). Discord caps an unverified bot at 100 servers; past that, apply for
+verification and for the Message Content and Server Members intents (and
+Presence, which Discord rarely grants). You run the bot, so you can read every
+Discord channel a community gives it; the app tells communities so before they
+choose it.
 
 ## Updating
 

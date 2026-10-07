@@ -3069,7 +3069,8 @@
       "copied": "Kopiert",
       "copyFailed": "Kopieren fehlgeschlagen. Markiere den Text und kopiere ihn von Hand.",
       "retry": "Erneut versuchen",
-      "commandLabel": "Befehl"
+      "commandLabel": "Befehl",
+      "dismiss": "Ausblenden"
     },
     "start": {
       "title": "Wo soll die Bridge laufen?",
@@ -3090,7 +3091,17 @@
       },
       "hostingUnavailable": "Diese Instanz betreibt keine Bridges für ihre Communities, daher läuft die Bridge auf einem deiner Computer.",
       "bothWays": "In beiden Fällen laufen Nachrichten in verbundenen Kanälen über diese Instanz, wie jede andere Nachricht hier.",
-      "presenceNote": "Die Status-Synchronisierung (Online-Status auf Discord) ist anfangs aus: Sie sendet bei jeder Statusänderung jedes Mitglieds ein Update, auf großen Servern eine hohe Dauerlast. Du kannst sie später einschalten."
+      "presenceNote": "Die Status-Synchronisierung (Online-Status auf Discord) ist anfangs aus. Eingeschaltet sendet sie nur Statusänderungen, aber der Bot braucht dafür Discords Presence-Intent. Du kannst sie später einschalten.",
+      "needsInstance": "Du brauchst die Berechtigung „Server verwalten“ auf dem Discord-Server, den du verbinden willst.",
+      "instance": {
+        "title": "Den Bot von {instance} verwenden",
+        "recommended": "Empfohlen",
+        "point1": "Nichts zu erstellen oder zu installieren: Du fügst den Bot mit einem Klick zu deinem Discord-Server hinzu.",
+        "point2": "Diese Instanz betreibt die Bridge für dich.",
+        "tradeoff": "Der Bot gehört dem Betreiber dieser Instanz, der jeden Discord-Kanal lesen kann, auf den der Bot Zugriff hat. Gib ihm nur Zugriff auf die Kanäle, die du verbindest.",
+        "choose": "Den Bot von {instance} verwenden"
+      },
+      "ownBot": "Oder einen eigenen Discord-Bot verwenden:"
     },
     "steps": {
       "navLabel": "Einrichtungsschritte",
@@ -3126,17 +3137,22 @@
         },
         "check": "Weiter",
         "guild": "Weiter",
-        "channels": "Weiter"
+        "channels": "Weiter",
+        "link": "Weiter"
       },
       "finish": "Einrichtung abschließen",
       "blocked": {
         "check": "Weiter geht es, sobald jeder Punkt oben einen grünen Haken hat.",
         "guild": "Wähle einen Discord-Server, um fortzufahren.",
-        "channels": "Verbinde mindestens einen Kanal, um fortzufahren."
+        "channels": "Verbinde mindestens einen Kanal, um fortzufahren.",
+        "link": "Füge den Bot zu deinem Discord-Server hinzu, um fortzufahren."
       },
       "startOver": {
         "prompt": "Falsche Option gewählt?",
         "action": "Von vorn beginnen"
+      },
+      "link": {
+        "title": "Bot zu Discord hinzufügen"
       }
     },
     "bot": {
@@ -3335,7 +3351,9 @@
         "blocked": "Der Bot kann {channel} noch nicht nutzen. Korrigiere zuerst die Berechtigungen in Discord, wie oben beschrieben."
       },
       "add": "Paar hinzufügen",
-      "fromDiscord": "Du kannst auch in Discord mit {command} verbinden. Dafür brauchst du die ID des Harmony-Kanals: Klicke den Kanal hier mit der rechten Maustaste an und wähle {copyId}."
+      "fromDiscord": "Du kannst auch in Discord mit {command} verbinden. Dafür brauchst du die ID des Harmony-Kanals: Klicke den Kanal hier mit der rechten Maustaste an und wähle {copyId}.",
+      "waitingInstance": "Verbindung mit {guild} wird hergestellt … das dauert bis zu einer Minute. Die Kanäle erscheinen hier von selbst.",
+      "instanceGone": "Der Bot ist nicht mehr auf {guild}. Füge ihn erneut zu Discord hinzu, damit die Bridge weiterläuft."
     },
     "settings": {
       "needsIntent": "Braucht den {intent} im Developer Portal.",
@@ -3345,7 +3363,7 @@
       },
       "sync_presence": {
         "label": "Status synchronisieren",
-        "hint": "Anzeigen, ob Discord-Mitglieder online sind. Standardmäßig aus: Auf großen Servern ist das ein ständiger Strom von Updates für die Bridge und diese Instanz."
+        "hint": "Anzeigen, ob Discord-Mitglieder online sind. Es werden nur Statusänderungen gesendet, die Last bleibt also gering."
       },
       "sync_reactions": {
         "label": "Reaktionen synchronisieren",
@@ -3358,7 +3376,9 @@
       "sync_deletes": {
         "label": "Löschungen synchronisieren",
         "hint": "Wird eine Nachricht gelöscht, auch die Kopie auf der anderen Seite löschen."
-      }
+      },
+      "needsInstanceIntent": "Funktioniert nur, solange der Bot dieser Instanz den {intent} hat.",
+      "presenceInstance": "Die Administration der Instanz muss die Status-Synchronisierung für den Bot ebenfalls einschalten, und Discord gewährt Bots auf mehr als 100 Servern den Presence-Intent nur nach einer Prüfung."
     },
     "status": {
       "online": "Bridge ist online",
@@ -3370,7 +3390,8 @@
       "runs": "Läuft",
       "mode": {
         "self": "Auf deinem Computer",
-        "hosted": "Auf dieser Instanz"
+        "hosted": "Auf dieser Instanz",
+        "instance": "Mit dem Discord-Bot dieser Instanz"
       },
       "discordServer": "Discord-Server",
       "discordBot": "Discord-Bot",
@@ -3384,12 +3405,14 @@
       "maintainTitle": "Wartung",
       "maintain": {
         "self": "Bridge auf einen anderen Computer umziehen oder neu installieren",
-        "hosted": "Discord-Bot-Token ersetzen"
+        "hosted": "Discord-Bot-Token ersetzen",
+        "instance": "Einen anderen Discord-Server verknüpfen"
       },
       "disconnectTitle": "Bridge trennen",
       "disconnectBody": {
         "self": "Beendet die Bridge und entfernt alle Kanalpaare und den Harmony-Bot der Bridge. Bereits übertragene Nachrichten bleiben. Dein Discord-Bot wird nicht gelöscht; entferne ihn im Developer Portal, falls du ihn nicht mehr brauchst.",
-        "hosted": "Beendet die Bridge, entfernt alle Kanalpaare und den Harmony-Bot der Bridge und löscht das gespeicherte Discord-Token. Bereits übertragene Nachrichten bleiben. Dein Discord-Bot wird nicht gelöscht; entferne ihn im Developer Portal, falls du ihn nicht mehr brauchst."
+        "hosted": "Beendet die Bridge, entfernt alle Kanalpaare und den Harmony-Bot der Bridge und löscht das gespeicherte Discord-Token. Bereits übertragene Nachrichten bleiben. Dein Discord-Bot wird nicht gelöscht; entferne ihn im Developer Portal, falls du ihn nicht mehr brauchst.",
+        "instance": "Beendet die Bridge und entfernt alle Kanalpaare und den Harmony-Bot der Bridge. Bereits übertragene Nachrichten bleiben. Der Bot verlässt deinen Discord-Server innerhalb von etwa zehn Minuten von selbst."
       },
       "disconnect": "Bridge trennen",
       "disconnected": "Bridge getrennt",
@@ -3406,7 +3429,8 @@
         "message": "Damit wird die begonnene Bridge entfernt, und du kannst neu wählen.",
         "button": "Von vorn beginnen"
       },
-      "selfNote": "Stoppe auch das Programm auf deinem Computer: {command}"
+      "selfNote": "Stoppe auch das Programm auf deinem Computer: {command}",
+      "instanceNote": "Der Bot dieser Instanz verlässt deinen Discord-Server innerhalb von etwa zehn Minuten von selbst. In Discord musst du nichts entfernen."
     },
     "problems": {
       "listLabel": "Probleme",
@@ -3415,29 +3439,35 @@
       "bridge_offline": {
         "title": "Die Bridge ist offline.",
         "fixSelf": "Stelle sicher, dass der Computer, auf dem sie läuft, an ist und Docker läuft, und starte die Bridge dann mit dem ersten Befehl unten. Stoppt sie erneut, zeigt der zweite Befehl den Grund.",
-        "fixHosted": "Diese Instanz führt deine Bridge gerade nicht aus. Warte ein paar Minuten; bleibt sie offline, wende dich an die Administration der Instanz."
+        "fixHosted": "Diese Instanz führt deine Bridge gerade nicht aus. Warte ein paar Minuten; bleibt sie offline, wende dich an die Administration der Instanz.",
+        "fixInstance": "Diese Instanz führt deine Bridge gerade nicht aus. Warte ein paar Minuten; bleibt sie offline, wende dich an die Administration der Instanz."
       },
       "discord_token_invalid": {
         "title": "Discord hat das Bot-Token abgelehnt.",
         "fixSelf": "Öffne im Developer Portal deine Anwendung → Bot → Reset Token und kopiere das neue Token. Entferne die alte Bridge mit dem Befehl unten und führe den Einrichtungsbefehl dann mit dem neuen Token erneut aus. Die Bridge merkt sich ihre Harmony-Anmeldung.",
-        "fixHosted": "Öffne im Developer Portal deine Anwendung → Bot → Reset Token, kopiere das neue Token und speichere es hier."
+        "fixHosted": "Öffne im Developer Portal deine Anwendung → Bot → Reset Token, kopiere das neue Token und speichere es hier.",
+        "fixInstance": "Das liegt an der Instanz: Ihr Bot braucht ein neues Token. Wende dich an die Administration der Instanz."
       },
       "intent_missing": {
         "title": "Discord hat den {intent} verweigert.",
         "fixSelf": "Öffne im Developer Portal deine Anwendung → Bot → Privileged Gateway Intents, schalte {intent} ein und klicke auf Save Changes. Starte die Bridge dann mit dem Befehl unten neu.",
-        "fixHosted": "Öffne im Developer Portal deine Anwendung → Bot → Privileged Gateway Intents, schalte {intent} ein und klicke auf Save Changes. Die Bridge übernimmt das beim nächsten Verbinden, innerhalb weniger Minuten."
+        "fixHosted": "Öffne im Developer Portal deine Anwendung → Bot → Privileged Gateway Intents, schalte {intent} ein und klicke auf Save Changes. Die Bridge übernimmt das beim nächsten Verbinden, innerhalb weniger Minuten.",
+        "fixInstance": "Der Bot dieser Instanz hat den {intent} nicht. Schalte die Option aus, die ihn braucht, oder frag die Administration der Instanz."
       },
       "bot_not_in_guild": {
         "title": "Der Bot ist nicht auf {guild}.",
-        "fix": "Nutze „Bot auf deinen Discord-Server einladen“ (dazu brauchst du dort die Berechtigung „Server verwalten“) oder wähle einen anderen Discord-Server."
+        "fix": "Nutze „Bot auf deinen Discord-Server einladen“ (dazu brauchst du dort die Berechtigung „Server verwalten“) oder wähle einen anderen Discord-Server.",
+        "fixInstance": "Der Bot wurde von {guild} entfernt. Füge ihn erneut zu Discord hinzu, damit die Bridge weiterläuft."
       },
       "no_guild": {
         "title": "Der Bot ist noch auf keinem Discord-Server.",
-        "fix": "Nutze „Bot auf deinen Discord-Server einladen“ und wähle im Discord-Fenster, das sich öffnet, deinen Server. Dazu brauchst du dort die Berechtigung „Server verwalten“."
+        "fix": "Nutze „Bot auf deinen Discord-Server einladen“ und wähle im Discord-Fenster, das sich öffnet, deinen Server. Dazu brauchst du dort die Berechtigung „Server verwalten“.",
+        "fixInstance": "Füge den Bot erneut zu deinem Discord-Server hinzu."
       },
       "guild_not_selected": {
         "title": "Noch kein Discord-Server gewählt.",
-        "fix": "Wähle, welcher Discord-Server verbunden werden soll."
+        "fix": "Wähle, welcher Discord-Server verbunden werden soll.",
+        "fixInstance": "Füge den Bot zu deinem Discord-Server hinzu, um ihn zu verknüpfen."
       },
       "channel_not_visible": {
         "title": "Der Bot kann {channel} nicht sehen.",
@@ -3454,7 +3484,8 @@
       "harmony_auth_failed": {
         "title": "Die Bridge kann sich nicht mehr bei Harmony anmelden.",
         "fixSelf": "Setze die Bridge mit dem Befehl unten zurück und führe den Einrichtungsbefehl dann mit einem neuen Einrichtungscode erneut aus.",
-        "fixHosted": "Das liegt an der Instanz. Wende dich an ihre Administration. Schlägt es weiter fehl, trenne die Bridge unten und richte sie neu ein."
+        "fixHosted": "Das liegt an der Instanz. Wende dich an ihre Administration. Schlägt es weiter fehl, trenne die Bridge unten und richte sie neu ein.",
+        "fixInstance": "Das liegt an der Instanz. Wende dich an ihre Administration. Schlägt es weiter fehl, trenne die Bridge unten und richte sie neu ein."
       },
       "harmony_channel_missing": {
         "title": "Ein verbundener Harmony-Kanal existiert nicht mehr.",
@@ -3471,17 +3502,20 @@
       "discord_unreachable": {
         "title": "Die Bridge erreicht Discord nicht.",
         "fixSelf": "Prüfe, ob der Computer mit der Bridge online ist. Ist Discord selbst gestört, verbindet sich die Bridge wieder, sobald es zurück ist.",
-        "fixHosted": "Discord ist vielleicht gestört, oder diese Instanz hat Netzwerkprobleme. Die Bridge versucht es weiter; hält es an, wende dich an die Administration der Instanz."
+        "fixHosted": "Discord ist vielleicht gestört, oder diese Instanz hat Netzwerkprobleme. Die Bridge versucht es weiter; hält es an, wende dich an die Administration der Instanz.",
+        "fixInstance": "Discord ist vielleicht gestört, oder diese Instanz hat Netzwerkprobleme. Die Bridge versucht es weiter; hält es an, wende dich an die Administration der Instanz."
       },
       "harmony_unreachable": {
         "title": "Die Bridge erreicht diese Harmony-Instanz nicht.",
         "fixSelf": "Prüfe, ob der Computer mit der Bridge {url} öffnen kann. Die Bridge versucht es weiter.",
-        "fixHosted": "Das liegt an der Instanz, und die Bridge versucht es weiter. Hält es an, wende dich an die Administration der Instanz."
+        "fixHosted": "Das liegt an der Instanz, und die Bridge versucht es weiter. Hält es an, wende dich an die Administration der Instanz.",
+        "fixInstance": "Das liegt an der Instanz, und die Bridge versucht es weiter. Hält es an, wende dich an die Administration der Instanz."
       },
       "unknown": {
         "title": "Die Bridge hat ein Problem gemeldet ({code}).",
         "fixSelf": "Details stehen im Protokoll der Bridge:",
-        "fixHosted": "Verschwindet es nicht innerhalb weniger Minuten, wende dich an die Administration der Instanz."
+        "fixHosted": "Verschwindet es nicht innerhalb weniger Minuten, wende dich an die Administration der Instanz.",
+        "fixInstance": "Verschwindet es nicht innerhalb weniger Minuten, wende dich an die Administration der Instanz."
       }
     },
     "actions": {
@@ -3491,15 +3525,18 @@
       "go": {
         "connect": {
           "self": "Einrichtungsbefehl anzeigen",
-          "hosted": "Token ersetzen"
+          "hosted": "Token ersetzen",
+          "instance": "Bot erneut zu Discord hinzufügen"
         },
         "guild": {
           "self": "Discord-Server wählen",
-          "hosted": "Discord-Server wählen"
+          "hosted": "Discord-Server wählen",
+          "instance": "Bot erneut zu Discord hinzufügen"
         },
         "channels": {
           "self": "Zu den verbundenen Kanälen",
-          "hosted": "Zu den verbundenen Kanälen"
+          "hosted": "Zu den verbundenen Kanälen",
+          "instance": "Zu den verbundenen Kanälen"
         }
       }
     },
@@ -3536,7 +3573,11 @@
       "unpair": "Das Paar konnte nicht entfernt werden. Versuch es noch einmal.",
       "settings": "Die Option konnte nicht gespeichert werden. Versuch es noch einmal.",
       "delete": "Die Bridge konnte nicht getrennt werden. Versuch es noch einmal.",
-      "generic": "Etwas ist schiefgelaufen. Versuch es noch einmal."
+      "generic": "Etwas ist schiefgelaufen. Versuch es noch einmal.",
+      "bridgeExists": "Dieser Server hat schon eine anders eingerichtete Discord-Bridge. Trenne sie zuerst, um den Bot dieser Instanz zu verwenden.",
+      "instanceFull": "Der Bot dieser Instanz ist schon auf so vielen Discord-Servern, wie sie erlaubt. Frag die Administration der Instanz oder verwende stattdessen einen eigenen Discord-Bot.",
+      "instanceOff": "Diese Instanz bietet ihren Discord-Bot gerade nicht an. Verwende stattdessen einen eigenen Discord-Bot.",
+      "link": "Die Verknüpfung mit Discord konnte nicht gestartet werden. Versuche es erneut."
     },
     "time": {
       "secondsAgo": "gerade eben | vor {count} Sekunde | vor {count} Sekunden",
@@ -3572,6 +3613,76 @@
       "saved": "Hosting-Einstellungen für Bridges gespeichert",
       "saveFailed": "Die Hosting-Einstellungen für Bridges konnten nicht gespeichert werden",
       "loadFailed": "Die Hosting-Einstellungen für Bridges konnten nicht geladen werden."
+    },
+    "instance": {
+      "lead": "Der Discord-Bot dieser Instanz übernimmt die Bridge. Füge ihn zu deinem Discord-Server hinzu: Discord fragt nach dem Server und zeigt, was der Bot dort darf.",
+      "step1": "Klicke auf {button}. Discord öffnet sich.",
+      "step2": "Wähle deinen Discord-Server (du brauchst dort die Berechtigung „Server verwalten“) und klicke auf {authorize}.",
+      "step3": "Discord schickt dich hierher zurück, um Kanäle zu verbinden.",
+      "privacy": "Der Bot gehört dem Betreiber dieser Instanz, der jeden Discord-Kanal lesen kann, auf den der Bot Zugriff hat. Gib ihm nur Zugriff auf die Kanäle, die du verbindest.",
+      "relink": "Die Bridge ist mit {guild} verknüpft. Fügst du den Bot zu einem anderen Discord-Server hinzu, zieht die Bridge dorthin um und die Kanalpaare werden entfernt; {guild} verlässt der Bot innerhalb von etwa zehn Minuten von selbst.",
+      "add": "Zu Discord hinzufügen",
+      "addOther": "Zu einem anderen Discord-Server hinzufügen",
+      "opening": "Discord wird geöffnet …",
+      "linked": "Mit {guild} verknüpft. Verbinde jetzt die Kanäle.",
+      "retry": "Erneut versuchen",
+      "linkError": {
+        "state_invalid": "Dieser Link ist abgelaufen oder wurde schon benutzt. Klicke auf „Erneut versuchen“, um einen neuen zu bekommen.",
+        "guild_linked_elsewhere": "Dieser Discord-Server ist schon mit einem anderen Server dieser Instanz verbunden. Wähle einen anderen Discord-Server oder entferne zuerst die dortige Bridge.",
+        "discord_denied": "Der Bot wurde nicht hinzugefügt: Die Anfrage wurde in Discord abgebrochen. Klicke auf „Erneut versuchen“ und wähle „Authorize“.",
+        "exchange_failed": "Discord hat die Verknüpfung nicht bestätigt. Versuche es gleich noch einmal; schlägt es weiter fehl, wende dich an die Administration der Instanz.",
+        "limit_reached": "Der Bot dieser Instanz ist schon auf so vielen Discord-Servern, wie sie erlaubt. Frag die Administration der Instanz oder verwende stattdessen einen eigenen Discord-Bot."
+      }
+    },
+    "instanceAdmin": {
+      "title": "Discord-Bot dieser Instanz",
+      "lead": "Ein öffentlicher Discord-Bot, den diese Instanz betreibt. Communitys fügen ihn mit einem Klick zu ihrem Discord-Server hinzu, statt einen eigenen Bot zu erstellen, und diese Instanz betreibt ihre Bridges.",
+      "loadFailed": "Die Einstellungen des Discord-Bots konnten nicht geladen werden.",
+      "configured": "Bot eingerichtet: {name}.",
+      "notConfigured": "Noch kein Bot eingerichtet.",
+      "linkedCount": "Verknüpfte Discord-Server: {count} von {limit}.",
+      "portal": {
+        "title": "Bot im Discord Developer Portal einrichten",
+        "create": "Öffne das {portal} und klicke auf {newApplication}. Gib einen Namen ein, zum Beispiel {example}, akzeptiere die Bedingungen von Discord und klicke auf {create}.",
+        "applicationId": "Kopiere unter {generalInformation} die {applicationId} in das Feld unten.",
+        "bot": "Öffne {bot}. Schalte {publicBot} ein und {codeGrant} ein.",
+        "codeGrantWhy": "Mit eingeschaltetem Code Grant tritt der Bot einem Discord-Server nur bei, wenn eine Community ihn aus Harmony verknüpft.",
+        "intents": "Schalte unter {section} {messageContent} und {members} ein. {presence} nur, wenn du unten die Status-Synchronisierung einschaltest. Klicke auf {save}.",
+        "token": "Klicke auf {reset}, dann auf {copy}, und füge das Token unten in {field} ein.",
+        "redirect": "Öffne {oauth2}. Klicke unter {redirects} auf {addRedirect}, füge diese Adresse ein und klicke auf {save}:",
+        "redirectExact": "Sie muss genau übereinstimmen, einschließlich https und Pfad.",
+        "secret": "Klicke weiterhin unter {oauth2} bei {clientSecret} auf {resetSecret}, kopiere es und füge es unten in {field} ein.",
+        "finish": "Speichere unten die Zugangsdaten und schalte dann „Diesen Bot den Communitys anbieten“ ein.",
+        "verification": "Discord begrenzt einen Bot auf 100 Server, bis er verifiziert ist. Beantrage vorher im Developer Portal die Verifizierung (App Verification) und die Intents Message Content und Server Members, dazu Presence, wenn du die Status-Synchronisierung nutzt. Presence gewährt Discord selten."
+      },
+      "applicationId": "Application ID",
+      "appIdInvalid": "Eine Application ID ist eine Zahl mit 17 bis 20 Ziffern.",
+      "clientSecret": "Client Secret",
+      "botToken": "Bot-Token",
+      "stored": "Gespeichert",
+      "notStored": "Nicht gesetzt",
+      "keepPlaceholder": "Gespeichert. Leer lassen, um es zu behalten.",
+      "writeOnly": "Geheimnisse werden verschlüsselt gespeichert und nie wieder angezeigt. Füge nur einen neuen Wert ein, um einen zu ersetzen.",
+      "secretIsToken": "Das ist das Bot-Token. Das Client Secret findest du unter OAuth2 → Client Secret.",
+      "secretInvalid": "Das sieht nicht nach einem Client Secret aus. Kopiere es aus OAuth2 → Client Secret.",
+      "saveCredentials": "Zugangsdaten speichern",
+      "clear": "Bot entfernen",
+      "clearConfirm": "Die Zugangsdaten des Bots entfernen? Verknüpfte Communitys werden nicht mehr verbunden, bis wieder ein Bot eingerichtet ist. Ihre Bridges und Kanalpaare bleiben.",
+      "cancel": "Abbrechen",
+      "enable": "Diesen Bot den Communitys anbieten",
+      "enableHint": "Server-Admins sehen „Den Bot dieser Instanz verwenden“ als Erstes unter Servereinstellungen → Discord-Bridge.",
+      "enableNeedsConfig": "Speichere zuerst Application ID, Client Secret und Bot-Token.",
+      "presence": "Status-Synchronisierung",
+      "presenceHint": "Fordert Discords Presence-Intent für jeden verknüpften Server an, damit Communitys zeigen können, wer online ist. Es werden nur Statusänderungen gesendet. Schalte es nur ein, solange der Presence-Intent im Developer Portal an ist; ab 100 Servern muss Discord ihn genehmigen.",
+      "limit": "Höchstzahl verknüpfter Discord-Server",
+      "limitHint": "Neue Verknüpfungen werden abgelehnt, sobald so viele Discord-Server verknüpft sind. Discord erlaubt 100, bis der Bot verifiziert ist.",
+      "hostNote": "Verknüpfte Server verbindet der Bridge-Host-Dienst ({service}, Bridge 2.1.0 oder neuer) neben dieser Instanz; siehe die {docs}.",
+      "saveSettings": "Bot-Einstellungen speichern",
+      "credentialsSaved": "Zugangsdaten des Discord-Bots gespeichert",
+      "cleared": "Discord-Bot entfernt",
+      "settingsSaved": "Einstellungen des Discord-Bots gespeichert",
+      "saveFailed": "Die Einstellungen des Discord-Bots konnten nicht gespeichert werden",
+      "redirectLabel": "Weiterleitungsadresse"
     }
   },
   "imageEditor": {

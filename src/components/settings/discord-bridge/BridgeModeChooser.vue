@@ -1,7 +1,39 @@
 <template>
   <div class="db-card" data-testid="bridge-mode-chooser">
     <h3 class="db-card-title">{{ t('discordBridge.start.title') }}</h3>
-    <p class="db-muted">{{ t('discordBridge.start.needs') }}</p>
+    <p class="db-muted">{{ t(instanceBotEnabled ? 'discordBridge.start.needsInstance' : 'discordBridge.start.needs') }}</p>
+
+    <article
+      v-if="instanceBotEnabled"
+      class="mode-option mode-option--featured"
+      data-testid="mode-instance"
+      aria-labelledby="bridge-mode-instance-title"
+    >
+      <div class="mode-head">
+        <Icon name="zap" :size="20" aria-hidden="true" />
+        <h4 id="bridge-mode-instance-title">{{ t('discordBridge.start.instance.title', { instance: instanceName }) }}</h4>
+        <span class="db-badge db-badge--ok">{{ t('discordBridge.start.instance.recommended') }}</span>
+      </div>
+      <ul class="mode-points">
+        <li>{{ t('discordBridge.start.instance.point1') }}</li>
+        <li>{{ t('discordBridge.start.instance.point2') }}</li>
+      </ul>
+      <p class="mode-tradeoff">
+        <Icon name="alert-triangle" :size="14" aria-hidden="true" />
+        <span>{{ t('discordBridge.start.instance.tradeoff') }}</span>
+      </p>
+      <button
+        type="button"
+        class="btn btn-primary"
+        :disabled="busy"
+        data-testid="choose-instance"
+        @click="emit('choose', 'instance')"
+      >
+        {{ t('discordBridge.start.instance.choose', { instance: instanceName }) }}
+      </button>
+    </article>
+
+    <p v-if="instanceBotEnabled" class="db-card-sub alternatives">{{ t('discordBridge.start.ownBot') }}</p>
 
     <div class="mode-grid" :class="{ single: !hostingEnabled }">
       <article v-if="hostingEnabled" class="mode-option" data-testid="mode-hosted" aria-labelledby="bridge-mode-hosted-title">
@@ -19,7 +51,7 @@
         </p>
         <button
           type="button"
-          class="btn btn-primary"
+          :class="['btn', instanceBotEnabled ? 'btn-secondary' : 'btn-primary']"
           :disabled="busy"
           data-testid="choose-hosted"
           @click="emit('choose', 'hosted')"
@@ -43,7 +75,7 @@
         </p>
         <button
           type="button"
-          :class="['btn', hostingEnabled ? 'btn-secondary' : 'btn-primary']"
+          :class="['btn', hostingEnabled || instanceBotEnabled ? 'btn-secondary' : 'btn-primary']"
           :disabled="busy"
           data-testid="choose-self"
           @click="emit('choose', 'self')"
@@ -64,10 +96,16 @@ import { useI18n } from 'vue-i18n'
 import Icon from '@/components/common/Icon.vue'
 import type { BridgeMode } from '@/utils/discordBridgeSetup'
 
-defineProps<{
-  hostingEnabled: boolean
-  busy: boolean
-}>()
+withDefaults(
+  defineProps<{
+    hostingEnabled: boolean
+    busy: boolean
+    /** discord_bridge_instance_bot_enabled: the instance's own Discord bot is offered first. */
+    instanceBotEnabled?: boolean
+    instanceName?: string
+  }>(),
+  { instanceBotEnabled: false, instanceName: '' },
+)
 
 const emit = defineEmits<{ choose: [mode: BridgeMode] }>()
 
@@ -142,6 +180,20 @@ const { t } = useI18n()
 
 .mode-option .btn {
   align-self: flex-start;
+}
+
+.mode-option--featured {
+  margin-bottom: 14px;
+  border-color: color-mix(in srgb, var(--harmony-primary) 55%, var(--background-quaternary));
+}
+
+.mode-option--featured .mode-head h4 {
+  flex: 1;
+  min-width: 0;
+}
+
+.alternatives {
+  margin-top: 4px;
 }
 
 @media (max-width: 640px) {

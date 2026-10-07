@@ -13,6 +13,15 @@ export const PORTAL = {
   resetToken: 'Reset Token',
   yesDoIt: 'Yes, do it!',
   copy: 'Copy',
+  generalInformation: 'General Information',
+  applicationId: 'Application ID',
+  publicBot: 'Public Bot',
+  requiresCodeGrant: 'Requires OAuth2 Code Grant',
+  oauth2: 'OAuth2',
+  redirects: 'Redirects',
+  addRedirect: 'Add Redirect',
+  clientSecret: 'Client Secret',
+  resetSecret: 'Reset Secret',
 } as const
 
 export const DISCORD_INTENT_NAMES = {

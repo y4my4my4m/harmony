@@ -8,6 +8,10 @@ import {
   DISCORD_TOKEN_PLACEHOLDER,
   buildChecklist,
   buildDiscordInviteUrl,
+  buildInstanceAuthorizeUrl,
+  buildInstanceBotRedirectUri,
+  parseBridgeLinkReturn,
+  setupStepsFor,
   buildDockerCompose,
   buildDockerRunCommand,
   checkDiscordToken,
@@ -332,5 +336,45 @@ describe('channel pairing helpers', () => {
     ]
     const matches = matchChannelsByName(harmony, discord, [{ harmony_channel_id: 'h4', discord_channel_id: 'd4' }])
     expect(matches.map((m) => [m.harmony.id, m.discord.id])).toEqual([['h1', 'd1']])
+  })
+})
+
+describe('instance bot', () => {
+  const linked = (overrides: Partial<DiscordBridgeRow> = {}) =>
+    bridge({ mode: 'instance', discord_guild_id: '900', discord_guild_name: 'Town Square', ...overrides })
+
+  it('builds the gateway authorize route and the redirect URI the gateway registers', () => {
+    expect(buildInstanceAuthorizeUrl('https://har.mony.lol/', 'ab'.repeat(32))).toBe(
+      `https://har.mony.lol/bot-gateway/bridge/v2/discord/authorize?state=${'ab'.repeat(32)}`,
+    )
+    expect(buildInstanceBotRedirectUri('https://har.mony.lol')).toBe(
+      'https://har.mony.lol/bot-gateway/bridge/v2/discord/callback',
+    )
+  })
+
+  it('reads the callback outcome from the query', () => {
+    expect(parseBridgeLinkReturn({ section: 'discord-bridge', linked: '1' })).toEqual({ linked: true, error: null })
+    expect(parseBridgeLinkReturn({ link_error: 'guild_linked_elsewhere' })).toEqual({ linked: false, error: 'guild_linked_elsewhere' })
+    expect(parseBridgeLinkReturn({ link_error: ['limit_reached'] })).toEqual({ linked: false, error: 'limit_reached' })
+    expect(parseBridgeLinkReturn({ link_error: '<script>' })).toEqual({ linked: false, error: 'exchange_failed' })
+    expect(parseBridgeLinkReturn({ section: 'discord-bridge' })).toBeNull()
+    expect(parseBridgeLinkReturn({ linked: '0' })).toBeNull()
+  })
+
+  it('has its own steps: link, channels, options', () => {
+    expect(setupStepsFor('instance')).toEqual(['link', 'channels', 'options'])
+    expect(setupStepsFor('self')).toEqual(['bot', 'connect', 'check', 'guild', 'channels', 'options'])
+    expect(deriveSetupStep(bridge({ mode: 'instance' }), 0, NOW)).toBe('link')
+    expect(deriveSetupStep(linked(), 0, NOW)).toBe('channels')
+    expect(deriveSetupStep(linked(), 2, NOW)).toBe('options')
+  })
+
+  it('reports a bot missing from its linked guild, and nothing before the first report after linking', () => {
+    const reported = linked({ status: healthyStatus, last_seen_at: SEEN, snapshot: { guilds: [] } })
+    expect(collectProblems(reported, NOW)).toEqual([{ code: 'bot_not_in_guild', params: { guild_id: '900' } }])
+    expect(collectProblems(linked({ status: healthyStatus, last_seen_at: SEEN, snapshot: null }), NOW)).toEqual([])
+    expect(
+      collectProblems(linked({ status: healthyStatus, last_seen_at: SEEN, snapshot: { guilds: [{ id: '900', name: 'Town Square', channels: [] }] } }), NOW),
+    ).toEqual([])
   })
 })

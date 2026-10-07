@@ -125,7 +125,7 @@ LiveKit webhooks remove a dropped client within seconds. In `livekit.yaml`, `web
 | `SUPABASE_URL` | required | Supabase API URL as the gateway reaches it |
 | `SUPABASE_SERVICE_ROLE_KEY` | required | Supabase service role key |
 | `PUBLIC_URL` | `SUPABASE_URL` | Public Supabase URL, substituted for `SUPABASE_URL` in the storage URLs (avatars, attachments) handed to bots and bridges |
-| `INSTANCE_DOMAIN` | `localhost:3000` | Base of the bridge pairing URLs: `https://<INSTANCE_DOMAIN>/bot-gateway` and `wss://<INSTANCE_DOMAIN>/bot-gateway/gateway` |
+| `INSTANCE_DOMAIN` | `localhost:3000` | Base of the bridge pairing URLs: `https://<INSTANCE_DOMAIN>/bot-gateway` and `wss://<INSTANCE_DOMAIN>/bot-gateway/gateway`, and of the instance Discord bot's OAuth2 redirect `https://<INSTANCE_DOMAIN>/bot-gateway/bridge/v2/discord/callback` and its return to Server Settings. With neither it nor `PUBLIC_URL` set, `/bridge/v2/discord/*` answers 503 |
 | `FEDERATION_BACKEND_URL` | `http://localhost:3001` | Federation backend that builds link previews of bot messages. The gateway sends its secret only to an `https` URL or to `localhost`/`127.0.0.1` |
 | `INTERNAL_API_SECRET` | service role key | Must equal the federation backend's |
 | `PORT` | `3002` | HTTP and WebSocket port |
@@ -139,7 +139,7 @@ Discord bridge hosting, read by the bridge v2 gateway:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `BRIDGE_HOST_SECRET` | unset | At least 32 characters; must equal the bridge host's. `GET /bridge/v2/hosted` answers 404 while it is unset or shorter, or while hosting is disabled in Admin, Instance |
+| `BRIDGE_HOST_SECRET` | unset | At least 32 characters; must equal the bridge host's. `GET /bridge/v2/hosted` answers 404 while it is unset or shorter, or while hosting is disabled in Admin, Instance; `GET /bridge/v2/hosted/instance` likewise, or while the instance Discord bot is off or not set up |
 | `TRUST_PROXY` | `loopback, linklocal, uniquelocal` | Express `trust proxy`. A number is a hop count; `true`/`false` are booleans |
 | `BRIDGE_CONFIG_POLL_MS` | `5000` | Interval of the bridge configuration poll, clamped to 1000-60000 ms |
 
