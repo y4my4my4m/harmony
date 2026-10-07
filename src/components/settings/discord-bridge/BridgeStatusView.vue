@@ -60,7 +60,7 @@
 
     <section class="db-card" aria-labelledby="bridge-settings-title">
       <h3 id="bridge-settings-title" class="db-card-title">{{ t('discordBridge.status.settingsTitle') }}</h3>
-      <BridgeSettingsPanel :bridge-id="bridge.id" :settings="settings" @changed="emit('changed')" />
+      <BridgeSettingsPanel :bridge-id="bridge.id" :settings="settings" :mode="bridge.mode" @changed="emit('changed')" />
     </section>
 
     <section class="db-card" aria-labelledby="bridge-maintain-title">
@@ -69,6 +69,11 @@
         <summary>{{ t(`discordBridge.status.maintain.${bridge.mode}`) }}</summary>
         <BridgeConnectSelf v-if="bridge.mode === 'self' && maintainOpen" :bridge-id="bridge.id" :harmony-url="harmonyUrl" :auto-issue="false" />
         <BridgeConnectHosted v-else-if="bridge.mode === 'hosted' && maintainOpen" :bridge-id="bridge.id" @saved="emit('changed')" />
+        <BridgeInstanceLink
+          v-else-if="bridge.mode === 'instance' && maintainOpen"
+          :server-id="bridge.server_id"
+          :guild-name="guildName || bridge.discord_guild_id"
+        />
       </details>
     </section>
 
@@ -106,6 +111,7 @@ import BridgeChannelPairs from './BridgeChannelPairs.vue'
 import BridgeSettingsPanel from './BridgeSettingsPanel.vue'
 import BridgeConnectSelf from './BridgeConnectSelf.vue'
 import BridgeConnectHosted from './BridgeConnectHosted.vue'
+import BridgeInstanceLink from './BridgeInstanceLink.vue'
 
 const props = defineProps<{
   bridge: DiscordBridgeRow
@@ -135,7 +141,10 @@ const statusKind = computed(() => {
 })
 const lastSeenAgo = computed(() => formatAgo(t, props.bridge.last_seen_at, props.now))
 const settings = computed(() => normalizeBridgeSettings(props.bridge.settings))
-const inviteUrl = computed(() => buildDiscordInviteUrl(props.bridge.discord_application_id))
+// The instance bot joins a server only through Add to Discord (Requires OAuth2 Code Grant).
+const inviteUrl = computed(() =>
+  props.bridge.mode === 'instance' ? '' : buildDiscordInviteUrl(props.bridge.discord_application_id),
+)
 const guildName = computed(
   () =>
     parseSnapshotGuilds(props.bridge.snapshot).find((g) => g.id === props.bridge.discord_guild_id)?.name ??

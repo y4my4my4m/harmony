@@ -73,6 +73,8 @@
         </span>
       </div>
 
+      <BridgeInstanceBotAdmin />
+
       <BridgeHostingAdmin />
 
       <h3 style="margin-top: 24px;">Media picker (Klipy)</h3>
@@ -625,6 +627,7 @@ import Icon from '@/components/common/Icon.vue'
 import ColorPicker from '@/components/common/ColorPicker.vue'
 import NewcomerAlertsDefault from '@/components/admin/NewcomerAlertsDefault.vue'
 import BridgeHostingAdmin from '@/components/settings/discord-bridge/BridgeHostingAdmin.vue'
+import BridgeInstanceBotAdmin from '@/components/settings/discord-bridge/BridgeInstanceBotAdmin.vue'
 import { adminService } from '@/services/AdminService'
 import { trendingService } from '@/services/TrendingService'
 import { supabase } from '@/supabase'

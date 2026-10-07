@@ -206,6 +206,7 @@
             v-if="activeSection === 'discord-bridge' && permissions.canEditBasicInfo"
             :server-id="serverId"
             :server-name="server.name"
+            :link-return="bridgeLinkReturn"
           />
         </div>
       </div>
@@ -226,6 +227,7 @@ import { getProfileWithAvatarUrl } from '@/services/ProfileService'
 import { useLayoutState } from '@/composables/useLayoutState'
 import type { Server, Emoji } from '@/types'
 import { diffServerSettings } from '@/utils/serverSettings'
+import { parseBridgeLinkReturn } from '@/utils/discordBridgeSetup'
 
 // Components
 import ServerBasicInfo from '@/components/settings/ServerBasicInfo.vue'
@@ -342,12 +344,32 @@ const availableSections = computed(() => {
   ]
 })
 
-// ?section= opens that section when it is available on load; otherwise the overview stays.
-const requestedSection = route.query.section
-if (typeof requestedSection === 'string' && availableSections.value.some(s => s.id === requestedSection)) {
-  activeSection.value = requestedSection
-  showSidebar.value = false
+// ?section= opens that section once it is available: permissions can load after the view does.
+// A section the user picked first stays.
+const requestedSection = typeof route.query.section === 'string' ? route.query.section : null
+let requestedSectionApplied = false
+watch(
+  availableSections,
+  (sections) => {
+    if (!requestedSection || requestedSectionApplied || !sections.some(s => s.id === requestedSection)) return
+    requestedSectionApplied = true
+    if (activeSection.value !== 'overview') return
+    activeSection.value = requestedSection
+    showSidebar.value = false
+  },
+  { immediate: true }
+)
+
+// ?linked=1 / ?link_error=: the Discord instance bot's OAuth2 return, read once and dropped from
+// the URL. It applies to the first visit of the Discord Bridge section only.
+const bridgeLinkReturn = ref(parseBridgeLinkReturn(route.query))
+if (bridgeLinkReturn.value) {
+  const { linked: _linked, link_error: _linkError, ...rest } = route.query
+  void router.replace({ query: rest })
 }
+watch(activeSection, (_section, previous) => {
+  if (previous === 'discord-bridge') bridgeLinkReturn.value = null
+})
 
 const generalHasChanges = computed(() => {
   if (!originalServer.value) return false

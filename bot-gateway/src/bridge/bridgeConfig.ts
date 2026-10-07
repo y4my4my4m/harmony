@@ -23,6 +23,9 @@ export function normalizeSetupCode(raw: unknown): string | null {
 export const DIRECTIONS = ['both', 'to_harmony', 'to_discord'] as const
 export type Direction = (typeof DIRECTIONS)[number]
 
+/** discord_bridges.mode. */
+export type BridgeMode = 'self' | 'hosted' | 'instance'
+
 // channels.type: 0 text, 1 voice, 2 category.
 const CATEGORY_TYPE = 2
 
@@ -30,7 +33,7 @@ export interface BridgeRow {
   id: string
   server_id: string
   bot_id: string | null
-  mode: 'self' | 'hosted'
+  mode: BridgeMode
   discord_guild_id: string | null
   settings: Record<string, unknown>
   updated_at: string
@@ -60,7 +63,7 @@ export interface HarmonyChannel {
 export interface BridgeConfig {
   bridge_id: string
   server_id: string
-  mode: 'self' | 'hosted'
+  mode: BridgeMode
   discord_guild_id: string | null
   settings: Record<string, unknown>
   updated_at: string

@@ -127,7 +127,9 @@ const portalUrl = DISCORD_DEVELOPER_PORTAL_URL
 const mode = computed(() => props.bridge.mode)
 const settings = computed(() => normalizeBridgeSettings(props.bridge.settings))
 const guilds = computed(() => parseSnapshotGuilds(props.bridge.snapshot))
-const inviteUrl = computed(() => buildDiscordInviteUrl(props.bridge.discord_application_id))
+const inviteUrl = computed(() =>
+  mode.value === 'instance' ? '' : buildDiscordInviteUrl(props.bridge.discord_application_id),
+)
 
 const SETTING_FOR_INTENT: Record<string, BridgeSettingKey> = {
   members: 'sync_member_list',
@@ -154,7 +156,7 @@ const KNOWN = new Set([
   'harmony_unreachable',
 ])
 
-/** Codes whose fix differs between a bridge you run and one the instance runs. */
+/** Codes whose fix differs between a bridge you run, one the instance runs, and the instance bot. */
 const MODE_SPECIFIC = new Set([
   'bridge_offline',
   'discord_token_invalid',
@@ -164,6 +166,9 @@ const MODE_SPECIFIC = new Set([
   'harmony_unreachable',
   'unknown',
 ])
+
+/** Codes the instance bot fixes through Add to Discord rather than an invite link or a guild choice. */
+const INSTANCE_LINK_CODES = new Set(['bot_not_in_guild', 'no_guild', 'guild_not_selected'])
 
 function discordChannelLabel(id: string | undefined): string {
   if (!id) return t('discordBridge.problems.aChannel')
@@ -189,6 +194,7 @@ function view(problem: BridgeProblem, index: number): ProblemView {
   const known = KNOWN.has(problem.code)
   const code = known ? problem.code : 'unknown'
   const self = mode.value === 'self'
+  const instance = mode.value === 'instance'
   const intent = problem.params.intent ?? ''
   const named = {
     intent: DISCORD_INTENT_NAMES[intent as keyof typeof DISCORD_INTENT_NAMES] ?? intent,
@@ -200,7 +206,9 @@ function view(problem: BridgeProblem, index: number): ProblemView {
     code: problem.code,
   }
   const base = `discordBridge.problems.${code}`
-  const fixKey = MODE_SPECIFIC.has(code) ? `${base}.${self ? 'fixSelf' : 'fixHosted'}` : `${base}.fix`
+  let fixKey = `${base}.fix`
+  if (MODE_SPECIFIC.has(code)) fixKey = `${base}.${instance ? 'fixInstance' : self ? 'fixSelf' : 'fixHosted'}`
+  else if (instance && INSTANCE_LINK_CODES.has(code)) fixKey = `${base}.fixInstance`
 
   const commands: string[] = []
   const actions: Action[] = []
@@ -211,22 +219,22 @@ function view(problem: BridgeProblem, index: number): ProblemView {
       break
     case 'discord_token_invalid':
       if (self) commands.push(BRIDGE_REMOVE_COMMAND)
-      actions.push('portal', 'connect')
+      if (!instance) actions.push('portal', 'connect')
       break
     case 'intent_missing':
       if (self) commands.push(BRIDGE_RESTART_COMMAND)
-      actions.push('portal')
+      if (!instance) actions.push('portal')
       settingKey = SETTING_FOR_INTENT[intent]
       if (settingKey && settings.value[settingKey]) actions.push('turnOff')
       break
     case 'bot_not_in_guild':
-      actions.push('invite', 'guild')
+      actions.push(...(instance ? (['connect'] as const) : (['invite', 'guild'] as const)))
       break
     case 'no_guild':
-      actions.push('invite')
+      actions.push(instance ? 'connect' : 'invite')
       break
     case 'guild_not_selected':
-      actions.push('guild')
+      actions.push(instance ? 'connect' : 'guild')
       break
     case 'harmony_auth_failed':
       if (self) {

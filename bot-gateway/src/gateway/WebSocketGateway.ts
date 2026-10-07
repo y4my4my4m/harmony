@@ -92,6 +92,52 @@ export interface BridgedUser {
   source: 'discord'
 }
 
+export type BridgedPresenceStatus = NonNullable<BridgedUser['presenceStatus']>
+const PRESENCE_STATUSES: ReadonlySet<string> = new Set<BridgedPresenceStatus>(['online', 'away', 'busy', 'offline'])
+const DISCORD_ID = /^[0-9]{1,20}$/
+// Discord: custom status text up to 128 characters; its emoji a custom emoji name of up to 32
+// characters or a unicode emoji sequence.
+const CUSTOM_STATUS_TEXT_MAX = 128
+const CUSTOM_STATUS_EMOJI_MAX = 64
+
+/**
+ * One BRIDGE_PRESENCE_UPDATE (op 7) entry, validated. An absent or malformed presenceStatus
+ * leaves the stored status; customStatus null clears it, absent leaves it.
+ */
+export interface PresenceDelta {
+  id: string
+  presenceStatus?: BridgedPresenceStatus
+  customStatus?: BridgedUser['customStatus']
+}
+
+/** op 7 `d.updates`, reduced to valid entries. */
+export function parsePresenceDeltas(data: unknown): PresenceDelta[] {
+  const updates = (data as { updates?: unknown } | null)?.updates
+  if (!Array.isArray(updates)) return []
+  const out: PresenceDelta[] = []
+  for (const raw of updates) {
+    if (!raw || typeof raw !== 'object') continue
+    const entry = raw as Record<string, unknown>
+    if (typeof entry.id !== 'string' || !DISCORD_ID.test(entry.id)) continue
+    const delta: PresenceDelta = { id: entry.id }
+    if (typeof entry.presenceStatus === 'string' && PRESENCE_STATUSES.has(entry.presenceStatus)) {
+      delta.presenceStatus = entry.presenceStatus as BridgedPresenceStatus
+    }
+    if (entry.customStatus === null) {
+      delta.customStatus = null
+    } else if (entry.customStatus && typeof entry.customStatus === 'object') {
+      const custom = entry.customStatus as Record<string, unknown>
+      const text = typeof custom.text === 'string' ? custom.text.slice(0, CUSTOM_STATUS_TEXT_MAX) : null
+      const emoji = typeof custom.emoji === 'string' ? custom.emoji.slice(0, CUSTOM_STATUS_EMOJI_MAX) : null
+      if (text !== null && (custom.emoji === null || custom.emoji === undefined || emoji !== null)) {
+        delta.customStatus = { text, emoji }
+      }
+    }
+    if (delta.presenceStatus !== undefined || delta.customStatus !== undefined) out.push(delta)
+  }
+  return out
+}
+
 export interface ChannelBridgeData {
   botId: string
   harmonyChannelId: string
@@ -108,6 +154,9 @@ export class WebSocketGateway {
   // Harmony channel ID -> bridged users.
   private bridgedUsersByChannel = new Map<string, BridgedUser[]>()
   private channelsByBot = new Map<string, Set<string>>()
+  // Bot ID -> Discord user ID -> the user objects of that bot's registration, one per channel
+  // list holding the user. op 7 updates these objects in place.
+  private usersByBot = new Map<string, Map<string, BridgedUser[]>>()
   
   constructor(private wss: WebSocketServer) {
     this.wss.on('connection', this.handleConnection.bind(this))
@@ -144,6 +193,12 @@ export class WebSocketGateway {
               this.handleBridgeDataRegistration(botConnection, payload.d).catch(err => {
                 console.error('Error handling bridge data registration:', err)
               })
+            }
+            break
+
+          case 7: // BRIDGE_PRESENCE_UPDATE
+            if (botConnection) {
+              this.applyBridgePresence(botConnection.botId, payload.d)
             }
             break
             
@@ -532,15 +587,48 @@ export class WebSocketGateway {
 
     const previous = this.channelsByBot.get(botId) ?? new Set<string>()
     const current = new Set<string>()
+    const index = new Map<string, BridgedUser[]>()
+    const indexed = new Set<BridgedUser[]>()
     for (const { harmonyChannelId, members } of accepted) {
-      this.bridgedUsersByChannel.set(harmonyChannelId, members ?? shared)
+      const list = members ?? shared
+      this.bridgedUsersByChannel.set(harmonyChannelId, list)
       current.add(harmonyChannelId)
+      // The shared root list can back several channels; its users are indexed once.
+      if (indexed.has(list)) continue
+      indexed.add(list)
+      for (const user of list) {
+        if (!user || typeof user.id !== 'string') continue
+        const copies = index.get(user.id)
+        if (copies) copies.push(user)
+        else index.set(user.id, [user])
+      }
     }
     this.channelsByBot.set(botId, current)
+    this.usersByBot.set(botId, index)
     for (const channelId of previous) {
       if (!current.has(channelId)) this.releaseChannel(botId, channelId)
     }
     console.log(`Bridge data from bot ${botConnection.username}: accepted=${accepted.length} rejected=${rejectedCount}`)
+  }
+
+  /**
+   * BRIDGE_PRESENCE_UPDATE (op 7) {updates:[{id, presenceStatus, customStatus}]}: presence
+   * deltas for members of the bot's last registration (op 6). Updates the cached user objects
+   * that /bridged-users serves; ids outside the registration are ignored. Returns the number of
+   * user objects changed.
+   */
+  applyBridgePresence(botId: string, data: unknown): number {
+    const index = this.usersByBot.get(botId)
+    if (!index) return 0
+    let changed = 0
+    for (const delta of parsePresenceDeltas(data)) {
+      for (const user of index.get(delta.id) ?? []) {
+        if (delta.presenceStatus !== undefined) user.presenceStatus = delta.presenceStatus
+        if (delta.customStatus !== undefined) user.customStatus = delta.customStatus
+        changed++
+      }
+    }
+    return changed
   }
 
   // A channel's members stay while another bot still registers the channel.
@@ -553,6 +641,7 @@ export class WebSocketGateway {
 
   // Called on bot disconnect.
   private cleanupBotBridgeData(botId: string) {
+    this.usersByBot.delete(botId)
     const botChannels = this.channelsByBot.get(botId)
     if (botChannels) {
       this.channelsByBot.delete(botId)
@@ -605,6 +694,7 @@ export class WebSocketGateway {
     this.connections.clear()
     this.bridgedUsersByChannel.clear()
     this.channelsByBot.clear()
+    this.usersByBot.clear()
     console.log('WebSocket Gateway shut down')
   }
 }

@@ -173,7 +173,7 @@ detect_embed_provider	invoker	text	anon+authenticated+service_role	trigger	calle
 detect_message_features	invoker	jsonb	service_role	trigger	called by message_search_flags
 determine_message_federation_type	invoker	text	anon+authenticated+service_role	trigger	called by handle_message_federation
 disable_federation_triggers	definer	void	service_role	service key	nothing references it
-discord_bridge_assert_vault	invoker	void	-	client	called by discord_bridge_create, discord_bridge_hosted_list, discord_bridge_set_hosted_token
+discord_bridge_assert_vault	invoker	void	-	client	called by discord_bridge_create, discord_bridge_hosted_list, discord_bridge_instance_bot_secrets, +4
 discord_bridge_bot_pair	definer	uuid	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
 discord_bridge_bot_unpair	definer	boolean	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
 discord_bridge_channels_check	definer	trigger	-	trigger	trigger public.discord_bridge_channels BEFORE INSERT/UPDATE (discord_bridge_channels_check)
@@ -184,13 +184,27 @@ discord_bridge_encrypted_channel_ids	definer	SETOF uuid	service_role	client	rpc 
 discord_bridge_for_manager	definer	discord_bridges	-	client	called by discord_bridge_delete, discord_bridge_pair, discord_bridge_set_guild, +4
 discord_bridge_guild_channels	invoker	SETOF jsonb	-	client	called by discord_bridge_pair_internal, discord_bridge_report_status, discord_bridge_set_guild
 discord_bridge_hosted_list	definer	TABLE(bridge_id uuid, harmony_token text, discord_token text)	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
-discord_bridge_hosting_enabled	definer	boolean	-	client	named in bot-gateway/src/api/BridgeV2API.ts, bot-gateway/src/api/__tests__/BridgeV2API.test.ts, src/components/settings/discord-bridge/__tests__/BridgeAdminAndMenus.test.ts, +2
+discord_bridge_hosting_enabled	definer	boolean	-	client	named in bot-gateway/src/api/BridgeV2API.ts, bot-gateway/src/api/__tests__/BridgeV2API.instance.test.ts, bot-gateway/src/api/__tests__/BridgeV2API.test.ts, +4
 discord_bridge_hosting_limit	definer	integer	-	client	named in src/components/settings/discord-bridge/__tests__/BridgeAdminAndMenus.test.ts, src/components/settings/discord-bridge/bridgeApi.ts
-discord_bridge_issue_token	definer	text	-	client	called by discord_bridge_redeem_code, discord_bridge_set_hosted_token
+discord_bridge_instance_bot_clear	definer	void	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridge_instance_bot_configured	definer	boolean	-	client	called by discord_bridge_instance_bot_secrets, discord_bridge_instance_bot_status, discord_bridge_instance_hosted, +2
+discord_bridge_instance_bot_enabled	definer	boolean	-	client	named in src/components/settings/discord-bridge/__tests__/BridgeInstance.test.ts, src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridge_instance_bot_limit	definer	integer	-	client	named in src/components/settings/discord-bridge/__tests__/BridgeInstance.test.ts, src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridge_instance_bot_purge	definer	trigger	-	trigger	trigger public.discord_bridge_instance_bot AFTER DELETE (discord_bridge_instance_bot_purge)
+discord_bridge_instance_bot_secrets	definer	TABLE(client_id text, client_secret text)	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
+discord_bridge_instance_bot_set	definer	jsonb	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridge_instance_bot_status	definer	jsonb	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridge_instance_hosted	definer	jsonb	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
+discord_bridge_instance_link	definer	jsonb	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridge_instance_link_check	definer	jsonb	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
+discord_bridge_instance_link_complete	definer	jsonb	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
+discord_bridge_instance_linked_count	definer	integer	-	client	called by discord_bridge_instance_bot_status, discord_bridge_instance_link, discord_bridge_instance_link_check, +1
+discord_bridge_instance_presence	definer	boolean	-	client	named in src/components/settings/discord-bridge/__tests__/BridgeInstance.test.ts, src/components/settings/discord-bridge/bridgeApi.ts
+discord_bridge_issue_token	definer	text	-	client	called by discord_bridge_instance_link, discord_bridge_redeem_code, discord_bridge_set_hosted_token
 discord_bridge_normalize_code	invoker	text	-	client	called by discord_bridge_redeem_code
 discord_bridge_pair	definer	uuid	authenticated	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts
 discord_bridge_pair_internal	definer	uuid	-	client	called by discord_bridge_bot_pair, discord_bridge_pair
-discord_bridge_provision_bot	definer	uuid	-	client	called by discord_bridge_create, discord_bridge_set_hosted_token, discord_bridge_setup_code
+discord_bridge_provision_bot	definer	uuid	-	client	called by discord_bridge_create, discord_bridge_instance_link, discord_bridge_set_hosted_token, +1
 discord_bridge_redeem_code	definer	jsonb	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
 discord_bridge_report_status	definer	jsonb	service_role	client	rpc in bot-gateway/src/api/BridgeV2API.ts
 discord_bridge_secrets_purge	definer	trigger	-	trigger	trigger public.discord_bridge_secrets AFTER DELETE (discord_bridge_secrets_purge)
@@ -387,7 +401,7 @@ jsonb_text_content_length	invoker	integer	anon+authenticated+service_role	client
 keep_welcome_managed_server_rules	definer	trigger	service_role	trigger	trigger public.servers BEFORE UPDATE (a_servers_welcome_rules_guard)
 kick_server_member	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/ModerationService.ts
 list_my_sessions	definer	TABLE(id uuid, created_at timestamp with time zone, last_active_at timestamp with time zone, user_agent text, ip text, aal text, is_current boolean, push_transports text[])	authenticated+service_role	client	rpc in src/services/AccountSecurityService.ts
-log_admin_action	definer	uuid	service_role	client	called by admin_moderate_post, batch_set_instance_config, moderate_report, +6
+log_admin_action	definer	uuid	service_role	client	called by admin_moderate_post, batch_set_instance_config, discord_bridge_instance_bot_clear, +8
 log_key_generation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.user_key_pairs AFTER INSERT (audit_key_generation)
 lookup_discord_bridge_pairing_public	definer	TABLE(server_id uuid)	anon+authenticated+service_role	client	rpc in bot-gateway/src/index.ts
 lookup_invite_by_code	definer	TABLE(id uuid, code text, server_id uuid, created_by uuid, uses integer, max_uses integer, used boolean, temporary boolean, expires_at timestamp with time zone, created_at timestamp with time zone, server_name text, server_icon text)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts

@@ -2,7 +2,7 @@
   <div class="stepper" data-testid="bridge-stepper">
     <nav class="db-card step-nav" :aria-label="t('discordBridge.steps.navLabel')">
       <ol>
-        <li v-for="(step, index) in SETUP_STEPS" :key="step">
+        <li v-for="(step, index) in steps" :key="step">
           <button
             type="button"
             :class="['step-link', `step-link--${stepState(step)}`, { current: current === step }]"
@@ -24,13 +24,19 @@
     </nav>
 
     <section class="db-card step-panel" :aria-labelledby="headingId" :data-step="current">
-      <p class="step-count">{{ t('discordBridge.steps.count', { n: currentIndex + 1, total: SETUP_STEPS.length }) }}</p>
+      <p class="step-count">{{ t('discordBridge.steps.count', { n: currentIndex + 1, total: steps.length }) }}</p>
       <h3 :id="headingId" ref="heading" class="db-card-title" tabindex="-1">
         {{ stepName(current) }}
       </h3>
 
+      <BridgeInstanceLink
+        v-if="current === 'link'"
+        :server-id="bridge.server_id"
+        :guild-name="bridge.discord_guild_id ? bridge.discord_guild_name || bridge.discord_guild_id : null"
+      />
+
       <BridgeDiscordBotStep
-        v-if="current === 'bot'"
+        v-else-if="current === 'bot'"
         :bridge-id="bridge.id"
         :mode="bridge.mode"
         :settings="settings"
@@ -60,17 +66,23 @@
         @changed="emit('changed')"
       />
 
-      <BridgeChannelPairs
-        v-else-if="current === 'channels'"
-        :bridge="bridge"
-        :pairs="pairs"
-        :harmony-channels="harmonyChannels"
-        @changed="emit('changed')"
-      />
+      <template v-else-if="current === 'channels'">
+        <BridgeProblemList
+          v-if="bridge.mode === 'instance' && problems.length"
+          class="channel-problems"
+          :bridge="bridge"
+          :problems="problems"
+          :harmony-channels="harmonyChannels"
+          :harmony-url="harmonyUrl"
+          @go="(step) => goTo(step === 'connect' ? 'link' : step, true)"
+          @changed="emit('changed')"
+        />
+        <BridgeChannelPairs :bridge="bridge" :pairs="pairs" :harmony-channels="harmonyChannels" @changed="emit('changed')" />
+      </template>
 
       <template v-else-if="current === 'options'">
         <p class="db-muted">{{ t('discordBridge.steps.options.lead') }}</p>
-        <BridgeSettingsPanel :bridge-id="bridge.id" :settings="settings" @changed="emit('changed')" />
+        <BridgeSettingsPanel :bridge-id="bridge.id" :settings="settings" :mode="bridge.mode" @changed="emit('changed')" />
       </template>
 
       <p v-if="nextBlockedHint" class="db-muted next-hint" data-testid="next-hint">{{ nextBlockedHint }}</p>
@@ -109,10 +121,11 @@ import { computed, nextTick, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/common/Icon.vue'
 import {
-  SETUP_STEPS,
   buildChecklist,
+  collectProblems,
   deriveSetupStep,
   normalizeBridgeSettings,
+  setupStepsFor,
   type BridgePairRow,
   type DiscordBridgeRow,
   type HarmonyChannelOption,
@@ -125,6 +138,8 @@ import BridgeChecklist from './BridgeChecklist.vue'
 import BridgeGuildPicker from './BridgeGuildPicker.vue'
 import BridgeChannelPairs from './BridgeChannelPairs.vue'
 import BridgeSettingsPanel from './BridgeSettingsPanel.vue'
+import BridgeInstanceLink from './BridgeInstanceLink.vue'
+import BridgeProblemList from './BridgeProblemList.vue'
 
 const props = defineProps<{
   bridge: DiscordBridgeRow
@@ -172,11 +187,14 @@ function markReached(step: 'connect' | 'check') {
   }
 }
 
+const steps = computed(() => setupStepsFor(props.bridge.mode))
 const settings = computed(() => normalizeBridgeSettings(props.bridge.settings))
+const problems = computed(() => collectProblems(props.bridge, props.now))
 const derived = computed(() => deriveSetupStep(props.bridge, props.pairs.length, props.now, reached.value))
-const derivedIndex = computed(() => SETUP_STEPS.indexOf(derived.value))
-const current = ref<SetupStep>(props.initialStep ?? derived.value)
-const currentIndex = computed(() => SETUP_STEPS.indexOf(current.value))
+const derivedIndex = computed(() => steps.value.indexOf(derived.value))
+const initial = props.initialStep && steps.value.includes(props.initialStep) ? props.initialStep : null
+const current = ref<SetupStep>(initial ?? derived.value)
+const currentIndex = computed(() => steps.value.indexOf(current.value))
 
 /**
  * Follow progress while the admin is on the step the row pointed at. The first pair does
@@ -206,13 +224,14 @@ function available(step: SetupStep): boolean {
 }
 
 function stepState(step: SetupStep): 'done' | 'todo' {
-  return SETUP_STEPS.indexOf(step) < derivedIndex.value ? 'done' : 'todo'
+  return steps.value.indexOf(step) < derivedIndex.value ? 'done' : 'todo'
 }
 
 const canAdvance = computed(() => {
   switch (current.value) {
     case 'check':
       return checksPass.value
+    case 'link':
     case 'guild':
       return !!props.bridge.discord_guild_id
     case 'channels':
@@ -225,6 +244,7 @@ const canAdvance = computed(() => {
 const nextBlockedHint = computed(() => {
   if (canAdvance.value) return ''
   if (current.value === 'check') return t('discordBridge.steps.blocked.check')
+  if (current.value === 'link') return t('discordBridge.steps.blocked.link')
   if (current.value === 'guild') return t('discordBridge.steps.blocked.guild')
   if (current.value === 'channels') return t('discordBridge.steps.blocked.channels')
   return ''
@@ -243,12 +263,12 @@ function next() {
   if (!canAdvance.value) return
   if (current.value === 'bot') markReached('connect')
   if (current.value === 'connect') markReached('check')
-  const target = SETUP_STEPS[currentIndex.value + 1]
+  const target = steps.value[currentIndex.value + 1]
   if (target) void goTo(target, true)
 }
 
 function back() {
-  const target = SETUP_STEPS[currentIndex.value - 1]
+  const target = steps.value[currentIndex.value - 1]
   if (target) void goTo(target, true)
 }
 
@@ -364,6 +384,10 @@ function onTokenSaved() {
 
 .next-hint {
   margin-top: 16px;
+}
+
+.channel-problems {
+  margin-bottom: 16px;
 }
 
 .step-footer {

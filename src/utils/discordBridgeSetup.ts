@@ -2,7 +2,7 @@
  * Discord bridge v2: row shapes, status/snapshot parsing, setup-step derivation and
  * the copy-paste commands shown in Server Settings → Discord Bridge.
  */
-import { getStoredInstance } from '@/services/instanceConfig'
+import { getInstanceDomain, getStoredInstance } from '@/services/instanceConfig'
 import { runtimeConfig } from '@/services/runtimeConfig'
 
 // ---------------------------------------------------------------------------
@@ -41,6 +41,54 @@ export function buildDiscordInviteUrl(applicationId: string | null | undefined):
 }
 
 // ---------------------------------------------------------------------------
+// Instance bot (bridge v2.1): OAuth2 through bot-gateway's /bridge/v2/discord routes
+// ---------------------------------------------------------------------------
+
+/** Path of the OAuth2 redirect URI registered on the instance's Discord application. */
+export const INSTANCE_BOT_CALLBACK_PATH = '/bot-gateway/bridge/v2/discord/callback'
+
+/** Redirect URI the operator registers in the Discord Developer Portal: the gateway builds the same from INSTANCE_DOMAIN. */
+export function buildInstanceBotRedirectUri(baseUrl: string): string {
+  return `${baseUrl.replace(/\/$/, '')}${INSTANCE_BOT_CALLBACK_PATH}`
+}
+
+/** Gateway route that redirects to Discord's consent screen for a state from discord_bridge_instance_link. */
+export function buildInstanceAuthorizeUrl(baseUrl: string, state: string): string {
+  return `${baseUrl.replace(/\/$/, '')}/bot-gateway/bridge/v2/discord/authorize?state=${encodeURIComponent(state)}`
+}
+
+/** link_error values of GET /bridge/v2/discord/callback's return to Server Settings. */
+export const LINK_ERROR_CODES = [
+  'state_invalid',
+  'guild_linked_elsewhere',
+  'discord_denied',
+  'exchange_failed',
+  'limit_reached',
+] as const
+export type LinkErrorCode = (typeof LINK_ERROR_CODES)[number]
+
+export interface BridgeLinkReturn {
+  linked: boolean
+  error: LinkErrorCode | null
+}
+
+/**
+ * ?linked=1 or ?link_error=<code> on Server Settings, as the callback redirects; null when
+ * neither is present. An unknown code reads as exchange_failed.
+ */
+export function parseBridgeLinkReturn(query: Record<string, unknown>): BridgeLinkReturn | null {
+  const first = (value: unknown) => (Array.isArray(value) ? value[0] : value)
+  const linked = first(query.linked)
+  const error = first(query.link_error)
+  if (typeof error === 'string' && error) {
+    const code = (LINK_ERROR_CODES as readonly string[]).includes(error) ? (error as LinkErrorCode) : 'exchange_failed'
+    return { linked: false, error: code }
+  }
+  if (linked === '1' || linked === 'true') return { linked: true, error: null }
+  return null
+}
+
+// ---------------------------------------------------------------------------
 // Instance URLs
 // ---------------------------------------------------------------------------
 
@@ -62,6 +110,11 @@ export function resolveHarmonyBaseUrl(): string {
   const domain = runtimeConfig.domain
   if (domain) return `https://${domain}`
   return 'https://your-harmony-instance.example'
+}
+
+/** This instance's display name: its configured name, else its domain. */
+export function resolveInstanceName(): string {
+  return getStoredInstance()?.name || runtimeConfig.instanceName || getInstanceDomain()
 }
 
 export interface BridgeGatewayUrls {
@@ -134,7 +187,7 @@ settings:
 // v2 rows
 // ---------------------------------------------------------------------------
 
-export type BridgeMode = 'self' | 'hosted'
+export type BridgeMode = 'self' | 'hosted' | 'instance'
 export type PairDirection = 'both' | 'to_harmony' | 'to_discord'
 export const PAIR_DIRECTIONS: readonly PairDirection[] = ['both', 'to_harmony', 'to_discord']
 
@@ -435,7 +488,16 @@ export function collectProblems(bridge: DiscordBridgeRow, now = Date.now()): Bri
     for (const intent of requiredIntents(settings)) {
       if (status.intents[intent] === false) out.push({ code: 'intent_missing', params: { intent } })
     }
-    if (parseSnapshotGuilds(bridge.snapshot).length === 0) out.push({ code: 'no_guild', params: {} })
+    const guilds = parseSnapshotGuilds(bridge.snapshot)
+    if (bridge.mode === 'instance') {
+      // The stored snapshot of an instance bridge holds its linked guild alone, when the bot is in
+      // it. Linking another guild clears the snapshot until the bridge reports again.
+      if (bridge.discord_guild_id && bridge.snapshot && !guilds.some((g) => g.id === bridge.discord_guild_id)) {
+        out.push({ code: 'bot_not_in_guild', params: { guild_id: bridge.discord_guild_id } })
+      }
+    } else if (guilds.length === 0) {
+      out.push({ code: 'no_guild', params: {} })
+    }
   }
   const seen = new Set<string>()
   return out.filter((p) => {
@@ -451,12 +513,19 @@ export function collectProblems(bridge: DiscordBridgeRow, now = Date.now()): Bri
 // ---------------------------------------------------------------------------
 
 export const SETUP_STEPS = ['bot', 'connect', 'check', 'guild', 'channels', 'options'] as const
-export type SetupStep = (typeof SETUP_STEPS)[number]
+/** The instance bot: Add to Discord links the guild; the instance runs the bridge. */
+export const INSTANCE_SETUP_STEPS = ['link', 'channels', 'options'] as const
+export type SetupStep = (typeof SETUP_STEPS)[number] | (typeof INSTANCE_SETUP_STEPS)[number]
+
+export function setupStepsFor(mode: BridgeMode): readonly SetupStep[] {
+  return mode === 'instance' ? INSTANCE_SETUP_STEPS : SETUP_STEPS
+}
 
 /**
  * The first step that still needs the admin, from the row alone. A bridge that never
  * reported in is at 'bot' unless the admin moved on to 'connect' (or saved a hosted
- * token, 'check'); after that the checklist, the guild and the first pair gate.
+ * token, 'check'); after that the checklist, the guild and the first pair gate. An
+ * instance bridge is at 'link' until a guild is linked, then the first pair gates.
  */
 export function deriveSetupStep(
   bridge: DiscordBridgeRow,
@@ -464,6 +533,10 @@ export function deriveSetupStep(
   now = Date.now(),
   reached: SetupStep | null = null,
 ): SetupStep {
+  if (bridge.mode === 'instance') {
+    if (!bridge.discord_guild_id) return 'link'
+    return pairCount === 0 ? 'channels' : 'options'
+  }
   if (!bridge.last_seen_at) {
     if (reached === 'check') return 'check'
     return reached === 'connect' ? 'connect' : 'bot'

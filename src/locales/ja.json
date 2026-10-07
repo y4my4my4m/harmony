@@ -3069,7 +3069,8 @@
       "copied": "コピーしました",
       "copyFailed": "コピーできませんでした。テキストを選択して手動でコピーしてください。",
       "retry": "再試行",
-      "commandLabel": "コマンド"
+      "commandLabel": "コマンド",
+      "dismiss": "閉じる"
     },
     "start": {
       "title": "ブリッジをどこで動かしますか？",
@@ -3090,7 +3091,17 @@
       },
       "hostingUnavailable": "このインスタンスはコミュニティ向けにブリッジを動かしていないため、ブリッジはあなたのコンピューターで動かします。",
       "bothWays": "どちらの方法でも、ブリッジされたチャンネルのメッセージは、ここでの他のメッセージと同様にこのインスタンスを経由します。",
-      "presenceNote": "プレゼンス同期（Discord のオンライン状態）は最初はオフです。メンバーの状態が変わるたびに更新を送るため、大きなサーバーでは常に重い負荷になります。後からオンにできます。"
+      "presenceNote": "プレゼンス同期（Discord のオンライン状態）は最初はオフです。オンにしても送られるのは状態の変化だけですが、ボットには Discord の Presence インテントが必要です。後からオンにできます。",
+      "needsInstance": "接続したい Discord サーバーで「サーバー管理」権限が必要です。",
+      "instance": {
+        "title": "{instance} のボットを使う",
+        "recommended": "おすすめ",
+        "point1": "作成やインストールは不要です。ワンクリックでボットを Discord サーバーに追加できます。",
+        "point2": "ブリッジはこのインスタンスが動かします。",
+        "tradeoff": "ボットはこのインスタンスの運営者のもので、運営者はボットがアクセスできるすべての Discord チャンネルを読めます。ボットには、ブリッジするチャンネルだけへのアクセスを与えてください。",
+        "choose": "{instance} のボットを使う"
+      },
+      "ownBot": "または、自分の Discord ボットを使う："
     },
     "steps": {
       "navLabel": "設定の手順",
@@ -3126,17 +3137,22 @@
         },
         "check": "次へ",
         "guild": "次へ",
-        "channels": "次へ"
+        "channels": "次へ",
+        "link": "次へ"
       },
       "finish": "設定を完了",
       "blocked": {
         "check": "上のすべての項目に緑のチェックが付いたら先に進めます。",
         "guild": "続けるには Discord サーバーを選んでください。",
-        "channels": "続けるには、少なくとも 1 つのチャンネルをペアにしてください。"
+        "channels": "続けるには、少なくとも 1 つのチャンネルをペアにしてください。",
+        "link": "続けるには、ボットを Discord サーバーに追加してください。"
       },
       "startOver": {
         "prompt": "選択を間違えましたか？",
         "action": "最初からやり直す"
+      },
+      "link": {
+        "title": "ボットを Discord に追加"
       }
     },
     "bot": {
@@ -3335,7 +3351,9 @@
         "blocked": "ボットはまだ {channel} を使えません。先に上の説明に従って Discord で権限を直してください。"
       },
       "add": "ペアを追加",
-      "fromDiscord": "Discord 側から {command} でペアにすることもできます。その際は Harmony のチャンネル ID が必要です。ここでチャンネルを右クリックし、{copyId} を選んでください。"
+      "fromDiscord": "Discord 側から {command} でペアにすることもできます。その際は Harmony のチャンネル ID が必要です。ここでチャンネルを右クリックし、{copyId} を選んでください。",
+      "waitingInstance": "{guild} に接続しています…最大 1 分ほどかかります。チャンネルは自動的にここに表示されます。",
+      "instanceGone": "ボットはもう {guild} にいません。ブリッジを続けるには、もう一度 Discord に追加してください。"
     },
     "settings": {
       "needsIntent": "Developer Portal で {intent} が必要です。",
@@ -3345,7 +3363,7 @@
       },
       "sync_presence": {
         "label": "プレゼンスを同期",
-        "hint": "Discord のメンバーがオンラインかどうかを表示します。初期状態はオフです。大きなサーバーでは、ブリッジとこのインスタンスに絶え間なく更新が流れ込みます。"
+        "hint": "Discord のメンバーがオンラインかどうかを表示します。送られるのは状態の変化だけなので、負荷は軽くて済みます。"
       },
       "sync_reactions": {
         "label": "リアクションを同期",
@@ -3358,7 +3376,9 @@
       "sync_deletes": {
         "label": "削除を同期",
         "hint": "メッセージが削除されたら、もう一方のコピーも削除します。"
-      }
+      },
+      "needsInstanceIntent": "このインスタンスのボットが {intent} を持っている間だけ機能します。",
+      "presenceInstance": "インスタンスの管理者がボットのプレゼンスをオンにする必要もあります。また Discord は、100 を超えるサーバーにいるボットには審査の後でしか Presence インテントを付与しません。"
     },
     "status": {
       "online": "ブリッジはオンラインです",
@@ -3370,7 +3390,8 @@
       "runs": "動作場所",
       "mode": {
         "self": "あなたのコンピューター",
-        "hosted": "このインスタンス"
+        "hosted": "このインスタンス",
+        "instance": "このインスタンスの Discord ボット"
       },
       "discordServer": "Discord サーバー",
       "discordBot": "Discord ボット",
@@ -3384,12 +3405,14 @@
       "maintainTitle": "メンテナンス",
       "maintain": {
         "self": "ブリッジを別のコンピューターに移す、または再インストールする",
-        "hosted": "Discord ボットトークンを置き換える"
+        "hosted": "Discord ボットトークンを置き換える",
+        "instance": "別の Discord サーバーをリンク"
       },
       "disconnectTitle": "ブリッジを切断",
       "disconnectBody": {
         "self": "ブリッジを停止し、すべてのチャンネルのペアとブリッジの Harmony ボットを削除します。すでにブリッジされたメッセージは残ります。Discord ボットは削除されません。不要になったら Developer Portal で削除してください。",
-        "hosted": "ブリッジを停止し、すべてのチャンネルのペアとブリッジの Harmony ボットを削除し、保存された Discord トークンも消去します。すでにブリッジされたメッセージは残ります。Discord ボットは削除されません。不要になったら Developer Portal で削除してください。"
+        "hosted": "ブリッジを停止し、すべてのチャンネルのペアとブリッジの Harmony ボットを削除し、保存された Discord トークンも消去します。すでにブリッジされたメッセージは残ります。Discord ボットは削除されません。不要になったら Developer Portal で削除してください。",
+        "instance": "ブリッジを停止し、すべてのチャンネルのペアとブリッジの Harmony ボットを削除します。すでにブリッジされたメッセージは残ります。ボットは 10 分ほどで自動的にあなたの Discord サーバーから退出します。"
       },
       "disconnect": "ブリッジを切断",
       "disconnected": "ブリッジを切断しました",
@@ -3406,7 +3429,8 @@
         "message": "設定途中のブリッジを削除し、もう一度選び直せるようにします。",
         "button": "最初からやり直す"
       },
-      "selfNote": "コンピューター上のプログラムも停止してください: {command}"
+      "selfNote": "コンピューター上のプログラムも停止してください: {command}",
+      "instanceNote": "このインスタンスのボットは 10 分ほどで自動的にあなたの Discord サーバーから退出します。Discord 側で削除する必要はありません。"
     },
     "problems": {
       "listLabel": "問題",
@@ -3415,29 +3439,35 @@
       "bridge_offline": {
         "title": "ブリッジがオフラインです。",
         "fixSelf": "ブリッジを動かしているコンピューターの電源が入っていて Docker が動いていることを確認し、下の 1 つ目のコマンドでブリッジを起動してください。再び止まる場合は、2 つ目のコマンドで原因がわかります。",
-        "fixHosted": "このインスタンスは現在あなたのブリッジを動かしていません。数分待ってもオフラインのままなら、インスタンスの管理者に連絡してください。"
+        "fixHosted": "このインスタンスは現在あなたのブリッジを動かしていません。数分待ってもオフラインのままなら、インスタンスの管理者に連絡してください。",
+        "fixInstance": "このインスタンスは現在あなたのブリッジを動かしていません。数分待ってもオフラインのままなら、インスタンスの管理者に連絡してください。"
       },
       "discord_token_invalid": {
         "title": "Discord がボットトークンを拒否しました。",
         "fixSelf": "Developer Portal でアプリケーション → Bot → Reset Token を開き、新しいトークンをコピーします。下のコマンドで古いブリッジを削除してから、新しいトークンでセットアップコマンドをもう一度実行してください。Harmony へのサインイン情報はブリッジに残っています。",
-        "fixHosted": "Developer Portal でアプリケーション → Bot → Reset Token を開き、新しいトークンをコピーしてここに保存してください。"
+        "fixHosted": "Developer Portal でアプリケーション → Bot → Reset Token を開き、新しいトークンをコピーしてここに保存してください。",
+        "fixInstance": "インスタンス側の問題です。ボットに新しいトークンが必要です。インスタンスの管理者に連絡してください。"
       },
       "intent_missing": {
         "title": "Discord が {intent} を拒否しました。",
         "fixSelf": "Developer Portal でアプリケーション → Bot → Privileged Gateway Intents を開き、{intent} をオンにして Save Changes をクリックします。その後、下のコマンドでブリッジを再起動してください。",
-        "fixHosted": "Developer Portal でアプリケーション → Bot → Privileged Gateway Intents を開き、{intent} をオンにして Save Changes をクリックします。ブリッジは次の再接続時（数分以内）に反映します。"
+        "fixHosted": "Developer Portal でアプリケーション → Bot → Privileged Gateway Intents を開き、{intent} をオンにして Save Changes をクリックします。ブリッジは次の再接続時（数分以内）に反映します。",
+        "fixInstance": "このインスタンスのボットには {intent} がありません。それが必要なオプションをオフにするか、インスタンスの管理者に相談してください。"
       },
       "bot_not_in_guild": {
         "title": "ボットが {guild} に参加していません。",
-        "fix": "「ボットを Discord サーバーに招待」を使ってください（そのサーバーでの「サーバー管理」権限が必要です）。または別の Discord サーバーを選んでください。"
+        "fix": "「ボットを Discord サーバーに招待」を使ってください（そのサーバーでの「サーバー管理」権限が必要です）。または別の Discord サーバーを選んでください。",
+        "fixInstance": "ボットが {guild} から削除されました。ブリッジを続けるには、もう一度 Discord に追加してください。"
       },
       "no_guild": {
         "title": "ボットはまだどの Discord サーバーにも参加していません。",
-        "fix": "「ボットを Discord サーバーに招待」を使い、開いた Discord のウィンドウでサーバーを選んでください。そのサーバーでの「サーバー管理」権限が必要です。"
+        "fix": "「ボットを Discord サーバーに招待」を使い、開いた Discord のウィンドウでサーバーを選んでください。そのサーバーでの「サーバー管理」権限が必要です。",
+        "fixInstance": "もう一度ボットを Discord サーバーに追加してください。"
       },
       "guild_not_selected": {
         "title": "Discord サーバーがまだ選ばれていません。",
-        "fix": "ブリッジする Discord サーバーを選んでください。"
+        "fix": "ブリッジする Discord サーバーを選んでください。",
+        "fixInstance": "リンクするには、ボットを Discord サーバーに追加してください。"
       },
       "channel_not_visible": {
         "title": "ボットから {channel} が見えません。",
@@ -3454,7 +3484,8 @@
       "harmony_auth_failed": {
         "title": "ブリッジが Harmony にサインインできなくなりました。",
         "fixSelf": "下のコマンドでブリッジをリセットし、新しいセットアップコードでセットアップコマンドをもう一度実行してください。",
-        "fixHosted": "インスタンス側の問題です。インスタンスの管理者に連絡してください。失敗が続く場合は、下でブリッジを切断して設定し直してください。"
+        "fixHosted": "インスタンス側の問題です。インスタンスの管理者に連絡してください。失敗が続く場合は、下でブリッジを切断して設定し直してください。",
+        "fixInstance": "インスタンス側の問題です。インスタンスの管理者に連絡してください。失敗が続く場合は、下でブリッジを切断して設定し直してください。"
       },
       "harmony_channel_missing": {
         "title": "ペアになっている Harmony のチャンネルが存在しません。",
@@ -3471,17 +3502,20 @@
       "discord_unreachable": {
         "title": "ブリッジが Discord に接続できません。",
         "fixSelf": "ブリッジを動かしているコンピューターがネットに接続しているか確認してください。Discord 自体が停止している場合は、復旧後にブリッジが再接続します。",
-        "fixHosted": "Discord が停止しているか、このインスタンスのネットワークに問題があります。ブリッジは再試行を続けます。長引く場合はインスタンスの管理者に連絡してください。"
+        "fixHosted": "Discord が停止しているか、このインスタンスのネットワークに問題があります。ブリッジは再試行を続けます。長引く場合はインスタンスの管理者に連絡してください。",
+        "fixInstance": "Discord が停止しているか、このインスタンスのネットワークに問題があります。ブリッジは再試行を続けます。長引く場合はインスタンスの管理者に連絡してください。"
       },
       "harmony_unreachable": {
         "title": "ブリッジがこの Harmony インスタンスに接続できません。",
         "fixSelf": "ブリッジを動かしているコンピューターから {url} を開けるか確認してください。ブリッジは再試行を続けます。",
-        "fixHosted": "インスタンス側の問題で、ブリッジは再試行を続けます。長引く場合はインスタンスの管理者に連絡してください。"
+        "fixHosted": "インスタンス側の問題で、ブリッジは再試行を続けます。長引く場合はインスタンスの管理者に連絡してください。",
+        "fixInstance": "インスタンス側の問題で、ブリッジは再試行を続けます。長引く場合はインスタンスの管理者に連絡してください。"
       },
       "unknown": {
         "title": "ブリッジが問題を報告しました（{code}）。",
         "fixSelf": "詳細はブリッジのログにあります:",
-        "fixHosted": "数分たっても解消しない場合は、インスタンスの管理者に連絡してください。"
+        "fixHosted": "数分たっても解消しない場合は、インスタンスの管理者に連絡してください。",
+        "fixInstance": "数分たっても解消しない場合は、インスタンスの管理者に連絡してください。"
       }
     },
     "actions": {
@@ -3491,15 +3525,18 @@
       "go": {
         "connect": {
           "self": "セットアップコマンドを表示",
-          "hosted": "トークンを置き換える"
+          "hosted": "トークンを置き換える",
+          "instance": "もう一度ボットを Discord に追加"
         },
         "guild": {
           "self": "Discord サーバーを選択",
-          "hosted": "Discord サーバーを選択"
+          "hosted": "Discord サーバーを選択",
+          "instance": "もう一度ボットを Discord に追加"
         },
         "channels": {
           "self": "ペアのチャンネルへ",
-          "hosted": "ペアのチャンネルへ"
+          "hosted": "ペアのチャンネルへ",
+          "instance": "ペアのチャンネルへ"
         }
       }
     },
@@ -3536,7 +3573,11 @@
       "unpair": "ペアを削除できませんでした。もう一度お試しください。",
       "settings": "オプションを保存できませんでした。もう一度お試しください。",
       "delete": "ブリッジを切断できませんでした。もう一度お試しください。",
-      "generic": "問題が発生しました。もう一度お試しください。"
+      "generic": "問題が発生しました。もう一度お試しください。",
+      "bridgeExists": "このサーバーには別の方法で設定された Discord ブリッジがすでにあります。このインスタンスのボットを使うには、先にそれを切断してください。",
+      "instanceFull": "このインスタンスのボットは、許可されている数の Discord サーバーにすでに参加しています。インスタンスの管理者に相談するか、自分の Discord ボットを使ってください。",
+      "instanceOff": "このインスタンスは現在 Discord ボットを提供していません。自分の Discord ボットを使ってください。",
+      "link": "Discord とのリンクを開始できませんでした。もう一度試してください。"
     },
     "time": {
       "secondsAgo": "たった今 | {count} 秒前 | {count} 秒前",
@@ -3572,6 +3613,76 @@
       "saved": "ブリッジのホスティング設定を保存しました",
       "saveFailed": "ブリッジのホスティング設定を保存できませんでした",
       "loadFailed": "ブリッジのホスティング設定を読み込めませんでした。"
+    },
+    "instance": {
+      "lead": "このインスタンスの Discord ボットがブリッジを行います。Discord サーバーに追加してください。Discord がサーバーを尋ね、そこでボットができることを表示します。",
+      "step1": "{button} をクリックします。Discord が開きます。",
+      "step2": "自分の Discord サーバーを選び（そのサーバーで「サーバー管理」権限が必要です）、{authorize} をクリックします。",
+      "step3": "Discord からここに戻り、チャンネルをペアにします。",
+      "privacy": "ボットはこのインスタンスの運営者のもので、運営者はボットがアクセスできるすべての Discord チャンネルを読めます。ボットには、ブリッジするチャンネルだけへのアクセスを与えてください。",
+      "relink": "ブリッジは {guild} にリンクされています。別の Discord サーバーにボットを追加すると、ブリッジはそちらに移り、チャンネルのペアは削除されます。ボットは 10 分ほどで自動的に {guild} から退出します。",
+      "add": "Discord に追加",
+      "addOther": "別の Discord サーバーに追加",
+      "opening": "Discord を開いています…",
+      "linked": "{guild} にリンクしました。次にチャンネルをペアにしてください。",
+      "retry": "もう一度試す",
+      "linkError": {
+        "state_invalid": "このリンクは期限切れか、すでに使われています。「もう一度試す」をクリックして新しいリンクを取得してください。",
+        "guild_linked_elsewhere": "この Discord サーバーは、このインスタンスの別のサーバーとすでにブリッジされています。別の Discord サーバーを選ぶか、先にそちらのブリッジを削除してください。",
+        "discord_denied": "ボットは追加されませんでした。Discord でリクエストがキャンセルされました。「もう一度試す」をクリックし、Authorize を選んでください。",
+        "exchange_failed": "Discord がリンクを確認しませんでした。少し待ってからもう一度試してください。失敗が続く場合は、インスタンスの管理者に連絡してください。",
+        "limit_reached": "このインスタンスのボットは、許可されている数の Discord サーバーにすでに参加しています。インスタンスの管理者に相談するか、自分の Discord ボットを使ってください。"
+      }
+    },
+    "instanceAdmin": {
+      "title": "このインスタンスの Discord ボット",
+      "lead": "このインスタンスが運用する公開 Discord ボットです。コミュニティは自分のボットを作る代わりに、ワンクリックでこのボットを Discord サーバーに追加し、ブリッジはこのインスタンスが動かします。",
+      "loadFailed": "Discord ボットの設定を読み込めませんでした。",
+      "configured": "設定済みのボット：{name}",
+      "notConfigured": "ボットはまだ設定されていません。",
+      "linkedCount": "リンクされた Discord サーバー：{count} / {limit}",
+      "portal": {
+        "title": "Discord Developer Portal でボットを設定する",
+        "create": "{portal} を開き、{newApplication} をクリックします。名前（例：{example}）を付け、Discord の規約に同意して {create} をクリックします。",
+        "applicationId": "{generalInformation} で {applicationId} をコピーし、下の欄に入力します。",
+        "bot": "{bot} を開きます。{publicBot} をオンにし、{codeGrant} もオンにします。",
+        "codeGrantWhy": "コードグラントをオンにすると、ボットはコミュニティが Harmony からリンクしたときだけ Discord サーバーに参加します。",
+        "intents": "{section} で {messageContent} と {members} をオンにします。{presence} は、下でプレゼンス同期をオンにする場合だけオンにします。{save} をクリックします。",
+        "token": "{reset}、続いて {copy} をクリックし、トークンを下の {field} に貼り付けます。",
+        "redirect": "{oauth2} を開きます。{redirects} で {addRedirect} をクリックし、このアドレスを貼り付けて {save} をクリックします：",
+        "redirectExact": "https とパスを含め、完全に一致している必要があります。",
+        "secret": "同じ {oauth2} で、{clientSecret} の下の {resetSecret} をクリックしてコピーし、下の {field} に貼り付けます。",
+        "finish": "下で認証情報を保存し、「このボットをコミュニティに提供する」をオンにします。",
+        "verification": "Discord は、認証されるまでボットを 100 サーバーに制限します。その前に Developer Portal で認証（App Verification）と、Message Content と Server Members のインテント、プレゼンス同期を使うなら Presence インテントを申請してください。Presence はめったに付与されません。"
+      },
+      "applicationId": "Application ID",
+      "appIdInvalid": "Application ID は 17〜20 桁の数字です。",
+      "clientSecret": "クライアントシークレット",
+      "botToken": "ボットトークン",
+      "stored": "保存済み",
+      "notStored": "未設定",
+      "keepPlaceholder": "保存済みです。そのままにするなら空欄のままにしてください。",
+      "writeOnly": "シークレットは暗号化して保存され、二度と表示されません。置き換えるときだけ新しい値を貼り付けてください。",
+      "secretIsToken": "それはボットトークンです。クライアントシークレットは OAuth2 → Client Secret にあります。",
+      "secretInvalid": "クライアントシークレットではないようです。OAuth2 → Client Secret からコピーしてください。",
+      "saveCredentials": "認証情報を保存",
+      "clear": "ボットを削除",
+      "clearConfirm": "ボットの認証情報を削除しますか？ボットを設定し直すまで、リンクされたコミュニティのブリッジは止まります。ブリッジとチャンネルのペアは残ります。",
+      "cancel": "キャンセル",
+      "enable": "このボットをコミュニティに提供する",
+      "enableHint": "サーバー管理者には、サーバー設定 → Discord ブリッジ で「このインスタンスのボットを使う」が最初に表示されます。",
+      "enableNeedsConfig": "先に Application ID、クライアントシークレット、ボットトークンを保存してください。",
+      "presence": "プレゼンス同期",
+      "presenceHint": "リンクされたすべてのサーバーで Discord の Presence インテントを要求し、コミュニティが誰がオンラインかを表示できるようにします。送られるのは状態の変化だけです。Developer Portal で Presence インテントがオンの間だけオンにしてください。100 サーバーを超えると Discord の承認が必要です。",
+      "limit": "リンクできる Discord サーバーの上限",
+      "limitHint": "この数の Discord サーバーがリンクされると、新しいリンクは拒否されます。Discord はボットが認証されるまで 100 まで許可します。",
+      "hostNote": "リンクされたサーバーは、このインスタンスの隣で動くブリッジホストサービス（{service}、ブリッジ 2.1.0 以降）がブリッジします。{docs} を参照してください。",
+      "saveSettings": "ボットの設定を保存",
+      "credentialsSaved": "Discord ボットの認証情報を保存しました",
+      "cleared": "Discord ボットを削除しました",
+      "settingsSaved": "Discord ボットの設定を保存しました",
+      "saveFailed": "Discord ボットの設定を保存できませんでした",
+      "redirectLabel": "リダイレクト先のアドレス"
     }
   },
   "imageEditor": {

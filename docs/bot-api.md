@@ -60,9 +60,10 @@ Every frame is a JSON object:
 | 1 | Heartbeat | send | Keeps the connection open. |
 | 2 | Identify | send | Authenticates the connection. |
 | 6 | Register bridge data | send | Bridge bots only; see [Bridge support](#bridge-support). |
+| 7 | Bridge presence update | send | Bridge bots only; see [Bridge presence updates](#bridge-presence-updates-op-7). |
 | 11 | Heartbeat ACK | receive | Reply to op 1: `{ "op": 11 }`. |
 
-The gateway ignores unknown opcodes, and ignores op 1 and op 6 until IDENTIFY succeeds. A frame that is not valid JSON closes the connection with `1008`.
+The gateway ignores unknown opcodes, and ignores op 1, op 6 and op 7 until IDENTIFY succeeds. A frame that is not valid JSON closes the connection with `1008`.
 
 ### Identify
 
@@ -686,6 +687,24 @@ Registers the members of the remote platform for Harmony's mention autocomplete:
 ```
 
 `members` at the top level applies to every listed channel; a channel entry with its own non-empty `members` array uses that instead. Channels in servers where the bot has no active installation, and channels the bot cannot see, are dropped. There is no reply. The data lives in gateway memory until the bot disconnects.
+
+### Bridge presence updates (op 7)
+
+Changes the online status of members already registered with op 6, without registering again:
+
+```json
+{
+  "op": 7,
+  "d": {
+    "updates": [
+      { "id": "80351110224678912", "presenceStatus": "busy", "customStatus": { "text": "shipping", "emoji": "🚀" } },
+      { "id": "80351110224678913", "presenceStatus": "offline", "customStatus": null }
+    ]
+  }
+}
+```
+
+`id` is the remote platform's user id. `presenceStatus` is `online`, `away`, `busy` or `offline`; an absent or other value leaves the stored status. `customStatus` `null` clears it; an absent one leaves it; `text` is cut to 128 characters and `emoji` to 64. An update applies to the member wherever the bot's last op 6 registration lists it; ids it does not list are ignored. There is no reply. The web client sees the change on its next read of the member list.
 
 ### REFRESH_ATTACHMENTS
 

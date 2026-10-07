@@ -11,10 +11,22 @@ import {
   UUID,
   bridgeUrls,
   buildBridgeConfig,
+  configuredBaseUrl,
   loadBridgeForBot,
   normalizeSetupCode,
   sanitizeStatusReport,
 } from '../bridge/bridgeConfig.js'
+import {
+  LINK_ERRORS,
+  LINK_STATE,
+  type LinkError,
+  bridgeSettingsUrl,
+  discordAuthorizeUrl,
+  discordCallbackUrl,
+  exchangeAuthorizationCode,
+  isAuthorizationCode,
+  leaveGuild,
+} from '../bridge/instanceBot.js'
 
 // One body for every redeem failure: unknown, used, expired and malformed codes read alike.
 const INVALID_CODE = { error: 'Invalid or expired setup code', code: 'invalid_code' } as const
@@ -26,9 +38,19 @@ export interface BridgeV2Options {
   // Per-IP attempts on POST /redeem per window.
   redeemLimit?: number
   redeemWindowMs?: number
-  // Per-IP failed GET /hosted requests per window.
+  // Per-IP failed GET /hosted and /hosted/instance requests per window.
   hostedFailureLimit?: number
   hostedWindowMs?: number
+  // Per-IP requests on GET /discord/authorize and /discord/callback together, per window.
+  linkLimit?: number
+  linkWindowMs?: number
+}
+
+/** discord_bridge_instance_link_check(): server_id is null for a state never issued. */
+interface LinkCheck {
+  bridge_id: string | null
+  server_id: string | null
+  error: LinkError | null
 }
 
 type BridgeRequest = BotRequest & { bridge?: BridgeRow }
@@ -57,6 +79,16 @@ function statusForSqlState(code: string | undefined): number {
   }
 }
 
+/** The coded error a discord_bridge_instance_* function raised (its message), else exchange_failed. */
+function linkErrorOf(error: { message?: string } | null): LinkError {
+  const message = error?.message ?? ''
+  return (LINK_ERRORS as readonly string[]).includes(message) ? (message as LinkError) : 'exchange_failed'
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
+}
+
 async function hostingEnabled(): Promise<boolean | null> {
   const { data, error } = await supabase
     .from('instance_config')
@@ -76,6 +108,9 @@ async function hostingEnabled(): Promise<boolean | null> {
  *
  *   POST   /redeem                         setup code -> bridge bot token; per-IP limited
  *   GET    /hosted                         X-Bridge-Host-Secret; hosted bridges with tokens
+ *   GET    /hosted/instance                X-Bridge-Host-Secret; the instance bot and its bridges
+ *   GET    /discord/authorize?state        302 to Discord's OAuth2 consent for the instance bot
+ *   GET    /discord/callback               OAuth2 redirect URI; links the guild, 302 to the app
  *   GET    /config                         bridge bot only
  *   POST   /status                         bridge bot only; heartbeat and Discord snapshot
  *   POST   /pairs                          bridge bot only; Discord-side /bridge link
@@ -105,8 +140,19 @@ export class BridgeV2API {
       message: { error: 'Too many attempts; try again later', code: 'rate_limited' },
     })
 
+    const linkLimiter = rateLimit({
+      windowMs: options.linkWindowMs ?? 15 * 60 * 1000,
+      limit: options.linkLimit ?? 30,
+      standardHeaders: 'draft-7',
+      legacyHeaders: false,
+      message: { error: 'Too many attempts; try again later', code: 'rate_limited' },
+    })
+
     this.router.post('/redeem', redeemLimiter, this.redeem.bind(this))
     this.router.get('/hosted', hostedLimiter, this.hosted.bind(this))
+    this.router.get('/hosted/instance', hostedLimiter, this.hostedInstance.bind(this))
+    this.router.get('/discord/authorize', linkLimiter, this.discordAuthorize.bind(this))
+    this.router.get('/discord/callback', linkLimiter, this.discordCallback.bind(this))
 
     const bridgeBot: RequestHandler[] = [
       botAuthMiddleware as RequestHandler,
@@ -144,16 +190,24 @@ export class BridgeV2API {
     })
   }
 
-  private async hosted(req: Request, res: Response) {
+  /** False after answering: 404 while BRIDGE_HOST_SECRET is unusable, 401 on a wrong secret. */
+  private hostSecretAccepted(req: Request, res: Response): boolean {
     res.set('Cache-Control', 'no-store')
     const secret = config.bridge?.hostSecret ?? ''
     if (secret.length < MIN_HOST_SECRET_LENGTH) {
-      return res.status(404).json({ error: 'Not found' })
+      res.status(404).json({ error: 'Not found' })
+      return false
     }
     const given = req.get('x-bridge-host-secret') ?? ''
     if (!secretsEqual(given, secret)) {
-      return res.status(401).json({ error: 'Invalid host secret' })
+      res.status(401).json({ error: 'Invalid host secret' })
+      return false
     }
+    return true
+  }
+
+  private async hosted(req: Request, res: Response) {
+    if (!this.hostSecretAccepted(req, res)) return
 
     const enabled = await hostingEnabled()
     if (enabled === null) return res.status(503).json({ error: 'Hosting state unavailable' })
@@ -170,6 +224,170 @@ export class BridgeV2API {
       discord_token: string
     }>
     res.json(rows.map((r) => ({ bridge_id: r.bridge_id, harmony_token: r.harmony_token, discord_token: r.discord_token })))
+  }
+
+  /** discord_bridge_instance_hosted(): 404 while the instance bot is off or unconfigured. */
+  private async hostedInstance(req: Request, res: Response) {
+    if (!this.hostSecretAccepted(req, res)) return
+
+    const { data, error } = await supabase.rpc('discord_bridge_instance_hosted')
+    if (error) {
+      console.error('discord_bridge_instance_hosted failed:', error.code, error.message)
+      return res.status(error.code === '0A000' ? 404 : 500).json({ error: 'Instance bot unavailable' })
+    }
+    if (!data || typeof data !== 'object') return res.status(404).json({ error: 'Not found' })
+    const hosted = data as {
+      application_id: string
+      discord_token: string
+      presence: boolean
+      bridges: Array<{ bridge_id: string; harmony_token: string; discord_guild_id: string }>
+    }
+    res.json({
+      application_id: hosted.application_id,
+      discord_token: hosted.discord_token,
+      presence: hosted.presence === true,
+      bridges: (Array.isArray(hosted.bridges) ? hosted.bridges : []).map((b) => ({
+        bridge_id: b.bridge_id,
+        harmony_token: b.harmony_token,
+        discord_guild_id: b.discord_guild_id,
+      })),
+    })
+  }
+
+  private async linkCheck(state: string, guildId: string | null): Promise<LinkCheck | null> {
+    const { data, error } = await supabase.rpc('discord_bridge_instance_link_check', {
+      p_state: state,
+      p_guild_id: guildId,
+    })
+    if (error || !data || typeof data !== 'object') {
+      if (error) console.error('discord_bridge_instance_link_check failed:', error.code, error.message)
+      return null
+    }
+    return data as LinkCheck
+  }
+
+  /** OAuth2 client credentials; null while the instance bot is off, unconfigured or unreadable. */
+  private async clientCredentials(): Promise<{ client_id: string; client_secret: string } | null> {
+    const { data, error } = await supabase.rpc('discord_bridge_instance_bot_secrets')
+    if (error) {
+      console.error('discord_bridge_instance_bot_secrets failed:', error.code, error.message)
+      return null
+    }
+    const row = (Array.isArray(data) ? data[0] : data) as { client_id?: unknown; client_secret?: unknown } | null
+    if (!row || typeof row.client_id !== 'string' || typeof row.client_secret !== 'string') return null
+    return { client_id: row.client_id, client_secret: row.client_secret }
+  }
+
+  /** A state that names no server: nowhere in the app to return to. */
+  private invalidLinkPage(res: Response, base: string) {
+    const home = escapeHtml(base)
+    res
+      .status(400)
+      .type('html')
+      .send(
+        '<!doctype html><html lang="en"><meta charset="utf-8"><title>Discord link expired</title>' +
+          '<p>This Discord link is invalid or has expired. In Harmony, open Server Settings, Discord Bridge, ' +
+          'and choose Add to Discord again.</p>' +
+          `<p><a href="${home}/">Open Harmony</a></p></html>`,
+      )
+  }
+
+  /**
+   * 302 to Discord's consent screen. The state is checked first, so an expired one returns to
+   * the app before the user authorizes anything.
+   */
+  private async discordAuthorize(req: Request, res: Response) {
+    res.set('Cache-Control', 'no-store')
+    const base = configuredBaseUrl()
+    if (!base) return res.status(503).json({ error: 'INSTANCE_DOMAIN or PUBLIC_URL is not set' })
+
+    const state = typeof req.query.state === 'string' ? req.query.state : ''
+    const check = LINK_STATE.test(state) ? await this.linkCheck(state, null) : null
+    if (LINK_STATE.test(state) && !check) return res.status(503).json({ error: 'Link check unavailable' })
+    if (!check?.server_id) return this.invalidLinkPage(res, base)
+    if (check.error) return res.redirect(302, bridgeSettingsUrl(base, check.server_id, { error: check.error }))
+
+    const credentials = await this.clientCredentials()
+    if (!credentials) {
+      return res.redirect(302, bridgeSettingsUrl(base, check.server_id, { error: 'exchange_failed' }))
+    }
+    res.redirect(302, discordAuthorizeUrl(credentials.client_id, discordCallbackUrl(base), state))
+  }
+
+  /**
+   * Discord's redirect after consent. With "Requires OAuth2 Code Grant" the bot joins the guild
+   * when the code is exchanged, so every refusal that can be decided before the exchange is.
+   * The guild linked is the token response's; the query's guild_id only refuses early. A
+   * refusal after the exchange leaves the guild when no instance bridge links it.
+   */
+  private async discordCallback(req: Request, res: Response) {
+    res.set('Cache-Control', 'no-store')
+    const base = configuredBaseUrl()
+    if (!base) return res.status(503).json({ error: 'INSTANCE_DOMAIN or PUBLIC_URL is not set' })
+
+    const query = req.query as Record<string, unknown>
+    const state = typeof query.state === 'string' ? query.state : ''
+    const discordError = typeof query.error === 'string' ? query.error : ''
+    const queryGuild = typeof query.guild_id === 'string' && SNOWFLAKE.test(query.guild_id) ? query.guild_id : null
+
+    const check = LINK_STATE.test(state) ? await this.linkCheck(state, discordError ? null : queryGuild) : null
+    if (LINK_STATE.test(state) && !check) return res.status(503).json({ error: 'Link check unavailable' })
+    if (!check?.server_id) return this.invalidLinkPage(res, base)
+    const serverId = check.server_id
+    const back = (outcome: { linked: true } | { error: LinkError }) =>
+      res.redirect(302, bridgeSettingsUrl(base, serverId, outcome))
+
+    if (check.error) return back({ error: check.error })
+    if (discordError) return back({ error: discordError === 'access_denied' ? 'discord_denied' : 'exchange_failed' })
+    if (!isAuthorizationCode(query.code)) return back({ error: 'exchange_failed' })
+
+    const credentials = await this.clientCredentials()
+    if (!credentials) return back({ error: 'exchange_failed' })
+
+    const exchanged = await exchangeAuthorizationCode({
+      clientId: credentials.client_id,
+      clientSecret: credentials.client_secret,
+      code: query.code,
+      redirectUri: discordCallbackUrl(base),
+    })
+    if (!exchanged.ok) {
+      console.warn(`Discord code exchange for bridge ${check.bridge_id} failed: ${exchanged.reason}`)
+      return back({ error: 'exchange_failed' })
+    }
+
+    const { data, error } = await supabase.rpc('discord_bridge_instance_link_complete', {
+      p_state: state,
+      p_guild_id: exchanged.guild.id,
+      p_guild_name: exchanged.guild.name,
+    })
+    if (error) {
+      const code = linkErrorOf(error)
+      console.warn(`discord_bridge_instance_link_complete for bridge ${check.bridge_id} refused:`, error.code, code)
+      if (code !== 'guild_linked_elsewhere') {
+        this.leaveUnlinkedGuild(exchanged.guild.id).catch((err) =>
+          console.error('Leaving an unlinked guild failed:', err instanceof Error ? err.message : err),
+        )
+      }
+      return back({ error: code })
+    }
+    const linked = data as { server_id?: string } | null
+    res.redirect(302, bridgeSettingsUrl(base, linked?.server_id ?? serverId, { linked: true }))
+  }
+
+  /** Best effort: the bot leaves a guild it joined through a refused link. */
+  private async leaveUnlinkedGuild(guildId: string): Promise<void> {
+    const { data: linked, error } = await supabase
+      .from('discord_bridges')
+      .select('id')
+      .eq('mode', 'instance')
+      .eq('discord_guild_id', guildId)
+      .limit(1)
+    if (error || !Array.isArray(linked) || linked.length > 0) return
+    const { data: hosted, error: hostedError } = await supabase.rpc('discord_bridge_instance_hosted')
+    const token = (hosted as { discord_token?: unknown } | null)?.discord_token
+    if (hostedError || typeof token !== 'string') return
+    const status = await leaveGuild(token, guildId)
+    if (status !== 204) console.warn(`Leaving unlinked guild ${guildId} answered ${status || 'no response'}`)
   }
 
   /** The authenticated bot must be a bridge's bot_id. */
