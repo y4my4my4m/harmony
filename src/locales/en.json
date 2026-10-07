@@ -3076,11 +3076,12 @@
       "title": "Where should the bridge run?",
       "needs": "You need a Discord account with the Manage Server permission on the Discord server you want to connect. Setup takes about ten minutes.",
       "hosted": {
-        "title": "Run it on this instance",
+        "title": "Use your own bot, run on this instance",
+        "lead": "Create a Discord bot with your own name and avatar and paste its token here; this instance runs it.",
         "point1": "Nothing to install.",
-        "point2": "You create a Discord bot and paste its token here. This instance runs the bridge for you.",
+        "point2": "In Discord, the bot carries the name and avatar you give it.",
         "tradeoff": "This instance's operator holds your bot's token and could read any Discord channel the bot can see. Give the bot access only to the channels you bridge.",
-        "choose": "Run it on this instance"
+        "choose": "Use my own bot here"
       },
       "self": {
         "title": "Run it yourself",
@@ -3406,7 +3407,7 @@
       "maintain": {
         "self": "Move the bridge to another computer, or reinstall it",
         "hosted": "Replace the Discord bot token",
-        "instance": "Link a different Discord server"
+        "instance": "Re-link the bot, or link a different Discord server"
       },
       "disconnectTitle": "Disconnect the bridge",
       "disconnectBody": {
@@ -3598,17 +3599,21 @@
       "invite": "Paste your Discord application's ID (General Information → Application ID) to get an invite link.",
       "applicationId": "Discord Application ID"
     },
+    "adminSection": {
+      "title": "Discord bridge",
+      "lead": "Communities connect a Discord server in Server Settings → Discord Bridge. Offer them this instance's bot, let them bring their own, or both. Running the bridge on a computer of their own is always possible."
+    },
     "admin": {
-      "title": "Discord bridge hosting",
-      "lead": "Lets server admins choose “Run it on this instance” for their Discord bridge: they paste their own Discord bot's token, and this instance runs the bridge.",
-      "toggle": "Run Discord bridges for communities",
+      "title": "Let communities bring their own bot",
+      "lead": "Communities create their own Discord bot, with their own name and avatar, and paste its token; this instance runs it. Server admins see this as “Use your own bot, run on this instance”.",
+      "toggle": "Run communities' own bots",
       "toggleHint": "You hold each community's Discord bot token. A token gives access to every Discord channel its bot can see.",
       "limit": "Maximum hosted bridges",
       "limitHint": "New hosted bridges are refused once this many exist. Existing ones keep running.",
       "limitInvalid": "Enter a whole number, 0 or more.",
       "note": "Turning this on only offers the option. You also need to run the bridge host service ({service}) next to this instance; see the {docs}.",
       "docs": "self-hosting guide",
-      "save": "Save hosting settings",
+      "saveLimit": "Save limit",
       "saving": "Saving…",
       "saved": "Bridge hosting settings saved",
       "saveFailed": "Couldn't save the bridge hosting settings",
@@ -3620,9 +3625,9 @@
       "step2": "Pick your Discord server (you need the Manage Server permission there) and click {authorize}.",
       "step3": "Discord sends you back here to pair channels.",
       "privacy": "The bot belongs to this instance's operator, who can read every Discord channel the bot has access to. Give it access only to the channels you bridge.",
-      "relink": "The bridge is linked to {guild}. Adding the bot to another Discord server moves the bridge there and removes the channel pairs; the bot leaves {guild} by itself within about ten minutes.",
+      "relink": "The bridge is linked to {guild}. Adding the bot to {guild} again keeps the channel pairs and grants the permissions an older link lacks, such as Manage Messages: without it, a Discord member's message deleted here stays on Discord. Adding the bot to another Discord server moves the bridge there and removes the channel pairs; the bot leaves {guild} by itself within about ten minutes.",
       "add": "Add to Discord",
-      "addOther": "Add to another Discord server",
+      "addOther": "Add to Discord again",
       "opening": "Opening Discord…",
       "linked": "Linked to {guild}. Now pair the channels.",
       "retry": "Try again",
@@ -3677,7 +3682,6 @@
       "limit": "Maximum linked Discord servers",
       "limitHint": "New links are refused once this many Discord servers are linked. Discord allows 100 until the bot is verified.",
       "hostNote": "Linked servers are bridged by the bridge host service ({service}, bridge 2.1.0 or later) next to this instance; see the {docs}.",
-      "saveSettings": "Save bot settings",
       "credentialsSaved": "Discord bot credentials saved",
       "cleared": "Discord bot removed",
       "settingsSaved": "Discord bot settings saved",

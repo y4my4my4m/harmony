@@ -301,9 +301,9 @@ describe('BridgeSetupStepper — instance bridge', () => {
     await flushPromises()
     expect(w.find('.step-panel').attributes('data-step')).toBe('link')
     expect(w.find('[data-testid="instance-linked"]').text()).toBe(
-      'The bridge is linked to Town Square. Adding the bot to another Discord server moves the bridge there and removes the channel pairs; the bot leaves Town Square by itself within about ten minutes.',
+      'The bridge is linked to Town Square. Adding the bot to Town Square again keeps the channel pairs and grants the permissions an older link lacks, such as Manage Messages: without it, a Discord member\'s message deleted here stays on Discord. Adding the bot to another Discord server moves the bridge there and removes the channel pairs; the bot leaves Town Square by itself within about ten minutes.',
     )
-    expect(w.find('[data-testid="add-to-discord"]').text()).toContain('Add to another Discord server')
+    expect(w.find('[data-testid="add-to-discord"]').text()).toContain('Add to Discord again')
   })
 
   it('opens the link step for a requested step it does not have', () => {
@@ -330,7 +330,7 @@ describe('BridgeStatusView — instance bridge', () => {
     expect(w.find('a[href*="discord.com/oauth2/authorize"]').exists()).toBe(false)
     expect(w.text()).toContain('The bot leaves your Discord server by itself within about ten minutes.')
     const details = w.find('details')
-    expect(details.find('summary').text()).toBe('Link a different Discord server')
+    expect(details.find('summary').text()).toBe('Re-link the bot, or link a different Discord server')
     ;(details.element as HTMLDetailsElement).open = true
     await details.trigger('toggle')
     expect(w.find('[data-testid="instance-link"]').exists()).toBe(true)
@@ -513,7 +513,7 @@ describe('BridgeInstanceBotAdmin', () => {
     expect(w.find('[data-testid="instance-bot-save-credentials"]').attributes('disabled')).toBeDefined()
   })
 
-  it('saves the switches and the limit through batch_set_instance_config', async () => {
+  it('saves each switch as it changes and the limit on its own button', async () => {
     installBackend({}, (name) => {
       if (name === 'discord_bridge_instance_bot_status') return CONFIGURED
       if (name === 'batch_set_instance_config') return true
@@ -522,17 +522,42 @@ describe('BridgeInstanceBotAdmin', () => {
     const w = mountAdmin()
     await flushPromises()
     expect(w.text()).toContain('past 100 servers, Discord has to approve it')
+    expect(w.find('[data-testid="instance-bot-save-limit"]').attributes('disabled')).toBeDefined()
+
     await w.find('[data-testid="instance-bot-enabled"]').trigger('click')
+    await flushPromises()
     await w.find('[data-testid="instance-bot-presence"]').trigger('click')
+    await flushPromises()
+    expect(rpcCalls('batch_set_instance_config')).toEqual([
+      { p_keys: ['discord_bridge_instance_bot_enabled'], p_values: [true] },
+      { p_keys: ['discord_bridge_instance_presence'], p_values: [true] },
+    ])
+    expect(toast.success).toHaveBeenCalledTimes(2)
+    expect(toast.success).toHaveBeenCalledWith('Discord bot settings saved')
+    expect(w.find('[data-testid="instance-bot-enabled"]').attributes('aria-checked')).toBe('true')
+
     await w.find('[data-testid="instance-bot-limit"]').setValue('250')
-    await w.find('[data-testid="instance-bot-save-settings"]').trigger('click')
+    expect(rpcCalls('batch_set_instance_config')).toHaveLength(2)
+    await w.find('[data-testid="instance-bot-save-limit"]').trigger('click')
+    await flushPromises()
+    expect(rpcCalls('batch_set_instance_config')[2]).toEqual({ p_keys: ['discord_bridge_instance_bot_limit'], p_values: [250] })
+    expect(w.find('[data-testid="instance-bot-save-limit"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('returns a switch to its position when the save fails', async () => {
+    installBackend({}, (name) => {
+      if (name === 'discord_bridge_instance_bot_status') return CONFIGURED
+      if (name === 'batch_set_instance_config') throw new Error('permission denied')
+      return null
+    })
+    const w = mountAdmin()
+    await flushPromises()
+    await w.find('[data-testid="instance-bot-presence"]').trigger('click')
     await flushPromises()
 
-    expect(rpcCalls('batch_set_instance_config')).toEqual([{
-      p_keys: ['discord_bridge_instance_bot_enabled', 'discord_bridge_instance_presence', 'discord_bridge_instance_bot_limit'],
-      p_values: [true, true, 250],
-    }])
-    expect(toast.success).toHaveBeenCalledWith('Discord bot settings saved')
+    expect(w.find('[data-testid="instance-bot-presence"]').attributes('aria-checked')).toBe('false')
+    expect(toast.error).toHaveBeenCalledWith("Couldn't save the Discord bot settings")
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('removes the bot after a confirmation', async () => {

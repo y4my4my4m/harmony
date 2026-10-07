@@ -3076,11 +3076,12 @@
       "title": "¿Dónde debe funcionar el puente?",
       "needs": "Necesitas una cuenta de Discord con el permiso «Gestionar servidor» en el servidor de Discord que quieres conectar. La configuración lleva unos diez minutos.",
       "hosted": {
-        "title": "Ejecutarlo en esta instancia",
+        "title": "Usar tu propio bot, ejecutado en esta instancia",
+        "lead": "Crea un bot de Discord con tu propio nombre y avatar y pega aquí su token; esta instancia lo ejecuta.",
         "point1": "No hay que instalar nada.",
-        "point2": "Creas un bot de Discord y pegas aquí su token. Esta instancia ejecuta el puente por ti.",
+        "point2": "En Discord, el bot lleva el nombre y el avatar que le des.",
         "tradeoff": "Quien opera esta instancia guarda el token de tu bot y podría leer cualquier canal de Discord que el bot pueda ver. Da al bot acceso solo a los canales que conectes.",
-        "choose": "Ejecutarlo en esta instancia"
+        "choose": "Usar mi propio bot aquí"
       },
       "self": {
         "title": "Ejecutarlo tú",
@@ -3406,7 +3407,7 @@
       "maintain": {
         "self": "Mover el puente a otro ordenador o reinstalarlo",
         "hosted": "Sustituir el token del bot de Discord",
-        "instance": "Vincular otro servidor de Discord"
+        "instance": "Volver a vincular el bot o vincular otro servidor de Discord"
       },
       "disconnectTitle": "Desconectar el puente",
       "disconnectBody": {
@@ -3598,17 +3599,21 @@
       "invite": "Pega el ID de tu aplicación de Discord (General Information → Application ID) para obtener un enlace de invitación.",
       "applicationId": "Discord Application ID"
     },
+    "adminSection": {
+      "title": "Puente de Discord",
+      "lead": "Las comunidades conectan un servidor de Discord en Configuración del servidor → Puente de Discord. Ofréceles el bot de esta instancia, deja que traigan el suyo, o ambas cosas. Ejecutar el puente en un ordenador propio siempre es posible."
+    },
     "admin": {
-      "title": "Alojamiento de puentes de Discord",
-      "lead": "Permite que la administración de cada servidor elija «Ejecutarlo en esta instancia» para su puente de Discord: pegan el token de su propio bot de Discord y esta instancia ejecuta el puente.",
-      "toggle": "Ejecutar puentes de Discord para las comunidades",
+      "title": "Dejar que las comunidades traigan su propio bot",
+      "lead": "Las comunidades crean su propio bot de Discord, con su propio nombre y avatar, y pegan su token; esta instancia lo ejecuta. Quienes administran servidores ven esta opción como «Usar tu propio bot, ejecutado en esta instancia».",
+      "toggle": "Ejecutar los bots propios de las comunidades",
       "toggleHint": "Guardas el token del bot de Discord de cada comunidad. Un token da acceso a todos los canales de Discord que su bot pueda ver.",
       "limit": "Máximo de puentes alojados",
       "limitHint": "Cuando se alcanza esta cifra, se rechazan nuevos puentes alojados. Los existentes siguen funcionando.",
       "limitInvalid": "Introduce un número entero, 0 o mayor.",
       "note": "Activarlo solo ofrece la opción. También hay que ejecutar el servicio anfitrión de puentes ({service}) junto a esta instancia; consulta la {docs}.",
       "docs": "guía de autoalojamiento",
-      "save": "Guardar ajustes de alojamiento",
+      "saveLimit": "Guardar límite",
       "saving": "Guardando…",
       "saved": "Ajustes de alojamiento de puentes guardados",
       "saveFailed": "No se pudieron guardar los ajustes de alojamiento de puentes",
@@ -3620,9 +3625,9 @@
       "step2": "Elige tu servidor de Discord (necesitas allí el permiso Gestionar servidor) y haz clic en {authorize}.",
       "step3": "Discord te devuelve aquí para conectar los canales.",
       "privacy": "El bot pertenece a quien opera esta instancia, que puede leer cualquier canal de Discord al que el bot tenga acceso. Dale acceso solo a los canales que conectes.",
-      "relink": "El puente está vinculado a {guild}. Si añades el bot a otro servidor de Discord, el puente se traslada allí y se eliminan los pares de canales; el bot sale solo de {guild} en unos diez minutos.",
+      "relink": "El puente está vinculado a {guild}. Si vuelves a añadir el bot a {guild}, se conservan los pares de canales y el bot recibe los permisos que le faltan a un vínculo antiguo, como «Gestionar mensajes»: sin él, el mensaje de un miembro de Discord que se elimina aquí sigue en Discord. Si añades el bot a otro servidor de Discord, el puente se traslada allí y se eliminan los pares de canales; el bot sale solo de {guild} en unos diez minutos.",
       "add": "Añadir a Discord",
-      "addOther": "Añadir a otro servidor de Discord",
+      "addOther": "Volver a añadir a Discord",
       "opening": "Abriendo Discord…",
       "linked": "Vinculado a {guild}. Ahora conecta los canales.",
       "retry": "Reintentar",
@@ -3677,7 +3682,6 @@
       "limit": "Máximo de servidores de Discord vinculados",
       "limitHint": "Se rechazan nuevas vinculaciones cuando hay tantos servidores de Discord vinculados. Discord permite 100 hasta que el bot esté verificado.",
       "hostNote": "El servicio host de puentes ({service}, puente 2.1.0 o posterior) junto a esta instancia conecta los servidores vinculados; consulta la {docs}.",
-      "saveSettings": "Guardar ajustes del bot",
       "credentialsSaved": "Credenciales del bot de Discord guardadas",
       "cleared": "Bot de Discord quitado",
       "settingsSaved": "Ajustes del bot de Discord guardados",

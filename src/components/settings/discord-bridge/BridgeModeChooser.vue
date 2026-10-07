@@ -41,6 +41,7 @@
           <Icon name="server" :size="20" aria-hidden="true" />
           <h4 id="bridge-mode-hosted-title">{{ t('discordBridge.start.hosted.title') }}</h4>
         </div>
+        <p class="mode-lead" data-testid="hosted-lead">{{ t('discordBridge.start.hosted.lead') }}</p>
         <ul class="mode-points">
           <li>{{ t('discordBridge.start.hosted.point1') }}</li>
           <li>{{ t('discordBridge.start.hosted.point2') }}</li>
@@ -147,6 +148,13 @@ const { t } = useI18n()
   margin: 0;
   font-size: 15px;
   font-weight: 600;
+  color: var(--text-primary);
+}
+
+.mode-lead {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
   color: var(--text-primary);
 }
 

@@ -6,7 +6,7 @@ import { userDataService } from '@/services/userDataService'
 import { authContextService } from '@/services/AuthContextService'
 import { debug } from '@/utils/debug'
 import { i18n } from '@/i18n'
-import { discordCustomEmojiUrlFromIdentifier } from '@/utils/emojiUtils'
+import { discordCustomEmojiUrlFromIdentifier, remoteReactionEmojiUrl } from '@/utils/emojiUtils'
 import {
   DEFAULT_MAX_MESSAGE_TEXT_LENGTH,
   MESSAGE_TEXT_HARD_CEILING,
@@ -641,14 +641,13 @@ export class CoreMessageService {
       }
 
       const transformedReactions = reactions?.map((reaction: any) => {
-        // The RPC's url comes from metadata.remote_emoji_url and carries the
-        // correct png/gif extension. Rebuilding from a discord:name:id
-        // identifier is the fallback for rows predating metadata storage.
-        // Native emoji have no image url.
-        const url =
-          reaction.emoji?.url ||
-          discordCustomEmojiUrlFromIdentifier(reaction.emoji?.content) ||
-          ''
+        // A group without an emojis row (emoji.id is custom_emoji_content) carries
+        // metadata.remote_emoji_url, kept on Discord's CDN with its png/gif extension;
+        // a discord:name:id identifier rebuilds the .png for rows without one. Native
+        // emoji have no image url.
+        const url = this.isValidUUID(String(reaction.emoji?.id ?? ''))
+          ? reaction.emoji?.url || discordCustomEmojiUrlFromIdentifier(reaction.emoji?.content) || ''
+          : remoteReactionEmojiUrl(reaction.emoji?.content, reaction.emoji?.url) || ''
         const isNative = !url
         return {
           emoji_id: isNative ? null : reaction.emoji.id,
@@ -718,12 +717,11 @@ export class CoreMessageService {
         groupedReactions[messageId] = []
       }
 
-      // The batch RPC also surfaces emoji_url from metadata.remote_emoji_url.
-      // Nativeness follows the url, not the presence of emoji_id.
-      const url =
-        reaction.emoji_url ||
-        discordCustomEmojiUrlFromIdentifier(reaction.custom_emoji_content) ||
-        ''
+      // Without an emoji_id the batch RPC's emoji_url is metadata.remote_emoji_url,
+      // kept on Discord's CDN. Nativeness follows the url, not the presence of emoji_id.
+      const url = reaction.emoji_id
+        ? reaction.emoji_url || discordCustomEmojiUrlFromIdentifier(reaction.custom_emoji_content) || ''
+        : remoteReactionEmojiUrl(reaction.custom_emoji_content, reaction.emoji_url) || ''
       const isNative = !url
       groupedReactions[messageId].push({
         emoji_id: reaction.emoji_id || null,

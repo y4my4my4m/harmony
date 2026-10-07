@@ -3076,11 +3076,12 @@
       "title": "桥接要在哪里运行？",
       "needs": "您需要一个在要连接的 Discord 服务器上拥有“管理服务器”权限的 Discord 账号。设置大约需要十分钟。",
       "hosted": {
-        "title": "在此实例上运行",
+        "title": "使用您自己的机器人，在此实例上运行",
+        "lead": "创建一个使用您自己名字和头像的 Discord 机器人，并把它的令牌粘贴到这里；由此实例运行它。",
         "point1": "无需安装任何东西。",
-        "point2": "您创建一个 Discord 机器人，并把它的令牌粘贴到这里。此实例会替您运行桥接。",
+        "point2": "在 Discord 中，机器人显示您为它设置的名字和头像。",
         "tradeoff": "此实例的运营者会持有您机器人的令牌，并能读取该机器人可见的任何 Discord 频道。请只授予机器人访问您要桥接的频道。",
-        "choose": "在此实例上运行"
+        "choose": "在这里使用我自己的机器人"
       },
       "self": {
         "title": "自己运行",
@@ -3406,7 +3407,7 @@
       "maintain": {
         "self": "把桥接迁移到另一台电脑，或重新安装",
         "hosted": "替换 Discord 机器人令牌",
-        "instance": "关联另一个 Discord 服务器"
+        "instance": "重新关联机器人，或关联另一个 Discord 服务器"
       },
       "disconnectTitle": "断开桥接",
       "disconnectBody": {
@@ -3598,17 +3599,21 @@
       "invite": "粘贴您的 Discord 应用 ID（General Information → Application ID）以获取邀请链接。",
       "applicationId": "Discord Application ID"
     },
+    "adminSection": {
+      "title": "Discord 桥接",
+      "lead": "社区在 服务器设置 → Discord 桥接 中连接 Discord 服务器。您可以向他们提供此实例的机器人，也可以让他们带来自己的机器人，或两者兼有。社区始终可以在自己的电脑上运行桥接。"
+    },
     "admin": {
-      "title": "Discord 桥接托管",
-      "lead": "允许服务器管理员为其 Discord 桥接选择“在此实例上运行”：他们粘贴自己的 Discord 机器人令牌，由此实例运行桥接。",
-      "toggle": "为社区运行 Discord 桥接",
+      "title": "允许社区使用自己的机器人",
+      "lead": "社区创建自己的 Discord 机器人，使用自己的名字和头像，并粘贴其令牌；由此实例运行它。服务器管理员看到的选项为“使用您自己的机器人，在此实例上运行”。",
+      "toggle": "运行社区自己的机器人",
       "toggleHint": "您将持有每个社区的 Discord 机器人令牌。令牌可以访问其机器人可见的所有 Discord 频道。",
       "limit": "托管桥接数量上限",
       "limitHint": "达到此数量后，新的托管桥接会被拒绝。现有的桥接会继续运行。",
       "limitInvalid": "请输入 0 或更大的整数。",
       "note": "开启后只是提供这个选项。您还需要在此实例旁运行桥接托管服务（{service}）；请参阅{docs}。",
       "docs": "自托管指南",
-      "save": "保存托管设置",
+      "saveLimit": "保存上限",
       "saving": "正在保存…",
       "saved": "桥接托管设置已保存",
       "saveFailed": "无法保存桥接托管设置",
@@ -3620,9 +3625,9 @@
       "step2": "选择您的 Discord 服务器（您需要在那里拥有“管理服务器”权限），然后点击 {authorize}。",
       "step3": "Discord 会把您带回这里来配对频道。",
       "privacy": "机器人属于此实例的运营者，运营者可以读取机器人能访问的任何 Discord 频道。请只授予它访问您要桥接的频道。",
-      "relink": "桥接已关联到 {guild}。把机器人添加到另一个 Discord 服务器会把桥接移到那里，并删除频道配对；机器人会在大约十分钟内自动离开 {guild}。",
+      "relink": "桥接已关联到 {guild}。再次把机器人添加到 {guild} 会保留频道配对，并授予旧关联缺少的权限，例如“管理消息”：没有它，在这里删除的 Discord 成员消息会留在 Discord 上。把机器人添加到另一个 Discord 服务器会把桥接移到那里，并删除频道配对；机器人会在大约十分钟内自动离开 {guild}。",
       "add": "添加到 Discord",
-      "addOther": "添加到另一个 Discord 服务器",
+      "addOther": "再次添加到 Discord",
       "opening": "正在打开 Discord…",
       "linked": "已关联到 {guild}。现在请配对频道。",
       "retry": "重试",
@@ -3677,7 +3682,6 @@
       "limit": "可关联的 Discord 服务器上限",
       "limitHint": "关联的 Discord 服务器达到此数量后，新的关联会被拒绝。在机器人通过验证之前，Discord 最多允许 100 个。",
       "hostNote": "已关联的服务器由运行在此实例旁的桥接主机服务（{service}，桥接 2.1.0 或更高版本）负责桥接；请参阅{docs}。",
-      "saveSettings": "保存机器人设置",
       "credentialsSaved": "Discord 机器人凭据已保存",
       "cleared": "Discord 机器人已移除",
       "settingsSaved": "Discord 机器人设置已保存",

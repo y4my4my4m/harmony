@@ -105,6 +105,8 @@ function partToGalleryItem(part: MessagePart): GalleryMediaItem | null {
     const ft = (part as { fileType?: string }).fileType;
     if (ft === 'image' || ft === 'video') {
       fileType = ft;
+    } else if (ft === 'audio') {
+      return null;
     } else if (isImageMediaUrl(url)) {
       fileType = 'image';
     } else if (isVideoMediaUrl(url)) {

@@ -3076,11 +3076,12 @@
       "title": "Wo soll die Bridge laufen?",
       "needs": "Du brauchst ein Discord-Konto mit der Berechtigung „Server verwalten“ auf dem Discord-Server, den du verbinden willst. Die Einrichtung dauert etwa zehn Minuten.",
       "hosted": {
-        "title": "Auf dieser Instanz ausführen",
+        "title": "Eigenen Bot verwenden, auf dieser Instanz ausgeführt",
+        "lead": "Erstelle einen Discord-Bot mit eigenem Namen und Avatar und füge sein Token hier ein; diese Instanz betreibt ihn.",
         "point1": "Nichts zu installieren.",
-        "point2": "Du erstellst einen Discord-Bot und fügst sein Token hier ein. Diese Instanz betreibt die Bridge für dich.",
+        "point2": "In Discord trägt der Bot den Namen und den Avatar, die du ihm gibst.",
         "tradeoff": "Der Betreiber dieser Instanz verwahrt das Token deines Bots und könnte jeden Discord-Kanal lesen, den der Bot sehen kann. Gib dem Bot nur Zugriff auf die Kanäle, die du verbindest.",
-        "choose": "Auf dieser Instanz ausführen"
+        "choose": "Eigenen Bot hier verwenden"
       },
       "self": {
         "title": "Selbst ausführen",
@@ -3406,7 +3407,7 @@
       "maintain": {
         "self": "Bridge auf einen anderen Computer umziehen oder neu installieren",
         "hosted": "Discord-Bot-Token ersetzen",
-        "instance": "Einen anderen Discord-Server verknüpfen"
+        "instance": "Bot neu verknüpfen oder einen anderen Discord-Server verknüpfen"
       },
       "disconnectTitle": "Bridge trennen",
       "disconnectBody": {
@@ -3598,17 +3599,21 @@
       "invite": "Füge die ID deiner Discord-Anwendung ein (General Information → Application ID), um einen Einladungslink zu erhalten.",
       "applicationId": "Discord Application ID"
     },
+    "adminSection": {
+      "title": "Discord-Bridge",
+      "lead": "Communities verbinden einen Discord-Server unter Servereinstellungen → Discord-Bridge. Biete ihnen den Bot dieser Instanz an, lass sie einen eigenen mitbringen, oder beides. Die Bridge auf einem eigenen Computer zu betreiben, geht immer."
+    },
     "admin": {
-      "title": "Hosting für Discord-Bridges",
-      "lead": "Lässt Server-Admins für ihre Discord-Bridge „Auf dieser Instanz ausführen“ wählen: Sie fügen das Token ihres eigenen Discord-Bots ein, und diese Instanz betreibt die Bridge.",
-      "toggle": "Discord-Bridges für Communities betreiben",
+      "title": "Communities ihren eigenen Bot mitbringen lassen",
+      "lead": "Communities erstellen ihren eigenen Discord-Bot mit eigenem Namen und Avatar und fügen sein Token ein; diese Instanz betreibt ihn. Server-Admins sehen diese Option als „Eigenen Bot verwenden, auf dieser Instanz ausgeführt“.",
+      "toggle": "Eigene Bots der Communities betreiben",
       "toggleHint": "Du verwahrst das Discord-Bot-Token jeder Community. Ein Token gibt Zugriff auf jeden Discord-Kanal, den sein Bot sehen kann.",
       "limit": "Maximale Anzahl gehosteter Bridges",
       "limitHint": "Sind so viele vorhanden, werden neue gehostete Bridges abgelehnt. Bestehende laufen weiter.",
       "limitInvalid": "Gib eine ganze Zahl ab 0 ein.",
       "note": "Das Einschalten bietet die Option nur an. Zusätzlich muss der Bridge-Host-Dienst ({service}) neben dieser Instanz laufen; siehe die {docs}.",
       "docs": "Self-Hosting-Anleitung",
-      "save": "Hosting-Einstellungen speichern",
+      "saveLimit": "Limit speichern",
       "saving": "Wird gespeichert…",
       "saved": "Hosting-Einstellungen für Bridges gespeichert",
       "saveFailed": "Die Hosting-Einstellungen für Bridges konnten nicht gespeichert werden",
@@ -3620,9 +3625,9 @@
       "step2": "Wähle deinen Discord-Server (du brauchst dort die Berechtigung „Server verwalten“) und klicke auf {authorize}.",
       "step3": "Discord schickt dich hierher zurück, um Kanäle zu verbinden.",
       "privacy": "Der Bot gehört dem Betreiber dieser Instanz, der jeden Discord-Kanal lesen kann, auf den der Bot Zugriff hat. Gib ihm nur Zugriff auf die Kanäle, die du verbindest.",
-      "relink": "Die Bridge ist mit {guild} verknüpft. Fügst du den Bot zu einem anderen Discord-Server hinzu, zieht die Bridge dorthin um und die Kanalpaare werden entfernt; {guild} verlässt der Bot innerhalb von etwa zehn Minuten von selbst.",
+      "relink": "Die Bridge ist mit {guild} verknüpft. Fügst du den Bot erneut zu {guild} hinzu, bleiben die Kanalpaare erhalten und der Bot erhält die Berechtigungen, die einer älteren Verknüpfung fehlen, etwa „Nachrichten verwalten“: Ohne sie bleibt die Nachricht eines Discord-Mitglieds, die hier gelöscht wird, auf Discord stehen. Fügst du den Bot zu einem anderen Discord-Server hinzu, zieht die Bridge dorthin um und die Kanalpaare werden entfernt; {guild} verlässt der Bot innerhalb von etwa zehn Minuten von selbst.",
       "add": "Zu Discord hinzufügen",
-      "addOther": "Zu einem anderen Discord-Server hinzufügen",
+      "addOther": "Erneut zu Discord hinzufügen",
       "opening": "Discord wird geöffnet …",
       "linked": "Mit {guild} verknüpft. Verbinde jetzt die Kanäle.",
       "retry": "Erneut versuchen",
@@ -3677,7 +3682,6 @@
       "limit": "Höchstzahl verknüpfter Discord-Server",
       "limitHint": "Neue Verknüpfungen werden abgelehnt, sobald so viele Discord-Server verknüpft sind. Discord erlaubt 100, bis der Bot verifiziert ist.",
       "hostNote": "Verknüpfte Server verbindet der Bridge-Host-Dienst ({service}, Bridge 2.1.0 oder neuer) neben dieser Instanz; siehe die {docs}.",
-      "saveSettings": "Bot-Einstellungen speichern",
       "credentialsSaved": "Zugangsdaten des Discord-Bots gespeichert",
       "cleared": "Discord-Bot entfernt",
       "settingsSaved": "Einstellungen des Discord-Bots gespeichert",

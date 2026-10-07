@@ -18,7 +18,7 @@ Bot developers: the protocol reference is [docs/bot-api.md](../docs/bot-api.md).
 | `POST /bridge/v2/redeem` | setup code, rate limited per IP | Discord bridge v2: trades a one-time setup code for the bridge bot's token and the instance URLs |
 | `GET /bridge/v2/config`, `POST /bridge/v2/status`, `POST /bridge/v2/pairs`, `DELETE /bridge/v2/pairs/:discordChannelId` | bridge bot token | A bridge's configuration, heartbeat and Discord snapshot, and Discord-side `/bridge link` and `unlink` |
 | `GET /bridge/v2/hosted`<br>`GET /bridge/v2/hosted/instance` | `X-Bridge-Host-Secret` | The bridge host's work: hosted bridges with their tokens; the instance Discord bot with its token, presence switch and linked bridges |
-| `GET /bridge/v2/discord/authorize?state=` | link state, rate limited per IP | Redirects to Discord's consent screen for the instance Discord bot (bot and applications.commands scopes, permissions `537250880`) |
+| `GET /bridge/v2/discord/authorize?state=` | link state, rate limited per IP | Redirects to Discord's consent screen for the instance Discord bot (bot and applications.commands scopes, permissions `537259072`) |
 | `GET /bridge/v2/discord/callback` | link state, rate limited per IP | OAuth2 redirect URI. Exchanges the code, links the guild named in Discord's token response, and redirects to Server Settings → Discord Bridge with `linked=1` or `link_error=<code>` |
 
 `/status`, `/bridged-users/*`, `/attachments/refresh` and `/bridge-setup/*` serve the Harmony web client and are not part of the Bot API. `/bridge/v2/*` serves the Discord bridge program and the instance Discord bot's OAuth2 flow.
@@ -117,6 +117,8 @@ Message and reaction events go to every bot with an active installation holding 
 
 - The dispatcher starts from the process start time. Messages and reactions created while the service is down are never dispatched.
 - Connections, bridge member lists and the attachment-refresh dedupe live in process memory. A second replica shares none of it; run one instance. Bridge presence updates (op 7) change the cached member lists in place; the web client reads them through `/bridged-users/*`.
+- Each connection may send 120 frames per sliding 60 s, op 1 heartbeats not counted; the next closes it with 4008 `rate limited`.
+- `MESSAGE_CREATE` and `MESSAGE_UPDATE` carry `author.nickname` from `user_servers`, cached per server and user for 60 s.
 - IDENTIFY writes `bot_presence` (status `online`, connection time) and `bots.last_online_at`. Heartbeats update `bot_presence.last_heartbeat_at` and `latency_ms`. Disconnects set `bot_presence.status` to `offline`. The web client treats a bot as online only while its last heartbeat is under 90 s old, so a process that exits without closing its sockets does not leave bots shown online.
 - REST writes `bot_audit_log` rows for message send, edit and delete; channel, category and role creation; role update and delete; and emoji creation.
 - `SIGTERM` and `SIGINT` close all sockets with code 1000, stop polling and exit. The process exits with status 1 if shutdown takes longer than 10 s.

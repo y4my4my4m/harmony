@@ -30,6 +30,8 @@ export function isViewableMediaPart(part: MessagePart): boolean {
   if (part.type === 'file') {
     const ft = (part as { fileType?: string }).fileType;
     if (ft === 'image' || ft === 'video') return true;
+    // .ogg and .webm name audio as well as video; an audio part renders its own player.
+    if (ft === 'audio') return false;
     const url = (part as { url?: string }).url || '';
     return isImageMediaUrl(url) || isVideoMediaUrl(url);
   }

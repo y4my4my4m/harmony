@@ -168,6 +168,117 @@ describe('event fan-out follows channel visibility', () => {
   })
 })
 
+describe('author.nickname', () => {
+  const OTHER_SERVER = '00000000-0000-0000-0000-00000000005b'
+  const OTHER_CHANNEL = '00000000-0000-0000-0000-0000000000c9'
+  const BRIDGE_BOT = '00000000-0000-0000-0000-0000000000b9'
+
+  const authorOf = (type: string) => sent.filter((s) => s.event.t === type).map((s) => s.event.d.author)
+  const nicknameQueries = () => mocks.from.mock.calls.filter(([table]) => table === 'user_servers').length
+
+  beforeEach(() => {
+    db.rows('user_servers').push(
+      { user_id: OWNER_ID, server_id: SERVER_ID, nickname: 'Al' },
+      { user_id: OWNER_ID, server_id: OTHER_SERVER, nickname: 'Big Al' },
+    )
+    db.rows('servers').push({ id: OTHER_SERVER, owner: OWNER_ID })
+    db.rows('channels').push({ id: OTHER_CHANNEL, server_id: OTHER_SERVER })
+    db.rows('server_roles').push({
+      id: '00000000-0000-0000-0000-0000000000e9', server_id: OTHER_SERVER, position: 0, permissions: 122646786, is_default: true,
+    })
+    db.rows('bot_server_permissions').push(installRow(OPEN_BOT, { id: 'other-install', server_id: OTHER_SERVER }))
+  })
+
+  it("carries the author's nickname in the channel's server on MESSAGE_CREATE and MESSAGE_UPDATE", async () => {
+    await dispatcher.handleMessageCreate({ new: message(GENERAL, 'hello') })
+    await (dispatcher as any).handleMessageUpdate({ new: message(GENERAL, 'hello, edited') })
+    await dispatcher.handleMessageCreate({ new: message(OTHER_CHANNEL, 'elsewhere') })
+
+    expect(authorOf('MESSAGE_CREATE').map((a) => a.nickname)).toEqual(['Al', 'Big Al'])
+    expect(authorOf('MESSAGE_UPDATE')).toMatchObject([{ id: OWNER_ID, username: 'alice', nickname: 'Al' }])
+  })
+
+  it('is null without a nickname, for a blank one and for a non-member', async () => {
+    db.rows('user_servers')[0].nickname = null
+    await dispatcher.handleMessageCreate({ new: message(GENERAL, 'unset') })
+    db.rows('user_servers').splice(0)
+    db.rows('user_servers').push({ user_id: OWNER_ID, server_id: OTHER_SERVER, nickname: '   ' })
+    await dispatcher.handleMessageCreate({ new: message(OTHER_CHANNEL, 'blank') })
+
+    expect(authorOf('MESSAGE_CREATE').map((a) => a.nickname)).toEqual([null, null])
+  })
+
+  it('is null for a bot and for a relayed Discord author', async () => {
+    db.rows('bots').push({ id: BRIDGE_BOT, username: 'discord-bridge-1', display_name: 'Discord Bridge', avatar_url: null })
+    await dispatcher.handleMessageCreate({ new: { ...message(GENERAL, 'from a bot'), user_id: null, bot_id: BRIDGE_BOT } })
+    await dispatcher.handleMessageCreate({
+      new: {
+        ...message(GENERAL, 'from discord'),
+        user_id: null,
+        bot_id: BRIDGE_BOT,
+        metadata: { discord_user: { id: '80351110224678912', username: 'dana', display_name: 'Dana', avatar_url: null } },
+      },
+    })
+
+    expect(authorOf('MESSAGE_CREATE')).toMatchObject([
+      { id: BRIDGE_BOT, bot: true, nickname: null },
+      { id: '80351110224678912', discord_user: true, nickname: null },
+    ])
+    expect(nicknameQueries()).toBe(0)
+  })
+
+  it('shows a nickname change within 60 s and reads it once per server and user meanwhile', async () => {
+    let clock = Date.now()
+    vi.spyOn(Date, 'now').mockImplementation(() => clock)
+
+    await dispatcher.handleMessageCreate({ new: message(GENERAL, 'one') })
+    db.rows('user_servers')[0].nickname = 'Alice the Great'
+    await dispatcher.handleMessageCreate({ new: message(GENERAL, 'two') })
+    expect(nicknameQueries()).toBe(1)
+
+    clock += 60_001
+    await dispatcher.handleMessageCreate({ new: message(GENERAL, 'three') })
+
+    expect(authorOf('MESSAGE_CREATE').map((a) => a.nickname)).toEqual(['Al', 'Al', 'Alice the Great'])
+  })
+
+  it('does not cache a failed lookup', async () => {
+    db.failures.user_servers = { message: 'connection reset' }
+    await dispatcher.handleMessageCreate({ new: message(GENERAL, 'one') })
+    delete db.failures.user_servers
+    await dispatcher.handleMessageCreate({ new: message(GENERAL, 'two') })
+
+    expect(authorOf('MESSAGE_CREATE').map((a) => a.nickname)).toEqual([null, 'Al'])
+  })
+})
+
+describe('MESSAGE_DELETE', () => {
+  const BRIDGE_METADATA = { discord_message_id: '1300000000000000001', bridge_source: 'discord', discord_user: { id: '8' } }
+
+  const deletes = () => sent.filter((s) => s.event.t === 'MESSAGE_DELETE').map((s) => s.event.d)
+
+  function track(id: string) {
+    const d = dispatcher as any
+    d.knownMessageIds.add(id)
+    d.messageVersions.set(id, { updated_at: 't', content: [], channel_id: GENERAL, metadata: BRIDGE_METADATA })
+  }
+
+  it('carries the message metadata for a soft delete', async () => {
+    track('m-soft')
+    db.rows('messages').push({ ...message(GENERAL, 'gone'), id: 'm-soft', metadata: BRIDGE_METADATA, is_deleted: true })
+    await (dispatcher as any).pollEditsAndDeletes()
+
+    expect(deletes()).toEqual([{ id: 'm-soft', channel_id: GENERAL, metadata: BRIDGE_METADATA }])
+  })
+
+  it('carries the last known metadata for a hard delete', async () => {
+    track('m-hard')
+    await (dispatcher as any).pollEditsAndDeletes()
+
+    expect(deletes()).toEqual([{ id: 'm-hard', channel_id: GENERAL, metadata: BRIDGE_METADATA }])
+  })
+})
+
 describe('reaction removal', () => {
   const EMOJI_ID = '00000000-0000-0000-0000-0000000000f1'
   const BLOBCAT = { id: EMOJI_ID, name: 'blobcat', url: 'https://harmony.test/emoji/blobcat.png' }
@@ -210,7 +321,7 @@ describe('reaction removal', () => {
       channel_id: GENERAL,
       user_id: OWNER_ID,
       bot_id: null,
-      emoji: { id: EMOJI_ID, name: 'blobcat', url: 'https://harmony.test/emoji/blobcat.png' },
+      emoji: { id: EMOJI_ID, name: 'blobcat', url: 'https://harmony.test/emoji/blobcat.png', animated: false },
       metadata: { source: 'harmony' },
     }])
   })
@@ -226,8 +337,30 @@ describe('reaction removal', () => {
     await d.pollReactions()
 
     const [added] = events('MESSAGE_REACTION_ADD')
-    expect(added).toMatchObject({ reaction_id: 'r2', user_id: OWNER_ID, emoji: { id: null, name: '👍', url: null } })
+    expect(added).toMatchObject({ reaction_id: 'r2', user_id: OWNER_ID, emoji: { id: null, name: '👍', url: null, animated: false } })
     expect(events('MESSAGE_REACTION_REMOVE')).toEqual([added])
+  })
+
+  it('carries an animated custom emoji\'s url, and a bridged reaction\'s Discord CDN url', async () => {
+    db.rows('emojis').push({ id: '00000000-0000-0000-0000-0000000000f2', name: 'party', url: 'https://harmony.test/emoji/party.gif' })
+    const d = dispatcher as any
+    await d.handleReactionEvent('MESSAGE_REACTION_ADD', reaction('r4', { emoji_id: '00000000-0000-0000-0000-0000000000f2' }))
+    await d.handleReactionEvent('MESSAGE_REACTION_ADD', reaction('r5', {
+      user_id: null,
+      bot_id: '00000000-0000-0000-0000-0000000000b9',
+      custom_emoji_content: 'discord:wave:1234567890',
+      metadata: { remote_emoji_url: 'https://cdn.discordapp.com/emojis/1234567890.gif', discord_user: { id: '8' } },
+    }))
+    await d.handleReactionEvent('MESSAGE_REACTION_ADD', reaction('r6', {
+      custom_emoji_content: 'discord:wave:1234567890',
+      metadata: { remote_emoji_url: 'https://tracker.example/pixel.gif' },
+    }))
+
+    expect(events('MESSAGE_REACTION_ADD').map((e) => e.emoji)).toEqual([
+      { id: '00000000-0000-0000-0000-0000000000f2', name: 'party', url: 'https://harmony.test/emoji/party.gif', animated: true },
+      { id: null, name: 'discord:wave:1234567890', url: 'https://cdn.discordapp.com/emojis/1234567890.gif', animated: true },
+      { id: null, name: 'discord:wave:1234567890', url: null, animated: false },
+    ])
   })
 
   it('dispatches no removal when the presence lookup fails', async () => {

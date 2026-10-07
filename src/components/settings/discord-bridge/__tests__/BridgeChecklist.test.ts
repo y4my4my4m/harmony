@@ -78,7 +78,7 @@ describe('BridgeChecklist', () => {
     const url = new URL(invite.attributes('href')!)
     expect(url.searchParams.get('client_id')).toBe(APP_ID)
     expect(url.searchParams.get('scope')).toBe('bot applications.commands')
-    expect(url.searchParams.get('permissions')).toBe('536988736')
+    expect(url.searchParams.get('permissions')).toBe('536996928')
     expect(invite.text()).toBe('Invite the bot to your Discord server')
     expect(w.find('[data-code="no_guild"]').exists()).toBe(true)
     expect(w.find('[data-testid="problem-invite"]').exists()).toBe(false)

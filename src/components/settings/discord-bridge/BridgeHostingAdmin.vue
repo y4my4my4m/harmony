@@ -1,6 +1,6 @@
 <template>
   <div class="hosting-admin" data-testid="bridge-hosting-admin">
-    <h3>{{ t('discordBridge.admin.title') }}</h3>
+    <h4>{{ t('discordBridge.admin.title') }}</h4>
     <p class="hint">{{ t('discordBridge.admin.lead') }}</p>
 
     <p v-if="loadError" class="error" role="alert">{{ t('discordBridge.admin.loadFailed') }}</p>
@@ -11,11 +11,12 @@
         <span :id="`${uid}-hint`" class="hint">{{ t('discordBridge.admin.toggleHint') }}</span>
       </div>
       <ToggleSwitch
-        v-model="enabled"
-        :disabled="!loaded || saving"
+        :model-value="enabled"
+        :disabled="!loaded || switching"
         :aria-labelledby="`${uid}-label`"
         :aria-describedby="`${uid}-hint`"
         data-testid="hosting-toggle"
+        @update:model-value="setEnabled"
       />
     </div>
 
@@ -29,7 +30,7 @@
         step="1"
         inputmode="numeric"
         class="cyber-input limit-input"
-        :disabled="!loaded || saving"
+        :disabled="!loaded || savingLimit"
         :aria-describedby="`${uid}-limit-hint`"
         data-testid="hosting-limit"
       />
@@ -49,11 +50,11 @@
     <button
       type="button"
       class="btn btn-primary"
-      :disabled="!loaded || saving || !dirty || limitInvalid"
+      :disabled="!loaded || savingLimit || !limitDirty || limitInvalid"
       data-testid="hosting-save"
-      @click="save"
+      @click="saveLimit"
     >
-      {{ saving ? t('discordBridge.admin.saving') : t('discordBridge.admin.save') }}
+      {{ savingLimit ? t('discordBridge.admin.saving') : t('discordBridge.admin.saveLimit') }}
     </button>
   </div>
 </template>
@@ -64,7 +65,13 @@ import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import { debug } from '@/utils/debug'
-import { DEFAULT_HOSTING_LIMIT, fetchHostingConfig, saveHostingConfig } from './bridgeApi'
+import {
+  DEFAULT_HOSTING_LIMIT,
+  HOSTING_ENABLED_KEY,
+  HOSTING_LIMIT_KEY,
+  fetchHostingConfig,
+  saveBridgeInstanceConfig,
+} from './bridgeApi'
 
 /** Self-host guide section the operator follows to run the bridge host service. */
 const HOSTING_DOCS_URL = 'https://github.com/y4my4my4m/harmony/blob/master/self-host/README.md#discord-bridge-hosting'
@@ -75,27 +82,45 @@ const uid = `bridge-hosting-${useId()}`
 
 const enabled = ref(false)
 const limit = ref<number>(DEFAULT_HOSTING_LIMIT)
-const saved = ref({ enabled: false, limit: DEFAULT_HOSTING_LIMIT })
+const savedLimit = ref(DEFAULT_HOSTING_LIMIT)
 const loaded = ref(false)
 const loadError = ref(false)
-const saving = ref(false)
+const switching = ref(false)
+const savingLimit = ref(false)
 
 const limitInvalid = computed(() => !Number.isInteger(limit.value) || limit.value < 0)
-const dirty = computed(() => enabled.value !== saved.value.enabled || limit.value !== saved.value.limit)
+const limitDirty = computed(() => limit.value !== savedLimit.value)
 
-async function save() {
-  if (limitInvalid.value) return
-  saving.value = true
+/** Saved on change; the switch returns to its previous position when the save fails. */
+async function setEnabled(next: boolean) {
+  const previous = enabled.value
+  enabled.value = next
+  switching.value = true
   try {
-    const next = { enabled: enabled.value, limit: limit.value }
-    await saveHostingConfig(next)
-    saved.value = next
+    await saveBridgeInstanceConfig(HOSTING_ENABLED_KEY, next)
     toast.success(t('discordBridge.admin.saved'))
   } catch (error) {
-    debug.error('Saving bridge hosting settings failed:', error)
+    enabled.value = previous
+    debug.error('Saving bridge hosting switch failed:', error)
     toast.error(t('discordBridge.admin.saveFailed'))
   } finally {
-    saving.value = false
+    switching.value = false
+  }
+}
+
+async function saveLimit() {
+  if (limitInvalid.value || !limitDirty.value) return
+  savingLimit.value = true
+  try {
+    const next = limit.value
+    await saveBridgeInstanceConfig(HOSTING_LIMIT_KEY, next)
+    savedLimit.value = next
+    toast.success(t('discordBridge.admin.saved'))
+  } catch (error) {
+    debug.error('Saving bridge hosting limit failed:', error)
+    toast.error(t('discordBridge.admin.saveFailed'))
+  } finally {
+    savingLimit.value = false
   }
 }
 
@@ -104,7 +129,7 @@ onMounted(async () => {
     const config = await fetchHostingConfig()
     enabled.value = config.enabled
     limit.value = config.limit
-    saved.value = config
+    savedLimit.value = config.limit
     loaded.value = true
   } catch (error) {
     debug.warn('Bridge hosting settings unavailable:', error)
@@ -119,8 +144,9 @@ onMounted(async () => {
   margin-top: 24px;
 }
 
-.hosting-admin h3 {
+.hosting-admin h4 {
   margin: 0 0 8px;
+  font-size: 15px;
 }
 
 .row {

@@ -65,6 +65,8 @@ Every frame is a JSON object:
 
 The gateway ignores unknown opcodes, and ignores op 1, op 6 and op 7 until IDENTIFY succeeds. A frame that is not valid JSON closes the connection with `1008`.
 
+A connection may send 120 frames in any 60 seconds, op 1 heartbeats not counted. The frame over the limit closes the connection with `4008`; frames already in flight behind it are dropped.
+
 ### Identify
 
 Send op 2 after the socket opens:
@@ -110,6 +112,7 @@ Send `{ "op": 1 }` every `heartbeat_interval` milliseconds. The gateway answers 
 | `4001` | Missing token | IDENTIFY without `d.token`. |
 | `4004` | Authentication failed | Token unknown, revoked or expired, or the bot is inactive. Also sent when the token lookup fails on the server. |
 | `4004` | Token revoked, Token expired, Bot inactive | An open connection's token was revoked, rotated or deleted, or expired, or its bot was deactivated or deleted. Checked every 30 seconds by default. |
+| `4008` | rate limited | More than 120 frames other than op 1 within 60 seconds on this connection. Reconnect with backoff. |
 | `1008` | Invalid payload | Frame is not valid JSON. |
 | `1000` | Heartbeat timeout | No heartbeat for more than `2 × heartbeat_interval`. |
 | `1000` | Server shutting down | The gateway process is stopping. |
@@ -153,11 +156,12 @@ There is no RESUME. After any close, open a new connection and IDENTIFY again; R
 | `author.id` | string | Profile or bot UUID. A Discord user ID when `author.discord_user` is `true`. |
 | `author.username` | string | |
 | `author.display_name` | string | |
-| `author.avatar` | string | Absolute URL. Omitted when the author has no avatar. |
+| `author.nickname` | string or `null` | The author's nickname in the channel's server. `null` when unset, for bots and for relayed Discord authors. A nickname change appears within 60 seconds. |
+| `author.avatar` | string | Absolute URL; an image the web app bundles, such as the default avatar, resolves against the instance's origin. Omitted when the author has no avatar. |
 | `author.bot` | boolean | `true` when a bot wrote the message. |
 | `author.discord_user` | boolean | Present and `true` when a bridge bot relayed the message from Discord. See [Bridge support](#bridge-support). |
 | `content` | string | The `text` parts of the message joined with single spaces, trimmed. Mention, emoji, URL and file parts are not included. |
-| `content_raw` | array | The stored message parts. A `file` part with a `path` names a private attachment; its `url` is signed for this event and expires after seven days. |
+| `content_raw` | array | The stored message parts. A `file` part with a `path` names a private attachment; its `url` is signed for this event and expires after seven days. An `image` part of a `.jpg`, `.jpeg` or `.png` attachment also carries `render_url`, a signed rendition at most 1600 × 1600 (quality 82) with the same lifetime; it is absent when the rendition cannot be signed. |
 | `is_system` | boolean | `true` for system messages. |
 | `reply_to` | UUID or `null` | ID of the message this one replies to. |
 | `timestamp` | ISO 8601 | Creation time. |
@@ -176,6 +180,7 @@ There is no RESUME. After any close, open a new connection and IDENTIFY again; R
       "id": "8a1f3b77-…",
       "username": "alice",
       "display_name": "Alice",
+      "nickname": "Al",
       "avatar": "https://db.harmony.example.com/storage/v1/render/image/public/avatars/…",
       "bot": false
     },
@@ -216,8 +221,10 @@ Sent for soft and hard deletes.
 | `channel_id` | UUID | Channel of that message. |
 | `user_id` | UUID or `null` | Reacting user, when a user reacted. |
 | `bot_id` | UUID or `null` | Reacting bot, when a bot reacted. |
-| `emoji.id` | UUID or `null` | Custom emoji ID; `null` for Unicode emoji. |
-| `emoji.name` | string or `null` | Custom emoji shortcode, or the Unicode character. |
+| `emoji.id` | UUID or `null` | Custom emoji ID; `null` for Unicode emoji and for reactions stored without an emoji row. |
+| `emoji.name` | string or `null` | Custom emoji shortcode, the Unicode character, or a bridged identifier such as `discord:name:id`. |
+| `emoji.url` | string or `null` | Absolute image URL of a custom emoji; for a reaction without an emoji row, its `metadata.remote_emoji_url` when that is on Discord's CDN; else `null`. |
+| `emoji.animated` | boolean | `true` when `emoji.url` is a `.gif` or asks Discord's CDN for `animated=true`. |
 | `metadata` | object | Reaction metadata; `{}` when unset. |
 
 ```json
@@ -230,7 +237,7 @@ Sent for soft and hard deletes.
     "channel_id": "c2d4f8a0-…",
     "user_id": "8a1f3b77-…",
     "bot_id": null,
-    "emoji": { "id": null, "name": "\ud83d\udc4d" },
+    "emoji": { "id": null, "name": "\ud83d\udc4d", "url": null, "animated": false },
     "metadata": {}
   }
 }
@@ -331,7 +338,7 @@ REST message objects have no `content_raw` or `is_system`, and `author` never ca
 | `reply_to` | UUID | Message to reply to. |
 | `metadata` | object | Merged over `{ "bot": true, "created_via": "bot_api" }`. |
 
-A message needs at least one part; a request that produces none fails with `500`. Part shapes follow `MessagePart` in `src/types/chat.ts`. For example, a mention:
+A message needs at least one part; a request that produces none fails with `500`. Part shapes follow `MessagePart` in `src/types/chat.ts`. A `role_mention` (`roleId`) or `channel_mention` (`channelId`) part naming a role or channel of the channel's server is stored with that role's name and color or that channel's name and server; one naming anything else is stored as the text `@roleName` or `#name`. A role mention notifies by the bot's rights: `@everyone` only with the installation's `mention_everyone`, another role when it is mentionable or with `mention_everyone`. Edits and silent content patches apply the same check. For example, a mention:
 
 ```json
 {
@@ -342,7 +349,7 @@ A message needs at least one part; a request that produces none fails with `500`
 }
 ```
 
-There is no upload route; `file` parts reference URLs.
+There is no upload route; `file` parts reference URLs. A file part is `{ "type": "file", "url", "fileType", "fileName" }` with `fileType` one of `image`, `video`, `audio` or `file`: clients show images and videos inline, play `audio` parts in an audio player whatever the URL's extension, and link the rest.
 
 Returns `201` with the message object. After the insert the gateway asks the federation backend to generate link previews for the message.
 
@@ -394,7 +401,7 @@ Has no effect. Answers as a message to the channel would: `204` where the bot ma
 
 `PUT /messages/{message.id}/reactions/{emoji}`
 
-Optional body: `{ "metadata": { … } }`, stored on the reaction. Returns `204`.
+Optional body: `{ "metadata": { … } }`, stored on the reaction. For an `{emoji}` that is no custom emoji UUID, `metadata.remote_emoji_url` is the image clients show, animated `.gif` included; it is kept only as an `https` URL on `cdn.discordapp.com` or `media.discordapp.net` and dropped otherwise. Returns `204`.
 
 #### Remove reaction
 
@@ -616,7 +623,7 @@ Unknown, used and expired codes return `404`.
 
 `GET /emojis`
 
-Returns emoji rows from across the instance. Query `url` limits the result to emoji with exactly that image URL.
+Returns emoji rows from across the instance. Query `url` limits the result to emoji with exactly that image URL. Query `id` returns that one emoji as an object, `404` when no emoji has that ID and `400` when it is no UUID. Every account can read every emoji row, so every emoji is visible to a bot.
 
 #### Create emoji
 
@@ -636,7 +643,9 @@ These parts of the API exist for bridge bots, which relay messages between Harmo
 
 ### Relayed authors
 
-A message created with `metadata.discord_user` set to `{ "id", "username", "display_name", "avatar_url" }` is dispatched with that user as `author` and `author.discord_user: true`, `author.bot: false`.
+A message created with `metadata.discord_user` set to `{ "id", "username", "display_name", "avatar_url" }` is dispatched with that user as `author` and `author.discord_user: true`, `author.bot: false`, `author.nickname: null`. An optional `joined_at` (ISO 8601) is the Discord member's join time.
+
+When a bridge bot (bot type `bridge`) writes such a message with a numeric `id`, the server's AutoMod treats the relayed author as `discord:<id>`: message flood, cross-channel duplicate and mention spam rules count that author's messages, whether or not the server exempts bots, and new-member restrictions apply only with a parseable `joined_at`, taking membership age from it and account age from the Discord id. Other rules apply to the message as to any bot's. Timeouts are not applied to relayed authors. A blocked message answers `403` `AUTOMOD_BLOCKED`.
 
 ### Look up bridged message
 
@@ -662,7 +671,7 @@ Only messages the bot wrote. Replaces the content without changing `edited_times
 |---|---|---|
 | `metadata` | object | Required. Merged into the existing metadata, top-level keys only. |
 
-Does not change `edited_timestamp` and sends no event. Returns `{ "ok": true, "metadata": { … } }` with the merged object.
+Only messages the bot wrote, with one exception: a bridge bot (bot type `bridge`) may merge `discord_message_id`, `discord_message_ids`, `discord_via_webhook` and `discord_uploaded_files`, and no other key, into any message of a channel its bridge pairs (a v2 bridge whose bot it is, or a v1 pairing of the server for a bridge bot without a v2 bridge). Anything else answers `403`. Does not change `edited_timestamp` and sends no event. Returns `{ "ok": true, "metadata": { … } }` with the merged object.
 
 ### Register bridge data (op 6)
 
@@ -782,7 +791,7 @@ Content-Type: application/json
 { "error": "Rate limit exceeded", "retry_after": 60 }
 ```
 
-`retry_after` is always `60` and does not reflect the time left in the window. No rate-limit headers are sent. Requests rejected with `401` or `503` are not counted. The gateway WebSocket is not rate limited.
+`retry_after` is always `60` and does not reflect the time left in the window. No rate-limit headers are sent. Requests rejected with `401` or `503` are not counted. The gateway WebSocket limits frames per connection; see [Payloads](#payloads).
 
 ## Errors
 
@@ -796,6 +805,7 @@ Content-Type: application/json
 | `403` | `Channel not visible to this bot` | The bot holds the permission but cannot see the channel; see [Channel access](#channel-access). Also sent when the visibility lookup fails. |
 | `403` | `Missing permission in this channel: <permission>` | The bot sees the channel, and the channel's @everyone override denies the permission's bit; see [Channel access](#channel-access). |
 | `403` | `Bot not in server` | No active installation; server read routes. The members route returns `Bot not in guild`. |
+| `403` | `Blocked by the server's AutoMod` | Create or edit message: the server's AutoMod dropped the message. `code` is `AUTOMOD_BLOCKED`. Retrying sends the same message into the same rule. |
 | `403` | varies | Editing or silently patching another author's message, modifying the default or an admin role, creating a server emoji. |
 | `404` | varies | Message, channel, role, user or invite not found. Unknown routes return `Not found`. |
 | `409` | `Message content changed; re-fetch and retry` | Silent content patch lost a race. |

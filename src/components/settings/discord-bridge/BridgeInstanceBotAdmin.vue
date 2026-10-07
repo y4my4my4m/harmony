@@ -1,6 +1,6 @@
 <template>
   <div class="instance-bot-admin" data-testid="bridge-instance-bot-admin">
-    <h3>{{ t('discordBridge.instanceAdmin.title') }}</h3>
+    <h4>{{ t('discordBridge.instanceAdmin.title') }}</h4>
     <p class="hint">{{ t('discordBridge.instanceAdmin.lead') }}</p>
 
     <p v-if="loadError" class="error" role="alert">{{ t('discordBridge.instanceAdmin.loadFailed') }}</p>
@@ -189,11 +189,12 @@
           </span>
         </div>
         <ToggleSwitch
-          v-model="enabled"
-          :disabled="busy || (!status.configured && !enabled)"
+          :model-value="enabled"
+          :disabled="busy || switching || (!status.configured && !enabled)"
           :aria-labelledby="`${uid}-enabled-label`"
           :aria-describedby="`${uid}-enabled-hint`"
           data-testid="instance-bot-enabled"
+          @update:model-value="setSwitch('enabled', $event)"
         />
       </div>
 
@@ -203,11 +204,12 @@
           <span :id="`${uid}-presence-hint`" class="hint">{{ t('discordBridge.instanceAdmin.presenceHint') }}</span>
         </div>
         <ToggleSwitch
-          v-model="presence"
-          :disabled="busy"
+          :model-value="presence"
+          :disabled="busy || switching"
           :aria-labelledby="`${uid}-presence-label`"
           :aria-describedby="`${uid}-presence-hint`"
           data-testid="instance-bot-presence"
+          @update:model-value="setSwitch('presence', $event)"
         />
       </div>
 
@@ -221,7 +223,7 @@
           step="1"
           inputmode="numeric"
           class="cyber-input limit-input"
-          :disabled="busy"
+          :disabled="busy || savingLimit"
           :aria-describedby="`${uid}-limit-hint`"
           data-testid="instance-bot-limit"
         />
@@ -241,11 +243,11 @@
       <button
         type="button"
         class="btn btn-primary"
-        :disabled="busy || !settingsDirty || limitInvalid"
-        data-testid="instance-bot-save-settings"
-        @click="saveSettings"
+        :disabled="busy || savingLimit || !limitDirty || limitInvalid"
+        data-testid="instance-bot-save-limit"
+        @click="saveLimit"
       >
-        {{ busy ? t('discordBridge.admin.saving') : t('discordBridge.instanceAdmin.saveSettings') }}
+        {{ savingLimit ? t('discordBridge.admin.saving') : t('discordBridge.admin.saveLimit') }}
       </button>
     </template>
   </div>
@@ -266,10 +268,13 @@ import {
 } from '@/utils/discordBridgeSetup'
 import {
   DEFAULT_INSTANCE_BOT_LIMIT,
+  INSTANCE_BOT_ENABLED_KEY,
+  INSTANCE_BOT_LIMIT_KEY,
+  INSTANCE_BOT_PRESENCE_KEY,
   clearInstanceBot,
   fetchInstanceBotStatus,
+  saveBridgeInstanceConfig,
   saveInstanceBotCredentials,
-  saveInstanceBotSettings,
   type InstanceBotStatus,
 } from './bridgeApi'
 import { DISCORD_INTENT_NAMES, PORTAL } from './portalLabels'
@@ -299,6 +304,8 @@ const status = ref<InstanceBotStatus>({
 const loaded = ref(false)
 const loadError = ref(false)
 const busy = ref(false)
+const switching = ref(false)
+const savingLimit = ref(false)
 const confirmingClear = ref(false)
 
 const applicationId = ref('')
@@ -327,12 +334,10 @@ const credentialsSavable = computed(() => {
   return app !== (status.value.applicationId ?? '') || clientSecret.value.trim() !== '' || botToken.value.trim() !== ''
 })
 const limitInvalid = computed(() => !Number.isInteger(limit.value) || limit.value < 0)
-const settingsDirty = computed(
-  () =>
-    enabled.value !== status.value.enabled ||
-    presence.value !== status.value.presence ||
-    limit.value !== status.value.limit,
-)
+const limitDirty = computed(() => limit.value !== status.value.limit)
+
+const SWITCH_KEYS = { enabled: INSTANCE_BOT_ENABLED_KEY, presence: INSTANCE_BOT_PRESENCE_KEY } as const
+const switchRefs = { enabled, presence }
 
 function apply(next: InstanceBotStatus) {
   status.value = next
@@ -391,18 +396,38 @@ async function clear() {
   }
 }
 
-async function saveSettings() {
-  if (limitInvalid.value || !settingsDirty.value) return
-  busy.value = true
+/** Saved on change; the switch returns to its previous position when the save fails. */
+async function setSwitch(name: keyof typeof SWITCH_KEYS, next: boolean) {
+  const value = switchRefs[name]
+  const previous = value.value
+  value.value = next
+  switching.value = true
   try {
-    await saveInstanceBotSettings({ enabled: enabled.value, presence: presence.value, limit: limit.value })
-    await load()
+    await saveBridgeInstanceConfig(SWITCH_KEYS[name], next)
+    status.value = { ...status.value, [name]: next }
     toast.success(t('discordBridge.instanceAdmin.settingsSaved'))
   } catch (error) {
-    debug.error('Saving instance Discord bot settings failed:', error)
+    value.value = previous
+    debug.error(`Saving the instance Discord bot's ${name} switch failed:`, error)
     toast.error(t('discordBridge.instanceAdmin.saveFailed'))
   } finally {
-    busy.value = false
+    switching.value = false
+  }
+}
+
+async function saveLimit() {
+  if (limitInvalid.value || !limitDirty.value) return
+  savingLimit.value = true
+  try {
+    const next = limit.value
+    await saveBridgeInstanceConfig(INSTANCE_BOT_LIMIT_KEY, next)
+    status.value = { ...status.value, limit: next }
+    toast.success(t('discordBridge.instanceAdmin.settingsSaved'))
+  } catch (error) {
+    debug.error('Saving the instance Discord bot limit failed:', error)
+    toast.error(t('discordBridge.instanceAdmin.saveFailed'))
+  } finally {
+    savingLimit.value = false
   }
 }
 
@@ -412,11 +437,12 @@ onMounted(load)
 <style scoped src="../../admin/adminShared.css"></style>
 <style scoped>
 .instance-bot-admin {
-  margin-top: 24px;
+  margin-top: 16px;
 }
 
-.instance-bot-admin h3 {
+.instance-bot-admin h4 {
   margin: 0 0 8px;
+  font-size: 15px;
 }
 
 .summary {

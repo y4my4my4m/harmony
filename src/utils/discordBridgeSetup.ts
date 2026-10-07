@@ -9,18 +9,22 @@ import { runtimeConfig } from '@/services/runtimeConfig'
 // Discord invite
 // ---------------------------------------------------------------------------
 
-/** Discord permission bits (https://discord.com/developers/docs/topics/permissions). */
+/**
+ * Discord permission bits (https://discord.com/developers/docs/topics/permissions). Manage
+ * Messages deletes the Discord original of a Discord message deleted here (bridge 2.2.0).
+ */
 export const DISCORD_BRIDGE_PERMISSION_FLAGS = {
   addReactions: 1n << 6n,
   viewChannel: 1n << 10n,
   sendMessages: 1n << 11n,
+  manageMessages: 1n << 13n,
   embedLinks: 1n << 14n,
   attachFiles: 1n << 15n,
   readMessageHistory: 1n << 16n,
   manageWebhooks: 1n << 29n,
 } as const
 
-/** View Channels, Send Messages, Read Message History, Add Reactions, Embed Links, Attach Files, Manage Webhooks = 536988736. */
+/** View Channels, Send Messages, Manage Messages, Read Message History, Add Reactions, Embed Links, Attach Files, Manage Webhooks = 536996928. */
 export const DISCORD_BRIDGE_PERMISSIONS_VALUE = Object.values(DISCORD_BRIDGE_PERMISSION_FLAGS)
   .reduce((acc, flag) => acc | flag, 0n)
   .toString()

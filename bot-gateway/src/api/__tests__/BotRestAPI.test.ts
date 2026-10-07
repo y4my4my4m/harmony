@@ -32,7 +32,7 @@ vi.mock('../../auth/BotAuthMiddleware.js', () => ({
   botRateLimit: (_req: any, _res: any, next: any) => next(),
 }))
 
-import { BotRestAPI, botSuppliedMetadata } from '../BotRestAPI.js'
+import { BotRestAPI, botSuppliedMetadata, reactionMetadata } from '../BotRestAPI.js'
 
 type Result = { data: unknown; error: unknown }
 
@@ -339,8 +339,115 @@ describe('AutoMod rejections', () => {
   })
 })
 
+/** routeTables, plus the payload of each insert into `table`. */
+function captureInserts(table: string, tables: Record<string, Result>): unknown[] {
+  routeTables(tables)
+  const inserts: unknown[] = []
+  const route = mocks.from.getMockImplementation()!
+  mocks.from.mockImplementation((name: string) => {
+    const builder = route(name)
+    if (name !== table) return builder
+    return new Proxy(builder, {
+      get(target, prop) {
+        if (prop === 'insert') {
+          return (payload: unknown) => {
+            inserts.push(payload)
+            return builder
+          }
+        }
+        return target[prop]
+      },
+    })
+  })
+  return inserts
+}
+
+describe('POST /channels/:id/messages file parts', () => {
+  const CHANNEL_ID = '00000000-0000-0000-0000-0000000000c1'
+
+  it('stores audio and Discord sticker parts as sent, without a bot-supplied path', async () => {
+    const inserts = captureInserts('messages', {
+      ...OPEN_CHANNEL_FIXTURES,
+      channels: { data: { server_id: '00000000-0000-0000-0000-0000000000s1' }, error: null },
+      instance_config: { data: { config_value: '"link"' }, error: null },
+      bot_audit_log: { data: null, error: null },
+      messages: { data: [{ id: 'm1', channel_id: CHANNEL_ID, content: [], bot_id: BOT_ID }], error: null },
+    })
+    routeRpc({})
+    const voice = {
+      type: 'file',
+      fileType: 'audio',
+      url: 'https://cdn.discordapp.com/attachments/1/2/voice-message.ogg?ex=1',
+      fileName: 'voice-message.ogg',
+    }
+    const sticker = { type: 'file', fileType: 'image', url: 'https://media.discordapp.net/stickers/749054660769218631.png?size=160' }
+
+    const res = await supertest(makeApp())
+      .post(`/api/v1/channels/${CHANNEL_ID}/messages`)
+      .send({ content: [voice, { ...sticker, path: 'c/other/u/secret.png' }] })
+
+    expect(res.status).toBe(201)
+    expect(inserts).toHaveLength(1)
+    expect((inserts[0] as { content: unknown }).content).toEqual([voice, sticker])
+  })
+})
+
+describe('reactionMetadata', () => {
+  it('keeps a Discord CDN remote_emoji_url, animated included', () => {
+    const metadata = {
+      remote_emoji_url: 'https://cdn.discordapp.com/emojis/1234567890.gif',
+      remote_emoji_name: 'party',
+      discord_user: { id: '80351110224678912' },
+    }
+    expect(reactionMetadata(metadata)).toEqual(metadata)
+    expect(reactionMetadata({ remote_emoji_url: 'https://media.discordapp.net/emojis/1.webp?size=48' }))
+      .toEqual({ remote_emoji_url: 'https://media.discordapp.net/emojis/1.webp?size=48' })
+  })
+
+  it('drops a remote_emoji_url off Discord\'s CDN or over http', () => {
+    for (const url of [
+      'https://tracker.example/pixel.gif',
+      'http://cdn.discordapp.com/emojis/1.png',
+      'https://cdn.discordapp.com.evil.example/emojis/1.png',
+      'javascript:alert(1)',
+      42,
+    ]) {
+      expect(reactionMetadata({ remote_emoji_url: url, remote_emoji_name: 'x' })).toEqual({ remote_emoji_name: 'x' })
+    }
+  })
+
+  it('leaves absent metadata absent', () => {
+    expect(reactionMetadata(undefined)).toBeNull()
+    expect(reactionMetadata(null)).toBeNull()
+  })
+})
+
 describe('PUT /messages/:id/reactions/:emoji', () => {
   const MESSAGE_ID = '00000000-0000-0000-0000-0000000000a1'
+
+  it('stores a reaction without a remote_emoji_url outside Discord\'s CDN', async () => {
+    const install = OPEN_CHANNEL_FIXTURES.bot_server_permissions.data as Record<string, unknown>
+    const inserts = captureInserts('reactions', {
+      ...OPEN_CHANNEL_FIXTURES,
+      bot_server_permissions: { data: { ...install, add_reactions: true }, error: null },
+      messages: { data: { channel_id: 'c1' }, error: null },
+      channels: { data: { server_id: 's1' }, error: null },
+      reactions: { data: null, error: null },
+    })
+
+    const res = await supertest(makeApp())
+      .put(`/api/v1/messages/${MESSAGE_ID}/reactions/${encodeURIComponent('discord:party:1234567890')}`)
+      .send({ metadata: { remote_emoji_url: 'https://tracker.example/p.gif', remote_emoji_name: 'party' } })
+
+    expect(res.status).toBe(204)
+    expect(inserts).toEqual([{
+      message_id: MESSAGE_ID,
+      bot_id: BOT_ID,
+      metadata: { remote_emoji_name: 'party' },
+      custom_emoji_content: 'discord:party:1234567890',
+      emoji_id: null,
+    }])
+  })
 
   it('answers a twenty-first emoji on a message with Discord\'s 30010', async () => {
     const install = OPEN_CHANNEL_FIXTURES.bot_server_permissions.data as Record<string, unknown>

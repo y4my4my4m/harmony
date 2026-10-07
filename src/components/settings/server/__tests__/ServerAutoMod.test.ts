@@ -134,6 +134,26 @@ describe('ServerAutoMod', () => {
     expect(api.updateAutoModSettings).toHaveBeenCalledWith(SERVER_ID, { alert_channel_id: 'ch-1' })
   })
 
+  it('names a relayed Discord author in the log, and a plain bot by its name', async () => {
+    api.getServerAutoMod.mockResolvedValue(CONFIGURED)
+    const event = {
+      id: 'ev-1', event_type: 'message', rule_id: 'rule-1', rule_name: 'Block message floods', rule_type: 'message_flood',
+      actions: ['alert', 'block'], matched: '10 messages in 10 s', content_excerpt: 'spam', hits: 2,
+      created_at: '2026-10-07T12:00:00Z', last_hit_at: '2026-10-07T12:00:01Z', channel_id: 'ch-1', channel_name: 'general',
+      user_id: null, username: null, display_name: null, avatar_url: null, domain: null, is_local: null,
+      bot_id: 'bot-1', bot_name: 'Discord Bridge', timeout_until: null,
+    }
+    api.getAutoModEvents.mockResolvedValue([
+      { ...event, details: { author_key: 'discord:80351110224678912', author_name: 'dana' } },
+      { ...event, id: 'ev-2', bot_name: 'Mod Bot', details: {} },
+    ])
+
+    const wrapper = mount(ServerAutoMod, { props: { serverId: SERVER_ID } })
+    await flushPromises()
+
+    expect(wrapper.findAll('.event-who').map((w) => w.text())).toEqual(['dana · Discord', 'Mod Bot'])
+  })
+
   it('shows a load error instead of controls when the RPC refuses', async () => {
     api.getServerAutoMod.mockRejectedValue(new Error('Missing permission: MANAGE_SERVER'))
 

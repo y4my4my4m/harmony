@@ -126,7 +126,7 @@ describe('GET /bridge/v2/discord/authorize', () => {
     expect(Object.fromEntries(location.searchParams)).toEqual({
       client_id: APP_ID,
       scope: 'bot applications.commands',
-      permissions: '537250880',
+      permissions: '537259072',
       response_type: 'code',
       integration_type: '0',
       redirect_uri: CALLBACK,
@@ -138,8 +138,10 @@ describe('GET /bridge/v2/discord/authorize', () => {
 
   it('carries the permissions the bridge program documents, plus Use External Emojis', () => {
     // View Channels, Send Messages, Embed Links, Attach Files, Read Message History, Add Reactions,
-    // Manage Webhooks (536988736, the bridge README's invite) + Use External Emojis (1 << 18).
-    expect(INSTANCE_BOT_PERMISSIONS).toBe(String(536988736 + 262144))
+    // Manage Webhooks (536988736, the bridge README's invite before 2.2) + Manage Messages
+    // (1 << 13, bridge 2.2) + Use External Emojis (1 << 18).
+    expect(INSTANCE_BOT_PERMISSIONS).toBe(String(536988736 + 8192 + 262144))
+    expect(INSTANCE_BOT_PERMISSIONS).toBe('537259072')
   })
 
   it('returns an expired or used state to the bridge settings before Discord is involved', async () => {
@@ -194,7 +196,7 @@ describe('GET /bridge/v2/discord/authorize', () => {
 
 describe('GET /bridge/v2/discord/callback', () => {
   const callback = (query: string, app = makeApp()) => supertest(app).get(`/bridge/v2/discord/callback?${query}`)
-  const ok = `code=${CODE}&state=${STATE}&guild_id=${QUERY_GUILD}&permissions=537250880`
+  const ok = `code=${CODE}&state=${STATE}&guild_id=${QUERY_GUILD}&permissions=537259072`
 
   it('exchanges the code and links the guild of the token response, never the query', async () => {
     const res = await callback(ok)

@@ -25,7 +25,14 @@ vi.mock('../../config/supabase.js', () => ({
   config: mocks.config,
 }))
 
-import { WebSocketGateway, parsePresenceDeltas, sessionRevocationReason } from '../WebSocketGateway.js'
+import {
+  FRAME_LIMIT,
+  FRAME_WINDOW_MS,
+  FrameRateLimiter,
+  WebSocketGateway,
+  parsePresenceDeltas,
+  sessionRevocationReason,
+} from '../WebSocketGateway.js'
 import { FakeDb } from '../../__tests__/fakeSupabase.js'
 
 const VALID_VERIFICATION = {
@@ -287,6 +294,69 @@ describe('gateway frames', () => {
 
     ws.close()
     await vi.waitFor(() => expect(gateway.getConnectedBotCount()).toBe(0))
+  })
+})
+
+describe('gateway frame limit', () => {
+  function closed(ws: WebSocket): Promise<{ code: number; reason: string }> {
+    return new Promise((resolve) => ws.once('close', (code, raw) => resolve({ code, reason: raw.toString() })))
+  }
+
+  /** Resolves after `n` heartbeat ACKs. */
+  function acks(ws: WebSocket, n: number): Promise<void> {
+    return new Promise((resolve) => {
+      let seen = 0
+      const onMessage = (raw: unknown) => {
+        if (JSON.parse(String(raw)).op !== 11) return
+        seen += 1
+        if (seen === n) {
+          ws.off('message', onMessage)
+          resolve()
+        }
+      }
+      ws.on('message', onMessage)
+    })
+  }
+
+  it('allows 120 frames per 60 s and refuses the next until the oldest leaves the window', () => {
+    const limiter = new FrameRateLimiter()
+    const t0 = 1_700_000_000_000
+    for (let i = 0; i < FRAME_LIMIT; i++) expect(limiter.hit(t0 + i)).toBe(true)
+    expect(limiter.hit(t0 + FRAME_LIMIT)).toBe(false)
+    expect(limiter.hit(t0 + FRAME_WINDOW_MS - 1)).toBe(false)
+    expect(limiter.hit(t0 + FRAME_WINDOW_MS)).toBe(true)
+    expect(limiter.hit(t0 + FRAME_WINDOW_MS)).toBe(false)
+    expect(limiter.hit(t0 + FRAME_WINDOW_MS + 1)).toBe(true)
+  })
+
+  it('closes with 4008 on the frame past the limit, not counting heartbeats', async () => {
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+    const { ws } = await identify(TOKEN)
+    const close = closed(ws)
+
+    // IDENTIFY was the first counted frame.
+    for (let i = 1; i < FRAME_LIMIT; i++) ws.send(JSON.stringify({ op: 7, d: { updates: [] } }))
+    const acked = acks(ws, 30)
+    for (let i = 0; i < 30; i++) ws.send(JSON.stringify({ op: 1 }))
+    await acked
+    expect(ws.readyState).toBe(WebSocket.OPEN)
+
+    ws.send(JSON.stringify({ op: 7, d: { updates: [] } }))
+    expect(await close).toEqual({ code: 4008, reason: 'rate limited' })
+    await vi.waitFor(() => expect(gateway.getConnectedBotCount()).toBe(0))
+  })
+
+  it('counts frames per connection', async () => {
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+    const first = await identify(TOKEN)
+    const second = await identify(TOKEN)
+    const close = closed(first.ws)
+
+    for (let i = 1; i <= FRAME_LIMIT; i++) first.ws.send(JSON.stringify({ op: 7, d: { updates: [] } }))
+    expect((await close).code).toBe(4008)
+
+    second.ws.send(JSON.stringify({ op: 1 }))
+    expect((await nextEvent(second.ws)).frame).toEqual({ op: 11 })
   })
 })
 
