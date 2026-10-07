@@ -114,8 +114,8 @@ export function renderChatMessageText(
       const resolved = resolveEmoji(match);
       if (resolved.display.type === 'svg') {
         const sizeClass = isSingleEmoji ? 'inline-emoji single' : 'inline-emoji';
-        const altRaw = resolved.shortcode || match;
-        return `<img class="${sizeClass}" src="${escapeHtml(resolved.display.content)}" alt="${escapeHtml(altRaw)}" draggable="false" />`;
+        // Alt is the source character: a copy of the rendered text yields it.
+        return `<img class="${sizeClass}" src="${escapeHtml(resolved.display.content)}" alt="${escapeHtml(match)}" draggable="false" />`;
       }
       return match;
     });

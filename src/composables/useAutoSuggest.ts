@@ -19,6 +19,8 @@ import {
   type BridgedChannelUser,
 } from '@/services/bridgedChannelUsersService';
 import { runtimeConfig } from '@/services/runtimeConfig';
+import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
+import { discordEmojiCdnUrl, discordEmojiRefFromPicked, discordEmojiToken } from '@/utils/discordEmoji';
 
 export { clearBridgedUsersCache };
 
@@ -50,6 +52,8 @@ export interface AutoSuggestConfig {
   enableMentions?: boolean;
   /** '#' suggests the current server's channels (server chat only, not DMs). */
   enableChannels?: boolean;
+  /** '/' suggests slash commands (chat mode). Off in message edits: a command acts on the composer. */
+  enableCommands?: boolean;
   maxSuggestions?: number;
 }
 
@@ -62,6 +66,83 @@ interface RichTextEditorRef {
 
 type InputElementType = HTMLTextAreaElement | HTMLInputElement | RichTextEditorRef | any;
 
+/** Viewport rect the popup anchors to: the caret line, or the input box when no caret rect exists. */
+export interface SuggestionAnchorRect {
+  left: number;
+  top: number;
+  bottom: number;
+}
+
+const POPUP_GAP = 4;
+const VIEWPORT_INSET = 16;
+
+/** DOM element of a textarea, an input, or a component ref exposing `$el` (RichTextEditor). */
+export function inputDomElement(input: InputElementType | null | undefined): HTMLElement | null {
+  if (!input) return null;
+  if (typeof HTMLElement !== 'undefined' && input instanceof HTMLElement) return input;
+  const el = (input as RichTextEditorRef).$el;
+  return el && typeof el.getBoundingClientRect === 'function' ? el : null;
+}
+
+/**
+ * Caret rect of a contenteditable `el` when the selection sits inside it,
+ * else the box of `el`. Textareas and inputs expose no caret rect; x is
+ * estimated at 8 px per character of the text before the caret.
+ */
+export function suggestionAnchorRect(el: HTMLElement): SuggestionAnchorRect {
+  const box = el.getBoundingClientRect();
+
+  if ('selectionStart' in el && typeof (el as HTMLTextAreaElement).selectionStart === 'number') {
+    const field = el as HTMLTextAreaElement;
+    const before = (field.value ?? '').slice(0, field.selectionStart ?? 0);
+    return { left: Math.max(box.left, box.left + before.length * 8 - 100), top: box.top, bottom: box.bottom };
+  }
+
+  const selection = typeof window !== 'undefined' ? window.getSelection() : null;
+  if (selection && selection.rangeCount > 0) {
+    const range = selection.getRangeAt(0);
+    if (el.contains(range.startContainer)) {
+      const caret = range.cloneRange();
+      caret.collapse(true);
+      // A collapsed range at a text-node boundary can report an empty rect;
+      // getClientRects()[0] then carries the line box.
+      const rects = caret.getClientRects?.();
+      const rect = rects && rects.length > 0 ? rects[0] : caret.getBoundingClientRect?.();
+      if (rect && (rect.top !== 0 || rect.bottom !== 0 || rect.left !== 0)) {
+        return { left: rect.left, top: rect.top, bottom: rect.bottom };
+      }
+    }
+  }
+
+  return { left: box.left, top: box.top, bottom: box.bottom };
+}
+
+/**
+ * Popup origin in viewport px: below the anchor, above it when the space
+ * below cannot hold the popup, on the roomier side when neither can.
+ * x starts 12 px left of the anchor and is clamped to the viewport inset.
+ */
+export function placeSuggestionPopup(
+  anchor: SuggestionAnchorRect,
+  popup: { width: number; height: number },
+  viewport: { width: number; height: number },
+): SuggestionPosition {
+  const below = anchor.bottom + POPUP_GAP;
+  const above = anchor.top - POPUP_GAP - popup.height;
+  const fitsBelow = below + popup.height <= viewport.height - VIEWPORT_INSET;
+  const fitsAbove = above >= VIEWPORT_INSET;
+
+  let y: number;
+  if (fitsBelow) y = below;
+  else if (fitsAbove) y = above;
+  else y = viewport.height - anchor.bottom >= anchor.top ? below : Math.max(VIEWPORT_INSET, above);
+
+  const maxX = viewport.width - popup.width - VIEWPORT_INSET;
+  const x = Math.max(VIEWPORT_INSET, Math.min(anchor.left - 12, maxX));
+
+  return { x, y };
+}
+
 export function useAutoSuggest(
   inputElement: Ref<InputElementType | null>,
   getCurrentText?: () => string,
@@ -72,11 +153,13 @@ export function useAutoSuggest(
   const serverChannelStore = useServerChannelStore();
   const { hasCurrentUserPermission, Permission, isCurrentUserServerOwner } = useServerPermissions();
   const { searchEmojis: searchUnifiedEmojis, isLoaded: unifiedLoaded, isNativePack, getSvgUrl } = useUnifiedEmoji();
+  const { frequentEmojis } = useFrequentEmojis();
 
   const finalConfig = {
     enableEmojis: true,
     enableMentions: true,
     enableChannels: false,
+    enableCommands: true,
     maxSuggestions: 10,
     ...config,
     mode: config.mode || 'chat'
@@ -131,7 +214,7 @@ export function useAutoSuggest(
     });
   }
 
-  if (finalConfig.mode === 'chat') {
+  if (finalConfig.mode === 'chat' && finalConfig.enableCommands) {
     triggers.push({
       char: '/',
       pattern: /^\/([a-zA-Z]*)$/,
@@ -180,6 +263,26 @@ export function useAutoSuggest(
           emoji: emoji
         };
       }));
+    }
+
+    // Discord emoji have no emojis row; the recent list is their only source.
+    // They insert as `:discord:[a:]<name>:<id>:`.
+    const seenDiscord = new Set<string>();
+    for (const recent of frequentEmojis.value) {
+      const ref = discordEmojiRefFromPicked(recent);
+      if (!ref || !ref.name.toLowerCase().includes(query)) continue;
+      const token = discordEmojiToken(ref);
+      if (seenDiscord.has(token)) continue;
+      seenDiscord.add(token);
+      const url = discordEmojiCdnUrl(ref);
+      suggestions.push({
+        id: token,
+        name: ref.name,
+        display_name: ref.name,
+        url,
+        server_name: 'Discord',
+        emoji: { id: token, name: ref.name, url, domain: 'discord.com' },
+      });
     }
 
     // Unified pack: twemoji or native, per pack selection.
@@ -663,18 +766,8 @@ export function useAutoSuggest(
   };
 
   const calculateCursorPosition = (): SuggestionPosition => {
-    if (!inputElement.value) {
-      return { x: 0, y: 0 };
-    }
-
-    const input = inputElement.value;
-    let inputRect: DOMRect;
-    
-    if ('getBoundingClientRect' in input) {
-      inputRect = input.getBoundingClientRect();
-    } else if (input.$el) {
-      inputRect = input.$el.getBoundingClientRect();
-    } else {
+    const el = inputDomElement(inputElement.value);
+    if (!el) {
       return { x: 0, y: 0 };
     }
 
@@ -684,62 +777,14 @@ export function useAutoSuggest(
     const itemHeight = 44;
     const maxHeight = 240;
     const padding = 8;
-    
-    const popupHeight = Math.min(
-      headerHeight + (suggestionCount * itemHeight) + padding,
-      maxHeight
-    );
-
-    let x = inputRect.left;
-    let y = inputRect.bottom + 8; // below the input
-
-    // Chat input sits at the bottom of the screen; the popup goes above it.
-    if (finalConfig.mode === 'chat') {
-      y = inputRect.top - popupHeight - 8; // 8px margin
-      
-      try {
-        if ('selectionStart' in input && input.selectionStart !== null) {
-          const cursorPos = input.selectionStart;
-          const textBeforeCursor = input.value?.substring(0, cursorPos) || '';
-          
-          // Character width estimated at 8px; no text measurement.
-          const estimatedCursorX = textBeforeCursor.length * 8;
-          x = Math.max(inputRect.left, inputRect.left + estimatedCursorX - 100); // centers the popup on the cursor
-        } else if ('getCursorPosition' in input && typeof input.getCursorPosition === 'function') {
-          // RichTextEditor exposes the caret offset instead of selectionStart.
-          const cursorPos = input.getCursorPosition();
-          const currentText = getCurrentText ? getCurrentText() : '';
-          const textBeforeCursor = currentText.substring(0, cursorPos);
-          
-          const estimatedCursorX = textBeforeCursor.length * 8;
-          x = Math.max(inputRect.left, inputRect.left + estimatedCursorX - 100);
-        }
-      } catch (error) {
-        // x keeps the input's left edge.
-        debug.debug('Cursor position detection failed, using default positioning');
-      }
-    }
-
-    // Clamp to the viewport, 16px inset.
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
+    const popupHeight = Math.min(headerHeight + (suggestionCount * itemHeight) + padding, maxHeight);
     const popupWidth = state.value.triggerType === 'command' ? 380 : 280;
 
-    if (x + popupWidth > viewportWidth) {
-      x = viewportWidth - popupWidth - 16;
-    }
-    
-    x = Math.max(16, x);
-
-    if (y < 16) {
-      y = inputRect.bottom + 8;
-    }
-    
-    if (y + popupHeight > viewportHeight - 16) {
-      y = inputRect.top - popupHeight - 8;
-    }
-
-    return { x, y };
+    return placeSuggestionPopup(
+      suggestionAnchorRect(el),
+      { width: popupWidth, height: popupHeight },
+      { width: window.innerWidth, height: window.innerHeight },
+    );
   };
 
   const dismissActiveCommand = () => {
@@ -915,8 +960,11 @@ export function useAutoSuggest(
         insertText = `#${suggestion.name} `;
       } else if (state.value.triggerType === 'emoji') {
         // Unified emojis insert the unicode character; custom server emojis keep :shortcode:.
+        const discord = discordEmojiRefFromPicked(suggestion.emoji);
         if (suggestion.emoji?.source === 'unified' && (suggestion.native || suggestion.emoji?.native)) {
           insertText = (suggestion.native || suggestion.emoji.native) + ' ';
+        } else if (discord) {
+          insertText = `:${discordEmojiToken(discord)}: `;
         } else {
           insertText = `:${suggestion.name}: `;
         }
@@ -1037,15 +1085,17 @@ export function useAutoSuggest(
     }
   });
 
+  // Capture phase: scroll events of inner scrollers (the message list) do not
+  // bubble to window.
   if (typeof window !== 'undefined') {
     window.addEventListener('resize', updatePosition);
-    window.addEventListener('scroll', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
   }
 
   onScopeDispose(() => {
     if (typeof window !== 'undefined') {
       window.removeEventListener('resize', updatePosition);
-      window.removeEventListener('scroll', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
     }
   });
 

@@ -1,8 +1,13 @@
 import type { Message } from '@/types'
 
-/** Message authored via an external bridge (Discord, etc.), not a native Harmony user row. */
+/**
+ * Message authored via an external bridge (Discord, etc.), not a native Harmony user row.
+ * bridge_source 'harmony' marks a Harmony-origin message the bridge relayed out
+ * (bot-gateway BotRestAPI BRIDGE_MAPPING_KEYS); its author is the Harmony user.
+ */
 export function isBridgedAuthorMessage(message: Message | null | undefined): boolean {
-  return !!(message?.metadata?.discord_user || message?.metadata?.bridge_source)
+  const source = message?.metadata?.bridge_source
+  return !!(message?.metadata?.discord_user || (source && source !== 'harmony'))
 }
 
 export function getBridgeSource(message: Message | null | undefined): string | null {
