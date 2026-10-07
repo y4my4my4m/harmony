@@ -519,8 +519,7 @@ SELECT throws_ok(
 SELECT set_config('request.jwt.claim.role', '', true);
 
 -- INSTANCE WEBRTC SETTINGS ------------------------------------------------------------
--- The row carries livekit_api_secret. Non-admin clients read the sanitised
--- projection through get_livekit_config(); the table itself is admin only.
+-- The row carries livekit_api_secret; the table is admin only.
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT is((SELECT livekit_api_secret FROM public.instance_webrtc_settings),
           'livekit-secret-value',

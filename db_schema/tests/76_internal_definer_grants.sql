@@ -17,12 +17,10 @@ SELECT p.oid::regprocedure AS fn, p.proname, p.prosecdef
                      'create_notification_structured',
                      'create_notification_with_spam_prevention', 'disable_federation_triggers',
                      'enable_conversation_encryption', 'enable_federation_triggers',
-                     'end_user_session', 'generate_livekit_token', 'get_custom_status',
-                     'get_livekit_config', 'get_timeline', 'get_unused_prekey',
-                     'get_user_prekey_bundle', 'get_voice_channel_participants', 'has_muted',
-                     'is_author_suspended', 'is_muted_by', 'record_metric',
-                     'reset_user_encryption', 'rotate_prekeys', 'update_session_context',
-                     'update_session_heartbeat');
+                     'generate_livekit_token', 'get_custom_status', 'get_timeline',
+                     'get_unused_prekey', 'get_user_prekey_bundle',
+                     'get_voice_channel_participants', 'has_muted', 'is_author_suspended',
+                     'is_muted_by', 'record_metric', 'reset_user_encryption', 'rotate_prekeys');
 
 SELECT is_empty(
     $q$SELECT fn FROM drifted_fn
