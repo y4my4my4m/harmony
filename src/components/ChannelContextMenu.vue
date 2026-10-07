@@ -12,6 +12,13 @@
       <span>Invite people</span>
     </div>
     
+    <div class="context-menu-item" data-testid="copy-channel-id" @click="copyChannelId" v-if="channel">
+      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="currentColor" d="M5.88,21L6.6,17H3.6L3.96,15H6.96L8.04,9H5.04L5.4,7H8.4L9.12,3H11.12L10.4,7H16.4L17.12,3H19.12L18.4,7H21.4L21.04,9H18.04L16.96,15H19.96L19.6,17H16.6L15.88,21H13.88L14.6,17H8.6L7.88,21H5.88M10.04,9L8.96,15H14.96L16.04,9H10.04Z"/>
+      </svg>
+      <span>{{ t('channel.copyId') }}</span>
+    </div>
+
     <div class="context-menu-divider" v-if="canManageChannel"></div>
     
     <div class="context-menu-item" @click="editChannel" v-if="canManageChannel">
@@ -32,7 +39,10 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useToast } from 'vue-toastification'
 import { useServerPermissions } from '@/composables/useServerPermissions'
+import { debug } from '@/utils/debug'
 import type { Channel } from '@/types'
 
 interface Props {
@@ -52,6 +62,8 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const { canManageChannels, hasCurrentUserPermission, Permission } = useServerPermissions()
+const { t } = useI18n()
+const toast = useToast()
 
 const canManageChannel = computed(() => {
   return canManageChannels.value && props.channel
@@ -63,7 +75,7 @@ const canInvite = computed(() => {
 
 const menuStyle = computed(() => {
   const menuWidth = 200
-  const menuHeight = canManageChannel.value ? 150 : 40
+  const menuHeight = canManageChannel.value ? 190 : 80
   const padding = 10
 
   let x = props.position.x
@@ -84,6 +96,19 @@ const menuStyle = computed(() => {
 const inviteUsers = () => {
   emit('invite-users')
   emit('close')
+}
+
+const copyChannelId = async () => {
+  const id = props.channel?.id
+  emit('close')
+  if (!id) return
+  try {
+    await navigator.clipboard.writeText(id)
+    toast.success(t('channel.idCopied'))
+  } catch (error) {
+    debug.error('Failed to copy channel ID:', error)
+    toast.error(t('channel.idCopyFailed'))
+  }
 }
 
 const editChannel = () => {

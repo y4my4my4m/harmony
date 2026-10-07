@@ -233,7 +233,7 @@
         </ul>
       </section>
 
-      <BridgeBotGuide v-if="detailBot.bot_type === 'bridge'" class="bridge-guide" />
+      <BridgeBotGuide v-if="detailBot.bot_type === 'bridge'" :bot-id="detailBot.id" class="bridge-guide" />
 
       <!-- Delete -->
       <section class="settings-section danger-zone">

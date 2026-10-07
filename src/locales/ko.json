@@ -379,7 +379,10 @@
       "invalidName": "채널 이름은 문자, 숫자, 하이픈만 포함할 수 있습니다",
       "limitReached": "이 서버는 최대 {max}개의 채널 한도에 도달했습니다",
       "createFailed": "채널 생성에 실패했습니다. 다시 시도해주세요."
-    }
+    },
+    "copyId": "채널 ID 복사",
+    "idCopied": "채널 ID를 복사했습니다",
+    "idCopyFailed": "채널 ID를 복사하지 못했습니다"
   },
   "message": {
     "typeMessage": "메시지 {to}",
@@ -1734,7 +1737,7 @@
       "bot": "표준",
       "botHint": "토큰으로 연결하여 게이트웨이와 REST API를 통해 동작합니다.",
       "bridge": "브리지",
-      "bridgeHint": "Harmony와 다른 플랫폼 간에 메시지를 중계합니다. 봇 페이지에 브리지 설정 가이드가 추가됩니다."
+      "bridgeHint": "Harmony와 다른 플랫폼 간에 메시지를 중계합니다. Discord는 대신 서버 설정 → Discord 브리지를 사용하세요. 전용 봇을 직접 만들고 관리합니다."
     },
     "usernameErrors": {
       "tooShort": "3자 이상 입력하세요.",
@@ -3054,6 +3057,521 @@
         "loadQueue": "검토 대기열을 불러오지 못했습니다",
         "review": "검토에 실패했습니다"
       }
+    }
+  },
+  "discordBridge": {
+    "navLabel": "Discord 브리지",
+    "title": "Discord 브리지",
+    "intro": "브리지는 이 서버의 채널과 Discord 서버의 채널을 연결합니다. 한쪽에서 보낸 메시지가 보낸 사람의 이름과 사진과 함께 다른 쪽에도 표시됩니다.",
+    "loading": "Discord 브리지를 불러오는 중…",
+    "common": {
+      "copy": "복사",
+      "copied": "복사됨",
+      "copyFailed": "복사하지 못했습니다. 텍스트를 선택해 직접 복사하세요.",
+      "retry": "다시 시도",
+      "commandLabel": "명령어"
+    },
+    "start": {
+      "title": "브리지를 어디에서 실행할까요?",
+      "needs": "연결하려는 Discord 서버에서 '서버 관리하기' 권한이 있는 Discord 계정이 필요합니다. 설정에는 10분 정도 걸립니다.",
+      "hosted": {
+        "title": "이 인스턴스에서 실행",
+        "point1": "설치할 것이 없습니다.",
+        "point2": "Discord 봇을 만들고 그 토큰을 여기에 붙여 넣습니다. 브리지는 이 인스턴스가 대신 실행합니다.",
+        "tradeoff": "이 인스턴스의 운영자가 봇 토큰을 보관하며, 봇이 볼 수 있는 모든 Discord 채널을 읽을 수 있습니다. 봇에는 브리지할 채널에만 접근 권한을 주세요.",
+        "choose": "이 인스턴스에서 실행"
+      },
+      "self": {
+        "title": "직접 실행",
+        "point1": "Discord 봇 토큰은 내가 보관합니다.",
+        "point2": "항상 켜져 있는 컴퓨터(홈 서버, VPS, Raspberry Pi 등)에서 명령어 하나(Docker)를 실행합니다.",
+        "tradeoff": "브리지는 그 컴퓨터가 켜져 있고 인터넷에 연결된 동안에만 작동합니다.",
+        "choose": "직접 실행"
+      },
+      "hostingUnavailable": "이 인스턴스는 커뮤니티를 위해 브리지를 실행하지 않으므로, 브리지는 내 컴퓨터에서 실행됩니다.",
+      "bothWays": "어느 방식이든 브리지된 채널의 메시지는 다른 메시지와 마찬가지로 이 인스턴스를 거칩니다.",
+      "presenceNote": "상태 동기화(Discord 온라인 상태)는 처음에 꺼져 있습니다. 멤버의 상태가 바뀔 때마다 업데이트를 보내므로 큰 서버에서는 계속 무거운 부하가 생깁니다. 나중에 켤 수 있습니다."
+    },
+    "steps": {
+      "navLabel": "설정 단계",
+      "navItem": "{n}단계: {name}",
+      "count": "{total}단계 중 {n}단계",
+      "doneSr": "(완료)",
+      "bot": {
+        "title": "Discord 봇 만들기"
+      },
+      "connect": {
+        "self": "브리지 시작하기",
+        "hosted": "이 인스턴스에 토큰 전달하기"
+      },
+      "check": {
+        "title": "연결 확인하기"
+      },
+      "guild": {
+        "title": "Discord 서버 선택하기"
+      },
+      "channels": {
+        "title": "채널 연결하기"
+      },
+      "options": {
+        "title": "옵션",
+        "lead": "브리지가 Discord와 Harmony 사이에서 무엇을 복사할지 선택하세요. 언제든 바꿀 수 있습니다."
+      },
+      "back": "뒤로",
+      "next": {
+        "bot": "토큰을 준비했어요",
+        "connect": {
+          "self": "명령어를 실행했어요",
+          "hosted": "다음"
+        },
+        "check": "다음",
+        "guild": "다음",
+        "channels": "다음"
+      },
+      "finish": "설정 완료",
+      "blocked": {
+        "check": "위의 모든 항목에 초록색 체크가 표시되면 계속할 수 있습니다.",
+        "guild": "계속하려면 Discord 서버를 선택하세요.",
+        "channels": "계속하려면 채널을 하나 이상 연결하세요."
+      },
+      "startOver": {
+        "prompt": "선택을 잘못하셨나요?",
+        "action": "처음부터 다시 하기"
+      }
+    },
+    "bot": {
+      "lead": "브리지는 내가 소유한 봇을 통해 Discord와 통신합니다. 봇은 Discord Developer Portal에서 한 번만 만들면 되며, 무료입니다.",
+      "portalName": "Discord Developer Portal",
+      "open": "{portal}을 열고 Discord 계정으로 로그인하세요.",
+      "newApp": "오른쪽 위의 {newApplication}을 클릭하세요. Discord에서 보일 이름(예: {example})을 입력하고, Discord 약관에 동의하는 칸을 체크한 뒤 {create}를 클릭하세요.",
+      "exampleName": "{server} Bridge",
+      "openBot": "왼쪽 메뉴에서 {bot}을 클릭하세요.",
+      "intents": "{section}까지 스크롤한 뒤 스위치를 다음과 같이 설정하세요:",
+      "switchOn": "켜기",
+      "leaveOff": "끈 상태로 두기",
+      "why": {
+        "message_content": {
+          "on": "항상 필요합니다. 이것이 없으면 브리지가 사람들이 쓴 내용을 읽을 수 없습니다.",
+          "off": "항상 필요합니다."
+        },
+        "members": {
+          "on": "멤버 목록 동기화가 켜져 있어 필요합니다.",
+          "off": "멤버 목록 동기화가 꺼져 있는 동안에는 필요 없습니다."
+        },
+        "presence": {
+          "on": "상태 동기화가 켜져 있어 필요합니다.",
+          "off": "상태 동기화가 꺼져 있는 동안에는 필요 없습니다."
+        }
+      },
+      "optionsLead": "이 두 옵션에 따라 필요한 스위치가 정해집니다. 나중에 바꿀 수 있으며, 위 목록도 함께 바뀝니다.",
+      "save": "페이지 아래쪽의 {save}를 클릭하세요.",
+      "token": "다시 {token}까지 올라가 {reset}을 클릭한 다음 {confirm}를 클릭하세요(Discord가 비밀번호나 2단계 인증 코드를 물어볼 수 있습니다). {copy}를 클릭해 토큰을 복사하세요.",
+      "secret": "토큰은 비밀번호처럼 다루세요. 토큰을 가진 사람은 누구나 봇을 조종할 수 있습니다. Discord는 토큰을 한 번만 보여 줍니다. 잃어버렸다면 Reset Token을 다시 클릭하세요.",
+      "hostedAccess": "다음 단계에서 이 페이지에 붙여 넣게 됩니다. 이 인스턴스는 토큰을 암호화해 저장하지만, 운영자는 여전히 사용할 수 있습니다."
+    },
+    "self": {
+      "lead": "브리지는 계속 켜져 있는 컴퓨터(홈 서버, VPS, Raspberry Pi 등)의 Docker에서 실행되는 작은 프로그램입니다.",
+      "docker": "Windows나 macOS에서는 {desktop}을 설치해 실행한 다음, PowerShell(Windows) 또는 터미널(macOS)에 명령어를 붙여 넣으세요. Linux에서는 {engine}을 설치하세요.",
+      "issuing": "설정 코드를 받는 중…",
+      "codeLabel": "설정 코드",
+      "codeExpires": "{count}분 후 만료 | {count}분 후 만료",
+      "codeExpired": "만료됨",
+      "newCode": "새 코드",
+      "codeOnce": "아래 명령어에 이 코드가 들어 있습니다. 브리지는 처음 시작할 때 이 서버에 로그인하기 위해 한 번만 사용합니다. 새 코드를 받으면 이전 코드는 무효가 됩니다.",
+      "expiredHelp": "이 설정 코드는 만료되었습니다. '새 코드'를 클릭한 다음 명령어를 다시 복사하세요.",
+      "getCode": "설정 코드 받기",
+      "variantLabel": "브리지 시작 방법",
+      "variant": {
+        "run": "Docker 명령어",
+        "compose": "Docker Compose"
+      },
+      "run": {
+        "copy": "이 명령어를 복사하세요:",
+        "label": "Docker 명령어",
+        "paste": "그 컴퓨터의 터미널에 붙여 넣고 Enter 키를 누르세요. 브리지가 시작되며, 재부팅 후에도 자동으로 다시 시작됩니다."
+      },
+      "compose": {
+        "copy": "빈 폴더에 docker-compose.yml로 저장하세요:",
+        "label": "docker-compose.yml",
+        "run": "그 폴더에서 터미널을 열고 {command}를 실행하세요."
+      },
+      "replaceToken": "{placeholder}를 1단계에서 복사한 봇 토큰으로 바꾸세요.",
+      "troubleTitle": "문제가 생겼나요?",
+      "troubleLogs": "브리지가 무엇을 하고 있는지 확인하기:",
+      "troubleNameInUse": "'The container name is already in use'가 표시되면: 이전 브리지를 삭제한 뒤 명령어를 다시 실행하세요.",
+      "troubleReset": "완전히 처음부터 시작하기. 브리지의 로그인 정보도 지워지므로, 그다음에 새 설정 코드를 받으세요."
+    },
+    "hosted": {
+      "lead": "1단계에서 복사한 봇 토큰을 붙여 넣으세요. 이 인스턴스는 토큰을 암호화해 저장하며, 나를 포함해 누구에게도 다시 보여 주지 않습니다.",
+      "access": "이 인스턴스의 운영자는 이 토큰을 사용할 수 있습니다. 봇에는 브리지할 Discord 채널에만 접근 권한을 주세요.",
+      "tokenLabel": "Discord 봇 토큰",
+      "tokenPlaceholder": "여기에 토큰을 붙여 넣으세요",
+      "tokenHint": "저장하면 이전에 저장한 토큰을 대체합니다.",
+      "show": "보기",
+      "hide": "숨기기",
+      "save": "토큰 저장",
+      "saving": "저장 중…",
+      "saved": "토큰을 저장했습니다. 1~2분 안에 이 인스턴스가 브리지를 시작합니다.",
+      "issue": {
+        "empty": "먼저 토큰을 붙여 넣으세요.",
+        "applicationId": "이것은 Application ID입니다. 봇 토큰이 필요합니다: Bot → Reset Token → Copy.",
+        "publicKey": "이것은 Public Key입니다. 봇 토큰이 필요합니다: Bot → Reset Token → Copy.",
+        "clientSecret": "Client Secret으로 보입니다. 봇 토큰이 필요합니다: Bot → Reset Token → Copy.",
+        "harmonyToken": "이것은 Harmony 봇 토큰입니다. Developer Portal의 Discord 봇 토큰이 필요합니다: Bot → Reset Token → Copy.",
+        "notToken": "Discord 봇 토큰이 아닌 것 같습니다. Developer Portal에서 Bot → Reset Token → Copy를 열고 값 전체를 붙여 넣으세요."
+      }
+    },
+    "check": {
+      "lead": "이 목록은 몇 초마다 자동으로 업데이트됩니다.",
+      "waiting": {
+        "self": "브리지가 연결되기를 기다리는 중입니다. 2단계의 명령어를 실행하세요. 보통 1분 안에 연결됩니다.",
+        "hosted": "이 인스턴스가 브리지를 시작하기를 기다리는 중입니다. 보통 1~2분 걸립니다."
+      },
+      "state": {
+        "ok": "완료",
+        "fail": "조치 필요",
+        "waiting": "대기 중"
+      },
+      "items": {
+        "bridge": {
+          "ok": "브리지 연결됨",
+          "fail": "브리지가 오프라인입니다",
+          "waiting": "브리지 연결을 기다리는 중"
+        },
+        "token": {
+          "ok": "Discord가 봇 토큰을 받아들였습니다",
+          "fail": "Discord가 봇 토큰을 거부했습니다",
+          "waiting": "Discord 봇 토큰"
+        },
+        "intents": {
+          "ok": "Discord 인텐트가 켜져 있습니다",
+          "fail": "Discord 인텐트 하나가 꺼져 있습니다",
+          "waiting": "Discord 인텐트"
+        },
+        "invited": {
+          "ok": "봇이 Discord 서버에 있습니다",
+          "fail": "봇이 아직 Discord 서버에 없습니다",
+          "waiting": "Discord 서버에 봇 초대"
+        },
+        "harmony": {
+          "ok": "브리지가 Harmony에 로그인했습니다",
+          "fail": "브리지가 Harmony에 로그인하지 못합니다",
+          "waiting": "브리지의 Harmony 로그인"
+        }
+      },
+      "inviteHint": "열리는 Discord 창에서 서버를 고른 다음 '승인'을 클릭하세요.",
+      "notConnecting": {
+        "title": "연결되지 않나요?",
+        "self": {
+          "docker": "그 컴퓨터에서 Docker가 실행 중인지, 명령어가 오류를 출력하지 않았는지 확인하세요.",
+          "logs": "브리지의 로그를 확인하세요:",
+          "code": "로그에 설정 코드가 잘못되었거나 만료되었다고 나오면 2단계에서 새 코드를 받아 명령어를 다시 실행하세요."
+        },
+        "hosted": {
+          "token": "2단계에서 토큰을 저장했는지 확인하세요. 다시 저장해도 문제없습니다.",
+          "host": "몇 분이 지나도 아무 일도 없다면 이 인스턴스의 브리지 서비스가 중단되었을 수 있습니다. 인스턴스 관리자에게 문의하세요."
+        }
+      }
+    },
+    "guild": {
+      "none": "봇이 아직 어떤 Discord 서버에도 없습니다. 초대한 뒤 돌아오세요. 몇 초 안에 이 페이지에 반영됩니다.",
+      "current": "Discord 서버 {name}을(를) 브리지하고 있습니다.",
+      "selecting": "{name} 선택 중…",
+      "onlyOne": "봇이 들어가 있는 유일한 Discord 서버라서 자동으로 선택되었습니다.",
+      "lockedHint": "다른 Discord 서버를 브리지하려면 먼저 모든 채널 연결을 삭제하세요.",
+      "pick": "봇이 여러 Discord 서버에 들어가 있습니다. 어느 서버를 브리지할까요?",
+      "chosen": "브리지됨",
+      "use": "이 서버 브리지하기",
+      "missing": "목록에 서버가 없나요?"
+    },
+    "pairs": {
+      "noGuild": "먼저 브리지할 Discord 서버를 선택하세요. 그다음 여기에 채널이 표시됩니다.",
+      "lead": "각 연결은 이곳의 채널 하나와 {guild}의 채널 하나를 이어 줍니다.",
+      "empty": "아직 연결된 채널이 없습니다.",
+      "listLabel": "연결된 채널",
+      "harmony": "Harmony",
+      "discord": "Discord",
+      "ok": "정상 작동",
+      "discordGone": "Discord 채널을 찾을 수 없음",
+      "discordGoneFix": "봇이 이 Discord 채널을 더 이상 찾지 못합니다. 채널이 삭제되었거나 봇이 접근 권한을 잃었습니다. 연결을 삭제하거나 봇에게 다시 접근 권한을 주세요.",
+      "remove": "삭제",
+      "removeLabel": "#{harmony}와 #{discord}의 연결 삭제",
+      "direction": {
+        "both": "양방향",
+        "to_harmony": "Discord → Harmony만",
+        "to_discord": "Harmony → Discord만"
+      },
+      "directionLabel": "방향",
+      "issue": {
+        "not_visible": {
+          "short": "봇이 볼 수 없음",
+          "fix": "Discord에서 {channel}을 우클릭 → 채널 편집 → 권한으로 가세요. 봇(또는 봇의 역할)을 추가하고 채널 보기와 메시지 기록 보기를 허용하세요."
+        },
+        "cannot_send": {
+          "short": "봇이 글을 쓸 수 없음",
+          "fix": "Discord에서 {channel}을 우클릭 → 채널 편집 → 권한으로 가서 봇의 메시지 보내기를 허용하세요."
+        },
+        "cannot_manage_webhooks": {
+          "short": "웹후크 권한 없음",
+          "fix": "Harmony에서 온 메시지가 보낸 사람의 이름과 사진 대신 봇의 이름으로 표시됩니다. 고치려면 {channel}의 권한에서 봇의 웹후크 관리를 허용하세요."
+        }
+      },
+      "match": {
+        "title": "이름이 같은 채널",
+        "lead": "이 채널들은 양쪽에서 이름이 같습니다. 한 번에 모두 양방향으로 연결할까요?",
+        "action": "이 채널 연결하기 | 채널 {count}개 연결하기",
+        "done": "채널 {count}개를 연결했습니다 | 채널 {count}개를 연결했습니다",
+        "failed": "연결 {count}개가 실패했습니다. 아래에서 추가하세요. | 연결 {count}개가 실패했습니다. 아래에서 추가하세요."
+      },
+      "addTitle": "연결 추가",
+      "harmonyChannel": "Harmony 채널",
+      "discordChannel": "Discord 채널",
+      "choose": "선택…",
+      "optionWithIssue": "#{name} ({issue})",
+      "noHarmonyLeft": "이 서버의 모든 텍스트 채널이 이미 연결되어 있습니다.",
+      "noDiscordLeft": "봇이 {guild}에서 연결되지 않은 텍스트 채널을 찾지 못했습니다. Discord에서 봇에게 다른 채널의 접근 권한을 주세요. 이 목록은 자동으로 업데이트됩니다.",
+      "validation": {
+        "both": "Harmony 채널과 Discord 채널을 선택하세요.",
+        "blocked": "봇이 아직 {channel}을 사용할 수 없습니다. 위의 설명대로 먼저 Discord에서 권한을 고치세요."
+      },
+      "add": "연결 추가",
+      "fromDiscord": "Discord에서 {command}로 연결할 수도 있습니다. 이때 Harmony 채널 ID가 필요합니다. 여기에서 채널을 우클릭하고 {copyId}를 선택하세요."
+    },
+    "settings": {
+      "needsIntent": "Developer Portal에서 {intent}가 필요합니다.",
+      "sync_member_list": {
+        "label": "멤버 목록 동기화",
+        "hint": "Discord 멤버를 이 서버의 멤버 목록에 표시합니다."
+      },
+      "sync_presence": {
+        "label": "상태 동기화",
+        "hint": "Discord 멤버가 온라인인지 표시합니다. 기본적으로 꺼져 있습니다. 큰 서버에서는 브리지와 이 인스턴스에 끊임없이 업데이트가 쏟아집니다."
+      },
+      "sync_reactions": {
+        "label": "반응 동기화",
+        "hint": "이모지 반응을 양방향으로 복사합니다."
+      },
+      "sync_edits": {
+        "label": "수정 동기화",
+        "hint": "메시지가 수정되면 반대쪽의 복사본도 업데이트합니다."
+      },
+      "sync_deletes": {
+        "label": "삭제 동기화",
+        "hint": "메시지가 삭제되면 반대쪽의 복사본도 삭제합니다."
+      }
+    },
+    "status": {
+      "online": "브리지가 온라인입니다",
+      "degraded": "브리지가 온라인이지만 문제가 있습니다",
+      "offline": "브리지가 오프라인입니다",
+      "never": "브리지가 아직 연결되지 않았습니다",
+      "lastSeen": "마지막 응답: {ago}",
+      "neverSeen": "아직 응답이 없습니다.",
+      "runs": "실행 위치",
+      "mode": {
+        "self": "내 컴퓨터",
+        "hosted": "이 인스턴스"
+      },
+      "discordServer": "Discord 서버",
+      "discordBot": "Discord 봇",
+      "version": "브리지 버전",
+      "none": "선택 안 됨",
+      "unknown": "아직 보고되지 않음",
+      "showSetup": "설정 단계 보기",
+      "problemsTitle": "해결할 문제 {count}개 | 해결할 문제 {count}개",
+      "pairsTitle": "연결된 채널",
+      "settingsTitle": "옵션",
+      "maintainTitle": "유지 관리",
+      "maintain": {
+        "self": "브리지를 다른 컴퓨터로 옮기거나 다시 설치하기",
+        "hosted": "Discord 봇 토큰 바꾸기"
+      },
+      "disconnectTitle": "브리지 연결 끊기",
+      "disconnectBody": {
+        "self": "브리지를 멈추고 모든 채널 연결과 브리지의 Harmony 봇을 삭제합니다. 이미 브리지된 메시지는 남습니다. Discord 봇은 삭제되지 않으니, 필요 없으면 Developer Portal에서 삭제하세요.",
+        "hosted": "브리지를 멈추고 모든 채널 연결과 브리지의 Harmony 봇을 삭제하며, 저장된 Discord 토큰도 지웁니다. 이미 브리지된 메시지는 남습니다. Discord 봇은 삭제되지 않으니, 필요 없으면 Developer Portal에서 삭제하세요."
+      },
+      "disconnect": "브리지 연결 끊기",
+      "disconnected": "브리지 연결을 끊었습니다",
+      "finished": "브리지 설정이 끝났습니다."
+    },
+    "confirm": {
+      "disconnect": {
+        "title": "브리지 연결을 끊을까요?",
+        "message": "브리지가 즉시 멈추고 모든 채널 연결이 삭제됩니다. 되돌릴 수 없으며, 다시 브리지하려면 처음부터 설정해야 합니다.",
+        "button": "연결 끊기"
+      },
+      "startOver": {
+        "title": "처음부터 다시 할까요?",
+        "message": "설정 중이던 브리지를 삭제하고 다시 선택할 수 있게 합니다.",
+        "button": "처음부터 다시 하기"
+      },
+      "selfNote": "컴퓨터에서 실행 중인 프로그램도 멈추세요: {command}"
+    },
+    "problems": {
+      "listLabel": "문제",
+      "aChannel": "어떤 채널",
+      "yourServer": "내 Discord 서버",
+      "bridge_offline": {
+        "title": "브리지가 오프라인입니다.",
+        "fixSelf": "브리지를 실행하는 컴퓨터가 켜져 있고 Docker가 실행 중인지 확인한 다음, 아래 첫 번째 명령어로 브리지를 시작하세요. 다시 멈추면 두 번째 명령어로 원인을 볼 수 있습니다.",
+        "fixHosted": "지금 이 인스턴스가 브리지를 실행하고 있지 않습니다. 몇 분 기다려 보고, 계속 오프라인이면 인스턴스 관리자에게 문의하세요."
+      },
+      "discord_token_invalid": {
+        "title": "Discord가 봇 토큰을 거부했습니다.",
+        "fixSelf": "Developer Portal에서 애플리케이션 → Bot → Reset Token을 열고 새 토큰을 복사하세요. 아래 명령어로 이전 브리지를 삭제한 다음, 새 토큰으로 설정 명령어를 다시 실행하세요. 브리지는 Harmony 로그인 정보를 기억합니다.",
+        "fixHosted": "Developer Portal에서 애플리케이션 → Bot → Reset Token을 열고, 새 토큰을 복사해 여기에 저장하세요."
+      },
+      "intent_missing": {
+        "title": "Discord가 {intent}를 거부했습니다.",
+        "fixSelf": "Developer Portal에서 애플리케이션 → Bot → Privileged Gateway Intents를 열고, {intent}를 켠 다음 Save Changes를 클릭하세요. 그다음 아래 명령어로 브리지를 다시 시작하세요.",
+        "fixHosted": "Developer Portal에서 애플리케이션 → Bot → Privileged Gateway Intents를 열고, {intent}를 켠 다음 Save Changes를 클릭하세요. 브리지는 다시 연결될 때(몇 분 안에) 이를 반영합니다."
+      },
+      "bot_not_in_guild": {
+        "title": "봇이 {guild}에 없습니다.",
+        "fix": "'봇을 Discord 서버에 초대하기'를 사용하거나(그 서버에서 '서버 관리하기' 권한이 필요합니다) 다른 Discord 서버를 선택하세요."
+      },
+      "no_guild": {
+        "title": "봇이 아직 어떤 Discord 서버에도 없습니다.",
+        "fix": "'봇을 Discord 서버에 초대하기'를 사용하고, 열리는 Discord 창에서 서버를 고르세요. 그 서버에서 '서버 관리하기' 권한이 필요합니다."
+      },
+      "guild_not_selected": {
+        "title": "아직 Discord 서버를 선택하지 않았습니다.",
+        "fix": "브리지할 Discord 서버를 선택하세요."
+      },
+      "channel_not_visible": {
+        "title": "봇이 {channel}을 볼 수 없습니다.",
+        "fix": "Discord에서 {channel}을 우클릭 → 채널 편집 → 권한으로 가세요. 봇(또는 봇의 역할)을 추가하고 채널 보기와 메시지 기록 보기를 허용하세요."
+      },
+      "cannot_send": {
+        "title": "봇이 {channel}에 글을 쓸 수 없습니다.",
+        "fix": "Discord에서 {channel}을 우클릭 → 채널 편집 → 권한으로 가서 봇의 메시지 보내기를 허용하세요."
+      },
+      "cannot_manage_webhooks": {
+        "title": "봇이 {channel}에서 웹후크를 관리할 수 없습니다.",
+        "fix": "Harmony에서 온 메시지가 보낸 사람의 이름과 사진 대신 봇의 이름으로 표시됩니다. 고치려면 채널 권한에서 봇의 웹후크 관리를 허용하세요."
+      },
+      "harmony_auth_failed": {
+        "title": "브리지가 더 이상 Harmony에 로그인하지 못합니다.",
+        "fixSelf": "아래 명령어로 브리지를 초기화한 다음, 새 설정 코드로 설정 명령어를 다시 실행하세요.",
+        "fixHosted": "인스턴스 쪽 문제입니다. 인스턴스 관리자에게 문의하세요. 계속 실패하면 아래에서 브리지 연결을 끊고 다시 설정하세요."
+      },
+      "harmony_channel_missing": {
+        "title": "연결된 Harmony 채널이 더 이상 존재하지 않습니다.",
+        "fix": "연결된 채널에서 그 연결을 삭제하세요."
+      },
+      "harmony_channel_encrypted": {
+        "title": "{channel}은 종단 간 암호화되어 있어 브리지가 읽을 수 없습니다.",
+        "fix": "그 연결을 삭제하고, 대신 종단 간 암호화가 없는 채널을 연결하세요."
+      },
+      "rate_limited": {
+        "title": "Discord가 브리지의 속도를 제한하고 있습니다.",
+        "fix": "따로 할 일은 없습니다. 메시지가 늦게 도착할 뿐 사라지지 않습니다. 자주 발생하면 상태 동기화나 멤버 목록 동기화를 끄세요."
+      },
+      "discord_unreachable": {
+        "title": "브리지가 Discord에 연결하지 못합니다.",
+        "fixSelf": "브리지를 실행하는 컴퓨터가 인터넷에 연결되어 있는지 확인하세요. Discord 자체에 장애가 있다면 복구된 뒤 브리지가 다시 연결합니다.",
+        "fixHosted": "Discord에 장애가 있거나 이 인스턴스에 네트워크 문제가 있을 수 있습니다. 브리지는 계속 재시도합니다. 오래 지속되면 인스턴스 관리자에게 문의하세요."
+      },
+      "harmony_unreachable": {
+        "title": "브리지가 이 Harmony 인스턴스에 연결하지 못합니다.",
+        "fixSelf": "브리지를 실행하는 컴퓨터에서 {url}을 열 수 있는지 확인하세요. 브리지는 계속 재시도합니다.",
+        "fixHosted": "인스턴스 쪽 문제이며, 브리지는 계속 재시도합니다. 오래 지속되면 인스턴스 관리자에게 문의하세요."
+      },
+      "unknown": {
+        "title": "브리지가 문제를 보고했습니다({code}).",
+        "fixSelf": "자세한 내용은 브리지 로그에 있습니다:",
+        "fixHosted": "몇 분 안에 사라지지 않으면 인스턴스 관리자에게 문의하세요."
+      }
+    },
+    "actions": {
+      "invite": "봇을 Discord 서버에 초대하기",
+      "openPortal": "Developer Portal 열기",
+      "turnOff": "'{setting}' 끄기",
+      "go": {
+        "connect": {
+          "self": "설정 명령어 보기",
+          "hosted": "토큰 바꾸기"
+        },
+        "guild": {
+          "self": "Discord 서버 선택하기",
+          "hosted": "Discord 서버 선택하기"
+        },
+        "channels": {
+          "self": "연결된 채널로 이동",
+          "hosted": "연결된 채널로 이동"
+        }
+      }
+    },
+    "upgrade": {
+      "title": "새 Discord 브리지로 업그레이드",
+      "body": "이 서버는 이전 Discord 브리지를 사용하고 있습니다. 새 브리지는 이 페이지에서 모두 설정하고, 스스로 상태를 점검하며, 설정 파일 대신 여기에서 채널을 연결할 수 있습니다. 전환하기 전까지 이전 브리지는 계속 작동합니다.",
+      "doubleRelay": "새 브리지가 작동하면 이전 브리지 프로그램을 멈추세요. 그러지 않으면 모든 메시지가 두 번씩 복사됩니다."
+    },
+    "legacy": {
+      "title": "이전 브리지 설정(v1)",
+      "lead": "설정 파일을 읽는 이전 harmony-discord-bridge 프로그램용입니다.",
+      "pairingCode": "페어링 코드",
+      "serverId": "Harmony 서버 ID",
+      "coLocated": "이전 브리지가 이 Harmony 인스턴스와 같은 머신에서 실행됨",
+      "configHint": "브리지 폴더에 {file}로 저장하고, 토큰과 채널 ID를 채운 다음 {command}를 실행하세요.",
+      "configLabel": "bridge-config.yml",
+      "download": "다운로드",
+      "regenerate": "새 페어링 코드",
+      "regenerated": "새 페어링 코드를 만들었습니다",
+      "intents": "이전 브리지의 Discord 인텐트: Message Content는 필수, Server Members는 멤버 목록을 동기화할 때만, Presence는 상태 동기화가 켜져 있을 때만 필요합니다."
+    },
+    "errors": {
+      "unavailable": "이 인스턴스에서는 아직 새 Discord 브리지를 사용할 수 없습니다. 관리자가 Harmony를 업데이트해야 합니다.",
+      "load": "Discord 브리지를 불러오지 못했습니다.",
+      "permission": "이 작업을 하려면 이 서버에서 '서버 관리하기' 권한이 필요합니다.",
+      "hostingOff": "이 인스턴스는 지금 커뮤니티를 위해 브리지를 실행하지 않습니다. 대신 '직접 실행'을 선택하세요.",
+      "hostingFull": "이 인스턴스는 허용된 수만큼 브리지를 이미 실행하고 있습니다. 대신 '직접 실행'을 선택하거나 인스턴스 관리자에게 문의하세요.",
+      "alreadyExists": "이미 존재합니다. 페이지를 새로 고치면 보입니다.",
+      "create": "브리지를 만들지 못했습니다. 다시 시도하세요.",
+      "setupCode": "설정 코드를 받지 못했습니다. 다시 시도하세요.",
+      "saveToken": "토큰을 저장하지 못했습니다. 다시 시도하세요.",
+      "setGuild": "그 Discord 서버를 선택하지 못했습니다. 봇이 아직 그 서버에 있는지 확인한 뒤 다시 시도하세요.",
+      "pair": "이 채널들을 연결하지 못했습니다. 다시 시도하세요.",
+      "unpair": "연결을 삭제하지 못했습니다. 다시 시도하세요.",
+      "settings": "옵션을 저장하지 못했습니다. 다시 시도하세요.",
+      "delete": "브리지 연결을 끊지 못했습니다. 다시 시도하세요.",
+      "generic": "문제가 발생했습니다. 다시 시도하세요."
+    },
+    "time": {
+      "secondsAgo": "방금 | {count}초 전 | {count}초 전",
+      "minutesAgo": "{count}분 전 | {count}분 전",
+      "hoursAgo": "{count}시간 전 | {count}시간 전",
+      "daysAgo": "{count}일 전 | {count}일 전"
+    },
+    "botGuide": {
+      "title": "Discord 브리지",
+      "managed": "이 봇은 {server}의 Discord 브리지입니다. 설정과 관리는 그곳에서 하므로 여기서 설정할 것은 없습니다.",
+      "aServer": "내 서버 중 하나",
+      "openSettings": "브리지 설정 열기",
+      "unmanaged": "Discord 브리지는 서버 설정(서버 설정 → Discord 브리지)에서 설정합니다. 그 페이지가 브리지의 봇을 대신 만들고 관리하므로 여기서 봇을 만들 필요가 없습니다.",
+      "legacyTitle": "이전 브리지(v1) 수동 설정",
+      "legacyLead": "설정 파일을 읽는 이전 harmony-discord-bridge 프로그램 전용입니다.",
+      "harmonyPermissions": "메시지 읽기와 메시지 보내기 권한으로 이 봇을 서버에 추가하세요(/bridge clone-server에는 채널 관리 권한도 필요).",
+      "intents": "Discord 인텐트: {messageContent}는 필수, {members}는 브리지가 멤버 목록을 동기화할 때만, {presence}는 상태 동기화가 켜져 있을 때만 필요합니다.",
+      "invite": "Discord 애플리케이션 ID(General Information → Application ID)를 붙여 넣으면 초대 링크가 만들어집니다.",
+      "applicationId": "Discord Application ID"
+    },
+    "admin": {
+      "title": "Discord 브리지 호스팅",
+      "lead": "서버 관리자가 Discord 브리지에 '이 인스턴스에서 실행'을 선택할 수 있게 합니다. 관리자가 자신의 Discord 봇 토큰을 붙여 넣으면 이 인스턴스가 브리지를 실행합니다.",
+      "toggle": "커뮤니티를 위해 Discord 브리지 실행",
+      "toggleHint": "각 커뮤니티의 Discord 봇 토큰을 내가 보관합니다. 토큰이 있으면 그 봇이 볼 수 있는 모든 Discord 채널에 접근할 수 있습니다.",
+      "limit": "호스팅할 브리지 최대 개수",
+      "limitHint": "이 수에 도달하면 새 호스팅 브리지는 거부됩니다. 기존 브리지는 계속 실행됩니다.",
+      "limitInvalid": "0 이상의 정수를 입력하세요.",
+      "note": "켜기만 해서는 선택지가 제공될 뿐입니다. 이 인스턴스 옆에서 브리지 호스트 서비스({service})도 실행해야 합니다. {docs}를 참고하세요.",
+      "docs": "셀프 호스팅 가이드",
+      "save": "호스팅 설정 저장",
+      "saving": "저장 중…",
+      "saved": "브리지 호스팅 설정을 저장했습니다",
+      "saveFailed": "브리지 호스팅 설정을 저장하지 못했습니다",
+      "loadFailed": "브리지 호스팅 설정을 불러오지 못했습니다."
     }
   }
 }
