@@ -12,7 +12,6 @@
         :fallback-src="bannerFullSize"
         :width="BANNER_BOX.width"
         :height="BANNER_BOX.height"
-        expandable
         @failed="bannerFailed = true"
       />
       <div class="server-card__banner-overlay"></div>
@@ -25,7 +24,6 @@
           :alt="`${server.name} icon`"
           size="lg"
           shape="big-rounded"
-          expandable
           @error="handleImageError"
         />
         <span

@@ -203,6 +203,7 @@ import { useUserData } from '@/composables/useUserData';
 import { mentionDisplayDomain } from '@/utils/mentionGrammar';
 import Icon from '@/components/common/Icon.vue';
 import EncryptedGlyphPreview from '@/components/encryption/EncryptedGlyphPreview.vue';
+import { runtimeConfig } from '@/services/runtimeConfig';
 
 interface Props {
   content: MessagePart[] | string | any;
@@ -334,7 +335,7 @@ const handleMentionClick = (mention: MessagePart) => {
   }
 };
 
-const currentDomain = import.meta.env.VITE_DOMAIN as string;
+const currentDomain = runtimeConfig.domain as string;
 
 const { getUser } = useUserData();
 const mentionSuffix = (part: MessagePart): string | null => {

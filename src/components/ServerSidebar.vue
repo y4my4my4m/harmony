@@ -210,6 +210,23 @@
       </template>
       
       <div v-if="isDraggingOverBottom" class="bottom-drop-indicator"></div>
+
+      <!-- Phone widths only. Last child of the list; not a drop target, so a
+           drag over it lands at the end of the list. -->
+      <div v-if="showFundingButton" class="funding-item-wrapper">
+        <button
+          type="button"
+          class="funding-button"
+          aria-label="Instance funding"
+          @click="showFundingModal = true"
+          @mouseenter="showSidebarTooltip($event, 'Instance funding')"
+          @mouseleave="hideSidebarTooltip"
+        >
+          <svg viewBox="0 0 24 24" class="funding-icon" width="22" height="22" aria-hidden="true">
+            <path fill="currentColor" d="M12,21.35L10.55,20.03C5.4,15.36 2,12.27 2,8.5C2,5.41 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.08C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.41 22,8.5C22,12.27 18.6,15.36 13.45,20.03L12,21.35Z"/>
+          </svg>
+        </button>
+      </div>
     </div>
 
     <ServerFolderContextMenu
@@ -289,10 +306,9 @@
       @close="showInviteModal = false"
     />
 
-    <div v-if="showFundingButton || updateReady" class="fixed-footer">
+    <div v-if="updateReady" class="fixed-footer">
       <div class="separator"></div>
       <button
-        v-if="updateReady"
         type="button"
         class="update-ready-button"
         :aria-label="updateReadyLabel"
@@ -302,19 +318,6 @@
       >
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
           <path fill="currentColor" d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"/>
-        </svg>
-      </button>
-      <button
-        v-if="showFundingButton"
-        type="button"
-        class="funding-button"
-        aria-label="Instance funding"
-        @click="showFundingModal = true"
-        @mouseenter="showSidebarTooltip($event, 'Instance funding')"
-        @mouseleave="hideSidebarTooltip"
-      >
-        <svg viewBox="0 0 24 24" class="funding-icon" width="22" height="22" aria-hidden="true">
-          <path fill="currentColor" d="M12,21.35L10.55,20.03C5.4,15.36 2,12.27 2,8.5C2,5.41 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.08C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.41 22,8.5C22,12.27 18.6,15.36 13.45,20.03L12,21.35Z"/>
         </svg>
       </button>
     </div>
@@ -1161,6 +1164,13 @@ const removeServerFromFolder = async () => {
   padding-bottom: 8px;
 }
 
+/* Box mirrors .server-item-wrapper: 10px margin, 2px vertical padding. */
+.funding-item-wrapper {
+  flex-shrink: 0;
+  margin: 10px;
+  padding: 2px 0;
+}
+
 .funding-button {
   width: 48px;
   height: 48px;
@@ -1172,11 +1182,11 @@ const removeServerFromFolder = async () => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
-  margin-top: 4px;
+  transition: background 0.2s ease, border-radius 0.2s ease;
 }
 
-.funding-button:hover {
+.funding-button:hover,
+.funding-button:focus-visible {
   background: var(--harmony-primary);
   border-radius: 16px;
 }
@@ -1186,7 +1196,8 @@ const removeServerFromFolder = async () => {
   transition: color 0.2s;
 }
 
-.funding-button:hover .funding-icon {
+.funding-button:hover .funding-icon,
+.funding-button:focus-visible .funding-icon {
   color: var(--text-on-primary);
 }
 

@@ -63,12 +63,15 @@ import { ref, computed, watch, onUnmounted } from 'vue'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import { getAvatarUrl, getFullSizeAvatarUrl } from '@/utils/avatarUtils'
+import { devicePixels } from '@/utils/imageTransformUtils'
 import { imageSourceError } from '@/utils/uploadValidation'
+import { useImageCrop } from '@/composables/useImageCrop'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MediaLightbox from '@/components/common/MediaLightbox.vue'
 import CameraIcon from '@/components/icons/Camera.vue'
 
 const toast = useToast()
+const { cropImage } = useImageCrop()
 
 type AvatarSize = 'mini' | 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 type UserStatus = 'online' | 'away' | 'busy' | 'offline' | 'invisible'
@@ -82,9 +85,9 @@ interface Props {
   editable?: boolean
   interactive?: boolean
   loading?: boolean
-  // Decouples imgproxy fetch resolution from display size. A small placement
-  // (reaction tooltip) can request the pixel size already fetched elsewhere
-  // (message list uses "sm"=48px) to hit the cache instead of a new variant.
+  // Render size in device pixels, in place of the CSS box times
+  // devicePixelRatio. A small placement (reaction tooltip) requests the
+  // variant another placement already fetched (message list, "sm").
   fetchSize?: number
   /** Click opens the stored avatar in MediaLightbox; ignored for the default avatar. */
   expandable?: boolean
@@ -110,19 +113,20 @@ const imageError = ref(false)
 
 const fileInput = ref<HTMLInputElement>()
 
+// CSS box per size, px; matches the .avatar-* rules.
 const sizeMap: Record<AvatarSize, number> = {
   mini: 16,
-  xs: 24,
-  sm: 48, // Display is 40px; 48 resizes cleaner as a power of two.
-  md: 96,
-  lg: 128,
-  xl: 156,
-  '2xl': 256
+  xs: 20,
+  sm: 40,
+  md: 48,
+  lg: 64,
+  xl: 80,
+  '2xl': 128
 }
 
 const avatarUrl = computed(() => {
   if (imageError.value) return '/default_avatar.webp'
-  const pixelSize = props.fetchSize ?? (sizeMap[props.size] || 48)
+  const pixelSize = props.fetchSize ?? devicePixels(sizeMap[props.size] || 40)
   return getAvatarUrl(props.src, pixelSize)
 })
 
@@ -148,20 +152,19 @@ const handleEdit = () => {
 const handleFileSelect = async (event: Event) => {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
-  
+  target.value = ''
+
   if (file) {
     // Bucket limits apply at upload, to the original or its shrunk copy.
     const validationError = imageSourceError(file)
     if (validationError) {
       toast.error(validationError)
-      target.value = ''
       return
     }
-    
-    emit('upload', file)
+
+    const cropped = await cropImage(file, 'avatar')
+    if (cropped) emit('upload', cropped)
   }
-  
-  target.value = ''
 }
 
 // Transient imgproxy/R2 failures must not pin the avatar to the default.

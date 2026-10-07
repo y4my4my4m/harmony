@@ -4,6 +4,10 @@ import Avatar from '@/components/common/Avatar.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import { getEmojiUrl } from '@/utils/emojiCdnHelper'
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService'
+import { devicePixels } from '@/utils/imageTransformUtils'
+
+// Variant the message list fetches for its "sm" avatars (40px CSS).
+const MESSAGE_AVATAR_FETCH = devicePixels(40)
 
 interface Props {
   visible: boolean
@@ -78,7 +82,7 @@ const label = computed(() => {
       <Avatar
         :src="user.avatarUrl"
         size="xs"
-        :fetch-size="48"
+        :fetch-size="MESSAGE_AVATAR_FETCH"
         class="tooltip-avatar"
       />
       <div class="tooltip-user-text">

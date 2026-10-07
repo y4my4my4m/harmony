@@ -7,6 +7,7 @@
  * first item is the cover, the rest open in the lightbox.
  */
 import type { MediaAttachment } from '@/types'
+import { attachmentObjectPosition } from '@/utils/focalPoint'
 
 export interface ProfileMediaRow {
   id: string
@@ -31,6 +32,8 @@ export interface ProfileMediaItem {
   mimeType: string | null
   /** Seconds, when the source carries it (Mastodon `meta`). */
   duration: number | null
+  /** Tile object-position from the focal point (`meta.focus` or `focalPoint`); null when centred. */
+  objectPosition: string | null
 }
 
 export interface ProfileMediaTile {
@@ -128,6 +131,7 @@ export function normalizeAttachment(raw: unknown): ProfileMediaItem | null {
     alt: str(a.description) ?? str(a.alt) ?? str(a.altText) ?? '',
     mimeType: mime,
     duration: num(original.duration) ?? num(meta.duration) ?? num(a.duration),
+    objectPosition: attachmentObjectPosition(a),
   }
 }
 
@@ -157,10 +161,11 @@ export function normalizeContentPart(raw: unknown): ProfileMediaItem | null {
     alt: str(p.altText) ?? str(p.alt) ?? str(p.description) ?? '',
     mimeType: mime,
     duration: num(p.duration),
+    objectPosition: attachmentObjectPosition(p),
   }
 }
 
-/** Attachments first, then content file parts; a URL seen twice keeps the first entry and the first non-empty alt text. */
+/** Attachments first, then content file parts; a URL seen twice keeps the first entry and the first non-empty alt text and focus. */
 export function toProfileMediaTile(row: ProfileMediaRow): ProfileMediaTile | null {
   if (!row || typeof row.id !== 'string') return null
   const attachments = Array.isArray(row.media_attachments) ? row.media_attachments : []
@@ -180,6 +185,7 @@ export function toProfileMediaTile(row: ProfileMediaRow): ProfileMediaTile | nul
       if (!seen.alt && item.alt) seen.alt = item.alt
       if (!seen.previewUrl && item.previewUrl) seen.previewUrl = item.previewUrl
       if (seen.duration == null && item.duration != null) seen.duration = item.duration
+      if (!seen.objectPosition && item.objectPosition) seen.objectPosition = item.objectPosition
       continue
     }
     byKey.set(key, item)

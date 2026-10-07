@@ -39,10 +39,8 @@ Create a `.env` file with the following variables:
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
-# Optional: Development overrides
-VITE_DEV_MODE=true
-VITE_DEBUG_FEDERATION=true
-VITE_DEBUG_VOICE=true
+# Optional: debug.log/warn/info output in development builds
+VITE_DEBUG_LOGGING=true
 ```
 
 ## Project Structure
@@ -815,6 +813,15 @@ Each build is uploaded as one unzipped artifact named after its file:
 | `tauri.yml`, release profile | `Harmony_Windows_V1.6.5_dev-master-1a2b3c4.exe`, `Harmony_Linux_V1.6.5_dev-master-1a2b3c4.AppImage` |
 | `tauri.yml`, debug profile | `Harmony_Android_V1.6.5_debug-feat-push-1a2b3c4.apk` |
 
+`gh run download` expects zip archives and fails on these with "not a valid zip
+file". Fetch them through the API instead; each artifact downloads as the file
+itself:
+
+```bash
+gh api repos/y4my4my4m/harmony/actions/runs/<run-id>/artifacts -q '.artifacts[]|"\(.id) \(.name)"' |
+  while read -r id name; do gh api "repos/y4my4my4m/harmony/actions/artifacts/$id/zip" > "$name"; done
+```
+
 Both workflows take every name from `scripts/name-artifact.sh`: tagged
 releases with `--release`, `tauri.yml` without. The version is the one in
 `src-tauri/tauri.conf.json`, which `release.yml` stamps from the tag. The
@@ -841,6 +848,25 @@ tauri's original file name; it is signed but not compared with anything.
 
 `node --test scripts/github-release.test.mjs` runs the release scripts against
 a stand-in for the GitHub releases API; CI runs it with the unit tests.
+
+### Default instance
+
+On first launch the native clients ask which instance to connect to.
+`VITE_DEFAULT_INSTANCE_URL` pre-fills that field at build time and focuses
+Connect; the field stays editable, and the instance is still checked through
+`/api/federation/instance-info` before it is stored. Unset or empty, the field
+starts blank. A previously chosen instance takes precedence over the default.
+
+Both `tauri.yml` and `release.yml` read it from the `DEFAULT_INSTANCE_URL`
+repository variable. It is a variable, not a secret: the value ships in the
+client.
+
+```bash
+gh variable set DEFAULT_INSTANCE_URL --repo y4my4my4m/harmony --body https://har.mony.lol
+```
+
+Forks set their own variable, or leave it unset for a blank picker. For a
+local build, put `VITE_DEFAULT_INSTANCE_URL=https://your.instance` in `.env`.
 
 ### Android push
 

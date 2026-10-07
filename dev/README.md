@@ -121,8 +121,6 @@ Make sure your `.env` files are configured correctly:
 ```env
 VITE_SUPABASE_URL=http://localhost:54321
 VITE_SUPABASE_ANON_KEY=your-anon-key
-VITE_FEDERATION_BACKEND_URL=https://har.mony.local/api
-VITE_LIVEKIT_URL=wss://live.mony.local
 ```
 
 ### Federation Backend (federation-backend/.env)

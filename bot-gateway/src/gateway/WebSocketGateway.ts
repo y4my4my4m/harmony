@@ -57,6 +57,17 @@ export function sessionRevocationReason(
 // Token hashes per bot_tokens lookup; 64 hex characters each in the query string.
 const REVALIDATE_CHUNK = 50
 
+// verify_bot_token's refusals ({valid: false, error}); any other text reads as the first.
+const IDENTIFY_REFUSALS = new Set(['Invalid or expired token', 'Bot not found or inactive'])
+
+/** 4004 close reason for a token verify_bot_token refused. */
+export function identifyRefusalReason(verification: unknown): string {
+  const error = (verification as { error?: unknown } | null)?.error
+  return typeof error === 'string' && IDENTIFY_REFUSALS.has(error) ? error : 'Invalid or expired token'
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 // Bridged user info, sent by the Discord bridge.
 export interface BridgedDiscordRole {
   id: string
@@ -81,6 +92,52 @@ export interface BridgedUser {
   source: 'discord'
 }
 
+export type BridgedPresenceStatus = NonNullable<BridgedUser['presenceStatus']>
+const PRESENCE_STATUSES: ReadonlySet<string> = new Set<BridgedPresenceStatus>(['online', 'away', 'busy', 'offline'])
+const DISCORD_ID = /^[0-9]{1,20}$/
+// Discord: custom status text up to 128 characters; its emoji a custom emoji name of up to 32
+// characters or a unicode emoji sequence.
+const CUSTOM_STATUS_TEXT_MAX = 128
+const CUSTOM_STATUS_EMOJI_MAX = 64
+
+/**
+ * One BRIDGE_PRESENCE_UPDATE (op 7) entry, validated. An absent or malformed presenceStatus
+ * leaves the stored status; customStatus null clears it, absent leaves it.
+ */
+export interface PresenceDelta {
+  id: string
+  presenceStatus?: BridgedPresenceStatus
+  customStatus?: BridgedUser['customStatus']
+}
+
+/** op 7 `d.updates`, reduced to valid entries. */
+export function parsePresenceDeltas(data: unknown): PresenceDelta[] {
+  const updates = (data as { updates?: unknown } | null)?.updates
+  if (!Array.isArray(updates)) return []
+  const out: PresenceDelta[] = []
+  for (const raw of updates) {
+    if (!raw || typeof raw !== 'object') continue
+    const entry = raw as Record<string, unknown>
+    if (typeof entry.id !== 'string' || !DISCORD_ID.test(entry.id)) continue
+    const delta: PresenceDelta = { id: entry.id }
+    if (typeof entry.presenceStatus === 'string' && PRESENCE_STATUSES.has(entry.presenceStatus)) {
+      delta.presenceStatus = entry.presenceStatus as BridgedPresenceStatus
+    }
+    if (entry.customStatus === null) {
+      delta.customStatus = null
+    } else if (entry.customStatus && typeof entry.customStatus === 'object') {
+      const custom = entry.customStatus as Record<string, unknown>
+      const text = typeof custom.text === 'string' ? custom.text.slice(0, CUSTOM_STATUS_TEXT_MAX) : null
+      const emoji = typeof custom.emoji === 'string' ? custom.emoji.slice(0, CUSTOM_STATUS_EMOJI_MAX) : null
+      if (text !== null && (custom.emoji === null || custom.emoji === undefined || emoji !== null)) {
+        delta.customStatus = { text, emoji }
+      }
+    }
+    if (delta.presenceStatus !== undefined || delta.customStatus !== undefined) out.push(delta)
+  }
+  return out
+}
+
 export interface ChannelBridgeData {
   botId: string
   harmonyChannelId: string
@@ -97,6 +154,9 @@ export class WebSocketGateway {
   // Harmony channel ID -> bridged users.
   private bridgedUsersByChannel = new Map<string, BridgedUser[]>()
   private channelsByBot = new Map<string, Set<string>>()
+  // Bot ID -> Discord user ID -> the user objects of that bot's registration, one per channel
+  // list holding the user. op 7 updates these objects in place.
+  private usersByBot = new Map<string, Map<string, BridgedUser[]>>()
   
   constructor(private wss: WebSocketServer) {
     this.wss.on('connection', this.handleConnection.bind(this))
@@ -133,6 +193,12 @@ export class WebSocketGateway {
               this.handleBridgeDataRegistration(botConnection, payload.d).catch(err => {
                 console.error('Error handling bridge data registration:', err)
               })
+            }
+            break
+
+          case 7: // BRIDGE_PRESENCE_UPDATE
+            if (botConnection) {
+              this.applyBridgePresence(botConnection.botId, payload.d)
             }
             break
             
@@ -185,17 +251,17 @@ export class WebSocketGateway {
       p_token_hash: tokenHash
     })
 
-    // Close code stays 4004 either way; the WS close space has no server-fault
-    // range. The SQLSTATE only reaches the log from here.
+    // Close code stays 4004 either way; the reason tells a failed lookup from a refused token.
+    // The SQLSTATE only reaches the log from here.
     if (error) {
       console.error('verify_bot_token failed:', error.code, error.message, error.details)
-      ws.close(4004, 'Authentication failed')
+      ws.close(4004, 'Token verification unavailable')
       return null
     }
 
     if (!verification || !verification.valid) {
       console.warn('Invalid bot token attempt')
-      ws.close(4004, 'Authentication failed')
+      ws.close(4004, identifyRefusalReason(verification))
       return null
     }
     
@@ -424,66 +490,67 @@ export class WebSocketGateway {
    * Those lists are served to the frontend via `/bridged-users/:channelId` for
    * mention autosuggest, yielding fake mention pings and impersonation through
    * crafted Discord user metadata.
+   *
+   * Members: a channel's own `members` array, empty included, is its list. The root `members`
+   * list applies only to channels that carry no `members` field, and only when those channels
+   * are all in one server; a v1 bridge sends the first guild's members at the root, and the
+   * root list must not reach another guild's channels.
+   *
+   * A registration replaces the bot's previous one. An id that is not a uuid is dropped alone:
+   * in the batched lookup PostgREST would refuse the whole list (22P02). A failed lookup keeps
+   * the previous registration.
    */
   private async handleBridgeDataRegistration(botConnection: BotConnection, data: any) {
-    if (!data.channels || !Array.isArray(data.channels)) {
+    if (!data || !Array.isArray(data.channels)) {
       console.warn('Invalid bridge data registration - missing channels array')
       return
     }
-    
-    console.log('╔════════════════════════════════════════╗')
-    console.log('║   Gateway: Bridge Data Received    ║')
-    console.log('╠════════════════════════════════════════╣')
-    console.log(`║   From bot: ${botConnection.username}`)
-    console.log(`║   Channels: ${data.channels.length}`)
-    if (Array.isArray(data.members) && data.members.length > 0) {
-      console.log(`║   Shared Discord members: ${data.members.length}`)
-    }
-    
-    if (!this.channelsByBot.has(botConnection.botId)) {
-      this.channelsByBot.set(botConnection.botId, new Set())
-    }
-    const botChannels = this.channelsByBot.get(botConnection.botId)!
+    const botId = botConnection.botId
 
-    // Candidates are collected up-front so the server lookup and permission
-    // check batch into one DB round-trip instead of N. Members arrive either
-    // once at the root (guild-wide) or per-channel (legacy).
     const sharedMembers: BridgedUser[] = Array.isArray(data.members) ? data.members as BridgedUser[] : []
-    const candidates: Array<{ harmonyChannelId: string; members: BridgedUser[] }> = []
+    const candidates: Array<{ harmonyChannelId: string; members: BridgedUser[] | null }> = []
+    let rejectedCount = 0
     for (const channelData of data.channels) {
-      const { harmonyChannelId, members } = channelData
-      if (typeof harmonyChannelId !== 'string' || harmonyChannelId.length === 0) continue
-      const channelMembers = Array.isArray(members) && members.length > 0 ? members as BridgedUser[] : sharedMembers
-      candidates.push({ harmonyChannelId, members: channelMembers })
+      const harmonyChannelId = channelData?.harmonyChannelId
+      if (typeof harmonyChannelId !== 'string' || !UUID.test(harmonyChannelId)) {
+        console.warn(`Bridge data from bot ${botId}: harmonyChannelId ${JSON.stringify(harmonyChannelId)} is not a uuid - dropping`)
+        rejectedCount++
+        continue
+      }
+      const members = Array.isArray(channelData.members) ? channelData.members as BridgedUser[] : null
+      candidates.push({ harmonyChannelId: harmonyChannelId.toLowerCase(), members })
     }
-
-    if (candidates.length === 0) {
-      console.log('╚════════════════════════════════════════╝')
-      return
-    }
-
-    // Resolve channel → server_id in one batch.
-    const { data: channelRows } = await supabase
-      .from('channels')
-      .select('id, server_id')
-      .in('id', candidates.map(c => c.harmonyChannelId))
 
     const channelServerMap = new Map<string, string>()
-    for (const row of (channelRows || []) as Array<{ id: string; server_id: string | null }>) {
-      if (row.server_id) channelServerMap.set(row.id, row.server_id)
+    if (candidates.length > 0) {
+      const { data: channelRows, error } = await supabase
+        .from('channels')
+        .select('id, server_id')
+        .in('id', candidates.map(c => c.harmonyChannelId))
+      if (error || !Array.isArray(channelRows)) {
+        console.error(`Bridge data from bot ${botId}: channels lookup failed:`, error?.message)
+        return
+      }
+      for (const row of channelRows as Array<{ id: string; server_id: string | null }>) {
+        if (row.server_id) channelServerMap.set(row.id, row.server_id)
+      }
     }
 
     // Installations of this bot, every column: see loadInstall().
     const candidateServerIds = Array.from(new Set(channelServerMap.values()))
     const installByServer = new Map<string, InstallRow>()
     if (candidateServerIds.length > 0) {
-      const { data: permRows } = await supabase
+      const { data: permRows, error } = await supabase
         .from('bot_server_permissions')
         .select('*')
-        .eq('bot_id', botConnection.botId)
+        .eq('bot_id', botId)
         .eq('is_active', true)
         .in('server_id', candidateServerIds)
-      for (const row of (permRows || []) as InstallRow[]) {
+      if (error || !Array.isArray(permRows)) {
+        console.error(`Bridge data from bot ${botId}: bot_server_permissions lookup failed:`, error?.message)
+        return
+      }
+      for (const row of permRows as InstallRow[]) {
         installByServer.set(row.server_id as string, row)
       }
     }
@@ -494,42 +561,93 @@ export class WebSocketGateway {
         .map(([id, server_id]) => ({ id, server_id })),
     )
 
-    let acceptedCount = 0
-    let rejectedCount = 0
+    const accepted: Array<{ harmonyChannelId: string; serverId: string; members: BridgedUser[] | null }> = []
     for (const { harmonyChannelId, members } of candidates) {
       const serverId = channelServerMap.get(harmonyChannelId)
       const install = serverId ? installByServer.get(serverId) : undefined
       if (!serverId || !install) {
-        console.warn(
-          `║   🚫 ${harmonyChannelId}: bot ${botConnection.botId} not authorized for server ${serverId ?? 'unknown'} - dropping`,
-        )
+        console.warn(`Bridge data from bot ${botId}: ${harmonyChannelId} is in no server the bot is installed in - dropping`)
         rejectedCount++
         continue
       }
       const layer = layers.get(harmonyChannelId)
       if (!layer || !botCanSeeChannel(install, layer, harmonyChannelId)) {
-        console.warn(`║   🚫 ${harmonyChannelId}: not visible to bot ${botConnection.botId} - dropping`)
+        console.warn(`Bridge data from bot ${botId}: ${harmonyChannelId} is not visible to the bot - dropping`)
         rejectedCount++
         continue
       }
-      this.bridgedUsersByChannel.set(harmonyChannelId, members)
-      botChannels.add(harmonyChannelId)
-      console.log(`║   ${harmonyChannelId}: ${members.length} Discord users`)
-      acceptedCount++
+      accepted.push({ harmonyChannelId, serverId, members })
     }
-    console.log(`║   accepted=${acceptedCount} rejected=${rejectedCount}`)
-    console.log('╚════════════════════════════════════════╝')
+
+    const inheritingServers = new Set(accepted.filter(a => a.members === null).map(a => a.serverId))
+    const shared = inheritingServers.size <= 1 ? sharedMembers : []
+    if (inheritingServers.size > 1 && sharedMembers.length > 0) {
+      console.warn(`Bridge data from bot ${botId}: root members span ${inheritingServers.size} servers - ignoring them`)
+    }
+
+    const previous = this.channelsByBot.get(botId) ?? new Set<string>()
+    const current = new Set<string>()
+    const index = new Map<string, BridgedUser[]>()
+    const indexed = new Set<BridgedUser[]>()
+    for (const { harmonyChannelId, members } of accepted) {
+      const list = members ?? shared
+      this.bridgedUsersByChannel.set(harmonyChannelId, list)
+      current.add(harmonyChannelId)
+      // The shared root list can back several channels; its users are indexed once.
+      if (indexed.has(list)) continue
+      indexed.add(list)
+      for (const user of list) {
+        if (!user || typeof user.id !== 'string') continue
+        const copies = index.get(user.id)
+        if (copies) copies.push(user)
+        else index.set(user.id, [user])
+      }
+    }
+    this.channelsByBot.set(botId, current)
+    this.usersByBot.set(botId, index)
+    for (const channelId of previous) {
+      if (!current.has(channelId)) this.releaseChannel(botId, channelId)
+    }
+    console.log(`Bridge data from bot ${botConnection.username}: accepted=${accepted.length} rejected=${rejectedCount}`)
   }
-  
+
+  /**
+   * BRIDGE_PRESENCE_UPDATE (op 7) {updates:[{id, presenceStatus, customStatus}]}: presence
+   * deltas for members of the bot's last registration (op 6). Updates the cached user objects
+   * that /bridged-users serves; ids outside the registration are ignored. Returns the number of
+   * user objects changed.
+   */
+  applyBridgePresence(botId: string, data: unknown): number {
+    const index = this.usersByBot.get(botId)
+    if (!index) return 0
+    let changed = 0
+    for (const delta of parsePresenceDeltas(data)) {
+      for (const user of index.get(delta.id) ?? []) {
+        if (delta.presenceStatus !== undefined) user.presenceStatus = delta.presenceStatus
+        if (delta.customStatus !== undefined) user.customStatus = delta.customStatus
+        changed++
+      }
+    }
+    return changed
+  }
+
+  // A channel's members stay while another bot still registers the channel.
+  private releaseChannel(botId: string, channelId: string) {
+    for (const [otherBot, channels] of this.channelsByBot) {
+      if (otherBot !== botId && channels.has(channelId)) return
+    }
+    this.bridgedUsersByChannel.delete(channelId)
+  }
+
   // Called on bot disconnect.
   private cleanupBotBridgeData(botId: string) {
+    this.usersByBot.delete(botId)
     const botChannels = this.channelsByBot.get(botId)
     if (botChannels) {
-      for (const channelId of botChannels) {
-        this.bridgedUsersByChannel.delete(channelId)
-        console.log(`Cleaned up bridged users for channel ${channelId}`)
-      }
       this.channelsByBot.delete(botId)
+      for (const channelId of botChannels) {
+        this.releaseChannel(botId, channelId)
+      }
     }
   }
   
@@ -576,6 +694,7 @@ export class WebSocketGateway {
     this.connections.clear()
     this.bridgedUsersByChannel.clear()
     this.channelsByBot.clear()
+    this.usersByBot.clear()
     console.log('WebSocket Gateway shut down')
   }
 }

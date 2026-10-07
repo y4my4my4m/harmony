@@ -1,5 +1,6 @@
 import type { MessagePart, MentionContent } from '@/types';
 import { userDataService } from '@/services/userDataService';
+import { runtimeConfig } from '@/services/runtimeConfig';
 
 /**
  * Utility functions for migrating and validating mention data structures
@@ -28,7 +29,7 @@ export function migrateLegacyMentions(content: MessagePart[]): MessagePart[] {
             type: 'mention',
             userId,
             username: userProfile.username,
-            domain: userProfile.domain || import.meta.env.VITE_DOMAIN as string,
+            domain: userProfile.domain || runtimeConfig.domain as string,
             isLocal: userProfile.isLocal || false
           };
           return newMention;
@@ -71,7 +72,7 @@ export function createMentionFromUser(userId: string, userProfile?: any): Mentio
     type: 'mention',
     userId,
     username: profile.username,
-    domain: profile.domain || import.meta.env.VITE_DOMAIN as string,
+    domain: profile.domain || runtimeConfig.domain as string,
     isLocal: profile.isLocal || false
   };
 }

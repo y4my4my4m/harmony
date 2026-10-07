@@ -447,6 +447,7 @@ import type { User, FederatedUser } from '../types'
 import Avatar from './common/Avatar.vue'
 import SupporterBadge from './common/SupporterBadge.vue'
 import DisplayName from './DisplayName.vue'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 const { t } = useI18n()
 
@@ -526,7 +527,7 @@ const availableServers = computed(() => {
   return serverChannelStore.servers || []
 })
 
-const currentDomain = import.meta.env.VITE_DOMAIN as string
+const currentDomain = runtimeConfig.domain as string
 
 function applyActivityFromStats(stats: { message_count?: number; voice_minutes?: number } | null | undefined) {
   if (stats == null) return
@@ -1130,7 +1131,7 @@ const navigateToProfile = () => {
   const user = props.user as any
   const username = user.username || getUser(user.id).value?.username
   const domain = user.domain
-  const instanceDomain = import.meta.env.VITE_DOMAIN as string
+  const instanceDomain = runtimeConfig.domain as string
   const isRemote = user.is_local === false || (domain && domain !== instanceDomain)
 
   let handle = user.handle

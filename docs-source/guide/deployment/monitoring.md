@@ -1,134 +1,89 @@
 # Monitoring
 
-## Health Endpoints
+## harmony doctor
 
-Harmony exposes health endpoints for monitoring:
+On a self-host install, `harmony doctor` checks the instance (configuration, containers, DNS, TLS and the proxy from outside, the database and migrations, email, push, voice, disk and backups) and prints each check as OK, WARN or FAIL with a one-line fix. It exits 1 when any check fails. `--offline` skips the checks that need the internet.
 
-| Endpoint | Service | Via Nginx |
-|----------|---------|-----------|
-| `GET /health` | Federation backend | `/api/federation/health` |
-| `POST /health/maintenance` | Trigger maintenance tasks | `/api/federation/health/maintenance` |
-| `GET /health/key-consistency` | Key consistency report | `/api/federation/health/key-consistency` |
-| `GET /api/livekit/health` | LiveKit integration | `/api/livekit/health` |
-| `GET /health` | Bot gateway | `/bot-gateway/health` |
+## Health endpoints
 
-### Federation Health Response
+| Endpoint | Service | Answer |
+|---|---|---|
+| `GET /api/federation/health` | Federation server | 200 with database, Redis and queue state; 503 when the database query fails |
+| `GET /api/federation/health/key-consistency` | Federation server | Key consistency report. Admin bearer token |
+| `POST /api/federation/health/maintenance` | Federation server | Queues `{"task": "keygen-sweep" \| "cleanup-orphans" \| "verify-federation"}`. Admin bearer token |
+| `GET /api/livekit/health` | Federation server | `not_configured`, `healthy` with the active room count, or 503 `unhealthy` when LiveKit does not answer |
+| `GET /api/federation/push/status` | Federation server | `available`, `configured` (VAPID), `fcm`, `unifiedpush` |
+| `GET /bot-gateway/health` | Bot gateway | `{"status": "ok", "uptime": ..., "timestamp": ...}` |
+
+`/api/federation/health` answers:
 
 ```json
 {
-  "status": "ok",
-  "version": "1.0.0",
+  "success": true,
+  "status": "healthy",
+  "version": "1.6.7",
   "environment": "production",
-  "instance": "har.mony.lol",
+  "instance": { "name": "Harmony", "domain": "chat.example.com" },
   "database": "connected",
-  "timestamp": "2026-03-06T00:00:00.000Z"
+  "redis": "connected",
+  "redis_latency_ms": 1,
+  "queues": { "...": "per-queue job counts" },
+  "timestamp": "2026-10-07T00:00:00.000Z"
 }
 ```
 
-## Logging
+Inside the stack, the same endpoints answer on the services directly: `http://federation-server:3001/health`, `http://bot-gateway:3002/health`.
 
-### Federation Backend
+## Container health
 
-Uses Winston with configurable levels via `LOG_LEVEL` env var:
-
-| Level | Description |
-|-------|-------------|
-| `error` | Errors only |
-| `warn` | Warnings and errors |
-| `info` | Standard operational logging (default) |
-| `debug` | Verbose debugging output |
-
-Log outputs:
-- Console (all levels)
-- `logs/error.log` (errors only)
-- `logs/combined.log` (all levels)
-
-### Nginx
-
-Access and error logs are written to:
-
-- `/var/log/nginx/harmony.access.log`
-- `/var/log/nginx/harmony.error.log`
-- `/var/log/nginx/harmony-docs.access.log`
-- `/var/log/nginx/harmony-docs.error.log`
-
-## External Monitoring
-
-### OpenStatus
-
-Harmony supports monitoring via [OpenStatus](https://www.openstatus.dev/) (or similar uptime services). See `docs/OPENSTATUS_SETUP.md` for detailed setup.
-
-Recommended monitors:
-
-| Monitor | URL | Interval |
-|---------|-----|----------|
-| Main site | `https://your-domain.com` | 1 minute |
-| WebFinger | `https://your-domain.com/.well-known/webfinger?resource=acct:test@your-domain.com` | 5 minutes |
-| Federation health | `https://your-domain.com/api/federation/health` | 5 minutes |
-| LiveKit | `https://live.your-domain.com` | 5 minutes |
-| Bot gateway | `https://your-domain.com/bot-gateway/health` | 5 minutes |
-
-### Alerting
-
-Set up alerts for:
-
-- Health endpoint failures (5xx responses)
-- SSL certificate expiration
-- Disk space on the server
-- Database connection failures
-- Federation queue backlog growth
-
-## Docker Container Monitoring
-
-### Container Health
-
-Docker Compose health checks are configured for:
-
-- **federation-backend**: HTTP check on `/health` every 30 seconds
-- **redis**: `redis-cli ping` every 10 seconds
-
-Check container status:
+Docker health checks run on `harmony-federation-server` (`GET /health` every 30 s), `harmony-redis` (`redis-cli ping` every 10 s), `harmony-web` and `harmony-bot-gateway`. The worker serves no HTTP and has none.
 
 ```bash
-docker compose -f docker-compose.prod.yml ps
+harmony status                 # URL, version, profiles, container states
+docker compose ps              # in self-host/
 ```
 
-### Container Logs
+## Logs
 
 ```bash
-# All services
-docker compose -f docker-compose.prod.yml logs -f
-
-# Specific service
-docker logs -f harmony-federation
-docker logs -f harmony-nginx
-docker logs -f harmony-redis
+harmony logs                   # every service, followed
+harmony logs federation        # federation-server and federation-worker
+harmony logs supabase          # db, auth, rest, realtime, storage, kong
+harmony logs caddy -n 500 --no-follow
 ```
 
-## Admin Panel Monitoring
+The federation backend logs through Winston at `LOG_LEVEL` (`error`, `warn`, `info`, `debug`; default `info`) to the console, and to `logs/error.log` and `logs/combined.log` under its working directory (`/app/logs` in the image).
 
-The Harmony admin panel (`/admin`) provides real-time monitoring:
+Host nginx from the templates writes `/var/log/nginx/harmony.access.log`, `harmony.error.log`, `livekit.access.log` and `livekit.error.log`.
 
-- **System Overview**: User count, server count, post count, instance count
-- **System Health**: Database, federation queue, storage, memory status
-- **Federation Stats**: Active instances, endpoint health, success rates, dead endpoints
-- **Maintenance**: Key consistency checks, orphan cleanup, key generation sweep
+## Admin panel
 
-## Supabase Monitoring
+`/admin` shows, to instance admins:
 
-### Dashboard
+- **Performance Monitoring**: request latency over time, slow queries and federation health
+- **Federation**: instance statistics, dead delivery endpoints, the key consistency report, a key generation sweep and orphaned key cleanup
 
-The Supabase dashboard provides:
+## Queue dashboard
 
-- **Database**: Query performance, active connections, table sizes
-- **Auth**: Active sessions, sign-up rates
-- **Storage**: Bucket usage
-- **Realtime**: Active connections, message throughput
-- **Logs**: API request logs with filtering
+Bull Board (`bull-board/`) shows the BullMQ queues. It runs only in the root compose files, under the `monitoring` profile, on `127.0.0.1:3003` with HTTP basic auth (`BULL_BOARD_USER`, `BULL_BOARD_PASSWORD`); `dev/nginx-bullboard.template.conf` publishes it on a subdomain. The self-host stack does not include it.
 
-### Local Development
+## Supabase Studio
 
-With `supabase start`, the dashboard is at `http://localhost:54323`.
+In the self-host stack, Studio is at `https://db.DOMAIN`, user `supabase`, password `DASHBOARD_PASSWORD` in `self-host/supabase/.env`. It shows the database, auth users, storage and logs.
+
+## External monitoring
+
+Any uptime service works; [OpenStatus Setup](/OPENSTATUS_SETUP) describes one. Useful monitors:
+
+| Monitor | URL |
+|---|---|
+| App | `https://chat.example.com` |
+| Federation | `https://chat.example.com/api/federation/health` |
+| WebFinger | `https://chat.example.com/.well-known/webfinger?resource=acct:<user>@chat.example.com` |
+| LiveKit | `https://chat.example.com/api/livekit/health` |
+| Bot gateway | `https://chat.example.com/bot-gateway/health` |
+
+Worth alerting on: 5xx from the health endpoints, certificate expiry, disk space (database and uploads live in `self-host/supabase/volumes/`), and a growing queue backlog in `/health`.
 
 ---
 

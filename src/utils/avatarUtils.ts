@@ -1,6 +1,7 @@
-import { supabase } from '@/supabase'
 import { canonicalSquareSize } from '@/utils/imageTransformUtils'
-import { rawStorageUrl } from '@/utils/storageImageUtils'
+import { publicImageUrl, rawStorageUrl, type ImageTransform } from '@/utils/storageImageUtils'
+import { knownRenderFallback } from '@/utils/renderFallback'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 /**
  * Normalizes an avatar URL. Accepts full URLs and path-only forms; Supabase
@@ -14,6 +15,10 @@ function cleanStoragePath(path: string): string {
     try { p = decodeURIComponent(p) } catch { /* keep original */ }
   }
   return p
+}
+
+function avatarTransform(size: number): ImageTransform {
+  return { width: size, height: size, resize: 'contain', quality: 80 }
 }
 
 export function getAvatarUrl(avatarUrl: string | null | undefined, size: number = 256): string {
@@ -36,7 +41,7 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
     } catch {
       return '/default_avatar.webp'
     }
-    const localSupabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+    const localSupabaseUrl = runtimeConfig.supabaseUrl || ''
     const localSupabaseHost = localSupabaseUrl ? new URL(localSupabaseUrl).hostname : ''
     const isRemote = !!localSupabaseHost && urlObj.hostname !== localSupabaseHost
 
@@ -50,18 +55,13 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
       return urlObj.toString()
     }
 
-    const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/public\/avatars\/(.+?)\/*$/)
+    // Local render URLs are re-derived at `size`; callers pass URLs sized for another box.
+    const pathMatch = urlObj.pathname.match(/\/storage\/v1\/(?:object|render\/image)\/public\/avatars\/(.+?)\/*$/)
     if (pathMatch) {
       if (isRemote) {
         return avatarUrl
       }
-      // Local Supabase URL - extract path and use local storage transformation
-      const { data } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(cleanStoragePath(pathMatch[1]), {
-          transform: { width: renderSize, height: renderSize, resize: 'contain', quality: 80 }
-        })
-      return data.publicUrl
+      return knownRenderFallback(publicImageUrl('avatars', cleanStoragePath(pathMatch[1]), avatarTransform(renderSize)))
     }
     // External URLs (not Supabase storage) - return as-is
     return avatarUrl
@@ -69,13 +69,7 @@ export function getAvatarUrl(avatarUrl: string | null | undefined, size: number 
 
   // If it's a Supabase storage path (contains user ID folder structure)
   if (avatarUrl.includes('/') && !avatarUrl.startsWith('/')) {
-    const { data } = supabase.storage
-      .from('avatars')
-      .getPublicUrl(cleanStoragePath(avatarUrl), {
-        transform: { width: renderSize, height: renderSize, resize: 'contain', quality: 80 }
-      })
-
-    return data.publicUrl
+    return knownRenderFallback(publicImageUrl('avatars', cleanStoragePath(avatarUrl), avatarTransform(renderSize)))
   }
 
   // If it's a local path (starts with /), return as-is

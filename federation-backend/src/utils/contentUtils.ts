@@ -134,9 +134,12 @@ export function convertContentToHTML(content: any): string {
  * mentions, hashtags, and custom emojis.
  * 
  * @param content - The content to extract tags from
+ * @param mentionActorUrls - Profile id to stored actor id. A mention part
+ *   without an entry is guessed as `https://<domain>/users/<username>`, which
+ *   misses Misskey ids and split-domain actors.
  * @returns Array of ActivityPub tag objects
  */
-export function extractActivityPubTags(content: any): any[] {
+export function extractActivityPubTags(content: any, mentionActorUrls?: Map<string, string>): any[] {
   if (!Array.isArray(content)) return [];
   
   const tags: any[] = [];
@@ -144,9 +147,10 @@ export function extractActivityPubTags(content: any): any[] {
   for (const part of content) {
     if (part.type === 'mention' && part.username) {
       const mentionDomain = part.domain || config.INSTANCE_DOMAIN;
+      const known = typeof part.userId === 'string' ? mentionActorUrls?.get(part.userId) : undefined;
       tags.push({
         type: 'Mention',
-        href: `https://${mentionDomain}/users/${part.username}`,
+        href: known ?? `https://${mentionDomain}/users/${part.username}`,
         name: part.domain ? `@${part.username}@${part.domain}` : `@${part.username}`
       });
     } else if (part.type === 'hashtag' && part.tag) {

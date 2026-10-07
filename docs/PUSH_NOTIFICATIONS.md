@@ -1,280 +1,122 @@
-# Push Notifications Setup
+# Push Notifications
 
-This document explains how to set up native push notifications for the Harmony PWA on iOS, Android, and desktop browsers.
+Harmony delivers notifications to closed apps through three transports, all sent by the federation backend:
 
-## Overview
+| Transport | Clients | Server needs |
+|---|---|---|
+| Web Push | Browsers and the installed PWA: desktop, Android, and iOS/iPadOS 16.4+ when added to the home screen | A VAPID key pair |
+| UnifiedPush | The Android app, through a distributor app (ntfy, NextPush, ...) | The same VAPID key pair: distributors accept Web Push |
+| FCM | The Android app on a device with Google Play Services | A Firebase service account of the project the app build carries |
 
-Harmony uses the Web Push API with VAPID (Voluntary Application Server Identification) for authentication. This enables:
+Push needs HTTPS. The web app needs no push setting: it fetches the public key from `GET /api/federation/push/vapid-key`.
 
-- **Android**: Full push notification support via Chrome, Firefox, or any modern browser
-- **iOS 16.4+**: Push notifications when the PWA is installed to the home screen
-- **Desktop**: Chrome, Firefox, Edge, and Safari support
+## Setup
 
-## Prerequisites
+### Self-host stack
 
-1. HTTPS is required (push notifications only work over secure connections)
-2. Service worker must be registered (already configured in Harmony)
-3. VAPID keys must be generated and configured
+`self-host/configure.sh` generates the VAPID key pair once, writes it to `self-host/federation.env`, and sets `VAPID_SUBJECT` to the admin email. Nothing else is required for Web Push and UnifiedPush.
 
-## Setup Instructions
+The pair never rotates. Every subscription is bound to the public key that created it; a new pair leaves every existing subscription undeliverable until each device subscribes again. `federation.env` is part of `harmony backup`.
 
-### 1. Generate VAPID Keys
-
-Run this command in the `federation-backend` directory:
+### Manual setup
 
 ```bash
 cd federation-backend
 npx web-push generate-vapid-keys
 ```
 
-This will output something like:
+In `federation-backend/.env`:
 
-```
-=======================================
-
-Public Key:
-BPxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-Private Key:
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-=======================================
+```env
+VAPID_PUBLIC_KEY=<public key>
+VAPID_PRIVATE_KEY=<private key>
+VAPID_SUBJECT=admin@example.com
 ```
 
-### 2. Configure Environment Variables
+`VAPID_SUBJECT` takes `admin@example.com` or `mailto:admin@example.com`; it must be an email address, and push services use it as the contact. The server and the worker both read the keys: the server answers `/vapid-key` and stores subscriptions, the worker sends. Restart both after a change.
 
-Add these to your `federation-backend/.env` file:
+The reverse proxy forwards `/api/federation/` to the backend with the prefix stripped (`location /api/federation/ { proxy_pass http://localhost:3001/; }`).
 
-```bash
-# Web Push (VAPID) Configuration
-# Generate with: npx web-push generate-vapid-keys
-VAPID_PUBLIC_KEY=BPxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-VAPID_PRIVATE_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-VAPID_SUBJECT=admin@yourdomain.com
-```
+### FCM (Android app)
 
-**Important**: 
-- `VAPID_PUBLIC_KEY` - The public key from the generator
-- `VAPID_PRIVATE_KEY` - The private key (keep this secret!)
-- `VAPID_SUBJECT` - Must be an email address (used for identification)
+Set one of, in `federation.env` (or `federation-backend/.env`):
 
-### 3. Configure Frontend
+- `FCM_SERVICE_ACCOUNT_JSON`: the service account JSON from Firebase console, Project settings, Service accounts, raw or base64
+- `FCM_SERVICE_ACCOUNT_FILE`: a path to that file. The self-host compose file mounts no file into the federation containers, so the self-host stack uses `FCM_SERVICE_ACCOUNT_JSON`
 
-Add the VAPID public key to your frontend environment. In your `.env` file:
+An FCM token belongs to one Firebase project. FCM reaches only an app build whose `google-services.json` names the same project as the service account; an instance whose users run another build relies on UnifiedPush. With FCM configured, the log shows `FCM enabled for project <id>` and `GET /api/federation/push/status` reports `"fcm": true`. [Android push](./DEVELOPMENT.md#android-push) covers the Firebase project and the app side.
 
-```bash
-VITE_FEDERATION_BACKEND_URL=https://your-federation-backend.com
-```
+### UnifiedPush distributor on the LAN
 
-The frontend will automatically fetch the VAPID public key from the backend.
+The backend refuses push endpoints on private, loopback and link-local addresses. `PUSH_ALLOW_PRIVATE_ENDPOINTS=true` accepts them, for a self-hosted distributor reachable only on the local network.
 
-### 4. Apply Database Migration
+## Delivery
 
-Run the SQL migration to create the `push_subscriptions` table:
+1. Inserting an unread row into `notifications` queues a `send-push-notification` job (`trigger_send_push_notification`).
+2. The federation worker takes the job and decides whether to push. It skips the push when:
+   - the user's preferences turn push off (`push_notifications`), or the toggle for that notification type
+   - quiet hours are on (`dnd_enabled`, between `dnd_start_time` and `dnd_end_time`, UTC)
+   - the user's status is Do Not Disturb
+   - one of the user's devices is viewing the notification's channel or conversation
+   - `push_offline_only` is on (the default) and one of the user's devices is active. Security notifications push regardless
+3. It sends to every push target of the user: Web Push and UnifiedPush through `web-push`, FCM through the HTTP v1 API.
 
-```sql
--- Located at: db_schema/improvements/push_subscriptions.sql
-\i db_schema/improvements/push_subscriptions.sql
-```
+A device is active when its row in `device_view_contexts` was written in the last 150 seconds and is not `away`. The web app rewrites its view context every 60 seconds while the tab is visible, and writes `away` when the tab hides or goes idle.
 
-Or copy the contents and run in your Supabase SQL editor.
+With `USE_BULLMQ_QUEUE=false`, the worker's Realtime listener on `notifications` makes the same decision.
 
-### 5. Restart Services
+The payload carries the notification id, type, target URL and routing ids; the service worker (`public/service-worker.js`) renders it and opens the target on click. Reading a notification elsewhere closes it on the Android app (`dismiss-push-notifications` job); browsers keep theirs, as Web Push requires each push to show a notification.
 
-```bash
-# Restart federation-backend
-cd federation-backend
-npm run dev
-```
+An endpoint answering 404 or 410, and an FCM token Firebase rejects, are deleted at once. Other failures are counted on the row (`failure_count`, `last_failure_reason`). Push targets registered from a session are deleted with that session (Settings, Sessions).
 
-## How It Works
+## Client setup
 
-### Architecture
+- **Browsers and the PWA**: Settings, Notifications enables push; the browser asks for permission and the subscription is stored. The same page sends a test push.
+- **iOS and iPadOS**: Web Push works only in the installed app. In Safari, Share, Add to Home Screen; open Harmony from the home screen, then enable push in Settings, Notifications.
+- **Android app**: Settings, Notifications chooses FCM or UnifiedPush per device.
 
-```
-┌─────────────────┐     ┌─────────────────────┐     ┌──────────────────┐
-│   Browser/PWA   │────▶│  Federation Backend │────▶│  Push Service    │
-│  (Harmony App)  │     │  (push.ts routes)   │     │  (FCM/APNs/etc)  │
-└─────────────────┘     └─────────────────────┘     └──────────────────┘
-        │                         │
-        │ Heartbeats              │ Check active sessions
-        ▼                         ▼
-┌─────────────────┐     ┌─────────────────────┐
-│ Session Tracker │────▶│    user_sessions    │
-│ (30s heartbeat) │     │    (Supabase DB)    │
-└─────────────────┘     └─────────────────────┘
-        │                         │
-        ▼                         ▼
-┌─────────────────┐     ┌─────────────────────┐
-│ Service Worker  │     │  push_subscriptions │
-│ (handles push)  │     │    (Supabase DB)    │
-└─────────────────┘     └─────────────────────┘
-```
+## API
 
-### Smart Push (Discord-like Behavior)
+Mounted at `/push` and `/api/federation/push` on the federation backend. Every route except `vapid-key`, `status` and `resubscribe` requires `Authorization: Bearer <Supabase access token>` and acts for that user.
 
-Harmony uses intelligent push notification delivery just like Discord:
+| Route | Body | Effect |
+|---|---|---|
+| `GET /vapid-key` | | `{ publicKey }`, or 503 without VAPID keys |
+| `GET /status` | | `{ available, configured, fcm, unifiedpush }` |
+| `POST /subscribe` | `{ subscription, deviceName?, previousEndpoint?, transport? }` | Stores a Web Push (`webpush`) or UnifiedPush (`unifiedpush`) subscription |
+| `POST /resubscribe` | `{ oldEndpoint, oldAuth, subscription }` | Replaces a subscription after `pushsubscriptionchange`; called by the service worker without a session |
+| `POST /unsubscribe` | `{ endpoint }` | Removes this user's subscription |
+| `POST /fcm/register` | `{ token, previousToken?, deviceName? }` | Stores an FCM token for this user |
+| `POST /fcm/unregister` | `{ token }` | Removes it |
+| `GET /subscriptions` | | The user's push targets |
+| `DELETE /subscriptions/:id` | | Removes one |
+| `POST /test` | `{ endpoint? }` or `{ fcmToken? }` | Sends a test push to that target, or to every device |
 
-1. **If you're active on the website/app** → No push notifications sent
-2. **If you're looking at the specific channel/conversation** → No push for that context
-3. **If you're offline/away** → Push notifications delivered to mobile/other devices
+Write routes other than `/test` are rate limited.
 
-This is achieved through:
-- **Session Heartbeats**: Every 30 seconds, active sessions send a heartbeat
-- **View Context Tracking**: Your current channel/conversation is tracked
-- **Smart Filtering**: Before sending push, backend checks if user has active sessions
+## Database
 
-### Flow
+`push_subscriptions` holds every push target:
 
-1. **User enables push notifications** in Settings > Notifications
-2. **Browser requests permission** and creates a subscription
-3. **Subscription is sent to backend** and stored in `push_subscriptions` table
-4. **Session heartbeat starts** tracking activity and current view context
-5. **When a notification is created**, the backend's `PushNotificationHandler`:
-   - Checks if user has any active sessions (heartbeat within 90 seconds)
-   - Checks if user is viewing the notification's context (channel/DM)
-   - Only sends push if user is NOT actively using the app
-6. **Service Worker receives push** and displays native notification
+| Column | Meaning |
+|---|---|
+| `user_id` | Profile |
+| `transport` | `webpush`, `unifiedpush` or `fcm` |
+| `endpoint` | Push service URL; the registration token for `fcm` |
+| `p256dh`, `auth` | Web Push encryption keys; null for `fcm` |
+| `session_id` | Auth session that registered it |
+| `user_agent`, `device_name` | Device description |
+| `last_successful_push`, `failure_count`, `last_failure_at`, `last_failure_reason` | Delivery state |
 
-### Notification Types Supported
-
-- Direct Messages (DMs)
-- Mentions (@username)
-- Replies
-- Reactions
-- Friend Requests
-- Server Invites
-- ActivityPub notifications (follows, favorites, reblogs, mentions)
-
-## iOS-Specific Notes
-
-### Requirements for iOS Push
-
-1. **iOS 16.4 or later** is required
-2. **PWA must be installed** to home screen (Safari > Share > Add to Home Screen)
-3. Push notifications **only work when launched from home screen**, not in Safari
-
-### Installing the PWA on iOS
-
-1. Open Harmony in Safari on iPhone/iPad
-2. Tap the Share button (rectangle with arrow)
-3. Scroll down and tap "Add to Home Screen"
-4. Tap "Add" to confirm
-5. Open the app from your home screen
-6. Go to Settings > Notifications and enable push notifications
+`(user_id, endpoint)` is unique, and an FCM token is unique across accounts. Notification preferences live in `notification_preferences`; view contexts in `device_view_contexts`.
 
 ## Troubleshooting
 
-### "Push notifications not supported"
-
-- Check browser compatibility (needs Chrome 50+, Firefox 44+, Safari 16.4+)
-- On iOS, ensure you're using the installed PWA, not Safari
-
-### "Permission denied"
-
-- User blocked notifications - must be enabled in browser/OS settings
-- On iOS: Settings > Notifications > Harmony
-
-### "Failed to subscribe"
-
-- Check if VAPID keys are correctly configured
-- Ensure federation-backend is reachable
-- Check browser console for detailed errors
-
-### No notifications received
-
-1. Verify subscription exists in `push_subscriptions` table
-2. Check federation-backend logs for push send attempts
-3. Verify `notification_preferences` has `push_notifications = true`
-4. Check if `push_offline_only` is enabled and user is online
-
-## API Endpoints
-
-### GET /push/vapid-key
-Returns the VAPID public key for frontend subscription.
-
-### GET /push/status
-Returns push notification availability status.
-
-### POST /push/subscribe
-Subscribe a device to push notifications.
-- Requires: `Authorization: Bearer <token>`
-- Body: `{ subscription: PushSubscription, deviceName?: string }`
-
-### POST /push/unsubscribe
-Remove a push subscription.
-- Requires: `Authorization: Bearer <token>`
-- Body: `{ endpoint: string }`
-
-### GET /push/subscriptions
-Get all subscriptions for authenticated user.
-- Requires: `Authorization: Bearer <token>`
-
-### DELETE /push/subscriptions/:id
-Delete a specific subscription.
-- Requires: `Authorization: Bearer <token>`
-
-### POST /push/test
-Send a test push notification.
-- Requires: `Authorization: Bearer <token>`
-
-## Database Schema
-
-### user_sessions (Smart Push Tracking)
-
-Tracks active sessions for Discord-like push behavior:
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | UUID | Primary key |
-| user_id | UUID | References profiles(id) |
-| session_token | TEXT | Unique session identifier |
-| platform | TEXT | 'ios', 'android', 'windows', 'macos', 'linux', 'chromeos', 'web' |
-| form_factor | TEXT | 'mobile', 'tablet', 'desktop' |
-| is_pwa | BOOLEAN | Whether running as installed PWA |
-| browser | TEXT | Browser name |
-| last_heartbeat | TIMESTAMPTZ | Last heartbeat timestamp |
-| is_active | BOOLEAN | Whether session is active |
-| current_server_id | UUID | Currently viewing server |
-| current_channel_id | UUID | Currently viewing channel |
-| current_conversation_id | UUID | Currently viewing DM |
-
-### push_subscriptions (Device Subscriptions)
-
-The `push_subscriptions` table stores:
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | UUID | Primary key |
-| user_id | UUID | References profiles(id) |
-| endpoint | TEXT | Push service URL |
-| p256dh | TEXT | Public encryption key |
-| auth | TEXT | Authentication secret |
-| user_agent | TEXT | Browser/device info |
-| device_name | TEXT | User-friendly device name |
-| created_at | TIMESTAMPTZ | Subscription created |
-| last_successful_push | TIMESTAMPTZ | Last successful push |
-| failure_count | INTEGER | Consecutive failures |
-
-## Security Considerations
-
-1. **VAPID private key** should never be exposed to clients
-2. **Subscriptions are scoped** to user via RLS policies
-3. **Stale subscriptions** are automatically cleaned up after repeated failures
-4. **Rate limiting** is applied to push API endpoints
-
-## Testing
-
-1. Enable push notifications in Settings
-2. Click "Test Push" button
-3. Should receive a test notification on device
-4. If on mobile, ensure app is in background to see notification
-
-## Future Improvements
-
-- [ ] Push notification grouping (collapse multiple notifications)
-- [ ] Per-server/channel push preferences
-- [ ] Rich push notifications with images
-- [ ] Push notification sound customization
-- [ ] Web push analytics and delivery tracking
-
+| Symptom | Check |
+|---|---|
+| The enable switch fails | `GET /api/federation/push/vapid-key` answers 503: the backend has no VAPID keys |
+| Subscribed, nothing arrives | The worker runs and logs the job; `push_notifications` is on; the user is not active on another device with `push_offline_only` |
+| Pushes stopped for everyone | The VAPID pair changed; devices must subscribe again |
+| A LAN distributor is refused | `PUSH_ALLOW_PRIVATE_ENDPOINTS=true` |
+| Android FCM never delivers | `"fcm": true` in `/push/status`, and the service account belongs to the app build's Firebase project |
+| iOS shows no option | The app is opened from the home screen, on iOS 16.4 or later |

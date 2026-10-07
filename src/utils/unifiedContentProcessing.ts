@@ -22,6 +22,7 @@ import {
   findCustomEmojiByToken,
   listCachedEmojisInDisambiguationOrder,
 } from '@/services/emojiShortcodeResolver'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 const emojiUuidRegex = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):/g;
 // Module-scoped regex; reset lastIndex per use to avoid cross-call interference.
@@ -44,7 +45,7 @@ const COMBINED_MENTION_HASHTAG_REGEX = new RegExp(
 const INLINE_CODE_REGEX = /`[^`]+`/g;
 
 function localDomain(): string {
-  return ((import.meta.env.VITE_DOMAIN as string) || '').toLowerCase();
+  return ((runtimeConfig.domain as string) || '').toLowerCase();
 }
 
 /** Map key of a handle: bare username for local users, user@host otherwise. */
@@ -398,9 +399,9 @@ function matchChannelUrl(
 ): { id: string; serverId: string; name: string; messageId?: string } | null {
   try {
     const parsed = new URL(url);
-    // Share links use https://VITE_DOMAIN, which differs from the dev window
-    // origin; either is accepted.
-    const configuredDomain = (import.meta as any).env?.VITE_DOMAIN as string | undefined;
+    // Share links use https://<runtimeConfig.domain>, which differs from the
+    // dev window origin; either is accepted.
+    const configuredDomain = runtimeConfig.domain;
     const sameOrigin =
       (typeof window !== 'undefined' && parsed.origin === window.location.origin) ||
       (configuredDomain && parsed.host === configuredDomain);
@@ -816,7 +817,7 @@ export function convertMessagePartsToActivityPubHTML(parts: MessagePart[]): stri
         return `<a href="${part.url}" target="_blank" rel="noopener">${part.url}</a>`;
         
       case 'hashtag': {
-        const currentDomain = import.meta.env.VITE_DOMAIN as string;
+        const currentDomain = runtimeConfig.domain as string;
         const href = `https://${currentDomain}/tags/${part.name}`;
         return `<a href="${href}" class="mention hashtag" rel="tag">#<span>${part.name}</span></a>`;
       }
@@ -952,14 +953,14 @@ export function convertActivityPubHTMLToMessageParts(html: string): MessagePart[
           if (!domain && href) {
             try {
               const hrefDomain = new URL(href).hostname;
-              const currentDomain = import.meta.env.VITE_DOMAIN as string;
+              const currentDomain = runtimeConfig.domain as string;
               if (hrefDomain && hrefDomain !== currentDomain) {
                 domain = hrefDomain;
               }
             } catch { /* ignore invalid URLs */ }
           }
           
-          const currentDomain = import.meta.env.VITE_DOMAIN as string;
+          const currentDomain = runtimeConfig.domain as string;
           
           parts.push({
             type: 'mention',
@@ -1038,7 +1039,7 @@ export function extractActivityPubAttachments(parts: MessagePart[]): any[] {
  * Emoji tag objects for the ActivityPub tag array, in Misskey's shape.
  */
 export function extractActivityPubEmojiTags(parts: MessagePart[], baseUrl?: string): any[] {
-  const currentDomain = import.meta.env.VITE_DOMAIN as string;
+  const currentDomain = runtimeConfig.domain as string;
   const defaultBaseUrl = `https://${currentDomain}`;
   const finalBaseUrl = baseUrl || defaultBaseUrl;
   

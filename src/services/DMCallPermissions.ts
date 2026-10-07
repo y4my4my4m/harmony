@@ -1,110 +1,89 @@
 /**
  * DM Call Permission Service
  *
- * Gates call initiation on block status, busy status (already in a call),
- * Do Not Disturb, conversation mute and notification preferences.
+ * Two gates. canPlaceCall runs on the caller before ringing: blocks either way
+ * and the receiver's Do Not Disturb. canReceiveCall runs on the client that was
+ * rung, against its own state: blocks, Do Not Disturb, busy (already in another
+ * DM call), call notification preference, and mute, which silences the ring
+ * instead of refusing it.
  */
 
 import { supabase } from '@/supabase'
 import { UserStatus } from '@/types'
 import { userDataService } from '@/services/userDataService'
+import { dmCallSignaling } from '@/services/DMCallSignaling'
 import { debug } from '@/utils/debug'
 
 export interface CallPermissionCheck {
   allowed: boolean
   /**
-   * Why the call was disallowed. `'error'` means the permission lookup itself
-   * failed (DB / RLS / network); inbound calls fail closed. See BUGS.md H4.
+   * Why the call was disallowed. `'error'` means a block lookup failed (DB /
+   * RLS / network); inbound calls fail closed. See BUGS.md H4.
    */
-  reason?: 'blocked' | 'busy' | 'dnd' | 'muted' | 'notifications_disabled' | 'error'
+  reason?: 'blocked' | 'busy' | 'dnd' | 'notifications_disabled' | 'error'
   message?: string
+  /** Allowed with no ringtone and no incoming-call popup: the receiver muted the conversation or the caller. */
+  silent?: boolean
 }
 
 class DMCallPermissionService {
   /**
-   * Runs every gate in order and returns on the first denial.
-   * Requires RLS policies on user_blocks for the block lookups to resolve.
+   * Caller-side gate. Busy and mute are absent: only the receiver's client
+   * knows it is in a DM call, and mute silences the receiver without refusing.
+   */
+  async canPlaceCall(callerId: string, receiverId: string): Promise<CallPermissionCheck> {
+    // A failed lookup lets the ring through; ring_dm_call skips blocked receivers server-side.
+    const blocked = (blockerId: string, blockedId: string) =>
+      this.isUserBlocked(blockerId, blockedId).catch((error) => {
+        debug.warn('Block lookup failed:', error)
+        return false
+      })
+
+    if (await blocked(receiverId, callerId)) {
+      return { allowed: false, reason: 'blocked', message: 'You cannot call this user' }
+    }
+    if (await blocked(callerId, receiverId)) {
+      return { allowed: false, reason: 'blocked', message: 'You have blocked this user' }
+    }
+    if (await this.isUserInDND(receiverId)) {
+      return { allowed: false, reason: 'dnd', message: 'This user is in Do Not Disturb mode' }
+    }
+    return { allowed: true }
+  }
+
+  /**
+   * Receiver-side gate, run by the client that was rung. Returns on the first
+   * refusal; a muted caller or conversation is allowed with `silent`.
    */
   async canReceiveCall(
     callerId: string,
     receiverId: string,
     conversationId: string
   ): Promise<CallPermissionCheck> {
-    debug.log('Checking call permissions:', { callerId, receiverId, conversationId })
-    
     try {
-      debug.log('Checking if caller is blocked by receiver...')
-      const isBlocked = await this.isUserBlocked(receiverId, callerId)
-      debug.log('Blocked check result:', isBlocked)
-      if (isBlocked) {
-        return {
-          allowed: false,
-          reason: 'blocked',
-          message: 'You cannot call this user'
-        }
+      if (await this.isUserBlocked(receiverId, callerId)) {
+        return { allowed: false, reason: 'blocked', message: 'You cannot call this user' }
       }
-
-      debug.log('Checking if caller has blocked receiver...')
-      const hasBlockedReceiver = await this.isUserBlocked(callerId, receiverId)
-      debug.log('Has blocked receiver result:', hasBlockedReceiver)
-      if (hasBlockedReceiver) {
-        return {
-          allowed: false,
-          reason: 'blocked',
-          message: 'You have blocked this user'
-        }
+      if (await this.isUserBlocked(callerId, receiverId)) {
+        return { allowed: false, reason: 'blocked', message: 'You have blocked this user' }
       }
-
-      debug.log('Checking DND status...')
-      const isDND = await this.isUserInDND(receiverId)
-      debug.log('DND check result:', isDND)
-      if (isDND) {
-        return {
-          allowed: false,
-          reason: 'dnd',
-          message: 'This user is in Do Not Disturb mode'
-        }
+      if (await this.isUserInDND(receiverId)) {
+        return { allowed: false, reason: 'dnd', message: 'This user is in Do Not Disturb mode' }
       }
-
-      debug.log('Checking busy status...')
-      const isBusy = await this.isUserBusy(receiverId)
-      debug.log('Busy check result:', isBusy)
-      if (isBusy) {
-        return {
-          allowed: false,
-          reason: 'busy',
-          message: 'User is currently in another call'
-        }
+      if (await this.isInOtherDMCall(conversationId)) {
+        return { allowed: false, reason: 'busy', message: 'User is currently in another call' }
       }
-
-      debug.log('Checking if conversation is muted...')
-      const isMuted = await this.isConversationMuted(receiverId, conversationId)
-      debug.log('Muted check result:', isMuted)
-      if (isMuted) {
-        return {
-          allowed: false,
-          reason: 'muted',
-          message: 'This user has muted this conversation'
-        }
+      if (!(await this.areCallNotificationsEnabled(receiverId))) {
+        return { allowed: false, reason: 'notifications_disabled', message: 'This user has disabled call notifications' }
       }
-
-      debug.log('Checking notification preferences...')
-      const notificationsEnabled = await this.areCallNotificationsEnabled(receiverId)
-      debug.log('Notifications enabled result:', notificationsEnabled)
-      if (!notificationsEnabled) {
-        return {
-          allowed: false,
-          reason: 'notifications_disabled',
-          message: 'This user has disabled call notifications'
-        }
+      if (await this.isCallMuted(receiverId, callerId, conversationId)) {
+        return { allowed: true, silent: true }
       }
-
-      debug.log('All permission checks passed - call allowed!')
       return { allowed: true }
     } catch (error) {
       debug.error('Error checking call permissions:', error)
       // BUGS.md H4: inbound calls fail closed. Failing open on a DB/RLS error
-      // let blocked / DND / muted users be rung anyway.
+      // let blocked users be rung anyway.
       return {
         allowed: false,
         reason: 'error',
@@ -113,32 +92,23 @@ class DMCallPermissionService {
     }
   }
 
+  /** Throws when the lookup fails; each gate picks its own failure direction. */
   private async isUserBlocked(blockerId: string, blockedUserId: string): Promise<boolean> {
-    try {
-      const { data, error } = await supabase
-        .from('user_blocks')
-        .select('id')
-        .eq('blocker_id', blockerId)
-        .eq('blocked_user_id', blockedUserId)
-        .maybeSingle() // maybeSingle: zero rows is not an error
+    const { data, error } = await supabase
+      .from('user_blocks')
+      .select('id')
+      .eq('blocker_id', blockerId)
+      .eq('blocked_user_id', blockedUserId)
+      .maybeSingle()
 
-      if (error) {
-        debug.warn('Error checking block status (RLS?):', error.message)
-        // RLS failure reads as "not blocked"; canReceiveCall() is the fail-closed gate.
-        return false
-      }
-
-      return !!data
-    } catch (error) {
-      debug.warn('Exception checking block status:', error)
-      return false
-    }
+    if (error) throw error
+    return !!data
   }
 
   /** Do Not Disturb is UserStatus.Busy on the profile. */
   private async isUserInDND(userId: string): Promise<boolean> {
     const userData = userDataService.getUser(userId)
-    
+
     if (!userData) {
       // Cache miss - read the profile directly.
       try {
@@ -159,31 +129,52 @@ class DMCallPermissionService {
   }
 
   /**
-   * Busy means present in any voice channel, not only a DM call. Voice rows are
-   * readable only for channels the caller can view; the RPC answers for all.
+   * In, or joining, a DM call (direct or group) of another conversation. A
+   * server voice channel is not busy: answering leaves it.
    */
-  private async isUserBusy(userId: string): Promise<boolean> {
-    try {
-      const { data, error } = await supabase.rpc('is_profile_in_voice', { p_profile_id: userId })
-      if (error) return false
-      return data === true
-    } catch {
-      return false
-    }
+  private async isInOtherDMCall(conversationId: string): Promise<boolean> {
+    const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel')
+    const voiceStore = useUnifiedVoiceChannelStore()
+    const room = voiceStore.effectiveChannelId
+    if (voiceStore.effectiveServerId !== 'dm' || !room) return false
+    const current = room.startsWith('federated-dm-')
+      ? dmCallSignaling.conversationForRoom(room)
+      : room.replace(/^dm-/, '')
+    return current !== conversationId
   }
 
-  private async isConversationMuted(userId: string, conversationId: string): Promise<boolean> {
+  /**
+   * Conversation mute (notification_channels row of the conversation) or a
+   * mute of the caller (user_mutes with hide_notifications), as the
+   * notification path reads them. A failed lookup reads as not muted.
+   */
+  private async isCallMuted(receiverId: string, callerId: string, conversationId: string): Promise<boolean> {
+    const live = (until: string | null | undefined) => !until || new Date(until).getTime() > Date.now()
     try {
-      const { data, error } = await supabase
-        .from('conversation_participants')
-        .select('is_muted')
-        .eq('conversation_id', conversationId)
-        .eq('user_id', userId)
-        .single()
+      const [conversation, user] = await Promise.all([
+        supabase
+          .from('notification_channels')
+          .select('muted, muted_until')
+          .eq('user_id', receiverId)
+          .eq('conversation_id', conversationId)
+          .is('channel_id', null)
+          .maybeSingle(),
+        supabase
+          .from('user_mutes')
+          .select('expires_at')
+          .eq('muter_id', receiverId)
+          .eq('muted_user_id', callerId)
+          .eq('hide_notifications', true)
+          .maybeSingle(),
+      ])
+      if (conversation.error) debug.warn('Conversation mute lookup failed:', conversation.error.message)
+      if (user.error) debug.warn('User mute lookup failed:', user.error.message)
 
-      if (error || !data) return false
-      return data.is_muted || false
-    } catch {
+      const conversationMuted = conversation.data?.muted === true && live(conversation.data.muted_until)
+      const callerMuted = !!user.data && live(user.data.expires_at)
+      return conversationMuted || callerMuted
+    } catch (error) {
+      debug.warn('Mute lookup failed:', error)
       return false
     }
   }
@@ -207,7 +198,10 @@ class DMCallPermissionService {
     }
   }
 
-  /** Caller-facing text; deliberately vague for 'blocked' so blocks stay hidden. */
+  /**
+   * Caller-facing text; deliberately vague for 'blocked' so blocks stay hidden.
+   * 'muted' arrives from receivers on clients that refused muted calls.
+   */
   getDeclineReasonMessage(reason?: string): string {
     switch (reason) {
       case 'blocked':
@@ -229,4 +223,3 @@ class DMCallPermissionService {
 }
 
 export const dmCallPermissions = new DMCallPermissionService()
-

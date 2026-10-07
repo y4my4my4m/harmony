@@ -12,6 +12,42 @@ import {
 // Cached bot_server_permissions row, every column: see loadInstall().
 type BotPermissionRow = InstallRow & { bot_id: string }
 
+// A reactions row as MESSAGE_REACTION_ADD and MESSAGE_REACTION_REMOVE describe it.
+interface ReactionRow {
+  id: string
+  message_id: string
+  channel_id: string | null
+  user_id?: string | null
+  bot_id?: string | null
+  emoji_id?: string | null
+  custom_emoji_content?: string | null
+  metadata?: Record<string, unknown> | null
+}
+
+const REACTION_COLUMNS = 'id, message_id, channel_id, user_id, bot_id, emoji_id, custom_emoji_content, metadata, created_at'
+
+// A server's install rows as one comparable string; column and row order are not significant.
+function installsFingerprint(rows: BotPermissionRow[]): string {
+  return JSON.stringify(
+    rows
+      .map(row => JSON.stringify(Object.entries(row).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))))
+      .sort(),
+  )
+}
+
+function reactionRow(r: ReactionRow): ReactionRow {
+  return {
+    id: r.id,
+    message_id: r.message_id,
+    channel_id: r.channel_id,
+    user_id: r.user_id ?? null,
+    bot_id: r.bot_id ?? null,
+    emoji_id: r.emoji_id ?? null,
+    custom_emoji_content: r.custom_emoji_content ?? null,
+    metadata: r.metadata ?? null,
+  }
+}
+
 // BUGS.md PC1: without these caches each handled message costs two extra DB
 // queries (channel → server, then server → bot permissions), across three
 // handlers (create/update/delete), on top of the polling baseline.
@@ -19,13 +55,19 @@ type BotPermissionRow = InstallRow & { bot_id: string }
 // channel.server_id changes only through admin moves between servers, so the
 // 1 hour TTL keeps the cache warm for the life of the gateway.
 //
-// bot_server_permissions changes when an admin edits bot permissions or
-// activates/deactivates a bot. 5 minutes bounds staleness of a read-mostly
-// access control list.
+// bot_server_permissions changes when a server owner installs, edits or removes
+// a bot. The web client writes it directly, so no change reaches this process:
+// refreshBotPermissions re-reads every cached server each
+// BOT_PERMISSIONS_REFRESH_MS and drops entries that differ, which bounds how
+// long a removed or narrowed install keeps receiving events. The TTL bounds the
+// refreshed set to servers with recent traffic.
 const CHANNEL_TO_SERVER_TTL_MS = 60 * 60 * 1000
 const CHANNEL_TO_SERVER_MAX = 10_000
 const BOT_PERMISSIONS_TTL_MS = 5 * 60 * 1000
 const BOT_PERMISSIONS_MAX = 1_000
+const BOT_PERMISSIONS_REFRESH_MS = 10 * 1000
+// server_id values per refresh query; 100 UUIDs keep the PostgREST URL near 4 KB.
+const BOT_PERMISSIONS_REFRESH_BATCH = 100
 // @everyone's channel layer decides whether a bot sees a channel. A channel hidden from
 // @everyone stops reaching bots within this bound.
 const CHANNEL_LAYER_TTL_MS = 10 * 1000
@@ -36,6 +78,7 @@ export class EventDispatcher {
   private pollingInterval: NodeJS.Timeout | null = null
   private editPollingInterval: NodeJS.Timeout | null = null
   private reactionPollingInterval: NodeJS.Timeout | null = null
+  private permissionRefreshInterval: NodeJS.Timeout | null = null
   private pollsInFlight = new Set<string>()
   private lastProcessedTimestamp: Date = new Date()
   private lastReactionTimestamp: Date = new Date()
@@ -43,10 +86,11 @@ export class EventDispatcher {
 
   // Reactions are hard-deleted. Removals are detected, as with message
   // deletes, by diffing a window of known reaction IDs against what exists.
+  // The row is kept so a removal describes the reaction as its add did.
   private knownReactionIds: Set<string> = new Set()
-  private reactionContext: Map<string, { channel_id: string | null, message_id: string }> = new Map()
-  // emoji_id -> shortcode name (for custom emoji reactions). Read-mostly.
-  private emojiNameCache = new TTLCache<string, string | null>(5_000, 30 * 60 * 1000)
+  private reactionContext: Map<string, ReactionRow> = new Map()
+  // emoji_id -> custom emoji name and url. Read-mostly.
+  private emojiCache = new TTLCache<string, { name: string | null; url: string | null }>(5_000, 30 * 60 * 1000)
   
   // Message versions for edit detection; channel_id is carried for delete dispatch.
   private messageVersions: Map<string, { updated_at: string, content: string, channel_id: string, metadata: any }> = new Map()
@@ -129,6 +173,12 @@ export class EventDispatcher {
     // Reaction polling feeds MESSAGE_REACTION_ADD / MESSAGE_REACTION_REMOVE to
     // bots and the Discord bridge.
     this.reactionPollingInterval = this.schedulePoll('reactions', 2000, () => this.pollReactions())
+
+    this.permissionRefreshInterval = this.schedulePoll(
+      'permissions',
+      BOT_PERMISSIONS_REFRESH_MS,
+      () => this.refreshBotPermissions(),
+    )
   }
 
   // A tick that finds its previous run unfinished is skipped. Overlapping runs
@@ -153,7 +203,7 @@ export class EventDispatcher {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     const { data: reactions } = await supabase
       .from('reactions')
-      .select('id, message_id, channel_id, created_at')
+      .select(REACTION_COLUMNS)
       .gt('created_at', twentyFourHoursAgo)
       .order('created_at', { ascending: false })
       .limit(5000)
@@ -161,7 +211,7 @@ export class EventDispatcher {
     if (reactions) {
       for (const r of reactions) {
         this.knownReactionIds.add(r.id)
-        this.reactionContext.set(r.id, { channel_id: r.channel_id, message_id: r.message_id })
+        this.reactionContext.set(r.id, reactionRow(r))
       }
       console.log(`Initialized ${reactions.length} known reactions for add/remove tracking (last 24h)`)
     }
@@ -172,7 +222,7 @@ export class EventDispatcher {
       // --- new reactions (adds) ---
       const { data: newReactions, error } = await supabase
         .from('reactions')
-        .select('id, message_id, channel_id, user_id, bot_id, emoji_id, custom_emoji_content, metadata, created_at')
+        .select(REACTION_COLUMNS)
         .gt('created_at', this.lastReactionTimestamp.toISOString())
         .order('created_at', { ascending: true })
         .limit(100)
@@ -184,7 +234,7 @@ export class EventDispatcher {
           if (!this.knownReactionIds.has(r.id)) {
             await this.handleReactionEvent('MESSAGE_REACTION_ADD', r)
             this.knownReactionIds.add(r.id)
-            this.reactionContext.set(r.id, { channel_id: r.channel_id, message_id: r.message_id })
+            this.reactionContext.set(r.id, reactionRow(r))
           }
           this.lastReactionTimestamp = new Date(r.created_at)
         }
@@ -193,7 +243,7 @@ export class EventDispatcher {
         if (this.knownReactionIds.size > 10000) {
           const ids = Array.from(this.knownReactionIds).slice(-10000)
           this.knownReactionIds = new Set(ids)
-          const ctx = new Map<string, { channel_id: string | null, message_id: string }>()
+          const ctx = new Map<string, ReactionRow>()
           for (const id of ids) {
             const c = this.reactionContext.get(id)
             if (c) ctx.set(id, c)
@@ -206,23 +256,24 @@ export class EventDispatcher {
       // Any ID in the recent window that no longer exists was removed.
       const idsToCheck = Array.from(this.knownReactionIds).slice(-200)
       if (idsToCheck.length > 0) {
-        const { data: stillThere } = await supabase
+        const { data: stillThere, error: presentError } = await supabase
           .from('reactions')
           .select('id')
           .in('id', idsToCheck)
 
-        const present = new Set((stillThere || []).map(r => r.id))
+        // A failed lookup reads as every reaction gone; nothing is removed until one succeeds.
+        if (presentError || !Array.isArray(stillThere)) {
+          console.error('Error checking reaction removals:', presentError?.message)
+          return
+        }
+        const present = new Set(stillThere.map(r => r.id))
         for (const id of idsToCheck) {
           if (!present.has(id)) {
             const ctx = this.reactionContext.get(id)
             this.knownReactionIds.delete(id)
             this.reactionContext.delete(id)
             if (ctx) {
-              await this.handleReactionEvent('MESSAGE_REACTION_REMOVE', {
-                id,
-                message_id: ctx.message_id,
-                channel_id: ctx.channel_id,
-              })
+              await this.handleReactionEvent('MESSAGE_REACTION_REMOVE', ctx)
             }
           }
         }
@@ -233,37 +284,40 @@ export class EventDispatcher {
   }
 
   /**
-   * Resolves a custom emoji's shortcode name; cached. Native/unicode reactions
-   * store the character in custom_emoji_content and have no emoji_id.
+   * Resolves a custom emoji's shortcode name and image url; cached. Native/unicode reactions
+   * store the character in custom_emoji_content and have no emoji_id. A failed lookup is not
+   * cached.
    */
-  private async resolveEmojiName(emojiId: string): Promise<string | null> {
-    const cached = this.emojiNameCache.get(emojiId)
+  private async resolveEmoji(emojiId: string): Promise<{ name: string | null; url: string | null }> {
+    const cached = this.emojiCache.get(emojiId)
     if (cached !== undefined) return cached
     const { data, error } = await supabase
       .from('emojis')
-      .select('name')
+      .select('name, url')
       .eq('id', emojiId)
       .single()
-    if (error && error.code !== 'PGRST116') return null
-    const name = data?.name ?? null
-    this.emojiNameCache.set(emojiId, name)
-    return name
+    if (error && error.code !== 'PGRST116') return { name: null, url: null }
+    const entry = { name: data?.name ?? null, url: data?.url ?? null }
+    this.emojiCache.set(emojiId, entry)
+    return entry
   }
 
-  private async handleReactionEvent(type: 'MESSAGE_REACTION_ADD' | 'MESSAGE_REACTION_REMOVE', reaction: any) {
-    const serverId = await this.resolveServerId(reaction.channel_id)
-    if (!serverId) return
+  /** ADD and REMOVE carry the same description of the reaction; REMOVE uses the row seen at add. */
+  private async handleReactionEvent(type: 'MESSAGE_REACTION_ADD' | 'MESSAGE_REACTION_REMOVE', reaction: ReactionRow) {
+    const channelId = reaction.channel_id
+    const serverId = await this.resolveServerId(channelId)
+    if (!channelId || !serverId) return
 
-    const botIds = await this.resolveReaders(serverId, reaction.channel_id)
+    const botIds = await this.resolveReaders(serverId, channelId)
     if (botIds.length === 0) return
 
-    // Emoji descriptor shape expected by consumers (e.g. the Discord bridge):
-    // { id, name }. For unicode emoji, name is the character itself.
-    let emoji: { id: string | null, name: string | null }
+    // Emoji descriptor shape expected by consumers (e.g. the Discord bridge): { id, name, url }.
+    // For unicode emoji, name is the character itself and id and url are null.
+    let emoji: { id: string | null, name: string | null, url: string | null }
     if (reaction.emoji_id) {
-      emoji = { id: reaction.emoji_id, name: await this.resolveEmojiName(reaction.emoji_id) }
+      emoji = { id: reaction.emoji_id, ...(await this.resolveEmoji(reaction.emoji_id)) }
     } else {
-      emoji = { id: null, name: reaction.custom_emoji_content ?? null }
+      emoji = { id: null, name: reaction.custom_emoji_content ?? null, url: null }
     }
 
     const event = {
@@ -323,7 +377,7 @@ export class EventDispatcher {
 
   /**
    * Resolves the bots holding read_messages in a server. Cached for 5
-   * minutes; permissions are read-mostly.
+   * minutes; refreshBotPermissions drops entries that change sooner.
    *
    * As in `resolveServerId`, only clean responses are cached. Caching `[]`
    * from a transient error silences every bot on that server for the TTL.
@@ -348,6 +402,48 @@ export class EventDispatcher {
     const list = (botPermissions ?? []) as BotPermissionRow[]
     this.botPermissionsCache.set(serverId, list)
     return list
+  }
+
+  /**
+   * Re-reads the installs of every cached server, with resolveBotPermissions' filters, and
+   * deletes each entry whose rows differ in any column; the next event for that server
+   * queries again.
+   *
+   * A batch that errors keeps its entries. A batch truncated by PostgREST max-rows reads as
+   * changed: it costs a re-query, never a stale grant.
+   */
+  async refreshBotPermissions(): Promise<void> {
+    const cached = this.botPermissionsCache.entries()
+
+    for (let i = 0; i < cached.length; i += BOT_PERMISSIONS_REFRESH_BATCH) {
+      const batch = cached.slice(i, i + BOT_PERMISSIONS_REFRESH_BATCH)
+
+      const { data, error } = await supabase
+        .from('bot_server_permissions')
+        .select('*')
+        .in('server_id', batch.map(([serverId]) => serverId))
+        .eq('read_messages', true)
+        .eq('is_active', true)
+
+      if (error) {
+        console.warn('bot_server_permissions refresh returned a transient error; keeping cache:', error)
+        continue
+      }
+
+      const current = new Map<string, BotPermissionRow[]>()
+      for (const row of (data ?? []) as BotPermissionRow[]) {
+        const serverId = row.server_id as string
+        const rows = current.get(serverId)
+        if (rows) rows.push(row)
+        else current.set(serverId, [row])
+      }
+
+      for (const [serverId, rows] of batch) {
+        if (installsFingerprint(rows) !== installsFingerprint(current.get(serverId) ?? [])) {
+          this.botPermissionsCache.delete(serverId)
+        }
+      }
+    }
   }
 
   /** @everyone's layer on a channel. Failed lookups are not cached. */
@@ -775,7 +871,11 @@ export class EventDispatcher {
       clearInterval(this.reactionPollingInterval)
       this.reactionPollingInterval = null
     }
-    
+    if (this.permissionRefreshInterval) {
+      clearInterval(this.permissionRefreshInterval)
+      this.permissionRefreshInterval = null
+    }
+
     for (const channel of this.subscriptions) {
       await channel.unsubscribe()
     }
@@ -784,7 +884,7 @@ export class EventDispatcher {
     this.botPermissionsCache.clear()
     this.channelLayerCache.clear()
     this.authorCache.clear()
-    this.emojiNameCache.clear()
+    this.emojiCache.clear()
     console.log('Event Dispatcher shut down')
   }
 }

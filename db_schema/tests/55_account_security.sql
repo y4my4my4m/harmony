@@ -208,7 +208,7 @@ SELECT throws_ok($q$SELECT public.verify_recovery_code('bbbbbbbb-0000-0000-0000-
 SELECT tests.clear_authentication();
 
 -- Sessions ------------------------------------------------------------------------------
-SELECT tests.as_user('aaaaaaaa-0000-0000-0000-000000000001', 'aal1', 'a5a5a5a5-0000-0000-0000-000000000001');
+SELECT tests.as_user('aaaaaaaa-0000-0000-0000-000000000001', 'aal2', 'a5a5a5a5-0000-0000-0000-000000000001');
 SELECT results_eq('SELECT id, is_current, ip, push_transports FROM public.list_my_sessions()',
                   $q$VALUES ('a5a5a5a5-0000-0000-0000-000000000001'::uuid, true, '203.0.113.7'::text, ARRAY['webpush']::text[])$q$,
                   'list_my_sessions returns the caller''s sessions with the current one marked');

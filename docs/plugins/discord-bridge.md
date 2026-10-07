@@ -8,14 +8,28 @@ Sync a Discord guild with a Harmony server.
 
 Install: [github.com/y4my4my4m/harmony-discord-bridge](https://github.com/y4my4my4m/harmony-discord-bridge)
 
-## Quick setup (recommended)
+## Setup
 
-1. Open **Server Settings → Advanced → Discord Bridge** on your Harmony instance.
-2. Create a bridge bot in **User Settings → My Bots** and add it under **Server Bots**.
-3. Create your own [Discord application](https://discord.com/developers/applications), paste the **Client ID** into the setup page, and use the generated **invite URL** (scopes + permissions pre-filled).
-4. Copy or download the generated `bridge-config.yml`, fill in bot tokens and channel IDs, and run the bridge.
+Open **Server Settings → Discord Bridge** (Manage Server permission). The page
+creates the bridge's Harmony bot and offers, depending on what the instance
+enables:
 
-The setup page includes a **pairing code**. The bridge can resolve it via:
+- **Use this instance's bot** (when the operator set one up): click **Add to
+  Discord**, pick your Discord server and click **Authorize**. Discord sends you
+  back to pair channels. The operator's bot reads the Discord channels you give
+  it access to. Disconnecting the bridge, or moving it to another Discord
+  server, makes the bot leave the old one by itself within about ten minutes.
+- **Run it on this instance**: create your own Discord bot and paste its token;
+  the instance runs the bridge with it.
+- **Run it yourself**: create your own Discord bot and run the bridge with one
+  Docker command and a one-time setup code from the page.
+
+Channels are paired on the same page or from Discord with `/bridge link`.
+Presence sync sends only status changes and needs Discord's Presence intent.
+
+## Old bridge (v1)
+
+The old setup page includes a **pairing code**. The bridge can resolve it via:
 
 `GET /bot-gateway/bridge-setup/HRM-XXXX-XXXX`
 

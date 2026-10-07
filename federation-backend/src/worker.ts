@@ -18,6 +18,7 @@ import { startPushNotificationListener } from './listeners/PushNotificationHandl
 import { DeliveryQueue } from './activitypub/DeliveryQueue.js';
 import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
 import { redis } from './services/RedisService.js';
+import { startVoiceParticipantSweep, stopVoiceParticipantSweep } from './services/voiceParticipantSweep.js';
 
 let deliveryRetryIntervalId: ReturnType<typeof setInterval> | null = null;
 let notificationListener: NotificationListener | null = null;
@@ -41,8 +42,8 @@ export async function startWorker(): Promise<void> {
     // LISTEN/NOTIFY bridge for instant (sub-second) job pickup. This needs a
     // direct, session-mode Postgres connection (LISTEN cannot go through
     // PostgREST/poolers). An optimization, not a hard requirement.
-    // FEDERATION_LISTENER_URL is preferred (a dedicated least-privilege
-    // `harmony_listener` role - see 20260607_federation_listener_role.sql),
+    // FEDERATION_LISTENER_URL is preferred (the least-privilege
+    // `harmony_listener` role, created by self-host/bootstrap.sh),
     // with DATABASE_URL accepted for backward compatibility.
     //
     // Without a listener connection the 60s periodic sweep and 30s
@@ -95,6 +96,8 @@ export async function startWorker(): Promise<void> {
   }, 30000);
 
   logger.info('Delivery queue retry processor started (30s interval)');
+
+  startVoiceParticipantSweep();
   logger.info('Harmony Federation Worker is ready');
 }
 
@@ -105,6 +108,7 @@ export async function stopWorker(): Promise<void> {
     clearInterval(deliveryRetryIntervalId);
     deliveryRetryIntervalId = null;
   }
+  stopVoiceParticipantSweep();
 
   if (notificationListener) {
     await notificationListener.stop();

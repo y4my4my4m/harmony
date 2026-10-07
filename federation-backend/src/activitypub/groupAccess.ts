@@ -33,15 +33,21 @@ export async function verifiedSigner(req: Request): Promise<string | null> {
   if (typeof signature !== 'string' || !signature) return null;
 
   // A signature that leaves out (request-target) authorizes any path on this
-  // host within the Date window; Mastodon's signed GETs always cover it.
-  const covered = /headers="([^"]*)"/i.exec(signature)?.[1].toLowerCase().split(/\s+/) ?? [];
-  if (!covered.includes('(request-target)')) return null;
+  // host within the Date window; Mastodon's signed GETs always cover it. An
+  // RFC 9421 signature (Signature-Input) must cover @method and the target,
+  // which verifySignature enforces.
+  if (typeof req.headers['signature-input'] !== 'string') {
+    const covered = /headers="([^"]*)"/i.exec(signature)?.[1].toLowerCase().split(/\s+/) ?? [];
+    if (!covered.includes('(request-target)')) return null;
+  }
 
   const verification = await SignatureService.verifySignature(
     signature,
     req.headers as Record<string, string>,
     req.method,
     req.originalUrl || req.url,
+    undefined,
+    req.protocol,
   );
   if (!verification.verified || !verification.actorUrl) {
     logger.debug(`Unverified signature on ${req.method} ${req.originalUrl}: ${verification.error}`);

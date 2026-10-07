@@ -1,5 +1,7 @@
 // The native client is one binary for any instance, so it fetches Supabase
-// config from /instance-info at runtime. Inert on web (falls back to env).
+// config from /instance-info at runtime. Inert on web (runtimeConfig.ts applies).
+
+import { runtimeConfig } from '@/services/runtimeConfig';
 
 const STORAGE_KEY = 'harmony.instance';
 
@@ -48,7 +50,7 @@ export function apiUrl(path: string): string {
   return stored ? `${stored.origin}${path}` : path;
 }
 
-// display domain for handles; VITE_DOMAIN is a build-time placeholder on native, so prefer the stored instance
+// display domain for handles; on native runtimeConfig.domain is the build-time VITE_DOMAIN placeholder, so prefer the stored instance
 export function getInstanceDomain(): string {
   const stored = getStoredInstance();
   if (stored) {
@@ -58,13 +60,28 @@ export function getInstanceDomain(): string {
       /* fall through */
     }
   }
-  const baked = import.meta.env.VITE_DOMAIN as string | undefined;
+  const baked = runtimeConfig.domain;
   if (baked) return baked;
   if (typeof window !== 'undefined') {
     const host = window.location.host;
     if (host && !/^(localhost|127\.|tauri\.localhost)/i.test(host)) return host;
   }
   return 'your-instance';
+}
+
+// Picker prefill from VITE_DEFAULT_INSTANCE_URL. Returns the host for https
+// (the field shows the https:// prefix), the full origin otherwise, '' when unset or invalid.
+export function defaultInstanceInput(
+  raw: string | undefined = import.meta.env.VITE_DEFAULT_INSTANCE_URL as string | undefined
+): string {
+  const value = raw?.trim();
+  if (!value) return '';
+  try {
+    const url = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`);
+    return url.protocol === 'https:' ? url.host : url.origin;
+  } catch {
+    return '';
+  }
 }
 
 function normalizeOrigin(input: string): string {

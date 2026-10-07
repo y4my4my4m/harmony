@@ -1,0 +1,49 @@
+# Build context of self-host/web.Dockerfile (the repository root).
+# federation-backend/ and bot-gateway/ images build from their own directories
+# and read the .dockerignore there.
+
+# VCS, editors, agents
+.git
+.github
+.claude
+.cursor
+.vscode
+.idea
+
+# Dependencies and build output, at any depth
+**/node_modules
+**/dist
+**/dist-ssr
+**/.vite
+**/*.tsbuildinfo
+src-tauri/target
+src-tauri/gen
+docs/.vitepress/dist
+docs/.vitepress/cache
+
+# Secrets and instance configuration. Vite reads .env* from the root, so any
+# copied here would be inlined into the bundle.
+**/.env
+**/.env.*
+**/*.env
+!**/.env.example
+!**/.env.test.example
+**/*.pem
+**/*.key
+**/*.p12
+**/*.jks
+**/*.keystore
+self-host/supabase
+self-host/.supabase-src
+self-host/backups
+self-host/livekit.yaml
+
+# Test and tooling artifacts
+**/coverage
+**/playwright-report
+**/test-results
+**/blob-report
+e2e/stack.env
+e2e/fixture.json
+**/*.log
+**/.DS_Store

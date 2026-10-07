@@ -3,6 +3,16 @@ import { z } from 'zod';
 
 dotenvConfig();
 
+/**
+ * VAPID_SUBJECT is held as a bare address; `mailto:` is prepended when sending.
+ * Accepts `admin@x` and `mailto:admin@x`; blank reads as unset.
+ */
+export function normalizeVapidSubject(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const bare = value.trim().replace(/^mailto:/i, '').trim();
+  return bare || undefined;
+}
+
 // Environment validation schema
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -58,7 +68,7 @@ const envSchema = z.object({
   // Generate keys with: npx web-push generate-vapid-keys
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
-  VAPID_SUBJECT: z.string().email().optional(), // mailto: email for VAPID
+  VAPID_SUBJECT: z.preprocess(normalizeVapidSubject, z.string().email().optional()),
 
   // Firebase Cloud Messaging for the Android app. The service account JSON from the Firebase
   // console, raw or base64 (FCM_SERVICE_ACCOUNT_JSON), or a path to it
@@ -80,8 +90,11 @@ const envSchema = z.object({
   LIVEKIT_URL: z.string().optional(), // ws://localhost:7880 or wss://livekit.domain.com
   LIVEKIT_PUBLIC_URL: z.string().optional(), // Public URL for federated access
   
-  // WebRTC Mode: 'sfu' | 'p2p' | 'hybrid' (sfu with p2p fallback)
+  // WebRTC Mode: 'sfu' | 'p2p' | 'hybrid' (LiveKit when configured, else p2p)
   WEBRTC_MODE: z.enum(['sfu', 'p2p', 'hybrid']).default('hybrid'),
+
+  // Worker: seconds between voice_channel_participants / LiveKit reconciliations; 0 disables.
+  VOICE_RECONCILE_INTERVAL_SECONDS: z.coerce.number().int().min(0).default(60),
   
   // Allow federated voice/video calls
   ALLOW_FEDERATED_VOICE: z.string().transform(v => v === 'true').default('true'),

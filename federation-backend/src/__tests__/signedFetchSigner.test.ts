@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import crypto from 'crypto'
 
 // signedApFetch({ signAs }): the named local user's key signs, or nothing is sent.
+// Without signAs the instance actor signs.
 
 vi.mock('../config/supabase.js', () => ({ getSupabaseClient: vi.fn() }))
 vi.mock('../middleware/errorHandler.js', () => ({
@@ -17,6 +18,11 @@ vi.mock('../utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
 vi.mock('../utils/ssrfProtection.js', () => ({ safeFetch: vi.fn() }))
+vi.mock('../activitypub/InstanceActor.js', () => ({
+  signAsInstanceActor: vi.fn(async () => ({
+    headers: { Host: 'remote.test', Date: 'now', Signature: 'keyId="https://harmony.test/users/instance.actor#main-key"' },
+  })),
+}))
 
 import { SignatureService } from '../activitypub/SignatureService.js'
 import { safeFetch } from '../utils/ssrfProtection.js'
@@ -76,10 +82,19 @@ describe('signedApFetch signAs', () => {
     expect(headers.Signature).toContain('headers="(request-target) host date"')
   })
 
-  it('signs with some local key when no user is named', async () => {
+  it('signs as the instance actor when no user is named, never as an arbitrary local user', async () => {
     await SignatureService.signedApFetch('https://remote.test/servers/1')
     const headers = (vi.mocked(safeFetch).mock.calls[0][1] as any).headers
-    expect(headers.Signature).toContain('keyId="https://harmony.test/users/carol#main-key"')
+    expect(headers.Signature).toContain('keyId="https://harmony.test/users/instance.actor#main-key"')
+    expect(keyWrites).toEqual([])
+  })
+
+  it('signs each redirect hop as the named user', async () => {
+    await SignatureService.signedApFetch('https://remote.test/servers/1', { signAs: 'bob' })
+    const redirectHeaders = (vi.mocked(safeFetch).mock.calls[0][1] as any).redirectHeaders
+    const hop = await redirectHeaders('https://other.test/servers/1')
+    expect(hop.Host).toBe('other.test')
+    expect(hop.Signature).toContain('keyId="https://harmony.test/users/bob#main-key"')
   })
 
   it('refuses a remote profile, sending nothing and generating no key for it', async () => {

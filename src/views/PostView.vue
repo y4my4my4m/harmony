@@ -180,6 +180,7 @@ import type {
 } from '@/types';
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { usePostInteractions } from '@/composables/usePostInteractions'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 interface Props {
   postId?: string;
@@ -698,7 +699,7 @@ const sharePost = async () => {
 
 const isOwnPost = computed(() => {
   if (!mainPost.value) return false;
-  const currentDomain = import.meta.env.VITE_DOMAIN as string;
+  const currentDomain = runtimeConfig.domain as string;
   return mainPost.value.author?.is_local !== false && 
     mainPost.value.author?.domain === currentDomain;
 });

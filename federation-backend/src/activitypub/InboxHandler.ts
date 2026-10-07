@@ -379,7 +379,8 @@ async function handleInbox(
       req.headers as Record<string, string>,
       req.method,
       req.originalUrl || req.path, // Use originalUrl to match signed (request-target)
-      rawBody || activity // Prefer raw bytes, fall back to parsed object
+      rawBody || activity, // Prefer raw bytes, fall back to parsed object
+      req.protocol,
     );
 
     if (!verification.verified) {

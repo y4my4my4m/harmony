@@ -1,0 +1,30 @@
+# Builds Harmony's images from this checkout instead of pulling them; for
+# development and forks. Enabled by `HARMONY_BUILD=1 bash configure.sh`, which
+# sets COMPOSE_FILE=docker-compose.yml:docker-compose.build.yml in .env;
+# HARMONY_BUILD=0 removes it again. update.sh then builds instead of pulling.
+#
+# The images carry no instance values: the web entrypoint writes /config.json
+# from the environment, as for the published image.
+
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: self-host/web.Dockerfile
+    image: harmony-web:local
+
+  federation-server:
+    build:
+      context: ../federation-backend
+    image: harmony-federation:local
+
+  # Same build as federation-server.
+  federation-worker:
+    build:
+      context: ../federation-backend
+    image: harmony-federation:local
+
+  bot-gateway:
+    build:
+      context: ../bot-gateway
+    image: harmony-bot-gateway:local

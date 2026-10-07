@@ -167,3 +167,188 @@ describe('event fan-out follows channel visibility', () => {
     expect(sent).toEqual([])
   })
 })
+
+describe('reaction removal', () => {
+  const EMOJI_ID = '00000000-0000-0000-0000-0000000000f1'
+  const BLOBCAT = { id: EMOJI_ID, name: 'blobcat', url: 'https://harmony.test/emoji/blobcat.png' }
+
+  function reaction(id: string, extra: Row): Row {
+    return {
+      id,
+      message_id: 'm1',
+      channel_id: GENERAL,
+      user_id: OWNER_ID,
+      bot_id: null,
+      emoji_id: null,
+      custom_emoji_content: null,
+      metadata: {},
+      ...extra,
+    }
+  }
+
+  const events = (type: string) => sent.filter((s) => s.event.t === type).map((s) => s.event.d)
+
+  beforeEach(() => {
+    db.rows('emojis').push(BLOBCAT)
+  })
+
+  // A bridge started after the add never saw it; the removal alone must name the emoji and user.
+  it('describes a reaction known only from startup by its emoji and user', async () => {
+    db.rows('reactions').push(reaction('r1', {
+      emoji_id: EMOJI_ID,
+      metadata: { source: 'harmony' },
+      created_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+    }))
+    const d = dispatcher as any
+    await d.initializeKnownReactions()
+    db.rows('reactions').splice(0)
+    await d.pollReactions()
+
+    expect(events('MESSAGE_REACTION_REMOVE')).toEqual([{
+      reaction_id: 'r1',
+      message_id: 'm1',
+      channel_id: GENERAL,
+      user_id: OWNER_ID,
+      bot_id: null,
+      emoji: { id: EMOJI_ID, name: 'blobcat', url: 'https://harmony.test/emoji/blobcat.png' },
+      metadata: { source: 'harmony' },
+    }])
+  })
+
+  it('describes a removal exactly as its add', async () => {
+    const d = dispatcher as any
+    db.rows('reactions').push(reaction('r2', {
+      custom_emoji_content: '👍',
+      created_at: new Date(Date.now() + 1_000).toISOString(),
+    }))
+    await d.pollReactions()
+    db.rows('reactions').splice(0)
+    await d.pollReactions()
+
+    const [added] = events('MESSAGE_REACTION_ADD')
+    expect(added).toMatchObject({ reaction_id: 'r2', user_id: OWNER_ID, emoji: { id: null, name: '👍', url: null } })
+    expect(events('MESSAGE_REACTION_REMOVE')).toEqual([added])
+  })
+
+  it('dispatches no removal when the presence lookup fails', async () => {
+    db.rows('reactions').push(reaction('r3', {
+      custom_emoji_content: '👍',
+      created_at: new Date(Date.now() - 60_000).toISOString(),
+    }))
+    const d = dispatcher as any
+    await d.initializeKnownReactions()
+    let calls = 0
+    const from = mocks.from.getMockImplementation()!
+    mocks.from.mockImplementation((table: string) => {
+      if (table === 'reactions' && ++calls === 2) {
+        const failing = new FakeDb({})
+        failing.failures.reactions = { message: 'connection reset' }
+        return failing.from(table)
+      }
+      return from(table)
+    })
+    await d.pollReactions()
+
+    expect(events('MESSAGE_REACTION_REMOVE')).toEqual([])
+    mocks.from.mockImplementation(from)
+    await d.pollReactions()
+    expect(events('MESSAGE_REACTION_REMOVE')).toEqual([])
+  })
+})
+
+describe('install changes reach the permission cache within the refresh bound', () => {
+  const permissionQueries = () => mocks.from.mock.calls.filter(([table]) => table === 'bot_server_permissions').length
+
+  async function deliveredTo(text: string): Promise<string[]> {
+    sent = []
+    await dispatcher.handleMessageCreate({ new: message(GENERAL, text) })
+    return recipients('MESSAGE_CREATE', GENERAL)
+  }
+
+  it('stops delivering to a removed bot', async () => {
+    expect(await deliveredTo('before')).toEqual([OPEN_BOT])
+    const installs = db.rows('bot_server_permissions')
+    installs.splice(installs.findIndex((r) => r.bot_id === OPEN_BOT), 1)
+    await dispatcher.refreshBotPermissions()
+
+    expect(await deliveredTo('after')).toEqual([])
+  })
+
+  it('stops delivering when read_messages is revoked', async () => {
+    expect(await deliveredTo('before')).toEqual([OPEN_BOT])
+    db.rows('bot_server_permissions').find((r) => r.bot_id === OPEN_BOT)!.read_messages = false
+    await dispatcher.refreshBotPermissions()
+
+    expect(await deliveredTo('after')).toEqual([])
+  })
+
+  it('applies a narrowed allowed_channel_ids', async () => {
+    expect(await deliveredTo('before')).toEqual([OPEN_BOT])
+    db.rows('bot_server_permissions').find((r) => r.bot_id === OPEN_BOT)!.allowed_channel_ids = [BRIDGED]
+    await dispatcher.refreshBotPermissions()
+
+    expect(await deliveredTo('after')).toEqual([])
+  })
+
+  it('picks up a new install', async () => {
+    db.rows('bot_server_permissions').splice(0)
+    expect(await deliveredTo('before')).toEqual([])
+    db.rows('bot_server_permissions').push(installRow(OPEN_BOT))
+    await dispatcher.refreshBotPermissions()
+
+    expect(await deliveredTo('after')).toEqual([OPEN_BOT])
+  })
+
+  it('keeps the cache through a failed refresh', async () => {
+    expect(await deliveredTo('before')).toEqual([OPEN_BOT])
+    db.rows('bot_server_permissions').splice(0)
+    db.failures.bot_server_permissions = { message: 'connection reset' }
+    await dispatcher.refreshBotPermissions()
+    delete db.failures.bot_server_permissions
+
+    expect(await deliveredTo('cached')).toEqual([OPEN_BOT])
+    await dispatcher.refreshBotPermissions()
+    expect(await deliveredTo('refreshed')).toEqual([])
+  })
+
+  it('keeps unchanged entries, whatever their column order', async () => {
+    const d = dispatcher as any
+    const reordered = db.rows('bot_server_permissions').map((r) => Object.fromEntries(Object.entries(r).reverse()))
+    d.botPermissionsCache.set(SERVER_ID, reordered)
+    await dispatcher.refreshBotPermissions()
+
+    const before = permissionQueries()
+    expect(await deliveredTo('cached')).toEqual([OPEN_BOT])
+    expect(permissionQueries()).toBe(before)
+  })
+
+  it('refreshes every cached server, 100 per query', async () => {
+    const d = dispatcher as any
+    const servers = Array.from({ length: 250 }, (_, i) => `00000000-0000-0000-0001-${i.toString(16).padStart(12, '0')}`)
+    for (const id of servers) d.botPermissionsCache.set(id, [])
+    db.rows('bot_server_permissions').push(installRow(OPEN_BOT, { id: 'late', server_id: servers[230] }))
+
+    const before = permissionQueries()
+    await dispatcher.refreshBotPermissions()
+
+    expect(permissionQueries() - before).toBe(3)
+    expect(d.botPermissionsCache.get(servers[230])).toBeUndefined()
+    expect(d.botPermissionsCache.get(servers[0])).toEqual([])
+  })
+
+  it('runs on a timer from start() until shutdown()', async () => {
+    vi.useFakeTimers()
+    try {
+      const refresh = vi.spyOn(dispatcher, 'refreshBotPermissions')
+      await dispatcher.start()
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(refresh).toHaveBeenCalledTimes(1)
+
+      await dispatcher.shutdown()
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(refresh).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})

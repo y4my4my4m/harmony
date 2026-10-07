@@ -19,8 +19,16 @@ vi.mock('../utils/logger.js', () => ({
 vi.mock('../utils/ssrfProtection.js', () => ({
   safeFetch: vi.fn(),
 }))
+const instanceActor = vi.hoisted(() => ({ privateKey: '', fail: false }))
+vi.mock('../activitypub/InstanceActor.js', () => ({
+  signAsInstanceActor: vi.fn(async (url: string, method: string, body: unknown) => {
+    if (instanceActor.fail) throw new Error('instance_actor_keys unavailable')
+    const { SignatureService } = await import('../activitypub/SignatureService.js')
+    return SignatureService.signWithKey(url, method, body, 'https://harmony.test/users/instance.actor#main-key', instanceActor.privateKey)
+  }),
+}))
 
-import { SignatureService } from '../activitypub/SignatureService.js'
+import { SignatureService, __publicKeyCache } from '../activitypub/SignatureService.js'
 import { safeFetch } from '../utils/ssrfProtection.js'
 
 describe('SignatureService', () => {
@@ -304,107 +312,153 @@ describe('SignatureService', () => {
     })
   })
 
-  describe('fetchApWithSignatureFallback', () => {
+  describe('signedApFetch', () => {
     let keyPair: { publicKey: string; privateKey: string }
+
+    const sent = (call: number) => vi.mocked(safeFetch).mock.calls[call][1] as any
+
+    const verifies = (url: string, headers: Record<string, string>) => {
+      const params = SignatureService.parseSignatureHeader(headers.Signature)
+      const target = new URL(url)
+      const signingString = [
+        `(request-target): get ${target.pathname}${target.search}`,
+        `host: ${headers.Host}`,
+        `date: ${headers.Date}`,
+      ].join('\n')
+      return crypto.createVerify('SHA256').update(signingString).verify(keyPair.publicKey, params.signature, 'base64')
+    }
 
     beforeEach(async () => {
       vi.clearAllMocks()
       keyPair = await SignatureService.generateKeyPair()
-
-      const makeQuery = (result: any) => {
-        const q: any = {}
-        for (const m of ['select', 'eq', 'limit', 'order']) q[m] = vi.fn(() => q)
-        q.single = vi.fn().mockResolvedValue(result)
-        q.maybeSingle = vi.fn().mockResolvedValue(result)
-        return q
-      }
-
-      const { getSupabaseClient } = await import('../config/supabase.js')
-      ;(getSupabaseClient as any).mockReturnValue({
-        from: vi.fn((table: string) => {
-          if (table === 'profiles') {
-            return makeQuery({
-              data: { id: 'user-123', username: 'alice', domain: 'harmony.test' },
-              error: null,
-            })
-          }
-          if (table === 'user_private_keys') {
-            return makeQuery({
-              data: { user_id: 'user-123', private_key: keyPair.privateKey },
-              error: null,
-            })
-          }
-          return makeQuery({ data: null, error: null })
-        }),
-      })
+      instanceActor.privateKey = keyPair.privateKey
+      instanceActor.fail = false
     })
 
-    it('returns the unsigned response on success without signing', async () => {
+    it('signs every GET as the instance actor, with no unsigned attempt', async () => {
       vi.mocked(safeFetch).mockResolvedValueOnce(new Response('{}', { status: 200 }))
 
-      const res = await SignatureService.fetchApWithSignatureFallback('https://remote.test/users/bob')
+      const res = await SignatureService.signedApFetch('https://remote.test/users/bob?page=1')
+
+      expect(res.status).toBe(200)
+      expect(safeFetch).toHaveBeenCalledTimes(1)
+      const headers = sent(0).headers as Record<string, string>
+      expect(headers.Signature).toContain('keyId="https://harmony.test/users/instance.actor#main-key"')
+      expect(headers.Signature).toContain('algorithm="rsa-sha256"')
+      expect(headers.Signature).toContain('headers="(request-target) host date"')
+      expect(headers.Host).toBe('remote.test')
+      expect(verifies('https://remote.test/users/bob?page=1', headers)).toBe(true)
+    })
+
+    it('reads an actor from a remote that answers an unsigned GET 400 Missing signature', async () => {
+      vi.mocked(safeFetch).mockImplementation(async (_url, init: any) =>
+        init?.headers?.Signature
+          ? new Response('{"type":"Person"}', { status: 200 })
+          : new Response('{"code":400,"message":"Missing signature"}', { status: 400 }))
+
+      const res = await SignatureService.signedApFetch('https://chat.remote.test/users/doesnm')
 
       expect(res.status).toBe(200)
       expect(safeFetch).toHaveBeenCalledTimes(1)
     })
 
-    it('retries with an HTTP signature on 401', async () => {
-      vi.mocked(safeFetch)
-        .mockResolvedValueOnce(new Response('', { status: 401 }))
-        .mockResolvedValueOnce(new Response('{}', { status: 200 }))
-
-      const res = await SignatureService.fetchApWithSignatureFallback('https://remote.test/users/bob')
-
-      expect(res.status).toBe(200)
-      expect(safeFetch).toHaveBeenCalledTimes(2)
-      const retryHeaders = (vi.mocked(safeFetch).mock.calls[1][1] as any).headers as Record<string, string>
-      expect(retryHeaders.Signature).toContain('keyId="https://harmony.test/users/alice#main-key"')
-      expect(retryHeaders.Date).toBeDefined()
-      expect(retryHeaders.Host).toBe('remote.test')
-    })
-
-    it('retries with an HTTP signature on 403', async () => {
-      vi.mocked(safeFetch)
-        .mockResolvedValueOnce(new Response('', { status: 403 }))
-        .mockResolvedValueOnce(new Response('{}', { status: 200 }))
-
-      const res = await SignatureService.fetchApWithSignatureFallback('https://remote.test/users/bob')
-
-      expect(res.status).toBe(200)
-      expect(safeFetch).toHaveBeenCalledTimes(2)
-    })
-
-    it.each([404, 410, 500])('does not retry on %i', async (status) => {
+    it.each([401, 403])('returns %i as received, without an unsigned retry', async (status) => {
       vi.mocked(safeFetch).mockResolvedValueOnce(new Response('', { status }))
 
-      const res = await SignatureService.fetchApWithSignatureFallback('https://remote.test/users/bob')
+      const res = await SignatureService.signedApFetch('https://remote.test/users/bob')
 
       expect(res.status).toBe(status)
       expect(safeFetch).toHaveBeenCalledTimes(1)
     })
 
-    it('forwards caller headers, timeout and signal to both attempts', async () => {
-      vi.mocked(safeFetch)
-        .mockResolvedValueOnce(new Response('', { status: 401 }))
-        .mockResolvedValueOnce(new Response('{}', { status: 200 }))
+    it('signs each redirect hop for its own target', async () => {
+      vi.mocked(safeFetch).mockResolvedValueOnce(new Response('{}', { status: 200 }))
+
+      await SignatureService.signedApFetch('https://remote.test/@bob')
+
+      const hopHeaders = await sent(0).redirectHeaders('https://www.remote.test/users/bob')
+      expect(hopHeaders.Host).toBe('www.remote.test')
+      expect(hopHeaders.Signature).toContain('keyId="https://harmony.test/users/instance.actor#main-key"')
+      expect(verifies('https://www.remote.test/users/bob', hopHeaders)).toBe(true)
+    })
+
+    it('sends the GET unsigned when the instance actor key cannot be read', async () => {
+      instanceActor.fail = true
+      vi.mocked(safeFetch).mockResolvedValueOnce(new Response('{}', { status: 200 }))
+
+      const res = await SignatureService.signedApFetch('https://remote.test/users/bob')
+
+      expect(res.status).toBe(200)
+      expect(sent(0).headers.Signature).toBeUndefined()
+    })
+
+    it('forwards caller headers, timeout and signal; the signature headers win', async () => {
+      vi.mocked(safeFetch).mockResolvedValueOnce(new Response('{}', { status: 200 }))
 
       const controller = new AbortController()
-      const options = {
-        headers: { 'User-Agent': 'Harmony/1.0' },
+      await SignatureService.signedApFetch('https://remote.test/users/bob', {
+        headers: { 'User-Agent': 'Harmony/1.0', Accept: 'application/json', Host: 'spoofed.test' },
         timeoutMs: 4321,
         signal: controller.signal,
+      })
+
+      const init = sent(0)
+      expect(init.timeoutMs).toBe(4321)
+      expect(init.signal).toBe(controller.signal)
+      expect(init.headers['User-Agent']).toBe('Harmony/1.0')
+      expect(init.headers.Accept).toBe('application/json')
+      expect(init.headers.Host).toBe('remote.test')
+    })
+  })
+
+  describe('remote key fetches', () => {
+    beforeEach(async () => {
+      vi.clearAllMocks()
+      __publicKeyCache.clear()
+      instanceActor.privateKey = (await SignatureService.generateKeyPair()).privateKey
+      instanceActor.fail = false
+    })
+
+    it('fetches the signer\'s actor document with a signed GET', async () => {
+      const signer = await SignatureService.generateKeyPair()
+      const actorUrl = 'https://chat.remote.test/users/doesnm'
+      const actor = {
+        id: actorUrl,
+        type: 'Person',
+        preferredUsername: 'doesnm',
+        publicKey: { id: `${actorUrl}#main-key`, owner: actorUrl, publicKeyPem: signer.publicKey },
       }
+      const makeQuery = () => {
+        const q: any = {}
+        for (const m of ['select', 'eq', 'limit', 'order', 'update', 'upsert']) q[m] = vi.fn(() => q)
+        q.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null })
+        q.then = (resolve: any) => resolve({ data: null, error: null })
+        return q
+      }
+      const { getSupabaseClient } = await import('../config/supabase.js')
+      ;(getSupabaseClient as any).mockReturnValue({ from: vi.fn(() => makeQuery()) })
+      vi.mocked(safeFetch).mockImplementation(async (_url, init: any) => {
+        if (!init?.headers?.Signature) return new Response('{"code":400,"message":"Missing signature"}', { status: 400 })
+        return new Response(JSON.stringify(actor), {
+          status: 200,
+          headers: { 'content-type': 'application/activity+json' },
+        })
+      })
 
-      await SignatureService.fetchApWithSignatureFallback('https://remote.test/users/bob', options)
+      const date = new Date().toUTCString()
+      const signingString = `(request-target): post /inbox\nhost: harmony.test\ndate: ${date}`
+      const signature = crypto.createSign('SHA256').update(signingString).sign(signer.privateKey, 'base64')
+      const result = await SignatureService.verifySignature(
+        `keyId="${actorUrl}#main-key",algorithm="rsa-sha256",headers="(request-target) host date",signature="${signature}"`,
+        { host: 'harmony.test', date },
+        'POST',
+        '/inbox',
+      )
 
-      const first = vi.mocked(safeFetch).mock.calls[0][1] as any
-      const second = vi.mocked(safeFetch).mock.calls[1][1] as any
-      expect(first.timeoutMs).toBe(4321)
-      expect(first.signal).toBe(controller.signal)
-      expect(first.headers['User-Agent']).toBe('Harmony/1.0')
-      expect(second.timeoutMs).toBe(4321)
-      expect(second.signal).toBe(controller.signal)
-      expect(second.headers['User-Agent']).toBe('Harmony/1.0')
+      expect(result).toMatchObject({ verified: true, actorUrl })
+      expect(vi.mocked(safeFetch).mock.calls[0][0]).toBe(actorUrl)
+      expect((vi.mocked(safeFetch).mock.calls[0][1] as any).headers.Signature)
+        .toContain('keyId="https://harmony.test/users/instance.actor#main-key"')
     })
   })
 })

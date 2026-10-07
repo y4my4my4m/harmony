@@ -20,7 +20,7 @@
               :src="currentServer.icon"
               :class="'rounded'"
               size="xs"
-              :fetch-size="96"
+              :fetch-size="RAIL_ICON_FETCH"
               v-if="currentServer.icon" 
             />
             <div class="server-details">
@@ -77,6 +77,10 @@ import Icon from '@/components/common/Icon.vue';
 import type { Server, Channel } from '@/types';
 import { showsFundingGoal, type FundingConfig } from '@/services/FundingService';
 import ServerIcon from './ServerIcon.vue';
+import { devicePixels } from '@/utils/imageTransformUtils';
+
+// Variant the server rail fetches for its "md" icons (48px CSS).
+const RAIL_ICON_FETCH = devicePixels(48);
 
 interface Props {
   mode: 'chat' | 'activitypub';

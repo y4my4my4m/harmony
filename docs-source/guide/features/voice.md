@@ -10,7 +10,12 @@ The voice system supports multiple transport modes configured via `WEBRTC_MODE`:
 |------|-----------|----------|
 | `sfu` | LiveKit server | Larger rooms, better scalability |
 | `p2p` | Direct peer connections | Small groups, lower latency |
-| `hybrid` | LiveKit with P2P fallback | Flexibility |
+| `hybrid` | LiveKit when configured, P2P otherwise | Instances that may run without LiveKit |
+
+The transport belongs to the instance, not to a client: every participant of a
+call computes it from `GET /api/livekit/config` and lands on the same one. A
+client that cannot reach that transport fails its join with the reason; it never
+falls back to P2P on its own.
 
 ### Service Stack
 
@@ -62,6 +67,16 @@ Direct message calls use `DMCallSignaling`:
 - Incoming call modal (`IncomingCallModal`)
 - Ring/accept/decline flow
 - Global listener (`GlobalDMCallListener`) for receiving calls from any view
+- Group calls run in this instance's room and ring its local members; members
+  on other instances are not reached. Federated calls are one-to-one.
+- A callee already in another DM call answers busy, which ends a one-to-one
+  call. A server voice channel is not busy; answering leaves it.
+- A callee who muted the conversation or the caller gets no ringtone and no
+  incoming-call modal. The caller rings as usual, and the callee's
+  conversation list marks the call, with Join, while it is live.
+- Every Join (conversation list, DM banner, header, call message) checks the
+  call first: it is live while ringing or while anyone is in it. A call nobody
+  is in reads "Call ended" and loses its Join.
 
 ## Spatial Audio
 
@@ -109,9 +124,8 @@ Direct message calls use `DMCallSignaling`:
 
 Voice features require:
 
-1. `VITE_ENABLE_VOICE=true` in the frontend `.env`
-2. A LiveKit server (for SFU mode) with `LIVEKIT_*` env vars configured
-3. The federation backend running (for token generation)
+1. A LiveKit server (for SFU mode) with `LIVEKIT_*` env vars configured
+2. The federation backend running (for token generation)
 
 See [Environment Variables](../environment) for all voice-related settings.
 

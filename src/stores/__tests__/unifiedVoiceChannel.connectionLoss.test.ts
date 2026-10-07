@@ -15,7 +15,6 @@ vi.mock('@/supabase', () => ({ supabase: {} }))
 vi.mock('@/services/UserEventChannel', () => ({ userEventChannel: { on: () => () => {} } }))
 vi.mock('@/services/instanceConfig', () => ({ apiUrl: (p: string) => p }))
 vi.mock('@/services/webrtcManager', () => ({ webrtcManager: webrtc }))
-vi.mock('@/services/nativeLiveKit', () => ({ nativeLiveKit: {} }))
 vi.mock('@/services/voice/remoteAudioMixer', () => ({
   clampVolume: (v: number) => v,
   remoteAudioMixer: { onBlockedChange: vi.fn() },

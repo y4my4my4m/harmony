@@ -1,570 +1,385 @@
 <template>
-  <div class="discord-bridge-setup">
+  <section class="discord-bridge" aria-labelledby="discord-bridge-title" data-testid="discord-bridge">
     <div class="settings-section">
-      <h2 class="section-title">Discord bridge</h2>
-      <p class="section-description">
-        Self-host the
-        <a href="https://github.com/y4my4my4m/harmony-discord-bridge" target="_blank" rel="noopener noreferrer">
-          harmony-discord-bridge
-        </a>
-        on your machine. Each community runs its own Discord application and bridge process.
-      </p>
+      <h2 id="discord-bridge-title" class="section-title">{{ t('discordBridge.title') }}</h2>
+      <p class="section-description">{{ t('discordBridge.intro') }}</p>
     </div>
 
-    <div v-if="loading" class="loading-state">
-      <LoadingSpinner :size="40" />
-      <p>Loading bridge setup...</p>
-    </div>
-
-    <!-- No bridge bot on this server yet: point the owner to install one. -->
-    <div v-else-if="!installedBridgeBot" class="settings-card">
-      <div class="warning-banner">
-        No Discord bridge bot is installed on this server yet.
-        Create one in
-        <router-link to="/settings/bots">User Settings → My Bots</router-link>
-        (<code>bot_type: bridge</code>) — its <strong>View Details</strong> page walks you through the
-        Discord application setup — then add it under
-        <strong>Server Settings → Advanced → Server Bots</strong>.
-        The server-specific pairing code and config appear here once it's installed.
-      </div>
+    <div v-if="loading" class="loading-state" role="status">
+      <LoadingSpinner :size="32" />
+      <span>{{ t('discordBridge.loading') }}</span>
     </div>
 
     <template v-else>
-      <!-- Pairing + server identity -->
-      <div class="settings-card">
-        <div class="card-header">
-          <h3>Harmony connection</h3>
+      <div v-if="unavailable" class="db-banner db-banner--warn" role="status" data-testid="bridge-unavailable">
+        <p>{{ t('discordBridge.errors.unavailable') }}</p>
+      </div>
+
+      <div v-else-if="loadError" class="db-banner db-banner--error" role="alert" data-testid="bridge-load-error">
+        <p>{{ t('discordBridge.errors.load') }}</p>
+        <p v-if="loadError !== '-'" class="db-muted">{{ loadError }}</p>
+        <div class="db-actions">
+          <button type="button" class="btn btn-secondary btn-sm" @click="load">{{ t('discordBridge.common.retry') }}</button>
+        </div>
+      </div>
+
+      <template v-else>
+        <div v-if="actionError" class="db-banner db-banner--error" role="alert" data-testid="bridge-action-error">
+          <p>{{ actionError }}</p>
+          <p v-if="actionDetail" class="db-muted">{{ actionDetail }}</p>
         </div>
 
-        <div class="field-row">
-          <div class="field-label">Pairing code</div>
-          <div class="field-value mono">
-            {{ pairingCode || '—' }}
+        <div v-if="linkError" class="db-banner db-banner--error" role="alert" data-testid="bridge-link-error">
+          <p>{{ t(`discordBridge.instance.linkError.${linkError}`) }}</p>
+          <div class="db-actions">
             <button
-              v-if="pairingCode"
+              v-if="linkError !== 'limit_reached'"
               type="button"
-              class="copy-btn"
-              @click="copyText(pairingCode, 'Pairing code')"
+              class="btn btn-secondary btn-sm"
+              :disabled="busy"
+              data-testid="link-retry"
+              @click="retryLink"
             >
-              Copy
+              {{ t('discordBridge.instance.retry') }}
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" data-testid="link-error-dismiss" @click="linkError = null">
+              {{ t('discordBridge.common.dismiss') }}
             </button>
           </div>
         </div>
 
-        <div class="field-row">
-          <div class="field-label">Harmony server ID</div>
-          <div class="field-value mono">
-            {{ serverId }}
-            <button type="button" class="copy-btn" @click="copyText(serverId, 'Server ID')">Copy</button>
-          </div>
+        <section v-if="!bridge && legacy" class="db-card upgrade" aria-labelledby="bridge-upgrade-title" data-testid="upgrade-card">
+          <h3 id="bridge-upgrade-title" class="db-card-title">{{ t('discordBridge.upgrade.title') }}</h3>
+          <p class="db-text">{{ t('discordBridge.upgrade.body') }}</p>
+          <p class="db-muted">{{ t('discordBridge.upgrade.doubleRelay') }}</p>
+        </section>
+
+        <BridgeModeChooser
+          v-if="!bridge"
+          :hosting-enabled="hostingEnabled"
+          :instance-bot-enabled="instanceBotEnabled"
+          :instance-name="instanceName"
+          :busy="busy"
+          @choose="create"
+        />
+
+        <BridgeStatusView
+          v-else-if="view === 'status'"
+          :bridge="bridge"
+          :pairs="pairs"
+          :harmony-channels="channels"
+          :now="now"
+          :harmony-url="harmonyUrl"
+          @changed="refresh"
+          @show-setup="showSetup"
+          @delete="askDelete('disconnect')"
+        />
+
+        <BridgeSetupStepper
+          v-else
+          :key="`${bridge.id}:${stepperKey}`"
+          :bridge="bridge"
+          :pairs="pairs"
+          :harmony-channels="channels"
+          :now="now"
+          :harmony-url="harmonyUrl"
+          :server-name="serverName"
+          :initial-step="initialStep"
+          @changed="refresh"
+          @finish="finish"
+          @start-over="askDelete('startOver')"
+        />
+
+        <div v-if="bridge && legacy" class="db-banner db-banner--warn" data-testid="legacy-still-there">
+          <p>{{ t('discordBridge.upgrade.doubleRelay') }}</p>
         </div>
+      </template>
 
-        <div class="field-row">
-          <div class="field-label">Gateway URLs</div>
-          <div class="field-stack">
-            <label class="toggle-row">
-              <input v-model="coLocated" type="checkbox" />
-              <span>Bridge runs on the same machine as this Harmony instance</span>
-            </label>
-            <div class="url-block">
-              <span class="url-label">gatewayUrl</span>
-              <code>{{ gatewayUrls.gatewayUrl }}</code>
-            </div>
-            <div class="url-block">
-              <span class="url-label">apiUrl</span>
-              <code>{{ gatewayUrls.apiUrl }}</code>
-            </div>
-            <div class="url-block">
-              <span class="url-label">baseUrl</span>
-              <code>{{ gatewayUrls.baseUrl }}</code>
-            </div>
-          </div>
-        </div>
-
-        <div class="card-actions">
-          <button type="button" class="btn-secondary" :disabled="regenerating" @click="regeneratePairingCode">
-            {{ regenerating ? 'Regenerating…' : 'Regenerate pairing code' }}
-          </button>
-        </div>
-
-        <p class="hint">
-          The bridge can resolve this code via
-          <code>GET /bot-gateway/bridge-setup/{{ pairingCode || 'HRM-XXXX-XXXX' }}</code>
-          to auto-fill <code>serverId</code> and gateway URLs.
-        </p>
-      </div>
-
-      <!-- Bridge bot installed: confirmation + pointer to bot-level setup -->
-      <div class="settings-card">
-        <div class="card-header">
-          <h3>Bridge bot</h3>
-        </div>
-
-        <div class="success-banner">
-          <strong>{{ installedBridgeBot.bot.username }}</strong> is installed on this server.
-          Discord application setup (Client ID, intents, invite URL) lives on the bot's
-          <router-link to="/settings/bots">My Bots → View Details</router-link>
-          page. Paste its bot token into the generated <code>bridge-config.yml</code> below.
-        </div>
-      </div>
-
-      <!-- Generated config -->
-      <div class="settings-card">
-        <div class="card-header">
-          <h3>Bridge config</h3>
-        </div>
-
-        <p class="hint">
-          Save as <code>config/bridge-config.yml</code> in the bridge repo, fill in tokens and channel IDs, then
-          <code>docker compose up -d</code>.
-        </p>
-
-        <pre class="config-preview">{{ configYaml }}</pre>
-
-        <div class="card-actions">
-          <button type="button" class="btn-primary" @click="copyText(configYaml, 'Bridge config')">
-            Copy bridge-config.yml
-          </button>
-          <button type="button" class="btn-secondary" @click="downloadConfig">
-            Download YAML
-          </button>
-        </div>
-      </div>
+      <BridgeLegacyInfo v-if="legacy" :server-id="serverId" :pairing-code="legacy.pairing_code" :harmony-url="harmonyUrl" />
     </template>
-  </div>
+
+    <ConfirmationModal
+      :show="confirm !== null"
+      :title="confirm ? t(`discordBridge.confirm.${confirm}.title`) : ''"
+      :message="confirm ? t(`discordBridge.confirm.${confirm}.message`) : ''"
+      :secondary-message="confirmNote"
+      :confirm-button-text="confirm ? t(`discordBridge.confirm.${confirm}.button`) : ''"
+      @confirm="runDelete"
+      @close="confirm = null"
+      @update:model-value="(open: boolean) => { if (!open) confirm = null }"
+    />
+  </section>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
-import { supabase } from '@/supabase'
-import { debug } from '@/utils/debug'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import ConfirmationModal from '@/components/ConfirmationModal.vue'
+import { debug } from '@/utils/debug'
 import {
-  buildBridgeGatewayUrls,
-  generateBridgeConfigYaml,
+  BRIDGE_REMOVE_COMMAND,
   resolveHarmonyBaseUrl,
-  isBridgeBot,
+  resolveInstanceName,
+  type BridgeLinkReturn,
+  type BridgeMode,
+  type LinkErrorCode,
+  type BridgePairRow,
+  type DiscordBridgeRow,
+  type HarmonyChannelOption,
+  type SetupStep,
 } from '@/utils/discordBridgeSetup'
+import {
+  BridgeUnavailableError,
+  createBridge,
+  createInstanceLink,
+  deleteBridge,
+  fetchBridge,
+  fetchBridgePairs,
+  fetchHostingEnabled,
+  fetchInstanceBotEnabled,
+  fetchLegacyPairing,
+  fetchServerTextChannels,
+  type LegacyPairing,
+} from './discord-bridge/bridgeApi'
+import { bridgeErrorKey, errorDetail } from './discord-bridge/bridgeErrors'
+import { startInstanceLink } from './discord-bridge/instanceLink'
+import BridgeModeChooser from './discord-bridge/BridgeModeChooser.vue'
+import BridgeSetupStepper from './discord-bridge/BridgeSetupStepper.vue'
+import BridgeStatusView from './discord-bridge/BridgeStatusView.vue'
+import BridgeLegacyInfo from './discord-bridge/BridgeLegacyInfo.vue'
 
-interface Props {
-  serverId: string
-}
+const props = withDefaults(
+  defineProps<{
+    serverId: string
+    serverName?: string
+    /** The instance bot's OAuth2 callback outcome, read from ?linked / ?link_error. */
+    linkReturn?: BridgeLinkReturn | null
+  }>(),
+  { serverName: '', linkReturn: null },
+)
 
-const props = defineProps<Props>()
+/** Status and snapshot refresh; the bridge heartbeats every 30 s and on change. */
+const POLL_MS = 5000
+
+const { t } = useI18n()
 const toast = useToast()
+const harmonyUrl = resolveHarmonyBaseUrl()
+const instanceName = resolveInstanceName()
 
 const loading = ref(true)
-const regenerating = ref(false)
-const pairingCode = ref('')
-const coLocated = ref(false)
-const installedBridgeBot = ref<{ bot: { username: string } } | null>(null)
+const loadError = ref('')
+const unavailable = ref(false)
+const busy = ref(false)
+const actionError = ref('')
+const actionDetail = ref('')
 
-const baseUrl = computed(() => resolveHarmonyBaseUrl())
-const gatewayUrls = computed(() => buildBridgeGatewayUrls(baseUrl.value, coLocated.value))
+const bridge = ref<DiscordBridgeRow | null>(null)
+const pairs = ref<BridgePairRow[]>([])
+const channels = ref<HarmonyChannelOption[]>([])
+const legacy = ref<LegacyPairing | null>(null)
+const hostingEnabled = ref(false)
+const instanceBotEnabled = ref(false)
+const linkError = ref<LinkErrorCode | null>(props.linkReturn?.error ?? null)
+const now = ref(Date.now())
 
-const configYaml = computed(() => {
-  if (!pairingCode.value) return '# Loading pairing code…'
-  return generateBridgeConfigYaml({
-    pairingCode: pairingCode.value,
-    serverId: props.serverId,
-    gateway: gatewayUrls.value,
-  })
+const view = ref<'setup' | 'status'>('setup')
+const initialStep = ref<SetupStep | null>(null)
+const stepperKey = ref(0)
+const confirm = ref<'disconnect' | 'startOver' | null>(null)
+
+const confirmNote = computed(() => {
+  if (!confirm.value) return ''
+  if (bridge.value?.mode === 'self') return t('discordBridge.confirm.selfNote', { command: BRIDGE_REMOVE_COMMAND })
+  if (bridge.value?.mode === 'instance' && bridge.value.discord_guild_id) return t('discordBridge.confirm.instanceNote')
+  return ''
 })
 
-async function loadPairingCode() {
-  const { data, error } = await supabase.rpc('get_or_create_discord_bridge_pairing', {
-    p_server_id: props.serverId,
-  })
-  if (error) throw error
-  pairingCode.value = data as string
+let timer: ReturnType<typeof setInterval> | null = null
+let refreshSeq = 0
+
+async function readBridge(): Promise<void> {
+  const seq = ++refreshSeq
+  const row = await fetchBridge(props.serverId)
+  const rows = row ? await fetchBridgePairs(row.id) : []
+  if (seq !== refreshSeq) return
+  bridge.value = row
+  pairs.value = rows
 }
 
-interface BotInstallRow {
-  bot: {
-    bot_type?: string | null
-    username?: string | null
-  } | null
-}
-
-async function loadInstalledBridgeBot() {
-  const { data, error } = await supabase
-    .from('bot_server_permissions')
-    .select('bot:bots(bot_type, username)')
-    .eq('server_id', props.serverId)
-    .eq('is_active', true)
-
-  if (error) throw error
-
-  const rows = (data ?? []) as BotInstallRow[]
-  const bridgeInstall = rows.find(row => row.bot && isBridgeBot(row.bot))
-  installedBridgeBot.value = bridgeInstall?.bot?.username
-    ? { bot: { username: bridgeInstall.bot.username } }
-    : null
-}
-
-async function regeneratePairingCode() {
-  regenerating.value = true
-  try {
-    const { data, error } = await supabase.rpc('regenerate_discord_bridge_pairing', {
-      p_server_id: props.serverId,
-    })
-    if (error) throw error
-    pairingCode.value = data as string
-    toast.success('New pairing code generated')
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Failed to regenerate pairing code'
-    debug.error('regenerate_discord_bridge_pairing failed:', error)
-    toast.error(message)
-  } finally {
-    regenerating.value = false
-  }
-}
-
-async function copyText(text: string, label: string) {
-  try {
-    await navigator.clipboard.writeText(text)
-    toast.success(`${label} copied`)
-  } catch {
-    toast.error('Failed to copy')
-  }
-}
-
-function downloadConfig() {
-  const blob = new Blob([configYaml.value], { type: 'text/yaml' })
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = 'bridge-config.yml'
-  anchor.click()
-  URL.revokeObjectURL(url)
-  toast.success('Downloaded bridge-config.yml')
-}
-
-onMounted(async () => {
+async function load() {
   loading.value = true
-  try {
-    await Promise.all([loadPairingCode(), loadInstalledBridgeBot()])
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Failed to load bridge setup'
-    debug.error('Discord bridge setup load failed:', error)
-    toast.error(message)
-  } finally {
-    loading.value = false
+  loadError.value = ''
+  unavailable.value = false
+  const [bridgeResult, channelResult, hostingResult, legacyResult, instanceResult] = await Promise.allSettled([
+    readBridge(),
+    fetchServerTextChannels(props.serverId),
+    fetchHostingEnabled(),
+    fetchLegacyPairing(props.serverId),
+    fetchInstanceBotEnabled(),
+  ])
+  if (channelResult.status === 'fulfilled') channels.value = channelResult.value
+  hostingEnabled.value = hostingResult.status === 'fulfilled' && hostingResult.value
+  instanceBotEnabled.value = instanceResult.status === 'fulfilled' && instanceResult.value
+  legacy.value = legacyResult.status === 'fulfilled' ? legacyResult.value : null
+  if (bridgeResult.status === 'rejected') {
+    if (bridgeResult.reason instanceof BridgeUnavailableError) {
+      unavailable.value = true
+    } else {
+      debug.error('Discord bridge load failed:', bridgeResult.reason)
+      loadError.value = errorDetail(bridgeResult.reason) || '-'
+    }
+  } else if (channelResult.status === 'rejected') {
+    debug.error('Server channels load failed:', channelResult.reason)
+    loadError.value = errorDetail(channelResult.reason) || '-'
   }
+  view.value = pairs.value.length > 0 ? 'status' : 'setup'
+  now.value = Date.now()
+  loading.value = false
+  if (props.linkReturn?.linked && bridge.value?.discord_guild_id) {
+    toast.success(t('discordBridge.instance.linked', { guild: bridge.value.discord_guild_name || bridge.value.discord_guild_id }))
+  }
+}
+
+async function refresh() {
+  try {
+    await readBridge()
+    now.value = Date.now()
+  } catch (error) {
+    debug.warn('Discord bridge refresh failed:', error)
+  }
+}
+
+function poll() {
+  now.value = Date.now()
+  if (!bridge.value || loading.value) return
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+  void refresh()
+}
+
+function onVisibility() {
+  if (document.visibilityState === 'visible') poll()
+}
+
+function clearAction() {
+  actionError.value = ''
+  actionDetail.value = ''
+}
+
+/** The instance bridge is created by its first link request; that state is not used. */
+async function create(mode: BridgeMode) {
+  busy.value = true
+  clearAction()
+  try {
+    if (mode === 'instance') await createInstanceLink(props.serverId)
+    else await createBridge(props.serverId, mode)
+    await refresh()
+    view.value = 'setup'
+    initialStep.value = null
+    stepperKey.value++
+  } catch (error) {
+    debug.error('discord_bridge_create failed:', error)
+    actionError.value = t(bridgeErrorKey(error, 'discordBridge.errors.create'))
+    actionDetail.value = errorDetail(error)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function retryLink() {
+  busy.value = true
+  clearAction()
+  try {
+    await startInstanceLink(props.serverId)
+    linkError.value = null
+  } catch (error) {
+    debug.error('discord_bridge_instance_link failed:', error)
+    actionError.value = t(bridgeErrorKey(error, 'discordBridge.errors.link'))
+    actionDetail.value = errorDetail(error)
+  } finally {
+    busy.value = false
+  }
+}
+
+function showSetup(step: SetupStep | null) {
+  initialStep.value = step
+  stepperKey.value++
+  view.value = 'setup'
+}
+
+function finish() {
+  view.value = 'status'
+  toast.success(t('discordBridge.status.finished'))
+}
+
+function askDelete(kind: 'disconnect' | 'startOver') {
+  clearAction()
+  confirm.value = kind
+}
+
+async function runDelete() {
+  const row = bridge.value
+  const kind = confirm.value
+  confirm.value = null
+  if (!row) return
+  busy.value = true
+  try {
+    await deleteBridge(row.id)
+    try {
+      localStorage.removeItem(`harmony.discordBridge.reached.${row.id}`)
+    } catch {
+      /* storage unavailable */
+    }
+    bridge.value = null
+    pairs.value = []
+    view.value = 'setup'
+    initialStep.value = null
+    if (kind === 'disconnect') toast.success(t('discordBridge.status.disconnected'))
+  } catch (error) {
+    debug.error('discord_bridge_delete failed:', error)
+    actionError.value = t(bridgeErrorKey(error, 'discordBridge.errors.delete'))
+    actionDetail.value = errorDetail(error)
+  } finally {
+    busy.value = false
+  }
+}
+
+onMounted(() => {
+  void load()
+  timer = setInterval(poll, POLL_MS)
+  document.addEventListener('visibilitychange', onVisibility)
+})
+
+onUnmounted(() => {
+  if (timer) clearInterval(timer)
+  document.removeEventListener('visibilitychange', onVisibility)
 })
 </script>
 
+<style scoped src="./discord-bridge/bridge.css"></style>
 <style scoped>
-.discord-bridge-setup {
+.discord-bridge {
   margin-bottom: 32px;
+  max-width: 860px;
 }
 
 .settings-section {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .section-title {
   margin: 0 0 8px;
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-semibold);
+  font-size: 20px;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
 .section-description {
   margin: 0;
-  font-size: var(--font-size-sm);
+  font-size: 14px;
+  line-height: 1.55;
   color: var(--text-secondary);
-  line-height: 1.5;
-}
-
-.section-description a {
-  color: var(--harmony-primary);
-}
-
-.settings-card {
-  background: var(--color-background-primary);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
-  padding: 20px;
-  margin-bottom: 20px;
-}
-
-.settings-card.highlight {
-  border-color: color-mix(in srgb, var(--harmony-primary) 45%, transparent);
-}
-
-.card-header h3 {
-  margin: 0 0 16px;
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-semibold);
-}
-
-.field-row {
-  display: grid;
-  grid-template-columns: 160px 1fr;
-  gap: 12px;
-  margin-bottom: 14px;
-  align-items: start;
-}
-
-.field-label {
-  font-size: 13px;
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-secondary);
-  padding-top: 2px;
-}
-
-.field-value {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.field-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.mono {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 13px;
-}
-
-.url-block {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.url-label {
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-}
-
-.url-block code {
-  font-size: var(--font-size-xs);
-  word-break: break-all;
-  background: var(--surface-inset);
-  padding: 6px 8px;
-  border-radius: var(--radius-base);
-}
-
-.copy-btn {
-  border: 1px solid var(--border-primary);
-  background: var(--background-modifier-hover);
-  color: var(--text-primary);
-  border-radius: var(--radius-base);
-  padding: 4px 10px;
-  font-size: var(--font-size-xs);
-  cursor: pointer;
-}
-
-.copy-btn:hover {
-  background: var(--background-modifier-active);
-}
-
-.toggle-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-}
-
-.toggle-row input {
-  margin-top: 3px;
-}
-
-.hint {
-  margin: 12px 0 0;
-  font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-
-.hint code {
-  font-size: var(--font-size-xs);
-}
-
-.intro {
-  margin: 0 0 16px;
-  line-height: 1.5;
-}
-
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 13px;
-  font-weight: var(--font-weight-semibold);
-}
-
-.text-input {
-  width: 100%;
-  max-width: 420px;
-  padding: 10px 12px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--input-border);
-  background: var(--input-bg);
-  color: var(--text-primary);
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 13px;
-}
-
-.subsection {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-primary);
-}
-
-.subsection h4 {
-  margin: 0 0 8px;
-  font-size: var(--font-size-sm);
-}
-
-.checklist {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.checklist li {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 10px;
-  font-size: var(--font-size-sm);
-  line-height: 1.45;
-}
-
-.check-icon {
-  color: var(--harmony-primary);
-  flex-shrink: 0;
-  width: 14px;
-}
-
-.badge {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: var(--font-weight-semibold);
-  padding: 1px 6px;
-  border-radius: var(--radius-sm);
-  margin-left: 6px;
-  vertical-align: middle;
-}
-
-.badge.required {
-  background: color-mix(in srgb, var(--success) 15%, transparent);
-  color: var(--success);
-}
-
-.badge.optional {
-  background: var(--background-modifier-selected);
-  color: var(--text-secondary);
-}
-
-.success-banner,
-.warning-banner {
-  padding: 12px 14px;
-  border-radius: var(--radius-md);
-  margin-bottom: 16px;
-  font-size: var(--font-size-sm);
-  line-height: 1.5;
-}
-
-.success-banner {
-  background: color-mix(in srgb, var(--success) 10%, transparent);
-  border-left: 3px solid var(--success);
-}
-
-.warning-banner {
-  background: color-mix(in srgb, var(--warning) 10%, transparent);
-  border-left: 3px solid var(--warning);
-}
-
-.success-banner a,
-.warning-banner a {
-  color: var(--harmony-primary);
-}
-
-.invite-box {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.invite-url {
-  display: block;
-  word-break: break-all;
-  font-size: var(--font-size-xs);
-  padding: 10px;
-  background: var(--surface-inset);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-primary);
-}
-
-.link-btn {
-  text-align: center;
-  text-decoration: none;
-  display: inline-block;
-}
-
-.numbered-steps {
-  margin: 0;
-  padding-left: 20px;
-  font-size: var(--font-size-sm);
-  line-height: 1.6;
-}
-
-.config-preview {
-  margin: 12px 0 16px;
-  padding: 14px;
-  background: var(--surface-inset);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-primary);
-  font-size: var(--font-size-xs);
-  line-height: 1.45;
-  overflow-x: auto;
-  white-space: pre;
-}
-
-.card-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.btn-primary,
-.btn-secondary {
-  padding: 10px 16px;
-  border-radius: var(--radius-md);
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  border: none;
-}
-
-.btn-primary {
-  background: var(--harmony-primary);
-  color: var(--text-on-primary);
-}
-
-.btn-secondary {
-  background: transparent;
-  border: 1px solid var(--border-primary);
-  color: var(--text-primary);
-}
-
-.btn-primary:disabled,
-.btn-secondary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .loading-state {
@@ -572,13 +387,11 @@ onMounted(async () => {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  padding: 40px;
+  padding: 40px 0;
   color: var(--text-secondary);
 }
 
-@media (max-width: 640px) {
-  .field-row {
-    grid-template-columns: 1fr;
-  }
+.upgrade {
+  border-color: color-mix(in srgb, var(--harmony-primary) 45%, var(--background-quaternary));
 }
 </style>

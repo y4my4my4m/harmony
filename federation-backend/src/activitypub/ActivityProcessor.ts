@@ -20,6 +20,7 @@ import { pgrstOrValue } from '../utils/postgrestFilter.js';
 import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
 import { isFavouriteLike, isHeartReaction, storeFavourite } from '../utils/heartReaction.js';
 import { noteDocumentSoftware } from './instanceSoftware.js';
+import { confirmActorAcct, withCanonicalAcct } from './webfingerClient.js';
 import { fetchActorById, fetchAuthoritativeDocument, readApDocument, sameOrigin, type FetchedDocument } from '../utils/apOrigin.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { flagComment, flagObjectUris, parseLocalObjectUri } from './flag.js';
@@ -154,9 +155,9 @@ export class ActivityProcessor {
   }
 
   /**
-   * GET an ActivityPub document with the URL it was served from. Retries
-   * signed on 401/403 for remotes running authorized fetch. Blocked hosts are
-   * never contacted, so a boost, reply or quote cannot import their content.
+   * GET an ActivityPub document with the URL it was served from, signed as
+   * the instance actor. Blocked hosts are never contacted, so a boost, reply
+   * or quote cannot import their content.
    * The response must carry an ActivityPub media type.
    */
   private static async fetchApDocument(url: string): Promise<FetchedDocument | null> {
@@ -172,7 +173,7 @@ export class ActivityProcessor {
     }
 
     try {
-      const response = await SignatureService.fetchApWithSignatureFallback(url, {
+      const response = await SignatureService.signedApFetch(url, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
         },
@@ -2930,7 +2931,7 @@ export class ActivityProcessor {
 
     const { data: existing } = await supabase
       .from('profiles')
-      .select('id, updated_at, federated_id, username, display_name, avatar_url, color, federation_metadata')
+      .select('id, updated_at, federated_id, username, domain, display_name, avatar_url, color, federation_metadata')
       .eq('federated_id', actorUrl)
       .maybeSingle();
 
@@ -2960,7 +2961,13 @@ export class ActivityProcessor {
         return existing || null;
       }
 
-      const profileData = actorToProfile(actor);
+      // The account a split-domain actor is known by. A WebFinger failure
+      // keeps the stored account rather than reverting it to the actor's host.
+      const acct = await confirmActorAcct(actor, 3_000);
+      const profileData = withCanonicalAcct(
+        actorToProfile(actor),
+        acct ?? (existing?.username && existing?.domain ? { username: existing.username, domain: String(existing.domain).toLowerCase() } : null),
+      );
 
       // SECURITY: a remote actor claiming the instance domain is a spoofing
       // attempt; refuse the upsert.

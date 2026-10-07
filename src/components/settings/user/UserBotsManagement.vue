@@ -233,7 +233,7 @@
         </ul>
       </section>
 
-      <BridgeBotGuide v-if="detailBot.bot_type === 'bridge'" class="bridge-guide" />
+      <BridgeBotGuide v-if="detailBot.bot_type === 'bridge'" :bot-id="detailBot.id" class="bridge-guide" />
 
       <!-- Delete -->
       <section class="settings-section danger-zone">
@@ -448,6 +448,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import ServerIcon from '@/components/common/ServerIcon.vue'
 import BridgeBotGuide from '@/components/settings/BridgeBotGuide.vue'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { useImageCrop } from '@/composables/useImageCrop'
 
 defineProps<{ loading: boolean }>()
 
@@ -488,6 +489,7 @@ interface ConnectionRow {
 const { t } = useI18n()
 const toast = useToast()
 const { confirm } = useConfirmDialog()
+const { cropImage } = useImageCrop()
 
 const BOT_COLUMNS = 'id, username, display_name, bio, avatar_url, bot_type, is_public, is_verified, created_at, last_online_at'
 const PRESENCE_REFRESH_MS = 30_000
@@ -708,11 +710,13 @@ async function handleBotAvatarUpload(event: Event) {
     toast.error(sourceError)
     return
   }
+  const cropped = await cropImage(file, 'avatar')
+  if (!cropped) return
 
   uploadingAvatar.value = true
   try {
     const { uploadImageObject } = await import('@/utils/fileUpload')
-    const uploaded = await uploadImageObject(file, 'avatar', 'avatars', `bots/${bot.id}`, 'avatar')
+    const uploaded = await uploadImageObject(cropped, 'avatar', 'avatars', `bots/${bot.id}`, 'avatar')
     if (!uploaded.success || !uploaded.url) throw new Error(uploaded.error)
 
     editForm.avatar_url = uploaded.url

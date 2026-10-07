@@ -42,6 +42,18 @@ describe('FederationHandlers.createPostUpdateActivity', () => {
     expect(activity.object.updated).toBe('2026-01-02T00:00:00.000Z')
   })
 
+  it('carries the Note context, so an edited focal point keeps its term', async () => {
+    profilesIn.mockResolvedValue({ data: [], error: null })
+    const activity = await createPostUpdateActivity(
+      { ...base, media_attachments: [{ type: 'Image', url: 'https://s.test/1.png', mediaType: 'image/png', meta: { focus: { x: 0.1, y: 0.2 } } }] },
+      author,
+    )
+
+    expect(activity['@context']).toBe(activity.object['@context'])
+    expect(activity['@context'][1]).toMatchObject({ focalPoint: { '@container': '@list', '@id': 'toot:focalPoint' } })
+    expect(activity.object.attachment[0].focalPoint).toEqual([0.1, 0.2])
+  })
+
   it('carries the parent AP id in inReplyTo, not the row UUID', async () => {
     profilesIn.mockResolvedValue({ data: [], error: null })
     parentSingle.mockResolvedValue({ data: { ap_id: 'https://mastodon.test/users/bob/statuses/1' }, error: null })

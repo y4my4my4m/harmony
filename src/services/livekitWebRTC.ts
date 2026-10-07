@@ -25,6 +25,7 @@ import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
 import { VoiceSettingsService } from './VoiceSettingsService';
 import { remoteAudioMixer } from './voice/remoteAudioMixer';
+import { spatialAudioService } from './spatialAudio';
 import { getVoiceAudioContext } from './voice/voiceAudioContext';
 import {
   INPUT_VOLUME_UNITY,
@@ -47,10 +48,7 @@ import {
   electKeyCoordinator,
   type VoiceKeyEnvelope,
 } from './encryption/VoiceE2EEService';
-import {
-  getLiveKitConfig,
-  getLiveKitToken,
-} from './livekitTokens';
+import { getLiveKitToken } from './livekitTokens';
 
 // FEDERATED IDENTITY HELPERS
 
@@ -295,13 +293,6 @@ export interface UserMediaState {
 /** Link quality as LiveKit grades it, per participant. */
 export type VoiceConnectionQuality = 'excellent' | 'good' | 'poor' | 'lost' | 'unknown';
 
-export interface LiveKitConfig {
-  enabled: boolean;
-  mode: 'sfu' | 'p2p' | 'hybrid';
-  wsUrl: string | null;
-  allowFederatedVoice: boolean;
-}
-
 interface TokenResponse {
   token: string;
   wsUrl: string;
@@ -440,17 +431,6 @@ export class LiveKitWebRTCService {
     };
   }
 
-  // CONFIGURATION
-  
-  async getConfig(forceRefresh = false): Promise<LiveKitConfig> {
-    return getLiveKitConfig(forceRefresh);
-  }
-  
-  async isAvailable(): Promise<boolean> {
-    const config = await this.getConfig();
-    return config.enabled && !!config.wsUrl;
-  }
-  
   // TOKEN MANAGEMENT
   
   private async getToken(roomName: string, roomType: 'voice_channel' | 'dm_call' | 'stage'): Promise<TokenResponse> {
@@ -1171,13 +1151,8 @@ export class LiveKitWebRTCService {
       this.applyMicGate();
     }
 
-    // Spatial audio master output, when active.
-    try {
-      const { spatialAudioService } = require('@/services/spatialAudio');
-      spatialAudioService.setDeafened(this.localMediaState.isDeafened);
-    } catch (e) {
-      // Spatial audio not available.
-    }
+    // Spatial audio master output; no-op until spatial audio initializes.
+    spatialAudioService.setDeafened(this.localMediaState.isDeafened);
 
     remoteAudioMixer.setDeafened(this.localMediaState.isDeafened);
 

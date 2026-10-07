@@ -2,6 +2,7 @@
 import { supabase } from '@/supabase';
 import { apiUrl } from '@/services/instanceConfig';
 import { debug } from '@/utils/debug'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 export interface SystemStats {
   total_users: number;
@@ -811,7 +812,7 @@ class AdminService {
       let instanceName = 'Harmony Instance'
       let instanceDescription = 'A federated social platform'
       let instanceRules: string[] = []
-      let domain = import.meta.env.VITE_DOMAIN as string
+      let domain = runtimeConfig.domain as string
       let registrationOpen = true
       let requiresApproval = false
       let oauthProviders: string[] | Record<string, boolean> = []
@@ -884,7 +885,7 @@ class AdminService {
                     : []
                   break
                 case 'domain':
-                  domain = value || import.meta.env.VITE_DOMAIN as string
+                  domain = value || runtimeConfig.domain as string
                   break
                 case 'open_registration':
                   registrationOpen = value === true || value === 'true'
@@ -1838,7 +1839,7 @@ class AdminService {
         .from('profiles')
         .select('domain')
         .not('domain', 'is', null)
-        .neq('domain', import.meta.env.VITE_DOMAIN as string) // Exclude local domain
+        .neq('domain', runtimeConfig.domain as string) // Exclude local domain
         
       if (error) throw error;
 

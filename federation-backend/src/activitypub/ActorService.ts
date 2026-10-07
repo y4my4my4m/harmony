@@ -15,7 +15,9 @@ import { validateExternalHostname, validateExternalUrl, safeFetch } from '../uti
 import { discoveryLimiter } from '../middleware/rateLimit.js';
 import { actorOwnsKeys, fetchAuthoritativeDocument, readApDocument, sameOrigin } from '../utils/apOrigin.js';
 import { noteDocumentSoftware } from './instanceSoftware.js';
+import { confirmActorAcct, parseAcct, resolveActorUrl, sameAcct, withCanonicalAcct, type WebFingerCache } from './webfingerClient.js';
 import { actorTombstone, deletedActorByProfile, deletedActorByUsername } from './deletedActors.js';
+import { parseFocalPoint } from '../utils/focalPoint.js';
 
 const router = Router();
 
@@ -71,6 +73,31 @@ async function markRemoteReactionsAttempted(
   } catch (err) {
     logger.debug(`markRemoteReactionsAttempted failed (non-fatal): ${err}`);
   }
+}
+
+/**
+ * Stored profile of `username@domain`: the account itself, or the one remote
+ * account whose actor is served from `domain` (a split-domain account named
+ * by its web domain). Null when absent or ambiguous.
+ */
+async function findStoredRemoteAccount(supabase: any, username: string, domain: string): Promise<any | null> {
+  const { data: exact } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('username', username)
+    .eq('domain', domain)
+    .maybeSingle();
+  if (exact) return exact;
+
+  if (!/^[a-z0-9.-]+(:\d+)?$/i.test(domain)) return null;
+  const { data: served } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('username', username)
+    .eq('is_local', false)
+    .ilike('federated_id', `https://${domain.toLowerCase()}/%`)
+    .limit(2);
+  return Array.isArray(served) && served.length === 1 ? served[0] : null;
 }
 
 /**
@@ -131,12 +158,7 @@ router.post(
     logger.info(`Looking up remote user: ${username}@${domain}${forceRefresh ? ' (force refresh)' : ''}`);
 
     if (!forceRefresh) {
-      const { data: existingUser } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('username', username)
-        .eq('domain', domain)
-        .single();
+      const existingUser = await findStoredRemoteAccount(supabase, username, domain);
 
       if (existingUser) {
         logger.info(`Found existing user in database: ${username}@${domain}`);
@@ -192,92 +214,24 @@ router.post(
       // SSRF protection: validate the domain before fetching
       validateExternalHostname(domain);
 
-      // Step 1: WebFinger lookup
-      const webfingerUrl = `https://${domain}/.well-known/webfinger?resource=acct:${encodeURIComponent(username)}@${encodeURIComponent(domain)}`;
-      logger.info(`WebFinger lookup: ${webfingerUrl}`);
-      
-      const webfingerResponse = await safeFetch(webfingerUrl, {
-        headers: { 
-          'Accept': 'application/jrd+json, application/json',
-          'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
-        },
-        timeoutMs: 10000,
-      });
-
-      if (!webfingerResponse.ok) {
-        logger.warn(`WebFinger failed for ${username}@${domain}: ${webfingerResponse.status}`);
-        return res.status(404).json({ 
-          error: 'User not found on remote instance',
-          details: `WebFinger returned ${webfingerResponse.status}`
-        });
-      }
-
-      const responseText = await webfingerResponse.text();
-      const contentType = webfingerResponse.headers.get('content-type') || '';
-      
-      let webfinger: { subject?: string; links?: Array<{ rel: string; type?: string; href?: string }> };
-      
-      if (contentType.includes('xml') || responseText.trim().startsWith('<?xml') || responseText.trim().startsWith('<XRD')) {
-        logger.info(`WebFinger returned XML, parsing...`);
-        
-        // XRD format: <Link rel="self" type="application/activity+json" href="..."/>
-        // Attribute order varies by implementation, hence two patterns.
-        const subjectMatch = responseText.match(/<Subject>([^<]+)<\/Subject>/);
-        const selfLinkMatch = responseText.match(/<Link[^>]+rel="self"[^>]+type="application\/activity\+json"[^>]+href="([^"]+)"/);
-        const altSelfLinkMatch = responseText.match(/<Link[^>]+href="([^"]+)"[^>]+type="application\/activity\+json"[^>]+rel="self"/);
-        
-        const actorHref = selfLinkMatch?.[1] || altSelfLinkMatch?.[1];
-        
-        if (!actorHref) {
-          logger.warn(`Could not find ActivityPub link in XML WebFinger for ${username}@${domain}`);
-          return res.status(404).json({
-            error: 'User is not on an ActivityPub-compatible instance',
-            details: 'No ActivityPub self link found in XRD response'
-          });
-        }
-        
-        webfinger = {
-          subject: subjectMatch?.[1] || `acct:${username}@${domain}`,
-          links: [
-            { rel: 'self', type: 'application/activity+json', href: actorHref }
-          ]
-        };
-        
-        logger.info(`Parsed XML WebFinger: found actor at ${actorHref}`);
-      } else {
-        try {
-          webfinger = JSON.parse(responseText);
-        } catch (parseError) {
-          logger.error(`Failed to parse WebFinger response: ${responseText.substring(0, 100)}...`);
-          return res.status(500).json({
-            error: 'Invalid WebFinger response from remote instance',
-            details: 'Response was neither valid JSON nor XML'
-          });
-        }
-      }
-      logger.info(`WebFinger response: ${JSON.stringify(webfinger.links?.length || 0)} links`);
-      
-      const selfLink = webfinger.links?.find((link: any) => 
-        link.rel === 'self' && 
-        (link.type === 'application/activity+json' || link.type === 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"')
-      );
-
-      if (!selfLink?.href) {
-        logger.warn(`No ActivityPub link found in WebFinger response for ${username}@${domain}`);
-        return res.status(404).json({ 
-          error: 'User is not on an ActivityPub-compatible instance'
-        });
+      // Step 1: WebFinger, unsigned (Mastodon signs neither WebFinger nor
+      // host-meta). One cache serves this lookup and the confirmation below.
+      const webfingers: WebFingerCache = new Map();
+      const resolved = await resolveActorUrl(username, domain, 10_000, webfingers);
+      if (!resolved) {
+        logger.warn(`WebFinger names no ActivityPub actor for ${username}@${domain}`);
+        return res.status(404).json({ error: 'User not found on remote instance' });
       }
 
       // Step 2: Fetch the Actor
-      logger.info(`Fetching actor: ${selfLink.href}`);
-      // BUGS.md H15: selfLink.href comes from the remote webfinger response.
+      logger.info(`Fetching actor: ${resolved.actorUrl}`);
+      // BUGS.md H15: the actor URL comes from the remote webfinger response.
       // safeFetch re-validates the URL/DNS and follows redirects manually.
-      // The profile is upserted under the document's own id and domain, so the
-      // document must be served from its own id (fetchAuthoritativeDocument),
-      // own its keys, and name the account that was looked up.
-      const actor = await fetchAuthoritativeDocument(selfLink.href, async (url) => {
-        const response = await SignatureService.fetchApWithSignatureFallback(url, {
+      // The profile is upserted under the document's own id, so the document
+      // must be served from its own id (fetchAuthoritativeDocument), own its
+      // keys, and name the account that was looked up.
+      const actor = await fetchAuthoritativeDocument(resolved.actorUrl, async (url) => {
+        const response = await SignatureService.signedApFetch(url, {
           headers: {
             'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
             'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
@@ -288,7 +242,7 @@ router.post(
       });
 
       if (!actor) {
-        logger.warn(`No authoritative actor document at ${selfLink.href}`);
+        logger.warn(`No authoritative actor document at ${resolved.actorUrl}`);
         return res.status(404).json({
           error: 'Failed to fetch user profile from remote instance'
         });
@@ -298,9 +252,17 @@ router.post(
         logger.warn(`Actor ${actor.id} publishes a key it does not own`);
         return res.status(502).json({ error: 'Remote actor key owner does not match the actor' });
       }
-      if (typeof actor.preferredUsername !== 'string'
-          || actor.preferredUsername.toLowerCase() !== username.toLowerCase()) {
-        logger.warn(`Actor ${actor.id} is ${actor.preferredUsername}, not the looked-up ${username}`);
+      // The actor's canonical account, confirmed from the actor's side, is
+      // the looked-up account or the subject the queried domain named for it.
+      // Unconfirmed, the actor stands on its host under its preferredUsername.
+      const acct = await confirmActorAcct(actor, 10_000, webfingers);
+      const queried = parseAcct(`${username}@${domain}`);
+      const named = acct
+        ? sameAcct(acct, queried) || sameAcct(acct, resolved.subject)
+        : typeof actor.preferredUsername === 'string'
+          && actor.preferredUsername.toLowerCase() === username.toLowerCase();
+      if (!named) {
+        logger.warn(`Actor ${actor.id} is ${acct ? `${acct.username}@${acct.domain}` : actor.preferredUsername}, not the looked-up ${username}@${domain}`);
         return res.status(502).json({ error: 'Remote actor does not match the looked-up account' });
       }
       logger.info(`Actor fetched: ${actor.preferredUsername || actor.name}`);
@@ -312,7 +274,7 @@ router.post(
 
       const fetchCollectionCount = async (url: string): Promise<number> => {
         try {
-          const response = await SignatureService.fetchApWithSignatureFallback(url, {
+          const response = await SignatureService.signedApFetch(url, {
             headers: { 
               'Accept': 'application/activity+json, application/ld+json',
               'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
@@ -354,7 +316,15 @@ router.post(
         logger.debug(`Sample emoji from object: ${firstKey} = ${actor.emojis[firstKey]}`);
       }
       
-      const profileData = actorToProfile(actor);
+      // Unconfirmed, a stored account keeps its name rather than reverting to
+      // the actor's host.
+      const { data: stored } = acct
+        ? { data: null }
+        : await supabase.from('profiles').select('username, domain').eq('federated_id', actor.id).maybeSingle();
+      const profileData = withCanonicalAcct(
+        actorToProfile(actor),
+        acct ?? (stored?.username && stored?.domain ? { username: stored.username, domain: String(stored.domain).toLowerCase() } : null),
+      );
       logger.debug(`Profile bio_emojis count: ${profileData.bio_emojis?.length || 0}`);
       
       // SECURITY: reject a remote actor claiming the local instance domain.
@@ -434,11 +404,13 @@ router.post(
       if (followingCount > 0) profileRecord.following_count = followingCount;
       if (postsCount > 0) profileRecord.posts_count = postsCount;
 
+      // Keyed by actor id: a row stored under the actor's host before its
+      // canonical account was known moves to that account.
       let savedUser;
       const { data: upsertedUser, error: saveError } = await supabase
         .from('profiles')
         .upsert(profileRecord, {
-          onConflict: 'username,domain',
+          onConflict: 'federated_id',
         })
         .select()
         .single();
@@ -446,13 +418,12 @@ router.post(
       if (saveError) {
         // Concurrent request already inserted the row; read it back.
         if (saveError.message.includes('duplicate key') || saveError.code === '23505') {
-          logger.info(`Race condition detected, fetching existing user: ${username}@${domain}`);
+          logger.info(`Race condition detected, fetching existing user: ${profileData.federated_id}`);
           const { data: existingUser } = await supabase
             .from('profiles')
             .select('*')
-            .eq('username', username)
-            .eq('domain', domain)
-            .single();
+            .eq('federated_id', profileData.federated_id)
+            .maybeSingle();
           
           if (existingUser) {
             savedUser = existingUser;
@@ -1341,7 +1312,7 @@ async function _fetchRemotePostReactionsImpl(
     let likesCollection: any = null;
     let likesCollectionUrl = `${postApId}/likes`;
 
-    const shortcutResponse = await SignatureService.fetchApWithSignatureFallback(likesCollectionUrl, {
+    const shortcutResponse = await SignatureService.signedApFetch(likesCollectionUrl, {
       headers: apHeaders,
       timeoutMs: 10000,
     });
@@ -1353,7 +1324,7 @@ async function _fetchRemotePostReactionsImpl(
         `📬 /likes shortcut returned ${shortcutResponse.status} for ${postApId}; discovering URL via post object`
       );
 
-      const postResponse = await SignatureService.fetchApWithSignatureFallback(postApId, {
+      const postResponse = await SignatureService.signedApFetch(postApId, {
         headers: apHeaders,
         timeoutMs: 10000,
       });
@@ -1431,7 +1402,7 @@ async function _fetchRemotePostReactionsImpl(
         }
       } catch { /* invalid URL, proceed */ }
 
-      const likesResponse = await SignatureService.fetchApWithSignatureFallback(likesCollectionUrl, {
+      const likesResponse = await SignatureService.signedApFetch(likesCollectionUrl, {
         headers: apHeaders,
         timeoutMs: 10000,
       });
@@ -1466,7 +1437,7 @@ async function _fetchRemotePostReactionsImpl(
         ? likesCollection.first 
         : likesCollection.first.id;
       
-      const pageResponse = await SignatureService.fetchApWithSignatureFallback(firstPageUrl, {
+      const pageResponse = await SignatureService.signedApFetch(firstPageUrl, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
           'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
@@ -1918,7 +1889,7 @@ async function fetchRemotePostReplies(
     // collection URL.
     // BUGS.md H15: postApId is attacker-influenced; safeFetch enforces SSRF
     // protection.
-    const postResponse = await SignatureService.fetchApWithSignatureFallback(postApId, {
+    const postResponse = await SignatureService.signedApFetch(postApId, {
       headers: {
         'Accept': 'application/activity+json, application/ld+json',
         'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
@@ -1955,7 +1926,7 @@ async function fetchRemotePostReplies(
     const repliesCollectionUrl = typeof repliesUrl === 'string' ? repliesUrl : repliesUrl.id;
     logger.info(`Fetching replies from: ${repliesCollectionUrl}`);
 
-    const repliesResponse = await SignatureService.fetchApWithSignatureFallback(repliesCollectionUrl, {
+    const repliesResponse = await SignatureService.signedApFetch(repliesCollectionUrl, {
       headers: {
         'Accept': 'application/activity+json, application/ld+json',
         'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
@@ -1985,7 +1956,7 @@ async function fetchRemotePostReplies(
         : repliesCollection.first.id;
       itemsSourceUrl = firstPageUrl;
 
-      const pageResponse = await SignatureService.fetchApWithSignatureFallback(firstPageUrl, {
+      const pageResponse = await SignatureService.signedApFetch(firstPageUrl, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
           'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
@@ -2012,7 +1983,7 @@ async function fetchRemotePostReplies(
         let noteSourceUrl = itemsSourceUrl;
         if (typeof item === 'string') {
           noteSourceUrl = item;
-          const noteResponse = await SignatureService.fetchApWithSignatureFallback(item, {
+          const noteResponse = await SignatureService.signedApFetch(item, {
             headers: {
               'Accept': 'application/activity+json, application/ld+json',
               'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
@@ -2701,7 +2672,7 @@ async function fetchRecentPostsInBackground(
     
     logger.info(`Fetching posts from: ${fetchUrl}`);
     
-    const outboxResponse = await SignatureService.fetchApWithSignatureFallback(fetchUrl, {
+    const outboxResponse = await SignatureService.signedApFetch(fetchUrl, {
       headers: {
         'Accept': 'application/activity+json, application/ld+json',
         'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
@@ -2729,7 +2700,7 @@ async function fetchRecentPostsInBackground(
       const firstPageUrl = typeof outbox.first === 'string' ? outbox.first : outbox.first.id;
       logger.info(`Fetching first page: ${firstPageUrl}`);
       
-      const pageResponse = await SignatureService.fetchApWithSignatureFallback(firstPageUrl, {
+      const pageResponse = await SignatureService.signedApFetch(firstPageUrl, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json',
           'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
@@ -3030,6 +3001,7 @@ function extractMediaAttachments(attachments: any): any[] {
     width: att.width || null,
     height: att.height || null,
     blurhash: att.blurhash || null,
+    focalPoint: parseFocalPoint(att.focalPoint),
   })).filter((att: any) => att.url);
 }
 
@@ -3088,7 +3060,7 @@ router.post(
     }
 
     try {
-      const response = await SignatureService.fetchApWithSignatureFallback(post.ap_id, {
+      const response = await SignatureService.signedApFetch(post.ap_id, {
         headers: { 'Accept': 'application/activity+json, application/ld+json' },
       });
 
@@ -3106,7 +3078,7 @@ router.post(
         if (!objectUrl) {
           return res.status(400).json({ error: 'Announce has no object URL to follow' });
         }
-        const noteResponse = await SignatureService.fetchApWithSignatureFallback(objectUrl, {
+        const noteResponse = await SignatureService.signedApFetch(objectUrl, {
           headers: { 'Accept': 'application/activity+json, application/ld+json' },
         });
         if (!noteResponse.ok) {

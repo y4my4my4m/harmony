@@ -7,7 +7,7 @@
         :class="{ 'modal-compact': compact }"
       >
         <div v-if="backgroundImage" class="modal-bg" aria-hidden="true">
-          <div class="modal-bg__image" :style="{ backgroundImage: `url(${backgroundImage})` }"></div>
+          <div class="modal-bg__image" :style="{ backgroundImage: `url(${withRenderFallback(backgroundImage)})` }"></div>
           <div class="modal-bg__scrim"></div>
         </div>
         <!-- Header -->
@@ -46,6 +46,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, watch } from 'vue'
 import Icon from '@/components/common/Icon.vue'
+import { withRenderFallback } from '@/utils/renderFallback'
 
 interface Props {
   show: boolean

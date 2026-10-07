@@ -32,6 +32,11 @@ vi.mock('../utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
 vi.mock('../utils/ssrfProtection.js', () => ({ safeFetch: vi.fn() }))
+vi.mock('../activitypub/InstanceActor.js', () => ({
+  signAsInstanceActor: vi.fn(async (url: string) => ({
+    headers: { Host: new URL(url).host, Date: new Date().toUTCString(), Signature: 'keyId="https://harmony.test/users/instance.actor#main-key"' },
+  })),
+}))
 
 import { SignatureService, __publicKeyCache } from '../activitypub/SignatureService.js'
 import { safeFetch } from '../utils/ssrfProtection.js'
@@ -122,6 +127,10 @@ describe('verifySignature', () => {
     const result = await verify(r)
 
     expect(result).toMatchObject({ verified: true, actorUrl: actor })
+    // GoToSocial serves nothing to an unsigned GET; the key and actor fetches are signed.
+    for (const [, init] of vi.mocked(safeFetch).mock.calls) {
+      expect((init as any).headers.Signature).toContain('instance.actor#main-key')
+    }
   })
 
   it('rejects a keyId whose document names an owner on another host', async () => {

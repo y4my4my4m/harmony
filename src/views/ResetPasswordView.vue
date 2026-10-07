@@ -239,7 +239,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { supabase } from '@/supabase'
+import { signOutAndForget, supabase } from '@/supabase'
 import { useToast } from 'vue-toastification'
 import { useAuthStore } from '@/stores/auth'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -483,8 +483,9 @@ const performPasswordReset = async () => {
     
     authStore.clearPasswordResetMode()
     
-    // Recovery session is discarded; login uses the new password.
-    await supabase.auth.signOut()
+    // GoTrue's password update deleted every other session of the account; the recovery
+    // session is the one left.
+    await signOutAndForget()
     authStore.session = null
     
     toast.success('Password reset. Log in with your new password.')
@@ -502,7 +503,7 @@ const performPasswordReset = async () => {
 
 const goToLogin = async () => {
   if (isPasswordResetMode.value && !isSuccess.value) {
-    await supabase.auth.signOut()
+    await signOutAndForget()
     authStore.session = null
     authStore.clearPasswordResetMode()
   }

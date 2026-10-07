@@ -617,10 +617,9 @@ class LinkPreviewService {
       const accept = acceptJson
         ? 'application/json'
         : 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams", application/json';
-      // Retries signed (401/403) for instances requiring authorized fetch.
-      // The caller's signal is reused, so the signed retry shares the same
-      // abort budget as the first attempt.
-      const response = await SignatureService.fetchApWithSignatureFallback(url, {
+      // Signed as the instance actor; instances in authorized fetch mode
+      // refuse unsigned GETs.
+      const response = await SignatureService.signedApFetch(url, {
         headers: {
           Accept: accept,
           'User-Agent': USER_AGENT,

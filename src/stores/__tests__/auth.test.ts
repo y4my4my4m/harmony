@@ -279,7 +279,10 @@ describe('useAuthStore', () => {
         user: { id: 'new-user' },
       } as any)
 
-      expect(signOutSpy).toHaveBeenCalled()
+      // Local scope: a global logout from an aal1 token deletes the account's aal2 sessions too.
+      const { signOutAndForget } = await import('@/supabase')
+      expect(signOutAndForget).toHaveBeenCalledWith()
+      expect(signOutSpy).not.toHaveBeenCalled()
       expect(userStorage.clearCurrentUser).toHaveBeenCalled()
       expect(store.session).toBeNull()
     })
@@ -581,7 +584,9 @@ describe('useAuthStore', () => {
 
       const store = useAuthStore()
       await expect(store.verify2FA('factor-1', 'challenge-1', '123456')).rejects.toThrow('suspended: spam')
-      expect(signOut).toHaveBeenCalled()
+      const { signOutEverywhere } = await import('@/supabase')
+      expect(signOutEverywhere).toHaveBeenCalledTimes(1)
+      expect(signOut).not.toHaveBeenCalled()
       expect(store.session).toBeNull()
     })
 
@@ -611,6 +616,132 @@ describe('useAuthStore', () => {
     })
   })
 
+  describe('abandoned MFA challenge', () => {
+    const aal1Session = { access_token: jwtWithAAL('aal1'), user: { id: 'mfa-user' } }
+
+    function mfaLoginMocks() {
+      let handler: ((event: string, session: any) => Promise<void>) | null = null
+      ;(supabase.auth as any).onAuthStateChange = vi.fn((fn: any) => {
+        handler = fn
+        return { data: { subscription: { unsubscribe: vi.fn() } } }
+      })
+      ;(supabase.auth as any).getSession = vi.fn().mockResolvedValue({ data: { session: null } })
+      ;(supabase.auth as any).signInWithPassword = vi.fn(async () => {
+        // GoTrue-js dispatches SIGNED_IN before signInWithPassword resolves.
+        await handler?.('SIGNED_IN', aal1Session)
+        return { data: { user: aal1Session.user, session: aal1Session }, error: null }
+      })
+      ;(supabase.auth as any).mfa = {
+        listFactors: vi.fn().mockResolvedValue({ data: { totp: [{ id: 'factor-1', status: 'verified' }] }, error: null }),
+        challenge: vi.fn().mockResolvedValue({ data: { id: 'challenge-1' }, error: null }),
+      }
+      const chain: any = { select: () => chain, eq: () => chain, maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }
+      ;(supabase.from as any).mockReturnValue(chain)
+      const signOut = vi.fn().mockResolvedValue({ error: null })
+      ;(supabase.auth as any).signOut = signOut
+      return signOut
+    }
+
+    it('cancel ends only this device\'s pending session', async () => {
+      const { signOutAndForget } = await import('@/supabase')
+      const signOut = mfaLoginMocks()
+      const store = useAuthStore()
+      store._pendingMFAVerification = true
+
+      await store.cancelPendingSignIn()
+
+      expect(signOutAndForget).toHaveBeenCalledTimes(1)
+      expect(signOutAndForget).toHaveBeenCalledWith()
+      expect(signOut).not.toHaveBeenCalled()
+      expect(store._pendingMFAVerification).toBe(false)
+      expect(store.session).toBeNull()
+    })
+
+    it('login, cancel, login again never revokes other sessions', async () => {
+      const { signOutAndForget } = await import('@/supabase')
+      const signOut = mfaLoginMocks()
+      const store = useAuthStore()
+      await store.initializeAuth()
+
+      const first = await store.login('mfa@example.com', 'pw')
+      expect(first.requires2FA).toBe(true)
+      await store.cancelPendingSignIn()
+      const second = await store.login('mfa@example.com', 'pw')
+
+      expect(second).toMatchObject({ requires2FA: true, factorId: 'factor-1', challengeId: 'challenge-1' })
+      expect(store._pendingMFAVerification).toBe(true)
+      expect(signOut).not.toHaveBeenCalled()
+      expect((signOutAndForget as any).mock.calls).toEqual([[]])
+    })
+
+    it('a restored aal1 session of an enrolled account is dropped locally', async () => {
+      const { signOutAndForget } = await import('@/supabase')
+      const signOut = mfaLoginMocks()
+      ;(supabase.auth as any).getSession = vi.fn().mockResolvedValue({ data: { session: aal1Session } })
+      const store = useAuthStore()
+      await store.initializeAuth()
+
+      expect(store.session).toBeNull()
+      expect(signOutAndForget).toHaveBeenCalledWith()
+      expect(signOut).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('logout', () => {
+    it('signs out this device only', async () => {
+      const { signOutAndForget, signOutEverywhere } = await import('@/supabase')
+      const push = vi.fn().mockResolvedValue(undefined)
+      vi.doMock('@/router', () => ({ default: { push } }))
+      vi.doMock('@/composables/usePushNotifications', () => ({
+        usePushNotifications: () => ({ detachForLogout: vi.fn().mockResolvedValue(undefined) }),
+      }))
+      vi.doMock('@/composables/useViewContext', () => ({ markDeviceAway: vi.fn().mockResolvedValue(undefined) }))
+      const signOut = vi.fn().mockResolvedValue({ error: null })
+      ;(supabase.auth as any).signOut = signOut
+
+      const store = useAuthStore()
+      store.session = { access_token: jwtWithAAL('aal2'), user: {} } as any
+      await store.logout()
+
+      expect(signOutAndForget).toHaveBeenCalledTimes(1)
+      expect(signOutAndForget).toHaveBeenCalledWith()
+      expect(signOutEverywhere).not.toHaveBeenCalled()
+      expect(signOut).not.toHaveBeenCalled()
+      expect(supabase.rpc).not.toHaveBeenCalledWith('sign_out_my_sessions', expect.anything())
+      expect(store.session).toBeNull()
+      expect(push).toHaveBeenCalledWith('/login')
+      vi.doUnmock('@/router')
+      vi.doUnmock('@/composables/usePushNotifications')
+      vi.doUnmock('@/composables/useViewContext')
+    })
+  })
+
+  describe('suspended account', () => {
+    it('ends every session when a restored session belongs to a suspended account', async () => {
+      const { signOutEverywhere } = await import('@/supabase')
+      const session = { access_token: jwtWithAAL('aal2'), user: { id: 'suspended-user' } }
+      ;(supabase.auth as any).getSession = vi.fn().mockResolvedValue({ data: { session } })
+      ;(supabase.auth as any).mfa = {
+        listFactors: vi.fn().mockResolvedValue({ data: { totp: [] }, error: null }),
+      }
+      const chain: any = {
+        select: () => chain,
+        eq: () => chain,
+        maybeSingle: vi.fn().mockResolvedValue({ data: { is_suspended: true }, error: null }),
+      }
+      ;(supabase.from as any).mockReturnValue(chain)
+      const signOut = vi.fn().mockResolvedValue({ error: null })
+      ;(supabase.auth as any).signOut = signOut
+
+      const store = useAuthStore()
+      await store.initializeAuth()
+
+      expect(signOutEverywhere).toHaveBeenCalledTimes(1)
+      expect(signOut).not.toHaveBeenCalled()
+      expect(store.session).toBeNull()
+    })
+  })
+
   describe('handleSessionRejected', () => {
     it('ignores refusals while a sign-in challenge is in progress', async () => {
       const signOut = vi.fn().mockResolvedValue({ error: null })
@@ -630,7 +761,7 @@ describe('useAuthStore', () => {
       const store = useAuthStore()
       store.session = { access_token: jwtWithAAL('aal2'), user: { id: 'u' } } as any
       await store.handleSessionRejected('session_revoked')
-      expect(signOutAndForget).toHaveBeenCalledWith('local')
+      expect(signOutAndForget).toHaveBeenCalledWith()
       expect(store.session).toBeNull()
       expect(push).toHaveBeenCalledWith({ path: '/login', query: { reason: 'session_revoked' } })
       vi.doUnmock('@/router')

@@ -11,6 +11,7 @@ import {
   isInviteActive,
   pickChoice,
 } from '@/utils/inviteLink'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 /**
  * Invite state for one server: the link on show, the caller's other active
@@ -36,7 +37,7 @@ export function useServerInvites(serverId: Ref<string | undefined>) {
   const activeInvites = computed(() => invites.value.filter((i) => isInviteActive(i)))
   const current = computed(() => activeInvites.value.find((i) => i.code === currentCode.value) ?? null)
   const currentUrl = computed(() =>
-    current.value ? buildInviteUrl(current.value.code, import.meta.env.VITE_APP_URL || window.location.origin) : '',
+    current.value ? buildInviteUrl(current.value.code, runtimeConfig.appUrl || window.location.origin) : '',
   )
   const otherInvites = computed(() => activeInvites.value.filter((i) => i.code !== currentCode.value))
 

@@ -6,6 +6,7 @@ import type { Router } from 'vue-router'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useRemoteInvitePrompt } from '@/composables/useRemoteInvitePrompt'
 import { debug } from '@/utils/debug'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 const INVITE_PATH_RE = /^\/invite\/[A-Za-z0-9_-]{4,64}$/
 
@@ -14,7 +15,7 @@ function instanceHosts(): Set<string> {
   if (typeof window !== 'undefined' && window.location.host) {
     hosts.add(window.location.host.toLowerCase())
   }
-  const appUrl = import.meta.env.VITE_APP_URL as string | undefined
+  const appUrl = runtimeConfig.appUrl
   if (appUrl) {
     try {
       hosts.add(new URL(appUrl).host.toLowerCase())

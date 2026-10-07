@@ -2,7 +2,9 @@ import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { uploadImageObject } from '@/utils/fileUpload'
 import { bannerRenderSize, canonicalSquareSize } from '@/utils/imageTransformUtils'
-import { rawStorageUrl } from '@/utils/storageImageUtils'
+import { publicImageUrl, rawStorageUrl } from '@/utils/storageImageUtils'
+import { knownRenderFallback } from '@/utils/renderFallback'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 // Constants
 const DEFAULT_SERVER_ICON = '/default_server.webp'
@@ -32,7 +34,7 @@ function getUrlOrigin(url: string): string | null {
  * Check if a URL is from our Supabase instance
  */
 function isOurSupabaseUrl(url: string): boolean {
-  const ourSupabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  const ourSupabaseUrl = runtimeConfig.supabaseUrl
   if (!ourSupabaseUrl) return false
 
   const urlOrigin = getUrlOrigin(url)
@@ -46,17 +48,11 @@ function isOurSupabaseUrl(url: string): boolean {
  */
 function transformSupabaseStoragePath(path: string, size: number): string {
   const renderSize = canonicalSquareSize(size)
-  const { data } = supabase.storage
-    .from(SERVER_ICONS_BUCKET)
-    .getPublicUrl(path, {
-      transform: {
-        width: renderSize,
-        height: renderSize,
-        ...TRANSFORM_OPTIONS,
-      },
-    })
-
-  return data.publicUrl
+  return knownRenderFallback(publicImageUrl(SERVER_ICONS_BUCKET, path, {
+    width: renderSize,
+    height: renderSize,
+    ...TRANSFORM_OPTIONS,
+  }))
 }
 
 /**
@@ -164,17 +160,12 @@ function transformServerBannerPath(
   options?: { width?: number; height?: number; quality?: number }
 ): string {
   const { width, height } = bannerRenderSize(options?.width || 640, options?.height || 200)
-  const { data } = supabase.storage
-    .from(SERVER_BANNERS_BUCKET)
-    .getPublicUrl(path, {
-      transform: {
-        width,
-        height,
-        resize: 'cover' as const,
-        quality: options?.quality || 80,
-      },
-    })
-  return data.publicUrl
+  return knownRenderFallback(publicImageUrl(SERVER_BANNERS_BUCKET, path, {
+    width,
+    height,
+    resize: 'cover',
+    quality: options?.quality || 80,
+  }))
 }
 
 function rawServerBannerPath(path: string): string {

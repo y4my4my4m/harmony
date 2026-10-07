@@ -1,6 +1,7 @@
 import type { FederatedUser } from '@/types';
+import { runtimeConfig } from '@/services/runtimeConfig';
 
-const INSTANCE_DOMAIN = import.meta.env.VITE_DOMAIN as string || (typeof window !== 'undefined' ? window.location.hostname : 'localhost');
+const INSTANCE_DOMAIN = runtimeConfig.domain as string || (typeof window !== 'undefined' ? window.location.hostname : 'localhost');
 
 // ActivityPub configuration for federation
 export const ACTIVITYPUB_CONFIG = {
@@ -17,7 +18,7 @@ export const ACTIVITYPUB_CONFIG = {
     nodeinfoVersion: '/nodeinfo/2.1',
     actor: '/users/{username}',
     inbox: '/users/{username}/inbox',
-    sharedInbox: '/api/activitypub/inbox'
+    sharedInbox: '/inbox'
   },
   
   // Supabase function configuration
@@ -159,7 +160,7 @@ export function generateActorJson(user: FederatedUser): ActivityPubActor {
       publicKeyPem: user.public_key || ''
     },
     endpoints: {
-      sharedInbox: `${ACTIVITYPUB_CONFIG.baseUrl}/api/activitypub/inbox`
+      sharedInbox: `${ACTIVITYPUB_CONFIG.baseUrl}${ACTIVITYPUB_CONFIG.endpoints.sharedInbox}`
     },
     url: `${ACTIVITYPUB_CONFIG.baseUrl}/social/profile/${user.username}`
   } as ActivityPubActor;

@@ -1,160 +1,104 @@
 # Supabase Setup
 
-Harmony uses Supabase as its backend for PostgreSQL, authentication, realtime subscriptions, and file storage.
+Harmony uses Supabase for PostgreSQL, authentication (GoTrue), the REST API (PostgREST), Realtime and file storage. The self-host stack runs the upstream Supabase Docker stack and loads the schema itself; this page covers what it does and how to do the same against a database you run elsewhere.
 
-## Hosted vs Self-Hosted
+## Supported database
 
-| Option | Pros | Cons |
-|--------|------|------|
-| **Supabase Cloud** | Managed, easy setup, automatic backups | Monthly cost, data on third-party servers |
-| **Self-hosted** | Full control, no recurring cost | More setup, you manage backups and updates |
+CI installs the schema on `supabase/postgres:15.8.1.060` (`scripts/check-fresh-install.sh`). `self-host/configure.sh` pins the upstream Supabase Docker stack to the last commit that runs that image (`SUPABASE_REF_DEFAULT`), and `supabase/config.toml` sets `major_version = 15`. `configure.sh --refresh-supabase` refuses a stack whose Postgres major version differs from the existing data directory's.
 
-Both are fully supported. The Docker deployment supports either via `docker-compose.prod.yml` (cloud) or `docker-compose.full.yml` (self-hosted).
+## Schema
 
-## Database Schema
+The schema lives in `db_schema/migrations/`. File names are `<version>_<name>.sql`, `version` being `YYYYMMDDNNNNNN` and unique across the directory. `20260101000000_baseline.sql` builds the whole schema on an empty database; every later file is a change on top of it. A new instance and an existing one take the same path: the ledger `supabase_migrations.schema_migrations` decides what runs.
 
-### Fresh Installation
+The ledger records versions only. Editing a file that is already applied changes new installs and nothing else, so every change ships as a new file.
 
-The schema lives in `db_schema/migrations/`, applied in version order:
-
-| Phase | Files | Purpose |
-|-------|-------|---------|
-| Extensions & Types | `00_extensions.sql`, `01_types.sql` | pg extensions, custom enums |
-| Tables | `02_tables_core.sql` through `09_tables_encryption.sql` | All tables (core, social, servers, federation, misc, trending, bots, encryption) |
-| Functions | `10_functions_core.sql` through `13_functions_rpc_extended.sql` | Database functions and RPCs |
-| RLS Policies | `30_rls_policies.sql`, `31_rls_policies_extended.sql` | Row Level Security |
-| Triggers | `40_triggers.sql` | Event triggers |
-| Realtime | `50_realtime.sql` | Realtime publications |
-| Views | `70_views.sql`, `71_views_performance.sql` | Database views |
-| Federation | `90_federation_functions.sql` | Federation-specific functions |
-| LiveKit | `95_livekit_tokens.sql` | Voice/video token functions |
-| Seed & Storage | `96_seed_data.sql`, `97_storage_buckets.sql` | Initial data, storage buckets |
-| Enable RLS | `98_enable_rls.sql` | Enable RLS on all tables |
-
-### Running Init Scripts
-
-**With Supabase CLI (local development):**
+### Postgres in Docker
 
 ```bash
-supabase start
-supabase db reset
+bash self-host/bootstrap.sh                    # migrations, listener role, instance domain
+bash self-host/bootstrap.sh --migrations-only  # migrations only
 ```
 
-**With Supabase Cloud:**
+`bootstrap.sh` copies `db_schema/` into the Postgres container (`supabase-db`, or `SUPABASE_DB_CONTAINER`), applies each pending file in version order through `docker exec`, and records it in the ledger. It runs as `postgres`, or as `supabase_admin` when `postgres` does not own the existing functions. A failing file stops the run unrecorded, leaving the database at the last file that succeeded. PostgREST reloads its schema cache at the end.
 
-Run each init file in order via the SQL Editor in the Supabase Dashboard, or use the CLI:
+Without `--migrations-only` it also:
+
+- creates or updates the `harmony_listener` role, when `self-host/federation.env` holds `__LISTENER_PW`
+- writes the instance name and domain into `instance_config` from `INSTANCE_NAME` and `DOMAIN` in `self-host/.env`, while the domain still holds the seed value `localhost`
+
+`harmony update` runs `bootstrap.sh --migrations-only` after taking a backup.
+
+### Postgres outside Docker
+
+The Supabase CLI applies the same files against a connection string; `supabase/migrations` is a symlink to `db_schema/migrations`, and `--db-url` needs no `supabase link`:
 
 ```bash
-supabase db push
+npx supabase@2.83.0 migration list --db-url "$DATABASE_URL"
+npx supabase@2.83.0 db push --dry-run --db-url "$DATABASE_URL"
+npx supabase@2.83.0 db push --db-url "$DATABASE_URL"
 ```
 
-### Migrations
+The CLI keeps the same ledger, so `bootstrap.sh` and `db push` continue from each other.
 
-Migrations are applied with the Supabase CLI against a connection string. The
-same commands work for a self-hosted Docker instance and for a cloud project —
-`--db-url` needs no `supabase link`:
+A database whose migrations were applied by hand has no ledger. Record what it already has before the first push, or every file runs again:
 
 ```bash
-supabase migration list --db-url "$DATABASE_URL"    # applied vs pending
-supabase db push --dry-run --db-url "$DATABASE_URL"
-supabase db push          --db-url "$DATABASE_URL"
+scripts/baseline-migrations.sh --url "$DATABASE_URL" --through <last applied version>
+scripts/baseline-migrations.sh --docker supabase-db --through <last applied version>
 ```
 
-A fresh database is built from `init/` and then has its history recorded without
-replaying anything — `init/` already contains what the migrations produce:
+`--dry-run` prints what would be recorded.
 
-```bash
-for f in db_schema/migrations/*.sql; do psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"; done
-scripts/baseline-migrations.sh --url "$DATABASE_URL"
-```
+### Listener role
 
-A database whose migrations were applied by hand has no history table. Record
-what is already there before pushing, or the CLI replays everything:
-
-```bash
-scripts/baseline-migrations.sh --url "$DATABASE_URL" --through <last-applied-version>
-supabase db push --dry-run --db-url "$DATABASE_URL"
-```
-
-Files are `<version>_<name>.sql` with `version` = `YYYYMMDDNNNNNN`, unique across
-the directory — it is the primary key of the history table. Create one with
-`supabase migration new <name>`, and mirror whatever it does into
-`db_schema/migrations/`.
+The federation worker runs `LISTEN federation_jobs` on a direct, session-mode connection (port 5432, not a transaction pooler) to pick jobs up as they are queued. `harmony_listener` needs nothing beyond `CONNECT`. `bootstrap.sh` runs the equivalent of:
 
 ```sql
--- db_schema/migrations/20260306000001_example.sql
-BEGIN;
-
-CREATE OR REPLACE FUNCTION my_function()
-RETURNS void AS $$
-BEGIN
-  -- implementation
-END;
-$$ LANGUAGE plpgsql;
-
-DROP POLICY IF EXISTS "my_policy" ON my_table;
-CREATE POLICY "my_policy" ON my_table
-  FOR SELECT USING (true);
-
-COMMIT;
+CREATE ROLE harmony_listener WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+ALTER ROLE harmony_listener WITH PASSWORD '<password>';
+GRANT CONNECT ON DATABASE postgres TO harmony_listener;
 ```
 
-Run migrations via the Supabase SQL Editor or CLI.
+The backend then gets `FEDERATION_LISTENER_URL=postgresql://harmony_listener:<password>@<host>:5432/postgres`. Without it, the worker picks jobs up through a 60 s sweep.
 
-## Row Level Security (RLS)
+### Instance domain
 
-Every table has RLS enabled (`98_enable_rls.sql`). Policies are defined in:
+`instance_config.domain` must hold the public domain; the link-preview trigger and the web app's ActivityPub ids read it. When `bootstrap.sh` has not set it:
 
-- `30_rls_policies.sql` - Core policies
-- `31_rls_policies_extended.sql` - Extended policies
-
-Key RLS helper: `get_current_profile_id()` returns the profile ID for the authenticated user, used extensively in policies.
-
-### SECURITY DEFINER Functions
-
-Some functions use `SECURITY DEFINER` to bypass RLS for operations that need elevated access (e.g., `send_notification()`, `queue_federation_job()`). These run as the function owner rather than the calling user.
-
-## Permissions
-
-Permissions use `bigint` bitmasks, not JSONB. See `permissionsService.ts` for bit positions. If your local environment has legacy `jsonb` permission columns, run `convert_permissions_to_bigint.sql`.
-
-## Storage Buckets
-
-`97_storage_buckets.sql` creates the required storage buckets:
-
-- User avatars and banners
-- Server icons
-- Message attachments (`message_media`, private)
-- Post media (`user_media`, public)
-- Custom emoji
-
-`message_media` is private: members of a channel or conversation read its attachments
-through signed URLs, and other instances through the federation backend's `/media`
-route (`/api/federation/media/` behind nginx).
+```sql
+UPDATE public.instance_config
+   SET config_value = to_jsonb('chat.example.com'::text)
+ WHERE config_key = 'domain';
+```
 
 ## Authentication
 
-Supabase Auth handles user authentication with:
+- **Sign-up**: the self-host stack starts with `DISABLE_SIGNUP=true` in `supabase/.env` until an admin exists. `harmony registration open|invite|closed` sets `DISABLE_SIGNUP` and `instance_config.open_registration` together.
+- **Email**: password resets and address confirmation need SMTP (`SMTP_*` in `supabase/.env`; the installer asks). Without it, `ENABLE_EMAIL_AUTOCONFIRM=true` makes accounts usable at sign-up.
+- **URLs**: `SITE_URL` is `https://DOMAIN`, `API_EXTERNAL_URL` and `SUPABASE_PUBLIC_URL` are `https://db.DOMAIN`, and `ADDITIONAL_REDIRECT_URLS` includes `https://DOMAIN`.
+- **OAuth**: providers enabled in `instance_config` (or `ENABLED_OAUTH_PROVIDERS`), each with its `GOTRUE_EXTERNAL_*` credentials.
+- **Logout scope**: GoTrue's `POST /auth/v1/logout` accepts a token without the second factor, and its default `global` scope ends every session of the account. The Supabase API host lets only `?scope=local` through: Caddy does it in the self-host stack, `dev/nginx-auth-logout.template.conf` behind nginx. Other devices are signed out through `public.sign_out_my_sessions()`.
 
-- Email/password registration
-- OAuth providers (configurable via `VITE_ENABLED_OAUTH_PROVIDERS`)
-- JWT tokens with automatic refresh
-- MFA (two-factor authentication) support
+## Storage buckets
 
-A database trigger creates a profile record when a new user registers.
+| Bucket | Access | Holds |
+|---|---|---|
+| `avatars`, `banners` | Public | Profile images |
+| `server_icons`, `server_banners`, `group-icons` | Public | Server and group images |
+| `emojis` | Public | Custom emoji |
+| `user_media` | Public | Post media, which ActivityPub delivers by URL |
+| `message_media` | Private | Chat attachments |
 
-## Realtime
+Members of a channel or conversation read `message_media` objects through signed URLs; other instances read them through the federation backend's `/media` route (`/api/federation/media/` behind the proxy).
 
-`50_realtime.sql` configures which tables publish realtime events. The frontend subscribes via `RealtimeConnectionManager` for:
+Image transforms are served by imgproxy at `/storage/v1/render/image/public/<bucket>/<path>`. A cache in front of that path pins `Accept` (`proxy_set_header Accept "image/webp,*/*;q=0.8";` in nginx); otherwise one client's format is served to every client.
 
-- New messages in channels
-- Presence updates
-- Notification delivery
-- Typing indicators
+## Database conventions
 
-## Reference Backup
-
-`db_schema/latest_dev_backup.sql` contains a full schema dump from a production-like environment. Use it as a reference but not as an installation source - always use `db_schema/migrations/` for fresh deploys.
+- Row Level Security is enabled on every table; `get_current_profile_id()` maps the caller's auth user to a profile.
+- Permissions are `bigint` bitmasks; `src/services/permissionsService.ts` names the bits.
+- `SECURITY DEFINER` functions meant for the backend (for example `queue_federation_job()`) grant `EXECUTE` to `service_role` only. `db_schema/SURFACE.tsv` lists every function PostgREST publishes, with its security mode and grants (`scripts/generate-surface.sh` regenerates it).
+- The `supabase_realtime` publication names the tables clients subscribe to; `src/services/RealtimeConnectionManager.ts` manages the subscriptions.
 
 ---
 

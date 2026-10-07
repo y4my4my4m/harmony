@@ -123,6 +123,45 @@ export function calculatePopupPosition(
   };
 }
 
+export interface ViewportBox {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
+
+export interface ComposerAnchorOptions {
+  /** Inset from the composer's sides and gap above its top edge, px. */
+  edge: number;
+  /** env(safe-area-inset-top), px. */
+  safeTop: number;
+  minHeight: number;
+  maxHeight: number;
+}
+
+/**
+ * Mobile picker box above a docked composer: bottom edge `edge` px above the
+ * composer's top, sides inset `edge` px from the composer's sides. Height
+ * fills the space up to the safe area, clamped to [minHeight, maxHeight].
+ * Below minHeight of room the picker rises past the safe area instead of
+ * covering the composer. All values in layout-viewport px.
+ */
+export function calculateComposerAnchoredRect(
+  composer: { top: number; left: number; right: number },
+  viewport: ViewportBox,
+  options: ComposerAnchorOptions,
+): ViewportBox {
+  const { edge, safeTop, minHeight, maxHeight } = options;
+  const left = Math.max(composer.left, viewport.left) + edge;
+  const right = Math.min(composer.right, viewport.left + viewport.width) - edge;
+  // Where the keyboard resizes only the visual viewport (iOS, Chrome on
+  // Android) it covers the composer; the visible bottom bounds the picker.
+  const bottom = Math.min(composer.top, viewport.top + viewport.height) - edge;
+  const available = bottom - (viewport.top + safeTop + edge);
+  const height = Math.min(maxHeight, Math.max(minHeight, available));
+  return { left, top: bottom - height, width: Math.max(0, right - left), height };
+}
+
 /**
  * Composable for dynamic popup positioning
  */

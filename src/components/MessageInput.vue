@@ -1,5 +1,5 @@
 <template>
-  <div class="message-input" :class="{'replying': replyMessageId, 'has-files': attachedFiles.length > 0}" data-testid="message-input" data-floating-video-avoid>
+  <div ref="composerRef" class="message-input" :class="{'replying': replyMessageId, 'has-files': attachedFiles.length > 0}" data-testid="message-input" data-floating-video-avoid>
     <TypingIndicator
       :typing-users="typingUsers"
       class="typing-indicator-wrapper"
@@ -71,7 +71,20 @@
 
       <template v-else>
         <div class="left-icons">
-          <div class="plus-icon-container">
+          <!-- Compact: stands in for +, mic and GIF while the draft has content. -->
+          <button
+            v-if="isCompact"
+            type="button"
+            class="icon-button composer-expand"
+            :class="{ 'is-collapsed': !actionsCollapsed }"
+            :aria-label="$t('message.moreActions')"
+            :title="$t('message.moreActions')"
+            @mousedown.prevent
+            @click.stop="expandActions"
+          >
+            <Icon name="chevron-right" :size="22" />
+          </button>
+          <div class="plus-icon-container" :class="{ 'is-collapsed': actionsCollapsed }">
             <PlusIcon @click="toggleUploadMenu" :class="{ active: showUploadMenu }" />
             <FileUploadMenu
               :isVisible="showUploadMenu"
@@ -85,6 +98,8 @@
             ref="richEditorRef"
             :model-value="modelValue"
             :placeholder="autoSuggest.activeCommand.value ? autoSuggest.activeCommand.value.params[0]?.description || 'Enter a value...' : (attachedFiles.length > 0 ? $t('message.addComment') : $t('message.typeMessage', { to: placeholderTarget }))"
+            :min-height="isCompact ? COMPACT_EDITOR_MIN_HEIGHT : undefined"
+            :max-height="isCompact ? COMPACT_EDITOR_MAX_HEIGHT : undefined"
             :auto-suggest-active="autoSuggest.state.value.isActive"
             :auto-suggest-selected-id="autoSuggest.state.value.isActive ? 'suggest-' + autoSuggest.state.value.selectedIndex : undefined"
             @update:model-value="handleModelValueUpdate"
@@ -95,15 +110,36 @@
             @cursor-position-changed="handleCursorPositionChanged"
             @paste="handlePasteFiles"
           />
+          <div v-if="isCompact" class="field-trailing">
+            <span
+              v-if="slowmodeActive"
+              class="slowmode-indicator"
+              :class="{ cooling: slowmodeRemaining > 0 }"
+              :title="slowmodeTitle"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+                <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 10.59V7h-2v6.41l4.29 4.3 1.42-1.42z"/>
+              </svg>
+              <span v-if="slowmodeRemaining > 0">{{ slowmodeRemaining }}s</span>
+            </span>
+            <span
+              v-if="showCharCount"
+              class="message-char-count"
+              :class="{ 'over-limit': messageTooLong }"
+              :aria-live="messageTooLong ? 'assertive' : 'polite'"
+              :title="charCountTitle"
+            >{{ maxMessageLength - characterCount }}</span>
+            <button ref="emojiTriggerRef" @click.stop="toggleEmojiList" class="icon-button" aria-label="Emoji" title="Emoji">
+              <EmojiUI />
+            </button>
+          </div>
         </div>
         <div class="right-icons">
           <span
-            v-if="slowmodeActive"
+            v-if="slowmodeActive && !isCompact"
             class="slowmode-indicator"
             :class="{ cooling: slowmodeRemaining > 0 }"
-            :title="slowmodeRemaining > 0
-              ? `Slowmode: you can send again in ${slowmodeRemaining}s`
-              : `Slowmode is on: one message every ${slowmodeSeconds}s`"
+            :title="slowmodeTitle"
           >
             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
               <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 10.59V7h-2v6.41l4.29 4.3 1.42-1.42z"/>
@@ -115,36 +151,39 @@
             Send-button state comes from `hasContent`, not from this.
           -->
           <span
-            v-if="showCharCount"
+            v-if="showCharCount && !isCompact"
             class="message-char-count"
             :class="{ 'over-limit': messageTooLong }"
             :aria-live="messageTooLong ? 'assertive' : 'polite'"
-            :title="messageTooLong ? `Message too long (${characterCount} / ${maxMessageLength})` : `${characterCount} / ${maxMessageLength}`"
+            :title="charCountTitle"
           >{{ maxMessageLength - characterCount }}</span>
           <VoiceRecorder
+            :class="{ 'is-collapsed': actionsCollapsed }"
             :disabled="hasContent"
             @recording-started="isVoiceRecording = true"
             @recording-complete="handleVoiceRecordingComplete"
             @recording-cancelled="isVoiceRecording = false"
           />
-          <button ref="gifTriggerRef" @click.stop="toggleGiphy" class="icon-button" aria-label="GIFs" title="GIFs">
+          <button ref="gifTriggerRef" @click.stop="toggleGiphy" class="icon-button" :class="{ 'is-collapsed': actionsCollapsed }" aria-label="GIFs" title="GIFs">
             <GifIcon />
           </button>
-          <button ref="emojiTriggerRef" @click.stop="toggleEmojiList" class="icon-button" aria-label="Emoji" title="Emoji">
+          <button v-if="!isCompact" ref="emojiTriggerRef" @click.stop="toggleEmojiList" class="icon-button" aria-label="Emoji" title="Emoji">
             <EmojiUI />
           </button>
-          <button 
-            v-if="isMobile && hasContent" 
-            @click.stop="send" 
-            class="icon-button send-button"
-            :aria-label="$t('common.send')"
-            data-testid="message-send-btn"
-            :disabled="!hasContent"
-          >
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-            </svg>
-          </button>
+          <Transition name="composer-send">
+            <button
+              v-if="isMobile && hasContent"
+              @click.stop="send"
+              class="icon-button send-button"
+              :aria-label="$t('common.send')"
+              data-testid="message-send-btn"
+              :disabled="!hasContent"
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+              </svg>
+            </button>
+          </Transition>
         </div>
       </template>
     </div>
@@ -178,6 +217,7 @@ import AutoSuggest from '@/components/AutoSuggest.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
 import VoiceRecorder from '@/components/VoiceRecorder.vue';
 import InlineGifPicker from '@/components/InlineGifPicker.vue';
+import Icon from '@/components/common/Icon.vue';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { parseKlipyKind } from '@/utils/klipyAttribution';
 import { buildEphemeralEmojiFromGif, registerEphemeralEmoji } from '@/utils/ephemeralEmoji';
@@ -267,6 +307,7 @@ const attachedFiles = ref<FilePreviewData[]>([]);
 const isDragging = ref(false);
 const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
 const isEditorFocused = ref(false);
+const composerRef = ref<HTMLElement | null>(null);
 const gifTriggerRef = ref<HTMLElement | null>(null);
 const emojiTriggerRef = ref<HTMLElement | null>(null);
 const isVoiceRecording = ref(false);
@@ -300,6 +341,10 @@ const slowmodeSeconds = computed(() => {
 const slowmodeActive = computed(() =>
   slowmodeSeconds.value > 0 && !slowmodeExempt.value
 );
+
+const slowmodeTitle = computed(() => slowmodeRemaining.value > 0
+  ? `Slowmode: you can send again in ${slowmodeRemaining.value}s`
+  : `Slowmode is on: one message every ${slowmodeSeconds.value}s`);
 
 function startSlowmodeCooldown(seconds: number) {
   if (seconds <= 0) return;
@@ -404,6 +449,14 @@ const TYPING_RESET_MS = 2000 // Idle window after which typing can re-trigger.
 const { isMobileViewport, isTouchOnly } = useViewport();
 const isMobile = computed(() => isMobileViewport.value || isTouchOnly);
 
+// Compact layout follows the 768px stylesheet breakpoint; touch-only input
+// alone does not switch it.
+const isCompact = computed(() => isMobileViewport.value);
+// One line matches the 40px buttons: 22px line (16px x 1.375) + 9px padding
+// top and bottom. Five lines, then the editor scrolls.
+const COMPACT_EDITOR_MIN_HEIGHT = 40;
+const COMPACT_EDITOR_MAX_HEIGHT = 5 * 22 + 18;
+
 // Counts the raw editor string, markdown markers (`**`) included. The backend
 // counts parsed text part lengths and is authoritative; the two values track
 // closely enough to drive the counter.
@@ -423,12 +476,29 @@ const messageTooLong = computed(() => characterCount.value > maxMessageLength.va
 const showCharCount = computed(
   () => characterCount.value > maxMessageLength.value * 0.85,
 );
+const charCountTitle = computed(() => messageTooLong.value
+  ? `Message too long (${characterCount.value} / ${maxMessageLength.value})`
+  : `${characterCount.value} / ${maxMessageLength.value}`);
 
 // Over-limit drafts still count as content, keeping the send button enabled.
 // The press routes through `send()`, which buzzes the input and toasts an
 // error rather than dropping the draft.
 const hasContent = computed(() => {
   return (props.modelValue?.trim().length ?? 0) > 0 || attachedFiles.value.length > 0;
+});
+
+// Compact, with content: +, mic and GIF fold behind the chevron. A chevron tap
+// unfolds them until the next keystroke or until one is used; the upload menu
+// is anchored inside +, so + stays out while the menu is open.
+const actionsExpanded = ref(false);
+const actionsCollapsed = computed(() =>
+  isCompact.value && hasContent.value && !actionsExpanded.value && !showUploadMenu.value
+);
+const expandActions = () => {
+  actionsExpanded.value = true;
+};
+watch(hasContent, (has) => {
+  if (!has) actionsExpanded.value = false;
 });
 
 const handleVoiceRecordingComplete = async (result: VoiceRecordingResult) => {
@@ -551,6 +621,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 });
 
     const handleModelValueUpdate = (value: string) => {
+      actionsExpanded.value = false
       emit('update:modelValue', value)
       handleTyping()
     }
@@ -755,6 +826,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     };
 
     const toggleGiphy = () => {
+      actionsExpanded.value = false;
       emit('toggleGiphy');
     };
     
@@ -775,6 +847,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
     const closeUploadMenu = () => {
       showUploadMenu.value = false;
+      actionsExpanded.value = false;
     };
 
     const createFilePreview = async (file: File): Promise<FilePreviewData> => {
@@ -988,6 +1061,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     };
 
     defineExpose({
+      composerRef,
       gifTriggerRef,
       emojiTriggerRef,
       flashRejection
@@ -1224,13 +1298,6 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     40%, 60% { transform: translate3d(4px, 0, 0); }
   }
 
-  /* prefers-reduced-motion: no shake, outline stays. */
-  @media (prefers-reduced-motion: reduce) {
-    .message-container.buzz-over-limit {
-      animation: none;
-    }
-  }
-
   .textarea-wrapper {
     flex-grow: 1;
     position: relative;
@@ -1247,64 +1314,6 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
   .message-container:has(.rich-text-editor.is-focused) {
     box-shadow: 0 0 0 1px var(--border-hover);
-  }
-
-  @media (max-width: 768px) {
-    .message-input {
-      flex-shrink: 0;
-      margin: 0;
-      /* padding: 12px 16px; */
-      padding: 0.5rem;
-      background: var(--background-secondary);
-      border-top: 1px solid var(--border-primary);
-    }
-
-    .message-container {
-      border-radius: 16px;
-      padding: 0.25rem;
-      min-height: 52px;
-      align-items: center;
-    }
-
-    .left-icons,
-    .right-icons {
-      gap: 2px;
-    }
-
-    .right-icons {
-      padding-right: 4px;
-    }
-
-    /* 40px touch targets. */
-    .plus-icon-container {
-      width: 40px;
-      height: 40px;
-      border-radius: 20px;
-    }
-
-    .right-icons button {
-      width: 40px;
-      height: 40px;
-      border-radius: 20px;
-    }
-
-    .textarea-wrapper {
-      min-height: 28px;
-      margin-left: 0;
-      margin-right: 0;
-    }
-
-    .left-icons > *,
-    .right-icons > * {
-      min-width: 24px;
-      min-height: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .sprite {
-      --scaleFactor: 1.25;
-    }
   }
 
   .icon-button {
@@ -1351,5 +1360,193 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
   .send-button svg {
     margin-left: 2px; /* Optical centering for the arrow glyph. */
+  }
+
+  /* Compact composer. One strip with 8px edges; the text field is the only
+     pill. Buttons sit on the strip and align to the field's last line. */
+  @media (max-width: 768px) {
+    .message-input,
+    .message-input.replying,
+    .message-input.has-files {
+      padding: 8px;
+      background: var(--background-secondary);
+      border-top: 1px solid var(--border-primary);
+    }
+
+    /* The strip has no top gutter; the indicator rides on its top edge as a
+       tab over the message list. Qualified to outrank TypingIndicator's own
+       padding rule. */
+    .message-input .typing-indicator-wrapper {
+      bottom: 100%;
+      left: 0;
+      right: auto;
+      max-width: 100%;
+      padding: 2px 8px;
+      border-top-right-radius: 8px;
+      background: var(--background-secondary);
+    }
+
+    .message-readonly-banner {
+      margin: 0;
+    }
+
+    /* Reply bar, attachment preview and command bar stand above the row as
+       cards on the same edges. */
+    .attachedBars,
+    .file-preview-container,
+    .command-param-bar {
+      border-radius: 8px;
+      margin-bottom: 6px;
+    }
+
+    .message-container {
+      gap: 6px;
+      align-items: flex-end;
+      padding: 0;
+      border-radius: 0;
+      background: transparent;
+    }
+
+    .message-container:has(.rich-text-editor.is-focused) {
+      box-shadow: none;
+    }
+
+    .message-container.has-over-limit {
+      outline: none;
+    }
+
+    .left-icons,
+    .right-icons {
+      align-items: flex-end;
+      padding: 0;
+    }
+
+    /* 40px touch targets. Width and opacity carry the fold. */
+    .left-icons > *,
+    .right-icons > * {
+      flex-shrink: 0;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: width 0.15s ease, opacity 0.15s ease, visibility 0s,
+        background-color 0.2s ease, transform 0.15s ease;
+    }
+
+    /* Visibility flips after the fade, taking folded controls out of tab
+       order and the accessibility tree. */
+    .left-icons > .is-collapsed,
+    .right-icons > .is-collapsed {
+      width: 0;
+      min-width: 0;
+      opacity: 0;
+      visibility: hidden;
+      overflow: hidden;
+      pointer-events: none;
+      transition: width 0.15s ease, opacity 0.15s ease, visibility 0s 0.15s;
+    }
+
+    .plus-icon-container,
+    .composer-expand {
+      padding: 0;
+      border-radius: 20px;
+      background-color: var(--background-modifier-active);
+    }
+
+    .composer-expand {
+      color: var(--text-secondary);
+    }
+
+    .right-icons button {
+      border-radius: 20px;
+    }
+
+    .right-icons > .composer-send-enter-active,
+    .right-icons > .composer-send-leave-active {
+      transition: width 0.15s ease, min-width 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
+    }
+
+    .right-icons > .composer-send-enter-from,
+    .right-icons > .composer-send-leave-to {
+      width: 0 !important;
+      min-width: 0 !important;
+      opacity: 0;
+      transform: scale(0.6);
+    }
+
+    .textarea-wrapper {
+      display: flex;
+      align-items: flex-end;
+      flex: 1 1 auto;
+      min-width: 0;
+      margin: 0;
+      border-radius: 20px;
+      background-color: var(--background-quaternary);
+      transition: box-shadow 0.2s;
+    }
+
+    .textarea-wrapper:has(.rich-text-editor.is-focused) {
+      box-shadow: 0 0 0 1px var(--border-hover);
+    }
+
+    .message-container.has-over-limit .textarea-wrapper {
+      outline: 1px solid var(--error);
+    }
+
+    .textarea-wrapper .rich-text-editor {
+      flex: 1 1 auto;
+      min-width: 0;
+      padding: 9px 4px 9px 14px;
+    }
+
+    .textarea-wrapper .rich-text-editor.is-empty::before {
+      top: 9px;
+      left: 14px;
+      right: 4px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .field-trailing {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      height: 40px;
+    }
+
+    .field-trailing .icon-button {
+      width: 40px;
+      height: 40px;
+      border-radius: 20px;
+    }
+
+    .voice-recording-wrapper {
+      min-height: 40px;
+      border-radius: 20px;
+      background-color: var(--background-quaternary);
+    }
+
+    .sprite {
+      --scaleFactor: 1.25;
+    }
+  }
+
+  /* prefers-reduced-motion: no shake, outline stays; folds and the send
+     button switch without animating. */
+  @media (prefers-reduced-motion: reduce) {
+    .message-container.buzz-over-limit {
+      animation: none;
+    }
+
+    .left-icons > *,
+    .right-icons > *,
+    .left-icons > .is-collapsed,
+    .right-icons > .is-collapsed,
+    .right-icons > .composer-send-enter-active,
+    .right-icons > .composer-send-leave-active {
+      transition: none;
+    }
   }
 </style>

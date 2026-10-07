@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+# =============================================================================
+# harmony - operator commands for a self-hosted Harmony instance
+# =============================================================================
+#   harmony install                 install, or re-run safely (install.sh)
+#   harmony update [--version V]    update code, images and database (update.sh);
+#                                   V: X.Y.Z, a tag, a branch, or edge
+#   harmony doctor [--offline]      check the instance (doctor.sh)
+#   harmony backup [--no-storage]   database, configuration and uploads into
+#                                   self-host/backups/<time>/
+#   harmony restore <backup> [--yes]
+#   harmony status                  containers, version, URL
+#   harmony logs [service] [-n N] [--no-follow]
+#                                   federation = server + worker
+#   harmony admin create [--email E] [--username U] [--password P]
+#   harmony admin reset-password (--email E | --username U) [--password P]
+#   harmony admin invite <email> [--send]
+#   harmony registration [open | invite | closed]
+#   harmony config                  change the answers (configure.sh), apply
+#   harmony version
+#
+# Each command is a thin layer over the scripts beside this file.
+# =============================================================================
+set -euo pipefail
+# Resolves a symlink (/usr/local/bin/harmony) to the checkout.
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+# shellcheck source=lib.sh
+source "$(dirname "$SELF")/lib.sh"
+
+usage() { sed -n '2,22p' "$SELF" | sed 's/^# \{0,1\}//'; }
+
+need_config() { [[ -f "$ENV_FILE" ]] || die "not installed yet: $SELF_HOST_DIR/harmony install"; }
+
+cmd_update() {
+	local v=""
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			--version) v="${2:?--version needs a value}"; shift ;;
+			--version=*) v="${1#--version=}" ;;
+			*) die "unknown argument: $1" ;;
+		esac
+		shift
+	done
+	if [[ -n "$v" ]]; then
+		case "$v" in
+			edge) v=master ;;
+			[0-9]*.[0-9]*.[0-9]*) v="v$v" ;;
+		esac
+		export HARMONY_REF="$v"
+	fi
+	exec bash "$SELF_HOST_DIR/update.sh"
+}
+
+cmd_status() {
+	need_config
+	local domain
+	domain="$(env_get "$ENV_FILE" DOMAIN)"
+	printf '%sHarmony%s  https://%s\n' "$c_bold" "$c_reset" "$domain"
+	printf '  code       %s (%s)\n' "$(git -C "$REPO_DIR" describe --tags --always 2>/dev/null || echo '?')" \
+		"$(git -C "$REPO_DIR" symbolic-ref -q --short HEAD 2>/dev/null || echo detached)"
+	printf '  images     %s%s\n' "$(env_get "$ENV_FILE" HARMONY_VERSION)" \
+		"$( [[ "$(env_get "$ENV_FILE" COMPOSE_FILE)" == *build* ]] && echo ' (built from this checkout)')"
+	printf '  profiles   %s\n' "$(env_get "$ENV_FILE" COMPOSE_PROFILES | sed 's/^$/(none)/')"
+	printf '  register   %s\n' "$(env_get "$ENV_FILE" REGISTRATION)"
+	printf '  backup     %s\n' "$(basename "$(latest_backup)" 2>/dev/null | sed 's/^$/none/')"
+	echo
+	compose ps --format 'table {{.Service}}\t{{.Status}}\t{{.Image}}'
+}
+
+cmd_logs() {
+	need_config
+	local -a svcs=() opts=()
+	local follow=true tail=200
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			-n) tail="${2:?-n needs a number}"; shift ;;
+			--no-follow) follow=false ;;
+			federation) svcs+=(federation-server federation-worker) ;;
+			supabase) svcs+=(db auth rest realtime storage kong) ;;
+			*) svcs+=("$1") ;;
+		esac
+		shift
+	done
+	if $follow; then opts+=(-f); fi
+	compose logs ${opts[@]+"${opts[@]}"} --tail "$tail" ${svcs[@]+"${svcs[@]}"}
+}
+
+cmd_config() {
+	need_config
+	interactive || die "harmony config asks questions; for scripted changes run: HARMONY_...=... bash configure.sh --non-interactive"
+	local before_profiles after_profiles svc profile
+	before_profiles="$(env_get "$ENV_FILE" COMPOSE_PROFILES)"
+	bash "$SELF_HOST_DIR/configure.sh" < /dev/tty
+	after_profiles="$(env_get "$ENV_FILE" COMPOSE_PROFILES)"
+	# A disabled profile's container outlives `up -d`; remove it.
+	for pair in livekit:voice bot-gateway:bots discord-bridge-host:discord; do
+		svc="${pair%%:*}"; profile="${pair##*:}"
+		if [[ ",$before_profiles," == *",$profile,"* && ",$after_profiles," != *",$profile,"* ]]; then
+			info "Removing $svc (profile $profile turned off)"
+			compose --profile "$profile" rm -sf "$svc" >/dev/null
+		fi
+	done
+	info "Applying..."
+	compose pull --quiet --ignore-pull-failures >/dev/null 2>&1 || true
+	compose up -d
+	if bash "$SELF_HOST_DIR/admin.sh" has-admin; then
+		bash "$SELF_HOST_DIR/admin.sh" registration
+	fi
+	ok "Configuration applied. Check it: harmony doctor"
+}
+
+cmd="${1:-}"
+[[ $# -gt 0 ]] && shift
+case "$cmd" in
+	install) exec bash "$SELF_HOST_DIR/install.sh" "$@" ;;
+	update) cmd_update "$@" ;;
+	doctor) exec bash "$SELF_HOST_DIR/doctor.sh" "$@" ;;
+	backup) need_config; exec bash "$SELF_HOST_DIR/backup.sh" create "$@" ;;
+	restore) exec bash "$SELF_HOST_DIR/backup.sh" restore "$@" ;;
+	status) cmd_status ;;
+	logs) cmd_logs "$@" ;;
+	admin)
+		need_config
+		sub="${1:-}"; [[ $# -gt 0 ]] && shift
+		case "$sub" in
+			create|reset-password|invite) exec bash "$SELF_HOST_DIR/admin.sh" "$sub" "$@" ;;
+			*) die "usage: harmony admin create | reset-password | invite" ;;
+		esac ;;
+	registration) need_config; exec bash "$SELF_HOST_DIR/admin.sh" registration "$@" ;;
+	config) cmd_config ;;
+	version) git -C "$REPO_DIR" describe --tags --always 2>/dev/null; env_get "$ENV_FILE" HARMONY_VERSION ;;
+	-h|--help|help|"") usage ;;
+	*) die "unknown command: $cmd (harmony help)" ;;
+esac

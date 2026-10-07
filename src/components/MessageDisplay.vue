@@ -210,13 +210,10 @@
                     </template>
                     <template v-else>
                       started a {{ item.message.metadata?.call_type || 'voice' }} call
-                      <button
-                        v-if="isCallJoinable(item.message)"
-                        class="call-join-btn"
-                        @click="joinCallFromSystemMessage(item.message)"
-                      >
-                        Join call
-                      </button>
+                      <CallJoinButton
+                        :message-id="item.message.id"
+                        :conversation-id="item.message.conversation_id || props.conversationId"
+                      />
                     </template>
                   </div>
                 </template>
@@ -702,7 +699,6 @@ import { useNotificationStore } from '@/stores/useNotification';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { isModerationRejectionCode } from '@/services/AutoModService';
 import { useToast } from 'vue-toastification';
-import { dmCallSignaling } from '@/services/DMCallSignaling';
 import { supabase } from '@/supabase'; 
 import { throttle } from '@/utils/throttle';
 import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
@@ -732,6 +728,7 @@ import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import ReactionTooltip from '@/components/messages/ReactionTooltip.vue';
 import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue';
+import CallJoinButton from '@/components/messages/CallJoinButton.vue';
 import {
   findBridgedUserInCache,
   resolveBridgedUserColor,
@@ -1671,6 +1668,18 @@ const setPinned = (pinned: boolean) => {
   if (pinned) unseenCount.value = 0;
 };
 
+// Pin state after the scroll position moved; rules in nextPinState.
+const applyScroll = (el: HTMLElement) => {
+  const settling = Date.now() < openFollowBottomUntil;
+  const next = nextPinState(pinState, el, { settling });
+  pinState.lastScrollTop = next.lastScrollTop;
+  if (next.pinned !== pinState.pinned) {
+    setPinned(next.pinned);
+    // A deliberate scroll-up ends the post-open grace window.
+    if (!next.pinned) openFollowBottomUntil = 0;
+  }
+};
+
 // Landing retries (open, jumpToMessageRow) run while they hold the current
 // value; a newer jump to a message or to the present ends them.
 let seatGeneration = 0;
@@ -2005,6 +2014,14 @@ watch(() => props.messages, (newMessages) => {
   if (dividerBeforeMessageId.value && appendedOwn > 0) {
     clearReadDivider();
   }
+
+  // A scroll event trails its scrollTop change by up to a frame. An update
+  // landing in that frame applies the scroll first; otherwise a pin the scroll
+  // released still holds and re-seats the view at the end. Read before the
+  // patch: the prepend correction below moves scrollTop down and hides a
+  // scroll up.
+  const scroller = messageDisplayContainer.value;
+  if (scroller && Math.abs(scroller.scrollTop - pinState.lastScrollTop) > 0.5) applyScroll(scroller);
 
   const oldScrollHeight = messageDisplayContainer.value?.scrollHeight ?? 0;
   // scrollTop is snapshotted alongside scrollHeight so the prepend handler
@@ -2773,14 +2790,7 @@ const handleScrollThrottled = throttle(() => {
 const handleScroll = () => {
   const el = messageDisplayContainer.value;
   if (el) {
-    const settling = Date.now() < openFollowBottomUntil;
-    const next = nextPinState(pinState, el, { settling });
-    pinState.lastScrollTop = next.lastScrollTop;
-    if (next.pinned !== pinState.pinned) {
-      setPinned(next.pinned);
-      // A deliberate scroll-up ends the post-open grace window.
-      if (!next.pinned) openFollowBottomUntil = 0;
-    }
+    applyScroll(el);
     measureEnd();
   }
   handleScrollThrottled();
@@ -2900,46 +2910,6 @@ const isMissedCall = (message: any): boolean => {
   const meta = message?.metadata;
   if (meta?.type !== 'call_ended') return false;
   return !Array.isArray(meta.participants) || meta.participants.length < 2;
-};
-
-// A "started a call" message offers Join only while the call is live
-// (presence-derived); messages whose call ended stay inert.
-const isCallJoinable = (message: any): boolean => {
-  dmCallSignaling.callStateVersion.value;
-  const conversationId = message.conversation_id || props.conversationId;
-  if (!conversationId) return false;
-  const call = dmCallSignaling.getActiveCall(conversationId);
-  if (!call) return false;
-  return !call.systemMessageId || call.systemMessageId === message.id;
-};
-
-const joinCallFromSystemMessage = async (message: any) => {
-  const conversationId = message.conversation_id || props.conversationId;
-  if (!conversationId) return;
-
-  try {
-    const { useUnifiedVoiceChannelStore } = await import('@/stores/unifiedVoiceChannel');
-    const { authContextService } = await import('@/services/AuthContextService');
-    const voiceStore = useUnifiedVoiceChannelStore();
-    
-    const dmChannelId = `dm-${conversationId}`;
-    const { useCallSwitch } = await import('@/composables/useCallSwitch');
-    if (!(await useCallSwitch().leaveCurrentCallFor(dmChannelId))) return;
-    if (voiceStore.isConnected && voiceStore.currentChannelId === dmChannelId) {
-      voiceStore.isOverlayVisible = true;
-      return;
-    }
-
-    const profileId = await authContextService.getCurrentProfileId();
-    
-    await dmCallSignaling.joinCall(conversationId, profileId);
-    const success = await voiceStore.joinVoiceChannel(dmChannelId, 'dm');
-    if (success) {
-      voiceStore.isOverlayVisible = true;
-    }
-  } catch (error) {
-    debug.error('Failed to join call from system message:', error);
-  }
 };
 
 const formatDateSeparator = (timestamp: Date): string => {
@@ -4421,23 +4391,6 @@ defineExpose({ editLastOwnMessage });
 .call-duration {
   color: var(--text-muted);
   font-size: 0.8rem;
-}
-
-.call-join-btn {
-  background: var(--success);
-  color: var(--text-on-primary);
-  border: none;
-  border-radius: var(--radius-sm);
-  padding: 2px 12px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  margin-left: 4px;
-  transition: background-color 0.15s;
-}
-
-.call-join-btn:hover {
-  background: var(--success-hover);
 }
 
 .system-timestamp {

@@ -292,6 +292,7 @@ import { getInviteHistory, revokeInvite, type Invite } from '@/services/inviteSe
 import { useAuthStore } from '@/stores/auth'
 import BaseModal from '@/components/common/BaseModal.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { runtimeConfig } from '@/services/runtimeConfig'
 
 interface Props {
   serverId: string
@@ -500,7 +501,7 @@ const copyInviteCode = async (code: string) => {
 
 const copyInviteUrl = async (code: string) => {
   try {
-    const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin
+    const baseUrl = runtimeConfig.appUrl || window.location.origin
     const url = `${baseUrl}/invite/${code}`
     await navigator.clipboard.writeText(url)
     toast.success('Invite link copied')

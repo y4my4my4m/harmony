@@ -24,7 +24,11 @@ GoTrue v2.182.1 (production) behaviour, observed against the image:
   `aal1`.
 - A second verify on an `aal2` session refreshes the `totp` timestamp in `amr`.
 - A password change through `PUT /user` deletes every other session of the account.
-- `mfa.unenroll` and password changes require `aal2` when a verified factor exists.
+- `mfa.unenroll`, enrolling another factor and password or email changes require `aal2`
+  when a verified factor exists.
+- `POST /logout` checks no assurance level. `scope=global` (the default when the parameter
+  is absent) and `scope=others` from an `aal1` token delete every session of the account,
+  `aal2` ones included. Same on v2.186.0 (staging).
 
 ## Enforcement in the database
 
@@ -58,7 +62,7 @@ and catch-all branches of `onAuthStateChange`.
 
 Accepted: `aal2`; `aal1` with `totp` in `amr`; `aal1` with no verified factor.
 Rejected: `aal1` without `totp` while a verified factor exists, and any `listFactors`
-error. Rejection signs the session out so another tab cannot adopt it.
+error. Rejection signs the session out with `scope: 'local'` so another tab cannot adopt it.
 
 `_pendingMFAVerification` suppresses these checks while a challenge is in flight. It must
 be set before `signInWithPassword`: the awaits that follow yield to the queued
@@ -84,7 +88,10 @@ password reset (`ResetPasswordView.vue`) share the challenge.
   session is a full session; the user is sent to Security to enrol again. The password
   reset view redeems the same way before setting the new password.
 
-Cancelling the challenge signs the pending `aal1` session out.
+The challenge dialog has no backdrop or Escape dismissal. Its cancel control calls
+`authStore.cancelPendingSignIn()`, which signs the pending `aal1` session out. Every
+client sign-out goes through `signOutAndForget()` (`src/supabase.ts`), which uses
+`scope: 'local'` only.
 
 ## Recovery codes
 
@@ -107,9 +114,30 @@ Cancelling the challenge signs the pending `aal1` session out.
 
 `list_my_sessions()` and `revoke_my_session(id)` read and delete the caller's
 `auth.sessions` rows; refresh tokens cascade, and the pre-request hook refuses the
-revoked session's access token at once. Signing out every other device uses GoTrue's
-`signOut({ scope: 'others' })`. `push_subscriptions.session_id` is written by the
-federation backend at registration, and deleting a session removes its push targets.
+revoked session's access token at once. `sign_out_my_sessions('others')` deletes every
+session but the one the token names; `'global'` deletes all of them
+(`db_schema/migrations/20261007500001_sign_out_scope.sql`). `revoke_my_session` and
+`sign_out_my_sessions` raise `PT403 insufficient_aal` below `aal2` for an enrolled
+account themselves, so they stay closed with the pre-request hook switched off.
+`push_subscriptions.session_id` is written by the federation backend at registration,
+and deleting a session removes its push targets.
+
+- Log out (every platform, `authStore.logout()`) ends this device's session only.
+- Settings > Sessions signs out one device (`revoke_my_session`) or every other device
+  (`sign_out_my_sessions('others')`).
+- A suspended account found at sign-in or session restore calls `signOutEverywhere()`:
+  `sign_out_my_sessions('others')`, then a local sign-out.
+- A password change, including the reset flow, needs no client step: GoTrue deletes the
+  account's other sessions itself, and the reset view signs the recovery session out
+  locally.
+
+GoTrue's own `scope=global` and `scope=others` are refused at the API host, before Kong:
+`dev/nginx-auth-logout.template.conf` for nginx (production, staging), the
+`{$DB_DOMAIN}` block of `self-host/Caddyfile` for the bundled stack. Only `scope=local` reaches GoTrue; a refused
+request gets `403 logout_scope_forbidden`, which auth-js treats as signed out, so released
+clients still sending `scope=global` sign out locally. Kong 2.8 routes cannot match on
+the query string and the bundled plugin set has no scripting. Kong (8000) and GoTrue
+(9999) must not be reachable around the proxy.
 
 ## Security notices
 
@@ -131,11 +159,15 @@ read from the `amr` timestamp.
 
 - `src/stores/auth.ts` - AAL/AMR decoding, session admission, `verify2FA`,
   `completeRecoverySignIn`, `finalizeSignIn`, `handleSessionRejected`
-- `src/supabase.ts` - storage adapter, PostgREST rejection hook
+- `src/supabase.ts` - storage adapter, PostgREST rejection hook, `signOutAndForget`,
+  `signOutEverywhere`
 - `src/components/settings/user/SecuritySettings.vue`, `TwoFactorSettings.vue`,
   `SessionsPanel.vue` - password, enrolment, recovery codes, devices
 - `src/services/AccountSecurityService.ts`, `AccountDeletionService.ts`,
   `DataExportService.ts`
 - `db_schema/migrations/20261005400001_account_security.sql`,
   `db_schema/tests/55_account_security.sql`
+- `db_schema/migrations/20261007500001_sign_out_scope.sql`,
+  `db_schema/tests/79_sign_out_scope.sql`
+- `dev/nginx-auth-logout.template.conf`, `self-host/Caddyfile`
 - `federation-backend/src/utils/sessionAssurance.ts`

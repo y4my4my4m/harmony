@@ -15,8 +15,13 @@ Bot developers: the protocol reference is [docs/bot-api.md](../docs/bot-api.md).
 | `GET /bridged-users/:channelId`<br>`GET /bridged-users/server/:serverId` | Supabase user JWT, server membership | Discord members registered by a bridge bot; feeds mention autocomplete |
 | `POST /attachments/refresh` | Supabase user JWT, server membership | Asks the owning bridge bot to re-sign expired Discord CDN URLs |
 | `GET /bridge-setup/:pairingCode` | none | Resolves a Discord bridge pairing code (`HRM-XXXX-XXXX`) to a server ID and endpoint URLs |
+| `POST /bridge/v2/redeem` | setup code, rate limited per IP | Discord bridge v2: trades a one-time setup code for the bridge bot's token and the instance URLs |
+| `GET /bridge/v2/config`, `POST /bridge/v2/status`, `POST /bridge/v2/pairs`, `DELETE /bridge/v2/pairs/:discordChannelId` | bridge bot token | A bridge's configuration, heartbeat and Discord snapshot, and Discord-side `/bridge link` and `unlink` |
+| `GET /bridge/v2/hosted`<br>`GET /bridge/v2/hosted/instance` | `X-Bridge-Host-Secret` | The bridge host's work: hosted bridges with their tokens; the instance Discord bot with its token, presence switch and linked bridges |
+| `GET /bridge/v2/discord/authorize?state=` | link state, rate limited per IP | Redirects to Discord's consent screen for the instance Discord bot (bot and applications.commands scopes, permissions `537250880`) |
+| `GET /bridge/v2/discord/callback` | link state, rate limited per IP | OAuth2 redirect URI. Exchanges the code, links the guild named in Discord's token response, and redirects to Server Settings → Discord Bridge with `linked=1` or `link_error=<code>` |
 
-`/status`, `/bridged-users/*`, `/attachments/refresh` and `/bridge-setup/*` serve the Harmony web client and are not part of the Bot API.
+`/status`, `/bridged-users/*`, `/attachments/refresh` and `/bridge-setup/*` serve the Harmony web client and are not part of the Bot API. `/bridge/v2/*` serves the Discord bridge program and the instance Discord bot's OAuth2 flow.
 
 ## Public URLs
 
@@ -32,7 +37,7 @@ Any other reverse proxy must forward the whole `/bot-gateway/` prefix, strip it,
 
 ## Configuration
 
-The service loads `.env` from its working directory. `.env.example` is the template.
+The service loads `.env` from its working directory. `.env.example` (development values) and `env.template` (production values) list every variable.
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -41,13 +46,16 @@ The service loads `.env` from its working directory. `.env.example` is the templ
 | `PUBLIC_URL` | `SUPABASE_URL` | Public Supabase origin. Base for absolute avatar URLs, mirrored attachment URLs and invite-preview URLs. |
 | `PORT` | `3002` | HTTP and WebSocket port. |
 | `NODE_ENV` | `development` | In `development`, 500 responses from the error handler include the error message. |
-| `INSTANCE_DOMAIN` | `localhost:3000` | Harmony app origin, as a hostname or URL; `https://` is assumed without a scheme. `/bridge-setup` builds its endpoint URLs from it. |
+| `INSTANCE_DOMAIN` | `localhost:3000` | Harmony app origin, as a hostname or URL; `https://` is assumed without a scheme. `/bridge-setup` and `/bridge/v2` build their URLs from it, including the instance Discord bot's OAuth2 redirect `<origin>/bot-gateway/bridge/v2/discord/callback`, which must be registered on the Discord application exactly. |
 | `WS_HEARTBEAT_INTERVAL` | `30000` | Heartbeat interval in ms, sent to bots in READY. Connections without a heartbeat for twice this interval are closed. |
 | `WS_REVALIDATE_INTERVAL_MS` | `30000` | Interval in ms, clamped to 1000-60000, at which open connections are rechecked against `bot_tokens` and `bots`. |
 | `RATE_LIMIT_WINDOW_MS` | `60000` | REST rate-limit window in ms. |
 | `RATE_LIMIT_MAX_REQUESTS` | `100` | REST requests allowed per bot, per route and channel or server it names, per window. |
 | `FEDERATION_BACKEND_URL` | `http://localhost:3001` | Federation backend. Receives a link-preview request after each bot message. Must be `https://` or a localhost address; otherwise no request is sent. |
 | `INTERNAL_API_SECRET` | `SUPABASE_SERVICE_ROLE_KEY` | Bearer token for the link-preview request. |
+| `TRUST_PROXY` | `loopback, linklocal, uniquelocal` | Express `trust proxy`. A number is a hop count; `true` and `false` are booleans. |
+| `BRIDGE_HOST_SECRET` | unset | Shared secret of the Discord bridge host (`X-Bridge-Host-Secret`). Under 32 characters, `GET /bridge/v2/hosted` and `/bridge/v2/hosted/instance` answer 404. |
+| `BRIDGE_CONFIG_POLL_MS` | `5000` | Interval in ms, clamped to 1000-60000, of the bridge configuration poll behind `BRIDGE_CONFIG_UPDATE`. |
 
 The instance setting **Bridge attachments** (admin instance configuration, stored as `bridge_attachment_mode`) controls Discord CDN attachments posted by bots: `link` stores the URL, `mirror` copies the file into the channel's folder of the private `message_media` bucket, `refresh` enables `POST /attachments/refresh`.
 
@@ -70,7 +78,7 @@ npm start          # node dist/index.js
 
 ### Docker
 
-`Dockerfile` is a two-stage `node:20-alpine` build. It exposes 3002 and declares a `HEALTHCHECK` against `/health`. The build stage runs `npm run build-only` (`tsc --skipLibCheck || true`), which does not fail on type errors; run `npm run type-check` separately.
+`Dockerfile` is a multi-stage `node:24-alpine` build (`NODE_VERSION`, default 24). It exposes 3002 and declares a `HEALTHCHECK` against `/health`. The build stage runs `npm run build-only` (`tsc --skipLibCheck || true`), which does not fail on type errors; run `npm run type-check` separately.
 
 ```bash
 docker build -t harmony-bot-gateway bot-gateway
@@ -108,7 +116,7 @@ Message and reaction events go to every bot with an active installation holding 
 ## Operational notes
 
 - The dispatcher starts from the process start time. Messages and reactions created while the service is down are never dispatched.
-- Connections, bridge member lists and the attachment-refresh dedupe live in process memory. A second replica shares none of it; run one instance.
+- Connections, bridge member lists and the attachment-refresh dedupe live in process memory. A second replica shares none of it; run one instance. Bridge presence updates (op 7) change the cached member lists in place; the web client reads them through `/bridged-users/*`.
 - IDENTIFY writes `bot_presence` (status `online`, connection time) and `bots.last_online_at`. Heartbeats update `bot_presence.last_heartbeat_at` and `latency_ms`. Disconnects set `bot_presence.status` to `offline`. The web client treats a bot as online only while its last heartbeat is under 90 s old, so a process that exits without closing its sockets does not leave bots shown online.
 - REST writes `bot_audit_log` rows for message send, edit and delete; channel, category and role creation; role update and delete; and emoji creation.
 - `SIGTERM` and `SIGINT` close all sockets with code 1000, stop polling and exit. The process exits with status 1 if shutdown takes longer than 10 s.

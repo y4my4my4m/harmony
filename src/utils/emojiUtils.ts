@@ -1,7 +1,7 @@
-import { supabase } from '@/supabase'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { canonicalEmojiSize } from '@/utils/imageTransformUtils'
-import { isLocalStorageHostname } from '@/utils/storageImageUtils'
+import { isLocalStorageHostname, publicImageUrl } from '@/utils/storageImageUtils'
+import { knownRenderFallback } from '@/utils/renderFallback'
 
 const DEFAULT_EMOJI_TRANSFORM_QUALITY = 80
 
@@ -55,12 +55,9 @@ export function getEmojiUrl(emojiUrl: string | null | undefined, size: number = 
             if (pathMatch && isLocalStorage) {
                 const emojiPath = pathMatch[1];
                 const optimizedSize = canonicalEmojiSize(size);
-                const { data } = supabase.storage
-                    .from('emojis')
-                    .getPublicUrl(emojiPath, {
-                        transform: { width: optimizedSize, height: optimizedSize, resize: 'contain', quality }
-                    });
-                return data.publicUrl;
+                return knownRenderFallback(publicImageUrl('emojis', emojiPath, {
+                    width: optimizedSize, height: optimizedSize, resize: 'contain', quality
+                }));
             }
             return emojiUrl;
         } catch (_) {
@@ -69,10 +66,7 @@ export function getEmojiUrl(emojiUrl: string | null | undefined, size: number = 
     }
     
     // If it's just a path (legacy case), process through local storage
-    const { data } = supabase.storage
-        .from('emojis')
-        .getPublicUrl(emojiUrl, {
-            transform: { width: canonicalEmojiSize(size), height: canonicalEmojiSize(size), resize: 'contain', quality }
-        });
-    return data.publicUrl;
+    return knownRenderFallback(publicImageUrl('emojis', emojiUrl, {
+        width: canonicalEmojiSize(size), height: canonicalEmojiSize(size), resize: 'contain', quality
+    }));
 }

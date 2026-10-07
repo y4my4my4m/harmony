@@ -44,7 +44,6 @@
             :src="currentUser?.avatar_url"
             :alt="currentUser?.display_name || currentUser?.username"
             size="md"
-            :fetch-size="256"
             :interactive="true"
             @click="$emit('profile-click')"
           />
@@ -134,6 +133,7 @@ import { authContextService } from '@/services/AuthContextService';
 import { useLayoutState } from '@/composables/useLayoutState';
 import { useUserPanelHost } from '@/composables/useUserPanelDock';
 import type { Server, Channel, Category } from '@/types';
+import { runtimeConfig } from '@/services/runtimeConfig';
 
 // I18n
 const { t } = useI18n();
@@ -168,7 +168,7 @@ const props = withDefaults(defineProps<Props>(), {
   isDM: false,
   followingCount: 0,
   followersCount: 0,
-  instanceDomain: import.meta.env.VITE_DOMAIN as string,
+  instanceDomain: runtimeConfig.domain as string,
   instanceUserCount: 0,
   instancePostCount: 0
 });
@@ -221,7 +221,7 @@ const currentUser = computed(() => {
       display_name: authUser.user_metadata?.display_name || authUser.user_metadata?.username || 'User',
       avatar_url: authUser.user_metadata?.avatar_url || null,
       status: 0, // Default to offline
-      domain: import.meta.env.VITE_DOMAIN as string
+      domain: runtimeConfig.domain as string
     }
   }
   
@@ -231,12 +231,12 @@ const currentUser = computed(() => {
 const currentUserHandle = computed(() => {
   if (!currentUser.value) return '';
   
-  const domain = currentUser.value.domain || import.meta.env.VITE_DOMAIN as string;
+  const domain = currentUser.value.domain || runtimeConfig.domain as string;
   const username = currentUser.value.username;
   
   if (!username) return '';
   
-  return domain === import.meta.env.VITE_DOMAIN as string 
+  return domain === runtimeConfig.domain as string
     ? `@${username}`
     : `@${username}@${domain}`;
 });
@@ -244,10 +244,10 @@ const currentUserHandle = computed(() => {
 const getUserProfilePath = () => {
   if (!currentUser.value?.username) return '/social/home';
   
-  const domain = currentUser.value.domain || import.meta.env.VITE_DOMAIN as string;
+  const domain = currentUser.value.domain || runtimeConfig.domain as string;
   const username = currentUser.value.username;
   
-  const handle = domain === import.meta.env.VITE_DOMAIN as string 
+  const handle = domain === runtimeConfig.domain as string
     ? username 
     : `${username}@${domain}`;
     
@@ -351,8 +351,8 @@ const navigateToProfile = () => {
     // For local users, remove domain part if present
     if (!handle.includes('@')) {
       // Already clean handle for local user
-    } else if (handle.endsWith(`@${import.meta.env.VITE_DOMAIN as string}`)) {
-      handle = handle.replace(`@${import.meta.env.VITE_DOMAIN as string}`, '');
+    } else if (handle.endsWith(`@${runtimeConfig.domain as string}`)) {
+      handle = handle.replace(`@${runtimeConfig.domain as string}`, '');
     }
     
     debug.log(`Navigating to profile with handle: ${handle}`);

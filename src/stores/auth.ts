@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { onSessionRejected, signOutAndForget, supabase } from '@/supabase';
+import { onSessionRejected, signOutAndForget, signOutEverywhere, supabase } from '@/supabase';
 import type { Session } from '@supabase/supabase-js';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { debug } from '@/utils/debug';
@@ -178,7 +178,7 @@ export const useAuthStore = defineStore('auth', {
               this._mfaValidatedForSession = refetched.access_token
             } else {
               debug.warn('Cached-path session restoration blocked: AAL1 with MFA enabled')
-              try { await supabase.auth.signOut() } catch { /* ignore */ }
+              await signOutAndForget()
               this.session = null
             }
           } else {
@@ -240,7 +240,7 @@ export const useAuthStore = defineStore('auth', {
           } else {
             debug.warn('Session restoration blocked - AAL1 session with MFA enabled (MFA bypass prevented)');
             // Sign out the incomplete session to prevent other tabs from using it
-            await supabase.auth.signOut();
+            await signOutAndForget();
             this.session = null;
           }
         } else {
@@ -262,7 +262,7 @@ export const useAuthStore = defineStore('auth', {
             .maybeSingle();
           if (profile?.is_suspended) {
             debug.warn('Session restore blocked - account is suspended');
-            try { await supabase.auth.signOut(); } catch { /* ignore */ }
+            await signOutEverywhere();
             userStorage.clearCurrentUser();
             this.session = null;
           }
@@ -383,11 +383,7 @@ export const useAuthStore = defineStore('auth', {
             // picks it up and logs in without MFA.
             this.session = null;
             this.isPasswordResetMode = false;
-            try {
-              await supabase.auth.signOut();
-            } catch (signOutError) {
-              debug.error('Failed to sign out invalid AAL1 session:', signOutError);
-            }
+            await signOutAndForget();
             userStorage.clearCurrentUser();
             this.cleanupNotificationSystem();
             return;
@@ -431,7 +427,7 @@ export const useAuthStore = defineStore('auth', {
             const isValid = alreadyValidated || (await this.validateSessionForMFA(session))
             if (!isValid) {
               debug.warn('INITIAL_SESSION blocked: AAL1 session with MFA enabled (BUGS.md C11)')
-              try { await supabase.auth.signOut() } catch { /* ignore */ }
+              await signOutAndForget()
               this.session = null
               this.cleanupNotificationSystem()
               return
@@ -469,7 +465,7 @@ export const useAuthStore = defineStore('auth', {
           const isValid = await this.validateSessionForMFA(session);
           if (!isValid) {
             debug.warn(`${event} blocked: AAL1 session with MFA enabled (BUGS.md C11)`)
-            try { await supabase.auth.signOut() } catch { /* ignore */ }
+            await signOutAndForget()
             this.session = null
             return
           }
@@ -582,7 +578,7 @@ export const useAuthStore = defineStore('auth', {
           if (profile?.is_suspended) {
             // The `finally` below clears the flag; clearing it here would
             // race the SIGNED_OUT handler against half-cleared state.
-            await supabase.auth.signOut();
+            await signOutEverywhere();
             throw new Error(
               profile.suspension_reason
                 ? `Your account has been suspended: ${profile.suspension_reason}`
@@ -648,6 +644,17 @@ export const useAuthStore = defineStore('auth', {
         this._pendingMFAVerification = false;
         throw err;
       }
+    },
+
+    /**
+     * Abandons a sign-in held at its MFA challenge. The pending session is aal1; GoTrue's
+     * default global logout from it deletes every session of the account, aal2 ones
+     * included, so only this device's session is ended.
+     */
+    async cancelPendingSignIn() {
+      this._pendingMFAVerification = false;
+      await signOutAndForget();
+      this.session = null;
     },
 
     async verify2FA(factorId: string, challengeId: string, code: string) {
@@ -732,7 +739,7 @@ export const useAuthStore = defineStore('auth', {
           .eq('auth_user_id', session.user.id)
           .maybeSingle();
         if (profile?.is_suspended) {
-          try { await supabase.auth.signOut(); } catch { /* ignore */ }
+          await signOutEverywhere();
           this.session = null;
           throw new Error(
             profile.suspension_reason
@@ -765,7 +772,7 @@ export const useAuthStore = defineStore('auth', {
     async handleSessionRejected(reason: 'session_revoked' | 'insufficient_aal') {
       if (!this.session || this._pendingMFAVerification || this.isPasswordResetMode) return;
       debug.warn(`PostgREST rejected the session: ${reason}`);
-      await signOutAndForget('local');
+      await signOutAndForget();
       this.session = null;
       this.cleanupOfflineHandlers();
       userStorage.clearCurrentUser();
@@ -813,6 +820,7 @@ export const useAuthStore = defineStore('auth', {
       // preventing reactive components from firing queries with stale/undefined data
       // (e.g. user_roles with server_id=undefined, get_supporter_badge after auth gone)
       this.session = null;
+      // This device only; Settings > Sessions signs out the others.
       await signOutAndForget();
 
       // Redirect to login BEFORE clearing stores so that components unmount

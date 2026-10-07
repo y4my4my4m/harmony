@@ -249,6 +249,12 @@ export interface SafeFetchOptions extends Omit<RequestInit, 'redirect' | 'signal
    * memory by serving a 1 GB body.
    */
   maxBodyBytes?: number;
+  /**
+   * Headers for a redirect target, applied over the headers carried to it.
+   * An HTTP signature covers one request target, so a signed request is
+   * signed again for each hop.
+   */
+  redirectHeaders?: (url: string) => Promise<Record<string, string>>;
 }
 
 /**
@@ -257,13 +263,16 @@ export interface SafeFetchOptions extends Omit<RequestInit, 'redirect' | 'signal
  * for `Authorization` and `Cookie`, and additionally covers HTTP Signature
  * headers, which were signed over the original `(request-target)` and
  * `Host` and are therefore both useless and a signed-bytes leak when sent
- * to a different host.
+ * to a different host. A `Host` set by a signer names the original host.
  */
 const CROSS_ORIGIN_STRIPPED_HEADERS = new Set([
   'authorization',
   'cookie',
   'signature',
+  'signature-input',
   'digest',
+  'content-digest',
+  'host',
 ]);
 
 function linkSignals(external: AbortSignal | undefined, internal: AbortController): AbortSignal {
@@ -318,6 +327,7 @@ export async function safeFetch(urlString: string, options: SafeFetchOptions = {
     timeoutMs = 10_000,
     maxBodyBytes = 5_000_000,
     signal: externalSignal,
+    redirectHeaders,
     ...fetchInit
   } = options;
 
@@ -365,6 +375,9 @@ export async function safeFetch(urlString: string, options: SafeFetchOptions = {
       if (isCrossOrigin && currentHeaders) {
         currentHeaders = stripSensitiveHeaders(currentHeaders);
       }
+      if (redirectHeaders) {
+        currentHeaders = mergeHeaders(currentHeaders, await redirectHeaders(nextUrl));
+      }
 
       logger.info(`safeFetch redirect ${hop + 1}/${maxRedirects}: ${url.href} → ${nextUrl}${isCrossOrigin ? ' [cross-origin, stripped auth headers]' : ''}`);
       currentUrl = nextUrl;
@@ -385,6 +398,25 @@ function withUrl(response: Response, finalUrl: string): Response {
   if (response.url) return response;
   Object.defineProperty(response, 'url', { value: new URL(finalUrl).href, enumerable: true });
   return response;
+}
+
+/** `base` with `over` applied; names compare case-insensitively. */
+function mergeHeaders(base: HeadersInit | undefined, over: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  const replaced = new Set(Object.keys(over).map((name) => name.toLowerCase()));
+  const keep = (name: string, value: string) => {
+    if (!replaced.has(name.toLowerCase())) out[name] = value;
+  };
+  if (base instanceof Headers) {
+    base.forEach((value, name) => keep(name, value));
+  } else if (Array.isArray(base)) {
+    for (const [name, value] of base) keep(name, value);
+  } else if (base) {
+    for (const [name, value] of Object.entries(base)) {
+      if (value != null) keep(name, String(value));
+    }
+  }
+  return { ...out, ...over };
 }
 
 /**

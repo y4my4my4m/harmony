@@ -42,6 +42,8 @@ env:
   # instance at runtime, so build-time placeholders are fine.
   VITE_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL != '' && secrets.TEST_SUPABASE_URL || 'https://placeholder.supabase.co' }}
   VITE_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY != '' && secrets.TEST_SUPABASE_ANON_KEY || 'placeholder-key' }}
+  # Instance picker prefill (repository variable); unset leaves the field empty.
+  VITE_DEFAULT_INSTANCE_URL: ${{ vars.DEFAULT_INSTANCE_URL }}
 
 jobs:
   # Windows/macOS use the system webview (WebView2 / WKWebView); the CEF

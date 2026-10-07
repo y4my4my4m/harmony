@@ -1,7 +1,10 @@
-import { Router, Request, Response } from 'express';
+import express, { Router, Request, Response } from 'express';
+import { WebhookReceiver } from 'livekit-server-sdk';
 import { z } from 'zod';
 import { livekitService, TokenRefused, type TokenRequest, type FederatedTokenRequest } from '../services/LiveKitService.js';
-import { eitherBlocks, isConversationParticipant, isFederatedDmRoomFor } from '../services/voiceAccess.js';
+import { channelIdOfRoom, eitherBlocks, isConversationParticipant, isFederatedDmRoomFor } from '../services/voiceAccess.js';
+import { metadataProfileId } from '../services/voiceParticipantReconciler.js';
+import { reconcileVoiceNow } from '../services/voiceParticipantSweep.js';
 import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { SignatureService } from '../activitypub/SignatureService.js';
 import { logger } from '../utils/logger.js';
@@ -141,6 +144,58 @@ router.get('/health', async (_req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/livekit/webhook
+ * LiveKit server webhook (livekit.yaml `webhook.urls`, signed with `webhook.api_key`,
+ * which must be LIVEKIT_API_KEY). participant_left, participant_connection_aborted and
+ * room_finished on a channel room reconcile that channel's voice_channel_participants.
+ * Content-Type is application/webhook+json; the signature covers the raw body.
+ */
+const WEBHOOK_EVENTS = new Set(['participant_left', 'participant_connection_aborted', 'room_finished']);
+
+router.post(
+  '/webhook',
+  requireLiveKit,
+  express.text({ type: 'application/webhook+json', limit: '256kb' }),
+  async (req: Request, res: Response) => {
+    const raw = typeof req.body === 'string' ? req.body : (req as any).rawBody?.toString('utf8');
+    if (typeof raw !== 'string' || raw.length === 0) {
+      return res.status(400).json({ error: 'Empty body' });
+    }
+
+    const cfg = livekitService.getConfig();
+    let event;
+    try {
+      event = await new WebhookReceiver(cfg.apiKey, cfg.apiSecret).receive(raw, req.get('Authorization'));
+    } catch (error) {
+      logger.warn('LiveKit webhook refused:', error instanceof Error ? error.message : error);
+      return res.status(401).json({ error: 'Invalid webhook signature' });
+    }
+
+    const channelId = channelIdOfRoom(event.room?.name);
+    if (!WEBHOOK_EVENTS.has(event.event) || !channelId) {
+      return res.status(200).json({ ok: true });
+    }
+
+    const createdAt = Number(event.createdAt ?? 0);
+    const departure = event.participant && event.event !== 'room_finished'
+      ? {
+          identity: event.participant.identity,
+          profileId: metadataProfileId(event.participant.metadata),
+          at: createdAt > 0 ? new Date(createdAt * 1000) : new Date(),
+        }
+      : undefined;
+
+    try {
+      const result = await reconcileVoiceNow({ channelIds: [channelId], departure });
+      if (!result.ok) logger.warn(`LiveKit webhook ${event.event} on ${event.room?.name}: ${result.reason}`);
+    } catch (error) {
+      logger.error(`LiveKit webhook ${event.event} on ${event.room?.name} failed:`, error);
+    }
+    return res.status(200).json({ ok: true });
+  },
+);
+
 // AUTHENTICATED ROUTES
 
 /**
@@ -220,7 +275,8 @@ router.post('/federated-token', requireLiveKit, async (req: Request, res: Respon
       req.headers as Record<string, string>,
       req.method,
       req.originalUrl || req.path,
-      rawBody || req.body
+      rawBody || req.body,
+      req.protocol,
     );
 
     if (!verification.verified) {

@@ -29,7 +29,7 @@
       playsinline
       :muted="isSelf"
       class="tile-video"
-      :class="fitClass"
+      :class="[fitClass, { mirrored: isSelf && source === 'camera' }]"
     />
 
     <!-- Unwatched stream: nothing is received until the listener opts in -->
@@ -177,6 +177,7 @@ import Avatar from '@/components/common/Avatar.vue';
 import VoiceUserContextMenu from './VoiceUserContextMenu.vue';
 import TileVolumeControl from './TileVolumeControl.vue';
 import { getBannerUrl } from '@/utils/bannerUtils';
+import { withRenderFallback } from '@/utils/renderFallback';
 
 const props = withDefaults(defineProps<{
   userState: UserMediaState;
@@ -208,7 +209,7 @@ const userProfile = computed(() => {
     display_name: profileData?.display_name || null,
     username: profileData?.username || 'Unknown User',
     avatar_url: profileData?.avatar_url || '/default_avatar.webp',
-    banner_url: getBannerUrl(profileData?.bannerUrl || profileData?.banner_url) || null,
+    banner_url: withRenderFallback(getBannerUrl(profileData?.bannerUrl || profileData?.banner_url)),
   };
 });
 
@@ -446,6 +447,11 @@ onBeforeUnmount(detach);
 
 .tile-video.fit-contain {
   object-fit: contain;
+}
+
+/* Self view reads as a mirror; the published track is not flipped. */
+.tile-video.mirrored {
+  transform: scaleX(-1);
 }
 
 /* Avatar fallback */

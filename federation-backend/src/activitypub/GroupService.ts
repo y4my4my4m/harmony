@@ -706,7 +706,8 @@ router.post(
         req.headers as Record<string, string>,
         req.method,
         req.originalUrl || req.path,
-        rawBody || activity
+        rawBody || activity,
+        req.protocol,
       );
 
       if (!verification.verified) {
