@@ -183,11 +183,10 @@ posts and DM messages need a verified signature from an instance with a reader,
 private servers one from a member (see above); anyone else gets the answer an
 unknown id gets.
 
-There is a per-user shared inbox advertised at `/inbox`. Note that the `Person`
-actor also advertises a `sharedOutbox` endpoint that is not actually served -
-treat outboxes as per-actor (`/users/{username}/outbox`, `/servers/{uuid}/outbox`)
-and ignore the shared-outbox hint. That's a known piece of cruft in the actor
-document.
+`Person` actors and the instance actor advertise the shared inbox, `/inbox`, as
+`endpoints.sharedInbox`; `Group` actors advertise none.
+Outboxes are per actor (`/users/{username}/outbox`, `/servers/{uuid}/outbox`);
+there is no shared outbox.
 
 ## Joining a server across instances
 

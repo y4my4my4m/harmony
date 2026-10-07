@@ -133,7 +133,6 @@ LiveKit webhooks remove a dropped client within seconds. In `livekit.yaml`, `web
 | `RATE_LIMIT_WINDOW_MS` | `60000` | Rate limit window |
 | `RATE_LIMIT_MAX_REQUESTS` | `100` | Requests per window |
 | `WS_HEARTBEAT_INTERVAL` | `30000` | Gateway heartbeat, ms |
-| `WS_MAX_CONNECTIONS_PER_BOT` | `5` | Concurrent gateway sessions per bot |
 | `WS_REVALIDATE_INTERVAL_MS` | `30000` | Token and bot recheck of open sessions, clamped to 1000-60000 ms |
 
 Discord bridge hosting, read by the bridge v2 gateway:

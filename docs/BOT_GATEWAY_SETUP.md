@@ -209,7 +209,6 @@ RATE_LIMIT_MAX_REQUESTS=100
 
 # Optional: WebSocket settings
 WS_HEARTBEAT_INTERVAL=30000
-WS_MAX_CONNECTIONS_PER_BOT=5
 
 # Environment
 NODE_ENV=production

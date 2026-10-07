@@ -204,7 +204,6 @@ export function profileToActor(profile: any): any {
     published: profile.created_at,
     endpoints: {
       sharedInbox: `https://${domain}/inbox`,
-      sharedOutbox: `https://${domain}/outbox`,
     },
   };
 

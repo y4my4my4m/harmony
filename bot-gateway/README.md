@@ -32,7 +32,7 @@ Any other reverse proxy must forward the whole `/bot-gateway/` prefix, strip it,
 
 ## Configuration
 
-The service loads `.env` from its working directory. `.env.example` is the template.
+The service loads `.env` from its working directory. `.env.example` (development values) and `env.template` (production values) list every variable.
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -48,6 +48,9 @@ The service loads `.env` from its working directory. `.env.example` is the templ
 | `RATE_LIMIT_MAX_REQUESTS` | `100` | REST requests allowed per bot, per route and channel or server it names, per window. |
 | `FEDERATION_BACKEND_URL` | `http://localhost:3001` | Federation backend. Receives a link-preview request after each bot message. Must be `https://` or a localhost address; otherwise no request is sent. |
 | `INTERNAL_API_SECRET` | `SUPABASE_SERVICE_ROLE_KEY` | Bearer token for the link-preview request. |
+| `TRUST_PROXY` | `loopback, linklocal, uniquelocal` | Express `trust proxy`. A number is a hop count; `true` and `false` are booleans. |
+| `BRIDGE_HOST_SECRET` | unset | Shared secret of the Discord bridge host (`X-Bridge-Host-Secret`). Under 32 characters, `GET /bridge/v2/hosted` answers 404. |
+| `BRIDGE_CONFIG_POLL_MS` | `5000` | Interval in ms, clamped to 1000-60000, of the bridge configuration poll behind `BRIDGE_CONFIG_UPDATE`. |
 
 The instance setting **Bridge attachments** (admin instance configuration, stored as `bridge_attachment_mode`) controls Discord CDN attachments posted by bots: `link` stores the URL, `mirror` copies the file into the channel's folder of the private `message_media` bucket, `refresh` enables `POST /attachments/refresh`.
 
@@ -70,7 +73,7 @@ npm start          # node dist/index.js
 
 ### Docker
 
-`Dockerfile` is a two-stage `node:20-alpine` build. It exposes 3002 and declares a `HEALTHCHECK` against `/health`. The build stage runs `npm run build-only` (`tsc --skipLibCheck || true`), which does not fail on type errors; run `npm run type-check` separately.
+`Dockerfile` is a multi-stage `node:24-alpine` build (`NODE_VERSION`, default 24). It exposes 3002 and declares a `HEALTHCHECK` against `/health`. The build stage runs `npm run build-only` (`tsc --skipLibCheck || true`), which does not fail on type errors; run `npm run type-check` separately.
 
 ```bash
 docker build -t harmony-bot-gateway bot-gateway

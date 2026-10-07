@@ -206,7 +206,6 @@ effective_channel_encryption	definer	jsonb	authenticated+service_role	client	rpc
 enable_conversation_encryption	definer	jsonb	service_role	service key	nothing references it
 enable_federation_triggers	definer	void	service_role	service key	nothing references it
 enable_server_automod_preset	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
-end_user_session	definer	void	service_role	service key	nothing references it
 enforce_channel_category_scope	definer	trigger	service_role	trigger	trigger public.channels BEFORE INSERT/UPDATE (a_channels_category_scope)
 enforce_channel_message_encryption	invoker	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (trg_enforce_channel_encryption)
 enforce_channel_slowmode	definer	trigger	anon+authenticated+service_role	client, trigger	named in src/components/MessageInput.vue; trigger public.messages BEFORE INSERT (trigger_enforce_channel_slowmode)
@@ -267,7 +266,6 @@ get_instance_config_int	invoker	integer	anon+authenticated+service_role	client, 
 get_instance_domain	definer	text	anon+authenticated+service_role	client, trigger	rpc in src/services/federation/FederationActivityService.ts
 get_invite_preview	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/inviteService.ts
 get_kofi_webhook_token	definer	text	authenticated+service_role	client	rpc in src/services/FundingService.ts
-get_livekit_config	definer	jsonb	service_role	service key	nothing references it
 get_message_page	invoker	jsonb	anon+authenticated+service_role	client	rpc in src/services/core/CoreMessageService.ts
 get_message_reactions	invoker	TABLE(count bigint, emoji jsonb, reactions jsonb, current_user_reacted boolean, message_id_of_reactions uuid)	anon+authenticated+service_role	client	rpc in federation-backend/src/services/ServerDiscoveryService.ts, src/services/core/CoreMessageService.ts, src/stores/useDM.ts
 get_mfa_recovery_status	definer	jsonb	authenticated+service_role	client	rpc in src/services/AccountSecurityService.ts
@@ -591,8 +589,6 @@ update_roles_updated_at	invoker	trigger	anon+authenticated+service_role	trigger	
 update_server	definer	jsonb	authenticated+service_role	client	rpc in src/stores/server.ts, src/stores/useServerChannel.ts
 update_server_automod_settings	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
 update_server_folders_updated_at	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.server_folders BEFORE UPDATE (trigger_server_folders_updated_at)
-update_session_context	definer	void	service_role	service key	nothing references it
-update_session_heartbeat	definer	void	service_role	service key	nothing references it
 update_status_timestamp	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.profiles BEFORE UPDATE (trigger_status_update_timestamp)
 update_threads_updated_at	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.threads BEFORE UPDATE (trigger_threads_updated_at)
 update_trending_posts	definer	void	anon+authenticated+service_role	client, cron	cron */15 * * * * (update-trending-posts); rpc in src/services/TrendingService.ts

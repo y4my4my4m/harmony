@@ -206,7 +206,6 @@ effective_channel_encryption	p_channel_id uuid	jsonb	definer	public, extensions,
 enable_conversation_encryption	p_conversation_id uuid	jsonb	definer	public, pg_temp	service_role	unreferenced
 enable_federation_triggers		void	definer	public, pg_temp	service_role	unreferenced
 enable_server_automod_preset	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
-end_user_session	p_user_id uuid, p_session_token text	void	definer	public, pg_temp	service_role	unreferenced
 enforce_channel_category_scope		trigger	definer	public, pg_temp	service_role	trigger
 enforce_channel_message_encryption		trigger	invoker	public, extensions, pg_temp	service_role	trigger
 enforce_channel_slowmode		trigger	definer	public, pg_temp	anon+authenticated+service_role	client
@@ -267,7 +266,6 @@ get_instance_config_int	p_key text, p_default integer, p_max_ceiling integer	int
 get_instance_domain		text	definer	public, pg_temp	anon+authenticated+service_role	client
 get_invite_preview	p_code text	jsonb	definer	public, pg_temp	anon+authenticated+service_role	client
 get_kofi_webhook_token		text	definer	public, pg_temp	authenticated+service_role	client
-get_livekit_config		jsonb	definer	public, pg_temp	service_role	unreferenced
 get_message_page	p_channel_id uuid, p_conversation_id uuid, p_limit integer, p_before timestamp with time zone	jsonb	invoker	public, pg_temp	anon+authenticated+service_role	client
 get_message_reactions	message_id uuid	TABLE(count bigint, emoji jsonb, reactions jsonb, current_user_reacted boolean, message_id_of_reactions uuid)	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client
 get_mfa_recovery_status		jsonb	definer	pg_catalog, public, pg_temp	authenticated+service_role	client
@@ -591,8 +589,6 @@ update_roles_updated_at		trigger	invoker	public, extensions, pg_temp	anon+authen
 update_server	p_server_id uuid, p_changes jsonb	jsonb	definer	public, pg_temp	authenticated+service_role	client
 update_server_automod_settings	p_server_id uuid, p_settings jsonb	jsonb	definer	public, pg_temp	authenticated+service_role	client
 update_server_folders_updated_at		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
-update_session_context	p_session_token text, p_server_id uuid, p_channel_id uuid, p_conversation_id uuid	void	definer	public, pg_temp	service_role	unreferenced
-update_session_heartbeat	p_session_token text, p_status text	void	definer	public, pg_temp	service_role	unreferenced
 update_status_timestamp		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 update_threads_updated_at		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 update_trending_posts		void	definer	public, extensions, pg_temp	anon+authenticated+service_role	client

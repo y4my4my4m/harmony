@@ -4,22 +4,18 @@ services:
     container_name: harmony-livekit
     restart: unless-stopped
     command: --config /etc/livekit.yaml
+    # The ports livekit.yaml.example listens on.
     ports:
-      # WebSocket/HTTP port for client connections
+      # port: signalling (WebSocket/HTTP), behind the TLS proxy
       - "7880:7880"
-      # RTC UDP ports for media
-      - "7881:7881/udp"
-      # TURN server UDP port (for NAT traversal)
-      - "3478:3478/udp"
-      # TURN server TCP port (fallback)
-      - "3478:3478/tcp"
-      # TURNS (TURN over TLS) - more reliable through corporate firewalls
-      - "5349:5349/tcp"
-      - "5349:5349/udp"
-      # RTC TCP port (fallback when UDP blocked)
+      # rtc.udp_port: all media on one UDP port (UDP mux)
+      - "7882:7882/udp"
+      # rtc.tcp_port: ICE over TCP when UDP is blocked
       - "7881:7881/tcp"
-      # UDP port range for WebRTC media
-      - "50000-50100:50000-50100/udp"
+      # turn.udp_port
+      - "3478:3478/udp"
+      # turn.tls_port, when set
+      # - "5349:5349/tcp"
     volumes:
       - ./livekit.yaml:/etc/livekit.yaml:ro
     networks:

@@ -74,9 +74,9 @@
 		import federation_upstream
 	}
 
-	# Shared inbox/outbox, oEmbed, actor collections, Group actors, post
-	# collections: always ActivityPub.
-	@fedExact path_regexp ^/(inbox|outbox|oembed)$
+	# Shared inbox, oEmbed, actor collections, Group actors, post collections:
+	# always ActivityPub. Outboxes are per actor; no shared outbox exists.
+	@fedExact path_regexp ^/(inbox|oembed)$
 	handle @fedExact {
 		import federation_upstream
 	}

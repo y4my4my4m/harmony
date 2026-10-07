@@ -48,7 +48,7 @@ In `livekit.yaml`:
 - `turn`: the example enables LiveKit's TURN server. TURN needs 3478/udp and its relay range (`turn.relay_range_start`-`turn.relay_range_end`) reachable. With `turn.enabled: false`, clients without UDP use ICE over TCP on 7881.
 - `webhook`: uncomment it, with `api_key` the federation backend's `LIVEKIT_API_KEY` and `urls` its `/api/livekit/webhook`.
 
-The ports LiveKit needs reachable are 7880 (signalling, behind TLS), 7881/tcp and 7882/udp. `docker-compose.example.yml` publishes 7880, 7881 (tcp and udp), 3478, 5349 and a 50000-50100/udp range, but not 7882/udp, the single media port `livekit.yaml.example` uses; the copy adds `7882:7882/udp`. The example compose also joins the external `supabase_default` network, which must exist.
+The ports LiveKit needs reachable are 7880 (signalling, behind TLS), 7881/tcp and 7882/udp. `docker-compose.example.yml` publishes those and 3478/udp (TURN), the ports `livekit.yaml.example` listens on; 5349/tcp is commented out until `turn.tls_port` is set. The example compose also joins the external `supabase_default` network, which must exist.
 
 Signalling goes through a TLS reverse proxy with WebSocket upgrades: `dev/nginx-livekit.template.conf` proxies `live.DOMAIN` to `localhost:7880`.
 
