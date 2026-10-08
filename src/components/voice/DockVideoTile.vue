@@ -18,6 +18,8 @@
       muted
       class="dock-tile-video"
       :class="{ mirrored: isSelf && source === 'camera', contain: source === 'screen' }"
+      @loadedmetadata="reportAspect"
+      @resize="reportAspect"
     />
 
     <!-- Unwatched stream: nothing is received until the listener opts in -->
@@ -45,6 +47,7 @@ import type { UserMediaState } from '@/services/unifiedWebRTC';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useUserData } from '@/composables/useUserData';
 import { debug } from '@/utils/debug';
+import { videoAspect } from './dockVideoLayout';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
@@ -57,6 +60,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'open'): void;
   (e: 'watch'): void;
+  /** Width / height of the received video; null while none is shown. */
+  (e: 'aspect', value: number | null): void;
 }>();
 
 const { t } = useI18n();
@@ -148,14 +153,25 @@ watch(
   { immediate: true, flush: 'post' }
 );
 
+// Fires on metadata and on every resolution change; a share window resize or
+// a simulcast layer switch changes the aspect mid-stream.
+const reportAspect = (e: Event) => {
+  const el = e.target as HTMLVideoElement;
+  const aspect = videoAspect(el.videoWidth, el.videoHeight);
+  if (aspect !== null) emit('aspect', aspect);
+};
+
+watch(showVideo, shown => {
+  if (!shown) emit('aspect', null);
+});
+
 onBeforeUnmount(detach);
 </script>
 
 <style scoped>
 .dock-tile {
   position: relative;
-  flex: 0 0 var(--tile-w);
-  height: var(--tile-h);
+  flex: 0 0 auto;
   max-width: 100%;
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -164,10 +180,11 @@ onBeforeUnmount(detach);
   scroll-snap-align: start;
   outline: 2px solid transparent;
   outline-offset: -2px;
+  transition: width 0.2s ease, height 0.2s ease;
 }
 
+/* Letterbox fill when the tile is clamped narrower or wider than its video */
 .dock-tile.is-screen {
-  flex-basis: calc(var(--tile-w) * 2 + var(--tile-gap));
   background: #000;
 }
 
@@ -271,5 +288,15 @@ onBeforeUnmount(detach);
   .dock-tile-avatar {
     display: none;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock-tile {
+    transition: none;
+  }
+}
+
+:root[data-reduce-motion="true"] .dock-tile {
+  transition: none;
 }
 </style>

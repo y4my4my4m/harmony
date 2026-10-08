@@ -268,25 +268,29 @@
         </div>
         
         <div class="minimized-controls">
-          <button
-            @click.stop="voiceStore.toggleMute"
-            class="mini-control-btn"
-            :class="{ muted: voiceStore.localState.isMuted, 'ptt-active': isPTTActive && !voiceStore.localState.isMuted }"
-            :title="voiceStore.localState.isMuted
-              ? 'Unmute'
-              : isPTTMode ? `Push ${pttKeyDisplay} to talk — click to mute` : 'Mute'"
-          >
-            <Icon :name="voiceStore.localState.isMuted || voiceStore.localState.isDeafened ? 'mic-off' : 'mic'" />
-          </button>
-          
-          <button 
-            @click.stop="voiceStore.toggleDeafen"
-            class="mini-control-btn"
-            :class="{ deafened: voiceStore.localState.isDeafened }"
-            :title="voiceStore.localState.isDeafened ? 'Undeafen' : 'Deafen'"
-          >
-            <HeadphonesIcon :isHeadphonesActive="!voiceStore.localState.isDeafened" />
-          </button>
+          <Transition name="mini-audio">
+            <div v-if="showMiniAudioControls" class="mini-audio-controls">
+              <button
+                @click.stop="voiceStore.toggleMute"
+                class="mini-control-btn mini-mic-btn"
+                :class="{ muted: voiceStore.localState.isMuted, 'ptt-active': isPTTActive && !voiceStore.localState.isMuted }"
+                :title="voiceStore.localState.isMuted
+                  ? 'Unmute'
+                  : isPTTMode ? `Push ${pttKeyDisplay} to talk — click to mute` : 'Mute'"
+              >
+                <Icon :name="voiceStore.localState.isMuted || voiceStore.localState.isDeafened ? 'mic-off' : 'mic'" />
+              </button>
+
+              <button 
+                @click.stop="voiceStore.toggleDeafen"
+                class="mini-control-btn mini-deafen-btn"
+                :class="{ deafened: voiceStore.localState.isDeafened }"
+                :title="voiceStore.localState.isDeafened ? 'Undeafen' : 'Deafen'"
+              >
+                <HeadphonesIcon :isHeadphonesActive="!voiceStore.localState.isDeafened" />
+              </button>
+            </div>
+          </Transition>
           
           <button 
             @click.stop="leaveChannel"
@@ -388,6 +392,8 @@ import VoiceCallBanner from './VoiceCallBanner.vue';
 import StreamQualityPicker from './StreamQualityPicker.vue';
 import DockVideoStrip from './DockVideoStrip.vue';
 import { useDockVideoStrip } from './useDockVideoStrip';
+import { showsMinimizedAudioControls } from './minimizedVoiceControls';
+import { userPanelDocked } from '@/composables/useUserPanelDock';
 import type { Rect } from './voiceMenuModel';
 import { isMobileUserAgent } from '@/utils/platform';
 import { useI18n } from 'vue-i18n';
@@ -511,6 +517,12 @@ const isAtDefaultPosition = computed(() => {
   const bottomDiff = Math.abs(minimizedPosition.value.bottom - DEFAULT_POSITION.bottom);
   return leftDiff < 1 && bottomDiff < 1;
 });
+
+const showMiniAudioControls = computed(() => showsMinimizedAudioControls({
+  atDefaultPosition: isAtDefaultPosition.value,
+  mobile: isMobileViewport.value,
+  userPanelDocked: userPanelDocked.value,
+}));
 
 const minimizedPositionStyle = computed((): Record<string, string> => {
   if (currentMode.value !== 'minimized') return {};
@@ -1718,9 +1730,25 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.minimized-controls {
+.minimized-controls,
+.mini-audio-controls {
   display: flex;
   gap: 6px;
+}
+
+/* Width collapses with the fade so the leave button slides into place. */
+.mini-audio-enter-active,
+.mini-audio-leave-active {
+  transition: opacity 0.2s ease, max-width 0.2s ease, margin-right 0.2s ease;
+  max-width: 62px; /* two 28px buttons and the 6px gap */
+  overflow: hidden;
+}
+
+.mini-audio-enter-from,
+.mini-audio-leave-to {
+  opacity: 0;
+  max-width: 0;
+  margin-right: -6px; /* absorbs the parent gap */
 }
 
 .mini-control-btn {
@@ -2093,6 +2121,16 @@ onUnmounted(() => {
   .dock-connecting-spinner {
     animation-duration: 2.4s;
   }
+
+  .mini-audio-enter-active,
+  .mini-audio-leave-active {
+    transition: none;
+  }
+}
+
+:root[data-reduce-motion="true"] .mini-audio-enter-active,
+:root[data-reduce-motion="true"] .mini-audio-leave-active {
+  transition: none;
 }
 </style>
 
