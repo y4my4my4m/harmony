@@ -78,6 +78,34 @@ const CHANNEL_LAYER_MAX = 10_000
 // this bound.
 const NICKNAME_TTL_MS = 60 * 1000
 const NICKNAME_MAX = 20_000
+// channel_message_changes (migration 20261009000001): edited and soft-deleted channel messages
+// ordered by (updated_at, id). updated_at moves only on a content change or a soft delete.
+const CHANGE_PAGE = 500
+const CHANGE_PAGES_PER_TICK = 10
+// updated_at is stamped at transaction start and visible at commit, so a row can appear behind
+// the cursor. Each tick re-reads this far behind it; changeSeen drops the repeats.
+const CHANGE_OVERLAP_MS = 30_000
+const CHANGE_SEEN_MAX = 50_000
+// Ids already sent MESSAGE_DELETE, soft or hard.
+const DELETED_MAX = 10_000
+const DELETED_TTL_MS = 24 * 60 * 60 * 1000
+const NIL_UUID = '00000000-0000-0000-0000-000000000000'
+
+interface FeedPosition {
+  at: string
+  id: string
+}
+
+/**
+ * Microseconds since the epoch of a timestamptz as Postgres renders it in JSON
+ * ("2026-10-08T12:00:00.123456+00:00"); Date.parse keeps milliseconds only.
+ */
+export function timestampMicros(ts: string): number {
+  const m = /^(.*T\d{2}:\d{2}:\d{2})(?:\.(\d+))?(.*)$/.exec(ts)
+  if (!m) return Date.parse(ts) * 1000
+  const fraction = Number((m[2] ?? '').padEnd(6, '0').slice(0, 6))
+  return Date.parse(m[1] + (m[3] || 'Z')) * 1000 + fraction
+}
 
 export class EventDispatcher {
   private subscriptions: any[] = []
@@ -90,17 +118,23 @@ export class EventDispatcher {
   private lastReactionTimestamp: Date = new Date()
   private processedMessageIds: Set<string> = new Set()
 
-  // Reactions are hard-deleted. Removals are detected, as with message
-  // deletes, by diffing a window of known reaction IDs against what exists.
+  // Highest (updated_at, id) handled from channel_message_changes; null until the database
+  // clock is read. Rows stamped at or before changeFloorMicros predate start and are not sent.
+  private changeCursor: FeedPosition | null = null
+  private changeFloorMicros = 0
+  // Keyset position of a drain cut short by CHANGE_PAGES_PER_TICK or an error.
+  private changeResume: FeedPosition | null = null
+  // id -> updated_at last handled, for rows inside the overlap window.
+  private changeSeen = new Map<string, string>()
+  private deletedIds = new TTLCache<string, true>(DELETED_MAX, DELETED_TTL_MS)
+
+  // Reactions are hard-deleted. Removals are detected by diffing a window of
+  // known reaction IDs against what exists.
   // The row is kept so a removal describes the reaction as its add did.
   private knownReactionIds: Set<string> = new Set()
   private reactionContext: Map<string, ReactionRow> = new Map()
   // emoji_id -> custom emoji name and url. Read-mostly.
   private emojiCache = new TTLCache<string, { name: string | null; url: string | null }>(5_000, 30 * 60 * 1000)
-  
-  // Message versions for edit detection; channel_id is carried for delete dispatch.
-  private messageVersions: Map<string, { updated_at: string, content: string, channel_id: string, metadata: any }> = new Map()
-  private knownMessageIds: Set<string> = new Set()
 
   // Read-mostly lookup caches; see CHANNEL_TO_SERVER_TTL_MS above. Null is
   // cached as well, so deleted or inaccessible channels are not re-queried.
@@ -134,7 +168,7 @@ export class EventDispatcher {
   async start() {
     console.log('Starting Event Dispatcher...')
     
-    await this.initializeKnownMessages()
+    await this.initializeChangeFeed()
     await this.initializeKnownReactions()
     
     // Polling for all events; more reliable than Realtime.
@@ -143,40 +177,28 @@ export class EventDispatcher {
     console.log('Event Dispatcher started with polling mode (creates, edits, deletes, reactions)')
   }
   
-  private async initializeKnownMessages() {
-    // Edit/delete tracking window: non-deleted messages from the last 72 hours.
-    const seventyTwoHoursAgo = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString()
-    
-    const { data: messages } = await supabase
-      .from('messages')
-      .select('id, updated_at, content, channel_id, metadata')
-      .gt('created_at', seventyTwoHoursAgo)
-      .eq('is_deleted', false) // Only track non-deleted messages
-      .order('created_at', { ascending: false })
-      .limit(10000)
-    
-    if (messages) {
-      for (const msg of messages) {
-        this.knownMessageIds.add(msg.id)
-        this.messageVersions.set(msg.id, { 
-          updated_at: msg.updated_at, 
-          content: msg.content,
-          channel_id: msg.channel_id,
-          metadata: msg.metadata
-        })
-      }
-      console.log(`Initialized ${messages.length} known messages for edit/delete tracking (last 72h)`)
+  /** Starts the change feed at the database clock: nothing earlier is dispatched. */
+  private async initializeChangeFeed(): Promise<boolean> {
+    const { data, error } = await supabase.rpc('channel_message_changes', {
+      p_after_at: null,
+      p_after_id: null,
+      p_limit: 1,
+    })
+    if (error || typeof data?.now !== 'string') {
+      console.error('channel_message_changes: no database clock; edits and deletes wait:', error?.message)
+      return false
     }
+    this.changeCursor = { at: data.now, id: NIL_UUID }
+    this.changeFloorMicros = timestampMicros(data.now)
+    return true
   }
-  
+
   private startPolling() {
     console.log('Starting polling mode for all message events...')
     
     this.pollingInterval = this.schedulePoll('messages', 1000, () => this.pollMessages())
 
-    // Edits/deletes: compares cached content against the DB. Handle is stored
-    // so shutdown can clear it.
-    this.editPollingInterval = this.schedulePoll('edits', 2000, () => this.pollEditsAndDeletes())
+    this.editPollingInterval = this.schedulePoll('edits', 2000, () => this.pollMessageChanges())
 
     // Reaction polling feeds MESSAGE_REACTION_ADD / MESSAGE_REACTION_REMOVE to
     // bots and the Discord bridge.
@@ -489,93 +511,100 @@ export class EventDispatcher {
       .map(row => row.bot_id)
   }
   
-  private async pollEditsAndDeletes() {
+  /** Where a tick reads from: CHANGE_OVERLAP_MS behind the cursor, never before start. */
+  private changeWindowStart(cursor: FeedPosition): { position: FeedPosition; micros: number } {
+    const micros = Math.max(timestampMicros(cursor.at) - CHANGE_OVERLAP_MS * 1000, this.changeFloorMicros)
+    return { position: { at: new Date(Math.floor(micros / 1000)).toISOString(), id: NIL_UUID }, micros }
+  }
+
+  /**
+   * Dispatches MESSAGE_UPDATE for each content edit and MESSAGE_DELETE for each soft delete since
+   * the cursor, CHANGE_PAGE rows per query and at most CHANGE_PAGES_PER_TICK queries per tick.
+   */
+  private async pollMessageChanges() {
     try {
-      if (this.knownMessageIds.size === 0) return
-      
-      // Newest messages first; those are the ones most often edited.
-      const allIds = Array.from(this.knownMessageIds)
-      const idsToCheck = allIds.slice(-100) // Last 100 = newest
-      
-      const { data: currentMessages, error } = await supabase
-        .from('messages')
-        .select('id, content, channel_id, user_id, bot_id, metadata, encrypted, updated_at, is_deleted')
-        .in('id', idsToCheck)
-      
-      if (error) {
-        console.error('pollEditsAndDeletes error:', error)
-        return
-      }
-      
-      for (const msg of currentMessages || []) {
-        const cached = this.messageVersions.get(msg.id)
-        
-        if (msg.is_deleted && cached) {
-          console.log(`Message deleted: ${msg.id}`)
-          await this.handleMessageDelete({ 
-            old: { 
-              id: msg.id, 
-              channel_id: msg.channel_id,
-              metadata: msg.metadata
-            } 
-          })
-          this.knownMessageIds.delete(msg.id)
-          this.messageVersions.delete(msg.id)
-          continue
+      if (!this.changeCursor && !(await this.initializeChangeFeed())) return
+      const window = this.changeWindowStart(this.changeCursor!)
+      let after = this.changeResume ?? window.position
+
+      for (let page = 0; page < CHANGE_PAGES_PER_TICK; page++) {
+        const { data, error } = await supabase.rpc('channel_message_changes', {
+          p_after_at: after.at,
+          p_after_id: after.id,
+          p_limit: CHANGE_PAGE,
+        })
+        if (error || !Array.isArray(data?.messages)) {
+          console.error('channel_message_changes error:', error?.message)
+          if (page > 0) this.changeResume = after
+          return
         }
-        
-        if (cached && this.contentChanged(cached.content, msg.content)) {
-          console.log(`Message edited: ${msg.id}`)
-        }
-      }
-      
-      const currentById = new Map((currentMessages || []).map(m => [m.id, m]))
-      
-      for (const id of idsToCheck) {
-        const cached = this.messageVersions.get(id)
-        const current = currentById.get(id)
-        
-        if (!current) {
-          // Absent row: hard delete.
-          if (cached?.channel_id) {
-            console.log(`Detected message delete: ${id}`)
-            await this.handleMessageDelete({ 
-              old: { 
-                id, 
-                channel_id: cached.channel_id,
-                metadata: cached.metadata
-              } 
-            })
+
+        // The cursor never passes the database clock: a row a privileged writer stamped in the
+        // future would otherwise move every later edit behind the overlap window.
+        const nowMicros = typeof data.now === 'string' ? timestampMicros(data.now) : Infinity
+        const rows: any[] = data.messages
+        for (const row of rows) {
+          await this.handleMessageChange(row)
+          after = { at: row.updated_at, id: row.id }
+          const at = timestampMicros(row.updated_at)
+          if (at > timestampMicros(this.changeCursor!.at) && at <= nowMicros) {
+            this.changeCursor = after
           }
-          this.knownMessageIds.delete(id)
-          this.messageVersions.delete(id)
-        } else if (cached && this.contentChanged(cached.content, current.content)) {
-          try {
-            await this.handleMessageUpdate({ new: current, old: { id } })
-          } catch (err) {
-            console.error(`handleMessageUpdate failed for ${id}:`, err)
-          }
-          
-          this.messageVersions.set(id, {
-            updated_at: current.updated_at,
-            content: current.content,
-            channel_id: current.channel_id,
-            metadata: current.metadata
-          })
+        }
+
+        if (rows.length < CHANGE_PAGE) {
+          this.changeResume = null
+          this.pruneChangeSeen(this.changeWindowStart(this.changeCursor!).micros)
+          return
         }
       }
+      this.changeResume = after
     } catch (error) {
-      console.error('pollEditsAndDeletes exception:', error)
+      console.error('pollMessageChanges exception:', error)
     }
   }
-  
-  // Content may be a string, an object, or null.
-  private contentChanged(a: any, b: any): boolean {
-    const strA = typeof a === 'string' ? a : JSON.stringify(a)
-    const strB = typeof b === 'string' ? b : JSON.stringify(b)
-    return strA !== strB
+
+  /** One feed row: MESSAGE_DELETE once per soft-deleted id, else MESSAGE_UPDATE once per updated_at. */
+  private async handleMessageChange(row: any) {
+    if (this.changeSeen.get(row.id) === row.updated_at) return
+    this.changeSeen.delete(row.id)
+    this.changeSeen.set(row.id, row.updated_at)
+    if (timestampMicros(row.updated_at) <= this.changeFloorMicros) return
+
+    try {
+      if (row.is_deleted) {
+        if (this.deletedIds.get(row.id)) return
+        this.deletedIds.set(row.id, true)
+        await this.handleMessageDelete({ old: { id: row.id, channel_id: row.channel_id, metadata: row.metadata } })
+      } else {
+        await this.handleMessageUpdate({ new: row, old: { id: row.id } })
+      }
+    } catch (err) {
+      console.error(`Change dispatch failed for ${row.id}:`, err)
+    }
   }
-  
+
+  /** Drops entries stamped before `windowMicros`, then the oldest beyond CHANGE_SEEN_MAX. */
+  private pruneChangeSeen(windowMicros: number) {
+    for (const [id, at] of this.changeSeen) {
+      if (timestampMicros(at) < windowMicros) this.changeSeen.delete(id)
+    }
+    for (const id of this.changeSeen.keys()) {
+      if (this.changeSeen.size <= CHANGE_SEEN_MAX) break
+      this.changeSeen.delete(id)
+    }
+  }
+
+  /**
+   * MESSAGE_DELETE for a row removed through the bot REST API. A hard-deleted row leaves nothing
+   * in the change feed, so the caller passes what it read before the delete.
+   */
+  async messageHardDeleted(message: { id: string; channel_id: string | null; metadata: unknown }) {
+    if (this.deletedIds.get(message.id)) return
+    this.deletedIds.set(message.id, true)
+    await this.handleMessageDelete({ old: message })
+  }
+
   private async pollMessages() {
     try {
       const { data: messages, error } = await supabase
@@ -601,25 +630,10 @@ export class EventDispatcher {
             this.processedMessageIds.add(message.id)
             this.lastProcessedTimestamp = new Date(message.created_at)
             
-            this.knownMessageIds.add(message.id)
-            this.messageVersions.set(message.id, {
-              updated_at: message.updated_at,
-              content: message.content,
-              channel_id: message.channel_id,
-              metadata: message.metadata
-            })
-            
             // Bounded to the last 10000 IDs.
             if (this.processedMessageIds.size > 10000) {
               const idsArray = Array.from(this.processedMessageIds);
               this.processedMessageIds = new Set(idsArray.slice(-10000));
-            }
-            
-            if (this.messageVersions.size > 10000) {
-              const entries = Array.from(this.messageVersions.entries());
-              const toKeep = entries.slice(-10000);
-              this.messageVersions = new Map(toKeep);
-              this.knownMessageIds = new Set(toKeep.map(([id]) => id));
             }
           }
         }
@@ -908,6 +922,8 @@ export class EventDispatcher {
     this.channelLayerCache.clear()
     this.authorCache.clear()
     this.emojiCache.clear()
+    this.changeSeen.clear()
+    this.deletedIds.clear()
     console.log('Event Dispatcher shut down')
   }
 }

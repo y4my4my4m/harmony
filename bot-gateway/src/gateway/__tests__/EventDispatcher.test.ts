@@ -21,11 +21,35 @@ vi.mock('../../config/supabase.js', () => ({
   config: {},
 }))
 
-import { EventDispatcher } from '../EventDispatcher.js'
+import { EventDispatcher, timestampMicros } from '../EventDispatcher.js'
 
 let db: FakeDb
 let sent: Array<{ botIds: string[]; event: any }>
 let dispatcher: EventDispatcher
+
+// Database clock for channel_message_changes, in ms; rendered as Postgres renders timestamptz.
+const T0 = Date.parse('2026-10-08T12:00:00Z')
+let dbClock = T0
+const at = (ms: number) => new Date(ms).toISOString().replace('Z', '+00:00')
+let feedCalls: Array<{ p_after_at: string | null; p_after_id: string | null; p_limit: number }>
+let feedFailure: { message: string } | null
+
+// channel_message_changes over db.rows('messages'), as migration 20261009000001 defines it.
+function channelMessageChanges(args: { p_after_at: string | null; p_after_id: string | null; p_limit: number }) {
+  feedCalls.push(args)
+  if (feedFailure) return { data: null, error: feedFailure }
+  const key = (m: Row): [number, string] => [timestampMicros(m.updated_at), m.id]
+  const after: [number, string] | null = args.p_after_at === null ? null : [timestampMicros(args.p_after_at), args.p_after_id!]
+  const cmp = (a: [number, string], b: [number, string]) => (a[0] - b[0]) || (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0)
+  const rows = after === null
+    ? []
+    : db.rows('messages')
+        .filter((m) => m.channel_id != null && timestampMicros(m.updated_at) > timestampMicros(m.created_at))
+        .filter((m) => cmp(key(m), after) > 0)
+        .sort((a, b) => cmp(key(a), key(b)))
+        .slice(0, Math.min(Math.max(args.p_limit, 1), 1000))
+  return { data: { now: at(dbClock), messages: rows.map((r) => ({ ...r })) }, error: null }
+}
 
 function installRow(botId: string, extra: Row = {}): Row {
   return {
@@ -84,6 +108,14 @@ beforeEach(() => {
   })
   mocks.from.mockReset()
   mocks.from.mockImplementation((table: string) => db.from(table))
+  dbClock = T0
+  feedCalls = []
+  feedFailure = null
+  mocks.rpc.mockReset()
+  mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+    if (fn === 'channel_message_changes') return channelMessageChanges(args)
+    throw new Error(`test called unmocked rpc: ${fn}`)
+  })
 
   sent = []
   const gateway = {
@@ -252,30 +284,264 @@ describe('author.nickname', () => {
   })
 })
 
-describe('MESSAGE_DELETE', () => {
+describe('message change feed', () => {
   const BRIDGE_METADATA = { discord_message_id: '1300000000000000001', bridge_source: 'discord', discord_user: { id: '8' } }
+  const d = () => dispatcher as any
+  const events = (type: string) => sent.filter((s) => s.event.t === type).map((s) => s.event.d)
+  const poll = () => d().pollMessageChanges()
 
-  const deletes = () => sent.filter((s) => s.event.t === 'MESSAGE_DELETE').map((s) => s.event.d)
-
-  function track(id: string) {
-    const d = dispatcher as any
-    d.knownMessageIds.add(id)
-    d.messageVersions.set(id, { updated_at: 't', content: [], channel_id: GENERAL, metadata: BRIDGE_METADATA })
+  /** A channel message as the insert trigger leaves it: updated_at = created_at. */
+  function seedMessage(id: string, createdMs: number, extra: Row = {}): Row {
+    const row = { ...message(GENERAL, id), id, created_at: at(createdMs), updated_at: at(createdMs), is_deleted: false, ...extra }
+    db.rows('messages').push(row)
+    return row
   }
 
-  it('carries the message metadata for a soft delete', async () => {
-    track('m-soft')
-    db.rows('messages').push({ ...message(GENERAL, 'gone'), id: 'm-soft', metadata: BRIDGE_METADATA, is_deleted: true })
-    await (dispatcher as any).pollEditsAndDeletes()
+  /** handle_messages_updated_at: a content change or a soft delete stamps updated_at with the clock. */
+  function edit(id: string, text: string) {
+    const row = db.rows('messages').find((m) => m.id === id)!
+    row.content = [{ type: 'text', text }]
+    row.updated_at = at(dbClock)
+  }
+  function softDelete(id: string) {
+    const row = db.rows('messages').find((m) => m.id === id)!
+    row.is_deleted = true
+    row.updated_at = at(dbClock)
+  }
 
-    expect(deletes()).toEqual([{ id: 'm-soft', channel_id: GENERAL, metadata: BRIDGE_METADATA }])
+  async function startFeed() {
+    expect(await d().initializeChangeFeed()).toBe(true)
+  }
+
+  it('dispatches an edit of a message created before startup', async () => {
+    seedMessage('m-old', T0 - 60 * 60 * 1000)
+    await startFeed()
+    dbClock += 5_000
+    edit('m-old', 'fixed a typo')
+    await poll()
+
+    expect(events('MESSAGE_UPDATE')).toMatchObject([{
+      id: 'm-old',
+      channel_id: GENERAL,
+      content: 'fixed a typo',
+      content_raw: [{ type: 'text', text: 'fixed a typo' }],
+      author: { id: OWNER_ID, username: 'alice' },
+      timestamp: at(T0 - 60 * 60 * 1000),
+      edited_timestamp: at(dbClock),
+      metadata: {},
+    }])
+    expect(recipients('MESSAGE_UPDATE', GENERAL)).toEqual([OPEN_BOT])
   })
 
-  it('carries the last known metadata for a hard delete', async () => {
-    track('m-hard')
-    await (dispatcher as any).pollEditsAndDeletes()
+  it('dispatches an edit of an old message after more than 100 newer messages', async () => {
+    seedMessage('m-first', T0 - 1_000)
+    await startFeed()
+    for (let i = 0; i < 150; i++) seedMessage(`m-new-${i}`, T0 + 1_000 + i)
+    dbClock += 10_000
+    await poll()
+    edit('m-first', 'edited much later')
+    await poll()
 
-    expect(deletes()).toEqual([{ id: 'm-hard', channel_id: GENERAL, metadata: BRIDGE_METADATA }])
+    expect(events('MESSAGE_UPDATE').map((e) => [e.id, e.content])).toEqual([['m-first', 'edited much later']])
+  })
+
+  it('sends no MESSAGE_UPDATE for a metadata merge', async () => {
+    seedMessage('m-bridged', T0 - 1_000)
+    await startFeed()
+    dbClock += 1_000
+    // PATCH /messages/:id/metadata: updated_at stays where the trigger left it.
+    db.rows('messages').find((m) => m.id === 'm-bridged')!.metadata = BRIDGE_METADATA
+    await poll()
+    await poll()
+
+    expect(sent).toEqual([])
+  })
+
+  it('dispatches a soft delete once, with the message metadata', async () => {
+    seedMessage('m-soft', T0 - 1_000, { metadata: BRIDGE_METADATA })
+    await startFeed()
+    dbClock += 1_000
+    softDelete('m-soft')
+    await poll()
+    await poll()
+    dbClock += 1_000
+    db.rows('messages').find((m) => m.id === 'm-soft')!.updated_at = at(dbClock)
+    await poll()
+
+    expect(events('MESSAGE_DELETE')).toEqual([{ id: 'm-soft', channel_id: GENERAL, metadata: BRIDGE_METADATA }])
+    expect(events('MESSAGE_UPDATE')).toEqual([])
+  })
+
+  it('dispatches a hard delete through the REST API once, with the metadata read before it', async () => {
+    seedMessage('m-hard', T0 - 1_000, { metadata: BRIDGE_METADATA })
+    await startFeed()
+    db.rows('messages').splice(0)
+    await dispatcher.messageHardDeleted({ id: 'm-hard', channel_id: GENERAL, metadata: BRIDGE_METADATA })
+    await dispatcher.messageHardDeleted({ id: 'm-hard', channel_id: GENERAL, metadata: BRIDGE_METADATA })
+    await poll()
+
+    expect(events('MESSAGE_DELETE')).toEqual([{ id: 'm-hard', channel_id: GENERAL, metadata: BRIDGE_METADATA }])
+  })
+
+  it('withholds edits and deletes of a channel hidden from @everyone', async () => {
+    seedMessage('m-mods', T0 - 1_000, { channel_id: MODS_ONLY })
+    seedMessage('m-mods-2', T0 - 1_000, { channel_id: MODS_ONLY })
+    await startFeed()
+    dbClock += 1_000
+    edit('m-mods', 'private, edited')
+    softDelete('m-mods-2')
+    await poll()
+
+    expect(sent).toEqual([])
+  })
+
+  it('replays nothing on start: changes stamped before the database clock are not sent', async () => {
+    seedMessage('m-edited-before', T0 - 60_000)
+    seedMessage('m-deleted-before', T0 - 60_000)
+    dbClock = T0 - 10_000
+    edit('m-edited-before', 'edited while the gateway was down')
+    softDelete('m-deleted-before')
+    dbClock = T0
+    await dispatcher.start()
+    await poll()
+    await poll()
+
+    expect(sent).toEqual([])
+    expect(feedCalls[0]).toMatchObject({ p_after_at: null, p_after_id: null })
+  })
+
+  it('starts from the database clock, not the gateway clock', async () => {
+    vi.spyOn(Date, 'now').mockImplementation(() => T0 + 3_600_000)
+    seedMessage('m-skew', T0 - 1_000)
+    await startFeed()
+    dbClock += 1_000
+    edit('m-skew', 'edited one second after start')
+    await poll()
+
+    expect(events('MESSAGE_UPDATE').map((e) => e.id)).toEqual(['m-skew'])
+  })
+
+  it('sends each edit once although the overlap window re-reads it', async () => {
+    seedMessage('m-a', T0 - 1_000)
+    await startFeed()
+    dbClock += 1_000
+    edit('m-a', 'one')
+    await poll()
+    await poll()
+    dbClock += 1_000
+    edit('m-a', 'two')
+    await poll()
+    await poll()
+
+    expect(events('MESSAGE_UPDATE').map((e) => e.content)).toEqual(['one', 'two'])
+  })
+
+  it('reads a row committed behind the cursor, and the cursor never moves back', async () => {
+    seedMessage('m-early', T0 - 1_000)
+    seedMessage('m-late', T0 - 1_000)
+    await startFeed()
+    dbClock += 60_000
+    edit('m-late', 'committed first')
+    await poll()
+    const cursor = d().changeCursor
+    // A transaction that began 5 s earlier commits now; its rows carry the earlier stamp.
+    const row = db.rows('messages').find((m) => m.id === 'm-early')!
+    row.content = [{ type: 'text', text: 'long transaction' }]
+    row.updated_at = at(dbClock - 5_000)
+    await poll()
+
+    expect(events('MESSAGE_UPDATE').map((e) => e.content)).toEqual(['committed first', 'long transaction'])
+    expect(d().changeCursor).toEqual(cursor)
+    expect(timestampMicros(feedCalls.at(-1)!.p_after_at!)).toBe(timestampMicros(cursor.at) - 30_000_000)
+  })
+
+  it('keeps the cursor at or before the database clock', async () => {
+    seedMessage('m-future', T0 - 1_000)
+    seedMessage('m-now', T0 - 1_000)
+    await startFeed()
+    dbClock += 1_000
+    const future = db.rows('messages').find((m) => m.id === 'm-future')!
+    future.content = [{ type: 'text', text: 'stamped by a privileged writer' }]
+    future.updated_at = at(dbClock + 365 * 24 * 3600 * 1000)
+    await poll()
+    dbClock += 1_000
+    edit('m-now', 'a later ordinary edit')
+    await poll()
+
+    expect(timestampMicros(d().changeCursor.at)).toBeLessThanOrEqual(timestampMicros(at(dbClock)))
+    expect(events('MESSAGE_UPDATE').map((e) => e.id)).toEqual(['m-future', 'm-now'])
+  })
+
+  it('drains a backlog in pages of 500', async () => {
+    for (let i = 0; i < 1_200; i++) seedMessage(`m-${String(i).padStart(4, '0')}`, T0 - 1_000)
+    await startFeed()
+    dbClock += 1_000
+    for (let i = 0; i < 1_200; i++) edit(`m-${String(i).padStart(4, '0')}`, `edit ${i}`)
+    feedCalls = []
+    await poll()
+
+    expect(feedCalls.map((c) => c.p_limit)).toEqual([500, 500, 500])
+    expect(events('MESSAGE_UPDATE')).toHaveLength(1_200)
+    expect(new Set(events('MESSAGE_UPDATE').map((e) => e.id)).size).toBe(1_200)
+  })
+
+  it('stops a tick after ten pages and resumes from the same position', async () => {
+    for (let i = 0; i < 5_200; i++) seedMessage(`m-${String(i).padStart(4, '0')}`, T0 - 1_000)
+    await startFeed()
+    dbClock += 1_000
+    for (let i = 0; i < 5_200; i++) edit(`m-${String(i).padStart(4, '0')}`, `edit ${i}`)
+    feedCalls = []
+    await poll()
+    expect(feedCalls).toHaveLength(10)
+    expect(events('MESSAGE_UPDATE')).toHaveLength(5_000)
+
+    feedCalls = []
+    await poll()
+    expect(feedCalls[0]).toMatchObject({ p_after_id: 'm-4999' })
+    expect(events('MESSAGE_UPDATE')).toHaveLength(5_200)
+    expect(new Set(events('MESSAGE_UPDATE').map((e) => e.id)).size).toBe(5_200)
+  })
+
+  it('loses nothing across a failed query', async () => {
+    seedMessage('m-retry', T0 - 1_000)
+    await startFeed()
+    dbClock += 1_000
+    edit('m-retry', 'after the outage')
+    feedFailure = { message: 'connection reset' }
+    await poll()
+    expect(sent).toEqual([])
+
+    feedFailure = null
+    await poll()
+    expect(events('MESSAGE_UPDATE').map((e) => e.id)).toEqual(['m-retry'])
+  })
+
+  it('reads the database clock on a later tick when start could not', async () => {
+    feedFailure = { message: 'connection reset' }
+    await dispatcher.start()
+    expect(d().changeCursor).toBeNull()
+    seedMessage('m-x', T0 - 1_000)
+    feedFailure = null
+    await poll()
+    dbClock += 1_000
+    edit('m-x', 'after recovery')
+    await poll()
+
+    expect(events('MESSAGE_UPDATE').map((e) => e.id)).toEqual(['m-x'])
+  })
+
+  it('bounds the overlap dedupe to the window', async () => {
+    seedMessage('m-1', T0 - 1_000)
+    seedMessage('m-2', T0 - 1_000)
+    await startFeed()
+    dbClock += 1_000
+    edit('m-1', 'early')
+    await poll()
+    dbClock += 60_000
+    edit('m-2', 'a minute later')
+    await poll()
+
+    expect([...d().changeSeen.keys()]).toEqual(['m-2'])
   })
 })
 
