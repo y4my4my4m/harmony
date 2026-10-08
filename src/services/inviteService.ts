@@ -1,8 +1,8 @@
+import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 import { supabase } from '@/supabase';
 import { canUserCreateInvites, getInviteConstraints } from './permissionsService';
 import { debug } from '@/utils/debug'
 import { i18n } from '@/i18n';
-import { runtimeConfig } from '@/services/runtimeConfig';
 
 export interface InviteOptions {
   expiresIn?: number; // minutes, 0 = never expires
@@ -97,7 +97,7 @@ async function generateInviteUrl(
     if (error) throw error;
 
     // Construct the invite URL
-    const baseUrl = runtimeConfig.appUrl || window.location.origin;
+    const baseUrl = resolveHarmonyBaseUrl();
     const url = `${baseUrl}/invite/${code}`;
     
     return { success: true, url };
