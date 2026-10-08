@@ -420,6 +420,7 @@
     "channelWelcomeSubtitle": "Ceci est le début du canal #{name}.",
     "dmBeginning": "Ceci est le tout début de vos messages privés avec {name}.",
     "groupBeginning": "Ceci est le tout début du groupe {name}.",
+    "groupBeginningUnnamed": "Ceci est le tout début de ce groupe.",
     "jumpInConversation": "Sauter dans la conversation",
     "reactions": {
       "add": "Ajouter une réaction",
@@ -3062,6 +3063,45 @@
         "save": "Échec de l'enregistrement",
         "loadQueue": "Échec du chargement de la file d'examen",
         "review": "Échec de l'examen"
+      }
+    },
+    "instanceEmojis": {
+      "tab": "Emojis",
+      "title": "Emojis de l'instance",
+      "hint": "Emojis de toute l'instance et importés : envois des administrateurs, emojis des ponts Discord et des bots, et emojis issus de réactions et de publications fédérées. Les emojis de serveur et personnels restent gérés par leurs propriétaires. Les messages désignent les emojis personnalisés par leur nom ; après un renommage ou une suppression, les messages antérieurs affichent le texte :nom: au lieu de l'image.",
+      "refresh": "Actualiser",
+      "searchPlaceholder": "Rechercher par nom ou domaine",
+      "source": {
+        "label": "Source",
+        "all": "Toutes les sources",
+        "local": "Locaux",
+        "remote": "Distants et pontés"
+      },
+      "sort": {
+        "label": "Tri",
+        "newest": "Plus récents d'abord",
+        "name": "Nom (A-Z)"
+      },
+      "empty": "Aucun emoji de l'instance ne correspond.",
+      "localBadge": "local",
+      "uploadedBy": "par {user}",
+      "reactions": "aucune réaction | {count} réaction | {count} réactions",
+      "rename": "Renommer",
+      "newName": "Nouveau nom",
+      "previous": "Précédent",
+      "next": "Suivant",
+      "range": "{from}-{to} sur {total}",
+      "renamed": "Emoji renommé",
+      "deleted": "Emoji supprimé",
+      "deleteTitle": "Supprimer l'emoji",
+      "confirmDelete": "Supprimer :{name}: ? Les messages antérieurs qui l'utilisent affichent le texte :{name}: au lieu de l'image.",
+      "confirmDeleteInUse": "Supprimer :{name}: ? Sa {count} réaction est retirée, et les messages antérieurs qui l'utilisent affichent le texte :{name}: au lieu de l'image. | Supprimer :{name}: ? Ses {count} réactions sont retirées, et les messages antérieurs qui l'utilisent affichent le texte :{name}: au lieu de l'image.",
+      "errors": {
+        "load": "Impossible de charger les emojis de l'instance.",
+        "rename": "Impossible de renommer l'emoji.",
+        "delete": "Impossible de supprimer l'emoji.",
+        "invalidName": "Les noms comptent de 2 à 64 lettres, chiffres, _ ou -.",
+        "nameTaken": "Un autre emoji de l'instance utilise déjà ce nom."
       }
     }
   },

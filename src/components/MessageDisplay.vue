@@ -83,21 +83,12 @@
       <!-- Regular Message or Revealed Blocked Message -->
       <template v-else-if="item.type === 'message'">
         <!-- Beginning of conversation indicator (only show when all messages loaded) -->
-        <div v-if="item.index === 0 && isAllMessagesLoaded" class="beginning-indicator">
-          <div v-if="beginningInfo.kind !== 'channel'" class="beginning-badge">
-            <img v-if="beginningInfo.avatar" class="beginning-avatar" :src="beginningInfo.avatar" alt="" />
-            <span v-else class="beginning-initial">{{ (beginningInfo.name || '?').charAt(0).toUpperCase() }}</span>
-          </div>
-          <h2 class="beginning-title">
-            <template v-if="beginningInfo.kind === 'channel'">{{ $t('message.channelWelcome', { name: beginningInfo.name }) }}</template>
-            <template v-else>{{ beginningInfo.name }}</template>
-          </h2>
-          <p class="beginning-subtitle">
-            <template v-if="beginningInfo.kind === 'channel'">{{ $t('message.channelWelcomeSubtitle', { name: beginningInfo.name }) }}</template>
-            <template v-else-if="beginningInfo.kind === 'group'">{{ $t('message.groupBeginning', { name: beginningInfo.name }) }}</template>
-            <template v-else>{{ $t('message.dmBeginning', { name: beginningInfo.name }) }}</template>
-          </p>
-        </div>
+        <ConversationBeginning
+          v-if="item.index === 0 && isAllMessagesLoaded"
+          :kind="beginningInfo.kind"
+          :name="beginningInfo.name"
+          :user-id="beginningInfo.userId"
+        />
 
         <!-- Date separator -->
         <div v-if="shouldShowDateSeparator(item.message, item.index)" class="date-separator">
@@ -685,8 +676,6 @@ import Icon from '@/components/common/Icon.vue';
 import EmptyState from '@/components/common/EmptyState.vue';
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
-import { getAvatarUrl } from '@/utils/avatarUtils';
-import { GroupIconPresets } from '@/utils/groupIconUtils';
 import type { PropType, Ref, ComputedRef } from 'vue';
 import type { Message, MessagePart, User, Emoji, Reaction, FileContent } from '@/types';
 import { hasSubstantiveMessageContent, removeFilePartByUrl } from '@/utils/messageContentUtils';
@@ -731,6 +720,7 @@ import DeleteIcon from '@/components/icons/Delete.vue';
 import MoreIcon from '@/components/icons/More.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
+import ConversationBeginning from '@/components/ConversationBeginning.vue';
 import ReactionTooltip from '@/components/messages/ReactionTooltip.vue';
 import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue';
 import CallJoinButton from '@/components/messages/CallJoinButton.vue';
@@ -1458,37 +1448,23 @@ const isAllMessagesLoaded = computed(() => {
   return false;
 });
 
-// Context shown by the conversation-start header (channel vs DM vs group).
-// .beginning-badge is 48px; 2x for retina.
-const BEGINNING_AVATAR_PX = 96;
-
-const beginningInfo = computed(() => {
+// Context shown by the conversation-start line (channel vs DM vs group).
+const beginningInfo = computed((): { kind: 'channel' | 'dm' | 'group'; name: string; userId?: string } => {
   if (props.channelId) {
     const channel = serverChannelStore.channels.find(c => c.id === props.channelId);
-    return { kind: 'channel', name: channel?.name || '', avatar: undefined as string | undefined };
+    return { kind: 'channel', name: channel?.name || '' };
   }
   if (props.conversationId) {
     const conv = dmStore.getCurrentConversation;
-    // Storage paths must go through getAvatarUrl; bound raw they resolve
-    // against the app origin and 404. Undefined when absent, so the initial
-    // fallback still renders instead of the default-avatar asset.
-    if (conv?.type === 'group') {
-      // Group icons live in their own bucket and are keyed by conversation id,
-      // not the avatars bucket. medium() is the 48px preset.
-      return {
-        kind: 'group',
-        name: conv.name || 'Group',
-        avatar: conv.id ? GroupIconPresets.medium(conv.id, conv.icon_url || undefined) : undefined,
-      };
-    }
+    if (conv?.type === 'group') return { kind: 'group', name: conv.name || '' };
     const other = conv?.other_user;
     return {
       kind: 'dm',
-      name: other?.display_name || other?.username || 'this user',
-      avatar: other?.avatar_url ? getAvatarUrl(other.avatar_url, BEGINNING_AVATAR_PX) : undefined,
+      name: other?.display_name || other?.username || '',
+      userId: other?.id || undefined,
     };
   }
-  return { kind: 'channel', name: '', avatar: undefined as string | undefined };
+  return { kind: 'channel', name: '' };
 });
 
 // --- REFS ---
@@ -4017,60 +3993,6 @@ defineExpose({ editLastOwnMessage });
   background: var(--harmony-secondary);
 }
 
-/* Beginning of conversation indicator */
-.beginning-indicator {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  padding: 40px 20px 20px;
-  margin: 0 4px 8px;
-  border-bottom: 1px solid var(--border-secondary);
-}
-
-.beginning-badge {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 8px;
-  overflow: hidden;
-  color: var(--text-secondary);
-  background: var(--background-quaternary);
-}
-
-.beginning-avatar {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.beginning-initial {
-  font-size: 1.4rem;
-  font-weight: 700;
-  line-height: 1;
-  text-transform: uppercase;
-}
-
-.beginning-title {
-  font-size: 1.75rem;
-  font-weight: 800;
-  color: var(--text-primary);
-  margin: 0;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-}
-
-.beginning-subtitle {
-  font-size: 0.9rem;
-  color: var(--text-tertiary);
-  margin: 2px 0 0;
-  line-height: 1.45;
-  max-width: 640px;
-}
-
 /* Highlighted message */
 .highlighted {
   background-color: color-mix(in srgb, var(--harmony-primary) 15%, transparent) !important;
@@ -4196,23 +4118,6 @@ defineExpose({ editLastOwnMessage });
     padding: 0 12px;
   }
   
-  .beginning-indicator {
-    padding: 28px 14px 16px;
-  }
-
-  .beginning-badge {
-    width: 44px;
-    height: 44px;
-  }
-
-  .beginning-title {
-    font-size: 1.4rem;
-  }
-
-  .beginning-subtitle {
-    font-size: 0.85rem;
-  }
-
   .message-meta {
     flex-wrap: nowrap;
     min-width: 0;

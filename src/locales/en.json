@@ -434,6 +434,7 @@
     "channelWelcomeSubtitle": "This is the start of the #{name} channel.",
     "dmBeginning": "This is the very beginning of your direct messages with {name}.",
     "groupBeginning": "This is the very beginning of the {name} group.",
+    "groupBeginningUnnamed": "This is the very beginning of this group.",
     "jumpInConversation": "Jump in conversation",
     "reactions": {
       "add": "Add reaction",
@@ -3058,6 +3059,45 @@
         "save": "Failed to save",
         "loadQueue": "Failed to load the review queue",
         "review": "Review failed"
+      }
+    },
+    "instanceEmojis": {
+      "tab": "Emojis",
+      "title": "Instance emojis",
+      "hint": "Instance-wide and imported emojis: admin uploads, Discord bridge and bot emojis, and emojis from federated reactions and posts. Server and personal emojis stay with their owners. Messages reference custom emojis by name, so after a rename or delete, earlier messages show the :name: text instead of the image.",
+      "refresh": "Refresh",
+      "searchPlaceholder": "Search by name or domain",
+      "source": {
+        "label": "Source",
+        "all": "All sources",
+        "local": "Local",
+        "remote": "Remote and bridged"
+      },
+      "sort": {
+        "label": "Sort",
+        "newest": "Newest first",
+        "name": "Name (A-Z)"
+      },
+      "empty": "No instance emojis match.",
+      "localBadge": "local",
+      "uploadedBy": "by {user}",
+      "reactions": "no reactions | {count} reaction | {count} reactions",
+      "rename": "Rename",
+      "newName": "New name",
+      "previous": "Previous",
+      "next": "Next",
+      "range": "{from}-{to} of {total}",
+      "renamed": "Emoji renamed",
+      "deleted": "Emoji deleted",
+      "deleteTitle": "Delete emoji",
+      "confirmDelete": "Delete :{name}:? Earlier messages that use it show the :{name}: text instead of the image.",
+      "confirmDeleteInUse": "Delete :{name}:? Its {count} reaction is removed, and earlier messages that use it show the :{name}: text instead of the image. | Delete :{name}:? Its {count} reactions are removed, and earlier messages that use it show the :{name}: text instead of the image.",
+      "errors": {
+        "load": "Could not load instance emojis.",
+        "rename": "Could not rename the emoji.",
+        "delete": "Could not delete the emoji.",
+        "invalidName": "Names are 2 to 64 letters, digits, _ or -.",
+        "nameTaken": "Another instance emoji already uses that name."
       }
     }
   },

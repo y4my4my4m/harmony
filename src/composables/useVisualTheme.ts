@@ -59,6 +59,9 @@ export interface SavedCustomTheme {
 
 const SAVED_THEMES_KEY = 'custom-themes'
 
+/** Message font size in px for settings that never stored one. */
+export const DEFAULT_FONT_SIZE = 15
+
 export const COMMUNITY_PRESETS: ThemePreset[] = [
   {
     name: 'Harmony Teal',
@@ -277,7 +280,7 @@ function createDefaultSettings(theme: VisualThemeSettings['theme'] = 'dark'): Vi
     customBackgroundLightness: 0,
     customBackgroundChroma: 0,
     customCssOverrides: {},
-    fontSize: 14,
+    fontSize: DEFAULT_FONT_SIZE,
     zoomLevel: 100,
     showTimestamps: true,
     use24HourTime: false,

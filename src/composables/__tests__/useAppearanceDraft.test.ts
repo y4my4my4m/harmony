@@ -136,3 +136,37 @@ describe('useVisualTheme session handling', () => {
     expect(root.getAttribute('data-theme')).toBe('midnight')
   })
 })
+
+describe('useVisualTheme font size default', () => {
+  it('starts a user with no stored settings at 15px', async () => {
+    const { visualTheme } = await load()
+    expect(visualTheme.settings.value.fontSize).toBe(15)
+    expect(inline('--message-font-size')).toBe('15px')
+  })
+
+  it('fills 15px into a stored payload that has no font size', async () => {
+    const { visualTheme, userStorage } = await load(false)
+    auth.session = { user: { id: 'user-3' } }
+    userStorage.setCurrentUser('user-3')
+    userStorage.setItem('visual-theme', JSON.stringify({ theme: 'midnight' }))
+    await visualTheme.initialize()
+    expect(visualTheme.settings.value.fontSize).toBe(15)
+  })
+
+  it('keeps a stored font size', async () => {
+    const { visualTheme, userStorage } = await load(false)
+    auth.session = { user: { id: 'user-4' } }
+    userStorage.setCurrentUser('user-4')
+    userStorage.setItem('visual-theme', JSON.stringify({ fontSize: 14 }))
+    await visualTheme.initialize()
+    expect(visualTheme.settings.value.fontSize).toBe(14)
+    expect(inline('--message-font-size')).toBe('14px')
+  })
+
+  it('resets to 15px', async () => {
+    const { visualTheme } = await load()
+    visualTheme.setFontSize(18)
+    visualTheme.resetToDefaults()
+    expect(visualTheme.settings.value.fontSize).toBe(15)
+  })
+})

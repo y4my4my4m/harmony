@@ -163,6 +163,19 @@
       <FundingSupporters />
     </div>
 
+    <div v-else-if="activeAdminTab === 'emojis'" class="admin-grid single">
+      <InstanceEmojiAdmin />
+      <div class="admin-module emoji-module">
+        <div class="module-header">
+          <Icon name="emoji" :size="20" />
+          <h2>Remote emoji importer</h2>
+        </div>
+        <div class="emoji-content">
+          <EmojiImporter />
+        </div>
+      </div>
+    </div>
+
     <div v-else-if="activeAdminTab === 'tools'" class="admin-grid">
       <!-- Performance Monitoring -->
       <div class="admin-module performance-module">
@@ -172,17 +185,6 @@
         </div>
         <div class="performance-content">
           <PerformanceMonitoring />
-        </div>
-      </div>
-
-      <!-- Emoji Importer -->
-      <div class="admin-module emoji-module">
-        <div class="module-header">
-          <Icon name="emoji" :size="20" />
-          <h2>Remote emoji importer</h2>
-        </div>
-        <div class="emoji-content">
-          <EmojiImporter />
         </div>
       </div>
     </div>
@@ -201,6 +203,7 @@ import ActivityLog from '@/components/admin/ActivityLog.vue'
 
 // Modules load lazily per tab so opening the panel only fetches Overview.
 const EmojiImporter = defineAsyncComponent(() => import('@/components/admin/EmojiImporter.vue'))
+const InstanceEmojiAdmin = defineAsyncComponent(() => import('@/components/admin/InstanceEmojiAdmin.vue'))
 const PerformanceMonitoring = defineAsyncComponent(() => import('@/components/admin/PerformanceMonitoring.vue'))
 const FederationManagement = defineAsyncComponent(() => import('@/components/admin/FederationManagement.vue'))
 const UserManagement = defineAsyncComponent(() => import('@/components/admin/UserManagement.vue'))
@@ -228,6 +231,7 @@ const adminTabs = [
   { key: 'reports', label: 'Reports', icon: 'flag' },
   { key: 'antispam', label: t('admin.antiSpam.title'), icon: 'shield' },
   { key: 'content', label: 'Content', icon: 'megaphone' },
+  { key: 'emojis', label: t('admin.instanceEmojis.tab'), icon: 'emoji' },
   { key: 'config', label: 'Config', icon: 'settings' },
   { key: 'funding', label: 'Funding', icon: 'heart' },
   { key: 'tools', label: 'Tools', icon: 'wrench' },
@@ -2155,7 +2159,7 @@ const formatNumber = (num: number | undefined) => {
 
 /* Emoji Importer Module */
 .emoji-module {
-  grid-column: span 2; /* Full width like other major modules */
+  grid-column: 1 / -1;
   max-height: 1130px;
 }
 
