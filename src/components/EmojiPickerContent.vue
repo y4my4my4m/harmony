@@ -14,7 +14,7 @@
     <!-- Emoji Content Area -->
     <div class="emoji-content">
       <!-- Favorite Emojis (always visible) -->
-      <div v-if="!searchQuery" class="emoji-section">
+      <div v-if="!activeQuery" class="emoji-section">
         <h3
           class="section-title section-title-collapsible"
           @click="toggleSection('favorites')"
@@ -58,7 +58,7 @@
       </div>
 
       <!-- Frequently Used Emojis -->
-      <div v-if="!searchQuery && hasFrequentEmojis" class="emoji-section">
+      <div v-if="!activeQuery && hasFrequentEmojis" class="emoji-section">
         <h3
           class="section-title section-title-collapsible"
           @click="toggleSection('frequent')"
@@ -118,7 +118,7 @@
               @pointerleave="hoveredEmojiName = null"
             >
               <svg v-if="brokenEmojiUrls.has(emoji.url)" class="emoji-broken-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" y1="13.5" x2="6" y2="21"/><line x1="18" y1="12" x2="21" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/></svg>
-              <img v-else :src="getEmojiUrl(emoji.url, 42)" :alt="emoji.name" @error="brokenEmojiUrls.add(emoji.url)" />
+              <img v-else :src="getEmojiUrl(emoji.url, 42)" :alt="emoji.name" loading="lazy" decoding="async" @error="brokenEmojiUrls.add(emoji.url)" />
             </div>
           </div>
         </template>
@@ -126,15 +126,21 @@
 
       <!-- Server Emojis List -->
       <div v-if="filteredEmojiList.length">
-        <div v-for="group in filteredEmojiList" :key="group.serverId" class="emoji-section">
-          <h3
-            class="section-title section-title-collapsible"
-            @click="toggleSection('server-' + group.serverId)"
-          >
-            <span class="section-chevron" :class="{ collapsed: isSectionCollapsed('server-' + group.serverId) }">&#9662;</span>
-            <ServerIcon :src="group.server_icon" size="mini" shape="rounded" :show-title="false" class="section-server-icon" />
-            {{ group.server_name }}
-          </h3>
+        <LazyEmojiSection
+          v-for="group in filteredEmojiList"
+          :key="group.serverId"
+          :emoji-count="isSectionCollapsed('server-' + group.serverId) ? 0 : group.emojis.length"
+        >
+          <template #header>
+            <h3
+              class="section-title section-title-collapsible"
+              @click="toggleSection('server-' + group.serverId)"
+            >
+              <span class="section-chevron" :class="{ collapsed: isSectionCollapsed('server-' + group.serverId) }">&#9662;</span>
+              <ServerIcon :src="group.server_icon" size="mini" shape="rounded" :show-title="false" class="section-server-icon" />
+              {{ group.server_name }}
+            </h3>
+          </template>
           <div v-if="!isSectionCollapsed('server-' + group.serverId)" class="emoji-list">
             <div
               v-for="emoji in group.emojis"
@@ -147,10 +153,10 @@
               @pointerleave="hoveredEmojiName = null"
             >
               <svg v-if="brokenEmojiUrls.has(emoji.url)" class="emoji-broken-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" y1="13.5" x2="6" y2="21"/><line x1="18" y1="12" x2="21" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/></svg>
-              <img v-else :src="getEmojiUrl(emoji.url, 42)" :alt="emoji.name" @error="brokenEmojiUrls.add(emoji.url)" />
+              <img v-else :src="getEmojiUrl(emoji.url, 42)" :alt="emoji.name" loading="lazy" decoding="async" @error="brokenEmojiUrls.add(emoji.url)" />
             </div>
           </div>
-        </div>
+        </LazyEmojiSection>
       </div>
       
       <!-- Unified Emojis by Category -->
@@ -190,6 +196,7 @@
               :src="getEmojiSvgUrl(emoji)" 
               :alt="emoji.shortcode"
               loading="lazy"
+              decoding="async"
               class="emoji-svg"
             />
             <span v-else class="native-emoji-char">{{ emoji.unicode }}</span>
@@ -199,7 +206,7 @@
       
       <!-- No Results -->
       <EmptyState
-        v-if="searchQuery && !filteredEmojiList.length && !displayedCategories.length"
+        v-if="activeQuery && !filteredEmojiList.length && !displayedCategories.length"
         size="sm"
         icon="search"
         :title="$t('empty.emojiSearch.title', { query: searchQuery })"
@@ -272,6 +279,8 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import Icon from '@/components/common/Icon.vue';
 import EmptyState from '@/components/common/EmptyState.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { customEmojiIndex, customEmojiUrlByName, customMatches } from '@/services/emojiSearchIndex';
+import { useEmojiSearchQuery } from '@/composables/useEmojiSearchQuery';
 
 // Types
 interface FilteredServerEmojiGroup {
@@ -312,14 +321,15 @@ const {
   isTwemojiPack,
   isLoaded: unifiedLoaded,
   isLoading: unifiedLoading,
-  getAllEmojis,
+  getEmojisByCategory,
   getCategories,
+  searchEmojiHits,
   resolveEmoji,
   getTwemojiUrl,
 } = useUnifiedEmoji();
 
 const searchInput = ref<HTMLInputElement | null>(null);
-const searchQuery = ref('');
+const { searchQuery, activeQuery } = useEmojiSearchQuery();
 const hoveredEmojiName = ref<string | null>(null);
 const favoriteEmojis = ref<EmojiFavorite[]>([]);
 // The instance emoji set can be large and is rarely the user's first choice, so
@@ -338,58 +348,47 @@ const isSectionCollapsed = (id: string) => {
   // match would otherwise render its header with the emoji list hidden, reading
   // as no result. Manual collapse state stays in `collapsedSections` and
   // re-applies once the query is cleared.
-  if (searchQuery.value.trim()) return false;
+  if (activeQuery.value) return false;
   return collapsedSections.value.has(id);
 };
 
-// Computed: Filtered emoji list (current server first)
-const filteredEmojiList = computed((): FilteredServerEmojiGroup[] => {
-  const query = searchQuery.value.toLowerCase().trim();
-  // AI Generated has its own dedicated section below; everything else (servers,
-  // plus the synthetic "My Emoji" / "Instance Emoji" groups) renders here.
-  const allEmojisByServer = Object.entries(emojiCacheStore.resolvedEmojis)
-    .filter(([serverId]) => serverId !== PERSONAL_EMOJI_GROUPS.ai && serverId !== KLIPY_EPHEMERAL_GROUP);
-  const currentId = serverChannelStore.currentServerId;
+const HIDDEN_GROUPS = new Set<string>([PERSONAL_EMOJI_GROUPS.ai, KLIPY_EPHEMERAL_GROUP]);
 
-  const sortCurrentFirst = (list: FilteredServerEmojiGroup[]) =>
-    list.sort((a, b) => {
-      if (a.serverId === currentId) return -1;
-      if (b.serverId === currentId) return 1;
-      return 0;
-    });
+// Server groups (servers plus the synthetic "My Emoji" / "Instance Emoji"),
+// current server first. AI generated renders in its own section.
+const filteredEmojiList = computed((): FilteredServerEmojiGroup[] => {
+  const query = activeQuery.value;
+  const resolved = emojiCacheStore.resolvedEmojis;
+  const currentId = serverChannelStore.currentServerId ?? null;
 
   if (!query) {
-    return sortCurrentFirst(
-      allEmojisByServer
-        .map(([serverId, data]) => ({ serverId, ...data }))
-        .filter((group) => group.emojis.length > 0)
-    );
+    const ids = Object.keys(resolved).filter((id) => !HIDDEN_GROUPS.has(id) && resolved[id].emojis.length > 0);
+    if (currentId && ids.includes(currentId)) {
+      ids.splice(ids.indexOf(currentId), 1);
+      ids.unshift(currentId);
+    }
+    return ids.map((serverId) => ({ serverId, ...resolved[serverId] }));
   }
 
-  return sortCurrentFirst(
-    allEmojisByServer
-      .map(([serverId, data]) => {
-        const matchingEmojis = data.emojis.filter(
-          (emoji) =>
-            emoji.name.toLowerCase().includes(query) ||
-            emoji.display_name.toLowerCase().includes(query),
-        );
-        return {
-          serverId,
-          server_name: data.server_name,
-          server_icon: data.server_icon,
-          emojis: matchingEmojis,
-        };
-      })
-      .filter((group) => group.emojis.length > 0)
-  );
+  const groups = new Map<string, FilteredServerEmojiGroup>();
+  for (const entry of customEmojiIndex(resolved, currentId)) {
+    if (HIDDEN_GROUPS.has(entry.serverId) || !customMatches(entry, query)) continue;
+    let group = groups.get(entry.serverId);
+    if (!group) {
+      const source = resolved[entry.serverId];
+      group = { serverId: entry.serverId, server_name: source.server_name, server_icon: source.server_icon, emojis: [] };
+      groups.set(entry.serverId, group);
+    }
+    group.emojis.push(entry.emoji);
+  }
+  return [...groups.values()];
 });
 
 // The viewer's AI-generated emoji (filtered by the active search query).
 const aiEmojis = computed((): ResolvedEmoji[] => {
   const group = emojiCacheStore.resolvedEmojis[PERSONAL_EMOJI_GROUPS.ai];
   const list = group?.emojis ?? [];
-  const query = searchQuery.value.toLowerCase().trim();
+  const query = activeQuery.value;
   if (!query) return list;
   return list.filter(
     (e) => e.name.toLowerCase().includes(query) || e.display_name.toLowerCase().includes(query),
@@ -398,51 +397,24 @@ const aiEmojis = computed((): ResolvedEmoji[] => {
 
 const showAiSection = computed(() => aiEmojis.value.length > 0);
 
-// Computed: Displayed categories from unified emoji service
+// Unicode categories in category order; a query keeps only index matches.
 const displayedCategories = computed((): DisplayCategory[] => {
   if (!unifiedLoaded.value) return [];
-  
-  const query = searchQuery.value.toLowerCase().trim();
-  const allEmojis = getAllEmojis();
-  
-  const categoryMap = new Map<string, EmojiEntry[]>();
-  for (const emoji of allEmojis) {
-    const catId = emoji.category;
-    if (!categoryMap.has(catId)) {
-      categoryMap.set(catId, []);
-    }
-    categoryMap.get(catId)!.push(emoji);
-  }
-  
+
+  const query = activeQuery.value;
+  const matches = query ? new Set(searchEmojiHits(query, Infinity).map((h) => h.item.emoji)) : null;
+
   const serviceCats = getCategories();
   const categoryMetadata = serviceCats.length > 0 ? serviceCats : EMOJI_CATEGORIES;
-  
+
   const categories: DisplayCategory[] = [];
-  
   for (const meta of categoryMetadata) {
-    const emojis = categoryMap.get(meta.id) || [];
+    const all = getEmojisByCategory(meta.id);
+    const emojis = matches ? all.filter((e) => matches.has(e)) : all;
     if (emojis.length === 0) continue;
-    
-    let filteredEmojis = emojis;
-    
-    if (query) {
-      filteredEmojis = emojis.filter(emoji => 
-        emoji.shortcode.toLowerCase().includes(query) ||
-        (emoji.name && emoji.name.toLowerCase().includes(query)) ||
-        emoji.keywords?.some(kw => kw.toLowerCase().includes(query))
-      );
-      if (filteredEmojis.length === 0) continue;
-    }
-    
-    categories.push({
-      id: meta.id,
-      name: meta.name,
-      icon: meta.icon,
-      order: meta.order,
-      emojis: filteredEmojis
-    });
+    categories.push({ id: meta.id, name: meta.name, icon: meta.icon, order: meta.order, emojis });
   }
-  
+
   return categories.sort((a, b) => a.order - b.order);
 });
 
@@ -477,15 +449,8 @@ function getFrequentEmojiDisplayUrl(emoji: { id: string; native?: string; name: 
   if (emoji.url && !isLocalAssetUrl(emoji.url)) return getEmojiUrl(emoji.url, 42);
   if (!isCustomServerEmoji(emoji)) return null;
   
-  const allServerIds = Array.from(emojiCacheStore.serverCaches.keys());
-  for (const serverId of allServerIds) {
-    const serverEmojis = emojiCacheStore.getServerEmojis(serverId);
-    if (serverEmojis && serverEmojis.length > 0) {
-      const cachedEmoji = serverEmojis.find(e => e.name === emoji.name);
-      if (cachedEmoji && cachedEmoji.url) return getEmojiUrl(cachedEmoji.url, 42);
-    }
-  }
-  return null;
+  const url = customEmojiUrlByName(emojiCacheStore.resolvedEmojis).get(emoji.name);
+  return url ? getEmojiUrl(url, 42) : null;
 }
 
 function getFrequentEmojiSvgUrl(emoji: { id: string; native?: string; name: string; url?: string }): string | null {

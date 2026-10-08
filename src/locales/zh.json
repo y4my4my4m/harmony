@@ -715,6 +715,10 @@
       "showCustomEmojisInDisplayNamesDesc": "启用后,其他用户的显示名称将显示表情图片。禁用后,表情和短代码将完全隐藏。",
       "greentext": "Greentext",
       "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. > text with a space is always a quote regardless of this setting.",
+      "convertSentEmoticons": "转换我发送的表情符号",
+      "convertSentEmoticonsDesc": "发送或编辑消息时，将 :) :D <3 等替换为表情。代码、链接和电子邮件地址不受影响。",
+      "renderEmoticonsAsEmoji": "将他人发送的表情符号显示为表情",
+      "renderEmoticonsAsEmojiDesc": "在消息中将 :) :D <3 等显示为表情。原始文本保持不变。",
       "inviteBannerBg": "邀请对话框中的服务器横幅",
       "inviteBannerBgDesc": "服务器有横幅时，在邀请对话框背后显示模糊、变暗的服务器横幅。",
       "quickReact": "快速反应",
@@ -3775,6 +3779,49 @@
       "wide": "宽",
       "square": "方",
       "tall": "高"
+    }
+  },
+  "serverRail": {
+    "unnamedServer": "未命名服务器",
+    "orderSaveFailed": "无法保存服务器顺序",
+    "muteFailed": "无法更改服务器静音",
+    "idCopied": "已复制服务器 ID",
+    "idCopyFailed": "无法复制服务器 ID",
+    "menu": {
+      "markRead": "标记为已读",
+      "invite": "邀请他人",
+      "mute": "静音服务器",
+      "unmute": "取消静音",
+      "moveUp": "上移",
+      "moveDown": "下移",
+      "createFolder": "创建文件夹",
+      "moveToFolder": "移至文件夹",
+      "removeFromFolder": "移出文件夹",
+      "copyId": "复制服务器 ID"
+    },
+    "mute": {
+      "m15": "15 分钟",
+      "h1": "1 小时",
+      "h3": "3 小时",
+      "h8": "8 小时",
+      "h24": "24 小时",
+      "forever": "直到我重新开启",
+      "until": "静音至 {time}"
+    },
+    "folder": {
+      "unnamed": "文件夹",
+      "markRead": "将文件夹标记为已读",
+      "settings": "文件夹设置",
+      "collapse": "收起文件夹",
+      "expand": "展开文件夹",
+      "ungroup": "解散文件夹",
+      "serverCount": "{count} 个服务器"
+    },
+    "leave": {
+      "confirm": "要离开“{name}”吗？你将无法再访问其所有频道和消息。",
+      "button": "离开",
+      "done": "已离开服务器",
+      "failed": "无法离开服务器"
     }
   }
 }

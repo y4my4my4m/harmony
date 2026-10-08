@@ -1,442 +1,89 @@
 <template>
-  <div 
+  <div
     class="server-folder"
-    :class="{ 'is-expanded': folder.is_expanded, 'is-dragging-over': isDraggingOver }"
-    @contextmenu.prevent="openContextMenu"
+    :class="{ 'is-expanded': folder.is_expanded }"
+    :style="{ '--folder-color': folder.color }"
   >
-    <!-- Collapsed folder view - shows 2x2 grid of server icons -->
-    <Transition name="folder-collapse">
-      <div 
-        v-if="!folder.is_expanded"
-        class="folder-collapsed"
-        :style="{ '--folder-color': folder.color }"
+    <div
+      v-if="!folder.is_expanded"
+      class="folder-collapsed"
+      role="button"
+      tabindex="0"
+      data-rail-kind="folder"
+      :data-rail-id="folder.id"
+      :aria-label="label"
+      aria-expanded="false"
+    >
+      <div class="server-pill" :class="{ 'has-unread': hasUnread }"></div>
+      <div class="folder-grid">
+        <div v-for="server in previewServers" :key="server.id" class="folder-grid-item">
+          <img
+            :src="iconUrl(server.icon)"
+            alt=""
+            class="folder-grid-icon"
+            width="20"
+            height="20"
+            loading="lazy"
+            decoding="async"
+            draggable="false"
+            @error="onIconError"
+          />
+        </div>
+      </div>
+      <div v-if="mentions > 0" class="unread-badge">{{ mentions > 99 ? '99+' : mentions }}</div>
+    </div>
+
+    <div v-else class="folder-expanded">
+      <div
+        class="folder-cap"
         role="button"
         tabindex="0"
-        :aria-label="folder.name || 'Folder'"
-        aria-expanded="false"
-        @click="toggleExpanded"
-        @keydown.enter.prevent="toggleExpanded"
-        @keydown.space.prevent="toggleExpanded"
-        @dragenter.prevent="handleDragEnter"
-        @dragleave.prevent="handleDragLeave"
-        @dragover.prevent
-        @drop.prevent="handleDrop"
-        @mouseenter="showFolderTooltip"
-        @mouseleave="hideFolderTooltip"
+        data-rail-kind="folder"
+        :data-rail-id="folder.id"
+        :aria-label="label"
+        aria-expanded="true"
       >
-        <div class="folder-grid">
-          <div 
-            v-for="server in previewServers" 
-            :key="server.id"
-            class="folder-grid-item"
-          >
-            <img 
-              :src="getServerIconUrl(server.icon)" 
-              :alt="server.name"
-              class="folder-grid-icon"
-              draggable="false"
-              @error="onIconError($event)"
-            />
-          </div>
-          <!-- Empty slots -->
-          <div 
-            v-for="n in (4 - previewServers.length)" 
-            :key="'empty-' + n"
-            class="folder-grid-item folder-grid-empty"
-          ></div>
-        </div>
-        <!-- Folder indicator bar -->
-        <div class="folder-indicator"></div>
-      </div>
-    </Transition>
-
-    <!-- Notification dot for collapsed folder (outside overflow:hidden container) -->
-    <div v-if="!folder.is_expanded && folderHasNotifications" class="folder-notification-dot"></div>
-
-    <!-- Expanded folder view -->
-    <Transition name="folder-expand">
-      <div 
-        v-if="folder.is_expanded" 
-        class="folder-expanded" 
-        :class="{ 'is-drag-target': isDraggingOver }"
-        :style="{ '--folder-color': folder.color }"
-        @dragenter.prevent="handleDragEnter"
-        @dragleave.prevent="handleDragLeave"
-        @dragover.prevent
-        @drop.prevent="handleDrop"
-      >
-        <!-- Folder top cap with folder icon -->
-        <div 
-          class="folder-cap folder-cap-top"
-          role="button"
-          tabindex="0"
-          :aria-label="folder.name || 'Folder'"
-          aria-expanded="true"
-          @click="toggleExpanded"
-          @keydown.enter.prevent="toggleExpanded"
-          @keydown.space.prevent="toggleExpanded"
-          @mouseenter="showFolderTooltip"
-          @mouseleave="hideFolderTooltip"
-        >
-          <svg class="folder-cap-icon" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4Z"/>
-          </svg>
-        </div>
-
-        <!-- Servers in folder with colored border -->
-        <div class="folder-content">
-          <div 
-            v-for="server in servers"
-            :key="server.id"
-            class="folder-server-item"
-            :class="{
-              'is-dragging': draggingServerIdInFolder === server.id,
-              'drop-target-before': dropTargetServerId === server.id && dropPosition === 'before',
-              'drop-target-after': dropTargetServerId === server.id && dropPosition === 'after',
-              'external-drop-target': dropTargetServerId === server.id && isExternalDragOver
-            }"
-            draggable="true"
-            @dragstart="handleServerDragStart($event, server)"
-            @dragend="handleServerDragEnd"
-            @dragenter.prevent="handleServerDragEnterItem($event, server)"
-            @dragover="handleServerDragOverItem($event, server)"
-            @dragleave="handleServerDragLeaveItem($event)"
-            @drop="handleServerDropOnItem($event, server)"
-            role="button"
-            tabindex="0"
-            :aria-label="server.name"
-            :aria-current="isSelected(server.id) ? 'page' : undefined"
-            @click.stop="handleServerClick(server.id)"
-            @keydown.enter.prevent="handleServerClick(server.id)"
-            @keydown.space.prevent="handleServerClick(server.id)"
-            @contextmenu.prevent.stop="openServerContextMenu($event, server)"
-            @mouseenter="showServerTooltip($event, server.name); emitServerHover(server.id)"
-            @mouseleave="hideServerTooltip(); emitServerLeave()"
-            @focus="emitServerHover(server.id)"
-            @blur="emitServerLeave"
-          >
-            <div class="server-pill" :class="{ 'visible': isSelected(server.id), 'has-unread': hasServerUnread(server.id) && !isSelected(server.id) }"></div>
-            <ServerIcon
-              :id="server.id"
-              :src="server.icon"
-              :alt="server.name"
-              size="md"
-              class="server-item"
-              :class="{ selected: isSelected(server.id) }"
-              shape="round"
-              :interactive="true"
-              :show-title="false"
-            />
-            <div v-if="getServerUnreadMentions(server.id) > 0" class="unread-badge">
-              {{ getServerUnreadMentions(server.id) > 99 ? '99+' : getServerUnreadMentions(server.id) }}
-            </div>
-          </div>
-        </div>
-      </div>
-    </Transition>
-
-  </div>
-
-  <!-- Server context menu - teleported to body to avoid stacking context issues -->
-  <Teleport to="body">
-    <div 
-      v-if="showServerMenu" 
-      class="server-folder-context-menu context-menu"
-      :style="{ top: menuPosition.y + 'px', left: menuPosition.x + 'px' }"
-      @click.stop
-      v-click-outside="closeServerMenu"
-    >
-      <div class="context-menu-item" @click="removeFromFolder">
-        <svg width="16" height="16" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+        <svg class="folder-cap-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4Z"/>
         </svg>
-        <span>Remove from folder</span>
       </div>
+      <TransitionGroup tag="div" name="rail-move" class="folder-content" role="group" :aria-label="label">
+        <div v-for="server in servers" :key="server.id" class="folder-member">
+          <ServerRailItem :server="server" :folder-id="folder.id" />
+        </div>
+      </TransitionGroup>
     </div>
-  </Teleport>
-  
-  <!-- Server Tooltip - Teleported to body -->
-  <Teleport to="body">
-    <Transition name="tooltip-fade">
-      <div 
-        v-if="serverTooltipVisible"
-        class="server-tooltip"
-        :style="{ top: serverTooltipY + 'px' }"
-      >
-        <span class="server-tooltip-name">{{ serverTooltipPayload?.name }}</span>
-        <div class="server-tooltip-arrow"></div>
-      </div>
-    </Transition>
-  </Teleport>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onBeforeUnmount } from 'vue';
-import ServerIcon from '@/components/common/ServerIcon.vue';
-import { getServerIconUrl } from '@/utils/serverUtils';
-import { useServerChannelStore } from '@/stores/useServerChannel';
-import { useNotificationStore } from '@/stores/useNotification';
-import { useUnreadCounts } from '@/composables/useUnreadCounts';
-import { useViewport } from '@/composables/useViewport';
-import { useAnchoredTooltip } from '@/composables/useAnchoredTooltip';
-import type { Server, ServerFolder } from '@/types';
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import ServerRailItem from '@/components/serverRail/ServerRailItem.vue'
+import { useRailFolderState } from '@/components/serverRail/railState'
+import { getServerIconUrl } from '@/utils/serverUtils'
+import { devicePixels } from '@/utils/imageTransformUtils'
+import type { Server, ServerFolder } from '@/types'
 
-interface Props {
-  folder: ServerFolder;
-  servers: Server[];
-  selectedServerId: string | null;
-}
+const props = defineProps<{
+  folder: ServerFolder
+  servers: readonly Server[]
+}>()
 
-// Named-tuple form. With nine call signatures vue-tsc resolves the emits to
-// any[] and every listener in ServerSidebar fails to type-check.
-interface Emits {
-  'select-server': [serverId: string];
-  'hover-server': [serverId: string];
-  'leave-server': [];
-  'open-context-menu': [event: MouseEvent, folder: ServerFolder];
-  'servers-reordered': [servers: Server[]];
-  'server-dropped': [serverId: string, folderId: string];
-  'server-removed': [serverId: string];
-  'show-folder-tooltip': [event: MouseEvent, name: string, serverCount: number];
-  'hide-folder-tooltip': [];
-}
+const { t } = useI18n()
 
-const props = defineProps<Props>();
-const emit = defineEmits<Emits>();
+const label = computed(() => props.folder.name || t('serverRail.folder.unnamed'))
+const previewServers = computed(() => props.servers.slice(0, 4))
+const { mentions, hasUnread } = useRailFolderState(() => props.servers)
 
-const serverChannelStore = useServerChannelStore();
-const notificationStore = useNotificationStore();
-const { getServerUnreadMessages } = useUnreadCounts();
-
-const isDraggingOver = ref(false);
-const showServerMenu = ref(false);
-const menuPosition = ref({ x: 0, y: 0 });
-const selectedServerForMenu = ref<Server | null>(null);
-
-// Drag reordering state within folder
-const draggingServerIdInFolder = ref<string | null>(null);
-const dropTargetServerId = ref<string | null>(null);
-const dropPosition = ref<'before' | 'after'>('after');
-const isExternalDragOver = ref(false); // Track when external server is being dragged over
-
-const {
-  visible: serverTooltipVisible,
-  y: serverTooltipY,
-  payload: serverTooltipPayload,
-  show: showAnchoredTooltip,
-  hide: hideServerTooltip,
-} = useAnchoredTooltip<{ name: string }>();
-
-// First 4 servers for the grid preview
-const previewServers = computed(() => {
-  return props.servers.slice(0, 4);
-});
-
-const folderHasNotifications = computed(() => {
-  return props.servers.some(s => getServerUnreadMentions(s.id) > 0);
-});
-
-const isSelected = (serverId: string) => {
-  return serverId === props.selectedServerId;
-};
-
-const getServerUnreadMentions = (serverId: string): number => {
-  return notificationStore.unreadServerMentions(serverId);
-};
-
-const hasServerUnread = (serverId: string): boolean => {
-  return getServerUnreadMessages(serverId) > 0 || getServerUnreadMentions(serverId) > 0;
-};
-
-const toggleExpanded = () => {
-  serverChannelStore.toggleFolderExpanded(props.folder.id);
-};
-
-const openContextMenu = (event: MouseEvent) => {
-  emit('open-context-menu', event, props.folder);
-};
-
-const handleDragEnter = () => {
-  isDraggingOver.value = true;
-};
-
-const handleDragLeave = (event: DragEvent) => {
-  // Clear only when the pointer leaves the folder element, not a descendant.
-  const relatedTarget = event.relatedTarget as HTMLElement;
-  if (!relatedTarget || !event.currentTarget || !(event.currentTarget as HTMLElement).contains(relatedTarget)) {
-    isDraggingOver.value = false;
-  }
-};
-
-const handleDrop = (event: DragEvent) => {
-  isDraggingOver.value = false;
-  
-  const serverId = event.dataTransfer?.getData('text/plain');
-  if (serverId) {
-    emit('server-dropped', serverId, props.folder.id);
-  }
-};
-
-const handleServerDragStart = (event: DragEvent, server: Server) => {
-  event.dataTransfer?.setData('text/plain', server.id);
-  event.dataTransfer?.setData('application/x-from-folder', props.folder.id);
-  event.dataTransfer!.effectAllowed = 'move';
-  draggingServerIdInFolder.value = server.id;
-};
-
-const handleServerDragEnd = () => {
-  draggingServerIdInFolder.value = null;
-  dropTargetServerId.value = null;
-};
-
-const handleServerDragEnterItem = (event: DragEvent, server: Server) => {
-  const isInternalDrag = draggingServerIdInFolder.value && draggingServerIdInFolder.value !== server.id;
-  const hasExternalData = event.dataTransfer?.types.includes('text/plain') ?? false;
-  const isExternal = !draggingServerIdInFolder.value && hasExternalData;
-  
-  if (isInternalDrag || isExternal) {
-    dropTargetServerId.value = server.id;
-    isExternalDragOver.value = !!isExternal;
-    // Determine if drop should be before or after based on mouse position
-    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    const midY = rect.top + rect.height / 2;
-    dropPosition.value = event.clientY < midY ? 'before' : 'after';
-  }
-};
-
-const handleServerDragOverItem = (event: DragEvent, server: Server) => {
-  event.preventDefault();
-  const isInternalDrag = draggingServerIdInFolder.value && draggingServerIdInFolder.value !== server.id;
-  const hasExternalData = event.dataTransfer?.types.includes('text/plain') ?? false;
-  const isExternal = !draggingServerIdInFolder.value && hasExternalData;
-  
-  if (isInternalDrag || isExternal) {
-    dropTargetServerId.value = server.id;
-    isExternalDragOver.value = !!isExternal;
-    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    const midY = rect.top + rect.height / 2;
-    dropPosition.value = event.clientY < midY ? 'before' : 'after';
-  }
-};
-
-const handleServerDragLeaveItem = (event: DragEvent) => {
-  const relatedTarget = event.relatedTarget as HTMLElement;
-  if (!relatedTarget || !event.currentTarget || !(event.currentTarget as HTMLElement).contains(relatedTarget)) {
-    dropTargetServerId.value = null;
-    isExternalDragOver.value = false;
-  }
-};
-
-const handleServerDropOnItem = (event: DragEvent, targetServer: Server) => {
-  event.preventDefault();
-  event.stopPropagation();
-  
-  const externalServerId = event.dataTransfer?.getData('text/plain');
-  const isFromOutside = externalServerId && !draggingServerIdInFolder.value;
-  
-  if (isFromOutside) {
-    // Server from outside - add to folder
-    isDraggingOver.value = false;
-    isExternalDragOver.value = false;
-    dropTargetServerId.value = null;
-    emit('server-dropped', externalServerId, props.folder.id);
-    return;
-  }
-  
-  if (!draggingServerIdInFolder.value || draggingServerIdInFolder.value === targetServer.id) {
-    dropTargetServerId.value = null;
-    return;
-  }
-  
-  // Reorder servers within the folder
-  const draggedIndex = props.servers.findIndex(s => s.id === draggingServerIdInFolder.value);
-  const targetIndex = props.servers.findIndex(s => s.id === targetServer.id);
-  
-  if (draggedIndex === -1 || targetIndex === -1) {
-    dropTargetServerId.value = null;
-    return;
-  }
-  
-  const newServers = [...props.servers];
-  const [draggedServer] = newServers.splice(draggedIndex, 1);
-  
-  let newIndex = targetIndex;
-  if (dropPosition.value === 'after') {
-    newIndex = draggedIndex < targetIndex ? targetIndex : targetIndex + 1;
-  } else {
-    newIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
-  }
-  
-  newServers.splice(newIndex, 0, draggedServer);
-  emit('servers-reordered', newServers);
-  
-  dropTargetServerId.value = null;
-  draggingServerIdInFolder.value = null;
-};
-
-const handleServerClick = (serverId: string) => {
-  emit('select-server', serverId);
-};
-
-// Tooltip handlers
-const { isTouchOnly: isTouchDevice } = useViewport();
-
-const showServerTooltip = (event: MouseEvent, name: string) => {
-  if (isTouchDevice || !props.folder.is_expanded) return;
-  showAnchoredTooltip(event, { name: name || 'Unnamed server' });
-};
-
-watch(() => props.folder.is_expanded, () => {
-  hideServerTooltip();
-  hideFolderTooltip();
-});
-
-onBeforeUnmount(() => {
-  hideServerTooltip();
-  hideFolderTooltip();
-});
-
-const emitServerHover = (serverId: string) => emit('hover-server', serverId);
-const emitServerLeave = () => emit('leave-server');
-
-// Folder tooltip handlers (emit to parent)
-const showFolderTooltip = (event: MouseEvent) => {
-  if (isTouchDevice) return;
-  emit('show-folder-tooltip', event, props.folder.name || 'Folder', props.servers.length);
-};
-
-const hideFolderTooltip = () => {
-  emit('hide-folder-tooltip');
-};
-
-const openServerContextMenu = (event: MouseEvent, server: Server) => {
-  selectedServerForMenu.value = server;
-  menuPosition.value = { x: event.clientX, y: event.clientY };
-  showServerMenu.value = true;
-};
-
-const closeServerMenu = () => {
-  showServerMenu.value = false;
-  selectedServerForMenu.value = null;
-};
-
-const removeFromFolder = async () => {
-  if (selectedServerForMenu.value) {
-    await serverChannelStore.moveServerToFolder(selectedServerForMenu.value.id, null);
-    emit('server-removed', selectedServerForMenu.value.id);
-    
-    const remainingServers = props.servers.filter(s => s.id !== selectedServerForMenu.value!.id);
-    if (remainingServers.length === 0) {
-      await serverChannelStore.deleteFolder(props.folder.id);
-    }
-  }
-  closeServerMenu();
-};
+// Grid tiles are 20 CSS px; requesting that size keeps the rail off full icons.
+const tilePixels = devicePixels(20)
+const iconUrl = (icon: string | null | undefined) => getServerIconUrl(icon, tilePixels)
 
 const onIconError = (event: Event) => {
-  const img = event.target as HTMLImageElement;
-  img.src = '/default_server.webp';
-};
+  const img = event.target as HTMLImageElement
+  if (!img.src.endsWith('/default_server.webp')) img.src = '/default_server.webp'
+}
 </script>
 
 <style scoped>
@@ -444,236 +91,90 @@ const onIconError = (event: Event) => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin: 4px 0;
-  --folder-color: var(--harmony-primary);
   position: relative;
+  --folder-color: var(--harmony-primary);
 }
 
-/* Collapsed folder - 2x2 grid */
 .folder-collapsed {
+  position: relative;
   width: 48px;
   height: 48px;
-  background: color-mix(in srgb, var(--folder-color) 40%, var(--background-quaternary, var(--background-tertiary)));
   border-radius: 16px;
+  background: color-mix(in srgb, var(--folder-color) 40%, var(--background-quaternary, var(--background-tertiary)));
   cursor: pointer;
-  position: relative;
-  transition: all 0.2s ease-in-out;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
+  touch-action: pan-y;
+  -webkit-touch-callout: none;
+  user-select: none;
 }
 
-.folder-collapsed:hover {
-  border-radius: 12px;
-}
-
-.is-dragging-over .folder-collapsed {
-  transform: scale(1.08);
-  filter: brightness(1.3);
-  box-shadow:
-    0 0 0 3px var(--folder-color),
-    inset 0 0 0 48px rgba(255, 255, 255, 0.1);
-}
-
-/* Server outline indicator when dragging over */
-.is-dragging-over .folder-collapsed::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 36px;
-  height: 36px;
-  border: 2px dashed rgba(255, 255, 255, 0.6);
-  border-radius: 50%;
+.folder-collapsed:focus-visible,
+.folder-cap:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 3px;
 }
 
 .folder-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
+  grid-template-columns: 20px 20px;
+  grid-template-rows: 20px 20px;
   gap: 2px;
   padding: 3px;
-  flex: 1;
+  border-radius: 16px;
+  overflow: hidden;
 }
 
 .folder-grid-item {
-  width: 20px; /* 100% */
-  height: 20px; /* 100% */
-  border-radius: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .folder-grid-icon {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  user-select: none;
+  pointer-events: none;
   -webkit-user-drag: none;
-  pointer-events: none;
 }
 
-.folder-grid-empty {
-  background: transparent;
-}
-
-.folder-indicator {
-  height: 4px;
-  width: 100%;
-  flex-shrink: 0;
-  background: var(--folder-color);
-}
-
-.folder-notification-dot {
-  position: absolute;
-  top: -3px;
-  right: -3px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--error);
-  border: 2px solid var(--background-tertiary);
-  z-index: 2;
-  pointer-events: none;
-}
-
-/* Expanded folder - Discord style */
 .folder-expanded {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 100%;
-  background: color-mix(in srgb, var(--folder-color) 30%, transparent);
+  width: 56px;
+  padding-bottom: 6px;
   border-radius: 16px;
-  padding: 0 0 4px 0;
-  transition: all 0.2s ease;
-  outline: 2px solid transparent;
-  outline-offset: -2px;
-}
-
-.folder-expanded:hover {
-  outline: 2px solid var(--folder-color);
-}
-.folder-expanded:hover .folder-cap {
-  background: var(--folder-color);
-  filter: brightness(1.1);
+  background: color-mix(in srgb, var(--folder-color) 25%, transparent);
 }
 
 .folder-cap {
-  width: 56px;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
-}
-
-.folder-cap-top {
-  height: 24px;
-  border-radius: 16px 16px 0 0;
+  width: 48px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 8px;
+  border-radius: 16px;
+  cursor: pointer;
+  color: var(--folder-color);
+  touch-action: pan-y;
+  user-select: none;
 }
 
-
+.folder-cap:hover {
+  background: color-mix(in srgb, var(--folder-color) 25%, transparent);
+}
 
 .folder-cap-icon {
-  width: 16px;
-  height: 16px;
-  color: var(--text-primary);
-  opacity: 0.9;
+  width: 20px;
+  height: 20px;
 }
 
 .folder-content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: linear-gradient(
-    to right,
-    transparent 0%,
-    transparent calc(50% - 26px),
-    var(--folder-color) calc(50% - 26px),
-    var(--folder-color) calc(50% - 24px),
-    transparent calc(50% - 24px),
-    transparent 100%
-  );
-}
-
-.folder-server-item {
-  position: relative;
-  transition: opacity 0.15s ease;
-  padding: 2px 0;
-}
-
-/* Dragging state - ghost/transparent appearance */
-.folder-server-item.is-dragging {
-  opacity: 0.3;
-}
-
-.folder-server-item.is-dragging .server-item {
-  outline: 2px dashed rgba(255, 255, 255, 0.4);
-  outline-offset: 2px;
-}
-
-.folder-server-item.drop-target-before::before,
-.folder-server-item.drop-target-after::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: var(--success);
-  border-radius: 2px;
-  z-index: 10;
-}
-
-.folder-server-item.drop-target-before::before {
-  top: -3px;
-}
-
-.folder-server-item.drop-target-after::after {
-  bottom: -3px;
-}
-
-/* Server item styles */
-.server-item {
-  cursor: pointer;
-  user-select: none;
-}
-
-.server-item.selected {
-  border: 2px solid var(--harmony-secondary);
-  border-radius: 50%;
-}
-
-/* Make server images non-draggable */
-.server-item :deep(img) {
-  user-select: none;
-  -webkit-user-drag: none;
-  pointer-events: none;
-}
-
-/* Unread badge */
-.unread-badge {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  background: var(--error);
-  color: var(--text-on-primary);
-  font-size: 10px;
-  font-weight: bold;
-  padding: 2px 5px;
-  border-radius: 10px;
-  min-width: 14px;
-  height: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  gap: 8px;
 }
 
 .server-pill {
@@ -686,12 +187,7 @@ const onIconError = (event: Event) => {
   background: var(--text-primary);
   border-radius: 0 4px 4px 0;
   opacity: 0;
-  transition: all 0.15s ease;
-}
-
-.server-pill.visible {
-  opacity: 1;
-  height: 36px;
+  transition: height 0.15s ease, opacity 0.15s ease;
 }
 
 .server-pill.has-unread {
@@ -699,196 +195,37 @@ const onIconError = (event: Event) => {
   height: 8px;
 }
 
-.folder-server-item:hover .server-pill {
+.folder-collapsed:hover .server-pill {
   opacity: 1;
   height: 20px;
 }
 
-/* Hover indicator for collapsed */
-.folder-collapsed::before {
-  content: "";
+.unread-badge {
   position: absolute;
-  left: -20px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--vt-c-divider-dark-1);
-  opacity: 0;
-  transition: all 0.2s ease;
-}
-
-.folder-collapsed:hover::before {
-  left: -12px;
-  opacity: 1;
-}
-
-
-/* Drag over expanded folder */
-.folder-expanded.is-drag-target {
-  outline: 2px solid var(--folder-color);
-  filter: brightness(1.2);
-}
-
-/* Expand/Collapse animations */
-.folder-expand-enter-active {
-  transition: all 0.2s ease-out;
-  overflow: hidden;
-}
-
-.folder-expand-leave-active {
-  transition: all 0.15s ease-in;
-  overflow: hidden;
-  position: absolute;
-}
-
-.folder-expand-enter-from,
-.folder-expand-leave-to {
-  opacity: 0;
-  max-height: 0;
-}
-
-.folder-expand-enter-to,
-.folder-expand-leave-from {
-  opacity: 1;
-  max-height: 500px;
-}
-
-.folder-collapse-enter-active {
-  transition: all 0.15s ease-out;
-}
-
-.folder-collapse-leave-active {
-  transition: all 0.1s ease-in;
-  position: absolute;
-}
-
-.folder-collapse-enter-from,
-.folder-collapse-leave-to {
-  opacity: 0;
-}
-
-.folder-collapse-enter-to,
-.folder-collapse-leave-from {
-  opacity: 1;
-}
-
-/* Server Tooltip */
-.server-tooltip {
-  position: fixed;
-  left: 80px;
-  transform: translateY(-50%);
-  background: var(--tooltip-bg);
-  border-radius: var(--radius-md);
-  padding: 10px 14px;
-  box-shadow: var(--shadow-small);
-  z-index: 1001;
-  pointer-events: none;
-  white-space: nowrap;
-}
-
-.server-tooltip-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--tooltip-text, var(--text-primary));
-}
-
-.server-tooltip-arrow {
-  position: absolute;
-  left: -6px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 0;
-  height: 0;
-  border-top: 6px solid transparent;
-  border-bottom: 6px solid transparent;
-  border-right: 6px solid var(--tooltip-arrow);
-}
-
-/* Tooltip animation */
-.tooltip-fade-enter-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
-}
-
-.tooltip-fade-leave-active {
-  transition: opacity 0.1s ease, transform 0.1s ease;
-}
-
-.tooltip-fade-enter-from {
-  opacity: 0;
-  transform: translateY(-50%) translateX(-5px);
-}
-
-.tooltip-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-50%) translateX(-5px);
-}
-
-.tooltip-fade-enter-to,
-.tooltip-fade-leave-from {
-  opacity: 1;
-  transform: translateY(-50%) translateX(0);
-}
-</style>
-
-<!-- Non-scoped styles for teleported elements -->
-<style>
-.server-folder-context-menu.context-menu {
-  position: fixed;
-  background: var(--background-floating);
-  border: 1px solid var(--background-quinary);
-  border-radius: var(--radius-base);
-  padding: 6px 0;
-  min-width: 180px;
-  box-shadow: var(--shadow-large);
-  z-index: 10001;
-}
-
-.server-folder-context-menu .context-menu-item {
+  top: -6px;
+  right: -6px;
+  background: var(--error);
+  color: var(--text-on-primary);
+  font-size: 10px;
+  font-weight: bold;
+  padding: 2px 5px;
+  border-radius: 10px;
+  min-width: 16px;
+  height: 16px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.1s ease;
-}
-
-.server-folder-context-menu .context-menu-item:hover {
-  background-color: var(--harmony-primary);
-  color: var(--text-on-primary);
-}
-
-.server-tooltip {
-  position: fixed;
-  left: 80px;
-  transform: translateY(-50%);
-  background: var(--tooltip-bg);
-  border-radius: var(--radius-md);
-  padding: 10px 14px;
-  box-shadow: var(--shadow-small);
-  z-index: 10001;
+  justify-content: center;
+  box-shadow: 0 0 0 3px var(--background-tertiary);
   pointer-events: none;
-  white-space: nowrap;
 }
 
-.server-tooltip-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--tooltip-text, var(--text-primary));
+.rail-move-move {
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1);
 }
 
-.server-tooltip-arrow {
-  position: absolute;
-  left: -6px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 0;
-  height: 0;
-  border-top: 6px solid transparent;
-  border-bottom: 6px solid transparent;
-  border-right: 6px solid var(--tooltip-arrow);
+@media (prefers-reduced-motion: reduce) {
+  .rail-move-move {
+    transition: none;
+  }
 }
 </style>

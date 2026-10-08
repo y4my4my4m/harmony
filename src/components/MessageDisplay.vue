@@ -759,7 +759,7 @@ import {
   distanceFromBottom,
   nextPinState,
   scrollTopAfterPrepend,
-  scrollTopAfterResize,
+  correctForItemResize,
   showJumpToPresent,
   type PinState,
 } from '@/utils/chatScroll';
@@ -1755,9 +1755,7 @@ const adjustForItemResize = (item: VirtualItem, delta: number): boolean => {
   const list = virtualListRef.value;
   if (!el || !list || pinState.pinned) return false;
   const listOffset = list.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
-  const next = scrollTopAfterResize(el.scrollTop, listOffset, item.start, delta);
-  if (next !== el.scrollTop) el.scrollTop = next;
-  return false;
+  return correctForItemResize(el, listOffset, item.start, delta);
 };
 
 // --- VIRTUAL SCROLLING ---

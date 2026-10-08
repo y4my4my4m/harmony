@@ -13,6 +13,13 @@ import { debug } from '@/utils/debug'
 let lastDecryptionError: string | null = null
 
 /**
+ * Longest wait for an in-flight encryption initialize() before rows are
+ * returned undecrypted. Rows returned undecrypted are re-decrypted by the
+ * megolm-key-received listeners once the unlock lands.
+ */
+export const INIT_SETTLE_TIMEOUT_MS = 4000
+
+/**
  * Get the last decryption error (for debugging/UI display)
  */
 export function getLastDecryptionError(): string | null {
@@ -61,6 +68,14 @@ export async function processMessageDecryption(messages: Message[]): Promise<Mes
     } catch (error) {
       debug.warn('Failed to lazy-initialize encryption for decryption:', error)
     }
+  }
+
+  // An initialize() started elsewhere (app boot) sets isInitialized() before
+  // its stored-key auto-unlock finishes. Rows returned in that window paint as
+  // glyphs and reflow on the unlock's megolm-key-received; waiting here lets
+  // the first paint carry plaintext.
+  if (!encryptionService.isUnlocked() && typeof encryptionService.whenInitSettled === 'function') {
+    await encryptionService.whenInitSettled(INIT_SETTLE_TIMEOUT_MS)
   }
 
   if (!encryptionService.isInitialized()) {

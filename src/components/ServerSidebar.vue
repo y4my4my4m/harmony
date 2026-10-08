@@ -104,198 +104,39 @@
       <div class="separator"></div>
     </div>
 
-    <div 
-      class="servers-scroll-area"
-      :class="{ 'drag-over-bottom': isDraggingOverBottom }"
-      @dragover.prevent="handleScrollAreaDragOver"
-      @dragleave.prevent="handleScrollAreaDragLeave"
-      @drop.prevent="handleDropOnScrollArea"
-    >
-      <!-- Folders and root servers interleaved by position -->
-      <template v-for="item in sortedSidebarItems" :key="item.id">
-        <div
-          v-if="isFolder(item)"
-          class="sidebar-item-wrapper folder-wrapper"
-          :class="{
-            'is-dragging': draggingItemId === item.id,
-            'drop-target-before': dragOverItemId === item.id && dropPosition === 'before',
-            'drop-target-after': dragOverItemId === item.id && dropPosition === 'after'
-          }"
-          draggable="true"
-          @dragstart.stop="handleFolderDragStart($event, item)"
-          @dragend="handleItemDragEnd"
-        >
-          <ServerFolder
-            :folder="item"
-            :servers="getFolderServers(item.id)"
-            :selected-server-id="activeServerId"
-            @select-server="selectServer"
-            @hover-server="scheduleServerPrefetch"
-            @leave-server="cancelServerPrefetch"
-            @open-context-menu="openFolderContextMenu"
-            @servers-reordered="handleFolderServersReorder(item.id, $event)"
-            @server-dropped="handleServerDroppedOnFolder"
-            @server-removed="handleServerRemovedFromFolder"
-            @show-folder-tooltip="showSidebarTooltip"
-            @hide-folder-tooltip="hideSidebarTooltip"
-          />
-          <!-- Invisible drop zones for reordering folders -->
-          <div 
-            class="folder-drop-zone folder-drop-zone-top"
-            @dragenter.prevent="handleItemDragEnter($event, item)"
-            @dragover.prevent="handleFolderDropZoneOver($event, item, 'before')"
-            @dragleave.prevent="handleItemDragLeave"
-            @drop.prevent="handleItemDrop($event, item)"
-          ></div>
-          <div 
-            class="folder-drop-zone folder-drop-zone-bottom"
-            @dragenter.prevent="handleItemDragEnter($event, item)"
-            @dragover.prevent="handleFolderDropZoneOver($event, item, 'after')"
-            @dragleave.prevent="handleItemDragLeave"
-            @drop.prevent="handleItemDrop($event, item)"
-          ></div>
-        </div>
-
-        <!-- Root-level server -->
-        <div
-          v-else
-          class="sidebar-item-wrapper server-item-wrapper"
-          :class="{ 
-            'drop-target-into': dragOverItemId === item.id && dropPosition === 'into' && draggingItemType === 'server',
-            'drop-target-before': dragOverItemId === item.id && dropPosition === 'before',
-            'drop-target-after': dragOverItemId === item.id && dropPosition === 'after',
-            'is-dragging': draggingItemId === item.id
-          }"
-          draggable="true"
-          @dragstart="handleServerDragStart($event, item)"
-          @dragend="handleItemDragEnd"
-          @dragenter.prevent="handleItemDragEnter($event, item)"
-          @dragover.prevent="handleItemDragOver($event, item)"
-          @dragleave.prevent="handleItemDragLeave"
-          @drop.prevent="handleItemDrop($event, item)"
-          role="button"
-          tabindex="0"
-          :aria-label="item.name"
-          :aria-current="isSelected(item.id) ? 'page' : undefined"
-          @click.stop="selectServer(item.id)"
-          @keydown.enter.prevent="selectServer(item.id)"
-          @keydown.space.prevent="selectServer(item.id)"
-          @contextmenu.prevent="openServerContextMenu($event, item)"
-          @mouseenter="showSidebarTooltip($event, item.name); scheduleServerPrefetch(item.id)"
-          @mouseleave="hideSidebarTooltip(); cancelServerPrefetch()"
-          @focus="scheduleServerPrefetch(item.id)"
-          @blur="cancelServerPrefetch"
-        >
-          <div class="server-pill" :class="{ 'visible': isSelected(item.id), 'has-unread': hasServerUnread(item.id) && !isSelected(item.id) }"></div>
-          <ServerIcon
-            :id="item.id"
-            :src="item.icon"
-            :alt="item.name"
-            size="md"
-            class="server-item"
-            :class="{ selected: isSelected(item.id) }"
-            shape="round"
-            :interactive="true"
-            :show-title="false"
-          />
-          <div v-if="getServerUnreadMentions(item.id) > 0" class="unread-badge">
-            {{ getServerUnreadMentions(item.id) > 99 ? '99+' : getServerUnreadMentions(item.id) }}
-          </div>
-          <div v-if="dragOverItemId === item.id && dropPosition === 'into' && draggingItemType === 'server'" class="folder-create-indicator">
-            <svg viewBox="0 0 24 24" width="16" height="16">
-              <path fill="currentColor" d="M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4Z"/>
-            </svg>
-          </div>
-        </div>
-      </template>
-      
-      <div v-if="isDraggingOverBottom" class="bottom-drop-indicator"></div>
-
-      <!-- Phone widths only. Last child of the list; not a drop target, so a
-           drag over it lands at the end of the list. -->
-      <div v-if="showFundingButton" class="funding-item-wrapper">
-        <button
-          type="button"
-          class="funding-button"
-          aria-label="Instance funding"
-          @click="showFundingModal = true"
-          @mouseenter="showSidebarTooltip($event, 'Instance funding')"
-          @mouseleave="hideSidebarTooltip"
-        >
-          <svg viewBox="0 0 24 24" class="funding-icon" width="22" height="22" aria-hidden="true">
-            <path fill="currentColor" d="M12,21.35L10.55,20.03C5.4,15.36 2,12.27 2,8.5C2,5.41 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.08C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.41 22,8.5C22,12.27 18.6,15.36 13.45,20.03L12,21.35Z"/>
-          </svg>
-        </button>
-      </div>
-    </div>
-
-    <ServerFolderContextMenu
-      :is-visible="showFolderContextMenu"
-      :position="contextMenuPosition"
-      :folder="selectedFolder"
-      :servers="selectedFolder ? getFolderServers(selectedFolder.id) : []"
-      @close="closeFolderContextMenu"
+    <ServerRail
+      :servers="servers"
+      @select-server="selectServer"
+      @hover-server="scheduleServerPrefetch"
+      @leave-server="cancelServerPrefetch"
+      @tooltip="showRailTooltip"
+      @tooltip-hide="hideSidebarTooltip"
+      @invite="openInvite"
       @edit-folder="openEditFolderModal"
-      @delete-folder="handleDeleteFolder"
-      @toggle-expanded="handleToggleFolderExpanded"
-      @mark-as-read="handleMarkFolderAsRead"
-    />
-
-    <div 
-      v-if="showServerContextMenu" 
-      class="context-menu"
-      :style="{ top: contextMenuPosition.y + 'px', left: contextMenuPosition.x + 'px' }"
-      @click.stop
-      v-click-outside="closeServerContextMenu"
     >
-      <div class="context-menu-item" @click="handleMarkServerAsRead">
-        <svg width="16" height="16" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M0.41,13.41L6,19L7.41,17.58L1.83,12M22.24,5.58L11.66,16.17L7.5,12L6.07,13.41L11.66,19L23.66,7L22.24,5.58M18,7L16.59,5.58L10.24,11.93L11.66,13.34L18,7Z"/>
-        </svg>
-        <span>Mark as read</span>
-      </div>
-      <div class="context-menu-item" @click="openInviteFromContextMenu">
-        <svg width="16" height="16" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
-        </svg>
-        <span>Invite people</span>
-      </div>
-      <div class="context-menu-divider"></div>
-      <div class="context-menu-item" @click="createFolderFromServer">
-        <svg width="16" height="16" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4Z"/>
-        </svg>
-        <span>Create folder</span>
-      </div>
-      <template v-if="serverChannelStore.folders.length > 0">
-        <div class="context-menu-divider"></div>
-        <div class="context-menu-label">Move to folder</div>
-        <div 
-          v-for="folder in serverChannelStore.folders" 
-          :key="folder.id"
-          class="context-menu-item"
-          @click="moveServerToFolder(folder.id)"
-        >
-          <div class="folder-color-dot" :style="{ backgroundColor: folder.color }"></div>
-          <span>{{ folder.name }}</span>
+      <!-- Phone widths only. Last child of the list; a drag over it lands at the end. -->
+      <template #end>
+        <div v-if="showFundingButton" class="funding-item-wrapper">
+          <button
+            type="button"
+            class="funding-button"
+            aria-label="Instance funding"
+            @click="showFundingModal = true"
+            @mouseenter="showSidebarTooltip($event, 'Instance funding')"
+            @mouseleave="hideSidebarTooltip"
+          >
+            <svg viewBox="0 0 24 24" class="funding-icon" width="22" height="22" aria-hidden="true">
+              <path fill="currentColor" d="M12,21.35L10.55,20.03C5.4,15.36 2,12.27 2,8.5C2,5.41 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.08C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.41 22,8.5C22,12.27 18.6,15.36 13.45,20.03L12,21.35Z"/>
+            </svg>
+          </button>
         </div>
       </template>
-      <template v-if="selectedServer?.folder_id">
-        <div class="context-menu-divider"></div>
-        <div class="context-menu-item" @click="removeServerFromFolder">
-          <svg width="16" height="16" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
-          </svg>
-          <span>Remove from folder</span>
-        </div>
-      </template>
-    </div>
+    </ServerRail>
 
     <ServerFolderSettingsModal
       :is-open="showFolderModal"
       :folder="editingFolder"
       @close="closeFolderModal"
-      @saved="handleFolderSaved"
     />
 
     <!-- Opened from the server context menu -->
@@ -336,7 +177,7 @@
         <div class="sidebar-tooltip-content">
           <span class="sidebar-tooltip-name">{{ sidebarTooltip.name }}</span>
           <span v-if="sidebarTooltip.serverCount" class="sidebar-tooltip-count">
-            {{ sidebarTooltip.serverCount }} server{{ sidebarTooltip.serverCount !== 1 ? 's' : '' }}
+            {{ t('serverRail.folder.serverCount', { count: sidebarTooltip.serverCount }, sidebarTooltip.serverCount) }}
           </span>
         </div>
         <div class="sidebar-tooltip-arrow"></div>
@@ -352,11 +193,9 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { usePublicServersStore } from '@/stores/usePublicServers';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useNotificationStore } from '@/stores/useNotification';
-import { useUnreadCounts } from '@/composables/useUnreadCounts';
 import { isActivityPubRoute } from '@/types/viewTypes';
-import ServerIcon from '@/components/common/ServerIcon.vue';
-import ServerFolder from '@/components/ServerFolder.vue';
-import ServerFolderContextMenu from '@/components/ServerFolderContextMenu.vue';
+import ServerRail from '@/components/serverRail/ServerRail.vue';
+import { provideRailContext } from '@/components/serverRail/railState';
 import ServerFolderSettingsModal from '@/components/ServerFolderSettingsModal.vue';
 import InviteModal from '@/components/InviteModal.vue';
 import FundingModal from '@/components/FundingModal.vue';
@@ -366,10 +205,9 @@ import { useViewport } from '@/composables/useViewport';
 import { useAnchoredTooltip } from '@/composables/useAnchoredTooltip';
 import { useDesktopUpdater } from '@/composables/useDesktopUpdater';
 import { useI18n } from 'vue-i18n';
-import { debug } from '@/utils/debug';
 import type { Server, ServerFolder as ServerFolderType } from '@/types';
 
-const props = defineProps<{
+defineProps<{
   servers: Server[];
 }>();
 
@@ -382,7 +220,7 @@ const emit = defineEmits<{
 const showFundingModal = ref(false);
 
 const fundingStore = useFundingStore();
-const { isMobileViewport } = useViewport();
+const { isMobileViewport, isTouchOnly } = useViewport();
 const showFundingButton = computed(() => !!fundingStore.config?.enabled && isMobileViewport.value);
 
 const { t } = useI18n();
@@ -391,41 +229,21 @@ const updateReadyLabel = computed(() =>
   t('updater.indicatorLabel', { version: updaterState.availableVersion ?? '' }),
 );
 
-// Drag state for reordering and folder creation
-const draggingItemId = ref<string | null>(null);
-const draggingItemType = ref<'server' | 'folder' | null>(null);
-const dragOverItemId = ref<string | null>(null);
-const dropPosition = ref<'before' | 'after' | 'into'>('after');
-const folderWasExpanded = ref<boolean>(false); // Track if folder was expanded before drag
-const isDraggingOverBottom = ref(false); // Track when dragging over empty bottom area
-
 const {
   visible: sidebarTooltipVisible,
   y: sidebarTooltipY,
   payload: sidebarTooltip,
   show: showAnchoredTooltip,
+  showFor: showAnchoredTooltipFor,
   hide: hideSidebarTooltip,
 } = useAnchoredTooltip<{ name: string; serverCount?: number }>();
 
-// Legacy refs retained for backwards compatibility
-// eslint-disable-next-line unused-imports/no-unused-vars
-const draggingServerId = computed(() => draggingItemType.value === 'server' ? draggingItemId.value : null);
-// eslint-disable-next-line unused-imports/no-unused-vars
-const dragOverServerId = computed(() => dropPosition.value === 'into' ? dragOverItemId.value : null);
-
-const showFolderContextMenu = ref(false);
-const showServerContextMenu = ref(false);
-const contextMenuPosition = ref({ x: 0, y: 0 });
-const selectedFolder = ref<ServerFolderType | null>(null);
-const selectedServer = ref<Server | null>(null);
 const showInviteModal = ref(false);
 const inviteServer = ref<Server | null>(null);
 
-const openInviteFromContextMenu = () => {
-  inviteServer.value = selectedServer.value;
-  showInviteModal.value = false;
-  closeServerContextMenu();
-  showInviteModal.value = !!inviteServer.value;
+const openInvite = (server: Server) => {
+  inviteServer.value = server;
+  showInviteModal.value = true;
 };
 
 const showFolderModal = ref(false);
@@ -436,19 +254,8 @@ const publicServersStore = usePublicServersStore();
 const activityPubStore = useActivityPubStore();
 const { todayDashboardEnabled } = useTodayDashboard();
 const notificationStore = useNotificationStore();
-const { getServerUnreadMessages } = useUnreadCounts();
 const router = useRouter();
 const route = useRoute();
-
-// Folders and root servers interleaved by position
-const sortedSidebarItems = computed(() => {
-  const folders = serverChannelStore.folders.map(f => ({ ...f, _type: 'folder' as const }));
-  const rootServers = props.servers
-    .filter(s => !s.folder_id)
-    .map(s => ({ ...s, _type: 'server' as const }));
-  
-  return [...folders, ...rootServers].sort((a, b) => (a.position || 0) - (b.position || 0));
-});
 
 const isDMSelected = computed(() => {
   return route.name === 'DM' || route.name === 'DMHome' || route.name === 'DMConversation';
@@ -465,42 +272,16 @@ const isFediverseSelected = computed(() => {
 // the badge to zero. Counting other AP types - follows, reblogs, favorites,
 // replies - strands the badge, since nothing reachable from it clears them.
 // Other AP notifications surface in the bell-icon panel.
-const unreadCount = computed(() => {
-  return notificationStore.notifications.filter(
-    n => !n.is_read && n.type === 'activitypub_mention'
-  ).length;
-});
+const unreadCount = computed(() => notificationStore.notificationCounts?.unreadMentions ?? 0);
 
-const dmUnreadMentions = computed(() => {
-  return notificationStore.unreadDMs;
-});
-
-const isFolder = (item: ServerFolderType | Server): item is ServerFolderType => {
-  return 'is_expanded' in item;
-};
-
-const getFolderServers = (folderId: string): Server[] => {
-  return props.servers
-    .filter(s => s.folder_id === folderId)
-    .sort((a, b) => (a.position || 0) - (b.position || 0));
-};
-
-const getServerUnreadMentions = (serverId: string): number => {
-  return notificationStore.unreadServerMentions(serverId);
-};
-
-const hasServerUnread = (serverId: string): boolean => {
-  return getServerUnreadMessages(serverId) > 0 || getServerUnreadMentions(serverId) > 0;
-};
+const dmUnreadMentions = computed(() => notificationStore.unreadDMs ?? 0);
 
 const activeServerId = computed(() => {
   if (isDMSelected.value || isFediverseSelected.value || isTodaySelected.value) return null;
   return serverChannelStore.currentServerId;
 });
 
-const isSelected = (serverId: string) => {
-  return serverId === activeServerId.value;
-};
+provideRailContext({ activeServerId });
 
 onMounted(() => {
   void fundingStore.load()
@@ -616,525 +397,29 @@ const goToFediverse = () => {
   router.push({ name: 'SocialHome' });
 };
 
-// Drag and drop: reordering and folder creation
-const handleServerDragStart = (event: DragEvent, server: Server) => {
-  draggingItemId.value = server.id;
-  draggingItemType.value = 'server';
-  event.dataTransfer?.setData('text/plain', server.id);
-  event.dataTransfer?.setData('application/x-item-type', 'server');
-  event.dataTransfer!.effectAllowed = 'move';
-};
-
-const handleFolderDragStart = (event: DragEvent, folder: ServerFolderType) => {
-  const target = event.target as HTMLElement;
-  
-  // Servers inside the folder handle their own drag.
-  if (target.closest('.folder-server-item') || target.closest('.server-item')) {
-    return;
-  }
-  
-  draggingItemId.value = folder.id;
-  draggingItemType.value = 'folder';
-  folderWasExpanded.value = folder.is_expanded;
-  
-  // Collapse folder while dragging
-  if (folder.is_expanded) {
-    serverChannelStore.toggleFolderExpanded(folder.id);
-  }
-  
-  event.dataTransfer?.setData('text/plain', folder.id);
-  event.dataTransfer?.setData('application/x-item-type', 'folder');
-  event.dataTransfer!.effectAllowed = 'move';
-};
-
-const handleItemDragEnd = () => {
-  // Drags originating inside a folder are handled there.
-  if (!draggingItemId.value) {
-    return;
-  }
-  
-  if (draggingItemType.value === 'folder' && folderWasExpanded.value) {
-    const folder = serverChannelStore.folders.find(f => f.id === draggingItemId.value);
-    if (folder && !folder.is_expanded) {
-      serverChannelStore.toggleFolderExpanded(folder.id);
-    }
-  }
-  
-  draggingItemId.value = null;
-  draggingItemType.value = null;
-  dragOverItemId.value = null;
-  folderWasExpanded.value = false;
-};
-
-const handleItemDragEnter = (event: DragEvent, item: Server | ServerFolderType) => {
-  const isDraggingFromFolder = event.dataTransfer?.types.includes('application/x-from-folder');
-  const isDragging = draggingItemId.value || isDraggingFromFolder;
-  
-  if (isDragging && draggingItemId.value !== item.id) {
-    dragOverItemId.value = item.id;
-    isDraggingOverBottom.value = false; // Clear bottom indicator when over an item
-    updateDropPosition(event, item, isDraggingFromFolder);
-  }
-};
-
-const handleItemDragOver = (event: DragEvent, item: Server | ServerFolderType) => {
-  const isDraggingFromFolder = event.dataTransfer?.types.includes('application/x-from-folder');
-  const isDragging = draggingItemId.value || isDraggingFromFolder;
-  
-  if (isDragging && draggingItemId.value !== item.id) {
-    isDraggingOverBottom.value = false; // Clear bottom indicator when over an item
-    updateDropPosition(event, item, isDraggingFromFolder);
-  }
-};
-
-const handleFolderDropZoneOver = (event: DragEvent, item: ServerFolderType, position: 'before' | 'after') => {
-  event.preventDefault();
-  if (draggingItemId.value && draggingItemId.value !== item.id) {
-    dragOverItemId.value = item.id;
-    dropPosition.value = position;
-  }
-};
-
-const updateDropPosition = (event: DragEvent, item: Server | ServerFolderType, isDraggingFromFolder: boolean = false) => {
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-  const relativeY = event.clientY - rect.top;
-  const height = rect.height;
-  
-  // Dragging a server over a server can create a folder
-  const canCreateFolder = (draggingItemType.value === 'server' || isDraggingFromFolder) && !isFolder(item);
-  
-  if (canCreateFolder) {
-    if (relativeY < height * 0.25) {
-      dropPosition.value = 'before';
-    } else if (relativeY > height * 0.75) {
-      dropPosition.value = 'after';
-    } else {
-      dropPosition.value = 'into'; // Create folder
-    }
-  } else {
-    // Folder source or folder target: before/after only
-    dropPosition.value = relativeY < height / 2 ? 'before' : 'after';
-  }
-};
-
-const handleItemDragLeave = (event: DragEvent) => {
-  const relatedTarget = event.relatedTarget as HTMLElement;
-  if (!relatedTarget || !event.currentTarget || !(event.currentTarget as HTMLElement).contains(relatedTarget)) {
-    dragOverItemId.value = null;
-  }
-};
-
-const handleItemDrop = async (event: DragEvent, targetItem: Server | ServerFolderType) => {
-  event.stopPropagation();
-  
-  const draggedId = draggingItemId.value || event.dataTransfer?.getData('text/plain');
-  const fromFolderId = event.dataTransfer?.getData('application/x-from-folder');
-  const isDraggingFromFolder = !!fromFolderId;
-  
-  if (!draggedId || draggedId === targetItem.id) {
-    resetDragState();
-    return;
-  }
-
-  const targetIsFolder = isFolder(targetItem);
-  
-  if (isDraggingFromFolder) {
-    const serversInFolder = props.servers.filter(s => s.folder_id === fromFolderId);
-    
-    // Center drop on a server creates a folder
-    if (!targetIsFolder && dropPosition.value === 'into') {
-      // Move to root before creating the folder
-      await serverChannelStore.moveServerToFolder(draggedId, null);
-      if (serversInFolder.length <= 1) {
-        await serverChannelStore.deleteFolder(fromFolderId);
-      }
-      const targetServer = targetItem as Server;
-      // Position is the index in the sorted list
-      const targetIndex = sortedSidebarItems.value.findIndex(i => i.id === targetServer.id);
-      await createFolderFromServers(draggedId, targetServer.id, targetIndex >= 0 ? targetIndex : 0);
-      resetDragState();
-      return;
-    }
-    
-    // Target position is computed before the shift below
-    const items = sortedSidebarItems.value;
-    let targetPosition: number;
-    
-    if (dropPosition.value === 'before') {
-      targetPosition = targetItem.position || 0;
-    } else {
-      targetPosition = (targetItem.position || 0) + 1;
-    }
-    
-    // Shift existing items to make room
-    const serverUpdates: { serverId: string; folderId: string | null; position: number }[] = [];
-    const folderUpdates: { folderId: string; position: number }[] = [];
-    
-    items.forEach((item) => {
-      const itemPosition = item.position || 0;
-      if (itemPosition >= targetPosition) {
-        if (isFolder(item)) {
-          folderUpdates.push({ folderId: item.id, position: itemPosition + 1 });
-        } else {
-          serverUpdates.push({ serverId: (item as Server).id, folderId: null, position: itemPosition + 1 });
-        }
-      }
-    });
-    
-    serverUpdates.push({ serverId: draggedId, folderId: null, position: targetPosition });
-    
-    if (serverUpdates.length > 0) {
-      await serverChannelStore.updateServerPositions(serverUpdates);
-    }
-    if (folderUpdates.length > 0) {
-      await serverChannelStore.updateFolderPositions(folderUpdates);
-    }
-    
-    if (serversInFolder.length <= 1) {
-      await serverChannelStore.deleteFolder(fromFolderId);
-    }
-    
-    resetDragState();
-    return;
-  }
-  
-  if (draggingItemType.value === 'server' && !targetIsFolder && dropPosition.value === 'into') {
-    const targetServer = targetItem as Server;
-    // Use the actual index in the sorted list to get proper position
-    const targetIndex = sortedSidebarItems.value.findIndex(i => i.id === targetServer.id);
-    await createFolderFromServers(draggingItemId.value!, targetServer.id, targetIndex >= 0 ? targetIndex : 0);
-    resetDragState();
-    return;
-  }
-  
-  await reorderItems(draggingItemId.value!, draggingItemType.value!, targetItem.id, targetIsFolder, dropPosition.value);
-  resetDragState();
-};
-
-const createFolderFromServers = async (draggedServerId: string, targetServerId: string, position: number) => {
-  // Shift items at or after this position to make room
-  const items = sortedSidebarItems.value;
-  const serverUpdates: { serverId: string; folderId: string | null; position: number }[] = [];
-  const folderUpdates: { folderId: string; position: number }[] = [];
-  
-  items.forEach((item, index) => {
-    if (index >= position && item.id !== draggedServerId && item.id !== targetServerId) {
-      if (isFolder(item)) {
-        folderUpdates.push({ folderId: item.id, position: index + 1 });
-      } else {
-        serverUpdates.push({ serverId: (item as Server).id, folderId: null, position: index + 1 });
-      }
-    }
-  });
-  
-  if (serverUpdates.length > 0 || folderUpdates.length > 0) {
-    await serverChannelStore.updateServerPositions(serverUpdates);
-    if (folderUpdates.length > 0) {
-      await serverChannelStore.updateFolderPositions(folderUpdates);
-    }
-  }
-  
-  const folder = await serverChannelStore.createFolder('', '#0EA5E9', position);
-  if (folder) {
-    await serverChannelStore.moveServerToFolder(draggedServerId, folder.id);
-    await serverChannelStore.moveServerToFolder(targetServerId, folder.id);
-  }
-};
-
-const reorderItems = async (
-  draggedId: string, 
-  draggedType: 'server' | 'folder', 
-  targetId: string, 
-  targetIsFolder: boolean,
-  position: 'before' | 'after' | 'into'
-) => {
-  const items = sortedSidebarItems.value;
-  const draggedIndex = items.findIndex(i => i.id === draggedId);
-  const targetIndex = items.findIndex(i => i.id === targetId);
-  
-  if (draggedIndex === -1 || targetIndex === -1) return;
-  
-  let newPosition: number;
-  if (position === 'before') {
-    newPosition = targetIndex <= draggedIndex ? targetIndex : targetIndex - 1;
-  } else {
-    newPosition = targetIndex >= draggedIndex ? targetIndex : targetIndex + 1;
-  }
-  
-  const newItems = [...items];
-  const [draggedItem] = newItems.splice(draggedIndex, 1);
-  newItems.splice(newPosition, 0, draggedItem);
-  
-  const serverUpdates: { serverId: string; folderId: string | null; position: number }[] = [];
-  const folderUpdates: { folderId: string; position: number }[] = [];
-  
-  newItems.forEach((item, index) => {
-    if (isFolder(item)) {
-      folderUpdates.push({ folderId: item.id, position: index });
-    } else {
-      serverUpdates.push({ serverId: (item as Server).id, folderId: null, position: index });
-    }
-  });
-  
-  if (serverUpdates.length > 0) {
-    await serverChannelStore.updateServerPositions(serverUpdates);
-  }
-  if (folderUpdates.length > 0) {
-    await serverChannelStore.updateFolderPositions(folderUpdates);
-  }
-};
-
-const resetDragState = () => {
-  draggingItemId.value = null;
-  draggingItemType.value = null;
-  dragOverItemId.value = null;
-  folderWasExpanded.value = false;
-  isDraggingOverBottom.value = false;
-};
-
 // Route change hides the tooltip; mouseleave does not fire reliably on mobile
 watch(() => route.fullPath, () => {
   hideSidebarTooltip();
 });
 
-const { isTouchOnly } = useViewport();
-const isTouchDevice = ref(isTouchOnly);
-
 const showSidebarTooltip = (event: MouseEvent, name: string, serverCount?: number) => {
-  if (isTouchDevice.value) return;
-  showAnchoredTooltip(event, { name: name || 'Unnamed', serverCount });
+  if (isTouchOnly) return;
+  showAnchoredTooltip(event, { name: name || t('serverRail.unnamedServer'), serverCount });
 };
 
-const handleScrollAreaDragOver = (event: DragEvent) => {
-  const target = event.target as HTMLElement;
-  const isOverItem = target.closest('.sidebar-item-wrapper') || 
-                     target.closest('.folder-expanded') || 
-                     target.closest('.folder-collapsed') ||
-                     target.closest('.server-folder');
-  
-  const isDragging = draggingItemId.value || event.dataTransfer?.types.includes('text/plain');
-  
-  if (!isOverItem && isDragging) {
-    isDraggingOverBottom.value = true;
-    dragOverItemId.value = null; // Clear item hover
-  } else {
-    isDraggingOverBottom.value = false;
-  }
-};
-
-const handleScrollAreaDragLeave = (event: DragEvent) => {
-  const relatedTarget = event.relatedTarget as HTMLElement;
-  if (!relatedTarget || !event.currentTarget || !(event.currentTarget as HTMLElement).contains(relatedTarget)) {
-    isDraggingOverBottom.value = false;
-  }
-};
-
-const handleFolderServersReorder = (folderId: string, servers: Server[]) => {
-  const positions = servers.map((s, index) => ({
-    serverId: s.id,
-    folderId: folderId,
-    position: index
-  }));
-  serverChannelStore.updateServerPositions(positions);
-};
-
-const handleServerDroppedOnFolder = (serverId: string, folderId: string) => {
-  serverChannelStore.moveServerToFolder(serverId, folderId);
-};
-
-const handleServerRemovedFromFolder = (_serverId: string) => {
-  // Removal is handled in ServerFolder
-};
-
-const handleDropOnScrollArea = async (event: DragEvent) => {
-  // Drops on an item or folder are handled by that element
-  const target = event.target as HTMLElement;
-  const isOverItem = target.closest('.sidebar-item-wrapper') || 
-                     target.closest('.folder-expanded') || 
-                     target.closest('.folder-collapsed') ||
-                     target.closest('.server-folder');
-  if (isOverItem) {
-    return;
-  }
-  
-  const itemId = event.dataTransfer?.getData('text/plain');
-  const fromFolderId = event.dataTransfer?.getData('application/x-from-folder');
-  
-  if (!itemId) {
-    resetDragState();
-    return;
-  }
-  
-  const maxPosition = Math.max(
-    ...sortedSidebarItems.value.map(i => i.position || 0),
-    0
-  ) + 1;
-  
-  if (fromFolderId) {
-    const serversInFolder = props.servers.filter(s => s.folder_id === fromFolderId);
-    
-    await serverChannelStore.moveServerToFolder(itemId, null);
-    await serverChannelStore.updateServerPositions([{
-      serverId: itemId,
-      folderId: null,
-      position: maxPosition
-    }]);
-    
-    // Delete the source folder once its last server leaves
-    if (serversInFolder.length <= 1) {
-      await serverChannelStore.deleteFolder(fromFolderId);
-    }
-  } else if (draggingItemId.value) {
-    // Move existing item to the end
-    if (draggingItemType.value === 'folder') {
-      await serverChannelStore.updateFolderPositions([{
-        folderId: itemId,
-        position: maxPosition
-      }]);
-    } else {
-      await serverChannelStore.updateServerPositions([{
-        serverId: itemId,
-        folderId: null,
-        position: maxPosition
-      }]);
-    }
-  }
-  
-  resetDragState();
-};
-
-const openFolderContextMenu = (event: MouseEvent, folder: ServerFolderType) => {
-  closeServerContextMenu();
-  selectedFolder.value = folder;
-  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
-  showFolderContextMenu.value = true;
-};
-
-const closeFolderContextMenu = () => {
-  showFolderContextMenu.value = false;
-  selectedFolder.value = null;
-};
-
-const openServerContextMenu = (event: MouseEvent, server: Server) => {
-  closeFolderContextMenu();
-  selectedServer.value = server;
-  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
-  showServerContextMenu.value = true;
-};
-
-const closeServerContextMenu = () => {
-  showServerContextMenu.value = false;
-  selectedServer.value = null;
-};
-
-const handleMarkServerAsRead = async () => {
-  const serverId = selectedServer.value?.id;
-  closeServerContextMenu();
-  if (!serverId) return;
-
-  try {
-    const { supabase } = await import('@/supabase');
-    await supabase.rpc('mark_server_as_read', { p_server_id: serverId });
-  } catch (err) {
-    console.error('Failed to mark server as read:', err);
-  }
+const showRailTooltip = (anchor: HTMLElement, name: string, serverCount?: number) => {
+  if (isTouchOnly) return;
+  showAnchoredTooltipFor(anchor, { name: name || t('serverRail.unnamedServer'), serverCount });
 };
 
 const openEditFolderModal = (folder: ServerFolderType) => {
   editingFolder.value = folder;
   showFolderModal.value = true;
-  closeFolderContextMenu();
 };
 
 const closeFolderModal = () => {
   showFolderModal.value = false;
   editingFolder.value = null;
-};
-
-const handleFolderSaved = (_folder: ServerFolderType) => {
-  // State is updated in the store
-};
-
-const handleDeleteFolder = async (folder: ServerFolderType) => {
-  await serverChannelStore.deleteFolder(folder.id);
-  closeFolderContextMenu();
-};
-
-const handleToggleFolderExpanded = (folder: ServerFolderType) => {
-  serverChannelStore.toggleFolderExpanded(folder.id);
-};
-
-const handleMarkFolderAsRead = async (folder: ServerFolderType) => {
-  closeFolderContextMenu();
-  if (!folder.servers?.length) return;
-
-  try {
-    const { authContextService } = await import('@/services/AuthContextService');
-    const context = await authContextService.getCurrentContext();
-    const profileId = context.profileId;
-    if (!profileId) return;
-
-    const { supabase } = await import('@/supabase');
-    const serverIds = folder.servers.map(s => s.id);
-
-    const { data: channels } = await supabase
-      .from('channels')
-      .select('id')
-      .in('server_id', serverIds);
-
-    const channelIds = (channels || []).map(c => c.id);
-    const { markServerRead } = await import('@/services/readState');
-    const cleared = await Promise.allSettled(serverIds.map(id => markServerRead(id)));
-    for (const result of cleared) {
-      if (result.status === 'rejected') debug.error('Failed to clear folder unread counts:', result.reason);
-    }
-
-    // Mark in-app notifications for these channels read so the bell badge and
-    // channel-mention counts follow.
-    if (channelIds.length > 0) {
-      const channelIdSet = new Set(channelIds);
-      const serverIdSet = new Set(serverIds);
-      const notificationStore = useNotificationStore();
-      const matching = notificationStore.notifications.filter(n => {
-        if (n.is_read) return false;
-        const d: any = n.data || {};
-        const channelId = d.channel_id ?? d.message?.channel_id ?? d.location?.channel_id;
-        const serverId = d.server_id ?? d.location?.server_id;
-        if (channelId && channelIdSet.has(channelId)) return true;
-        if (serverId && serverIdSet.has(serverId)) return true;
-        return false;
-      });
-      if (matching.length > 0) {
-        await Promise.all(matching.map(n => notificationStore.markAsRead(n.id).catch(() => {})));
-      }
-    }
-  } catch (e) {
-    debug.error('Failed to mark folder as read:', e);
-  }
-};
-
-const createFolderFromServer = async () => {
-  if (!selectedServer.value) return;
-  
-  const folderPosition = selectedServer.value.position || 0;
-  const folder = await serverChannelStore.createFolder('', '#0EA5E9', folderPosition);
-  if (folder) {
-    await serverChannelStore.moveServerToFolder(selectedServer.value.id, folder.id);
-  }
-  
-  closeServerContextMenu();
-};
-
-const moveServerToFolder = async (folderId: string) => {
-  if (!selectedServer.value) return;
-  await serverChannelStore.moveServerToFolder(selectedServer.value.id, folderId);
-  closeServerContextMenu();
-};
-
-const removeServerFromFolder = async () => {
-  if (!selectedServer.value) return;
-  await serverChannelStore.moveServerToFolder(selectedServer.value.id, null);
-  closeServerContextMenu();
 };
 </script>
 
@@ -1222,51 +507,6 @@ const removeServerFromFolder = async () => {
   background: var(--success);
   color: var(--text-on-primary);
   border-radius: 16px;
-}
-
-.servers-scroll-area {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-height: 0; /* Allow flex item to shrink below content size */
-  
-  /* Hide scrollbar */
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-/* Large drop zone at the bottom */
-.servers-scroll-area::after {
-  content: '';
-  display: block;
-  width: 100%;
-  min-height: 200px;
-  flex-shrink: 0;
-}
-
-.bottom-drop-indicator {
-  width: calc(100% - 16px);
-  height: 4px;
-  background: var(--success);
-  border-radius: 2px;
-  margin: 8px auto;
-  flex-shrink: 0;
-}
-
-
-.servers-scroll-area::-webkit-scrollbar {
-  display: none;
-}
-
-.servers-draggable {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
 }
 
 /* Mirrors .server-item-wrapper */
@@ -1392,47 +632,7 @@ const removeServerFromFolder = async () => {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
-.sidebar-item-wrapper {
-  position: relative;
-  margin: 4px 0;
-  padding: 2px 0;
-}
-
-.sidebar-item-wrapper.is-dragging {
-  opacity: 0.3;
-}
-
-.sidebar-item-wrapper.drop-target-before::before,
-.sidebar-item-wrapper.drop-target-after::after {
-  content: '';
-  position: absolute;
-  left: -8px;
-  right: -8px;
-  height: 4px;
-  background: var(--success);
-  border-radius: 2px;
-  z-index: 10;
-}
-
-.sidebar-item-wrapper.drop-target-before::before {
-  top: -4px;
-}
-
-.sidebar-item-wrapper.drop-target-after::after {
-  bottom: -4px;
-}
-
-.server-item-wrapper {
-  position: relative;
-  left: 0;
-  margin: 10px;
-  /* Drag animation hint */
-  will-change: transform, opacity;
-  transition: transform 0.15s ease-out, left 0.2s ease-out, opacity 0.15s ease-out;
-}
-
-.portal,
-.server-item {
+.portal {
   width: 48px;
   height: 48px;
   background-color: var(--background-secondary);
@@ -1503,15 +703,6 @@ const removeServerFromFolder = async () => {
   height: 8px;
 }
 
-.server-item-wrapper:hover .server-pill {
-  opacity: 1;
-  height: 20px;
-}
-
-.server-item-wrapper:hover .server-pill.visible {
-  height: 36px;
-}
-
 .header-item-wrapper:hover .server-pill {
   opacity: 1;
   height: 20px;
@@ -1519,128 +710,6 @@ const removeServerFromFolder = async () => {
 
 .header-item-wrapper:hover .server-pill.visible {
   height: 36px;
-}
-
-.server-item.selected {
-  border: 2px solid var(--harmony-secondary);
-  border-radius: 50%;
-}
-
-.server-item :deep(img) {
-  user-select: none;
-  -webkit-user-drag: none;
-  pointer-events: none;
-}
-
-/* Center drop target: creates a folder */
-.server-item-wrapper.drop-target-into {
-  transform: scale(1.1);
-}
-
-.server-item-wrapper.drop-target-into .server-item {
-  border: 2px dashed var(--harmony-primary);
-  border-radius: 16px;
-}
-
-.server-item-wrapper.is-dragging {
-  opacity: 0.3;
-}
-
-.server-item-wrapper.is-dragging .server-item {
-  outline: 2px dashed rgba(255, 255, 255, 0.4);
-  outline-offset: 2px;
-}
-
-.folder-wrapper.is-dragging {
-  opacity: 0.3;
-}
-
-/* Anchors the absolutely positioned drop zones */
-.folder-wrapper {
-  position: relative;
-  /* Drag animation hint */
-  will-change: transform, opacity;
-  transition: transform 0.15s ease-out, opacity 0.15s ease-out;
-}
-
-/* Invisible drop zones for folder reordering */
-.folder-drop-zone {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 20px;
-  z-index: 5;
-}
-
-.folder-drop-zone-top {
-  top: -10px;
-}
-
-.folder-drop-zone-bottom {
-  bottom: -10px;
-}
-
-.folder-create-indicator {
-  position: absolute;
-  bottom: -4px;
-  right: -4px;
-  width: 20px;
-  height: 20px;
-  background: var(--harmony-primary);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-on-primary);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-.context-menu {
-  position: fixed;
-  background: var(--background-floating);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-base);
-  padding: 6px 0;
-  min-width: 180px;
-  box-shadow: var(--shadow-large);
-  z-index: 1000;
-}
-
-.context-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.1s ease;
-}
-
-.context-menu-item:hover {
-  background-color: var(--harmony-primary);
-  color: var(--text-on-primary);
-}
-
-.context-menu-divider {
-  height: 1px;
-  background: var(--border-color);
-  margin: 4px 8px;
-}
-
-.context-menu-label {
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-}
-
-.folder-color-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  flex-shrink: 0;
 }
 
 .sidebar-tooltip {

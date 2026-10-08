@@ -7,14 +7,16 @@
  */
 
 import { useServerChannelStore } from '@/stores/useServerChannel'
+import { emoticonPreferences } from '@/composables/useVisualTheme'
 import type { ContentParseOptions } from './unifiedContentProcessing'
 
 export function buildChatParseOptions(isDM: boolean): ContentParseOptions {
-  if (isDM) return { hashtags: 'none' }
+  const convertEmoticons = emoticonPreferences().convertSent
+  if (isDM) return { hashtags: 'none', convertEmoticons }
 
   const serverChannelStore = useServerChannelStore()
   const serverId = serverChannelStore.currentServerId
-  if (!serverId) return { hashtags: 'none' }
+  if (!serverId) return { hashtags: 'none', convertEmoticons }
 
   const channelDataMap: Record<string, { id: string; serverId: string; name: string }> = {}
   for (const channel of serverChannelStore.channels) {
@@ -26,5 +28,5 @@ export function buildChatParseOptions(isDM: boolean): ContentParseOptions {
       }
     }
   }
-  return { hashtags: 'channels', channelDataMap }
+  return { hashtags: 'channels', channelDataMap, convertEmoticons }
 }

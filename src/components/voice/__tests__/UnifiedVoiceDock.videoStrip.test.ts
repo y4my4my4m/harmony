@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import { nextTick, reactive } from 'vue'
+import { defineComponent, nextTick, reactive } from 'vue'
 import UnifiedVoiceDock from '../UnifiedVoiceDock.vue'
+import { useUserPanelHost } from '@/composables/useUserPanelDock'
 
 // Dock wiring: a strip tile opens the overlay focused on that feed, and the
 // single thumbnail returns only while the strip is collapsed. Thumbnails
@@ -30,7 +31,7 @@ vi.mock('@/composables/useKeybinds', async () => {
 })
 vi.mock('@/composables/useViewport', async () => {
   const { ref } = await import('vue')
-  return { useViewport: () => ({ isMobileViewport: ref(false) }) }
+  return { useViewport: () => ({ isMobileViewport: ref(false), viewportHeight: ref(900) }) }
 })
 vi.mock('@/utils/userScopedStorage', () => ({
   userStorage: {
@@ -250,5 +251,47 @@ describe('UnifiedVoiceDock video strip', () => {
     await flushPromises()
     expect(wrapper.find('.mini-video').classes()).not.toContain('mirrored')
     expect(h.store.attachVideoToElement).toHaveBeenLastCalledWith('bob', expect.anything(), 'camera')
+  })
+
+  describe('minimized panel audio controls', () => {
+    // A mounted sidebar reserves the user panel's strip, as AdaptiveChannelSidebar does.
+    const SidebarHost = defineComponent({ setup() { useUserPanelHost(); return () => null } })
+    let host: VueWrapper | null = null
+
+    afterEach(() => {
+      host?.unmount()
+      host = null
+    })
+
+    async function minimize() {
+      wrapper = await mountDock()
+      await wrapper.find('.minimize-btn').trigger('click')
+      await flushPromises()
+      return wrapper.find('.minimized-controls')
+    }
+
+    it('hides mic and deafen at the default position above the user panel', async () => {
+      h.store = makeStore([member('bob')])
+      host = mount(SidebarHost)
+      const controls = await minimize()
+      expect(controls.find('.mini-mic-btn').exists()).toBe(false)
+      expect(controls.find('.mini-deafen-btn').exists()).toBe(false)
+      expect(controls.find('.leave').exists()).toBe(true)
+    })
+
+    it('shows them when the panel is moved off the default position', async () => {
+      h.store = makeStore([member('bob')])
+      h.storage.set('voice-dock-minimized-position', JSON.stringify({ left: 400, bottom: 300 }))
+      host = mount(SidebarHost)
+      const controls = await minimize()
+      expect(controls.find('.mini-mic-btn').exists()).toBe(true)
+      expect(controls.find('.mini-deafen-btn').exists()).toBe(true)
+    })
+
+    it('shows them when no sidebar holds the user panel', async () => {
+      h.store = makeStore([member('bob')])
+      const controls = await minimize()
+      expect(controls.find('.mini-mic-btn').exists()).toBe(true)
+    })
   })
 })

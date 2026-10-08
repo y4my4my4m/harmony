@@ -2470,15 +2470,21 @@ export const useDMStore = defineStore('dm', () => {
         onUpdate: handleMessageUpdate,
         onDelete: handleMessageDelete,
         
+        // Every SUBSCRIBED, the first included, pulls rows newer than the
+        // newest held: rows inserted between the page fetch and the join, or
+        // during a drop, reach no transport. An empty list is the page fetch's
+        // to fill.
         onStatusChange: (status, name) => {
           debug.log(`${name} status: ${status}`)
           dmConnectionStatus.value = status
+          if (
+            status === 'connected' &&
+            currentConversationId.value === conversationId &&
+            currentDMMessages.value.length > 0
+          ) {
+            void reconcileConversationMessages(conversationId)
+          }
         },
-        
-        onReconnected: async () => {
-          debug.log('DM conversation reconnected, gap-filling for:', conversationId)
-          await reconcileConversationMessages(conversationId)
-        }
       })
 
       currentSubscription.value = unsubscribe
@@ -2520,9 +2526,78 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
+  const applyNewestRowAsPreview = async (conversationId: string): Promise<void> => {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .or('is_deleted.is.null,is_deleted.eq.false')
+      .order('created_at', { ascending: false })
+      .limit(1)
+    if (error || !data?.length) return
+
+    let row: Message = {
+      ...data[0],
+      created_at: new Date(data[0].created_at),
+      channel_id: '',
+      reactions: [],
+      metadata: data[0].metadata || null,
+      encrypted: data[0].encrypted || false,
+    }
+    if (row.encrypted) {
+      try {
+        row = (await processMessageDecryption([row]))[0] ?? row
+      } catch (err) {
+        debug.warn('Preview decryption failed:', err)
+      }
+    }
+
+    const conv = conversations.value.find(c => c.id === conversationId)
+    if (!conv) return
+    const shownAt = conv.last_message ? new Date(conv.last_message.created_at).getTime() : -Infinity
+    if (row.created_at.getTime() >= shownAt) {
+      conv.last_message = {
+        id: row.id,
+        user_id: row.user_id,
+        content: row.content,
+        encrypted: row.encrypted === true,
+        decrypted: row.decrypted === true,
+        created_at: row.created_at,
+        channel_id: '',
+        conversation_id: conversationId,
+        reactions: [],
+        metadata: row.metadata || {},
+      } as unknown as Message
+      conv.last_activity = row.created_at.toISOString()
+    }
+  }
+
+  // Per conversation: a refresh in flight, and whether another was requested
+  // while it ran.
+  const _previewRefresh = new Map<string, boolean>()
+
+  /** Sets `last_message` and `last_activity` from the conversation's newest row. */
+  const refreshConversationPreview = async (conversationId: string): Promise<void> => {
+    if (_previewRefresh.has(conversationId)) {
+      _previewRefresh.set(conversationId, true)
+      return
+    }
+    _previewRefresh.set(conversationId, false)
+    try {
+      do {
+        _previewRefresh.set(conversationId, false)
+        await applyNewestRowAsPreview(conversationId)
+      } while (_previewRefresh.get(conversationId))
+    } catch (err) {
+      debug.warn('Conversation preview refresh failed:', err)
+    } finally {
+      _previewRefresh.delete(conversationId)
+    }
+  }
+
   /**
    * Called once from BaseLayout during app init. The handlers persist across
-   * route changes and are torn down only by cleanup().
+   * route changes and are torn down only by cleanup(true) (logout).
    */
   const registerGlobalBroadcastHandlers = async (userId: string) => {
     if (_globalBroadcastRegistered) return
@@ -2578,6 +2653,12 @@ export const useDMStore = defineStore('dm', () => {
       conv.unread_count = unread
       if (isNewMessage) conv.last_activity = new Date().toISOString()
 
+      // The event carries no message. A conversation without an open
+      // subscription gets its sidebar preview from the newest row.
+      if (isNewMessage && conversationId !== currentConversationId.value) {
+        void refreshConversationPreview(conversationId)
+      }
+
       // Separate channel from the thread's postgres_changes stream; arrives
       // when that stream is silent. Reconcile rather than trust it.
       if (conversationId === currentConversationId.value) {
@@ -2621,10 +2702,15 @@ export const useDMStore = defineStore('dm', () => {
     }
 
     cleanupRealtimeSubscriptions()
-    
-    _globalBroadcastUnsubs.forEach(unsub => unsub())
-    _globalBroadcastUnsubs = []
-    _globalBroadcastRegistered = false
+
+    // Global handlers are registered once per sign-in (BaseLayout) and feed the
+    // DM list and unread badges outside the chat layout too. A layout unmount
+    // (resetData false) keeps them; nothing re-registers them before logout.
+    if (resetData) {
+      _globalBroadcastUnsubs.forEach(unsub => unsub())
+      _globalBroadcastUnsubs = []
+      _globalBroadcastRegistered = false
+    }
     
     // Active-conversation message state is always dropped; it is re-fetched on open.
     currentDMMessages.value = []

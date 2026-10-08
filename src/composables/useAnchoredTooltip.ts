@@ -37,7 +37,11 @@ export function useAnchoredTooltip<T extends object>(delayMs = 400, checkMs = 20
   /** `event.currentTarget` is the anchor; its vertical centre is the tooltip's y, in viewport px. */
   const show = (event: MouseEvent, data: T) => {
     const target = event.currentTarget as HTMLElement | null
-    if (!target) return
+    if (target) showFor(target, data)
+  }
+
+  /** As `show`, for a delegated listener that resolves the anchor itself. */
+  const showFor = (target: HTMLElement, data: T) => {
     if (showTimer) clearTimeout(showTimer)
     stopWatching()
 
@@ -74,5 +78,5 @@ export function useAnchoredTooltip<T extends object>(delayMs = 400, checkMs = 20
     }
   })
 
-  return { visible, y, payload, show, hide }
+  return { visible, y, payload, show, showFor, hide }
 }

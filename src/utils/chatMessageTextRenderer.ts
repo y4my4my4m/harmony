@@ -14,6 +14,8 @@
  *      private-use unicode placeholder. They re-appear later as
  *      `<CodeBlock>` components - none of their inner text is rendered as
  *      HTML.
+ *  1b. Optionally replace standalone text emoticons with unicode emoji
+ *      (`convertEmoticons`). Output is unicode text, escaped in step 2.
  *   2. **HTML-escape the entire remaining string.** Every character that
  *      arrives here is potentially user input (or worse: federated server
  *      input); after step 2 the string is HTML-safe text. Every later
@@ -45,6 +47,7 @@
 
 import { escapeHtml, sanitizeMessageHtml } from './sanitize';
 import { renderTextWithBlockquotes } from './chatBlockquotes';
+import { convertEmoticons } from './emoticons';
 
 export interface CodeBlock {
   id: string;
@@ -70,6 +73,8 @@ export interface ChatMessageRendererOptions {
   isSingleEmoji: boolean;
   /** True when greentext (`>foo` without space) should render styled. */
   greentextEnabled: boolean;
+  /** True when standalone text emoticons render as emoji (utils/emoticons). */
+  convertEmoticons?: boolean;
 }
 
 const UNICODE_EMOJI_REGEX =
@@ -104,6 +109,10 @@ export function renderChatMessageText(
     codeBlocks.push({ id: blockId, code: cleanCode, language: lang });
     return blockId;
   });
+
+  // 1b. Emoticons, on raw text: `<3` must precede escaping. Placeholders hold
+  //     no emoticon characters; inline code is skipped by convertEmoticons.
+  if (options.convertEmoticons) rendered = convertEmoticons(rendered);
 
   // 2. ESCAPE.
   rendered = escapeHtml(rendered);

@@ -114,6 +114,24 @@ export function scrollTopAfterResize(
 }
 
 /**
+ * Handler for @tanstack/virtual-core's shouldAdjustScrollPositionOnItemSizeChange.
+ * Writes the scrollTopAfterResize correction to the live scroller and returns
+ * false, so virtual-core applies none of its own: its correction is relative
+ * to the offset cached at the last scroll event and would apply the delta a
+ * second time.
+ */
+export function correctForItemResize(
+  scroller: { scrollTop: number },
+  listOffset: number,
+  itemStart: number,
+  delta: number,
+): false {
+  const next = scrollTopAfterResize(scroller.scrollTop, listOffset, itemStart, delta)
+  if (next !== scroller.scrollTop) scroller.scrollTop = next
+  return false
+}
+
+/**
  * scrollTop after older rows were prepended. Everything added sits above the
  * previous first row, so the growth in scrollHeight is exactly how far the
  * content in view was pushed down.

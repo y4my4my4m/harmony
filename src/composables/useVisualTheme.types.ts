@@ -39,6 +39,16 @@ export interface VisualThemeSettings {
    */
   greentextEnabled?: boolean
   /**
+   * Convert text emoticons (`:)`, `<3`, `xD`) to emoji in messages this user
+   * sends or edits. Default: true (opt-out).
+   */
+  convertSentEmoticons?: boolean
+  /**
+   * Render text emoticons in received message text as emoji. Display only;
+   * stored content is unchanged. Default: true (opt-out).
+   */
+  renderEmoticonsAsEmoji?: boolean
+  /**
    * UI typeface. `'system'` uses Figtree + native fallbacks (the default
    * Harmony look). `'pixel'` switches to NoRe Sans Pixel Pro v2, an original
    * pixel-style Latin webfont. Persisted alongside the rest of the visual

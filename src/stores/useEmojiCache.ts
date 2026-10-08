@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { markRaw } from 'vue';
 import { supabase } from '@/supabase';
 import type { Emoji, ResolvedEmoji } from '@/types';
 import { debug } from '@/utils/debug'
@@ -552,7 +553,9 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
         };
       }
 
-      this.resolvedEmojis = resolved;
+      // Raw: thousands of rows, read-only after build; the object is replaced
+      // on every rebuild, which is the reactive signal.
+      this.resolvedEmojis = markRaw(resolved);
       debug.log('Rebuilt resolved emojis for', Object.keys(resolved).length, 'servers');
 
       import('@/services/userDataService').then(({ userDataService }) => {

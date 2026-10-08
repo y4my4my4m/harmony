@@ -14,7 +14,10 @@ vi.mock('vue-router', () => ({
   useRoute: () => route,
 }))
 
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+vi.mock('vue-i18n', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('vue-i18n')>()),
+  useI18n: () => ({ t: (key: string) => key, locale: ref('en') }),
+}))
 
 const isMobileViewport = ref(false)
 vi.mock('@/composables/useViewport', () => ({
@@ -50,9 +53,18 @@ vi.mock('@/stores/usePublicServers', () => ({
 vi.mock('@/stores/useNotification', () => ({
   useNotificationStore: () => ({ notifications: [], unreadDMs: 0, unreadServerMentions: () => 0 }),
 }))
-vi.mock('@/composables/useUnreadCounts', () => ({
-  useUnreadCounts: () => ({ getServerUnreadMessages: () => 0 }),
+vi.mock('@/composables/useUnreadCounts', async () => {
+  const { computed } = await import('vue')
+  return {
+    useUnreadCounts: () => ({ getServerUnreadMessages: () => 0 }),
+    serverUnreadTotals: computed(() => new Map()),
+    clearServerUnread: () => {},
+  }
+})
+vi.mock('@/composables/useLeaveServer', () => ({
+  useLeaveServer: () => ({ leaveServer: vi.fn(), isOwner: () => false }),
 }))
+vi.mock('vue-toastification', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }))
 vi.mock('@/composables/useTodayDashboard', () => ({
   useTodayDashboard: () => ({ todayDashboardEnabled: ref(true) }),
 }))
@@ -124,7 +136,9 @@ describe('ServerSidebar funding heart', () => {
 
     const last = lastListChild(wrapper)
     expect(last.classList.contains('funding-item-wrapper')).toBe(true)
-    expect((last.previousElementSibling as HTMLElement).getAttribute('aria-label')).toBe('Three')
+    const entries = wrapper.findAll('.rail-list > .rail-entry')
+    expect(entries.map(e => e.attributes('data-rail-root'))).toEqual(['s1', 'f1', 's3'])
+    expect(wrapper.get('.rail-list').element.compareDocumentPosition(last) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     const button = wrapper.get('.funding-item-wrapper > button.funding-button')
     expect(button.attributes('type')).toBe('button')
@@ -135,20 +149,17 @@ describe('ServerSidebar funding heart', () => {
   it('is the only item of an empty server list', () => {
     isMobileViewport.value = true
     const wrapper = mountSidebar()
-    const list = wrapper.get('.servers-scroll-area').element
-    expect(list.children).toHaveLength(1)
+    expect(wrapper.findAll('.rail-entry')).toHaveLength(0)
+    expect(wrapper.findAll('.servers-scroll-area .funding-item-wrapper')).toHaveLength(1)
     expect(lastListChild(wrapper).classList.contains('funding-item-wrapper')).toBe(true)
   })
 
-  it('stays last while a drag shows the end-of-list drop indicator', async () => {
+  it('stays after the drop indicator', () => {
     isMobileViewport.value = true
     const wrapper = mountSidebar([server('s1', 'One', 0)])
-    await wrapper.get('.servers-scroll-area').trigger('dragover', {
-      dataTransfer: { types: ['text/plain'] },
-    })
     const last = lastListChild(wrapper)
     expect(last.classList.contains('funding-item-wrapper')).toBe(true)
-    expect((last.previousElementSibling as HTMLElement).classList.contains('bottom-drop-indicator')).toBe(true)
+    expect((last.previousElementSibling as HTMLElement).classList.contains('rail-drop-indicator')).toBe(true)
   })
 
   it('opens and closes the funding modal', async () => {

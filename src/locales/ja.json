@@ -715,6 +715,10 @@
       "showCustomEmojisInDisplayNamesDesc": "有効にすると、他のユーザーの表示名に絵文字画像が表示されます。無効にすると、絵文字とショートコードが完全に非表示になります。",
       "greentext": "Greentext",
       "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. > text with a space is always a quote regardless of this setting.",
+      "convertSentEmoticons": "送信する顔文字を絵文字に変換",
+      "convertSentEmoticonsDesc": "メッセージの送信・編集時に :) :D <3 などを絵文字に置き換えます。コード、リンク、メールアドレスは変換されません。",
+      "renderEmoticonsAsEmoji": "他の人の顔文字を絵文字で表示",
+      "renderEmoticonsAsEmojiDesc": "メッセージ内の :) :D <3 などを絵文字として表示します。元のテキストは変更されません。",
       "inviteBannerBg": "招待ダイアログのサーバーバナー",
       "inviteBannerBgDesc": "サーバーにバナーがある場合、招待ダイアログの背後にぼかして暗くしたバナーを表示します。",
       "quickReact": "クイックリアクション",
@@ -3775,6 +3779,49 @@
       "wide": "横長",
       "square": "正方形",
       "tall": "縦長"
+    }
+  },
+  "serverRail": {
+    "unnamedServer": "名前のないサーバー",
+    "orderSaveFailed": "サーバーの並び順を保存できませんでした",
+    "muteFailed": "サーバーのミュートを変更できませんでした",
+    "idCopied": "サーバーIDをコピーしました",
+    "idCopyFailed": "サーバーIDをコピーできませんでした",
+    "menu": {
+      "markRead": "既読にする",
+      "invite": "友達を招待",
+      "mute": "サーバーをミュート",
+      "unmute": "ミュートを解除",
+      "moveUp": "上へ移動",
+      "moveDown": "下へ移動",
+      "createFolder": "フォルダーを作成",
+      "moveToFolder": "フォルダーへ移動",
+      "removeFromFolder": "フォルダーから外す",
+      "copyId": "サーバーIDをコピー"
+    },
+    "mute": {
+      "m15": "15分間",
+      "h1": "1時間",
+      "h3": "3時間",
+      "h8": "8時間",
+      "h24": "24時間",
+      "forever": "再度オンにするまで",
+      "until": "{time}までミュート中"
+    },
+    "folder": {
+      "unnamed": "フォルダー",
+      "markRead": "フォルダーを既読にする",
+      "settings": "フォルダー設定",
+      "collapse": "フォルダーを閉じる",
+      "expand": "フォルダーを開く",
+      "ungroup": "フォルダーを解除",
+      "serverCount": "{count}個のサーバー"
+    },
+    "leave": {
+      "confirm": "「{name}」から脱退しますか？すべてのチャンネルとメッセージにアクセスできなくなります。",
+      "button": "脱退",
+      "done": "サーバーから脱退しました",
+      "failed": "サーバーから脱退できませんでした"
     }
   }
 }

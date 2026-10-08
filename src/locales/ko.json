@@ -715,6 +715,10 @@
       "showCustomEmojisInDisplayNamesDesc": "활성화하면 다른 사용자의 표시 이름에 이모지 이미지가 표시됩니다. 비활성화하면 이모지와 단축 코드가 완전히 숨겨집니다.",
       "greentext": "Greentext",
       "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. > text with a space is always a quote regardless of this setting.",
+      "convertSentEmoticons": "보내는 이모티콘을 이모지로 변환",
+      "convertSentEmoticonsDesc": "메시지를 보내거나 수정할 때 :) :D <3 등을 이모지로 바꿉니다. 코드, 링크, 이메일 주소는 바뀌지 않습니다.",
+      "renderEmoticonsAsEmoji": "다른 사람의 이모티콘을 이모지로 표시",
+      "renderEmoticonsAsEmojiDesc": "메시지의 :) :D <3 등을 이모지로 표시합니다. 원래 텍스트는 그대로 유지됩니다.",
       "inviteBannerBg": "초대 창의 서버 배너",
       "inviteBannerBgDesc": "서버에 배너가 있으면 초대 창 뒤에 흐리고 어둡게 처리한 배너를 표시합니다.",
       "quickReact": "빠른 반응",
@@ -3775,6 +3779,49 @@
       "wide": "가로형",
       "square": "정사각형",
       "tall": "세로형"
+    }
+  },
+  "serverRail": {
+    "unnamedServer": "이름 없는 서버",
+    "orderSaveFailed": "서버 순서를 저장하지 못했습니다",
+    "muteFailed": "서버 알림 끄기를 변경하지 못했습니다",
+    "idCopied": "서버 ID를 복사했습니다",
+    "idCopyFailed": "서버 ID를 복사하지 못했습니다",
+    "menu": {
+      "markRead": "읽음으로 표시",
+      "invite": "친구 초대하기",
+      "mute": "서버 알림 끄기",
+      "unmute": "서버 알림 켜기",
+      "moveUp": "위로 이동",
+      "moveDown": "아래로 이동",
+      "createFolder": "폴더 만들기",
+      "moveToFolder": "폴더로 이동",
+      "removeFromFolder": "폴더에서 빼기",
+      "copyId": "서버 ID 복사"
+    },
+    "mute": {
+      "m15": "15분 동안",
+      "h1": "1시간 동안",
+      "h3": "3시간 동안",
+      "h8": "8시간 동안",
+      "h24": "24시간 동안",
+      "forever": "다시 켤 때까지",
+      "until": "{time}까지 알림 꺼짐"
+    },
+    "folder": {
+      "unnamed": "폴더",
+      "markRead": "폴더를 읽음으로 표시",
+      "settings": "폴더 설정",
+      "collapse": "폴더 접기",
+      "expand": "폴더 펼치기",
+      "ungroup": "폴더 해제",
+      "serverCount": "서버 {count}개"
+    },
+    "leave": {
+      "confirm": "'{name}'에서 나가시겠어요? 모든 채널과 메시지에 접근할 수 없게 됩니다.",
+      "button": "나가기",
+      "done": "서버에서 나갔습니다",
+      "failed": "서버에서 나가지 못했습니다"
     }
   }
 }

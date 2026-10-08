@@ -907,6 +907,17 @@ const showCategoryCreator = () => isCategoryCreatorOpen.value = !isCategoryCreat
 const openInviteModal = () => showInviteModal.value = true;
 const closeInviteModal = () => showInviteModal.value = false;
 
+watch(
+  () => [serverChannelStore.pendingStructureCreate, props.currentServer?.id] as const,
+  ([pending, serverId]) => {
+    if (!pending || pending.serverId !== serverId) return
+    serverChannelStore.pendingStructureCreate = null
+    if (pending.kind === 'category') isCategoryCreatorOpen.value = true
+    else emitCreateChannel(undefined)
+  },
+  { immediate: true },
+);
+
 watch(() => serverChannelStore.pendingInviteOpen, (pending) => {
   if (pending) {
     serverChannelStore.pendingInviteOpen = false

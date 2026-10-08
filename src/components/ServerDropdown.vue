@@ -36,20 +36,12 @@
 </template>
   
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { useI18n } from 'vue-i18n';
 import { useServerPermissions } from '@/composables/useServerPermissions';
-import { useConfirmDialog } from '@/composables/useConfirmDialog';
 import { useServerChannelStore } from '@/stores/useServerChannel';
-import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
-import { useChatStore } from '@/stores/useChat';
-import { useAuthStore } from '@/stores/auth';
-import { supabase } from '@/supabase';
-import { useToast } from 'vue-toastification';
-import { federationServerService } from '@/services/federation/FederationServerService';
-import { useUserData } from '@/composables/useUserData';
 import { useServerWelcomeStore } from '@/stores/useServerWelcome';
+import { useLeaveServer } from '@/composables/useLeaveServer';
 
 interface Props {
   serverId?: string
@@ -67,11 +59,7 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
-const { t } = useI18n();
-const toast = useToast();
-const authStore = useAuthStore();
 const serverChannelStore = useServerChannelStore();
-const { unsubscribeFromContext } = useUserData();
 const { serverSettingsPermissions, channelPermissions } = useServerPermissions();
 
 // Computed permissions
@@ -80,13 +68,7 @@ const canManageServer = computed(() => serverSettingsPermissions.value.canEditBa
 const canCreateCategories = computed(() => channelPermissions.value.canCreateCategories);
 const canCreateChannels = computed(() => channelPermissions.value.canCreateChannels);
 
-const isOwner = computed(() => {
-  const server = serverChannelStore.currentServer;
-  const userId = authStore.session?.user?.id;
-  return server?.owner === userId;
-});
-
-const isLeaving = ref(false);
+const isOwner = computed(() => isServerOwner(serverChannelStore.currentServer));
 
 const createChannel = () => {
   emit('createChannel', undefined);
@@ -121,76 +103,13 @@ const openWelcome = () => {
   closeDropdown();
 };
 
-const { confirm } = useConfirmDialog()
+const { leaveServer, isOwner: isServerOwner } = useLeaveServer();
 
 const confirmLeaveServer = async () => {
-  const server = serverChannelStore.currentServer;
-  if (!server || !props.serverId) return;
-  
-  const confirmed = await confirm({
-    title: t('server.leaveServer'),
-    message: `Are you sure you want to leave "${server.name}"? You will lose access to all channels and messages.`,
-    confirmButtonText: 'Leave',
-    dangerAction: true,
-  });
-  
-  if (!confirmed) {
-    closeDropdown();
-    return;
-  }
-  
-  await leaveServer();
-};
-
-const leaveServer = async () => {
-  const userId = authStore.session?.user?.id;
-  if (!userId || !props.serverId) return;
-  
-  isLeaving.value = true;
-  
-  try {
-    // Proactively disconnect voice chat if connected to this server
-    const voiceStore = useUnifiedVoiceChannelStore();
-    if (voiceStore.effectiveServerId === props.serverId) {
-      await voiceStore.leaveVoiceChannel();
-    }
-    
-    // Unsubscribe from message channel before leaving
-    const chatStore = useChatStore();
-    if (serverChannelStore.currentServerId === props.serverId) {
-      chatStore.unsubscribeFromMessages();
-      chatStore.clearMessages();
-    }
-    
-    const server = serverChannelStore.currentServer;
-    
-    if (server && !server.is_local_server) {
-      const result = await federationServerService.leaveServer(props.serverId, userId);
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to leave server');
-      }
-    } else {
-      const { error } = await supabase
-        .from('user_servers')
-        .delete()
-        .eq('server_id', props.serverId)
-        .eq('user_id', userId);
-      
-      if (error) throw error;
-    }
-    
-    toast.success('Left server');
-    await unsubscribeFromContext(props.serverId);
-    emit('serverLeft');
-    
-    router.push('/');
-  } catch (error: any) {
-    console.error('Error leaving server:', error);
-    toast.error(error.message || "Couldn't leave server");
-  } finally {
-    isLeaving.value = false;
-    closeDropdown();
-  }
+  if (!props.serverId) return;
+  const left = await leaveServer(props.serverId);
+  if (left) emit('serverLeft');
+  closeDropdown();
 };
 </script>
   

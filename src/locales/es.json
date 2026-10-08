@@ -715,6 +715,10 @@
       "showCustomEmojisInDisplayNamesDesc": "Cuando está habilitado, los nombres mostrados de otros usuarios muestran imágenes de emojis. Cuando está deshabilitado, los emojis y códigos cortos se ocultan completamente.",
       "greentext": "Greentext",
       "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. > text with a space is always a quote regardless of this setting.",
+      "convertSentEmoticons": "Convertir los emoticonos que envío",
+      "convertSentEmoticonsDesc": "Sustituye :) :D <3 y similares por emojis al enviar o editar un mensaje. El código, los enlaces y los correos no se modifican.",
+      "renderEmoticonsAsEmoji": "Mostrar como emoji los emoticonos de otros",
+      "renderEmoticonsAsEmojiDesc": "Muestra :) :D <3 y similares como emojis en los mensajes. El texto original se conserva.",
       "inviteBannerBg": "Banner del servidor en el diálogo de invitación",
       "inviteBannerBgDesc": "Muestra un banner del servidor desenfocado y oscurecido detrás del diálogo de invitación cuando el servidor tiene uno.",
       "quickReact": "Reacción rápida",
@@ -3775,6 +3779,49 @@
       "wide": "Ancha",
       "square": "Cuadrada",
       "tall": "Alta"
+    }
+  },
+  "serverRail": {
+    "unnamedServer": "Servidor sin nombre",
+    "orderSaveFailed": "No se pudo guardar el orden de los servidores",
+    "muteFailed": "No se pudo cambiar el silencio del servidor",
+    "idCopied": "ID del servidor copiado",
+    "idCopyFailed": "No se pudo copiar el ID del servidor",
+    "menu": {
+      "markRead": "Marcar como leído",
+      "invite": "Invitar personas",
+      "mute": "Silenciar servidor",
+      "unmute": "Dejar de silenciar",
+      "moveUp": "Subir",
+      "moveDown": "Bajar",
+      "createFolder": "Crear carpeta",
+      "moveToFolder": "Mover a carpeta",
+      "removeFromFolder": "Quitar de la carpeta",
+      "copyId": "Copiar ID del servidor"
+    },
+    "mute": {
+      "m15": "Durante 15 minutos",
+      "h1": "Durante 1 hora",
+      "h3": "Durante 3 horas",
+      "h8": "Durante 8 horas",
+      "h24": "Durante 24 horas",
+      "forever": "Hasta que lo vuelva a activar",
+      "until": "Silenciado hasta {time}"
+    },
+    "folder": {
+      "unnamed": "Carpeta",
+      "markRead": "Marcar carpeta como leída",
+      "settings": "Ajustes de la carpeta",
+      "collapse": "Contraer carpeta",
+      "expand": "Expandir carpeta",
+      "ungroup": "Desagrupar carpeta",
+      "serverCount": "{count} servidor | {count} servidores"
+    },
+    "leave": {
+      "confirm": "¿Salir de «{name}»? Perderás el acceso a todos sus canales y mensajes.",
+      "button": "Salir",
+      "done": "Has salido del servidor",
+      "failed": "No se pudo salir del servidor"
     }
   }
 }

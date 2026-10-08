@@ -9,8 +9,8 @@ import { roleService } from '@/services/RoleService';
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { ensureEmojiDataLoaded } from '@/composables/useEmojiLoader';
+import { customEmojiIndex, searchCustomIndex } from '@/services/emojiSearchIndex';
 import type { SuggestionItem, SuggestionPosition } from '@/components/AutoSuggest.vue';
-import type { ResolvedEmoji } from '@/types';
 import { debug } from '@/utils/debug';
 import { supabase } from '@/supabase';
 import {
@@ -152,7 +152,7 @@ export function useAutoSuggest(
   const emojiCacheStore = useEmojiCacheStore();
   const serverChannelStore = useServerChannelStore();
   const { hasCurrentUserPermission, Permission, isCurrentUserServerOwner } = useServerPermissions();
-  const { searchEmojis: searchUnifiedEmojis, isLoaded: unifiedLoaded, isNativePack, getSvgUrl } = useUnifiedEmoji();
+  const { searchEmojiHits, isLoaded: unifiedLoaded, isNativePack, getTwemojiUrl } = useUnifiedEmoji();
   const { frequentEmojis } = useFrequentEmojis();
 
   const finalConfig = {
@@ -232,7 +232,8 @@ export function useAutoSuggest(
     });
   }
 
-  // Server emojis plus the unified pack. Empty query is allowed: ":" alone lists emojis.
+  // Server emojis plus the unified pack. Empty query is allowed: ":" alone lists
+  // custom emojis. Ranking and tiers: emojiSearchIndex.
   const emojiSuggestions = computed((): SuggestionItem[] => {
     if (!finalConfig.enableEmojis || state.value.triggerType !== 'emoji') {
       return [];
@@ -240,96 +241,98 @@ export function useAutoSuggest(
     
     ensureEmojiDataLoaded()
 
-    const suggestions: SuggestionItem[] = [];
     const query = state.value.query.toLowerCase();
-    const resolvedEmojiList = emojiCacheStore.resolvedEmojis;
+    const limit = finalConfig.maxSuggestions;
+    type Ranked = { item: SuggestionItem; tier: number; len: number; kind: number; order: number };
+    const ranked: Ranked[] = [];
     const seenNames = new Set<string>();
 
-    for (const serverId in resolvedEmojiList) {
-      const server = resolvedEmojiList[serverId];
-      const matchingEmojis = server.emojis.filter((emoji: ResolvedEmoji) => 
-        (emoji.name?.toLowerCase() ?? '').includes(query) || 
-        (emoji.display_name?.toLowerCase() ?? '').includes(query)
-      );
-
-      suggestions.push(...matchingEmojis.map((emoji: ResolvedEmoji): SuggestionItem => {
-        seenNames.add((emoji.name ?? '').toLowerCase());
-        return {
+    const customEntries = customEmojiIndex(emojiCacheStore.resolvedEmojis, serverChannelStore.currentServerId ?? null);
+    for (const hit of searchCustomIndex(customEntries, query, limit)) {
+      const { emoji, serverName, name, order } = hit.item;
+      seenNames.add(name);
+      ranked.push({
+        item: {
           id: emoji.id,
           name: emoji.name,
           display_name: emoji.display_name,
           url: emoji.url,
-          server_name: server.server_name,
-          emoji: emoji
-        };
-      }));
+          server_name: serverName,
+          emoji,
+        },
+        tier: hit.tier,
+        len: hit.matched.length,
+        kind: 0,
+        order,
+      });
     }
 
     // Discord emoji have no emojis row; the recent list is their only source.
     // They insert as `:discord:[a:]<name>:<id>:`.
     const seenDiscord = new Set<string>();
-    for (const recent of frequentEmojis.value) {
+    frequentEmojis.value.forEach((recent, order) => {
       const ref = discordEmojiRefFromPicked(recent);
-      if (!ref || !ref.name.toLowerCase().includes(query)) continue;
+      if (!ref) return;
+      const lower = ref.name.toLowerCase();
+      if (!lower.includes(query)) return;
       const token = discordEmojiToken(ref);
-      if (seenDiscord.has(token)) continue;
+      if (seenDiscord.has(token)) return;
       seenDiscord.add(token);
       const url = discordEmojiCdnUrl(ref);
-      suggestions.push({
-        id: token,
-        name: ref.name,
-        display_name: ref.name,
-        url,
-        server_name: 'Discord',
-        emoji: { id: token, name: ref.name, url, domain: 'discord.com' },
+      ranked.push({
+        item: {
+          id: token,
+          name: ref.name,
+          display_name: ref.name,
+          url,
+          server_name: 'Discord',
+          emoji: { id: token, name: ref.name, url, domain: 'discord.com' },
+        },
+        tier: lower === query ? 0 : lower.startsWith(query) ? 1 : 3,
+        len: lower.length,
+        kind: 0,
+        order,
       });
-    }
+    });
 
     // Unified pack: twemoji or native, per pack selection.
     if (unifiedLoaded.value && query.length >= 2) {
-      const unifiedResults = searchUnifiedEmojis(query, finalConfig.maxSuggestions);
-      
-      for (const emoji of unifiedResults) {
+      for (const hit of searchEmojiHits(query, limit)) {
+        const emoji = hit.item.emoji;
         // Server emoji of the same shortcode takes precedence.
-        if (seenNames.has((emoji.shortcode ?? '').toLowerCase())) continue;
-        
-        const svgUrl = getSvgUrl(emoji.shortcode);
-        
-        suggestions.push({
-          id: emoji.unicode || emoji.shortcode,
-          name: emoji.shortcode,
-          display_name: emoji.description || emoji.shortcode,
-          url: isNativePack.value ? undefined : svgUrl || undefined,
-          native: isNativePack.value || !svgUrl ? emoji.unicode : undefined,
-          server_name: 'Emojis',
-          emoji: {
+        if (hit.item.names.some(n => seenNames.has(n))) continue;
+
+        const svgUrl = isNativePack.value ? null : getTwemojiUrl(emoji.unicode);
+        const shown = hit.tier <= 1 ? hit.matched : hit.item.label;
+
+        ranked.push({
+          item: {
             id: emoji.unicode || emoji.shortcode,
-            name: emoji.shortcode,
-            url: svgUrl || undefined,
-            native: emoji.unicode,
-            source: 'unified'
-          }
+            name: shown,
+            display_name: emoji.description || shown,
+            url: isNativePack.value ? undefined : svgUrl || undefined,
+            native: isNativePack.value || !svgUrl ? emoji.unicode : undefined,
+            server_name: 'Emojis',
+            emoji: {
+              id: emoji.unicode || emoji.shortcode,
+              name: shown,
+              url: svgUrl || undefined,
+              native: emoji.unicode,
+              source: 'unified'
+            }
+          },
+          tier: hit.tier,
+          len: hit.matched.length,
+          kind: 1,
+          order: hit.item.order,
         });
       }
     }
 
-    // Order: exact match, then prefix match, then substring match.
-    return suggestions
-      .sort((a, b) => {
-        const aName = (a.name || '').toLowerCase();
-        const bName = (b.name || '').toLowerCase();
-        const aDisplay = (a.display_name || '').toLowerCase();
-        const bDisplay = (b.display_name || '').toLowerCase();
-
-        if (aName === query || aDisplay === query) return -1;
-        if (bName === query || bDisplay === query) return 1;
-
-        if (aName.startsWith(query) || aDisplay.startsWith(query)) return -1;
-        if (bName.startsWith(query) || bDisplay.startsWith(query)) return 1;
-
-        return 0;
-      })
-      .slice(0, finalConfig.maxSuggestions);
+    return ranked
+      .sort((a, b) => a.tier - b.tier || a.len - b.len || a.kind - b.kind || a.order - b.order)
+      .slice(0, limit)
+      .map(r => r.item);
   });
 
   const mentionSuggestions = computed((): SuggestionItem[] => {
@@ -821,13 +824,16 @@ export function useAutoSuggest(
         }
         // The emoji pattern's match starts at ':', so its index needs no adjustment.
         
+        // An open popup keeps its position; the suggestions watcher re-places it
+        // once per list change instead of forcing layout on every keystroke.
+        const keepPosition = state.value.isActive && state.value.triggerType === trigger.type;
         state.value = {
           isActive: true,
           triggerType: trigger.type,
           query,
           triggerPosition,
           selectedIndex: 0,
-          position: calculateCursorPosition()
+          position: keepPosition ? state.value.position : calculateCursorPosition()
         };
         
         // Bridge bot check and role load run on '@', not on server change.
@@ -1037,7 +1043,9 @@ export function useAutoSuggest(
 
   const updatePosition = () => {
     if (state.value.isActive) {
-      state.value.position = calculateCursorPosition();
+      const next = calculateCursorPosition();
+      const prev = state.value.position;
+      if (next.x !== prev.x || next.y !== prev.y) state.value.position = next;
     }
   };
 

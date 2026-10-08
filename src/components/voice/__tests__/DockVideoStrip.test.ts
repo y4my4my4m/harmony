@@ -25,7 +25,7 @@ vi.mock('@/composables/useViewport', async () => {
   const { ref } = await import('vue')
   const isMobileViewport = ref(false)
   m.mobile = isMobileViewport
-  return { useViewport: () => ({ isMobileViewport }) }
+  return { useViewport: () => ({ isMobileViewport, viewportHeight: ref(900) }) }
 })
 vi.mock('@/utils/userScopedStorage', () => ({
   userStorage: {
@@ -306,6 +306,36 @@ describe('DockVideoStrip', () => {
     await nextTick()
     await nextTick()
     expect(m.store.attachVideoToElement).toHaveBeenCalledTimes(2)
+  })
+
+  it('sizes each tile to its video and follows resolution changes', async () => {
+    m.store = makeStore(member('me'), [member('bob', { isVideoEnabled: true })], { connectionMode: 'p2p' })
+    wrapper = await mountStrip()
+    const tile = () => wrapper!.find('.dock-tile[data-user-id="bob"]').element as HTMLElement
+    const report = async (el: HTMLVideoElement, w: number, hgt: number, event: string) => {
+      Object.defineProperty(el, 'videoWidth', { value: w, configurable: true })
+      Object.defineProperty(el, 'videoHeight', { value: hgt, configurable: true })
+      el.dispatchEvent(new Event(event))
+      await nextTick()
+    }
+
+    // Unmeasured container: camera row cap, 16:9 until metadata.
+    expect([tile().style.width, tile().style.height]).toEqual(['248px', '140px'])
+
+    const video = wrapper.find('video').element as HTMLVideoElement
+    await report(video, 720, 1280, 'loadedmetadata')
+    expect([tile().style.width, tile().style.height]).toEqual(['78px', '140px'])
+
+    await report(video, 640, 480, 'resize')
+    expect(tile().style.width).toBe('186px')
+
+    // A screen share raises the row cap for every tile.
+    m.store.allUsers.push(member('carol', { isScreenSharing: true }))
+    await nextTick()
+    await nextTick()
+    const share = wrapper.find('.dock-tile[data-user-id="carol"]').element as HTMLElement
+    expect([share.style.width, share.style.height]).toEqual(['462px', '260px'])
+    expect(tile().style.height).toBe('260px')
   })
 
   describe('mobile keyboard', () => {

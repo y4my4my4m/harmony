@@ -723,6 +723,10 @@
       "showCustomEmojisInDisplayNamesDesc": "When enabled, other users' display names show emoji images. When disabled, emojis and shortcodes are hidden entirely.",
       "greentext": "Greentext",
       "greentextDesc": "Render lines starting with > (no space) in green, imageboard-style. `> text` with a space is always a quote regardless of this setting.",
+      "convertSentEmoticons": "Convert emoticons I send",
+      "convertSentEmoticonsDesc": "Replace :) :D <3 and similar with emoji when you send or edit a message. Code, links and emails are left alone.",
+      "renderEmoticonsAsEmoji": "Show emoticons others send as emoji",
+      "renderEmoticonsAsEmojiDesc": "Display :) :D <3 and similar in messages as emoji. The original text is kept.",
       "inviteBannerBg": "Server banner in invite dialog",
       "inviteBannerBgDesc": "Show a blurred, darkened server banner behind the invite dialog when the server has one.",
       "quickReact": "Quick react",
@@ -3771,6 +3775,49 @@
       "wide": "Wide",
       "square": "Square",
       "tall": "Tall"
+    }
+  },
+  "serverRail": {
+    "unnamedServer": "Unnamed server",
+    "orderSaveFailed": "Couldn't save the server order",
+    "muteFailed": "Couldn't update the server mute",
+    "idCopied": "Server ID copied",
+    "idCopyFailed": "Couldn't copy the server ID",
+    "menu": {
+      "markRead": "Mark as read",
+      "invite": "Invite people",
+      "mute": "Mute server",
+      "unmute": "Unmute server",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "createFolder": "Create folder",
+      "moveToFolder": "Move to folder",
+      "removeFromFolder": "Remove from folder",
+      "copyId": "Copy server ID"
+    },
+    "mute": {
+      "m15": "For 15 minutes",
+      "h1": "For 1 hour",
+      "h3": "For 3 hours",
+      "h8": "For 8 hours",
+      "h24": "For 24 hours",
+      "forever": "Until I turn it back on",
+      "until": "Muted until {time}"
+    },
+    "folder": {
+      "unnamed": "Folder",
+      "markRead": "Mark folder as read",
+      "settings": "Folder settings",
+      "collapse": "Collapse folder",
+      "expand": "Expand folder",
+      "ungroup": "Ungroup folder",
+      "serverCount": "{count} server | {count} servers"
+    },
+    "leave": {
+      "confirm": "Leave \"{name}\"? You will lose access to all of its channels and messages.",
+      "button": "Leave",
+      "done": "Left server",
+      "failed": "Couldn't leave the server"
     }
   }
 }

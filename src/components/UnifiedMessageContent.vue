@@ -1096,6 +1096,7 @@ export default defineComponent({
         resolveEmoji,
         isSingleEmoji: props.isSingleEmoji,
         greentextEnabled: visualTheme.currentSettings.value.greentextEnabled !== false,
+        convertEmoticons: visualTheme.currentSettings.value.renderEmoticonsAsEmoji !== false,
       });
 
     // Splits rendered text on code-block placeholders, interleaving CodeBlock segments.

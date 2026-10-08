@@ -13,6 +13,7 @@ import { debug } from '@/utils/debug'
 import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver'
 import { stripKlipyAttributionFragment } from '@/utils/klipyAttribution'
 import { i18n } from '@/i18n'
+import { emoticonPreferences } from '@/composables/useVisualTheme'
 
 export interface ComposerActionsOptions {
   content: Ref<string>;
@@ -213,7 +214,9 @@ export function useComposerActions(options: ComposerActionsOptions) {
         rawContent, 
         usernameToUserDataMap, 
         emojiDataMap, 
-        hashtagDataMap
+        hashtagDataMap,
+        {},
+        { convertEmoticons: emoticonPreferences().convertSent }
       );
       debug.log('[DEBUG] submitPost: Parsed content:', parsedContent.length, 'parts');
 
@@ -272,7 +275,9 @@ export function useComposerActions(options: ComposerActionsOptions) {
         rawContent,
         usernameToUserDataMap,
         emojiDataMap,
-        hashtagDataMap
+        hashtagDataMap,
+        {},
+        { convertEmoticons: emoticonPreferences().convertSent }
       );
 
       const post = await activityPubStore.updatePost(postId, {

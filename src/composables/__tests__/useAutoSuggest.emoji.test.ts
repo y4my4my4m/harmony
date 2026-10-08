@@ -87,50 +87,44 @@ vi.mock('@/supabase', () => ({
 const isLoaded = ref(true)
 const isNativePack = ref(true)
 
-vi.mock('@/services/unifiedEmojiService', () => ({
-  useUnifiedEmoji: () => ({
-    isLoaded,
-    isNativePack,
-    getSvgUrl: () => null,
-    searchEmojis: (query: string, limit = 50) => {
-      const lowerQuery = query.toLowerCase()
-      const fixtures = [
-        {
-          unicode: '👍',
-          shortcode: 'thumbs_up',
-          name: 'thumbs up',
-          category: 'people',
-          codepoint: '1f44d',
-          keywords: ['thumbs_up', 'thumbsup', '+1', 'thumbs', 'up'],
-        },
-        {
-          unicode: '👎',
-          shortcode: 'thumbs_down',
-          name: 'thumbs down',
-          category: 'people',
-          codepoint: '1f44e',
-          keywords: ['thumbs_down', 'thumbsdown', '-1', 'thumbs', 'down'],
-        },
-        {
-          unicode: '😀',
-          shortcode: 'grinning_face',
-          name: 'grinning face',
-          category: 'people',
-          codepoint: '1f600',
-          keywords: ['grinning', 'face', 'smile', 'happy'],
-        },
-      ]
-      return fixtures
-        .filter(
-          (e) =>
-            e.shortcode.toLowerCase().includes(lowerQuery) ||
-            e.name.toLowerCase().includes(lowerQuery) ||
-            e.keywords.some((kw) => kw.toLowerCase().includes(lowerQuery)),
-        )
-        .slice(0, limit)
+vi.mock('@/services/unifiedEmojiService', async () => {
+  const { buildUnicodeIndex, searchUnicodeIndex } = await vi.importActual<typeof import('@/services/emojiSearchIndex')>('@/services/emojiSearchIndex')
+  const fixtures = [
+    {
+      unicode: '👍',
+      shortcode: 'thumbs_up',
+      name: 'thumbs up',
+      category: 'people',
+      codepoint: '1f44d',
+      keywords: ['thumbs_up', 'thumbsup', '+1', 'thumbs', 'up'],
     },
-  }),
-}))
+    {
+      unicode: '👎',
+      shortcode: 'thumbs_down',
+      name: 'thumbs down',
+      category: 'people',
+      codepoint: '1f44e',
+      keywords: ['thumbs_down', 'thumbsdown', '-1', 'thumbs', 'down'],
+    },
+    {
+      unicode: '😀',
+      shortcode: 'grinning_face',
+      name: 'grinning face',
+      category: 'people',
+      codepoint: '1f600',
+      keywords: ['grinning', 'face', 'smile', 'happy'],
+    },
+  ]
+  const index = buildUnicodeIndex(fixtures, Object.fromEntries(fixtures.map((e) => [e.shortcode, e.unicode])))
+  return {
+    useUnifiedEmoji: () => ({
+      isLoaded,
+      isNativePack,
+      getTwemojiUrl: () => null,
+      searchEmojiHits: (query: string, limit = 50) => searchUnicodeIndex(index, query, limit),
+    }),
+  }
+})
 
 import { useAutoSuggest } from '../useAutoSuggest'
 
