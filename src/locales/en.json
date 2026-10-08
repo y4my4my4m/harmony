@@ -3776,5 +3776,48 @@
       "square": "Square",
       "tall": "Tall"
     }
+  },
+  "serverRail": {
+    "unnamedServer": "Unnamed server",
+    "orderSaveFailed": "Couldn't save the server order",
+    "muteFailed": "Couldn't update the server mute",
+    "idCopied": "Server ID copied",
+    "idCopyFailed": "Couldn't copy the server ID",
+    "menu": {
+      "markRead": "Mark as read",
+      "invite": "Invite people",
+      "mute": "Mute server",
+      "unmute": "Unmute server",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "createFolder": "Create folder",
+      "moveToFolder": "Move to folder",
+      "removeFromFolder": "Remove from folder",
+      "copyId": "Copy server ID"
+    },
+    "mute": {
+      "m15": "For 15 minutes",
+      "h1": "For 1 hour",
+      "h3": "For 3 hours",
+      "h8": "For 8 hours",
+      "h24": "For 24 hours",
+      "forever": "Until I turn it back on",
+      "until": "Muted until {time}"
+    },
+    "folder": {
+      "unnamed": "Folder",
+      "markRead": "Mark folder as read",
+      "settings": "Folder settings",
+      "collapse": "Collapse folder",
+      "expand": "Expand folder",
+      "ungroup": "Ungroup folder",
+      "serverCount": "{count} server | {count} servers"
+    },
+    "leave": {
+      "confirm": "Leave \"{name}\"? You will lose access to all of its channels and messages.",
+      "button": "Leave",
+      "done": "Left server",
+      "failed": "Couldn't leave the server"
+    }
   }
 }

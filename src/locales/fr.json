@@ -3780,5 +3780,48 @@
       "square": "Carré",
       "tall": "Haut"
     }
+  },
+  "serverRail": {
+    "unnamedServer": "Serveur sans nom",
+    "orderSaveFailed": "Impossible d'enregistrer l'ordre des serveurs",
+    "muteFailed": "Impossible de modifier la mise en sourdine du serveur",
+    "idCopied": "ID du serveur copié",
+    "idCopyFailed": "Impossible de copier l'ID du serveur",
+    "menu": {
+      "markRead": "Marquer comme lu",
+      "invite": "Inviter des personnes",
+      "mute": "Rendre le serveur muet",
+      "unmute": "Réactiver le serveur",
+      "moveUp": "Monter",
+      "moveDown": "Descendre",
+      "createFolder": "Créer un dossier",
+      "moveToFolder": "Déplacer vers un dossier",
+      "removeFromFolder": "Retirer du dossier",
+      "copyId": "Copier l'ID du serveur"
+    },
+    "mute": {
+      "m15": "Pendant 15 minutes",
+      "h1": "Pendant 1 heure",
+      "h3": "Pendant 3 heures",
+      "h8": "Pendant 8 heures",
+      "h24": "Pendant 24 heures",
+      "forever": "Jusqu'à ce que je le réactive",
+      "until": "En sourdine jusqu'à {time}"
+    },
+    "folder": {
+      "unnamed": "Dossier",
+      "markRead": "Marquer le dossier comme lu",
+      "settings": "Paramètres du dossier",
+      "collapse": "Replier le dossier",
+      "expand": "Déplier le dossier",
+      "ungroup": "Dissoudre le dossier",
+      "serverCount": "{count} serveur | {count} serveurs"
+    },
+    "leave": {
+      "confirm": "Quitter « {name} » ? Vous perdrez l'accès à tous ses salons et messages.",
+      "button": "Quitter",
+      "done": "Serveur quitté",
+      "failed": "Impossible de quitter le serveur"
+    }
   }
 }

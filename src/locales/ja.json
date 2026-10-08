@@ -3780,5 +3780,48 @@
       "square": "正方形",
       "tall": "縦長"
     }
+  },
+  "serverRail": {
+    "unnamedServer": "名前のないサーバー",
+    "orderSaveFailed": "サーバーの並び順を保存できませんでした",
+    "muteFailed": "サーバーのミュートを変更できませんでした",
+    "idCopied": "サーバーIDをコピーしました",
+    "idCopyFailed": "サーバーIDをコピーできませんでした",
+    "menu": {
+      "markRead": "既読にする",
+      "invite": "友達を招待",
+      "mute": "サーバーをミュート",
+      "unmute": "ミュートを解除",
+      "moveUp": "上へ移動",
+      "moveDown": "下へ移動",
+      "createFolder": "フォルダーを作成",
+      "moveToFolder": "フォルダーへ移動",
+      "removeFromFolder": "フォルダーから外す",
+      "copyId": "サーバーIDをコピー"
+    },
+    "mute": {
+      "m15": "15分間",
+      "h1": "1時間",
+      "h3": "3時間",
+      "h8": "8時間",
+      "h24": "24時間",
+      "forever": "再度オンにするまで",
+      "until": "{time}までミュート中"
+    },
+    "folder": {
+      "unnamed": "フォルダー",
+      "markRead": "フォルダーを既読にする",
+      "settings": "フォルダー設定",
+      "collapse": "フォルダーを閉じる",
+      "expand": "フォルダーを開く",
+      "ungroup": "フォルダーを解除",
+      "serverCount": "{count}個のサーバー"
+    },
+    "leave": {
+      "confirm": "「{name}」から脱退しますか？すべてのチャンネルとメッセージにアクセスできなくなります。",
+      "button": "脱退",
+      "done": "サーバーから脱退しました",
+      "failed": "サーバーから脱退できませんでした"
+    }
   }
 }

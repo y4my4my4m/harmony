@@ -12,6 +12,8 @@ import { authContextService } from '@/services/AuthContextService';
 import { SERVER_BOT_CHANGE_EVENT } from '@/services/serverBotsService';
 import { debug } from '@/utils/debug';
 import { pickServerSettings } from '@/utils/serverSettings';
+import type { RailPlan } from '@/components/serverRail/railModel';
+import { i18n } from '@/i18n';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import router from '@/router';
 
@@ -83,6 +85,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
       categoryChannels: Record<string, Channel[]>
     }>,
     pendingInviteOpen: false as boolean,
+    /** Create-channel or create-category request from the server rail, run once that server's sidebar is shown. */
+    pendingStructureCreate: null as { serverId: string; kind: 'channel' | 'category' } | null,
   }),
 
   getters: {
@@ -303,6 +307,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
         .select(`
           folder_id,
           position,
+          muted,
+          muted_until,
           server:server_id (
             id,
             name,
@@ -327,7 +333,9 @@ export const useServerChannelStore = defineStore('serverChannel', {
       return data?.map((item: any) => ({
         ...item.server,
         folder_id: item.folder_id,
-        position: item.position
+        position: item.position,
+        muted: item.muted ?? false,
+        muted_until: item.muted_until ?? null
       })).filter((s: any) => s.id) || []
     },
 
@@ -340,6 +348,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
         .select(`
           folder_id,
           position,
+          muted,
+          muted_until,
           server:server_id (
             id,
             name,
@@ -365,7 +375,9 @@ export const useServerChannelStore = defineStore('serverChannel', {
       this.servers = data?.map((item: any) => ({
         ...item.server,
         folder_id: item.folder_id,
-        position: item.position
+        position: item.position,
+        muted: item.muted ?? false,
+        muted_until: item.muted_until ?? null
       })).filter((s: any) => s.id) || []
       debug.log(`Loaded ${this.servers.length} servers for user`)
     },
@@ -2279,7 +2291,14 @@ export const useServerChannelStore = defineStore('serverChannel', {
       const folder = this.folders.find(f => f.id === folderId);
       if (!folder) return;
 
-      await this.updateFolder(folderId, { is_expanded: !folder.is_expanded });
+      // Flips locally first; the write restores the old value on failure.
+      const expanded = !folder.is_expanded;
+      folder.is_expanded = expanded;
+      const ok = await this.updateFolder(folderId, { is_expanded: expanded });
+      if (!ok) {
+        const current = this.folders.find(f => f.id === folderId);
+        if (current) current.is_expanded = !expanded;
+      }
     },
 
     /**
@@ -2514,6 +2533,119 @@ export const useServerChannelStore = defineStore('serverChannel', {
         });
         return false;
       }
+    },
+
+    /**
+     * Applies a rail reorder plan (railModel.planLayout). Local state changes
+     * synchronously; the database follows. Any failed write restores the
+     * snapshot and refetches nothing: the snapshot is the last stored state.
+     * Order: create folder, move rows, delete emptied folders.
+     */
+    async applyRailPlan(plan: RailPlan, newFolder?: { name: string; color: string }): Promise<boolean> {
+      if (!this.currentUserId) return false;
+      const userId = this.currentUserId;
+
+      const serverSnapshot = new Map(this.servers.map(s => [s.id, { folder_id: s.folder_id ?? null, position: s.position }]));
+      const folderSnapshot = this.folders.map(f => ({ ...f }));
+
+      if (plan.createFolder) {
+        this.folders.push({
+          id: plan.createFolder.id,
+          user_id: userId,
+          name: newFolder?.name ?? '',
+          color: newFolder?.color ?? '#0EA5E9',
+          position: plan.createFolder.position,
+          is_expanded: false,
+        });
+      }
+      const serverIndex = new Map(this.servers.map((s, i) => [s.id, i]));
+      for (const u of plan.serverUpdates) {
+        const i = serverIndex.get(u.serverId);
+        if (i === undefined) continue;
+        this.servers[i].folder_id = u.folderId;
+        this.servers[i].position = u.position;
+      }
+      for (const u of plan.folderUpdates) {
+        const f = this.folders.find(x => x.id === u.folderId);
+        if (f) f.position = u.position;
+      }
+      if (plan.deleteFolders.length) {
+        const gone = new Set(plan.deleteFolders);
+        this.folders = this.folders.filter(f => !gone.has(f.id));
+      }
+      this.folders.sort((a, b) => a.position - b.position);
+
+      const rollback = () => {
+        for (const s of this.servers) {
+          const prev = serverSnapshot.get(s.id);
+          if (!prev) continue;
+          s.folder_id = prev.folder_id;
+          s.position = prev.position;
+        }
+        this.folders = folderSnapshot;
+        useToast().error(i18n.global.t('serverRail.orderSaveFailed'));
+      };
+
+      try {
+        if (plan.createFolder) {
+          const { error } = await supabase.from('server_folders').insert({
+            id: plan.createFolder.id,
+            user_id: userId,
+            name: newFolder?.name ?? '',
+            color: newFolder?.color ?? '#0EA5E9',
+            position: plan.createFolder.position,
+            is_expanded: false,
+          });
+          if (error) throw error;
+        }
+        const writes = [
+          ...plan.serverUpdates.map(u =>
+            supabase.from('user_servers')
+              .update({ folder_id: u.folderId, position: u.position })
+              .eq('user_id', userId)
+              .eq('server_id', u.serverId)),
+          ...plan.folderUpdates.map(u =>
+            supabase.from('server_folders').update({ position: u.position }).eq('id', u.folderId)),
+        ];
+        const results = await Promise.all(writes);
+        const failed = results.find(r => r.error);
+        if (failed) throw failed.error;
+        if (plan.deleteFolders.length) {
+          const { error } = await supabase.from('server_folders').delete().in('id', plan.deleteFolders);
+          if (error) throw error;
+        }
+        return true;
+      } catch (error) {
+        debug.error('Failed to apply rail order:', error);
+        rollback();
+        return false;
+      }
+    },
+
+    /** Sets user_servers.muted / muted_until. `until` null mutes until unmuted; `false` unmutes. */
+    async setServerMuted(serverId: string, until: Date | null | false): Promise<boolean> {
+      if (!this.currentUserId) return false;
+      const server = this.servers.find(s => s.id === serverId);
+      if (!server) return false;
+      const prev = { muted: server.muted ?? false, muted_until: server.muted_until ?? null };
+      const next = until === false
+        ? { muted: false, muted_until: null }
+        : { muted: true, muted_until: until ? until.toISOString() : null };
+      server.muted = next.muted;
+      server.muted_until = next.muted_until;
+      const { error } = await supabase
+        .from('user_servers')
+        .update(next)
+        .eq('user_id', this.currentUserId)
+        .eq('server_id', serverId);
+      if (error) {
+        debug.error('Failed to update server mute:', error);
+        server.muted = prev.muted;
+        server.muted_until = prev.muted_until;
+        useToast().error(i18n.global.t('serverRail.muteFailed'));
+        return false;
+      }
+      return true;
     },
 
     /**

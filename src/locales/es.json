@@ -3780,5 +3780,48 @@
       "square": "Cuadrada",
       "tall": "Alta"
     }
+  },
+  "serverRail": {
+    "unnamedServer": "Servidor sin nombre",
+    "orderSaveFailed": "No se pudo guardar el orden de los servidores",
+    "muteFailed": "No se pudo cambiar el silencio del servidor",
+    "idCopied": "ID del servidor copiado",
+    "idCopyFailed": "No se pudo copiar el ID del servidor",
+    "menu": {
+      "markRead": "Marcar como leído",
+      "invite": "Invitar personas",
+      "mute": "Silenciar servidor",
+      "unmute": "Dejar de silenciar",
+      "moveUp": "Subir",
+      "moveDown": "Bajar",
+      "createFolder": "Crear carpeta",
+      "moveToFolder": "Mover a carpeta",
+      "removeFromFolder": "Quitar de la carpeta",
+      "copyId": "Copiar ID del servidor"
+    },
+    "mute": {
+      "m15": "Durante 15 minutos",
+      "h1": "Durante 1 hora",
+      "h3": "Durante 3 horas",
+      "h8": "Durante 8 horas",
+      "h24": "Durante 24 horas",
+      "forever": "Hasta que lo vuelva a activar",
+      "until": "Silenciado hasta {time}"
+    },
+    "folder": {
+      "unnamed": "Carpeta",
+      "markRead": "Marcar carpeta como leída",
+      "settings": "Ajustes de la carpeta",
+      "collapse": "Contraer carpeta",
+      "expand": "Expandir carpeta",
+      "ungroup": "Desagrupar carpeta",
+      "serverCount": "{count} servidor | {count} servidores"
+    },
+    "leave": {
+      "confirm": "¿Salir de «{name}»? Perderás el acceso a todos sus canales y mensajes.",
+      "button": "Salir",
+      "done": "Has salido del servidor",
+      "failed": "No se pudo salir del servidor"
+    }
   }
 }

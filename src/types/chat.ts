@@ -31,6 +31,10 @@ export interface Server {
   created_at?: string;
   folder_id?: string | null;
   position?: number;
+  /** user_servers.muted: the rail hides the unread pill; mention badges remain. */
+  muted?: boolean;
+  /** user_servers.muted_until; null with `muted` mutes until unmuted. */
+  muted_until?: string | null;
 }
 
 export interface ServerFolder {

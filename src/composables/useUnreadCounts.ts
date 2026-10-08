@@ -14,6 +14,43 @@ let sharedProfileId: string | null = null
 let initPromise: Promise<void> | null = null
 let subscriberCount = 0
 
+export interface ServerUnreadTotals {
+  messages: number
+  mentions: number
+}
+
+/**
+ * Per-server sums over every channel row, rebuilt once per unread change.
+ * Readers do an O(1) lookup in place of scanning the whole map per server.
+ */
+export const serverUnreadTotals = computed(() => {
+  const totals = new Map<string, ServerUnreadTotals>()
+  sharedUnreadCounts.value.forEach((count) => {
+    if (!count.server_id) return
+    const messages = count.unread_messages > 0 ? count.unread_messages : 0
+    const mentions = count.unread_mentions > 0 ? count.unread_mentions : 0
+    if (!messages && !mentions) return
+    const t = totals.get(count.server_id)
+    if (t) {
+      t.messages += messages
+      t.mentions += mentions
+    } else {
+      totals.set(count.server_id, { messages, mentions })
+    }
+  })
+  return totals
+})
+
+/** Drops every channel row of the given servers; mirrors mark_server_as_read locally. */
+export function clearServerUnread(serverIds: Iterable<string>): void {
+  const ids = new Set(serverIds)
+  const doomed: string[] = []
+  sharedUnreadCounts.value.forEach((count, key) => {
+    if (count.server_id && ids.has(count.server_id)) doomed.push(key)
+  })
+  for (const key of doomed) sharedUnreadCounts.value.delete(key)
+}
+
 /**
  * Composable for managing unread message and mention counts
  * Tracks unread counts per channel, server, and conversation
@@ -64,28 +101,14 @@ export function useUnreadCounts() {
   /**
    * Get total unread mentions for a server (sum across all channels)
    */
-  const getServerUnreadMentions = (serverId: string): number => {
-    let total = 0
-    unreadCounts.value.forEach((count) => {
-      if (count.server_id === serverId && count.unread_mentions > 0) {
-        total += count.unread_mentions
-      }
-    })
-    return total
-  }
+  const getServerUnreadMentions = (serverId: string): number =>
+    serverUnreadTotals.value.get(serverId)?.mentions ?? 0
 
   /**
    * Get total unread messages for a server (sum across all channels)
    */
-  const getServerUnreadMessages = (serverId: string): number => {
-    let total = 0
-    unreadCounts.value.forEach((count) => {
-      if (count.server_id === serverId && count.unread_messages > 0) {
-        total += count.unread_messages
-      }
-    })
-    return total
-  }
+  const getServerUnreadMessages = (serverId: string): number =>
+    serverUnreadTotals.value.get(serverId)?.messages ?? 0
 
   /**
    * Generate a unique key for a context

@@ -3780,5 +3780,48 @@
       "square": "Quadrat",
       "tall": "Hoch"
     }
+  },
+  "serverRail": {
+    "unnamedServer": "Unbenannter Server",
+    "orderSaveFailed": "Die Serverreihenfolge konnte nicht gespeichert werden",
+    "muteFailed": "Die Stummschaltung des Servers konnte nicht geändert werden",
+    "idCopied": "Server-ID kopiert",
+    "idCopyFailed": "Die Server-ID konnte nicht kopiert werden",
+    "menu": {
+      "markRead": "Als gelesen markieren",
+      "invite": "Leute einladen",
+      "mute": "Server stummschalten",
+      "unmute": "Stummschaltung aufheben",
+      "moveUp": "Nach oben",
+      "moveDown": "Nach unten",
+      "createFolder": "Ordner erstellen",
+      "moveToFolder": "In Ordner verschieben",
+      "removeFromFolder": "Aus Ordner entfernen",
+      "copyId": "Server-ID kopieren"
+    },
+    "mute": {
+      "m15": "Für 15 Minuten",
+      "h1": "Für 1 Stunde",
+      "h3": "Für 3 Stunden",
+      "h8": "Für 8 Stunden",
+      "h24": "Für 24 Stunden",
+      "forever": "Bis ich es wieder einschalte",
+      "until": "Stummgeschaltet bis {time}"
+    },
+    "folder": {
+      "unnamed": "Ordner",
+      "markRead": "Ordner als gelesen markieren",
+      "settings": "Ordnereinstellungen",
+      "collapse": "Ordner einklappen",
+      "expand": "Ordner ausklappen",
+      "ungroup": "Ordner auflösen",
+      "serverCount": "{count} Server | {count} Server"
+    },
+    "leave": {
+      "confirm": "„{name}“ verlassen? Du verlierst den Zugriff auf alle Kanäle und Nachrichten.",
+      "button": "Verlassen",
+      "done": "Server verlassen",
+      "failed": "Der Server konnte nicht verlassen werden"
+    }
   }
 }

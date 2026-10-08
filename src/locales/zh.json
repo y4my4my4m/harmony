@@ -3780,5 +3780,48 @@
       "square": "方",
       "tall": "高"
     }
+  },
+  "serverRail": {
+    "unnamedServer": "未命名服务器",
+    "orderSaveFailed": "无法保存服务器顺序",
+    "muteFailed": "无法更改服务器静音",
+    "idCopied": "已复制服务器 ID",
+    "idCopyFailed": "无法复制服务器 ID",
+    "menu": {
+      "markRead": "标记为已读",
+      "invite": "邀请他人",
+      "mute": "静音服务器",
+      "unmute": "取消静音",
+      "moveUp": "上移",
+      "moveDown": "下移",
+      "createFolder": "创建文件夹",
+      "moveToFolder": "移至文件夹",
+      "removeFromFolder": "移出文件夹",
+      "copyId": "复制服务器 ID"
+    },
+    "mute": {
+      "m15": "15 分钟",
+      "h1": "1 小时",
+      "h3": "3 小时",
+      "h8": "8 小时",
+      "h24": "24 小时",
+      "forever": "直到我重新开启",
+      "until": "静音至 {time}"
+    },
+    "folder": {
+      "unnamed": "文件夹",
+      "markRead": "将文件夹标记为已读",
+      "settings": "文件夹设置",
+      "collapse": "收起文件夹",
+      "expand": "展开文件夹",
+      "ungroup": "解散文件夹",
+      "serverCount": "{count} 个服务器"
+    },
+    "leave": {
+      "confirm": "要离开“{name}”吗？你将无法再访问其所有频道和消息。",
+      "button": "离开",
+      "done": "已离开服务器",
+      "failed": "无法离开服务器"
+    }
   }
 }
