@@ -47,7 +47,12 @@ type EventHandler = (payload: Record<string, any>) => void | Promise<void>
 
 const RECONNECT_BASE_DELAY = 2_000
 const RECONNECT_MAX_DELAY = 30_000
-const RECONNECT_MAX_RETRIES = 12
+/**
+ * Hidden duration after which a returning tab rebuilds the channel. Matches
+ * HIDDEN_FOR_STALE_MS in RealtimeConnectionManager: a frozen tab or a NAT drop
+ * leaves the socket dead while the channel still reports SUBSCRIBED.
+ */
+const HIDDEN_FOR_STALE_MS = 60_000
 
 class UserEventChannel {
   private channel: ReturnType<typeof supabase.channel> | null = null
@@ -56,16 +61,20 @@ class UserEventChannel {
   private connected = false
   private retryCount = 0
   private retryTimer: ReturnType<typeof setTimeout> | null = null
+  /** Set by any drop; the next SUBSCRIBED dispatches `_reconnected`. */
+  private needsResync = false
+  private lifecycleBound = false
+  private hiddenAt: number | null = null
 
   /**
-   * Open (or reuse) the broadcast channel for the given user.
-   * Safe to call multiple times - reconnects only if the profileId changed.
+   * Open the broadcast channel for the given user. A call for the user whose
+   * channel is already open or joining is a no-op; failures are retried
+   * without limit, and `online` / a long-hidden tab turning visible rebuild it.
    */
   connect(profileId: string): void {
-    if (this.connected && this.profileId === profileId) return
+    if (this.profileId === profileId && this.channel) return
 
-    // If switching users, full teardown (clears handlers).
-    // If same user (reconnect), only tear down the channel.
+    // Switching users clears handlers; the same user keeps them.
     if (this.profileId && this.profileId !== profileId) {
       this.disconnect()
     } else {
@@ -73,27 +82,74 @@ class UserEventChannel {
     }
 
     this.profileId = profileId
+    this.bindLifecycle()
+    this.open()
+  }
+
+  private open(): void {
+    const profileId = this.profileId
+    if (!profileId) return
     const topic = `user:${profileId}`
 
-    this.channel = supabase.channel(topic, { config: { private: true } })
+    const channel = supabase.channel(topic, { config: { private: true } })
+    this.channel = channel
+    channel
       .on('broadcast', { event: 'user_event' }, (payload) => {
         this.dispatch(payload.payload ?? payload)
       })
       .subscribe((status) => {
+        // removeChannel() closes a replaced channel later, sometimes after its
+        // successor joined; its callbacks must not touch the live state.
+        if (this.channel !== channel) return
         if (status === 'SUBSCRIBED') {
-          const wasReconnect = this.retryCount > 0
           this.connected = true
           this.retryCount = 0
+          if (this.retryTimer) {
+            clearTimeout(this.retryTimer)
+            this.retryTimer = null
+          }
           debug.log('UserEventChannel connected:', topic)
-          if (wasReconnect) {
+          // realtime-js also rejoins an errored channel on its own timer; that
+          // SUBSCRIBED arrives here with retryCount still 0.
+          if (this.needsResync) {
+            this.needsResync = false
             this.dispatch({ type: '_reconnected' })
           }
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           this.connected = false
+          this.needsResync = true
           debug.warn('UserEventChannel status:', status)
           this.scheduleReconnect()
         }
       })
+  }
+
+  /** Rebuilds the channel now, dropping any pending backoff. */
+  private reconnectNow(): void {
+    if (!this.profileId) return
+    this.needsResync = true
+    this.retryCount = 0
+    this.teardownChannel()
+    this.open()
+  }
+
+  private bindLifecycle(): void {
+    if (this.lifecycleBound || typeof window === 'undefined' || typeof document === 'undefined') return
+    this.lifecycleBound = true
+    window.addEventListener('online', () => {
+      if (this.profileId) this.reconnectNow()
+    })
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        this.hiddenAt = Date.now()
+        return
+      }
+      if (document.visibilityState !== 'visible') return
+      const hiddenFor = this.hiddenAt === null ? 0 : Date.now() - this.hiddenAt
+      this.hiddenAt = null
+      if (!this.profileId) return
+      if (!this.connected || hiddenFor >= HIDDEN_FOR_STALE_MS) this.reconnectNow()
+    })
   }
 
   /**
@@ -117,11 +173,10 @@ class UserEventChannel {
       clearTimeout(this.retryTimer)
       this.retryTimer = null
     }
-    if (this.channel) {
-      supabase.removeChannel(this.channel)
-      this.channel = null
-    }
+    const channel = this.channel
+    this.channel = null
     this.connected = false
+    if (channel) supabase.removeChannel(channel)
   }
 
   /** Full teardown: remove the channel, clear all handlers, reset state. */
@@ -129,6 +184,7 @@ class UserEventChannel {
     this.teardownChannel()
     this.profileId = null
     this.retryCount = 0
+    this.needsResync = false
     this.handlers.clear()
   }
 
@@ -175,7 +231,7 @@ class UserEventChannel {
   }
 
   private scheduleReconnect(): void {
-    if (this.retryCount >= RECONNECT_MAX_RETRIES || !this.profileId) return
+    if (!this.profileId || this.retryTimer) return
 
     const delay = Math.min(
       RECONNECT_BASE_DELAY * Math.pow(2, this.retryCount),
@@ -183,15 +239,14 @@ class UserEventChannel {
     )
     const jitter = delay * 0.2 * Math.random()
 
-    debug.log(`UserEventChannel: reconnect in ${Math.round(delay + jitter)}ms (attempt ${this.retryCount + 1}/${RECONNECT_MAX_RETRIES})`)
+    debug.log(`UserEventChannel: reconnect in ${Math.round(delay + jitter)}ms (attempt ${this.retryCount + 1})`)
 
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null
       this.retryCount++
-      const pid = this.profileId
-      if (!pid) return
+      if (!this.profileId) return
       this.teardownChannel()
-      this.connect(pid)
+      this.open()
     }, delay + jitter)
   }
 }

@@ -89,6 +89,11 @@ export class MegolmMessageEncryptionService {
   private static instance: MegolmMessageEncryptionService
   private currentUserId: string | null = null
   private initialized = false
+  /**
+   * initialize() in flight. `initialized` turns true before the stored keys
+   * load, so isInitialized() alone does not mean the unlock attempt finished.
+   */
+  private initPromise: Promise<void> | null = null
 
   // Cached signing public keys, keyed by sender user id. SPKI fetches are
   // batched in the same query as ECDH keys; this cache absorbs verification
@@ -125,6 +130,32 @@ export class MegolmMessageEncryptionService {
   // INITIALIZATION
 
   async initialize(authUserId: string): Promise<void> {
+    if (this.initPromise) return this.initPromise
+    const run = this.initializeInner(authUserId)
+    this.initPromise = run
+    try {
+      await run
+    } finally {
+      if (this.initPromise === run) this.initPromise = null
+    }
+  }
+
+  /**
+   * Resolves once no initialize() (with its stored-key auto-unlock) is in
+   * flight, or after `timeoutMs`. Never rejects.
+   */
+  async whenInitSettled(timeoutMs: number): Promise<void> {
+    const pending = this.initPromise
+    if (!pending) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    await Promise.race([
+      pending.catch(() => {}),
+      new Promise<void>(resolve => { timer = setTimeout(resolve, timeoutMs) }),
+    ])
+    if (timer !== undefined) clearTimeout(timer)
+  }
+
+  private async initializeInner(authUserId: string): Promise<void> {
     // Profile id, never the auth UUID: the auth UUID poisons the per-user
     // session DB name, backup blob userId, and share rows. Fail and retry
     // on the next init.
