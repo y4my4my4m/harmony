@@ -90,10 +90,15 @@ export function reactionMetadata(input: unknown): unknown {
   return metadata
 }
 
+/** Receives each row this API hard-deletes, for MESSAGE_DELETE dispatch. */
+export interface MessageDeleteSink {
+  messageHardDeleted(message: { id: string; channel_id: string | null; metadata: unknown }): Promise<void>
+}
+
 export class BotRestAPI {
   public router: Router
   
-  constructor() {
+  constructor(private readonly deletes?: MessageDeleteSink) {
     this.router = Router()
     this.setupMiddleware()
     this.setupRoutes()
@@ -594,7 +599,7 @@ export class BotRestAPI {
       
       const { data: message } = await supabase
         .from('messages')
-        .select('user_id, bot_id, channel_id')
+        .select('user_id, bot_id, channel_id, metadata, is_deleted')
         .eq('id', messageId)
         .single()
       
@@ -622,6 +627,13 @@ export class BotRestAPI {
       }
       
       await this.logBotAction(botId, 'message_deleted', { message_id: messageId })
+
+      // A soft-deleted row was dispatched when is_deleted was set.
+      if (this.deletes && message.is_deleted !== true) {
+        this.deletes
+          .messageHardDeleted({ id: messageId, channel_id: message.channel_id, metadata: message.metadata ?? null })
+          .catch(err => console.error(`MESSAGE_DELETE dispatch failed for ${messageId}:`, err))
+      }
       
       res.status(204).send()
     } catch (error: any) {

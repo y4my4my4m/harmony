@@ -568,3 +568,35 @@ describe('writes follow channel visibility and the channel\'s write bits', () =>
     expect(db.writesTo('channel_permission_overrides')).toEqual([])
   })
 })
+
+describe('a hard delete reaches the MESSAGE_DELETE sink', () => {
+  function appWith(sink: { messageHardDeleted: (m: any) => Promise<void> }) {
+    const a = express()
+    a.use(express.json())
+    a.use('/api/v1', new BotRestAPI(sink).router)
+    return a
+  }
+
+  it('reports the deleted row with the metadata read before the delete', async () => {
+    seedWithBotMessages(install())
+    const deleted: any[] = []
+    const res = await supertest(appWith({ messageHardDeleted: async (m) => { deleted.push(m) } }))
+      .delete(`/api/v1/messages/${BOT_PUBLIC_MESSAGE}`)
+
+    expect(res.status).toBe(204)
+    expect(deleted).toEqual([{ id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, metadata: { bot: true } }])
+  })
+
+  it('reports nothing for a refused delete or an already soft-deleted row', async () => {
+    seedWithBotMessages(install())
+    db.rows('messages').find((m) => m.id === BOT_PUBLIC_MESSAGE)!.is_deleted = true
+    const deleted: any[] = []
+    const sink = { messageHardDeleted: async (m: any) => { deleted.push(m) } }
+    const refused = await supertest(appWith(sink)).delete(`/api/v1/messages/${PUBLIC_MESSAGE}`)
+    const soft = await supertest(appWith(sink)).delete(`/api/v1/messages/${BOT_PUBLIC_MESSAGE}`)
+
+    expect(refused.status).toBe(403)
+    expect(soft.status).toBe(204)
+    expect(deleted).toEqual([])
+  })
+})

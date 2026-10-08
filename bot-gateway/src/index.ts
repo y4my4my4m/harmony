@@ -49,7 +49,7 @@ eventDispatcher.start().catch(error => {
 })
 
 // Bot API routes require bot token authentication.
-const botAPI = new BotRestAPI()
+const botAPI = new BotRestAPI(eventDispatcher)
 app.use('/api/v1', botAPI.router)
 
 // Discord bridge v2: setup-code redeem, hosted list, and the bridge bot's config, status and pairs.
