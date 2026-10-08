@@ -816,6 +816,13 @@
       "outputDevice": "Ausgabegerät",
       "inputVolume": "Eingabelautstärke",
       "outputVolume": "Ausgabelautstärke"
+    },
+    "buildInfo": {
+      "copyHint": "Klicken, um Versionsinfos für Fehlerberichte zu kopieren",
+      "copied": "Versionsinfos kopiert",
+      "copyFailed": "Versionsinfos konnten nicht kopiert werden",
+      "terms": "Nutzungsbedingungen",
+      "privacy": "Datenschutzerklärung"
     }
   },
   "navigation": {

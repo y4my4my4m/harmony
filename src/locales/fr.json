@@ -816,6 +816,13 @@
       "outputDevice": "Périphérique de sortie",
       "inputVolume": "Volume d'entrée",
       "outputVolume": "Volume de sortie"
+    },
+    "buildInfo": {
+      "copyHint": "Cliquez pour copier les informations de version pour les rapports de bug",
+      "copied": "Informations de version copiées",
+      "copyFailed": "Impossible de copier les informations de version",
+      "terms": "Conditions d'utilisation",
+      "privacy": "Politique de confidentialité"
     }
   },
   "navigation": {
