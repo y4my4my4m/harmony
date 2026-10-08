@@ -107,6 +107,7 @@ can_view_channel	definer	boolean	service_role	client, policy, trigger	called by 
 cancel_device_pairing_request	definer	boolean	authenticated+service_role	client	rpc in src/services/encryption/DeviceIdentityService.ts
 cascade_delete_reblogs	definer	trigger	anon+authenticated+service_role	trigger	trigger public.posts AFTER UPDATE (cascade_delete_reblogs_trigger)
 channel_is_restricted	definer	boolean	service_role	client, policy, trigger	rpc in federation-backend/src/activitypub/VoiceActivityHandler.ts
+channel_message_changes	invoker	jsonb	service_role	client	rpc in bot-gateway/src/gateway/EventDispatcher.ts
 channel_messages_encrypted	definer	boolean	authenticated+service_role	client, trigger	called by discord_bridge_encrypted_channel_ids, effective_channel_encryption, enforce_channel_message_encryption, +6
 channel_viewer_ids	definer	SETOF uuid	service_role	trigger	called by handle_new_message_unread
 check_and_increment_bot_rate_limit	definer	boolean	service_role	client	rpc in bot-gateway/src/auth/BotAuthMiddleware.ts

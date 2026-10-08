@@ -107,6 +107,7 @@ can_view_channel	p_user_id uuid, p_channel_id uuid	boolean	definer	public, pg_te
 cancel_device_pairing_request	p_request_id uuid, p_device_id text	boolean	definer	public, pg_temp	authenticated+service_role	client
 cascade_delete_reblogs		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 channel_is_restricted	p_channel_id uuid	boolean	definer	public, pg_temp	service_role	client
+channel_message_changes	p_after_at timestamp with time zone, p_after_id uuid, p_limit integer	jsonb	invoker	public, pg_temp	service_role	client
 channel_messages_encrypted	p_channel_id uuid	boolean	definer	public, extensions, pg_temp	authenticated+service_role	unreferenced
 channel_viewer_ids	p_channel_id uuid	SETOF uuid	definer	public, pg_temp	service_role	unreferenced
 check_and_increment_bot_rate_limit	p_bot_id uuid, p_bucket text, p_limit integer, p_window_seconds integer	boolean	definer	public, pg_temp	service_role	client
