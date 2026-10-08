@@ -65,6 +65,7 @@ backfill_timeline_entries		integer	invoker	public, extensions, pg_temp	service_r
 backfill_timeline_on_follow		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 ban_server_member	p_server_id uuid, p_user_id uuid, p_reason text, p_delete_message_seconds integer	jsonb	definer	public, extensions, pg_temp	anon+authenticated+service_role	client
 batch_set_instance_config	p_keys text[], p_values jsonb[]	boolean	definer	public, pg_temp	authenticated+service_role	client
+bridge_import_server_emoji	p_bot_id uuid, p_server_id uuid, p_discord_emoji_id text, p_name text, p_url text	TABLE(status text, id uuid, name text, url text, discord_emoji_id text)	definer	public, pg_temp	service_role	client
 broadcast_bot_installation_change		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_bot_presence_change		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_category_change		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger

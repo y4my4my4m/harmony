@@ -24,6 +24,7 @@ import { applyBridgeAttachmentPolicy } from '../utils/mirrorExternalMedia.js'
 import { stripBotSuppliedPaths } from '../utils/messageMedia.js'
 import { absoluteAvatarUrl } from '../utils/avatarUrl.js'
 import { isDiscordCdnUrl } from '../utils/emojiUrl.js'
+import { DISCORD_EMOJI_ID, EMOJI_NAME, storeDiscordEmojiImage } from '../utils/discordEmojiImport.js'
 
 const AUTOMOD_BLOCKED_BODY = {
   error: "Blocked by the server's AutoMod",
@@ -172,6 +173,11 @@ export class BotRestAPI {
     this.route('get', '/emojis', this.getEmojis)
 
     this.route('post', '/emojis', this.createEmoji)
+
+    // Server emoji with their Discord links; the Discord bridge maps reactions through them.
+    this.route('get', '/servers/:serverId/emojis', this.getServerEmojis)
+    // Discord bridge bot of the server only: Discord emoji → server emoji, once per Discord emoji.
+    this.route('post', '/servers/:serverId/emojis/discord', this.importDiscordEmoji)
 
     // Content patch that leaves updated_at alone; no "(edited)" marker.
     this.route('patch', '/messages/:messageId/content-silent', this.silentUpdateMessageContent)
@@ -2003,6 +2009,72 @@ export class BotRestAPI {
     }
   }
   
+  private async getServerEmojis(req: BotRequest, res: Response) {
+    const serverId = req.params.serverId
+    if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
+    if (!(await this.checkBotInGuild(req.bot!.id, serverId))) {
+      return res.status(403).json({ error: 'Bot is not in this server' })
+    }
+    const { data, error } = await supabase
+      .from('emojis')
+      .select('id, name, url, server_id, discord_emoji_id')
+      .eq('server_id', serverId)
+    if (error) return res.status(500).json({ error: error.message })
+    res.json(data ?? [])
+  }
+
+  private async importDiscordEmoji(req: BotRequest, res: Response) {
+    try {
+      const serverId = req.params.serverId
+      const botId = req.bot!.id
+      const { discord_emoji_id: discordEmojiId, name, animated } = req.body ?? {}
+      if (!UUID_PATTERN.test(serverId)) return res.status(400).json({ error: 'serverId must be a UUID' })
+      if (typeof discordEmojiId !== 'string' || !DISCORD_EMOJI_ID.test(discordEmojiId)) {
+        return res.status(400).json({ error: 'discord_emoji_id must be a Discord snowflake' })
+      }
+      if (typeof name !== 'string' || !EMOJI_NAME.test(name)) {
+        return res.status(400).json({ error: 'name must be 1-32 of A-Z, a-z, 0-9, _' })
+      }
+
+      const { data: bridge, error: bridgeError } = await supabase
+        .from('discord_bridges')
+        .select('id')
+        .eq('server_id', serverId)
+        .eq('bot_id', botId)
+        .maybeSingle()
+      if (bridgeError) return res.status(500).json({ error: bridgeError.message })
+      if (!bridge) return res.status(403).json({ error: 'Bot is not the Discord bridge of this server' })
+
+      const call = (url: string | null) => supabase.rpc('bridge_import_server_emoji', {
+        p_bot_id: botId,
+        p_server_id: serverId,
+        p_discord_emoji_id: discordEmojiId,
+        p_name: name,
+        p_url: url,
+      })
+
+      // Without an image URL the RPC answers existing or linked rows and refuses a new one.
+      let { data, error } = await call(null)
+      if (error && error.message === 'invalid emoji url') {
+        const url = await storeDiscordEmojiImage(serverId, discordEmojiId, animated === true)
+        ;({ data, error } = await call(url))
+      }
+      if (error) {
+        const status = error.code === '42501' ? 403 : error.code === '22023' ? 400 : 500
+        return res.status(status).json({ error: error.message })
+      }
+      const row = Array.isArray(data) ? data[0] : null
+      if (!row) return res.status(500).json({ error: 'Import returned no row' })
+      if (row.status === 'created') {
+        await this.logBotAction(botId, 'emoji_imported', { emojiId: row.id, serverId, discordEmojiId })
+      }
+      res.status(row.status === 'created' ? 201 : 200).json(row)
+    } catch (error: any) {
+      console.error('Import Discord emoji exception:', error)
+      res.status(502).json({ error: error.message })
+    }
+  }
+
   private async createEmoji(req: BotRequest, res: Response) {
     try {
       const { name, url, server_id, domain } = req.body
