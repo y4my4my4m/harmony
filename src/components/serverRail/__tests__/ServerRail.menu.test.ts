@@ -85,6 +85,7 @@ describe('ServerRail context menus', () => {
 
   const openOn = async (kind: 'server' | 'folder', id: string) => {
     await wrapper.get(`[data-rail-kind="${kind}"][data-rail-id="${id}"]`).trigger('contextmenu', { clientX: 10, clientY: 10 })
+    await vi.waitFor(() => expect(wrapper.find('.rail-menu [data-action]').exists()).toBe(true))
   }
 
   const base = ['mark-read', 'invite', 'mute', 'mute-m15', 'mute-h1', 'mute-h3', 'mute-h8', 'mute-h24', 'mute-forever', 'settings', 'move-up', 'move-down']
