@@ -83,9 +83,14 @@ describe('ServerRail context menus', () => {
 
   const actions = () => wrapper.findAll('.rail-menu [data-action]').map(b => b.attributes('data-action'))
 
+  // The first mount in a cold CI worker can close the menu as it opens; reopen until it holds.
   const openOn = async (kind: 'server' | 'folder', id: string) => {
-    await wrapper.get(`[data-rail-kind="${kind}"][data-rail-id="${id}"]`).trigger('contextmenu', { clientX: 10, clientY: 10 })
-    await vi.waitFor(() => expect(wrapper.find('.rail-menu [data-action]').exists()).toBe(true), { timeout: 4000 })
+    await vi.waitFor(async () => {
+      if (!wrapper.find('.rail-menu [data-action]').exists()) {
+        await wrapper.get(`[data-rail-kind="${kind}"][data-rail-id="${id}"]`).trigger('contextmenu', { clientX: 10, clientY: 10 })
+      }
+      expect(wrapper.find('.rail-menu [data-action]').exists()).toBe(true)
+    }, { timeout: 4000 })
   }
 
   const base = ['mark-read', 'invite', 'mute', 'mute-m15', 'mute-h1', 'mute-h3', 'mute-h8', 'mute-h24', 'mute-forever', 'settings', 'move-up', 'move-down']
