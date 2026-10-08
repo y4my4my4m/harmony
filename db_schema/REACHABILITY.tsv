@@ -14,8 +14,11 @@ add_server_owner_membership	definer	trigger	service_role	trigger	trigger public.
 add_user_prekeys	definer	integer	service_role	service key	nothing references it
 add_user_to_conversation	definer	uuid	authenticated+service_role	client	rpc in src/stores/useDM.ts
 admin_add_supporter	definer	uuid	authenticated+service_role	client	rpc in src/services/FundingService.ts
+admin_delete_instance_emoji	definer	void	authenticated+service_role	client	rpc in src/services/InstanceEmojiAdminService.ts
+admin_list_instance_emojis	definer	TABLE(id uuid, name text, url text, domain text, scope text, uploader uuid, uploader_username text, created_at timestamp with time zone, usage_count integer, reaction_count bigint, total_count bigint)	authenticated+service_role	client	rpc in src/services/InstanceEmojiAdminService.ts
 admin_list_supporters	definer	jsonb	authenticated+service_role	client	rpc in src/services/FundingService.ts
 admin_moderate_post	definer	boolean	anon+authenticated+service_role	client	rpc in src/services/AdminService.ts
+admin_rename_instance_emoji	definer	void	authenticated+service_role	client	rpc in src/services/InstanceEmojiAdminService.ts
 admin_resolve_pending_donation	definer	uuid	authenticated+service_role	client	rpc in src/services/FundingService.ts
 admin_update_supporter	definer	boolean	authenticated+service_role	client	rpc in src/services/FundingService.ts
 aggregate_hourly_metrics	definer	integer	service_role	client	rpc in federation-backend/src/services/PerformanceMonitor.ts

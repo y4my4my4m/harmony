@@ -14,8 +14,11 @@ add_server_owner_membership		trigger	definer	public, pg_temp	service_role	trigge
 add_user_prekeys	p_user_id uuid, p_device_id text, p_prekeys jsonb	integer	definer	public, pg_temp	service_role	unreferenced
 add_user_to_conversation	conversation_uuid uuid, user_uuid uuid, user_role text	uuid	definer	public, pg_temp	authenticated+service_role	client
 admin_add_supporter	p_user_id uuid, p_tier_id uuid, p_amount numeric, p_platform text	uuid	definer	public, pg_temp	authenticated+service_role	client
+admin_delete_instance_emoji	p_emoji_id uuid	void	definer	public, pg_temp	authenticated+service_role	client
+admin_list_instance_emojis	p_search text, p_source text, p_sort text, p_limit integer, p_offset integer	TABLE(id uuid, name text, url text, domain text, scope text, uploader uuid, uploader_username text, created_at timestamp with time zone, usage_count integer, reaction_count bigint, total_count bigint)	definer	public, pg_temp	authenticated+service_role	client
 admin_list_supporters		jsonb	definer	public, pg_temp	authenticated+service_role	client
 admin_moderate_post	p_post_id uuid, p_action text, p_value text	boolean	definer	public, pg_temp	anon+authenticated+service_role	client
+admin_rename_instance_emoji	p_emoji_id uuid, p_name text	void	definer	public, pg_temp	authenticated+service_role	client
 admin_resolve_pending_donation	p_pending_id uuid, p_user_id uuid	uuid	definer	public, pg_temp	authenticated+service_role	client
 admin_update_supporter	p_user_id uuid, p_changes jsonb	boolean	definer	public, pg_temp	authenticated+service_role	client
 aggregate_hourly_metrics		integer	definer	public, pg_temp	service_role	client
