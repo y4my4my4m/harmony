@@ -420,6 +420,7 @@
     "channelWelcomeSubtitle": "这是 #{name} 频道的开端。",
     "dmBeginning": "这是您与 {name} 私信的最开始。",
     "groupBeginning": "这是 {name} 群组的最开始。",
+    "groupBeginningUnnamed": "这是本群组的最开始。",
     "jumpInConversation": "跳转到对话",
     "reactions": {
       "add": "添加反应",
@@ -3062,6 +3063,45 @@
         "save": "保存失败",
         "loadQueue": "无法加载审核队列",
         "review": "审核失败"
+      }
+    },
+    "instanceEmojis": {
+      "tab": "表情",
+      "title": "实例表情",
+      "hint": "实例级表情和导入的表情：管理员上传的表情、Discord 桥接和机器人的表情，以及来自联邦回应和帖子的表情。服务器表情和个人表情由其所有者管理。消息通过名称引用自定义表情，因此重命名或删除后，之前的消息会显示 :name: 文本而不是图片。",
+      "refresh": "刷新",
+      "searchPlaceholder": "按名称或域名搜索",
+      "source": {
+        "label": "来源",
+        "all": "所有来源",
+        "local": "本地",
+        "remote": "远程和桥接"
+      },
+      "sort": {
+        "label": "排序",
+        "newest": "最新优先",
+        "name": "名称 (A-Z)"
+      },
+      "empty": "没有匹配的实例表情。",
+      "localBadge": "本地",
+      "uploadedBy": "由 {user} 上传",
+      "reactions": "无回应 | {count} 个回应 | {count} 个回应",
+      "rename": "重命名",
+      "newName": "新名称",
+      "previous": "上一页",
+      "next": "下一页",
+      "range": "第 {from}-{to} 个，共 {total} 个",
+      "renamed": "表情已重命名",
+      "deleted": "表情已删除",
+      "deleteTitle": "删除表情",
+      "confirmDelete": "删除 :{name}:？使用它的旧消息将显示 :{name}: 文本而不是图片。",
+      "confirmDeleteInUse": "删除 :{name}:？它的 {count} 个回应将被移除，使用它的旧消息将显示 :{name}: 文本而不是图片。 | 删除 :{name}:？它的 {count} 个回应将被移除，使用它的旧消息将显示 :{name}: 文本而不是图片。",
+      "errors": {
+        "load": "无法加载实例表情。",
+        "rename": "无法重命名表情。",
+        "delete": "无法删除表情。",
+        "invalidName": "名称为 2 到 64 个字母、数字、_ 或 -。",
+        "nameTaken": "另一个实例表情已使用该名称。"
       }
     }
   },

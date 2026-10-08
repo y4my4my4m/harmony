@@ -43,7 +43,7 @@ const DEFAULT_STATE: PersistedState = {
   appInitialized: false,
   uiPreferences: {
     theme: 'dark',
-    fontSize: 14,
+    fontSize: 15,
     enableAnimations: true
   },
   lastActiveTimestamp: Date.now()

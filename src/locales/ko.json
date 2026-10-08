@@ -420,6 +420,7 @@
     "channelWelcomeSubtitle": "#{name} 채널의 시작입니다.",
     "dmBeginning": "{name}님과의 다이렉트 메시지의 시작입니다.",
     "groupBeginning": "{name} 그룹의 시작입니다.",
+    "groupBeginningUnnamed": "이 그룹의 시작입니다.",
     "jumpInConversation": "대화로 이동",
     "reactions": {
       "add": "반응 추가",
@@ -3062,6 +3063,45 @@
         "save": "저장하지 못했습니다",
         "loadQueue": "검토 대기열을 불러오지 못했습니다",
         "review": "검토에 실패했습니다"
+      }
+    },
+    "instanceEmojis": {
+      "tab": "이모지",
+      "title": "인스턴스 이모지",
+      "hint": "인스턴스 전체 이모지와 가져온 이모지입니다. 관리자 업로드, Discord 브리지와 봇 이모지, 연합된 반응과 게시물의 이모지가 포함됩니다. 서버 이모지와 개인 이모지는 소유자가 관리합니다. 메시지는 사용자 지정 이모지를 이름으로 참조하므로, 이름을 바꾸거나 삭제하면 이전 메시지에는 이미지 대신 :name: 텍스트가 표시됩니다.",
+      "refresh": "새로고침",
+      "searchPlaceholder": "이름 또는 도메인으로 검색",
+      "source": {
+        "label": "출처",
+        "all": "모든 출처",
+        "local": "로컬",
+        "remote": "원격 및 브리지"
+      },
+      "sort": {
+        "label": "정렬",
+        "newest": "최신순",
+        "name": "이름 (A-Z)"
+      },
+      "empty": "일치하는 인스턴스 이모지가 없습니다.",
+      "localBadge": "로컬",
+      "uploadedBy": "{user} 업로드",
+      "reactions": "반응 없음 | 반응 {count}개 | 반응 {count}개",
+      "rename": "이름 변경",
+      "newName": "새 이름",
+      "previous": "이전",
+      "next": "다음",
+      "range": "{total}개 중 {from}-{to}",
+      "renamed": "이모지 이름을 변경했습니다",
+      "deleted": "이모지를 삭제했습니다",
+      "deleteTitle": "이모지 삭제",
+      "confirmDelete": ":{name}:을(를) 삭제할까요? 이 이모지를 사용한 이전 메시지에는 이미지 대신 :{name}: 텍스트가 표시됩니다.",
+      "confirmDeleteInUse": ":{name}:을(를) 삭제할까요? 반응 {count}개가 삭제되고, 이 이모지를 사용한 이전 메시지에는 이미지 대신 :{name}: 텍스트가 표시됩니다. | :{name}:을(를) 삭제할까요? 반응 {count}개가 삭제되고, 이 이모지를 사용한 이전 메시지에는 이미지 대신 :{name}: 텍스트가 표시됩니다.",
+      "errors": {
+        "load": "인스턴스 이모지를 불러오지 못했습니다.",
+        "rename": "이모지 이름을 변경하지 못했습니다.",
+        "delete": "이모지를 삭제하지 못했습니다.",
+        "invalidName": "이름은 영문자, 숫자, _ 또는 - 로 2~64자입니다.",
+        "nameTaken": "다른 인스턴스 이모지가 이미 그 이름을 사용합니다."
       }
     }
   },

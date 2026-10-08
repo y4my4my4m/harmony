@@ -420,6 +420,7 @@
     "channelWelcomeSubtitle": "Dies ist der Anfang des Kanals #{name}.",
     "dmBeginning": "Dies ist der Anfang deiner Direktnachrichten mit {name}.",
     "groupBeginning": "Dies ist der Anfang der Gruppe {name}.",
+    "groupBeginningUnnamed": "Dies ist der Anfang dieser Gruppe.",
     "jumpInConversation": "Sprung in der Unterhaltung",
     "reactions": {
       "add": "Reaktion hinzufügen",
@@ -3062,6 +3063,45 @@
         "save": "Speichern fehlgeschlagen",
         "loadQueue": "Prüfwarteschlange konnte nicht geladen werden",
         "review": "Prüfung fehlgeschlagen"
+      }
+    },
+    "instanceEmojis": {
+      "tab": "Emojis",
+      "title": "Instanz-Emojis",
+      "hint": "Instanzweite und importierte Emojis: Uploads von Admins, Emojis von Discord-Brücken und Bots sowie Emojis aus föderierten Reaktionen und Beiträgen. Server- und persönliche Emojis verwalten ihre Besitzer. Nachrichten verweisen über den Namen auf eigene Emojis; nach dem Umbenennen oder Löschen zeigen ältere Nachrichten den Text :name: statt des Bildes.",
+      "refresh": "Aktualisieren",
+      "searchPlaceholder": "Nach Name oder Domain suchen",
+      "source": {
+        "label": "Quelle",
+        "all": "Alle Quellen",
+        "local": "Lokal",
+        "remote": "Entfernt und überbrückt"
+      },
+      "sort": {
+        "label": "Sortierung",
+        "newest": "Neueste zuerst",
+        "name": "Name (A-Z)"
+      },
+      "empty": "Keine passenden Instanz-Emojis.",
+      "localBadge": "lokal",
+      "uploadedBy": "von {user}",
+      "reactions": "keine Reaktionen | {count} Reaktion | {count} Reaktionen",
+      "rename": "Umbenennen",
+      "newName": "Neuer Name",
+      "previous": "Zurück",
+      "next": "Weiter",
+      "range": "{from}-{to} von {total}",
+      "renamed": "Emoji umbenannt",
+      "deleted": "Emoji gelöscht",
+      "deleteTitle": "Emoji löschen",
+      "confirmDelete": ":{name}: löschen? Ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes.",
+      "confirmDeleteInUse": ":{name}: löschen? Seine {count} Reaktion wird entfernt, und ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes. | :{name}: löschen? Seine {count} Reaktionen werden entfernt, und ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes.",
+      "errors": {
+        "load": "Instanz-Emojis konnten nicht geladen werden.",
+        "rename": "Das Emoji konnte nicht umbenannt werden.",
+        "delete": "Das Emoji konnte nicht gelöscht werden.",
+        "invalidName": "Namen bestehen aus 2 bis 64 Buchstaben, Ziffern, _ oder -.",
+        "nameTaken": "Ein anderes Instanz-Emoji verwendet diesen Namen bereits."
       }
     }
   },
