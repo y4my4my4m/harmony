@@ -290,6 +290,8 @@ function createDefaultSettings(theme: VisualThemeSettings['theme'] = 'dark'): Vi
     screenReaderSupport: false,
     showCustomEmojisInDisplayNames: true,
     greentextEnabled: true,
+    convertSentEmoticons: true,
+    renderEmoticonsAsEmoji: true,
     inviteBannerBackground: true,
     bridgeSourceBadge: 'icon',
     fontFamily: 'system',
@@ -809,6 +811,14 @@ export function withPreset(base: VisualThemeSettings, preset: ThemePreset): Visu
 /**
  * Main composable
  */
+/** Emoticon conversion preferences of the active settings; both default on. */
+export function emoticonPreferences(): { convertSent: boolean; renderReceived: boolean } {
+  return {
+    convertSent: settings.value.convertSentEmoticons !== false,
+    renderReceived: settings.value.renderEmoticonsAsEmoji !== false,
+  }
+}
+
 export function useVisualTheme() {
   /**
    * Load and apply the settings for the current session. Signed out, the

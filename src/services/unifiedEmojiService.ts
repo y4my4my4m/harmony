@@ -8,7 +8,7 @@
  * Data source: unicode-emoji-data.json.
  */
 
-import { ref, computed } from 'vue'
+import { ref, shallowRef, markRaw, computed } from 'vue'
 import { debug } from '@/utils/debug'
 import { 
   TWEMOJI_BASE_URL, 
@@ -20,6 +20,14 @@ import {
   getCachedStaticEmojiData,
   setCachedStaticEmojiData,
 } from '@/services/emojiIndexedDBCache'
+import { DISCORD_EMOJI_ALIASES, discordGeneratedAliases } from '@/utils/discordEmojiAliases'
+import {
+  buildUnicodeIndex,
+  searchUnicodeIndex,
+  type EmojiHit,
+  type UnicodeSearchEntry,
+  type UnicodeSearchIndex,
+} from '@/services/emojiSearchIndex'
 
 export type { EmojiPack } from '@/utils/emojiConstants'
 
@@ -63,13 +71,42 @@ export interface EmojiData {
 // State
 const PACK_STORAGE_KEY = 'harmony-emoji-pack'
 const currentPack = ref<EmojiPack>(DEFAULT_EMOJI_PACK)
-const emojiData = ref<EmojiData | null>(null)
-const lookups = ref<EmojiLookups | null>(null)
+// Shallow and raw: 1906 entries with keyword arrays; deep proxies cost every
+// property read in search and render loops. The data is replaced, never mutated.
+const emojiData = shallowRef<EmojiData | null>(null)
+const lookups = shallowRef<EmojiLookups | null>(null)
+let searchIndex: UnicodeSearchIndex | null = null
+let categoryMap: Map<string, EmojiEntry[]> | null = null
+
+/** Installs `data`, adding Discord shortcode aliases absent from the file. */
+function ingestEmojiData(data: EmojiData | null): void {
+  searchIndex = null
+  categoryMap = null
+  if (!data) {
+    emojiData.value = null
+    lookups.value = null
+    return
+  }
+  const base = data.lookups ?? { shortcodeToUnicode: {}, unicodeToShortcode: {}, unicodeToCodepoint: {} }
+  const shortcodes: Record<string, string> = { ...base.shortcodeToUnicode }
+  const extra = { ...DISCORD_EMOJI_ALIASES, ...discordGeneratedAliases((data.emojis ?? []).map(e => e.unicode)) }
+  for (const [code, unicode] of Object.entries(extra)) {
+    if (!shortcodes[code]) shortcodes[code] = unicode
+  }
+  lookups.value = markRaw({ ...base, shortcodeToUnicode: shortcodes })
+  emojiData.value = markRaw({ ...data, lookups: lookups.value })
+}
+
+function getSearchIndex(): UnicodeSearchIndex | null {
+  if (!emojiData.value || !lookups.value) return null
+  if (!searchIndex) searchIndex = buildUnicodeIndex(emojiData.value.emojis, lookups.value.shortcodeToUnicode)
+  return searchIndex
+}
 const isLoaded = ref(false)
 const isLoading = ref(false)
 
 // Set of twemoji SVG filenames; used for exact path resolution.
-const twemojiFileMap = ref<Record<string, boolean> | null>(null)
+const twemojiFileMap = shallowRef<Record<string, boolean> | null>(null)
 
 // Bump when the static JSON files change; busts the IndexedDB cache and forces
 // a one-time refetch on the next loader run.
@@ -98,8 +135,7 @@ async function loadEmojiData(): Promise<void> {
       ])
 
       if (cachedData) {
-        emojiData.value = cachedData
-        lookups.value = cachedData.lookups || null
+        ingestEmojiData(cachedData)
         loadedFromCache = true
         debug.log(`Loaded emoji data from IndexedDB cache: ${cachedData.totalCount} emojis`)
       }
@@ -123,10 +159,10 @@ async function loadEmojiData(): Promise<void> {
     if (!emojiData.value) {
       const dataResponse = await fetch('/assets/emojis/unicode-emoji-data.json')
       if (dataResponse.ok) {
-        emojiData.value = await dataResponse.json()
-        lookups.value = emojiData.value?.lookups || null
-        debug.log(`Loaded unified emoji data: ${emojiData.value?.totalCount} emojis`)
-        setCachedStaticEmojiData('unicode-emoji-data', emojiData.value, EMOJI_DATA_CACHE_VERSION)
+        const fetched = (await dataResponse.json()) as EmojiData
+        setCachedStaticEmojiData('unicode-emoji-data', fetched, EMOJI_DATA_CACHE_VERSION)
+        ingestEmojiData(fetched)
+        debug.log(`Loaded unified emoji data: ${fetched.totalCount} emojis`)
       } else {
         debug.warn('unicode-emoji-data.json not found')
       }
@@ -274,7 +310,23 @@ function findTwemojiFile(codepoint: string): string | null {
  * Twemoji SVG URL for a unicode emoji. Resolves via the file map; falls back
  * to heuristic fe0f normalization when the map is unloaded or has no entry.
  */
+// Keyed by unicode; valid for one twemojiFileMap instance.
+const twemojiUrlCache = new Map<string, string | null>()
+let twemojiUrlCacheMap: Record<string, boolean> | null = null
+
 function getTwemojiUrl(unicode: string): string | null {
+  if (twemojiUrlCacheMap !== twemojiFileMap.value) {
+    twemojiUrlCache.clear()
+    twemojiUrlCacheMap = twemojiFileMap.value
+  }
+  const hit = twemojiUrlCache.get(unicode)
+  if (hit !== undefined) return hit
+  const url = computeTwemojiUrl(unicode)
+  if (lookups.value) twemojiUrlCache.set(unicode, url)
+  return url
+}
+
+function computeTwemojiUrl(unicode: string): string | null {
   let codepoint = unicodeToCodepoint(unicode)
   
   if (!codepoint) {
@@ -432,31 +484,36 @@ function normalizeToUnicode(input: string): string {
 
 // SEARCH
 
-/** Returns [] until the background load started here completes. */
-function searchEmojis(query: string, limit: number = 50): EmojiEntry[] {
+/**
+ * Ranked hits; see emojiSearchIndex for the tiers. Returns [] until the
+ * background load started here completes.
+ */
+function searchEmojiHits(query: string, limit: number = 50): EmojiHit<UnicodeSearchEntry>[] {
   if (!isLoaded.value && !isLoading.value) {
     loadEmojiData().catch(err => {
       debug.warn('Failed to lazy load emoji data:', err)
     })
   }
-  
-  if (!emojiData.value || !query) return []
-  
-  const lowerQuery = query.toLowerCase()
-  
-  return emojiData.value.emojis
-    .filter(emoji => 
-      (emoji.shortcode ?? '').toLowerCase().includes(lowerQuery) ||
-      (emoji.name && emoji.name.toLowerCase().includes(lowerQuery)) ||
-      (emoji.description && emoji.description.toLowerCase().includes(lowerQuery)) ||
-      emoji.keywords?.some(kw => kw.toLowerCase().includes(lowerQuery))
-    )
-    .slice(0, limit)
+  const index = getSearchIndex()
+  if (!index || !query) return []
+  return searchUnicodeIndex(index, query, limit)
+}
+
+function searchEmojis(query: string, limit: number = 50): EmojiEntry[] {
+  return searchEmojiHits(query, limit).map(h => h.item.emoji)
 }
 
 function getEmojisByCategory(categoryId: string): EmojiEntry[] {
   if (!emojiData.value) return []
-  return emojiData.value.emojis.filter(e => e.category === categoryId)
+  if (!categoryMap) {
+    categoryMap = new Map()
+    for (const e of emojiData.value.emojis) {
+      let list = categoryMap.get(e.category)
+      if (!list) categoryMap.set(e.category, (list = []))
+      list.push(e)
+    }
+  }
+  return categoryMap.get(categoryId) ?? []
 }
 
 /** Categories sorted by `order`; falls back to EMOJI_CATEGORIES when unloaded. */
@@ -508,6 +565,7 @@ export function useUnifiedEmoji() {
     
     // Data access
     searchEmojis,
+    searchEmojiHits,
     getEmojisByCategory,
     getCategories,
     getAllEmojis,
@@ -530,6 +588,7 @@ export {
   resolveEmoji,
   normalizeToUnicode,
   searchEmojis,
+  searchEmojiHits,
   getEmojisByCategory,
   getCategories,
   getAllEmojis,

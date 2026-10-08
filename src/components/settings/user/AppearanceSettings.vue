@@ -587,6 +587,32 @@
 
       <div class="setting-item">
         <div class="setting-info">
+          <h4 class="setting-label">{{ $t('settings.appearance.convertSentEmoticons') }}</h4>
+          <p class="setting-description">{{ $t('settings.appearance.convertSentEmoticonsDesc') }}</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch
+            :model-value="settings.convertSentEmoticons !== false"
+            @update:model-value="(v: boolean) => (settings.convertSentEmoticons = v)"
+          />
+        </div>
+      </div>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">{{ $t('settings.appearance.renderEmoticonsAsEmoji') }}</h4>
+          <p class="setting-description">{{ $t('settings.appearance.renderEmoticonsAsEmojiDesc') }}</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch
+            :model-value="settings.renderEmoticonsAsEmoji !== false"
+            @update:model-value="(v: boolean) => (settings.renderEmoticonsAsEmoji = v)"
+          />
+        </div>
+      </div>
+
+      <div class="setting-item">
+        <div class="setting-info">
           <h4 class="setting-label">{{ $t('settings.appearance.inviteBannerBg') }}</h4>
           <p class="setting-description">{{ $t('settings.appearance.inviteBannerBgDesc') }}</p>
         </div>

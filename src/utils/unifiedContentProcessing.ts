@@ -12,6 +12,7 @@ import { stripTrackingParameters, isUrlTrackingStrippingEnabled } from '@/utils/
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { parseUrlMatchContext, URL_TOKEN_REGEX } from '@/utils/urlSplitting'
 import { HANDLE_PATTERN, createHandleRegex, parseHandle } from '@/utils/mentionGrammar'
+import { convertEmoticons } from '@/utils/emoticons'
 
 // UUID-based emojis (legacy) and shortcode emojis are both supported.
 import {
@@ -588,6 +589,8 @@ async function parseContentSegment(
 export interface ContentParseOptions {
   hashtags?: 'social' | 'channels' | 'none';
   channelDataMap?: Record<string, { id: string; serverId: string; name: string }>;
+  /** Replace standalone text emoticons with emoji before parsing (utils/emoticons). */
+  convertEmoticons?: boolean;
 }
 
 export async function parseContentToMessageParts(
@@ -599,6 +602,7 @@ export async function parseContentToMessageParts(
   parseOptions: ContentParseOptions = {}
 ): Promise<MessagePart[]> {
   if (!content) return [{ type: 'text', text: '' }];
+  if (parseOptions.convertEmoticons) content = convertEmoticons(content);
 
   const parts: MessagePart[] = [];
   let lastIndex = 0;
