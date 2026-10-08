@@ -393,7 +393,7 @@
                 >
                   <img
                     v-if="(server as any).icon_url || server.icon"
-                    :src="((server as any).icon_url || server.icon)"
+                    :src="getServerIconUrl((server as any).icon_url || server.icon, 64)"
                     :alt="server.name"
                     class="picker-server-icon"
                   />
@@ -420,6 +420,7 @@
 </template>
 
 <script setup lang="ts">
+import { getServerIconUrl } from '@/utils/serverUtils'
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { apiUrl } from '@/services/instanceConfig';
 import { debug } from '@/utils/debug'
