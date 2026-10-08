@@ -816,6 +816,13 @@
       "outputDevice": "Dispositivo de salida",
       "inputVolume": "Volumen de entrada",
       "outputVolume": "Volumen de salida"
+    },
+    "buildInfo": {
+      "copyHint": "Haz clic para copiar la información de versión para informes de errores",
+      "copied": "Información de versión copiada",
+      "copyFailed": "No se pudo copiar la información de versión",
+      "terms": "Términos del servicio",
+      "privacy": "Política de privacidad"
     }
   },
   "navigation": {

@@ -816,6 +816,13 @@
       "outputDevice": "出力デバイス",
       "inputVolume": "入力音量",
       "outputVolume": "出力音量"
+    },
+    "buildInfo": {
+      "copyHint": "クリックしてバグ報告用のバージョン情報をコピー",
+      "copied": "バージョン情報をコピーしました",
+      "copyFailed": "バージョン情報をコピーできませんでした",
+      "terms": "利用規約",
+      "privacy": "プライバシーポリシー"
     }
   },
   "navigation": {

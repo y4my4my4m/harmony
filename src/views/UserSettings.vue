@@ -91,6 +91,7 @@
               </button>
             </div>
           </nav>
+          <SettingsBuildFooter />
         </div>
       </div>
 
@@ -229,6 +230,7 @@ import LanguageSettings from '@/components/settings/user/LanguageSettings.vue'
 import AdvancedSettings from '@/components/settings/user/AdvancedSettings.vue'
 import UserBotsManagement from '@/components/settings/user/UserBotsManagement.vue'
 import AnnouncementsSettings from '@/components/settings/user/AnnouncementsSettings.vue'
+import SettingsBuildFooter from '@/components/settings/user/SettingsBuildFooter.vue'
 import { useAnnouncementUnreadCount } from '@/composables/useAnnouncementUnreadCount'
 
 // Icons

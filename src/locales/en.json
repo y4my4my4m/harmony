@@ -830,6 +830,13 @@
       "reportBugSection": "Help",
       "reportBug": "Report a bug",
       "reportBugDescription": "Open GitHub to report a bug or request a feature."
+    },
+    "buildInfo": {
+      "copyHint": "Click to copy version info for bug reports",
+      "copied": "Version info copied",
+      "copyFailed": "Could not copy version info",
+      "terms": "Terms of Service",
+      "privacy": "Privacy Policy"
     }
   },
   "navigation": {

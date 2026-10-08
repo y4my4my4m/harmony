@@ -816,6 +816,13 @@
       "outputDevice": "输出设备",
       "inputVolume": "输入音量",
       "outputVolume": "输出音量"
+    },
+    "buildInfo": {
+      "copyHint": "点击复制版本信息以用于错误报告",
+      "copied": "已复制版本信息",
+      "copyFailed": "无法复制版本信息",
+      "terms": "服务条款",
+      "privacy": "隐私政策"
     }
   },
   "navigation": {

@@ -2,6 +2,23 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig, type DepOptimizationOptions, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { selectivePreload } from './vite-plugin-selective-preload'
+import { execSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+
+const APP_VERSION: string = JSON.parse(
+  readFileSync(fileURLToPath(new URL('./package.json', import.meta.url)), 'utf8')
+).version
+
+// Short commit: GITHUB_SHA in CI, git locally, '' when neither exists (tarball builds).
+function buildCommit(): string {
+  const ci = process.env.GITHUB_SHA?.trim()
+  if (ci) return ci.slice(0, 8)
+  try {
+    return execSync('git rev-parse --short=8 HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+  } catch {
+    return ''
+  }
+}
 
 type ModuleInfoLookup = (id: string) => { isEntry: boolean; importers: readonly string[] } | null
 
@@ -130,6 +147,9 @@ export default defineConfig({
     // compiles them with new Function, which a CSP without 'unsafe-eval' refuses.
     __INTLIFY_JIT_COMPILATION__: true,
     __INTLIFY_DROP_MESSAGE_COMPILER__: false,
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
+    __APP_COMMIT__: JSON.stringify(buildCommit()),
+    __APP_BUILD_DATE__: JSON.stringify(new Date().toISOString()),
   },
   optimizeDeps: {
     esbuildOptions: {

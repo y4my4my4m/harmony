@@ -816,6 +816,13 @@
       "outputDevice": "출력 장치",
       "inputVolume": "입력 볼륨",
       "outputVolume": "출력 볼륨"
+    },
+    "buildInfo": {
+      "copyHint": "클릭하여 버그 신고용 버전 정보 복사",
+      "copied": "버전 정보가 복사되었습니다",
+      "copyFailed": "버전 정보를 복사할 수 없습니다",
+      "terms": "서비스 약관",
+      "privacy": "개인정보 처리방침"
     }
   },
   "navigation": {
