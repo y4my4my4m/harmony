@@ -10,7 +10,7 @@
       :replyMessageId="replyMessageId"
       :channel-id="channelId"
       :conversation-id="conversationId"
-      :server-id="serverId"
+      :server-id="conversationId ? undefined : serverId"
       @update:replyMessageId="handleDontReply"
     />
     <FilePreview

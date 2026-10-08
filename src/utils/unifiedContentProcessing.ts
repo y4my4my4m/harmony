@@ -694,6 +694,15 @@ export function trimTrailingWhitespace(parts: MessagePart[]): MessagePart[] {
   return result;
 }
 
+/** [start, end) offsets of fenced blocks and backtick spans; URLs inside stay code. */
+function markdownCodeRanges(text: string): Array<[number, number]> {
+  const ranges: Array<[number, number]> = [];
+  const re = /```[\s\S]*?```|`[^`\n]+`/g;
+  let m;
+  while ((m = re.exec(text)) !== null) ranges.push([m.index, m.index + m[0].length]);
+  return ranges;
+}
+
 /**
  * Splits text into url and emoji parts. URL tracking-parameter stripping
  * happens here so every caller (ActivityPub, DMs, chat) gets it.
@@ -708,7 +717,11 @@ async function parseTextForUrls(text: string, emojiDataMap: Record<string, any> 
   
   const shouldStripTrackers = isUrlTrackingStrippingEnabled();
   
+  const codeRanges = markdownCodeRanges(text);
+
   while ((match = URL_MATCH_REGEX.exec(text)) !== null) {
+    const at = match.index;
+    if (codeRanges.some(([start, end]) => at >= start && at < end)) continue;
     const { url: rawUrl, preview, segmentStart, segmentEnd } = parseUrlMatchContext(
       text,
       match.index,
