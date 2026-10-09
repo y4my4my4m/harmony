@@ -26,6 +26,7 @@
     <!-- Server rail: fixed column on desktop, drawer on mobile -->
     <div 
       class="server-sidebar-container"
+      data-region="rail"
       :class="{ 'is-dragging': isDragging && dragDirection === 'left' }"
       :style="serverSidebarDragStyle"
     >
@@ -53,7 +54,7 @@
       />
     </div>
     
-    <div class="content-area">
+    <div class="content-area" data-region="content">
       <RouterView 
         :left-sidebar-open="leftSidebarOpen"
         :right-sidebar-open="rightSidebarOpen"
@@ -71,7 +72,7 @@
     </div>
 
     <!-- User Profile at Bottom (desktop only; mobile uses server rail above) -->
-    <div v-if="!isMobile" class="user-profile-section" :class="{ docked: userPanelDocked }">
+    <div v-if="!isMobile" class="user-profile-section" data-region="user" :class="{ docked: userPanelDocked }">
       <UserProfileComponent :docked="userPanelDocked" />
     </div>
     

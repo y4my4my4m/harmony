@@ -1,5 +1,5 @@
 <template>
-  <div ref="composerRef" class="message-input" :class="{'replying': replyMessageId, 'has-files': attachedFiles.length > 0}" data-testid="message-input" data-floating-video-avoid>
+  <div ref="composerRef" class="message-input" data-region="composer" :class="{'replying': replyMessageId, 'has-files': attachedFiles.length > 0}" data-testid="message-input" data-floating-video-avoid>
     <MessageReply
       v-if="replyMessageId"
       :replyMessageId="replyMessageId"
