@@ -6,7 +6,7 @@
       @drop.prevent="triggerFileDrop">
     <MessageDisplay 
       ref="messageDisplayRef"
-      :messages="messages" 
+      :messages="displayMessages"
       :isLoading="isLoading"
       :currentUserId="currentUserId"
       :loadMoreMessages="props.loadMoreMessages"
@@ -45,28 +45,6 @@
       <span class="encryption-status-text">{{ sendError }}</span>
     </div>
 
-    <!-- Encryption status tag (inline, floated right of typing indicator) -->
-    <div class="input-status-row">
-      <div v-if="encryptionStatus" :class="['encryption-status-tag', encryptionStatus.level]">
-        <Icon :name="encryptionStatus.icon" :size="12" class="encryption-status-icon" />
-        <span class="encryption-status-text">{{ encryptionStatus.text }}</span>
-        <button
-          v-if="encryptionStatus.showUnlock"
-          class="encryption-setup-btn"
-          @click="showKeyRecoveryModal = true"
-        >
-          {{ t('chat.unlockNow') }}
-        </button>
-        <button
-          v-else-if="encryptionStatus.showSetup"
-          class="encryption-setup-btn"
-          @click="showEncryptionSetupWizard = true"
-        >
-          {{ t('chat.setupNow') }}
-        </button>
-      </div>
-    </div>
-
     <RulesAcceptPrompt
       v-if="rulesPromptServerId"
       :server-name="serverChannelStore.currentServer?.name"
@@ -85,15 +63,38 @@
       :server-id="serverChannelStore.currentServerId ?? undefined"
       :channel-name="effectiveChannelName"
       :username="effectiveDMUsername"
+      background-send
       @toggleGiphy="toggleGiphy"
       @toggleEmojiList="toggleEmojiList"
       @sendMessage="handleSendMessage"
-      @sendVoiceMessage="handleSendVoiceMessage"
+      @queueVoiceMessage="handleQueueVoiceMessage"
       @update:replyMessageId="handleDontReply"
       @upload-status-changed="handleUploadStatusChanged"
       @edit-last-message="handleEditLastMessage"
       @sendGif="handleSendGif"
-    />
+    >
+      <!-- Shares the strip under the field with the typing indicator. -->
+      <template #status-end>
+        <div v-if="encryptionStatus" :class="['encryption-status-tag', encryptionStatus.level]">
+          <Icon :name="encryptionStatus.icon" :size="12" class="encryption-status-icon" />
+          <span class="encryption-status-text">{{ encryptionStatus.text }}</span>
+          <button
+            v-if="encryptionStatus.showUnlock"
+            class="encryption-setup-btn"
+            @click="showKeyRecoveryModal = true"
+          >
+            {{ t('chat.unlockNow') }}
+          </button>
+          <button
+            v-else-if="encryptionStatus.showSetup"
+            class="encryption-setup-btn"
+            @click="showEncryptionSetupWizard = true"
+          >
+            {{ t('chat.setupNow') }}
+          </button>
+        </div>
+      </template>
+    </MessageInput>
     <!-- Media Picker (GIFs + Emoji) for message input -->
     <MediaPickerPopup
       v-if="mediaPickerOpen"
@@ -159,7 +160,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, onMounted, computed, watch, onUnmounted, defineAsyncComponent } from 'vue';
+  import { ref, onMounted, computed, watch, onUnmounted, defineAsyncComponent, toRaw } from 'vue';
   import MessageDisplay from './MessageDisplay.vue';
   import MessageInput from './MessageInput.vue';
   import Icon from '@/components/common/Icon.vue';
@@ -176,13 +177,16 @@
   import { useThemeStore } from '@/stores/useTheme';
   import { useDraftsStore } from '@/stores/drafts';
   import type { Message, Gif, Emoji, MessagePart } from '@/types';
-  import { isModerationRejectionCode } from '@/services/AutoModService';
+  import { classifySendFailure } from '@/utils/sendFailure';
+  import { useOutboxStore, withPendingRows } from '@/stores/useOutbox';
+  import { sendToTarget, targetKey, type MessageTarget } from '@/stores/shared/sendToTarget';
   import { recordEmojiUsage } from '@/services/emojiService';
   import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver';
   import { readFile } from '@tauri-apps/plugin-fs';
   import { isTauriRuntime } from '@/services/instanceConfig';
   import { getMimeTypeFromFilename } from '@/utils/fileUpload';
-  import { attachmentParts, mediaRoom } from '@/services/privateMedia';
+  import { mediaRoom } from '@/services/privateMedia';
+  import { forgetMessageMediaUpload } from '@/services/messageMediaUpload';
   import MediaPickerPopup from '@/components/MediaPickerPopup.vue';
   import EmojiPopup from '@/components/EmojiPopup.vue';
   import { useMessageReactionLimit } from '@/composables/useReactionLimits';
@@ -194,8 +198,7 @@
 import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   import { useThreadsStore } from '@/stores/useThreads';
   import { coreMessageService } from '@/services/core/CoreMessageService';
-  import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt';
-  import { ENCRYPTION_STATE_CHANGED_EVENT, reportChannelEncryptionError } from '@/composables/useEncryptionAction';
+  import { ENCRYPTION_STATE_CHANGED_EVENT } from '@/composables/useEncryptionAction';
   import { fetchEffectiveChannelEncryption, fetchServerForceKeySetup, invalidateServerForceKeySetup } from '@/services/ChannelEncryptionService';
   import { getEncryptionService } from '@/services/core/channelMessageEncryption';
   import { useChannelEncryptionStore } from '@/stores/useChannelEncryption';
@@ -238,7 +241,31 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   const dmStore = useDMStore();
   const themeStore = useThemeStore();
   const draftsStore = useDraftsStore();
+  const outbox = useOutboxStore();
   const { hasCurrentUserPermission, Permission, isCurrentUserServerOwner } = useServerPermissions();
+
+  // Messages of this view with its outbox rows, which outlive the component. The
+  // rows join once the view has messages: MessageDisplay places its initial scroll
+  // and read divider on the first non-empty list.
+  const viewTargetKey = computed(() => {
+    if (props.isDM) return props.conversationId ? targetKey({ kind: 'dm', conversationId: props.conversationId }) : null;
+    return props.channelId ? targetKey({ kind: 'channel', channelId: props.channelId }) : null;
+  });
+  const displayMessages = computed(() => props.isLoading && props.messages.length === 0
+    ? props.messages
+    : withPendingRows(props.messages, outbox.rowsFor(viewTargetKey.value)));
+
+  /** The open channel or DM; a send keeps it however the view changes afterwards. */
+  const currentTarget = (): MessageTarget | null => {
+    if (props.isDM) {
+      const conversationId = props.conversationId || dmStore.currentConversationId;
+      return conversationId ? { kind: 'dm', conversationId } : null;
+    }
+    const channelId = props.channelId || serverChannelStore.currentChannelId;
+    const serverId = serverChannelStore.channels.find(ch => ch.id === channelId)?.server_id
+      ?? serverChannelStore.currentServerId;
+    return channelId && serverId ? { kind: 'channel', serverId, channelId } : null;
+  };
   
   const {
     visible: showDragDropArea,
@@ -727,6 +754,10 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
       };
 
       const handleRetryMessage = async (message: any) => {
+        if (outbox.has(message.id)) {
+          outbox.retry(message.id);
+          return;
+        }
         if (props.isDM && props.conversationId) {
           await dmStore.retryDMMessage(message.id, props.conversationId, message.user_id, message.content, message.reply_to);
         } else if (props.channelId && serverChannelStore.currentServerId) {
@@ -735,6 +766,10 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
       };
 
       const handleDiscardMessage = (message: any) => {
+        if (outbox.has(message.id)) {
+          outbox.discard(message.id);
+          return;
+        }
         if (props.isDM) {
           dmStore.discardFailedDMMessage(message.id);
         } else {
@@ -861,12 +896,12 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         unlistenTauriFileDrop = null;
       });
 
-      const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
+      const parseMessageInput = async (input: string, serverId?: string): Promise<MessagePart[]> => {
         debug.log('Using unified content parsing for:', input);
 
         const userDataMap = await resolveMentionsUserData(input);
         const emojiDataMap = await resolveEmojisData(input);
-        const roleDataMap = await resolveRoleMentionsData(input, serverChannelStore.currentServerId || undefined);
+        const roleDataMap = await resolveRoleMentionsData(input, serverId);
 
         const result = await parseContentToMessageParts(
           input, userDataMap, emojiDataMap, {}, roleDataMap, buildChatParseOptions(props.isDM));
@@ -875,85 +910,137 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         return result;
       };
 
-
-
-      // Room of composer uploads, and of the send target; attachmentParts copies an
-      // upload whose room differs from the send's.
+      // Room of composer uploads. The outbox copies an upload made in another room
+      // into the room of the send.
       const composerMediaRoom = computed(() => props.isDM
         ? mediaRoom({ conversationId: props.conversationId || dmStore.currentConversationId })
         : mediaRoom({ channelId: props.channelId || serverChannelStore.currentChannelId }));
-      const sendMediaRoom = () => props.isDM
-        ? mediaRoom({ conversationId: dmStore.currentConversationId })
-        : mediaRoom({ channelId: serverChannelStore.currentChannelId });
+
+      const targetServerId = (target: MessageTarget) => target.kind === 'channel' ? target.serverId : undefined;
+
+      /** Clears the draft of a sent message unless it holds other text, typed since. */
+      const clearSentDraft = (sentDraftKey: string | null, sentText: string) => {
+        if (!sentDraftKey) return;
+        const stored = draftsStore.getDraft(sentDraftKey);
+        if (stored.trim() && stored !== sentText) return;
+        draftsStore.clearDraft(sentDraftKey);
+      };
+
+      /**
+       * Puts a message MessageInput handed over back into the composer: its text, and
+       * its attachments with their running uploads. Without a composer the
+       * attachments' uploads are aborted and their previews revoked.
+       */
+      const restoreComposer = (content: string, files: FilePreviewData[]) => {
+        if (content && !messageContent.value.trim()) messageContent.value = content;
+        if (files.length === 0) return;
+        if (messageInputRef.value) {
+          messageInputRef.value.restoreAttachments(files);
+          return;
+        }
+        for (const file of files) {
+          file.upload?.abort();
+          forgetMessageMediaUpload(file.upload?.path);
+          if (file.preview) URL.revokeObjectURL(file.preview);
+        }
+      };
+
+      /**
+       * Queues a message with attachments in the outbox. It shows as a pending row at
+       * once and is sent to `target` when its uploads finish, wherever the user is by
+       * then. False when the author is unknown and nothing was queued.
+       */
+      const queueAttachmentSend = (
+        target: MessageTarget,
+        content: string,
+        files: FilePreviewData[],
+        replyMessageId: string | undefined,
+        extraMetadata?: Record<string, unknown>,
+      ): boolean => {
+        const authorId = currentUserId.value;
+        const uploaderId = authStore.session?.user?.id;
+        if (!authorId || !uploaderId) return false;
+        const hasText = !!content.trim();
+        try {
+          outbox.enqueue({
+            target,
+            authorId,
+            uploaderId,
+            replyTo: replyMessageId,
+            textParts: hasText ? [{ type: 'text', text: content }] : [],
+            parsedTextParts: hasText ? parseMessageInput(content, targetServerId(target)) : undefined,
+            attachments: files.map((file) => {
+              const raw = toRaw(file);
+              const completed = raw.uploadStatus === 'completed';
+              return {
+                file: raw.file,
+                name: raw.name,
+                type: raw.type,
+                size: raw.size,
+                previewUrl: raw.preview,
+                upload: raw.upload,
+                uploadedPath: completed ? raw.uploadedPath : undefined,
+                uploadedUrl: completed ? raw.uploadedUrl : undefined,
+              };
+            }),
+            extraMetadata,
+          });
+          return true;
+        } catch (error) {
+          debug.error('Queueing a message with attachments failed:', error);
+          return false;
+        }
+      };
 
       // Handles both DMs and server channels.
       const handleSendMessage = async (content: string, files: FilePreviewData[] = [], replyMessageId?: string) => {
-        if (!authStore.session?.user) {
+        // Fixed at Enter: the message lands here whatever the view shows by the
+        // time it is sent.
+        const target = authStore.session?.user ? currentTarget() : null;
+        if (!target) {
+          debug.warn('Cannot send message: no session, channel or conversation');
+          restoreComposer(content, files);
+          toast.error(t('message.upload.notSent'));
           return;
         }
+        const sentDraftKey = draftKey.value;
 
-        // DMs need a conversation id; channels need channel and server ids.
-        if (props.isDM) {
-          if (!dmStore.currentConversationId) {
-            debug.warn('Cannot send DM: no conversation selected');
-            return;
+        if (files.length > 0) {
+          const savedReply = consumeReplyTarget();
+          if (queueAttachmentSend(target, content, files, replyMessageId)) {
+            clearSentDraft(sentDraftKey, content);
+          } else {
+            restoreReplyTarget(savedReply);
+            restoreComposer(content, files);
+            toast.error(t('message.upload.notSent'));
           }
-        } else {
-          if (!serverChannelStore.currentChannelId || !serverChannelStore.currentServerId) {
-            debug.warn('Cannot send message: no channel or server selected');
-            return;
-          }
-        }
-
-        const hasUploadingFiles = files.some(file => file.uploadStatus === 'uploading');
-        const hasFailedFiles = files.some(file => file.uploadStatus === 'error');
-
-        if (hasUploadingFiles) {
-          debug.warn('Cannot send message while files are still uploading');
           return;
         }
 
-        if (hasFailedFiles) {
-          debug.warn('Cannot send message with failed uploads');
-          return;
-        }
-
-        let didAttemptSend = false;
         let savedReply: ReplyTargetSnapshot | null = null;
         try {
-          const messageParts: MessagePart[] = [];
-          
-          if (content.trim()) {
-            const parsedMessage = await parseMessageInput(content);
-            messageParts.push(...parsedMessage);
-          }
-
-          // Files are uploaded before this point.
-          messageParts.push(...await attachmentParts(files, sendMediaRoom()));
+          const messageParts: MessagePart[] = content.trim()
+            ? await parseMessageInput(content, targetServerId(target))
+            : [];
 
           if (messageParts.length > 0) {
-            // eslint-disable-next-line unused-imports/no-unused-vars
-            didAttemptSend = true;
-
             // Reply bar clears before the network roundtrip, as MessageInput
             // already cleared the text editor on Enter. The snapshot restores
             // it if the send does not go through.
             savedReply = consumeReplyTarget();
 
-            const sendOutcome = await sendChannelOrDMWithEncryptionPolicy(messageParts, replyMessageId)
+            const sendOutcome = await sendChannelOrDMWithEncryptionPolicy(target, messageParts, replyMessageId)
 
             // NOTE: `messageContent.value` is not touched here. MessageInput
             // cleared the input synchronously on Enter via `update:modelValue`.
             // Clearing it again after the server roundtrip wipes anything typed
             // in the meantime.
             if (sendOutcome === 'ok') {
-              if (draftKey.value && !messageContent.value.trim()) {
-                draftsStore.clearDraft(draftKey.value);
-              }
+              clearSentDraft(sentDraftKey, content);
             } else {
               // 'declined' (encryption cancel) or 'no-context' (missing
-              // channel/conversation/user): nothing was sent, so the reply
-              // target goes back for a retry.
+              // author): nothing was sent, so the reply target goes back for a
+              // retry.
               restoreReplyTarget(savedReply);
             }
           }
@@ -963,9 +1050,21 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
           // draft handling below.
           restoreReplyTarget(savedReply);
           debug.error('Error sending message:', error);
-          const code = (error?.code || '').toString()
-          const msg = error?.message || String(error)
-          if (code === 'ENCRYPTION_REQUIRED' || msg.includes('ENCRYPTION_REQUIRED')) {
+          handleSendFailure(error, target, content);
+        }
+      };
+
+      const handleSendFailure = (error: any, target: MessageTarget, content: string) => {
+        const msg = error?.message || String(error)
+        // The input cleared optimistically on send. The draft comes back unless the
+        // view moved on or something new has already been typed.
+        const restoreDraft = () => {
+          if (content && viewTargetKey.value === targetKey(target) && !messageContent.value.trim()) {
+            messageContent.value = content
+          }
+        }
+        switch (classifySendFailure(error)) {
+          case 'encryption-required':
             // The channel mandates encryption; no plaintext override exists.
             // Same rejection feedback as an over-limit send (buzz plus toast)
             // rather than a "send plaintext" prompt. A refusal carrying a
@@ -974,187 +1073,100 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
               toast.error(msg || 'This channel requires end-to-end encryption.')
             }
             messageInputRef.value?.flashRejection?.()
-            // The input cleared optimistically on send. Restore the draft
-            // unless something new has already been typed.
-            if (content && !messageContent.value.trim()) {
-              messageContent.value = content
-            }
-          } else if (code.startsWith('ENCRYPTION_') || msg.includes('ENCRYPTION_')) {
+            restoreDraft()
+            break
+          case 'encryption':
             sendError.value = msg
             setTimeout(() => { sendError.value = null }, 6000)
-          } else if (code === 'RECIPIENT_DELETED' || msg.includes('RECIPIENT_DELETED')) {
+            break
+          case 'recipient-deleted':
             toast.error(t('dm.recipientDeleted'))
             messageInputRef.value?.flashRejection?.()
-            if (content && !messageContent.value.trim()) {
-              messageContent.value = content
-            }
-          } else if (msg.includes('Slowmode')) {
+            restoreDraft()
+            break
+          case 'slowmode':
             // The chat store already dispatched harmony:slowmode-hit to sync the
             // input countdown. This surfaces the human-readable reason.
             toast.info(msg)
-            if (content && !messageContent.value.trim()) {
-              messageContent.value = content
-            }
-          } else if (code === 'RULES_NOT_ACCEPTED' || msg.includes('RULES_NOT_ACCEPTED')) {
+            restoreDraft()
+            break
+          case 'rules':
             // The composer turns into the accept-rules prompt; the draft is kept.
-            void welcomeStore.handleRulesRejection(error?.details?.serverId ?? serverChannelStore.currentServerId)
-            if (content && !messageContent.value.trim()) {
-              messageContent.value = content
-            }
-          } else if (isModerationRejectionCode(code)) {
+            void welcomeStore.handleRulesRejection(error?.details?.serverId ?? targetServerId(target))
+            restoreDraft()
+            break
+          case 'moderation':
             // AutoMod block, member timeout or new-account limit. The message
             // carries the server's reason; the draft comes back for editing.
             toast.error(msg)
             messageInputRef.value?.flashRejection?.()
-            if (content && !messageContent.value.trim()) {
-              messageContent.value = content
-            }
-          }
+            restoreDraft()
+            break
         }
       };
 
-      const { runWithEncryptionFallback } = useEncryptionFallbackPrompt()
-
       /**
-       * Runs the send call, intercepts fail-closed encryption policy errors,
-       * and prompts through the global modal before retrying with an explicit
-       * plaintext-fallback override.
+       * Sends to `target` through sendToTarget, which applies the fail-closed
+       * encryption policy and prompts through the global modal before re-sending
+       * with an explicit plaintext-fallback override.
        *
        * Returns:
        *   - 'ok'         - sent, encrypted or with authorized plaintext
-       *                    fallback
+       *                    fallback; or kept by the store as a failed row with
+       *                    Retry after its own retries
        *   - 'declined'   - Cancel on the fallback modal; nothing was sent
-       *   - 'no-context' - conversation/channel/user context missing (channel
-       *                    deleted, user logging out, DM conversation not
-       *                    loaded). Nothing was sent; callers must not treat
-       *                    this as success.
-       *   - 'error'      - unrecoverable; re-thrown to the outer handler in
-       *                    `handleSendMessage`
-       *
-       * DM and channel sends share this composable so the input/draft state in
-       * `handleSendMessage` tracks the actual outcome, including an
-       * encryption-fallback decline.
+       *   - 'no-context' - no author profile. Nothing was sent; callers must
+       *                    not treat this as success.
+       * Unrecoverable errors are thrown to the caller.
        */
       const sendChannelOrDMWithEncryptionPolicy = async (
+        target: MessageTarget,
         messageParts: MessagePart[],
         replyMessageId?: string,
-      ): Promise<'ok' | 'declined' | 'error' | 'no-context'> => {
-        // Context is pre-checked so a missing channel/conversation/user is a
-        // distinct outcome rather than a `false` resolution, which
-        // `runWithEncryptionFallback` reports as success.
-        if (props.isDM) {
-          if (!props.conversationId || !authStore.session?.user?.id) {
-            debug.warn('Cannot send: missing DM conversation or user context')
-            return 'no-context'
-          }
-        } else if (
-          !serverChannelStore.currentServerId ||
-          !serverChannelStore.currentChannelId ||
-          !authStore.session?.user
-        ) {
-          debug.warn('Cannot send: missing channel/server or user context')
+      ): Promise<'ok' | 'declined' | 'no-context'> => {
+        const authorId = currentUserId.value;
+        if (!authorId) {
+          debug.warn('Cannot send: missing user context')
           return 'no-context'
         }
 
-        const trySend = async ({ allowPlaintextFallback }: { allowPlaintextFallback: boolean }) => {
-          if (props.isDM) {
-            // Context guaranteed by the pre-check above.
-            const success = await dmStore.sendDMMessage(
-              props.conversationId!,
-              currentUserId.value!,
-              messageParts,
-              replyMessageId || undefined,
-              { allowPlaintextFallback },
-            )
-            // `dmStore.sendDMMessage` returns false on transient non-encryption
-            // failures it could not recover after retry. Throwing makes
-            // `runWithEncryptionFallback` classify it as `error`, not `ok`.
-            if (!success) throw new Error('DM send did not complete')
-            return true
-          }
-          await chatStore.sendMessage(
-            serverChannelStore.currentServerId!,
-            serverChannelStore.currentChannelId!,
-            currentUserId.value!,
-            messageParts,
-            replyMessageId || '',
-            undefined,
-            { allowPlaintextFallback },
-          )
-          return true
-        }
-
-        const scope: 'channel' | 'dm' = props.isDM ? 'dm' : 'channel'
-        const contextKey = props.isDM
-          ? `dm:${props.conversationId}`
-          : `channel:${serverChannelStore.currentChannelId}`
-        const outcome = await runWithEncryptionFallback(trySend, { scope, contextKey })
-
-        if (outcome.status === 'declined') {
+        const outcome = await sendToTarget(target, authorId, messageParts, replyMessageId)
+        if (outcome === 'declined') {
           sendError.value = 'Message was not sent.'
           setTimeout(() => { sendError.value = null }, 6000)
           return 'declined'
         }
-        if (outcome.status === 'error') {
-          // ENCRYPTION_REQUIRED is server-enforced and not overridable. It
-          // bubbles up as a regular error so `handleSendMessage` picks the
-          // copy. Non-encryption failures take the same path.
-          throw outcome.error
-        }
-
         return 'ok'
       }
 
-      const handleSendVoiceMessage = async (data: {
-        url: string
-        path: string
+      const handleQueueVoiceMessage = (data: {
+        file: File
         duration: number
         waveform: number[]
         mimeType: string
       }) => {
-        const messageParts: MessagePart[] = [{
-          type: 'file',
-          url: data.url,
-          path: data.path,
-          fileType: 'audio',
-          fileName: 'Voice message',
-        }]
-
+        const target = currentTarget()
+        if (!target) {
+          debug.error('Cannot send voice: no channel or conversation context')
+          toast.error(t('message.upload.voiceNotSent'))
+          return
+        }
+        const voiceFile = {
+          file: data.file,
+          name: 'Voice message',
+          size: data.file.size,
+          type: data.mimeType,
+          uploadStatus: 'pending',
+        } as FilePreviewData
         const voiceMetadata = {
           voice_message: {
             duration: data.duration,
             waveform: data.waveform,
           },
         }
-
-        debug.log('Sending voice message:', { url: data.url, messageParts, voiceMetadata, isDM: props.isDM, conversationId: props.conversationId })
-
-        try {
-          if (props.isDM && props.conversationId) {
-            await coreMessageService.sendDMMessage(
-              props.conversationId,
-              messageParts,
-              undefined,
-              undefined,
-              voiceMetadata
-            )
-            debug.log('Voice DM sent successfully')
-          } else if (serverChannelStore.currentServerId && serverChannelStore.currentChannelId) {
-            await chatStore.sendMessage(
-              serverChannelStore.currentServerId,
-              serverChannelStore.currentChannelId,
-              currentUserId.value!,
-              messageParts,
-              '',
-              voiceMetadata
-            )
-            debug.log('Voice channel message sent successfully')
-          } else {
-            debug.error('Cannot send voice: no channel or conversation context')
-          }
-        } catch (error) {
-          debug.error('Error sending voice message:', error)
-          reportChannelEncryptionError(error)
+        if (!queueAttachmentSend(target, '', [voiceFile], undefined, voiceMetadata)) {
+          debug.error('Cannot send voice: no author context')
+          toast.error(t('message.upload.voiceNotSent'))
         }
       }
 
@@ -1162,6 +1174,8 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         const gifUrl = gif.media_formats?.gif?.url;
         if (!gifUrl) return;
         closeMediaPicker();
+        const target = currentTarget();
+        if (!target) return;
 
         const messageParts: MessagePart[] = [{
           type: 'file',
@@ -1175,12 +1189,13 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         const savedReply = consumeReplyTarget();
         try {
           const sendOutcome = await sendChannelOrDMWithEncryptionPolicy(
+            target,
             messageParts,
             replyId,
           );
           if (sendOutcome !== 'ok') {
             // 'declined' (fallback cancelled) or 'no-context' (missing
-            // channel/DM): the GIF was not sent; restore the reply target.
+            // author): the GIF was not sent; restore the reply target.
             restoreReplyTarget(savedReply);
           }
         } catch (error) {
@@ -1296,15 +1311,9 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
     cursor: pointer;
   }
 
-  .input-status-row {
-    position: relative;
-    height: 0;
-    z-index: 1;
-  }
   .encryption-status-tag {
-    position: absolute;
-    bottom: -18px;
-    right: 16px;
+    flex-shrink: 0;
+    margin-left: auto;
     display: inline-flex;
     align-items: center;
     gap: 4px;

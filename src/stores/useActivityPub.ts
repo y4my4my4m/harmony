@@ -1952,9 +1952,8 @@ export const useActivityPubStore = defineStore('activitypub', {
       }
 
       // The user_media bucket RLS scopes writes to the uploader's own folder
-      // (first path segment must equal auth.uid()), matching the chat upload
-      // convention in fileService.ts. Uploading to a bare `posts/` prefix
-      // violates that policy → 403 "new row violates row-level security policy".
+      // (first path segment must equal auth.uid()). Uploading to a bare `posts/`
+      // prefix violates that policy → 403 "new row violates row-level security policy".
       const ctx = await authContextService.getCurrentContext();
       if (!ctx.isAuthenticated) {
         throw new Error('User not authenticated');

@@ -568,7 +568,8 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .channel-lock {
@@ -586,6 +587,8 @@ onUnmounted(() => {
 }
 
 .channel-description {
+  /* Zero basis: the name keeps its width until the header runs out. */
+  flex: 1 1 0;
   font-size: 13px;
   color: var(--text-secondary);
   white-space: nowrap;

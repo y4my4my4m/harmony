@@ -987,6 +987,9 @@ onUnmounted(() => {
 .username {
   font-size: 12px;
   color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .conversation-header {

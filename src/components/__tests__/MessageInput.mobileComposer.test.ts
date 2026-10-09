@@ -60,8 +60,17 @@ vi.mock('@/services/RoleService', () => ({
   roleService: { hasPermission: vi.fn(async () => true) },
   Permission: { SEND_MESSAGES: 'SEND_MESSAGES', MANAGE_MESSAGES: 'MANAGE_MESSAGES' },
 }))
-vi.mock('@/services/fileService', () => ({ backgroundUploadManager: { startUpload: vi.fn() } }))
-vi.mock('@/services/privateMedia', () => ({ mediaRoom: () => null, uploadMessageMedia: vi.fn() }))
+vi.mock('@/services/messageMediaUpload', () => ({
+  startMessageMediaUpload: vi.fn(),
+  forgetMessageMediaUpload: vi.fn(),
+  UploadAbortedError: class extends Error {},
+}))
+vi.mock('@/services/privateMedia', () => ({
+  mediaRoom: () => null,
+  messageMediaPath: vi.fn(),
+  uploadMessageMedia: vi.fn(),
+}))
+vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/utils/ephemeralEmoji', () => ({
   buildEphemeralEmojiFromGif: vi.fn(),
   registerEphemeralEmoji: vi.fn(),

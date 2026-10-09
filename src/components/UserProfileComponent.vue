@@ -505,6 +505,7 @@ onBeforeUnmount(() => {
 
 .user-info {
   flex-grow: 1;
+  min-width: 0;
   margin-left: 4px;
 }
 
@@ -513,7 +514,7 @@ onBeforeUnmount(() => {
   color: var(--text-primary);
   margin: 0 0 0 6px;
   font-size: 0.9em;
-  max-width: 100px;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

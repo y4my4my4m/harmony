@@ -1592,6 +1592,14 @@ onUnmounted(() => {
   opacity: 0.8;
 }
 
+.category-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* .category-header.has-visible-channels.collapsed .category-name {
   font-size: 12px;
 } */

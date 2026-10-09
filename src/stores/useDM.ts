@@ -1876,18 +1876,24 @@ export const useDMStore = defineStore('dm', () => {
     userId: string,
     content: MessagePart[],
     replyTo?: string,
-    options?: { allowPlaintextFallback?: boolean }
+    options?: {
+      allowPlaintextFallback?: boolean
+      /** Id of the optimistic row; the outbox passes the id of its pending row. */
+      tempId?: string
+      clientNonce?: string
+      extraMetadata?: Record<string, unknown>
+    }
   ): Promise<boolean> => {
     // The temp ID carries a random suffix on top of the timestamp: two sends in
     // the same millisecond would otherwise collide, and the second optimistic
     // message would dedupe against the first and vanish until realtime arrived.
-    const tempId = createTempMessageId();
+    const tempId = options?.tempId ?? createTempMessageId();
     // `client_nonce` is echoed back in the persisted row's metadata and on the
     // realtime INSERT. It reconciles the optimistic message when content
     // differs between optimistic (plaintext) and stored (ciphertext), which is
     // the encrypted-conversation case where realtime wins the race.
-    const clientNonce = getRandomId();
-    const sendMetadata = { client_nonce: clientNonce };
+    const clientNonce = options?.clientNonce ?? getRandomId();
+    const sendMetadata = { ...(options?.extraMetadata || {}), client_nonce: clientNonce };
     const optimisticMessage = {
       id: tempId,
       created_at: new Date(),
@@ -1895,7 +1901,7 @@ export const useDMStore = defineStore('dm', () => {
       user_id: userId,
       content: content,
       reply_to: replyTo,
-      metadata: { client_nonce: clientNonce },
+      metadata: { ...sendMetadata },
       sending: true
     };
     
@@ -2048,10 +2054,13 @@ export const useDMStore = defineStore('dm', () => {
     const idx = currentDMMessages.value.findIndex(m => m.id === tempId)
     if (idx === -1) return
 
+    // The row's metadata carries its client_nonce; realtime reconciles by it. A copy:
+    // CoreMessageService writes plaintext-override markers into the metadata it gets.
+    const metadata = { ...currentDMMessages.value[idx].metadata }
     currentDMMessages.value[idx] = { ...currentDMMessages.value[idx], sending: true, failed: false } as any
 
     try {
-      const message = await services.messages.sendDMMessage(conversationId, content, replyTo)
+      const message = await services.messages.sendDMMessage(conversationId, content, replyTo, undefined, metadata)
       _replaceDMTempWithReal(tempId, message, userId, conversationId, content)
     } catch (error) {
       debug.error('DM retry failed:', error)

@@ -99,7 +99,7 @@
               </svg>
               <span class="group-title">
                 <span v-if="item.roleColor" class="role-color-dot" :style="{ backgroundColor: item.roleColor }"></span>
-                {{ item.title }} - {{ item.count }}
+                <span class="group-title-text">{{ item.title }} - {{ item.count }}</span>
               </span>
             </button>
 
@@ -1475,6 +1475,7 @@ const closeInviteModal = () => {
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
 }
 
 .status-activity-icon {
@@ -1494,8 +1495,12 @@ const closeInviteModal = () => {
 }
 
 .status-text {
+  min-width: 0;
   font-size: 12px;
   color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Offline rows dim the avatar and pull the name 40% toward --text-tertiary.
@@ -1605,10 +1610,18 @@ const closeInviteModal = () => {
 
 .group-title {
   flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   font-weight: bold;
   gap: 6px;
+}
+
+.group-title-text {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .role-color-dot {

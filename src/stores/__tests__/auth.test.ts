@@ -33,6 +33,10 @@ const dmCleanup = vi.hoisted(() => vi.fn())
 vi.mock('@/stores/useDM', () => ({
   useDMStore: vi.fn(() => ({ cleanup: dmCleanup })),
 }))
+const outboxReset = vi.hoisted(() => vi.fn())
+vi.mock('@/stores/useOutbox', () => ({
+  useOutboxStore: vi.fn(() => ({ reset: outboxReset })),
+}))
 vi.mock('@/services/RealtimeApiService', () => ({
   realtimeApiService: {
     goOffline: vi.fn().mockResolvedValue(undefined),
@@ -718,6 +722,27 @@ describe('useAuthStore', () => {
       vi.doUnmock('@/composables/usePushNotifications')
       vi.doUnmock('@/composables/useViewContext')
     })
+
+    it('drops queued sends while the session still exists', async () => {
+      vi.doMock('@/router', () => ({ default: { push: vi.fn().mockResolvedValue(undefined) } }))
+      vi.doMock('@/composables/usePushNotifications', () => ({
+        usePushNotifications: () => ({ detachForLogout: vi.fn().mockResolvedValue(undefined) }),
+      }))
+      vi.doMock('@/composables/useViewContext', () => ({ markDeviceAway: vi.fn().mockResolvedValue(undefined) }))
+      const store = useAuthStore()
+      const session = { access_token: jwtWithAAL('aal2'), user: {} } as any
+      store.session = session
+      let sessionAtReset: unknown = 'not reset'
+      outboxReset.mockImplementationOnce(() => { sessionAtReset = store.session })
+
+      await store.logout()
+
+      expect(outboxReset).toHaveBeenCalled()
+      expect(sessionAtReset).toStrictEqual(session)
+      vi.doUnmock('@/router')
+      vi.doUnmock('@/composables/usePushNotifications')
+      vi.doUnmock('@/composables/useViewContext')
+    })
   })
 
   describe('suspended account', () => {
@@ -777,6 +802,15 @@ describe('useAuthStore', () => {
       store.session = { access_token: jwtWithAAL('aal2'), user: { id: 'u' } } as any
       await store.handleSessionRejected('session_revoked')
       await vi.waitFor(() => expect(dmCleanup).toHaveBeenCalledWith())
+      vi.doUnmock('@/router')
+    })
+
+    it('drops queued sends', async () => {
+      vi.doMock('@/router', () => ({ default: { push: vi.fn().mockResolvedValue(undefined) } }))
+      const store = useAuthStore()
+      store.session = { access_token: jwtWithAAL('aal2'), user: { id: 'u' } } as any
+      await store.handleSessionRejected('session_revoked')
+      await vi.waitFor(() => expect(outboxReset).toHaveBeenCalled())
       vi.doUnmock('@/router')
     })
   })

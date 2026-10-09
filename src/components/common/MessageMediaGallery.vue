@@ -6,7 +6,7 @@
   >
     <div
       v-for="(item, index) in items"
-      :key="item.url + index"
+      :key="loadKey(item) + index"
       class="message-media-gallery__item"
       :class="{ 'is-video': item.fileType === 'video' }"
     >
@@ -16,7 +16,7 @@
           @click="$emit('remove-attachment', item.url)"
         />
         <div
-          v-if="item.fileType === 'image' && !imageLoaded[item.url]"
+          v-if="item.fileType === 'image' && !imageLoaded[loadKey(item)]"
           class="media-skeleton image-skeleton"
         />
         <img
@@ -25,8 +25,8 @@
           class="content-image"
           :class="{ 'sticker-image': item.isSticker, 'ai-emoji-image': item.isAiEmoji }"
           draggable="false"
-          v-show="imageLoaded[item.url]"
-          @load="onImageLoad(item.url)"
+          v-show="imageLoaded[loadKey(item)]"
+          @load="onImageLoad(loadKey(item))"
           @error="onItemError(item, 'thumbnail')"
           @click="!item.isSticker && $emit('open-lightbox', item.url)"
         />
@@ -41,6 +41,7 @@
           @pause="$emit('video-pause', $event)"
           @error="onItemError(item)"
         />
+        <MediaUploadProgress v-if="hasUpload(item)" :path="item.path!" />
       </div>
     </div>
   </div>
@@ -58,6 +59,8 @@ import { stripKlipyAttributionFragment, isStickerMessageUrl, isAiEmojiMessageUrl
 import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
 import { isPrivateMediaPart, mediaPartSource, reportMediaPartError } from '@/services/privateMedia';
 import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.vue';
+import MediaUploadProgress from '@/components/common/MediaUploadProgress.vue';
+import { messageMediaUploadState } from '@/services/messageMediaUpload';
 import {
   isDiscordCdnUrl,
   hasExpiredBridgedAttachment,
@@ -145,8 +148,17 @@ const emit = defineEmits<{
   'remove-attachment': [url: string];
 }>();
 
-function onImageLoad(url: string) {
-  emit('image-loaded', url);
+function onImageLoad(key: string) {
+  emit('image-loaded', key);
+}
+
+/** Load-state key and v-for key: the object name of a private item, else its URL. */
+function loadKey(item: GalleryMediaItem): string {
+  return item.path ?? item.url;
+}
+
+function hasUpload(item: GalleryMediaItem): boolean {
+  return !!item.path && !!messageMediaUploadState(item.path);
 }
 
 // Inline thumbnail (downscaled for local uploads); lightbox still opens item.url

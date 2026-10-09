@@ -722,7 +722,10 @@ const closeFolderModal = () => {
   box-shadow: var(--shadow-small);
   z-index: 1001;
   pointer-events: none;
-  white-space: nowrap;
+  /* Long names wrap inside the viewport instead of running off its edge. */
+  max-width: min(320px, calc(100vw - 96px));
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .sidebar-tooltip-content {
@@ -792,7 +795,10 @@ const closeFolderModal = () => {
   box-shadow: var(--shadow-small);
   z-index: 10001;
   pointer-events: none;
-  white-space: nowrap;
+  /* Long names wrap inside the viewport instead of running off its edge. */
+  max-width: min(320px, calc(100vw - 96px));
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .sidebar-tooltip-content {

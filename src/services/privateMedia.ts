@@ -126,6 +126,11 @@ export function storageObjectFromUrl(url: string): { bucket: string; path: strin
   }
 }
 
+/** Key of a part's load state: the object name of a private part, else its URL. */
+export function mediaLoadKey(part: MediaPartLike): string {
+  return isPrivateMediaPart(part) ? part.path : part.url || ''
+}
+
 /** File name to show for a part: its fileName, else the last path or URL segment. */
 export function mediaPartFileName(part: MediaPartLike & { fileName?: string }): string {
   if (part.fileName) return part.fileName
@@ -264,11 +269,26 @@ function partHttpUrl(part: MediaPartLike): string | undefined {
 }
 
 /**
- * Source URL of a media part for rendering. Reactive: reads the signed URL cache
- * and queues signing on a miss. Undefined while a private path is pending; the
- * part's own `url` after signing failed.
+ * Source URL of a media part for rendering: the local source of this client's
+ * upload, else the remote source.
  */
 export function mediaPartSource(
+  part: MediaPartLike | null | undefined,
+  variant: MediaVariant = 'original',
+): string | undefined {
+  if (isPrivateMediaPart(part)) {
+    const local = localSources.get(part.path)
+    if (local) return local
+  }
+  return remoteMediaPartSource(part, variant)
+}
+
+/**
+ * Remote source URL of a media part. Reactive: reads the signed URL cache and
+ * queues signing on a miss. Undefined while a private path is pending; the
+ * part's own `url` after signing failed.
+ */
+export function remoteMediaPartSource(
   part: MediaPartLike | null | undefined,
   variant: MediaVariant = 'original',
 ): string | undefined {
@@ -284,28 +304,34 @@ export function mediaPartSource(
   enqueue(v, path)
   const url = cachedUrl(v, path)
   if (url) return url
-  if (v === 'thumbnail' && failed('thumbnail', path)) return mediaPartSource(part, 'original')
+  if (v === 'thumbnail' && failed('thumbnail', path)) return remoteMediaPartSource(part, 'original')
   if (failed(v, path)) return partHttpUrl(part)
   return undefined
 }
 
-/** Signs the private paths of `parts` and resolves once each is settled. */
+function signed(variant: MediaVariant, path: string): Promise<void> {
+  const key = cacheKey(variant, path)
+  enqueue(variant, path)
+  if (!inflight.has(key) && !queued[variant].has(path)) return Promise.resolve()
+  return new Promise<void>((resolve) => {
+    const list = waiters.get(key) || []
+    list.push(resolve)
+    waiters.set(key, list)
+  })
+}
+
+/**
+ * Signs the private paths of `parts` and resolves once each is settled. Parts
+ * with a local source render without signing and are skipped.
+ */
 export async function ensureMediaPartSources(
   parts: Array<MediaPartLike | null | undefined>,
   variant: MediaVariant = 'original',
 ): Promise<void> {
   const pending: Promise<void>[] = []
   for (const part of parts) {
-    if (!isPrivateMediaPart(part)) continue
-    const v = effectiveVariant(part.path, variant)
-    const key = cacheKey(v, part.path)
-    enqueue(v, part.path)
-    if (!inflight.has(key) && !queued[v].has(part.path)) continue
-    pending.push(new Promise<void>((resolve) => {
-      const list = waiters.get(key) || []
-      list.push(resolve)
-      waiters.set(key, list)
-    }))
+    if (!isPrivateMediaPart(part) || localSources.has(part.path)) continue
+    pending.push(signed(effectiveVariant(part.path, variant), part.path))
   }
   await Promise.all(pending)
 }
@@ -316,8 +342,60 @@ export async function resolveMediaPartUrl(
 ): Promise<string | undefined> {
   if (!part) return undefined
   if (!isPrivateMediaPart(part)) return partHttpUrl(part)
-  await ensureMediaPartSources([part])
-  return mediaPartSource(part)
+  await signed('original', part.path)
+  return remoteMediaPartSource(part)
+}
+
+// ---------------------------------------------------------------------------
+// Local sources
+// ---------------------------------------------------------------------------
+
+/** Object URLs of this client's uploads by object name; they render ahead of signed URLs. */
+const localSources = shallowReactive(new Map<string, string>())
+
+export function registerLocalMediaSource(path: string, url: string): void {
+  localSources.set(path, url)
+}
+
+/** Drops the mapping; the caller owns and revokes the object URL. */
+export function releaseLocalMediaSource(path: string): void {
+  localSources.delete(path)
+}
+
+export function localMediaSource(path: string | null | undefined): string | undefined {
+  return path ? localSources.get(path) : undefined
+}
+
+/** Drops every mapping; sign-out. The registrants revoke their object URLs. */
+export function clearLocalMediaSources(): void {
+  localSources.clear()
+}
+
+/**
+ * Signs the remote image source a render of `part` would use and loads it into
+ * the document's image cache. A thumbnail that fails to sign or load falls back to
+ * the original. False when no remote source loaded within `timeoutMs`.
+ */
+export async function preloadRemoteImageSource(
+  part: MediaPartLike & { path: string },
+  timeoutMs = 30_000,
+): Promise<boolean> {
+  const load = (src: string) => new Promise<boolean>((resolve) => {
+    const img = new Image()
+    const timer = setTimeout(() => resolve(false), timeoutMs)
+    img.onload = () => { clearTimeout(timer); resolve(true) }
+    img.onerror = () => { clearTimeout(timer); resolve(false) }
+    img.src = src
+  })
+  const variant = effectiveVariant(part.path, 'thumbnail')
+  await signed(variant, part.path)
+  const thumbnail = remoteMediaPartSource(part, variant)
+  if (thumbnail && await load(thumbnail)) return true
+  if (variant === 'original') return false
+  reportMediaPartError(part, 'thumbnail')
+  await signed('original', part.path)
+  const original = remoteMediaPartSource(part, 'original')
+  return !!original && load(original)
 }
 
 const lastErrorAt = new Map<string, number>()
@@ -357,6 +435,7 @@ export function resetMediaPartSources(): void {
   inflight.clear()
   waiters.clear()
   lastErrorAt.clear()
+  localSources.clear()
   flushScheduled = false
 }
 

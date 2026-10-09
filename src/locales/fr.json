@@ -432,6 +432,18 @@
       "two": " et {name2} sont en train de taper...",
       "three": ", {name2} et {name3} sont en train de taper...",
       "many": "Plusieurs utilisateurs sont en train de taper..."
+    },
+    "upload": {
+      "progress": "Téléversement, {percent} %",
+      "failed": "Échec du téléversement",
+      "failedToast": "Impossible de téléverser {name} : {reason}",
+      "removeFailed": "Retirez les pièces jointes dont le téléversement a échoué, puis renvoyez.",
+      "sendWhenDone": "Envoi dès la fin des téléversements.",
+      "voiceFailed": "Impossible de téléverser le message vocal.",
+      "cancel": "Annuler le téléversement",
+      "stalled": "Téléversement bloqué : aucun progrès depuis {seconds} s.",
+      "notSent": "Le message n’a pas été envoyé. Il est de retour dans la zone de saisie.",
+      "voiceNotSent": "Impossible d’envoyer le message vocal."
     }
   },
   "messageSearch": {

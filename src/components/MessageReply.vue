@@ -69,7 +69,13 @@ const dontReply = () => {
         display: flex;
         align-items: center;
         justify-content: space-between;
+        gap: 8px;
         padding: 4px 8px;
+    }
+
+    .replyBar > [role="button"] {
+        flex: 1 1 auto;
+        min-width: 0;
     }
 
     .user_display_name {
@@ -78,7 +84,14 @@ const dontReply = () => {
 
     .text-sm-normal {
         font-size: 14px;
-        color: #aaa;
+        color: var(--text-secondary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .actions {
+        flex-shrink: 0;
     }
 
     .actions .closeButton {

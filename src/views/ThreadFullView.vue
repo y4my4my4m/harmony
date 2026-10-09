@@ -195,6 +195,7 @@
       :reply-user-id="replyingToUserId"
       :giphy-open="giphyOpen"
       :emoji-list-open="emojiListOpen"
+      :thread-id="props.threadId"
       :media-room="threadMediaRoom"
       @send-message="handleSendMessage"
       @send-voice-message="handleSendVoiceMessage"
@@ -236,6 +237,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { useToast } from 'vue-toastification'
 import { threadService } from '@/services/ThreadService'
 import { supabase } from '@/supabase'
 import { useUserData } from '@/composables/useUserData'
@@ -293,6 +296,8 @@ const threadsStore = useThreadsStore()
 const pinsStore = usePinsStore()
 const { canManageChannels } = useServerPermissions()
 const { runWithEncryptionFallback } = useEncryptionFallbackPrompt()
+const toast = useToast()
+const { t } = useI18n()
 
 const canManageThread = computed(() => canManageChannels.value)
 
@@ -618,16 +623,10 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
   // Allow sending if we have content OR files
   if ((!content.trim() && files.length === 0) || sending.value || !thread.value) return
   
-  const hasUploadingFiles = files.some(file => file.uploadStatus === 'uploading')
-  const hasFailedFiles = files.some(file => file.uploadStatus === 'error')
-  
-  if (hasUploadingFiles) {
-    debug.warn('Cannot send message while files are still uploading')
-    return
-  }
-  
-  if (hasFailedFiles) {
-    debug.warn('Cannot send message with failed uploads')
+  // MessageInput emits only once every upload finished; an unfinished attachment
+  // is refused here rather than left out of the message.
+  if (files.some(file => file.uploadStatus !== 'completed')) {
+    toast.error(t('message.upload.removeFailed'))
     return
   }
   

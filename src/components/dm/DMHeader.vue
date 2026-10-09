@@ -1210,12 +1210,6 @@ const getDefaultGroupName = (): string => {
 
 
 
-.group-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .edit-group-name-btn,
 .participants-btn {
   background: none;
@@ -1289,6 +1283,10 @@ const getDefaultGroupName = (): string => {
 
 .conversation-status {
   font-size: 12px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .status {
@@ -1376,7 +1374,10 @@ const getDefaultGroupName = (): string => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 200px;
+  /* An inline span ignores max-width and overflow. */
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: bottom;
 }
 
 .more-options-container {

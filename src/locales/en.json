@@ -440,6 +440,18 @@
       "add": "Add reaction",
       "remove": "Remove reaction",
       "reactedWith": "reacted with"
+    },
+    "upload": {
+      "progress": "Uploading, {percent}%",
+      "failed": "Upload failed",
+      "failedToast": "{name} failed to upload: {reason}",
+      "removeFailed": "Remove the attachments that failed to upload, then send again.",
+      "sendWhenDone": "Sending once the uploads finish.",
+      "voiceFailed": "The voice message failed to upload.",
+      "cancel": "Cancel upload",
+      "stalled": "Upload stalled: no progress for {seconds} s.",
+      "notSent": "The message was not sent. It is back in the composer.",
+      "voiceNotSent": "The voice message could not be sent."
     }
   },
   "messageSearch": {

@@ -10,6 +10,16 @@ import { realtimeApiService } from '@/services/RealtimeApiService';
 
 let sessionRejectionSubscribed = false;
 
+/** Drops queued sends. Imported on use: the outbox store imports this one. */
+async function resetOutbox(): Promise<void> {
+  try {
+    const { useOutboxStore } = await import('@/stores/useOutbox');
+    useOutboxStore().reset();
+  } catch (error) {
+    debug.error('Error resetting the outbox:', error);
+  }
+}
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     session: null as Session | null,
@@ -806,6 +816,9 @@ export const useAuthStore = defineStore('auth', {
       }
       this.cleanupOfflineHandlers();
 
+      // Queued sends die with the session that queued them.
+      await resetOutbox();
+
       // Both need the session: this device stops receiving the account's pushes and
       // stops counting as viewing a channel. Each is bounded, so neither holds up sign-out.
       await Promise.all([
@@ -1022,6 +1035,10 @@ export const useAuthStore = defineStore('auth', {
     cleanupNotificationSystem() {
       try {
         debug.log('Cleaning up notification system');
+
+        // Every sign-out path runs this; logout() resets the outbox earlier, while
+        // the session still exists.
+        void resetOutbox();
         
         Promise.all([
           import('@/stores/useNotification').then(({ useNotificationStore }) => {

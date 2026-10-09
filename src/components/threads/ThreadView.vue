@@ -829,16 +829,10 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
   if (isDraftMode.value && !props.draftParentMessage) return
   if (!isDraftMode.value && !thread.value) return
   
-  const hasUploadingFiles = files.some(file => file.uploadStatus === 'uploading')
-  const hasFailedFiles = files.some(file => file.uploadStatus === 'error')
-  
-  if (hasUploadingFiles) {
-    debug.warn('Cannot send message while files are still uploading')
-    return
-  }
-  
-  if (hasFailedFiles) {
-    debug.warn('Cannot send message with failed uploads')
+  // MessageInput emits only once every upload finished; an unfinished attachment
+  // is refused here rather than left out of the message.
+  if (files.some(file => file.uploadStatus !== 'completed')) {
+    toast.error(t('message.upload.removeFailed'))
     return
   }
   
@@ -1453,9 +1447,15 @@ onUnmounted(() => {
 }
 
 .header-left {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.thread-info {
+  min-width: 0;
 }
 
 .back-btn {
@@ -1479,12 +1479,18 @@ onUnmounted(() => {
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .thread-channel {
   margin: 2px 0 0 0;
   font-size: 12px;
   color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .thread-channel .hash {
@@ -1494,6 +1500,7 @@ onUnmounted(() => {
 .header-actions {
   display: flex;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .action-btn {

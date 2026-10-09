@@ -54,7 +54,7 @@
           <span class="user-name"><DisplayName v-if="currentUserId" :userId="currentUserId" :fallback="currentUserProfile?.display_name || currentUserProfile?.username || 'Unknown User'" :truncate="true" /></span>
           <span class="channel-name">
             <DisplayName v-if="voiceStore.dmOtherUserId" :user-id="voiceStore.dmOtherUserId" :fallback="channelName" :truncate="true" />
-            <template v-else>{{ channelName }}</template>
+            <span v-else class="dock-channel-text">{{ channelName }}</span>
             <span v-if="voiceStore.isConnecting || voiceStore.connectionState === 'reconnecting'" class="dock-connecting-spinner" :title="voiceStore.isConnecting ? 'Connecting…' : t('voice.reconnecting')"></span>
             <span
               v-else-if="voiceStore.transportLabel"
@@ -260,7 +260,7 @@
           <Icon name="volume" class="channel-icon" />
           <span class="channel-name">
             <DisplayName v-if="voiceStore.dmOtherUserId" :user-id="voiceStore.dmOtherUserId" :fallback="channelName" :truncate="true" />
-            <template v-else>{{ channelName }}</template>
+            <span v-else class="dock-channel-text">{{ channelName }}</span>
           </span>
           <span class="participant-count">{{ voiceStore.connectionStats.total }}</span>
           <VoiceEncryptionBadge v-if="voiceStore.connectionMode" :encrypted="voiceStore.isEncrypted" />
@@ -1403,6 +1403,18 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+/* A bare text node in the flex row neither shrinks nor ellipsizes; the badges keep their width. */
+.dock-channel-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channel-name > :not(.dock-channel-text) {
+  flex-shrink: 0;
 }
 
 .dock-connection-badge {

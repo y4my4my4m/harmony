@@ -744,18 +744,24 @@ export const useChatStore = defineStore('chat', {
       content: Array<Object>,
       replyTo: string,
       extraMetadata?: Record<string, any>,
-      options?: { allowPlaintextFallback?: boolean }
+      options?: {
+        allowPlaintextFallback?: boolean;
+        /** Id of the optimistic row; the outbox passes the id of its pending row. */
+        tempId?: string;
+        clientNonce?: string;
+      }
     ) {
       // Temp ID = timestamp plus random suffix. Without the suffix two sends in
       // the same millisecond collide and the second optimistic message dedupes
       // against the first, vanishing until realtime arrives.
-      const tempId = createTempMessageId();
+      const tempId = options?.tempId ?? createTempMessageId();
       // `client_nonce` is echoed back on the persisted row (via metadata) and on
       // the realtime INSERT. It is the only reliable key when optimistic content
       // (plaintext) differs from stored content (ciphertext), as on encrypted
       // channels where realtime wins the race.
-      const clientNonce = getRandomId();
+      const clientNonce = options?.clientNonce ?? getRandomId();
       const sendMetadata = { ...(extraMetadata || {}), client_nonce: clientNonce };
+      const serviceOptions = options ? { allowPlaintextFallback: options.allowPlaintextFallback } : undefined;
       const optimisticMessage = {
         id: tempId,
         created_at: new Date(),
@@ -778,9 +784,9 @@ export const useChatStore = defineStore('chat', {
           content as any, // MessagePart[]
           replyTo || undefined,
           sendMetadata,
-          options
+          serviceOptions
         );
-        
+
         debug.log('Message saved to database:', message.id);
         debug.log('Message data from server:', message);
         
@@ -822,7 +828,10 @@ export const useChatStore = defineStore('chat', {
           window.dispatchEvent(new CustomEvent('harmony:slowmode-hit', {
             detail: { seconds: waitSeconds, channelId },
           }));
-          throw new Error(`Slowmode is on - you can send again in ${waitSeconds}s`);
+          throw Object.assign(new Error(`Slowmode is on - you can send again in ${waitSeconds}s`), {
+            code: 'SLOWMODE_ACTIVE',
+            retryAfterSeconds: waitSeconds,
+          });
         }
 
         // AutoMod blocks, timeouts and anti-spam limits answer the same way on
@@ -867,7 +876,7 @@ export const useChatStore = defineStore('chat', {
 
           try {
             const retryResult = await services.messages.sendChannelMessage(
-              serverId, channelId, content as any, replyTo || undefined, sendMetadata, options
+              serverId, channelId, content as any, replyTo || undefined, sendMetadata, serviceOptions
             );
             this._replaceTempWithReal(tempId, retryResult, userId, channelId, content);
             return retryResult;
@@ -938,11 +947,14 @@ export const useChatStore = defineStore('chat', {
       const idx = this.messages.findIndex((m: any) => m.id === tempId);
       if (idx === -1) return;
 
+      // The row's metadata carries its client_nonce; realtime reconciles by it. A copy:
+      // CoreMessageService writes plaintext-override markers into the metadata it gets.
+      const metadata = { ...this.messages[idx].metadata };
       this.messages[idx] = { ...this.messages[idx], sending: true, failed: false } as any;
 
       try {
         const message = await services.messages.sendChannelMessage(
-          serverId, channelId, content as any, replyTo || undefined
+          serverId, channelId, content as any, replyTo || undefined, metadata
         );
         this._replaceTempWithReal(tempId, message, userId, channelId, content);
       } catch (error) {
