@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { donationLinkHref, needsHandleInMessage } from '../FundingService'
+import { donationLinkHref, needsHandleInMessage, orderDonationLinks } from '../FundingService'
 
 const ALICE = 'aaaaaaaa-0000-4000-8000-000000000001'
 const stripe = { platform: 'stripe', url: 'https://buy.stripe.com/test_abc', label: 'Card' }
@@ -32,5 +32,13 @@ describe('needsHandleInMessage', () => {
     expect(needsHandleInMessage([stripe])).toBe(false)
     expect(needsHandleInMessage([stripe, kofi])).toBe(true)
     expect(needsHandleInMessage([])).toBe(false)
+  })
+})
+
+describe('orderDonationLinks', () => {
+  it('puts Stripe links first and keeps each group in order', () => {
+    const monthly = { ...stripe, label: 'Monthly' }
+    const paypal = { platform: 'paypal', url: 'https://paypal.me/x', label: 'PayPal' }
+    expect(orderDonationLinks([kofi, stripe, paypal, monthly])).toEqual([stripe, monthly, kofi, paypal])
   })
 })

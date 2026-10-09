@@ -55,7 +55,7 @@
               <h3>Donate</h3>
               <div class="links-list">
                 <a
-                  v-for="(link, i) in config.funding_links"
+                  v-for="(link, i) in orderedLinks"
                   :key="i"
                   :href="safeHref(donationLinkHref(link, donor))"
                   target="_blank"
@@ -72,24 +72,17 @@
                     />
                   </span>
                   <span class="link-text">
-                    <span class="link-platform">
-                      {{ i === 0 ? primaryLinkText(link.platform) : platformLabel(link.platform) }}
-                    </span>
-                    <span v-if="link.label && link.label !== link.platform" class="link-label">{{ link.label }}</span>
+                    <span class="link-platform">{{ linkTitle(link, i === 0) }}</span>
+                    <span v-if="linkSubtitle(link, i)" class="link-label">{{ linkSubtitle(link, i) }}</span>
                   </span>
                   <Icon name="external-link" :size="14" class="link-external" />
                 </a>
               </div>
 
-              <p v-if="config.funding_links.some(isStripeLink)" class="donor-auto-credit">
-                <Icon name="check" :size="14" />
-                <span>Stripe donations are credited to your account automatically.</span>
-              </p>
-
               <details v-if="needsHandleInMessage(config.funding_links)" class="donor-instructions">
                 <summary>
                   <Icon name="info" :size="14" class="donor-instructions-icon" />
-                  <span class="donor-summary-label">Get your supporter badge automatically</span>
+                  <span class="donor-summary-label">{{ handleInstructionsTitle }}</span>
                   <Icon name="chevron-down" :size="14" class="donor-instructions-chevron" />
                 </summary>
                 <div class="donor-instructions-body">
@@ -188,7 +181,9 @@ import {
   donationLinkHref,
   isStripeLink,
   needsHandleInMessage,
+  orderDonationLinks,
   type FundingConfigWithProgress,
+  type FundingLink,
   type SupporterTier,
   type SupporterBadge,
   type DonationRecord,
@@ -230,8 +225,6 @@ const PLATFORM_LABELS: Record<string, string> = {
 const linkPlatformKey = (platform: string): string => normalizeKey(platform)
 const platformLabel = (platform: string): string =>
   PLATFORM_LABELS[normalizeKey(platform)] ?? platform
-const primaryLinkText = (platform: string): string =>
-  normalizeKey(platform) === 'stripe' ? 'Donate with Stripe' : `Support on ${platformLabel(platform)}`
 
 const instanceDomain = computed(() => getInstanceDomain())
 
@@ -258,6 +251,33 @@ const close = () => emit('close')
 const dialogRef = ref<HTMLElement | null>(null)
 const loading = ref(true)
 const config = ref<FundingConfigWithProgress | null>(null)
+
+const orderedLinks = computed(() => orderDonationLinks(config.value?.funding_links ?? []))
+
+// A Stripe link reads as its admin label ("Donate", "Monthly"); others name their platform.
+const ownLabel = (link: FundingLink): string | null => {
+  const label = link.label?.trim()
+  if (!label) return null
+  const key = normalizeKey(label)
+  return key === normalizeKey(link.platform) || key === normalizeKey(platformLabel(link.platform)) ? null : label
+}
+const linkTitle = (link: FundingLink, primary: boolean): string => {
+  if (isStripeLink(link)) return ownLabel(link) ?? 'Donate'
+  return primary ? `Support on ${platformLabel(link.platform)}` : platformLabel(link.platform)
+}
+// Stated once, under the first Stripe link.
+const linkSubtitle = (link: FundingLink, index: number): string | null => {
+  if (!isStripeLink(link)) return ownLabel(link)
+  return index === 0 ? 'Credited to your account automatically' : null
+}
+
+const handleInstructionsTitle = computed(() => {
+  const links = config.value?.funding_links ?? []
+  if (!links.some(isStripeLink)) return 'Get your supporter badge automatically'
+  const others = [...new Set(links.filter((link) => !isStripeLink(link)).map((link) => platformLabel(link.platform)))]
+  return `Donating on ${others.join(' or ')}? Add your handle`
+})
+
 const tiers = ref<SupporterTier[]>([])
 const myBadge = ref<SupporterBadge | null>(null)
 const myDonations = ref<DonationRecord[]>([])
@@ -573,20 +593,6 @@ onBeforeUnmount(() => {
 }
 
 /* Badge matching */
-.donor-auto-credit {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: var(--space-3) 0 0;
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-}
-
-.donor-auto-credit .icon-wrap {
-  flex-shrink: 0;
-  color: var(--color-success);
-}
-
 .donor-instructions {
   margin-top: var(--space-3);
   border: 1px solid var(--border-color);

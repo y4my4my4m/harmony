@@ -340,7 +340,7 @@
 
         <div v-if="fundingLinks.length > 0" class="supporter-links">
           <a
-            v-for="(link, i) in fundingLinks"
+            v-for="(link, i) in orderDonationLinks(fundingLinks)"
             :key="i"
             :href="safeHref(donationLinkHref(link, { profileId: profile?.id, email: userEmail }))"
             target="_blank"
@@ -398,6 +398,7 @@ import {
   donationLinkHref,
   isStripeLink,
   needsHandleInMessage,
+  orderDonationLinks,
   type SupporterBadge,
   type DonationRecord,
   type FundingLink,
