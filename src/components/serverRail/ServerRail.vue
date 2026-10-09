@@ -64,6 +64,7 @@ import { useToast } from 'vue-toastification'
 import ServerFolder from '@/components/ServerFolder.vue'
 import ServerFolderContextMenu, { type FolderMenuAction } from '@/components/ServerFolderContextMenu.vue'
 import ServerRailItem from './ServerRailItem.vue'
+import { serverDisplayLabel } from '@/utils/serverUtils'
 import ServerContextMenu, { type ServerMenuAction } from './ServerContextMenu.vue'
 import {
   applyDrop,
@@ -361,7 +362,7 @@ const onMouseOver = (e: MouseEvent) => {
   if (!source) return
   if (source.kind === 'server') {
     const server = props.servers.find(s => s.id === source.id)
-    emit('tooltip', el, server?.name ?? '')
+    emit('tooltip', el, server ? serverDisplayLabel(server) : '')
     emit('hover-server', source.id)
   } else {
     const folder = serverChannelStore.folders.find(f => f.id === source.id)
