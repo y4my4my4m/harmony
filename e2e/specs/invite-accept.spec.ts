@@ -35,6 +35,7 @@ test('accept an invite and land in the server', async ({ browser }) => {
   test.setTimeout(180_000)
 
   let code = ''
+  let link = ''
 
   const ownerContext = await browser.newContext()
   const ownerPage = await ownerContext.newPage()
@@ -55,7 +56,11 @@ test('accept an invite and land in the server', async ({ browser }) => {
 
     const linkField = ownerPage.getByLabel('Invite link')
     await expect(linkField).toHaveValue(/\/invite\/[A-Z0-9]{8}$/, { timeout: 30000 })
-    code = (await linkField.inputValue()).split('/invite/')[1]
+    link = await linkField.inputValue()
+    // The link is opened as given: an origin other than the instance's (the
+    // desktop webview's tauri://localhost) fails here.
+    expect(new URL(link).origin).toBe(new URL(ownerPage.url()).origin)
+    code = link.split('/invite/')[1]
   })
 
   const joinerContext = await browser.newContext()
@@ -63,7 +68,7 @@ test('accept an invite and land in the server', async ({ browser }) => {
 
   await test.step('a stranger opens the link', async () => {
     await signIn(joinerPage, joiner)
-    await joinerPage.goto(`/invite/${code}`)
+    await joinerPage.goto(link)
 
     await expect(joinerPage.locator('.invite-card__title')).toHaveText(server.name, {
       timeout: 30000,

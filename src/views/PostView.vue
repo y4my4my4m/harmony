@@ -160,6 +160,7 @@
 import { safeHref } from '@/utils/sanitize';
 import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import { debug } from '@/utils/debug'
+import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 import { useRouter, useRoute } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { usePostReactionsStore } from '@/stores/postReactions';
@@ -667,7 +668,7 @@ const handleUserClick = (user: any) => {
 
 const getPostUrl = (): string => {
   const id = resolvedPostId.value || props.postId;
-  return `${window.location.origin}/posts/${id}`;
+  return `${resolveHarmonyBaseUrl()}/posts/${id}`;
 };
 
 const sharePost = async () => {

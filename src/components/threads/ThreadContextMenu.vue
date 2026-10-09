@@ -104,6 +104,7 @@
 import { computed, onMounted, onUnmounted } from 'vue'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import type { ThreadWithDetails } from '@/services/ThreadService'
+import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 
 interface Props {
   isVisible: boolean
@@ -218,7 +219,7 @@ const deleteThread = () => {
 
 const copyLink = async () => {
   if (props.thread && props.serverId) {
-    const url = `${window.location.origin}/chat/${props.serverId}/thread/${props.thread.id}`
+    const url = `${resolveHarmonyBaseUrl()}/chat/${props.serverId}/thread/${props.thread.id}`
     await navigator.clipboard.writeText(url)
   }
   emit('close')
