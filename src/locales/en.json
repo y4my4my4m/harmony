@@ -382,7 +382,13 @@
     },
     "copyId": "Copy channel ID",
     "idCopied": "Channel ID copied",
-    "idCopyFailed": "Couldn't copy the channel ID"
+    "idCopyFailed": "Couldn't copy the channel ID",
+    "private": {
+      "label": "Private channel",
+      "hint": "Only the roles you choose, the owner and administrators can see it.",
+      "whoCanSee": "Who can see it",
+      "noRoles": "No roles yet: only the owner and administrators will see it."
+    }
   },
   "category": {
     "create": "Create category",
@@ -1344,6 +1350,19 @@
       "hint": "Default for servers whose owners have not chosen. Owners and members with Manage Server change it in Server Settings.",
       "saved": "Newcomer alert default saved",
       "saveFailed": "Couldn't save the newcomer alert default"
+    }
+  },
+  "systemMessages": {
+    "server": {
+      "title": "System messages",
+      "description": "Harmony posts a message when someone joins the server, leaves, is kicked or is banned.",
+      "toggle": "Send a message when members join or leave",
+      "channel": "Channel",
+      "channelHint": "Automatic uses the first text channel everyone can see.",
+      "automatic": "Automatic",
+      "unavailableChannel": "A channel you can't see",
+      "loadFailed": "Couldn't load system message settings.",
+      "saveFailed": "Couldn't update system message settings."
     }
   },
   "time": {

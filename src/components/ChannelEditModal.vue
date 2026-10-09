@@ -98,6 +98,33 @@
 
           <!-- Permissions tab -->
           <template v-else-if="activeTab === 'permissions'">
+            <div v-if="!rolesLoading && everyoneRole" class="private-card">
+              <div class="private-head">
+                <Icon name="eye-off" :size="18" class="private-icon" />
+                <div class="private-text">
+                  <span class="private-title">Private channel</span>
+                  <span class="private-desc">
+                    Hidden from everyone except the roles chosen here, the server owner and administrators.
+                  </span>
+                </div>
+                <ToggleSwitch :model-value="isPrivate" aria-label="Private channel" @change="setPrivate" />
+              </div>
+              <div v-if="isPrivate" class="private-roles">
+                <span class="perm-rail-label">Who can see it</span>
+                <div class="private-role-list">
+                  <label v-for="role in assignableRoles" :key="role.id" class="private-role">
+                    <input
+                      type="checkbox"
+                      :checked="getPermState(role.id, Permission.VIEW_CHANNEL) === 'allow'"
+                      @change="setRoleCanView(role.id, ($event.target as HTMLInputElement).checked)"
+                    />
+                    <span class="role-color-dot" :style="{ background: role.color || '#99aab5' }"></span>
+                    <span>{{ role.name }}</span>
+                  </label>
+                  <span v-if="assignableRoles.length === 0" class="private-desc">No roles yet: only the owner and administrators will see it.</span>
+                </div>
+              </div>
+            </div>
             <div class="perm-layout">
               <!-- Role rail (left) - Discord-style role list -->
               <aside class="perm-role-rail">
@@ -137,7 +164,7 @@
                   </header>
 
                   <div
-                    v-for="group in PERMISSION_GROUPS"
+                    v-for="group in permissionGroups"
                     :key="group.id"
                     class="perm-group"
                   >
@@ -212,6 +239,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel'
 import HashTagIcon from '@/components/icons/HashTag.vue'
 import SpeakerIcon from '@/components/icons/Speaker.vue'
 import Icon from '@/components/common/Icon.vue'
+import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import ChannelEncryptionSection from '@/components/ChannelEncryptionSection.vue'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import { userDataService } from '@/services/userDataService'
@@ -273,8 +301,18 @@ const PERMISSION_GROUPS: Array<{
   },
 ]
 
-// Flat list (used by load/save). Order doesn't matter for storage.
-const editablePermissions = PERMISSION_GROUPS.flatMap(g => g.permissions)
+const VOICE_GROUP = {
+  id: 'voice',
+  label: 'Voice',
+  permissions: [
+    { key: Permission.CONNECT,        label: 'Connect',        description: 'Join this voice channel.' },
+    { key: Permission.SPEAK,          label: 'Speak',          description: 'Talk in this voice channel.' },
+    { key: Permission.STREAM,         label: 'Video & Stream', description: 'Share camera or screen.' },
+    { key: Permission.MUTE_MEMBERS,   label: 'Mute Members',   description: 'Mute other members here.' },
+    { key: Permission.DEAFEN_MEMBERS, label: 'Deafen Members', description: 'Deafen other members here.' },
+    { key: Permission.MOVE_MEMBERS,   label: 'Move Members',   description: 'Move members out of this channel.' },
+  ],
+}
 
 interface Props {
   show: boolean
@@ -424,6 +462,25 @@ const selectedRole = computed(() =>
   serverRoles.value.find(r => r.id === selectedRoleId.value) || null,
 )
 
+// Voice channels add the voice group. Saves touch only these bits; the rest of an override stays.
+const permissionGroups = computed(() =>
+  props.channel?.type === 1 ? [...PERMISSION_GROUPS, VOICE_GROUP] : PERMISSION_GROUPS)
+const editablePermissions = computed(() => permissionGroups.value.flatMap(g => g.permissions))
+
+const everyoneRole = computed(() => serverRoles.value.find(r => r.is_default) || null)
+const assignableRoles = computed(() => serverRoles.value.filter(r => !r.is_default))
+const isPrivate = computed(() =>
+  !!everyoneRole.value && getPermState(everyoneRole.value.id, Permission.VIEW_CHANNEL) === 'deny')
+
+function setPrivate(value: boolean) {
+  if (!everyoneRole.value) return
+  setPermState(everyoneRole.value.id, Permission.VIEW_CHANNEL, value ? 'deny' : 'inherit')
+}
+
+function setRoleCanView(roleId: string, canView: boolean) {
+  setPermState(roleId, Permission.VIEW_CHANNEL, canView ? 'allow' : 'inherit')
+}
+
 function isRoleDirty(roleId: string): boolean {
   const a = initialPermState.value[roleId] ?? {}
   const b = workingPermState.value[roleId] ?? {}
@@ -444,9 +501,11 @@ function getPermState(roleId: string, perm: Permission): TriState {
   return workingPermState.value[roleId]?.[perm] ?? 'inherit'
 }
 
+// Inherit is the absence of a key, so returning to the loaded state reads as clean.
 function setPermState(roleId: string, perm: Permission, state: TriState) {
   if (!workingPermState.value[roleId]) workingPermState.value[roleId] = {}
-  workingPermState.value[roleId][perm] = state
+  if (state === 'inherit') delete workingPermState.value[roleId][perm]
+  else workingPermState.value[roleId][perm] = state
 }
 
 async function loadPermissions() {
@@ -469,7 +528,7 @@ async function loadPermissions() {
       const allowMap = bitmaskToPermissions(BigInt(ov.allow_permissions ?? 0))
       const denyMap = bitmaskToPermissions(BigInt(ov.deny_permissions ?? 0))
       if (!state[ov.role_id]) state[ov.role_id] = {}
-      for (const perm of editablePermissions) {
+      for (const perm of editablePermissions.value) {
         if (allowMap[perm.key]) state[ov.role_id][perm.key] = 'allow'
         else if (denyMap[perm.key]) state[ov.role_id][perm.key] = 'deny'
       }
@@ -504,7 +563,7 @@ async function savePermissions() {
 
       const allow: Partial<Record<Permission, boolean>> = {}
       const deny: Partial<Record<Permission, boolean>> = {}
-      for (const perm of editablePermissions) {
+      for (const perm of editablePermissions.value) {
         const s = after[perm.key] ?? 'inherit'
         if (s === 'allow') allow[perm.key] = true
         else if (s === 'deny') deny[perm.key] = true
@@ -516,6 +575,7 @@ async function savePermissions() {
         role.id,
         allow,
         deny,
+        editablePermissions.value.map(p => p.key),
       )
       if (!ok) throw new Error(`Failed to save override for ${role.name}`)
     }
@@ -872,6 +932,67 @@ watch(() => props.show, (visible) => {
 /* =========================================================================
    Permissions tab - Discord-style rail + editor layout
    ======================================================================= */
+.private-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md, 8px);
+  background: var(--background-secondary);
+}
+
+.private-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.private-icon {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.private-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.private-title {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.private-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.private-roles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.private-role-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.private-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
 .perm-layout {
   display: grid;
   grid-template-columns: 200px 1fr;

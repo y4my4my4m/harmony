@@ -382,7 +382,13 @@
     },
     "copyId": "Copiar ID del canal",
     "idCopied": "ID del canal copiado",
-    "idCopyFailed": "No se pudo copiar el ID del canal"
+    "idCopyFailed": "No se pudo copiar el ID del canal",
+    "private": {
+      "label": "Canal privado",
+      "hint": "Solo los roles que elijas, el propietario y los administradores pueden verlo.",
+      "whoCanSee": "Quién puede verlo",
+      "noRoles": "Aún no hay roles: solo el propietario y los administradores lo verán."
+    }
   },
   "message": {
     "typeMessage": "Mensaje {to}",
@@ -1311,6 +1317,19 @@
       "hint": "Valor predeterminado para los servidores cuyos propietarios no han elegido. Los propietarios y los miembros con Gestionar servidor lo cambian en la Configuración del servidor.",
       "saved": "Valor predeterminado de alertas de recién llegados guardado",
       "saveFailed": "No se pudo guardar el valor predeterminado de alertas de recién llegados"
+    }
+  },
+  "systemMessages": {
+    "server": {
+      "title": "Mensajes del sistema",
+      "description": "Harmony publica un mensaje cuando alguien se une al servidor, lo abandona, es expulsado o es baneado.",
+      "toggle": "Enviar un mensaje cuando los miembros se unan o se vayan",
+      "channel": "Canal",
+      "channelHint": "Automático usa el primer canal de texto que todos pueden ver.",
+      "automatic": "Automático",
+      "unavailableChannel": "Un canal que no puedes ver",
+      "loadFailed": "No se pudo cargar la configuración de los mensajes del sistema.",
+      "saveFailed": "No se pudo actualizar la configuración de los mensajes del sistema."
     }
   },
   "time": {

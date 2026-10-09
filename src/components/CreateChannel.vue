@@ -67,6 +67,30 @@
         </div>
       </div>
       
+      <div class="encryption-option">
+        <div class="encryption-option-text">
+          <span class="section-label">{{ $t('channel.private.label') }}</span>
+          <span class="encryption-option-hint">{{ $t('channel.private.hint') }}</span>
+        </div>
+        <ToggleSwitch
+          :model-value="isPrivate"
+          role="switch"
+          :aria-checked="isPrivate"
+          :aria-label="$t('channel.private.label')"
+          @change="(value: boolean) => { isPrivate = value }"
+        />
+      </div>
+      <div v-if="isPrivate" class="private-roles">
+        <span class="encryption-option-hint">{{ $t('channel.private.whoCanSee') }}</span>
+        <div class="private-role-list">
+          <label v-for="role in assignableRoles" :key="role.id" class="private-role">
+            <input v-model="allowedRoleIds" type="checkbox" :value="role.id" />
+            <span class="role-dot" :style="{ background: role.color || '#99aab5' }"></span>
+            <span>{{ role.name }}</span>
+          </label>
+          <span v-if="assignableRoles.length === 0" class="encryption-option-hint">{{ $t('channel.private.noRoles') }}</span>
+        </div>
+      </div>
       <div v-if="encryptionPolicy !== 'disabled'" class="encryption-option">
         <div class="encryption-option-text">
           <span class="section-label">{{ $t('channelEncryption.create.label') }}</span>
@@ -134,6 +158,8 @@ import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import { supabase } from '@/supabase'
 import { useToast } from 'vue-toastification'
 import { setChannelEncryption } from '@/services/ChannelEncryptionService'
+import { roleService, type ServerRole } from '@/services/RoleService'
+import { useServerChannelStore } from '@/stores/useServerChannel'
 import { isRequiredMode, normalizeServerMode, type ServerEncryptionMode } from '@/utils/channelEncryption'
 
 // Max channels per server
@@ -155,9 +181,21 @@ const emit = defineEmits<{
 }>()
 
 const toast = useToast()
+const serverChannelStore = useServerChannelStore()
 
 const newChannelName = ref('')
 const channelType = ref(0) // Default to text channel
+
+// Private: @everyone loses View Channel; the chosen roles keep it (create_channel).
+const isPrivate = ref(false)
+const allowedRoleIds = ref<string[]>([])
+const serverRoles = ref<ServerRole[]>([])
+const assignableRoles = computed(() => serverRoles.value.filter(r => !r.is_default))
+const loadRoles = async () => {
+  if (!props.serverId) return
+  const roles = await roleService.getRolesForServer(props.serverId)
+  serverRoles.value = [...roles].sort((a, b) => b.position - a.position)
+}
 
 // Server floor: 'disabled' hides the option, a required mode fixes it on.
 const encryptionPolicy = ref<ServerEncryptionMode>('disabled')
@@ -226,6 +264,7 @@ watch(() => props.show, (newShow) => {
   if (newShow) {
     checkChannelCount()
     loadEncryptionPolicy().catch(error => debug.error('Error loading encryption policy:', error))
+    loadRoles().catch(error => debug.error('Error loading roles:', error))
   } else {
     channelNameError.value = ''
     currentChannelCount.value = 0
@@ -349,18 +388,14 @@ const createChannel = async () => {
       return
     }
 
-    const channelData = {
-      name: newChannelName.value.trim(),
-      server_id: props.serverId,
-      type: channelType.value,
-      category: props.categoryId
-    }
-
-    const { data, error } = await supabase
-      .from('channels')
-      .insert([channelData])
-      .select('*')
-      .single()
+    const { data, error } = await supabase.rpc('create_channel', {
+      p_server_id: props.serverId,
+      p_name: newChannelName.value.trim(),
+      p_type: channelType.value,
+      p_category: props.categoryId ?? null,
+      p_private: isPrivate.value,
+      p_allowed_role_ids: isPrivate.value ? allowedRoleIds.value : [],
+    })
 
     if (error) throw error
 
@@ -374,6 +409,7 @@ const createChannel = async () => {
       }
     }
 
+    if (isPrivate.value) serverChannelStore.privateChannels = { ...serverChannelStore.privateChannels, [data.id]: true }
     emit('channelCreated', data)
     closeForm()
   } catch (error) {
@@ -388,6 +424,8 @@ const closeForm = () => {
   newChannelName.value = ''
   channelType.value = 0
   channelNameError.value = ''
+  isPrivate.value = false
+  allowedRoleIds.value = []
   encryptOnCreate.value = isRequiredMode(encryptionPolicy.value)
   emit('close')
 }
@@ -523,6 +561,34 @@ const closeForm = () => {
   font-size: var(--font-size-xs);
   color: var(--text-muted);
   line-height: 1.4;
+}
+
+.private-roles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: -12px;
+}
+
+.private-role-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.private-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.role-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
 }
 
 .encryption-warning {

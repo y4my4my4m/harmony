@@ -22,8 +22,22 @@ export interface ServerSettings {
     spam_filter: boolean
     link_filter: boolean
   }
+  system_channel_id?: string | null
+  system_messages_enabled?: boolean
   created_at?: string
   updated_at?: string
+}
+
+/** Member join, leave, kick and ban messages (20261010100001_system_channel_setting.sql). */
+export interface SystemMessageSettings {
+  /** null posts to the first text channel @everyone can view. */
+  system_channel_id: string | null
+  system_messages_enabled: boolean
+}
+
+export interface SystemChannelChoice {
+  id: string
+  name: string
 }
 
 export interface UserPermissions {
@@ -152,6 +166,47 @@ async function updateServerSettings(serverId: string, settings: Partial<ServerSe
     debug.error('Error updating server settings:', error)
     return false
   }
+}
+
+/** A server without a server_settings row posts to the automatic channel. */
+async function getSystemMessageSettings(serverId: string): Promise<SystemMessageSettings> {
+  const { data, error } = await supabase
+    .from('server_settings')
+    .select('system_channel_id, system_messages_enabled')
+    .eq('server_id', serverId)
+    .maybeSingle()
+  if (error) throw error
+  return {
+    system_channel_id: data?.system_channel_id ?? null,
+    system_messages_enabled: data?.system_messages_enabled ?? true,
+  }
+}
+
+/** Requires MANAGE_SERVER on a local server. channelId null selects the automatic channel. */
+async function setServerSystemChannel(
+  serverId: string,
+  channelId: string | null,
+  enabled: boolean,
+): Promise<SystemMessageSettings> {
+  const { data, error } = await supabase.rpc('set_server_system_channel', {
+    p_server_id: serverId,
+    p_channel_id: channelId,
+    p_enabled: enabled,
+  })
+  if (error) throw error
+  return data as SystemMessageSettings
+}
+
+/** Text channels (type 0) the caller can see; set_server_system_channel refuses other types. */
+async function getSystemChannelChoices(serverId: string): Promise<SystemChannelChoice[]> {
+  const { data, error } = await supabase
+    .from('channels')
+    .select('id, name')
+    .eq('server_id', serverId)
+    .eq('type', 0)
+    .order('order')
+  if (error) throw error
+  return (data ?? []) as SystemChannelChoice[]
 }
 
 /**
@@ -320,6 +375,9 @@ export {
   hasPermissions,
   getServerSettings,
   updateServerSettings,
+  getSystemMessageSettings,
+  setServerSystemChannel,
+  getSystemChannelChoices,
   getDefaultServerSettings,
   canUserCreateInvites,
   getInviteConstraints,

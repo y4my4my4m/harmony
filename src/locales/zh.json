@@ -382,7 +382,13 @@
     },
     "copyId": "复制频道 ID",
     "idCopied": "已复制频道 ID",
-    "idCopyFailed": "无法复制频道 ID"
+    "idCopyFailed": "无法复制频道 ID",
+    "private": {
+      "label": "私密频道",
+      "hint": "只有你选择的角色、所有者和管理员可以看到。",
+      "whoCanSee": "谁可以看到",
+      "noRoles": "还没有角色：只有所有者和管理员可以看到。"
+    }
   },
   "message": {
     "typeMessage": "消息 {to}",
@@ -1330,6 +1336,19 @@
       "hint": "适用于所有者尚未自行选择的服务器的默认设置。所有者和拥有“管理服务器”权限的成员可在服务器设置中更改。",
       "saved": "新人提醒默认设置已保存",
       "saveFailed": "无法保存新人提醒默认设置"
+    }
+  },
+  "systemMessages": {
+    "server": {
+      "title": "系统消息",
+      "description": "当有人加入、离开服务器，或被踢出、封禁时，Harmony 会发布一条消息。",
+      "toggle": "成员加入或离开时发送消息",
+      "channel": "频道",
+      "channelHint": "自动：使用所有人都能看到的第一个文字频道。",
+      "automatic": "自动",
+      "unavailableChannel": "你无法查看的频道",
+      "loadFailed": "无法加载系统消息设置。",
+      "saveFailed": "无法更新系统消息设置。"
     }
   },
   "time": {
