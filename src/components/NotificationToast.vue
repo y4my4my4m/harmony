@@ -448,7 +448,7 @@ const getTypeIcon = (type: NotificationType) => {
 /* Responsive design */
 @media (max-width: 768px) {
   .notification-toasts {
-    top: env(safe-area-inset-top, 10px);
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
     right: 10px;
     left: 10px;
     bottom: auto;

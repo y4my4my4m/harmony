@@ -132,7 +132,8 @@ onUnmounted(() => {
 <style scoped>
 .run-on-login-banner {
   position: fixed;
-  bottom: 20px;
+  /* Clears the composer, as PWAInstallBanner. */
+  bottom: 88px;
   left: 20px;
   right: 20px;
   max-width: 500px;
@@ -253,7 +254,7 @@ onUnmounted(() => {
   .run-on-login-banner {
     left: 12px;
     right: 12px;
-    bottom: 12px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
   }
 
   .banner-content {

@@ -49,7 +49,8 @@ onMounted(async () => {
   position: fixed;
   left: var(--space-3);
   right: var(--space-3);
-  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--space-3));
+  /* Clears the composer, as PWAInstallBanner. */
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
   z-index: var(--z-toast);
   display: flex;
   align-items: center;
