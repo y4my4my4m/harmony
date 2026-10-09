@@ -57,7 +57,7 @@
                 <a
                   v-for="(link, i) in config.funding_links"
                   :key="i"
-                  :href="safeHref(link.url)"
+                  :href="safeHref(donationLinkHref(link, donor))"
                   target="_blank"
                   rel="noopener noreferrer"
                   class="funding-link"
@@ -73,7 +73,7 @@
                   </span>
                   <span class="link-text">
                     <span class="link-platform">
-                      {{ i === 0 ? `Support on ${platformLabel(link.platform)}` : platformLabel(link.platform) }}
+                      {{ i === 0 ? primaryLinkText(link.platform) : platformLabel(link.platform) }}
                     </span>
                     <span v-if="link.label && link.label !== link.platform" class="link-label">{{ link.label }}</span>
                   </span>
@@ -81,7 +81,12 @@
                 </a>
               </div>
 
-              <details class="donor-instructions">
+              <p v-if="config.funding_links.some(isStripeLink)" class="donor-auto-credit">
+                <Icon name="check" :size="14" />
+                <span>Stripe donations are credited to your account automatically.</span>
+              </p>
+
+              <details v-if="needsHandleInMessage(config.funding_links)" class="donor-instructions">
                 <summary>
                   <Icon name="info" :size="14" class="donor-instructions-icon" />
                   <span class="donor-summary-label">Get your supporter badge automatically</span>
@@ -178,7 +183,16 @@
 <script setup lang="ts">
 import { safeHref } from '@/utils/sanitize';
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { fundingService, type FundingConfigWithProgress, type SupporterTier, type SupporterBadge, type DonationRecord } from '@/services/FundingService'
+import {
+  fundingService,
+  donationLinkHref,
+  isStripeLink,
+  needsHandleInMessage,
+  type FundingConfigWithProgress,
+  type SupporterTier,
+  type SupporterBadge,
+  type DonationRecord,
+} from '@/services/FundingService'
 import SupporterBadgeIcon from '@/components/common/SupporterBadgeIcon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -186,9 +200,16 @@ import Icon from '@/components/common/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { supabase } from '@/supabase'
 import { useProfileStore } from '@/stores/useProfile'
+import { useAuthStore } from '@/stores/auth'
 import { getInstanceDomain } from '@/services/instanceConfig'
 
 const profileStore = useProfileStore()
+const authStore = useAuthStore()
+
+const donor = computed(() => ({
+  profileId: profileStore.profile?.id ?? null,
+  email: authStore.session?.user?.email ?? null,
+}))
 
 // Display name → key normalization: "Ko-fi" → "ko-fi", "GitHub Sponsors" → "github-sponsors"
 const normalizeKey = (platform: string): string =>
@@ -202,12 +223,15 @@ const PLATFORM_LABELS: Record<string, string> = {
   'open-collective': 'Open Collective',
   'paypal': 'PayPal',
   'buymeacoffee': 'Buy Me a Coffee',
+  'stripe': 'Stripe',
   'custom': 'Donate',
 }
 
 const linkPlatformKey = (platform: string): string => normalizeKey(platform)
 const platformLabel = (platform: string): string =>
   PLATFORM_LABELS[normalizeKey(platform)] ?? platform
+const primaryLinkText = (platform: string): string =>
+  normalizeKey(platform) === 'stripe' ? 'Donate with Stripe' : `Support on ${platformLabel(platform)}`
 
 const instanceDomain = computed(() => getInstanceDomain())
 
@@ -549,6 +573,20 @@ onBeforeUnmount(() => {
 }
 
 /* Badge matching */
+.donor-auto-credit {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.donor-auto-credit .icon-wrap {
+  flex-shrink: 0;
+  color: var(--color-success);
+}
+
 .donor-instructions {
   margin-top: var(--space-3);
   border: 1px solid var(--border-color);

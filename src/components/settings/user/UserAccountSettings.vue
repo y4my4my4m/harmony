@@ -256,7 +256,12 @@
         donations during the current cycle.
       </p>
 
-      <div class="donor-handle-callout">
+      <p v-if="fundingLinks.some(isStripeLink)" class="donor-auto-credit">
+        <Icon name="check" :size="14" />
+        <span>Donations through Stripe are credited to your account automatically.</span>
+      </p>
+
+      <div v-if="fundingLinks.length === 0 || needsHandleInMessage(fundingLinks)" class="donor-handle-callout">
         <p class="donor-handle-callout-title">
           <Icon name="info" :size="14" /> How to get your supporter badge
         </p>
@@ -337,7 +342,7 @@
           <a
             v-for="(link, i) in fundingLinks"
             :key="i"
-            :href="safeHref(link.url)"
+            :href="safeHref(donationLinkHref(link, { profileId: profile?.id, email: userEmail }))"
             target="_blank"
             rel="noopener noreferrer"
             class="supporter-link"
@@ -388,7 +393,15 @@ import AutoSuggest from '@/components/AutoSuggest.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import SupporterBadgeIcon from '@/components/common/SupporterBadgeIcon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
-import { fundingService, type SupporterBadge, type DonationRecord, type FundingLink } from '@/services/FundingService'
+import {
+  fundingService,
+  donationLinkHref,
+  isStripeLink,
+  needsHandleInMessage,
+  type SupporterBadge,
+  type DonationRecord,
+  type FundingLink,
+} from '@/services/FundingService'
 import { supabase } from '@/supabase'
 import { useAutoSuggest } from '@/composables/useAutoSuggest'
 import { userDataService } from '@/services/userDataService'
@@ -810,10 +823,12 @@ onMounted(async () => {
   try {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
+      // Supporter and donation rows key on profiles.id, not the auth user id.
+      const profileId = props.profile?.id ?? user.id
       const [config, badge, donations] = await Promise.all([
         fundingService.getFundingConfig(),
-        fundingService.getSupporterBadge(user.id),
-        fundingService.getDonationHistory(user.id),
+        fundingService.getSupporterBadge(profileId),
+        fundingService.getDonationHistory(profileId),
       ])
       supporterBadge.value = badge
       supporterDonations.value = donations
@@ -1399,6 +1414,20 @@ onMounted(async () => {
 .donor-copy-btn:hover {
   border-color: var(--harmony-primary);
   color: var(--harmony-primary);
+}
+
+.donor-auto-credit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.donor-auto-credit .icon-wrap {
+  flex-shrink: 0;
+  color: var(--color-success);
 }
 
 .donor-handle-hint {

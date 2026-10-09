@@ -32,6 +32,12 @@ import { getSupabaseClient } from '../../config/supabase.js';
 import { logger } from '../../utils/logger.js';
 import { sendError, sendSuccess } from '../../utils/response.js';
 import { clientIp, webhookLimiter } from '../../middleware/rateLimit.js';
+import {
+  recordMatchedDonation,
+  recordPendingDonation,
+  type DonationRecord,
+  type MatchedUser,
+} from './donations.js';
 
 const router = Router();
 
@@ -94,12 +100,6 @@ function extractHandle(...sources: (string | null | undefined)[]): ParsedHandle 
     }
   }
   return null;
-}
-
-interface MatchedUser {
-  id: string;
-  username: string;
-  domain: string | null;
 }
 
 /**
@@ -166,140 +166,6 @@ async function loadFundingConfig(): Promise<FundingConfig | null> {
 }
 
 /**
- * Resolves the correct tier for a user by recomputing from their cumulative
- * donations in the current cycle. Returns NULL when the total doesn't meet
- * any tier's min_amount (and the badge will be hidden).
- *
- * Uses the recompute_supporter_tier SQL helper, which is SECURITY DEFINER
- * so it works with both authenticated and service_role keys. The helper
- * also updates the supporters row in the same call and returns the tier_id.
- */
-async function recomputeUserTier(userId: string): Promise<string | null> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase.rpc('recompute_supporter_tier', {
-    p_user_id: userId,
-  });
-  if (error) {
-    logger.error(`kofi: tier recompute failed for ${userId}: ${error.message}`);
-    return null;
-  }
-  return (data as string | null) ?? null;
-}
-
-interface DonationRecord {
-  amount: number;
-  currency: string;
-  externalRef: string;
-  donorName: string | null;
-  donorMessage: string | null;
-}
-
-/**
- * Records a confirmed donation for a known user. Idempotent: relies on the
- * partial unique index `(platform, external_reference)` to no-op on retry.
- */
-async function recordMatchedDonation(
-  matchedUser: MatchedUser,
-  donation: DonationRecord,
-  cfg: FundingConfig,
-): Promise<void> {
-  const supabase = getSupabaseClient();
-
-  // Step 1: ensure supporter row exists. Tier is recomputed from the cumulative
-  // cycle total in step 3, not derived from this single donation.
-  const { data: supporter, error: upsertErr } = await supabase
-    .from('instance_supporters')
-    .upsert(
-      {
-        user_id: matchedUser.id,
-        // tier_id intentionally left out: recompute below uses cycle total
-        amount: donation.amount,
-        platform: 'ko-fi',
-        is_active: true,
-        started_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id' },
-    )
-    .select('id')
-    .single();
-
-  if (upsertErr || !supporter) {
-    logger.error(`kofi: supporter upsert failed for user ${matchedUser.id}: ${upsertErr?.message ?? 'no row returned'}`);
-    throw upsertErr ?? new Error('Supporter upsert returned no row');
-  }
-
-  // Step 2: insert the donation history row. The (platform, external_reference)
-  // unique index dedups webhook retries.
-  const { error: histErr } = await supabase
-    .from('instance_donation_history')
-    .insert({
-      supporter_id: supporter.id,
-      user_id: matchedUser.id,
-      amount: donation.amount,
-      currency: donation.currency,
-      platform: 'ko-fi',
-      external_reference: donation.externalRef,
-      note: donation.donorMessage ?? null,
-    });
-
-  if (histErr) {
-    if (histErr.code === '23505') {
-      logger.info(`kofi: duplicate transaction ${donation.externalRef} ignored (already recorded)`);
-      return;
-    }
-    logger.error(`kofi: donation_history insert failed: ${histErr.message}`);
-    throw histErr;
-  }
-
-  // Step 3: recompute tier from the cumulative cycle total (now includes
-  // the just-inserted row). If amount < lowest tier, tier_id becomes NULL
-  // and the badge is hidden. When kofi_auto_assign_tier is off, leave the
-  // existing tier alone - admins manage it manually.
-  let resolvedTierId: string | null = null;
-  if (cfg.kofi_auto_assign_tier) {
-    resolvedTierId = await recomputeUserTier(matchedUser.id);
-  }
-
-  const handle = `@${matchedUser.username}${matchedUser.domain ? '@' + matchedUser.domain : ''}`;
-  logger.info(
-    `kofi: recorded ${donation.currency} ${donation.amount} from ${handle} ` +
-    `(txn=${donation.externalRef}, tier=${resolvedTierId ?? 'none'})`,
-  );
-}
-
-async function recordPendingDonation(
-  payload: KofiPayload,
-  donation: DonationRecord,
-): Promise<void> {
-  const supabase = getSupabaseClient();
-  const { error } = await supabase
-    .from('instance_pending_donations')
-    .insert({
-      platform: 'ko-fi',
-      external_reference: donation.externalRef,
-      amount: donation.amount,
-      currency: donation.currency,
-      donor_name: donation.donorName,
-      donor_email: payload.email ?? null,
-      donor_message: donation.donorMessage,
-      raw_payload: payload,
-    });
-
-  if (error) {
-    if (error.code === '23505') {
-      logger.info(`kofi: duplicate pending entry ${donation.externalRef} ignored`);
-      return;
-    }
-    logger.error(`kofi: pending_donations insert failed: ${error.message}`);
-    throw error;
-  }
-
-  logger.info(
-    `kofi: queued ${donation.currency} ${donation.amount} (txn=${donation.externalRef}) for manual review`,
-  );
-}
-
-/**
  * POST /webhooks/kofi
  *
  * Always returns 200 OK after successful auth so Ko-fi does not retry on
@@ -352,6 +218,7 @@ router.post('/kofi', webhookLimiter, async (req: Request, res: Response) => {
   }
 
   const donation: DonationRecord = {
+    platform: 'ko-fi',
     amount,
     currency: payload.currency,
     externalRef: payload.kofi_transaction_id,
@@ -369,20 +236,20 @@ router.post('/kofi', webhookLimiter, async (req: Request, res: Response) => {
     const matched = await findUserByHandle(handle, localDomain);
     if (matched) {
       try {
-        await recordMatchedDonation(matched, donation, cfg);
+        await recordMatchedDonation(matched, donation, cfg.kofi_auto_assign_tier);
         return sendSuccess(res, { status: 'recorded', userId: matched.id });
       } catch (err) {
         // Persist to pending so admin can still see it, then 200 so Ko-fi doesn't retry.
         logger.error(
           `kofi: matched donation write failed, queuing as pending: ${err instanceof Error ? err.message : String(err)}`,
         );
-        await recordPendingDonation(payload, donation).catch(() => {});
+        await recordPendingDonation(donation, payload.email ?? null, payload).catch(() => {});
         return sendSuccess(res, { status: 'pending', reason: 'write_failed' });
       }
     }
   }
 
-  await recordPendingDonation(payload, donation);
+  await recordPendingDonation(donation, payload.email ?? null, payload);
   return sendSuccess(res, { status: 'pending', reason: handle ? 'no_profile_match' : 'no_handle_in_message' });
 });
 

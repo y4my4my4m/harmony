@@ -16,16 +16,18 @@ export interface FundingConfig {
   thank_you_message: string | null
   /** When true, auto-assign supporter tier on webhook based on amount. */
   kofi_auto_assign_tier: boolean
+  /** As kofi_auto_assign_tier, for the Stripe webhook. */
+  stripe_auto_assign_tier: boolean
 }
 
 /**
- * Client-readable funding columns. The Ko-fi webhook token is not among them: clients
- * hold no privilege on it, and admins use get/setKofiWebhookToken.
+ * Client-readable funding columns. The Ko-fi webhook token and the Stripe signing secret are
+ * not among them: clients hold no privilege on either, and admins use the get/set RPCs.
  */
 const FUNDING_CONFIG_COLUMNS =
   'id, enabled, goal_amount, goal_currency, current_amount, funding_period, goal_description, ' +
   'funding_links, show_progress_bar, show_in_context_bar, context_bar_style, thank_you_message, ' +
-  'kofi_auto_assign_tier'
+  'kofi_auto_assign_tier, stripe_auto_assign_tier'
 
 /** Canonical platform keys rendered with branded icons in the UI. */
 export const FUNDING_PLATFORMS = [
@@ -36,6 +38,7 @@ export const FUNDING_PLATFORMS = [
   'open-collective',
   'paypal',
   'buymeacoffee',
+  'stripe',
   'custom',
 ] as const
 export type FundingPlatformKey = typeof FUNDING_PLATFORMS[number]
@@ -57,6 +60,36 @@ export interface FundingLink {
   url: string
   label: string
 }
+
+/** Stripe Payment Links: the webhook credits the profile in client_reference_id. */
+export const isStripeLink = (link: Pick<FundingLink, 'platform'>): boolean =>
+  link.platform.toLowerCase() === 'stripe'
+
+/**
+ * The URL a donor opens. A Stripe Payment Link carries the donor's profile id as
+ * client_reference_id and their email as prefilled_email; other links are unchanged.
+ * https://docs.stripe.com/payment-links/url-parameters
+ */
+export function donationLinkHref(
+  link: FundingLink,
+  donor: { profileId?: string | null; email?: string | null } = {},
+): string {
+  if (!isStripeLink(link) || !donor.profileId) return link.url
+  try {
+    const url = new URL(link.url)
+    url.searchParams.set('client_reference_id', donor.profileId)
+    if (donor.email && !url.searchParams.has('prefilled_email')) {
+      url.searchParams.set('prefilled_email', donor.email)
+    }
+    return url.toString()
+  } catch {
+    return link.url
+  }
+}
+
+/** Whether any link needs the donor's handle in the donation message to be attributed. */
+export const needsHandleInMessage = (links: FundingLink[]): boolean =>
+  links.some((link) => !isStripeLink(link))
 
 export interface SupporterTier {
   id: string
@@ -268,6 +301,30 @@ class FundingService {
     } catch (error) {
       debug.error('Failed to set Ko-fi webhook token:', error)
       return false
+    }
+  }
+
+  /** Stripe webhook signing secret; instance admins only. Empty string when unset. */
+  async getStripeWebhookSecret(): Promise<string> {
+    try {
+      const { data, error } = await supabase.rpc('get_stripe_webhook_secret')
+      if (error) throw error
+      return typeof data === 'string' ? data : ''
+    } catch (error) {
+      debug.error('Failed to get Stripe webhook secret:', error)
+      return ''
+    }
+  }
+
+  /** Sets the Stripe signing secret (whsec_...); empty disables the webhook. Instance admins only. */
+  async setStripeWebhookSecret(secret: string): Promise<{ ok: boolean; message?: string }> {
+    try {
+      const { error } = await supabase.rpc('set_stripe_webhook_secret', { p_secret: secret })
+      if (error) throw error
+      return { ok: true }
+    } catch (error: any) {
+      debug.error('Failed to set Stripe webhook secret:', error)
+      return { ok: false, message: error?.code === '22023' ? error.message : undefined }
     }
   }
 

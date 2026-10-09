@@ -318,6 +318,7 @@ get_server_members_by_instance	invoker	TABLE(instance text, member_ids uuid[], m
 get_server_newcomer_alerts	definer	jsonb	authenticated+service_role	client	rpc in src/services/NewcomerAlertService.ts
 get_server_welcome	definer	jsonb	authenticated+service_role	client	rpc in src/services/ServerWelcomeService.ts
 get_signup_cohorts	definer	TABLE(cohort_start date, signups integer, joined_server integer, joined_other_server integer, day1_eligible integer, wrote_day1 integer, days1_7_eligible integer, active_days1_7 integer, days8_30_eligible integer, active_days8_30 integer, days31_90_eligible integer, active_days31_90 integer, first_message_eligible integer, answered_1h integer, answered_24h integer, has_push integer, follows_anyone integer)	authenticated+service_role	client	rpc in src/services/AdminService.ts
+get_stripe_webhook_secret	definer	text	authenticated+service_role	client	rpc in src/services/FundingService.ts
 get_supporter_badge	definer	TABLE(tier_name text, badge_icon text, badge_color text, is_active boolean)	service_role	service key	nothing references it
 get_supporter_badges	definer	TABLE(user_id uuid, tier_name text, badge_icon text, badge_color text, is_active boolean)	authenticated+service_role	client	rpc in src/services/FundingService.ts
 get_suspicious_activity	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
@@ -461,7 +462,7 @@ queue_message_media_cleanup	definer	trigger	service_role	trigger	trigger public.
 queue_push_dismissal	definer	void	service_role	trigger	called by queue_push_dismissal_on_delete, queue_push_dismissal_on_read
 queue_push_dismissal_on_delete	definer	trigger	service_role	trigger	trigger public.notifications AFTER DELETE STATEMENT (trg_queue_push_dismissal_on_delete)
 queue_push_dismissal_on_read	definer	trigger	service_role	trigger	trigger public.notifications AFTER UPDATE STATEMENT (trg_queue_push_dismissal_on_read)
-recompute_supporter_tier	definer	uuid	authenticated+service_role	client	rpc in federation-backend/src/routes/webhooks/kofi.ts, src/services/FundingService.ts
+recompute_supporter_tier	definer	uuid	authenticated+service_role	client	rpc in federation-backend/src/routes/webhooks/donations.ts, src/services/FundingService.ts
 record_emoji_usage	invoker	void	anon+authenticated+service_role	client	rpc in src/services/emojiService.ts
 record_instance_software	definer	text	service_role	client	rpc in federation-backend/src/activitypub/instanceSoftware.ts
 record_metric	definer	uuid	service_role	client	called by record_slow_query
@@ -538,6 +539,7 @@ set_server_member_timeout	definer	jsonb	authenticated+service_role	client	rpc in
 set_server_newcomer_alerts	definer	jsonb	authenticated+service_role	client	rpc in src/services/NewcomerAlertService.ts
 set_server_raid_lockdown	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
 set_server_welcome	definer	jsonb	authenticated+service_role	client	rpc in src/services/ServerWelcomeService.ts
+set_stripe_webhook_secret	definer	void	authenticated+service_role	client	rpc in src/services/FundingService.ts
 set_welcome_server	definer	jsonb	authenticated+service_role	client	rpc in src/services/ServerWelcomeService.ts
 should_show_gif_ads	definer	boolean	anon+authenticated+service_role	client	rpc in federation-backend/src/routes/gifs.ts
 sign_out_my_sessions	definer	integer	authenticated+service_role	client	rpc in src/services/AccountSecurityService.ts, src/supabase.ts

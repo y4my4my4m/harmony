@@ -77,8 +77,8 @@
               <select v-model="link.platform" class="cyber-select" style="width: 160px;">
                 <option v-for="opt in FUNDING_PLATFORMS" :key="opt" :value="opt">{{ platformLabel(opt) }}</option>
               </select>
-              <input v-model="link.url" class="cyber-input" placeholder="https://..." style="flex: 1;" />
-              <input v-model="link.label" class="cyber-input" placeholder="Label (optional)" style="width: 140px;" />
+              <input v-model="link.url" class="cyber-input" placeholder="https://..." autocomplete="off" style="flex: 1;" />
+              <input v-model="link.label" class="cyber-input" placeholder="Label (optional)" autocomplete="off" style="width: 140px;" />
               <button class="mod-btn delete-btn" @click="fundingLinks.splice(i, 1)" title="Remove link">
                 <Icon name="delete" :size="14" />
               </button>
@@ -89,8 +89,8 @@
               <option value="" disabled>Platform…</option>
               <option v-for="opt in FUNDING_PLATFORMS" :key="opt" :value="opt">{{ platformLabel(opt) }}</option>
             </select>
-            <input v-model="newLinkUrl" class="cyber-input" placeholder="https://..." style="flex: 1;" />
-            <input v-model="newLinkLabel" class="cyber-input" placeholder="Label (optional)" style="width: 140px;" />
+            <input v-model="newLinkUrl" class="cyber-input" placeholder="https://..." autocomplete="off" style="flex: 1;" />
+            <input v-model="newLinkLabel" class="cyber-input" placeholder="Label (optional)" autocomplete="off" style="width: 140px;" />
             <button class="action-btn" @click="addFundingLink" :disabled="!newLinkPlatform || !newLinkUrl" style="white-space: nowrap;">
               <Icon name="plus" :size="14" /> Add
             </button>
@@ -125,13 +125,11 @@
             autocomplete="off"
           />
         </div>
-        <div class="funding-field" style="align-self: flex-end;">
-          <button class="mod-btn" type="button" @click="showKofiToken = !showKofiToken" :title="showKofiToken ? 'Hide' : 'Show'">
-            <Icon :name="showKofiToken ? 'eye-off' : 'eye'" :size="14" />
-          </button>
-        </div>
+        <button class="mod-btn secret-toggle" type="button" @click="showKofiToken = !showKofiToken" :title="showKofiToken ? 'Hide' : 'Show'">
+          <Icon :name="showKofiToken ? 'eye-off' : 'eye'" :size="14" />
+        </button>
       </div>
-      <label class="funding-field" style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+      <label class="funding-check">
         <input type="checkbox" v-model="kofiAutoAssignTier" />
         <span>Auto-assign supporter tier based on donation amount</span>
       </label>
@@ -140,6 +138,55 @@
         message - the webhook auto-attributes it and recomputes their tier based on cumulative cycle
         donations. Donations without a matched handle land in the <strong>Pending donations</strong>
         queue below, and you (and instance moderators) get a notification.
+      </p>
+    </div>
+
+    <!-- Stripe Webhook (automation) -->
+    <div class="funding-section">
+      <h3>Stripe <span class="section-badge">Automation</span></h3>
+      <p class="section-description" style="margin-bottom: 12px;">
+        Donations through a Stripe Payment Link are credited to the donor's account: Harmony opens
+        the link with their account id, and Stripe reports the payment to this webhook. In the Stripe
+        Dashboard, create a Payment Link (for any amount, choose <em>Customers choose what to pay</em>;
+        a recurring price makes a monthly donation) and add it under Donation links with the platform
+        <strong>Stripe</strong>. Then, under
+        <a href="https://dashboard.stripe.com/webhooks" target="_blank" rel="noopener noreferrer">Developers → Webhooks</a>,
+        add an endpoint with this URL:
+      </p>
+      <div class="webhook-url-display">
+        <code>{{ stripeWebhookUrl }}</code>
+        <button class="mod-btn" @click="copyText(stripeWebhookUrl, 'Webhook URL copied')" title="Copy URL">
+          <Icon name="copy" :size="14" />
+        </button>
+      </div>
+      <p class="section-description" style="margin: 8px 0 0;">
+        listening for
+        <code>checkout.session.completed</code>, <code>checkout.session.async_payment_succeeded</code>
+        and <code>invoice.paid</code>, and paste its signing secret here.
+      </p>
+      <div class="funding-form-row" style="margin-top: 12px;">
+        <div class="funding-field" style="flex: 1;">
+          <label>Signing secret</label>
+          <input
+            v-model="stripeWebhookSecret"
+            :type="showStripeSecret ? 'text' : 'password'"
+            class="cyber-input"
+            placeholder="whsec_..."
+            autocomplete="off"
+          />
+        </div>
+        <button class="mod-btn secret-toggle" type="button" @click="showStripeSecret = !showStripeSecret" :title="showStripeSecret ? 'Hide' : 'Show'">
+          <Icon :name="showStripeSecret ? 'eye-off' : 'eye'" :size="14" />
+        </button>
+      </div>
+      <label class="funding-check">
+        <input type="checkbox" v-model="stripeAutoAssignTier" />
+        <span>Auto-assign supporter tier based on donation amount</span>
+      </label>
+      <p class="section-hint">
+        Payments from a Payment Link opened outside Harmony carry no account and land in the
+        <strong>Pending donations</strong> queue below, as do renewals of subscriptions started that way.
+        Checkout payments that did not come from a Payment Link are ignored.
       </p>
     </div>
 
@@ -538,6 +585,12 @@ const kofiWebhookUrl = computed(() => {
     || (typeof window !== 'undefined' ? window.location.origin : '')
   return `${base.replace(/\/$/, '')}/webhooks/kofi`
 })
+// Stripe webhook config
+const stripeWebhookSecret = ref('')
+let savedStripeWebhookSecret = ''
+const stripeAutoAssignTier = ref(true)
+const showStripeSecret = ref(false)
+const stripeWebhookUrl = computed(() => kofiWebhookUrl.value.replace(/\/kofi$/, '/stripe'))
 const instanceDomain = computed(() =>
   runtimeConfig.domain || 'your-domain'
 )
@@ -604,7 +657,7 @@ const editDonationNote = ref('')
 
 // Watch for funding config changes
 watch(
-  [fundingEnabled, fundingShowInBar, fundingShowProgress, fundingGoalAmount, fundingCurrency, fundingCurrentAmount, fundingPeriod, fundingDescription, fundingThankYou, fundingLinks, kofiWebhookToken, kofiAutoAssignTier],
+  [fundingEnabled, fundingShowInBar, fundingShowProgress, fundingGoalAmount, fundingCurrency, fundingCurrentAmount, fundingPeriod, fundingDescription, fundingThankYou, fundingLinks, kofiWebhookToken, kofiAutoAssignTier, stripeWebhookSecret, stripeAutoAssignTier],
   () => { fundingChanged.value = true },
   { deep: true }
 )
@@ -624,9 +677,12 @@ const loadFundingData = async () => {
     fundingThankYou.value = config.thank_you_message || ''
     fundingLinks.value = config.funding_links || []
     kofiAutoAssignTier.value = config.kofi_auto_assign_tier !== false
+    stripeAutoAssignTier.value = config.stripe_auto_assign_tier !== false
   }
   kofiWebhookToken.value = await fundingService.getKofiWebhookToken()
   savedKofiWebhookToken = kofiWebhookToken.value
+  stripeWebhookSecret.value = await fundingService.getStripeWebhookSecret()
+  savedStripeWebhookSecret = stripeWebhookSecret.value
   supporterTiers.value = await fundingService.getTiers()
   supporters.value = await fundingService.getSupporters()
   donationHistory.value = await fundingService.getDonationHistory()
@@ -645,9 +701,19 @@ const PLATFORM_LABELS: Record<FundingPlatformKey, string> = {
   'open-collective': 'Open Collective',
   'paypal': 'PayPal',
   'buymeacoffee': 'Buy Me a Coffee',
+  'stripe': 'Stripe',
   'custom': 'Custom',
 }
 const platformLabel = (key: string): string => PLATFORM_LABELS[key as FundingPlatformKey] || key
+
+const copyText = async (text: string, done: string) => {
+  try {
+    await navigator.clipboard.writeText(text)
+    toast.success(done)
+  } catch {
+    toast.error('Failed to copy')
+  }
+}
 
 const copyKofiWebhookUrl = async () => {
   try {
@@ -737,6 +803,7 @@ const saveFundingConfig = async () => {
     thank_you_message: fundingThankYou.value || null,
     funding_links: fundingLinks.value,
     kofi_auto_assign_tier: kofiAutoAssignTier.value,
+    stripe_auto_assign_tier: stripeAutoAssignTier.value,
   } as any)
   const token = kofiWebhookToken.value.trim()
   let tokenSaved = true
@@ -744,12 +811,21 @@ const saveFundingConfig = async () => {
     tokenSaved = await fundingService.setKofiWebhookToken(token)
     if (tokenSaved) savedKofiWebhookToken = token
   }
-  const success = configSaved && tokenSaved
+  const secret = stripeWebhookSecret.value.trim()
+  let secretSaved = true
+  let secretMessage: string | undefined
+  if (configSaved && secret !== savedStripeWebhookSecret) {
+    const result = await fundingService.setStripeWebhookSecret(secret)
+    secretSaved = result.ok
+    secretMessage = result.message
+    if (secretSaved) savedStripeWebhookSecret = secret
+  }
+  const success = configSaved && tokenSaved && secretSaved
   if (success) {
     fundingChanged.value = false
     toast.success('Funding settings saved')
   } else {
-    toast.error('Failed to save funding settings')
+    toast.error(secretMessage ?? 'Failed to save funding settings')
   }
 }
 
@@ -1534,6 +1610,13 @@ onMounted(() => {
 
 
 
+.section-description code {
+  background: var(--background-secondary);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
 .section-hint code {
   background: var(--background-secondary);
   padding: 1px 5px;
@@ -1806,6 +1889,21 @@ onMounted(() => {
 
 
 
+
+.secret-toggle {
+  align-self: flex-end;
+  height: 38px;
+}
+
+.funding-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
 
 .funding-field label {
   font-size: 12px;
