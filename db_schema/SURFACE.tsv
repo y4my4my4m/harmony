@@ -536,6 +536,7 @@ set_domain_moderation	p_domain text, p_policy text, p_reason text	void	definer	p
 set_instance_config	p_key text, p_value jsonb, p_user_id uuid, p_description text	boolean	definer	public, pg_temp	authenticated+service_role	client
 set_kofi_webhook_token	p_token text	void	definer	public, pg_temp	authenticated+service_role	client
 set_member_instance		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
+set_message_embeds_suppressed	p_message_id uuid, p_suppressed boolean	boolean	definer	public, pg_temp	authenticated+service_role	client
 set_server_featured	p_server_id uuid, p_is_featured boolean, p_order integer	void	definer	public, extensions, pg_temp	anon+authenticated+service_role	client
 set_server_member_timeout	p_server_id uuid, p_user_id uuid, p_seconds integer, p_reason text	jsonb	definer	public, pg_temp	authenticated+service_role	client
 set_server_newcomer_alerts	p_server_id uuid, p_enabled boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client

@@ -431,7 +431,10 @@
     "reactions": {
       "add": "Ajouter une réaction",
       "remove": "Retirer la réaction",
-      "reactedWith": "a réagi avec"
+      "reactedWith": "a réagi avec",
+      "view": "Voir les réactions",
+      "title": "Réactions",
+      "empty": "Aucune réaction"
     },
     "typing": {
       "single": " est en train de taper...",
@@ -450,6 +453,11 @@
       "stalled": "Téléversement bloqué : aucun progrès depuis {seconds} s.",
       "notSent": "Le message n’a pas été envoyé. Il est de retour dans la zone de saisie.",
       "voiceNotSent": "Impossible d’envoyer le message vocal."
+    },
+    "embeds": {
+      "remove": "Supprimer les intégrations",
+      "show": "Afficher les intégrations",
+      "failed": "Impossible de modifier les intégrations du message"
     }
   },
   "messageSearch": {
@@ -3855,5 +3863,11 @@
       "done": "Serveur quitté",
       "failed": "Impossible de quitter le serveur"
     }
+  },
+  "embeds": {
+    "popOut": "Détacher",
+    "open": "Ouvrir",
+    "hide": "Masquer",
+    "show": "Afficher"
   }
 }

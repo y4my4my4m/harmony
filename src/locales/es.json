@@ -431,7 +431,10 @@
     "reactions": {
       "add": "Añadir reacción",
       "remove": "Quitar reacción",
-      "reactedWith": "reaccionó con"
+      "reactedWith": "reaccionó con",
+      "view": "Ver reacciones",
+      "title": "Reacciones",
+      "empty": "Sin reacciones"
     },
     "typing": {
       "single": " está escribiendo...",
@@ -450,6 +453,11 @@
       "stalled": "Subida detenida: sin progreso durante {seconds} s.",
       "notSent": "El mensaje no se envió. Ha vuelto al editor.",
       "voiceNotSent": "No se pudo enviar el mensaje de voz."
+    },
+    "embeds": {
+      "remove": "Quitar vistas previas",
+      "show": "Mostrar vistas previas",
+      "failed": "No se pudieron cambiar las vistas previas del mensaje"
     }
   },
   "messageSearch": {
@@ -3855,5 +3863,11 @@
       "done": "Has salido del servidor",
       "failed": "No se pudo salir del servidor"
     }
+  },
+  "embeds": {
+    "popOut": "Desacoplar",
+    "open": "Abrir",
+    "hide": "Ocultar",
+    "show": "Mostrar"
   }
 }

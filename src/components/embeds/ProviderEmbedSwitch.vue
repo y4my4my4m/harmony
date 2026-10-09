@@ -13,11 +13,14 @@
         {{ providerLabel }}
       </div>
       <div class="provider-embed__actions">
+        <button v-if="poppable && !collapsed" class="embed-action" type="button" @click="popOutEmbed">
+          {{ t('embeds.popOut') }}
+        </button>
         <button class="embed-action" type="button" @click="openLink">
-          Open
+          {{ t('embeds.open') }}
         </button>
         <button class="embed-action" type="button" @click="toggleCollapse">
-          {{ collapsed ? 'Show' : 'Hide' }}
+          {{ collapsed ? t('embeds.show') : t('embeds.hide') }}
         </button>
       </div>
     </div>
@@ -129,10 +132,12 @@ const fediversePostCache = {
 </script>
 
 <script setup lang="ts">
+import { isEmbedHidden, setEmbedHidden } from '@/utils/hiddenEmbeds';
 import { safeHref } from '@/utils/sanitize';
 import Icon from '@/components/common/Icon.vue';
 import { softwareDisplayName } from '@/utils/fediverseSoftware';
 import { computed, onMounted, ref, nextTick, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { debug } from '@/utils/debug'
 // `TimelinePost` is already imported in the module-scope <script lang="ts">
 // block above for the cache helpers; re-importing it here is a TS duplicate.
@@ -154,7 +159,7 @@ const emit = defineEmits<{
   'open-lightbox': [url: string];
 }>();
 
-const collapsed = ref(false);
+const collapsed = ref(isEmbedHidden(props.messageId, props.payload?.url));
 const harmonyPost = ref<TimelinePost | null>(null);
 const harmonyError = ref<string | null>(null);
 const fediversePost = ref<TimelinePost | null>(null);
@@ -163,8 +168,10 @@ const embedWrapper = ref<HTMLElement | null>(null);
 const youtubeContainer = ref<HTMLElement | null>(null);
 const youtubeIframe = ref<HTMLIFrameElement | null>(null);
 const embedLoaded = ref(false);
+const poppable = ref(false);
 
-const { registerVideo, notifyPlaybackStarted } = useFloatingVideo();
+const { t } = useI18n();
+const { registerVideo, notifyPlaybackStarted, canPopOut, popOut } = useFloatingVideo();
 
 // Detect server invite links (e.g., https://har.mony.lol/invite/ABC123)
 const isServerInvite = computed(() => {
@@ -294,7 +301,13 @@ function setupYouTubePlayer() {
       sourceUrl: props.payload.url,
       title: props.payload.title,
     });
+    poppable.value = canPopOut(target);
   }
+}
+
+function popOutEmbed() {
+  const target = floatTarget();
+  if (target) popOut(target);
 }
 
 // The floating player can dock a playing iframe from an earlier mount of this
@@ -499,6 +512,7 @@ function handleEmbedLoad() {
 
 function toggleCollapse() {
   collapsed.value = !collapsed.value;
+  setEmbedHidden(props.messageId, props.payload?.url, collapsed.value);
 }
 
 function openLink() {

@@ -536,6 +536,7 @@ set_domain_moderation	definer	void	authenticated+service_role	client	rpc in src/
 set_instance_config	definer	boolean	authenticated+service_role	client	rpc in src/services/AdminService.ts, src/services/NewcomerAlertService.ts
 set_kofi_webhook_token	definer	void	authenticated+service_role	client	rpc in src/services/FundingService.ts
 set_member_instance	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.user_servers BEFORE INSERT (auto_set_member_instance)
+set_message_embeds_suppressed	definer	boolean	authenticated+service_role	client	rpc in src/services/messageEmbeds.ts
 set_server_featured	definer	void	anon+authenticated+service_role	client	rpc in src/services/AdminService.ts
 set_server_member_timeout	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
 set_server_newcomer_alerts	definer	jsonb	authenticated+service_role	client	rpc in src/services/NewcomerAlertService.ts

@@ -431,7 +431,10 @@
     "reactions": {
       "add": "添加反应",
       "remove": "移除反应",
-      "reactedWith": "做出了反应"
+      "reactedWith": "做出了反应",
+      "view": "查看反应",
+      "title": "反应",
+      "empty": "暂无反应"
     },
     "typing": {
       "single": " 正在输入...",
@@ -450,6 +453,11 @@
       "stalled": "上传停滞：{seconds} 秒内没有进度。",
       "notSent": "消息未发送，已放回输入框。",
       "voiceNotSent": "语音消息发送失败。"
+    },
+    "embeds": {
+      "remove": "移除嵌入内容",
+      "show": "显示嵌入内容",
+      "failed": "无法更改消息的嵌入内容"
     }
   },
   "messageSearch": {
@@ -3855,5 +3863,11 @@
       "done": "已离开服务器",
       "failed": "无法离开服务器"
     }
+  },
+  "embeds": {
+    "popOut": "弹出",
+    "open": "打开",
+    "hide": "隐藏",
+    "show": "显示"
   }
 }

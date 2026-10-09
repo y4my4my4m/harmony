@@ -431,7 +431,10 @@
     "reactions": {
       "add": "반응 추가",
       "remove": "반응 제거",
-      "reactedWith": "반응했습니다"
+      "reactedWith": "반응했습니다",
+      "view": "반응 보기",
+      "title": "반응",
+      "empty": "반응 없음"
     },
     "typing": {
       "single": "님이 입력 중...",
@@ -450,6 +453,11 @@
       "stalled": "업로드가 멈췄습니다: {seconds}초 동안 진행이 없습니다.",
       "notSent": "메시지를 보내지 못했습니다. 입력창으로 되돌렸습니다.",
       "voiceNotSent": "음성 메시지를 보내지 못했습니다."
+    },
+    "embeds": {
+      "remove": "임베드 제거",
+      "show": "임베드 표시",
+      "failed": "메시지 임베드를 변경하지 못했습니다"
     }
   },
   "messageSearch": {
@@ -3855,5 +3863,11 @@
       "done": "서버에서 나갔습니다",
       "failed": "서버에서 나가지 못했습니다"
     }
+  },
+  "embeds": {
+    "popOut": "팝아웃",
+    "open": "열기",
+    "hide": "숨기기",
+    "show": "표시"
   }
 }

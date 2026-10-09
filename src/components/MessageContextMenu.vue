@@ -49,6 +49,11 @@
       <span>Add reaction</span>
     </div>
 
+    <div v-if="hasReactions" class="context-menu-item" data-testid="context-menu-view-reactions" @click="viewReactions">
+      <Icon name="smile" size="sm" />
+      <span>{{ $t('message.reactions.view') }}</span>
+    </div>
+
     <div v-if="canReply" class="context-menu-item" @click="reply">
       <ReplyIcon />
       <span>Reply</span>
@@ -114,6 +119,11 @@
       <span>Copy message link</span>
     </div>
 
+    <div v-if="canToggleEmbeds" class="context-menu-item" data-testid="context-menu-toggle-embeds" @click="toggleEmbeds">
+      <Icon :name="isEmbedsSuppressed ? 'eye' : 'eye-off'" size="sm" />
+      <span>{{ isEmbedsSuppressed ? $t('message.embeds.show') : $t('message.embeds.remove') }}</span>
+    </div>
+
     <template v-if="canPin">
       <div class="context-menu-item" @click="togglePin">
         <Icon :name="isPinned ? 'pin-off' : 'pin'" size="sm" />
@@ -157,6 +167,10 @@ import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useDeveloperTools } from '@/composables/useDeveloperTools';
 import { usePinActions } from '@/composables/usePinActions';
+import { embedsSuppressed, hasEmbeddableParts, setEmbedsSuppressed } from '@/services/messageEmbeds';
+import { useToast } from 'vue-toastification';
+import { i18n } from '@/i18n';
+import { useReactionsStore } from '@/stores/useReactions';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { messagePartsToPlainText } from '@/utils/messageContentUtils';
 import { downloadMediaFromUrl, filenameFromUrl } from '@/utils/downloadMedia';
@@ -208,6 +222,7 @@ const emit = defineEmits<{
   'open-emoji-picker': [position: { x: number; y: number }]
   'pin-changed': []
   report: [message: Message]
+  'view-reactions': [message: Message]
   reply: [message: Message]
   edit: [message: Message]
   thread: [message: Message]
@@ -216,12 +231,39 @@ const emit = defineEmits<{
 
 const { topEmojisForContextMenu, hasFrequentEmojis, recordEmojiUsage } = useFrequentEmojis();
 const { triggerReaction } = useHapticSettings();
-const { canPinMessages } = useServerPermissions();
+const { canPinMessages, canManageMessages } = useServerPermissions();
 const { setPinned } = usePinActions();
 const { developerToolsEnabled } = useDeveloperTools();
+const reactionsStore = useReactionsStore();
 
 const isPinned = computed(() => props.message?.is_pinned || false);
+const hasReactions = computed(() =>
+  !!props.message && reactionsStore.getMessageReactions(props.message.id).length > 0
+);
 const canPin = computed(() => canPinMessages.value);
+const toast = useToast();
+
+// The author, or MANAGE_MESSAGES in a server channel (set_message_embeds_suppressed).
+const isEmbedsSuppressed = computed(() => embedsSuppressed(props.message));
+const canToggleEmbeds = computed(() => {
+  const message = props.message;
+  if (!message || (!hasEmbeddableParts(message) && !isEmbedsSuppressed.value)) return false;
+  const authorId = message.user_id || (message as any).author_id;
+  if (authorId && authorId === props.currentUserId) return true;
+  return !!props.channelId && !props.conversationId && canManageMessages.value;
+});
+
+const toggleEmbeds = async () => {
+  const message = props.message;
+  emit('close');
+  if (!message) return;
+  try {
+    await setEmbedsSuppressed(message, !isEmbedsSuppressed.value);
+  } catch (error) {
+    debug.error('Failed to change message embeds:', error);
+    toast.error(i18n.global.t('message.embeds.failed'));
+  }
+};
 const canReport = computed(() => {
   if (!props.message) return false;
   const authorId = props.message.user_id || (props.message as any).author_id;
@@ -362,6 +404,12 @@ const addQuickReaction = (emoji: any) => {
 
 const openEmojiPicker = () => {
   emit('open-emoji-picker', { ...adjustedPosition.value });
+  emit('close');
+};
+
+const viewReactions = () => {
+  if (!props.message) return;
+  emit('view-reactions', props.message);
   emit('close');
 };
 

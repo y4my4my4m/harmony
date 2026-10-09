@@ -1467,6 +1467,7 @@ export async function handleMessageReactionRemoval(deletedReaction: any): Promis
 export async function enrichMessageLinkPreviews(message: any): Promise<void> {
   const content = message.content;
   if (!Array.isArray(content)) return;
+  if (message.metadata?.suppress_embeds === true) return;
 
   const instanceDomain = config.INSTANCE_DOMAIN.toLowerCase();
   const existingEmbeds: Record<string, any> = message.metadata?.embeds || {};

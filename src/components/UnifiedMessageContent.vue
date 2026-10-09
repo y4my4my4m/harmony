@@ -93,12 +93,9 @@
           :parts="(part as any).parts"
           :message-id="messageId"
           :image-loaded="imageLoadedState"
-          :video-index-base="partIndex * 10"
           :can-remove="canEditAttachments"
           @open-lightbox="$emit('open-lightbox', $event)"
           @image-loaded="handleImageLoad"
-          @video-play="handleVideoPlay"
-          @video-pause="handleVideoPause"
           @remove-attachment="requestRemoveAttachment"
         />
         <!-- Text content with markdown-style formatting and code blocks -->
@@ -219,7 +216,7 @@
         <template v-else-if="part && typeof part === 'object' && part.type === 'url'">
           <!-- Image URLs -->
           <div 
-            v-if="isImageUrl(part.url)" 
+            v-if="isImageUrl(part.url) && showsPreview(part)" 
             class="media-container image-container"
           >
             <div class="media-frame">
@@ -238,9 +235,9 @@
 
           <!-- Video URLs -->
           <div 
-            v-else-if="isVideoUrl(part.url)" 
+            v-else-if="isVideoUrl(part.url) && showsPreview(part)" 
             class="media-container video-container"
-            :ref="el => { if (el) videoContainers[partIndex] = el as HTMLElement }"
+            :ref="el => bindVideoContainer(partIndex, el)"
           >
             <div class="media-frame">
               <video
@@ -248,17 +245,25 @@
                 controls
                 class="content-video"
                 preload="metadata"
-                :data-video-index="partIndex"
                 @play="handleVideoPlay"
-                @pause="handleVideoPause"
                 @error="onAttachmentMediaError(part.url)"
               ></video>
+              <button
+                v-if="floatingVideos.canPopOut(partIndex)"
+                type="button"
+                class="floating-video-popout"
+                :title="t('embeds.popOut')"
+                :aria-label="t('embeds.popOut')"
+                @click.stop="floatingVideos.popOut(partIndex)"
+              >
+                <Icon name="picture-in-picture" :size="16" />
+              </button>
             </div>
           </div>
 
           <!-- Audio URLs -->
           <div 
-            v-else-if="isAudioUrl(part.url)" 
+            v-else-if="isAudioUrl(part.url) && showsPreview(part)" 
             class="media-container audio-container"
           >
             <audio
@@ -406,7 +411,7 @@
         <div 
           v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'video'" 
           class="media-container video-container"
-          :ref="el => { if (el) videoContainers[partIndex] = el as HTMLElement }"
+          :ref="el => bindVideoContainer(partIndex, el)"
           @mouseenter="hoveredImageUrl = part.url"
           @mouseleave="hoveredImageUrl = null"
         >
@@ -420,11 +425,20 @@
               controls
               class="content-video"
               preload="metadata"
-              :data-video-index="partIndex"
               @play="handleVideoPlay"
-              @pause="handleVideoPause"
               @error="onAttachmentMediaError(part.url, part)"
             ></video>
+            <button
+              v-if="floatingVideos.canPopOut(partIndex)"
+              type="button"
+              class="floating-video-popout"
+              :class="{ 'floating-video-popout--inset': canEditAttachments || isKlipyMedia(part.url) }"
+              :title="t('embeds.popOut')"
+              :aria-label="t('embeds.popOut')"
+              @click.stop="floatingVideos.popOut(partIndex)"
+            >
+              <Icon name="picture-in-picture" :size="16" />
+            </button>
             <MediaUploadProgress v-if="hasUpload(part)" :path="part.path!" />
             <!-- Clip favorite button (Klipy clips only) -->
             <button
@@ -565,6 +579,7 @@
 <script lang="ts">
 import { defineComponent, watch, ref, nextTick, reactive, onMounted, onUnmounted, computed, shallowRef, effectScope, type EffectScope } from 'vue';
 import type { PropType } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { EmbedPayload, MessagePart, FileContent } from '@/types';
 import { coalesceInlineContentForMarkdown, extractFileParts } from '@/utils/messageContentUtils';
 import AutoSuggest from '@/components/AutoSuggest.vue';
@@ -574,7 +589,7 @@ import RichTextEditor from '@/components/RichTextEditor.vue';
 import VoiceMessagePlayer from '@/components/VoiceMessagePlayer.vue';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
-import { useFloatingVideo } from '@/composables/useFloatingVideo';
+import { useFloatingVideo, useFloatingVideoRefs } from '@/composables/useFloatingVideo';
 import { userDataService } from '@/services/userDataService';
 import { useUserData } from '@/composables/useUserData';
 import { mentionDisplayDomain } from '@/utils/mentionGrammar';
@@ -714,7 +729,7 @@ export default defineComponent({
     // when edit mode opens, removable individually, merged back on save.
     const editableFiles = ref<FileContent[]>([]);
     const editRichEditorRef = ref<InstanceType<typeof RichTextEditor> | null>(null);
-    const videoContainers = ref<HTMLElement[]>([]);
+    const { t } = useI18n();
     const visualTheme = useVisualTheme();
     const decrypting = ref(false);
     const instanceSettings = useInstanceSettingsStore();
@@ -797,7 +812,11 @@ export default defineComponent({
     // Seeded from the prop, then kept merged by the watcher below.
     const imageLoadedState = reactive<Record<string, boolean>>({ ...props.imageLoaded });
 
-    const { registerVideo, notifyPlaybackStarted } = useFloatingVideo();
+    const { notifyPlaybackStarted } = useFloatingVideo();
+    const floatingVideos = useFloatingVideoRefs();
+    const bindVideoContainer = (partIndex: number, el: unknown) => {
+      floatingVideos.bind(partIndex, el, { type: 'video', messageId: props.messageId });
+    };
     
     watch(() => props.imageLoaded, (newValue) => {
       Object.assign(imageLoadedState, newValue);
@@ -825,24 +844,7 @@ export default defineComponent({
     };
     
     const handleVideoPlay = (event: Event) => {
-      const video = event.target as HTMLVideoElement;
-      const videoIndex = parseInt(video.dataset.videoIndex || '0', 10);
-      const container = videoContainers.value[videoIndex];
-      
-      if (container) {
-        container.dataset.isPlaying = 'true';
-      }
-      notifyPlaybackStarted(video);
-    };
-    
-    const handleVideoPause = (event: Event) => {
-      const video = event.target as HTMLVideoElement;
-      const videoIndex = parseInt(video.dataset.videoIndex || '0', 10);
-      const container = videoContainers.value[videoIndex];
-      
-      if (container) {
-        container.dataset.isPlaying = 'false';
-      }
+      notifyPlaybackStarted(event.target as HTMLElement);
     };
     
     // GIF favorites helpers
@@ -890,25 +892,8 @@ export default defineComponent({
       favoriteGifUrls.value = new Set(favorites.map(f => f.gif_url));
     };
     
-    const floatingObserverCleanups: Array<() => void> = [];
-
     onMounted(() => {
       loadGifFavorites();
-
-      nextTick(() => {
-        videoContainers.value.forEach((container) => {
-          if (container) {
-            floatingObserverCleanups.push(
-              registerVideo(container, { type: 'video', messageId: props.messageId })
-            );
-          }
-        });
-      });
-    });
-
-    onUnmounted(() => {
-      floatingObserverCleanups.forEach(cleanup => cleanup());
-      floatingObserverCleanups.length = 0;
     });
     
     const getCurrentText = () => editRichEditorRef.value?.getPlainText?.() ?? localEditableContent.value;
@@ -966,6 +951,14 @@ export default defineComponent({
       return /\.(mp4|webm|ogg|avi|mov|wmv|flv|m4v)(?:[?#].*)?$/i.test(url);
     };
 
+    // metadata.suppress_embeds (set_message_embeds_suppressed) hides every preview and inline
+    // media of the message; its links render as <url> parts do.
+    const embedsSuppressed = computed(() => props.metadata?.suppress_embeds === true);
+    const showsPreview = (part: MessagePart): boolean => {
+      const preview = (part as { preview?: unknown }).preview;
+      return preview !== false && preview !== 'false';
+    };
+
     // An undecrypted message renders its ciphertext part alone: the mention
     // parts stored beside it are server metadata, not message content.
     const displayContent = computed(() =>
@@ -973,7 +966,10 @@ export default defineComponent({
         ? undecryptedDisplayParts(props.content)
         : groupMediaGalleryParts(
             coalesceInlineContentForMarkdown(
-              props.content,
+              embedsSuppressed.value
+                ? props.content.map((part) =>
+                    part && typeof part === 'object' && part.type === 'url' ? { ...part, preview: false } : part)
+                : props.content,
               (url) => isImageUrl(url) || isVideoUrl(url),
             ),
           ),
@@ -993,7 +989,8 @@ export default defineComponent({
     };
 
     const resolveEmbedPayload = (part: MessagePart): EmbedPayload | null => {
-      if (part && typeof part === 'object' && part.type === 'url' && part.preview === false) {
+      if (embedsSuppressed.value) return null;
+      if (part && typeof part === 'object' && part.type === 'url' && !showsPreview(part)) {
         return null;
       }
 
@@ -1376,7 +1373,9 @@ export default defineComponent({
       isEditFileImage,
       isEditFileVideo,
       editRichEditorRef,
-      videoContainers,
+      t,
+      floatingVideos,
+      bindVideoContainer,
       handleSaveEdit,
       handleCancelEdit,
       handleKeyDown,
@@ -1391,9 +1390,9 @@ export default defineComponent({
       handleEmojiLoadError,
       handleEmbedLoad,
       handleVideoPlay,
-      handleVideoPause,
       isImageUrl,
       isVideoUrl,
+      showsPreview,
       isAudioUrl,
       sanitizeUrl,
       formatFileSize,

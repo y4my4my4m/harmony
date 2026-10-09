@@ -431,7 +431,10 @@
     "reactions": {
       "add": "Reaktion hinzufügen",
       "remove": "Reaktion entfernen",
-      "reactedWith": "hat reagiert mit"
+      "reactedWith": "hat reagiert mit",
+      "view": "Reaktionen anzeigen",
+      "title": "Reaktionen",
+      "empty": "Keine Reaktionen"
     },
     "typing": {
       "single": " tippt...",
@@ -450,6 +453,11 @@
       "stalled": "Upload hängt: seit {seconds} s kein Fortschritt.",
       "notSent": "Die Nachricht wurde nicht gesendet. Sie steht wieder im Eingabefeld.",
       "voiceNotSent": "Die Sprachnachricht konnte nicht gesendet werden."
+    },
+    "embeds": {
+      "remove": "Einbettungen entfernen",
+      "show": "Einbettungen anzeigen",
+      "failed": "Die Einbettungen der Nachricht konnten nicht geändert werden"
     }
   },
   "messageSearch": {
@@ -3855,5 +3863,11 @@
       "done": "Server verlassen",
       "failed": "Der Server konnte nicht verlassen werden"
     }
+  },
+  "embeds": {
+    "popOut": "Herauslösen",
+    "open": "Öffnen",
+    "hide": "Ausblenden",
+    "show": "Anzeigen"
   }
 }

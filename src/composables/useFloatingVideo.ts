@@ -16,9 +16,13 @@
  * no mounted source is removed on close. The player also closes when the
  * element is removed from its slot (message edited) or the message is deleted
  * (releaseFloatingVideo).
+ *
+ * popOut floats a registered embed on request, in view or not, playing or
+ * not. Its placeholder does not dock while it stays in view; docking by
+ * visibility resumes once the placeholder has left the view.
  */
 
-import { computed, ref, shallowRef } from 'vue'
+import { computed, nextTick, onUnmounted, reactive, ref, shallowRef } from 'vue'
 import { i18n } from '@/i18n'
 import { isYouTubeOrigin } from '@/utils/embedDetection'
 import {
@@ -80,6 +84,9 @@ interface FloatingVideo {
   target: DockTarget | null
   // location path + search when the video floated.
   sourcePath: string
+  // Floated by popOut; cleared once the placeholder reports less than
+  // FLOAT_BELOW visible. While set, placeholder visibility does not dock.
+  manual: boolean
 }
 
 const ENABLED_KEY = 'floatingVideoEnabled'
@@ -322,6 +329,10 @@ function onIntersect(entries: IntersectionObserverEntry[]): void {
     const target = entry.target as HTMLElement
     const cur = current.value
     if (cur && target === cur.placeholder) {
+      if (cur.manual) {
+        if (!visibleEnough(entry, FLOAT_BELOW)) current.value = { ...cur, manual: false }
+        continue
+      }
       if (!cur.target) {
         if (!interaction.value && visibleEnough(entry, DOCK_ABOVE)) dock()
       } else if (!interaction.value && visibleEnough(entry, targetDockFraction())) {
@@ -378,7 +389,7 @@ function createPlaceholder(el: HTMLElement): HTMLButtonElement {
   return button
 }
 
-function float(el: HTMLElement, reg: Registration): void {
+function float(el: HTMLElement, reg: Registration, manual = false): void {
   const slot = host!.slot
   const placeholder = createPlaceholder(el)
   el.parentNode?.insertBefore(placeholder, el)
@@ -393,6 +404,7 @@ function float(el: HTMLElement, reg: Registration): void {
     orphaned: false,
     target: null,
     sourcePath: `${window.location.pathname}${window.location.search}`,
+    manual,
   }
   refreshLayout()
 
@@ -606,6 +618,7 @@ function returnToSource(): string | null {
     return null
   }
   returnUntil = Date.now() + RETURN_WINDOW_MS
+  if (cur.manual) current.value = { ...cur, manual: false }
   return cur.sourcePath
 }
 
@@ -845,13 +858,94 @@ function notifyPlaybackStarted(el: HTMLElement): void {
   observer.observe(node)
 }
 
+/** `el` is registered and renders in the main app tree, below the player's layer. */
+function canPopOut(el: HTMLElement): boolean {
+  return registry.has(el) && el.isConnected && inAppRoot(el)
+}
+
+/**
+ * Floats `el` now, whatever its visibility or play state. The enabled
+ * setting governs scroll-triggered floating only; a pop-out is an explicit
+ * request. A video already floating is closed first: one video plays at a
+ * time. Returns false when `el` cannot float.
+ */
+function popOut(el: HTMLElement): boolean {
+  const reg = registry.get(el)
+  if (!reg || !host || !canPopOut(el)) return false
+  const cur = current.value
+  if (cur?.element === el || cur?.target?.element === el) return true
+  // A collapsed YouTube embed has no iframe to show.
+  if (!el.querySelector(reg.type === 'video' ? 'video' : 'iframe')) return false
+  if (cur) close()
+  float(el, reg, true)
+  return true
+}
+
 export function useFloatingVideo() {
   return {
     isEnabled: computed(() => enabled.value),
     setEnabled,
     registerVideo,
     notifyPlaybackStarted,
+    canPopOut,
+    popOut,
     floatingMessageId: computed(() => current.value?.registration.messageId ?? null),
+  }
+}
+
+type FloatingVideoRefKey = string | number
+
+interface BoundVideo {
+  element: HTMLElement
+  cleanup: (() => void) | null
+}
+
+/**
+ * Registration through function template refs, for embeds rendered in lists:
+ * `:ref="el => bind(key, el, options)"`. Vue calls a function ref with the
+ * element after every patch and with null on unmount; an unchanged element is
+ * a no-op, a new element for a key replaces the old registration, null
+ * releases it. Registration waits a tick: the ref fires before a newly
+ * mounted subtree is attached to the document, and adoption and canPopOut
+ * test document position.
+ */
+export function useFloatingVideoRefs() {
+  const bound = new Map<FloatingVideoRefKey, BoundVideo>()
+  const poppable = reactive(new Set<FloatingVideoRefKey>())
+
+  function release(key: FloatingVideoRefKey): void {
+    const entry = bound.get(key)
+    if (!entry) return
+    bound.delete(key)
+    poppable.delete(key)
+    entry.cleanup?.()
+  }
+
+  function bind(key: FloatingVideoRefKey, el: unknown, options: FloatingVideoOptions): void {
+    const element = el instanceof HTMLElement ? el : null
+    if (element && bound.get(key)?.element === element) return
+    release(key)
+    if (!element) return
+    const entry: BoundVideo = { element, cleanup: null }
+    bound.set(key, entry)
+    void nextTick(() => {
+      if (bound.get(key) !== entry) return
+      entry.cleanup = registerVideo(element, options)
+      if (canPopOut(element)) poppable.add(key)
+    })
+  }
+
+  onUnmounted(() => {
+    for (const key of [...bound.keys()]) release(key)
+  })
+
+  return {
+    bind,
+    canPopOut: (key: FloatingVideoRefKey): boolean => poppable.has(key),
+    popOut: (key: FloatingVideoRefKey): boolean => {
+      const entry = bound.get(key)
+      return !!entry && popOut(entry.element)
+    },
   }
 }
 

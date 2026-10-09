@@ -10,7 +10,10 @@
       class="message-media-gallery__item"
       :class="{ 'is-video': item.fileType === 'video' }"
     >
-      <div class="message-media-gallery__frame">
+      <div
+        class="message-media-gallery__frame"
+        :ref="(el) => bindVideo(item, index, el)"
+      >
         <AttachmentRemoveButton
           v-if="canRemove"
           @click="$emit('remove-attachment', item.url)"
@@ -36,11 +39,20 @@
           class="content-video"
           controls
           preload="metadata"
-          :data-video-index="(videoIndexBase ?? 0) + index"
-          @play="$emit('video-play', $event)"
-          @pause="$emit('video-pause', $event)"
+          @play="onVideoPlay"
           @error="onItemError(item)"
         />
+        <button
+          v-if="item.fileType === 'video' && floatingVideos.canPopOut(videoKey(item, index))"
+          type="button"
+          class="floating-video-popout"
+          :class="{ 'floating-video-popout--inset': canRemove }"
+          :title="t('embeds.popOut')"
+          :aria-label="t('embeds.popOut')"
+          @click.stop="floatingVideos.popOut(videoKey(item, index))"
+        >
+          <Icon name="picture-in-picture" :size="16" />
+        </button>
         <MediaUploadProgress v-if="hasUpload(item)" :path="item.path!" />
       </div>
     </div>
@@ -49,6 +61,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { MessagePart } from '@/types';
 import {
   isImageMediaUrl,
@@ -59,7 +72,9 @@ import { stripKlipyAttributionFragment, isStickerMessageUrl, isAiEmojiMessageUrl
 import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
 import { isPrivateMediaPart, mediaPartSource, reportMediaPartError } from '@/services/privateMedia';
 import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.vue';
+import Icon from '@/components/common/Icon.vue';
 import MediaUploadProgress from '@/components/common/MediaUploadProgress.vue';
+import { useFloatingVideo, useFloatingVideoRefs } from '@/composables/useFloatingVideo';
 import { messageMediaUploadState } from '@/services/messageMediaUpload';
 import {
   isDiscordCdnUrl,
@@ -79,7 +94,6 @@ export interface GalleryMediaItem {
 const props = defineProps<{
   parts: MessagePart[];
   imageLoaded: Record<string, boolean>;
-  videoIndexBase?: number;
   canRemove?: boolean;
   messageId?: string;
 }>();
@@ -143,10 +157,27 @@ const layoutClass = computed(() => mediaGalleryLayoutClass(items.value.length));
 const emit = defineEmits<{
   'open-lightbox': [url: string];
   'image-loaded': [url: string];
-  'video-play': [event: Event];
-  'video-pause': [event: Event];
   'remove-attachment': [url: string];
 }>();
+
+const { t } = useI18n();
+const { notifyPlaybackStarted } = useFloatingVideo();
+const floatingVideos = useFloatingVideoRefs();
+
+function videoKey(item: GalleryMediaItem, index: number): string {
+  return loadKey(item) + index;
+}
+
+function bindVideo(item: GalleryMediaItem, index: number, el: unknown) {
+  floatingVideos.bind(videoKey(item, index), item.fileType === 'video' ? el : null, {
+    type: 'video',
+    messageId: props.messageId,
+  });
+}
+
+function onVideoPlay(event: Event) {
+  notifyPlaybackStarted(event.target as HTMLElement);
+}
 
 function onImageLoad(key: string) {
   emit('image-loaded', key);
