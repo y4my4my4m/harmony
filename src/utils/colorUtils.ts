@@ -196,6 +196,86 @@ export function oklchToHex(l: number, c: number, h: number): string {
   return rgbToHex(rgb.r, rgb.g, rgb.b)
 }
 
+const GAMUT_EPSILON = 0.0005
+
+function isOklchInGamut(l: number, c: number, h: number): boolean {
+  const hRad = (h * Math.PI) / 180
+  const rgb = oklabToLinearRgb(l / 100, c * Math.cos(hRad), c * Math.sin(hRad))
+  return [rgb.r, rgb.g, rgb.b].every((v) => v >= -GAMUT_EPSILON && v <= 1 + GAMUT_EPSILON)
+}
+
+/**
+ * OKLCH to HEX with chroma reduced until the colour fits sRGB, so lightness
+ * and hue survive. oklchToHex clips each channel instead, which shifts hue
+ * and lightness on vivid inputs (a 0.25-chroma yellow clips toward orange).
+ */
+export function oklchToHexInGamut(l: number, c: number, h: number): string {
+  const L = Math.max(0, Math.min(100, l))
+  if (isOklchInGamut(L, c, h)) return oklchToHex(L, c, h)
+  let lo = 0
+  let hi = Math.max(0, c)
+  for (let i = 0; i < 18; i++) {
+    const mid = (lo + hi) / 2
+    if (isOklchInGamut(L, mid, h)) lo = mid
+    else hi = mid
+  }
+  return oklchToHex(L, lo, h)
+}
+
+/** WCAG 2 relative luminance, 0..1. */
+export function relativeLuminance(hex: string): number | null {
+  const rgb = hexToRgb(hex)
+  if (!rgb) return null
+  const lin = (v: number) => srgbToLinear(v / 255)
+  return 0.2126 * lin(rgb.r) + 0.7152 * lin(rgb.g) + 0.0722 * lin(rgb.b)
+}
+
+/** WCAG 2 contrast ratio, 1..21. Invalid input yields 1. */
+export function contrastRatio(a: string, b: string): number {
+  const la = relativeLuminance(a)
+  const lb = relativeLuminance(b)
+  if (la === null || lb === null) return 1
+  const [hi, lo] = la > lb ? [la, lb] : [lb, la]
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+/** White label below this ratio switches to dark. #0EA5E9, the default primary, gives white 2.77:1. */
+const WHITE_LABEL_MIN_CONTRAST = 2.6
+
+/**
+ * Label colour for text drawn on a filled `hex` (buttons, badges, pills).
+ * White wins unless it falls under WHITE_LABEL_MIN_CONTRAST and the dark
+ * label beats it; the dark label is OKLCH L 20 in the fill's hue.
+ */
+export function readableTextOn(hex: string): string {
+  const oklch = hexToOklch(hex)
+  if (!oklch) return '#ffffff'
+  const dark = oklchToHexInGamut(20, Math.min(oklch.c, 0.05), oklch.h)
+  const white = contrastRatio(hex, '#ffffff')
+  if (white >= WHITE_LABEL_MIN_CONTRAST) return '#ffffff'
+  return contrastRatio(hex, dark) > white ? dark : '#ffffff'
+}
+
+/**
+ * Moves `fg` in OKLCH lightness, away from `bg`, until the pair reaches
+ * `minRatio`. Hue is kept; chroma is gamut-mapped at each step. Returns `fg`
+ * unchanged when it already passes or either input is invalid.
+ */
+export function ensureContrast(fg: string, bg: string, minRatio: number): string {
+  const f = hexToOklch(fg)
+  const b = hexToOklch(bg)
+  if (!f || !b || contrastRatio(fg, bg) >= minRatio) return fg
+  const step = f.l >= b.l ? 1 : -1
+  const tryDirection = (dir: number): string | null => {
+    for (let l = f.l + dir; l >= 0 && l <= 100; l += dir) {
+      const candidate = oklchToHexInGamut(l, f.c, f.h)
+      if (contrastRatio(candidate, bg) >= minRatio) return candidate
+    }
+    return null
+  }
+  return tryDirection(step) ?? tryDirection(-step) ?? fg
+}
+
 /**
  * Format OKLCH as CSS string
  */
@@ -338,6 +418,17 @@ function deriveUiSurfacesFromTone(
   }
 }
 
+/** The --background-primary hex generateThemePalette derives from a background tone. */
+export function primarySurfaceHex(
+  backgroundHex: string,
+  mode: 'light' | 'dark',
+  lightnessOffset: number,
+  chromaOffset: number,
+): string {
+  const s = deriveUiSurfacesFromTone(backgroundHex, 0, mode === 'light', lightnessOffset, chromaOffset)
+  return oklchToHex(s.systemBaseLightness, s.tintChroma, s.hue)
+}
+
 /** Keep stored tone hex in sync with hue + slider offsets (picker display only). */
 export function canonicalizeBackgroundTone(
   backgroundHex: string,
@@ -385,6 +476,34 @@ export function decomposeBackgroundToneHex(
 
 export function extractBackgroundHue(hex: string): number | null {
   return hexToOklch(hex)?.h ?? null
+}
+
+const NEUTRAL_TEXT = {
+  dark: ['#f2f3f5', '#b5bac1', '#80848e'],
+  light: ['#1a1c1e', '#3d4148', '#5c6168'],
+} as const
+
+/** Surface tint chroma at a saturation offset of 0 (deriveUiSurfacesFromTone). */
+const DEFAULT_TINT_CHROMA = { dark: 0.015, light: 0.02 } as const
+
+/** Primary, secondary, tertiary text take this share of the text tint. */
+const TEXT_TINT_WEIGHTS = [0.4, 0.8, 1] as const
+
+/**
+ * Text tiers in the surface hue. Each tier keeps the lightness of its neutral
+ * hex; chroma is half of whatever the saturation slider adds over the default
+ * tint, capped at 0.03. At or below the default the neutral hexes return
+ * unchanged.
+ */
+function textTiers(mode: 'dark' | 'light', hue: number, tintChroma: number): [string, string, string] {
+  const neutral = NEUTRAL_TEXT[mode]
+  const textChroma = clampTone((tintChroma - DEFAULT_TINT_CHROMA[mode]) * 0.5, 0, 0.03)
+  if (textChroma < 0.002) return [neutral[0], neutral[1], neutral[2]]
+  const tier = (i: 0 | 1 | 2) => {
+    const l = hexToOklch(neutral[i])?.l ?? 50
+    return oklchToHexInGamut(l, textChroma * TEXT_TINT_WEIGHTS[i], hue)
+  }
+  return [tier(0), tier(1), tier(2)]
 }
 
 /**
@@ -446,7 +565,8 @@ export function generateThemePalette(
     const borderChroma = bgTintChroma * 0.8
     const borderPrimaryOklch = { l: borderLightness, c: borderChroma, h: bgHue }
     const borderSecondaryOklch = { l: borderLightness + 10, c: borderChroma * 0.6, h: bgHue }
-    
+    const [textPrimary, textSecondary, textTertiary] = textTiers('light', bgHue, bgTintChroma)
+
     return {
       primary: primaryColor,
       primaryHover: adjustLightness(primaryColor, -10),
@@ -462,9 +582,9 @@ export function generateThemePalette(
       bgChat: oklchToHex(bgPrimaryOklch.l, bgPrimaryOklch.c, bgPrimaryOklch.h),
       bgSidebar: oklchToHex(sidebarOklch.l, sidebarOklch.c, sidebarOklch.h),
       
-      textPrimary: '#1a1c1e',
-      textSecondary: '#3d4148',
-      textTertiary: '#5c6168',
+      textPrimary,
+      textSecondary,
+      textTertiary,
       
       // Dynamic oklch-based border colors with theme hue
       borderPrimary: `oklch(${borderPrimaryOklch.l.toFixed(1)}% ${borderPrimaryOklch.c.toFixed(3)} ${borderPrimaryOklch.h.toFixed(1)} / 0.20)`,
@@ -489,7 +609,8 @@ export function generateThemePalette(
     const borderChroma = bgTintChroma * 1.2
     const borderPrimaryOklch = { l: borderLightness, c: borderChroma, h: bgHue }
     const borderSecondaryOklch = { l: borderLightness - 5, c: borderChroma * 0.8, h: bgHue }
-    
+    const [textPrimary, textSecondary, textTertiary] = textTiers('dark', bgHue, bgTintChroma)
+
     return {
       primary: primaryColor,
       primaryHover: adjustLightness(primaryColor, -8),
@@ -508,9 +629,9 @@ export function generateThemePalette(
       bgChat: oklchToHex(bgChatOklch.l, bgChatOklch.c, bgChatOklch.h),
       bgSidebar: oklchToHex(sidebarOklch.l, sidebarOklch.c, sidebarOklch.h),
       
-      textPrimary: '#f2f3f5',
-      textSecondary: '#b5bac1',
-      textTertiary: '#80848e',
+      textPrimary,
+      textSecondary,
+      textTertiary,
       
       // Dynamic oklch-based border colors with theme hue
       borderPrimary: `oklch(${borderPrimaryOklch.l.toFixed(1)}% ${borderPrimaryOklch.c.toFixed(3)} ${borderPrimaryOklch.h.toFixed(1)} / 0.12)`,
@@ -591,7 +712,9 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.style.setProperty('--h-primary-light', palette.primaryLight)
   root.style.setProperty('--h-primary-dark', palette.primaryDark)
   root.style.setProperty('--h-brand', palette.primary)
-  
+  // Contrast-picked; presets take the #fff in design-system.css.
+  root.style.setProperty('--text-on-primary', readableTextOn(palette.primary))
+
   // Secondary / accent brand colors
   root.style.setProperty('--harmony-secondary', palette.secondary)
   root.style.setProperty('--harmony-secondary-hover', adjustLightness(palette.secondary, -8))

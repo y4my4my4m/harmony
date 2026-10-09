@@ -2,8 +2,8 @@
  * SDR-001 / NEO KOBE 1988
  *
  * Snatcher-era noir: blood red and slate steel on blue-black surfaces, pixel
- * type, square frames. CSS lives in `./skin.css`, imported through Vite's
- * `?raw` query.
+ * type, square frames. CSS lives in `./skin.css`, loaded on first use
+ * through Vite's `?raw` query.
  *
  * Assets:
  *   public/assets/skins/sdr-001-preview.png   picker thumbnail
@@ -11,7 +11,6 @@
  *   public/assets/sounds/neokobe/             linked audio theme
  */
 import type { Skin } from '../types'
-import skinCss from './skin.css?raw'
 
 export const sdr001Skin: Skin = {
   id: 'sdr-001',
@@ -83,5 +82,5 @@ export const sdr001Skin: Skin = {
     customCssOverrides: {},
     fontFamily: 'pixel',
   },
-  globalCss: skinCss,
+  loadCss: () => import('./skin.css?raw').then((m) => m.default),
 }

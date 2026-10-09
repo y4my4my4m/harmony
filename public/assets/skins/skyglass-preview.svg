@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 280" width="600" height="280">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0753c9"/>
+      <stop offset="0.5" stop-color="#7cccff"/>
+      <stop offset="1" stop-color="#eefaff"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0.86" cy="0.02" r="0.55">
+      <stop offset="0" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="0.25" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="hill" cx="0.5" cy="1.25" r="0.75">
+      <stop offset="0" stop-color="#7ee07a"/>
+      <stop offset="0.55" stop-color="#b7f3a6" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#b7f3a6" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.78"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0.55"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0.25"/>
+    </linearGradient>
+    <linearGradient id="gel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8ec4ff"/>
+      <stop offset="0.49" stop-color="#4e9dff"/>
+      <stop offset="0.5" stop-color="#0a7cff"/>
+      <stop offset="1" stop-color="#45b6ff"/>
+    </linearGradient>
+    <linearGradient id="gelGreen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b5f0b4"/>
+      <stop offset="0.49" stop-color="#6fd776"/>
+      <stop offset="0.5" stop-color="#2db84d"/>
+      <stop offset="1" stop-color="#7ee68a"/>
+    </linearGradient>
+    <linearGradient id="gelRed" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff9a9a"/>
+      <stop offset="0.49" stop-color="#ff5a5a"/>
+      <stop offset="0.5" stop-color="#e8202a"/>
+      <stop offset="1" stop-color="#ff6b5e"/>
+    </linearGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0.05"/>
+    </linearGradient>
+    <radialGradient id="bubble" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0.6" stop-color="#fff" stop-opacity="0.05"/>
+      <stop offset="0.88" stop-color="#fff" stop-opacity="0.55"/>
+      <stop offset="0.97" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-30%" y="-60%" width="160%" height="220%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#00306e" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+
+  <!-- Sky, sun, rays, haze -->
+  <rect width="600" height="280" fill="url(#sky)"/>
+  <g fill="#fff" opacity="0.12">
+    <polygon points="516,0 300,280 360,280"/>
+    <polygon points="516,0 420,280 470,280"/>
+    <polygon points="516,0 540,280 585,280"/>
+    <polygon points="516,0 600,200 600,250"/>
+  </g>
+  <rect width="600" height="280" fill="url(#sun)"/>
+  <rect width="600" height="280" fill="url(#hill)"/>
+
+  <!-- Clouds -->
+  <g fill="#fff" filter="url(#soft)" opacity="0.9">
+    <ellipse cx="90" cy="58" rx="64" ry="18"/>
+    <ellipse cx="128" cy="46" rx="40" ry="16"/>
+    <ellipse cx="370" cy="96" rx="80" ry="16"/>
+    <ellipse cx="410" cy="84" rx="44" ry="14"/>
+  </g>
+
+  <!-- Bubbles -->
+  <circle cx="30" cy="210" r="16" fill="url(#bubble)"/>
+  <circle cx="24" cy="204" r="4" fill="#fff" opacity="0.9"/>
+  <circle cx="574" cy="230" r="22" fill="url(#bubble)"/>
+  <circle cx="566" cy="221" r="5" fill="#fff" opacity="0.9"/>
+  <circle cx="556" cy="178" r="9" fill="url(#bubble)"/>
+  <circle cx="553" cy="175" r="2.5" fill="#fff" opacity="0.9"/>
+
+  <!-- Server rail orbs -->
+  <g>
+    <circle cx="26" cy="44" r="13" fill="url(#gel)" stroke="#fff" stroke-width="2"/>
+    <ellipse cx="26" cy="38" rx="9" ry="5" fill="url(#gloss)"/>
+    <circle cx="26" cy="80" r="13" fill="url(#gelGreen)" stroke="#fff" stroke-width="2"/>
+    <ellipse cx="26" cy="74" rx="9" ry="5" fill="url(#gloss)"/>
+    <circle cx="26" cy="116" r="13" fill="#ffd36b" stroke="#fff" stroke-width="2"/>
+    <ellipse cx="26" cy="110" rx="9" ry="5" fill="url(#gloss)"/>
+  </g>
+
+  <!-- Channel column -->
+  <rect x="52" y="26" width="120" height="254" fill="#fff" fill-opacity="0.32"/>
+  <rect x="52" y="26" width="120" height="1" fill="#fff"/>
+  <rect x="62" y="40" width="70" height="7" rx="3.5" fill="#0d2a52" opacity="0.75"/>
+  <rect x="58" y="62" width="108" height="18" rx="9" fill="#0a7cff" fill-opacity="0.22" stroke="#0a7cff" stroke-opacity="0.45"/>
+  <rect x="58" y="62" width="108" height="9" rx="9" fill="#fff" fill-opacity="0.45"/>
+  <rect x="70" y="68" width="52" height="5" rx="2.5" fill="#0d2a52" opacity="0.8"/>
+  <rect x="70" y="92" width="60" height="5" rx="2.5" fill="#0d2a52" opacity="0.4"/>
+  <rect x="70" y="110" width="44" height="5" rx="2.5" fill="#0d2a52" opacity="0.4"/>
+  <rect x="70" y="128" width="54" height="5" rx="2.5" fill="#0d2a52" opacity="0.4"/>
+
+  <!-- Main window -->
+  <g filter="url(#shadow)">
+    <path d="M190 26 h410 v254 h-428 v-236 a18 18 0 0 1 18 -18 z" fill="url(#glass)"/>
+  </g>
+  <path d="M190 26 h410 v28 h-428 v-10 a18 18 0 0 1 18 -18 z" fill="url(#sheen)"/>
+  <rect x="172" y="54" width="428" height="1" fill="#0a3a78" opacity="0.15"/>
+  <rect x="190" y="36" width="64" height="7" rx="3.5" fill="#0d2a52" opacity="0.8"/>
+
+  <!-- Messages -->
+  <circle cx="198" cy="78" r="11" fill="#ffb4c8" stroke="#fff" stroke-width="2"/>
+  <ellipse cx="198" cy="73" rx="7" ry="4" fill="url(#gloss)"/>
+  <rect x="216" y="66" width="48" height="5" rx="2.5" fill="#e0457b"/>
+  <rect x="216" y="76" width="196" height="22" rx="11" fill="#fff" fill-opacity="0.9" stroke="#fff"/>
+  <rect x="226" y="84" width="150" height="5" rx="2.5" fill="#0d2a52" opacity="0.55"/>
+  <rect x="216" y="102" width="120" height="22" rx="11" fill="#fff" fill-opacity="0.9" stroke="#fff"/>
+  <rect x="226" y="110" width="80" height="5" rx="2.5" fill="#0d2a52" opacity="0.55"/>
+
+  <circle cx="198" cy="150" r="11" fill="#9ad7ff" stroke="#fff" stroke-width="2"/>
+  <ellipse cx="198" cy="145" rx="7" ry="4" fill="url(#gloss)"/>
+  <rect x="216" y="138" width="40" height="5" rx="2.5" fill="#0a7cff"/>
+  <rect x="216" y="148" width="230" height="22" rx="11" fill="#fff" fill-opacity="0.9" stroke="#fff"/>
+  <rect x="226" y="156" width="176" height="5" rx="2.5" fill="#0d2a52" opacity="0.55"/>
+  <rect x="216" y="176" width="40" height="16" rx="8" fill="#fff" fill-opacity="0.85" stroke="#0a7cff" stroke-opacity="0.4"/>
+  <circle cx="227" cy="184" r="4" fill="#ffcf4d"/>
+  <rect x="234" y="182" width="12" height="4" rx="2" fill="#0d2a52" opacity="0.6"/>
+
+  <!-- Gel button and badge -->
+  <rect x="470" y="140" width="96" height="26" rx="13" fill="url(#gel)" stroke="#0a4fb0" stroke-opacity="0.6"/>
+  <rect x="491" y="150" width="54" height="6" rx="3" fill="#fff"/>
+  <circle cx="548" cy="38" r="8" fill="url(#gelRed)" stroke="#fff" stroke-width="1.5"/>
+  <rect x="545" y="35" width="6" height="6" rx="1" fill="#fff" opacity="0.9"/>
+
+  <!-- Composer -->
+  <rect x="186" y="236" width="400" height="30" rx="15" fill="#fff" fill-opacity="0.9" stroke="#fff"/>
+  <circle cx="203" cy="251" r="9" fill="url(#gel)"/>
+  <rect x="200" y="250" width="6" height="2" fill="#fff"/>
+  <rect x="202" y="248" width="2" height="6" fill="#fff"/>
+  <rect x="222" y="248" width="110" height="5" rx="2.5" fill="#0d2a52" opacity="0.3"/>
+</svg>

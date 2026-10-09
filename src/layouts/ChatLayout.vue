@@ -5,7 +5,7 @@
   />
   
   <div v-else class="chat-layout" :class="{ 'is-dragging': isDragging }" :style="panelWidthVars">
-    <div class="context-bar-container">
+    <div class="context-bar-container" data-region="context">
       <UnifiedContextBar
         mode="chat"
         :is-mobile="isMobile"
@@ -24,9 +24,10 @@
       />
     </div>
 
-    <div class="chat-layout-content">
+    <div class="chat-layout-content" data-region="workspace">
       <div 
         class="channel-sidebar-container" 
+        data-region="nav"
         :class="{ 
           'mobile-open': leftSidebarOpen,
           'is-dragging': isDragging && dragDirection === 'left'
@@ -47,9 +48,9 @@
         />
       </div>
 
-      <div class="main-and-right-container">
+      <div class="main-and-right-container" data-region="main">
         <!-- Header spans main content + right sidebar -->
-        <div v-if="!isDM" class="chat-header-container">
+        <div v-if="!isDM" class="chat-header-container" data-region="header">
           <ChatHeader
             v-if="currentChannel"
             :channel="currentChannel"
@@ -79,8 +80,8 @@
           </div>
         </div>
 
-        <div class="content-row">
-          <div class="main-content-area">        
+        <div class="content-row" data-region="body">
+          <div class="main-content-area" data-region="view">
             <RouterView 
               :current-server="currentServer"
               :current-channel="currentChannel"
@@ -96,6 +97,7 @@
           <div 
             v-if="!isDM" 
             class="right-sidebar-container" 
+            data-region="aside"
             :class="{ 
               'sidebar-open': rightSidebarOpen,
               'is-dragging': isDragging && dragDirection === 'right'

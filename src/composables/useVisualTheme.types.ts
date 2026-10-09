@@ -71,8 +71,9 @@ export interface VisualThemeSettings {
    */
   activeSkinId?: string | null
   /**
-   * Raw CSS injected globally by the active skin. Set by `applySkin`,
-   * cleared by `clearSkin`. Do NOT edit by hand.
+   * Stylesheet for an `activeSkinId` the registry lacks. Built-in skins load
+   * their CSS on demand and leave this empty; stored copies of built-in sheets
+   * are cleared on load.
    */
   customSkinCss?: string
   /**

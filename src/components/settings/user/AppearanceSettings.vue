@@ -121,6 +121,13 @@
             </button>
           </div>
         </div>
+
+        <ThemePaletteIdeas
+          class="custom-palette-ideas"
+          :mode="settings.customThemeMode || 'dark'"
+          :seed="settings.customPrimaryColor || '#0EA5E9'"
+          @apply="onPaletteIdea"
+        />
         
         <div class="theme-collapse-list">
           <!-- Background -->
@@ -808,6 +815,8 @@ import { useQuickReactSettings, type QuickReactEmoji } from '@/composables/useQu
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import ColorPicker from '@/components/common/ColorPicker.vue'
 import CssVarSwatch from '@/components/settings/user/CssVarSwatch.vue'
+import ThemePaletteIdeas from '@/components/settings/user/ThemePaletteIdeas.vue'
+import type { ThemeColors } from '@/utils/themeHarmony'
 import Icon from '@/components/common/Icon.vue'
 import EmojiPopup from '@/components/EmojiPopup.vue'
 
@@ -1129,6 +1138,11 @@ const onCustomBackgroundChange = () => {
     settings.value.customBackgroundLightness = decomposed.lightnessOffset
     settings.value.customBackgroundChroma = decomposed.chromaOffset
   }
+}
+
+// Suggestions carry no sidebar hue; a leftover one would clash with them.
+const onPaletteIdea = (colors: ThemeColors) => {
+  Object.assign(settings.value, colors, { customSidebarColor: undefined })
 }
 
 const onCustomThemeModeChange = () => {
@@ -1465,6 +1479,11 @@ onBeforeUnmount(() => {
 }
 
 .custom-theme-mode {
+  margin-bottom: 24px;
+}
+
+.custom-palette-ideas {
+  max-width: 520px;
   margin-bottom: 24px;
 }
 

@@ -112,6 +112,7 @@ import { ref, computed, defineAsyncComponent } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import { installInternalLinkInterceptor } from '@/utils/internalLinks'
+import { installInterfaceSounds } from '@/utils/interfaceSounds'
 import { useRemoteInvitePrompt } from '@/composables/useRemoteInvitePrompt'
 import JoinFederatedServer from '@/components/JoinFederatedServer.vue'
 import BaseLayout from '@/layouts/BaseLayout.vue'
@@ -170,6 +171,7 @@ import { initializeAppSettings } from '@/services/AppInitService'
 let hapticClickHandler: ((e: Event) => void) | null = null
 let identityChangedHandler: ((e: Event) => void) | null = null
 let uninstallLinkInterceptor: (() => void) | null = null
+let uninstallInterfaceSounds: (() => void) | null = null
 
 const router = useRouter()
 const remoteInvitePrompt = useRemoteInvitePrompt()
@@ -249,6 +251,7 @@ onMounted(() => {
   // Same-instance links (e.g. invite URLs) navigate in-app instead of opening
   // a new PWA window / external browser
   uninstallLinkInterceptor = installInternalLinkInterceptor(router)
+  uninstallInterfaceSounds = installInterfaceSounds()
 })
 
 onUnmounted(() => {
@@ -262,6 +265,8 @@ onUnmounted(() => {
   }
   uninstallLinkInterceptor?.()
   uninstallLinkInterceptor = null
+  uninstallInterfaceSounds?.()
+  uninstallInterfaceSounds = null
 })
 
 async function handleIdentityChanged(e: CustomEvent) {

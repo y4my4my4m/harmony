@@ -34,6 +34,12 @@
             </div>
           </div>
 
+          <ThemePaletteIdeas
+            :mode="working.customThemeMode"
+            :seed="working.customPrimaryColor"
+            @apply="applyPaletteIdea"
+          />
+
           <!-- Color sections (collapsible) -->
           <div class="tp-collapse-list">
             <!-- Background -->
@@ -109,6 +115,25 @@
                   @update:color="onColor('customPrimaryColor', $event)"
                   @change="onColor('customPrimaryColor', $event)"
                 />
+                <div class="tp-contrast">
+                  <span
+                    class="tp-contrast-sample"
+                    :style="{ background: working.customPrimaryColor, color: primaryLabelColor }"
+                  >Aa</span>
+                  <span class="tp-contrast-text">
+                    <span>Label {{ primaryLabelRatio.toFixed(1) }}:1</span>
+                    <span :class="{ 'tp-contrast-low': primaryOnSurfaceRatio < PRIMARY_ON_SURFACE_MIN }">
+                      On background {{ primaryOnSurfaceRatio.toFixed(1) }}:1
+                    </span>
+                  </span>
+                  <button
+                    v-if="primaryOnSurfaceRatio < PRIMARY_ON_SURFACE_MIN"
+                    type="button"
+                    class="tp-contrast-fix"
+                    title="Adjust lightness until links and icons in this colour reach 3:1 on the background"
+                    @click="fixPrimaryContrast"
+                  >Fix</button>
+                </div>
               </div>
             </div>
 
@@ -255,14 +280,20 @@
 import { reactive, ref, watch, computed } from 'vue'
 import ColorPicker from '@/components/common/ColorPicker.vue'
 import CssVarSwatch from '@/components/settings/user/CssVarSwatch.vue'
+import ThemePaletteIdeas from '@/components/settings/user/ThemePaletteIdeas.vue'
 import { useThemeEditorPanel } from '@/composables/useThemeEditorPanel'
-import { useVisualTheme } from '@/composables/useVisualTheme'
+import { cloneSettings, useVisualTheme, type VisualThemeSettings } from '@/composables/useVisualTheme'
 import {
   generateThemePalette,
   applyThemePalette,
   decomposeBackgroundToneHex,
   canonicalizeBackgroundTone,
+  contrastRatio,
+  ensureContrast,
+  primarySurfaceHex,
+  readableTextOn,
 } from '@/utils/colorUtils'
+import { PRIMARY_ON_SURFACE_MIN, contrastOnSurface, type ThemeColors } from '@/utils/themeHarmony'
 import { isValidCssColor } from '@/utils/cssColor'
 import { debug } from '@/utils/debug'
 
@@ -308,13 +339,36 @@ const invalidVar = ref<{ name: string; text: string } | null>(null)
 
 const overrideCount = computed(() => Object.keys(working.customCssOverrides).length)
 
+const primaryLabelColor = computed(() => readableTextOn(working.customPrimaryColor))
+const primaryLabelRatio = computed(() => contrastRatio(working.customPrimaryColor, primaryLabelColor.value))
+const primaryOnSurfaceRatio = computed(() => contrastOnSurface(working.customPrimaryColor, working))
+
+const fixPrimaryContrast = () => {
+  const surface = primarySurfaceHex(
+    working.customBackgroundColor,
+    working.customThemeMode,
+    working.customBackgroundLightness,
+    working.customBackgroundChroma,
+  )
+  working.customPrimaryColor = ensureContrast(working.customPrimaryColor, surface, PRIMARY_ON_SURFACE_MIN).toUpperCase()
+  applyPreview()
+}
+
+const applyPaletteIdea = (colors: ThemeColors) => {
+  Object.assign(working, colors)
+  sidebarEnabled.value = false
+  applyPreview()
+}
+
 // Snapshot of the persisted settings when the panel opened, used to revert the
-// live preview if the user closes without applying.
-let original: any = null
+// live preview if the user closes without applying. currentSettings is a
+// shallow copy whose nested objects are reactive proxies, which
+// structuredClone rejects with DataCloneError.
+let original: VisualThemeSettings | null = null
 
 function seedFromCurrent() {
   const s = visualTheme.currentSettings.value
-  original = structuredClone(s)
+  original = cloneSettings(s)
   working.customThemeMode = (s.customThemeMode as 'dark' | 'light') || 'dark'
   working.customBackgroundColor = s.customBackgroundColor || DEFAULTS.customBackgroundColor
   working.customBackgroundLightness = typeof s.customBackgroundLightness === 'number' ? s.customBackgroundLightness : 0
@@ -483,7 +537,7 @@ const resetWorking = () => {
 const restoreOriginal = () => {
   if (!original) return
   clearThemableOverrideStyles()
-  visualTheme.updateSettings(structuredClone(original))
+  visualTheme.updateSettings(cloneSettings(original))
   visualTheme.reapplySettings()
 }
 
@@ -759,6 +813,52 @@ const cancelAndClose = () => {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.tp-contrast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tp-contrast-sample {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.tp-contrast-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.tp-contrast-low {
+  color: var(--warning, #f0b232);
+}
+
+.tp-contrast-fix {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--warning, #f0b232);
+  background: transparent;
+  color: var(--warning, #f0b232);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tp-contrast-fix:hover {
+  background: color-mix(in srgb, var(--warning, #f0b232) 15%, transparent);
 }
 
 .tp-collapse-body :deep(.color-picker) {

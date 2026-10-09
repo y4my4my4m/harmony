@@ -21,7 +21,7 @@ import { useProfileStore } from '@/stores/useProfile'
 import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
 import { audioThemeService } from '@/services/AudioThemeService'
-import { BUILTIN_SKINS } from './skins'
+import { BUILTIN_SKINS, type SkinScene } from './skins'
 import type { VisualThemeSettings } from './useVisualTheme.types'
 
 const AUDIO_THEME_WHEN_SKIN_CLEARED = 'default'
@@ -351,7 +351,9 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
   root.style.setProperty('--h-primary-light', '#38BDF8')
   root.style.setProperty('--h-primary-dark', '#0369A1')
   root.style.setProperty('--h-brand', theme.primary)
-  
+  // Presets take the #fff in design-system.css.
+  root.style.removeProperty('--text-on-primary')
+
   // Background colors - use proper defaults based on theme
   if (themeName === 'dark') {
     // Background system colors
@@ -430,6 +432,134 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
 
 // Override variables the last applySettings wrote inline on :root.
 let appliedOverrideVars = new Set<string>()
+
+/** Stylesheet text of built-in skins whose chunk has loaded, by id. */
+const skinCssCache = new Map<string, string>()
+const skinCssLoads = new Map<string, Promise<string | null>>()
+
+/**
+ * Fetches a built-in skin's stylesheet chunk, once per id. Null for an id the
+ * registry lacks or a failed load; a failed load is retried on the next call.
+ */
+export function loadSkinCss(skinId: string): Promise<string | null> {
+  const cached = skinCssCache.get(skinId)
+  if (cached !== undefined) return Promise.resolve(cached)
+  const pending = skinCssLoads.get(skinId)
+  if (pending) return pending
+  const skin = BUILTIN_SKINS.find((s) => s.id === skinId)
+  if (!skin?.loadCss) return Promise.resolve(null)
+  const load = skin
+    .loadCss()
+    .then((css) => {
+      skinCssCache.set(skinId, css)
+      return css
+    })
+    .catch((error) => {
+      debug.error(`Failed to load skin stylesheet "${skinId}":`, error)
+      return null
+    })
+    .finally(() => skinCssLoads.delete(skinId))
+  skinCssLoads.set(skinId, load)
+  return load
+}
+
+function writeSkinStyle(css: string | null) {
+  let el = document.getElementById('harmony-skin-styles') as HTMLStyleElement | null
+  if (!css) {
+    el?.remove()
+    return
+  }
+  if (!el) {
+    el = document.createElement('style')
+    el.id = 'harmony-skin-styles'
+    document.head.appendChild(el)
+  }
+  if (el.textContent !== css) el.textContent = css
+}
+
+/**
+ * Puts the active skin's stylesheet in the document. A built-in skin's chunk
+ * is fetched on first use and written once it arrives, provided <html> still
+ * names that skin; until then the previous sheet stays, inert, since its rules
+ * are scoped to the previous data-skin value. `persistedCss` serves only ids
+ * the registry lacks.
+ */
+function applySkinStyles(skinId: string | null | undefined, persistedCss: string | undefined) {
+  if (typeof document === 'undefined') return
+  if (!skinId) {
+    writeSkinStyle(null)
+    return
+  }
+  const cached = skinCssCache.get(skinId)
+  if (cached !== undefined) {
+    writeSkinStyle(cached)
+    return
+  }
+  if (!BUILTIN_SKINS.some((s) => s.id === skinId)) {
+    writeSkinStyle(persistedCss || null)
+    return
+  }
+  void loadSkinCss(skinId).then((css) => {
+    if (css !== null && document.documentElement.getAttribute('data-skin') === skinId) {
+      writeSkinStyle(css)
+    }
+  })
+}
+
+let mountedScene: { skinId: string; scene: SkinScene } | null = null
+let pendingSceneId: string | null = null
+let pendingSceneOptions: Record<string, boolean> = {}
+
+/**
+ * Keeps the active skin's scene mounted. Same skin: options pass through
+ * update(). Different skin or none: the old scene is destroyed and the new
+ * one's chunk is fetched; a load that resolves after the skin changed again
+ * is dropped.
+ */
+function syncSkinScene(skinId: string | null | undefined, options: Record<string, boolean>) {
+  if (typeof document === 'undefined') return
+  if (mountedScene && mountedScene.skinId === skinId) {
+    mountedScene.scene.update(options)
+    return
+  }
+  if (skinId && pendingSceneId === skinId) {
+    pendingSceneOptions = options
+    return
+  }
+  mountedScene?.scene.destroy()
+  mountedScene = null
+  pendingSceneId = null
+  const skin = skinId ? BUILTIN_SKINS.find((s) => s.id === skinId) : undefined
+  if (!skin?.loadScene) return
+  pendingSceneId = skin.id
+  pendingSceneOptions = options
+  skin
+    .loadScene()
+    .then((factory) => {
+      if (pendingSceneId !== skin.id) return
+      pendingSceneId = null
+      const scene = factory()
+      mountedScene = { skinId: skin.id, scene }
+      scene.update(pendingSceneOptions)
+    })
+    .catch((error) => {
+      if (pendingSceneId === skin.id) pendingSceneId = null
+      debug.error(`Failed to load skin scene "${skin.id}":`, error)
+    })
+}
+
+/**
+ * Clears a stored copy of a built-in skin's stylesheet. Builds before lazy
+ * skins wrote the whole sheet (~40 KB) into appearance_settings, and
+ * profiles_select_all hands that column to every client that reads the
+ * profile. True when something was cleared.
+ */
+function dropBuiltinSkinCss(loaded: Partial<VisualThemeSettings>): boolean {
+  if (!loaded.customSkinCss) return false
+  if (loaded.activeSkinId && !BUILTIN_SKINS.some((s) => s.id === loaded.activeSkinId)) return false
+  loaded.customSkinCss = ''
+  return true
+}
 
 /**
  * Apply all visual settings to DOM
@@ -514,35 +644,19 @@ function applySettings(settings: VisualThemeSettings) {
   for (const optionId of ALL_OPTION_IDS) {
     root.removeAttribute(`data-skin-${optionId}`)
   }
+  const skinOptionValues: Record<string, boolean> = {}
   if (settings.activeSkinId) {
     const skin = BUILTIN_SKINS.find((s) => s.id === settings.activeSkinId)
     const stored = settings.skinOptions?.[settings.activeSkinId] || {}
     for (const option of skin?.options || []) {
       const value = stored[option.id] ?? option.default
+      skinOptionValues[option.id] = value
       root.setAttribute(`data-skin-${option.id}`, value ? 'on' : 'off')
     }
   }
 
-  if (typeof document !== 'undefined') {
-    // A built-in skin resolves from the registry; the persisted copy is the
-    // stylesheet of whichever build applied it.
-    const skinCss =
-      BUILTIN_SKINS.find((s) => s.id === settings.activeSkinId)?.globalCss ||
-      settings.customSkinCss
-    let skinStyleEl = document.getElementById('harmony-skin-styles') as HTMLStyleElement | null
-    if (skinCss) {
-      if (!skinStyleEl) {
-        skinStyleEl = document.createElement('style')
-        skinStyleEl.id = 'harmony-skin-styles'
-        document.head.appendChild(skinStyleEl)
-      }
-      if (skinStyleEl.textContent !== skinCss) {
-        skinStyleEl.textContent = skinCss
-      }
-    } else if (skinStyleEl) {
-      skinStyleEl.remove()
-    }
-  }
+  applySkinStyles(settings.activeSkinId, settings.customSkinCss)
+  syncSkinScene(settings.activeSkinId, skinOptionValues)
   
   // Apply zoom level. `zoom` is a non-standard CSS property not present on
   // `CSSStyleDeclaration` in lib.dom, but every browser we target understands it.
@@ -759,9 +873,9 @@ function snapshotSkinTargets(s: VisualThemeSettings): Partial<VisualThemeSetting
  * Settings after applying a skin, or clearing it with null or an unknown id.
  * No side effects; the linked audio theme is the caller's.
  *
- * Applying merges the skin's `themeOverrides`, sets `activeSkinId` and keeps
- * the skin's CSS in `customSkinCss` so it round-trips through
- * `appearance_settings` without the registry. The first skin applied takes a
+ * Applying merges the skin's `themeOverrides` and sets `activeSkinId`. The
+ * stylesheet is not stored: built-in skins load theirs from the registry, and
+ * `customSkinCss` is emptied. The first skin applied takes a
  * `_preSkinSnapshot`, so apply A, apply B, clear restores the state from
  * before A. Clearing restores that snapshot, or the defaults of the
  * skin-affected keys when none exists. `glassEffectsEnabled` is never
@@ -788,7 +902,7 @@ export function resolveSkin(base: VisualThemeSettings, skinId: string | null): V
   }
   Object.assign(next, JSON.parse(JSON.stringify(skin.themeOverrides)))
   next.activeSkinId = skin.id
-  next.customSkinCss = skin.globalCss || ''
+  next.customSkinCss = ''
   return next
 }
 
@@ -854,19 +968,23 @@ export function useVisualTheme() {
         const localSettings = loadFromLocalStorage()
         if (localSettings) {
           migrateLegacyBlurSetting(localSettings)
+          dropBuiltinSkinCss(localSettings)
           Object.assign(next, localSettings)
           settings.value = { ...next }
           applySettings(settings.value)
         }
 
         const supabaseSettings = await loadFromSupabase()
+        let remoteSkinCssDropped = false
         if (supabaseSettings) {
           migrateLegacyBlurSetting(supabaseSettings)
+          remoteSkinCssDropped = dropBuiltinSkinCss(supabaseSettings)
           Object.assign(next, supabaseSettings)
         }
         settings.value = next
         applySettings(settings.value)
         if (supabaseSettings) saveToLocalStorage(settings.value)
+        if (remoteSkinCssDropped) debouncedSaveToSupabase(settings.value)
       }
 
       appliedFor = userId

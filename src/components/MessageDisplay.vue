@@ -1,6 +1,7 @@
 <template>
   <div
     class="message-display"
+    data-region="messages"
     ref="messageDisplayContainer"
     data-chat-messages
     v-bind="$attrs"

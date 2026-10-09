@@ -1,0 +1,965 @@
+/*
+ * LATTICE
+ *
+ * An AI console drawn like an engineering sheet. A dotted canvas; every
+ * region a separate frame with corner registration marks; monospaced caps for
+ * labels, counts and times; inverted pills for actions; a holographic edge on
+ * the prompt bar and the active server. One signal colour, the theme's
+ * primary. Dark is obsidian with hairline frames; light is bone paper with
+ * hard black frames. Reference: public/assets/skins/lattice-preview.svg.
+ *
+ * Scope and specificity follow sdr-001/skin.css: every rule sits under
+ * :root[data-skin="lattice"]. Theme tokens written inline on <html> are
+ * overridden on body.
+ *
+ * Layout goes through the data-region hooks documented in ../index.ts, never
+ * component classes, and only at desktop widths; below 769px nav, rail and
+ * aside are touch drawers. Regions that become frames clear the opaque theme
+ * surfaces inside them so the frame paints once.
+ *
+ *   1. Tokens
+ *   2. Canvas
+ *   3. Frames and layout
+ *   4. Type
+ *   5. Controls
+ *   6. Lists, messages and composer
+ *   7. Floating surfaces
+ *   8. Settings, auth and voice
+ *   9. Options, gated by data-skin-<option>="on"
+ *  10. Motion
+ */
+
+/* ============================================================================
+   1. TOKENS
+   ============================================================================ */
+
+:root[data-skin="lattice"] {
+  --lt-signal: var(--harmony-primary, #ff5a1f);
+  --lt-signal-wash: color-mix(in oklab, var(--lt-signal) 16%, transparent);
+  --lt-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', 'Fira Code', ui-monospace, 'DejaVu Sans Mono', Menlo, Consolas, monospace;
+
+  /* Obsidian. */
+  --lt-canvas: #060607;
+  --lt-dot: rgb(255 255 255 / 0.085);
+  --lt-halo: rgb(255 255 255 / 0.05);
+  --lt-panel: rgb(12 12 14 / 0.9);
+  --lt-panel-solid: #0d0d0f;
+  --lt-raise: rgb(255 255 255 / 0.045);
+  --lt-raise-strong: rgb(255 255 255 / 0.08);
+  --lt-line: rgb(255 255 255 / 0.09);
+  --lt-line-strong: rgb(255 255 255 / 0.2);
+  --lt-frame: rgb(255 255 255 / 0.1);
+  --lt-mark: rgb(255 255 255 / 0.5);
+  --lt-ink: #f3f3f1;
+  --lt-ink-soft: #a7a7a3;
+  --lt-ink-faint: #7a7a76;
+  --lt-invert-bg: #f3f3f1;
+  --lt-invert-fg: #09090a;
+  --lt-shadow: 0 24px 60px -20px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(0 0 0 / 0.6);
+
+  /* Holographic edge: pastel spectrum, hue order of a thin-film reflection. */
+  --lt-iris: linear-gradient(105deg, #ff8ad8 0%, #ffb38a 17%, #f2ee8a 33%, #8affc1 50%, #8ad8ff 67%, #a48aff 83%, #ff8ad8 100%);
+  --lt-iris-glow: rgb(164 138 255 / 0.4);
+
+  /* Corner brackets, 9px arms, drawn on the frame's border box. */
+  --lt-arm: 9px;
+  --lt-marks:
+    linear-gradient(var(--lt-mark) 0 0) 0 0 / var(--lt-arm) 1px no-repeat,
+    linear-gradient(var(--lt-mark) 0 0) 0 0 / 1px var(--lt-arm) no-repeat,
+    linear-gradient(var(--lt-mark) 0 0) 100% 0 / var(--lt-arm) 1px no-repeat,
+    linear-gradient(var(--lt-mark) 0 0) 100% 0 / 1px var(--lt-arm) no-repeat,
+    linear-gradient(var(--lt-mark) 0 0) 0 100% / var(--lt-arm) 1px no-repeat,
+    linear-gradient(var(--lt-mark) 0 0) 0 100% / 1px var(--lt-arm) no-repeat,
+    linear-gradient(var(--lt-mark) 0 0) 100% 100% / var(--lt-arm) 1px no-repeat,
+    linear-gradient(var(--lt-mark) 0 0) 100% 100% / 1px var(--lt-arm) no-repeat;
+
+  --radius-sm: 0;
+  --radius-base: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-2xl: 0;
+  --radius-full: 9999px;
+
+  --glass-bg: var(--lt-panel-solid);
+  --glass-blur: 12px;
+  --shadow-large: var(--lt-shadow);
+  --shadow-modal: var(--lt-shadow);
+  --tooltip-bg: var(--lt-panel-solid);
+  --tooltip-text: var(--lt-ink);
+  --tooltip-arrow: var(--lt-line-strong);
+  --background-floating: var(--lt-panel-solid);
+  --background-modifier-hover: var(--lt-raise);
+  --background-modifier-active: var(--lt-raise-strong);
+  --background-modifier-selected: var(--lt-raise-strong);
+
+  color-scheme: dark;
+  scrollbar-color: var(--lt-line-strong) transparent;
+}
+
+/* Bone: warm paper, hard black frames, ink controls. */
+:root[data-skin="lattice"][data-theme-type="light"] {
+  --lt-canvas: #ebe9e3;
+  --lt-dot: rgb(0 0 0 / 0.16);
+  --lt-halo: rgb(255 255 255 / 0.6);
+  --lt-panel: rgb(246 245 241 / 0.94);
+  --lt-panel-solid: #f6f5f1;
+  --lt-raise: rgb(0 0 0 / 0.04);
+  --lt-raise-strong: rgb(0 0 0 / 0.08);
+  --lt-line: rgb(0 0 0 / 0.12);
+  --lt-line-strong: rgb(0 0 0 / 0.8);
+  --lt-frame: rgb(0 0 0 / 0.82);
+  --lt-mark: rgb(0 0 0 / 0.9);
+  --lt-ink: #0b0b0c;
+  --lt-ink-soft: #4b4b48;
+  --lt-ink-faint: #6e6d68;
+  --lt-invert-bg: #0b0b0c;
+  --lt-invert-fg: #f6f5f1;
+  --lt-shadow: 6px 6px 0 rgb(0 0 0 / 0.85);
+  --lt-iris-glow: rgb(164 138 255 / 0.25);
+
+  color-scheme: light;
+}
+
+/* Theme-written inline tokens. */
+:root[data-skin="lattice"] body {
+  --text-primary: var(--lt-ink);
+  --text-secondary: var(--lt-ink-soft);
+  --text-tertiary: var(--lt-ink-faint);
+  --text-muted: var(--lt-ink-faint);
+  --border-primary: var(--lt-line);
+  --border-secondary: var(--lt-line);
+  --border-color: var(--lt-line);
+  --color-border: var(--lt-line);
+  --input-border: var(--lt-line);
+  --channel-item-hover-bg: var(--lt-raise);
+  --channel-item-selected-bg: var(--lt-invert-bg);
+  --nav-rail-button-bg: var(--lt-raise-strong);
+  --nav-rail-button-icon: var(--lt-ink);
+  --text-on-primary: #000;
+}
+
+/* ============================================================================
+   2. CANVAS
+   ============================================================================ */
+
+:root[data-skin="lattice"] body {
+  background:
+    radial-gradient(var(--lt-dot) 1px, transparent 1.5px) 0 0 / 16px 16px,
+    radial-gradient(120% 70% at 50% -10%, var(--lt-halo), transparent 60%),
+    var(--lt-canvas);
+  background-attachment: fixed;
+}
+
+/* Containers that paint an opaque theme surface; frames take over. Every
+   argument is one class or attribute: :is() takes the specificity of its
+   most specific argument, and a compound here would outrank the frame rule
+   in section 3. */
+:root[data-skin="lattice"] :is(
+  .base-layout,
+  .view-renderer,
+  .adaptive-channel-sidebar,
+  .user-groups,
+  .chat-header,
+  .followers-list,
+  .special-view,
+  .user-profile-wrapper,
+  [data-region="context"]
+) {
+  background: transparent;
+}
+:root[data-skin="lattice"] .server-header .server-name {
+  background: transparent;
+}
+
+/* ============================================================================
+   3. FRAMES AND LAYOUT
+   ============================================================================ */
+
+/* A frame: panel fill under corner brackets, hairline (dark) or black
+   (light) border. */
+:root[data-skin="lattice"] :is(
+  [data-region="rail"],
+  [data-region="nav"],
+  [data-region="header"],
+  [data-region="view"],
+  [data-region="aside"].sidebar-open,
+  .user-profile
+) {
+  background: var(--lt-marks), var(--lt-panel);
+  background-origin: border-box;
+  border: 1px solid var(--lt-frame);
+}
+
+:root[data-skin="lattice"] [data-region="context"] .unified-context-bar {
+  background: transparent;
+  border-bottom: none;
+}
+
+@media (min-width: 769px) {
+  /* Floating frames: the canvas shows between regions. The rail keeps its
+     top padding for the context bar and its bottom padding for the user
+     panel, which floats over its foot. */
+  :root[data-skin="lattice"][data-skin-bento="on"] .base-layout {
+    box-sizing: border-box;
+    padding: 10px;
+    gap: 10px;
+  }
+  :root[data-skin="lattice"][data-skin-bento="on"] [data-region="rail"] {
+    padding-top: 10px;
+    padding-bottom: 82px;
+  }
+  :root[data-skin="lattice"][data-skin-bento="on"] [data-region="workspace"] {
+    gap: 10px;
+  }
+  :root[data-skin="lattice"][data-skin-bento="on"] [data-region="main"] {
+    gap: 10px;
+    background: transparent;
+  }
+  :root[data-skin="lattice"][data-skin-bento="on"] [data-region="aside"].sidebar-open {
+    margin-left: 10px;
+  }
+  /* The user panel spans the foot of the rail and nav frames. */
+  :root[data-skin="lattice"][data-skin-bento="on"] [data-region="user"] {
+    left: 20px;
+    bottom: 20px;
+  }
+  :root[data-skin="lattice"][data-skin-bento="on"] [data-region="nav"] {
+    padding-bottom: 72px;
+    box-sizing: border-box;
+  }
+
+  /* Edge to edge: frames share borders like a ruled sheet. */
+  :root[data-skin="lattice"][data-skin-bento="off"] :is([data-region="nav"], [data-region="header"], [data-region="view"]) {
+    border-top: none;
+    border-bottom: none;
+    border-left: none;
+  }
+}
+
+/* Context bar: a status line on the canvas, led by a signal block. */
+:root[data-skin="lattice"] .unified-context-bar .context-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+:root[data-skin="lattice"] .unified-context-bar :is(.context-title, .context-title *) {
+  font-family: var(--lt-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--lt-ink-soft);
+}
+:root[data-skin="lattice"] .unified-context-bar .context-title::before {
+  content: '';
+  display: inline-block;
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  background: var(--lt-signal);
+}
+
+/* User panel. */
+:root[data-skin="lattice"] .user-profile {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Selection and scrollbars. */
+:root[data-skin="lattice"] ::selection {
+  background: var(--lt-signal);
+  color: #000;
+}
+:root[data-skin="lattice"] ::-webkit-scrollbar { width: 6px; height: 6px; }
+:root[data-skin="lattice"] ::-webkit-scrollbar-track { background: transparent; }
+:root[data-skin="lattice"] ::-webkit-scrollbar-thumb { background: var(--lt-line-strong); border-radius: 0; }
+:root[data-skin="lattice"] ::-webkit-scrollbar-thumb:hover { background: var(--lt-signal); }
+
+/* ============================================================================
+   4. TYPE
+   ============================================================================ */
+
+/* Labels: mono caps, wide tracking. */
+:root[data-skin="lattice"] :is(
+  .category-name,
+  .nav-section-title,
+  .group-title,
+  .member-count,
+  .date-separator-text,
+  .search-group-title,
+  .search-recent-header,
+  .skin-active-options-title,
+  .tp-label,
+  .pi-title,
+  .tp-slider-label
+) {
+  font-family: var(--lt-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--lt-ink-faint);
+}
+
+/* Times, counts and badges. */
+:root[data-skin="lattice"] :is(
+  .message-item .timestamp,
+  .system-timestamp,
+  .message-gutter,
+  .message-time,
+  .search-result-time,
+  .reaction .reaction-count,
+  .pinned-count,
+  .unread-count,
+  .unread-badge,
+  .notification-badge,
+  .nav-badge,
+  .beta-badge,
+  .tp-collapse-hex,
+  .tp-slider-value
+) {
+  font-family: var(--lt-mono);
+  letter-spacing: 0.04em;
+}
+:root[data-skin="lattice"] :is(.message-item .timestamp, .system-timestamp, .message-gutter) {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  color: var(--lt-ink-faint);
+}
+:root[data-skin="lattice"] .system-timestamp {
+  opacity: 1;
+}
+
+/* Pane titles: mono caps. */
+:root[data-skin="lattice"] :is(
+  .chat-header .channel-name,
+  .server-name-text,
+  .dm-header .header-title,
+  .view-header .header-title,
+  .drawer-header h3,
+  .thread-header h3,
+  .theme-panel-title,
+  .modal-title,
+  .panel-title
+) {
+  font-family: var(--lt-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Display titles: light weight, tight tracking. */
+:root[data-skin="lattice"] :is(.beginning-title, .settings-title, .brand-title, .welcome-title) {
+  font-weight: 300;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+}
+:root[data-skin="lattice"] .beginning-title {
+  font-size: clamp(28px, 3.4vw, 44px);
+}
+:root[data-skin="lattice"] .beginning-subtitle {
+  font-family: var(--lt-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lt-ink-faint);
+}
+
+/* Links in content: ink with a signal underline. */
+:root[data-skin="lattice"] :is(.unified-content, .unified-content-renderer, .markdown-content, .mony-post) :is(a:not([class]), a.url-link) {
+  color: var(--lt-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--lt-signal);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+/* ============================================================================
+   5. CONTROLS
+   ============================================================================ */
+
+/* Primary: inverted pill, mono caps; signal on hover. */
+:root[data-skin="lattice"] :is(.btn-primary, .submit-btn, .search-button, .tp-btn-primary, .join-btn, .primary-button, .btn.primary, button.primary) {
+  background: var(--lt-invert-bg);
+  border: 1px solid var(--lt-invert-bg);
+  border-radius: 999px;
+  color: var(--lt-invert-fg);
+  font-family: var(--lt-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: none;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+:root[data-skin="lattice"] :is(.btn-primary, .submit-btn, .search-button, .tp-btn-primary, .join-btn, .primary-button, .btn.primary, button.primary):hover:not(:disabled) {
+  background: var(--lt-signal);
+  border-color: var(--lt-signal);
+  color: #000;
+}
+:root[data-skin="lattice"] :is(.btn-primary, .submit-btn, .tp-btn-primary, .join-btn, .primary-button) :is(svg, .icon-wrap) {
+  color: inherit;
+}
+
+/* Secondary: outline pill. */
+:root[data-skin="lattice"] :is(.btn-secondary, .secondary-button, .cancel-btn, .btn.secondary, .tp-btn-ghost, .live-editor-btn, .pi-action) {
+  background: transparent;
+  border: 1px solid var(--lt-line-strong);
+  border-radius: 999px;
+  color: var(--lt-ink);
+  font-family: var(--lt-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+:root[data-skin="lattice"] :is(.btn-secondary, .secondary-button, .cancel-btn, .btn.secondary, .tp-btn-ghost, .live-editor-btn, .pi-action):hover {
+  background: var(--lt-invert-bg);
+  border-color: var(--lt-invert-bg);
+  color: var(--lt-invert-fg);
+}
+
+/* Destructive: signal outline. */
+:root[data-skin="lattice"] :is(.btn-danger, .danger-button, .btn.danger, .leave-button) {
+  background: transparent;
+  border: 1px solid #ff3b30;
+  border-radius: 999px;
+  color: #ff5a52;
+  font-family: var(--lt-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+:root[data-skin="lattice"] :is(.btn-danger, .danger-button, .btn.danger, .leave-button):hover {
+  background: #ff3b30;
+  color: #000;
+}
+
+/* Icon buttons: square hit areas, hairline on hover. */
+:root[data-skin="lattice"] :is(.icon-button, .action-btn, .header-icon-btn, .settings-close, .close-btn, .modal-close, .theme-panel-close) {
+  border-radius: 0;
+  border: 1px solid transparent;
+}
+:root[data-skin="lattice"] :is(.icon-button, .action-btn, .header-icon-btn, .settings-close, .close-btn, .modal-close, .theme-panel-close):hover {
+  background: var(--lt-raise);
+  border-color: var(--lt-line);
+}
+:root[data-skin="lattice"] :is(.action-btn.active, .chat-header .pinned-btn.has-pins, .icon-button.active) {
+  color: var(--lt-signal);
+}
+
+/* Fields: square wells, signal focus. */
+:root[data-skin="lattice"] :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), textarea, select):not(.rich-text-editor *) {
+  border-radius: 0;
+}
+:root[data-skin="lattice"] :is(.search-bar, .search-container input, .form-input, .text-input, .settings-input, .input-field, .tp-var-text-input) {
+  background: var(--lt-raise);
+  border: 1px solid var(--lt-line);
+  font-family: var(--lt-mono);
+  font-size: 12px;
+}
+:root[data-skin="lattice"] :is(input, textarea, select, .search-bar):focus-visible,
+:root[data-skin="lattice"] .search-bar:focus-within {
+  outline: none;
+  border-color: var(--lt-signal);
+  box-shadow: 0 0 0 3px var(--lt-signal-wash);
+}
+
+/* Toggles: square track and knob, signal when on. */
+:root[data-skin="lattice"] :is(.toggle-switch, .toggle-slider, .toggle-knob) {
+  border-radius: 0;
+}
+:root[data-skin="lattice"] .toggle-slider {
+  background: var(--lt-raise-strong);
+  box-shadow: inset 0 0 0 1px var(--lt-line-strong);
+}
+:root[data-skin="lattice"] .toggle-slider::before {
+  border-radius: 0;
+  background: var(--lt-ink);
+}
+:root[data-skin="lattice"] input:checked + .toggle-slider,
+:root[data-skin="lattice"] .toggle-switch.active .toggle-slider,
+:root[data-skin="lattice"] .toggle-switch.checked .toggle-slider {
+  background: var(--lt-signal);
+  box-shadow: none;
+}
+:root[data-skin="lattice"] input:checked + .toggle-slider::before {
+  background: #000;
+}
+:root[data-skin="lattice"] input[type="range"] {
+  accent-color: var(--lt-signal);
+}
+
+/* Badges: signal blocks. */
+:root[data-skin="lattice"] :is(.unread-badge, .notification-badge, .nav-badge, .unread-count, .mention-badge, .sidebar-tooltip-count) {
+  background: var(--lt-signal);
+  color: #000;
+  border-radius: 2px;
+  font-weight: 700;
+}
+:root[data-skin="lattice"] :is(.beta-badge, .tp-override-badge) {
+  background: transparent;
+  border: 1px solid var(--lt-signal);
+  border-radius: 0;
+  color: var(--lt-signal);
+}
+:root[data-skin="lattice"] .avatar-status {
+  border-radius: 2px;
+}
+
+/* ============================================================================
+   6. LISTS, MESSAGES AND COMPOSER
+   ============================================================================ */
+
+/* Server rail: rounded tiles, hairline ring. */
+:root[data-skin="lattice"] :is(.server-item, .server-item img, .server-item .server-image, .portal, .portal-icon, .dm-button, .fediverse-button, .today-button, .funding-button) {
+  border-radius: 12px;
+}
+:root[data-skin="lattice"] .server-item {
+  box-shadow: 0 0 0 1px var(--lt-line-strong);
+  transition: box-shadow 0.15s ease, scale 0.15s ease;
+}
+:root[data-skin="lattice"] .server-item:hover {
+  box-shadow: 0 0 0 1px var(--lt-ink);
+}
+:root[data-skin="lattice"] .server-item.selected {
+  box-shadow: 0 0 0 1px var(--lt-ink), 0 0 0 4px var(--lt-signal-wash);
+}
+:root[data-skin="lattice"] .server-pill {
+  background: var(--lt-signal);
+  border-radius: 0;
+  width: 3px;
+}
+:root[data-skin="lattice"] .server-sidebar .separator {
+  height: 1px;
+  background: var(--lt-line-strong);
+}
+
+/* Channels: square rows; the open channel inverts. */
+:root[data-skin="lattice"] .channel-item {
+  border-radius: 0;
+}
+:root[data-skin="lattice"] .channel-item:hover:not(.selected) {
+  background: var(--lt-raise);
+  box-shadow: inset 2px 0 0 var(--lt-signal);
+}
+:root[data-skin="lattice"] .channel-item.selected {
+  background: var(--lt-invert-bg);
+}
+:root[data-skin="lattice"] .channel-item.selected :is(.channel-name, svg, .icon-wrap) {
+  color: var(--lt-invert-fg);
+}
+:root[data-skin="lattice"] :is(.user-item, .nav-item, .search-result, .status-option, .menu-item, .context-menu-item, .option-item) {
+  border-radius: 0;
+}
+
+/* Avatars: squircles. */
+:root[data-skin="lattice"] :is(
+  .avatar-image,
+  .avatar-container .avatar-loading,
+  .skeleton-avatar,
+  .member-skeleton-avatar,
+  .search-result-avatar,
+  .creator-avatar,
+  .thread-avatar,
+  .toast-avatar
+) {
+  border-radius: 30%;
+}
+
+/* Messages. */
+:root[data-skin="lattice"] .message-item {
+  border-radius: 0;
+}
+:root[data-skin="lattice"] .message-item:hover {
+  background: var(--lt-raise);
+}
+:root[data-skin="lattice"] .message-item .username {
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+:root[data-skin="lattice"] .date-separator-line {
+  background: var(--lt-line);
+}
+:root[data-skin="lattice"] .new-messages-line {
+  background: var(--lt-signal);
+}
+:root[data-skin="lattice"] .system-message-content {
+  border-radius: 0;
+  border-left-color: var(--lt-signal);
+}
+
+/* Reactions: square chips. */
+:root[data-skin="lattice"] .reaction {
+  border-radius: 2px;
+  background: transparent;
+  border: 1px solid var(--lt-line-strong);
+}
+:root[data-skin="lattice"] .reaction.reacted {
+  border-color: var(--lt-signal);
+  background: var(--lt-signal-wash);
+}
+:root[data-skin="lattice"] .add-reaction-btn {
+  border-radius: 2px;
+}
+
+/* Code. */
+:root[data-skin="lattice"] .code-block-wrapper {
+  border-radius: 0;
+  border: 1px solid var(--lt-line-strong);
+  background: var(--lt-canvas);
+}
+:root[data-skin="lattice"] .code-block-wrapper .language-label {
+  font-family: var(--lt-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+:root[data-skin="lattice"] :is(.unified-content, .markdown-content) :not(pre) > code {
+  border-radius: 0;
+  background: var(--lt-raise-strong);
+  border: 1px solid var(--lt-line);
+}
+:root[data-skin="lattice"] :is(.embed, .link-embed, .embed-container, .attachment, .file-attachment) {
+  border-radius: 0;
+}
+
+/* Composer: a prompt bar. */
+:root[data-skin="lattice"] [data-region="composer"] .message-container {
+  border-radius: 14px;
+  background: var(--lt-panel-solid);
+  border: 1px solid var(--lt-line-strong);
+  box-shadow: 0 18px 50px -18px rgb(0 0 0 / 0.75);
+  transition: border-color 0.15s ease, box-shadow 0.2s ease;
+}
+:root[data-skin="lattice"][data-theme-type="light"] [data-region="composer"] .message-container {
+  border-color: var(--lt-frame);
+  box-shadow: 4px 4px 0 rgb(0 0 0 / 0.85);
+}
+:root[data-skin="lattice"] [data-region="composer"] .message-container:focus-within {
+  border-color: var(--lt-ink);
+}
+:root[data-skin="lattice"] .plus-icon-container {
+  border-radius: 999px;
+  background: var(--lt-invert-bg);
+  color: var(--lt-invert-fg);
+}
+:root[data-skin="lattice"] .plus-icon-container :is(svg, .icon-wrap) {
+  color: var(--lt-invert-fg);
+}
+@media (max-width: 768px) {
+  :root[data-skin="lattice"] [data-region="composer"] .message-container {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+  :root[data-skin="lattice"] [data-region="composer"] .textarea-wrapper {
+    border: 1px solid var(--lt-line-strong);
+    border-radius: 14px;
+    background: var(--lt-panel-solid);
+  }
+}
+
+/* ============================================================================
+   7. FLOATING SURFACES
+   ============================================================================ */
+
+:root[data-skin="lattice"] :is(
+  .context-menu,
+  .user-context-menu,
+  .more-menu,
+  .action-dropdown,
+  .status-dropdown,
+  .file-upload-menu,
+  .media-picker-popup,
+  .emoji-popup,
+  .device-dropdown,
+  .search-popover,
+  .participants-dropdown,
+  .notification-panel
+) {
+  background: var(--lt-marks), var(--lt-panel-solid);
+  background-origin: border-box;
+  border: 1px solid var(--lt-line-strong);
+  border-radius: 0;
+  box-shadow: var(--lt-shadow);
+}
+:root[data-skin="lattice"] :is(.context-menu-item, .menu-item, .status-option, .option-item):hover {
+  background: var(--lt-invert-bg);
+  color: var(--lt-invert-fg);
+}
+:root[data-skin="lattice"] :is(.context-menu-item, .menu-item, .status-option, .option-item):hover :is(svg, .icon-wrap, span) {
+  color: var(--lt-invert-fg);
+}
+
+:root[data-skin="lattice"] :is(
+  .modal-container,
+  .pinned-messages-drawer,
+  .threads-modal,
+  .public-servers-modal,
+  .create-server-modal,
+  .incoming-call-modal,
+  .theme-panel
+) {
+  background: var(--lt-marks), var(--lt-panel-solid);
+  background-origin: border-box;
+  border: 1px solid var(--lt-line-strong);
+  border-radius: 0;
+  box-shadow: var(--lt-shadow);
+}
+:root[data-skin="lattice"] :is(.modal-header, .drawer-header, .thread-header, .theme-panel-header) {
+  border-bottom: 1px solid var(--lt-line);
+  background: transparent;
+}
+:root[data-skin="lattice"] :is(.modal-overlay, .modal-backdrop) {
+  background:
+    radial-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1.5px) 0 0 / 16px 16px,
+    rgb(0 0 0 / 0.62);
+}
+:root[data-skin="lattice"]:not([data-disable-blur="true"]) :is(.modal-overlay, .modal-backdrop) {
+  -webkit-backdrop-filter: blur(6px);
+          backdrop-filter: blur(6px);
+}
+
+/* Tooltips: framed panels. The rail tooltip's outer box carries the fill;
+   its content box stays bare. */
+:root[data-skin="lattice"] :is([role="tooltip"], .tooltip, .sidebar-tooltip, .reaction-tooltip) {
+  background: var(--lt-marks), var(--lt-panel-solid);
+  background-origin: border-box;
+  border: 1px solid var(--lt-line-strong);
+  border-radius: 0;
+  box-shadow: var(--lt-shadow);
+  color: var(--lt-ink);
+}
+:root[data-skin="lattice"] :is([role="tooltip"], .tooltip, .sidebar-tooltip-name) {
+  font-family: var(--lt-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+:root[data-skin="lattice"] :is(.Vue-Toastification__toast, .notification-toast) {
+  border-radius: 0;
+  border: 1px solid var(--lt-line-strong);
+  box-shadow: var(--lt-shadow);
+}
+:root[data-skin="lattice"] :is(.toast-title, .Vue-Toastification__toast-body) {
+  font-family: var(--lt-mono);
+  letter-spacing: 0.04em;
+}
+
+:root[data-skin="lattice"] .search-chip {
+  border-radius: 0;
+  border: 1px solid var(--lt-line-strong);
+  background: transparent;
+  font-family: var(--lt-mono);
+}
+:root[data-skin="lattice"] .search-chip-key {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--lt-signal);
+}
+:root[data-skin="lattice"] :is(.search-sort-option, .search-option).active {
+  background: var(--lt-invert-bg);
+  color: var(--lt-invert-fg);
+}
+
+:root[data-skin="lattice"] :is(.pinned-message-item, .thread-item, .thread-indicator) {
+  border-radius: 0;
+}
+:root[data-skin="lattice"] .thread-panel {
+  background: var(--lt-panel-solid);
+  border-left: 1px solid var(--lt-frame);
+}
+:root[data-skin="lattice"] .mini-player {
+  border-radius: 0;
+  border: 1px solid var(--lt-line-strong);
+  box-shadow: var(--lt-shadow);
+}
+
+/* ============================================================================
+   8. SETTINGS, AUTH AND VOICE
+   ============================================================================ */
+
+:root[data-skin="lattice"] :is(.settings-sidebar, .social-sidebar) {
+  border-right: 1px solid var(--lt-frame);
+}
+:root[data-skin="lattice"] :is(.settings-nav, .social-nav, .settings-sidebar) .nav-item.active {
+  background: var(--lt-invert-bg);
+  color: var(--lt-invert-fg);
+}
+:root[data-skin="lattice"] :is(.settings-nav, .social-nav, .settings-sidebar) .nav-item.active :is(svg, .icon-wrap, span) {
+  color: var(--lt-invert-fg);
+}
+:root[data-skin="lattice"] .settings-section {
+  background: var(--lt-marks), var(--lt-panel);
+  background-origin: border-box;
+  border: 1px solid var(--lt-frame);
+  border-radius: 0;
+}
+:root[data-skin="lattice"] :is(.skin-card, .theme-option, .preset-card, .pi-card, .tp-collapse, .pi-moods, .pi-mood) {
+  border-radius: 0;
+}
+:root[data-skin="lattice"] :is(.skin-card.active, .theme-option.active) {
+  border-color: var(--lt-signal);
+  box-shadow: 0 0 0 1px var(--lt-signal);
+}
+
+:root[data-skin="lattice"] :is(.auth-card, .brand-card) {
+  background: var(--lt-marks), var(--lt-panel-solid);
+  background-origin: border-box;
+  border: 1px solid var(--lt-line-strong);
+  border-radius: 0;
+  box-shadow: var(--lt-shadow);
+}
+:root[data-skin="lattice"] .auth-wrapper {
+  background: transparent;
+}
+
+:root[data-skin="lattice"] .unified-voice-dock .dock-container {
+  background: var(--lt-marks), var(--lt-panel-solid);
+  background-origin: border-box;
+  border: 1px solid var(--lt-line-strong);
+  border-radius: 0;
+  box-shadow: var(--lt-shadow);
+}
+:root[data-skin="lattice"] :is(.unified-voice-dock .minimized-container, .voice-overlay .voice-container, .voice-tile, .voice-tile .tile-pill) {
+  border-radius: 0;
+}
+:root[data-skin="lattice"] :is(.unified-voice-dock, .voice-overlay) .channel-name {
+  font-family: var(--lt-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+:root[data-skin="lattice"] .voice-tile.speaking {
+  outline-color: var(--lt-signal);
+}
+:root[data-skin="lattice"] .voice-tile.speaking::after {
+  border-color: var(--lt-signal);
+  border-radius: 0;
+}
+:root[data-skin="lattice"] :is(.control-btn, .control-button, .mini-control-btn) {
+  border-radius: 0;
+}
+:root[data-skin="lattice"] :is(.control-btn, .control-button, .mini-control-btn):is(.muted, .deafened) {
+  background: var(--lt-signal);
+  color: #000;
+}
+
+/* ============================================================================
+   9. OPTIONS
+   ============================================================================ */
+
+/* 9.1 Centred conversation. The message scroller keeps full width so the
+   scrollbar stays at the frame edge; its children and the composer take a
+   reading measure. */
+@media (min-width: 1100px) {
+  :root[data-skin="lattice"][data-skin-focus-column="on"] [data-region="messages"] > * {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 920px;
+    margin-inline: auto;
+  }
+  :root[data-skin="lattice"][data-skin-focus-column="on"] [data-region="composer"] {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 920px;
+    margin-inline: auto;
+    padding-bottom: 18px;
+  }
+}
+
+/* 9.2 Holographic accents. */
+:root[data-skin="lattice"][data-skin-prism="on"]:not([data-high-contrast="true"]) body::before {
+  content: '';
+  position: fixed;
+  inset: -10%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(38vmax 26vmax at 96% 104%, rgb(255 138 216 / 0.2), transparent 70%),
+    radial-gradient(34vmax 24vmax at 78% 112%, rgb(138 216 255 / 0.18), transparent 70%),
+    radial-gradient(30vmax 22vmax at 104% 70%, rgb(164 138 255 / 0.18), transparent 70%),
+    radial-gradient(26vmax 18vmax at -4% -6%, rgb(138 255 193 / 0.1), transparent 70%);
+}
+:root[data-skin="lattice"][data-skin-prism="on"] [data-region="composer"] .message-container:focus-within {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--lt-panel-solid), var(--lt-panel-solid)) padding-box,
+    var(--lt-iris) border-box;
+  box-shadow: 0 18px 50px -18px rgb(0 0 0 / 0.75), 0 0 42px -12px var(--lt-iris-glow);
+}
+:root[data-skin="lattice"][data-skin-prism="on"][data-theme-type="light"] [data-region="composer"] .message-container:focus-within {
+  box-shadow: 4px 4px 0 rgb(0 0 0 / 0.85), 0 0 42px -12px var(--lt-iris-glow);
+}
+:root[data-skin="lattice"][data-skin-prism="on"] .server-item.selected {
+  box-shadow: 0 0 0 1px var(--lt-ink), 0 0 22px -4px var(--lt-iris-glow);
+}
+:root[data-skin="lattice"][data-skin-prism="on"] .server-item.selected::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 15px;
+  padding: 1.5px;
+  background: var(--lt-iris);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:root[data-skin="lattice"][data-skin-prism="on"] :is(.beginning-title, .settings-title) {
+  background: linear-gradient(100deg, var(--lt-ink) 0 45%, transparent 75%), var(--lt-iris);
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+}
+
+/* 9.3 Registration marks off: frames keep their border only. Numbered
+   categories when on. */
+:root[data-skin="lattice"][data-skin-marks="off"] {
+  --lt-marks: linear-gradient(transparent, transparent);
+}
+:root[data-skin="lattice"][data-skin-marks="on"] .categories-container {
+  counter-reset: lattice-category;
+}
+:root[data-skin="lattice"][data-skin-marks="on"] .categories-container .category-name::before {
+  counter-increment: lattice-category;
+  content: counter(lattice-category, decimal-leading-zero) ' / ';
+  color: var(--lt-signal);
+}
+
+/* ============================================================================
+   10. MOTION
+   ============================================================================ */
+
+@keyframes harmony-lattice-drift {
+  from { transform: translate3d(0, 0, 0) rotate(0deg); }
+  to { transform: translate3d(-4%, -3%, 0) rotate(6deg); }
+}
+/* Popovers resolve from a blur. scale and translate compose with a
+   component's own transform. */
+@keyframes harmony-lattice-resolve {
+  from { opacity: 0; filter: blur(6px); scale: 0.985; }
+  to { opacity: 1; filter: blur(0); scale: 1; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-skin="lattice"][data-skin-prism="on"][data-skin-drift="on"]:not([data-reduce-motion="true"], [data-high-contrast="true"]) body::before {
+    animation: harmony-lattice-drift 30s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+  :root[data-skin="lattice"]:not([data-reduce-motion="true"]) :is(
+    .context-menu,
+    .user-context-menu,
+    .more-menu,
+    .action-dropdown,
+    .status-dropdown,
+    .file-upload-menu,
+    .device-dropdown,
+    .search-popover,
+    .participants-dropdown,
+    .modal-container
+  ) {
+    animation: harmony-lattice-resolve 0.18s ease-out backwards;
+  }
+}

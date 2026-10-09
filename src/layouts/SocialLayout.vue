@@ -7,9 +7,10 @@
       @close="showFundingModal = false"
     />
 
-    <div class="social-layout-content">
+    <div class="social-layout-content" data-region="workspace">
       <div 
         class="social-sidebar-container" 
+        data-region="nav"
         :class="{ 
           'mobile-open': leftSidebarOpen,
           'is-dragging': isDragging && dragDirection === 'left'
@@ -29,9 +30,10 @@
         />
       </div>
 
-      <div class="main-and-right-container">
+      <div class="main-and-right-container" data-region="main">
         <div 
           class="social-content-area"
+          data-region="view"
         >
           <RouterView 
             :current-view="currentView"
@@ -67,6 +69,7 @@
 
         <div 
           class="right-sidebar-container" 
+          data-region="aside"
           :class="{ 
             'sidebar-open': rightSidebarOpen,
             'mobile-open': rightSidebarOpen,

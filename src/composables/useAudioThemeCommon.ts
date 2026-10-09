@@ -28,6 +28,9 @@ export function useAudioThemeCommon() {
       default: '🔊',
       futuristic: '🚀',
       neokobe: '🌃',
+      skyglass: '🫧',
+      lattice: '💠',
+      flux: '🌊',
     }
     return icons[themeId] || '🎧'
   }
@@ -38,6 +41,9 @@ export function useAudioThemeCommon() {
       default: 'volume-2',
       futuristic: 'zap',
       neokobe: 'moon',
+      skyglass: 'sparkles',
+      lattice: 'grid',
+      flux: 'waves',
     }
     return iconNames[themeId] || 'headphones'
   }
