@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 280" width="600" height="280">
+  <defs>
+    <pattern id="dots" width="12" height="12" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="0.9" fill="#fff" fill-opacity="0.1"/>
+    </pattern>
+    <linearGradient id="iris" x1="0" y1="0" x2="1" y2="0.3">
+      <stop offset="0" stop-color="#ff8ad8"/>
+      <stop offset="0.17" stop-color="#ffb38a"/>
+      <stop offset="0.33" stop-color="#f2ee8a"/>
+      <stop offset="0.5" stop-color="#8affc1"/>
+      <stop offset="0.67" stop-color="#8ad8ff"/>
+      <stop offset="0.83" stop-color="#a48aff"/>
+      <stop offset="1" stop-color="#ff8ad8"/>
+    </linearGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f3f3f1"/>
+      <stop offset="0.5" stop-color="#f3f3f1"/>
+      <stop offset="0.7" stop-color="#8ad8ff"/>
+      <stop offset="1" stop-color="#ff8ad8"/>
+    </linearGradient>
+    <radialGradient id="glowA" cx="1" cy="1.05" r="0.55">
+      <stop offset="0" stop-color="#ff8ad8" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#ff8ad8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="0.8" cy="1.15" r="0.5">
+      <stop offset="0" stop-color="#8ad8ff" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#8ad8ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowC" cx="1.05" cy="0.6" r="0.45">
+      <stop offset="0" stop-color="#a48aff" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#a48aff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Canvas -->
+  <rect width="600" height="280" fill="#060607"/>
+  <rect width="600" height="280" fill="url(#dots)"/>
+  <rect width="600" height="280" fill="url(#glowA)"/>
+  <rect width="600" height="280" fill="url(#glowB)"/>
+  <rect width="600" height="280" fill="url(#glowC)"/>
+
+  <!-- Status line -->
+  <rect x="270" y="6" width="4" height="4" fill="#ff5a1f"/>
+  <rect x="279" y="6.5" width="44" height="3" fill="#a7a7a3" opacity="0.7"/>
+
+  <g fill="#0d0d0f" fill-opacity="0.92" stroke="#fff" stroke-opacity="0.1">
+    <!-- Rail, nav, header, view, aside, user -->
+    <rect x="8.5" y="18.5" width="40" height="214"/>
+    <rect x="56.5" y="18.5" width="126" height="214"/>
+    <rect x="190.5" y="18.5" width="401" height="28"/>
+    <rect x="190.5" y="54.5" width="283" height="217"/>
+    <rect x="481.5" y="54.5" width="110" height="217"/>
+    <rect x="8.5" y="240.5" width="174" height="31"/>
+  </g>
+
+  <!-- Corner brackets on every frame -->
+  <g stroke="#fff" stroke-opacity="0.6" fill="none">
+    <path d="M8.5 25.5v-7h7M41.5 18.5h7v7M8.5 225.5v7h7M41.5 232.5h7v-7"/>
+    <path d="M56.5 25.5v-7h7M175.5 18.5h7v7M56.5 225.5v7h7M175.5 232.5h7v-7"/>
+    <path d="M190.5 25.5v-7h7M584.5 18.5h7v7M190.5 39.5v7h7M584.5 46.5h7v-7"/>
+    <path d="M190.5 61.5v-7h7M466.5 54.5h7v7M190.5 264.5v7h7M466.5 271.5h7v-7"/>
+    <path d="M481.5 61.5v-7h7M584.5 54.5h7v7M481.5 264.5v7h7M584.5 271.5h7v-7"/>
+    <path d="M8.5 247.5v-7h7M175.5 240.5h7v7M8.5 264.5v7h7M175.5 271.5h7v-7"/>
+  </g>
+
+  <!-- Rail tiles; the active one wears the holographic ring -->
+  <rect x="17" y="28" width="23" height="23" rx="6" fill="#1b1b1e" stroke="#fff" stroke-opacity="0.25"/>
+  <rect x="17" y="58" width="23" height="23" rx="6" fill="#1b1b1e" stroke="#fff" stroke-opacity="0.25"/>
+  <rect x="21" y="91" width="15" height="1" fill="#fff" fill-opacity="0.25"/>
+  <rect x="17" y="100" width="23" height="23" rx="6" fill="#e9e4da"/>
+  <rect x="17" y="130" width="23" height="23" rx="6" fill="#5a7cff"/>
+  <rect x="14.5" y="127.5" width="28" height="28" rx="8" fill="none" stroke="url(#iris)" stroke-width="1.5"/>
+  <rect x="9" y="136" width="2" height="11" fill="#ff5a1f"/>
+
+  <!-- Nav: numbered categories, inverted active channel -->
+  <rect x="78" y="27" width="56" height="4" fill="#f3f3f1" opacity="0.85"/>
+  <rect x="66" y="47" width="10" height="3" fill="#ff5a1f"/>
+  <rect x="80" y="47" width="52" height="3" fill="#7a7a76"/>
+  <rect x="62" y="56" width="115" height="14" fill="#f3f3f1"/>
+  <rect x="68" y="61" width="44" height="4" fill="#09090a"/>
+  <rect x="68" y="79" width="56" height="4" fill="#a7a7a3" opacity="0.6"/>
+  <rect x="68" y="93" width="38" height="4" fill="#a7a7a3" opacity="0.6"/>
+  <rect x="66" y="113" width="10" height="3" fill="#ff5a1f"/>
+  <rect x="80" y="113" width="58" height="3" fill="#7a7a76"/>
+  <rect x="68" y="125" width="46" height="4" fill="#a7a7a3" opacity="0.6"/>
+
+  <!-- Header -->
+  <rect x="200" y="30" width="62" height="4" fill="#f3f3f1" opacity="0.9"/>
+  <rect x="566" y="27" width="10" height="10" fill="none" stroke="#ff5a1f"/>
+
+  <!-- View: display title, messages -->
+  <text x="204" y="94" font-family="Figtree, Helvetica, Arial, sans-serif" font-weight="300" font-size="26" letter-spacing="-1" fill="url(#title)">Welcome to #lattice</text>
+  <rect x="204" y="102" width="120" height="3" fill="#7a7a76"/>
+  <rect x="204" y="124" width="16" height="16" rx="5" fill="#cfcfca"/>
+  <rect x="228" y="125" width="40" height="4" fill="#ff5a1f"/>
+  <rect x="273" y="125" width="22" height="4" fill="#7a7a76"/>
+  <rect x="228" y="134" width="190" height="4" fill="#f3f3f1" opacity="0.75"/>
+  <rect x="228" y="143" width="150" height="4" fill="#f3f3f1" opacity="0.75"/>
+  <rect x="204" y="160" width="16" height="16" rx="5" fill="#8ad8ff"/>
+  <rect x="228" y="161" width="34" height="4" fill="#f3f3f1"/>
+  <rect x="228" y="170" width="170" height="4" fill="#f3f3f1" opacity="0.75"/>
+  <rect x="228" y="180" width="26" height="10" fill="none" stroke="#ff5a1f"/>
+  <rect x="231" y="184" width="8" height="3" fill="#ff5a1f"/>
+
+  <!-- Prompt bar with holographic edge -->
+  <rect x="202" y="234" width="259" height="26" rx="9" fill="#0d0d0f" stroke="url(#iris)" stroke-width="1.2"/>
+  <circle cx="215" cy="247" r="6" fill="#f3f3f1"/>
+  <rect x="226" y="245" width="80" height="3" fill="#7a7a76"/>
+  <rect x="420" y="240" width="34" height="14" rx="7" fill="#f3f3f1"/>
+  <rect x="427" y="246" width="20" height="2.5" fill="#09090a"/>
+
+  <!-- Aside -->
+  <rect x="490" y="64" width="92" height="12" fill="none" stroke="#fff" stroke-opacity="0.12"/>
+  <rect x="490" y="88" width="46" height="3" fill="#7a7a76"/>
+  <rect x="490" y="98" width="13" height="13" rx="4" fill="#cfcfca"/>
+  <rect x="508" y="102" width="44" height="4" fill="#ff5a1f"/>
+  <rect x="490" y="118" width="13" height="13" rx="4" fill="#5a7cff"/>
+  <rect x="508" y="122" width="36" height="4" fill="#a7a7a3"/>
+
+  <!-- User panel -->
+  <rect x="17" y="246" width="19" height="19" rx="6" fill="#cfcfca"/>
+  <rect x="42" y="249" width="46" height="4" fill="#f3f3f1"/>
+  <rect x="42" y="258" width="28" height="3" fill="#7a7a76"/>
+  <rect x="33" y="261" width="4" height="4" fill="#3ba55d"/>
+</svg>

@@ -1,0 +1,1133 @@
+/*
+ * FLUX
+ *
+ * Liquid glass over a drifting metaball field, in a layout of its own.
+ *
+ * Two materials. Liquid glass, for controls that float (the dock, the
+ * channel strip, the prompt bar, the user capsule, buttons): nearly clear,
+ * lightly blurred, with thickness drawn as inner light and shade, a specular
+ * rim brightest at the upper-left and lower-right corners, a faint
+ * pink-to-cyan fringe at the sides and, in Chromium, a lens that bends the
+ * backdrop under the rim. Smoked glass, for content (the conversation,
+ * members, menus): darker and more blurred so text stays steady over the
+ * moving field.
+ *
+ * Layout (desktop, 1024px and wider, option "dock" on) through the
+ * data-region hooks of ../index.ts:
+ *
+ *   [ user capsule ]          [ server dock ]
+ *   [ server name | # chan | # chan | # chan | ... channel tab strip      ]
+ *   [ header                                                    ]
+ *   [        centred conversation                 | members    ]
+ *   [        glass prompt bar                     |            ]
+ *
+ * The base layout turns into a column, the rail into a horizontal dock, the
+ * channel list into a single scrolling row (its wrappers collapse with
+ * display: contents) and the chat context bar, which only repeats the
+ * server name, is hidden while it holds nothing else. Narrower windows and
+ * the option off get rounded side-by-side panes. Below 769px nothing moves.
+ *
+ * Inputs from the scene (./scene.ts): data-skin-scene="live" | "fallback",
+ * data-flux-lens="on" (Chromium) on <html>; --flux-tip-x / --flux-tip-y on
+ * body for dock tooltips.
+ *
+ *   1. Tokens
+ *   2. Canvas
+ *   3. Glass
+ *   4. Layout: dock
+ *   5. Layout: panes
+ *   6. Type
+ *   7. Controls
+ *   8. Lists, messages and composer
+ *   9. Floating surfaces
+ *  10. Options
+ *  11. Motion
+ */
+
+/* ============================================================================
+   1. TOKENS
+   ============================================================================ */
+
+@property --harmony-flux-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+:root[data-skin="flux"] {
+  --fx-a: var(--harmony-primary, #7c5cff);
+  --fx-b: var(--harmony-secondary, #22e1d3);
+  --fx-grad: linear-gradient(120deg, var(--fx-a), var(--fx-b));
+  --fx-serif: 'Instrument Serif', 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Noto Serif', Georgia, serif;
+  --fx-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', ui-monospace, 'DejaVu Sans Mono', Menlo, monospace;
+  --fx-canvas: #05050a;
+
+  /* Liquid glass. */
+  --lg-fill: rgb(255 255 255 / 0.06);
+  --lg-fill-hover: rgb(255 255 255 / 0.1);
+  --lg-fill-pressed: rgb(255 255 255 / 0.14);
+  /* Glass that carries text sits darker, so a bright blob passing behind it
+     cannot wash out its label. */
+  --lg-fill-text: rgb(16 14 30 / 0.42);
+  --lg-blur: blur(5px) saturate(190%) brightness(1.08);
+  /* Rim: a 1.25px ring, brightest at the upper-left and lower-right. */
+  --lg-rim: linear-gradient(135deg,
+    rgb(255 255 255 / 0.85) 0%,
+    rgb(255 255 255 / 0.22) 16%,
+    rgb(255 255 255 / 0) 40%,
+    rgb(255 255 255 / 0) 60%,
+    rgb(255 255 255 / 0.16) 82%,
+    rgb(255 255 255 / 0.6) 100%);
+  /* Thickness: a lit top lip, a shaded bottom lip, a sheen across the upper
+     third and a faint dispersion fringe at the sides. */
+  --lg-depth:
+    inset 0 1px 0 rgb(255 255 255 / 0.3),
+    inset 0 -1px 0 rgb(255 255 255 / 0.06),
+    inset 0 14px 20px -14px rgb(255 255 255 / 0.28),
+    inset 0 -14px 20px -16px rgb(0 0 0 / 0.5),
+    inset 3px 0 4px -3px rgb(255 120 210 / 0.35),
+    inset -3px 0 4px -3px rgb(110 220 255 / 0.35);
+  --lg-lift: 0 16px 40px -16px rgb(0 0 0 / 0.7), 0 2px 6px rgb(0 0 0 / 0.28);
+
+  /* Smoked glass. */
+  --sm-fill: rgb(11 10 20 / 0.6);
+  --sm-fill-deep: rgb(14 13 26 / 0.88);
+  --sm-blur: blur(26px) saturate(170%);
+  --sm-edge: rgb(255 255 255 / 0.08);
+
+  --fx-tint: rgb(255 255 255 / 0.05);
+  --fx-tint-strong: rgb(255 255 255 / 0.09);
+  --fx-hair: rgb(255 255 255 / 0.08);
+  --fx-shadow: 0 30px 80px -30px rgb(0 0 0 / 0.85), 0 0 0 1px rgb(0 0 0 / 0.35);
+
+  --radius-sm: 10px;
+  --radius-base: 14px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+  --radius-2xl: 28px;
+  --radius-full: 9999px;
+
+  --glass-bg: var(--sm-fill-deep);
+  --glass-blur: 26px;
+  --shadow-large: var(--fx-shadow);
+  --shadow-modal: var(--fx-shadow);
+  --tooltip-bg: rgb(22 20 36 / 0.94);
+  --tooltip-text: #f4f2ff;
+  --tooltip-arrow: rgb(22 20 36 / 0.94);
+  --background-floating: var(--sm-fill-deep);
+  --background-modifier-hover: var(--fx-tint);
+  --background-modifier-active: var(--fx-tint-strong);
+  --background-modifier-selected: var(--fx-tint-strong);
+
+  color-scheme: dark;
+  scrollbar-color: color-mix(in oklab, var(--fx-a) 55%, transparent) transparent;
+}
+
+:root[data-skin="flux"][data-theme-type="light"] {
+  --fx-canvas: #eeedf5;
+  --lg-fill: rgb(255 255 255 / 0.32);
+  --lg-fill-text: rgb(255 255 255 / 0.55);
+  --lg-fill-hover: rgb(255 255 255 / 0.48);
+  --lg-fill-pressed: rgb(255 255 255 / 0.6);
+  --lg-rim: linear-gradient(135deg,
+    rgb(255 255 255 / 1) 0%,
+    rgb(255 255 255 / 0.5) 18%,
+    rgb(255 255 255 / 0.1) 42%,
+    rgb(255 255 255 / 0.1) 58%,
+    rgb(255 255 255 / 0.4) 82%,
+    rgb(255 255 255 / 0.95) 100%);
+  --lg-depth:
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    inset 0 -1px 0 rgb(30 20 60 / 0.08),
+    inset 0 14px 20px -14px rgb(255 255 255 / 0.7),
+    inset 0 -14px 20px -16px rgb(30 20 60 / 0.18),
+    inset 3px 0 4px -3px rgb(255 120 210 / 0.3),
+    inset -3px 0 4px -3px rgb(110 200 255 / 0.3);
+  --lg-lift: 0 16px 40px -18px rgb(40 20 90 / 0.35), 0 2px 6px rgb(40 20 90 / 0.1);
+  --sm-fill: rgb(255 255 255 / 0.62);
+  --sm-fill-deep: rgb(255 255 255 / 0.9);
+  --sm-edge: rgb(30 20 60 / 0.08);
+  --fx-tint: rgb(30 20 60 / 0.045);
+  --fx-tint-strong: rgb(30 20 60 / 0.08);
+  --fx-hair: rgb(30 20 60 / 0.09);
+  --fx-shadow: 0 30px 70px -30px rgb(40 20 90 / 0.35), 0 0 0 1px rgb(40 20 90 / 0.06);
+  --tooltip-bg: rgb(255 255 255 / 0.95);
+  --tooltip-text: #191527;
+  --tooltip-arrow: rgb(255 255 255 / 0.95);
+
+  color-scheme: light;
+}
+
+/* Blur off: both glasses thicken so the field cannot read through. */
+:root[data-skin="flux"][data-disable-blur="true"] {
+  --lg-fill: rgb(30 28 48 / 0.85);
+  --lg-fill-text: rgb(30 28 48 / 0.9);
+  --sm-fill: rgb(11 10 20 / 0.9);
+}
+:root[data-skin="flux"][data-disable-blur="true"][data-theme-type="light"] {
+  --lg-fill: rgb(250 250 255 / 0.9);
+  --lg-fill-text: rgb(250 250 255 / 0.94);
+  --sm-fill: rgb(255 255 255 / 0.92);
+}
+
+/* Theme-written inline tokens. */
+:root[data-skin="flux"] body {
+  --border-primary: var(--fx-hair);
+  --border-secondary: var(--fx-hair);
+  --border-color: var(--fx-hair);
+  --color-border: var(--fx-hair);
+  --input-border: var(--fx-hair);
+  --channel-item-hover-bg: var(--lg-fill-hover);
+  --channel-item-selected-bg: var(--lg-fill-pressed);
+  --nav-rail-button-bg: var(--lg-fill);
+}
+
+/* ============================================================================
+   2. CANVAS
+   ============================================================================ */
+
+/* Film grain: fractal noise at 7% over the canvas colour, 180px tile. */
+:root[data-skin="flux"] body {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    radial-gradient(140% 90% at 50% 120%, color-mix(in oklab, var(--fx-a) 14%, transparent), transparent 60%),
+    var(--fx-canvas);
+  background-attachment: fixed;
+}
+
+/* Containers that paint an opaque theme surface. One class or attribute per
+   argument: :is() takes its most specific argument. */
+:root[data-skin="flux"] :is(
+  .base-layout,
+  .view-renderer,
+  .adaptive-channel-sidebar,
+  .user-groups,
+  .chat-header,
+  .chat-header-container,
+  .followers-list,
+  .special-view,
+  .user-profile-wrapper,
+  .unified-context-bar,
+  .channel-sidebar-container,
+  .server-sidebar-container
+) {
+  background: transparent;
+}
+:root[data-skin="flux"] .server-header .server-name,
+:root[data-skin="flux"] [data-region="aside"] .sidebar-header {
+  background: transparent;
+}
+
+/* ============================================================================
+   3. GLASS
+   ============================================================================
+   Liquid glass is fill + depth on the element, the rim on ::before and, in
+   Chromium, the lens in backdrop-filter. Each element listed is positioned
+   so the rim can sit on it; none of them uses ::before itself. */
+
+:root[data-skin="flux"] :is(
+  [data-region="rail"],
+  [data-region="composer"] .message-container,
+  .user-profile
+) {
+  position: relative;
+  background: var(--lg-fill);
+  box-shadow: var(--lg-depth), var(--lg-lift);
+}
+:root[data-skin="flux"] :is(
+  [data-region="rail"],
+  [data-region="composer"] .message-container,
+  .user-profile
+)::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  padding: 1.25px;
+  background: var(--lg-rim);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+:root[data-skin="flux"]:not([data-disable-blur="true"]) :is(
+  [data-region="rail"],
+  [data-region="composer"] .message-container,
+  .user-profile
+) {
+  -webkit-backdrop-filter: var(--lg-blur);
+          backdrop-filter: var(--lg-blur);
+}
+:root[data-skin="flux"][data-flux-lens="on"]:not([data-disable-blur="true"]) :is(
+  [data-region="rail"],
+  [data-region="composer"] .message-container,
+  .user-profile
+) {
+  backdrop-filter: url(#harmony-flux-lens) var(--lg-blur);
+}
+
+/* Smoked glass: content panes. */
+:root[data-skin="flux"] :is([data-region="main"], [data-region="nav"]) {
+  background: var(--sm-fill);
+  box-shadow: inset 0 1px 0 var(--sm-edge), inset 0 0 0 1px var(--sm-edge), var(--fx-shadow);
+}
+:root[data-skin="flux"]:not([data-disable-blur="true"]) :is([data-region="main"], [data-region="nav"]) {
+  -webkit-backdrop-filter: var(--sm-blur);
+          backdrop-filter: var(--sm-blur);
+}
+
+/* ============================================================================
+   4. LAYOUT: DOCK
+   ============================================================================ */
+
+@media (min-width: 1024px) {
+  :root[data-skin="flux"][data-skin-dock="on"] .base-layout {
+    box-sizing: border-box;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 16px 16px;
+  }
+
+  /* Server dock: a glass capsule, centred, scrolling sideways. The fixed
+     header (home, today, messages, social) and the server list run in one
+     row; selection is a ring, not the side pill. */
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="rail"] {
+    align-self: center;
+    flex: none;
+    width: auto;
+    max-width: calc(100% - 2 * 360px);
+    height: 64px;
+    padding: 0 8px;
+    border-radius: 999px;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="rail"] :is(.server-sidebar, .fixed-header, .fixed-footer) {
+    position: relative;
+    z-index: 1;
+    flex-direction: row;
+    align-items: center;
+    width: auto;
+    height: 100%;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="rail"] :is(.portal, .header-item-wrapper) {
+    margin: 0 4px;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="rail"] .separator {
+    flex: none;
+    width: 1px;
+    height: 30px;
+    margin: 0 8px;
+    border: none;
+    background: linear-gradient(180deg, transparent, var(--fx-hair) 30%, var(--fx-hair) 70%, transparent);
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="rail"] .servers-scroll-area {
+    flex: 0 1 auto;
+    flex-direction: row;
+    align-items: center;
+    width: auto;
+    min-width: 0;
+    height: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="rail"] .servers-scroll-area::after {
+    width: 4px;
+    min-height: 0;
+    height: 1px;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="rail"] .rail-list {
+    flex-direction: row;
+    width: auto;
+    padding: 0 4px;
+    gap: 8px;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="rail"] .rail-entry {
+    width: auto;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="rail"] .server-pill {
+    display: none;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="rail"] :is(.server-folder, .folder-expanded, .folder-content) {
+    flex-direction: row;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="rail"] .folder-expanded {
+    width: auto;
+    height: 56px;
+    padding: 0 6px 0 0;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="rail"] .folder-cap {
+    width: 32px;
+    height: 48px;
+  }
+
+  /* Dock tooltips sit under the hovered icon. top is an inline style. */
+  :root[data-skin="flux"][data-skin-dock="on"] .sidebar-tooltip {
+    left: var(--flux-tip-x, 50vw);
+    top: var(--flux-tip-y, 84px) !important;
+    transform: translateX(-50%);
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] .sidebar-tooltip-arrow {
+    left: 50%;
+    top: -6px;
+    transform: translateX(-50%) rotate(90deg);
+  }
+
+  /* You: a capsule at the top right, level with the dock. */
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="user"] {
+    top: 14px;
+    right: 16px;
+    left: auto;
+    bottom: auto;
+    width: auto;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="user"] .user-profile {
+    width: 320px;
+    height: 64px;
+    border-radius: 999px;
+  }
+
+  /* Chat: the context bar only repeats the server name. */
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="context"]:not(:has(.context-right > *)) {
+    display: none;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="workspace"]:has(> [data-region="nav"] .channel-sidebar) {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* Views without a channel list (messages, social) keep a side panel. */
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="workspace"]:not(:has(> [data-region="nav"] .channel-sidebar)) {
+    gap: 12px;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="workspace"]:not(:has(> [data-region="nav"] .channel-sidebar)) > :is([data-region="nav"], [data-region="main"]) {
+    border-radius: 26px;
+    overflow: hidden;
+  }
+
+  /* Channel strip: one scrolling row of tabs led by the server name. */
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="nav"]:has(.channel-sidebar) {
+    flex: none;
+    width: auto;
+    height: 52px;
+    border-radius: 999px;
+    padding: 0 6px;
+    background: var(--lg-fill-text);
+    box-shadow: var(--lg-depth), var(--lg-lift);
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="nav"]:has(.channel-sidebar)::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    padding: 1.25px;
+    background: var(--lg-rim);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    pointer-events: none;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"]:not([data-disable-blur="true"]) [data-region="nav"]:has(.channel-sidebar) {
+    -webkit-backdrop-filter: var(--lg-blur);
+            backdrop-filter: var(--lg-blur);
+  }
+  :root[data-skin="flux"][data-skin-dock="on"][data-flux-lens="on"]:not([data-disable-blur="true"]) [data-region="nav"]:has(.channel-sidebar) {
+    backdrop-filter: url(#harmony-flux-lens) var(--lg-blur);
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="nav"]:has(.channel-sidebar) :is(.adaptive-channel-sidebar, .chat-mode-container) {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="nav"] .chat-content {
+    width: 100%;
+    height: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="nav"] .chat-content::-webkit-scrollbar {
+    display: none;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="nav"] .channel-sidebar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: max-content;
+    height: 100%;
+    padding: 0 8px;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="nav"] :is(
+    .orphan-channels,
+    .orphan-channels > div,
+    .categories-container,
+    .category-section,
+    .channel-list,
+    .category-channels
+  ) {
+    display: contents;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="nav"] .server-header {
+    flex: none;
+    height: auto;
+    margin: 0 8px 0 4px;
+    padding: 0 14px 0 0;
+    border: none;
+    box-shadow: inset -1px 0 0 var(--fx-hair);
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="nav"] .server-header .server-name {
+    width: auto;
+    max-width: 280px;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="nav"] .server-header .server-name-text {
+    font-size: 15px;
+    white-space: nowrap;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="nav"] .category-header {
+    flex: none;
+    margin: 0 2px 0 14px;
+    padding: 0;
+    opacity: 0.8;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="nav"] .category-header .category-arrow {
+    display: none;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="nav"] .channel-wrapper {
+    flex: none;
+    display: flex;
+    align-items: center;
+    width: auto;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="nav"] .channel-item {
+    width: auto;
+    margin: 0;
+    padding: 7px 14px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  /* Conversation: a centred column under its own header; members float. */
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="main"] {
+    border-radius: 30px;
+    overflow: hidden;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="messages"] > * {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 860px;
+    margin-inline: auto;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="composer"] {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 860px;
+    margin-inline: auto;
+    padding-bottom: 18px;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="aside"].sidebar-open {
+    margin: 10px 10px 10px 0;
+    border-radius: 24px;
+    background: var(--fx-tint);
+    box-shadow: inset 0 0 0 1px var(--sm-edge), inset 0 1px 0 var(--sm-edge);
+  }
+}
+
+/* ============================================================================
+   5. LAYOUT: PANES
+   ============================================================================
+   The dock option off at any desktop width, and windows between 769px and
+   1023px with it on: rounded panes side by side. */
+
+@media (min-width: 769px) {
+  :root[data-skin="flux"]:not([data-skin-dock="on"]) .base-layout {
+    box-sizing: border-box;
+    padding: 12px;
+    gap: 12px;
+  }
+  :root[data-skin="flux"]:not([data-skin-dock="on"]) [data-region="rail"] {
+    border-radius: 28px;
+    padding-top: 12px;
+    padding-bottom: 84px;
+  }
+  :root[data-skin="flux"]:not([data-skin-dock="on"]) [data-region="workspace"] {
+    gap: 12px;
+  }
+  :root[data-skin="flux"]:not([data-skin-dock="on"]) :is([data-region="nav"], [data-region="main"]) {
+    border-radius: 24px;
+    overflow: hidden;
+  }
+  :root[data-skin="flux"]:not([data-skin-dock="on"]) [data-region="nav"] {
+    padding-bottom: 76px;
+    box-sizing: border-box;
+  }
+  :root[data-skin="flux"]:not([data-skin-dock="on"]) [data-region="user"] {
+    left: 18px;
+    bottom: 18px;
+  }
+  :root[data-skin="flux"]:not([data-skin-dock="on"]) .user-profile {
+    border-radius: 22px;
+  }
+  :root[data-skin="flux"]:not([data-skin-dock="on"]) [data-region="aside"].sidebar-open {
+    border-left: 1px solid var(--fx-hair);
+  }
+}
+@media (min-width: 769px) and (max-width: 1023px) {
+  :root[data-skin="flux"][data-skin-dock="on"] .base-layout {
+    box-sizing: border-box;
+    padding: 12px;
+    gap: 12px;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="rail"] {
+    border-radius: 28px;
+    padding-top: 12px;
+    padding-bottom: 84px;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="workspace"] {
+    gap: 12px;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] :is([data-region="nav"], [data-region="main"]) {
+    border-radius: 24px;
+    overflow: hidden;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="nav"] {
+    padding-bottom: 76px;
+    box-sizing: border-box;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] [data-region="user"] {
+    left: 18px;
+    bottom: 18px;
+  }
+  :root[data-skin="flux"][data-skin-dock="on"] .user-profile {
+    border-radius: 22px;
+  }
+}
+:root[data-skin="flux"] [data-region="header"] {
+  border-bottom: 1px solid var(--fx-hair);
+}
+
+/* ============================================================================
+   6. TYPE
+   ============================================================================ */
+
+:root[data-skin="flux"] :is(
+  .category-name,
+  .nav-section-title,
+  .group-title,
+  .member-count,
+  .date-separator-text,
+  .search-group-title,
+  .search-recent-header,
+  .skin-active-options-title,
+  .tp-label,
+  .pi-title
+) {
+  font-family: var(--fx-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+:root[data-skin="flux"] :is(.message-item .timestamp, .system-timestamp, .message-gutter, .message-time) {
+  font-family: var(--fx-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+}
+:root[data-skin="flux"] :is(.chat-header .channel-name, .dm-header .header-title, .view-header .header-title, .thread-header h3) {
+  font-family: var(--fx-serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+}
+:root[data-skin="flux"] :is(.server-name-text, .settings-title, .modal-title, .theme-panel-title, .brand-title) {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+:root[data-skin="flux"] .beginning-title {
+  font-size: clamp(34px, 4.2vw, 60px);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.98;
+  background: linear-gradient(100deg, var(--text-primary) 0 40%, var(--fx-b) 70%, var(--fx-a) 100%);
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+}
+:root[data-skin="flux"] .beginning-subtitle {
+  font-family: var(--fx-serif);
+  font-style: italic;
+  font-size: 18px;
+  color: var(--text-secondary);
+}
+:root[data-skin="flux"] :is(.unified-content, .unified-content-renderer, .markdown-content, .mony-post) :is(a:not([class]), a.url-link) {
+  color: color-mix(in oklab, var(--fx-b) 75%, var(--text-primary));
+  text-decoration-color: color-mix(in oklab, var(--fx-b) 50%, transparent);
+  text-underline-offset: 3px;
+}
+
+/* ============================================================================
+   7. CONTROLS
+   ============================================================================ */
+
+/* Primary: tinted liquid glass. */
+:root[data-skin="flux"] :is(.btn-primary, .submit-btn, .search-button, .tp-btn-primary, .join-btn, .primary-button, .btn.primary, button.primary) {
+  border: none;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.22), rgb(255 255 255 / 0) 55%),
+    linear-gradient(120deg, color-mix(in oklab, var(--fx-a) 82%, transparent), color-mix(in oklab, var(--fx-b) 72%, transparent));
+  color: #fff;
+  font-weight: 700;
+  box-shadow: var(--lg-depth), 0 10px 30px -10px color-mix(in oklab, var(--fx-a) 70%, transparent);
+  transition: box-shadow 0.25s ease, scale 0.15s ease, filter 0.2s ease;
+}
+:root[data-skin="flux"] :is(.btn-primary, .submit-btn, .search-button, .tp-btn-primary, .join-btn, .primary-button, .btn.primary, button.primary):hover:not(:disabled) {
+  filter: brightness(1.08) saturate(1.1);
+  box-shadow: var(--lg-depth), 0 14px 40px -10px color-mix(in oklab, var(--fx-b) 70%, transparent);
+}
+:root[data-skin="flux"] :is(.btn-primary, .submit-btn, .tp-btn-primary, .join-btn, .primary-button):active:not(:disabled) {
+  scale: 0.97;
+}
+
+/* Secondary: clear liquid glass. */
+:root[data-skin="flux"] :is(.btn-secondary, .secondary-button, .cancel-btn, .btn.secondary, .tp-btn-ghost, .live-editor-btn, .pi-action) {
+  border: none;
+  border-radius: 999px;
+  background: var(--lg-fill);
+  box-shadow: var(--lg-depth), inset 0 0 0 1px rgb(255 255 255 / 0.1);
+  color: var(--text-primary);
+}
+:root[data-skin="flux"] :is(.btn-secondary, .secondary-button, .cancel-btn, .btn.secondary, .tp-btn-ghost, .live-editor-btn, .pi-action):hover {
+  background: var(--lg-fill-hover);
+}
+
+:root[data-skin="flux"] :is(.btn-danger, .danger-button, .btn.danger, .leave-button) {
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0) 55%),
+    linear-gradient(120deg, rgb(255 77 109 / 0.85), rgb(255 138 77 / 0.8));
+  border: none;
+  color: #fff;
+  box-shadow: var(--lg-depth), 0 10px 30px -10px rgb(255 77 109 / 0.7);
+}
+
+:root[data-skin="flux"] :is(.icon-button, .action-btn, .header-icon-btn, .settings-close, .close-btn, .modal-close, .theme-panel-close) {
+  border-radius: 999px;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+:root[data-skin="flux"] :is(.icon-button, .action-btn, .header-icon-btn, .settings-close, .close-btn, .modal-close, .theme-panel-close):hover {
+  background: var(--lg-fill-hover);
+  box-shadow: var(--lg-depth);
+}
+:root[data-skin="flux"] :is(.action-btn.active, .chat-header .pinned-btn.has-pins, .icon-button.active) {
+  background: var(--lg-fill-pressed);
+  box-shadow: var(--lg-depth);
+  color: var(--text-primary);
+}
+
+:root[data-skin="flux"] :is(.search-bar, .search-container input, .form-input, .text-input, .settings-input, .input-field, .tp-var-text-input) {
+  background: var(--fx-tint);
+  border: 1px solid var(--fx-hair);
+  border-radius: 14px;
+}
+:root[data-skin="flux"] :is(input, textarea, select, .search-bar):focus-visible,
+:root[data-skin="flux"] .search-bar:focus-within {
+  outline: none;
+  border-color: color-mix(in oklab, var(--fx-a) 70%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--fx-a) 22%, transparent);
+}
+
+:root[data-skin="flux"] :is(.toggle-switch, .toggle-slider) {
+  border-radius: 999px;
+}
+:root[data-skin="flux"] .toggle-slider {
+  background: var(--fx-tint-strong);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 0.35), inset 0 0 0 1px var(--fx-hair);
+}
+:root[data-skin="flux"] input:checked + .toggle-slider,
+:root[data-skin="flux"] .toggle-switch.active .toggle-slider,
+:root[data-skin="flux"] .toggle-switch.checked .toggle-slider {
+  background: var(--fx-grad);
+}
+:root[data-skin="flux"] .toggle-slider::before {
+  background: radial-gradient(circle at 35% 30%, #fff, #dcdcec 70%);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.35), inset 0 -1px 2px rgb(0 0 0 / 0.15);
+}
+:root[data-skin="flux"] input[type="range"] {
+  accent-color: var(--fx-a);
+}
+
+:root[data-skin="flux"] :is(.unread-badge, .notification-badge, .nav-badge, .unread-count, .mention-badge, .sidebar-tooltip-count, .pinned-count, .beta-badge, .tp-override-badge) {
+  background: var(--fx-grad);
+  color: #fff;
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), 0 4px 14px -4px color-mix(in oklab, var(--fx-a) 80%, transparent);
+}
+
+/* ============================================================================
+   8. LISTS, MESSAGES AND COMPOSER
+   ============================================================================ */
+
+:root[data-skin="flux"] :is(.server-item, .server-item img, .server-item .server-image, .portal, .portal-icon, .dm-button, .fediverse-button, .today-button, .funding-button) {
+  border-radius: 34%;
+}
+:root[data-skin="flux"] .server-item {
+  transition: scale 0.3s cubic-bezier(0.3, 1.6, 0.5, 1), box-shadow 0.3s ease;
+}
+:root[data-skin="flux"] .server-item:hover {
+  scale: 1.07;
+}
+:root[data-skin="flux"] :is(.server-item, .dm-button, .fediverse-button, .today-button).selected {
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.9), 0 0 0 5px color-mix(in oklab, var(--fx-a) 45%, transparent), 0 8px 24px -6px color-mix(in oklab, var(--fx-a) 80%, transparent);
+}
+:root[data-skin="flux"] .server-pill {
+  background: var(--fx-grad);
+  border-radius: 999px;
+}
+:root[data-skin="flux"] .server-sidebar .separator {
+  background: linear-gradient(90deg, transparent, var(--fx-hair), transparent);
+}
+
+/* Channels: the open one is a raised glass bubble. */
+:root[data-skin="flux"] .channel-item {
+  border-radius: 12px;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+:root[data-skin="flux"] .channel-item:hover:not(.selected) {
+  background: var(--lg-fill);
+}
+:root[data-skin="flux"] .channel-item.selected {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0.03) 60%),
+    color-mix(in oklab, var(--fx-a) 22%, var(--lg-fill-pressed));
+  box-shadow: var(--lg-depth), inset 0 0 0 1px rgb(255 255 255 / 0.12), 0 6px 18px -8px color-mix(in oklab, var(--fx-a) 70%, transparent);
+}
+:root[data-skin="flux"] .channel-item.selected :is(.channel-name, svg) {
+  color: var(--text-primary);
+}
+:root[data-skin="flux"] :is(.user-item, .nav-item, .search-result, .status-option, .menu-item, .context-menu-item, .option-item) {
+  border-radius: 12px;
+}
+:root[data-skin="flux"] :is(.settings-nav, .social-nav, .settings-sidebar) .nav-item.active {
+  background: color-mix(in oklab, var(--fx-a) 22%, var(--lg-fill-pressed));
+  box-shadow: var(--lg-depth);
+}
+
+:root[data-skin="flux"] :is(
+  .avatar-image,
+  .avatar-container .avatar-loading,
+  .skeleton-avatar,
+  .member-skeleton-avatar,
+  .search-result-avatar,
+  .creator-avatar,
+  .thread-avatar,
+  .toast-avatar
+) {
+  border-radius: 40%;
+}
+:root[data-skin="flux"] .avatar-status {
+  box-shadow: 0 0 0 2px var(--fx-canvas);
+}
+
+:root[data-skin="flux"] .message-item {
+  border-radius: 16px;
+  transition: background 0.2s ease;
+}
+:root[data-skin="flux"] .message-item:hover {
+  background: var(--fx-tint);
+}
+:root[data-skin="flux"] .message-item .username {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+:root[data-skin="flux"] .date-separator-line {
+  background: linear-gradient(90deg, transparent, var(--fx-hair), transparent);
+}
+:root[data-skin="flux"] .date-separator-text {
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: var(--lg-fill);
+  box-shadow: var(--lg-depth);
+}
+:root[data-skin="flux"] .new-messages-line {
+  background: var(--fx-grad);
+}
+:root[data-skin="flux"] .system-message-content {
+  border-radius: 14px;
+  border-left-color: var(--fx-b);
+}
+
+:root[data-skin="flux"] .reaction {
+  border-radius: 999px;
+  background: var(--lg-fill);
+  border: none;
+  box-shadow: var(--lg-depth), inset 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+:root[data-skin="flux"] .reaction.reacted {
+  background: color-mix(in oklab, var(--fx-a) 28%, var(--lg-fill));
+  box-shadow: var(--lg-depth), inset 0 0 0 1px color-mix(in oklab, var(--fx-a) 60%, transparent);
+}
+
+:root[data-skin="flux"] .code-block-wrapper {
+  border-radius: 16px;
+  border: 1px solid var(--fx-hair);
+  overflow: hidden;
+}
+:root[data-skin="flux"] :is(.unified-content, .markdown-content) :not(pre) > code {
+  border-radius: 6px;
+  background: var(--fx-tint-strong);
+  border: 1px solid var(--fx-hair);
+}
+:root[data-skin="flux"] :is(.embed, .link-embed, .embed-container, .attachment, .file-attachment) {
+  border-radius: 16px;
+}
+
+/* Composer: a liquid glass capsule; its contents ride above the rim. */
+:root[data-skin="flux"] [data-region="composer"] .message-container {
+  border: none;
+  border-radius: 26px;
+  background: var(--lg-fill-text);
+}
+:root[data-skin="flux"] .user-profile {
+  background: var(--lg-fill-text);
+}
+:root[data-skin="flux"] [data-region="composer"] .message-container > * {
+  position: relative;
+  z-index: 1;
+}
+:root[data-skin="flux"] [data-region="composer"] .message-container:focus-within::before {
+  padding: 1.5px;
+  background: conic-gradient(from var(--harmony-flux-angle), var(--fx-a), var(--fx-b), rgb(255 255 255 / 0.9), var(--fx-a));
+}
+:root[data-skin="flux"] .plus-icon-container {
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.3), rgb(255 255 255 / 0) 55%),
+    var(--fx-grad);
+  color: #fff;
+}
+:root[data-skin="flux"] .plus-icon-container :is(svg, .icon-wrap) {
+  color: #fff;
+}
+:root[data-skin="flux"] .user-profile > * {
+  position: relative;
+  z-index: 1;
+}
+@media (max-width: 768px) {
+  :root[data-skin="flux"] [data-region="composer"] .message-container {
+    background: transparent;
+    box-shadow: none;
+  }
+  :root[data-skin="flux"] [data-region="composer"] .message-container::before {
+    content: none;
+  }
+  :root[data-skin="flux"] [data-region="composer"] .textarea-wrapper {
+    border-radius: 22px;
+    background: var(--sm-fill-deep);
+    box-shadow: var(--lg-depth);
+  }
+}
+
+/* ============================================================================
+   9. FLOATING SURFACES
+   ============================================================================ */
+
+:root[data-skin="flux"] :is(
+  .context-menu,
+  .user-context-menu,
+  .more-menu,
+  .action-dropdown,
+  .status-dropdown,
+  .file-upload-menu,
+  .media-picker-popup,
+  .emoji-popup,
+  .device-dropdown,
+  .search-popover,
+  .participants-dropdown,
+  .notification-panel,
+  .modal-container,
+  .pinned-messages-drawer,
+  .threads-modal,
+  .public-servers-modal,
+  .create-server-modal,
+  .incoming-call-modal,
+  .theme-panel,
+  .unified-voice-dock .dock-container,
+  .auth-card,
+  .brand-card
+) {
+  border: none;
+  background: var(--sm-fill-deep);
+  border-radius: 22px;
+  box-shadow: var(--lg-depth), inset 0 0 0 1px var(--sm-edge), var(--fx-shadow);
+}
+:root[data-skin="flux"]:not([data-disable-blur="true"]) :is(
+  .context-menu,
+  .user-context-menu,
+  .more-menu,
+  .action-dropdown,
+  .status-dropdown,
+  .file-upload-menu,
+  .device-dropdown,
+  .search-popover,
+  .participants-dropdown,
+  .notification-panel,
+  .modal-container,
+  .public-servers-modal,
+  .create-server-modal,
+  .theme-panel,
+  .auth-card
+) {
+  -webkit-backdrop-filter: var(--sm-blur);
+          backdrop-filter: var(--sm-blur);
+}
+:root[data-skin="flux"] .theme-panel {
+  border-radius: 26px 0 0 26px;
+}
+:root[data-skin="flux"] :is(.modal-header, .drawer-header, .thread-header, .theme-panel-header) {
+  background: transparent;
+  border-bottom: 1px solid var(--fx-hair);
+}
+:root[data-skin="flux"] :is(.theme-panel-footer, .modal-footer) {
+  background: transparent;
+  border-top: 1px solid var(--fx-hair);
+}
+:root[data-skin="flux"] :is(.modal-overlay, .modal-backdrop) {
+  background: radial-gradient(circle at 50% 40%, rgb(10 6 30 / 0.35), rgb(4 2 12 / 0.7));
+}
+:root[data-skin="flux"] :is(.context-menu-item, .menu-item, .status-option, .option-item):hover {
+  background: var(--lg-fill-hover);
+  box-shadow: var(--lg-depth);
+}
+:root[data-skin="flux"] :is([role="tooltip"], .tooltip, .sidebar-tooltip, .reaction-tooltip) {
+  border-radius: 16px;
+  box-shadow: var(--lg-depth), inset 0 0 0 1px var(--sm-edge), var(--fx-shadow);
+}
+:root[data-skin="flux"]:not([data-disable-blur="true"]) :is([role="tooltip"], .tooltip, .sidebar-tooltip, .reaction-tooltip) {
+  -webkit-backdrop-filter: var(--sm-blur);
+          backdrop-filter: var(--sm-blur);
+}
+:root[data-skin="flux"] :is(.Vue-Toastification__toast, .notification-toast) {
+  border-radius: 20px;
+  box-shadow: var(--lg-depth), var(--fx-shadow);
+}
+:root[data-skin="flux"] .search-chip {
+  border-radius: 999px;
+  background: var(--lg-fill);
+  box-shadow: var(--lg-depth);
+}
+:root[data-skin="flux"] :is(.pinned-message-item, .thread-item, .thread-indicator) {
+  border-radius: 16px;
+}
+:root[data-skin="flux"] .mini-player {
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: var(--fx-shadow);
+}
+:root[data-skin="flux"] .settings-section {
+  border-radius: 26px;
+  background: var(--sm-fill);
+  box-shadow: var(--lg-depth), inset 0 0 0 1px var(--sm-edge);
+}
+:root[data-skin="flux"] :is(.skin-card, .theme-option, .preset-card, .pi-card, .tp-collapse) {
+  border-radius: 18px;
+}
+:root[data-skin="flux"] :is(.skin-card.active, .theme-option.active) {
+  border-color: transparent;
+  box-shadow: 0 0 0 2px var(--fx-a), 0 10px 30px -10px color-mix(in oklab, var(--fx-a) 70%, transparent);
+}
+:root[data-skin="flux"] :is(.voice-tile, .unified-voice-dock .minimized-container) {
+  border-radius: 20px;
+}
+:root[data-skin="flux"] .voice-tile.speaking::after {
+  border-radius: 20px;
+  border-color: var(--fx-b);
+  box-shadow: 0 0 30px -4px var(--fx-b);
+}
+:root[data-skin="flux"] :is(.control-btn, .control-button, .mini-control-btn) {
+  border-radius: 999px;
+}
+:root[data-skin="flux"] :is(.control-btn, .control-button, .mini-control-btn):is(.muted, .deafened) {
+  background: linear-gradient(120deg, #ff4d6d, #ff8a4d);
+  color: #fff;
+}
+:root[data-skin="flux"] .auth-wrapper {
+  background: transparent;
+}
+
+/* ============================================================================
+   10. OPTIONS
+   ============================================================================ */
+
+/* 10.1 Static aurora while the scene is loading, unavailable (no WebGL) or
+   its liquid is off. */
+:root[data-skin="flux"]:not([data-skin-scene="live"], [data-high-contrast="true"]) body::before,
+:root[data-skin="flux"][data-skin-liquid="off"]:not([data-high-contrast="true"]) body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(34vmax 30vmax at 72% 28%, color-mix(in oklab, var(--fx-a) 45%, transparent), transparent 70%),
+    radial-gradient(30vmax 26vmax at 30% 78%, color-mix(in oklab, var(--fx-b) 35%, transparent), transparent 70%),
+    radial-gradient(22vmax 20vmax at 88% 86%, color-mix(in oklab, var(--fx-a) 30%, transparent), transparent 70%);
+}
+
+/* 10.2 Morph: servers and message avatars melt into a moving blob under the
+   pointer; the open server holds a blob. */
+@keyframes harmony-flux-morph {
+  0%, 100% { border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%; }
+  25% { border-radius: 59% 41% 38% 62% / 55% 61% 39% 45%; }
+  50% { border-radius: 36% 64% 52% 48% / 62% 37% 63% 38%; }
+  75% { border-radius: 55% 45% 66% 34% / 38% 58% 42% 62%; }
+}
+:root[data-skin="flux"][data-skin-morph="on"] :is(.server-item.selected, .server-item.selected img, .server-item.selected .server-image) {
+  border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-skin="flux"][data-skin-morph="on"]:not([data-reduce-motion="true"]) :is(.server-item:hover, .server-item:hover img, .server-item:hover .server-image),
+  :root[data-skin="flux"][data-skin-morph="on"]:not([data-reduce-motion="true"]) .message-avatar:hover .avatar-image {
+    animation: harmony-flux-morph 3.2s ease-in-out infinite;
+  }
+}
+
+/* ============================================================================
+   11. MOTION
+   ============================================================================ */
+
+@keyframes harmony-flux-sweep {
+  from { --harmony-flux-angle: 0deg; }
+  to { --harmony-flux-angle: 360deg; }
+}
+/* Popovers settle like a drop of glass: from blurred and small to their own
+   size and radius. No `to` frame, so the end state is whatever the element
+   computes. scale composes with a component's own transform. */
+@keyframes harmony-flux-pour {
+  from { opacity: 0; scale: 0.6; filter: blur(8px); }
+  60% { opacity: 1; scale: 1.02; filter: blur(0); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-skin="flux"]:not([data-reduce-motion="true"]) [data-region="composer"] .message-container:focus-within::before {
+    animation: harmony-flux-sweep 1.4s cubic-bezier(0.3, 0.6, 0.2, 1) 1 both;
+  }
+  :root[data-skin="flux"]:not([data-reduce-motion="true"]) :is(
+    .context-menu,
+    .user-context-menu,
+    .more-menu,
+    .action-dropdown,
+    .status-dropdown,
+    .file-upload-menu,
+    .device-dropdown,
+    .search-popover,
+    .participants-dropdown,
+    .modal-container,
+    .sidebar-tooltip,
+    .reaction-tooltip
+  ) {
+    animation: harmony-flux-pour 0.36s cubic-bezier(0.2, 0.9, 0.3, 1) backwards;
+  }
+}

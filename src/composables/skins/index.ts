@@ -39,7 +39,10 @@
  */
 import type { Skin } from './types'
 import { sdr001Skin } from './sdr-001'
+import { skyglassSkin } from './skyglass'
+import { latticeSkin } from './lattice'
+import { fluxSkin } from './flux'
 
 export type { Skin, SkinOption, SkinScene, SkinSceneFactory } from './types'
 
-export const BUILTIN_SKINS: Skin[] = [sdr001Skin]
+export const BUILTIN_SKINS: Skin[] = [sdr001Skin, skyglassSkin, latticeSkin, fluxSkin]
