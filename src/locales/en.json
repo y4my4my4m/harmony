@@ -3851,5 +3851,11 @@
       "done": "Left server",
       "failed": "Couldn't leave the server"
     }
+  },
+  "embeds": {
+    "popOut": "Pop out",
+    "open": "Open",
+    "hide": "Hide",
+    "show": "Show"
   }
 }

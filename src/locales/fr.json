@@ -3855,5 +3855,11 @@
       "done": "Serveur quitté",
       "failed": "Impossible de quitter le serveur"
     }
+  },
+  "embeds": {
+    "popOut": "Détacher",
+    "open": "Ouvrir",
+    "hide": "Masquer",
+    "show": "Afficher"
   }
 }

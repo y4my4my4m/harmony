@@ -443,7 +443,8 @@ onBeforeUnmount(() => {
 }
 
 .mini-player__body :deep(.floating-video .provider-embed__header),
-.mini-player__body :deep(.floating-video .attachment-remove-btn) {
+.mini-player__body :deep(.floating-video .attachment-remove-btn),
+.mini-player__body :deep(.floating-video .floating-video-popout) {
   display: none;
 }
 
@@ -510,6 +511,54 @@ onBeforeUnmount(() => {
 .floating-video-placeholder__hint {
   color: var(--text-muted);
   font-size: 12px;
+}
+
+/* Pop-out control over an in-chat video, top-right of its positioned parent.
+   Shown while the parent is hovered; always shown on touch screens. */
+.floating-video-popout {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--transition-fast), background-color var(--transition-fast);
+}
+
+/* Left of the attachment remove button (32px at right: 8px) or the clip
+   favorite button (28px at right: 8px). */
+.floating-video-popout--inset {
+  right: 44px;
+}
+
+.floating-video-popout:hover {
+  background: rgba(0, 0, 0, 0.85);
+}
+
+:hover > .floating-video-popout,
+.floating-video-popout:focus-visible {
+  opacity: 1;
+}
+
+.floating-video-popout:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .floating-video-popout {
+    opacity: 1;
+  }
 }
 
 html.floating-video-interacting,

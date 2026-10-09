@@ -3855,5 +3855,11 @@
       "done": "Has salido del servidor",
       "failed": "No se pudo salir del servidor"
     }
+  },
+  "embeds": {
+    "popOut": "Desacoplar",
+    "open": "Abrir",
+    "hide": "Ocultar",
+    "show": "Mostrar"
   }
 }
