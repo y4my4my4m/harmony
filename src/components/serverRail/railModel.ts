@@ -251,7 +251,10 @@ export function sameLayout(a: RailLayout, b: RailLayout): boolean {
 
 /**
  * Rows whose folder or position differ between the stored state and
- * `layout`. Positions are dense indices in their container.
+ * `layout`. Positions are dense indices in their container. A server whose
+ * folder_id names no loaded folder renders at root but is never written to
+ * root: the folder list is stale or failed to load, and the write would
+ * empty that folder.
  */
 export function planLayout(
   servers: readonly Server[],
@@ -267,6 +270,7 @@ export function planLayout(
   const pushServer = (id: string, folderId: string | null, position: number) => {
     const s = serverById.get(id)
     if (!s) return
+    if (folderId === null && s.folder_id && !folderById.has(s.folder_id)) return
     if ((s.folder_id ?? null) !== folderId || (s.position ?? 0) !== position) {
       plan.serverUpdates.push({ serverId: id, folderId, position })
     }

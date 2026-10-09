@@ -147,6 +147,18 @@ describe('planLayout', () => {
     expect(planLayout(servers, folders, gone).deleteFolders).toEqual(['F1'])
   })
 
+  it('never writes a server of an unloaded folder to root', () => {
+    // x and y sit in F2, which the folder list lacks; b moves before a.
+    const stale = [s('a', 0), s('x', 0, 'F2'), s('y', 1, 'F2'), s('b', 3)]
+    const next = applyDrop(buildRailLayout(stale, []), { kind: 'server', id: 'b' }, { kind: 'before', id: 'a', folderId: null })!.layout
+    const plan = planLayout(stale, [], next)
+    expect(plan.serverUpdates.map(u => u.serverId).sort()).toEqual(['a', 'b'])
+
+    const wrapped = applyDrop(buildRailLayout(stale, []), { kind: 'server', id: 'x' }, { kind: 'combine', id: 'a' })!
+    expect(planLayout(stale, [], wrapped.layout, 'NEW').serverUpdates).toContainEqual(
+      { serverId: 'x', folderId: 'NEW', position: expect.any(Number) })
+  })
+
   it('is empty for the stored layout', () => {
     const dense = [s('a', 0), s('b', 0, 'F1'), s('c', 1, 'F1'), s('d', 2)]
     expect(isPlanEmpty(planLayout(dense, folders, buildRailLayout(dense, folders)))).toBe(true)

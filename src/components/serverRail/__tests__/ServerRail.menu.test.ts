@@ -83,17 +83,23 @@ describe('ServerRail context menus', () => {
 
   const actions = () => wrapper.findAll('.rail-menu [data-action]').map(b => b.attributes('data-action'))
 
-  // The first mount in a cold CI worker can close the menu as it opens; reopen until it holds.
   const openOn = async (kind: 'server' | 'folder', id: string) => {
-    await vi.waitFor(async () => {
-      if (!wrapper.find('.rail-menu [data-action]').exists()) {
-        await wrapper.get(`[data-rail-kind="${kind}"][data-rail-id="${id}"]`).trigger('contextmenu', { clientX: 10, clientY: 10 })
-      }
-      expect(wrapper.find('.rail-menu [data-action]').exists()).toBe(true)
-    }, { timeout: 4000 })
+    await wrapper.get(`[data-rail-kind="${kind}"][data-rail-id="${id}"]`).trigger('contextmenu', { clientX: 10, clientY: 10 })
+    await vi.waitFor(() => expect(wrapper.find('.rail-menu [data-action]').exists()).toBe(true))
   }
 
   const base = ['mark-read', 'invite', 'mute', 'mute-m15', 'mute-h1', 'mute-h3', 'mute-h8', 'mute-h24', 'mute-forever', 'settings', 'move-up', 'move-down']
+
+  it('opens on a mouse right-click in the first 1.5 s of page life', async () => {
+    const now = vi.spyOn(performance, 'now').mockReturnValue(100)
+    try {
+      await wrapper.get('[data-rail-kind="server"][data-rail-id="a"]').trigger('contextmenu', { clientX: 10, clientY: 10 })
+      await flushPromises()
+      expect(wrapper.find('.rail-menu [data-action]').exists()).toBe(true)
+    } finally {
+      now.mockRestore()
+    }
+  })
 
   it('gives a loose server the full menu', async () => {
     await openOn('server', 'a')

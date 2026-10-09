@@ -97,6 +97,38 @@ describe('applyRailPlan', () => {
     expect(store.folders[0].position).toBe(2)
     expect(toastError).toHaveBeenCalledTimes(1)
   })
+
+  it('writes plans one at a time, in call order', async () => {
+    const store = seed()
+    let release!: () => void
+    const gate = new Promise<void>(r => { release = r })
+    const calls = stubFrom((_t, op) =>
+      (calls.length === 1 && op === 'update' ? gate.then(() => ({ error: null })) : { error: null }) as unknown as Result)
+    const first = store.applyRailPlan({ serverUpdates: [{ serverId: 'b', folderId: null, position: 0 }], folderUpdates: [], deleteFolders: [] })
+    const second = store.applyRailPlan({ serverUpdates: [{ serverId: 'b', folderId: null, position: 2 }], folderUpdates: [], deleteFolders: [] })
+    await new Promise(r => setTimeout(r, 0))
+    expect(calls.map(c => c.payload)).toEqual([{ folder_id: null, position: 0 }])
+
+    release()
+    expect(await first).toBe(true)
+    expect(await second).toBe(true)
+    expect(calls.map(c => c.payload)).toEqual([{ folder_id: null, position: 0 }, { folder_id: null, position: 2 }])
+  })
+
+  it('drops the plans queued behind a failed one, locally and in the database', async () => {
+    const store = seed()
+    const calls = stubFrom(() => ({ error: { message: 'denied' } }))
+    const first = store.applyRailPlan({ serverUpdates: [{ serverId: 'b', folderId: null, position: 0 }], folderUpdates: [], deleteFolders: [] })
+    const second = store.applyRailPlan({ serverUpdates: [{ serverId: 'a', folderId: null, position: 3 }], folderUpdates: [], deleteFolders: [] })
+    expect(await first).toBe(false)
+    expect(await second).toBe(false)
+    expect(calls).toHaveLength(1)
+    expect(store.servers.map(x => [x.id, x.folder_id, x.position])).toEqual([['a', null, 0], ['b', null, 1], ['c', 'F1', 0]])
+    expect(toastError).toHaveBeenCalledTimes(1)
+
+    stubFrom(() => ({ error: null }))
+    expect(await store.applyRailPlan({ serverUpdates: [{ serverId: 'a', folderId: null, position: 3 }], folderUpdates: [], deleteFolders: [] })).toBe(true)
+  })
 })
 
 describe('setServerMuted', () => {

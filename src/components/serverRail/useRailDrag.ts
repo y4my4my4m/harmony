@@ -20,6 +20,8 @@ export const AUTOSCROLL_EDGE_PX = 48
 export const AUTOSCROLL_MAX_PX = 14
 /** Half the vertical gap between rail entries, px; indicator lines sit in it. */
 const GAP_HALF_PX = 4
+/** Distance beside the rail at which a release cancels the drop, px. */
+export const DROP_SLACK_PX = 24
 
 export interface RailDragOptions {
   container: Ref<HTMLElement | null>
@@ -85,7 +87,7 @@ export function useRailDrag(opts: RailDragOptions) {
   let pending: Pending | null = null
   let active: Active | null = null
   let suppressClickUntil = 0
-  let lastTouchAt = 0
+  let lastTouchAt = Number.NEGATIVE_INFINITY
 
   const contentY = (container: HTMLElement, clientY: number) =>
     clientY - container.getBoundingClientRect().top + container.scrollTop
@@ -158,10 +160,11 @@ export function useRailDrag(opts: RailDragOptions) {
       container.scrollTop += Math.ceil(AUTOSCROLL_MAX_PX * (1 - Math.max(fromBottom, 0) / AUTOSCROLL_EDGE_PX))
     }
 
-    const target = resolveDropTarget(contentY(container, active.clientY), active.rects, active.source)
+    const outside = active.clientX < box.left - DROP_SLACK_PX || active.clientX > box.right + DROP_SLACK_PX
+    const target = outside ? null : resolveDropTarget(contentY(container, active.clientY), active.rects, active.source)
     if (!sameTarget(target, active.target)) {
       active.target = target
-      const onSelf = (target.kind === 'before' || target.kind === 'after') && target.id === active.source.id
+      const onSelf = !!target && (target.kind === 'before' || target.kind === 'after') && target.id === active.source.id
       paintIndicator(container, onSelf ? null : target)
     }
     active.frame = requestAnimationFrame(frame)
