@@ -15,6 +15,7 @@ import { SignatureService } from './SignatureService.js';
 import { noteToContent } from './converters/fromActivityPub.js';
 import config from '../config/index.js';
 import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.js';
+import { INVITE_REFUSALS } from '../utils/inviteRefusals.js';
 import { getChannelRecipientGroups } from '../utils/federationUtils.js';
 import {
   authorizeChannelWrite,
@@ -309,13 +310,6 @@ export async function processServerInboxActivity(
 }
 
 // JOIN / LEAVE HANDLERS
-
-const INVITE_REFUSALS: Record<string, string> = {
-  not_found: 'Invalid invite code',
-  expired: 'Invite code has expired',
-  exhausted: 'Invite code has reached maximum uses',
-  revoked: 'Invite code has been revoked',
-};
 
 async function processJoinServer(
   serverId: string,

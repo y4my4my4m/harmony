@@ -7,6 +7,7 @@ import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useRemoteInvitePrompt } from '@/composables/useRemoteInvitePrompt'
 import { debug } from '@/utils/debug'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { getStoredInstance } from '@/services/instanceConfig'
 
 const INVITE_PATH_RE = /^\/invite\/[A-Za-z0-9_-]{4,64}$/
 
@@ -21,6 +22,15 @@ function instanceHosts(): Set<string> {
       hosts.add(new URL(appUrl).host.toLowerCase())
     } catch {
       /* malformed env value */
+    }
+  }
+  // Native builds serve from tauri.localhost; the stored instance is the real host.
+  const stored = getStoredInstance()
+  if (stored) {
+    try {
+      hosts.add(new URL(stored.origin).host.toLowerCase())
+    } catch {
+      /* malformed stored origin */
     }
   }
   try {

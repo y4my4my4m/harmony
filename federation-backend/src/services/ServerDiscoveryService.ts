@@ -16,6 +16,7 @@ import { sameOrigin, urlHost } from '../utils/apOrigin.js';
 import { SignatureService } from '../activitypub/SignatureService.js';
 import { loadGroupAccess } from '../activitypub/groupAccess.js';
 import { localProfileIdFromBearer } from '../middleware/auth.js';
+import { INVITE_REFUSALS } from '../utils/inviteRefusals.js';
 import {
   getFullAvatarUrl,
   getFullServerBannerUrl,
@@ -427,6 +428,59 @@ router.post(
       .eq('server_id', localServer.id)
       .eq('user_id', userId)
       .single();
+
+    // A server on this instance admits directly: a Join to our own Group has
+    // no remote to answer it, and the row would stay pending.
+    if (localServer.is_local_server !== false) {
+      if (existingMembership && existingMembership.status !== 'pending') {
+        return res.status(409).json({ error: 'Already a member', status: existingMembership.status });
+      }
+
+      if (!localServer.public) {
+        if (typeof inviteCode !== 'string' || !inviteCode) {
+          return res.status(403).json({ error: 'Private server requires invite code' });
+        }
+        const { data: refusal, error: inviteError } = await supabase.rpc('consume_invite', {
+          p_server_id: localServer.id,
+          p_code: inviteCode,
+        });
+        if (inviteError || refusal) {
+          const reason = inviteError ? 'Invalid invite code' : INVITE_REFUSALS[refusal as string] ?? 'Invalid invite code';
+          return res.status(403).json({ error: reason });
+        }
+      }
+
+      const { error: localJoinError } = existingMembership
+        ? await supabase.from('user_servers').update({ status: 'accepted' }).eq('id', existingMembership.id)
+        : await supabase.from('user_servers').insert({
+            server_id: localServer.id,
+            user_id: userId,
+            status: 'accepted',
+            member_instance: config.INSTANCE_DOMAIN,
+          });
+      if (localJoinError) {
+        logger.error('Failed to create local membership:', localJoinError);
+        return res.status(500).json({ error: 'Failed to create membership' });
+      }
+
+      const { data: localDefaultChannel } = await supabase
+        .from('channels')
+        .select('id')
+        .eq('server_id', localServer.id)
+        .eq('type', 0)
+        .order('order', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      logger.info(`Local join: server=${localServer.id}, user=${userId}`);
+      return res.json({
+        success: true,
+        message: 'Joined server',
+        serverId: localServer.id,
+        defaultChannelId: localDefaultChannel?.id || null,
+        status: 'accepted',
+      });
+    }
 
     if (existingMembership) {
       return res.status(409).json({ 

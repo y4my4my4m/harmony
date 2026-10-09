@@ -189,6 +189,7 @@
 import { safeHref } from '@/utils/sanitize';
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import {
   federationServerService,
@@ -201,6 +202,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useOpenServer } from '@/composables/useOpenServer'
 import { debug } from '@/utils/debug'
+import { toInternalPath } from '@/utils/internalLinks'
 import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import { userDataService } from '@/services/userDataService'
@@ -216,6 +218,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const router = useRouter()
 const toast = useToast()
 const authStore = useAuthStore()
 const serverChannelStore = useServerChannelStore()
@@ -294,6 +297,16 @@ onBeforeUnmount(() => {
 async function discoverServer() {
   const input = serverUrl.value.trim()
   if (!input || isLoading.value) return
+
+  // An invite on this instance joins through the local invite page; the
+  // federated path would send a Join to our own Group and leave the
+  // membership pending.
+  const internalPath = toInternalPath(input)
+  if (internalPath && /^\/invite\/[A-Za-z0-9_-]+\/?(?:[?#].*)?$/.test(internalPath)) {
+    emit('close')
+    await router.push(internalPath)
+    return
+  }
 
   error.value = ''
   discoveredServer.value = null
