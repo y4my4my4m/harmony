@@ -453,6 +453,11 @@
       "stalled": "Téléversement bloqué : aucun progrès depuis {seconds} s.",
       "notSent": "Le message n’a pas été envoyé. Il est de retour dans la zone de saisie.",
       "voiceNotSent": "Impossible d’envoyer le message vocal."
+    },
+    "embeds": {
+      "remove": "Supprimer les intégrations",
+      "show": "Afficher les intégrations",
+      "failed": "Impossible de modifier les intégrations du message"
     }
   },
   "messageSearch": {

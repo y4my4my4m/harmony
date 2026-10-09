@@ -453,6 +453,11 @@
       "stalled": "Upload hängt: seit {seconds} s kein Fortschritt.",
       "notSent": "Die Nachricht wurde nicht gesendet. Sie steht wieder im Eingabefeld.",
       "voiceNotSent": "Die Sprachnachricht konnte nicht gesendet werden."
+    },
+    "embeds": {
+      "remove": "Einbettungen entfernen",
+      "show": "Einbettungen anzeigen",
+      "failed": "Die Einbettungen der Nachricht konnten nicht geändert werden"
     }
   },
   "messageSearch": {

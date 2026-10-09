@@ -132,6 +132,7 @@ const fediversePostCache = {
 </script>
 
 <script setup lang="ts">
+import { isEmbedHidden, setEmbedHidden } from '@/utils/hiddenEmbeds';
 import { safeHref } from '@/utils/sanitize';
 import Icon from '@/components/common/Icon.vue';
 import { softwareDisplayName } from '@/utils/fediverseSoftware';
@@ -158,7 +159,7 @@ const emit = defineEmits<{
   'open-lightbox': [url: string];
 }>();
 
-const collapsed = ref(false);
+const collapsed = ref(isEmbedHidden(props.messageId, props.payload?.url));
 const harmonyPost = ref<TimelinePost | null>(null);
 const harmonyError = ref<string | null>(null);
 const fediversePost = ref<TimelinePost | null>(null);
@@ -511,6 +512,7 @@ function handleEmbedLoad() {
 
 function toggleCollapse() {
   collapsed.value = !collapsed.value;
+  setEmbedHidden(props.messageId, props.payload?.url, collapsed.value);
 }
 
 function openLink() {

@@ -13,6 +13,15 @@ import {
 
 describe('messageContentUtils', () => {
   describe('messagePartsToMarkdown', () => {
+    it('keeps the angle brackets of a link sent without a preview', () => {
+      const parts = [
+        { type: 'url', url: 'https://example.com/a', preview: false },
+        { type: 'text', text: ' and ' },
+        { type: 'url', url: 'https://example.com/b', preview: true },
+      ]
+      expect(messagePartsToMarkdown(parts as any)).toBe('<https://example.com/a> and https://example.com/b')
+    })
+
     it('converts text parts', () => {
       const parts = [{ type: 'text' as const, text: 'Hello world' }]
       expect(messagePartsToMarkdown(parts as any)).toBe('Hello world')

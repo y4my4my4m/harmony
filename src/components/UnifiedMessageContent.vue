@@ -216,7 +216,7 @@
         <template v-else-if="part && typeof part === 'object' && part.type === 'url'">
           <!-- Image URLs -->
           <div 
-            v-if="isImageUrl(part.url)" 
+            v-if="isImageUrl(part.url) && showsPreview(part)" 
             class="media-container image-container"
           >
             <div class="media-frame">
@@ -235,7 +235,7 @@
 
           <!-- Video URLs -->
           <div 
-            v-else-if="isVideoUrl(part.url)" 
+            v-else-if="isVideoUrl(part.url) && showsPreview(part)" 
             class="media-container video-container"
             :ref="el => bindVideoContainer(partIndex, el)"
           >
@@ -263,7 +263,7 @@
 
           <!-- Audio URLs -->
           <div 
-            v-else-if="isAudioUrl(part.url)" 
+            v-else-if="isAudioUrl(part.url) && showsPreview(part)" 
             class="media-container audio-container"
           >
             <audio
@@ -951,6 +951,14 @@ export default defineComponent({
       return /\.(mp4|webm|ogg|avi|mov|wmv|flv|m4v)(?:[?#].*)?$/i.test(url);
     };
 
+    // metadata.suppress_embeds (set_message_embeds_suppressed) hides every preview and inline
+    // media of the message; its links render as <url> parts do.
+    const embedsSuppressed = computed(() => props.metadata?.suppress_embeds === true);
+    const showsPreview = (part: MessagePart): boolean => {
+      const preview = (part as { preview?: unknown }).preview;
+      return preview !== false && preview !== 'false';
+    };
+
     // An undecrypted message renders its ciphertext part alone: the mention
     // parts stored beside it are server metadata, not message content.
     const displayContent = computed(() =>
@@ -958,7 +966,10 @@ export default defineComponent({
         ? undecryptedDisplayParts(props.content)
         : groupMediaGalleryParts(
             coalesceInlineContentForMarkdown(
-              props.content,
+              embedsSuppressed.value
+                ? props.content.map((part) =>
+                    part && typeof part === 'object' && part.type === 'url' ? { ...part, preview: false } : part)
+                : props.content,
               (url) => isImageUrl(url) || isVideoUrl(url),
             ),
           ),
@@ -978,7 +989,8 @@ export default defineComponent({
     };
 
     const resolveEmbedPayload = (part: MessagePart): EmbedPayload | null => {
-      if (part && typeof part === 'object' && part.type === 'url' && part.preview === false) {
+      if (embedsSuppressed.value) return null;
+      if (part && typeof part === 'object' && part.type === 'url' && !showsPreview(part)) {
         return null;
       }
 
@@ -1380,6 +1392,7 @@ export default defineComponent({
       handleVideoPlay,
       isImageUrl,
       isVideoUrl,
+      showsPreview,
       isAudioUrl,
       sanitizeUrl,
       formatFileSize,

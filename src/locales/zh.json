@@ -453,6 +453,11 @@
       "stalled": "上传停滞：{seconds} 秒内没有进度。",
       "notSent": "消息未发送，已放回输入框。",
       "voiceNotSent": "语音消息发送失败。"
+    },
+    "embeds": {
+      "remove": "移除嵌入内容",
+      "show": "显示嵌入内容",
+      "failed": "无法更改消息的嵌入内容"
     }
   },
   "messageSearch": {

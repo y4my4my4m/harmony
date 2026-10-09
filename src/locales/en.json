@@ -461,6 +461,11 @@
       "stalled": "Upload stalled: no progress for {seconds} s.",
       "notSent": "The message was not sent. It is back in the composer.",
       "voiceNotSent": "The voice message could not be sent."
+    },
+    "embeds": {
+      "remove": "Remove embeds",
+      "show": "Show embeds",
+      "failed": "Couldn't change the message's embeds"
     }
   },
   "messageSearch": {

@@ -103,7 +103,9 @@ export function messagePartsToMarkdown(
         return part.roleId ? `@role:${part.roleId}` : '';
 
       case 'url':
-        return part.url || '';
+        // <url> is the send-time syntax for a link without a preview; an edit keeps it.
+        if (!part.url) return '';
+        return part.preview === false || (part as any).preview === 'false' ? `<${part.url}>` : part.url;
 
       case 'embed':
         return part.url || '';
