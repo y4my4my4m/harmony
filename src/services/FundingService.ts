@@ -87,6 +87,12 @@ export function donationLinkHref(
   }
 }
 
+/** Stripe links first: they credit the donor without a handle. Order within each group is kept. */
+export const orderDonationLinks = (links: FundingLink[]): FundingLink[] => [
+  ...links.filter(isStripeLink),
+  ...links.filter((link) => !isStripeLink(link)),
+]
+
 /** Whether any link needs the donor's handle in the donation message to be attributed. */
 export const needsHandleInMessage = (links: FundingLink[]): boolean =>
   links.some((link) => !isStripeLink(link))
