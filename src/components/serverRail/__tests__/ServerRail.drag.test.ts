@@ -26,8 +26,10 @@ vi.mock('@/composables/useServerPermissions', () => ({
     channelPermissions: computed(() => ({ canCreateChannels: false })),
   }),
 }))
+// Plain functions: afterEach's vi.restoreAllMocks() resets vi.fn() implementations,
+// and the rail's unread-feed subscriber reads the context on every mount.
 vi.mock('@/services/AuthContextService', () => ({
-  authContextService: { getCurrentContext: vi.fn().mockResolvedValue({ isAuthenticated: false }), getCurrentProfileId: vi.fn() },
+  authContextService: { getCurrentContext: async () => ({ isAuthenticated: false }), getCurrentProfileId: async () => null },
 }))
 vi.mock('@/services/UserEventChannel', () => ({
   userEventChannel: { connect: vi.fn(), on: vi.fn().mockReturnValue(() => {}), send: vi.fn(), disconnect: vi.fn() },
