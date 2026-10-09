@@ -302,10 +302,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       return (kind === 'mic' ? state.userMicMutes : state.userStreamMutes).has(userId);
     },
 
-    /** Own stream and P2P streams are always received. */
+    /** Own stream and P2P streams are always received; while a LiveKit join is in flight
+     *  (connectionMode null) only streams in the watch set count. */
     isWatchingStream: (state) => (userId: string): boolean => {
       if (userId === state.localState.userId) return true;
-      if (state.connectionMode !== 'livekit') return true;
+      if (state.connectionMode === 'p2p') return true;
       return state.watchedStreamUserIds.includes(userId);
     },
 

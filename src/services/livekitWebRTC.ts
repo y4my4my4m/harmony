@@ -1578,7 +1578,15 @@ export class LiveKitWebRTCService {
     
     for (const participant of existingParticipants.values()) {
       debug.log(`[LiveKit] Found existing participant: ${participant.identity}, sid: ${participant.sid}`);
-      
+
+      // autoSubscribe delivers a running stream before the watch set is applied below; drop it
+      // now, before the identity lookup awaits. onRemoteStreamPublished re-subscribes a watched one.
+      if (!this.autoWatchStreams) {
+        for (const publication of participant.trackPublications.values()) {
+          if (this.isStreamSource(publication.source)) (publication as RemoteTrackPublication).setSubscribed(false);
+        }
+      }
+
       // Resolve federated identity to profile UUID
       const userId = await resolveIdentityToUuid(participant.identity, this.remoteServerDomain);
       
@@ -1767,6 +1775,12 @@ export class LiveKitWebRTCService {
       const userId = await resolveIdentityToUuid(participant.identity, this.remoteServerDomain);
       // Identity is a fallback for internal lookups only.
       const lookupId = userId || participant.identity;
+
+      // A stream the viewer has not chosen to watch is dropped before anything attaches or renders.
+      if (this.isStreamSource(source) && !this.autoWatchStreams && !this.watchedStreams.has(lookupId)) {
+        (publication as RemoteTrackPublication).setSubscribed(false);
+        return;
+      }
 
       let state = this.allUserStates.get(lookupId) || this.allUserStates.get(participant.identity);
       if (!state) {
