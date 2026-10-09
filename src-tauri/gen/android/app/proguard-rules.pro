@@ -22,4 +22,5 @@
 
 # JNI calls these by name via reflection; minify must not rename/strip them.
 -keep class online.knowmad.harmony.MainActivity { *; }
+-keep class online.knowmad.harmony.HarmonyApplication { *; }
 -keep class online.knowmad.harmony.CallForegroundService { *; }
