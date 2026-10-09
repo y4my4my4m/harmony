@@ -522,6 +522,7 @@ send_notification	p_notification_type character varying, to_user_ids uuid[], not
 send_notification_to_user	p_notification_type character varying, p_to_user_id uuid, p_notification_data jsonb, p_server_id uuid, p_channel_id uuid, p_conversation_id uuid, p_from_user_id uuid, p_priority character varying	uuid	definer	public, extensions, pg_temp	service_role	client
 server_has_remote_members	p_server_id uuid	boolean	invoker	public, extensions, pg_temp	service_role	unreferenced
 server_newcomer_alerts_state	p_server_id uuid	jsonb	invoker	public, pg_temp	service_role	unreferenced
+server_settings_system_channel_check		trigger	definer	public, pg_temp		trigger
 session_meets_aal		boolean	definer	pg_catalog, public, pg_temp	anon+authenticated+service_role	policy
 session_step_up_fresh	p_method text, p_max_age interval	boolean	invoker	pg_catalog, public, pg_temp	service_role	unreferenced
 set_bot_allowed_channels	p_server_id uuid, p_bot_id uuid, p_channel_ids uuid[]	uuid[]	definer	public, pg_temp	authenticated+service_role	client

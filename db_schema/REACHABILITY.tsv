@@ -522,6 +522,7 @@ send_notification	definer	uuid[]	service_role	client, trigger	called by handle_m
 send_notification_to_user	definer	uuid	service_role	client, trigger	rpc in federation-backend/src/activitypub/ActivityProcessor.ts
 server_has_remote_members	invoker	boolean	service_role	service key	nothing references it
 server_newcomer_alerts_state	invoker	jsonb	service_role	client, trigger	called by get_server_newcomer_alerts, handle_newcomer_first_message, set_server_newcomer_alerts
+server_settings_system_channel_check	definer	trigger	-	trigger	trigger public.server_settings BEFORE INSERT/UPDATE (server_settings_system_channel_check)
 session_meets_aal	definer	boolean	anon+authenticated+service_role	client, policy	policy public.messages SELECT on messages_session_aal, realtime.messages ALL on realtime_messages_session_aal, storage.objects ALL on storage_objects_session_aal
 session_step_up_fresh	invoker	boolean	service_role	client	called by delete_my_account, generate_mfa_recovery_codes
 set_bot_allowed_channels	definer	uuid[]	authenticated+service_role	client	rpc in src/components/settings/ServerBotsSettings.vue
