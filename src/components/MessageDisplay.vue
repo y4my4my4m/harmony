@@ -120,8 +120,9 @@
           @mousedown="handleMessageMouseDown"
           @dblclick="handleMessageDoubleClick(item.message.id, $event)"
           @touchstart.passive="handleMessageTouchStart(item.message.id, $event)"
-          @touchend.passive="handleMessageTouchEnd(item.message.id)"
+          @touchend.passive="handleMessageTouchEnd(item.message.id, $event)"
           @touchmove.passive="handleMessageTouchMove"
+          @touchcancel.passive="cancelMessageLongPress"
           @contextmenu="handleMessageContextMenu(item.message, $event)"
         >
           <!-- Hide button for revealed blocked messages -->
@@ -361,6 +362,7 @@
               @show-reaction-tooltip="showTooltip"
               @hide-reaction-tooltip="hideTooltip"
               @open-emoji-picker="handleOpenEmojiPicker"
+              @open-reactions="openReactionsModal"
               @layout-change="handleReactionsLayoutChange"
             />
           </div>
@@ -523,6 +525,7 @@
           @show-reaction-tooltip="showTooltip"
           @hide-reaction-tooltip="hideTooltip"
           @open-emoji-picker="handleOpenEmojiPicker"
+          @open-reactions="openReactionsModal"
           @layout-change="handleReactionsLayoutChange"
         />
         
@@ -606,6 +609,15 @@
     :users="tooltip.content"
   />
 
+  <ReactionsModal
+    v-if="reactionsModal"
+    :message-id="reactionsModal.messageId"
+    :initial-emoji-key="reactionsModal.emojiKey"
+    :resolvers="reactionUserResolvers"
+    @close="closeReactionsModal"
+    @select-user="handleReactionUserSelect"
+  />
+
   <!-- Mobile: message-actions floating above tap (thumb reach ~48px) -->
   <MessageFloatingActions
     v-if="isMobile && hoveredMessageId && mobileActionTapPosition && hoveredMessageItem"
@@ -640,6 +652,7 @@
     @add-reaction="handleContextMenuReaction"
     @open-emoji-picker="handleContextMenuEmojiPicker"
     @report="handleReportMessage"
+    @view-reactions="(message: Message) => openReactionsModal(message.id, null)"
     @reply="replyTo"
     @edit="startEdit"
     @thread="createThread"
@@ -678,7 +691,7 @@ import EmptyState from '@/components/common/EmptyState.vue';
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';
-import type { Message, MessagePart, User, Emoji, Reaction, FileContent } from '@/types';
+import type { Message, MessagePart, User, Emoji, FileContent, ReactionActor, ReactionGroup } from '@/types';
 import { hasSubstantiveMessageContent, removeFilePartByUrl } from '@/utils/messageContentUtils';
 import { isBridgedAuthorMessage } from '@/utils/messageAuthor';
 import { ensureMediaPartSources, isPrivateMediaPart, mediaLoadKey, mediaPartSource } from '@/services/privateMedia';
@@ -725,6 +738,14 @@ import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import ConversationBeginning from '@/components/ConversationBeginning.vue';
 import ReactionTooltip from '@/components/messages/ReactionTooltip.vue';
+import ReactionsModal from '@/components/messages/ReactionsModal.vue';
+import {
+  formatUserHandle,
+  reactionProfileIds,
+  toReactionUsers,
+  type ReactionUser,
+  type ReactionUserResolvers,
+} from '@/utils/reactionUsers';
 import BridgeSourceBadge from '@/components/messages/BridgeSourceBadge.vue';
 import CallJoinButton from '@/components/messages/CallJoinButton.vue';
 import {
@@ -1172,6 +1193,7 @@ const { triggerInteraction, triggerDestructive } = useHapticSettings();
 const quickReact = useQuickReactSettings();
 const { isMobile } = useLayoutState();
 const { 
+  getUser,
   getUserDisplayName, 
   getUserColor, 
   getUserAvatarUrl, 
@@ -1479,14 +1501,7 @@ const imageLoaded: Ref<Record<string, boolean>> = ref({});
 const embedLoaded: Ref<Record<string, number>> = ref({}); // Track embed load count per message
 const tooltip = ref({
   visible: false,
-  content: [] as {
-    id: string
-    displayName: string
-    avatarUrl: string
-    userColor: string
-    isBridged?: boolean
-    bridgeSource?: string
-  }[],
+  content: [] as ReactionUser[],
   x: 0,
   y: 0,
   emoji: null as Emoji | null,
@@ -1514,11 +1529,30 @@ const handleMessageMouseleave = () => {
   }
 };
 
+const LONG_PRESS_MOVE_TOLERANCE = 10; // px of finger jitter tolerated before cancel
+let longPressStartPos: { x: number; y: number } | null = null;
+
+// Reaction pills own their touch gestures: tap toggles, long-press opens the
+// reactions list. Propagation stays intact; window-level swipe gestures may start on a pill.
+const isReactionTouch = (event: TouchEvent): boolean =>
+  event.target instanceof Element && !!event.target.closest('.message-reactions');
+
+const cancelMessageLongPress = () => {
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value);
+    longPressTimer.value = null;
+  }
+  longPressStartPos = null;
+};
+
 const handleMessageTouchStart = (messageId: string, event: TouchEvent) => {
-  if (outbox.has(messageId)) return;
+  cancelMessageLongPress();
+  if (outbox.has(messageId) || isReactionTouch(event)) return;
   const touch = event.touches[0];
   const tapPos = touch ? { x: touch.clientX, y: touch.clientY } : null;
+  longPressStartPos = tapPos;
   longPressTimer.value = setTimeout(() => {
+    longPressTimer.value = null;
     hoveredMessageId.value = messageId;
     mobileActionTapPosition.value = tapPos;
     triggerInteraction();
@@ -1530,10 +1564,11 @@ const handleMessageTouchStart = (messageId: string, event: TouchEvent) => {
 const DOUBLE_TAP_WINDOW = 300;
 const lastTap = ref<{ id: string; time: number } | null>(null);
 
-const handleMessageTouchEnd = (messageId: string) => {
-  if (longPressTimer.value) {
-    clearTimeout(longPressTimer.value);
-    longPressTimer.value = null;
+const handleMessageTouchEnd = (messageId: string, event: TouchEvent) => {
+  cancelMessageLongPress();
+  if (isReactionTouch(event)) {
+    lastTap.value = null;
+    return;
   }
   // Skip double-tap if the long-press action bar is already showing.
   if (hoveredMessageId.value === messageId && mobileActionTapPosition.value) return;
@@ -1547,10 +1582,16 @@ const handleMessageTouchEnd = (messageId: string) => {
   lastTap.value = { id: messageId, time: now };
 };
 
-const handleMessageTouchMove = () => {
-  if (longPressTimer.value) {
-    clearTimeout(longPressTimer.value);
-    longPressTimer.value = null;
+// Cancels on drags only; a zero tolerance never fires for a resting finger.
+// Mirrors UserSidebar's member long-press.
+const handleMessageTouchMove = (event: TouchEvent) => {
+  if (!longPressTimer.value || !longPressStartPos) return;
+  const touch = event.touches[0];
+  if (!touch) return;
+  const dx = Math.abs(touch.clientX - longPressStartPos.x);
+  const dy = Math.abs(touch.clientY - longPressStartPos.y);
+  if (dx > LONG_PRESS_MOVE_TOLERANCE || dy > LONG_PRESS_MOVE_TOLERANCE) {
+    cancelMessageLongPress();
   }
 };
 
@@ -2694,52 +2735,31 @@ onUnmounted(() => {
 // --- METHODS ---
 
 // Tooltip Handling
-const showTooltip = async (event: MouseEvent, reaction: Reaction) => {
+// Generation counter: a hide during the profile preload drops the pending show.
+let tooltipGeneration = 0;
+
+const showTooltip = async (event: MouseEvent, reaction: ReactionGroup) => {
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
-  
-  const harmonyUserIds = reaction.reactions
-    .filter(r => r.user_id)
-    .map(r => r.user_id);
-  
-  if (harmonyUserIds.length > 0) {
-    await ensureProfilesAvailable(harmonyUserIds).catch(error => 
+  const generation = ++tooltipGeneration;
+  // currentTarget is null once dispatch ends; the anchor is read before the await.
+  const anchor = getReactionTooltipAnchor(event);
+
+  const profileIds = reactionProfileIds(reaction.reactions);
+  if (profileIds.length > 0) {
+    await ensureProfilesAvailable(profileIds).catch(error =>
       debug.error("Error ensuring profiles for tooltip:", error)
     );
   }
+  if (generation !== tooltipGeneration) return;
 
-  const usersDetails = reaction.reactions.map(r => {
-    // Check if this is a bridged Discord reaction (has metadata.discord_user)
-    if (r.metadata?.discord_user) {
-      const discordUser = r.metadata.discord_user;
-      return {
-        id: discordUser.id,
-        displayName: discordUser.display_name || discordUser.username || 'Discord User',
-        avatarUrl: discordUser.avatar_url || '',
-        userColor: BOT_NAME_COLOR,
-        isBridged: true,
-        bridgeSource: 'discord'
-      };
-    }
-    
-    // Regular Harmony user - use role color where available, like the
-    // username in the message header. Keeps the reaction tooltip consistent
-    // with the rest of the chat.
-    return {
-      id: r.user_id,
-      displayName: getUserDisplayName(r.user_id).value,
-      avatarUrl: getUserAvatarUrl(r.user_id).value,
-      userColor: resolveChatUserColor(r.user_id),
-      isBridged: false
-    };
-  });
-  
-  const anchor = getReactionTooltipAnchor(event);
+  const usersDetails = toReactionUsers(reaction.reactions, reactionUserResolvers);
   tooltipTimer.value = setTimeout(() => {
     tooltip.value = { visible: true, content: usersDetails, x: anchor.x, y: anchor.y, emoji: reaction.emoji };
   }, 500);
 };
 
 const hideTooltip = () => {
+  tooltipGeneration++;
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
   tooltipTimer.value = null;
   tooltip.value.visible = false;
@@ -3471,6 +3491,78 @@ const handleMessageContextMenu = (message: Message, event: MouseEvent) => {
 const closeContextMenu = () => {
   contextMenuVisible.value = false;
   contextMenuMessage.value = null;
+};
+
+const reactionUserResolvers: ReactionUserResolvers = {
+  displayName: (userId) => getUserDisplayName(userId).value,
+  avatarUrl: (userId) => getUserAvatarUrl(userId).value,
+  color: resolveChatUserColor,
+  handle: (userId) => formatUserHandle(getUser(userId).value),
+  bot: (botId) => {
+    const bot = botDataCache.value.get(botId);
+    if (!bot) return null;
+    return {
+      displayName: bot.display_name || bot.username,
+      avatarUrl: bot.avatar_url || '/default_avatar.webp',
+      username: bot.username,
+    };
+  },
+  preload: (actors: ReactionActor[]) => {
+    const profileIds = reactionProfileIds(actors);
+    if (profileIds.length > 0) {
+      ensureProfilesAvailable(profileIds).catch(error =>
+        debug.error('Error ensuring profiles for reactions list:', error)
+      );
+    }
+    for (const actor of actors) {
+      if (actor.bot_id && !actor.user_id && !actor.metadata?.discord_user) void fetchBotData(actor.bot_id);
+    }
+  },
+};
+
+/** emojiKey is a reactionGroupKey; null opens the first tab. */
+const reactionsModal = ref<{ messageId: string; emojiKey: string | null } | null>(null);
+
+const openReactionsModal = (messageId: string, emojiKey: string | null) => {
+  if (isOptimisticId(messageId)) return;
+  hideTooltip();
+  if (isMobile.value) {
+    hoveredMessageId.value = null;
+    mobileActionTapPosition.value = null;
+  }
+  reactionsModal.value = { messageId, emojiKey };
+};
+
+const closeReactionsModal = () => {
+  reactionsModal.value = null;
+};
+
+// The list closes first: UserProfileModal is a BaseModal at the same z-index
+// whose teleport mounts earlier, so it would paint beneath the list. The
+// profile opens after the unmount flush, which resets BaseModal's body overflow.
+const handleReactionUserSelect = async (user: ReactionUser) => {
+  closeReactionsModal();
+  await nextTick();
+  if (user.kind === 'discord' && user.discordUser) {
+    const meta = user.discordUser;
+    const cached = findBridgedUserInCache(props.channelId, meta.id);
+    selectedUser.value = bridgedUserToProfileUser(
+      cached ?? discordMetadataToBridgedUser({ ...meta, username: meta.username || meta.id }),
+    ) as User;
+    showProfileModal.value = true;
+    return;
+  }
+  if (user.kind === 'bot') {
+    const bot = botDataCache.value.get(user.id);
+    selectedBot.value = {
+      id: user.id,
+      username: bot?.username,
+      displayName: user.displayName,
+      avatarUrl: bot?.avatar_url || undefined,
+    };
+    return;
+  }
+  if (user.id) void showUserProfile(user.id);
 };
 
 

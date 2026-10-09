@@ -431,7 +431,10 @@
     "reactions": {
       "add": "반응 추가",
       "remove": "반응 제거",
-      "reactedWith": "반응했습니다"
+      "reactedWith": "반응했습니다",
+      "view": "반응 보기",
+      "title": "반응",
+      "empty": "반응 없음"
     },
     "typing": {
       "single": "님이 입력 중...",

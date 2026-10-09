@@ -431,7 +431,10 @@
     "reactions": {
       "add": "添加反应",
       "remove": "移除反应",
-      "reactedWith": "做出了反应"
+      "reactedWith": "做出了反应",
+      "view": "查看反应",
+      "title": "反应",
+      "empty": "暂无反应"
     },
     "typing": {
       "single": " 正在输入...",

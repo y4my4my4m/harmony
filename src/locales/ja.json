@@ -431,7 +431,10 @@
     "reactions": {
       "add": "リアクションを追加",
       "remove": "リアクションを削除",
-      "reactedWith": "がリアクションしました"
+      "reactedWith": "がリアクションしました",
+      "view": "リアクションを表示",
+      "title": "リアクション",
+      "empty": "リアクションはありません"
     },
     "typing": {
       "single": " が入力中...",

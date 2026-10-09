@@ -445,7 +445,10 @@
     "reactions": {
       "add": "Add reaction",
       "remove": "Remove reaction",
-      "reactedWith": "reacted with"
+      "reactedWith": "reacted with",
+      "view": "View reactions",
+      "title": "Reactions",
+      "empty": "No reactions"
     },
     "upload": {
       "progress": "Uploading, {percent}%",

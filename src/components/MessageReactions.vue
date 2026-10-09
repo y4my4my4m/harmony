@@ -10,9 +10,15 @@
           'reacted': reactionGroup.current_user_reacted,
           'loading': isLoadingReactions 
         }"
+        :data-emoji-key="getReactionKey(reactionGroup)"
         @click="handleReactionClick(reactionGroup.emoji, getReactionKey(reactionGroup))"
         @mouseenter="showTooltip($event, reactionGroup)"
         @mouseleave="hideTooltip"
+        @contextmenu="handlePillContextMenu(reactionGroup, $event)"
+        @touchstart.passive="handlePillTouchStart(reactionGroup, $event)"
+        @touchmove.passive="handlePillTouchMove"
+        @touchend="handlePillTouchEnd"
+        @touchcancel.passive="cancelPillPress"
       >
         <!-- Custom server emoji with URL (priority) -->
         <template v-if="reactionGroup.emoji?.url && !(reactionGroup.emoji as any)?.is_native">
@@ -65,7 +71,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch, nextTick } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue';
 import { debug } from '@/utils/debug'
 import { useReactionsStore } from '@/stores/useReactions';
 import { useProfileStore } from '@/stores/useProfile';
@@ -74,6 +80,7 @@ import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
+import { reactionGroupKey } from '@/utils/reactionUsers';
 import Icon from '@/components/common/Icon.vue';
 import type { Message, Emoji } from '@/types';
 
@@ -86,6 +93,7 @@ interface Emits {
   (e: 'show-reaction-tooltip', event: MouseEvent, reactionGroup: any): void;
   (e: 'hide-reaction-tooltip'): void;
   (e: 'open-emoji-picker', messageId: string, event: MouseEvent): void;
+  (e: 'open-reactions', messageId: string, emojiKey: string): void;
   (e: 'layout-change', messageId: string): void;
 }
 
@@ -95,15 +103,12 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>();
 
-const getReactionKey = (reactionGroup: any): string => {
-  if (reactionGroup.emoji_id) return reactionGroup.emoji_id
-  return reactionGroup.emoji?.name || 'unknown'
-};
+const getReactionKey = reactionGroupKey;
 
 const reactionsStore = useReactionsStore();
 const profileStore = useProfileStore();
 const themeStore = useThemeStore();
-const { triggerReaction } = useHapticSettings();
+const { triggerReaction, triggerInteraction } = useHapticSettings();
 const { recordEmojiUsage } = useFrequentEmojis();
 const { resolveEmoji } = useUnifiedEmoji();
 
@@ -155,6 +160,73 @@ const showTooltip = (event: MouseEvent, reactionGroup: any) => {
 const hideTooltip = () => {
   emit('hide-reaction-tooltip');
 };
+
+// Long-press on a pill opens the reactions list; 450ms, under the message
+// row's 500ms long-press.
+const PILL_LONG_PRESS_MS = 450;
+const PILL_MOVE_TOLERANCE_PX = 10;
+let pillPressTimer: ReturnType<typeof setTimeout> | null = null;
+let pillPressStart: { x: number; y: number } | null = null;
+let pillPressFired = false;
+
+const cancelPillPress = () => {
+  if (pillPressTimer) {
+    clearTimeout(pillPressTimer);
+    pillPressTimer = null;
+  }
+  pillPressStart = null;
+};
+
+const openReactions = (reactionGroup: any) => {
+  emit('hide-reaction-tooltip');
+  emit('open-reactions', props.message.id, getReactionKey(reactionGroup));
+};
+
+const handlePillTouchStart = (reactionGroup: any, event: TouchEvent) => {
+  cancelPillPress();
+  pillPressFired = false;
+  const touch = event.touches[0];
+  if (!touch || event.touches.length > 1) return;
+  pillPressStart = { x: touch.clientX, y: touch.clientY };
+  pillPressTimer = setTimeout(() => {
+    pillPressTimer = null;
+    pillPressFired = true;
+    triggerInteraction();
+    openReactions(reactionGroup);
+  }, PILL_LONG_PRESS_MS);
+};
+
+const handlePillTouchMove = (event: TouchEvent) => {
+  if (!pillPressTimer || !pillPressStart) return;
+  const touch = event.touches[0];
+  if (!touch) return;
+  const dx = Math.abs(touch.clientX - pillPressStart.x);
+  const dy = Math.abs(touch.clientY - pillPressStart.y);
+  if (dx > PILL_MOVE_TOLERANCE_PX || dy > PILL_MOVE_TOLERANCE_PX) cancelPillPress();
+};
+
+// After a fired long-press the compatibility click is cancelled: it would
+// toggle the pill, or land on the modal overlay now under the finger and close it.
+const handlePillTouchEnd = (event: TouchEvent) => {
+  cancelPillPress();
+  if (pillPressFired && event.cancelable) event.preventDefault();
+  pillPressFired = false;
+};
+
+// Right-click, and the contextmenu Android fires during a long-press. Stopped
+// here so the message row does not open its own menu over the list.
+const handlePillContextMenu = (reactionGroup: any, event: MouseEvent) => {
+  event.preventDefault();
+  event.stopPropagation();
+  if (pillPressFired) return;
+  if (pillPressStart) {
+    cancelPillPress();
+    pillPressFired = true;
+  }
+  openReactions(reactionGroup);
+};
+
+onBeforeUnmount(cancelPillPress);
 
 const brokenEmojiUrls = ref(new Set<string>());
 
@@ -264,6 +336,9 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
   font-size: 0.875rem;
   transition: background-color 0.15s ease-out, border-color 0.15s ease-out, opacity 0.15s ease-out, transform 0.15s ease-out;
   user-select: none;
+  -webkit-user-select: none;
+  /* iOS shows a link/image callout on long-press otherwise. */
+  -webkit-touch-callout: none;
   min-height: 22px;
 }
 

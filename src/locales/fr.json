@@ -431,7 +431,10 @@
     "reactions": {
       "add": "Ajouter une réaction",
       "remove": "Retirer la réaction",
-      "reactedWith": "a réagi avec"
+      "reactedWith": "a réagi avec",
+      "view": "Voir les réactions",
+      "title": "Réactions",
+      "empty": "Aucune réaction"
     },
     "typing": {
       "single": " est en train de taper...",

@@ -49,6 +49,11 @@
       <span>Add reaction</span>
     </div>
 
+    <div v-if="hasReactions" class="context-menu-item" data-testid="context-menu-view-reactions" @click="viewReactions">
+      <Icon name="smile" size="sm" />
+      <span>{{ $t('message.reactions.view') }}</span>
+    </div>
+
     <div v-if="canReply" class="context-menu-item" @click="reply">
       <ReplyIcon />
       <span>Reply</span>
@@ -157,6 +162,7 @@ import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useDeveloperTools } from '@/composables/useDeveloperTools';
 import { usePinActions } from '@/composables/usePinActions';
+import { useReactionsStore } from '@/stores/useReactions';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { messagePartsToPlainText } from '@/utils/messageContentUtils';
 import { downloadMediaFromUrl, filenameFromUrl } from '@/utils/downloadMedia';
@@ -208,6 +214,7 @@ const emit = defineEmits<{
   'open-emoji-picker': [position: { x: number; y: number }]
   'pin-changed': []
   report: [message: Message]
+  'view-reactions': [message: Message]
   reply: [message: Message]
   edit: [message: Message]
   thread: [message: Message]
@@ -219,8 +226,12 @@ const { triggerReaction } = useHapticSettings();
 const { canPinMessages } = useServerPermissions();
 const { setPinned } = usePinActions();
 const { developerToolsEnabled } = useDeveloperTools();
+const reactionsStore = useReactionsStore();
 
 const isPinned = computed(() => props.message?.is_pinned || false);
+const hasReactions = computed(() =>
+  !!props.message && reactionsStore.getMessageReactions(props.message.id).length > 0
+);
 const canPin = computed(() => canPinMessages.value);
 const canReport = computed(() => {
   if (!props.message) return false;
@@ -362,6 +373,12 @@ const addQuickReaction = (emoji: any) => {
 
 const openEmojiPicker = () => {
   emit('open-emoji-picker', { ...adjustedPosition.value });
+  emit('close');
+};
+
+const viewReactions = () => {
+  if (!props.message) return;
+  emit('view-reactions', props.message);
   emit('close');
 };
 

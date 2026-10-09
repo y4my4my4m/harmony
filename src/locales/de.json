@@ -431,7 +431,10 @@
     "reactions": {
       "add": "Reaktion hinzufügen",
       "remove": "Reaktion entfernen",
-      "reactedWith": "hat reagiert mit"
+      "reactedWith": "hat reagiert mit",
+      "view": "Reaktionen anzeigen",
+      "title": "Reaktionen",
+      "empty": "Keine Reaktionen"
     },
     "typing": {
       "single": " tippt...",
