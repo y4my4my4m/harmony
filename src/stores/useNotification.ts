@@ -7,6 +7,7 @@ import { NotificationFormatter } from '@/services/NotificationFormatter'
 import { nativeNotify } from '@/services/nativeNotify'
 import { isTauriRuntime } from '@/services/instanceConfig'
 import { getEmojiUrl } from '@/utils/emojiUtils'
+import { discordEmojiCdnUrl, parseDiscordEmojiToken } from '@/utils/discordEmoji'
 import { services } from '@/services'
 import { authContextService } from '@/services/AuthContextService'
 import { userDataService } from '@/services/userDataService'
@@ -1040,6 +1041,13 @@ export const useNotificationStore = defineStore('notification', {
             
             if (emojiUrl) {
               emojiUrl = getEmojiUrl(emojiUrl, 48)
+            } else {
+              // Bridged Discord reactions carry discord:name:id and no url.
+              const discord = emojiName ? parseDiscordEmojiToken(emojiName) : null
+              if (discord) {
+                emojiUrl = discordEmojiCdnUrl(discord)
+                emojiName = discord.name
+              }
             }
           }
           

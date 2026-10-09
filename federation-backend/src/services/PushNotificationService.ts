@@ -1046,7 +1046,8 @@ class PushNotificationServiceClass {
 
       case 'reaction':
         title = `${senderName}${senderDomain} reacted to your message`;
-        message = data.reaction?.emoji_name || '❤️';
+        // A bridged Discord reaction names its emoji discord:[a:]name:id.
+        message = (data.reaction?.emoji_name || '❤️').replace(/^discord:(?:a:)?([^:]+):\d+$/, ':$1:');
         break;
       
       case 'friend_request':

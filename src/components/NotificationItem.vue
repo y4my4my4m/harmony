@@ -93,6 +93,7 @@ import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import { NotificationFormatter } from '@/services/NotificationFormatter'
 import { getEmojiUrl } from '@/utils/emojiUtils'
+import { discordEmojiCdnUrl, parseDiscordEmojiToken } from '@/utils/discordEmoji'
 import { shortRelativeTime } from '@/utils/notificationInbox'
 import type { Notification } from '@/types'
 import Avatar from '@/components/common/Avatar.vue'
@@ -164,6 +165,9 @@ const reactionEmoji = computed(() => {
   const url = reaction?.emoji_url || data.value.emoji_url
   const raw = String(reaction?.emoji_name || reaction?.custom_emoji_content || data.value.emoji_name || '').trim()
   if (url) return { url: getEmojiUrl(url, 48), name: raw.replace(/^:|:$/g, ''), text: '' }
+  // Bridged Discord reactions carry discord:name:id and no url.
+  const discord = parseDiscordEmojiToken(raw)
+  if (discord) return { url: discordEmojiCdnUrl(discord), name: discord.name, text: '' }
   if (!raw) return null
   return { url: null, name: raw, text: raw }
 })
