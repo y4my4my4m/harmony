@@ -17,8 +17,22 @@
         @keydown.enter.prevent.stop="toggleDropdown"
         @keydown.space.prevent.stop="toggleDropdown"
       >
+        <Icon
+          v-if="remoteHost !== null"
+          name="globe"
+          :size="16"
+          class="server-remote-icon"
+          :aria-label="$t('federation.remoteServer')"
+        />
         <span class="server-name-text">{{ currentServer.name }}</span>
         <Icon name="chevron-down" :size="16" class="server-name-chevron" />
+      </div>
+      <div
+        v-if="remoteHost !== null"
+        class="server-remote-strip"
+        :title="$t('federation.federatedNotice')"
+      >
+        {{ $t('federation.hosted') }} <strong>{{ remoteHost || $t('federation.remoteServer') }}</strong>
       </div>
       <ServerDropdown
         :serverId="currentServer.id"
@@ -422,6 +436,7 @@ import HashTagIcon from '@/components/icons/HashTag.vue';
 import SpeakerIcon from '@/components/icons/Speaker.vue';
 import ChatBubbleIcon from '@/components/icons/ChatBubble.vue';
 import Icon from '@/components/common/Icon.vue';
+import { remoteServerHost } from '@/utils/serverUtils';
 import ServerDropdown from './ServerDropdown.vue';
 import CategoryCreator from './CategoryCreator.vue';
 import InviteModal from './InviteModal.vue';
@@ -593,6 +608,8 @@ const dragGroup = computed(() => ({
 //
 // Absent server yields `undefined`, not `null`: the `server-data` prop is
 // typed `T | undefined`, and `null` raises TS2322.
+const remoteHost = computed(() => remoteServerHost(props.currentServer));
+
 const currentServerData = computed(() => {
   if (!props.currentServer) return undefined;
   return {
@@ -1410,6 +1427,28 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.server-remote-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.server-remote-strip {
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: var(--background-tertiary);
+  border-bottom: 1px solid var(--border-color);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.server-remote-strip strong {
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 .server-name-chevron {

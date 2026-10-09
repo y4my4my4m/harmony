@@ -294,3 +294,27 @@ export function normalizeServerForStorage(serverUrl: string | null | undefined):
   // External URL (including other Supabase instances) - store full URL
   return trimmed
 }
+
+type FederatedServerFields = {
+  name?: string
+  is_local_server?: boolean
+  federation_domain?: string | null
+  federation_inbox_url?: string | null
+}
+
+/** Host of a remote server; null for a server on this instance, '' when the host is unknown. */
+export function remoteServerHost(server: FederatedServerFields | null | undefined): string | null {
+  if (!server || server.is_local_server !== false) return null
+  if (server.federation_domain) return server.federation_domain
+  try {
+    return new URL(server.federation_inbox_url ?? '').host
+  } catch {
+    return ''
+  }
+}
+
+/** Server name, suffixed with the host for a remote server. */
+export function serverDisplayLabel(server: FederatedServerFields): string {
+  const host = remoteServerHost(server)
+  return host ? `${server.name ?? ''} · ${host}` : server.name ?? ''
+}

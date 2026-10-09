@@ -7,7 +7,7 @@
     data-rail-kind="server"
     :data-rail-id="server.id"
     :data-rail-folder="folderId ?? undefined"
-    :aria-label="server.name"
+    :aria-label="serverDisplayLabel(server)"
     :aria-current="selected ? 'page' : undefined"
   >
     <div class="server-pill" :class="{ visible: selected, 'has-unread': hasUnread && !selected }"></div>
@@ -22,12 +22,17 @@
       :interactive="true"
       :show-title="false"
     />
+    <div v-if="server.is_local_server === false" class="remote-server-badge" aria-hidden="true">
+      <Icon name="globe" :size="10" />
+    </div>
     <div v-if="mentions > 0" class="unread-badge">{{ mentions > 99 ? '99+' : mentions }}</div>
   </div>
 </template>
 
 <script setup lang="ts">
 import ServerIcon from '@/components/common/ServerIcon.vue'
+import Icon from '@/components/common/Icon.vue'
+import { serverDisplayLabel } from '@/utils/serverUtils'
 import { useRailServerState } from './railState'
 import type { Server } from '@/types'
 
@@ -125,6 +130,23 @@ const { selected, mentions, hasUnread, muted } = useRailServerState(() => props.
 .rail-server:hover .server-pill.visible {
   opacity: 1;
   height: 36px;
+}
+
+/* Server hosted by another instance; opposite corner from the unread badge. */
+.remote-server-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--background-secondary);
+  color: var(--text-secondary);
+  box-shadow: 0 0 0 2px var(--background-tertiary);
+  pointer-events: none;
 }
 
 .unread-badge {
