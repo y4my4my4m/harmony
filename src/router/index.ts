@@ -371,7 +371,7 @@ const router = createRouter({
       path: '/admin',
       name: 'AdminPanel',
       component: () => import('@/views/AdminPanel.vue'),
-      meta: { requiresAuth: true, requiresAdmin: true }
+      meta: { requiresAuth: true, requiresStaff: true }
     },
     // "Today" dashboard (beta, gated by a per-user setting)
     {
@@ -458,7 +458,7 @@ router.beforeEach(async (to, from, next) => {
     return;
   }
 
-  if (to.meta.requiresAdmin && isLoggedIn) {
+  if ((to.meta.requiresAdmin || to.meta.requiresStaff) && isLoggedIn) {
     const profileStore = useProfileStore();
     if (!profileStore.profileFetched) {
       const authStore2 = useAuthStore();
@@ -471,7 +471,11 @@ router.beforeEach(async (to, from, next) => {
         await profileStore.fetchProfileByAuthUserId(authUserId);
       }
     }
-    if (!profileStore.profile?.is_admin) {
+    const profile = profileStore.profile;
+    const allowed = to.meta.requiresAdmin
+      ? profile?.is_admin === true
+      : profile?.is_admin === true || profile?.is_moderator === true;
+    if (!allowed) {
       next({ name: 'Chat' });
       return;
     }

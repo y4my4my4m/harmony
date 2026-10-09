@@ -677,6 +677,7 @@
     "connections": "Verbindungen",
     "administration": "Administration",
     "instanceAdmin": "Instanz-Admin",
+    "instanceModeration": "Instanzmoderation",
     "appearance": {
       "title": "Erscheinungsbild",
       "description": "Passe an, wie Harmony aussieht und sich anfühlt.",

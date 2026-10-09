@@ -677,6 +677,7 @@
     "connections": "连接",
     "administration": "管理",
     "instanceAdmin": "实例管理",
+    "instanceModeration": "实例审核",
     "appearance": {
       "title": "外观",
       "description": "自定义 Harmony 的外观和感觉。",

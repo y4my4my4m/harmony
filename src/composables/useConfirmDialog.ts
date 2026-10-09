@@ -7,54 +7,81 @@ interface ConfirmDialogOptions {
   dangerAction?: boolean
 }
 
+interface PromptDialogOptions extends ConfirmDialogOptions {
+  label?: string
+  placeholder?: string
+  initialValue?: string
+}
+
 const visible = ref(false)
 const dialogTitle = ref('')
 const dialogMessage = ref('')
 const dialogConfirmText = ref('Confirm')
 const dialogDanger = ref(false)
+/** Set while a prompt() is open: the modal shows a text field. */
+const dialogInput = ref<{ label: string; placeholder: string; initialValue: string } | null>(null)
 
-let resolvePromise: ((value: boolean) => void) | null = null
+let resolvePromise: ((value: any) => void) | null = null
+
+function open(opts: ConfirmDialogOptions) {
+  // A dialog still open resolves as cancelled.
+  if (resolvePromise) resolvePromise(dialogInput.value ? null : false)
+  dialogTitle.value = opts.title
+  dialogMessage.value = opts.message
+  dialogConfirmText.value = opts.confirmButtonText ?? 'Confirm'
+  dialogDanger.value = opts.dangerAction ?? false
+  visible.value = true
+}
 
 /**
- * Promise-based replacement for window.confirm().
+ * Promise-based replacements for window.confirm() and window.prompt(); prompt() is absent
+ * from Tauri's webviews. The dialog is mounted once, in App.vue.
  *
- * Usage in a component:
- *   1. Import and destructure: const { confirm, ...confirmState } = useConfirmDialog()
- *   2. Add <ConfirmationModal v-bind="confirmState" /> to the template
- *   3. Replace `if (window.confirm('...'))` with `if (await confirm({ title, message }))`
+ *   if (await confirm({ title, message })) ...
+ *   const reason = await prompt({ title, message, label })   // null when cancelled
  */
 export function useConfirmDialog() {
   async function confirm(opts: ConfirmDialogOptions): Promise<boolean> {
-    dialogTitle.value = opts.title
-    dialogMessage.value = opts.message
-    dialogConfirmText.value = opts.confirmButtonText ?? 'Confirm'
-    dialogDanger.value = opts.dangerAction ?? false
-    visible.value = true
-
+    open(opts)
+    dialogInput.value = null
     return new Promise<boolean>((resolve) => {
       resolvePromise = resolve
     })
   }
 
-  function handleConfirm() {
+  async function prompt(opts: PromptDialogOptions): Promise<string | null> {
+    open(opts)
+    dialogInput.value = {
+      label: opts.label ?? '',
+      placeholder: opts.placeholder ?? '',
+      initialValue: opts.initialValue ?? '',
+    }
+    return new Promise<string | null>((resolve) => {
+      resolvePromise = resolve
+    })
+  }
+
+  function handleConfirm(value?: string) {
     visible.value = false
-    resolvePromise?.(true)
+    resolvePromise?.(dialogInput.value ? (value ?? '') : true)
     resolvePromise = null
   }
 
   function handleClose() {
     visible.value = false
-    resolvePromise?.(false)
+    resolvePromise?.(dialogInput.value ? null : false)
     resolvePromise = null
   }
 
   return {
     confirm,
+    prompt,
     confirmDialogVisible: readonly(visible),
     confirmDialogTitle: readonly(dialogTitle),
     confirmDialogMessage: readonly(dialogMessage),
     confirmDialogConfirmText: readonly(dialogConfirmText),
     confirmDialogDanger: readonly(dialogDanger),
+    confirmDialogInput: readonly(dialogInput),
     handleConfirm,
     handleClose,
   }

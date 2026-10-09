@@ -239,8 +239,8 @@ SELECT results_eq(
     'the reporter is told the outcome without the moderator''s identity');
 
 SELECT tests.authenticate_as('eeeeeeee-0000-0000-0000-000000000051');
-SELECT throws_ok($q$SELECT public.moderate_report((SELECT v FROM ids WHERE k = 'msg'), 'silence_account')$q$,
-                 '42501', NULL, 'account actions are for instance admins');
+SELECT throws_ok($q$SELECT public.moderate_report((SELECT v FROM ids WHERE k = 'msg'), 'limit_domain')$q$,
+                 '42501', NULL, 'domain actions are for instance admins');
 SELECT throws_ok($q$SELECT public.moderate_report((SELECT v FROM ids WHERE k = 'enc'), 'resolve')$q$,
                  '22023', 'Report is closed', 'a closed report cannot be resolved again');
 SELECT is(public.moderate_report((SELECT v FROM ids WHERE k = 'enc'), 'reopen')->>'status',

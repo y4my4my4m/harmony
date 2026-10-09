@@ -695,6 +695,7 @@
     "connections": "Connections",
     "administration": "Administration",
     "instanceAdmin": "Instance admin",
+    "instanceModeration": "Instance moderation",
     "appearance": {
       "title": "Appearance",
       "description": "Customize how Harmony looks and feels.",

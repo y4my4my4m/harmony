@@ -44,6 +44,7 @@
     :message="confirmDialogMessage"
     :confirm-button-text="confirmDialogConfirmText"
     :danger-action="confirmDialogDanger"
+    :input="confirmDialogInput"
     @update:model-value="(v: boolean) => { if (!v) handleClose() }"
     @confirm="handleConfirm"
     @cancel="handleClose"
@@ -158,6 +159,7 @@ const {
   confirmDialogMessage,
   confirmDialogConfirmText,
   confirmDialogDanger,
+  confirmDialogInput,
   handleConfirm,
   handleClose,
 } = useConfirmDialog()

@@ -1248,20 +1248,18 @@ class AdminService {
   }
 
   /**
-   * Admin only.
+   * Admin only. Returns the stored flag. userId is profiles.id.
    */
-  async setModeratorStatus(userId: string, isModerator: boolean): Promise<void> {
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ is_moderator: isModerator })
-        .eq('id', userId);
-
-      if (error) throw error;
-    } catch (error) {
+  async setModeratorStatus(userId: string, isModerator: boolean): Promise<boolean> {
+    const { data, error } = await supabase.rpc('admin_set_moderator', {
+      p_profile_id: userId,
+      p_is_moderator: isModerator,
+    });
+    if (error) {
       debug.error('Failed to set moderator status:', error);
-      throw error;
+      throw new Error(error.message || 'Failed to set moderator status');
     }
+    return data === true;
   }
 
   /**

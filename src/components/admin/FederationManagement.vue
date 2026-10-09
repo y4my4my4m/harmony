@@ -4,7 +4,7 @@
     <Icon name="federation" :size="20" />
     <h2>Federation management</h2>
     <div class="module-actions">
-      <button @click="handleAddInstance" class="primary-btn">
+      <button v-if="isAdmin" @click="handleAddInstance" class="primary-btn">
         <Icon name="plus" :size="16" />
         Add instance
       </button>
@@ -68,6 +68,7 @@
         <Icon name="alert-triangle" :size="16" />
         <span>{{ federationStats.endpoint_health.dead_endpoints }} endpoint(s) marked as dead and removed from follows</span>
         <button
+          v-if="isAdmin"
           class="danger-btn purge-btn"
           :disabled="loadingStates.purgingDead"
           @click="purgeDeadEndpoints"
@@ -96,6 +97,7 @@
             </div>
           </div>
           <button
+            v-if="isAdmin"
             class="purge-single-btn"
             :disabled="purgingEndpointIds.has(ep.id)"
             @click="purgeSingleEndpoint(ep)"
@@ -110,7 +112,7 @@
   </div>
 
   <!-- Federation Maintenance -->
-  <div class="federation-section">
+  <div v-if="isAdmin" class="federation-section">
     <div class="section-header-row">
       <h3>Federation maintenance</h3>
       <button @click="refreshKeyConsistency" class="action-btn" :disabled="loadingStates.keyConsistency">
@@ -239,7 +241,7 @@
               {{ instance.description }}
             </div>
           </div>
-          <div class="instance-actions">
+          <div v-if="isAdmin" class="instance-actions">
             <button 
               @click="refreshInstance(instance.id)" 
               class="action-btn-sm"
@@ -443,9 +445,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
+import { useProfileStore } from '@/stores/useProfile'
 import Icon from '@/components/common/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -456,9 +459,12 @@ import { useI18n } from 'vue-i18n'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 const authStore = useAuthStore()
+const profileStore = useProfileStore()
+// Moderators read the directory; trust, limits, blocks and maintenance are admin-only.
+const isAdmin = computed(() => profileStore.profile?.is_admin === true)
 const toast = useToast()
 const { t } = useI18n()
-const { confirm } = useConfirmDialog()
+const { confirm, prompt } = useConfirmDialog()
 
 // Federation management data
 const instanceStats = ref<InstanceStats>({
@@ -710,7 +716,12 @@ const toggleInstanceTrust = async (instanceId: string, trusted: boolean) => {
 
 const toggleInstanceBlock = async (instanceId: string, blocked: boolean) => {
   try {
-    const reason = blocked ? prompt('Block reason:') || 'Admin decision' : 'Admin unblock'
+    let reason = 'Admin unblock'
+    if (blocked) {
+      const answer = await prompt({ title: 'Block instance', message: 'Block this instance?', label: 'Reason', confirmButtonText: 'Block', dangerAction: true })
+      if (answer === null) return
+      reason = answer.trim() || 'Admin decision'
+    }
     await adminService.updateInstanceBlock(instanceId, blocked, reason, authStore.session?.user?.id || '')
     await loadFederatedInstances()
     await loadInstanceStats()
@@ -722,7 +733,9 @@ const toggleInstanceBlock = async (instanceId: string, blocked: boolean) => {
 
 const toggleInstanceLimit = async (domain: string, limit: boolean) => {
   try {
-    const reason = limit ? prompt(t('admin.federation.limitReasonPrompt', { domain })) : null
+    const reason = limit
+      ? await prompt({ title: t('admin.federation.limitAction'), message: t('admin.federation.limitReasonPrompt', { domain }), confirmButtonText: t('admin.federation.limitAction') })
+      : null
     if (limit && reason === null) return
     await adminService.setDomainModeration(domain, limit ? 'limit' : 'none', reason ?? undefined)
     toast.success(limit ? t('admin.federation.limitApplied', { domain }) : t('admin.federation.limitLifted', { domain }))
@@ -821,7 +834,7 @@ const handleAddInstance = () => {
 
 onMounted(() => {
   void refreshFederationData()
-  void refreshKeyConsistency()
+  if (isAdmin.value) void refreshKeyConsistency()
   void loadDiscoveredInstances()
 })
 </script>

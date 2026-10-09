@@ -12,13 +12,13 @@
           <Icon name="menu" :size="20" />
         </button>
         <Icon name="admin-terminal" :size="24" />
-        <h1>Instance control panel</h1>
-        <div class="system-status" :class="systemStatus.class">
+        <h1>{{ isAdmin ? 'Instance control panel' : 'Moderation' }}</h1>
+        <div v-if="isAdmin" class="system-status" :class="systemStatus.class">
           <div class="status-indicator"></div>
           <span>{{ systemStatus.text }}</span>
         </div>
       </div>
-      <div class="admin-actions">
+      <div v-if="isAdmin" class="admin-actions">
         <button @click="refreshData" class="action-btn refresh-btn" :disabled="loading">
           <Icon name="refresh" :size="16" />
           Refresh
@@ -28,7 +28,7 @@
 
     <nav class="admin-tabs" role="tablist">
       <button
-        v-for="tab in adminTabs"
+        v-for="tab in visibleTabs"
         :key="tab.key"
         role="tab"
         :aria-selected="activeAdminTab === tab.key"
@@ -216,6 +216,7 @@ const WelcomeServerAdmin = defineAsyncComponent(() => import('@/components/admin
 const InstanceConfig = defineAsyncComponent(() => import('@/components/admin/InstanceConfig.vue'))
 const FundingSupporters = defineAsyncComponent(() => import('@/components/admin/FundingSupporters.vue'))
 import { adminService } from '@/services/AdminService'
+import { useProfileStore } from '@/stores/useProfile'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -238,27 +239,34 @@ const adminTabs = [
 ] as const
 type AdminTabKey = typeof adminTabs[number]['key']
 
-const initialTab = adminTabs.find(t => t.key === route.query.tab) ? route.query.tab as AdminTabKey : 'overview'
-const activeAdminTab = ref<AdminTabKey>(initialTab)
+const profileStore = useProfileStore()
+const isAdmin = computed(() => profileStore.profile?.is_admin === true)
+// Instance moderators: reports, account actions, the anti-spam queue, federation read-only.
+const MODERATOR_TABS: readonly AdminTabKey[] = ['federation', 'users', 'reports', 'antispam']
+const visibleTabs = computed(() =>
+  isAdmin.value ? adminTabs : adminTabs.filter(tab => MODERATOR_TABS.includes(tab.key)))
+
+const requestedTab = visibleTabs.value.find(t => t.key === route.query.tab)?.key
+const activeAdminTab = ref<AdminTabKey>(requestedTab ?? (isAdmin.value ? 'overview' : 'reports'))
 watch(activeAdminTab, (tab) => {
   router.replace({ query: { ...route.query, tab: tab === 'overview' ? undefined : tab } }).catch(() => {})
 })
 
-// Security check - only allow admins
+// Instance staff only; the overview's data is admin-only.
 onMounted(async () => {
   if (!authStore.session?.user?.id) {
     router.push('/login')
     return
   }
 
-  const isAdmin = await adminService.checkAdminPermissions(authStore.session.user.id)
-  
-  if (!isAdmin) {
+  const isStaff = await adminService.checkAdminOrModPermissions(authStore.session.user.id)
+
+  if (!isStaff) {
     router.push('/')
     return
   }
 
-  await loadInitialData()
+  if (isAdmin.value) await loadInitialData()
 })
 
 // Reactive data

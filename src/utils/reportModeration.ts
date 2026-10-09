@@ -165,13 +165,15 @@ export function reportActionsFor(
     actions.push('forward')
   }
 
-  if (!role.isAdmin) return actions
-
+  // Instance staff accounts refuse a moderator's account action server-side (moderate_report).
   if (report.reported_user_id) {
     if (!report.reported_user_is_silenced) actions.push('silence_account')
     if (!report.reported_user_is_suspended) actions.push('suspend_account')
     actions.push('force_sensitive_account')
   }
+
+  if (!role.isAdmin) return actions
+
   if (remoteAccount) {
     if (!report.reported_domain_limited && !report.reported_domain_blocked) actions.push('limit_domain')
     if (!report.reported_domain_blocked) actions.push('suspend_domain')
