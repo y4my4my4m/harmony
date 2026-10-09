@@ -20,6 +20,7 @@ admin_list_supporters		jsonb	definer	public, pg_temp	authenticated+service_role	
 admin_moderate_post	p_post_id uuid, p_action text, p_value text	boolean	definer	public, pg_temp	anon+authenticated+service_role	client
 admin_rename_instance_emoji	p_emoji_id uuid, p_name text	void	definer	public, pg_temp	authenticated+service_role	client
 admin_resolve_pending_donation	p_pending_id uuid, p_user_id uuid	uuid	definer	public, pg_temp	authenticated+service_role	client
+admin_set_moderator	p_profile_id uuid, p_is_moderator boolean	boolean	definer	public, pg_temp	authenticated+service_role	client
 admin_update_supporter	p_user_id uuid, p_changes jsonb	boolean	definer	public, pg_temp	authenticated+service_role	client
 aggregate_hourly_metrics		integer	definer	public, pg_temp	service_role	client
 antispam_check_local_author	p_author uuid, p_kind text, p_content jsonb, p_op text	boolean	definer	public, pg_temp	service_role	unreferenced

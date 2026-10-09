@@ -62,9 +62,9 @@
           </button>
           <span v-else class="user-stat">federated</span>
         </div>
-        <div class="user-actions">
+        <div v-if="canModerate(user)" class="user-actions">
           <button
-            v-if="!user.is_admin"
+            v-if="isAdmin && !user.is_admin && user.is_local"
             @click="toggleModerator(user)"
             class="mod-btn"
             :class="user.is_moderator ? 'demote-btn' : 'promote-btn'"
@@ -105,6 +105,7 @@
             <Icon name="suspend" :size="16" />
           </button>
           <button 
+            v-if="isAdmin"
             @click="moderateUser(user, 'delete')" 
             class="mod-btn delete-btn"
             title="Delete user"
@@ -215,6 +216,7 @@ import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
+import { useProfileStore } from '@/stores/useProfile'
 import Icon from '@/components/common/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -228,9 +230,14 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { runtimeConfig } from '@/services/runtimeConfig'
 
 const authStore = useAuthStore()
+const profileStore = useProfileStore()
+const isAdmin = computed(() => profileStore.profile?.is_admin === true)
+// Nobody acts on their own account; moderators only on accounts that are not staff (moderate_user).
+const canModerate = (user: any): boolean =>
+  user.id !== profileStore.profile?.id && (isAdmin.value || (!user.is_admin && !user.is_moderator))
 const router = useRouter()
 const toast = useToast()
-const { confirm } = useConfirmDialog()
+const { confirm, prompt } = useConfirmDialog()
 
 const userSearch = ref('')
 const activeUserFilter = ref('all')
@@ -321,12 +328,12 @@ const toggleModerator = async (user: any) => {
   if (!(await confirm({ title: 'Moderator status', message: `Are you sure you want to ${label} ${user.username}?`, confirmButtonText: 'Confirm' }))) return
 
   try {
-    await adminService.setModeratorStatus(user.id, newStatus)
-    user.is_moderator = newStatus
+    user.is_moderator = await adminService.setModeratorStatus(user.id, newStatus)
+    toast.success(user.is_moderator ? `${user.username} is now a moderator` : `${user.username} is no longer a moderator`)
     window.dispatchEvent(new CustomEvent('admin:activity-changed'))
   } catch (error) {
     debug.error('Failed to toggle moderator status:', error)
-    toast.error('Failed to update moderator status')
+    toast.error(error instanceof Error ? error.message : 'Failed to update moderator status')
   }
 }
 
@@ -350,7 +357,7 @@ const patchUserRow = (userId: string, patch: Record<string, any> | null) => {
 const moderateUser = async (user: any, action: string) => {
   try {
     if (action === 'suspend') {
-      const reason = prompt('Suspension reason:')
+      const reason = (await prompt({ title: 'Suspend user', message: `Suspend ${user.username}?`, label: 'Reason', confirmButtonText: 'Suspend', dangerAction: true }))?.trim()
       if (!reason) return
       await adminService.moderateUser(user.id, 'suspend', reason, authStore.session?.user?.id || '')
       patchUserRow(user.id, { is_suspended: true, suspension_reason: reason })
@@ -369,7 +376,7 @@ const moderateUser = async (user: any, action: string) => {
       window.dispatchEvent(new CustomEvent('admin:activity-changed'))
       toast.success(`User ${user.username} deleted`)
     } else if (action === 'force_sensitive') {
-      const reason = prompt('Reason for marking all media as sensitive:')
+      const reason = (await prompt({ title: 'Force media sensitive', message: `Mark all media from ${user.username} as sensitive?`, label: 'Reason', confirmButtonText: 'Mark sensitive' }))?.trim()
       if (!reason) return
       await adminService.moderateUser(user.id, 'force_sensitive', reason, authStore.session?.user?.id || '')
       patchUserRow(user.id, { force_sensitive: true })
@@ -380,7 +387,7 @@ const moderateUser = async (user: any, action: string) => {
       patchUserRow(user.id, { force_sensitive: false })
       toast.success(`Force-sensitive removed from ${user.username}`)
     } else if (action === 'silence') {
-      const reason = prompt('Reason for silencing (hidden from public timelines):')
+      const reason = (await prompt({ title: 'Silence user', message: `Hide ${user.username} from public timelines?`, label: 'Reason', confirmButtonText: 'Silence' }))?.trim()
       if (!reason) return
       await adminService.moderateUser(user.id, 'silence', reason, authStore.session?.user?.id || '')
       patchUserRow(user.id, { is_silenced: true, silenced_reason: reason })

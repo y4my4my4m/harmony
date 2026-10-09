@@ -677,6 +677,7 @@
     "connections": "接続",
     "administration": "管理",
     "instanceAdmin": "インスタンス管理",
+    "instanceModeration": "インスタンスのモデレーション",
     "appearance": {
       "title": "外観",
       "description": "Harmonyの見た目をカスタマイズします。",

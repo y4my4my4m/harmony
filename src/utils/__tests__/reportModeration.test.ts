@@ -65,11 +65,9 @@ describe('reportActionsFor', () => {
       .not.toContain('delete_message')
   })
 
-  it('gives instance moderators content actions and warnings, not account or domain actions', () => {
+  it('gives instance moderators content actions and warnings', () => {
     const actions = reportActionsFor(report({ reported_post_id: 'p1' }), moderator)
     expect(actions).toEqual(expect.arrayContaining(['delete_post', 'mark_sensitive', 'warn']))
-    expect(actions).not.toContain('suspend_account')
-    expect(actions).not.toContain('limit_domain')
   })
 
   it('offers forwarding for a local report about a remote account until it is forwarded', () => {
@@ -79,6 +77,13 @@ describe('reportActionsFor', () => {
     expect(reportActionsFor({ ...remote, federation_status: 'queued' }, moderator)).not.toContain('forward')
     expect(reportActionsFor({ ...remote, source: 'federation' }, moderator)).not.toContain('forward')
     expect(reportActionsFor(remote, moderator)).not.toContain('warn')
+  })
+
+  it('gives moderators account actions and keeps domain actions for admins', () => {
+    const actions = reportActionsFor(report({ reported_user_is_local: false }), moderator)
+    expect(actions).toEqual(expect.arrayContaining(['silence_account', 'suspend_account', 'force_sensitive_account']))
+    expect(actions).not.toContain('limit_domain')
+    expect(actions).not.toContain('suspend_domain')
   })
 
   it('gives admins account and domain actions for remote accounts', () => {

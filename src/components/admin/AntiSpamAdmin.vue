@@ -1,7 +1,7 @@
 <template>
   <div class="antispam-admin">
-    <!-- Settings -->
-    <div class="admin-module">
+    <!-- Settings: admin-only; moderators work the queue below. -->
+    <div v-if="isAdmin" class="admin-module">
       <div class="module-header">
         <Icon name="shield" :size="20" />
         <h2>{{ $t('admin.antiSpam.title') }}</h2>
@@ -132,6 +132,7 @@ import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { debug } from '@/utils/debug'
+import { useProfileStore } from '@/stores/useProfile'
 import {
   cleanDbMessage,
   getInstanceAntiSpamSettings,
@@ -144,6 +145,8 @@ import {
 
 const { t } = useI18n()
 const toast = useToast()
+const profileStore = useProfileStore()
+const isAdmin = computed(() => profileStore.profile?.is_admin === true)
 
 const saved = ref<InstanceAntiSpamSettings | null>(null)
 const draft = ref<InstanceAntiSpamSettings | null>(null)
@@ -229,7 +232,7 @@ async function review(item: SuspiciousActivity, decision: 'dismiss' | 'confirm' 
 
 watch(statusFilter, loadQueue)
 onMounted(() => {
-  void loadSettings()
+  if (isAdmin.value) void loadSettings()
   void loadQueue()
 })
 </script>

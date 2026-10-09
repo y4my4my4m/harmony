@@ -68,7 +68,7 @@
               </button>
             </div>
 
-            <div class="nav-section" v-if="adminSections.length > 0 && isAdmin">
+            <div class="nav-section" v-if="adminSections.length > 0 && isStaff">
               <h3 class="nav-section-title">{{ $t('settings.administration') }}</h3>
               <router-link
                 v-for="section in adminSections" 
@@ -325,9 +325,9 @@ const {
 const adminSections = computed(() => {
   if (!authStore.session?.user?.id) return []
   
-  // Visibility is gated in the template by `isAdmin`.
+  // Visibility is gated in the template by `isStaff`; moderators reach the same panel.
   return [
-    { id: 'admin', label: 'settings.instanceAdmin', icon: CogIcon, isExternal: true, path: '/admin' },
+    { id: 'admin', label: isAdmin.value ? 'settings.instanceAdmin' : 'settings.instanceModeration', icon: CogIcon, isExternal: true, path: '/admin' },
   ]
 })
 
@@ -525,6 +525,8 @@ const handleBannerUpload = async (file: File) => {
 const isAdmin = computed(() => {
   return profile.value?.is_admin || false
 })
+
+const isStaff = computed(() => isAdmin.value || profile.value?.is_moderator === true)
 
 const handlePrivacyUpdate = async (privacySettings: any) => {
   debug.log('Privacy settings updated:', privacySettings)

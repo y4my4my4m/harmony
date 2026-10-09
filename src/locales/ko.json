@@ -677,6 +677,7 @@
     "connections": "연결",
     "administration": "관리",
     "instanceAdmin": "인스턴스 관리자",
+    "instanceModeration": "인스턴스 모더레이션",
     "appearance": {
       "title": "모양",
       "description": "Harmony의 모양과 느낌을 사용자 지정하세요.",

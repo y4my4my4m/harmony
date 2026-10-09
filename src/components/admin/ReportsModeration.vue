@@ -226,7 +226,7 @@ const props = defineProps<{
   serverId?: string
 }>()
 
-const { confirm } = useConfirmDialog()
+const { confirm, prompt } = useConfirmDialog()
 const router = useRouter()
 const toast = useToast()
 const { t } = useI18n()
@@ -379,7 +379,11 @@ const toggleReportExpand = (id: string) => {
 const runAction = async (report: ReportWithDetails, action: ReportAction) => {
   let reason: string | undefined
   if (ACTIONS_WITH_REASON.has(action)) {
-    const answer = prompt(reasonPrompt(report, action))
+    const answer = await prompt({
+      title: actionLabel(report, action),
+      message: reasonPrompt(report, action),
+      confirmButtonText: actionLabel(report, action),
+    })
     if (answer === null) return
     reason = answer
   }

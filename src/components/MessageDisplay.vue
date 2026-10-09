@@ -2919,27 +2919,9 @@ const canEditMessage = (message: Message) => {
   // here never reaches that copy. Applies to admins and moderators too.
   if (isBridgedAuthorMessage(message)) return false;
 
-  const currentProfileId = profileStore.profile?.id;
-  const messageUserId = message.user_id;
-  const isOwnMessage = messageUserId === currentProfileId;
-
-  // On non-local (federated mirror) servers, only allow editing own messages
-  if (serverChannelStore.currentServer?.is_local_server === false) {
-    return isOwnMessage;
-  }
-
-  // DMs: own messages only (matches messages_update RLS when channel_id is null)
-  if (props.conversationId && !props.channelId) {
-    return isOwnMessage;
-  }
-
-  return (
-    isOwnMessage
-    || isCurrentUserServerOwner.value
-    || profileStore.profile?.is_admin
-    || profileStore.profile?.is_moderator
-    || canManageMessages.value
-  );
+  // Only the author edits; owners, staff and Manage Messages may only delete
+  // (guard_message_client_write).
+  return message.user_id === profileStore.profile?.id;
 };
 
 const canEditAttachments = (message: Message) => canEditMessage(message);

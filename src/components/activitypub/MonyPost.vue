@@ -683,7 +683,7 @@ const props = withDefaults(defineProps<Props>(), {
 const i18n = useI18n();
 const { t } = i18n;
 
-const { confirm } = useConfirmDialog()
+const { confirm, prompt } = useConfirmDialog()
 
 // Emits
 const emit = defineEmits<{
@@ -2182,7 +2182,13 @@ const handleAdminSetCW = async () => {
   showMenu.value = false;
   const postId = originalPostId.value;
   const existingCw = (isPureReblog.value && props.post.reblog?.content_warning) || props.post.content_warning || '';
-  const cw = prompt('Content warning text (leave empty to remove):', existingCw);
+  const cw = await prompt({
+    title: 'Content warning',
+    message: 'Leave empty to remove the content warning.',
+    label: 'Content warning text',
+    initialValue: existingCw,
+    confirmButtonText: 'Save',
+  });
   if (cw === null) return;
   try {
     if (cw.trim()) {

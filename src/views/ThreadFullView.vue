@@ -280,7 +280,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
-const { confirm } = useConfirmDialog()
+const { confirm, prompt } = useConfirmDialog()
 const route = useRoute()
 const router = useRouter()
 
@@ -514,11 +514,11 @@ const toggleNotifications = async () => {
   }
 }
 
-const editThread = () => {
+const editThread = async () => {
   showOptions.value = false
   if (!thread.value) return
-  const newName = prompt('Edit thread name:', thread.value.name)
-  if (newName && newName !== thread.value.name) {
+  const newName = (await prompt({ title: 'Edit thread', message: 'Rename this thread.', label: 'Thread name', initialValue: thread.value.name, confirmButtonText: 'Save' }))?.trim()
+  if (newName && thread.value && newName !== thread.value.name) {
     threadService.updateThread(thread.value.id, { name: newName }).then((updated) => {
       if (updated && thread.value) {
         thread.value.name = updated.name

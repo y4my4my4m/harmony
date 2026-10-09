@@ -21,6 +21,18 @@
         <p v-if="secondaryMessage" class="message-secondary">{{ secondaryMessage }}</p>
       </div>
 
+      <!-- Free-text answer (useConfirmDialog().prompt) -->
+      <div v-if="input" class="confirmation-section">
+        <UnifiedInput
+          v-model="promptInput"
+          :label="input.label"
+          :placeholder="input.placeholder"
+          autofocus
+          @keydown.enter="handleConfirm"
+          @keydown.escape="handleClose"
+        />
+      </div>
+
       <!-- Confirmation input -->
       <div v-if="requireConfirmation" class="confirmation-section">
         <UnifiedInput
@@ -71,11 +83,13 @@ interface Props {
   requireConfirmation?: boolean
   confirmationText?: string
   dangerAction?: boolean
+  /** A text field whose value the confirm event carries. */
+  input?: { label: string; placeholder: string; initialValue: string } | null
 }
 
 interface Emits {
   (e: 'update:modelValue', value: boolean): void
-  (e: 'confirm'): void
+  (e: 'confirm', value?: string): void
   (e: 'cancel'): void
 }
 
@@ -89,6 +103,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>()
 
 const confirmationInput = ref('')
+const promptInput = ref('')
 const isLoading = ref(false)
 const showConfirmationError = ref(false)
 
@@ -122,7 +137,7 @@ const handleConfirm = async () => {
   showConfirmationError.value = false
   
   try {
-    emit('confirm')
+    emit('confirm', props.input ? promptInput.value : undefined)
   } finally {
     // Keep loading state - parent should handle closing
   }
@@ -131,6 +146,7 @@ const handleConfirm = async () => {
 watch(() => props.modelValue, (isOpen) => {
   if (isOpen) {
     confirmationInput.value = ''
+    promptInput.value = props.input?.initialValue ?? ''
     isLoading.value = false
     showConfirmationError.value = false
   }

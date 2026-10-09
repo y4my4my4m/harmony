@@ -154,6 +154,12 @@
                       <DisplayName :userId="user.id" :fallback="user.display_name || user.username" />
                     </h1>
                     <Icon v-if="(user as any).verified" name="verified" class="verified-icon" />
+                    <span v-if="user.is_local && user.is_admin" class="instance-badge admin" title="Instance admin">
+                      <Icon name="shield" :size="11" /> Admin
+                    </span>
+                    <span v-else-if="user.is_local && user.is_moderator" class="instance-badge mod" title="Instance moderator">
+                      <Icon name="shield" :size="11" /> Mod
+                    </span>
                   </div>
                   <p class="user-handle">{{ user.handle }}</p>
                 </div>
@@ -1498,6 +1504,25 @@ onUnmounted(() => {
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
+}
+
+.instance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.6875rem;
+  font-weight: var(--font-weight-semibold);
+  padding: 0.125rem 0.4rem;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+}
+
+.instance-badge.admin {
+  background: color-mix(in srgb, var(--harmony-accent) 20%, transparent);
+}
+
+.instance-badge.mod {
+  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
 }
 
 .display-name {
