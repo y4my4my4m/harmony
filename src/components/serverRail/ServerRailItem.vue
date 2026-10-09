@@ -78,6 +78,22 @@ const { selected, mentions, hasUnread, muted } = useRailServerState(() => props.
   pointer-events: none;
 }
 
+/* The picture takes the container's shape: round at rest, rounded square on hover and
+   selection. Qualified to outrank ServerIcon's shape-round. */
+.rail-server .server-item :deep(.server-image) {
+  border-radius: 50%;
+  transition: border-radius 0.15s ease;
+}
+
+.rail-server:hover .server-item :deep(.server-image) {
+  border-radius: 16px;
+}
+
+/* Inside the 2px ring: concentric with its 16px outer corner. */
+.rail-server .server-item.selected :deep(.server-image) {
+  border-radius: 14px;
+}
+
 .rail-server.is-muted .server-item {
   opacity: 0.55;
 }
