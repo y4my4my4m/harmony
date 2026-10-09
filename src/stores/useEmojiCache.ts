@@ -563,6 +563,11 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
       }).catch(() => { /* userDataService not ready yet */ })
     },
 
+    /** The next loadPersonalEmojis refetches the personal and instance groups. */
+    expirePersonalEmojis() {
+      this._personalEmojiLoadedAt = 0;
+    },
+
     async handleEmojiUpdate(payload: any) {
       const { eventType, new: newEmoji, old: oldEmoji } = payload;
 

@@ -14,9 +14,10 @@
     <header class="management-header">
       <div class="header-text">
         <h2>Roles</h2>
-        <p>Create and manage roles for your server. Drag to reorder priority.</p>
+        <p v-if="canEditRoles">Create and manage roles for your server. Drag to reorder priority.</p>
+        <p v-else>Only the server owner can change roles.</p>
       </div>
-      <button class="create-role-btn" @click="createRole">
+      <button v-if="canEditRoles" class="create-role-btn" @click="createRole">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
         </svg>
@@ -35,11 +36,15 @@
           <div class="spinner small"></div>
         </div>
 
+        <!-- force-fallback: pointer-driven drag. Tauri's WebView2 drag-drop handler (on for OS file drops) swallows HTML5 drag and drop on Windows. -->
         <draggable
           v-else
           v-model="roles"
           item-key="id"
           handle=".drag-handle"
+          :disabled="!canEditRoles"
+          :force-fallback="true"
+          :fallback-tolerance="3"
           @end="handleReorder"
           class="rail-list"
         >
@@ -50,7 +55,7 @@
               :class="{ active: selectedRole?.id === role.id }"
               @click="selectRole(role)"
             >
-              <span class="drag-handle" v-if="!role.is_default" title="Drag to reorder">
+              <span class="drag-handle" v-if="canEditRoles && !role.is_default" title="Drag to reorder">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                   <path d="
                     M9 3a2 2 0 1 0 .001 0zm6 0a2 2 0 1 0 .001 0z
@@ -101,7 +106,7 @@
             </div>
           </header>
 
-          <div class="editor-content">
+          <fieldset class="editor-content" :disabled="!canEditRoles">
           <!-- Display Tab -->
           <div v-if="activeTab === 'display'" class="tab-content">
             <div class="form-group">
@@ -287,10 +292,10 @@
               </div>
             </template>
           </div>
-        </div>
+        </fieldset>
 
         <!-- Editor footer -->
-        <footer class="editor-footer">
+        <footer v-if="canEditRoles" class="editor-footer">
           <button
             v-if="!selectedRole.is_default && !selectedRole.is_admin"
             type="button"
@@ -339,6 +344,7 @@ import {
 } from '@/services/bridgedChannelUsersService'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useToast } from 'vue-toastification'
+import { useProfileStore } from '@/stores/useProfile'
 
 interface RoleMemberRow {
   id: string
@@ -366,6 +372,13 @@ const memberSearch = ref('')
 const roleMembers = ref<RoleMemberRow[]>([])
 const loadingMembers = ref(false)
 const serverOwnerId = ref<string | null>(null)
+const profileStore = useProfileStore()
+// server_roles and user_roles accept writes from the server owner and instance admins only.
+const canEditRoles = computed(() => {
+  const profile = profileStore.profile
+  if (!profile) return false
+  return profile.id === serverOwnerId.value || profile.is_admin === true
+})
 const serverBridgedUsers = ref<BridgedChannelUser[]>([])
 
 const addMemberSearch = ref('')
@@ -571,9 +584,12 @@ const createRole = async () => {
     if (newRole) {
       roles.value = [newRole, ...roles.value]
       selectRole(newRole)
+    } else {
+      toast.error('Failed to create role')
     }
   } catch (error) {
     console.error('Failed to create role:', error)
+    toast.error('Failed to create role')
   }
 }
 
@@ -694,9 +710,12 @@ const saveRole = async () => {
       }
       selectedRole.value = updated
       resetForm()
+    } else {
+      toast.error('Failed to save role')
     }
   } catch (error) {
     console.error('Failed to save role:', error)
+    toast.error('Failed to save role')
   } finally {
     saving.value = false
   }
@@ -715,7 +734,10 @@ const deleteRole = async () => {
   
   try {
     const deletedId = selectedRole.value.id
-    await roleService.deleteRole(deletedId)
+    if (!(await roleService.deleteRole(deletedId))) {
+      toast.error('Failed to delete role')
+      return
+    }
     roles.value = roles.value.filter(r => r.id !== deletedId)
     // Land on the next-best role instead of an empty pane.
     const next = roles.value.find(r => !r.is_default) || roles.value[0] || null
@@ -832,16 +854,15 @@ const addMemberToRole = async (memberId: string) => {
 }
 
 const handleReorder = async () => {
-  const updates = roles.value.map((role, index) => ({
-    id: role.id,
-    position: roles.value.length - index,
-  }))
-  
-  try {
-    await roleService.reorderRoles(props.serverId, updates)
-  } catch (error) {
-    console.error('Failed to reorder roles:', error)
-    loadRoles()
+  // @everyone keeps its position; the update policy refuses default roles.
+  const updates = roles.value
+    .map((role, index) => ({ id: role.id, position: roles.value.length - index, isDefault: role.is_default }))
+    .filter(u => !u.isDefault)
+    .map(({ id, position }) => ({ id, position }))
+
+  if (!(await roleService.reorderRoles(props.serverId, updates))) {
+    toast.error('Failed to reorder roles')
+    await loadRoles()
   }
 }
 
@@ -1166,6 +1187,9 @@ onMounted(() => {
   overflow-y: auto;
   padding: 20px;
   min-height: 0;
+  min-width: 0;
+  margin: 0;
+  border: 0;
 }
 
 @media (prefers-reduced-motion: no-preference) {

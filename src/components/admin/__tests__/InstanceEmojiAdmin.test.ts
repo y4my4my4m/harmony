@@ -42,6 +42,9 @@ vi.mock('@/services/AdminService', () => ({ adminService: { logAdminAction } }))
 const invalidate = vi.hoisted(() => vi.fn())
 vi.mock('@/services/emojiShortcodeResolver', () => ({ invalidateEmojiResolverCache: invalidate }))
 
+const expirePersonalEmojis = vi.hoisted(() => vi.fn())
+vi.mock('@/stores/useEmojiCache', () => ({ useEmojiCacheStore: () => ({ expirePersonalEmojis }) }))
+
 const rpc = supabase.rpc as unknown as ReturnType<typeof vi.fn>
 
 const row = (n: number, extra: Record<string, unknown> = {}) => ({
@@ -166,6 +169,7 @@ describe('InstanceEmojiAdmin', () => {
     await flushPromises()
     expect(rpc).toHaveBeenCalledWith('admin_rename_instance_emoji', { p_emoji_id: 'e2', p_name: 'party_parrot' })
     expect(invalidate).toHaveBeenCalled()
+    expect(expirePersonalEmojis).toHaveBeenCalled()
     expect(logAdminAction).toHaveBeenCalledWith(expect.objectContaining({ action: 'instance_emoji_rename', targetId: 'e2' }))
     expect(w.findAll('.emoji-row')[1].find('.emoji-name').text()).toBe(':party_parrot:')
     expect(w.find('.rename-form').exists()).toBe(false)
@@ -196,6 +200,7 @@ describe('InstanceEmojiAdmin', () => {
     expect(confirm.mock.calls[1][0].message).not.toContain('reaction')
     expect(rpc).toHaveBeenCalledWith('admin_delete_instance_emoji', { p_emoji_id: 'e2' })
     expect(invalidate).toHaveBeenCalled()
+    expect(expirePersonalEmojis).toHaveBeenCalled()
     expect(toast.success).toHaveBeenCalledWith('Emoji deleted')
     expect(listCalls()).toHaveLength(2)
   })

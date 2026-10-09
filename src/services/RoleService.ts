@@ -492,12 +492,15 @@ class RoleService {
         return false
       }
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('server_roles')
         .delete()
         .eq('id', roleId)
+        .select('id')
 
       if (error) throw error
+      // RLS filters a refused delete to zero rows without an error.
+      if (!data?.length) throw new Error(`Role ${roleId} was not deleted`)
 
       // Invalidate caches
       this.roleCache.delete(role.server_id)
@@ -517,13 +520,16 @@ class RoleService {
     try {
       // Use a transaction via RPC or multiple updates
       for (const { id, position } of rolePositions) {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('server_roles')
           .update({ position })
           .eq('id', id)
           .eq('server_id', serverId)
+          .select('id')
 
         if (error) throw error
+        // RLS filters a refused update to zero rows without an error.
+        if (!data?.length) throw new Error(`Role ${id} was not updated`)
       }
 
       // Invalidate cache

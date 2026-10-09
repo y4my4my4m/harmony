@@ -32,10 +32,13 @@
     
     <!-- Channels belonging to no category -->
     <div class="orphan-channels">
+      <!-- force-fallback: pointer-driven drag. Tauri's WebView2 drag-drop handler (on for OS file drops) swallows HTML5 drag and drop on Windows. -->
       <draggable
         v-model="orphanChannels"
         :group="dragGroup"
         :disabled="!canDragAndDrop || isMobile"
+        :force-fallback="true"
+        :fallback-tolerance="3"
         @start="onDragStart"
         @end="onDragEnd"
         @add="onChannelAddedToOrphans"
@@ -136,6 +139,8 @@
       v-model="reorderableCategories"
       :group="{ name: 'categories', put: false, pull: false }"
       :disabled="!canDragAndDrop || isMobile"
+      :force-fallback="true"
+      :fallback-tolerance="3"
       :key="categoriesKey"
       item-key="id"
       tag="div"
@@ -178,6 +183,8 @@
               v-model="getCachedCategoryChannels(category.id).value"
               :group="dragGroup"
               :disabled="!canDragAndDrop || isMobile"
+              :force-fallback="true"
+              :fallback-tolerance="3"
               @start="onDragStart"
               @end="onDragEnd"
               @add="(evt: any) => onChannelAddedToCategory(evt, category.id)"
