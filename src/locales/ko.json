@@ -382,7 +382,13 @@
     },
     "copyId": "채널 ID 복사",
     "idCopied": "채널 ID를 복사했습니다",
-    "idCopyFailed": "채널 ID를 복사하지 못했습니다"
+    "idCopyFailed": "채널 ID를 복사하지 못했습니다",
+    "private": {
+      "label": "비공개 채널",
+      "hint": "선택한 역할, 소유자, 관리자만 볼 수 있습니다.",
+      "whoCanSee": "볼 수 있는 사람",
+      "noRoles": "아직 역할이 없습니다. 소유자와 관리자만 볼 수 있습니다."
+    }
   },
   "message": {
     "typeMessage": "메시지 {to}",
@@ -1330,6 +1336,19 @@
       "hint": "소유자가 따로 선택하지 않은 서버의 기본값입니다. 소유자와 서버 관리 권한이 있는 멤버는 서버 설정에서 변경할 수 있습니다.",
       "saved": "신규 멤버 알림 기본값을 저장했습니다",
       "saveFailed": "신규 멤버 알림 기본값을 저장하지 못했습니다"
+    }
+  },
+  "systemMessages": {
+    "server": {
+      "title": "시스템 메시지",
+      "description": "누군가 서버에 참여하거나, 나가거나, 추방되거나, 차단되면 Harmony가 메시지를 게시합니다.",
+      "toggle": "멤버가 참여하거나 나갈 때 메시지 보내기",
+      "channel": "채널",
+      "channelHint": "자동은 모두가 볼 수 있는 첫 번째 텍스트 채널을 사용합니다.",
+      "automatic": "자동",
+      "unavailableChannel": "볼 수 없는 채널",
+      "loadFailed": "시스템 메시지 설정을 불러오지 못했습니다.",
+      "saveFailed": "시스템 메시지 설정을 업데이트하지 못했습니다."
     }
   },
   "time": {

@@ -182,9 +182,6 @@
   import { sendToTarget, targetKey, type MessageTarget } from '@/stores/shared/sendToTarget';
   import { recordEmojiUsage } from '@/services/emojiService';
   import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver';
-  import { readFile } from '@tauri-apps/plugin-fs';
-  import { isTauriRuntime } from '@/services/instanceConfig';
-  import { getMimeTypeFromFilename } from '@/utils/fileUpload';
   import { mediaRoom } from '@/services/privateMedia';
   import { forgetMessageMediaUpload } from '@/services/messageMediaUpload';
   import MediaPickerPopup from '@/components/MediaPickerPopup.vue';
@@ -857,44 +854,6 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
           document.dispatchEvent(messageInputEvent);
         }
       };
-
-      let unlistenTauriFileDrop: (() => void) | null = null;
-
-      onMounted(async () => {
-        if (!isTauriRuntime()) return;
-        // Tauri intercepts OS file drops (the DOM dataTransfer stays empty),
-        // so read the dropped paths through the webview drag-drop event.
-        const { getCurrentWebview } = await import('@tauri-apps/api/webview');
-        unlistenTauriFileDrop = await getCurrentWebview().onDragDropEvent(async (event) => {
-          if (event.payload.type === 'enter' || event.payload.type === 'over') {
-            holdDragDropArea();
-            return;
-          }
-          resetDragDropArea();
-          if (event.payload.type !== 'drop') return;
-
-          const files: File[] = [];
-          for (const filePath of event.payload.paths) {
-            try {
-              const fileBytes = await readFile(filePath);
-              const name = filePath.split(/[\\/]/).pop() || 'file';
-              files.push(new File([new Blob([fileBytes])], name, {
-                type: getMimeTypeFromFilename(name),
-              }));
-            } catch (error) {
-              debug.error('Error reading dropped file:', filePath, error);
-            }
-          }
-          if (files.length > 0) {
-            document.dispatchEvent(new CustomEvent('external-file-drop', { detail: { files } }));
-          }
-        });
-      });
-
-      onUnmounted(() => {
-        unlistenTauriFileDrop?.();
-        unlistenTauriFileDrop = null;
-      });
 
       const parseMessageInput = async (input: string, serverId?: string): Promise<MessagePart[]> => {
         debug.log('Using unified content parsing for:', input);

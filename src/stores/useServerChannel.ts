@@ -73,6 +73,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
     channels: [] as Channel[],
     categories: [] as Category[],
     categoryChannels: {} as Record<string, Channel[]>,
+    /** Channels whose @everyone override denies VIEW_CHANNEL, keyed by channel id. */
+    privateChannels: {} as Record<string, true>,
     currentServer: {} as Server,
     currentServerId: null as string | null,
     currentChannelId: null as string | null,
@@ -522,6 +524,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
       }
 
       this._processCategoriesAndChannelsData(categories || [], channels || [], serverId);
+      void this._loadPrivateChannels((channels || []).map((c: Channel) => c.id));
     },
 
     /**
@@ -557,6 +560,32 @@ export const useServerChannelStore = defineStore('serverChannel', {
       }
 
       this._processCategoriesAndChannelsData(categories || [], channels || [], serverId);
+      void this._loadPrivateChannels((channels || []).map((c: Channel) => c.id));
+    },
+
+    /** Marks channels hidden from @everyone; the sidebar shows them as private. */
+    async _loadPrivateChannels(channelIds: string[]): Promise<void> {
+      if (channelIds.length === 0) return;
+      const { data, error } = await supabase
+        .from('channel_permission_overrides')
+        .select('channel_id, deny_permissions, server_roles!inner(is_default)')
+        .in('channel_id', channelIds)
+        .eq('server_roles.is_default', true);
+      if (error) {
+        debug.warn('Private channel lookup failed:', error.message);
+        return;
+      }
+      const next = { ...this.privateChannels };
+      for (const id of channelIds) delete next[id];
+      // VIEW_CHANNEL is bit 1.
+      for (const row of data ?? []) {
+        if ((BigInt(row.deny_permissions ?? 0) & BigInt(2)) !== BigInt(0)) next[row.channel_id] = true;
+      }
+      this.privateChannels = next;
+    },
+
+    isPrivateChannel(channelId: string): boolean {
+      return this.privateChannels[channelId] === true;
     },
 
     /**

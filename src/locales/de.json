@@ -382,7 +382,13 @@
     },
     "copyId": "Kanal-ID kopieren",
     "idCopied": "Kanal-ID kopiert",
-    "idCopyFailed": "Kanal-ID konnte nicht kopiert werden"
+    "idCopyFailed": "Kanal-ID konnte nicht kopiert werden",
+    "private": {
+      "label": "Privater Kanal",
+      "hint": "Nur die gewählten Rollen, der Besitzer und Administratoren können ihn sehen.",
+      "whoCanSee": "Wer ihn sehen kann",
+      "noRoles": "Noch keine Rollen: nur der Besitzer und Administratoren sehen ihn."
+    }
   },
   "message": {
     "typeMessage": "Nachricht an {to}",
@@ -1330,6 +1336,19 @@
       "hint": "Standard für Server, deren Besitzer nichts gewählt haben. Besitzer und Mitglieder mit „Server verwalten“ ändern dies in den Servereinstellungen.",
       "saved": "Standard für Neulingsbenachrichtigungen gespeichert",
       "saveFailed": "Standard für Neulingsbenachrichtigungen konnte nicht gespeichert werden"
+    }
+  },
+  "systemMessages": {
+    "server": {
+      "title": "Systemnachrichten",
+      "description": "Harmony postet eine Nachricht, wenn jemand dem Server beitritt, ihn verlässt, gekickt oder gebannt wird.",
+      "toggle": "Nachricht senden, wenn Mitglieder beitreten oder gehen",
+      "channel": "Kanal",
+      "channelHint": "Automatisch verwendet den ersten Textkanal, den alle sehen können.",
+      "automatic": "Automatisch",
+      "unavailableChannel": "Ein Kanal, den du nicht sehen kannst",
+      "loadFailed": "Einstellungen für Systemnachrichten konnten nicht geladen werden.",
+      "saveFailed": "Einstellungen für Systemnachrichten konnten nicht aktualisiert werden."
     }
   },
   "time": {

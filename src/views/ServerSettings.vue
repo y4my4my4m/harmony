@@ -129,6 +129,11 @@
             :server-id="serverId"
           />
 
+          <ServerSystemMessages
+            v-if="activeSection === 'overview' && permissions.canEditBasicInfo"
+            :server-id="serverId"
+          />
+
           <!-- Roles Section -->
           <RoleManagement
             v-if="activeSection === 'roles'"
@@ -240,6 +245,7 @@ import DiscordBridgeSetup from '@/components/settings/DiscordBridgeSetup.vue'
 import RoleManagement from '@/components/settings/RoleManagement.vue'
 import ServerBans from '@/components/settings/server/ServerBans.vue'
 import ServerNewcomerAlerts from '@/components/settings/server/ServerNewcomerAlerts.vue'
+import ServerSystemMessages from '@/components/settings/server/ServerSystemMessages.vue'
 import ServerAutoMod from '@/components/settings/server/ServerAutoMod.vue'
 import AutoModOptInBanner from '@/components/settings/server/AutoModOptInBanner.vue'
 import ServerWelcomeSettings from '@/components/settings/server/ServerWelcomeSettings.vue'

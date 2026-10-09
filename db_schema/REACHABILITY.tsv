@@ -64,13 +64,13 @@ automod_state	definer	jsonb	service_role	client	called by delete_server_automod_
 automod_text_array	invoker	text[]	service_role	client, trigger	called by automod_canonical_config, automod_compile_rule, upsert_server_automod_rule
 backfill_timeline_entries	invoker	integer	service_role	service key	nothing references it
 backfill_timeline_on_follow	definer	trigger	anon+authenticated+service_role	trigger	trigger public.follows AFTER INSERT/UPDATE (backfill_timeline_on_follow_trigger)
-ban_server_member	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/ModerationService.ts
+ban_server_member	definer	jsonb	authenticated+service_role	client	rpc in src/services/ModerationService.ts
 batch_set_instance_config	definer	boolean	authenticated+service_role	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts, src/services/AdminService.ts
 bridge_import_server_emoji	definer	TABLE(status text, id uuid, name text, url text, discord_emoji_id text)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 broadcast_bot_installation_change	definer	trigger	service_role	trigger	trigger public.bot_server_permissions AFTER INSERT/DELETE/UPDATE (broadcast_bot_installation_change)
 broadcast_bot_presence_change	definer	trigger	service_role	trigger	trigger public.bot_presence AFTER INSERT/UPDATE (broadcast_bot_presence_change)
 broadcast_category_change	definer	trigger	anon+authenticated+service_role	trigger	trigger public.channel_categories AFTER INSERT/DELETE/UPDATE (trg_broadcast_category_change)
-broadcast_channel_change	definer	trigger	anon+authenticated+service_role	trigger	trigger public.channels AFTER INSERT/DELETE/UPDATE (trg_broadcast_channel_change)
+broadcast_channel_change	definer	trigger	anon+authenticated+service_role	trigger	trigger public.channels AFTER DELETE/UPDATE (trg_broadcast_channel_change), public.channels AFTER INSERT (trg_broadcast_channel_insert)
 broadcast_channel_encryption_change	definer	trigger	service_role	trigger	trigger public.channel_encryption_settings AFTER INSERT/UPDATE (trg_broadcast_channel_encryption)
 broadcast_conversation_participant_event	definer	trigger	anon+authenticated+service_role	trigger	trigger public.conversation_participants AFTER INSERT (trg_broadcast_conversation_participant)
 broadcast_conversation_updated	definer	trigger	anon+authenticated+service_role	trigger	trigger public.conversations AFTER UPDATE (trg_broadcast_conversation_updated)
@@ -149,6 +149,7 @@ convert_jsonb_to_ap	invoker	text	anon+authenticated+service_role	client, trigger
 count_pinned_messages	invoker	integer	anon+authenticated+service_role	client	rpc in src/services/MessageService.ts
 count_profile_media	invoker	integer	anon+authenticated+service_role	client	rpc in src/services/activityPubService.ts
 create_bot	definer	jsonb	authenticated+service_role	client	rpc in src/components/settings/user/UserBotsManagement.vue
+create_channel	invoker	channels	authenticated+service_role	client	rpc in src/components/CreateChannel.vue
 create_comprehensive_timeline_entries	definer	trigger	anon+authenticated+service_role	trigger	trigger public.posts AFTER INSERT (create_comprehensive_timeline_entries_trigger)
 create_default_notification_preferences	definer	void	service_role	service key	nothing references it
 create_default_server_role	definer	trigger	anon+authenticated+service_role	trigger	trigger public.servers AFTER INSERT (trigger_create_default_role)
@@ -358,7 +359,7 @@ guard_user_server_welcome_columns	invoker	trigger	service_role	trigger	trigger p
 handle_conversation_participant_added	definer	trigger	anon+authenticated+service_role	trigger	trigger public.conversation_participants AFTER INSERT (trg_conversation_participant_added)
 handle_group_participant_left	definer	trigger	anon+authenticated+service_role	trigger	trigger public.conversation_participants AFTER UPDATE (trg_group_participant_left)
 handle_local_post_mention_notifications	definer	trigger	anon+authenticated+service_role	trigger	trigger public.posts AFTER INSERT (trigger_handle_local_post_mention_notifications)
-handle_member_join_system_message	definer	trigger	anon+authenticated+service_role	trigger	trigger public.user_servers AFTER INSERT (trigger_member_join_system_message)
+handle_member_join_system_message	definer	trigger	anon+authenticated+service_role	trigger	trigger public.user_servers AFTER INSERT (trigger_member_join_system_message), public.user_servers AFTER UPDATE (trigger_member_accept_system_message)
 handle_member_leave_system_message	definer	trigger	anon+authenticated+service_role	trigger	trigger public.user_servers AFTER DELETE (trigger_member_leave_system_message)
 handle_message_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.messages AFTER INSERT (trg_handle_message_federation)
 handle_messages_updated_at	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (handle_updated_at)
@@ -406,7 +407,7 @@ issue_bot_token	definer	jsonb	service_role	client	called by create_bot, discord_
 join_public_server	definer	jsonb	authenticated+service_role	client	rpc in src/stores/server.ts
 jsonb_text_content_length	invoker	integer	anon+authenticated+service_role	client, declarative, trigger	check public.messages messages_text_length_check, public.posts posts_text_length_check
 keep_welcome_managed_server_rules	definer	trigger	service_role	trigger	trigger public.servers BEFORE UPDATE (a_servers_welcome_rules_guard)
-kick_server_member	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/ModerationService.ts
+kick_server_member	definer	jsonb	authenticated+service_role	client	rpc in src/services/ModerationService.ts
 list_my_sessions	definer	TABLE(id uuid, created_at timestamp with time zone, last_active_at timestamp with time zone, user_agent text, ip text, aal text, is_current boolean, push_transports text[])	authenticated+service_role	client	rpc in src/services/AccountSecurityService.ts
 log_admin_action	definer	uuid	service_role	client	called by admin_moderate_post, admin_set_moderator, batch_set_instance_config, +9
 log_key_generation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.user_key_pairs AFTER INSERT (audit_key_generation)
@@ -539,6 +540,7 @@ set_server_featured	definer	void	anon+authenticated+service_role	client	rpc in s
 set_server_member_timeout	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
 set_server_newcomer_alerts	definer	jsonb	authenticated+service_role	client	rpc in src/services/NewcomerAlertService.ts
 set_server_raid_lockdown	definer	jsonb	authenticated+service_role	client	rpc in src/services/AutoModService.ts
+set_server_system_channel	definer	jsonb	authenticated+service_role	client	rpc in src/services/permissionsService.ts
 set_server_welcome	definer	jsonb	authenticated+service_role	client	rpc in src/services/ServerWelcomeService.ts
 set_stripe_webhook_secret	definer	void	authenticated+service_role	client	rpc in src/services/FundingService.ts
 set_welcome_server	definer	jsonb	authenticated+service_role	client	rpc in src/services/ServerWelcomeService.ts

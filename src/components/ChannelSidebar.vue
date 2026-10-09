@@ -86,6 +86,13 @@
                   :title="$t(channelLockKey(element)!)"
                   :aria-label="$t(channelLockKey(element)!)"
                 ><Icon name="lock" :size="12" /></span>
+                <span
+                  v-if="serverChannelStore.isPrivateChannel(element.id)"
+                  class="channel-lock"
+                  role="img"
+                  :title="$t('channel.private.label')"
+                  :aria-label="$t('channel.private.label')"
+                ><Icon name="eye-off" :size="12" /></span>
               </div>
               <Icon v-if="mutedChannelIds.has(element.id)" name="bell-off" :size="12" class="muted-icon" />
               <div v-if="getChannelUnreadMentions(element.id) > 0" class="notification-badge">
@@ -236,6 +243,13 @@
                         :title="$t(channelLockKey(channel)!)"
                         :aria-label="$t(channelLockKey(channel)!)"
                       ><Icon name="lock" :size="12" /></span>
+                <span
+                  v-if="serverChannelStore.isPrivateChannel(channel.id)"
+                  class="channel-lock"
+                  role="img"
+                  :title="$t('channel.private.label')"
+                  :aria-label="$t('channel.private.label')"
+                ><Icon name="eye-off" :size="12" /></span>
                     </div>
                     <Icon v-if="mutedChannelIds.has(channel.id)" name="bell-off" :size="12" class="muted-icon" />
                     <div v-if="getChannelUnreadMentions(channel.id) > 0" class="notification-badge">
@@ -659,10 +673,13 @@ const storeCategories = computed(() => serverChannelStore.categories);
 const reorderableCategories = computed({
   get: () => {
     if (!Array.isArray(storeCategories.value)) return [];
-    return storeCategories.value.map(category => ({
+    const categories = storeCategories.value.map(category => ({
       ...category,
       channels: props.categoryChannels[category.id] || [],
     }));
+    // A category whose channels are all hidden from the viewer would still show its name.
+    // Managers keep every category: they reorder the full list and add channels to empty ones.
+    return canDragAndDrop.value ? categories : categories.filter(c => c.channels.length > 0);
   },
   set: (newCategories) => {
     serverChannelStore.updateCategoryOrder(newCategories);

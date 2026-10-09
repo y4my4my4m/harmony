@@ -897,11 +897,13 @@ class RoleService {
     targetType: 'role' | 'user',
     targetId: string,
     allow: Partial<Record<Permission, boolean>>,
-    deny: Partial<Record<Permission, boolean>>
+    deny: Partial<Record<Permission, boolean>>,
+    /** Bits this call owns; bits outside it keep their stored allow/deny. Omitted: every bit. */
+    managed?: Permission[],
   ): Promise<boolean> {
     try {
-      const allowMask = permissionsToBitmask(allow)
-      const denyMask = permissionsToBitmask(deny)
+      let allowMask = permissionsToBitmask(allow)
+      let denyMask = permissionsToBitmask(deny)
 
       // Why this isn't an upsert (anymore):
       //
@@ -923,7 +925,7 @@ class RoleService {
 
       const baseQuery = supabase
         .from('channel_permission_overrides')
-        .select('id')
+        .select('id, allow_permissions, deny_permissions')
         .eq('channel_id', channelId)
       const filteredQuery =
         targetType === 'role'
@@ -931,6 +933,12 @@ class RoleService {
           : baseQuery.eq('user_id', targetId).is('role_id', null)
       const { data: existing, error: lookupErr } = await filteredQuery.maybeSingle()
       if (lookupErr) throw lookupErr
+
+      if (managed && existing) {
+        const managedMask = permissionsToBitmask(Object.fromEntries(managed.map((p) => [p, true])))
+        allowMask |= BigInt(existing.allow_permissions ?? 0) & ~managedMask
+        denyMask |= BigInt(existing.deny_permissions ?? 0) & ~managedMask
+      }
 
       // If both masks are zero, the row is meaningless ("inherit everything")
       // - delete an existing row, or no-op if there's none. Avoids writing

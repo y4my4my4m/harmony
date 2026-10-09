@@ -382,7 +382,13 @@
     },
     "copyId": "Copier l'ID du canal",
     "idCopied": "ID du canal copié",
-    "idCopyFailed": "Impossible de copier l'ID du canal"
+    "idCopyFailed": "Impossible de copier l'ID du canal",
+    "private": {
+      "label": "Salon privé",
+      "hint": "Seuls les rôles choisis, le propriétaire et les administrateurs peuvent le voir.",
+      "whoCanSee": "Qui peut le voir",
+      "noRoles": "Aucun rôle pour l'instant : seuls le propriétaire et les administrateurs le verront."
+    }
   },
   "message": {
     "typeMessage": "Message à {to}",
@@ -1330,6 +1336,19 @@
       "hint": "Réglage par défaut pour les serveurs dont les propriétaires n'ont pas choisi. Les propriétaires et les membres disposant de Gérer le serveur le modifient dans les Paramètres du serveur.",
       "saved": "Réglage par défaut des alertes nouveaux membres enregistré",
       "saveFailed": "Impossible d'enregistrer le réglage par défaut des alertes nouveaux membres"
+    }
+  },
+  "systemMessages": {
+    "server": {
+      "title": "Messages système",
+      "description": "Harmony publie un message quand quelqu'un rejoint le serveur, le quitte, en est expulsé ou banni.",
+      "toggle": "Envoyer un message quand des membres arrivent ou partent",
+      "channel": "Salon",
+      "channelHint": "Automatique utilise le premier salon textuel visible par tout le monde.",
+      "automatic": "Automatique",
+      "unavailableChannel": "Un salon que vous ne pouvez pas voir",
+      "loadFailed": "Impossible de charger les réglages des messages système.",
+      "saveFailed": "Impossible de mettre à jour les réglages des messages système."
     }
   },
   "time": {
