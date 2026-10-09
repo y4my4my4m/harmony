@@ -75,8 +75,8 @@
                   <span v-else class="instance-monogram" aria-hidden="true">{{ instanceMonogram(instance.domain) }}</span>
                 </div>
                 <div class="instance-card-meta">
-                  <h4 class="instance-card-domain">{{ instance.domain }}</h4>
-                  <span class="instance-card-software">{{ softwareDisplayName(instance.software) || t('activitypub.unknown') }}{{ instance.version ? ` ${instance.version}` : '' }}</span>
+                  <h4 class="instance-card-domain" :title="instance.domain">{{ instance.domain }}</h4>
+                  <span class="instance-card-software" :title="instanceSoftwareLine(instance)">{{ instanceSoftwareLine(instance) }}</span>
                 </div>
                 <span class="instance-status-pill" :class="getInstanceStatusClass(instance)">
                   {{ getInstanceStatusText(instance) }}
@@ -336,6 +336,9 @@ const getInstanceIcon = (instance: any): string | null => {
   return url;
 };
 
+const instanceSoftwareLine = (instance: any): string =>
+  `${softwareDisplayName(instance.software) || t('activitypub.unknown')}${instance.version ? ` ${instance.version}` : ''}`;
+
 const getInstanceBanner = (instance: any): string | null => {
   return instance.metadata?.banner_url || null;
 };
@@ -505,7 +508,8 @@ defineExpose({ refreshContent });
 }
 
 .instance-card.has-banner {
-  padding-top: 80px;
+  /* Banner height plus the gap the header keeps below it. */
+  padding-top: 96px;
 }
 
 .instance-card-banner {
@@ -575,11 +579,18 @@ defineExpose({ refreshContent });
   color: var(--text-primary);
   margin: 0 0 2px;
   letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .instance-card-software {
+  display: block;
   font-size: 0.75rem;
   color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .instance-status-pill {
@@ -644,9 +655,10 @@ defineExpose({ refreshContent });
 
 .instance-card-footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px 12px;
   padding-top: 12px;
   border-top: 1px solid var(--border-color);
   margin-top: 2px;
@@ -657,17 +669,21 @@ defineExpose({ refreshContent });
 .instance-last-seen {
   font-size: 0.75rem;
   color: var(--text-secondary);
+  white-space: nowrap;
 }
 
+/* On a narrow card the buttons take their own row, right-aligned. */
 .instance-card-actions {
   display: flex;
   gap: 8px;
+  margin-left: auto;
 }
 
 .instance-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  white-space: nowrap;
   padding: 6px 12px;
   font-size: 0.8125rem;
   font-weight: 500;
