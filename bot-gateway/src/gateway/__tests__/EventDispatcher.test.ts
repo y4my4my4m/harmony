@@ -543,6 +543,37 @@ describe('message change feed', () => {
 
     expect([...d().changeSeen.keys()]).toEqual(['m-2'])
   })
+
+  it('moves the cursor to the database clock once drained, so a burst is re-read for one overlap only', async () => {
+    for (let i = 0; i < 300; i++) seedMessage(`m-${String(i).padStart(3, '0')}`, T0 - 1_000)
+    await startFeed()
+    dbClock += 1_000
+    for (let i = 0; i < 300; i++) softDelete(`m-${String(i).padStart(3, '0')}`)
+    await poll()
+    expect(events('MESSAGE_DELETE')).toHaveLength(300)
+
+    dbClock += 40_000
+    await poll()
+    feedCalls = []
+    await poll()
+
+    expect(d().changeCursor.at).toBe(at(dbClock))
+    expect(timestampMicros(feedCalls[0].p_after_at!)).toBe((dbClock - 30_000) * 1000)
+    expect(channelMessageChanges(feedCalls[0]).data!.messages).toEqual([])
+    expect(events('MESSAGE_DELETE')).toHaveLength(300)
+  })
+
+  it('keeps every row the next read returns in the dedupe, to the microsecond', () => {
+    d().changeFloorMicros = 0
+    const cursor = { at: '2026-10-08T12:01:00.000500+00:00', id: '00000000-0000-0000-0000-000000000000' }
+    d().changeSeen.set('m-edge', '2026-10-08T12:00:30.000200+00:00')
+    d().changeSeen.set('m-old', '2026-10-08T12:00:29.999900+00:00')
+    const start = d().changeWindowStart(cursor)
+    d().pruneChangeSeen(start.micros)
+
+    expect(start.position.at).toBe('2026-10-08T12:00:30.000Z')
+    expect([...d().changeSeen.keys()]).toEqual(['m-edge'])
+  })
 })
 
 describe('reaction removal', () => {

@@ -511,10 +511,14 @@ export class EventDispatcher {
       .map(row => row.bot_id)
   }
   
-  /** Where a tick reads from: CHANGE_OVERLAP_MS behind the cursor, never before start. */
+  /**
+   * Where a tick reads from: CHANGE_OVERLAP_MS behind the cursor, never before start, rounded
+   * down to the millisecond the query is sent with. `micros` is that rounded value, so the
+   * dedupe prune never drops a row the next read returns.
+   */
   private changeWindowStart(cursor: FeedPosition): { position: FeedPosition; micros: number } {
-    const micros = Math.max(timestampMicros(cursor.at) - CHANGE_OVERLAP_MS * 1000, this.changeFloorMicros)
-    return { position: { at: new Date(Math.floor(micros / 1000)).toISOString(), id: NIL_UUID }, micros }
+    const ms = Math.floor(Math.max(timestampMicros(cursor.at) - CHANGE_OVERLAP_MS * 1000, this.changeFloorMicros) / 1000)
+    return { position: { at: new Date(ms).toISOString(), id: NIL_UUID }, micros: ms * 1000 }
   }
 
   /**
@@ -553,6 +557,11 @@ export class EventDispatcher {
         }
 
         if (rows.length < CHANGE_PAGE) {
+          // Drained: every row visible at the database clock is read, so the cursor moves to it
+          // and a quiet feed re-reads CHANGE_OVERLAP_MS of history, not the last burst forever.
+          if (nowMicros !== Infinity && nowMicros > timestampMicros(this.changeCursor!.at)) {
+            this.changeCursor = { at: data.now, id: NIL_UUID }
+          }
           this.changeResume = null
           this.pruneChangeSeen(this.changeWindowStart(this.changeCursor!).micros)
           return
