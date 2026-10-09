@@ -351,7 +351,9 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
   root.style.setProperty('--h-primary-light', '#38BDF8')
   root.style.setProperty('--h-primary-dark', '#0369A1')
   root.style.setProperty('--h-brand', theme.primary)
-  
+  // Presets take the #fff in design-system.css.
+  root.style.removeProperty('--text-on-primary')
+
   // Background colors - use proper defaults based on theme
   if (themeName === 'dark') {
     // Background system colors
