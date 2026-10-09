@@ -61,7 +61,7 @@ The backend expects these paths on the public domain. `self-host/Caddyfile` and 
 | `/posts/{id}`, `/posts/{id}/likes`, `/posts/{id}/replies` | unchanged; `/posts/{id}` answers browsers with an HTML page |
 | `/health*`, `/link-preview*` | unchanged |
 | `/api/livekit/*` | unchanged |
-| `/webhooks/*` | unchanged (Ko-fi) |
+| `/webhooks/*` | unchanged (Ko-fi, Stripe) |
 | `/api/federation/*` | prefix stripped: `/api/federation/push/vapid-key` reaches `/push/vapid-key` |
 
 The backend mounts most routes at the root only, so nginx strips the prefix with a trailing slash on both sides:

@@ -5,7 +5,7 @@ Node service (Express, TypeScript) that speaks ActivityPub for Harmony and serve
 - **ActivityPub**: WebFinger, NodeInfo, actors, inboxes and outboxes, HTTP Signatures, delivery with retries; Harmony servers federate as ActivityPub Groups
 - **Queue worker**: BullMQ jobs fed by Postgres `LISTEN federation_jobs`, delivery, maintenance
 - **Push**: Web Push, UnifiedPush and FCM ([docs/PUSH_NOTIFICATIONS.md](../docs/PUSH_NOTIFICATIONS.md))
-- **Link previews**, the **GIF proxy** (Klipy), **LiveKit** tokens and webhook, **presence and typing**, signed **attachment URLs** for other instances, and the **Ko-fi** donation webhook
+- **Link previews**, the **GIF proxy** (Klipy), **LiveKit** tokens and webhook, **presence and typing**, signed **attachment URLs** for other instances, and the **Ko-fi** and **Stripe** donation webhooks
 
 ## Process modes
 
@@ -92,6 +92,7 @@ Private servers, and channels `@everyone` cannot view, are served only to a GET 
 | `/media` | Signed attachment URLs for other instances |
 | `/instance-info` | Name, domain, version and public Supabase URL and anon key, for native clients |
 | `/webhooks/kofi` | Ko-fi donations |
+| `/webhooks/stripe` | Stripe Payment Link donations, credited by `client_reference_id` |
 | `/lookup-user`, `/resolve-post`, `/fetch-posts`, `/fetch-replies`, `/fetch-reactions`, `/refetch-post` | Remote lookups for the client |
 | `/servers/discover`, `/servers/join`, `/servers/leave`, `/invites/:code`, `/instances/probe` | Remote servers, invites, instance probing |
 | `POST /api/activitypub/process-delivery` | Process the delivery queue on demand (admin) |

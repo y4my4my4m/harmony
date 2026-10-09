@@ -27,6 +27,7 @@ import livekitRouter from './routes/livekit.js';
 import voiceRouter from './routes/voice.js';
 import realtimeRouter from './routes/realtime.js';
 import kofiWebhookRouter from './routes/webhooks/kofi.js';
+import stripeWebhookRouter from './routes/webhooks/stripe.js';
 import mediaRouter from './routes/media.js';
 
 import webFingerRouter from './activitypub/WebFingerService.js';
@@ -115,9 +116,11 @@ export function createApp(): Application {
 
   // Donation webhooks - each provider handles its own body parser internally.
   // Ko-fi posts application/x-www-form-urlencoded which the global json
-  // parser ignores.
+  // parser ignores; Stripe's signature covers the raw JSON body (req.rawBody).
   app.use('/webhooks', kofiWebhookRouter);
   app.use('/api/webhooks', kofiWebhookRouter);
+  app.use('/webhooks', stripeWebhookRouter);
+  app.use('/api/webhooks', stripeWebhookRouter);
 
   // Rate limiting is applied per-route inside each router (not at the mount level)
   // to prevent cascade bleeding - mounting `app.use('/', limiter, routerA)` causes

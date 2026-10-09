@@ -318,6 +318,7 @@ get_server_members_by_instance	p_server_id uuid	TABLE(instance text, member_ids 
 get_server_newcomer_alerts	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 get_server_welcome	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 get_signup_cohorts	p_months integer, p_period text	TABLE(cohort_start date, signups integer, joined_server integer, joined_other_server integer, day1_eligible integer, wrote_day1 integer, days1_7_eligible integer, active_days1_7 integer, days8_30_eligible integer, active_days8_30 integer, days31_90_eligible integer, active_days31_90 integer, first_message_eligible integer, answered_1h integer, answered_24h integer, has_push integer, follows_anyone integer)	definer	public, pg_temp	authenticated+service_role	client
+get_stripe_webhook_secret		text	definer	public, pg_temp	authenticated+service_role	client
 get_supporter_badge	p_user_id uuid	TABLE(tier_name text, badge_icon text, badge_color text, is_active boolean)	definer	public, pg_temp	service_role	unreferenced
 get_supporter_badges	p_user_ids uuid[]	TABLE(user_id uuid, tier_name text, badge_icon text, badge_color text, is_active boolean)	definer	public, pg_temp	authenticated+service_role	client
 get_suspicious_activity	p_status text, p_limit integer, p_before timestamp with time zone	jsonb	definer	public, pg_temp	authenticated+service_role	client
@@ -538,6 +539,7 @@ set_server_member_timeout	p_server_id uuid, p_user_id uuid, p_seconds integer, p
 set_server_newcomer_alerts	p_server_id uuid, p_enabled boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client
 set_server_raid_lockdown	p_server_id uuid, p_active boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client
 set_server_welcome	p_server_id uuid, p_enabled boolean, p_message text, p_rules jsonb, p_require_acceptance boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client
+set_stripe_webhook_secret	p_secret text	void	definer	public, pg_temp	authenticated+service_role	client
 set_welcome_server	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 should_show_gif_ads	p_user_id uuid	boolean	definer	public, pg_temp	anon+authenticated+service_role	client
 sign_out_my_sessions	p_scope text	integer	definer	public, pg_temp	authenticated+service_role	client

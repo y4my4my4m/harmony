@@ -18,7 +18,7 @@ The web app takes its instance values from `/config.json` at page load and falls
 | `instanceDomain` | `INSTANCE_DOMAIN`, else `domain` | `VITE_INSTANCE_DOMAIN` | Instance domain used until `instance_config` loads |
 | `instanceName` | `INSTANCE_NAME` | `VITE_INSTANCE_NAME` | Display name used until `instance_config` loads. Default `Harmony` |
 | `appUrl` | `APP_URL` | `VITE_APP_URL` | Public origin of the web app; base of invite links. Default: the page origin |
-| `federationUrl` | `FEDERATION_URL` | `VITE_FEDERATION_URL` | Public origin of the federation backend; base of the Ko-fi webhook URL shown in the admin panel. Default: the page origin |
+| `federationUrl` | `FEDERATION_URL` | `VITE_FEDERATION_URL` | Public origin of the federation backend; base of the Ko-fi and Stripe webhook URLs shown in the admin panel. Default: the page origin |
 | `storageDomain` | `STORAGE_DOMAIN` | `VITE_STORAGE_DOMAIN` | Comma-separated hosts, besides the Supabase URL's, that serve this instance's storage; image transforms apply to their URLs |
 | `altDomains` | `HARMONY_ALT_DOMAINS` | `VITE_HARMONY_ALT_DOMAINS` | Comma-separated alternate host names of this instance, treated as local by embed detection |
 | `termsUrl` | `TERMS_URL` | `VITE_TERMS_URL` | Terms of service link on the registration page. The admin panel sets it too |
