@@ -432,6 +432,18 @@
       "two": " y {name2} están escribiendo...",
       "three": ", {name2} y {name3} están escribiendo...",
       "many": "Varios usuarios están escribiendo..."
+    },
+    "upload": {
+      "progress": "Subiendo, {percent} %",
+      "failed": "Error al subir",
+      "failedToast": "No se pudo subir {name}: {reason}",
+      "removeFailed": "Quita los archivos adjuntos que no se pudieron subir y vuelve a enviar.",
+      "sendWhenDone": "Se enviará cuando terminen las subidas.",
+      "voiceFailed": "No se pudo subir el mensaje de voz.",
+      "cancel": "Cancelar subida",
+      "stalled": "Subida detenida: sin progreso durante {seconds} s.",
+      "notSent": "El mensaje no se envió. Ha vuelto al editor.",
+      "voiceNotSent": "No se pudo enviar el mensaje de voz."
     }
   },
   "messageSearch": {

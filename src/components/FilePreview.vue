@@ -53,10 +53,9 @@
           <div v-if="file.uploadError" class="error-message">{{ file.uploadError }}</div>
         </div>
         
-        <button 
-          class="remove-file-btn" 
-          @click="removeFile(index)" 
-          :disabled="file.uploadStatus === 'uploading'"
+        <button
+          class="remove-file-btn"
+          @click="removeFile(index)"
           :aria-label="`Remove ${file.name}`"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -70,6 +69,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import type { MessageMediaUpload } from '@/services/messageMediaUpload';
 
 export interface FilePreviewData {
   file: File;
@@ -78,11 +78,14 @@ export interface FilePreviewData {
   type: string;
   preview?: string;
   uploadStatus?: 'pending' | 'uploading' | 'completed' | 'error';
+  /** Percent, 0 to 100. */
   uploadProgress?: number;
   uploadedUrl?: string;
   /** message_media object name of a completed upload. */
   uploadedPath?: string;
   uploadError?: string;
+  /** The running or settled upload; marked raw. */
+  upload?: MessageMediaUpload;
 }
 
 interface Props {

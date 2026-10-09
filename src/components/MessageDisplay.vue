@@ -680,10 +680,12 @@ import type { PropType, Ref, ComputedRef } from 'vue';
 import type { Message, MessagePart, User, Emoji, Reaction, FileContent } from '@/types';
 import { hasSubstantiveMessageContent, removeFilePartByUrl } from '@/utils/messageContentUtils';
 import { isBridgedAuthorMessage } from '@/utils/messageAuthor';
-import { ensureMediaPartSources, isPrivateMediaPart, mediaPartSource } from '@/services/privateMedia';
+import { ensureMediaPartSources, isPrivateMediaPart, mediaLoadKey, mediaPartSource } from '@/services/privateMedia';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { useDMStore } from '@/stores/useDM';
+import { useOutboxStore } from '@/stores/useOutbox';
+import { isOptimisticId } from '@/stores/shared/optimisticMessages';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { showInstanceStaffBadge } from '@/utils/instanceBadge';
@@ -885,6 +887,7 @@ const captureReadBoundary = () => {
 };
 const chatStore = useChatStore();
 const dmStore = useDMStore();
+const outbox = useOutboxStore();
 const toast = useToast();
 const authStore = useAuthStore();
 const profileStore = useProfileStore();
@@ -1496,8 +1499,10 @@ const LONG_PRESS_DURATION = 500;
 /** On mobile: tap position for positioning message-actions above the finger (thumb reach ~48px) */
 const mobileActionTapPosition = ref<{ x: number; y: number } | null>(null);
 
+// An outbox row has no actions until it is sent: reply, react and delete need the
+// persisted message.
 const handleMessageMouseover = (messageId: string) => {
-  if (!isMobile.value) {
+  if (!isMobile.value && !outbox.has(messageId)) {
     hoveredMessageId.value = messageId;
   }
 };
@@ -1509,6 +1514,7 @@ const handleMessageMouseleave = () => {
 };
 
 const handleMessageTouchStart = (messageId: string, event: TouchEvent) => {
+  if (outbox.has(messageId)) return;
   const touch = event.touches[0];
   const tapPos = touch ? { x: touch.clientX, y: touch.clientY } : null;
   longPressTimer.value = setTimeout(() => {
@@ -1568,6 +1574,8 @@ const handleMessageDoubleClick = (messageId: string, event: MouseEvent) => {
 
 const triggerQuickReact = (messageId: string) => {
   if (!quickReact.enabled.value) return;
+  // An unsent row (temp- id: optimistic copy or outbox row) has no message to react to.
+  if (isOptimisticId(messageId)) return;
   const e = quickReact.emoji.value;
   if (!e?.id) return;
   const emojiForReaction: Emoji = {
@@ -2031,9 +2039,9 @@ watch(() => props.messages, (newMessages) => {
 
     if (Array.isArray(message.content)) {
       message.content.forEach(part => {
-        if (part && typeof part === 'object' && 'url' in part && part.url && !(part.url in imageLoaded.value)) {
+        if (part && typeof part === 'object' && 'url' in part && part.url && !(mediaLoadKey(part) in imageLoaded.value)) {
           if ((part.type === 'file' && part.fileType === 'image') || (part.type === 'url' && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp')))) {
-            imageLoaded.value[part.url] = false;
+            imageLoaded.value[mediaLoadKey(part)] = false;
           }
         }
       });
@@ -2143,7 +2151,7 @@ watch(() => props.messages, (newMessages) => {
                 if (part && typeof part === 'object' && 'url' in part && part.url) {
                   if ((part.type === 'file' && part.fileType === 'image') || 
                       (part.type === 'url' && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp') || part.url.endsWith('.gif')))) {
-                    imageUrlsInMessages.add(part.url);
+                    imageUrlsInMessages.add(mediaLoadKey(part));
                   }
                 }
                 // Check for embed parts
@@ -3064,6 +3072,12 @@ const editLastOwnMessage = () => {
 const deleteMessage = (messageId: string, event?: MouseEvent) => {
   const bypassConfirm = event?.shiftKey === true;
   hoveredMessageId.value = null;
+  // An unsent row has no message to delete: an outbox row is discarded, an
+  // optimistic copy is left to its insert.
+  if (isOptimisticId(messageId)) {
+    if (outbox.has(messageId)) outbox.discard(messageId);
+    return;
+  }
   const thread = getThreadForMessage(messageId);
   
   if (thread) {
@@ -3092,6 +3106,11 @@ const deleteMessage = (messageId: string, event?: MouseEvent) => {
 
 const confirmDeleteMessage = async () => {
   const { messageId, hasThread } = deleteConfirmConfig.value;
+  if (outbox.has(messageId)) {
+    outbox.discard(messageId);
+    showDeleteConfirmModal.value = false;
+    return;
+  }
   
   // Haptic feedback for destructive action
   triggerDestructive();
@@ -3420,6 +3439,8 @@ const closeLightbox = () => {
 const openContextMenu = (message: Message, event: MouseEvent) => {
   event.preventDefault();
   event.stopPropagation();
+  // Every menu action acts on the message's id, which an unsent row lacks.
+  if (isOptimisticId(message.id)) return;
   
   // Haptic feedback for context menu
   triggerInteraction();
@@ -3457,7 +3478,8 @@ const handleMessageContextMenu = (message: Message, event: MouseEvent) => {
     event.preventDefault();
     return;
   }
-  if (shouldAllowNativeContextMenu(event)) {
+  // The browser's own menu stays available on an unsent row.
+  if (shouldAllowNativeContextMenu(event) || isOptimisticId(message.id)) {
     return;
   }
   openContextMenu(message, event);
@@ -4092,6 +4114,11 @@ defineExpose({ editLastOwnMessage });
 
 /* Responsive design */
 @media (max-width: 768px) {
+  /* The composer's typing tab overlaps the list's bottom edge by its height. */
+  .message-display {
+    padding-bottom: 30px;
+  }
+
   .message-item {
     padding: 0 8px 0 12px;
   }
@@ -4127,6 +4154,9 @@ defineExpose({ editLastOwnMessage });
   }
 
   .username-text {
+    /* inline-flex ignores text-overflow. */
+    display: inline-block;
+    vertical-align: bottom;
     max-width: 40vw;
     overflow: hidden;
     text-overflow: ellipsis;

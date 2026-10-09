@@ -1,10 +1,5 @@
 <template>
   <div ref="composerRef" class="message-input" :class="{'replying': replyMessageId, 'has-files': attachedFiles.length > 0}" data-testid="message-input" data-floating-video-avoid>
-    <TypingIndicator
-      :typing-users="typingUsers"
-      class="typing-indicator-wrapper"
-    />
-    
     <MessageReply
       v-if="replyMessageId"
       :replyMessageId="replyMessageId"
@@ -187,6 +182,15 @@
         </div>
       </template>
     </div>
+
+    <!-- Reserved strip under the field: typing and status never cover the bars above. -->
+    <div class="composer-status">
+      <TypingIndicator
+        :typing-users="typingUsers"
+        class="typing-indicator-wrapper"
+      />
+      <slot name="status-end" />
+    </div>
     
     <AutoSuggest
       :isVisible="autoSuggest.state.value.isActive"
@@ -200,7 +204,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick, markRaw, toRaw } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useViewport } from '@/composables/useViewport';
 import { debug } from '@/utils/debug'
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
@@ -230,14 +235,13 @@ import {
   DEFAULT_MAX_MESSAGE_TEXT_LENGTH,
   MESSAGE_TEXT_HARD_CEILING,
 } from '@/utils/messageContentUtils';
-import { backgroundUploadManager } from '@/services/fileService';
-import { mediaRoom as roomOf, uploadMessageMedia } from '@/services/privateMedia';
+import { mediaRoom as roomOf, messageMediaPath, uploadMessageMedia } from '@/services/privateMedia';
+import { forgetMessageMediaUpload, startMessageMediaUpload, UploadAbortedError } from '@/services/messageMediaUpload';
 import type { VoiceRecordingResult } from '@/services/voiceRecordingService';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { roleService, Permission } from '@/services/RoleService';
-import { v4 as uuidv4 } from 'uuid';
 
 interface Props {
   giphyOpen?: boolean;
@@ -253,6 +257,14 @@ interface Props {
   /** Room of uploaded attachments ('c/<channel id>' or 'd/<conversation id>'); derived from
       channelId or conversationId when absent. */
   mediaRoom?: string | null;
+  /**
+   * The parent queues sends whose uploads are unfinished (the outbox). Enter hands
+   * attachments over mid-upload, and a voice recording goes out as
+   * `queueVoiceMessage` without uploading here. Without it, Enter waits for running
+   * uploads with the composer intact, and a recording is uploaded before
+   * `sendVoiceMessage`.
+   */
+  backgroundSend?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -261,6 +273,7 @@ const props = withDefaults(defineProps<Props>(), {
   modelValue: '',
   replyMessageId: '',
   serverId: undefined,
+  backgroundSend: false,
 });
 
 // Placeholder target: DM username or channel name.
@@ -278,6 +291,14 @@ interface VoiceMessageData {
   mimeType: string
 }
 
+interface QueuedVoiceMessage {
+  /** The recording, named `voice.<ext>`. */
+  file: File
+  duration: number
+  waveform: number[]
+  mimeType: string
+}
+
 // Tuple-form defineEmits matches vue-tsc's `(...args: any[]) => any`
 // listener-prop type. The call-signature interface form emits contravariance
 // errors at every parent binding site (TS2322: "Target requires N element(s)
@@ -286,6 +307,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: string]
   sendMessage: [content: string, files: FilePreviewData[], replyMessageId?: string]
   sendVoiceMessage: [data: VoiceMessageData]
+  queueVoiceMessage: [data: QueuedVoiceMessage]
   toggleGiphy: []
   toggleEmojiList: [isReaction: boolean, message?: Message, triggerElement?: HTMLElement]
   'update:replyMessageId': [value: string]
@@ -297,6 +319,7 @@ const emit = defineEmits<{
 
 const authStore = useAuthStore();
 const toast = useToast();
+const { t } = useI18n();
 
 const uploadRoom = computed(() =>
   props.mediaRoom ?? roomOf({ channelId: props.channelId, conversationId: props.conversationId }));
@@ -507,9 +530,20 @@ const handleVoiceRecordingComplete = async (result: VoiceRecordingResult) => {
 
   debug.log('Voice recording complete:', { duration: result.duration, blobSize: result.blob.size, mimeType: result.mimeType, waveformLength: result.waveform?.length })
 
+  const ext = result.mimeType.includes('webm') ? 'webm' : result.mimeType.includes('ogg') ? 'ogg' : 'mp4'
+  if (props.backgroundSend) {
+    emit('queueVoiceMessage', {
+      file: new File([result.blob], `voice.${ext}`, { type: result.mimeType }),
+      duration: result.duration,
+      waveform: result.waveform,
+      mimeType: result.mimeType,
+    })
+    isVoiceRecording.value = false
+    return
+  }
+
   voiceUploading.value = true
   try {
-    const ext = result.mimeType.includes('webm') ? 'webm' : result.mimeType.includes('ogg') ? 'ogg' : 'mp4'
     const room = uploadRoom.value
     if (!room) throw new Error('Voice messages need a channel or conversation')
 
@@ -528,6 +562,7 @@ const handleVoiceRecordingComplete = async (result: VoiceRecordingResult) => {
     })
   } catch (err) {
     debug.error('Failed to upload voice message:', err)
+    toast.error(t('message.upload.voiceFailed'))
   } finally {
     voiceUploading.value = false
     isVoiceRecording.value = false
@@ -755,11 +790,27 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
         return;
       }
 
+      // A failed attachment blocks the send; the draft stays for its removal.
+      if (attachedFiles.value.some(file => file.uploadStatus === 'error')) {
+        toast.error(t('message.upload.removeFailed'));
+        return;
+      }
+
+      if (!props.backgroundSend && hasUnfinishedUploads()) {
+        if (!holdingSend.value) {
+          holdingSend.value = true;
+          attachedFiles.value.filter(file => file.uploadStatus === 'pending').forEach(startBackgroundUpload);
+          toast.info(t('message.upload.sendWhenDone'));
+        }
+        return;
+      }
+
       if (props.modelValue?.trim() || attachedFiles.value.length > 0) {
         const content = props.modelValue || '';
+        const files = attachedFiles.value;
         // URL tracking-parameter stripping lives in unifiedContentProcessing.ts
         // and covers ActivityPub, DMs, and chat alike.
-        emit('sendMessage', content, attachedFiles.value, props.replyMessageId || undefined);
+        emit('sendMessage', content, files, props.replyMessageId || undefined);
         if (slowmodeActive.value) {
           startSlowmodeCooldown(slowmodeSeconds.value);
         }
@@ -770,15 +821,31 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
           richEditorRef.value.clear();
         }
 
-        attachedFiles.value.forEach(file => {
-          if (file.preview) {
-            URL.revokeObjectURL(file.preview);
-          }
-        });
+        // With backgroundSend the parent owns the files, their previews and uploads.
+        if (!props.backgroundSend) {
+          files.forEach(file => {
+            if (file.preview) URL.revokeObjectURL(file.preview);
+            forgetMessageMediaUpload(file.upload?.path);
+          });
+        }
         attachedFiles.value = [];
         emit('files-attached', []);
+        emit('upload-status-changed', false);
       }
     };
+
+    // Enter pressed while uploads run, without backgroundSend; sends once they finish.
+    const holdingSend = ref(false);
+
+    const hasUnfinishedUploads = () =>
+      attachedFiles.value.some(file => file.uploadStatus === 'uploading' || file.uploadStatus === 'pending');
+
+    watch(() => attachedFiles.value.map(file => file.uploadStatus), () => {
+      if (!holdingSend.value || hasUnfinishedUploads()) return;
+      holdingSend.value = false;
+      if (attachedFiles.value.length === 0 && !props.modelValue?.trim()) return;
+      send();
+    });
 
     const handleFocus = () => {
       isEditorFocused.value = true;
@@ -867,42 +934,59 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       return fileData;
     };
 
-    const startBackgroundUpload = async (fileData: FilePreviewData) => {
-      if (!authStore.session?.user?.id) return;
+    // The file stays in the composer while it is attached; after a backgroundSend
+    // hand-off the upload belongs to the parent and the composer stops tracking it.
+    const isAttached = (fileData: FilePreviewData) =>
+      attachedFiles.value.some(file => toRaw(file) === toRaw(fileData));
 
-      const uploadId = uuidv4();
+    const refreshUploads = () => {
+      attachedFiles.value = [...attachedFiles.value];
+      emit('upload-status-changed', hasActiveUploads());
+    };
+
+    const startBackgroundUpload = (fileData: FilePreviewData) => {
+      const uploaderId = authStore.session?.user?.id;
+      if (!uploaderId) return;
+      const room = uploadRoom.value;
+      if (!room) {
+        fileData.uploadStatus = 'error';
+        fileData.uploadError = 'Attachments need a channel or conversation';
+        refreshUploads();
+        return;
+      }
+
+      const upload = markRaw(startMessageMediaUpload(
+        messageMediaPath(room, uploaderId, fileData.file.name),
+        fileData.file,
+        {
+          validate: true,
+          onProgress: (fraction) => {
+            if (!isAttached(fileData)) return;
+            fileData.uploadProgress = fraction * 100;
+            refreshUploads();
+          },
+        },
+      ));
+      fileData.upload = upload;
       fileData.uploadStatus = 'uploading';
       fileData.uploadProgress = 0;
 
-      try {
-        const uploaded = await backgroundUploadManager.startUpload(
-          uploadId,
-          authStore.session.user.id,
-          fileData.file,
-          uploadRoom.value,
-          (progress) => {
-            fileData.uploadProgress = progress;
-            attachedFiles.value = [...attachedFiles.value];
-            emit('upload-status-changed', hasActiveUploads());
-          }
-        );
-
-        if (uploaded) {
+      upload.result.then(
+        (uploaded) => {
           fileData.uploadStatus = 'completed';
           fileData.uploadedUrl = uploaded.url;
           fileData.uploadedPath = uploaded.path;
           fileData.uploadProgress = 100;
-        } else {
-          throw new Error('Upload failed');
-        }
-      } catch (error) {
-        fileData.uploadStatus = 'error';
-        fileData.uploadError = error instanceof Error ? error.message : 'Upload failed';
-        fileData.uploadProgress = 0;
-      }
-
-      attachedFiles.value = [...attachedFiles.value];
-      emit('upload-status-changed', hasActiveUploads());
+        },
+        (error: unknown) => {
+          if (error instanceof UploadAbortedError) return;
+          fileData.uploadStatus = 'error';
+          fileData.uploadError = error instanceof Error ? error.message : 'Upload failed';
+          fileData.uploadProgress = 0;
+        },
+      ).finally(() => {
+        if (isAttached(fileData)) refreshUploads();
+      });
     };
 
     const hasActiveUploads = () => {
@@ -947,11 +1031,13 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
     const removeFile = (index: number) => {
       const removedFile = attachedFiles.value[index];
-      
+
       if (removedFile.preview) {
         URL.revokeObjectURL(removedFile.preview);
       }
-      
+      removedFile.upload?.abort();
+      forgetMessageMediaUpload(removedFile.upload?.path);
+
       attachedFiles.value.splice(index, 1);
       emit('files-attached', attachedFiles.value);
       emit('upload-status-changed', hasActiveUploads());
@@ -1000,11 +1086,14 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
     onUnmounted(() => {
       document.removeEventListener('external-file-drop', handleExternalFileDrop as EventListener);
-      
+
+      // Attachments still in the composer are discarded with it.
       attachedFiles.value.forEach(file => {
         if (file.preview) {
           URL.revokeObjectURL(file.preview);
         }
+        file.upload?.abort();
+        forgetMessageMediaUpload(file.upload?.path);
       });
     });
 
@@ -1060,11 +1149,22 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       if (richEditorRef.value?.focus) richEditorRef.value.focus();
     };
 
+    /**
+     * Puts back attachments a backgroundSend parent handed over and could not queue.
+     * Their previews and running uploads return to the composer's care.
+     */
+    const restoreAttachments = (files: FilePreviewData[]) => {
+      attachedFiles.value = [...files.map(file => toRaw(file)), ...attachedFiles.value];
+      emit('files-attached', attachedFiles.value);
+      emit('upload-status-changed', hasActiveUploads());
+    };
+
     defineExpose({
       composerRef,
       gifTriggerRef,
       emojiTriggerRef,
-      flashRejection
+      flashRejection,
+      restoreAttachments
     });
 
 
@@ -1073,26 +1173,29 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 <style scoped>
   .message-input {
     display: flex;
-    padding: 24px 12px 12px 12px;
-    /* background-color: var(--background-secondary); */
+    padding: 8px 12px 0 12px;
     flex-direction: column;
     flex-shrink: 0;
-    position: relative; /* Containing block for the typing indicator. */
+    position: relative;
   }
-  
+
+  /* Fixed height whether or not anyone is typing, so the list never shifts. */
+  .composer-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 24px;
+    min-width: 0;
+    padding: 0 4px;
+  }
+
   .typing-indicator-wrapper {
-    position: absolute;
-    bottom: calc(100% - 22px); /* Sits above the input, inside its padding. */
-    left: 12px;
-    right: 12px;
+    flex: 1 1 auto;
+    min-width: 0;
     pointer-events: none;
-    z-index: 1;
   }
-  
-  .message-input.replying {
-    padding: 0 12px 10px 12px;
-  }
-  
+
+  .message-input.replying,
   .message-input.has-files {
     padding-top: 0;
   }
@@ -1373,14 +1476,20 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       border-top: 1px solid var(--border-primary);
     }
 
-    /* The strip has no top gutter; the indicator rides on its top edge as a
-       tab over the message list. Qualified to outrank TypingIndicator's own
-       padding rule. */
-    .message-input .typing-indicator-wrapper {
+    /* No reserved row under the keyboard: the status strip rides on the
+       composer's top edge as a tab over the message list, short of the
+       jump-to-present pill on the right. */
+    .composer-status {
+      position: absolute;
       bottom: 100%;
       left: 0;
-      right: auto;
-      max-width: 100%;
+      height: auto;
+      max-width: calc(100% - 64px);
+      padding: 0;
+    }
+
+    /* Qualified to outrank TypingIndicator's own padding rule. */
+    .message-input .typing-indicator-wrapper {
       padding: 2px 8px;
       border-top-right-radius: 8px;
       background: var(--background-secondary);

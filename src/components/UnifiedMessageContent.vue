@@ -354,17 +354,18 @@
               v-if="canEditAttachments && !isAnimatedImage(part.url) && !isStickerMedia(part.url)"
               @click="requestRemoveAttachment(part.url)"
             />
-            <div v-if="!imageLoadedState[part.url]" class="media-skeleton image-skeleton"></div>
+            <div v-if="!imageLoadedState[mediaLoadKey(part)]" class="media-skeleton image-skeleton"></div>
             <img
               :src="displayMediaUrl(part)"
-              @load="handleImageLoad(part.url)"
+              @load="handleImageLoad(mediaLoadKey(part))"
               @error="onAttachmentMediaError(part.url, part, 'thumbnail')"
               @click="!isStickerMedia(part.url) && $emit('open-lightbox', part.url)"
-              v-show="imageLoadedState[part.url]"
+              v-show="imageLoadedState[mediaLoadKey(part)]"
               draggable="false"
               class="content-image"
               :class="{ 'sticker-image': isStickerMedia(part.url), 'ai-emoji-image': isAiEmojiMedia(part.url) }"
             />
+            <MediaUploadProgress v-if="hasUpload(part)" :path="part.path!" />
             <!-- GIF/sticker Favorite Button (AI emoji are treated as plain emoji: no favorite) -->
             <button
               type="button"
@@ -424,6 +425,7 @@
               @pause="handleVideoPause"
               @error="onAttachmentMediaError(part.url, part)"
             ></video>
+            <MediaUploadProgress v-if="hasUpload(part)" :path="part.path!" />
             <!-- Clip favorite button (Klipy clips only) -->
             <button
               type="button"
@@ -485,6 +487,7 @@
               class="content-audio"
             ></audio>
           </template>
+          <MediaUploadProgress v-if="hasUpload(part)" :path="part.path!" inline />
         </div>
         
         <!-- Other file attachments -->
@@ -509,6 +512,7 @@
           <span v-else class="file-name file-name--unsafe">
             {{ mediaPartFileName(part) }}
           </span>
+          <MediaUploadProgress v-if="hasUpload(part)" :path="part.path!" inline />
         </div>
         
         <!-- System messages (join/leave announcements) -->
@@ -580,12 +584,14 @@ import EncryptedGlyphPreview from '@/components/encryption/EncryptedGlyphPreview
 import ProviderEmbedSwitch from '@/components/embeds/ProviderEmbedSwitch.vue';
 import MessageMediaGallery from '@/components/common/MessageMediaGallery.vue';
 import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.vue';
+import MediaUploadProgress from '@/components/common/MediaUploadProgress.vue';
 import Icon from '@/components/common/Icon.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { groupMediaGalleryParts } from '@/utils/mediaGalleryUtils';
 import { undecryptedDisplayParts } from '@/utils/channelEncryption';
 import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
-import { isPrivateMediaPart, mediaPartFileName, mediaPartSource, reportMediaPartError } from '@/services/privateMedia';
+import { isPrivateMediaPart, mediaLoadKey, mediaPartFileName, mediaPartSource, reportMediaPartError } from '@/services/privateMedia';
+import { messageMediaUploadState } from '@/services/messageMediaUpload';
 import {
   isDiscordCdnUrl,
   hasExpiredBridgedAttachment,
@@ -622,6 +628,7 @@ export default defineComponent({
     VoiceMessagePlayer,
     MessageMediaGallery,
     AttachmentRemoveButton,
+    MediaUploadProgress,
     ConfirmationModal,
     EncryptedGlyphPreview,
     Icon,
@@ -723,6 +730,9 @@ export default defineComponent({
         ? getAttachmentThumbnailUrl(stripKlipyAttributionFragment(part))
         : mediaPartSource(part, 'thumbnail');
     const mediaSrc = (part: { url?: string; path?: string }) => mediaPartSource(part);
+    // A part whose object this client is uploading.
+    const hasUpload = (part: { url?: string; path?: string }) =>
+      isPrivateMediaPart(part) && !!messageMediaUploadState(part.path);
     const klipyWatermarkHref = (url: string) =>
       sanitizeUrl(parseKlipyItemPageUrl(url)) || defaultKlipyHomeUrl();
     const klipyWatermarkLogoUrl = KLIPY_WATERMARK_LOGO_URL;
@@ -1407,6 +1417,8 @@ export default defineComponent({
       showKlipyWatermark,
       displayMediaUrl,
       mediaSrc,
+      mediaLoadKey,
+      hasUpload,
       mediaPartFileName,
       isPrivateMediaPart,
       klipyWatermarkHref,

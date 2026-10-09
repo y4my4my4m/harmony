@@ -432,6 +432,18 @@
       "two": " と {name2} が入力中...",
       "three": "、{name2}、{name3} が入力中...",
       "many": "複数のユーザーが入力中です..."
+    },
+    "upload": {
+      "progress": "アップロード中 {percent}%",
+      "failed": "アップロード失敗",
+      "failedToast": "{name} をアップロードできませんでした: {reason}",
+      "removeFailed": "アップロードに失敗した添付ファイルを削除してから送信してください。",
+      "sendWhenDone": "アップロード完了後に送信します。",
+      "voiceFailed": "ボイスメッセージをアップロードできませんでした。",
+      "cancel": "アップロードをキャンセル",
+      "stalled": "アップロードが停止しました: {seconds} 秒間進行がありません。",
+      "notSent": "メッセージは送信されませんでした。入力欄に戻しました。",
+      "voiceNotSent": "ボイスメッセージを送信できませんでした。"
     }
   },
   "messageSearch": {

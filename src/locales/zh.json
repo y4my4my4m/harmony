@@ -432,6 +432,18 @@
       "two": " 和 {name2} 正在输入...",
       "three": "、{name2} 和 {name3} 正在输入...",
       "many": "多位用户正在输入..."
+    },
+    "upload": {
+      "progress": "正在上传 {percent}%",
+      "failed": "上传失败",
+      "failedToast": "{name} 上传失败：{reason}",
+      "removeFailed": "请移除上传失败的附件后再发送。",
+      "sendWhenDone": "上传完成后将发送。",
+      "voiceFailed": "语音消息上传失败。",
+      "cancel": "取消上传",
+      "stalled": "上传停滞：{seconds} 秒内没有进度。",
+      "notSent": "消息未发送，已放回输入框。",
+      "voiceNotSent": "语音消息发送失败。"
     }
   },
   "messageSearch": {

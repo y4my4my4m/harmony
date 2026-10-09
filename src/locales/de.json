@@ -432,6 +432,18 @@
       "two": " und {name2} tippen...",
       "three": ", {name2} und {name3} tippen...",
       "many": "Viele Benutzer tippen..."
+    },
+    "upload": {
+      "progress": "Wird hochgeladen, {percent} %",
+      "failed": "Upload fehlgeschlagen",
+      "failedToast": "{name} konnte nicht hochgeladen werden: {reason}",
+      "removeFailed": "Entferne die Anhänge, deren Upload fehlgeschlagen ist, und sende erneut.",
+      "sendWhenDone": "Wird gesendet, sobald die Uploads abgeschlossen sind.",
+      "voiceFailed": "Die Sprachnachricht konnte nicht hochgeladen werden.",
+      "cancel": "Upload abbrechen",
+      "stalled": "Upload hängt: seit {seconds} s kein Fortschritt.",
+      "notSent": "Die Nachricht wurde nicht gesendet. Sie steht wieder im Eingabefeld.",
+      "voiceNotSent": "Die Sprachnachricht konnte nicht gesendet werden."
     }
   },
   "messageSearch": {

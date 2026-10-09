@@ -432,6 +432,18 @@
       "two": "님과 {name2}님이 입력 중...",
       "three": ", {name2}, {name3}님이 입력 중...",
       "many": "여러 사용자가 입력 중..."
+    },
+    "upload": {
+      "progress": "업로드 중 {percent}%",
+      "failed": "업로드 실패",
+      "failedToast": "{name}을(를) 업로드하지 못했습니다: {reason}",
+      "removeFailed": "업로드에 실패한 첨부 파일을 제거한 후 다시 보내세요.",
+      "sendWhenDone": "업로드가 끝나면 전송합니다.",
+      "voiceFailed": "음성 메시지를 업로드하지 못했습니다.",
+      "cancel": "업로드 취소",
+      "stalled": "업로드가 멈췄습니다: {seconds}초 동안 진행이 없습니다.",
+      "notSent": "메시지를 보내지 못했습니다. 입력창으로 되돌렸습니다.",
+      "voiceNotSent": "음성 메시지를 보내지 못했습니다."
     }
   },
   "messageSearch": {
