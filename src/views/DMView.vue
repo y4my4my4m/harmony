@@ -261,6 +261,10 @@ const loadMessages = async () => {
     } finally {
       isLoading.value = false
     }
+  } else if (dmStore.currentConversationId) {
+    // /dm is the DM home: a conversation left current would render without its
+    // channel or a 'dm' view context.
+    dmStore.setCurrentConversation(null)
   }
 }
 
