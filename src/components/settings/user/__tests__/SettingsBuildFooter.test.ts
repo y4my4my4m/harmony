@@ -97,4 +97,10 @@ describe('SettingsBuildFooter', () => {
     links = mountFooter().findAll('.legal-links a').map(a => a.attributes('href'))
     expect(links).toEqual(['https://example.org/tos', 'https://example.org/privacy'])
   })
+
+  it('never binds a script URL', () => {
+    mocks.settings.termsUrl = 'javascript:alert(1)'
+    const links = mountFooter().findAll('.legal-links a').map(a => a.attributes('href'))
+    expect(links[0]).toBe('https://mony.lol/terms')
+  })
 })

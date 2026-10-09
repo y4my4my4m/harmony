@@ -22,6 +22,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
+import { safeHref } from '@/utils/sanitize'
 import {
   collectSupportInfo,
   formatSupportText,
@@ -44,8 +45,8 @@ const platform = getPlatformLabel()
 const nativeVersion = ref<string | null>(null)
 
 const versionLine = computed(() => formatVersionLine(build, platform, nativeVersion.value))
-const termsUrl = computed(() => instanceSettings.settings.termsUrl || DEFAULT_TERMS_URL)
-const privacyUrl = computed(() => instanceSettings.settings.privacyUrl || DEFAULT_PRIVACY_URL)
+const termsUrl = computed(() => safeHref(instanceSettings.settings.termsUrl) || DEFAULT_TERMS_URL)
+const privacyUrl = computed(() => safeHref(instanceSettings.settings.privacyUrl) || DEFAULT_PRIVACY_URL)
 
 onMounted(async () => {
   nativeVersion.value = await getNativeVersion()

@@ -55,7 +55,10 @@ vi.mock('@/supabase', () => ({ supabase: { from: h.from, rpc: vi.fn(), removeCha
 vi.mock('@/services', () => ({ services: { messages: { loadConversationMessages: vi.fn(async () => ({ messages: [], hasMore: false })) } } }))
 vi.mock('@/services/core/CoreMessageService', () => ({ coreMessageService: {} }))
 vi.mock('@/stores/useServerUsers', () => ({ useServerUsersStore: () => ({ fetchMultipleUserProfiles: vi.fn(async () => {}) }) }))
-vi.mock('@/stores/useReactions', () => ({ useReactionsStore: () => ({ handleRealtimeUpdate: vi.fn() }) }))
+const fetchReactions = vi.hoisted(() => vi.fn(async () => {}))
+vi.mock('@/stores/useReactions', () => ({
+  useReactionsStore: () => ({ handleRealtimeUpdate: vi.fn(), fetchMultipleMessageReactions: fetchReactions }),
+}))
 vi.mock('@/stores/usePins', () => ({ usePinsStore: () => ({ applyRealtimeRow: vi.fn(), applyRealtimeDelete: vi.fn(), overlayPending: (m: any) => m }) }))
 vi.mock('@/services/userDataService', () => ({
   userDataService: { getCurrentUser: () => ({ id: 'me' }), addEventListener: vi.fn(), removeEventListener: vi.fn() },
@@ -214,5 +217,98 @@ describe('open conversation channel join', () => {
     cfg.onStatusChange('connected', 'dm-conversation-c1')
     await flush()
     expect(h.queries.filter(x => x.table === 'messages')).toHaveLength(0)
+  })
+
+  it('fills an empty conversation on a rejoin with the rows sent during the drop', async () => {
+    const dm = useDMStore()
+    dm.conversations = [conversation('c1')] as any
+    dm.setCurrentConversation('c1')
+    await flush()
+    const cfg = h.subs.find(s => s.channelName === 'dm-conversation-c1')
+    cfg.onStatusChange('connected', 'dm-conversation-c1')
+    await flush()
+
+    h.setResult({
+      data: [{ id: 'm1', user_id: 'them', conversation_id: 'c1', content: [], created_at: '2026-10-08T09:00:05Z' }],
+      error: null,
+    })
+    cfg.onStatusChange('closed', 'dm-conversation-c1')
+    cfg.onStatusChange('connected', 'dm-conversation-c1')
+    await flush()
+
+    expect(dm.currentDMMessages.map((m: any) => m.id)).toEqual(['m1'])
+  })
+
+  it('reloads the reactions of held rows on a rejoin, not on the first join', async () => {
+    fetchReactions.mockClear()
+    const dm = useDMStore()
+    dm.conversations = [conversation('c1')] as any
+    dm.setCurrentConversation('c1')
+    const cfg = h.subs.find(s => s.channelName === 'dm-conversation-c1')
+    dm.currentDMMessages = [
+      { id: 'm1', user_id: 'them', conversation_id: 'c1', channel_id: '', content: [], created_at: new Date(), reactions: [] },
+      { id: 'temp-1', user_id: 'me', conversation_id: 'c1', channel_id: '', content: [], created_at: new Date(), reactions: [] },
+    ] as any
+
+    cfg.onStatusChange('connected', 'dm-conversation-c1')
+    expect(fetchReactions).not.toHaveBeenCalled()
+    cfg.onStatusChange('connected', 'dm-conversation-c1')
+    expect(fetchReactions).toHaveBeenCalledWith(['m1'], true)
+  })
+
+  it('reruns a reconcile requested while one runs, so a row sent meanwhile is fetched', async () => {
+    const dm = useDMStore()
+    dm.conversations = [conversation('c1')] as any
+    dm.setCurrentConversation('c1')
+    dm.currentDMMessages = [{
+      id: 'm1', user_id: 'them', conversation_id: 'c1', channel_id: '', content: [],
+      created_at: new Date('2026-10-08T09:00:00Z'), reactions: [],
+    }] as any
+    const cfg = h.subs.find(s => s.channelName === 'dm-conversation-c1')
+    h.setResult({ data: [], error: null })
+    const before = h.queries.filter(x => x.table === 'messages').length
+
+    cfg.onStatusChange('connected', 'dm-conversation-c1')
+    h.setResult({
+      data: [{ id: 'm2', user_id: 'them', conversation_id: 'c1', content: [], created_at: '2026-10-08T09:00:05Z' }],
+      error: null,
+    })
+    cfg.onStatusChange('connected', 'dm-conversation-c1')
+    await flush()
+    await flush()
+
+    expect(h.queries.filter(x => x.table === 'messages').length - before).toBe(2)
+    expect(dm.currentDMMessages.map((m: any) => m.id)).toEqual(['m1', 'm2'])
+  })
+
+  it('applies link previews written after the send to the open conversation', async () => {
+    const dm = useDMStore()
+    dm.conversations = [conversation('c1')] as any
+    dm.setCurrentConversation('c1')
+    const cfg = h.subs.find(s => s.channelName === 'dm-conversation-c1')
+    const url = 'https://youtu.be/xkpLG9keQF0'
+    const row = {
+      id: 'm1', user_id: 'me', conversation_id: 'c1', channel_id: null, content: [{ type: 'url', url }],
+      created_at: '2026-10-09T09:00:00Z', updated_at: '2026-10-09T09:00:00Z', metadata: {},
+    }
+    dm.currentDMMessages = [{ ...row, channel_id: '', created_at: new Date(row.created_at), reactions: [] }] as any
+
+    const embeds = { 'https://www.youtube.com/watch?v=xkpLG9keQF0': { provider: 'youtube', url } }
+    const onEvent = cfg.broadcasts.find((b: any) => b.event === 'message_event').handler
+    await onEvent({ op: 'UPDATE', new: { ...row, metadata: { embeds } }, old: null })
+
+    expect(dm.currentDMMessages[0].metadata?.embeds).toEqual(embeds)
+  })
+
+  it('keeps the open conversation subscribed through a list reload', async () => {
+    const dm = useDMStore()
+    dm.conversations = [conversation('c1')] as any
+    dm.setCurrentConversation('c1')
+    const unsubscribe = h.realtimeConnectionManager.subscribeToTable.mock.results.at(-1)!.value as ReturnType<typeof vi.fn>
+
+    await dm.initializeDMEnvironment('me', true, true, 'immediate')
+
+    expect(unsubscribe).not.toHaveBeenCalled()
+    expect(dm.currentConversationId).toBe('c1')
   })
 })

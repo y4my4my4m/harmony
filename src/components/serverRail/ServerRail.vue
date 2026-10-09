@@ -82,7 +82,7 @@ import {
 import { isServerMuted, retainRailClock } from './railState'
 import { sourceFromElement, useRailDrag } from './useRailDrag'
 import { markServersRead } from './markRead'
-import { serverUnreadTotals } from '@/composables/useUnreadCounts'
+import { serverUnreadTotals, useUnreadCounts } from '@/composables/useUnreadCounts'
 import { useLeaveServer } from '@/composables/useLeaveServer'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useNotificationStore } from '@/stores/useNotification'
@@ -108,6 +108,9 @@ const { t } = useI18n()
 const toast = useToast()
 const serverChannelStore = useServerChannelStore()
 const notificationStore = useNotificationStore()
+// Holds a subscriber: the rail outlives every channel view, and the unread
+// feed stops when its last subscriber unmounts.
+useUnreadCounts()
 const { leaveServer, isOwner } = useLeaveServer()
 
 const scrollEl = ref<HTMLElement | null>(null)

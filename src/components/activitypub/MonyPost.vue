@@ -613,6 +613,7 @@
 import { safeHref } from '@/utils/sanitize';
 import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { debug } from '@/utils/debug'
+import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 import { useI18n } from 'vue-i18n';
 import { useUserData } from '@/composables/useUserData';
 import { useActivityPubStore } from '@/stores/useActivityPub';
@@ -1924,7 +1925,7 @@ const showReplyTarget = async () => {
 
 const copyLink = async () => {
   try {
-    const url = props.post.url || `${window.location.origin}/posts/${props.post.id}`;
+    const url = props.post.url || `${resolveHarmonyBaseUrl()}/posts/${props.post.id}`;
     await navigator.clipboard.writeText(url);
     toast.success('Link copied');
   } catch (error) {

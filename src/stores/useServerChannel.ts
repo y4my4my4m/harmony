@@ -31,6 +31,11 @@ const VISIBLE_CHANNEL_REFRESH_MS = 500;
 const structureFetchedAt = new Map<string, number>();
 const STRUCTURE_FRESH_MS = 10_000;
 
+// Rail plans write one at a time, in call order. railEpoch advances on each
+// failed plan; plans queued under an older epoch skip their writes.
+let railWrites: Promise<unknown> = Promise.resolve();
+let railEpoch = 0;
+
 /**
  * First text channel of the first category that has one, then the first
  * uncategorised text channel, then the first channel of any type.
@@ -2537,8 +2542,10 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
     /**
      * Applies a rail reorder plan (railModel.planLayout). Local state changes
-     * synchronously; the database follows. Any failed write restores the
-     * snapshot and refetches nothing: the snapshot is the last stored state.
+     * synchronously; the database follows, one plan at a time in call order.
+     * Any failed write restores the snapshot taken before this plan and
+     * refetches nothing. Plans queued behind it were applied on top of that
+     * snapshot, so the restore drops them too and they write nothing.
      * Order: create folder, move rows, delete emptied folders.
      */
     async applyRailPlan(plan: RailPlan, newFolder?: { name: string; color: string }): Promise<boolean> {
@@ -2586,7 +2593,7 @@ export const useServerChannelStore = defineStore('serverChannel', {
         useToast().error(i18n.global.t('serverRail.orderSaveFailed'));
       };
 
-      try {
+      const writeRailPlan = async () => {
         if (plan.createFolder) {
           const { error } = await supabase.from('server_folders').insert({
             id: plan.createFolder.id,
@@ -2614,12 +2621,23 @@ export const useServerChannelStore = defineStore('serverChannel', {
           const { error } = await supabase.from('server_folders').delete().in('id', plan.deleteFolders);
           if (error) throw error;
         }
-        return true;
-      } catch (error) {
-        debug.error('Failed to apply rail order:', error);
-        rollback();
-        return false;
-      }
+      };
+
+      const epoch = railEpoch;
+      const run = railWrites.then(async (): Promise<boolean> => {
+        if (epoch !== railEpoch) return false;
+        try {
+          await writeRailPlan();
+          return true;
+        } catch (error) {
+          debug.error('Failed to apply rail order:', error);
+          railEpoch++;
+          rollback();
+          return false;
+        }
+      });
+      railWrites = run;
+      return run;
     },
 
     /** Sets user_servers.muted / muted_until. `until` null mutes until unmuted; `false` unmutes. */

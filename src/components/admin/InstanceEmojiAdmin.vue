@@ -36,7 +36,7 @@
       <div v-else-if="rows.length === 0" class="empty-state">{{ t('admin.instanceEmojis.empty') }}</div>
       <ul v-else class="emoji-list">
         <li v-for="emoji in rows" :key="emoji.id" class="emoji-row">
-          <img class="emoji-img" :src="emoji.url" :alt="`:${emoji.name}:`" loading="lazy" />
+          <img class="emoji-img" :src="getEmojiUrl(emoji.url)" :alt="`:${emoji.name}:`" loading="lazy" />
           <div class="emoji-main">
             <form v-if="editingId === emoji.id" class="rename-form" @submit.prevent="saveRename(emoji)">
               <input
@@ -99,6 +99,8 @@ import {
   type InstanceEmojiSource,
 } from '@/services/InstanceEmojiAdminService'
 import { debug } from '@/utils/debug'
+import { getEmojiUrl } from '@/utils/emojiUtils'
+import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 
 const PAGE_SIZE = 50
 const SEARCH_DEBOUNCE_MS = 300
@@ -192,6 +194,7 @@ async function saveRename(emoji: InstanceEmojiRow) {
   try {
     await renameInstanceEmoji(emoji.id, name)
     invalidateEmojiResolverCache()
+    useEmojiCacheStore().expirePersonalEmojis()
     void adminService.logAdminAction({
       action: 'instance_emoji_rename',
       targetType: 'emoji',
@@ -223,6 +226,7 @@ async function remove(emoji: InstanceEmojiRow) {
   try {
     await deleteInstanceEmoji(emoji.id)
     invalidateEmojiResolverCache()
+    useEmojiCacheStore().expirePersonalEmojis()
     void adminService.logAdminAction({
       action: 'instance_emoji_delete',
       targetType: 'emoji',

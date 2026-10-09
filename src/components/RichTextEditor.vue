@@ -1182,9 +1182,13 @@ const insertTextAtCursor = (text: string) => {
   
   renderContent(newText);
   
+  // Paste and programmatic inserts fire no input event; the height follows here.
   nextTick(() => {
     const cursorPos = getCursorPosition();
     undoRedo.pushState(newText, cursorPos);
+    autoExpand();
+    // A programmatic selection does not scroll; a caret at the end stays in view past maxHeight.
+    if (editorRef.value && cursorPos >= newText.length) editorRef.value.scrollTop = editorRef.value.scrollHeight;
   });
 };
 

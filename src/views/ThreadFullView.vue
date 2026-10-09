@@ -259,6 +259,7 @@ import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData 
 import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver'
 import { buildChatParseOptions } from '@/utils/chatParseOptions'
 import { debug } from '@/utils/debug'
+import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 import { isVideoMessageUrl } from '@/utils/klipyAttribution'
 import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
 import { useThreadsStore, mergeFreshThreadMessages } from '@/stores/useThreads'
@@ -585,7 +586,7 @@ const deleteThread = async () => {
 const copyThreadLink = async () => {
   showOptions.value = false
   if (!thread.value) return
-  const url = `${window.location.origin}/chat/${props.serverId}/thread/${thread.value.id}`
+  const url = `${resolveHarmonyBaseUrl()}/chat/${props.serverId}/thread/${thread.value.id}`
   await navigator.clipboard.writeText(url)
 }
 

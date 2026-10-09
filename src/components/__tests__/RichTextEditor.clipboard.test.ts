@@ -108,6 +108,18 @@ describe('RichTextEditor paste', () => {
     expect(api.getPlainText()).toBe(`look :discord:heh:${ID}: there`)
   })
 
+  it('grows to fit a pasted wall of text and scrolls past maxHeight', async () => {
+    const editor = await editorWith('')
+    Object.defineProperty(editor.el, 'scrollHeight', { configurable: true, get: () => 300 })
+    editor.api.setCursorPosition(0)
+    editor.el.dispatchEvent(clipboardEvent('paste', clipboard({ 'text/plain': 'line\n'.repeat(40) })))
+    await nextTick()
+    await nextTick()
+    expect(editor.el.style.height).toBe('200px')
+    expect(editor.el.style.overflowY).toBe('auto')
+    expect(editor.el.scrollTop).toBe(300)
+  })
+
   it('inserts plain text unchanged', async () => {
     const { el, wrapper } = await pasteInto('a', clipboard({ 'text/plain': ' plain: text, no emoji' }))
     expect(el.querySelectorAll('.editor-emoji')).toHaveLength(0)

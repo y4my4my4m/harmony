@@ -26,8 +26,10 @@ vi.mock('@/composables/useServerPermissions', () => ({
     channelPermissions: computed(() => ({ canCreateChannels: false })),
   }),
 }))
+// Plain functions: afterEach's vi.restoreAllMocks() resets vi.fn() implementations,
+// and the rail's unread-feed subscriber reads the context on every mount.
 vi.mock('@/services/AuthContextService', () => ({
-  authContextService: { getCurrentContext: vi.fn().mockResolvedValue({ isAuthenticated: false }), getCurrentProfileId: vi.fn() },
+  authContextService: { getCurrentContext: async () => ({ isAuthenticated: false }), getCurrentProfileId: async () => null },
 }))
 vi.mock('@/services/UserEventChannel', () => ({
   userEventChannel: { connect: vi.fn(), on: vi.fn().mockReturnValue(() => {}), send: vi.fn(), disconnect: vi.fn() },
@@ -160,6 +162,21 @@ describe('ServerRail drag', () => {
     await frame()
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     window.dispatchEvent(pointer('pointerup', at(0, 0.1)))
+    await flushPromises()
+    expect(apply).not.toHaveBeenCalled()
+    expect(document.querySelector('.rail-drag-ghost')).toBeNull()
+  })
+
+  it('cancels a drop released beside the rail', async () => {
+    el('d').dispatchEvent(pointer('pointerdown', at(4)))
+    window.dispatchEvent(pointer('pointermove', at(4) - 20))
+    window.dispatchEvent(pointer('pointermove', at(0, 0.1)))
+    await frame()
+    expect((wrapper.element.querySelector('.rail-drop-indicator') as HTMLElement).dataset.mode).toBe('line')
+    window.dispatchEvent(pointer('pointermove', at(0, 0.1), { clientX: 400 }))
+    await frame()
+    expect((wrapper.element.querySelector('.rail-drop-indicator') as HTMLElement).dataset.mode).toBe('none')
+    window.dispatchEvent(pointer('pointerup', at(0, 0.1), { clientX: 400 }))
     await flushPromises()
     expect(apply).not.toHaveBeenCalled()
     expect(document.querySelector('.rail-drag-ghost')).toBeNull()

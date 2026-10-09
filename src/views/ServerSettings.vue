@@ -27,7 +27,7 @@
       <h1 class="server-settings-title">
         {{ permissions.canEditBasicInfo ? $t('server.serverSettings') : $t('server.serverInformation') }}
       </h1>
-      <div class="server-settings-actions" v-if="permissions.canSaveChanges">
+      <div class="server-settings-actions" v-if="showGlobalSave">
         <button 
           class="btn btn-secondary" 
           @click="back"
@@ -84,7 +84,7 @@
       <div class="server-settings-main">
         <div class="settings-container">
           <!-- Mobile Save Actions (shown at top on mobile when needed) -->
-          <div v-if="isMobile && permissions.canSaveChanges" class="mobile-save-actions">
+          <div v-if="isMobile && showGlobalSave" class="mobile-save-actions">
             <button 
               class="btn btn-primary btn-mobile" 
               @click="handleSave"
@@ -393,6 +393,12 @@ const hasChanges = computed(() => {
   const encryptionChanged = encryptionSettingsRef.value?.hasChanges ?? false
   return generalHasChanges.value || encryptionChanged
 })
+
+// Sections editing `server` or the encryption settings, which handleSave writes. Other
+// sections save through their own controls. Pending edits keep the bar on any section.
+const GLOBAL_SAVE_SECTIONS = new Set(['overview', 'privacy', 'emoji'])
+const showGlobalSave = computed(() =>
+  permissions.value.canSaveChanges && (GLOBAL_SAVE_SECTIONS.has(activeSection.value) || hasChanges.value))
 
 // Methods
 const handleResize = () => {

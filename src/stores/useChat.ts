@@ -1070,8 +1070,16 @@ export const useChatStore = defineStore('chat', {
             debug.warn('Failed to process realtime message:', error);
           }
           
-          const replacedTempId = (store.messages[tempMessageIndex] as any).id;
-          store.messages.splice(tempMessageIndex, 1, resolvedMessage);
+          // The send response or the other transport can land during the await:
+          // the row is resolved again, and a real row already in place is kept.
+          if (store.messages.some(m => m.id === payloadNew.id)) return;
+          const targetIndex = findOptimisticMatchIndex(store.messages as any, payloadNew);
+          if (targetIndex === -1) {
+            store.addMessageToCache(resolvedMessage);
+            return;
+          }
+          const replacedTempId = (store.messages[targetIndex] as any).id;
+          store.messages.splice(targetIndex, 1, resolvedMessage);
 
           // Cache holds its own copy of the temp row; leaving it stale makes
           // the message render grayed out again on channel re-entry.
@@ -1242,6 +1250,9 @@ export const useChatStore = defineStore('chat', {
                 debug.log(`Gap-fill: added ${added} missed messages`);
               }
             }
+            // Reaction events sent during the gap are not replayed: held rows reload theirs.
+            const held = store.messages.map((m: any) => m.id as string).filter(id => !id.startsWith('temp-'));
+            if (held.length) void useReactionsStore().fetchMultipleMessageReactions(held, true).catch(() => {});
           } catch (err) {
             debug.error('Gap-fill failed:', err);
           }

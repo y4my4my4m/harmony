@@ -1,5 +1,5 @@
 <template>
-  <div v-if="showReactions && (reactions.length > 0 || isLoadingReactions)" class="message-reactions" data-testid="message-reactions">
+  <div v-if="showReactions && reactions.length > 0" class="message-reactions" data-testid="message-reactions">
     <div class="reactions-gutter"></div>
     <TransitionGroup name="reaction-list" tag="div" class="reactions-container">
       <div

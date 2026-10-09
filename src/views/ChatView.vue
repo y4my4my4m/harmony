@@ -120,9 +120,10 @@ const loadMessages = async () => {
       }
     }
   } else {
-    // Clean up DM conversation subscription when entering channel view to prevent leaks
+    // Entering a channel closes the open DM: its subscription goes, and its
+    // messages count as unread again.
     if (dmStore.currentConversationId) {
-      dmStore.cleanupConversationSubscription(dmStore.currentConversationId)
+      dmStore.setCurrentConversation(null)
     }
 
     const channelId = route.params.channelId as string

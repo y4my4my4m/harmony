@@ -565,15 +565,18 @@ const initializeRouteSpecificData = async (userId: string, strategy: any, userDa
         )
       }
       
-      if (strategy.routeType === 'dm' && strategy.currentConversationId) {
-        await dmStore.initializeDMEnvironmentForDirectAccess(userId, strategy.currentConversationId)
-      } else if (strategy.routeType === 'dm-list') {
+      // The awaits above can outlast a navigation: the conversation to open comes
+      // from the route as it is now, not as it was at boot.
+      const live = routeAwareInitialization.getLoadingStrategy(route)
+      if (live.routeType === 'dm' && live.currentConversationId) {
+        await dmStore.initializeDMEnvironmentForDirectAccess(userId, live.currentConversationId)
+      } else if (live.routeType === 'dm-list') {
         await dmStore.initializeDMEnvironment(userId, false, true, 'immediate')
       } else {
         await dmStore.initializeDMEnvironment(userId, false, false, 'partial')
       }
       
-      if (strategy.routeType === 'dm' && strategy.currentConversationId) {
+      if (live.routeType === 'dm' && live.currentConversationId) {
         const conversationUserIds = dmStore.conversations
           .filter(conv => conv.type === 'direct' && conv.other_user)
           .map(conv => conv.other_user!.id)

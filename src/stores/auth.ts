@@ -5,6 +5,7 @@ import { useActivityPubStore } from '@/stores/useActivityPub';
 import { debug } from '@/utils/debug';
 import { i18n } from '@/i18n';
 import { userStorage } from '@/utils/userScopedStorage';
+import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup';
 import { realtimeApiService } from '@/services/RealtimeApiService';
 
 let sessionRejectionSubscribed = false;
@@ -789,7 +790,7 @@ export const useAuthStore = defineStore('auth', {
 
     async resetPassword(email: string) {
       const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
+        redirectTo: `${resolveHarmonyBaseUrl()}/reset-password`
       });
       if (error) throw error;
       return { data, error };
@@ -1028,6 +1029,11 @@ export const useAuthStore = defineStore('auth', {
           }),
           import('@/services/UserEventChannel').then(({ userEventChannel }) => {
             userEventChannel.disconnect();
+          }),
+          // disconnect() drops the DM store's global handlers; cleanup() clears
+          // its registration so the next sign-in registers them again.
+          import('@/stores/useDM').then(({ useDMStore }) => {
+            useDMStore().cleanup();
           })
         ]).then(() => {
           debug.log('Notification system cleaned up');

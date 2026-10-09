@@ -129,6 +129,23 @@ describe('inviteService.generateInviteUrl', () => {
     expect(result.success).toBe(true)
     expect(lastInsertedInvite!.uses).toBe(0)
   })
+
+  it('links to the instance origin in the desktop app, not the webview origin', async () => {
+    ;(globalThis as any).__TAURI_INTERNALS__ = {}
+    localStorage.setItem('harmony.instance', JSON.stringify({
+      origin: 'https://har.mony.lol',
+      name: 'Harmony',
+      supabaseUrl: 'https://db.mony.lol',
+      supabaseAnonKey: 'anon',
+    }))
+    try {
+      const result = await generateInviteUrl('server-1', 'user-1', {})
+      expect(result.url).toBe(`https://har.mony.lol/invite/${lastInsertedInvite!.code}`)
+    } finally {
+      delete (globalThis as any).__TAURI_INTERNALS__
+      localStorage.removeItem('harmony.instance')
+    }
+  })
 })
 
 // Validation, the use count and the membership are the database's (redeem_invite);

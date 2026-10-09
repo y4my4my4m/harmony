@@ -541,7 +541,9 @@ export const useDMStore = defineStore('dm', () => {
     isInitializing.value = true
     
     try {
-      cleanupRealtimeSubscriptions()
+      // The open conversation's channel belongs to setCurrentConversation; a list
+      // (re)load leaves it running, or a conversation opened meanwhile goes deaf.
+      if (currentConversationId.value) setupConversationSubscription(currentConversationId.value)
       
       // Cold cache or explicit refresh: block on the fetch so the loader shows.
       // Warm cache: render the cached list and revalidate in the background
@@ -2206,10 +2208,32 @@ export const useDMStore = defineStore('dm', () => {
   // `dm-conversation-{id}` postgres_changes can stop delivering while still
   // reporting SUBSCRIBED; `user:{profileId}` broadcast keeps working, so an
   // `unread:change` for the open conversation signals a missed row.
+  // A request arriving while one runs for the same conversation reruns it once
+  // after: its row may postdate the running query.
   let _reconcileInFlight: string | null = null
+  let _reconcileRerun = false
   const reconcileConversationMessages = async (conversationId: string): Promise<number> => {
-    if (!conversationId || _reconcileInFlight === conversationId) return 0
+    if (!conversationId) return 0
+    if (_reconcileInFlight === conversationId) {
+      _reconcileRerun = true
+      return 0
+    }
     _reconcileInFlight = conversationId
+    _reconcileRerun = false
+    let added = 0
+    try {
+      added = await reconcileOnce(conversationId)
+    } finally {
+      _reconcileInFlight = null
+    }
+    if (_reconcileRerun && currentConversationId.value === conversationId) {
+      _reconcileRerun = false
+      added += await reconcileConversationMessages(conversationId)
+    }
+    return added
+  }
+
+  const reconcileOnce = async (conversationId: string): Promise<number> => {
     try {
       const newest = currentDMMessages.value[currentDMMessages.value.length - 1]
       let query = supabase
@@ -2269,8 +2293,6 @@ export const useDMStore = defineStore('dm', () => {
     } catch (err) {
       debug.error('DM reconcile failed:', err)
       return 0
-    } finally {
-      _reconcileInFlight = null
     }
   }
 
@@ -2351,8 +2373,16 @@ export const useDMStore = defineStore('dm', () => {
             debug.warn('Failed to process DM message:', error)
           }
           
-          const replacedTempId = currentDMMessages.value[tempMessageIndex].id
-          currentDMMessages.value.splice(tempMessageIndex, 1, resolvedMessage)
+          // The send response or the other transport can land during the await:
+          // the row is resolved again, and a real row already in place is kept.
+          if (currentDMMessages.value.some(m => m.id === message.id)) return
+          const targetIndex = findOptimisticMatchIndex(currentDMMessages.value as any, message)
+          if (targetIndex === -1) {
+            addMessageToCache(resolvedMessage)
+            return
+          }
+          const replacedTempId = currentDMMessages.value[targetIndex].id
+          currentDMMessages.value.splice(targetIndex, 1, resolvedMessage)
 
           // Cache holds its own copy of the temp row; leaving it stale makes
           // the message render grayed out again on conversation re-entry.
@@ -2455,6 +2485,8 @@ export const useDMStore = defineStore('dm', () => {
       onDelete: handleMessageDelete,
     })
 
+      let joinedOnce = false
+
       const unsubscribe = realtimeConnectionManager.subscribeToTable({
         channelName,
         table: 'messages',
@@ -2473,14 +2505,22 @@ export const useDMStore = defineStore('dm', () => {
         // Every SUBSCRIBED, the first included, pulls rows newer than the
         // newest held: rows inserted between the page fetch and the join, or
         // during a drop, reach no transport. An empty list is the page fetch's
-        // to fill.
+        // to fill on the first join or while a fetch runs; otherwise it is an
+        // empty conversation, and every row is newer.
         onStatusChange: (status, name) => {
           debug.log(`${name} status: ${status}`)
           dmConnectionStatus.value = status
+          if (status !== 'connected') return
+          const rejoin = joinedOnce
+          joinedOnce = true
+          // Reaction events sent during the gap are not replayed: held rows reload theirs.
+          if (rejoin && currentConversationId.value === conversationId) {
+            const held = currentDMMessages.value.map(m => m.id).filter(id => !id.startsWith('temp-'))
+            if (held.length) void reactionsStore.fetchMultipleMessageReactions(held, true).catch(() => {})
+          }
           if (
-            status === 'connected' &&
             currentConversationId.value === conversationId &&
-            currentDMMessages.value.length > 0
+            (currentDMMessages.value.length > 0 || (rejoin && !loadingMessages.value))
           ) {
             void reconcileConversationMessages(conversationId)
           }

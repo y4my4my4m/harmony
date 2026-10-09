@@ -124,6 +124,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch, computed } from 'vue';
 import { debug } from '@/utils/debug'
+import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 import { services } from '@/services';
 import { activityPubService } from '@/services/activityPubService';
 import { getOriginalPost } from '@/utils/postReblog';
@@ -266,7 +267,7 @@ const loadMoreReplies = async () => {
 const sharePost = async () => {
   if (!post.value) return;
 
-  const url = `${window.location.origin}/social/post/${post.value.id}`;
+  const url = `${resolveHarmonyBaseUrl()}/social/post/${post.value.id}`;
   
   if (navigator.share) {
     try {

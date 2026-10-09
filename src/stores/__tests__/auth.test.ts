@@ -29,6 +29,10 @@ vi.mock('@/utils/userScopedStorage', () => ({
     clearCurrentUser: vi.fn(),
   },
 }))
+const dmCleanup = vi.hoisted(() => vi.fn())
+vi.mock('@/stores/useDM', () => ({
+  useDMStore: vi.fn(() => ({ cleanup: dmCleanup })),
+}))
 vi.mock('@/services/RealtimeApiService', () => ({
   realtimeApiService: {
     goOffline: vi.fn().mockResolvedValue(undefined),
@@ -764,6 +768,15 @@ describe('useAuthStore', () => {
       expect(signOutAndForget).toHaveBeenCalledWith()
       expect(store.session).toBeNull()
       expect(push).toHaveBeenCalledWith({ path: '/login', query: { reason: 'session_revoked' } })
+      vi.doUnmock('@/router')
+    })
+
+    it('resets the DM store, so the next sign-in registers its user-channel handlers again', async () => {
+      vi.doMock('@/router', () => ({ default: { push: vi.fn().mockResolvedValue(undefined) } }))
+      const store = useAuthStore()
+      store.session = { access_token: jwtWithAAL('aal2'), user: { id: 'u' } } as any
+      await store.handleSessionRejected('session_revoked')
+      await vi.waitFor(() => expect(dmCleanup).toHaveBeenCalledWith())
       vi.doUnmock('@/router')
     })
   })
