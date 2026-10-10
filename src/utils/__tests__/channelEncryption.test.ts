@@ -138,6 +138,15 @@ describe('extractPlaintextMentionParts', () => {
     ])
   })
 
+  it('keeps @here, the one role id that is no uuid', () => {
+    const parts = extractPlaintextMentionParts([
+      { type: 'role_mention', roleId: 'here', roleName: 'here', roleColor: null },
+      { type: 'role_mention', roleId: 'here' },
+      { type: 'role_mention', roleId: 'HERE' },
+    ] as any)
+    expect(parts).toEqual([{ type: 'role_mention', roleId: 'here' }])
+  })
+
   it('drops fields beyond the server limits', () => {
     const parts = extractPlaintextMentionParts([
       { type: 'mention', username: 'x'.repeat(101) },

@@ -1,7 +1,6 @@
 /**
- * A row with no persisted message (temp- id: an optimistic copy or an outbox row)
- * offers no action that acts on the message id: no context menu, no quick react.
- * Delete on a failed outbox row discards the outbox job.
+ * A channel message that names the viewer is highlighted: a mention of their profile, a role
+ * they hold, @everyone (the default role, which every member holds) or @here.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,6 +11,7 @@ import type { Message } from '@/types'
 const shared = vi.hoisted(() => ({
   outbox: { has: (_id: string) => false, discard: (_id: string) => {} },
   quickReactEnabled: true,
+  roles: [] as Array<{ id: string }>,
 }))
 
 /** A store double: named fields as given, any other member an async no-op. */
@@ -49,7 +49,11 @@ vi.mock('@/stores/useThreads', () => ({
   useThreadsStore: () => loose({ threadForMessage: () => null, threadsForChannel: () => [] }),
 }))
 vi.mock('@/composables/useServerPermissions', () => ({
-  useServerPermissions: () => ({ isCurrentUserServerOwner: ref(false), canManageMessages: ref(false), getCurrentUserRole: ref(null) }),
+  useServerPermissions: () => ({
+    isCurrentUserServerOwner: ref(false),
+    canManageMessages: ref(false),
+    getCurrentUserRole: computed(() => ({ roles: shared.roles })),
+  }),
 }))
 vi.mock('@/composables/useUserData', () => ({
   DEFAULT_USER_COLOR: '#fff',
@@ -118,74 +122,54 @@ vi.mock('@tanstack/vue-virtual', async () => {
 
 import MessageDisplay from '../MessageDisplay.vue'
 
-const pendingRow = (overrides: Partial<Message> = {}): Message => ({
-  id: 'temp-1-abc',
+const EVERYONE = '00000000-0000-4000-8000-0000000000e0'
+const CREW = '00000000-0000-4000-8000-0000000000c0'
+
+const message = (id: string, content: unknown[]): Message => ({
+  id,
   created_at: new Date(),
   channel_id: 'chan-1',
-  user_id: 'me',
-  content: [{ type: 'text', text: 'pending' }],
-  metadata: { client_nonce: 'nonce-1' },
-  sending: true,
-  ...overrides,
-})
+  user_id: 'someone',
+  content,
+  metadata: {},
+} as Message)
 
-const mountDisplay = (messages: Message[]) => shallowMount(MessageDisplay, {
-  props: { messages, currentUserId: 'me', channelId: 'chan-1' },
-  global: { mocks: { $t: (key: string) => key } },
-})
+const highlighted = async (props: Record<string, unknown>, content: unknown[]) => {
+  const wrapper = shallowMount(MessageDisplay, {
+    props: { messages: [message('m1', content)], currentUserId: 'me', ...props },
+    global: { mocks: { $t: (key: string) => key } },
+  })
+  await flushPromises()
+  return wrapper.get('.message-item').classes().includes('mentions-me')
+}
+
+const inChannel = (content: unknown[]) => highlighted({ channelId: 'chan-1' }, content)
 
 beforeEach(() => {
-  shared.outbox = { has: () => false, discard: vi.fn() }
-  shared.quickReactEnabled = true
+  shared.roles = [{ id: EVERYONE }]
 })
 
-describe('MessageDisplay rows with no persisted message', () => {
-  it('opens no context menu on right-click', async () => {
-    const wrapper = mountDisplay([pendingRow()])
-    await flushPromises()
-    await wrapper.get('.message-item').trigger('contextmenu', { clientX: 5, clientY: 5 })
-    expect(wrapper.findComponent({ name: 'MessageContextMenu' }).props('isVisible')).toBe(false)
+describe('MessageDisplay mention highlight', () => {
+  it('highlights @here', async () => {
+    expect(await inChannel([{ type: 'text', text: 'standup ' },
+      { type: 'role_mention', roleId: 'here', roleName: 'here', roleColor: null }])).toBe(true)
   })
 
-  it('opens the context menu on a persisted message', async () => {
-    const wrapper = mountDisplay([pendingRow({ id: 'msg-1', sending: false })])
-    await flushPromises()
-    await wrapper.get('.message-item').trigger('contextmenu', { clientX: 5, clientY: 5 })
-    expect(wrapper.findComponent({ name: 'MessageContextMenu' }).props('isVisible')).toBe(true)
+  it('highlights @everyone and a mention of the viewer', async () => {
+    expect(await inChannel([{ type: 'role_mention', roleId: EVERYONE, roleName: 'everyone', roleColor: null }])).toBe(true)
+    expect(await inChannel([{ type: 'mention', userId: 'me', username: 'me', domain: 'harmony.test', isLocal: true }])).toBe(true)
   })
 
-  it('sends no quick reaction on a double tap', async () => {
-    const wrapper = mountDisplay([pendingRow()])
-    await flushPromises()
-    const row = wrapper.get('.message-item')
-    await row.trigger('touchend')
-    await row.trigger('touchend')
-    expect(wrapper.emitted('sendReaction')).toBeUndefined()
-
-    const persisted = mountDisplay([pendingRow({ id: 'msg-2', sending: false })])
-    await flushPromises()
-    const persistedRow = persisted.get('.message-item')
-    await persistedRow.trigger('touchend')
-    await persistedRow.trigger('touchend')
-    expect(persisted.emitted('sendReaction')?.[0]?.[0]).toBe('msg-2')
+  it('highlights a role only for its holders', async () => {
+    const crew = [{ type: 'role_mention', roleId: CREW, roleName: 'crew', roleColor: null }]
+    expect(await inChannel(crew)).toBe(false)
+    shared.roles = [{ id: EVERYONE }, { id: CREW }]
+    expect(await inChannel(crew)).toBe(true)
   })
 
-  it('offers a failed outbox row Retry and Delete only, Delete discarding through the parent', async () => {
-    shared.outbox = { has: (id) => id === 'temp-1-abc', discard: vi.fn() }
-    const wrapper = mountDisplay([pendingRow({ sending: false, failed: true })])
-    await flushPromises()
-    const row = wrapper.get('.message-item')
-    await row.trigger('mouseover')
-    expect(wrapper.find('.message-actions').exists()).toBe(false)
-
-    await wrapper.get('.failed-message-bar .discard-btn').trigger('click')
-    expect(wrapper.emitted('discard-message')?.[0]?.[0]).toMatchObject({ id: 'temp-1-abc' })
-  })
-
-  it('shows the action bar on a persisted message', async () => {
-    const wrapper = mountDisplay([pendingRow({ id: 'msg-3', sending: false })])
-    await flushPromises()
-    await wrapper.get('.message-item').trigger('mouseover')
-    expect(wrapper.find('.message-actions').exists()).toBe(true)
+  it('leaves other messages and conversations alone', async () => {
+    expect(await inChannel([{ type: 'mention', userId: 'other', username: 'other', domain: 'harmony.test', isLocal: true }])).toBe(false)
+    expect(await highlighted({ conversationId: 'conv-1' },
+      [{ type: 'role_mention', roleId: 'here', roleName: 'here', roleColor: null }])).toBe(false)
   })
 })

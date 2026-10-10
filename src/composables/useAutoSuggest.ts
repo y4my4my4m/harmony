@@ -21,6 +21,7 @@ import {
 import { runtimeConfig } from '@/services/runtimeConfig';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { discordEmojiCdnUrl, discordEmojiRefFromPicked, discordEmojiToken } from '@/utils/discordEmoji';
+import { HERE_MENTION_TOKEN, HERE_ROLE_ID } from '@/utils/hereMention';
 
 export { clearBridgedUsersCache };
 
@@ -433,8 +434,8 @@ export function useAutoSuggest(
         }
       }
 
-      // MENTION_EVERYONE covers @everyone and roles not marked mentionable
-      // (migration 20261003400001 enforces the same rule).
+      // MENTION_EVERYONE covers @everyone, @here and roles not marked mentionable
+      // (handle_role_mention_notifications enforces the same rule).
       const canMentionAll = hasCurrentUserPermission(Permission.MENTION_EVERYONE);
       for (const role of serverRoles.value) {
         if (!canMentionAll && (role.is_default || !role.mentionable)) continue;
@@ -454,6 +455,18 @@ export function useAutoSuggest(
             role: role
           });
         }
+      }
+      if (canMentionAll && currentServerId && HERE_ROLE_ID.includes(query)) {
+        suggestions.push({
+          id: `role:${HERE_ROLE_ID}`,
+          display_name: HERE_ROLE_ID,
+          username: HERE_ROLE_ID,
+          avatar: undefined,
+          display_text: `@${HERE_ROLE_ID}`,
+          mention_text: HERE_MENTION_TOKEN,
+          isRole: true,
+          roleColor: '#99AAB5',
+        });
       }
 
       // Final dedup by id across users, bridged users and roles.

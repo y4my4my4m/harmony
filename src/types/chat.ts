@@ -348,6 +348,7 @@ export interface MentionContent {
 
 export interface RoleMentionContent {
   type: 'role_mention';
+  /** A role's UUID, or `here` for @here (utils/hereMention.ts). */
   roleId: string;
   roleName: string;
   roleColor: string | null;

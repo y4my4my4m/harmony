@@ -11,6 +11,7 @@
  * payload and never from the parts beside the ciphertext.
  */
 import type { MessagePart } from '@/types'
+import { HERE_ROLE_ID } from '@/utils/hereMention'
 
 export type ServerEncryptionMode = 'disabled' | 'optional' | 'required' | 'required_local_only'
 export type VoiceEncryptionMode = 'disabled' | 'required'
@@ -156,7 +157,7 @@ export function extractPlaintextMentionParts(content: readonly MessagePart[] | n
       seen.add(key)
       out.push(mention)
     } else if (part.type === 'role_mention') {
-      if (typeof part.roleId !== 'string' || !UUID_RE.test(part.roleId)) continue
+      if (typeof part.roleId !== 'string' || !(UUID_RE.test(part.roleId) || part.roleId === HERE_ROLE_ID)) continue
       const key = `r:${part.roleId.toLowerCase()}`
       if (seen.has(key)) continue
       seen.add(key)

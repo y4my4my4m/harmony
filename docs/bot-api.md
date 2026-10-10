@@ -167,6 +167,7 @@ There is no RESUME. After any close, open a new connection and IDENTIFY again; R
 | `timestamp` | ISO 8601 | Creation time. |
 | `edited_timestamp` | ISO 8601 | Time of the last content edit. Equal to `timestamp` until the content is edited. |
 | `mentions` | string[] | The `user_id` field of each `mention` part. Mention parts written by the Harmony web client carry `userId` instead and are absent here; read them from `content_raw`. |
+| `mention_everyone` | boolean | `true` when the message mentions `@everyone` or `@here` and its author may: a member holding Mention Everyone in the channel, a bot with `mention_everyone`. As Discord's `mention_everyone`. |
 | `metadata` | object | Message metadata. |
 
 ```json
@@ -191,6 +192,7 @@ There is no RESUME. After any close, open a new connection and IDENTIFY again; R
     "timestamp": "2026-09-30T12:00:00.000Z",
     "edited_timestamp": "2026-09-30T12:00:00.000Z",
     "mentions": [],
+    "mention_everyone": false,
     "metadata": {}
   }
 }
@@ -338,7 +340,7 @@ REST message objects have no `content_raw` or `is_system`, and `author` never ca
 | `reply_to` | UUID | Message to reply to. |
 | `metadata` | object | Merged over `{ "bot": true, "created_via": "bot_api" }`. |
 
-A message needs at least one part; a request that produces none fails with `500`. Part shapes follow `MessagePart` in `src/types/chat.ts`. A `role_mention` (`roleId`) or `channel_mention` (`channelId`) part naming a role or channel of the channel's server is stored with that role's name and color or that channel's name and server; one naming anything else is stored as the text `@roleName` or `#name`. A role mention notifies by the bot's rights: `@everyone` only with the installation's `mention_everyone`, another role when it is mentionable or with `mention_everyone`. Edits and silent content patches apply the same check. For example, a mention:
+A message needs at least one part; a request that produces none fails with `500`. Part shapes follow `MessagePart` in `src/types/chat.ts`. A `role_mention` (`roleId`) or `channel_mention` (`channelId`) part naming a role or channel of the channel's server is stored with that role's name and color or that channel's name and server; one naming anything else is stored as the text `@roleName` or `#name`. `@here` is the part `{ "type": "role_mention", "roleId": "here" }`; it notifies the members who are online and can view the channel. `@everyone` (the server's default role) and `@here` are kept only with the installation's `mention_everyone` and are otherwise stored as the text `@everyone` or `@here`. Another role notifies when it is mentionable or with `mention_everyone`. Edits and silent content patches apply the same check. For example, a mention:
 
 ```json
 {

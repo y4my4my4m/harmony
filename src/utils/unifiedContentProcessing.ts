@@ -13,6 +13,7 @@ import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { parseUrlMatchContext, URL_TOKEN_REGEX } from '@/utils/urlSplitting'
 import { HANDLE_PATTERN, createHandleRegex, parseHandle } from '@/utils/mentionGrammar'
 import { convertEmoticons } from '@/utils/emoticons'
+import { HERE_ROLE_ID, hereMentionPart } from '@/utils/hereMention'
 
 // UUID-based emojis (legacy) and shortcode emojis are both supported.
 import {
@@ -43,7 +44,7 @@ const MENTION_REGEX = createHandleRegex();
 const URL_PRESCAN_REGEX = URL_TOKEN_REGEX;
 const URL_MATCH_REGEX = new RegExp(`(${URL_TOKEN_REGEX.source})`, 'g');
 const COMBINED_MENTION_HASHTAG_REGEX = new RegExp(
-  '(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))' +
+  `(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|${HERE_ROLE_ID}(?![\\p{L}\\p{N}_-])))` +
   '|(@d!(\\d+):([a-zA-Z0-9_.-]+))' +
   `|(${HANDLE_PATTERN})` +
   '|(?<![&\\w])#([\\p{L}\\p{N}_-]+)',
@@ -452,6 +453,7 @@ async function parseContentSegment(
 
   // COMBINED_MENTION_HASHTAG_REGEX alternatives, in group order:
   //   @role:UUID        role mention
+  //   @role:here        @here
   //   @d!ID:username    Discord bridged user
   //   @username[@domain] user mention
   //   #hashtag
@@ -473,10 +475,10 @@ async function parseContentSegment(
     }
     
     if (match[1]) {
-      // Role mention: @role:UUID
+      // Role mention: @role:UUID, or @role:here
       const roleId = match[2];
       const roleData = roleDataMap[roleId];
-      parts.push({
+      parts.push(roleId === HERE_ROLE_ID ? hereMentionPart() : {
         type: 'role_mention',
         roleId,
         roleName: roleData?.name || 'Unknown Role',
