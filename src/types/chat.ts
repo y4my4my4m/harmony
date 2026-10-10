@@ -161,6 +161,12 @@ export interface Profile {
   created_at?: string;
   updated_at?: string;
   handle?: string;
+  /** Actor URIs of this person's other accounts (ActivityPub alsoKnownAs). */
+  also_known_as?: string[];
+  /** Profile this account moved to; moved_to_uri is its actor URI (ActivityPub movedTo). */
+  moved_to_id?: string | null;
+  moved_to_uri?: string | null;
+  moved_at?: string | null;
   // User preferences stored on the profile row (loaded by AppInitService /
   // useVisualTheme). Both fields are JSON blobs in Postgres.
   locale?: string;

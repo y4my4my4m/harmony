@@ -35,7 +35,10 @@
           <Icon v-if="isVerified" name="verified" class="verified-badge" />
           <SupporterBadge v-if="user.id" :user-id="user.id" />
         </h3>
-        <p class="user-handle">{{ displayHandle }}</p>
+        <p class="user-handle">
+          {{ displayHandle }}
+          <span v-if="isMoved" class="moved-pill">{{ t('accountMigration.profile.movedBadge') }}</span>
+        </p>
         <RemoteInstanceBadge
           v-if="showRemoteInstanceBadge && instanceBadgeVariant === 'inline'"
           :domain="user.domain!"
@@ -81,7 +84,7 @@
     <div v-if="showActions" class="actions-section">
       <!-- Follow/Unfollow (federated users only) -->
       <button
-        v-if="isFederatedUser && !isCurrentUser && showFollowBtn"
+        v-if="isFederatedUser && !isCurrentUser && showFollowBtn && (!isMoved || isFollowing)"
         @click.stop="handleFollowToggle"
         :disabled="isFollowLoading"
         :title="followButtonText"
@@ -302,6 +305,11 @@ const isFollowLoading = computed(() => {
 const isFollowing = computed(() => {
   if (!isFederatedUser.value) return false
   return activityPubStore.isFollowing(props.user.id)
+})
+
+const isMoved = computed(() => {
+  const user = props.user as { moved_to_id?: string | null; moved_to_uri?: string | null }
+  return !!(user.moved_to_id || user.moved_to_uri)
 })
 
 const isMuted = computed(() => {
@@ -606,6 +614,17 @@ const vClickOutside = {
   color: var(--text-secondary);
   margin: 0;
   font-weight: var(--font-weight-medium);
+}
+
+.moved-pill {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--harmony-primary);
+  border: 1px solid color-mix(in srgb, var(--harmony-primary) 45%, transparent);
 }
 
 /* ===== BIO SECTION ===== */

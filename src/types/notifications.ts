@@ -38,6 +38,7 @@ export type NotificationType =
   | 'moderation_warning'
   | 'newcomer_message'
   | 'security'
+  | 'move'
   | 'error'
   // Generic UI feedback toasts (also valid AudioActions for themed sounds)
   | 'ui_success'
