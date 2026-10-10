@@ -71,6 +71,7 @@ import path from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { caseRemoteReplies } from './cases/remoteReplies.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -2480,6 +2481,7 @@ async function main() {
     await caseRemoteVoiceJoin(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
     await caseHostedVoiceJoin(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
     await caseSignedOnlyActor(db, peer, localUrl)
+    await caseRemoteReplies({ db, localUrl, peerHost: env.HMFED_PEER_HOST, assert, eq })
   } finally {
     await new Promise<void>((resolve) => local.close(() => resolve()))
     await peer.stop()
