@@ -1159,7 +1159,9 @@
     "viewPost": "View post",
     "fetchOlderFromDomain": "Load older posts from {domain}",
     "fetchingOlderFromDomain": "Checking {domain} for older posts",
-    "fetchOlderFailed": "Couldn't reach {domain}."
+    "fetchOlderFailed": "Couldn't reach {domain}.",
+    "followFailed": "Couldn't follow. Try again.",
+    "unfollowFailed": "Couldn't unfollow. Try again."
   },
   "moderation": {
     "report": "Report",

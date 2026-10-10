@@ -1144,7 +1144,9 @@
     "editPost": "编辑帖子",
     "editYourPost": "编辑你的帖子...",
     "save": "保存",
-    "noTrendingHashtagsHint": "随着实例的发展,使用 #标签 的帖子将显示在此处。"
+    "noTrendingHashtagsHint": "随着实例的发展,使用 #标签 的帖子将显示在此处。",
+    "followFailed": "关注失败，请重试。",
+    "unfollowFailed": "取消关注失败，请重试。"
   },
   "moderation": {
     "report": "举报",

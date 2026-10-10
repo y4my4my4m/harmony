@@ -1144,7 +1144,9 @@
     "viewPost": "Ver publicación",
     "fetchOlderFromDomain": "Cargar publicaciones anteriores de {domain}",
     "fetchingOlderFromDomain": "Buscando publicaciones anteriores en {domain}",
-    "fetchOlderFailed": "No se pudo conectar con {domain}."
+    "fetchOlderFailed": "No se pudo conectar con {domain}.",
+    "followFailed": "No se pudo seguir. Inténtalo de nuevo.",
+    "unfollowFailed": "No se pudo dejar de seguir. Inténtalo de nuevo."
   },
   "moderation": {
     "report": "Reportar",

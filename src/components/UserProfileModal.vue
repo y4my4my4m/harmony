@@ -243,7 +243,7 @@
             <template v-if="!isFederatedUser(user)">
               <div class="activity-card">
                 <div class="activity-icon">
-                  <Icon name="message" class="activity-icon-svg" />
+                  <Icon name="message" :size="16" />
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Messages</span>
@@ -253,7 +253,7 @@
               
               <div class="activity-card">
                 <div class="activity-icon">
-                  <Icon name="microphone" class="activity-icon-svg" />
+                  <Icon name="microphone" :size="16" />
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Voice time</span>
@@ -266,7 +266,7 @@
             <template v-else>
               <div class="activity-card clickable" @click="navigateToProfile" title="View all posts">
                 <div class="activity-icon">
-                  <Icon name="post" class="activity-icon-svg" />
+                  <Icon name="post" :size="16" />
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Posts</span>
@@ -276,7 +276,7 @@
               
               <div class="activity-card clickable" @click="navigateToProfile" title="View profile">
                 <div class="activity-icon">
-                  <Icon name="interaction" class="activity-icon-svg" />
+                  <Icon name="interaction" :size="16" />
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Interactions</span>
@@ -351,9 +351,12 @@
               @click="handleFollowToggle"
               class="primary-action-btn"
               :class="{ 'following': getUserIsFollowing(user) }"
+              :disabled="followBusy"
+              :aria-busy="followBusy"
             >
-              <Icon :name="getUserIsFollowing(user) ? 'unfollow' : 'follow'" :size="16" />
-              {{ getUserIsFollowing(user) ? t('activitypub.unfollow') : t('activitypub.follow') }}
+              <Icon v-if="followBusy" name="spinner" :size="16" class="follow-spin" />
+              <Icon v-else :name="getUserIsFollowing(user) || followRequested ? 'unfollow' : 'follow'" :size="16" />
+              {{ followRequested ? t('activitypub.cancelFollowRequest') : getUserIsFollowing(user) ? t('activitypub.unfollow') : t('activitypub.follow') }}
             </button>
             
             <!-- All Users: Mention -->
@@ -427,6 +430,7 @@ import { debug } from '@/utils/debug'
 import { escapeHtml, safeHref } from '@/utils/sanitize'
 import DOMPurify from 'dompurify'
 import { useI18n } from 'vue-i18n'
+import { useToast } from 'vue-toastification'
 import { useRouter, useRoute } from 'vue-router'
 import { supabase } from '@/supabase'
 import { useActivityPubStore } from '../stores/useActivityPub'
@@ -451,6 +455,7 @@ import DisplayName from './DisplayName.vue'
 import { runtimeConfig } from '@/services/runtimeConfig'
 
 const { t } = useI18n()
+const toast = useToast()
 
 interface Props {
   show: boolean
@@ -1071,21 +1076,35 @@ const openSettings = () => {
   emit('close')
 }
 
+// Shown follow state while a toggle is in flight; null defers to the store.
+const optimisticFollowing = ref<boolean | null>(null)
+const followBusy = ref(false)
+// A locked account holds the follow as a request until it accepts.
+const followRequested = ref(false)
+
 const handleFollowToggle = async () => {
-  if (!props.user) return
-  
+  if (!props.user || followBusy.value) return
+  const userId = props.user.id
+  const wasFollowing = isFollowingUser.value || followRequested.value
+
+  optimisticFollowing.value = !wasFollowing
+  followBusy.value = true
   try {
-    const isCurrentlyFollowing = activityPubStore.isFollowing(props.user.id) || (props.user as any).is_following
-    
-    if (isCurrentlyFollowing) {
-      await activityPubStore.unfollowUser(props.user.id)
-      emit('unfollow', props.user.id)
+    if (wasFollowing) {
+      await activityPubStore.unfollowUser(userId)
+      followRequested.value = false
+      emit('unfollow', userId)
     } else {
-      await activityPubStore.followUser(props.user.id)
-      emit('follow', props.user.id)
+      const result = await activityPubStore.followUser(userId) as { pending?: boolean } | undefined
+      followRequested.value = !!result?.pending
+      emit('follow', userId)
     }
   } catch (error) {
     debug.error('Failed to toggle follow:', error)
+    toast.error(t(wasFollowing ? 'activitypub.unfollowFailed' : 'activitypub.followFailed'))
+  } finally {
+    optimisticFollowing.value = null
+    followBusy.value = false
   }
 }
 
@@ -1341,6 +1360,7 @@ const getUserIsLocal = (user: any) => {
 
 const isFollowingUser = computed(() => {
   if (!props.user) return false
+  if (optimisticFollowing.value !== null) return optimisticFollowing.value
   
   // Store state carries real-time follow updates.
   if (activityPubStore.isFollowing(props.user.id)) {
@@ -1397,6 +1417,10 @@ const cleanupProfilePresence = async () => {
 }
 
 watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVal) => {
+  if (newVal.userId !== oldVal?.userId) {
+    followRequested.value = false
+    optimisticFollowing.value = null
+  }
   if (!newVal.show || !newVal.userId) {
     // Modal closed or no user: tear down. The dropdown is reset so the next
     // open does not restore a stale "..." menu state.
@@ -1574,6 +1598,14 @@ onMounted(() => {
   .server-picker-dropdown {
     animation: fadeIn 0.15s ease-out;
   }
+}
+
+.follow-spin {
+  animation: follow-spin 1s linear infinite;
+}
+
+@keyframes follow-spin {
+  to { transform: rotate(360deg); }
 }
 
 @keyframes fadeIn {
@@ -1989,11 +2021,6 @@ onMounted(() => {
   border-radius: 8px;
   color: var(--harmony-primary);
   flex-shrink: 0;
-}
-
-.activity-icon-svg {
-  width: 16px;
-  height: 16px;
 }
 
 .activity-info {

@@ -1144,7 +1144,9 @@
     "editPost": "게시물 편집",
     "editYourPost": "게시물 편집...",
     "save": "저장",
-    "noTrendingHashtagsHint": "#해시태그를 사용한 게시물은 인스턴스가 성장함에 따라 여기에 표시됩니다."
+    "noTrendingHashtagsHint": "#해시태그를 사용한 게시물은 인스턴스가 성장함에 따라 여기에 표시됩니다.",
+    "followFailed": "팔로우하지 못했습니다. 다시 시도하세요.",
+    "unfollowFailed": "언팔로우하지 못했습니다. 다시 시도하세요."
   },
   "moderation": {
     "report": "신고",

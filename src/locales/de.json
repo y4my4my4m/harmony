@@ -1144,7 +1144,9 @@
     "editPost": "Beitrag bearbeiten",
     "editYourPost": "Bearbeiten Sie Ihren Beitrag...",
     "save": "Speichern",
-    "noTrendingHashtagsHint": "Beiträge mit #Hashtags erscheinen hier, sobald Ihre Instanz wächst."
+    "noTrendingHashtagsHint": "Beiträge mit #Hashtags erscheinen hier, sobald Ihre Instanz wächst.",
+    "followFailed": "Folgen fehlgeschlagen. Bitte erneut versuchen.",
+    "unfollowFailed": "Entfolgen fehlgeschlagen. Bitte erneut versuchen."
   },
   "moderation": {
     "report": "Melden",

@@ -1144,7 +1144,9 @@
     "editPost": "Modifier la publication",
     "editYourPost": "Modifiez votre publication...",
     "save": "Enregistrer",
-    "noTrendingHashtagsHint": "Les publications utilisant des #hashtags apparaîtront ici à mesure que votre instance grandit."
+    "noTrendingHashtagsHint": "Les publications utilisant des #hashtags apparaîtront ici à mesure que votre instance grandit.",
+    "followFailed": "Impossible de suivre. Réessayez.",
+    "unfollowFailed": "Impossible de ne plus suivre. Réessayez."
   },
   "moderation": {
     "report": "Signaler",

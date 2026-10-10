@@ -1144,7 +1144,9 @@
     "viewPost": "投稿を表示",
     "fetchOlderFromDomain": "{domain} から古い投稿を読み込む",
     "fetchingOlderFromDomain": "{domain} で古い投稿を確認中",
-    "fetchOlderFailed": "{domain} に接続できませんでした。"
+    "fetchOlderFailed": "{domain} に接続できませんでした。",
+    "followFailed": "フォローできませんでした。もう一度お試しください。",
+    "unfollowFailed": "フォロー解除できませんでした。もう一度お試しください。"
   },
   "moderation": {
     "report": "報告",
