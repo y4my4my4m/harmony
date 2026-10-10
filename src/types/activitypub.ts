@@ -427,6 +427,8 @@ export interface TimelineOptions {
   min_id?: string;
   /** ISO timestamp cursor - fetch posts created before this time */
   before?: string;
+  /** Id of the post at `before`; with it the cursor is the (created_at, id) keyset. */
+  beforeId?: string;
 }
 
 /** Result from timeline fetches - used to set has_more from raw DB count before client-side filtering */

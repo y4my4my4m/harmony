@@ -501,6 +501,11 @@ const hasMorePostsRef = ref(false);
 const remoteOutboxUrl = ref<string | null>(null); // For remote user pagination
 const oldestRemotePostId = ref<string | null>(null); // pagination cursor
 const isLoadingMoreRemote = ref(false);
+// Posts read per "load more", from the database and, for a remote account, the outbox.
+const POSTS_PAGE_SIZE = 20;
+// Outbox imports in a row that surface nothing older before "load more" stops.
+const MAX_EMPTY_OUTBOX_IMPORTS = 3;
+let emptyOutboxImports = 0;
 
 // Realtime: prepends/edits/deletes arrive on `feed:user:{profile_id}`, where
 // a DB trigger publishes every post event for this author. The kind ref
@@ -857,7 +862,10 @@ const syncRemoteProfile = async (handle: string) => {
   }
   if (result.backfilling) {
     setTimeout(() => {
-      if (user.value?.id === target.id && !isLoadingMoreRemote.value) void loadUserPosts();
+      if (user.value?.id !== target.id) return;
+      if (!isLoadingMoreRemote.value) void loadUserPosts();
+      // The featured collection is read alongside the outbox.
+      void loadPinnedPosts();
     }, BACKFILL_RELOAD_MS);
   }
 };
@@ -866,11 +874,12 @@ const loadUserPosts = async (retryCount = 0) => {
   if (!user.value) return;
   
   isLoadingPosts.value = true;
+  emptyOutboxImports = 0;
   try {
     debug.log(`Loading posts for user: ${user.value.username} (ID: ${user.value.id})${retryCount > 0 ? ` (retry ${retryCount})` : ''}`);
     
     // Same path for local and remote users.
-    const posts = (await activityPubService.getUserPosts(user.value.id, { limit: 20 })) as TimelinePost[] || [];
+    const posts = (await activityPubService.getUserPosts(user.value.id, { limit: POSTS_PAGE_SIZE })) as TimelinePost[] || [];
 
     // Retries poll while the backend backfills a freshly-imported remote
     // profile. The array is swapped, and reactions refetched, only when the
@@ -893,7 +902,7 @@ const loadUserPosts = async (retryCount = 0) => {
       hasMorePostsRef.value = true;
       debug.log(`Remote user - enabling infinite scroll (outbox: ${remoteOutboxUrl.value})`);
     } else {
-      hasMorePostsRef.value = posts && posts.length >= 20;
+      hasMorePostsRef.value = posts && posts.length >= POSTS_PAGE_SIZE;
     }
     debug.log(`Loaded ${userPosts.value.length} posts for ${user.value.username}`);
     
@@ -1001,86 +1010,84 @@ const loadPinnedPosts = async () => {
   }
 };
 
+/** Stored posts older than the last one listed, keyset (created_at, id). */
+const readOlderPosts = async (): Promise<TimelinePost[]> => {
+  const oldest = userPosts.value[userPosts.value.length - 1];
+  if (!user.value || !oldest) return [];
+  const posts = await activityPubService.getUserPosts(user.value.id, {
+    limit: POSTS_PAGE_SIZE,
+    before: oldest.created_at,
+    beforeId: oldest.id,
+  });
+  return (posts as TimelinePost[]) || [];
+};
+
+/** Appends the posts not yet listed; returns how many were. */
+const appendPosts = (posts: TimelinePost[]): number => {
+  const knownIds = new Set(userPosts.value.map(p => p.id));
+  const fresh = posts.filter(p => !knownIds.has(p.id));
+  if (fresh.length === 0) return 0;
+  userPosts.value = [...userPosts.value, ...fresh];
+
+  const postReactionsStore = usePostReactionsStore();
+  postReactionsStore.fetchMultiplePostReactions(fresh.map(p => p.id), true);
+  activityPubStore.batchFetchRemoteReactions(fresh);
+  return fresh.length;
+};
+
 const loadMorePosts = async () => {
   if (!user.value || isLoadingPosts.value || isLoadingMoreRemote.value || !hasMorePostsRef.value) return;
   
   isLoadingPosts.value = true;
   try {
     debug.log(`Loading more posts for user: ${user.value.username}`);
-    
-    // Remote users page through the federation backend first.
-    if (!user.value.is_local && remoteOutboxUrl.value) {
-      isLoadingMoreRemote.value = true;
-      debug.log(`Fetching more posts from remote outbox...`);
-      
-      try {
-        const oldestPost = userPosts.value[userPosts.value.length - 1];
-        const maxId = oldestPost?.ap_id || oldestRemotePostId.value;
 
-        const result = await activityPubService.importRemoteOutboxPage(user.value.id, remoteOutboxUrl.value, {
-          maxId,
-          limit: 10
-        });
-        oldestRemotePostId.value = result.oldestId;
-        debug.log(`Federation response: has_more=${result.hasMore}`);
+    if (userPosts.value.length === 0) {
+      hasMorePostsRef.value = false;
+      return;
+    }
 
-        // Newly-imported posts are merged, not swapped in wholesale: a full
-        // replace re-renders every visible note on each page fetch, and on
-        // short pages the scroll handler fires repeatedly.
-        const posts = await activityPubService.getUserPosts(user.value.id, { limit: 100 });
-        const knownIds = new Set(userPosts.value.map(p => p.id));
-        const newPosts = ((posts as TimelinePost[]) || []).filter(p => !knownIds.has(p.id));
+    const stored = await readOlderPosts();
+    if (stored.length > 0) {
+      appendPosts(stored);
+      // A remote account's outbox can hold more than this instance stores.
+      hasMorePostsRef.value = stored.length >= POSTS_PAGE_SIZE || (!user.value.is_local && !!remoteOutboxUrl.value);
+      return;
+    }
 
-        if (newPosts.length > 0) {
-          userPosts.value = [...userPosts.value, ...newPosts]
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-          hasMorePostsRef.value = result.hasMore;
-          debug.log(`Merged ${newPosts.length} new posts (total ${userPosts.value.length})`);
+    if (user.value.is_local || !remoteOutboxUrl.value) {
+      hasMorePostsRef.value = false;
+      return;
+    }
 
-          const postReactionsStore = usePostReactionsStore();
-          postReactionsStore.fetchMultiplePostReactions(newPosts.map(p => p.id), true);
-          activityPubStore.batchFetchRemoteReactions(newPosts);
-          void loadMediaCount();
-        } else {
-          // Nothing new; clearing the flag stops the scroll handler from
-          // re-firing this request in a loop.
-          hasMorePostsRef.value = false;
-          debug.log('Remote fetch returned no new posts - stopping pagination');
-        }
-      } catch (fetchError) {
-        debug.error('Remote fetch error:', fetchError);
-        hasMorePostsRef.value = false;
-      } finally {
-        isLoadingMoreRemote.value = false;
-      }
-    } else {
-      // Local user: load from database directly
+    // Nothing older is stored: import the outbox's next page, which the backend
+    // continues from where the previous import stopped.
+    isLoadingMoreRemote.value = true;
+    try {
       const oldestPost = userPosts.value[userPosts.value.length - 1];
-      const cursor = oldestPost?.created_at;
-
-      if (!cursor) {
-        debug.log('No cursor found for pagination');
-        hasMorePostsRef.value = false;
-        return;
-      }
-
-      const posts = await activityPubService.getUserPosts(user.value.id, {
-        limit: 20,
-        before: cursor
+      const result = await activityPubService.importRemoteOutboxPage(user.value.id, remoteOutboxUrl.value, {
+        maxId: oldestPost?.ap_id || oldestRemotePostId.value,
+        limit: POSTS_PAGE_SIZE,
       });
-      
-      if (posts && posts.length > 0) {
-        userPosts.value.push(...(posts as TimelinePost[]));
-        hasMorePostsRef.value = posts.length >= 20;
-        debug.log(`Loaded ${posts.length} more posts. Total: ${userPosts.value.length}`);
-        
-        const postReactionsStore = usePostReactionsStore();
-        postReactionsStore.fetchMultiplePostReactions(posts.map(p => p.id), true);
-        activityPubStore.batchFetchRemoteReactions(posts as TimelinePost[]);
+      oldestRemotePostId.value = result.oldestId;
+      debug.log(`Federation response: has_more=${result.hasMore}`);
+
+      const added = appendPosts(await readOlderPosts());
+      if (added > 0) {
+        emptyOutboxImports = 0;
+        hasMorePostsRef.value = true;
+        void loadMediaCount();
       } else {
-        hasMorePostsRef.value = false;
-        debug.log('No more posts available');
+        // An import that surfaces nothing older counts toward the stop, so the
+        // scroll handler does not re-fire it without end.
+        emptyOutboxImports++;
+        hasMorePostsRef.value = result.hasMore && emptyOutboxImports < MAX_EMPTY_OUTBOX_IMPORTS;
       }
+    } catch (fetchError) {
+      debug.error('Remote fetch error:', fetchError);
+      hasMorePostsRef.value = false;
+    } finally {
+      isLoadingMoreRemote.value = false;
     }
   } catch (error) {
     debug.error('Failed to load more posts:', error);

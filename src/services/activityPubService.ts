@@ -618,12 +618,17 @@ export class ActivityPubService {
       .eq('is_deleted', false)
       .in('visibility', ['public', 'unlisted'])
       .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
       .limit(limit);
 
     if (currentProfileId) {
       query = query.eq('my_interactions.user_id', currentProfileId);
     }
-    if (options.before) {
+    if (options.before && options.beforeId) {
+      // Quoted: a timestamp holds `:` and `.`, reserved in a PostgREST logic tree.
+      const at = `"${options.before}"`;
+      query = query.or(`created_at.lt.${at},and(created_at.eq.${at},id.lt.${options.beforeId})`);
+    } else if (options.before) {
       query = query.lt('created_at', options.before);
     }
 
