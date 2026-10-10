@@ -111,6 +111,11 @@
               @hashtag-click="handleHashtagClick"
               @image-click="handleImageClick"
             />
+            <MonyMediaGallery
+              v-if="quoteOwnMedia.length > 0"
+              :media-attachments="quoteOwnMedia"
+              :is-sensitive="!!props.post.is_sensitive"
+            />
           </div>
           
           <!-- Quoted post content -->
@@ -656,6 +661,7 @@ import Avatar from '../common/Avatar.vue';
 import Composer from './Composer.vue';
 import PostReactions from './PostReactions.vue';
 import MonyMediaGallery from './MonyMediaGallery.vue';
+import { galleryMedia, withoutGalleryMedia } from '@/utils/postMedia';
 import RemotePollCard from '@/components/polls/RemotePollCard.vue';
 import ConfirmationModal from '../ConfirmationModal.vue';
 import ReportModal from '@/components/moderation/ReportModal.vue';
@@ -997,9 +1003,12 @@ const isEdited = computed(() => {
   return updated - created > 2000;
 });
 
+// A quote's own media, beside its comment; the quoted post's media is displayMediaAttachments.
+const quoteOwnMedia = computed(() => isQuotePost.value ? galleryMedia(props.post) : []);
+
 // For quote posts, we show both the user's content AND the quoted content
 const userQuoteContent = computed(() => {
-  return isQuotePost.value ? props.post.content : null;
+  return isQuotePost.value ? withoutGalleryMedia(props.post.content, quoteOwnMedia.value) : null;
 });
 
 const displayContent = computed(() => {
@@ -1015,25 +1024,9 @@ const remotePollMetadata = computed(() => {
 });
 const remotePollUrl = computed<string | null>(() => remotePollSource.value?.url || remotePollSource.value?.ap_id || null);
 
-const displayMediaAttachments = computed(() => {
-  const source: any = (isReblog.value && props.post.reblog) ? props.post.reblog : props.post;
-  const media = source?.media_attachments ?? source?.mediaAttachments;
-  const raw = Array.isArray(media) ? media : [];
-  // Normalize federated media (ActivityPub uses type 'Document', mediaType 'image/*') so they render in grid
-  return raw.map((m: any, idx: number) => {
-    const url = m.url || m.remote_url || m.href;
-    if (!url) return null;
-    let type = m.type?.toLowerCase?.() || m.type || 'unknown';
-    if (type === 'document' || type === 'unknown') {
-      const mt = (m.mediaType || m.media_type || m.mime_type || '').toLowerCase();
-      if (mt.startsWith('image/')) type = 'image';
-      else if (mt.startsWith('video/') || mt.includes('gif')) type = 'video';
-      else if (/\.(jpe?g|png|gif|webp|avif)/i.test(url)) type = 'image';
-      else if (/\.(mp4|webm|ogv|mov)/i.test(url)) type = 'video';
-    }
-    return { ...m, id: m.id || `m-${idx}`, url, type };
-  }).filter(Boolean);
-});
+const displayMediaAttachments = computed(() =>
+  galleryMedia((isReblog.value && props.post.reblog) ? props.post.reblog : props.post)
+);
 
 const postEmbeds = computed<Array<{ url: string; title?: string; description?: string; image?: string; provider?: string }>>(() => {
   const source = (isReblog.value && props.post.reblog) ? props.post.reblog : props.post;
@@ -1082,53 +1075,10 @@ const cardEmbedVariant = computed<'default' | 'thumbnail'>(() =>
   (displayMediaAttachments.value as any[]).length > 0 ? 'thumbnail' : 'default'
 );
 
-// Content for MonyContent: when we have media_attachments, exclude file/image parts from content
-// so they're only shown once in MonyMediaGallery (which has the lightbox). Federated posts often
-// have media in content only (no media_attachments) - then we show them in MonyContent's grid.
-const contentForMonyContent = computed(() => {
-  const content = displayContent.value;
-  const mediaAttachments = displayMediaAttachments.value;
-  if (!content || !Array.isArray(content)) return content;
-  if (mediaAttachments.length === 0) return content;
-
-  // Build set of media URLs (normalized) so we filter content parts that duplicate attachments.
-  // Normalize: strip query string, use pathname for matching (handles protocol/host differences).
-  const normalizeUrl = (url: string) => {
-    try {
-      const u = url.split('?')[0];
-      const path = u.includes('/') ? u.replace(/^[^/]*\/\/[^/]+/, '') : u;
-      return path || u;
-    } catch {
-      return url;
-    }
-  };
-  const mediaUrlPaths = new Set(
-    mediaAttachments
-      .map((m: any) => (m.url || m.remote_url || m.href) && normalizeUrl(String(m.url || m.remote_url || m.href)))
-      .filter(Boolean)
-  );
-
-  const isMediaPartOrDuplicate = (p: any): boolean => {
-    const partUrl = p?.url;
-    if (partUrl && (mediaUrlPaths.has(normalizeUrl(partUrl)) || mediaUrlPaths.has(partUrl))) return true;
-    const t = String(p?.type || '').toLowerCase();
-    if (t === 'file') {
-      const ft = p?.fileType || p?.file_type || '';
-      if (ft === 'image' || ft === 'video' || ft === 'audio') return true;
-      const mt = (p?.mimeType || p?.mime_type || p?.mediaType || p?.media_type || '').toLowerCase();
-      if (mt.startsWith('image/') || mt.startsWith('video/') || mt.includes('gif')) return true;
-      if (partUrl && /\.(jpe?g|png|gif|webp|avif|mp4|webm|ogv|mov)(\?|$)/i.test(partUrl)) return true;
-      return false;
-    }
-    if (t === 'image' || t === 'video' || t === 'gifv') return true;
-    if (t === 'url' && partUrl) {
-      return /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)(\?|$)/i.test(partUrl) ||
-        /\.(mp4|webm|ogg|avi|mov|wmv|flv|m4v)(\?|$)/i.test(partUrl);
-    }
-    return false;
-  };
-  return content.filter((p: any) => !isMediaPartOrDuplicate(p));
-});
+// Media shows once, in MonyMediaGallery (lightbox, sensitive blur); MonyContent gets the rest.
+const contentForMonyContent = computed(() =>
+  withoutGalleryMedia(displayContent.value, displayMediaAttachments.value)
+);
 
 const displayContentWarning = computed(() => {
   if (isReblog.value && props.post.reblog) {
