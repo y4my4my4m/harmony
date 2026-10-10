@@ -6,7 +6,7 @@ vi.mock('../utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
 
-const { walkRepliesCollection, crawlReplies, storeReplies } = await import('../activitypub/repliesCollection.js')
+const { walkRepliesCollection, crawlReplies, storeReplies, replyCrawlInterval } = await import('../activitypub/repliesCollection.js')
 type ReplyStore = import('../activitypub/repliesCollection.js').ReplyStore
 
 const POST = 'https://mastodon.test/users/strypey/statuses/1'
@@ -77,7 +77,16 @@ describe('walkRepliesCollection', () => {
     ])
     expect(walk.pages).toBe(3)
     expect(walk.truncated).toBe(false)
+    expect(walk.failed).toBe(false)
     expect(fetchDoc.mock.calls.map((c) => c[0])).toEqual([PAGE_OTHERS, PAGE_OTHERS_2, PAGE_OTHERS_3])
+  })
+
+  it('marks a walk ended by a page that cannot be read', async () => {
+    const { [PAGE_OTHERS_2]: _gone, ...rest } = pages
+    const walk = await walkRepliesCollection(mastodonNote.replies, POST, fetcher(rest),
+      { maxPages: 5, maxReplies: 200, deadline: later() })
+    expect(walk.refs).toHaveLength(4)
+    expect(walk).toMatchObject({ truncated: false, failed: true })
   })
 
   it('keeps embedded replies from the page\'s host and only the id of others', async () => {
@@ -145,13 +154,15 @@ describe('walkRepliesCollection', () => {
       { maxPages: 5, maxReplies: 200, deadline: later() })
     expect(fetchDoc).toHaveBeenCalledTimes(1)
     expect(walk.truncated).toBe(false)
+    expect(walk.failed).toBe(true)
 
     const loop = {
       [PAGE_OTHERS]: { id: PAGE_OTHERS, type: 'CollectionPage', next: PAGE_OTHERS, items: ['https://a.test/1'] },
     }
     const fetchLoop = fetcher(loop)
-    await walkRepliesCollection(mastodonNote.replies, POST, fetchLoop, { maxPages: 5, maxReplies: 200, deadline: later() })
+    const looped = await walkRepliesCollection(mastodonNote.replies, POST, fetchLoop, { maxPages: 5, maxReplies: 200, deadline: later() })
     expect(fetchLoop).toHaveBeenCalledTimes(1)
+    expect(looped.failed).toBe(false)
   })
 })
 
@@ -178,7 +189,7 @@ describe('crawlReplies', () => {
     const { store, stored } = memoryStore(['https://gts.test/users/x/statuses/4'], ['blocked.test'])
     const crawl = await crawlReplies(mastodonNote, fetcher(), store, { maxPages: 5, maxReplies: 200, deadline: later() })
 
-    expect(crawl).toMatchObject({ status: 'ok', found: 6, stored: 4, existing: 1, skipped: 1, pages: 3, truncated: false })
+    expect(crawl).toMatchObject({ status: 'ok', found: 6, stored: 4, existing: 1, skipped: 1, pages: 3, truncated: false, complete: true })
     expect(stored.sort()).toEqual([
       'https://mastodon.test/users/kiwi/statuses/3',
       'https://mastodon.test/users/strypey/statuses/2',
@@ -188,6 +199,15 @@ describe('crawlReplies', () => {
     expect(store.storeObject).toHaveBeenCalledTimes(2)
     expect(store.storeById).not.toHaveBeenCalledWith('https://blocked.test/users/y/statuses/5')
     expect(store.storeById).not.toHaveBeenCalledWith('https://gts.test/users/x/statuses/4')
+  })
+
+  it('is incomplete when a limit or a failed page ended the walk', async () => {
+    const { store } = memoryStore()
+    const limited = await crawlReplies(mastodonNote, fetcher(), store, { maxPages: 1, maxReplies: 200, deadline: later() })
+    expect(limited).toMatchObject({ truncated: true, complete: false })
+    const { [PAGE_OTHERS_3]: _gone, ...rest } = pages
+    const broken = await crawlReplies(mastodonNote, fetcher(rest), store, { maxPages: 5, maxReplies: 200, deadline: later() })
+    expect(broken).toMatchObject({ truncated: false, complete: false, found: 5 })
   })
 
   it('reports a Note without a replies collection', async () => {
@@ -216,5 +236,21 @@ describe('crawlReplies', () => {
     const refs = Array.from({ length: 120 }, (_, i) => ({ id: `https://a.test/r/${i}` }))
     await storeReplies(refs, store, later())
     expect(vi.mocked(store.existing).mock.calls.map((c) => c[0].length)).toEqual([50, 50, 20])
+  })
+})
+
+describe('replyCrawlInterval', () => {
+  const now = Date.parse('2026-10-11T12:00:00Z')
+  const ago = (ms: number) => new Date(now - ms).toISOString()
+
+  it('grows with the post\'s age', () => {
+    expect(replyCrawlInterval(ago(10 * 60_000), now)).toBe(2 * 60_000)
+    expect(replyCrawlInterval(ago(5 * 60 * 60_000), now)).toBe(15 * 60_000)
+    expect(replyCrawlInterval(ago(3 * 24 * 60 * 60_000), now)).toBe(6 * 60 * 60_000)
+  })
+
+  it('treats a post of unknown age as older than a day', () => {
+    expect(replyCrawlInterval(null, now)).toBe(6 * 60 * 60_000)
+    expect(replyCrawlInterval('not a date', now)).toBe(6 * 60 * 60_000)
   })
 })

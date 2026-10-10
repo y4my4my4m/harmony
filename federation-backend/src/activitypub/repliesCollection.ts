@@ -26,6 +26,21 @@ export interface ReplyCrawlLimits {
 
 export const DEFAULT_REPLY_CRAWL = { maxPages: 5, maxReplies: 200, timeoutMs: 30_000 } as const;
 
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+
+/**
+ * Minimum time between two crawls of a post's replies, by the post's age: 2 minutes under an
+ * hour, 15 minutes under a day, 6 hours beyond, and for a post of unknown age.
+ */
+export function replyCrawlInterval(createdAt: string | null | undefined, now: number): number {
+  const published = createdAt ? Date.parse(createdAt) : NaN;
+  const age = Number.isFinite(published) ? now - published : 24 * HOUR_MS;
+  if (age < HOUR_MS) return 2 * MINUTE_MS;
+  if (age < 24 * HOUR_MS) return 15 * MINUTE_MS;
+  return 6 * HOUR_MS;
+}
+
 /** A reply named by a collection; `object` is an embedded copy served by the reply's own host. */
 export interface ReplyRef {
   id: string;
@@ -37,6 +52,8 @@ export interface ReplyWalk {
   pages: number;
   /** A page limit, reply limit or the deadline stopped the walk before the collection's end. */
   truncated: boolean;
+  /** A page could not be read, or a link led to another host; the walk ended there. */
+  failed: boolean;
 }
 
 export type FetchDocument = (url: string) => Promise<FetchedDocument | null>;
@@ -77,9 +94,14 @@ export async function walkRepliesCollection(
   const visited = new Set<string>();
   let pages = 0;
   let truncated = false;
+  let failed = false;
 
   const load = async (url: string): Promise<{ doc: any; source: string } | null> => {
-    if (visited.has(url) || !sameOrigin(url, postId)) return null;
+    if (visited.has(url)) return null;
+    if (!sameOrigin(url, postId)) {
+      failed = true;
+      return null;
+    }
     if (pages >= limits.maxPages || Date.now() >= limits.deadline) {
       truncated = true;
       return null;
@@ -87,7 +109,10 @@ export async function walkRepliesCollection(
     visited.add(url);
     pages++;
     const fetched = await fetchDoc(url);
-    if (!fetched || !sameOrigin(fetched.finalUrl, postId)) return null;
+    if (!fetched || !sameOrigin(fetched.finalUrl, postId)) {
+      failed = true;
+      return null;
+    }
     return { doc: fetched.doc, source: fetched.finalUrl };
   };
 
@@ -138,7 +163,7 @@ export async function walkRepliesCollection(
     current = typeof nextRef === 'string' ? await load(nextRef) : null;
   }
 
-  return { refs: [...refs.values()], pages, truncated };
+  return { refs: [...refs.values()], pages, truncated, failed };
 }
 
 /** How one reply ended up. */
@@ -164,6 +189,8 @@ export interface ReplyCrawl {
   skipped: number;
   pages: number;
   truncated: boolean;
+  /** The walk reached the collection's end: `found` is every reply it lists. */
+  complete: boolean;
 }
 
 /** Parallel stores per crawl. */
@@ -241,7 +268,7 @@ export async function crawlReplies(
   limits: ReplyCrawlLimits,
 ): Promise<ReplyCrawl> {
   if (!note?.replies || typeof note.id !== 'string') {
-    return { status: 'no_collection', found: 0, stored: 0, existing: 0, skipped: 0, pages: 0, truncated: false };
+    return { status: 'no_collection', found: 0, stored: 0, existing: 0, skipped: 0, pages: 0, truncated: false, complete: false };
   }
   const walk = await walkRepliesCollection(note.replies, note.id, fetchDoc, limits);
   const counts = await storeReplies(walk.refs, store, limits.deadline);
@@ -253,5 +280,6 @@ export async function crawlReplies(
     skipped: counts.skipped,
     pages: walk.pages,
     truncated: walk.truncated || counts.truncated,
+    complete: !walk.truncated && !walk.failed,
   };
 }

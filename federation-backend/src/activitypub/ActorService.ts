@@ -12,10 +12,10 @@ import { SignatureService } from './SignatureService.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { validateExternalHostname, validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
-import { discoveryLimiter } from '../middleware/rateLimit.js';
+import { discoveryLimiter, reactionsLimiter, repliesLimiter, repliesStatusLimiter } from '../middleware/rateLimit.js';
 import { actorOwnsKeys, fetchActorById, fetchAuthoritativeDocument, readApDocument, sameOrigin, urlHost, type FetchedDocument } from '../utils/apOrigin.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
-import { crawlReplies, DEFAULT_REPLY_CRAWL, storeReplies, type ReplyCrawl, type ReplyStore } from './repliesCollection.js';
+import { crawlReplies, DEFAULT_REPLY_CRAWL, replyCrawlInterval, storeReplies, type ReplyCrawl, type ReplyStore } from './repliesCollection.js';
 import { noteDocumentSoftware } from './instanceSoftware.js';
 import { confirmActorAcct, parseAcct, resolveActorUrl, sameAcct, withCanonicalAcct, type WebFingerCache } from './webfingerClient.js';
 import { actorTombstone, deletedActorByProfile, deletedActorByUsername } from './deletedActors.js';
@@ -632,7 +632,7 @@ router.post(
  */
 router.post(
   '/fetch-reactions-batch',
-  discoveryLimiter,
+  reactionsLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { posts } = req.body;
 
@@ -762,7 +762,7 @@ router.post(
  */
 router.post(
   '/fetch-reactions',
-  discoveryLimiter,
+  reactionsLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     logger.debug(`fetch-reactions raw body: ${JSON.stringify(req.body)}`);
     
@@ -1557,32 +1557,54 @@ async function _fetchRemotePostReactionsImpl(
   }
 }
 
-// Reply crawls of one post: one at a time, the next no sooner than REPLY_CRAWL_COOLDOWN_MS
-// after the last, or FORCED_REPLY_CRAWL_COOLDOWN_MS when the reader asks for it. A crawl
-// costs up to DEFAULT_REPLY_CRAWL.maxPages + maxReplies + 1 requests, so at most
+// Reply crawls. One post is crawled once at a time; the next crawl is due replyCrawlInterval
+// after the last, recorded in posts.replies_fetched_at, or FORCED_REPLY_CRAWL_COOLDOWN_MS after
+// it when the reader asks. lastReplyCrawls holds start times as well, for posts without a row
+// here. A crawl costs up to DEFAULT_REPLY_CRAWL.maxPages + maxReplies + 1 requests, so at most
 // MAX_REPLY_CRAWLS run at once across all posts.
-const REPLY_CRAWL_COOLDOWN_MS = 15 * 60 * 1000;
 const FORCED_REPLY_CRAWL_COOLDOWN_MS = 60 * 1000;
 const MAX_REPLY_CRAWLS = 4;
+/** POST /fetch-replies answers 'started' when the crawl takes longer than this. */
+const REPLY_CRAWL_ANSWER_WAIT_MS = 800;
+/** A finished crawl's result stays readable from /fetch-replies/status this long. */
+const REPLY_CRAWL_RESULT_TTL_MS = 15 * 60 * 1000;
+/** replyCrawlInterval of a post older than a day. */
+const LONGEST_REPLY_CRAWL_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const REPLY_CRAWL_MAP_LIMIT = 5000;
 const lastReplyCrawls = new Map<string, number>();
 const inflightReplyCrawls = new Map<string, Promise<RemoteReplyFetch>>();
+const finishedReplyCrawls = new Map<string, { result: RemoteReplyFetch; at: number }>();
 
 type RemoteReplyFetch = Omit<ReplyCrawl, 'status'> & {
-  /** 'unavailable': the post could not be read from its origin. */
-  status: ReplyCrawl['status'] | 'unavailable';
+  /** 'unavailable': the post could not be read from its origin; 'unauthorized': it answered 401 or 403. */
+  status: ReplyCrawl['status'] | 'unavailable' | 'unauthorized';
+  /**
+   * remote_replies_count the crawl established: `found` after a complete walk of a Note that
+   * carries no reply total of its own. Null otherwise.
+   */
+  total: number | null;
 };
 
-function noteReplyCrawl(postApId: string, now: number): void {
-  lastReplyCrawls.set(postApId, now);
-  if (lastReplyCrawls.size > 5000) {
+const unreadReplies = (status: 'unavailable' | 'unauthorized'): RemoteReplyFetch => ({
+  status, found: 0, stored: 0, existing: 0, skipped: 0, pages: 0, truncated: false, complete: false, total: null,
+});
+
+function pruneReplyCrawlState(now: number): void {
+  if (lastReplyCrawls.size > REPLY_CRAWL_MAP_LIMIT) {
     for (const [key, at] of lastReplyCrawls) {
-      if (now - at >= REPLY_CRAWL_COOLDOWN_MS) lastReplyCrawls.delete(key);
+      if (now - at >= LONGEST_REPLY_CRAWL_INTERVAL_MS) lastReplyCrawls.delete(key);
+    }
+  }
+  if (finishedReplyCrawls.size > REPLY_CRAWL_MAP_LIMIT) {
+    for (const [key, entry] of finishedReplyCrawls) {
+      if (now - entry.at >= REPLY_CRAWL_RESULT_TTL_MS) finishedReplyCrawls.delete(key);
     }
   }
 }
 
 /** Signed GET as the instance actor; blocked hosts are not contacted. */
-const fetchSignedDocument = (url: string): Promise<FetchedDocument | null> => ActivityProcessor.fetchApDocument(url);
+const fetchSignedDocument = (url: string, onStatus?: (status: number) => void): Promise<FetchedDocument | null> =>
+  ActivityProcessor.fetchApDocument(url, onStatus);
 
 function replyStore(supabase: any): ReplyStore {
   return {
@@ -1596,22 +1618,117 @@ function replyStore(supabase: any): ReplyStore {
   };
 }
 
+interface ReplyTarget {
+  id: string;
+  created_at: string | null;
+  replies_fetched_at: string | null;
+  replies_count: number | null;
+  favorites_count: number | null;
+  reblogs_count: number | null;
+}
+
+/** The row stored under `postApId`, as its ap_id or url. post_id from a client is not trusted to name it. */
+async function readReplyTarget(supabase: any, postApId: string): Promise<ReplyTarget | null> {
+  const { data } = await supabase
+    .from('posts')
+    .select('id, created_at, replies_fetched_at, replies_count, favorites_count, reblogs_count')
+    .or(`ap_id.eq.${pgrstOrValue(postApId)},url.eq.${pgrstOrValue(postApId)}`)
+    .eq('is_deleted', false)
+    .limit(1)
+    .maybeSingle();
+  return data ?? null;
+}
+
+function replyTargetCounts(target: ReplyTarget | null): Record<string, number | string | null> {
+  if (!target) return {};
+  return {
+    replies_count: target.replies_count ?? 0,
+    favorites_count: target.favorites_count ?? 0,
+    reblogs_count: target.reblogs_count ?? 0,
+    replies_fetched_at: target.replies_fetched_at ?? null,
+  };
+}
+
+function replyCrawlBody(result: RemoteReplyFetch) {
+  return {
+    outcome: result.status,
+    found: result.found,
+    stored: result.stored,
+    existing: result.existing,
+    skipped: result.skipped,
+    pages: result.pages,
+    truncated: result.truncated,
+    complete: result.complete,
+  };
+}
+
+/** Records the end of a crawl on the post: its time, and the reply total it established. */
+async function recordReplyCrawl(supabase: any, postId: string, result: RemoteReplyFetch, readAt: Date): Promise<void> {
+  const columns: Record<string, number | string> = { replies_fetched_at: new Date().toISOString() };
+  if (result.total !== null) {
+    columns.remote_replies_count = result.total;
+    columns.remote_counts_fetched_at = readAt.toISOString();
+  }
+  const { error } = await supabase.from('posts').update(columns).eq('id', postId);
+  if (error) logger.warn(`Recording the reply crawl of post ${postId} failed: ${error.message}`);
+}
+
+/** Starts a crawl of `postApId`; the promise never rejects. */
+function startReplyCrawl(postApId: string, postId: string | undefined, supabase: any, maxReplies: number, now: number): Promise<RemoteReplyFetch> {
+  lastReplyCrawls.set(postApId, now);
+  pruneReplyCrawlState(now);
+  logger.info(`Fetching replies for remote post: ${postApId}`);
+  const readAt = new Date(now);
+  const crawl = (async () => {
+    let result: RemoteReplyFetch;
+    try {
+      result = await fetchRemotePostReplies(postApId, postId, supabase, maxReplies, readAt);
+    } catch (error) {
+      logger.error(`Reply crawl of ${postApId} failed:`, error);
+      result = unreadReplies('unavailable');
+    }
+    if (postId) await recordReplyCrawl(supabase, postId, result, readAt);
+    finishedReplyCrawls.set(postApId, { result, at: Date.now() });
+    return result;
+  })().finally(() => inflightReplyCrawls.delete(postApId));
+  inflightReplyCrawls.set(postApId, crawl);
+  return crawl;
+}
+
+/** The crawl's result when it ends within `ms`, else null. */
+async function replyCrawlWithin(crawl: Promise<RemoteReplyFetch>, ms: number): Promise<RemoteReplyFetch | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), ms); });
+  try {
+    return await Promise.race([crawl, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Fetch replies for a remote post
  * POST /fetch-replies (proxied via /api/federation/fetch-replies)
- * Body: { post_ap_id: string, post_id?: string, limit?: number, force?: boolean }
+ * Body: { post_ap_id: string, post_id?: string, limit?: number, force?: boolean, async?: boolean }
  *
  * Reads the post from its origin, stores its likes, shares and replies figures, and stores
  * the replies its collection lists (DEFAULT_REPLY_CRAWL bounds, `limit` lowering the reply
- * bound). `force` is the reader asking from the post menu: it shortens the cooldown.
- * Status 'recent' answers a request inside the cooldown without a crawl; 503 'busy' one that
- * finds MAX_REPLY_CRAWLS running.
+ * bound). `force` is the reader asking from the post menu: it shortens the interval to
+ * FORCED_REPLY_CRAWL_COOLDOWN_MS.
+ *
+ * With `async: true` the answer comes within REPLY_CRAWL_ANSWER_WAIT_MS and the crawl goes on;
+ * /fetch-replies/status follows it. `status` is 'started' (this request began a crawl),
+ * 'running' (one was under way), 'done' (it ended within the wait; `result` holds it) or
+ * 'recent' (none was due; `result` holds the last one this process remembers, or null).
+ * Without it the answer waits for the crawl and carries the counts at top level, as clients
+ * up to 1.7.0 read them. 503 'busy' answers a request that finds MAX_REPLY_CRAWLS running.
  */
 router.post(
   '/fetch-replies',
-  discoveryLimiter,
+  repliesLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { post_ap_id, limit, force } = req.body;
+    const answerEarly = req.body?.async === true;
 
     if (!post_ap_id || typeof post_ap_id !== 'string') {
       return res.status(400).json({ error: 'post_ap_id is required' });
@@ -1622,7 +1739,9 @@ router.post(
       const apDomain = new URL(post_ap_id).hostname;
       if (apDomain === config.INSTANCE_DOMAIN) {
         logger.debug(`Skipping fetch-replies for local post: ${post_ap_id}`);
-        return res.json({ success: true, status: 'ok', replies: [], count: 0 });
+        return answerEarly
+          ? res.json({ success: true, status: 'recent', result: null })
+          : res.json({ success: true, status: 'ok', replies: [], count: 0 });
       }
     } catch { /* invalid URL, rejected below */ }
     try {
@@ -1632,75 +1751,96 @@ router.post(
     }
 
     const supabase = getSupabaseClient();
-
-    // The figures are written to the row stored under post_ap_id; post_id is not trusted
-    // to name it.
-    const { data: stored } = await supabase
-      .from('posts')
-      .select('id')
-      .or(`ap_id.eq.${pgrstOrValue(post_ap_id)},url.eq.${pgrstOrValue(post_ap_id)}`)
-      .eq('is_deleted', false)
-      .limit(1)
-      .maybeSingle();
-    const postId: string | undefined = stored?.id ?? undefined;
-
+    const target = await readReplyTarget(supabase, post_ap_id);
     const maxReplies = Math.max(1, Math.min(Number(limit) || DEFAULT_REPLY_CRAWL.maxReplies, DEFAULT_REPLY_CRAWL.maxReplies));
-    const now = Date.now();
-    const last = lastReplyCrawls.get(post_ap_id);
-    const cooldown = force === true ? FORCED_REPLY_CRAWL_COOLDOWN_MS : REPLY_CRAWL_COOLDOWN_MS;
 
-    let result: RemoteReplyFetch | null = null;
     let crawl = inflightReplyCrawls.get(post_ap_id);
-    const due = last === undefined || now - last >= cooldown;
-    if (!crawl && due && inflightReplyCrawls.size >= MAX_REPLY_CRAWLS) {
-      return res.status(503).json({ success: false, status: 'busy', error: 'Too many reply fetches running' });
-    }
-    if (!crawl && due) {
-      noteReplyCrawl(post_ap_id, now);
-      logger.info(`Fetching replies for remote post: ${post_ap_id}`);
-      crawl = fetchRemotePostReplies(post_ap_id, postId, supabase, maxReplies)
-        .finally(() => inflightReplyCrawls.delete(post_ap_id));
-      inflightReplyCrawls.set(post_ap_id, crawl);
-    }
-
-    try {
-      if (crawl) result = await crawl;
-    } catch (error: any) {
-      logger.error('Failed to fetch replies:', error);
-      return res.status(500).json({ error: 'Failed to fetch replies' });
+    let status: 'started' | 'running' | 'recent' = crawl ? 'running' : 'recent';
+    if (!crawl) {
+      const now = Date.now();
+      const recorded = target?.replies_fetched_at ? Date.parse(target.replies_fetched_at) : NaN;
+      const remembered = lastReplyCrawls.get(post_ap_id) ?? NaN;
+      const last = Math.max(Number.isFinite(recorded) ? recorded : -Infinity, Number.isFinite(remembered) ? remembered : -Infinity);
+      const interval = force === true ? FORCED_REPLY_CRAWL_COOLDOWN_MS : replyCrawlInterval(target?.created_at, now);
+      if (now - last >= interval) {
+        if (inflightReplyCrawls.size >= MAX_REPLY_CRAWLS) {
+          res.setHeader('Retry-After', 5);
+          return res.status(503).json({ success: false, status: 'busy', error: 'Too many reply fetches running', retry_after: 5 });
+        }
+        crawl = startReplyCrawl(post_ap_id, target?.id, supabase, maxReplies, now);
+        status = 'started';
+      }
     }
 
-    let updatedCounts: Record<string, number> = {};
-    const { data: freshPost } = postId
-      ? await supabase
-        .from('posts')
-        .select('replies_count, favorites_count, reblogs_count')
-        .eq('id', postId)
-        .maybeSingle()
-      : { data: null };
-    if (freshPost) {
-      updatedCounts = {
-        replies_count: freshPost.replies_count ?? 0,
-        favorites_count: freshPost.favorites_count ?? 0,
-        reblogs_count: freshPost.reblogs_count ?? 0,
-      };
+    if (!answerEarly) {
+      const result = crawl ? await crawl : null;
+      const counts = replyTargetCounts(target ? await readReplyTarget(supabase, post_ap_id) : null);
+      delete counts.replies_fetched_at;
+      if (!result) {
+        return res.json({ success: true, status: 'recent', replies: [], count: 0, ...counts });
+      }
+      return res.json({
+        success: true,
+        status: result.status === 'unauthorized' ? 'unavailable' : result.status,
+        replies: [],
+        count: result.stored + result.existing,
+        new: result.stored,
+        existing: result.existing,
+        skipped: result.skipped,
+        found: result.found,
+        pages: result.pages,
+        truncated: result.truncated,
+        ...counts,
+      });
     }
 
+    if (!crawl) {
+      const last = finishedReplyCrawls.get(post_ap_id);
+      return res.json({
+        success: true,
+        status,
+        result: last && Date.now() - last.at < REPLY_CRAWL_RESULT_TTL_MS ? replyCrawlBody(last.result) : null,
+        ...replyTargetCounts(target),
+      });
+    }
+    const result = await replyCrawlWithin(crawl, REPLY_CRAWL_ANSWER_WAIT_MS);
     if (!result) {
-      return res.json({ success: true, status: 'recent', replies: [], count: 0, ...updatedCounts });
+      return res.json({ success: true, status, result: null, ...replyTargetCounts(target) });
     }
     return res.json({
       success: true,
-      status: result.status,
-      replies: [],
-      count: result.stored + result.existing,
-      new: result.stored,
-      existing: result.existing,
-      skipped: result.skipped,
-      found: result.found,
-      pages: result.pages,
-      truncated: result.truncated,
-      ...updatedCounts,
+      status: 'done',
+      result: replyCrawlBody(result),
+      ...replyTargetCounts(target ? await readReplyTarget(supabase, post_ap_id) : null),
+    });
+  })
+);
+
+/**
+ * State of the reply crawl of a remote post
+ * GET /fetch-replies/status?post_ap_id= (proxied via /api/federation/fetch-replies/status)
+ *
+ * 'running' while a crawl runs; 'done' with the result of one that ended within
+ * REPLY_CRAWL_RESULT_TTL_MS; 'idle' otherwise, which includes a crawl this process did not run.
+ * Contacts no remote server.
+ */
+router.get(
+  '/fetch-replies/status',
+  repliesStatusLimiter,
+  asyncHandler(async (req: Request, res: Response) => {
+    const postApId = typeof req.query.post_ap_id === 'string' ? req.query.post_ap_id : '';
+    if (!postApId) {
+      return res.status(400).json({ error: 'post_ap_id is required' });
+    }
+    const target = urlHost(postApId) ? await readReplyTarget(getSupabaseClient(), postApId) : null;
+    const finished = finishedReplyCrawls.get(postApId);
+    const fresh = finished && Date.now() - finished.at < REPLY_CRAWL_RESULT_TTL_MS ? finished : undefined;
+    const status = inflightReplyCrawls.has(postApId) ? 'running' : fresh ? 'done' : 'idle';
+    return res.json({
+      success: true,
+      status,
+      result: status === 'done' && fresh ? replyCrawlBody(fresh.result) : null,
+      ...replyTargetCounts(target),
     });
   })
 );
@@ -1745,42 +1885,46 @@ async function fetchRemotePostReplies(
   postId: string | undefined,
   supabase: any,
   maxReplies: number,
+  readAt: Date,
 ): Promise<RemoteReplyFetch> {
   const limits = {
     maxPages: DEFAULT_REPLY_CRAWL.maxPages,
     maxReplies,
-    deadline: Date.now() + DEFAULT_REPLY_CRAWL.timeoutMs,
+    deadline: readAt.getTime() + DEFAULT_REPLY_CRAWL.timeoutMs,
   };
   const store = replyStore(supabase);
 
-  // Misskey publishes no replies collection; its children API names them.
+  // Misskey publishes no replies collection; its children API names them. Its notes/show
+  // repliesCount is the post's figure, so the listing sets none.
   if (isMisskeyInstance(postApId)) {
     const noteId = extractMisskeyNoteId(postApId);
     const ids = noteId ? await misskeyReplyIds(new URL(postApId).hostname, noteId, maxReplies) : null;
     if (ids) {
       const counts = await storeReplies(ids.map((id) => ({ id })), store, limits.deadline);
-      return { status: 'ok', found: ids.length, pages: 0, ...counts };
+      return { status: 'ok', found: ids.length, pages: 0, ...counts, complete: false, total: null };
     }
     logger.info(`Misskey API returned no replies, trying standard ActivityPub...`);
   }
 
   // BUGS.md H15: postApId is attacker-influenced; every request goes through safeFetch.
-  const note = await fetchAuthoritativeDocument(postApId, fetchSignedDocument);
+  let noteStatus = 0;
+  const note = await fetchAuthoritativeDocument(postApId, (url) => fetchSignedDocument(url, (status) => { noteStatus = status; }));
   if (!note) {
-    logger.warn(`Failed to fetch post ${postApId}`);
-    return { status: 'unavailable', found: 0, stored: 0, existing: 0, skipped: 0, pages: 0, truncated: false };
+    logger.warn(`Failed to fetch post ${postApId} (${noteStatus || 'no answer'})`);
+    return unreadReplies(noteStatus === 401 || noteStatus === 403 ? 'unauthorized' : 'unavailable');
   }
 
   if (postId) {
-    const columns = noteEngagementColumns(note);
+    const columns = noteEngagementColumns(note, readAt);
     if (Object.keys(columns).length > 0) {
       await supabase.from('posts').update(columns).eq('id', postId);
     }
   }
 
   const crawl = await crawlReplies(note, fetchSignedDocument, store, limits);
-  logger.info(`Replies of ${postApId}: ${crawl.found} listed over ${crawl.pages} page(s), ${crawl.stored} stored, ${crawl.existing} held, ${crawl.skipped} skipped${crawl.truncated ? ', truncated' : ''}`);
-  return crawl;
+  logger.info(`Replies of ${postApId}: ${crawl.found} listed over ${crawl.pages} page(s), ${crawl.stored} stored, ${crawl.existing} held, ${crawl.skipped} skipped${crawl.truncated ? ', truncated' : ''}${crawl.complete ? '' : ', incomplete'}`);
+  const ownTotal = noteEngagementTotals(note).replies;
+  return { ...crawl, total: crawl.status === 'ok' && crawl.complete && ownTotal === null ? crawl.found : null };
 }
 
 /**

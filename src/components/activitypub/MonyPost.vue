@@ -252,18 +252,28 @@
 
       <!-- Action Buttons -->
       <div class="post-actions">
-        <button
-          type="button"
-          class="action-button reply-button"
-          data-testid="post-reply-btn"
-          @click="onReply"
-          :title="replyLabel"
-          :aria-label="replyLabel"
-          :aria-expanded="showInlineReply"
-        >
-          <span class="action-glyph"><Icon name="message-circle" :size="ACTION_GLYPH.reply" :stroke-width="glyphStroke(ACTION_GLYPH.reply)" /></span>
-          <span v-if="!detailed && displayInteractionCounts.replies_count > 0" class="action-count">{{ formatCount(displayInteractionCounts.replies_count) }}</span>
-        </button>
+        <div class="reply-action">
+          <button
+            type="button"
+            class="action-button reply-button"
+            data-testid="post-reply-btn"
+            @click="onReply"
+            :title="replyLabel"
+            :aria-label="replyLabel"
+            :aria-expanded="showInlineReply"
+          >
+            <span class="action-glyph"><Icon name="message-circle" :size="ACTION_GLYPH.reply" :stroke-width="glyphStroke(ACTION_GLYPH.reply)" /></span>
+          </button>
+          <!-- The count opens the post; the button toggles the inline reply box. -->
+          <RouterLink
+            v-if="!detailed && displayInteractionCounts.replies_count > 0"
+            :to="postRoute"
+            class="action-count reply-count-link"
+            data-testid="post-reply-count"
+            :title="t('activitypub.viewReplies')"
+            :aria-label="`${t('activitypub.viewReplies')}: ${displayInteractionCounts.replies_count}`"
+          >{{ formatCount(displayInteractionCounts.replies_count) }}</RouterLink>
+        </div>
 
         <div class="reblog-menu-container" v-click-outside="() => showReblogMenu = false">
           <button
@@ -432,10 +442,11 @@
               <button 
                 v-if="isRemotePost && !isFetchingReplies"
                 class="dropdown-item"
+                data-testid="post-refresh-replies"
                 @click="handleFetchRemoteReplies"
               >
                 <Icon name="message-circle" />
-                <span>Fetch replies</span>
+                <span>{{ t('activitypub.refreshReplies') }}</span>
               </button>
               
               <button
@@ -640,10 +651,12 @@ import { userDataService } from '@/services/userDataService';
 import { unicodeToShortcode } from '@/services/unifiedEmojiService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
-import { getOriginalPost } from '@/utils/postReblog';
+import { getOriginalApId, getOriginalPost } from '@/utils/postReblog';
 import { isHeartEmoji } from '@/utils/heartReaction';
 import { remotePollFromMetadata } from '@/utils/remotePoll';
-import { repliesFetchNotice } from '@/utils/remoteReplies';
+import {
+  forcedRepliesRefreshWait, noteForcedRepliesRefresh, originDomain, repliesFetchNotice, repliesFetchView,
+} from '@/utils/remoteReplies';
 import { ownPostReactions } from '@/utils/reactionLimits';
 import { usePostReactionLimit } from '@/composables/useReactionLimits';
 import { usePostReactionsStore } from '@/stores/postReactions';
@@ -713,6 +726,8 @@ const emit = defineEmits<{
   'user-click': [user: any];
   'show-conversation': [postId: string];
   'refresh': [postId: string];
+  /** A refresh from the menu ended; the thread may hold new replies. */
+  'replies-refreshed': [postId: string];
   'open-lightbox': [url: string];
 }>();
 
@@ -2087,15 +2102,21 @@ const handleFetchRemoteReactions = () => {
 
 const handleFetchRemoteReplies = async () => {
   showMenu.value = false;
-  const notice = repliesFetchNotice(await fetchRemoteReplies({ force: true }));
-  let domain = instanceDomain.value;
-  try {
-    domain = new URL(getOriginalPost(props.post).ap_id || '').hostname || domain;
-  } catch { /* no origin URL; the author's domain stands */ }
-  const message = notice.count !== undefined
-    ? t(notice.key, { count: notice.count, domain }, notice.count)
-    : t(notice.key, { domain });
-  toast[notice.kind](message);
+  const original = getOriginalPost(props.post);
+  const apId = getOriginalApId(props.post);
+  if (!apId) return;
+  if (forcedRepliesRefreshWait(apId) > 0) {
+    toast.info(t('activitypub.repliesFetchedRecently'));
+    return;
+  }
+  noteForcedRepliesRefresh(apId);
+  const answer = await fetchRemoteReplies({ force: true });
+  if (!answer) return;
+  const notice = repliesFetchNotice(repliesFetchView(answer, original.replies_count ?? 0), originDomain(apId, instanceDomain.value));
+  if (notice) {
+    toast[notice.kind](notice.count !== undefined ? t(notice.key, notice.params, notice.count) : t(notice.key, notice.params));
+  }
+  if (answer.status === 'done' || answer.status === 'idle') emit('replies-refreshed', props.post.id);
 };
 
 const handleRefetchFromSource = async () => {
@@ -2592,6 +2613,29 @@ const closeLightbox = () => {
 
 .action-count {
   font-variant-numeric: tabular-nums;
+}
+
+.reply-action {
+  display: inline-flex;
+  align-items: center;
+}
+
+.reply-count-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 var(--space-2) 0 var(--space-1);
+  margin-left: calc(var(--space-2) * -1);
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.reply-count-link:hover {
+  color: var(--harmony-primary);
+  text-decoration: underline;
 }
 
 /* Every glyph centres in the same 20px slot, so counts start at one offset whatever the

@@ -1,6 +1,7 @@
 // Service worker: push notifications and PWA caching.
-// Version 3.6 - notification dedupe by id, pushsubscriptionchange renewal,
-// click-through via the payload url, pending reads for closed apps.
+// Version 3.7 - non-GET requests bypass the worker; notification dedupe by id,
+// pushsubscriptionchange renewal, click-through via the payload url, pending reads
+// for closed apps.
 
 const CACHE_NAME = 'harmony-v5-mobile'
 const STATIC_CACHE = 'harmony-static-v3'
@@ -9,7 +10,7 @@ const EMOJI_CACHE = 'harmony-emoji-v2'
 const TRANSFORM_CACHE = 'harmony-transform-v1'
 // Notification bookkeeping, not HTTP responses. Keys encode their timestamp.
 const NOTIF_STATE_CACHE = 'harmony-notif-state-v1'
-const SW_VERSION = '3.6'
+const SW_VERSION = '3.7'
 
 const STATIC_RESOURCES = [
   '/',
@@ -527,6 +528,12 @@ function isStorageTransformRequest(url) {
 }
 
 self.addEventListener('fetch', (event) => {
+  // Only GET responses are cached. Intercepting other methods gains nothing and puts them
+  // under the 5 s API timeout below, which turns a slower POST into a synthetic 503.
+  if (event.request.method !== 'GET') {
+    return
+  }
+
   // Non-http schemes (chrome-extension:, blob:) are not cacheable.
   const requestUrl = new URL(event.request.url)
   if (!requestUrl.protocol.startsWith('http')) {
@@ -627,7 +634,7 @@ async function enhancedNetworkFirst(request, cacheName) {
     
     clearTimeout(timeoutId)
     
-    if (networkResponse.status === 200 && networkResponse.ok && request.method === 'GET') {
+    if (networkResponse.status === 200 && networkResponse.ok) {
       const contentLength = networkResponse.headers.get('content-length')
       const isSmallResponse = !contentLength || parseInt(contentLength) < 1024 * 1024 // 1 MiB cap
       
@@ -643,13 +650,6 @@ async function enhancedNetworkFirst(request, cacheName) {
     return networkResponse
   } catch (error) {
     console.log('Service Worker: Network failed, trying cache:', error.message)
-    
-    if (request.method !== 'GET') {
-      return new Response('Network unavailable', { 
-        status: 503,
-        headers: { 'Content-Type': 'text/plain' }
-      })
-    }
     
     const cachedResponse = await caches.match(request)
     if (cachedResponse) {

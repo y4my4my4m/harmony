@@ -345,6 +345,31 @@ export const discoveryLimiter = createRateLimiter({
   message: 'Too many discovery requests, please try again later.',
 });
 
+// Reply crawls of remote posts. Apart from discovery so account lookups and reaction
+// refreshes do not spend the budget of the post a reader opened.
+export const repliesLimiter = createRateLimiter({
+  name: 'replies',
+  windowMs: 60 * 1000,
+  maxRequests: 30,
+  message: 'Too many reply fetches, please try again later.',
+});
+
+// Progress reads of running reply crawls; they reach no remote server.
+export const repliesStatusLimiter = createRateLimiter({
+  name: 'replies-status',
+  windowMs: 60 * 1000,
+  maxRequests: 120,
+  message: 'Too many reply fetch status requests, please slow down.',
+});
+
+// Reaction refreshes of remote posts, single or batched.
+export const reactionsLimiter = createRateLimiter({
+  name: 'reactions',
+  windowMs: 60 * 1000,
+  maxRequests: 60,
+  message: 'Too many reaction fetches, please try again later.',
+});
+
 // Donation webhooks (Ko-fi, etc.): cadence is naturally low (one webhook per
 // donation). 60/min is far more than any legitimate flow and prevents abuse
 // if the webhook URL leaks.

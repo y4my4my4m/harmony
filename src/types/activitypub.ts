@@ -41,6 +41,8 @@ export interface ActivityPubPost {
   replies_count: number;
   reblogs_count: number;
   favorites_count: number;
+  /** Remote post: when the federation backend last walked its replies collection. */
+  replies_fetched_at?: string | null;
   media_attachments: MediaAttachment[];
   metadata: Record<string, any>;
   is_sensitive: boolean;

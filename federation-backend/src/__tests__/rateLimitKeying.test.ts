@@ -9,7 +9,9 @@ vi.mock('../services/RedisService.js', () => ({ redis: { ready: false } }));
 
 import express from 'express';
 import supertest from 'supertest';
-import { clientIp, discoveryLimiter, signerInstanceKey, instanceInboxLimit } from '../middleware/rateLimit.js';
+import {
+  clientIp, discoveryLimiter, signerInstanceKey, instanceInboxLimit, reactionsLimiter, repliesLimiter, repliesStatusLimiter,
+} from '../middleware/rateLimit.js';
 
 type FakeRes = Response & { statusCode: number; body: any; headers: Record<string, any> };
 
@@ -85,5 +87,48 @@ describe('client address behind nginx', () => {
     }
     const res = await supertest(a).get('/limited').set('X-Real-IP', '198.51.100.20').set('X-Forwarded-For', '203.0.113.250')
     expect(res.status).toBe(429)
+  })
+})
+
+describe('reply and reaction buckets', () => {
+  const app = () => {
+    const a = express()
+    a.set('trust proxy', ['loopback'])
+    a.post('/lookup-user', discoveryLimiter, (_req, res) => { res.json({ ok: true }) })
+    a.post('/fetch-replies', repliesLimiter, (_req, res) => { res.json({ ok: true }) })
+    a.get('/fetch-replies/status', repliesStatusLimiter, (_req, res) => { res.json({ ok: true }) })
+    a.post('/fetch-reactions', reactionsLimiter, (_req, res) => { res.json({ ok: true }) })
+    return a
+  }
+
+  it('an exhausted discovery budget leaves reply, status and reaction fetches answering', async () => {
+    const a = app()
+    const ip = '198.51.100.40'
+    for (let i = 0; i < 30; i++) await supertest(a).post('/lookup-user').set('X-Real-IP', ip)
+    expect((await supertest(a).post('/lookup-user').set('X-Real-IP', ip)).status).toBe(429)
+
+    expect((await supertest(a).post('/fetch-replies').set('X-Real-IP', ip)).status).toBe(200)
+    expect((await supertest(a).get('/fetch-replies/status').set('X-Real-IP', ip)).status).toBe(200)
+    expect((await supertest(a).post('/fetch-reactions').set('X-Real-IP', ip)).status).toBe(200)
+  })
+
+  it('reaction refreshes do not spend the reply budget', async () => {
+    const a = app()
+    const ip = '198.51.100.41'
+    for (let i = 0; i < 60; i++) await supertest(a).post('/fetch-reactions').set('X-Real-IP', ip)
+    expect((await supertest(a).post('/fetch-reactions').set('X-Real-IP', ip)).status).toBe(429)
+    expect((await supertest(a).post('/fetch-replies').set('X-Real-IP', ip)).status).toBe(200)
+  })
+
+  it('refuses the 31st reply fetch in a minute with Retry-After', async () => {
+    const a = app()
+    const ip = '198.51.100.42'
+    for (let i = 0; i < 30; i++) {
+      expect((await supertest(a).post('/fetch-replies').set('X-Real-IP', ip)).status).toBe(200)
+    }
+    const refused = await supertest(a).post('/fetch-replies').set('X-Real-IP', ip)
+    expect(refused.status).toBe(429)
+    expect(Number(refused.headers['retry-after'])).toBeGreaterThan(0)
+    expect(refused.body.retryAfter).toBe(Number(refused.headers['retry-after']))
   })
 })

@@ -74,6 +74,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { caseFollowApproval } from './cases/followApproval.ts'
 import { runOutboundFederationCases } from './cases/outboundFederation.ts'
 import { caseInboundPosts } from './cases/inbound-posts.ts'
+import { caseRemoteReplies } from './cases/remoteReplies.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -2506,6 +2507,7 @@ async function main() {
         return post(target, signedHeaders(target, body, signer.key, `${signer.actor}#main-key`), body).then((r) => r.status)
       },
     })
+    await caseRemoteReplies({ db, localUrl, peerHost: env.HMFED_PEER_HOST, assert, eq })
   } finally {
     await new Promise<void>((resolve) => local.close(() => resolve()))
     await peer.stop()

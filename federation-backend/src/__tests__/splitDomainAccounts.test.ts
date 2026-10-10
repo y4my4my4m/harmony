@@ -20,9 +20,10 @@ vi.mock('../utils/ssrfProtection.js', () => ({
   validateExternalHostname: vi.fn(),
   validateExternalUrl: vi.fn(),
 }))
-vi.mock('../middleware/rateLimit.js', () => ({
-  discoveryLimiter: (_req: any, _res: any, next: any) => next(),
-}))
+vi.mock('../middleware/rateLimit.js', () => {
+  const pass = (_req: any, _res: any, next: any) => next()
+  return { discoveryLimiter: pass, reactionsLimiter: pass, repliesLimiter: pass, repliesStatusLimiter: pass }
+})
 vi.mock('../services/BlockedInstancesCache.js', () => ({
   BlockedInstancesCache: { isBlocked: vi.fn(() => false) },
 }))

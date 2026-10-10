@@ -2050,21 +2050,61 @@ export class ActivityPubService {
   }
 
   /**
-   * Stores the replies a remote post's origin lists. `force` is a reader's explicit request,
-   * which the backend answers sooner after a previous crawl of the same post.
+   * /fetch-reactions-batch for up to 30 posts: results by post AP id, null when the request
+   * fails.
    */
-  async fetchRemoteReplies(postApId: string, postId: string, options: { force?: boolean } = {}): Promise<RemoteRepliesResult | null> {
+  async fetchRemoteReactionsBatch(posts: Array<{ post_ap_id: string; post_id: string }>): Promise<Record<string, any> | null> {
     try {
-      const response = await fetch(`${await this.getFederationApiUrl()}/fetch-replies`, {
+      const response = await fetch(`${await this.getFederationApiUrl()}/fetch-reactions-batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ post_ap_id: postApId, post_id: postId, force: options.force === true }),
+        body: JSON.stringify({ posts }),
       });
       if (!response.ok) return null;
+      const body = await response.json();
+      return body?.results ?? null;
+    } catch (error) {
+      debug.error('Error batch-fetching remote reactions:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Starts or joins the crawl of a remote post's replies; the backend answers within about a
+   * second and the crawl goes on. `force` is a reader's explicit request, which the backend
+   * answers sooner after a previous crawl of the same post.
+   */
+  async fetchRemoteReplies(postApId: string, postId: string, options: { force?: boolean } = {}): Promise<RemoteRepliesResult> {
+    return this.remoteRepliesRequest('/fetch-replies', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ post_ap_id: postApId, post_id: postId, force: options.force === true, async: true }),
+    });
+  }
+
+  /** Progress of the reply crawl of a remote post. */
+  async getRemoteRepliesStatus(postApId: string): Promise<RemoteRepliesResult> {
+    return this.remoteRepliesRequest(`/fetch-replies/status?post_ap_id=${encodeURIComponent(postApId)}`, {
+      cache: 'no-store',
+    });
+  }
+
+  private async remoteRepliesRequest(path: string, init: RequestInit): Promise<RemoteRepliesResult> {
+    try {
+      const response = await fetch(`${await this.getFederationApiUrl()}${path}`, init);
+      if (response.status === 429 || response.status === 503) {
+        const body = await response.json().catch(() => null);
+        return {
+          success: false,
+          status: response.status === 429 ? 'rate_limited' : 'busy',
+          retry_after: retryAfterSeconds(response, body),
+        };
+      }
+      if (!response.ok) return { success: false, status: 'failed' };
       return await response.json();
     } catch (error) {
       debug.error('Error fetching remote replies:', error);
-      return null;
+      return { success: false, status: 'failed' };
     }
   }
 
@@ -2095,20 +2135,57 @@ export class ActivityPubService {
   }
 }
 
-/** Answer of /fetch-replies. */
-export interface RemoteRepliesResult {
-  success: boolean;
+/** One reply crawl as the federation backend reports it. */
+export interface RemoteRepliesCrawl {
   /**
    * 'no_collection': the origin publishes no replies for the post; 'unavailable': the post
-   * could not be read; 'recent': a crawl ran moments ago and none was started.
+   * could not be read; 'unauthorized': its origin answered 401 or 403.
    */
-  status: 'ok' | 'no_collection' | 'unavailable' | 'recent';
-  /** Replies the origin listed that are now stored here, new or already held. */
-  count: number;
-  new?: number;
+  outcome: 'ok' | 'no_collection' | 'unavailable' | 'unauthorized';
+  /** Replies the collection listed. */
+  found: number;
+  /** Listed replies stored by this crawl. */
+  stored: number;
+  /** Listed replies already held. */
+  existing: number;
+  /** Listed replies refused or unreadable. */
+  skipped: number;
+  /** A page, reply or time limit ended the walk. */
+  truncated: boolean;
+  /** The walk reached the collection's end. */
+  complete: boolean;
+}
+
+/**
+ * Answer of /fetch-replies and /fetch-replies/status. The backend sends 'started', 'running',
+ * 'recent', 'done' and 'idle'; the client adds 'rate_limited' (429), 'busy' (503) and
+ * 'failed' for a request that got no answer.
+ */
+export interface RemoteRepliesResult {
+  success: boolean;
+  status: 'started' | 'running' | 'recent' | 'done' | 'idle' | 'rate_limited' | 'busy' | 'failed';
+  /** The crawl that ended: with 'done', and with 'recent' while the backend remembers it. */
+  result?: RemoteRepliesCrawl | null;
+  /** Seconds, with 'rate_limited' and 'busy'. */
+  retry_after?: number;
   replies_count?: number;
   favorites_count?: number;
   reblogs_count?: number;
+  replies_fetched_at?: string | null;
+}
+
+/** Retry-After of a refused request in seconds: the JSON body's retryAfter, else the header. */
+function retryAfterSeconds(response: Response, body: any): number {
+  const fromBody = Number(body?.retryAfter ?? body?.retry_after);
+  if (Number.isFinite(fromBody) && fromBody > 0) return Math.ceil(fromBody);
+  const header = response.headers.get('Retry-After');
+  if (header) {
+    const seconds = Number(header);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.ceil(seconds);
+    const at = Date.parse(header);
+    if (Number.isFinite(at)) return Math.max(1, Math.ceil((at - Date.now()) / 1000));
+  }
+  return 60;
 }
 
 export const activityPubService = ActivityPubService.getInstance();
