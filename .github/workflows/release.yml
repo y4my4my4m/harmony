@@ -110,7 +110,8 @@ jobs:
           node .ci/scripts/github-release.mjs ensure --tag "$RELEASE_TAG" \
             --name "Harmony $VERSION" --body "Download the installer for your platform below."
 
-  # Proper signing/notarization needs paid certs as secrets — follow-up.
+  # macOS is self-signed, not notarized (scripts/macos-signing.sh); Windows is
+  # unsigned.
   desktop:
     needs: release
     strategy:
@@ -158,6 +159,12 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
+      - name: Signing identity
+        if: matrix.name == 'macOS'
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: bash scripts/macos-signing.sh keychain
       # Uploads the installer and, with updater signing, its .sig (macOS: also
       # .app.tar.gz and .sig). latest.json is the latest-json job's.
       # assetNamePattern names every uploaded file: [ext] is the full suffix
@@ -175,6 +182,9 @@ jobs:
           includeUpdaterJson: false
           assetNamePattern: ${{ needs.release.outputs[matrix.stem] }}[ext]
           args: ${{ matrix.args }} ${{ needs.release.outputs.updater-args }}
+      - name: Check signature
+        if: matrix.name == 'macOS'
+        run: bash scripts/macos-signing.sh verify src-tauri/target/universal-apple-darwin/release/bundle/macos/Harmony.app
 
   # The updater endpoint (releases/latest/download/latest.json) resolves only
   # to the newest published non-prerelease release, so publishing the draft is

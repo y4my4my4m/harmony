@@ -70,7 +70,8 @@
     "macOS": {
       "minimumSystemVersion": "11.0",
       "exceptionDomain": "",
-      "entitlements": "Entitlements.plist"
+      "entitlements": "Entitlements.plist",
+      "hardenedRuntime": false
     },
     "windows": {
       "certificateThumbprint": null,

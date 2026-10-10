@@ -92,10 +92,17 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
-      # Universal .dmg/.app. Unsigned: users must right-click > Open on first
-      # launch (Gatekeeper). Notarization needs an Apple Developer cert (secrets).
+      - name: Signing identity
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: bash scripts/macos-signing.sh keychain
+      # Universal .dmg/.app, self-signed and not notarized: Gatekeeper asks on
+      # first launch.
       - name: Build macOS app
         run: npx tauri build ${{ env.BUILD_PROFILE == 'debug' && '--debug' || '' }} --target universal-apple-darwin
+      - name: Check signature
+        run: bash scripts/macos-signing.sh verify src-tauri/target/universal-apple-darwin/"$BUILD_PROFILE"/bundle/macos/Harmony.app
       - name: Name dmg
         id: artifact
         run: bash scripts/name-artifact.sh macOS "$BUILD_PROFILE" src-tauri/target/universal-apple-darwin/"$BUILD_PROFILE"/bundle/dmg/*.dmg
