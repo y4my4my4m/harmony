@@ -61,12 +61,12 @@
               <span>Fetch reactions</span>
             </button>
             <button
-              v-if="isViewingRemotePost && !isFetchingReplies"
+              v-if="isViewingRemotePost && repliesView?.kind !== 'fetching'"
               @click="handleFetchReplies"
               class="dropdown-item"
             >
               <Icon name="message-circle" :size="16" />
-              <span>Fetch replies</span>
+              <span>{{ t('activitypub.refreshReplies') }}</span>
             </button>
             <button v-if="isOwnPost" @click="handleDeletePost" class="dropdown-item danger">
               <Icon name="trash" :size="16" />
@@ -103,34 +103,42 @@
       </div>
 
       <div v-else-if="postWithContext" class="post-container">
-        <!-- Thread order: ancestors, main, descendants. -->
-        <article
-          v-for="(post, index) in allPostsInOrder"
-          :key="post.id"
-          class="thread-post"
-          :class="{
-            'highlighted-post': post.id === highlightedPostId,
-            'is-main-post': post.id === mainPost?.id,
-            'thread-continues': index < ancestors.length,
-            'thread-continued': index > 0 && index <= ancestors.length
-          }"
-          :ref="el => post.id === highlightedPostId && setPostRef(post.id, el)"
-        >
-          <MonyPost
-            :post="post"
-            :is-in-thread="true"
-            :hide-reply-context="true"
-            :detailed="post.id === mainPost?.id"
-            @reply="handleReply"
-            @reply-created="handleInlineReplyCreated"
-            @favorite="handleFavorite"
-            @reblog="handleReblog"
-            @bookmark="handleBookmark"
-            @delete="handleDelete"
-            @edit="handleEdit"
-            @user-click="handleUserClick"
+        <!-- Thread order: ancestors, main, the reply crawl's row, descendants. -->
+        <template v-for="(post, index) in allPostsInOrder" :key="post.id">
+          <article
+            class="thread-post"
+            :class="{
+              'highlighted-post': post.id === highlightedPostId,
+              'is-main-post': post.id === mainPost?.id,
+              'thread-continues': index < ancestors.length,
+              'thread-continued': index > 0 && index <= ancestors.length
+            }"
+            :ref="el => post.id === highlightedPostId && setPostRef(post.id, el)"
+          >
+            <MonyPost
+              :post="post"
+              :is-in-thread="true"
+              :hide-reply-context="true"
+              :detailed="post.id === mainPost?.id"
+              @reply="handleReply"
+              @reply-created="handleInlineReplyCreated"
+              @replies-refreshed="handleRepliesRefreshed"
+              @favorite="handleFavorite"
+              @reblog="handleReblog"
+              @bookmark="handleBookmark"
+              @delete="handleDelete"
+              @edit="handleEdit"
+              @user-click="handleUserClick"
+            />
+          </article>
+          <RemoteRepliesStatus
+            v-if="post.id === mainPost?.id && repliesView"
+            :view="repliesView"
+            :domain="originalInstanceDomain || ''"
+            :original-url="originalInstanceUrl"
+            @retry="handleRetryReplies"
           />
-        </article>
+        </template>
 
         <div v-if="showReplyComposer" class="reply-composer">
           <Composer
@@ -164,8 +172,11 @@ import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 import { useRouter, useRoute } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { usePostReactionsStore } from '@/stores/postReactions';
-import { activityPubService } from '@/services/activityPubService';
-import { repliesFetchNotice } from '@/utils/remoteReplies';
+import { activityPubService, type RemoteRepliesResult } from '@/services/activityPubService';
+import {
+  forcedRepliesRefreshWait, noteForcedRepliesRefresh, repliesFetchDue, repliesFetchNotice,
+} from '@/utils/remoteReplies';
+import { useRemoteRepliesFetch } from '@/composables/useRemoteRepliesFetch';
 import { useToast } from 'vue-toastification';
 import { useI18n } from 'vue-i18n';
 import Icon from '@/components/common/Icon.vue';
@@ -173,6 +184,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import ViewHeader from '@/components/common/ViewHeader.vue';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import Composer from '@/components/activitypub/Composer.vue';
+import RemoteRepliesStatus from '@/components/activitypub/RemoteRepliesStatus.vue';
 import { getOriginalPost, getOriginalPostId, getOriginalApId, isReblogPost } from '@/utils/postReblog';
 
 import type { 
@@ -242,7 +254,9 @@ const remoteOriginalUrl = originalInstanceUrl;
 
 const isLoading = ref(true);
 const isFetchingReactions = ref(false);
-const isFetchingReplies = ref(false);
+const { view: repliesView, run: runRepliesFetch, reset: resetRepliesFetch } = useRemoteRepliesFetch();
+// AP id of the post repliesView describes.
+let repliesViewApId: string | null = null;
 const error = ref<string | null>(null);
 const postWithContext = ref<PostWithContext | null>(null);
 const showReplyComposer = ref(false);
@@ -365,7 +379,7 @@ const loadPostWithContext = async () => {
       scrollToTimestamp(props.timestamp);
     }
     
-    // Remote posts: fetch replies and walk the ancestor chain in the
+    // Remote posts: crawl replies when due and walk the ancestor chain in the
     // background. Reactions are MonyPost's useRemotePostSync on mount.
     //
     // Target the unwrapped main post: an Announce wrapper carries no replies
@@ -373,11 +387,15 @@ const loadPostWithContext = async () => {
     // whose parents are absent locally; without it such threads render as a
     // single floating post.
     const mainTarget = result.mainPost ? getOriginalPost(result.mainPost) : null;
+    const mainApId = mainTarget ? getOriginalApId(mainTarget) || mainTarget.ap_id || null : null;
+    if (mainApId !== repliesViewApId) {
+      resetRepliesFetch();
+      repliesViewApId = mainApId;
+    }
     if (mainTarget) {
-      const targetApId = getOriginalApId(mainTarget) || mainTarget.ap_id;
-      const isRemote = !mainTarget.is_local && !!targetApId;
+      const isRemote = !mainTarget.is_local && !!mainApId;
       if (isRemote) {
-        fetchRemoteRepliesInBackground(mainTarget);
+        if (repliesFetchDue(mainTarget)) void fetchRemoteReplies(mainTarget, false);
         // The federation backend's /resolve-post imports each missing
         // ancestor, links the child via in_reply_to, and populates
         // conversation_root_id, so the local thread RPC can walk the chain.
@@ -396,30 +414,49 @@ const loadPostWithContext = async () => {
   }
 };
 
-const fetchRemoteRepliesInBackground = async (targetPost: TimelinePost) => {
+/** Thread of the post `token` names, unless the view moved on meanwhile. */
+const reloadThread = async (token: string | null) => {
+  if (!token) return;
+  const updatedResult = await activityPub.getPostWithContext(token, {
+    context: props.contextType,
+    highlightReply: props.highlightReply,
+    maxDepth: maxThreadDepth.value,
+    includeInteractions: true,
+  });
+  if (resolvedPostId.value === token) {
+    postWithContext.value = updatedResult;
+  }
+};
+
+/**
+ * Crawls the replies of a remote post at its origin, the row under the main post following
+ * it, and reloads the thread when the crawl may have stored replies or moved the counter.
+ * Null when superseded or the view moved on.
+ */
+const fetchRemoteReplies = async (targetPost: TimelinePost, force: boolean): Promise<RemoteRepliesResult | null> => {
   // Snapshot of the post being fetched for. If navigation changes it
   // mid-fetch, the late context reload below is skipped; otherwise it would
   // overwrite `postWithContext.value` with stale data.
   const startToken = resolvedPostId.value;
+  const targetApId = getOriginalApId(targetPost) || targetPost.ap_id;
+  if (!targetApId) return null;
+  const original = getOriginalPost(targetPost);
+  let answer: RemoteRepliesResult | null = null;
   try {
-    const targetApId = getOriginalApId(targetPost) || targetPost.ap_id;
-    const targetId = getOriginalPostId(targetPost);
-    if (!targetApId) return;
-    const result = await activityPubService.fetchRemoteReplies(targetApId, targetId);
-    if (result && (result.new ?? result.count) > 0 && resolvedPostId.value === startToken) {
-      const updatedResult = await activityPub.getPostWithContext(targetId, {
-        context: props.contextType,
-        highlightReply: props.highlightReply,
-        maxDepth: maxThreadDepth.value,
-        includeInteractions: true,
-      });
-      if (resolvedPostId.value === startToken) {
-        postWithContext.value = updatedResult;
-      }
-    }
+    answer = await runRepliesFetch(
+      { apId: targetApId, postId: getOriginalPostId(targetPost), repliesCount: original.replies_count },
+      { force },
+    );
   } catch (err) {
     debug.warn('[PostView] Failed to fetch remote replies:', err);
   }
+  if (!answer || resolvedPostId.value !== startToken) return null;
+  if (answer.replies_fetched_at !== undefined) original.replies_fetched_at = answer.replies_fetched_at;
+  const ended = answer.status === 'done' || answer.status === 'idle';
+  const changed = !answer.result || answer.result.stored > 0
+    || (answer.replies_count !== undefined && answer.replies_count !== original.replies_count);
+  if (ended && changed) await reloadThread(startToken);
+  return answer;
 };
 
 /**
@@ -517,28 +554,34 @@ const handleFetchReactions = async () => {
 
 const handleFetchReplies = async () => {
   showActionsMenu.value = false;
-  if (!mainPost.value || isFetchingReplies.value) return;
+  if (!mainPost.value || repliesView.value?.kind === 'fetching') return;
   const targetApId = getOriginalApId(mainPost.value) || mainPost.value.ap_id;
-  const targetId = getOriginalPostId(mainPost.value);
   if (!targetApId) return;
-  isFetchingReplies.value = true;
-  try {
-    const result = await activityPubService.fetchRemoteReplies(targetApId, targetId, { force: true });
-    const notice = repliesFetchNotice(result);
-    let domain = '';
-    try {
-      domain = new URL(targetApId).hostname;
-    } catch { /* not a URL; the message reads without it */ }
-    const message = notice.count !== undefined
-      ? t(notice.key, { count: notice.count, domain }, notice.count)
-      : t(notice.key, { domain });
-    toast[notice.kind](message);
-    if (result && result.count > 0) await loadPostWithContext();
-  } catch {
-    toast.error(t('activitypub.repliesFetchFailed'));
-  } finally {
-    isFetchingReplies.value = false;
+  if (forcedRepliesRefreshWait(targetApId) > 0) {
+    toast.info(t('activitypub.repliesFetchedRecently'));
+    return;
   }
+  noteForcedRepliesRefresh(targetApId);
+  const answer = await fetchRemoteReplies(mainPost.value, true);
+  // Outcomes the status row leaves to the thread are confirmed by a toast.
+  const view = repliesView.value;
+  if (!answer || !view || !['fetched', 'recent', 'finished'].includes(view.kind)) return;
+  const notice = repliesFetchNotice(view, originalInstanceDomain.value || '');
+  if (notice) {
+    toast[notice.kind](notice.count !== undefined ? t(notice.key, notice.params, notice.count) : t(notice.key, notice.params));
+  }
+};
+
+// The backend answers a retry inside its forced cooldown with the last result.
+const handleRetryReplies = () => {
+  if (mainPost.value) void fetchRemoteReplies(mainPost.value, true);
+};
+
+// The main post's own menu crawled its replies.
+const handleRepliesRefreshed = () => {
+  reloadThread(resolvedPostId.value).catch(err => {
+    debug.warn('[PostView] Thread reload after a reply refresh failed:', err);
+  });
 };
 
 const handleReply = (post: TimelinePost) => {
