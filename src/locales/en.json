@@ -378,7 +378,8 @@
       "nameTooLong": "Channel name must be less than 100 characters",
       "invalidName": "Channel name can only contain letters, numbers, and hyphens",
       "limitReached": "This server has reached the maximum limit of {max} channels",
-      "createFailed": "Failed to create channel. Please try again."
+      "createFailed": "Failed to create channel. Please try again.",
+      "deleteFailed": "Couldn't delete the channel."
     },
     "copyId": "Copy channel ID",
     "idCopied": "Channel ID copied",
@@ -395,7 +396,8 @@
     "errors": {
       "limitReached": "This server has reached the maximum limit of {max} categories",
       "createFailed": "Failed to create category. Please try again.",
-      "noServer": "No server selected"
+      "noServer": "No server selected",
+      "deleteFailed": "Couldn't delete the category."
     }
   },
   "message": {

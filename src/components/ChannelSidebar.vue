@@ -437,6 +437,8 @@ import SpeakerIcon from '@/components/icons/Speaker.vue';
 import ChatBubbleIcon from '@/components/icons/ChatBubble.vue';
 import Icon from '@/components/common/Icon.vue';
 import { remoteServerHost } from '@/utils/serverUtils';
+import { useToast } from 'vue-toastification';
+import { useI18n } from 'vue-i18n';
 import ServerDropdown from './ServerDropdown.vue';
 import CategoryCreator from './CategoryCreator.vue';
 import InviteModal from './InviteModal.vue';
@@ -590,6 +592,8 @@ const getDragCursor = (itemType: 'channel' | 'category', isDragging = false) => 
   return canDragAndDrop.value ? (isDragging ? 'grabbing' : 'grab') : 'pointer';
 };
 const { triggerVoice } = useHapticSettings();
+const toast = useToast();
+const { t } = useI18n();
 
 // Touch-capable desktops keep drag; only a small viewport counts as mobile.
 const isVoiceType = (type: any): boolean => Number(type) === 1;
@@ -1144,6 +1148,7 @@ const handleDeleteChannel = (channel: Channel) => {
         closeConfirmationModal();
       } catch (error) {
         debug.error('Failed to delete channel:', error);
+        toast.error(t('channel.errors.deleteFailed'));
         closeConfirmationModal();
       }
     }
@@ -1187,6 +1192,7 @@ const handleDeleteCategory = (category: Category) => {
         closeConfirmationModal();
       } catch (error) {
         debug.error('Failed to delete category:', error);
+        toast.error(t('category.errors.deleteFailed'));
         closeConfirmationModal();
       }
     }

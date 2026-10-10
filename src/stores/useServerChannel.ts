@@ -1363,13 +1363,18 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * Service-like helper: Delete channel with enhanced error handling
      */
     async _deleteChannelHelper(channelId: string): Promise<void> {
-      const { error } = await supabase
+      // A delete RLS refuses matches no row and reports no error.
+      const { data, error } = await supabase
         .from('channels')
         .delete()
-        .eq('id', channelId);
+        .eq('id', channelId)
+        .select('id');
 
       if (error) {
         throw new Error(`Channel deletion failed: ${error.message}`);
+      }
+      if (!data?.length) {
+        throw new Error('Channel deletion failed: not permitted');
       }
     },
 
@@ -1405,14 +1410,18 @@ export const useServerChannelStore = defineStore('serverChannel', {
      * Fallback method for deleting channel
      */
     async _deleteChannelFallback(channelId: string): Promise<void> {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('channels')
         .delete()
-        .eq('id', channelId);
+        .eq('id', channelId)
+        .select('id');
 
       if (error) {
         debug.error('Error deleting channel in fallback:', error);
         throw error;
+      }
+      if (!data?.length) {
+        throw new Error('Channel deletion failed: not permitted');
       }
 
       this._removeChannelFromLocalState(channelId);
@@ -1477,13 +1486,17 @@ export const useServerChannelStore = defineStore('serverChannel', {
         }
       }
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('channel_categories')
         .delete()
-        .eq('id', categoryId);
+        .eq('id', categoryId)
+        .select('id');
 
       if (error) {
         throw new Error(`Category deletion failed: ${error.message}`);
+      }
+      if (!data?.length) {
+        throw new Error('Category deletion failed: not permitted');
       }
     },
 
@@ -1540,14 +1553,18 @@ export const useServerChannelStore = defineStore('serverChannel', {
         }
       }
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('channel_categories')
         .delete()
-        .eq('id', categoryId);
+        .eq('id', categoryId)
+        .select('id');
 
       if (error) {
         debug.error('Error deleting category in fallback:', error);
         throw error;
+      }
+      if (!data?.length) {
+        throw new Error('Category deletion failed: not permitted');
       }
 
       this._removeCategoryFromLocalState(categoryId, channelsInCategory, deleteChannels);
