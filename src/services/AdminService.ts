@@ -620,8 +620,8 @@ class AdminService {
 
   /**
    * The moderate_user RPC is SECURITY DEFINER; it bypasses the RLS policies
-   * that would otherwise block writes to another user's profile.
-   * 'delete' maps to a suspend with a `DELETED:` reason prefix.
+   * that would otherwise block writes to another user's profile, and writes the
+   * admin_audit_log row. 'delete' maps to a suspend with a `DELETED:` reason prefix.
    */
   async moderateUser(
     userId: string, 
@@ -655,13 +655,6 @@ class AdminService {
       }
 
       debug.log(`User ${userId} ${action}ed successfully by admin ${adminId}`);
-
-      await this.logAdminAction({
-        action: `user_${action}`,
-        targetType: 'user',
-        targetId: userId,
-        details: { reason, action }
-      });
     } catch (error) {
       debug.error('Failed to moderate user:', error);
       throw error;
