@@ -133,6 +133,19 @@ pub fn support() -> Result<(), Error> {
   }
 }
 
+/// The capture permission as the OS reports it without prompting: macOS Screen Recording.
+/// None where capture needs no permission.
+pub fn permission_granted() -> Option<bool> {
+  #[cfg(target_os = "macos")]
+  {
+    Some(sck::permission_granted())
+  }
+  #[cfg(not(target_os = "macos"))]
+  {
+    None
+  }
+}
+
 /// Starts capturing `target`. A window whose application cannot be resolved falls back to
 /// `Target::System`; `Started::scope` reports which one runs.
 pub fn start(target: Target, sink: Sink) -> Result<(Capture, Started), Error> {

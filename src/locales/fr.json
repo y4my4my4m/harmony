@@ -587,7 +587,7 @@
     "streamAudioHint": "Pour inclure le son, activez le partage audio dans le sélecteur du navigateur.",
     "shareStreamAudio": "Partager le son",
     "streamAudioNativeHint": "Une fenêtre partage le son de son app ; un écran, celui de toutes les apps sauf Harmony.",
-    "streamAudioPermission": "Diffusion sans son : autorisez Harmony dans Réglages Système → Confidentialité et sécurité → Enregistrement de l'écran et de l'audio système, puis redémarrez Harmony.",
+    "streamAudioPermission": "Diffusion sans son : autorisez Harmony dans Réglages Système → Confidentialité et sécurité → Enregistrement de l'écran et de l'audio système, puis redémarrez Harmony. Si Harmony y est déjà activé, retirez-le avec −, partagez à nouveau et autorisez-le.",
     "streamAudioFailed": "Impossible de capturer le son du stream ; diffusion sans son.",
     "streamAudioFromApp": "Partage du son de {app}",
     "streamAudioFromSystem": "Partage du son de toutes les apps sauf Harmony",

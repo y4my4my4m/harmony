@@ -57,6 +57,7 @@ import {
   nativeStreamAudioSupported,
   notifyStreamAudioFailed,
   probeNativeStreamAudio,
+  traceStreamAudio,
   type NativeStreamAudio,
 } from './voice/nativeStreamAudio';
 
@@ -949,9 +950,11 @@ export class LiveKitWebRTCService {
     // The option type omits restrictOwnAudio and the display-media hints
     // livekit-client forwards; the cast widens it.
     let tracks: LocalTrack[];
+    traceStreamAudio('picker open', { nativeAudio, shareAudio: this.streamQualitySettings.shareAudio });
     try {
       tracks = await lp.createScreenTracks(captureOptions as any);
     } catch (error) {
+      traceStreamAudio('picker failed', { error: String(error) });
       prepared?.dispose();
       throw error;
     }
@@ -963,6 +966,11 @@ export class LiveKitWebRTCService {
       throw new Error('Screen capture returned no video track');
     }
 
+    traceStreamAudio('picker done', {
+      label: video.mediaStreamTrack.label,
+      settings: video.mediaStreamTrack.getSettings(),
+    });
+    video.mediaStreamTrack.addEventListener('ended', () => traceStreamAudio('video track ended'));
     if (prepared) {
       const source = video.mediaStreamTrack;
       const displaySurface = (source.getSettings() as MediaTrackSettings & { displaySurface?: string }).displaySurface ?? '';
@@ -1016,6 +1024,7 @@ export class LiveKitWebRTCService {
         });
       }
     } catch (error) {
+      traceStreamAudio('publish failed', { error: String(error) });
       for (const track of tracks) {
         try {
           await lp.unpublishTrack(track);
@@ -1028,6 +1037,7 @@ export class LiveKitWebRTCService {
       throw error;
     }
 
+    traceStreamAudio('published', { audio: !!audio });
     this.localMediaState.isScreenSharing = true;
     debug.log('[LiveKit] Screen share published', { height, fps, audio: !!audio });
   }
@@ -1044,6 +1054,7 @@ export class LiveKitWebRTCService {
     }
     await this.stopNativeStreamAudio();
     this.localMediaState.isScreenSharing = false;
+    traceStreamAudio('share stopped');
     debug.log('[LiveKit] Screen share stopped');
   }
 
@@ -2008,6 +2019,7 @@ export class LiveKitWebRTCService {
       debug.log('[LiveKit] Local track unpublished:', publication.kind, 'source:', publication.source);
 
       if (publication.source === Track.Source.ScreenShare) {
+        traceStreamAudio('screen track unpublished');
         this.localMediaState.isScreenSharing = false;
         // Stream audio ends with the video; a window closing can end the
         // video alone and leave tab audio publishing.

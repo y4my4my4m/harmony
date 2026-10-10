@@ -587,7 +587,7 @@
     "streamAudioHint": "Para incluir sonido, activa compartir audio en el selector del navegador.",
     "shareStreamAudio": "Compartir audio",
     "streamAudioNativeHint": "Una ventana comparte el sonido de su app; una pantalla, el de todas las apps excepto Harmony.",
-    "streamAudioPermission": "Transmitiendo sin sonido: permite Harmony en Ajustes del Sistema → Privacidad y seguridad → Grabación de pantalla y audio del sistema, y reinicia Harmony.",
+    "streamAudioPermission": "Transmitiendo sin sonido: permite Harmony en Ajustes del Sistema → Privacidad y seguridad → Grabación de pantalla y audio del sistema, y reinicia Harmony. Si Harmony ya está activado, elimínalo con −, vuelve a compartir y permítelo.",
     "streamAudioFailed": "No se pudo capturar el audio de la transmisión; transmitiendo sin sonido.",
     "streamAudioFromApp": "Compartiendo el audio de {app}",
     "streamAudioFromSystem": "Compartiendo el audio de todas las apps excepto Harmony",

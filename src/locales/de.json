@@ -587,7 +587,7 @@
     "streamAudioHint": "Um Ton einzuschließen, aktiviere die Audiofreigabe in der Auswahl des Browsers.",
     "shareStreamAudio": "Ton teilen",
     "streamAudioNativeHint": "Ein Fenster teilt den Ton seiner App, ein Bildschirm den aller Apps außer Harmony.",
-    "streamAudioPermission": "Übertragung ohne Ton: Erlaube Harmony unter Systemeinstellungen → Datenschutz & Sicherheit → Bildschirm- & Systemaudioaufnahme und starte Harmony neu.",
+    "streamAudioPermission": "Übertragung ohne Ton: Erlaube Harmony unter Systemeinstellungen → Datenschutz & Sicherheit → Bildschirm- & Systemaudioaufnahme und starte Harmony neu. Ist Harmony dort schon aktiv, entferne es mit −, teile erneut und erlaube es.",
     "streamAudioFailed": "Stream-Ton konnte nicht aufgenommen werden; Übertragung ohne Ton.",
     "streamAudioFromApp": "Ton von {app} wird geteilt",
     "streamAudioFromSystem": "Ton aller Apps außer Harmony wird geteilt",

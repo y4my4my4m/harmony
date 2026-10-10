@@ -106,6 +106,27 @@ describe('PreparedStreamAudio', () => {
     expect(contexts[0].closed).toBe(true);
   });
 
+  it('does not wait on a context WebKit holds suspended; the next press resumes it', async () => {
+    class HeldAudioContext extends FakeAudioContext {
+      resumes = 0;
+      resume() {
+        this.resumes++;
+        return new Promise<void>(() => {});
+      }
+    }
+    vi.stubGlobal('AudioContext', HeldAudioContext);
+    invoke.mockResolvedValueOnce(STARTED);
+    const audio = await new PreparedStreamAudio().start({ label: 'screen:0:0', displaySurface: 'monitor' });
+    const held = contexts[0] as HeldAudioContext;
+    expect(audio.track).toBe(held.track);
+
+    const resumes = held.resumes;
+    window.dispatchEvent(new Event('pointerdown'));
+    expect(held.resumes).toBe(resumes + 1);
+    window.dispatchEvent(new Event('keydown'));
+    expect(held.resumes).toBe(resumes + 1);
+  });
+
   it('dispose releases a context that never started', () => {
     new PreparedStreamAudio().dispose();
     expect(contexts[0].closed).toBe(true);

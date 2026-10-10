@@ -596,7 +596,7 @@
     "streamAudioHint": "To include sound, turn on audio sharing in the browser picker.",
     "shareStreamAudio": "Share audio",
     "streamAudioNativeHint": "A window shares its app's sound; a screen shares every app except Harmony.",
-    "streamAudioPermission": "Streaming without sound: allow Harmony in System Settings → Privacy & Security → Screen & System Audio Recording, then restart Harmony.",
+    "streamAudioPermission": "Streaming without sound: allow Harmony in System Settings → Privacy & Security → Screen & System Audio Recording, then restart Harmony. If Harmony is already on, remove it with −, share again and allow it.",
     "streamAudioFailed": "Couldn't capture stream audio; streaming without sound.",
     "streamAudioFromApp": "Sharing audio from {app}",
     "streamAudioFromSystem": "Sharing audio from every app except Harmony",

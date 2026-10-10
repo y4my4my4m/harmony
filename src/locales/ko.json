@@ -587,7 +587,7 @@
     "streamAudioHint": "소리를 포함하려면 브라우저 선택 창에서 오디오 공유를 켜세요.",
     "shareStreamAudio": "오디오 공유",
     "streamAudioNativeHint": "창을 공유하면 해당 앱의 소리를, 화면을 공유하면 Harmony를 제외한 모든 앱의 소리를 공유합니다.",
-    "streamAudioPermission": "소리 없이 방송 중입니다. 시스템 설정 → 개인정보 보호 및 보안 → 화면 및 시스템 오디오 녹음에서 Harmony를 허용한 뒤 Harmony를 다시 시작하세요.",
+    "streamAudioPermission": "소리 없이 방송 중입니다. 시스템 설정 → 개인정보 보호 및 보안 → 화면 및 시스템 오디오 녹음에서 Harmony를 허용한 뒤 Harmony를 다시 시작하세요. 이미 켜져 있다면 −로 제거하고 다시 공유한 뒤 허용하세요.",
     "streamAudioFailed": "방송 오디오를 캡처하지 못했습니다. 소리 없이 방송합니다.",
     "streamAudioFromApp": "{app}의 소리를 공유 중",
     "streamAudioFromSystem": "Harmony를 제외한 모든 앱의 소리를 공유 중",

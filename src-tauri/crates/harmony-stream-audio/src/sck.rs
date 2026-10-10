@@ -39,6 +39,16 @@ use crate::{f32_to_i16, Error, Scope, Sink, Started, Target, WindowRef, CHANNELS
 /// SCStreamErrorUserDeclined: Screen Recording is not granted.
 const SC_USER_DECLINED: isize = -3801;
 
+#[link(name = "CoreGraphics", kind = "framework")]
+extern "C" {
+  fn CGPreflightScreenCaptureAccess() -> bool;
+}
+
+/// TCC's Screen Recording answer for this code signature; never prompts.
+pub fn permission_granted() -> bool {
+  unsafe { CGPreflightScreenCaptureAccess() }
+}
+
 pub fn support() -> Result<(), Error> {
   if available!(macos = 13.0) {
     Ok(())

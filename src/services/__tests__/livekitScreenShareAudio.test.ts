@@ -27,6 +27,7 @@ vi.mock('../voice/nativeStreamAudio', () => ({
   probeNativeStreamAudio: async () => ({ supported: native.supported, reason: null }),
   nativeStreamAudioSupported: () => native.supported,
   notifyStreamAudioFailed: (e: unknown) => native.failures.push(e),
+  traceStreamAudio: () => {},
   PreparedStreamAudio: class {
     async start(surface: { label: string; displaySurface: string }) {
       native.started.push(surface);
@@ -50,7 +51,11 @@ function videoTrack(label: string, displaySurface: string) {
     kind: 'video',
     stopped: false,
     stop() { this.stopped = true; },
-    mediaStreamTrack: { label, getSettings: () => ({ width: 1920, height: 1080, frameRate: 30, displaySurface }) },
+    mediaStreamTrack: {
+      label,
+      getSettings: () => ({ width: 1920, height: 1080, frameRate: 30, displaySurface }),
+      addEventListener: () => {},
+    },
   };
 }
 

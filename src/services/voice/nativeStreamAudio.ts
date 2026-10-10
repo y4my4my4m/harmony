@@ -52,6 +52,13 @@ export function probeNativeStreamAudio(): Promise<NativeStreamAudioSupport> {
   return probe;
 }
 
+/** Appends a line to the desktop app's stream-audio.log (src-tauri commands/stream_audio.rs). */
+export function traceStreamAudio(event: string, data?: Record<string, unknown>): void {
+  if (!isTauriDesktop()) return;
+  const line = data ? `${event} ${JSON.stringify(data)}` : event;
+  void invoke('stream_audio_trace', { line }).catch(() => {});
+}
+
 /** The cached probe result; false before the probe answers. */
 export function nativeStreamAudioSupported(): boolean {
   return nativeStreamAudioSupport.value?.supported === true;
@@ -104,6 +111,22 @@ export interface NativeStreamAudio extends StreamAudioSource {
 /** Source of the running native capture; null when none runs. Shallow: stop compares identity. */
 export const activeStreamAudio = shallowRef<StreamAudioSource | null>(null);
 
+/**
+ * WebKit settles resume() only once the context runs, which without user activation waits for
+ * the next gesture; the picker has consumed the click's activation. The context resumes on the
+ * next press instead of anything awaiting it.
+ */
+function resumeOnNextGesture(context: AudioContext): void {
+  void context.resume().catch(() => {});
+  const resume = () => {
+    window.removeEventListener('pointerdown', resume, true);
+    window.removeEventListener('keydown', resume, true);
+    if (context.state === 'suspended') void context.resume().catch(() => {});
+  };
+  window.addEventListener('pointerdown', resume, true);
+  window.addEventListener('keydown', resume, true);
+}
+
 function base64ToBuffer(text: string): ArrayBuffer {
   const binary = atob(text);
   const bytes = new Uint8Array(binary.length);
@@ -122,6 +145,8 @@ export class PreparedStreamAudio {
   constructor() {
     this.context = new AudioContext({ sampleRate: SAMPLE_RATE, latencyHint: 'interactive' });
     void this.context.resume().catch(() => {});
+    const context = this.context;
+    context.onstatechange = () => traceStreamAudio('context', { state: context.state });
   }
 
   /** Starts native capture for the surface the picker shared. Consumes the context. */
@@ -150,10 +175,12 @@ export class PreparedStreamAudio {
         const buffer = base64ToBuffer(block);
         workletNode.port.postMessage(buffer, [buffer]);
       };
+      traceStreamAudio('native start', { ...surface, context: context.state });
       const started = await invoke<Started>('stream_audio_start', { surface, onAudio: audioChannel });
-      if (context.state !== 'running') await context.resume().catch(() => {});
+      if (context.state !== 'running') resumeOnNextGesture(context);
       const track = destination.stream.getAudioTracks()[0];
       debug.log('[StreamAudio] native capture started', { ...started, surface, context: context.state });
+      traceStreamAudio('native started', { scope: started.scope, app: started.app, context: context.state });
       const source: StreamAudioSource = { scope: started.scope, app: started.app, detail: started.detail };
       activeStreamAudio.value = source;
       return {
@@ -175,7 +202,9 @@ export class PreparedStreamAudio {
       if (channel) channel.onmessage = () => {};
       node?.disconnect();
       await context.close().catch(() => {});
-      throw StreamAudioError.from(error);
+      const failure = StreamAudioError.from(error);
+      traceStreamAudio('native failed', { kind: failure.kind, message: failure.message });
+      throw failure;
     }
   }
 

@@ -587,7 +587,7 @@
     "streamAudioHint": "音声を含めるには、ブラウザの選択画面で音声の共有をオンにしてください。",
     "shareStreamAudio": "音声を共有",
     "streamAudioNativeHint": "ウィンドウはそのアプリの音声を、画面はHarmony以外のすべてのアプリの音声を共有します。",
-    "streamAudioPermission": "音声なしで配信中です。システム設定 → プライバシーとセキュリティ → 画面収録とシステムオーディオ録音 でHarmonyを許可し、Harmonyを再起動してください。",
+    "streamAudioPermission": "音声なしで配信中です。システム設定 → プライバシーとセキュリティ → 画面収録とシステムオーディオ録音 でHarmonyを許可し、Harmonyを再起動してください。すでにオンの場合は − で削除し、もう一度共有して許可してください。",
     "streamAudioFailed": "配信の音声を取得できませんでした。音声なしで配信しています。",
     "streamAudioFromApp": "{app} の音声を共有中",
     "streamAudioFromSystem": "Harmony 以外のすべてのアプリの音声を共有中",
