@@ -161,6 +161,7 @@ import { setChannelEncryption } from '@/services/ChannelEncryptionService'
 import { roleService, type ServerRole } from '@/services/RoleService'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { isRequiredMode, normalizeServerMode, type ServerEncryptionMode } from '@/utils/channelEncryption'
+import { formatChannelNameInput, finalizeChannelName } from '@/utils/channelName'
 
 // Max channels per server
 const MAX_CHANNELS_PER_SERVER = 100
@@ -284,7 +285,7 @@ const canCreate = computed(() => {
 const channelNameHint = computed(() => {
   if (newChannelName.value.length === 0) {
     return channelType.value === 0 
-      ? 'Use lowercase letters, numbers, and dashes'
+      ? 'Use lowercase letters, numbers, dashes and underscores; spaces become dashes'
       : 'Choose a name that describes your voice channel'
   }
   
@@ -295,23 +296,12 @@ const channelNameHint = computed(() => {
   return 'Looks good'
 })
 
-const formatChannelName = (name: string): string => {
-  if (channelType.value === 0) {
-    // For text channels, convert to  format
-    return name
-      .toLowerCase()
-      .replace(/\s+/g, '-')
-      .replace(/[^a-z0-9\-_]/g, '')
-      .replace(/--+/g, '-')
-      .replace(/^-+|-+$/g, '')
-  } else {
-    // For voice channels, allow normal naming
-    return name.trim()
-  }
-}
-
 const validateChannelName = () => {
-  const name = newChannelName.value.trim()
+  // Text channel names format as typed: a trailing separator must survive the keystroke.
+  if (channelType.value === 0) {
+    newChannelName.value = formatChannelNameInput(newChannelName.value)
+  }
+  const name = channelType.value === 0 ? finalizeChannelName(newChannelName.value) : newChannelName.value.trim()
   
   if (!name) {
     channelNameError.value = 'Channel name is required'
@@ -328,27 +318,9 @@ const validateChannelName = () => {
     return
   }
   
-  if (channelType.value === 0) {
-    // Text channel validation
-    const formatted = formatChannelName(name)
-    if (!formatted) {
-      channelNameError.value = 'Channel name must contain at least one valid character'
-      return
-    }
-    
-    if (formatted.length > 100) {
-      channelNameError.value = 'Channel name is too long after formatting'
-      return
-    }
-    
-    // Auto-format the name
-    newChannelName.value = formatted
-  } else {
-    // Voice channel validation - more lenient
-    if (!/^[a-zA-Z0-9\s\-_.,!?()[\]]+$/.test(name)) {
-      channelNameError.value = 'Voice channel name contains invalid characters'
-      return
-    }
+  if (channelType.value !== 0 && !/^[a-zA-Z0-9\s\-_.,!?()[\]]+$/.test(name)) {
+    channelNameError.value = 'Voice channel name contains invalid characters'
+    return
   }
   
   channelNameError.value = ''
@@ -390,7 +362,7 @@ const createChannel = async () => {
 
     const { data, error } = await supabase.rpc('create_channel', {
       p_server_id: props.serverId,
-      p_name: newChannelName.value.trim(),
+      p_name: channelType.value === 0 ? finalizeChannelName(newChannelName.value) : newChannelName.value.trim(),
       p_type: channelType.value,
       p_category: props.categoryId ?? null,
       p_private: isPrivate.value,

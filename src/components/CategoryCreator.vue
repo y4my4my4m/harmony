@@ -9,7 +9,7 @@
   >
     <form @submit.prevent="handleCreation" class="category-form">
       <ModernInput
-        v-model="categoryName"
+        :model-value="categoryName"
         label="Category Name"
         placeholder="Enter category name..."
         :max-length="100"
@@ -18,6 +18,7 @@
         :hint="hint"
         autofocus
         required
+        @update:model-value="categoryName = formatCategoryNameInput($event)"
         @enter="handleCreation"
       />
     </form>
@@ -50,6 +51,7 @@ import ModernInput from '@/components/common/ModernInput.vue'
 import UnifiedButton from '@/components/shared/UnifiedButton.vue'
 import { supabase } from '@/supabase'
 import { useServerChannelStore } from '@/stores/useServerChannel'
+import { formatCategoryNameInput, finalizeCategoryName } from '@/utils/channelName'
 
 // Max categories per server
 const MAX_CATEGORIES_PER_SERVER = 25
@@ -106,8 +108,9 @@ onMounted(() => {
 const isAtCategoryLimit = computed(() => currentCategoryCount.value >= MAX_CATEGORIES_PER_SERVER)
 
 const canCreate = computed(() => {
-  return categoryName.value.trim().length > 0 && 
-         categoryName.value.trim().length <= 100 &&
+  const name = finalizeCategoryName(categoryName.value)
+  return name.length > 0 &&
+         name.length <= 100 &&
          !isAtCategoryLimit.value &&
          !isCheckingLimit.value
 })
@@ -137,9 +140,8 @@ const validateCategoryName = (name: string): string => {
     return 'Category name must be 100 characters or less'
   }
   
-  // Check for invalid characters
-  if (!/^[a-zA-Z0-9\s\-_]+$/.test(trimmed)) {
-    return 'Category name can only contain letters, numbers, spaces, hyphens, and underscores'
+  if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
+    return 'Category name can only contain letters, numbers, hyphens, and underscores'
   }
   
   return ''
@@ -150,7 +152,7 @@ const closeCategoryCreator = () => {
 }
 
 const handleCreation = async () => {
-  const trimmedName = categoryName.value.trim()
+  const trimmedName = finalizeCategoryName(categoryName.value)
   
   // Check limit again before creating (in case it changed)
   if (isAtCategoryLimit.value) {
