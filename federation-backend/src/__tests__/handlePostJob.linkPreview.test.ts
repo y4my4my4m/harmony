@@ -97,11 +97,15 @@ vi.mock('../config/supabase.js', () => ({
 
 const broadcastToFollowers = vi.fn().mockResolvedValue(undefined);
 const sendToInbox = vi.fn().mockResolvedValue(undefined);
+const followerInboxes = vi.fn().mockResolvedValue([]);
+const deliverEach = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('../activitypub/DeliveryQueue.js', () => ({
   DeliveryQueue: {
     broadcastToFollowers,
     sendToInbox,
+    followerInboxes,
+    deliverEach,
   },
 }));
 
@@ -114,6 +118,10 @@ vi.mock('../listeners/FederationHandlers.js', () => ({
   createPostUpdateActivity: vi.fn().mockResolvedValue({ type: 'Update' }),
   createAddToFeaturedActivity: vi.fn().mockReturnValue({ type: 'Add' }),
   createRemoveFromFeaturedActivity: vi.fn().mockReturnValue({ type: 'Remove' }),
+  createReblogActivity: vi.fn().mockReturnValue({ type: 'Announce' }),
+  createUndoAnnounceActivity: vi.fn().mockReturnValue({ type: 'Undo' }),
+  loadReblogTarget: vi.fn().mockResolvedValue({ objectUrl: 'https://other.instance/posts/abc', authorActorUrl: null, authorInbox: null }),
+  announceActivityId: vi.fn((post: any) => `https://harmony.test/activities/${post.id}`),
 }));
 
 // Default to "wrote embeds" so the success path is the default.
@@ -188,7 +196,7 @@ describe('handlePostJob - create', () => {
 describe('handlePostJob - pure reblog (Announce)', () => {
   it('skips link preview enrichment entirely', async () => {
     fakePost.ap_type = 'Announce';
-    fakePost.metadata = { reblog_of: 'https://other.instance/posts/abc' };
+    fakePost.metadata = { reblog_of: 'aaaaaaaa-0000-4000-8000-000000000001' };
     fakePost.content = [];
 
     await handlePostJob({

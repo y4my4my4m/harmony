@@ -12,7 +12,9 @@ import type { FederationJobData } from '../BullMQManager.js';
 
 export async function handleBlockJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
-  const { type, block_id, blocker_id, blocked_id } = data;
+  const { type, block_id, blocker_id } = data;
+  // trigger_queue_block_federation sends the column name, blocked_user_id.
+  const blocked_id = data.blocked_user_id ?? data.blocked_id;
 
   logger.info(`Processing block job: ${type} for block ${block_id}`);
 
@@ -45,14 +47,17 @@ export async function handleBlockJob(data: FederationJobData): Promise<void> {
 
     const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
     const blockerActorUrl = `${baseUrl}/users/${blocker.username}`;
+    const block = {
+      id: `${baseUrl}/activities/block/${block_id}`,
+      type: 'Block',
+      actor: blockerActorUrl,
+      object: blocked.federated_id || blocked.ap_id,
+    };
 
     if (type === 'create') {
       const blockActivity = {
         '@context': 'https://www.w3.org/ns/activitystreams',
-        id: `${baseUrl}/activities/block/${block_id}`,
-        type: 'Block',
-        actor: blockerActorUrl,
-        object: blocked.federated_id || blocked.ap_id
+        ...block,
       };
 
       if (blocked.inbox_url) {
@@ -60,16 +65,13 @@ export async function handleBlockJob(data: FederationJobData): Promise<void> {
         logger.info(`Block notification sent to ${blocked.inbox_url}`);
       }
     } else if (type === 'delete') {
+      // The embedded Block keeps the id the Block was sent under.
       const undoBlockActivity = {
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: `${baseUrl}/activities/undo-block/${block_id}`,
         type: 'Undo',
         actor: blockerActorUrl,
-        object: {
-          type: 'Block',
-          actor: blockerActorUrl,
-          object: blocked.federated_id || blocked.ap_id
-        }
+        object: block,
       };
 
       if (blocked.inbox_url) {

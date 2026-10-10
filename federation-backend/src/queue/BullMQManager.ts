@@ -10,6 +10,7 @@
 import { Queue, Worker, QueueEvents, type ConnectionOptions } from 'bullmq';
 import { logger } from '../utils/logger.js';
 import { redis } from '../services/RedisService.js';
+import config from '../config/index.js';
 
 import { handlePostJob } from './handlers/postHandler.js';
 import { handleReactionJob } from './handlers/reactionHandler.js';
@@ -109,6 +110,8 @@ type HandlerFn = (data: FederationJobData) => Promise<void>;
 
 class BullMQManagerService {
   private queues = new Map<string, Queue>();
+  /** Enqueue-only queues of a process that runs no workers (FEDERATION_MODE=server). */
+  private producers = new Map<string, Queue>();
   private workers: Worker[] = [];
   private queueEvents: QueueEvents[] = [];
   private isRunning = false;
@@ -271,8 +274,26 @@ class BullMQManagerService {
     return Array.from(this.queues.values());
   }
 
+  /**
+   * Queue `jobType` jobs are added to. Without started workers in this process, a
+   * producer queue on the same Redis keys hands the job to the worker process.
+   */
+  private queueFor(jobType: string): Queue | undefined {
+    const running = this.queues.get(jobType);
+    if (running) return running;
+    if (!config.USE_BULLMQ_QUEUE || !(JOB_TYPES as string[]).includes(jobType)) return undefined;
+
+    let producer = this.producers.get(jobType);
+    if (!producer) {
+      if (!redis.getClient()) return undefined;
+      producer = new Queue(jobType, { connection: this.getConnectionOpts(), prefix: QUEUE_PREFIX });
+      this.producers.set(jobType, producer);
+    }
+    return producer;
+  }
+
   async addJob(jobType: JobType | string, data: FederationJobData): Promise<string | undefined> {
-    const queue = this.queues.get(jobType);
+    const queue = this.queueFor(jobType);
     if (!queue) {
       logger.warn(`No queue for job type "${jobType}"`);
       return undefined;
@@ -305,6 +326,10 @@ class BullMQManagerService {
   }
 
   async stop(): Promise<void> {
+    const producers = Array.from(this.producers.values());
+    this.producers.clear();
+    await Promise.allSettled(producers.map((q) => q.close()));
+
     if (!this.isRunning) return;
 
     logger.info('Stopping BullMQManager...');
