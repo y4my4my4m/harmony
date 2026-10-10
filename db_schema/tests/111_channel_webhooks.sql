@@ -10,7 +10,7 @@
 
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(72);
+SELECT plan(74);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('f1110000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'carol111@test.local'),
@@ -166,6 +166,18 @@ SELECT throws_ok($q$SELECT public.execute_channel_webhook(pg_temp.hid('ci'), pg_
                  '28000', NULL, 'a wrong token is refused');
 SELECT throws_ok($q$SELECT public.execute_channel_webhook('f1119999-0000-0000-0000-000000000000', pg_temp.h(pg_temp.tok('ci')), 'hi')$q$,
                  '28000', NULL, 'an unknown webhook is refused alike');
+UPDATE public.profiles SET is_suspended = true
+ WHERE id = (SELECT created_by FROM public.channel_webhooks WHERE id = pg_temp.hid('ci'));
+SELECT throws_ok($q$SELECT public.execute_channel_webhook(pg_temp.hid('ci'), pg_temp.h(pg_temp.tok('ci')), 'hi')$q$,
+                 '28000', NULL, 'a suspended creator''s webhook is refused');
+UPDATE public.profiles SET is_suspended = false
+ WHERE id = (SELECT created_by FROM public.channel_webhooks WHERE id = pg_temp.hid('ci'));
+UPDATE public.bots SET is_active = false
+ WHERE id = (SELECT bot_id FROM public.channel_webhooks WHERE id = pg_temp.hid('ci'));
+SELECT throws_ok($q$SELECT public.execute_channel_webhook(pg_temp.hid('ci'), pg_temp.h(pg_temp.tok('ci')), 'hi')$q$,
+                 '28000', NULL, 'a webhook whose bot is deactivated is refused');
+UPDATE public.bots SET is_active = true
+ WHERE id = (SELECT bot_id FROM public.channel_webhooks WHERE id = pg_temp.hid('ci'));
 SELECT throws_ok($q$SELECT public.execute_channel_webhook(pg_temp.hid('ci'), pg_temp.h(pg_temp.tok('ci')), E'  \n ')$q$,
                  '22023', NULL, 'blank text is refused');
 SELECT throws_ok($q$SELECT public.execute_channel_webhook(pg_temp.hid('ci'), pg_temp.h(pg_temp.tok('ci')), 'hi', 'Sys tem')$q$,

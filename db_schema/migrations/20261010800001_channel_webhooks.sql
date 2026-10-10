@@ -761,6 +761,14 @@ BEGIN
         RAISE EXCEPTION 'WEBHOOK_UNAUTHORIZED: invalid webhook token' USING ERRCODE = '28000';
     END IF;
 
+    -- A webhook posts as its creator's integration: it stops with a deactivated backing bot
+    -- or a suspended or deleted creator.
+    IF NOT EXISTS (SELECT 1 FROM public.bots b WHERE b.id = v_hook.bot_id AND b.is_active)
+       OR EXISTS (SELECT 1 FROM public.profiles p
+                   WHERE p.id = v_hook.created_by AND (p.is_suspended OR p.deleted_at IS NOT NULL)) THEN
+        RAISE EXCEPTION 'WEBHOOK_UNAUTHORIZED: invalid webhook token' USING ERRCODE = '28000';
+    END IF;
+
     PERFORM public.assert_webhook_channel(v_hook.channel_id);
 
     v_name := CASE WHEN NULLIF(btrim(p_username), '') IS NULL THEN v_hook.name
