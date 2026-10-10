@@ -7,12 +7,37 @@ import { LIVE_REACTION_LIFETIME_MS, MAX_ON_SCREEN, liveReactions } from '@/servi
 // The layer floats the reactions aimed at its tile, never more than the
 // on-screen cap, and fades them in place under reduced motion.
 
-vi.mock('@/composables/useUserData', () => ({
-  useUserData: () => ({
-    getUserAvatarUrl: (id: string) => ({ value: `/avatars/${id}.webp` }),
-    getUserDisplayName: (id: string) => ({ value: `Name ${id}` }),
-  }),
+const bigSmile = { id: 'e1', name: 'big_smile', url: 'https://cdn.test/big_smile.png' }
+
+// user7's name carries a custom emoji: the cache holds ':big_smile: y4my4m' as text and the
+// resolved parts beside it.
+vi.mock('@/composables/useUserData', async () => {
+  const { ref } = await import('vue')
+  return {
+    useUserData: () => ({
+      getUserAvatarUrl: (id: string) => ref(`/avatars/${id}.webp`),
+      getUser: (id: string) => ref({ id }),
+      getUserDisplayName: (id: string) => ref(id === 'user7' ? ':big_smile: y4my4m' : `Name ${id}`),
+      getUserDisplayNameParts: (id: string) =>
+        ref(id === 'user7' ? [{ type: 'emoji', emoji: bigSmile }, { type: 'text', text: ' y4my4m' }] : undefined),
+      fetchUserProfile: async () => undefined,
+    }),
+  }
+})
+vi.mock('@/services/unifiedEmojiService', async () => {
+  const { ref } = await import('vue')
+  return {
+    useUnifiedEmoji: () => ({
+      resolveEmoji: (s: string) => ({ display: { type: 'text', content: s } }),
+      isNativePack: ref(true),
+      isLoaded: ref(true),
+    }),
+  }
+})
+vi.mock('@/services/userDataService', () => ({
+  userDataService: { resolveDisplayNameParts: (text: string) => [{ type: 'text', text }] },
 }))
+vi.mock('@/utils/emojiUtils', () => ({ getEmojiUrl: (url: string) => url }))
 vi.mock('@/utils/avatarUtils', () => ({ getAvatarUrl: (url: string) => url }))
 
 const CUSTOM = 'party-id'
@@ -81,6 +106,20 @@ describe('LiveReactionLayer', () => {
     const onCamera = camera.findAll('.live-reaction')
     expect(onCamera).toHaveLength(1)
     expect(onCamera[0].text()).toContain('👍')
+  })
+
+  it('renders custom emoji in the sender\'s name as images, never the shortcode', async () => {
+    const w = mountLayer({ userId: 'bob', source: 'screen' })
+    liveReactions.receive('user7', packet({ kind: 'unicode', value: '🔥' }, { id: 'bob', source: 'screen' }))
+    await nextTick()
+
+    const name = w.find('.live-reaction-name')
+    expect(name.text()).toBe('y4my4m')
+    expect(name.text()).not.toContain(':big_smile:')
+    const emoji = name.find('img.display-name-emoji')
+    expect(emoji.attributes('src')).toBe('https://cdn.test/big_smile.png')
+    expect(emoji.attributes('alt')).toBe(':big_smile:')
+    expect(name.classes()).toContain('truncate')
   })
 
   it('is decorative and leaves the tile clickable', async () => {

@@ -22,8 +22,8 @@
       />
       <span v-else class="live-reaction-emoji live-reaction-glyph">{{ r.display.text }}</span>
       <span v-if="!compact" class="live-reaction-sender">
-        <img class="live-reaction-avatar" :src="getAvatarUrl(sender(r.senderId).avatar.value, 32)" alt="" draggable="false" />
-        <span class="live-reaction-name">{{ sender(r.senderId).name.value }}</span>
+        <img class="live-reaction-avatar" :src="getAvatarUrl(avatar(r.senderId).value, 32)" alt="" draggable="false" />
+        <DisplayName class="live-reaction-name" :user-id="r.senderId" :truncate="true" />
       </span>
     </div>
   </div>
@@ -31,6 +31,7 @@
 
 <script setup lang="ts">
 import { computed, type ComputedRef } from 'vue';
+import DisplayName from '@/components/DisplayName.vue';
 import { useUserData } from '@/composables/useUserData';
 import { getAvatarUrl } from '@/utils/avatarUtils';
 import {
@@ -50,7 +51,7 @@ const props = withDefaults(defineProps<{
   compact: false,
 });
 
-const { getUserAvatarUrl, getUserDisplayName } = useUserData();
+const { getUserAvatarUrl } = useUserData();
 
 const key = computed(() => liveReactionKey(props.userId, props.source));
 const items = computed(() => liveReactions.active.value.filter(r => r.key === key.value));
@@ -63,12 +64,12 @@ function prefersReducedMotion(): boolean {
 // Read whenever the set changes, so a toggled preference applies to the next reaction.
 const reduced = computed(() => items.value.length > 0 && prefersReducedMotion());
 
-const senders = new Map<string, { avatar: ComputedRef<string | null | undefined>; name: ComputedRef<string | null | undefined> }>();
-function sender(userId: string) {
-  let entry = senders.get(userId);
+const avatars = new Map<string, ComputedRef<string | null | undefined>>();
+function avatar(userId: string) {
+  let entry = avatars.get(userId);
   if (!entry) {
-    entry = { avatar: getUserAvatarUrl(userId), name: getUserDisplayName(userId) };
-    senders.set(userId, entry);
+    entry = getUserAvatarUrl(userId);
+    avatars.set(userId, entry);
   }
   return entry;
 }
@@ -142,9 +143,7 @@ function sender(userId: string) {
 }
 
 .live-reaction-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
 }
 
 /* Filmstrip-sized tiles: the emoji alone. */
