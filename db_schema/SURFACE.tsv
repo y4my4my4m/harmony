@@ -150,6 +150,7 @@ count_pinned_messages	p_channel_id uuid, p_conversation_id uuid	integer	invoker	
 count_profile_media	p_author_id uuid	integer	invoker	public, pg_temp	anon+authenticated+service_role	client
 create_bot	p_username text, p_display_name text, p_bio text, p_bot_type text, p_is_public boolean	jsonb	definer	public, extensions, pg_temp	authenticated+service_role	client
 create_channel	p_server_id uuid, p_name text, p_type integer, p_category uuid, p_private boolean, p_allowed_role_ids uuid[]	channels	invoker	public, pg_temp	authenticated+service_role	client
+create_channel_thread	p_channel_id uuid, p_name text, p_auto_archive_duration integer	uuid	definer	public, pg_temp	authenticated+service_role	client
 create_comprehensive_timeline_entries		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 create_default_notification_preferences	p_user_id uuid	void	definer	public, pg_temp	service_role	unreferenced
 create_default_server_role		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger

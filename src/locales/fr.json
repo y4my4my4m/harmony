@@ -2427,7 +2427,7 @@
     },
     "threads": {
       "title": "Aucun fil pour le moment",
-      "description": "Démarrez un fil à partir de n'importe quel message.",
+      "description": "Démarrez un fil à partir d'un message, ou créez-en un ici.",
       "noMatchTitle": "Aucun fil ne correspond à votre recherche",
       "noMatchDescription": "Essayez un autre nom."
     },
@@ -3869,5 +3869,12 @@
     "open": "Ouvrir",
     "hide": "Masquer",
     "show": "Afficher"
+  },
+  "threadCreate": {
+    "button": "Nouveau fil",
+    "nameLabel": "Nom du fil",
+    "placeholder": "De quoi parle ce fil ?",
+    "submit": "Créer",
+    "failed": "Impossible de créer le fil."
   }
 }

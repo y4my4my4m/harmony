@@ -2427,7 +2427,7 @@
     },
     "threads": {
       "title": "Aún no hay hilos",
-      "description": "Inicia un hilo desde cualquier mensaje.",
+      "description": "Inicia un hilo desde cualquier mensaje o crea uno nuevo aquí.",
       "noMatchTitle": "Ningún hilo coincide con tu búsqueda",
       "noMatchDescription": "Prueba con otro nombre."
     },
@@ -3869,5 +3869,12 @@
     "open": "Abrir",
     "hide": "Ocultar",
     "show": "Mostrar"
+  },
+  "threadCreate": {
+    "button": "Nuevo hilo",
+    "nameLabel": "Nombre del hilo",
+    "placeholder": "¿De qué trata este hilo?",
+    "submit": "Crear",
+    "failed": "No se pudo crear el hilo."
   }
 }

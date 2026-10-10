@@ -122,6 +122,25 @@ class ThreadService {
     return data as string
   }
 
+  /**
+   * Starts a thread in a channel with no parent message; resolves to its id.
+   * create_channel_thread posts the 'started a thread' notice as the parent.
+   */
+  async createChannelThread(channelId: string, name: string): Promise<string> {
+    const { data, error } = await supabase.rpc('create_channel_thread', {
+      p_channel_id: channelId,
+      p_name: name,
+    })
+
+    if (error || !data) {
+      debug.error('Failed to create channel thread:', error)
+      const err: any = new Error(error?.message || 'create_channel_thread returned no id')
+      err.code = 'THREAD_CREATE_FAILED'
+      throw err
+    }
+    return data as string
+  }
+
   /** Seeds the metadata cache with a thread assembled on the client. */
   primeThread(thread: ThreadWithDetails): void {
     this.threadCache.set(thread.id, { ...thread })
@@ -153,7 +172,7 @@ class ThreadService {
         ? supabase.from('profiles').select('username, display_name, avatar_url').eq('id', data.created_by).single()
         : null
       const parentRead = data.parent_message_id
-        ? supabase.from('messages').select('id, content, user_id, created_at').eq('id', data.parent_message_id).single()
+        ? supabase.from('messages').select('id, content, user_id, created_at, is_system, metadata').eq('id', data.parent_message_id).single()
         : null
       const membershipRead = (async () => {
         try {
@@ -1078,5 +1097,10 @@ class ThreadService {
 }
 
 // Export singleton instance
+/** A standalone thread's parent: its own 'started a thread' notice, not a message to show. */
+export function isThreadNoticeParent(message?: Pick<Message, 'is_system' | 'metadata'> | null): boolean {
+  return !!message?.is_system && (message.metadata as { type?: string } | null | undefined)?.type === 'thread_created'
+}
+
 export const threadService = new ThreadService()
 

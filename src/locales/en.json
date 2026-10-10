@@ -2427,7 +2427,7 @@
     },
     "threads": {
       "title": "No threads yet",
-      "description": "Start a thread from any message.",
+      "description": "Start a thread from any message, or a new one here.",
       "noMatchTitle": "No threads match your search",
       "noMatchDescription": "Try a different name."
     },
@@ -3865,5 +3865,12 @@
     "open": "Open",
     "hide": "Hide",
     "show": "Show"
+  },
+  "threadCreate": {
+    "button": "New thread",
+    "nameLabel": "Thread name",
+    "placeholder": "What is this thread about?",
+    "submit": "Create",
+    "failed": "Couldn't create the thread."
   }
 }

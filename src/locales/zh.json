@@ -2427,7 +2427,7 @@
     },
     "threads": {
       "title": "暂无子区",
-      "description": "可从任意消息创建子区。",
+      "description": "从任意消息开启话题，或在此新建一个。",
       "noMatchTitle": "没有与您的搜索匹配的子区",
       "noMatchDescription": "请尝试其他名称。"
     },
@@ -3869,5 +3869,12 @@
     "open": "打开",
     "hide": "隐藏",
     "show": "显示"
+  },
+  "threadCreate": {
+    "button": "新建话题",
+    "nameLabel": "话题名称",
+    "placeholder": "这个话题是关于什么的？",
+    "submit": "创建",
+    "failed": "无法创建话题。"
   }
 }

@@ -2427,7 +2427,7 @@
     },
     "threads": {
       "title": "Noch keine Threads",
-      "description": "Starte einen Thread von einer beliebigen Nachricht aus.",
+      "description": "Starte einen Thread aus einer Nachricht oder hier einen neuen.",
       "noMatchTitle": "Keine Threads passen zu deiner Suche",
       "noMatchDescription": "Versuche einen anderen Namen."
     },
@@ -3869,5 +3869,12 @@
     "open": "Öffnen",
     "hide": "Ausblenden",
     "show": "Anzeigen"
+  },
+  "threadCreate": {
+    "button": "Neuer Thread",
+    "nameLabel": "Thread-Name",
+    "placeholder": "Worum geht es in diesem Thread?",
+    "submit": "Erstellen",
+    "failed": "Der Thread konnte nicht erstellt werden."
   }
 }
