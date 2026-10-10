@@ -11,12 +11,14 @@
 import { getSupabaseClient } from '../config/supabase.js';
 import config from '../config/index.js';
 import { logger } from '../utils/logger.js';
-import { isValidHost } from '../utils/mentionGrammar.js';
 import { pgrstOrValue } from '../utils/postgrestFilter.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 
 /** Upper bound on WebFinger resolutions per post. */
 const MAX_RESOLUTIONS = 10;
+
+/** A stored profile domain: a host, with a port when the instance serves on one. */
+const DOMAIN_RE = /^[a-z0-9.-]+(:\d+)?$/i;
 
 export interface MentionHandle {
   username: string;
@@ -48,7 +50,7 @@ export function remoteMentionHandles(content: unknown): MentionHandle[] {
     if (typeof part.username !== 'string' || typeof part.domain !== 'string') continue;
     const username = part.username.replace(/^@+/, '');
     const domain = part.domain.toLowerCase();
-    if (!username || !domain || domain === localHost || domain === 'discord.com' || !isValidHost(domain)) continue;
+    if (!username || !domain || domain === localHost || domain === 'discord.com' || !DOMAIN_RE.test(domain)) continue;
     const key = handleKey(username, domain);
     if (!out.has(key)) out.set(key, { username, domain });
   }

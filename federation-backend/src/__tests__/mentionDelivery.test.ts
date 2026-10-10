@@ -157,6 +157,17 @@ describe('mention delivery', () => {
     expect(sendToInbox).not.toHaveBeenCalled()
   })
 
+  it('delivers to a stored mentionee whose instance serves on a port', async () => {
+    tables.profiles.push({ ...HBY, id: '9a9a9a9a-0000-4000-8000-000000000002', domain: 'social.test:8443', inbox_url: 'https://social.test:8443/users/hby/inbox' })
+    tables.posts[0].content = [
+      { type: 'mention', userId: '9a9a9a9a-0000-4000-8000-000000000002', username: 'hby', domain: 'social.test:8443', isLocal: false },
+    ]
+    await handlePostJob({ type: 'create', post_id: 'post-1', author_id: AUTHOR.id })
+
+    expect(resolveRemoteAccount).not.toHaveBeenCalled()
+    expect(sendToInbox.mock.calls[0][0]).toBe('https://social.test:8443/users/hby/inbox')
+  })
+
   it('resolves mentionees of an edit before sending the Update', async () => {
     await handlePostJob({ type: 'update', post_id: 'post-1', author_id: AUTHOR.id })
 
