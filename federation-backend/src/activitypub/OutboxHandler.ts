@@ -8,6 +8,7 @@ import { isPublicView, loadGroupAccess, readableChannelIds, verifiedSigner } fro
 import { PRIVATE_CACHE, PUBLIC_VISIBILITIES, canReadConversation, canReadPost } from './postAccess.js';
 import { inviteCodeFromUrl, loadInvitePreview } from '../services/invitePreview.js';
 import { renderInviteOEmbed } from '../services/invitePageRenderer.js';
+import { isBoostPost } from '../utils/boostPost.js';
 
 const router = Router();
 
@@ -125,10 +126,19 @@ router.get(
     const items = (posts || []).slice(0, limit);
     const lastItem = items[items.length - 1];
 
+    // A boost names its original by AP id; for a remote original that is the
+    // origin's id, not this instance's /posts/<uuid>.
+    const boostedIds = items.filter(isBoostPost).map((post: any) => post.metadata.reblog_of);
+    const originalApIds = new Map<string, string>();
+    if (boostedIds.length > 0) {
+      const { data: originals } = await supabase.from('posts').select('id, ap_id').in('id', boostedIds);
+      for (const row of originals || []) {
+        if (row.ap_id) originalApIds.set(row.id, row.ap_id);
+      }
+    }
+
     const orderedItems = items.map((post: any) => {
-      const isReblog = post.metadata?.reblog_of || post.metadata?.is_reblog;
-      
-      if (isReblog) {
+      if (isBoostPost(post)) {
         // Announce (reblog)
         return {
           '@context': 'https://www.w3.org/ns/activitystreams',
@@ -142,7 +152,7 @@ router.get(
           cc: post.visibility === 'unlisted'
             ? ['https://www.w3.org/ns/activitystreams#Public']
             : [`${baseUrl}/users/${username}/followers`],
-          object: post.metadata?.reblog_of_ap_url || `${baseUrl}/posts/${post.metadata?.reblog_of}`,
+          object: originalApIds.get(post.metadata.reblog_of) || `${baseUrl}/posts/${post.metadata.reblog_of}`,
         };
       } else {
         const note = postToNote(post, user);

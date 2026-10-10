@@ -13,7 +13,7 @@ import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { validateExternalHostname, validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 import { discoveryLimiter } from '../middleware/rateLimit.js';
-import { actorOwnsKeys, fetchAuthoritativeDocument, readApDocument, sameOrigin, urlHost, type FetchedDocument } from '../utils/apOrigin.js';
+import { actorOwnsKeys, fetchActorById, fetchAuthoritativeDocument, readApDocument, sameOrigin, urlHost, type FetchedDocument } from '../utils/apOrigin.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { crawlReplies, DEFAULT_REPLY_CRAWL, storeReplies, type ReplyCrawl, type ReplyStore } from './repliesCollection.js';
 import { noteDocumentSoftware } from './instanceSoftware.js';
@@ -442,6 +442,7 @@ router.post(
           
           const backfilling = !!shouldFetchPosts
             && startOutboxBackfill(existingUser.id, existingUser.outbox_url, supabase, `${username}@${domain}`);
+          if (backfilling) startFeaturedSync(existingUser, null, supabase);
 
           // Collection totals older than PROFILE_COUNTS_TTL_MS are read again before answering.
           if (!existingUser.is_local && profileCountsStale(existingUser)) {
@@ -470,6 +471,8 @@ router.post(
     
     const backfilling = typeof actor.outbox === 'string'
       && startOutboxBackfill(savedUser.id, actor.outbox, supabase, `${username}@${domain}`);
+    const featuredUrl = linkUrl(actor.featured);
+    if (featuredUrl) startFeaturedSync(savedUser, featuredUrl, supabase);
     
     return res.json({
       success: true,
@@ -566,12 +569,14 @@ router.post(
  * Fetch more posts from a remote user (pagination)
  * POST /fetch-posts (proxied via /api/federation/fetch-posts)
  * Body: { user_id: uuid, outbox_url: string, max_id?: string, limit?: number }
+ * `max_id` present continues the author's outbox import where the last request
+ * stopped; absent, the import starts over at the first page.
  */
 router.post(
   '/fetch-posts',
   discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
-    const { user_id, outbox_url, max_id, limit = 10 } = req.body;
+    const { user_id, outbox_url, max_id, limit = 20 } = req.body;
 
     if (!user_id || !outbox_url) {
       return res.status(400).json({ error: 'user_id and outbox_url are required' });
@@ -605,7 +610,7 @@ router.post(
         outbox_url, 
         supabase, 
         max_id, 
-        Math.min(limit, 20)
+        Math.min(Math.max(Number(limit) || 20, 1), 40)
       );
 
       return res.json({
@@ -2299,362 +2304,416 @@ router.get(
   })
 );
 
-// Outbox pagination state, keyed by author id. Process-local; lost on restart.
-const userNextPageCache = new Map<string, string | null>();
+/**
+ * Position in a remote outbox: the page to fetch and how many of its items are
+ * already imported. Process-local, keyed by author id; lost on restart.
+ */
+interface OutboxCursor {
+  url: string;
+  offset: number;
+}
 
-// Visited page URLs; a repeat means the remote's `next` chain loops.
+const userNextPageCache = new Map<string, OutboxCursor>();
+
+// Visited `url#offset` positions; a repeat means the remote's `next` chain loops.
 const userFetchedUrls = new Map<string, Set<string>>();
 
 const userZeroSaveCount = new Map<string, number>();
 
 const MAX_ZERO_SAVES = 3;
 
+/** Pages one request walks while every item it reads is already stored. */
+const MAX_PAGES_PER_REQUEST = 5;
+
+const BOOSTABLE_VISIBILITIES = new Set(['public', 'unlisted']);
+
+const AP_ACCEPT = 'application/activity+json, application/ld+json';
+
+function linkUrl(value: any): string | null {
+  if (typeof value === 'string') return value;
+  return typeof value?.id === 'string' ? value.id : null;
+}
+
+function collectionItems(doc: any): any[] | null {
+  if (Array.isArray(doc?.orderedItems)) return doc.orderedItems;
+  if (Array.isArray(doc?.items)) return doc.items;
+  return null;
+}
+
+async function fetchApJson(url: string): Promise<any | null> {
+  const response = await SignatureService.signedApFetch(url, {
+    headers: { 'Accept': AP_ACCEPT, 'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}` },
+    timeoutMs: 15000,
+  });
+  if (!response.ok) {
+    logger.warn(`Fetch of ${url} failed: ${response.status}`);
+    return null;
+  }
+  return response.json();
+}
+
 /**
- * Fetch recent posts from a remote user's outbox.
- * Paginates by following the collection's `next` links.
+ * One page of a collection. `url` is a page, or the collection itself, whose
+ * `first` page (linked or embedded) is read. `pageUrl` fetched again yields the
+ * same page. Links off the collection's host end the walk.
  */
-async function fetchRecentPostsInBackground(
-  authorId: string, 
-  outboxUrl: string, 
-  supabase: any,
-  maxId?: string, // presence requests the next page; the cached next URL is used
-  limit: number = 10
-): Promise<{ hasMore: boolean; oldestId?: string; nextPageUrl?: string }> {
-  try {
-    let fetchUrl: string;
-    
-    if (maxId) {
-      const cachedNextUrl = userNextPageCache.get(authorId);
-      if (!cachedNextUrl) {
-        logger.info(`No cached next page for user ${authorId}, fetching first page`);
-        fetchUrl = outboxUrl;
-        userFetchedUrls.delete(authorId);
-        userZeroSaveCount.delete(authorId);
-      } else {
-        fetchUrl = cachedNextUrl;
-        logger.info(`Using cached next page: ${fetchUrl}`);
-      }
+async function fetchCollectionPage(url: string, origin: string): Promise<{
+  pageUrl: string;
+  items: any[];
+  nextUrl: string | null;
+} | null> {
+  const doc = await fetchApJson(url);
+  if (!doc) return null;
+
+  let page = doc;
+  let pageUrl = url;
+  if (!collectionItems(doc) && doc.first) {
+    if (typeof doc.first === 'object' && collectionItems(doc.first)) {
+      page = doc.first;
     } else {
-      // Initial fetch resets all pagination state.
-      fetchUrl = outboxUrl;
-      userNextPageCache.delete(authorId);
-      userFetchedUrls.delete(authorId);
-      userZeroSaveCount.delete(authorId);
+      const firstUrl = linkUrl(doc.first);
+      if (!firstUrl || !sameOrigin(firstUrl, origin)) return { pageUrl, items: [], nextUrl: null };
+      page = await fetchApJson(firstUrl);
+      if (!page) return null;
+      pageUrl = firstUrl;
     }
-    
+  }
+
+  const nextUrl = linkUrl(page.next);
+  return {
+    pageUrl,
+    items: collectionItems(page) || [],
+    nextUrl: nextUrl && sameOrigin(nextUrl, origin) && nextUrl !== pageUrl ? nextUrl : null,
+  };
+}
+
+/**
+ * Import a remote author's outbox, `limit` new posts at a time. Without `maxId`
+ * the import starts over at the first page; with it, it continues where the
+ * previous request stopped, mid-page included. Pages whose items are all
+ * stored already are walked past, MAX_PAGES_PER_REQUEST at most.
+ */
+export async function fetchRecentPostsInBackground(
+  authorId: string,
+  outboxUrl: string,
+  supabase: any,
+  maxId?: string, // presence requests the next page; the cached cursor is used
+  limit: number = 20
+): Promise<{ hasMore: boolean; oldestId?: string; nextPageUrl?: string }> {
+  const reset = () => {
+    userNextPageCache.delete(authorId);
+    userFetchedUrls.delete(authorId);
+    userZeroSaveCount.delete(authorId);
+  };
+
+  try {
+    let cursor: OutboxCursor | null = maxId ? userNextPageCache.get(authorId) ?? null : null;
+    if (!cursor) {
+      if (maxId) logger.info(`No cached outbox cursor for user ${authorId}, fetching first page`);
+      reset();
+      cursor = { url: outboxUrl, offset: 0 };
+    }
+
     const fetchedUrls = userFetchedUrls.get(authorId) || new Set<string>();
-    if (fetchedUrls.has(fetchUrl)) {
-      logger.info(`Loop detected - already fetched ${fetchUrl}, stopping pagination`);
-      userNextPageCache.delete(authorId);
-      userFetchedUrls.delete(authorId);
-      userZeroSaveCount.delete(authorId);
-      return { hasMore: false };
-    }
-    
-    fetchedUrls.add(fetchUrl);
     userFetchedUrls.set(authorId, fetchedUrls);
-    
-    logger.info(`Fetching posts from: ${fetchUrl}`);
-    
-    const outboxResponse = await SignatureService.signedApFetch(fetchUrl, {
-      headers: {
-        'Accept': 'application/activity+json, application/ld+json',
-        'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
-      },
-      timeoutMs: 15000,
-    });
-    
-    if (!outboxResponse.ok) {
-      logger.warn(`Failed to fetch outbox: ${outboxResponse.status}`);
-      userNextPageCache.delete(authorId);
-      return { hasMore: false };
-    }
-    
-    const outbox = await outboxResponse.json();
-    
-    let items: any[] = [];
-    let nextPageUrl: string | null = null;
-    
-    if (outbox.orderedItems && Array.isArray(outbox.orderedItems)) {
-      // Response is already a page.
-      items = outbox.orderedItems.slice(0, limit);
-      nextPageUrl = typeof outbox.next === 'string' ? outbox.next : outbox.next?.id || null;
-    } else if (outbox.first) {
-      // Response is a collection; its first page holds the items.
-      const firstPageUrl = typeof outbox.first === 'string' ? outbox.first : outbox.first.id;
-      logger.info(`Fetching first page: ${firstPageUrl}`);
-      
-      const pageResponse = await SignatureService.signedApFetch(firstPageUrl, {
-        headers: {
-          'Accept': 'application/activity+json, application/ld+json',
-          'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
-        },
-        timeoutMs: 15000,
-      });
-      
-      if (pageResponse.ok) {
-        const page = await pageResponse.json();
-        items = (page.orderedItems || []).slice(0, limit);
-        nextPageUrl = typeof page.next === 'string' ? page.next : page.next?.id || null;
+
+    const { noteToContent } = await import('./converters/fromActivityPub.js');
+
+    let savedCount = 0;
+    let batch = 0;
+    let pages = 0;
+    let oldestId: string | undefined;
+
+    while (cursor && pages < MAX_PAGES_PER_REQUEST) {
+      const position = `${cursor.url}#${cursor.offset}`;
+      if (fetchedUrls.has(position)) {
+        logger.info(`Loop detected - already read ${position}, stopping pagination`);
+        cursor = null;
+        break;
+      }
+      fetchedUrls.add(position);
+
+      logger.info(`Fetching posts from: ${cursor.url} (offset ${cursor.offset})`);
+      const page = await fetchCollectionPage(cursor.url, outboxUrl);
+      pages++;
+      if (!page) {
+        reset();
+        return { hasMore: false };
+      }
+
+      const slice = page.items.slice(cursor.offset, cursor.offset + (limit - batch));
+      for (const item of slice) {
+        const result = await importOutboxItem(item, authorId, outboxUrl, supabase, noteToContent);
+        if (result.id) oldestId = result.id;
+        if (result.saved) savedCount++;
+      }
+      batch += slice.length;
+
+      const end: number = cursor.offset + slice.length;
+      cursor = end < page.items.length
+        ? { url: page.pageUrl, offset: end }
+        : page.nextUrl ? { url: page.nextUrl, offset: 0 } : null;
+
+      if (batch >= limit) {
+        if (savedCount > 0) break;
+        // A batch of already-stored items does not count against the request.
+        batch = 0;
       }
     }
-    
-    if (nextPageUrl) {
-      userNextPageCache.set(authorId, nextPageUrl);
-      logger.info(`Cached next page URL: ${nextPageUrl}`);
+
+    if (cursor) {
+      userNextPageCache.set(authorId, cursor);
     } else {
       userNextPageCache.delete(authorId);
       logger.info(`No more pages available`);
     }
-    
-    if (items.length === 0) {
-      logger.info(`No posts found in outbox`);
-      return { hasMore: false };
-    }
-    
-    logger.info(`Processing ${items.length} posts from outbox`);
-    
-    let savedCount = 0;
-    let oldestId: string | undefined;
-    
-    const { noteToContent } = await import('./converters/fromActivityPub.js');
-    
-    for (const item of items) {
-      try {
-        const activityType = item.type;
-        
-        // Outbox entries are the actor's own activities, on the outbox host.
-        if (activityType === 'Announce') {
-          oldestId = item.id;
-          if (!sameOrigin(item.id, outboxUrl)) continue;
 
-          const { data: existingReblog } = await supabase
-            .from('posts')
-            .select('id')
-            .eq('ap_id', item.id)
-            .maybeSingle();
-          
-          if (existingReblog) {
-            continue;
-          }
-          
-          const originalUrl = typeof item.object === 'string' ? item.object : item.object?.id;
-          if (!originalUrl) continue;
-          
-          // Full row is needed to embed the reblog JSON; absent when the original is unknown.
-          const { data: originalPost } = await supabase
-            .from('posts')
-            .select('id, content, visibility, author_id, created_at, ap_id, url, is_sensitive, content_warning, favorites_count, replies_count, reblogs_count, media_attachments')
-            .eq('ap_id', originalUrl)
-            .maybeSingle();
-
-          let reblogJson: any = undefined;
-          let reblogAuthorJson: any = null;
-          if (originalPost) {
-            reblogJson = {
-              id: originalPost.id,
-              content: originalPost.content,
-              created_at: originalPost.created_at,
-              visibility: originalPost.visibility,
-              ap_id: originalPost.ap_id || originalUrl,
-              url: originalPost.url || null,
-              is_sensitive: originalPost.is_sensitive || false,
-              content_warning: originalPost.content_warning || null,
-              favorites_count: originalPost.favorites_count || 0,
-              replies_count: originalPost.replies_count || 0,
-              reblogs_count: originalPost.reblogs_count || 0,
-              media_attachments: originalPost.media_attachments || [],
-            };
-            const { data: origAuthor } = await supabase
-              .from('profiles')
-              .select('id, username, display_name, avatar_url, domain, is_local')
-              .eq('id', originalPost.author_id)
-              .single();
-            if (origAuthor) reblogAuthorJson = origAuthor;
-          }
-
-          const reblogData: any = {
-            ap_id: item.id,
-            ap_type: 'Announce',
-            author_id: authorId,
-            content: [],
-            visibility: 'public',
-            is_local: false,
-            created_at: item.published || new Date().toISOString(),
-            reblog: reblogJson || undefined,
-            reblog_author: reblogAuthorJson,
-            metadata: {
-              reblog_of: originalPost?.id || null,
-              reblog_of_ap_url: originalUrl,
-              original_ap_id: originalUrl,
-              is_reblog: true,
-            },
-          };
-          
-          const { error: reblogError } = await supabase
-            .from('posts')
-            .insert(reblogData);
-          
-          if (!reblogError) {
-            savedCount++;
-            logger.debug(`Saved reblog of ${originalUrl}`);
-          }
-          continue;
-        }
-        
-        // Outboxes contain Create wrappers or bare objects.
-        const note = activityType === 'Create' ? item.object : item;
-        
-        // Question is a poll and is kept.
-        if (!note || (note.type !== 'Note' && note.type !== 'Article' && note.type !== 'Question')) {
-          continue;
-        }
-        if (!sameOrigin(note.id, outboxUrl)) {
-          continue;
-        }
-        
-        oldestId = note.id;
-        
-        const { data: existing } = await supabase
-          .from('posts')
-          .select('id')
-          .eq('ap_id', note.id)
-          .maybeSingle();
-        
-        if (existing) {
-          continue;
-        }
-        
-        // noteToContent resolves mentions, hashtags, emoji and attachments.
-        const content = noteToContent(note);
-        
-        let visibility = 'public';
-        const to = note.to || [];
-        const cc = note.cc || [];
-        const allRecipients = [...to, ...cc];
-        
-        if (allRecipients.includes('https://www.w3.org/ns/activitystreams#Public')) {
-          visibility = to.includes('https://www.w3.org/ns/activitystreams#Public') ? 'public' : 'unlisted';
-        } else if (allRecipients.some((r: string) => r.endsWith('/followers'))) {
-          visibility = 'followers';
-        } else {
-          visibility = 'direct';
-        }
-        
-        const mediaAttachments = extractMediaAttachments(note.attachment);
-        
-        const metadata: any = {};
-        
-        if (note.type === 'Question') {
-          Object.assign(metadata, questionPollMetadata(note));
-        }
-        
-        // Quote target: Mastodon quoteUrl/quoteUri, Misskey _misskey_quote.
-        const quoteUrl = note.quoteUrl || note.quoteUri || note._misskey_quote;
-        if (quoteUrl) {
-          metadata.is_quote = true;
-          metadata.quote_url = quoteUrl;
-          logger.debug(`Found quote post referencing: ${quoteUrl}`);
-        }
-        
-        const customEmojis = extractCustomEmojis(note.tag);
-        if (customEmojis.length > 0) {
-          metadata.custom_emojis = customEmojis;
-        }
-        
-        let inReplyToId: string | null = null;
-        if (note.inReplyTo) {
-          metadata.in_reply_to_ap_url = note.inReplyTo;
-          
-          const { data: parentPost } = await supabase
-            .from('posts')
-            .select('id')
-            .eq('ap_id', note.inReplyTo)
-            .maybeSingle();
-          
-          if (parentPost) {
-            inReplyToId = parentPost.id;
-          }
-        }
-        
-        const postData: any = {
-          ap_id: note.id,
-          ap_type: note.type,
-          author_id: authorId,
-          content,
-          visibility,
-          is_local: false,
-          created_at: note.published || new Date().toISOString(),
-          content_warning: note.summary || null,
-          is_sensitive: note.sensitive === true,
-          ...noteEngagementColumns(note),
-        };
-        
-        if (inReplyToId) {
-          postData.in_reply_to = inReplyToId;
-        }
-        
-        if (mediaAttachments.length > 0) {
-          postData.media_attachments = mediaAttachments;
-        }
-        
-        if (Object.keys(metadata).length > 0) {
-          postData.metadata = metadata;
-        }
-        
-        const { error: insertError } = await supabase
-          .from('posts')
-          .insert(postData);
-        
-        if (!insertError) {
-          savedCount++;
-        }
-      } catch (postError) {
-        logger.debug(`Failed to save post:`, postError);
-      }
-    }
-    
     logger.info(`Saved ${savedCount} new posts from remote user`);
-    
+
     await supabase
       .from('profiles')
       .update({ last_federation_sync: new Date().toISOString() })
       .eq('id', authorId);
-    
-    // MAX_ZERO_SAVES consecutive fetches yielding nothing new end pagination.
-    if (savedCount === 0) {
+
+    // MAX_ZERO_SAVES consecutive requests yielding nothing new end pagination.
+    if (savedCount === 0 && cursor) {
       const zeroCount = (userZeroSaveCount.get(authorId) || 0) + 1;
       userZeroSaveCount.set(authorId, zeroCount);
-      
+
       if (zeroCount >= MAX_ZERO_SAVES) {
         logger.info(`${MAX_ZERO_SAVES} consecutive fetches with 0 new posts, stopping pagination`);
-        userNextPageCache.delete(authorId);
-        userFetchedUrls.delete(authorId);
-        userZeroSaveCount.delete(authorId);
-        return { hasMore: false };
+        reset();
+        return { hasMore: false, oldestId };
       }
-      
+
       logger.info(`Zero new posts (${zeroCount}/${MAX_ZERO_SAVES} before giving up)`);
     } else {
       userZeroSaveCount.delete(authorId);
     }
-    
-    const hasMore = !!nextPageUrl;
-    
-    logger.info(`Result: saved ${savedCount} new posts, has_more=${hasMore}`);
-    
-    return { 
-      hasMore,
+
+    logger.info(`Result: saved ${savedCount} new posts, has_more=${!!cursor}`);
+
+    return {
+      hasMore: !!cursor,
       oldestId,
-      nextPageUrl: nextPageUrl || undefined
+      nextPageUrl: cursor?.url,
     };
-    
+
   } catch (error) {
     logger.warn(`Failed to fetch outbox posts:`, error);
-    userNextPageCache.delete(authorId);
-    userFetchedUrls.delete(authorId);
-    userZeroSaveCount.delete(authorId);
+    reset();
     return { hasMore: false };
+  }
+}
+
+/**
+ * Store one outbox entry: a Create (or bare Note/Article/Question) of the author's
+ * own post, or an Announce. An Announce whose original is not stored imports
+ * the original first; one whose original cannot be stored or boosted is skipped.
+ * `id` is the entry's AP id when it is on the outbox host.
+ */
+async function importOutboxItem(
+  item: any,
+  authorId: string,
+  outboxUrl: string,
+  supabase: any,
+  noteToContent: (note: any) => any,
+): Promise<{ saved: boolean; id?: string }> {
+  try {
+    const activityType = item?.type;
+
+    // Outbox entries are the actor's own activities, on the outbox host.
+    if (activityType === 'Announce') {
+      if (!sameOrigin(item.id, outboxUrl)) return { saved: false };
+
+      const { data: existingReblog } = await supabase
+        .from('posts')
+        .select('id')
+        .eq('ap_id', item.id)
+        .maybeSingle();
+      if (existingReblog) return { saved: false, id: item.id };
+
+      const originalUrl = linkUrl(item.object);
+      if (!originalUrl) return { saved: false, id: item.id };
+
+      const originalColumns = 'id, content, visibility, is_deleted, author_id, created_at, ap_id, url, is_sensitive, content_warning, favorites_count, replies_count, reblogs_count, media_attachments';
+      let { data: originalPost } = await supabase
+        .from('posts')
+        .select(originalColumns)
+        .eq('ap_id', originalUrl)
+        .maybeSingle();
+
+      if (!originalPost) {
+        const stored = await ActivityProcessor.fetchAndCreateRemotePost(originalUrl);
+        if (stored) {
+          ({ data: originalPost } = await supabase
+            .from('posts')
+            .select(originalColumns)
+            .eq('id', stored.id)
+            .maybeSingle());
+        }
+      }
+
+      if (!originalPost || originalPost.is_deleted === true || !BOOSTABLE_VISIBILITIES.has(originalPost.visibility)) {
+        logger.info(`Skipping outbox Announce ${item.id}: original ${originalUrl} is not stored or not boostable`);
+        return { saved: false, id: item.id };
+      }
+
+      const { data: origAuthor } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url, domain, is_local')
+        .eq('id', originalPost.author_id)
+        .maybeSingle();
+
+      // posts_content_not_empty: a reblog row carries `reblog` and no content.
+      const { error: reblogError } = await supabase
+        .from('posts')
+        .insert({
+          ap_id: item.id,
+          ap_type: 'Announce',
+          author_id: authorId,
+          content: [],
+          visibility: 'public',
+          is_local: false,
+          created_at: item.published || new Date().toISOString(),
+          reblog: {
+            id: originalPost.id,
+            content: originalPost.content,
+            created_at: originalPost.created_at,
+            visibility: originalPost.visibility,
+            ap_id: originalPost.ap_id || originalUrl,
+            url: originalPost.url || null,
+            is_sensitive: originalPost.is_sensitive || false,
+            content_warning: originalPost.content_warning || null,
+            favorites_count: originalPost.favorites_count || 0,
+            replies_count: originalPost.replies_count || 0,
+            reblogs_count: originalPost.reblogs_count || 0,
+            media_attachments: originalPost.media_attachments || [],
+          },
+          reblog_author: origAuthor || null,
+          metadata: {
+            reblog_of: originalPost.id,
+            reblog_of_ap_url: originalUrl,
+            original_ap_id: originalPost.ap_id || originalUrl,
+            original_author_id: originalPost.author_id,
+            is_reblog: true,
+          },
+        });
+
+      if (reblogError) {
+        logger.warn(`Failed to save outbox Announce ${item.id}: ${reblogError.message}`);
+        return { saved: false, id: item.id };
+      }
+      return { saved: true, id: item.id };
+    }
+
+    // Outboxes contain Create wrappers or bare objects.
+    const note = activityType === 'Create' ? item.object : item;
+
+    // Question is a poll and is kept.
+    if (!note || (note.type !== 'Note' && note.type !== 'Article' && note.type !== 'Question')) {
+      return { saved: false };
+    }
+    if (!sameOrigin(note.id, outboxUrl)) {
+      return { saved: false };
+    }
+
+    const { data: existing } = await supabase
+      .from('posts')
+      .select('id')
+      .eq('ap_id', note.id)
+      .maybeSingle();
+    if (existing) return { saved: false, id: note.id };
+
+    // noteToContent resolves mentions, hashtags, emoji and attachments.
+    const content = noteToContent(note);
+
+    let visibility = 'public';
+    const to = note.to || [];
+    const cc = note.cc || [];
+    const allRecipients = [...to, ...cc];
+
+    if (allRecipients.includes('https://www.w3.org/ns/activitystreams#Public')) {
+      visibility = to.includes('https://www.w3.org/ns/activitystreams#Public') ? 'public' : 'unlisted';
+    } else if (allRecipients.some((r: string) => r.endsWith('/followers'))) {
+      visibility = 'followers';
+    } else {
+      visibility = 'direct';
+    }
+
+    const mediaAttachments = extractMediaAttachments(note.attachment);
+
+    const metadata: any = {};
+
+    if (note.type === 'Question') {
+      Object.assign(metadata, questionPollMetadata(note));
+    }
+
+    // Quote target: Mastodon quoteUrl/quoteUri, Misskey _misskey_quote.
+    const quoteUrl = note.quoteUrl || note.quoteUri || note._misskey_quote;
+    if (quoteUrl) {
+      metadata.is_quote = true;
+      metadata.quote_url = quoteUrl;
+      logger.debug(`Found quote post referencing: ${quoteUrl}`);
+    }
+
+    const customEmojis = extractCustomEmojis(note.tag);
+    if (customEmojis.length > 0) {
+      metadata.custom_emojis = customEmojis;
+    }
+
+    let inReplyToId: string | null = null;
+    if (note.inReplyTo) {
+      metadata.in_reply_to_ap_url = note.inReplyTo;
+
+      const { data: parentPost } = await supabase
+        .from('posts')
+        .select('id')
+        .eq('ap_id', note.inReplyTo)
+        .maybeSingle();
+
+      if (parentPost) {
+        inReplyToId = parentPost.id;
+      }
+    }
+
+    const postData: any = {
+      ap_id: note.id,
+      ap_type: note.type,
+      author_id: authorId,
+      content,
+      visibility,
+      is_local: false,
+      created_at: note.published || new Date().toISOString(),
+      content_warning: note.summary || null,
+      is_sensitive: note.sensitive === true,
+      ...noteEngagementColumns(note),
+    };
+
+    if (inReplyToId) {
+      postData.in_reply_to = inReplyToId;
+    }
+
+    if (mediaAttachments.length > 0) {
+      postData.media_attachments = mediaAttachments;
+    }
+
+    if (Object.keys(metadata).length > 0) {
+      postData.metadata = metadata;
+    }
+
+    const { error: insertError } = await supabase
+      .from('posts')
+      .insert(postData);
+
+    if (insertError) {
+      logger.warn(`Failed to save outbox post ${note.id}: ${insertError.message}`);
+      return { saved: false, id: note.id };
+    }
+    return { saved: true, id: note.id };
+  } catch (postError) {
+    logger.debug(`Failed to save post:`, postError);
+    return { saved: false };
   }
 }
 
@@ -2669,6 +2728,96 @@ function startOutboxBackfill(authorId: string, outboxUrl: string, supabase: any,
     .catch((err) => logger.warn(`Background post fetch failed for ${label}:`, err.message))
     .finally(() => outboxBackfills.delete(authorId));
   return true;
+}
+
+/** Posts read from a featured collection; Mastodon pins at most 5, Misskey at most 10. */
+const MAX_FEATURED = 20;
+
+/**
+ * Mirror a remote account's featured collection onto its posts: every listed
+ * post the account wrote is stored and pinned, and its other posts unpinned.
+ * `featuredUrl` absent, the collection is read from the actor document and
+ * remembered in profiles.featured_url. Returns the pinned post ids; null when
+ * the collection could not be read, in which case no pin changes.
+ */
+export async function syncFeaturedCollection(
+  author: { id: string; federated_id: string | null; featured_url?: string | null },
+  featuredUrl: string | null,
+  supabase: any,
+): Promise<string[] | null> {
+  const actorUrl = author.federated_id;
+  if (!actorUrl) return null;
+
+  let url = featuredUrl || author.featured_url || null;
+  if (!url) {
+    const actor = await fetchActorById(actorUrl, (u) => ActivityProcessor.fetchApDocument(u));
+    url = linkUrl(actor?.featured);
+    if (!url) return null;
+  }
+  if (!sameOrigin(url, actorUrl)) return null;
+  if (url !== author.featured_url) {
+    await supabase.from('profiles').update({ featured_url: url }).eq('id', author.id);
+  }
+
+  const fetched = await ActivityProcessor.fetchApDocument(url);
+  if (!fetched) return null;
+  let items = collectionItems(fetched.doc);
+  let servedFrom = fetched.finalUrl;
+  if (!items && fetched.doc.first) {
+    if (typeof fetched.doc.first === 'object' && collectionItems(fetched.doc.first)) {
+      items = collectionItems(fetched.doc.first);
+    } else {
+      const firstUrl = linkUrl(fetched.doc.first);
+      const firstPage = firstUrl && sameOrigin(firstUrl, url) ? await ActivityProcessor.fetchApDocument(firstUrl) : null;
+      if (!firstPage) return null;
+      items = collectionItems(firstPage.doc);
+      servedFrom = firstPage.finalUrl;
+    }
+  }
+  if (!items) return null;
+
+  const storedIds: string[] = [];
+  for (const item of items.slice(0, MAX_FEATURED)) {
+    const objectId = linkUrl(item);
+    if (!objectId || !sameOrigin(objectId, actorUrl)) continue;
+    // An embedded object is authoritative when served by its own host.
+    const embedded = typeof item === 'object' && ['Note', 'Article', 'Question'].includes(item.type)
+      && sameOrigin(objectId, servedFrom);
+    const stored = embedded
+      ? await ActivityProcessor.storeRemotePost(item)
+      : await ActivityProcessor.fetchAndCreateRemotePost(objectId);
+    if (stored?.id) storedIds.push(stored.id);
+  }
+
+  const { data: own } = storedIds.length > 0
+    ? await supabase.from('posts').select('id').in('id', storedIds).eq('author_id', author.id)
+    : { data: [] };
+  const pinnedIds: string[] = (own || []).map((row: any) => row.id);
+
+  if (pinnedIds.length > 0) {
+    await supabase.from('posts').update({ is_pinned: true }).in('id', pinnedIds);
+  }
+  let unpin = supabase.from('posts').update({ is_pinned: false }).eq('author_id', author.id).eq('is_pinned', true);
+  if (pinnedIds.length > 0) unpin = unpin.not('id', 'in', `(${pinnedIds.join(',')})`);
+  await unpin;
+
+  logger.info(`Featured collection of ${actorUrl}: ${pinnedIds.length} pinned post(s)`);
+  return pinnedIds;
+}
+
+const featuredSyncs = new Set<string>();
+
+/** Starts a featured-collection sync of an author unless one is running. */
+function startFeaturedSync(
+  author: { id: string; federated_id: string | null; featured_url?: string | null },
+  featuredUrl: string | null,
+  supabase: any,
+): void {
+  if (featuredSyncs.has(author.id)) return;
+  featuredSyncs.add(author.id);
+  syncFeaturedCollection(author, featuredUrl, supabase)
+    .catch((err) => logger.warn(`Featured sync failed for ${author.federated_id}:`, err?.message ?? err))
+    .finally(() => featuredSyncs.delete(author.id));
 }
 
 function extractMediaAttachments(attachments: any): any[] {

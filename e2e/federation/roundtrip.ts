@@ -72,6 +72,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { caseFollowApproval } from './cases/followApproval.ts'
+import { runOutboundFederationCases } from './cases/outboundFederation.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -202,6 +203,8 @@ class Peer {
   readonly tokenRequests: Captured[] = []
   readonly hostedRooms = new Map<string, string>()
   livekit: LiveKit | null = null
+  // GET routes a case module serves; true when it answered.
+  extraGet?: (req: http.IncomingMessage, res: http.ServerResponse) => boolean
   actorFetches = 0
   private server?: http.Server
   base = ''
@@ -244,6 +247,7 @@ class Peer {
       req.on('data', (c) => chunks.push(c))
       req.on('end', () => {
         const raw = Buffer.concat(chunks)
+        if (req.method === 'GET' && this.extraGet?.(req, res)) return
         if (req.method === 'GET' && req.url === '/users/fx_remote') {
           this.actorFetches += 1
           res.writeHead(200, { 'Content-Type': 'application/activity+json' })
@@ -2471,6 +2475,11 @@ async function main() {
     await caseOutboundFlag(db, peer, localUrl, env, backend)
     await caseInboundReactions(db, peer, localUrl)
     await caseOutboundReactions(db, peer, backend)
+    await runOutboundFederationCases({
+      db, peer, localUrl, env, backendRoot: BACKEND_ROOT, instanceDomain: INSTANCE_DOMAIN,
+      alice: { id: ALICE, auth: ALICE_AUTH }, remote: REMOTE, userToken,
+      verifySignature: backend.verifySignature, assert, eq, fail,
+    })
     await seedServers(db, peer)
     await caseHostedPrivateServer(peer, localUrl)
     await caseProxyReadsAsMember(peer, localUrl, env.HMFED_JWT_SECRET)
