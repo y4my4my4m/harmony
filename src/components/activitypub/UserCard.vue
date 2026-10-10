@@ -35,13 +35,13 @@
         <!-- Stats (for non-compact view) -->
         <div class="user-stats">
           <span class="stat">
-            <strong>{{ formatNumber(user.followers_count || 0) }}</strong> {{ $t('activitypub.followers') }}
+            <strong>{{ formatCount(profileCount(user, 'followers')) }}</strong> {{ $t('activitypub.followers') }}
           </span>
           <span class="stat">
-            <strong>{{ formatNumber(user.following_count || 0) }}</strong> {{ $t('activitypub.following') }}
+            <strong>{{ formatCount(profileCount(user, 'following')) }}</strong> {{ $t('activitypub.following') }}
           </span>
           <span class="stat">
-            <strong>{{ formatNumber(user.posts_count || 0) }}</strong> {{ $t('activitypub.monies') }}
+            <strong>{{ formatCount(profileCount(user, 'posts')) }}</strong> {{ $t('activitypub.monies') }}
           </span>
         </div>
       </div>
@@ -137,6 +137,7 @@ import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
 import { usePostInteractions } from '@/composables/usePostInteractions';
 import type { FederatedUser } from '@/types';
+import { profileCount } from '@/utils/profileCounts';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import ReportModal from '@/components/moderation/ReportModal.vue';
@@ -227,6 +228,9 @@ const formatNumber = (num: number): string => {
   if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
   return num.toString();
 };
+
+// null: the account's server withholds the figure.
+const formatCount = (num: number | null): string => (num === null ? '–' : formatNumber(num));
 
 const handleUserClick = () => {
   emit('user-click', props.user);

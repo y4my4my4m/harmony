@@ -1161,7 +1161,15 @@
     "fetchingOlderFromDomain": "Checking {domain} for older posts",
     "fetchOlderFailed": "Couldn't reach {domain}.",
     "followFailed": "Couldn't follow. Try again.",
-    "unfollowFailed": "Couldn't unfollow. Try again."
+    "unfollowFailed": "Couldn't unfollow. Try again.",
+    "repliesFetched": "Fetched {count} reply | Fetched {count} replies",
+    "noRepliesFromSource": "No replies available from {domain}",
+    "repliesFetchedRecently": "Replies were fetched a moment ago",
+    "repliesFetchFailed": "Couldn't fetch replies",
+    "remoteListNote": "Only accounts known to this instance are listed.",
+    "fullListOnDomain": "Full list on {domain}",
+    "countHiddenBy": "Hidden by {domain}",
+    "noKnownAccounts": "No accounts known to this instance"
   },
   "moderation": {
     "report": "Report",

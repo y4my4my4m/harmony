@@ -300,6 +300,11 @@ export interface FederatedUser extends Profile {
   posts_count?: number;
   following_count?: number;
   followers_count?: number;
+  /** Remote account: its origin's outbox, followers and following totals; null when withheld. */
+  remote_posts_count?: number | null;
+  remote_followers_count?: number | null;
+  remote_following_count?: number | null;
+  remote_counts_fetched_at?: string | null;
   bio?: string; // Alias for about
   is_following?: boolean;
   is_follower?: boolean;

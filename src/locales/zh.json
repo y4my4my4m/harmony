@@ -1146,7 +1146,15 @@
     "save": "保存",
     "noTrendingHashtagsHint": "随着实例的发展,使用 #标签 的帖子将显示在此处。",
     "followFailed": "关注失败，请重试。",
-    "unfollowFailed": "取消关注失败，请重试。"
+    "unfollowFailed": "取消关注失败，请重试。",
+    "repliesFetched": "已获取 {count} 条回复",
+    "noRepliesFromSource": "{domain} 没有可获取的回复",
+    "repliesFetchedRecently": "回复刚刚已获取",
+    "repliesFetchFailed": "无法获取回复",
+    "remoteListNote": "仅列出本实例已知的账号。",
+    "fullListOnDomain": "在 {domain} 查看完整列表",
+    "countHiddenBy": "已被 {domain} 隐藏",
+    "noKnownAccounts": "本实例尚不知道任何账号"
   },
   "moderation": {
     "report": "举报",

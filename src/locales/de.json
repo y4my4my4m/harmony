@@ -1146,7 +1146,15 @@
     "save": "Speichern",
     "noTrendingHashtagsHint": "Beiträge mit #Hashtags erscheinen hier, sobald Ihre Instanz wächst.",
     "followFailed": "Folgen fehlgeschlagen. Bitte erneut versuchen.",
-    "unfollowFailed": "Entfolgen fehlgeschlagen. Bitte erneut versuchen."
+    "unfollowFailed": "Entfolgen fehlgeschlagen. Bitte erneut versuchen.",
+    "repliesFetched": "{count} Antwort abgerufen | {count} Antworten abgerufen",
+    "noRepliesFromSource": "Keine Antworten von {domain} verfügbar",
+    "repliesFetchedRecently": "Antworten wurden gerade erst abgerufen",
+    "repliesFetchFailed": "Antworten konnten nicht abgerufen werden",
+    "remoteListNote": "Aufgeführt sind nur Konten, die dieser Instanz bekannt sind.",
+    "fullListOnDomain": "Vollständige Liste auf {domain}",
+    "countHiddenBy": "Von {domain} verborgen",
+    "noKnownAccounts": "Dieser Instanz sind keine Konten bekannt"
   },
   "moderation": {
     "report": "Melden",

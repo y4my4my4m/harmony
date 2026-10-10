@@ -1146,7 +1146,15 @@
     "save": "저장",
     "noTrendingHashtagsHint": "#해시태그를 사용한 게시물은 인스턴스가 성장함에 따라 여기에 표시됩니다.",
     "followFailed": "팔로우하지 못했습니다. 다시 시도하세요.",
-    "unfollowFailed": "언팔로우하지 못했습니다. 다시 시도하세요."
+    "unfollowFailed": "언팔로우하지 못했습니다. 다시 시도하세요.",
+    "repliesFetched": "답글 {count}개를 가져왔습니다",
+    "noRepliesFromSource": "{domain}에서 가져올 수 있는 답글이 없습니다",
+    "repliesFetchedRecently": "방금 답글을 가져왔습니다",
+    "repliesFetchFailed": "답글을 가져오지 못했습니다",
+    "remoteListNote": "이 인스턴스가 알고 있는 계정만 표시됩니다.",
+    "fullListOnDomain": "{domain}에서 전체 목록 보기",
+    "countHiddenBy": "{domain}에서 비공개",
+    "noKnownAccounts": "이 인스턴스가 알고 있는 계정이 없습니다"
   },
   "moderation": {
     "report": "신고",

@@ -1146,7 +1146,15 @@
     "fetchingOlderFromDomain": "Buscando publicaciones anteriores en {domain}",
     "fetchOlderFailed": "No se pudo conectar con {domain}.",
     "followFailed": "No se pudo seguir. Inténtalo de nuevo.",
-    "unfollowFailed": "No se pudo dejar de seguir. Inténtalo de nuevo."
+    "unfollowFailed": "No se pudo dejar de seguir. Inténtalo de nuevo.",
+    "repliesFetched": "Se obtuvo {count} respuesta | Se obtuvieron {count} respuestas",
+    "noRepliesFromSource": "No hay respuestas disponibles en {domain}",
+    "repliesFetchedRecently": "Las respuestas se obtuvieron hace un momento",
+    "repliesFetchFailed": "No se pudieron obtener las respuestas",
+    "remoteListNote": "Solo se muestran las cuentas que conoce esta instancia.",
+    "fullListOnDomain": "Lista completa en {domain}",
+    "countHiddenBy": "Oculto por {domain}",
+    "noKnownAccounts": "Esta instancia no conoce ninguna cuenta"
   },
   "moderation": {
     "report": "Reportar",
