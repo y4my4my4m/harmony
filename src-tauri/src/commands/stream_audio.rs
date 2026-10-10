@@ -27,6 +27,23 @@ const TRACE_MAX_BYTES: u64 = 512 * 1024;
 const TRACE_MAX_LINE: usize = 2000;
 
 static CAPTURE: Mutex<Option<audio::Capture>> = Mutex::new(None);
+
+/// harmony_stream_audio's log records, into stream-audio.log.
+struct CrateLogger;
+
+impl log::Log for CrateLogger {
+  fn enabled(&self, metadata: &log::Metadata) -> bool {
+    metadata.target().starts_with("harmony_stream_audio")
+  }
+  fn log(&self, record: &log::Record) {
+    if self.enabled(record.metadata()) {
+      trace(&format!("{} {}", record.level(), record.args()));
+    }
+  }
+  fn flush(&self) {}
+}
+
+static CRATE_LOGGER: CrateLogger = CrateLogger;
 /// None until opened, and when the log directory is unwritable.
 static TRACE: Mutex<Option<File>> = Mutex::new(None);
 
@@ -51,6 +68,10 @@ fn open_trace(app: &AppHandle) {
   let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
   let _ = writeln!(file, "-- session {now} (unix s), Harmony {}", app.package_info().version);
   *slot = Some(file);
+  // The app installs no other logger; set_logger fails harmlessly if one exists.
+  if log::set_logger(&CRATE_LOGGER).is_ok() {
+    log::set_max_level(log::LevelFilter::Debug);
+  }
 }
 
 /// One line, stamped with UTC time of day.

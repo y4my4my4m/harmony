@@ -1055,7 +1055,12 @@ export class LiveKitWebRTCService {
       throw error;
     }
 
-    traceStreamAudio('published', { audio: !!audio });
+    traceStreamAudio('published', {
+      audio: !!audio,
+      video: this.senderTrace(video),
+      codec: lp.getTrackPublication(Track.Source.ScreenShare)?.trackInfo?.codecs?.map(c => c.mimeType),
+    });
+    if (audio) this.traceAudioSender(audio);
     this.localMediaState.isScreenSharing = true;
     debug.log('[LiveKit] Screen share published', { height, fps, audio: !!audio });
   }
@@ -1148,7 +1153,13 @@ export class LiveKitWebRTCService {
       }
     }
 
-    traceStreamAudio('switched', { audio: !!lp.getTrackPublication(Track.Source.ScreenShareAudio) });
+    const switchedAudio = lp.getTrackPublication(Track.Source.ScreenShareAudio)?.track;
+    traceStreamAudio('switched', {
+      video: this.senderTrace(current),
+      expected: source.id,
+      audio: switchedAudio ? this.senderTrace(switchedAudio) : null,
+    });
+    if (switchedAudio) this.traceAudioSender(switchedAudio);
     this.emit('local-state-changed', this.localMediaState);
     this.emit('local-stream-changed', this.getLocalStream());
     return true;
@@ -1192,6 +1203,40 @@ export class LiveKitWebRTCService {
     this.localMediaState.isScreenSharing = false;
     traceStreamAudio('share stopped');
     debug.log('[LiveKit] Screen share stopped');
+  }
+
+  /** Track and sender state of a published local track, for stream-audio.log. */
+  private senderTrace(track: LocalTrack): Record<string, unknown> {
+    const sender = (track as unknown as { sender?: RTCRtpSender }).sender;
+    return {
+      track: track.mediaStreamTrack?.id,
+      state: track.mediaStreamTrack?.readyState,
+      sender: sender ? (sender.track?.id ?? null) : 'none',
+      transport: sender?.transport?.state ?? null,
+    };
+  }
+
+  /** Outbound stream-audio statistics 5 s and 30 s after publishing, for stream-audio.log. */
+  private traceAudioSender(track: LocalTrack): void {
+    for (const delay of [5000, 30000]) {
+      setTimeout(() => {
+        const sender = (track as unknown as { sender?: RTCRtpSender }).sender;
+        if (!sender) return;
+        void sender.getStats().then((report) => {
+          const stats: Record<string, unknown> = { after: delay / 1000, track: track.mediaStreamTrack?.id };
+          report.forEach((entry: Record<string, unknown>) => {
+            if (entry.type === 'outbound-rtp') {
+              stats.bytesSent = entry.bytesSent;
+              stats.packetsSent = entry.packetsSent;
+            } else if (entry.type === 'media-source') {
+              stats.audioLevel = entry.audioLevel;
+              stats.totalAudioEnergy = entry.totalAudioEnergy;
+            }
+          });
+          traceStreamAudio('audio sender', stats);
+        }).catch(() => {});
+      }, delay);
+    }
   }
 
   private async stopNativeStreamAudio(): Promise<void> {
