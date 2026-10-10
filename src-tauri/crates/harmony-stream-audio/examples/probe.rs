@@ -15,7 +15,23 @@ use harmony_stream_audio::{self as audio, Target, WindowRef};
 /// -60 dBFS.
 const AUDIBLE_PEAK: u16 = 33;
 
+/// The crate's log records on stderr, unbuffered, so a crash keeps the steps before it.
+struct Stderr;
+
+impl log::Log for Stderr {
+  fn enabled(&self, _: &log::Metadata) -> bool {
+    true
+  }
+  fn log(&self, record: &log::Record) {
+    eprintln!("[{}] {}", record.level(), record.args());
+  }
+  fn flush(&self) {}
+}
+
+static LOGGER: Stderr = Stderr;
+
 fn main() {
+  let _ = log::set_logger(&LOGGER).map(|()| log::set_max_level(log::LevelFilter::Debug));
   let mut args = std::env::args().skip(1);
   let seconds: u64 = args.next().and_then(|s| s.parse().ok()).unwrap_or(6);
   let target = match args.next() {

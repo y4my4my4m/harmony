@@ -231,15 +231,19 @@ fn activate(pid: u32, mode: PROCESS_LOOPBACK_MODE) -> Result<IAudioClient, Error
   };
   let (tx, rx) = mpsc::sync_channel(1);
   let handler: IActivateAudioInterfaceCompletionHandler = Completion(tx).into();
+  log::debug!("activating process loopback: pid {pid}, mode {}", mode.0);
   let operation = unsafe {
     ActivateAudioInterfaceAsync(VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK, &IAudioClient::IID, Some(&prop), &handler)
   }
   .map_err(|e| Error::Unsupported(format!("process loopback activation: {e}")))?;
+  log::debug!("activation requested");
   rx.recv_timeout(Duration::from_secs(5))
     .map_err(|_| Error::Failed("process loopback activation timed out".into()))?;
+  log::debug!("activation completed");
   let mut result = HRESULT(0);
   let mut unknown: Option<IUnknown> = None;
   unsafe { operation.GetActivateResult(&mut result, &mut unknown) }.map_err(|e| failed("GetActivateResult", e))?;
+  log::debug!("activation result {:#x}", result.0);
   result.ok().map_err(|e| failed("process loopback activation", e))?;
   unknown
     .ok_or_else(|| Error::Failed("activation returned no interface".into()))?
@@ -283,6 +287,7 @@ fn open(pid: u32, mode: PROCESS_LOOPBACK_MODE) -> Result<Stream, Error> {
     )
   }
   .map_err(|e| failed("IAudioClient::Initialize", e))?;
+  log::debug!("IAudioClient initialized");
   let event = unsafe { CreateEventW(None, false, false, PCWSTR::null()) }.map_err(|e| failed("CreateEvent", e))?;
   let stream = Stream {
     capture: match unsafe { client.GetService::<IAudioCaptureClient>() } {
@@ -297,11 +302,13 @@ fn open(pid: u32, mode: PROCESS_LOOPBACK_MODE) -> Result<Stream, Error> {
   };
   unsafe { stream.client.SetEventHandle(stream.event) }.map_err(|e| failed("SetEventHandle", e))?;
   unsafe { stream.client.Start() }.map_err(|e| failed("IAudioClient::Start", e))?;
+  log::debug!("capture started");
   Ok(stream)
 }
 
 fn pump(stream: &Stream, stop: &AtomicBool, sink: &mut Sink) -> Result<(), Error> {
   let mut block: Vec<i16> = Vec::new();
+  let mut first = true;
   while !stop.load(Ordering::SeqCst) {
     if unsafe { WaitForSingleObject(stream.event, 100) } != WAIT_OBJECT_0 {
       continue;
@@ -317,6 +324,10 @@ fn pump(stream: &Stream, stop: &AtomicBool, sink: &mut Sink) -> Result<(), Error
       unsafe { stream.capture.GetBuffer(&mut data, &mut frames, &mut flags, None, None) }
         .map_err(|e| failed("GetBuffer", e))?;
       let samples = frames as usize * CHANNELS;
+      if first {
+        first = false;
+        log::debug!("first packet: {frames} frames, flags {flags:#x}");
+      }
       block.clear();
       if flags & AUDCLNT_BUFFERFLAGS_SILENT.0 as u32 != 0 || data.is_null() {
         block.resize(samples, 0);
@@ -342,6 +353,7 @@ pub fn start(target: Target, mut sink: Sink) -> Result<(Capture, Started), Error
     .name("stream-audio".into())
     .spawn(move || {
       let com = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+      log::debug!("capture thread: CoInitializeEx {:#x}", com.0);
       match open(pid, mode) {
         Ok(stream) => {
           let _ = ready_tx.send(Ok(()));

@@ -10,7 +10,7 @@
 
 use std::ffi::c_void;
 use std::ptr::NonNull;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{mpsc, Mutex, OnceLock};
 use std::time::Duration;
 
@@ -30,8 +30,8 @@ use objc2_core_media::{
 };
 use objc2_foundation::{NSArray, NSError, NSObject, NSObjectProtocol};
 use objc2_screen_capture_kit::{
-  SCContentFilter, SCRunningApplication, SCShareableContent, SCStream, SCStreamConfiguration, SCStreamOutput,
-  SCStreamOutputType, SCWindow,
+  SCContentFilter, SCRunningApplication, SCShareableContent, SCStream, SCStreamConfiguration, SCStreamDelegate,
+  SCStreamOutput, SCStreamOutputType, SCWindow,
 };
 
 use crate::{f32_to_i16, Error, Scope, Sink, Started, Target, WindowRef, CHANNELS, SAMPLE_RATE};
@@ -166,7 +166,15 @@ struct OutputIvars {
   sink: Mutex<Sink>,
   scratch: Mutex<Vec<i16>>,
   stopped: AtomicBool,
+  /// Diagnostics already logged, one bit each.
+  logged: AtomicU32,
 }
+
+const LOGGED_AUDIO: u32 = 1;
+const LOGGED_OTHER: u32 = 1 << 1;
+const LOGGED_FORMAT: u32 = 1 << 2;
+const LOGGED_STATUS: u32 = 1 << 3;
+const LOGGED_EMPTY: u32 = 1 << 4;
 
 define_class!(
   #[unsafe(super(NSObject))]
@@ -179,9 +187,21 @@ define_class!(
   unsafe impl SCStreamOutput for AudioOutput {
     #[unsafe(method(stream:didOutputSampleBuffer:ofType:))]
     fn stream_did_output(&self, _stream: &SCStream, sample_buffer: &CMSampleBuffer, kind: SCStreamOutputType) {
-      if kind == SCStreamOutputType::Audio && !self.ivars().stopped.load(Ordering::Relaxed) {
+      if kind != SCStreamOutputType::Audio {
+        self.log_once(LOGGED_OTHER, || format!("first sample buffer of type {}", kind.0));
+        return;
+      }
+      self.log_once(LOGGED_AUDIO, || "first audio sample buffer".into());
+      if !self.ivars().stopped.load(Ordering::Relaxed) {
         self.deliver(sample_buffer);
       }
+    }
+  }
+
+  unsafe impl SCStreamDelegate for AudioOutput {
+    #[unsafe(method(stream:didStopWithError:))]
+    fn stream_did_stop(&self, _stream: &SCStream, error: &NSError) {
+      log::warn!("stream stopped: {} (code {})", error.localizedDescription(), error.code());
     }
   }
 );
@@ -192,18 +212,37 @@ impl AudioOutput {
       sink: Mutex::new(sink),
       scratch: Mutex::new(Vec::new()),
       stopped: AtomicBool::new(false),
+      logged: AtomicU32::new(0),
     });
     unsafe { msg_send![super(this), init] }
   }
 
+  fn log_once(&self, bit: u32, message: impl FnOnce() -> String) {
+    if self.ivars().logged.fetch_or(bit, Ordering::Relaxed) & bit == 0 {
+      log::debug!("{}", message());
+    }
+  }
+
   fn deliver(&self, sample_buffer: &CMSampleBuffer) {
-    let Some(format) = (unsafe { sample_buffer.format_description() }) else { return };
-    let Some(asbd) = (unsafe { CMAudioFormatDescriptionGetStreamBasicDescription(&format).as_ref() }) else { return };
+    let Some(format) = (unsafe { sample_buffer.format_description() }) else {
+      self.log_once(LOGGED_FORMAT, || "audio sample buffer without a format description".into());
+      return;
+    };
+    let Some(asbd) = (unsafe { CMAudioFormatDescriptionGetStreamBasicDescription(&format).as_ref() }) else {
+      self.log_once(LOGGED_FORMAT, || "audio format description without a stream description".into());
+      return;
+    };
     if asbd.mFormatID != kAudioFormatLinearPCM
       || asbd.mFormatFlags & kAudioFormatFlagIsFloat == 0
       || asbd.mBitsPerChannel != 32
       || asbd.mChannelsPerFrame == 0
     {
+      self.log_once(LOGGED_FORMAT, || {
+        format!(
+          "unsupported audio format: id {:#x} flags {:#x} bits {} channels {} rate {}",
+          asbd.mFormatID, asbd.mFormatFlags, asbd.mBitsPerChannel, asbd.mChannelsPerFrame, asbd.mSampleRate
+        )
+      });
       return;
     }
     let channels = asbd.mChannelsPerFrame as usize;
@@ -225,14 +264,19 @@ impl AudioOutput {
       )
     };
     if status != 0 {
+      self.log_once(LOGGED_STATUS, || format!("CMSampleBufferGetAudioBufferList...: status {status}"));
       return;
     }
     // The list points into the block buffer, retained here until the copy below is done.
     let _block = NonNull::new(block).map(|b| unsafe { CFRetained::from_raw(b) });
     let buffers: &[AudioBuffer] =
       unsafe { std::slice::from_raw_parts((*list).mBuffers.as_ptr(), (*list).mNumberBuffers as usize) };
-    let Some(first) = buffers.first() else { return };
+    let Some(first) = buffers.first() else {
+      self.log_once(LOGGED_EMPTY, || "audio buffer list with no buffers".into());
+      return;
+    };
     if first.mData.is_null() {
+      self.log_once(LOGGED_EMPTY, || "audio buffer without data".into());
       return;
     }
 
@@ -355,8 +399,23 @@ pub fn start(target: Target, sink: Sink) -> Result<(Capture, Started), Error> {
     config.setMinimumFrameInterval(CMTime::new(1, 1));
   }
 
-  let stream = unsafe { SCStream::initWithFilter_configuration_delegate(SCStream::alloc(), &filter, &config, None) };
+  log::debug!(
+    "content: {} displays, {} applications, {} windows; {}",
+    unsafe { content.displays() }.count(),
+    unsafe { content.applications() }.count(),
+    unsafe { content.windows() }.count(),
+    started.detail
+  );
   let output = AudioOutput::new(sink);
+  // SCStream holds its delegate weakly; Capture keeps `output` alive.
+  let stream = unsafe {
+    SCStream::initWithFilter_configuration_delegate(
+      SCStream::alloc(),
+      &filter,
+      &config,
+      Some(ProtocolObject::from_ref(&*output)),
+    )
+  };
   let queue = DispatchQueue::new("online.knowmad.harmony.stream-audio", None);
   unsafe {
     stream.addStreamOutput_type_sampleHandlerQueue_error(
@@ -367,5 +426,6 @@ pub fn start(target: Target, sink: Sink) -> Result<(Capture, Started), Error> {
   }
   .map_err(|e| ns_error("add audio output", &e))?;
   start_stream(&stream)?;
+  log::debug!("capture started");
   Ok((Capture { stream, output, _queue: queue }, started))
 }

@@ -40,7 +40,8 @@ jobs:
         run: |
           system_profiler SPAudioDataType | grep -E '^ {8}[^ ]|Default Output' || true
           ( for _ in $(seq 1 15); do afplay /System/Library/Sounds/Submarine.aiff || true; done ) &
-          target/debug/examples/probe 6
+          code=0; target/debug/examples/probe 6 || code=$?
+          echo "probe exit $code"; exit $code
 
       # 1 s of 440 Hz at -12 dBFS, looped by a hidden process outside the probe's tree.
       - name: Capture (Windows)
@@ -65,5 +66,6 @@ jobs:
           Start-Sleep 2
           target\debug\examples\probe.exe 6
           $code = $LASTEXITCODE
+          Write-Host ("probe exit {0} (0x{0:X8})" -f $code)
           Stop-Process -Id $player.Id -ErrorAction SilentlyContinue
           exit $code
