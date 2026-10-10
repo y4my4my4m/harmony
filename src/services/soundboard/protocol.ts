@@ -6,16 +6,23 @@
  * SOUNDBOARD_TOPIC, or the 'soundboard' broadcast event of the P2P signalling
  * channel, as { from, message }.
  *
- *   { "type": "soundboard", "v": 1, "soundId": string, "serverId": uuid, "userId": uuid }
+ *   { "type": "soundboard", "v": 1, "soundId": string, "serverId": uuid, "userId": uuid,
+ *     "soundServerId"?: uuid }
  *
  * soundId is a server_sounds id, or "default:<name>" for a built-in clip.
+ * serverId is the server of the voice channel. soundServerId names the sound's
+ * server when it is another one (an external sound) and is absent otherwise;
+ * clients predating it look the id up among the channel server's sounds, find
+ * nothing and play nothing.
  * userId must equal the sender the transport reports: the LiveKit participant
  * identity resolved to a profile, or the P2P `from`.
  *
  * Permission: LiveKit tokens carry metadata.soundboard (USE_SOUNDBOARD and
- * SPEAK on the channel), set by the token server; false drops the play. A
- * token without the key, from a server predating it, and every P2P sender
- * are trusted to have checked USE_SOUNDBOARD themselves.
+ * SPEAK on the channel) and metadata.soundboardExternal (USE_EXTERNAL_SOUNDS
+ * as well), set by the token server; false drops the play, or the external
+ * play. A token without the key, from a server predating it, and every P2P
+ * sender are trusted to have checked USE_SOUNDBOARD themselves; their
+ * external plays are checked against the sender's channel permissions.
  */
 
 export const SOUNDBOARD_TOPIC = 'harmony-soundboard';
@@ -37,6 +44,8 @@ export interface SoundboardMessage {
   soundId: string;
   serverId: string;
   userId: string;
+  /** The sound's server, when it is not serverId. */
+  soundServerId?: string;
 }
 
 /** What a transport reports for one received play. */
@@ -46,14 +55,30 @@ export interface SoundboardTransportEvent {
   message: unknown;
   /** metadata.soundboard of the sender's LiveKit token; null when absent or P2P. */
   granted: boolean | null;
+  /** metadata.soundboardExternal of the sender's LiveKit token; null or absent when absent or P2P. */
+  externalGranted?: boolean | null;
 }
 
 export function isSoundId(id: unknown): id is string {
   return typeof id === 'string' && (UUID.test(id) || DEFAULT_ID.test(id));
 }
 
-export function buildSoundboardMessage(soundId: string, serverId: string, userId: string): SoundboardMessage {
-  return { type: 'soundboard', v: 1, soundId, serverId, userId };
+export function buildSoundboardMessage(
+  soundId: string,
+  serverId: string,
+  userId: string,
+  soundServerId?: string | null,
+): SoundboardMessage {
+  const message: SoundboardMessage = { type: 'soundboard', v: 1, soundId, serverId, userId };
+  if (soundServerId && soundServerId.toLowerCase() !== serverId.toLowerCase() && !soundId.startsWith('default:')) {
+    message.soundServerId = soundServerId;
+  }
+  return message;
+}
+
+/** True for a play of another server's sound. */
+export function isExternalPlay(message: SoundboardMessage): boolean {
+  return message.soundServerId !== undefined;
 }
 
 /** The message, or null when it is not a well-formed soundboard play. */
@@ -64,20 +89,35 @@ export function parseSoundboardMessage(raw: unknown): SoundboardMessage | null {
   if (!isSoundId(m.soundId)) return null;
   if (typeof m.serverId !== 'string' || !UUID.test(m.serverId)) return null;
   if (typeof m.userId !== 'string' || m.userId.length === 0 || m.userId.length > 128) return null;
-  return buildSoundboardMessage(m.soundId, m.serverId.toLowerCase(), m.userId);
+  if (m.soundServerId !== undefined && (typeof m.soundServerId !== 'string' || !UUID.test(m.soundServerId))) return null;
+  return buildSoundboardMessage(
+    m.soundId,
+    m.serverId.toLowerCase(),
+    m.userId,
+    typeof m.soundServerId === 'string' ? m.soundServerId.toLowerCase() : null,
+  );
 }
 
-/** metadata.soundboard of a LiveKit participant: true, false, or null when absent or unreadable. */
-export function soundboardGrant(metadata: string | undefined | null): boolean | null {
+function metadataFlag(metadata: string | undefined | null, key: string): boolean | null {
   if (!metadata) return null;
   try {
     const parsed = JSON.parse(metadata) as unknown;
     if (!parsed || typeof parsed !== 'object') return null;
-    const value = (parsed as Record<string, unknown>).soundboard;
+    const value = (parsed as Record<string, unknown>)[key];
     return typeof value === 'boolean' ? value : null;
   } catch {
     return null;
   }
+}
+
+/** metadata.soundboard of a LiveKit participant: true, false, or null when absent or unreadable. */
+export function soundboardGrant(metadata: string | undefined | null): boolean | null {
+  return metadataFlag(metadata, 'soundboard');
+}
+
+/** metadata.soundboardExternal of a LiveKit participant: true, false, or null when absent or unreadable. */
+export function soundboardExternalGrant(metadata: string | undefined | null): boolean | null {
+  return metadataFlag(metadata, 'soundboardExternal');
 }
 
 /** At most one event per key per interval. */
@@ -147,6 +187,7 @@ export function checkIncomingPlay(
   if (message.userId !== event.userId) return { ok: false, reason: 'sender-mismatch' };
   if (!context.participants.has(event.userId)) return { ok: false, reason: 'not-in-call' };
   if (event.granted === false) return { ok: false, reason: 'not-permitted' };
+  if (isExternalPlay(message) && event.externalGranted === false) return { ok: false, reason: 'not-permitted' };
   if (!limiter.allow(event.userId, now)) return { ok: false, reason: 'rate-limited' };
   return { ok: true, message };
 }

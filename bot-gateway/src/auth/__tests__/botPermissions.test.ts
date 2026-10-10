@@ -23,7 +23,7 @@ const CHANNEL = '00000000-0000-0000-0000-0000000000c1'
 const OTHER_CHANNEL = '00000000-0000-0000-0000-0000000000c2'
 
 // create_default_server_role(): @everyone's default mask.
-const EVERYONE_DEFAULT = 122646786n
+const EVERYONE_DEFAULT = 3343872258n
 
 const READER = { read_messages: true, send_messages: true }
 const open = { permissions: EVERYONE_DEFAULT, allow: 0n, deny: 0n }
@@ -153,6 +153,14 @@ describe('grantableRoleBits', () => {
     expect(bits & permissionMask('MANAGE_ROLES')).not.toBe(0n)
     expect(bits & permissionMask('CREATE_INVITE')).not.toBe(0n)
     expect(bits & permissionMask('KICK_MEMBERS')).toBe(0n)
+    expect(bits & permissionMask('USE_SOUNDBOARD', 'USE_EXTERNAL_SOUNDS')).toBe(permissionMask('USE_SOUNDBOARD', 'USE_EXTERNAL_SOUNDS'))
+  })
+})
+
+describe('permissionMask', () => {
+  it('places USE_EXTERNAL_SOUNDS at bit 31, after USE_SOUNDBOARD', () => {
+    expect(permissionMask('USE_SOUNDBOARD')).toBe(1n << 30n)
+    expect(permissionMask('USE_EXTERNAL_SOUNDS')).toBe(1n << 31n)
   })
 })
 

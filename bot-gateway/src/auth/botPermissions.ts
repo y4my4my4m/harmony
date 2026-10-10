@@ -34,6 +34,7 @@ export const PERMISSION_BIT = {
   DEAFEN_MEMBERS: 28,
   MOVE_MEMBERS: 29,
   USE_SOUNDBOARD: 30,
+  USE_EXTERNAL_SOUNDS: 31,
 } as const
 
 export type PermissionName = keyof typeof PERMISSION_BIT

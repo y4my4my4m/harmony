@@ -319,6 +319,7 @@ const VOICE_GROUP = {
     { key: Permission.DEAFEN_MEMBERS, label: 'Deafen Members', description: 'Deafen other members here.' },
     { key: Permission.MOVE_MEMBERS,   label: 'Move Members',   description: 'Move members out of this channel.' },
     { key: Permission.USE_SOUNDBOARD, label: 'Use Soundboard', description: 'Play soundboard sounds in this channel.' },
+    { key: Permission.USE_EXTERNAL_SOUNDS, label: 'Use External Sounds', description: 'Play sounds from other servers in this channel.' },
   ],
 }
 

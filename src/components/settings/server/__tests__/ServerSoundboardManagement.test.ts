@@ -18,6 +18,8 @@ const h = vi.hoisted(() => ({
   toast: { success: vi.fn(), error: vi.fn() },
   setServerSounds: vi.fn(),
   play: vi.fn(),
+  getSharing: vi.fn(),
+  setSharing: vi.fn(),
 }))
 const { stub } = vi.hoisted(() => ({ stub: (name: string) => ({ __esModule: true, default: { name, render: () => null } }) }))
 
@@ -36,7 +38,10 @@ vi.mock('@/services/soundboard/sounds', async (importOriginal) => ({
   createServerSound: h.create,
   updateServerSound: h.update,
   deleteServerSound: h.remove,
+  getServerSoundSharing: h.getSharing,
+  setServerSoundSharing: h.setSharing,
 }))
+vi.mock('@/composables/useHapticSettings', () => ({ useHapticSettings: () => ({ triggerToggle: () => {} }) }))
 vi.mock('@/components/common/Icon.vue', () => stub('Icon'))
 vi.mock('@/components/common/LoadingSpinner.vue', () => stub('LoadingSpinner'))
 
@@ -56,9 +61,12 @@ async function pickFile(wrapper: VueWrapper, file: File) {
 beforeEach(() => {
   URL.createObjectURL = vi.fn(() => 'blob:x')
   URL.revokeObjectURL = vi.fn()
-  for (const fn of [h.list, h.check, h.create, h.update, h.remove, h.setServerSounds, h.play, h.toast.success, h.toast.error]) {
+  for (const fn of [h.list, h.check, h.create, h.update, h.remove, h.setServerSounds, h.play, h.toast.success, h.toast.error,
+    h.getSharing, h.setSharing]) {
     fn.mockReset()
   }
+  h.getSharing.mockResolvedValue(true)
+  h.setSharing.mockImplementation(async (_server: string, allow: boolean) => allow)
   h.confirm.mockReset()
   h.confirm.mockResolvedValue(true)
   h.list.mockResolvedValue([sound('a', 'Horn'), sound('b', 'Bell')])
@@ -143,5 +151,31 @@ describe('ServerSoundboardManagement', () => {
     const wrapper = await mountManager(true)
     expect(wrapper.find('[data-testid="soundboard-file"]').exists()).toBe(false)
     expect(wrapper.find('.card-note').text()).toContain('soundboard.errors.full')
+  })
+  it('shows whether the server shares its sounds', async () => {
+    h.getSharing.mockResolvedValue(false)
+    const wrapper = await mountManager(false)
+    expect(h.getSharing).toHaveBeenCalledWith(SERVER)
+    const toggle = wrapper.find('[data-testid="soundboard-share-toggle"]')
+    expect(toggle.attributes('aria-checked')).toBe('false')
+    expect(toggle.attributes('aria-disabled')).toBe('true')
+    await toggle.trigger('click')
+    expect(h.setSharing).not.toHaveBeenCalled()
+  })
+
+  it('lets a sound manager stop sharing, and puts it back when the write is refused', async () => {
+    const wrapper = await mountManager(true)
+    const toggle = wrapper.find('[data-testid="soundboard-share-toggle"]')
+    expect(toggle.attributes('aria-checked')).toBe('true')
+    await toggle.trigger('click')
+    await flushPromises()
+    expect(h.setSharing).toHaveBeenCalledWith(SERVER, false)
+    expect(toggle.attributes('aria-checked')).toBe('false')
+
+    h.setSharing.mockRejectedValueOnce({ code: '42501' })
+    await toggle.trigger('click')
+    await flushPromises()
+    expect(toggle.attributes('aria-checked')).toBe('false')
+    expect(h.toast.error).toHaveBeenCalledWith('soundboard.errors.permission:{"kb":512,"max":48}')
   })
 })
