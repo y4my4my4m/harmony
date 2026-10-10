@@ -1160,7 +1160,16 @@
     "remoteListNote": "Seuls les comptes connus de cette instance sont listés.",
     "fullListOnDomain": "Liste complète sur {domain}",
     "countHiddenBy": "Masqué par {domain}",
-    "noKnownAccounts": "Aucun compte connu de cette instance"
+    "noKnownAccounts": "Aucun compte connu de cette instance",
+    "lockedAccount": "Approuve les abonnés manuellement",
+    "removeFollower": "Retirer cet abonné",
+    "removeFollowerConfirm": "{name} ne vous suivra plus et perdra l'accès à vos publications réservées aux abonnés.",
+    "followerRemoved": "{name} a été retiré de vos abonnés",
+    "removeFollowerFailed": "Impossible de retirer cet abonné. Réessayez.",
+    "followApprovalTitle": "Abonnés",
+    "followApprovalLabel": "Approuver les demandes d'abonnement",
+    "followApprovalDescription": "Les nouveaux abonnés envoient une demande que vous acceptez ou refusez. Les abonnés actuels restent. Désactiver l'option accepte toutes les demandes en attente.",
+    "followApprovalFailed": "Impossible d'enregistrer l'approbation des abonnés. Réessayez."
   },
   "moderation": {
     "report": "Signaler",

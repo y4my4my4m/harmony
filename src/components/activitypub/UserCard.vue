@@ -55,10 +55,10 @@
         v-if="showFollowBtn && !isCurrentUser"
         @click="handleFollowToggle"
         :disabled="getLoadingState().follow"
-        :class="['follow-btn', { following: isFollowing, loading: getLoadingState().follow }]"
+        :class="['follow-btn', { following: isFollowing || followRequested, loading: getLoadingState().follow }]"
       >
         <Icon v-if="getLoadingState().follow" name="loader" class="spinning" />
-        <Icon v-else-if="isFollowing" name="user-check" />
+        <Icon v-else-if="isFollowing || followRequested" name="user-check" />
         <Icon v-else name="user-plus" />
         <span>{{ followButtonText }}</span>
       </button>
@@ -188,6 +188,8 @@ const { toggleFollow, getLoadingState } = usePostInteractions();
 // State
 const showActionsMenu = ref(false);
 const followInProgress = ref(false);
+// Pending request to a locked or remote account, set from the answer to a follow sent here.
+const followRequested = ref(false);
 
 // Computed
 
@@ -213,7 +215,8 @@ const isBlocked = computed(() => {
 
 const followButtonText = computed(() => {
   if (getLoadingState().follow) return t('common.loading');
-  return isFollowing.value ? t('activitypub.following') : t('activitypub.follow');
+  if (isFollowing.value) return t('activitypub.following');
+  return followRequested.value ? t('activitypub.requested') : t('activitypub.follow');
 });
 
 const bioHtml = computed(() => parseDisplayNameOrBioForDisplay(props.user.bio, ''));
@@ -240,13 +243,16 @@ const handleFollowToggle = async () => {
   if (getLoadingState().follow || followInProgress.value) return;
   
   followInProgress.value = true;
+  const wasFollowing = isFollowing.value;
   try {
-    const result = await toggleFollow(props.user.id);
-    
+    const result = await toggleFollow(props.user.id, followRequested.value);
+    if (result.error) return;
+    followRequested.value = !!result.pending;
+
     if (result.following) {
       activityPubStore.followedUsers.add(props.user.id);
       emit('follow', props.user.id);
-    } else {
+    } else if (wasFollowing) {
       activityPubStore.followedUsers.delete(props.user.id);
       emit('unfollow', props.user.id);
     }

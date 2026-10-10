@@ -162,7 +162,17 @@
                       <Icon name="shield" :size="11" /> Mod
                     </span>
                   </div>
-                  <p class="user-handle">{{ user.handle }}</p>
+                  <p class="user-handle">
+                    {{ user.handle }}
+                    <span
+                      v-if="user.manually_approves_followers"
+                      class="locked-badge"
+                      role="img"
+                      :aria-label="t('activitypub.lockedAccount')"
+                      :title="t('activitypub.lockedAccount')"
+                      data-testid="profile-locked-badge"
+                    ><Icon name="lock" :size="14" /></span>
+                  </p>
                 </div>
               </div>
 
@@ -1606,6 +1616,13 @@ onUnmounted(() => {
   font-size: var(--font-size-sm);
   margin: 2px 0 0;
   overflow-wrap: anywhere;
+}
+
+.locked-badge {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-left: 4px;
+  color: var(--text-muted);
 }
 
 .bio-section {

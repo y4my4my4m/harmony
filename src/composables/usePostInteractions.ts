@@ -17,7 +17,15 @@ export function usePostInteractions() {
 
   // USER INTERACTIONS
 
-  const toggleFollow = async (user: FederatedUser | string): Promise<{ following: boolean; error?: string }> => {
+  /**
+   * Unfollows an accepted follow or a request the caller shows (`requested`);
+   * follows otherwise. A request the caller does not know of comes back as
+   * `pending` rather than being withdrawn.
+   */
+  const toggleFollow = async (
+    user: FederatedUser | string,
+    requested = false,
+  ): Promise<{ following: boolean; pending?: boolean; error?: string }> => {
     const userId = typeof user === 'string' ? user : user.id
     
     if (!userId) {
@@ -27,9 +35,11 @@ export function usePostInteractions() {
 
     isFollowLoading.value = true
     try {
-      const result = await services.interactions.toggleFollow(userId)
-      debug.log(`Follow toggled for user ${userId}:`, result.following ? 'Following' : 'Unfollowed')
-      return { following: result.following }
+      const result = activityPubStore.isFollowing(userId) || requested
+        ? await services.interactions.unfollow(userId)
+        : await services.interactions.follow(userId)
+      debug.log(`Follow toggled for user ${userId}:`, result.following ? 'Following' : result.pending ? 'Requested' : 'Unfollowed')
+      return { following: result.following, pending: !!result.pending }
     } catch (error) {
       debug.error('Failed to toggle follow:', error)
       return { 

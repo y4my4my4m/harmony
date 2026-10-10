@@ -310,6 +310,8 @@ export interface FederatedUser extends Profile {
   is_follower?: boolean;
   is_blocked?: boolean;
   is_muted?: boolean;
+  /** Locked account: follows are requests it accepts or rejects (ActivityPub manuallyApprovesFollowers). */
+  manually_approves_followers?: boolean;
   instance_url?: string;
   last_status_at?: string;
   note?: string; // Personal note about this user

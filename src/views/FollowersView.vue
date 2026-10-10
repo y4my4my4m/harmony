@@ -102,6 +102,17 @@
                   Reject
                 </button>
               </div>
+              <div v-else-if="currentView === 'followers' && isOwnProfile" class="request-actions">
+                <button
+                  class="request-btn reject"
+                  data-testid="remove-follower-btn"
+                  :disabled="processingRequests.has(users[virtualRow.index].id)"
+                  @click="handleRemoveFollower(users[virtualRow.index])"
+                >
+                  <Icon name="user-x" />
+                  {{ t('activitypub.removeFollower') }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -134,6 +145,7 @@ import { useRouter } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
 import { useToast } from 'vue-toastification';
+import { useConfirmDialog } from '@/composables/useConfirmDialog';
 import { activityPubService } from '@/services/activityPubService';
 import { interactionService } from '@/services/InteractionService';
 import { supabase } from '@/supabase';
@@ -150,6 +162,7 @@ const activityPubStore = useActivityPubStore();
 const authStore = useAuthStore();
 const router = useRouter();
 const toast = useToast();
+const { confirm } = useConfirmDialog();
 
 interface Props {
   userId?: string;
@@ -358,6 +371,32 @@ const handleRejectRequest = async (user: FederatedUser) => {
   } catch (error) {
     debug.error('Failed to reject follow request:', error);
     toast.error('Failed to reject follow request');
+  } finally {
+    processingRequests.value.delete(user.id);
+  }
+};
+
+// A remote follower is sent a Reject by the database, so its server stops delivering.
+const handleRemoveFollower = async (user: FederatedUser) => {
+  if (processingRequests.value.has(user.id)) return;
+  const name = user.display_name || user.username;
+  const confirmed = await confirm({
+    title: t('activitypub.removeFollower'),
+    message: t('activitypub.removeFollowerConfirm', { name }),
+    confirmButtonText: t('activitypub.removeFollower'),
+    dangerAction: true,
+  });
+  if (!confirmed) return;
+
+  processingRequests.value.add(user.id);
+  try {
+    await interactionService.removeFollower(user.id);
+    users.value = users.value.filter(u => u.id !== user.id);
+    followersCount.value = Math.max(0, followersCount.value - 1);
+    toast.success(t('activitypub.followerRemoved', { name }));
+  } catch (error) {
+    debug.error('Failed to remove follower:', error);
+    toast.error(t('activitypub.removeFollowerFailed'));
   } finally {
     processingRequests.value.delete(user.id);
   }

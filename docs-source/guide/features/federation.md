@@ -317,7 +317,6 @@ interface FederationConfig {
   enabled: boolean
   allowList: string[]  // Allowed servers
   blockList: string[]  // Blocked servers
-  autoAcceptFollows: boolean
   publicTimeline: boolean
   mediaProxyEnabled: boolean
 }
@@ -326,7 +325,6 @@ export const federationConfig: FederationConfig = {
   enabled: true,
   allowList: [], // Empty = allow all
   blockList: ['spam.example'],
-  autoAcceptFollows: true,
   publicTimeline: true,
   mediaProxyEnabled: true
 }

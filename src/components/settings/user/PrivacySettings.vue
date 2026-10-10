@@ -19,6 +19,25 @@
       </i18n-t>
     </div>
 
+    <div class="settings-section">
+      <h3 class="section-title">{{ $t('activitypub.followApprovalTitle') }}</h3>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 class="setting-label">{{ $t('activitypub.followApprovalLabel') }}</h4>
+          <p class="setting-description">{{ $t('activitypub.followApprovalDescription') }}</p>
+        </div>
+        <div class="setting-control">
+          <ToggleSwitch
+            v-model="requireFollowApproval"
+            :disabled="followApprovalSaving || !profile?.id"
+            data-testid="follow-approval-toggle"
+            @change="onFollowApprovalChange"
+          />
+        </div>
+      </div>
+    </div>
+
     <!-- Encryption Settings -->
     <div class="settings-section security-section">
       <h3 class="section-title">
@@ -138,7 +157,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import type { User } from '@/types'
 import { useActivityPubStore } from '@/stores/useActivityPub'
@@ -169,6 +189,7 @@ const emit = defineEmits<{
 
 // Composables
 const toast = useToast()
+const { t } = useI18n()
 
 // Privacy State
 const settings = ref({
@@ -176,6 +197,8 @@ const settings = ref({
 })
 
 const originalSettings = ref({ ...settings.value })
+const requireFollowApproval = ref(false)
+const followApprovalSaving = ref(false)
 const blockedUsers = ref<User[]>([])
 const mutedUsers = ref<User[]>([])
 const activityPubStore = useActivityPubStore()
@@ -210,6 +233,40 @@ const saveSettings = () => {
 
 const resetSettings = () => {
   settings.value = { ...originalSettings.value }
+}
+
+// The profile can arrive after mount; the switch stays disabled until it does.
+watch(() => props.profile?.id, async (profileId) => {
+  if (!profileId) return
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('manually_approves_followers')
+    .eq('id', profileId)
+    .maybeSingle()
+  if (error) debug.error('Failed to load follow approval:', error)
+  else requireFollowApproval.value = data?.manually_approves_followers === true
+}, { immediate: true })
+
+// Applied on toggle. The database federates the change and, when approval is
+// turned off, accepts the requests still waiting.
+const onFollowApprovalChange = async (value: boolean) => {
+  const profileId = props.profile?.id
+  if (!profileId) return
+
+  followApprovalSaving.value = true
+  try {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ manually_approves_followers: value })
+      .eq('id', profileId)
+    if (error) throw error
+  } catch (error: any) {
+    debug.error('Failed to save follow approval:', error)
+    requireFollowApproval.value = !value
+    toast.error(t('activitypub.followApprovalFailed'))
+  } finally {
+    followApprovalSaving.value = false
+  }
 }
 
 const unblockUser = async (userId: string) => {

@@ -74,8 +74,19 @@ All interactions are federated automatically through database triggers.
 
 ## Follows
 
-- Follow/unfollow users via `CoreInteractionService.toggleFollow()`
-- Follow requests with pending acceptance for locked accounts
+- Follow/unfollow users via `CoreInteractionService` (`follow`, `unfollow`, `toggleFollow`)
+- Locked accounts: Settings → Privacy → *Require follow approval* sets
+  `profiles.manually_approves_followers`, federated as the actor's `manuallyApprovesFollowers`.
+  A follow of a locked account, and every follow of a remote account until its server sends
+  `Accept`, is a request (`follows.status = 'pending'`) shown as *Requested*; clicking it withdraws
+  the request. Requests are answered in Follow requests or from the notification, and turning
+  approval off accepts every waiting request. Pending and rejected follows are visible to their
+  two accounts only; accepted ones are public. Followers-only posts are readable by accepted
+  followers and by local accounts they mention
+- A block in either direction refuses a follow; a remote follower the account blocks is sent
+  `Reject`
+- *Remove follower* on your own followers list deletes the follow and sends a remote follower
+  `Reject`
 - View followers/following lists in `FollowersView`
 - Follow counts on user profiles. A remote account shows its own server's post, follower and
   following totals, re-read when older than six hours; a total that server withholds shows as
@@ -100,7 +111,7 @@ All interactions are federated automatically through database triggers.
 
 ## Hashtags
 
-- Hashtag pages (`HashtagView`) show posts for a given tag
+- Hashtag pages (`HashtagView`) show the public posts for a given tag
 - Clicking a hashtag navigates to its feed
 - Trending tags appear in Explore
 
