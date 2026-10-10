@@ -19,6 +19,13 @@ import {
 import { viewContextTracker } from '@/services/ViewContextTracker'
 
 const rpc = vi.mocked(supabase.rpc)
+const getSession = vi.mocked(supabase.auth.getSession)
+// No access_token: an away report takes the RPC, not the keepalive fetch.
+const signedIn = { data: { session: { user: { id: 'u1' } } }, error: null } as any
+const signedOut = { data: { session: null }, error: null } as any
+
+// syncView resolves the session before its RPC.
+const settle = () => vi.advanceTimersByTimeAsync(0)
 
 const at = (name: string, path: string, params: Record<string, string> = {}) => ({ name, path, params })
 
@@ -65,6 +72,7 @@ describe('useViewContextTracking', () => {
     vi.useFakeTimers()
     rpc.mockReset()
     rpc.mockResolvedValue({ data: 0, error: null } as any)
+    getSession.mockResolvedValue(signedIn)
     applyContextRead.mockReset()
     hidden = false
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (hidden ? 'hidden' : 'visible') })
@@ -93,6 +101,7 @@ describe('useViewContextTracking', () => {
     expect(viewContextTracker.getCurrentContext().view_type).toBe('home')
     expect(viewContextTracker.shouldShowNotificationUI({ server_id: 's1', channel_id: 'c1', type: 'mention' }).showToast).toBe(true)
 
+    await settle()
     rpc.mockClear()
     await vi.advanceTimersByTimeAsync(60_000)
     expect(syncedViews()).toEqual(['home'])
@@ -106,6 +115,7 @@ describe('useViewContextTracking', () => {
     await nextTick()
     Object.assign(route.current, at('ThreadView', '/chat/s1/thread/t1', { serverId: 's1', threadId: 't1' }))
     await nextTick()
+    await settle()
 
     expect(syncedViews()).toEqual(['dm', 'settings', 'home'])
     expect(viewContextTracker.isViewingConversation('d1')).toBe(false)
@@ -115,15 +125,18 @@ describe('useViewContextTracking', () => {
   it('clears the viewed channel\'s notifications when the tab is used again', async () => {
     route.current = reactive(at('ChatChannel', '/chat/s1/c1', { serverId: 's1', channelId: 'c1' }))
     const scope = track()
+    await settle()
     rpc.mockClear()
 
     hidden = true
     document.dispatchEvent(new Event('visibilitychange'))
+    await settle()
     expect(syncedViews()).toEqual(['away'])
     expect(contextReads()).toEqual([])
 
     hidden = false
     document.dispatchEvent(new Event('visibilitychange'))
+    await settle()
     expect(syncedViews()).toEqual(['away', 'server_channel'])
     expect(contextReads()).toEqual([{ p_context_type: 'channel', p_context_id: 'c1' }])
     scope.stop()
@@ -137,6 +150,19 @@ describe('useViewContextTracking', () => {
     hidden = false
     document.dispatchEvent(new Event('visibilitychange'))
     expect(contextReads()).toEqual([])
+    scope.stop()
+  })
+
+  it('sends nothing while signed out, heartbeat included', async () => {
+    getSession.mockResolvedValue(signedOut)
+    route.current = reactive(at('Chat', '/'))
+    const scope = track()
+    await settle()
+    await vi.advanceTimersByTimeAsync(60_000)
+    hidden = true
+    document.dispatchEvent(new Event('visibilitychange'))
+    await settle()
+    expect(syncedViews()).toEqual([])
     scope.stop()
   })
 })

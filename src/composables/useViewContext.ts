@@ -55,10 +55,14 @@ function rpcArgs(view: SyncedView) {
   }
 }
 
+// Signed out, nothing is sent: the RPC refuses anon. BaseLayout mounts on the initial
+// route before an auth page replaces it, and the heartbeat outlives that mount.
 function syncView(view: SyncedView): Promise<void> {
-  return Promise.resolve(supabase.rpc('sync_view_context_from_presence', rpcArgs(view))).then(({ error }) => {
+  return supabase.auth.getSession().then(async ({ data: { session } }) => {
+    if (!session) return
+    const { error } = await supabase.rpc('sync_view_context_from_presence', rpcArgs(view))
     if (error) debug.warn('Failed to sync view context to DB:', error)
-  }, (error) => debug.warn('Failed to sync view context to DB:', error))
+  }).catch((error) => debug.warn('Failed to sync view context to DB:', error))
 }
 
 // A hiding or closing page may be torn down before a normal request completes.
