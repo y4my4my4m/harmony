@@ -64,6 +64,17 @@ public.messages;`. Until then both transports run and dedupe by message id.)*
 11. **Sender Keys for group encryption.**
     Megolm shares one session per member on join. Sender Keys (Signal style) is the standard answer for group chat at scale.
 
+## Community features
+
+12. **Forum channels.**
+    A channel whose posts are threads, each with a title and tags, listed by activity. Standalone threads (`create_channel_thread`) already give threads a parent of their own; a forum channel type, tag definitions per channel and a post list view remain.
+
+13. **Scheduled events.**
+    Server events with a start time, location (voice channel or text) and RSVPs, with reminders through notifications. Federate as ActivityPub `Event` so Mobilizon and Gancio users can see and join them.
+
+14. **Followable announcement channels.**
+    A channel other servers (and fediverse accounts) can follow; its posts are relayed into the follower's chosen channel. The channel is an ActivityPub actor with an outbox, so Mastodon users can follow it directly.
+
 ## Public-release follow-ups
 
 These were uncovered while preparing the public release and are in flight:
