@@ -4337,7 +4337,11 @@
       "rimshot": "リムショット",
       "sad-trombone": "残念トロンボーン",
       "boing": "ボヨーン",
-      "whoosh": "ヒュッ"
+      "whoosh": "ヒュッ",
+      "airhorn": "エアホーン",
+      "crickets": "コオロギ",
+      "golf-clap": "控えめな拍手",
+      "quack": "ガーガー"
     },
     "settings": {
       "navLabel": "サウンドボード",

@@ -4333,7 +4333,11 @@
       "rimshot": "Rimshot",
       "sad-trombone": "Sad trombone",
       "boing": "Boing",
-      "whoosh": "Whoosh"
+      "whoosh": "Whoosh",
+      "airhorn": "Air horn",
+      "crickets": "Crickets",
+      "golf-clap": "Golf clap",
+      "quack": "Quack"
     },
     "settings": {
       "navLabel": "Soundboard",

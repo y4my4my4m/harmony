@@ -4337,7 +4337,11 @@
       "rimshot": "Tusch",
       "sad-trombone": "Traurige Posaune",
       "boing": "Boing",
-      "whoosh": "Wusch"
+      "whoosh": "Wusch",
+      "airhorn": "Drucklufthorn",
+      "crickets": "Grillen",
+      "golf-clap": "Höflicher Applaus",
+      "quack": "Quak"
     },
     "settings": {
       "navLabel": "Soundboard",

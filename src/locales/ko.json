@@ -4337,7 +4337,11 @@
       "rimshot": "림샷",
       "sad-trombone": "슬픈 트롬본",
       "boing": "보잉",
-      "whoosh": "휙"
+      "whoosh": "휙",
+      "airhorn": "에어혼",
+      "crickets": "귀뚜라미",
+      "golf-clap": "골프 박수",
+      "quack": "꽥"
     },
     "settings": {
       "navLabel": "사운드보드",

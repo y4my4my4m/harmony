@@ -4337,7 +4337,11 @@
       "rimshot": "咚咚锵",
       "sad-trombone": "悲伤长号",
       "boing": "嘣",
-      "whoosh": "嗖"
+      "whoosh": "嗖",
+      "airhorn": "气笛",
+      "crickets": "蟋蟀",
+      "golf-clap": "礼貌鼓掌",
+      "quack": "嘎嘎"
     },
     "settings": {
       "navLabel": "音效板",

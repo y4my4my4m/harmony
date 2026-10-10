@@ -4337,7 +4337,11 @@
       "rimshot": "Ba dum tss",
       "sad-trombone": "Trombón triste",
       "boing": "Boing",
-      "whoosh": "Zas"
+      "whoosh": "Zas",
+      "airhorn": "Bocina",
+      "crickets": "Grillos",
+      "golf-clap": "Aplauso de golf",
+      "quack": "Cuac"
     },
     "settings": {
       "navLabel": "Panel de sonidos",

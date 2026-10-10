@@ -4337,7 +4337,11 @@
       "rimshot": "Ba-dum-tss",
       "sad-trombone": "Trombone triste",
       "boing": "Boing",
-      "whoosh": "Whoosh"
+      "whoosh": "Whoosh",
+      "airhorn": "Corne de brume",
+      "crickets": "Grillons",
+      "golf-clap": "Applaudissements polis",
+      "quack": "Coin-coin"
     },
     "settings": {
       "navLabel": "Soundboard",
