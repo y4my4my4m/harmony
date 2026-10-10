@@ -27,6 +27,9 @@ interface ReactionRow {
 }
 
 const REACTION_COLUMNS = 'id, message_id, channel_id, user_id, bot_id, emoji_id, custom_emoji_content, metadata, created_at'
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// role_mention roleId of @here (db_schema/migrations/20261011600001_here_mention.sql).
+const HERE_ROLE_ID = 'here'
 
 // A server's install rows as one comparable string; column and row order are not significant.
 function installsFingerprint(rows: BotPermissionRow[]): string {
@@ -840,6 +843,18 @@ export class EventDispatcher {
         bot: false, // Treat as regular user for display
         discord_user: true
       }
+    } else if (message.bot_id && typeof message.metadata?.webhook?.name === 'string') {
+      // A channel webhook's message names its shown author; execute_channel_webhook writes it.
+      const webhook = message.metadata.webhook
+      author = {
+        id: message.bot_id,
+        username: webhook.name,
+        display_name: webhook.name,
+        avatar: typeof webhook.avatar_url === 'string' ? webhook.avatar_url : null,
+        nickname: null,
+        bot: true,
+        webhook: true,
+      }
     } else if (message.user_id || message.bot_id) {
       const entry = await this.resolveAuthor(message.user_id ?? null, message.bot_id ?? null)
       if (entry) {
@@ -866,8 +881,47 @@ export class EventDispatcher {
       timestamp: message.created_at,
       edited_timestamp: message.updated_at,
       mentions: this.extractMentions(message.content),
+      mention_everyone: await this.mentionsEveryone(message, serverId),
       metadata: message.metadata // Include metadata in event
     }
+  }
+
+  /**
+   * Discord's Message.mention_everyone: the message carries @everyone (the server's default
+   * role) or @here, and its author may ping them. The right is the one
+   * handle_role_mention_notifications checks: MENTION_EVERYONE in the channel, or a bot's
+   * mention_everyone. False on any failed lookup.
+   */
+  private async mentionsEveryone(message: any, serverId: string | null): Promise<boolean> {
+    if (!serverId || !message.channel_id || !Array.isArray(message.content)) return false
+    const roleIds: unknown[] = message.content
+      .filter((part: any) => part?.type === 'role_mention')
+      .map((part: any) => part.roleId)
+    if (roleIds.length === 0) return false
+
+    if (!roleIds.includes(HERE_ROLE_ID)) {
+      const uuids = roleIds.filter((id): id is string => typeof id === 'string' && UUID_PATTERN.test(id))
+      if (uuids.length === 0) return false
+      const { data, error } = await supabase
+        .from('server_roles')
+        .select('id')
+        .eq('server_id', serverId)
+        .eq('is_default', true)
+        .in('id', uuids)
+      if (error || !data || data.length === 0) return false
+    }
+
+    const { data, error } = message.bot_id
+      ? await supabase.rpc('check_bot_permission', {
+          p_bot_id: message.bot_id, p_server_id: serverId, p_permission: 'mention_everyone',
+        })
+      : message.user_id
+        ? await supabase.rpc('has_permission', {
+            p_user_id: message.user_id, p_server_id: serverId,
+            p_permission: 'MENTION_EVERYONE', p_channel_id: message.channel_id,
+          })
+        : { data: false, error: null }
+    return !error && data === true
   }
   
   private contentToText(content: any): string {

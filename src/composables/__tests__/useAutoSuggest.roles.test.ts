@@ -1,5 +1,5 @@
 /**
- * Role suggestions follow MENTION_EVERYONE: without it, @everyone and roles not
+ * Role suggestions follow MENTION_EVERYONE: without it, @everyone, @here and roles not
  * marked mentionable are not offered.
  */
 
@@ -79,7 +79,7 @@ import { useAutoSuggest } from '../useAutoSuggest'
 
 const flush = () => new Promise(resolve => setTimeout(resolve, 0))
 
-async function roleSuggestions(): Promise<string[]> {
+async function roleItems(typed = '@r'): Promise<any[]> {
   const text = ref('')
   const auto = useAutoSuggest(
     ref(null) as Ref<any>,
@@ -87,10 +87,14 @@ async function roleSuggestions(): Promise<string[]> {
     (next: string) => { text.value = next },
     { mode: 'chat' },
   )
-  auto.handleInput('@r', 2)
+  auto.handleInput(typed, typed.length)
   await flush()
-  auto.handleInput('@r', 2)
-  return auto.suggestions.value.filter((s: any) => s.isRole).map((s: any) => s.display_name)
+  auto.handleInput(typed, typed.length)
+  return auto.suggestions.value.filter((s: any) => s.isRole)
+}
+
+async function roleSuggestions(typed = '@r'): Promise<string[]> {
+  return (await roleItems(typed)).map((s: any) => s.display_name)
 }
 
 describe('useAutoSuggest role mentions', () => {
@@ -103,8 +107,20 @@ describe('useAutoSuggest role mentions', () => {
     expect(await roleSuggestions()).toEqual(['crew'])
   })
 
-  it('offers @everyone and unmentionable roles with MENTION_EVERYONE', async () => {
+  it('offers @everyone, @here and unmentionable roles with MENTION_EVERYONE', async () => {
     canMentionAll.value = true
-    expect((await roleSuggestions()).sort()).toEqual(['crew', 'everyone', 'reserve'])
+    expect((await roleSuggestions()).sort()).toEqual(['crew', 'everyone', 'here', 'reserve'])
+  })
+
+  it('offers @here beside @everyone, inserting @role:here', async () => {
+    canMentionAll.value = true
+    const items = await roleItems('@he')
+    expect(items.map((s: any) => s.display_name)).toEqual(['here'])
+    expect(items[0]).toMatchObject({ id: 'role:here', display_text: '@here', mention_text: '@role:here' })
+  })
+
+  it('does not offer @here without MENTION_EVERYONE', async () => {
+    canMentionAll.value = false
+    expect(await roleSuggestions('@he')).toEqual([])
   })
 })

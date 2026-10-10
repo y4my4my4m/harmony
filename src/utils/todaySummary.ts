@@ -6,6 +6,8 @@
  * Parsing is defensive: a missing or mistyped field reads as empty, never throws.
  */
 
+import { maskSpoilers } from '@/utils/spoiler'
+import { pollPreview } from '@/utils/messagePoll'
 import type { RouteLocationRaw } from 'vue-router'
 import type { Message, MessagePart } from '@/types'
 
@@ -469,6 +471,8 @@ export interface PreviewParts {
 }
 
 export function previewParts(content: readonly MessagePart[] | null | undefined): PreviewParts {
+  const poll = pollPreview(content)
+  if (poll) return { parts: [{ type: 'text', text: poll }], attachments: 0 }
   const parts: MessagePart[] = []
   let attachments = 0
   for (const part of content ?? []) {
@@ -482,7 +486,7 @@ export function previewParts(content: readonly MessagePart[] | null | undefined)
 
 /** Plain text of the inline parts, whitespace collapsed. */
 export function previewText(content: readonly MessagePart[] | null | undefined): string {
-  return previewParts(content).parts
+  return maskSpoilers(previewParts(content).parts
     .map((part: any) => {
       switch (part.type) {
         case 'text': return part.text ?? ''
@@ -497,7 +501,7 @@ export function previewText(content: readonly MessagePart[] | null | undefined):
     })
     .join('')
     .replace(/\s+/g, ' ')
-    .trim()
+    .trim())
 }
 
 // Routes ---------------------------------------------------------------------------------

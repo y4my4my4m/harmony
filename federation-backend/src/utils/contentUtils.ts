@@ -72,6 +72,10 @@ export function convertContentToHTML(content: any): string {
           return `<span class="h-card"><a href="https://${mentionDomain}/users/${part.username}" class="u-url mention">${mentionDisplay}</a></span>`;
         }
 
+        // @everyone, @here and roles: the name, as text. harmony:rawContent carries the part.
+        case 'role_mention':
+          return escapeHtml(`@${String(part.roleName || 'role').replace(/^@/, '')}`);
+
         case 'url': {
           const url = escapeHtml(part.url || '');
           return `<a href="${url}">${url}</a>`;

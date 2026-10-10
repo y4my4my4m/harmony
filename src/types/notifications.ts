@@ -18,6 +18,8 @@ export type NotificationType =
   | 'mention'
   | 'dm' 
   | 'chat_message'
+  /** A channel message for a member at level 'all'. */
+  | 'channel_message'
   | 'reaction'
   | 'reply'
   | 'thread_reply'
@@ -38,6 +40,7 @@ export type NotificationType =
   | 'moderation_warning'
   | 'newcomer_message'
   | 'security'
+  | 'move'
   | 'error'
   // Generic UI feedback toasts (also valid AudioActions for themed sounds)
   | 'ui_success'
@@ -159,9 +162,11 @@ export interface NotificationChannel {
   server_id?: string;
   channel_id?: string;
   conversation_id?: string;
+  category_id?: string;
   muted: boolean;
   muted_until?: string;
-  notification_level: 'all' | 'mentions' | 'none';
+  /** null inherits from the category, then the server. */
+  notification_level: 'all' | 'mentions' | 'none' | null;
   created_at: string;
   updated_at: string;
 }
@@ -179,6 +184,8 @@ export interface UnreadCount {
   last_read_message_id?: string;
   last_read_at: string;
   last_message_at?: string;
+  /** An active mute; unread_messages is then the count frozen when it began. */
+  muted?: boolean;
 }
 
 export interface NotificationSound {

@@ -336,6 +336,11 @@ export function useServerPermissions(serverId?: MaybeRefOrGetter<string | null |
     isLocalServer.value && hasCurrentUserPermission(Permission.MANAGE_ROLES)
   )
 
+  // Server-wide; a channel override granting it is honoured by the webhook RPCs alone.
+  const canManageWebhooks = computed(() =>
+    isLocalServer.value && hasCurrentUserPermission(Permission.MANAGE_WEBHOOKS)
+  )
+
   const canPerformDestructiveActions = computed(() => 
     isCurrentUserServerOwner.value || hasCurrentUserPermission(Permission.MANAGE_SERVER)
   )
@@ -361,6 +366,11 @@ export function useServerPermissions(serverId?: MaybeRefOrGetter<string | null |
 
   const canBanMembers = computed(() => hasCurrentUserPermission(Permission.BAN_MEMBERS))
 
+  // server_audit_log covers local servers only.
+  const canViewAuditLog = computed(() =>
+    isLocalServer.value && hasCurrentUserPermission(Permission.VIEW_AUDIT_LOG)
+  )
+
   const serverSettingsPermissions = computed(() => ({
     canEditBasicInfo: canManageServer.value,
     canChangeServerName: canManageServer.value,
@@ -369,6 +379,8 @@ export function useServerPermissions(serverId?: MaybeRefOrGetter<string | null |
     canChangePrivacySettings: canManageServer.value,
     canUploadEmojis: canManageEmojis.value,
     canDeleteEmojis: canManageEmojis.value,
+    // MANAGE_EMOJIS is Manage Expressions: emojis and soundboard sounds.
+    canManageSoundboard: canManageEmojis.value,
     canManageCrossServerEmojis: canManageServer.value,
     // Intentional: every member may open the settings view read-only (it
     // doubles as the server overview); all mutations are gated individually.
@@ -377,7 +389,8 @@ export function useServerPermissions(serverId?: MaybeRefOrGetter<string | null |
     canDeleteServer: isCurrentUserServerOwner.value,
     canManageRoles: canManageRoles.value,
     canModerateReports: canManageMessages.value,
-    canManageBans: canBanMembers.value
+    canManageBans: canBanMembers.value,
+    canViewAuditLog: canViewAuditLog.value
   }))
 
   const channelPermissions = computed(() => ({
@@ -497,11 +510,13 @@ export function useServerPermissions(serverId?: MaybeRefOrGetter<string | null |
     canManageChannels,
     canManageEmojis,
     canManageRoles,
+    canManageWebhooks,
     canPerformDestructiveActions,
     canManageMessages,
     canPinMessages,
     canCreateThreads,
     canModerateMembers,
+    canViewAuditLog,
 
     // Component-specific permissions
     serverSettingsPermissions,

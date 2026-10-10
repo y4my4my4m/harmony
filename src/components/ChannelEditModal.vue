@@ -201,6 +201,11 @@
               </section>
             </div>
           </template>
+
+          <!-- Webhooks tab -->
+          <template v-else-if="activeTab === 'webhooks'">
+            <ChannelWebhooksSection v-if="channel" :channel-id="channel.id" />
+          </template>
         </div>
 
         <div class="modal-footer">
@@ -217,7 +222,7 @@
             {{ isLoading ? 'Saving...' : 'Save changes' }}
           </button>
           <button
-            v-else
+            v-else-if="activeTab === 'permissions'"
             class="btn btn-primary"
             @click="savePermissions"
             :disabled="!permissionsDirty || savingPermissions"
@@ -233,6 +238,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import { useServerChannelStore } from '@/stores/useServerChannel'
@@ -241,6 +247,7 @@ import SpeakerIcon from '@/components/icons/Speaker.vue'
 import Icon from '@/components/common/Icon.vue'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import ChannelEncryptionSection from '@/components/ChannelEncryptionSection.vue'
+import ChannelWebhooksSection from '@/components/ChannelWebhooksSection.vue'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import { userDataService } from '@/services/userDataService'
 import {
@@ -311,6 +318,7 @@ const VOICE_GROUP = {
     { key: Permission.MUTE_MEMBERS,   label: 'Mute Members',   description: 'Mute other members here.' },
     { key: Permission.DEAFEN_MEMBERS, label: 'Deafen Members', description: 'Deafen other members here.' },
     { key: Permission.MOVE_MEMBERS,   label: 'Move Members',   description: 'Move members out of this channel.' },
+    { key: Permission.USE_SOUNDBOARD, label: 'Use Soundboard', description: 'Play soundboard sounds in this channel.' },
   ],
 }
 
@@ -328,12 +336,17 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const serverChannelStore = useServerChannelStore()
-const { canManageChannels, isCurrentUserServerOwner } = useServerPermissions()
+const { canManageChannels, canManageWebhooks, isCurrentUserServerOwner } = useServerPermissions()
+const { t } = useI18n()
 
 const canManageEncryption = computed(() =>
   isCurrentUserServerOwner.value
   || canManageChannels.value
   || userDataService.getCurrentUser()?.isAdmin === true)
+
+// The webhook RPCs re-check, channel overrides included.
+const canManageChannelWebhooks = computed(() =>
+  props.channel?.type === 0 && (canManageEncryption.value || canManageWebhooks.value))
 
 // Discord-style slowmode intervals (seconds)
 const SLOWMODE_STEPS = [0, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600]
@@ -432,11 +445,24 @@ watch(() => props.show, (isVisible) => {
 
 // Tabs + Permissions tab state
 
-const tabs = [
-  { id: 'general' as const, label: 'General' },
-  { id: 'permissions' as const, label: 'Permissions' },
-]
-const activeTab = ref<'general' | 'permissions'>('general')
+type ChannelEditTab = 'general' | 'permissions' | 'webhooks'
+
+// A webhook manager without Manage Channels sees the Webhooks tab alone.
+const tabs = computed(() => {
+  const list: Array<{ id: ChannelEditTab; label: string }> = []
+  if (canManageEncryption.value || !canManageChannelWebhooks.value) {
+    list.push({ id: 'general', label: 'General' }, { id: 'permissions', label: 'Permissions' })
+  }
+  if (canManageChannelWebhooks.value) list.push({ id: 'webhooks', label: t('webhooks.tab') })
+  return list
+})
+const activeTab = ref<ChannelEditTab>('general')
+
+watch([() => props.show, tabs], ([visible]) => {
+  if (visible && !tabs.value.some(tab => tab.id === activeTab.value)) {
+    activeTab.value = tabs.value[0]?.id ?? 'general'
+  }
+}, { immediate: true })
 
 const serverRoles = ref<ServerRole[]>([])
 const rolesLoading = ref(false)

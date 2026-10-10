@@ -158,6 +158,13 @@
             />
           </div>
 
+          <!-- Fediverse poll: counts as last reported by the origin; votes are cast there. -->
+          <RemotePollCard
+            v-if="remotePollMetadata"
+            :metadata="remotePollMetadata"
+            :original-url="remotePollUrl"
+          />
+
           <!--
             Compact captions for URLs that the content renderer ALREADY
             iframes inline (currently YouTube). Sits right under the
@@ -630,6 +637,8 @@ import { getEmojiUrl } from '@/utils/emojiUtils';
 import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
 import { getOriginalPost } from '@/utils/postReblog';
 import { isHeartEmoji } from '@/utils/heartReaction';
+import { remotePollFromMetadata } from '@/utils/remotePoll';
+import { repliesFetchNotice } from '@/utils/remoteReplies';
 import { ownPostReactions } from '@/utils/reactionLimits';
 import { usePostReactionLimit } from '@/composables/useReactionLimits';
 import { usePostReactionsStore } from '@/stores/postReactions';
@@ -647,6 +656,7 @@ import Avatar from '../common/Avatar.vue';
 import Composer from './Composer.vue';
 import PostReactions from './PostReactions.vue';
 import MonyMediaGallery from './MonyMediaGallery.vue';
+import RemotePollCard from '@/components/polls/RemotePollCard.vue';
 import ConfirmationModal from '../ConfirmationModal.vue';
 import ReportModal from '@/components/moderation/ReportModal.vue';
 import SupporterBadge from '@/components/common/SupporterBadge.vue';
@@ -997,6 +1007,13 @@ const displayContent = computed(() => {
   // Quote posts render the original content in a quoted block
   return (isReblog.value && props.post.reblog) ? props.post.reblog.content : props.post.content;
 });
+
+const remotePollSource = computed<any>(() => (isReblog.value && props.post.reblog) ? props.post.reblog : props.post);
+const remotePollMetadata = computed(() => {
+  const metadata = remotePollSource.value?.metadata;
+  return remotePollFromMetadata(metadata) ? metadata as Record<string, any> : null;
+});
+const remotePollUrl = computed<string | null>(() => remotePollSource.value?.url || remotePollSource.value?.ap_id || null);
 
 const displayMediaAttachments = computed(() => {
   const source: any = (isReblog.value && props.post.reblog) ? props.post.reblog : props.post;
@@ -2118,9 +2135,17 @@ const handleFetchRemoteReactions = () => {
   fetchRemoteReactions();
 };
 
-const handleFetchRemoteReplies = () => {
+const handleFetchRemoteReplies = async () => {
   showMenu.value = false;
-  fetchRemoteReplies();
+  const notice = repliesFetchNotice(await fetchRemoteReplies({ force: true }));
+  let domain = instanceDomain.value;
+  try {
+    domain = new URL(getOriginalPost(props.post).ap_id || '').hostname || domain;
+  } catch { /* no origin URL; the author's domain stands */ }
+  const message = notice.count !== undefined
+    ? t(notice.key, { count: notice.count, domain }, notice.count)
+    : t(notice.key, { domain });
+  toast[notice.kind](message);
 };
 
 const handleRefetchFromSource = async () => {

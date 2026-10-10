@@ -54,6 +54,7 @@ import { useUndoRedo, type UndoState } from '@/composables/useUndoRedo';
 import { findEmojiByName } from '@/services/emojiShortcodeResolver';
 import { applyInlineFormatToggle, type InlineFormatKind } from '@/utils/richTextFormatting';
 import { HANDLE_PATTERN, continuesHandle } from '@/utils/mentionGrammar';
+import { HERE_ROLE_ID } from '@/utils/hereMention';
 import { pastedText, writeTokenTextToClipboard } from '@/utils/emojiClipboard';
 
 interface Props {
@@ -100,7 +101,9 @@ const undoRedo = useUndoRedo({ maxHistory: 100, groupingDelayMs: 300 });
 const visualTheme = useVisualTheme();
 
 // Role ID → { name, color } for rendering role mentions.
-const roleDisplayCache = new Map<string, { name: string; color: string | null }>();
+const roleDisplayCache = new Map<string, { name: string; color: string | null }>([
+  [HERE_ROLE_ID, { name: HERE_ROLE_ID, color: null }],
+]);
 
 async function resolveRoleDisplay(roleId: string): Promise<{ name: string; color: string | null }> {
   if (roleDisplayCache.has(roleId)) return roleDisplayCache.get(roleId)!;
@@ -431,10 +434,11 @@ const processMentionsInText = (text: string): DocumentFragment => {
 
   // Alternation order: role mention first, then user mention.
   // @role:UUID          role
+  // @role:here          @here
   // @username@domain    remote user
   // @username           local user
   const mentionRegex = new RegExp(
-    `(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))|(${HANDLE_PATTERN})`,
+    `(@role:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|${HERE_ROLE_ID}(?![\\p{L}\\p{N}_-])))|(${HANDLE_PATTERN})`,
     'gu',
   );
   
@@ -948,7 +952,7 @@ const hasFormattableMarkers = (text: string): boolean => {
   if (/[*_~`]/.test(text)) return true;
   if (/^\s*>/m.test(text)) return true;
   if (/```/.test(text)) return true;
-  if (/@role:[a-f0-9-]+/i.test(text)) return true;
+  if (/@role:(?:[a-f0-9-]+|here)/i.test(text)) return true;
   return false;
 };
 

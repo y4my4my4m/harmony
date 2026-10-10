@@ -112,7 +112,8 @@
             'shake-reject': isMessageShaking(item.message.id),
             'revealed-blocked': item.isRevealed,
             'is-sending': !item.message.failed && (item.message.sending || (item.message.id?.startsWith('temp-') && !item.message.failed)),
-            'is-failed': item.message.failed
+            'is-failed': item.message.failed,
+            'mentions-me': mentionsMe(item.message)
           }"
           @mouseover="handleMessageMouseover(item.message.id)" 
           @mouseleave="handleMessageMouseleave"
@@ -396,6 +397,7 @@
               <span class="username" :style="{color: getAuthorColor(item.message).value}" @click="handleAuthorClick(item.message, $event)">
                 <span class="username-text"><DisplayName v-if="item.message.user_id && !item.message.bot_id && !hasDiscordUserMetadata(item.message)" :user-id="item.message.user_id" /><template v-else>{{ getAuthorDisplayName(item.message).value }}</template></span>
                 <BridgeSourceBadge v-if="hasDiscordUserMetadata(item.message)" source="discord" />
+                <span v-else-if="getWebhookAuthor(item.message)" class="bot-badge webhook-badge">{{ $t('webhooks.badge') }}</span>
                 <span v-else-if="isMessageFromBot(item.message)" class="bot-badge">BOT</span>
                 <span v-if="getInstanceBadge(item.message).value === 'admin'" class="instance-badge admin" title="Instance admin">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
@@ -693,7 +695,8 @@ import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';
 import type { Message, MessagePart, User, Emoji, FileContent, ReactionActor, ReactionGroup } from '@/types';
 import { hasSubstantiveMessageContent, removeFilePartByUrl } from '@/utils/messageContentUtils';
-import { isBridgedAuthorMessage } from '@/utils/messageAuthor';
+import { getWebhookAuthor, isBridgedAuthorMessage } from '@/utils/messageAuthor';
+import { pollPartOf } from '@/utils/messagePoll';
 import { ensureMediaPartSources, isPrivateMediaPart, mediaLoadKey, mediaPartSource } from '@/services/privateMedia';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
@@ -770,6 +773,7 @@ import MessageReplyReference from '@/components/messages/MessageReplyReference.v
 import { useThreadsStore } from '@/stores/useThreads';
 import type { ThreadWithDetails } from '@/services/ThreadService';
 import { messagePartsToMarkdown, isSingleEmojiMessage as checkSingleEmoji, stripLeadingSelfMention } from '@/utils/messageContentUtils';
+import { mentionsViewer } from '@/utils/hereMention';
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
 import { buildChatParseOptions } from '@/utils/chatParseOptions';
 import { isPointOverText, isQuickReactDoubleClick, type PointerDown } from '@/utils/quickReactGesture';
@@ -1188,7 +1192,12 @@ const floatingActionsStyle = computed((): Record<string, string> => {
     transform: 'translateX(-50%)',
   };
 });
-const { isCurrentUserServerOwner, canManageMessages } = useServerPermissions();
+const { isCurrentUserServerOwner, canManageMessages, getCurrentUserRole } = useServerPermissions();
+const viewerRoleIds = computed(() => new Set((getCurrentUserRole.value?.roles ?? []).map(role => role.id)));
+// A conversation has no roles, @everyone or @here; its messages are not highlighted.
+const mentionsMe = (message: Message): boolean =>
+  !!props.channelId
+  && mentionsViewer(getDisplayContent(message), { profileId: profileStore.profile?.id, roleIds: viewerRoleIds.value });
 const { triggerInteraction, triggerDestructive } = useHapticSettings();
 const quickReact = useQuickReactSettings();
 const { isMobile } = useLayoutState();
@@ -1395,6 +1404,9 @@ const getAuthorDisplayName = (message: Message): ComputedRef<string> => {
       return discordUser.display_name || discordUser.username || 'Discord User';
     }
     
+    const webhook = getWebhookAuthor(message);
+    if (webhook) return webhook.name;
+
     // Regular bot
     if (message.bot_id) {
       if (!botDataCache.value.has(message.bot_id) && !fetchingBots.value.has(message.bot_id)) {
@@ -1420,6 +1432,9 @@ const getAuthorAvatarUrl = (message: Message): ComputedRef<string> => {
       return message.metadata.discord_user.avatar_url || '/default_avatar.webp';
     }
     
+    const webhook = getWebhookAuthor(message);
+    if (webhook) return webhook.avatar_url || '/default_avatar.webp';
+
     // Regular bot
     if (message.bot_id) {
       const bot = botDataCache.value.get(message.bot_id);
@@ -2431,12 +2446,16 @@ watch(() => props.messages.map(msg => msg.reactions?.length), () => {
 });
 
 // IntersectionObserver to clear unread counts when messages are scrolled into view
-// Debounced to prevent 45+ API calls per page load
+// Debounced to prevent 45+ API calls per page load. A thread view carries its
+// parent's channelId; thread replies do not count toward the channel, so a thread
+// view sends no channel reads.
 let intersectionObserver: IntersectionObserver | null = null;
 const observedMessages = new Set<string>();
 
+const sendsReadMarkers = () => !props.threadId && !!(props.channelId || props.conversationId);
+
 const setupUnreadObserver = () => {
-  if (!props.channelId && !props.conversationId) return;
+  if (!sendsReadMarkers()) return;
   
   if (intersectionObserver) {
     intersectionObserver.disconnect();
@@ -2476,6 +2495,7 @@ const setupUnreadObserver = () => {
 };
 
 const queueUnreadUpdate = (messageId: string) => {
+  if (!sendsReadMarkers()) return;
   const message = props.messages.find(m => m.id === messageId);
   if (!message) return;
   const channelId = props.channelId || message.channel_id || null;
@@ -2495,6 +2515,7 @@ const clearUnreadCount = async ({ messageId, channelId, conversationId }: Queued
     const ctx = await authContextService.getCurrentContext();
     if (!ctx.isAuthenticated) return;
 
+    // The read marks the context's notifications read, server and local.
     try {
       if (channelId) await markChannelRead(channelId, messageId);
       else if (conversationId) await markConversationRead(conversationId, messageId);
@@ -2503,7 +2524,7 @@ const clearUnreadCount = async ({ messageId, channelId, conversationId }: Queued
       debug.error('Failed to clear unread count:', error);
     }
     
-    // Batch mark related notifications as read
+    // Notifications that name the message but not its channel or conversation.
     const notificationStore = useNotificationStore();
     const relatedNotifications = notificationStore.notifications.filter(n => 
       (n.data?.message?.id === messageId || n.data?.message_id === messageId) && !n.is_read
@@ -2520,10 +2541,43 @@ const clearUnreadCount = async ({ messageId, channelId, conversationId }: Queued
 
 const readMarkers = createReadMarkerQueue((read) => clearUnreadCount(read));
 
-// A read queued in the channel or conversation being left goes out now.
-watch(() => [props.channelId, props.conversationId], () => {
+// A read queued in the channel or conversation being left goes out now. The
+// component is reused across contexts; ids observed in the previous one must not
+// suppress reads in the next.
+watch(() => [props.channelId, props.conversationId, props.threadId], () => {
   void readMarkers.flush();
+  observedMessages.clear();
 });
+
+// Opening a channel with unread state reads it: its newest messages may have been
+// observed on an earlier visit, or its unread state may come from messages this
+// view does not render.
+let openReadChannelId: string | null = null;
+watch(
+  [() => props.channelId, () => props.conversationId, () => props.threadId, () => props.messages[props.messages.length - 1]?.id],
+  () => {
+    const channelId = props.channelId;
+    if (!channelId || props.conversationId || props.threadId) {
+      openReadChannelId = null;
+      return;
+    }
+    if (openReadChannelId === channelId) return;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    let newest: Message | undefined;
+    for (let i = props.messages.length - 1; i >= 0; i--) {
+      const m = props.messages[i];
+      if (m.channel_id === channelId && !m.thread_id && !m.id.startsWith('temp-')) { newest = m; break; }
+    }
+    if (!newest) return;
+    openReadChannelId = channelId;
+    const unread = getUnreadCount({ channelId });
+    const hasUnread = (unread?.unread_messages ?? 0) > 0
+      || (unread?.unread_mentions ?? 0) > 0
+      || useNotificationStore().unreadChannelMentions(channelId) > 0;
+    if (hasUnread) queueUnreadUpdate(newest.id);
+  },
+  { immediate: true },
+);
 
 // Watch for messages changes to setup observer
 watch(() => props.messages.length, () => {
@@ -2818,8 +2872,16 @@ const shouldShowHeader = (message: Message, index: number): boolean => {
     const currentDiscordUser = message.metadata?.discord_user;
     const prevDiscordUser = prevMessage.metadata?.discord_user;
     
+    const currentWebhook = getWebhookAuthor(message);
+    const prevWebhook = getWebhookAuthor(prevMessage);
+    if (currentWebhook || prevWebhook) {
+      // One webhook posts under per-message names and avatars.
+      if (currentWebhook?.id !== prevWebhook?.id
+          || currentWebhook?.name !== prevWebhook?.name
+          || currentWebhook?.avatar_url !== prevWebhook?.avatar_url) return true;
+    }
     // If both have discord_user metadata, compare by discord user id or username
-    if (currentDiscordUser && prevDiscordUser) {
+    else if (currentDiscordUser && prevDiscordUser) {
       const currentId = currentDiscordUser.id || currentDiscordUser.username;
       const prevId = prevDiscordUser.id || prevDiscordUser.username;
       if (currentId !== prevId) return true;
@@ -2938,6 +3000,8 @@ const canEditMessage = (message: Message) => {
   // A relayed message's author lives on the bridged platform; an edit made
   // here never reaches that copy. Applies to admins and moderators too.
   if (isBridgedAuthorMessage(message)) return false;
+  // guard_message_poll_parts refuses edits of a poll.
+  if (pollPartOf(message.content)) return false;
 
   // Only the author edits; owners, staff and Manage Messages may only delete
   // (guard_message_client_write).
@@ -3639,6 +3703,8 @@ const handleAuthorClick = (message: Message, event?: MouseEvent) => {
     showProfileModal.value = true;
     return;
   }
+  // A webhook's backing bot has no profile to show.
+  if (getWebhookAuthor(message)) return;
   if (message.bot_id) {
     const bot = botDataCache.value.get(message.bot_id);
     selectedBot.value = {
@@ -3790,6 +3856,15 @@ defineExpose({ editLastOwnMessage });
 
 .message-item:hover {
   background-color: var(--background-modifier-hover);
+}
+
+.message-item.mentions-me {
+  background-color: color-mix(in srgb, var(--warning) 10%, transparent);
+  box-shadow: inset 2px 0 0 var(--warning);
+}
+
+.message-item.mentions-me:hover {
+  background-color: color-mix(in srgb, var(--warning) 15%, transparent);
 }
 
 /* Message group - contains header and/or content */

@@ -11,6 +11,7 @@
     <FilePreview
       :files="attachedFiles"
       @remove-file="removeFile"
+      @toggle-spoiler="toggleFileSpoiler"
     />
     <!-- Live media results for /gif, /sticker, /clip, /meme, /aiemoji -->
     <InlineGifPicker
@@ -83,7 +84,9 @@
             <PlusIcon @click="toggleUploadMenu" :class="{ active: showUploadMenu }" />
             <FileUploadMenu
               :isVisible="showUploadMenu"
+              :allow-poll="allowPolls"
               @files-selected="handleFilesSelected"
+              @create-poll="handleCreatePoll"
               @close="closeUploadMenu"
             />
           </div>
@@ -225,6 +228,7 @@ import InlineGifPicker from '@/components/InlineGifPicker.vue';
 import Icon from '@/components/common/Icon.vue';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { parseKlipyKind } from '@/utils/klipyAttribution';
+import { toggleSpoilerFileName } from '@/utils/spoiler';
 import { buildEphemeralEmojiFromGif, registerEphemeralEmoji } from '@/utils/ephemeralEmoji';
 import type { GifMediaType } from '@/services/gifProviderService';
 import type { FilePreviewData } from '@/components/FilePreview.vue';
@@ -265,6 +269,8 @@ interface Props {
    * `sendVoiceMessage`.
    */
   backgroundSend?: boolean;
+  /** The + menu offers Create poll; the parent handles `createPoll`. */
+  allowPolls?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -274,6 +280,7 @@ const props = withDefaults(defineProps<Props>(), {
   replyMessageId: '',
   serverId: undefined,
   backgroundSend: false,
+  allowPolls: false,
 });
 
 // Placeholder target: DM username or channel name.
@@ -315,6 +322,7 @@ const emit = defineEmits<{
   'upload-status-changed': [uploading: boolean]
   'edit-last-message': []
   sendGif: [gif: Gif]
+  createPoll: []
 }>();
 
 const authStore = useAuthStore();
@@ -640,6 +648,7 @@ const updateText = (newText: string, cursorPosition?: number) => {
 const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText, {
   mode: 'chat',
   enableChannels: !!props.channelId && !props.conversationId,
+  pollsEnabled: () => props.allowPolls,
 });
 
 // Maps the active media slash command to the inline picker's media type.
@@ -917,6 +926,11 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       actionsExpanded.value = false;
     };
 
+    const handleCreatePoll = () => {
+      closeUploadMenu();
+      emit('createPoll');
+    };
+
     const createFilePreview = async (file: File): Promise<FilePreviewData> => {
       const fileData: FilePreviewData = {
         file,
@@ -1027,6 +1041,11 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       });
       
       closeUploadMenu();
+    };
+
+    const toggleFileSpoiler = (index: number) => {
+      const file = attachedFiles.value[index];
+      if (file) file.name = toggleSpoilerFileName(file.name);
     };
 
     const removeFile = (index: number) => {

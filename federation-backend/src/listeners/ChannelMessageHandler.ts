@@ -17,6 +17,7 @@ import { convertContentToHTML, extractActivityPubTags, extractAttachments } from
 import { harmonyVoiceMessageExtension } from '../utils/voiceMessageFederation.js';
 import { getChannelRecipientGroups, type RemoteMemberGroup } from '../utils/federationUtils.js';
 import { federateContentParts, fileAttachmentsToAp } from '../utils/privateMedia.js';
+import { withoutPollParts } from '../utils/polls.js';
 
 // TYPES
 
@@ -426,7 +427,7 @@ function createMessageActivity(
 
   // Emoji URLs become absolute; attachments carry the audience's capability URLs.
   const federatedContent = Array.isArray(message.content)
-    ? federateContentParts(message.content, audience).map((item: any) => {
+    ? federateContentParts(withoutPollParts(message.content), audience).map((item: any) => {
         if (item.type === 'emoji' && item.emoji?.url) {
           let emojiUrl = item.emoji.url;
           if (!emojiUrl.startsWith('http://') && !emojiUrl.startsWith('https://')) {

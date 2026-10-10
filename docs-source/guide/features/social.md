@@ -38,6 +38,9 @@ Each post is rendered by `MonyPost`, which handles:
 - Content warning expand/collapse
 - Reply threading (`ThreadedPost`)
 - Embed detection (links, server invites)
+- Fediverse polls (`RemotePollCard`): answers with vote shares, voters and time left, as last reported by the origin server, which sends `Update(Question)` as votes arrive. Votes are cast on the original post.
+- Counts of a federated post: the replies, boosts and favorites its origin server reports, read when the post arrives and again when it is shown, plus boosts, favorites and replies made here since that read
+- **Fetch replies** in the post menu reads the post's replies collection from its origin server, page by page (at most 5 pages and 200 replies), and imports each reply; Misskey posts are read through Misskey's own API. A server that publishes no replies is reported as such
 
 ## Interactions
 
@@ -74,7 +77,10 @@ All interactions are federated automatically through database triggers.
 - Follow/unfollow users via `CoreInteractionService.toggleFollow()`
 - Follow requests with pending acceptance for locked accounts
 - View followers/following lists in `FollowersView`
-- Follow counts on user profiles
+- Follow counts on user profiles. A remote account shows its own server's post, follower and
+  following totals, re-read when older than six hours; a total that server withholds shows as
+  `–`. Its following and followers lists hold the accounts this instance knows, with a link to
+  the full list on its server
 
 ## Explore
 

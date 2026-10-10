@@ -116,6 +116,24 @@ export async function deleteUser(admin: SupabaseClient, user: SpecUser | undefin
   }
 }
 
+/**
+ * A supabase-js client signed in as `user`. Its writes pass RLS and the client-write guards
+ * as the app's own do; a service_role write is recorded as 'system' where that matters.
+ */
+export async function userClient(user: SpecUser): Promise<SupabaseClient> {
+  const client = createClient(
+    requireEnv('E2E_SUPABASE_URL', 'TEST_SUPABASE_URL'),
+    requireEnv('E2E_SUPABASE_ANON_KEY', 'TEST_SUPABASE_ANON_KEY'),
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  )
+  const { error } = await client.auth.signInWithPassword({
+    email: user.email,
+    password: user.password,
+  })
+  if (error) throw new Error(`sign-in ${user.username}: ${error.message}`)
+  return client
+}
+
 export interface SeededServer {
   id: string
   name: string
@@ -163,6 +181,144 @@ export async function addMember(
       { onConflict: 'user_id,server_id' },
     )
   if (error) throw new Error(`addMember ${user.username}: ${error.message}`)
+}
+
+// Bit positions in server_roles.permissions: a subset of PERMISSION_BITS in
+// src/services/RoleService.ts.
+export const PERMISSION_BITS = {
+  ADMINISTRATOR: 0,
+  VIEW_CHANNEL: 1,
+  MANAGE_CHANNELS: 2,
+  MANAGE_ROLES: 3,
+  VIEW_AUDIT_LOG: 5,
+  MANAGE_WEBHOOKS: 6,
+  MANAGE_SERVER: 7,
+  CREATE_INVITE: 8,
+  SEND_MESSAGES: 12,
+  SEND_MESSAGES_IN_THREADS: 13,
+  CREATE_PUBLIC_THREADS: 14,
+  ADD_REACTIONS: 18,
+  READ_MESSAGE_HISTORY: 22,
+} as const
+
+export type PermissionName = keyof typeof PERMISSION_BITS
+
+export function permissionMask(names: PermissionName[]): number {
+  return names.reduce((mask, name) => mask + 2 ** PERMISSION_BITS[name], 0)
+}
+
+/** Creates a role on the server and assigns it to `user`; returns the role id. */
+export async function grantRole(
+  admin: SupabaseClient,
+  serverId: string,
+  user: SpecUser,
+  role: { name: string; position: number; permissions: PermissionName[] },
+): Promise<string> {
+  const { data, error } = await admin
+    .from('server_roles')
+    .insert({
+      server_id: serverId,
+      name: role.name,
+      position: role.position,
+      permissions: permissionMask(role.permissions),
+    })
+    .select('id')
+    .single()
+  if (error || !data) throw new Error(`role ${role.name}: ${error?.message}`)
+  await assignRole(admin, serverId, user, data.id)
+  return data.id
+}
+
+export async function assignRole(
+  admin: SupabaseClient,
+  serverId: string,
+  user: SpecUser,
+  roleId: string,
+): Promise<void> {
+  const { error } = await admin
+    .from('user_roles')
+    .insert({ user_id: user.id, role_id: roleId, server_id: serverId })
+  if (error) throw new Error(`assign role to ${user.username}: ${error.message}`)
+}
+
+/** A text channel in the general channel's category; returns its id. */
+export async function addChannel(
+  admin: SupabaseClient,
+  server: SeededServer,
+  name: string,
+): Promise<string> {
+  const { data: general } = await admin
+    .from('channels')
+    .select('category')
+    .eq('id', server.generalChannelId)
+    .single()
+  const { data, error } = await admin
+    .from('channels')
+    .insert({ server_id: server.id, name, type: 0, category: general?.category ?? null })
+    .select('id')
+    .single()
+  if (error || !data) throw new Error(`channel ${name}: ${error?.message}`)
+  return data.id
+}
+
+export const messageList = (page: Page) => page.locator('[data-testid="message-list"]')
+export const composer = (page: Page) =>
+  page.locator('[data-testid="message-input"] .rich-text-editor')
+
+/** Opens a channel by URL and waits for its message list. */
+export async function openChannel(page: Page, serverId: string, channelId: string): Promise<void> {
+  await page.goto(`/chat/${serverId}/${channelId}`)
+  await dismissAnnouncements(page)
+  await expect(messageList(page)).toBeVisible({ timeout: 30000 })
+}
+
+/** Types into the composer, sends, and waits until the insert has returned. */
+export async function sendMessage(page: Page, text: string) {
+  await composer(page).click()
+  await composer(page).pressSequentially(text, { delay: 10 })
+  await page.keyboard.press('Enter')
+  // A ||spoiler|| renders without its bars.
+  const shown = text.replace(/\|\|/g, '')
+  const posted = messageList(page).locator('.message-item').filter({ hasText: shown }).last()
+  await expect(posted).toBeVisible({ timeout: 30000 })
+  await expect(posted).not.toHaveAttribute('data-message-id', /^temp-/, { timeout: 30000 })
+  return posted
+}
+
+/** A channel's row in the open server's sidebar, by exact name. */
+export const channelRow = (page: Page, name: string) =>
+  page.locator('.channel-sidebar .channel-wrapper').filter({
+    has: page.locator('.channel-name').getByText(name, { exact: true }),
+  })
+
+/** Opens Create Channel from the TEXT CHANNELS category's context menu. */
+export async function openCreateChannel(page: Page) {
+  await page
+    .locator('.channel-sidebar .category-name')
+    .filter({ hasText: 'TEXT CHANNELS' })
+    .first()
+    .click({ button: 'right' })
+  await page
+    .locator('.context-menu .context-menu-item')
+    .filter({ hasText: 'Create Channel' })
+    .click()
+  const modal = page.locator('.modal-container').filter({ hasText: 'Create Channel' })
+  await expect(modal).toBeVisible({ timeout: 10000 })
+  return modal
+}
+
+/** Deletes a channel through its context menu and the typed confirmation. */
+export async function deleteChannelFromMenu(page: Page, name: string): Promise<void> {
+  await channelRow(page, name).click({ button: 'right' })
+  await page
+    .locator('.context-menu .context-menu-item')
+    .filter({ hasText: 'Delete channel' })
+    .click()
+  const dialog = page.locator('.modal-container').filter({ hasText: `delete #${name}?` })
+  await expect(dialog).toBeVisible({ timeout: 10000 })
+  await dialog.locator('input').fill(name)
+  await dialog.getByRole('button', { name: 'Delete channel' }).click()
+  await expect(dialog).toBeHidden({ timeout: 30000 })
 }
 
 /** Announcements render over the whole app and swallow clicks. */

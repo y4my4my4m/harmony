@@ -55,6 +55,17 @@ vi.mock('../VoiceChannelParticipants.vue', () => stub('VoiceChannelParticipants'
 vi.mock('../SpatialAudioPanel.vue', () => stub('SpatialAudioPanel'))
 vi.mock('../RecentSpeakers.vue', () => stub('RecentSpeakers'))
 vi.mock('../ScreensharePIP.vue', () => stub('ScreensharePIP'))
+vi.mock('../LiveReactionLayer.vue', () => stub('LiveReactionLayer'))
+vi.mock('../LiveReactionPopover.vue', () => ({
+  __esModule: true,
+  default: { name: 'LiveReactionPopover', props: ['visible', 'anchor', 'target'], emits: ['close'], render: () => null },
+}))
+vi.mock('../SoundboardActivity.vue', () => stub('SoundboardActivity'))
+vi.mock('../SoundboardPopover.vue', () => stub('SoundboardPopover'))
+vi.mock('../useSoundboardButton', async () => {
+  const { ref } = await import('vue')
+  return { useSoundboardButton: () => ({ available: ref(false), visible: ref(false), anchor: ref(null), toggle: vi.fn(), close: vi.fn() }) }
+})
 
 const member = (userId: string, extra: Record<string, unknown> = {}) => ({
   userId, isAudioEnabled: true, isVideoEnabled: false, isScreenSharing: false,
@@ -69,6 +80,7 @@ function makeStore(remote: ReturnType<typeof member>[], local = member('me')) {
     connectionState: 'connected',
     transportLabel: 'SFU',
     connectionMode: 'livekit',
+    liveReactionsAvailable: false,
     isEncrypted: false,
     dmOtherUserId: null,
     effectiveChannelName: 'General',
@@ -293,5 +305,37 @@ describe('UnifiedVoiceDock video strip', () => {
       const controls = await minimize()
       expect(controls.find('.mini-mic-btn').exists()).toBe(true)
     })
+  })
+})
+
+describe('UnifiedVoiceDock live reactions', () => {
+  const popover = () => wrapper!.findComponent({ name: 'LiveReactionPopover' })
+
+  it('offers no reaction control in an audio-only call', async () => {
+    h.store = makeStore([member('bob')])
+    wrapper = await mountDock()
+    expect(wrapper.find('.react-btn').exists()).toBe(false)
+  })
+
+  it('aims at the watched stream it previews', async () => {
+    h.store = makeStore([member('carol', { isScreenSharing: true })])
+    h.store.watchedStreamUserIds = ['carol']
+    h.store.liveReactionsAvailable = true
+    wrapper = await mountDock()
+
+    expect(popover().props('visible')).toBe(false)
+    await wrapper.find('.react-btn').trigger('click')
+    expect(popover().props('visible')).toBe(true)
+    expect(popover().props('target')).toEqual({ userId: 'carol', source: 'screen' })
+    expect(popover().props('anchor')).toBe(wrapper.find('.react-btn').element)
+  })
+
+  it('reacts on the sender tile when only cameras are on', async () => {
+    h.store = makeStore([member('bob', { isVideoEnabled: true })])
+    h.store.liveReactionsAvailable = true
+    wrapper = await mountDock()
+
+    await wrapper.find('.react-btn').trigger('click')
+    expect(popover().props('target')).toBeNull()
   })
 })

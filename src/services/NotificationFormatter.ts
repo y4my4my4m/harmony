@@ -5,10 +5,13 @@
  * Designed to be easily internationalized by replacing message templates.
  */
 
+import { maskSpoilers } from '@/utils/spoiler'
+import { pollPreview } from '@/utils/messagePoll'
 import type { Notification } from '@/types'
 import { getAvatarUrl as utilGetAvatarUrl } from '@/utils/avatarUtils'
 import { debug } from '@/utils/debug'
 import { securityNoticeText } from '@/utils/securityNotice'
+import { moveNoticeText } from '@/utils/moveNotice'
 import { i18n } from '@/i18n'
 
 export interface NotificationMessage {
@@ -52,10 +55,12 @@ function extractContentText(content: any): string | null {
     if (content.startsWith('[')) {
       try { content = JSON.parse(content) } catch { return content }
     } else {
-      return content
+      return maskSpoilers(content)
     }
   }
   if (Array.isArray(content)) {
+    const poll = pollPreview(content)
+    if (poll) return maskSpoilers(poll)
     const text = content
       .map((part: any) => {
         if (part.type === 'text') return part.text
@@ -67,7 +72,7 @@ function extractContentText(content: any): string | null {
       })
       .join(' ')
       .trim()
-    return text || null
+    return text ? maskSpoilers(text) : null
   }
   if (typeof content === 'object') return null
   return String(content)
@@ -110,6 +115,13 @@ function mentionTitleAction(data: Record<string, any>): string {
 function replyTitleAction(data: Record<string, any>): string {
   const channelName = data.location?.channel_name || data.channel_name || 'channel'
   return ` replied to your message in #${channelName}`
+}
+
+function channelMessageTitleAction(data: Record<string, any>): string {
+  const channel = data.location?.channel_name || data.channel_name
+  return channel
+    ? i18n.global.t('notificationSettings.notification.action', { channel })
+    : i18n.global.t('notificationSettings.notification.actionNoChannel')
 }
 
 function threadReplyTitleAction(data: Record<string, any>): string {
@@ -194,6 +206,25 @@ const MESSAGE_TEMPLATES = {
     }
   },
   
+  channel_message: {
+    titleAction: channelMessageTitleAction,
+    title: (data: any) => getActorDisplayName(data) + channelMessageTitleAction(data),
+    message: (data: any) => {
+      const text = extractContentText(data.message?.content_preview)
+        || extractContentText(data.preview)
+      if (text) {
+        return text.length > 100 ? text.substring(0, 100) + '...' : text
+      }
+      return i18n.global.t('notificationSettings.notification.noPreview')
+    },
+    shortTitle: (data: any) => {
+      const channel = data.location?.channel_name || data.channel_name
+      return channel
+        ? i18n.global.t('notificationSettings.notification.short', { channel })
+        : i18n.global.t('notificationSettings.notification.shortNoChannel')
+    }
+  },
+
   reaction: {
     titleAction: () => ' reacted to your message',
     title: (data: any) => getActorDisplayName(data) + ' reacted to your message',
@@ -380,6 +411,12 @@ const MESSAGE_TEMPLATES = {
     title: (data: any) => securityNoticeText(data).title,
     message: (data: any) => securityNoticeText(data).message,
     shortTitle: () => i18n.global.t('moderation.securityNotification.short')
+  },
+
+  move: {
+    title: (data: any) => moveNoticeText(data).title,
+    message: (data: any) => moveNoticeText(data).message,
+    shortTitle: () => i18n.global.t('accountMigration.notice.short')
   },
 
   report_update: {
@@ -658,6 +695,10 @@ export class NotificationFormatter {
     if (!avatar) {
       avatar = data.reactor?.avatar_url ||
                data.inviter?.avatar_url
+    }
+
+    if (!avatar && notification.type === 'move') {
+      avatar = data.target?.avatar_url
     }
     
     // Legacy format fallback

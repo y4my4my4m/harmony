@@ -166,8 +166,10 @@ BEGIN
 END;
 $fn$;
 
+-- Thread replies excluded, as trigger_new_message_unread has since 20261011100001.
 CREATE TRIGGER t58_old_message_unread AFTER INSERT ON public.messages FOR EACH ROW
-    WHEN (NEW.channel_id IS NOT NULL AND NEW.is_deleted = false AND NEW.is_system = false)
+    WHEN (NEW.channel_id IS NOT NULL AND NEW.thread_id IS NULL
+          AND NEW.is_deleted = false AND NEW.is_system = false)
     EXECUTE FUNCTION tests.old_message_unread();
 CREATE TRIGGER t58_old_dm_unread AFTER INSERT ON public.messages FOR EACH ROW
     WHEN (NEW.conversation_id IS NOT NULL AND NEW.is_deleted = false AND NEW.is_system = false)

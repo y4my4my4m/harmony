@@ -7,6 +7,7 @@ import { useReactionsStore } from '@/stores/useReactions';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { usePinsStore } from '@/stores/usePins';
+import { useMessagePollsStore } from '@/stores/useMessagePolls';
 import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils';
 import { processMessageDecryption } from '@/utils/messageDecryption';
 import { reportChannelEncryptionError } from '@/composables/useEncryptionAction';
@@ -1227,6 +1228,7 @@ export const useChatStore = defineStore('chat', {
         broadcasts: [
           { event: 'reaction_event', handler: (payload) => void reactionsStore.handleRealtimeUpdate(payload) },
           { event: 'message_event', handler: handleMessageEvent },
+          { event: 'poll_event', handler: (payload) => useMessagePollsStore().applyRealtime(payload) },
         ],
 
         onInsert: handleMessageInsert,

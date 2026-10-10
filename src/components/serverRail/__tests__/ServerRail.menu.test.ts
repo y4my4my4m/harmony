@@ -44,6 +44,7 @@ vi.mock('@/utils/faviconBadge', () => ({ updateFaviconBadge: vi.fn() }))
 import ServerRail from '../ServerRail.vue'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useNotificationStore } from '@/stores/useNotification'
+import { useServerNotificationSettingsStore } from '@/stores/useServerNotificationSettings'
 import { supabase } from '@/supabase'
 
 const s = (id: string, position: number, folder_id: string | null = null, owner = 'someone') =>
@@ -88,7 +89,7 @@ describe('ServerRail context menus', () => {
     await vi.waitFor(() => expect(wrapper.find('.rail-menu [data-action]').exists()).toBe(true))
   }
 
-  const base = ['mark-read', 'invite', 'mute', 'mute-m15', 'mute-h1', 'mute-h3', 'mute-h8', 'mute-h24', 'mute-forever', 'settings', 'move-up', 'move-down']
+  const base = ['mark-read', 'invite', 'mute', 'mute-m15', 'mute-h1', 'mute-h3', 'mute-h8', 'mute-h24', 'mute-forever', 'notification-settings', 'settings', 'move-up', 'move-down']
 
   it('opens on a mouse right-click in the first 1.5 s of page life', async () => {
     const now = vi.spyOn(performance, 'now').mockReturnValue(100)
@@ -161,6 +162,13 @@ describe('ServerRail context menus', () => {
     await openOn('folder', 'F1')
     await wrapper.get('[data-action="settings"]').trigger('click')
     expect(wrapper.emitted('edit-folder')?.[0][0]).toMatchObject({ id: 'F1' })
+  })
+
+  it('opens the notification settings of the server', async () => {
+    await openOn('server', 'c')
+    await wrapper.get('[data-action="notification-settings"]').trigger('click')
+    expect(useServerNotificationSettingsStore().modalServerId).toBe('c')
+    expect(rpc).toHaveBeenCalledWith('get_server_notification_settings', { p_server_id: 'c' })
   })
 
   it('leaves through the shared leave flow', async () => {

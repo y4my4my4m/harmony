@@ -222,6 +222,8 @@
       </div>
     </div>
 
+    <AccountMigrationPanel />
+
     <div class="settings-section danger-zone">
       <h3 class="section-title danger">Danger zone</h3>
 
@@ -326,6 +328,7 @@ import { useToast } from 'vue-toastification'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt.vue'
 import RunOnLoginInstructionsModal from '@/components/RunOnLoginInstructionsModal.vue'
+import AccountMigrationPanel from './AccountMigrationPanel.vue'
 import { isTauriDesktop as checkTauriDesktop, canInstallPWA } from '@/utils/platform'
 import { isRichPresenceEnabled, setRichPresenceEnabled } from '@/services/nativePresence'
 import { isOverlayEnabled, setOverlayEnabled } from '@/services/overlayBridge'

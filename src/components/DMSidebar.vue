@@ -261,6 +261,7 @@ import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import { useI18n } from 'vue-i18n'
 import { isUndecrypted } from '@/utils/channelEncryption'
+import { pollPreview } from '@/utils/messagePoll'
 
 const toast = useToast()
 const { t } = useI18n()
@@ -501,6 +502,8 @@ const getMessagePreviewText = (message: Message): string => {
   if (isUndecrypted(message)) return t('channelEncryption.encryptedMessage')
   const content = message.content as MessagePart[]
   if (!Array.isArray(content)) return 'No messages yet'
+  const poll = pollPreview(content)
+  if (poll) return poll.length > 50 ? poll.substring(0, 50) + '...' : poll
   
   // Extract text from message parts. After the type filter narrows to the
   // 'text' arm, `.text` is safe to read, but TypeScript's narrowing across

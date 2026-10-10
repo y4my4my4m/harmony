@@ -259,6 +259,23 @@ describe('author.nickname', () => {
     expect(nicknameQueries()).toBe(0)
   })
 
+  it('names a webhook message by the name and avatar it was posted under', async () => {
+    await dispatcher.handleMessageCreate({
+      new: {
+        ...message(GENERAL, 'deploy finished'),
+        user_id: null,
+        bot_id: BRIDGE_BOT,
+        metadata: { bot: true, created_via: 'webhook', webhook: { id: 'w1', name: 'Deployer', avatar_url: 'https://cdn.test/d.png' } },
+      },
+    })
+
+    expect(authorOf('MESSAGE_CREATE')).toEqual([{
+      id: BRIDGE_BOT, username: 'Deployer', display_name: 'Deployer', avatar: 'https://cdn.test/d.png',
+      nickname: null, bot: true, webhook: true,
+    }])
+    expect(nicknameQueries()).toBe(0)
+  })
+
   it('shows a nickname change within 60 s and reads it once per server and user meanwhile', async () => {
     let clock = Date.now()
     vi.spyOn(Date, 'now').mockImplementation(() => clock)
@@ -780,5 +797,54 @@ describe('install changes reach the permission cache within the refresh bound', 
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('mention_everyone', () => {
+  const HERE = { type: 'role_mention', roleId: 'here', roleName: 'here', roleColor: null }
+  const EVERYONE = { type: 'role_mention', roleId: EVERYONE_ROLE, roleName: 'everyone', roleColor: null }
+  const CREW = { type: 'role_mention', roleId: '00000000-0000-0000-0000-0000000000e1', roleName: 'crew', roleColor: null }
+  let granted: boolean
+  let asked: Array<[string, any]>
+
+  beforeEach(() => {
+    granted = true
+    asked = []
+    mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+      asked.push([fn, args])
+      if (fn === 'has_permission' || fn === 'check_bot_permission') return { data: granted, error: null }
+      throw new Error(`test called unmocked rpc: ${fn}`)
+    })
+  })
+
+  async function flag(content: unknown[], author: Row = {}): Promise<boolean> {
+    sent = []
+    await dispatcher.handleMessageCreate({ new: { ...message(GENERAL, 'x'), content, ...author } })
+    return sent[0].event.d.mention_everyone
+  }
+
+  it('is true for @here or @everyone from an author holding MENTION_EVERYONE', async () => {
+    expect(await flag([HERE])).toBe(true)
+    expect(await flag([EVERYONE])).toBe(true)
+    expect(asked[0]).toEqual(['has_permission', {
+      p_user_id: OWNER_ID, p_server_id: SERVER_ID, p_permission: 'MENTION_EVERYONE', p_channel_id: GENERAL,
+    }])
+  })
+
+  it('asks a bot author for mention_everyone', async () => {
+    const BOT = '00000000-0000-0000-0000-0000000000b7'
+    expect(await flag([HERE], { user_id: null, bot_id: BOT })).toBe(true)
+    expect(asked[0]).toEqual(['check_bot_permission', {
+      p_bot_id: BOT, p_server_id: SERVER_ID, p_permission: 'mention_everyone',
+    }])
+  })
+
+  it('is false without the right, and for other roles or none', async () => {
+    granted = false
+    expect(await flag([HERE])).toBe(false)
+    granted = true
+    expect(await flag([CREW])).toBe(false)
+    expect(await flag([{ type: 'text', text: '@here' }])).toBe(false)
+    expect(asked).toEqual([['has_permission', expect.anything()]])
   })
 })

@@ -7,6 +7,8 @@ import type { VideoSource, VoiceConnectionQuality } from '@/services/livekitWebR
 import { clampVolume, remoteAudioMixer, type RemoteAudioKind } from '@/services/voice/remoteAudioMixer';
 import { loadAudioPrefs as readAudioPrefs, saveMutes, saveVolumes } from '@/services/voice/voiceAudioPrefs';
 import { closeVoiceAudioContext } from '@/services/voice/voiceAudioContext';
+import { liveReactions, liveReactionsAvailable } from '@/services/voice/liveReactions';
+import { connectLiveReactions } from '@/services/voice/liveReactionBridge';
 import { VoiceSettingsService, normalizeOutputVolume } from '@/services/VoiceSettingsService';
 import { spatialAudioService } from '@/services/spatialAudio';
 import { dmCallSignaling } from '@/services/DMCallSignaling';
@@ -14,6 +16,8 @@ import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from './useServerChannel';
+import { useSoundboardStore } from './soundboard';
+import type { SoundboardTransportEvent } from '@/services/soundboard/protocol';
 import { setCallServiceActive } from '@/services/callForegroundService';
 import { syncOverlayForCall } from '@/services/overlayBridge';
 import { useThemeStore } from '@/stores/useTheme';
@@ -309,6 +313,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       if (state.connectionMode === 'p2p') return true;
       return state.watchedStreamUserIds.includes(userId);
     },
+
+    liveReactionsAvailable: (state): boolean =>
+      liveReactionsAvailable(state.connectionMode, [state.localState, ...state.allUsers]),
 
     getConnectionQuality: (state) => (userId: string): VoiceConnectionQuality => {
       return state.connectionQuality[userId] ?? 'unknown';
@@ -1421,6 +1428,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       webrtcManager.on('channel-left', (data: any) => {
         debug.log('Channel left:', data);
         this.isEncrypted = false;
+        liveReactions.clear();
+      });
+
+      connectLiveReactions(this);
+      webrtcManager.on('live-reaction', (data: { userId: string; payload: Uint8Array }) => {
+        liveReactions.receive(data.userId, data.payload);
       });
 
       webrtcManager.on('e2ee-status-changed', (data: { enabled: boolean }) => {
@@ -1694,6 +1707,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         if (this.callStartTime) {
           this.broadcastCallStartTime();
         }
+      });
+
+      webrtcManager.on('soundboard', (event: SoundboardTransportEvent) => {
+        void useSoundboardStore().receive(event);
       });
     },
 
@@ -2063,6 +2080,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.connectionQuality = {};
       this.watchedStreamUserIds = [];
       this.audioPlaybackBlocked = false;
+      liveReactions.clear();
+      useSoundboardStore().leaveCall();
     },
 
     getUserProfile(userId: string) {

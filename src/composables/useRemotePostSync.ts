@@ -8,7 +8,7 @@
 
 import { ref, onMounted, type Ref } from 'vue'
 import { debug } from '@/utils/debug'
-import { activityPubService } from '@/services/activityPubService'
+import { activityPubService, type RemoteRepliesResult } from '@/services/activityPubService'
 import { getOriginalApId, getOriginalPostId } from '@/utils/postReblog'
 import type { TimelinePost } from '@/types'
 
@@ -55,28 +55,28 @@ export function useRemotePostSync(
     }
   }
 
-  const fetchRemoteReplies = async () => {
-    if (!getIsRemote() || isFetchingReplies.value) return
+  /** Null when the post is local, a fetch is already running, or the request failed. */
+  const fetchRemoteReplies = async (fetchOptions: { force?: boolean } = {}): Promise<RemoteRepliesResult | null> => {
+    if (!getIsRemote() || isFetchingReplies.value) return null
 
     const p = getPost()
     const apId = getOriginalApId(p)
-    if (!apId) return
+    if (!apId) return null
 
     isFetchingReplies.value = true
     try {
-      const result = await activityPubService.fetchRemoteReplies(apId, getOriginalPostId(p))
+      const result = await activityPubService.fetchRemoteReplies(apId, getOriginalPostId(p), fetchOptions)
       if (result) {
-        debug.log(`Fetched ${result.count} replies for remote post`)
-        // The service may attach extra counters when the remote responds with
-        // updated tallies; they aren't part of the strict return type, so cast.
-        const r = result as any
-        if (r.replies_count !== undefined || r.favorites_count !== undefined || r.reblogs_count !== undefined) {
-          options.onReactionsUpdate?.(r)
+        debug.log(`Fetched ${result.count} replies for remote post (${result.status})`)
+        if (result.replies_count !== undefined || result.favorites_count !== undefined || result.reblogs_count !== undefined) {
+          options.onReactionsUpdate?.(result)
         }
         options.onRefresh?.(p.id)
       }
+      return result
     } catch (error) {
       debug.error('Error fetching remote replies:', error)
+      return null
     } finally {
       isFetchingReplies.value = false
     }

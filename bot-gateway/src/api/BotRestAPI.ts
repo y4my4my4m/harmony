@@ -25,6 +25,7 @@ import { stripBotSuppliedPaths } from '../utils/messageMedia.js'
 import { absoluteAvatarUrl } from '../utils/avatarUrl.js'
 import { isDiscordCdnUrl } from '../utils/emojiUrl.js'
 import { DISCORD_EMOJI_ID, EMOJI_NAME, storeDiscordEmojiImage } from '../utils/discordEmojiImport.js'
+import { TTLCache } from '../utils/TTLCache.js'
 
 const AUTOMOD_BLOCKED_BODY = {
   error: "Blocked by the server's AutoMod",
@@ -53,12 +54,21 @@ export interface BotRequest extends Request {
 }
 
 // Message metadata keys written by federation, definer functions and this API; the
-// client UI treats them as server statements. A bot's metadata never sets them.
+// client UI treats them as server statements. A bot's metadata never sets them. embeds holds
+// link-preview payloads (update_message_embeds), suppress_embeds is set through
+// set_message_embeds_suppressed, webhook by execute_channel_webhook.
 const SERVER_METADATA_KEYS = new Set([
   'type', 'federated', 'ap_id', 'from_domain', 'original_url', 'published', 'conversation',
   'in_reply_to_ap', 'pending_thread_ap_id', 'federated_at', 'federated_to', 'automod',
-  'bot', 'created_via',
+  'bot', 'created_via', 'embeds', 'suppress_embeds', 'webhook',
 ])
+
+// The displayed author of a relayed message (src/utils/messageAuthor.ts in the client). Kept
+// only from a bridge bot whose bridge relays the channel (bridgePairsChannel).
+const BRIDGE_AUTHOR_KEYS = new Set(['discord_user', 'bridge_source'])
+
+/** EmbedProvider in the client's src/types/chat.ts. */
+const EMBED_PROVIDERS = new Set(['harmony-post', 'harmony-invite', 'fediverse-post', 'youtube', 'spotify', 'generic'])
 
 // Metadata a bridge bot records on a message it did not write (bridge 2.2): the Discord
 // message ids of its copy, whether a webhook posted it, and the files uploaded with it.
@@ -72,14 +82,56 @@ function isBridgeMappingEntry([key, value]: [string, unknown]): boolean {
   return BRIDGE_MAPPING_KEYS.has(key) || (key === 'bridge_source' && value === 'harmony')
 }
 
-export function botSuppliedMetadata(input: unknown): Record<string, unknown> {
+export function botSuppliedMetadata(
+  input: unknown,
+  options: { bridgeAuthor?: boolean } = {},
+): Record<string, unknown> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return {}
   return Object.fromEntries(
-    Object.entries(input as Record<string, unknown>).filter(([key]) => !SERVER_METADATA_KEYS.has(key)),
+    Object.entries(input as Record<string, unknown>).filter(([key]) =>
+      !SERVER_METADATA_KEYS.has(key) && (options.bridgeAuthor === true || !BRIDGE_AUTHOR_KEYS.has(key))),
   )
 }
 
+/** True when bot metadata names the relayed author, which only a relaying bridge may. */
+export function claimsBridgeAuthor(input: unknown): boolean {
+  return !!input && typeof input === 'object' && !Array.isArray(input)
+    && Object.keys(input).some((key) => BRIDGE_AUTHOR_KEYS.has(key))
+}
+
+/** An embed part as the client reads it (EmbedContent), or null. */
+export function embedPart(part: Record<string, unknown>): Record<string, unknown> | null {
+  const { url, provider, previewId, collapsed } = part
+  if (typeof url !== 'string' || url.length > 2048 || !/^https?:\/\/\S+$/i.test(url)) return null
+  if (typeof provider !== 'string' || !EMBED_PROVIDERS.has(provider)) return null
+  if (typeof previewId !== 'string' || !previewId || previewId.length > 2048) return null
+  return { type: 'embed', url, provider, previewId, ...(typeof collapsed === 'boolean' ? { collapsed } : {}) }
+}
+
+/**
+ * Bot-supplied parts without system parts, which are server-generated join and leave
+ * notices, and with embed parts reduced to their fields or dropped when malformed.
+ */
+export function botContentParts(parts: unknown[]): any[] {
+  const out: any[] = []
+  for (const part of parts) {
+    if (part && typeof part === 'object' && !Array.isArray(part)) {
+      const type = (part as { type?: unknown }).type
+      if (type === 'system') continue
+      if (type === 'embed') {
+        const embed = embedPart(part as Record<string, unknown>)
+        if (embed) out.push(embed)
+        continue
+      }
+    }
+    out.push(part)
+  }
+  return out
+}
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// role_mention roleId of @here (db_schema/migrations/20261011600001_here_mention.sql).
+const HERE_ROLE_ID = 'here'
 
 /** A reaction's bot-supplied metadata; remote_emoji_url is kept only when it is an https Discord CDN URL. */
 export function reactionMetadata(input: unknown): unknown {
@@ -96,8 +148,12 @@ export interface MessageDeleteSink {
   messageHardDeleted(message: { id: string; channel_id: string | null; metadata: unknown }): Promise<void>
 }
 
+/** A bridge pairing removed keeps answering true for at most this long. */
+const BRIDGE_PAIR_TTL_MS = 60_000
+
 export class BotRestAPI {
   public router: Router
+  private readonly bridgePairs = new TTLCache<string, true>(5_000, BRIDGE_PAIR_TTL_MS)
   
   constructor(private readonly deletes?: MessageDeleteSink) {
     this.router = Router()
@@ -234,7 +290,7 @@ export class BotRestAPI {
       const { data: updated, error } = await supabase.rpc('update_message_content_silent', {
         p_message_id: messageId,
         p_old_content: message.content,
-        p_content: await this.resolveMentionParts(content, message.channel_id),
+        p_content: await this.resolveMentionParts(botContentParts(content), message.channel_id, botId),
       })
       if (error) {
         return res.status(400).json({ error: error.message })
@@ -269,13 +325,17 @@ export class BotRestAPI {
       // Instance attachment policy (e.g. mirroring Discord CDN URLs into
       // user_media) is applied here, keeping bots policy-agnostic.
       const messageContent = await applyBridgeAttachmentPolicy(
-        await this.resolveMentionParts(this.formatContent(content, embeds), channelId),
+        await this.resolveMentionParts(this.formatContent(content, embeds), channelId, botId),
         botId,
         channelId,
       )
-      
+      if (!Array.isArray(messageContent) || messageContent.length === 0) {
+        return res.status(400).json({ error: 'Cannot send an empty message' })
+      }
+
+      const bridgeAuthor = claimsBridgeAuthor(metadata) && await this.bridgePairsChannel(botId, channelId)
       const messageMetadata = {
-        ...botSuppliedMetadata(metadata),
+        ...botSuppliedMetadata(metadata, { bridgeAuthor }),
         bot: true,
         created_via: 'bot_api',
       }
@@ -433,9 +493,11 @@ export class BotRestAPI {
         return res.status(403).json({ error: access.error })
       }
 
+      const bridgeAuthor = own && claimsBridgeAuthor(metadata)
+        && await this.bridgePairsChannel(botId, message.channel_id)
       const mergedMetadata = {
         ...(message.metadata || {}),
-        ...(own ? botSuppliedMetadata(metadata) : metadata),
+        ...(own ? botSuppliedMetadata(metadata, { bridgeAuthor }) : metadata),
       }
 
       const { error: updateError } = await supabase
@@ -560,11 +622,14 @@ export class BotRestAPI {
       }
       
       const messageContent = await applyBridgeAttachmentPolicy(
-        await this.resolveMentionParts(this.formatContent(content), message.channel_id),
+        await this.resolveMentionParts(this.formatContent(content), message.channel_id, botId),
         botId,
         message.channel_id,
       )
-      
+      if (!Array.isArray(messageContent) || messageContent.length === 0) {
+        return res.status(400).json({ error: 'Cannot send an empty message' })
+      }
+
       const { data: updatedRows, error } = await supabase
         .from('messages')
         .update({ 
@@ -1599,10 +1664,18 @@ export class BotRestAPI {
    * The bot is a bridge bot (bot_type 'bridge') and its bridge relays the channel: a
    * discord_bridge_channels pair of the v2 bridge whose bot it is, or, for a bot that is no v2
    * bridge's bot, a v1 discord_bridge_pairings row of the channel's server. False on any
-   * failed lookup.
+   * failed lookup. A true answer is cached for BRIDGE_PAIR_TTL_MS.
    */
   private async bridgePairsChannel(botId: string, channelId: string | null | undefined): Promise<boolean> {
     if (!channelId) return false
+    const key = `${botId}:${channelId}`
+    if (this.bridgePairs.get(key)) return true
+    const paired = await this.lookupBridgePair(botId, channelId)
+    if (paired) this.bridgePairs.set(key, true)
+    return paired
+  }
+
+  private async lookupBridgePair(botId: string, channelId: string): Promise<boolean> {
     const { data: bot, error: botError } = await supabase
       .from('bots')
       .select('bot_type')
@@ -1726,10 +1799,12 @@ export class BotRestAPI {
   /**
    * role_mention and channel_mention parts against the channel's server: a role or channel of
    * that server keeps its part, carrying the stored name (and the role's color); any other part
-   * of those types becomes the text `@name` or `#name`. Notifications of a kept role mention
+   * of those types becomes the text `@name` or `#name`. @everyone (the server's default role)
+   * and @here (roleId `here`) keep their part only for a bot holding mention_everyone there, and
+   * otherwise become the text `@everyone` or `@here`. Notifications of a kept role mention
    * follow handle_role_mention_notifications (MENTION_EVERYONE, mentionable roles).
    */
-  private async resolveMentionParts(parts: any[], channelId: string | null | undefined): Promise<any[]> {
+  private async resolveMentionParts(parts: any[], channelId: string | null | undefined, botId: string): Promise<any[]> {
     if (!Array.isArray(parts)) return parts
     const isRole = (p: any) => p?.type === 'role_mention'
     const isChannel = (p: any) => p?.type === 'channel_mention'
@@ -1741,17 +1816,20 @@ export class BotRestAPI {
     const roleIds = uuids(parts.filter(isRole).map((p) => p.roleId))
     const channelIds = uuids(parts.filter(isChannel).map((p) => p.channelId))
 
-    const roles = new Map<string, { name: string; color: string | null }>()
+    const roles = new Map<string, { name: string; color: string | null; isDefault: boolean }>()
     if (serverId && roleIds.length > 0) {
       const { data } = await supabase
         .from('server_roles')
-        .select('id, name, color')
+        .select('id, name, color, is_default')
         .eq('server_id', serverId)
         .in('id', roleIds)
-      for (const r of (data ?? []) as Array<{ id: string; name: string; color: string | null }>) {
-        roles.set(r.id, { name: r.name, color: r.color ?? null })
+      for (const r of (data ?? []) as Array<{ id: string; name: string; color: string | null; is_default?: boolean | null }>) {
+        roles.set(r.id, { name: r.name, color: r.color ?? null, isDefault: r.is_default === true })
       }
     }
+    const isHere = (p: any) => isRole(p) && p.roleId === HERE_ROLE_ID
+    const pingsAll = parts.some((p) => isHere(p) || (isRole(p) && roles.get(p.roleId)?.isDefault))
+    const canPingAll = pingsAll && !!serverId && (await this.checkServerPermission(botId, serverId, 'mention_everyone'))
     const channels = new Map<string, string>()
     if (serverId && channelIds.length > 0) {
       const { data } = await supabase
@@ -1765,9 +1843,14 @@ export class BotRestAPI {
     const label = (value: unknown, fallback: string) =>
       typeof value === 'string' && value.trim() !== '' ? value : fallback
     return parts.map((part) => {
+      if (isHere(part)) {
+        if (!canPingAll) return { type: 'text', text: `@${HERE_ROLE_ID}` }
+        return { type: 'role_mention', roleId: HERE_ROLE_ID, roleName: HERE_ROLE_ID, roleColor: null }
+      }
       if (isRole(part)) {
         const role = roles.get(part.roleId)
         if (!role) return { type: 'text', text: `@${label(part.roleName, 'role')}` }
+        if (role.isDefault && !canPingAll) return { type: 'text', text: `@${role.name.replace(/^@/, '')}` }
         return { type: 'role_mention', roleId: part.roleId, roleName: role.name, roleColor: role.color }
       }
       if (isChannel(part)) {
@@ -1785,13 +1868,13 @@ export class BotRestAPI {
     const parts: any[] = []
     
     if (Array.isArray(content)) {
-      parts.push(...stripBotSuppliedPaths(content))
+      parts.push(...botContentParts(stripBotSuppliedPaths(content)))
     } else if (content) {
       parts.push({ type: 'text', text: content })
     }
     
-    if (embeds && embeds.length > 0) {
-      parts.push(...embeds.map(e => ({ type: 'embed', ...e })))
+    if (Array.isArray(embeds) && embeds.length > 0) {
+      parts.push(...botContentParts(embeds.map(e => ({ ...e, type: 'embed' }))))
     }
     
     return parts

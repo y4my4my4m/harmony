@@ -19,9 +19,9 @@
       <span>{{ t('channel.copyId') }}</span>
     </div>
 
-    <div class="context-menu-divider" v-if="canManageChannel"></div>
+    <div class="context-menu-divider" v-if="canEditChannel"></div>
     
-    <div class="context-menu-item" @click="editChannel" v-if="canManageChannel">
+    <div class="context-menu-item" @click="editChannel" v-if="canEditChannel">
       <svg width="16" height="16" viewBox="0 0 24 24">
         <path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
       </svg>
@@ -61,7 +61,7 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-const { canManageChannels, hasCurrentUserPermission, Permission } = useServerPermissions()
+const { canManageChannels, canManageWebhooks, hasCurrentUserPermission, Permission } = useServerPermissions()
 const { t } = useI18n()
 const toast = useToast()
 
@@ -69,13 +69,17 @@ const canManageChannel = computed(() => {
   return canManageChannels.value && props.channel
 })
 
+// Webhook managers open the channel settings on the Webhooks tab.
+const canEditChannel = computed(() =>
+  !!props.channel && (canManageChannels.value || (canManageWebhooks.value && props.channel.type === 0)))
+
 const canInvite = computed(() => {
   return hasCurrentUserPermission(Permission.CREATE_INVITE) && props.channel?.type === 0
 })
 
 const menuStyle = computed(() => {
   const menuWidth = 200
-  const menuHeight = canManageChannel.value ? 190 : 80
+  const menuHeight = canManageChannel.value ? 190 : canEditChannel.value ? 135 : 80
   const padding = 10
 
   let x = props.position.x

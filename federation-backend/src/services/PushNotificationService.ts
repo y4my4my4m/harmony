@@ -28,6 +28,7 @@ import {
   isWithinQuietHours,
   pushAllowedForType,
   securityNoticeText,
+  moveNoticeText,
 } from './pushPolicy.js';
 
 /**
@@ -953,7 +954,13 @@ class PushNotificationServiceClass {
         }
       }
       
-      if (Array.isArray(content)) {
+      // A poll previews as its question; its text part spells out every answer.
+      const poll = Array.isArray(content)
+        ? content.find((part: any) => part?.type === 'poll' && typeof part.question === 'string')
+        : undefined;
+      if (poll) {
+        preview = `📊 ${poll.question}`;
+      } else if (Array.isArray(content)) {
         preview = content
           .map((part: any) => {
             if (part.type === 'text') return part.text;
@@ -968,6 +975,12 @@ class PushNotificationServiceClass {
       }
     }
     
+    // `||spoiler||` text stays hidden on the lock screen.
+    if (preview) {
+      preview = String(preview).replace(/\|\|(?=\S)([\s\S]*?\S)\|\|/g, (_m: string, inner: string) =>
+        '▒'.repeat(Math.min(Math.max(inner.length, 3), 12)));
+    }
+
     // Truncate if needed
     if (preview && preview.length > maxLength) {
       preview = preview.substring(0, maxLength) + '...';
@@ -1020,6 +1033,15 @@ class PushNotificationServiceClass {
           : `${senderName}${senderDomain} sent a message`;
         message = this.extractContentPreview(data) || 'New message';
         break;
+
+      case 'channel_message': {
+        const channelName = data.location?.channel_name || data.channel_name;
+        title = channelName
+          ? `${senderName}${senderDomain} in #${channelName}`
+          : `${senderName}${senderDomain} sent a message`;
+        message = this.extractContentPreview(data) || 'New message';
+        break;
+      }
 
       case 'reply':
         title = `${senderName}${senderDomain} replied to you`;
@@ -1102,6 +1124,13 @@ class PushNotificationServiceClass {
       
       case 'security': {
         const notice = securityNoticeText(data);
+        title = notice.title;
+        message = notice.body;
+        break;
+      }
+
+      case 'move': {
+        const notice = moveNoticeText(data);
         title = notice.title;
         message = notice.body;
         break;

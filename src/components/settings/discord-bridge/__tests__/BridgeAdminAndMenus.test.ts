@@ -19,6 +19,7 @@ vi.mock('@/composables/useServerPermissions', async () => {
   return {
     useServerPermissions: () => ({
       canManageChannels: computed(() => permissions.manage),
+      canManageWebhooks: computed(() => false),
       hasCurrentUserPermission: () => permissions.invite,
       Permission: { CREATE_INVITE: 'CREATE_INVITE' },
     }),

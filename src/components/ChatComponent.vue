@@ -63,6 +63,7 @@
       :server-id="serverChannelStore.currentServerId ?? undefined"
       :channel-name="effectiveChannelName"
       :username="effectiveDMUsername"
+      :allow-polls="pollsAllowed"
       background-send
       @toggleGiphy="toggleGiphy"
       @toggleEmojiList="toggleEmojiList"
@@ -72,6 +73,7 @@
       @upload-status-changed="handleUploadStatusChanged"
       @edit-last-message="handleEditLastMessage"
       @sendGif="handleSendGif"
+      @createPoll="openPollModal"
     >
       <!-- Shares the strip under the field with the typing indicator. -->
       <template #status-end>
@@ -137,6 +139,16 @@
       @thread-created="handleThreadCreated"
     />
 
+    <PollCreateModal
+      v-if="showPollModal"
+      :show="showPollModal"
+      :channel-id="props.isDM ? null : (props.channelId || serverChannelStore.currentChannelId)"
+      :conversation-id="props.isDM ? props.conversationId : null"
+      :reply-to="replyToMessageId || null"
+      @close="showPollModal = false"
+      @created="handlePollCreated"
+    />
+
     <KickBanModal
       v-if="showKickBanModal && !props.isDM"
       :show="showKickBanModal"
@@ -169,6 +181,7 @@
   import { useServerWelcomeStore } from '@/stores/useServerWelcome';
   const RecoveryKeySetupWizard = defineAsyncComponent(() => import('@/components/encryption/RecoveryKeySetupWizard.vue'));
   const KeyRecoveryModal = defineAsyncComponent(() => import('@/components/encryption/KeyRecoveryModal.vue'));
+  const PollCreateModal = defineAsyncComponent(() => import('@/components/polls/PollCreateModal.vue'));
   import { useAuthStore } from '@/stores/auth'; 
   import { useProfileStore } from '@/stores/useProfile';
   import { useChatStore } from '@/stores/useChat';
@@ -281,6 +294,29 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
     return !props.isDM && serverId && welcomeStore.mustAccept(serverId) ? serverId : null;
   });
 
+  // Polls. End-to-end encrypted channels and DMs refuse them (create_message_poll).
+  const showPollModal = ref(false);
+  const dmEncryptionEnabled = ref(false);
+  const pollsAllowed = computed(() => {
+    if (props.isDM) return !!props.conversationId && !dmEncryptionEnabled.value;
+    const channelId = props.channelId || serverChannelStore.currentChannelId;
+    return !!channelId && !channelEncryptionStore.isMessagesEncrypted(channelId);
+  });
+  const openPollModal = () => {
+    if (pollsAllowed.value) showPollModal.value = true;
+  };
+  const handlePollCreated = (row: Record<string, any>) => {
+    showPollModal.value = false;
+    handleDontReply();
+    const message = {
+      ...row,
+      created_at: new Date(row.created_at),
+      updated_at: row.updated_at ? new Date(row.updated_at) : undefined,
+    } as Message;
+    if (message.conversation_id) dmStore.addMessageToCache(message);
+    else chatStore.addMessageToCache(message);
+  };
+
   // Slash command moderation modal
   const showKickBanModal = ref(false);
   const kickBanMode = ref<'kick' | 'ban'>('kick');
@@ -288,6 +324,10 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
 
   function handleSlashCommand(e: Event) {
     const { command } = (e as CustomEvent).detail;
+    if (command === 'poll') {
+      openPollModal();
+      return;
+    }
     if (command === 'kick' || command === 'ban') {
       if (props.isDM || !serverChannelStore.currentServerId) return;
       
@@ -470,6 +510,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         const conversationId = props.conversationId
         if (!conversationId) {
           encryptionStatusData.value = null
+          dmEncryptionEnabled.value = false
           return
         }
         try {
@@ -480,6 +521,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
             .maybeSingle()
 
           const enabled = data?.encryption_enabled === true
+          dmEncryptionEnabled.value = enabled
           if (!enabled) {
             encryptionStatusData.value = null
             return

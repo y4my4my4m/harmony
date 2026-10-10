@@ -22,6 +22,7 @@ import { SignatureService } from './SignatureService.js';
 import { clientIp, inboxLimiter, instanceInboxLimit, signerInstanceKey } from '../middleware/rateLimit.js';
 import { getFullServerBannerUrl, getFullServerIconUrl } from '../utils/urlUtils.js';
 import { PUBLIC_AUDIENCE, federateContentParts } from '../utils/privateMedia.js';
+import { withoutPollParts } from '../utils/polls.js';
 import {
   canReadServer,
   isPublicView,
@@ -651,7 +652,7 @@ router.get(
           id: `https://${hostDomain}/messages/${message.id}`,
           attributedTo: authorApId,
           content: contentHtml,
-          'harmony:rawContent': federateContentParts(message.content, mediaAudience),
+          'harmony:rawContent': federateContentParts(withoutPollParts(message.content), mediaAudience),
           context: channelUrl,
           'harmony:channelName': message.channel?.name,
           'harmony:serverId': serverId,

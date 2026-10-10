@@ -49,7 +49,7 @@ vi.mock('@/stores/useThreads', () => ({
   useThreadsStore: () => loose({ threadForMessage: () => null, threadsForChannel: () => [] }),
 }))
 vi.mock('@/composables/useServerPermissions', () => ({
-  useServerPermissions: () => ({ isCurrentUserServerOwner: ref(false), canManageMessages: ref(false) }),
+  useServerPermissions: () => ({ isCurrentUserServerOwner: ref(false), canManageMessages: ref(false), getCurrentUserRole: ref(null) }),
 }))
 vi.mock('@/composables/useUserData', () => ({
   DEFAULT_USER_COLOR: '#fff',

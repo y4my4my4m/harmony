@@ -76,6 +76,8 @@
       <UserProfileComponent :docked="userPanelDocked" />
     </div>
     
+    <ServerNotificationSettingsModal />
+
     <!-- Always mounted; visibility is driven by the show prop -->
     <IncomingCallModal
       :show="showGlobalIncomingCall"
@@ -99,6 +101,7 @@ import { useToast } from 'vue-toastification'
 import { useI18n } from 'vue-i18n'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import ServerSidebar from '@/components/ServerSidebar.vue'
+import ServerNotificationSettingsModal from '@/components/ServerNotificationSettingsModal.vue'
 import UserProfileComponent from '@/components/UserProfileComponent.vue'
 import { userPanelDocked } from '@/composables/useUserPanelDock'
 import { useServerChannelStore } from '@/stores/useServerChannel'
@@ -115,6 +118,7 @@ import IncomingCallModal from '@/components/dm/IncomingCallModal.vue'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { dmCallSignaling } from '@/services/DMCallSignaling'
 import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
+import { useViewContextTracking } from '@/composables/useViewContext'
 
 const serverChannelStore = useServerChannelStore()
 const authStore = useAuthStore()
@@ -123,6 +127,8 @@ const instanceSettingsStore = useInstanceSettingsStore()
 const voiceStore = useUnifiedVoiceChannelStore()
 const route = useRoute()
 const router = useRouter()
+
+useViewContextTracking()
 
 // Falls back to "Harmony" until instance settings load from the DB.
 const instanceName = computed(() => instanceSettingsStore.settings.instanceName || 'Harmony')

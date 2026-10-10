@@ -32,6 +32,7 @@ const TYPE_GATES: Record<string, string[]> = {
   mention: ['push_mentions', 'desktop_mentions'],
   dm: ['push_dms', 'desktop_dms'],
   chat_message: ['push_dms', 'desktop_chat_messages'],
+  channel_message: ['desktop_chat_messages'],
   reply: ['desktop_replies'],
   thread_reply: ['desktop_replies'],
   newcomer_message: ['newcomer_alerts'],
@@ -45,6 +46,7 @@ const TYPE_GATES: Record<string, string[]> = {
   activitypub_favorite: ['activitypub_desktop_favorites'],
   activitypub_reaction: ['activitypub_desktop_favorites'],
   activitypub_reblog: ['activitypub_desktop_reblogs'],
+  move: ['activitypub_desktop_follows'],
 };
 
 export function pushAllowedForType(type: string, prefs: NotificationPrefs): boolean {
@@ -73,6 +75,10 @@ export function notificationUrl(type: string, data: Record<string, any> = {}): s
   }
   if (type === 'activitypub_follow_accepted') {
     const handle = profileHandle(data.sender);
+    if (handle) return `/social/profile/${handle}`;
+  }
+  if (type === 'move') {
+    const handle = profileHandle(data.target);
     if (handle) return `/social/profile/${handle}`;
   }
 
@@ -282,4 +288,24 @@ export function securityNoticeText(data: Record<string, any> = {}): { title: str
     default:
       return { title: 'Account security', body: 'There was a change to your account security.' };
   }
+}
+
+/**
+ * Push text for a 'move' notification. data is written by
+ * public.migrate_account_followers (migration 20261010900001): origin and target handles
+ * and follow_status, accepted or pending.
+ */
+export function moveNoticeText(data: Record<string, any> = {}): { title: string; body: string } {
+  const handle = (user: any): string => {
+    if (!user?.username) return 'another account';
+    return user.domain && user.is_local !== true ? `@${user.username}@${user.domain}` : `@${user.username}`;
+  };
+  const origin = data.origin?.display_name || handle(data.origin);
+  const target = handle(data.target);
+  return {
+    title: `${origin} moved to ${target}`,
+    body: data.follow_status === 'pending'
+      ? `A follow request was sent to ${target} for you.`
+      : `You now follow ${target}.`,
+  };
 }

@@ -170,6 +170,12 @@ export function messageToNote(message: any, author: any): any {
   return note;
 }
 
+/** JSON-LD terms of an actor's alsoKnownAs and movedTo, as Mastodon's actor context defines them. */
+export const ACCOUNT_MIGRATION_CONTEXT = {
+  alsoKnownAs: { '@id': 'as:alsoKnownAs', '@type': '@id' },
+  movedTo: { '@id': 'as:movedTo', '@type': '@id' },
+};
+
 /**
  * Convert user profile to ActivityPub Actor
  */
@@ -192,6 +198,7 @@ export function profileToActor(profile: any): any {
     '@context': [
       'https://www.w3.org/ns/activitystreams',
       'https://w3id.org/security/v1',
+      ACCOUNT_MIGRATION_CONTEXT,
     ],
     id: userUrl,
     type: 'Person',
@@ -247,6 +254,16 @@ export function profileToActor(profile: any): any {
 
   if (profile.manually_approves_followers) {
     actor.manuallyApprovesFollowers = true;
+  }
+
+  const aliases = Array.isArray(profile.also_known_as)
+    ? profile.also_known_as.filter((uri: unknown) => typeof uri === 'string' && uri && uri !== userUrl)
+    : [];
+  if (aliases.length > 0) {
+    actor.alsoKnownAs = aliases;
+  }
+  if (typeof profile.moved_to_uri === 'string' && profile.moved_to_uri) {
+    actor.movedTo = profile.moved_to_uri;
   }
 
   if (profile.federation_discoverable !== undefined) {

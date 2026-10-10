@@ -169,6 +169,66 @@
           </div>
         </label>
       </div>
+
+      <div class="setting-group checkbox-group">
+        <label class="checkbox-label">
+          <input
+            type="checkbox"
+            v-model="showLiveReactions"
+            @change="updateShowLiveReactions"
+            class="setting-checkbox"
+          />
+          <div class="checkbox-custom"></div>
+          <div class="checkbox-content">
+            <span>{{ t('voice.showLiveReactions') }}</span>
+            <small>{{ t('voice.showLiveReactionsHint') }}</small>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Soundboard -->
+    <div class="settings-section">
+      <h4 class="section-title">
+        <Icon name="music" />
+        {{ t('soundboard.title') }}
+      </h4>
+
+      <div class="setting-group">
+        <label class="setting-label">
+          {{ t('soundboard.volume') }}
+          <span class="setting-value">{{ soundboardVolume }}%</span>
+        </label>
+        <div class="volume-control">
+          <input
+            type="range"
+            v-model.number="soundboardVolume"
+            min="0"
+            max="100"
+            class="setting-slider"
+            :aria-label="t('soundboard.volume')"
+            @input="updateSoundboardVolume"
+            @dblclick="soundboardVolume = 100; updateSoundboardVolume()"
+          />
+          <div class="volume-indicator" :style="{ width: `${soundboardVolume}%` }"></div>
+        </div>
+      </div>
+
+      <div class="setting-group checkbox-group">
+        <label class="checkbox-label">
+          <input
+            type="checkbox"
+            v-model="soundboardMuted"
+            @change="updateSoundboardMuted"
+            class="setting-checkbox"
+          />
+          <div class="checkbox-custom"></div>
+          <div class="checkbox-content">
+            <span>{{ t('soundboard.mute') }}</span>
+            <small>{{ t('soundboard.muteHint') }}</small>
+          </div>
+        </label>
+      </div>
     </div>
 
     <!-- Video Settings -->
@@ -234,6 +294,7 @@ import { useI18n } from 'vue-i18n';
 import { webrtcManager } from '@/services/webrtcManager';
 import { VoiceSettingsService, normalizeInputVolume, normalizeOutputVolume } from '@/services/VoiceSettingsService';
 import { useMicTest } from '@/composables/useMicTest';
+import { useSoundboardSettings } from '@/composables/useSoundboardSettings';
 import Icon from '@/components/common/Icon.vue';
 import VoiceInputModeSettings from '@/components/voice/VoiceInputModeSettings.vue';
 
@@ -269,6 +330,8 @@ const inputVolume = ref(100);
 // Master output, percent 0-200; applied to every remote track at once.
 const outputVolume = ref(100);
 const autoWatchStreams = ref(false);
+const showLiveReactions = ref(true);
+const { soundboardVolume, soundboardMuted, updateSoundboardVolume, updateSoundboardMuted } = useSoundboardSettings();
 const echoCancellation = ref(true);
 const noiseSuppression = ref(true);
 const autoGainControl = ref(true);
@@ -318,6 +381,7 @@ const loadStoredSettings = async () => {
     inputVolume.value = normalizeInputVolume(settings.inputVolume);
     outputVolume.value = normalizeOutputVolume(settings.outputVolume);
     autoWatchStreams.value = !!settings.autoWatchStreams;
+    showLiveReactions.value = settings.showLiveReactions !== false;
     if (settings.videoQuality) videoQuality.value = settings.videoQuality;
     if (settings.frameRate) frameRate.value = settings.frameRate;
     
@@ -453,6 +517,10 @@ const resetOutputVolume = () => {
 const updateAutoWatchStreams = () => {
   VoiceSettingsService.update('autoWatchStreams', autoWatchStreams.value);
   webrtcManager.setAutoWatchStreams(autoWatchStreams.value);
+};
+
+const updateShowLiveReactions = () => {
+  VoiceSettingsService.update('showLiveReactions', showLiveReactions.value);
 };
 
 const updateAudioSettings = () => {

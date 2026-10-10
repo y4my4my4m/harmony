@@ -142,6 +142,16 @@
 		import federation_upstream
 	}
 
+	# Channel webhooks: GitHub deliveries reach 1 MB; the backend caps the plain route at
+	# 64 KB itself.
+	@fedChannelWebhooks path_regexp ^/webhooks/channels/
+	handle @fedChannelWebhooks {
+		request_body {
+			max_size 1MB
+		}
+		import federation_upstream
+	}
+
 	# Donation webhooks (Ko-fi posts form-encoded bodies). nginx caps them at 64k.
 	@fedWebhooks path_regexp ^/webhooks/
 	handle @fedWebhooks {

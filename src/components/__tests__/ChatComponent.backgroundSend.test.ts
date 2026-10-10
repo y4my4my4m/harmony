@@ -5,7 +5,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { reactive, ref } from 'vue'
 import { supabase } from '@/supabase'
@@ -22,6 +22,7 @@ const shared = vi.hoisted(() => ({
   restoreAttachments: vi.fn(),
   drafts: {} as Record<string, string>,
   auth: { session: { user: { id: 'aaaaaaaa-0000-4000-8000-000000000001' } } as { user: { id: string } } | null },
+  channelEncrypted: false,
 }))
 
 const chatStore = {
@@ -68,7 +69,9 @@ vi.mock('@/stores/useServerWelcome', () => ({
   useServerWelcomeStore: () => ({ mustAccept: () => false, open: vi.fn(), handleRulesRejection: vi.fn() }),
 }))
 vi.mock('@/stores/useThreads', () => ({ useThreadsStore: () => ({ threadForMessage: vi.fn(), upsert: vi.fn() }) }))
-vi.mock('@/stores/useChannelEncryption', () => ({ useChannelEncryptionStore: () => ({ applyEffective: vi.fn() }) }))
+vi.mock('@/stores/useChannelEncryption', () => ({
+  useChannelEncryptionStore: () => ({ applyEffective: vi.fn(), isMessagesEncrypted: () => shared.channelEncrypted }),
+}))
 vi.mock('@/services/ChannelEncryptionService', () => ({
   fetchEffectiveChannelEncryption: vi.fn(async () => null),
   fetchServerForceKeySetup: vi.fn(async () => false),
@@ -130,6 +133,8 @@ vi.mock('@/components/welcome/RulesAcceptPrompt.vue', () => stub('RulesAcceptPro
 vi.mock('@/components/MediaPickerPopup.vue', () => stub('MediaPickerPopup'))
 vi.mock('@/components/EmojiPopup.vue', () => stub('EmojiPopup'))
 vi.mock('@/components/threads/ThreadView.vue', () => stub('ThreadView'))
+// Loaded through defineAsyncComponent, which unwraps `default` only from an ES module.
+vi.mock('@/components/polls/PollCreateModal.vue', async () => ({ __esModule: true, ...(await stub('PollCreateModal')) }))
 vi.mock('@/components/MessageDisplay.vue', async () => {
   const { defineComponent: define, h: render } = await import('vue')
   return {
@@ -145,8 +150,8 @@ vi.mock('@/components/MessageInput.vue', async () => {
   return {
     default: define({
       name: 'MessageInput',
-      props: { backgroundSend: Boolean, modelValue: String },
-      emits: ['sendMessage', 'queueVoiceMessage', 'update:modelValue'],
+      props: { backgroundSend: Boolean, modelValue: String, allowPolls: Boolean },
+      emits: ['sendMessage', 'queueVoiceMessage', 'update:modelValue', 'createPoll'],
       setup(_props, { expose }) {
         expose({ restoreAttachments: shared.restoreAttachments })
         return () => render('div')
@@ -196,6 +201,7 @@ beforeEach(() => {
   chatStore.sendMessage.mockReset().mockImplementation(async () => ({ id: 'real-1' }))
   serverChannelStore.currentChannelId = CHANNEL
   shared.auth.session = { user: { id: UID } }
+  shared.channelEncrypted = false
   shared.toast.error.mockClear()
   shared.restoreAttachments.mockClear()
   for (const key of Object.keys(shared.drafts)) delete shared.drafts[key]
@@ -204,6 +210,8 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals()
 })
+// A mounted ChatComponent hears every window harmony-command.
+enableAutoUnmount(afterEach)
 
 describe('ChatComponent send with uploads running', () => {
   it('shows the message as a pending row and sends it to the Enter channel when the upload finishes', async () => {
@@ -354,5 +362,43 @@ describe('ChatComponent draft after a send', () => {
     finishSend({ id: 'real-3' })
     await flushPromises()
     expect(shared.drafts[`channel:${CHANNEL}`]).toBeUndefined()
+  })
+})
+
+describe('ChatComponent polls', () => {
+  // PollCreateModal is an async component: it renders a macrotask after it is shown.
+  const settle = async () => {
+    await flushPromises()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await flushPromises()
+  }
+
+  it('offers polls in a channel and opens the poll composer from the + menu and /poll', async () => {
+    const wrapper = mountChat()
+    await flushPromises()
+    const input = wrapper.findComponent({ name: 'MessageInput' })
+    expect(input.props('allowPolls')).toBe(true)
+
+    input.vm.$emit('createPoll')
+    await settle()
+    expect(wrapper.findComponent({ name: 'PollCreateModal' }).exists()).toBe(true)
+    wrapper.unmount()
+
+    const second = mountChat()
+    await flushPromises()
+    window.dispatchEvent(new CustomEvent('harmony-command', { detail: { command: 'poll' } }))
+    await settle()
+    expect(second.findComponent({ name: 'PollCreateModal' }).exists()).toBe(true)
+  })
+
+  it('offers no poll in an end-to-end encrypted channel', async () => {
+    shared.channelEncrypted = true
+    const wrapper = mountChat()
+    await flushPromises()
+    const input = wrapper.findComponent({ name: 'MessageInput' })
+    expect(input.props('allowPolls')).toBe(false)
+    input.vm.$emit('createPoll')
+    await settle()
+    expect(wrapper.findComponent({ name: 'PollCreateModal' }).exists()).toBe(false)
   })
 })

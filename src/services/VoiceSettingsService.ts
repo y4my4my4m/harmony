@@ -36,6 +36,13 @@ export interface VoiceSettings {
   // Receive other users' streams as soon as they start, instead of on "Watch stream".
   autoWatchStreams: boolean;
 
+  // Render emoji reactions other participants send over streams and video.
+  showLiveReactions: boolean;
+  // Soundboard clips other members play: percent 0-100 on top of the master output, and
+  // whether they play at all.
+  soundboardVolume: number;
+  soundboardMuted: boolean;
+
   // Stored-schema revision; see migrate().
   settingsVersion: number;
 }
@@ -59,6 +66,9 @@ const DEFAULT_SETTINGS: VoiceSettings = {
   frameRate: '30',
   audioBitrate: '128',
   autoWatchStreams: false,
+  showLiveReactions: true,
+  soundboardVolume: 100,
+  soundboardMuted: false,
   settingsVersion: SETTINGS_VERSION,
 };
 
@@ -98,6 +108,13 @@ export function normalizeOutputVolume(value: unknown): number {
 
 /** Input volume percent, same scale and clamping as the master output. */
 export const normalizeInputVolume = normalizeOutputVolume;
+
+/** Soundboard volume percent, clamped to 0-100; non-numeric reads as 100. */
+export function normalizeSoundboardVolume(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 100;
+  return Math.round(Math.min(100, Math.max(0, n)));
+}
 
 class VoiceSettingsServiceClass {
   private settings: VoiceSettings = { ...DEFAULT_SETTINGS };

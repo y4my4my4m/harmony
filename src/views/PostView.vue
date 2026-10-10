@@ -165,6 +165,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { usePostReactionsStore } from '@/stores/postReactions';
 import { activityPubService } from '@/services/activityPubService';
+import { repliesFetchNotice } from '@/utils/remoteReplies';
 import { useToast } from 'vue-toastification';
 import { useI18n } from 'vue-i18n';
 import Icon from '@/components/common/Icon.vue';
@@ -405,7 +406,7 @@ const fetchRemoteRepliesInBackground = async (targetPost: TimelinePost) => {
     const targetId = getOriginalPostId(targetPost);
     if (!targetApId) return;
     const result = await activityPubService.fetchRemoteReplies(targetApId, targetId);
-    if (result && result.count > 0 && resolvedPostId.value === startToken) {
+    if (result && (result.new ?? result.count) > 0 && resolvedPostId.value === startToken) {
       const updatedResult = await activityPub.getPostWithContext(targetId, {
         context: props.contextType,
         highlightReply: props.highlightReply,
@@ -522,15 +523,19 @@ const handleFetchReplies = async () => {
   if (!targetApId) return;
   isFetchingReplies.value = true;
   try {
-    const result = await activityPubService.fetchRemoteReplies(targetApId, targetId);
-    if (result) {
-      toast.success(`Fetched ${result.count || 0} replies`);
-      await loadPostWithContext();
-    } else {
-      toast.error('Failed to fetch replies');
-    }
+    const result = await activityPubService.fetchRemoteReplies(targetApId, targetId, { force: true });
+    const notice = repliesFetchNotice(result);
+    let domain = '';
+    try {
+      domain = new URL(targetApId).hostname;
+    } catch { /* not a URL; the message reads without it */ }
+    const message = notice.count !== undefined
+      ? t(notice.key, { count: notice.count, domain }, notice.count)
+      : t(notice.key, { domain });
+    toast[notice.kind](message);
+    if (result && result.count > 0) await loadPostWithContext();
   } catch {
-    toast.error('Failed to fetch replies');
+    toast.error(t('activitypub.repliesFetchFailed'));
   } finally {
     isFetchingReplies.value = false;
   }

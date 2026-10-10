@@ -146,6 +146,11 @@
             :server-id="serverId"
           />
 
+          <ServerAuditLog
+            v-if="activeSection === 'audit-log' && permissions.canViewAuditLog"
+            :server-id="serverId"
+          />
+
           <!-- Reports about messages in this server -->
           <ReportsModeration
             v-if="activeSection === 'reports' && permissions.canModerateReports"
@@ -171,6 +176,12 @@
             @emoji-uploaded="handleEmojiUploaded"
             @emoji-deleted="handleEmojiDeleted"
             @emojis-bulk-deleted="handleEmojisBulkDeleted"
+          />
+
+          <ServerSoundboardManagement
+            v-if="activeSection === 'soundboard'"
+            :server-id="serverId"
+            :can-manage="permissions.canManageSoundboard"
           />
 
           <!-- Privacy Settings Section -->
@@ -200,6 +211,11 @@
               :created-at="server.created_at"
               :loading="loading"
               :permissions="{ canDeleteServer: permissions.canDeleteServer }"
+            />
+            <ServerTemplateExport
+              v-if="permissions.canEditBasicInfo"
+              :server-id="serverId"
+              :server-name="server.name"
             />
             <ServerBotsSettings
               v-if="permissions.canEditBasicInfo"
@@ -249,6 +265,9 @@ import ServerSystemMessages from '@/components/settings/server/ServerSystemMessa
 import ServerAutoMod from '@/components/settings/server/ServerAutoMod.vue'
 import AutoModOptInBanner from '@/components/settings/server/AutoModOptInBanner.vue'
 import ServerWelcomeSettings from '@/components/settings/server/ServerWelcomeSettings.vue'
+import ServerAuditLog from '@/components/settings/server/ServerAuditLog.vue'
+import ServerSoundboardManagement from '@/components/settings/server/ServerSoundboardManagement.vue'
+import ServerTemplateExport from '@/components/settings/server/ServerTemplateExport.vue'
 import { getServerAutoMod, type AutoModState } from '@/services/AutoModService'
 const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/ReportsModeration.vue'))
 
@@ -336,6 +355,7 @@ const availableSections = computed(() => {
     // get_server_bans requires BAN_MEMBERS.
     ...(p.canManageBans ? [{ id: 'bans', label: t('server.bans') }] : []),
     ...(p.canModerateReports ? [{ id: 'reports', label: t('server.reports', 'Reports') }] : []),
+    ...(p.canViewAuditLog ? [{ id: 'audit-log', label: t('serverAuditLog.navLabel') }] : []),
     // MANAGE_SERVER on a local server; the RPCs refuse anyone else.
     ...(p.canEditBasicInfo ? [{ id: 'automod', label: t('automod.title') }] : []),
     // Served by the server's home instance; set_server_welcome refuses remote servers.
@@ -343,6 +363,8 @@ const availableSections = computed(() => {
       ? [{ id: 'welcome', label: t('serverWelcome.settings.navLabel') }]
       : []),
     { id: 'emoji', label: t('server.emoji') },
+    // server_sounds holds local servers' sounds only.
+    ...(server.value.is_local_server !== false ? [{ id: 'soundboard', label: t('soundboard.settings.navLabel') }] : []),
     { id: 'privacy', label: t('server.privacySettings') },
     // The discord_bridge_* RPCs require MANAGE_SERVER.
     ...(p.canEditBasicInfo ? [{ id: 'discord-bridge', label: t('discordBridge.navLabel') }] : []),

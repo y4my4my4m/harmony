@@ -10,6 +10,10 @@
       </svg>
       <span>{{ t('files.uploadFile') }}</span>
     </div>
+    <div v-if="allowPoll" class="menu-item" data-testid="upload-menu-poll" @click="handleCreatePoll">
+      <Icon name="bar-chart-2" :size="20" class="menu-icon" />
+      <span>{{ t('polls.create') }}</span>
+    </div>
     <input 
       ref="fileInput"
       type="file" 
@@ -24,22 +28,32 @@
 <script lang="ts">
 import { defineComponent, ref, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import Icon from '@/components/common/Icon.vue';
 
 export default defineComponent({
   name: 'FileUploadMenu',
+  components: { Icon },
   props: {
     isVisible: {
       type: Boolean,
       default: false
+    },
+    allowPoll: {
+      type: Boolean,
+      default: false
     }
   },
-  emits: ['files-selected', 'close'],
+  emits: ['files-selected', 'close', 'create-poll'],
   setup(props, { emit }) {
     const { t } = useI18n();
     const fileInput = ref<HTMLInputElement | null>(null);
 
     const handleFileUpload = () => {
       fileInput.value?.click();
+    };
+
+    const handleCreatePoll = () => {
+      emit('create-poll');
     };
 
     const onFileSelect = (event: Event) => {
@@ -76,6 +90,7 @@ export default defineComponent({
     return {
       fileInput,
       handleFileUpload,
+      handleCreatePoll,
       onFileSelect,
       t
     };

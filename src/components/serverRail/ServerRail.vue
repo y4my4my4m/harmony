@@ -87,6 +87,7 @@ import { serverUnreadTotals, useUnreadCounts } from '@/composables/useUnreadCoun
 import { useLeaveServer } from '@/composables/useLeaveServer'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useNotificationStore } from '@/stores/useNotification'
+import { useServerNotificationSettingsStore } from '@/stores/useServerNotificationSettings'
 import { debug } from '@/utils/debug'
 import type { Server, ServerFolder as ServerFolderType } from '@/types'
 
@@ -230,6 +231,9 @@ async function onServerAction(serverId: string, action: ServerMenuAction) {
       break
     case 'mute':
       await serverChannelStore.setServerMuted(serverId, action.until)
+      break
+    case 'notification-settings':
+      useServerNotificationSettingsStore().openModal(serverId)
       break
     case 'settings':
       router.push(`/server/${serverId}`)

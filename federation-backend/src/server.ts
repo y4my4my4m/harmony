@@ -28,7 +28,9 @@ import voiceRouter from './routes/voice.js';
 import realtimeRouter from './routes/realtime.js';
 import kofiWebhookRouter from './routes/webhooks/kofi.js';
 import stripeWebhookRouter from './routes/webhooks/stripe.js';
+import channelWebhookRouter from './routes/webhooks/channelWebhooks.js';
 import mediaRouter from './routes/media.js';
+import accountMigrationRouter from './routes/accountMigration.js';
 
 import webFingerRouter from './activitypub/WebFingerService.js';
 import actorRouter from './activitypub/ActorService.js';
@@ -60,6 +62,11 @@ export function createApp(): Application {
     origin: [...config.CORS_ORIGIN.split(',').map(o => o.trim()), ...nativeClientOrigins],
     credentials: true,
   }));
+
+  // Channel webhooks parse their own bodies at their own limits, and their paths hold a
+  // secret token: mounted ahead of the app-wide parsers and the request log.
+  app.use('/webhooks/channels', channelWebhookRouter);
+  app.use('/api/webhooks/channels', channelWebhookRouter);
 
   // ActivityPub inboxes get a tight body limit: real AP payloads are a few KB,
   // and a large limit invites storage/bandwidth amplification via redeliveries.
@@ -113,6 +120,8 @@ export function createApp(): Application {
   app.use('/api/federation/realtime', realtimeRouter);
   app.use('/media', mediaLimiter, mediaRouter);
   app.use('/api/federation/media', mediaLimiter, mediaRouter);
+  app.use('/account', accountMigrationRouter);
+  app.use('/api/federation/account', accountMigrationRouter);
 
   // Donation webhooks - each provider handles its own body parser internally.
   // Ko-fi posts application/x-www-form-urlencoded which the global json

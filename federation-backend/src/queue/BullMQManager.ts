@@ -28,6 +28,7 @@ import { handlePushDismissalJob } from './handlers/pushDismissalHandler.js';
 import { handleVoiceJoinJob, handleVoiceLeaveJob } from './handlers/voiceHandler.js';
 import { handleMaintenanceJob } from './handlers/maintenanceHandler.js';
 import { handleAccountDeletedJob } from './handlers/accountDeletedHandler.js';
+import { handleAccountMovedJob } from './handlers/accountMovedHandler.js';
 import { handleGroupInviteJob } from './handlers/groupInviteHandler.js';
 import { handleGroupUpdateJob } from './handlers/groupUpdateHandler.js';
 import { handleGroupParticipantChangeJob } from './handlers/groupParticipantHandler.js';
@@ -60,6 +61,7 @@ export type JobType =
   | 'dismiss-push-notifications'
   | 'release-held-activity'
   | 'account-deleted'
+  | 'account-moved'
   | 'delete-message-media'
   | 'sweep-pending'
   | 'maintenance';
@@ -98,6 +100,7 @@ const JOB_TYPES: JobType[] = [
   'dismiss-push-notifications',
   'release-held-activity',
   'account-deleted',
+  'account-moved',
   'delete-message-media',
   'maintenance',
 ];
@@ -214,6 +217,7 @@ class BullMQManagerService {
     this.handlerMap.set('dismiss-push-notifications', handlePushDismissalJob as unknown as HandlerFn);
     this.handlerMap.set('release-held-activity', handleReleaseHeldActivityJob as unknown as HandlerFn);
     this.handlerMap.set('account-deleted', handleAccountDeletedJob as unknown as HandlerFn);
+    this.handlerMap.set('account-moved', handleAccountMovedJob as unknown as HandlerFn);
     this.handlerMap.set('delete-message-media', handleMessageMediaCleanupJob as unknown as HandlerFn);
     this.handlerMap.set('maintenance', handleMaintenanceJob as unknown as HandlerFn);
   }
@@ -363,6 +367,18 @@ class BullMQManagerService {
       .limit(20);
     for (const row of undelivered ?? []) {
       await this.addJob('account-deleted', { type: 'delete', profile_id: row.profile_id });
+    }
+
+    // Account moves whose notify was lost or whose job gave up; same five-minute margin.
+    const { data: unmigrated } = await supabase
+      .from('account_migrations')
+      .select('id')
+      .is('delivered_at', null)
+      .is('cancelled_at', null)
+      .lt('created_at', new Date(Date.now() - 5 * 60_000).toISOString())
+      .limit(20);
+    for (const row of unmigrated ?? []) {
+      await this.addJob('account-moved', { type: 'create', migration_id: row.id });
     }
 
     // Sweep posts

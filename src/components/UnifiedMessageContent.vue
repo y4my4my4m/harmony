@@ -148,6 +148,7 @@
               v-if="segment.type === 'text'" 
               class="text-content"
               v-html="segment.content"
+              @click="revealTextSpoiler"
             ></span>
             <CodeBlock 
               v-else-if="segment.type === 'codeblock'"
@@ -354,7 +355,7 @@
           @mouseenter="hoveredImageUrl = part.url"
           @mouseleave="hoveredImageUrl = null"
         >
-          <div class="media-frame">
+          <div class="media-frame" :class="{ 'media-spoiler': isHiddenSpoiler(part) }">
             <AttachmentRemoveButton
               v-if="canEditAttachments && !isAnimatedImage(part.url) && !isStickerMedia(part.url)"
               @click="requestRemoveAttachment(part.url)"
@@ -370,6 +371,13 @@
               class="content-image"
               :class="{ 'sticker-image': isStickerMedia(part.url), 'ai-emoji-image': isAiEmojiMedia(part.url) }"
             />
+            <button
+              v-if="isHiddenSpoiler(part)"
+              type="button"
+              class="media-spoiler-cover"
+              :aria-label="t('message.spoiler.reveal')"
+              @click.stop="revealMediaSpoiler(part)"
+            >{{ t('message.spoiler.label') }}</button>
             <MediaUploadProgress v-if="hasUpload(part)" :path="part.path!" />
             <!-- GIF/sticker Favorite Button (AI emoji are treated as plain emoji: no favorite) -->
             <button
@@ -415,7 +423,7 @@
           @mouseenter="hoveredImageUrl = part.url"
           @mouseleave="hoveredImageUrl = null"
         >
-          <div class="media-frame">
+          <div class="media-frame" :class="{ 'media-spoiler': isHiddenSpoiler(part) }">
             <AttachmentRemoveButton
               v-if="canEditAttachments && !isKlipyMedia(part.url)"
               @click="requestRemoveAttachment(part.url)"
@@ -428,6 +436,13 @@
               @play="handleVideoPlay"
               @error="onAttachmentMediaError(part.url, part)"
             ></video>
+            <button
+              v-if="isHiddenSpoiler(part)"
+              type="button"
+              class="media-spoiler-cover"
+              :aria-label="t('message.spoiler.reveal')"
+              @click.stop="revealMediaSpoiler(part)"
+            >{{ t('message.spoiler.label') }}</button>
             <button
               v-if="floatingVideos.canPopOut(partIndex)"
               type="button"
@@ -561,6 +576,12 @@
             ><DisplayName :userId="part.user.id" :fallback="part.user.display_name || part.user.username" /></span> {{ part.event_type }}
           </template>
         </span>
+
+        <PollCard
+          v-else-if="part && typeof part === 'object' && part.type === 'poll'"
+          :poll="part"
+          :message-id="messageId"
+        />
       </template>
     </div>
 
@@ -602,6 +623,7 @@ import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.v
 import MediaUploadProgress from '@/components/common/MediaUploadProgress.vue';
 import Icon from '@/components/common/Icon.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
+import PollCard from '@/components/polls/PollCard.vue';
 import { groupMediaGalleryParts } from '@/utils/mediaGalleryUtils';
 import { undecryptedDisplayParts } from '@/utils/channelEncryption';
 import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
@@ -617,6 +639,8 @@ import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { gifService } from '@/services/GifService';
 import { debug } from '@/utils/debug';
 import { sanitizeUrl } from '@/utils/sanitize';
+import { isSpoilerFileName } from '@/utils/spoiler';
+import { pollPartOf } from '@/utils/messagePoll';
 import { renderChatMessageText } from '@/utils/chatMessageTextRenderer';
 import { useVisualTheme } from '@/composables/useVisualTheme';
 import { BRIDGED_DISCORD_USER_ID_PREFIX } from '@/services/bridgedChannelUsersService';
@@ -647,6 +671,7 @@ export default defineComponent({
     ConfirmationModal,
     EncryptedGlyphPreview,
     Icon,
+    PollCard,
   },
   props: {
     content: {
@@ -756,6 +781,21 @@ export default defineComponent({
     // Klipy AI emoji render as plain emoji: no watermark, no favorite, no lightbox.
     const isAiEmojiMedia = (url: string) => isAiEmojiMessageUrl(url);
     
+    // Spoilers: `||text||` spans reveal on click; a file named SPOILER_* (Discord's
+    // convention, kept by the bridge) stays covered until clicked.
+    const revealedMediaSpoilers = reactive(new Set<string>());
+    const isHiddenSpoiler = (part: { fileName?: string; url?: string; path?: string }) =>
+      isSpoilerFileName(part.fileName) && !revealedMediaSpoilers.has(part.path || part.url || '');
+    const revealMediaSpoiler = (part: { url?: string; path?: string }) => {
+      revealedMediaSpoilers.add(part.path || part.url || '');
+    };
+    const revealTextSpoiler = (event: MouseEvent) => {
+      const spoiler = (event.target as HTMLElement | null)?.closest('.md-spoiler');
+      if (!spoiler || spoiler.classList.contains('revealed')) return;
+      spoiler.classList.add('revealed');
+      event.stopPropagation();
+    };
+
     // GIF favorites state
     const hoveredImageUrl = ref<string | null>(null);
     const favoriteGifUrls = ref<Set<string>>(new Set());
@@ -960,10 +1000,14 @@ export default defineComponent({
     };
 
     // An undecrypted message renders its ciphertext part alone: the mention
-    // parts stored beside it are server metadata, not message content.
+    // parts stored beside it are server metadata, not message content. A poll
+    // renders its card alone: the text part beside it spells the poll out for
+    // text-only readers.
     const displayContent = computed(() =>
       props.encrypted && !props.decrypted
         ? undecryptedDisplayParts(props.content)
+        : pollPartOf(props.content)
+        ? props.content.filter((part) => part && typeof part === 'object' && part.type === 'poll')
         : groupMediaGalleryParts(
             coalesceInlineContentForMarkdown(
               embedsSuppressed.value
@@ -1364,6 +1408,9 @@ export default defineComponent({
     };
 
     return {
+      isHiddenSpoiler,
+      revealMediaSpoiler,
+      revealTextSpoiler,
       displayContent,
       onAttachmentMediaError,
       getEmojiUrl,
@@ -1500,6 +1547,29 @@ export default defineComponent({
 
 .text-content :deep(.md-underline) {
   text-decoration: underline;
+}
+
+/* Covered until clicked; text and inline emoji stay invisible. */
+.text-content :deep(.md-spoiler) {
+  background: var(--text-primary);
+  color: transparent;
+  border-radius: 3px;
+  padding: 0 2px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.text-content :deep(.md-spoiler:not(.revealed) img),
+.text-content :deep(.md-spoiler:not(.revealed) .md-code) {
+  visibility: hidden;
+}
+
+.text-content :deep(.md-spoiler.revealed) {
+  background: var(--background-modifier-hover, rgba(127, 127, 127, 0.18));
+  color: inherit;
+  cursor: text;
 }
 
 .text-content :deep(.md-code) {
@@ -1654,6 +1724,34 @@ export default defineComponent({
   position: relative;
   max-width: min(400px, 100%);
   vertical-align: top;
+}
+
+.media-frame.media-spoiler {
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.media-frame.media-spoiler img,
+.media-frame.media-spoiler video {
+  filter: blur(44px);
+  pointer-events: none;
+}
+
+.media-spoiler-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
 }
 
 .image-container {

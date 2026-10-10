@@ -34,6 +34,7 @@ vi.mock('@/services', () => ({
       fetchNotifications: vi.fn().mockResolvedValue([]),
       deleteNotification: vi.fn().mockResolvedValue(undefined),
       deleteAllNotifications: vi.fn().mockResolvedValue(undefined),
+      markMentionNotificationsForPostsAsRead: vi.fn().mockResolvedValue(true),
     },
   },
 }))
@@ -76,7 +77,7 @@ const mk = (id: string, isRead: boolean, minutesAgo: number, type = 'mention', d
   created_at: new Date(Date.now() - minutesAgo * 60_000).toISOString(),
 }) as any
 
-// Chainable PostgREST stand-in; awaiting any link resolves to `result`.
+// Chainable PostgREST stand-in; awaiting any link resolves to `result`, which may be a promise.
 function chain(result: any) {
   const calls: Array<[string, any[]]> = []
   const proxy: any = new Proxy({}, {
@@ -162,6 +163,39 @@ describe('refreshUnread', () => {
     expect(store.unreadCount).toBe(2)
   })
 
+  it('keeps a read made while the request was in flight', async () => {
+    const store = useNotificationStore()
+    store.notifications = [mk('a', false, 5, 'dm', { conversation_id: 'c1' })]
+    let respond!: (v: unknown) => void
+    ;(supabase.from as any).mockReturnValue(chain(new Promise((r) => { respond = r })).proxy)
+
+    const refreshing = store.refreshUnread(PROFILE_ID)
+    await Promise.resolve()
+    store.applyContextRead('conversation', 'c1')
+    // The snapshot was taken before the read.
+    respond({ data: [mk('a', false, 5, 'dm', { conversation_id: 'c1' })], error: null })
+    await refreshing
+
+    expect(store.notifications.find(n => n.id === 'a')?.is_read).toBe(true)
+    expect(store.unreadCount).toBe(0)
+  })
+
+  it('keeps a row that arrived while the request was in flight', async () => {
+    const store = useNotificationStore()
+    store.notifications = [mk('old', false, 10)]
+    let respond!: (v: unknown) => void
+    ;(supabase.from as any).mockReturnValue(chain(new Promise((r) => { respond = r })).proxy)
+
+    const refreshing = store.refreshUnread(PROFILE_ID)
+    await Promise.resolve()
+    store.notifications.unshift(mk('new', false, 0))
+    respond({ data: [mk('old', false, 10)], error: null })
+    await refreshing
+
+    expect(store.notifications.find(n => n.id === 'new')?.is_read).toBe(false)
+    expect(store.unreadCount).toBe(2)
+  })
+
   it('leaves rows older than a full page untouched', async () => {
     const store = useNotificationStore()
     store.notifications = [mk('ancient', false, 100_000)]
@@ -171,6 +205,55 @@ describe('refreshUnread', () => {
     await store.refreshUnread(PROFILE_ID)
 
     expect(store.notifications.find(n => n.id === 'ancient')?.is_read).toBe(false)
+  })
+})
+
+describe('start-up', () => {
+  it('registers the event handlers before the first unread fetch', async () => {
+    const store = useNotificationStore()
+    let registeredAtFetch: boolean | null = null
+    ;(supabase.from as any).mockImplementation((table: string) => {
+      if (table === 'notifications' && registeredAtFetch === null) registeredAtFetch = handlers.has('notification:new')
+      return chain({ data: table === 'notifications' ? [] : null, error: null }).proxy
+    })
+
+    try {
+      await store.initializeUnreadCountOnly('auth-id')
+      expect(registeredAtFetch).toBe(true)
+    } finally {
+      store.cleanupBroadcastHandlers()
+    }
+  })
+
+  it('a read received during the full-list fetch survives the fetched page', async () => {
+    const store = useNotificationStore()
+    store.notifications = [mk('a', false, 3)]
+    let respond!: (v: unknown) => void
+    ;(services.notifications.fetchNotifications as any).mockReturnValueOnce(new Promise((r) => { respond = r }))
+    await store.setupBroadcastNotificationHandlers('auth-id')
+    try {
+      const loading = store.loadFullNotificationList('auth-id')
+      await vi.waitFor(() => expect(services.notifications.fetchNotifications).toHaveBeenCalled())
+      handlers.get('notification:update')!({ id: 'a', is_read: true })
+      respond([mk('a', false, 3), mk('b', true, 4)])
+      await loading
+
+      expect(store.notifications.find(n => n.id === 'a')?.is_read).toBe(true)
+      expect(store.unreadCount).toBe(0)
+    } finally {
+      store.cleanupBroadcastHandlers()
+    }
+  })
+})
+
+describe('the Mentions feed', () => {
+  it('rejects when the read cannot be stored, so the view retries, and keeps the local read', async () => {
+    const store = useNotificationStore()
+    store.notifications = [mk('m', false, 1, 'activitypub_mention', { post_id: 'p1' })]
+    ;(services.notifications.markMentionNotificationsForPostsAsRead as any).mockRejectedValueOnce(new Error('offline'))
+
+    await expect(store.markMentionNotificationsForPostsAsRead(['p1'])).rejects.toThrow('offline')
+    expect(store.unreadCount).toBe(0)
   })
 })
 

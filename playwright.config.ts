@@ -11,6 +11,9 @@ config({ path: path.resolve(__dirname, '.env.test') })
 
 const browserChannel = process.env.PW_BUNDLED ? {} : { channel: 'chrome' as const }
 
+// The dev server listens on BASE_URL's port, so two checkouts can run side by side.
+const baseURL = process.env.BASE_URL || 'http://localhost:5173'
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
@@ -21,7 +24,7 @@ export default defineConfig({
   globalSetup: './tests/e2e/global-setup.ts',
   globalTeardown: './tests/e2e/global-teardown.ts',
   use: {
-    baseURL: process.env.BASE_URL || 'http://localhost:5173',
+    baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     // Video needs the ffmpeg binary, whose download hangs on the runner. Trace and
@@ -65,8 +68,8 @@ export default defineConfig({
     // },
   ],
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
+    command: `npm run dev -- --port ${new URL(baseURL).port || 5173} --strictPort`,
+    url: baseURL,
     reuseExistingServer: true,
     timeout: 120_000,
   },

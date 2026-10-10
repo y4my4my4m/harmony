@@ -41,6 +41,7 @@ export enum Permission {
   MUTE_MEMBERS = 'MUTE_MEMBERS',
   DEAFEN_MEMBERS = 'DEAFEN_MEMBERS',
   MOVE_MEMBERS = 'MOVE_MEMBERS',
+  USE_SOUNDBOARD = 'USE_SOUNDBOARD',
 }
 
 // Permission categories for UI grouping
@@ -92,6 +93,7 @@ export const PERMISSION_CATEGORIES = {
       Permission.MUTE_MEMBERS,
       Permission.DEAFEN_MEMBERS,
       Permission.MOVE_MEMBERS,
+      Permission.USE_SOUNDBOARD,
     ],
   },
   dangerous: {
@@ -134,13 +136,14 @@ export const PERMISSION_BITS: Record<Permission, number> = {
   [Permission.READ_MESSAGE_HISTORY]: 22,
   [Permission.PIN_MESSAGES]: 23,
 
-  // Voice Channel Permissions (bits 24-29)
+  // Voice Channel Permissions (bits 24-30)
   [Permission.CONNECT]: 24,
   [Permission.SPEAK]: 25,
   [Permission.STREAM]: 26,
   [Permission.MUTE_MEMBERS]: 27,
   [Permission.DEAFEN_MEMBERS]: 28,
   [Permission.MOVE_MEMBERS]: 29,
+  [Permission.USE_SOUNDBOARD]: 30,
 }
 
 /**
@@ -179,7 +182,7 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   [Permission.VIEW_CHANNEL]: 'Allows members to view channels and see their content.',
   [Permission.MANAGE_CHANNELS]: 'Allows members to create, edit, and delete channels.',
   [Permission.MANAGE_ROLES]: 'Allows members to create, edit, and delete roles lower than their highest role.',
-  [Permission.MANAGE_EMOJIS]: 'Allows members to add, edit, and remove custom emojis.',
+  [Permission.MANAGE_EMOJIS]: 'Allows members to add, edit, and remove custom emojis and soundboard sounds.',
   [Permission.VIEW_AUDIT_LOG]: 'Allows members to view the server audit log.',
   [Permission.MANAGE_WEBHOOKS]: 'Allows members to create, edit, and delete webhooks.',
   [Permission.MANAGE_SERVER]: 'Allows members to change server name, icon, and other settings.',
@@ -205,6 +208,7 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   [Permission.MUTE_MEMBERS]: 'Allows members to mute other members in voice channels.',
   [Permission.DEAFEN_MEMBERS]: 'Allows members to deafen other members in voice channels.',
   [Permission.MOVE_MEMBERS]: 'Allows members to move other members between voice channels.',
+  [Permission.USE_SOUNDBOARD]: 'Allows members to play soundboard sounds in voice channels.',
 }
 
 // Role Types

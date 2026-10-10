@@ -23,6 +23,12 @@ export interface UserStats {
   posts_count: number
   followers_count: number
   following_count: number
+  is_local?: boolean | null
+  /** Remote account: its origin's totals; null when withheld or never read. */
+  remote_posts_count?: number | null
+  remote_followers_count?: number | null
+  remote_following_count?: number | null
+  remote_counts_fetched_at?: string | null
   profile_views: number
   /** Denormalized chat message count (profiles.message_count). */
   message_count?: number
@@ -194,9 +200,14 @@ export class CoreProfileService {
       const { data: profile, error } = await supabase
         .from('profiles')
         .select(`
+          is_local,
           posts_count,
           followers_count,
           following_count,
+          remote_posts_count,
+          remote_followers_count,
+          remote_following_count,
+          remote_counts_fetched_at,
           message_count,
           voice_minutes
         `)
@@ -214,6 +225,11 @@ export class CoreProfileService {
         posts_count: profile.posts_count || 0,
         followers_count: profile.followers_count || 0,
         following_count: profile.following_count || 0,
+        is_local: profile.is_local,
+        remote_posts_count: profile.remote_posts_count ?? null,
+        remote_followers_count: profile.remote_followers_count ?? null,
+        remote_following_count: profile.remote_following_count ?? null,
+        remote_counts_fetched_at: profile.remote_counts_fetched_at ?? null,
         profile_views: 0, // Placeholder for future implementation
         message_count: Number(profile.message_count ?? 0),
         voice_minutes: Number(profile.voice_minutes ?? 0),

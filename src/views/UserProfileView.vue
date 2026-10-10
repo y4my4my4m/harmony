@@ -3,7 +3,7 @@
   <div class="user-profile-wrapper">
     <ViewHeader
       :title="user ? plainDisplayName : t('activitypub.profile')"
-      :subtitle="user ? t('activitypub.postsCountLabel', { count: user.posts_count || 0 }, user.posts_count || 0) : undefined"
+      :subtitle="postsCount !== null ? t('activitypub.postsCountLabel', { count: postsCount }, postsCount) : undefined"
     />
 
     <!-- Main Content -->
@@ -120,6 +120,7 @@
                 </div>
 
                 <button
+                  v-if="!isMoved || isFollowing || followRequested"
                   type="button"
                   :class="['follow-btn', { 'is-following': isFollowing || followRequested, 'is-loading': isFollowLoading }]"
                   :disabled="isFollowLoading"
@@ -191,6 +192,13 @@
           </div>
         </div>
 
+        <MovedAccountNotice
+          v-if="movedTo"
+          class="moved-notice"
+          :name="plainDisplayName"
+          :target="movedTo"
+        />
+
         <!-- Profile Tabs -->
         <div class="profile-tabs">
           <button
@@ -202,6 +210,12 @@
             <Icon :name="tab.icon" />
             <span>{{ tab.label }}</span>
             <span v-if="tab.count !== undefined" class="tab-count">{{ tab.count }}</span>
+            <span
+              v-else-if="tab.hidden"
+              class="tab-count tab-count-hidden"
+              :title="t('activitypub.countHiddenBy', { domain: user.domain })"
+              :aria-label="t('activitypub.countHiddenBy', { domain: user.domain })"
+            >–</span>
           </button>
         </div>
 
@@ -275,11 +289,16 @@
 
           <!-- Following Tab -->
           <div v-else-if="activeTab === 'following'" class="following-tab">
+            <RemoteListNote
+              v-if="isRemoteUser"
+              :domain="user.domain || ''"
+              :profile-url="remoteProfileUrl"
+            />
             <EmptyState
               v-if="followingUsers.length === 0"
               icon="users"
-              :title="t('activitypub.notFollowingAnyone')"
-              :description="isCurrentUser ? t('activitypub.notFollowingAnyoneYet') : t('empty.profileFollowing.other', { name: plainDisplayName })"
+              :title="isRemoteUser ? t('activitypub.noKnownAccounts') : t('activitypub.notFollowingAnyone')"
+              :description="isRemoteUser ? undefined : isCurrentUser ? t('activitypub.notFollowingAnyoneYet') : t('empty.profileFollowing.other', { name: plainDisplayName })"
             />
             
             <div v-else class="users-grid">
@@ -295,11 +314,16 @@
 
           <!-- Followers Tab -->
           <div v-else-if="activeTab === 'followers'" class="followers-tab">
+            <RemoteListNote
+              v-if="isRemoteUser"
+              :domain="user.domain || ''"
+              :profile-url="remoteProfileUrl"
+            />
             <EmptyState
               v-if="followerUsers.length === 0"
               icon="users"
-              :title="t('empty.profileFollowers.title')"
-              :description="isCurrentUser ? t('empty.profileFollowers.self') : t('empty.profileFollowers.other', { name: plainDisplayName })"
+              :title="isRemoteUser ? t('activitypub.noKnownAccounts') : t('empty.profileFollowers.title')"
+              :description="isRemoteUser ? undefined : isCurrentUser ? t('empty.profileFollowers.self') : t('empty.profileFollowers.other', { name: plainDisplayName })"
             />
             
             <div v-else class="users-grid">
@@ -347,7 +371,9 @@ import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
 import { useUserData } from '@/composables/useUserData'
 import { useFeedRealtime, type FeedKind } from '@/composables/useFeedRealtime'
+import { useMovedAccount } from '@/composables/useMovedAccount'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { isRemoteProfile, profileCount, remoteCountFields } from '@/utils/profileCounts'
 
 const { t } = useI18n(); 
 
@@ -372,6 +398,8 @@ import ProfileMediaGrid from '@/components/activitypub/ProfileMediaGrid.vue';
 import ProfileCard from '@/components/common/ProfileCard.vue';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import ReportModal from '@/components/moderation/ReportModal.vue';
+import MovedAccountNotice from '@/components/activitypub/MovedAccountNotice.vue';
+import RemoteListNote from '@/components/activitypub/RemoteListNote.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 
@@ -452,6 +480,7 @@ const actionsMenuStyle = ref<Record<string, string>>({});
 const isFollowLoading = ref(false);
 // Pending request to an account that approves followers manually.
 const followRequested = ref(false);
+const { movedTo, isMoved } = useMovedAccount(() => user.value);
 
 const toggleActionsMenu = () => {
   if (!showActionsMenu.value && moreActionsBtnRef.value) {
@@ -486,7 +515,8 @@ useFeedRealtime(feedKind, {
     const fullPost = await activityPubService.loadPostWithAuthor(event.id)
     if (!fullPost) return
     userPosts.value = [fullPost as TimelinePost, ...userPosts.value]
-    if (user.value) user.value.posts_count = (user.value.posts_count ?? 0) + 1
+    // A remote account's figure is its origin's; an outbox backfill also lands here.
+    if (user.value && !isRemoteUser.value) user.value.posts_count = (user.value.posts_count ?? 0) + 1
     void loadMediaCount()
   },
   onUpdate: (event) => {
@@ -503,7 +533,7 @@ useFeedRealtime(feedKind, {
     if (event.author_id !== user.value?.id) return
     const before = userPosts.value.length
     userPosts.value = userPosts.value.filter(p => p.id !== event.id)
-    if (user.value && before !== userPosts.value.length) {
+    if (user.value && !isRemoteUser.value && before !== userPosts.value.length) {
       user.value.posts_count = Math.max(0, (user.value.posts_count ?? 1) - 1)
     }
     void loadMediaCount()
@@ -535,31 +565,35 @@ const plainDisplayName = computed(() => {
 const hasMorePosts = computed(() => props.hasMorePosts || hasMorePostsRef.value);
 const pinnedPostIds = computed(() => new Set(pinnedPosts.value.map(p => p.id)));
 const unpinnedUserPosts = computed(() => userPosts.value.filter(p => !pinnedPostIds.value.has(p.id)));
-const profileTabs = computed(() => [
-  { 
-    id: 'posts', 
-    label: t('activitypub.monies'), 
-    icon: 'message-circle',
-    count: user.value?.posts_count || 0
-  },
+
+// A remote account shows its origin's totals; its lists hold the accounts known here.
+const isRemoteUser = computed(() => isRemoteProfile(user.value));
+const postsCount = computed(() => profileCount(user.value, 'posts'));
+const followingCount = computed(() => profileCount(user.value, 'following'));
+const followersCount = computed(() => profileCount(user.value, 'followers'));
+
+interface ProfileTab {
+  id: string;
+  label: string;
+  icon: string;
+  count?: number;
+  /** The account's server withholds the figure. */
+  hidden?: boolean;
+}
+
+const countTab = (id: string, label: string, icon: string, count: number | null): ProfileTab =>
+  count === null && user.value ? { id, label, icon, hidden: true } : { id, label, icon, count: count ?? 0 };
+
+const profileTabs = computed<ProfileTab[]>(() => [
+  countTab('posts', t('activitypub.monies'), 'message-circle', postsCount.value),
   {
     id: 'media',
     label: t('activitypub.media'),
     icon: 'image',
     count: mediaCount.value ?? undefined
   },
-  { 
-    id: 'following',
-    label: t('activitypub.following'),  
-    icon: 'user-plus',
-    count: user.value?.following_count || 0
-  },
-  { 
-    id: 'followers',
-    label: t('activitypub.followers'),  
-    icon: 'users',
-    count: user.value?.followers_count || 0
-  }
+  countTab('following', t('activitypub.following'), 'user-plus', followingCount.value),
+  countTab('followers', t('activitypub.followers'), 'users', followersCount.value),
 ]);
 
 const bannerUrl = computed(() => {
@@ -783,6 +817,7 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
         following: user.value.following_count,
         followers: user.value.followers_count
       });
+      if (isRemoteUser.value) void syncRemoteProfile(handle);
       await Promise.all([
         loadUserPosts(),
         loadPinnedPosts(),
@@ -800,6 +835,30 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
     error.value = 'Failed to load profile. The user might not exist or be unavailable.';
   } finally {
     isLoading.value = false;
+  }
+};
+
+// Delay, ms, before the posts list is read again once the backend starts an outbox backfill.
+const BACKFILL_RELOAD_MS = 4000;
+
+/**
+ * Re-reads a remote account's collection totals when stale and starts its outbox backfill
+ * when due, both through the federation backend's /lookup-user.
+ */
+const syncRemoteProfile = async (handle: string) => {
+  const target = user.value;
+  if (!target) return;
+  const result = await activityPubService.refreshRemoteProfile(handle);
+  if (!result || user.value?.id !== target.id || result.user.id !== target.id) return;
+  Object.assign(user.value, remoteCountFields(result.user));
+  if (!remoteOutboxUrl.value && result.user.outbox_url) {
+    remoteOutboxUrl.value = result.user.outbox_url;
+    hasMorePostsRef.value = true;
+  }
+  if (result.backfilling) {
+    setTimeout(() => {
+      if (user.value?.id === target.id && !isLoadingMoreRemote.value) void loadUserPosts();
+    }, BACKFILL_RELOAD_MS);
   }
 };
 
@@ -1347,12 +1406,14 @@ onUnmounted(() => {
   padding: 0 var(--space-4) var(--space-4);
 }
 
+/* --avatar-overlap: how far the avatar reaches up into the banner. */
 .avatar-row {
+  --avatar-overlap: 40px;
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
-  margin-top: -40px;
+  margin-top: calc(-1 * var(--avatar-overlap));
   margin-bottom: var(--space-3);
 }
 
@@ -1383,11 +1444,12 @@ onUnmounted(() => {
   color: var(--text-on-primary);
 }
 
+/* Below the banner's bottom edge; only the avatar overlaps it. */
 .profile-actions {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding-bottom: var(--space-1);
+  padding-top: calc(var(--avatar-overlap) + var(--space-3));
 }
 
 .profile-icon-btn {
@@ -1727,6 +1789,10 @@ onUnmounted(() => {
   color: var(--harmony-primary);
 }
 
+.tab-count-hidden {
+  cursor: help;
+}
+
 .tab-content {
   flex: 1;
   overflow-y: auto;
@@ -1762,6 +1828,10 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1rem;
+}
+
+.moved-notice {
+  margin: 0 1rem 1rem;
 }
 
 /* Blocked User Banner */

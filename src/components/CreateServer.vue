@@ -25,6 +25,55 @@
       </header>
 
       <div class="create-server-body">
+        <div class="section" data-testid="create-server-template">
+          <div v-if="!template" class="template-card">
+            <span class="option-icon"><Icon name="layers" :size="16" /></span>
+            <span class="option-content">
+              <span class="option-title">{{ $t('serverTemplate.useTemplate') }}</span>
+              <span class="option-description">{{ $t('serverTemplate.useTemplateHint') }}</span>
+            </span>
+            <button
+              type="button"
+              class="btn btn-secondary btn-compact"
+              data-testid="create-server-template-pick"
+              :disabled="isCreating"
+              @click="triggerTemplatePick"
+            >
+              {{ $t('serverTemplate.chooseFile') }}
+            </button>
+          </div>
+          <div v-else class="template-card active" data-testid="create-server-template-summary">
+            <span class="option-icon"><Icon name="layers" :size="16" /></span>
+            <span class="option-content">
+              <span class="option-title">
+                {{ templateSummary?.name
+                  ? $t('serverTemplate.fromTemplateNamed', { name: templateSummary.name })
+                  : $t('serverTemplate.fromTemplate') }}
+              </span>
+              <span class="option-description">{{ templateCounts }}</span>
+              <span class="option-description">{{ $t('serverTemplate.structureOnly') }}</span>
+              <span v-if="templateSummary?.elevatedEveryone" class="template-warning">
+                <Icon name="alert-triangle" :size="14" />
+                {{ $t('serverTemplate.elevatedEveryone') }}
+              </span>
+            </span>
+            <button type="button" class="btn btn-ghost btn-compact" :disabled="isCreating" @click="clearTemplate">
+              {{ $t('common.remove') }}
+            </button>
+          </div>
+          <p v-if="templateError" class="error-text template-error" role="alert">{{ templateError }}</p>
+          <input
+            ref="templateInput"
+            type="file"
+            accept=".json,application/json"
+            class="file-input"
+            tabindex="-1"
+            aria-hidden="true"
+            data-testid="create-server-template-input"
+            @change="handleTemplatePick"
+          />
+        </div>
+
         <div class="section icon-section">
           <button
             type="button"
@@ -177,7 +226,16 @@ import { useOpenServer } from '@/composables/useOpenServer';
 import Icon from '@/components/common/Icon.vue';
 import ServerCategoryPicker from '@/components/common/ServerCategoryPicker.vue';
 import { usePublicServersStore } from '@/stores/usePublicServers';
-import type { ServerCategory } from '@/utils/serverDiscovery';
+import { isServerCategory, type ServerCategory } from '@/utils/serverDiscovery';
+import {
+  SERVER_TEMPLATE_LIMITS,
+  ServerTemplateError,
+  parseServerTemplate,
+  templateRejection,
+  withServerFields,
+  type ServerTemplate,
+  type ServerTemplateSummary,
+} from '@/utils/serverTemplate';
 import { imageSourceError } from '@/utils/uploadValidation';
 import { useImageCrop } from '@/composables/useImageCrop';
 import type { Server } from '@/types';
@@ -211,6 +269,21 @@ const submitAttempted = ref(false);
 
 const iconInput = ref<HTMLInputElement>();
 const nameInput = ref<HTMLInputElement>();
+const templateInput = ref<HTMLInputElement>();
+
+const template = ref<ServerTemplate | null>(null);
+const templateSummary = ref<ServerTemplateSummary | null>(null);
+const templateError = ref('');
+
+const templateCounts = computed(() => {
+  const summary = templateSummary.value;
+  if (!summary) return '';
+  return [
+    t('serverTemplate.roles', summary.roles),
+    t('serverTemplate.categories', summary.categories),
+    t('serverTemplate.channels', summary.channels),
+  ].join(' · ');
+});
 
 const nameError = computed(() => {
   const length = serverName.value.trim().length;
@@ -253,6 +326,53 @@ const removeIcon = () => {
   if (iconInput.value) {
     iconInput.value.value = '';
   }
+};
+
+const triggerTemplatePick = () => {
+  templateInput.value?.click();
+};
+
+const templateErrorText = (error: ServerTemplateError) =>
+  t(`serverTemplate.errors.${error.code}`, { detail: error.detail });
+
+const handleTemplatePick = async (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  target.value = '';
+  if (!file) return;
+
+  templateError.value = '';
+  if (file.size > SERVER_TEMPLATE_LIMITS.bytes) {
+    templateError.value = templateErrorText(new ServerTemplateError('tooLarge'));
+    return;
+  }
+
+  const parsed = parseServerTemplate(await file.text());
+  if (!parsed.ok) {
+    templateError.value = templateErrorText(parsed.error);
+    return;
+  }
+
+  template.value = parsed.template;
+  templateSummary.value = parsed.summary;
+
+  const source = parsed.template.server;
+  if (!serverName.value.trim() && parsed.summary.name) {
+    serverName.value = parsed.summary.name.slice(0, NAME_MAX);
+  }
+  if (!description.value.trim() && source?.description) {
+    description.value = source.description.slice(0, DESCRIPTION_MAX);
+  }
+  isPublic.value = source?.public === true;
+  if (isServerCategory(source?.category)) {
+    category.value = source.category;
+  }
+};
+
+const clearTemplate = () => {
+  template.value = null;
+  templateSummary.value = null;
+  templateError.value = '';
 };
 
 const closeModal = () => {
@@ -310,17 +430,31 @@ const createServer = async () => {
 
   let created: Server;
   try {
-    created = await serverChannelStore.createServer({
-      name: serverName.value.trim(),
-      description: description.value.trim() || undefined,
-      public: isPublic.value,
-      category: category.value,
-      owner: userId
-    });
+    if (template.value) {
+      created = await serverChannelStore.createServerFromTemplate(
+        serverName.value.trim(),
+        withServerFields(template.value, {
+          description: description.value.trim() || null,
+          public: isPublic.value,
+          category: category.value,
+        }),
+      );
+    } else {
+      created = await serverChannelStore.createServer({
+        name: serverName.value.trim(),
+        description: description.value.trim() || undefined,
+        public: isPublic.value,
+        category: category.value,
+        owner: userId
+      });
+    }
     usePublicServersStore().markStale();
   } catch (error) {
     debug.error('Server creation error:', error);
-    errorMessage.value = t('server.errors.createFailed');
+    const rejection = template.value ? templateRejection(error) : null;
+    errorMessage.value = rejection
+      ? t('serverTemplate.errors.rejected', { detail: rejection })
+      : t('server.errors.createFailed');
     isCreating.value = false;
     return;
   }
@@ -526,6 +660,55 @@ const createServer = async () => {
 
 .file-input {
   display: none;
+}
+
+.template-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--background-secondary);
+  border: 1px dashed var(--border-hover);
+  border-radius: var(--radius-lg);
+  min-width: 0;
+}
+
+.template-card.active {
+  border-style: solid;
+  border-color: var(--harmony-primary);
+  background: var(--harmony-primary-light);
+}
+
+.template-card .option-content {
+  flex: 1;
+}
+
+.template-card.active .option-icon {
+  color: var(--harmony-primary);
+}
+
+.template-card .btn {
+  flex-shrink: 0;
+}
+
+.template-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  margin-top: 2px;
+  font-size: var(--font-size-xs);
+  line-height: 1.35;
+  color: var(--warning);
+}
+
+.template-warning :deep(.icon-wrap) {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.template-error {
+  display: block;
+  margin: var(--space-2) 0 0;
 }
 
 .icon-meta {

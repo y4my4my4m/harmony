@@ -8,11 +8,12 @@
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { stripIncomingMediaPaths } from '../utils/privateMedia.js';
+import { withoutPollParts } from '../utils/polls.js';
 import { normalizeInboundMentions, actorHostname } from '../utils/mentionParts.js';
 import { ActivityProcessor } from './ActivityProcessor.js';
 import { DeliveryQueue } from './DeliveryQueue.js';
 import { SignatureService } from './SignatureService.js';
-import { noteToContent } from './converters/fromActivityPub.js';
+import { noteToContent, parseAlsoKnownAs, parseMovedTo } from './converters/fromActivityPub.js';
 import config from '../config/index.js';
 import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.js';
 import { INVITE_REFUSALS } from '../utils/inviteRefusals.js';
@@ -148,11 +149,11 @@ export async function actorOwnsMessage(
 
 /**
  * Incoming `harmony:rawContent`: mention locality re-derived for this
- * instance (normalizeInboundMentions). File parts lose `path`, which only
- * this instance's own content may carry.
+ * instance (normalizeInboundMentions). File parts lose `path` and poll parts
+ * are dropped: both name rows of the sending instance only.
  */
 function normalizeMentionDomains(content: any[], senderUrl: unknown): any[] {
-  return normalizeInboundMentions(stripIncomingMediaPaths(content), actorHostname(senderUrl));
+  return normalizeInboundMentions(withoutPollParts(stripIncomingMediaPaths(content)), actorHostname(senderUrl));
 }
 
 // MAIN HANDLER
@@ -311,6 +312,61 @@ export async function processServerInboxActivity(
 
 // JOIN / LEAVE HANDLERS
 
+/**
+ * The account a joining actor moved from, when that account belongs to the server: an
+ * accepted member or banned. The actor's alsoKnownAs and the alias's movedTo are both
+ * fetched now; a local alias is read from its row. The stored rows only select candidates.
+ */
+export async function findMovedMembership(
+  supabase: any,
+  serverId: string,
+  user: { id: string; federated_id: string | null; also_known_as?: string[] | null },
+): Promise<{ aliasId: string; banned: boolean } | null> {
+  if (!user.federated_id) return null;
+  const stored = (user.also_known_as ?? []).filter((uri) => typeof uri === 'string');
+  const columns = 'id, federated_id, is_local, moved_to_id';
+  const [{ data: movedHere }, { data: aliased }] = await Promise.all([
+    supabase.from('profiles').select(columns).eq('moved_to_id', user.id).limit(25),
+    stored.length > 0
+      ? supabase.from('profiles').select(columns).in('federated_id', stored).limit(25)
+      : Promise.resolve({ data: [] }),
+  ]);
+  const byId = new Map<string, any>();
+  for (const account of [...(movedHere ?? []), ...(aliased ?? [])]) {
+    if (account.id !== user.id) byId.set(account.id, account);
+  }
+  const accounts = [...byId.values()];
+  const ids = accounts.map((a) => a.id);
+  if (ids.length === 0) return null;
+
+  const [{ data: memberships }, { data: bans }] = await Promise.all([
+    supabase.from('user_servers').select('user_id, status').eq('server_id', serverId).in('user_id', ids),
+    supabase.from('server_bans').select('user_id').eq('server_id', serverId).in('user_id', ids),
+  ]);
+  const banned = new Set<string>((bans ?? []).map((b: any) => b.user_id));
+  for (const m of memberships ?? []) if (m.status === 'banned') banned.add(m.user_id);
+  const members = new Set<string>((memberships ?? []).filter((m: any) => m.status === 'accepted').map((m: any) => m.user_id));
+  const candidates = accounts.filter((a) => banned.has(a.id) || members.has(a.id));
+  if (candidates.length === 0) return null;
+
+  const fresh = await ActivityProcessor.refreshRemoteActor(user.federated_id);
+  if (!fresh) return null;
+  const aliases = parseAlsoKnownAs(fresh.actor.alsoKnownAs);
+
+  for (const alias of candidates) {
+    if (!alias.federated_id || !aliases.includes(alias.federated_id)) continue;
+    let movedHereNow: boolean;
+    if (alias.is_local) {
+      movedHereNow = alias.moved_to_id === user.id;
+    } else {
+      const aliasFresh = await ActivityProcessor.refreshRemoteActor(alias.federated_id);
+      movedHereNow = !!aliasFresh && parseMovedTo(aliasFresh.actor.movedTo) === user.federated_id;
+    }
+    if (movedHereNow) return { aliasId: alias.id, banned: banned.has(alias.id) };
+  }
+  return null;
+}
+
 async function processJoinServer(
   serverId: string,
   server: any,
@@ -328,7 +384,7 @@ async function processJoinServer(
   if (remoteUser) {
     const { data: fullUser } = await supabase
       .from('profiles')
-      .select('id, username, inbox_url, federated_id, is_suspended')
+      .select('id, username, inbox_url, federated_id, is_suspended, also_known_as')
       .eq('id', remoteUser.id)
       .maybeSingle();
     
@@ -371,9 +427,18 @@ async function processJoinServer(
     .eq('user_id', user.id)
     .maybeSingle();
 
+  // A member who moved to this actor brings the membership along: no invite, the same
+  // nickname and roles. A ban of the old account holds for the new one.
+  const carried = existing?.status === 'accepted' ? null : await findMovedMembership(supabase, serverId, user);
+  if (carried?.banned) {
+    logger.warn(`Rejecting join from ${actorUrl}: the account it moved from is banned`);
+    await sendRejectActivity(serverId, server, activity, user.inbox_url, 'User is banned from this server');
+    return;
+  }
+
   // An invite is spent only by a join that adds a member. consume_invite locks the
   // row and checks it as redeem_invite does for local users.
-  if (!server.public && existing?.status !== 'accepted') {
+  if (!server.public && existing?.status !== 'accepted' && !carried) {
     const inviteCode = activity['harmony:inviteCode'];
 
     if (typeof inviteCode !== 'string' || !inviteCode) {
@@ -423,6 +488,19 @@ async function processJoinServer(
     }
 
     logger.info(`Added ${user.username}@${memberDomain} to server ${serverId}`);
+  }
+
+  if (carried) {
+    const { data: outcome, error: carryError } = await supabase.rpc('carry_over_moved_membership', {
+      p_server_id: serverId,
+      p_profile_id: user.id,
+      p_alias_id: carried.aliasId,
+    });
+    if (carryError) {
+      logger.error(`Membership carry-over for ${actorUrl} failed: ${carryError.message}`);
+    } else {
+      logger.info(`Membership of ${carried.aliasId} on server ${serverId} for ${actorUrl}: ${outcome}`);
+    }
   }
 
   await sendAcceptActivity(serverId, server, activity, user.inbox_url);

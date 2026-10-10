@@ -228,4 +228,120 @@ describe('role and channel mention parts', () => {
     expect(res.status).toBe(200)
     expect(db.writesTo('messages', 'update')[0].rows[0].content).toEqual([{ type: 'text', text: '@Outsiders' }])
   })
+
+  describe('@everyone and @here', () => {
+    const pings = [
+      { type: 'role_mention', roleId: 'here', roleName: 'online', roleColor: '#123456' },
+      { type: 'text', text: ' and ' },
+      { type: 'role_mention', roleId: EVERYONE_ROLE, roleName: 'everyone', roleColor: null },
+    ]
+
+    function mentionEveryone(granted: boolean) {
+      mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+        if (fn === 'check_bot_permission' && args.p_permission === 'mention_everyone' && args.p_bot_id === BOT_ID) {
+          return { data: granted, error: null }
+        }
+        throw new Error(`test called unmocked rpc: ${fn}`)
+      })
+    }
+
+    it('keeps both parts for a bot holding mention_everyone', async () => {
+      seed()
+      mentionEveryone(true)
+      const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`).send({ content: pings })
+
+      expect(res.status).toBe(201)
+      expect(insertedContent()).toEqual([
+        { type: 'role_mention', roleId: 'here', roleName: 'here', roleColor: null },
+        { type: 'text', text: ' and ' },
+        { type: 'role_mention', roleId: EVERYONE_ROLE, roleName: 'everyone', roleColor: null },
+      ])
+    })
+
+    it('turns both into text for a bot without it, as the database ignores them', async () => {
+      seed()
+      mentionEveryone(false)
+      const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`).send({ content: pings })
+
+      expect(res.status).toBe(201)
+      expect(insertedContent()).toEqual([
+        { type: 'text', text: '@here' },
+        { type: 'text', text: ' and ' },
+        { type: 'text', text: '@everyone' },
+      ])
+    })
+
+    it('asks nothing when the message pings no one', async () => {
+      seed()
+      const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+        .send({ content: [{ type: 'role_mention', roleId: CREW_ROLE }] })
+
+      expect(res.status).toBe(201)
+      expect(mocks.rpc).not.toHaveBeenCalled()
+    })
+  })
+})
+
+describe('relayed authors and server-only content', () => {
+  const inserted = () => db.writesTo('messages', 'insert')[0].rows[0]
+  const AUTHOR = { discord_user: { id: '42', username: 'alice', display_name: 'Alice' }, bridge_source: 'discord' }
+
+  it('keeps discord_user from a bridge bot in a channel its bridge pairs', async () => {
+    seed()
+    const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+      .send({ content: [{ type: 'text', text: 'hi' }], metadata: { ...AUTHOR, discord_message_id: '7' } })
+    expect(res.status).toBe(201)
+    expect(inserted().metadata).toEqual({ ...AUTHOR, discord_message_id: '7', bot: true, created_via: 'bot_api' })
+  })
+
+  it('drops it in a channel the bridge does not pair, and from a bot that is no bridge bot', async () => {
+    seed()
+    const unpaired = await supertest(app()).post(`/api/v1/channels/${UNPAIRED}/messages`)
+      .send({ content: 'hi', metadata: AUTHOR })
+    expect(unpaired.status).toBe(201)
+    expect(inserted().metadata).toEqual({ bot: true, created_via: 'bot_api' })
+
+    seed({ botType: 'bot' })
+    const ordinary = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+      .send({ content: 'hi', metadata: AUTHOR })
+    expect(ordinary.status).toBe(201)
+    expect(inserted().metadata).toEqual({ bot: true, created_via: 'bot_api' })
+  })
+
+  it('drops it from a metadata merge outside a paired channel', async () => {
+    seed({ botType: 'bot' })
+    db.rows('messages').push({ id: '00000000-0000-0000-0000-0000000000f4', channel_id: PAIRED, user_id: null, bot_id: BOT_ID, content: [], metadata: {} })
+    const res = await supertest(app()).patch('/api/v1/messages/00000000-0000-0000-0000-0000000000f4/metadata')
+      .send({ metadata: { ...AUTHOR, discord_message_id: '8' } })
+    expect(res.status).toBe(200)
+    expect(metadataOf('00000000-0000-0000-0000-0000000000f4')).toEqual({ discord_message_id: '8' })
+  })
+
+  it('strips system parts, malformed embeds and server-only metadata from a sent message', async () => {
+    seed()
+    const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+      .send({
+        content: [
+          { type: 'system', event_type: 'join', user: { id: 'u', username: 'admin', display_name: 'Admin' } },
+          { type: 'text', text: 'real' },
+          { type: 'embed', url: 'https://x.test', provider: 'generic', previewId: 'https://x.test', html: '<script>' },
+        ],
+        embeds: [{ title: 'Discord-style embed' }],
+        metadata: { embeds: { 'https://x.test': { provider: 'generic', html: '<script>' } }, suppress_embeds: true, webhook: { name: 'CI' } },
+      })
+    expect(res.status).toBe(201)
+    expect(inserted().content).toEqual([
+      { type: 'text', text: 'real' },
+      { type: 'embed', url: 'https://x.test', provider: 'generic', previewId: 'https://x.test' },
+    ])
+    expect(inserted().metadata).toEqual({ bot: true, created_via: 'bot_api' })
+  })
+
+  it('refuses a message left empty', async () => {
+    seed()
+    const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+      .send({ content: [{ type: 'system', event_type: 'leave', user: { id: 'u' } }] })
+    expect(res.status).toBe(400)
+    expect(db.writesTo('messages', 'insert')).toHaveLength(0)
+  })
 })

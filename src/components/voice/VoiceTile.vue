@@ -68,6 +68,8 @@
       </div>
     </div>
 
+    <LiveReactionLayer :user-id="props.userState.userId" :source="source" />
+
     <!-- Bottom-left identity pill -->
     <div class="tile-pill">
       <span v-if="source === 'screen'" class="pill-live-badge">{{ t('voice.live') }}</span>
@@ -100,6 +102,19 @@
 
     <!-- Hover controls: view -->
     <div class="tile-actions" @click.stop @dblclick.stop>
+      <button
+        v-if="canReact"
+        ref="reactButton"
+        class="tile-action-btn tile-react-btn"
+        :class="{ active: showReactions }"
+        :title="t('voice.react')"
+        :aria-label="t('voice.react')"
+        aria-haspopup="dialog"
+        :aria-expanded="showReactions"
+        @click="showReactions = !showReactions"
+      >
+        <Icon name="smile-plus" />
+      </button>
       <button
         v-if="source === 'screen' && canStopWatching"
         class="tile-action-btn"
@@ -149,6 +164,13 @@
       </button>
     </div>
 
+    <LiveReactionPopover
+      :visible="showReactions && canReact"
+      :anchor="reactButton"
+      :target="{ userId: props.userState.userId, source }"
+      @close="showReactions = false"
+    />
+
     <!-- Context menu -->
     <VoiceUserContextMenu
       :user-state="props.userState"
@@ -176,6 +198,8 @@ import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import VoiceUserContextMenu from './VoiceUserContextMenu.vue';
 import TileVolumeControl from './TileVolumeControl.vue';
+import LiveReactionLayer from './LiveReactionLayer.vue';
+import LiveReactionPopover from './LiveReactionPopover.vue';
 import { getBannerUrl } from '@/utils/bannerUtils';
 import { withRenderFallback } from '@/utils/renderFallback';
 
@@ -200,6 +224,8 @@ const { getUserProfile } = useUserData();
 
 const videoElement = ref<HTMLVideoElement | null>(null);
 const moreButton = ref<HTMLButtonElement | null>(null);
+const reactButton = ref<HTMLButtonElement | null>(null);
+const showReactions = ref(false);
 const showContextMenu = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 
@@ -251,6 +277,8 @@ const showVideo = computed(() => hasActiveVideo.value && !needsWatch.value);
 const canStopWatching = computed(() =>
   !isSelf.value && voiceStore.connectionMode === 'livekit' && watching.value
 );
+
+const canReact = computed(() => !!voiceStore.liveReactionsAvailable && showVideo.value);
 
 const fitClass = computed(() => {
   const fit = props.fit ?? (props.source === 'screen' ? 'contain' : 'cover');
@@ -699,6 +727,11 @@ onBeforeUnmount(detach);
 /* Small tiles (filmstrip) show the button without the avatar. */
 @container (max-height: 140px) {
   .tile-watch-avatar { display: none; }
+}
+
+/* Filmstrip tiles have no room for it; the call controls carry the reaction bar. */
+@container (max-width: 240px) {
+  .tile-react-btn { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

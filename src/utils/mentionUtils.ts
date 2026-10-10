@@ -11,6 +11,7 @@ import { sanitizeInlineHtml } from '@/utils/sanitize';
 import { apiUrl } from '@/services/instanceConfig'
 import { findHandles } from '@/utils/mentionGrammar'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { remoteCountFields } from '@/utils/profileCounts'
 
 export interface MentionMatch {
   full: string;          // "@tester004@mastodon.social"
@@ -404,6 +405,7 @@ export async function resolveRemoteMention(username: string, domain: string, for
       followers_count: savedUser.followers_count || 0,
       following_count: savedUser.following_count || 0,
       posts_count: savedUser.posts_count || 0,
+      ...remoteCountFields(savedUser),
       created_at: savedUser.created_at,
       updated_at: savedUser.updated_at,
       federated_id: savedUser.federated_id,

@@ -108,6 +108,8 @@ class WebRTCManagerService implements WebRTCManager {
       'call-start-time',
       'request-call-start-time',
       'e2ee-status-changed',
+      'live-reaction',
+      'soundboard',
     ];
     
     for (const event of eventsToForward) {
@@ -608,6 +610,31 @@ class WebRTCManagerService implements WebRTCManager {
     }
   }
   
+  // LIVE REACTIONS
+  // LiveKit data only: the P2P transport has no data channel, and its
+  // signalling broadcast carries an unauthenticated sender.
+
+  sendLiveReaction(payload: Uint8Array): boolean {
+    return this.activeService === 'livekit' && livekitWebRTC.sendLiveReaction(payload);
+  }
+
+  liveReactionWireId(userId: string): string | null {
+    return this.activeService === 'livekit' ? livekitWebRTC.liveReactionWireId(userId) : null;
+  }
+
+  liveReactionUserId(wireId: string): string | null {
+    return this.activeService === 'livekit' ? livekitWebRTC.liveReactionUserId(wireId) : null;
+  }
+
+  /** Sends a soundboard play to everyone in the call on the active transport. */
+  sendSoundboard(message: unknown): void {
+    if (this.activeService === 'livekit') {
+      livekitWebRTC.sendSoundboard(message);
+    } else if (this.activeService === 'p2p') {
+      unifiedWebRTC.sendSoundboard(message);
+    }
+  }
+
   /**
    * Set traditional audio enabled (for spatial audio dry/wet switching)
    */
