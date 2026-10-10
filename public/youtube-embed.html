@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YouTube</title>
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}iframe{border:0;width:100%;height:100%;display:block}</style>
+</head>
+<body>
+<script>
+// YouTube player relay for the native apps. Their pages load from tauri://localhost,
+// which sends no Referer, and YouTube refuses such embeds with error 153. This page
+// is served by the instance over https: the player gets this origin as referrer.
+// IFrame API messages pass through in both directions.
+(function () {
+  'use strict';
+  var YT_ORIGIN = 'https://www.youtube.com';
+  var params = new URLSearchParams(location.search);
+  var id = params.get('v') || '';
+  if (!/^[A-Za-z0-9_-]{6,20}$/.test(id)) return;
+
+  var query = new URLSearchParams();
+  var start = params.get('start');
+  if (start && /^\d{1,6}$/.test(start)) query.set('start', start);
+  query.set('enablejsapi', '1');
+  query.set('origin', location.origin);
+  query.set('widget_referrer', location.origin);
+
+  var frame = document.createElement('iframe');
+  frame.src = YT_ORIGIN + '/embed/' + id + '?' + query.toString();
+  frame.title = 'YouTube';
+  frame.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen';
+  frame.allowFullscreen = true;
+  frame.referrerPolicy = 'strict-origin-when-cross-origin';
+  document.body.appendChild(frame);
+
+  window.addEventListener('message', function (event) {
+    if (event.source === frame.contentWindow && event.origin === YT_ORIGIN) {
+      window.parent.postMessage(event.data, '*');
+    } else if (event.source === window.parent && frame.contentWindow) {
+      frame.contentWindow.postMessage(event.data, YT_ORIGIN);
+    }
+  });
+})();
+</script>
+</body>
+</html>

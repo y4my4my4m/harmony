@@ -12,7 +12,7 @@ import { computed, type Ref } from 'vue';
 import type { MessagePart } from '@/types';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
-import { isYouTubeUrl, buildYouTubeEmbedUrl, parseEmbedUrl } from '@/utils/embedDetection';
+import { isYouTubeUrl, buildYouTubePlayerSrc, parseEmbedUrl } from '@/utils/embedDetection';
 import { escapeHtml, sanitizeFormattedHtml, sanitizeUrl } from '@/utils/sanitize';
 import { findEmojiByName as resolveEmojiByShortcode } from '@/services/emojiShortcodeResolver';
 import { stripTrackingParameters, isUrlTrackingStrippingEnabled } from '@/utils/urlTrackerStripper';
@@ -544,11 +544,9 @@ export function useContentRenderer(
           if (renderOptions.showVideos) {
             const parsed = parseEmbedUrl(url);
             if (parsed && isYouTubeUrl(parsed)) {
-              const embedUrl = buildYouTubeEmbedUrl(parsed);
-              if (embedUrl) {
-                const separator = embedUrl.includes('?') ? '&' : '?';
-                const fullEmbedUrl = `${embedUrl}${separator}enablejsapi=1&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`;
-                const safeEmbedUrl = escapeHtml(sanitizeUrl(fullEmbedUrl));
+              const playerSrc = buildYouTubePlayerSrc(parsed);
+              if (playerSrc) {
+                const safeEmbedUrl = escapeHtml(sanitizeUrl(playerSrc));
                 return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="url-link">${safeDisplayText}</a>
                   <div class="media-container video-container youtube-embed">
                     <iframe src="${safeEmbedUrl}" frameborder="0" allowfullscreen

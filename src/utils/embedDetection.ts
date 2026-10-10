@@ -1,5 +1,6 @@
 import type { EmbedProvider } from '@/types';
 import { runtimeConfig } from '@/services/runtimeConfig';
+import { getStoredInstance } from '@/services/instanceConfig';
 
 const primaryDomain = (runtimeConfig.domain as string || window.location.hostname).toLowerCase();
 const extraDomains = (runtimeConfig.altDomains as string || '')
@@ -157,6 +158,57 @@ export function buildYouTubeEmbedUrl(url: URL): string | null {
   const startTime = parseYouTubeTime(url);
   const embedUrl = `https://www.youtube.com/embed/${videoId}`;
   return startTime ? `${embedUrl}?start=${startTime}` : embedUrl;
+}
+
+/** Instance page that frames the YouTube player (public/youtube-embed.html). */
+export const YOUTUBE_RELAY_PATH = '/youtube-embed.html';
+
+/**
+ * Origin of the YouTube relay, or null when this page frames YouTube itself.
+ * A page on a non-http scheme (tauri://localhost on macOS and Linux) sends no
+ * Referer, and YouTube refuses the embed with error 153; the relay is the
+ * instance's https origin.
+ */
+export function youtubeRelayOrigin(): string | null {
+  if (typeof window === 'undefined') return null;
+  const protocol = window.location.protocol;
+  if (protocol === 'http:' || protocol === 'https:') return null;
+  const stored = getStoredInstance();
+  if (!stored) return null;
+  try {
+    const origin = new URL(stored.origin);
+    return origin.protocol === 'https:' ? origin.origin : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Origin of a window that speaks the YouTube IFrame API to this page. */
+export function isYouTubePlayerOrigin(origin: string): boolean {
+  return isYouTubeOrigin(origin) || (origin !== '' && origin === youtubeRelayOrigin());
+}
+
+/** Player frame src with the IFrame API enabled: YouTube itself, or the relay. */
+export function buildYouTubePlayerSrc(url: URL): string | null {
+  const videoId = extractYouTubeId(url);
+  if (!videoId) return null;
+  const startTime = parseYouTubeTime(url);
+
+  const relay = youtubeRelayOrigin();
+  if (relay) {
+    const params = new URLSearchParams({ v: videoId });
+    if (startTime) params.set('start', String(startTime));
+    return `${relay}${YOUTUBE_RELAY_PATH}?${params.toString()}`;
+  }
+
+  const params = new URLSearchParams();
+  if (startTime) params.set('start', String(startTime));
+  params.set('enablejsapi', '1');
+  if (typeof window !== 'undefined') {
+    params.set('origin', window.location.origin);
+    params.set('widget_referrer', window.location.origin);
+  }
+  return `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
 }
 
 export function buildSpotifyEmbedUrl(url: URL): string | null {

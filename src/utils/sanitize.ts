@@ -1,4 +1,5 @@
 import DOMPurify from 'dompurify';
+import { youtubeRelayOrigin, YOUTUBE_RELAY_PATH } from '@/utils/embedDetection';
 
 const escapeMap: Record<string, string> = {
   '&': '&amp;',
@@ -152,7 +153,8 @@ const FORMATTED_HTML_ALLOWED_ATTR = [
 
 /**
  * Embed iframe origins: the players `embedDetection` builds URLs for.
- * Each also requires an `/embed/` path.
+ * Each also requires an `/embed/` path. The instance's YouTube relay page
+ * passes when this client frames through it.
  */
 const EMBED_FRAME_ORIGINS = new Set([
   'https://www.youtube.com',
@@ -170,10 +172,9 @@ export function isAllowedEmbedFrameSrc(src: string | null | undefined): boolean 
   } catch {
     return false;
   }
-  return url.protocol === 'https:'
-    && !url.username && !url.password
-    && EMBED_FRAME_ORIGINS.has(url.origin)
-    && url.pathname.startsWith('/embed/');
+  if (url.protocol !== 'https:' || url.username || url.password) return false;
+  if (EMBED_FRAME_ORIGINS.has(url.origin)) return url.pathname.startsWith('/embed/');
+  return url.origin === youtubeRelayOrigin() && url.pathname === YOUTUBE_RELAY_PATH;
 }
 
 /** Same scheme set as `SAFE_URL_SCHEMES`; relative and fragment refs pass. */
