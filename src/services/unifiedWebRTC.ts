@@ -5,6 +5,7 @@ import { userStorage } from '@/utils/userScopedStorage';
 import { VoiceSettingsService } from './VoiceSettingsService';
 import { remoteAudioMixer } from './voice/remoteAudioMixer';
 import { spatialAudioService } from './spatialAudio';
+import type { StreamSettingsUpdate } from './voice/streamQuality';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import {
   INPUT_VOLUME_UNITY,
@@ -193,7 +194,7 @@ export class UnifiedWebRTCService {
   }
 
   /** Applies to the currently active video/screenshare tracks. */
-  async updateStreamQuality(settings: { resolution?: number; frameRate?: number; audioBitrate?: number }): Promise<void> {
+  async updateStreamQuality(settings: StreamSettingsUpdate): Promise<void> {
     debug.log('[P2P] Updating stream quality:', settings);
     
     if (settings.resolution !== undefined) {

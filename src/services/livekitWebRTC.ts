@@ -42,6 +42,7 @@ import {
   liveScreenConstraints,
   screenCaptureResolution,
   screenShareBitrate,
+  type StreamSettingsUpdate,
 } from './voice/streamQuality';
 import {
   voiceE2EEService,
@@ -51,6 +52,13 @@ import {
 import { getLiveKitToken } from './livekitTokens';
 import { LIVE_REACTION_TOPIC, MAX_LIVE_REACTION_BYTES } from './voice/liveReactions';
 import { SOUNDBOARD_MESSAGE_MAX_BYTES, SOUNDBOARD_TOPIC, soundboardExternalGrant, soundboardGrant } from './soundboard/protocol';
+import {
+  PreparedStreamAudio,
+  nativeStreamAudioSupported,
+  notifyStreamAudioFailed,
+  probeNativeStreamAudio,
+  type NativeStreamAudio,
+} from './voice/nativeStreamAudio';
 
 // FEDERATED IDENTITY HELPERS
 
@@ -346,12 +354,17 @@ export class LiveKitWebRTCService {
   private leaving = false;
 
   // Stream quality settings (applied to new tracks and updated live).
-  // audioBitrate is kbps and applies to stream audio.
+  // audioBitrate is kbps and applies to stream audio. shareAudio governs
+  // native program-audio capture (desktop app); browsers ask in their picker.
   private streamQualitySettings = {
     resolution: 720,
     frameRate: 30,
     audioBitrate: DEFAULT_STREAM_AUDIO_BITRATE,
+    shareAudio: true,
   };
+
+  // Native program audio behind the published ScreenShareAudio track.
+  private nativeStreamAudio: NativeStreamAudio | null = null;
   
   // Event listeners
   private eventListeners = new Map<string, Function[]>();
@@ -425,6 +438,8 @@ export class LiveKitWebRTCService {
   private prepareRoomOptions(): { adaptiveStream: boolean; dynacast: boolean; audioOutput?: { deviceId: string } } {
     this.loadAudioSettings();
     this.loadStreamQualitySettings();
+    // Answered long before Go live; startScreenShare reads it synchronously.
+    void probeNativeStreamAudio();
     void remoteAudioMixer.setOutputDevice(this.selectedOutputDevice);
     return {
       adaptiveStream: true,
@@ -673,6 +688,7 @@ export class LiveKitWebRTCService {
   async leaveChannel(): Promise<void> {
     debug.log('[LiveKit] Leaving voice channel');
     this.stopLevelPolling();
+    void this.stopNativeStreamAudio();
 
     if (this.room) {
       this.leaving = true;
@@ -889,10 +905,11 @@ export class LiveKitWebRTCService {
   }
 
   /**
-   * Captures and publishes the screen and, when the picker grants it, its
-   * audio. The two tracks are published separately so stream audio gets
-   * music settings (stereo, no DTX, no RED) instead of the video's options.
-   * A camera keeps publishing alongside.
+   * Captures and publishes the screen and its audio: from the picker in a
+   * browser, natively in the desktop app (nativeStreamAudio). The two tracks
+   * are published separately so stream audio gets music settings (stereo, no
+   * DTX, no RED) instead of the video's options. A camera keeps publishing
+   * alongside.
    */
   private async startScreenShare(): Promise<void> {
     const lp = this.room!.localParticipant;
@@ -903,13 +920,18 @@ export class LiveKitWebRTCService {
     };
     const fps = quality.frameRate;
 
+    // The desktop app captures program audio itself and asks the webview
+    // for none; the context is created here, inside the click's activation.
+    const nativeAudio = nativeStreamAudioSupported();
+    const prepared = nativeAudio && this.streamQualitySettings.shareAudio ? new PreparedStreamAudio() : null;
+
     // Shared audio is program audio, not a voice: no echo cancellation,
     // noise suppression or gain control. restrictOwnAudio (Chrome) removes
     // this tab's own output (the call) from system audio so listeners do
     // not hear themselves; selfBrowserSurface keeps the call tab out of the
     // picker for the same reason. Browsers ignore members they lack.
     const captureOptions = {
-      audio: {
+      audio: nativeAudio ? false : {
         echoCancellation: false,
         noiseSuppression: false,
         autoGainControl: false,
@@ -926,12 +948,39 @@ export class LiveKitWebRTCService {
 
     // The option type omits restrictOwnAudio and the display-media hints
     // livekit-client forwards; the cast widens it.
-    const tracks: LocalTrack[] = await lp.createScreenTracks(captureOptions as any);
+    let tracks: LocalTrack[];
+    try {
+      tracks = await lp.createScreenTracks(captureOptions as any);
+    } catch (error) {
+      prepared?.dispose();
+      throw error;
+    }
     const video = tracks.find(t => t.kind === Track.Kind.Video);
-    const audio = tracks.find(t => t.kind === Track.Kind.Audio);
+    let audio = tracks.find(t => t.kind === Track.Kind.Audio);
     if (!video) {
+      prepared?.dispose();
       tracks.forEach(t => t.stop());
       throw new Error('Screen capture returned no video track');
+    }
+
+    if (prepared) {
+      const source = video.mediaStreamTrack;
+      const displaySurface = (source.getSettings() as MediaTrackSettings & { displaySurface?: string }).displaySurface ?? '';
+      try {
+        const native = await prepared.start({ label: source.label, displaySurface });
+        this.nativeStreamAudio = native;
+        audio = new (lib().LocalAudioTrack)(native.track, undefined, true);
+        tracks.push(audio);
+        debug.log('[LiveKit] Native stream audio:', {
+          scope: native.scope,
+          app: native.app,
+          detail: native.detail,
+          label: source.label,
+          displaySurface,
+        });
+      } catch (error) {
+        notifyStreamAudioFailed(error);
+      }
     }
 
     const settings = video.mediaStreamTrack.getSettings();
@@ -975,6 +1024,7 @@ export class LiveKitWebRTCService {
         }
         track.stop();
       }
+      await this.stopNativeStreamAudio();
       throw error;
     }
 
@@ -992,8 +1042,15 @@ export class LiveKitWebRTCService {
         await lp.unpublishTrack(track, true);
       }
     }
+    await this.stopNativeStreamAudio();
     this.localMediaState.isScreenSharing = false;
     debug.log('[LiveKit] Screen share stopped');
+  }
+
+  private async stopNativeStreamAudio(): Promise<void> {
+    const native = this.nativeStreamAudio;
+    this.nativeStreamAudio = null;
+    await native?.stop();
   }
 
   // mic track transmits only when unmuted AND (voice activity mode OR PTT held)
@@ -1167,7 +1224,10 @@ export class LiveKitWebRTCService {
   // STREAM QUALITY CONTROL
 
   /** Persists the settings and applies them to active camera and screen tracks. */
-  async updateStreamQuality(settings: { resolution?: number; frameRate?: number; audioBitrate?: number }): Promise<void> {
+  async updateStreamQuality(settings: StreamSettingsUpdate): Promise<void> {
+    if (settings.shareAudio !== undefined) {
+      this.streamQualitySettings.shareAudio = settings.shareAudio;
+    }
     if (settings.resolution !== undefined) {
       this.streamQualitySettings.resolution = settings.resolution;
     }
@@ -1259,6 +1319,7 @@ export class LiveKitWebRTCService {
           resolution: settings.resolution ?? 720,
           frameRate: settings.frameRate ?? 30,
           audioBitrate: settings.audioBitrate ?? DEFAULT_STREAM_AUDIO_BITRATE,
+          shareAudio: settings.shareAudio !== false,
         };
         debug.log('[LiveKit] Loaded stream quality settings:', this.streamQualitySettings);
       }
@@ -1954,6 +2015,9 @@ export class LiveKitWebRTCService {
         if (audioTrack) {
           void this.room?.localParticipant.unpublishTrack(audioTrack, true).catch(() => {});
         }
+        void this.stopNativeStreamAudio();
+      } else if (publication.source === Track.Source.ScreenShareAudio) {
+        void this.stopNativeStreamAudio();
       } else if (publication.source === Track.Source.Camera) {
         this.localMediaState.isVideoEnabled = false;
       }

@@ -35,6 +35,7 @@ tauri-plugin-fs = "=3.0.0-alpha.2"
 # shell 3 removed open(); opener replaces it.
 tauri-plugin-opener = "=3.0.0-alpha.2"
 tauri-plugin-notification = "=3.0.0-alpha.2"
+harmony-stream-audio = { path = "crates/harmony-stream-audio" }
 
 # Runtime per target. Linux desktop runs CEF: WebKitGTK has no RTCPeerConnection
 # (2.52 builds carry no peer-connection backend; 2.54 disables WebRTC). Windows,

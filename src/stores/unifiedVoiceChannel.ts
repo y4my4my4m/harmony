@@ -30,6 +30,7 @@ import { supabase } from '@/supabase';
 import { userEventChannel } from '@/services/UserEventChannel';
 import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
+import type { StreamSettingsUpdate } from '@/services/voice/streamQuality';
 
 let voiceSessionHeartbeat: ReturnType<typeof setInterval> | null = null;
 
@@ -123,6 +124,8 @@ interface VoiceChannelState {
     resolution: number;
     frameRate: number;
     audioBitrate: number;
+    /** Desktop app: capture program audio natively with the stream. */
+    shareAudio: boolean;
   };
   
   streamUpdateCounter: number;
@@ -202,7 +205,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     streamSettings: {
       resolution: 720,
       frameRate: 30,
-      audioBitrate: 128
+      audioBitrate: 128,
+      shareAudio: true
     },
     
     streamUpdateCounter: 0,
@@ -1220,11 +1224,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     /**
-     * Resolution (px height, -1 source), frame rate and stream audio bitrate
-     * (kbps). Persisted; applied live to camera and screen tracks, and
-     * used by the next capture otherwise.
+     * Resolution (px height, -1 source), frame rate, stream audio bitrate
+     * (kbps) and native stream audio (shareAudio). Persisted; quality applies
+     * live to camera and screen tracks, and everything to the next capture.
      */
-    async updateStreamQuality(settings: { resolution?: number; frameRate?: number; audioBitrate?: number }): Promise<void> {
+    async updateStreamQuality(settings: StreamSettingsUpdate): Promise<void> {
       const newSettings = { ...this.streamSettings, ...settings };
       this.streamSettings = newSettings;
 
@@ -1249,7 +1253,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           this.streamSettings = {
             resolution: settings.resolution !== undefined ? settings.resolution : 720,
             frameRate: settings.frameRate || 30,
-            audioBitrate: settings.audioBitrate || 128
+            audioBitrate: settings.audioBitrate || 128,
+            shareAudio: settings.shareAudio !== false
           };
         }
       } catch (error) {

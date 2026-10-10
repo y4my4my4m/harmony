@@ -24,7 +24,23 @@
 
       <StreamQualityOptions />
 
-      <p v-if="!isLive" class="sqp-audio-hint">
+      <template v-if="!isLive && nativeAudio">
+        <div class="sqp-audio-toggle">
+          <Icon name="volume-2" :size="16" />
+          <span class="sqp-audio-label">{{ t('voice.shareStreamAudio') }}</span>
+          <ToggleSwitch
+            :model-value="shareAudio"
+            :aria-label="t('voice.shareStreamAudio')"
+            @update:model-value="setShareAudio"
+          />
+        </div>
+        <p v-if="shareAudio" class="sqp-audio-hint">{{ t('voice.streamAudioNativeHint') }}</p>
+      </template>
+      <p v-else-if="isLive && streamAudio" class="sqp-audio-hint" :title="streamAudio.detail">
+        <Icon name="volume-2" :size="14" />
+        <span>{{ streamAudioLabel }}</span>
+      </p>
+      <p v-else-if="!isLive" class="sqp-audio-hint">
         <Icon name="volume-2" :size="14" />
         <span>{{ t('voice.streamAudioHint') }}</span>
       </p>
@@ -60,6 +76,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import Icon from '@/components/common/Icon.vue';
+import ToggleSwitch from '@/components/common/ToggleSwitch.vue';
+import { activeStreamAudio, nativeStreamAudioSupport, probeNativeStreamAudio } from '@/services/voice/nativeStreamAudio';
 import StreamQualityOptions from './StreamQualityOptions.vue';
 import { VOICE_POPOVER_DISMISS, placePopover, type Rect } from './voiceMenuModel';
 
@@ -83,6 +101,20 @@ const position = ref({ x: -9999, y: -9999 });
 const starting = ref(false);
 
 const isLive = computed(() => voiceStore.localState.isScreenSharing);
+// Desktop app on Windows/macOS: audio is captured natively, so the browser-picker hint does not apply.
+const nativeAudio = computed(() => nativeStreamAudioSupport.value?.supported === true);
+const shareAudio = computed(() => voiceStore.streamSettings?.shareAudio !== false);
+const streamAudio = computed(() => activeStreamAudio.value);
+const streamAudioLabel = computed(() => {
+  const source = streamAudio.value;
+  return source?.scope === 'app' && source.app
+    ? t('voice.streamAudioFromApp', { app: source.app })
+    : t('voice.streamAudioFromSystem');
+});
+
+function setShareAudio(value: boolean): void {
+  void voiceStore.updateStreamQuality({ shareAudio: value });
+}
 const title = computed(() => (isLive.value ? t('voice.streamSettings') : t('voice.shareYourScreen')));
 
 function close(): void {
@@ -129,6 +161,7 @@ function onDismiss(): void {
 }
 
 onMounted(() => {
+  void probeNativeStreamAudio();
   window.addEventListener(VOICE_POPOVER_DISMISS, onDismiss);
   window.addEventListener('resize', onDismiss);
 });
@@ -222,6 +255,18 @@ onBeforeUnmount(() => {
   background: var(--background-modifier-hover);
   color: var(--text-primary);
   outline: none;
+}
+
+.sqp-audio-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+
+.sqp-audio-label {
+  flex: 1;
 }
 
 .sqp-audio-hint {

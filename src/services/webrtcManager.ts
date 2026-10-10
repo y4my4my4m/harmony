@@ -15,6 +15,7 @@ import { selectCallTransport } from './voice/transportPolicy';
 import { VoiceSettingsService } from './VoiceSettingsService';
 import { remoteAudioMixer, type RemoteAudioKind } from './voice/remoteAudioMixer';
 import { debug } from '@/utils/debug';
+import type { StreamSettingsUpdate } from './voice/streamQuality';
 
 // TYPES
 
@@ -41,7 +42,7 @@ export interface WebRTCManager {
   hasScreenShareAudio(userId: string): boolean;
   
   // Stream quality control
-  updateStreamQuality(settings: { resolution?: number; frameRate?: number; audioBitrate?: number }): Promise<void>;
+  updateStreamQuality(settings: StreamSettingsUpdate): Promise<void>;
   
   // Stream access
   getLocalStream(): MediaStream | null;
@@ -475,7 +476,7 @@ class WebRTCManagerService implements WebRTCManager {
    * Update stream quality settings (resolution, framerate, audio bitrate)
    * Applies to currently active video/screenshare and audio tracks
    */
-  async updateStreamQuality(settings: { resolution?: number; frameRate?: number; audioBitrate?: number }): Promise<void> {
+  async updateStreamQuality(settings: StreamSettingsUpdate): Promise<void> {
     if (this.activeService === 'livekit') {
       await livekitWebRTC.updateStreamQuality(settings);
     } else if (this.activeService === 'p2p') {

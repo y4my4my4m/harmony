@@ -25,6 +25,16 @@ export const STREAM_QUALITY_PRESETS: readonly StreamQualityPreset[] = [
   { id: 'source60', resolution: SOURCE_RESOLUTION, frameRate: 60 },
 ];
 
+/** Stream settings a caller may change; omitted fields keep their value. */
+export interface StreamSettingsUpdate {
+  resolution?: number;
+  frameRate?: number;
+  /** kbps. */
+  audioBitrate?: number;
+  /** Desktop app: capture program audio natively with the stream. */
+  shareAudio?: boolean;
+}
+
 /** Stream audio bitrates offered to the sharer, kbps. */
 export const STREAM_AUDIO_BITRATES: readonly number[] = [64, 96, 128, 192, 256];
 export const DEFAULT_STREAM_AUDIO_BITRATE = 128;
