@@ -247,6 +247,20 @@
             >
               <Icon name="screen-share" />
             </button>
+
+            <button
+              v-if="voiceStore.liveReactionsAvailable"
+              ref="reactButtonRef"
+              @click="showReactions = !showReactions"
+              class="control-button"
+              :class="{ active: showReactions }"
+              :title="t('voice.react')"
+              :aria-label="t('voice.react')"
+              aria-haspopup="dialog"
+              :aria-expanded="showReactions"
+            >
+              <Icon name="smile-plus" />
+            </button>
           </div>
 
           <div class="action-controls">
@@ -279,6 +293,13 @@
       @close="showStreamPicker = false"
     />
 
+    <LiveReactionPopover
+      :visible="showReactions && voiceStore.liveReactionsAvailable"
+      :anchor="reactButtonRef"
+      :target="reactionTarget"
+      @close="showReactions = false"
+    />
+
     <!-- Spatial Audio Panel -->
     <SpatialAudioPanel :is-under-overlay="true" />
 
@@ -297,6 +318,7 @@ import { useKonamiCode } from '@/composables/useKonamiCode';
 import { easterEggService, type EasterEggState } from '@/services/EasterEggService';
 import { useAuthStore } from '@/stores/auth';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
+import type { LiveReactionTarget } from '@/services/voice/liveReactions';
 import VoiceTile from './VoiceTile.vue';
 import VoiceSettingsPanel from './VoiceSettingsPanel.vue';
 import SpatialAudioPanel from './SpatialAudioPanel.vue';
@@ -304,6 +326,7 @@ import DeviceSelector from './DeviceSelector.vue';
 import VoiceEncryptionBadge from './VoiceEncryptionBadge.vue';
 import VoiceCallBanner from './VoiceCallBanner.vue';
 import StreamQualityPicker from './StreamQualityPicker.vue';
+import LiveReactionPopover from './LiveReactionPopover.vue';
 import ConfettiEffect from '../easteregg/ConfettiEffect.vue';
 import Icon from '@/components/common/Icon.vue';
 import DisplayName from '@/components/DisplayName.vue';
@@ -412,6 +435,17 @@ const filmstripTiles = computed(() =>
 );
 
 const connectionStats = computed(() => voiceStore.connectionStats);
+
+// LIVE REACTIONS
+// Focus view reacts to the focused feed; the grid reacts on the sender's own tile.
+const reactButtonRef = ref<HTMLButtonElement | null>(null);
+const showReactions = ref(false);
+const reactionTarget = computed<LiveReactionTarget | null>(() =>
+  focusedTile.value ? { userId: focusedTile.value.userState.userId, source: focusedTile.value.source } : null
+);
+watch(() => voiceStore.liveReactionsAvailable, available => {
+  if (!available) showReactions.value = false;
+});
 
 const { getUserAvatarUrl, getUserDisplayName } = useUserData();
 

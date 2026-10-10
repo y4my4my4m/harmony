@@ -22,6 +22,20 @@
           kind="screen"
         />
         <button
+          v-if="voiceStore.liveReactionsAvailable"
+          ref="reactRef"
+          type="button"
+          class="pip-btn"
+          :class="{ active: showReactions }"
+          :title="t('voice.react')"
+          :aria-label="t('voice.react')"
+          aria-haspopup="dialog"
+          :aria-expanded="showReactions"
+          @click="showReactions = !showReactions"
+        >
+          <Icon name="smile-plus" :size="16" />
+        </button>
+        <button
           type="button"
           class="pip-btn"
           :title="t('voice.focus')"
@@ -50,6 +64,7 @@
           @loadedmetadata="onVideoMetadata"
           @resize="onVideoMetadata"
         />
+        <LiveReactionLayer :user-id="pipParticipant!.userId" source="screen" />
       </div>
       <div
         class="pip-grip"
@@ -61,6 +76,12 @@
         </svg>
       </div>
     </section>
+    <LiveReactionPopover
+      :visible="showFrame && showReactions && !!voiceStore.liveReactionsAvailable"
+      :anchor="reactRef"
+      :target="voiceStore.pipUserId ? { userId: voiceStore.pipUserId, source: 'screen' } : null"
+      @close="showReactions = false"
+    />
   </Teleport>
 </template>
 
@@ -73,6 +94,8 @@ import { useUserData } from '@/composables/useUserData';
 import Icon from '@/components/common/Icon.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import TileVolumeControl from './TileVolumeControl.vue';
+import LiveReactionLayer from './LiveReactionLayer.vue';
+import LiveReactionPopover from './LiveReactionPopover.vue';
 import {
   clampAspect,
   clampFrameWidth,
@@ -97,6 +120,8 @@ const DRAG_THRESHOLD = 4;
 const frameRef = ref<HTMLElement | null>(null);
 const videoRef = ref<HTMLVideoElement | null>(null);
 const interaction = ref<'drag' | 'resize' | null>(null);
+const reactRef = ref<HTMLButtonElement | null>(null);
+const showReactions = ref(false);
 
 // Survives close/reopen within the session.
 const aspect = ref(16 / 9);
@@ -432,7 +457,8 @@ onBeforeUnmount(() => {
 }
 
 .pip-btn:hover,
-.pip-btn:focus-visible {
+.pip-btn:focus-visible,
+.pip-btn.active {
   background: var(--background-modifier-hover);
   color: var(--text-primary);
   outline: none;

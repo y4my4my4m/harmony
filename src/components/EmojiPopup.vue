@@ -12,7 +12,7 @@
     positioned ancestor becomes the viewport, regardless of CSS transforms
     further up the original DOM tree.
   -->
-  <Teleport to="body">
+  <Teleport :to="teleportTo">
     <div ref="emojiPopup" class="emoji-popup" :style="positionStyle">
     <!-- Search Input -->
     <div class="emoji-search">
@@ -312,6 +312,8 @@ const props = withDefaults(
     isEmojiBlocked?: (emoji: PickedEmoji) => boolean;
     /** Shown above the list while a reaction limit is reached. */
     limitNotice?: string | null;
+    /** Mount point; an element in browser full screen keeps the popup visible there. */
+    teleportTo?: string | HTMLElement;
   }>(),
   {
     emojiIconClicked: false,
@@ -321,6 +323,7 @@ const props = withDefaults(
     closeEmojiList: () => {},
     isEmojiBlocked: undefined,
     limitNotice: null,
+    teleportTo: 'body',
   },
 );
 
