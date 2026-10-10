@@ -1,12 +1,8 @@
 name: Tauri
 
-# Native builds run after a push to master and on manual dispatch, never on pull
-# requests or other branches. A dispatch builds the chosen branch with the chosen
-# platforms and profile. Pushes that change only docs/backend are skipped.
+# Test builds, on manual dispatch only: the chosen branch, platforms and profile.
+# Release builds come from release.yml on tags.
 on:
-  push:
-    branches: [master]
-    paths-ignore: ['**.md', 'docs/**', 'federation-backend/**']
   workflow_dispatch:
     inputs:
       windows:
@@ -36,7 +32,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # `inputs` is empty on push.
   BUILD_PROFILE: ${{ inputs.profile || 'release' }}
   # Frontend needs Supabase vars at build; the native client picks the real
   # instance at runtime, so build-time placeholders are fine.
@@ -50,7 +45,7 @@ jobs:
   # runtime is a Linux-only dependency, so it is never pulled here.
   windows:
     name: Windows build
-    if: github.event_name == 'push' || inputs.windows
+    if: inputs.windows
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -82,7 +77,7 @@ jobs:
 
   macos:
     name: macOS build
-    if: github.event_name == 'push' || inputs.macos
+    if: inputs.macos
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -112,7 +107,7 @@ jobs:
 
   android:
     name: Android APK
-    if: github.event_name == 'push' || inputs.android
+    if: inputs.android
     runs-on: ubuntu-latest
     env:
       NDK_VERSION: 28.2.13676358
@@ -210,7 +205,7 @@ jobs:
   # tool caches warm for release.yml.
   linux:
     name: Linux build
-    if: github.event_name == 'push' || inputs.linux
+    if: inputs.linux
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
