@@ -1,0 +1,7 @@
+# Added by e2e/stack.sh when E2E_SUBNET is set: the compose network on that subnet
+# rather than one drawn from Docker's default address pools.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${E2E_SUBNET}
