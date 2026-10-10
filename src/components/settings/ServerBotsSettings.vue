@@ -552,7 +552,7 @@ async function updatePermissions() {
 
   updatingPerms.value = true
   try {
-    // RLS limits writes to the server owner and filters anyone else to zero rows.
+    // RLS admits MANAGE_SERVER holders and filters anyone else to zero rows.
     const { data, error } = await supabase
       .from('bot_server_permissions')
       .update(editingPermissions.value)

@@ -15,7 +15,7 @@
       <div class="header-text">
         <h2>Roles</h2>
         <p v-if="canEditRoles">Create and manage roles for your server. Drag to reorder priority.</p>
-        <p v-else>Only the server owner can change roles.</p>
+        <p v-else>Changing roles needs the Manage Roles permission.</p>
       </div>
       <button v-if="canEditRoles" class="create-role-btn" @click="createRole">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -55,7 +55,7 @@
               :class="{ active: selectedRole?.id === role.id }"
               @click="selectRole(role)"
             >
-              <span class="drag-handle" v-if="canEditRoles && !role.is_default" title="Drag to reorder">
+              <span class="drag-handle" v-if="canManageRole(role) && !role.is_default" title="Drag to reorder">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                   <path d="
                     M9 3a2 2 0 1 0 .001 0zm6 0a2 2 0 1 0 .001 0z
@@ -106,7 +106,7 @@
             </div>
           </header>
 
-          <fieldset class="editor-content" :disabled="!canEditRoles">
+          <fieldset class="editor-content" :disabled="!selectedEditable">
           <!-- Display Tab -->
           <div v-if="activeTab === 'display'" class="tab-content">
             <div class="form-group">
@@ -180,7 +180,7 @@
                 </div>
                 <ToggleSwitch
                   :model-value="hasPermission(perm.key)"
-                  :disabled="selectedRole.is_admin && perm.key === 'ADMINISTRATOR'"
+                  :disabled="(selectedRole.is_admin && perm.key === 'ADMINISTRATOR') || (!hasPermission(perm.key) && !canGrant(perm.key))"
                   @update:model-value="togglePermission(perm.key)"
                 />
               </div>
@@ -199,7 +199,7 @@
 
             <template v-else>
               <!-- Add Members -->
-              <div class="members-block">
+              <div v-if="selectedEditable" class="members-block">
                 <div class="members-block-head">
                   <span class="members-block-label">Add Members</span>
                 </div>
@@ -299,7 +299,7 @@
         </fieldset>
 
         <!-- Editor footer -->
-        <footer v-if="canEditRoles" class="editor-footer">
+        <footer v-if="selectedEditable" class="editor-footer">
           <button
             v-if="!selectedRole.is_default && !selectedRole.is_admin"
             type="button"
@@ -378,12 +378,32 @@ const roleMembers = ref<RoleMemberRow[]>([])
 const loadingMembers = ref(false)
 const serverOwnerId = ref<string | null>(null)
 const profileStore = useProfileStore()
-// server_roles and user_roles accept writes from the server owner and instance admins only.
-const canEditRoles = computed(() => {
+// The owner and instance admins manage every role. A MANAGE_ROLES holder manages roles ranked
+// below their highest role and grants only permissions they hold; the database enforces both.
+const myPermissions = ref<Partial<Record<string, boolean>>>({})
+const myRank = ref(0)
+const outranksAll = computed(() => {
   const profile = profileStore.profile
   if (!profile) return false
   return profile.id === serverOwnerId.value || profile.is_admin === true
 })
+const canEditRoles = computed(() => outranksAll.value || myPermissions.value.MANAGE_ROLES === true)
+const canManageRole = (role: ServerRole): boolean =>
+  outranksAll.value || (canEditRoles.value && (role.is_default || role.position < myRank.value))
+const selectedEditable = computed(() => !!selectedRole.value && canManageRole(selectedRole.value))
+const canGrant = (key: string): boolean =>
+  outranksAll.value || myPermissions.value.ADMINISTRATOR === true || myPermissions.value[key] === true
+
+const loadMyStanding = async () => {
+  const profileId = profileStore.profile?.id
+  if (!profileId || !props.serverId) return
+  const [permissions, myRoles] = await Promise.all([
+    roleService.getUserPermissions(profileId, props.serverId),
+    roleService.getUserRoles(profileId, props.serverId),
+  ])
+  myPermissions.value = permissions
+  myRank.value = Math.max(0, ...myRoles.map(r => r.position ?? 0))
+}
 const serverBridgedUsers = ref<BridgedChannelUser[]>([])
 
 const addMemberSearch = ref('')
@@ -585,9 +605,11 @@ const createRole = async () => {
     const newRole = await roleService.createRole(props.serverId, {
       name: 'New Role',
       color: colorPresets[Math.floor(Math.random() * colorPresets.length)],
+      // Below the caller's highest role, the highest slot they may use.
+      position: outranksAll.value ? undefined : Math.max(myRank.value - 1, 0),
     })
     if (newRole) {
-      roles.value = [newRole, ...roles.value]
+      roles.value = [...roles.value, newRole].sort((a, b) => b.position - a.position)
       selectRole(newRole)
     } else {
       toast.error('Failed to create role')
@@ -859,22 +881,30 @@ const addMemberToRole = async (memberId: string) => {
 }
 
 const handleReorder = async () => {
-  // @everyone keeps its position; the update policy refuses default roles.
-  const updates = roles.value
-    .map((role, index) => ({ id: role.id, position: roles.value.length - index, isDefault: role.is_default }))
-    .filter(u => !u.isDefault)
-    .map(({ id, position }) => ({ id, position }))
-
-  if (!(await roleService.reorderRoles(props.serverId, updates))) {
-    toast.error('Failed to reorder roles')
-    await loadRoles()
+  // @everyone keeps position 0.
+  let updates: { id: string; position: number }[]
+  if (outranksAll.value) {
+    updates = roles.value
+      .map((role, index) => ({ id: role.id, position: roles.value.length - index, isDefault: role.is_default }))
+      .filter(u => !u.isDefault)
+      .map(({ id, position }) => ({ id, position }))
+  } else {
+    // Manageable roles trade the positions they held: none rises to the caller's rank.
+    const manageable = roles.value.filter(r => !r.is_default && canManageRole(r))
+    const slots = manageable.map(r => r.position).sort((a, b) => b - a)
+    updates = manageable.map((r, i) => ({ id: r.id, position: slots[i] }))
   }
+
+  const ok = await roleService.reorderRoles(props.serverId, updates)
+  if (!ok) toast.error('Failed to reorder roles')
+  if (!ok || !outranksAll.value) await loadRoles()
 }
 
 // Watch for server changes
 watch(() => props.serverId, () => {
   selectedRole.value = null
   loadRoles()
+  void loadMyStanding()
 })
 
 const loadServerOwner = async () => {
@@ -898,6 +928,7 @@ const isServerOwner = (memberId: string): boolean => {
 }
 
 const canRemoveMember = (member: RoleMemberRow): boolean => {
+  if (!selectedRole.value || !canManageRole(selectedRole.value)) return false
   if (member.isBridged) return false
   if (selectedRole.value?.is_default) return false
   if (selectedRole.value?.is_admin && isServerOwner(member.id)) return false
@@ -906,6 +937,7 @@ const canRemoveMember = (member: RoleMemberRow): boolean => {
 
 onMounted(() => {
   loadRoles()
+  void loadMyStanding()
   loadServerOwner()
   void loadServerBridgedUsers()
 })
