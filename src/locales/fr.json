@@ -1152,7 +1152,15 @@
     "save": "Enregistrer",
     "noTrendingHashtagsHint": "Les publications utilisant des #hashtags apparaîtront ici à mesure que votre instance grandit.",
     "followFailed": "Impossible de suivre. Réessayez.",
-    "unfollowFailed": "Impossible de ne plus suivre. Réessayez."
+    "unfollowFailed": "Impossible de ne plus suivre. Réessayez.",
+    "repliesFetched": "{count} réponse récupérée | {count} réponses récupérées",
+    "noRepliesFromSource": "Aucune réponse disponible sur {domain}",
+    "repliesFetchedRecently": "Les réponses viennent d'être récupérées",
+    "repliesFetchFailed": "Impossible de récupérer les réponses",
+    "remoteListNote": "Seuls les comptes connus de cette instance sont listés.",
+    "fullListOnDomain": "Liste complète sur {domain}",
+    "countHiddenBy": "Masqué par {domain}",
+    "noKnownAccounts": "Aucun compte connu de cette instance"
   },
   "moderation": {
     "report": "Signaler",

@@ -638,6 +638,7 @@ import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
 import { getOriginalPost } from '@/utils/postReblog';
 import { isHeartEmoji } from '@/utils/heartReaction';
 import { remotePollFromMetadata } from '@/utils/remotePoll';
+import { repliesFetchNotice } from '@/utils/remoteReplies';
 import { ownPostReactions } from '@/utils/reactionLimits';
 import { usePostReactionLimit } from '@/composables/useReactionLimits';
 import { usePostReactionsStore } from '@/stores/postReactions';
@@ -2134,9 +2135,17 @@ const handleFetchRemoteReactions = () => {
   fetchRemoteReactions();
 };
 
-const handleFetchRemoteReplies = () => {
+const handleFetchRemoteReplies = async () => {
   showMenu.value = false;
-  fetchRemoteReplies();
+  const notice = repliesFetchNotice(await fetchRemoteReplies({ force: true }));
+  let domain = instanceDomain.value;
+  try {
+    domain = new URL(getOriginalPost(props.post).ap_id || '').hostname || domain;
+  } catch { /* no origin URL; the author's domain stands */ }
+  const message = notice.count !== undefined
+    ? t(notice.key, { count: notice.count, domain }, notice.count)
+    : t(notice.key, { domain });
+  toast[notice.kind](message);
 };
 
 const handleRefetchFromSource = async () => {

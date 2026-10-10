@@ -69,13 +69,13 @@
       <div v-if="hasStats" class="stats-section">
         <!-- Standard Social Stats (for all users) -->
         <span class="stat">
-          <strong>{{ formatNumber(user.followers_count || 0) }}</strong> {{ t('activitypub.followers') }}
+          <strong>{{ formatCount(profileCount(user, 'followers')) }}</strong> {{ t('activitypub.followers') }}
         </span>
         <span class="stat">
-          <strong>{{ formatNumber(user.following_count || 0) }}</strong> {{ t('activitypub.following') }}
+          <strong>{{ formatCount(profileCount(user, 'following')) }}</strong> {{ t('activitypub.following') }}
         </span>
         <span class="stat">
-          <strong>{{ formatNumber(user.posts_count || 0) }}</strong> {{ t('activitypub.monies') }}
+          <strong>{{ formatCount(profileCount(user, 'posts')) }}</strong> {{ t('activitypub.monies') }}
         </span>
       </div>
     </div>
@@ -173,6 +173,7 @@ import Icon from './Icon.vue'
 import SupporterBadge from './SupporterBadge.vue'
 import RemoteInstanceBadge from './RemoteInstanceBadge.vue'
 import type { User, FederatedUser } from '@/types'
+import { profileCount } from '@/utils/profileCounts'
 
 const { t } = useI18n()
 
@@ -331,6 +332,9 @@ const formatNumber = (num: number): string => {
   if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
   return num.toString()
 }
+
+// null: the account's server withholds the figure.
+const formatCount = (num: number | null): string => (num === null ? '–' : formatNumber(num))
 
 // eslint-disable-next-line unused-imports/no-unused-vars
 const formatJoinDate = (dateString: string | undefined) => {

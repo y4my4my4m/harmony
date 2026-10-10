@@ -24,7 +24,8 @@ import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
 import { isFavouriteLike, isHeartReaction, storeFavourite } from '../utils/heartReaction.js';
 import { noteDocumentSoftware } from './instanceSoftware.js';
 import { confirmActorAcct, withCanonicalAcct } from './webfingerClient.js';
-import { fetchActorById, fetchAuthoritativeDocument, readApDocument, sameOrigin, type FetchedDocument } from '../utils/apOrigin.js';
+import { fetchActorById, fetchAuthoritativeDocument, readApDocument, sameOrigin, urlHost, type FetchedDocument } from '../utils/apOrigin.js';
+import { noteEngagementColumns, refreshRemoteProfileCounts } from './remoteCounts.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { flagComment, flagObjectUris, parseLocalObjectUri } from './flag.js';
 import { evaluateInboundCreate } from '../services/FederationSpamGuard.js';
@@ -164,7 +165,7 @@ export class ActivityProcessor {
    * or quote cannot import their content.
    * The response must carry an ActivityPub media type.
    */
-  private static async fetchApDocument(url: string): Promise<FetchedDocument | null> {
+  static async fetchApDocument(url: string): Promise<FetchedDocument | null> {
     let host: string;
     try {
       host = new URL(url).hostname.toLowerCase();
@@ -677,9 +678,7 @@ export class ActivityProcessor {
           metadata,
           content_warning: object.summary || null,
           is_sensitive: object.sensitive === true,
-          replies_count: object.replies?.totalItems || object.repliesCount || 0,
-          favorites_count: object.likes?.totalItems || object.favouritesCount || 0,
-          reblogs_count: object.shares?.totalItems || object.sharesCount || 0,
+          ...noteEngagementColumns(object),
         };
 
         if (quotedPostData) {
@@ -1034,17 +1033,45 @@ export class ActivityProcessor {
         return null;
       }
 
+      return await this.storeRemotePost(remoteObject, depth, postUrl);
+    } catch (error) {
+      logger.warn(`Error fetching remote post ${postUrl}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Store a Note, Article or Question held as authoritative for its own id: fetched from
+   * that id, or embedded in a document served by its host. `checkedUrl` is a URL already
+   * looked up as absent. Refused when its host is blocked, or its author is on another host
+   * or suspended.
+   */
+  public static async storeRemotePost(remoteObject: any, depth = 0, checkedUrl?: string): Promise<{
+    id: string;
+    in_reply_to: string | null;
+    conversation_root_id: string | null;
+  } | null> {
+    const supabase = getSupabaseClient();
+
+    try {
       // Question is a poll and is kept.
-      if (remoteObject.type !== 'Note' && remoteObject.type !== 'Article' && remoteObject.type !== 'Question') {
-        logger.warn(`Remote object is not a Note/Article/Question: ${remoteObject.type}`);
+      if (remoteObject?.type !== 'Note' && remoteObject?.type !== 'Article' && remoteObject?.type !== 'Question') {
+        logger.warn(`Remote object is not a Note/Article/Question: ${remoteObject?.type}`);
         return null;
       }
       const isQuestion = remoteObject.type === 'Question';
 
-      // Deduplicate by the canonical AP id; it may differ from the fetched URL.
       const apId = remoteObject.id;
+      const apHost = urlHost(apId);
+      if (!apHost) return null;
+      if (BlockedInstancesCache.isBlocked(apHost.replace(/:\d+$/, ''))) {
+        logger.info(`Not storing ${apId}: instance is blocked`);
+        return null;
+      }
+
+      // Deduplicate by the canonical AP id; it may differ from the fetched URL.
       const apUrl = remoteObject.url || apId;
-      if (apId !== postUrl || apUrl !== postUrl) {
+      if (apId !== checkedUrl || apUrl !== checkedUrl) {
         const { data: existingByApId } = await supabase
           .from('posts')
           .select('id, in_reply_to, conversation_root_id')
@@ -1074,12 +1101,16 @@ export class ActivityProcessor {
 
       const { data: author } = await supabase
         .from('profiles')
-        .select('id')
+        .select('id, is_suspended')
         .eq('federated_id', authorUrl)
         .single();
 
       if (!author) {
         logger.warn(`Could not find/create author for remote post`);
+        return null;
+      }
+      if (author.is_suspended === true) {
+        logger.info(`Not storing ${apId}: author ${authorUrl} is suspended`);
         return null;
       }
 
@@ -1122,9 +1153,7 @@ export class ActivityProcessor {
           created_at: remoteObject.published || new Date().toISOString(),
           content_warning: remoteObject.summary || null,
           is_sensitive: remoteObject.sensitive === true,
-          replies_count: remoteObject.replies?.totalItems || remoteObject.repliesCount || 0,
-          favorites_count: remoteObject.likes?.totalItems || remoteObject.favouritesCount || 0,
-          reblogs_count: remoteObject.shares?.totalItems || remoteObject.sharesCount || 0,
+          ...noteEngagementColumns(remoteObject),
         })
         .select('id, in_reply_to, conversation_root_id')
         .single();
@@ -1164,7 +1193,7 @@ export class ActivityProcessor {
 
       return newPost;
     } catch (error) {
-      logger.warn(`Error fetching remote post ${postUrl}:`, error);
+      logger.warn(`Error storing remote post ${remoteObject?.id}:`, error);
       return null;
     }
   }
@@ -1766,9 +1795,7 @@ export class ActivityProcessor {
                   is_sensitive: remotePost.sensitive === true,
                   content_warning: remotePost.summary || null,
                   created_at: remotePost.published || new Date().toISOString(),
-                  replies_count: remotePost.replies?.totalItems || remotePost.repliesCount || 0,
-                  favorites_count: remotePost.likes?.totalItems || remotePost.favouritesCount || 0,
-                  reblogs_count: remotePost.shares?.totalItems || remotePost.sharesCount || 0,
+                  ...noteEngagementColumns(remotePost),
                 })
                 .select(originalPostColumns)
                 .single();
@@ -2303,9 +2330,7 @@ export class ActivityProcessor {
         content_warning: object.summary || null,
         is_sensitive: object.sensitive === true,
         metadata: questionPollMetadata(object),
-        replies_count: object.replies?.totalItems || object.repliesCount || 0,
-        favorites_count: object.likes?.totalItems || object.favouritesCount || 0,
-        reblogs_count: object.shares?.totalItems || object.sharesCount || 0,
+        ...noteEngagementColumns(object),
       });
 
       if (error) {
@@ -3241,7 +3266,7 @@ export class ActivityProcessor {
     // Re-query after upsert; upsert().select() does not reliably return rows.
     const { data: savedProfile, error: queryError } = await supabase
       .from('profiles')
-      .select('id, username, display_name, avatar_url, federated_id, color, is_suspended, also_known_as, moved_to_id, moved_to_uri')
+      .select('id, username, display_name, avatar_url, federated_id, color, is_suspended, also_known_as, moved_to_id, moved_to_uri, is_local, outbox_url, followers_url, following_url, remote_counts_fetched_at')
       .eq('federated_id', profileData.federated_id)
       .maybeSingle();
 
@@ -3257,7 +3282,12 @@ export class ActivityProcessor {
 
     const action = existing ? 'Refreshed' : 'Created';
     logger.info(`${action} remote user: ${actorUrl}${profileData.banner ? ' (with banner)' : ''}`);
-    
+
+    // Collection totals are read in the background; figures younger than
+    // PROFILE_COUNTS_TTL_MS are kept.
+    refreshRemoteProfileCounts(supabase, savedProfile).catch((err) =>
+      logger.debug(`Collection totals of ${actorUrl} not read: ${err}`));
+
     return savedProfile;
   }
 

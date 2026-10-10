@@ -28,6 +28,7 @@ import type {
 } from '@/types';
 import type { ProfileMediaCursor, ProfileMediaRow } from '@/utils/profileMedia';
 import { debug } from '@/utils/debug'
+import { remoteCountFields } from '@/utils/profileCounts'
 
 interface ProfileCacheEntry {
   profile: FederatedUser;
@@ -792,7 +793,8 @@ export class ActivityPubService {
       .select(`
         follower:profiles!follows_follower_id_fkey (
           id, username, display_name, domain, avatar_url, is_local, bio,
-          followers_count, following_count, posts_count, created_at, updated_at, moved_to_uri
+          followers_count, following_count, posts_count, remote_posts_count, remote_followers_count,
+          remote_following_count, remote_counts_fetched_at, created_at, updated_at, moved_to_uri
         )
       `)
       .eq('following_id', userId)
@@ -820,7 +822,8 @@ export class ActivityPubService {
       .select(`
         follower:profiles!follows_follower_id_fkey (
           id, username, display_name, domain, avatar_url, is_local, bio,
-          followers_count, following_count, posts_count, created_at, updated_at, moved_to_uri
+          followers_count, following_count, posts_count, remote_posts_count, remote_followers_count,
+          remote_following_count, remote_counts_fetched_at, created_at, updated_at, moved_to_uri
         )
       `)
       .eq('following_id', userId)
@@ -858,7 +861,8 @@ export class ActivityPubService {
       .select(`
         following:profiles!follows_following_id_fkey (
           id, username, display_name, domain, avatar_url, is_local, bio,
-          followers_count, following_count, posts_count, created_at, updated_at, moved_to_uri
+          followers_count, following_count, posts_count, remote_posts_count, remote_followers_count,
+          remote_following_count, remote_counts_fetched_at, created_at, updated_at, moved_to_uri
         )
       `)
       .eq('follower_id', userId)
@@ -2038,12 +2042,16 @@ export class ActivityPubService {
     }
   }
 
-  async fetchRemoteReplies(postApId: string, postId: string, limit = 10): Promise<{ count: number } | null> {
+  /**
+   * Stores the replies a remote post's origin lists. `force` is a reader's explicit request,
+   * which the backend answers sooner after a previous crawl of the same post.
+   */
+  async fetchRemoteReplies(postApId: string, postId: string, options: { force?: boolean } = {}): Promise<RemoteRepliesResult | null> {
     try {
       const response = await fetch(`${await this.getFederationApiUrl()}/fetch-replies`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ post_ap_id: postApId, post_id: postId, limit }),
+        body: JSON.stringify({ post_ap_id: postApId, post_id: postId, force: options.force === true }),
       });
       if (!response.ok) return null;
       return await response.json();
@@ -2052,6 +2060,48 @@ export class ActivityPubService {
       return null;
     }
   }
+
+  /**
+   * The stored row of a remote account as the federation backend answers /lookup-user: its
+   * collection totals re-read when older than six hours, an outbox backfill started when due.
+   */
+  async refreshRemoteProfile(handle: string): Promise<{ user: FederatedUser; backfilling: boolean } | null> {
+    const cleanHandle = handle.startsWith('@') ? handle.slice(1) : handle;
+    try {
+      const response = await fetch(`${await this.getFederationApiUrl()}/lookup-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handle: cleanHandle }),
+      });
+      if (!response.ok) return null;
+      const result = await response.json();
+      if (!result?.success || !result.user) return null;
+      const cached = this.getCachedProfile(cleanHandle);
+      if (cached && cached.id === result.user.id) {
+        this.cacheProfile(cleanHandle, { ...cached, ...remoteCountFields(result.user) });
+      }
+      return { user: result.user as FederatedUser, backfilling: result.backfilling === true };
+    } catch (error) {
+      debug.error('Error refreshing remote profile:', error);
+      return null;
+    }
+  }
+}
+
+/** Answer of /fetch-replies. */
+export interface RemoteRepliesResult {
+  success: boolean;
+  /**
+   * 'no_collection': the origin publishes no replies for the post; 'unavailable': the post
+   * could not be read; 'recent': a crawl ran moments ago and none was started.
+   */
+  status: 'ok' | 'no_collection' | 'unavailable' | 'recent';
+  /** Replies the origin listed that are now stored here, new or already held. */
+  count: number;
+  new?: number;
+  replies_count?: number;
+  favorites_count?: number;
+  reblogs_count?: number;
 }
 
 export const activityPubService = ActivityPubService.getInstance();

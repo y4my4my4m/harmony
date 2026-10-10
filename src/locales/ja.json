@@ -1152,7 +1152,15 @@
     "fetchingOlderFromDomain": "{domain} で古い投稿を確認中",
     "fetchOlderFailed": "{domain} に接続できませんでした。",
     "followFailed": "フォローできませんでした。もう一度お試しください。",
-    "unfollowFailed": "フォロー解除できませんでした。もう一度お試しください。"
+    "unfollowFailed": "フォロー解除できませんでした。もう一度お試しください。",
+    "repliesFetched": "{count} 件の返信を取得しました",
+    "noRepliesFromSource": "{domain} から取得できる返信はありません",
+    "repliesFetchedRecently": "返信はたった今取得したばかりです",
+    "repliesFetchFailed": "返信を取得できませんでした",
+    "remoteListNote": "このインスタンスが把握しているアカウントのみを表示しています。",
+    "fullListOnDomain": "{domain} で全件を見る",
+    "countHiddenBy": "{domain} により非公開",
+    "noKnownAccounts": "このインスタンスが把握しているアカウントはありません"
   },
   "moderation": {
     "report": "報告",

@@ -278,7 +278,7 @@
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Posts</span>
-                  <span class="activity-value">{{ formatSocialCount(socialStats?.posts || 0) }}</span>
+                  <span class="activity-value">{{ formatSocialCount(socialStats ? socialStats.posts : 0) }}</span>
                 </div>
               </div>
               
@@ -288,7 +288,7 @@
                 </div>
                 <div class="activity-info">
                   <span class="activity-title">Interactions</span>
-                  <span class="activity-value">{{ formatSocialCount((socialStats?.followers || 0) + (socialStats?.following || 0)) }}</span>
+                  <span class="activity-value">{{ formatSocialCount(interactionsCount) }}</span>
                 </div>
               </div>
             </template>
@@ -464,6 +464,8 @@ import DisplayName from './DisplayName.vue'
 import MovedAccountNotice from './activitypub/MovedAccountNotice.vue'
 import { useMovedAccount } from '@/composables/useMovedAccount'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { activityPubService } from '@/services/activityPubService'
+import { profileCount, remoteCountFields, type ProfileCountSource } from '@/utils/profileCounts'
 
 const { t } = useI18n()
 const toast = useToast()
@@ -521,7 +523,8 @@ let discordIdCopiedTimer: ReturnType<typeof setTimeout> | null = null
 const userNote = ref('')
 const instanceInfo = ref<{ status: string; software?: string } | null>(null)
 const isLoadingInstanceInfo = ref(false)
-const fetchedUserStats = ref<{ posts: number; following: number; followers: number } | null>(null)
+// The profiles row read on open: local counters and, for a remote account, its origin's totals.
+const fetchedUserStats = ref<ProfileCountSource | null>(null)
 const fetchedCreatedAt = ref<string | null>(null)
 const fetchedActivity = ref<{ message_count: number; voice_minutes: number } | null>(null)
 const isLoadingUserStats = ref(false)
@@ -567,11 +570,7 @@ async function loadUserStats(userId: string) {
   try {
     const stats = await coreProfileService.getUserStats(userId)
     if (stats) {
-      fetchedUserStats.value = {
-        posts: stats.posts_count || 0,
-        following: stats.following_count || 0,
-        followers: stats.followers_count || 0
-      }
+      fetchedUserStats.value = { ...(fetchedUserStats.value ?? {}), ...stats }
       applyActivityFromStats(stats)
       debug.log('Loaded user stats:', fetchedUserStats.value)
     }
@@ -799,19 +798,30 @@ const socialStats = computed(() => {
                          user.following_count !== undefined || 
                          user.followers_count !== undefined;
   
-  // Fetched stats stand in when the user object carries none.
-  if (!hasSocialStats && fetchedUserStats.value) {
-    return fetchedUserStats.value;
-  }
-  
-  if (!hasSocialStats) return null;
-  
+  if (!hasSocialStats && !fetchedUserStats.value) return null;
+
+  // The profiles row stands over the user object, which lacks a remote account's totals.
+  const source: ProfileCountSource = { ...user, ...(fetchedUserStats.value ?? {}) };
   return {
-    posts: user.posts_count || fetchedUserStats.value?.posts || 0,
-    following: user.following_count || fetchedUserStats.value?.following || 0,
-    followers: user.followers_count || fetchedUserStats.value?.followers || 0
+    posts: profileCount(source, 'posts'),
+    following: profileCount(source, 'following'),
+    followers: profileCount(source, 'followers'),
   }
 })
+
+const interactionsCount = computed(() => {
+  const stats = socialStats.value
+  if (!stats || (stats.followers === null && stats.following === null)) return null
+  return (stats.followers ?? 0) + (stats.following ?? 0)
+})
+
+/** Re-reads a remote account's totals through the federation backend when they are stale. */
+async function refreshRemoteCounts(user: FederatedUser) {
+  if (!user.username || !user.domain) return
+  const result = await activityPubService.refreshRemoteProfile(`${user.username}@${user.domain}`)
+  if (!result || props.user?.id !== user.id || result.user.id !== user.id) return
+  fetchedUserStats.value = { ...(fetchedUserStats.value ?? {}), is_local: false, ...remoteCountFields(result.user) }
+}
 
 const userStatus = computed(() => {
   if (!props.user) return 'offline'
@@ -965,7 +975,9 @@ const formatVoiceTime = (minutes: number | undefined) => {
   return `${hours}h ${remainingMinutes}m`
 }
 
-const formatSocialCount = (count: number) => {
+// null: the account's server withholds the figure.
+const formatSocialCount = (count: number | null | undefined) => {
+  if (count === null || count === undefined) return '–'
   if (count === 0) return '0'
   if (count < 1000) return count.toString()
   if (count < 1000000) return `${(count / 1000).toFixed(1)}k`
@@ -1476,7 +1488,11 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
       const hasStats = user.posts_count !== undefined || user.following_count !== undefined
       // Activity counters always need a profile-row fetch (never on chat user blobs).
       void loadUserActivity(props.user.id)
-      if (!hasStats) {
+      // A remote account's totals live on its profiles row, not on the user object.
+      if (isFederatedUser(props.user)) {
+        const remoteUser = props.user
+        void loadUserStats(remoteUser.id).then(() => refreshRemoteCounts(remoteUser))
+      } else if (!hasStats) {
         void loadUserStats(props.user.id)
       }
       
