@@ -537,6 +537,11 @@ async function handleUnfollow(deletedFollow: any): Promise<void> {
       logger.debug('No follow data in deletion event');
       return;
     }
+    // processReject marks the row rejected before deleting it; the target needs no Undo.
+    if (deletedFollow.status === 'rejected') {
+      logger.debug('Rejected follow deleted, no Undo');
+      return;
+    }
 
     const supabase = getSupabaseClient();
 

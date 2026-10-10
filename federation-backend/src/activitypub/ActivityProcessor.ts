@@ -282,6 +282,22 @@ export class ActivityProcessor {
       .eq('id', following.id)
       .single();
 
+    // A follower the target blocks is rejected and nothing is stored, as in
+    // Mastodon ActivityPub::Activity::Follow.
+    const { data: block } = await supabase
+      .from('user_blocks')
+      .select('id')
+      .eq('blocker_id', following.id)
+      .eq('blocked_user_id', follower.id)
+      .maybeSingle();
+    if (block) {
+      logger.info(`Follow from blocked account rejected: ${followerUrl} → ${followingUrl}`);
+      if (followingUser?.is_local) {
+        await this.sendFollowAnswer('Reject', followingUser, follower.id, activity);
+      }
+      return;
+    }
+
     // A duplicate Follow from an already-accepted follower must not downgrade
     // the relationship to pending (Mastodon re-sends Follow after migrations);
     // re-accept and resend the Accept instead.
@@ -322,28 +338,41 @@ export class ActivityProcessor {
     logger.info(`Follow created and auto-accepted: ${followerUrl} → ${followingUrl}`);
 
     if (followingUser && followingUser.is_local) {
-      const { createAcceptActivity } = await import('./converters/toActivityPub.js');
-      const { DeliveryQueue } = await import('./DeliveryQueue.js');
-
-      const acceptActivity = createAcceptActivity(followingUser, activity);
-
-      const { data: followerUser } = await supabase
-        .from('profiles')
-        .select('inbox_url')
-        .eq('id', follower.id)
-        .single();
-
-      if (followerUser?.inbox_url) {
-        await DeliveryQueue.sendToInbox(followerUser.inbox_url, acceptActivity, followingUser.id);
-        logger.info(`Sent Accept activity to ${followerUrl}`);
-      }
+      await this.sendFollowAnswer('Accept', followingUser, follower.id, activity);
     }
+  }
+
+  /** Delivers an Accept or Reject of `followActivity` from a local followee to the follower's inbox. */
+  private static async sendFollowAnswer(
+    type: 'Accept' | 'Reject',
+    followee: any,
+    followerId: string,
+    followActivity: any,
+  ): Promise<void> {
+    const supabase = getSupabaseClient();
+    const { createAcceptActivity, createRejectActivity } = await import('./converters/toActivityPub.js');
+    const { DeliveryQueue } = await import('./DeliveryQueue.js');
+
+    const { data: followerUser } = await supabase
+      .from('profiles')
+      .select('inbox_url')
+      .eq('id', followerId)
+      .single();
+    if (!followerUser?.inbox_url) return;
+
+    const answer = type === 'Accept'
+      ? createAcceptActivity(followee, followActivity)
+      : createRejectActivity(followee, followActivity);
+    await DeliveryQueue.sendToInbox(followerUser.inbox_url, answer, followee.id);
+    logger.info(`Sent ${type} activity to ${followerUser.inbox_url}`);
   }
 
   /**
    * The follows row an Accept/Reject refers to. The responder must be the
    * followee. Lookup is by Follow id, then by the (follower, followee) pair:
    * the id on an outbound Follow is not the id the client stores on the row.
+   * An outbound Follow id is https://<domain>/activities/follow/<follows.id>
+   * (followHandler), which resolves an answer naming only the id.
    */
   private static async findFollowForResponse(
     followObject: any,
@@ -362,6 +391,19 @@ export class ActivityProcessor {
         .eq('following_id', followee.id)
         .maybeSingle();
       if (byId) return byId;
+
+      const ownId = followId.match(
+        new RegExp(`^https://${config.INSTANCE_DOMAIN.replace(/\./g, '\\.')}/activities/follow/([0-9a-f-]{36})$`, 'i'),
+      );
+      if (ownId) {
+        const { data: byRowId } = await supabase
+          .from('follows')
+          .select('id')
+          .eq('id', ownId[1].toLowerCase())
+          .eq('following_id', followee.id)
+          .maybeSingle();
+        if (byRowId) return byRowId;
+      }
     }
 
     if (typeof followObject !== 'object' || !followObject?.actor) return null;
@@ -473,6 +515,11 @@ export class ActivityProcessor {
         return;
       }
 
+      // The delete trigger queues no Undo for a rejected row.
+      await supabase
+        .from('follows')
+        .update({ status: 'rejected', accepted_at: null })
+        .eq('id', follow.id);
       await supabase
         .from('follows')
         .delete()
@@ -1230,6 +1277,7 @@ export class ActivityProcessor {
         avatar_url: profileData.avatar,
         banner_url: profileData.banner,
         public_key: profileData.public_key,
+        manually_approves_followers: profileData.manually_approves_followers === true,
       };
 
       if (profileData.custom_status) {
@@ -2195,11 +2243,8 @@ export class ActivityProcessor {
       .eq('federated_id', actorUrl)
       .maybeSingle();
 
-    const { data: following } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('federated_id', followingUrl)
-      .maybeSingle();
+    // resolveProfileByActorUrl covers local users without federated_id.
+    const following = followingUrl ? await resolveProfileByActorUrl(followingUrl) : null;
 
     if (!follower || !following) {
       logger.warn(`Undo follow: unknown profile (follower=${!!follower}, following=${!!following})`);
@@ -3212,6 +3257,7 @@ export class ActivityProcessor {
       followers_url: profileData.followers_url,
       following_url: profileData.following_url,
       is_local: false,
+      manually_approves_followers: profileData.manually_approves_followers === true,
       updated_at: new Date().toISOString(),
       last_synced_at: new Date().toISOString(),
       ...(await movedColumns(supabase, profileData, existing)),
