@@ -350,16 +350,18 @@ async function handleInbox(
   // 4. activity.actor must match the signing key's owner.
 
   const signature = req.headers.signature as string;
-  // Flag creates moderation work attributed to the signer's domain, so it is
-  // refused unsigned or unverified whatever REQUIRE_VALID_SIGNATURES says.
+  // Flag creates moderation work attributed to the signer's domain and Move rewrites
+  // local follows, so both are refused unsigned or unverified whatever
+  // REQUIRE_VALID_SIGNATURES says.
   const isFlag = activity.type === 'Flag';
+  const signerRequired = isFlag || activity.type === 'Move';
   let signatureVerified = false;
   let verifiedSigner: string | null = null;
 
   if (!signature) {
-    if (isFlag) {
-      logger.warn(`Rejecting unsigned Flag from ${actorUrl}`);
-      res.status(401).json({ error: 'Missing HTTP Signature - Flag activities must be signed' });
+    if (signerRequired) {
+      logger.warn(`Rejecting unsigned ${activity.type} from ${actorUrl}`);
+      res.status(401).json({ error: `Missing HTTP Signature - ${activity.type} activities must be signed` });
       return;
     }
     if (config.REQUIRE_VALID_SIGNATURES) {
@@ -384,7 +386,7 @@ async function handleInbox(
     );
 
     if (!verification.verified) {
-      if (config.REQUIRE_VALID_SIGNATURES || isFlag) {
+      if (config.REQUIRE_VALID_SIGNATURES || signerRequired) {
         logger.warn(`Rejecting activity with invalid signature from ${actorUrl}: ${verification.error}`);
         res.status(401).json({ error: `Invalid HTTP Signature: ${verification.error}` });
         return;
@@ -395,7 +397,7 @@ async function handleInbox(
       if (verification.actorUrl && actorUrl) {
         const actorMatch = SignatureService.verifyActorMatch(actorUrl, verification.actorUrl);
         if (!actorMatch) {
-          if (config.REQUIRE_VALID_SIGNATURES || isFlag) {
+          if (config.REQUIRE_VALID_SIGNATURES || signerRequired) {
             logger.warn(`Rejecting activity: actor mismatch. Activity actor: ${actorUrl}, Signing key: ${verification.actorUrl}`);
             res.status(403).json({ error: 'Actor mismatch - activity.actor must match the signing key owner' });
             return;
@@ -411,9 +413,9 @@ async function handleInbox(
     }
   }
 
-  if (isFlag && !signatureVerified) {
-    logger.warn(`Rejecting Flag from ${actorUrl}: signer does not match the actor`);
-    res.status(401).json({ error: 'Flag activities must be signed by their actor' });
+  if (signerRequired && !signatureVerified) {
+    logger.warn(`Rejecting ${activity.type} from ${actorUrl}: signer does not match the actor`);
+    res.status(401).json({ error: `${activity.type} activities must be signed by their actor` });
     return;
   }
 
@@ -450,8 +452,8 @@ async function handleInbox(
     // Like/Undo/Accept/Reject/Follow are implicitly addressed: they reference
     // the user's own content. Flag carries no audience; Mastodon
     // (ReportService#forward_to_origin!) and Misskey deliver it to the
-    // reported account's personal inbox.
-    const implicitTypes = ['Like', 'Undo', 'Accept', 'Reject', 'Follow', 'Flag'];
+    // reported account's personal inbox. Mastodon's Move has no audience either.
+    const implicitTypes = ['Like', 'Undo', 'Accept', 'Reject', 'Follow', 'Flag', 'Move'];
     if (!implicitTypes.includes(activity.type)) {
       const to = Array.isArray(activity.to) ? activity.to : [activity.to].filter(Boolean);
       const cc = Array.isArray(activity.cc) ? activity.cc : [activity.cc].filter(Boolean);

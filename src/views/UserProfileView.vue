@@ -120,6 +120,7 @@
                 </div>
 
                 <button
+                  v-if="!isMoved || isFollowing || followRequested"
                   type="button"
                   :class="['follow-btn', { 'is-following': isFollowing || followRequested, 'is-loading': isFollowLoading }]"
                   :disabled="isFollowLoading"
@@ -190,6 +191,13 @@
             </div>
           </div>
         </div>
+
+        <MovedAccountNotice
+          v-if="movedTo"
+          class="moved-notice"
+          :name="plainDisplayName"
+          :target="movedTo"
+        />
 
         <!-- Profile Tabs -->
         <div class="profile-tabs">
@@ -347,6 +355,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
 import { useUserData } from '@/composables/useUserData'
 import { useFeedRealtime, type FeedKind } from '@/composables/useFeedRealtime'
+import { useMovedAccount } from '@/composables/useMovedAccount'
 import { runtimeConfig } from '@/services/runtimeConfig'
 
 const { t } = useI18n(); 
@@ -372,6 +381,7 @@ import ProfileMediaGrid from '@/components/activitypub/ProfileMediaGrid.vue';
 import ProfileCard from '@/components/common/ProfileCard.vue';
 import UserProfileModal from '@/components/UserProfileModal.vue';
 import ReportModal from '@/components/moderation/ReportModal.vue';
+import MovedAccountNotice from '@/components/activitypub/MovedAccountNotice.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 
@@ -452,6 +462,7 @@ const actionsMenuStyle = ref<Record<string, string>>({});
 const isFollowLoading = ref(false);
 // Pending request to an account that approves followers manually.
 const followRequested = ref(false);
+const { movedTo, isMoved } = useMovedAccount(() => user.value);
 
 const toggleActionsMenu = () => {
   if (!showActionsMenu.value && moreActionsBtnRef.value) {
@@ -1762,6 +1773,10 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1rem;
+}
+
+.moved-notice {
+  margin: 0 1rem 1rem;
 }
 
 /* Blocked User Banner */

@@ -11,6 +11,7 @@ import type { Notification } from '@/types'
 import { getAvatarUrl as utilGetAvatarUrl } from '@/utils/avatarUtils'
 import { debug } from '@/utils/debug'
 import { securityNoticeText } from '@/utils/securityNotice'
+import { moveNoticeText } from '@/utils/moveNotice'
 import { i18n } from '@/i18n'
 
 export interface NotificationMessage {
@@ -386,6 +387,12 @@ const MESSAGE_TEMPLATES = {
     shortTitle: () => i18n.global.t('moderation.securityNotification.short')
   },
 
+  move: {
+    title: (data: any) => moveNoticeText(data).title,
+    message: (data: any) => moveNoticeText(data).message,
+    shortTitle: () => i18n.global.t('accountMigration.notice.short')
+  },
+
   report_update: {
     title: (data: any) => {
       const status = data.status || 'updated'
@@ -662,6 +669,10 @@ export class NotificationFormatter {
     if (!avatar) {
       avatar = data.reactor?.avatar_url ||
                data.inviter?.avatar_url
+    }
+
+    if (!avatar && notification.type === 'move') {
+      avatar = data.target?.avatar_url
     }
     
     // Legacy format fallback

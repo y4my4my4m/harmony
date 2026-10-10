@@ -29,6 +29,7 @@ import realtimeRouter from './routes/realtime.js';
 import kofiWebhookRouter from './routes/webhooks/kofi.js';
 import stripeWebhookRouter from './routes/webhooks/stripe.js';
 import mediaRouter from './routes/media.js';
+import accountMigrationRouter from './routes/accountMigration.js';
 
 import webFingerRouter from './activitypub/WebFingerService.js';
 import actorRouter from './activitypub/ActorService.js';
@@ -113,6 +114,8 @@ export function createApp(): Application {
   app.use('/api/federation/realtime', realtimeRouter);
   app.use('/media', mediaLimiter, mediaRouter);
   app.use('/api/federation/media', mediaLimiter, mediaRouter);
+  app.use('/account', accountMigrationRouter);
+  app.use('/api/federation/account', accountMigrationRouter);
 
   // Donation webhooks - each provider handles its own body parser internally.
   // Ko-fi posts application/x-www-form-urlencoded which the global json

@@ -123,6 +123,14 @@
           </div>
         </div>
 
+        <MovedAccountNotice
+          v-if="movedTo && !isBridgedDiscord"
+          class="moved-notice"
+          :name="displayName"
+          :target="movedTo"
+          @navigate="$emit('close')"
+        />
+
         <!-- User Stats -->
         <div class="user-stats">
           <template v-if="isBridgedDiscord">
@@ -346,8 +354,9 @@
               Send message
             </button>
             
-            <!-- All Users: Follow/Unfollow (both local and remote) -->
+            <!-- All Users: Follow/Unfollow (both local and remote); a moved account only unfollows -->
             <button 
+              v-if="!isMoved || getUserIsFollowing(user)"
               @click="handleFollowToggle"
               class="primary-action-btn"
               :class="{ 'following': getUserIsFollowing(user) }"
@@ -452,6 +461,8 @@ import type { User, FederatedUser } from '../types'
 import Avatar from './common/Avatar.vue'
 import SupporterBadge from './common/SupporterBadge.vue'
 import DisplayName from './DisplayName.vue'
+import MovedAccountNotice from './activitypub/MovedAccountNotice.vue'
+import { useMovedAccount } from '@/composables/useMovedAccount'
 import { runtimeConfig } from '@/services/runtimeConfig'
 
 const { t } = useI18n()
@@ -464,6 +475,7 @@ interface Props {
 
 const props = defineProps<Props>()
 const emit = defineEmits(['close', 'invite', 'follow', 'unfollow', 'mention'])
+const { movedTo, isMoved } = useMovedAccount(() => (props.show ? props.user as any : null))
 
 const router = useRouter()
 const route = useRoute()
@@ -1902,6 +1914,10 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.moved-notice {
+  margin-bottom: 16px;
 }
 
 .bio-section {

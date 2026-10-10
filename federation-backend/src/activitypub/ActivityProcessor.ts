@@ -12,6 +12,8 @@ import {
   extractAnnounceData,
   extractDeleteData,
   normalizeActor,
+  parseAlsoKnownAs,
+  parseMovedTo,
 } from './converters/fromActivityPub.js';
 import { VoiceActivityHandler } from './VoiceActivityHandler.js';
 import { SignatureService } from './SignatureService.js';
@@ -26,6 +28,7 @@ import { fetchActorById, fetchAuthoritativeDocument, readApDocument, sameOrigin,
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { flagComment, flagObjectUris, parseLocalObjectUri } from './flag.js';
 import { evaluateInboundCreate } from '../services/FederationSpamGuard.js';
+import { activityReference, movedColumns, MOVE_COOLDOWN_MS } from './accountMigration.js';
 import {
   authorizeChannelWrite,
   resolveThreadInChannel,
@@ -241,6 +244,9 @@ export class ActivityProcessor {
         break;
       case 'Block':
         await this.processBlock(activity);
+        break;
+      case 'Move':
+        await this.processMove(activity);
         break;
       default:
         if (VoiceActivityHandler.isVoiceActivity(activity)) {
@@ -1205,6 +1211,13 @@ export class ActivityProcessor {
         updateData.profile_fields = profileData.profile_fields;
       }
 
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('id, federation_metadata, moved_to_uri')
+        .eq('federated_id', object.id)
+        .maybeSingle();
+      Object.assign(updateData, await movedColumns(supabase, profileData, existing));
+
       const federationMetadata: any = {};
       if (profileData.bio_emojis && profileData.bio_emojis.length > 0) {
         federationMetadata.bio_emojis = profileData.bio_emojis;
@@ -1214,11 +1227,6 @@ export class ActivityProcessor {
       }
       if (Object.keys(federationMetadata).length > 0) {
         // Merge with existing federation_metadata
-        const { data: existing } = await supabase
-          .from('profiles')
-          .select('federation_metadata')
-          .eq('federated_id', object.id)
-          .maybeSingle();
         const existingMeta = existing?.federation_metadata ? (typeof existing.federation_metadata === 'string' ? JSON.parse(existing.federation_metadata) : existing.federation_metadata) : {};
         updateData.federation_metadata = JSON.stringify({ ...existingMeta, ...federationMetadata });
       }
@@ -2878,6 +2886,115 @@ export class ActivityProcessor {
   }
 
   /**
+   * Move: an account moved and its followers here follow the target instead. Mirrors
+   * Mastodon ActivityPub::Activity::Move. The HTTP signer is the actor (InboxHandler
+   * refuses a Move otherwise) and must equal the object. The origin is a stored remote
+   * account; the target is fetched now, must list the origin in alsoKnownAs and carry no
+   * movedTo of its own, and must not be suspended or on a blocked instance. A Move to a
+   * different target inside 30 days of the last one is ignored. The followers move in the
+   * 'account-moved' job record_remote_account_move queues.
+   */
+  static async processMove(activity: any): Promise<void> {
+    const supabase = getSupabaseClient();
+    const originUrl = normalizeActor(activity.actor);
+    const objectUrl = activityReference(activity.object);
+    const targetUrl = activityReference(activity.target);
+
+    if (!originUrl || objectUrl !== originUrl) {
+      logger.warn(`Move from ${originUrl} names another account (${objectUrl}); ignored`);
+      return;
+    }
+    let targetHost: string;
+    try {
+      const url = new URL(targetUrl ?? '');
+      if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('scheme');
+      targetHost = url.hostname.toLowerCase();
+    } catch {
+      logger.warn(`Move from ${originUrl} without a usable target; ignored`);
+      return;
+    }
+    if (targetUrl === originUrl) {
+      logger.warn(`Move from ${originUrl} to itself; ignored`);
+      return;
+    }
+    if (BlockedInstancesCache.isBlocked(targetHost)) {
+      logger.info(`Move from ${originUrl} to blocked instance ${targetHost}; ignored`);
+      return;
+    }
+
+    const { data: origin } = await supabase
+      .from('profiles')
+      .select('id, is_local, moved_to_uri, moved_at')
+      .eq('federated_id', originUrl)
+      .maybeSingle();
+    if (!origin || origin.is_local !== false) {
+      logger.info(`Move from unknown or local account ${originUrl}; ignored`);
+      return;
+    }
+    if (origin.moved_to_uri && origin.moved_to_uri !== targetUrl && origin.moved_at
+        && Date.now() - Date.parse(origin.moved_at) < MOVE_COOLDOWN_MS) {
+      logger.info(`Move from ${originUrl} to ${targetUrl}: moved to ${origin.moved_to_uri} recently; ignored`);
+      return;
+    }
+
+    let target: { id: string; is_suspended?: boolean | null; moved_to_uri?: string | null } | null = null;
+    let aliases: string[] = [];
+    let targetMovedTo: string | null = null;
+    if (sameOrigin(targetUrl, `https://${config.INSTANCE_DOMAIN}/`)) {
+      const local = await resolveProfileByActorUrl(targetUrl as string);
+      const { data } = local
+        ? await supabase
+          .from('profiles')
+          .select('id, is_local, is_suspended, deleted_at, also_known_as, moved_to_uri')
+          .eq('id', local.id)
+          .maybeSingle()
+        : { data: null };
+      if (data && data.is_local !== false && !data.deleted_at) {
+        target = data;
+        aliases = Array.isArray(data.also_known_as) ? data.also_known_as : [];
+        targetMovedTo = data.moved_to_uri ?? null;
+      }
+    } else {
+      const fresh = await this.refreshRemoteActor(targetUrl as string);
+      if (fresh) {
+        target = fresh.profile;
+        aliases = parseAlsoKnownAs(fresh.actor.alsoKnownAs);
+        targetMovedTo = parseMovedTo(fresh.actor.movedTo);
+      }
+    }
+
+    if (!target) {
+      logger.warn(`Move from ${originUrl}: target ${targetUrl} could not be resolved`);
+      return;
+    }
+    if (!aliases.includes(originUrl)) {
+      logger.warn(`Move from ${originUrl}: ${targetUrl} does not list it in alsoKnownAs`);
+      return;
+    }
+    if (targetMovedTo) {
+      logger.warn(`Move from ${originUrl}: ${targetUrl} has itself moved to ${targetMovedTo}`);
+      return;
+    }
+    if (target.is_suspended) {
+      logger.info(`Move from ${originUrl}: target ${targetUrl} is suspended`);
+      return;
+    }
+
+    const { data: recorded, error } = await supabase.rpc('record_remote_account_move', {
+      p_origin_id: origin.id,
+      p_target_id: target.id,
+    });
+    if (error) {
+      throw new Error(`Move ${activity.id}: not recorded: ${error.message}`);
+    }
+    if (recorded?.error) {
+      logger.info(`Move from ${originUrl} to ${targetUrl} refused: ${recorded.error}`);
+      return;
+    }
+    logger.info(`Move from ${originUrl} to ${targetUrl}: migration ${recorded?.migration_id}${recorded?.created ? '' : ' (repeat)'}`);
+  }
+
+  /**
    * Resolve an inbound emoji into an emoji_id, creating the row when absent.
    * Returns null for anything without both a name and a URL.
    */
@@ -2951,12 +3068,15 @@ export class ActivityProcessor {
     return fetchPromise;
   }
 
+  private static readonly STORED_ACTOR_COLUMNS =
+    'id, updated_at, federated_id, username, domain, display_name, avatar_url, color, federation_metadata, moved_to_uri';
+
   private static async ensureRemoteUserUncached(actorUrl: string, forceRefresh: boolean): Promise<any | null> {
     const supabase = getSupabaseClient();
 
     const { data: existing } = await supabase
       .from('profiles')
-      .select('id, updated_at, federated_id, username, domain, display_name, avatar_url, color, federation_metadata')
+      .select(this.STORED_ACTOR_COLUMNS)
       .eq('federated_id', actorUrl)
       .maybeSingle();
 
@@ -2985,129 +3105,160 @@ export class ActivityProcessor {
         logger.error(`Failed to fetch actor ${actorUrl}`);
         return existing || null;
       }
-
-      // The account a split-domain actor is known by. A WebFinger failure
-      // keeps the stored account rather than reverting it to the actor's host.
-      const acct = await confirmActorAcct(actor, 3_000);
-      const profileData = withCanonicalAcct(
-        actorToProfile(actor),
-        acct ?? (existing?.username && existing?.domain ? { username: existing.username, domain: String(existing.domain).toLowerCase() } : null),
-      );
-
-      // SECURITY: a remote actor claiming the instance domain is a spoofing
-      // attempt; refuse the upsert.
-      const { config } = await import('../config/index.js');
-      if (profileData.domain.toLowerCase() === config.INSTANCE_DOMAIN.toLowerCase()) {
-        logger.warn(`SECURITY: Remote actor ${actorUrl} claims local domain ${profileData.domain}! Refusing to upsert.`);
-        return existing || null;
-      }
-
-      // SECURITY: second guard against overwriting a local user with the same
-      // username/domain. The federated_id conflict normally prevents this.
-      const { data: existingLocalUser } = await supabase
-        .from('profiles')
-        .select('id, is_local')
-        .eq('username', profileData.username)
-        .eq('domain', profileData.domain)
-        .eq('is_local', true)
-        .maybeSingle();
-      
-      if (existingLocalUser) {
-        logger.warn(`SECURITY: Refusing to overwrite local user ${profileData.username}@${profileData.domain} via ensureRemoteUser`);
-        return existing || null;
-      }
-
-      // Maps actor field names onto database columns. Serves both initial
-      // creation and stale-profile refresh.
-      const profileRecord: any = {
-        username: profileData.username,
-        domain: profileData.domain,
-        display_name: profileData.display_name,
-        bio: profileData.bio,
-        avatar_url: profileData.avatar,   // Map avatar -> avatar_url
-        banner_url: profileData.banner,   // Map banner -> banner_url
-        public_key: profileData.public_key,
-        federated_id: profileData.federated_id,
-        inbox_url: profileData.inbox_url,
-        outbox_url: profileData.outbox_url,
-        followers_url: profileData.followers_url,
-        following_url: profileData.following_url,
-        is_local: false,
-        updated_at: new Date().toISOString(),
-        last_synced_at: new Date().toISOString(),
-      };
-
-      // Harmony extension: profile color.
-      if (profileData.color) {
-        profileRecord.color = profileData.color;
-      }
-
-      // Persist ActivityPub profile fields (PropertyValue attachments)
-      if (profileData.profile_fields) {
-        profileRecord.profile_fields = profileData.profile_fields;
-      }
-
-      // Shared inbox URL, used to batch delivery.
-      if (actor.endpoints?.sharedInbox) {
-        profileRecord.shared_inbox_url = actor.endpoints.sharedInbox;
-      }
-
-      // Persist custom emoji metadata so the frontend can render shortcodes, and
-      // the actor's creation date, which the spam heuristics read as account age.
-      const apPublished = typeof actor.published === 'string' && Number.isFinite(Date.parse(actor.published))
-        ? new Date(actor.published).toISOString()
-        : null;
-      if (profileData.display_name_emojis?.length || profileData.bio_emojis?.length || apPublished) {
-        const existingMeta = (existing as any)?.federation_metadata || {};
-        const meta = typeof existingMeta === 'string' ? JSON.parse(existingMeta) : { ...existingMeta };
-        if (profileData.display_name_emojis?.length) {
-          meta.display_name_emojis = profileData.display_name_emojis;
-        }
-        if (profileData.bio_emojis?.length) {
-          meta.bio_emojis = profileData.bio_emojis;
-        }
-        if (apPublished) {
-          meta.ap_published = apPublished;
-        }
-        profileRecord.federation_metadata = meta;
-      }
-
-      const { error: upsertError } = await supabase
-        .from('profiles')
-        .upsert(profileRecord, {
-          onConflict: 'federated_id',
-        });
-
-      if (upsertError) {
-        logger.error(`Failed to upsert profile for ${actorUrl}:`, upsertError);
-        return existing || null;
-      }
-
-      // Re-query after upsert; upsert().select() does not reliably return rows.
-      const { data: savedProfile, error: queryError } = await supabase
-        .from('profiles')
-        .select('id, username, display_name, avatar_url, federated_id, color')
-        .eq('federated_id', profileData.federated_id)
-        .maybeSingle();
-
-      if (queryError) {
-        logger.error(`Failed to query profile after upsert for ${actorUrl}:`, queryError);
-        return existing || null;
-      }
-
-      if (!savedProfile) {
-        logger.error(`Profile not found after upsert for ${actorUrl} (federated_id: ${profileData.federated_id})`);
-        return existing || null;
-      }
-
-      const action = existing ? 'Refreshed' : 'Created';
-      logger.info(`${action} remote user: ${actorUrl}${profileData.banner ? ' (with banner)' : ''}`);
-      
-      return savedProfile;
+      return (await this.storeRemoteActor(actorUrl, actor, existing)) ?? existing ?? null;
     } catch (error) {
       logger.error(`Error fetching remote actor ${actorUrl}:`, error);
       return existing || null;
     }
+  }
+
+  /**
+   * The actor document as served now, and the profile stored from it. Null when the
+   * document cannot be fetched or is refused; the stored row is then unchanged.
+   */
+  static async refreshRemoteActor(actorUrl: string): Promise<{ profile: any; actor: any } | null> {
+    const supabase = getSupabaseClient();
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select(this.STORED_ACTOR_COLUMNS)
+      .eq('federated_id', actorUrl)
+      .maybeSingle();
+    try {
+      const actor = await fetchActorById(actorUrl, (u) => this.fetchApDocument(u));
+      if (!actor) {
+        logger.warn(`Failed to fetch actor ${actorUrl}`);
+        return null;
+      }
+      const profile = await this.storeRemoteActor(actorUrl, actor, existing);
+      return profile ? { profile, actor } : null;
+    } catch (error) {
+      logger.warn(`Error fetching remote actor ${actorUrl}:`, error);
+      return null;
+    }
+  }
+
+  /** Upserts the profile of a fetched actor document; null when refused or not stored. */
+  private static async storeRemoteActor(actorUrl: string, actor: any, existing: any): Promise<any | null> {
+    const supabase = getSupabaseClient();
+    // The account a split-domain actor is known by. A WebFinger failure
+    // keeps the stored account rather than reverting it to the actor's host.
+    const acct = await confirmActorAcct(actor, 3_000);
+    const profileData = withCanonicalAcct(
+      actorToProfile(actor),
+      acct ?? (existing?.username && existing?.domain ? { username: existing.username, domain: String(existing.domain).toLowerCase() } : null),
+    );
+
+    // SECURITY: a remote actor claiming the instance domain is a spoofing
+    // attempt; refuse the upsert.
+    const { config } = await import('../config/index.js');
+    if (profileData.domain.toLowerCase() === config.INSTANCE_DOMAIN.toLowerCase()) {
+      logger.warn(`SECURITY: Remote actor ${actorUrl} claims local domain ${profileData.domain}! Refusing to upsert.`);
+      return null;
+    }
+
+    // SECURITY: second guard against overwriting a local user with the same
+    // username/domain. The federated_id conflict normally prevents this.
+    const { data: existingLocalUser } = await supabase
+      .from('profiles')
+      .select('id, is_local')
+      .eq('username', profileData.username)
+      .eq('domain', profileData.domain)
+      .eq('is_local', true)
+      .maybeSingle();
+    
+    if (existingLocalUser) {
+      logger.warn(`SECURITY: Refusing to overwrite local user ${profileData.username}@${profileData.domain} via ensureRemoteUser`);
+      return null;
+    }
+
+    // Maps actor field names onto database columns. Serves both initial
+    // creation and stale-profile refresh.
+    const profileRecord: any = {
+      username: profileData.username,
+      domain: profileData.domain,
+      display_name: profileData.display_name,
+      bio: profileData.bio,
+      avatar_url: profileData.avatar,   // Map avatar -> avatar_url
+      banner_url: profileData.banner,   // Map banner -> banner_url
+      public_key: profileData.public_key,
+      federated_id: profileData.federated_id,
+      inbox_url: profileData.inbox_url,
+      outbox_url: profileData.outbox_url,
+      followers_url: profileData.followers_url,
+      following_url: profileData.following_url,
+      is_local: false,
+      updated_at: new Date().toISOString(),
+      last_synced_at: new Date().toISOString(),
+      ...(await movedColumns(supabase, profileData, existing)),
+    };
+
+    // Harmony extension: profile color.
+    if (profileData.color) {
+      profileRecord.color = profileData.color;
+    }
+
+    // Persist ActivityPub profile fields (PropertyValue attachments)
+    if (profileData.profile_fields) {
+      profileRecord.profile_fields = profileData.profile_fields;
+    }
+
+    // Shared inbox URL, used to batch delivery.
+    if (actor.endpoints?.sharedInbox) {
+      profileRecord.shared_inbox_url = actor.endpoints.sharedInbox;
+    }
+
+    // Persist custom emoji metadata so the frontend can render shortcodes, and
+    // the actor's creation date, which the spam heuristics read as account age.
+    const apPublished = typeof actor.published === 'string' && Number.isFinite(Date.parse(actor.published))
+      ? new Date(actor.published).toISOString()
+      : null;
+    if (profileData.display_name_emojis?.length || profileData.bio_emojis?.length || apPublished) {
+      const existingMeta = (existing as any)?.federation_metadata || {};
+      const meta = typeof existingMeta === 'string' ? JSON.parse(existingMeta) : { ...existingMeta };
+      if (profileData.display_name_emojis?.length) {
+        meta.display_name_emojis = profileData.display_name_emojis;
+      }
+      if (profileData.bio_emojis?.length) {
+        meta.bio_emojis = profileData.bio_emojis;
+      }
+      if (apPublished) {
+        meta.ap_published = apPublished;
+      }
+      profileRecord.federation_metadata = meta;
+    }
+
+    const { error: upsertError } = await supabase
+      .from('profiles')
+      .upsert(profileRecord, {
+        onConflict: 'federated_id',
+      });
+
+    if (upsertError) {
+      logger.error(`Failed to upsert profile for ${actorUrl}:`, upsertError);
+      return null;
+    }
+
+    // Re-query after upsert; upsert().select() does not reliably return rows.
+    const { data: savedProfile, error: queryError } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, federated_id, color, is_suspended, also_known_as, moved_to_id, moved_to_uri')
+      .eq('federated_id', profileData.federated_id)
+      .maybeSingle();
+
+    if (queryError) {
+      logger.error(`Failed to query profile after upsert for ${actorUrl}:`, queryError);
+      return null;
+    }
+
+    if (!savedProfile) {
+      logger.error(`Profile not found after upsert for ${actorUrl} (federated_id: ${profileData.federated_id})`);
+      return null;
+    }
+
+    const action = existing ? 'Refreshed' : 'Created';
+    logger.info(`${action} remote user: ${actorUrl}${profileData.banner ? ' (with banner)' : ''}`);
+    
+    return savedProfile;
   }
 
   /**

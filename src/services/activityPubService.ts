@@ -792,7 +792,7 @@ export class ActivityPubService {
       .select(`
         follower:profiles!follows_follower_id_fkey (
           id, username, display_name, domain, avatar_url, is_local, bio,
-          followers_count, following_count, posts_count, created_at, updated_at
+          followers_count, following_count, posts_count, created_at, updated_at, moved_to_uri
         )
       `)
       .eq('following_id', userId)
@@ -820,7 +820,7 @@ export class ActivityPubService {
       .select(`
         follower:profiles!follows_follower_id_fkey (
           id, username, display_name, domain, avatar_url, is_local, bio,
-          followers_count, following_count, posts_count, created_at, updated_at
+          followers_count, following_count, posts_count, created_at, updated_at, moved_to_uri
         )
       `)
       .eq('following_id', userId)
@@ -858,7 +858,7 @@ export class ActivityPubService {
       .select(`
         following:profiles!follows_following_id_fkey (
           id, username, display_name, domain, avatar_url, is_local, bio,
-          followers_count, following_count, posts_count, created_at, updated_at
+          followers_count, following_count, posts_count, created_at, updated_at, moved_to_uri
         )
       `)
       .eq('follower_id', userId)

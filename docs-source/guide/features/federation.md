@@ -86,6 +86,15 @@ interface LikeActivity {
   content?: string
   "_misskey_reaction"?: string
 }
+
+// Move Activity (account migration); object is the actor, target lists it in alsoKnownAs
+interface MoveActivity {
+  type: "Move"
+  id: string
+  actor: string
+  object: string
+  target: string
+}
 `
 
 ## Message Federation

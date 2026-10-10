@@ -29,6 +29,10 @@ export function resolveNotificationRoute(notification: RoutableNotification): st
     const handle = profileHandle(data.sender)
     if (handle) return `/social/profile/${handle}`
   }
+  if (type === 'move') {
+    const handle = profileHandle(data.target)
+    if (handle) return `/social/profile/${handle}`
+  }
 
   const postId = data.post_id || data.post?.id
   if (type.startsWith('activitypub_') && postId) return `/social/post/${postId}`

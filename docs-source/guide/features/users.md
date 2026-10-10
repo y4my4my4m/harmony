@@ -62,7 +62,28 @@ The settings panel (`UserSettings` view) provides:
 | Keybinds | `KeybindSettings` | Keyboard shortcuts |
 | Audio Themes | `AudioThemeSettings` | Sound theme selection |
 | Bots | `UserBotsManagement` | Personal bot management |
-| Advanced | `AdvancedSettings` | Desktop app, developer mode, cache, account deletion |
+| Advanced | `AdvancedSettings` | Desktop app, developer mode, cache, account migration, account deletion |
+
+## Account Migration
+
+Settings → Advanced → Account migration moves followers between a person's accounts, on this
+instance or another, the way Mastodon does:
+
+1. On the new account, list the old one under *Moving from another account* (`alsoKnownAs`).
+2. On the old account, enter the new one under *Move to another account*. The move is offered once
+   the new account lists the old one, and asks for the password (or a recent sign-in) and, with
+   two-factor authentication, an authenticator code.
+
+The old profile then shows where the account went and stops offering Follow. Its followers on this
+instance follow the new account (a follow request when it is elsewhere), with their list entries,
+blocks and mutes, and get a notification; other instances get an ActivityPub `Move` and move their
+own followers. A member of a Harmony server who rejoins it from the new account needs no invite and
+keeps nickname and roles; a ban of the old account applies to the new one. Posts, messages, DMs,
+encryption keys, bots, owned servers and followed accounts stay behind. A second move waits 30 days;
+*Cancel redirect* removes the redirect without bringing followers back.
+
+A `Move` from another instance is accepted when it is signed by the moving account and the new
+account, fetched at that moment, lists the old one and has not moved itself.
 
 ## Muting and Blocking
 
@@ -104,6 +125,7 @@ The notification system tracks:
 - Server invites
 - DM messages
 - A new member's first message in a server you own or moderate (`newcomer_message`)
+- An account you follow moved, and you now follow its new account (`move`)
 
 When someone who joined in the last 30 days posts in a server for the first time, a newcomer alert
 goes to at most ten people: the owner first, then members whose roles carry Administrator, Manage

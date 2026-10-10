@@ -307,6 +307,38 @@ function addAttachments(parts: any[], attachments: any): void {
   }
 }
 
+/** profiles.also_known_as holds at most this many URIs (profiles_also_known_as_length). */
+export const MAX_ACTOR_ALIASES = 20;
+
+/** Absolute http(s) URI of a reference given as a string or an object with an id. */
+function referenceUri(value: unknown): string | null {
+  const id = typeof value === 'string' ? value : (value as any)?.id;
+  if (typeof id !== 'string' || id.length > 2048) return null;
+  try {
+    const url = new URL(id);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+/** ActivityPub alsoKnownAs (one reference or an array) as distinct URIs, first MAX_ACTOR_ALIASES kept. */
+export function parseAlsoKnownAs(value: unknown): string[] {
+  const items = Array.isArray(value) ? value : value == null ? [] : [value];
+  const uris: string[] = [];
+  for (const item of items) {
+    const uri = referenceUri(item);
+    if (uri && !uris.includes(uri)) uris.push(uri);
+    if (uris.length === MAX_ACTOR_ALIASES) break;
+  }
+  return uris;
+}
+
+/** ActivityPub movedTo as a URI; null when absent or not an http(s) reference. */
+export function parseMovedTo(value: unknown): string | null {
+  return referenceUri(Array.isArray(value) ? value[0] : value);
+}
+
 /**
  * Extract user profile data from ActivityPub Actor
  */
@@ -330,6 +362,8 @@ export function actorToProfile(actor: any): {
   manually_approves_followers?: boolean;
   bio_emojis?: Array<{ name: string; url: string }>;
   display_name_emojis?: Array<{ name: string; url: string }>;
+  also_known_as: string[];
+  moved_to_uri: string | null;
 } {
   const actorUrl = new URL(actor.id);
   const domain = actorUrl.hostname;
@@ -344,7 +378,10 @@ export function actorToProfile(actor: any): {
     followers_url: actor.followers,
     following_url: actor.following,
     is_local: false,
+    also_known_as: parseAlsoKnownAs(actor.alsoKnownAs).filter((uri) => uri !== actor.id),
+    moved_to_uri: parseMovedTo(actor.movedTo),
   };
+  if (profile.moved_to_uri === actor.id) profile.moved_to_uri = null;
 
   // Length clamps mirror the DB sanitize_profile_text() guard. The DB trigger
   // is authoritative (it also strips bidi/zero-width/control chars), but
