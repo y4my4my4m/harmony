@@ -5,6 +5,7 @@
  * Designed to be easily internationalized by replacing message templates.
  */
 
+import { maskSpoilers } from '@/utils/spoiler'
 import type { Notification } from '@/types'
 import { getAvatarUrl as utilGetAvatarUrl } from '@/utils/avatarUtils'
 import { debug } from '@/utils/debug'
@@ -52,7 +53,7 @@ function extractContentText(content: any): string | null {
     if (content.startsWith('[')) {
       try { content = JSON.parse(content) } catch { return content }
     } else {
-      return content
+      return maskSpoilers(content)
     }
   }
   if (Array.isArray(content)) {
@@ -67,7 +68,7 @@ function extractContentText(content: any): string | null {
       })
       .join(' ')
       .trim()
-    return text || null
+    return text ? maskSpoilers(text) : null
   }
   if (typeof content === 'object') return null
   return String(content)

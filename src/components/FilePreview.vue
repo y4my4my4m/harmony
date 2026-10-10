@@ -15,11 +15,13 @@
             :src="file.preview" 
             :alt="file.name"
             class="thumbnail-image"
+            :class="{ 'thumbnail-spoiler': isSpoilerFileName(file.name) }"
           />
           <video
             v-else-if="isVideo(file)"
             :src="file.preview"
             class="thumbnail-video"
+            :class="{ 'thumbnail-spoiler': isSpoilerFileName(file.name) }"
             muted
           />
           <div v-else class="file-icon">
@@ -54,6 +56,20 @@
         </div>
         
         <button
+          v-if="isImage(file) || isVideo(file)"
+          type="button"
+          class="spoiler-file-btn"
+          :class="{ active: isSpoilerFileName(file.name) }"
+          :aria-pressed="isSpoilerFileName(file.name)"
+          :title="isSpoilerFileName(file.name) ? $t('message.spoiler.unmark') : $t('message.spoiler.mark')"
+          :aria-label="isSpoilerFileName(file.name) ? $t('message.spoiler.unmark') : $t('message.spoiler.mark')"
+          @click="emit('toggle-spoiler', index)"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M3 3l18 18M10.6 5.1A10.9 10.9 0 0 1 12 5c5 0 9 4.5 10 7a13.2 13.2 0 0 1-3.2 4.2M6.6 6.6C4.4 8 2.8 10.1 2 12c1 2.5 5 7 10 7 1.7 0 3.3-.5 4.6-1.3M9.9 9.9a3 3 0 0 0 4.2 4.2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button
           class="remove-file-btn"
           @click="removeFile(index)"
           :aria-label="`Remove ${file.name}`"
@@ -70,6 +86,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { MessageMediaUpload } from '@/services/messageMediaUpload';
+import { isSpoilerFileName } from '@/utils/spoiler';
 
 export interface FilePreviewData {
   file: File;
@@ -96,6 +113,7 @@ const props = defineProps<Props>();
 
 interface Emits {
   (e: 'remove-file', index: number): void;
+  (e: 'toggle-spoiler', index: number): void;
 }
 
 const emit = defineEmits<Emits>();
@@ -329,6 +347,29 @@ const hasUploading = computed(() => {
   justify-content: center;
   border-radius: 4px;
   color: var(--text-primary);
+}
+
+.thumbnail-spoiler {
+  filter: blur(8px);
+}
+
+.spoiler-file-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.spoiler-file-btn:hover,
+.spoiler-file-btn.active {
+  color: var(--text-primary);
+  background: var(--background-modifier-hover, rgba(127, 127, 127, 0.18));
 }
 
 .remove-file-btn {

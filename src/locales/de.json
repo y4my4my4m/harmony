@@ -459,6 +459,12 @@
       "remove": "Einbettungen entfernen",
       "show": "Einbettungen anzeigen",
       "failed": "Die Einbettungen der Nachricht konnten nicht geändert werden"
+    },
+    "spoiler": {
+      "label": "Spoiler",
+      "reveal": "Spoiler anzeigen",
+      "mark": "Als Spoiler markieren",
+      "unmark": "Spoiler entfernen"
     }
   },
   "messageSearch": {

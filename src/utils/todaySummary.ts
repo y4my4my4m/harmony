@@ -6,6 +6,7 @@
  * Parsing is defensive: a missing or mistyped field reads as empty, never throws.
  */
 
+import { maskSpoilers } from '@/utils/spoiler'
 import type { RouteLocationRaw } from 'vue-router'
 import type { Message, MessagePart } from '@/types'
 
@@ -482,7 +483,7 @@ export function previewParts(content: readonly MessagePart[] | null | undefined)
 
 /** Plain text of the inline parts, whitespace collapsed. */
 export function previewText(content: readonly MessagePart[] | null | undefined): string {
-  return previewParts(content).parts
+  return maskSpoilers(previewParts(content).parts
     .map((part: any) => {
       switch (part.type) {
         case 'text': return part.text ?? ''
@@ -497,7 +498,7 @@ export function previewText(content: readonly MessagePart[] | null | undefined):
     })
     .join('')
     .replace(/\s+/g, ' ')
-    .trim()
+    .trim())
 }
 
 // Routes ---------------------------------------------------------------------------------

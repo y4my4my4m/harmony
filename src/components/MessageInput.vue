@@ -11,6 +11,7 @@
     <FilePreview
       :files="attachedFiles"
       @remove-file="removeFile"
+      @toggle-spoiler="toggleFileSpoiler"
     />
     <!-- Live media results for /gif, /sticker, /clip, /meme, /aiemoji -->
     <InlineGifPicker
@@ -225,6 +226,7 @@ import InlineGifPicker from '@/components/InlineGifPicker.vue';
 import Icon from '@/components/common/Icon.vue';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { parseKlipyKind } from '@/utils/klipyAttribution';
+import { toggleSpoilerFileName } from '@/utils/spoiler';
 import { buildEphemeralEmojiFromGif, registerEphemeralEmoji } from '@/utils/ephemeralEmoji';
 import type { GifMediaType } from '@/services/gifProviderService';
 import type { FilePreviewData } from '@/components/FilePreview.vue';
@@ -1027,6 +1029,11 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       });
       
       closeUploadMenu();
+    };
+
+    const toggleFileSpoiler = (index: number) => {
+      const file = attachedFiles.value[index];
+      if (file) file.name = toggleSpoilerFileName(file.name);
     };
 
     const removeFile = (index: number) => {

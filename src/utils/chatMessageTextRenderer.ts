@@ -26,8 +26,8 @@
  *      attribute values are re-escaped because resolved shortcodes /
  *      emoji names are user/federation-controlled.
  *   4. Apply markdown inline formatting (`**bold**`, `*italic*`,
- *      `~~strike~~`, ` ``code`` `, etc.). Regexes match against escaped
- *      text and emit known-safe tags.
+ *      `~~strike~~`, ` ``code`` `, `||spoiler||`, etc.). Regexes match
+ *      against escaped text and emit known-safe tags.
  *   5. Convert Discord-style blockquotes (`> `) and imageboard greentext
  *      (`>foo`) into `<blockquote>` / `<span class="md-greentext">`. The
  *      preceding escape turned the user's `>` into `&gt;`; we unescape it
@@ -142,6 +142,13 @@ export function renderChatMessageText(
   rendered = rendered.replace(/(?<![\w*])\*([^*]+)\*(?![\w*])/g, '<em class="md-italic">$1</em>');
   rendered = rendered.replace(/~~(.*?)~~/g, '<del class="md-strikethrough">$1</del>');
   rendered = rendered.replace(/\+\+(.*?)\+\+/g, '<u class="md-underline">$1</u>');
+  // Spoilers: `||text||`, never inside inline code.
+  rendered = rendered
+    .split(/(<code class="md-code">[\s\S]*?<\/code>)/)
+    .map((piece) => piece.startsWith('<code class="md-code">')
+      ? piece
+      : piece.replace(/\|\|(?=\S)([\s\S]*?\S)\|\|/g, '<span class="md-spoiler">$1</span>'))
+    .join('');
 
   // 5. Blockquotes / greentext. Restore `&gt;` -> `>` ONLY at line starts.
   rendered = rendered.replace(/(^|\n)((?:&gt;){1,3})/g, (_, lead: string, marker: string) =>

@@ -468,6 +468,12 @@
       "remove": "Remove embeds",
       "show": "Show embeds",
       "failed": "Couldn't change the message's embeds"
+    },
+    "spoiler": {
+      "label": "Spoiler",
+      "reveal": "Reveal spoiler",
+      "mark": "Mark as spoiler",
+      "unmark": "Remove spoiler"
     }
   },
   "messageSearch": {

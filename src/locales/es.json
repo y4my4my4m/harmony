@@ -459,6 +459,12 @@
       "remove": "Quitar vistas previas",
       "show": "Mostrar vistas previas",
       "failed": "No se pudieron cambiar las vistas previas del mensaje"
+    },
+    "spoiler": {
+      "label": "Spoiler",
+      "reveal": "Mostrar spoiler",
+      "mark": "Marcar como spoiler",
+      "unmark": "Quitar spoiler"
     }
   },
   "messageSearch": {

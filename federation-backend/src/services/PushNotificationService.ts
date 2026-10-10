@@ -968,6 +968,12 @@ class PushNotificationServiceClass {
       }
     }
     
+    // `||spoiler||` text stays hidden on the lock screen.
+    if (preview) {
+      preview = String(preview).replace(/\|\|(?=\S)([\s\S]*?\S)\|\|/g, (_m: string, inner: string) =>
+        '▒'.repeat(Math.min(Math.max(inner.length, 3), 12)));
+    }
+
     // Truncate if needed
     if (preview && preview.length > maxLength) {
       preview = preview.substring(0, maxLength) + '...';

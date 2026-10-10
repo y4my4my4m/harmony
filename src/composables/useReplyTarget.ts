@@ -1,3 +1,4 @@
+import { maskSpoilers } from '@/utils/spoiler'
 import { computed, shallowRef, toValue, watch, type MaybeRefOrGetter } from 'vue'
 import { useMessageAuthorPresentation } from '@/composables/useMessageAuthorPresentation'
 import { useChatStore } from '@/stores/useChat'
@@ -77,7 +78,7 @@ export function useReplyTarget(
     if (isLoading.value) return 'Loading...'
     if (!replyMessage.value) return 'Deleted message'
     if (isUndecrypted(replyMessage.value)) return i18n.global.t('channelEncryption.encryptedMessage')
-    return messagePartsToPlainText(replyMessage.value.content)
+    return maskSpoilers(messagePartsToPlainText(replyMessage.value.content))
   })
 
   const authorLabel = computed(() => {

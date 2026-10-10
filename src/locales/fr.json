@@ -459,6 +459,12 @@
       "remove": "Supprimer les intégrations",
       "show": "Afficher les intégrations",
       "failed": "Impossible de modifier les intégrations du message"
+    },
+    "spoiler": {
+      "label": "Spoiler",
+      "reveal": "Afficher le spoiler",
+      "mark": "Marquer comme spoiler",
+      "unmark": "Retirer le spoiler"
     }
   },
   "messageSearch": {

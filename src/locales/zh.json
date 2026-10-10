@@ -459,6 +459,12 @@
       "remove": "移除嵌入内容",
       "show": "显示嵌入内容",
       "failed": "无法更改消息的嵌入内容"
+    },
+    "spoiler": {
+      "label": "剧透",
+      "reveal": "显示剧透",
+      "mark": "标记为剧透",
+      "unmark": "取消剧透"
     }
   },
   "messageSearch": {

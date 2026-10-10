@@ -459,6 +459,12 @@
       "remove": "임베드 제거",
       "show": "임베드 표시",
       "failed": "메시지 임베드를 변경하지 못했습니다"
+    },
+    "spoiler": {
+      "label": "스포일러",
+      "reveal": "스포일러 보기",
+      "mark": "스포일러로 표시",
+      "unmark": "스포일러 해제"
     }
   },
   "messageSearch": {
