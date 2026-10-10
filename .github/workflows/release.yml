@@ -405,7 +405,8 @@ jobs:
           echo "CEF_TOOLS_DIR=$RUNNER_TEMP/linux-tools" >> "$GITHUB_ENV"
       # cef-dll-sys downloads the CEF distribution into CEF_PATH when missing.
       # The key follows tauri-runtime-cef's pinned cef crate. Tag runs restore
-      # caches saved on the default branch, which tauri.yml's linux job fills.
+      # caches saved on the default branch, which a tauri.yml linux run dispatched
+      # on master fills; with none, cef-dll-sys downloads the distribution.
       - uses: actions/cache@v4
         if: steps.tree.outputs.built == 'true'
         with:

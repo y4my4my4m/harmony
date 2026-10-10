@@ -378,7 +378,8 @@
       "nameTooLong": "Le nom du canal doit contenir moins de 100 caractères",
       "invalidName": "Le nom du canal ne peut contenir que des lettres, chiffres et tirets",
       "limitReached": "Ce serveur a atteint la limite maximale de {max} canaux",
-      "createFailed": "Échec de la création du canal. Veuillez réessayer."
+      "createFailed": "Échec de la création du canal. Veuillez réessayer.",
+      "deleteFailed": "Impossible de supprimer le salon."
     },
     "copyId": "Copier l'ID du canal",
     "idCopied": "ID du canal copié",
@@ -1467,7 +1468,8 @@
     "errors": {
       "limitReached": "Ce serveur a atteint la limite maximale de {max} catégories",
       "createFailed": "Échec de la création de la catégorie. Veuillez réessayer.",
-      "noServer": "Aucun serveur sélectionné"
+      "noServer": "Aucun serveur sélectionné",
+      "deleteFailed": "Impossible de supprimer la catégorie."
     }
   },
   "announcements": {

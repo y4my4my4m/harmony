@@ -378,7 +378,8 @@
       "nameTooLong": "El nombre del canal debe tener menos de 100 caracteres",
       "invalidName": "El nombre del canal solo puede contener letras, números y guiones",
       "limitReached": "Este servidor ha alcanzado el límite máximo de {max} canales",
-      "createFailed": "No se pudo crear el canal. Por favor, inténtalo de nuevo."
+      "createFailed": "No se pudo crear el canal. Por favor, inténtalo de nuevo.",
+      "deleteFailed": "No se pudo eliminar el canal."
     },
     "copyId": "Copiar ID del canal",
     "idCopied": "ID del canal copiado",
@@ -1448,7 +1449,8 @@
     "errors": {
       "limitReached": "Este servidor ha alcanzado el límite máximo de {max} categorías",
       "createFailed": "No se pudo crear la categoría. Por favor, inténtalo de nuevo.",
-      "noServer": "No hay servidor seleccionado"
+      "noServer": "No hay servidor seleccionado",
+      "deleteFailed": "No se pudo eliminar la categoría."
     }
   },
   "announcements": {

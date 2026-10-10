@@ -378,7 +378,8 @@
       "nameTooLong": "채널 이름은 100자 미만이어야 합니다",
       "invalidName": "채널 이름은 문자, 숫자, 하이픈만 포함할 수 있습니다",
       "limitReached": "이 서버는 최대 {max}개의 채널 한도에 도달했습니다",
-      "createFailed": "채널 생성에 실패했습니다. 다시 시도해주세요."
+      "createFailed": "채널 생성에 실패했습니다. 다시 시도해주세요.",
+      "deleteFailed": "채널을 삭제할 수 없습니다."
     },
     "copyId": "채널 ID 복사",
     "idCopied": "채널 ID를 복사했습니다",
@@ -1467,7 +1468,8 @@
     "errors": {
       "limitReached": "이 서버는 최대 {max}개의 카테고리 한도에 도달했습니다",
       "createFailed": "카테고리 생성에 실패했습니다. 다시 시도해주세요.",
-      "noServer": "선택된 서버가 없습니다"
+      "noServer": "선택된 서버가 없습니다",
+      "deleteFailed": "카테고리를 삭제할 수 없습니다."
     }
   },
   "announcements": {

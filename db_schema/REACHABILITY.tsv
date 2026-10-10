@@ -382,7 +382,7 @@ handle_unified_notification_processing	definer	trigger	anon+authenticated+servic
 has_active_session	definer	boolean	service_role	client	rpc in federation-backend/src/services/PushNotificationService.ts
 has_blocked	definer	boolean	anon+authenticated+service_role	http anon	nothing references it
 has_muted	definer	boolean	service_role	service key	nothing references it
-has_permission	definer	boolean	anon+authenticated+service_role	client, policy, trigger	policy public.channel_categories UPDATE on channel_categories_update_manager, public.discord_bridge_pairings ALL on Server owners manage discord bridge pairing, public.invites INSERT on invites_insert_member, +13; rpc in federation-backend/src/activitypub/channelWriteAuthz.ts
+has_permission	definer	boolean	anon+authenticated+service_role	client, policy, trigger	policy public.channel_categories DELETE on channel_categories_delete_manager, public.channel_categories INSERT on channel_categories_insert_manager, public.channel_categories UPDATE on channel_categories_update_manager, +18; rpc in federation-backend/src/activitypub/channelWriteAuthz.ts
 hash_recovery_code	invoker	text	service_role	client	called by generate_mfa_recovery_codes, redeem_recovery_code_and_disable_mfa, save_recovery_codes, +1
 import_remote_emoji	definer	uuid	authenticated+service_role	client	rpc in src/components/admin/EmojiImporter.vue
 increment_unread_mentions	definer	trigger	service_role	trigger	trigger public.notifications AFTER INSERT (trigger_increment_unread_mentions)
@@ -393,7 +393,7 @@ insert_ap_activity_outbound	definer	uuid	anon+authenticated+service_role	client	
 is_author_suspended	definer	boolean	service_role	service key	nothing references it
 is_blocked_by	definer	boolean	anon+authenticated+service_role	policy	policy public.messages INSERT on messages_insert_member, public.post_interactions INSERT on post_interactions_insert_own, public.reactions INSERT on reactions_insert_own
 is_conversation_participant	definer	boolean	anon+authenticated+service_role	client, policy	policy public.conversation_participants SELECT on conversation_participants_select_policy, public.message_heads SELECT on message_heads_select_visible
-is_current_user_admin	definer	boolean	anon+authenticated+service_role	client, policy, trigger	policy public.admin_audit_log ALL on Admin audit log admin access, public.blocked_instances ALL on Blocked instances admin access, public.bot_audit_log SELECT on bot_audit_log_select_owner, +44
+is_current_user_admin	definer	boolean	anon+authenticated+service_role	client, policy, trigger	policy public.admin_audit_log ALL on Admin audit log admin access, public.blocked_instances ALL on Blocked instances admin access, public.bot_audit_log SELECT on bot_audit_log_select_owner, +49
 is_current_user_admin_or_mod	definer	boolean	anon+authenticated+service_role	client, policy	policy public.reports SELECT on Moderators can view reports they moderate
 is_current_user_moderator	definer	boolean	anon+authenticated+service_role	client, policy	policy public.messages DELETE on messages_delete_authorized, public.messages UPDATE on messages_update_authorized
 is_encrypted_channel_content	invoker	boolean	authenticated+service_role	trigger	called by enforce_channel_message_encryption

@@ -222,7 +222,10 @@
                     @click="addMemberToRole(member.id)"
                   >
                     <Avatar :src="member.avatar_url" :alt="member.display_name || member.username" size="xs" />
-                    <span class="member-name">{{ member.display_name || member.username }}</span>
+                    <span class="member-name">
+                      <span v-if="member.isBridged">{{ member.display_name || member.username }}</span>
+                      <DisplayName v-else :user-id="member.id" :fallback="member.display_name || member.username" />
+                    </span>
                     <span class="member-action-icon" title="Add to role">+</span>
                   </button>
                 </div>
@@ -267,7 +270,8 @@
                   >
                     <Avatar :src="member.avatar_url" :alt="member.display_name || member.username" size="xs" />
                     <span class="member-name">
-                      {{ member.display_name || member.username }}
+                      <span v-if="member.isBridged">{{ member.display_name || member.username }}</span>
+                      <DisplayName v-else :user-id="member.id" :fallback="member.display_name || member.username" />
                       <span v-if="member.isBridged" class="bridged-member-badge" title="Discord bridge member">Discord</span>
                       <span v-if="isServerOwner(member.id)" class="owner-badge">Owner</span>
                     </span>
@@ -335,6 +339,7 @@ import { supabase } from '@/supabase'
 import { roleService } from '@/services/RoleService'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import Avatar from '@/components/common/Avatar.vue'
+import DisplayName from '@/components/DisplayName.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ColorPicker from '@/components/common/ColorPicker.vue'
 import type { ServerRole } from '@/services/RoleService'
