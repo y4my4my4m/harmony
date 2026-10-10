@@ -7,6 +7,7 @@
  */
 
 import { maskSpoilers } from '@/utils/spoiler'
+import { pollPreview } from '@/utils/messagePoll'
 import type { RouteLocationRaw } from 'vue-router'
 import type { Message, MessagePart } from '@/types'
 
@@ -470,6 +471,8 @@ export interface PreviewParts {
 }
 
 export function previewParts(content: readonly MessagePart[] | null | undefined): PreviewParts {
+  const poll = pollPreview(content)
+  if (poll) return { parts: [{ type: 'text', text: poll }], attachments: 0 }
   const parts: MessagePart[] = []
   let attachments = 0
   for (const part of content ?? []) {

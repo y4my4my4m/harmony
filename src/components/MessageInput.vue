@@ -84,7 +84,9 @@
             <PlusIcon @click="toggleUploadMenu" :class="{ active: showUploadMenu }" />
             <FileUploadMenu
               :isVisible="showUploadMenu"
+              :allow-poll="allowPolls"
               @files-selected="handleFilesSelected"
+              @create-poll="handleCreatePoll"
               @close="closeUploadMenu"
             />
           </div>
@@ -267,6 +269,8 @@ interface Props {
    * `sendVoiceMessage`.
    */
   backgroundSend?: boolean;
+  /** The + menu offers Create poll; the parent handles `createPoll`. */
+  allowPolls?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -276,6 +280,7 @@ const props = withDefaults(defineProps<Props>(), {
   replyMessageId: '',
   serverId: undefined,
   backgroundSend: false,
+  allowPolls: false,
 });
 
 // Placeholder target: DM username or channel name.
@@ -317,6 +322,7 @@ const emit = defineEmits<{
   'upload-status-changed': [uploading: boolean]
   'edit-last-message': []
   sendGif: [gif: Gif]
+  createPoll: []
 }>();
 
 const authStore = useAuthStore();
@@ -642,6 +648,7 @@ const updateText = (newText: string, cursorPosition?: number) => {
 const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText, {
   mode: 'chat',
   enableChannels: !!props.channelId && !props.conversationId,
+  pollsEnabled: () => props.allowPolls,
 });
 
 // Maps the active media slash command to the inline picker's media type.
@@ -917,6 +924,11 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     const closeUploadMenu = () => {
       showUploadMenu.value = false;
       actionsExpanded.value = false;
+    };
+
+    const handleCreatePoll = () => {
+      closeUploadMenu();
+      emit('createPoll');
     };
 
     const createFilePreview = async (file: File): Promise<FilePreviewData> => {

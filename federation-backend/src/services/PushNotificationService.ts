@@ -953,7 +953,13 @@ class PushNotificationServiceClass {
         }
       }
       
-      if (Array.isArray(content)) {
+      // A poll previews as its question; its text part spells out every answer.
+      const poll = Array.isArray(content)
+        ? content.find((part: any) => part?.type === 'poll' && typeof part.question === 'string')
+        : undefined;
+      if (poll) {
+        preview = `📊 ${poll.question}`;
+      } else if (Array.isArray(content)) {
         preview = content
           .map((part: any) => {
             if (part.type === 'text') return part.text;

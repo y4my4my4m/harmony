@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { stripIncomingMediaPaths } from '../utils/privateMedia.js';
+import { withoutPollParts } from '../utils/polls.js';
 import { normalizeInboundMentions, actorHostname } from '../utils/mentionParts.js';
 import {
   actorToProfile,
@@ -3166,7 +3167,7 @@ export class ActivityProcessor {
 
     let content: any;
     if (object['harmony:rawContent'] && Array.isArray(object['harmony:rawContent'])) {
-      content = normalizeInboundMentions(stripIncomingMediaPaths(object['harmony:rawContent']), actorHostname(actorUrl));
+      content = normalizeInboundMentions(withoutPollParts(stripIncomingMediaPaths(object['harmony:rawContent'])), actorHostname(actorUrl));
     } else if (typeof object.content === 'string') {
       content = noteToContent(object);
     } else if (Array.isArray(object.content)) {

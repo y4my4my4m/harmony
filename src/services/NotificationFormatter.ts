@@ -6,6 +6,7 @@
  */
 
 import { maskSpoilers } from '@/utils/spoiler'
+import { pollPreview } from '@/utils/messagePoll'
 import type { Notification } from '@/types'
 import { getAvatarUrl as utilGetAvatarUrl } from '@/utils/avatarUtils'
 import { debug } from '@/utils/debug'
@@ -57,6 +58,8 @@ function extractContentText(content: any): string | null {
     }
   }
   if (Array.isArray(content)) {
+    const poll = pollPreview(content)
+    if (poll) return maskSpoilers(poll)
     const text = content
       .map((part: any) => {
         if (part.type === 'text') return part.text

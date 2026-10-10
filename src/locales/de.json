@@ -3884,5 +3884,56 @@
     "placeholder": "Worum geht es in diesem Thread?",
     "submit": "Erstellen",
     "failed": "Der Thread konnte nicht erstellt werden."
+  },
+  "polls": {
+    "create": "Umfrage erstellen",
+    "createTitle": "Umfrage erstellen",
+    "question": "Frage",
+    "questionPlaceholder": "Was möchtest du fragen?",
+    "answers": "Antworten",
+    "answerPlaceholder": "Antwort {n}",
+    "addAnswer": "Antwort hinzufügen",
+    "removeAnswer": "Antwort entfernen",
+    "allowMultiple": "Mehrere Antworten erlauben",
+    "duration": "Dauer",
+    "durations": {
+      "h1": "1 Stunde",
+      "h4": "4 Stunden",
+      "h8": "8 Stunden",
+      "h24": "24 Stunden",
+      "h72": "3 Tage",
+      "h168": "1 Woche"
+    },
+    "post": "Umfrage posten",
+    "selectOne": "Wähle eine Antwort",
+    "selectMultiple": "Wähle eine oder mehrere Antworten",
+    "votes": "{count} Stimme | {count} Stimmen",
+    "timeLeft": {
+      "minutes": "Noch {count} Minute | Noch {count} Minuten",
+      "hours": "Noch {count} Stunde | Noch {count} Stunden",
+      "days": "Noch {count} Tag | Noch {count} Tage"
+    },
+    "closed": "Umfrage beendet",
+    "removeVote": "Stimme zurückziehen",
+    "showResults": "Ergebnisse anzeigen",
+    "hideResults": "Ergebnisse ausblenden",
+    "end": "Umfrage beenden",
+    "unavailable": "Diese Umfrage ist hier nicht verfügbar.",
+    "errors": {
+      "question": "Gib eine Frage mit 1 bis 300 Zeichen ein.",
+      "answers": "Füge 2 bis 10 Antworten hinzu.",
+      "answerLength": "Jede Antwort hat höchstens 100 Zeichen.",
+      "duplicate": "Jede Antwort muss sich unterscheiden.",
+      "encrypted": "Umfragen sind in Ende-zu-Ende-verschlüsselten Unterhaltungen nicht verfügbar.",
+      "slowmode": "Der Slowmode ist aktiv. Du kannst in {seconds} s wieder posten.",
+      "createFailed": "Die Umfrage wurde nicht gepostet.",
+      "voteFailed": "Deine Stimme wurde nicht gespeichert.",
+      "closed": "Diese Umfrage ist beendet.",
+      "endFailed": "Die Umfrage konnte nicht beendet werden."
+    },
+    "remote": {
+      "voters": "{count} Person hat abgestimmt | {count} Personen haben abgestimmt",
+      "voteOnOriginal": "Im Originalbeitrag abstimmen"
+    }
   }
 }

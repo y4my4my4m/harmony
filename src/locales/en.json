@@ -3880,5 +3880,56 @@
     "placeholder": "What is this thread about?",
     "submit": "Create",
     "failed": "Couldn't create the thread."
+  },
+  "polls": {
+    "create": "Create poll",
+    "createTitle": "Create a poll",
+    "question": "Question",
+    "questionPlaceholder": "What do you want to ask?",
+    "answers": "Answers",
+    "answerPlaceholder": "Answer {n}",
+    "addAnswer": "Add answer",
+    "removeAnswer": "Remove answer",
+    "allowMultiple": "Allow multiple answers",
+    "duration": "Duration",
+    "durations": {
+      "h1": "1 hour",
+      "h4": "4 hours",
+      "h8": "8 hours",
+      "h24": "24 hours",
+      "h72": "3 days",
+      "h168": "1 week"
+    },
+    "post": "Post poll",
+    "selectOne": "Select one answer",
+    "selectMultiple": "Select one or more answers",
+    "votes": "{count} vote | {count} votes",
+    "timeLeft": {
+      "minutes": "{count} minute left | {count} minutes left",
+      "hours": "{count} hour left | {count} hours left",
+      "days": "{count} day left | {count} days left"
+    },
+    "closed": "Poll closed",
+    "removeVote": "Remove vote",
+    "showResults": "Show results",
+    "hideResults": "Hide results",
+    "end": "End poll",
+    "unavailable": "This poll is not available here.",
+    "errors": {
+      "question": "Enter a question of 1 to 300 characters.",
+      "answers": "Add 2 to 10 answers.",
+      "answerLength": "Each answer is at most 100 characters.",
+      "duplicate": "Each answer must be different.",
+      "encrypted": "Polls are not available in end-to-end encrypted conversations.",
+      "slowmode": "Slowmode is on. You can post again in {seconds}s.",
+      "createFailed": "The poll was not posted.",
+      "voteFailed": "Your vote was not saved.",
+      "closed": "This poll has ended.",
+      "endFailed": "The poll could not be ended."
+    },
+    "remote": {
+      "voters": "{count} person voted | {count} people voted",
+      "voteOnOriginal": "Vote on the original post"
+    }
   }
 }

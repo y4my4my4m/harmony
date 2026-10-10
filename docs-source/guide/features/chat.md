@@ -172,6 +172,15 @@ function renderContent(content: string): string {
 }
 `
 
+### Polls
+
+A member posts a poll from the composer's + menu or `/poll`: a question, 2 to 10 answers, single or multiple choice, open for 1 hour to 7 days. End-to-end encrypted channels and DMs refuse polls.
+
+- `create_message_poll` inserts the message as the caller, so slowmode, timeouts, AutoMod and rules acceptance apply as to any message. The message holds a `poll` part and a text part spelling the poll out ("📊 question", numbered answers) for search, AutoMod, bots, bridges, federation and older clients.
+- `vote_message_poll` sets the caller's answers; an empty list removes the vote. `get_message_polls` returns counts and the caller's own answers; who voted for what is not exposed.
+- A vote broadcasts `poll_event` with the new counts on the message's realtime topic. The author may end a poll early with `end_message_poll`.
+- Poll messages are not editable. Other instances receive the text part only.
+
 ### Message Threading
 
 ```mermaid

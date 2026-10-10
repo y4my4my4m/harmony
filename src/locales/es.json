@@ -3884,5 +3884,56 @@
     "placeholder": "¿De qué trata este hilo?",
     "submit": "Crear",
     "failed": "No se pudo crear el hilo."
+  },
+  "polls": {
+    "create": "Crear encuesta",
+    "createTitle": "Crear una encuesta",
+    "question": "Pregunta",
+    "questionPlaceholder": "¿Qué quieres preguntar?",
+    "answers": "Respuestas",
+    "answerPlaceholder": "Respuesta {n}",
+    "addAnswer": "Añadir respuesta",
+    "removeAnswer": "Quitar respuesta",
+    "allowMultiple": "Permitir varias respuestas",
+    "duration": "Duración",
+    "durations": {
+      "h1": "1 hora",
+      "h4": "4 horas",
+      "h8": "8 horas",
+      "h24": "24 horas",
+      "h72": "3 días",
+      "h168": "1 semana"
+    },
+    "post": "Publicar encuesta",
+    "selectOne": "Elige una respuesta",
+    "selectMultiple": "Elige una o más respuestas",
+    "votes": "{count} voto | {count} votos",
+    "timeLeft": {
+      "minutes": "Queda {count} minuto | Quedan {count} minutos",
+      "hours": "Queda {count} hora | Quedan {count} horas",
+      "days": "Queda {count} día | Quedan {count} días"
+    },
+    "closed": "Encuesta cerrada",
+    "removeVote": "Retirar voto",
+    "showResults": "Ver resultados",
+    "hideResults": "Ocultar resultados",
+    "end": "Terminar encuesta",
+    "unavailable": "Esta encuesta no está disponible aquí.",
+    "errors": {
+      "question": "Escribe una pregunta de 1 a 300 caracteres.",
+      "answers": "Añade de 2 a 10 respuestas.",
+      "answerLength": "Cada respuesta tiene como máximo 100 caracteres.",
+      "duplicate": "Cada respuesta debe ser distinta.",
+      "encrypted": "Las encuestas no están disponibles en conversaciones con cifrado de extremo a extremo.",
+      "slowmode": "El modo lento está activo. Podrás publicar de nuevo en {seconds} s.",
+      "createFailed": "No se publicó la encuesta.",
+      "voteFailed": "No se guardó tu voto.",
+      "closed": "Esta encuesta ha terminado.",
+      "endFailed": "No se pudo terminar la encuesta."
+    },
+    "remote": {
+      "voters": "{count} persona votó | {count} personas votaron",
+      "voteOnOriginal": "Votar en la publicación original"
+    }
   }
 }
