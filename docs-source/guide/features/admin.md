@@ -77,6 +77,7 @@ Individual servers have their own settings managed by server owners:
 | Basic Info | `ServerBasicInfo` | Name, description, icon |
 | Newcomer alerts | `ServerNewcomerAlerts` | Alert the owner and moderators on a new member's first message; Manage Server |
 | Roles | `RoleManagement` | Role hierarchy with bigint permission bitmasks |
+| Audit log | `ServerAuditLog` | 90 days of channel, category, role, override, emoji, invite, bot and settings changes, role assignments, kicks, bans, timeouts and moderator message deletions, filterable by kind and member; the owner and View Audit Log |
 | Privacy | `ServerPrivacySettings` | Visibility, join requirements |
 | Encryption | `ServerEncryptionSettings` | Encryption mode (disabled/optional/required) |
 | Bots | `ServerBotsSettings` | Bot access and configuration |
