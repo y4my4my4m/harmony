@@ -8,6 +8,7 @@ import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import { stripIncomingMediaPaths } from '../utils/privateMedia.js';
+import { withoutPollParts } from '../utils/polls.js';
 import { normalizeInboundMentions, actorHostname } from '../utils/mentionParts.js';
 import config from '../config/index.js';
 import { validateExternalHostname, safeFetch } from '../utils/ssrfProtection.js';
@@ -889,7 +890,7 @@ router.get(
           // Use harmony:rawContent when available (preserves emoji structure, mentions, etc.)
           let cachedContent: any[];
           if (note['harmony:rawContent'] && Array.isArray(note['harmony:rawContent'])) {
-            cachedContent = normalizeInboundMentions(stripIncomingMediaPaths(note['harmony:rawContent']), actorHostname(authorUrl));
+            cachedContent = normalizeInboundMentions(withoutPollParts(stripIncomingMediaPaths(note['harmony:rawContent'])), actorHostname(authorUrl));
           } else if (note.content) {
             cachedContent = [{ type: 'text', text: note.content.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, ' ').replace(/[ \t]+/g, ' ').trim() }];
           } else {

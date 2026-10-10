@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { stripIncomingMediaPaths } from '../utils/privateMedia.js';
+import { mergeQuestionPoll, questionPollMetadata, withoutPollParts } from '../utils/polls.js';
 import { normalizeInboundMentions, actorHostname } from '../utils/mentionParts.js';
 import {
   actorToProfile,
@@ -1027,11 +1028,12 @@ export class ActivityProcessor {
         return null;
       }
 
-      // Only handle Note/Article types
-      if (remoteObject.type !== 'Note' && remoteObject.type !== 'Article') {
-        logger.warn(`Remote object is not a Note/Article: ${remoteObject.type}`);
+      // Question is a poll and is kept.
+      if (remoteObject.type !== 'Note' && remoteObject.type !== 'Article' && remoteObject.type !== 'Question') {
+        logger.warn(`Remote object is not a Note/Article/Question: ${remoteObject.type}`);
         return null;
       }
+      const isQuestion = remoteObject.type === 'Question';
 
       // Deduplicate by the canonical AP id; it may differ from the fetched URL.
       const apId = remoteObject.id;
@@ -1093,7 +1095,7 @@ export class ActivityProcessor {
       // The parent AP url is always stamped in metadata, even when resolution
       // failed (parent server unreachable). The client-side ancestor walker
       // retries from this hint.
-      const metadata: Record<string, any> = {};
+      const metadata: Record<string, any> = isQuestion ? { ...questionPollMetadata(remoteObject) } : {};
       if (remoteObject.inReplyTo) {
         metadata.in_reply_to_ap_url = remoteObject.inReplyTo;
       }
@@ -1102,6 +1104,7 @@ export class ActivityProcessor {
         .from('posts')
         .insert({
           ap_id: apId,
+          ...(isQuestion ? { ap_type: 'Question' } : {}),
           url: apUrl,
           author_id: author.id,
           content,
@@ -1267,6 +1270,8 @@ export class ActivityProcessor {
       } else {
         logger.info(`Updated post: ${object.id}`);
       }
+    } else if (object.type === 'Question') {
+      await this.processUpdateQuestion(actorUrl, object);
     } else if (object.type === 'ChatThread') {
       logger.info(`Routing Update ChatThread to handler: ${object.id}`);
       const { handleThreadActivity } = await import('./ThreadActivityHandler.js');
@@ -2255,49 +2260,23 @@ export class ActivityProcessor {
       return;
     }
 
-    const options = [];
-    
-    // oneOf = single choice, anyOf = multiple choice
-    const pollOptions = object.oneOf || object.anyOf || [];
-    const isMultipleChoice = !!object.anyOf;
-    
-    for (const option of pollOptions) {
-      if (option.type === 'Note') {
-        options.push({
-          name: option.name || '',
-          votes: option.replies?.totalItems || 0,
-        });
-      }
-    }
-
-    let endTime = null;
-    if (object.endTime) {
-      endTime = object.endTime;
-    } else if (object.closed) {
-      endTime = object.closed;
-    }
-
     const content = noteToContent(object);
     const visibility = this.determineVisibility(object);
 
-    const pollMetadata = {
-      is_poll: true,
-      poll_options: options,
-      poll_multiple_choice: isMultipleChoice,
-      poll_end_time: endTime,
-      poll_voters_count: object.votersCount || 0,
-      poll_closed: !!object.closed || (endTime && new Date(endTime) < new Date()),
-    };
-
+    // A repeated Create refreshes the poll keys; the post's other metadata stays.
     const { data: existingPoll } = await supabase
       .from('posts')
-      .select('id')
+      .select('id, author_id, metadata')
       .eq('ap_id', object.id)
       .maybeSingle();
 
     if (existingPoll) {
+      if (existingPoll.author_id !== author.id) {
+        logger.warn(`Create rejected: poll ${object.id} belongs to another author`);
+        return;
+      }
       const { error } = await supabase.from('posts')
-        .update({ metadata: pollMetadata })
+        .update({ metadata: mergeQuestionPoll(existingPoll.metadata, object) })
         .eq('id', existingPoll.id);
       if (error) {
         logger.error('Failed to update poll:', error);
@@ -2315,7 +2294,7 @@ export class ActivityProcessor {
         created_at: object.published || new Date().toISOString(),
         content_warning: object.summary || null,
         is_sensitive: object.sensitive === true,
-        metadata: pollMetadata,
+        metadata: questionPollMetadata(object),
         replies_count: object.replies?.totalItems || object.repliesCount || 0,
         favorites_count: object.likes?.totalItems || object.favouritesCount || 0,
         reblogs_count: object.shares?.totalItems || object.sharesCount || 0,
@@ -2324,8 +2303,54 @@ export class ActivityProcessor {
       if (error) {
         logger.error('Failed to create poll post:', error);
       } else {
-        logger.info(`Created poll: ${object.id} with ${options.length} options`);
+        logger.info(`Created poll: ${object.id}`);
       }
+    }
+  }
+
+  /**
+   * Update of a Question. Mastodon sends one as votes arrive and when the poll closes:
+   * the poll keys of posts.metadata are refreshed, every other key is kept. Only an Update
+   * carrying `updated` is an edit and rewrites the content.
+   */
+  private static async processUpdateQuestion(actorUrl: string, object: any): Promise<void> {
+    const supabase = getSupabaseClient();
+
+    const { data: existingPost } = await supabase
+      .from('posts')
+      .select('id, metadata, profiles:author_id(federated_id)')
+      .eq('ap_id', object.id)
+      .maybeSingle();
+
+    if (!existingPost) {
+      logger.warn(`Poll not found for update: ${object.id}`);
+      return;
+    }
+
+    const ownerActorUrl = (existingPost as any).profiles?.federated_id as string | null | undefined;
+    if (!ownerActorUrl || !SignatureService.verifyActorMatch(actorUrl, ownerActorUrl)) {
+      logger.warn(
+        `🚫 Update Question rejected: actor ${actorUrl} does not own post ${object.id} (owner=${ownerActorUrl ?? 'unknown'})`,
+      );
+      return;
+    }
+
+    const patch: Record<string, any> = {
+      ap_type: 'Question',
+      metadata: mergeQuestionPoll((existingPost as any).metadata, object),
+    };
+    if (object.updated) {
+      patch.content = noteToContent(object);
+      patch.content_warning = object.summary || null;
+      patch.is_sensitive = object.sensitive === true;
+      patch.updated_at = new Date().toISOString();
+    }
+
+    const { error } = await supabase.from('posts').update(patch).eq('id', existingPost.id);
+    if (error) {
+      logger.error('Failed to update poll:', error);
+    } else {
+      logger.info(`Updated poll: ${object.id}`);
     }
   }
 
@@ -3166,7 +3191,7 @@ export class ActivityProcessor {
 
     let content: any;
     if (object['harmony:rawContent'] && Array.isArray(object['harmony:rawContent'])) {
-      content = normalizeInboundMentions(stripIncomingMediaPaths(object['harmony:rawContent']), actorHostname(actorUrl));
+      content = normalizeInboundMentions(withoutPollParts(stripIncomingMediaPaths(object['harmony:rawContent'])), actorHostname(actorUrl));
     } else if (typeof object.content === 'string') {
       content = noteToContent(object);
     } else if (Array.isArray(object.content)) {

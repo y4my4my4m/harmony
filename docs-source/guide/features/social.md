@@ -38,6 +38,7 @@ Each post is rendered by `MonyPost`, which handles:
 - Content warning expand/collapse
 - Reply threading (`ThreadedPost`)
 - Embed detection (links, server invites)
+- Fediverse polls (`RemotePollCard`): answers with vote shares, voters and time left, as last reported by the origin server, which sends `Update(Question)` as votes arrive. Votes are cast on the original post.
 
 ## Interactions
 

@@ -54,6 +54,8 @@ export interface AutoSuggestConfig {
   enableChannels?: boolean;
   /** '/' suggests slash commands (chat mode). Off in message edits: a command acts on the composer. */
   enableCommands?: boolean;
+  /** '/poll' is offered while this returns true. */
+  pollsEnabled?: () => boolean;
   maxSuggestions?: number;
 }
 
@@ -523,6 +525,7 @@ export function useAutoSuggest(
     { id: 'cmd:clip', name: 'clip', description: 'Search KLIPY for a Clip', permission: '', params: [{ name: 'query', description: 'Search KLIPY for a Clip' }], enabled: () => instanceSettings.gifClipsEnabled },
     { id: 'cmd:meme', name: 'meme', description: 'Search KLIPY for a meme', permission: '', params: [{ name: 'query', description: 'Search KLIPY for a meme' }], enabled: () => instanceSettings.gifMemesEnabled },
     { id: 'cmd:aiemoji', name: 'aiemoji', description: 'Search KLIPY for an AI emoji', permission: '', params: [{ name: 'query', description: 'Search KLIPY for an AI emoji' }], enabled: () => instanceSettings.gifAiEmojisEnabled },
+    { id: 'cmd:poll', name: 'poll', description: 'Create a poll', permission: '', enabled: () => finalConfig.pollsEnabled?.() === true },
   ];
 
   const commandSuggestions = computed((): SuggestionItem[] => {

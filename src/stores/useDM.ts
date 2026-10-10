@@ -20,6 +20,7 @@ import { routeMessageEvent } from '@/stores/shared/realtimeMessageEvent'
 import { insertMessageSorted, evictOldestCacheEntry, trimCachedMessages, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils'
 import { isModerationRejectionCode } from '@/services/AutoModService'
 import { releaseFloatingVideo } from '@/composables/useFloatingVideo'
+import { useMessagePollsStore } from '@/stores/useMessagePolls'
 
 export interface DMUser {
   id: string
@@ -2505,6 +2506,7 @@ export const useDMStore = defineStore('dm', () => {
         broadcasts: [
           { event: 'reaction_event', handler: (payload) => void reactionsStore.handleRealtimeUpdate(payload) },
           { event: 'message_event', handler: handleMessageEvent },
+          { event: 'poll_event', handler: (payload) => useMessagePollsStore().applyRealtime(payload) },
         ],
 
         onInsert: handleMessageInsert,
@@ -3378,6 +3380,7 @@ export const useDMStore = defineStore('dm', () => {
     debugConversationQueries,
     checkMigrationStatus,
     
+    addMessageToCache,
     updateMessageInCache,
     patchMessageFields,
     reprocessEncryptedDMMessages,

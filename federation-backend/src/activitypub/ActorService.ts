@@ -18,6 +18,7 @@ import { noteDocumentSoftware } from './instanceSoftware.js';
 import { confirmActorAcct, parseAcct, resolveActorUrl, sameAcct, withCanonicalAcct, type WebFingerCache } from './webfingerClient.js';
 import { actorTombstone, deletedActorByProfile, deletedActorByUsername } from './deletedActors.js';
 import { parseFocalPoint } from '../utils/focalPoint.js';
+import { questionPollMetadata } from '../utils/polls.js';
 
 const router = Router();
 
@@ -2862,15 +2863,7 @@ async function fetchRecentPostsInBackground(
         const metadata: any = {};
         
         if (note.type === 'Question') {
-          const pollOptions = note.oneOf || note.anyOf || [];
-          metadata.is_poll = true;
-          metadata.poll_options = pollOptions.map((opt: any) => ({
-            name: opt.name || '',
-            votes: opt.replies?.totalItems || 0,
-          }));
-          metadata.poll_multiple_choice = !!note.anyOf;
-          metadata.poll_end_time = note.endTime || note.closed || null;
-          metadata.poll_closed = !!note.closed;
+          Object.assign(metadata, questionPollMetadata(note));
         }
         
         // Quote target: Mastodon quoteUrl/quoteUri, Misskey _misskey_quote.

@@ -576,6 +576,12 @@
             ><DisplayName :userId="part.user.id" :fallback="part.user.display_name || part.user.username" /></span> {{ part.event_type }}
           </template>
         </span>
+
+        <PollCard
+          v-else-if="part && typeof part === 'object' && part.type === 'poll'"
+          :poll="part"
+          :message-id="messageId"
+        />
       </template>
     </div>
 
@@ -617,6 +623,7 @@ import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.v
 import MediaUploadProgress from '@/components/common/MediaUploadProgress.vue';
 import Icon from '@/components/common/Icon.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
+import PollCard from '@/components/polls/PollCard.vue';
 import { groupMediaGalleryParts } from '@/utils/mediaGalleryUtils';
 import { undecryptedDisplayParts } from '@/utils/channelEncryption';
 import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
@@ -633,6 +640,7 @@ import { gifService } from '@/services/GifService';
 import { debug } from '@/utils/debug';
 import { sanitizeUrl } from '@/utils/sanitize';
 import { isSpoilerFileName } from '@/utils/spoiler';
+import { pollPartOf } from '@/utils/messagePoll';
 import { renderChatMessageText } from '@/utils/chatMessageTextRenderer';
 import { useVisualTheme } from '@/composables/useVisualTheme';
 import { BRIDGED_DISCORD_USER_ID_PREFIX } from '@/services/bridgedChannelUsersService';
@@ -663,6 +671,7 @@ export default defineComponent({
     ConfirmationModal,
     EncryptedGlyphPreview,
     Icon,
+    PollCard,
   },
   props: {
     content: {
@@ -991,10 +1000,14 @@ export default defineComponent({
     };
 
     // An undecrypted message renders its ciphertext part alone: the mention
-    // parts stored beside it are server metadata, not message content.
+    // parts stored beside it are server metadata, not message content. A poll
+    // renders its card alone: the text part beside it spells the poll out for
+    // text-only readers.
     const displayContent = computed(() =>
       props.encrypted && !props.decrypted
         ? undecryptedDisplayParts(props.content)
+        : pollPartOf(props.content)
+        ? props.content.filter((part) => part && typeof part === 'object' && part.type === 'poll')
         : groupMediaGalleryParts(
             coalesceInlineContentForMarkdown(
               embedsSuppressed.value

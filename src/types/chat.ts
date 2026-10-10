@@ -401,9 +401,22 @@ export interface SystemContent {
   timestamp: string;
 }
 
+/**
+ * A poll, as posted. message_polls holds its answers, votes and current end;
+ * the message's text part spells the poll out for text-only readers.
+ */
+export interface PollContent {
+  type: 'poll';
+  pollId: string;
+  question: string;
+  options?: string[];
+  allowMultiple?: boolean;
+  expiresAt?: string | null;
+}
+
 export type EncryptedPayloadMap = Record<string, string>
 
-export type MessagePart = TextContent | UrlContent | EmbedContent | MentionContent | RoleMentionContent | EmojiContent | HashtagContent | ChannelMentionContent | FileContent | SystemContent;
+export type MessagePart = TextContent | UrlContent | EmbedContent | MentionContent | RoleMentionContent | EmojiContent | HashtagContent | ChannelMentionContent | FileContent | SystemContent | PollContent;
 
 export interface Reaction {
   id: string;

@@ -694,6 +694,7 @@ import type { PropType, Ref, ComputedRef } from 'vue';
 import type { Message, MessagePart, User, Emoji, FileContent, ReactionActor, ReactionGroup } from '@/types';
 import { hasSubstantiveMessageContent, removeFilePartByUrl } from '@/utils/messageContentUtils';
 import { isBridgedAuthorMessage } from '@/utils/messageAuthor';
+import { pollPartOf } from '@/utils/messagePoll';
 import { ensureMediaPartSources, isPrivateMediaPart, mediaLoadKey, mediaPartSource } from '@/services/privateMedia';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
@@ -2977,6 +2978,8 @@ const canEditMessage = (message: Message) => {
   // A relayed message's author lives on the bridged platform; an edit made
   // here never reaches that copy. Applies to admins and moderators too.
   if (isBridgedAuthorMessage(message)) return false;
+  // guard_message_poll_parts refuses edits of a poll.
+  if (pollPartOf(message.content)) return false;
 
   // Only the author edits; owners, staff and Manage Messages may only delete
   // (guard_message_client_write).

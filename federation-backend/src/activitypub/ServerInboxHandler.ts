@@ -8,6 +8,7 @@
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { stripIncomingMediaPaths } from '../utils/privateMedia.js';
+import { withoutPollParts } from '../utils/polls.js';
 import { normalizeInboundMentions, actorHostname } from '../utils/mentionParts.js';
 import { ActivityProcessor } from './ActivityProcessor.js';
 import { DeliveryQueue } from './DeliveryQueue.js';
@@ -148,11 +149,11 @@ export async function actorOwnsMessage(
 
 /**
  * Incoming `harmony:rawContent`: mention locality re-derived for this
- * instance (normalizeInboundMentions). File parts lose `path`, which only
- * this instance's own content may carry.
+ * instance (normalizeInboundMentions). File parts lose `path` and poll parts
+ * are dropped: both name rows of the sending instance only.
  */
 function normalizeMentionDomains(content: any[], senderUrl: unknown): any[] {
-  return normalizeInboundMentions(stripIncomingMediaPaths(content), actorHostname(senderUrl));
+  return normalizeInboundMentions(withoutPollParts(stripIncomingMediaPaths(content)), actorHostname(senderUrl));
 }
 
 // MAIN HANDLER

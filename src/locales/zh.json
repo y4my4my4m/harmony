@@ -4013,6 +4013,57 @@
     "submit": "创建",
     "failed": "无法创建话题。"
   },
+  "polls": {
+    "create": "创建投票",
+    "createTitle": "创建投票",
+    "question": "问题",
+    "questionPlaceholder": "你想问什么？",
+    "answers": "选项",
+    "answerPlaceholder": "选项 {n}",
+    "addAnswer": "添加选项",
+    "removeAnswer": "删除选项",
+    "allowMultiple": "允许多选",
+    "duration": "时长",
+    "durations": {
+      "h1": "1 小时",
+      "h4": "4 小时",
+      "h8": "8 小时",
+      "h24": "24 小时",
+      "h72": "3 天",
+      "h168": "1 周"
+    },
+    "post": "发布投票",
+    "selectOne": "选择一个选项",
+    "selectMultiple": "选择一个或多个选项",
+    "votes": "{count} 票",
+    "timeLeft": {
+      "minutes": "剩余 {count} 分钟",
+      "hours": "剩余 {count} 小时",
+      "days": "剩余 {count} 天"
+    },
+    "closed": "投票已结束",
+    "removeVote": "撤回投票",
+    "showResults": "查看结果",
+    "hideResults": "隐藏结果",
+    "end": "结束投票",
+    "unavailable": "此投票在这里不可用。",
+    "errors": {
+      "question": "请输入 1 到 300 个字符的问题。",
+      "answers": "请添加 2 到 10 个选项。",
+      "answerLength": "每个选项最多 100 个字符。",
+      "duplicate": "每个选项必须各不相同。",
+      "encrypted": "端到端加密的对话中无法使用投票。",
+      "slowmode": "慢速模式已开启，{seconds} 秒后可再次发布。",
+      "createFailed": "投票未能发布。",
+      "voteFailed": "你的投票未能保存。",
+      "closed": "此投票已结束。",
+      "endFailed": "无法结束投票。"
+    },
+    "remote": {
+      "voters": "{count} 人已投票",
+      "voteOnOriginal": "在原帖中投票"
+    }
+  },
   "serverTemplate": {
     "exportTitle": "服务器模板",
     "exportDescription": "将此服务器的结构下载为文件：角色及其权限、分类、频道及其权限、设置、欢迎界面和 AutoMod 规则。任何人都可以用它创建新服务器。",

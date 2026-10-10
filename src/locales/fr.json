@@ -4013,6 +4013,57 @@
     "submit": "Créer",
     "failed": "Impossible de créer le fil."
   },
+  "polls": {
+    "create": "Créer un sondage",
+    "createTitle": "Créer un sondage",
+    "question": "Question",
+    "questionPlaceholder": "Que voulez-vous demander ?",
+    "answers": "Réponses",
+    "answerPlaceholder": "Réponse {n}",
+    "addAnswer": "Ajouter une réponse",
+    "removeAnswer": "Retirer la réponse",
+    "allowMultiple": "Autoriser plusieurs réponses",
+    "duration": "Durée",
+    "durations": {
+      "h1": "1 heure",
+      "h4": "4 heures",
+      "h8": "8 heures",
+      "h24": "24 heures",
+      "h72": "3 jours",
+      "h168": "1 semaine"
+    },
+    "post": "Publier le sondage",
+    "selectOne": "Choisissez une réponse",
+    "selectMultiple": "Choisissez une ou plusieurs réponses",
+    "votes": "{count} vote | {count} votes",
+    "timeLeft": {
+      "minutes": "{count} minute restante | {count} minutes restantes",
+      "hours": "{count} heure restante | {count} heures restantes",
+      "days": "{count} jour restant | {count} jours restants"
+    },
+    "closed": "Sondage terminé",
+    "removeVote": "Retirer mon vote",
+    "showResults": "Voir les résultats",
+    "hideResults": "Masquer les résultats",
+    "end": "Terminer le sondage",
+    "unavailable": "Ce sondage n'est pas disponible ici.",
+    "errors": {
+      "question": "Saisissez une question de 1 à 300 caractères.",
+      "answers": "Ajoutez de 2 à 10 réponses.",
+      "answerLength": "Chaque réponse fait au plus 100 caractères.",
+      "duplicate": "Chaque réponse doit être différente.",
+      "encrypted": "Les sondages ne sont pas disponibles dans les conversations chiffrées de bout en bout.",
+      "slowmode": "Le mode lent est actif. Vous pourrez publier à nouveau dans {seconds} s.",
+      "createFailed": "Le sondage n'a pas été publié.",
+      "voteFailed": "Votre vote n'a pas été enregistré.",
+      "closed": "Ce sondage est terminé.",
+      "endFailed": "Impossible de terminer le sondage."
+    },
+    "remote": {
+      "voters": "{count} personne a voté | {count} personnes ont voté",
+      "voteOnOriginal": "Voter sur la publication d'origine"
+    }
+  },
   "serverTemplate": {
     "exportTitle": "Modèle de serveur",
     "exportDescription": "Téléchargez la structure de ce serveur sous forme de fichier : rôles et leurs permissions, catégories, canaux et leurs permissions, paramètres, écran d'accueil et règles AutoMod. N'importe qui peut en créer un nouveau serveur.",
