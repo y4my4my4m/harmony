@@ -13,13 +13,20 @@ import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { validateExternalHostname, validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 import { discoveryLimiter } from '../middleware/rateLimit.js';
-import { actorOwnsKeys, fetchAuthoritativeDocument, readApDocument, sameOrigin } from '../utils/apOrigin.js';
+import { actorOwnsKeys, fetchAuthoritativeDocument, readApDocument, sameOrigin, urlHost, type FetchedDocument } from '../utils/apOrigin.js';
+import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
+import { crawlReplies, DEFAULT_REPLY_CRAWL, storeReplies, type ReplyCrawl, type ReplyStore } from './repliesCollection.js';
 import { noteDocumentSoftware } from './instanceSoftware.js';
 import { confirmActorAcct, parseAcct, resolveActorUrl, sameAcct, withCanonicalAcct, type WebFingerCache } from './webfingerClient.js';
 import { actorTombstone, deletedActorByProfile, deletedActorByUsername } from './deletedActors.js';
 import { parseFocalPoint } from '../utils/focalPoint.js';
 import { questionPollMetadata } from '../utils/polls.js';
 import { movedColumns } from './accountMigration.js';
+import { pgrstOrValue } from '../utils/postgrestFilter.js';
+import {
+  collectionTotal, engagementColumns, fetchProfileCounts, misskeyNoteTotals, noteEngagementColumns,
+  noteEngagementTotals, profileCountColumns, profileCountsStale, refreshRemoteProfileCounts,
+} from './remoteCounts.js';
 
 const router = Router();
 
@@ -170,39 +177,14 @@ export async function resolveRemoteAccount(username: string, domain: string): Pr
     }
     logger.info(`Actor fetched: ${actor.preferredUsername || actor.name}`);
     
-    // Step 3: Fetch follower/following/posts counts from collections
-    let followersCount = 0;
-    let followingCount = 0;
-    let postsCount = 0;
-
-    const fetchCollectionCount = async (url: string): Promise<number> => {
-      try {
-        const response = await SignatureService.signedApFetch(url, {
-          headers: { 
-            'Accept': 'application/activity+json, application/ld+json',
-            'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
-          },
-          timeoutMs: 5000,
-        });
-        if (!response.ok) return 0;
-        const collection = await response.json();
-        return collection.totalItems || 0;
-      } catch {
-        return 0;
-      }
-    };
-
-    const [followers, following, posts] = await Promise.all([
-      actor.followers ? fetchCollectionCount(actor.followers) : Promise.resolve(0),
-      actor.following ? fetchCollectionCount(actor.following) : Promise.resolve(0),
-      actor.outbox ? fetchCollectionCount(actor.outbox) : Promise.resolve(0),
-    ]);
-
-    followersCount = followers;
-    followingCount = following;
-    postsCount = posts;
-
-    logger.info(`Stats: ${postsCount} posts, ${followingCount} following, ${followersCount} followers`);
+    // Step 3: the actor's collection totals, stored apart from the local counters.
+    const countColumns = profileCountColumns(await fetchProfileCounts({
+      federated_id: actor.id,
+      outbox_url: typeof actor.outbox === 'string' ? actor.outbox : actor.outbox?.id,
+      followers_url: typeof actor.followers === 'string' ? actor.followers : actor.followers?.id,
+      following_url: typeof actor.following === 'string' ? actor.following : actor.following?.id,
+    }));
+    logger.info(`Stats: ${countColumns.remote_posts_count ?? '-'} posts, ${countColumns.remote_following_count ?? '-'} following, ${countColumns.remote_followers_count ?? '-'} followers`);
 
     // Step 4: Convert and store the profile
     logger.debug(`Actor has tag array: ${Array.isArray(actor.tag)}, length: ${actor.tag?.length || 0}`);
@@ -309,9 +291,7 @@ export async function resolveRemoteAccount(username: string, domain: string): Pr
       profileRecord.federation_metadata = JSON.stringify(federationMetadata);
     }
 
-    if (followersCount > 0) profileRecord.followers_count = followersCount;
-    if (followingCount > 0) profileRecord.following_count = followingCount;
-    if (postsCount > 0) profileRecord.posts_count = postsCount;
+    Object.assign(profileRecord, countColumns);
 
     // Keyed by actor id: a row stored under the actor's host before its
     // canonical account was known moves to that account.
@@ -459,18 +439,21 @@ router.post(
             (Date.now() - new Date(existingUser.last_federation_sync).getTime()) > 5 * 60 * 1000
           );
           
-          if (shouldFetchPosts) {
-            logger.info(`Triggering background post fetch for cached user ${username}@${domain}`);
-            fetchRecentPostsInBackground(existingUser.id, existingUser.outbox_url, supabase).catch(err => {
-              logger.warn(`Background post fetch failed for ${username}@${domain}:`, err.message);
-            });
+          const backfilling = !!shouldFetchPosts
+            && startOutboxBackfill(existingUser.id, existingUser.outbox_url, supabase, `${username}@${domain}`);
+
+          // Collection totals older than PROFILE_COUNTS_TTL_MS are read again before answering.
+          if (!existingUser.is_local && profileCountsStale(existingUser)) {
+            const columns = await refreshRemoteProfileCounts(supabase, existingUser);
+            if (columns) Object.assign(existingUser, columns);
           }
           
           return res.json({
             success: true,
             user: existingUser,
             outbox_url: existingUser.outbox_url, // Always include for pagination
-            cached: true
+            cached: true,
+            backfilling,
           });
         }
       }
@@ -484,18 +467,16 @@ router.post(
 
     logger.info(`${forceRefresh ? 'Refreshed' : 'Created'} remote user: ${username}@${domain}`);
     
-    if (actor.outbox) {
-      fetchRecentPostsInBackground(savedUser.id, actor.outbox, supabase).catch(err => {
-        logger.warn(`Background post fetch failed for ${username}@${domain}:`, err.message);
-      });
-    }
+    const backfilling = typeof actor.outbox === 'string'
+      && startOutboxBackfill(savedUser.id, actor.outbox, supabase, `${username}@${domain}`);
     
     return res.json({
       success: true,
       user: savedUser,
       outbox_url: actor.outbox, // Include for pagination
       cached: false,
-      refreshed: forceRefresh || false
+      refreshed: forceRefresh || false,
+      backfilling,
     });
   })
 );
@@ -1000,6 +981,12 @@ async function fetchMisskeyReactions(
           thirdPartyEmojis = noteData.reactionEmojis;
           logger.info(`Found ${Object.keys(thirdPartyEmojis).length} third-party emoji definitions`);
         }
+        if (postId) {
+          const columns = engagementColumns(misskeyNoteTotals(noteData));
+          if (Object.keys(columns).length > 0) {
+            await supabase.from('posts').update(columns).eq('id', postId);
+          }
+        }
       }
     } catch (e) {
       logger.warn(`Could not fetch note emoji definitions: ${e}`);
@@ -1200,11 +1187,9 @@ async function fetchMisskeyReactions(
         }>;
       }> = {};
       
-      // Misskey's like is its heart reaction; it is this post's favourite count.
-      let heartCount = 0;
+      // Misskey's like is its heart reaction, counted in favorites_count from notes/show.
       for (const [emoji, data] of reactionCounts) {
         if (!data.is_custom && isHeartReaction(emoji)) {
-          heartCount += data.count;
           continue;
         }
         // Misskey keys are :name@.: or :name@domain:; the frontend expects :name:.
@@ -1228,10 +1213,7 @@ async function fetchMisskeyReactions(
       
       const { error: updateError } = await supabase
         .from('posts')
-        .update({ 
-          metadata: updatedMetadata,
-          favorites_count: heartCount,
-        })
+        .update({ metadata: updatedMetadata })
         .eq('id', postId);
       
       if (updateError) {
@@ -1318,11 +1300,11 @@ async function _fetchRemotePostReactionsImpl(
 
     // Standard ActivityPub path.
     //
-    // Mastodon, Pleroma, Akkoma, GoToSocial, Friendica, Pixelfed and Harmony
-    // serialize a Note's likes collection at `${ap_id}/likes`. That URL is
-    // tried first to skip the post-object roundtrip. A non-OK response falls
-    // back to fetching the post and reading its `likes` property, which keeps
-    // non-conventional AP implementations working.
+    // The post object carries the likes, shares and replies totals (Mastodon embeds likes
+    // and shares as collections holding totalItems only); the three are stored together as
+    // the post's origin figures. The likes collection is then read for its items: embedded,
+    // at the URL the post names, or at `${ap_id}/likes`, where Pleroma, Akkoma, GoToSocial,
+    // Friendica, Pixelfed and Harmony serve it.
     //
     // BUGS.md H15: postApId is attacker-influenced (inbox / remote feed);
     // every outbound call goes through safeFetch for SSRF protection.
@@ -1331,94 +1313,43 @@ async function _fetchRemotePostReactionsImpl(
       'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`,
     } as const;
 
-    let likesCollection: any = null;
-    let likesCollectionUrl = `${postApId}/likes`;
-
-    const shortcutResponse = await SignatureService.signedApFetch(likesCollectionUrl, {
+    const postResponse = await SignatureService.signedApFetch(postApId, {
       headers: apHeaders,
       timeoutMs: 10000,
     });
 
-    if (shortcutResponse.ok) {
-      likesCollection = await shortcutResponse.json();
+    if (!postResponse.ok) {
+      logger.warn(`Failed to fetch post: ${postResponse.status}`);
+      // 404 / 410 / unauthorized is sticky for the TTL window; a known-dead
+      // post is not re-hit on the next feed refresh.
+      await markRemoteReactionsAttempted(postId, supabase);
+      return [];
+    }
+
+    const post = await postResponse.json();
+    const totals = noteEngagementTotals(post);
+    const storeTotals = async () => {
+      const columns = engagementColumns(totals);
+      if (postId && Object.keys(columns).length > 0) {
+        await supabase.from('posts').update(columns).eq('id', postId);
+      }
+    };
+
+    let likesCollection: any = null;
+    const likesRef = post.likes ?? post.reactions;
+    const embeddedLikes = likesRef && typeof likesRef === 'object'
+      && (likesRef.first !== undefined || Array.isArray(likesRef.items) || Array.isArray(likesRef.orderedItems)
+        || collectionTotal(likesRef) !== null);
+    if (embeddedLikes) {
+      likesCollection = likesRef;
     } else {
-      logger.debug(
-        `📬 /likes shortcut returned ${shortcutResponse.status} for ${postApId}; discovering URL via post object`
-      );
-
-      const postResponse = await SignatureService.signedApFetch(postApId, {
-        headers: apHeaders,
-        timeoutMs: 10000,
-      });
-
-      if (!postResponse.ok) {
-        logger.warn(`Failed to fetch post: ${postResponse.status}`);
-        // 404 / 410 / unauthorized is sticky for the TTL window; a known-dead
-        // post is not re-hit on the next feed refresh.
-        await markRemoteReactionsAttempted(postId, supabase);
-        return [];
-      }
-
-      const post = await postResponse.json();
-
-      // Fallback path only: the post object is already fetched, so
-      // favourites/replies/shares counts are salvaged from it. On the
-      // shortcut path counts stay current via inbound /inbox events.
-      const counts = {
-        likes: post.likes?.totalItems || post.favouritesCount || post._misskey_likes || 0,
-        replies: post.replies?.totalItems || post.repliesCount || 0,
-        shares: post.shares?.totalItems || post.sharesCount || 0,
-      };
-      if (postId && (counts.likes > 0 || counts.replies > 0 || counts.shares > 0)) {
-        const [{ count: pendingFavs }, { count: pendingShares }, { count: pendingReplies }] =
-          await Promise.all([
-            supabase
-              .from('post_interactions')
-              .select('*', { count: 'exact', head: true })
-              .eq('post_id', postId)
-              .eq('is_local', true)
-              .eq('interaction_type', 'favorite')
-              // PostgREST not.in drops NULL rows; legacy rows may have NULL status.
-              // A skipped row is never delivered.
-              .or('federation_status.is.null,federation_status.not.in.(completed,skipped)'),
-            supabase
-              .from('post_interactions')
-              .select('*', { count: 'exact', head: true })
-              .eq('post_id', postId)
-              .eq('is_local', true)
-              .eq('interaction_type', 'reblog')
-              .or('federation_status.is.null,federation_status.not.in.(completed,skipped)'),
-            supabase
-              .from('posts')
-              .select('*', { count: 'exact', head: true })
-              .eq('in_reply_to', postId)
-              .eq('is_local', true)
-              .eq('is_deleted', false)
-              .or('federation_status.is.null,federation_status.neq.completed'),
-          ]);
-        await supabase
-          .from('posts')
-          .update({
-            favorites_count: counts.likes + (pendingFavs || 0),
-            replies_count: counts.replies + (pendingReplies || 0),
-            reblogs_count: counts.shares + (pendingShares || 0),
-          })
-          .eq('id', postId);
-      }
-
-      const likesUrl = post.likes || post.reactions || post._misskey_likes;
-      if (!likesUrl) {
-        logger.info(
-          `📬 No likes collection found for post (available: ${Object.keys(post).filter(k => k.includes('like') || k.includes('reaction')).join(', ') || 'none'})`
-        );
-        await markRemoteReactionsAttempted(postId, supabase);
-        return [];
-      }
-      likesCollectionUrl = typeof likesUrl === 'string' ? likesUrl : likesUrl.id;
-
+      const likesCollectionUrl = typeof likesRef === 'string' ? likesRef
+        : typeof likesRef?.id === 'string' ? likesRef.id
+        : `${postApId}/likes`;
       try {
         if (new URL(likesCollectionUrl).hostname === config.INSTANCE_DOMAIN) {
           logger.info(`Skipping self-fetch for likes: ${likesCollectionUrl}`);
+          await storeTotals();
           await markRemoteReactionsAttempted(postId, supabase);
           return [];
         }
@@ -1428,26 +1359,22 @@ async function _fetchRemotePostReactionsImpl(
         headers: apHeaders,
         timeoutMs: 10000,
       });
-      if (!likesResponse.ok) {
-        logger.warn(`Failed to fetch likes collection: ${likesResponse.status}`);
-        await markRemoteReactionsAttempted(postId, supabase);
-        return [];
+      if (likesResponse.ok) {
+        likesCollection = await likesResponse.json();
+        totals.likes = collectionTotal(likesCollection) ?? totals.likes;
+      } else {
+        logger.debug(`📬 No likes collection at ${likesCollectionUrl}: ${likesResponse.status}`);
       }
-      likesCollection = await likesResponse.json();
     }
 
-    // favorites_count from the collection's own totalItems. Applies to both
-    // paths and is a single-column write, unlike the counts update above.
-    // A collection enumerated in full is recounted below without its reactions.
-    const totalLikes: number | null =
-      typeof likesCollection?.totalItems === 'number' ? likesCollection.totalItems : null;
-    if (postId && totalLikes !== null) {
-      await supabase
-        .from('posts')
-        .update({ favorites_count: totalLikes })
-        .eq('id', postId);
+    if (!likesCollection) {
+      await storeTotals();
+      await markRemoteReactionsAttempted(postId, supabase);
+      return [];
     }
-    
+
+    const totalLikes: number | null = collectionTotal(likesCollection);
+
     let items: any[] = [];
     
     if (likesCollection.orderedItems) {
@@ -1455,21 +1382,23 @@ async function _fetchRemotePostReactionsImpl(
     } else if (likesCollection.items) {
       items = likesCollection.items;
     } else if (likesCollection.first) {
-      const firstPageUrl = typeof likesCollection.first === 'string' 
-        ? likesCollection.first 
-        : likesCollection.first.id;
-      
-      const pageResponse = await SignatureService.signedApFetch(firstPageUrl, {
-        headers: {
-          'Accept': 'application/activity+json, application/ld+json',
-          'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
-        },
-        timeoutMs: 10000,
-      });
-
-      if (pageResponse.ok) {
-        const page = await pageResponse.json();
-        items = page.orderedItems || page.items || [];
+      const first = likesCollection.first;
+      if (typeof first === 'object' && (Array.isArray(first.orderedItems) || Array.isArray(first.items))) {
+        items = first.orderedItems || first.items;
+      } else {
+        const firstPageUrl = typeof first === 'string' ? first : first.id;
+        try {
+          const pageResponse = await SignatureService.signedApFetch(firstPageUrl, {
+            headers: apHeaders,
+            timeoutMs: 10000,
+          });
+          if (pageResponse.ok) {
+            const page = await pageResponse.json();
+            items = page.orderedItems || page.items || [];
+          }
+        } catch (err) {
+          logger.debug(`Likes page ${firstPageUrl} unreadable: ${err}`);
+        }
       }
     }
 
@@ -1608,12 +1537,11 @@ async function _fetchRemotePostReactionsImpl(
       }
     }
 
-    if (postId && totalLikes !== null && items.length >= totalLikes && items.length <= 50) {
-      await supabase
-        .from('posts')
-        .update({ favorites_count: favouriteItems })
-        .eq('id', postId);
+    // A collection enumerated in full counts its favourites without its emoji reactions.
+    if (totalLikes !== null && items.length >= totalLikes && items.length <= 50) {
+      totals.likes = favouriteItems;
     }
+    await storeTotals();
 
     logger.info(`Processed ${reactions.length} reactions for post`);
     return reactions;
@@ -1624,497 +1552,230 @@ async function _fetchRemotePostReactionsImpl(
   }
 }
 
+// Reply crawls of one post: one at a time, the next no sooner than REPLY_CRAWL_COOLDOWN_MS
+// after the last, or FORCED_REPLY_CRAWL_COOLDOWN_MS when the reader asks for it. A crawl
+// costs up to DEFAULT_REPLY_CRAWL.maxPages + maxReplies + 1 requests, so at most
+// MAX_REPLY_CRAWLS run at once across all posts.
+const REPLY_CRAWL_COOLDOWN_MS = 15 * 60 * 1000;
+const FORCED_REPLY_CRAWL_COOLDOWN_MS = 60 * 1000;
+const MAX_REPLY_CRAWLS = 4;
+const lastReplyCrawls = new Map<string, number>();
+const inflightReplyCrawls = new Map<string, Promise<RemoteReplyFetch>>();
+
+type RemoteReplyFetch = Omit<ReplyCrawl, 'status'> & {
+  /** 'unavailable': the post could not be read from its origin. */
+  status: ReplyCrawl['status'] | 'unavailable';
+};
+
+function noteReplyCrawl(postApId: string, now: number): void {
+  lastReplyCrawls.set(postApId, now);
+  if (lastReplyCrawls.size > 5000) {
+    for (const [key, at] of lastReplyCrawls) {
+      if (now - at >= REPLY_CRAWL_COOLDOWN_MS) lastReplyCrawls.delete(key);
+    }
+  }
+}
+
+/** Signed GET as the instance actor; blocked hosts are not contacted. */
+const fetchSignedDocument = (url: string): Promise<FetchedDocument | null> => ActivityProcessor.fetchApDocument(url);
+
+function replyStore(supabase: any): ReplyStore {
+  return {
+    isBlockedHost: (host) => BlockedInstancesCache.isBlocked(host),
+    existing: async (ids) => {
+      const { data } = await supabase.from('posts').select('ap_id').in('ap_id', ids);
+      return new Set((data || []).map((row: { ap_id: string }) => row.ap_id));
+    },
+    storeById: async (id) => (await ActivityProcessor.fetchAndCreateRemotePost(id)) ? 'stored' : 'skipped',
+    storeObject: async (object) => (await ActivityProcessor.storeRemotePost(object)) ? 'stored' : 'skipped',
+  };
+}
+
 /**
  * Fetch replies for a remote post
  * POST /fetch-replies (proxied via /api/federation/fetch-replies)
- * Body: { post_ap_id: string, post_id?: string, limit?: number }
+ * Body: { post_ap_id: string, post_id?: string, limit?: number, force?: boolean }
+ *
+ * Reads the post from its origin, stores its likes, shares and replies figures, and stores
+ * the replies its collection lists (DEFAULT_REPLY_CRAWL bounds, `limit` lowering the reply
+ * bound). `force` is the reader asking from the post menu: it shortens the cooldown.
+ * Status 'recent' answers a request inside the cooldown without a crawl; 503 'busy' one that
+ * finds MAX_REPLY_CRAWLS running.
  */
 router.post(
   '/fetch-replies',
   discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
-    const { post_ap_id, post_id, limit = 10 } = req.body;
+    const { post_ap_id, limit, force } = req.body;
 
-    if (!post_ap_id) {
+    if (!post_ap_id || typeof post_ap_id !== 'string') {
       return res.status(400).json({ error: 'post_ap_id is required' });
     }
-
-    const supabase = getSupabaseClient();
 
     // Local posts already hold their replies in the database.
     try {
       const apDomain = new URL(post_ap_id).hostname;
       if (apDomain === config.INSTANCE_DOMAIN) {
         logger.debug(`Skipping fetch-replies for local post: ${post_ap_id}`);
-        return res.json({ success: true, replies: [], count: 0 });
+        return res.json({ success: true, status: 'ok', replies: [], count: 0 });
       }
-    } catch { /* invalid URL, proceed */ }
+    } catch { /* invalid URL, rejected below */ }
+    try {
+      validateExternalUrl(post_ap_id);
+    } catch {
+      return res.status(400).json({ error: 'Invalid or disallowed post_ap_id' });
+    }
 
-    logger.info(`Fetching replies for remote post: ${post_ap_id}`);
+    const supabase = getSupabaseClient();
+
+    // The figures are written to the row stored under post_ap_id; post_id is not trusted
+    // to name it.
+    const { data: stored } = await supabase
+      .from('posts')
+      .select('id')
+      .or(`ap_id.eq.${pgrstOrValue(post_ap_id)},url.eq.${pgrstOrValue(post_ap_id)}`)
+      .eq('is_deleted', false)
+      .limit(1)
+      .maybeSingle();
+    const postId: string | undefined = stored?.id ?? undefined;
+
+    const maxReplies = Math.max(1, Math.min(Number(limit) || DEFAULT_REPLY_CRAWL.maxReplies, DEFAULT_REPLY_CRAWL.maxReplies));
+    const now = Date.now();
+    const last = lastReplyCrawls.get(post_ap_id);
+    const cooldown = force === true ? FORCED_REPLY_CRAWL_COOLDOWN_MS : REPLY_CRAWL_COOLDOWN_MS;
+
+    let result: RemoteReplyFetch | null = null;
+    let crawl = inflightReplyCrawls.get(post_ap_id);
+    const due = last === undefined || now - last >= cooldown;
+    if (!crawl && due && inflightReplyCrawls.size >= MAX_REPLY_CRAWLS) {
+      return res.status(503).json({ success: false, status: 'busy', error: 'Too many reply fetches running' });
+    }
+    if (!crawl && due) {
+      noteReplyCrawl(post_ap_id, now);
+      logger.info(`Fetching replies for remote post: ${post_ap_id}`);
+      crawl = fetchRemotePostReplies(post_ap_id, postId, supabase, maxReplies)
+        .finally(() => inflightReplyCrawls.delete(post_ap_id));
+      inflightReplyCrawls.set(post_ap_id, crawl);
+    }
 
     try {
-      const replies = await fetchRemotePostReplies(post_ap_id, post_id, supabase, Math.min(limit, 20));
-
-      let updatedCounts: any = {};
-      if (post_id) {
-        const { data: freshPost } = await supabase
-          .from('posts')
-          .select('replies_count, favorites_count, reblogs_count')
-          .eq('id', post_id)
-          .single();
-        if (freshPost) updatedCounts = freshPost;
-      }
-
-      return res.json({
-        success: true,
-        replies,
-        count: replies.length,
-        ...updatedCounts,
-      });
+      if (crawl) result = await crawl;
     } catch (error: any) {
       logger.error('Failed to fetch replies:', error);
       return res.status(500).json({ error: 'Failed to fetch replies' });
     }
+
+    let updatedCounts: Record<string, number> = {};
+    const { data: freshPost } = postId
+      ? await supabase
+        .from('posts')
+        .select('replies_count, favorites_count, reblogs_count')
+        .eq('id', postId)
+        .maybeSingle()
+      : { data: null };
+    if (freshPost) {
+      updatedCounts = {
+        replies_count: freshPost.replies_count ?? 0,
+        favorites_count: freshPost.favorites_count ?? 0,
+        reblogs_count: freshPost.reblogs_count ?? 0,
+      };
+    }
+
+    if (!result) {
+      return res.json({ success: true, status: 'recent', replies: [], count: 0, ...updatedCounts });
+    }
+    return res.json({
+      success: true,
+      status: result.status,
+      replies: [],
+      count: result.stored + result.existing,
+      new: result.stored,
+      existing: result.existing,
+      skipped: result.skipped,
+      found: result.found,
+      pages: result.pages,
+      truncated: result.truncated,
+      ...updatedCounts,
+    });
   })
 );
 
 /**
- * Replies via Misskey's POST /api/notes/children.
+ * AP ids of a Misskey note's replies, via its POST /api/notes/children. Quote renotes in the
+ * answer are not replies and are left out. Null when the API does not answer.
  */
-async function fetchMisskeyReplies(
-  domain: string,
-  noteId: string,
-  parentPostId: string | undefined,
-  supabase: any,
-  limit: number = 10
-): Promise<any[]> {
+async function misskeyReplyIds(domain: string, noteId: string, limit: number): Promise<string[] | null> {
   try {
-    logger.info(`Fetching replies via Misskey API for note: ${noteId} on ${domain}`);
-    
-    const apiUrl = `https://${domain}/api/notes/children`;
-    const response = await safeFetch(apiUrl, {
+    const response = await safeFetch(`https://${domain}/api/notes/children`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
       },
-      body: JSON.stringify({
-        noteId: noteId,
-        limit: limit,
-      }),
+      body: JSON.stringify({ noteId, limit: Math.min(limit, 100) }),
       signal: AbortSignal.timeout(10000)
     });
-
     if (!response.ok) {
       logger.warn(`Misskey children API failed: ${response.status}`);
-      return [];
+      return null;
     }
-
-    const childNotes = await response.json();
-    logger.info(`Misskey returned ${childNotes.length} replies/children`);
-
-    const replies: any[] = [];
-    
-    for (const note of childNotes) {
-      const user = note.user;
-      const userDomain = user?.host || domain;
-      const noteApId = `https://${domain}/notes/${note.id}`;
-      
-      const { data: existing } = await supabase
-        .from('posts')
-        .select('id')
-        .eq('ap_id', noteApId)
-        .maybeSingle();
-
-      if (existing) {
-        const { data: fullPost } = await supabase
-          .from('posts')
-          .select(`
-            *,
-            author:profiles!posts_author_id_fkey(
-              id, username, display_name, avatar_url, domain, is_local
-            )
-          `)
-          .eq('id', existing.id)
-          .single();
-        
-        if (fullPost) {
-          replies.push(fullPost);
-        }
-        continue;
-      }
-
-      let authorId: string | null = null;
-      
-      if (user?.username) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('username', user.username)
-          .eq('domain', userDomain)
-          .maybeSingle();
-        
-        if (profile) {
-          authorId = profile.id;
-        } else {
-          const { data: newProfile, error } = await supabase
-            .from('profiles')
-            .insert({
-              username: user.username,
-              display_name: user.name || user.username,
-              avatar_url: user.avatarUrl,
-              domain: userDomain,
-              is_local: false,
-              federated_id: `https://${userDomain}/users/${user.id}`,
-            })
-            .select('id')
-            .single();
-          
-          if (!error && newProfile) {
-            authorId = newProfile.id;
-          }
-        }
-      }
-
-      if (!authorId) continue;
-
-      // Shaped as an ActivityPub Note for noteToContent.
-      const apLikeNote: any = {
-        // Misskey's plain-text `text` maps to AP `content`, wrapped in <p>.
-        content: note.text ? `<p>${note.text.replace(/\n/g, '<br>')}</p>` : '',
-        tag: [],
-        attachment: [],
-      };
-      
-      if (note.emojis && typeof note.emojis === 'object') {
-        for (const [name, url] of Object.entries(note.emojis)) {
-          apLikeNote.tag.push({
-            type: 'Emoji',
-            name: `:${name}:`,
-            icon: { url: url as string },
-          });
-        }
-      }
-      
-      // reactionEmojis carries emoji URLs absent from note.emojis.
-      if (note.reactionEmojis && typeof note.reactionEmojis === 'object') {
-        for (const [name, url] of Object.entries(note.reactionEmojis)) {
-          if (!apLikeNote.tag.some((t: any) => t.name === `:${name}:`)) {
-            apLikeNote.tag.push({
-              type: 'Emoji',
-              name: `:${name}:`,
-              icon: { url: url as string },
-            });
-          }
-        }
-      }
-      
-      if (note.mentions && Array.isArray(note.mentions)) {
-        for (const mentionId of note.mentions) {
-          apLikeNote.tag.push({
-            type: 'Mention',
-            href: mentionId,
-          });
-        }
-      }
-      
-      if (note.files && Array.isArray(note.files)) {
-        for (const file of note.files) {
-          apLikeNote.attachment.push({
-            type: 'Document',
-            mediaType: file.type,
-            url: file.url,
-            name: file.name || file.comment,
-            width: file.properties?.width,
-            height: file.properties?.height,
-            blurhash: file.blurhash,
-          });
-        }
-      }
-      
-      const { noteToContent } = await import('./converters/fromActivityPub.js');
-      const content = noteToContent(apLikeNote);
-
-      const customEmojis: any[] = [];
-      if (note.emojis && typeof note.emojis === 'object') {
-        for (const [name, url] of Object.entries(note.emojis)) {
-          customEmojis.push({ name, url });
-        }
-      }
-      
-      const { data: newReply, error } = await supabase
-        .from('posts')
-        .insert({
-          author_id: authorId,
-          content: content,
-          ap_id: noteApId,
-          is_local: false,
-          visibility: note.visibility === 'public' ? 'public' 
-            : note.visibility === 'home' ? 'unlisted'
-            : note.visibility === 'followers' ? 'followers'
-            : 'direct',
-          in_reply_to: parentPostId,
-          content_warning: note.cw || null, // Misskey names the content warning 'cw'
-          is_sensitive: note.sensitive === true,
-          metadata: {
-            in_reply_to_ap_url: `https://${domain}/notes/${noteId}`,
-            custom_emojis: customEmojis,
-          },
-          created_at: note.createdAt,
-        })
-        .select(`
-          *,
-          author:profiles!posts_author_id_fkey(
-            id, username, display_name, avatar_url, domain, is_local
-          )
-        `)
-        .single();
-
-      if (!error && newReply) {
-        replies.push(newReply);
-      }
-    }
-
-    return replies;
+    const notes = await response.json();
+    if (!Array.isArray(notes)) return null;
+    return notes
+      .filter((note: any) => note && note.replyId === noteId && typeof note.id === 'string')
+      .map((note: any) => (typeof note.uri === 'string' && note.uri ? note.uri : `https://${domain}/notes/${note.id}`))
+      .filter((id: string) => urlHost(id) !== null);
   } catch (error) {
-    logger.error(`Failed to fetch Misskey replies:`, error);
-    return [];
+    logger.warn(`Misskey children API unreachable: ${error}`);
+    return null;
   }
 }
 
 /**
- * Fetch replies from a remote post's replies collection.
+ * Replies of a remote post: Misskey's children API for a Misskey note, else the Note's
+ * replies collection. Each reply goes through ActivityProcessor.storeRemotePost.
  */
 async function fetchRemotePostReplies(
   postApId: string,
   postId: string | undefined,
   supabase: any,
-  limit: number = 10
-): Promise<any[]> {
-  try {
-    // Misskey's children API returns full notes, avoiding per-reply fetches.
-    if (isMisskeyInstance(postApId)) {
-      const noteId = extractMisskeyNoteId(postApId);
-      const domain = new URL(postApId).hostname;
-      
-      if (noteId) {
-        const misskeyReplies = await fetchMisskeyReplies(domain, noteId, postId, supabase, limit);
-        if (misskeyReplies.length > 0) {
-          return misskeyReplies;
-        }
-        // Empty result falls through to the standard ActivityPub path.
-        logger.info(`Misskey API returned no replies, trying standard ActivityPub...`);
-      }
+  maxReplies: number,
+): Promise<RemoteReplyFetch> {
+  const limits = {
+    maxPages: DEFAULT_REPLY_CRAWL.maxPages,
+    maxReplies,
+    deadline: Date.now() + DEFAULT_REPLY_CRAWL.timeoutMs,
+  };
+  const store = replyStore(supabase);
+
+  // Misskey publishes no replies collection; its children API names them.
+  if (isMisskeyInstance(postApId)) {
+    const noteId = extractMisskeyNoteId(postApId);
+    const ids = noteId ? await misskeyReplyIds(new URL(postApId).hostname, noteId, maxReplies) : null;
+    if (ids) {
+      const counts = await storeReplies(ids.map((id) => ({ id })), store, limits.deadline);
+      return { status: 'ok', found: ids.length, pages: 0, ...counts };
     }
-
-    // Standard ActivityPub path: the post object carries the replies
-    // collection URL.
-    // BUGS.md H15: postApId is attacker-influenced; safeFetch enforces SSRF
-    // protection.
-    const postResponse = await SignatureService.signedApFetch(postApId, {
-      headers: {
-        'Accept': 'application/activity+json, application/ld+json',
-        'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
-      },
-      timeoutMs: 10000,
-    });
-
-    if (!postResponse.ok) {
-      logger.warn(`Failed to fetch post: ${postResponse.status}`);
-      return [];
-    }
-
-    const post = await postResponse.json();
-
-    if (postId) {
-      const remoteCounts: any = {};
-      const remoteReplies = post.replies?.totalItems || post.repliesCount || 0;
-      const remoteLikes = post.likes?.totalItems || post.favouritesCount || 0;
-      const remoteShares = post.shares?.totalItems || post.sharesCount || 0;
-      if (remoteReplies > 0) remoteCounts.replies_count = remoteReplies;
-      if (remoteLikes > 0) remoteCounts.favorites_count = remoteLikes;
-      if (remoteShares > 0) remoteCounts.reblogs_count = remoteShares;
-      if (Object.keys(remoteCounts).length > 0) {
-        await supabase.from('posts').update(remoteCounts).eq('id', postId);
-      }
-    }
-
-    const repliesUrl = post.replies;
-    if (!repliesUrl) {
-      logger.info(`No replies collection found for post`);
-      return [];
-    }
-
-    const repliesCollectionUrl = typeof repliesUrl === 'string' ? repliesUrl : repliesUrl.id;
-    logger.info(`Fetching replies from: ${repliesCollectionUrl}`);
-
-    const repliesResponse = await SignatureService.signedApFetch(repliesCollectionUrl, {
-      headers: {
-        'Accept': 'application/activity+json, application/ld+json',
-        'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
-      },
-      timeoutMs: 10000,
-    });
-
-    if (!repliesResponse.ok) {
-      logger.warn(`Failed to fetch replies collection: ${repliesResponse.status}`);
-      return [];
-    }
-
-    const repliesCollection = await repliesResponse.json();
-    
-    let items: any[] = [];
-    // Document the items were read from; embedded notes are trusted only for
-    // ids on its host.
-    let itemsSourceUrl = repliesCollectionUrl;
-
-    if (repliesCollection.orderedItems) {
-      items = repliesCollection.orderedItems;
-    } else if (repliesCollection.items) {
-      items = repliesCollection.items;
-    } else if (repliesCollection.first) {
-      const firstPageUrl = typeof repliesCollection.first === 'string'
-        ? repliesCollection.first
-        : repliesCollection.first.id;
-      itemsSourceUrl = firstPageUrl;
-
-      const pageResponse = await SignatureService.signedApFetch(firstPageUrl, {
-        headers: {
-          'Accept': 'application/activity+json, application/ld+json',
-          'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
-        },
-        timeoutMs: 10000,
-      });
-
-      if (pageResponse.ok) {
-        const page = await pageResponse.json();
-        items = page.orderedItems || page.items || [];
-      }
-    }
-
-    logger.info(`Found ${items.length} replies`);
-
-    const { noteToContent } = await import('./converters/fromActivityPub.js');
-    
-    const savedReplies: any[] = [];
-    
-    for (const item of items.slice(0, limit)) {
-      try {
-        // Collection entries are Note objects, Create activities, or URLs.
-        let note = item;
-        let noteSourceUrl = itemsSourceUrl;
-        if (typeof item === 'string') {
-          noteSourceUrl = item;
-          const noteResponse = await SignatureService.signedApFetch(item, {
-            headers: {
-              'Accept': 'application/activity+json, application/ld+json',
-              'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
-            },
-            timeoutMs: 5000,
-          });
-          if (!noteResponse.ok) continue;
-          note = await noteResponse.json();
-        } else if (item.type === 'Create') {
-          note = item.object;
-        }
-
-        if (!note || (note.type !== 'Note' && note.type !== 'Article')) {
-          continue;
-        }
-
-        // A copy of a note served by a host other than its own is not
-        // authoritative; neither is an attribution to another host.
-        if (!sameOrigin(note.id, noteSourceUrl)) {
-          logger.debug(`Skipping reply ${note.id}: served by ${noteSourceUrl}`);
-          continue;
-        }
-
-        const { data: existing } = await supabase
-          .from('posts')
-          .select('id')
-          .eq('ap_id', note.id)
-          .maybeSingle();
-
-        if (existing) {
-          savedReplies.push({ id: existing.id, ap_id: note.id, existing: true });
-          continue;
-        }
-
-        const authorUrl = typeof note.attributedTo === 'string'
-          ? note.attributedTo
-          : note.attributedTo?.id;
-
-        if (!authorUrl || !sameOrigin(authorUrl, note.id)) continue;
-
-        let { data: author } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('federated_id', authorUrl)
-          .maybeSingle();
-
-        if (!author) {
-          author = await ActivityProcessor['ensureRemoteUser'](authorUrl);
-        }
-
-        if (!author) continue;
-
-        const content = noteToContent(note);
-        
-        let visibility = 'public';
-        const to = note.to || [];
-        const cc = note.cc || [];
-        const allRecipients = [...to, ...cc];
-        
-        if (allRecipients.includes('https://www.w3.org/ns/activitystreams#Public')) {
-          visibility = to.includes('https://www.w3.org/ns/activitystreams#Public') ? 'public' : 'unlisted';
-        } else if (allRecipients.some((r: string) => r.endsWith('/followers'))) {
-          visibility = 'followers';
-        } else {
-          visibility = 'direct';
-        }
-        
-        const replyData: any = {
-          ap_id: note.id,
-          ap_type: note.type,
-          author_id: author.id,
-          content,
-          visibility,
-          is_local: false,
-          created_at: note.published || new Date().toISOString(),
-          in_reply_to: postId,
-          content_warning: note.summary || null,
-          is_sensitive: note.sensitive === true,
-          metadata: {
-            in_reply_to_ap_url: postApId,
-            custom_emojis: note.tag?.filter((t: any) => t.type === 'Emoji').map((e: any) => ({
-              name: e.name?.replace(/:/g, ''),
-              url: e.icon?.url,
-            })) || [],
-          },
-        };
-
-        const { data: newReply, error: insertError } = await supabase
-          .from('posts')
-          .insert(replyData)
-          .select('id')
-          .single();
-
-        if (!insertError && newReply) {
-          savedReplies.push({ id: newReply.id, ap_id: note.id, new: true });
-          logger.debug(`Saved reply: ${note.id}`);
-        }
-      } catch (err) {
-        logger.debug(`Failed to process reply:`, err);
-      }
-    }
-
-    logger.info(`Saved ${savedReplies.filter(r => r.new).length} new replies`);
-    return savedReplies;
-
-  } catch (error) {
-    logger.warn(`Failed to fetch remote replies:`, error);
-    return [];
+    logger.info(`Misskey API returned no replies, trying standard ActivityPub...`);
   }
+
+  // BUGS.md H15: postApId is attacker-influenced; every request goes through safeFetch.
+  const note = await fetchAuthoritativeDocument(postApId, fetchSignedDocument);
+  if (!note) {
+    logger.warn(`Failed to fetch post ${postApId}`);
+    return { status: 'unavailable', found: 0, stored: 0, existing: 0, skipped: 0, pages: 0, truncated: false };
+  }
+
+  if (postId) {
+    const columns = noteEngagementColumns(note);
+    if (Object.keys(columns).length > 0) {
+      await supabase.from('posts').update(columns).eq('id', postId);
+    }
+  }
+
+  const crawl = await crawlReplies(note, fetchSignedDocument, store, limits);
+  logger.info(`Replies of ${postApId}: ${crawl.found} listed over ${crawl.pages} page(s), ${crawl.stored} stored, ${crawl.existing} held, ${crawl.skipped} skipped${crawl.truncated ? ', truncated' : ''}`);
+  return crawl;
 }
 
 /**
@@ -2915,10 +2576,6 @@ async function fetchRecentPostsInBackground(
           }
         }
         
-        const repliesCount = note.replies?.totalItems || note.repliesCount || 0;
-        const likesCount = note.likes?.totalItems || note.favouritesCount || 0;
-        const sharesCount = note.shares?.totalItems || note.sharesCount || 0;
-        
         const postData: any = {
           ap_id: note.id,
           ap_type: note.type,
@@ -2929,9 +2586,7 @@ async function fetchRecentPostsInBackground(
           created_at: note.published || new Date().toISOString(),
           content_warning: note.summary || null,
           is_sensitive: note.sensitive === true,
-          replies_count: repliesCount,
-          favorites_count: likesCount,
-          reblogs_count: sharesCount,
+          ...noteEngagementColumns(note),
         };
         
         if (inReplyToId) {
@@ -3000,6 +2655,19 @@ async function fetchRecentPostsInBackground(
     userZeroSaveCount.delete(authorId);
     return { hasMore: false };
   }
+}
+
+const outboxBackfills = new Set<string>();
+
+/** Starts the first-page outbox import of an author unless one is running; true when started. */
+function startOutboxBackfill(authorId: string, outboxUrl: string, supabase: any, label: string): boolean {
+  if (outboxBackfills.has(authorId)) return false;
+  outboxBackfills.add(authorId);
+  logger.info(`Triggering background post fetch for ${label}`);
+  fetchRecentPostsInBackground(authorId, outboxUrl, supabase)
+    .catch((err) => logger.warn(`Background post fetch failed for ${label}:`, err.message))
+    .finally(() => outboxBackfills.delete(authorId));
+  return true;
 }
 
 function extractMediaAttachments(attachments: any): any[] {
@@ -3107,7 +2775,7 @@ router.post(
 
       const content = noteToContent(remoteObject);
 
-      const updatePayload: any = { content };
+      const updatePayload: any = { content, ...noteEngagementColumns(remoteObject) };
       if (remoteObject.summary !== undefined) {
         updatePayload.content_warning = remoteObject.summary || null;
       }
