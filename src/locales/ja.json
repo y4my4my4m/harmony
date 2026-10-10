@@ -3884,5 +3884,34 @@
     "placeholder": "このスレッドの話題は？",
     "submit": "作成",
     "failed": "スレッドを作成できませんでした。"
+  },
+  "serverTemplate": {
+    "exportTitle": "サーバーテンプレート",
+    "exportDescription": "このサーバーの構成をファイルとしてダウンロードします：役割と権限、カテゴリ、チャンネルと権限、設定、ウェルカム画面、AutoMod ルール。誰でもこのファイルから新しいサーバーを作成できます。",
+    "structureOnly": "構成のみ：メッセージ、メンバー、絵文字、画像は含まれません。",
+    "exportButton": "テンプレートをエクスポート",
+    "exporting": "エクスポート中…",
+    "exported": "テンプレートをダウンロードしました",
+    "exportFailed": "テンプレートをエクスポートできませんでした。",
+    "useTemplate": "テンプレートから作成",
+    "useTemplateHint": "別のサーバーからエクスポートした .harmony-template.json ファイルから始めます。",
+    "chooseFile": "ファイルを選択",
+    "fromTemplate": "テンプレートから",
+    "fromTemplateNamed": "{name} のテンプレートから",
+    "roles": "{count} 個の役割",
+    "categories": "{count} 個のカテゴリ",
+    "channels": "{count} 個のチャンネル",
+    "elevatedEveryone": "このテンプレートでは、すべてのメンバーにモデレーションまたは管理の権限が付与されます。サーバーを作成したら役割を確認してください。",
+    "errors": {
+      "tooLarge": "テンプレートファイルが 2 MB を超えています。",
+      "notJson": "このファイルは有効な JSON ではありません。",
+      "notTemplate": "このファイルは Harmony のサーバーテンプレートではありません。",
+      "unsupportedVersion": "このテンプレートのバージョンには対応していません。",
+      "tooManyRoles": "テンプレートの役割が 250 個を超えています。",
+      "tooManyCategories": "テンプレートのカテゴリが 25 個を超えています。",
+      "tooManyChannels": "テンプレートのチャンネルが 100 個を超えています。",
+      "invalid": "テンプレートが無効です：{detail}",
+      "rejected": "サーバーがこのテンプレートを拒否しました：{detail}"
+    }
   }
 }

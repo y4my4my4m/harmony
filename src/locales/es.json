@@ -3884,5 +3884,34 @@
     "placeholder": "¿De qué trata este hilo?",
     "submit": "Crear",
     "failed": "No se pudo crear el hilo."
+  },
+  "serverTemplate": {
+    "exportTitle": "Plantilla del servidor",
+    "exportDescription": "Descarga la estructura de este servidor como archivo: roles y sus permisos, categorías, canales y sus permisos, ajustes, la pantalla de bienvenida y las reglas de AutoMod. Cualquiera puede crear un servidor nuevo a partir de ella.",
+    "structureOnly": "Solo la estructura: no incluye mensajes, miembros, emojis ni imágenes.",
+    "exportButton": "Exportar plantilla",
+    "exporting": "Exportando…",
+    "exported": "Plantilla descargada",
+    "exportFailed": "No se pudo exportar la plantilla.",
+    "useTemplate": "Crear desde una plantilla",
+    "useTemplateHint": "Empieza con un archivo .harmony-template.json exportado de otro servidor.",
+    "chooseFile": "Elegir archivo",
+    "fromTemplate": "Desde una plantilla",
+    "fromTemplateNamed": "Desde la plantilla de {name}",
+    "roles": "{count} rol | {count} roles",
+    "categories": "{count} categoría | {count} categorías",
+    "channels": "{count} canal | {count} canales",
+    "elevatedEveryone": "Esta plantilla da a todos los miembros permisos de moderación o administración. Revisa los roles después de crear el servidor.",
+    "errors": {
+      "tooLarge": "El archivo de plantilla supera los 2 MB.",
+      "notJson": "El archivo no es JSON válido.",
+      "notTemplate": "El archivo no es una plantilla de servidor de Harmony.",
+      "unsupportedVersion": "Esta versión de plantilla no es compatible.",
+      "tooManyRoles": "La plantilla tiene más de 250 roles.",
+      "tooManyCategories": "La plantilla tiene más de 25 categorías.",
+      "tooManyChannels": "La plantilla tiene más de 100 canales.",
+      "invalid": "La plantilla no es válida: {detail}",
+      "rejected": "El servidor rechazó esta plantilla: {detail}"
+    }
   }
 }

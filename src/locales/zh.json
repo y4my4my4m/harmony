@@ -3884,5 +3884,34 @@
     "placeholder": "这个话题是关于什么的？",
     "submit": "创建",
     "failed": "无法创建话题。"
+  },
+  "serverTemplate": {
+    "exportTitle": "服务器模板",
+    "exportDescription": "将此服务器的结构下载为文件：角色及其权限、分类、频道及其权限、设置、欢迎界面和 AutoMod 规则。任何人都可以用它创建新服务器。",
+    "structureOnly": "仅包含结构：不包括消息、成员、表情和图片。",
+    "exportButton": "导出模板",
+    "exporting": "正在导出…",
+    "exported": "模板已下载",
+    "exportFailed": "无法导出模板。",
+    "useTemplate": "从模板创建",
+    "useTemplateHint": "从其他服务器导出的 .harmony-template.json 文件开始。",
+    "chooseFile": "选择文件",
+    "fromTemplate": "来自模板",
+    "fromTemplateNamed": "来自 {name} 的模板",
+    "roles": "{count} 个角色",
+    "categories": "{count} 个分类",
+    "channels": "{count} 个频道",
+    "elevatedEveryone": "此模板会给所有成员授予管理或审核权限。创建服务器后请检查角色设置。",
+    "errors": {
+      "tooLarge": "模板文件超过 2 MB。",
+      "notJson": "该文件不是有效的 JSON。",
+      "notTemplate": "该文件不是 Harmony 服务器模板。",
+      "unsupportedVersion": "不支持此模板版本。",
+      "tooManyRoles": "模板中的角色超过 250 个。",
+      "tooManyCategories": "模板中的分类超过 25 个。",
+      "tooManyChannels": "模板中的频道超过 100 个。",
+      "invalid": "模板无效：{detail}",
+      "rejected": "服务器拒绝了此模板：{detail}"
+    }
   }
 }

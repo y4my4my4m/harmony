@@ -201,6 +201,11 @@
               :loading="loading"
               :permissions="{ canDeleteServer: permissions.canDeleteServer }"
             />
+            <ServerTemplateExport
+              v-if="permissions.canEditBasicInfo"
+              :server-id="serverId"
+              :server-name="server.name"
+            />
             <ServerBotsSettings
               v-if="permissions.canEditBasicInfo"
               :server-id="serverId"
@@ -249,6 +254,7 @@ import ServerSystemMessages from '@/components/settings/server/ServerSystemMessa
 import ServerAutoMod from '@/components/settings/server/ServerAutoMod.vue'
 import AutoModOptInBanner from '@/components/settings/server/AutoModOptInBanner.vue'
 import ServerWelcomeSettings from '@/components/settings/server/ServerWelcomeSettings.vue'
+import ServerTemplateExport from '@/components/settings/server/ServerTemplateExport.vue'
 import { getServerAutoMod, type AutoModState } from '@/services/AutoModService'
 const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/ReportsModeration.vue'))
 
