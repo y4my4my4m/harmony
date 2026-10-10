@@ -298,7 +298,7 @@ https://<instance>/webhooks/channels/<id>/<token>
 https://<instance>/webhooks/channels/<id>/<token>/github
 ```
 
-The first URL takes Discord's execute-webhook body (`content`, `username`, `avatar_url`, `embeds`, `flags`) as JSON or form-encoded, so tools that post to Discord webhooks post here unchanged. Embeds arrive as text; mentions, `@everyone` included, stay plain text and notify no one; files are refused. `?wait=true` returns the message. The `/github` URL is the payload URL of a GitHub repository webhook: pushes, pull requests, issues, comments, releases, workflow runs, check runs and stars become one-line summaries with a link.
+The first URL takes Discord's execute-webhook body (`content`, `username`, `avatar_url`, `embeds`, `flags`) as JSON or form-encoded, so tools that post to Discord webhooks post here unchanged. Embeds arrive as text; mentions, `@everyone` and `@here` included, stay plain text and notify no one; files are refused. `?wait=true` returns the message. The `/github` URL is the payload URL of a GitHub repository webhook: pushes, pull requests, issues, comments, releases, workflow runs, check runs and stars become one-line summaries with a link.
 
 ```bash
 curl -H 'Content-Type: application/json' -d '{"content":"Deploy finished"}' \

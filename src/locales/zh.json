@@ -2377,7 +2377,7 @@
     "mention": {
       "maxMentions": "每条消息的提及数",
       "windowMentions": "每个时间窗口的提及数（0 = 关闭）",
-      "everyone": "拦截没有“提及所有人”权限的成员发送的 everyone 提及"
+      "everyone": "拦截没有“提及所有人”权限的成员发送的 {'@'}everyone 和 {'@'}here 提及"
     },
     "flood": {
       "maxMessages": "允许的消息数"
@@ -4280,8 +4280,8 @@
       "mentions": "仅{'@'}提及",
       "none": "无"
     },
-    "suppressEveryone": "屏蔽 {'@'}everyone",
-    "suppressEveryoneHint": "此服务器中的 {'@'}everyone 提及不会通知你。",
+    "suppressEveryone": "屏蔽 {'@'}everyone 和 {'@'}here",
+    "suppressEveryoneHint": "此服务器中的 {'@'}everyone 和 {'@'}here 提及不会通知你。",
     "suppressRoles": "屏蔽所有身份组{'@'}提及",
     "suppressRolesHint": "提及你的身份组不会通知你。直接提及你仍会通知。",
     "push": "推送通知",

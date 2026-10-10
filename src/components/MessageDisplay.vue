@@ -112,7 +112,8 @@
             'shake-reject': isMessageShaking(item.message.id),
             'revealed-blocked': item.isRevealed,
             'is-sending': !item.message.failed && (item.message.sending || (item.message.id?.startsWith('temp-') && !item.message.failed)),
-            'is-failed': item.message.failed
+            'is-failed': item.message.failed,
+            'mentions-me': mentionsMe(item.message)
           }"
           @mouseover="handleMessageMouseover(item.message.id)" 
           @mouseleave="handleMessageMouseleave"
@@ -772,6 +773,7 @@ import MessageReplyReference from '@/components/messages/MessageReplyReference.v
 import { useThreadsStore } from '@/stores/useThreads';
 import type { ThreadWithDetails } from '@/services/ThreadService';
 import { messagePartsToMarkdown, isSingleEmojiMessage as checkSingleEmoji, stripLeadingSelfMention } from '@/utils/messageContentUtils';
+import { mentionsViewer } from '@/utils/hereMention';
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
 import { buildChatParseOptions } from '@/utils/chatParseOptions';
 import { isPointOverText, isQuickReactDoubleClick, type PointerDown } from '@/utils/quickReactGesture';
@@ -1190,7 +1192,12 @@ const floatingActionsStyle = computed((): Record<string, string> => {
     transform: 'translateX(-50%)',
   };
 });
-const { isCurrentUserServerOwner, canManageMessages } = useServerPermissions();
+const { isCurrentUserServerOwner, canManageMessages, getCurrentUserRole } = useServerPermissions();
+const viewerRoleIds = computed(() => new Set((getCurrentUserRole.value?.roles ?? []).map(role => role.id)));
+// A conversation has no roles, @everyone or @here; its messages are not highlighted.
+const mentionsMe = (message: Message): boolean =>
+  !!props.channelId
+  && mentionsViewer(getDisplayContent(message), { profileId: profileStore.profile?.id, roleIds: viewerRoleIds.value });
 const { triggerInteraction, triggerDestructive } = useHapticSettings();
 const quickReact = useQuickReactSettings();
 const { isMobile } = useLayoutState();
@@ -3849,6 +3856,15 @@ defineExpose({ editLastOwnMessage });
 
 .message-item:hover {
   background-color: var(--background-modifier-hover);
+}
+
+.message-item.mentions-me {
+  background-color: color-mix(in srgb, var(--warning) 10%, transparent);
+  box-shadow: inset 2px 0 0 var(--warning);
+}
+
+.message-item.mentions-me:hover {
+  background-color: color-mix(in srgb, var(--warning) 15%, transparent);
 }
 
 /* Message group - contains header and/or content */

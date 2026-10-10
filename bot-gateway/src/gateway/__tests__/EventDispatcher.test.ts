@@ -799,3 +799,52 @@ describe('install changes reach the permission cache within the refresh bound', 
     }
   })
 })
+
+describe('mention_everyone', () => {
+  const HERE = { type: 'role_mention', roleId: 'here', roleName: 'here', roleColor: null }
+  const EVERYONE = { type: 'role_mention', roleId: EVERYONE_ROLE, roleName: 'everyone', roleColor: null }
+  const CREW = { type: 'role_mention', roleId: '00000000-0000-0000-0000-0000000000e1', roleName: 'crew', roleColor: null }
+  let granted: boolean
+  let asked: Array<[string, any]>
+
+  beforeEach(() => {
+    granted = true
+    asked = []
+    mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+      asked.push([fn, args])
+      if (fn === 'has_permission' || fn === 'check_bot_permission') return { data: granted, error: null }
+      throw new Error(`test called unmocked rpc: ${fn}`)
+    })
+  })
+
+  async function flag(content: unknown[], author: Row = {}): Promise<boolean> {
+    sent = []
+    await dispatcher.handleMessageCreate({ new: { ...message(GENERAL, 'x'), content, ...author } })
+    return sent[0].event.d.mention_everyone
+  }
+
+  it('is true for @here or @everyone from an author holding MENTION_EVERYONE', async () => {
+    expect(await flag([HERE])).toBe(true)
+    expect(await flag([EVERYONE])).toBe(true)
+    expect(asked[0]).toEqual(['has_permission', {
+      p_user_id: OWNER_ID, p_server_id: SERVER_ID, p_permission: 'MENTION_EVERYONE', p_channel_id: GENERAL,
+    }])
+  })
+
+  it('asks a bot author for mention_everyone', async () => {
+    const BOT = '00000000-0000-0000-0000-0000000000b7'
+    expect(await flag([HERE], { user_id: null, bot_id: BOT })).toBe(true)
+    expect(asked[0]).toEqual(['check_bot_permission', {
+      p_bot_id: BOT, p_server_id: SERVER_ID, p_permission: 'mention_everyone',
+    }])
+  })
+
+  it('is false without the right, and for other roles or none', async () => {
+    granted = false
+    expect(await flag([HERE])).toBe(false)
+    granted = true
+    expect(await flag([CREW])).toBe(false)
+    expect(await flag([{ type: 'text', text: '@here' }])).toBe(false)
+    expect(asked).toEqual([['has_permission', expect.anything()]])
+  })
+})

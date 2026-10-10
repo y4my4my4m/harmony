@@ -2377,7 +2377,7 @@
     "mention": {
       "maxMentions": "1メッセージあたりのメンション数",
       "windowMentions": "期間内のメンション数（0 = オフ）",
-      "everyone": "「全員にメンション」権限のないメンバーからの everyone メンションをブロック"
+      "everyone": "「全員にメンション」権限のないメンバーからの {'@'}everyone と {'@'}here のメンションをブロック"
     },
     "flood": {
       "maxMessages": "許可するメッセージ数"
@@ -4280,8 +4280,8 @@
       "mentions": "{'@'}メンションのみ",
       "none": "なし"
     },
-    "suppressEveryone": "{'@'}everyone を通知しない",
-    "suppressEveryoneHint": "このサーバーの {'@'}everyone メンションでは通知されません。",
+    "suppressEveryone": "{'@'}everyone と {'@'}here を通知しない",
+    "suppressEveryoneHint": "このサーバーの {'@'}everyone と {'@'}here のメンションでは通知されません。",
     "suppressRoles": "すべてのロールの{'@'}メンションを通知しない",
     "suppressRolesHint": "あなたのロールへのメンションでは通知されません。あなた個人へのメンションは通知されます。",
     "push": "プッシュ通知",

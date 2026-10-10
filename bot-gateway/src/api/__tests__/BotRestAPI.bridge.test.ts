@@ -228,6 +228,58 @@ describe('role and channel mention parts', () => {
     expect(res.status).toBe(200)
     expect(db.writesTo('messages', 'update')[0].rows[0].content).toEqual([{ type: 'text', text: '@Outsiders' }])
   })
+
+  describe('@everyone and @here', () => {
+    const pings = [
+      { type: 'role_mention', roleId: 'here', roleName: 'online', roleColor: '#123456' },
+      { type: 'text', text: ' and ' },
+      { type: 'role_mention', roleId: EVERYONE_ROLE, roleName: 'everyone', roleColor: null },
+    ]
+
+    function mentionEveryone(granted: boolean) {
+      mocks.rpc.mockImplementation(async (fn: string, args: any) => {
+        if (fn === 'check_bot_permission' && args.p_permission === 'mention_everyone' && args.p_bot_id === BOT_ID) {
+          return { data: granted, error: null }
+        }
+        throw new Error(`test called unmocked rpc: ${fn}`)
+      })
+    }
+
+    it('keeps both parts for a bot holding mention_everyone', async () => {
+      seed()
+      mentionEveryone(true)
+      const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`).send({ content: pings })
+
+      expect(res.status).toBe(201)
+      expect(insertedContent()).toEqual([
+        { type: 'role_mention', roleId: 'here', roleName: 'here', roleColor: null },
+        { type: 'text', text: ' and ' },
+        { type: 'role_mention', roleId: EVERYONE_ROLE, roleName: 'everyone', roleColor: null },
+      ])
+    })
+
+    it('turns both into text for a bot without it, as the database ignores them', async () => {
+      seed()
+      mentionEveryone(false)
+      const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`).send({ content: pings })
+
+      expect(res.status).toBe(201)
+      expect(insertedContent()).toEqual([
+        { type: 'text', text: '@here' },
+        { type: 'text', text: ' and ' },
+        { type: 'text', text: '@everyone' },
+      ])
+    })
+
+    it('asks nothing when the message pings no one', async () => {
+      seed()
+      const res = await supertest(app()).post(`/api/v1/channels/${PAIRED}/messages`)
+        .send({ content: [{ type: 'role_mention', roleId: CREW_ROLE }] })
+
+      expect(res.status).toBe(201)
+      expect(mocks.rpc).not.toHaveBeenCalled()
+    })
+  })
 })
 
 describe('relayed authors and server-only content', () => {

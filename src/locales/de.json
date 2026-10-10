@@ -2377,7 +2377,7 @@
     "mention": {
       "maxMentions": "Erwähnungen pro Nachricht",
       "windowMentions": "Erwähnungen pro Zeitfenster (0 = aus)",
-      "everyone": "Everyone-Pings von Mitgliedern ohne die Berechtigung „Everyone erwähnen“ blockieren"
+      "everyone": "{'@'}everyone- und {'@'}here-Pings von Mitgliedern ohne die Berechtigung „Everyone erwähnen“ blockieren"
     },
     "flood": {
       "maxMessages": "Erlaubte Nachrichten"
@@ -4280,8 +4280,8 @@
       "mentions": "Nur {'@'}Erwähnungen",
       "none": "Nichts"
     },
-    "suppressEveryone": "{'@'}everyone unterdrücken",
-    "suppressEveryoneHint": "{'@'}everyone-Erwähnungen in diesem Server benachrichtigen dich nicht.",
+    "suppressEveryone": "{'@'}everyone und {'@'}here unterdrücken",
+    "suppressEveryoneHint": "{'@'}everyone- und {'@'}here-Erwähnungen in diesem Server benachrichtigen dich nicht.",
     "suppressRoles": "Alle Rollen-{'@'}Erwähnungen unterdrücken",
     "suppressRolesHint": "Erwähnungen deiner Rollen benachrichtigen dich nicht. Erwähnungen von dir weiterhin schon.",
     "push": "Push-Benachrichtigungen",

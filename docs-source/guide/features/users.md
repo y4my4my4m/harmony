@@ -140,7 +140,7 @@ Notification preferences are granular with per-category toggles for desktop noti
 
 Server menu → Notification settings (also on the server icon's context menu) sets, per server:
 a mute (15 minutes to 24 hours, or until turned back on), the notification level (All messages,
-Only @mentions, Nothing), Suppress @everyone, Suppress all role @mentions, push notifications,
+Only @mentions, Nothing), Suppress @everyone and @here, Suppress all role @mentions, push notifications,
 and overrides for single channels or categories (a level and a mute each). The channel header's
 ⋮ menu reads and writes the same channel override.
 
@@ -155,7 +155,12 @@ server's default (`server_settings.default_message_notifications`), else Only @m
 
 A muted server, category or channel notifies only for mentions. A muted channel or category also
 hides its unread state and freezes its count; a muted server hides only the server icon's unread
-dot. Suppressed @everyone or role mentions notify as plain messages at All messages.
+dot. Suppressed @everyone, @here or role mentions notify as plain messages at All messages.
+
+@everyone notifies every member who can view the channel; @here only those of them who are
+online, idle or on Do Not Disturb (not invisible) at the time. Both need Mention Everyone; without
+it the composer does not offer them and they notify no one. A member reached by several mentions
+of one message is notified once.
 
 ---
 
