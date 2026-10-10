@@ -71,6 +71,7 @@ import path from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { caseFollowApproval } from './cases/followApproval.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -2480,6 +2481,19 @@ async function main() {
     await caseRemoteVoiceJoin(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
     await caseHostedVoiceJoin(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
     await caseSignedOnlyActor(db, peer, localUrl)
+    await caseFollowApproval({
+      db, peer, assert, eq, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, verifySignature: backend.verifySignature,
+      remoteId: REMOTE, locked: { id: BOB, auth: BOB_AUTH, username: 'fx_bob' }, follower: { id: CAROL, auth: CAROL_AUTH, username: 'fx_carol' },
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+      deliver: (activity, signer = { key: peer.key.privateKey, actor: peer.actorUrl }) => {
+        const body = JSON.stringify(activity)
+        const target = `${localUrl}/inbox`
+        return post(target, signedHeaders(target, body, signer.key, `${signer.actor}#main-key`), body).then((r) => r.status)
+      },
+    })
   } finally {
     await new Promise<void>((resolve) => local.close(() => resolve()))
     await peer.stop()
