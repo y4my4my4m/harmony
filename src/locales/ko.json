@@ -2377,7 +2377,7 @@
     "mention": {
       "maxMentions": "메시지당 멘션 수",
       "windowMentions": "기간당 멘션 수(0 = 끔)",
-      "everyone": "Mention Everyone 권한이 없는 멤버의 everyone 핑 차단"
+      "everyone": "Mention Everyone 권한이 없는 멤버의 {'@'}everyone 및 {'@'}here 핑 차단"
     },
     "flood": {
       "maxMessages": "허용 메시지 수"
@@ -4280,8 +4280,8 @@
       "mentions": "{'@'}멘션만",
       "none": "없음"
     },
-    "suppressEveryone": "{'@'}everyone 숨기기",
-    "suppressEveryoneHint": "이 서버의 {'@'}everyone 멘션은 알림을 보내지 않습니다.",
+    "suppressEveryone": "{'@'}everyone 및 {'@'}here 숨기기",
+    "suppressEveryoneHint": "이 서버의 {'@'}everyone 및 {'@'}here 멘션은 알림을 보내지 않습니다.",
     "suppressRoles": "모든 역할 {'@'}멘션 숨기기",
     "suppressRolesHint": "내 역할에 대한 멘션은 알림을 보내지 않습니다. 나에 대한 멘션은 계속 알림을 보냅니다.",
     "push": "푸시 알림",

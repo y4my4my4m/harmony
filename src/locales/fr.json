@@ -2377,7 +2377,7 @@
     "mention": {
       "maxMentions": "Mentions par message",
       "windowMentions": "Mentions par fenêtre (0 = désactivé)",
-      "everyone": "Bloquer les mentions de tout le monde par les membres sans la permission Mentionner tout le monde"
+      "everyone": "Bloquer les mentions {'@'}everyone et {'@'}here des membres sans la permission Mentionner tout le monde"
     },
     "flood": {
       "maxMessages": "Messages autorisés"
@@ -4280,8 +4280,8 @@
       "mentions": "Seulement les {'@'}mentions",
       "none": "Rien"
     },
-    "suppressEveryone": "Ignorer {'@'}everyone",
-    "suppressEveryoneHint": "Les mentions {'@'}everyone de ce serveur ne vous notifient pas.",
+    "suppressEveryone": "Ignorer {'@'}everyone et {'@'}here",
+    "suppressEveryoneHint": "Les mentions {'@'}everyone et {'@'}here de ce serveur ne vous notifient pas.",
     "suppressRoles": "Ignorer toutes les {'@'}mentions de rôles",
     "suppressRolesHint": "Les mentions de vos rôles ne vous notifient pas. Les mentions de vous, si.",
     "push": "Notifications push",

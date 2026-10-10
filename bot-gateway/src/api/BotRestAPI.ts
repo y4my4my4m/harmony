@@ -130,6 +130,8 @@ export function botContentParts(parts: unknown[]): any[] {
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// role_mention roleId of @here (db_schema/migrations/20261011600001_here_mention.sql).
+const HERE_ROLE_ID = 'here'
 
 /** A reaction's bot-supplied metadata; remote_emoji_url is kept only when it is an https Discord CDN URL. */
 export function reactionMetadata(input: unknown): unknown {
@@ -288,7 +290,7 @@ export class BotRestAPI {
       const { data: updated, error } = await supabase.rpc('update_message_content_silent', {
         p_message_id: messageId,
         p_old_content: message.content,
-        p_content: await this.resolveMentionParts(botContentParts(content), message.channel_id),
+        p_content: await this.resolveMentionParts(botContentParts(content), message.channel_id, botId),
       })
       if (error) {
         return res.status(400).json({ error: error.message })
@@ -323,7 +325,7 @@ export class BotRestAPI {
       // Instance attachment policy (e.g. mirroring Discord CDN URLs into
       // user_media) is applied here, keeping bots policy-agnostic.
       const messageContent = await applyBridgeAttachmentPolicy(
-        await this.resolveMentionParts(this.formatContent(content, embeds), channelId),
+        await this.resolveMentionParts(this.formatContent(content, embeds), channelId, botId),
         botId,
         channelId,
       )
@@ -620,7 +622,7 @@ export class BotRestAPI {
       }
       
       const messageContent = await applyBridgeAttachmentPolicy(
-        await this.resolveMentionParts(this.formatContent(content), message.channel_id),
+        await this.resolveMentionParts(this.formatContent(content), message.channel_id, botId),
         botId,
         message.channel_id,
       )
@@ -1797,10 +1799,12 @@ export class BotRestAPI {
   /**
    * role_mention and channel_mention parts against the channel's server: a role or channel of
    * that server keeps its part, carrying the stored name (and the role's color); any other part
-   * of those types becomes the text `@name` or `#name`. Notifications of a kept role mention
+   * of those types becomes the text `@name` or `#name`. @everyone (the server's default role)
+   * and @here (roleId `here`) keep their part only for a bot holding mention_everyone there, and
+   * otherwise become the text `@everyone` or `@here`. Notifications of a kept role mention
    * follow handle_role_mention_notifications (MENTION_EVERYONE, mentionable roles).
    */
-  private async resolveMentionParts(parts: any[], channelId: string | null | undefined): Promise<any[]> {
+  private async resolveMentionParts(parts: any[], channelId: string | null | undefined, botId: string): Promise<any[]> {
     if (!Array.isArray(parts)) return parts
     const isRole = (p: any) => p?.type === 'role_mention'
     const isChannel = (p: any) => p?.type === 'channel_mention'
@@ -1812,17 +1816,20 @@ export class BotRestAPI {
     const roleIds = uuids(parts.filter(isRole).map((p) => p.roleId))
     const channelIds = uuids(parts.filter(isChannel).map((p) => p.channelId))
 
-    const roles = new Map<string, { name: string; color: string | null }>()
+    const roles = new Map<string, { name: string; color: string | null; isDefault: boolean }>()
     if (serverId && roleIds.length > 0) {
       const { data } = await supabase
         .from('server_roles')
-        .select('id, name, color')
+        .select('id, name, color, is_default')
         .eq('server_id', serverId)
         .in('id', roleIds)
-      for (const r of (data ?? []) as Array<{ id: string; name: string; color: string | null }>) {
-        roles.set(r.id, { name: r.name, color: r.color ?? null })
+      for (const r of (data ?? []) as Array<{ id: string; name: string; color: string | null; is_default?: boolean | null }>) {
+        roles.set(r.id, { name: r.name, color: r.color ?? null, isDefault: r.is_default === true })
       }
     }
+    const isHere = (p: any) => isRole(p) && p.roleId === HERE_ROLE_ID
+    const pingsAll = parts.some((p) => isHere(p) || (isRole(p) && roles.get(p.roleId)?.isDefault))
+    const canPingAll = pingsAll && !!serverId && (await this.checkServerPermission(botId, serverId, 'mention_everyone'))
     const channels = new Map<string, string>()
     if (serverId && channelIds.length > 0) {
       const { data } = await supabase
@@ -1836,9 +1843,14 @@ export class BotRestAPI {
     const label = (value: unknown, fallback: string) =>
       typeof value === 'string' && value.trim() !== '' ? value : fallback
     return parts.map((part) => {
+      if (isHere(part)) {
+        if (!canPingAll) return { type: 'text', text: `@${HERE_ROLE_ID}` }
+        return { type: 'role_mention', roleId: HERE_ROLE_ID, roleName: HERE_ROLE_ID, roleColor: null }
+      }
       if (isRole(part)) {
         const role = roles.get(part.roleId)
         if (!role) return { type: 'text', text: `@${label(part.roleName, 'role')}` }
+        if (role.isDefault && !canPingAll) return { type: 'text', text: `@${role.name.replace(/^@/, '')}` }
         return { type: 'role_mention', roleId: part.roleId, roleName: role.name, roleColor: role.color }
       }
       if (isChannel(part)) {

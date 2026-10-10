@@ -2377,7 +2377,7 @@
     "mention": {
       "maxMentions": "Mentions per message",
       "windowMentions": "Mentions per window (0 = off)",
-      "everyone": "Block everyone pings from members without the Mention Everyone permission"
+      "everyone": "Block {'@'}everyone and {'@'}here pings from members without the Mention Everyone permission"
     },
     "flood": {
       "maxMessages": "Messages allowed"
@@ -4276,8 +4276,8 @@
       "mentions": "Only {'@'}mentions",
       "none": "Nothing"
     },
-    "suppressEveryone": "Suppress {'@'}everyone",
-    "suppressEveryoneHint": "{'@'}everyone mentions in this server do not notify you.",
+    "suppressEveryone": "Suppress {'@'}everyone and {'@'}here",
+    "suppressEveryoneHint": "{'@'}everyone and {'@'}here mentions in this server do not notify you.",
     "suppressRoles": "Suppress all role {'@'}mentions",
     "suppressRolesHint": "Mentions of your roles do not notify you. Mentions of you still do.",
     "push": "Push notifications",

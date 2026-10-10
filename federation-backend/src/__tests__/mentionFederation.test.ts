@@ -147,4 +147,21 @@ describe('normalizeInboundMentions (harmony:rawContent)', () => {
     const part = { type: 'mention', username: 'x', domain: 'discord.com', isLocal: false, isBridged: true }
     expect(normalizeInboundMentions([part], SUB)[0]).toEqual(part)
   })
+
+  it('carries @here and @everyone as sent; the host decides who they notify', () => {
+    const here = { type: 'role_mention', roleId: 'here', roleName: 'here', roleColor: null }
+    const everyone = { type: 'role_mention', roleId: '00000000-0000-4000-8000-0000000000e0', roleName: 'everyone', roleColor: null }
+    expect(normalizeInboundMentions([here, everyone], SUB)).toEqual([here, everyone])
+  })
+})
+
+describe('role mentions in the HTML content', () => {
+  it('render as their name for readers without harmony:rawContent', () => {
+    expect(convertContentToHTML([
+      { type: 'role_mention', roleId: 'here', roleName: 'here', roleColor: null },
+      { type: 'text', text: ' and ' },
+      { type: 'role_mention', roleId: '00000000-0000-4000-8000-0000000000e0', roleName: '@everyone', roleColor: null },
+      { type: 'role_mention', roleId: '00000000-0000-4000-8000-0000000000c0', roleName: '<b>crew</b>', roleColor: null },
+    ])).toBe('@here and @everyone@&lt;b&gt;crew&lt;/b&gt;')
+  })
 })
