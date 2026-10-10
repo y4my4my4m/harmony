@@ -2464,6 +2464,7 @@
       "settings": "设置",
       "invite": "邀请",
       "emoji": "表情",
+      "sound": "音效",
       "bot": "机器人"
     },
     "actions": {
@@ -2497,6 +2498,9 @@
       "emoji_create": "{actor} 添加了表情 {target}",
       "emoji_update": "{actor} 重命名了表情 {target}",
       "emoji_delete": "{actor} 移除了表情 {target}",
+      "sound_create": "{actor} 添加了音效 {target}",
+      "sound_update": "{actor} 编辑了音效 {target}",
+      "sound_delete": "{actor} 移除了音效 {target}",
       "bot_add": "{actor} 添加了机器人 {target}",
       "bot_update": "{actor} 修改了机器人 {target} 的权限",
       "bot_remove": "{actor} 移除了机器人 {target}",
@@ -2513,6 +2517,8 @@
       "hoist": "单独显示",
       "icon_url": "图标",
       "unicode_emoji": "表情",
+      "emoji": "表情",
+      "volume": "音量",
       "is_admin": "管理员角色",
       "allow_permissions": "允许",
       "deny_permissions": "拒绝",
@@ -4040,6 +4046,66 @@
       "tooManyChannels": "模板中的频道超过 100 个。",
       "invalid": "模板无效：{detail}",
       "rejected": "服务器拒绝了此模板：{detail}"
+    }
+  },
+  "soundboard": {
+    "title": "音效板",
+    "serverSounds": "服务器音效",
+    "defaultSounds": "默认音效",
+    "emptyServer": "此服务器还没有音效。",
+    "playFor": "为所有人播放 {name}",
+    "preview": "试听 {name}",
+    "cooldown": "音效板冷却",
+    "deafenedNote": "关闭扬声器时无法播放音效。",
+    "mutedNote": "您已在语音设置中将音效板静音。其他人仍能听到您播放的音效。",
+    "played": "{user} 播放了 {sound}",
+    "volume": "音效板音量",
+    "mute": "静音音效板",
+    "muteHint": "不播放其他成员播放的音效",
+    "defaults": {
+      "ding": "叮",
+      "tada": "当当",
+      "rimshot": "咚咚锵",
+      "sad-trombone": "悲伤长号",
+      "boing": "嘣",
+      "whoosh": "嗖"
+    },
+    "settings": {
+      "navLabel": "音效板",
+      "title": "音效板",
+      "description": "成员可在此服务器的语音频道中播放的简短音效。播放需要“Use Soundboard”权限，添加和删除音效需要“Manage Expressions”权限。",
+      "addSound": "添加音效",
+      "fileHint": "MP3、Ogg 或 WAV，最大 {kb} KB、{seconds} 秒。",
+      "chooseFile": "选择文件",
+      "replaceFile": "选择其他文件",
+      "checking": "正在检查文件…",
+      "name": "名称",
+      "emoji": "表情",
+      "volume": "音量",
+      "preview": "试听",
+      "upload": "上传音效",
+      "uploading": "正在上传…",
+      "added": "已添加 {name}",
+      "serverSounds": "服务器音效",
+      "empty": "还没有音效。",
+      "seconds": "{seconds} 秒",
+      "save": "保存",
+      "cancel": "取消",
+      "edit": "编辑 {name}",
+      "delete": "删除 {name}",
+      "deleteTitle": "删除音效",
+      "deleteMessage": "删除 {name}？删除后将无法再播放。",
+      "deleteConfirm": "删除"
+    },
+    "errors": {
+      "unsupported": "该文件不是此浏览器可以播放的 MP3、Ogg 或 WAV 音效。",
+      "tooLarge": "文件过大。音效最大 {kb} KB。",
+      "tooLong": "音效过长。音效最长 {seconds} 秒。",
+      "full": "此服务器已有 {max} 个音效，已达上限。请删除一个后再添加。",
+      "permission": "您没有管理此服务器音效的权限。",
+      "invalid": "音效被拒绝。请检查名称、表情和音量。",
+      "load": "无法加载此服务器的音效。",
+      "generic": "出了点问题，请重试。"
     }
   }
 }

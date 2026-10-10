@@ -56,6 +56,27 @@ describe('permissionNames', () => {
     expect(permissionNames(null)).toEqual([])
     expect(permissionNames('not a number')).toEqual([])
   })
+
+  it('names USE_SOUNDBOARD, bit 30', () => {
+    expect(permissionNames(2 ** 30)).toEqual(['Use Soundboard'])
+  })
+})
+
+describe('sound entries', () => {
+  it('describe the sound and show its volume as a percentage', () => {
+    const edit = entry({
+      action: 'sound.update',
+      target_type: 'sound',
+      target_name: 'Air horn',
+      changes: { name: { old: 'Airhorn', new: 'Air horn' }, volume: { old: 0.8, new: 0.5 }, emoji: { old: '📯' } },
+    })
+    expect(describeAuditEntry(edit, t, date).map((s) => s.text)).toEqual(['serverAuditLog.actions.sound_update'])
+    expect(auditChangeLines(edit, t, date)).toEqual([
+      { field: 'serverAuditLog.fields.name', from: 'Airhorn', to: 'Air horn' },
+      { field: 'serverAuditLog.fields.volume', from: '80%', to: '50%' },
+      { field: 'serverAuditLog.fields.emoji', from: '📯', to: null },
+    ])
+  })
 })
 
 describe('auditActorName', () => {

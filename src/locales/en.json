@@ -2464,6 +2464,7 @@
       "settings": "Settings",
       "invite": "Invites",
       "emoji": "Emojis",
+      "sound": "Sounds",
       "bot": "Bots"
     },
     "actions": {
@@ -2497,6 +2498,9 @@
       "emoji_create": "{actor} added emoji {target}",
       "emoji_update": "{actor} renamed emoji {target}",
       "emoji_delete": "{actor} removed emoji {target}",
+      "sound_create": "{actor} added sound {target}",
+      "sound_update": "{actor} edited sound {target}",
+      "sound_delete": "{actor} removed sound {target}",
       "bot_add": "{actor} added the bot {target}",
       "bot_update": "{actor} changed the permissions of the bot {target}",
       "bot_remove": "{actor} removed the bot {target}",
@@ -2513,6 +2517,8 @@
       "hoist": "Shown separately",
       "icon_url": "Icon",
       "unicode_emoji": "Emoji",
+      "emoji": "Emoji",
+      "volume": "Volume",
       "is_admin": "Administrator role",
       "allow_permissions": "Allowed",
       "deny_permissions": "Denied",
@@ -4036,6 +4042,66 @@
       "tooManyChannels": "The template has more than 100 channels.",
       "invalid": "The template is not valid: {detail}",
       "rejected": "The server refused this template: {detail}"
+    }
+  },
+  "soundboard": {
+    "title": "Soundboard",
+    "serverSounds": "Server sounds",
+    "defaultSounds": "Default sounds",
+    "emptyServer": "This server has no sounds yet.",
+    "playFor": "Play {name} for everyone",
+    "preview": "Preview {name}",
+    "cooldown": "Soundboard cooldown",
+    "deafenedNote": "You can't play sounds while deafened.",
+    "mutedNote": "Soundboard sounds are muted in your voice settings. Others still hear what you play.",
+    "played": "{user} played {sound}",
+    "volume": "Soundboard volume",
+    "mute": "Mute soundboard",
+    "muteHint": "Don't play sounds other members play",
+    "defaults": {
+      "ding": "Ding",
+      "tada": "Tada",
+      "rimshot": "Rimshot",
+      "sad-trombone": "Sad trombone",
+      "boing": "Boing",
+      "whoosh": "Whoosh"
+    },
+    "settings": {
+      "navLabel": "Soundboard",
+      "title": "Soundboard",
+      "description": "Short sounds members can play in this server's voice channels. Playing needs the Use Soundboard permission; adding and removing sounds needs Manage Expressions.",
+      "addSound": "Add a sound",
+      "fileHint": "MP3, Ogg or WAV, up to {kb} KB and {seconds} seconds.",
+      "chooseFile": "Choose file",
+      "replaceFile": "Choose another file",
+      "checking": "Checking file…",
+      "name": "Name",
+      "emoji": "Emoji",
+      "volume": "Volume",
+      "preview": "Preview",
+      "upload": "Upload sound",
+      "uploading": "Uploading…",
+      "added": "Added {name}",
+      "serverSounds": "Server sounds",
+      "empty": "No sounds yet.",
+      "seconds": "{seconds} s",
+      "save": "Save",
+      "cancel": "Cancel",
+      "edit": "Edit {name}",
+      "delete": "Delete {name}",
+      "deleteTitle": "Delete sound",
+      "deleteMessage": "Delete {name}? It can no longer be played.",
+      "deleteConfirm": "Delete"
+    },
+    "errors": {
+      "unsupported": "That file isn't an MP3, Ogg or WAV sound this browser can play.",
+      "tooLarge": "That file is too large. Sounds can be up to {kb} KB.",
+      "tooLong": "That sound is too long. Sounds can be up to {seconds} seconds.",
+      "full": "This server has {max} sounds, the most it can hold. Delete one to add another.",
+      "permission": "You don't have permission to manage this server's sounds.",
+      "invalid": "That sound was refused. Check its name, emoji and volume.",
+      "load": "Couldn't load this server's sounds.",
+      "generic": "Something went wrong. Try again."
     }
   }
 }

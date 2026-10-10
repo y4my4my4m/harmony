@@ -2464,6 +2464,7 @@
       "settings": "設定",
       "invite": "招待",
       "emoji": "絵文字",
+      "sound": "サウンド",
       "bot": "BOT"
     },
     "actions": {
@@ -2497,6 +2498,9 @@
       "emoji_create": "{actor}が絵文字{target}を追加しました",
       "emoji_update": "{actor}が絵文字{target}の名前を変更しました",
       "emoji_delete": "{actor}が絵文字{target}を削除しました",
+      "sound_create": "{actor}がサウンド{target}を追加しました",
+      "sound_update": "{actor}がサウンド{target}を編集しました",
+      "sound_delete": "{actor}がサウンド{target}を削除しました",
       "bot_add": "{actor}がBOT{target}を追加しました",
       "bot_update": "{actor}がBOT{target}の権限を変更しました",
       "bot_remove": "{actor}がBOT{target}を削除しました",
@@ -2513,6 +2517,8 @@
       "hoist": "別枠で表示",
       "icon_url": "アイコン",
       "unicode_emoji": "絵文字",
+      "emoji": "絵文字",
+      "volume": "音量",
       "is_admin": "管理者ロール",
       "allow_permissions": "許可",
       "deny_permissions": "拒否",
@@ -4040,6 +4046,66 @@
       "tooManyChannels": "テンプレートのチャンネルが 100 個を超えています。",
       "invalid": "テンプレートが無効です：{detail}",
       "rejected": "サーバーがこのテンプレートを拒否しました：{detail}"
+    }
+  },
+  "soundboard": {
+    "title": "サウンドボード",
+    "serverSounds": "サーバーのサウンド",
+    "defaultSounds": "デフォルトのサウンド",
+    "emptyServer": "このサーバーにはまだサウンドがありません。",
+    "playFor": "{name}を全員に再生",
+    "preview": "{name}を試聴",
+    "cooldown": "サウンドボードのクールダウン",
+    "deafenedNote": "スピーカーをミュート中はサウンドを再生できません。",
+    "mutedNote": "サウンドボードは音声設定でミュートされています。あなたが再生したサウンドは他の人には聞こえます。",
+    "played": "{user}が{sound}を再生しました",
+    "volume": "サウンドボードの音量",
+    "mute": "サウンドボードをミュート",
+    "muteHint": "他のメンバーが再生したサウンドを再生しません",
+    "defaults": {
+      "ding": "チーン",
+      "tada": "ジャジャーン",
+      "rimshot": "リムショット",
+      "sad-trombone": "残念トロンボーン",
+      "boing": "ボヨーン",
+      "whoosh": "ヒュッ"
+    },
+    "settings": {
+      "navLabel": "サウンドボード",
+      "title": "サウンドボード",
+      "description": "メンバーがこのサーバーのボイスチャンネルで再生できる短いサウンドです。再生には「Use Soundboard」、追加と削除には「Manage Expressions」の権限が必要です。",
+      "addSound": "サウンドを追加",
+      "fileHint": "MP3、Ogg、WAV 形式、{kb} KB・{seconds} 秒まで。",
+      "chooseFile": "ファイルを選択",
+      "replaceFile": "別のファイルを選択",
+      "checking": "ファイルを確認しています…",
+      "name": "名前",
+      "emoji": "絵文字",
+      "volume": "音量",
+      "preview": "試聴",
+      "upload": "サウンドをアップロード",
+      "uploading": "アップロード中…",
+      "added": "{name}を追加しました",
+      "serverSounds": "サーバーのサウンド",
+      "empty": "サウンドはまだありません。",
+      "seconds": "{seconds} 秒",
+      "save": "保存",
+      "cancel": "キャンセル",
+      "edit": "{name}を編集",
+      "delete": "{name}を削除",
+      "deleteTitle": "サウンドを削除",
+      "deleteMessage": "{name}を削除しますか？削除すると再生できなくなります。",
+      "deleteConfirm": "削除"
+    },
+    "errors": {
+      "unsupported": "このファイルは、このブラウザで再生できる MP3、Ogg、WAV のサウンドではありません。",
+      "tooLarge": "ファイルが大きすぎます。サウンドは {kb} KB までです。",
+      "tooLong": "サウンドが長すぎます。サウンドは {seconds} 秒までです。",
+      "full": "このサーバーには上限の {max} 個のサウンドがあります。追加するには 1 つ削除してください。",
+      "permission": "このサーバーのサウンドを管理する権限がありません。",
+      "invalid": "サウンドが拒否されました。名前、絵文字、音量を確認してください。",
+      "load": "このサーバーのサウンドを読み込めませんでした。",
+      "generic": "問題が発生しました。もう一度お試しください。"
     }
   }
 }

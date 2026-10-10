@@ -14,6 +14,7 @@ import {
   inputGain,
   needsGainStage,
 } from './voice/micGain';
+import { SOUNDBOARD_P2P_EVENT } from './soundboard/protocol';
 
 // TYPES & INTERFACES
 
@@ -1148,6 +1149,10 @@ export class UnifiedWebRTCService {
     this.signalChannel.on('broadcast', { event: 'audio-level' }, (payload) => {
       this.handleAudioLevel(payload.payload);
     });
+
+    this.signalChannel.on('broadcast', { event: SOUNDBOARD_P2P_EVENT }, (payload) => {
+      this.handleSoundboard(payload.payload);
+    });
     
     return new Promise<void>((resolve, reject) => {
       this.signalChannel!.subscribe((status: string) => {
@@ -1554,6 +1559,23 @@ export class UnifiedWebRTCService {
         debug.warn('Error adding queued ICE candidate from:', from, error);
       }
     }
+  }
+
+  /** `from` is the sender's own claim; the private topic admits only the room's members. */
+  private handleSoundboard(raw: unknown): void {
+    if (!raw || typeof raw !== 'object') return;
+    const { from, message } = raw as { from?: unknown; message?: unknown };
+    if (typeof from !== 'string' || from === this.currentUserId || !this.allUserStates.has(from)) return;
+    this.emit('soundboard', { userId: from, message, granted: null });
+  }
+
+  sendSoundboard(message: unknown): void {
+    if (!this.signalChannel || !this.currentUserId) return;
+    this.signalChannel.send({
+      type: 'broadcast',
+      event: SOUNDBOARD_P2P_EVENT,
+      payload: { from: this.currentUserId, message },
+    });
   }
 
   private broadcastMessage(message: SignalingMessage): void {

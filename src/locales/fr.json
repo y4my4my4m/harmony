@@ -2464,6 +2464,7 @@
       "settings": "Paramètres",
       "invite": "Invitations",
       "emoji": "Émojis",
+      "sound": "Sons",
       "bot": "Bots"
     },
     "actions": {
@@ -2497,6 +2498,9 @@
       "emoji_create": "{actor} a ajouté l'émoji {target}",
       "emoji_update": "{actor} a renommé l'émoji {target}",
       "emoji_delete": "{actor} a retiré l'émoji {target}",
+      "sound_create": "{actor} a ajouté le son {target}",
+      "sound_update": "{actor} a modifié le son {target}",
+      "sound_delete": "{actor} a retiré le son {target}",
       "bot_add": "{actor} a ajouté le bot {target}",
       "bot_update": "{actor} a modifié les permissions du bot {target}",
       "bot_remove": "{actor} a retiré le bot {target}",
@@ -2513,6 +2517,8 @@
       "hoist": "Affiché séparément",
       "icon_url": "Icône",
       "unicode_emoji": "Émoji",
+      "emoji": "Émoji",
+      "volume": "Volume",
       "is_admin": "Rôle administrateur",
       "allow_permissions": "Autorisé",
       "deny_permissions": "Refusé",
@@ -4040,6 +4046,66 @@
       "tooManyChannels": "Le modèle contient plus de 100 canaux.",
       "invalid": "Le modèle n'est pas valide : {detail}",
       "rejected": "Le serveur a refusé ce modèle : {detail}"
+    }
+  },
+  "soundboard": {
+    "title": "Soundboard",
+    "serverSounds": "Sons du serveur",
+    "defaultSounds": "Sons par défaut",
+    "emptyServer": "Ce serveur n'a pas encore de sons.",
+    "playFor": "Jouer {name} pour tout le monde",
+    "preview": "Écouter {name}",
+    "cooldown": "Délai du soundboard",
+    "deafenedNote": "Vous ne pouvez pas jouer de sons en mode sourdine.",
+    "mutedNote": "Les sons du soundboard sont coupés dans vos paramètres vocaux. Les autres entendent toujours ce que vous jouez.",
+    "played": "{user} a joué {sound}",
+    "volume": "Volume du soundboard",
+    "mute": "Couper le soundboard",
+    "muteHint": "Ne pas jouer les sons lancés par les autres membres",
+    "defaults": {
+      "ding": "Ding",
+      "tada": "Tadaa",
+      "rimshot": "Ba-dum-tss",
+      "sad-trombone": "Trombone triste",
+      "boing": "Boing",
+      "whoosh": "Whoosh"
+    },
+    "settings": {
+      "navLabel": "Soundboard",
+      "title": "Soundboard",
+      "description": "Des sons courts que les membres peuvent jouer dans les salons vocaux de ce serveur. Les jouer demande la permission « Use Soundboard » ; les ajouter et les retirer, « Manage Expressions ».",
+      "addSound": "Ajouter un son",
+      "fileHint": "MP3, Ogg ou WAV, jusqu'à {kb} Ko et {seconds} secondes.",
+      "chooseFile": "Choisir un fichier",
+      "replaceFile": "Choisir un autre fichier",
+      "checking": "Vérification du fichier…",
+      "name": "Nom",
+      "emoji": "Émoji",
+      "volume": "Volume",
+      "preview": "Écouter",
+      "upload": "Envoyer le son",
+      "uploading": "Envoi…",
+      "added": "{name} ajouté",
+      "serverSounds": "Sons du serveur",
+      "empty": "Aucun son pour l'instant.",
+      "seconds": "{seconds} s",
+      "save": "Enregistrer",
+      "cancel": "Annuler",
+      "edit": "Modifier {name}",
+      "delete": "Supprimer {name}",
+      "deleteTitle": "Supprimer le son",
+      "deleteMessage": "Supprimer {name} ? Il ne pourra plus être joué.",
+      "deleteConfirm": "Supprimer"
+    },
+    "errors": {
+      "unsupported": "Ce fichier n'est pas un son MP3, Ogg ou WAV que ce navigateur peut lire.",
+      "tooLarge": "Ce fichier est trop volumineux. Les sons peuvent faire jusqu'à {kb} Ko.",
+      "tooLong": "Ce son est trop long. Les sons peuvent durer jusqu'à {seconds} secondes.",
+      "full": "Ce serveur a déjà {max} sons, le maximum. Supprimez-en un pour en ajouter un autre.",
+      "permission": "Vous n'avez pas la permission de gérer les sons de ce serveur.",
+      "invalid": "Le son a été refusé. Vérifiez son nom, son émoji et son volume.",
+      "load": "Impossible de charger les sons de ce serveur.",
+      "generic": "Une erreur s'est produite. Réessayez."
     }
   }
 }

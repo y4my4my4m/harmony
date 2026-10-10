@@ -108,6 +108,7 @@ class WebRTCManagerService implements WebRTCManager {
       'call-start-time',
       'request-call-start-time',
       'e2ee-status-changed',
+      'soundboard',
     ];
     
     for (const event of eventsToForward) {
@@ -608,6 +609,15 @@ class WebRTCManagerService implements WebRTCManager {
     }
   }
   
+  /** Sends a soundboard play to everyone in the call on the active transport. */
+  sendSoundboard(message: unknown): void {
+    if (this.activeService === 'livekit') {
+      livekitWebRTC.sendSoundboard(message);
+    } else if (this.activeService === 'p2p') {
+      unifiedWebRTC.sendSoundboard(message);
+    }
+  }
+
   /**
    * Set traditional audio enabled (for spatial audio dry/wet switching)
    */

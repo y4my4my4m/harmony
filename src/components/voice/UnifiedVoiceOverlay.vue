@@ -179,6 +179,8 @@
           </template>
         </div>
 
+        <SoundboardActivity class="overlay-soundboard-activity" />
+
         <!-- Bottom Controls -->
         <div class="voice-controls">
           <div class="media-controls">
@@ -247,6 +249,20 @@
             >
               <Icon name="screen-share" />
             </button>
+
+            <button
+              v-if="soundboardButton.available.value"
+              ref="soundboardButtonRef"
+              @click="soundboardButton.toggle"
+              class="control-button"
+              :class="{ active: soundboardButton.visible.value }"
+              :title="t('soundboard.title')"
+              :aria-label="t('soundboard.title')"
+              aria-haspopup="dialog"
+              :aria-expanded="soundboardButton.visible.value"
+            >
+              <Icon name="music" />
+            </button>
           </div>
 
           <div class="action-controls">
@@ -279,6 +295,13 @@
       @close="showStreamPicker = false"
     />
 
+    <SoundboardPopover
+      v-if="soundboardButton.visible.value"
+      :visible="soundboardButton.visible.value"
+      :anchor="soundboardButton.anchor.value"
+      @close="soundboardButton.close"
+    />
+
     <!-- Spatial Audio Panel -->
     <SpatialAudioPanel :is-under-overlay="true" />
 
@@ -288,7 +311,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useKeybinds } from '@/composables/useKeybinds';
@@ -304,6 +327,8 @@ import DeviceSelector from './DeviceSelector.vue';
 import VoiceEncryptionBadge from './VoiceEncryptionBadge.vue';
 import VoiceCallBanner from './VoiceCallBanner.vue';
 import StreamQualityPicker from './StreamQualityPicker.vue';
+import SoundboardActivity from './SoundboardActivity.vue';
+import { useSoundboardButton } from './useSoundboardButton';
 import ConfettiEffect from '../easteregg/ConfettiEffect.vue';
 import Icon from '@/components/common/Icon.vue';
 import DisplayName from '@/components/DisplayName.vue';
@@ -313,6 +338,8 @@ import Avatar from '@/components/common/Avatar.vue';
 import { useUserData } from '@/composables/useUserData';
 import { dmCallSignaling } from '@/services/DMCallSignaling';
 import { dmConversationIdFromChannel } from '@/composables/useCallSwitch';
+
+const SoundboardPopover = defineAsyncComponent(() => import('./SoundboardPopover.vue'));
 
 const { t } = useI18n();
 
@@ -331,6 +358,9 @@ const withShortcut = (label: string, action: Parameters<typeof keybinds.getKeybi
 const shareButtonRef = ref<HTMLButtonElement | null>(null);
 const showStreamPicker = ref(false);
 const streamPickerAnchor = ref<Rect | null>(null);
+
+const soundboardButtonRef = ref<HTMLButtonElement | null>(null);
+const soundboardButton = useSoundboardButton(soundboardButtonRef);
 
 const openStreamPicker = () => {
   if (showStreamPicker.value) {
@@ -1248,6 +1278,15 @@ onUnmounted(() => {
   padding: 12px 20px;
   border-top: 1px solid var(--border-primary);
   flex-shrink: 0;
+}
+
+.overlay-soundboard-activity {
+  position: absolute;
+  left: 50%;
+  bottom: 88px;
+  z-index: 5;
+  max-width: calc(100% - 32px);
+  transform: translateX(-50%);
 }
 
 .media-controls {

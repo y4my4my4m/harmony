@@ -13,6 +13,7 @@ const transport = () => ({
   joinWithToken: vi.fn(async () => true),
   leaveChannel: vi.fn(async () => undefined),
   setTransmitGate: vi.fn(),
+  sendSoundboard: vi.fn(),
   on: vi.fn(),
 })
 const livekit = vi.hoisted(() => ({} as ReturnType<typeof transport>))
@@ -114,5 +115,32 @@ describe('webrtcManager transport selection', () => {
     const m = await manager()
     await expect(m.joinChannel('c1', 'u1', 'voice_channel', undefined, true)).resolves.toBe(false)
     expect(p2p.joinChannel).not.toHaveBeenCalled()
+  })
+})
+
+describe('webrtcManager soundboard', () => {
+  it('sends plays on the active transport only', async () => {
+    tokens.fetchLiveKitConfig.mockResolvedValue(unconfigured)
+    const m = await manager()
+    m.sendSoundboard({ type: 'soundboard' })
+    expect(p2p.sendSoundboard).not.toHaveBeenCalled()
+    await m.joinChannel('c1', 'u1')
+    m.sendSoundboard({ type: 'soundboard' })
+    expect(p2p.sendSoundboard).toHaveBeenCalledWith({ type: 'soundboard' })
+    expect(livekit.sendSoundboard).not.toHaveBeenCalled()
+  })
+
+  it('forwards received plays from the active transport only', async () => {
+    tokens.fetchLiveKitConfig.mockResolvedValue(configured)
+    const m = await manager()
+    const received = vi.fn()
+    m.on('soundboard', received)
+    await m.joinChannel('c1', 'u1')
+    const fromLiveKit = livekit.on.mock.calls.find(([event]) => event === 'soundboard')?.[1]
+    const fromP2P = p2p.on.mock.calls.find(([event]) => event === 'soundboard')?.[1]
+    fromP2P?.({ userId: 'x', message: {}, granted: null })
+    fromLiveKit?.({ userId: 'u2', message: {}, granted: true })
+    expect(received).toHaveBeenCalledTimes(1)
+    expect(received).toHaveBeenCalledWith({ userId: 'u2', message: {}, granted: true })
   })
 })

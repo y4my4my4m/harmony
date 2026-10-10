@@ -55,6 +55,12 @@ vi.mock('../VoiceChannelParticipants.vue', () => stub('VoiceChannelParticipants'
 vi.mock('../SpatialAudioPanel.vue', () => stub('SpatialAudioPanel'))
 vi.mock('../RecentSpeakers.vue', () => stub('RecentSpeakers'))
 vi.mock('../ScreensharePIP.vue', () => stub('ScreensharePIP'))
+vi.mock('../SoundboardActivity.vue', () => stub('SoundboardActivity'))
+vi.mock('../SoundboardPopover.vue', () => stub('SoundboardPopover'))
+vi.mock('../useSoundboardButton', async () => {
+  const { ref } = await import('vue')
+  return { useSoundboardButton: () => ({ available: ref(false), visible: ref(false), anchor: ref(null), toggle: vi.fn(), close: vi.fn() }) }
+})
 
 const member = (userId: string, extra: Record<string, unknown> = {}) => ({
   userId, isAudioEnabled: true, isVideoEnabled: false, isScreenSharing: false,

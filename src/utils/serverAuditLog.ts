@@ -9,7 +9,7 @@ export type AuditTranslate = (key: string, named?: Record<string, unknown>, plur
 /** Filter choices; get_server_audit_log matches a kind against the action's prefix. */
 export const AUDIT_KINDS = [
   'channel', 'category', 'override', 'role', 'member', 'message',
-  'server', 'settings', 'invite', 'emoji', 'bot',
+  'server', 'settings', 'invite', 'emoji', 'sound', 'bot',
 ] as const
 
 const KNOWN_ACTIONS = new Set([
@@ -23,6 +23,7 @@ const KNOWN_ACTIONS = new Set([
   'server.update', 'settings.update',
   'invite.create', 'invite.delete',
   'emoji.create', 'emoji.update', 'emoji.delete',
+  'sound.create', 'sound.update', 'sound.delete',
   'bot.add', 'bot.update', 'bot.remove',
 ])
 
@@ -41,7 +42,7 @@ const LABELLED_FIELDS = new Set([
   'system_messages_enabled', 'default_role', 'system_channel', 'read_messages', 'send_messages',
   'manage_messages', 'embed_links', 'attach_files', 'mention_everyone', 'add_reactions',
   'manage_channels', 'kick_members', 'ban_members', 'manage_roles', 'allowed_channel_ids',
-  'max_uses', 'expires_at', 'temporary',
+  'max_uses', 'expires_at', 'temporary', 'emoji', 'volume',
 ])
 
 /** Shown in the sentence itself, or a channel type number with no user-facing meaning. */
@@ -156,6 +157,8 @@ function formatValue(field: string, value: unknown, t: AuditTranslate, formatDat
   if (typeof value === 'boolean') return t(value ? 'serverAuditLog.value.on' : 'serverAuditLog.value.off')
   if (field === 'slowmode_seconds' && typeof value === 'number') return t('serverAuditLog.value.seconds', { n: value })
   if (field === 'expires_at' && typeof value === 'string') return formatDate(value)
+  // server_sounds.volume, 0-1.
+  if (field === 'volume' && typeof value === 'number') return `${Math.round(value * 100)}%`
   if (typeof value === 'number') return String(value)
   if (typeof value === 'string') return value.length > 120 ? `${value.slice(0, 120)}…` : value
   return t('serverAuditLog.value.changed')
