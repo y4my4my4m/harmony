@@ -120,3 +120,37 @@ describe('parseContentToMessageParts mentions', () => {
     expect(mentions(parts)).toEqual([])
   })
 })
+
+// Stored posts held hosts with the next word glued on (spacify.cloudit,
+// mastodon.gamedev.placeThis): the handle ends where its host does.
+describe('parseContentToMessageParts mention right boundary', () => {
+  const cases: Array<[string, string, string]> = [
+    ['@kai@spacify.cloud\nit works', 'spacify.cloud', '<kai@spacify.cloud>\nit works'],
+    ['@nyx@mastodon.gamedev.place\nThis is it', 'mastodon.gamedev.place', '<nyx@mastodon.gamedev.place>\nThis is it'],
+    ['@nyx@mastodon.gamedev.place\r\nThis', 'mastodon.gamedev.place', '<nyx@mastodon.gamedev.place>\r\nThis'],
+    ['@kai@spacify.cloud it', 'spacify.cloud', '<kai@spacify.cloud> it'],
+    ['@kai@spacify.cloud\tit', 'spacify.cloud', '<kai@spacify.cloud>\tit'],
+    ['@kai@spacify.cloud\u00a0it', 'spacify.cloud', '<kai@spacify.cloud>\u00a0it'],
+    ['@kai@spacify.cloud.\nThis', 'spacify.cloud', '<kai@spacify.cloud>.\nThis'],
+    ['@kai@spacify.cloud, it', 'spacify.cloud', '<kai@spacify.cloud>, it'],
+    ['@kai@spacify.cloud! This', 'spacify.cloud', '<kai@spacify.cloud>! This'],
+    ['(@kai@spacify.cloud) it', 'spacify.cloud', '(<kai@spacify.cloud>) it'],
+    ['@kai@spacify.cloud: it', 'spacify.cloud', '<kai@spacify.cloud>: it'],
+    ['@hby@misskey.io\n\nhi', 'misskey.io', '<hby@misskey.io>\n\nhi'],
+  ]
+
+  for (const [text, host, rendered] of cases) {
+    it(`ends ${JSON.stringify(text)} at ${host}`, async () => {
+      const parts = await parse(text)
+      expect(mentions(parts).map((m) => m.domain)).toEqual([host])
+      expect(plain(parts)).toBe(rendered)
+    })
+  }
+
+  it('stores an unknown remote handle under its own host', async () => {
+    const parts = await parse('@Nyx@Mastodon.Gamedev.Place\nThis')
+    expect(mentions(parts)).toEqual([
+      expect.objectContaining({ username: 'Nyx', domain: 'mastodon.gamedev.place', userId: 'unresolved-Nyx@mastodon.gamedev.place' }),
+    ])
+  })
+})

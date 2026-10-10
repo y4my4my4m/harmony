@@ -149,6 +149,8 @@ const getPlainText = (): string => {
   const processNode = (node: Node) => {
     if (node.nodeType === Node.TEXT_NODE) {
       const content = node.textContent || '';
+      // Browsers leave empty text nodes beside a non-editable pill; one separates nothing.
+      if (!content) return;
       if (lastWasMention && continuesHandle(content)) {
         text += ' ';
       }
@@ -164,14 +166,14 @@ const getPlainText = (): string => {
           text += `:${emojiName}:`;
         }
       } else if (el.classList.contains('editor-mention')) {
-        const displayText = el.getAttribute('data-display-text');
-
-        if (displayText) {
-          // Message parsing consumes the display form: @username or @username@domain.
-          text += displayText;
-        } else {
-          text += el.textContent || '';
+        // Message parsing consumes the display form: @username or @username@domain.
+        const displayText = el.getAttribute('data-display-text') || el.textContent || '';
+        // Handle left boundary (mentionGrammar): a letter, digit, "_", "@" or "/"
+        // directly before the "@" voids the handle, as after a preceding pill.
+        if (/[\p{L}\p{N}_@/]$/u.test(text)) {
+          text += ' ';
         }
+        text += displayText;
         lastWasMention = true;
       } else if (el.classList.contains('editor-blockquote')) {
         lastWasMention = false;
