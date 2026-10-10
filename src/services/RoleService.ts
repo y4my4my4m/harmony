@@ -263,6 +263,8 @@ export interface CreateRoleParams {
   permissions?: Partial<Record<Permission, boolean>>
   icon_url?: string
   unicode_emoji?: string
+  /** Defaults to above every existing role, which only the owner and instance admins may use. */
+  position?: number
 }
 
 export interface UpdateRoleParams {
@@ -420,7 +422,7 @@ class RoleService {
           color: params.color || '#99AAB5',
           hoist: params.hoist || false,
           mentionable: params.mentionable || false,
-          position: maxPosition + 1,
+          position: params.position ?? maxPosition + 1,
           permissions: permissionsBitmask,
           icon_url: params.icon_url,
           unicode_emoji: params.unicode_emoji,
