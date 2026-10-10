@@ -292,8 +292,8 @@ SELECT throws_ok(
     'a user cannot create a conversation attributed to someone else');
 
 -- FOLLOWS ----------------------------------------------------------------------
--- follows_select_all is USING (true): the social graph is public, which is what
--- makes the write cells below the only protection on it.
+-- follows_select_visible exposes every accepted follow: the accepted graph is public,
+-- which makes the write cells below the only protection on it.
 SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
 SELECT isnt_empty(
     $q$SELECT follower_id FROM public.follows
