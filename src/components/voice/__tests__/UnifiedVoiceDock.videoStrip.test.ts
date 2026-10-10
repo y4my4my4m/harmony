@@ -60,6 +60,12 @@ vi.mock('../LiveReactionPopover.vue', () => ({
   __esModule: true,
   default: { name: 'LiveReactionPopover', props: ['visible', 'anchor', 'target'], emits: ['close'], render: () => null },
 }))
+vi.mock('../SoundboardActivity.vue', () => stub('SoundboardActivity'))
+vi.mock('../SoundboardPopover.vue', () => stub('SoundboardPopover'))
+vi.mock('../useSoundboardButton', async () => {
+  const { ref } = await import('vue')
+  return { useSoundboardButton: () => ({ available: ref(false), visible: ref(false), anchor: ref(null), toggle: vi.fn(), close: vi.fn() }) }
+})
 
 const member = (userId: string, extra: Record<string, unknown> = {}) => ({
   userId, isAudioEnabled: true, isVideoEnabled: false, isScreenSharing: false,

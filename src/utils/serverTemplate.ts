@@ -6,6 +6,7 @@
  * the database knows (welcome rules, AutoMod config).
  */
 import { isServerCategory } from '@/utils/serverDiscovery'
+import { PERMISSION_BITS } from '@/services/RoleService'
 
 export const SERVER_TEMPLATE_FORMAT = 'harmony.server-template'
 export const SERVER_TEMPLATE_VERSION = 1
@@ -19,8 +20,9 @@ export const SERVER_TEMPLATE_LIMITS = {
   channels: 100,
 } as const
 
-/** Bits 0..29, PERMISSION_BITS in RoleService and permission_bit_names() in SQL. */
-const PERMISSION_MASK_MAX = 2 ** 30 - 1
+/** Bits named by PERMISSION_BITS, as permission_bit_names() in SQL. */
+const PERMISSION_BIT_COUNT = Object.keys(PERMISSION_BITS).length
+const PERMISSION_MASK_MAX = 2 ** PERMISSION_BIT_COUNT - 1
 
 /** Permissions that make @everyone more than a member: ADMINISTRATOR, MANAGE_CHANNELS,
  *  MANAGE_ROLES, MANAGE_SERVER, KICK_MEMBERS, BAN_MEMBERS, MANAGE_MESSAGES (bits 0, 2, 3, 7, 9,
@@ -162,7 +164,7 @@ export function readPermissionMask(value: unknown): number {
 }
 
 function mask(value: unknown, path: string): void {
-  if (Number.isNaN(readPermissionMask(value))) throw invalid(`${path} is a permission mask of bits 0 to 29`)
+  if (Number.isNaN(readPermissionMask(value))) throw invalid(`${path} is a permission mask of bits 0 to ${PERMISSION_BIT_COUNT - 1}`)
 }
 
 function ref(value: unknown, path: string): string {

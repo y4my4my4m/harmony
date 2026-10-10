@@ -16,6 +16,8 @@ import { useSpatialAudioStore } from '@/stores/spatialAudio';
 import { useAuthStore } from '@/stores/auth';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from './useServerChannel';
+import { useSoundboardStore } from './soundboard';
+import type { SoundboardTransportEvent } from '@/services/soundboard/protocol';
 import { setCallServiceActive } from '@/services/callForegroundService';
 import { syncOverlayForCall } from '@/services/overlayBridge';
 import { useThemeStore } from '@/stores/useTheme';
@@ -1706,6 +1708,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           this.broadcastCallStartTime();
         }
       });
+
+      webrtcManager.on('soundboard', (event: SoundboardTransportEvent) => {
+        void useSoundboardStore().receive(event);
+      });
     },
 
     broadcastCallStartTime(): void {
@@ -2075,6 +2081,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.watchedStreamUserIds = [];
       this.audioPlaybackBlocked = false;
       liveReactions.clear();
+      useSoundboardStore().leaveCall();
     },
 
     getUserProfile(userId: string) {

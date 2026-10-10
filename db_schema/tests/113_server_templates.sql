@@ -138,7 +138,8 @@ SELECT is((SELECT count(*) FROM jsonb_array_elements(current_setting('t113.tpl')
             WHERE jsonb_typeof(r -> 'permissions') <> 'string'), 0::bigint,
           'permission masks are strings');
 SELECT is((SELECT r ->> 'permissions' FROM jsonb_array_elements(current_setting('t113.tpl')::jsonb -> 'roles') r
-            WHERE (r ->> 'is_admin')::boolean), '1073741823',
+            WHERE (r ->> 'is_admin')::boolean),
+          ((1::bigint << array_length(public.permission_bit_names(), 1)) - 1)::text,
           'the Admin mask keeps the named bits only');
 SELECT is((SELECT count(*) FROM jsonb_array_elements(current_setting('t113.tpl')::jsonb -> 'channels') c,
                                 jsonb_array_elements(c -> 'overrides') o), 3::bigint,
@@ -313,7 +314,8 @@ SELECT throws_ok($$SELECT public.create_server_from_template('Bad',
                                '[{"role": "r1", "deny": "2"}, {"role": "r1", "allow": "2"}]'))$$,
                  '22023', NULL, 'two overrides for one role on a channel are refused');
 SELECT throws_ok($$SELECT public.create_server_from_template('Bad',
-                     jsonb_set(current_setting('t113.tpl')::jsonb, '{roles,1,permissions}', '"1073741824"'))$$,
+                     jsonb_set(current_setting('t113.tpl')::jsonb, '{roles,1,permissions}',
+                               to_jsonb((1::bigint << array_length(public.permission_bit_names(), 1))::text)))$$,
                  '22023', NULL, 'a permission bit beyond the named ones is refused');
 SELECT throws_ok($$SELECT public.create_server_from_template('Bad',
                      jsonb_set(current_setting('t113.tpl')::jsonb, '{roles,1,permissions}', '"-1"'))$$,

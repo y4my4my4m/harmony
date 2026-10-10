@@ -2529,6 +2529,7 @@
       "settings": "Ajustes",
       "invite": "Invitaciones",
       "emoji": "Emojis",
+      "sound": "Sonidos",
       "bot": "Bots"
     },
     "actions": {
@@ -2562,6 +2563,9 @@
       "emoji_create": "{actor} añadió el emoji {target}",
       "emoji_update": "{actor} renombró el emoji {target}",
       "emoji_delete": "{actor} quitó el emoji {target}",
+      "sound_create": "{actor} añadió el sonido {target}",
+      "sound_update": "{actor} editó el sonido {target}",
+      "sound_delete": "{actor} quitó el sonido {target}",
       "bot_add": "{actor} añadió el bot {target}",
       "bot_update": "{actor} cambió los permisos del bot {target}",
       "bot_remove": "{actor} quitó el bot {target}",
@@ -2578,6 +2582,8 @@
       "hoist": "Mostrar por separado",
       "icon_url": "Icono",
       "unicode_emoji": "Emoji",
+      "emoji": "Emoji",
+      "volume": "Volumen",
       "is_admin": "Rol de administrador",
       "allow_permissions": "Permitido",
       "deny_permissions": "Denegado",
@@ -4250,6 +4256,66 @@
       "tooManyChannels": "La plantilla tiene más de 100 canales.",
       "invalid": "La plantilla no es válida: {detail}",
       "rejected": "El servidor rechazó esta plantilla: {detail}"
+    }
+  },
+  "soundboard": {
+    "title": "Panel de sonidos",
+    "serverSounds": "Sonidos del servidor",
+    "defaultSounds": "Sonidos predeterminados",
+    "emptyServer": "Este servidor aún no tiene sonidos.",
+    "playFor": "Reproducir {name} para todos",
+    "preview": "Escuchar {name}",
+    "cooldown": "Tiempo de espera del panel de sonidos",
+    "deafenedNote": "No puedes reproducir sonidos mientras estás ensordecido.",
+    "mutedNote": "Los sonidos del panel están silenciados en tus ajustes de voz. Los demás siguen oyendo lo que reproduces.",
+    "played": "{user} reprodujo {sound}",
+    "volume": "Volumen del panel de sonidos",
+    "mute": "Silenciar el panel de sonidos",
+    "muteHint": "No reproducir los sonidos que pongan otros miembros",
+    "defaults": {
+      "ding": "Ding",
+      "tada": "Tachán",
+      "rimshot": "Ba dum tss",
+      "sad-trombone": "Trombón triste",
+      "boing": "Boing",
+      "whoosh": "Zas"
+    },
+    "settings": {
+      "navLabel": "Panel de sonidos",
+      "title": "Panel de sonidos",
+      "description": "Sonidos cortos que los miembros pueden reproducir en los canales de voz de este servidor. Para reproducirlos hace falta el permiso «Use Soundboard»; para añadirlos y quitarlos, «Manage Expressions».",
+      "addSound": "Añadir un sonido",
+      "fileHint": "MP3, Ogg o WAV, de hasta {kb} KB y {seconds} segundos.",
+      "chooseFile": "Elegir archivo",
+      "replaceFile": "Elegir otro archivo",
+      "checking": "Comprobando el archivo…",
+      "name": "Nombre",
+      "emoji": "Emoji",
+      "volume": "Volumen",
+      "preview": "Escuchar",
+      "upload": "Subir sonido",
+      "uploading": "Subiendo…",
+      "added": "Se añadió {name}",
+      "serverSounds": "Sonidos del servidor",
+      "empty": "Aún no hay sonidos.",
+      "seconds": "{seconds} s",
+      "save": "Guardar",
+      "cancel": "Cancelar",
+      "edit": "Editar {name}",
+      "delete": "Eliminar {name}",
+      "deleteTitle": "Eliminar sonido",
+      "deleteMessage": "¿Eliminar {name}? Ya no se podrá reproducir.",
+      "deleteConfirm": "Eliminar"
+    },
+    "errors": {
+      "unsupported": "Ese archivo no es un sonido MP3, Ogg o WAV que este navegador pueda reproducir.",
+      "tooLarge": "Ese archivo es demasiado grande. Los sonidos pueden ocupar hasta {kb} KB.",
+      "tooLong": "Ese sonido es demasiado largo. Los sonidos pueden durar hasta {seconds} segundos.",
+      "full": "Este servidor ya tiene {max} sonidos, el máximo. Elimina uno para añadir otro.",
+      "permission": "No tienes permiso para gestionar los sonidos de este servidor.",
+      "invalid": "Se rechazó el sonido. Revisa su nombre, emoji y volumen.",
+      "load": "No se pudieron cargar los sonidos de este servidor.",
+      "generic": "Algo salió mal. Inténtalo de nuevo."
     }
   }
 }

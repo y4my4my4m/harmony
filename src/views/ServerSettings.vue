@@ -178,6 +178,12 @@
             @emojis-bulk-deleted="handleEmojisBulkDeleted"
           />
 
+          <ServerSoundboardManagement
+            v-if="activeSection === 'soundboard'"
+            :server-id="serverId"
+            :can-manage="permissions.canManageSoundboard"
+          />
+
           <!-- Privacy Settings Section -->
           <template v-if="activeSection === 'privacy'">
             <ServerPrivacySettings
@@ -260,6 +266,7 @@ import ServerAutoMod from '@/components/settings/server/ServerAutoMod.vue'
 import AutoModOptInBanner from '@/components/settings/server/AutoModOptInBanner.vue'
 import ServerWelcomeSettings from '@/components/settings/server/ServerWelcomeSettings.vue'
 import ServerAuditLog from '@/components/settings/server/ServerAuditLog.vue'
+import ServerSoundboardManagement from '@/components/settings/server/ServerSoundboardManagement.vue'
 import ServerTemplateExport from '@/components/settings/server/ServerTemplateExport.vue'
 import { getServerAutoMod, type AutoModState } from '@/services/AutoModService'
 const ReportsModeration = defineAsyncComponent(() => import('@/components/admin/ReportsModeration.vue'))
@@ -356,6 +363,8 @@ const availableSections = computed(() => {
       ? [{ id: 'welcome', label: t('serverWelcome.settings.navLabel') }]
       : []),
     { id: 'emoji', label: t('server.emoji') },
+    // server_sounds holds local servers' sounds only.
+    ...(server.value.is_local_server !== false ? [{ id: 'soundboard', label: t('soundboard.settings.navLabel') }] : []),
     { id: 'privacy', label: t('server.privacySettings') },
     // The discord_bridge_* RPCs require MANAGE_SERVER.
     ...(p.canEditBasicInfo ? [{ id: 'discord-bridge', label: t('discordBridge.navLabel') }] : []),

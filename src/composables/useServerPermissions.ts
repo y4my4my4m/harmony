@@ -379,6 +379,8 @@ export function useServerPermissions(serverId?: MaybeRefOrGetter<string | null |
     canChangePrivacySettings: canManageServer.value,
     canUploadEmojis: canManageEmojis.value,
     canDeleteEmojis: canManageEmojis.value,
+    // MANAGE_EMOJIS is Manage Expressions: emojis and soundboard sounds.
+    canManageSoundboard: canManageEmojis.value,
     canManageCrossServerEmojis: canManageServer.value,
     // Intentional: every member may open the settings view read-only (it
     // doubles as the server overview); all mutations are gated individually.

@@ -50,6 +50,7 @@ import {
 } from './encryption/VoiceE2EEService';
 import { getLiveKitToken } from './livekitTokens';
 import { LIVE_REACTION_TOPIC, MAX_LIVE_REACTION_BYTES } from './voice/liveReactions';
+import { SOUNDBOARD_MESSAGE_MAX_BYTES, SOUNDBOARD_TOPIC, soundboardGrant } from './soundboard/protocol';
 
 // FEDERATED IDENTITY HELPERS
 
@@ -1667,12 +1668,14 @@ export class LiveKitWebRTCService {
       this.emit('connection-quality-changed', { userId, quality: quality as VoiceConnectionQuality });
     });
 
-    // E2EE key-distribution messages (Model S shared-key handshake)
-    this.room.on(RoomEvent.DataReceived, (payload: Uint8Array, participant, _kind, topic?: string) => {
+    // E2EE key-distribution messages (Model S shared-key handshake), live reactions and soundboard plays
+    this.room.on(RoomEvent.DataReceived, (payload: Uint8Array, participant?: RemoteParticipant, _kind?: unknown, topic?: string) => {
       if (topic === this.E2EE_DATA_TOPIC) {
         void this.handleE2EEData(payload);
       } else if (topic === LIVE_REACTION_TOPIC) {
         this.handleLiveReactionData(payload, participant);
+      } else if (topic === SOUNDBOARD_TOPIC) {
+        this.handleSoundboardData(payload, participant);
       }
     });
 
@@ -1916,7 +1919,7 @@ export class LiveKitWebRTCService {
 
     // Data received (for custom messaging like media state)
     this.room.on(RoomEvent.DataReceived, (payload: Uint8Array, participant?: RemoteParticipant, _kind?: unknown, topic?: string) => {
-      if (topic === LIVE_REACTION_TOPIC) return;
+      if (topic === LIVE_REACTION_TOPIC || topic === SOUNDBOARD_TOPIC) return;
       try {
         const message = JSON.parse(new TextDecoder().decode(payload));
 
@@ -2036,6 +2039,24 @@ export class LiveKitWebRTCService {
     this.publishJson(message, message?.type ?? 'message');
   }
 
+  sendSoundboard(message: unknown): void {
+    this.publishJson(message, 'soundboard', SOUNDBOARD_TOPIC);
+  }
+
+  /** Emits 'soundboard' for a participant whose identity has resolved to a profile. */
+  private handleSoundboardData(payload: Uint8Array, participant?: RemoteParticipant): void {
+    if (!participant || payload.byteLength > SOUNDBOARD_MESSAGE_MAX_BYTES) return;
+    const userId = this.allUserStates.get(participant.identity)?.userId;
+    if (!userId) return;
+    let message: unknown;
+    try {
+      message = JSON.parse(new TextDecoder().decode(payload));
+    } catch {
+      return;
+    }
+    this.emit('soundboard', { userId, message, granted: soundboardGrant(participant.metadata) });
+  }
+
   private broadcastMediaState(): void {
     this.publishJson({
       type: 'media-state',
@@ -2053,13 +2074,13 @@ export class LiveKitWebRTCService {
    * publishData rejects asynchronously ("PC manager is closed") during
    * teardown, and local unpublish events fire exactly then.
    */
-  private publishJson(message: unknown, label: string): void {
+  private publishJson(message: unknown, label: string, topic?: string): void {
     const room = this.room;
     if (!room?.localParticipant || this.leaving) return;
     if (room.state !== lib().ConnectionState.Connected) return;
     try {
       const payload = new TextEncoder().encode(JSON.stringify(message));
-      void room.localParticipant.publishData(payload, { reliable: true }).catch((error: unknown) => {
+      void room.localParticipant.publishData(payload, { reliable: true, ...(topic ? { topic } : {}) }).catch((error: unknown) => {
         debug.warn('[LiveKit] Failed to broadcast', label, error);
       });
     } catch (error) {

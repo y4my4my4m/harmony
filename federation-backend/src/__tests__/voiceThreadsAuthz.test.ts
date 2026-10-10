@@ -633,6 +633,20 @@ describe('LiveKit tokens for local users', () => {
   it('refuses a channel room asked for as a DM call', async () => {
     await expect(token(`channel-${V}`, 'dm_call')).rejects.toThrow(/permission denied/)
   })
+
+  it('names the soundboard grant in the token metadata, whatever the request claims', async () => {
+    const metadata = async (extra?: Record<string, unknown>) => {
+      const { token: jwt } = await livekitService.generateToken({
+        userId: 'eve-auth', roomName: `channel-${V}`, roomType: 'voice_channel', metadata: extra,
+      })
+      return JSON.parse(jwtPayload(jwt).metadata)
+    }
+    await expect(metadata({ soundboard: true })).resolves.toMatchObject({ soundboard: false })
+    grant('eve-id', 'VIEW_CHANNEL', 'CONNECT', 'SPEAK', 'USE_SOUNDBOARD')
+    await expect(metadata()).resolves.toMatchObject({ soundboard: true })
+    grant('eve-id', 'VIEW_CHANNEL', 'CONNECT', 'USE_SOUNDBOARD')
+    await expect(metadata()).resolves.toMatchObject({ soundboard: false })
+  })
 })
 
 describe('VoiceChannelJoin on a remote server copy', () => {

@@ -404,11 +404,12 @@ SELECT is(public.get_user_permissions('22222222-0000-0000-0000-000000000002',
           'a plain member is not granted ADMINISTRATOR');
 
 -- RoleService denies on `permissions[p] === true`, so a key the body omits is
--- indistinguishable from a denial. The object must name all 30 bits for a
--- member, not only the ones that happen to be set.
+-- indistinguishable from a denial. The object must name every bit of
+-- permission_bit_names() for a member, not only the ones that happen to be set.
 SELECT is((SELECT count(*)::int FROM jsonb_object_keys(public.get_user_permissions(
              '22222222-0000-0000-0000-000000000002',
-             '55555555-0000-0000-0000-000000000005', NULL))), 30,
+             '55555555-0000-0000-0000-000000000005', NULL))),
+          array_length(public.permission_bit_names(), 1),
           'the permission object names every bit rather than only the granted ones');
 
 SELECT is(public.has_permission('11111111-0000-0000-0000-000000000001',

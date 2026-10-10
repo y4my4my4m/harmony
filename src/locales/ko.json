@@ -2529,6 +2529,7 @@
       "settings": "설정",
       "invite": "초대",
       "emoji": "이모지",
+      "sound": "사운드",
       "bot": "봇"
     },
     "actions": {
@@ -2562,6 +2563,9 @@
       "emoji_create": "{actor}님이 이모지 {target}을(를) 추가했습니다",
       "emoji_update": "{actor}님이 이모지 {target}의 이름을 변경했습니다",
       "emoji_delete": "{actor}님이 이모지 {target}을(를) 삭제했습니다",
+      "sound_create": "{actor}님이 사운드 {target}을(를) 추가했습니다",
+      "sound_update": "{actor}님이 사운드 {target}을(를) 편집했습니다",
+      "sound_delete": "{actor}님이 사운드 {target}을(를) 삭제했습니다",
       "bot_add": "{actor}님이 봇 {target}을(를) 추가했습니다",
       "bot_update": "{actor}님이 봇 {target}의 권한을 변경했습니다",
       "bot_remove": "{actor}님이 봇 {target}을(를) 제거했습니다",
@@ -2578,6 +2582,8 @@
       "hoist": "별도 표시",
       "icon_url": "아이콘",
       "unicode_emoji": "이모지",
+      "emoji": "이모지",
+      "volume": "음량",
       "is_admin": "관리자 역할",
       "allow_permissions": "허용",
       "deny_permissions": "거부",
@@ -4250,6 +4256,66 @@
       "tooManyChannels": "템플릿의 채널이 100개를 초과합니다.",
       "invalid": "템플릿이 올바르지 않습니다: {detail}",
       "rejected": "서버가 이 템플릿을 거부했습니다: {detail}"
+    }
+  },
+  "soundboard": {
+    "title": "사운드보드",
+    "serverSounds": "서버 사운드",
+    "defaultSounds": "기본 사운드",
+    "emptyServer": "이 서버에는 아직 사운드가 없습니다.",
+    "playFor": "모두에게 {name} 재생",
+    "preview": "{name} 미리 듣기",
+    "cooldown": "사운드보드 대기 시간",
+    "deafenedNote": "헤드셋 음소거 중에는 사운드를 재생할 수 없습니다.",
+    "mutedNote": "음성 설정에서 사운드보드가 음소거되어 있습니다. 내가 재생한 사운드는 다른 사람에게 계속 들립니다.",
+    "played": "{user}님이 {sound}을(를) 재생했습니다",
+    "volume": "사운드보드 음량",
+    "mute": "사운드보드 음소거",
+    "muteHint": "다른 멤버가 재생한 사운드를 재생하지 않습니다",
+    "defaults": {
+      "ding": "딩",
+      "tada": "짜잔",
+      "rimshot": "림샷",
+      "sad-trombone": "슬픈 트롬본",
+      "boing": "보잉",
+      "whoosh": "휙"
+    },
+    "settings": {
+      "navLabel": "사운드보드",
+      "title": "사운드보드",
+      "description": "멤버가 이 서버의 음성 채널에서 재생할 수 있는 짧은 사운드입니다. 재생하려면 'Use Soundboard' 권한이, 추가하고 삭제하려면 'Manage Expressions' 권한이 필요합니다.",
+      "addSound": "사운드 추가",
+      "fileHint": "MP3, Ogg 또는 WAV, 최대 {kb}KB, {seconds}초.",
+      "chooseFile": "파일 선택",
+      "replaceFile": "다른 파일 선택",
+      "checking": "파일 확인 중…",
+      "name": "이름",
+      "emoji": "이모지",
+      "volume": "음량",
+      "preview": "미리 듣기",
+      "upload": "사운드 업로드",
+      "uploading": "업로드 중…",
+      "added": "{name}을(를) 추가했습니다",
+      "serverSounds": "서버 사운드",
+      "empty": "아직 사운드가 없습니다.",
+      "seconds": "{seconds}초",
+      "save": "저장",
+      "cancel": "취소",
+      "edit": "{name} 편집",
+      "delete": "{name} 삭제",
+      "deleteTitle": "사운드 삭제",
+      "deleteMessage": "{name}을(를) 삭제할까요? 더 이상 재생할 수 없습니다.",
+      "deleteConfirm": "삭제"
+    },
+    "errors": {
+      "unsupported": "이 파일은 이 브라우저에서 재생할 수 있는 MP3, Ogg, WAV 사운드가 아닙니다.",
+      "tooLarge": "파일이 너무 큽니다. 사운드는 최대 {kb}KB입니다.",
+      "tooLong": "사운드가 너무 깁니다. 사운드는 최대 {seconds}초입니다.",
+      "full": "이 서버에는 최대치인 {max}개의 사운드가 있습니다. 새 사운드를 추가하려면 하나를 삭제하세요.",
+      "permission": "이 서버의 사운드를 관리할 권한이 없습니다.",
+      "invalid": "사운드가 거부되었습니다. 이름, 이모지, 음량을 확인하세요.",
+      "load": "이 서버의 사운드를 불러오지 못했습니다.",
+      "generic": "문제가 발생했습니다. 다시 시도하세요."
     }
   }
 }

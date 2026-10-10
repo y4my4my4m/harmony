@@ -54,7 +54,7 @@ export interface LiveKitConfig {
   allowFederatedVoice: boolean;
 }
 
-type RoomAccess = { ok: true; canPublish: boolean } | { ok: false };
+type RoomAccess = { ok: true; canPublish: boolean; canSoundboard: boolean } | { ok: false };
 
 /** An expected refusal of a token; `answer` is what the caller is told. */
 export class TokenRefused extends Error {
@@ -148,6 +148,8 @@ class LiveKitService {
         username: profile?.username,
         roomType: request.roomType,
         instanceDomain: config.INSTANCE_DOMAIN,
+        // USE_SOUNDBOARD and SPEAK on the channel. Follows the request's metadata, which cannot claim it.
+        soundboard: access.canSoundboard,
       }),
     });
     
@@ -229,6 +231,7 @@ class LiveKitService {
         remoteDomain,
         roomType: request.roomType,
         federated: true,
+        soundboard: access.canSoundboard,
       }),
     });
     
@@ -272,11 +275,11 @@ class LiveKitService {
           profileId: profile.id, channelId: room.channelId, remote: false,
         });
         if (!decision.ok) logger.debug(`Room ${roomName} refused for ${profile.id}: ${decision.reason}`);
-        return decision.ok ? { ok: true, canPublish: decision.canPublish } : DENIED;
+        return decision.ok ? { ok: true, canPublish: decision.canPublish, canSoundboard: decision.canSoundboard } : DENIED;
       }
 
       return (await isConversationParticipant(supabase, room.conversationId, profile.id))
-        ? { ok: true, canPublish: true }
+        ? { ok: true, canPublish: true, canSoundboard: false }
         : DENIED;
     } catch (error) {
       logger.warn(`Room permission check failed for ${authUserId} / ${roomName}:`, error);
@@ -316,7 +319,7 @@ class LiveKitService {
           profileId: profile.id, channelId: room.channelId, remote: true,
         });
         if (!decision.ok) logger.info(`Federated room ${roomName} refused for ${actorId}: ${decision.reason}`);
-        return decision.ok ? { ok: true, canPublish: decision.canPublish } : DENIED;
+        return decision.ok ? { ok: true, canPublish: decision.canPublish, canSoundboard: decision.canSoundboard } : DENIED;
       }
 
       if (room.federated && !(await isLiveOutboundCallFor(supabase, roomName, profile.id))) {
@@ -324,7 +327,7 @@ class LiveKitService {
         return DENIED;
       }
       return (await isConversationParticipant(supabase, room.conversationId, profile.id))
-        ? { ok: true, canPublish: true }
+        ? { ok: true, canPublish: true, canSoundboard: false }
         : DENIED;
     } catch (error) {
       logger.warn(`Federated room access check failed for ${actorId} / ${roomName}:`, error);

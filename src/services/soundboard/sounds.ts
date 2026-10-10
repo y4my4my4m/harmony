@@ -1,0 +1,287 @@
+/**
+ * Soundboard clips: the built-in set shipped under public/, and per-server
+ * sounds (server_sounds, db_schema/migrations/20261011300001_soundboard.sql)
+ * whose files live in the public soundboard bucket at
+ * {serverId}/{uuid}.{mp3|ogg|wav}.
+ *
+ * The database refuses rows naming a file absent from the bucket or larger
+ * than 512 KB, and a 49th sound per server (SOUNDBOARD_FULL). Duration is
+ * checked here only.
+ */
+
+import { supabase } from '@/supabase';
+import { IMMUTABLE_CACHE_SECONDS } from '@/utils/imageResize';
+
+export const SOUNDBOARD_BUCKET = 'soundboard';
+
+export const SOUNDBOARD_LIMITS = {
+  name: 32,
+  emoji: 16,
+  bytes: 512 * 1024,
+  durationMs: 5200,
+  perServer: 48,
+} as const;
+
+export interface SoundboardSound {
+  /** server_sounds id, or "default:<key>" for a built-in clip. */
+  id: string;
+  /** Null for built-in clips. */
+  serverId: string | null;
+  name: string;
+  emoji: string | null;
+  /** 0-1. */
+  volume: number;
+  durationMs: number;
+  url: string;
+  /** Locale key under soundboard.defaults for built-in clips. */
+  builtinKey?: string;
+  storagePath?: string;
+  createdBy?: string | null;
+  createdAt?: string;
+}
+
+const BUILTIN_BASE = '/assets/sounds/soundboard';
+
+// Synthesized by scripts/generate-soundboard-sounds.mjs; durations in ms as generated.
+const BUILTINS: ReadonlyArray<{ key: string; emoji: string; durationMs: number }> = [
+  { key: 'ding', emoji: '🔔', durationMs: 1400 },
+  { key: 'tada', emoji: '🎉', durationMs: 1300 },
+  { key: 'rimshot', emoji: '🥁', durationMs: 1300 },
+  { key: 'sad-trombone', emoji: '🎺', durationMs: 2600 },
+  { key: 'boing', emoji: '🪀', durationMs: 700 },
+  { key: 'whoosh', emoji: '💨', durationMs: 800 },
+];
+
+export const DEFAULT_SOUNDS: ReadonlyArray<SoundboardSound> = BUILTINS.map((b) => ({
+  id: `default:${b.key}`,
+  serverId: null,
+  name: b.key,
+  emoji: b.emoji,
+  volume: 1,
+  durationMs: b.durationMs,
+  url: `${BUILTIN_BASE}/${b.key}.mp3`,
+  builtinKey: b.key,
+}));
+
+export function defaultSound(id: string): SoundboardSound | null {
+  return DEFAULT_SOUNDS.find((s) => s.id === id) ?? null;
+}
+
+// SOUND FILES
+
+export type AudioFileType = { mime: 'audio/mpeg' | 'audio/ogg' | 'audio/wav'; ext: 'mp3' | 'ogg' | 'wav' };
+
+/**
+ * Container from the file's first bytes; null for anything else.
+ *   MP3   "ID3" tag, or an MPEG audio frame sync (11 set bits, layer bits not 00;
+ *         layer 00 is AAC ADTS)
+ *   Ogg   "OggS"
+ *   WAV   "RIFF" at 0, "WAVE" at 8
+ */
+export function sniffAudioType(bytes: Uint8Array): AudioFileType | null {
+  const ascii = (from: number, to: number) => String.fromCharCode(...bytes.subarray(from, to));
+  if (bytes.length >= 3 && ascii(0, 3) === 'ID3') return { mime: 'audio/mpeg', ext: 'mp3' };
+  if (bytes.length >= 2 && bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0 && ((bytes[1] >> 1) & 0x03) !== 0) {
+    return { mime: 'audio/mpeg', ext: 'mp3' };
+  }
+  if (bytes.length >= 4 && ascii(0, 4) === 'OggS') return { mime: 'audio/ogg', ext: 'ogg' };
+  if (bytes.length >= 12 && ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WAVE') return { mime: 'audio/wav', ext: 'wav' };
+  return null;
+}
+
+async function fileHead(file: Blob, length: number): Promise<Uint8Array> {
+  return new Uint8Array(await file.slice(0, length).arrayBuffer());
+}
+
+export async function detectAudioFile(file: Blob): Promise<AudioFileType | null> {
+  return sniffAudioType(await fileHead(file, 12));
+}
+
+/** Decoded duration in ms. Rejects when the browser cannot decode the file. */
+export async function measureAudioDuration(file: Blob): Promise<number> {
+  const Offline = (globalThis as { OfflineAudioContext?: typeof OfflineAudioContext }).OfflineAudioContext;
+  if (Offline) {
+    const ctx = new Offline(1, 1, 44100);
+    const buffer = await ctx.decodeAudioData(await file.arrayBuffer());
+    return Math.round(buffer.duration * 1000);
+  }
+  return new Promise<number>((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const audio = new Audio();
+    audio.preload = 'metadata';
+    const done = (fn: () => void) => {
+      URL.revokeObjectURL(url);
+      fn();
+    };
+    audio.addEventListener('loadedmetadata', () => done(() => {
+      if (Number.isFinite(audio.duration)) resolve(Math.round(audio.duration * 1000));
+      else reject(new Error('unknown duration'));
+    }));
+    audio.addEventListener('error', () => done(() => reject(new Error('undecodable audio'))));
+    audio.src = url;
+  });
+}
+
+export type SoundboardFileProblem = 'unsupported' | 'tooLarge' | 'tooLong';
+
+export interface CheckedSoundFile {
+  type: AudioFileType;
+  durationMs: number;
+}
+
+/** The file's container and duration, or the reason it cannot be a sound. */
+export async function checkSoundFile(
+  file: Blob,
+  measure: (file: Blob) => Promise<number> = measureAudioDuration,
+): Promise<{ ok: true; file: CheckedSoundFile } | { ok: false; problem: SoundboardFileProblem }> {
+  if (file.size > SOUNDBOARD_LIMITS.bytes) return { ok: false, problem: 'tooLarge' };
+  const type = await detectAudioFile(file);
+  if (!type) return { ok: false, problem: 'unsupported' };
+  let durationMs: number;
+  try {
+    durationMs = await measure(file);
+  } catch {
+    return { ok: false, problem: 'unsupported' };
+  }
+  if (!(durationMs > 0)) return { ok: false, problem: 'unsupported' };
+  if (durationMs > SOUNDBOARD_LIMITS.durationMs) return { ok: false, problem: 'tooLong' };
+  return { ok: true, file: { type, durationMs } };
+}
+
+// SERVER SOUNDS
+
+const COLUMNS = 'id, server_id, name, emoji, volume, duration_ms, storage_path, created_by, created_at';
+
+interface ServerSoundRow {
+  id: string;
+  server_id: string;
+  name: string;
+  emoji: string | null;
+  volume: number | string;
+  duration_ms: number;
+  storage_path: string;
+  created_by: string | null;
+  created_at: string;
+}
+
+function publicUrl(path: string): string {
+  return supabase.storage.from(SOUNDBOARD_BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
+function fromRow(row: ServerSoundRow): SoundboardSound {
+  const volume = Number(row.volume);
+  return {
+    id: row.id,
+    serverId: row.server_id,
+    name: row.name,
+    emoji: row.emoji,
+    volume: Number.isFinite(volume) ? volume : 1,
+    durationMs: row.duration_ms,
+    url: publicUrl(row.storage_path),
+    storagePath: row.storage_path,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+  };
+}
+
+/** Volume as stored: 0-1 in steps of 0.01. */
+export function normalizeSoundVolume(volume: number): number {
+  if (!Number.isFinite(volume)) return 1;
+  return Math.round(Math.min(1, Math.max(0, volume)) * 100) / 100;
+}
+
+/** Trimmed emoji, or null when blank. */
+export function normalizeSoundEmoji(emoji: string | null | undefined): string | null {
+  const trimmed = (emoji ?? '').trim();
+  return trimmed ? Array.from(trimmed).slice(0, SOUNDBOARD_LIMITS.emoji).join('') : null;
+}
+
+export async function listServerSounds(serverId: string): Promise<SoundboardSound[]> {
+  const { data, error } = await supabase
+    .from('server_sounds')
+    .select(COLUMNS)
+    .eq('server_id', serverId)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as ServerSoundRow[]).map(fromRow);
+}
+
+export interface SoundInput {
+  name: string;
+  emoji: string | null;
+  volume: number;
+}
+
+/** Uploads the file, then records the sound; the upload is removed when the record fails. */
+export async function createServerSound(
+  serverId: string,
+  file: Blob,
+  checked: CheckedSoundFile,
+  input: SoundInput,
+): Promise<SoundboardSound> {
+  const path = `${serverId}/${crypto.randomUUID()}.${checked.type.ext}`;
+  const { error: uploadError } = await supabase.storage
+    .from(SOUNDBOARD_BUCKET)
+    .upload(path, file, { contentType: checked.type.mime, cacheControl: IMMUTABLE_CACHE_SECONDS, upsert: false });
+  if (uploadError) throw uploadError;
+
+  const { data, error } = await supabase
+    .from('server_sounds')
+    .insert({
+      server_id: serverId,
+      name: input.name.trim(),
+      emoji: normalizeSoundEmoji(input.emoji),
+      volume: normalizeSoundVolume(input.volume),
+      duration_ms: checked.durationMs,
+      storage_path: path,
+    })
+    .select(COLUMNS)
+    .single();
+  if (error) {
+    await supabase.storage.from(SOUNDBOARD_BUCKET).remove([path]).catch(() => {});
+    throw error;
+  }
+  return fromRow(data as ServerSoundRow);
+}
+
+export async function updateServerSound(id: string, input: SoundInput): Promise<SoundboardSound> {
+  const { data, error } = await supabase
+    .from('server_sounds')
+    .update({
+      name: input.name.trim(),
+      emoji: normalizeSoundEmoji(input.emoji),
+      volume: normalizeSoundVolume(input.volume),
+    })
+    .eq('id', id)
+    .select(COLUMNS)
+    .single();
+  if (error) throw error;
+  return fromRow(data as ServerSoundRow);
+}
+
+/** Deletes the record, then its file; a file left behind is unreachable. */
+export async function deleteServerSound(sound: SoundboardSound): Promise<void> {
+  const { error } = await supabase.from('server_sounds').delete().eq('id', sound.id);
+  if (error) throw error;
+  if (sound.storagePath) {
+    await supabase.storage.from(SOUNDBOARD_BUCKET).remove([sound.storagePath]).catch(() => {});
+  }
+}
+
+export type SoundboardErrorKey = 'full' | 'tooLarge' | 'unsupported' | 'permission' | 'invalid' | 'generic';
+
+/** Locale key under soundboard.errors for a refused write. */
+export function soundboardErrorKey(error: unknown): SoundboardErrorKey {
+  const e = (error ?? {}) as Record<string, unknown>;
+  const message = String(e.message ?? e.error ?? '').toLowerCase();
+  const code = String(e.code ?? '');
+  const status = Number(e.statusCode ?? e.status);
+  if (message.includes('soundboard_full')) return 'full';
+  if (message.includes('soundboard_file_too_large') || status === 413 || message.includes('maximum allowed size')) {
+    return 'tooLarge';
+  }
+  if (status === 415 || message.includes('mime type')) return 'unsupported';
+  if (code === '42501' || status === 403 || message.includes('row-level security')) return 'permission';
+  if (code === '23514' || code === '22023') return 'invalid';
+  return 'generic';
+}

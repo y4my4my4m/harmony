@@ -23,6 +23,7 @@
           @update:collapsed="setStripCollapsed"
           @open="openFocused"
         />
+        <SoundboardActivity class="dock-soundboard-activity" />
       </div>
       <!-- Tapping expands to overlay on viewports <= 480px -->
       <div 
@@ -139,6 +140,19 @@
           :aria-expanded="showReactions"
         >
           <Icon name="smile-plus" />
+        </button>
+
+        <button
+          v-if="soundboardButton.available.value"
+          ref="dockSoundboardButtonRef"
+          @click="soundboardButton.toggle"
+          :class="['control-btn', 'soundboard-btn', { active: soundboardButton.visible.value }]"
+          :title="t('soundboard.title')"
+          :aria-label="t('soundboard.title')"
+          aria-haspopup="dialog"
+          :aria-expanded="soundboardButton.visible.value"
+        >
+          <Icon name="music" />
         </button>
 
         <button
@@ -371,6 +385,13 @@
       @close="showReactions = false"
     />
 
+    <SoundboardPopover
+      v-if="currentMode !== 'overlay' && soundboardButton.visible.value"
+      :visible="soundboardButton.visible.value"
+      :anchor="soundboardButton.anchor.value"
+      @close="soundboardButton.close"
+    />
+
     <VoiceSettingsPanel
       v-if="showSettings"
       @close="showSettings = false"
@@ -411,11 +432,13 @@ import VoiceEncryptionBadge from './VoiceEncryptionBadge.vue';
 import PushToTalkButton from './PushToTalkButton.vue';
 import VoiceCallBanner from './VoiceCallBanner.vue';
 import StreamQualityPicker from './StreamQualityPicker.vue';
+import SoundboardActivity from './SoundboardActivity.vue';
 import DockVideoStrip from './DockVideoStrip.vue';
 import LiveReactionLayer from './LiveReactionLayer.vue';
 import LiveReactionPopover from './LiveReactionPopover.vue';
 import type { LiveReactionTarget } from '@/services/voice/liveReactions';
 import { useDockVideoStrip } from './useDockVideoStrip';
+import { useSoundboardButton } from './useSoundboardButton';
 import { showsMinimizedAudioControls } from './minimizedVoiceControls';
 import { userPanelDocked } from '@/composables/useUserPanelDock';
 import type { Rect } from './voiceMenuModel';
@@ -427,6 +450,7 @@ const { t } = useI18n();
 const UnifiedVoiceOverlay = defineAsyncComponent(() => import('./UnifiedVoiceOverlay.vue'));
 const VoiceSettingsPanel = defineAsyncComponent(() => import('./VoiceSettingsPanel.vue'));
 const VoiceChannelParticipants = defineAsyncComponent(() => import('./VoiceChannelParticipants.vue'));
+const SoundboardPopover = defineAsyncComponent(() => import('./SoundboardPopover.vue'));
 
 const keybinds = useKeybinds();
 const isPTTMode = keybinds.isPTTMode;
@@ -667,6 +691,9 @@ const ownQualityWarning = computed(() => ownQuality.value === 'poor' || ownQuali
 const dockShareButtonRef = ref<HTMLButtonElement | null>(null);
 const showStreamPicker = ref(false);
 const streamPickerAnchor = ref<Rect | null>(null);
+
+const dockSoundboardButtonRef = ref<HTMLButtonElement | null>(null);
+const soundboardButton = useSoundboardButton(dockSoundboardButtonRef);
 
 const onDockShareButton = () => {
   if (showStreamPicker.value) {
@@ -2164,6 +2191,10 @@ onUnmounted(() => {
 
 .dock-banner :deep(.vcb) {
   box-shadow: var(--shadow-medium);
+}
+
+.dock-soundboard-activity {
+  max-width: min(420px, calc(100vw - 16px));
 }
 
 .dock-quality-warn {

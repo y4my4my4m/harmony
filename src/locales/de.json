@@ -2529,6 +2529,7 @@
       "settings": "Einstellungen",
       "invite": "Einladungen",
       "emoji": "Emojis",
+      "sound": "Sounds",
       "bot": "Bots"
     },
     "actions": {
@@ -2562,6 +2563,9 @@
       "emoji_create": "{actor} hat das Emoji {target} hinzugefügt",
       "emoji_update": "{actor} hat das Emoji {target} umbenannt",
       "emoji_delete": "{actor} hat das Emoji {target} entfernt",
+      "sound_create": "{actor} hat den Sound {target} hinzugefügt",
+      "sound_update": "{actor} hat den Sound {target} bearbeitet",
+      "sound_delete": "{actor} hat den Sound {target} entfernt",
       "bot_add": "{actor} hat den Bot {target} hinzugefügt",
       "bot_update": "{actor} hat die Berechtigungen des Bots {target} geändert",
       "bot_remove": "{actor} hat den Bot {target} entfernt",
@@ -2578,6 +2582,8 @@
       "hoist": "Separat angezeigt",
       "icon_url": "Symbol",
       "unicode_emoji": "Emoji",
+      "emoji": "Emoji",
+      "volume": "Lautstärke",
       "is_admin": "Administratorrolle",
       "allow_permissions": "Erlaubt",
       "deny_permissions": "Verweigert",
@@ -4250,6 +4256,66 @@
       "tooManyChannels": "Die Vorlage hat mehr als 100 Kanäle.",
       "invalid": "Die Vorlage ist ungültig: {detail}",
       "rejected": "Der Server hat diese Vorlage abgelehnt: {detail}"
+    }
+  },
+  "soundboard": {
+    "title": "Soundboard",
+    "serverSounds": "Server-Sounds",
+    "defaultSounds": "Standard-Sounds",
+    "emptyServer": "Dieser Server hat noch keine Sounds.",
+    "playFor": "{name} für alle abspielen",
+    "preview": "Vorschau: {name}",
+    "cooldown": "Soundboard-Abklingzeit",
+    "deafenedNote": "Solange du taub geschaltet bist, kannst du keine Sounds abspielen.",
+    "mutedNote": "Soundboard-Sounds sind in deinen Spracheinstellungen stummgeschaltet. Andere hören weiterhin, was du abspielst.",
+    "played": "{user} hat {sound} abgespielt",
+    "volume": "Soundboard-Lautstärke",
+    "mute": "Soundboard stummschalten",
+    "muteHint": "Sounds, die andere Mitglieder abspielen, nicht wiedergeben",
+    "defaults": {
+      "ding": "Ding",
+      "tada": "Tadaa",
+      "rimshot": "Tusch",
+      "sad-trombone": "Traurige Posaune",
+      "boing": "Boing",
+      "whoosh": "Wusch"
+    },
+    "settings": {
+      "navLabel": "Soundboard",
+      "title": "Soundboard",
+      "description": "Kurze Sounds, die Mitglieder in den Sprachkanälen dieses Servers abspielen können. Zum Abspielen braucht es die Berechtigung „Use Soundboard“, zum Hinzufügen und Entfernen „Manage Expressions“.",
+      "addSound": "Sound hinzufügen",
+      "fileHint": "MP3, Ogg oder WAV, bis zu {kb} KB und {seconds} Sekunden.",
+      "chooseFile": "Datei auswählen",
+      "replaceFile": "Andere Datei auswählen",
+      "checking": "Datei wird geprüft …",
+      "name": "Name",
+      "emoji": "Emoji",
+      "volume": "Lautstärke",
+      "preview": "Vorschau",
+      "upload": "Sound hochladen",
+      "uploading": "Wird hochgeladen …",
+      "added": "{name} hinzugefügt",
+      "serverSounds": "Server-Sounds",
+      "empty": "Noch keine Sounds.",
+      "seconds": "{seconds} s",
+      "save": "Speichern",
+      "cancel": "Abbrechen",
+      "edit": "{name} bearbeiten",
+      "delete": "{name} löschen",
+      "deleteTitle": "Sound löschen",
+      "deleteMessage": "{name} löschen? Der Sound kann dann nicht mehr abgespielt werden.",
+      "deleteConfirm": "Löschen"
+    },
+    "errors": {
+      "unsupported": "Diese Datei ist kein MP3-, Ogg- oder WAV-Sound, den dieser Browser abspielen kann.",
+      "tooLarge": "Diese Datei ist zu groß. Sounds dürfen höchstens {kb} KB groß sein.",
+      "tooLong": "Dieser Sound ist zu lang. Sounds dürfen höchstens {seconds} Sekunden lang sein.",
+      "full": "Dieser Server hat bereits {max} Sounds, das Maximum. Lösche einen, um einen neuen hinzuzufügen.",
+      "permission": "Du darfst die Sounds dieses Servers nicht verwalten.",
+      "invalid": "Der Sound wurde abgelehnt. Prüfe Name, Emoji und Lautstärke.",
+      "load": "Die Sounds dieses Servers konnten nicht geladen werden.",
+      "generic": "Etwas ist schiefgelaufen. Versuche es erneut."
     }
   }
 }
