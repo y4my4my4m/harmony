@@ -311,6 +311,7 @@ const VOICE_GROUP = {
     { key: Permission.MUTE_MEMBERS,   label: 'Mute Members',   description: 'Mute other members here.' },
     { key: Permission.DEAFEN_MEMBERS, label: 'Deafen Members', description: 'Deafen other members here.' },
     { key: Permission.MOVE_MEMBERS,   label: 'Move Members',   description: 'Move members out of this channel.' },
+    { key: Permission.USE_SOUNDBOARD, label: 'Use Soundboard', description: 'Play soundboard sounds in this channel.' },
   ],
 }
 

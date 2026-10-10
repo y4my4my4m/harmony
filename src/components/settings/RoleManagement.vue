@@ -448,7 +448,7 @@ const permissionSections = [
       { key: 'MANAGE_SERVER', label: 'Manage Server', description: 'Edit server settings and delete the server' },
       { key: 'CREATE_INVITE', label: 'Create Invite', description: 'Create invites to this server' },
       { key: 'VIEW_AUDIT_LOG', label: 'View Audit Log', description: 'View the server audit log' },
-      { key: 'MANAGE_EMOJIS', label: 'Manage Emojis', description: 'Add, edit, and remove custom emojis' },
+      { key: 'MANAGE_EMOJIS', label: 'Manage Expressions', description: 'Add, edit, and remove custom emojis and soundboard sounds' },
       { key: 'MANAGE_WEBHOOKS', label: 'Manage Webhooks', description: 'Create, edit, and delete webhooks' },
     ],
   },
@@ -495,6 +495,7 @@ const permissionSections = [
       { key: 'MUTE_MEMBERS', label: 'Mute Members', description: 'Server mute members in voice' },
       { key: 'DEAFEN_MEMBERS', label: 'Deafen Members', description: 'Server deafen members in voice' },
       { key: 'MOVE_MEMBERS', label: 'Move Members', description: 'Move members between voice channels' },
+      { key: 'USE_SOUNDBOARD', label: 'Use Soundboard', description: 'Play soundboard sounds in voice channels' },
     ],
   },
 ]
