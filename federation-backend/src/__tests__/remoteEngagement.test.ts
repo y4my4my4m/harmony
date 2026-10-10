@@ -19,9 +19,10 @@ vi.mock('../utils/ssrfProtection.js', () => ({
   validateExternalHostname: vi.fn(),
   validateExternalUrl: vi.fn(),
 }))
-vi.mock('../middleware/rateLimit.js', () => ({
-  discoveryLimiter: (_req: any, _res: any, next: any) => next(),
-}))
+vi.mock('../middleware/rateLimit.js', () => {
+  const pass = (_req: any, _res: any, next: any) => next()
+  return { discoveryLimiter: pass, reactionsLimiter: pass, repliesLimiter: pass, repliesStatusLimiter: pass }
+})
 const blocked = vi.hoisted(() => new Set<string>())
 vi.mock('../services/BlockedInstancesCache.js', () => ({
   BlockedInstancesCache: { isBlocked: (host: string) => blocked.has(host) },
@@ -36,6 +37,9 @@ vi.mock('../listeners/DatabaseListener.js', () => ({
 type Row = Record<string, any>
 let tables: Record<string, Row[]> = {}
 let nextId = 1
+/** Errors the next inserts answer with, in order. */
+let insertErrors: Array<{ code: string; message: string }> = []
+let inserts = 0
 
 const DEFAULTS: Record<string, Row> = {
   posts: { is_deleted: false, in_reply_to: null, metadata: {} },
@@ -59,6 +63,15 @@ function fakeSupabase() {
         select() { return builder },
         update(p: Row) { op = 'update'; patch = p; return builder },
         insert(row: Row) {
+          inserts++
+          const failure = insertErrors.shift()
+          if (failure) {
+            const failed = { data: null, error: failure }
+            return {
+              select: () => ({ single: () => Promise.resolve(failed), maybeSingle: () => Promise.resolve(failed) }),
+              then: (resolve: any) => resolve(failed),
+            }
+          }
           const stored = { id: `row-${nextId++}`, ...DEFAULTS[table], ...row }
           ;(tables[table] ??= []).push(stored)
           const result = { data: stored, error: null }
@@ -155,6 +168,8 @@ beforeEach(() => {
   vi.setSystemTime(clock)
   FRESH = new Date(clock).toISOString()
   nextId = 1
+  insertErrors = []
+  inserts = 0
   blocked.clear()
   resetProfileCountState()
   requested = []
@@ -218,12 +233,12 @@ describe('POST /fetch-replies', () => {
     expect(tables.posts.some((p) => p.ap_id === 'https://gts.test/users/gone/statuses/4')).toBe(false)
   })
 
-  it('stores the post\'s likes and shares figures', async () => {
+  it('stores the post\'s likes and shares figures, and the replies a complete walk listed', async () => {
     await supertest(app()).post('/fetch-replies').send({ post_ap_id: POST, force: true })
     const row = tables.posts.find((p) => p.id === 'post-1')!
-    expect(row).toMatchObject({ remote_favorites_count: 764, remote_reblogs_count: 82 })
-    expect(row.remote_replies_count).toBeUndefined()
-    expect(typeof row.remote_counts_fetched_at).toBe('string')
+    expect(row).toMatchObject({ remote_favorites_count: 764, remote_reblogs_count: 82, remote_replies_count: 4 })
+    expect(row.remote_counts_fetched_at).toBe(FRESH)
+    expect(row.replies_fetched_at).toBe(FRESH)
   })
 
   it('does not store a reply twice', async () => {
@@ -272,6 +287,139 @@ describe('POST /fetch-replies', () => {
   it('reports a post its origin no longer serves', async () => {
     const res = await supertest(app()).post('/fetch-replies').send({ post_ap_id: 'https://mastodon.test/users/strypey/statuses/404', force: true })
     expect(res.body).toMatchObject({ success: true, status: 'unavailable', count: 0 })
+  })
+})
+
+describe('POST /fetch-replies with async', () => {
+  const start = (body: Record<string, unknown>) =>
+    supertest(app()).post('/fetch-replies').send({ post_ap_id: POST, async: true, ...body })
+  const status = (apId = POST) => supertest(app()).get('/fetch-replies/status').query({ post_ap_id: apId })
+
+  /** Holds every GET of `url` until the returned function is called. */
+  const hold = (url: string) => {
+    let release!: () => void
+    const held = new Promise<void>((resolve) => { release = resolve })
+    const answer = vi.mocked(safeFetch).getMockImplementation()!
+    vi.mocked(safeFetch).mockImplementation(async (target: any, init?: any) => {
+      if (String(target) === url) await held
+      return answer(target, init)
+    })
+    return release
+  }
+
+  const settle = async (apId = POST) => {
+    for (let i = 0; i < 100; i++) {
+      const res = await status(apId)
+      if (res.body.status !== 'running') return res
+      await new Promise((r) => setTimeout(r, 10))
+    }
+    throw new Error('crawl never ended')
+  }
+
+  it('answers before a slow crawl ends and reports it running, then done', async () => {
+    const release = hold(PAGE_OTHERS)
+    const began = Date.now()
+    const first = await start({ force: true })
+    expect(first.body).toMatchObject({ success: true, status: 'started', result: null, replies_count: 0 })
+    expect(Date.now() - began).toBeLessThan(5_000)
+
+    expect((await status()).body).toMatchObject({ status: 'running', result: null })
+    expect((await start({ force: true })).body).toMatchObject({ status: 'running' })
+
+    release()
+    const done = await settle()
+    expect(done.body).toMatchObject({
+      success: true,
+      status: 'done',
+      result: { outcome: 'ok', found: 4, stored: 2, existing: 0, skipped: 2, truncated: false, complete: true },
+      replies_fetched_at: FRESH,
+    })
+    expect(repliesOf('post-1')).toHaveLength(2)
+  })
+
+  it('answers done with the result when the crawl ends within the wait', async () => {
+    const res = await start({ force: true })
+    expect(res.body).toMatchObject({ status: 'done', result: { outcome: 'ok', found: 4, stored: 2 } })
+    expect(res.body.replies_fetched_at).toBe(FRESH)
+  })
+
+  it('answers recent with the last result until the interval for the post\'s age has passed', async () => {
+    tables.posts[0].created_at = new Date(clock - 2 * 60 * 60_000).toISOString()
+    await start({ force: true })
+    requested = []
+
+    vi.setSystemTime(clock + 5 * 60_000)
+    const recent = await start({})
+    expect(recent.body).toMatchObject({ status: 'recent', result: { outcome: 'ok', found: 4 } })
+    expect(requested).toEqual([])
+
+    vi.setSystemTime(clock + 16 * 60_000)
+    expect((await start({})).body.status).toBe('done')
+    expect(requested).toContain(POST)
+  })
+
+  it('crawls a post under an hour old again after two minutes', async () => {
+    tables.posts[0].created_at = new Date(clock - 10 * 60_000).toISOString()
+    tables.posts[0].replies_fetched_at = new Date(clock - 3 * 60_000).toISOString()
+    expect((await start({})).body.status).toBe('done')
+
+    tables.posts[0].created_at = new Date(clock - 3 * 60 * 60_000).toISOString()
+    vi.setSystemTime(clock + 3 * 60_000)
+    expect((await start({})).body.status).toBe('recent')
+  })
+
+  it('reads the last crawl time from the post, not from this process', async () => {
+    tables.posts[0].created_at = new Date(clock - 2 * 60 * 60_000).toISOString()
+    tables.posts[0].replies_fetched_at = new Date(clock - 60_000).toISOString()
+    const res = await start({})
+    expect(res.body).toMatchObject({ status: 'recent' })
+    expect(requested).toEqual([])
+  })
+
+  it('reports a post whose origin refuses to serve it', async () => {
+    const locked = `${AUTHOR}/statuses/locked`
+    vi.mocked(safeFetch).mockImplementation(async (url: any) => {
+      requested.push(String(url))
+      return new Response('', { status: 401 })
+    })
+    const res = await start({ post_ap_id: locked, force: true })
+    expect(res.body).toMatchObject({ status: 'done', result: { outcome: 'unauthorized', found: 0, complete: false } })
+  })
+
+  it('writes no reply total when a page of the collection cannot be read', async () => {
+    delete docs[PAGE_OTHERS_2]
+    const res = await start({ force: true })
+    expect(res.body.result).toMatchObject({ outcome: 'ok', found: 2, complete: false })
+    expect(tables.posts[0].remote_replies_count).toBeUndefined()
+    expect(tables.posts[0].replies_fetched_at).toBe(FRESH)
+  })
+
+  it('keeps the reply total a Note carries over the number its walk listed', async () => {
+    docs[POST] = { ...mastodonStatus, replies: { ...mastodonStatus.replies, totalItems: 9 } }
+    await start({ force: true })
+    expect(tables.posts[0].remote_replies_count).toBe(9)
+  })
+
+  it('reports idle for a post no crawl ran for', async () => {
+    const res = await status(`${AUTHOR}/statuses/never`)
+    expect(res.body).toMatchObject({ success: true, status: 'idle', result: null })
+    expect((await supertest(app()).get('/fetch-replies/status')).status).toBe(400)
+  })
+})
+
+describe('storing a remote post', () => {
+  it('retries an insert aborted by a deadlock once', async () => {
+    insertErrors = [{ code: '40P01', message: 'deadlock detected' }]
+    const stored = await ActivityProcessor.storeRemotePost(reply(`${KIWI}/statuses/40`, KIWI))
+    expect(stored).not.toBeNull()
+    expect(inserts).toBe(2)
+    expect(tables.posts.some((p) => p.ap_id === `${KIWI}/statuses/40`)).toBe(true)
+  })
+
+  it('gives up after a second deadlock', async () => {
+    insertErrors = [{ code: '40P01', message: 'deadlock detected' }, { code: '40P01', message: 'deadlock detected' }]
+    expect(await ActivityProcessor.storeRemotePost(reply(`${KIWI}/statuses/41`, KIWI))).toBeNull()
+    expect(inserts).toBe(2)
   })
 })
 

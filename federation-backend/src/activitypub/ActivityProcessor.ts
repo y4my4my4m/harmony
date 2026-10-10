@@ -163,9 +163,10 @@ export class ActivityProcessor {
    * GET an ActivityPub document with the URL it was served from, signed as
    * the instance actor. Blocked hosts are never contacted, so a boost, reply
    * or quote cannot import their content.
-   * The response must carry an ActivityPub media type.
+   * The response must carry an ActivityPub media type. `onStatus` receives the
+   * HTTP status of an answer.
    */
-  static async fetchApDocument(url: string): Promise<FetchedDocument | null> {
+  static async fetchApDocument(url: string, onStatus?: (status: number) => void): Promise<FetchedDocument | null> {
     let host: string;
     try {
       host = new URL(url).hostname.toLowerCase();
@@ -183,6 +184,7 @@ export class ActivityProcessor {
           'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
         },
       });
+      onStatus?.(response.status);
       const fetched = await readApDocument(response, url);
       if (!fetched) logger.warn(`AP fetch for ${url} returned ${response.status} ${response.headers.get('content-type') ?? ''}`);
       else noteDocumentSoftware(fetched.finalUrl, fetched.doc);
@@ -1137,7 +1139,7 @@ export class ActivityProcessor {
         metadata.in_reply_to_ap_url = remoteObject.inReplyTo;
       }
 
-      const { data: newPost, error } = await supabase
+      const insertPost = () => supabase
         .from('posts')
         .insert({
           ap_id: apId,
@@ -1157,6 +1159,13 @@ export class ActivityProcessor {
         })
         .select('id, in_reply_to, conversation_root_id')
         .single();
+
+      let { data: newPost, error } = await insertPost();
+      // 40P01: aborted to break a lock cycle with a concurrent insert; retried once.
+      if (error?.code === '40P01') {
+        logger.info(`Deadlock storing ${apId}, retrying`);
+        ({ data: newPost, error } = await insertPost());
+      }
 
       if (error) {
         // 23505: unique violation from a concurrent insert of the same ap_id.
