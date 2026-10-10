@@ -2427,7 +2427,7 @@
     },
     "threads": {
       "title": "スレッドはまだありません",
-      "description": "任意のメッセージからスレッドを開始できます。",
+      "description": "メッセージからスレッドを始めるか、ここで新しく作成できます。",
       "noMatchTitle": "検索に一致するスレッドはありません",
       "noMatchDescription": "別の名前をお試しください。"
     },
@@ -3869,5 +3869,12 @@
     "open": "開く",
     "hide": "非表示",
     "show": "表示"
+  },
+  "threadCreate": {
+    "button": "新しいスレッド",
+    "nameLabel": "スレッド名",
+    "placeholder": "このスレッドの話題は？",
+    "submit": "作成",
+    "failed": "スレッドを作成できませんでした。"
   }
 }

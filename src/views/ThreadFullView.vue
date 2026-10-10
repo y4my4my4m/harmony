@@ -124,7 +124,7 @@
     </div>
 
     <!-- Parent Message (Starter Message) -->
-    <div class="parent-message-section" v-if="thread?.parent_message">
+    <div class="parent-message-section" v-if="thread?.parent_message && !isThreadNoticeParent(thread.parent_message)">
       <div class="section-label">Original message</div>
       <div class="parent-message" :id="`message-${thread.parent_message.id}`">
         <Avatar 
@@ -239,7 +239,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
-import { threadService } from '@/services/ThreadService'
+import { threadService, isThreadNoticeParent } from '@/services/ThreadService'
 import { supabase } from '@/supabase'
 import { useUserData } from '@/composables/useUserData'
 import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt'

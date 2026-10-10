@@ -271,10 +271,12 @@ export async function handleThreadActivity(
         }
 
         // --- Resolve parent message, in the same channel ---
+        // A standalone thread's parent is the sender's own notice; this instance posts its own.
+        const standalone = (threadObject as any)['harmony:standalone'] === true;
         const parentMessageId = typeof threadObject.inReplyTo === 'string'
           ? await resolveMessageInChannel(supabase, threadObject.inReplyTo, channelId)
           : null;
-        if (!parentMessageId) {
+        if (!parentMessageId && !standalone) {
           logger.warn(`Parent message not found in channel ${channelId}. inReplyTo=${threadObject.inReplyTo}`);
           return { success: false, error: 'Parent message not found' };
         }
@@ -337,7 +339,7 @@ export async function handleThreadActivity(
           };
           if (isStub) {
             // A stub carries a placeholder parent and the first message's author.
-            updateData.parent_message_id = parentMessageId;
+            if (parentMessageId) updateData.parent_message_id = parentMessageId;
             updateData.created_by = authz.userId;
             updateData.federation_status = 'synced';
           }
@@ -368,13 +370,32 @@ export async function handleThreadActivity(
         const creatorId = authz.userId;
 
         // --- Insert new thread ---
-        const threadData = activityPubToThread(threadObject, channelId, parentMessageId, creatorId);
-
         // Preserve original UUID across instances
         const threadIdMatch = threadApId.match(/\/threads\/([a-f0-9-]{36})/i);
-        if (threadIdMatch) {
-          threadData.id = threadIdMatch[1];
+        const threadId = threadIdMatch?.[1] ?? crypto.randomUUID();
+
+        let noticeId: string | null = null;
+        if (!parentMessageId) {
+          const { data: notice, error: noticeError } = await supabase
+            .from('messages')
+            .insert({
+              channel_id: channelId,
+              user_id: creatorId,
+              content: [{ type: 'text', text: 'started a thread' }],
+              is_system: true,
+              metadata: { type: 'thread_created', thread_id: threadId, thread_name: threadObject.name, standalone: true },
+            })
+            .select('id')
+            .single();
+          if (noticeError || !notice) {
+            logger.error('Failed to post standalone thread notice:', noticeError);
+            return { success: false, error: 'Failed to post thread notice' };
+          }
+          noticeId = notice.id;
         }
+
+        const threadData = activityPubToThread(threadObject, channelId, (parentMessageId ?? noticeId)!, creatorId);
+        threadData.id = threadId;
 
         logger.info(`Inserting thread: id=${threadData.id || 'auto'}, channel_id=${threadData.channel_id}, parent_message_id=${threadData.parent_message_id}, created_by=${threadData.created_by}, ap_id=${threadData.ap_id}`);
 
@@ -382,6 +403,9 @@ export async function handleThreadActivity(
           .from('threads')
           .insert(threadData);
 
+        if (error && noticeId) {
+          await supabase.from('messages').delete().eq('id', noticeId);
+        }
         if (error) {
           // 23505: a concurrent insert of the same thread; only that thread is adopted.
           if (error.code === '23505' && threadData.id) {
@@ -567,7 +591,8 @@ export function createThreadActivity(
   actorApId: string,
   serverId?: string,
   channelName?: string,
-  channelId?: string
+  channelId?: string,
+  standalone?: boolean
 ): ThreadActivity {
   const baseUrl = `https://${config.INSTANCE_DOMAIN}`;
   const threadObject = threadToActivityPub(
@@ -577,6 +602,9 @@ export function createThreadActivity(
 
   if (serverId) {
     (threadObject as any)['harmony:serverId'] = serverId;
+  }
+  if (standalone) {
+    (threadObject as any)['harmony:standalone'] = true;
   }
 
   return {
@@ -592,6 +620,7 @@ export function createThreadActivity(
         serverId: 'harmony:serverId',
         channelName: 'harmony:channelName',
         channelId: 'harmony:channelId',
+        standalone: 'harmony:standalone',
       },
     ],
     id: `${baseUrl}/activities/${crypto.randomUUID()}`,

@@ -24,7 +24,7 @@
 
 import { computed, nextTick, onUnmounted, reactive, ref, shallowRef } from 'vue'
 import { i18n } from '@/i18n'
-import { isYouTubeOrigin } from '@/utils/embedDetection'
+import { isYouTubePlayerOrigin } from '@/utils/embedDetection'
 import {
   bottomCorner,
   clampAspect,
@@ -180,7 +180,7 @@ function postYouTube(iframe: HTMLIFrameElement, message: Record<string, unknown>
 }
 
 function onYouTubeMessage(event: MessageEvent): void {
-  if (!event.source || !isYouTubeOrigin(event.origin)) return
+  if (!event.source || !isYouTubePlayerOrigin(event.origin)) return
   let data: any = event.data
   if (typeof data === 'string') {
     try {

@@ -142,7 +142,7 @@ import { debug } from '@/utils/debug'
 // `TimelinePost` is already imported in the module-scope <script lang="ts">
 // block above for the cache helpers; re-importing it here is a TS duplicate.
 import type { EmbedPayload } from '@/types';
-import { parseEmbedUrl, buildYouTubeEmbedUrl, buildSpotifyEmbedUrl, isYouTubeOrigin } from '@/utils/embedDetection';
+import { parseEmbedUrl, buildYouTubePlayerSrc, buildSpotifyEmbedUrl, isYouTubePlayerOrigin } from '@/utils/embedDetection';
 import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import LinkEmbedCard from './LinkEmbedCard.vue';
@@ -240,14 +240,7 @@ const youtubeEmbedUrl = computed(() => {
   const parsed = parseEmbedUrl(normalized);
   if (!parsed) return null;
   
-  const url = buildYouTubeEmbedUrl(parsed);
-  if (!url) return null;
-  const params = new URLSearchParams();
-  params.set('enablejsapi', '1');
-  params.set('origin', window.location.origin);
-  params.set('widget_referrer', window.location.origin);
-  
-  return url + (url.includes('?') ? '&' : '?') + params.toString();
+  return buildYouTubePlayerSrc(parsed);
 });
 
 const spotifyEmbedUrl = computed(() => {
@@ -343,7 +336,7 @@ function updatePlayState(playing: boolean) {
 }
 
 function handleYouTubeMessage(event: MessageEvent) {
-  if (!isYouTubeOrigin(event.origin)) return;
+  if (!isYouTubePlayerOrigin(event.origin)) return;
   if (!event.data) return;
   
   try {

@@ -715,6 +715,48 @@ describe('ChatThread Create on an existing thread', () => {
   })
 })
 
+describe('Standalone ChatThread Create', () => {
+  const standaloneCreate = (standalone: boolean) => ({
+    type: 'Create', id: `https://remote.test/a/${nextId++}`, actor: CAROL, published: FRESH,
+    object: {
+      type: 'ChatThread', id: `https://remote.test/threads/${T}`, name: 'plans',
+      context: `https://harmony.test/servers/${S}/channels/${C}`,
+      inReplyTo: 'https://remote.test/messages/99999999-9999-9999-9999-999999999999',
+      ...(standalone ? { 'harmony:standalone': true } : {}),
+    },
+  } as any)
+
+  beforeEach(() => {
+    tables.user_servers.push({ user_id: 'carol-id', server_id: S, status: 'accepted' })
+    grant('carol-id', 'VIEW_CHANNEL', 'CREATE_PUBLIC_THREADS', 'SEND_MESSAGES')
+  })
+
+  it('posts its own started-a-thread notice as the parent', async () => {
+    expect(await handleThreadActivity(standaloneCreate(true), { serverId: S })).toEqual({ success: true })
+    const notice = tables.messages.find((m) => m.metadata?.type === 'thread_created')
+    expect(notice).toMatchObject({
+      channel_id: C, user_id: 'carol-id', is_system: true,
+      metadata: { type: 'thread_created', thread_id: T, thread_name: 'plans', standalone: true },
+    })
+    expect(tables.threads).toEqual([
+      expect.objectContaining({ id: T, channel_id: C, parent_message_id: notice!.id, created_by: 'carol-id' }),
+    ])
+  })
+
+  it('a thread without the flag still needs its parent', async () => {
+    expect(await handleThreadActivity(standaloneCreate(false), { serverId: S }))
+      .toEqual({ success: false, error: 'Parent message not found' })
+    expect(tables.messages).toEqual([])
+    expect(tables.threads).toEqual([])
+  })
+
+  it('posts no notice for a signer without CREATE_PUBLIC_THREADS', async () => {
+    grant('carol-id', 'VIEW_CHANNEL', 'SEND_MESSAGES')
+    expect((await handleThreadActivity(standaloneCreate(true), { serverId: S })).success).toBe(false)
+    expect(tables.messages).toEqual([])
+  })
+})
+
 describe('Server inbox and profile suspension', () => {
   it('a suspended remote member creates no thread through /servers/:id/inbox', async () => {
     tables.profiles.find((p) => p.id === 'dave-id')!.is_suspended = true

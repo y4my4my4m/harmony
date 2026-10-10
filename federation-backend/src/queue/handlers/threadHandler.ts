@@ -64,6 +64,9 @@ export async function handleThreadJob(data: FederationJobData): Promise<void> {
       return;
     }
 
+    // A standalone thread's parent is its own 'started a thread' notice, which the
+    // receiver posts itself rather than resolving.
+    const standalone = parentMessage.metadata?.type === 'thread_created';
     const channel = (thread as any).channel;
     const server = channel?.server;
     const creator = (thread as any).creator;
@@ -105,7 +108,8 @@ export async function handleThreadJob(data: FederationJobData): Promise<void> {
         creatorApId,
         server.id,
         channel.name,
-        channel.id
+        channel.id,
+        standalone
       );
 
       await DeliveryQueue.enqueue(
@@ -146,7 +150,8 @@ export async function handleThreadJob(data: FederationJobData): Promise<void> {
         creatorApId,
         server.id,
         channel.name,
-        channel.id
+        channel.id,
+        standalone
       );
 
       for (const group of remoteMemberGroups) {

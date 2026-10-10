@@ -47,7 +47,9 @@
 	}
 
 	# nginx adds these on every response; `?` keeps a value the upstream set.
-	header {
+	# The YouTube relay is framed by the native apps and carries frame-ancestors instead.
+	@notYouTubeRelay not path /youtube-embed.html
+	header @notYouTubeRelay {
 		?X-Frame-Options SAMEORIGIN
 		?X-Content-Type-Options nosniff
 		?X-XSS-Protection "1; mode=block"

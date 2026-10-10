@@ -260,7 +260,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { supabase } from '@/supabase'
 import { isModerationRejectionCode } from '@/services/AutoModService'
-import { threadService } from '@/services/ThreadService'
+import { threadService, isThreadNoticeParent } from '@/services/ThreadService'
 import { useUserData } from '@/composables/useUserData'
 import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt'
 import { useProfileStore } from '@/stores/useProfile'
@@ -434,7 +434,8 @@ const displayParentMessage = computed(() => {
   if (isDraftMode.value) {
     return props.draftParentMessage
   }
-  return thread.value?.parent_message
+  const parent = thread.value?.parent_message
+  return isThreadNoticeParent(parent) ? null : parent
 })
 
 // Thread name (or generate from parent message in draft mode)

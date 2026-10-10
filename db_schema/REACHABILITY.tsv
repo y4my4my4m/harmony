@@ -108,7 +108,7 @@ can_manage_discord_bridge	definer	boolean	authenticated+service_role	client, pol
 can_manage_group_icon	definer	boolean	service_role	client	called by remove_group_icon, update_group_icon, update_group_name
 can_send_to_topic	definer	boolean	authenticated+service_role	policy	policy realtime.messages INSERT on authenticated_users_can_send
 can_subscribe_to_topic	definer	boolean	anon+authenticated+service_role	policy	policy realtime.messages SELECT on authenticated_users_can_receive
-can_view_channel	definer	boolean	service_role	client, policy, trigger	called by create_report, create_thread, discord_bridge_pair, +11
+can_view_channel	definer	boolean	service_role	client, policy, trigger	called by create_channel_thread, create_report, create_thread, +12
 cancel_device_pairing_request	definer	boolean	authenticated+service_role	client	rpc in src/services/encryption/DeviceIdentityService.ts
 cascade_delete_reblogs	definer	trigger	anon+authenticated+service_role	trigger	trigger public.posts AFTER UPDATE (cascade_delete_reblogs_trigger)
 channel_is_restricted	definer	boolean	service_role	client, policy, trigger	rpc in federation-backend/src/activitypub/VoiceActivityHandler.ts
@@ -150,6 +150,7 @@ count_pinned_messages	invoker	integer	anon+authenticated+service_role	client	rpc
 count_profile_media	invoker	integer	anon+authenticated+service_role	client	rpc in src/services/activityPubService.ts
 create_bot	definer	jsonb	authenticated+service_role	client	rpc in src/components/settings/user/UserBotsManagement.vue
 create_channel	invoker	channels	authenticated+service_role	client	rpc in src/components/CreateChannel.vue
+create_channel_thread	definer	uuid	authenticated+service_role	client	rpc in src/services/ThreadService.ts
 create_comprehensive_timeline_entries	definer	trigger	anon+authenticated+service_role	trigger	trigger public.posts AFTER INSERT (create_comprehensive_timeline_entries_trigger)
 create_default_notification_preferences	definer	void	service_role	service key	nothing references it
 create_default_server_role	definer	trigger	anon+authenticated+service_role	trigger	trigger public.servers AFTER INSERT (trigger_create_default_role)

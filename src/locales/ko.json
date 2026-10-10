@@ -2427,7 +2427,7 @@
     },
     "threads": {
       "title": "아직 스레드가 없습니다",
-      "description": "아무 메시지에서나 스레드를 시작하세요.",
+      "description": "메시지에서 스레드를 시작하거나 여기서 새로 만드세요.",
       "noMatchTitle": "검색과 일치하는 스레드가 없습니다",
       "noMatchDescription": "다른 이름을 입력해 보세요."
     },
@@ -3869,5 +3869,12 @@
     "open": "열기",
     "hide": "숨기기",
     "show": "표시"
+  },
+  "threadCreate": {
+    "button": "새 스레드",
+    "nameLabel": "스레드 이름",
+    "placeholder": "이 스레드의 주제는 무엇인가요?",
+    "submit": "만들기",
+    "failed": "스레드를 만들 수 없습니다."
   }
 }

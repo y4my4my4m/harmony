@@ -10,6 +10,16 @@
               <h2>Threads</h2>
             </div>
             <div class="header-actions">
+              <button
+                v-if="canCreate"
+                type="button"
+                class="new-thread-btn"
+                :disabled="creating"
+                @click="startCreating"
+              >
+                <Icon name="plus" :size="16" />
+                <span>{{ $t('threadCreate.button') }}</span>
+              </button>
               <div class="search-box">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M21.53 20.47l-3.66-3.66C19.195 15.24 20 13.214 20 11c0-4.97-4.03-9-9-9s-9 4.03-9 9 4.03 9 9 9c2.215 0 4.24-.804 5.808-2.13l3.66 3.66c.147.146.34.22.53.22s.385-.073.53-.22c.295-.293.295-.767.002-1.06zM3.5 11c0-4.135 3.365-7.5 7.5-7.5s7.5 3.365 7.5 7.5-3.365 7.5-7.5 7.5-7.5-3.365-7.5-7.5z"/>
@@ -31,6 +41,30 @@
 
           <!-- Thread Lists -->
           <div class="modal-content">
+            <form v-if="creating" class="new-thread-form" @submit.prevent="submitNewThread">
+              <label class="new-thread-label" for="new-thread-name">{{ $t('threadCreate.nameLabel') }}</label>
+              <div class="new-thread-row">
+                <input
+                  id="new-thread-name"
+                  ref="nameInput"
+                  v-model="newThreadName"
+                  type="text"
+                  maxlength="100"
+                  autocomplete="off"
+                  :placeholder="$t('threadCreate.placeholder')"
+                  :disabled="submitting"
+                  @keydown.esc.stop.prevent="cancelCreating"
+                />
+                <button type="button" class="new-thread-cancel" :disabled="submitting" @click="cancelCreating">
+                  {{ $t('common.cancel') }}
+                </button>
+                <button type="submit" class="new-thread-submit" :disabled="submitting || !newThreadName.trim()">
+                  {{ $t('threadCreate.submit') }}
+                </button>
+              </div>
+              <p v-if="createError" class="new-thread-error" role="alert">{{ createError }}</p>
+            </form>
+
             <!-- Joined Threads Section -->
             <div v-if="joinedThreads.length > 0" class="thread-section">
               <h3 class="section-title">{{ joinedThreads.length }} joined threads</h3>
@@ -101,6 +135,8 @@
               :icon="searchQuery ? 'search' : 'thread'"
               :title="searchQuery ? $t('empty.threads.noMatchTitle') : $t('empty.threads.title')"
               :description="searchQuery ? $t('empty.threads.noMatchDescription') : $t('empty.threads.description')"
+              :action-label="!searchQuery && canCreate && !creating ? $t('threadCreate.button') : undefined"
+              @action="startCreating"
             />
 
             <!-- Loading -->
@@ -116,8 +152,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useThreadsStore, isOptimisticThreadId } from '@/stores/useThreads'
+import { threadService } from '@/services/ThreadService'
+import { useServerPermissions } from '@/composables/useServerPermissions'
 import { useUserData } from '@/composables/useUserData'
 import { formatDistanceToNow } from 'date-fns'
 import Avatar from '@/components/common/Avatar.vue'
@@ -200,6 +239,51 @@ const formatRelativeTime = (date?: Date | string | null) => {
   }
 }
 
+const { t } = useI18n()
+const { canCreateThreads } = useServerPermissions()
+const canCreate = computed(() => !!props.channelId && canCreateThreads.value)
+
+const creating = ref(false)
+const submitting = ref(false)
+const newThreadName = ref('')
+const createError = ref('')
+const nameInput = ref<HTMLInputElement | null>(null)
+
+const startCreating = () => {
+  creating.value = true
+  createError.value = ''
+  void nextTick(() => nameInput.value?.focus())
+}
+
+const cancelCreating = () => {
+  if (submitting.value) return
+  creating.value = false
+  newThreadName.value = ''
+  createError.value = ''
+}
+
+const submitNewThread = async () => {
+  const name = newThreadName.value.trim()
+  if (!props.channelId || !name || submitting.value) return
+  submitting.value = true
+  createError.value = ''
+  try {
+    const id = await threadService.createChannelThread(props.channelId, name)
+    const thread = await threadService.getThread(id, true)
+    if (!thread) throw new Error('thread not readable after create')
+    threadsStore.upsert(thread)
+    creating.value = false
+    newThreadName.value = ''
+    emit('select-thread', thread)
+    close()
+  } catch (error) {
+    console.error('Failed to create thread:', error)
+    createError.value = t('threadCreate.failed')
+  } finally {
+    submitting.value = false
+  }
+}
+
 // An optimistic thread has no server id to open yet.
 const selectThread = (thread: ThreadWithDetails) => {
   if (isOptimisticThreadId(thread.id)) return
@@ -214,6 +298,10 @@ const close = () => {
 watch(() => props.isVisible, (visible) => {
   if (visible) {
     loadThreads()
+  } else {
+    creating.value = false
+    newThreadName.value = ''
+    createError.value = ''
   }
 })
 
@@ -290,6 +378,88 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.new-thread-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.new-thread-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.new-thread-form {
+  margin-bottom: 16px;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--background-tertiary);
+}
+
+.new-thread-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.new-thread-row {
+  display: flex;
+  gap: 8px;
+}
+
+.new-thread-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--background-secondary);
+  color: var(--text-primary);
+}
+
+.new-thread-cancel,
+.new-thread-submit {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.new-thread-cancel {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.new-thread-submit {
+  background: var(--harmony-primary);
+  color: var(--text-on-primary);
+  font-weight: 600;
+}
+
+.new-thread-submit:disabled,
+.new-thread-cancel:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.new-thread-error {
+  margin: 8px 0 0;
+  color: var(--error);
+  font-size: 13px;
 }
 
 .search-box {
