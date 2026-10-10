@@ -32,6 +32,7 @@ const TYPE_GATES: Record<string, string[]> = {
   mention: ['push_mentions', 'desktop_mentions'],
   dm: ['push_dms', 'desktop_dms'],
   chat_message: ['push_dms', 'desktop_chat_messages'],
+  channel_message: ['desktop_chat_messages'],
   reply: ['desktop_replies'],
   thread_reply: ['desktop_replies'],
   newcomer_message: ['newcomer_alerts'],

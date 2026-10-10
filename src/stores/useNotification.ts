@@ -75,6 +75,7 @@ const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   mention: 'mention',
   dm: 'dm', 
   chat_message: 'dm',
+  channel_message: 'dm',
   reaction: 'reaction',
   reply: 'reply',
   thread_reply: 'reply',
@@ -360,7 +361,8 @@ export const useNotificationStore = defineStore('notification', {
           unread++
           if (isApMention) unreadMentions++
           if (isDM) unreadDMs++
-          if (isMention) {
+          // A channel at level 'all' badges every message, as a mention does.
+          if (isMention || n.type === 'channel_message') {
             // Legacy getters used `||` between top-level and nested forms,
             // so a notification carrying both `data.channel_id = X` and
             // `data.location.channel_id = Y` (X !== Y) counted for both.
@@ -485,6 +487,7 @@ export const useNotificationStore = defineStore('notification', {
           case 'dm':
             return state.preferences.desktop_dms
           case 'chat_message':
+          case 'channel_message':
             return state.preferences.desktop_chat_messages
           case 'reaction':
             return state.preferences.desktop_reactions
@@ -525,6 +528,7 @@ export const useNotificationStore = defineStore('notification', {
           case 'dm':
             return state.preferences.sound_dms
           case 'chat_message':
+          case 'channel_message':
             return state.preferences.sound_chat_messages
           case 'reaction':
             return state.preferences.sound_reactions

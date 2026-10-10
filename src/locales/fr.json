@@ -4266,6 +4266,57 @@
       "rejected": "Le serveur a refusé ce modèle : {detail}"
     }
   },
+  "notificationSettings": {
+    "menuEntry": "Paramètres de notification",
+    "title": "Paramètres de notification",
+    "muteServer": "Mettre {name} en sourdine",
+    "muteServerHint": "Un serveur en sourdine n'affiche aucun indicateur de non-lu et n'envoie aucune notification, sauf si l'on vous mentionne.",
+    "muteFor": "Sourdine pendant",
+    "serverLevel": "Notifications du serveur",
+    "serverDefaultTag": "Par défaut du serveur",
+    "useServerDefault": "Utiliser le réglage par défaut du serveur",
+    "levels": {
+      "all": "Tous les messages",
+      "mentions": "Seulement les {'@'}mentions",
+      "none": "Rien"
+    },
+    "suppressEveryone": "Ignorer {'@'}everyone",
+    "suppressEveryoneHint": "Les mentions {'@'}everyone de ce serveur ne vous notifient pas.",
+    "suppressRoles": "Ignorer toutes les {'@'}mentions de rôles",
+    "suppressRolesHint": "Les mentions de vos rôles ne vous notifient pas. Les mentions de vous, si.",
+    "push": "Notifications push",
+    "pushHint": "Envoie les notifications de ce serveur sur votre téléphone et votre navigateur pendant votre absence.",
+    "overrides": "Exceptions de notification",
+    "overridesHint": "Un salon ou une catégorie réglé ici ignore le réglage du serveur. Les salons suivent leur catégorie.",
+    "addOverride": "Choisir un salon ou une catégorie",
+    "categoriesGroup": "Catégories",
+    "channelsGroup": "Salons",
+    "categoryTag": "Catégorie",
+    "columns": {
+      "target": "Salon ou catégorie",
+      "mute": "Sourdine"
+    },
+    "remove": "Retirer",
+    "removeNamed": "Retirer l'exception pour {name}",
+    "noOverrides": "Aucune exception pour le moment.",
+    "done": "Terminé",
+    "saveFailed": "Impossible d'enregistrer les paramètres de notification",
+    "header": {
+      "markRead": "Marquer comme lu",
+      "muteChannel": "Mettre le salon en sourdine",
+      "unmuteChannel": "Réactiver le salon",
+      "unmuteCategory": "Réactiver la catégorie",
+      "level": "Niveau de notification",
+      "default": "Par défaut ({level})"
+    },
+    "notification": {
+      "action": " a envoyé un message dans #{channel}",
+      "actionNoChannel": " a envoyé un message",
+      "short": "Message dans #{channel}",
+      "shortNoChannel": "Nouveau message",
+      "noPreview": "Cliquez pour voir le message"
+    }
+  },
   "soundboard": {
     "title": "Soundboard",
     "serverSounds": "Sons du serveur",

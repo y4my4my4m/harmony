@@ -4266,6 +4266,57 @@
       "rejected": "Der Server hat diese Vorlage abgelehnt: {detail}"
     }
   },
+  "notificationSettings": {
+    "menuEntry": "Benachrichtigungseinstellungen",
+    "title": "Benachrichtigungseinstellungen",
+    "muteServer": "{name} stummschalten",
+    "muteServerHint": "Ein stummgeschalteter Server zeigt keine Ungelesen-Hinweise und sendet keine Benachrichtigungen, außer wenn du erwähnt wirst.",
+    "muteFor": "Stummschalten für",
+    "serverLevel": "Server-Benachrichtigungseinstellungen",
+    "serverDefaultTag": "Server-Standard",
+    "useServerDefault": "Server-Standard verwenden",
+    "levels": {
+      "all": "Alle Nachrichten",
+      "mentions": "Nur {'@'}Erwähnungen",
+      "none": "Nichts"
+    },
+    "suppressEveryone": "{'@'}everyone unterdrücken",
+    "suppressEveryoneHint": "{'@'}everyone-Erwähnungen in diesem Server benachrichtigen dich nicht.",
+    "suppressRoles": "Alle Rollen-{'@'}Erwähnungen unterdrücken",
+    "suppressRolesHint": "Erwähnungen deiner Rollen benachrichtigen dich nicht. Erwähnungen von dir weiterhin schon.",
+    "push": "Push-Benachrichtigungen",
+    "pushHint": "Sendet die Benachrichtigungen dieses Servers an dein Telefon und deinen Browser, während du abwesend bist.",
+    "overrides": "Benachrichtigungs-Ausnahmen",
+    "overridesHint": "Ein hier festgelegter Kanal oder eine Kategorie ignoriert die Server-Einstellung. Kanäle folgen ihrer Kategorie.",
+    "addOverride": "Kanal oder Kategorie auswählen",
+    "categoriesGroup": "Kategorien",
+    "channelsGroup": "Kanäle",
+    "categoryTag": "Kategorie",
+    "columns": {
+      "target": "Kanal oder Kategorie",
+      "mute": "Stumm"
+    },
+    "remove": "Entfernen",
+    "removeNamed": "Ausnahme für {name} entfernen",
+    "noOverrides": "Noch keine Ausnahmen.",
+    "done": "Fertig",
+    "saveFailed": "Benachrichtigungseinstellungen konnten nicht gespeichert werden",
+    "header": {
+      "markRead": "Als gelesen markieren",
+      "muteChannel": "Kanal stummschalten",
+      "unmuteChannel": "Stummschaltung des Kanals aufheben",
+      "unmuteCategory": "Stummschaltung der Kategorie aufheben",
+      "level": "Benachrichtigungsstufe",
+      "default": "Standard ({level})"
+    },
+    "notification": {
+      "action": " hat eine Nachricht in #{channel} gesendet",
+      "actionNoChannel": " hat eine Nachricht gesendet",
+      "short": "Nachricht in #{channel}",
+      "shortNoChannel": "Neue Nachricht",
+      "noPreview": "Klicken, um die Nachricht anzuzeigen"
+    }
+  },
   "soundboard": {
     "title": "Soundboard",
     "serverSounds": "Server-Sounds",

@@ -10,6 +10,9 @@
 #   status  containers and port
 #   logs    compose logs
 #
+# E2E_PROJECT and E2E_PORT name the compose project and gateway port, so stacks of separate
+# checkouts run side by side.
+#
 # Schema build mirrors scripts/run-db-tests.sh: scripts/test-db/supabase-compat.sql
 # as supabase_admin, then init/init.sql as postgres. Added here: role passwords and
 # e2e/jwt-claims-compat.sql.
@@ -20,7 +23,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 E2E="$ROOT/e2e"
-PROJECT="hme2e"
+PROJECT="${E2E_PROJECT:-hme2e}"
 COMPOSE_FILE="$E2E/docker-compose.yml"
 ENV_FILE="$E2E/stack.env"
 FIXTURE_FILE="$E2E/fixture.json"

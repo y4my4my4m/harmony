@@ -136,6 +136,27 @@ Configuration → General.
 
 Notification preferences are granular with per-category toggles for desktop notifications, sounds, and DND scheduling. See `NotificationSettings` and `ActivityPubNotificationSettings` components.
 
+### Server notification settings
+
+Server menu → Notification settings (also on the server icon's context menu) sets, per server:
+a mute (15 minutes to 24 hours, or until turned back on), the notification level (All messages,
+Only @mentions, Nothing), Suppress @everyone, Suppress all role @mentions, push notifications,
+and overrides for single channels or categories (a level and a mute each). The channel header's
+⋮ menu reads and writes the same channel override.
+
+A channel's level is its own override, else its category's, else the server setting, else the
+server's default (`server_settings.default_message_notifications`), else Only @mentions:
+
+| Level | Notifies for |
+|-------|--------------|
+| All messages | every channel message (`channel_message`), mentions, reactions, thread replies |
+| Only @mentions | mentions, reactions to your messages, replies in threads you are in |
+| Nothing | nothing from the channel; it still shows unread |
+
+A muted server, category or channel notifies only for mentions. A muted channel or category also
+hides its unread state and freezes its count; a muted server hides only the server icon's unread
+dot. Suppressed @everyone or role mentions notify as plain messages at All messages.
+
 ---
 
 > **Note**: This page is protected from auto-generation. Edit the content in `docs-source/guide/features/users.md` and run `npm run docs:generate-guide` to update.

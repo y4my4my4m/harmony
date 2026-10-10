@@ -4266,6 +4266,57 @@
       "rejected": "El servidor rechazó esta plantilla: {detail}"
     }
   },
+  "notificationSettings": {
+    "menuEntry": "Configuración de notificaciones",
+    "title": "Configuración de notificaciones",
+    "muteServer": "Silenciar {name}",
+    "muteServerHint": "Un servidor silenciado no muestra indicadores de no leído ni envía notificaciones, salvo cuando te mencionan.",
+    "muteFor": "Silenciar durante",
+    "serverLevel": "Notificaciones del servidor",
+    "serverDefaultTag": "Predeterminado del servidor",
+    "useServerDefault": "Usar el valor predeterminado del servidor",
+    "levels": {
+      "all": "Todos los mensajes",
+      "mentions": "Solo {'@'}menciones",
+      "none": "Nada"
+    },
+    "suppressEveryone": "Suprimir {'@'}everyone",
+    "suppressEveryoneHint": "Las menciones de {'@'}everyone en este servidor no te notifican.",
+    "suppressRoles": "Suprimir todas las {'@'}menciones de roles",
+    "suppressRolesHint": "Las menciones de tus roles no te notifican. Las menciones a ti sí.",
+    "push": "Notificaciones push",
+    "pushHint": "Envía las notificaciones de este servidor a tu teléfono y navegador mientras estás ausente.",
+    "overrides": "Excepciones de notificaciones",
+    "overridesHint": "Un canal o categoría configurado aquí ignora la configuración del servidor. Los canales siguen a su categoría.",
+    "addOverride": "Selecciona un canal o una categoría",
+    "categoriesGroup": "Categorías",
+    "channelsGroup": "Canales",
+    "categoryTag": "Categoría",
+    "columns": {
+      "target": "Canal o categoría",
+      "mute": "Silenciar"
+    },
+    "remove": "Quitar",
+    "removeNamed": "Quitar la excepción de {name}",
+    "noOverrides": "Aún no hay excepciones.",
+    "done": "Listo",
+    "saveFailed": "No se pudo guardar la configuración de notificaciones",
+    "header": {
+      "markRead": "Marcar como leído",
+      "muteChannel": "Silenciar canal",
+      "unmuteChannel": "Dejar de silenciar el canal",
+      "unmuteCategory": "Dejar de silenciar la categoría",
+      "level": "Nivel de notificación",
+      "default": "Predeterminado ({level})"
+    },
+    "notification": {
+      "action": " envió un mensaje en #{channel}",
+      "actionNoChannel": " envió un mensaje",
+      "short": "Mensaje en #{channel}",
+      "shortNoChannel": "Mensaje nuevo",
+      "noPreview": "Haz clic para ver el mensaje"
+    }
+  },
   "soundboard": {
     "title": "Panel de sonidos",
     "serverSounds": "Sonidos del servidor",

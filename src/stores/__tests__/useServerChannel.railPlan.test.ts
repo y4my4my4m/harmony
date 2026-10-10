@@ -138,13 +138,17 @@ describe('setServerMuted', () => {
     const store = useServerChannelStore()
     store.currentUserId = 'me'
     store.servers = [s('a', 0)]
-    const calls = stubFrom(() => ({ error: null }))
+    const rpc = supabase.rpc as unknown as ReturnType<typeof vi.fn>
     const until = new Date('2030-01-01T00:00:00Z')
+    rpc.mockResolvedValueOnce({ data: { server_id: 'a', muted: true, muted_until: until.toISOString() }, error: null })
     expect(await store.setServerMuted('a', until)).toBe(true)
     expect(store.servers[0]).toMatchObject({ muted: true, muted_until: until.toISOString() })
-    expect(calls[0].payload).toEqual({ muted: true, muted_until: until.toISOString() })
+    expect(rpc).toHaveBeenLastCalledWith('update_server_notification_settings', {
+      p_server_id: 'a',
+      p_changes: { muted: true, muted_until: until.toISOString() },
+    })
 
-    stubFrom(() => ({ error: { message: 'nope' } }))
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'nope' } })
     expect(await store.setServerMuted('a', false)).toBe(false)
     expect(store.servers[0]).toMatchObject({ muted: true, muted_until: until.toISOString() })
   })

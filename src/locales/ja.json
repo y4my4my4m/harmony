@@ -4266,6 +4266,57 @@
       "rejected": "サーバーがこのテンプレートを拒否しました：{detail}"
     }
   },
+  "notificationSettings": {
+    "menuEntry": "通知設定",
+    "title": "通知設定",
+    "muteServer": "{name}をミュート",
+    "muteServerHint": "ミュートしたサーバーでは、メンションされた場合を除き、未読表示も通知も表示されません。",
+    "muteFor": "ミュート期間",
+    "serverLevel": "サーバーの通知設定",
+    "serverDefaultTag": "サーバーのデフォルト",
+    "useServerDefault": "サーバーのデフォルトを使用",
+    "levels": {
+      "all": "すべてのメッセージ",
+      "mentions": "{'@'}メンションのみ",
+      "none": "なし"
+    },
+    "suppressEveryone": "{'@'}everyone を通知しない",
+    "suppressEveryoneHint": "このサーバーの {'@'}everyone メンションでは通知されません。",
+    "suppressRoles": "すべてのロールの{'@'}メンションを通知しない",
+    "suppressRolesHint": "あなたのロールへのメンションでは通知されません。あなた個人へのメンションは通知されます。",
+    "push": "プッシュ通知",
+    "pushHint": "離席中、このサーバーの通知をスマートフォンとブラウザに送ります。",
+    "overrides": "通知の個別設定",
+    "overridesHint": "ここで設定したチャンネルやカテゴリーはサーバーの設定に従いません。チャンネルはカテゴリーの設定に従います。",
+    "addOverride": "チャンネルまたはカテゴリーを選択",
+    "categoriesGroup": "カテゴリー",
+    "channelsGroup": "チャンネル",
+    "categoryTag": "カテゴリー",
+    "columns": {
+      "target": "チャンネルまたはカテゴリー",
+      "mute": "ミュート"
+    },
+    "remove": "削除",
+    "removeNamed": "{name}の個別設定を削除",
+    "noOverrides": "個別設定はまだありません。",
+    "done": "完了",
+    "saveFailed": "通知設定を保存できませんでした",
+    "header": {
+      "markRead": "既読にする",
+      "muteChannel": "チャンネルをミュート",
+      "unmuteChannel": "チャンネルのミュートを解除",
+      "unmuteCategory": "カテゴリーのミュートを解除",
+      "level": "通知レベル",
+      "default": "デフォルト（{level}）"
+    },
+    "notification": {
+      "action": " が #{channel} にメッセージを送信しました",
+      "actionNoChannel": " がメッセージを送信しました",
+      "short": "#{channel} のメッセージ",
+      "shortNoChannel": "新しいメッセージ",
+      "noPreview": "クリックしてメッセージを表示"
+    }
+  },
   "soundboard": {
     "title": "サウンドボード",
     "serverSounds": "サーバーのサウンド",

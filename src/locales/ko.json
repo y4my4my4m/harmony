@@ -4266,6 +4266,57 @@
       "rejected": "서버가 이 템플릿을 거부했습니다: {detail}"
     }
   },
+  "notificationSettings": {
+    "menuEntry": "알림 설정",
+    "title": "알림 설정",
+    "muteServer": "{name} 음소거",
+    "muteServerHint": "음소거한 서버는 멘션된 경우를 제외하고 읽지 않음 표시와 알림이 표시되지 않습니다.",
+    "muteFor": "음소거 기간",
+    "serverLevel": "서버 알림 설정",
+    "serverDefaultTag": "서버 기본값",
+    "useServerDefault": "서버 기본값 사용",
+    "levels": {
+      "all": "모든 메시지",
+      "mentions": "{'@'}멘션만",
+      "none": "없음"
+    },
+    "suppressEveryone": "{'@'}everyone 숨기기",
+    "suppressEveryoneHint": "이 서버의 {'@'}everyone 멘션은 알림을 보내지 않습니다.",
+    "suppressRoles": "모든 역할 {'@'}멘션 숨기기",
+    "suppressRolesHint": "내 역할에 대한 멘션은 알림을 보내지 않습니다. 나에 대한 멘션은 계속 알림을 보냅니다.",
+    "push": "푸시 알림",
+    "pushHint": "자리를 비운 동안 이 서버의 알림을 휴대폰과 브라우저로 보냅니다.",
+    "overrides": "알림 예외",
+    "overridesHint": "여기서 설정한 채널이나 카테고리는 서버 설정을 따르지 않습니다. 채널은 카테고리 설정을 따릅니다.",
+    "addOverride": "채널 또는 카테고리 선택",
+    "categoriesGroup": "카테고리",
+    "channelsGroup": "채널",
+    "categoryTag": "카테고리",
+    "columns": {
+      "target": "채널 또는 카테고리",
+      "mute": "음소거"
+    },
+    "remove": "제거",
+    "removeNamed": "{name}의 예외 제거",
+    "noOverrides": "아직 예외가 없습니다.",
+    "done": "완료",
+    "saveFailed": "알림 설정을 저장하지 못했습니다",
+    "header": {
+      "markRead": "읽음으로 표시",
+      "muteChannel": "채널 음소거",
+      "unmuteChannel": "채널 음소거 해제",
+      "unmuteCategory": "카테고리 음소거 해제",
+      "level": "알림 수준",
+      "default": "기본값 ({level})"
+    },
+    "notification": {
+      "action": "님이 #{channel}에 메시지를 보냈습니다",
+      "actionNoChannel": "님이 메시지를 보냈습니다",
+      "short": "#{channel}의 메시지",
+      "shortNoChannel": "새 메시지",
+      "noPreview": "클릭하여 메시지 보기"
+    }
+  },
   "soundboard": {
     "title": "사운드보드",
     "serverSounds": "서버 사운드",
