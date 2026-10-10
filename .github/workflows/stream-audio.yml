@@ -1,0 +1,69 @@
+name: Stream audio capture
+
+# harmony-stream-audio's probe on real macOS and Windows runners with a virtual sound card: a
+# separate process plays a sound while the probe captures every application but itself.
+on:
+  pull_request:
+    paths:
+      - src-tauri/crates/harmony-stream-audio/**
+      - .github/workflows/stream-audio.yml
+  push:
+    branches: [feat/stream-audio]
+    paths:
+      - src-tauri/crates/harmony-stream-audio/**
+      - .github/workflows/stream-audio.yml
+  workflow_dispatch:
+
+jobs:
+  probe:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - uses: LABSN/sound-ci-helpers@d08c889a7bba7d9b1b059f8f76dac4672ea3a9cf # v1
+      - name: Build probe
+        working-directory: src-tauri
+        run: cargo build -p harmony-stream-audio --example probe
+
+      - name: Capture (macOS)
+        if: runner.os == 'macOS'
+        working-directory: src-tauri
+        run: |
+          system_profiler SPAudioDataType | grep -E '^ {8}[^ ]|Default Output' || true
+          ( for _ in $(seq 1 15); do afplay /System/Library/Sounds/Submarine.aiff || true; done ) &
+          target/debug/examples/probe 6
+
+      # 1 s of 440 Hz at -12 dBFS, looped by a hidden process outside the probe's tree.
+      - name: Capture (Windows)
+        if: runner.os == 'Windows'
+        working-directory: src-tauri
+        shell: pwsh
+        run: |
+          Get-CimInstance Win32_SoundDevice | Format-Table Name, Status
+          $rate = 48000
+          $ms = New-Object IO.MemoryStream
+          $w = New-Object IO.BinaryWriter($ms)
+          $w.Write([Text.Encoding]::ASCII.GetBytes('RIFF')); $w.Write([int](36 + $rate * 2))
+          $w.Write([Text.Encoding]::ASCII.GetBytes('WAVEfmt ')); $w.Write([int]16)
+          $w.Write([int16]1); $w.Write([int16]1); $w.Write([int]$rate); $w.Write([int]($rate * 2))
+          $w.Write([int16]2); $w.Write([int16]16)
+          $w.Write([Text.Encoding]::ASCII.GetBytes('data')); $w.Write([int]($rate * 2))
+          for ($i = 0; $i -lt $rate; $i++) { $w.Write([int16](8000 * [Math]::Sin(2 * [Math]::PI * 440 * $i / $rate))) }
+          $wav = Join-Path $env:RUNNER_TEMP 'tone.wav'
+          [IO.File]::WriteAllBytes($wav, $ms.ToArray())
+          $play = "`$p = New-Object Media.SoundPlayer '$wav'; `$p.PlayLooping(); Start-Sleep 20"
+          $player = Start-Process powershell -PassThru -WindowStyle Hidden -ArgumentList '-NoProfile', '-Command', $play
+          Start-Sleep 2
+          target\debug\examples\probe.exe 6
+          $code = $LASTEXITCODE
+          Stop-Process -Id $player.Id -ErrorAction SilentlyContinue
+          exit $code
