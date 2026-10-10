@@ -250,6 +250,7 @@ import { UploadRejectedError, imageSourceError } from '@/utils/uploadValidation'
 import { MAX_IMAGE_SOURCE_BYTES } from '@/utils/imageResize'
 import type { Emoji } from '@/types'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { useProfileStore } from '@/stores/useProfile'
 
 const { t } = useI18n()
 const { confirm } = useConfirmDialog()
@@ -311,6 +312,10 @@ const uploadProgress = ref({
   completed: 0,
   currentFile: ''
 })
+
+// The uploader is whoever uploads; ownerId stands in only before the profile loads.
+const profileStore = useProfileStore()
+const uploaderId = (): string => profileStore.profile?.id ?? props.ownerId
 
 const handleCrossServerToggle = (event: Event) => {
   if (!props.permissions.canManageCrossServer) return
@@ -378,7 +383,7 @@ const handleEmojiFile = async (file: File) => {
     uploadingEmoji.value = true
     debug.log('Uploading emoji with cache integration...')
     
-    const newEmoji = await uploadEmoji(props.serverId, props.ownerId, file)
+    const newEmoji = await uploadEmoji(props.serverId, uploaderId(), file)
     
     if (newEmoji) {
       emit('emoji-uploaded', newEmoji)
@@ -470,7 +475,7 @@ const handleBulkEmojiUpload = async (files: File[]) => {
     }
 
     debug.log('Starting bulk emoji upload...')
-    const results = await bulkUploadEmojis(props.serverId, props.ownerId, validFiles, (progress) => {
+    const results = await bulkUploadEmojis(props.serverId, uploaderId(), validFiles, (progress) => {
       uploadProgress.value = {
         total: progress.total,
         current: progress.current,

@@ -163,7 +163,7 @@ export async function isBotInstalled(botId: string, serverId: string): Promise<b
   return (data ?? []).length > 0
 }
 
-/** Deactivates the installation. RLS admits the server owner and filters anyone else to zero rows. */
+/** Deactivates the installation. RLS admits MANAGE_SERVER holders and filters anyone else to zero rows. */
 export async function removeBotFromServer(botId: string, serverId: string): Promise<void> {
   const { data, error } = await supabase
     .from('bot_server_permissions')

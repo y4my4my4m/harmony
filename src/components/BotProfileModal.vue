@@ -224,7 +224,7 @@ const openServer = useOpenServer()
 const authStore = useAuthStore()
 const serverStore = useServerStore()
 const serverChannelStore = useServerChannelStore()
-const { canManageServer, isCurrentUserServerOwner } = useServerPermissions(() => props.serverId ?? null)
+const { canManageServer } = useServerPermissions(() => props.serverId ?? null)
 
 const profile = ref<BotProfile | null>(null)
 const loadFailed = ref(false)
@@ -274,8 +274,7 @@ const visibleCommands = computed(() => {
 
 const canAdd = computed(() => profile.value?.isPublic === true)
 const canOpenSettings = computed(() => !!props.serverId && installedHere.value && canManageServer.value)
-// bot_server_permissions accepts writes from the server owner only.
-const canRemove = computed(() => !!props.serverId && installedHere.value && isCurrentUserServerOwner.value)
+const canRemove = computed(() => !!props.serverId && installedHere.value && canManageServer.value)
 
 const isSupportMember = computed(() => {
   const id = profile.value?.supportServer?.id

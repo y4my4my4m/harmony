@@ -173,14 +173,19 @@ describe('BotProfileModal', () => {
     expect(wrapper.find('.profile-actions').exists()).toBe(false)
   })
 
-  it('gives a manager settings and the owner removal', async () => {
+  it('gives a manager settings and removal', async () => {
     api.fetchBotProfile.mockResolvedValue(profile({ isPublic: false }))
+    const member = mountCard({ serverId: 'srv-1' })
+    await flushPromises()
+    expect(member.text()).not.toContain('bots.profile.settings')
+    expect(member.text()).not.toContain('bots.profile.remove')
+
     perms.manage = true
     const manager = mountCard({ serverId: 'srv-1' })
     await flushPromises()
     expect(api.isBotInstalled).toHaveBeenCalledWith('bot-1', 'srv-1')
     expect(manager.text()).toContain('bots.profile.settings')
-    expect(manager.text()).not.toContain('bots.profile.remove')
+    expect(manager.find('.secondary-action-btn.danger').text()).toBe('bots.profile.remove')
 
     await manager.findAll('.secondary-action-btn')[0].trigger('click')
     expect(push).toHaveBeenCalledWith({
@@ -190,11 +195,6 @@ describe('BotProfileModal', () => {
       hash: '#server-bots',
     })
     expect(manager.emitted('close')).toHaveLength(1)
-
-    perms.owner = true
-    const owner = mountCard({ serverId: 'srv-1' })
-    await flushPromises()
-    expect(owner.find('.secondary-action-btn.danger').text()).toBe('bots.profile.remove')
   })
 
   it('hides server actions when the bot is not installed there', async () => {
@@ -209,7 +209,7 @@ describe('BotProfileModal', () => {
   })
 
   it('removes after confirmation and closes', async () => {
-    perms.owner = true
+    perms.manage = true
     api.fetchBotProfile.mockResolvedValue(profile({ isPublic: false }))
     api.removeBotFromServer.mockResolvedValue(undefined)
     const wrapper = mountCard({ serverId: 'srv-1' })
