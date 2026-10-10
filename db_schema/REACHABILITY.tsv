@@ -31,6 +31,8 @@ apply_domain_limit_on_profile_insert	invoker	trigger	service_role	trigger	trigge
 apply_server_encryption_floor	definer	trigger	service_role	trigger	trigger public.server_encryption_settings AFTER INSERT/UPDATE (trg_apply_server_encryption_floor)
 approve_device_request	definer	boolean	authenticated+service_role	client	rpc in src/services/encryption/DeviceIdentityService.ts
 archive_popular_hashtags	definer	integer	service_role	service key	called by run_trending_maintenance
+assert_grantable_bits	invoker	void	authenticated+service_role	trigger	called by guard_override_grants, guard_server_role_hierarchy
+assert_grantable_bot_flags	invoker	void	authenticated+service_role	client, trigger	called by add_bot_to_server, guard_bot_permission_grants
 assert_security_attempt_budget	definer	void	service_role	client	called by delete_my_account, redeem_recovery_code_and_disable_mfa, verify_my_password, +1
 assign_default_role_to_member	definer	trigger	anon+authenticated+service_role	trigger	trigger public.user_servers AFTER INSERT/UPDATE (trigger_assign_default_role)
 assign_server_slug	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.servers BEFORE INSERT (trg_assign_server_slug)
@@ -66,6 +68,7 @@ backfill_timeline_entries	invoker	integer	service_role	service key	nothing refer
 backfill_timeline_on_follow	definer	trigger	anon+authenticated+service_role	trigger	trigger public.follows AFTER INSERT/UPDATE (backfill_timeline_on_follow_trigger)
 ban_server_member	definer	jsonb	authenticated+service_role	client	rpc in src/services/ModerationService.ts
 batch_set_instance_config	definer	boolean	authenticated+service_role	client	rpc in src/components/settings/discord-bridge/bridgeApi.ts, src/services/AdminService.ts
+bot_flag_permission	invoker	text	authenticated+service_role	client, trigger	called by assert_grantable_bot_flags
 bridge_import_server_emoji	definer	TABLE(status text, id uuid, name text, url text, discord_emoji_id text)	service_role	client	rpc in bot-gateway/src/api/BotRestAPI.ts
 broadcast_bot_installation_change	definer	trigger	service_role	trigger	trigger public.bot_server_permissions AFTER INSERT/DELETE/UPDATE (broadcast_bot_installation_change)
 broadcast_bot_presence_change	definer	trigger	service_role	trigger	trigger public.bot_presence AFTER INSERT/UPDATE (broadcast_bot_presence_change)
@@ -102,6 +105,7 @@ broadcast_user_server_event	definer	trigger	anon+authenticated+service_role	trig
 build_harmony_embed	invoker	jsonb	anon+authenticated+service_role	trigger	called by fetch_link_preview
 bump_room_epoch	definer	integer	service_role	client, trigger	called by bump_server_channel_epochs, request_room_epoch_bump, set_channel_encryption, +1
 bump_server_channel_epochs	definer	void	service_role	trigger	called by trg_server_epoch_bump
+caller_outranks_all	invoker	boolean	authenticated+service_role	client, trigger	called by add_bot_to_server, assert_grantable_bot_flags, guard_override_grants, +3
 can_current_user_manage_messages_in_channel	definer	boolean	anon+authenticated+service_role	policy	policy public.messages DELETE on messages_delete_authorized, public.messages UPDATE on messages_update_authorized
 can_current_user_moderate_server_reports	definer	boolean	authenticated+service_role	client, policy	policy public.reports SELECT on Moderators can view reports they moderate
 can_manage_discord_bridge	definer	boolean	authenticated+service_role	client, policy	policy public.discord_bridge_channels SELECT on discord_bridge_channels_select_manager, public.discord_bridges SELECT on discord_bridges_select_manager
@@ -269,7 +273,7 @@ get_conversation_context	invoker	jsonb	anon+authenticated+service_role	http anon
 get_conversation_encryption_status	invoker	jsonb	service_role	service key	nothing references it
 get_conversation_participants	invoker	TABLE(user_id uuid, role text, joined_at timestamp with time zone, is_muted boolean, last_read_at timestamp with time zone)	service_role	service key	nothing references it
 get_conversation_thread	invoker	jsonb	service_role	service key	nothing references it
-get_current_profile_id	definer	uuid	anon+authenticated+service_role	client, policy, trigger	policy public.ap_activities INSERT on Users can create their own activities, public.ap_activities SELECT on Users can view their own activities, public.ap_activities UPDATE on Users can update their own activities, +181
+get_current_profile_id	definer	uuid	anon+authenticated+service_role	client, policy, trigger	policy public.ap_activities INSERT on Users can create their own activities, public.ap_activities SELECT on Users can view their own activities, public.ap_activities UPDATE on Users can update their own activities, +188
 get_current_user_profile_id	definer	uuid	anon+authenticated+service_role	client	called by search_messages
 get_custom_status	definer	jsonb	service_role	service key	nothing references it
 get_db_connection_count	definer	integer	anon+authenticated+service_role	client	rpc in src/services/AdminService.ts
@@ -338,23 +342,28 @@ get_user_conversations	invoker	jsonb	anon+authenticated+service_role	client	rpc 
 get_user_cycle_donation_total	definer	numeric	service_role	client	called by recompute_supporter_tier
 get_user_emoji_stats	invoker	TABLE(emoji_id uuid, emoji_name text, emoji_url text, usage_count bigint, last_used timestamp with time zone)	anon+authenticated+service_role	client	rpc in src/services/emojiService.ts
 get_user_handle	invoker	text	anon+authenticated+service_role	client	rpc in src/services/activityPubService.ts
-get_user_highest_role_position	definer	integer	anon+authenticated+service_role	client	called by ban_server_member, kick_server_member
+get_user_highest_role_position	definer	integer	anon+authenticated+service_role	client, trigger	called by ban_server_member, guard_server_role_hierarchy, guard_server_settings_default_role, +2
 get_user_notifications	invoker	TABLE(id uuid, user_id uuid, type character varying, data jsonb, is_read boolean, is_clicked boolean, created_at timestamp with time zone, updated_at timestamp with time zone, expires_at timestamp with time zone, read_at timestamp with time zone)	anon+authenticated+service_role	client	rpc in src/services/NotificationService.ts
 get_user_permissions	definer	jsonb	anon+authenticated+service_role	client, policy, trigger	rpc in src/services/RoleService.ts
 get_user_prekey_bundle	definer	jsonb	service_role	service key	nothing references it
 get_user_push_subscriptions	definer	TABLE(subscription_id uuid, endpoint text, p256dh text, auth text, push_enabled boolean, push_offline_only boolean, transport text)	service_role	client	rpc in federation-backend/src/routes/push.ts, federation-backend/src/services/PushNotificationService.ts
 get_voice_channel_participants	definer	TABLE(user_id uuid, username text, display_name text, avatar_url text, is_federated boolean, federated_domain text, joined_at timestamp with time zone, is_muted boolean, is_deafened boolean, is_video_enabled boolean, is_screen_sharing boolean)	service_role	service key	nothing references it
+guard_bot_permission_grants	invoker	trigger	service_role	trigger	trigger public.bot_server_permissions BEFORE INSERT/UPDATE (a_bot_server_permissions_grant_guard)
 guard_category_client_write	invoker	trigger	service_role	trigger	trigger public.channel_categories BEFORE UPDATE (a_channel_categories_client_write_guard)
 guard_channel_client_write	invoker	trigger	service_role	trigger	trigger public.channels BEFORE INSERT/UPDATE (a_channels_client_write_guard)
 guard_follow_client_write	definer	trigger	service_role	trigger	trigger public.follows BEFORE INSERT/UPDATE (a_follows_client_write_guard)
 guard_invite_client_write	invoker	trigger	service_role	trigger	trigger public.invites BEFORE INSERT/UPDATE (a_invites_client_write_guard)
 guard_message_client_write	invoker	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_client_write_guard)
 guard_message_media_paths	invoker	trigger	service_role	trigger	trigger public.messages BEFORE INSERT/UPDATE (a_messages_media_path_guard)
+guard_override_grants	invoker	trigger	service_role	trigger	trigger public.channel_permission_overrides BEFORE INSERT/UPDATE (a_channel_overrides_grant_guard)
 guard_post_client_write	invoker	trigger	service_role	trigger	trigger public.posts BEFORE INSERT/UPDATE (a_posts_client_write_guard)
 guard_profile_client_write	invoker	trigger	service_role	trigger	trigger public.profiles BEFORE INSERT/UPDATE (a_profiles_client_write_guard)
 guard_server_client_write	invoker	trigger	service_role	trigger	trigger public.servers BEFORE INSERT/UPDATE (a_servers_client_write_guard)
+guard_server_role_hierarchy	invoker	trigger	service_role	trigger	trigger public.server_roles BEFORE INSERT/DELETE/UPDATE (a_server_roles_hierarchy_guard)
+guard_server_settings_default_role	invoker	trigger	service_role	trigger	trigger public.server_settings BEFORE INSERT/UPDATE (a_server_settings_default_role_guard)
 guard_system_message_removal	invoker	trigger	service_role	trigger	trigger public.messages BEFORE DELETE/UPDATE (a_messages_system_row_guard)
 guard_user_device_client_write	invoker	trigger	service_role	trigger	trigger public.user_devices BEFORE INSERT/DELETE/UPDATE (a_user_devices_client_write_guard)
+guard_user_role_hierarchy	invoker	trigger	service_role	trigger	trigger public.user_roles BEFORE INSERT/DELETE/UPDATE (a_user_roles_hierarchy_guard)
 guard_user_server_client_write	invoker	trigger	service_role	trigger	trigger public.user_servers BEFORE UPDATE (a_user_servers_client_write_guard)
 guard_user_server_welcome_columns	invoker	trigger	service_role	trigger	trigger public.user_servers BEFORE INSERT/UPDATE (a_user_servers_welcome_guard)
 handle_conversation_participant_added	definer	trigger	anon+authenticated+service_role	trigger	trigger public.conversation_participants AFTER INSERT (trg_conversation_participant_added)
@@ -382,7 +391,7 @@ handle_unified_notification_processing	definer	trigger	anon+authenticated+servic
 has_active_session	definer	boolean	service_role	client	rpc in federation-backend/src/services/PushNotificationService.ts
 has_blocked	definer	boolean	anon+authenticated+service_role	http anon	nothing references it
 has_muted	definer	boolean	service_role	service key	nothing references it
-has_permission	definer	boolean	anon+authenticated+service_role	client, policy, trigger	policy public.channel_categories DELETE on channel_categories_delete_manager, public.channel_categories INSERT on channel_categories_insert_manager, public.channel_categories UPDATE on channel_categories_update_manager, +18; rpc in federation-backend/src/activitypub/channelWriteAuthz.ts
+has_permission	definer	boolean	anon+authenticated+service_role	client, policy, trigger	policy public.bot_server_permissions DELETE on bot_server_permissions_delete_manager, public.bot_server_permissions INSERT on bot_server_permissions_insert_manager, public.bot_server_permissions UPDATE on bot_server_permissions_update_manager, +35; rpc in federation-backend/src/activitypub/channelWriteAuthz.ts
 hash_recovery_code	invoker	text	service_role	client	called by generate_mfa_recovery_codes, redeem_recovery_code_and_disable_mfa, save_recovery_codes, +1
 import_remote_emoji	definer	uuid	authenticated+service_role	client	rpc in src/components/admin/EmojiImporter.vue
 increment_unread_mentions	definer	trigger	service_role	trigger	trigger public.notifications AFTER INSERT (trigger_increment_unread_mentions)
@@ -393,7 +402,7 @@ insert_ap_activity_outbound	definer	uuid	anon+authenticated+service_role	client	
 is_author_suspended	definer	boolean	service_role	service key	nothing references it
 is_blocked_by	definer	boolean	anon+authenticated+service_role	policy	policy public.messages INSERT on messages_insert_member, public.post_interactions INSERT on post_interactions_insert_own, public.reactions INSERT on reactions_insert_own
 is_conversation_participant	definer	boolean	anon+authenticated+service_role	client, policy	policy public.conversation_participants SELECT on conversation_participants_select_policy, public.message_heads SELECT on message_heads_select_visible
-is_current_user_admin	definer	boolean	anon+authenticated+service_role	client, policy, trigger	policy public.admin_audit_log ALL on Admin audit log admin access, public.blocked_instances ALL on Blocked instances admin access, public.bot_audit_log SELECT on bot_audit_log_select_owner, +49
+is_current_user_admin	definer	boolean	anon+authenticated+service_role	client, policy, trigger	policy public.admin_audit_log ALL on Admin audit log admin access, public.blocked_instances ALL on Blocked instances admin access, public.bot_audit_log SELECT on bot_audit_log_select_owner, +61
 is_current_user_admin_or_mod	definer	boolean	anon+authenticated+service_role	client, policy	policy public.reports SELECT on Moderators can view reports they moderate
 is_current_user_moderator	definer	boolean	anon+authenticated+service_role	client, policy	policy public.messages DELETE on messages_delete_authorized, public.messages UPDATE on messages_update_authorized
 is_encrypted_channel_content	invoker	boolean	authenticated+service_role	trigger	called by enforce_channel_message_encryption
@@ -438,6 +447,7 @@ on_auth_mfa_factor_changed	definer	trigger	service_role	trigger	trigger auth.mfa
 on_auth_password_changed	definer	trigger	service_role	trigger	trigger auth.users AFTER UPDATE (harmony_password_changed)
 on_auth_session_created	definer	trigger	service_role	trigger	trigger auth.sessions AFTER INSERT (harmony_session_created)
 on_auth_session_deleted	definer	trigger	service_role	trigger	trigger auth.sessions AFTER DELETE (harmony_session_deleted)
+permission_bit_names	invoker	text[]	authenticated+service_role	trigger	called by assert_grantable_bits
 pin_message	definer	boolean	authenticated+service_role	client	rpc in src/services/MessageService.ts
 populate_reaction_context	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.reactions BEFORE INSERT (trg_populate_reaction_context)
 post_group_conversation_notice	definer	uuid	authenticated+service_role	client	rpc in src/services/core/CoreMessageService.ts
