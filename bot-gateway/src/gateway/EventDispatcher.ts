@@ -840,6 +840,18 @@ export class EventDispatcher {
         bot: false, // Treat as regular user for display
         discord_user: true
       }
+    } else if (message.bot_id && typeof message.metadata?.webhook?.name === 'string') {
+      // A channel webhook's message names its shown author; execute_channel_webhook writes it.
+      const webhook = message.metadata.webhook
+      author = {
+        id: message.bot_id,
+        username: webhook.name,
+        display_name: webhook.name,
+        avatar: typeof webhook.avatar_url === 'string' ? webhook.avatar_url : null,
+        nickname: null,
+        bot: true,
+        webhook: true,
+      }
     } else if (message.user_id || message.bot_id) {
       const entry = await this.resolveAuthor(message.user_id ?? null, message.bot_id ?? null)
       if (entry) {
