@@ -168,6 +168,36 @@ const PAGE_SIZE = 25
 const UNREAD_FETCH_LIMIT = 200
 const UNREAD_REFRESH_MIN_MS = 30_000
 
+// Read-state changes applied here while a fetch is in flight, by id, stamped with
+// _readClock. A fetch snapshot older than a row's stamp does not overwrite that
+// row's is_read. Stamps are dropped once no fetch is in flight.
+let _readClock = 0
+let _fetchesInFlight = 0
+const _readStamps = new Map<string, number>()
+
+function stampRead(id: string): void {
+  if (_fetchesInFlight > 0) _readStamps.set(id, ++_readClock)
+}
+
+function beginFetch(): number {
+  _fetchesInFlight++
+  return _readClock
+}
+
+function endFetch(): void {
+  _fetchesInFlight = Math.max(0, _fetchesInFlight - 1)
+  if (_fetchesInFlight === 0) _readStamps.clear()
+}
+
+function readChangedSince(since: number): (id: string) => boolean {
+  return (id) => (_readStamps.get(id) ?? 0) > since
+}
+
+function setRead(n: Notification, isRead: boolean): void {
+  n.is_read = isRead
+  stampRead(n.id)
+}
+
 const DM_TYPES = new Set(['dm', 'chat_message'])
 
 type DismissCriteria = {
@@ -207,11 +237,22 @@ function isStatusBusy(): boolean {
 /**
  * Merges a fetched page into the loaded list by id. Loaded unread rows outside the
  * page are kept: unreadCount derives from this list and must not drop because a
- * page of mostly read rows replaced it.
+ * page of mostly read rows replaced it. A row whose read state changed here after
+ * the page was requested (`keepLocalRead`) keeps its loaded is_read.
  */
-export function mergeNotificationPage(existing: Notification[], page: Notification[], replace: boolean): Notification[] {
+export function mergeNotificationPage(
+  existing: Notification[],
+  page: Notification[],
+  replace: boolean,
+  keepLocalRead: (id: string) => boolean = () => false,
+): Notification[] {
+  const loaded = new Map<string, Notification>()
+  for (const n of existing) loaded.set(n.id, n)
   const byId = new Map<string, Notification>()
-  for (const n of page) byId.set(n.id, n)
+  for (const n of page) {
+    const local = loaded.get(n.id)
+    byId.set(n.id, local && local.is_read !== n.is_read && keepLocalRead(n.id) ? { ...n, is_read: local.is_read } : n)
+  }
   for (const n of existing) {
     if (byId.has(n.id)) continue
     if (!replace || !n.is_read) byId.set(n.id, n)
@@ -573,10 +614,11 @@ export const useNotificationStore = defineStore('notification', {
         this.hasPermission = await this.requestNativePermissionIfNeeded()
 
         await this.loadPreferences(userId)
-        
+
+        // Handlers first: an event arriving during the fetch is applied, not lost.
+        await this.setupBroadcastNotificationHandlers(userId)
+
         await this.fetchNotifications(userId)
-        
-        this.setupBroadcastNotificationHandlers(userId)
         
         this.setupDndCheck()
         
@@ -605,12 +647,13 @@ export const useNotificationStore = defineStore('notification', {
         await this.loadPreferences(userId)
         
         const profileId = await this.getProfileId(userId)
-        
+
+        // Handlers first: an event arriving during the fetch is applied, not lost.
+        await this.setupBroadcastNotificationHandlers(userId)
+
         // Sidebar badge getters (unreadDMs, unreadServerMentions, ActivityPub
         // count) need these rows present on first paint.
         await this.refreshUnread(profileId)
-
-        this.setupBroadcastNotificationHandlers(userId)
         
         this.setupDndCheck()
         
@@ -656,12 +699,17 @@ export const useNotificationStore = defineStore('notification', {
     /**
      * Loads the newest unread rows and reconciles them with the loaded list: rows
      * missing locally are added without alerts, and loaded unread rows the server
-     * no longer reports unread were read elsewhere while updates were missed.
+     * no longer reports unread were read elsewhere while updates were missed. Rows
+     * that arrived or changed during the request are newer than its snapshot and
+     * are left as they are.
      */
     async refreshUnread(profileIdOrAuthId?: string) {
       const id = profileIdOrAuthId || this.cachedProfileId || this.cachedAuthUserId
       if (!id) return
       _lastUnreadRefresh = Date.now()
+      const since = beginFetch()
+      const changed = readChangedSince(since)
+      const unreadAtStart = new Set(this.notifications.filter(n => !n.is_read).map(n => n.id))
       try {
         const profileId = await this.getProfileId(id)
         const { data, error } = await supabase
@@ -681,16 +729,17 @@ export const useNotificationStore = defineStore('notification', {
           : -Infinity
 
         for (const n of this.notifications) {
-          if (!n.is_read && !serverUnread.has(n.id) && new Date(n.created_at).getTime() >= horizon) {
-            n.is_read = true
-          }
+          if (n.is_read || serverUnread.has(n.id) || !unreadAtStart.has(n.id) || changed(n.id)) continue
+          if (new Date(n.created_at).getTime() >= horizon) n.is_read = true
         }
-        this.notifications = mergeNotificationPage(this.notifications, rows, false)
+        this.notifications = mergeNotificationPage(this.notifications, rows, false, changed)
         this._capNotifications()
         this.updateUnreadCount()
         this.syncSystemTray()
       } catch (error) {
         debug.error('Failed to load unread notifications:', error)
+      } finally {
+        endFetch()
       }
     },
 
@@ -705,6 +754,7 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     async fetchNotifications(userId: string, limit = PAGE_SIZE, offset = 0) {
+      const changed = readChangedSince(beginFetch())
       try {
         debug.log('Fetching notifications for user:', userId)
 
@@ -719,7 +769,7 @@ export const useNotificationStore = defineStore('notification', {
 
         const visible = (data || []).filter((n: Notification) => !isFromHiddenUser(n))
 
-        this.notifications = mergeNotificationPage(this.notifications, visible, offset === 0)
+        this.notifications = mergeNotificationPage(this.notifications, visible, offset === 0, changed)
         this.loadedCount = offset === 0 ? (data || []).length : this.loadedCount + (data || []).length
         this.hasMore = (data || []).length >= limit
         this._capNotifications()
@@ -738,14 +788,21 @@ export const useNotificationStore = defineStore('notification', {
         return data || []
       } catch (error) {
         debug.error('Failed to fetch notifications:', error)
-        return await this._fetchNotificationsFallback(userId, limit, offset)
+        return await this._fetchNotificationsFallback(userId, limit, offset, changed)
+      } finally {
+        endFetch()
       }
     },
 
     /**
      * Direct table query, used when the notifications service throws.
      */
-    async _fetchNotificationsFallback(userId: string, limit = PAGE_SIZE, offset = 0) {
+    async _fetchNotificationsFallback(
+      userId: string,
+      limit = PAGE_SIZE,
+      offset = 0,
+      keepLocalRead: (id: string) => boolean = () => false,
+    ) {
       const profileId = await this.getProfileId(userId)
 
       const { data, error } = await supabase
@@ -759,7 +816,7 @@ export const useNotificationStore = defineStore('notification', {
 
       const visible = (data || []).filter((n: Notification) => !isFromHiddenUser(n))
 
-      this.notifications = mergeNotificationPage(this.notifications, visible, offset === 0)
+      this.notifications = mergeNotificationPage(this.notifications, visible, offset === 0, keepLocalRead)
       this.loadedCount = offset === 0 ? (data || []).length : this.loadedCount + (data || []).length
       this.hasMore = (data || []).length >= limit
       this._capNotifications()
@@ -819,7 +876,7 @@ export const useNotificationStore = defineStore('notification', {
         })
 
         _unsubBulkRead = userEventChannel.on('notification:bulk_read', (_data) => {
-          this.notifications.forEach(n => { n.is_read = true })
+          this.notifications.forEach(n => { if (!n.is_read) setRead(n, true) })
           this.updateUnreadCount()
           void dismissSystemNotifications({ all: true })
         })
@@ -878,7 +935,7 @@ export const useNotificationStore = defineStore('notification', {
       const ids: string[] = []
       for (const n of this.notifications) {
         if (!n.is_read && matches(n)) {
-          n.is_read = true
+          setRead(n, true)
           ids.push(n.id)
         }
       }
@@ -939,7 +996,7 @@ export const useNotificationStore = defineStore('notification', {
       const uiDecision = viewContextTracker.shouldShowNotificationUI(notificationContext, activeConversationId)
 
       if (!uiDecision.showToast && !uiDecision.showDesktop && !uiDecision.playSound) {
-        newNotification.is_read = true
+        setRead(newNotification, true)
         this.notifications.unshift(newNotification)
         this._capNotifications()
         services.notifications.markAsRead(newNotification.id).catch(() => {})
@@ -984,7 +1041,7 @@ export const useNotificationStore = defineStore('notification', {
       if (existing.is_read === isRead) return
 
       debug.log('Notification read state synced:', id, 'is_read:', isRead)
-      existing.is_read = isRead
+      setRead(existing, isRead)
       this.updateUnreadCount()
 
       if (isRead) {
@@ -1487,7 +1544,7 @@ export const useNotificationStore = defineStore('notification', {
       
       try {
         if (notification) {
-          notification.is_read = true
+          setRead(notification, true)
           this.updateUnreadCount()
         }
 
@@ -1497,7 +1554,7 @@ export const useNotificationStore = defineStore('notification', {
         debug.error('Failed to mark notification as read:', error)
 
         if (notification) {
-          notification.is_read = false
+          setRead(notification, false)
           this.updateUnreadCount()
         }
         throw error
@@ -1515,7 +1572,7 @@ export const useNotificationStore = defineStore('notification', {
       let changed = false
       for (const n of this.notifications) {
         if (wanted.has(n.id) && !n.is_read) {
-          n.is_read = true
+          setRead(n, true)
           changed = true
         }
       }
@@ -1535,7 +1592,7 @@ export const useNotificationStore = defineStore('notification', {
       
       try {
         if (notification) {
-          notification.is_read = false
+          setRead(notification, false)
           this.updateUnreadCount()
         }
 
@@ -1544,7 +1601,7 @@ export const useNotificationStore = defineStore('notification', {
         debug.error('Failed to mark notification as unread:', error)
         
         if (notification) {
-          notification.is_read = true
+          setRead(notification, true)
           this.updateUnreadCount()
         }
         throw error
@@ -1580,9 +1637,8 @@ export const useNotificationStore = defineStore('notification', {
      * notifications for posts actually seen are cleared.
      *
      * Local state is updated optimistically, then mirrored to the DB so rows
-     * the store has not loaded are still persisted. The DB call is
-     * fire-and-forget: failures are logged and local state is not reverted;
-     * the next scroll into view retries.
+     * the store has not loaded are still persisted. A failed DB write rejects
+     * and local state is not reverted; the caller retries on the next view.
      */
     async markMentionNotificationsForPostsAsRead(postIds: string[]) {
       if (!postIds.length) return
@@ -1601,7 +1657,7 @@ export const useNotificationStore = defineStore('notification', {
         // Optimistic so the badge reacts immediately. No revert path: a
         // failed DB write is retried on the next view of these posts. Stale
         // `read=true` beats a badge flicker mid-read.
-        localToMark.forEach(n => { n.is_read = true })
+        localToMark.forEach(n => setRead(n, true))
         this.updateUnreadCount()
       }
 
@@ -1615,6 +1671,7 @@ export const useNotificationStore = defineStore('notification', {
         await services.notifications.markMentionNotificationsForPostsAsRead(profileId, postIds)
       } catch (error) {
         debug.error('Failed to persist mention notifications as read:', error)
+        throw error
       }
     },
 
@@ -1678,7 +1735,7 @@ export const useNotificationStore = defineStore('notification', {
         const profileId = await this.getProfileId(authUserId)
         if (!profileId) return
 
-        this.notifications.forEach(n => { n.is_read = true })
+        this.notifications.forEach(n => { if (!n.is_read) setRead(n, true) })
         this.updateUnreadCount()
 
         const { error } = await supabase

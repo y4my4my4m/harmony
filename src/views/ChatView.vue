@@ -27,7 +27,6 @@ import { useDMStore } from '@/stores/useDM'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/useNotification'
-import { useViewContextTracking } from '@/composables/useViewContext'
 
 // Props
 interface Props {
@@ -229,8 +228,6 @@ watch(
   loadMessages,
   { immediate: true }
 )
-
-useViewContextTracking()
 
 // Watch for messageId query param to scroll and highlight
 watch(() => route.query.messageId, async (messageId) => {

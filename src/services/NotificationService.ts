@@ -221,7 +221,7 @@ export class NotificationService {
       return true
     } catch (error) {
       debug.error('Failed to mark mention notifications as read:', error)
-      return false
+      throw error
     }
   }
 

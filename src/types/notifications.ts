@@ -179,6 +179,8 @@ export interface UnreadCount {
   last_read_message_id?: string;
   last_read_at: string;
   last_message_at?: string;
+  /** An active mute; unread_messages is then the count frozen when it began. */
+  muted?: boolean;
 }
 
 export interface NotificationSound {

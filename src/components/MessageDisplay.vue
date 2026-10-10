@@ -2431,12 +2431,16 @@ watch(() => props.messages.map(msg => msg.reactions?.length), () => {
 });
 
 // IntersectionObserver to clear unread counts when messages are scrolled into view
-// Debounced to prevent 45+ API calls per page load
+// Debounced to prevent 45+ API calls per page load. A thread view carries its
+// parent's channelId; thread replies do not count toward the channel, so a thread
+// view sends no channel reads.
 let intersectionObserver: IntersectionObserver | null = null;
 const observedMessages = new Set<string>();
 
+const sendsReadMarkers = () => !props.threadId && !!(props.channelId || props.conversationId);
+
 const setupUnreadObserver = () => {
-  if (!props.channelId && !props.conversationId) return;
+  if (!sendsReadMarkers()) return;
   
   if (intersectionObserver) {
     intersectionObserver.disconnect();
@@ -2476,6 +2480,7 @@ const setupUnreadObserver = () => {
 };
 
 const queueUnreadUpdate = (messageId: string) => {
+  if (!sendsReadMarkers()) return;
   const message = props.messages.find(m => m.id === messageId);
   if (!message) return;
   const channelId = props.channelId || message.channel_id || null;
@@ -2495,6 +2500,7 @@ const clearUnreadCount = async ({ messageId, channelId, conversationId }: Queued
     const ctx = await authContextService.getCurrentContext();
     if (!ctx.isAuthenticated) return;
 
+    // The read marks the context's notifications read, server and local.
     try {
       if (channelId) await markChannelRead(channelId, messageId);
       else if (conversationId) await markConversationRead(conversationId, messageId);
@@ -2503,7 +2509,7 @@ const clearUnreadCount = async ({ messageId, channelId, conversationId }: Queued
       debug.error('Failed to clear unread count:', error);
     }
     
-    // Batch mark related notifications as read
+    // Notifications that name the message but not its channel or conversation.
     const notificationStore = useNotificationStore();
     const relatedNotifications = notificationStore.notifications.filter(n => 
       (n.data?.message?.id === messageId || n.data?.message_id === messageId) && !n.is_read
@@ -2520,10 +2526,43 @@ const clearUnreadCount = async ({ messageId, channelId, conversationId }: Queued
 
 const readMarkers = createReadMarkerQueue((read) => clearUnreadCount(read));
 
-// A read queued in the channel or conversation being left goes out now.
-watch(() => [props.channelId, props.conversationId], () => {
+// A read queued in the channel or conversation being left goes out now. The
+// component is reused across contexts; ids observed in the previous one must not
+// suppress reads in the next.
+watch(() => [props.channelId, props.conversationId, props.threadId], () => {
   void readMarkers.flush();
+  observedMessages.clear();
 });
+
+// Opening a channel with unread state reads it: its newest messages may have been
+// observed on an earlier visit, or its unread state may come from messages this
+// view does not render.
+let openReadChannelId: string | null = null;
+watch(
+  [() => props.channelId, () => props.conversationId, () => props.threadId, () => props.messages[props.messages.length - 1]?.id],
+  () => {
+    const channelId = props.channelId;
+    if (!channelId || props.conversationId || props.threadId) {
+      openReadChannelId = null;
+      return;
+    }
+    if (openReadChannelId === channelId) return;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    let newest: Message | undefined;
+    for (let i = props.messages.length - 1; i >= 0; i--) {
+      const m = props.messages[i];
+      if (m.channel_id === channelId && !m.thread_id && !m.id.startsWith('temp-')) { newest = m; break; }
+    }
+    if (!newest) return;
+    openReadChannelId = channelId;
+    const unread = getUnreadCount({ channelId });
+    const hasUnread = (unread?.unread_messages ?? 0) > 0
+      || (unread?.unread_mentions ?? 0) > 0
+      || useNotificationStore().unreadChannelMentions(channelId) > 0;
+    if (hasUnread) queueUnreadUpdate(newest.id);
+  },
+  { immediate: true },
+);
 
 // Watch for messages changes to setup observer
 watch(() => props.messages.length, () => {

@@ -7,18 +7,21 @@
  * context is rewritten every 60 s while the tab is visible, and replaced by 'away'
  * when the tab hides or has had no input for IDLE_MS.
  *
+ * Every route reports its view. One without a channel, DM or social view reports
+ * 'home' or 'settings', so the last channel shown does not stay viewed.
+ *
  * Nothing else carries the view: no Realtime channel, so no other client reads it.
  */
 
 import { watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, type RouteLocationNormalizedLoaded } from 'vue-router'
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { viewContextTracker } from '@/services/ViewContextTracker'
 import { sessionHeartbeat } from '@/services/SessionHeartbeat'
 import { getClientDeviceId } from '@/utils/clientDeviceId'
 
-type ViewType = 'server_channel' | 'dm' | 'activitypub_home' | 'settings' | 'home'
+export type ViewType = 'server_channel' | 'dm' | 'activitypub_home' | 'settings' | 'home'
 
 interface SyncedView {
   viewType: ViewType | 'away'
@@ -89,6 +92,10 @@ function setAway(next: boolean, viaKeepalive = false): void {
     else void syncView({ viewType: 'away' })
   } else {
     void syncView(lastView)
+    // Notifications that arrived while away were kept unread; the view is seen again.
+    if (lastView.viewType === 'server_channel' || lastView.viewType === 'dm') {
+      void viewContextTracker.clearExistingNotificationsForContext()
+    }
   }
 }
 
@@ -223,61 +230,66 @@ export async function cleanupViewContext(): Promise<void> {
   await sessionHeartbeat.stop()
 }
 
+export interface RouteViewContext {
+  viewType: ViewType
+  serverId?: string
+  channelId?: string
+  conversationId?: string
+  /** Context whose existing notifications are read on entry. */
+  clear?: { channelId?: string; serverId?: string; conversationId?: string; postId?: string }
+}
+
+const SETTINGS_ROUTES = new Set(['UserSettings', 'ServerSettings', 'AdminPanel'])
+const POST_ROUTES = new Set(['PostDetail', 'DirectPost'])
+
+type RouteLike = Pick<RouteLocationNormalizedLoaded, 'name' | 'path' | 'params'>
+
+function param(route: RouteLike, key: string): string | undefined {
+  const value = route.params[key]
+  const first = Array.isArray(value) ? value[0] : value
+  return first || undefined
+}
+
 /**
- * Composable to automatically track view context based on route
+ * The view a route shows. Only a channel or a DM is a viewed context to the
+ * database; every other route reports where the tab is, so the previous one lapses.
  */
+export function viewContextForRoute(route: RouteLike): RouteViewContext {
+  const name = typeof route.name === 'string' ? route.name : ''
+  const serverId = param(route, 'serverId')
+  const channelId = param(route, 'channelId')
+  const conversationId = param(route, 'conversationId')
+  const postId = param(route, 'postId')
+
+  if (name === 'ChatChannel' && serverId && channelId) {
+    return { viewType: 'server_channel', serverId, channelId, clear: { channelId, serverId } }
+  }
+  if (name === 'DMConversation' && conversationId) {
+    return { viewType: 'dm', conversationId, clear: { conversationId } }
+  }
+  if (POST_ROUTES.has(name) && postId) {
+    return { viewType: 'activitypub_home', clear: { postId } }
+  }
+  if (route.path.startsWith('/social') || route.path.startsWith('/posts/')) {
+    return { viewType: 'activitypub_home' }
+  }
+  if (SETTINGS_ROUTES.has(name)) {
+    return { viewType: 'settings' }
+  }
+  return { viewType: 'home' }
+}
+
+/** Records the route's view on every navigation; one instance per app. */
 export function useViewContextTracking() {
   const route = useRoute()
 
-  // ActivityPub route names (from router)
-  const activityPubRoutes = [
-    'Social', 'Fediverse', 'Explore', // Legacy routes
-    'SocialHome', 'SocialLocal', 'SocialPublic', // Timeline routes
-    'UserProfile', 'Followers', 'Following', // Profile routes
-    'Lists', 'Notifications', 'Bookmarks', // Social feature routes
-    'SocialTrending', 'SocialInstances', // Explore routes
-    'PostView', 'PostDetail', 'ConversationThread' // Post routes
-  ]
-
-  // Watch for route changes and record the view context
   watch(
-    () => [route.name, route.path, route.params.serverId, route.params.channelId, route.params.conversationId],
-    ([routeName, routePath, serverId, channelId, conversationId]) => {
-      const routeNameStr = routeName?.toString() || ''
-      const routePathStr = routePath?.toString() || ''
-      
-      // Check for server channel
-      if (routeNameStr === 'ChatChannel' && serverId && channelId) {
-        updateViewContext('server_channel', serverId as string, channelId as string)
-        viewContextTracker.clearExistingNotificationsForContext({
-          channelId: channelId as string,
-          serverId: serverId as string,
-        })
-      } 
-      // Check for DM conversation
-      else if (routeNameStr === 'DMConversation' && conversationId) {
-        updateViewContext('dm', undefined, undefined, conversationId as string)
-        viewContextTracker.clearExistingNotificationsForContext({
-          conversationId: conversationId as string,
-        })
-      }
-      // Check for post detail view
-      else if ((routeNameStr === 'PostView' || routeNameStr === 'PostDetail') && route.params.postId) {
-        updateViewContext('activitypub_home')
-        viewContextTracker.clearExistingNotificationsForContext({
-          postId: route.params.postId as string,
-        })
-      }
-      // Check for ActivityPub routes (by name or path)
-      else if (activityPubRoutes.includes(routeNameStr) || routePathStr.startsWith('/social')) {
-        updateViewContext('activitypub_home')
-      } 
-      // Default to home
-      else {
-        updateViewContext('home')
-      }
+    () => route.path,
+    () => {
+      const view = viewContextForRoute(route)
+      void updateViewContext(view.viewType, view.serverId, view.channelId, view.conversationId)
+      if (view.clear) void viewContextTracker.clearExistingNotificationsForContext(view.clear)
     },
     { immediate: true }
   )
 }
-

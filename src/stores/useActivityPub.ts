@@ -13,6 +13,7 @@ import { fetchedReactionsThisSession } from '@/composables/useRemotePostSync';
 import { insertRealtimePost, flushPendingPosts } from '@/utils/realtimeFeed';
 import { attachmentFocus } from '@/utils/focalPoint';
 import { isStoredMedia, withMediaEdits } from '@/utils/mediaEdit';
+import { mentionPostId, strandedMentionIds, type MentionNotificationRow } from '@/utils/mentionsFeed';
 import type { 
   Post, 
   TimelinePost, 
@@ -3190,10 +3191,6 @@ export const useActivityPubStore = defineStore('activitypub', {
        }
      },
 
-     clearUnreadCount() {
-       this.unreadCount = 0;
-     },
-
      async loadNotifications() {
       try {
         const profileId = await authContextService.getCurrentProfileId();
@@ -3219,7 +3216,8 @@ export const useActivityPubStore = defineStore('activitypub', {
 
      /**
       * Post ids come from activitypub_mention notifications; the posts are
-      * then fetched in a second query.
+      * then fetched in a second query. Unread notifications of the page whose
+      * post is not shown are marked read here: no post of theirs comes into view.
       */
      async loadMentionedPosts(before?: string) {
        if (this.loadingFeeds.mentions) return;
@@ -3232,7 +3230,7 @@ export const useActivityPubStore = defineStore('activitypub', {
 
          let notifQuery = supabase
            .from('notifications')
-           .select('data, created_at')
+           .select('id, is_read, data, created_at')
            .eq('user_id', profileId)
            .eq('type', 'activitypub_mention')
            .order('created_at', { ascending: false })
@@ -3245,13 +3243,22 @@ export const useActivityPubStore = defineStore('activitypub', {
          const { data: notifs, error: notifError } = await notifQuery;
          if (notifError) throw notifError;
 
-         const postIds = (notifs || [])
-           .map(n => n.data?.post_id || n.data?.post?.id)
+         const rows = (notifs || []) as MentionNotificationRow[];
+         const markStranded = (shown: ReadonlySet<string>) => {
+           const ids = strandedMentionIds(rows, shown);
+           if (ids.length === 0) return;
+           void import('@/stores/useNotification').then(({ useNotificationStore }) =>
+             useNotificationStore().markManyAsRead(ids));
+         };
+
+         const postIds = rows
+           .map(mentionPostId)
            .filter((id): id is string => !!id);
 
          const uniquePostIds = [...new Set(postIds)];
 
          if (uniquePostIds.length === 0) {
+           markStranded(new Set());
            if (!before) {
              this.mentionsFeed.posts = [];
            }
@@ -3293,6 +3300,7 @@ export const useActivityPubStore = defineStore('activitypub', {
          }
 
          this.ensureAuthorProfilesCached(processedPosts);
+         markStranded(new Set(processedPosts.map(p => p.id)));
 
          if (before) {
            this._appendFeedPosts(this.mentionsFeed.posts, processedPosts);
