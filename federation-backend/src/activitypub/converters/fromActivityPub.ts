@@ -45,9 +45,11 @@ function mentionTagInfo(tag: any): MentionTagInfo | null {
  */
 export function noteToContent(note: any): any[] {
   const parts: any[] = [];
-  
+
+  // Media-only Notes carry an empty content.
   if (!note.content) {
-    return [{ type: 'text', text: '' }];
+    addAttachments(parts, note.attachment);
+    return parts.length > 0 ? parts : [{ type: 'text', text: '' }];
   }
   
   // Step 1: Clean HTML to get plain text
@@ -259,52 +261,94 @@ function splitTextWithUrls(parts: any[], text: string): void {
   }
 }
 
+/** ActivityStreams `attachment`: one object or an array of them. */
+function attachmentList(value: unknown): any[] {
+  if (Array.isArray(value)) return value.filter((item) => item && typeof item === 'object');
+  return value && typeof value === 'object' ? [value] : [];
+}
+
+/** http(s) URL of an attachment: `url` as a string, a Link (`href`) or an array of either. */
+function attachmentUrl(attachment: any): string | null {
+  const candidates = Array.isArray(attachment?.url) ? attachment.url : [attachment?.url];
+  for (const candidate of candidates) {
+    const url = typeof candidate === 'string' ? candidate : candidate?.href;
+    if (typeof url === 'string' && /^https?:\/\//i.test(url)) return url;
+  }
+  return null;
+}
+
+function mediaFileType(mediaType: string, url: string): 'image' | 'video' | 'audio' | 'file' {
+  if (mediaType.startsWith('image/')) return 'image';
+  if (mediaType.startsWith('video/')) return 'video';
+  if (mediaType.startsWith('audio/')) return 'audio';
+  const ext = url.split('?')[0].split('.').pop()?.toLowerCase() || '';
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'bmp'].includes(ext)) return 'image';
+  if (['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'ogv', 'quicktime'].includes(ext)) return 'video';
+  if (['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac', 'opus'].includes(ext)) return 'audio';
+  return 'file';
+}
+
 /**
  * Helper: Add media attachments to parts array
  */
 function addAttachments(parts: any[], attachments: any): void {
-  if (attachments && Array.isArray(attachments)) {
-    attachments.forEach((attachment: any) => {
-      const mediaType = attachment.mediaType || '';
-      const url = attachment.url || '';
-      let fileType = 'file';
-      
-      // Check MIME type first
-      if (mediaType.startsWith('image/')) fileType = 'image';
-      else if (mediaType.startsWith('video/')) fileType = 'video';
-      else if (mediaType.startsWith('audio/')) fileType = 'audio';
-      // Fallback to URL extension if MIME type not provided
-      else if (url) {
-        const ext = url.split('?')[0].split('.').pop()?.toLowerCase();
-        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'bmp'].includes(ext || '')) {
-          fileType = 'image';
-        } else if (['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'ogv', 'quicktime'].includes(ext || '')) {
-          fileType = 'video';
-        } else if (['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac', 'opus'].includes(ext || '')) {
-          fileType = 'audio';
-        }
-      }
-      
-      const filePart: any = {
-        type: 'file',
-        url: attachment.url,
-        fileType: fileType,
-        mimeType: mediaType, // Store the full MIME type
-        fileName: attachment.name,
-        altText: attachment.name, // Alt text for accessibility
-      };
-      
-      if (attachment.width) filePart.width = attachment.width;
-      if (attachment.height) filePart.height = attachment.height;
-      
-      if (attachment.blurhash) filePart.blurhash = attachment.blurhash;
-      
-      const focalPoint = parseFocalPoint(attachment.focalPoint);
-      if (focalPoint) filePart.focalPoint = focalPoint;
-      
-      parts.push(filePart);
+  for (const attachment of attachmentList(attachments)) {
+    const url = attachmentUrl(attachment);
+    if (!url) continue;
+    const mediaType = typeof attachment.mediaType === 'string' ? attachment.mediaType : '';
+
+    const filePart: any = {
+      type: 'file',
+      url,
+      fileType: mediaFileType(mediaType, url),
+      mimeType: mediaType, // Store the full MIME type
+      fileName: attachment.name,
+      altText: attachment.name, // Alt text for accessibility
+    };
+
+    if (attachment.width) filePart.width = attachment.width;
+    if (attachment.height) filePart.height = attachment.height;
+
+    if (attachment.blurhash) filePart.blurhash = attachment.blurhash;
+
+    const focalPoint = parseFocalPoint(attachment.focalPoint);
+    if (focalPoint) filePart.focalPoint = focalPoint;
+
+    parts.push(filePart);
+  }
+}
+
+function positiveNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+/**
+ * `posts.media_attachments` rows of an object's attachments, in the composer row shape
+ * `{ type, mediaType, url, description, width, height, blurhash, focalPoint }`. The AP
+ * `name` of an attachment is its alt text and is stored as `description`; `name` on a
+ * composer row is the upload's file name. The same attachments are the file parts of
+ * noteToContent.
+ */
+export function extractMediaAttachments(attachments: unknown): any[] {
+  const rows: any[] = [];
+  for (const attachment of attachmentList(attachments)) {
+    const url = attachmentUrl(attachment);
+    if (!url) continue;
+    const alt = typeof attachment.name === 'string' ? attachment.name.trim() : '';
+    rows.push({
+      type: typeof attachment.type === 'string' && attachment.type ? attachment.type : 'Document',
+      mediaType: typeof attachment.mediaType === 'string' && attachment.mediaType
+        ? attachment.mediaType
+        : 'application/octet-stream',
+      url,
+      description: alt || null,
+      width: positiveNumber(attachment.width),
+      height: positiveNumber(attachment.height),
+      blurhash: typeof attachment.blurhash === 'string' ? attachment.blurhash : null,
+      focalPoint: parseFocalPoint(attachment.focalPoint),
     });
   }
+  return rows;
 }
 
 /** profiles.also_known_as holds at most this many URIs (profiles_also_known_as_length). */

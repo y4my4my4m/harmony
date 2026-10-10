@@ -73,6 +73,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { caseFollowApproval } from './cases/followApproval.ts'
 import { runOutboundFederationCases } from './cases/outboundFederation.ts'
+import { caseInboundPosts } from './cases/inbound-posts.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -2480,6 +2481,8 @@ async function main() {
       alice: { id: ALICE, auth: ALICE_AUTH }, remote: REMOTE, userToken,
       verifySignature: backend.verifySignature, assert, eq, fail,
     })
+    await caseInboundPosts({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, env, userToken, post, signedHeaders, assert, eq,
+      ids: { alice: ALICE, bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE } })
     await seedServers(db, peer)
     await caseHostedPrivateServer(peer, localUrl)
     await caseProxyReadsAsMember(peer, localUrl, env.HMFED_JWT_SECRET)

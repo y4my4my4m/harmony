@@ -11,6 +11,7 @@ import {
   extractLikeData,
   extractAnnounceData,
   extractDeleteData,
+  extractMediaAttachments,
   normalizeActor,
   parseAlsoKnownAs,
   parseMovedTo,
@@ -136,6 +137,10 @@ async function resolveProfileByActorUrl(actorUrl: string): Promise<{ id: string 
 function isBoostableVisibility(visibility: unknown): boolean {
   return visibility === 'public' || visibility === 'unlisted';
 }
+
+/** A quoted post as read for the quote's reblog snapshot. */
+const QUOTED_POST_COLUMNS =
+  'id, content, created_at, visibility, is_deleted, author_id, media_attachments, is_sensitive, content_warning';
 
 export class ActivityProcessor {
   /**
@@ -725,6 +730,7 @@ export class ActivityProcessor {
           metadata,
           content_warning: object.summary || null,
           is_sensitive: object.sensitive === true,
+          media_attachments: extractMediaAttachments(object.attachment),
           ...noteEngagementColumns(object),
         };
 
@@ -734,6 +740,9 @@ export class ActivityProcessor {
             content: quotedPostData.content,
             created_at: quotedPostData.created_at,
             visibility: quotedPostData.visibility,
+            media_attachments: quotedPostData.media_attachments || [],
+            is_sensitive: quotedPostData.is_sensitive === true,
+            content_warning: quotedPostData.content_warning || null,
           };
           
           const { data: quotedAuthor } = await supabase
@@ -809,7 +818,7 @@ export class ActivityProcessor {
 
     const { data: existingPost } = await supabase
       .from('posts')
-      .select('id, content, created_at, visibility, is_deleted, author_id')
+      .select(QUOTED_POST_COLUMNS)
       .eq('ap_id', quoteUrl)
       .maybeSingle();
 
@@ -824,7 +833,7 @@ export class ActivityProcessor {
       if (uuidMatch) {
         const { data: postById } = await supabase
           .from('posts')
-          .select('id, content, created_at, visibility, is_deleted, author_id')
+          .select(QUOTED_POST_COLUMNS)
           .eq('id', uuidMatch[1])
           .maybeSingle();
         
@@ -842,7 +851,7 @@ export class ActivityProcessor {
     logger.info(`Created quoted post from remote: ${fetchedPost.id}`);
     const { data: stored } = await supabase
       .from('posts')
-      .select('id, content, created_at, visibility, is_deleted, author_id')
+      .select(QUOTED_POST_COLUMNS)
       .eq('id', fetchedPost.id)
       .maybeSingle();
     return stored ?? null;
@@ -1200,6 +1209,7 @@ export class ActivityProcessor {
           created_at: remoteObject.published || new Date().toISOString(),
           content_warning: remoteObject.summary || null,
           is_sensitive: remoteObject.sensitive === true,
+          media_attachments: extractMediaAttachments(remoteObject.attachment),
           ...noteEngagementColumns(remoteObject),
         })
         .select('id, in_reply_to, conversation_root_id')
@@ -1346,6 +1356,7 @@ export class ActivityProcessor {
           content,
           content_warning: object.summary || null,
           is_sensitive: object.sensitive === true,
+          media_attachments: extractMediaAttachments(object.attachment),
           updated_at: new Date().toISOString(),
         })
         .eq('id', existingPost.id);
@@ -1780,7 +1791,7 @@ export class ActivityProcessor {
 
     let originalPost: any = null;
     
-    const originalPostColumns = 'id, content, visibility, is_deleted, author_id, created_at, ap_id, is_sensitive, content_warning, favorites_count, replies_count, reblogs_count, media_attachments, url';
+    const originalPostColumns = 'id, content, visibility, is_deleted, author_id, created_at, ap_id, is_sensitive, content_warning, favorites_count, replies_count, reblogs_count, media_attachments, url, metadata';
 
     // Original post lookup, method 1: by ap_id.
     const { data: postByApId } = await supabase
@@ -1810,49 +1821,23 @@ export class ActivityProcessor {
       }
     }
 
-    // Method 3: fetch the post from its origin instance and import it.
+    // Method 3: fetch the post from its origin and store it as every other remote post
+    // (storeRemotePost). A post a boost may not copy is not stored.
     if (!originalPost) {
       logger.info(`Original post not found locally, attempting to fetch: ${objectUrl}`);
       try {
         // BUGS.md H15: objectUrl is from inbox payload (attacker-influenced).
         const remotePost = await fetchAuthoritativeDocument(objectUrl, (u) => this.fetchApDocument(u));
 
-        if (remotePost) {
-          const authorUrl = normalizeActor(remotePost.attributedTo || remotePost.actor);
-          if ((remotePost.type === 'Note' || remotePost.type === 'Article') && sameOrigin(authorUrl, remotePost.id)) {
-            await this.ensureRemoteUser(authorUrl);
-            
-            const { data: author } = await supabase
-              .from('profiles')
-              .select('id')
-              .eq('federated_id', authorUrl)
-              .single();
-            
-            const visibility = this.determineVisibility(remotePost);
-            if (author && isBoostableVisibility(visibility)) {
-              const content = noteToContent(remotePost);
-              
-              const { data: newPost, error: createError } = await supabase
-                .from('posts')
-                .insert({
-                  ap_id: remotePost.id,
-                  author_id: author.id,
-                  content,
-                  visibility,
-                  is_local: false,
-                  is_sensitive: remotePost.sensitive === true,
-                  content_warning: remotePost.summary || null,
-                  created_at: remotePost.published || new Date().toISOString(),
-                  ...noteEngagementColumns(remotePost),
-                })
-                .select(originalPostColumns)
-                .single();
-              
-              if (!createError && newPost) {
-                originalPost = newPost;
-                logger.info(`Created remote post ${remotePost.id} for reblog`);
-              }
-            }
+        if (remotePost && isBoostableVisibility(this.determineVisibility(remotePost))) {
+          const stored = await this.storeRemotePost(remotePost);
+          if (stored) {
+            const { data: storedPost } = await supabase
+              .from('posts')
+              .select(originalPostColumns)
+              .eq('id', stored.id)
+              .maybeSingle();
+            originalPost = storedPost;
           }
         }
       } catch (fetchError) {
@@ -1912,6 +1897,8 @@ export class ActivityProcessor {
         replies_count: originalPost.replies_count || 0,
         reblogs_count: originalPost.reblogs_count || 0,
         media_attachments: originalPost.media_attachments || [],
+        // Poll keys of a boosted Question render from the snapshot.
+        metadata: originalPost.metadata || {},
       },
       reblog_author: originalAuthor || null,
       metadata: {
@@ -2374,6 +2361,7 @@ export class ActivityProcessor {
         created_at: object.published || new Date().toISOString(),
         content_warning: object.summary || null,
         is_sensitive: object.sensitive === true,
+        media_attachments: extractMediaAttachments(object.attachment),
         metadata: questionPollMetadata(object),
         ...noteEngagementColumns(object),
       });
@@ -2421,6 +2409,7 @@ export class ActivityProcessor {
       patch.content = noteToContent(object);
       patch.content_warning = object.summary || null;
       patch.is_sensitive = object.sensitive === true;
+      patch.media_attachments = extractMediaAttachments(object.attachment);
       patch.updated_at = new Date().toISOString();
     }
 

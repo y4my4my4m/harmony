@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { profileToActor } from './converters/toActivityPub.js';
-import { actorToProfile, noteToContent } from './converters/fromActivityPub.js';
+import { actorToProfile, extractMediaAttachments, noteToContent } from './converters/fromActivityPub.js';
 import { misskeyDisplayNameEmojis } from '../utils/misskeyEmojis.js';
 import { resolveLocalProfileEmojis } from './emojiResolver.js';
 import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
@@ -19,7 +19,6 @@ import { crawlReplies, DEFAULT_REPLY_CRAWL, storeReplies, type ReplyCrawl, type 
 import { noteDocumentSoftware } from './instanceSoftware.js';
 import { confirmActorAcct, parseAcct, resolveActorUrl, sameAcct, withCanonicalAcct, type WebFingerCache } from './webfingerClient.js';
 import { actorTombstone, deletedActorByProfile, deletedActorByUsername } from './deletedActors.js';
-import { parseFocalPoint } from '../utils/focalPoint.js';
 import { questionPollMetadata } from '../utils/polls.js';
 import { movedColumns } from './accountMigration.js';
 import { pgrstOrValue } from '../utils/postgrestFilter.js';
@@ -2820,23 +2819,6 @@ function startFeaturedSync(
     .finally(() => featuredSyncs.delete(author.id));
 }
 
-function extractMediaAttachments(attachments: any): any[] {
-  if (!attachments || !Array.isArray(attachments)) {
-    return [];
-  }
-  
-  return attachments.map((att: any) => ({
-    type: att.type || 'Document',
-    mediaType: att.mediaType || 'application/octet-stream',
-    url: att.url,
-    name: att.name || null,
-    width: att.width || null,
-    height: att.height || null,
-    blurhash: att.blurhash || null,
-    focalPoint: parseFocalPoint(att.focalPoint),
-  })).filter((att: any) => att.url);
-}
-
 /**
  * Refetch a remote post from its origin, reprocessing content and link previews.
  * POST /refetch-post
@@ -2925,7 +2907,11 @@ router.post(
 
       const content = noteToContent(remoteObject);
 
-      const updatePayload: any = { content, ...noteEngagementColumns(remoteObject) };
+      const updatePayload: any = {
+        content,
+        media_attachments: extractMediaAttachments(remoteObject.attachment),
+        ...noteEngagementColumns(remoteObject),
+      };
       if (remoteObject.summary !== undefined) {
         updatePayload.content_warning = remoteObject.summary || null;
       }
