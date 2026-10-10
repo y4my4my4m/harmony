@@ -165,6 +165,8 @@ fn resolve(content: &SCShareableContent, target: &Target, own: libc::pid_t) -> R
 struct OutputIvars {
   sink: Mutex<Sink>,
   scratch: Mutex<Vec<i16>>,
+  /// AudioBufferList storage, u64 for its alignment; grown to the size CoreMedia asks for.
+  buffer_list: Mutex<Vec<u64>>,
   stopped: AtomicBool,
   /// Diagnostics already logged, one bit each.
   logged: AtomicU32,
@@ -175,6 +177,7 @@ const LOGGED_OTHER: u32 = 1 << 1;
 const LOGGED_FORMAT: u32 = 1 << 2;
 const LOGGED_STATUS: u32 = 1 << 3;
 const LOGGED_EMPTY: u32 = 1 << 4;
+const LOGGED_LIST: u32 = 1 << 5;
 
 define_class!(
   #[unsafe(super(NSObject))]
@@ -211,6 +214,7 @@ impl AudioOutput {
     let this = Self::alloc().set_ivars(OutputIvars {
       sink: Mutex::new(sink),
       scratch: Mutex::new(Vec::new()),
+      buffer_list: Mutex::new(Vec::new()),
       stopped: AtomicBool::new(false),
       logged: AtomicU32::new(0),
     });
@@ -248,25 +252,54 @@ impl AudioOutput {
     let channels = asbd.mChannelsPerFrame as usize;
     let planar = asbd.mFormatFlags & kAudioFormatFlagIsNonInterleaved != 0;
 
-    // AudioBufferList with room for 8 buffers; the stream is configured for 2 channels.
-    let mut storage = [0u64; 1 + 8 * 2];
+    // The list's size depends on the buffer layout; CoreMedia reports it when asked with no list.
+    let flags = kCMSampleBufferFlag_AudioBufferList_Assure16ByteAlignment;
+    let mut needed: usize = 0;
+    let status = unsafe {
+      sample_buffer.audio_buffer_list_with_retained_block_buffer(
+        &mut needed,
+        std::ptr::null_mut(),
+        0,
+        None,
+        None,
+        flags,
+        std::ptr::null_mut(),
+      )
+    };
+    if status != 0 || needed == 0 {
+      self.log_once(LOGGED_STATUS, || format!("audio buffer list size: status {status}, {needed} bytes"));
+      return;
+    }
+    let Ok(mut storage) = self.ivars().buffer_list.lock() else { return };
+    let words = needed.div_ceil(8);
+    if storage.len() < words {
+      storage.resize(words, 0);
+    }
     let list = storage.as_mut_ptr() as *mut AudioBufferList;
     let mut block: *mut CMBlockBuffer = std::ptr::null_mut();
     let status = unsafe {
       sample_buffer.audio_buffer_list_with_retained_block_buffer(
         std::ptr::null_mut(),
         list,
-        std::mem::size_of_val(&storage),
+        storage.len() * 8,
         None,
         None,
-        kCMSampleBufferFlag_AudioBufferList_Assure16ByteAlignment,
+        flags,
         &mut block,
       )
     };
     if status != 0 {
-      self.log_once(LOGGED_STATUS, || format!("CMSampleBufferGetAudioBufferList...: status {status}"));
+      self.log_once(LOGGED_STATUS, || format!("audio buffer list: status {status} with {needed} bytes"));
       return;
     }
+    self.log_once(LOGGED_LIST, || {
+      format!(
+        "audio: {} Hz, {} channels, {}, buffer list {needed} bytes",
+        asbd.mSampleRate,
+        channels,
+        if planar { "planar" } else { "interleaved" }
+      )
+    });
     // The list points into the block buffer, retained here until the copy below is done.
     let _block = NonNull::new(block).map(|b| unsafe { CFRetained::from_raw(b) });
     let buffers: &[AudioBuffer] =

@@ -245,10 +245,12 @@ fn activate(pid: u32, mode: PROCESS_LOOPBACK_MODE) -> Result<IAudioClient, Error
   unsafe { operation.GetActivateResult(&mut result, &mut unknown) }.map_err(|e| failed("GetActivateResult", e))?;
   log::debug!("activation result {:#x}", result.0);
   result.ok().map_err(|e| failed("process loopback activation", e))?;
-  unknown
+  let client = unknown
     .ok_or_else(|| Error::Failed("activation returned no interface".into()))?
     .cast::<IAudioClient>()
-    .map_err(|e| failed("IAudioClient", e))
+    .map_err(|e| failed("IAudioClient", e))?;
+  log::debug!("IAudioClient obtained");
+  Ok(client)
 }
 
 struct Stream {
@@ -266,6 +268,7 @@ impl Drop for Stream {
 
 fn open(pid: u32, mode: PROCESS_LOOPBACK_MODE) -> Result<Stream, Error> {
   let client = activate(pid, mode)?;
+  log::debug!("activation released");
   let block_align = (CHANNELS * 2) as u16;
   let format = WAVEFORMATEX {
     wFormatTag: WAVE_FORMAT_PCM as u16,
@@ -276,6 +279,7 @@ fn open(pid: u32, mode: PROCESS_LOOPBACK_MODE) -> Result<Stream, Error> {
     wBitsPerSample: 16,
     cbSize: 0,
   };
+  log::debug!("initializing IAudioClient");
   unsafe {
     client.Initialize(
       AUDCLNT_SHAREMODE_SHARED,
