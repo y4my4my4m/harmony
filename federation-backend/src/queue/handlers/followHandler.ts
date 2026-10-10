@@ -52,6 +52,13 @@ export async function handleFollowJob(data: FederationJobData): Promise<void> {
       return;
     }
 
+    // A deleted account's follows go with it; the actor Delete (account-deleted) covers them.
+    if (follower.deleted_at) {
+      logger.debug('Follow of a deleted account, skipping outgoing federation');
+      await updateFederationStatus(follow_id, 'follows', 'skipped');
+      return;
+    }
+
     if (!following || following.is_local) {
       logger.debug('Follow of local user, no federation needed');
       await updateFederationStatus(follow_id, 'follows', 'skipped');

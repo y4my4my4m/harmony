@@ -18,6 +18,7 @@ import { noteDocumentSoftware } from './instanceSoftware.js';
 import { confirmActorAcct, parseAcct, resolveActorUrl, sameAcct, withCanonicalAcct, type WebFingerCache } from './webfingerClient.js';
 import { actorTombstone, deletedActorByProfile, deletedActorByUsername } from './deletedActors.js';
 import { parseFocalPoint } from '../utils/focalPoint.js';
+import { movedColumns } from './accountMigration.js';
 
 const router = Router();
 
@@ -98,6 +99,270 @@ async function findStoredRemoteAccount(supabase: any, username: string, domain: 
     .ilike('federated_id', `https://${domain.toLowerCase()}/%`)
     .limit(2);
   return Array.isArray(served) && served.length === 1 ? served[0] : null;
+}
+
+export type RemoteAccountResolution =
+  | { ok: true; user: any; actor: any }
+  | { ok: false; status: number; body: Record<string, unknown> };
+
+/**
+ * WebFinger, an authoritative fetch of the actor document, key ownership and account
+ * confirmation, then the profile upsert keyed by actor id. The returned actor is the
+ * document as fetched now.
+ */
+export async function resolveRemoteAccount(username: string, domain: string): Promise<RemoteAccountResolution> {
+  const supabase = getSupabaseClient();
+  try {
+    // SSRF protection: validate the domain before fetching
+    validateExternalHostname(domain);
+
+    // Step 1: WebFinger, unsigned (Mastodon signs neither WebFinger nor
+    // host-meta). One cache serves this lookup and the confirmation below.
+    const webfingers: WebFingerCache = new Map();
+    const resolved = await resolveActorUrl(username, domain, 10_000, webfingers);
+    if (!resolved) {
+      logger.warn(`WebFinger names no ActivityPub actor for ${username}@${domain}`);
+      return { ok: false, status: 404, body: { error: 'User not found on remote instance' } };
+    }
+
+    // Step 2: Fetch the Actor
+    logger.info(`Fetching actor: ${resolved.actorUrl}`);
+    // BUGS.md H15: the actor URL comes from the remote webfinger response.
+    // safeFetch re-validates the URL/DNS and follows redirects manually.
+    // The profile is upserted under the document's own id, so the document
+    // must be served from its own id (fetchAuthoritativeDocument), own its
+    // keys, and name the account that was looked up.
+    const actor = await fetchAuthoritativeDocument(resolved.actorUrl, async (url) => {
+      const response = await SignatureService.signedApFetch(url, {
+        headers: {
+          'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+          'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+        },
+        timeoutMs: 10000,
+      });
+      return readApDocument(response, url);
+    });
+
+    if (!actor) {
+      logger.warn(`No authoritative actor document at ${resolved.actorUrl}`);
+      return { ok: false, status: 404, body: {
+        error: 'Failed to fetch user profile from remote instance'
+      } };
+    }
+    noteDocumentSoftware(actor.id, actor);
+    if (!actorOwnsKeys(actor)) {
+      logger.warn(`Actor ${actor.id} publishes a key it does not own`);
+      return { ok: false, status: 502, body: { error: 'Remote actor key owner does not match the actor' } };
+    }
+    // The actor's canonical account, confirmed from the actor's side, is
+    // the looked-up account or the subject the queried domain named for it.
+    // Unconfirmed, the actor stands on its host under its preferredUsername.
+    const acct = await confirmActorAcct(actor, 10_000, webfingers);
+    const queried = parseAcct(`${username}@${domain}`);
+    const named = acct
+      ? sameAcct(acct, queried) || sameAcct(acct, resolved.subject)
+      : typeof actor.preferredUsername === 'string'
+        && actor.preferredUsername.toLowerCase() === username.toLowerCase();
+    if (!named) {
+      logger.warn(`Actor ${actor.id} is ${acct ? `${acct.username}@${acct.domain}` : actor.preferredUsername}, not the looked-up ${username}@${domain}`);
+      return { ok: false, status: 502, body: { error: 'Remote actor does not match the looked-up account' } };
+    }
+    logger.info(`Actor fetched: ${actor.preferredUsername || actor.name}`);
+    
+    // Step 3: Fetch follower/following/posts counts from collections
+    let followersCount = 0;
+    let followingCount = 0;
+    let postsCount = 0;
+
+    const fetchCollectionCount = async (url: string): Promise<number> => {
+      try {
+        const response = await SignatureService.signedApFetch(url, {
+          headers: { 
+            'Accept': 'application/activity+json, application/ld+json',
+            'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+          },
+          timeoutMs: 5000,
+        });
+        if (!response.ok) return 0;
+        const collection = await response.json();
+        return collection.totalItems || 0;
+      } catch {
+        return 0;
+      }
+    };
+
+    const [followers, following, posts] = await Promise.all([
+      actor.followers ? fetchCollectionCount(actor.followers) : Promise.resolve(0),
+      actor.following ? fetchCollectionCount(actor.following) : Promise.resolve(0),
+      actor.outbox ? fetchCollectionCount(actor.outbox) : Promise.resolve(0),
+    ]);
+
+    followersCount = followers;
+    followingCount = following;
+    postsCount = posts;
+
+    logger.info(`Stats: ${postsCount} posts, ${followingCount} following, ${followersCount} followers`);
+
+    // Step 4: Convert and store the profile
+    logger.debug(`Actor has tag array: ${Array.isArray(actor.tag)}, length: ${actor.tag?.length || 0}`);
+    logger.debug(`Actor has emojis object: ${!!actor.emojis}, keys: ${actor.emojis ? Object.keys(actor.emojis).length : 0}`);
+    if (actor.tag) {
+      const emojiTags = actor.tag.filter((t: any) => t.type === 'Emoji');
+      logger.debug(`Emoji tags in actor: ${emojiTags.length}`);
+      if (emojiTags.length > 0) {
+        logger.debug(`Sample emoji tag: ${JSON.stringify(emojiTags[0])}`);
+      }
+    }
+    if (actor.emojis && Object.keys(actor.emojis).length > 0) {
+      const firstKey = Object.keys(actor.emojis)[0];
+      logger.debug(`Sample emoji from object: ${firstKey} = ${actor.emojis[firstKey]}`);
+    }
+    
+    // Unconfirmed, a stored account keeps its name rather than reverting to
+    // the actor's host.
+    const { data: stored } = acct
+      ? { data: null }
+      : await supabase.from('profiles').select('username, domain').eq('federated_id', actor.id).maybeSingle();
+    const profileData = withCanonicalAcct(
+      actorToProfile(actor),
+      acct ?? (stored?.username && stored?.domain ? { username: stored.username, domain: String(stored.domain).toLowerCase() } : null),
+    );
+    logger.debug(`Profile bio_emojis count: ${profileData.bio_emojis?.length || 0}`);
+    
+    // SECURITY: reject a remote actor claiming the local instance domain.
+    if (profileData.domain.toLowerCase() === config.INSTANCE_DOMAIN.toLowerCase()) {
+      logger.warn(`SECURITY: Remote actor claims local domain! Actor: ${actor.id}, Domain: ${profileData.domain}`);
+      return { ok: false, status: 400, body: { 
+        error: 'Remote actor cannot claim local instance domain',
+        security_violation: true
+      } };
+    }
+    
+    // SECURITY: second guard against overwriting a local profile. Unreachable
+    // given the domain check above.
+    const { data: existingLocalUser } = await supabase
+      .from('profiles')
+      .select('id, is_local')
+      .eq('username', profileData.username)
+      .eq('domain', profileData.domain)
+      .eq('is_local', true)
+      .maybeSingle();
+    
+    if (existingLocalUser) {
+      logger.warn(`SECURITY: Refusing to overwrite local user ${profileData.username}@${profileData.domain}`);
+      return { ok: false, status: 400, body: { 
+        error: 'Cannot overwrite local user with federated data',
+        security_violation: true
+      } };
+    }
+    
+    // A stored account stays bound to its actor id; a different document
+    // for the same username@domain does not take it over.
+    const { data: boundUser } = await supabase
+      .from('profiles')
+      .select('id, federated_id')
+      .eq('username', profileData.username)
+      .eq('domain', profileData.domain)
+      .maybeSingle();
+    if (boundUser?.federated_id && boundUser.federated_id !== profileData.federated_id) {
+      logger.warn(`Refusing to rebind ${profileData.username}@${profileData.domain} from ${boundUser.federated_id} to ${profileData.federated_id}`);
+      return { ok: false, status: 409, body: { error: 'Account is bound to a different actor' } };
+    }
+
+    const profileRecord: any = {
+      username: profileData.username,
+      domain: profileData.domain,
+      display_name: profileData.display_name,
+      bio: profileData.bio,
+      avatar_url: profileData.avatar,
+      banner_url: profileData.banner,
+      public_key: profileData.public_key,
+      federated_id: profileData.federated_id,
+      inbox_url: profileData.inbox_url,
+      outbox_url: profileData.outbox_url,
+      followers_url: profileData.followers_url,
+      following_url: profileData.following_url,
+      is_local: false,
+      last_synced_at: new Date().toISOString(),
+    };
+    const { data: previous } = await supabase
+      .from('profiles')
+      .select('id, moved_to_uri')
+      .eq('federated_id', profileData.federated_id)
+      .maybeSingle();
+    Object.assign(profileRecord, await movedColumns(supabase, profileData, previous));
+    
+    // Persist ActivityPub profile fields (PropertyValue attachments)
+    if (profileData.profile_fields) {
+      profileRecord.profile_fields = profileData.profile_fields;
+    }
+
+    const federationMetadata: any = {};
+    if (profileData.bio_emojis && profileData.bio_emojis.length > 0) {
+      federationMetadata.bio_emojis = profileData.bio_emojis;
+    }
+    if (profileData.display_name_emojis && profileData.display_name_emojis.length > 0) {
+      federationMetadata.display_name_emojis = profileData.display_name_emojis;
+    }
+    if (Object.keys(federationMetadata).length > 0) {
+      profileRecord.federation_metadata = JSON.stringify(federationMetadata);
+    }
+
+    if (followersCount > 0) profileRecord.followers_count = followersCount;
+    if (followingCount > 0) profileRecord.following_count = followingCount;
+    if (postsCount > 0) profileRecord.posts_count = postsCount;
+
+    // Keyed by actor id: a row stored under the actor's host before its
+    // canonical account was known moves to that account.
+    let savedUser;
+    const { data: upsertedUser, error: saveError } = await supabase
+      .from('profiles')
+      .upsert(profileRecord, {
+        onConflict: 'federated_id',
+      })
+      .select()
+      .single();
+
+    if (saveError) {
+      // Concurrent request already inserted the row; read it back.
+      if (saveError.message.includes('duplicate key') || saveError.code === '23505') {
+        logger.info(`Race condition detected, fetching existing user: ${profileData.federated_id}`);
+        const { data: existingUser } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('federated_id', profileData.federated_id)
+          .maybeSingle();
+        
+        if (existingUser) {
+          savedUser = existingUser;
+        } else {
+          logger.error(`Failed to save remote user and couldn't find existing: ${saveError.message}`);
+          return { ok: false, status: 500, body: { 
+            error: 'Failed to store user profile',
+            details: saveError.message
+          } };
+        }
+      } else {
+        logger.error(`Failed to save remote user: ${saveError.message}`);
+        return { ok: false, status: 500, body: { 
+          error: 'Failed to store user profile',
+          details: saveError.message
+        } };
+      }
+    } else {
+      savedUser = upsertedUser;
+    }
+
+    return { ok: true, user: savedUser, actor };
+  } catch (error: any) {
+    logger.error(`Error looking up remote user ${username}@${domain}:`, error);
+
+    if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+      return { ok: false, status: 504, body: { error: 'Remote server took too long to respond' } };
+    }
+
+    return { ok: false, status: 500, body: { error: 'Failed to lookup remote user', details: error.message } };
+  }
 }
 
 /**
@@ -210,271 +475,27 @@ router.post(
       }
     }
 
-    try {
-      // SSRF protection: validate the domain before fetching
-      validateExternalHostname(domain);
+    const resolved = await resolveRemoteAccount(username, domain);
+    if (!resolved.ok) {
+      return res.status(resolved.status).json(resolved.body);
+    }
+    const { user: savedUser, actor } = resolved;
 
-      // Step 1: WebFinger, unsigned (Mastodon signs neither WebFinger nor
-      // host-meta). One cache serves this lookup and the confirmation below.
-      const webfingers: WebFingerCache = new Map();
-      const resolved = await resolveActorUrl(username, domain, 10_000, webfingers);
-      if (!resolved) {
-        logger.warn(`WebFinger names no ActivityPub actor for ${username}@${domain}`);
-        return res.status(404).json({ error: 'User not found on remote instance' });
-      }
-
-      // Step 2: Fetch the Actor
-      logger.info(`Fetching actor: ${resolved.actorUrl}`);
-      // BUGS.md H15: the actor URL comes from the remote webfinger response.
-      // safeFetch re-validates the URL/DNS and follows redirects manually.
-      // The profile is upserted under the document's own id, so the document
-      // must be served from its own id (fetchAuthoritativeDocument), own its
-      // keys, and name the account that was looked up.
-      const actor = await fetchAuthoritativeDocument(resolved.actorUrl, async (url) => {
-        const response = await SignatureService.signedApFetch(url, {
-          headers: {
-            'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
-            'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
-          },
-          timeoutMs: 10000,
-        });
-        return readApDocument(response, url);
-      });
-
-      if (!actor) {
-        logger.warn(`No authoritative actor document at ${resolved.actorUrl}`);
-        return res.status(404).json({
-          error: 'Failed to fetch user profile from remote instance'
-        });
-      }
-      noteDocumentSoftware(actor.id, actor);
-      if (!actorOwnsKeys(actor)) {
-        logger.warn(`Actor ${actor.id} publishes a key it does not own`);
-        return res.status(502).json({ error: 'Remote actor key owner does not match the actor' });
-      }
-      // The actor's canonical account, confirmed from the actor's side, is
-      // the looked-up account or the subject the queried domain named for it.
-      // Unconfirmed, the actor stands on its host under its preferredUsername.
-      const acct = await confirmActorAcct(actor, 10_000, webfingers);
-      const queried = parseAcct(`${username}@${domain}`);
-      const named = acct
-        ? sameAcct(acct, queried) || sameAcct(acct, resolved.subject)
-        : typeof actor.preferredUsername === 'string'
-          && actor.preferredUsername.toLowerCase() === username.toLowerCase();
-      if (!named) {
-        logger.warn(`Actor ${actor.id} is ${acct ? `${acct.username}@${acct.domain}` : actor.preferredUsername}, not the looked-up ${username}@${domain}`);
-        return res.status(502).json({ error: 'Remote actor does not match the looked-up account' });
-      }
-      logger.info(`Actor fetched: ${actor.preferredUsername || actor.name}`);
-      
-      // Step 3: Fetch follower/following/posts counts from collections
-      let followersCount = 0;
-      let followingCount = 0;
-      let postsCount = 0;
-
-      const fetchCollectionCount = async (url: string): Promise<number> => {
-        try {
-          const response = await SignatureService.signedApFetch(url, {
-            headers: { 
-              'Accept': 'application/activity+json, application/ld+json',
-              'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
-            },
-            timeoutMs: 5000,
-          });
-          if (!response.ok) return 0;
-          const collection = await response.json();
-          return collection.totalItems || 0;
-        } catch {
-          return 0;
-        }
-      };
-
-      const [followers, following, posts] = await Promise.all([
-        actor.followers ? fetchCollectionCount(actor.followers) : Promise.resolve(0),
-        actor.following ? fetchCollectionCount(actor.following) : Promise.resolve(0),
-        actor.outbox ? fetchCollectionCount(actor.outbox) : Promise.resolve(0),
-      ]);
-
-      followersCount = followers;
-      followingCount = following;
-      postsCount = posts;
-
-      logger.info(`Stats: ${postsCount} posts, ${followingCount} following, ${followersCount} followers`);
-
-      // Step 4: Convert and store the profile
-      logger.debug(`Actor has tag array: ${Array.isArray(actor.tag)}, length: ${actor.tag?.length || 0}`);
-      logger.debug(`Actor has emojis object: ${!!actor.emojis}, keys: ${actor.emojis ? Object.keys(actor.emojis).length : 0}`);
-      if (actor.tag) {
-        const emojiTags = actor.tag.filter((t: any) => t.type === 'Emoji');
-        logger.debug(`Emoji tags in actor: ${emojiTags.length}`);
-        if (emojiTags.length > 0) {
-          logger.debug(`Sample emoji tag: ${JSON.stringify(emojiTags[0])}`);
-        }
-      }
-      if (actor.emojis && Object.keys(actor.emojis).length > 0) {
-        const firstKey = Object.keys(actor.emojis)[0];
-        logger.debug(`Sample emoji from object: ${firstKey} = ${actor.emojis[firstKey]}`);
-      }
-      
-      // Unconfirmed, a stored account keeps its name rather than reverting to
-      // the actor's host.
-      const { data: stored } = acct
-        ? { data: null }
-        : await supabase.from('profiles').select('username, domain').eq('federated_id', actor.id).maybeSingle();
-      const profileData = withCanonicalAcct(
-        actorToProfile(actor),
-        acct ?? (stored?.username && stored?.domain ? { username: stored.username, domain: String(stored.domain).toLowerCase() } : null),
-      );
-      logger.debug(`Profile bio_emojis count: ${profileData.bio_emojis?.length || 0}`);
-      
-      // SECURITY: reject a remote actor claiming the local instance domain.
-      if (profileData.domain.toLowerCase() === config.INSTANCE_DOMAIN.toLowerCase()) {
-        logger.warn(`SECURITY: Remote actor claims local domain! Actor: ${actor.id}, Domain: ${profileData.domain}`);
-        return res.status(400).json({ 
-          error: 'Remote actor cannot claim local instance domain',
-          security_violation: true
-        });
-      }
-      
-      // SECURITY: second guard against overwriting a local profile. Unreachable
-      // given the domain check above.
-      const { data: existingLocalUser } = await supabase
-        .from('profiles')
-        .select('id, is_local')
-        .eq('username', profileData.username)
-        .eq('domain', profileData.domain)
-        .eq('is_local', true)
-        .maybeSingle();
-      
-      if (existingLocalUser) {
-        logger.warn(`SECURITY: Refusing to overwrite local user ${profileData.username}@${profileData.domain}`);
-        return res.status(400).json({ 
-          error: 'Cannot overwrite local user with federated data',
-          security_violation: true
-        });
-      }
-      
-      // A stored account stays bound to its actor id; a different document
-      // for the same username@domain does not take it over.
-      const { data: boundUser } = await supabase
-        .from('profiles')
-        .select('id, federated_id')
-        .eq('username', profileData.username)
-        .eq('domain', profileData.domain)
-        .maybeSingle();
-      if (boundUser?.federated_id && boundUser.federated_id !== profileData.federated_id) {
-        logger.warn(`Refusing to rebind ${profileData.username}@${profileData.domain} from ${boundUser.federated_id} to ${profileData.federated_id}`);
-        return res.status(409).json({ error: 'Account is bound to a different actor' });
-      }
-
-      const profileRecord: any = {
-        username: profileData.username,
-        domain: profileData.domain,
-        display_name: profileData.display_name,
-        bio: profileData.bio,
-        avatar_url: profileData.avatar,
-        banner_url: profileData.banner,
-        public_key: profileData.public_key,
-        federated_id: profileData.federated_id,
-        inbox_url: profileData.inbox_url,
-        outbox_url: profileData.outbox_url,
-        followers_url: profileData.followers_url,
-        following_url: profileData.following_url,
-        is_local: false,
-        last_synced_at: new Date().toISOString(),
-      };
-      
-      // Persist ActivityPub profile fields (PropertyValue attachments)
-      if (profileData.profile_fields) {
-        profileRecord.profile_fields = profileData.profile_fields;
-      }
-
-      const federationMetadata: any = {};
-      if (profileData.bio_emojis && profileData.bio_emojis.length > 0) {
-        federationMetadata.bio_emojis = profileData.bio_emojis;
-      }
-      if (profileData.display_name_emojis && profileData.display_name_emojis.length > 0) {
-        federationMetadata.display_name_emojis = profileData.display_name_emojis;
-      }
-      if (Object.keys(federationMetadata).length > 0) {
-        profileRecord.federation_metadata = JSON.stringify(federationMetadata);
-      }
-
-      if (followersCount > 0) profileRecord.followers_count = followersCount;
-      if (followingCount > 0) profileRecord.following_count = followingCount;
-      if (postsCount > 0) profileRecord.posts_count = postsCount;
-
-      // Keyed by actor id: a row stored under the actor's host before its
-      // canonical account was known moves to that account.
-      let savedUser;
-      const { data: upsertedUser, error: saveError } = await supabase
-        .from('profiles')
-        .upsert(profileRecord, {
-          onConflict: 'federated_id',
-        })
-        .select()
-        .single();
-
-      if (saveError) {
-        // Concurrent request already inserted the row; read it back.
-        if (saveError.message.includes('duplicate key') || saveError.code === '23505') {
-          logger.info(`Race condition detected, fetching existing user: ${profileData.federated_id}`);
-          const { data: existingUser } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('federated_id', profileData.federated_id)
-            .maybeSingle();
-          
-          if (existingUser) {
-            savedUser = existingUser;
-          } else {
-            logger.error(`Failed to save remote user and couldn't find existing: ${saveError.message}`);
-            return res.status(500).json({ 
-              error: 'Failed to store user profile',
-              details: saveError.message
-            });
-          }
-        } else {
-          logger.error(`Failed to save remote user: ${saveError.message}`);
-          return res.status(500).json({ 
-            error: 'Failed to store user profile',
-            details: saveError.message
-          });
-        }
-      } else {
-        savedUser = upsertedUser;
-      }
-
-      logger.info(`${forceRefresh ? 'Refreshed' : 'Created'} remote user: ${username}@${domain}`);
-      
-      if (actor.outbox) {
-        fetchRecentPostsInBackground(savedUser.id, actor.outbox, supabase).catch(err => {
-          logger.warn(`Background post fetch failed for ${username}@${domain}:`, err.message);
-        });
-      }
-      
-      return res.json({
-        success: true,
-        user: savedUser,
-        outbox_url: actor.outbox, // Include for pagination
-        cached: false,
-        refreshed: forceRefresh || false
-      });
-
-    } catch (error: any) {
-      logger.error(`Error looking up remote user ${username}@${domain}:`, error);
-      
-      if (error.name === 'AbortError' || error.name === 'TimeoutError') {
-        return res.status(504).json({ 
-          error: 'Remote server took too long to respond'
-        });
-      }
-      
-      return res.status(500).json({ 
-        error: 'Failed to lookup remote user',
-        details: error.message
+    logger.info(`${forceRefresh ? 'Refreshed' : 'Created'} remote user: ${username}@${domain}`);
+    
+    if (actor.outbox) {
+      fetchRecentPostsInBackground(savedUser.id, actor.outbox, supabase).catch(err => {
+        logger.warn(`Background post fetch failed for ${username}@${domain}:`, err.message);
       });
     }
+    
+    return res.json({
+      success: true,
+      user: savedUser,
+      outbox_url: actor.outbox, // Include for pagination
+      cached: false,
+      refreshed: forceRefresh || false
+    });
   })
 );
 

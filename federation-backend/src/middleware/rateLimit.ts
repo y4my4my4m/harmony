@@ -207,6 +207,22 @@ export const mediaLimiter = createRateLimiter({
   message: 'Too many media requests, please slow down.',
 });
 
+// Account migration resolves remote accounts on every call; keyed by token so one
+// account's attempts do not spend another's budget behind a shared address.
+export const accountMigrationLimiter = createRateLimiter({
+  name: 'account-migration',
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 30,
+  message: 'Too many account migration requests, please try again later.',
+  keyGenerator: (req: Request) => {
+    const auth = req.headers.authorization;
+    if (auth && auth.startsWith('Bearer ')) {
+      return auth.slice(0, 100);
+    }
+    return `ip:${clientIp(req)}`;
+  },
+});
+
 export const discoveryLimiter = createRateLimiter({
   name: 'discovery',
   windowMs: 60 * 1000,

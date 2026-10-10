@@ -28,6 +28,7 @@ import {
   isWithinQuietHours,
   pushAllowedForType,
   securityNoticeText,
+  moveNoticeText,
 } from './pushPolicy.js';
 
 /**
@@ -1108,6 +1109,13 @@ class PushNotificationServiceClass {
       
       case 'security': {
         const notice = securityNoticeText(data);
+        title = notice.title;
+        message = notice.body;
+        break;
+      }
+
+      case 'move': {
+        const notice = moveNoticeText(data);
         title = notice.title;
         message = notice.body;
         break;
