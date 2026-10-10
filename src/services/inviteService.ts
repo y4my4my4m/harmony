@@ -184,6 +184,8 @@ export interface InviteInfo {
   banner: string | null;
   rules: string[];
   memberCount: number;
+  /** Members published online, away or busy; null from a database without the count. */
+  onlineCount: number | null;
   expiresAt: string | null;
   isMember: boolean;
 }
@@ -221,6 +223,7 @@ async function getInviteInfo(code: string): Promise<{ info?: InviteInfo; error?:
         banner: preview.banner ?? null,
         rules,
         memberCount: Number(preview.member_count) || 0,
+        onlineCount: typeof preview.online_count === 'number' ? preview.online_count : null,
         expiresAt: preview.expires_at ?? null,
         isMember: preview.is_member === true,
       },

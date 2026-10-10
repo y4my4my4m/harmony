@@ -66,119 +66,150 @@ export class CoreInteractionService {
   // FOLLOW MANAGEMENT (SECURE LOCAL OPERATIONS)
 
   /**
-   * Follow/unfollow a user (pure local, secure)
+   * Follow, or unfollow when a follow or a request already stands.
    */
   async toggleFollow(targetUserId: string): Promise<FollowResult> {
     try {
-      // Authentication verification via centralized service
       const profileId = await this.getCurrentUserProfileId()
+      this.assertFollowTarget(profileId, targetUserId)
 
-      // Input validation
-      if (!targetUserId || typeof targetUserId !== 'string') {
-        throw this.createError('INVALID_INPUT', 'Target user ID is required')
+      const existing = await this.findOwnFollow(profileId, targetUserId)
+      if (existing && existing.status !== 'rejected') {
+        return await this.unfollow(targetUserId)
       }
-
-      // Self-follow prevention
-      if (profileId === targetUserId) {
-        throw this.createError('INVALID_ACTION', 'Cannot follow yourself')
-      }
-
-      debug.log(`Core: Toggling follow for user: ${targetUserId}`)
-
-      // Check current follow status
-      const { data: existingFollow, error: followError } = await supabase
-        .from('follows')
-        .select('id, status')
-        .eq('follower_id', profileId)
-        .eq('following_id', targetUserId)
-        .maybeSingle()
-
-      if (followError) throw this.createError('QUERY_FAILED', 'Failed to check follow status', followError)
-
-      let following: boolean
-      let pending: boolean = false
-
-      // A previously rejected request reads as "not following": clear the
-      // stale row so the re-follow below is a fresh INSERT (the federation
-      // backend's INSERT listener is what sends the outbound Follow).
-      if (existingFollow?.status === 'rejected') {
-        await supabase
-          .from('follows')
-          .delete()
-          .eq('id', existingFollow.id)
-          .eq('follower_id', profileId)
-      }
-
-      if (existingFollow && existingFollow.status !== 'rejected') {
-        // Unfollow - secure deletion with ownership verification
-        const { error } = await supabase
-          .from('follows')
-          .delete()
-          .eq('id', existingFollow.id)
-          .eq('follower_id', profileId) // Security: Double-check ownership
-
-        if (error) throw this.createError('UNFOLLOW_FAILED', 'Failed to unfollow user', error)
-        following = false
-        debug.log(`Core: Successfully unfollowed user: ${targetUserId}`)
-      } else {
-        const { data: targetUser, error: userError } = await supabase
-          .from('profiles')
-          .select('id, manually_approves_followers')
-          .eq('id', targetUserId)
-          .single()
-
-        if (userError || !targetUser) {
-          throw this.createError('USER_NOT_FOUND', 'Target user not found')
-        }
-
-        // Check if we're blocked by target user (skip if table doesn't exist or no permissions)
-        try {
-          const { data: blockedBy } = await supabase
-            .from('user_blocks')
-            .select('id')
-            .eq('blocker_id', targetUserId)
-            .eq('blocked_user_id', profileId)
-            .maybeSingle()
-
-          if (blockedBy) {
-            throw this.createError('BLOCKED_BY_USER', 'Cannot follow user who has blocked you')
-          }
-        } catch (blockError: any) {
-          // 42501 is a permission error; an unreadable block row counts as not blocked.
-          if (blockError.code !== '42501') {
-            debug.warn('Block check failed:', blockError)
-          }
-        }
-
-        const requiresApproval = targetUser.manually_approves_followers || false
-        const status = requiresApproval ? 'pending' : 'accepted'
-
-        const { error } = await supabase
-          .from('follows')
-          .insert({
-            follower_id: profileId,
-            following_id: targetUserId,
-            status: status,
-            created_at: new Date().toISOString()
-          })
-
-        if (error) {
-          if (error.code === '23505') {
-            throw this.createError('ALREADY_FOLLOWING', 'Already following this user')
-          }
-          throw this.createError('FOLLOW_FAILED', 'Failed to follow user', error)
-        }
-        
-        following = status === 'accepted'
-        pending = status === 'pending'
-        debug.log(`Core: Successfully followed user: ${targetUserId} (status: ${status})`)
-      }
-
-      return { following, pending }
+      return await this.follow(targetUserId)
     } catch (error) {
       debug.error('Core: Failed to toggle follow:', error)
       throw error
     }
+  }
+
+  /**
+   * Follow a user. The database sets the status: accepted for a local account
+   * without approval, pending for a locked or remote one until it answers.
+   * An existing follow or request is returned as it stands.
+   */
+  async follow(targetUserId: string): Promise<FollowResult> {
+    try {
+      const profileId = await this.getCurrentUserProfileId()
+      this.assertFollowTarget(profileId, targetUserId)
+
+      const existing = await this.findOwnFollow(profileId, targetUserId)
+      if (existing?.status === 'accepted') return { following: true, pending: false }
+      if (existing?.status === 'pending') return { following: false, pending: true }
+
+      // A rejected request reads as "not following": the stale row is cleared
+      // so the follow is a fresh INSERT, whose trigger queues the outbound Follow.
+      if (existing?.status === 'rejected') {
+        await supabase
+          .from('follows')
+          .delete()
+          .eq('id', existing.id)
+          .eq('follower_id', profileId)
+      }
+
+      const { data, error } = await supabase
+        .from('follows')
+        .insert({
+          follower_id: profileId,
+          following_id: targetUserId,
+        })
+        .select('status')
+        .single()
+
+      if (error) {
+        if (error.code === '23505') {
+          throw this.createError('ALREADY_FOLLOWING', 'Already following this user')
+        }
+        if (error.code === '42501') {
+          throw this.createError('BLOCKED', 'A block stands between you and this user', error)
+        }
+        throw this.createError('FOLLOW_FAILED', 'Failed to follow user', error)
+      }
+
+      const status = data?.status
+      debug.log(`Core: Followed user: ${targetUserId} (status: ${status})`)
+      return { following: status === 'accepted', pending: status === 'pending' }
+    } catch (error) {
+      debug.error('Core: Failed to follow:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Unfollow a user, or withdraw a pending request.
+   */
+  async unfollow(targetUserId: string): Promise<FollowResult> {
+    try {
+      const profileId = await this.getCurrentUserProfileId()
+      this.assertFollowTarget(profileId, targetUserId)
+
+      const { error } = await supabase
+        .from('follows')
+        .delete()
+        .eq('follower_id', profileId)
+        .eq('following_id', targetUserId)
+
+      if (error) throw this.createError('UNFOLLOW_FAILED', 'Failed to unfollow user', error)
+      debug.log(`Core: Unfollowed user: ${targetUserId}`)
+      return { following: false, pending: false }
+    } catch (error) {
+      debug.error('Core: Failed to unfollow:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Remove a follower. The database sends a remote follower a Reject.
+   */
+  async removeFollower(followerUserId: string): Promise<void> {
+    try {
+      const profileId = await this.getCurrentUserProfileId()
+
+      if (!followerUserId || typeof followerUserId !== 'string') {
+        throw this.createError('INVALID_INPUT', 'Follower user ID is required')
+      }
+
+      const { data, error } = await supabase
+        .from('follows')
+        .delete()
+        .eq('follower_id', followerUserId)
+        .eq('following_id', profileId)
+        .select('id')
+
+      if (error) throw this.createError('REMOVE_FOLLOWER_FAILED', 'Failed to remove follower', error)
+      if (!data || data.length === 0) {
+        throw this.createError('FOLLOWER_NOT_FOUND', 'This user does not follow you')
+      }
+      debug.log(`Core: Removed follower: ${followerUserId}`)
+    } catch (error) {
+      debug.error('Core: Failed to remove follower:', error)
+      throw error
+    }
+  }
+
+  private assertFollowTarget(profileId: string, targetUserId: string): void {
+    if (!targetUserId || typeof targetUserId !== 'string') {
+      throw this.createError('INVALID_INPUT', 'Target user ID is required')
+    }
+    if (profileId === targetUserId) {
+      throw this.createError('INVALID_ACTION', 'Cannot follow yourself')
+    }
+  }
+
+  private async findOwnFollow(
+    profileId: string,
+    targetUserId: string,
+  ): Promise<{ id: string; status: string | null } | null> {
+    const { data, error } = await supabase
+      .from('follows')
+      .select('id, status')
+      .eq('follower_id', profileId)
+      .eq('following_id', targetUserId)
+      .maybeSingle()
+
+    if (error) throw this.createError('QUERY_FAILED', 'Failed to check follow status', error)
+    return data
   }
 
   /**

@@ -1566,7 +1566,7 @@ export class UnifiedWebRTCService {
     if (!raw || typeof raw !== 'object') return;
     const { from, message } = raw as { from?: unknown; message?: unknown };
     if (typeof from !== 'string' || from === this.currentUserId || !this.allUserStates.has(from)) return;
-    this.emit('soundboard', { userId: from, message, granted: null });
+    this.emit('soundboard', { userId: from, message, granted: null, externalGranted: null });
   }
 
   sendSoundboard(message: unknown): void {

@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, RouterLinkStub } from '@vue/test-utils'
 import { defineComponent, reactive, ref, computed } from 'vue'
 
 vi.mock('vue-i18n', () => ({
@@ -137,10 +137,14 @@ const mountPost = (post: any) =>
     global: {
       plugins: [createPinia()],
       directives: { 'click-outside': {} },
+      stubs: { RouterLink: RouterLinkStub },
     },
   })
 
-const replyCountText = (wrapper: any) => wrapper.get('[data-testid="post-reply-btn"]').text().trim()
+const replyCountText = (wrapper: any) => {
+  const count = wrapper.find('[data-testid="post-reply-count"]')
+  return count.exists() ? count.text().trim() : ''
+}
 
 describe('MonyPost reply counter', () => {
   beforeEach(() => {
@@ -191,6 +195,20 @@ describe('MonyPost reply counter', () => {
     await wrapper.vm.$nextTick()
 
     expect(replyCountText(wrapper)).toBe('9')
+  })
+
+  it('links the count to the post detail and keeps the button for the inline reply', async () => {
+    const wrapper = mountPost(makePost(3))
+    const link = wrapper.getComponent<typeof RouterLinkStub>('[data-testid="post-reply-count"]')
+    expect(link.props('to')).toEqual({ name: 'PostDetail', params: { postId: 'post-1' } })
+    expect(wrapper.get('[data-testid="post-reply-btn"]').text().trim()).toBe('')
+
+    await wrapper.get('[data-testid="post-reply-btn"]').trigger('click')
+    expect(wrapper.findComponent({ name: 'Composer' }).exists()).toBe(true)
+  })
+
+  it('shows no count link without replies', () => {
+    expect(mountPost(makePost(0)).find('[data-testid="post-reply-count"]').exists()).toBe(false)
   })
 
   it('drops the override when the instance is handed a different post', async () => {

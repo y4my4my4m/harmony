@@ -183,13 +183,25 @@ describe('inviteService.getInviteInfo', () => {
     rpcAnswer = {
       data: {
         status: 'valid', code: 'CODE123', server_id: 'server-1', name: 'Private', description: null,
-        icon: null, banner: null, rules: ['be nice', ''], member_count: 4, expires_at: null, is_member: false,
+        icon: null, banner: null, rules: ['be nice', ''], member_count: 4, online_count: 2, expires_at: null,
+        is_member: false,
       },
       error: null,
     }
     const { info } = await getInviteInfo('CODE123')
     expect(rpcCalls).toEqual([{ fn: 'get_invite_preview', params: { p_code: 'CODE123' } }])
-    expect(info).toMatchObject({ serverId: 'server-1', serverName: 'Private', rules: ['be nice'], memberCount: 4, isMember: false })
+    expect(info).toMatchObject({
+      serverId: 'server-1', serverName: 'Private', rules: ['be nice'], memberCount: 4, onlineCount: 2, isMember: false,
+    })
+  })
+
+  it('reads no online count from a database without it', async () => {
+    rpcAnswer = {
+      data: { status: 'valid', code: 'CODE123', server_id: 'server-1', name: 'Private', member_count: 4 },
+      error: null,
+    }
+    const { info } = await getInviteInfo('CODE123')
+    expect(info?.onlineCount).toBeNull()
   })
 
   it('reports an invalid invite without a card', async () => {

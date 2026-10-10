@@ -36,6 +36,11 @@ const sendToInbox = vi.fn().mockResolvedValue(undefined)
 vi.mock('../activitypub/DeliveryQueue.js', () => ({
   DeliveryQueue: { broadcastToFollowers, sendToInbox },
 }))
+vi.mock('../services/BlockedInstancesCache.js', () => ({
+  BlockedInstancesCache: { isBlocked: () => false },
+}))
+const resolveRemoteAccount = vi.fn()
+vi.mock('../activitypub/ActorService.js', () => ({ resolveRemoteAccount }))
 
 vi.mock('../listeners/FederationHandlers.js', () => ({
   createPostActivity: vi.fn().mockResolvedValue({ type: 'Create' }),
@@ -97,5 +102,18 @@ describe('post Delete audience', () => {
 
     expect(broadcastToFollowers).toHaveBeenCalledTimes(1)
     expect(sendToInbox).toHaveBeenCalledWith(BOB.inbox_url, { type: 'Delete' }, 'author-X')
+  })
+
+  it('reaches the mentions the job carries once the content is blanked', async () => {
+    post.visibility = 'direct'
+    post.content = [{ type: 'text', text: '[Deleted]' }]
+
+    await handlePostJob({
+      type: 'delete', post_id: 'post-1', author_id: 'author-X',
+      mentions: [{ username: 'bob', domain: 'mastodon.test' }],
+    } as any)
+
+    expect(sendToInbox).toHaveBeenCalledWith(BOB.inbox_url, { type: 'Delete' }, 'author-X')
+    expect(resolveRemoteAccount).not.toHaveBeenCalled()
   })
 })

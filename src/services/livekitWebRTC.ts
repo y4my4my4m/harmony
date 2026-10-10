@@ -50,7 +50,7 @@ import {
 } from './encryption/VoiceE2EEService';
 import { getLiveKitToken } from './livekitTokens';
 import { LIVE_REACTION_TOPIC, MAX_LIVE_REACTION_BYTES } from './voice/liveReactions';
-import { SOUNDBOARD_MESSAGE_MAX_BYTES, SOUNDBOARD_TOPIC, soundboardGrant } from './soundboard/protocol';
+import { SOUNDBOARD_MESSAGE_MAX_BYTES, SOUNDBOARD_TOPIC, soundboardExternalGrant, soundboardGrant } from './soundboard/protocol';
 
 // FEDERATED IDENTITY HELPERS
 
@@ -2054,7 +2054,12 @@ export class LiveKitWebRTCService {
     } catch {
       return;
     }
-    this.emit('soundboard', { userId, message, granted: soundboardGrant(participant.metadata) });
+    this.emit('soundboard', {
+      userId,
+      message,
+      granted: soundboardGrant(participant.metadata),
+      externalGranted: soundboardExternalGrant(participant.metadata),
+    });
   }
 
   private broadcastMediaState(): void {

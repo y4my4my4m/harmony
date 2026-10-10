@@ -8,6 +8,7 @@ const calls = vi.hoisted(() => ({
   insert: vi.fn(),
   del: vi.fn(),
   insertResult: { data: null as unknown, error: null as unknown },
+  rpc: vi.fn(),
 }));
 
 vi.mock('@/supabase', () => {
@@ -34,7 +35,7 @@ vi.mock('@/supabase', () => {
       },
     }),
   };
-  return { supabase: { storage: { from: () => storageBucket }, from: () => table } };
+  return { supabase: { storage: { from: () => storageBucket }, from: () => table, rpc: calls.rpc } };
 });
 
 import {
@@ -43,8 +44,10 @@ import {
   checkSoundFile,
   createServerSound,
   deleteServerSound,
+  listSoundboardLibrary,
   normalizeSoundEmoji,
   normalizeSoundVolume,
+  resolveSoundboardSound,
   sniffAudioType,
   soundboardErrorKey,
 } from '../sounds';
@@ -154,6 +157,44 @@ describe('server sounds', () => {
     expect(calls.del).toHaveBeenCalledWith('id', 'b1');
     expect(calls.remove).toHaveBeenCalledWith([`${SERVER}/x.ogg`]);
     expect(calls.del.mock.invocationCallOrder[0]).toBeLessThan(calls.remove.mock.invocationCallOrder[0]);
+  });
+});
+
+describe('external sounds', () => {
+  const OTHER = '77777777-0000-0000-0000-000000000007';
+  const row = (id: string, serverId: string, serverName: string, name: string) => ({
+    id, server_id: serverId, server_name: serverName, server_icon: null, name, emoji: null, volume: '0.50',
+    duration_ms: 1000, storage_path: `${serverId}/${id}.mp3`, created_at: '2026-10-11T00:00:00Z',
+  });
+
+  beforeEach(() => {
+    calls.rpc.mockReset();
+  });
+
+  it('groups the library by server in the order it arrives', async () => {
+    calls.rpc.mockResolvedValue({
+      data: [row('a', OTHER, 'Echo', 'Clap'), row('b', OTHER, 'Echo', 'Boom'), row('c', SERVER, 'Test', 'Ding')],
+      error: null,
+    });
+    const library = await listSoundboardLibrary();
+    expect(calls.rpc).toHaveBeenCalledWith('list_soundboard_library');
+    expect(library.map((s) => [s.id, s.name, s.sounds.map((x) => x.name)])).toEqual([
+      [OTHER, 'Echo', ['Clap', 'Boom']],
+      [SERVER, 'Test', ['Ding']],
+    ]);
+    expect(library[0].sounds[0]).toMatchObject({
+      serverId: OTHER, volume: 0.5, url: `https://cdn.test/soundboard/${OTHER}/a.mp3`,
+    });
+  });
+
+  it('resolves a sound for the channel\'s server, or nothing', async () => {
+    calls.rpc.mockResolvedValueOnce({ data: [row('a', OTHER, 'Echo', 'Clap')], error: null });
+    await expect(resolveSoundboardSound('a', SERVER)).resolves.toMatchObject({ id: 'a', serverId: OTHER, name: 'Clap' });
+    expect(calls.rpc).toHaveBeenCalledWith('resolve_soundboard_sound', { p_sound_id: 'a', p_server_id: SERVER });
+    calls.rpc.mockResolvedValueOnce({ data: [], error: null });
+    await expect(resolveSoundboardSound('gone', SERVER)).resolves.toBeNull();
+    calls.rpc.mockResolvedValueOnce({ data: null, error: { code: '42501' } });
+    await expect(resolveSoundboardSound('a', SERVER)).rejects.toEqual({ code: '42501' });
   });
 });
 

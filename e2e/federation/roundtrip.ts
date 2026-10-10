@@ -71,6 +71,11 @@ import path from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { caseFollowApproval } from './cases/followApproval.ts'
+import { runOutboundFederationCases } from './cases/outboundFederation.ts'
+import { caseInboundPosts } from './cases/inbound-posts.ts'
+import { caseRemoteReplies } from './cases/remoteReplies.ts'
+import { caseSoundboardTokenGrants } from './cases/soundboardTokens.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -201,6 +206,8 @@ class Peer {
   readonly tokenRequests: Captured[] = []
   readonly hostedRooms = new Map<string, string>()
   livekit: LiveKit | null = null
+  // GET routes a case module serves; true when it answered.
+  extraGet?: (req: http.IncomingMessage, res: http.ServerResponse) => boolean
   actorFetches = 0
   private server?: http.Server
   base = ''
@@ -243,6 +250,7 @@ class Peer {
       req.on('data', (c) => chunks.push(c))
       req.on('end', () => {
         const raw = Buffer.concat(chunks)
+        if (req.method === 'GET' && this.extraGet?.(req, res)) return
         if (req.method === 'GET' && req.url === '/users/fx_remote') {
           this.actorFetches += 1
           res.writeHead(200, { 'Content-Type': 'application/activity+json' })
@@ -2470,6 +2478,13 @@ async function main() {
     await caseOutboundFlag(db, peer, localUrl, env, backend)
     await caseInboundReactions(db, peer, localUrl)
     await caseOutboundReactions(db, peer, backend)
+    await runOutboundFederationCases({
+      db, peer, localUrl, env, backendRoot: BACKEND_ROOT, instanceDomain: INSTANCE_DOMAIN,
+      alice: { id: ALICE, auth: ALICE_AUTH }, remote: REMOTE, userToken,
+      verifySignature: backend.verifySignature, assert, eq, fail,
+    })
+    await caseInboundPosts({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, env, userToken, post, signedHeaders, assert, eq,
+      ids: { alice: ALICE, bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE } })
     await seedServers(db, peer)
     await caseHostedPrivateServer(peer, localUrl)
     await caseProxyReadsAsMember(peer, localUrl, env.HMFED_JWT_SECRET)
@@ -2480,6 +2495,24 @@ async function main() {
     await caseRemoteVoiceJoin(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
     await caseHostedVoiceJoin(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
     await caseSignedOnlyActor(db, peer, localUrl)
+    await caseFollowApproval({
+      db, peer, assert, eq, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, verifySignature: backend.verifySignature,
+      remoteId: REMOTE, locked: { id: BOB, auth: BOB_AUTH, username: 'fx_bob' }, follower: { id: CAROL, auth: CAROL_AUTH, username: 'fx_carol' },
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+      deliver: (activity, signer = { key: peer.key.privateKey, actor: peer.actorUrl }) => {
+        const body = JSON.stringify(activity)
+        const target = `${localUrl}/inbox`
+        return post(target, signedHeaders(target, body, signer.key, `${signer.actor}#main-key`), body).then((r) => r.status)
+      },
+    })
+    await caseRemoteReplies({ db, localUrl, peerHost: env.HMFED_PEER_HOST, assert, eq })
+    await caseSoundboardTokenGrants({
+      db, assert, eq, localUrl, serverId: PRIV_SERVER, channelId: PRIV_VOICE,
+      member: { id: CAROL, auth: CAROL_AUTH }, bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),
+    })
   } finally {
     await new Promise<void>((resolve) => local.close(() => resolve()))
     await peer.stop()

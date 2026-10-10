@@ -656,6 +656,10 @@ whichever variant it stored first. Caddy pins `Accept` to
 `location ^~ /storage/v1/render/image/public/` that repeats the other
 directives of `location /`.)
 
+`DOMAIN` gets no Cache Rule: `/invite/<code>` answers link-preview crawlers
+and browsers differently under one URL, and Cloudflare's cache ignores
+`Vary: User-Agent`.
+
 Cache Rules (Caching, Cache Rules), in this order; where two rules set the
 same option, the last match wins:
 
@@ -708,6 +712,9 @@ for example on a server where nginx already runs, reproduces what it does:
      trailing slash strips the prefix; the backend mounts most routes at the
      root (user lookup, GIFs, invites, instance probes, key generation);
    - `X-Real-IP` on every location proxied to the backend;
+   - the `$invite_unfurl` map at the top of the file, which belongs to the
+     `http` context, and the `/invite/` location using it: link-preview
+     crawlers get the backend's invite card, people the app;
    - on the `db.` server block, `include` the logout rule of
      `dev/nginx-auth-logout.template.conf` (it refuses
      `/auth/v1/logout` without `?scope=local`), and the `Accept` pin on

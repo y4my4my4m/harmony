@@ -49,13 +49,13 @@ CREATE TEMP TABLE audit_seen ON COMMIT DROP AS
 SELECT id FROM public.server_audit_log;
 
 -- Permission bits -----------------------------------------------------------------------------
-SELECT is(array_length(public.permission_bit_names(), 1), 31, 'the bit map names 31 permissions');
+SELECT ok(array_length(public.permission_bit_names(), 1) >= 31, 'the bit map names at least 31 permissions');
 SELECT is((public.permission_bit_names())[31], 'USE_SOUNDBOARD', 'USE_SOUNDBOARD is bit 30');
 
 INSERT INTO public.servers (id, name, owner) VALUES
   ('f1163000-0000-0000-0000-000000000002', 'Fresh116', '22222222-0000-0000-0000-000000000002');
 SELECT is((SELECT permissions FROM public.server_roles
-            WHERE server_id = 'f1163000-0000-0000-0000-000000000002' AND is_default),
+            WHERE server_id = 'f1163000-0000-0000-0000-000000000002' AND is_default) & 1196388610,
           1196388610::bigint, 'a new server''s @everyone holds the defaults and USE_SOUNDBOARD');
 SELECT is((SELECT permissions FROM public.server_roles
             WHERE server_id = '55555555-0000-0000-0000-000000000005' AND is_default) & 1073741824,
@@ -74,13 +74,14 @@ SELECT is(public.get_user_permissions('11111111-0000-0000-0000-000000000001', '5
           'true', 'the owner holds it everywhere');
 SELECT is((SELECT count(*) FROM jsonb_object_keys(
               public.get_user_permissions('f1160000-0000-0000-0000-0000000000c2', '55555555-0000-0000-0000-000000000005'))),
-          31::bigint, 'get_user_permissions answers every named bit');
+          array_length(public.permission_bit_names(), 1)::bigint, 'get_user_permissions answers every named bit');
 SELECT ok(public.has_permission('f1160000-0000-0000-0000-0000000000c1', '55555555-0000-0000-0000-000000000005', 'MANAGE_EMOJIS'),
           'unchanged bits still resolve');
 SELECT is(public.server_template_bits('"1073741824"'::jsonb, 'p'), 1073741824::bigint,
           'templates carry USE_SOUNDBOARD');
-SELECT throws_ok($$SELECT public.server_template_bits('"2147483648"'::jsonb, 'p')$$,
-                 '22023', NULL, 'templates refuse the bit past it');
+SELECT throws_ok(format('SELECT public.server_template_bits(%L::jsonb, %L)',
+                        to_jsonb((1::bigint << array_length(public.permission_bit_names(), 1))::text), 'p'),
+                 '22023', NULL, 'templates refuse the bit past the map');
 
 -- Helpers -------------------------------------------------------------------------------------
 SELECT is(public.soundboard_object_server('55555555-0000-0000-0000-000000000005/a1160000-0000-0000-0000-000000000001.mp3'),

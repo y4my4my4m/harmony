@@ -43,6 +43,7 @@ import instanceActorRouter from './activitypub/InstanceActor.js';
 import serverDiscoveryRouter from './services/ServerDiscoveryService.js';
 import instanceProbeRouter from './routes/instanceProbe.js';
 import instanceInfoRouter from './routes/instanceInfo.js';
+import invitePageRouter from './routes/invitePage.js';
 import { BlockedInstancesCache } from './services/BlockedInstancesCache.js';
 import { PushNotificationService } from './services/PushNotificationService.js';
 import { redis } from './services/RedisService.js';
@@ -140,6 +141,7 @@ export function createApp(): Application {
   // look instance.actor up as an account.
   app.use('/', instanceActorRouter);
   app.use('/', outboxRouter);
+  app.use('/', invitePageRouter);
   // serverDiscoveryRouter before groupRouter: /servers/discover must not collide
   // with groupRouter's /servers/:serverId (which would match serverId='discover')
   app.use('/', serverDiscoveryRouter);

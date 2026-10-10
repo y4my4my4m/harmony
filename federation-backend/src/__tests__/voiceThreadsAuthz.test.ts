@@ -647,6 +647,21 @@ describe('LiveKit tokens for local users', () => {
     grant('eve-id', 'VIEW_CHANNEL', 'CONNECT', 'USE_SOUNDBOARD')
     await expect(metadata()).resolves.toMatchObject({ soundboard: false })
   })
+
+  it('names the external sounds grant: USE_EXTERNAL_SOUNDS on top of the soundboard grant', async () => {
+    const metadata = async (extra?: Record<string, unknown>) => {
+      const { token: jwt } = await livekitService.generateToken({
+        userId: 'eve-auth', roomName: `channel-${V}`, roomType: 'voice_channel', metadata: extra,
+      })
+      return JSON.parse(jwtPayload(jwt).metadata)
+    }
+    grant('eve-id', 'VIEW_CHANNEL', 'CONNECT', 'SPEAK', 'USE_SOUNDBOARD')
+    await expect(metadata({ soundboardExternal: true })).resolves.toMatchObject({ soundboard: true, soundboardExternal: false })
+    grant('eve-id', 'VIEW_CHANNEL', 'CONNECT', 'SPEAK', 'USE_SOUNDBOARD', 'USE_EXTERNAL_SOUNDS')
+    await expect(metadata()).resolves.toMatchObject({ soundboard: true, soundboardExternal: true })
+    grant('eve-id', 'VIEW_CHANNEL', 'CONNECT', 'SPEAK', 'USE_EXTERNAL_SOUNDS')
+    await expect(metadata()).resolves.toMatchObject({ soundboard: false, soundboardExternal: false })
+  })
 })
 
 describe('VoiceChannelJoin on a remote server copy', () => {

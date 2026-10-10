@@ -101,30 +101,69 @@ export function createFollowActivity(follower: any, following: any): any {
  */
 export { createLikeActivity } from '../activitypub/converters/toActivityPub.js';
 
-/**
- * Create an Announce activity (reblog)
- * Gets the original post's AP ID to properly federate the boost
- */
-export async function createReblogActivity(user: any, reblogPost: any): Promise<any> {
+/** The boosted post as the Announce names it, and where its author receives it. */
+export interface ReblogTarget {
+  objectUrl: string;
+  /** Actor id of the original's author; null for a local author. */
+  authorActorUrl: string | null;
+  /** Shared inbox, else personal inbox, of a remote author. */
+  authorInbox: string | null;
+}
+
+/** Null when the original row is gone. */
+export async function loadReblogTarget(reblogPost: any): Promise<ReblogTarget | null> {
   const domain = config.INSTANCE_DOMAIN;
   const supabase = getSupabaseClient();
-  
   const originalPostId = reblogPost.metadata?.reblog_of;
-  
-  if (!originalPostId) {
-    throw new Error('Reblog post missing original post reference');
-  }
-  
-  const { data: originalPost } = await supabase
+  if (!originalPostId) return null;
+
+  const { data: original } = await supabase
     .from('posts')
-    .select('id, ap_id')
+    .select('id, ap_id, author_id')
     .eq('id', originalPostId)
-    .single();
-  
-  // Use the original post's AP ID, or construct one for local posts
-  const objectUrl = originalPost?.ap_id || `https://${domain}/posts/${originalPostId}`;
-  
-  return createAnnounce(user, objectUrl);
+    .maybeSingle();
+  if (!original) return null;
+
+  const { data: author } = await supabase
+    .from('profiles')
+    .select('federated_id, inbox_url, shared_inbox_url, is_local')
+    .eq('id', original.author_id)
+    .maybeSingle();
+  const remote = author && author.is_local === false;
+
+  return {
+    objectUrl: original.ap_id || `https://${domain}/posts/${original.id}`,
+    authorActorUrl: remote ? author.federated_id || null : null,
+    authorInbox: remote ? author.shared_inbox_url || author.inbox_url || null : null,
+  };
+}
+
+/** Id of the Announce a boost row federates as; the outbox serves the same id. */
+export function announceActivityId(reblogPost: any): string {
+  return reblogPost.ap_id || `https://${config.INSTANCE_DOMAIN}/activities/${reblogPost.id}`;
+}
+
+/**
+ * Announce of a boost row. Addressing mirrors Mastodon's reblog: public is to
+ * Public, cc followers; unlisted is to followers, cc Public. The original's
+ * author is cc'd either way.
+ */
+export function createReblogActivity(user: any, reblogPost: any, target: ReblogTarget): any {
+  const domain = config.INSTANCE_DOMAIN;
+  const userUrl = `https://${domain}/users/${user.username}`;
+  const followers = `${userUrl}/followers`;
+  const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
+  const unlisted = reblogPost.visibility === 'unlisted';
+  const cc = unlisted ? [PUBLIC] : [followers];
+  if (target.authorActorUrl) cc.push(target.authorActorUrl);
+
+  return {
+    ...createAnnounce(user, target.objectUrl),
+    id: announceActivityId(reblogPost),
+    published: reblogPost.created_at || new Date().toISOString(),
+    to: unlisted ? [followers] : [PUBLIC],
+    cc,
+  };
 }
 
 /**
@@ -144,44 +183,19 @@ export function createDeleteActivity(author: any, post: any): any {
 }
 
 /**
- * Create an Undo Announce activity (unreblog)
+ * Undo of the Announce createReblogActivity built for the same row. Mastodon
+ * and Misskey find the boost to retract by the embedded Announce id.
  */
-export async function createUndoAnnounceActivity(user: any, reblogPost: any): Promise<any> {
-  const domain = config.INSTANCE_DOMAIN;
-  const supabase = getSupabaseClient();
-  const userUrl = `https://${domain}/users/${user.username}`;
-  
-  const originalPostId = reblogPost.metadata?.reblog_of;
-  
-  if (!originalPostId) {
-    throw new Error('Reblog post missing original post reference');
-  }
-  
-  const { data: originalPost } = await supabase
-    .from('posts')
-    .select('id, ap_id')
-    .eq('id', originalPostId)
-    .single();
-  
-  const objectUrl = originalPost?.ap_id || `https://${domain}/posts/${originalPostId}`;
-  
-  const announceActivity = {
-    '@context': 'https://www.w3.org/ns/activitystreams',
-    id: reblogPost.ap_id || `${userUrl}/announces/${reblogPost.id}`,
-    type: 'Announce',
-    actor: userUrl,
-    object: objectUrl,
-  };
-  
+export function createUndoAnnounceActivity(user: any, reblogPost: any, target: ReblogTarget): any {
+  const { '@context': context, ...announce } = createReblogActivity(user, reblogPost, target);
   return {
-    '@context': 'https://www.w3.org/ns/activitystreams',
-    id: `${userUrl}/undo/${Date.now()}`,
+    '@context': context,
+    id: `${announce.id}/undo`,
     type: 'Undo',
-    actor: userUrl,
-    object: announceActivity,
-    published: new Date().toISOString(),
-    to: ['https://www.w3.org/ns/activitystreams#Public'],
-    cc: [`${userUrl}/followers`],
+    actor: announce.actor,
+    to: announce.to,
+    cc: announce.cc,
+    object: announce,
   };
 }
 

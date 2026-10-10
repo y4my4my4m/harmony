@@ -24,18 +24,55 @@
       <p v-if="deafened" class="sbp-note">{{ t('soundboard.deafenedNote') }}</p>
       <p v-else-if="muted" class="sbp-note">{{ t('soundboard.mutedNote') }}</p>
 
+      <label class="sbp-search">
+        <Icon name="search" :size="14" />
+        <input
+          v-model="query"
+          type="search"
+          class="sbp-search-input"
+          :placeholder="t('soundboard.search')"
+          :aria-label="t('soundboard.search')"
+          data-testid="soundboard-search"
+        />
+      </label>
+
       <div class="sbp-body">
-        <section v-if="serverId" class="sbp-section">
-          <h4 class="sbp-section-title">{{ serverName || t('soundboard.serverSounds') }}</h4>
-          <div v-if="loading && serverSounds.length === 0" class="sbp-loading"><LoadingSpinner :size="20" /></div>
-          <p v-else-if="serverSounds.length === 0" class="sbp-empty">{{ t('soundboard.emptyServer') }}</p>
+        <section
+          v-for="section in visibleSections"
+          :key="section.key"
+          class="sbp-section"
+          :data-testid="`soundboard-section-${section.kind}`"
+          :data-server-id="section.serverId ?? undefined"
+        >
+          <h4 class="sbp-section-title">
+            <ServerIcon
+              v-if="section.kind !== 'defaults'"
+              class="sbp-section-icon"
+              :src="section.icon"
+              :alt="section.title"
+              size="mini"
+              shape="rounded"
+              :show-title="false"
+            />
+            <span class="sbp-section-name">{{ section.title }}</span>
+            <span v-if="section.locked" class="sbp-lock" :title="t('soundboard.externalLocked')" data-testid="soundboard-locked">
+              <Icon name="lock" :size="12" />
+            </span>
+          </h4>
+          <div v-if="section.loading" class="sbp-loading"><LoadingSpinner :size="20" /></div>
+          <p v-else-if="section.sounds.length === 0" class="sbp-empty">{{ t('soundboard.emptyServer') }}</p>
           <div v-else class="sbp-grid">
-            <div v-for="sound in serverSounds" :key="sound.id" class="sbp-tile-wrap">
+            <div
+              v-for="sound in section.sounds"
+              :key="sound.id"
+              class="sbp-tile-wrap"
+              :title="section.locked ? t('soundboard.externalLocked') : undefined"
+            >
               <button
                 type="button"
                 class="sbp-tile"
-                :disabled="!canPlay"
-                :title="t('soundboard.playFor', { name: label(sound) })"
+                :disabled="!canPlay || section.locked"
+                :title="section.locked ? t('soundboard.externalLocked') : t('soundboard.playFor', { name: label(sound) })"
                 data-testid="soundboard-tile"
                 @click="play(sound)"
               >
@@ -54,34 +91,9 @@
             </div>
           </div>
         </section>
-
-        <section class="sbp-section">
-          <h4 class="sbp-section-title">{{ t('soundboard.defaultSounds') }}</h4>
-          <div class="sbp-grid">
-            <div v-for="sound in defaultSounds" :key="sound.id" class="sbp-tile-wrap">
-              <button
-                type="button"
-                class="sbp-tile"
-                :disabled="!canPlay"
-                :title="t('soundboard.playFor', { name: label(sound) })"
-                data-testid="soundboard-tile"
-                @click="play(sound)"
-              >
-                <span class="sbp-emoji" aria-hidden="true">{{ sound.emoji }}</span>
-                <span class="sbp-name">{{ label(sound) }}</span>
-              </button>
-              <button
-                type="button"
-                class="sbp-preview"
-                :aria-label="t('soundboard.preview', { name: label(sound) })"
-                :title="t('soundboard.preview', { name: label(sound) })"
-                @click="soundboard.preview(sound)"
-              >
-                <Icon name="volume-2" :size="12" />
-              </button>
-            </div>
-          </div>
-        </section>
+        <p v-if="query.trim() && visibleSections.length === 0" class="sbp-empty" data-testid="soundboard-no-match">
+          {{ t('soundboard.noMatches') }}
+        </p>
       </div>
 
       <div
@@ -104,6 +116,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n';
 import Icon from '@/components/common/Icon.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
+import ServerIcon from '@/components/common/ServerIcon.vue';
 import { useSoundboardStore } from '@/stores/soundboard';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useServerChannelStore } from '@/stores/useServerChannel';
@@ -133,12 +146,84 @@ const muted = ref(false);
 const now = ref(Date.now());
 let ticker: ReturnType<typeof setInterval> | null = null;
 
+const query = ref('');
+
 const serverId = computed(() => soundboard.currentChannel()?.serverId ?? null);
-const serverName = computed(() =>
-  serverId.value ? serverChannelStore.servers.find((s: { id: string }) => s.id === serverId.value)?.name ?? null : null);
+const currentServer = computed(() => {
+  const id = serverId.value;
+  if (!id) return undefined;
+  return serverChannelStore.servers.find((s: { id: string }) => s.id === id) as
+    | { name?: string; icon?: string | null }
+    | undefined;
+});
 const serverSounds = computed(() => (serverId.value ? soundboard.soundsByServer[serverId.value] ?? [] : []));
-const defaultSounds = DEFAULT_SOUNDS;
 const deafened = computed(() => voiceStore.localState.isDeafened);
+
+interface SoundSection {
+  key: string;
+  kind: 'server' | 'defaults' | 'external';
+  serverId: string | null;
+  title: string;
+  icon: string | null;
+  sounds: SoundboardSound[];
+  /** External sounds without USE_EXTERNAL_SOUNDS in this channel. */
+  locked: boolean;
+  loading: boolean;
+}
+
+/** The current server, the built-in clips, then each other server sharing its sounds. */
+const sections = computed<SoundSection[]>(() => {
+  const list: SoundSection[] = [];
+  if (serverId.value) {
+    list.push({
+      key: `server:${serverId.value}`,
+      kind: 'server',
+      serverId: serverId.value,
+      title: currentServer.value?.name || t('soundboard.serverSounds'),
+      icon: currentServer.value?.icon ?? null,
+      sounds: serverSounds.value,
+      locked: false,
+      loading: loading.value && serverSounds.value.length === 0,
+    });
+  }
+  list.push({
+    key: 'defaults',
+    kind: 'defaults',
+    serverId: null,
+    title: t('soundboard.defaultSounds'),
+    icon: null,
+    sounds: [...DEFAULT_SOUNDS],
+    locked: false,
+    loading: false,
+  });
+  for (const server of soundboard.library) {
+    if (server.id === serverId.value || server.sounds.length === 0) continue;
+    list.push({
+      key: `external:${server.id}`,
+      kind: 'external',
+      serverId: server.id,
+      title: server.name,
+      icon: server.icon,
+      sounds: server.sounds,
+      locked: !soundboard.externalPermitted,
+      loading: false,
+    });
+  }
+  return list;
+});
+
+/** Sections filtered by the search; without one, every section, an empty current server included. */
+const visibleSections = computed<SoundSection[]>(() => {
+  const needle = query.value.trim().toLocaleLowerCase();
+  if (!needle) return sections.value;
+  return sections.value
+    .map((section) => ({
+      ...section,
+      loading: false,
+      sounds: section.sounds.filter((sound) => label(sound).toLocaleLowerCase().includes(needle)),
+    }))
+    .filter((section) => section.sounds.length > 0);
+});
 
 const cooldown = computed(() => Math.max(0, soundboard.cooldownUntil - now.value));
 const cooldownFraction = computed(() => Math.min(1, cooldown.value / SOUNDBOARD_COOLDOWN_MS));
@@ -181,17 +266,21 @@ async function place(): Promise<void> {
 
 async function open(): Promise<void> {
   muted.value = VoiceSettingsService.getAll().soundboardMuted === true;
+  query.value = '';
   startTicker();
   void place();
   void soundboard.refreshPermission();
+  const library = soundboard.loadLibrary();
   const id = serverId.value;
-  if (!id) return;
-  loading.value = true;
-  try {
-    await soundboard.loadServerSounds(id, true);
-  } finally {
-    loading.value = false;
+  if (id) {
+    loading.value = true;
+    try {
+      await soundboard.loadServerSounds(id, true);
+    } finally {
+      loading.value = false;
+    }
   }
+  await library;
   void place();
 }
 
@@ -308,16 +397,61 @@ onBeforeUnmount(() => {
   padding-bottom: 12px;
 }
 
+.sbp-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  background: var(--background-secondary);
+  color: var(--text-muted);
+}
+
+.sbp-search:focus-within {
+  border-color: var(--harmony-primary);
+}
+
+.sbp-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  outline: none;
+}
+
 .sbp-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 0 0 6px;
   font-size: var(--font-size-xs);
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--text-muted);
+}
+
+.sbp-section-icon {
+  flex-shrink: 0;
+}
+
+.sbp-section-name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.sbp-lock {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-muted);
 }
 
 .sbp-grid {

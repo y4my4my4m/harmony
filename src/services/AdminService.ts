@@ -1087,15 +1087,13 @@ class AdminService {
     federationEnabled?: boolean;
     inboundEnabled?: boolean;
     outboundEnabled?: boolean;
-    autoAcceptFollows?: boolean;
   }): Promise<boolean> {
     try {
       const { error } = await supabase.rpc('update_federation_settings', {
         p_user_id: settings.userId,
         p_federation_enabled: settings.federationEnabled ?? null,
         p_inbound_enabled: settings.inboundEnabled ?? null,
-        p_outbound_enabled: settings.outboundEnabled ?? null,
-        p_auto_accept_follows: settings.autoAcceptFollows ?? null
+        p_outbound_enabled: settings.outboundEnabled ?? null
       });
 
       if (error) {

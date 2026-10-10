@@ -98,6 +98,14 @@
               <p class="username">
                 {{ displayHandle }}
                 <BridgeSourceBadge v-if="isBridgedDiscord" source="discord" />
+                <span
+                  v-if="isLockedAccount"
+                  class="locked-badge"
+                  role="img"
+                  :aria-label="t('activitypub.lockedAccount')"
+                  :title="t('activitypub.lockedAccount')"
+                  data-testid="profile-modal-locked-badge"
+                ><Icon name="lock" :size="12" /></span>
               </p>
             </div>
             
@@ -362,6 +370,7 @@
               :class="{ 'following': getUserIsFollowing(user) }"
               :disabled="followBusy"
               :aria-busy="followBusy"
+              data-testid="profile-modal-follow-btn"
             >
               <Icon v-if="followBusy" name="spinner" :size="16" class="follow-spin" />
               <Icon v-else :name="getUserIsFollowing(user) || followRequested ? 'unfollow' : 'follow'" :size="16" />
@@ -451,6 +460,7 @@ import { getBannerUrl, getRawBannerUrl } from '@/utils/bannerUtils'
 import BannerImage from '@/components/common/BannerImage.vue'
 import { formatCustomStatusDisplay } from '@/utils/customStatusDisplay'
 import { coreProfileService } from '@/services/core/CoreProfileService'
+import { interactionService } from '@/services/InteractionService'
 import { roleService, type ServerRole, Permission } from '@/services/RoleService'
 import BaseModal from './common/BaseModal.vue'
 import Icon from './common/Icon.vue'
@@ -527,6 +537,7 @@ const isLoadingInstanceInfo = ref(false)
 const fetchedUserStats = ref<ProfileCountSource | null>(null)
 const fetchedCreatedAt = ref<string | null>(null)
 const fetchedActivity = ref<{ message_count: number; voice_minutes: number } | null>(null)
+const fetchedLocked = ref<boolean | null>(null)
 const isLoadingUserStats = ref(false)
 const isLoadingActivity = ref(false)
 
@@ -604,7 +615,7 @@ async function loadUserActivity(userId: string) {
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('message_count, voice_minutes')
+      .select('message_count, voice_minutes, manually_approves_followers')
       .eq('id', userId)
       .maybeSingle()
     if (error) {
@@ -617,6 +628,7 @@ async function loadUserActivity(userId: string) {
         message_count: Number(data.message_count ?? 0),
         voice_minutes: Number(data.voice_minutes ?? 0),
       }
+      if (props.user?.id === userId) fetchedLocked.value = data.manually_approves_followers === true
       debug.log('Loaded user activity:', fetchedActivity.value)
     }
   } catch (err) {
@@ -1103,8 +1115,25 @@ const openSettings = () => {
 // Shown follow state while a toggle is in flight; null defers to the store.
 const optimisticFollowing = ref<boolean | null>(null)
 const followBusy = ref(false)
-// A locked account holds the follow as a request until it accepts.
+// A locked or remote account holds the follow as a request until it answers.
 const followRequested = ref(false)
+
+const isLockedAccount = computed(() =>
+  fetchedLocked.value ?? ((props.user as FederatedUser | null)?.manually_approves_followers === true))
+
+// The store tracks accepted follows only; a pending request is read from the follows row.
+async function loadFollowRequestState(userId: string) {
+  if (isCurrentUser.value) return
+  try {
+    const relationships = await interactionService.getUserRelationships([userId])
+    const rel = relationships[userId] as { followRequestPending?: boolean } | undefined
+    if (props.user?.id === userId && !followBusy.value) {
+      followRequested.value = !!rel?.followRequestPending
+    }
+  } catch (error) {
+    debug.warn('Failed to load follow request state:', error)
+  }
+}
 
 const handleFollowToggle = async () => {
   if (!props.user || followBusy.value) return
@@ -1444,6 +1473,7 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
   if (newVal.userId !== oldVal?.userId) {
     followRequested.value = false
     optimisticFollowing.value = null
+    fetchedLocked.value = null
   }
   if (!newVal.show || !newVal.userId) {
     // Modal closed or no user: tear down. The dropdown is reset so the next
@@ -1505,6 +1535,7 @@ watch(() => ({ show: props.show, userId: props.user?.id }), async (newVal, oldVa
       if (!activityPubStore.followsLoaded) {
         activityPubStore.loadFollowedUsers()
       }
+      void loadFollowRequestState(props.user.id)
 
       // Mute/block button state needs the blocked and muted sets loaded.
       if (activityPubStore.blockedUsers.size === 0 && activityPubStore.mutedUsers.size === 0) {
@@ -1790,6 +1821,11 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+.locked-badge {
+  display: inline-flex;
+  color: var(--text-muted);
 }
 
 .user-badges {

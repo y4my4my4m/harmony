@@ -83,6 +83,9 @@ router.post('/maintenance', requireAuth, async (req: Request, res: Response) => 
       task,
       triggered_by: 'api',
     });
+    if (!jobId) {
+      return sendError(res, 'Job queue unavailable', 503);
+    }
 
     logger.info(`Maintenance task ${task} triggered via API, job: ${jobId}`);
 

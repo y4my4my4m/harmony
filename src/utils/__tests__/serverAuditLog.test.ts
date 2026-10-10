@@ -60,6 +60,10 @@ describe('permissionNames', () => {
   it('names USE_SOUNDBOARD, bit 30', () => {
     expect(permissionNames(2 ** 30)).toEqual(['Use Soundboard'])
   })
+
+  it('names USE_EXTERNAL_SOUNDS, bit 31', () => {
+    expect(permissionNames(String(2 ** 31 + 2 ** 30))).toEqual(['Use Soundboard', 'Use External Sounds'])
+  })
 })
 
 describe('sound entries', () => {

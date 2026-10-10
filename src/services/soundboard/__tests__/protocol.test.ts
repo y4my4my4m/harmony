@@ -4,8 +4,10 @@ import {
   SoundboardRateLimiter,
   buildSoundboardMessage,
   checkIncomingPlay,
+  isExternalPlay,
   isSoundId,
   parseSoundboardMessage,
+  soundboardExternalGrant,
   soundboardGrant,
   type ReceiveContext,
   type SoundboardTransportEvent,
@@ -15,11 +17,24 @@ const SERVER = '55555555-0000-0000-0000-000000000005';
 const SOUND = 'b1160000-0000-0000-0000-000000000001';
 const ALICE = '11111111-0000-0000-0000-000000000001';
 const BOB = '22222222-0000-0000-0000-000000000002';
+const OTHER = '77777777-0000-0000-0000-000000000007';
 
 describe('soundboard messages', () => {
   it('round-trips a play', () => {
     const message = buildSoundboardMessage(SOUND, SERVER, ALICE);
     expect(parseSoundboardMessage(JSON.parse(JSON.stringify(message)))).toEqual(message);
+  });
+
+  it('names the sound\'s server only for another server\'s sound', () => {
+    const external = buildSoundboardMessage(SOUND, SERVER, ALICE, OTHER);
+    expect(external.soundServerId).toBe(OTHER);
+    expect(isExternalPlay(external)).toBe(true);
+    expect(parseSoundboardMessage(JSON.parse(JSON.stringify(external)))).toEqual(external);
+    expect(buildSoundboardMessage(SOUND, SERVER, ALICE, SERVER)).not.toHaveProperty('soundServerId');
+    expect(buildSoundboardMessage(SOUND, SERVER, ALICE, SERVER.toUpperCase())).not.toHaveProperty('soundServerId');
+    expect(buildSoundboardMessage('default:ding', SERVER, ALICE, OTHER)).not.toHaveProperty('soundServerId');
+    expect(isExternalPlay(buildSoundboardMessage(SOUND, SERVER, ALICE))).toBe(false);
+    expect(parseSoundboardMessage({ ...external, soundServerId: OTHER.toUpperCase() })?.soundServerId).toBe(OTHER);
   });
 
   it('accepts built-in ids', () => {
@@ -40,6 +55,8 @@ describe('soundboard messages', () => {
       { ...good, serverId: 'dm' },
       { ...good, userId: '' },
       { ...good, userId: 42 },
+      { ...good, soundServerId: 'elsewhere' },
+      { ...good, soundServerId: null },
     ]) {
       expect(parseSoundboardMessage(bad)).toBeNull();
     }
@@ -52,6 +69,13 @@ describe('soundboard messages', () => {
     expect(soundboardGrant(JSON.stringify({ soundboard: 'yes' }))).toBeNull();
     expect(soundboardGrant('not json')).toBeNull();
     expect(soundboardGrant(undefined)).toBeNull();
+  });
+
+  it('reads the external sounds grant from participant metadata', () => {
+    expect(soundboardExternalGrant(JSON.stringify({ soundboard: true, soundboardExternal: true }))).toBe(true);
+    expect(soundboardExternalGrant(JSON.stringify({ soundboard: true, soundboardExternal: false }))).toBe(false);
+    expect(soundboardExternalGrant(JSON.stringify({ soundboard: true }))).toBeNull();
+    expect(soundboardExternalGrant(null)).toBeNull();
   });
 });
 
@@ -105,6 +129,15 @@ describe('checkIncomingPlay', () => {
     expect(check(event({}, buildSoundboardMessage(SOUND, SERVER, ALICE)))).toEqual({ ok: false, reason: 'sender-mismatch' });
     expect(check(event(), { ...context, participants: new Set() })).toEqual({ ok: false, reason: 'not-in-call' });
     expect(check(event({ granted: false }))).toEqual({ ok: false, reason: 'not-permitted' });
+  });
+
+  it('drops an external play the token withholds, and only that', () => {
+    const external = buildSoundboardMessage(SOUND, SERVER, BOB, OTHER);
+    expect(check(event({ externalGranted: false }, external))).toEqual({ ok: false, reason: 'not-permitted' });
+    expect(check(event({ externalGranted: true }, external)).ok).toBe(true);
+    expect(check(event({ externalGranted: null }, external)).ok).toBe(true);
+    expect(check(event({ externalGranted: false })).ok).toBe(true);
+    expect(check(event({ granted: false, externalGranted: true }, external))).toEqual({ ok: false, reason: 'not-permitted' });
   });
 
   it('drops a sender\'s plays faster than the receive interval', () => {

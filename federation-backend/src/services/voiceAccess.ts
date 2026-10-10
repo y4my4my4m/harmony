@@ -93,14 +93,15 @@ export function isLiveKitUrl(value: unknown): value is string {
 }
 
 export type VoiceDecision =
-  | { ok: true; serverId: string; canPublish: boolean; canSoundboard: boolean }
+  | { ok: true; serverId: string; canPublish: boolean; canSoundboard: boolean; canExternalSounds: boolean }
   | { ok: false; reason: string };
 
 /**
  * Voice channel access for one profile: an accepted member (or the owner) of
  * the channel's server, not banned, not timed out, holding VIEW_CHANNEL and
  * CONNECT on the channel. SPEAK decides canPublish; canSoundboard also needs
- * USE_SOUNDBOARD on the channel.
+ * USE_SOUNDBOARD on the channel, and canExternalSounds USE_EXTERNAL_SOUNDS on
+ * top of that.
  *
  * `remote`: the profile is a remote actor asking this instance for a token.
  * The server must then be hosted here with federation enabled.
@@ -167,7 +168,9 @@ export async function authorizeVoiceChannel(
   const canPublish = await hasChannelPermissions(supabase, profileId, serverId, channelId, [['SPEAK']]);
   const canSoundboard = canPublish
     && await hasChannelPermissions(supabase, profileId, serverId, channelId, [['USE_SOUNDBOARD']]);
-  return { ok: true, serverId, canPublish, canSoundboard };
+  const canExternalSounds = canSoundboard
+    && await hasChannelPermissions(supabase, profileId, serverId, channelId, [['USE_EXTERNAL_SOUNDS']]);
+  return { ok: true, serverId, canPublish, canSoundboard, canExternalSounds };
 }
 
 /** Active participant of a direct or group conversation. */

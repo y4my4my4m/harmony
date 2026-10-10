@@ -102,6 +102,17 @@
 		import federation_upstream
 	}
 
+	# Server invite links: link-preview crawlers get the backend's OpenGraph card, people the
+	# SPA, at one URL. Crawler list as in the nginx map; the backend checks the code's length.
+	# The web container serves index.html no-cache, so a shared cache revalidates per request.
+	@inviteUnfurl {
+		path_regexp ^/invite/[A-Za-z0-9_-]+/?$
+		header_regexp User-Agent (?i)(discordbot|slackbot|twitterbot|facebookexternalhit|facebot|telegrambot|whatsapp|linkedinbot|mastodon|pleroma|akkoma|misskey|summalybot|gotosocial|friendica|lemmy|cardyb|synapse|mattermost-bot|zulipurlpreview|discourse|embedly|iframely|redditbot|skypeuripreview|microsoftpreview|vkshare|viber|kakaotalk-scrap)
+	}
+	handle @inviteUnfurl {
+		import federation_upstream
+	}
+
 	# Actor profile: ActivityPub clients get the actor, browsers the in-app
 	# profile. nginx tests Accept with ~* (case-insensitive).
 	@fedActor {

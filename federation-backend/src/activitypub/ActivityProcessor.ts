@@ -11,6 +11,7 @@ import {
   extractLikeData,
   extractAnnounceData,
   extractDeleteData,
+  extractMediaAttachments,
   normalizeActor,
   parseAlsoKnownAs,
   parseMovedTo,
@@ -137,6 +138,10 @@ function isBoostableVisibility(visibility: unknown): boolean {
   return visibility === 'public' || visibility === 'unlisted';
 }
 
+/** A quoted post as read for the quote's reblog snapshot. */
+const QUOTED_POST_COLUMNS =
+  'id, content, created_at, visibility, is_deleted, author_id, media_attachments, is_sensitive, content_warning';
+
 export class ActivityProcessor {
   /**
    * Maximum reply-chain depth for federated post resolution. Bounds total
@@ -163,9 +168,10 @@ export class ActivityProcessor {
    * GET an ActivityPub document with the URL it was served from, signed as
    * the instance actor. Blocked hosts are never contacted, so a boost, reply
    * or quote cannot import their content.
-   * The response must carry an ActivityPub media type.
+   * The response must carry an ActivityPub media type. `onStatus` receives the
+   * HTTP status of an answer.
    */
-  static async fetchApDocument(url: string): Promise<FetchedDocument | null> {
+  static async fetchApDocument(url: string, onStatus?: (status: number) => void): Promise<FetchedDocument | null> {
     let host: string;
     try {
       host = new URL(url).hostname.toLowerCase();
@@ -183,6 +189,7 @@ export class ActivityProcessor {
           'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
         },
       });
+      onStatus?.(response.status);
       const fetched = await readApDocument(response, url);
       if (!fetched) logger.warn(`AP fetch for ${url} returned ${response.status} ${response.headers.get('content-type') ?? ''}`);
       else noteDocumentSoftware(fetched.finalUrl, fetched.doc);
@@ -282,6 +289,22 @@ export class ActivityProcessor {
       .eq('id', following.id)
       .single();
 
+    // A follower the target blocks is rejected and nothing is stored, as in
+    // Mastodon ActivityPub::Activity::Follow.
+    const { data: block } = await supabase
+      .from('user_blocks')
+      .select('id')
+      .eq('blocker_id', following.id)
+      .eq('blocked_user_id', follower.id)
+      .maybeSingle();
+    if (block) {
+      logger.info(`Follow from blocked account rejected: ${followerUrl} → ${followingUrl}`);
+      if (followingUser?.is_local) {
+        await this.sendFollowAnswer('Reject', followingUser, follower.id, activity);
+      }
+      return;
+    }
+
     // A duplicate Follow from an already-accepted follower must not downgrade
     // the relationship to pending (Mastodon re-sends Follow after migrations);
     // re-accept and resend the Accept instead.
@@ -322,28 +345,41 @@ export class ActivityProcessor {
     logger.info(`Follow created and auto-accepted: ${followerUrl} → ${followingUrl}`);
 
     if (followingUser && followingUser.is_local) {
-      const { createAcceptActivity } = await import('./converters/toActivityPub.js');
-      const { DeliveryQueue } = await import('./DeliveryQueue.js');
-
-      const acceptActivity = createAcceptActivity(followingUser, activity);
-
-      const { data: followerUser } = await supabase
-        .from('profiles')
-        .select('inbox_url')
-        .eq('id', follower.id)
-        .single();
-
-      if (followerUser?.inbox_url) {
-        await DeliveryQueue.sendToInbox(followerUser.inbox_url, acceptActivity, followingUser.id);
-        logger.info(`Sent Accept activity to ${followerUrl}`);
-      }
+      await this.sendFollowAnswer('Accept', followingUser, follower.id, activity);
     }
+  }
+
+  /** Delivers an Accept or Reject of `followActivity` from a local followee to the follower's inbox. */
+  private static async sendFollowAnswer(
+    type: 'Accept' | 'Reject',
+    followee: any,
+    followerId: string,
+    followActivity: any,
+  ): Promise<void> {
+    const supabase = getSupabaseClient();
+    const { createAcceptActivity, createRejectActivity } = await import('./converters/toActivityPub.js');
+    const { DeliveryQueue } = await import('./DeliveryQueue.js');
+
+    const { data: followerUser } = await supabase
+      .from('profiles')
+      .select('inbox_url')
+      .eq('id', followerId)
+      .single();
+    if (!followerUser?.inbox_url) return;
+
+    const answer = type === 'Accept'
+      ? createAcceptActivity(followee, followActivity)
+      : createRejectActivity(followee, followActivity);
+    await DeliveryQueue.sendToInbox(followerUser.inbox_url, answer, followee.id);
+    logger.info(`Sent ${type} activity to ${followerUser.inbox_url}`);
   }
 
   /**
    * The follows row an Accept/Reject refers to. The responder must be the
    * followee. Lookup is by Follow id, then by the (follower, followee) pair:
    * the id on an outbound Follow is not the id the client stores on the row.
+   * An outbound Follow id is https://<domain>/activities/follow/<follows.id>
+   * (followHandler), which resolves an answer naming only the id.
    */
   private static async findFollowForResponse(
     followObject: any,
@@ -362,6 +398,19 @@ export class ActivityProcessor {
         .eq('following_id', followee.id)
         .maybeSingle();
       if (byId) return byId;
+
+      const ownId = followId.match(
+        new RegExp(`^https://${config.INSTANCE_DOMAIN.replace(/\./g, '\\.')}/activities/follow/([0-9a-f-]{36})$`, 'i'),
+      );
+      if (ownId) {
+        const { data: byRowId } = await supabase
+          .from('follows')
+          .select('id')
+          .eq('id', ownId[1].toLowerCase())
+          .eq('following_id', followee.id)
+          .maybeSingle();
+        if (byRowId) return byRowId;
+      }
     }
 
     if (typeof followObject !== 'object' || !followObject?.actor) return null;
@@ -473,6 +522,11 @@ export class ActivityProcessor {
         return;
       }
 
+      // The delete trigger queues no Undo for a rejected row.
+      await supabase
+        .from('follows')
+        .update({ status: 'rejected', accepted_at: null })
+        .eq('id', follow.id);
       await supabase
         .from('follows')
         .delete()
@@ -678,6 +732,7 @@ export class ActivityProcessor {
           metadata,
           content_warning: object.summary || null,
           is_sensitive: object.sensitive === true,
+          media_attachments: extractMediaAttachments(object.attachment),
           ...noteEngagementColumns(object),
         };
 
@@ -687,6 +742,9 @@ export class ActivityProcessor {
             content: quotedPostData.content,
             created_at: quotedPostData.created_at,
             visibility: quotedPostData.visibility,
+            media_attachments: quotedPostData.media_attachments || [],
+            is_sensitive: quotedPostData.is_sensitive === true,
+            content_warning: quotedPostData.content_warning || null,
           };
           
           const { data: quotedAuthor } = await supabase
@@ -762,7 +820,7 @@ export class ActivityProcessor {
 
     const { data: existingPost } = await supabase
       .from('posts')
-      .select('id, content, created_at, visibility, is_deleted, author_id')
+      .select(QUOTED_POST_COLUMNS)
       .eq('ap_id', quoteUrl)
       .maybeSingle();
 
@@ -777,7 +835,7 @@ export class ActivityProcessor {
       if (uuidMatch) {
         const { data: postById } = await supabase
           .from('posts')
-          .select('id, content, created_at, visibility, is_deleted, author_id')
+          .select(QUOTED_POST_COLUMNS)
           .eq('id', uuidMatch[1])
           .maybeSingle();
         
@@ -795,7 +853,7 @@ export class ActivityProcessor {
     logger.info(`Created quoted post from remote: ${fetchedPost.id}`);
     const { data: stored } = await supabase
       .from('posts')
-      .select('id, content, created_at, visibility, is_deleted, author_id')
+      .select(QUOTED_POST_COLUMNS)
       .eq('id', fetchedPost.id)
       .maybeSingle();
     return stored ?? null;
@@ -1137,7 +1195,7 @@ export class ActivityProcessor {
         metadata.in_reply_to_ap_url = remoteObject.inReplyTo;
       }
 
-      const { data: newPost, error } = await supabase
+      const insertPost = () => supabase
         .from('posts')
         .insert({
           ap_id: apId,
@@ -1153,10 +1211,18 @@ export class ActivityProcessor {
           created_at: remoteObject.published || new Date().toISOString(),
           content_warning: remoteObject.summary || null,
           is_sensitive: remoteObject.sensitive === true,
+          media_attachments: extractMediaAttachments(remoteObject.attachment),
           ...noteEngagementColumns(remoteObject),
         })
         .select('id, in_reply_to, conversation_root_id')
         .single();
+
+      let { data: newPost, error } = await insertPost();
+      // 40P01: aborted to break a lock cycle with a concurrent insert; retried once.
+      if (error?.code === '40P01') {
+        logger.info(`Deadlock storing ${apId}, retrying`);
+        ({ data: newPost, error } = await insertPost());
+      }
 
       if (error) {
         // 23505: unique violation from a concurrent insert of the same ap_id.
@@ -1230,6 +1296,7 @@ export class ActivityProcessor {
         avatar_url: profileData.avatar,
         banner_url: profileData.banner,
         public_key: profileData.public_key,
+        manually_approves_followers: profileData.manually_approves_followers === true,
       };
 
       if (profileData.custom_status) {
@@ -1298,6 +1365,7 @@ export class ActivityProcessor {
           content,
           content_warning: object.summary || null,
           is_sensitive: object.sensitive === true,
+          media_attachments: extractMediaAttachments(object.attachment),
           updated_at: new Date().toISOString(),
         })
         .eq('id', existingPost.id);
@@ -1732,7 +1800,7 @@ export class ActivityProcessor {
 
     let originalPost: any = null;
     
-    const originalPostColumns = 'id, content, visibility, is_deleted, author_id, created_at, ap_id, is_sensitive, content_warning, favorites_count, replies_count, reblogs_count, media_attachments, url';
+    const originalPostColumns = 'id, content, visibility, is_deleted, author_id, created_at, ap_id, is_sensitive, content_warning, favorites_count, replies_count, reblogs_count, media_attachments, url, metadata';
 
     // Original post lookup, method 1: by ap_id.
     const { data: postByApId } = await supabase
@@ -1762,49 +1830,23 @@ export class ActivityProcessor {
       }
     }
 
-    // Method 3: fetch the post from its origin instance and import it.
+    // Method 3: fetch the post from its origin and store it as every other remote post
+    // (storeRemotePost). A post a boost may not copy is not stored.
     if (!originalPost) {
       logger.info(`Original post not found locally, attempting to fetch: ${objectUrl}`);
       try {
         // BUGS.md H15: objectUrl is from inbox payload (attacker-influenced).
         const remotePost = await fetchAuthoritativeDocument(objectUrl, (u) => this.fetchApDocument(u));
 
-        if (remotePost) {
-          const authorUrl = normalizeActor(remotePost.attributedTo || remotePost.actor);
-          if ((remotePost.type === 'Note' || remotePost.type === 'Article') && sameOrigin(authorUrl, remotePost.id)) {
-            await this.ensureRemoteUser(authorUrl);
-            
-            const { data: author } = await supabase
-              .from('profiles')
-              .select('id')
-              .eq('federated_id', authorUrl)
-              .single();
-            
-            const visibility = this.determineVisibility(remotePost);
-            if (author && isBoostableVisibility(visibility)) {
-              const content = noteToContent(remotePost);
-              
-              const { data: newPost, error: createError } = await supabase
-                .from('posts')
-                .insert({
-                  ap_id: remotePost.id,
-                  author_id: author.id,
-                  content,
-                  visibility,
-                  is_local: false,
-                  is_sensitive: remotePost.sensitive === true,
-                  content_warning: remotePost.summary || null,
-                  created_at: remotePost.published || new Date().toISOString(),
-                  ...noteEngagementColumns(remotePost),
-                })
-                .select(originalPostColumns)
-                .single();
-              
-              if (!createError && newPost) {
-                originalPost = newPost;
-                logger.info(`Created remote post ${remotePost.id} for reblog`);
-              }
-            }
+        if (remotePost && isBoostableVisibility(this.determineVisibility(remotePost))) {
+          const stored = await this.storeRemotePost(remotePost);
+          if (stored) {
+            const { data: storedPost } = await supabase
+              .from('posts')
+              .select(originalPostColumns)
+              .eq('id', stored.id)
+              .maybeSingle();
+            originalPost = storedPost;
           }
         }
       } catch (fetchError) {
@@ -1864,6 +1906,8 @@ export class ActivityProcessor {
         replies_count: originalPost.replies_count || 0,
         reblogs_count: originalPost.reblogs_count || 0,
         media_attachments: originalPost.media_attachments || [],
+        // Poll keys of a boosted Question render from the snapshot.
+        metadata: originalPost.metadata || {},
       },
       reblog_author: originalAuthor || null,
       metadata: {
@@ -2195,11 +2239,8 @@ export class ActivityProcessor {
       .eq('federated_id', actorUrl)
       .maybeSingle();
 
-    const { data: following } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('federated_id', followingUrl)
-      .maybeSingle();
+    // resolveProfileByActorUrl covers local users without federated_id.
+    const following = followingUrl ? await resolveProfileByActorUrl(followingUrl) : null;
 
     if (!follower || !following) {
       logger.warn(`Undo follow: unknown profile (follower=${!!follower}, following=${!!following})`);
@@ -2329,6 +2370,7 @@ export class ActivityProcessor {
         created_at: object.published || new Date().toISOString(),
         content_warning: object.summary || null,
         is_sensitive: object.sensitive === true,
+        media_attachments: extractMediaAttachments(object.attachment),
         metadata: questionPollMetadata(object),
         ...noteEngagementColumns(object),
       });
@@ -2376,6 +2418,7 @@ export class ActivityProcessor {
       patch.content = noteToContent(object);
       patch.content_warning = object.summary || null;
       patch.is_sensitive = object.sensitive === true;
+      patch.media_attachments = extractMediaAttachments(object.attachment);
       patch.updated_at = new Date().toISOString();
     }
 
@@ -3212,6 +3255,7 @@ export class ActivityProcessor {
       followers_url: profileData.followers_url,
       following_url: profileData.following_url,
       is_local: false,
+      manually_approves_followers: profileData.manually_approves_followers === true,
       updated_at: new Date().toISOString(),
       last_synced_at: new Date().toISOString(),
       ...(await movedColumns(supabase, profileData, existing)),

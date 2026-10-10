@@ -34,9 +34,17 @@ export async function handleFollowJob(data: FederationJobData): Promise<void> {
     // create/delete, which federate a LOCAL follower's actions outward).
     // federation_status lifecycle mirrors 'create': the trigger stamps
     // 'pending' (sweep retry marker), we move it to processing/completed.
+    // A Reject for a removed follower names a deleted row; its status
+    // updates match nothing.
     if (type === 'respond') {
       if (!follower || follower.is_local || !following || !following.is_local) {
         logger.debug('Follow response needs remote follower + local target, skipping');
+        await updateFederationStatus(follow_id, 'follows', 'skipped');
+        return;
+      }
+      // A deleted account's followers get its actor Delete (account-deleted).
+      if (following.deleted_at) {
+        logger.debug('Follow response from a deleted account, skipping');
         await updateFederationStatus(follow_id, 'follows', 'skipped');
         return;
       }

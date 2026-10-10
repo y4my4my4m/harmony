@@ -41,6 +41,8 @@ export interface ActivityPubPost {
   replies_count: number;
   reblogs_count: number;
   favorites_count: number;
+  /** Remote post: when the federation backend last walked its replies collection. */
+  replies_fetched_at?: string | null;
   media_attachments: MediaAttachment[];
   metadata: Record<string, any>;
   is_sensitive: boolean;
@@ -310,6 +312,8 @@ export interface FederatedUser extends Profile {
   is_follower?: boolean;
   is_blocked?: boolean;
   is_muted?: boolean;
+  /** Locked account: follows are requests it accepts or rejects (ActivityPub manuallyApprovesFollowers). */
+  manually_approves_followers?: boolean;
   instance_url?: string;
   last_status_at?: string;
   note?: string; // Personal note about this user
@@ -427,6 +431,8 @@ export interface TimelineOptions {
   min_id?: string;
   /** ISO timestamp cursor - fetch posts created before this time */
   before?: string;
+  /** Id of the post at `before`; with it the cursor is the (created_at, id) keyset. */
+  beforeId?: string;
 }
 
 /** Result from timeline fetches - used to set has_more from raw DB count before client-side filtering */
