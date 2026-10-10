@@ -158,6 +158,28 @@ describe('switching the shared surface', () => {
     expect(silent.unpublished).toEqual([silent.published[1].track]);
   });
 
+  it('republishes the video when the sender does not carry the new capture after a switch', async () => {
+    vi.useFakeTimers();
+    try {
+      const first = videoTrack('VLC', 'window') as any;
+      const screen = videoTrack('screen:0:0', 'monitor') as any;
+      (screen.mediaStreamTrack as any).id = 'new-capture';
+      // replaceTrack swaps the track locally; the sender keeps the old one and encodes nothing new.
+      first.replaceTrack = vi.fn(async (t: unknown) => { first.mediaStreamTrack = t; });
+      first.sender = { track: { id: 'old-capture' }, getStats: async () => new Map([['o', { type: 'outbound-rtp', framesEncoded: 10 }]]) };
+      const { svc, published, unpublished } = await liveShare([first], async () => [screen]);
+
+      expect(await svc.switchScreenShare()).toBe(true);
+      await vi.advanceTimersByTimeAsync(3500);
+      expect(unpublished).toContain(first);
+      expect(published.filter(p => p.track === first).length).toBe(2);
+      expect(published.at(-1)!.options).toMatchObject({ source: 'screen_share', backupCodec: false });
+      expect((svc as any).localMediaState.isScreenSharing).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('a dismissed picker keeps the current share untouched', async () => {
     native.supported = true;
     const video = videoTrack('VLC', 'window');

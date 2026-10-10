@@ -68,6 +68,10 @@ const federatedIdToUuidCache = new Map<string, string>();
 
 // Reverse cache: UUID to LiveKit identity (for looking up participants by UUID)
 const uuidToIdentityCache = new Map<string, string>();
+/** Participant identity → profile uuid; successful lookups only. */
+const identityUuidCache = new Map<string, string>();
+/** A watched stream that ends is watched again when its user streams within this long (ms). */
+const STREAM_REWATCH_MS = 120_000;
 
 /**
  * Resolve a LiveKit identity to a profile UUID.
@@ -77,6 +81,15 @@ const uuidToIdentityCache = new Map<string, string>();
  *   identities originating there.
  */
 async function resolveIdentityToUuid(identity: string, remoteServerDomain?: string | null): Promise<string | null> {
+  // Cached results resolve without a query, so event handlers awaiting them finish in arrival order.
+  const cached = identityUuidCache.get(identity);
+  if (cached) return cached;
+  const resolved = await resolveIdentityUncached(identity, remoteServerDomain);
+  if (resolved) identityUuidCache.set(identity, resolved);
+  return resolved;
+}
+
+async function resolveIdentityUncached(identity: string, remoteServerDomain?: string | null): Promise<string | null> {
   if (identity.startsWith('federated:')) {
     const federatedId = identity.substring('federated:'.length);
     return resolveFederatedId(federatedId, identity);
@@ -348,6 +361,8 @@ export class LiveKitWebRTCService {
   // Remote streams being watched, by user key. Stream video and audio are
   // subscribed only while watched.
   private watchedStreams = new Set<string>();
+  /** End time (ms) of streams that ended while watched, by user id. */
+  private endedWhileWatched = new Map<string, number>();
   private autoWatchStreams = false;
 
   // Set while this client tears the room down, so Disconnected is not
@@ -366,6 +381,8 @@ export class LiveKitWebRTCService {
 
   // Native program audio behind the published ScreenShareAudio track.
   private nativeStreamAudio: NativeStreamAudio | null = null;
+  // Set while a switch republishes the screen video: that unpublish is not the share ending.
+  private republishing = false;
   
   // Event listeners
   private eventListeners = new Map<string, Function[]>();
@@ -705,6 +722,7 @@ export class LiveKitWebRTCService {
 
     this.allUserStates.clear();
     this.watchedStreams.clear();
+    this.endedWhileWatched.clear();
     remoteAudioMixer.reset();
     // Room.disconnect stopped the mic, which destroyed any gain processor with it.
     this.clearMicGainRelease();
@@ -936,6 +954,22 @@ export class LiveKitWebRTCService {
     };
   }
 
+  private screenVideoPublishOptions(height: number, fps: number) {
+    return {
+      source: lib().Track.Source.ScreenShare,
+      screenShareEncoding: {
+        maxBitrate: screenShareBitrate(height, fps),
+        maxFramerate: fps,
+      },
+      // Hold framerate under load instead of dropping frames.
+      degradationPreference: 'maintain-framerate' as const,
+      // Single full-resolution layer: simulcast's lower layers cap framerate.
+      simulcast: false,
+      // A backup-codec sender holds its own clone of the capture, which replaceTrack does not swap.
+      backupCodec: false,
+    };
+  }
+
   /** Stream audio is music: stereo, no DTX, no RED. */
   private screenAudioPublishOptions() {
     return {
@@ -1027,17 +1061,7 @@ export class LiveKitWebRTCService {
     });
 
     try {
-      await lp.publishTrack(video, {
-        source: Track.Source.ScreenShare,
-        screenShareEncoding: {
-          maxBitrate: screenShareBitrate(height, fps),
-          maxFramerate: fps,
-        },
-        // Hold framerate under load instead of dropping frames.
-        degradationPreference: 'maintain-framerate',
-        // Single full-resolution layer: simulcast's lower layers cap framerate.
-        simulcast: false,
-      });
+      await lp.publishTrack(video, this.screenVideoPublishOptions(height, fps));
       if (audio) {
         await lp.publishTrack(audio, this.screenAudioPublishOptions());
       }
@@ -1061,6 +1085,7 @@ export class LiveKitWebRTCService {
       codec: lp.getTrackPublication(Track.Source.ScreenShare)?.trackInfo?.codecs?.map(c => c.mimeType),
     });
     if (audio) this.traceAudioSender(audio);
+    this.traceVideoSender(video, 'published');
     this.localMediaState.isScreenSharing = true;
     debug.log('[LiveKit] Screen share published', { height, fps, audio: !!audio });
   }
@@ -1106,7 +1131,11 @@ export class LiveKitWebRTCService {
       return false;
     }
     const source = video.mediaStreamTrack;
-    traceStreamAudio('switch picker done', { label: source.label, settings: source.getSettings() });
+    traceStreamAudio('switch picker done', {
+      label: source.label,
+      settings: source.getSettings(),
+      old: { readyState: current.mediaStreamTrack.readyState, muted: current.mediaStreamTrack.muted },
+    });
     source.addEventListener('ended', () => traceStreamAudio('video track ended'));
 
     try {
@@ -1160,6 +1189,7 @@ export class LiveKitWebRTCService {
       audio: switchedAudio ? this.senderTrace(switchedAudio) : null,
     });
     if (switchedAudio) this.traceAudioSender(switchedAudio);
+    void this.verifySwitch(current, source, quality);
     this.emit('local-state-changed', this.localMediaState);
     this.emit('local-stream-changed', this.getLocalStream());
     return true;
@@ -1214,6 +1244,85 @@ export class LiveKitWebRTCService {
       sender: sender ? (sender.track?.id ?? null) : 'none',
       transport: sender?.transport?.state ?? null,
     };
+  }
+
+  /** Frames encoded by a screen sender and the sender's current track id; null without a sender. */
+  private async encodedFrames(track: LocalTrack): Promise<{ frames: number; track: string | null; width?: number; height?: number } | null> {
+    const sender = (track as unknown as { sender?: RTCRtpSender }).sender;
+    if (!sender) return null;
+    let frames = 0;
+    let width: number | undefined;
+    let height: number | undefined;
+    const report = await sender.getStats();
+    report.forEach((entry: Record<string, unknown>) => {
+      if (entry.type === 'outbound-rtp') {
+        frames += Number(entry.framesEncoded ?? 0);
+        width = entry.frameWidth as number | undefined;
+        height = entry.frameHeight as number | undefined;
+      }
+    });
+    return { frames, track: sender.track?.id ?? null, width, height };
+  }
+
+  /**
+   * After a switch the screen sender must carry the new capture and encode frames from it. When
+   * it does not within 3 s the video is published again from the new capture; viewers who were
+   * watching resume through endedWhileWatched.
+   */
+  private async verifySwitch(current: LocalTrack, source: MediaStreamTrack, quality: { resolution: number; frameRate: number }): Promise<void> {
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    await sleep(500);
+    const before = await this.encodedFrames(current).catch(() => null);
+    await sleep(2500);
+    const after = await this.encodedFrames(current).catch(() => null);
+    const lp = this.room?.localParticipant;
+    const { Track } = lib();
+    if (!lp || lp.getTrackPublication(Track.Source.ScreenShare)?.track !== current || current.mediaStreamTrack !== source) return;
+    const flowing = !!before && !!after && after.track === source.id && after.frames > before.frames;
+    traceStreamAudio('switch check', { flowing, before, after, expected: source.id, muted: source.muted });
+    if (flowing) return;
+
+    const settings = source.getSettings();
+    const height = settings.height ?? (quality.resolution === SOURCE_RESOLUTION ? 1080 : quality.resolution);
+    this.republishing = true;
+    try {
+      await lp.unpublishTrack(current, false);
+      await lp.publishTrack(current, this.screenVideoPublishOptions(height, quality.frameRate));
+      traceStreamAudio('switch republished', { video: this.senderTrace(current) });
+      this.traceVideoSender(current, 'republished');
+    } catch (error) {
+      traceStreamAudio('switch republish failed', { error: String(error) });
+    } finally {
+      this.republishing = false;
+    }
+  }
+
+  /** Outbound screen-video statistics 2 s and 5 s after `label`, for stream-audio.log. */
+  private traceVideoSender(track: LocalTrack, label: string): void {
+    for (const delay of [2000, 5000]) {
+      setTimeout(() => {
+        const sender = (track as unknown as { sender?: RTCRtpSender }).sender;
+        if (!sender) return;
+        void sender.getStats().then((report) => {
+          const stats: Record<string, unknown> = { label, after: delay / 1000, track: sender.track?.id };
+          report.forEach((entry: Record<string, unknown>) => {
+            if (entry.type === 'outbound-rtp') {
+              Object.assign(stats, {
+                frameWidth: entry.frameWidth,
+                frameHeight: entry.frameHeight,
+                framesEncoded: entry.framesEncoded,
+                keyFramesEncoded: entry.keyFramesEncoded,
+                bytesSent: entry.bytesSent,
+                qualityLimitationReason: entry.qualityLimitationReason,
+              });
+            } else if (entry.type === 'media-source') {
+              Object.assign(stats, { width: entry.width, height: entry.height, framesPerSecond: entry.framesPerSecond });
+            }
+          });
+          traceStreamAudio('video sender', stats);
+        }).catch(() => {});
+      }, delay);
+    }
   }
 
   /** Outbound stream-audio statistics 5 s and 30 s after publishing, for stream-audio.log. */
@@ -1595,9 +1704,15 @@ export class LiveKitWebRTCService {
       .then(id => id || participant.identity);
   }
 
-  /** A remote stream appeared: watch it under auto-watch, otherwise hold it unsubscribed. */
+  /**
+   * A remote stream appeared: watch it under auto-watch or when the same user's previous stream
+   * ended while watched less than STREAM_REWATCH_MS ago; otherwise hold it unsubscribed.
+   */
   private onRemoteStreamPublished(participant: RemoteParticipant, userId: string): void {
-    if (this.autoWatchStreams && !this.watchedStreams.has(userId)) {
+    const ended = this.endedWhileWatched.get(userId);
+    this.endedWhileWatched.delete(userId);
+    const rewatch = ended !== undefined && Date.now() - ended < STREAM_REWATCH_MS;
+    if ((this.autoWatchStreams || rewatch) && !this.watchedStreams.has(userId)) {
       this.watchedStreams.add(userId);
       this.emit('stream-watch-changed', { userId, watching: true });
     }
@@ -1955,6 +2070,8 @@ export class LiveKitWebRTCService {
       debug.log('[LiveKit] Participant disconnected:', participant.identity);
 
       const userId = await resolveIdentityToUuid(participant.identity, this.remoteServerDomain);
+      // Reconnected while the lookup ran: the new participant owns the state now.
+      if (this.room?.remoteParticipants.get(participant.identity)) return;
 
       this.allUserStates.delete(participant.identity);
       for (const key of new Set([participant.identity, userId].filter(Boolean) as string[])) {
@@ -2003,10 +2120,27 @@ export class LiveKitWebRTCService {
         state.hasScreenShareAudio = false;
         this.emit('user-state-changed', { userId: state.userId, mediaState: { ...state } });
       }
-      // A stream that ends is no longer watched; the next one starts unwatched.
+      // A stream that ends is no longer watched; the same user's next stream within
+      // STREAM_REWATCH_MS is watched again.
       if (this.watchedStreams.delete(userId)) {
+        this.endedWhileWatched.set(userId, Date.now());
         this.emit('stream-watch-changed', { userId, watching: false });
       }
+    });
+
+    // One retry per track: a failed subscription otherwise leaves a watched stream blank.
+    const retriedSubscriptions = new Set<string>();
+    this.room.on(RoomEvent.TrackSubscriptionFailed, (trackSid: string, participant: RemoteParticipant, reason?: unknown) => {
+      const publication = participant.trackPublications.get(trackSid) as RemoteTrackPublication | undefined;
+      debug.warn('[LiveKit] Track subscription failed:', trackSid, publication?.source, String(reason ?? ''));
+      traceStreamAudio('subscription failed', { trackSid, source: publication?.source, reason: String(reason ?? '') });
+      if (!publication || !publication.isDesired || retriedSubscriptions.has(trackSid)) return;
+      retriedSubscriptions.add(trackSid);
+      setTimeout(() => {
+        if (!publication.isDesired) return;
+        publication.setSubscribed(false);
+        publication.setSubscribed(true);
+      }, 1000);
     });
 
     this.room.on(RoomEvent.TrackSubscribed, async (track: RemoteTrack, publication: TrackPublication, participant: RemoteParticipant) => {
@@ -2162,6 +2296,9 @@ export class LiveKitWebRTCService {
           const state = this.allUserStates.get(participant.identity);
           if (state) {
             Object.assign(state, message.data);
+            // The publication, not the message, says whether a stream is live: a message sent while
+            // the stream was being published carries a stale false.
+            state.isScreenSharing = !!participant.getTrackPublication(Track.Source.ScreenShare);
             this.allUserStates.set(participant.identity, state);
             // Events carry state.userId (resolved UUID), not identity.
             // Spread produces a new object reference for Vue reactivity.
@@ -2181,7 +2318,9 @@ export class LiveKitWebRTCService {
     this.room.on(RoomEvent.LocalTrackUnpublished, (publication: TrackPublication, _participant: LocalParticipant) => {
       debug.log('[LiveKit] Local track unpublished:', publication.kind, 'source:', publication.source);
 
-      if (publication.source === Track.Source.ScreenShare) {
+      if (publication.source === Track.Source.ScreenShare && this.republishing) {
+        traceStreamAudio('screen track unpublished for republish');
+      } else if (publication.source === Track.Source.ScreenShare) {
         traceStreamAudio('screen track unpublished');
         this.localMediaState.isScreenSharing = false;
         // Stream audio ends with the video; a window closing can end the

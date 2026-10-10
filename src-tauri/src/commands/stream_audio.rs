@@ -8,6 +8,7 @@
 
 use std::fs::{File, OpenOptions};
 use std::io::Write;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -26,7 +27,9 @@ const TRACE_FILE: &str = "stream-audio.log";
 const TRACE_MAX_BYTES: u64 = 512 * 1024;
 const TRACE_MAX_LINE: usize = 2000;
 
-static CAPTURE: Mutex<Option<audio::Capture>> = Mutex::new(None);
+/// The running capture and its session number.
+static CAPTURE: Mutex<Option<(u64, audio::Capture)>> = Mutex::new(None);
+static NEXT_SESSION: AtomicU64 = AtomicU64::new(1);
 
 /// harmony_stream_audio's log records, into stream-audio.log.
 struct CrateLogger;
@@ -156,10 +159,17 @@ pub struct StreamAudioStarted {
   scope: &'static str,
   app: Option<String>,
   detail: String,
+  /// Passed back to stream_audio_stop, which then stops only this capture.
+  session: u64,
 }
 
-fn take_capture() -> Option<audio::Capture> {
-  CAPTURE.lock().ok().and_then(|mut c| c.take())
+/// The running capture; with `session`, only when it is that session's.
+fn take_capture(session: Option<u64>) -> Option<audio::Capture> {
+  let mut slot = CAPTURE.lock().ok()?;
+  match (slot.as_ref(), session) {
+    (Some((running, _)), Some(wanted)) if *running != wanted => None,
+    _ => slot.take().map(|(_, capture)| capture),
+  }
 }
 
 /// Replaces any running capture. Errors read "unsupported: …", "permission: …" or "failed: …".
@@ -171,7 +181,7 @@ pub async fn stream_audio_start(
 ) -> Result<StreamAudioStarted, String> {
   open_trace(&app);
   tauri::async_runtime::spawn_blocking(move || {
-    drop(take_capture());
+    drop(take_capture(None));
     let target = audio::Target::from_surface(&audio::SharedSurface {
       label: surface.label,
       display_surface: surface.display_surface,
@@ -207,13 +217,15 @@ pub async fn stream_audio_start(
       e.to_string()
     })?;
     trace(&format!("started: {}", started.detail));
+    let session = NEXT_SESSION.fetch_add(1, Ordering::Relaxed);
     if let Ok(mut slot) = CAPTURE.lock() {
-      *slot = Some(capture);
+      *slot = Some((session, capture));
     }
     Ok(StreamAudioStarted {
       sample_rate: audio::SAMPLE_RATE,
       channels: audio::CHANNELS,
       block_frames: BLOCK_FRAMES,
+      session,
       scope: match started.scope {
         audio::Scope::System => "system",
         audio::Scope::App => "app",
@@ -227,11 +239,11 @@ pub async fn stream_audio_start(
 }
 
 #[tauri::command]
-pub async fn stream_audio_stop() {
+pub async fn stream_audio_stop(session: Option<u64>) {
   // Dropping a capture joins its thread (Windows) or waits for the stream to stop (macOS).
-  let _ = tauri::async_runtime::spawn_blocking(|| {
-    if take_capture().is_some() {
-      trace("stopped");
+  let _ = tauri::async_runtime::spawn_blocking(move || {
+    if take_capture(session).is_some() {
+      trace(&format!("stopped session {}", session.map_or("any".into(), |s| s.to_string())));
     }
   })
   .await;

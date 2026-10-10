@@ -76,6 +76,8 @@ interface Started {
   scope: 'system' | 'app';
   app: string | null;
   detail: string;
+  /** Capture session; stream_audio_stop with it stops only that capture. */
+  session: number;
 }
 
 export type StreamAudioErrorKind = 'unsupported' | 'permission' | 'failed';
@@ -189,6 +191,7 @@ export class PreparedStreamAudio {
       const track = destination.stream.getAudioTracks()[0];
       debug.log('[StreamAudio] native capture started', { ...started, surface, context: context.state });
       traceStreamAudio('native started', { scope: started.scope, app: started.app, context: context.state });
+      let session = started.session;
       let source: StreamAudioSource = { scope: started.scope, app: started.app, detail: started.detail };
       activeStreamAudio.value = source;
       const handle: NativeStreamAudio = {
@@ -203,6 +206,7 @@ export class PreparedStreamAudio {
           try {
             const restarted = await invoke<Started>('stream_audio_start', { surface: next, onAudio: nextChannel });
             audioChannel = nextChannel;
+            session = restarted.session;
             source = { scope: restarted.scope, app: restarted.app, detail: restarted.detail };
             Object.assign(handle, source);
             activeStreamAudio.value = source;
@@ -220,7 +224,7 @@ export class PreparedStreamAudio {
           open = false;
           if (activeStreamAudio.value === source) activeStreamAudio.value = null;
           audioChannel.onmessage = () => {};
-          await invoke('stream_audio_stop').catch(() => {});
+          await invoke('stream_audio_stop', { session }).catch(() => {});
           workletNode.disconnect();
           track.stop();
           await context.close().catch(() => {});

@@ -44,7 +44,7 @@ class FakeWorkletNode {
   disconnect() { this.disconnected = true; }
 }
 
-const STARTED = { sampleRate: 48000, channels: 2, blockFrames: 960, scope: 'app', app: 'Spotify', detail: 'app: pid 7' };
+const STARTED = { sampleRate: 48000, channels: 2, blockFrames: 960, scope: 'app', app: 'Spotify', detail: 'app: pid 7', session: 1 };
 
 beforeEach(() => {
   vi.stubGlobal('AudioContext', FakeAudioContext);
@@ -91,7 +91,7 @@ describe('PreparedStreamAudio', () => {
     expect(activeStreamAudio.value).toEqual({ scope: 'app', app: 'Spotify', detail: 'app: pid 7' });
     await audio.stop();
     expect(activeStreamAudio.value).toBeNull();
-    expect(invoke).toHaveBeenLastCalledWith('stream_audio_stop');
+    expect(invoke).toHaveBeenLastCalledWith('stream_audio_stop', { session: 1 });
     expect(contexts[0].track.stopped).toBe(true);
     expect(contexts[0].closed).toBe(true);
     channels[0].onmessage(btoa('\u0001\u0000\u0001\u0000'));
