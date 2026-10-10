@@ -134,7 +134,7 @@ channel_mute_active	invoker	boolean	service_role	trigger	called by broadcast_unr
 channel_viewer_ids	definer	SETOF uuid	service_role	trigger	called by handle_new_message_unread
 channel_webhook_json	invoker	jsonb	service_role	client	called by create_channel_webhook, list_channel_webhooks, list_server_webhooks, +2
 check_and_increment_bot_rate_limit	definer	boolean	service_role	client	rpc in bot-gateway/src/auth/BotAuthMiddleware.ts
-check_bot_permission	invoker	boolean	anon+authenticated+service_role	client, trigger	rpc in bot-gateway/src/api/BotRestAPI.ts
+check_bot_permission	invoker	boolean	anon+authenticated+service_role	client, trigger	rpc in bot-gateway/src/api/BotRestAPI.ts, bot-gateway/src/gateway/EventDispatcher.ts
 check_category_limit	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.channel_categories BEFORE INSERT (enforce_category_limit)
 check_channel_limit	invoker	trigger	anon+authenticated+service_role	trigger	trigger public.channels BEFORE INSERT (enforce_channel_limit)
 check_emoji_reaction_limit	definer	trigger	service_role	trigger	trigger public.post_interactions BEFORE INSERT (trigger_check_emoji_reaction_limit)
@@ -422,7 +422,7 @@ handle_unified_notification_processing	definer	trigger	anon+authenticated+servic
 has_active_session	definer	boolean	service_role	client	rpc in federation-backend/src/services/PushNotificationService.ts
 has_blocked	definer	boolean	anon+authenticated+service_role	http anon	nothing references it
 has_muted	definer	boolean	service_role	service key	nothing references it
-has_permission	definer	boolean	anon+authenticated+service_role	client, policy, trigger	policy public.bot_server_permissions DELETE on bot_server_permissions_delete_manager, public.bot_server_permissions INSERT on bot_server_permissions_insert_manager, public.bot_server_permissions UPDATE on bot_server_permissions_update_manager, +36; rpc in federation-backend/src/activitypub/channelWriteAuthz.ts
+has_permission	definer	boolean	anon+authenticated+service_role	client, policy, trigger	policy public.bot_server_permissions DELETE on bot_server_permissions_delete_manager, public.bot_server_permissions INSERT on bot_server_permissions_insert_manager, public.bot_server_permissions UPDATE on bot_server_permissions_update_manager, +36; rpc in bot-gateway/src/gateway/EventDispatcher.ts, federation-backend/src/activitypub/channelWriteAuthz.ts
 hash_recovery_code	invoker	text	service_role	client	called by generate_mfa_recovery_codes, redeem_recovery_code_and_disable_mfa, save_recovery_codes, +1
 import_remote_emoji	definer	uuid	authenticated+service_role	client	rpc in src/components/admin/EmojiImporter.vue
 increment_unread_mentions	definer	trigger	service_role	trigger	trigger public.notifications AFTER INSERT (trigger_increment_unread_mentions)
