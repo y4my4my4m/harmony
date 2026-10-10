@@ -4008,5 +4008,34 @@
     "placeholder": "What is this thread about?",
     "submit": "Create",
     "failed": "Couldn't create the thread."
+  },
+  "serverTemplate": {
+    "exportTitle": "Server template",
+    "exportDescription": "Download this server's structure as a file: roles and their permissions, categories, channels and their permissions, settings, the welcome screen and AutoMod rules. Anyone can create a new server from it.",
+    "structureOnly": "Structure only: messages, members, emojis and images are not included.",
+    "exportButton": "Export template",
+    "exporting": "Exporting…",
+    "exported": "Template downloaded",
+    "exportFailed": "Couldn't export the template.",
+    "useTemplate": "Create from template",
+    "useTemplateHint": "Start from a .harmony-template.json file exported from another server.",
+    "chooseFile": "Choose file",
+    "fromTemplate": "From a template",
+    "fromTemplateNamed": "From the template of {name}",
+    "roles": "{count} role | {count} roles",
+    "categories": "{count} category | {count} categories",
+    "channels": "{count} channel | {count} channels",
+    "elevatedEveryone": "This template gives every member moderation or administration permissions. Review the roles after creating the server.",
+    "errors": {
+      "tooLarge": "The template file is larger than 2 MB.",
+      "notJson": "The file is not valid JSON.",
+      "notTemplate": "The file is not a Harmony server template.",
+      "unsupportedVersion": "This template version is not supported.",
+      "tooManyRoles": "The template has more than 250 roles.",
+      "tooManyCategories": "The template has more than 25 categories.",
+      "tooManyChannels": "The template has more than 100 channels.",
+      "invalid": "The template is not valid: {detail}",
+      "rejected": "The server refused this template: {detail}"
+    }
   }
 }

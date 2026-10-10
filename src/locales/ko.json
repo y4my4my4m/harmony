@@ -4012,5 +4012,34 @@
     "placeholder": "이 스레드의 주제는 무엇인가요?",
     "submit": "만들기",
     "failed": "스레드를 만들 수 없습니다."
+  },
+  "serverTemplate": {
+    "exportTitle": "서버 템플릿",
+    "exportDescription": "이 서버의 구조를 파일로 다운로드합니다: 역할과 권한, 카테고리, 채널과 권한, 설정, 환영 화면, AutoMod 규칙. 누구나 이 파일로 새 서버를 만들 수 있습니다.",
+    "structureOnly": "구조만 포함됩니다: 메시지, 멤버, 이모지, 이미지는 포함되지 않습니다.",
+    "exportButton": "템플릿 내보내기",
+    "exporting": "내보내는 중…",
+    "exported": "템플릿을 다운로드했습니다",
+    "exportFailed": "템플릿을 내보낼 수 없습니다.",
+    "useTemplate": "템플릿으로 만들기",
+    "useTemplateHint": "다른 서버에서 내보낸 .harmony-template.json 파일로 시작합니다.",
+    "chooseFile": "파일 선택",
+    "fromTemplate": "템플릿에서",
+    "fromTemplateNamed": "{name}의 템플릿에서",
+    "roles": "역할 {count}개",
+    "categories": "카테고리 {count}개",
+    "channels": "채널 {count}개",
+    "elevatedEveryone": "이 템플릿은 모든 멤버에게 관리 또는 운영 권한을 부여합니다. 서버를 만든 뒤 역할을 확인하세요.",
+    "errors": {
+      "tooLarge": "템플릿 파일이 2MB를 초과합니다.",
+      "notJson": "올바른 JSON 파일이 아닙니다.",
+      "notTemplate": "Harmony 서버 템플릿 파일이 아닙니다.",
+      "unsupportedVersion": "지원하지 않는 템플릿 버전입니다.",
+      "tooManyRoles": "템플릿의 역할이 250개를 초과합니다.",
+      "tooManyCategories": "템플릿의 카테고리가 25개를 초과합니다.",
+      "tooManyChannels": "템플릿의 채널이 100개를 초과합니다.",
+      "invalid": "템플릿이 올바르지 않습니다: {detail}",
+      "rejected": "서버가 이 템플릿을 거부했습니다: {detail}"
+    }
   }
 }

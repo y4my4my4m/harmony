@@ -4012,5 +4012,34 @@
     "placeholder": "De quoi parle ce fil ?",
     "submit": "Créer",
     "failed": "Impossible de créer le fil."
+  },
+  "serverTemplate": {
+    "exportTitle": "Modèle de serveur",
+    "exportDescription": "Téléchargez la structure de ce serveur sous forme de fichier : rôles et leurs permissions, catégories, canaux et leurs permissions, paramètres, écran d'accueil et règles AutoMod. N'importe qui peut en créer un nouveau serveur.",
+    "structureOnly": "Structure uniquement : les messages, membres, émojis et images ne sont pas inclus.",
+    "exportButton": "Exporter le modèle",
+    "exporting": "Exportation…",
+    "exported": "Modèle téléchargé",
+    "exportFailed": "Impossible d'exporter le modèle.",
+    "useTemplate": "Créer à partir d'un modèle",
+    "useTemplateHint": "Partez d'un fichier .harmony-template.json exporté d'un autre serveur.",
+    "chooseFile": "Choisir un fichier",
+    "fromTemplate": "À partir d'un modèle",
+    "fromTemplateNamed": "À partir du modèle de {name}",
+    "roles": "{count} rôle | {count} rôles",
+    "categories": "{count} catégorie | {count} catégories",
+    "channels": "{count} canal | {count} canaux",
+    "elevatedEveryone": "Ce modèle donne à chaque membre des permissions de modération ou d'administration. Vérifiez les rôles après avoir créé le serveur.",
+    "errors": {
+      "tooLarge": "Le fichier du modèle dépasse 2 Mo.",
+      "notJson": "Le fichier n'est pas un JSON valide.",
+      "notTemplate": "Le fichier n'est pas un modèle de serveur Harmony.",
+      "unsupportedVersion": "Cette version de modèle n'est pas prise en charge.",
+      "tooManyRoles": "Le modèle contient plus de 250 rôles.",
+      "tooManyCategories": "Le modèle contient plus de 25 catégories.",
+      "tooManyChannels": "Le modèle contient plus de 100 canaux.",
+      "invalid": "Le modèle n'est pas valide : {detail}",
+      "rejected": "Le serveur a refusé ce modèle : {detail}"
+    }
   }
 }

@@ -4012,5 +4012,34 @@
     "placeholder": "Worum geht es in diesem Thread?",
     "submit": "Erstellen",
     "failed": "Der Thread konnte nicht erstellt werden."
+  },
+  "serverTemplate": {
+    "exportTitle": "Servervorlage",
+    "exportDescription": "Lade die Struktur dieses Servers als Datei herunter: Rollen und ihre Berechtigungen, Kategorien, Kanäle und ihre Berechtigungen, Einstellungen, den Willkommensbildschirm und AutoMod-Regeln. Daraus kann jeder einen neuen Server erstellen.",
+    "structureOnly": "Nur die Struktur: Nachrichten, Mitglieder, Emojis und Bilder sind nicht enthalten.",
+    "exportButton": "Vorlage exportieren",
+    "exporting": "Wird exportiert…",
+    "exported": "Vorlage heruntergeladen",
+    "exportFailed": "Die Vorlage konnte nicht exportiert werden.",
+    "useTemplate": "Aus Vorlage erstellen",
+    "useTemplateHint": "Beginne mit einer .harmony-template.json-Datei, die aus einem anderen Server exportiert wurde.",
+    "chooseFile": "Datei wählen",
+    "fromTemplate": "Aus einer Vorlage",
+    "fromTemplateNamed": "Aus der Vorlage von {name}",
+    "roles": "{count} Rolle | {count} Rollen",
+    "categories": "{count} Kategorie | {count} Kategorien",
+    "channels": "{count} Kanal | {count} Kanäle",
+    "elevatedEveryone": "Mit dieser Vorlage erhält jedes Mitglied Moderations- oder Verwaltungsrechte. Prüfe die Rollen, nachdem du den Server erstellt hast.",
+    "errors": {
+      "tooLarge": "Die Vorlagendatei ist größer als 2 MB.",
+      "notJson": "Die Datei ist kein gültiges JSON.",
+      "notTemplate": "Die Datei ist keine Harmony-Servervorlage.",
+      "unsupportedVersion": "Diese Vorlagenversion wird nicht unterstützt.",
+      "tooManyRoles": "Die Vorlage hat mehr als 250 Rollen.",
+      "tooManyCategories": "Die Vorlage hat mehr als 25 Kategorien.",
+      "tooManyChannels": "Die Vorlage hat mehr als 100 Kanäle.",
+      "invalid": "Die Vorlage ist ungültig: {detail}",
+      "rejected": "Der Server hat diese Vorlage abgelehnt: {detail}"
+    }
   }
 }

@@ -10,8 +10,10 @@ import { statePersistence } from '@/services/StatePersistence';
 import { userEventChannel } from '@/services/UserEventChannel';
 import { authContextService } from '@/services/AuthContextService';
 import { SERVER_BOT_CHANGE_EVENT } from '@/services/serverBotsService';
+import { createServerFromTemplate as createServerFromTemplateRpc } from '@/services/serverTemplateService';
 import { debug } from '@/utils/debug';
 import { pickServerSettings } from '@/utils/serverSettings';
+import type { ServerTemplate } from '@/utils/serverTemplate';
 import type { RailPlan } from '@/components/serverRail/railModel';
 import { i18n } from '@/i18n';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -1202,6 +1204,27 @@ export const useServerChannelStore = defineStore('serverChannel', {
 
       // Added before the membership's realtime event arrives, so the realtime
       // handler (_handleUserServerJoin) sees it and skips the duplicate push.
+      if (!this.servers.some(s => s.id === data.id)) {
+        this.servers.push(data)
+      }
+
+      return data
+    },
+
+    /** create_server_from_template, then the new row into the list as createServer adds it. */
+    async createServerFromTemplate(name: string, template: ServerTemplate): Promise<Server> {
+      const serverId = await createServerFromTemplateRpc(name, template)
+
+      const { data, error } = await supabase
+        .from('servers')
+        .select('*')
+        .eq('id', serverId)
+        .single()
+
+      if (error) {
+        throw new Error(`Server created but could not be loaded: ${error.message}`)
+      }
+
       if (!this.servers.some(s => s.id === data.id)) {
         this.servers.push(data)
       }
