@@ -156,7 +156,7 @@ const serverData = computed(() => {
     icon_url: info.value.icon ? getServerIconUrl(info.value.icon, devicePixels(72)) : undefined,
     description: info.value.description ?? undefined,
     member_count: info.value.memberCount,
-    online_count: undefined as number | undefined,
+    online_count: info.value.onlineCount ?? undefined,
     server_id: info.value.serverId,
   };
 });

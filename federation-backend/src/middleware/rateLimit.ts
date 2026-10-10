@@ -330,6 +330,14 @@ export const accountMigrationLimiter = createRateLimiter({
   },
 });
 
+// Invite link previews. Bounds code guessing from one address.
+export const invitePageLimiter = createRateLimiter({
+  name: 'invite-page',
+  windowMs: 60 * 1000,
+  maxRequests: 120,
+  message: 'Too many invite preview requests, please try again later.',
+});
+
 export const discoveryLimiter = createRateLimiter({
   name: 'discovery',
   windowMs: 60 * 1000,
