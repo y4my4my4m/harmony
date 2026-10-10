@@ -32,7 +32,7 @@ vi.mock('../../auth/BotAuthMiddleware.js', () => ({
   botRateLimit: (_req: any, _res: any, next: any) => next(),
 }))
 
-import { BotRestAPI, botSuppliedMetadata, reactionMetadata } from '../BotRestAPI.js'
+import { BotRestAPI, botContentParts, botSuppliedMetadata, claimsBridgeAuthor, reactionMetadata } from '../BotRestAPI.js'
 
 type Result = { data: unknown; error: unknown }
 
@@ -280,15 +280,45 @@ describe('PATCH /messages/:id/metadata', () => {
 })
 
 describe('botSuppliedMetadata', () => {
-  it('drops server-only keys and keeps bridge keys', () => {
-    expect(botSuppliedMetadata({ discord_user: { id: '1' }, embeds: {}, federated: true, created_via: 'x' }))
-      .toEqual({ discord_user: { id: '1' }, embeds: {} })
+  // embeds holds link-preview payloads embed parts render; webhook names a webhook author.
+  it('drops server-only keys, link previews and webhook authorship among them', () => {
+    expect(botSuppliedMetadata({
+      discord_message_id: '1', embeds: { 'https://x.test': { provider: 'generic' } }, suppress_embeds: true,
+      webhook: { name: 'CI' }, federated: true, created_via: 'x',
+    })).toEqual({ discord_message_id: '1' })
+  })
+
+  it('keeps the relayed author only for a relaying bridge', () => {
+    const metadata = { discord_user: { id: '1', username: 'alice' }, bridge_source: 'discord', discord_message_id: '2' }
+    expect(botSuppliedMetadata(metadata)).toEqual({ discord_message_id: '2' })
+    expect(botSuppliedMetadata(metadata, { bridgeAuthor: true })).toEqual(metadata)
+    expect(claimsBridgeAuthor(metadata)).toBe(true)
+    expect(claimsBridgeAuthor({ discord_message_id: '2' })).toBe(false)
   })
 
   it('reads anything but a plain object as empty', () => {
     expect(botSuppliedMetadata(null)).toEqual({})
     expect(botSuppliedMetadata(['ap_id'])).toEqual({})
     expect(botSuppliedMetadata('x')).toEqual({})
+  })
+})
+
+describe('botContentParts', () => {
+  it('drops system parts and malformed embeds and keeps an embed part\'s own fields', () => {
+    const system = { type: 'system', event_type: 'join', user: { id: 'u', username: 'admin', display_name: 'Admin' } }
+    expect(botContentParts([
+      { type: 'text', text: 'hi' },
+      system,
+      { type: 'embed', url: 'https://x.test/a', provider: 'generic', previewId: 'https://x.test/a', collapsed: true, html: '<iframe>' },
+      { type: 'embed', url: 'javascript:alert(1)', provider: 'generic', previewId: 'p' },
+      { type: 'embed', url: 'https://x.test/b', provider: 'evil', previewId: 'p' },
+      { type: 'embed', title: 'Discord-style', description: 'no url' },
+      { type: 'url', url: 'https://x.test/c', preview: true },
+    ])).toEqual([
+      { type: 'text', text: 'hi' },
+      { type: 'embed', url: 'https://x.test/a', provider: 'generic', previewId: 'https://x.test/a', collapsed: true },
+      { type: 'url', url: 'https://x.test/c', preview: true },
+    ])
   })
 })
 
