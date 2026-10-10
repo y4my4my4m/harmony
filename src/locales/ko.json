@@ -583,6 +583,7 @@
     "streamAudioQuality": "스트림 오디오",
     "shareYourScreen": "화면 공유",
     "goLive": "라이브 시작",
+    "changeSource": "소스 변경",
     "stopStreaming": "스트리밍 중지",
     "streamAudioHint": "소리를 포함하려면 브라우저 선택 창에서 오디오 공유를 켜세요.",
     "shareStreamAudio": "오디오 공유",

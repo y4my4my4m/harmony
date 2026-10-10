@@ -583,6 +583,7 @@
     "streamAudioQuality": "Audio de la transmisión",
     "shareYourScreen": "Comparte tu pantalla",
     "goLive": "Transmitir en directo",
+    "changeSource": "Cambiar fuente",
     "stopStreaming": "Detener transmisión",
     "streamAudioHint": "Para incluir sonido, activa compartir audio en el selector del navegador.",
     "shareStreamAudio": "Compartir audio",

@@ -105,6 +105,11 @@ export interface StreamAudioSource {
 
 export interface NativeStreamAudio extends StreamAudioSource {
   track: MediaStreamTrack;
+  /**
+   * Captures another surface into the same track. scope, app and detail follow. On failure
+   * no capture runs; the caller stops this one.
+   */
+  retarget(surface: SharedSurface): Promise<void>;
   stop(): Promise<void>;
 }
 
@@ -168,24 +173,48 @@ export class PreparedStreamAudio {
       const destination = context.createMediaStreamDestination();
       destination.channelCount = 2;
       workletNode.connect(destination);
-      const audioChannel = new Channel<string>();
-      channel = audioChannel;
-      audioChannel.onmessage = (block) => {
+      const feed = (block: string) => {
         if (!open) return;
         const buffer = base64ToBuffer(block);
         workletNode.port.postMessage(buffer, [buffer]);
       };
+      // A Channel serves one command call: its message indexes start at 0 per Rust Channel,
+      // and the previous one's end unregisters the callback. A retarget opens another.
+      let audioChannel = new Channel<string>();
+      channel = audioChannel;
+      audioChannel.onmessage = feed;
       traceStreamAudio('native start', { ...surface, context: context.state });
       const started = await invoke<Started>('stream_audio_start', { surface, onAudio: audioChannel });
       if (context.state !== 'running') resumeOnNextGesture(context);
       const track = destination.stream.getAudioTracks()[0];
       debug.log('[StreamAudio] native capture started', { ...started, surface, context: context.state });
       traceStreamAudio('native started', { scope: started.scope, app: started.app, context: context.state });
-      const source: StreamAudioSource = { scope: started.scope, app: started.app, detail: started.detail };
+      let source: StreamAudioSource = { scope: started.scope, app: started.app, detail: started.detail };
       activeStreamAudio.value = source;
-      return {
+      const handle: NativeStreamAudio = {
         ...source,
         track,
+        retarget: async (next) => {
+          if (!open) throw new StreamAudioError('failed', 'stopped');
+          const nextChannel = new Channel<string>();
+          nextChannel.onmessage = feed;
+          audioChannel.onmessage = () => {};
+          traceStreamAudio('native retarget', { ...next });
+          try {
+            const restarted = await invoke<Started>('stream_audio_start', { surface: next, onAudio: nextChannel });
+            audioChannel = nextChannel;
+            source = { scope: restarted.scope, app: restarted.app, detail: restarted.detail };
+            Object.assign(handle, source);
+            activeStreamAudio.value = source;
+            traceStreamAudio('native retargeted', { scope: restarted.scope, app: restarted.app });
+          } catch (error) {
+            nextChannel.onmessage = () => {};
+            if (activeStreamAudio.value === source) activeStreamAudio.value = null;
+            const failure = StreamAudioError.from(error);
+            traceStreamAudio('native retarget failed', { kind: failure.kind, message: failure.message });
+            throw failure;
+          }
+        },
         stop: async () => {
           if (!open) return;
           open = false;
@@ -197,6 +226,7 @@ export class PreparedStreamAudio {
           await context.close().catch(() => {});
         },
       };
+      return handle;
     } catch (error) {
       open = false;
       if (channel) channel.onmessage = () => {};

@@ -583,6 +583,7 @@
     "streamAudioQuality": "直播音频",
     "shareYourScreen": "共享您的屏幕",
     "goLive": "开始直播",
+    "changeSource": "更换来源",
     "stopStreaming": "停止直播",
     "streamAudioHint": "如需包含声音，请在浏览器的选择窗口中开启音频共享。",
     "shareStreamAudio": "共享音频",

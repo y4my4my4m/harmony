@@ -33,6 +33,7 @@ function mountPicker(shareAudio: boolean, live = false) {
     loadStreamSettings: vi.fn(),
     updateStreamQuality: vi.fn(async () => {}),
     toggleScreenShare: vi.fn(async () => true),
+    switchScreenShare: vi.fn(async () => true),
   })
   wrapper = mount(StreamQualityPicker, {
     props: { visible: true, anchor: { left: 10, top: 10, width: 10, height: 10 } },
@@ -89,5 +90,16 @@ describe('StreamQualityPicker share audio', () => {
     const toggle = panel().querySelector('.sqp-audio-toggle [role="switch"]') as HTMLElement
     expect(toggle.getAttribute('aria-checked')).toBe('false')
     expect(panel().textContent).not.toContain('voice.streamAudioNativeHint')
+  })
+
+  it('live: Change source switches the share instead of stopping it', async () => {
+    mountPicker(true, true)
+    await flushPromises()
+    const buttons = Array.from(panel().querySelectorAll('footer button')) as HTMLButtonElement[]
+    expect(buttons.map(b => b.textContent?.trim())).toEqual(['voice.changeSource', 'voice.stopStreaming'])
+    buttons[0].click()
+    await flushPromises()
+    expect(h.store.switchScreenShare).toHaveBeenCalledTimes(1)
+    expect(h.store.toggleScreenShare).not.toHaveBeenCalled()
   })
 })

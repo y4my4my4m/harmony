@@ -127,6 +127,30 @@ describe('PreparedStreamAudio', () => {
     expect(held.resumes).toBe(resumes + 1);
   });
 
+  it('retarget restarts capture on a new channel into the same track', async () => {
+    invoke.mockResolvedValueOnce(STARTED).mockResolvedValueOnce({ ...STARTED, scope: 'system', app: null, detail: 'system' });
+    const audio = await new PreparedStreamAudio().start({ label: 'VLC', displaySurface: 'window' });
+    await audio.retarget({ label: 'screen:0:0', displaySurface: 'monitor' });
+
+    expect(invoke).toHaveBeenLastCalledWith('stream_audio_start', {
+      surface: { label: 'screen:0:0', displaySurface: 'monitor' },
+      onAudio: channels[1],
+    });
+    expect(audio).toMatchObject({ scope: 'system', app: null, track: contexts[0].track });
+    expect(activeStreamAudio.value).toEqual({ scope: 'system', app: null, detail: 'system' });
+    channels[0].onmessage(btoa('\u0001\u0000\u0001\u0000'));
+    channels[1].onmessage(btoa(String.fromCharCode(1, 0, 0xfe, 0xff)));
+    expect(posted.map(b => Array.from(new Int16Array(b as ArrayBuffer)))).toEqual([[1, -2]]);
+  });
+
+  it('a failed retarget reports its kind and leaves no active source', async () => {
+    invoke.mockResolvedValueOnce(STARTED).mockRejectedValueOnce('permission: declined');
+    const audio = await new PreparedStreamAudio().start({ label: 'VLC', displaySurface: 'window' });
+    const error = await audio.retarget({ label: 'screen:0:0', displaySurface: 'monitor' }).catch(e => e);
+    expect(error).toMatchObject({ kind: 'permission' });
+    expect(activeStreamAudio.value).toBeNull();
+  });
+
   it('dispose releases a context that never started', () => {
     new PreparedStreamAudio().dispose();
     expect(contexts[0].closed).toBe(true);

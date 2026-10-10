@@ -583,6 +583,7 @@
     "streamAudioQuality": "Stream-Audio",
     "shareYourScreen": "Bildschirm teilen",
     "goLive": "Live gehen",
+    "changeSource": "Quelle wechseln",
     "stopStreaming": "Streaming beenden",
     "streamAudioHint": "Um Ton einzuschließen, aktiviere die Audiofreigabe in der Auswahl des Browsers.",
     "shareStreamAudio": "Ton teilen",

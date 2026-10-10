@@ -49,6 +49,16 @@
         <button
           v-if="isLive"
           type="button"
+          class="sqp-btn secondary"
+          :disabled="starting"
+          @click="switchSource"
+        >
+          <Icon name="refresh-cw" :size="16" />
+          <span>{{ t('voice.changeSource') }}</span>
+        </button>
+        <button
+          v-if="isLive"
+          type="button"
           class="sqp-btn danger"
           @click="stop"
         >
@@ -128,6 +138,18 @@ async function goLive(): Promise<void> {
   close();
   try {
     await voiceStore.toggleScreenShare();
+  } finally {
+    starting.value = false;
+  }
+}
+
+// The click is the picker's user activation, as for goLive.
+async function switchSource(): Promise<void> {
+  if (starting.value) return;
+  starting.value = true;
+  close();
+  try {
+    await voiceStore.switchScreenShare();
   } finally {
     starting.value = false;
   }
@@ -281,6 +303,7 @@ onBeforeUnmount(() => {
 .sqp-footer {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
 }
 
 .sqp-btn {
@@ -314,6 +337,20 @@ onBeforeUnmount(() => {
 }
 
 .sqp-btn.primary:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.sqp-btn.secondary {
+  background: var(--background-secondary);
+  color: var(--text-primary);
+}
+
+.sqp-btn.secondary:hover {
+  background: var(--background-modifier-hover);
+}
+
+.sqp-btn.secondary:disabled {
   opacity: 0.6;
   cursor: progress;
 }

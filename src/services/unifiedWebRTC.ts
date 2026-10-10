@@ -742,6 +742,86 @@ export class UnifiedWebRTCService {
     }
   }
 
+  /**
+   * Shares a different surface without ending the share: a new picker, then each peer's
+   * screen senders swap tracks in place. The screen MediaStream, whose id receivers match
+   * against screenStreamId, keeps its identity. A dismissed picker keeps the current share.
+   */
+  async switchScreenShare(): Promise<boolean> {
+    const screen = this.localScreenStream;
+    if (!this.localMediaState.isScreenSharing || !screen) return false;
+    const constraints = this.getVideoConstraints();
+    let picked: MediaStream;
+    try {
+      picked = await navigator.mediaDevices.getDisplayMedia({
+        video: { width: constraints.width, height: constraints.height, frameRate: constraints.frameRate },
+        audio: true,
+      });
+    } catch (error) {
+      debug.log('Screen share switch cancelled:', error);
+      return false;
+    }
+    const video = picked.getVideoTracks()[0];
+    const audio = picked.getAudioTracks()[0];
+    if (!video || this.localScreenStream !== screen) {
+      picked.getTracks().forEach(track => track.stop());
+      return false;
+    }
+    const oldVideo = screen.getVideoTracks()[0];
+    const oldAudio = screen.getAudioTracks()[0];
+
+    for (const [userId, conn] of this.connections) {
+      try {
+        let renegotiate = false;
+        for (const sender of conn.peerConnection.getSenders()) {
+          if (oldVideo && sender.track === oldVideo) {
+            await sender.replaceTrack(video);
+          } else if (oldAudio && sender.track === oldAudio) {
+            if (audio) {
+              await sender.replaceTrack(audio);
+            } else {
+              conn.peerConnection.removeTrack(sender);
+              renegotiate = true;
+            }
+          }
+        }
+        if (audio && !oldAudio) {
+          conn.peerConnection.addTrack(audio, screen);
+          renegotiate = true;
+        }
+        if (renegotiate) await this.renegotiateWithPeer(userId, conn);
+      } catch (error) {
+        debug.error('Error switching screen share for peer', userId, ':', error);
+      }
+    }
+
+    for (const track of [oldVideo, oldAudio]) {
+      if (!track) continue;
+      track.onended = null;
+      screen.removeTrack(track);
+      track.stop();
+    }
+    screen.addTrack(video);
+    if (audio) screen.addTrack(audio);
+    this.screenShareVideoTrackId = video.id;
+    this.screenShareAudioTrackId = audio?.id ?? null;
+    video.onended = () => {
+      debug.log('Screen video track ended');
+      if (this.localMediaState.isScreenSharing) {
+        this.toggleScreenShare();
+      }
+    };
+    if (audio) {
+      audio.onended = () => {
+        debug.log('Screen audio track ended');
+        this.screenShareAudioTrackId = null;
+      };
+    }
+    debug.log('Screen share switched:', { video: video.id, audio: audio?.id ?? null });
+    this.emit('local-state-changed', this.localMediaState);
+    return true;
+  }
+
   // mic track transmits only when unmuted AND (voice activity mode OR PTT held)
   private isMicGated(): boolean {
     return this.localMediaState.isMuted || !this.pttGateOpen;

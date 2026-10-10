@@ -592,6 +592,7 @@
     "streamAudioQuality": "Stream audio",
     "shareYourScreen": "Share your screen",
     "goLive": "Go live",
+    "changeSource": "Change source",
     "stopStreaming": "Stop streaming",
     "streamAudioHint": "To include sound, turn on audio sharing in the browser picker.",
     "shareStreamAudio": "Share audio",

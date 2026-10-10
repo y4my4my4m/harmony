@@ -1093,6 +1093,15 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       return enabled;
     },
 
+    /** Shares a different window or screen without ending the stream. */
+    async switchScreenShare(): Promise<boolean> {
+      const switched = await webrtcManager.switchScreenShare();
+      this.localState = webrtcManager.getLocalState();
+      this.localStream = webrtcManager.getLocalStream();
+      this.refreshStreamState();
+      return switched;
+    },
+
     /**
      * Toggles explicit mute. In PTT mode unmuting only re-arms the key; the
      * transmit gate stays closed until the key is held.

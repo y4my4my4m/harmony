@@ -30,6 +30,8 @@ export interface WebRTCManager {
   // Media controls
   toggleVideo(): Promise<boolean>;
   toggleScreenShare(): Promise<boolean>;
+  /** Shares a different surface without ending the share; false when nothing changed. */
+  switchScreenShare(): Promise<boolean>;
   toggleMute(): boolean;
   toggleDeafen(): boolean;
   setTransmitGate(open: boolean): void;
@@ -343,6 +345,15 @@ class WebRTCManagerService implements WebRTCManager {
       return livekitWebRTC.toggleScreenShare();
     } else if (this.activeService === 'p2p') {
       return unifiedWebRTC.toggleScreenShare();
+    }
+    return false;
+  }
+
+  async switchScreenShare(): Promise<boolean> {
+    if (this.activeService === 'livekit') {
+      return livekitWebRTC.switchScreenShare();
+    } else if (this.activeService === 'p2p') {
+      return unifiedWebRTC.switchScreenShare();
     }
     return false;
   }
