@@ -6,6 +6,8 @@ import { renderPostPage, renderOEmbed } from './postPageRenderer.js';
 import config from '../config/index.js';
 import { isPublicView, loadGroupAccess, readableChannelIds, verifiedSigner } from './groupAccess.js';
 import { PRIVATE_CACHE, PUBLIC_VISIBILITIES, canReadConversation, canReadPost } from './postAccess.js';
+import { inviteCodeFromUrl, loadInvitePreview } from '../services/invitePreview.js';
+import { renderInviteOEmbed } from '../services/invitePageRenderer.js';
 
 const router = Router();
 
@@ -268,8 +270,9 @@ router.get(
 );
 
 /**
- * oEmbed endpoint - allows platforms to embed Harmony posts.
+ * oEmbed endpoint - allows platforms to embed Harmony posts and server invites.
  * GET /oembed?url=https://domain/posts/:id&format=json
+ * GET /oembed?url=https://domain/invite/:code&format=json
  */
 router.get(
   '/oembed',
@@ -277,6 +280,22 @@ router.get(
     const url = req.query.url as string;
     if (!url) {
       return res.status(400).json({ error: 'Missing url parameter' });
+    }
+
+    const inviteCode = inviteCodeFromUrl(url);
+    if (inviteCode) {
+      const invite = await loadInvitePreview(inviteCode);
+      if (invite.status === 'unavailable') {
+        res.setHeader('Retry-After', '30');
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(503).json({ error: 'Invite preview unavailable' });
+      }
+      if (invite.status !== 'valid') {
+        return res.status(404).json({ error: 'Invite not found' });
+      }
+      res.setHeader('Content-Type', 'application/json+oembed');
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      return res.json(renderInviteOEmbed(invite.preview));
     }
 
     const postIdMatch = url.match(/\/posts\/([0-9a-f-]+)/);

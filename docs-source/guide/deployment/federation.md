@@ -59,6 +59,7 @@ The backend expects these paths on the public domain. `self-host/Caddyfile` and 
 | `/users/{name}` with `Accept: application/activity+json`, `ld+json` or `json` | unchanged; browsers are redirected to `/social/profile/{name}` |
 | `/servers/*` | unchanged (servers as ActivityPub Groups) |
 | `/posts/{id}`, `/posts/{id}/likes`, `/posts/{id}/replies` | unchanged; `/posts/{id}` answers browsers with an HTML page |
+| `/invite/{code}` with a link-preview crawler's `User-Agent` (Discordbot, Slackbot, facebookexternalhit, Mastodon, ...) | unchanged; an HTML card with OpenGraph tags. Any other client gets the app |
 | `/health*`, `/link-preview*` | unchanged |
 | `/api/livekit/*` | unchanged |
 | `/webhooks/*` | unchanged (Ko-fi, Stripe); bodies up to 64 KB |
