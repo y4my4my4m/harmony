@@ -11,7 +11,7 @@
 #   logs    compose logs
 #
 # E2E_PROJECT and E2E_PORT name the compose project and gateway port, so stacks of separate
-# checkouts run side by side.
+# checkouts run side by side. E2E_SUBNET, when set, is the compose network's subnet.
 #
 # Schema build mirrors scripts/run-db-tests.sh: scripts/test-db/supabase-compat.sql
 # as supabase_admin, then init/init.sql as postgres. Added here: role passwords and
@@ -42,6 +42,9 @@ die()  { err "$*"; exit 1; }
 
 compose() {
   local args=(-p "$PROJECT" -f "$COMPOSE_FILE")
+  # E2E_SUBNET pins the network's subnet; Docker's default address pools run out on a
+  # host with many networks.
+  [ -n "${E2E_SUBNET:-}" ] && args+=(-f "$E2E/docker-compose.subnet.yml")
   [ -f "$ENV_FILE" ] && args+=(--env-file "$ENV_FILE")
   docker compose "${args[@]}" "$@"
 }
