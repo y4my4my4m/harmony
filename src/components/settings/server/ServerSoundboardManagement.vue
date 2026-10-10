@@ -5,6 +5,22 @@
       <p class="section-description">{{ t('soundboard.settings.description') }}</p>
     </div>
 
+    <div class="settings-card">
+      <div class="sharing-row">
+        <div class="sharing-text">
+          <h3 :id="`${uid}-sharing`">{{ t('soundboard.settings.shareTitle') }}</h3>
+          <p class="card-hint">{{ t('soundboard.settings.shareHint') }}</p>
+        </div>
+        <ToggleSwitch
+          :model-value="shared"
+          :disabled="!canManage || sharingBusy"
+          :aria-labelledby="`${uid}-sharing`"
+          data-testid="soundboard-share-toggle"
+          @update:model-value="setSharing"
+        />
+      </div>
+    </div>
+
     <div v-if="canManage" class="settings-card" data-testid="soundboard-upload">
       <div class="card-header">
         <h3>{{ t('soundboard.settings.addSound') }}</h3>
@@ -201,6 +217,7 @@ import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useSoundboardStore } from '@/stores/soundboard'
 import { soundboardPlayer } from '@/services/soundboard/player'
@@ -209,7 +226,9 @@ import {
   checkSoundFile,
   createServerSound,
   deleteServerSound,
+  getServerSoundSharing,
   listServerSounds,
+  setServerSoundSharing,
   soundboardErrorKey,
   updateServerSound,
   type CheckedSoundFile,
@@ -237,6 +256,9 @@ const uploading = ref(false)
 const saving = ref(false)
 const fileError = ref('')
 const fileInputRef = ref<HTMLInputElement | null>(null)
+/** server_settings.allow_cross_server_sounds. */
+const shared = ref(true)
+const sharingBusy = ref(false)
 
 const draft = reactive({
   file: null as File | null,
@@ -277,6 +299,31 @@ async function load(): Promise<void> {
     loadError.value = true
   } finally {
     loading.value = false
+  }
+}
+
+async function loadSharing(): Promise<void> {
+  const serverId = props.serverId
+  try {
+    const value = await getServerSoundSharing(serverId)
+    if (serverId === props.serverId) shared.value = value
+  } catch {
+    shared.value = true
+  }
+}
+
+async function setSharing(value: boolean): Promise<void> {
+  if (sharingBusy.value) return
+  const previous = shared.value
+  shared.value = value
+  sharingBusy.value = true
+  try {
+    shared.value = await setServerSoundSharing(props.serverId, value)
+  } catch (error) {
+    shared.value = previous
+    toast.error(errorText(error))
+  } finally {
+    sharingBusy.value = false
   }
 }
 
@@ -412,7 +459,9 @@ async function remove(sound: SoundboardSound): Promise<void> {
 watch(() => props.serverId, () => {
   clearDraft()
   editing.value = null
+  shared.value = true
   void load()
+  void loadSharing()
 }, { immediate: true })
 
 onBeforeUnmount(() => {
@@ -470,6 +519,28 @@ onBeforeUnmount(() => {
   margin: 0 0 12px;
   font-size: 13px;
   color: var(--text-secondary);
+}
+
+.sharing-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sharing-text {
+  min-width: 0;
+}
+
+.sharing-text h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.sharing-text .card-hint {
+  margin: 0;
 }
 
 .counter {

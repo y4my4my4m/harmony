@@ -42,7 +42,7 @@ const LABELLED_FIELDS = new Set([
   'system_messages_enabled', 'default_role', 'system_channel', 'read_messages', 'send_messages',
   'manage_messages', 'embed_links', 'attach_files', 'mention_everyone', 'add_reactions',
   'manage_channels', 'kick_members', 'ban_members', 'manage_roles', 'allowed_channel_ids',
-  'max_uses', 'expires_at', 'temporary', 'emoji', 'volume',
+  'max_uses', 'expires_at', 'temporary', 'emoji', 'volume', 'allow_cross_server_sounds',
 ])
 
 /** Shown in the sentence itself, or a channel type number with no user-facing meaning. */

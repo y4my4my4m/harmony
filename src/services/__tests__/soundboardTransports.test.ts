@@ -29,10 +29,17 @@ describe('LiveKit soundboard data', () => {
     return { svc, events, receive: (payload: Uint8Array, participant?: unknown) => (svc as any).handleSoundboardData(payload, participant) };
   }
 
-  it('reports a play with the sender resolved to a profile and the token grant', () => {
+  it('reports a play with the sender resolved to a profile and the token grants', () => {
     const { events, receive } = service();
     receive(encode(play), { identity: 'federated:https://harmony.test/users/bob', metadata: JSON.stringify({ soundboard: false }) });
-    expect(events).toEqual([{ userId: BOB, message: play, granted: false }]);
+    receive(encode(play), {
+      identity: 'federated:https://harmony.test/users/bob',
+      metadata: JSON.stringify({ soundboard: true, soundboardExternal: false }),
+    });
+    expect(events).toEqual([
+      { userId: BOB, message: play, granted: false, externalGranted: null },
+      { userId: BOB, message: play, granted: true, externalGranted: false },
+    ]);
   });
 
   it('drops data from an unresolved participant, without a sender, oversized or unparseable', () => {
@@ -66,7 +73,7 @@ describe('P2P soundboard broadcasts', () => {
   it('reports a play from a participant of the room', () => {
     const { events, receive } = service();
     receive({ from: BOB, message: play });
-    expect(events).toEqual([{ userId: BOB, message: play, granted: null }]);
+    expect(events).toEqual([{ userId: BOB, message: play, granted: null, externalGranted: null }]);
   });
 
   it('drops plays from itself, strangers and malformed envelopes', () => {

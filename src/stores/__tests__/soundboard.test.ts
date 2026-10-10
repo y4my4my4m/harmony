@@ -7,6 +7,8 @@ const CHANNEL = '66666666-0000-0000-0000-000000000006'
 const ME = '11111111-0000-0000-0000-000000000001'
 const BOB = '22222222-0000-0000-0000-000000000002'
 const SOUND = 'b1160000-0000-0000-0000-000000000001'
+const OTHER = '77777777-0000-0000-0000-000000000007'
+const CLAP = 'b1260000-0000-0000-0000-000000000002'
 
 const voice = vi.hoisted(() => ({ state: null as any }))
 const webrtc = vi.hoisted(() => ({ sendSoundboard: vi.fn() }))
@@ -15,11 +17,17 @@ const settings = vi.hoisted(() => ({ soundboardVolume: 100, soundboardMuted: fal
 const mixer = vi.hoisted(() => ({ master: 100, muted: new Set<string>() }))
 const perms = vi.hoisted(() => ({ value: {} as Record<string, boolean> }))
 const listSounds = vi.hoisted(() => vi.fn())
+const listLibrary = vi.hoisted(() => vi.fn())
+const resolveSound = vi.hoisted(() => vi.fn())
+const getPerms = vi.hoisted(() => vi.fn())
 
 vi.mock('@/services/webrtcManager', () => ({ webrtcManager: webrtc }))
 vi.mock('@/services/RoleService', () => ({
-  Permission: { ADMINISTRATOR: 'ADMINISTRATOR', USE_SOUNDBOARD: 'USE_SOUNDBOARD', SPEAK: 'SPEAK' },
-  roleService: { getUserPermissions: vi.fn(async () => perms.value) },
+  Permission: {
+    ADMINISTRATOR: 'ADMINISTRATOR', USE_SOUNDBOARD: 'USE_SOUNDBOARD', SPEAK: 'SPEAK',
+    USE_EXTERNAL_SOUNDS: 'USE_EXTERNAL_SOUNDS',
+  },
+  roleService: { getUserPermissions: getPerms },
 }))
 vi.mock('@/services/VoiceSettingsService', () => ({
   VoiceSettingsService: { getAll: () => ({ ...settings }) },
@@ -38,6 +46,8 @@ vi.mock('@/services/soundboard/player', async (importOriginal) => ({
 vi.mock('@/services/soundboard/sounds', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/services/soundboard/sounds')>()),
   listServerSounds: listSounds,
+  listSoundboardLibrary: listLibrary,
+  resolveSoundboardSound: resolveSound,
 }))
 vi.mock('@/stores/unifiedVoiceChannel', () => ({ useUnifiedVoiceChannelStore: () => voice.state }))
 vi.mock('@/supabase', () => ({ supabase: {} }))
@@ -50,10 +60,23 @@ const horn = {
   url: 'https://cdn.test/horn.ogg', storagePath: `${SERVER}/horn.ogg`,
 }
 
+const clap = {
+  id: CLAP, serverId: OTHER, name: 'Clap', emoji: '👏', volume: 0.6, durationMs: 1500,
+  url: 'https://cdn.test/clap.ogg', storagePath: `${OTHER}/clap.ogg`,
+}
+
 const fromBob = (soundId = SOUND, overrides: Record<string, unknown> = {}) => ({
   userId: BOB,
   message: buildSoundboardMessage(soundId, SERVER, BOB),
   granted: null,
+  ...overrides,
+})
+
+const externalFromBob = (overrides: Record<string, unknown> = {}) => ({
+  userId: BOB,
+  message: buildSoundboardMessage(CLAP, SERVER, BOB, OTHER),
+  granted: true,
+  externalGranted: true,
   ...overrides,
 })
 
@@ -75,8 +98,14 @@ beforeEach(() => {
   mixer.master = 100
   mixer.muted.clear()
   perms.value = { USE_SOUNDBOARD: true, SPEAK: true }
+  getPerms.mockReset()
+  getPerms.mockImplementation(async () => perms.value)
   listSounds.mockReset()
   listSounds.mockResolvedValue([horn])
+  listLibrary.mockReset()
+  listLibrary.mockResolvedValue([])
+  resolveSound.mockReset()
+  resolveSound.mockResolvedValue(clap)
   // The receive limiter outlives a store instance.
   useSoundboardStore().leaveCall()
   player.stopAll.mockReset()
@@ -111,6 +140,29 @@ describe('refreshPermission', () => {
     perms.value = { ADMINISTRATOR: true }
     await expect(store.refreshPermission()).resolves.toBe(true)
   })
+
+  it('grants external sounds with USE_EXTERNAL_SOUNDS on top of the soundboard', async () => {
+    const store = useSoundboardStore()
+    await store.refreshPermission()
+    expect(store.externalPermitted).toBe(false)
+    perms.value = { USE_SOUNDBOARD: true, SPEAK: true, USE_EXTERNAL_SOUNDS: true }
+    await store.refreshPermission()
+    expect(store.externalPermitted).toBe(true)
+    perms.value = { USE_SOUNDBOARD: false, SPEAK: true, USE_EXTERNAL_SOUNDS: true }
+    await store.refreshPermission()
+    expect(store.externalPermitted).toBe(false)
+  })
+})
+
+describe('loadLibrary', () => {
+  it('keeps the caller\'s sharing servers, and the last list when the request fails', async () => {
+    const library = [{ id: OTHER, name: 'Echo', icon: null, sounds: [clap] }]
+    listLibrary.mockResolvedValueOnce(library)
+    const store = useSoundboardStore()
+    await expect(store.loadLibrary()).resolves.toEqual(library)
+    listLibrary.mockRejectedValueOnce(new Error('offline'))
+    await expect(store.loadLibrary()).resolves.toEqual(library)
+  })
 })
 
 describe('play', () => {
@@ -144,8 +196,27 @@ describe('play', () => {
     voice.state.localState.isDeafened = true
     expect(store.play(horn)).toBe(false)
     voice.state.localState.isDeafened = false
-    expect(store.play({ ...horn, serverId: '77777777-0000-0000-0000-000000000007' })).toBe(false)
+    expect(store.play(clap)).toBe(false)
     expect(webrtc.sendSoundboard).not.toHaveBeenCalled()
+  })
+
+  it('plays another server\'s sound with USE_EXTERNAL_SOUNDS, naming its server', async () => {
+    perms.value = { USE_SOUNDBOARD: true, SPEAK: true, USE_EXTERNAL_SOUNDS: true }
+    const store = useSoundboardStore()
+    await store.refreshPermission()
+    expect(store.isExternal(clap)).toBe(true)
+    expect(store.isExternal(horn)).toBe(false)
+    expect(store.play(clap)).toBe(true)
+    expect(webrtc.sendSoundboard).toHaveBeenCalledWith(buildSoundboardMessage(CLAP, SERVER, ME, OTHER))
+    expect(webrtc.sendSoundboard.mock.calls[0][0]).toMatchObject({ soundServerId: OTHER })
+    expect(player.play).toHaveBeenCalledWith(clap.url, 0.6)
+  })
+
+  it('names no sound server for the channel\'s own sounds', async () => {
+    const store = useSoundboardStore()
+    await store.refreshPermission()
+    store.play(horn)
+    expect(webrtc.sendSoundboard.mock.calls[0][0]).not.toHaveProperty('soundServerId')
   })
 
   it('sends but stays silent locally when the soundboard is muted', async () => {
@@ -233,6 +304,69 @@ describe('receive', () => {
     expect(store.recentPlays).toHaveLength(1)
     vi.advanceTimersByTime(4000)
     expect(store.recentPlays).toHaveLength(0)
+  })
+})
+
+describe('receive external', () => {
+  it('resolves another server\'s sound through the resolver and plays it', async () => {
+    const store = useSoundboardStore()
+    await store.receive(externalFromBob())
+    expect(resolveSound).toHaveBeenCalledWith(CLAP, SERVER)
+    expect(listSounds).not.toHaveBeenCalled()
+    expect(player.play).toHaveBeenCalledWith(clap.url, 0.6)
+    expect(store.recentPlays).toMatchObject([{ userId: BOB, soundId: CLAP, name: 'Clap' }])
+  })
+
+  it('reuses a resolved sound', async () => {
+    vi.useFakeTimers()
+    const store = useSoundboardStore()
+    await store.receive(externalFromBob())
+    vi.advanceTimersByTime(3000)
+    await store.receive(externalFromBob())
+    expect(resolveSound).toHaveBeenCalledTimes(1)
+    expect(player.play).toHaveBeenCalledTimes(2)
+  })
+
+  it('drops it when the token withholds USE_EXTERNAL_SOUNDS', async () => {
+    const store = useSoundboardStore()
+    await store.receive(externalFromBob({ externalGranted: false }))
+    expect(resolveSound).not.toHaveBeenCalled()
+    expect(player.play).not.toHaveBeenCalled()
+  })
+
+  it('checks the sender\'s channel permissions when no token says', async () => {
+    const store = useSoundboardStore()
+    perms.value = { USE_SOUNDBOARD: true, SPEAK: true }
+    await store.receive(externalFromBob({ granted: null, externalGranted: null }))
+    expect(getPerms).toHaveBeenCalledWith(BOB, SERVER, CHANNEL)
+    expect(player.play).not.toHaveBeenCalled()
+
+    store.leaveCall()
+    perms.value = { USE_SOUNDBOARD: true, SPEAK: true, USE_EXTERNAL_SOUNDS: true }
+    await store.receive(externalFromBob({ granted: null, externalGranted: null }))
+    expect(player.play).toHaveBeenCalledTimes(1)
+  })
+
+  it('drops a sound that does not resolve: deleted, or its server does not share', async () => {
+    resolveSound.mockResolvedValue(null)
+    const store = useSoundboardStore()
+    await store.receive(externalFromBob())
+    expect(player.play).not.toHaveBeenCalled()
+    expect(store.recentPlays).toEqual([])
+  })
+
+  it('drops a sound whose server is not the one the play names', async () => {
+    resolveSound.mockResolvedValue({ ...clap, serverId: '88888888-0000-0000-0000-000000000008' })
+    const store = useSoundboardStore()
+    await store.receive(externalFromBob())
+    expect(player.play).not.toHaveBeenCalled()
+  })
+
+  it('drops an unmarked play of another server\'s sound', async () => {
+    listSounds.mockResolvedValue([horn, clap])
+    const store = useSoundboardStore()
+    await store.receive(fromBob(CLAP))
+    expect(player.play).not.toHaveBeenCalled()
   })
 })
 

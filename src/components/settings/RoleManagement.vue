@@ -496,6 +496,7 @@ const permissionSections = [
       { key: 'DEAFEN_MEMBERS', label: 'Deafen Members', description: 'Server deafen members in voice' },
       { key: 'MOVE_MEMBERS', label: 'Move Members', description: 'Move members between voice channels' },
       { key: 'USE_SOUNDBOARD', label: 'Use Soundboard', description: 'Play soundboard sounds in voice channels' },
+      { key: 'USE_EXTERNAL_SOUNDS', label: 'Use External Sounds', description: 'Play sounds from other servers they belong to' },
     ],
   },
 ]

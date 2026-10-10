@@ -42,6 +42,7 @@ export enum Permission {
   DEAFEN_MEMBERS = 'DEAFEN_MEMBERS',
   MOVE_MEMBERS = 'MOVE_MEMBERS',
   USE_SOUNDBOARD = 'USE_SOUNDBOARD',
+  USE_EXTERNAL_SOUNDS = 'USE_EXTERNAL_SOUNDS',
 }
 
 // Permission categories for UI grouping
@@ -94,6 +95,7 @@ export const PERMISSION_CATEGORIES = {
       Permission.DEAFEN_MEMBERS,
       Permission.MOVE_MEMBERS,
       Permission.USE_SOUNDBOARD,
+      Permission.USE_EXTERNAL_SOUNDS,
     ],
   },
   dangerous: {
@@ -136,7 +138,7 @@ export const PERMISSION_BITS: Record<Permission, number> = {
   [Permission.READ_MESSAGE_HISTORY]: 22,
   [Permission.PIN_MESSAGES]: 23,
 
-  // Voice Channel Permissions (bits 24-30)
+  // Voice Channel Permissions (bits 24-31)
   [Permission.CONNECT]: 24,
   [Permission.SPEAK]: 25,
   [Permission.STREAM]: 26,
@@ -144,6 +146,7 @@ export const PERMISSION_BITS: Record<Permission, number> = {
   [Permission.DEAFEN_MEMBERS]: 28,
   [Permission.MOVE_MEMBERS]: 29,
   [Permission.USE_SOUNDBOARD]: 30,
+  [Permission.USE_EXTERNAL_SOUNDS]: 31,
 }
 
 /**
@@ -209,6 +212,7 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   [Permission.DEAFEN_MEMBERS]: 'Allows members to deafen other members in voice channels.',
   [Permission.MOVE_MEMBERS]: 'Allows members to move other members between voice channels.',
   [Permission.USE_SOUNDBOARD]: 'Allows members to play soundboard sounds in voice channels.',
+  [Permission.USE_EXTERNAL_SOUNDS]: 'Allows members to play sounds from other servers they belong to.',
 }
 
 // Role Types
