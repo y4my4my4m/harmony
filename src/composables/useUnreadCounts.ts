@@ -10,9 +10,20 @@ const sharedUnreadCounts = ref<Map<string, UnreadCount>>(new Map())
 const sharedIsLoading = ref(false)
 let sharedUnsubscribe: (() => void) | null = null
 let sharedReconnectUnsub: (() => void) | null = null
+let detachRefetchTriggers: (() => void) | null = null
 let sharedProfileId: string | null = null
 let initPromise: Promise<void> | null = null
 let subscriberCount = 0
+
+// Events received while a fetch is in flight, latest per context key. Applied over
+// the fetched snapshot: they may postdate it. Null while no fetch is in flight.
+let changesDuringFetch: Map<string, { action: string; count: UnreadCount }> | null = null
+let fetchSeq = 0
+let lastFetchAt = 0
+
+// Events can be missed without a reconnect (a sleeping tab, a dropped broadcast).
+const REFETCH_MIN_MS = 30_000
+const POLL_MS = 5 * 60_000
 
 export interface ServerUnreadTotals {
   messages: number
@@ -22,12 +33,13 @@ export interface ServerUnreadTotals {
 /**
  * Per-server sums over every channel row, rebuilt once per unread change.
  * Readers do an O(1) lookup in place of scanning the whole map per server.
+ * A muted channel adds its mentions only: the channel list hides its messages.
  */
 export const serverUnreadTotals = computed(() => {
   const totals = new Map<string, ServerUnreadTotals>()
   sharedUnreadCounts.value.forEach((count) => {
     if (!count.server_id) return
-    const messages = count.unread_messages > 0 ? count.unread_messages : 0
+    const messages = !count.muted && count.unread_messages > 0 ? count.unread_messages : 0
     const mentions = count.unread_mentions > 0 ? count.unread_mentions : 0
     if (!messages && !mentions) return
     const t = totals.get(count.server_id)
@@ -49,6 +61,40 @@ export function clearServerUnread(serverIds: Iterable<string>): void {
     if (count.server_id && ids.has(count.server_id)) doomed.push(key)
   })
   for (const key of doomed) sharedUnreadCounts.value.delete(key)
+}
+
+function contextKey(context: { serverId?: string; channelId?: string; conversationId?: string }): string {
+  if (context.conversationId) return `conv:${context.conversationId}`
+  if (context.channelId) return `channel:${context.channelId}`
+  if (context.serverId) return `server:${context.serverId}`
+  return 'unknown'
+}
+
+function rowKey(count: Pick<UnreadCount, 'server_id' | 'channel_id' | 'conversation_id'>): string {
+  return contextKey({ serverId: count.server_id, channelId: count.channel_id, conversationId: count.conversation_id })
+}
+
+function applyTo(map: Map<string, UnreadCount>, action: string, count: UnreadCount): void {
+  if (action === 'delete') map.delete(rowKey(count))
+  else map.set(rowKey(count), count)
+}
+
+/** The row an unread:change payload describes. */
+export function unreadCountFromChange(countData: Record<string, any>): UnreadCount {
+  return {
+    id: countData.id,
+    user_id: countData.user_id,
+    server_id: countData.server_id,
+    channel_id: countData.channel_id,
+    conversation_id: countData.conversation_id,
+    unread_messages: countData.unread_messages ?? 0,
+    unread_mentions: countData.unread_mentions ?? 0,
+    // Preserve the read boundary so the "NEW messages" divider can be
+    // positioned on next open even after a realtime count update.
+    last_read_message_id: countData.last_read_message_id,
+    last_read_at: countData.last_read_at,
+    muted: countData.muted === true,
+  } as UnreadCount
 }
 
 /**
@@ -110,25 +156,7 @@ export function useUnreadCounts() {
   const getServerUnreadMessages = (serverId: string): number =>
     serverUnreadTotals.value.get(serverId)?.messages ?? 0
 
-  /**
-   * Generate a unique key for a context
-   */
-  const getContextKey = (context: {
-    serverId?: string
-    channelId?: string
-    conversationId?: string
-  }): string => {
-    if (context.conversationId) {
-      return `conv:${context.conversationId}`
-    }
-    if (context.channelId) {
-      return `channel:${context.channelId}`
-    }
-    if (context.serverId) {
-      return `server:${context.serverId}`
-    }
-    return 'unknown'
-  }
+  const getContextKey = contextKey
 
   /**
    * Get profile ID (uses cached AuthContextService)
@@ -149,9 +177,13 @@ export function useUnreadCounts() {
   }
 
   /**
-   * Fetch unread counts from database
+   * Replaces the shared map with a fresh snapshot, then reapplies the events that
+   * arrived while it was in flight. A fetch overtaken by a later one is dropped.
    */
   const fetchUnreadCounts = async (_userId?: string): Promise<void> => {
+    const seq = ++fetchSeq
+    if (!changesDuringFetch) changesDuringFetch = new Map()
+    lastFetchAt = Date.now()
     sharedIsLoading.value = true
     try {
       const profileId = await getProfileId()
@@ -161,54 +193,36 @@ export function useUnreadCounts() {
       }
 
       const data = await fetchUnreadCountRows()
-      sharedUnreadCounts.value.clear()
-      data.forEach((count) => {
-        const context = {
-          serverId: count.server_id,
-          channelId: count.channel_id,
-          conversationId: count.conversation_id,
-        }
-        const key = getContextKey(context)
-        sharedUnreadCounts.value.set(key, count)
-      })
+      if (seq !== fetchSeq) return
+      const next = new Map<string, UnreadCount>()
+      data.forEach((count) => next.set(rowKey(count), count))
+      changesDuringFetch.forEach(({ action, count }) => applyTo(next, action, count))
+      sharedUnreadCounts.value = next
 
-      debug.log('Fetched unread counts:', sharedUnreadCounts.value.size)
+      debug.log('Fetched unread counts:', next.size)
     } catch (error) {
       debug.error('Error fetching unread counts:', error)
     } finally {
-      sharedIsLoading.value = false
+      if (seq === fetchSeq) {
+        changesDuringFetch = null
+        sharedIsLoading.value = false
+      }
     }
+  }
+
+  const refetchIfStale = (): void => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+    if (Date.now() - lastFetchAt < REFETCH_MIN_MS) return
+    void fetchUnreadCounts()
   }
 
   /**
    * Apply an unread count change to shared state (used by both broadcast and CDC paths).
    */
   const applyUnreadChange = (action: string, countData: Record<string, any>) => {
-    const count: UnreadCount = {
-      id: countData.id,
-      user_id: countData.user_id,
-      server_id: countData.server_id,
-      channel_id: countData.channel_id,
-      conversation_id: countData.conversation_id,
-      unread_messages: countData.unread_messages ?? 0,
-      unread_mentions: countData.unread_mentions ?? 0,
-      // Preserve the read boundary so the "NEW messages" divider can be
-      // positioned on next open even after a realtime count update.
-      last_read_message_id: countData.last_read_message_id,
-      last_read_at: countData.last_read_at,
-    } as UnreadCount
-
-    const context = {
-      serverId: count.server_id,
-      channelId: count.channel_id,
-      conversationId: count.conversation_id,
-    }
-
-    if (action === 'delete') {
-      sharedUnreadCounts.value.delete(getContextKey(context))
-    } else {
-      sharedUnreadCounts.value.set(getContextKey(context), count)
-    }
+    const count = unreadCountFromChange(countData)
+    applyTo(sharedUnreadCounts.value, action, count)
+    changesDuringFetch?.set(rowKey(count), { action, count })
   }
 
   /**
@@ -243,6 +257,20 @@ export function useUnreadCounts() {
         await fetchUnreadCounts()
       })
 
+      if (typeof window !== 'undefined' && !detachRefetchTriggers) {
+        const onVisibility = () => {
+          if (document.visibilityState === 'visible') refetchIfStale()
+        }
+        document.addEventListener('visibilitychange', onVisibility)
+        window.addEventListener('focus', refetchIfStale)
+        const poll = setInterval(refetchIfStale, POLL_MS)
+        detachRefetchTriggers = () => {
+          document.removeEventListener('visibilitychange', onVisibility)
+          window.removeEventListener('focus', refetchIfStale)
+          clearInterval(poll)
+        }
+      }
+
       debug.log('Unread counts broadcast handler registered')
     }
 
@@ -263,6 +291,10 @@ export function useUnreadCounts() {
         sharedReconnectUnsub()
         sharedReconnectUnsub = null
       }
+      if (detachRefetchTriggers) {
+        detachRefetchTriggers()
+        detachRefetchTriggers = null
+      }
       sharedProfileId = null
       initPromise = null
       debug.log('Cleaned up unread counts subscriptions')
@@ -281,8 +313,9 @@ export function useUnreadCounts() {
       if (!context.isAuthenticated) return
 
       sharedProfileId = context.profileId
-      await fetchUnreadCounts()
+      // Handlers first: an event arriving during the fetch is applied over its snapshot.
       await setupRealtimeSubscription()
+      await fetchUnreadCounts()
     })()
 
     return initPromise

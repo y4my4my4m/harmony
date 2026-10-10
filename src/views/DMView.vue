@@ -110,7 +110,6 @@ import { useLayoutState } from '@/composables/useLayoutState'
 import { useUserData } from '@/composables/useUserData'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { dmCallSignaling } from '@/services/DMCallSignaling'
-import { useViewContextTracking } from '@/composables/useViewContext'
 import { useNotificationStore } from '@/stores/useNotification'
 import { debug } from '@/utils/debug'
 // `ChatComponent` owns the DM send + fallback flow so it can await the outcome
@@ -384,8 +383,6 @@ const getCallerAvatar = computed(() => {
 })
 
 watch(() => route.params.conversationId, loadMessages, { immediate: true })
-
-useViewContextTracking()
 
 watch(() => route.query.messageId, async (messageId) => {
   if (messageId && typeof messageId === 'string') {

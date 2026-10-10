@@ -216,7 +216,6 @@ import { storeToRefs } from 'pinia'
 import { trendingService } from '@/services/TrendingService'
 import Icon from '@/components/common/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import { useViewContextTracking } from '@/composables/useViewContext'
 import { useLayoutState, useSidebarPanel } from '@/composables/useLayoutState'
 import { getOriginalPost } from '@/utils/postReblog'
 import FundingModal from '@/components/FundingModal.vue'
@@ -473,8 +472,6 @@ onMounted(() => {
 // broadcast handler off the userEventChannel, and most non-social routes never
 // call `initialize()` again, so posts/follows/mutes/blocks stop updating after
 // social -> chat navigation.
-
-useViewContextTracking()
 
 // Event handlers
 const handleSwitchFeed = async (feed: string) => {

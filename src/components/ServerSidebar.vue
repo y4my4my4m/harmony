@@ -191,7 +191,6 @@ import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { usePublicServersStore } from '@/stores/usePublicServers';
-import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useNotificationStore } from '@/stores/useNotification';
 import { isActivityPubRoute } from '@/types/viewTypes';
 import ServerRail from '@/components/serverRail/ServerRail.vue';
@@ -251,7 +250,6 @@ const editingFolder = ref<ServerFolderType | null>(null);
 
 const serverChannelStore = useServerChannelStore();
 const publicServersStore = usePublicServersStore();
-const activityPubStore = useActivityPubStore();
 const { todayDashboardEnabled } = useTodayDashboard();
 const notificationStore = useNotificationStore();
 const router = useRouter();
@@ -392,7 +390,6 @@ const goToToday = () => {
 };
 
 const goToFediverse = () => {
-  activityPubStore.clearUnreadCount();
   emit('switch-to-activitypub');
   router.push({ name: 'SocialHome' });
 };

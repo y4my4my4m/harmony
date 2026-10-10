@@ -115,6 +115,7 @@ import IncomingCallModal from '@/components/dm/IncomingCallModal.vue'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { dmCallSignaling } from '@/services/DMCallSignaling'
 import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
+import { useViewContextTracking } from '@/composables/useViewContext'
 
 const serverChannelStore = useServerChannelStore()
 const authStore = useAuthStore()
@@ -123,6 +124,8 @@ const instanceSettingsStore = useInstanceSettingsStore()
 const voiceStore = useUnifiedVoiceChannelStore()
 const route = useRoute()
 const router = useRouter()
+
+useViewContextTracking()
 
 // Falls back to "Harmony" until instance settings load from the DB.
 const instanceName = computed(() => instanceSettingsStore.settings.instanceName || 'Harmony')
