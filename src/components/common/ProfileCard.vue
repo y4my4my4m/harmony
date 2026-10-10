@@ -89,10 +89,10 @@
         :disabled="isFollowLoading"
         :title="followButtonText"
         class="action-btn follow-btn"
-        :class="{ following: isFollowing, loading: isFollowLoading }"
+        :class="{ following: isFollowing || followRequested, loading: isFollowLoading }"
       >
         <Icon v-if="isFollowLoading" name="loader" class="spinning" :size="actionIconSize" />
-        <Icon v-else-if="isFollowing" name="user-check" :size="actionIconSize" />
+        <Icon v-else-if="isFollowing || followRequested" name="user-check" :size="actionIconSize" />
         <Icon v-else name="user-plus" :size="actionIconSize" />
         <span class="action-label">{{ followButtonText }}</span>
       </button>
@@ -226,6 +226,8 @@ const { toggleFollow, getLoadingState } = usePostInteractions()
 // ===== STATE =====
 const showActionsMenu = ref(false)
 const followInProgress = ref(false)
+// Pending request to a locked or remote account, set from the answer to a follow sent here.
+const followRequested = ref(false)
 
 // ===== TYPE GUARDS =====
 const isFederatedUser = computed(() => {
@@ -323,7 +325,8 @@ const isBlocked = computed(() => {
 
 const followButtonText = computed(() => {
   if (isFollowLoading.value) return t('common.loading')
-  return isFollowing.value ? t('activitypub.following') : t('activitypub.follow')
+  if (isFollowing.value) return t('activitypub.following')
+  return followRequested.value ? t('activitypub.requested') : t('activitypub.follow')
 })
 
 // ===== METHODS =====
@@ -366,13 +369,16 @@ const handleFollowToggle = async () => {
   if (!isFederatedUser.value || isFollowLoading.value || followInProgress.value) return
   
   followInProgress.value = true;
+  const wasFollowing = isFollowing.value
   try {
-    const result = await toggleFollow(props.user.id)
-    
+    const result = await toggleFollow(props.user.id, followRequested.value)
+    if (result.error) return
+    followRequested.value = !!result.pending
+
     if (result.following) {
       activityPubStore.followedUsers.add(props.user.id)
       emit('follow', props.user.id)
-    } else {
+    } else if (wasFollowing) {
       activityPubStore.followedUsers.delete(props.user.id)
       emit('unfollow', props.user.id)
     }

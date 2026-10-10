@@ -54,7 +54,7 @@ The settings panel (`UserSettings` view) provides:
 |---------|-----------|----------|
 | Account | `UserAccountSettings` | Profile, avatar, banner, profile fields |
 | Security | `SecuritySettings` | Password, two-factor authentication and recovery codes, signed-in devices |
-| Privacy | `PrivacySettings` | Encryption, tracking-parameter stripping, data export, blocked and muted users |
+| Privacy | `PrivacySettings` | Follow approval, encryption, tracking-parameter stripping, data export, blocked and muted users |
 | Appearance | `AppearanceSettings` | Theme, colors, layout preferences |
 | Notifications | `NotificationSettings` | Desktop, sound, DND schedule |
 | Voice & Video | `VoiceVideoSettings` | Device selection, quality settings |

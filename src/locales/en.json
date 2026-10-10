@@ -1175,7 +1175,16 @@
     "remoteListNote": "Only accounts known to this instance are listed.",
     "fullListOnDomain": "Full list on {domain}",
     "countHiddenBy": "Hidden by {domain}",
-    "noKnownAccounts": "No accounts known to this instance"
+    "noKnownAccounts": "No accounts known to this instance",
+    "lockedAccount": "Approves followers manually",
+    "removeFollower": "Remove follower",
+    "removeFollowerConfirm": "{name} will stop following you and lose access to your followers-only posts.",
+    "followerRemoved": "Removed {name} from your followers",
+    "removeFollowerFailed": "Couldn't remove this follower. Try again.",
+    "followApprovalTitle": "Followers",
+    "followApprovalLabel": "Require follow approval",
+    "followApprovalDescription": "New followers send a request you accept or reject. People who already follow you stay. Turning this off accepts every waiting request.",
+    "followApprovalFailed": "Couldn't save follow approval. Try again."
   },
   "moderation": {
     "report": "Report",

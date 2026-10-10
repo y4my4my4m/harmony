@@ -43,7 +43,7 @@ describe('useActivityPub follow counters', () => {
   // follow.
   it('counts one follow once', async () => {
     seedDb({ follows: [] })
-    vi.spyOn(services.interactions, 'toggleFollow').mockResolvedValue({ following: true, pending: false } as any)
+    vi.spyOn(services.interactions, 'follow').mockResolvedValue({ following: true, pending: false } as any)
 
     const store = useActivityPubStore()
     await store.followUser('them')
@@ -57,7 +57,7 @@ describe('useActivityPub follow counters', () => {
 
   it('drops the follow once on unfollow', async () => {
     seedDb({ follows: [] })
-    vi.spyOn(services.interactions, 'toggleFollow').mockResolvedValue({ following: false, pending: false } as any)
+    vi.spyOn(services.interactions, 'unfollow').mockResolvedValue({ following: false, pending: false } as any)
 
     const store = useActivityPubStore()
     store.followedUsers = new Set(['them'])

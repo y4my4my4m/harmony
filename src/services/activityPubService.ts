@@ -611,12 +611,14 @@ export class ActivityPubService {
       ? `*, ${POST_AUTHOR_EMBED}, my_interactions:post_interactions!left(interaction_type)`
       : `*, ${POST_AUTHOR_EMBED}`;
 
+    // Followers-only posts reach the author, accepted followers and accounts they
+    // mention through posts_select_public; direct posts stay off profiles.
     let query = supabase
       .from('posts')
       .select(selectClause)
       .eq('author_id', userId)
       .eq('is_deleted', false)
-      .in('visibility', ['public', 'unlisted'])
+      .in('visibility', ['public', 'unlisted', 'followers'])
       .order('created_at', { ascending: false })
       .limit(limit);
 

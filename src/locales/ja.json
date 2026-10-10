@@ -1160,7 +1160,16 @@
     "remoteListNote": "このインスタンスが把握しているアカウントのみを表示しています。",
     "fullListOnDomain": "{domain} で全件を見る",
     "countHiddenBy": "{domain} により非公開",
-    "noKnownAccounts": "このインスタンスが把握しているアカウントはありません"
+    "noKnownAccounts": "このインスタンスが把握しているアカウントはありません",
+    "lockedAccount": "フォロワーを手動で承認",
+    "removeFollower": "フォロワーから削除",
+    "removeFollowerConfirm": "{name}さんはあなたのフォローを外れ、フォロワー限定の投稿を見られなくなります。",
+    "followerRemoved": "{name}さんをフォロワーから削除しました",
+    "removeFollowerFailed": "フォロワーを削除できませんでした。もう一度お試しください。",
+    "followApprovalTitle": "フォロワー",
+    "followApprovalLabel": "フォローを承認制にする",
+    "followApprovalDescription": "新しいフォロワーはリクエストを送り、あなたが承認または拒否します。既存のフォロワーはそのままです。オフにすると保留中のリクエストはすべて承認されます。",
+    "followApprovalFailed": "フォロー承認の設定を保存できませんでした。もう一度お試しください。"
   },
   "moderation": {
     "report": "報告",

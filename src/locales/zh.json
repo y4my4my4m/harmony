@@ -1160,7 +1160,16 @@
     "remoteListNote": "仅列出本实例已知的账号。",
     "fullListOnDomain": "在 {domain} 查看完整列表",
     "countHiddenBy": "已被 {domain} 隐藏",
-    "noKnownAccounts": "本实例尚不知道任何账号"
+    "noKnownAccounts": "本实例尚不知道任何账号",
+    "lockedAccount": "手动批准关注者",
+    "removeFollower": "移除关注者",
+    "removeFollowerConfirm": "{name} 将不再关注你，也无法再看到你的仅关注者可见的帖子。",
+    "followerRemoved": "已将 {name} 从关注者中移除",
+    "removeFollowerFailed": "无法移除该关注者，请重试。",
+    "followApprovalTitle": "关注者",
+    "followApprovalLabel": "关注需经批准",
+    "followApprovalDescription": "新的关注者会发送请求，由你接受或拒绝。已有的关注者保持不变。关闭后会接受所有待处理的请求。",
+    "followApprovalFailed": "无法保存关注批准设置，请重试。"
   },
   "moderation": {
     "report": "举报",

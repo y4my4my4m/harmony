@@ -266,6 +266,7 @@ export async function resolveRemoteAccount(username: string, domain: string): Pr
       followers_url: profileData.followers_url,
       following_url: profileData.following_url,
       is_local: false,
+      manually_approves_followers: profileData.manually_approves_followers === true,
       last_synced_at: new Date().toISOString(),
     };
     const { data: previous } = await supabase

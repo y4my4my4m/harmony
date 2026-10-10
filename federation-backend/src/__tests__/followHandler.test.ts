@@ -87,6 +87,41 @@ describe('handleFollowJob respond', () => {
     expect(sendToInbox.mock.calls[0][1].type).toBe('Reject');
   });
 
+  it('delivers the Reject of a removed follower whose follows row is already deleted', async () => {
+    await expect(handleFollowJob({
+      type: 'respond',
+      follow_id: 'deleted-follow',
+      follower_id: 'follower-id',
+      following_id: 'target-id',
+      status: 'rejected',
+      ap_id: 'https://remote.test/activities/follow/7',
+    })).resolves.toBeUndefined();
+
+    expect(sendToInbox).toHaveBeenCalledTimes(1);
+    const [inbox, activity, senderId] = sendToInbox.mock.calls[0];
+    expect(inbox).toBe(REMOTE_FOLLOWER.inbox_url);
+    expect(senderId).toBe('target-id');
+    expect(activity.type).toBe('Reject');
+    expect(activity.object).toMatchObject({
+      id: 'https://remote.test/activities/follow/7',
+      actor: REMOTE_FOLLOWER.federated_id,
+      object: 'https://harmony.test/users/bob',
+    });
+  });
+
+  it('skips when the target account is deleted', async () => {
+    profilesById['target-id'].deleted_at = '2026-10-01T00:00:00Z';
+    await handleFollowJob({
+      type: 'respond',
+      follow_id: 'follow-1',
+      follower_id: 'follower-id',
+      following_id: 'target-id',
+      status: 'rejected',
+      ap_id: 'x',
+    });
+    expect(sendToInbox).not.toHaveBeenCalled();
+  });
+
   it('skips when the follower is local', async () => {
     profilesById['follower-id'].is_local = true;
     await handleFollowJob({

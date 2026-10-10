@@ -1160,7 +1160,16 @@
     "remoteListNote": "Aufgeführt sind nur Konten, die dieser Instanz bekannt sind.",
     "fullListOnDomain": "Vollständige Liste auf {domain}",
     "countHiddenBy": "Von {domain} verborgen",
-    "noKnownAccounts": "Dieser Instanz sind keine Konten bekannt"
+    "noKnownAccounts": "Dieser Instanz sind keine Konten bekannt",
+    "lockedAccount": "Bestätigt Follower manuell",
+    "removeFollower": "Follower entfernen",
+    "removeFollowerConfirm": "{name} folgt dir dann nicht mehr und verliert den Zugriff auf deine Beiträge nur für Follower.",
+    "followerRemoved": "{name} aus deinen Followern entfernt",
+    "removeFollowerFailed": "Follower konnte nicht entfernt werden. Bitte erneut versuchen.",
+    "followApprovalTitle": "Follower",
+    "followApprovalLabel": "Folgeanfragen bestätigen",
+    "followApprovalDescription": "Neue Follower senden eine Anfrage, die du annimmst oder ablehnst. Wer dir schon folgt, bleibt. Beim Ausschalten werden alle offenen Anfragen angenommen.",
+    "followApprovalFailed": "Folgebestätigung konnte nicht gespeichert werden. Bitte erneut versuchen."
   },
   "moderation": {
     "report": "Melden",

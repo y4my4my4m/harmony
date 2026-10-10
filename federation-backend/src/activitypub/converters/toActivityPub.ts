@@ -252,9 +252,8 @@ export function profileToActor(profile: any): any {
     }));
   }
 
-  if (profile.manually_approves_followers) {
-    actor.manuallyApprovesFollowers = true;
-  }
+  // Mastodon emits false for an unlocked account.
+  actor.manuallyApprovesFollowers = profile.manually_approves_followers === true;
 
   const aliases = Array.isArray(profile.also_known_as)
     ? profile.also_known_as.filter((uri: unknown) => typeof uri === 'string' && uri && uri !== userUrl)

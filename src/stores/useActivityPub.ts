@@ -3101,8 +3101,8 @@ export const useActivityPubStore = defineStore('activitypub', {
      async followUser(userId: string) {
        try {
          debug.log('Following user via InteractionService:', userId);
-         
-         const result = await services.interactions.toggleFollow(userId);
+
+         const result = await services.interactions.follow(userId);
 
          if (result.following) {
            this.followedUsers.add(userId);
@@ -3119,11 +3119,12 @@ export const useActivityPubStore = defineStore('activitypub', {
        }
      },
 
+     /** Unfollows, or withdraws a pending request. */
      async unfollowUser(userId: string) {
        try {
          debug.log('Unfollowing user via InteractionService:', userId);
-         
-         const result = await services.interactions.toggleFollow(userId);
+
+         const result = await services.interactions.unfollow(userId);
          
          if (!result.following) {
            this.followedUsers.delete(userId);

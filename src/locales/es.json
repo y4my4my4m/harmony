@@ -1160,7 +1160,16 @@
     "remoteListNote": "Solo se muestran las cuentas que conoce esta instancia.",
     "fullListOnDomain": "Lista completa en {domain}",
     "countHiddenBy": "Oculto por {domain}",
-    "noKnownAccounts": "Esta instancia no conoce ninguna cuenta"
+    "noKnownAccounts": "Esta instancia no conoce ninguna cuenta",
+    "lockedAccount": "Aprueba seguidores manualmente",
+    "removeFollower": "Eliminar seguidor",
+    "removeFollowerConfirm": "{name} dejará de seguirte y perderá el acceso a tus publicaciones solo para seguidores.",
+    "followerRemoved": "Has eliminado a {name} de tus seguidores",
+    "removeFollowerFailed": "No se pudo eliminar a este seguidor. Inténtalo de nuevo.",
+    "followApprovalTitle": "Seguidores",
+    "followApprovalLabel": "Aprobar solicitudes de seguimiento",
+    "followApprovalDescription": "Los nuevos seguidores envían una solicitud que aceptas o rechazas. Quienes ya te siguen se mantienen. Al desactivarlo se aceptan todas las solicitudes pendientes.",
+    "followApprovalFailed": "No se pudo guardar la aprobación de seguidores. Inténtalo de nuevo."
   },
   "moderation": {
     "report": "Reportar",

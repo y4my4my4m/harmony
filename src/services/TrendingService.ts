@@ -280,7 +280,8 @@ class TrendingService {
       const postIds = postHashtags.slice(0, limit).map(ph => ph.post_id);
       debug.log(`Post IDs: ${postIds.join(', ')}`);
 
-      // Step 3: fetch those posts, excluding deleted.
+      // Step 3: fetch those posts, excluding deleted. A tag timeline lists
+      // public posts only, as Mastodon's does.
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
         .select(`
@@ -288,7 +289,8 @@ class TrendingService {
           author:profiles(*)
         `)
         .in('id', postIds)
-        .eq('is_deleted', false);
+        .eq('is_deleted', false)
+        .eq('visibility', 'public');
 
       if (postsError) throw postsError;
 

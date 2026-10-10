@@ -45,6 +45,19 @@ export class InteractionService {
     return result
   }
 
+  async follow(targetUserId: string): Promise<FollowResult> {
+    return coreInteractionService.follow(targetUserId)
+  }
+
+  /** Unfollows, or withdraws a pending request. */
+  async unfollow(targetUserId: string): Promise<FollowResult> {
+    return coreInteractionService.unfollow(targetUserId)
+  }
+
+  async removeFollower(followerUserId: string): Promise<void> {
+    await coreInteractionService.removeFollower(followerUserId)
+  }
+
   async acceptFollowRequest(followerUserId: string): Promise<void> {
 
     await coreInteractionService.acceptFollowRequest(followerUserId)
