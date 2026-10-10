@@ -169,6 +169,22 @@
           </div>
         </label>
       </div>
+
+      <div class="setting-group checkbox-group">
+        <label class="checkbox-label">
+          <input
+            type="checkbox"
+            v-model="showLiveReactions"
+            @change="updateShowLiveReactions"
+            class="setting-checkbox"
+          />
+          <div class="checkbox-custom"></div>
+          <div class="checkbox-content">
+            <span>{{ t('voice.showLiveReactions') }}</span>
+            <small>{{ t('voice.showLiveReactionsHint') }}</small>
+          </div>
+        </label>
+      </div>
     </div>
 
     <!-- Video Settings -->
@@ -269,6 +285,7 @@ const inputVolume = ref(100);
 // Master output, percent 0-200; applied to every remote track at once.
 const outputVolume = ref(100);
 const autoWatchStreams = ref(false);
+const showLiveReactions = ref(true);
 const echoCancellation = ref(true);
 const noiseSuppression = ref(true);
 const autoGainControl = ref(true);
@@ -318,6 +335,7 @@ const loadStoredSettings = async () => {
     inputVolume.value = normalizeInputVolume(settings.inputVolume);
     outputVolume.value = normalizeOutputVolume(settings.outputVolume);
     autoWatchStreams.value = !!settings.autoWatchStreams;
+    showLiveReactions.value = settings.showLiveReactions !== false;
     if (settings.videoQuality) videoQuality.value = settings.videoQuality;
     if (settings.frameRate) frameRate.value = settings.frameRate;
     
@@ -453,6 +471,10 @@ const resetOutputVolume = () => {
 const updateAutoWatchStreams = () => {
   VoiceSettingsService.update('autoWatchStreams', autoWatchStreams.value);
   webrtcManager.setAutoWatchStreams(autoWatchStreams.value);
+};
+
+const updateShowLiveReactions = () => {
+  VoiceSettingsService.update('showLiveReactions', showLiveReactions.value);
 };
 
 const updateAudioSettings = () => {

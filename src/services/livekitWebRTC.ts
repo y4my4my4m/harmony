@@ -49,6 +49,7 @@ import {
   type VoiceKeyEnvelope,
 } from './encryption/VoiceE2EEService';
 import { getLiveKitToken } from './livekitTokens';
+import { LIVE_REACTION_TOPIC, MAX_LIVE_REACTION_BYTES } from './voice/liveReactions';
 
 // FEDERATED IDENTITY HELPERS
 
@@ -1667,9 +1668,11 @@ export class LiveKitWebRTCService {
     });
 
     // E2EE key-distribution messages (Model S shared-key handshake)
-    this.room.on(RoomEvent.DataReceived, (payload: Uint8Array, _participant, _kind, topic?: string) => {
+    this.room.on(RoomEvent.DataReceived, (payload: Uint8Array, participant, _kind, topic?: string) => {
       if (topic === this.E2EE_DATA_TOPIC) {
         void this.handleE2EEData(payload);
+      } else if (topic === LIVE_REACTION_TOPIC) {
+        this.handleLiveReactionData(payload, participant);
       }
     });
 
@@ -1912,7 +1915,8 @@ export class LiveKitWebRTCService {
     });
 
     // Data received (for custom messaging like media state)
-    this.room.on(RoomEvent.DataReceived, (payload: Uint8Array, participant?: RemoteParticipant) => {
+    this.room.on(RoomEvent.DataReceived, (payload: Uint8Array, participant?: RemoteParticipant, _kind?: unknown, topic?: string) => {
+      if (topic === LIVE_REACTION_TOPIC) return;
       try {
         const message = JSON.parse(new TextDecoder().decode(payload));
 
@@ -2061,6 +2065,39 @@ export class LiveKitWebRTCService {
     } catch (error) {
       debug.warn('[LiveKit] Failed to broadcast', label, error);
     }
+  }
+
+  // LIVE REACTIONS
+
+  /** Lossy: a dropped reaction is not worth a retransmit. False while not connected. */
+  sendLiveReaction(payload: Uint8Array): boolean {
+    const room = this.room;
+    if (!room?.localParticipant || this.leaving) return false;
+    if (room.state !== lib().ConnectionState.Connected) return false;
+    if (payload.byteLength > MAX_LIVE_REACTION_BYTES) return false;
+    void room.localParticipant.publishData(payload, { reliable: false, topic: LIVE_REACTION_TOPIC }).catch((error: unknown) => {
+      debug.warn('[LiveKit] Failed to send live reaction', error);
+    });
+    return true;
+  }
+
+  /** Room identity of a user in this room; identities differ from profile ids for federated users. */
+  liveReactionWireId(userId: string): string | null {
+    return this.resolveParticipant(userId)?.identity ?? null;
+  }
+
+  liveReactionUserId(identity: string): string | null {
+    if (!this.room) return null;
+    if (identity === this.room.localParticipant?.identity) return this.currentUserId;
+    return this.allUserStates.get(identity)?.userId ?? null;
+  }
+
+  /** Only registered remote participants are heard; the SFU vouches for the identity. */
+  private handleLiveReactionData(payload: Uint8Array, participant?: RemoteParticipant): void {
+    if (!participant || payload.byteLength > MAX_LIVE_REACTION_BYTES) return;
+    const userId = this.allUserStates.get(participant.identity)?.userId;
+    if (!userId || userId === this.currentUserId) return;
+    this.emit('live-reaction', { userId, payload });
   }
 
   // DEVICE MANAGEMENT

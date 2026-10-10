@@ -31,6 +31,8 @@
       </button>
     </div>
 
+    <LiveReactionLayer :user-id="userState.userId" :source="source" compact />
+
     <div class="dock-tile-label">
       <Icon :name="source === 'screen' ? 'screen-share' : 'video'" :size="12" class="dock-tile-label-icon" />
       <span class="dock-tile-name">
@@ -51,6 +53,7 @@ import { videoAspect } from './dockVideoLayout';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
+import LiveReactionLayer from './LiveReactionLayer.vue';
 
 const props = defineProps<{
   userState: UserMediaState;

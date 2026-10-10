@@ -36,6 +36,9 @@ export interface VoiceSettings {
   // Receive other users' streams as soon as they start, instead of on "Watch stream".
   autoWatchStreams: boolean;
 
+  // Render emoji reactions other participants send over streams and video.
+  showLiveReactions: boolean;
+
   // Stored-schema revision; see migrate().
   settingsVersion: number;
 }
@@ -59,6 +62,7 @@ const DEFAULT_SETTINGS: VoiceSettings = {
   frameRate: '30',
   audioBitrate: '128',
   autoWatchStreams: false,
+  showLiveReactions: true,
   settingsVersion: SETTINGS_VERSION,
 };
 
