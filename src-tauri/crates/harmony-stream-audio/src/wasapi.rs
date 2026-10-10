@@ -213,7 +213,9 @@ fn activate(pid: u32, mode: PROCESS_LOOPBACK_MODE) -> Result<IAudioClient, Error
       ProcessLoopbackParams: AUDIOCLIENT_PROCESS_LOOPBACK_PARAMS { TargetProcessId: pid, ProcessLoopbackMode: mode },
     },
   };
-  let prop = PROPVARIANT {
+  // PROPVARIANT's Drop runs PropVariantClear, which CoTaskMemFrees a VT_BLOB's data; this blob
+  // points at `params` on the stack.
+  let prop = std::mem::ManuallyDrop::new(PROPVARIANT {
     Anonymous: PROPVARIANT_0 {
       Anonymous: std::mem::ManuallyDrop::new(PROPVARIANT_0_0 {
         vt: VT_BLOB,
@@ -228,12 +230,12 @@ fn activate(pid: u32, mode: PROCESS_LOOPBACK_MODE) -> Result<IAudioClient, Error
         },
       }),
     },
-  };
+  });
   let (tx, rx) = mpsc::sync_channel(1);
   let handler: IActivateAudioInterfaceCompletionHandler = Completion(tx).into();
   log::debug!("activating process loopback: pid {pid}, mode {}", mode.0);
   let operation = unsafe {
-    ActivateAudioInterfaceAsync(VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK, &IAudioClient::IID, Some(&prop), &handler)
+    ActivateAudioInterfaceAsync(VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK, &IAudioClient::IID, Some(&*prop), &handler)
   }
   .map_err(|e| Error::Unsupported(format!("process loopback activation: {e}")))?;
   log::debug!("activation requested");
@@ -268,7 +270,6 @@ impl Drop for Stream {
 
 fn open(pid: u32, mode: PROCESS_LOOPBACK_MODE) -> Result<Stream, Error> {
   let client = activate(pid, mode)?;
-  log::debug!("activation released");
   let block_align = (CHANNELS * 2) as u16;
   let format = WAVEFORMATEX {
     wFormatTag: WAVE_FORMAT_PCM as u16,
