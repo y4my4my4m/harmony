@@ -131,6 +131,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { debug } from '@/utils/debug'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useThemeStore } from '@/stores/useTheme'
 import type { AudioAction } from '@/types'
 import AudioThemeManager from '@/components/settings/AudioThemeManager.vue'
@@ -138,6 +139,7 @@ import Icon from '@/components/common/Icon.vue'
 
 // STATE
 
+const { confirm } = useConfirmDialog()
 const themeStore = useThemeStore()
 
 const toasts = ref<Array<{ id: string, type: string, message: string }>>([])
@@ -220,7 +222,13 @@ const clearCache = (): void => {
 }
 
 const resetSystem = async (): Promise<void> => {
-  if (confirm('This will reset all audio settings to defaults. Continue?')) {
+  const ok = await confirm({
+    title: 'Reset audio',
+    message: 'This will reset all audio settings to defaults. Continue?',
+    confirmButtonText: 'Reset',
+    dangerAction: true,
+  })
+  if (ok) {
     try {
       await themeStore.resetToDefaults()
       updateCacheInfo()

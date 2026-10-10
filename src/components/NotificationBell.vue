@@ -192,6 +192,7 @@ import { debug } from '@/utils/debug'
 import { useNotificationStore } from '@/stores/useNotification'
 import { useAuthStore } from '@/stores/auth'
 import { useLayoutState } from '@/composables/useLayoutState'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { INBOX_TABS, badgeText, groupByDay, inTab, unreadByTab, type InboxTab } from '@/utils/notificationInbox'
 import Icon from '@/components/common/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -202,6 +203,7 @@ const notificationStore = useNotificationStore()
 const authStore = useAuthStore()
 const router = useRouter()
 const { t, locale } = useI18n()
+const { confirm } = useConfirmDialog()
 const { closeMobileSidebars } = useLayoutState()
 
 const uid = Math.random().toString(36).slice(2, 8)
@@ -356,7 +358,13 @@ async function markAllRead() {
 }
 
 async function clearAll() {
-  if (!window.confirm(t('inbox.clearConfirm'))) return
+  const ok = await confirm({
+    title: t('inbox.clearAll'),
+    message: t('inbox.clearConfirm'),
+    confirmButtonText: t('inbox.clearAll'),
+    dangerAction: true,
+  })
+  if (!ok) return
   busy.value = 'clear'
   try {
     await notificationStore.clearAllNotifications()

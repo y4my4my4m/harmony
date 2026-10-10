@@ -4,6 +4,7 @@
     :title="title"
     :subtitle="subtitle"
     size="sm"
+    topmost
     :persistent="requireConfirmation && !isConfirmed"
     @close="handleClose"
     @update:model-value="$emit('update:modelValue', $event)"

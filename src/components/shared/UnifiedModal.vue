@@ -10,6 +10,7 @@
       <div
         v-if="modelValue"
         class="modal-overlay"
+        :class="{ 'modal-overlay--topmost': topmost }"
         @click="handleOverlayClick"
         @keydown.esc="handleEscape"
         tabindex="-1"
@@ -128,6 +129,8 @@ interface Props {
   closeButtonLabel?: string
   isProfile?: boolean
   noPadding?: boolean
+  /** Above full-screen sheets and context menus (z-index 10001-10006). */
+  topmost?: boolean
 }
 
 interface Emits {
@@ -265,6 +268,10 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.modal-overlay.modal-overlay--topmost {
+  z-index: 10010;
+}
+
 /* Use design system variables */
 .modal-enter-active,
 .modal-leave-active {
