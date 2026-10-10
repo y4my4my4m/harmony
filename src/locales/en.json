@@ -1945,6 +1945,63 @@
       }
     }
   },
+  "webhooks": {
+    "tab": "Webhooks",
+    "heading": "Webhooks",
+    "intro": "Webhooks let other services, such as GitHub or a build pipeline, post messages in this channel. Anyone who has a webhook's URL can post with it.",
+    "create": "New webhook",
+    "createSubmit": "Create webhook",
+    "defaultName": "Webhook",
+    "nameLabel": "Name",
+    "avatarLabel": "Avatar URL",
+    "avatarPlaceholder": "https://… (optional)",
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "regenerate": "Regenerate URL",
+    "delete": "Delete",
+    "created": "Webhook created",
+    "updated": "Webhook updated",
+    "deleted": "Webhook deleted",
+    "regenerated": "New URL generated",
+    "copyOnce": "Copy the URL for {name} now: it is shown only once. Keep it secret, like a password.",
+    "githubHint": "For GitHub, use the GitHub URL as the payload URL of a repository webhook.",
+    "copyUrl": "Copy URL",
+    "copyGithubUrl": "Copy GitHub URL",
+    "copied": "Webhook URL copied",
+    "copyFailed": "Couldn't copy the URL",
+    "done": "Done",
+    "loading": "Loading webhooks…",
+    "loadFailed": "Couldn't load webhooks",
+    "empty": "No webhooks in this channel yet.",
+    "createdBy": "Created by {name}",
+    "createdByUnknown": "Creator unknown",
+    "lastUsed": "Last used {date}",
+    "neverUsed": "Never used",
+    "urlHint": "URL ends in …{hint}",
+    "limitReached": "A channel holds at most {count} webhooks.",
+    "badge": "WEBHOOK",
+    "confirmRegenerate": {
+      "title": "Regenerate webhook URL?",
+      "message": "The current URL of {name} stops working. Services using it need the new URL.",
+      "confirm": "Regenerate"
+    },
+    "confirmDelete": {
+      "title": "Delete webhook?",
+      "message": "{name} stops working. Messages it posted stay.",
+      "confirm": "Delete"
+    },
+    "errors": {
+      "encrypted": "Webhooks can't post in an end-to-end encrypted channel.",
+      "unsupported": "Webhooks post only to text channels of servers on this instance.",
+      "channelLimit": "This channel already has the most webhooks it can hold.",
+      "serverLimit": "This server already has the most webhooks it can hold.",
+      "invalidName": "A name is 1 to 80 characters and can't be a reserved name such as System.",
+      "invalidAvatar": "The avatar must be an https:// URL.",
+      "permission": "You need the Manage Webhooks permission.",
+      "saveFailed": "Couldn't save the webhook"
+    }
+  },
   "floatingVideo": {
     "region": "Video player",
     "video": "Video",

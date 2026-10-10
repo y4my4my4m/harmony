@@ -336,6 +336,11 @@ export function useServerPermissions(serverId?: MaybeRefOrGetter<string | null |
     isLocalServer.value && hasCurrentUserPermission(Permission.MANAGE_ROLES)
   )
 
+  // Server-wide; a channel override granting it is honoured by the webhook RPCs alone.
+  const canManageWebhooks = computed(() =>
+    isLocalServer.value && hasCurrentUserPermission(Permission.MANAGE_WEBHOOKS)
+  )
+
   const canPerformDestructiveActions = computed(() => 
     isCurrentUserServerOwner.value || hasCurrentUserPermission(Permission.MANAGE_SERVER)
   )
@@ -497,6 +502,7 @@ export function useServerPermissions(serverId?: MaybeRefOrGetter<string | null |
     canManageChannels,
     canManageEmojis,
     canManageRoles,
+    canManageWebhooks,
     canPerformDestructiveActions,
     canManageMessages,
     canPinMessages,

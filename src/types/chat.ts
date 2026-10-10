@@ -403,6 +403,13 @@ export interface SystemContent {
 
 export type EncryptedPayloadMap = Record<string, string>
 
+/** metadata.webhook: the name and avatar a channel webhook posted under. */
+export interface MessageWebhookAuthor {
+  id: string;
+  name: string;
+  avatar_url: string | null;
+}
+
 export type MessagePart = TextContent | UrlContent | EmbedContent | MentionContent | RoleMentionContent | EmojiContent | HashtagContent | ChannelMentionContent | FileContent | SystemContent;
 
 export interface Reaction {
@@ -502,6 +509,7 @@ export interface Message {
   media_paths?: string[] | null;
   metadata?: Record<string, any> & {
     embeds?: Record<string, EmbedPayload>;
+    webhook?: MessageWebhookAuthor;
   }; // for federated messages and other metadata
   sending?: boolean; // local state: true while message is being sent to server
   failed?: boolean; // local state: true when message failed to send after retries

@@ -1945,6 +1945,63 @@
       }
     }
   },
+  "webhooks": {
+    "tab": "Webhook",
+    "heading": "Webhook",
+    "intro": "Webhook を使うと、GitHub やビルドパイプラインなどの外部サービスがこのチャンネルにメッセージを投稿できます。Webhook の URL を知っている人は誰でもそれを使って投稿できます。",
+    "create": "新しい Webhook",
+    "createSubmit": "Webhook を作成",
+    "defaultName": "Webhook",
+    "nameLabel": "名前",
+    "avatarLabel": "アバター URL",
+    "avatarPlaceholder": "https://…（任意）",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "edit": "編集",
+    "regenerate": "URL を再生成",
+    "delete": "削除",
+    "created": "Webhook を作成しました",
+    "updated": "Webhook を更新しました",
+    "deleted": "Webhook を削除しました",
+    "regenerated": "新しい URL を生成しました",
+    "copyOnce": "{name} の URL を今すぐコピーしてください。表示されるのは一度だけです。パスワードと同様に秘密にしてください。",
+    "githubHint": "GitHub では、GitHub 用 URL をリポジトリ Webhook の Payload URL に設定してください。",
+    "copyUrl": "URL をコピー",
+    "copyGithubUrl": "GitHub 用 URL をコピー",
+    "copied": "Webhook の URL をコピーしました",
+    "copyFailed": "URL をコピーできませんでした",
+    "done": "完了",
+    "loading": "Webhook を読み込み中…",
+    "loadFailed": "Webhook を読み込めませんでした",
+    "empty": "このチャンネルにはまだ Webhook がありません。",
+    "createdBy": "作成者: {name}",
+    "createdByUnknown": "作成者不明",
+    "lastUsed": "最終使用: {date}",
+    "neverUsed": "未使用",
+    "urlHint": "URL の末尾: …{hint}",
+    "limitReached": "1 つのチャンネルに作成できる Webhook は最大 {count} 個です。",
+    "badge": "WEBHOOK",
+    "confirmRegenerate": {
+      "title": "Webhook の URL を再生成しますか？",
+      "message": "{name} の現在の URL は使えなくなります。この URL を使っているサービスには新しい URL が必要です。",
+      "confirm": "再生成"
+    },
+    "confirmDelete": {
+      "title": "Webhook を削除しますか？",
+      "message": "{name} は使えなくなります。投稿済みのメッセージは残ります。",
+      "confirm": "削除"
+    },
+    "errors": {
+      "encrypted": "エンドツーエンド暗号化されたチャンネルには Webhook で投稿できません。",
+      "unsupported": "Webhook はこのインスタンスのサーバーのテキストチャンネルにのみ投稿できます。",
+      "channelLimit": "このチャンネルの Webhook はすでに上限に達しています。",
+      "serverLimit": "このサーバーの Webhook はすでに上限に達しています。",
+      "invalidName": "名前は 1〜80 文字で、System などの予約名は使えません。",
+      "invalidAvatar": "アバターは https:// の URL にしてください。",
+      "permission": "「Webhook の管理」権限が必要です。",
+      "saveFailed": "Webhook を保存できませんでした"
+    }
+  },
   "floatingVideo": {
     "region": "動画プレーヤー",
     "video": "動画",

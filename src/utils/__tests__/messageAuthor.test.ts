@@ -4,7 +4,7 @@
  * message the bridge relayed out.
  */
 import { describe, it, expect } from 'vitest'
-import { getBridgeSource, getHarmonyProfileUserId, isBridgedAuthorMessage } from '@/utils/messageAuthor'
+import { getBridgeSource, getHarmonyProfileUserId, getWebhookAuthor, isBridgedAuthorMessage } from '@/utils/messageAuthor'
 import type { Message } from '@/types'
 
 const message = (metadata: Record<string, unknown> | undefined, extra: Partial<Message> = {}) =>
@@ -26,5 +26,19 @@ describe('isBridgedAuthorMessage', () => {
 
   it('is false for a plain Harmony message', () => {
     expect(isBridgedAuthorMessage(message(undefined))).toBe(false)
+  })
+})
+
+describe('getWebhookAuthor', () => {
+  it('reads the shown name and avatar of a webhook message', () => {
+    const posted = message({ webhook: { id: 'w1', name: 'Deployer', avatar_url: 'https://cdn.test/d.png' } }, { user_id: null, bot_id: 'b1' })
+    expect(getWebhookAuthor(posted)).toEqual({ id: 'w1', name: 'Deployer', avatar_url: 'https://cdn.test/d.png' })
+    expect(getWebhookAuthor(message({ webhook: { id: 'w1', name: 'CI', avatar_url: null } }, { bot_id: 'b1' }))?.avatar_url).toBeNull()
+  })
+
+  it('is null without a bot author or a name', () => {
+    expect(getWebhookAuthor(message({ webhook: { id: 'w1', name: 'CI' } }))).toBeNull()
+    expect(getWebhookAuthor(message({ webhook: { id: 'w1' } }, { bot_id: 'b1' }))).toBeNull()
+    expect(getWebhookAuthor(message(undefined, { bot_id: 'b1' }))).toBeNull()
   })
 })

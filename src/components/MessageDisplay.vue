@@ -396,6 +396,7 @@
               <span class="username" :style="{color: getAuthorColor(item.message).value}" @click="handleAuthorClick(item.message, $event)">
                 <span class="username-text"><DisplayName v-if="item.message.user_id && !item.message.bot_id && !hasDiscordUserMetadata(item.message)" :user-id="item.message.user_id" /><template v-else>{{ getAuthorDisplayName(item.message).value }}</template></span>
                 <BridgeSourceBadge v-if="hasDiscordUserMetadata(item.message)" source="discord" />
+                <span v-else-if="getWebhookAuthor(item.message)" class="bot-badge webhook-badge">{{ $t('webhooks.badge') }}</span>
                 <span v-else-if="isMessageFromBot(item.message)" class="bot-badge">BOT</span>
                 <span v-if="getInstanceBadge(item.message).value === 'admin'" class="instance-badge admin" title="Instance admin">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
@@ -693,7 +694,7 @@ import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';
 import type { Message, MessagePart, User, Emoji, FileContent, ReactionActor, ReactionGroup } from '@/types';
 import { hasSubstantiveMessageContent, removeFilePartByUrl } from '@/utils/messageContentUtils';
-import { isBridgedAuthorMessage } from '@/utils/messageAuthor';
+import { getWebhookAuthor, isBridgedAuthorMessage } from '@/utils/messageAuthor';
 import { ensureMediaPartSources, isPrivateMediaPart, mediaLoadKey, mediaPartSource } from '@/services/privateMedia';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
@@ -1395,6 +1396,9 @@ const getAuthorDisplayName = (message: Message): ComputedRef<string> => {
       return discordUser.display_name || discordUser.username || 'Discord User';
     }
     
+    const webhook = getWebhookAuthor(message);
+    if (webhook) return webhook.name;
+
     // Regular bot
     if (message.bot_id) {
       if (!botDataCache.value.has(message.bot_id) && !fetchingBots.value.has(message.bot_id)) {
@@ -1420,6 +1424,9 @@ const getAuthorAvatarUrl = (message: Message): ComputedRef<string> => {
       return message.metadata.discord_user.avatar_url || '/default_avatar.webp';
     }
     
+    const webhook = getWebhookAuthor(message);
+    if (webhook) return webhook.avatar_url || '/default_avatar.webp';
+
     // Regular bot
     if (message.bot_id) {
       const bot = botDataCache.value.get(message.bot_id);
@@ -2818,8 +2825,16 @@ const shouldShowHeader = (message: Message, index: number): boolean => {
     const currentDiscordUser = message.metadata?.discord_user;
     const prevDiscordUser = prevMessage.metadata?.discord_user;
     
+    const currentWebhook = getWebhookAuthor(message);
+    const prevWebhook = getWebhookAuthor(prevMessage);
+    if (currentWebhook || prevWebhook) {
+      // One webhook posts under per-message names and avatars.
+      if (currentWebhook?.id !== prevWebhook?.id
+          || currentWebhook?.name !== prevWebhook?.name
+          || currentWebhook?.avatar_url !== prevWebhook?.avatar_url) return true;
+    }
     // If both have discord_user metadata, compare by discord user id or username
-    if (currentDiscordUser && prevDiscordUser) {
+    else if (currentDiscordUser && prevDiscordUser) {
       const currentId = currentDiscordUser.id || currentDiscordUser.username;
       const prevId = prevDiscordUser.id || prevDiscordUser.username;
       if (currentId !== prevId) return true;
@@ -3639,6 +3654,8 @@ const handleAuthorClick = (message: Message, event?: MouseEvent) => {
     showProfileModal.value = true;
     return;
   }
+  // A webhook's backing bot has no profile to show.
+  if (getWebhookAuthor(message)) return;
   if (message.bot_id) {
     const bot = botDataCache.value.get(message.bot_id);
     selectedBot.value = {

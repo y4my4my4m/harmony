@@ -11,6 +11,7 @@ import {
 import {
   getBridgeSource,
   getHarmonyProfileUserId,
+  getWebhookAuthor,
   isBridgedAuthorMessage,
 } from '@/utils/messageAuthor'
 
@@ -43,7 +44,7 @@ export function useMessageAuthorPresentation(
   watch(
     () => message.value?.bot_id,
     (botId) => {
-      if (botId && !isBridgedAuthorMessage(message.value)) {
+      if (botId && !isBridgedAuthorMessage(message.value) && !getWebhookAuthor(message.value)) {
         void ensureBot(botId).then(() => { botTick.value++ })
       }
     },
@@ -62,6 +63,8 @@ export function useMessageAuthorPresentation(
       const bridged = msg.metadata.discord_user
       return bridged.display_name || bridged.username || 'Unknown'
     }
+    const webhook = getWebhookAuthor(msg)
+    if (webhook) return webhook.name
     if (msg.bot_id) {
       const bot = botCache.get(msg.bot_id)
       return bot?.display_name || bot?.username || 'Bot'
@@ -77,6 +80,8 @@ export function useMessageAuthorPresentation(
     if (msg.metadata?.discord_user) {
       return msg.metadata.discord_user.avatar_url || '/default_avatar.webp'
     }
+    const webhook = getWebhookAuthor(msg)
+    if (webhook) return webhook.avatar_url || '/default_avatar.webp'
     if (msg.bot_id) return botCache.get(msg.bot_id)?.avatar_url || '/default_avatar.webp'
     if (msg.user_id) return getUserAvatarUrl(msg.user_id).value
     return '/default_avatar.webp'

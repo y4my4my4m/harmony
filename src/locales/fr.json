@@ -1945,6 +1945,63 @@
       }
     }
   },
+  "webhooks": {
+    "tab": "Webhooks",
+    "heading": "Webhooks",
+    "intro": "Les webhooks permettent à d'autres services, comme GitHub ou une chaîne de compilation, de publier des messages dans ce salon. Toute personne qui possède l'URL d'un webhook peut publier avec.",
+    "create": "Nouveau webhook",
+    "createSubmit": "Créer le webhook",
+    "defaultName": "Webhook",
+    "nameLabel": "Nom",
+    "avatarLabel": "URL de l'avatar",
+    "avatarPlaceholder": "https://… (facultatif)",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "edit": "Modifier",
+    "regenerate": "Régénérer l'URL",
+    "delete": "Supprimer",
+    "created": "Webhook créé",
+    "updated": "Webhook mis à jour",
+    "deleted": "Webhook supprimé",
+    "regenerated": "Nouvelle URL générée",
+    "copyOnce": "Copiez maintenant l'URL de {name} : elle ne s'affiche qu'une fois. Gardez-la secrète, comme un mot de passe.",
+    "githubHint": "Pour GitHub, utilisez l'URL GitHub comme URL de payload d'un webhook de dépôt.",
+    "copyUrl": "Copier l'URL",
+    "copyGithubUrl": "Copier l'URL GitHub",
+    "copied": "URL du webhook copiée",
+    "copyFailed": "Impossible de copier l'URL",
+    "done": "Terminé",
+    "loading": "Chargement des webhooks…",
+    "loadFailed": "Impossible de charger les webhooks",
+    "empty": "Ce salon n'a encore aucun webhook.",
+    "createdBy": "Créé par {name}",
+    "createdByUnknown": "Créateur inconnu",
+    "lastUsed": "Dernière utilisation : {date}",
+    "neverUsed": "Jamais utilisé",
+    "urlHint": "L'URL se termine par …{hint}",
+    "limitReached": "Un salon compte au plus {count} webhooks.",
+    "badge": "WEBHOOK",
+    "confirmRegenerate": {
+      "title": "Régénérer l'URL du webhook ?",
+      "message": "L'URL actuelle de {name} cessera de fonctionner. Les services qui l'utilisent auront besoin de la nouvelle URL.",
+      "confirm": "Régénérer"
+    },
+    "confirmDelete": {
+      "title": "Supprimer le webhook ?",
+      "message": "{name} cessera de fonctionner. Les messages déjà publiés restent.",
+      "confirm": "Supprimer"
+    },
+    "errors": {
+      "encrypted": "Les webhooks ne peuvent pas publier dans un salon chiffré de bout en bout.",
+      "unsupported": "Les webhooks ne publient que dans les salons textuels des serveurs de cette instance.",
+      "channelLimit": "Ce salon a déjà le nombre maximal de webhooks.",
+      "serverLimit": "Ce serveur a déjà le nombre maximal de webhooks.",
+      "invalidName": "Un nom compte de 1 à 80 caractères et ne peut pas être un nom réservé comme System.",
+      "invalidAvatar": "L'avatar doit être une URL https://.",
+      "permission": "Il vous faut la permission Gérer les webhooks.",
+      "saveFailed": "Impossible d'enregistrer le webhook"
+    }
+  },
   "floatingVideo": {
     "region": "Lecteur vidéo",
     "video": "Vidéo",

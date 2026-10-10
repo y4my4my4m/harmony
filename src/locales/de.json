@@ -1945,6 +1945,63 @@
       }
     }
   },
+  "webhooks": {
+    "tab": "Webhooks",
+    "heading": "Webhooks",
+    "intro": "Mit Webhooks können andere Dienste wie GitHub oder eine Build-Pipeline Nachrichten in diesem Kanal posten. Wer die URL eines Webhooks kennt, kann damit posten.",
+    "create": "Neuer Webhook",
+    "createSubmit": "Webhook erstellen",
+    "defaultName": "Webhook",
+    "nameLabel": "Name",
+    "avatarLabel": "Avatar-URL",
+    "avatarPlaceholder": "https://… (optional)",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "edit": "Bearbeiten",
+    "regenerate": "URL neu erzeugen",
+    "delete": "Löschen",
+    "created": "Webhook erstellt",
+    "updated": "Webhook aktualisiert",
+    "deleted": "Webhook gelöscht",
+    "regenerated": "Neue URL erzeugt",
+    "copyOnce": "Kopiere die URL von {name} jetzt: Sie wird nur einmal angezeigt. Halte sie geheim wie ein Passwort.",
+    "githubHint": "Für GitHub trägst du die GitHub-URL als Payload-URL eines Repository-Webhooks ein.",
+    "copyUrl": "URL kopieren",
+    "copyGithubUrl": "GitHub-URL kopieren",
+    "copied": "Webhook-URL kopiert",
+    "copyFailed": "URL konnte nicht kopiert werden",
+    "done": "Fertig",
+    "loading": "Webhooks werden geladen…",
+    "loadFailed": "Webhooks konnten nicht geladen werden",
+    "empty": "In diesem Kanal gibt es noch keine Webhooks.",
+    "createdBy": "Erstellt von {name}",
+    "createdByUnknown": "Ersteller unbekannt",
+    "lastUsed": "Zuletzt verwendet {date}",
+    "neverUsed": "Nie verwendet",
+    "urlHint": "URL endet auf …{hint}",
+    "limitReached": "Ein Kanal hat höchstens {count} Webhooks.",
+    "badge": "WEBHOOK",
+    "confirmRegenerate": {
+      "title": "Webhook-URL neu erzeugen?",
+      "message": "Die aktuelle URL von {name} funktioniert dann nicht mehr. Dienste, die sie nutzen, brauchen die neue URL.",
+      "confirm": "Neu erzeugen"
+    },
+    "confirmDelete": {
+      "title": "Webhook löschen?",
+      "message": "{name} funktioniert dann nicht mehr. Bereits gepostete Nachrichten bleiben erhalten.",
+      "confirm": "Löschen"
+    },
+    "errors": {
+      "encrypted": "Webhooks können nicht in Ende-zu-Ende-verschlüsselten Kanälen posten.",
+      "unsupported": "Webhooks posten nur in Textkanälen von Servern auf dieser Instanz.",
+      "channelLimit": "Dieser Kanal hat bereits die maximale Anzahl an Webhooks.",
+      "serverLimit": "Dieser Server hat bereits die maximale Anzahl an Webhooks.",
+      "invalidName": "Ein Name hat 1 bis 80 Zeichen und darf kein reservierter Name wie System sein.",
+      "invalidAvatar": "Der Avatar muss eine https://-URL sein.",
+      "permission": "Dafür brauchst du die Berechtigung „Webhooks verwalten“.",
+      "saveFailed": "Webhook konnte nicht gespeichert werden"
+    }
+  },
   "floatingVideo": {
     "region": "Videoplayer",
     "video": "Video",

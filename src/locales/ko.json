@@ -1945,6 +1945,63 @@
       }
     }
   },
+  "webhooks": {
+    "tab": "웹후크",
+    "heading": "웹후크",
+    "intro": "웹후크를 사용하면 GitHub나 빌드 파이프라인 같은 외부 서비스가 이 채널에 메시지를 게시할 수 있습니다. 웹후크 URL을 아는 사람은 누구나 그 URL로 게시할 수 있습니다.",
+    "create": "새 웹후크",
+    "createSubmit": "웹후크 만들기",
+    "defaultName": "웹후크",
+    "nameLabel": "이름",
+    "avatarLabel": "아바타 URL",
+    "avatarPlaceholder": "https://… (선택)",
+    "save": "저장",
+    "cancel": "취소",
+    "edit": "편집",
+    "regenerate": "URL 다시 생성",
+    "delete": "삭제",
+    "created": "웹후크를 만들었습니다",
+    "updated": "웹후크를 업데이트했습니다",
+    "deleted": "웹후크를 삭제했습니다",
+    "regenerated": "새 URL을 생성했습니다",
+    "copyOnce": "지금 {name}의 URL을 복사하세요. 한 번만 표시됩니다. 비밀번호처럼 비밀로 유지하세요.",
+    "githubHint": "GitHub에서는 GitHub URL을 저장소 웹후크의 Payload URL로 사용하세요.",
+    "copyUrl": "URL 복사",
+    "copyGithubUrl": "GitHub URL 복사",
+    "copied": "웹후크 URL을 복사했습니다",
+    "copyFailed": "URL을 복사하지 못했습니다",
+    "done": "완료",
+    "loading": "웹후크를 불러오는 중…",
+    "loadFailed": "웹후크를 불러오지 못했습니다",
+    "empty": "이 채널에는 아직 웹후크가 없습니다.",
+    "createdBy": "만든 사람: {name}",
+    "createdByUnknown": "만든 사람 알 수 없음",
+    "lastUsed": "마지막 사용: {date}",
+    "neverUsed": "사용한 적 없음",
+    "urlHint": "URL 끝: …{hint}",
+    "limitReached": "채널 하나에는 웹후크를 최대 {count}개까지 만들 수 있습니다.",
+    "badge": "WEBHOOK",
+    "confirmRegenerate": {
+      "title": "웹후크 URL을 다시 생성할까요?",
+      "message": "{name}의 현재 URL은 더 이상 작동하지 않습니다. 이 URL을 사용하는 서비스에는 새 URL이 필요합니다.",
+      "confirm": "다시 생성"
+    },
+    "confirmDelete": {
+      "title": "웹후크를 삭제할까요?",
+      "message": "{name}은(는) 더 이상 작동하지 않습니다. 이미 게시된 메시지는 남습니다.",
+      "confirm": "삭제"
+    },
+    "errors": {
+      "encrypted": "종단 간 암호화된 채널에는 웹후크로 게시할 수 없습니다.",
+      "unsupported": "웹후크는 이 인스턴스에 있는 서버의 텍스트 채널에만 게시할 수 있습니다.",
+      "channelLimit": "이 채널은 이미 웹후크 개수 한도에 도달했습니다.",
+      "serverLimit": "이 서버는 이미 웹후크 개수 한도에 도달했습니다.",
+      "invalidName": "이름은 1~80자여야 하며 System 같은 예약된 이름은 쓸 수 없습니다.",
+      "invalidAvatar": "아바타는 https:// URL이어야 합니다.",
+      "permission": "웹후크 관리 권한이 필요합니다.",
+      "saveFailed": "웹후크를 저장하지 못했습니다"
+    }
+  },
   "floatingVideo": {
     "region": "비디오 플레이어",
     "video": "동영상",
