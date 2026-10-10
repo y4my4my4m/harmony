@@ -113,6 +113,13 @@ function replyTitleAction(data: Record<string, any>): string {
   return ` replied to your message in #${channelName}`
 }
 
+function channelMessageTitleAction(data: Record<string, any>): string {
+  const channel = data.location?.channel_name || data.channel_name
+  return channel
+    ? i18n.global.t('notificationSettings.notification.action', { channel })
+    : i18n.global.t('notificationSettings.notification.actionNoChannel')
+}
+
 function threadReplyTitleAction(data: Record<string, any>): string {
   const channelName = data.location?.channel_name || data.channel_name || 'a thread'
   return ` replied in a thread in #${channelName}`
@@ -195,6 +202,25 @@ const MESSAGE_TEMPLATES = {
     }
   },
   
+  channel_message: {
+    titleAction: channelMessageTitleAction,
+    title: (data: any) => getActorDisplayName(data) + channelMessageTitleAction(data),
+    message: (data: any) => {
+      const text = extractContentText(data.message?.content_preview)
+        || extractContentText(data.preview)
+      if (text) {
+        return text.length > 100 ? text.substring(0, 100) + '...' : text
+      }
+      return i18n.global.t('notificationSettings.notification.noPreview')
+    },
+    shortTitle: (data: any) => {
+      const channel = data.location?.channel_name || data.channel_name
+      return channel
+        ? i18n.global.t('notificationSettings.notification.short', { channel })
+        : i18n.global.t('notificationSettings.notification.shortNoChannel')
+    }
+  },
+
   reaction: {
     titleAction: () => ' reacted to your message',
     title: (data: any) => getActorDisplayName(data) + ' reacted to your message',

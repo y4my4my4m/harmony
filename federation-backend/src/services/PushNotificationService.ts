@@ -1027,6 +1027,15 @@ class PushNotificationServiceClass {
         message = this.extractContentPreview(data) || 'New message';
         break;
 
+      case 'channel_message': {
+        const channelName = data.location?.channel_name || data.channel_name;
+        title = channelName
+          ? `${senderName}${senderDomain} in #${channelName}`
+          : `${senderName}${senderDomain} sent a message`;
+        message = this.extractContentPreview(data) || 'New message';
+        break;
+      }
+
       case 'reply':
         title = `${senderName}${senderDomain} replied to you`;
         message = this.extractContentPreview(data) || 'New reply';

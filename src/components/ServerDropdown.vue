@@ -21,6 +21,11 @@
           {{ $t('server.inviteLink') }}
         </button>
       </li>
+      <li role="none">
+        <button type="button" role="menuitem" class="dropdown-item" data-testid="server-notification-settings" @click="openNotificationSettings">
+          {{ $t('notificationSettings.menuEntry') }}
+        </button>
+      </li>
       <li v-if="showWelcomeEntry" role="none">
         <button type="button" role="menuitem" class="dropdown-item" data-testid="server-welcome-entry" @click="openWelcome">
           {{ $t('serverWelcome.menuEntry') }}
@@ -42,6 +47,7 @@ import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useServerWelcomeStore } from '@/stores/useServerWelcome';
 import { useLeaveServer } from '@/composables/useLeaveServer';
+import { useServerNotificationSettingsStore } from '@/stores/useServerNotificationSettings';
 
 interface Props {
   serverId?: string
@@ -92,6 +98,13 @@ const goToServerSettings = () => {
 
 const generateInviteLink = () => {
   emit('openInviteModal');
+  closeDropdown();
+};
+
+const notificationSettingsStore = useServerNotificationSettingsStore();
+
+const openNotificationSettings = () => {
+  if (props.serverId) notificationSettingsStore.openModal(props.serverId);
   closeDropdown();
 };
 

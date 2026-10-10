@@ -119,6 +119,11 @@ describe('per-type push gates', () => {
     expect(pushAllowedForType('newcomer_message', { newcomer_alerts: true, desktop_chat_messages: false })).toBe(true);
   });
 
+  it('gates channel messages on the chat message toggle', () => {
+    expect(pushAllowedForType('channel_message', { desktop_chat_messages: false })).toBe(false);
+    expect(pushAllowedForType('channel_message', { desktop_chat_messages: true, push_dms: false })).toBe(true);
+  });
+
   it('gates social types on the social alert toggles', () => {
     expect(pushAllowedForType('activitypub_favorite', { activitypub_desktop_favorites: false })).toBe(false);
     expect(pushAllowedForType('activitypub_follow', { activitypub_desktop_notifications: false })).toBe(false);

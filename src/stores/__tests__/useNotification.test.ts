@@ -179,6 +179,23 @@ describe('useNotificationStore - identity safety', () => {
   })
 })
 
+describe('useNotificationStore - badges', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('counts unread channel messages into channel and server badges, as mentions', () => {
+    const store = useNotificationStore()
+    const n = (id: string, type: string, isRead = false) => ({
+      id, type, is_read: isRead, user_id: PROFILE_ID, created_at: new Date().toISOString(),
+      data: { server_id: 's1', channel_id: 'c1' },
+    }) as any
+    store.notifications = [n('a', 'mention'), n('b', 'channel_message'), n('c', 'channel_message', true), n('d', 'reaction')]
+    expect(store.unreadChannelMentions('c1')).toBe(2)
+    expect(store.unreadServerMentions('s1')).toBe(2)
+  })
+})
+
 describe('useNotificationStore - cache bounding', () => {
   beforeEach(() => {
     setActivePinia(createPinia())

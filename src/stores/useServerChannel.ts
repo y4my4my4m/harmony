@@ -11,6 +11,8 @@ import { userEventChannel } from '@/services/UserEventChannel';
 import { authContextService } from '@/services/AuthContextService';
 import { SERVER_BOT_CHANGE_EVENT } from '@/services/serverBotsService';
 import { createServerFromTemplate as createServerFromTemplateRpc } from '@/services/serverTemplateService';
+import { updateServerNotificationSettings } from '@/services/notificationSettings';
+import { useServerNotificationSettingsStore } from '@/stores/useServerNotificationSettings';
 import { debug } from '@/utils/debug';
 import { pickServerSettings } from '@/utils/serverSettings';
 import type { ServerTemplate } from '@/utils/serverTemplate';
@@ -2720,12 +2722,13 @@ export const useServerChannelStore = defineStore('serverChannel', {
         : { muted: true, muted_until: until ? until.toISOString() : null };
       server.muted = next.muted;
       server.muted_until = next.muted_until;
-      const { error } = await supabase
-        .from('user_servers')
-        .update(next)
-        .eq('user_id', this.currentUserId)
-        .eq('server_id', serverId);
-      if (error) {
+      try {
+        const settings = await updateServerNotificationSettings(
+          serverId,
+          until === false ? { muted: false } : { muted: true, muted_until: next.muted_until },
+        );
+        useServerNotificationSettingsStore().apply(settings);
+      } catch (error) {
         debug.error('Failed to update server mute:', error);
         server.muted = prev.muted;
         server.muted_until = prev.muted_until;

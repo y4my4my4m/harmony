@@ -39,6 +39,20 @@ describe('NotificationFormatter', () => {
       expect(result.message).toContain('Hey @you!')
     })
 
+    it('formats a channel message for a channel at level all', () => {
+      const notif = makeNotification('channel_message', {
+        data: {
+          sender: { username: 'alice', display_name: 'Alice' },
+          location: { channel_name: 'general' },
+          message: { content_preview: 'lunch?' },
+        },
+      })
+      const result = NotificationFormatter.formatNotification(notif)
+      expect(result.title).toBe('Alice sent a message in #general')
+      expect(result.message).toBe('lunch?')
+      expect(result.shortTitle).toBe('Message in #general')
+    })
+
     it('formats a moderation warning with its text and no moderator', () => {
       const notif = makeNotification('moderation_warning', { data: { text: 'Keep it civil.' } })
       const result = NotificationFormatter.formatNotification(notif)

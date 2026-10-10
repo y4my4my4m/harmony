@@ -4041,5 +4041,56 @@
       "invalid": "模板无效：{detail}",
       "rejected": "服务器拒绝了此模板：{detail}"
     }
+  },
+  "notificationSettings": {
+    "menuEntry": "通知设置",
+    "title": "通知设置",
+    "muteServer": "静音 {name}",
+    "muteServerHint": "静音的服务器不显示未读提示，也不发送通知，除非有人提及你。",
+    "muteFor": "静音时长",
+    "serverLevel": "服务器通知设置",
+    "serverDefaultTag": "服务器默认",
+    "useServerDefault": "使用服务器默认设置",
+    "levels": {
+      "all": "所有消息",
+      "mentions": "仅{'@'}提及",
+      "none": "无"
+    },
+    "suppressEveryone": "屏蔽 {'@'}everyone",
+    "suppressEveryoneHint": "此服务器中的 {'@'}everyone 提及不会通知你。",
+    "suppressRoles": "屏蔽所有身份组{'@'}提及",
+    "suppressRolesHint": "提及你的身份组不会通知你。直接提及你仍会通知。",
+    "push": "推送通知",
+    "pushHint": "你离开时，将此服务器的通知推送到你的手机和浏览器。",
+    "overrides": "通知例外",
+    "overridesHint": "在此设置的频道或分类不遵循服务器设置。频道遵循其所在分类。",
+    "addOverride": "选择频道或分类",
+    "categoriesGroup": "分类",
+    "channelsGroup": "频道",
+    "categoryTag": "分类",
+    "columns": {
+      "target": "频道或分类",
+      "mute": "静音"
+    },
+    "remove": "移除",
+    "removeNamed": "移除 {name} 的例外",
+    "noOverrides": "暂无例外。",
+    "done": "完成",
+    "saveFailed": "无法保存通知设置",
+    "header": {
+      "markRead": "标记为已读",
+      "muteChannel": "静音频道",
+      "unmuteChannel": "取消静音频道",
+      "unmuteCategory": "取消静音分类",
+      "level": "通知级别",
+      "default": "默认（{level}）"
+    },
+    "notification": {
+      "action": " 在 #{channel} 发送了一条消息",
+      "actionNoChannel": " 发送了一条消息",
+      "short": "#{channel} 中的消息",
+      "shortNoChannel": "新消息",
+      "noPreview": "点击查看消息"
+    }
   }
 }

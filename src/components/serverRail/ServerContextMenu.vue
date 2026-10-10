@@ -32,6 +32,9 @@
       </div>
     </div>
     <div v-if="muted && mutedUntilLabel" class="rail-menu-note">{{ mutedUntilLabel }}</div>
+    <button type="button" role="menuitem" class="rail-menu-item" data-action="notification-settings" @click="act({ type: 'notification-settings' })">
+      {{ t('notificationSettings.menuEntry') }}
+    </button>
 
     <div class="rail-menu-divider" role="separator"></div>
 
@@ -104,6 +107,7 @@ export type ServerMenuAction =
   | { type: 'mark-read' }
   | { type: 'invite' }
   | { type: 'mute'; until: Date | null | false }
+  | { type: 'notification-settings' }
   | { type: 'settings' }
   | { type: 'create-channel' }
   | { type: 'create-category' }

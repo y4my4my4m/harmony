@@ -4037,5 +4037,56 @@
       "invalid": "The template is not valid: {detail}",
       "rejected": "The server refused this template: {detail}"
     }
+  },
+  "notificationSettings": {
+    "menuEntry": "Notification settings",
+    "title": "Notification settings",
+    "muteServer": "Mute {name}",
+    "muteServerHint": "A muted server shows no unread indicators and sends no notifications unless you are mentioned.",
+    "muteFor": "Mute for",
+    "serverLevel": "Server notification settings",
+    "serverDefaultTag": "Server default",
+    "useServerDefault": "Use the server default",
+    "levels": {
+      "all": "All messages",
+      "mentions": "Only {'@'}mentions",
+      "none": "Nothing"
+    },
+    "suppressEveryone": "Suppress {'@'}everyone",
+    "suppressEveryoneHint": "{'@'}everyone mentions in this server do not notify you.",
+    "suppressRoles": "Suppress all role {'@'}mentions",
+    "suppressRolesHint": "Mentions of your roles do not notify you. Mentions of you still do.",
+    "push": "Push notifications",
+    "pushHint": "Send this server's notifications to your phone and browser while you are away.",
+    "overrides": "Notification overrides",
+    "overridesHint": "A channel or category set here ignores the server setting. Channels follow their category.",
+    "addOverride": "Select a channel or category",
+    "categoriesGroup": "Categories",
+    "channelsGroup": "Channels",
+    "categoryTag": "Category",
+    "columns": {
+      "target": "Channel or category",
+      "mute": "Mute"
+    },
+    "remove": "Remove",
+    "removeNamed": "Remove the override for {name}",
+    "noOverrides": "No overrides yet.",
+    "done": "Done",
+    "saveFailed": "Couldn't save notification settings",
+    "header": {
+      "markRead": "Mark as read",
+      "muteChannel": "Mute channel",
+      "unmuteChannel": "Unmute channel",
+      "unmuteCategory": "Unmute category",
+      "level": "Notification level",
+      "default": "Default ({level})"
+    },
+    "notification": {
+      "action": " sent a message in #{channel}",
+      "actionNoChannel": " sent a message",
+      "short": "Message in #{channel}",
+      "shortNoChannel": "New message",
+      "noPreview": "Click to view message"
+    }
   }
 }

@@ -423,6 +423,7 @@ import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useViewport } from '@/composables/useViewport';
 import { useNotificationStore } from '@/stores/useNotification';
+import { useServerNotificationSettingsStore } from '@/stores/useServerNotificationSettings';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useThemeStore } from '@/stores/useTheme';
 import { useChannelEncryptionStore } from '@/stores/useChannelEncryption';
@@ -456,7 +457,6 @@ import { threadService, type ThreadWithDetails } from '@/services/ThreadService'
 import { useThreadsStore, isOptimisticThreadId } from '@/stores/useThreads';
 import { useUnreadCounts } from '@/composables/useUnreadCounts';
 import { supabase } from '@/supabase';
-import { authContextService } from '@/services/AuthContextService';
 
 import draggable from "vuedraggable";
 
@@ -798,25 +798,21 @@ const onChannelRemovedFromCategory = (_evt: any) => {
 const notificationStore = useNotificationStore();
 const { getUnreadMessages } = useUnreadCounts();
 
-const mutedChannelIds = ref<Set<string>>(new Set());
+const notificationSettings = useServerNotificationSettingsStore();
 
-const loadMutedChannels = async () => {
-  try {
-    const ctx = await authContextService.getCurrentContext()
-    if (!ctx.isAuthenticated || !props.currentServer?.id) return
+// Channels muted directly or through their category.
+const mutedChannelIds = computed<Set<string>>(() => {
+  const serverId = props.currentServer?.id;
+  return new Set(
+    props.channels
+      .filter(c => notificationSettings.isChannelMuted(serverId, c.id, c.category))
+      .map(c => c.id)
+  );
+});
 
-    const { data } = await supabase
-      .from('notification_channels')
-      .select('channel_id')
-      .eq('user_id', ctx.profileId)
-      .eq('server_id', props.currentServer.id)
-      .eq('muted', true)
-
-    mutedChannelIds.value = new Set((data || []).map((r: any) => r.channel_id).filter(Boolean))
-  } catch (error) {
-    debug.error('Failed to load muted channels:', error)
-  }
-}
+const loadMutedChannels = () => {
+  if (props.currentServer?.id) void notificationSettings.load(props.currentServer.id);
+};
 
 const getChannelUnreadMentions = (channelId: string): number => {
   return notificationStore.unreadChannelMentions(channelId);
@@ -1343,20 +1339,6 @@ watch(() => route.params.threadId, (threadId) => {
   }
 }, { immediate: true });
 
-// Mute toggles update local state directly; `loadMutedChannels()` refetches
-// only on server switch and mount.
-const channelMuteChangedHandler = (event: Event) => {
-  const detail = (event as CustomEvent).detail as { channelId?: string; muted?: boolean } | undefined;
-  if (!detail?.channelId) return;
-  const next = new Set(mutedChannelIds.value);
-  if (detail.muted) {
-    next.add(detail.channelId);
-  } else {
-    next.delete(detail.channelId);
-  }
-  mutedChannelIds.value = next;
-};
-
 const closeContextMenusOnEscape = (event: KeyboardEvent) => {
   if (event.key === 'Escape') closeContextMenus();
 };
@@ -1367,7 +1349,6 @@ onMounted(() => {
   document.addEventListener('click', closeContextMenus);
   document.addEventListener('contextmenu', closeContextMenus, true);
   document.addEventListener('keydown', closeContextMenusOnEscape);
-  window.addEventListener('channel-mute-changed', channelMuteChangedHandler);
 });
 
 onUnmounted(() => {
@@ -1375,7 +1356,6 @@ onUnmounted(() => {
   document.removeEventListener('click', closeContextMenus);
   document.removeEventListener('contextmenu', closeContextMenus, true);
   document.removeEventListener('keydown', closeContextMenusOnEscape);
-  window.removeEventListener('channel-mute-changed', channelMuteChangedHandler);
 });
 
 

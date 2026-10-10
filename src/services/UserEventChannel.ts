@@ -19,6 +19,7 @@ import { debug } from '@/utils/debug'
 type UserEventType =
   | 'notification:new' | 'notification:update' | 'notification:bulk_read' | 'notification:deleted'
   | 'unread:change'
+  | 'notification_settings:changed'
   | 'conversation:new' | 'conversation:updated'
   | 'server:joined' | 'server:left' | 'server:updated'
   | 'preferences:updated'

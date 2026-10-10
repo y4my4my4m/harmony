@@ -18,6 +18,8 @@ export type NotificationType =
   | 'mention'
   | 'dm' 
   | 'chat_message'
+  /** A channel message for a member at level 'all'. */
+  | 'channel_message'
   | 'reaction'
   | 'reply'
   | 'thread_reply'
@@ -159,9 +161,11 @@ export interface NotificationChannel {
   server_id?: string;
   channel_id?: string;
   conversation_id?: string;
+  category_id?: string;
   muted: boolean;
   muted_until?: string;
-  notification_level: 'all' | 'mentions' | 'none';
+  /** null inherits from the category, then the server. */
+  notification_level: 'all' | 'mentions' | 'none' | null;
   created_at: string;
   updated_at: string;
 }
