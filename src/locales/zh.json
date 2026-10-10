@@ -1947,6 +1947,63 @@
       }
     }
   },
+  "webhooks": {
+    "tab": "Webhook",
+    "heading": "Webhook",
+    "intro": "Webhook 让 GitHub 或构建流水线等外部服务可以在此频道发布消息。任何拥有 Webhook URL 的人都可以用它发布消息。",
+    "create": "新建 Webhook",
+    "createSubmit": "创建 Webhook",
+    "defaultName": "Webhook",
+    "nameLabel": "名称",
+    "avatarLabel": "头像 URL",
+    "avatarPlaceholder": "https://…（可选）",
+    "save": "保存",
+    "cancel": "取消",
+    "edit": "编辑",
+    "regenerate": "重新生成 URL",
+    "delete": "删除",
+    "created": "Webhook 已创建",
+    "updated": "Webhook 已更新",
+    "deleted": "Webhook 已删除",
+    "regenerated": "已生成新 URL",
+    "copyOnce": "请立即复制 {name} 的 URL：它只显示一次。请像密码一样妥善保密。",
+    "githubHint": "用于 GitHub 时，请将 GitHub URL 填为仓库 Webhook 的 Payload URL。",
+    "copyUrl": "复制 URL",
+    "copyGithubUrl": "复制 GitHub URL",
+    "copied": "Webhook URL 已复制",
+    "copyFailed": "无法复制 URL",
+    "done": "完成",
+    "loading": "正在加载 Webhook…",
+    "loadFailed": "无法加载 Webhook",
+    "empty": "此频道还没有 Webhook。",
+    "createdBy": "创建者：{name}",
+    "createdByUnknown": "创建者未知",
+    "lastUsed": "上次使用：{date}",
+    "neverUsed": "从未使用",
+    "urlHint": "URL 结尾为 …{hint}",
+    "limitReached": "每个频道最多可有 {count} 个 Webhook。",
+    "badge": "WEBHOOK",
+    "confirmRegenerate": {
+      "title": "重新生成 Webhook URL？",
+      "message": "{name} 的当前 URL 将失效。使用它的服务需要换用新的 URL。",
+      "confirm": "重新生成"
+    },
+    "confirmDelete": {
+      "title": "删除 Webhook？",
+      "message": "{name} 将停止工作。已发布的消息会保留。",
+      "confirm": "删除"
+    },
+    "errors": {
+      "encrypted": "Webhook 无法在端到端加密的频道中发布消息。",
+      "unsupported": "Webhook 只能在本实例服务器的文字频道中发布消息。",
+      "channelLimit": "此频道的 Webhook 数量已达上限。",
+      "serverLimit": "此服务器的 Webhook 数量已达上限。",
+      "invalidName": "名称须为 1 到 80 个字符，且不能是 System 等保留名称。",
+      "invalidAvatar": "头像必须是 https:// 开头的 URL。",
+      "permission": "你需要“管理 Webhook”权限。",
+      "saveFailed": "无法保存 Webhook"
+    }
+  },
   "floatingVideo": {
     "region": "视频播放器",
     "video": "视频",

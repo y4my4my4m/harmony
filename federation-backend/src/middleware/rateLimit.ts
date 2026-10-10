@@ -49,7 +49,29 @@ async function consume(rawKey: string, windowMs: number, maxRequests: number): P
     const result = await redis.rateLimit(`rl:${rawKey}`, maxRequests, Math.ceil(windowMs / 1000));
     return { allowed: result.allowed, remaining: result.remaining, resetMs: result.resetMs };
   }
+  return consumeMemory(rawKey, windowMs, maxRequests);
+}
 
+/** consume that throws when Redis is connected but does not answer. */
+async function consumeStrict(rawKey: string, windowMs: number, maxRequests: number): Promise<RateLimitResult> {
+  if (redis.ready) {
+    return redis.rateLimitStrict(`rl:${rawKey}`, maxRequests, Math.ceil(windowMs / 1000));
+  }
+  return consumeMemory(rawKey, windowMs, maxRequests);
+}
+
+/** The count consume has reached for a key, without counting; throws as consumeStrict does. */
+async function peekStrict(rawKey: string): Promise<{ count: number; resetMs: number }> {
+  if (redis.ready) {
+    return redis.counterStrict(`rl:${rawKey}`);
+  }
+  const now = Date.now();
+  const entry = memoryStore.get(rawKey);
+  if (!entry || entry.resetTime < now) return { count: 0, resetMs: 0 };
+  return { count: entry.count, resetMs: entry.resetTime - now };
+}
+
+function consumeMemory(rawKey: string, windowMs: number, maxRequests: number): RateLimitResult {
   const now = Date.now();
   let entry = memoryStore.get(rawKey);
   if (!entry || entry.resetTime < now) {
@@ -111,6 +133,91 @@ function createKeyedLimit(options: { name: string; windowMs: number; maxRequests
   const { name, windowMs, maxRequests, message } = options;
   return async (res: Response, key: string): Promise<boolean> =>
     answer(res, maxRequests, await consume(`${name}:${key}`, windowMs, maxRequests), message);
+}
+
+/** 503 for a request the limiter store could not count. */
+function unavailable(res: Response): void {
+  res.setHeader('Retry-After', 5);
+  res.status(503).json({ error: 'Service Unavailable', message: 'Rate limiting is unavailable; retry later.' });
+}
+
+export interface StrictLimit {
+  /** Counts one request; false after sending 429, or 503 when the store cannot count it. */
+  take(res: Response, key: string): Promise<boolean>;
+  /** Counts one request without answering; false when over the limit or the store cannot count it. */
+  tryTake(key: string): Promise<boolean>;
+}
+
+/** createKeyedLimit that fails closed: a request the store cannot count is refused. */
+export function createStrictKeyedLimit(options: {
+  name: string;
+  windowMs: number;
+  maxRequests: number;
+  message: string;
+}): StrictLimit {
+  const { name, windowMs, maxRequests, message } = options;
+  return {
+    async take(res, key) {
+      let result: RateLimitResult;
+      try {
+        result = await consumeStrict(`${name}:${key}`, windowMs, maxRequests);
+      } catch {
+        unavailable(res);
+        return false;
+      }
+      return answer(res, maxRequests, result, message);
+    },
+    async tryTake(key) {
+      try {
+        return (await consumeStrict(`${name}:${key}`, windowMs, maxRequests)).allowed;
+      } catch {
+        return false;
+      }
+    },
+  };
+}
+
+export interface FailureLimit {
+  /** False after sending 429 for a key with maxFailures in the window, or 503 when the store cannot read it. */
+  admit(res: Response, key: string): Promise<boolean>;
+  /** Counts one failure. */
+  record(key: string): Promise<void>;
+}
+
+/**
+ * Failures per key, counted only when record() is called; a key at maxFailures is refused
+ * until its window ends. Fails closed.
+ */
+export function createFailureLimit(options: {
+  name: string;
+  windowMs: number;
+  maxFailures: number;
+  message: string;
+}): FailureLimit {
+  const { name, windowMs, maxFailures, message } = options;
+  return {
+    async admit(res, key) {
+      let state: { count: number; resetMs: number };
+      try {
+        state = await peekStrict(`${name}:${key}`);
+      } catch {
+        unavailable(res);
+        return false;
+      }
+      return answer(res, maxFailures, {
+        allowed: state.count < maxFailures,
+        remaining: Math.max(0, maxFailures - state.count),
+        resetMs: state.resetMs,
+      }, message);
+    },
+    async record(key) {
+      try {
+        await consumeStrict(`${name}:${key}`, windowMs, maxFailures);
+      } catch {
+        // admit() answers 503 while the store is down.
+      }
+    },
+  };
 }
 
 export const apiLimiter = createRateLimiter({

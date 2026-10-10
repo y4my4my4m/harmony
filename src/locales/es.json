@@ -1947,6 +1947,63 @@
       }
     }
   },
+  "webhooks": {
+    "tab": "Webhooks",
+    "heading": "Webhooks",
+    "intro": "Los webhooks permiten que otros servicios, como GitHub o un pipeline de compilación, publiquen mensajes en este canal. Cualquiera que tenga la URL de un webhook puede publicar con ella.",
+    "create": "Nuevo webhook",
+    "createSubmit": "Crear webhook",
+    "defaultName": "Webhook",
+    "nameLabel": "Nombre",
+    "avatarLabel": "URL del avatar",
+    "avatarPlaceholder": "https://… (opcional)",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "edit": "Editar",
+    "regenerate": "Regenerar URL",
+    "delete": "Eliminar",
+    "created": "Webhook creado",
+    "updated": "Webhook actualizado",
+    "deleted": "Webhook eliminado",
+    "regenerated": "Nueva URL generada",
+    "copyOnce": "Copia ahora la URL de {name}: solo se muestra una vez. Guárdala en secreto, como una contraseña.",
+    "githubHint": "Para GitHub, usa la URL de GitHub como URL de payload de un webhook del repositorio.",
+    "copyUrl": "Copiar URL",
+    "copyGithubUrl": "Copiar URL de GitHub",
+    "copied": "URL del webhook copiada",
+    "copyFailed": "No se pudo copiar la URL",
+    "done": "Listo",
+    "loading": "Cargando webhooks…",
+    "loadFailed": "No se pudieron cargar los webhooks",
+    "empty": "Este canal aún no tiene webhooks.",
+    "createdBy": "Creado por {name}",
+    "createdByUnknown": "Creador desconocido",
+    "lastUsed": "Último uso: {date}",
+    "neverUsed": "Nunca usado",
+    "urlHint": "La URL termina en …{hint}",
+    "limitReached": "Un canal admite como máximo {count} webhooks.",
+    "badge": "WEBHOOK",
+    "confirmRegenerate": {
+      "title": "¿Regenerar la URL del webhook?",
+      "message": "La URL actual de {name} dejará de funcionar. Los servicios que la usan necesitarán la nueva URL.",
+      "confirm": "Regenerar"
+    },
+    "confirmDelete": {
+      "title": "¿Eliminar el webhook?",
+      "message": "{name} dejará de funcionar. Los mensajes que publicó se conservan.",
+      "confirm": "Eliminar"
+    },
+    "errors": {
+      "encrypted": "Los webhooks no pueden publicar en un canal cifrado de extremo a extremo.",
+      "unsupported": "Los webhooks solo publican en canales de texto de servidores de esta instancia.",
+      "channelLimit": "Este canal ya tiene el máximo de webhooks permitido.",
+      "serverLimit": "Este servidor ya tiene el máximo de webhooks permitido.",
+      "invalidName": "El nombre debe tener entre 1 y 80 caracteres y no puede ser un nombre reservado como System.",
+      "invalidAvatar": "El avatar debe ser una URL https://.",
+      "permission": "Necesitas el permiso Gestionar webhooks.",
+      "saveFailed": "No se pudo guardar el webhook"
+    }
+  },
   "floatingVideo": {
     "region": "Reproductor de video",
     "video": "Video",

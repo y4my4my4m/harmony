@@ -170,7 +170,7 @@
               </svg>
             </div>
 
-            <template v-if="canManageChannels">
+            <template v-if="canManageChannels || (canManageWebhooks && channel?.type === 0)">
               <div class="context-menu-divider"></div>
 
               <div class="context-menu-item" @click="handleEditChannel">
@@ -220,7 +220,7 @@ const emit = defineEmits<{
   'edit-channel': [channel: Channel]
 }>()
 
-const { canManageChannels } = useServerPermissions()
+const { canManageChannels, canManageWebhooks } = useServerPermissions()
 const channelEncryptionStore = useChannelEncryptionStore()
 
 // i18n key for the lock icon's label; null for a channel without encryption.

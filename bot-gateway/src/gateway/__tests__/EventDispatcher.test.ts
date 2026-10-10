@@ -259,6 +259,23 @@ describe('author.nickname', () => {
     expect(nicknameQueries()).toBe(0)
   })
 
+  it('names a webhook message by the name and avatar it was posted under', async () => {
+    await dispatcher.handleMessageCreate({
+      new: {
+        ...message(GENERAL, 'deploy finished'),
+        user_id: null,
+        bot_id: BRIDGE_BOT,
+        metadata: { bot: true, created_via: 'webhook', webhook: { id: 'w1', name: 'Deployer', avatar_url: 'https://cdn.test/d.png' } },
+      },
+    })
+
+    expect(authorOf('MESSAGE_CREATE')).toEqual([{
+      id: BRIDGE_BOT, username: 'Deployer', display_name: 'Deployer', avatar: 'https://cdn.test/d.png',
+      nickname: null, bot: true, webhook: true,
+    }])
+    expect(nicknameQueries()).toBe(0)
+  })
+
   it('shows a nickname change within 60 s and reads it once per server and user meanwhile', async () => {
     let clock = Date.now()
     vi.spyOn(Date, 'now').mockImplementation(() => clock)

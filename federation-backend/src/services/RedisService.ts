@@ -269,6 +269,36 @@ class RedisServiceSingleton {
     }
   }
 
+  /** rateLimit that throws, instead of allowing, when the store does not answer. */
+  async rateLimitStrict(
+    key: string,
+    maxRequests: number,
+    windowSeconds: number
+  ): Promise<{ allowed: boolean; remaining: number; resetMs: number }> {
+    if (!this.client) throw new Error('Redis client absent');
+    const results = await this.client.multi().incr(key).ttl(key).exec();
+    if (!results || results.some(([err]) => err)) throw new Error('Redis rate limit failed');
+
+    const count = Number(results[0][1]) || 0;
+    const currentTtl = Number(results[1][1]);
+    if (currentTtl < 0) {
+      await this.client.expire(key, windowSeconds);
+    }
+    return {
+      allowed: count <= maxRequests,
+      remaining: Math.max(0, maxRequests - count),
+      resetMs: currentTtl > 0 ? currentTtl * 1000 : windowSeconds * 1000,
+    };
+  }
+
+  /** A rate-limit counter and its milliseconds to expiry; throws when the store does not answer. */
+  async counterStrict(key: string): Promise<{ count: number; resetMs: number }> {
+    if (!this.client) throw new Error('Redis client absent');
+    const results = await this.client.multi().get(key).pttl(key).exec();
+    if (!results || results.some(([err]) => err)) throw new Error('Redis counter read failed');
+    return { count: Number(results[0][1]) || 0, resetMs: Math.max(0, Number(results[1][1]) || 0) };
+  }
+
   // -- Pub/Sub ------------------------------------------------------------
 
   async publish(channel: string, message: string): Promise<number> {

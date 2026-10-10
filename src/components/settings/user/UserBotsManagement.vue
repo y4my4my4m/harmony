@@ -554,7 +554,8 @@ async function loadMyBots() {
       .eq('owner_id', profileId)
       .order('created_at', { ascending: false })
     if (error) throw error
-    myBots.value = (data ?? []) as BotRow[]
+    // Integration bots back channel webhooks and are managed from the channel's settings.
+    myBots.value = ((data ?? []) as BotRow[]).filter(bot => bot.bot_type !== 'integration')
     await Promise.all([loadServerCounts(), loadPresence()])
   } catch (error) {
     debug.error('Failed to load bots:', error)
