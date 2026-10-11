@@ -178,6 +178,7 @@ pub fn run() {
     commands::stream_audio::stream_audio_start,
     commands::stream_audio::stream_audio_stop,
     commands::stream_audio::stream_audio_trace,
+    commands::stream_audio::stream_audio_log,
     overlay::overlay_open,
     overlay::overlay_close,
     overlay::overlay_set_interactive,

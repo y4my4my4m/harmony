@@ -1324,7 +1324,10 @@
     "muteUserNamed": "Silenciar a {name}",
     "muteStreamNamed": "Silenciar la transmisión de {name}",
     "userVolumeNamed": "Volumen de {name}",
-    "streamVolumeNamed": "Volumen de la transmisión de {name}"
+    "streamVolumeNamed": "Volumen de la transmisión de {name}",
+    "copyStreamAudioLog": "Copiar registro de audio de la transmisión",
+    "streamAudioLogCopied": "Registro de audio copiado. Pégalo en tu informe de error.",
+    "streamAudioLogFailed": "No se pudo copiar el registro de audio: {reason}"
   },
   "dm": {
     "directMessages": "Mensajes directos",

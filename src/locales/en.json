@@ -1333,7 +1333,10 @@
     "muteUserNamed": "Mute {name}",
     "muteStreamNamed": "Mute {name}’s stream",
     "userVolumeNamed": "{name}’s volume",
-    "streamVolumeNamed": "{name}’s stream volume"
+    "streamVolumeNamed": "{name}’s stream volume",
+    "copyStreamAudioLog": "Copy stream audio log",
+    "streamAudioLogCopied": "Stream audio log copied. Paste it into your bug report.",
+    "streamAudioLogFailed": "Could not copy the stream audio log: {reason}"
   },
   "dm": {
     "title": "Direct messages",

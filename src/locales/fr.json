@@ -1324,7 +1324,10 @@
     "muteUserNamed": "Couper {name}",
     "muteStreamNamed": "Couper le stream de {name}",
     "userVolumeNamed": "Volume de {name}",
-    "streamVolumeNamed": "Volume du stream de {name}"
+    "streamVolumeNamed": "Volume du stream de {name}",
+    "copyStreamAudioLog": "Copier le journal audio du stream",
+    "streamAudioLogCopied": "Journal audio du stream copié. Colle-le dans ton rapport de bug.",
+    "streamAudioLogFailed": "Impossible de copier le journal audio du stream : {reason}"
   },
   "dm": {
     "directMessages": "Messages directs",

@@ -1324,7 +1324,10 @@
     "muteUserNamed": "{name} stummschalten",
     "muteStreamNamed": "Stream von {name} stummschalten",
     "userVolumeNamed": "Lautstärke von {name}",
-    "streamVolumeNamed": "Stream-Lautstärke von {name}"
+    "streamVolumeNamed": "Stream-Lautstärke von {name}",
+    "copyStreamAudioLog": "Stream-Audio-Protokoll kopieren",
+    "streamAudioLogCopied": "Stream-Audio-Protokoll kopiert. Füge es in deinen Fehlerbericht ein.",
+    "streamAudioLogFailed": "Stream-Audio-Protokoll konnte nicht kopiert werden: {reason}"
   },
   "dm": {
     "directMessages": "Direktnachrichten",

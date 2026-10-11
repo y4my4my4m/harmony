@@ -1324,7 +1324,10 @@
     "muteUserNamed": "{name}さんをミュート",
     "muteStreamNamed": "{name}さんの配信をミュート",
     "userVolumeNamed": "{name}さんの音量",
-    "streamVolumeNamed": "{name}さんの配信の音量"
+    "streamVolumeNamed": "{name}さんの配信の音量",
+    "copyStreamAudioLog": "配信音声ログをコピー",
+    "streamAudioLogCopied": "配信音声ログをコピーしました。バグ報告に貼り付けてください。",
+    "streamAudioLogFailed": "配信音声ログをコピーできませんでした: {reason}"
   },
   "dm": {
     "directMessages": "ダイレクトメッセージ",

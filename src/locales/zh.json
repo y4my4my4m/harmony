@@ -1324,7 +1324,10 @@
     "muteUserNamed": "静音 {name}",
     "muteStreamNamed": "静音 {name} 的直播",
     "userVolumeNamed": "{name} 的音量",
-    "streamVolumeNamed": "{name} 的直播音量"
+    "streamVolumeNamed": "{name} 的直播音量",
+    "copyStreamAudioLog": "复制直播音频日志",
+    "streamAudioLogCopied": "已复制直播音频日志。请粘贴到你的错误报告中。",
+    "streamAudioLogFailed": "无法复制直播音频日志：{reason}"
   },
   "dm": {
     "directMessages": "私信",

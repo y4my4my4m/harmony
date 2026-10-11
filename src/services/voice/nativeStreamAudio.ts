@@ -59,6 +59,16 @@ export function traceStreamAudio(event: string, data?: Record<string, unknown>):
   void invoke('stream_audio_trace', { line }).catch(() => {});
 }
 
+/**
+ * stream-audio.log with a system header, onto the clipboard, for a tester to paste into a
+ * report. Rejects off the desktop app and when the log cannot be read.
+ */
+export async function copyStreamAudioLog(): Promise<void> {
+  if (!isTauriDesktop()) throw new Error('not the desktop app');
+  const text = await invoke<string>('stream_audio_log');
+  await navigator.clipboard.writeText(text);
+}
+
 /** The cached probe result; false before the probe answers. */
 export function nativeStreamAudioSupported(): boolean {
   return nativeStreamAudioSupport.value?.supported === true;

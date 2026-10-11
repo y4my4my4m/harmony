@@ -133,6 +133,32 @@ pub fn stream_audio_support(app: AppHandle) -> StreamAudioSupport {
   result
 }
 
+/// stream-audio.log as text, for the Go-live panel's copy action; at most the last
+/// TRACE_MAX_BYTES. A system description heads it so a pasted log stands alone.
+#[tauri::command]
+pub fn stream_audio_log(app: AppHandle) -> Result<String, String> {
+  open_trace(&app);
+  if let Ok(mut slot) = TRACE.lock() {
+    if let Some(file) = slot.as_mut() {
+      let _ = file.flush();
+    }
+  }
+  let dir = app.path().app_log_dir().map_err(|e| e.to_string())?;
+  let path = dir.join(TRACE_FILE);
+  let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+  let start = bytes.len().saturating_sub(TRACE_MAX_BYTES as usize);
+  let body = String::from_utf8_lossy(&bytes[start..]);
+  Ok(format!(
+    "Harmony {} on {} {} ({}), screen recording permission: {}\n{}\n{body}",
+    app.package_info().version,
+    std::env::consts::OS,
+    std::env::consts::ARCH,
+    path.display(),
+    permission_text(),
+    "-".repeat(40),
+  ))
+}
+
 /// A line from the webview for stream-audio.log.
 #[tauri::command]
 pub fn stream_audio_trace(app: AppHandle, line: String) {

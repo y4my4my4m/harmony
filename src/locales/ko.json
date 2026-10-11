@@ -1324,7 +1324,10 @@
     "muteUserNamed": "{name}님 음소거",
     "muteStreamNamed": "{name}님의 방송 음소거",
     "userVolumeNamed": "{name}님의 볼륨",
-    "streamVolumeNamed": "{name}님의 방송 볼륨"
+    "streamVolumeNamed": "{name}님의 방송 볼륨",
+    "copyStreamAudioLog": "스트림 오디오 로그 복사",
+    "streamAudioLogCopied": "스트림 오디오 로그를 복사했습니다. 버그 보고서에 붙여 넣으세요.",
+    "streamAudioLogFailed": "스트림 오디오 로그를 복사할 수 없습니다: {reason}"
   },
   "dm": {
     "directMessages": "다이렉트 메시지",
