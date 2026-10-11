@@ -382,7 +382,7 @@ import { useComposerActions } from '@/composables/useComposerActions';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 
-import { getOriginalPost, getOriginalPostId, replyMentionPrefill } from '@/utils/postReblog';
+import { getOriginalPost, getOriginalPostId, replyMentionPrefill, replyVisibility } from '@/utils/postReblog';
 import { attachmentFocus } from '@/utils/focalPoint';
 import type { MediaEdit } from '@/utils/mediaEdit';
 import { messagePartsToRawText } from '@/utils/messageContentUtils';
@@ -930,6 +930,7 @@ onMounted(() => {
     // Pure reblog → original author, quote → quoter, unhydrated reblog → no
     // prefill; then the post's other mentions (utils/postReblog.ts).
     content.value = replyMentionPrefill(props.replyToPost, currentUser.value?.id);
+    visibility.value = replyVisibility(props.replyToPost, props.defaultVisibility);
   } else if (props.type === 'post' && props.initialContent?.trim()) {
     content.value = props.initialContent;
     if (props.initialContentWarning) {
@@ -970,6 +971,7 @@ watch(() => props.initialContent, (val) => {
 
 watch(() => props.replyToPost, (replyPost) => {
   if (props.type === 'reply' && replyPost && content.value === '') {
+    visibility.value = replyVisibility(replyPost, props.defaultVisibility);
     const prefill = replyMentionPrefill(replyPost, currentUser.value?.id);
     if (!prefill) return;
     content.value = prefill;
