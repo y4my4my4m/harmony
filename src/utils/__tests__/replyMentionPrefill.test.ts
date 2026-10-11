@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { TimelinePost } from '@/types'
-import { replyMentionPrefill } from '../postReblog'
+import { replyMentionPrefill, replyVisibility } from '../postReblog'
 
 const author = (id: string, username: string, domain: string, is_local: boolean) => ({ id, username, domain, is_local })
 const mention = (userId: string, username: string, domain: string, isLocal: boolean) => ({ type: 'mention', userId, username, domain, isLocal })
@@ -37,5 +37,21 @@ describe('replyMentionPrefill', () => {
     const original = post({ id: 'o', author: author('c', 'carol', 'other.example', false), content: [mention('b', 'bob', 'har.mony.lol', true)] })
     const reblog = post({ id: 'r', author: author('d', 'dave', 'har.mony.lol', true), reblog: original, reblog_author: original.author })
     expect(replyMentionPrefill(reblog, 'me')).toBe('@carol@other.example @bob ')
+  })
+})
+
+describe('replyVisibility', () => {
+  it('takes the more restrictive of the preference and the parent', () => {
+    expect(replyVisibility(post({ visibility: 'unlisted' }), 'public')).toBe('unlisted')
+    expect(replyVisibility(post({ visibility: 'followers' }), 'unlisted')).toBe('followers')
+    expect(replyVisibility(post({ visibility: 'direct' }), 'public')).toBe('direct')
+    expect(replyVisibility(post({ visibility: 'public' }), 'followers')).toBe('followers')
+    expect(replyVisibility(post({ visibility: 'public' }), undefined)).toBe('public')
+  })
+
+  it('reads the boosted post of a reblog, not the boost', () => {
+    const original = post({ id: 'o', visibility: 'unlisted', author: author('c', 'carol', 'other.example', false) })
+    const reblog = post({ id: 'r', visibility: 'public', reblog: original, reblog_author: original.author })
+    expect(replyVisibility(reblog, 'public')).toBe('unlisted')
   })
 })

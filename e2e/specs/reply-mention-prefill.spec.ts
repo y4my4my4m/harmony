@@ -1,7 +1,8 @@
-// Journey: Reply prefills the composer as Mastodon does: the author, then the accounts the
+// Journeys: Reply prefills the composer as Mastodon does: the author, then the accounts the
 // post mentions, once each, never the replier, then one space with the caret after it.
 // Typing straight away and publishing stores the mentions followed by the text with a
-// single separating space.
+// single separating space. The reply starts at the more restrictive of the replier's
+// visibility and the post's: unlisted stays unlisted, direct stays direct.
 
 import { test, expect } from '@playwright/test'
 import { adminClient, createUser, deleteUser, signIn, type SpecUser } from './harness'
@@ -31,6 +32,21 @@ test.beforeAll(async () => {
   if (error) throw new Error(`post: ${error.message}`)
   postId = data!.id
 })
+
+async function seedPost(visibility: string): Promise<string> {
+  const { data, error } = await admin
+    .from('posts')
+    .insert({
+      author_id: author.id,
+      visibility,
+      is_local: true,
+      content: [mention(reader), { type: 'text', text: ` ${visibility} note` }],
+    })
+    .select('id')
+    .single()
+  if (error) throw new Error(`${visibility} post: ${error.message}`)
+  return data!.id
+}
 
 test.afterAll(async () => {
   await admin.from('posts').delete().in('author_id', [reader?.id, author?.id].filter(Boolean))
@@ -76,3 +92,35 @@ test('Reply prefills the author and the other mentioned accounts, then one space
   const text = parts.filter((p) => p.type === 'text').map((p) => p.text).join('|')
   expect(text).toBe(' | thanks')
 })
+
+for (const [visibility, label] of [['unlisted', 'Unlisted'], ['direct', 'Mentioned people only']] as const) {
+  test(`a reply to a ${visibility} post starts ${visibility}`, async ({ page }) => {
+    test.setTimeout(180_000)
+    const parentId = await seedPost(visibility)
+    await signIn(page, reader)
+    await page.goto(`/social/post/${parentId}`)
+    const post = page.locator('article[aria-current="true"]')
+    await expect(post).toBeVisible({ timeout: 90_000 })
+
+    await post.getByRole('button', { name: /^Reply to / }).first().click()
+    await expect(page.locator('[data-testid="compose-post"] .rich-text-editor').last()).toBeFocused({ timeout: 15000 })
+    await expect(page.locator('[data-testid="compose-visibility"]').last()).toHaveAccessibleName(`Visibility: ${label}`)
+
+    await page.keyboard.type('noted', { delay: 20 })
+    const written = page.waitForResponse(
+      (r) => r.url().includes('/rest/v1/posts') && r.request().method() === 'POST',
+      { timeout: 30000 },
+    )
+    await page.locator('[data-testid="compose-submit"]').last().click()
+    expect((await written).ok()).toBe(true)
+
+    const { data, error } = await admin
+      .from('posts')
+      .select('visibility')
+      .eq('author_id', reader.id)
+      .eq('in_reply_to', parentId)
+      .single()
+    expect(error).toBeNull()
+    expect(data!.visibility).toBe(visibility)
+  })
+}

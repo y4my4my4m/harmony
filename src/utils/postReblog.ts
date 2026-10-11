@@ -201,3 +201,18 @@ export function replyMentionPrefill(post: TimelinePost, viewerId: string | null 
   }
   return handles.length ? `${handles.join(' ')} ` : '';
 }
+
+type Visibility = 'public' | 'unlisted' | 'followers' | 'direct';
+const VISIBILITY_RANK: Record<Visibility, number> = { public: 0, unlisted: 1, followers: 2, direct: 3 };
+
+/**
+ * Starting visibility of a reply, as Mastodon picks it: the more restrictive of the replier's
+ * preferred visibility and the replied-to post's. A reply to an unlisted post is unlisted, a
+ * reply in a direct conversation stays direct. The composer still lets the replier change it.
+ */
+export function replyVisibility(post: TimelinePost, preferred: Visibility | null | undefined): Visibility {
+  const mine: Visibility = preferred && preferred in VISIBILITY_RANK ? preferred : 'public';
+  const parent = getOriginalPost(post).visibility as Visibility | undefined;
+  if (!parent || !(parent in VISIBILITY_RANK)) return mine;
+  return VISIBILITY_RANK[parent] > VISIBILITY_RANK[mine] ? parent : mine;
+}
