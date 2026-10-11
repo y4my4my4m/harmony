@@ -1502,7 +1502,8 @@ export async function enrichMessageLinkPreviews(message: any): Promise<void> {
     eligibleUrls.map(async (part: any) => {
       const url: string = part.url;
       const preview = await linkPreviewService.getPreview(url);
-      if (!preview) return null;
+      // A page that could not be read leaves no card; the next edit or re-run tries again.
+      if (!preview || preview.failed) return null;
 
       if (preview.provider === 'fediverse-post' && preview.fediverse?.postUrl) {
         try {
@@ -1586,7 +1587,7 @@ export async function enrichPostLinkPreviews(post: any): Promise<boolean> {
     eligibleUrls.map(async (part: any) => {
       const url: string = part.url;
       const preview = await linkPreviewService.getPreview(url);
-      if (!preview) return null;
+      if (!preview || preview.failed) return null;
       return { url, preview };
     })
   );
