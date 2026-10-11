@@ -9,6 +9,7 @@
       :has-more="hasMore"
       :error="loadError"
       :loading-message="t('common.loading')"
+      :feed-label="`#${hashtag}`"
       :empty-title="t('activitypub.noPostsYet')"
       :empty-message="t('activitypub.beFirstToUseHashtag', { tag: hashtag })"
       empty-icon="hash"

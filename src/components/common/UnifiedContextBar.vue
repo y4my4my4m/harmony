@@ -267,7 +267,7 @@ const formatCurrency = (amount: number, currency: string) => {
 }
 
 .funding-heart {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .funding-progress-track {

@@ -1,22 +1,30 @@
+<!-- The status region stays mounted; only its content changes, which is what
+     screen readers announce reliably. -->
 <template>
-  <Transition name="offline-slide">
-    <div v-if="isOffline" class="offline-banner">
-      <Icon name="wifi-off" :size="14" class="offline-icon" />
-      <span>{{ t('offline.banner') }}</span>
-    </div>
-  </Transition>
+  <div class="offline-banner-region" role="status">
+    <Transition name="offline-slide">
+      <div v-if="isOffline" class="offline-banner">
+        <Icon name="wifi-off" :size="14" class="offline-icon" aria-hidden="true" />
+        <span>{{ t('offline.banner') }}</span>
+      </div>
+    </Transition>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/common/Icon.vue'
+import { announce } from '@/composables/useAnnouncer'
 
 const { t } = useI18n()
 
 const isOffline = ref(!navigator.onLine)
 
-function handleOnline() { isOffline.value = false }
+function handleOnline() {
+  if (isOffline.value) announce(t('a11y.backOnline'))
+  isOffline.value = false
+}
 function handleOffline() { isOffline.value = true }
 
 onMounted(() => {
@@ -42,7 +50,7 @@ onUnmounted(() => {
   justify-content: center;
   gap: 8px;
   padding: 6px 16px;
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   font-size: 13px;
   font-weight: 500;

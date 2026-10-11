@@ -539,7 +539,7 @@ onBeforeUnmount(() => {
 
 .notification-bell.is-open {
   background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
-  color: var(--h-brand);
+  color: var(--text-link);
 }
 
 /* Out of flow: the count never moves the bell or its neighbours. */
@@ -627,7 +627,7 @@ onBeforeUnmount(() => {
   padding: 1px 8px;
   border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--harmony-primary) 16%, transparent);
-  color: var(--h-brand);
+  color: var(--text-link);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   white-space: nowrap;
@@ -711,7 +711,7 @@ onBeforeUnmount(() => {
   min-width: 18px;
   padding: 0 5px;
   border-radius: var(--radius-full);
-  background: var(--error);
+  background: var(--error-fill);
   color: #fff;
   font-size: 11px;
   font-weight: var(--font-weight-bold);
@@ -741,7 +741,7 @@ onBeforeUnmount(() => {
 .unread-toggle.active {
   border-color: transparent;
   background: color-mix(in srgb, var(--harmony-primary) 18%, transparent);
-  color: var(--h-brand);
+  color: var(--text-link);
 }
 
 .silenced-note {

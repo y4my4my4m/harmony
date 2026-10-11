@@ -8,9 +8,12 @@
     />
 
     <div class="social-layout-content" data-region="workspace">
-      <div 
+      <nav
+        id="app-channel-panel"
+        ref="navPanelEl"
         class="social-sidebar-container" 
         data-region="nav"
+        :aria-label="t('a11y.landmarks.social')"
         :class="{ 
           'mobile-open': leftSidebarOpen,
           'is-dragging': isDragging && dragDirection === 'left'
@@ -28,12 +31,14 @@
           :instance-user-count="instanceUserCount"
           :instance-post-count="instancePostCount"
         />
-      </div>
+      </nav>
 
       <div class="main-and-right-container" data-region="main">
-        <div 
+        <main
+          :id="MAIN_CONTENT_ID"
           class="social-content-area"
           data-region="view"
+          tabindex="-1"
         >
           <RouterView 
             :current-view="currentView"
@@ -65,11 +70,14 @@
             @toggle-left-sidebar="$emit('toggleLeftSidebar')"
             @toggle-right-sidebar="$emit('toggleRightSidebar')"
           />
-        </div>
+        </main>
 
-        <div 
+        <aside
+          id="app-social-aside"
+          ref="asidePanelEl"
           class="right-sidebar-container" 
           data-region="aside"
+          :aria-label="t('a11y.landmarks.socialSidebar')"
           :class="{ 
             'sidebar-open': rightSidebarOpen,
             'mobile-open': rightSidebarOpen,
@@ -95,13 +103,10 @@
                   <span class="trending-tag">#{{ trend.tag }}</span>
                   <span class="trending-count">{{ $t('activitypub.postsCountLabel', { count: formatNumber(trend.count) }, trend.count) }}</span>
                 </span>
-                <Icon
-                  v-if="trend.trend === 'up'"
-                  name="trending-up"
-                  :size="14"
-                  class="trending-rising"
-                  :aria-label="$t('activitypub.trendingRising')"
-                />
+                <template v-if="trend.trend === 'up'">
+                  <Icon name="trending-up" :size="14" class="trending-rising" />
+                  <span class="sr-only">{{ $t('activitypub.trendingRising') }}</span>
+                </template>
               </RouterLink>
             </div>
             <EmptyState v-else size="sm" icon="hash" :title="$t('activitypub.noTrendingHashtags')" />
@@ -164,7 +169,7 @@
             </button>
           </div>
           </div>
-        </div>
+        </aside>
       </div>
     </div>
     
@@ -216,7 +221,9 @@ import { storeToRefs } from 'pinia'
 import { trendingService } from '@/services/TrendingService'
 import Icon from '@/components/common/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import { useLayoutState, useSidebarPanel } from '@/composables/useLayoutState'
+import { useDrawerPanel, useLayoutState, useSidebarPanel } from '@/composables/useLayoutState'
+import { useT } from '@/composables/useT'
+import { MAIN_CONTENT_ID, useViewTitle } from '@/composables/useRouteA11y'
 import { getOriginalPost } from '@/utils/postReblog'
 import FundingModal from '@/components/FundingModal.vue'
 import { showsFundingGoal } from '@/services/FundingService'
@@ -288,6 +295,16 @@ const route = useRoute()
 
 // Layout state
 const { SIDEBAR_WIDTH } = useLayoutState()
+const { t } = useT()
+const navPanelEl = ref<HTMLElement | null>(null)
+const asidePanelEl = ref<HTMLElement | null>(null)
+useDrawerPanel('left', 'app-channel-panel', navPanelEl)
+useDrawerPanel('right', 'app-social-aside', asidePanelEl)
+useViewTitle(() => {
+  if (route.name === 'UserProfile' && route.params.handle) return `@${String(route.params.handle).replace(/^@/, '')}`
+  if (route.name === 'HashtagView' && route.params.tag) return `#${String(route.params.tag)}`
+  return ''
+})
 useSidebarPanel('left')
 useSidebarPanel('right')
 
@@ -815,7 +832,7 @@ const formatNumber = (num: number): string => {
 }
 
 .trending-item:hover .trending-tag {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .trending-count {
@@ -825,7 +842,7 @@ const formatNumber = (num: number): string => {
 
 .trending-rising {
   flex-shrink: 0;
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .suggested-users {
@@ -939,7 +956,7 @@ const formatNumber = (num: number): string => {
 
 .funding-heart {
   flex-shrink: 0;
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .funding-label {

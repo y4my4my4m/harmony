@@ -27,7 +27,14 @@ vi.mock('@/composables/useUserData', () => ({
 }))
 vi.mock('@/composables/useKeybinds', async () => {
   const { ref } = await import('vue')
-  return { useKeybinds: () => ({ isPTTMode: ref(false), isPTTActive: ref(false), getKeybindDisplay: () => '' }) }
+  return {
+    useKeybinds: () => ({
+      isPTTMode: ref(false),
+      isPTTActive: ref(false),
+      getKeybindDisplay: () => '',
+      getKeybind: () => ({ enabled: true }),
+    }),
+  }
 })
 vi.mock('@/composables/useViewport', async () => {
   const { ref } = await import('vue')
@@ -282,12 +289,14 @@ describe('UnifiedVoiceDock video strip', () => {
       return wrapper.find('.minimized-controls')
     }
 
-    it('hides mic and deafen at the default position above the user panel', async () => {
+    // Concealed, not removed: keyboard and screen-reader users still reach them.
+    it('conceals mic and deafen at the default position above the user panel', async () => {
       h.store = makeStore([member('bob')])
       host = mount(SidebarHost)
       const controls = await minimize()
-      expect(controls.find('.mini-mic-btn').exists()).toBe(false)
-      expect(controls.find('.mini-deafen-btn').exists()).toBe(false)
+      expect(controls.find('.mini-audio-controls').classes()).toContain('is-concealed')
+      expect(controls.find('.mini-mic-btn').exists()).toBe(true)
+      expect(controls.find('.mini-deafen-btn').exists()).toBe(true)
       expect(controls.find('.leave').exists()).toBe(true)
     })
 
@@ -296,14 +305,13 @@ describe('UnifiedVoiceDock video strip', () => {
       h.storage.set('voice-dock-minimized-position', JSON.stringify({ left: 400, bottom: 300 }))
       host = mount(SidebarHost)
       const controls = await minimize()
-      expect(controls.find('.mini-mic-btn').exists()).toBe(true)
-      expect(controls.find('.mini-deafen-btn').exists()).toBe(true)
+      expect(controls.find('.mini-audio-controls').classes()).not.toContain('is-concealed')
     })
 
     it('shows them when no sidebar holds the user panel', async () => {
       h.store = makeStore([member('bob')])
       const controls = await minimize()
-      expect(controls.find('.mini-mic-btn').exists()).toBe(true)
+      expect(controls.find('.mini-audio-controls').classes()).not.toContain('is-concealed')
     })
   })
 })

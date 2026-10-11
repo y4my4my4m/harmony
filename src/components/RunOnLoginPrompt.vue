@@ -167,7 +167,7 @@ onUnmounted(() => {
   width: 48px;
   height: 48px;
   background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
@@ -211,12 +211,12 @@ onUnmounted(() => {
 }
 
 .banner-btn.primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .banner-btn.primary:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .banner-btn.secondary {

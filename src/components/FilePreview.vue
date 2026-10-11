@@ -1,19 +1,19 @@
 <template>
   <div v-if="files.length > 0" class="file-preview-container">
     <div class="file-preview-header">
-      <span class="file-count">{{ files.length }} file{{ files.length > 1 ? 's' : '' }} attached</span>
+      <span class="file-count">{{ t('messageA11y.upload.attachedCount', { count: files.length }, files.length) }}</span>
       <div v-if="hasUploading" class="upload-status">
-        <div class="upload-spinner"></div>
-        <span>Uploading...</span>
+        <div class="upload-spinner" aria-hidden="true"></div>
+        <span>{{ t('messageA11y.upload.uploading') }}</span>
       </div>
     </div>
-    <div class="file-preview-list">
-      <div v-for="(file, index) in files" :key="index" class="file-preview-item" :class="{ uploading: file.uploadStatus === 'uploading', error: file.uploadStatus === 'error' }">
+    <ul class="file-preview-list" :aria-label="t('messageA11y.upload.listLabel')">
+      <li v-for="(file, index) in files" :key="index" class="file-preview-item" :class="{ uploading: file.uploadStatus === 'uploading', error: file.uploadStatus === 'error' }" data-testid="file-preview-item">
         <div class="file-thumbnail">
           <img 
             v-if="isImage(file)" 
             :src="file.preview" 
-            :alt="file.name"
+            alt=""
             class="thumbnail-image"
             :class="{ 'thumbnail-spoiler': isSpoilerFileName(file.name) }"
           />
@@ -29,13 +29,22 @@
           </div>
           
           <!-- Upload overlay -->
-          <div v-if="file.uploadStatus === 'uploading'" class="upload-overlay">
+          <div
+            v-if="file.uploadStatus === 'uploading'"
+            class="upload-overlay"
+            role="progressbar"
+            :aria-label="t('messageA11y.upload.progressLabel', { name: file.name })"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            :aria-valuenow="Math.round(file.uploadProgress || 0)"
+          >
             <div class="upload-progress" :style="{ width: `${file.uploadProgress || 0}%` }"></div>
-            <div class="upload-progress-text">{{ Math.round(file.uploadProgress || 0) }}%</div>
+            <div class="upload-progress-text" aria-hidden="true">{{ Math.round(file.uploadProgress || 0) }}%</div>
           </div>
+          <span v-if="isImage(file) && file.altText" class="alt-badge" aria-hidden="true">ALT</span>
           
           <!-- Error overlay -->
-          <div v-if="file.uploadStatus === 'error'" class="error-overlay">
+          <div v-if="file.uploadStatus === 'error'" class="error-overlay" aria-hidden="true">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
               <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
               <line x1="15" y1="9" x2="9" y2="15" stroke="currentColor" stroke-width="2"/>
@@ -53,7 +62,21 @@
             <span v-else-if="file.uploadStatus === 'error'" class="status-text error">• Failed</span>
           </div>
           <div v-if="file.uploadError" class="error-message">{{ file.uploadError }}</div>
+          <div v-if="isImage(file) && file.altText" class="file-alt-text">{{ file.altText }}</div>
         </div>
+
+        <button
+          v-if="isImage(file)"
+          type="button"
+          class="alt-file-btn"
+          :class="{ active: !!file.altText }"
+          :aria-label="file.altText ? t('messageA11y.alt.edit', { name: file.name }) : t('messageA11y.alt.add', { name: file.name })"
+          :title="file.altText ? t('messageA11y.alt.editShort') : t('messageA11y.alt.addShort')"
+          data-testid="alt-text-button"
+          @click="altIndex = index"
+        >
+          <Icon name="pencil" :size="16" />
+        </button>
         
         <button
           v-if="isImage(file) || isVideo(file)"
@@ -70,23 +93,36 @@
           </svg>
         </button>
         <button
+          type="button"
           class="remove-file-btn"
           @click="removeFile(index)"
-          :aria-label="`Remove ${file.name}`"
+          :aria-label="t('messageA11y.upload.remove', { name: file.name })"
+          :title="t('messageA11y.upload.remove', { name: file.name })"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </button>
-      </div>
-    </div>
+      </li>
+    </ul>
+    <AltTextDialog
+      v-if="altFile"
+      :name="altFile.name"
+      :preview="altFile.preview"
+      :initial="altFile.altText"
+      @save="saveAlt"
+      @cancel="altIndex = null"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import type { MessageMediaUpload } from '@/services/messageMediaUpload';
 import { isSpoilerFileName } from '@/utils/spoiler';
+import Icon from '@/components/common/Icon.vue';
+import AltTextDialog from '@/components/messages/AltTextDialog.vue';
+import { useT } from '@/composables/useT';
 
 export interface FilePreviewData {
   file: File;
@@ -103,6 +139,8 @@ export interface FilePreviewData {
   uploadError?: string;
   /** The running or settled upload; marked raw. */
   upload?: MessageMediaUpload;
+  /** Image description, sent as the file part's altText. */
+  altText?: string;
 }
 
 interface Props {
@@ -114,9 +152,20 @@ const props = defineProps<Props>();
 interface Emits {
   (e: 'remove-file', index: number): void;
   (e: 'toggle-spoiler', index: number): void;
+  (e: 'update-alt', index: number, altText: string): void;
 }
 
 const emit = defineEmits<Emits>();
+const { t } = useT();
+
+/** Index of the attachment whose description is being edited. */
+const altIndex = ref<number | null>(null);
+const altFile = computed(() => (altIndex.value === null ? null : props.files[altIndex.value] ?? null));
+
+const saveAlt = (text: string) => {
+  if (altIndex.value !== null) emit('update-alt', altIndex.value, text);
+  altIndex.value = null;
+};
 
 const hasUploading = computed(() => {
   return props.files.some(file => file.uploadStatus === 'uploading');
@@ -199,6 +248,9 @@ const hasUploading = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .file-preview-item {
@@ -353,6 +405,28 @@ const hasUploading = computed(() => {
   filter: blur(8px);
 }
 
+.alt-badge {
+  position: absolute;
+  left: 2px;
+  bottom: 2px;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.file-alt-text {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.alt-file-btn,
 .spoiler-file-btn {
   background: none;
   border: none;
@@ -370,6 +444,24 @@ const hasUploading = computed(() => {
 .spoiler-file-btn.active {
   color: var(--text-primary);
   background: var(--background-modifier-hover, rgba(127, 127, 127, 0.18));
+}
+
+.alt-file-btn.active {
+  color: var(--text-link);
+}
+
+.alt-file-btn:hover,
+.alt-file-btn:focus-visible,
+.spoiler-file-btn:focus-visible,
+.remove-file-btn:focus-visible {
+  color: var(--text-primary);
+}
+
+.alt-file-btn:focus-visible,
+.spoiler-file-btn:focus-visible,
+.remove-file-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
 }
 
 .remove-file-btn {

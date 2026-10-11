@@ -549,7 +549,7 @@ onMounted(() => {
 }
 
 .step.active .step-indicator {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-color: var(--harmony-primary);
   color: var(--text-on-primary);
 }
@@ -605,7 +605,7 @@ onMounted(() => {
 .intro-icon {
   font-size: 48px;
   margin-bottom: 16px;
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .intro-card h3 {
@@ -849,15 +849,15 @@ onMounted(() => {
   top: 50%;
   display: inline-flex;
   font-size: var(--font-size-lg);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .verify-status.correct {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .error-message {
-  color: var(--error);
+  color: var(--text-danger);
   font-size: var(--font-size-sm);
   margin-top: 16px;
 }
@@ -870,7 +870,7 @@ onMounted(() => {
 .success-icon {
   font-size: 64px;
   margin-bottom: 16px;
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .complete-section h3 {
@@ -906,7 +906,7 @@ onMounted(() => {
 
 .summary-card li {
   padding: 8px 0;
-  color: var(--success);
+  color: var(--text-success);
   font-size: var(--font-size-sm);
 }
 
@@ -968,12 +968,12 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .btn-secondary {

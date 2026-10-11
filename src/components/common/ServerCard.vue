@@ -255,7 +255,7 @@ const handleImageError = (event: Event) => {
   width: 22px;
   height: 22px;
   border-radius: var(--radius-full);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border: 2px solid var(--background-secondary);
   display: flex;

@@ -142,7 +142,7 @@ describe('ServerSidebar funding heart', () => {
 
     const button = wrapper.get('.funding-item-wrapper > button.funding-button')
     expect(button.attributes('type')).toBe('button')
-    expect(button.attributes('aria-label')).toBe('Instance funding')
+    expect(button.attributes('aria-label')).toBe('a11y.rail.funding')
     expect(wrapper.find('.fixed-footer').exists()).toBe(false)
   })
 

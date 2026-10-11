@@ -684,7 +684,7 @@ const createServer = async () => {
 }
 
 .template-card.active .option-icon {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .template-card .btn {
@@ -790,7 +790,7 @@ const createServer = async () => {
 
 .error-text {
   font-size: var(--font-size-xs);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .char-count {
@@ -863,7 +863,7 @@ const createServer = async () => {
 }
 
 .privacy-option.active .option-icon {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .option-content {
@@ -894,7 +894,7 @@ const createServer = async () => {
   border-radius: var(--radius-md);
   border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
   background: color-mix(in srgb, var(--error) 10%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
   font-size: var(--font-size-sm);
   line-height: 1.4;
 }

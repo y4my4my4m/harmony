@@ -87,7 +87,7 @@ const acceptLabel = computed(() =>
   justify-content: center;
   width: 100%;
   height: 100%;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   font-size: 28px;
   font-weight: 700;
   color: var(--text-on-primary);
@@ -147,12 +147,12 @@ const acceptLabel = computed(() =>
 
 .invite-consent__btn.primary {
   margin-top: 8px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .invite-consent__btn.primary:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .invite-consent__btn.primary:disabled {

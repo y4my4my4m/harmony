@@ -1,16 +1,22 @@
 <template>
   <div class="server-settings">
     <!-- Mobile Navigation Header -->
-    <div class="mobile-nav" v-if="isMobile">
-      <button class="mobile-menu-btn" @click="toggleSidebar" aria-label="Toggle navigation">
-        <div class="hamburger-icon">
+    <div class="mobile-nav" v-if="isMobile" ref="mobileNavEl">
+      <button
+        type="button"
+        class="mobile-menu-btn"
+        :aria-label="$t('settings.a11y.sections')"
+        v-bind="drawerToggleAttrs"
+        @click="toggleSidebar"
+      >
+        <div class="hamburger-icon" aria-hidden="true">
           <span></span>
           <span></span>
           <span></span>
         </div>
       </button>
       <h1 class="mobile-title">{{ showSidebar ? $t('server.serverSettings') : currentSectionLabel }}</h1>
-      <button class="mobile-back-btn" @click="back" aria-label="Close settings">
+      <button type="button" class="mobile-back-btn" @click="requestClose" :aria-label="$t('settings.a11y.close')">
         <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
           <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
         </svg>
@@ -19,8 +25,8 @@
 
     <!-- Desktop Header -->
     <div class="server-settings-header" v-if="!isMobile">
-      <button class="back-button" @click="back" aria-label="Back to chat">
-        <svg width="24" height="24" viewBox="0 0 24 24">
+      <button type="button" class="back-button" @click="requestClose" :aria-label="$t('notFound.backToChat')">
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
           <path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.42-1.41L7.83 13H20v-2z"/>
         </svg>
       </button>
@@ -40,7 +46,7 @@
           @click="handleSave"
           :disabled="loading || !hasChanges"
         >
-          <span v-if="loading" class="loading-spinner"></span>
+          <span v-if="loading" class="loading-spinner" aria-hidden="true"></span>
           {{ $t('server.saveChanges') }}
         </button>
       </div>
@@ -58,31 +64,39 @@
     <div class="server-settings-content">
       <!-- Sidebar Navigation -->
       <div 
+        id="server-settings-sidebar"
+        ref="sidebarEl"
         class="server-settings-sidebar" 
         :class="{ 'mobile-hidden': isMobile && !showSidebar }"
       >
-        <nav class="settings-nav">
-          <button 
-            v-for="section in availableSections" 
-            :key="section.id"
-            class="nav-item"
-            :class="{ active: activeSection === section.id }"
-            @click="setActiveSection(section.id)"
-          >
-            {{ section.label }}
-          </button>
+        <nav class="settings-nav" :aria-label="$t('settings.a11y.sections')" data-testid="server-settings-nav">
+          <ul class="nav-list">
+            <li v-for="section in availableSections" :key="section.id">
+              <button
+                type="button"
+                class="nav-item"
+                :class="{ active: activeSection === section.id }"
+                :aria-current="activeSection === section.id ? 'page' : undefined"
+                @click="setActiveSection(section.id)"
+              >
+                {{ section.label }}
+              </button>
+            </li>
+          </ul>
         </nav>
       </div>
 
       <!-- Sidebar Overlay (mobile) -->
       <div 
         v-if="isMobile && showSidebar" 
+        ref="overlayEl"
         class="sidebar-overlay"
+        aria-hidden="true"
         @click="closeSidebar"
       ></div>
 
       <div class="server-settings-main">
-        <div class="settings-container">
+        <div ref="contentEl" class="settings-container">
           <!-- Mobile Save Actions (shown at top on mobile when needed) -->
           <div v-if="isMobile && showGlobalSave" class="mobile-save-actions">
             <button 
@@ -90,7 +104,7 @@
               @click="handleSave"
               :disabled="loading || !hasChanges"
             >
-              <span v-if="loading" class="loading-spinner"></span>
+              <span v-if="loading" class="loading-spinner" aria-hidden="true"></span>
               {{ hasChanges ? $t('server.saveChanges') : $t('server.noChanges') }}
             </button>
           </div>
@@ -236,7 +250,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed, watch, onUnmounted, defineAsyncComponent } from 'vue'
+import { hasOpenLayer } from '@/utils/a11y/layers'
+import { onMounted, ref, computed, watch, onUnmounted, defineAsyncComponent, nextTick } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
@@ -249,6 +264,9 @@ import { useLayoutState } from '@/composables/useLayoutState'
 import type { Server, Emoji } from '@/types'
 import { diffServerSettings } from '@/utils/serverSettings'
 import { parseBridgeLinkReturn } from '@/utils/discordBridgeSetup'
+import { useDrawer } from '@/composables/useDrawer'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { focusSectionHeading } from '@/utils/a11y/settingsFocus'
 
 // Components
 import ServerBasicInfo from '@/components/settings/ServerBasicInfo.vue'
@@ -302,6 +320,24 @@ const activeSection = ref('overview')
 // orient themselves before a section fills the screen.
 const showSidebar = ref(typeof window !== 'undefined' && window.innerWidth <= 768)
 const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024)
+
+const sidebarEl = ref<HTMLElement | null>(null)
+const mobileNavEl = ref<HTMLElement | null>(null)
+const overlayEl = ref<HTMLElement | null>(null)
+const contentEl = ref<HTMLElement | null>(null)
+const { confirm } = useConfirmDialog()
+
+// Mobile: the section list is an off-canvas drawer, inert while closed and
+// modal while open; the header with its toggle stays reachable.
+const { toggleAttrs: drawerToggleAttrs } = useDrawer({
+  open: showSidebar,
+  elements: () => [sidebarEl.value],
+  collapsible: isMobile,
+  modal: isMobile,
+  keep: () => [mobileNavEl.value, overlayEl.value],
+  onClose: () => { showSidebar.value = false },
+  ids: ['server-settings-sidebar'],
+})
 
 // Server state
 const server = ref<Server>({
@@ -446,12 +482,14 @@ const closeSidebar = () => {
   showSidebar.value = false
 }
 
-const setActiveSection = (sectionId: string) => {
+const setActiveSection = async (sectionId: string) => {
   activeSection.value = sectionId
   // Close sidebar on mobile after selection
   if (isMobile.value) {
     closeSidebar()
   }
+  await nextTick()
+  focusSectionHeading(contentEl.value)
 }
 const fetchServer = async () => {
   try {
@@ -565,6 +603,26 @@ const back = () => {
   router.push({ name: 'Chat', params: { serverId: props.serverId } })
 }
 
+let closePromptOpen = false
+
+/** Leaves settings; unsaved edits are discarded only after confirmation. */
+const requestClose = async () => {
+  if (!hasChanges.value) return back()
+  if (closePromptOpen) return
+  closePromptOpen = true
+  try {
+    const discard = await confirm({
+      title: t('settings.unsaved.title'),
+      message: t('settings.unsaved.message'),
+      confirmButtonText: t('settings.unsaved.discard'),
+      dangerAction: true,
+    })
+    if (discard) back()
+  } finally {
+    closePromptOpen = false
+  }
+}
+
 // SSR-safe beforeunload handler
 const handleBeforeUnload = (e: BeforeUnloadEvent) => {
   if (hasChanges.value) {
@@ -578,8 +636,9 @@ const handleBeforeUnload = (e: BeforeUnloadEvent) => {
 const handleSettingsKeydown = (event: KeyboardEvent) => {
   if (event.key !== 'Escape') return
   const target = event.target as HTMLElement | null
-  if (target?.closest('.modal-overlay')) return
-  back()
+  // A dialog, menu or drawer above the view owns this Escape (utils/a11y/layers.ts).
+  if (event.defaultPrevented || hasOpenLayer() || target?.closest('.modal-overlay')) return
+  void requestClose()
 }
 
 // Lifecycle
@@ -767,12 +826,12 @@ watch(hasChanges, (newValue) => {
 }
 
 .btn-primary {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary, #ffffff);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--harmony-primary-hover);
+  background-color: var(--harmony-primary-fill-hover);
 }
 
 .btn-secondary {
@@ -836,6 +895,23 @@ watch(hasChanges, (newValue) => {
   transition: all 0.15s ease;
   border-left: 3px solid transparent;
   min-height: 44px; /* Better touch target */
+}
+
+.nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.nav-list .nav-item {
+  width: 100%;
+}
+
+.nav-item:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
 }
 
 .nav-item:hover {

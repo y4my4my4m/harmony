@@ -351,7 +351,7 @@ function onTokenSaved() {
 
 .step-link.current .step-index {
   border-color: var(--harmony-primary);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .step-link--done.current .step-index {
@@ -405,7 +405,7 @@ function onTokenSaved() {
   border: none;
   background: none;
   padding: 0;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font: inherit;
   text-decoration: underline;
   cursor: pointer;

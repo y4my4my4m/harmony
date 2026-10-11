@@ -1,13 +1,18 @@
 <template>
   <div ref="root" class="overlay-root" :class="{ interactive, panel }">
-    <div v-for="u in roster" :key="u.userId" class="overlay-tile">
-      <div class="overlay-avatar" :class="{ speaking: u.speaking }">
-        <img :src="u.avatar" :alt="u.name" />
-        <span v-if="u.muted" class="overlay-muted">🔇</span>
-      </div>
-      <span class="overlay-name">{{ u.name }}</span>
-    </div>
-    <div v-if="roster.length === 0" class="overlay-empty">Not in a call</div>
+    <ul v-if="roster.length > 0" class="overlay-list">
+      <li v-for="u in roster" :key="u.userId" class="overlay-tile" :class="{ speaking: u.speaking }">
+        <div class="overlay-avatar" :class="{ speaking: u.speaking }">
+          <img :src="u.avatar" alt="" />
+          <span v-if="u.muted" class="overlay-muted" aria-hidden="true">🔇</span>
+        </div>
+        <span class="overlay-name">{{ u.name }}</span>
+        <!-- Speaking reads by shape as well as colour -->
+        <span v-if="u.speaking" class="overlay-speaking" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span v-if="u.states" class="overlay-sr">, {{ u.states }}</span>
+      </li>
+    </ul>
+    <div v-else class="overlay-empty">Not in a call</div>
   </div>
 </template>
 
@@ -20,6 +25,8 @@ interface RosterEntry {
   avatar: string;
   speaking: boolean;
   muted: boolean;
+  /** Translated state words for screen readers ("Muted, Speaking"). */
+  states?: string;
 }
 
 const roster = ref<RosterEntry[]>([]);
@@ -98,6 +105,38 @@ html, body, #app {
 }
 .overlay-avatar.speaking {
   border-color: #00d4aa;
+  border-width: 3px;
+}
+.overlay-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.overlay-speaking {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+}
+.overlay-speaking i {
+  display: block;
+  width: 3px;
+  background: #fff;
+  border-radius: 1px;
+}
+.overlay-speaking i:nth-child(1) { height: 5px; }
+.overlay-speaking i:nth-child(2) { height: 12px; }
+.overlay-speaking i:nth-child(3) { height: 8px; }
+.overlay-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 .overlay-avatar img {
   width: 100%;

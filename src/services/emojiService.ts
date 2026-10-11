@@ -699,6 +699,7 @@ function registerGeneratedEmoji(raw: { id: string; name: string; url: string }):
 }
 
 export { 
+    cleanupEmojiReferences,
     uploadEmoji, 
     generateAiEmoji,
     registerGeneratedEmoji,

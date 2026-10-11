@@ -1141,7 +1141,7 @@ onBeforeUnmount(() => {
 
 .verified {
   display: inline-flex;
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .bot-bio {
@@ -1167,7 +1167,7 @@ onBeforeUnmount(() => {
 
 .bot-badge {
   padding: 1px 6px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary, #ffffff);
   font-size: 10px;
   font-weight: 700;
@@ -1308,7 +1308,7 @@ onBeforeUnmount(() => {
 
 .error {
   display: block;
-  color: var(--error, #ed4245);
+  color: var(--text-danger, #ed4245);
   font-size: 12px;
   margin-top: 4px;
 }
@@ -1438,7 +1438,7 @@ onBeforeUnmount(() => {
 }
 
 .btn-outline-danger {
-  color: var(--error, #ed4245);
+  color: var(--text-danger, #ed4245);
   border-color: rgba(237, 66, 69, 0.4);
 }
 
@@ -1516,7 +1516,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-decoration: none;
 }
 
@@ -1557,7 +1557,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  color: var(--success, #23a55a);
+  color: var(--text-success, #23a55a);
 }
 
 .bridge-guide {

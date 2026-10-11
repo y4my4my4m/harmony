@@ -1,5 +1,5 @@
 -- 20261009300001_admin_instance_emojis.sql: instance admins list, rename and delete
--- instance-level emojis; server and user emojis stay out of reach.
+-- instance-level emojis; server emojis stay out of reach. User emojis: 134_user_emojis.sql.
 --
 --   alice    instance admin from setup; owns server_1
 --   bob      member of server_1, not an admin
@@ -45,7 +45,8 @@ RETURNS text[] LANGUAGE sql AS
   $$ SELECT COALESCE(array_agg(name ORDER BY o), '{}')
        FROM public.admin_list_instance_emojis(p_search, p_source, p_sort, p_limit, p_offset)
             WITH ORDINALITY t(id, name, url, domain, scope, uploader, uploader_username,
-                              created_at, usage_count, reaction_count, total_count, o) $$;
+                              created_at, usage_count, reaction_count, total_count,
+                              is_ai_generated, o) $$;
 
 -- Grants. ----------------------------------------------------------------------------
 SELECT ok(has_function_privilege('authenticated', 'public.admin_list_instance_emojis(text, text, text, integer, integer)', 'EXECUTE'),
@@ -117,8 +118,8 @@ SELECT throws_ok($q$SELECT public.admin_rename_instance_emoji('96e00000-0000-000
                  '22023', NULL, 'an invalid name is rejected');
 SELECT throws_ok($q$SELECT public.admin_rename_instance_emoji('96e00000-0000-0000-0000-000000000004', 'srv_new')$q$,
                  'P0002', NULL, 'a server emoji is out of reach');
-SELECT throws_ok($q$SELECT public.admin_rename_instance_emoji('96e00000-0000-0000-0000-000000000005', 'usr_new')$q$,
-                 'P0002', NULL, 'a user emoji is out of reach');
+SELECT lives_ok($q$SELECT public.admin_rename_instance_emoji('96e00000-0000-0000-0000-000000000005', 'inst_local')$q$,
+                'a user emoji rename ignores instance names');
 
 -- Delete. ----------------------------------------------------------------------------
 SELECT throws_ok($q$SELECT public.admin_delete_instance_emoji('96e00000-0000-0000-0000-000000000004')$q$,

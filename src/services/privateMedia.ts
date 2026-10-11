@@ -501,6 +501,7 @@ export interface ComposerAttachment {
   uploadStatus?: string
   uploadedUrl?: string
   uploadedPath?: string
+  altText?: string
 }
 
 export function attachmentFileType(mimeType: string): 'image' | 'video' | 'audio' | 'file' {
@@ -519,6 +520,7 @@ export async function attachmentParts(
   for (const file of files) {
     if (file.uploadStatus !== 'completed') continue
     const fileType = attachmentFileType(file.type || '')
+    const alt = file.altText?.trim() ? { altText: file.altText.trim() } : {}
     if (file.uploadedPath && file.uploadedUrl) {
       if (!room) throw new Error('Attachments need a channel or conversation')
       const placed = await placeUploadInRoom({ path: file.uploadedPath, url: file.uploadedUrl }, room)
@@ -529,9 +531,10 @@ export async function attachmentParts(
         fileType,
         fileName: file.name,
         ...(typeof file.size === 'number' ? { fileSize: file.size } : {}),
+        ...alt,
       })
     } else if (file.uploadedUrl) {
-      parts.push({ type: 'file', url: file.uploadedUrl, fileType, fileName: file.name })
+      parts.push({ type: 'file', url: file.uploadedUrl, fileType, fileName: file.name, ...alt })
     }
   }
   return parts

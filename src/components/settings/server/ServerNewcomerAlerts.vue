@@ -21,7 +21,7 @@
       <ToggleSwitch
         :model-value="!!state?.enabled"
         :disabled="busy || !state"
-        :aria-label="t('newcomerAlerts.server.toggle')"
+        :label="t('newcomerAlerts.server.toggle')"
         @update:model-value="(v: boolean) => save(v)"
       />
     </div>
@@ -115,7 +115,7 @@ watch(() => props.serverId, load, { immediate: true })
 }
 
 .setting-info .error-text {
-  color: var(--status-danger);
+  color: var(--text-danger);
 }
 
 .link-btn {
@@ -123,7 +123,7 @@ watch(() => props.serverId, load, { immediate: true })
   padding: 0;
   border: none;
   background: none;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-size: 13px;
   cursor: pointer;
 }

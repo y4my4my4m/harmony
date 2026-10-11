@@ -159,37 +159,12 @@
   opacity: 0.7;
 }
 
-/* ===== SCREEN READER SUPPORT ===== */
-[data-screen-reader="true"] {
-  /* Enhanced focus indicators */
-}
-
-[data-screen-reader="true"] *:focus {
-  outline: 3px solid var(--harmony-primary);
+/* ===== SCREEN READER SUPPORT =====
+   Thicker keyboard focus ring. The same setting enables verbose
+   announcements (useAnnouncer, set from useVisualTheme). */
+[data-screen-reader="true"] :focus-visible {
+  outline: 3px solid var(--border-focus) !important;
   outline-offset: 2px;
-}
-
-[data-screen-reader="true"] .sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border-width: 0;
-}
-
-/* Ensure all interactive elements are keyboard accessible */
-[data-screen-reader="true"] button:focus,
-[data-screen-reader="true"] a:focus,
-[data-screen-reader="true"] input:focus,
-[data-screen-reader="true"] textarea:focus,
-[data-screen-reader="true"] select:focus {
-  outline: 3px solid var(--harmony-primary);
-  outline-offset: 2px;
-  z-index: 10;
 }
 
 /* ===== RESPONSIVE ADJUSTMENTS ===== */

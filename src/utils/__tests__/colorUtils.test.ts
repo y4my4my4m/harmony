@@ -13,6 +13,7 @@ import {
   adjustHue,
   generateThemePalette,
   applyThemePalette,
+  contrastRatio,
   composeBackgroundToneHex,
   decomposeBackgroundToneHex,
   generatePreviewColors,
@@ -300,6 +301,18 @@ describe('colorUtils', () => {
       applyThemePalette(generateThemePalette('#0EA5E9', 'light'))
       expect(root.style.getPropertyValue('--icon-primary')).toBe('#5e6168')
     })
+
+    it.each(['#0EA5E9', '#ed4245', '#8B5CF6', '#facc15', '#22c55e'])(
+      'gives the primary fill 4.5:1 against its label (%s)',
+      (primary) => {
+        applyThemePalette(generateThemePalette(primary, 'dark'))
+        const root = document.documentElement
+        const label = root.style.getPropertyValue('--text-on-primary')
+        const fill = root.style.getPropertyValue('--harmony-primary-fill')
+        expect(contrastRatio(label, fill)).toBeGreaterThanOrEqual(4.5)
+        expect(root.style.getPropertyValue('--harmony-primary-fill-hover')).not.toBe('')
+      },
+    )
   })
 
   describe('generatePreviewColors', () => {

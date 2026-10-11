@@ -42,7 +42,7 @@
         <div class="user-profile-card">
           <Avatar
             :src="currentUser?.avatar_url"
-            :alt="currentUser?.display_name || currentUser?.username"
+            alt=""
             size="md"
             :interactive="true"
             @click="$emit('profile-click')"
@@ -61,58 +61,83 @@
           </div>
         </div>
 
-        <!-- Navigation Links -->
-        <nav class="social-nav">
+        <!-- Navigation links; the enclosing <nav> landmark is the layout's. -->
+        <div class="social-nav">
           <div class="nav-section">
-            <h4 class="nav-section-title">{{ $t('activitypub.navigation') }}</h4>
-            <button 
-              v-for="navItem in navigationItems"
-              :key="navItem.id"
-              :class="['nav-item', { active: isNavItemActive(navItem) }]"
-              @click="handleNavItemClick(navItem)"
-            >
-              <Icon :name="navItem.icon" />
-              <span class="nav-label">{{ navItem.label }}</span>
-              <span v-if="navItem.badge" class="nav-badge">{{ navItem.badge > 99 ? '99+' : navItem.badge }}</span>
-            </button>
+            <h4 id="social-nav-title" class="nav-section-title">{{ $t('activitypub.navigation') }}</h4>
+            <ul class="nav-list" aria-labelledby="social-nav-title">
+              <li v-for="navItem in navigationItems" :key="navItem.id">
+                <RouterLink
+                  :to="navItem.path"
+                  :class="['nav-item', { active: isNavItemActive(navItem) }]"
+                  :aria-current="isNavItemActive(navItem) ? 'page' : undefined"
+                  :data-testid="`social-nav-${navItem.id}`"
+                  @click="closeMobileSidebars"
+                >
+                  <Icon :name="navItem.icon" />
+                  <span class="nav-label">{{ navItem.label }}</span>
+                  <span v-if="navItem.badge" class="nav-badge">
+                    <span aria-hidden="true">{{ navItem.badge > 99 ? '99+' : navItem.badge }}</span>
+                    <span class="sr-only">{{ t('activitypub.sidebarA11y.unread', { count: navItem.badge }, navItem.badge) }}</span>
+                  </span>
+                </RouterLink>
+              </li>
+            </ul>
           </div>
-        </nav>
+        </div>
 
         <!-- Enhanced Quick Stats with Realtime Updates (moved to bottom) -->
         <div class="quick-stats">
           <div class="stats-header">
             <h4 class="stats-title">{{ $t('activitypub.yourActivity') }}</h4>
             <button
+              type="button"
               class="stats-refresh"
               :class="{ spinning: isRefreshing }"
               @click="refreshStats"
               :disabled="isRefreshing"
+              :aria-busy="isRefreshing"
+              :aria-label="$t('activitypub.refresh')"
               :title="$t('activitypub.refresh')"
             >
               <Icon name="refresh-cw" />
             </button>
           </div>
           <div class="stats-grid">
-            <div class="stat-item following" @click="navigateToFollowing">
-              <div class="stat-value">{{ activityPubStore.formattedFollowingCount }}</div>
-              <div class="stat-label">{{ $t('activitypub.following') }}</div>
-              <div class="stat-change" v-if="followingChange !== 0">
+            <RouterLink
+              to="/social/following"
+              class="stat-item following"
+              :aria-current="route.path === '/social/following' ? 'page' : undefined"
+              @click="closeMobileSidebars"
+            >
+              <span class="stat-value">{{ activityPubStore.formattedFollowingCount }}</span>
+              <span class="stat-label">{{ $t('activitypub.following') }}</span>
+              <span class="stat-change" v-if="followingChange !== 0">
                 <Icon :name="followingChange > 0 ? 'arrow-up' : 'arrow-down'" />
                 <span>{{ Math.abs(followingChange) }}</span>
-              </div>
-            </div>
-            <div class="stat-item followers" @click="navigateToFollowers">
-              <div class="stat-value">{{ activityPubStore.formattedFollowersCount }}</div>
-              <div class="stat-label">{{ $t('activitypub.followers') }}</div>
-              <div class="stat-change" v-if="followersChange !== 0">
+              </span>
+            </RouterLink>
+            <RouterLink
+              to="/social/followers"
+              class="stat-item followers"
+              :aria-current="route.path === '/social/followers' ? 'page' : undefined"
+              @click="closeMobileSidebars"
+            >
+              <span class="stat-value">{{ activityPubStore.formattedFollowersCount }}</span>
+              <span class="stat-label">{{ $t('activitypub.followers') }}</span>
+              <span class="stat-change" v-if="followersChange !== 0">
                 <Icon :name="followersChange > 0 ? 'arrow-up' : 'arrow-down'" />
                 <span>{{ Math.abs(followersChange) }}</span>
-              </div>
-            </div>
-            <div class="stat-item posts" @click="navigateToProfile">
-              <div class="stat-value">{{ postsCount }}</div>
-              <div class="stat-label">{{ $t('activitypub.posts') }}</div>
-            </div>
+              </span>
+            </RouterLink>
+            <RouterLink
+              :to="getUserProfilePath()"
+              class="stat-item posts"
+              @click="closeMobileSidebars"
+            >
+              <span class="stat-value">{{ postsCount }}</span>
+              <span class="stat-label">{{ $t('activitypub.posts') }}</span>
+            </RouterLink>
           </div>
         </div>
       </div>
@@ -123,7 +148,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { debug } from '@/utils/debug'
-import { useRouter, useRoute } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useProfileStore } from '@/stores/useProfile';
@@ -190,7 +215,6 @@ const emit = defineEmits<{
 }>();
 
 const route = useRoute();
-const router = useRouter();
 // Every mode reserves its bottom strip for the floating user panel.
 useUserPanelHost();
 const activityPubStore = useActivityPubStore();
@@ -333,52 +357,6 @@ const refreshStats = async () => {
 const isRefreshing = computed(() => refreshingStats.value);
 
 const { closeMobileSidebars } = useLayoutState();
-
-const navigateToFollowing = () => {
-  router.push('/social/following');
-  closeMobileSidebars();
-};
-
-const navigateToFollowers = () => {
-  router.push('/social/followers');
-  closeMobileSidebars();
-};
-
-const navigateToProfile = () => {
-  if (currentUserHandle.value) {
-    let handle = currentUserHandle.value.replace(/^@/, ''); // Remove leading @
-    
-    // For local users, remove domain part if present
-    if (!handle.includes('@')) {
-      // Already clean handle for local user
-    } else if (handle.endsWith(`@${runtimeConfig.domain as string}`)) {
-      handle = handle.replace(`@${runtimeConfig.domain as string}`, '');
-    }
-    
-    debug.log(`Navigating to profile with handle: ${handle}`);
-    router.push({ 
-      name: 'UserProfile', 
-      params: { handle } 
-    });
-  }
-  closeMobileSidebars();
-};
-
-// Re-selecting the active item is a no-op navigation; the drawer closes regardless.
-const navigateToRoute = (path: string) => {
-  router.push(path);
-  closeMobileSidebars();
-};
-
-const handleNavItemClick = (navItem: { id: string; path: string }) => {
-  // Special handling for profile navigation
-  if (navItem.id === 'profile') {
-    navigateToProfile();
-  } else {
-    // Use regular path navigation for other items
-    navigateToRoute(navItem.path);
-  }
-};
 
 // Format numbers for display (e.g., 1000 -> 1K)
 // eslint-disable-next-line unused-imports/no-unused-vars
@@ -575,7 +553,7 @@ onUnmounted(() => {
 
 .mode-toggle-btn:hover {
   background: var(--background-hover);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .user-profile-card {
@@ -618,6 +596,12 @@ onUnmounted(() => {
   flex: 1;
 }
 
+.nav-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .nav-section {
   margin-bottom: 20px;
 }
@@ -657,7 +641,13 @@ onUnmounted(() => {
 
 .nav-item.active {
   background: var(--background-modifier-selected);
-  color: var(--harmony-primary);
+  color: var(--text-link);
+}
+
+.nav-item:focus-visible,
+.stat-item:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
 }
 
 .nav-badge {
@@ -733,7 +723,11 @@ onUnmounted(() => {
 }
 
 .stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
+  text-decoration: none;
   cursor: pointer;
   padding: 4px 0;
   border-radius: 6px;
@@ -751,7 +745,7 @@ onUnmounted(() => {
   margin-top: 2px;
   font-size: 10px;
   font-weight: 600;
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .spinning :deep(.icon-wrap) {

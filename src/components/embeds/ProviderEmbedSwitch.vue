@@ -66,6 +66,7 @@
           ref="youtubeIframe"
           :id="`youtube-player-${messageId}`"
           :src="youtubeEmbedUrl"
+          :title="iframeTitle"
           frameborder="0"
           allowfullscreen
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -76,6 +77,7 @@
       <div v-else-if="spotifyEmbedUrl" class="provider-embed__media provider-embed__media--spotify">
         <iframe
           :src="spotifyEmbedUrl"
+          :title="iframeTitle"
           frameborder="0"
           allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
           loading="lazy"
@@ -203,6 +205,9 @@ const inviteCode = computed(() => {
     return null;
   }
 });
+
+// Frame name: the embed's title, else its provider ("YouTube", "Spotify").
+const iframeTitle = computed(() => props.payload.title?.trim() || providerLabel.value);
 
 const isHarmony = computed(() => props.payload.provider === 'harmony-post');
 const isFediverse = computed(() => props.payload.provider === 'fediverse-post');

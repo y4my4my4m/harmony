@@ -152,33 +152,13 @@ export class PWAManager {
 
     this.setupSafeAreas()
 
-    // Prevent zoom on double tap
-    this.preventDoubleClickZoom()
-
-    this.setupFocusManagement()
-
+    // Double-tap zoom is off through `touch-action: manipulation` on <html>
+    // (design-system.css); pinch zoom stays available.
     this.setupKeyboardShortcuts()
 
     this.setupNativeScrolling()
 
     this.setupOrientationHandling()
-  }
-
-  /**
-   * Escape blurs the focused element for native-like keyboard dismissal
-   */
-  private setupFocusManagement(): void {
-    let lastFocusedElement: HTMLElement | null = null
-
-    document.addEventListener('focusin', (e) => {
-      lastFocusedElement = e.target as HTMLElement
-    })
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && lastFocusedElement) {
-        lastFocusedElement.blur()
-      }
-    })
   }
 
   /**
@@ -583,21 +563,6 @@ export class PWAManager {
     document.documentElement.style.setProperty('--safe-area-inset-right', 'env(safe-area-inset-right)')
     document.documentElement.style.setProperty('--safe-area-inset-bottom', 'env(safe-area-inset-bottom)')
     document.documentElement.style.setProperty('--safe-area-inset-left', 'env(safe-area-inset-left)')
-  }
-
-  /**
-   * Prevent double-click zoom on iOS
-   */
-  private preventDoubleClickZoom(): void {
-    let lastTouchEnd = 0
-    
-    document.addEventListener('touchend', (event) => {
-      const now = Date.now()
-      if (now - lastTouchEnd <= 300) {
-        event.preventDefault()
-      }
-      lastTouchEnd = now
-    }, false)
   }
 
   /**

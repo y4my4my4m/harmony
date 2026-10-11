@@ -22,6 +22,7 @@ import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
 import { audioThemeService } from '@/services/AudioThemeService'
 import { BUILTIN_SKINS, type SkinScene } from './skins'
+import { setVerboseAnnouncements } from '@/composables/useAnnouncer'
 import type { VisualThemeSettings } from './useVisualTheme.types'
 
 const AUDIO_THEME_WHEN_SKIN_CLEARED = 'default'
@@ -399,8 +400,14 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
   // Text colors
   root.style.setProperty('--text-primary', theme.textPrimary)
   root.style.setProperty('--text-secondary', theme.textSecondary)
-  root.style.setProperty('--text-tertiary', theme.isLightTheme ? '#6e7178' : '#80848e')
-  root.style.setProperty('--text-muted', theme.isLightTheme ? '#5e6168' : '#6d6f78')
+  // 4.5:1 or better on every surface of the preset (light down to #dfe0e1,
+  // dark up to #222327).
+  root.style.setProperty('--text-tertiary', theme.isLightTheme ? '#5c5f66' : '#8e9199')
+  root.style.setProperty('--text-muted', theme.isLightTheme ? '#5e6168' : '#8b8e96')
+  // Presets take the per-theme values in design-system.css.
+  root.style.removeProperty('--text-link')
+  root.style.removeProperty('--text-danger')
+  root.style.removeProperty('--text-success')
   
   // Border colors - different alpha values for light vs dark themes
   root.style.setProperty('--border-primary', theme.borderPrimary)
@@ -691,6 +698,7 @@ function applySettings(settings: VisualThemeSettings) {
   } else {
     root.removeAttribute('data-screen-reader')
   }
+  setVerboseAnnouncements(!!settings.screenReaderSupport)
 }
 
 /**

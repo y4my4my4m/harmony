@@ -481,7 +481,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-base);
   color: var(--text-on-primary);
@@ -491,7 +491,7 @@ onMounted(() => {
 }
 
 .refresh-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 /* Stats */
@@ -618,7 +618,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: none;
   border-radius: var(--radius-base);
   color: var(--text-on-primary);
@@ -628,7 +628,7 @@ onMounted(() => {
 }
 
 .import-btn:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .import-btn:disabled {
@@ -643,7 +643,7 @@ onMounted(() => {
   padding: 0.5rem 1rem;
   background: color-mix(in srgb, var(--success) 20%, transparent);
   border-radius: var(--radius-base);
-  color: var(--success);
+  color: var(--text-success);
   font-size: 0.875rem;
 }
 
@@ -808,7 +808,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: none;
   border-radius: var(--radius-base);
   color: var(--text-on-primary);

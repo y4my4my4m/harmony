@@ -1,6 +1,6 @@
 <template>
   <div class="server-dropdown" v-if="isVisible" v-click-outside="closeDropdown">
-    <ul role="menu" @keydown.esc.stop="closeDropdown">
+    <ul :id="menuId" ref="menuEl" role="menu" :aria-label="label || undefined">
       <li v-if="canViewServerSettings" role="none">
         <button type="button" role="menuitem" class="dropdown-item" @click="goToServerSettings">
           {{ canManageServer ? $t('server.settings') : $t('server.overview') }}
@@ -41,8 +41,9 @@
 </template>
   
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { useMenu } from '@/composables/useMenu';
 import { useServerPermissions } from '@/composables/useServerPermissions';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useServerWelcomeStore } from '@/stores/useServerWelcome';
@@ -52,12 +53,21 @@ import { useServerNotificationSettingsStore } from '@/stores/useServerNotificati
 interface Props {
   serverId?: string
   isVisible?: boolean
+  menuId?: string
+  label?: string
+  initialFocus?: 'first' | 'last'
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  serverId: undefined,
+  isVisible: false,
+  menuId: undefined,
+  label: undefined,
+  initialFocus: 'first',
+});
 
 const emit = defineEmits<{
-  toggle: []
+  close: []
   showCategoryCreator: [value: boolean]
   createChannel: [value?: string]
   openInviteModal: []
@@ -82,8 +92,18 @@ const createChannel = () => {
 };
 
 const closeDropdown = () => {
-  emit('toggle');
+  emit('close');
 };
+
+const menuEl = ref<HTMLElement | null>(null);
+// Outside clicks close through v-click-outside, which leaves a click on the
+// trigger to the trigger's own toggle.
+useMenu(menuEl, {
+  open: () => !!props.isVisible,
+  onClose: closeDropdown,
+  initialFocus: () => props.initialFocus,
+  closeOnOutsidePointer: false,
+});
 
 const createCategory = () => {
   emit('showCategoryCreator', true);
@@ -176,7 +196,7 @@ const confirmLeaveServer = async () => {
   }
 
   .leave-server .dropdown-item {
-    color: var(--error);
+    color: var(--text-danger);
   }
 
   .leave-server .dropdown-item:hover,

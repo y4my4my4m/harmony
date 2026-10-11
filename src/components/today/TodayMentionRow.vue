@@ -131,7 +131,7 @@ const linkLabel = computed(() =>
   font-weight: var(--font-weight-semibold);
   line-height: 18px;
   background: var(--harmony-primary-alpha);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .today-row-kind.reply {

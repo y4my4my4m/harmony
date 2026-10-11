@@ -3,13 +3,13 @@
     <!-- Header Section -->
     <div class="manager-header">
       <div class="header-content">
-        <div class="header-icon">
+        <div class="header-icon" aria-hidden="true">
           <Icon name="music" />
         </div>
         <div class="header-info">
-          <h3 class="header-title">Audio themes</h3>
+          <h3 :id="`${baseId}-title`" class="header-title">{{ t('settings.audio.themes.title') }}</h3>
           <p class="header-subtitle">
-            Sound packs for notifications, calls and interface feedback
+            {{ t('settings.audio.themes.subtitle') }}
           </p>
         </div>
       </div>
@@ -17,20 +17,25 @@
       <div class="header-actions">
         <button 
           v-if="showTestButton"
+          type="button"
           @click="testCurrentTheme" 
           :class="['action-btn', 'test-btn', { loading: isTesting }]"
           :disabled="!themeStore.isReady || isTesting"
-          title="Test current theme"
+          :aria-label="t('settings.audio.themes.playPreview', { theme: currentThemeName })"
+          :title="t('settings.audio.themes.playPreview', { theme: currentThemeName })"
+          data-testid="audio-theme-test-current"
         >
           <Icon :name="isTesting ? 'loader' : 'play'" :class="{ spinning: isTesting }" />
         </button>
         
         <button 
           v-if="showCacheButton"
+          type="button"
           @click="clearCache"
           class="action-btn cache-btn"
           :disabled="!themeStore.isReady"
-          title="Clear audio cache"
+          :aria-label="t('settings.audio.themes.clearCache')"
+          :title="t('settings.audio.themes.clearCache')"
         >
           <Icon name="refresh-cw" />
         </button>
@@ -56,32 +61,47 @@
     <div v-if="themeStore.lastError" class="error-banner">
       <Icon name="alert-circle" />
       <span>{{ themeStore.lastError }}</span>
-      <button @click="themeStore.clearError()" class="error-close">
+      <button type="button" @click="themeStore.clearError()" class="error-close" :aria-label="t('settings.audio.themes.dismissError')">
         <Icon name="x" />
       </button>
     </div>
 
-    <!-- Theme Grid -->
-    <div class="theme-grid">        <div 
-          v-for="theme in displayedThemes"
-          :key="theme.id"
+    <!-- Theme Grid: native radios, one Tab stop, arrow keys move and select.
+         The preview button sits outside each radio's label. -->
+    <div class="theme-grid" role="radiogroup" :aria-labelledby="`${baseId}-title`" data-testid="audio-theme-options">
+      <div
+        v-for="(theme, ti) in displayedThemes"
+        :key="theme.id"
+        class="theme-card-wrap"
+        @mouseenter="preloadTheme(theme.id)"
+      >
+        <label
           :class="[
             'theme-card',
             { 
-              active: theme.id === themeStore.currentAudioTheme,
+              active: theme.id === chosenTheme,
               loading: isThemeLoading(theme.id),
               preloading: themeStore.preloadingTheme === theme.id
             }
           ]"
-          @click="selectTheme(theme.id)"
-          @mouseenter="preloadTheme(theme.id)"
+          :data-testid="`audio-theme-option-${theme.id}`"
         >
+        <input
+          v-model="chosenTheme"
+          type="radio"
+          class="theme-radio sr-only"
+          :name="`${baseId}-theme`"
+          :value="theme.id"
+          :aria-labelledby="`${baseId}-${ti}-name`"
+          :aria-describedby="`${baseId}-${ti}-desc`"
+          @change="selectTheme(theme.id)"
+        />
         <!-- Theme Preview Image -->
         <div class="theme-preview">
           <img 
             v-if="theme.preview" 
             :src="theme.preview" 
-            :alt="theme.name"
+            alt=""
             class="preview-image"
             loading="lazy"
           />
@@ -103,39 +123,42 @@
         <!-- Theme Info -->
         <div class="theme-info">
           <div class="theme-header">
-            <h4 class="theme-name">{{ theme.name }}</h4>
+            <span :id="`${baseId}-${ti}-name`" class="theme-name">{{ theme.name }}</span>
             <div class="theme-meta">
-              <span v-if="theme.isBuiltIn" class="built-in-badge">Built-in</span>
+              <span v-if="theme.isBuiltIn" class="built-in-badge">{{ t('settings.audio.themes.builtIn') }}</span>
               <span class="theme-version">v{{ theme.version }}</span>
             </div>
           </div>
           
-          <p class="theme-description">{{ theme.description }}</p>
+          <span :id="`${baseId}-${ti}-desc`" class="theme-description">{{ theme.description }}</span>
           
           <div class="theme-footer">
-            <span class="theme-author">by {{ theme.author }}</span>
-            <div class="theme-actions">
-              <button 
-                v-if="!isThemeLoading(theme.id)" 
-                @click.stop="testTheme(theme.id)"
-                class="mini-action-btn"
-                title="Test theme"
-              >
-                <Icon name="volume-2" />
-              </button>
-            </div>
+            <span class="theme-author">{{ t('settings.audio.themes.byAuthor', { author: theme.author }) }}</span>
+            <span class="theme-actions-spacer" aria-hidden="true"></span>
           </div>
         </div>
 
         <!-- Active Indicator -->
-        <div v-if="theme.id === themeStore.currentAudioTheme" class="active-indicator">
+        <div v-if="theme.id === chosenTheme" class="active-indicator" aria-hidden="true">
           <Icon name="check-circle" />
         </div>
 
         <!-- Loading Progress -->
-        <div v-if="isThemeLoading(theme.id)" class="loading-progress">
+        <div v-if="isThemeLoading(theme.id)" class="loading-progress" aria-hidden="true">
           <div class="progress-bar" :style="{ width: '60%' }"></div>
         </div>
+        </label>
+        <button
+          v-if="!isThemeLoading(theme.id)"
+          type="button"
+          @click="testTheme(theme.id)"
+          class="mini-action-btn"
+          :aria-label="t('settings.audio.themes.playPreview', { theme: theme.name })"
+          :title="t('settings.audio.themes.playPreview', { theme: theme.name })"
+          :data-testid="`audio-theme-preview-${theme.id}`"
+        >
+          <Icon name="volume-2" />
+        </button>
       </div>
     </div>
 
@@ -143,20 +166,26 @@
     <div v-if="showVolumeControl" class="volume-section">
       <div class="volume-header">
         <Icon name="volume-2" />
-        <span class="volume-label">Master volume</span>
-        <span class="volume-value">{{ Math.round(localVolume) }}%</span>
+        <label :for="`${baseId}-volume`" class="volume-label">{{ t('settings.audio.themes.masterVolume') }}</label>
+        <span class="volume-value" aria-hidden="true">{{ Math.round(localVolume) }}%</span>
       </div>
       
       <div class="volume-control">
         <button 
+          type="button"
           @click="toggleMute"
           :class="['volume-mute-btn', { muted: localVolume === 0 }]"
+          :aria-label="t('settings.audio.themes.mute')"
+          :title="t('settings.audio.themes.mute')"
+          :aria-pressed="localVolume === 0 ? 'true' : 'false'"
+          data-testid="audio-theme-mute"
         >
           <Icon :name="localVolume === 0 ? 'volume-x' : 'volume-1'" />
         </button>
         
         <div class="volume-slider-container">
           <input
+            :id="`${baseId}-volume`"
             v-model.number="localVolume"
             @input="onVolumeChange"
             type="range"
@@ -164,6 +193,7 @@
             max="100"
             step="1"
             class="volume-slider"
+            :aria-valuetext="`${Math.round(localVolume)}%`"
             :style="volumeSliderStyle"
           />
           <div class="volume-track">
@@ -173,9 +203,10 @@
             <button 
               v-for="preset in volumePresets"
               :key="preset.value"
+              type="button"
               @click="setVolumePreset(preset.value)"
               :class="['preset-btn', { active: isVolumePresetActive(preset.value) }]"
-              :title="preset.label"
+              :title="t(preset.labelKey)"
             >
               {{ preset.value }}%
             </button>
@@ -186,44 +217,47 @@
     <!-- Advanced Settings -->
     <div v-if="showAdvanced" class="advanced-section">
       <button 
+        type="button"
         @click="showAdvancedOptions = !showAdvancedOptions"
         class="advanced-toggle"
+        :aria-expanded="showAdvancedOptions ? 'true' : 'false'"
+        :aria-controls="showAdvancedOptions ? `${baseId}-advanced` : undefined"
       >
         <Icon name="settings" />
-        <span>Advanced settings</span>
+        <span>{{ t('settings.audio.themes.advanced') }}</span>
         <Icon :name="showAdvancedOptions ? 'chevron-up' : 'chevron-down'" />
       </button>
       
       <Transition name="slide-down">
-        <div v-if="showAdvancedOptions" class="advanced-options">
+        <div v-if="showAdvancedOptions" :id="`${baseId}-advanced`" class="advanced-options">
           <div class="option-row">
-            <label class="option-label">Auto-preload themes</label>
-            <button class="toggle-btn">
+            <span :id="`${baseId}-preload`" class="option-label">{{ t('settings.audio.themes.autoPreload') }}</span>
+            <button type="button" class="toggle-btn" :aria-labelledby="`${baseId}-preload`">
               <Icon name="toggle-right" />
             </button>
           </div>
           
           <div class="option-row">
-            <label class="option-label">Cache information</label>
+            <span class="option-label">{{ t('settings.audio.themes.cacheInfo') }}</span>
             <div class="cache-stats">
               <span v-if="cacheInfo">
-                {{ cacheInfo.size }} sounds cached, {{ cacheInfo.loadedThemes.length }} themes loaded
+                {{ t('settings.audio.themes.cacheStats', { sounds: cacheInfo.size, themes: cacheInfo.loadedThemes.length }) }}
               </span>
             </div>
           </div>
           
           <div class="option-actions">
-            <button @click="exportThemeSettings" class="option-btn">
-              <Icon name="download" />
-              Export settings
+            <button type="button" @click="exportThemeSettings" class="option-btn">
+              <Icon name="download" aria-hidden="true" />
+              {{ t('settings.audio.themes.exportSettings') }}
             </button>
-            <button @click="importThemeSettings" class="option-btn">
-              <Icon name="upload" />
-              Import settings
+            <button type="button" @click="importThemeSettings" class="option-btn">
+              <Icon name="upload" aria-hidden="true" />
+              {{ t('settings.audio.themes.importSettings') }}
             </button>
-            <button @click="resetToDefaults" class="option-btn danger">
-              <Icon name="rotate-ccw" />
-              Reset to defaults
+            <button type="button" @click="resetToDefaults" class="option-btn danger">
+              <Icon name="rotate-ccw" aria-hidden="true" />
+              {{ t('settings.audio.themes.resetDefaults') }}
             </button>
           </div>
         </div>
@@ -234,9 +268,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useThemeStore } from '@/stores/useTheme'
 import { useAudioThemeCommon } from '@/composables/useAudioThemeCommon'
 import Icon from '@/components/common/Icon.vue'
+import { uid } from '@/utils/a11y/focus'
 
 // PROPS & EMITS
 
@@ -269,6 +305,8 @@ const emit = defineEmits<{
 // STORE & STATE
 
 const themeStore = useThemeStore()
+const { t } = useI18n()
+const baseId = uid('audio-themes')
 
 // Use shared composable for common functionality
 const {
@@ -299,11 +337,16 @@ const cacheInfo = ref<any>(null)
 
 // Volume presets
 const volumePresets = [
-  { label: 'Low', value: 25 },
-  { label: 'Medium', value: 50 },
-  { label: 'High', value: 75 },
-  { label: 'Max', value: 100 }
+  { labelKey: 'settings.audio.themes.volumeLow', value: 25 },
+  { labelKey: 'settings.audio.themes.volumeMedium', value: 50 },
+  { labelKey: 'settings.audio.themes.volumeHigh', value: 75 },
+  { labelKey: 'settings.audio.themes.volumeMax', value: 100 }
 ]
+
+// Checked radio. Follows the store; a failed switch puts it back.
+const chosenTheme = ref<string>(themeStore.currentAudioTheme)
+
+const currentThemeName = computed(() => themeStore.getCurrentAudioTheme?.name || themeStore.currentAudioTheme)
 
 // COMPUTED
 
@@ -329,11 +372,26 @@ const volumeSliderStyle = computed(() => ({
 
 // METHODS - Wrapper methods that emit events
 
+// Arrow keys select on every step; a choice made while a theme loads is
+// queued and the latest one applied once the load settles.
+let queuedTheme: string | null = null
+
 const selectTheme = async (themeId: string): Promise<void> => {
+  if (isThemeLoading()) {
+    queuedTheme = themeId
+    return
+  }
   const success = await baseSelectTheme(themeId)
   if (success) {
     emit('themeChanged', themeId)
   }
+  const next = queuedTheme
+  queuedTheme = null
+  if (next && next !== themeStore.currentAudioTheme) {
+    await selectTheme(next)
+    return
+  }
+  chosenTheme.value = themeStore.currentAudioTheme
 }
 
 const testTheme = async (themeId: string): Promise<void> => {
@@ -411,7 +469,8 @@ watch(() => themeStore.audioVolume, (newVolume) => {
 })
 
 // Watch for theme changes
-watch(() => themeStore.currentAudioTheme, () => {
+watch(() => themeStore.currentAudioTheme, (id) => {
+  if (!isThemeLoading()) chosenTheme.value = id
   updateCacheInfo()
 })
 </script>
@@ -442,7 +501,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 .header-icon {
   width: 48px;
   height: 48px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
@@ -528,16 +587,16 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .status-indicator.ready {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .status-indicator.loading,
 .status-indicator.preloading {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .status-indicator.error {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .cache-info {
@@ -554,7 +613,7 @@ watch(() => themeStore.currentAudioTheme, () => {
   background: color-mix(in srgb, var(--error) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
   border-radius: var(--radius-md);
-  color: var(--error);
+  color: var(--text-danger);
   margin-bottom: 20px;
 }
 
@@ -581,7 +640,15 @@ watch(() => themeStore.currentAudioTheme, () => {
   margin-bottom: 24px;
 }
 
+.theme-card-wrap {
+  position: relative;
+}
+
 .theme-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
   background: var(--background-modifier-hover);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
@@ -589,6 +656,11 @@ watch(() => themeStore.currentAudioTheme, () => {
   cursor: pointer;
   transition: border-color var(--transition-fast), background-color var(--transition-fast);
   position: relative;
+}
+
+.theme-card:has(.theme-radio:focus-visible) {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
 }
 
 .theme-card:hover {
@@ -654,6 +726,9 @@ watch(() => themeStore.currentAudioTheme, () => {
 
 /* Theme Info */
 .theme-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   padding: 16px;
 }
 
@@ -692,6 +767,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .theme-description {
+  display: block;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   line-height: 1.5;
@@ -702,6 +778,21 @@ watch(() => themeStore.currentAudioTheme, () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-top: auto;
+}
+
+/* Reserves the footer slot of the preview button, which sits outside the label.
+   Offset: card border 1px + info padding 16px. */
+.theme-actions-spacer {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.theme-card-wrap > .mini-action-btn {
+  position: absolute;
+  right: 17px;
+  bottom: 17px;
 }
 
 .theme-author {
@@ -734,7 +825,7 @@ watch(() => themeStore.currentAudioTheme, () => {
   top: 12px;
   right: 12px;
   color: var(--text-on-primary);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-radius: 50%;
   width: 24px;
   height: 24px;
@@ -783,7 +874,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .volume-value {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-weight: var(--font-weight-semibold);
   font-size: var(--font-size-sm);
 }
@@ -814,7 +905,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .volume-mute-btn.muted {
-  color: var(--error);
+  color: var(--text-danger);
   border-color: var(--error);
 }
 
@@ -892,7 +983,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 }
 
 .preset-btn.active {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-color: var(--harmony-primary);
   color: var(--text-on-primary);
 }
@@ -979,7 +1070,7 @@ watch(() => themeStore.currentAudioTheme, () => {
 
 .option-btn.danger {
   border-color: color-mix(in srgb, var(--error) 30%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .option-btn.danger:hover {

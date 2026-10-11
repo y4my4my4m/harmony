@@ -41,7 +41,7 @@
 .db-muted a,
 .db-steps a,
 .db-banner a {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .db-ui {
@@ -201,7 +201,7 @@
 .db-field-error {
   margin: 0;
   font-size: 13px;
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .db-badge {
@@ -219,7 +219,7 @@
 
 .db-badge--ok {
   background: color-mix(in srgb, var(--success) 18%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .db-badge--warn {
@@ -229,7 +229,7 @@
 
 .db-badge--error {
   background: color-mix(in srgb, var(--error) 16%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .db-details {

@@ -106,7 +106,7 @@ const options = computed(() => [
 
 .category-picker__chip--active,
 .category-picker__chip--active:hover {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-color: var(--harmony-primary);
   color: var(--text-on-primary);
 }

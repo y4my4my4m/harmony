@@ -142,7 +142,7 @@ const exampleName = computed(() => t('discordBridge.bot.exampleName', { server: 
 }
 
 .intent-list .on {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .intent-list .off {

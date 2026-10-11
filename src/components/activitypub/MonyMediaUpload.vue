@@ -21,6 +21,7 @@
               :src="attachment.preview_url || attachment.url"
               class="preview-video"
               muted
+              aria-hidden="true"
             />
           </div>
           <div v-else class="media-thumb media-thumb--icon">
@@ -31,7 +32,7 @@
             <div class="media-name">{{ attachment.filename || fallbackName(attachment.type) }}</div>
             <div class="media-meta">
               <span v-if="attachment.size">{{ formatFileSize(attachment.size) }}</span>
-              <span v-if="supportsAlt(attachment) && !attachment.description" class="alt-missing">
+              <span v-if="supportsAlt(attachment) && !attachment.description" :id="`${idBase}-missing-${index}`" class="alt-missing">
                 {{ t('activitypub.altTextMissing') }}
               </span>
             </div>
@@ -41,7 +42,7 @@
             v-if="attachment.type === 'image'"
             type="button"
             class="edit-btn"
-            :aria-label="t('imageEditor.editMedia')"
+            :aria-label="t('activitypub.mediaA11y.editNamed', { name: attachmentName(attachment) })"
             :title="t('imageEditor.editMedia')"
             data-testid="media-edit-open"
             @click="openEditor(index, 'crop')"
@@ -56,7 +57,10 @@
             class="alt-btn"
             :class="{ 'has-alt': !!attachment.description }"
             aria-haspopup="dialog"
+            :aria-label="t('activitypub.mediaA11y.altFor', { name: attachmentName(attachment) })"
+            :aria-describedby="attachment.description ? undefined : `${idBase}-missing-${index}`"
             :title="t('activitypub.altTextEdit')"
+            data-testid="media-alt-open"
             @click="openEditor(index, 'alt')"
           >
             <Icon v-if="attachment.description" name="check" :size="14" />
@@ -66,7 +70,7 @@
           <button
             type="button"
             class="remove-btn"
-            :aria-label="t('activitypub.removeAttachment')"
+            :aria-label="t('activitypub.mediaA11y.removeNamed', { name: attachmentName(attachment) })"
             :title="t('activitypub.removeAttachment')"
             @click="handleRemove(index)"
           >
@@ -76,13 +80,20 @@
 
         <!-- Upload Progress -->
         <div v-if="attachment.uploading" class="upload-progress">
-          <div class="progress-bar">
+          <div
+            class="progress-bar"
+            role="progressbar"
+            :aria-label="t('activitypub.mediaA11y.uploading', { name: attachmentName(attachment) })"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            :aria-valuenow="attachment.progress || 0"
+          >
             <div
               class="progress-fill"
               :style="{ width: `${attachment.progress || 0}%` }"
             />
           </div>
-          <span class="progress-text">{{ attachment.progress || 0 }}%</span>
+          <span class="progress-text" aria-hidden="true">{{ attachment.progress || 0 }}%</span>
         </div>
       </div>
     </div>
@@ -103,6 +114,7 @@ import { useI18n } from 'vue-i18n';
 import Icon from '@/components/common/Icon.vue';
 import MediaEditDialog from './MediaEditDialog.vue';
 import { attachmentObjectPosition } from '@/utils/focalPoint';
+import { uid } from '@/utils/a11y/focus';
 import type { EditableMedia, MediaEdit } from '@/utils/mediaEdit';
 
 type UploadAttachment = EditableMedia & {
@@ -125,6 +137,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const idBase = uid('upload');
 const editing = ref<{ index: number; target: 'crop' | 'alt' } | null>(null);
 
 const supportsAlt = (attachment: UploadAttachment) =>
@@ -141,6 +154,8 @@ const fallbackName = (type: UploadAttachment['type']) => {
   if (type === 'audio') return t('activitypub.audio');
   return t('activitypub.file');
 };
+
+const attachmentName = (attachment: UploadAttachment) => attachment.filename || fallbackName(attachment.type);
 
 const openEditor = (index: number, target: 'crop' | 'alt') => {
   editing.value = { index, target };
@@ -294,7 +309,7 @@ const formatFileSize = (bytes?: number): string => {
 
 .alt-btn.has-alt {
   border-color: var(--success);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .remove-btn {
@@ -314,7 +329,7 @@ const formatFileSize = (bytes?: number): string => {
 }
 
 .remove-btn:hover {
-  color: var(--error);
+  color: var(--text-danger);
   background-color: color-mix(in srgb, var(--error) 12%, transparent);
 }
 

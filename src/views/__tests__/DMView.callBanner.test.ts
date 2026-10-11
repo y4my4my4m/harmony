@@ -66,7 +66,10 @@ vi.mock('vue-router', () => ({
 }))
 vi.mock('@/composables/useLayoutState', async () => {
   const { ref } = await import('vue')
-  return { useLayoutState: () => ({ isMobile: ref(false) }) }
+  return {
+    useLayoutState: () => ({ isMobile: ref(false) }),
+    useAppDrawers: () => ({ leftDrawerToggle: ref({}), rightDrawerToggle: ref({}) }),
+  }
 })
 vi.mock('@/composables/useUserData', async () => {
   const { ref } = await import('vue')

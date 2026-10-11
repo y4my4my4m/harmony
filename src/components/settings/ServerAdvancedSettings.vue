@@ -14,7 +14,7 @@
           <path fill="currentColor" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
         </svg>
         <div class="notice-text">
-          <h4>{{ $t('server.viewOnlyAccess') }}</h4>
+          <h3>{{ $t('server.viewOnlyAccess') }}</h3>
           <p>{{ $t('server.viewOnlyMessage') }}</p>
         </div>
       </div>
@@ -23,17 +23,17 @@
     <!-- Server Statistics -->
     <div class="settings-card">
       <div class="form-group">
-        <label class="form-label">{{ $t('server.serverCreatedAt') }}</label>
-        <div class="stats-grid">
+        <span class="form-label">{{ $t('server.serverCreatedAt') }}</span>
+        <dl class="stats-grid">
           <div class="stat-item">
-            <div class="stat-label">{{ $t('server.serverCreatedAt') }}</div>
-            <div class="stat-value">{{ formatDate(createdAt) }}</div>
+            <dt class="stat-label">{{ $t('server.serverCreatedAt') }}</dt>
+            <dd class="stat-value">{{ formatDate(createdAt) }}</dd>
           </div>
           <div class="stat-item">
-            <div class="stat-label">Server ID</div>
-            <div class="stat-value">{{ serverId }}</div>
+            <dt class="stat-label">{{ t('server.serverIdLabel') }}</dt>
+            <dd class="stat-value">{{ serverId }}</dd>
           </div>
-        </div>
+        </dl>
       </div>
     </div>
 
@@ -54,12 +54,15 @@
           </p>
         </div>
         <div class="danger-control">
-          <button 
-            class="btn btn-danger" 
+          <button
+            type="button"
+            class="btn btn-danger"
+            data-testid="delete-server-open"
+            aria-haspopup="dialog"
             @click="showDeleteConfirmation"
             :disabled="loading"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24">
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
               <path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
             </svg>
             {{ $t('server.deleteServer') }}
@@ -69,73 +72,107 @@
     </div>
 
     <!-- Delete Confirmation Modal -->
-    <div v-if="showDeleteModal" class="modal-overlay" @click="hideDeleteConfirmation">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3 class="modal-title">{{ $t('server.deleteServer') }}</h3>
-          <button class="modal-close" @click="hideDeleteConfirmation">
-            <svg width="24" height="24" viewBox="0 0 24 24">
-              <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
-            </svg>
-          </button>
-        </div>
-        
-        <div class="modal-body">
-          <div class="warning-section">
-            <svg class="warning-icon" width="48" height="48" viewBox="0 0 24 24">
-              <path fill="currentColor" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
-            </svg>
-            <h4 class="warning-title">{{ $t('server.deleteServerConfirmTitle') }}</h4>
-            <p class="warning-text">
-              {{ $t('server.deleteServerConfirmText', { serverName: serverName }) }}
-            </p>
-            <ul class="warning-list">
-              <li>{{ $t('server.deleteServerConfirmItem1') }}</li>
-              <li>{{ $t('server.deleteServerConfirmItem2') }}</li>
-              <li>{{ $t('server.deleteServerConfirmItem3') }}</li>
-              <li>{{ $t('server.deleteServerConfirmItem4') }}</li>
-            </ul>
+    <Teleport to="body">
+      <div v-if="showDeleteModal" class="modal-overlay" @click="hideDeleteConfirmation">
+        <div
+          ref="dialogEl"
+          class="modal-content"
+          role="alertdialog"
+          aria-modal="true"
+          :aria-labelledby="`${uid}-title`"
+          :aria-describedby="`${uid}-warning-title ${uid}-warning-text`"
+          tabindex="-1"
+          data-testid="delete-server-dialog"
+          @click.stop
+        >
+          <div class="modal-header">
+            <h3 :id="`${uid}-title`" class="modal-title">{{ $t('server.deleteServer') }}</h3>
+            <button
+              type="button"
+              class="modal-close"
+              :aria-label="t('common.close')"
+              :title="t('common.close')"
+              :disabled="deleting"
+              @click="hideDeleteConfirmation"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+              </svg>
+            </button>
           </div>
 
-          <div class="confirmation-section">
-            <label class="confirmation-label">
-              {{ $t('server.deleteServerConfirmLabel') }} <strong>{{ serverName }}</strong>
-            </label>
-            <input
-              v-model="confirmationText"
-              type="text"
-              class="confirmation-input"
-              :class="{ 'error': confirmationError }"
-              :placeholder="$t('server.deleteServerConfirmPlaceholder')"
-              @input="validateConfirmation"
-            />
-            <div v-if="confirmationError" class="error-message">
-              {{ confirmationError }}
+          <div class="modal-body">
+            <div class="warning-section">
+              <svg class="warning-icon" width="48" height="48" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="currentColor" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
+              </svg>
+              <h4 :id="`${uid}-warning-title`" class="warning-title">{{ $t('server.deleteServerConfirmTitle') }}</h4>
+              <p :id="`${uid}-warning-text`" class="warning-text">
+                {{ $t('server.deleteServerConfirmText', { serverName: serverName }) }}
+              </p>
+              <ul class="warning-list">
+                <li>{{ $t('server.deleteServerConfirmItem1') }}</li>
+                <li>{{ $t('server.deleteServerConfirmItem2') }}</li>
+                <li>{{ $t('server.deleteServerConfirmItem3') }}</li>
+                <li>{{ $t('server.deleteServerConfirmItem4') }}</li>
+              </ul>
+            </div>
+
+            <div class="confirmation-section">
+              <label :id="`${uid}-label`" :for="`${uid}-input`" class="confirmation-label">
+                {{ $t('server.deleteServerConfirmLabel') }} <strong>{{ serverName }}</strong>
+              </label>
+              <input
+                :id="`${uid}-input`"
+                v-model="confirmationText"
+                type="text"
+                class="confirmation-input"
+                data-testid="delete-server-confirm-input"
+                autocomplete="off"
+                spellcheck="false"
+                :class="{ 'error': confirmationError }"
+                :placeholder="$t('server.deleteServerConfirmPlaceholder')"
+                :aria-invalid="confirmationError ? 'true' : undefined"
+                :aria-describedby="confirmationError ? `${uid}-error` : undefined"
+                :readonly="deleting"
+                @input="onConfirmationInput"
+                @change="validateConfirmation"
+                @keydown.enter.prevent="confirmDeleteServer"
+              />
+              <div v-if="confirmationError" :id="`${uid}-error`" class="error-message" role="alert">
+                {{ confirmationError }}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div class="modal-actions">
-          <button class="btn btn-secondary" @click="hideDeleteConfirmation" :disabled="deleting">
-            Cancel
-          </button>
-          <button 
-            class="btn btn-danger" 
-            @click="confirmDeleteServer"
-            :disabled="!isConfirmationValid || deleting"
-          >
-            <span v-if="deleting" class="loading-spinner"></span>
-            {{ deleting ? $t('server.deleting') : $t('server.deleteServer') }}
-          </button>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" @click="hideDeleteConfirmation" :disabled="deleting">
+              {{ t('common.cancel') }}
+            </button>
+            <button
+              type="button"
+              class="btn btn-danger"
+              data-testid="delete-server-confirm"
+              :aria-disabled="!isConfirmationValid || deleting || undefined"
+              :aria-describedby="isConfirmationValid ? undefined : `${uid}-label`"
+              :aria-busy="deleting || undefined"
+              @click="confirmDeleteServer"
+            >
+              <span v-if="deleting" class="loading-spinner" aria-hidden="true"></span>
+              {{ deleting ? $t('server.deleting') : $t('server.deleteServer') }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, useId } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
+import { useDialog } from '@/composables/useDialog'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useServerStore } from '@/stores/server'
@@ -156,6 +193,8 @@ interface Props {
 
 const props = defineProps<Props>()
 
+const { t, locale } = useI18n()
+const uid = `sas-${useId()}`
 const router = useRouter()
 const toast = useToast()
 const serverStore = useServerStore()
@@ -167,6 +206,14 @@ const showDeleteModal = ref(false)
 const confirmationText = ref('')
 const confirmationError = ref('')
 const deleting = ref(false)
+const dialogEl = ref<HTMLElement | null>(null)
+
+useDialog({
+  open: () => showDeleteModal.value,
+  element: dialogEl,
+  onClose: () => hideDeleteConfirmation(),
+  closeOnEscape: () => !deleting.value,
+})
 
 // Computed
 const isConfirmationValid = computed(() => {
@@ -181,28 +228,38 @@ const showDeleteConfirmation = () => {
 }
 
 const hideDeleteConfirmation = () => {
+  if (deleting.value) return
   showDeleteModal.value = false
   confirmationText.value = ''
   confirmationError.value = ''
 }
 
+// Mismatch is reported on change or submit, not per keystroke: a role="alert"
+// per keystroke interrupts typing.
+const onConfirmationInput = () => {
+  if (confirmationError.value && (!confirmationText.value || confirmationText.value === props.serverName)) {
+    confirmationError.value = ''
+  }
+}
+
 const validateConfirmation = () => {
   if (confirmationText.value && confirmationText.value !== props.serverName) {
-    confirmationError.value = 'Server name does not match'
+    confirmationError.value = t('server.deleteServerNameMismatch')
   } else {
     confirmationError.value = ''
   }
 }
 
 const confirmDeleteServer = async () => {
-  if (!isConfirmationValid.value) {
-    confirmationError.value = 'Please type the exact server name to confirm'
+  if (deleting.value) return
+  if (confirmationText.value !== props.serverName) {
+    confirmationError.value = t('server.deleteServerTypeExact')
     return
   }
 
   const userId = authStore.session?.user?.id
   if (!userId) {
-    toast.error('Authentication required')
+    toast.error(t('server.deleteServerAuthRequired'))
     return
   }
 
@@ -211,7 +268,8 @@ const confirmDeleteServer = async () => {
     const success = await serverStore.deleteServer(props.serverId, userId)
     
     if (success) {
-      toast.success('Server deleted')
+      toast.success(t('server.deleteServerDone'))
+      deleting.value = false
       hideDeleteConfirmation()
       
       await serverChannelStore.fetchServersForUser(userId)
@@ -226,19 +284,19 @@ const confirmDeleteServer = async () => {
         router.push('/dm')
       }
     } else {
-      throw new Error('Failed to delete server')
+      throw new Error(t('server.deleteServerFailed'))
     }
   } catch (error: any) {
     debug.error('Error deleting server:', error)
-    toast.error(error.message || 'Failed to delete server')
+    toast.error(error.message || t('server.deleteServerFailed'))
   } finally {
     deleting.value = false
   }
 }
 
 const formatDate = (dateString: string | undefined): string => {
-  if (!dateString) return 'Unknown'
-  return new Date(dateString).toLocaleDateString('en-US', {
+  if (!dateString) return t('server.serverCreatedUnknown')
+  return new Date(dateString).toLocaleDateString(locale.value, {
     year: 'numeric',
     month: 'long',
     day: 'numeric'
@@ -265,7 +323,7 @@ const formatDate = (dateString: string | undefined): string => {
 }
 
 .section-title.danger {
-  color: var(--error);
+  color: var(--text-danger);
   font-size: var(--font-size-lg);
 }
 
@@ -276,7 +334,7 @@ const formatDate = (dateString: string | undefined): string => {
 }
 
 .section-description.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .permission-notice {
@@ -298,7 +356,7 @@ const formatDate = (dateString: string | undefined): string => {
   color: var(--warning);
 }
 
-.notice-text h4 {
+.notice-text h3 {
   margin: 0 0 4px 0;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
@@ -344,6 +402,7 @@ const formatDate = (dateString: string | undefined): string => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
+  margin: 0;
 }
 
 .stat-item {
@@ -360,6 +419,7 @@ const formatDate = (dateString: string | undefined): string => {
 }
 
 .stat-value {
+  margin: 0;
   font-size: var(--font-size-sm);
   color: var(--text-primary);
   font-family: 'Courier New', monospace;
@@ -383,7 +443,7 @@ const formatDate = (dateString: string | undefined): string => {
 .danger-label {
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
-  color: var(--error);
+  color: var(--text-danger);
   margin: 0 0 4px 0;
 }
 
@@ -411,18 +471,19 @@ const formatDate = (dateString: string | undefined): string => {
   gap: 8px;
 }
 
-.btn:disabled {
+.btn:disabled,
+.btn[aria-disabled="true"] {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
 .btn-danger {
-  background-color: var(--error);
+  background-color: var(--error-fill);
   color: var(--text-on-primary);
 }
 
-.btn-danger:hover:not(:disabled) {
-  background-color: var(--error-hover);
+.btn-danger:hover:not(:disabled):not([aria-disabled="true"]) {
+  background-color: var(--error-fill-hover);
 }
 
 .btn-secondary {
@@ -445,7 +506,12 @@ const formatDate = (dateString: string | undefined): string => {
   align-items: center;
   justify-content: center;
   padding: 20px;
-  z-index: 1000;
+  /* Above the settings view's mobile nav (z-index 1001). */
+  z-index: 1100;
+}
+
+.modal-content:focus {
+  outline: none;
 }
 
 .modal-content {
@@ -498,13 +564,13 @@ const formatDate = (dateString: string | undefined): string => {
 
 .warning-icon {
   margin-bottom: 12px;
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .warning-title {
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
-  color: var(--error);
+  color: var(--text-danger);
   margin: 0 0 8px 0;
 }
 
@@ -560,7 +626,7 @@ const formatDate = (dateString: string | undefined): string => {
 
 .error-message {
   font-size: var(--font-size-xs);
-  color: var(--error);
+  color: var(--text-danger);
   margin-top: 4px;
 }
 

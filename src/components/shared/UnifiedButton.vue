@@ -42,7 +42,7 @@
 
 <script setup lang="ts">
 import { safeHref } from '@/utils/sanitize';
-import { computed } from 'vue'
+import { computed, useSlots } from 'vue'
 
 interface Props {
   // Content
@@ -91,6 +91,12 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<Emits>()
+
+const slots = useSlots()
+// An icon-only button is named by ariaLabel alone (IconButton enforces it).
+if (import.meta.env.DEV && !props.ariaLabel && !props.text && !slots.default && (props.iconOnly || props.iconLeft || props.iconRight)) {
+  console.warn('[UnifiedButton] icon-only button without ariaLabel has no accessible name')
+}
 
 const buttonClasses = computed(() => [
   'btn',
@@ -189,13 +195,13 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 /* Variant styles */
 .btn-primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary, #ffffff);
   border-color: transparent;
 }
 
 .btn-primary:hover:not(.btn-disabled):not(.btn-loading) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .btn-secondary {
@@ -220,13 +226,13 @@ const handleKeydown = (event: KeyboardEvent) => {
 }
 
 .btn-danger {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary, #ffffff);
   border-color: transparent;
 }
 
 .btn-danger:hover:not(.btn-disabled):not(.btn-loading) {
-  background: var(--error-hover);
+  background: var(--error-fill-hover);
 }
 
 .btn-warning {
@@ -253,7 +259,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 .btn-link {
   background: transparent;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border-color: transparent;
   text-decoration: none;
   padding: var(--space-1) var(--space-2);
@@ -268,18 +274,18 @@ const handleKeydown = (event: KeyboardEvent) => {
 /* Outline variants */
 .btn-outline.btn-primary {
   background: transparent;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border-color: var(--harmony-primary);
 }
 
 .btn-outline.btn-primary:hover:not(.btn-disabled):not(.btn-loading) {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary, #ffffff);
 }
 
 .btn-outline.btn-success {
   background: transparent;
-  color: var(--success);
+  color: var(--text-success);
   border-color: var(--success);
 }
 
@@ -290,12 +296,12 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 .btn-outline.btn-danger {
   background: transparent;
-  color: var(--error);
+  color: var(--text-danger);
   border-color: var(--error);
 }
 
 .btn-outline.btn-danger:hover:not(.btn-disabled):not(.btn-loading) {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary, #ffffff);
 }
 
@@ -408,7 +414,7 @@ const handleKeydown = (event: KeyboardEvent) => {
   position: absolute;
   top: -4px;
   right: -4px;
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary, #ffffff);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);

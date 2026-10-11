@@ -20,8 +20,8 @@
       <ToggleSwitch
         :model-value="local[key]"
         :disabled="disabled || saving"
-        :aria-labelledby="`${uid}-${key}-label`"
-        :aria-describedby="`${uid}-${key}-hint`"
+        :labelledby="`${uid}-${key}-label`"
+        :describedby="`${uid}-${key}-hint`"
         @update:model-value="(value: boolean) => change(key, value)"
       />
     </div>

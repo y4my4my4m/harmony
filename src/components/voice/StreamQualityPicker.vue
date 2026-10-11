@@ -195,7 +195,7 @@ onBeforeUnmount(() => {
 .sqp-live {
   padding: 1px 6px;
   border-radius: var(--radius-sm);
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   font-size: 10px;
   font-weight: 700;
@@ -260,12 +260,12 @@ onBeforeUnmount(() => {
 }
 
 .sqp-btn.primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .sqp-btn.primary:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .sqp-btn.primary:disabled {
@@ -274,11 +274,11 @@ onBeforeUnmount(() => {
 }
 
 .sqp-btn.danger {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
 }
 
 .sqp-btn.danger:hover {
-  background: var(--error-hover);
+  background: var(--error-fill-hover);
 }
 </style>

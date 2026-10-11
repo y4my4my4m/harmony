@@ -653,7 +653,7 @@ watch(() => props.show, (show) => {
 }
 
 .selection-indicator {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 /* Selected Users Section */
@@ -712,7 +712,7 @@ watch(() => props.show, (show) => {
 }
 
 .remove-user-btn:hover {
-  color: var(--error);
+  color: var(--text-danger);
   background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
@@ -844,13 +844,13 @@ watch(() => props.show, (show) => {
 }
 
 .footer-button.primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border-color: var(--harmony-primary);
 }
 
 .footer-button.primary:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .footer-button:disabled {

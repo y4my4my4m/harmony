@@ -175,8 +175,8 @@
 
         <ol v-else class="tag-list" data-testid="trending-hashtags">
           <li v-for="(item, index) in hashtags.items" :key="item.tag">
-            <button type="button" class="tag-row" @click="openHashtag(item.tag)">
-              <span class="tag-rank">{{ index + 1 }}</span>
+            <RouterLink :to="{ name: 'HashtagView', params: { tag: item.tag } }" class="tag-row">
+              <span class="tag-rank" aria-hidden="true">{{ index + 1 }}</span>
               <span class="tag-main">
                 <span class="tag-name">#{{ item.tag }}</span>
                 <span class="tag-meta">{{ hashtagMeta(item) }}</span>
@@ -185,7 +185,7 @@
                 <Icon name="trending-up" :size="14" />
                 {{ t('activitypub.trendingRising') }}
               </span>
-            </button>
+            </RouterLink>
           </li>
         </ol>
       </div>
@@ -848,7 +848,7 @@ defineExpose({ refresh })
 }
 
 .chip.is-active .chip-icon {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .chip-select {
@@ -897,7 +897,7 @@ defineExpose({ refresh })
   border: none;
   border-radius: var(--radius-full);
   background: transparent;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
@@ -942,6 +942,7 @@ defineExpose({ refresh })
   color: inherit;
   font: inherit;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
   transition: background-color var(--transition-fast);
 }
@@ -985,7 +986,7 @@ defineExpose({ refresh })
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
-  color: var(--success);
+  color: var(--text-success);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
 }
@@ -1122,7 +1123,7 @@ defineExpose({ refresh })
   padding: var(--space-2) var(--space-5);
   border: none;
   border-radius: var(--radius-full);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
@@ -1131,7 +1132,7 @@ defineExpose({ refresh })
 }
 
 .state-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 @media (max-width: 768px) {

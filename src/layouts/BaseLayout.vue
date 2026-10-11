@@ -1,8 +1,8 @@
 <template>
   <div v-if="!isAppReady" class="loading-overlay">
-    <div class="loading-spinner-container">
+    <div class="loading-spinner-container" role="status">
       <LoadingSpinner />
-      <p class="loading-state-label">Loading {{ instanceName }}...</p>
+      <p class="loading-state-label">{{ t('a11y.loadingInstance', { name: instanceName }) }}</p>
     </div>
   </div>
   
@@ -11,22 +11,29 @@
     'profile-open': rightSidebarOpen,
     'is-dragging': isDragging
   }">
+    <SkipLink />
+
     <div 
       v-if="isMobile && (leftSidebarOpen || (hasRightSidebar && rightSidebarOpen) || isDragging)" 
+      ref="backdropEl"
       class="mobile-overlay"
+      aria-hidden="true"
       :style="overlayStyle"
       @click="closeMobileSidebars"
     ></div>
     
-    <div v-if="isMobile && isAppReady" class="edge-indicators">
+    <div v-if="isMobile && isAppReady" class="edge-indicators" aria-hidden="true">
       <div class="edge-indicator left" :class="{ active: touchState.isEdgeSwipe && touchState.startX <= 30 }"></div>
       <div v-if="hasRightSidebar" class="edge-indicator right" :class="{ active: touchState.isEdgeSwipe && touchState.startX >= windowWidth - 30 }"></div>
     </div>
     
     <!-- Server rail: fixed column on desktop, drawer on mobile -->
-    <div 
+    <nav
+      id="app-server-rail"
+      ref="railEl"
       class="server-sidebar-container"
       data-region="rail"
+      :aria-label="t('a11y.landmarks.servers')"
       :class="{ 'is-dragging': isDragging && dragDirection === 'left' }"
       :style="serverSidebarDragStyle"
     >
@@ -52,9 +59,15 @@
         @switch-to-activitypub="$emit('switchToActivityPub')"
         @switch-to-chat="$emit('switchToChat')"
       />
-    </div>
+    </nav>
     
-    <div class="content-area" data-region="content">
+    <component
+      :is="layoutProvidesMain ? 'div' : 'main'"
+      :id="layoutProvidesMain ? undefined : MAIN_CONTENT_ID"
+      :tabindex="layoutProvidesMain ? undefined : -1"
+      class="content-area"
+      data-region="content"
+    >
       <RouterView 
         :left-sidebar-open="leftSidebarOpen"
         :right-sidebar-open="rightSidebarOpen"
@@ -69,12 +82,19 @@
         @toggle-right-sidebar="toggleRightSidebar"
         @showPublicServers="$emit('showPublicServers')"
       />
-    </div>
+    </component>
 
     <!-- User Profile at Bottom (desktop only; mobile uses server rail above) -->
-    <div v-if="!isMobile" class="user-profile-section" data-region="user" :class="{ docked: userPanelDocked }">
+    <section
+      v-if="!isMobile"
+      ref="userPanelEl"
+      class="user-profile-section"
+      data-region="user"
+      :aria-label="t('a11y.landmarks.userPanel')"
+      :class="{ docked: userPanelDocked }"
+    >
       <UserProfileComponent :docked="userPanelDocked" />
-    </div>
+    </section>
     
     <ServerNotificationSettingsModal />
 
@@ -119,6 +139,12 @@ import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { dmCallSignaling } from '@/services/DMCallSignaling'
 import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
 import { useViewContextTracking } from '@/composables/useViewContext'
+import SkipLink from '@/components/a11y/SkipLink.vue'
+import { useDrawer } from '@/composables/useDrawer'
+import { useRegionNavigation } from '@/composables/useRegionNavigation'
+import { MAIN_CONTENT_ID } from '@/composables/useRouteA11y'
+import { drawerPanelElements, drawerPanelIds, useDrawerPanel } from '@/composables/useLayoutState'
+import { holdInert } from '@/utils/a11y/layers'
 
 const serverChannelStore = useServerChannelStore()
 const authStore = useAuthStore()
@@ -172,6 +198,48 @@ const {
   toggleLeftSidebar,
   toggleRightSidebar,
 })
+
+// Drawers: closed panels are inert; an open mobile drawer covers the page.
+const railEl = ref<HTMLElement | null>(null)
+const backdropEl = ref<HTMLElement | null>(null)
+useDrawerPanel('left', 'app-server-rail', railEl)
+useDrawer({
+  open: leftSidebarOpen,
+  elements: () => drawerPanelElements('left'),
+  collapsible: isMobile,
+  modal: isMobile,
+  keep: () => [backdropEl.value],
+  onClose: closeMobileSidebars,
+  ids: () => drawerPanelIds('left'),
+  moveFocus: () => !isDragging.value,
+})
+useDrawer({
+  open: rightSidebarOpen,
+  elements: () => drawerPanelElements('right'),
+  modal: isMobile,
+  keep: () => [backdropEl.value],
+  onClose: closeMobileSidebars,
+  ids: () => drawerPanelIds('right'),
+  moveFocus: () => !isDragging.value,
+})
+useRegionNavigation()
+
+// A view with meta.fullScreen covers the rail and the user panel; they leave the
+// tab order and the accessibility tree while it is shown.
+const userPanelEl = ref<HTMLElement | null>(null)
+const coveredByView = computed(() => route.matched.some(r => r.meta?.fullScreen === true))
+watch(
+  [coveredByView, railEl, userPanelEl],
+  ([covered, rail, panel], _previous, onCleanup) => {
+    if (!covered) return
+    const releases = [rail, panel].filter((el): el is HTMLElement => !!el).map(holdInert)
+    onCleanup(() => releases.forEach((release) => release()))
+  },
+  { flush: 'post', immediate: true },
+)
+
+// ChatLayout and SocialLayout render their own <main> around the view.
+const layoutProvidesMain = computed(() => route.matched.some(r => r.meta?.providesMain === true))
 
 // Reactive refs owned by globalDMCallListener.
 const showGlobalIncomingCall = globalDMCallListener.showIncomingCallModal

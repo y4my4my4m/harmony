@@ -82,7 +82,6 @@ Individual servers have their own settings managed by server owners:
 | Encryption | `ServerEncryptionSettings` | Encryption mode (disabled/optional/required) |
 | Bots | `ServerBotsSettings` | Bot access and configuration |
 | Emoji | `ServerEmojiManagement` | Custom emoji upload and management |
-| Invites | `InviteManagement` | Invite link creation and revocation |
 | Advanced | `ServerAdvancedSettings` | Danger zone (delete server, transfer ownership) |
 
 ## Emoji Management

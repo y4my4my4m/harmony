@@ -5,7 +5,7 @@
   />
   
   <div v-else class="chat-layout" :class="{ 'is-dragging': isDragging }" :style="panelWidthVars">
-    <div class="context-bar-container" data-region="context">
+    <header class="context-bar-container" data-region="context">
       <UnifiedContextBar
         mode="chat"
         :is-mobile="isMobile"
@@ -22,12 +22,15 @@
         @toggle-search="handleToggleSearch"
         @open-funding="showFundingModal = true"
       />
-    </div>
+    </header>
 
     <div class="chat-layout-content" data-region="workspace">
-      <div 
+      <nav
+        id="app-channel-panel"
+        ref="channelPanelEl"
         class="channel-sidebar-container" 
         data-region="nav"
+        :aria-label="isDM ? t('a11y.landmarks.directMessages') : t('a11y.landmarks.channels')"
         :class="{ 
           'mobile-open': leftSidebarOpen,
           'is-dragging': isDragging && dragDirection === 'left'
@@ -46,7 +49,7 @@
           @conversation-selected="handleDMConversationSelected"
           @open-thread="handleSelectThread"
         />
-      </div>
+      </nav>
 
       <div class="main-and-right-container" data-region="main">
         <!-- Header spans main content + right sidebar -->
@@ -68,20 +71,23 @@
             <div class="header-content">
               <button 
                 v-if="isMobile"
+                type="button"
                 class="mobile-menu-btn"
+                :aria-label="t('a11y.drawer.navigation')"
+                v-bind="leftDrawerToggle"
                 @click="$emit('toggleLeftSidebar')"
               >
-                <svg viewBox="0 0 24 24" class="menu-icon">
+                <svg viewBox="0 0 24 24" class="menu-icon" aria-hidden="true">
                   <path d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z" fill="currentColor"/>
                 </svg>
               </button>
-              <h2>{{ currentServer?.name || 'Chat' }}</h2>
+              <h2>{{ currentServer?.name || t('navigation.chat') }}</h2>
             </div>
           </div>
         </div>
 
         <div class="content-row" data-region="body">
-          <div class="main-content-area" data-region="view">
+          <main :id="MAIN_CONTENT_ID" class="main-content-area" data-region="view" tabindex="-1">
             <RouterView 
               :current-server="currentServer"
               :current-channel="currentChannel"
@@ -92,12 +98,15 @@
               @toggle-left-sidebar="$emit('toggleLeftSidebar')"
               @show-all-threads="showAllThreads = true"
             />
-          </div>
+          </main>
 
-          <div 
+          <aside
             v-if="!isDM" 
+            id="app-member-panel"
+            ref="memberPanelEl"
             class="right-sidebar-container" 
             data-region="aside"
+            :aria-label="t('a11y.landmarks.members')"
             :class="{ 
               'sidebar-open': rightSidebarOpen,
               'is-dragging': isDragging && dragDirection === 'right'
@@ -105,7 +114,7 @@
             :style="rightSidebarStyle"
           >
             <UserSidebar :visible="rightSidebarOpen" />
-          </div>
+          </aside>
         </div>
       </div>
     </div>
@@ -185,7 +194,9 @@ import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
 import { useUserData } from '@/composables/useUserData'
-import { useLayoutState, useSidebarPanel } from '@/composables/useLayoutState'
+import { useAppDrawers, useDrawerPanel, useLayoutState, useSidebarPanel } from '@/composables/useLayoutState'
+import { useT } from '@/composables/useT'
+import { MAIN_CONTENT_ID, useViewTitle } from '@/composables/useRouteA11y'
 import { storeToRefs } from 'pinia'
 import { useFundingStore } from '@/stores/useFunding'
 import FundingModal from '@/components/FundingModal.vue'
@@ -281,6 +292,30 @@ const shouldShowNoServersSplash = computed(() => {
 // The splash replaces both panels; DMs have no member list.
 useSidebarPanel('left', () => !shouldShowNoServersSplash.value, () => channelPanelWidth.value)
 useSidebarPanel('right', () => !props.isDM && !shouldShowNoServersSplash.value, () => memberPanelWidth.value)
+
+const { t } = useT()
+const channelPanelEl = ref<HTMLElement | null>(null)
+const memberPanelEl = ref<HTMLElement | null>(null)
+useDrawerPanel('left', 'app-channel-panel', channelPanelEl)
+useDrawerPanel('right', 'app-member-panel', memberPanelEl)
+const { leftDrawerToggle } = useAppDrawers()
+
+const dmStoreForTitle = useDMStore()
+useViewTitle(() => {
+  if (props.isDM) {
+    const conv = props.conversationId
+      ? dmStoreForTitle.conversations.find(c => c.id === props.conversationId)
+      : null
+    if (!conv) return t('dm.title')
+    const name = conv.type === 'group'
+      ? conv.name
+      : conv.other_user?.display_name || conv.other_user?.username
+    return name ? `${name} – ${t('dm.title')}` : t('dm.title')
+  }
+  if (route.name === 'ThreadView') return currentServer.value?.name ? `${t('a11y.title.thread')} – ${currentServer.value.name}` : t('a11y.title.thread')
+  if (currentChannel.value && currentServer.value) return `#${currentChannel.value.name} – ${currentServer.value.name}`
+  return currentServer.value?.name ?? ''
+})
 
 // Widths for the max-width 768px rules below: the values registered above as
 // the drag spans.

@@ -1,25 +1,25 @@
 <template>
   <BaseModal
     :show="show"
-    title="Before you join"
-    subtitle="Read and agree to the rules before joining"
+    :title="t('invite.rules.title')"
+    :subtitle="t('invite.rules.subtitle')"
     icon="shield-check"
     :compact="true"
     @close="$emit('close')"
   >
-    <div class="rules-modal-content">
-      <section v-if="instanceRules.length > 0" class="rules-section">
-        <h4 class="rules-heading">{{ instanceName }} instance rules</h4>
+    <div class="rules-modal-content" data-testid="server-rules-modal">
+      <section v-if="instanceRules.length > 0" class="rules-section" :aria-labelledby="`${uid}-instance`">
+        <h3 :id="`${uid}-instance`" class="rules-heading">{{ t('invite.rules.instanceHeading', { instance: instanceName }) }}</h3>
         <ol class="rules-list">
           <li v-for="(rule, index) in instanceRules" :key="`i-${index}`" class="rules-item">
             {{ rule }}
           </li>
         </ol>
-        <p class="rules-note">Shown once — these apply everywhere on this instance.</p>
+        <p class="rules-note">{{ t('invite.rules.instanceNote') }}</p>
       </section>
 
-      <section v-if="serverRules.length > 0" class="rules-section">
-        <h4 class="rules-heading">{{ serverName }} rules</h4>
+      <section v-if="serverRules.length > 0" class="rules-section" :aria-labelledby="`${uid}-server`">
+        <h3 :id="`${uid}-server`" class="rules-heading">{{ t('invite.rules.serverHeading', { server: serverName }) }}</h3>
         <ol class="rules-list">
           <li v-for="(rule, index) in serverRules" :key="`s-${index}`" class="rules-item">
             {{ rule }}
@@ -30,12 +30,20 @@
 
     <template #footer>
       <div class="rules-footer">
-        <button class="rules-btn secondary" type="button" @click="$emit('close')">
-          Back
+        <button class="rules-btn secondary" type="button" data-testid="server-rules-back" @click="$emit('close')">
+          {{ t('common.back') }}
         </button>
-        <span class="rules-agreement-note">By joining, you agree to these rules.</span>
-        <button class="rules-btn primary" type="button" :disabled="joining" @click="$emit('agree')">
-          {{ joining ? 'Joining…' : 'Agree and join' }}
+        <span :id="`${uid}-agreement`" class="rules-agreement-note">{{ t('invite.rules.agreementNote') }}</span>
+        <button
+          class="rules-btn primary"
+          type="button"
+          :aria-disabled="joining || undefined"
+          :aria-busy="joining || undefined"
+          :aria-describedby="`${uid}-agreement`"
+          data-testid="server-rules-agree"
+          @click="agree"
+        >
+          {{ joining ? t('invite.joining') : t('invite.rules.agree') }}
         </button>
       </div>
     </template>
@@ -43,9 +51,11 @@
 </template>
 
 <script setup lang="ts">
+import { useId } from 'vue'
 import BaseModal from '@/components/common/BaseModal.vue'
+import { useT } from '@/composables/useT'
 
-defineProps<{
+const props = defineProps<{
   show: boolean
   serverName: string
   serverRules: string[]
@@ -54,10 +64,18 @@ defineProps<{
   joining?: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   close: []
   agree: []
 }>()
+
+const { t } = useT()
+const uid = `rules-${useId()}`
+
+function agree() {
+  if (props.joining) return
+  emit('agree')
+}
 </script>
 
 <style scoped>
@@ -159,15 +177,15 @@ defineEmits<{
 }
 
 .rules-btn.primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
-.rules-btn.primary:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+.rules-btn.primary:hover:not([aria-disabled='true']) {
+  background: var(--harmony-primary-fill-hover);
 }
 
-.rules-btn.primary:disabled {
+.rules-btn.primary[aria-disabled='true'] {
   opacity: 0.6;
   cursor: not-allowed;
 }

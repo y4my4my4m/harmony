@@ -119,6 +119,7 @@
       @click.stop
       @sendEmoji="handleSendEmoji"
       :closeEmojiList="closeReactionEmoji"
+      is-reaction
       :isEmojiBlocked="isReactionEmojiBlocked"
       :limitNotice="reactionLimitNotice"
       :emojiIconClicked="emojiIconClicked"
@@ -172,7 +173,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, onMounted, computed, watch, onUnmounted, defineAsyncComponent, toRaw } from 'vue';
+  import { ref, onMounted, computed, watch, onUnmounted, defineAsyncComponent, toRaw, nextTick } from 'vue';
   import MessageDisplay from './MessageDisplay.vue';
   import MessageInput from './MessageInput.vue';
   import Icon from '@/components/common/Icon.vue';
@@ -218,6 +219,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   import { useServerPermissions } from '@/composables/useServerPermissions';
   import { useI18n } from 'vue-i18n';
   import { useToast } from 'vue-toastification';
+  import { useAnnouncer } from '@/composables/useAnnouncer';
 
   interface Props {
     messages: Message[];
@@ -287,6 +289,10 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   } = useFileDragOverlay();
   const uploading = ref(false);
   const sendError = ref<string | null>(null);
+  const { assertive } = useAnnouncer();
+  watch(sendError, (message) => {
+    if (message) assertive(message);
+  });
 
   const welcomeStore = useServerWelcomeStore();
   const rulesPromptServerId = computed(() => {
@@ -978,6 +984,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
                 name: raw.name,
                 type: raw.type,
                 size: raw.size,
+                altText: raw.altText,
                 previewUrl: raw.preview,
                 upload: raw.upload,
                 uploadedPath: completed ? raw.uploadedPath : undefined,
@@ -1232,6 +1239,8 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         } else {
           messageContent.value += getEmojiShortcodeForInsert(emoji);
           debug.log("Emoji added in Parent:", messageContent.value);
+          // Typing continues where the emoji went, not on the picker's button.
+          void nextTick(() => messageInputRef.value?.focusEditor());
 
           if (currentUserId.value && !props.isDM && serverChannelStore.currentServerId) {
             recordEmojiUsage(
@@ -1295,7 +1304,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   }
 
   .drag-drop-area .upload-status {
-    color: var(--success);
+    color: var(--text-success);
   }
   .encryption-status-bar {
     display: flex;
@@ -1307,7 +1316,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
     border-top: 1px solid var(--border-color);
   }
   .encryption-status-bar.error {
-    color: var(--error);
+    color: var(--text-danger);
     background: color-mix(in srgb, var(--error) 8%, transparent);
     cursor: pointer;
   }
@@ -1324,17 +1333,17 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
     pointer-events: auto;
   }
   .encryption-status-tag.active {
-    color: var(--success);
+    color: var(--text-success);
   }
   .encryption-status-tag.locked {
     color: var(--warning);
   }
   .encryption-status-tag.setup-prompt {
-    color: var(--harmony-primary);
+    color: var(--text-link);
     opacity: 1;
   }
   .encryption-status-tag.error {
-    color: var(--error);
+    color: var(--text-danger);
   }
   @media (max-width: 768px) {
     .encryption-status-tag {
@@ -1356,7 +1365,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
     padding: 1px 6px;
     border-radius: var(--radius-sm);
     border: none;
-    background: var(--harmony-primary);
+    background: var(--harmony-primary-fill);
     color: var(--text-on-primary);
     font-size: 0.6rem;
     font-weight: 600;
@@ -1364,6 +1373,6 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
     transition: background-color 0.15s ease;
   }
   .encryption-setup-btn:hover {
-    background: var(--harmony-primary-hover);
+    background: var(--harmony-primary-fill-hover);
   }
 </style>

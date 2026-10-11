@@ -5,12 +5,14 @@
     :subtitle="subtitle"
     size="sm"
     topmost
-    :persistent="requireConfirmation && !isConfirmed"
+    role="alertdialog"
+    :describedby="messageId"
+    :close-on-overlay="!requireConfirmation"
     @close="handleClose"
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <template #icon>
-      <svg viewBox="0 0 24 24" class="warning-icon">
+      <svg viewBox="0 0 24 24" class="warning-icon" aria-hidden="true">
         <path d="M1,21H23L12,2M12,6L19.53,19H4.47M11,10V14H13V10M11,16V18H13V16" fill="currentColor"/>
       </svg>
     </template>
@@ -18,7 +20,7 @@
     <div class="confirmation-content">
       <!-- Warning message -->
       <div class="message-section">
-        <p class="message-primary">{{ message }}</p>
+        <p :id="messageId" class="message-primary">{{ message }}</p>
         <p v-if="secondaryMessage" class="message-secondary">{{ secondaryMessage }}</p>
       </div>
 
@@ -30,7 +32,6 @@
           :placeholder="input.placeholder"
           autofocus
           @keydown.enter="handleConfirm"
-          @keydown.escape="handleClose"
         />
       </div>
 
@@ -40,10 +41,9 @@
           v-model="confirmationInput"
           :label="confirmationLabel"
           :placeholder="confirmationText"
-          :error-message="showConfirmationError ? 'Please type the exact text to confirm' : undefined"
+          :error-message="showConfirmationError ? t('a11y.confirm.typeExact') : undefined"
           autofocus
           @keydown.enter="handleConfirm"
-          @keydown.escape="handleClose"
         />
       </div>
     </div>
@@ -52,7 +52,7 @@
       <div class="modal-actions">
         <UnifiedButton
           variant="ghost"
-          text="Cancel"
+          :text="t('common.cancel')"
           :disabled="isLoading"
           @click="handleClose"
         />
@@ -70,6 +70,8 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useT } from '@/composables/useT'
+import { uid } from '@/utils/a11y/focus'
 import UnifiedModal from './UnifiedModal.vue'
 import UnifiedButton from './UnifiedButton.vue'
 import UnifiedInput from './UnifiedInput.vue'
@@ -108,9 +110,10 @@ const promptInput = ref('')
 const isLoading = ref(false)
 const showConfirmationError = ref(false)
 
-const confirmationLabel = computed(() => {
-  return `Type "${props.confirmationText}" to confirm`
-})
+const { t } = useT()
+const messageId = uid('confirm-message')
+
+const confirmationLabel = computed(() => t('a11y.confirm.typeToConfirm', { text: props.confirmationText }))
 
 const isConfirmed = computed(() => {
   if (!props.requireConfirmation) return true

@@ -26,13 +26,13 @@
 }
 
 .btn-primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   box-shadow: none;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
   transform: none;
   box-shadow: none;
 }

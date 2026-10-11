@@ -858,7 +858,7 @@ watch(refreshing, (value, previous) => {
 .today-beta {
   padding: 1px 6px;
   border-radius: var(--radius-sm);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: 10px;
   font-weight: var(--font-weight-bold);
@@ -970,7 +970,7 @@ button.today-stat:hover {
 }
 
 .today-stat.calm :deep(.icon-wrap) {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .today-refresh-failed {
@@ -1006,7 +1006,7 @@ button.today-stat:hover {
 .today-announcement-icon {
   flex-shrink: 0;
   margin-top: 2px;
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .today-announcement-body {
@@ -1041,7 +1041,7 @@ button.today-stat:hover {
 }
 
 .today-announcement-content :deep(a) {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 /* Columns */
@@ -1091,7 +1091,7 @@ button.today-stat:hover {
   border: none;
   border-radius: var(--radius-sm);
   background: none;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font: inherit;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
@@ -1222,7 +1222,7 @@ button.today-stat:hover {
 }
 
 .today-mention-count {
-  color: var(--error);
+  color: var(--text-danger);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -1285,7 +1285,7 @@ a.today-chip:hover {
   flex-shrink: 0;
   padding: 0 5px;
   border-radius: var(--radius-full);
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   font-size: 11px;
   font-weight: var(--font-weight-bold);
@@ -1432,7 +1432,7 @@ a.today-chip:hover {
 .today-thread-count {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 /* Social */
@@ -1493,12 +1493,12 @@ a.today-chip:hover {
 
 .today-pill-button.primary {
   border-color: var(--harmony-primary);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .today-pill-button.primary:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .today-followers {

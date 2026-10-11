@@ -918,7 +918,7 @@ onMounted(() => {
 
 .health-indicator.healthy {
   background: color-mix(in srgb, var(--success) 20%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 
@@ -932,7 +932,7 @@ onMounted(() => {
 
 .health-indicator.error {
   background: color-mix(in srgb, var(--error) 20%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 
@@ -970,7 +970,7 @@ onMounted(() => {
   cursor: pointer;
   border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
   background: color-mix(in srgb, var(--error) 15%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
   transition: all 0.2s ease;
   white-space: nowrap;
 }
@@ -1065,7 +1065,7 @@ onMounted(() => {
 .maintenance-status .status-indicator.ok {
   background: color-mix(in srgb, var(--success) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .maintenance-status .status-indicator.needs_attention {
@@ -1086,14 +1086,14 @@ onMounted(() => {
 
 
 .meta-tag.domain {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   background: color-mix(in srgb, var(--harmony-primary) 12%, transparent);
 }
 
 
 
 .meta-tag.failures {
-  color: var(--error);
+  color: var(--text-danger);
   background: color-mix(in srgb, var(--error) 12%, transparent);
 }
 
@@ -1120,7 +1120,7 @@ onMounted(() => {
 .purge-single-btn:hover:not(:disabled) {
   background: color-mix(in srgb, var(--error) 15%, transparent);
   border-color: color-mix(in srgb, var(--error) 30%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 
@@ -1371,7 +1371,7 @@ onMounted(() => {
 
 
 .tab-btn.active {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 

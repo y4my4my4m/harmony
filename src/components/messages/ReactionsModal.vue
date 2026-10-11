@@ -418,7 +418,7 @@ const handleTabKeydown = (event: KeyboardEvent) => {
   flex-shrink: 0;
   padding: 1px 4px;
   border-radius: 3px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary, #ffffff);
   font-size: 10px;
   font-weight: 700;

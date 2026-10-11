@@ -3,6 +3,8 @@ import { userDataService } from '@/services/userDataService';
 import { getAvatarUrl } from '@/utils/avatarUtils';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { debug } from '@/utils/debug';
+import { i18n } from '@/i18n';
+import { participantStates } from '@/components/voice/participantLabel';
 
 const isAndroid = /Android/i.test(navigator.userAgent);
 const KEY = 'harmony.gameOverlay';
@@ -27,6 +29,12 @@ async function emitRoster(): Promise<void> {
       avatar: getAvatarUrl(p?.avatar_url) || '/default_avatar.webp',
       speaking: !!u.isSpeaking,
       muted: !!u.isMuted,
+      // Translated here: the overlay window runs without i18n.
+      states: participantStates((key: string) => i18n.global.t(key), {
+        muted: !!u.isMuted,
+        deafened: !!u.isDeafened,
+        speaking: !!u.isSpeaking,
+      }).join(', '),
     };
   });
   await emit('overlay://roster', roster);

@@ -1,5 +1,7 @@
 <template>
   <Teleport to="body">
+    <!-- Overlay and its popovers: one root, so everything outside it is inert while the call view is open -->
+    <div ref="layerEl" class="voice-overlay-layer">
     <!-- Background blur -->
     <div class="overlay-backdrop" :class="{ 'overlay-entering': isEntering, 'overlay-leaving': isLeaving }"></div>
     <div
@@ -11,6 +13,12 @@
       <!-- Main container -->
       <div
         ref="containerEl"
+        role="dialog"
+        aria-modal="true"
+        :aria-labelledby="titleId"
+        :aria-describedby="descriptionId"
+        tabindex="-1"
+        data-testid="voice-overlay"
         class="voice-container"
         :class="{
           'native-fullscreen': isNativeFullscreen,
@@ -27,17 +35,17 @@
               <Icon name="volume" />
             </div>
             <div class="channel-details">
-              <h2 class="channel-name">
+              <h2 :id="titleId" class="channel-name">
                 <DisplayName v-if="voiceStore.dmOtherUserId" :user-id="voiceStore.dmOtherUserId" :fallback="props.channelName" />
                 <template v-else>{{ props.channelName }}</template>
               </h2>
-              <p class="participant-count">
-                {{ connectionStats.total }} participant{{ connectionStats.total !== 1 ? 's' : '' }}
+              <p :id="descriptionId" class="participant-count">
+                {{ t('voice.participantCount', { count: connectionStats.total }, connectionStats.total) }}
                 <span v-if="callDuration" class="call-duration" :title="t('voice.callDuration')">
-                  • {{ callDuration }}
+                  <span aria-hidden="true">• </span><span class="sr-only">{{ t('voice.callDuration') }} </span>{{ callDuration }}
                 </span>
                 <span v-if="connectionStats.speaking > 0" class="speaking-count">
-                  • {{ connectionStats.speaking }} speaking
+                  <span aria-hidden="true">• </span>{{ t('voice.speakingCount', { count: connectionStats.speaking }) }}
                 </span>
               </p>
             </div>
@@ -77,15 +85,22 @@
                 active: spatialStore.isPanelVisible,
                 'spatial-enabled': spatialStore.settings.enabled
               }"
-              :title="spatialStore.settings.enabled ? 'Spatial audio on' : 'Spatial audio off'"
+              :title="spatialStore.settings.enabled ? t('voice.spatialAudioOn') : t('voice.spatialAudioOff')"
+              :aria-label="t('voice.spatialAudio')"
+              aria-haspopup="dialog"
+              :aria-expanded="spatialStore.isPanelVisible"
             >
               <Icon name="audio-lines" />
             </button>
             <button
+              ref="settingsButtonRef"
               @click="toggleSettings"
               class="layout-btn"
               :class="{ active: showSettings }"
-              title="Voice settings"
+              :title="withShortcut(t('voice.settings'), 'toggle-voice-settings')"
+              :aria-label="t('voice.settings')"
+              aria-haspopup="dialog"
+              :aria-expanded="showSettings"
             >
               <Icon name="settings" />
             </button>
@@ -93,14 +108,26 @@
               @click="toggleNativeFullscreen"
               class="layout-btn"
               :class="{ active: isNativeFullscreen }"
-              :title="isNativeFullscreen ? 'Exit fullscreen' : 'Fullscreen'"
+              :title="t('voice.fullScreen')"
+              :aria-label="t('voice.fullScreen')"
+              :aria-pressed="isNativeFullscreen"
             >
               <Icon :name="isNativeFullscreen ? 'minimize' : 'maximize'" />
             </button>
-            <button @click="minimizeOverlay" class="minimize-btn" title="Minimize">
+            <button
+              @click="minimizeOverlay"
+              class="minimize-btn"
+              :title="t('voice.minimizeCallView')"
+              :aria-label="t('voice.minimizeCallView')"
+            >
               <Icon name="minimize-2" />
             </button>
-            <button @click="closeOverlay" class="close-btn" title="Close">
+            <button
+              @click="closeOverlay"
+              class="close-btn"
+              :title="t('voice.closeCallView')"
+              :aria-label="t('voice.closeCallView')"
+            >
               <Icon name="x" />
             </button>
           </div>
@@ -160,7 +187,9 @@
               <button
                 class="filmstrip-collapse-btn"
                 @click="isFilmstripCollapsed = !isFilmstripCollapsed"
-                :title="isFilmstripCollapsed ? 'Show participants' : 'Hide participants'"
+                :title="t('voice.participants')"
+                :aria-label="t('voice.participants')"
+                :aria-expanded="!isFilmstripCollapsed"
               >
                 <Icon :name="isFilmstripCollapsed ? 'chevron-up' : 'chevron-down'" />
               </button>
@@ -187,7 +216,7 @@
             <!-- Microphone with device selector -->
             <div class="control-group">
               <button
-                @click="voiceStore.toggleMute"
+                @click="voiceStore.toggleMute()"
                 class="control-button"
                 :class="{
                   active: !voiceStore.localState.isMuted && (!isPTTMode || isPTTActive),
@@ -195,14 +224,13 @@
                   'ptt-mode': isPTTMode,
                   'ptt-active': isPTTActive && !voiceStore.localState.isMuted
                 }"
-                :title="voiceStore.localState.isMuted
-                  ? withShortcut(t('voice.unmute'), 'toggle-mute')
-                  : isPTTMode
-                    ? (isPTTActive ? `Transmitting (${pttKeyDisplay})` : `Push ${pttKeyDisplay} to talk — click to mute`)
-                    : withShortcut(t('voice.mute'), 'toggle-mute')"
+                :title="micTitle"
+                :aria-label="t('voice.mute')"
+                :aria-pressed="voiceStore.localState.isMuted"
+                data-testid="voice-mute"
               >
                 <Icon :name="voiceStore.localState.isMuted ? 'mic-off' : 'mic'" />
-                <span v-if="isPTTMode && !voiceStore.localState.isMuted" class="ptt-badge" :class="{ active: isPTTActive }">PTT</span>
+                <span v-if="isPTTMode && !voiceStore.localState.isMuted" class="ptt-badge" :class="{ active: isPTTActive }" aria-hidden="true">PTT</span>
               </button>
               <DeviceSelector type="input" @open-settings="showSettings = true" />
             </div>
@@ -210,13 +238,16 @@
             <!-- Speakers with device selector -->
             <div class="control-group">
               <button
-                @click="voiceStore.toggleDeafen"
+                @click="voiceStore.toggleDeafen()"
                 class="control-button"
                 :class="{
                   active: !voiceStore.localState.isDeafened,
                   deafened: voiceStore.localState.isDeafened
                 }"
-                :title="withShortcut(voiceStore.localState.isDeafened ? t('voice.undeafen') : t('voice.deafen'), 'toggle-deafen')"
+                :title="withShortcut(t('voice.deafen'), 'toggle-deafen')"
+                :aria-label="t('voice.deafen')"
+                :aria-pressed="voiceStore.localState.isDeafened"
+                data-testid="voice-deafen"
               >
                 <Icon :name="voiceStore.localState.isDeafened ? 'headphones-off' : 'headphones'" />
               </button>
@@ -226,10 +257,12 @@
             <!-- Camera with device selector (independent of screenshare) -->
             <div class="control-group">
               <button
-                @click="voiceStore.toggleVideo"
+                @click="voiceStore.toggleVideo()"
                 class="control-button"
                 :class="{ active: voiceStore.localState.isVideoEnabled }"
-                :title="withShortcut(voiceStore.localState.isVideoEnabled ? 'Turn off camera' : 'Turn on camera', 'toggle-camera')"
+                :title="withShortcut(t('voice.camera'), 'toggle-camera')"
+                :aria-label="t('voice.camera')"
+                :aria-pressed="voiceStore.localState.isVideoEnabled"
               >
                 <Icon :name="voiceStore.localState.isVideoEnabled ? 'video' : 'video-off'" />
               </button>
@@ -243,7 +276,8 @@
               class="control-button"
               :class="{ streaming: voiceStore.localState.isScreenSharing }"
               :title="withShortcut(voiceStore.localState.isScreenSharing ? t('voice.streamSettings') : t('voice.shareScreen'), 'toggle-screenshare')"
-              :aria-label="voiceStore.localState.isScreenSharing ? t('voice.streamSettings') : t('voice.shareScreen')"
+              :aria-label="t('voice.shareScreen')"
+              :aria-pressed="voiceStore.localState.isScreenSharing"
               aria-haspopup="dialog"
               :aria-expanded="showStreamPicker"
             >
@@ -280,9 +314,9 @@
           </div>
 
           <div class="action-controls">
-            <button @click="leaveChannel" class="leave-button" title="Leave channel">
+            <button @click="leaveChannel" class="leave-button" data-testid="voice-leave">
               <Icon name="phone-off" />
-              <span>Leave</span>
+              <span>{{ t('voice.leave') }}</span>
             </button>
           </div>
         </div>
@@ -297,7 +331,7 @@
         @click.self="showSettings = false"
       >
         <VoiceSettingsPanel
-          @close="showSettings = false"
+          @close="closeSettings"
           @update-settings="handleSettingsUpdate"
         />
       </div>
@@ -328,14 +362,18 @@
 
     <!-- Confetti Effect -->
     <ConfettiEffect :is-active="easterEggState.isActive && easterEggState.type === 'rainbow-party'" />
+    </div>
   </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
+import { computed, ref, watch, nextTick, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
-import { useKeybinds } from '@/composables/useKeybinds';
+import { useKeybinds, isTypingTarget } from '@/composables/useKeybinds';
+import { useDialog } from '@/composables/useDialog';
+import { inertOthers } from '@/utils/a11y/layers';
+import { focusAfterVoiceLeave, restoreFocusIfLost } from './voiceFocus';
 import { debug } from '@/utils/debug';
 import { useKonamiCode } from '@/composables/useKonamiCode';
 import { easterEggService, type EasterEggState } from '@/services/EasterEggService';
@@ -373,6 +411,7 @@ const isPTTActive = keybinds.isPTTActive;
 const pttKeyDisplay = computed(() => keybinds.getKeybindDisplay('push-to-talk'));
 
 const withShortcut = (label: string, action: Parameters<typeof keybinds.getKeybindDisplay>[0]): string => {
+  if (!keybinds.getKeybind(action)?.enabled) return label;
   const key = keybinds.getKeybindDisplay(action);
   return key ? `${label} (${key})` : label;
 };
@@ -384,6 +423,10 @@ const streamPickerAnchor = ref<Rect | null>(null);
 
 const soundboardButtonRef = ref<HTMLButtonElement | null>(null);
 const soundboardButton = useSoundboardButton(soundboardButtonRef);
+
+watch(showStreamPicker, (open) => {
+  if (!open) void nextTick(() => restoreFocusIfLost(shareButtonRef.value));
+});
 
 const openStreamPicker = () => {
   if (showStreamPicker.value) {
@@ -397,10 +440,13 @@ const openStreamPicker = () => {
 
 interface Props {
   channelName?: string;
+  /** Focus target on close when the control that opened the call view is gone. */
+  returnFocus?: () => HTMLElement | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   channelName: 'Voice Channel',
+  returnFocus: undefined,
 });
 
 interface Emits {
@@ -419,7 +465,36 @@ const showSettings = ref(false);
 const isFilmstripCollapsed = ref(false);
 
 const containerEl = ref<HTMLElement | null>(null);
+const layerEl = ref<HTMLElement | null>(null);
 const gridEl = ref<HTMLElement | null>(null);
+const settingsButtonRef = ref<HTMLButtonElement | null>(null);
+
+const micTitle = computed(() => {
+  if (!voiceStore.localState.isMuted && isPTTMode.value) {
+    return isPTTActive.value
+      ? t('voice.pttTransmitting', { key: pttKeyDisplay.value })
+      : t('voice.pttHint', { key: pttKeyDisplay.value });
+  }
+  return withShortcut(t('voice.mute'), 'toggle-mute');
+});
+
+// Background inertness covers everything outside layerEl, so the overlay's own
+// popovers (spatial panel, pickers) stay usable; useDialog owns focus and Escape.
+const { titleId, descriptionId, isActive: dialogActive } = useDialog({
+  open: () => voiceStore.isOverlayVisible,
+  element: containerEl,
+  onClose: () => runEscape(),
+  initialFocus: 'dialog',
+  inertBackground: false,
+  returnFocus: () => props.returnFocus?.() ?? null,
+});
+
+// Sync: the background must be live again before useDialog restores focus to it.
+let releaseInert: (() => void) | null = null;
+watch(dialogActive, (active) => {
+  releaseInert?.();
+  releaseInert = active && layerEl.value ? inertOthers([layerEl.value]) : null;
+}, { flush: 'sync' });
 
 // Easter egg state
 const easterEggState = ref<EasterEggState>({
@@ -700,14 +775,50 @@ const closeOverlay = () => {
 };
 
 const leaveChannel = async () => {
+  const channelId = voiceStore.currentChannelId;
   const success = await voiceStore.leaveVoiceChannel();
   if (success) {
     emit('close');
+    await nextTick();
+    focusAfterVoiceLeave(channelId);
   }
 };
 
 const toggleSettings = () => {
   showSettings.value = !showSettings.value;
+};
+
+const closeSettings = () => {
+  showSettings.value = false;
+  void nextTick(() => restoreFocusIfLost(settingsButtonRef.value));
+};
+
+// Escape order: popover > native fullscreen > full window > focus view > settings > minimize.
+const runEscape = () => {
+  if (voicePopoverOpen()) {
+    dismissVoicePopovers();
+  } else if (document.fullscreenElement) {
+    void document.exitFullscreen();
+  } else if (Date.now() - lastNativeFullscreenExit < 300) {
+    // Browser already consumed this Esc to leave native fullscreen
+  } else if (voiceStore.isFullWindowMode) {
+    voiceStore.toggleFullWindowMode();
+  } else if (voiceStore.viewMode === 'fullscreen') {
+    voiceStore.exitFullscreen();
+  } else if (showSettings.value) {
+    closeSettings();
+  } else {
+    minimizeOverlay();
+  }
+};
+
+// The exit keybind acts only with focus in the call view and outside text
+// fields and composite widgets; elsewhere the key is left to its target.
+const focusInsideOverlay = (): boolean => {
+  const active = document.activeElement;
+  const root = containerEl.value;
+  if (!root || !active || !root.contains(active)) return false;
+  return !isTypingTarget({ target: active } as unknown as Event);
 };
 
 const handleSettingsUpdate = (event: { type: string; value: any }) => {
@@ -740,6 +851,8 @@ const toggleSpatialPanel = () => {
 };
 
 // LIFECYCLE
+
+let keybindDisposers: Array<() => void> = [];
 
 // Konami code and easter egg
 const konamiEnabled = ref(true)
@@ -823,31 +936,16 @@ onMounted(() => {
   // Activate voice-overlay context for keybinds
   keybinds.activateContext('voice-overlay');
 
-  // Register keybind handlers
-  keybinds.registerHandler('toggle-mute', () => voiceStore.toggleMute());
-  keybinds.registerHandler('toggle-deafen', () => voiceStore.toggleDeafen());
-  keybinds.registerHandler('toggle-camera', () => voiceStore.toggleVideo());
-  keybinds.registerHandler('toggle-screenshare', () => voiceStore.toggleScreenShare());
-  keybinds.registerHandler('toggle-voice-settings', () => toggleSettings());
-  keybinds.registerHandler('exit-fullscreen', () => {
-    // Priority order: popover > native fullscreen > full window > focus > settings > minimize.
-    // Popovers first: this capture-phase handler stops the event before theirs.
-    if (voicePopoverOpen()) {
-      dismissVoicePopovers();
-    } else if (document.fullscreenElement) {
-      void document.exitFullscreen();
-    } else if (Date.now() - lastNativeFullscreenExit < 300) {
-      // Browser already consumed this Esc to leave native fullscreen
-    } else if (voiceStore.isFullWindowMode) {
-      voiceStore.toggleFullWindowMode();
-    } else if (voiceStore.viewMode === 'fullscreen') {
-      voiceStore.exitFullscreen();
-    } else if (showSettings.value) {
-      showSettings.value = false;
-    } else {
-      minimizeOverlay();
-    }
-  });
+  // Mute and deafen stay with the store's handlers; these are overlay-only.
+  keybindDisposers = [
+    keybinds.registerHandler('toggle-camera', () => { void voiceStore.toggleVideo(); }),
+    keybinds.registerHandler('toggle-screenshare', () => { void voiceStore.toggleScreenShare(); }),
+    keybinds.registerHandler('toggle-voice-settings', () => toggleSettings()),
+    keybinds.registerHandler('exit-fullscreen', () => {
+      if (!focusInsideOverlay()) return false;
+      runEscape();
+    }),
+  ];
 });
 
 onUnmounted(() => {
@@ -856,14 +954,11 @@ onUnmounted(() => {
   resizeObserver?.disconnect();
   if (controlsHideTimer) clearTimeout(controlsHideTimer);
 
-  // Deactivate context and unregister handlers
   keybinds.deactivateContext('voice-overlay');
-  keybinds.unregisterHandler('toggle-mute');
-  keybinds.unregisterHandler('toggle-deafen');
-  keybinds.unregisterHandler('toggle-camera');
-  keybinds.unregisterHandler('toggle-screenshare');
-  keybinds.unregisterHandler('toggle-voice-settings');
-  keybinds.unregisterHandler('exit-fullscreen');
+  keybindDisposers.forEach((dispose) => dispose());
+  keybindDisposers = [];
+  releaseInert?.();
+  releaseInert = null;
 
   easterEggService.cleanup();
 });
@@ -1035,13 +1130,13 @@ onUnmounted(() => {
 
 .connection-mode-indicator.livekit {
   background: color-mix(in srgb, var(--success) 15%, transparent);
-  color: var(--success);
+  color: var(--text-success);
   border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
 }
 
 .connection-mode-indicator.p2p {
   background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
@@ -1064,7 +1159,7 @@ onUnmounted(() => {
 .channel-icon {
   width: 36px;
   height: 36px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1091,7 +1186,7 @@ onUnmounted(() => {
 }
 
 .speaking-count {
-  color: var(--success);
+  color: var(--text-success);
   font-weight: 600;
 }
 
@@ -1175,13 +1270,13 @@ onUnmounted(() => {
 }
 
 .layout-btn.active {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border-color: var(--harmony-primary);
 }
 
 .layout-btn.active:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .spatial-btn.spatial-enabled {
@@ -1195,7 +1290,7 @@ onUnmounted(() => {
 }
 
 .close-btn:hover {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   border-color: var(--error);
 }
@@ -1362,14 +1457,14 @@ onUnmounted(() => {
 }
 
 .control-button.muted {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   border-color: var(--error);
 }
 
 /* Active screenshare: red like Discord's stop-streaming affordance */
 .control-button.streaming {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   border-color: var(--error);
 }
@@ -1410,8 +1505,9 @@ onUnmounted(() => {
   border-color: var(--warning);
 }
 
+/* --error under white text is 3.7:1; the hover shade is 5.3:1 (WCAG AA). */
 .leave-button {
-  background: var(--error);
+  background: var(--error-hover);
   color: var(--text-on-primary);
   border: none;
   border-radius: var(--radius-full);
@@ -1426,7 +1522,7 @@ onUnmounted(() => {
 }
 
 .leave-button:hover {
-  background: var(--error-hover);
+  background: color-mix(in srgb, var(--error-hover) 85%, black);
 }
 
 /* Animations */

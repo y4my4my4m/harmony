@@ -1,27 +1,38 @@
 <template>
   <div class="appearance-settings">
     <div class="settings-header">
-      <h2 class="settings-title">{{ $t('settings.appearance.title') }}</h2>
+      <h2 ref="titleRef" class="settings-title" tabindex="-1">{{ $t('settings.appearance.title') }}</h2>
       <p class="settings-description">
         {{ $t('settings.appearance.description') }}
       </p>
-      <button class="live-editor-btn" @click="openLiveEditor">
+      <button type="button" class="live-editor-btn" aria-haspopup="dialog" data-testid="open-theme-editor" @click="openLiveEditor">
         <Icon name="pencil" :size="16" />
-        Edit on live preview
+        {{ $t('settings.appearance.editLivePreview') }}
       </button>
     </div>
 
     <div class="settings-section">
-      <h3 class="section-title">{{ $t('settings.appearance.theme') }}</h3>
-      
-      <div class="theme-options">
-        <div
+      <h3 :id="`${a11yId}-theme`" class="section-title">{{ $t('settings.appearance.theme') }}</h3>
+
+      <!-- Native radios: one Tab stop, arrow keys move and select. -->
+      <div class="theme-options" role="radiogroup" :aria-labelledby="`${a11yId}-theme`" data-testid="theme-options">
+        <label
           v-for="theme in themes"
           :key="theme.id"
           class="theme-option"
-          :class="{ active: settings.theme === theme.id }"
-          @click="selectTheme(theme.id)"
+          :class="{ active: themeChoice === theme.id }"
+          :data-testid="`theme-option-${theme.id}`"
         >
+          <input
+            type="radio"
+            class="theme-radio sr-only"
+            :name="`${a11yId}-theme-choice`"
+            :value="theme.id"
+            :checked="themeChoice === theme.id"
+            :aria-labelledby="`${a11yId}-theme-${theme.id}-name`"
+            :aria-describedby="`${a11yId}-theme-${theme.id}-desc`"
+            @change="selectTheme(theme.id)"
+          />
           <div class="theme-preview" :style="{ backgroundColor: theme.id === 'custom' ? customPreviewColors.bgMain : theme.preview }">
             <div class="theme-preview-content">
               <div class="preview-header" :style="{ backgroundColor: theme.id === 'custom' ? customPreviewColors.bgHeader : theme.headerColor }"></div>
@@ -31,50 +42,73 @@
             </div>
           </div>
           <div class="theme-info">
-            <h4 class="theme-name">{{ $t(`settings.appearance.themes.${theme.id}`) }}</h4>
-            <p class="theme-description">{{ $t(`settings.appearance.themes.${theme.id}Desc`) }}</p>
+            <span :id="`${a11yId}-theme-${theme.id}-name`" class="theme-name">{{ $t(`settings.appearance.themes.${theme.id}`) }}</span>
+            <span :id="`${a11yId}-theme-${theme.id}-desc`" class="theme-description">{{ $t(`settings.appearance.themes.${theme.id}Desc`) }}</span>
           </div>
-        </div>
+        </label>
 
-        <!-- Saved custom themes as cards in the grid -->
+        <!-- Saved custom themes; the delete button sits outside the radio's label. -->
         <div
-          v-for="saved in savedThemesList"
+          v-for="(saved, si) in savedThemesList"
           :key="saved.id"
-          class="theme-option saved-theme-option"
-          :class="{ active: activeSavedThemeId === saved.id }"
-          @click="applySavedTheme(saved.id)"
+          class="saved-theme-wrap"
         >
-          <div class="theme-preview" :style="{ backgroundColor: getSavedThemePreview(saved).bgMain }">
-            <div class="theme-preview-content">
-              <div class="preview-header" :style="{ backgroundColor: getSavedThemePreview(saved).bgHeader }"></div>
-              <div class="preview-sidebar" :style="{ backgroundColor: getSavedThemePreview(saved).bgSidebar }"></div>
-              <div class="preview-chat" :style="{ backgroundColor: getSavedThemePreview(saved).bgMain }"></div>
-              <div class="preview-accent-dot" :style="{ backgroundColor: saved.settings.customPrimaryColor || '#0EA5E9' }"></div>
+          <label
+            class="theme-option saved-theme-option"
+            :class="{ active: themeChoice === `saved:${saved.id}` }"
+          >
+            <input
+              type="radio"
+              class="theme-radio sr-only"
+              :name="`${a11yId}-theme-choice`"
+              :value="`saved:${saved.id}`"
+              :checked="themeChoice === `saved:${saved.id}`"
+              :aria-labelledby="`${a11yId}-saved-${si}-name`"
+              :aria-describedby="`${a11yId}-saved-${si}-desc`"
+              @change="applySavedTheme(saved.id)"
+            />
+            <div class="theme-preview" :style="{ backgroundColor: getSavedThemePreview(saved).bgMain }">
+              <div class="theme-preview-content">
+                <div class="preview-header" :style="{ backgroundColor: getSavedThemePreview(saved).bgHeader }"></div>
+                <div class="preview-sidebar" :style="{ backgroundColor: getSavedThemePreview(saved).bgSidebar }"></div>
+                <div class="preview-chat" :style="{ backgroundColor: getSavedThemePreview(saved).bgMain }"></div>
+                <div class="preview-accent-dot" :style="{ backgroundColor: saved.settings.customPrimaryColor || '#0EA5E9' }"></div>
+              </div>
             </div>
-            <button
-              class="saved-theme-delete-btn"
-              title="Delete theme"
-              @click.stop="confirmDeleteSavedTheme(saved)"
-            >
-              <Icon name="x" :size="14" />
-            </button>
-          </div>
-          <div class="theme-info">
-            <h4 class="theme-name">{{ saved.name }}</h4>
-            <p class="theme-description">Saved theme</p>
-          </div>
+            <div class="theme-info">
+              <span :id="`${a11yId}-saved-${si}-name`" class="theme-name">{{ saved.name }}</span>
+              <span :id="`${a11yId}-saved-${si}-desc`" class="theme-description">{{ $t('settings.appearance.savedTheme') }}</span>
+            </div>
+          </label>
+          <button
+            type="button"
+            class="saved-theme-delete-btn"
+            :data-saved-theme-delete="saved.id"
+            :aria-label="$t('settings.appearance.deleteSavedTheme', { name: saved.name })"
+            :title="$t('settings.appearance.deleteSavedTheme', { name: saved.name })"
+            @click="confirmDeleteSavedTheme(saved)"
+          >
+            <Icon name="x" :size="14" />
+          </button>
         </div>
       </div>
 
       <!-- Delete confirmation -->
-      <div v-if="themeToDelete" class="delete-theme-confirm">
-        <p>Delete "<strong>{{ themeToDelete.name }}</strong>"?</p>
+      <div
+        v-if="themeToDelete"
+        class="delete-theme-confirm"
+        role="group"
+        :aria-labelledby="`${a11yId}-delete-question`"
+      >
+        <i18n-t :id="`${a11yId}-delete-question`" keypath="settings.appearance.deleteSavedThemeConfirm" tag="p" scope="global">
+          <template #name><strong>{{ themeToDelete.name }}</strong></template>
+        </i18n-t>
         <div class="delete-confirm-actions">
-          <button class="cancel-delete-btn" @click="themeToDelete = null">Cancel</button>
-          <button class="confirm-delete-btn" @click="confirmDelete">Delete</button>
+          <button ref="cancelDeleteBtn" type="button" class="cancel-delete-btn" @click="cancelDelete">{{ $t('common.cancel') }}</button>
+          <button type="button" class="confirm-delete-btn" @click="confirmDelete">{{ $t('common.delete') }}</button>
         </div>
       </div>
-      
+
 
       <!-- Custom Color Picker (only when Custom theme is selected) -->
       <div v-if="settings.theme === 'custom'" class="custom-color-section">
@@ -103,21 +137,25 @@
         
         <!-- Theme Mode Selector -->
         <div class="custom-theme-mode">
-          <label class="mode-label">Theme mode</label>
-          <div class="mode-options">
+          <span :id="`${a11yId}-mode`" class="mode-label">{{ $t('settings.appearance.themeMode') }}</span>
+          <div class="mode-options" role="group" :aria-labelledby="`${a11yId}-mode`">
             <button
+              type="button"
               class="mode-btn"
               :class="{ active: settings.customThemeMode === 'dark' }"
+              :aria-pressed="settings.customThemeMode === 'dark' ? 'true' : 'false'"
               @click="settings.customThemeMode = 'dark'; onCustomThemeModeChange()"
             >
-              Dark
+              {{ $t('settings.appearance.themes.dark') }}
             </button>
             <button
+              type="button"
               class="mode-btn"
               :class="{ active: settings.customThemeMode === 'light' }"
+              :aria-pressed="settings.customThemeMode === 'light' ? 'true' : 'false'"
               @click="settings.customThemeMode = 'light'; onCustomThemeModeChange()"
             >
-              Light
+              {{ $t('settings.appearance.themes.light') }}
             </button>
           </div>
         </div>
@@ -136,57 +174,64 @@
               type="button"
               class="theme-collapse-header"
               :class="{ open: colorExpanded.background }"
+              :aria-expanded="colorExpanded.background ? 'true' : 'false'"
+              :aria-controls="`${a11yId}-background-body`"
               @click="colorExpanded.background = !colorExpanded.background"
             >
               <span class="theme-collapse-swatch" :style="{ backgroundColor: settings.customBackgroundColor }" />
               <span class="theme-collapse-label">
-                <span class="theme-collapse-title">Background</span>
-                <span class="theme-collapse-hint">Tone, lightness &amp; saturation</span>
+                <span class="theme-collapse-title">{{ $t('settings.appearance.colors.background') }}</span>
+                <span class="theme-collapse-hint">{{ $t('settings.appearance.colors.backgroundHint') }}</span>
               </span>
               <span class="theme-collapse-hex">{{ settings.customBackgroundColor }}</span>
               <span class="theme-collapse-arrow" :class="{ open: colorExpanded.background }"><Icon name="chevron-down" :size="14" /></span>
             </button>
-            <div v-show="colorExpanded.background" class="theme-collapse-body">
-              <p class="picker-help">Sets the color hue for all background elements</p>
+            <div v-show="colorExpanded.background" :id="`${a11yId}-background-body`" class="theme-collapse-body">
+              <p class="picker-help">{{ $t('settings.appearance.colors.backgroundHelp') }}</p>
               <ColorPicker
                 v-model:color="settings.customBackgroundColor"
                 layout="wide"
+                :label="$t('settings.appearance.colors.backgroundColor')"
                 @update:color="onCustomBackgroundChange"
                 @change="onCustomBackgroundChange"
               />
               <div class="theme-slider-block">
-                <label class="picker-label">Lightness</label>
+                <label :for="`${a11yId}-lightness`" class="picker-label">{{ $t('settings.appearance.lightness') }}</label>
                 <div class="lightness-slider-container">
-                  <span class="lightness-label">Darker</span>
+                  <span class="lightness-label" aria-hidden="true">{{ $t('settings.appearance.darker') }}</span>
                   <input
+                    :id="`${a11yId}-lightness`"
                     v-model.number="settings.customBackgroundLightness"
                     type="range"
                     min="-50"
                     max="50"
                     step="1"
                     class="lightness-slider"
+                    :aria-valuetext="toneValueText(settings.customBackgroundLightness, 'settings.appearance.darker', 'settings.appearance.lighter')"
                     @input="onLightnessChange"
                   />
-                  <span class="lightness-label">Lighter</span>
+                  <span class="lightness-label" aria-hidden="true">{{ $t('settings.appearance.lighter') }}</span>
                 </div>
-                <div class="lightness-value">{{ (settings.customBackgroundLightness ?? 0) > 0 ? '+' : '' }}{{ settings.customBackgroundLightness }}</div>
+                <div class="lightness-value" aria-hidden="true">{{ (settings.customBackgroundLightness ?? 0) > 0 ? '+' : '' }}{{ settings.customBackgroundLightness }}</div>
               </div>
               <div class="theme-slider-block">
-                <label class="picker-label">Saturation</label>
+                <label :for="`${a11yId}-chroma`" class="picker-label">{{ $t('settings.appearance.saturation') }}</label>
                 <div class="chroma-slider-container">
-                  <span class="chroma-label">Muted</span>
+                  <span class="chroma-label" aria-hidden="true">{{ $t('settings.appearance.muted') }}</span>
                   <input
+                    :id="`${a11yId}-chroma`"
                     v-model.number="settings.customBackgroundChroma"
                     type="range"
                     min="-30"
                     max="30"
                     step="1"
                     class="chroma-slider"
+                    :aria-valuetext="toneValueText(settings.customBackgroundChroma, 'settings.appearance.muted', 'settings.appearance.vivid')"
                     @input="onChromaChange"
                   />
-                  <span class="chroma-label">Vivid</span>
+                  <span class="chroma-label" aria-hidden="true">{{ $t('settings.appearance.vivid') }}</span>
                 </div>
-                <div class="chroma-value">{{ (settings.customBackgroundChroma ?? 0) > 0 ? '+' : '' }}{{ settings.customBackgroundChroma }}</div>
+                <div class="chroma-value" aria-hidden="true">{{ (settings.customBackgroundChroma ?? 0) > 0 ? '+' : '' }}{{ settings.customBackgroundChroma }}</div>
               </div>
             </div>
           </div>
@@ -197,21 +242,24 @@
               type="button"
               class="theme-collapse-header"
               :class="{ open: colorExpanded.primary }"
+              :aria-expanded="colorExpanded.primary ? 'true' : 'false'"
+              :aria-controls="`${a11yId}-primary-body`"
               @click="colorExpanded.primary = !colorExpanded.primary"
             >
               <span class="theme-collapse-swatch" :style="{ backgroundColor: settings.customPrimaryColor }" />
               <span class="theme-collapse-label">
-                <span class="theme-collapse-title">Primary</span>
-                <span class="theme-collapse-hint">Buttons &amp; key actions</span>
+                <span class="theme-collapse-title">{{ $t('settings.appearance.colors.primary') }}</span>
+                <span class="theme-collapse-hint">{{ $t('settings.appearance.colors.primaryHint') }}</span>
               </span>
               <span class="theme-collapse-hex">{{ settings.customPrimaryColor }}</span>
               <span class="theme-collapse-arrow" :class="{ open: colorExpanded.primary }"><Icon name="chevron-down" :size="14" /></span>
             </button>
-            <div v-show="colorExpanded.primary" class="theme-collapse-body">
-              <p class="picker-help">Main brand color for buttons and key actions</p>
+            <div v-show="colorExpanded.primary" :id="`${a11yId}-primary-body`" class="theme-collapse-body">
+              <p class="picker-help">{{ $t('settings.appearance.colors.primaryHelp') }}</p>
               <ColorPicker
                 v-model:color="settings.customPrimaryColor"
                 layout="wide"
+                :label="$t('settings.appearance.colors.primaryColor')"
               />
             </div>
           </div>
@@ -222,21 +270,24 @@
               type="button"
               class="theme-collapse-header"
               :class="{ open: colorExpanded.accent }"
+              :aria-expanded="colorExpanded.accent ? 'true' : 'false'"
+              :aria-controls="`${a11yId}-accent-body`"
               @click="colorExpanded.accent = !colorExpanded.accent"
             >
               <span class="theme-collapse-swatch" :style="{ backgroundColor: settings.customAccentColor }" />
               <span class="theme-collapse-label">
-                <span class="theme-collapse-title">Accent</span>
-                <span class="theme-collapse-hint">Links &amp; highlights</span>
+                <span class="theme-collapse-title">{{ $t('settings.appearance.colors.accent') }}</span>
+                <span class="theme-collapse-hint">{{ $t('settings.appearance.colors.accentHint') }}</span>
               </span>
               <span class="theme-collapse-hex">{{ settings.customAccentColor }}</span>
               <span class="theme-collapse-arrow" :class="{ open: colorExpanded.accent }"><Icon name="chevron-down" :size="14" /></span>
             </button>
-            <div v-show="colorExpanded.accent" class="theme-collapse-body">
-              <p class="picker-help">Used for links, highlights, and accents</p>
+            <div v-show="colorExpanded.accent" :id="`${a11yId}-accent-body`" class="theme-collapse-body">
+              <p class="picker-help">{{ $t('settings.appearance.colors.accentHelp') }}</p>
               <ColorPicker
                 v-model:color="settings.customAccentColor"
                 layout="wide"
+                :label="$t('settings.appearance.colors.accentColor')"
               />
             </div>
           </div>
@@ -244,15 +295,17 @@
 
         <!-- Save current theme -->
         <div class="save-theme-row">
+          <label :for="`${a11yId}-saved-name`" class="sr-only">{{ $t('settings.appearance.savedThemeName') }}</label>
           <input
+            :id="`${a11yId}-saved-name`"
             v-model="savedThemeName"
             type="text"
             class="theme-name-input"
-            placeholder="Theme name"
+            :placeholder="$t('settings.appearance.savedThemeName')"
             @keyup.enter="saveCurrentTheme"
           />
-          <button class="save-theme-btn" @click="saveCurrentTheme" :disabled="!savedThemeName?.trim()">
-            Save theme
+          <button type="button" class="save-theme-btn" @click="saveCurrentTheme" :disabled="!savedThemeName?.trim()">
+            {{ $t('settings.appearance.saveTheme') }}
           </button>
         </div>
       </div>
@@ -275,6 +328,8 @@
             type="file"
             accept=".json,application/json"
             class="hidden-file-input"
+            tabindex="-1"
+            :aria-label="$t('a11y.settings.importThemeFile')"
             @change="handleImportFile"
           />
         </div>
@@ -286,22 +341,24 @@
           type="button"
           class="theme-collapse-header"
           :class="{ open: showAdvancedCss }"
+          :aria-expanded="showAdvancedCss ? 'true' : 'false'"
+          :aria-controls="`${a11yId}-advanced-body`"
           @click="showAdvancedCss = !showAdvancedCss"
         >
-          <span class="theme-collapse-swatch theme-collapse-swatch-advanced">{ }</span>
+          <span class="theme-collapse-swatch theme-collapse-swatch-advanced" aria-hidden="true">{ }</span>
           <span class="theme-collapse-label">
-            <span class="theme-collapse-title">Advanced CSS</span>
-            <span class="theme-collapse-hint">Override individual variables</span>
+            <span class="theme-collapse-title">{{ $t('settings.appearance.colors.advancedCss') }}</span>
+            <span class="theme-collapse-hint">{{ $t('settings.appearance.colors.advancedCssHint') }}</span>
           </span>
           <span v-if="overrideCount > 0" class="override-badge">{{ overrideCount }}</span>
           <span class="theme-collapse-arrow" :class="{ open: showAdvancedCss }"><Icon name="chevron-down" :size="14" /></span>
         </button>
 
-        <div v-show="showAdvancedCss" class="theme-collapse-body css-overrides-panel">
+        <div v-show="showAdvancedCss" :id="`${a11yId}-advanced-body`" class="theme-collapse-body css-overrides-panel">
           <div v-if="overrideCount > 0" class="overrides-toolbar">
-            <span class="override-summary">{{ overrideCount }} override{{ overrideCount !== 1 ? 's' : '' }} active</span>
-            <button class="reset-all-btn" @click="resetAllOverrides" title="Remove all overrides and restore defaults">
-              Reset all
+            <span class="override-summary">{{ t('settings.appearance.overrides.active', { count: overrideCount }, overrideCount) }}</span>
+            <button type="button" class="reset-all-btn" @click="resetAllOverrides" :title="t('settings.appearance.overrides.resetAllHint')">
+              {{ t('settings.appearance.overrides.resetAll') }}
             </button>
           </div>
 
@@ -313,7 +370,7 @@
               class="var-item"
               :class="{ 'has-override': settings.customCssOverrides?.[varName] }"
             >
-              <label class="var-name">{{ varName }}</label>
+              <label :for="varInputId(varName)" class="var-name">{{ varName }}</label>
               <div class="var-controls">
                 <CssVarSwatch
                   class="var-swatch"
@@ -322,6 +379,7 @@
                   @pick="setCssOverrideFromInput(varName, $event)"
                 />
                 <input
+                  :id="varInputId(varName)"
                   type="text"
                   class="var-text-input"
                   :class="{ invalid: invalidVar?.name === varName }"
@@ -332,9 +390,11 @@
                 />
                 <button
                   v-if="settings.customCssOverrides?.[varName]"
+                  type="button"
                   class="var-reset-btn"
+                  :aria-label="$t('settings.appearance.resetVariable', { name: varName })"
+                  :title="$t('settings.appearance.resetVariable', { name: varName })"
                   @click="removeCssOverrideVar(varName)"
-                  title="Reset to default"
                 >
                   <Icon name="x" :size="14" />
                 </button>
@@ -362,6 +422,7 @@
           type="button"
           class="skin-card"
           :class="{ active: !settings.activeSkinId }"
+          :aria-pressed="!settings.activeSkinId ? 'true' : 'false'"
           @click="onSkinChange(null)"
         >
           <div class="skin-card-preview skin-card-preview-none">
@@ -379,10 +440,11 @@
           type="button"
           class="skin-card"
           :class="{ active: settings.activeSkinId === skin.id }"
+          :aria-pressed="settings.activeSkinId === skin.id ? 'true' : 'false'"
           @click="onSkinChange(skin.id)"
         >
           <div class="skin-card-preview">
-            <img v-if="skin.preview" :src="skin.preview" :alt="skin.name" />
+            <img v-if="skin.preview" :src="skin.preview" alt="" />
           </div>
           <div class="skin-card-info">
             <h4 class="skin-card-name">
@@ -417,6 +479,7 @@
           </div>
           <div class="setting-control">
             <ToggleSwitch
+              :label="option.label"
               :model-value="getActiveSkinOptionValue(option.id)"
               @update:model-value="(v: boolean) => onSkinOptionToggle(option.id, v)"
             />
@@ -444,6 +507,7 @@
               type="button"
               class="font-family-btn"
               :class="{ active: settings.fontFamily === opt.id }"
+              :aria-pressed="settings.fontFamily === opt.id ? 'true' : 'false'"
               :style="{ fontFamily: opt.preview }"
               @click="onFontFamilyChange(opt.id)"
             >
@@ -456,8 +520,8 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.fontSize') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.fontSizeDesc') }}</p>
+          <h4 :id="`${a11yId}-font-size`" class="setting-label">{{ $t('settings.appearance.fontSize') }}</h4>
+          <p :id="`${a11yId}-font-size-desc`" class="setting-description">{{ $t('settings.appearance.fontSizeDesc') }}</p>
         </div>
         <div class="setting-control">
           <div class="font-size-slider">
@@ -468,6 +532,9 @@
               max="20"
               step="1"
               class="slider"
+              :aria-labelledby="`${a11yId}-font-size`"
+              :aria-describedby="`${a11yId}-font-size-desc`"
+              :aria-valuetext="`${settings.fontSize}px`"
             />
             <div class="font-size-display">{{ settings.fontSize }}px</div>
           </div>
@@ -476,25 +543,36 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.zoomLevel') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.zoomLevelDesc') }}</p>
+          <h4 :id="`${a11yId}-zoom`" class="setting-label">{{ $t('settings.appearance.zoomLevel') }}</h4>
+          <p :id="`${a11yId}-zoom-desc`" class="setting-description">{{ $t('settings.appearance.zoomLevelDesc') }}</p>
         </div>
         <div class="setting-control">
-          <div class="zoom-controls">
-            <button 
+          <!-- aria-disabled, not disabled: a disabled button drops keyboard focus at the limit. -->
+          <div class="zoom-controls" role="group" :aria-labelledby="`${a11yId}-zoom`" :aria-describedby="`${a11yId}-zoom-desc`">
+            <button
+              type="button"
               class="zoom-btn"
-              @click="adjustZoom(-10)"
-              :disabled="settings.zoomLevel <= 50"
+              data-testid="zoom-out"
+              :aria-label="$t('settings.appearance.zoomOut')"
+              :title="$t('settings.appearance.zoomOut')"
+              :aria-describedby="`${a11yId}-zoom-value`"
+              :aria-disabled="settings.zoomLevel <= ZOOM_MIN ? 'true' : undefined"
+              @click="adjustZoom(-ZOOM_STEP)"
             >
-              -
+              <span aria-hidden="true">-</span>
             </button>
-            <span class="zoom-display">{{ settings.zoomLevel }}%</span>
-            <button 
+            <span :id="`${a11yId}-zoom-value`" class="zoom-display" data-testid="zoom-value">{{ settings.zoomLevel }}%</span>
+            <button
+              type="button"
               class="zoom-btn"
-              @click="adjustZoom(10)"
-              :disabled="settings.zoomLevel >= 200"
+              data-testid="zoom-in"
+              :aria-label="$t('settings.appearance.zoomIn')"
+              :title="$t('settings.appearance.zoomIn')"
+              :aria-describedby="`${a11yId}-zoom-value`"
+              :aria-disabled="settings.zoomLevel >= ZOOM_MAX ? 'true' : undefined"
+              @click="adjustZoom(ZOOM_STEP)"
             >
-              +
+              <span aria-hidden="true">+</span>
             </button>
           </div>
         </div>
@@ -506,11 +584,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.showTimestamps') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.showTimestampsDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t2`">{{ $t('settings.appearance.showTimestamps') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t2-desc`">{{ $t('settings.appearance.showTimestampsDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch :labelledby="`${a11yId}-t2`" :describedby="`${a11yId}-t2-desc`" 
             v-model="settings.showTimestamps"
           />
         </div>
@@ -518,11 +596,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.use24Hour') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.use24HourDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t3`">{{ $t('settings.appearance.use24Hour') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t3-desc`">{{ $t('settings.appearance.use24HourDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch :labelledby="`${a11yId}-t3`" :describedby="`${a11yId}-t3-desc`" 
             v-model="settings.use24HourTime"
           />
         </div>
@@ -530,11 +608,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.compactMode') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.compactModeDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t4`">{{ $t('settings.appearance.compactMode') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t4-desc`">{{ $t('settings.appearance.compactModeDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch :labelledby="`${a11yId}-t4`" :describedby="`${a11yId}-t4-desc`" 
             v-model="settings.compactMode"
           />
         </div>
@@ -542,12 +620,14 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.bridgeSourceBadge') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.bridgeSourceBadgeDesc') }}</p>
+          <h4 :id="`${a11yId}-badge`" class="setting-label">{{ $t('settings.appearance.bridgeSourceBadge') }}</h4>
+          <p :id="`${a11yId}-badge-desc`" class="setting-description">{{ $t('settings.appearance.bridgeSourceBadgeDesc') }}</p>
         </div>
         <div class="setting-control">
           <select
             v-model="settings.bridgeSourceBadge"
+            :aria-labelledby="`${a11yId}-badge`"
+            :aria-describedby="`${a11yId}-badge-desc`"
             class="form-select"
           >
             <option value="icon">{{ $t('settings.appearance.bridgeSourceBadgeIcon') }}</option>
@@ -558,21 +638,21 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.floatingVideo') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.floatingVideoDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t5`">{{ $t('settings.appearance.floatingVideo') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t5-desc`">{{ $t('settings.appearance.floatingVideoDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch v-model="local.floatingVideoEnabled" />
+          <ToggleSwitch :labelledby="`${a11yId}-t5`" :describedby="`${a11yId}-t5-desc`" v-model="local.floatingVideoEnabled" />
         </div>
       </div>
 
       <div v-if="instanceSettings.settings.allowCustomEmojisInDisplayNames" class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.showCustomEmojisInDisplayNames') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.showCustomEmojisInDisplayNamesDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t6`">{{ $t('settings.appearance.showCustomEmojisInDisplayNames') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t6-desc`">{{ $t('settings.appearance.showCustomEmojisInDisplayNamesDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch :labelledby="`${a11yId}-t6`" :describedby="`${a11yId}-t6-desc`" 
             :model-value="settings.showCustomEmojisInDisplayNames !== false"
             @update:model-value="(v: boolean) => (settings.showCustomEmojisInDisplayNames = v)"
           />
@@ -581,11 +661,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.greentext') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.greentextDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t7`">{{ $t('settings.appearance.greentext') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t7-desc`">{{ $t('settings.appearance.greentextDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch
+          <ToggleSwitch :labelledby="`${a11yId}-t7`" :describedby="`${a11yId}-t7-desc`"
             :model-value="settings.greentextEnabled !== false"
             @update:model-value="(v: boolean) => (settings.greentextEnabled = v)"
           />
@@ -594,11 +674,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.convertSentEmoticons') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.convertSentEmoticonsDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t8`">{{ $t('settings.appearance.convertSentEmoticons') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t8-desc`">{{ $t('settings.appearance.convertSentEmoticonsDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch
+          <ToggleSwitch :labelledby="`${a11yId}-t8`" :describedby="`${a11yId}-t8-desc`"
             :model-value="settings.convertSentEmoticons !== false"
             @update:model-value="(v: boolean) => (settings.convertSentEmoticons = v)"
           />
@@ -607,11 +687,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.renderEmoticonsAsEmoji') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.renderEmoticonsAsEmojiDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t9`">{{ $t('settings.appearance.renderEmoticonsAsEmoji') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t9-desc`">{{ $t('settings.appearance.renderEmoticonsAsEmojiDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch
+          <ToggleSwitch :labelledby="`${a11yId}-t9`" :describedby="`${a11yId}-t9-desc`"
             :model-value="settings.renderEmoticonsAsEmoji !== false"
             @update:model-value="(v: boolean) => (settings.renderEmoticonsAsEmoji = v)"
           />
@@ -620,11 +700,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.inviteBannerBg') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.inviteBannerBgDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t10`">{{ $t('settings.appearance.inviteBannerBg') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t10-desc`">{{ $t('settings.appearance.inviteBannerBgDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch
+          <ToggleSwitch :labelledby="`${a11yId}-t10`" :describedby="`${a11yId}-t10-desc`"
             :model-value="settings.inviteBannerBackground !== false"
             @update:model-value="(v: boolean) => (settings.inviteBannerBackground = v)"
           />
@@ -637,11 +717,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.quickReactEnable') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.quickReactEnableDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t11`">{{ $t('settings.appearance.quickReactEnable') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t11-desc`">{{ $t('settings.appearance.quickReactEnableDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch v-model="local.quickReactEnabled" />
+          <ToggleSwitch :labelledby="`${a11yId}-t11`" :describedby="`${a11yId}-t11-desc`" v-model="local.quickReactEnabled" />
         </div>
       </div>
 
@@ -691,17 +771,19 @@
             <button
               v-for="pack in packs"
               :key="pack.id"
+              type="button"
               class="emoji-pack-btn"
               :class="{ active: local.emojiPack === pack.id }"
+              :aria-pressed="local.emojiPack === pack.id ? 'true' : 'false'"
               @click="local.emojiPack = pack.id"
             >
               <img
                 v-if="pack.previewImage"
                 :src="pack.previewImage"
-                :alt="pack.name"
+                alt=""
                 class="pack-preview"
               />
-              <span v-else class="pack-preview-native">😀</span>
+              <span v-else class="pack-preview-native" aria-hidden="true">😀</span>
               <span>{{ pack.name }}</span>
             </button>
           </div>
@@ -714,8 +796,8 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Enable blur &amp; glass effects</h4>
-          <p class="setting-description">
+          <h4 class="setting-label" :id="`${a11yId}-t12`">Enable blur &amp; glass effects</h4>
+          <p class="setting-description" :id="`${a11yId}-t12-desc`">
             Many surfaces (modals, popovers, the voice dock, the sidebar) use
             <code>backdrop-filter: blur</code> for a frosted-glass look. Turn
             off for a flat / sharper UI, or if your device struggles with
@@ -723,7 +805,7 @@
           </p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch
+          <ToggleSwitch :labelledby="`${a11yId}-t12`" :describedby="`${a11yId}-t12-desc`"
             :model-value="settings.glassEffectsEnabled !== false"
             @update:model-value="(v: boolean) => (settings.glassEffectsEnabled = v)"
           />
@@ -736,11 +818,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.highContrast') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.highContrastDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t13`">{{ $t('settings.appearance.highContrast') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t13-desc`">{{ $t('settings.appearance.highContrastDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch :labelledby="`${a11yId}-t13`" :describedby="`${a11yId}-t13-desc`" 
             v-model="settings.highContrast"
           />
         </div>
@@ -748,11 +830,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.reduceMotion') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.reduceMotionDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t14`">{{ $t('settings.appearance.reduceMotion') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t14-desc`">{{ $t('settings.appearance.reduceMotionDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch :labelledby="`${a11yId}-t14`" :describedby="`${a11yId}-t14-desc`" 
             v-model="settings.reduceMotion"
           />
         </div>
@@ -760,24 +842,25 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.screenReader') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.screenReaderDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t15`">{{ $t('settings.appearance.screenReader') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t15-desc`">{{ $t('settings.appearance.screenReaderDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch :labelledby="`${a11yId}-t15`" :describedby="`${a11yId}-t15-desc`" 
             v-model="settings.screenReaderSupport"
           />
         </div>
       </div>
+      <MessageAnnouncementSetting />
     </div>
 
     <Transition name="savebar">
-      <div v-if="hasChanges" class="settings-actions" role="region" :aria-label="$t('settings.appearance.unsavedChanges')">
+      <div v-if="hasChanges" ref="saveBarRef" class="settings-actions" role="region" :aria-label="$t('settings.appearance.unsavedChanges')" data-testid="appearance-save-bar">
         <p class="settings-actions-text">{{ $t('settings.appearance.unsavedChanges') }}</p>
-        <button class="btn btn-secondary" :disabled="loading" @click="resetSettings">
+        <button type="button" class="btn btn-secondary" :disabled="loading" @click="resetSettings">
           {{ $t('settings.appearance.resetSettings') }}
         </button>
-        <button class="btn btn-primary" :disabled="loading" @click="saveSettings">
+        <button type="button" class="btn btn-primary" :disabled="loading" @click="saveSettings">
           <span v-if="loading" class="loading-spinner"></span>
           {{ $t('settings.appearance.saveChanges') }}
         </button>
@@ -787,8 +870,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, reactive, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
+import MessageAnnouncementSetting from '@/components/a11y/MessageAnnouncementSetting.vue'
 import { useToast } from 'vue-toastification'
 import type { User, Emoji } from '@/types'
 import { useFloatingVideo } from '@/composables/useFloatingVideo'
@@ -820,6 +904,12 @@ import type { ThemeColors } from '@/utils/themeHarmony'
 import Icon from '@/components/common/Icon.vue'
 import EmojiPopup from '@/components/EmojiPopup.vue'
 
+import { uid, focusElement } from '@/utils/a11y/focus'
+import { useAnnouncer } from '@/composables/useAnnouncer'
+
+// Ids pairing each switch with its visible label.
+const a11yId = uid('appearance-settings')
+
 interface Props {
   profile: User | null
   loading: boolean
@@ -840,6 +930,7 @@ const router = useRouter()
 const { currentPackId, packs, setCurrentPack } = useEmojiPacks()
 const instanceSettings = useInstanceSettingsStore()
 const quickReact = useQuickReactSettings()
+const { polite } = useAnnouncer()
 
 // Every visual-theme edit on this page is staged in `settings` (the draft) and
 // previewed live; Save stores all of it, Reset restores the stored look.
@@ -876,6 +967,22 @@ const savedLocal = ref<LocalSettings>(readLocal())
 const localDirty = computed(() => JSON.stringify(local.value) !== JSON.stringify(savedLocal.value))
 
 const hasChanges = computed(() => themeDirty.value || localDirty.value)
+
+const titleRef = ref<HTMLElement | null>(null)
+const saveBarRef = ref<HTMLElement | null>(null)
+
+watch(hasChanges, (dirty, wasDirty) => {
+  if (dirty && !wasDirty) polite(t('settings.appearance.unsavedChanges'))
+})
+
+// The save bar unmounts once the draft is clean; focus inside it would drop to
+// <body>, so it moves to the page heading first.
+function moveFocusOutOfSaveBar() {
+  const active = document.activeElement
+  if (saveBarRef.value && active instanceof Node && saveBarRef.value.contains(active)) {
+    focusElement(titleRef.value)
+  }
+}
 
 // Closes full-screen settings so colour edits are visible against the live
 // chat and sidebars. The live editor seeds from the stored theme.
@@ -937,6 +1044,12 @@ const importFileInput = ref<HTMLInputElement | null>(null)
 const savedThemesList = ref(visualTheme.getSavedCustomThemes())
 const activeSavedThemeId = ref<string | null>(null)
 const themeToDelete = ref<{ id: string; name: string } | null>(null)
+const cancelDeleteBtn = ref<HTMLElement | null>(null)
+
+// Checked radio of the theme set: a built-in theme id, or `saved:<id>`.
+const themeChoice = computed(() =>
+  activeSavedThemeId.value ? `saved:${activeSavedThemeId.value}` : settings.value.theme,
+)
 
 function refreshSavedThemes() {
   savedThemesList.value = visualTheme.getSavedCustomThemes()
@@ -951,18 +1064,37 @@ function getSavedThemePreview(saved: { settings: Partial<typeof settings.value> 
   )
 }
 
-function confirmDeleteSavedTheme(saved: { id: string; name: string }) {
-  themeToDelete.value = saved
+function focusCheckedTheme() {
+  const radios = Array.from(document.querySelectorAll<HTMLInputElement>(`input[name="${a11yId}-theme-choice"]`))
+  focusElement(radios.find((r) => r.checked) ?? radios[0])
 }
 
-function confirmDelete() {
+async function confirmDeleteSavedTheme(saved: { id: string; name: string }) {
+  themeToDelete.value = saved
+  await nextTick()
+  focusElement(cancelDeleteBtn.value)
+}
+
+async function cancelDelete() {
+  const id = themeToDelete.value?.id
+  themeToDelete.value = null
+  await nextTick()
+  const opener = id
+    ? Array.from(document.querySelectorAll<HTMLElement>('[data-saved-theme-delete]')).find((el) => el.dataset.savedThemeDelete === id)
+    : null
+  if (!focusElement(opener)) focusCheckedTheme()
+}
+
+async function confirmDelete() {
   if (!themeToDelete.value) return
   const id = themeToDelete.value.id
   visualTheme.deleteSavedTheme(id)
   refreshSavedThemes()
   if (activeSavedThemeId.value === id) activeSavedThemeId.value = null
-  toast.success('Theme removed')
+  toast.success(t('settings.appearance.themeRemoved'))
   themeToDelete.value = null
+  await nextTick()
+  focusCheckedTheme()
 }
 
 function exportTheme() {
@@ -974,7 +1106,7 @@ function exportTheme() {
   a.download = `harmony-theme-${Date.now()}.json`
   a.click()
   URL.revokeObjectURL(url)
-  toast.success('Theme exported')
+  toast.success(t('settings.appearance.toasts.exported'))
 }
 
 function triggerImportInput() {
@@ -990,9 +1122,9 @@ function handleImportFile(e: Event) {
     const theme = visualTheme.parseThemeJson(reader.result as string, settings.value)
     if (theme) {
       Object.assign(settings.value, theme, { customCssOverrides: theme.customCssOverrides ?? {} })
-      toast.success('Theme imported')
+      toast.success(t('settings.appearance.toasts.imported'))
     } else {
-      toast.error('Invalid theme file')
+      toast.error(t('settings.appearance.toasts.invalidFile'))
     }
   }
   reader.readAsText(file)
@@ -1006,7 +1138,7 @@ function saveCurrentTheme() {
   if (theme) {
     savedThemeName.value = ''
     refreshSavedThemes()
-    toast.success(`"${theme.name}" saved`)
+    toast.success(t('settings.appearance.toasts.themeSaved', { name: theme.name }))
   }
 }
 
@@ -1037,6 +1169,8 @@ const getCssVarValue = (varName: string): string =>
 
 const getComputedVar = (varName: string): string =>
   getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || ''
+
+const varInputId = (varName: string): string => `${a11yId}-var${varName.replace(/[^a-zA-Z0-9_-]/g, '')}`
 
 const setCssOverrideFromInput = (varName: string, value: string) => {
   if (!value) return
@@ -1157,6 +1291,13 @@ const onChromaChange = () => {
   syncBackgroundToneFromSliders()
 }
 
+/** aria-valuetext for the signed tone sliders: "+10, Lighter", "-5, Darker", "0". */
+const toneValueText = (value: number | undefined, lowKey: string, highKey: string): string => {
+  const n = value ?? 0
+  if (n === 0) return '0'
+  return t('settings.appearance.toneValue', { value: n > 0 ? `+${n}` : `${n}`, direction: t(n > 0 ? highKey : lowKey) })
+}
+
 const onFontFamilyChange = (family: 'system' | 'pixel') => {
   settings.value.fontFamily = family
 }
@@ -1185,11 +1326,20 @@ const onSkinOptionToggle = (optionId: string, value: boolean) => {
   setSkinOption(skinId, optionId, value)
 }
 
+// Zoom percent.
+const ZOOM_MIN = 50
+const ZOOM_MAX = 200
+const ZOOM_STEP = 10
+
 const adjustZoom = (delta: number) => {
-  settings.value.zoomLevel = Math.max(50, Math.min(200, settings.value.zoomLevel + delta))
+  const next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, settings.value.zoomLevel + delta))
+  if (next === settings.value.zoomLevel) return
+  settings.value.zoomLevel = next
+  polite(t('settings.appearance.zoomValue', { value: next }), { key: 'appearance-zoom', dedupeMs: 0 })
 }
 
 const saveSettings = () => {
+  moveFocusOutOfSaveBar()
   saveTheme()
   setFloatingVideoEnabled(local.value.floatingVideoEnabled)
   setCurrentPack(local.value.emojiPack)
@@ -1198,13 +1348,16 @@ const saveSettings = () => {
   savedLocal.value = readLocal()
   local.value = readLocal()
   emit('update-appearance', { ...settings.value, ...local.value })
+  polite(t('settings.appearance.saved'))
 }
 
 const resetSettings = () => {
+  moveFocusOutOfSaveBar()
   discardTheme()
   local.value = { ...savedLocal.value, quickReactEmoji: { ...savedLocal.value.quickReactEmoji } }
   invalidVar.value = null
   activeSavedThemeId.value = null
+  polite(t('settings.appearance.changesReset'))
 }
 
 onMounted(async () => {
@@ -1288,11 +1441,18 @@ onBeforeUnmount(() => {
 }
 
 .theme-option {
+  position: relative;
+  display: block;
   border: 2px solid var(--background-quaternary);
   border-radius: var(--radius-md);
   padding: 16px;
   cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.theme-option:has(.theme-radio:focus-visible) {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 2px;
 }
 
 .theme-option:hover {
@@ -1347,6 +1507,7 @@ onBeforeUnmount(() => {
 }
 
 .theme-name {
+  display: block;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
@@ -1354,6 +1515,7 @@ onBeforeUnmount(() => {
 }
 
 .theme-description {
+  display: block;
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
   margin: 0;
@@ -1371,14 +1533,20 @@ onBeforeUnmount(() => {
 }
 
 /* Saved theme cards */
-.saved-theme-option .theme-preview {
+.saved-theme-wrap {
   position: relative;
 }
 
+.saved-theme-wrap > .theme-option {
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* Card border 2px + padding 16px + 4px inset from the preview corner. */
 .saved-theme-delete-btn {
   position: absolute;
-  top: 4px;
-  right: 4px;
+  top: 22px;
+  right: 22px;
   width: 22px;
   height: 22px;
   border-radius: 50%;
@@ -1395,7 +1563,8 @@ onBeforeUnmount(() => {
   z-index: 2;
 }
 
-.saved-theme-option:hover .saved-theme-delete-btn {
+.saved-theme-wrap:hover .saved-theme-delete-btn,
+.saved-theme-wrap:focus-within .saved-theme-delete-btn {
   opacity: 1;
 }
 
@@ -1449,13 +1618,13 @@ onBeforeUnmount(() => {
   font-size: 13px;
   font-weight: var(--font-weight-medium);
   cursor: pointer;
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   border: none;
 }
 
 .confirm-delete-btn:hover {
-  background: var(--error-hover);
+  background: var(--error-fill-hover);
 }
 
 .custom-color-section {
@@ -2113,11 +2282,11 @@ onBeforeUnmount(() => {
   transition: all 0.15s ease;
 }
 
-.zoom-btn:hover:not(:disabled) {
+.zoom-btn:hover:not([aria-disabled="true"]) {
   background-color: var(--background-quaternary);
 }
 
-.zoom-btn:disabled {
+.zoom-btn[aria-disabled="true"] {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -2211,12 +2380,12 @@ onBeforeUnmount(() => {
 }
 
 .btn-primary {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--harmony-primary-hover);
+  background-color: var(--harmony-primary-fill-hover);
 }
 
 .btn-secondary {
@@ -2379,7 +2548,7 @@ onBeforeUnmount(() => {
 
 .save-theme-btn {
   padding: 10px 20px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border: none;
   border-radius: var(--radius-base);
@@ -2389,7 +2558,7 @@ onBeforeUnmount(() => {
 }
 
 .save-theme-btn:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .save-theme-btn:disabled {
@@ -2429,7 +2598,7 @@ onBeforeUnmount(() => {
   height: 20px;
   padding: 0 6px;
   border-radius: var(--radius-full);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: 11px;
   font-weight: var(--font-weight-bold);
@@ -2461,14 +2630,14 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-sm);
   border: 1px solid var(--error);
   background: transparent;
-  color: var(--error);
+  color: var(--text-danger);
   font-size: var(--font-size-xs);
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .reset-all-btn:hover {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
 }
 
@@ -2551,7 +2720,7 @@ onBeforeUnmount(() => {
 }
 
 .var-reset-btn:hover {
-  color: var(--error);
+  color: var(--text-danger);
   background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 </style>

@@ -11,21 +11,21 @@
     <!-- Video toolbar: same structure and icons as the vue-easy-lightbox default toolbar -->
     <template v-if="currentIsVideo" #toolbar>
       <div class="vel-toolbar">
-        <div role="button" aria-label="zoom in button" class="toolbar-btn toolbar-btn__zoomin" @click="videoZoomIn">
+        <button type="button" :aria-label="t('a11y.lightbox.zoomIn')" :title="t('a11y.lightbox.zoomIn')" class="toolbar-btn toolbar-btn__zoomin" @click="videoZoomIn">
           <svg class="vel-icon" aria-hidden="true"><use href="#icon-zoomin" /></svg>
-        </div>
-        <div role="button" aria-label="zoom out button" class="toolbar-btn toolbar-btn__zoomout" @click="videoZoomOut">
+        </button>
+        <button type="button" :aria-label="t('a11y.lightbox.zoomOut')" :title="t('a11y.lightbox.zoomOut')" class="toolbar-btn toolbar-btn__zoomout" @click="videoZoomOut">
           <svg class="vel-icon" aria-hidden="true"><use href="#icon-zoomout" /></svg>
-        </div>
-        <div role="button" aria-label="resize image button" class="toolbar-btn toolbar-btn__resize" @click="resetVideoTransforms">
+        </button>
+        <button type="button" :aria-label="t('a11y.lightbox.resetZoom')" :title="t('a11y.lightbox.resetZoom')" class="toolbar-btn toolbar-btn__resize" @click="resetVideoTransforms">
           <svg class="vel-icon" aria-hidden="true"><use href="#icon-resize" /></svg>
-        </div>
-        <div role="button" aria-label="image rotate left button" class="toolbar-btn toolbar-btn__rotate" @click="videoRotateLeft">
+        </button>
+        <button type="button" :aria-label="t('a11y.lightbox.rotateLeft')" :title="t('a11y.lightbox.rotateLeft')" class="toolbar-btn toolbar-btn__rotate" @click="videoRotateLeft">
           <svg class="vel-icon" aria-hidden="true"><use href="#icon-rotate-left" /></svg>
-        </div>
-        <div role="button" aria-label="image rotate right button" class="toolbar-btn toolbar-btn__rotate" @click="videoRotateRight">
+        </button>
+        <button type="button" :aria-label="t('a11y.lightbox.rotateRight')" :title="t('a11y.lightbox.rotateRight')" class="toolbar-btn toolbar-btn__rotate" @click="videoRotateRight">
           <svg class="vel-icon" aria-hidden="true"><use href="#icon-rotate-right" /></svg>
-        </div>
+        </button>
       </div>
     </template>
   </vue-easy-lightbox>
@@ -55,7 +55,7 @@
           @wheel.prevent="onVideoWheel"
           @dblclick.prevent="onVideoDblClick"
         >
-          Your browser does not support the video tag.
+          {{ t('a11y.lightbox.videoUnsupported') }}
         </video>
       </div>
     </Transition>
@@ -75,7 +75,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { useT } from '@/composables/useT';
+import { patchRoleButtons, roleButtonKeyActivation } from '@/utils/a11y/roleButtons';
 import type { MediaAttachment } from '@/types';
 import LightboxDownloadButton from '@/components/common/LightboxDownloadButton.vue';
 import VueEasyLightbox from 'vue-easy-lightbox';
@@ -92,6 +94,55 @@ const index = defineModel<number>('index', { default: 0 });
 const emit = defineEmits<{ hide: [] }>();
 
 const MUTE_KEY = 'harmony-lightbox-video-muted';
+
+const { t } = useT();
+
+// vue-easy-lightbox renders <div role="button"> without a tab stop and with
+// English names; the modal is patched while it is open.
+const LIBRARY_LABELS: Record<string, string> = {
+  'close image preview button': 'common.close',
+  'previous image button': 'a11y.lightbox.previous',
+  'next image button': 'a11y.lightbox.next',
+  'zoom in button': 'a11y.lightbox.zoomIn',
+  'zoom out button': 'a11y.lightbox.zoomOut',
+  'resize image button': 'a11y.lightbox.resetZoom',
+  'image rotate left button': 'a11y.lightbox.rotateLeft',
+  'image rotate right button': 'a11y.lightbox.rotateRight',
+};
+const libraryModal = () => document.querySelector('.vel-modal');
+const onLibraryKeydown = roleButtonKeyActivation(libraryModal);
+let libraryObserver: MutationObserver | null = null;
+
+function patchLibrary() {
+  const modal = libraryModal();
+  if (!modal) return;
+  patchRoleButtons(modal, (original) => (LIBRARY_LABELS[original] ? t(LIBRARY_LABELS[original]) : undefined));
+}
+
+function stopLibraryPatching() {
+  libraryObserver?.disconnect();
+  libraryObserver = null;
+  document.removeEventListener('keydown', onLibraryKeydown, true);
+}
+
+watch(
+  () => props.visible,
+  async (open) => {
+    stopLibraryPatching();
+    if (!open) return;
+    await nextTick();
+    patchLibrary();
+    const modal = libraryModal();
+    if (modal && typeof MutationObserver !== 'undefined') {
+      libraryObserver = new MutationObserver(patchLibrary);
+      libraryObserver.observe(modal, { childList: true, subtree: true });
+    }
+    document.addEventListener('keydown', onLibraryKeydown, true);
+  },
+  { immediate: true },
+);
+
+onBeforeUnmount(stopLibraryPatching);
 
 const videoRef = ref<HTMLVideoElement | null>(null);
 const videoMuted = ref(readMuted());
@@ -220,6 +271,21 @@ function onVideoDblClick() {
   pointer-events: auto;
   transform-origin: center center;
   transition: transform 0.3s ease;
+}
+
+/* The video toolbar uses <button>s; the library styles divs. */
+:global(.vel-toolbar button.toolbar-btn) {
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  margin: 0;
+}
+
+:global(.vel-modal [role='button']:focus-visible),
+:global(.vel-toolbar button.toolbar-btn:focus-visible) {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
 
 /* Top-left: the close button holds top-right, the toolbar and title the bottom centre.

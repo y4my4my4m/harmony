@@ -186,7 +186,7 @@ function selectBitrate(kbps: number): void {
 }
 
 .sq-bitrate.active {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-color: var(--harmony-primary);
   color: var(--text-on-primary);
 }

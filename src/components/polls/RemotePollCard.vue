@@ -1,5 +1,5 @@
 <template>
-  <div class="remote-poll" role="group" data-testid="remote-poll" @click.stop>
+  <div class="remote-poll" role="group" :aria-label="t('polls.remote.label')" data-testid="remote-poll" @click.stop>
     <ul class="remote-poll-options">
       <li
         v-for="(option, index) in poll.options"
@@ -11,6 +11,7 @@
         <span class="remote-poll-fill" :style="{ width: option.percent + '%' }" aria-hidden="true" />
         <span class="remote-poll-percent">{{ option.percent }}%</span>
         <span class="remote-poll-text">{{ option.name }}</span>
+        <span class="sr-only">, {{ t('polls.votes', { count: option.votes }, option.votes) }}</span>
       </li>
     </ul>
     <div class="remote-poll-footer">
@@ -149,7 +150,7 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-decoration: none;
 }
 

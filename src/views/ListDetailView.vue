@@ -2,24 +2,44 @@
   <div class="list-detail-view">
     <!-- Header -->
     <div class="list-header">
-      <button class="back-btn" @click="router.push({ name: 'Lists' })">
-        <svg width="20" height="20" viewBox="0 0 24 24">
+      <button
+        type="button"
+        class="back-btn"
+        :aria-label="t('activitypub.listsA11y.back')"
+        :title="t('activitypub.listsA11y.back')"
+        @click="router.push({ name: 'Lists' })"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
           <path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.42-1.41L7.83 13H20v-2z"/>
         </svg>
       </button>
       <div class="header-info">
-        <h1 class="list-title">{{ list?.title || 'List' }}</h1>
-        <span class="member-count" v-if="list">{{ members.length }} members</span>
+        <h1 class="list-title">{{ list?.title || t('activitypub.listsA11y.list') }}</h1>
+        <span class="member-count" v-if="list">{{ t('activitypub.listsA11y.members', { count: members.length }, members.length) }}</span>
       </div>
       <div class="header-actions">
-        <button class="action-btn" @click="showMembersPanel = !showMembersPanel">
-          <svg width="20" height="20" viewBox="0 0 24 24">
+        <button
+          type="button"
+          class="action-btn"
+          data-testid="list-members-toggle"
+          :aria-expanded="showMembersPanel"
+          aria-controls="list-members-panel"
+          @click="showMembersPanel = !showMembersPanel"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
             <path fill="currentColor" d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
           </svg>
-          Members
+          {{ t('activitypub.listsA11y.membersTitle') }}
         </button>
-        <button class="action-btn edit" @click="showEditModal = true">
-          <svg width="16" height="16" viewBox="0 0 24 24">
+        <button
+          type="button"
+          class="action-btn edit"
+          data-testid="list-edit"
+          :aria-label="t('activitypub.listsA11y.edit')"
+          :title="t('activitypub.listsA11y.edit')"
+          @click="editList"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
             <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
           </svg>
         </button>
@@ -27,57 +47,72 @@
     </div>
 
     <!-- Members Panel -->
-    <div v-if="showMembersPanel" class="members-panel">
+    <section
+      v-if="showMembersPanel"
+      id="list-members-panel"
+      class="members-panel"
+      aria-labelledby="list-members-heading"
+    >
       <div class="members-header">
-        <h3>Members ({{ members.length }})</h3>
+        <h2 id="list-members-heading" class="members-heading">{{ t('activitypub.listsA11y.membersCount', { count: members.length }, members.length) }}</h2>
         <div class="search-member">
           <input
             v-model="memberSearchQuery"
-            type="text"
-            placeholder="Search users to add..."
+            type="search"
+            :aria-label="t('activitypub.listsA11y.searchToAdd')"
+            :placeholder="t('activitypub.listsA11y.searchToAdd')"
             @input="searchUsersToAdd"
           />
         </div>
       </div>
 
       <!-- Search results -->
-      <div v-if="searchResults.length > 0" class="search-results">
-        <div
+      <ul v-if="searchResults.length > 0" class="search-results" :aria-label="t('activitypub.listsA11y.searchResultsLabel')">
+        <li
           v-for="user in searchResults"
           :key="user.id"
           class="user-row"
         >
-          <img :src="user.avatar_url || '/default_avatar.webp'" class="user-avatar" :alt="user.username" />
+          <img :src="user.avatar_url || '/default_avatar.webp'" class="user-avatar" alt="" />
           <div class="user-info">
             <span class="user-name">{{ user.display_name || user.username }}</span>
             <span class="user-handle">@{{ user.username }}</span>
           </div>
           <button
+            type="button"
             class="add-btn"
+            :aria-label="isMember(user.id) ? t('activitypub.listsA11y.addedNamed', { name: rowName(user) }) : t('activitypub.listsA11y.addNamed', { name: rowName(user) })"
             @click="addMember(user.id)"
             :disabled="isMember(user.id)"
           >
-            {{ isMember(user.id) ? 'Added' : 'Add' }}
+            {{ isMember(user.id) ? t('activitypub.listsA11y.added') : t('activitypub.listsA11y.add') }}
           </button>
-        </div>
-      </div>
+        </li>
+      </ul>
 
       <!-- Current members -->
       <div class="current-members">
-        <div
-          v-for="member in members"
-          :key="member.account_id"
-          class="user-row"
-        >
-          <img :src="member.account?.avatar_url || '/default_avatar.webp'" class="user-avatar" :alt="member.account?.username" />
-          <div class="user-info">
-            <span class="user-name">{{ member.account?.display_name || member.account?.username }}</span>
-            <span class="user-handle">@{{ member.account?.username }}</span>
-          </div>
-          <button class="remove-btn" @click="removeMember(member.account_id)">
-            Remove
-          </button>
-        </div>
+        <ul v-if="members.length > 0" class="member-list" :aria-label="t('activitypub.listsA11y.membersTitle')">
+          <li
+            v-for="member in members"
+            :key="member.account_id"
+            class="user-row"
+          >
+            <img :src="member.account?.avatar_url || '/default_avatar.webp'" class="user-avatar" alt="" />
+            <div class="user-info">
+              <span class="user-name">{{ member.account?.display_name || member.account?.username }}</span>
+              <span class="user-handle">@{{ member.account?.username }}</span>
+            </div>
+            <button
+              type="button"
+              class="remove-btn"
+              :aria-label="t('activitypub.listsA11y.removeNamed', { name: rowName(member.account) })"
+              @click="removeMember(member.account_id)"
+            >
+              {{ t('activitypub.listsA11y.remove') }}
+            </button>
+          </li>
+        </ul>
         <EmptyState
           v-if="members.length === 0"
           size="sm"
@@ -86,7 +121,7 @@
           :description="$t('empty.listMembers.description')"
         />
       </div>
-    </div>
+    </section>
 
     <!-- Timeline -->
     <div class="list-timeline" v-if="!showMembersPanel">
@@ -94,7 +129,8 @@
         :posts="timelinePosts"
         :is-loading="isLoading || isLoadingMore"
         :has-more="hasMore"
-        loading-message="Loading timeline..."
+        :loading-message="t('common.loading')"
+        :feed-label="list?.title || t('activitypub.listsA11y.list')"
         :empty-title="$t('empty.listTimeline.title')"
         :empty-message="$t('empty.listTimeline.description')"
         empty-icon="list"
@@ -112,6 +148,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { useAnnouncer } from '@/composables/useAnnouncer'
+import { plainDisplayName } from '@/utils/plainDisplayName'
 import { debug } from '@/utils/debug'
 import { useActivityPubStore, type UserListMember } from '@/stores/useActivityPub'
 import { supabase } from '@/supabase'
@@ -121,6 +160,8 @@ import type { TimelinePost } from '@/types'
 
 const router = useRouter()
 const route = useRoute()
+const { t } = useI18n()
+const { polite } = useAnnouncer()
 const activityPubStore = useActivityPubStore()
 
 const list = ref<any>(null)
@@ -130,11 +171,18 @@ const isLoading = ref(false)
 const isLoadingMore = ref(false)
 const hasMore = ref(false)
 const showMembersPanel = ref(false)
-const showEditModal = ref(false)
 const memberSearchQuery = ref('')
 const searchResults = ref<any[]>([])
 
 const listId = route.params.listId as string
+
+const rowName = (user: { display_name?: string | null; username?: string | null } | null | undefined) =>
+  plainDisplayName(user?.display_name, user?.username || '')
+
+// The list form lives in ListsView, which opens it from ?edit=<id>.
+const editList = () => {
+  router.push({ name: 'Lists', query: { edit: listId } })
+}
 
 const isMember = (userId: string): boolean => {
   return members.value.some(m => m.account_id === userId)
@@ -203,6 +251,7 @@ const searchUsersToAdd = async () => {
 
     if (error) throw error
     searchResults.value = data || []
+    polite(t('activitypub.listsA11y.searchResults', { count: searchResults.value.length }, searchResults.value.length), { key: 'list-member-search' })
   } catch (error) {
     debug.error('Failed to search users:', error)
   }
@@ -317,11 +366,16 @@ onMounted(async () => {
   margin-bottom: 12px;
 }
 
-.members-header h3 {
+.members-heading {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.search-member input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .search-member input {
@@ -335,9 +389,16 @@ onMounted(async () => {
 }
 
 .search-results {
-  margin-bottom: 12px;
-  padding-bottom: 12px;
+  margin: 0 0 12px;
+  padding: 0 0 12px;
+  list-style: none;
   border-bottom: 1px solid var(--border-color);
+}
+
+.member-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .user-row {
@@ -433,7 +494,7 @@ onMounted(async () => {
   background: none;
   border: none;
   border-top: 1px solid var(--border-color);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-weight: 600;
   cursor: pointer;
 }

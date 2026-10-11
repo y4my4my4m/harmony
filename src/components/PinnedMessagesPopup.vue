@@ -2,20 +2,27 @@
   <Teleport to="body">
     <Transition name="drawer">
       <div v-if="isVisible" class="pinned-messages-overlay" @click.self="close">
-        <div class="pinned-messages-drawer">
+        <div
+          ref="drawerEl"
+          class="pinned-messages-drawer"
+          role="dialog"
+          aria-modal="true"
+          :aria-labelledby="titleId"
+          :aria-describedby="descriptionId"
+          tabindex="-1"
+        >
           <div class="drawer-header">
             <div class="header-content">
-              <div class="header-icon">
+              <div class="header-icon" aria-hidden="true">
                 <Icon name="pin" :size="20" />
               </div>
               <div class="header-text">
-                <h3>Pinned messages</h3>
-                <p v-if="pinnedCount > 0">{{ pinnedCount }} message{{ pinnedCount !== 1 ? 's' : '' }}</p>
-                <p v-else>No pinned messages</p>
+                <h3 :id="titleId">{{ t('message.pinned') }}</h3>
+                <p :id="descriptionId">{{ pinnedCount > 0 ? t('chatNav.pinned.count', { count: pinnedCount }, pinnedCount) : t('chatNav.pinned.none') }}</p>
               </div>
             </div>
-            <button class="close-btn" @click="close" title="Close">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <button type="button" class="close-btn" :title="t('common.close')" :aria-label="t('common.close')" @click="close">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <line x1="18" y1="6" x2="6" y2="18"/>
                 <line x1="6" y1="6" x2="18" y2="18"/>
               </svg>
@@ -23,9 +30,9 @@
           </div>
 
           <div class="drawer-content">
-            <div v-if="loading" class="loading-state">
+            <div v-if="loading" class="loading-state" role="status">
               <LoadingSpinner :size="32" />
-              <p>Loading pinned messages...</p>
+              <p>{{ t('chatNav.pinned.loading') }}</p>
             </div>
 
             <EmptyState
@@ -35,8 +42,8 @@
               :description="$t('empty.pins.description')"
             />
 
-            <div v-else class="pinned-messages-list">
-              <div
+            <ul v-else class="pinned-messages-list">
+              <li
                 v-for="message in pinnedMessages"
                 :key="message.id"
                 class="pinned-message-item"
@@ -45,26 +52,29 @@
                 <div class="message-header">
                   <Avatar
                     :src="getUserAvatar(message.user_id)"
-                    :alt="getUserDisplayName(message.user_id)"
                     size="sm"
                     class="message-avatar"
                   />
-                  <div class="message-info">
-                    <div class="message-author" :style="{ color: getUserColorValue(message.user_id) }">
+                  <!-- The author and time are the jump control; the list item stays clickable for the pointer. -->
+                  <button type="button" class="message-info jump-btn" @click.stop="jumpToMessage(message.id)">
+                    <span class="message-author" :style="{ color: getUserColorValue(message.user_id) }">
                       <DisplayName :userId="message.user_id" :fallback="getUserDisplayName(message.user_id)" />
-                    </div>
-                    <div class="message-time">
+                    </span>
+                    <span class="message-time">
                       {{ formatTimestamp(message.created_at) }}
-                    </div>
-                  </div>
+                    </span>
+                    <span class="sr-only">{{ t('chatNav.pinned.jump') }}</span>
+                  </button>
                   <div class="message-actions">
                     <button
                       v-if="canUnpin"
+                      type="button"
                       class="action-btn unpin-btn"
+                      :title="t('chatNav.pinned.unpin')"
+                      :aria-label="t('chatNav.pinned.unpin')"
                       @click.stop="unpinMessage(message.id)"
-                      title="Unpin"
                     >
-                      <Icon name="pin-off" :size="16" />
+                      <Icon name="pin-off" :size="16" aria-hidden="true" />
                     </button>
                   </div>
                 </div>
@@ -81,11 +91,11 @@
                   />
                 </div>
                 <div v-if="message.metadata?.pinner" class="pinned-by">
-                  <Icon name="pin" :size="10" />
-                  Pinned by {{ message.metadata.pinner.display_name || message.metadata.pinner.username }}
+                  <Icon name="pin" :size="10" aria-hidden="true" />
+                  {{ t('chatNav.pinned.by', { name: message.metadata.pinner.display_name || message.metadata.pinner.username }) }}
                 </div>
-              </div>
-            </div>
+              </li>
+            </ul>
           </div>
         </div>
       </div>
@@ -94,7 +104,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useDialog } from '@/composables/useDialog'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import { usePinActions } from '@/composables/usePinActions'
 import { usePinsStore, pinScopeKey } from '@/stores/usePins'
@@ -130,6 +142,15 @@ const {
 
 const pinsStore = usePinsStore()
 const { setPinned } = usePinActions()
+const { t } = useI18n()
+
+const drawerEl = ref<HTMLElement | null>(null)
+const { titleId, descriptionId } = useDialog({
+  open: () => props.isVisible,
+  element: drawerEl,
+  onClose: () => close(),
+  initialFocus: 'dialog',
+})
 
 // In DMs the layout still passes the last channel id; the conversation wins.
 const scope = computed(() => pinScopeKey(
@@ -207,18 +228,11 @@ watch(() => props.isVisible, (visible) => {
   }
 })
 
-const onKeydown = (event: KeyboardEvent) => {
-  if (event.key === 'Escape' && props.isVisible) close()
-}
-
 onMounted(() => {
-  window.addEventListener('keydown', onKeydown)
   if (props.isVisible) {
     loadPinnedMessages()
   }
 })
-
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <style scoped>
@@ -264,7 +278,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 }
 
 .header-icon {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   display: flex;
   align-items: center;
 }
@@ -316,6 +330,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   display: flex;
   flex-direction: column;
   gap: 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .pinned-message-item {
@@ -348,13 +365,31 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   min-width: 0;
 }
 
+.jump-btn {
+  display: block;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.jump-btn:focus-visible {
+  outline: 2px solid var(--border-focus, var(--harmony-primary));
+  outline-offset: 2px;
+}
+
 .message-author {
+  display: block;
   font-weight: 600;
   color: var(--text-primary);
   font-size: 14px;
 }
 
 .message-time {
+  display: block;
   font-size: 12px;
   color: var(--text-secondary);
   margin-top: 2px;

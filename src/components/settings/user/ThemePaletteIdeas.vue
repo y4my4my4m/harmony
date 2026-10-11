@@ -340,6 +340,6 @@ onBeforeUnmount(() => {
 .pi-error {
   margin: 0;
   font-size: 11px;
-  color: var(--error, #ed4245);
+  color: var(--text-danger, #ed4245);
 }
 </style>

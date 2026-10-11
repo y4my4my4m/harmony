@@ -250,7 +250,7 @@ watch(() => props.inviteCode, () => {
   width: 56px;
   height: 56px;
   border-radius: var(--radius-xl);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -448,7 +448,7 @@ watch(() => props.inviteCode, () => {
 
 .error-icon {
   flex-shrink: 0;
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .error-content {
@@ -460,7 +460,7 @@ watch(() => props.inviteCode, () => {
 .error-title {
   font-size: 14px;
   font-weight: 600;
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .error-message {

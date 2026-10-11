@@ -42,7 +42,7 @@
             <ToggleSwitch
               :model-value="!!state.settings?.enabled"
               :disabled="busy"
-              :aria-label="t('automod.enabled')"
+              :label="t('automod.enabled')"
               @update:model-value="(v: boolean) => patchSettings({ enabled: v })"
             />
           </div>
@@ -72,7 +72,7 @@
             <ToggleSwitch
               :model-value="!!state.settings?.exempt_bots"
               :disabled="busy"
-              :aria-label="t('automod.exemptBots')"
+              :label="t('automod.exemptBots')"
               @update:model-value="(v: boolean) => patchSettings({ exempt_bots: v })"
             />
           </div>
@@ -144,7 +144,7 @@
             <ToggleSwitch
               :model-value="!!raid.enabled"
               :disabled="busy"
-              :aria-label="t('automod.raid.title')"
+              :label="t('automod.raid.title')"
               @update:model-value="(v: boolean) => saveRaid({ enabled: v })"
             />
           </div>
@@ -581,7 +581,7 @@ watch(() => props.serverId, loadAll)
   flex-shrink: 0;
   border-radius: 50%;
   background: color-mix(in srgb, var(--harmony-primary) 18%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .setup-text p {
@@ -860,7 +860,7 @@ watch(() => props.serverId, loadAll)
   padding: 0;
   border: none;
   background: none;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   cursor: pointer;
   font-size: 12px;
 }
@@ -887,7 +887,7 @@ watch(() => props.serverId, loadAll)
 }
 
 .error-state {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 @media (max-width: 640px) {

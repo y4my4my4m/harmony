@@ -4,25 +4,28 @@
       <div v-if="status === 'loading'" class="callback-content">
         <div class="loader">
           <div class="loader-ring"></div>
-          <img src="/icon_3d.webp" alt="Harmony" class="loader-logo" />
+          <img src="/icon_3d.webp" alt="" class="loader-logo" />
         </div>
-        <h2>{{ $t('auth.callback.signingIn') || 'Signing you in...' }}</h2>
-        <p>{{ $t('auth.callback.pleaseWait') || 'Please wait while we complete your authentication.' }}</p>
+        <h2>{{ $t('auth.callback.signingIn') }}</h2>
+        <p>{{ $t('auth.callback.pleaseWait') }}</p>
       </div>
 
       <!-- MFA challenge: OAuth user enrolled in 2FA -->
       <div v-else-if="status === 'mfa'" class="callback-content mfa">
-        <div class="mfa-icon shield">
+        <div class="mfa-icon shield" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
             <path d="M9 12l2 2 4-4"/>
           </svg>
         </div>
-        <h2>{{ $t('auth.twoFactorAuth') || 'Two-factor authentication' }}</h2>
-        <p>{{ useRecoveryCode ? ($t('auth.enterRecoveryCode') || 'Enter one of your recovery codes.') : ($t('auth.enter6DigitCode') || 'Enter the 6-digit verification code from your authenticator app.') }}</p>
+        <h2 :id="ids.mfaTitle">{{ $t('auth.twoFactorAuth') }}</h2>
+        <p :id="ids.mfaHint">{{ useRecoveryCode ? $t('auth.enterRecoveryCode') : $t('auth.enter6DigitCode') }}</p>
 
-        <form @submit.prevent="handleMFAVerification" class="mfa-form">
+        <form @submit.prevent="handleMFAVerification" class="mfa-form" :aria-labelledby="ids.mfaTitle" novalidate>
+          <label :for="ids.mfaCode" class="sr-only">{{ useRecoveryCode ? $t('auth.recoveryCode') : $t('auth.verificationCode') }}</label>
           <input
+            :id="ids.mfaCode"
+            ref="mfaInput"
             v-model="mfaCode"
             type="text"
             class="code-input"
@@ -30,19 +33,27 @@
             :placeholder="useRecoveryCode ? RECOVERY_CODE_PLACEHOLDER : '000000'"
             :maxlength="useRecoveryCode ? RECOVERY_CODE_MAX_LENGTH : 6"
             :inputmode="useRecoveryCode ? 'text' : 'numeric'"
+            :aria-invalid="mfaError ? 'true' : undefined"
+            :aria-describedby="mfaError ? `${ids.mfaError} ${ids.mfaHint}` : ids.mfaHint"
             autocomplete="one-time-code"
-            autofocus
+            autocapitalize="off"
+            spellcheck="false"
             @input="handleMFACodeInput"
           />
-          <p v-if="mfaError" class="error-text">{{ mfaError }}</p>
+          <p :id="ids.mfaError" class="error-text" role="alert">{{ mfaError }}</p>
 
           <button
             type="submit"
             class="btn-primary"
-            :disabled="mfaLoading || (useRecoveryCode ? recoveryCodeLength(mfaCode) < RECOVERY_CODE_MIN_LENGTH : mfaCode.length !== 6)"
+            :disabled="!mfaLoading && (useRecoveryCode ? recoveryCodeLength(mfaCode) < RECOVERY_CODE_MIN_LENGTH : mfaCode.length !== 6)"
+            :aria-disabled="mfaLoading ? 'true' : undefined"
+            :aria-busy="mfaLoading ? 'true' : undefined"
           >
-            <span v-if="!mfaLoading">{{ $t('auth.verify') || 'Verify' }}</span>
-            <span v-else>...</span>
+            <span v-if="!mfaLoading">{{ $t('auth.verify') }}</span>
+            <template v-else>
+              <span class="sr-only">{{ $t('auth.verifying') }}</span>
+              <span aria-hidden="true">...</span>
+            </template>
           </button>
 
           <button
@@ -51,7 +62,7 @@
             @click="toggleRecoveryCodeMode"
             :disabled="mfaLoading"
           >
-            {{ useRecoveryCode ? ($t('auth.useAuthenticatorCode') || 'Use authenticator code instead') : ($t('auth.useRecoveryCode') || 'Use a recovery code instead') }}
+            {{ useRecoveryCode ? $t('auth.useAuthenticatorCode') : $t('auth.useRecoveryCode') }}
           </button>
 
           <button
@@ -60,43 +71,43 @@
             @click="cancelMfaAndGoToLogin"
             :disabled="mfaLoading"
           >
-            {{ $t('common.cancel') || 'Cancel' }}
+            {{ $t('common.cancel') }}
           </button>
         </form>
       </div>
 
       <div v-else-if="status === 'error'" class="callback-content error">
-        <div class="error-icon">
+        <div class="error-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"/>
             <line x1="15" y1="9" x2="9" y2="15"/>
             <line x1="9" y1="9" x2="15" y2="15"/>
           </svg>
         </div>
-        <h2>{{ $t('auth.callback.error') || 'Authentication failed' }}</h2>
+        <h2 ref="errorHeading" tabindex="-1">{{ $t('auth.callback.error') }}</h2>
         <p>{{ errorMessage }}</p>
-        <button @click="goToLogin" class="btn-primary">
-          {{ $t('auth.callback.tryAgain') || 'Try again' }}
+        <button type="button" @click="goToLogin" class="btn-primary">
+          {{ $t('auth.callback.tryAgain') }}
         </button>
       </div>
 
       <!-- Success: brief flash before redirect -->
       <div v-else-if="status === 'success'" class="callback-content success">
-        <div class="success-icon">
+        <div class="success-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
             <polyline points="22 4 12 14.01 9 11.01"/>
           </svg>
         </div>
-        <h2>{{ $t('auth.callback.success') || 'Signed in' }}</h2>
-        <p>{{ $t('auth.callback.redirecting') || 'Redirecting you now...' }}</p>
+        <h2>{{ $t('auth.callback.success') }}</h2>
+        <p>{{ $t('auth.callback.redirecting') }}</p>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick, useId, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
@@ -108,11 +119,23 @@ import type { Session } from '@supabase/supabase-js'
 import { consumePostAuthRedirect } from '@/utils/postAuthRedirect'
 import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACEHOLDER, recoveryCodeLength } from '@/utils/mfaConstants'
 import { securityErrorMessage } from '@/services/AccountSecurityService'
+import { useAnnouncer } from '@/composables/useAnnouncer'
 
 const router = useRouter()
 const { t } = useI18n()
 const authStore = useAuthStore()
 const toast = useToast()
+const { polite, assertive } = useAnnouncer()
+
+const uid = useId()
+const ids = {
+  mfaTitle: `callback-mfa-title-${uid}`,
+  mfaHint: `callback-mfa-hint-${uid}`,
+  mfaCode: `callback-mfa-code-${uid}`,
+  mfaError: `callback-mfa-error-${uid}`,
+}
+const mfaInput = ref<HTMLInputElement | null>(null)
+const errorHeading = ref<HTMLElement | null>(null)
 
 // An MFA-enrolled OAuth user lands at AAL1 after the provider redirect.
 // The 'mfa' state challenges them inline instead of signing them out.
@@ -127,6 +150,20 @@ const mfaError = ref('')
 const mfaLoading = ref(false)
 const useRecoveryCode = ref(false)
 
+// The card swaps its content per status; the new state is spoken and, where it
+// asks for input, focused.
+watch(status, async (next) => {
+  await nextTick()
+  if (next === 'mfa') {
+    mfaInput.value?.focus()
+  } else if (next === 'error') {
+    errorHeading.value?.focus()
+    assertive(`${t('auth.callback.error')}. ${errorMessage.value}`)
+  } else if (next === 'success') {
+    polite(`${t('auth.callback.success')}. ${t('auth.callback.redirecting')}`)
+  }
+})
+
 const goToLogin = () => {
   router.push('/login')
 }
@@ -138,10 +175,12 @@ const handleMFACodeInput = () => {
   }
 }
 
-const toggleRecoveryCodeMode = () => {
+const toggleRecoveryCodeMode = async () => {
   useRecoveryCode.value = !useRecoveryCode.value
   mfaCode.value = ''
   mfaError.value = ''
+  await nextTick()
+  mfaInput.value?.focus()
 }
 
 const cancelMfaAndGoToLogin = async () => {
@@ -187,6 +226,7 @@ const finalizeLoginAndRedirect = async (session: Session) => {
 }
 
 const handleMFAVerification = async () => {
+  if (mfaLoading.value) return
   if (useRecoveryCode.value) {
     if (recoveryCodeLength(mfaCode.value) < RECOVERY_CODE_MIN_LENGTH) {
       mfaError.value = t('security.mfa.recoveryCodeExample')
@@ -219,6 +259,10 @@ const handleMFAVerification = async () => {
   } finally {
     mfaLoading.value = false
   }
+  if (mfaError.value) {
+    await nextTick()
+    mfaInput.value?.focus()
+  }
 }
 
 onMounted(async () => {
@@ -240,7 +284,7 @@ onMounted(async () => {
       if (errorParam) {
         throw new Error(errorDescription || errorParam)
       }
-      throw new Error('No session found after authentication')
+      throw new Error(t('auth.callback.noSession'))
     }
 
     // Log identities to diagnose account linking.
@@ -290,8 +334,8 @@ onMounted(async () => {
         await signOutEverywhere()
         throw new Error(
           profile.suspension_reason
-            ? `Your account has been suspended: ${profile.suspension_reason}`
-            : 'Your account has been suspended. Please contact an administrator.'
+            ? t('auth.callback.suspendedReason', { reason: profile.suspension_reason })
+            : t('auth.callback.suspended')
         )
       }
     }
@@ -310,7 +354,7 @@ onMounted(async () => {
         debug.error('Failed to list factors after AAL1 rejection:', factorsError)
         await signOutAndForget()
         authStore.session = null
-        throw new Error('Authentication failed. Please try again.')
+        throw new Error(t('auth.callback.failed'))
       }
 
       const totpFactor = factors?.totp?.find((f: any) => f.status === 'verified')
@@ -319,7 +363,7 @@ onMounted(async () => {
         debug.warn('OAuth callback rejected at AAL1 with no MFA factor - unexpected, signing out')
         await signOutAndForget()
         authStore.session = null
-        throw new Error('Authentication failed. Please try again.')
+        throw new Error(t('auth.callback.failed'))
       }
 
       // Challenge the verified factor. The pending-MFA flag must be set before
@@ -338,7 +382,7 @@ onMounted(async () => {
         authStore._pendingMFAVerification = false
         await signOutAndForget()
         authStore.session = null
-        throw new Error('Failed to start two-factor verification. Please try again.')
+        throw new Error(t('auth.callback.mfaStartFailed'))
       }
 
       pendingFactorId.value = totpFactor.id
@@ -361,7 +405,7 @@ onMounted(async () => {
     // /auth/callback branch.
     authStore._pendingMFAVerification = false
     status.value = 'error'
-    errorMessage.value = error.message || 'An error occurred during authentication'
+    errorMessage.value = error.message || t('auth.callback.failed')
   }
 })
 
@@ -458,7 +502,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--error);
+  color: var(--text-danger);
   margin-bottom: 8px;
 }
 
@@ -468,7 +512,7 @@ onBeforeUnmount(() => {
 }
 
 .callback-content.error h2 {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .success-icon {
@@ -479,7 +523,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--success);
+  color: var(--text-success);
   margin-bottom: 8px;
 }
 
@@ -491,7 +535,7 @@ onBeforeUnmount(() => {
 .btn-primary {
   margin-top: 16px;
   padding: 14px 32px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: none;
   border-radius: var(--radius-lg);
   font-size: 1rem;
@@ -502,7 +546,7 @@ onBeforeUnmount(() => {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .btn-primary:disabled {
@@ -518,7 +562,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   margin-bottom: 8px;
 }
 
@@ -563,9 +607,17 @@ onBeforeUnmount(() => {
 
 .error-text {
   margin: 8px 0 0 0;
-  color: var(--error);
+  color: var(--text-danger);
   font-size: 0.875rem;
   text-align: center;
+}
+
+.error-text:empty {
+  margin: 0;
+}
+
+.callback-content h2:focus {
+  outline: none;
 }
 
 .link-button {
@@ -581,7 +633,7 @@ onBeforeUnmount(() => {
 }
 
 .link-button:hover:not(:disabled) {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .link-button:disabled {

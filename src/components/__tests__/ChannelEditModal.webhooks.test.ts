@@ -67,7 +67,7 @@ describe('ChannelEditModal webhooks tab', () => {
     perms.webhooks = true
     const wrapper = mountModal()
     await flushPromises()
-    expect(tabLabels(wrapper)).toEqual(['General', 'Permissions', 'webhooks.tab'])
+    expect(tabLabels(wrapper)).toEqual(['channel.edit.tabs.general', 'channel.permissions', 'webhooks.tab'])
   })
 
   it('is the only tab for a holder of Manage Webhooks alone, and opens first', async () => {
@@ -84,6 +84,6 @@ describe('ChannelEditModal webhooks tab', () => {
     perms.webhooks = true
     const wrapper = mountModal(1)
     await flushPromises()
-    expect(tabLabels(wrapper)).toEqual(['General', 'Permissions'])
+    expect(tabLabels(wrapper)).toEqual(['channel.edit.tabs.general', 'channel.permissions'])
   })
 })

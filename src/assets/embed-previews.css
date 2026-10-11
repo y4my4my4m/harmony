@@ -180,7 +180,7 @@
 }
 
 .fedi-source-link__right:hover {
-  color: var(--harmony-primary, #58a6ff);
+  color: var(--text-link, #58a6ff);
 }
 
 .provider-embed__skeleton {

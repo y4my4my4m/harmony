@@ -1,13 +1,19 @@
 <template>
   <div class="device-selector" :class="{ open: isOpen }" ref="selectorRef">
     <button
+      ref="triggerRef"
+      type="button"
       class="selector-trigger"
       :class="{ open: isOpen }"
-      @click.stop="toggleDropdown"
+      aria-haspopup="menu"
+      :aria-expanded="isOpen"
+      :aria-controls="isOpen ? menuId : undefined"
+      :aria-label="triggerTitle"
       :title="triggerTitle"
+      @click.stop="toggleDropdown()"
+      @keydown="onTriggerKeydown"
     >
-      <!-- <Icon :name="triggerIcon" /> -->
-      <Icon name="chevron-down" class="chevron" />
+      <Icon name="chevron-down" class="chevron" aria-hidden="true" />
     </button>
 
     <Teleport to="body">
@@ -20,84 +26,93 @@
       <Transition name="dropdown">
         <div
           v-if="isOpen"
+          :id="menuId"
           class="device-dropdown"
           :style="dropdownStyle"
           ref="dropdownRef"
+          role="menu"
+          :aria-label="triggerTitle"
           @click.stop
         >
-          <!-- Input Devices (Microphones) -->
-          <div v-if="type === 'input' || type === 'all'" class="device-section">
-            <div class="section-header">
-              <Icon name="mic" />
-              <span>Microphone</span>
+          <div v-if="type === 'input' || type === 'all'" class="device-section" role="group" :aria-labelledby="`${menuId}-input`">
+            <div :id="`${menuId}-input`" class="section-header">
+              <Icon name="mic" aria-hidden="true" />
+              <span>{{ t('settings.voice.microphone') }}</span>
             </div>
-            <div class="device-list">
+            <div class="device-list" role="none">
               <button
                 v-for="device in inputDevices"
                 :key="device.deviceId"
+                type="button"
+                role="menuitemradio"
+                :aria-checked="device.deviceId === selectedInputDevice"
                 class="device-item"
                 :class="{ active: device.deviceId === selectedInputDevice }"
                 @click="selectInputDevice(device.deviceId)"
               >
-                <Icon :name="device.deviceId === selectedInputDevice ? 'check' : 'mic'" />
-                <span class="device-label">{{ device.label || 'Microphone' }}</span>
+                <Icon :name="device.deviceId === selectedInputDevice ? 'check' : 'mic'" aria-hidden="true" />
+                <span class="device-label">{{ device.label || t('settings.voice.microphone') }}</span>
               </button>
-              <div v-if="inputDevices.length === 0" class="no-devices">
-                No microphones found
+              <div v-if="inputDevices.length === 0" class="no-devices" role="menuitem" aria-disabled="true">
+                {{ t('settings.voice.noMicrophones') }}
               </div>
             </div>
           </div>
 
-          <!-- Output Devices (Speakers) -->
-          <div v-if="type === 'output' || type === 'all'" class="device-section">
-            <div class="section-header">
-              <Icon name="volume-2" />
-              <span>Speaker / headphones</span>
+          <div v-if="type === 'output' || type === 'all'" class="device-section" role="group" :aria-labelledby="`${menuId}-output`">
+            <div :id="`${menuId}-output`" class="section-header">
+              <Icon name="volume-2" aria-hidden="true" />
+              <span>{{ t('settings.voice.speakers') }}</span>
             </div>
-            <div class="device-list">
+            <div class="device-list" role="none">
               <button
                 v-for="device in outputDevices"
                 :key="device.deviceId"
+                type="button"
+                role="menuitemradio"
+                :aria-checked="device.deviceId === selectedOutputDevice"
                 class="device-item"
                 :class="{ active: device.deviceId === selectedOutputDevice }"
                 @click="selectOutputDevice(device.deviceId)"
               >
-                <Icon :name="device.deviceId === selectedOutputDevice ? 'check' : 'volume-2'" />
-                <span class="device-label">{{ device.label || 'Speaker' }}</span>
+                <Icon :name="device.deviceId === selectedOutputDevice ? 'check' : 'volume-2'" aria-hidden="true" />
+                <span class="device-label">{{ device.label || t('settings.voice.speakers') }}</span>
               </button>
-              <div v-if="outputDevices.length === 0" class="no-devices">
-                No speakers found
+              <div v-if="outputDevices.length === 0" class="no-devices" role="menuitem" aria-disabled="true">
+                {{ t('settings.voice.noSpeakers') }}
               </div>
             </div>
           </div>
 
-          <!-- Video Devices (Cameras) -->
-          <div v-if="type === 'video' || type === 'all'" class="device-section">
-            <div class="section-header">
-              <Icon name="video" />
-              <span>Camera</span>
+          <div v-if="type === 'video' || type === 'all'" class="device-section" role="group" :aria-labelledby="`${menuId}-video`">
+            <div :id="`${menuId}-video`" class="section-header">
+              <Icon name="video" aria-hidden="true" />
+              <span>{{ t('settings.voice.videoDevice') }}</span>
             </div>
-            <div class="device-list">
+            <div class="device-list" role="none">
               <button
                 v-for="device in videoDevices"
                 :key="device.deviceId"
+                type="button"
+                role="menuitemradio"
+                :aria-checked="device.deviceId === selectedVideoDevice"
                 class="device-item"
                 :class="{ active: device.deviceId === selectedVideoDevice }"
                 @click="selectVideoDevice(device.deviceId)"
               >
-                <Icon :name="device.deviceId === selectedVideoDevice ? 'check' : 'video'" />
-                <span class="device-label">{{ device.label || 'Camera' }}</span>
+                <Icon :name="device.deviceId === selectedVideoDevice ? 'check' : 'video'" aria-hidden="true" />
+                <span class="device-label">{{ device.label || t('settings.voice.videoDevice') }}</span>
               </button>
-              <div v-if="videoDevices.length === 0" class="no-devices">
-                No cameras found
+              <div v-if="videoDevices.length === 0" class="no-devices" role="menuitem" aria-disabled="true">
+                {{ t('settings.voice.noCameras') }}
               </div>
             </div>
           </div>
 
-          <div class="dropdown-footer">
-            <button class="settings-link" @click="openSettings">
-              <Icon name="settings" />
-              <span>Audio settings</span>
+          <div class="dropdown-footer" role="none">
+            <button type="button" role="menuitem" class="settings-link" @click="openSettings">
+              <Icon name="settings" aria-hidden="true" />
+              <span>{{ t('settings.voice.audioSettings') }}</span>
             </button>
           </div>
         </div>
@@ -112,6 +127,9 @@ import { enumerateMediaDevices } from '@/utils/mediaDevices';
 import { webrtcManager } from '@/services/webrtcManager';
 import { VoiceSettingsService } from '@/services/VoiceSettingsService';
 import Icon from '@/components/common/Icon.vue';
+import { useMenu } from '@/composables/useMenu';
+import { useT } from '@/composables/useT';
+import { uid } from '@/utils/a11y/focus';
 
 interface Props {
   type?: 'input' | 'output' | 'video' | 'all';
@@ -127,9 +145,22 @@ interface Emits {
 
 const emit = defineEmits<Emits>();
 
+const { t } = useT();
 const selectorRef = ref<HTMLElement | null>(null);
+const triggerRef = ref<HTMLButtonElement | null>(null);
 const dropdownRef = ref<HTMLElement | null>(null);
 const isOpen = ref(false);
+const menuId = uid('device-menu');
+const initialFocus = ref<'first' | 'last'>('first');
+
+// Menu keys, Escape/Tab/outside close and focus back to the trigger. Initial
+// focus waits for the device list.
+useMenu(dropdownRef, {
+  open: isOpen,
+  onClose: () => closeDropdown(),
+  trigger: () => triggerRef.value,
+  initialFocus: 'none',
+});
 const dropdownPosition = ref({ x: 0, y: 0 });
 
 // Device lists
@@ -155,10 +186,10 @@ const triggerIcon = computed(() => {
 
 const triggerTitle = computed(() => {
   switch (props.type) {
-    case 'input': return 'Select Microphone';
-    case 'output': return 'Select Speaker';
-    case 'video': return 'Select Camera';
-    default: return 'Audio/Video Settings';
+    case 'input': return t('settings.voice.selectMicrophone');
+    case 'output': return t('settings.voice.selectSpeaker');
+    case 'video': return t('settings.voice.selectCamera');
+    default: return t('settings.voice.audioSettings');
   }
 });
 
@@ -207,21 +238,38 @@ const loadDevices = async () => {
   }
 };
 
-const toggleDropdown = async () => {
+const toggleDropdown = async (focus: 'first' | 'last' = 'first') => {
   if (!isOpen.value) {
     // Set initial position from trigger before showing (prevents flash at 0,0)
     if (selectorRef.value) {
       const rect = selectorRef.value.getBoundingClientRect();
       dropdownPosition.value = { x: rect.left, y: rect.bottom + 8 };
     }
+    initialFocus.value = focus;
     await loadDevices();
   }
   isOpen.value = !isOpen.value;
-  
   if (isOpen.value) {
     await nextTick();
     positionDropdown();
+    focusInitialItem();
   }
+};
+
+// The selected device, else the first (ArrowDown, click) or last (ArrowUp) item.
+const focusInitialItem = () => {
+  const menu = dropdownRef.value;
+  if (!menu) return;
+  const items = Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitemradio"], [role="menuitem"]:not([aria-disabled="true"])'));
+  const checked = menu.querySelector<HTMLElement>('[role="menuitemradio"][aria-checked="true"]');
+  const target = checked ?? (initialFocus.value === 'last' ? items[items.length - 1] : items[0]);
+  target?.focus({ preventScroll: true });
+};
+
+const onTriggerKeydown = (event: KeyboardEvent) => {
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+  event.preventDefault();
+  if (!isOpen.value) void toggleDropdown(event.key === 'ArrowUp' ? 'last' : 'first');
 };
 
 const positionDropdown = () => {
@@ -262,6 +310,7 @@ const closeDropdown = () => {
 };
 
 const selectInputDevice = async (deviceId: string) => {
+  closeDropdown();
   try {
     await webrtcManager.updateInputDevice(deviceId);
     selectedInputDevice.value = deviceId;
@@ -272,6 +321,7 @@ const selectInputDevice = async (deviceId: string) => {
 };
 
 const selectOutputDevice = async (deviceId: string) => {
+  closeDropdown();
   try {
     await webrtcManager.updateOutputDevice(deviceId);
     selectedOutputDevice.value = deviceId;
@@ -282,6 +332,7 @@ const selectOutputDevice = async (deviceId: string) => {
 };
 
 const selectVideoDevice = async (deviceId: string) => {
+  closeDropdown();
   try {
     await webrtcManager.updateVideoDevice(deviceId);
     selectedVideoDevice.value = deviceId;
@@ -313,11 +364,6 @@ const handleDeviceChange = () => {
   }
 };
 
-const handleKeydown = (event: KeyboardEvent) => {
-  if (event.key === 'Escape' && isOpen.value) {
-    closeDropdown();
-  }
-};
 
 const handleExternalDeviceChange = (e: Event) => {
   const { type, deviceId } = (e as CustomEvent).detail || {};
@@ -334,14 +380,12 @@ const handleExternalDeviceChange = (e: Event) => {
 // Lifecycle
 onMounted(() => {
   document.addEventListener('click', handleClickOutside);
-  document.addEventListener('keydown', handleKeydown);
   navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange);
   window.addEventListener('harmony-device-changed', handleExternalDeviceChange);
 });
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside);
-  document.removeEventListener('keydown', handleKeydown);
   navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange);
   window.removeEventListener('harmony-device-changed', handleExternalDeviceChange);
 });
@@ -475,6 +519,13 @@ watch(isOpen, (newVal) => {
   text-align: left;
 }
 
+.device-item:focus-visible,
+.settings-link:focus-visible,
+.selector-trigger:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
 .device-item:hover {
   background: var(--background-modifier-hover);
   color: var(--text-primary);
@@ -482,7 +533,7 @@ watch(isOpen, (newVal) => {
 
 .device-item.active {
   background: var(--harmony-primary-light);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .device-item.active:hover {

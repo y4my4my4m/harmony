@@ -713,7 +713,13 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.style.setProperty('--h-primary-dark', palette.primaryDark)
   root.style.setProperty('--h-brand', palette.primary)
   // Contrast-picked; presets take the #fff in design-system.css.
-  root.style.setProperty('--text-on-primary', readableTextOn(palette.primary))
+  const onPrimary = readableTextOn(palette.primary)
+  root.style.setProperty('--text-on-primary', onPrimary)
+  // Fill under that label: a white label darkens the fill until it reaches 4.5:1; a dark label
+  // already passes on the primary itself.
+  const primaryFill = onPrimary === '#ffffff' ? ensureContrast(palette.primary, '#ffffff', 4.5) : palette.primary
+  root.style.setProperty('--harmony-primary-fill', primaryFill)
+  root.style.setProperty('--harmony-primary-fill-hover', adjustLightness(primaryFill, -8))
 
   // Secondary / accent brand colors
   root.style.setProperty('--harmony-secondary', palette.secondary)
@@ -779,7 +785,13 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.style.setProperty('--text-primary', palette.textPrimary)
   root.style.setProperty('--text-secondary', palette.textSecondary)
   root.style.setProperty('--text-tertiary', palette.textTertiary)
-  root.style.setProperty('--text-muted', palette.isLightTheme ? '#5e6168' : '#6d6f78')
+  root.style.setProperty('--text-muted', palette.isLightTheme ? '#5e6168' : '#8b8e96')
+  // Brand, danger and success hues as text: 4.5:1 against each surface.
+  const surfaces = [palette.bgPrimary, palette.bgSecondary, palette.bgTertiary].filter(Boolean)
+  const legible = (fg: string) => surfaces.reduce((c, bg) => ensureContrast(c, bg, 4.5), fg)
+  root.style.setProperty('--text-link', legible(palette.primary))
+  root.style.setProperty('--text-danger', legible(palette.isLightTheme ? '#b91c1c' : '#f05a5d'))
+  root.style.setProperty('--text-success', legible(palette.isLightTheme ? '#137638' : '#23a55a'))
   
   // Border colors
   root.style.setProperty('--border-primary', palette.borderPrimary)

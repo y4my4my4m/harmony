@@ -2,91 +2,101 @@
   <!-- Full-screen overlay: edge swipes would open the layout's drawers behind it. -->
   <div class="user-settings" data-block-sidebar-gestures>
     <div class="user-settings-container">
-      <!--          <UserAccountSettings 
-            v-if="activeSection === 'account'"
-            :profile="profile"
-            :loading="loading"
-            @update-profile="handleProfileUpdate"
-            @upload-avatar="handleAvatarUpload"
-            @upload-banner="handleBannerUpload"
-          /> Navigation Header -->
-      <div class="mobile-nav" v-if="isMobile">
-        <button class="mobile-menu-btn" @click="toggleSidebar" aria-label="Toggle navigation">
-          <div class="hamburger-icon">
+      <div v-if="isMobile" ref="mobileNavEl" class="mobile-nav">
+        <button
+          type="button"
+          class="mobile-menu-btn"
+          :aria-label="$t('settings.a11y.sections')"
+          v-bind="drawerToggleAttrs"
+          @click="toggleSidebar"
+        >
+          <div class="hamburger-icon" aria-hidden="true">
             <span></span>
             <span></span>
             <span></span>
           </div>
         </button>
-        <h2 class="mobile-title">{{ showSidebar ? $t('settings.userSettings') : currentSectionLabel }}</h2>
-        <button class="mobile-close-btn" @click="closeSettings" aria-label="Close settings">
-          <CloseIcon />
+        <h1 class="mobile-title">{{ showSidebar ? $t('settings.userSettings') : currentSectionLabel }}</h1>
+        <button type="button" class="mobile-close-btn" @click="closeSettings" :aria-label="$t('settings.a11y.close')">
+          <CloseIcon aria-hidden="true" />
         </button>
       </div>
 
       <!-- Sidebar Navigation -->
       <div 
+        id="user-settings-sidebar"
+        ref="sidebarEl"
         class="settings-sidebar" 
         :class="{ 'mobile-hidden': isMobile && !showSidebar }"
       >
         <div class="settings-sidebar-content">
-          <h2 class="settings-title" v-if="!isMobile">{{ $t('settings.userSettings') }}</h2>
+          <h1 class="settings-title" v-if="!isMobile">{{ $t('settings.userSettings') }}</h1>
           
-          <nav class="settings-nav">
+          <nav class="settings-nav" :aria-label="$t('settings.a11y.sections')" data-testid="user-settings-nav">
             <div class="nav-section">
-              <h3 class="nav-section-title">{{ $t('settings.userSettings') }}</h3>
-              <button 
-                v-for="section in userSections" 
-                :key="section.id"
-                class="nav-item"
-                :class="{ active: activeSection === section.id }"
-                @click="setActiveSection(section.id)"
-              >
-                <component :is="section.icon" class="nav-icon" />
-                {{ $t(section.label) }}
-              </button>
+              <h2 :id="`${navId}-user`" class="nav-section-title">{{ $t('settings.userSettings') }}</h2>
+              <ul class="nav-list" :aria-labelledby="`${navId}-user`">
+                <li v-for="section in userSections" :key="section.id">
+                  <button
+                    type="button"
+                    class="nav-item"
+                    :class="{ active: activeSection === section.id }"
+                    :aria-current="activeSection === section.id ? 'page' : undefined"
+                    @click="setActiveSection(section.id)"
+                  >
+                    <component :is="section.icon" class="nav-icon" aria-hidden="true" />
+                    {{ $t(section.label) }}
+                  </button>
+                </li>
+              </ul>
             </div>
 
             <div class="nav-section">
-              <h3 class="nav-section-title">{{ $t('navigation.settings') }}</h3>
-              <button 
-                v-for="section in appSections" 
-                :key="section.id"
-                class="nav-item"
-                :class="{ active: activeSection === section.id }"
-                @click="setActiveSection(section.id)"
-              >
-                <component :is="section.icon" class="nav-icon" />
-                {{ $t(section.label) }}
-                <span
-                  v-if="section.id === 'announcements' && announcementUnreadCount > 0"
-                  class="nav-badge"
-                  :aria-label="`${announcementUnreadCount} unread announcement${announcementUnreadCount === 1 ? '' : 's'}`"
-                >
-                  {{ announcementUnreadCount > 99 ? '99+' : announcementUnreadCount }}
-                </span>
-              </button>
+              <h2 :id="`${navId}-app`" class="nav-section-title">{{ $t('navigation.settings') }}</h2>
+              <ul class="nav-list" :aria-labelledby="`${navId}-app`">
+                <li v-for="section in appSections" :key="section.id">
+                  <button
+                    type="button"
+                    class="nav-item"
+                    :class="{ active: activeSection === section.id }"
+                    :aria-current="activeSection === section.id ? 'page' : undefined"
+                    @click="setActiveSection(section.id)"
+                  >
+                    <component :is="section.icon" class="nav-icon" aria-hidden="true" />
+                    {{ $t(section.label) }}
+                    <template v-if="section.id === 'announcements' && announcementUnreadCount > 0">
+                      <span class="nav-badge" aria-hidden="true">
+                        {{ announcementUnreadCount > 99 ? '99+' : announcementUnreadCount }}
+                      </span>
+                      <span class="sr-only">, {{ $t('settings.a11y.unreadAnnouncements', { count: announcementUnreadCount }, announcementUnreadCount) }}</span>
+                    </template>
+                  </button>
+                </li>
+              </ul>
             </div>
 
             <div class="nav-section" v-if="adminSections.length > 0 && isStaff">
-              <h3 class="nav-section-title">{{ $t('settings.administration') }}</h3>
-              <router-link
-                v-for="section in adminSections" 
-                :key="section.id"
-                :to="section.path"
-                class="nav-item admin-link"
-              >
-                <component :is="section.icon" class="nav-icon" />
-                {{ $t(section.label) }}
-              </router-link>
+              <h2 :id="`${navId}-admin`" class="nav-section-title">{{ $t('settings.administration') }}</h2>
+              <ul class="nav-list" :aria-labelledby="`${navId}-admin`">
+                <li v-for="section in adminSections" :key="section.id">
+                  <router-link
+                    :to="section.path"
+                    class="nav-item admin-link"
+                  >
+                    <component :is="section.icon" class="nav-icon" aria-hidden="true" />
+                    {{ $t(section.label) }}
+                  </router-link>
+                </li>
+              </ul>
             </div>
 
             <div class="nav-section">
               <button 
+                type="button"
                 class="nav-item logout-btn"
                 @click="handleLogout"
               >
-                <LogoutIcon class="nav-icon" />
+                <LogoutIcon class="nav-icon" aria-hidden="true" />
                 {{ $t('auth.logout') }}
               </button>
             </div>
@@ -98,13 +108,15 @@
       <!-- Sidebar Overlay (mobile) -->
       <div 
         v-if="isMobile && showSidebar" 
+        ref="overlayEl"
         class="sidebar-overlay"
+        aria-hidden="true"
         @click="closeSidebar"
       ></div>
 
       <!-- Main Content Area -->
       <div class="settings-main">
-        <div class="settings-content">
+        <div ref="contentEl" class="settings-content">
           <!-- My Account Section -->
           <UserAccountSettings
             v-if="activeSection === 'account'"
@@ -131,6 +143,8 @@
             v-else-if="activeSection === 'bots'"
             :loading="loading"
           />
+
+          <MyEmojisSettings v-else-if="activeSection === 'emojis'" />
 
           <!-- Appearance Section -->
           <AppearanceSettings 
@@ -192,18 +206,20 @@
       <!-- Close Button (desktop only) -->
       <button 
         v-if="!isMobile"
+        type="button"
         class="settings-close" 
         @click="closeSettings" 
-        aria-label="Close settings"
+        :aria-label="$t('settings.a11y.close')"
       >
-        <CloseIcon />
+        <CloseIcon aria-hidden="true" />
       </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
+import { hasOpenLayer } from '@/utils/a11y/layers'
+import { ref, onMounted, computed, watch, onUnmounted, nextTick, useId } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -229,9 +245,12 @@ import KeybindSettings from '@/components/settings/user/KeybindSettings.vue'
 import LanguageSettings from '@/components/settings/user/LanguageSettings.vue'
 import AdvancedSettings from '@/components/settings/user/AdvancedSettings.vue'
 import UserBotsManagement from '@/components/settings/user/UserBotsManagement.vue'
+import MyEmojisSettings from '@/components/settings/user/MyEmojisSettings.vue'
 import AnnouncementsSettings from '@/components/settings/user/AnnouncementsSettings.vue'
 import SettingsBuildFooter from '@/components/settings/user/SettingsBuildFooter.vue'
 import { useAnnouncementUnreadCount } from '@/composables/useAnnouncementUnreadCount'
+import { useDrawer } from '@/composables/useDrawer'
+import { focusSectionHeading } from '@/utils/a11y/settingsFocus'
 
 // Icons
 import UserIcon from '@/components/icons/User.vue'
@@ -246,6 +265,7 @@ import KeyboardIcon from '@/components/icons/Keyboard.vue'
 import GlobeIcon from '@/components/icons/Globe.vue'
 import CogIcon from '@/components/icons/Cog.vue'
 import RobotIcon from '@/components/icons/Robot.vue'
+import EmojiIcon from '@/components/icons/EmojiIcon.vue'
 import LogoutIcon from '@/components/icons/Logout.vue'
 import CloseIcon from '@/components/icons/Close.vue'
 
@@ -289,6 +309,24 @@ const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024
 // Computed properties
 const isMobile = computed(() => windowWidth.value <= 768)
 
+const navId = `user-settings-nav-${useId()}`
+const sidebarEl = ref<HTMLElement | null>(null)
+const mobileNavEl = ref<HTMLElement | null>(null)
+const overlayEl = ref<HTMLElement | null>(null)
+const contentEl = ref<HTMLElement | null>(null)
+
+// Mobile: the section list is an off-canvas drawer, inert while closed and
+// modal while open; the header with its toggle stays reachable.
+const { toggleAttrs: drawerToggleAttrs } = useDrawer({
+  open: showSidebar,
+  elements: () => [sidebarEl.value],
+  collapsible: isMobile,
+  modal: isMobile,
+  keep: () => [mobileNavEl.value, overlayEl.value],
+  onClose: () => { showSidebar.value = false },
+  ids: ['user-settings-sidebar'],
+})
+
 const currentSectionLabel = computed(() => {
   const allSections = [...userSections.value, ...appSections.value]
   const section = allSections.find(s => s.id === activeSection.value)
@@ -300,7 +338,8 @@ const userSections = computed(() => [
   { id: 'account', label: 'settings.account', icon: UserIcon },
   { id: 'security', label: 'settings.security', icon: LockIcon },
   { id: 'privacy', label: 'settings.privacy', icon: ShieldIcon },
-  { id: 'bots', label: 'settings.myBots', icon: RobotIcon }
+  { id: 'bots', label: 'settings.myBots', icon: RobotIcon },
+  { id: 'emojis', label: 'settings.myEmojis.title', icon: EmojiIcon }
 ])
 
 const appSections = computed(() => [
@@ -387,13 +426,17 @@ const onSettingsTouchEnd = (event: TouchEvent) => {
   })
 }
 
-const setActiveSection = (sectionId: string) => {
+const setActiveSection = async (sectionId: string) => {
   activeSection.value = sectionId
   // Close sidebar on mobile after selection
   if (isMobile.value) {
     closeSidebar()
   }
   settingsNav.replaceSection(sectionId as SettingsSection)
+  // The pressed item stays behind (or offscreen on mobile); the new section's
+  // heading takes focus and is read.
+  await nextTick()
+  focusSectionHeading(contentEl.value)
 }
 
 const closeSettings = () => {
@@ -403,10 +446,10 @@ const closeSettings = () => {
 const handleLogout = async () => {
   try {
     await authStore.logout()
-    toast.success('Logged out')
+    toast.success(t('settings.toasts.loggedOut'))
   } catch (error) {
     debug.error('Error logging out:', error)
-    toast.error('Failed to log out')
+    toast.error(t('settings.toasts.logoutFailed'))
   }
 }
 
@@ -434,10 +477,10 @@ const handleProfileUpdate = async (updatedProfile: Partial<User>) => {
       // Note: verified field not included as it's not in UserPresence interface
     })
     
-    toast.success('Profile updated')
+    toast.success(t('settings.toasts.profileUpdated'))
   } catch (error) {
     debug.error('Error updating profile:', error)
-    toast.error('Failed to update profile')
+    toast.error(t('settings.toasts.profileUpdateFailed'))
   } finally {
     loading.value = false
   }
@@ -451,7 +494,7 @@ const handleAvatarUpload = async (file: File) => {
     const result = await uploadAvatar(file, authStore.session.user.id)
     
     if (!result.success) {
-      throw new Error(result.error || 'Upload failed')
+      throw new Error(result.error || t('settings.toasts.avatarUploadFailed'))
     }
     
     // Ensure we normalize the avatar URL for storage
@@ -467,10 +510,10 @@ const handleAvatarUpload = async (file: File) => {
       avatarUrl: normalizedPath || undefined
     })
     
-    toast.success('Avatar updated')
+    toast.success(t('settings.toasts.avatarUpdated'))
   } catch (error: any) {
     debug.error('Error uploading avatar:', error)
-    toast.error(error?.message || 'Failed to upload avatar')
+    toast.error(error?.message || t('settings.toasts.avatarUploadFailed'))
   } finally {
     loading.value = false
   }
@@ -490,7 +533,7 @@ const handleBannerUpload = async (file: File) => {
     const result = await uploadBanner(file, authStore.session.user.id)
     
     if (!result.success) {
-      toast.error(result.error || 'Failed to upload banner')
+      toast.error(result.error || t('settings.toasts.bannerUploadFailed'))
       return
     }
     
@@ -512,11 +555,11 @@ const handleBannerUpload = async (file: File) => {
       debug.error('Banner broadcast failed (upload still succeeded):', broadcastError)
     }
     
-    toast.success('Banner updated')
+    toast.success(t('settings.toasts.bannerUpdated'))
     debug.log('Banner upload completed successfully')
   } catch (error: any) {
     debug.error('Error uploading banner:', error)
-    toast.error(error?.message || 'Failed to upload banner')
+    toast.error(error?.message || t('settings.toasts.bannerUploadFailed'))
   } finally {
     bannerUploading.value = false
   }
@@ -586,7 +629,8 @@ const handleSettingsKeydown = (event: KeyboardEvent) => {
   // user can re-open the settings, but we make sure we're not stealing
   // Escape from a modal that has it open on top of us.
   const target = event.target as HTMLElement | null
-  if (target?.closest('.modal-overlay')) return
+  // A dialog, menu or drawer above the view owns this Escape (utils/a11y/layers.ts).
+  if (event.defaultPrevented || hasOpenLayer() || target?.closest('.modal-overlay')) return
   closeSettings()
 }
 
@@ -629,7 +673,7 @@ onMounted(async () => {
         : null
     } catch (error) {
       debug.error('Error fetching profile:', error)
-      toast.error('Failed to load profile')
+      toast.error(t('settings.toasts.profileLoadFailed'))
     } finally {
       loading.value = false
     }
@@ -822,13 +866,30 @@ onUnmounted(() => {
   min-height: 44px; /* Better touch target */
 }
 
+.nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.nav-list .nav-item {
+  width: 100%;
+}
+
+.nav-item:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+
 .nav-item:hover {
   background-color: var(--background-quaternary);
   color: var(--text-primary);
 }
 
 .nav-item.active {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
@@ -850,7 +911,7 @@ onUnmounted(() => {
   height: 18px;
   padding: 0 6px;
   border-radius: var(--radius-full);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: 11px;
   font-weight: var(--font-weight-bold);
@@ -865,13 +926,13 @@ onUnmounted(() => {
 }
 
 .logout-btn {
-  color: var(--error) !important;
+  color: var(--text-danger) !important;
   margin-top: 16px;
 }
 
 .logout-btn:hover {
   background-color: color-mix(in srgb, var(--error) 10%, transparent) !important;
-  color: var(--error) !important;
+  color: var(--text-danger) !important;
 }
 
 /* Main Content */

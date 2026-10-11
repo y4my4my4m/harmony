@@ -608,7 +608,7 @@ async function finishSetup(userId: string, created: unknown) {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary, #fff);
   display: flex;
   align-items: center;
@@ -650,14 +650,14 @@ async function finishSetup(userId: string, created: unknown) {
 
 .field-hint .error,
 .field-hint.error {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .field-hint .success {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .text-input,
@@ -721,7 +721,7 @@ async function finishSetup(userId: string, created: unknown) {
   padding: var(--space-3);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--error) 12%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
   font-size: var(--font-size-sm);
 }
 
@@ -756,7 +756,7 @@ async function finishSetup(userId: string, created: unknown) {
   padding: 0;
   border: none;
   background: none;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font: inherit;
   font-size: var(--font-size-xs);
   cursor: pointer;

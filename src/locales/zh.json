@@ -105,7 +105,12 @@
       "error": "身份验证失败",
       "tryAgain": "重试",
       "success": "欢迎！",
-      "redirecting": "正在为您跳转..."
+      "redirecting": "正在为您跳转...",
+      "noSession": "认证后未找到会话",
+      "suspendedReason": "你的账户已被停用：{reason}",
+      "suspended": "你的账户已被停用。请联系管理员。",
+      "mfaStartFailed": "无法开始两步验证。请重试。",
+      "failed": "认证失败。请重试。"
     },
     "features": {
       "federated": "联邦化",
@@ -122,12 +127,46 @@
       "invalidCredentials": "电子邮箱或密码无效",
       "accountNotFound": "未找到账户",
       "emailInUse": "电子邮箱已被使用",
-      "weakPassword": "密码太弱"
+      "weakPassword": "密码太弱",
+      "emailRequired": "请输入电子邮件",
+      "passwordRequired": "请输入密码",
+      "emailServiceUnavailable": "电子邮件服务未配置。请联系实例管理员。",
+      "oauthFailed": "无法使用 {provider} 登录"
     },
     "logoutConfirm": {
       "title": "从此设备注销?",
       "description": "您需要重新登录才能访问您的帐户。",
       "cancel": "取消"
+    },
+    "showPassword": "显示密码",
+    "showNewPassword": "显示新密码",
+    "showConfirmPassword": "显示确认密码",
+    "cancelSignIn": "取消登录",
+    "verifying": "正在验证…",
+    "sendingResetLink": "正在发送重置链接…",
+    "poweredBy": "由 {name} 驱动",
+    "reset": {
+      "brandSubtitle": "重置密码以重新访问你的账户",
+      "successTitle": "密码已重置",
+      "successBody": "你的密码已更新。现在可以使用新密码登录。",
+      "goToLogin": "前往登录",
+      "invalidTitle": "链接无效或已过期",
+      "invalidBody": "此密码重置链接无效或已过期。请重新申请。",
+      "enterNew": "请在下方输入新密码",
+      "newPlaceholder": "输入新密码",
+      "confirmPlaceholder": "确认新密码",
+      "remember": "想起密码了？",
+      "verifying": "正在验证密码重置链接…",
+      "verifyAndReset": "验证并重置密码",
+      "resetting": "正在重置密码…",
+      "confirmRequired": "请确认你的密码",
+      "challengeFailed": "无法开始两步验证。请重试。",
+      "linkMissing": "密码重置令牌无效或缺失。请重新申请重置链接。",
+      "linkExpired": "此密码重置链接已过期。请重新申请。",
+      "verifyFailed": "无法验证密码重置链接。请重试。",
+      "mfaRequired": "需要两步验证。请验证你的验证码。",
+      "failed": "无法重置密码。请重试。",
+      "done": "密码已重置。请使用新密码登录。"
     }
   },
   "server": {
@@ -353,7 +392,318 @@
     "federationBenefit2": "消息将与联邦成员实时共享",
     "federationBenefit3": "服务器将出现在联邦服务器发现中",
     "federationHandle": "服务器标识",
-    "federationHandleDesc": "分享此标识，让其他实例的用户可以找到并加入此服务器。"
+    "federationHandleDesc": "分享此标识，让其他实例的用户可以找到并加入此服务器。",
+    "banner": {
+      "title": "服务器横幅",
+      "upload": "上传服务器横幅",
+      "change": "更换服务器横幅",
+      "remove": "移除横幅",
+      "hint": "建议尺寸：1280×400 像素。显示在服务器顶部。",
+      "none": "未设置服务器横幅"
+    },
+    "emojiActions": {
+      "copy": "复制 {name}",
+      "rename": "重命名 {name}",
+      "delete": "删除 {name}",
+      "renameField": "{name} 的新名称",
+      "copied": "已复制 {name}"
+    },
+    "banList": {
+      "title": "服务器封禁",
+      "description": "查看和管理被封禁的用户。拥有“封禁成员”权限的成员可以在此列表中解除封禁。",
+      "loading": "正在加载封禁列表…",
+      "loadFailed": "无法加载封禁列表",
+      "bannedBy": "由 {name} 于 {date} 封禁",
+      "unknownModerator": "未知",
+      "revoke": "撤销封禁",
+      "revokeFor": "撤销封禁：{name}",
+      "unbanned": "已解除对 {name} 的封禁",
+      "unbanFailed": "无法解除封禁"
+    },
+    "serverIdLabel": "服务器 ID",
+    "serverCreatedUnknown": "未知",
+    "deleteServerNameMismatch": "服务器名称不匹配",
+    "deleteServerTypeExact": "请输入完整的服务器名称以确认",
+    "deleteServerAuthRequired": "需要身份验证",
+    "deleteServerDone": "服务器已删除",
+    "deleteServerFailed": "无法删除服务器",
+    "encryptionPolicy": {
+      "title": "服务器加密策略",
+      "description": "管理此服务器的端到端加密要求",
+      "loading": "正在加载加密设置…",
+      "modeLabel": "加密模式",
+      "modeHint": "选择加密的执行方式",
+      "modes": {
+        "disabled": {
+          "name": "已禁用",
+          "description": "频道无法开启加密。服务器可以读取所有消息。"
+        },
+        "optional": {
+          "name": "可选",
+          "description": "频道管理员按频道开启加密。新频道默认不加密。"
+        },
+        "required": {
+          "name": "必需",
+          "description": "所有频道均加密且无法关闭。成员需要加密密钥才能发言。"
+        }
+      },
+      "requiredWarning": "没有加密密钥的用户将无法发送消息",
+      "status": {
+        "disabled": {
+          "title": "加密已禁用",
+          "description": "消息以明文存储。服务器运营者可以读取。"
+        },
+        "optional": {
+          "title": "可选加密",
+          "description": "每个频道是否加密由其频道管理员决定。"
+        },
+        "required": {
+          "title": "必须加密",
+          "description": "所有频道均为端到端加密。"
+        }
+      },
+      "additionalOptions": "其他选项",
+      "forceKeySetup": "提示用户设置加密",
+      "forceKeySetupHint": "为没有密钥的用户显示设置向导",
+      "attachmentNote": "在加密频道中，文件链接、名称和类型会随消息一起加密。文件本身以未加密形式存储。",
+      "voiceTitle": "语音和视频加密",
+      "voiceHint": "对通话媒体进行端到端加密，媒体服务器无法访问",
+      "voiceRequire": "要求语音和视频端到端加密",
+      "voiceRequireHint": "每个语音频道都会在通话到达媒体服务器之前进行加密。关闭时由频道管理员按语音频道选择。",
+      "voiceWarning": "未设置加密的参与者（以及联邦或旧版客户端）将无法加入加密通话。",
+      "statsTitle": "服务器统计",
+      "statsTotal": "成员总数",
+      "statsWithKeys": "已设置加密",
+      "statsCoverage": "覆盖率",
+      "statsWarning": "还有 {count} 名成员需要设置加密，必需模式才能正常运作",
+      "helpTitle": "关于端到端加密",
+      "help": {
+        "disabled": "{mode}：频道无法开启加密，消息以明文存储。",
+        "optional": "{mode}：频道管理员按频道开启加密。新频道默认不加密。",
+        "required": "{mode}：所有频道均加密，成员需要加密密钥才能发言。"
+      },
+      "noteLabel": "注意：",
+      "note": "端到端加密意味着服务器无法读取消息内容。这提供了最大程度的隐私，但会禁用搜索和内容审核等服务器端功能。",
+      "confirmDisable": {
+        "title": "禁用加密",
+        "message": "已开启加密的频道将以明文发送新消息。之前的加密消息仍保持加密。",
+        "confirm": "禁用加密"
+      },
+      "confirmRequired": {
+        "title": "启用必需加密",
+        "message": "只有 {percentage}% 的成员设置了加密密钥。必需模式将阻止没有密钥的用户参与。是否继续？"
+      },
+      "saved": "加密设置已保存",
+      "loadFailed": "无法加载设置",
+      "saveFailed": "无法保存设置"
+    },
+    "roleManagement": {
+      "intro": "创建和管理服务器的角色。拖动或使用上移和下移来调整优先级。",
+      "noPermission": "更改角色需要“管理角色”权限。",
+      "create": "创建角色",
+      "count": "{count} 个角色",
+      "dragHandle": "拖动以重新排序",
+      "badgeAdmin": "管理员",
+      "badgeDefault": "默认",
+      "emptyEditor": "选择左侧的角色进行编辑，或创建一个新角色。",
+      "tabs": {
+        "display": "显示",
+        "permissions": "权限",
+        "members": "成员"
+      },
+      "moveUp": "上移 {name}",
+      "moveDown": "下移 {name}",
+      "position": "第 {position} 位，共 {total} 位",
+      "moved": "已将 {name} 移至第 {position} 位，共 {total} 位",
+      "roleName": "角色名称",
+      "everyoneNameLocked": "{'@'}everyone 角色的名称无法更改。",
+      "roleColor": "角色颜色",
+      "hoist": "单独显示角色成员",
+      "hoistDesc": "拥有此角色的成员将在成员列表中单独分组显示。",
+      "mentionable": "允许任何人{'@'}提及此角色",
+      "mentionableDesc": "关闭时，只有拥有“提及 {'@'}everyone”权限的成员可以提及它。",
+      "permIntro": "此角色在整个服务器的权限。按频道的覆盖设置（允许 / 拒绝 / 继承）在各频道的“权限”标签页中配置。",
+      "dangerWarn": "授予所有其他权限，并绕过所有频道覆盖设置。",
+      "sections": {
+        "general": "常规权限",
+        "membership": "成员权限",
+        "text": "文字权限",
+        "threads": "话题权限",
+        "voice": "语音权限"
+      },
+      "perms": {
+        "VIEW_CHANNEL": {
+          "label": "查看频道",
+          "description": "允许成员默认查看频道"
+        },
+        "MANAGE_CHANNELS": {
+          "label": "管理频道",
+          "description": "创建、编辑和删除频道"
+        },
+        "MANAGE_ROLES": {
+          "label": "管理角色",
+          "description": "创建、编辑和删除低于此角色的角色"
+        },
+        "MANAGE_SERVER": {
+          "label": "管理服务器",
+          "description": "编辑服务器设置并删除服务器"
+        },
+        "CREATE_INVITE": {
+          "label": "创建邀请",
+          "description": "创建此服务器的邀请"
+        },
+        "VIEW_AUDIT_LOG": {
+          "label": "查看审核日志",
+          "description": "查看服务器审核日志"
+        },
+        "MANAGE_EMOJIS": {
+          "label": "管理表情",
+          "description": "添加、编辑和移除自定义表情符号与音效板声音"
+        },
+        "MANAGE_WEBHOOKS": {
+          "label": "管理 Webhook",
+          "description": "创建、编辑和删除 Webhook"
+        },
+        "KICK_MEMBERS": {
+          "label": "踢出成员",
+          "description": "将成员移出服务器"
+        },
+        "BAN_MEMBERS": {
+          "label": "封禁成员",
+          "description": "将成员永久封禁出服务器"
+        },
+        "TIMEOUT_MEMBERS": {
+          "label": "禁言成员",
+          "description": "暂时禁言成员"
+        },
+        "SEND_MESSAGES": {
+          "label": "发送消息",
+          "description": "在文字频道中发送消息"
+        },
+        "EMBED_LINKS": {
+          "label": "嵌入链接",
+          "description": "链接会显示预览"
+        },
+        "ATTACH_FILES": {
+          "label": "附加文件",
+          "description": "上传图片和文件"
+        },
+        "ADD_REACTIONS": {
+          "label": "添加反应",
+          "description": "用表情符号回应消息"
+        },
+        "MENTION_EVERYONE": {
+          "label": "提及 {'@'}everyone",
+          "description": "提及 {'@'}everyone 和所有角色"
+        },
+        "MANAGE_MESSAGES": {
+          "label": "管理消息",
+          "description": "删除和置顶他人的消息"
+        },
+        "READ_MESSAGE_HISTORY": {
+          "label": "阅读消息历史",
+          "description": "查看消息历史"
+        },
+        "USE_EXTERNAL_EMOJIS": {
+          "label": "使用外部表情符号",
+          "description": "使用其他服务器的表情符号"
+        },
+        "PIN_MESSAGES": {
+          "label": "置顶消息",
+          "description": "在频道中置顶消息"
+        },
+        "CREATE_PUBLIC_THREADS": {
+          "label": "创建公开话题",
+          "description": "创建所有人可见的话题"
+        },
+        "CREATE_PRIVATE_THREADS": {
+          "label": "创建私密话题",
+          "description": "创建仅限邀请的话题"
+        },
+        "SEND_MESSAGES_IN_THREADS": {
+          "label": "在话题中发送消息",
+          "description": "在话题中回复"
+        },
+        "CONNECT": {
+          "label": "连接",
+          "description": "加入语音频道"
+        },
+        "SPEAK": {
+          "label": "说话",
+          "description": "在语音频道中说话"
+        },
+        "STREAM": {
+          "label": "视频",
+          "description": "共享视频或屏幕"
+        },
+        "MUTE_MEMBERS": {
+          "label": "将成员静音",
+          "description": "在语音中对成员进行服务器静音"
+        },
+        "DEAFEN_MEMBERS": {
+          "label": "将成员闭麦闭听",
+          "description": "在语音中对成员进行服务器闭听"
+        },
+        "MOVE_MEMBERS": {
+          "label": "移动成员",
+          "description": "在语音频道之间移动成员"
+        },
+        "USE_SOUNDBOARD": {
+          "label": "使用音效板",
+          "description": "在语音频道中播放音效板声音"
+        },
+        "USE_EXTERNAL_SOUNDS": {
+          "label": "使用外部声音",
+          "description": "播放其所在的其他服务器的声音"
+        }
+      },
+      "everyoneMembersNote": "{'@'}everyone 角色会自动应用于此服务器的每位成员，无需管理成员名单。",
+      "addMembers": "添加成员",
+      "searchMembers": "搜索服务器成员…",
+      "searchResults": "找到 {count} 名成员",
+      "addMemberTo": "将 {member} 添加到 {role}",
+      "currentMembers": "当前成员",
+      "filterMembers": "筛选成员",
+      "filterPlaceholder": "筛选…",
+      "removeMemberFrom": "将 {member} 从 {role} 中移除",
+      "bridged": "Discord",
+      "bridgedTitle": "Discord 桥接成员",
+      "owner": "所有者",
+      "protected": "受保护",
+      "protectedTitle": "无法将服务器所有者从管理员角色中移除。",
+      "deleteRole": "删除角色",
+      "save": "保存更改",
+      "saving": "正在保存…",
+      "saved": "已保存角色 {name}",
+      "changesReset": "已重置更改",
+      "created": "已创建角色 {name}",
+      "deleted": "已删除角色 {name}",
+      "memberAdded": "已将 {member} 添加到 {role}",
+      "memberRemoved": "已将 {member} 从 {role} 中移除",
+      "confirmDeleteTitle": "删除角色",
+      "confirmDeleteMessage": "确定要删除角色“{name}”吗？",
+      "newRoleName": "新角色",
+      "errors": {
+        "create": "无法创建角色",
+        "save": "无法保存角色",
+        "delete": "无法删除角色",
+        "removeOwnerAdmin": "无法移除服务器所有者的管理员角色",
+        "removeMember": "无法将成员从角色中移除",
+        "addMember": "无法将成员添加到角色",
+        "reorder": "无法重新排序角色"
+      }
+    },
+    "privacy": {
+      "federatedMembers": "此服务器当前有 {count} 名联邦成员 | 此服务器当前有 {count} 名联邦成员",
+      "copyHandle": "复制服务器标识 {handle}",
+      "disableTitle": "停用联邦？",
+      "disableBody": "此服务器有 {count} 名来自其他实例的联邦成员。停用联邦将： | 此服务器有 {count} 名来自其他实例的联邦成员。停用联邦将：",
+      "disableConsequence1": "阻止远程用户的所有新加入请求",
+      "disableConsequence2": "停止与远程成员之间的消息投递",
+      "disableConsequence3": "阻止远程用户的回应和语音参与",
+      "disableConsequence4": "现有联邦成员保留在成员列表中，但无法互动",
+      "disableConfirm": "停用联邦"
+    }
   },
   "channel": {
     "create": "创建频道",
@@ -389,6 +739,149 @@
       "hint": "只有你选择的角色、所有者和管理员可以看到。",
       "whoCanSee": "谁可以看到",
       "noRoles": "还没有角色：只有所有者和管理员可以看到。"
+    },
+    "edit": {
+      "title": "编辑频道",
+      "tabs": {
+        "general": "常规"
+      },
+      "namePlaceholder": "输入频道名称",
+      "description": "描述",
+      "descriptionPlaceholder": "这个频道是关于什么的？",
+      "slowmode": "慢速模式",
+      "slowmodeHint": "成员每个间隔只能发送一条消息。拥有“管理消息”权限的版主不受限制。",
+      "slowmodeOff": "关闭",
+      "slowmodeShort": {
+        "seconds": "{n}秒",
+        "minutes": "{n}分钟",
+        "hours": "{n}小时"
+      },
+      "slowmodeLong": {
+        "seconds": "{n} 秒",
+        "minutes": "{n} 分钟",
+        "hours": "{n} 小时"
+      },
+      "textChannel": "文字频道",
+      "voiceChannel": "语音频道",
+      "typeHint": "频道类型创建后无法更改",
+      "noRoles": "没有角色",
+      "loadingRoles": "正在加载角色…",
+      "overrideLegend": "允许表示授予，拒绝表示撤销，继承表示使用服务器级设置。",
+      "resetRole": "重置更改",
+      "resetRoleFor": "重置更改：{role}",
+      "roleReset": "已重置 {role} 的更改",
+      "selectRole": "选择左侧的角色以编辑其频道覆盖设置。",
+      "tristate": {
+        "deny": "拒绝",
+        "inherit": "继承",
+        "inheritTitle": "继承服务器设置",
+        "allow": "允许"
+      },
+      "groups": {
+        "general": "常规",
+        "messages": "消息",
+        "threads": "话题",
+        "voice": "语音"
+      },
+      "perms": {
+        "VIEW_CHANNEL": {
+          "label": "查看频道",
+          "description": "在侧边栏中看到此频道并阅读消息。"
+        },
+        "MANAGE_CHANNELS": {
+          "label": "管理频道",
+          "description": "重命名、编辑或删除此频道。"
+        },
+        "SEND_MESSAGES": {
+          "label": "发送消息",
+          "description": "在此频道中发布消息。"
+        },
+        "EMBED_LINKS": {
+          "label": "嵌入链接",
+          "description": "发送嵌入内容和链接预览。"
+        },
+        "ATTACH_FILES": {
+          "label": "附加文件",
+          "description": "在此频道中上传文件。"
+        },
+        "ADD_REACTIONS": {
+          "label": "添加反应",
+          "description": "用表情符号回应消息。"
+        },
+        "USE_EXTERNAL_EMOJIS": {
+          "label": "使用外部表情符号",
+          "description": "发送其他服务器的表情符号。"
+        },
+        "MENTION_EVERYONE": {
+          "label": "提及 {'@'}everyone",
+          "description": "使用 {'@'}everyone 和 {'@'}here。"
+        },
+        "MANAGE_MESSAGES": {
+          "label": "管理消息",
+          "description": "删除和置顶其他成员的消息。不允许编辑。"
+        },
+        "READ_MESSAGE_HISTORY": {
+          "label": "阅读消息历史",
+          "description": "查看加入之前发布的消息。"
+        },
+        "CREATE_PUBLIC_THREADS": {
+          "label": "创建公开话题",
+          "description": "从消息发起公开话题。"
+        },
+        "CREATE_PRIVATE_THREADS": {
+          "label": "创建私密话题",
+          "description": "发起仅限邀请的话题。"
+        },
+        "SEND_MESSAGES_IN_THREADS": {
+          "label": "在话题中发送",
+          "description": "在话题内发布消息。"
+        },
+        "CONNECT": {
+          "label": "连接",
+          "description": "加入此语音频道。"
+        },
+        "SPEAK": {
+          "label": "说话",
+          "description": "在此语音频道中说话。"
+        },
+        "STREAM": {
+          "label": "视频与直播",
+          "description": "共享摄像头或屏幕。"
+        },
+        "MUTE_MEMBERS": {
+          "label": "将成员静音",
+          "description": "在此将其他成员静音。"
+        },
+        "DEAFEN_MEMBERS": {
+          "label": "将成员闭听",
+          "description": "在此将其他成员闭听。"
+        },
+        "MOVE_MEMBERS": {
+          "label": "移动成员",
+          "description": "将成员移出此频道。"
+        },
+        "USE_SOUNDBOARD": {
+          "label": "使用音效板",
+          "description": "在此频道中播放音效板声音。"
+        },
+        "USE_EXTERNAL_SOUNDS": {
+          "label": "使用外部声音",
+          "description": "在此频道中播放其他服务器的声音。"
+        }
+      },
+      "save": "保存更改",
+      "saving": "正在保存…",
+      "savePermissions": "保存权限",
+      "permissionsSaved": "已保存频道权限",
+      "discardTitle": "放弃更改？",
+      "discardMessage": "此频道有未保存的更改。不保存就关闭吗？",
+      "discard": "放弃",
+      "errors": {
+        "update": "无法更新频道，请重试。",
+        "loadPermissions": "无法加载频道权限",
+        "savePermissions": "无法保存频道权限",
+        "saveOverride": "无法保存 {role} 的覆盖设置"
+      }
     }
   },
   "message": {
@@ -465,6 +958,138 @@
       "reveal": "显示剧透",
       "mark": "标记为剧透",
       "unmark": "取消剧透"
+    }
+  },
+  "messageA11y": {
+    "list": {
+      "channel": "#{name} 中的消息",
+      "conversation": "与 {name} 的消息",
+      "thread": "此讨论串中的消息",
+      "generic": "消息"
+    },
+    "row": {
+      "blocked": "{count} 条已屏蔽的消息",
+      "showBlocked": "显示消息",
+      "reported": "你举报了这条消息",
+      "showReported": "显示",
+      "unhideReported": "取消隐藏",
+      "fromBlocked": "{count} 条来自已屏蔽用户的消息",
+      "hide": "隐藏",
+      "reportedBanner": "已举报的消息",
+      "hideAgain": "再次隐藏",
+      "mentionsYou": "提到了你",
+      "edited": "已编辑",
+      "pinned": "已置顶",
+      "encrypted": "端到端加密",
+      "failed": "发送失败",
+      "sending": "正在发送"
+    },
+    "newMessagesDivider": "新消息",
+    "actions": {
+      "label": "消息操作",
+      "thread": "创建讨论串"
+    },
+    "failed": {
+      "label": "发送失败",
+      "retry": "重试",
+      "discard": "删除",
+      "announce": "有一条消息发送失败。请在消息列表中重试或删除。"
+    },
+    "deleted": "消息已删除",
+    "image": {
+      "noDescription": "图片，无描述",
+      "open": "查看原尺寸图片",
+      "openIndexed": "查看第 {index} 张图片（共 {total} 张）的原尺寸",
+      "gif": "GIF，无描述",
+      "sticker": "贴纸",
+      "emoji": "表情"
+    },
+    "menu": {
+      "label": "消息选项",
+      "quickReactions": "快速回应",
+      "reactWith": "用 {emoji} 回应",
+      "moreReactions": "更多回应"
+    },
+    "reply": {
+      "prefix": "回复"
+    },
+    "reactions": {
+      "pill": "{emoji}，{count} 个回应",
+      "pillYou": "{emoji}，{count} 个回应，包括你",
+      "hint": "按上下文菜单键或 Shift+F10 查看谁做了回应。",
+      "removed": "已取消回应：{emoji}"
+    },
+    "emoji": {
+      "reactionDialog": "添加回应",
+      "dialog": "表情选择器",
+      "search": "搜索表情",
+      "searchHint": "按 Enter 选择第一个结果。按下箭头移到表情。",
+      "results": "找到 {count} 个表情",
+      "noResults": "未找到表情"
+    },
+    "mediaPicker": {
+      "label": "GIF、贴纸和表情"
+    },
+    "composer": {
+      "attach": "添加附件或投票",
+      "attachMenu": "附加",
+      "gif": "GIF 选择器",
+      "emoji": "表情选择器",
+      "nearLimit": "还剩 {count} 个字符",
+      "overLimit": "消息超出 {count} 个字符",
+      "backUnderLimit": "消息长度恢复正常，还剩 {count} 个字符",
+      "suggestions": "{count} 条建议，使用上下箭头选择"
+    },
+    "upload": {
+      "done": "{name} 已上传",
+      "progress": "{name}：已上传 {percent}%",
+      "attached": "已附加 {count} 个文件",
+      "removed": "已移除 {name}",
+      "attachedCount": "已附加 {count} 个文件",
+      "uploading": "正在上传...",
+      "listLabel": "附件",
+      "progressLabel": "正在上传 {name}",
+      "remove": "移除 {name}"
+    },
+    "alt": {
+      "saved": "已保存 {name} 的描述",
+      "removed": "已移除 {name} 的描述",
+      "title": "描述 {name}",
+      "edit": "编辑 {name} 的描述",
+      "add": "为 {name} 添加描述",
+      "editShort": "编辑描述",
+      "addShort": "添加描述"
+    },
+    "encrypted": {
+      "lost": "已无法解密的加密消息",
+      "decrypt": "加密消息。解密",
+      "decrypting": "正在解密加密消息",
+      "locked": "加密消息。请在“设置”的“隐私与加密”中解锁加密后阅读。"
+    },
+    "spoiler": {
+      "hidden": "剧透，已隐藏。激活以显示",
+      "revealed": "剧透：{text}"
+    },
+    "speech": {
+      "encrypted": "加密消息",
+      "spoiler": "剧透",
+      "imageWithAlt": "图片：{alt}",
+      "image": "图片",
+      "videoWithAlt": "视频：{alt}",
+      "video": "视频",
+      "audio": "音频",
+      "file": "文件 {name}",
+      "poll": "投票：{question}"
+    },
+    "announce": {
+      "one": "{name}：{text}",
+      "oneEmpty": "来自 {name} 的新消息",
+      "andOthers": "{names} 等 {count} 人",
+      "many": "来自 {names} 的 {count} 条新消息"
+    },
+    "setting": {
+      "label": "播报新消息",
+      "description": "屏幕阅读器会朗读当前频道、对话或讨论串中收到的消息。不会朗读你自己的消息。"
     }
   },
   "messageSearch": {
@@ -625,7 +1250,74 @@
     "joinCallFailed": "无法加入通话",
     "onVideo": "{n} 人开启视频",
     "showVideo": "显示视频",
-    "hideVideo": "隐藏视频"
+    "hideVideo": "隐藏视频",
+    "announce": {
+      "joined": "{name} 已加入",
+      "left": "{name} 已离开",
+      "startedStreaming": "{name} 开始直播",
+      "stoppedStreaming": "{name} 停止了直播",
+      "selfStreaming": "你正在直播",
+      "selfStreamStopped": "你已停止直播",
+      "connectingTo": "正在连接到 {channel}…",
+      "connectedTo": "已连接到 {channel}",
+      "reconnected": "已重新连接",
+      "unmuted": "已取消静音",
+      "undeafened": "已取消闭麦听",
+      "cameraOff": "摄像头已关闭",
+      "speaking": "{name} 正在讲话"
+    },
+    "region": "语音连接",
+    "openCallView": "打开通话视图",
+    "minimizeCallView": "最小化通话视图",
+    "closeCallView": "关闭通话视图",
+    "minimizePanel": "最小化语音面板",
+    "expandPanel": "展开语音面板",
+    "participantCount": "{count} 位参与者",
+    "inCallCount": "{count} 人在通话中",
+    "speakingCount": "{count} 人正在讲话",
+    "recentSpeakers": "最近发言者",
+    "selfName": "{name}（你）",
+    "watchStreamOf": "观看 {name} 的直播",
+    "previewStream": "{name} 正在共享屏幕。打开通话视图",
+    "previewCamera": "{name} 打开了摄像头。打开通话视图",
+    "pttTransmitting": "正在发送（{key}）",
+    "pttHint": "按住 {key} 讲话。点击静音。",
+    "pttHold": "按住讲话",
+    "pttTransmittingShort": "正在发送",
+    "pttLatched": "讲话中 — 点按停止",
+    "pttButtonHint": "按住讲话，或点按保持开启直到再次点按。使用键盘时按住空格键。",
+    "joinMuted": "静音加入",
+    "openChat": "打开聊天",
+    "unknownUser": "未知用户",
+    "spatialAudio": "空间音频",
+    "spatialAudioOn": "空间音频已开启",
+    "spatialAudioOff": "空间音频已关闭",
+    "spatialOn": "开",
+    "spatialOff": "关",
+    "spatialSettings": "空间音频设置",
+    "spatialMaxDistance": "最大距离",
+    "spatialRolloff": "衰减系数",
+    "spatialDistanceModel": "距离模型",
+    "spatialPanningModel": "声像模型",
+    "spatialReverb": "启用混响",
+    "spatialRoomSize": "房间大小",
+    "spatialPositions": "参与者位置",
+    "spatialInstructions": "聚焦某位参与者并用方向键移动。按住 Shift 移动得更远。",
+    "spatialCenter": "中心",
+    "spatialSelfLabel": "{name}（你）",
+    "spatialDistanceLabel": "{name}，距你 {distance} 像素",
+    "spatialUpdated": "已更新",
+    "spatialUpdating": "正在更新音频…",
+    "spatialActive": "空间音频已启用",
+    "spatialInactive": "空间音频已停用",
+    "spatialReset": "重置",
+    "spatialResetTitle": "重置所有位置",
+    "spatialRandomize": "随机",
+    "spatialRandomizeTitle": "随机分布位置",
+    "muteUserNamed": "静音 {name}",
+    "muteStreamNamed": "静音 {name} 的直播",
+    "userVolumeNamed": "{name} 的音量",
+    "streamVolumeNamed": "{name} 的直播音量"
   },
   "dm": {
     "directMessages": "私信",
@@ -657,7 +1349,61 @@
     "recipientDeleted": "此账户已被删除。发送给它的消息不会被送达。",
     "sendMessage": "发送消息",
     "callInProgress": "正在通话中",
-    "joinCall": "加入通话"
+    "joinCall": "加入通话",
+    "incomingVoiceCall": "语音来电",
+    "incomingVideoCall": "视频来电",
+    "groupVoiceCallFrom": "{name} 发起了语音通话",
+    "groupVideoCallFrom": "{name} 发起了视频通话",
+    "callAccept": "接听",
+    "callAcceptVoice": "接听语音通话",
+    "callAcceptVideo": "视频接听",
+    "callVideo": "视频",
+    "callDecline": "拒绝",
+    "callMinimize": "最小化",
+    "callExpand": "显示来电",
+    "groupSettings": {
+      "title": "群组设置",
+      "groupIcon": "群组图标",
+      "upload": "上传",
+      "uploadIcon": "上传群组图标",
+      "remove": "移除",
+      "removeIcon": "移除群组图标",
+      "dropHint": "拖放图片或点击浏览",
+      "fileHint": "最大 5 MB • PNG、JPG、WebP",
+      "uploadingIcon": "正在上传群组图标",
+      "uploadProgress": "已上传 {percent}%",
+      "groupName": "群组名称",
+      "groupNameHelp": "留空则使用参与者名称",
+      "saveChanges": "保存更改",
+      "saving": "正在保存…",
+      "participants": "参与者（{count}）",
+      "add": "添加",
+      "addParticipant": "添加参与者",
+      "creator": "创建者",
+      "removeParticipant": "将 {name} 移出群组",
+      "dangerZone": "危险区域",
+      "leaveGroup": "退出群组",
+      "deleteGroup": "删除群组",
+      "leave": "退出",
+      "leaveConfirmMessage": "确定要退出此群组吗？你将无法看到新消息。",
+      "deleteConfirmMessage": "确定要删除此群组吗？此操作无法撤销，所有消息都将丢失。",
+      "defaultName": "群聊",
+      "defaultNameMore": "{names} 等 {count} 人",
+      "dropImage": "请拖入图片文件",
+      "iconUpdated": "群组图标已更新",
+      "iconUploadFailed": "无法上传图标",
+      "iconRemoved": "群组图标已移除",
+      "iconRemoveFailed": "无法移除图标",
+      "nameUpdated": "群组名称已更新",
+      "nameUpdateFailed": "无法更新群组名称",
+      "participantRemoved": "已将 {name} 移出群组",
+      "participantRemoveFailed": "无法移除参与者",
+      "usersAdded": "已将用户添加到群组",
+      "left": "你已退出群组",
+      "leaveFailed": "无法退出群组",
+      "deleted": "群组已删除",
+      "deleteFailed": "无法删除群组"
+    }
   },
   "user": {
     "panelToggle": "您的账户和语音控制",
@@ -746,7 +1492,7 @@
       "reduceMotion": "减少动画",
       "reduceMotionDesc": "减少动画和过渡效果。",
       "screenReader": "屏幕阅读器支持",
-      "screenReaderDesc": "为屏幕阅读器优化。",
+      "screenReaderDesc": "向屏幕阅读器播报更多动态（正在输入、语音中谁在说话、在线状态变化），并显示更粗的键盘焦点轮廓。重要播报始终开启。",
       "saveChanges": "保存更改",
       "resetSettings": "重置",
       "unsavedChanges": "您有未保存的外观更改",
@@ -765,7 +1511,72 @@
       "quickReactEnable": "双击快速反应",
       "quickReactEnableDesc": "双击（移动端轻点两下，桌面端双击）消息，即可用您选择的表情立即添加反应。",
       "quickReactEmoji": "快速反应表情",
-      "quickReactEmojiDesc": "双击消息时使用的表情。"
+      "quickReactEmojiDesc": "双击消息时使用的表情。",
+      "changesReset": "已重置外观更改",
+      "saved": "外观已保存",
+      "editLivePreview": "在实时预览中编辑",
+      "themeMode": "主题模式",
+      "savedTheme": "已保存的主题",
+      "savedThemeName": "主题名称",
+      "saveTheme": "保存主题",
+      "deleteSavedTheme": "删除主题 {name}",
+      "deleteSavedThemeConfirm": "删除“{name}”？",
+      "themeRemoved": "主题已删除",
+      "lightness": "明度",
+      "saturation": "饱和度",
+      "darker": "更暗",
+      "lighter": "更亮",
+      "muted": "柔和",
+      "vivid": "鲜艳",
+      "toneValue": "{value}，{direction}",
+      "resetVariable": "将 {name} 重置为默认值",
+      "zoomIn": "放大",
+      "zoomOut": "缩小",
+      "zoomValue": "缩放 {value}%",
+      "colors": {
+        "background": "背景",
+        "backgroundHint": "色调、明度和饱和度",
+        "backgroundColor": "背景颜色",
+        "primary": "主色",
+        "primaryHint": "按钮和关键操作",
+        "primaryColor": "主色",
+        "accent": "强调色",
+        "accentHint": "链接和高亮",
+        "accentColor": "强调色",
+        "sidebar": "侧边栏",
+        "sidebarHintOn": "侧栏单独着色",
+        "sidebarHintOff": "关闭，与背景一致",
+        "sidebarEnable": "为侧边栏使用单独的颜色",
+        "sidebarColor": "侧边栏颜色",
+        "advancedCss": "高级 CSS",
+        "advancedCssHint": "覆盖单个变量",
+        "backgroundHelp": "设置所有背景元素的色相",
+        "primaryHelp": "用于按钮和关键操作的主色",
+        "accentHelp": "用于链接、高亮和点缀"
+      },
+      "panel": {
+        "title": "自定义主题",
+        "close": "关闭主题编辑器",
+        "hint": "更改会实时预览在此面板后方的应用中。点击“应用”以保留更改。",
+        "apply": "应用",
+        "fix": "修复",
+        "fixContrast": "修复主色对比度",
+        "fixContrastHint": "调整明度，直到此颜色的链接和图标在背景上达到 3:1",
+        "labelContrast": "标签 {ratio}:1",
+        "surfaceContrast": "背景上 {ratio}:1"
+      },
+      "overrides": {
+        "count": "{count} 项覆盖 | {count} 项覆盖",
+        "active": "{count} 项覆盖生效中 | {count} 项覆盖生效中",
+        "resetAll": "全部重置",
+        "resetAllHint": "移除所有覆盖并恢复默认值"
+      },
+      "toasts": {
+        "exported": "主题已导出",
+        "imported": "主题已导入",
+        "invalidFile": "无效的主题文件",
+        "themeSaved": "已保存“{name}”"
+      }
     },
     "voice": {
       "title": "语音与视频",
@@ -791,7 +1602,44 @@
       "pttShortcutHint": "点击以更改按键绑定",
       "releaseDelay": "释放延迟",
       "releaseDelayHint": "释放按键后静音前的延迟 (防止单词被截断)",
-      "pressAnyKey": "按任意键..."
+      "pressAnyKey": "按任意键...",
+      "panelTitle": "语音和视频设置",
+      "audio": "音频",
+      "audioDevices": "音频设备",
+      "audioQuality": "音频质量",
+      "echoCancellationDesc": "减少扬声器回声",
+      "noiseSuppressionDesc": "过滤背景噪音",
+      "autoGainControlDesc": "自动调节麦克风灵敏度",
+      "video": "视频",
+      "noCamera": "无摄像头",
+      "resolution": "分辨率",
+      "frameRate": "帧率",
+      "audioBitrate": "音频码率",
+      "cameraPreview": "摄像头预览",
+      "percent": "百分之 {value}",
+      "milliseconds": "{ms} 毫秒",
+      "millisecondsLong": "{ms} 毫秒",
+      "micLevel": "麦克风电平",
+      "micLevelValue": "百分之 {level}",
+      "micTestStarted": "正在测试麦克风。请说话以检查音量。",
+      "micTestHeard": "检测到声音",
+      "micTestSilent": "尚未检测到声音。请检查输入设备和输入音量。",
+      "keybindsHint": "可在 设置 › 快捷键 中更改。",
+      "resetDefaults": "恢复默认",
+      "saveChanges": "保存更改",
+      "pttScopeBrowser": "浏览器仅在 Harmony 标签页获得焦点时传递按键。",
+      "pttScopeDesktop": "在全系统范围内生效，即使 Harmony 在后台。",
+      "pttScopeDesktopFocused": "本次会话无法进行全系统按键捕获（Wayland 或缺少权限）；Harmony 获得焦点时按键有效。",
+      "pttScopeMobile": "在移动设备上，请按住语音栏中的讲话按钮。",
+      "microphone": "麦克风",
+      "speakers": "扬声器 / 耳机",
+      "noMicrophones": "未找到麦克风",
+      "noSpeakers": "未找到扬声器",
+      "noCameras": "未找到摄像头",
+      "audioSettings": "音频设置",
+      "selectMicrophone": "选择麦克风",
+      "selectSpeaker": "选择扬声器",
+      "selectCamera": "选择摄像头"
     },
     "notifications": {
       "title": "通知",
@@ -802,7 +1650,265 @@
       "enableMentions": "提及时通知",
       "enableDMs": "私信时通知",
       "muteAll": "全部静音",
-      "muteDuration": "静音时长"
+      "muteDuration": "静音时长",
+      "dnd": {
+        "active": "已开启",
+        "inactive": "未开启",
+        "description": "在设定时间内静音提示音、弹窗和推送。通知仍会进入你的收件箱。"
+      },
+      "quietHours": {
+        "title": "免打扰时段",
+        "description": "设置免打扰时间（以本地时间显示）",
+        "start": "免打扰开始时间",
+        "end": "免打扰结束时间",
+        "to": "至"
+      },
+      "enableMobile": "启用通知",
+      "permission": {
+        "unsupported": "此浏览器不支持",
+        "unsupportedMobile": "此浏览器不支持。请安装应用以接收通知。",
+        "grant": "授予权限",
+        "desktopEnabled": "桌面通知已启用",
+        "desktopRequired": "桌面通知需要权限",
+        "enabled": "通知已启用",
+        "required": "通知需要权限"
+      },
+      "chat": {
+        "description": "来自服务器和私信的通知"
+      },
+      "activitypub": {
+        "title": "ActivityPub 与联合",
+        "description": "来自联合网络的通知"
+      },
+      "types": {
+        "chatMessages": {
+          "label": "聊天消息",
+          "description": "你关注的频道中有新消息时"
+        },
+        "mentions": {
+          "label": "提及",
+          "description": "有人提及你时"
+        },
+        "dms": {
+          "label": "私信",
+          "description": "收到私信时"
+        },
+        "replies": {
+          "label": "回复",
+          "description": "有人回复你的消息时"
+        },
+        "reactions": {
+          "label": "回应",
+          "description": "有人回应你的消息时"
+        },
+        "apFollows": {
+          "label": "关注",
+          "name": "联邦宇宙关注",
+          "description": "有人关注你时"
+        },
+        "apMentions": {
+          "label": "提及",
+          "name": "联邦宇宙提及",
+          "description": "有人在帖子中提及你时"
+        },
+        "apReplies": {
+          "label": "回复",
+          "name": "联邦宇宙回复",
+          "description": "有人回复你的帖子时"
+        },
+        "apFavorites": {
+          "label": "收藏",
+          "name": "联邦宇宙收藏",
+          "description": "有人收藏你的帖子时"
+        },
+        "apReblogs": {
+          "label": "转发",
+          "name": "联邦宇宙转发",
+          "description": "有人转发你的帖子时"
+        },
+        "apFollowRequests": {
+          "label": "关注请求",
+          "name": "联邦宇宙关注请求",
+          "description": "有人请求关注你时"
+        }
+      },
+      "sound": {
+        "title": "声音设置",
+        "description": "配置通知提示音",
+        "volumeDescription": "调整所有通知提示音的音量",
+        "voiceActivity": "语音活动提示音",
+        "voiceActivityDescription": "语音频道有活动时播放提示音"
+      },
+      "push": {
+        "title": "推送通知",
+        "titleOther": "推送到其他设备",
+        "nativeMobileTitle": "应用即将支持后台推送",
+        "nativeMobileText": "此设备会在 Harmony 打开期间（包括后台）显示通知。应用完全关闭时的推送仅支持 Android。",
+        "iosTitle": "iOS 需要安装应用",
+        "iosText": "要在 iOS 上接收推送通知，请先将 Harmony 添加到主屏幕（分享 → 添加到主屏幕）。",
+        "unsupportedTitle": "不支持推送通知",
+        "unsupportedText": "你的浏览器不支持推送通知。请尝试 Chrome、Firefox、Edge 或 Safari。",
+        "blockedTitle": "通知权限已被阻止",
+        "blockedText": "此网站的通知已被阻止。请在浏览器的网站设置中允许通知，然后刷新；推送会自动恢复。",
+        "errorTitle": "推送通知出错",
+        "turnOn": "在此设备上开启",
+        "turnOff": "在此设备上关闭",
+        "test": "测试推送",
+        "toMyDevices": "推送到我的设备",
+        "toMyDevicesDescription": "在所有设备上关闭推送，但不移除任何设备",
+        "awayOnly": "仅在我离开时",
+        "awayOnlyDescription": "在其他设备上打开并使用 Harmony 时不推送",
+        "mentions": "提及",
+        "mentionsDescription": "被提及时接收推送通知",
+        "dms": "私信",
+        "dmsDescription": "收到新私信时接收推送通知",
+        "noDevices": "还没有设备订阅推送。请在手机或浏览器中启用推送通知，然后在此管理这些设备。",
+        "status": {
+          "fcm": "此设备：Google（FCM）",
+          "unifiedpush": "此设备：UnifiedPush",
+          "whileOpen": "此设备：打开时",
+          "foreground": "此设备：前台",
+          "native": "此设备：原生通知",
+          "notSupported": "不支持",
+          "blocked": "已阻止",
+          "enabled": "已启用",
+          "available": "可用"
+        },
+        "descAndroid": "Harmony 关闭时，推送会通过 Google（FCM）或你选择的 UnifiedPush 应用送达此设备。你订阅的其他设备列在下方。",
+        "descNativeMobile": "此设备在应用打开时接收通知。可在下方管理推送到你订阅的其他设备。",
+        "descDesktop": "桌面应用运行时已会显示系统通知。这些设置管理推送到你的其他设备（手机、浏览器）以及它们接收哪些类型的通知。",
+        "descWeb": "即使应用已关闭，也能在设备上接收通知。适用于 Android、iOS（需要安装应用）和桌面浏览器。"
+      },
+      "devices": {
+        "title": "已订阅的设备（{count}）",
+        "added": "添加于 {when}",
+        "today": "今天",
+        "yesterday": "昨天",
+        "remove": "移除 {device}",
+        "unknown": "未知设备",
+        "android": "Android 设备",
+        "windows": "Windows 电脑",
+        "linux": "Linux 电脑",
+        "chrome": "Chrome 浏览器",
+        "firefox": "Firefox 浏览器",
+        "safari": "Safari 浏览器"
+      },
+      "haptics": {
+        "title": "触感反馈",
+        "enabled": "已启用",
+        "disabled": "已停用",
+        "description": "交互时的振动反馈",
+        "enable": "启用触感反馈",
+        "enableDescription": "使用应用时感受振动",
+        "messages": "发送消息",
+        "messagesDescription": "发送消息时",
+        "reactions": "回应",
+        "reactionsDescription": "添加或移除回应时",
+        "navigation": "导航",
+        "navigationDescription": "切换标签页或打开菜单时",
+        "voice": "语音和通话",
+        "voiceDescription": "加入或离开语音频道时",
+        "interactions": "交互",
+        "interactionsDescription": "长按、下拉刷新等手势",
+        "toggles": "开关",
+        "togglesDescription": "开启或关闭设置时",
+        "destructive": "破坏性操作",
+        "destructiveDescription": "删除消息或离开服务器时",
+        "test": "测试触感反馈",
+        "sent": "已发送触感反馈"
+      },
+      "test": {
+        "title": "测试通知",
+        "description": "测试你的通知设置",
+        "testing": "正在测试…",
+        "all": "测试所有通知",
+        "reset": "恢复默认设置"
+      },
+      "toast": {
+        "updated": "通知偏好已更新",
+        "updateFailed": "无法更新偏好设置",
+        "unsupported": "此浏览器不支持通知",
+        "permissionGranted": "已授予通知权限",
+        "permissionDenied": "通知权限被拒绝",
+        "permissionFailed": "无法请求权限",
+        "testFailed": "无法测试通知",
+        "allTested": "已测试所有启用的通知",
+        "allTestFailed": "无法测试所有通知",
+        "pushOn": "此设备的推送通知已开启",
+        "pushOnFailed": "无法开启推送通知",
+        "pushOff": "此设备的推送通知已关闭",
+        "pushOffFailed": "无法关闭推送通知",
+        "testPushSent": "已发送测试推送通知",
+        "testPushFailed": "无法发送测试通知",
+        "deviceRemoved": "设备已移除",
+        "deviceRemoveFailed": "无法移除设备"
+      },
+      "samples": {
+        "mention": {
+          "title": "测试提及",
+          "message": "你在一条测试消息中被提及"
+        },
+        "dm": {
+          "title": "测试私信",
+          "message": "这是一条测试私信"
+        },
+        "reply": {
+          "title": "测试回复",
+          "message": "有人回复了你的测试消息"
+        },
+        "reaction": {
+          "title": "测试回应",
+          "message": "有人回应了你的测试消息"
+        },
+        "voiceActivity": {
+          "title": "测试语音活动",
+          "message": "有人加入了语音频道"
+        },
+        "serverInvite": {
+          "title": "测试服务器邀请",
+          "message": "你被邀请加入一个服务器"
+        },
+        "followRequest": {
+          "title": "测试关注请求",
+          "message": "有人想关注你"
+        },
+        "serverUpdate": {
+          "title": "测试服务器更新",
+          "message": "一个服务器已更新"
+        },
+        "emojiAdded": {
+          "title": "测试表情添加",
+          "message": "服务器添加了一个新表情"
+        },
+        "apFollow": {
+          "title": "测试 ActivityPub 关注",
+          "message": "联邦宇宙中有人关注了你"
+        },
+        "apFavorite": {
+          "title": "测试 ActivityPub 收藏",
+          "message": "联邦宇宙中有人收藏了你的帖子"
+        },
+        "apReblog": {
+          "title": "测试 ActivityPub 转发",
+          "message": "联邦宇宙中有人转发了你的帖子"
+        },
+        "apMention": {
+          "title": "测试 ActivityPub 提及",
+          "message": "你在一条联邦宇宙帖子中被提及"
+        },
+        "apReply": {
+          "title": "测试 ActivityPub 回复",
+          "message": "有人回复了你的联邦宇宙帖子"
+        },
+        "apFollowRequest": {
+          "title": "测试 ActivityPub 关注请求",
+          "message": "联邦宇宙中有人请求关注你"
+        },
+        "generic": {
+          "title": "测试通知",
+          "message": "这是一条测试通知"
+        }
+      }
     },
     "announcements": {
       "title": "公告",
@@ -837,7 +1943,59 @@
     "keybinds": {
       "title": "快捷键",
       "description": "自定义键盘快捷键。",
-      "searchKeybinds": "搜索快捷键..."
+      "searchKeybinds": "搜索快捷键...",
+      "voiceSection": "语音快捷键",
+      "voiceSectionDescription": "这些快捷键在连接语音频道时可用。在文本框中只有按键说话以及带 Ctrl、Alt 或 Meta 的快捷键会触发。",
+      "resetAll": "全部重置",
+      "resetAllDone": "所有快捷键已恢复默认",
+      "resetOne": "将 {name} 恢复默认",
+      "enabledFor": "使用 {name} 快捷键",
+      "shortcutFor": "{name} 快捷键",
+      "recorderHint": "按 Enter 录制新的快捷键。",
+      "recordingHint": "正在录制。按下新的快捷键，或按 Escape 取消。",
+      "recordingStarted": "正在为 {name} 录制快捷键。按下按键，或按 Escape 取消。",
+      "pressKeys": "请按键…",
+      "reservedKey": "Enter、空格和方向键需要配合 Ctrl 等修饰键。",
+      "set": "{name} 已设为 {keys}",
+      "unchanged": "{name} 快捷键未更改",
+      "conflict": "{keys} 已被 {other} 使用，未分配。",
+      "assignAnyway": "仍然分配",
+      "notSet": "未设置",
+      "off": "关闭",
+      "pttInactive": "未启用：当前输入模式为语音激活。",
+      "singleKeyNote": "静音和闭麦听使用单个按键。它们会在任何聚焦的按钮上触发，而读屏软件的浏览模式会把字母键用于导航。",
+      "useChorded": "改用 {mute} 和 {deafen}",
+      "chordedApplied": "静音为 {mute}，闭麦听为 {deafen}",
+      "actions": {
+        "pushToTalk": {
+          "name": "按键说话",
+          "description": "按住即可在语音频道中讲话。"
+        },
+        "toggleMute": {
+          "name": "切换静音",
+          "description": "静音或取消静音麦克风。"
+        },
+        "toggleDeafen": {
+          "name": "切换闭麦听",
+          "description": "闭麦听或取消闭麦听。"
+        },
+        "toggleCamera": {
+          "name": "切换摄像头",
+          "description": "通话视图打开时开启或关闭摄像头。"
+        },
+        "toggleScreenshare": {
+          "name": "切换屏幕共享",
+          "description": "通话视图打开时开始或停止屏幕共享。"
+        },
+        "toggleVoiceSettings": {
+          "name": "打开语音设置",
+          "description": "通话视图打开时打开语音设置。"
+        },
+        "exitFullscreen": {
+          "name": "退出 / 关闭",
+          "description": "退出全屏或聚焦视图、关闭面板，然后最小化通话视图。焦点在通话视图内时生效。"
+        }
+      }
     },
     "advanced": {
       "title": "高级",
@@ -854,13 +2012,73 @@
     "myBots": "我的机器人",
     "supporter": "支持",
     "myBotsDescription": "管理您创建的机器人",
+    "myEmojis": {
+      "title": "我的表情",
+      "description": "你的个人表情，包括你在表情选择器中用 AI 生成的表情。消息通过名称引用自定义表情，因此重命名或删除后，之前的消息会显示 :name: 文本而不是图片。",
+      "loading": "正在加载你的表情…",
+      "empty": "你还没有个人表情。你在表情选择器中用 AI 生成的表情会显示在这里。",
+      "listLabel": "你的表情",
+      "aiBadge": "AI",
+      "aiGenerated": "AI 生成",
+      "uses": "尚未使用 | 使用过 1 次 | 使用过 {count} 次",
+      "rename": "重命名 :{name}:",
+      "delete": "删除 :{name}:",
+      "newName": ":{name}: 的新名称",
+      "nameHint": "2 到 64 个字母、数字、_ 或 -。按 Enter 保存，按 Escape 取消。",
+      "renamed": "已将 :{from}: 重命名为 :{to}:",
+      "deleted": "已删除 :{name}:",
+      "deleteTitle": "删除表情",
+      "confirmDelete": "删除 :{name}:？使用它的回应会被移除，之前使用它的消息会显示 :{name}: 文本而不是图片。",
+      "retry": "重试",
+      "errors": {
+        "load": "无法加载你的表情。",
+        "rename": "无法重命名该表情。",
+        "delete": "无法删除该表情。",
+        "invalidName": "名称为 2 到 64 个字母、数字、_ 或 -。",
+        "nameTaken": "你已有同名的表情。",
+        "notFound": "该表情已不存在。"
+      }
+    },
     "audio": {
       "title": "声音",
       "description": "配置您的音频设置。",
       "inputDevice": "输入设备",
       "outputDevice": "输出设备",
       "inputVolume": "输入音量",
-      "outputVolume": "输出音量"
+      "outputVolume": "输出音量",
+      "playSound": "播放{sound}声音",
+      "sounds": {
+        "mention": "提及",
+        "message": "消息",
+        "reaction": "回应",
+        "voiceJoin": "加入语音",
+        "voiceLeave": "离开语音",
+        "success": "成功",
+        "error": "错误",
+        "click": "点击"
+      },
+      "themes": {
+        "title": "音频主题",
+        "subtitle": "用于通知、通话和界面反馈的音效包",
+        "builtIn": "内置",
+        "byAuthor": "作者：{author}",
+        "masterVolume": "主音量",
+        "mute": "静音",
+        "playPreview": "播放 {theme} 预览",
+        "clearCache": "清除音频缓存",
+        "dismissError": "关闭错误",
+        "advanced": "高级设置",
+        "autoPreload": "自动预加载主题",
+        "volumeLow": "低",
+        "volumeMedium": "中",
+        "volumeHigh": "高",
+        "volumeMax": "最大",
+        "cacheInfo": "缓存信息",
+        "cacheStats": "已缓存 {sounds} 个声音，已加载 {themes} 个主题",
+        "exportSettings": "导出设置",
+        "importSettings": "导入设置",
+        "resetDefaults": "恢复默认设置"
+      }
     },
     "buildInfo": {
       "copyHint": "点击复制版本信息以用于错误报告",
@@ -868,6 +2086,55 @@
       "copyFailed": "无法复制版本信息",
       "terms": "服务条款",
       "privacy": "隐私政策"
+    },
+    "a11y": {
+      "sections": "设置分区",
+      "close": "关闭设置",
+      "unreadAnnouncements": "{count} 条未读公告 | {count} 条未读公告"
+    },
+    "toasts": {
+      "loggedOut": "已退出登录",
+      "logoutFailed": "无法退出登录",
+      "profileUpdated": "个人资料已更新",
+      "profileUpdateFailed": "无法更新个人资料",
+      "avatarUpdated": "头像已更新",
+      "avatarUploadFailed": "无法上传头像",
+      "bannerUpdated": "横幅已更新",
+      "bannerUploadFailed": "无法上传横幅",
+      "profileLoadFailed": "无法加载个人资料"
+    },
+    "unsaved": {
+      "title": "放弃未保存的更改？",
+      "message": "你对这些设置的更改尚未保存。",
+      "discard": "放弃更改"
+    },
+    "userAccount": {
+      "changeBanner": "更换个人资料横幅",
+      "bannerUploading": "正在上传横幅…",
+      "displayNameHint": "这是其他人看到你的样子。",
+      "displayNameEmojiHint": "输入 : 可添加自定义表情。",
+      "displayNameRequired": "显示名称不能为空。",
+      "displayNameNoEmoji": "此实例已禁用显示名称中的自定义表情。请从显示名称中删除 :name: 之类的表情代码。",
+      "usernameHint": "用户名无法更改：其他服务器通过它识别你的账号。",
+      "bioCount": "{count}/{max} 个字符",
+      "displayColor": "显示颜色",
+      "displayColorHint": "用于你的显示名称和个人资料强调色。",
+      "openColorPicker": "打开取色器",
+      "resetColor": "重置显示颜色",
+      "fieldsTitle": "个人资料字段",
+      "fieldsDescription": "为个人资料添加最多 {max} 个简短链接或标签：网站、社交账号，任何你希望别人找到你的地方。显示在你的个人资料页，并联合到其他 ActivityPub 实例。",
+      "fieldNameLabel": "字段 {n} 标签",
+      "fieldValueLabel": "字段 {n} 内容",
+      "fieldNamePlaceholder": "标签（例如：网站）",
+      "fieldValuePlaceholder": "内容（例如：https://example.com）",
+      "removeFieldNamed": "删除字段 {name}",
+      "removeFieldNumbered": "删除字段 {n}",
+      "fieldsEmpty": "还没有字段。请在下方添加。",
+      "fieldIncomplete": "每个个人资料字段都需要标签和内容。",
+      "addField": "添加字段",
+      "description": "管理你的个人资料和账户信息。",
+      "handleCopied": "已复制用户标识",
+      "copyFailed": "无法复制"
     }
   },
   "navigation": {
@@ -1177,7 +2444,200 @@
     "followApprovalTitle": "关注者",
     "followApprovalLabel": "关注需经批准",
     "followApprovalDescription": "新的关注者会发送请求，由你接受或拒绝。已有的关注者保持不变。关闭后会接受所有待处理的请求。",
-    "followApprovalFailed": "无法保存关注批准设置，请重试。"
+    "followApprovalFailed": "无法保存关注批准设置，请重试。",
+    "feedA11y": {
+      "label": "帖子",
+      "timeline": "{name}时间线",
+      "postsLoaded": "已加载 {count} 条帖子"
+    },
+    "postA11y": {
+      "heading": "{name}，{time}",
+      "boostHeading": "{booster} 转发了 {name}，{time}",
+      "actionCount": "{action}，{count}"
+    },
+    "postMenu": {
+      "copyLink": "复制链接",
+      "edit": "编辑",
+      "pin": "置顶到个人资料",
+      "unpin": "从个人资料取消置顶",
+      "delete": "删除",
+      "deleteAndRedraft": "删除并重新编辑",
+      "fetchReactions": "获取反应",
+      "refetch": "从来源重新获取",
+      "markSensitive": "标记为敏感",
+      "unmarkSensitive": "取消敏感标记",
+      "addContentWarning": "添加内容警告",
+      "editContentWarning": "编辑内容警告",
+      "adminDelete": "删除（管理员）",
+      "muteUser": "隐藏 {'@'}{handle}",
+      "unmuteUser": "取消隐藏 {'@'}{handle}",
+      "blockUser": "屏蔽 {'@'}{handle}",
+      "report": "举报帖子",
+      "deleteConfirmTitle": "删除帖子？",
+      "deleteConfirmMessage": "确定要删除这条帖子吗？此操作无法撤销。",
+      "deletedMessage": "你的帖子已删除",
+      "deleteFailedTitle": "删除失败",
+      "deleteFailed": "无法删除帖子，请重试。",
+      "redraftConfirmMessage": "删除这条帖子并把内容放回编辑框？帖子上的收藏和转发会丢失。",
+      "pinFailed": "无法切换置顶",
+      "pinned": "已置顶到个人资料",
+      "unpinned": "已从个人资料取消置顶",
+      "muted": "已隐藏 {'@'}{handle}，其帖子不会出现在你的动态中",
+      "unmuted": "已取消隐藏 {'@'}{handle}",
+      "muteFailed": "无法更新隐藏设置",
+      "blockConfirmTitle": "屏蔽 {'@'}{handle}？",
+      "blockConfirmMessage": "对方将无法关注你或查看你的帖子，你也不会看到对方的帖子。",
+      "block": "屏蔽",
+      "blocked": "已屏蔽 {'@'}{handle}",
+      "blockFailed": "无法屏蔽该用户",
+      "linkCopied": "链接已复制",
+      "linkCopyFailed": "无法复制链接",
+      "refetched": "帖子已重新获取",
+      "refetchedMessage": "已从来源更新内容。",
+      "refetchFailed": "重新获取失败",
+      "refetchFailedMessage": "无法重新获取帖子。",
+      "postUpdated": "帖子已更新",
+      "markedSensitive": "帖子已标记为敏感。",
+      "unmarkedSensitive": "已取消帖子的敏感标记。",
+      "failed": "失败",
+      "updateFailed": "无法更新帖子。",
+      "cwPromptMessage": "留空即可移除内容警告。",
+      "cwPromptLabel": "内容警告文字",
+      "cwSet": "已设置内容警告",
+      "cwRemoved": "已移除内容警告",
+      "cwFailed": "无法更新内容警告。",
+      "adminDeleteConfirm": "以管理员身份删除这条帖子？此操作无法撤销。",
+      "adminDeleted": "帖子已被管理员删除。"
+    },
+    "reactionsA11y": {
+      "group": "反应",
+      "chip": "{emoji}，{count} 个反应",
+      "reactedBy": "{names} 做出了反应",
+      "more": "另外 {count} 人",
+      "unknownEmoji": "表情"
+    },
+    "composerA11y": {
+      "quoting": "引用",
+      "dropMedia": "将图片或视频拖放到这里",
+      "charactersOver": "超出上限 {count} 个字符"
+    },
+    "mediaA11y": {
+      "editNamed": "编辑 {name}",
+      "altFor": "{name} 的 ALT 文本",
+      "removeNamed": "移除 {name}",
+      "uploading": "正在上传 {name}",
+      "download": "下载 {name}",
+      "imageNoDescription": "无描述的图片"
+    },
+    "profileA11y": {
+      "loading": "正在加载个人资料…",
+      "notFound": "找不到个人资料",
+      "goBack": "返回",
+      "mute": "隐藏",
+      "unmute": "取消隐藏",
+      "block": "屏蔽",
+      "unblock": "取消屏蔽",
+      "report": "举报",
+      "mention": "提及",
+      "joined": "{date} 加入",
+      "sections": "个人资料分区",
+      "youBlocked": "你已屏蔽 {'@'}{handle}",
+      "blockedHint": "你无法查看或互动其帖子。",
+      "followingUnfollow": "关注中 {'@'}{handle}，取消关注",
+      "requestedCancel": "已请求 {'@'}{handle}，取消请求",
+      "loadFailed": "无法加载个人资料。该用户可能不存在或暂时不可用。",
+      "postsBy": "{name} 的帖子"
+    },
+    "followA11y": {
+      "requests": "请求",
+      "requestsSubtitle": "{count} 人想关注你",
+      "followersSubtitle": "{count} 人关注了你",
+      "followingSubtitle": "你关注了 {count} 人",
+      "removeFollowerNamed": "移除关注者：{name}",
+      "accepted": "已接受 {name} 的关注请求",
+      "rejected": "已拒绝 {name} 的关注请求",
+      "acceptFailed": "无法接受关注请求",
+      "rejectFailed": "无法拒绝关注请求",
+      "loadFailed": "无法加载此列表，请重试。",
+      "moreFor": "{name} 的更多选项",
+      "message": "私信",
+      "messageNamed": "私信 {name}",
+      "viewProfile": "查看个人资料",
+      "instanceOwner": "实例所有者",
+      "instanceMod": "实例版主"
+    },
+    "listsA11y": {
+      "newList": "新建列表",
+      "loading": "正在加载列表…",
+      "exclusive": "专属列表",
+      "public": "公开列表",
+      "members": "{count} 名成员",
+      "policyFollowed": "回复关注的人",
+      "policyList": "回复列表成员",
+      "policyNone": "不显示回复",
+      "edit": "编辑列表",
+      "editNamed": "编辑 {title}",
+      "delete": "删除列表",
+      "deleteNamed": "删除 {title}",
+      "deleteTitle": "删除列表",
+      "deleteConfirm": "确定要删除“{title}”吗？此操作无法撤销。",
+      "createTitle": "创建新列表",
+      "editTitle": "编辑列表",
+      "titleLabel": "标题",
+      "titlePlaceholder": "例如：朋友、新闻、科技",
+      "descriptionLabel": "描述",
+      "descriptionPlaceholder": "这个列表用来做什么？",
+      "repliesLabel": "显示回复给",
+      "repliesList": "仅列表成员",
+      "repliesFollowed": "你关注的任何人",
+      "repliesNone": "不显示回复",
+      "exclusiveHelp": "在主页时间线中隐藏列表成员",
+      "publicHelp": "允许他人查看此列表",
+      "saveChanges": "保存更改",
+      "create": "创建列表",
+      "back": "返回列表",
+      "list": "列表",
+      "membersTitle": "成员",
+      "membersCount": "成员（{count}）",
+      "searchToAdd": "搜索要添加的用户",
+      "searchResultsLabel": "可添加的用户",
+      "searchResults": "找到 {count} 位用户",
+      "add": "添加",
+      "addNamed": "添加 {name}",
+      "added": "已添加",
+      "addedNamed": "已添加：{name}",
+      "remove": "移除",
+      "removeNamed": "移除 {name}"
+    },
+    "searchA11y": {
+      "title": "搜索用户",
+      "inputLabel": "搜索用户",
+      "placeholder": "搜索用户（{'@'}用户名{'@'}域名 或显示名称）",
+      "clear": "清除搜索",
+      "filters": "筛选结果",
+      "filterAll": "全部",
+      "results": "搜索结果",
+      "found": "找到 {count} 位用户",
+      "intro": "查找本实例或整个联邦宇宙中的用户。",
+      "recent": "最近搜索",
+      "suggested": "推荐用户"
+    },
+    "sidebarA11y": {
+      "unread": "{count} 条未读"
+    },
+    "threadA11y": {
+      "focused": "当前帖子",
+      "ancestor": "串中较早的帖子",
+      "replyTo": "回复 {name}",
+      "reply": "回复",
+      "notFound": "找不到帖子",
+      "viewOriginal": "在原实例查看",
+      "backToTimeline": "返回时间线",
+      "reactionsFetched": "已获取 {count} 个反应",
+      "reactionsFetchFailed": "无法获取反应",
+      "loadFailed": "无法加载帖子",
+      "replyPosted": "回复已发布"
+    }
   },
   "moderation": {
     "report": "举报",
@@ -1252,6 +2712,23 @@
     },
     "securityNotification": {
       "short": "账户安全"
+    },
+    "kickBan": {
+      "member": "成员",
+      "searchPlaceholder": "搜索成员…",
+      "noMembers": "未找到成员",
+      "memberSelected": "已选择 {name}",
+      "changeMember": "选择其他成员替换 {name}",
+      "banWarning": "该用户将被永久封禁，在解除封禁前无法重新加入服务器。",
+      "reasonPlaceholderKick": "为什么要踢出该用户？",
+      "reasonPlaceholderBan": "为什么要封禁该用户？",
+      "deleteMessages": "删除消息记录",
+      "deleteOptions": {
+        "none": "不删除",
+        "hour": "最近 1 小时",
+        "day": "最近 24 小时",
+        "week": "最近 7 天"
+      }
     }
   },
   "files": {
@@ -1613,7 +3090,23 @@
       "otherLinks": "您的其他有效链接（{count}）",
       "showLink": "显示此链接"
     },
-    "bannedFromServer": "您已被此服务器封禁"
+    "bannedFromServer": "您已被此服务器封禁",
+    "a11y": {
+      "preview": "{server} 的邀请。请在下方接受或拒绝。",
+      "member": "你已是 {server} 的成员。",
+      "joining": "正在加入 {server}…"
+    },
+    "rules": {
+      "title": "加入之前",
+      "subtitle": "加入前请阅读并同意规则",
+      "instanceHeading": "{instance} 实例规则",
+      "instanceNote": "仅显示一次：适用于此实例的所有地方。",
+      "serverHeading": "{server} 规则",
+      "agreementNote": "加入即表示你同意这些规则。",
+      "agree": "同意并加入"
+    },
+    "joined": "已加入 {server}",
+    "joinFailed": "无法加入服务器"
   },
   "nav": {
     "chat": "聊天",
@@ -1709,7 +3202,9 @@
       "save": "保存",
       "saved": "欢迎服务器已保存",
       "saveFailed": "无法保存欢迎服务器"
-    }
+    },
+    "joiningNamed": "正在加入 {server}…",
+    "joinedNamed": "已加入 {server}"
   },
   "serverWelcome": {
     "kicker": "欢迎来到",
@@ -2921,7 +4416,10 @@
         "setupFailed": "无法开始设置双重验证。",
         "copyFailed": "复制失败。请选中文本并手动复制。",
         "actionFailed": "操作未成功。请重试。"
-      }
+      },
+      "copyCodes": "复制代码",
+      "enabledAnnouncement": "双重验证已开启。请保存你的恢复代码。",
+      "newCodesAnnouncement": "已生成新的恢复代码。请立即保存。"
     },
     "sessions": {
       "title": "设备",
@@ -3104,6 +4602,10 @@
         "notFound": "您的账户中没有与此代码对应的登录。请确认两台设备使用的是同一账户。",
         "alreadyUsed": "此代码被多台设备响应。未发送任何内容。请显示新的代码。",
         "generic": "关联失败。"
+      },
+      "a11y": {
+        "showing": "代码已显示。正在等待新设备扫描。",
+        "confirm": "{device} 已准备好关联。请核对信息后确认。"
       }
     },
     "pairing": {
@@ -3345,14 +4847,16 @@
     "instanceEmojis": {
       "tab": "表情",
       "title": "实例表情",
-      "hint": "实例级表情和导入的表情：管理员上传的表情、Discord 桥接和机器人的表情，以及来自联邦回应和帖子的表情。服务器表情和个人表情由其所有者管理。消息通过名称引用自定义表情，因此重命名或删除后，之前的消息会显示 :name: 文本而不是图片。",
+      "hint": "实例级表情和导入的表情：管理员上传的表情、Discord 桥接和机器人的表情，以及来自联邦回应和帖子的表情。服务器表情由各自的服务器管理；个人表情和 AI 生成的表情列在“用户表情”下。消息通过名称引用自定义表情，因此重命名或删除后，之前的消息会显示 :name: 文本而不是图片。",
       "refresh": "刷新",
       "searchPlaceholder": "按名称或域名搜索",
+      "searchPlaceholderUser": "按名称或所有者搜索",
       "source": {
         "label": "来源",
         "all": "所有来源",
         "local": "本地",
-        "remote": "远程和桥接"
+        "remote": "远程和桥接",
+        "user": "用户表情"
       },
       "sort": {
         "label": "排序",
@@ -3360,8 +4864,14 @@
         "name": "名称 (A-Z)"
       },
       "empty": "没有匹配的实例表情。",
+      "emptyUser": "没有匹配的用户表情。",
       "localBadge": "本地",
+      "personalBadge": "个人",
+      "aiBadge": "AI",
+      "aiGenerated": "AI 生成",
       "uploadedBy": "由 {user} 上传",
+      "ownedBy": "所有者 {user}",
+      "noOwner": "已删除的账户",
       "reactions": "无回应 | {count} 个回应 | {count} 个回应",
       "rename": "重命名",
       "newName": "新名称",
@@ -3373,12 +4883,15 @@
       "deleteTitle": "删除表情",
       "confirmDelete": "删除 :{name}:？使用它的旧消息将显示 :{name}: 文本而不是图片。",
       "confirmDeleteInUse": "删除 :{name}:？它的 {count} 个回应将被移除，使用它的旧消息将显示 :{name}: 文本而不是图片。 | 删除 :{name}:？它的 {count} 个回应将被移除，使用它的旧消息将显示 :{name}: 文本而不是图片。",
+      "confirmDeleteUser": "从 {user} 的表情中删除 :{name}:？之前使用它的消息会显示 :{name}: 文本而不是图片。",
+      "confirmDeleteUserInUse": "从 {user} 的表情中删除 :{name}:？它的 {count} 个回应会被移除，之前使用它的消息会显示 :{name}: 文本而不是图片。 | 从 {user} 的表情中删除 :{name}:？它的 {count} 个回应会被移除，之前使用它的消息会显示 :{name}: 文本而不是图片。",
       "errors": {
         "load": "无法加载实例表情。",
         "rename": "无法重命名表情。",
         "delete": "无法删除表情。",
         "invalidName": "名称为 2 到 64 个字母、数字、_ 或 -。",
-        "nameTaken": "另一个实例表情已使用该名称。"
+        "nameTaken": "另一个实例表情已使用该名称。",
+        "nameTakenUser": "所有者已有同名的表情。"
       }
     }
   },
@@ -4097,6 +5610,143 @@
       "failed": "无法离开服务器"
     }
   },
+  "chatNav": {
+    "channel": {
+      "text": "文字频道",
+      "voice": "语音频道",
+      "unread": "未读",
+      "mentions": "{count} 条提及",
+      "muted": "已静音",
+      "private": "私密",
+      "connected": "{count} 人已连接",
+      "youAreConnected": "你已连接",
+      "joinHint": "加入语音通话",
+      "openChatHint": "打开频道聊天",
+      "previewHint": "显示在线成员及加入选项",
+      "openChat": "打开 {name} 的聊天",
+      "openChatShort": "打开聊天",
+      "threadsOf": "{name} 中的子区",
+      "thread": "子区",
+      "dropHere": "将频道拖放到此处",
+      "moved": "{name} 已移至第 {position} 位（共 {total} 个）",
+      "moveFailed": "无法移动 {name}"
+    },
+    "menu": {
+      "editChannel": "编辑频道",
+      "editCategory": "编辑分类",
+      "deleteCategory": "删除分类"
+    },
+    "thread": {
+      "leave": "离开子区",
+      "join": "加入子区",
+      "edit": "编辑子区",
+      "splitView": "在分屏视图中打开",
+      "close": "关闭子区",
+      "reopen": "重新打开子区",
+      "lock": "锁定子区",
+      "unlock": "解锁子区",
+      "delete": "删除子区",
+      "mute": "静音子区",
+      "unmute": "取消静音子区",
+      "copyId": "复制子区 ID",
+      "closePanel": "关闭子区面板",
+      "options": "子区选项",
+      "replies": "{count} 条回复",
+      "draftHint": "发送一条消息以开始此子区",
+      "loading": "正在加载消息…",
+      "loadingOlder": "加载中…",
+      "loadOlder": "加载更早的消息"
+    },
+    "header": {
+      "pinnedCount": "{count} 条置顶消息",
+      "threads": "查看所有子区",
+      "threadsShort": "查看子区",
+      "more": "更多选项"
+    },
+    "user": {
+      "mention": "提及",
+      "message": "私信",
+      "call": "发起通话",
+      "nickname": "更改昵称",
+      "invite": "邀请加入服务器",
+      "mute": "静音用户",
+      "unmute": "取消静音用户",
+      "kick": "踢出 {name}",
+      "ban": "封禁 {name}",
+      "copyId": "复制用户 ID",
+      "fallbackName": "用户"
+    },
+    "rail": {
+      "folder": "文件夹",
+      "servers": "{count} 个服务器",
+      "unreadMessages": "{count} 条未读消息"
+    },
+    "dm": {
+      "startNew": "发起新私信",
+      "createGroup": "创建群聊",
+      "searchLabel": "搜索用户",
+      "listLabel": "会话",
+      "group": "群组，{count} 名成员",
+      "dismissed": "已隐藏与 {name} 的会话",
+      "dismissNamed": "隐藏与 {name} 的会话",
+      "restored": "已恢复与 {name} 的会话",
+      "restoreFailed": "无法恢复会话",
+      "joinCallWith": "加入与 {name} 的通话"
+    },
+    "members": {
+      "search": "搜索成员",
+      "clearSearch": "清除搜索",
+      "found": "找到 {count} 名成员",
+      "group": "{title}，{count} 人",
+      "discord": "Discord 桥接成员",
+      "instanceAdmin": "实例管理员",
+      "instanceMod": "实例版主"
+    },
+    "create": {
+      "textHint": "使用小写字母、数字、连字符和下划线；空格会变成连字符",
+      "voiceHint": "为语音频道起一个能描述它的名字",
+      "looksGood": "看起来不错",
+      "nameRequired": "频道名称为必填项",
+      "nameTooLong": "频道名称不能超过 100 个字符",
+      "voiceInvalid": "语音频道名称包含无效字符",
+      "categorySubtitle": "用分类整理你的频道",
+      "categoryName": "分类名称",
+      "categoryPlaceholder": "输入分类名称…",
+      "categoryHint": "分类有助于整理你的频道",
+      "categoryGood": "不错！这有助于整理你的频道",
+      "categoryRequired": "分类名称为必填项",
+      "categoryTooShort": "分类名称至少需要 2 个字符",
+      "categoryTooLong": "分类名称不能超过 100 个字符",
+      "categoryInvalid": "分类名称只能包含字母、数字、连字符和下划线"
+    },
+    "pinned": {
+      "count": "{count} 条消息",
+      "none": "没有置顶消息",
+      "loading": "正在加载置顶消息…",
+      "jump": "跳转到消息",
+      "unpin": "取消置顶",
+      "by": "由 {name} 置顶"
+    },
+    "threadsModal": {
+      "title": "子区",
+      "search": "搜索子区名称",
+      "joined": "已加入 {count} 个子区",
+      "older": "较早的子区",
+      "noMessages": "还没有消息",
+      "startedBy": "发起人",
+      "lastActive": "最后活跃：{time}",
+      "loading": "正在加载子区…"
+    },
+    "mediaPicker": {
+      "label": "GIF、贴纸和表情",
+      "gifs": "GIF",
+      "stickers": "贴纸",
+      "emoji": "表情",
+      "clips": "短片",
+      "memes": "梗图",
+      "aiEmoji": "AI 表情"
+    }
+  },
   "embeds": {
     "popOut": "弹出",
     "open": "打开",
@@ -4252,7 +5902,8 @@
     },
     "remote": {
       "voters": "{count} 人已投票",
-      "voteOnOriginal": "在原帖中投票"
+      "voteOnOriginal": "在原帖中投票",
+      "label": "投票"
     }
   },
   "serverTemplate": {
@@ -4402,6 +6053,190 @@
       "invalid": "音效被拒绝。请检查名称、表情和音量。",
       "load": "无法加载此服务器的音效。",
       "generic": "出了点问题，请重试。"
+    }
+  },
+  "voiceMessage": {
+    "label": "语音消息",
+    "play": "播放语音消息，{duration}",
+    "pause": "暂停语音消息",
+    "position": "播放位置",
+    "positionValue": "{current} / {total}",
+    "speed": "播放速度 {speed}x",
+    "playFailed": "无法播放此语音消息。"
+  },
+  "a11y": {
+    "unreadNotifications": "{count} 条未读通知",
+    "announcements": {
+      "pinned": "已置顶"
+    },
+    "skipToContent": "跳到内容",
+    "loadingInstance": "正在加载 {name}…",
+    "genericError": "出了点问题，请重试。",
+    "backOnline": "已恢复联网",
+    "bannerImage": "横幅图片",
+    "landmarks": {
+      "servers": "服务器",
+      "channels": "频道",
+      "directMessages": "私信",
+      "members": "成员",
+      "userPanel": "你的账户",
+      "social": "社交导航",
+      "socialSidebar": "趋势与推荐"
+    },
+    "drawer": {
+      "navigation": "导航菜单",
+      "memberList": "成员列表"
+    },
+    "title": {
+      "resetPassword": "重置密码",
+      "invite": "邀请",
+      "followRequests": "关注请求",
+      "hashtag": "话题标签",
+      "serverSettings": "服务器设置",
+      "thread": "子区",
+      "today": "今天",
+      "newProfile": "创建个人资料"
+    },
+    "announcer": {
+      "more": "还有 {count} 条"
+    },
+    "toast": {
+      "dismiss": "关闭通知"
+    },
+    "confirm": {
+      "typeExact": "请输入完全相同的文本以确认。",
+      "typeToConfirm": "输入\"{text}\"以确认"
+    },
+    "moderation": {
+      "kickMember": "踢出成员",
+      "banMember": "封禁成员",
+      "kick": "踢出",
+      "ban": "封禁"
+    },
+    "instance": {
+      "noneSelected": "未选择实例",
+      "change": "更换实例",
+      "changeShort": "更换"
+    },
+    "avatar": {
+      "view": "查看头像原图",
+      "viewNamed": "查看 {name} 的头像原图",
+      "image": "头像",
+      "imageNamed": "{name} 的头像",
+      "change": "更换头像"
+    },
+    "serverIcon": {
+      "view": "查看服务器图标原图",
+      "viewNamed": "查看 {name} 的图标原图",
+      "image": "服务器图标",
+      "imageNamed": "{name} 的图标",
+      "change": "更换服务器图标"
+    },
+    "lightbox": {
+      "label": "媒体查看器",
+      "position": "第 {current} 项，共 {total} 项",
+      "previous": "上一项",
+      "next": "下一项",
+      "zoomIn": "放大",
+      "zoomOut": "缩小",
+      "resetZoom": "重置缩放和旋转",
+      "rotateLeft": "向左旋转",
+      "rotateRight": "向右旋转",
+      "videoUnsupported": "此视频无法在这里播放。"
+    },
+    "pwa": {
+      "installApp": "安装 Harmony 应用",
+      "share": "分享 Harmony"
+    },
+    "rail": {
+      "portal": "Harmony 门户",
+      "fediverse": "联邦宇宙",
+      "funding": "实例资助"
+    },
+    "notifications": {
+      "desktopFor": "{type}：桌面通知",
+      "soundFor": "{type}：声音",
+      "testFor": "测试{type}通知",
+      "volume": "主音量"
+    },
+    "settings": {
+      "importThemeFile": "要导入的主题文件"
+    },
+    "shortcuts": {
+      "title": "导航",
+      "regions": "移到下一个或上一个区域（服务器、频道、消息、成员、语音）",
+      "regionsKeys": "F6 / Shift+F6",
+      "browserNote": "如果浏览器把 F6 用于地址栏，请使用 Ctrl+F6 / Ctrl+Shift+F6。",
+      "skip": "跳到内容：每个页面上第一个 Tab 位置",
+      "skipKeys": "Tab",
+      "escape": "关闭打开的对话框、菜单或面板，焦点回到原处",
+      "escapeKeys": "Esc"
+    },
+    "unsavedChanges": "未保存的更改"
+  },
+  "statusPicker": {
+    "setTitle": "设置自定义状态",
+    "editTitle": "编辑自定义状态",
+    "current": "当前状态",
+    "clear": "清除状态",
+    "chooseEmoji": "选择表情",
+    "emojiSelected": "表情：{name}。更换表情",
+    "charCount": "{count}/{max} 个字符",
+    "activity": "活动",
+    "customHint": "仅文本或表情（无前缀）",
+    "clearAfter": "清除时间",
+    "saving": "正在保存…",
+    "activities": {
+      "custom": "自定义",
+      "playing": "正在玩",
+      "listening": "正在听",
+      "watching": "正在看",
+      "competing": "正在比赛",
+      "streaming": "正在直播"
+    },
+    "durations": {
+      "never": "不清除",
+      "30m": "30 分钟",
+      "1h": "1 小时",
+      "4h": "4 小时",
+      "today": "今天",
+      "1w": "本周"
+    }
+  },
+  "instancePicker": {
+    "title": "欢迎使用 Harmony",
+    "hint": "Harmony 是联邦式的：任何人都可以运行实例。请输入要连接的实例域名。",
+    "domainLabel": "实例域名",
+    "connect": "连接",
+    "connecting": "正在连接…",
+    "unreachable": "无法访问该实例",
+    "current": "当前已连接到 {name}",
+    "keep": "保留"
+  },
+  "colorPicker": {
+    "label": "颜色选择器",
+    "saturationBrightness": "饱和度和亮度",
+    "saturationBrightnessValue": "饱和度 {saturation}%，亮度 {brightness}%",
+    "saturationBrightnessHelp": "左右方向键调整饱和度，上下方向键调整亮度。按住 Shift 可大幅调整。",
+    "hue": "色相",
+    "hueValue": "{degrees} 度",
+    "hex": "十六进制颜色",
+    "presets": "预设颜色",
+    "swatch": "{name} {hex}",
+    "sampleText": "示例文本",
+    "names": {
+      "red": "红色",
+      "orange": "橙色",
+      "yellow": "黄色",
+      "green": "绿色",
+      "cyan": "青色",
+      "blue": "蓝色",
+      "purple": "紫色",
+      "pink": "粉色",
+      "brown": "棕色",
+      "grey": "灰色",
+      "white": "白色",
+      "black": "黑色"
     }
   }
 }

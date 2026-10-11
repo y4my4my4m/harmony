@@ -1,5 +1,5 @@
 <template>
-  <Teleport to="body">
+  <Teleport to="body" :disabled="!teleport">
     <button
       v-if="visible && url"
       type="button"
@@ -17,11 +17,13 @@
 import Icon from '@/components/common/Icon.vue';
 import { downloadMediaFromUrl } from '@/utils/downloadMedia';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   visible: boolean;
   url: string;
   filename?: string;
-}>();
+  /** False renders in place, e.g. inside a lightbox dialog whose background is inert. */
+  teleport?: boolean;
+}>(), { teleport: true });
 
 async function handleDownload() {
   if (!props.url) return;

@@ -388,6 +388,9 @@ export interface FileContent {
   fileType: string; // e.g., 'image', 'video'
   fileName?: string; // Optional file name
   fileSize?: number; // Optional file size in bytes
+  /** Description for people who cannot see the image or video; never the file name.
+      Remote ActivityPub parts carry the attachment's `name` here. */
+  altText?: string;
 }
 
 export interface SystemContent {

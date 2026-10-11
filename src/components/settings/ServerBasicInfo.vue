@@ -14,7 +14,7 @@
           <path fill="#faa61a" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
         </svg>
         <div class="notice-text">
-          <h4>{{ $t('server.viewOnlyAccess') }}</h4>
+          <h3>{{ $t('server.viewOnlyAccess') }}</h3>
           <p>{{ $t('server.viewOnlyMessage') }}</p>
         </div>
       </div>
@@ -34,8 +34,9 @@
           :disabled="loading || !permissions.canChangeServerName"
           :readonly="!permissions.canChangeServerName"
           maxlength="28"
+          :aria-describedby="`${uid}-name-hint`"
         />
-        <div class="form-hint">
+        <div :id="`${uid}-name-hint`" class="form-hint">
           {{ permissions.canEditBasicInfo ? $t('server.serverNameAppearance') : $t('server.serverNameAppearanceView') }}
         </div>
       </div>
@@ -53,8 +54,9 @@
           :readonly="!permissions.canChangeServerDescription"
           maxlength="500"
           rows="4"
+          :aria-describedby="`${uid}-description-hint`"
         />
-        <div class="form-hint">
+        <div :id="`${uid}-description-hint`" class="form-hint">
           {{ $t('server.charactersRemaining', { current: server.description?.length || 0, max: 500 }) }}
         </div>
       </div>
@@ -81,7 +83,7 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label">{{ $t('server.serverOwner') }}</label>
+        <span class="form-label">{{ $t('server.serverOwner') }}</span>
         <div class="owner-info">
           <div class="owner-badge">
             <svg class="crown-icon" width="16" height="16" viewBox="0 0 24 24">
@@ -97,18 +99,18 @@
     </div>
 
     <div class="settings-card">
-      <div class="form-group">
-        <label class="form-label">{{ $t('server.serverIcon') }}</label>
+      <div class="form-group" role="group" :aria-labelledby="`${uid}-icon-label`" :aria-describedby="`${uid}-icon-hint`">
+        <span :id="`${uid}-icon-label`" class="form-label">{{ $t('server.serverIcon') }}</span>
         <div class="icon-upload-container">
           <div class="current-icon">
             <ServerIcon
               v-if="iconPreviewUrl"
               :src="iconPreviewUrl"
-              alt="Server icon"
+              :alt="t('a11y.serverIcon.image')"
               class="server-icon-preview"
             />
             <div v-else class="no-icon-placeholder">
-              <svg width="48" height="48" viewBox="0 0 24 24">
+              <svg width="48" height="48" viewBox="0 0 24 24" aria-hidden="true">
                 <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
               </svg>
             </div>
@@ -117,6 +119,7 @@
             <button
               type="button"
               class="btn btn-secondary"
+              data-testid="server-icon-upload"
               @click="triggerFileInput"
               :disabled="loading"
             >
@@ -143,7 +146,7 @@
           class="hidden-file-input"
           @change="handleFileInputChange"
         />
-        <div class="form-hint">
+        <div :id="`${uid}-icon-hint`" class="form-hint">
           {{ permissions.canChangeServerIcon 
             ? $t('server.iconRecommendation')
             : $t('server.iconRestriction')
@@ -154,24 +157,45 @@
 
     <!-- Server Banner -->
     <div class="settings-card">
-      <div class="form-group">
-        <label class="form-label">Server Banner</label>
+      <div class="form-group" role="group" :aria-labelledby="`${uid}-banner-label`">
+        <span :id="`${uid}-banner-label`" class="form-label">{{ t('server.banner.title') }}</span>
         <div class="banner-upload-container">
-          <div
-            class="banner-preview"
+          <label
+            v-if="permissions.canChangeServerIcon"
+            class="banner-preview file-pick"
             :class="{ 'has-banner': bannerPreviewUrl }"
             :style="bannerPreviewUrl ? { backgroundImage: `url(${bannerPreviewUrl})` } : {}"
-            @click="permissions.canChangeServerIcon && triggerBannerInput()"
           >
-            <div v-if="!bannerPreviewUrl" class="banner-placeholder">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <span v-if="!bannerPreviewUrl" class="banner-placeholder">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
               </svg>
-              <span>Click to upload banner</span>
-            </div>
-            <div v-else class="banner-overlay">
-              <span>Change banner</span>
-            </div>
+              <span aria-hidden="true">{{ t('server.banner.upload') }}</span>
+            </span>
+            <span v-else class="banner-overlay" aria-hidden="true">
+              <span>{{ t('server.banner.change') }}</span>
+            </span>
+            <input
+              ref="bannerFileInput"
+              type="file"
+              accept="image/*"
+              class="sr-only"
+              data-testid="server-banner-input"
+              :aria-label="bannerPreviewUrl ? t('server.banner.change') : t('server.banner.upload')"
+              :aria-describedby="`${uid}-banner-hint`"
+              :disabled="loading"
+              @change="handleBannerFileChange"
+            />
+          </label>
+          <div
+            v-else
+            class="banner-preview read-only"
+            :class="{ 'has-banner': bannerPreviewUrl }"
+            :style="bannerPreviewUrl ? { backgroundImage: `url(${bannerPreviewUrl})` } : {}"
+            :role="bannerPreviewUrl ? 'img' : undefined"
+            :aria-label="bannerPreviewUrl ? t('server.banner.title') : undefined"
+          >
+            <span v-if="!bannerPreviewUrl" class="banner-placeholder">{{ t('server.banner.none') }}</span>
           </div>
           <div v-if="permissions.canChangeServerIcon && (server.banner || selectedBannerFile)" class="banner-controls">
             <button
@@ -180,19 +204,12 @@
               @click="removeBanner"
               :disabled="loading"
             >
-              Remove Banner
+              {{ t('server.banner.remove') }}
             </button>
           </div>
         </div>
-        <input
-          ref="bannerFileInput"
-          type="file"
-          accept="image/*"
-          class="hidden-file-input"
-          @change="handleBannerFileChange"
-        />
-        <div class="form-hint">
-          Recommended: 1280x400px. Displayed at the top of your server.
+        <div :id="`${uid}-banner-hint`" class="form-hint">
+          {{ t('server.banner.hint') }}
         </div>
       </div>
     </div>
@@ -200,7 +217,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Server } from '@/types'
 import { useNotificationStore } from '@/stores/useNotification'
@@ -211,6 +228,7 @@ import { useImageCrop } from '@/composables/useImageCrop'
 import ServerIcon from '@/components/common/ServerIcon.vue'
 
 const { t } = useI18n()
+const uid = `sbi-${useId()}`
 const notificationStore = useNotificationStore()
 const { cropImage } = useImageCrop()
 
@@ -273,11 +291,6 @@ const bannerPreviewUrl = computed(() => {
   if (!props.server.banner) return null
   return withRenderFallback(getServerBannerUrl(props.server.banner, { width: 640, height: 200 }))
 })
-
-const triggerBannerInput = () => {
-  if (!props.permissions.canChangeServerIcon) return
-  bannerFileInput.value?.click()
-}
 
 const handleBannerFileChange = async (event: Event) => {
   if (!props.permissions.canChangeServerIcon) return
@@ -436,7 +449,7 @@ const updateServerDescription = (event: Event) => {
   color: #faa61a;
 }
 
-.notice-text h4 {
+.notice-text h3 {
   margin: 0 0 4px 0;
   font-size: 14px;
   font-weight: 600;
@@ -646,8 +659,22 @@ const updateServerDescription = (event: Event) => {
   border-style: solid;
 }
 
-.banner-preview:hover {
+.banner-preview.read-only {
+  cursor: default;
+}
+
+.banner-preview.file-pick {
+  display: block;
+}
+
+.banner-preview.file-pick:hover {
   border-color: var(--harmony-primary);
+}
+
+.banner-preview.file-pick:focus-within {
+  border-color: var(--harmony-primary);
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .banner-placeholder {
@@ -675,7 +702,8 @@ const updateServerDescription = (event: Event) => {
   transition: opacity 0.2s;
 }
 
-.banner-preview:hover .banner-overlay {
+.banner-preview:hover .banner-overlay,
+.banner-preview:focus-within .banner-overlay {
   opacity: 1;
 }
 

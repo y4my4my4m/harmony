@@ -18,13 +18,14 @@
           v-model="search"
           type="search"
           class="cyber-input emoji-search"
-          :placeholder="t('admin.instanceEmojis.searchPlaceholder')"
-          :aria-label="t('admin.instanceEmojis.searchPlaceholder')"
+          :placeholder="searchPlaceholder"
+          :aria-label="searchPlaceholder"
         />
         <select v-model="source" class="cyber-select compact" :aria-label="t('admin.instanceEmojis.source.label')">
           <option value="all">{{ t('admin.instanceEmojis.source.all') }}</option>
           <option value="local">{{ t('admin.instanceEmojis.source.local') }}</option>
           <option value="remote">{{ t('admin.instanceEmojis.source.remote') }}</option>
+          <option value="user">{{ t('admin.instanceEmojis.source.user') }}</option>
         </select>
         <select v-model="sort" class="cyber-select compact" :aria-label="t('admin.instanceEmojis.sort.label')">
           <option value="newest">{{ t('admin.instanceEmojis.sort.newest') }}</option>
@@ -33,7 +34,7 @@
       </div>
 
       <div v-if="loading && rows.length === 0" class="loading-state"><LoadingSpinner :size="20" /></div>
-      <div v-else-if="rows.length === 0" class="empty-state">{{ t('admin.instanceEmojis.empty') }}</div>
+      <div v-else-if="rows.length === 0" class="empty-state">{{ source === 'user' ? t('admin.instanceEmojis.emptyUser') : t('admin.instanceEmojis.empty') }}</div>
       <ul v-else class="emoji-list">
         <li v-for="emoji in rows" :key="emoji.id" class="emoji-row">
           <img class="emoji-img" :src="getEmojiUrl(emoji.url)" :alt="`:${emoji.name}:`" loading="lazy" />
@@ -52,8 +53,14 @@
             </form>
             <span v-else class="emoji-name">:{{ emoji.name }}:</span>
             <div class="emoji-meta">
-              <span class="badge" :class="emoji.domain ? 'remote' : 'local'">{{ emoji.domain || t('admin.instanceEmojis.localBadge') }}</span>
-              <span v-if="emoji.uploader_username">{{ t('admin.instanceEmojis.uploadedBy', { user: '@' + emoji.uploader_username }) }}</span>
+              <span v-if="emoji.scope === 'user'" class="badge personal">{{ t('admin.instanceEmojis.personalBadge') }}</span>
+              <span v-else class="badge" :class="emoji.domain ? 'remote' : 'local'">{{ emoji.domain || t('admin.instanceEmojis.localBadge') }}</span>
+              <span v-if="emoji.is_ai_generated" class="badge ai" :title="t('admin.instanceEmojis.aiGenerated')">
+                <span aria-hidden="true">{{ t('admin.instanceEmojis.aiBadge') }}</span>
+                <span class="sr-only">{{ t('admin.instanceEmojis.aiGenerated') }}</span>
+              </span>
+              <span v-if="emoji.scope === 'user'">{{ emoji.uploader_username ? t('admin.instanceEmojis.ownedBy', { user: '@' + emoji.uploader_username }) : t('admin.instanceEmojis.noOwner') }}</span>
+              <span v-else-if="emoji.uploader_username">{{ t('admin.instanceEmojis.uploadedBy', { user: '@' + emoji.uploader_username }) }}</span>
               <span>{{ t('admin.instanceEmojis.reactions', { count: emoji.reaction_count }, emoji.reaction_count) }}</span>
               <span>{{ formatDate(emoji.created_at) }}</span>
             </div>
@@ -81,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
@@ -120,6 +127,15 @@ const busy = ref(new Set<string>())
 const editingId = ref<string | null>(null)
 const editName = ref('')
 const renameInput = ref<HTMLInputElement[] | null>(null)
+
+const searchPlaceholder = computed(() =>
+  source.value === 'user' ? t('admin.instanceEmojis.searchPlaceholderUser') : t('admin.instanceEmojis.searchPlaceholder'),
+)
+
+/** Audit details naming the owner of a user-scope emoji. */
+function ownerDetails(emoji: InstanceEmojiRow) {
+  return { owner_id: emoji.uploader, owner_username: emoji.uploader_username, is_ai_generated: emoji.is_ai_generated }
+}
 
 let requestSeq = 0
 
@@ -195,26 +211,34 @@ async function saveRename(emoji: InstanceEmojiRow) {
     await renameInstanceEmoji(emoji.id, name)
     invalidateEmojiResolverCache()
     useEmojiCacheStore().expirePersonalEmojis()
+    const isUser = emoji.scope === 'user'
     void adminService.logAdminAction({
-      action: 'instance_emoji_rename',
+      action: isUser ? 'user_emoji_rename' : 'instance_emoji_rename',
       targetType: 'emoji',
       targetId: emoji.id,
-      details: { from: emoji.name, to: name },
+      details: isUser ? { from: emoji.name, to: name, ...ownerDetails(emoji) } : { from: emoji.name, to: name },
     })
     emoji.name = name
     cancelRename()
     toast.success(t('admin.instanceEmojis.renamed'))
   } catch (err: any) {
-    toast.error(err?.code === '23505' ? t('admin.instanceEmojis.errors.nameTaken') : err?.message || t('admin.instanceEmojis.errors.rename'))
+    const taken = emoji.scope === 'user' ? t('admin.instanceEmojis.errors.nameTakenUser') : t('admin.instanceEmojis.errors.nameTaken')
+    toast.error(err?.code === '23505' ? taken : err?.message || t('admin.instanceEmojis.errors.rename'))
   } finally {
     busy.value.delete(emoji.id)
   }
 }
 
 async function remove(emoji: InstanceEmojiRow) {
-  const message = emoji.reaction_count > 0
-    ? t('admin.instanceEmojis.confirmDeleteInUse', { name: emoji.name, count: emoji.reaction_count }, emoji.reaction_count)
-    : t('admin.instanceEmojis.confirmDelete', { name: emoji.name })
+  const isUser = emoji.scope === 'user'
+  const owner = emoji.uploader_username ? '@' + emoji.uploader_username : t('admin.instanceEmojis.noOwner')
+  const message = isUser
+    ? emoji.reaction_count > 0
+      ? t('admin.instanceEmojis.confirmDeleteUserInUse', { name: emoji.name, user: owner, count: emoji.reaction_count }, emoji.reaction_count)
+      : t('admin.instanceEmojis.confirmDeleteUser', { name: emoji.name, user: owner })
+    : emoji.reaction_count > 0
+      ? t('admin.instanceEmojis.confirmDeleteInUse', { name: emoji.name, count: emoji.reaction_count }, emoji.reaction_count)
+      : t('admin.instanceEmojis.confirmDelete', { name: emoji.name })
   const ok = await confirm({
     title: t('admin.instanceEmojis.deleteTitle'),
     message,
@@ -228,10 +252,12 @@ async function remove(emoji: InstanceEmojiRow) {
     invalidateEmojiResolverCache()
     useEmojiCacheStore().expirePersonalEmojis()
     void adminService.logAdminAction({
-      action: 'instance_emoji_delete',
+      action: isUser ? 'user_emoji_delete' : 'instance_emoji_delete',
       targetType: 'emoji',
       targetId: emoji.id,
-      details: { name: emoji.name, domain: emoji.domain, url: emoji.url },
+      details: isUser
+        ? { name: emoji.name, url: emoji.url, ...ownerDetails(emoji) }
+        : { name: emoji.name, domain: emoji.domain, url: emoji.url },
     })
     toast.success(t('admin.instanceEmojis.deleted'))
     await load()
@@ -316,8 +342,13 @@ onMounted(load)
   color: var(--text-secondary);
 }
 
-.badge.local {
-  color: var(--harmony-primary);
+.badge.local,
+.badge.ai {
+  color: var(--text-link);
+}
+
+.badge.ai {
+  font-weight: 600;
 }
 
 .emoji-actions {
@@ -328,7 +359,7 @@ onMounted(load)
 
 .action-btn.danger:hover:not(:disabled) {
   border-color: var(--error, #ef4444);
-  color: var(--error, #ef4444);
+  color: var(--text-danger, #ef4444);
 }
 
 .rename-form {

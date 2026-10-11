@@ -392,9 +392,10 @@
         </div>
 
         <div class="setting-group">
-          <label>Theme color</label>
+          <span class="form-label-text" aria-hidden="true">Theme color</span>
           <div style="display: flex; align-items: center; gap: 12px;">
             <ColorPicker
+              label="Theme color"
               :color="instanceConfig.themeColor || '#0EA5E9'"
               @update:color="instanceConfig.themeColor = $event; instanceBrandingChanged = true"
               @change="instanceConfig.themeColor = $event; instanceBrandingChanged = true"
@@ -1101,7 +1102,8 @@ onMounted(() => {
 
 
 
-.setting-group label {
+.setting-group label,
+.setting-group .form-label-text {
   display: block;
   font-size: 14px;
   font-weight: 500;
@@ -1443,7 +1445,7 @@ onMounted(() => {
 
 .delete-btn:hover {
   border-color: var(--error);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 
@@ -1484,7 +1486,7 @@ onMounted(() => {
 }
 
 .config-tab-btn.active {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border-bottom-color: var(--harmony-primary);
 }
 
@@ -1700,7 +1702,7 @@ onMounted(() => {
 
 .save-btn {
   padding: 8px 16px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: none;
   border-radius: var(--radius-base);
   color: var(--text-on-primary);
@@ -1720,7 +1722,7 @@ onMounted(() => {
 
 
 .save-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 

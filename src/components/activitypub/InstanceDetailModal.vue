@@ -779,7 +779,7 @@ onMounted(() => {
 }
 
 .footer-btn.primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: #fff;
 }
 

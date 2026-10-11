@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatShortRelativeTime, formatFullDateTime } from '@/utils/shortRelativeTime'
+import { formatShortRelativeTime, formatFullDateTime, formatSpokenRelativeTime } from '@/utils/shortRelativeTime'
 
 const NOW = new Date('2026-06-15T12:00:00Z').getTime()
 const ago = (ms: number) => new Date(NOW - ms).toISOString()
@@ -42,5 +42,26 @@ describe('formatFullDateTime', () => {
 
   it('returns an empty string for invalid input', () => {
     expect(formatFullDateTime('nope')).toBe('')
+  })
+})
+
+describe('formatSpokenRelativeTime', () => {
+  it('spells out the compact units on the same thresholds', () => {
+    expect(formatSpokenRelativeTime(ago(3_000), { now: NOW })).toBe('now')
+    expect(formatSpokenRelativeTime(ago(42_000), { now: NOW })).toBe('42 seconds ago')
+    expect(formatSpokenRelativeTime(ago(5 * 60_000), { now: NOW })).toBe('5 minutes ago')
+    expect(formatSpokenRelativeTime(ago(3 * 3_600_000 + 59 * 60_000), { now: NOW })).toBe('3 hours ago')
+    expect(formatSpokenRelativeTime(ago(86_400_000), { now: NOW })).toBe('yesterday')
+    expect(formatSpokenRelativeTime(ago(6 * 86_400_000), { now: NOW })).toBe('6 days ago')
+  })
+
+  it('names the month in full past a week, adding the year only across years', () => {
+    expect(formatSpokenRelativeTime('2026-03-05T10:00:00Z', { now: NOW })).toBe('March 5')
+    expect(formatSpokenRelativeTime('2024-03-05T10:00:00Z', { now: NOW })).toBe('March 5, 2024')
+  })
+
+  it('localizes and rejects garbage', () => {
+    expect(formatSpokenRelativeTime(ago(5 * 60_000), { now: NOW, locale: 'de' })).toBe('vor 5 Minuten')
+    expect(formatSpokenRelativeTime('not a date', { now: NOW })).toBe('')
   })
 })

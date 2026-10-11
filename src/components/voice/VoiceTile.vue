@@ -41,7 +41,7 @@
       />
       <Avatar
         :src="userProfile.avatar_url"
-        :alt="displayName"
+        alt=""
         size="lg"
         class="tile-watch-avatar"
       />
@@ -61,7 +61,7 @@
       <div class="avatar-ring" :class="{ speaking: isSpeaking }">
         <Avatar
           :src="userProfile.avatar_url"
-          :alt="displayName"
+          alt=""
           size="xl"
           class="tile-avatar-img"
         />
@@ -72,10 +72,10 @@
 
     <!-- Bottom-left identity pill -->
     <div class="tile-pill">
-      <span v-if="source === 'screen'" class="pill-live-badge">{{ t('voice.live') }}</span>
-      <Icon v-else-if="effectiveDeafened" name="headphones-off" class="pill-icon danger" :title="t('voice.statusDeafened')" />
-      <Icon v-else-if="effectiveMuted" name="mic-off" class="pill-icon danger" :title="t('voice.statusMuted')" />
-      <span class="pill-name">
+      <span v-if="source === 'screen'" class="pill-live-badge" aria-hidden="true">{{ t('voice.live') }}</span>
+      <Icon v-else-if="effectiveDeafened" name="headphones-off" class="pill-icon danger" :title="t('voice.statusDeafened')" aria-hidden="true" />
+      <Icon v-else-if="effectiveMuted" name="mic-off" class="pill-icon danger" :title="t('voice.statusMuted')" aria-hidden="true" />
+      <span class="pill-name" aria-hidden="true">
         <DisplayName :user-id="props.userState.userId" :fallback="displayName" :truncate="true" />
       </span>
       <Icon
@@ -83,6 +83,7 @@
         name="wifi-off"
         class="pill-icon warn"
         :title="t(`voice.quality.${quality}`)"
+        aria-hidden="true"
       />
     </div>
 
@@ -91,6 +92,7 @@
       v-if="locallyMuted"
       class="tile-corner-badge"
       :title="source === 'screen' ? t('voice.streamMutedByYou') : t('voice.mutedByYou')"
+      aria-hidden="true"
     >
       <Icon name="volume-x" />
     </div>
@@ -201,6 +203,8 @@ import TileVolumeControl from './TileVolumeControl.vue';
 import LiveReactionLayer from './LiveReactionLayer.vue';
 import LiveReactionPopover from './LiveReactionPopover.vue';
 import { getBannerUrl } from '@/utils/bannerUtils';
+import { participantLabel, useHeldFlag } from './participantLabel';
+import { restoreFocusIfLost } from './voiceFocus';
 import { withRenderFallback } from '@/utils/renderFallback';
 
 const props = withDefaults(defineProps<{
@@ -243,10 +247,6 @@ const displayName = computed(() =>
   userProfile.value.display_name || userProfile.value.username || 'Unknown User'
 );
 
-const tileLabel = computed(() =>
-  props.source === 'screen' ? `${displayName.value}, ${t('voice.live')}` : displayName.value
-);
-
 const isSelf = computed(() => props.userState.userId === voiceStore.localState.userId);
 
 // Read from the store for the local user so mute/deafen flips are instant
@@ -264,6 +264,7 @@ const isSpeaking = computed(() => {
   }
   return liveState.value.isSpeaking;
 });
+const speakingHeld = useHeldFlag(() => isSpeaking.value);
 
 const hasActiveVideo = computed(() =>
   props.source === 'screen' ? liveState.value.isScreenSharing : liveState.value.isVideoEnabled
@@ -315,6 +316,26 @@ const locallyMuted = computed(() => {
   return voiceStore.isUserLocallyMuted(props.userState.userId, kind) || volume === 0;
 });
 
+// Group name: who, and the state the pill and rings show.
+const tileLabel = computed(() => {
+  if (props.source === 'screen') {
+    const parts = [displayName.value, t('voice.live')];
+    if (locallyMuted.value) parts.push(t('voice.streamMutedByYou'));
+    if (showQualityWarning.value) parts.push(t(`voice.quality.${quality.value}`));
+    return parts.join(', ');
+  }
+  const label = participantLabel(t, displayName.value, {
+    self: isSelf.value,
+    muted: effectiveMuted.value,
+    deafened: effectiveDeafened.value,
+    camera: liveState.value.isVideoEnabled,
+    streaming: liveState.value.isScreenSharing,
+    speaking: speakingHeld.value,
+    mutedByYou: locallyMuted.value,
+  });
+  return showQualityWarning.value ? `${label}, ${t(`voice.quality.${quality.value}`)}` : label;
+});
+
 const togglePIP = () => {
   if (isPIPActive.value) {
     voiceStore.togglePIP(null);
@@ -337,6 +358,8 @@ const onTileClick = () => {
 };
 
 const openMenuAt = (x: number, y: number) => {
+  const active = document.activeElement;
+  menuOpener = active instanceof HTMLElement && active !== document.body ? active : null;
   contextMenuPosition.value = { x, y };
   showContextMenu.value = true;
 };
@@ -356,8 +379,13 @@ const openMenuFromKeyboard = (event: KeyboardEvent) => {
   openMenuAt(rect.left + rect.width / 2, rect.top + rect.height / 2);
 };
 
+let menuOpener: HTMLElement | null = null;
+
 const closeMenu = () => {
   showContextMenu.value = false;
+  const opener = menuOpener;
+  menuOpener = null;
+  void nextTick(() => restoreFocusIfLost(opener));
 };
 
 // VIDEO ATTACHMENT
@@ -560,18 +588,18 @@ onBeforeUnmount(detach);
 }
 
 .pill-icon.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .pill-icon.live {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .pill-live-badge {
   flex-shrink: 0;
   padding: 1px 5px;
   border-radius: var(--radius-sm);
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   font-size: 10px;
   font-weight: 700;
@@ -588,7 +616,7 @@ onBeforeUnmount(detach);
   height: 24px;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.65);
-  color: var(--error);
+  color: var(--text-danger);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -704,7 +732,7 @@ onBeforeUnmount(detach);
   padding: 8px 16px;
   border: none;
   border-radius: var(--radius-full);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font: inherit;
   font-size: var(--font-size-sm);

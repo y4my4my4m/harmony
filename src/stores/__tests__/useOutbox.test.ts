@@ -588,3 +588,32 @@ describe('outbox text parsing', () => {
     expect(chatStore.sendMessage).not.toHaveBeenCalled()
   })
 })
+
+describe('outbox image descriptions', () => {
+  it('carries an attachment\'s description to the pending row and the sent file part', async () => {
+    const outbox = useOutboxStore()
+    outbox.enqueue({
+      target: channelTarget,
+      authorId: PROFILE,
+      uploaderId: UID,
+      textParts: [],
+      attachments: [
+        { ...attachment('sunset.png'), altText: '  A red sunset over the harbour  ' },
+        { ...attachment('plain.png') },
+      ],
+    })
+    await flushPromises()
+
+    const [row] = outbox.rowsFor(CHANNEL_KEY)
+    const pending = row.content as Array<{ fileName?: string; altText?: string }>
+    expect(pending.find((part) => part.fileName === 'sunset.png')?.altText).toBe('A red sunset over the harbour')
+    expect(pending.find((part) => part.fileName === 'plain.png')).not.toHaveProperty('altText')
+
+    for (const xhr of FakeXHR.instances) xhr.respond(200, { Key: 'message_media/x' })
+    await flushPromises()
+
+    const sent = chatStore.sendMessage.mock.calls[0][3] as Array<{ fileName?: string; altText?: string }>
+    expect(sent.find((part) => part.fileName === 'sunset.png')?.altText).toBe('A red sunset over the harbour')
+    expect(sent.find((part) => part.fileName === 'plain.png')).not.toHaveProperty('altText')
+  })
+})

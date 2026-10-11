@@ -28,12 +28,15 @@
         <button
           v-for="action in testActions"
           :key="action.id"
+          type="button"
           @click="testSound(action.id)"
           :class="['sound-test-btn', action.category]"
           :disabled="!themeStore.isReady"
+          :aria-label="$t('settings.audio.playSound', { sound: $t(action.labelKey) })"
+          :data-testid="`sound-test-${action.id}`"
         >
           <Icon :name="action.icon" />
-          <span>{{ action.label }}</span>
+          <span>{{ $t(action.labelKey) }}</span>
         </button>
       </div>
     </div>
@@ -55,7 +58,7 @@
     </div>
 
     <!-- Advanced Settings -->
-    <div class="settings-section advanced-section" v-if="showAdvanced">
+    <div v-if="showAdvanced" id="audio-theme-advanced" class="settings-section advanced-section">
       <h3 class="section-title">{{ $t('settings.advanced.title') }}</h3>
       
       <div class="setting-item">
@@ -106,9 +109,15 @@
 
     <!-- Toggle Advanced -->
     <div class="advanced-toggle">
-      <button @click="showAdvanced = !showAdvanced" class="toggle-btn">
+      <button
+        type="button"
+        class="toggle-btn"
+        :aria-expanded="showAdvanced ? 'true' : 'false'"
+        :aria-controls="showAdvanced ? 'audio-theme-advanced' : undefined"
+        @click="showAdvanced = !showAdvanced"
+      >
         <Icon :name="showAdvanced ? 'chevron-up' : 'chevron-down'" />
-        {{ showAdvanced ? 'Hide' : 'Show' }} {{ $t('settings.advanced.title') }}
+        {{ $t('settings.advanced.title') }}
       </button>
     </div>
   </div>
@@ -135,14 +144,14 @@ const isExportingPack = ref(false)
 
 // Test actions for sound preview
 const testActions = [
-  { id: 'mention', label: 'Mention', icon: 'at-sign', category: 'notification' },
-  { id: 'dm', label: 'Message', icon: 'message-circle', category: 'notification' },
-  { id: 'reaction', label: 'Reaction', icon: 'heart', category: 'notification' },
-  { id: 'voice_connect', label: 'Voice join', icon: 'phone', category: 'voice' },
-  { id: 'voice_disconnect', label: 'Voice leave', icon: 'phone-off', category: 'voice' },
-  { id: 'ui_success', label: 'Success', icon: 'check-circle', category: 'ui' },
-  { id: 'ui_error', label: 'Error', icon: 'alert-circle', category: 'ui' },
-  { id: 'ui_click', label: 'Click', icon: 'mouse-pointer', category: 'ui' }
+  { id: 'mention', labelKey: 'settings.audio.sounds.mention', icon: 'at-sign', category: 'notification' },
+  { id: 'dm', labelKey: 'settings.audio.sounds.message', icon: 'message-circle', category: 'notification' },
+  { id: 'reaction', labelKey: 'settings.audio.sounds.reaction', icon: 'heart', category: 'notification' },
+  { id: 'voice_connect', labelKey: 'settings.audio.sounds.voiceJoin', icon: 'phone', category: 'voice' },
+  { id: 'voice_disconnect', labelKey: 'settings.audio.sounds.voiceLeave', icon: 'phone-off', category: 'voice' },
+  { id: 'ui_success', labelKey: 'settings.audio.sounds.success', icon: 'check-circle', category: 'ui' },
+  { id: 'ui_error', labelKey: 'settings.audio.sounds.error', icon: 'alert-circle', category: 'ui' },
+  { id: 'ui_click', labelKey: 'settings.audio.sounds.click', icon: 'mouse-pointer', category: 'ui' }
 ] as const
 
 // COMPUTED
@@ -338,7 +347,7 @@ onMounted(async () => {
 }
 
 .current-theme-card {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-radius: var(--radius-lg);
   padding: 24px;
   display: flex;
@@ -537,7 +546,7 @@ onMounted(async () => {
 }
 
 .active-icon {
-  color: var(--h-brand);
+  color: var(--text-link);
   width: 18px;
   height: 18px;
 }
@@ -589,7 +598,7 @@ onMounted(async () => {
 
 .test-theme-btn:hover:not(:disabled) {
   border-color: var(--h-brand);
-  color: var(--h-brand);
+  color: var(--text-link);
 }
 
 .test-theme-btn:disabled {
@@ -715,7 +724,7 @@ onMounted(async () => {
   border: 1px solid var(--error);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
-  color: var(--error);
+  color: var(--text-danger);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   cursor: pointer;

@@ -4,19 +4,21 @@
     <div
       v-if="show && !isMinimized"
       class="incoming-call-overlay"
-      @click.self="isMinimized = true"
-      @keydown.esc.stop.prevent="isMinimized = true"
+      @click.self="minimize"
     >
       <div
+        ref="modalRef"
         class="incoming-call-modal"
         :class="{ 'video-call': callType === 'video' }"
         role="alertdialog"
         aria-modal="true"
-        aria-labelledby="incoming-call-title"
-        aria-describedby="incoming-call-subtitle"
+        :aria-labelledby="titleId"
+        :aria-describedby="descriptionId"
+        tabindex="-1"
+        data-testid="incoming-call-modal"
       >
-        <button class="minimize-btn" title="Minimize" @click="isMinimized = true">
-          <Icon name="minimize-2" :size="16" />
+        <button type="button" class="minimize-btn" :title="t('dm.callMinimize')" :aria-label="t('dm.callMinimize')" @click="minimize">
+          <Icon name="minimize-2" :size="16" aria-hidden="true" />
         </button>
 
         <!-- Caller Info -->
@@ -24,30 +26,29 @@
           <div class="caller-avatar-container">
             <Avatar
               :src="callerAvatar"
-              :alt="callerName"
+              alt=""
               size="lg"
               class="caller-avatar"
             />
-            <div class="call-type-indicator">
+            <div class="call-type-indicator" aria-hidden="true">
               <Icon :name="callType === 'video' ? 'video' : 'phone'" :size="24" />
             </div>
           </div>
 
-          <h2 id="incoming-call-title" class="caller-name">
+          <h2 :id="titleId" class="caller-name">
             <template v-if="groupName">{{ groupName }}</template>
             <DisplayName v-else :user-id="callerId" :fallback="callerName" />
           </h2>
-          <p id="incoming-call-subtitle" class="call-type-text">
+          <p :id="descriptionId" class="call-type-text">
             <template v-if="groupName">
-              <DisplayName :user-id="callerId" :fallback="callerName" />
-              {{ callType === 'video' ? 'started a video call' : 'started a voice call' }}
+              {{ t(callType === 'video' ? 'dm.groupVideoCallFrom' : 'dm.groupVoiceCallFrom', { name: callerName }) }}
             </template>
             <template v-else>
-              {{ callType === 'video' ? 'Incoming video call' : 'Incoming voice call' }}
+              {{ callType === 'video' ? t('dm.incomingVideoCall') : t('dm.incomingVoiceCall') }}
             </template>
           </p>
 
-          <div class="ringing-text">
+          <div class="ringing-text" aria-hidden="true">
             <span class="dot"></span>
             <span class="dot"></span>
             <span class="dot"></span>
@@ -57,32 +58,36 @@
         <!-- Call Actions -->
         <div class="call-actions">
           <button
+            type="button"
             @click="handleDecline"
             class="call-btn decline-btn"
-            title="Decline"
+            data-testid="incoming-call-decline"
           >
-            <Icon name="phone-off" :size="24" />
-            <span>Decline</span>
+            <Icon name="phone-off" :size="24" aria-hidden="true" />
+            <span>{{ t('dm.callDecline') }}</span>
           </button>
 
           <button
             ref="acceptButtonRef"
+            type="button"
             @click="handleAccept('voice')"
             class="call-btn accept-btn voice-accept"
-            title="Accept voice call"
+            :title="t('dm.callAcceptVoice')"
+            data-testid="incoming-call-accept"
           >
-            <Icon name="phone" :size="24" />
-            <span>Accept</span>
+            <Icon name="phone" :size="24" aria-hidden="true" />
+            <span>{{ t('dm.callAccept') }}</span>
           </button>
 
           <button
             v-if="callType === 'video'"
+            type="button"
             @click="handleAccept('video')"
             class="call-btn accept-btn video-accept"
-            title="Accept with video"
+            :title="t('dm.callAcceptVideo')"
           >
-            <Icon name="video" :size="24" />
-            <span>Video</span>
+            <Icon name="video" :size="24" aria-hidden="true" />
+            <span>{{ t('dm.callVideo') }}</span>
           </button>
         </div>
       </div>
@@ -91,32 +96,39 @@
     <!-- Minimized floating card: keeps ringing without blocking the app -->
     <div
       v-if="show && isMinimized"
+      ref="miniRef"
       class="incoming-call-mini"
       role="alertdialog"
-      aria-labelledby="incoming-call-mini-name"
-      @click="isMinimized = false"
+      :aria-labelledby="`${titleId}-mini`"
+      :aria-describedby="`${descriptionId}-mini`"
+      tabindex="-1"
+      data-testid="incoming-call-mini"
+      @click="expand"
     >
       <Avatar
         :src="callerAvatar"
-        :alt="callerName"
+        alt=""
         size="sm"
         class="mini-avatar"
       />
       <div class="mini-info">
-        <span id="incoming-call-mini-name" class="mini-name">
+        <span :id="`${titleId}-mini`" class="mini-name">
           <template v-if="groupName">{{ groupName }}</template>
           <DisplayName v-else :user-id="callerId" :fallback="callerName" />
         </span>
-        <span class="mini-subtitle">
-          {{ callType === 'video' ? 'Incoming video call' : 'Incoming call' }}
+        <span :id="`${descriptionId}-mini`" class="mini-subtitle">
+          {{ callType === 'video' ? t('dm.incomingVideoCall') : t('dm.incomingVoiceCall') }}
         </span>
       </div>
       <div class="mini-actions" @click.stop>
-        <button class="mini-btn mini-decline" title="Decline" @click="handleDecline">
-          <Icon name="phone-off" :size="16" />
+        <button type="button" class="mini-btn mini-expand" :title="t('dm.callExpand')" :aria-label="t('dm.callExpand')" @click="expand">
+          <Icon name="maximize-2" :size="16" aria-hidden="true" />
         </button>
-        <button class="mini-btn mini-accept" title="Accept" @click="handleAccept(callType)">
-          <Icon :name="callType === 'video' ? 'video' : 'phone'" :size="16" />
+        <button type="button" class="mini-btn mini-decline" :title="t('dm.callDecline')" :aria-label="t('dm.callDecline')" data-testid="incoming-call-mini-decline" @click="handleDecline">
+          <Icon name="phone-off" :size="16" aria-hidden="true" />
+        </button>
+        <button type="button" class="mini-btn mini-accept" :title="t('dm.callAccept')" :aria-label="t('dm.callAccept')" @click="handleAccept(callType)">
+          <Icon :name="callType === 'video' ? 'video' : 'phone'" :size="16" aria-hidden="true" />
         </button>
       </div>
     </div>
@@ -125,6 +137,10 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch, onUnmounted } from 'vue'
+import { useDialog } from '@/composables/useDialog'
+import { useT } from '@/composables/useT'
+import { currentFocusOrigin, focusElement, focusProgrammatically } from '@/utils/a11y/focus'
+import { restoreFocusIfLost } from '@/components/voice/voiceFocus'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
@@ -147,10 +163,35 @@ const emit = defineEmits<{
   decline: []
 }>()
 
+const { t } = useT()
 const themeStore = useThemeStore()
 const dmStore = useDMStore()
 const isMinimized = ref(false)
 const acceptButtonRef = ref<HTMLButtonElement | null>(null)
+const modalRef = ref<HTMLElement | null>(null)
+const miniRef = ref<HTMLElement | null>(null)
+
+// Focus is managed here rather than restored by useDialog: minimizing moves it
+// to the card, and only the end of the call returns it to where it was.
+const { titleId, descriptionId } = useDialog({
+  open: () => props.show && !isMinimized.value,
+  element: modalRef,
+  onClose: () => minimize(),
+  initialFocus: () => acceptButtonRef.value,
+  returnFocus: false,
+})
+
+let focusBeforeCall: HTMLElement | null = null
+
+const minimize = async () => {
+  isMinimized.value = true
+  await nextTick()
+  focusProgrammatically(miniRef.value)
+}
+
+const expand = () => {
+  isMinimized.value = false
+}
 
 // Group DMs name the group; the caller moves to the subtitle (Discord).
 const groupName = computed(() => {
@@ -177,21 +218,25 @@ const stopRingtone = () => {
   }
 }
 
-// Watch for modal showing/hiding
-watch(() => props.show, (isShowing) => {
+watch(() => props.show, async (isShowing, wasShowing) => {
   if (isShowing) {
+    if (!wasShowing) focusBeforeCall = currentFocusOrigin()
     isMinimized.value = false
     startRingtone()
   } else {
     stopRingtone()
+    const target = focusBeforeCall
+    focusBeforeCall = null
+    await nextTick()
+    restoreFocusIfLost(target)
   }
-}, { immediate: true })
+}, { immediate: true, flush: 'sync' })
 
 // Keyboard users land on Accept; Esc minimizes.
 watch(() => props.show && !isMinimized.value, async (visible) => {
   if (!visible) return
   await nextTick()
-  acceptButtonRef.value?.focus()
+  focusElement(acceptButtonRef.value)
 })
 
 onUnmounted(() => {
@@ -341,7 +386,7 @@ const handleDecline = () => {
   right: -5px;
   width: 48px;
   height: 48px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: 4px solid var(--background-primary);
   border-radius: 50%;
   display: flex;
@@ -410,13 +455,14 @@ const handleDecline = () => {
   min-width: 90px;
 }
 
+/* --error under white text is 3.7:1; the hover shade is 5.3:1 (WCAG AA). */
 .decline-btn {
-  background: var(--error);
+  background: var(--error-hover);
   color: var(--text-on-primary);
 }
 
 .decline-btn:hover {
-  background: var(--error-hover);
+  background: color-mix(in srgb, var(--error-hover) 85%, black);
 }
 
 .accept-btn {
@@ -496,6 +542,24 @@ const handleDecline = () => {
   align-items: center;
   justify-content: center;
   transition: background-color 0.15s ease;
+}
+
+.mini-expand {
+  background: var(--background-modifier-active);
+  color: var(--text-primary);
+}
+
+.mini-expand:hover {
+  background: var(--background-modifier-hover);
+}
+
+.incoming-call-mini:focus {
+  outline: none;
+}
+
+.incoming-call-mini:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .mini-decline {

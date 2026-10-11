@@ -1,30 +1,28 @@
 <!-- UserCard - Display federated user information with actions -->
 <template>
   <div class="user-card" :class="{ compact: isCompact, 'has-corner-badge': showRemoteInstanceBadge }">
-    <!-- User Avatar and Basic Info -->
-    <div
-      class="user-info"
-      role="link"
-      tabindex="0"
-      @click="handleUserClick"
-      @keydown.enter="handleUserClick"
-    >
+    <!-- The name button is the keyboard and screen-reader way in; the rest of the
+         block is a larger pointer target for the same action. Bio links stay
+         outside any interactive role. -->
+    <div class="user-info" @click="handleUserClick">
       <Avatar 
         :src="user.avatar_url" 
-        :alt="user.display_name"
+        alt=""
         class="user-avatar"
       />
       
       <div class="user-details">
         <div class="user-name-row">
-          <DisplayName class="user-name" :userId="user.id" :fallback="user.display_name || user.username" />
-          <span v-if="user.is_admin" class="instance-badge admin" title="Instance admin">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-            Admin
+          <button type="button" class="user-name-btn" data-testid="user-card-open" @click.stop="handleUserClick">
+            <DisplayName class="user-name" :userId="user.id" :fallback="user.display_name || user.username" />
+          </button>
+          <span v-if="user.is_admin" class="instance-badge admin" :title="t('activitypub.instanceAdmin')">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+            {{ t('activitypub.adminBadge') }}
           </span>
-          <span v-else-if="user.is_moderator" class="instance-badge mod" title="Instance moderator">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-            Mod
+          <span v-else-if="user.is_moderator" class="instance-badge mod" :title="t('activitypub.instanceModerator')">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+            {{ t('activitypub.modBadge') }}
           </span>
           <SupporterBadge v-if="user.id" :user-id="user.id" />
         </div>
@@ -53,8 +51,10 @@
       <!-- Follow/Unfollow Button -->
       <button
         v-if="showFollowBtn && !isCurrentUser"
+        type="button"
         @click="handleFollowToggle"
         :disabled="getLoadingState().follow"
+        :aria-label="followButtonLabel"
         :class="['follow-btn', { following: isFollowing || followRequested, loading: getLoadingState().follow }]"
       >
         <Icon v-if="getLoadingState().follow" name="loader" class="spinning" />
@@ -66,48 +66,45 @@
       <!-- More Actions Menu -->
       <div v-if="showMoreActions" class="more-actions">
         <button
-          @click="showActionsMenu = !showActionsMenu"
+          ref="moreBtnRef"
+          type="button"
           class="more-btn"
-          title="More actions"
+          :aria-label="t('activitypub.followA11y.moreFor', { name: personName })"
+          :title="t('activitypub.moreOptions')"
+          aria-haspopup="menu"
+          :aria-expanded="showActionsMenu"
+          :aria-controls="showActionsMenu ? menuId : undefined"
+          @click="showActionsMenu = !showActionsMenu"
+          @keydown="onMenuTriggerKeydown"
         >
           <Icon name="more-horizontal" />
         </button>
-        
-        <div v-if="showActionsMenu" class="actions-menu">
-          <button
-            @click="handleMention"
-            class="action-item"
-          >
+
+        <SocialMenu
+          v-if="showActionsMenu"
+          :id="menuId"
+          :anchor="moreBtnRef"
+          :label="t('activitypub.followA11y.moreFor', { name: personName })"
+          :initial-focus="menuInitialFocus"
+          @close="showActionsMenu = false"
+        >
+          <button type="button" role="menuitem" class="social-menu-item" @click="handleMention">
             <Icon name="at-sign" />
-            <span>Mention</span>
+            <span>{{ t('activitypub.profileA11y.mention') }}</span>
           </button>
-          
-          <button
-            @click="handleMute"
-            class="action-item"
-            :class="{ active: isMuted }"
-          >
+          <button type="button" role="menuitem" class="social-menu-item" @click="handleMute">
             <Icon name="volume-x" />
-            <span>{{ isMuted ? 'Unmute' : 'Mute' }}</span>
+            <span>{{ isMuted ? t('activitypub.profileA11y.unmute') : t('activitypub.profileA11y.mute') }}</span>
           </button>
-          
-          <button
-            @click="handleBlock"
-            class="action-item danger"
-            :class="{ active: isBlocked }"
-          >
+          <button type="button" role="menuitem" class="social-menu-item danger" @click="handleBlock">
             <Icon name="user-x" />
-            <span>{{ isBlocked ? 'Unblock' : 'Block' }}</span>
+            <span>{{ isBlocked ? t('activitypub.profileA11y.unblock') : t('activitypub.profileA11y.block') }}</span>
           </button>
-          
-          <button
-            @click="handleReport"
-            class="action-item danger"
-          >
+          <button type="button" role="menuitem" class="social-menu-item danger" @click="handleReport">
             <Icon name="flag" />
-            <span>Report</span>
+            <span>{{ t('activitypub.profileA11y.report') }}</span>
           </button>
-        </div>
+        </SocialMenu>
       </div>
     </div>
 
@@ -130,7 +127,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
+import { computed, ref } from 'vue';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
 import { useActivityPubStore } from '@/stores/useActivityPub';
@@ -145,6 +142,9 @@ import SupporterBadge from '@/components/common/SupporterBadge.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import RemoteInstanceBadge from '@/components/common/RemoteInstanceBadge.vue';
 import { parseDisplayNameOrBioForDisplay } from '@/utils/mentionUtils';
+import { plainDisplayName } from '@/utils/plainDisplayName';
+import { useMenuButton } from '@/composables/useMenu';
+import SocialMenu from './SocialMenu.vue';
 
 const { t } = useI18n();
 // Props
@@ -187,6 +187,8 @@ const { toggleFollow, getLoadingState } = usePostInteractions();
 
 // State
 const showActionsMenu = ref(false);
+const moreBtnRef = ref<HTMLElement | null>(null);
+const { menuId, onTriggerKeydown: onMenuTriggerKeydown, initialFocus: menuInitialFocus } = useMenuButton(showActionsMenu);
 const followInProgress = ref(false);
 // Pending request to a locked or remote account, set from the answer to a follow sent here.
 const followRequested = ref(false);
@@ -217,6 +219,16 @@ const followButtonText = computed(() => {
   if (getLoadingState().follow) return t('common.loading');
   if (isFollowing.value) return t('activitypub.following');
   return followRequested.value ? t('activitypub.requested') : t('activitypub.follow');
+});
+
+const personName = computed(() => plainDisplayName(props.user.display_name, props.user.username));
+
+// Starts with the visible label, then names the account and what activating does.
+const followButtonLabel = computed(() => {
+  if (getLoadingState().follow) return t('common.loading');
+  if (isFollowing.value) return t('activitypub.profileA11y.followingUnfollow', { handle: handle.value });
+  if (followRequested.value) return t('activitypub.profileA11y.requestedCancel', { handle: handle.value });
+  return t('activitypub.followUser', { handle: handle.value });
 });
 
 const bioHtml = computed(() => parseDisplayNameOrBioForDisplay(props.user.bio, ''));
@@ -305,23 +317,6 @@ const handleReport = () => {
   showReportModal.value = true;
 };
 
-const handleClickOutside = (event: Event) => {
-  if (showActionsMenu.value) {
-    const target = event.target as Element;
-    if (!target.closest('.more-actions')) {
-      showActionsMenu.value = false;
-    }
-  }
-};
-
-onMounted(() => {
-  document.addEventListener('click', handleClickOutside);
-});
-
-onBeforeUnmount(() => {
-  document.removeEventListener('click', handleClickOutside);
-});
-
 </script>
 
 <style scoped>
@@ -333,11 +328,6 @@ onBeforeUnmount(() => {
   transition: border-color var(--transition-fast);
   position: relative;
   z-index: 1;
-}
-
-/* When menu is open, raise the card above others */
-.user-card:has(.actions-menu) {
-  z-index: 100;
 }
 
 .user-card:hover {
@@ -377,6 +367,28 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
+.user-name-btn {
+  display: inline-flex;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.user-name-btn:hover .user-name {
+  text-decoration: underline;
+}
+
+.user-name-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 .user-name {
   display: flex;
   align-items: center;
@@ -394,7 +406,7 @@ onBeforeUnmount(() => {
 }
 
 .verified-icon {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   flex-shrink: 0;
 }
 
@@ -441,7 +453,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: var(--h-brand, var(--harmony-primary));
+  background: var(--harmony-primary-fill);
   border: none;
   border-radius: var(--radius-base);
   color: var(--text-on-primary);
@@ -454,19 +466,19 @@ onBeforeUnmount(() => {
 }
 
 .follow-btn:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .follow-btn.following {
   background: transparent;
   border: 1px solid var(--h-brand, var(--harmony-primary));
-  color: var(--h-brand, var(--harmony-primary));
+  color: var(--text-link, var(--harmony-primary));
 }
 
 .follow-btn.following:hover:not(:disabled) {
   background: color-mix(in srgb, var(--error) 10%, transparent);
   border-color: var(--error);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .follow-btn:disabled {
@@ -495,65 +507,6 @@ onBeforeUnmount(() => {
 .more-btn:hover {
   background: var(--background-modifier-selected);
   color: var(--text-primary);
-}
-
-:deep(.actions-menu) {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  width: 180px;
-  background: var(--background-floating);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
-  padding: 0.5rem;
-  z-index: 9999;
-  margin-top: 0.5rem;
-  box-shadow: var(--shadow-large);
-}
-
-.actions-menu {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  width: 180px;
-  background: var(--background-floating);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
-  padding: 0.5rem;
-  z-index: 9999;
-  margin-top: 0.5rem;
-  box-shadow: var(--shadow-large);
-}
-
-.action-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  width: 100%;
-  background: none;
-  border: none;
-  color: var(--text-primary);
-  padding: 0.75rem;
-  border-radius: var(--radius-base);
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.2s;
-}
-
-.action-item:hover {
-  background: var(--background-modifier-hover);
-}
-
-.action-item.active {
-  color: var(--h-brand, var(--harmony-primary));
-}
-
-.action-item.danger {
-  color: var(--error);
-}
-
-.action-item.danger:hover {
-  background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
 .user-card.has-corner-badge {
@@ -615,10 +568,6 @@ onBeforeUnmount(() => {
   .user-stats {
     flex-direction: column;
     gap: 0.25rem;
-  }
-  
-  .actions-menu {
-    width: 160px;
   }
 }
 </style>

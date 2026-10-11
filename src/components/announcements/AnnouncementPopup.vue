@@ -1,15 +1,22 @@
 <template>
   <Teleport to="body">
     <div v-if="announcements.length > 0" class="announcement-overlay" data-testid="announcement-overlay" @click.self="dismiss">
-      <div class="announcement-popup">
+      <div
+        ref="dialogEl"
+        class="announcement-popup"
+        role="dialog"
+        aria-modal="true"
+        :aria-labelledby="titleId"
+        tabindex="-1"
+      >
         <div class="popup-header">
           <div class="header-title">
-            <Icon name="megaphone" size="md" class="header-icon" />
-            <h2>{{ $t('announcements.title', 'Announcements') }}</h2>
+            <Icon name="megaphone" size="md" class="header-icon" aria-hidden="true" />
+            <h2 :id="titleId">{{ $t('announcements.title', 'Announcements') }}</h2>
             <span class="unread-badge" v-if="announcements.length > 1">{{ announcements.length }}</span>
           </div>
-          <button @click="dismiss" class="close-btn">
-            <svg width="20" height="20" viewBox="0 0 24 24">
+          <button type="button" @click="dismiss" class="close-btn" :aria-label="$t('common.close')" :title="$t('common.close')">
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
               <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
             </svg>
           </button>
@@ -23,16 +30,16 @@
             :class="{ pinned: announcement.is_pinned }"
           >
             <div class="card-header">
-              <Icon :name="getIconName(announcement.icon)" size="sm" class="announcement-icon" />
+              <Icon :name="getIconName(announcement.icon)" size="sm" class="announcement-icon" aria-hidden="true" />
               <h3 class="announcement-title">{{ announcement.title }}</h3>
-              <span v-if="announcement.is_pinned" class="pin-badge">Pinned</span>
+              <span v-if="announcement.is_pinned" class="pin-badge">{{ $t('a11y.announcements.pinned') }}</span>
             </div>
             <div class="announcement-content" v-html="sanitizeContent(announcement.content)"></div>
             <img
               v-if="announcement.image_url"
               :src="announcement.image_url"
               class="announcement-image"
-              alt="Announcement image"
+              alt=""
             />
             <div class="card-footer">
               <span class="announcement-date">{{ formatDate(announcement.created_at) }}</span>
@@ -44,7 +51,7 @@
                 />
                 <template v-else>{{ announcement.author_display_name }}</template>
               </span>
-              <button @click="markRead(announcement.id)" class="mark-read-btn" data-testid="announcement-mark-read">
+              <button type="button" @click="markRead(announcement.id)" class="mark-read-btn" data-testid="announcement-mark-read">
                 {{ $t('announcements.markRead', 'Mark as read') }}
               </button>
             </div>
@@ -54,6 +61,7 @@
         <div class="popup-footer">
           <button
             v-if="announcements.length > 1"
+            type="button"
             @click="markAllRead"
             class="mark-all-btn"
             data-testid="announcement-mark-all-read"
@@ -76,6 +84,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useDialog } from '@/composables/useDialog'
 import { useRouter } from 'vue-router'
 import { renderAnnouncementHtml } from '@/utils/announcementContent'
 import { announcementService, type Announcement } from '@/services/AnnouncementService'
@@ -86,6 +95,14 @@ import Icon from '@/components/common/Icon.vue'
 const router = useRouter()
 
 const announcements = ref<Announcement[]>([])
+
+const dialogEl = ref<HTMLElement | null>(null)
+// Opens after sign-in on its own: focus moves in, Escape dismisses.
+const { titleId } = useDialog({
+  open: () => announcements.value.length > 0,
+  element: dialogEl,
+  onClose: () => dismiss(),
+})
 
 const sanitizeContent = renderAnnouncementHtml
 
@@ -196,7 +213,7 @@ onMounted(async () => {
 }
 
 .unread-badge {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   padding: 2px 8px;
   border-radius: var(--radius-full);
@@ -260,7 +277,7 @@ onMounted(async () => {
 }
 
 .pin-badge {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   padding: 2px 8px;
   border-radius: var(--radius-sm);
@@ -324,7 +341,7 @@ onMounted(async () => {
 }
 
 .mark-all-btn {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border: none;
   padding: 8px 20px;
@@ -334,7 +351,7 @@ onMounted(async () => {
 }
 
 .mark-all-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .view-past-btn {

@@ -8,6 +8,9 @@
       'panel-dragging': isPanelDragging
     }"
     :style="getPanelStyle()"
+    role="dialog"
+    :aria-labelledby="`${idBase}-title`"
+    data-testid="spatial-audio-panel"
   >
     <!-- Panel Header (drag handle) -->
     <div 
@@ -16,42 +19,50 @@
       @touchstart.passive="handlePanelTouchStart"
     >
       <div class="header-left">
-        <div class="panel-icon">
+        <div class="panel-icon" aria-hidden="true">
           <Icon name="audio-lines" />
         </div>
         <div class="panel-title">
-          <h3>Spatial audio</h3>
-          <p>{{ allParticipants.length }} participant{{ allParticipants.length !== 1 ? 's' : '' }}</p>
+          <h3 :id="`${idBase}-title`">{{ t('voice.spatialAudio') }}</h3>
+          <p>{{ t('voice.participantCount', { count: allParticipants.length }, allParticipants.length) }}</p>
         </div>
       </div>
       
       <div class="header-controls">
         <!-- Spatial Audio Toggle -->
         <button
+          type="button"
           @click="spatialStore.toggleSpatialAudio()"
           :class="['control-btn', 'toggle-btn', { active: spatialStore.settings.enabled }]"
-          :title="spatialStore.settings.enabled ? 'Disable spatial audio' : 'Enable spatial audio'"
+          :title="t('voice.spatialAudio')"
+          :aria-pressed="spatialStore.settings.enabled"
         >
-          <Icon :name="spatialStore.settings.enabled ? 'volume-spatial' : 'volume-off'" />
-          <span>{{ spatialStore.settings.enabled ? 'On' : 'Off' }}</span>
+          <Icon :name="spatialStore.settings.enabled ? 'volume-spatial' : 'volume-off'" aria-hidden="true" />
+          <span class="sr-only">{{ t('voice.spatialAudio') }} </span>
+          <span>{{ spatialStore.settings.enabled ? t('voice.spatialOn') : t('voice.spatialOff') }}</span>
         </button>
         
         <!-- Settings -->
         <button
+          type="button"
           @click="toggleSettings"
           :class="['control-btn', 'settings-btn', { active: showSettings }]"
-          title="Spatial audio settings"
+          :title="t('voice.spatialSettings')"
+          :aria-label="t('voice.spatialSettings')"
+          :aria-expanded="showSettings"
         >
-          <Icon name="settings" />
+          <Icon name="settings" aria-hidden="true" />
         </button>
         
         <!-- Close Panel -->
         <button
+          type="button"
           @click="spatialStore.hidePanel()"
           class="control-btn close-btn"
-          title="Close"
+          :title="t('common.close')"
+          :aria-label="t('common.close')"
         >
-          <Icon name="x" />
+          <Icon name="x" aria-hidden="true" />
         </button>
       </div>
     </div>
@@ -60,8 +71,9 @@
     <div v-if="showSettings" class="settings-panel">
       <div class="settings-grid">
         <div class="setting-group">
-          <label>Max distance</label>
+          <label :for="`${idBase}-max`">{{ t('voice.spatialMaxDistance') }}</label>
           <input
+            :id="`${idBase}-max`"
             v-model.number="localSettings.maxDistance"
             type="range"
             min="50"
@@ -74,8 +86,9 @@
         </div>
         
         <div class="setting-group">
-          <label>Rolloff factor</label>
+          <label :for="`${idBase}-rolloff`">{{ t('voice.spatialRolloff') }}</label>
           <input
+            :id="`${idBase}-rolloff`"
             v-model.number="localSettings.rolloffFactor"
             type="range"
             min="0.1"
@@ -88,8 +101,8 @@
         </div>
         
         <div class="setting-group">
-          <label>Distance model</label>
-          <select v-model="localSettings.distanceModel" @change="updateSettings" class="select-input">
+          <label :for="`${idBase}-distance-model`">{{ t('voice.spatialDistanceModel') }}</label>
+          <select :id="`${idBase}-distance-model`" v-model="localSettings.distanceModel" @change="updateSettings" class="select-input">
             <option value="linear">Linear</option>
             <option value="inverse">Inverse</option>
             <option value="exponential">Exponential</option>
@@ -97,8 +110,8 @@
         </div>
         
         <div class="setting-group">
-          <label>Panning model</label>
-          <select v-model="localSettings.panningModel" @change="updateSettings" class="select-input">
+          <label :for="`${idBase}-panning-model`">{{ t('voice.spatialPanningModel') }}</label>
+          <select :id="`${idBase}-panning-model`" v-model="localSettings.panningModel" @change="updateSettings" class="select-input">
             <option value="equalpower">Equal power</option>
             <option value="HRTF">HRTF</option>
           </select>
@@ -112,14 +125,15 @@
               @change="updateSettings"
               class="checkbox-input"
             />
-            <span class="checkbox-custom"></span>
-            Enable reverb
+            <span class="checkbox-custom" aria-hidden="true"></span>
+            {{ t('voice.spatialReverb') }}
           </label>
         </div>
         
         <div v-if="localSettings.enableReverb" class="setting-group">
-          <label>Room size</label>
+          <label :for="`${idBase}-room`">{{ t('voice.spatialRoomSize') }}</label>
           <input
+            :id="`${idBase}-room`"
             v-model.number="localSettings.roomSize"
             type="range"
             min="0.1"
@@ -134,9 +148,13 @@
     </div>
 
     <!-- Main Grid Area -->
+    <p :id="`${idBase}-instructions`" class="sr-only">{{ t('voice.spatialInstructions') }}</p>
     <div 
       ref="gridContainer"
       class="spatial-grid"
+      role="application"
+      :aria-label="t('voice.spatialPositions')"
+      :aria-describedby="`${idBase}-instructions`"
       @mousedown="handleGridMouseDown"
       @mousemove="handleGridMouseMove"
       @mouseup="handleGridMouseUp"
@@ -150,9 +168,9 @@
       <div class="grid-background"></div>
       
       <!-- Center Indicator -->
-      <div class="center-indicator">
+      <div class="center-indicator" aria-hidden="true">
         <div class="center-dot"></div>
-        <span class="center-label">Center</span>
+        <span class="center-label">{{ t('voice.spatialCenter') }}</span>
       </div>
       
       <!-- User Avatars -->
@@ -167,6 +185,11 @@
           'spatial-disabled': !spatialStore.settings.enabled
         }"
         :style="getAvatarStyle(participant.userId)"
+        role="button"
+        tabindex="0"
+        :aria-label="avatarLabel(participant.userId)"
+        :data-testid="`spatial-avatar-${participant.userId}`"
+        @keydown="onAvatarKeydown($event, participant.userId)"
         @mousedown="handleAvatarMouseDown($event, participant.userId)"
         @touchstart.prevent="handleAvatarTouchStart($event, participant.userId)"
         @contextmenu.prevent="handleAvatarRightClick($event, participant.userId)"
@@ -175,7 +198,7 @@
         <div class="avatar-container">
           <Avatar
             :src="getUserProfile(participant.userId)?.avatar_url || '/default_avatar.webp'"
-            :alt="getUserProfile(participant.userId)?.display_name || 'User'"
+            alt=""
             class="avatar-image"
             draggable="false"
           />
@@ -185,7 +208,7 @@
         </div>
         
         <!-- Username Label -->
-        <div class="username-label">
+        <div class="username-label" aria-hidden="true">
           <DisplayName :userId="participant.userId" />
         </div>
         
@@ -193,6 +216,7 @@
         <div 
           v-if="participant.userId !== currentUserId && spatialStore.settings.enabled"
           class="distance-indicator"
+          aria-hidden="true"
         >
           {{ Math.round(getDistanceToSelf(participant.userId)) }}px
         </div>
@@ -201,6 +225,7 @@
       <!-- Distance Lines (when dragging) -->
       <svg 
         v-if="spatialStore.isDragging && spatialStore.settings.enabled"
+        aria-hidden="true"
         class="distance-lines"
         :width="gridSize.width"
         :height="gridSize.height"
@@ -231,40 +256,42 @@
     <div class="panel-footer">
       <div class="footer-info">
         <span v-if="showUpdatedMessage" class="status-updated">
-          <Icon name="check-circle" />
-          Updated
+          <Icon name="check-circle" aria-hidden="true" />
+          {{ t('voice.spatialUpdated') }}
         </span>
         <span v-else-if="isUpdatingSpatialAudio" class="status-updating">
-          <Icon name="refresh" />
-          Updating audio…
+          <Icon name="refresh" aria-hidden="true" />
+          {{ t('voice.spatialUpdating') }}
         </span>
         <span v-else-if="spatialStore.settings.enabled" class="status-enabled">
-          <Icon name="check-circle" />
-          Spatial audio active
+          <Icon name="check-circle" aria-hidden="true" />
+          {{ t('voice.spatialActive') }}
         </span>
         <span v-else class="status-disabled">
-          <Icon name="circle" />
-          Spatial audio disabled
+          <Icon name="circle" aria-hidden="true" />
+          {{ t('voice.spatialInactive') }}
         </span>
       </div>
       
       <div class="footer-actions">
         <button
+          type="button"
           @click="resetAllPositions"
           class="action-btn reset-btn"
-          title="Reset all positions"
+          :title="t('voice.spatialResetTitle')"
         >
-          <Icon name="refresh" />
-          Reset
+          <Icon name="refresh" aria-hidden="true" />
+          {{ t('voice.spatialReset') }}
         </button>
         
         <button
+          type="button"
           @click="randomizePositions"
           class="action-btn randomize-btn"
-          title="Randomize positions"
+          :title="t('voice.spatialRandomizeTitle')"
         >
-          <Icon name="shuffle" />
-          Randomize
+          <Icon name="shuffle" aria-hidden="true" />
+          {{ t('voice.spatialRandomize') }}
         </button>
       </div>
     </div>
@@ -283,6 +310,9 @@ import { spatialAudioService } from '@/services/spatialAudio';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '../common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
+import { useT } from '@/composables/useT';
+import { useAnnouncer } from '@/composables/useAnnouncer';
+import { uid } from '@/utils/a11y/focus';
 
 // PROPS & EMITS
 
@@ -303,6 +333,9 @@ const voiceStore = useUnifiedVoiceChannelStore();
 const authStore = useAuthStore();
 const { getUserProfile: getUnifiedUserProfile, ensureProfilesAvailable } = useUserData();
 
+const { t } = useT();
+const { polite } = useAnnouncer();
+const idBase = uid('spatial');
 const gridContainer = ref<HTMLElement | null>(null);
 const showSettings = ref(false);
 const gridSize = ref({ width: 600, height: 400 });
@@ -649,6 +682,47 @@ const stopSettingsUpdateTimer = () => {
   }
 };
 
+// KEYBOARD POSITIONING
+// Arrow keys move the focused participant; Shift moves farther. Same clamp as a drag.
+
+const KEY_STEP = 10;
+const KEY_STEP_LARGE = 40;
+const EDGE = 20;
+
+const participantName = (userId: string): string => {
+  const profile = getUserProfile(userId);
+  return profile.display_name || profile.username || t('voice.unknownUser');
+};
+
+const avatarLabel = (userId: string): string => {
+  const name = participantName(userId);
+  if (userId === currentUserId.value) return t('voice.spatialSelfLabel', { name });
+  if (!spatialStore.settings.enabled) return name;
+  return t('voice.spatialDistanceLabel', { name, distance: Math.round(getDistanceToSelf(userId)) });
+};
+
+const onAvatarKeydown = (event: KeyboardEvent, userId: string) => {
+  const step = event.shiftKey ? KEY_STEP_LARGE : KEY_STEP;
+  const delta: Record<string, [number, number]> = {
+    ArrowLeft: [-step, 0],
+    ArrowRight: [step, 0],
+    ArrowUp: [0, -step],
+    ArrowDown: [0, step],
+  };
+  const move = delta[event.key];
+  if (!move) return;
+  event.preventDefault();
+  const rect = gridContainer.value?.getBoundingClientRect();
+  // An unmeasured grid (0 px) clamps at the near edge only.
+  const clamp = (v: number, size: number) => Math.max(EDGE, size > 2 * EDGE ? Math.min(size - EDGE, v) : v);
+  const current = getPosition(userId);
+  const x = clamp(current.x + move[0], rect?.width ?? 0);
+  const y = clamp(current.y + move[1], rect?.height ?? 0);
+  spatialStore.setUserPosition(userId, x, y);
+  if (spatialStore.settings.enabled) spatialAudioService.updateSpatialEffects();
+  polite(avatarLabel(userId), { key: `spatial:${userId}`, dedupeMs: 0 });
+};
+
 const handleAvatarRightClick = (event: MouseEvent, userId: string) => {
   // Could show context menu for avatar-specific actions
   debug.log('Right clicked on user:', userId);
@@ -834,7 +908,7 @@ onUnmounted(() => {
 .panel-icon {
   width: 40px;
   height: 40px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -884,7 +958,7 @@ onUnmounted(() => {
 }
 
 .control-btn.active {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border-color: var(--harmony-primary);
 }
@@ -895,7 +969,7 @@ onUnmounted(() => {
 }
 
 .close-btn:hover {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   border-color: var(--error);
 }
@@ -1048,6 +1122,12 @@ onUnmounted(() => {
 }
 
 /* User Avatars */
+.spatial-avatar:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+
 .spatial-avatar {
   position: absolute;
   width: 50px;
@@ -1124,7 +1204,7 @@ onUnmounted(() => {
   position: absolute;
   top: -8px;
   right: -8px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   padding: 2px 4px;
   border-radius: var(--radius-md);
@@ -1173,7 +1253,7 @@ onUnmounted(() => {
 }
 
 .status-enabled {
-  color: var(--success);
+  color: var(--text-success);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -1187,7 +1267,7 @@ onUnmounted(() => {
 }
 
 .status-updated {
-  color: var(--success);
+  color: var(--text-success);
   display: flex;
   align-items: center;
   gap: 4px;

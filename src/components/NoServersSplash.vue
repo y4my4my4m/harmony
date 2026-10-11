@@ -216,7 +216,7 @@ function joinWithInvite() {
 }
 
 .field-hint.error {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .divider {
@@ -282,7 +282,7 @@ function joinWithInvite() {
   align-items: center;
   justify-content: center;
   background: var(--harmony-primary-alpha, var(--background-tertiary));
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .action-text {
@@ -318,7 +318,7 @@ function joinWithInvite() {
 }
 
 .secondary-links a {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-decoration: none;
 }
 
