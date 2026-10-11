@@ -236,8 +236,16 @@ test('channel list: names say type and state; one Tab stop, arrows, Space and En
     await page.waitForURL(new RegExp(`/chat/${server.id}/${channel.random}$`), { timeout: 15000 })
     await expect(announcer(page)).toHaveText(`#random – ${server.name}`, { timeout: 5000 })
     // The composer takes focus on a desktop channel switch; the announcement does not move it.
-    await expect(page.locator('[data-testid="message-input"] .rich-text-editor')).toBeFocused()
+    const composer = page.locator('[data-testid="message-input"] .rich-text-editor')
+    await expect(composer).toBeFocused()
     await expect(channelLink(page, 'random')).toHaveAttribute('aria-current', 'page')
+    // Focus the app moved draws no ring; focus Tab moved does.
+    await expect(composer).toHaveCSS('outline-style', 'none')
+    await page.keyboard.press('Shift+Tab')
+    await expect(composer).not.toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(composer).toBeFocused()
+    await expect(composer).toHaveCSS('outline-style', 'solid')
   })
 
   await test.step('Enter opens a channel', async () => {

@@ -5,6 +5,7 @@
     :class="{ 
       'is-empty': !modelValue && !hasContent, 
       'is-focused': isFocused,
+      'keyboard-focused': keyboardFocused,
       'single-line': isSingleLine,
       'bordered': bordered
     }"
@@ -55,6 +56,7 @@ import { applyInlineFormatToggle, type InlineFormatKind } from '@/utils/richText
 import { HANDLE_PATTERN, continuesHandle } from '@/utils/mentionGrammar';
 import { HERE_ROLE_ID } from '@/utils/hereMention';
 import { pastedText, writeTokenTextToClipboard } from '@/utils/emojiClipboard';
+import { focusFromNavigationKey, trackNavigationKeys } from '@/utils/a11y/focus';
 
 interface Props {
   modelValue: string;
@@ -96,6 +98,8 @@ const { isMobileViewport, isTouchOnly } = useViewport();
 
 const editorRef = ref<HTMLDivElement>();
 const isFocused = ref(false);
+const keyboardFocused = ref(false);
+trackNavigationKeys();
 const serverChannelStore = useServerChannelStore();
 // Only `unifiedLoaded` is consumed locally, watched for re-render.
 // Emoji resolution goes through emojiShortcodeResolver.findEmojiByName.
@@ -1108,11 +1112,13 @@ const handleKeyDown = (event: KeyboardEvent) => {
 
 const handleFocus = (event: FocusEvent) => {
   isFocused.value = true;
+  keyboardFocused.value = focusFromNavigationKey();
   emit('focus', event);
 };
 
 const handleBlur = (event: FocusEvent) => {
   isFocused.value = false;
+  keyboardFocused.value = false;
   emit('blur', event);
 };
 
@@ -1360,7 +1366,9 @@ onMounted(async () => {
   left: 12px;
 }
 
-.rich-text-editor:not(.bordered):focus-visible {
+/* A contenteditable matches :focus-visible on programmatic focus too (channel switch); the
+   ring marks focus moved by Tab or F6 only. */
+.rich-text-editor:not(.bordered).keyboard-focused {
   outline: 2px solid var(--border-focus);
   outline-offset: -2px;
   border-radius: var(--radius-md, 8px);

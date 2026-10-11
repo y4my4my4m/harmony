@@ -103,6 +103,30 @@ let lastFocused: HTMLElement | null = null
 let lastResolved: HTMLElement | null = null
 let tracking = false
 
+// Time of the last Tab or F6 keydown (performance.now()). Text fields match
+// :focus-visible on any focus, programmatic included; a ring drawn from this
+// marks only focus the keyboard moved.
+let navKeyAt = -Infinity
+let trackingNavKeys = false
+const NAV_KEY_WINDOW_MS = 400
+
+export function trackNavigationKeys(): void {
+  if (trackingNavKeys || typeof document === 'undefined') return
+  trackingNavKeys = true
+  document.addEventListener(
+    'keydown',
+    (event) => {
+      if (event.key === 'Tab' || event.key === 'F6') navKeyAt = performance.now()
+    },
+    true,
+  )
+}
+
+/** True when the focus happening now follows a Tab or F6 keydown. */
+export function focusFromNavigationKey(): boolean {
+  return performance.now() - navKeyAt < NAV_KEY_WINDOW_MS
+}
+
 export function trackLastFocused(): void {
   if (tracking || typeof document === 'undefined') return
   tracking = true
