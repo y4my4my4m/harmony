@@ -4403,5 +4403,14 @@
       "load": "无法加载此服务器的音效。",
       "generic": "出了点问题，请重试。"
     }
+  },
+  "voiceMessage": {
+    "label": "语音消息",
+    "play": "播放语音消息，{duration}",
+    "pause": "暂停语音消息",
+    "position": "播放位置",
+    "positionValue": "{current} / {total}",
+    "speed": "播放速度 {speed}x",
+    "playFailed": "无法播放此语音消息。"
   }
 }

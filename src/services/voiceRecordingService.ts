@@ -1,5 +1,6 @@
 import { ref, type Ref } from 'vue'
 import { debug } from '@/utils/debug'
+import { levelChain } from './voice/voiceMessageLevel'
 
 export interface VoiceRecordingState {
   isRecording: boolean
@@ -55,6 +56,10 @@ export function useVoiceRecording() {
 
   const startRecording = async (): Promise<void> => {
     try {
+      // Created before getUserMedia resolves, while the click's user activation lasts; a context
+      // created after the permission prompt can stay suspended and record silence.
+      audioContext = new AudioContext()
+      const resumed = audioContext.resume().catch(() => {})
       mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -62,16 +67,32 @@ export function useVoiceRecording() {
           autoGainControl: true,
         },
       })
+      await resumed
 
-      audioContext = new AudioContext()
       const source = audioContext.createMediaStreamSource(mediaStream)
       analyser = audioContext.createAnalyser()
       analyser.fftSize = 256
       analyser.smoothingTimeConstant = 0.6
-      source.connect(analyser)
+
+      // The leveled signal is recorded when the context runs; otherwise the raw microphone.
+      let recorded: MediaStream = mediaStream
+      if (audioContext.state === 'running') {
+        try {
+          const destination = audioContext.createMediaStreamDestination()
+          const leveled = levelChain(audioContext, source)
+          leveled.connect(destination)
+          leveled.connect(analyser)
+          recorded = destination.stream
+        } catch (err) {
+          debug.warn('Voice leveling unavailable; recording the raw microphone:', err)
+          source.connect(analyser)
+        }
+      } else {
+        source.connect(analyser)
+      }
 
       const mimeType = getSupportedMimeType()
-      mediaRecorder = new MediaRecorder(mediaStream, { mimeType })
+      mediaRecorder = new MediaRecorder(recorded, { mimeType })
       chunks = []
       allAmplitudes.length = 0
 

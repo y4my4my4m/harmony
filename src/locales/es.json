@@ -4403,5 +4403,14 @@
       "load": "No se pudieron cargar los sonidos de este servidor.",
       "generic": "Algo salió mal. Inténtalo de nuevo."
     }
+  },
+  "voiceMessage": {
+    "label": "Mensaje de voz",
+    "play": "Reproducir mensaje de voz, {duration}",
+    "pause": "Pausar mensaje de voz",
+    "position": "Posición de reproducción",
+    "positionValue": "{current} de {total}",
+    "speed": "Velocidad de reproducción {speed}x",
+    "playFailed": "No se pudo reproducir este mensaje de voz."
   }
 }
