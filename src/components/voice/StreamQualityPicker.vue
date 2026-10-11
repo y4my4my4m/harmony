@@ -27,14 +27,15 @@
       <template v-if="!isLive && nativeAudio">
         <div class="sqp-audio-toggle">
           <Icon name="volume-2" :size="16" />
-          <span class="sqp-audio-label">{{ t('voice.shareStreamAudio') }}</span>
+          <span :id="audioLabelId" class="sqp-audio-label">{{ t('voice.shareStreamAudio') }}</span>
           <ToggleSwitch
             :model-value="shareAudio"
-            :aria-label="t('voice.shareStreamAudio')"
+            :labelledby="audioLabelId"
+            :describedby="shareAudio ? audioHintId : undefined"
             @update:model-value="setShareAudio"
           />
         </div>
-        <p v-if="shareAudio" class="sqp-audio-hint">{{ t('voice.streamAudioNativeHint') }}</p>
+        <p v-if="shareAudio" :id="audioHintId" class="sqp-audio-hint">{{ t('voice.streamAudioNativeHint') }}</p>
       </template>
       <p v-else-if="isLive && streamAudio" class="sqp-audio-hint" :title="streamAudio.detail">
         <Icon name="volume-2" :size="14" />
@@ -44,6 +45,10 @@
         <Icon name="volume-2" :size="14" />
         <span>{{ t('voice.streamAudioHint') }}</span>
       </p>
+      <button v-if="desktop" type="button" class="sqp-log-btn" @click="copyLog">
+        <Icon name="copy" :size="14" />
+        <span>{{ t('voice.copyStreamAudioLog') }}</span>
+      </button>
 
       <footer class="sqp-footer">
         <button
@@ -87,7 +92,10 @@ import { useI18n } from 'vue-i18n';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import Icon from '@/components/common/Icon.vue';
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue';
-import { activeStreamAudio, nativeStreamAudioSupport, probeNativeStreamAudio } from '@/services/voice/nativeStreamAudio';
+import { uid } from '@/utils/a11y/focus';
+import { activeStreamAudio, copyStreamAudioLog, nativeStreamAudioSupport, probeNativeStreamAudio } from '@/services/voice/nativeStreamAudio';
+import { isTauriDesktop } from '@/utils/platform';
+import { useToast } from 'vue-toastification';
 import StreamQualityOptions from './StreamQualityOptions.vue';
 import { VOICE_POPOVER_DISMISS, placePopover, type Rect } from './voiceMenuModel';
 
@@ -103,6 +111,19 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const audioLabelId = uid('sqp-audio');
+const audioHintId = uid('sqp-audio-hint');
+const desktop = isTauriDesktop();
+const toast = useToast();
+
+const copyLog = async () => {
+  try {
+    await copyStreamAudioLog();
+    toast.success(t('voice.streamAudioLogCopied'));
+  } catch (error) {
+    toast.error(t('voice.streamAudioLogFailed', { reason: String(error) }));
+  }
+};
 const voiceStore = useUnifiedVoiceChannelStore();
 
 const panelRef = ref<HTMLElement | null>(null);
@@ -362,5 +383,23 @@ onBeforeUnmount(() => {
 
 .sqp-btn.danger:hover {
   background: var(--error-fill-hover);
+}
+.sqp-log-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 4px 0;
+  background: none;
+  border: none;
+  color: var(--text-link);
+  font-size: 12px;
+  cursor: pointer;
+}
+.sqp-log-btn:hover { text-decoration: underline; }
+.sqp-log-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 </style>
