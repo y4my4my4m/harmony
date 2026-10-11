@@ -2,7 +2,7 @@
   <article
     class="link-embed-card"
     :class="{
-      'link-embed-card--has-image': !!payload.image && variant !== 'compact',
+      'link-embed-card--has-image': (!!payload.image || !!payload.video?.url) && variant !== 'compact',
       'link-embed-card--compact': variant === 'compact',
       'link-embed-card--thumbnail': variant === 'thumbnail',
       'link-embed-card--media': isMediaCard,
@@ -12,7 +12,17 @@
          the compact variant when an inline rich embed (e.g. YouTube iframe)
          already represents the URL. The thumbnail variant renders the image
          at a small fixed size beside the text. -->
-    <div v-if="payload.image && variant !== 'compact'" class="link-embed-card__media">
+    <div v-if="payload.video?.url && variant === 'default'" class="link-embed-card__media link-embed-card__media--video">
+      <video
+        :src="payload.video.url"
+        :poster="payload.image"
+        controls
+        playsinline
+        preload="metadata"
+        @loadedmetadata="handleImageLoad"
+      ></video>
+    </div>
+    <div v-else-if="payload.image && variant !== 'compact'" class="link-embed-card__media">
       <img
         :src="payload.image"
         :alt="payload.title || payload.siteName || 'Link preview image'"
@@ -68,7 +78,7 @@ const emit = defineEmits<{
 
 // Starts loaded when no image will paint (no payload image, or the compact
 // variant), so the parent's load listener fires without waiting.
-const imageLoaded = ref(!props.payload.image || props.variant === 'compact');
+const imageLoaded = ref((!props.payload.image && !props.payload.video?.url) || props.variant === 'compact');
 
 // Media-first layout (Discord-style): a preview carrying an image and no
 // description (e.g. a GIF page) is the content, so it renders at natural
@@ -97,7 +107,7 @@ const handleImageLoad = () => {
 };
 
 onMounted(() => {
-  if (!props.payload.image || props.variant === 'compact') {
+  if ((!props.payload.image && !props.payload.video?.url) || props.variant === 'compact') {
     emit('load');
   }
 });

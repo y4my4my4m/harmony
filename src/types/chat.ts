@@ -317,6 +317,10 @@ export interface EmbedPayload {
   /** Preview is media only (GIF page etc.); render the image, not a link
       card. */
   mediaOnly?: boolean;
+  /** A playable video (og:video, or the link answering with video). */
+  video?: { url: string; type?: string; width?: number; height?: number };
+  /** The page could not be read; no card renders. */
+  failed?: boolean;
   harmony?: HarmonyEmbedSummary;
   fediverse?: FediverseEmbedSummary;
   oEmbed?: Record<string, any>;

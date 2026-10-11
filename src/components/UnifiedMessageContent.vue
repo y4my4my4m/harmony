@@ -350,6 +350,20 @@
               ></video>
             </div>
           </div>
+          <div
+            v-else-if="embedMedia(part)?.kind === 'clip'"
+            class="media-container video-container"
+          >
+            <div class="media-frame">
+              <video
+                :src="embedMedia(part)!.url"
+                controls
+                playsinline
+                class="content-video"
+                preload="metadata"
+              ></video>
+            </div>
+          </div>
           <ProviderEmbedSwitch
             v-else-if="resolveEmbedPayload(part) && !isImageUrl(part.url) && !isVideoUrl(part.url) && !isAudioUrl(part.url)"
             :payload="resolveEmbedPayload(part)!"
@@ -1175,8 +1189,10 @@ export default defineComponent({
      * so already-stored payloads and hosts unknown to the backend heuristic
      * still upgrade to media rendering.
      */
-    const embedMedia = (part: MessagePart): { kind: 'image' | 'video'; url: string } | null => {
+    const embedMedia = (part: MessagePart): { kind: 'image' | 'video' | 'clip'; url: string } | null => {
       const payload = resolveEmbedPayload(part);
+      // The link answered with a video (embed-fixer sites): a player, not a looping GIF.
+      if (payload?.mediaOnly && payload.video?.url) return { kind: 'clip', url: payload.video.url };
       const media = payload?.image;
       if (!media) return null;
 
