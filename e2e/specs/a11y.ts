@@ -40,6 +40,20 @@ export const AXE_EXCLUSIONS: AxeExclusion[] = [
   {
     rule: 'color-contrast',
     area: 'owner',
+    reason:
+      'White label on the brand fill #0ea5e9 is 2.77:1; the brand blue is the mascot colour and stays. ' +
+      'High contrast mode swaps in 4.5:1 fills (applyContrastFills).',
+    colors: { fg: '#ffffff', bg: '#0ea5e9' },
+  },
+  {
+    rule: 'color-contrast',
+    area: 'owner',
+    reason: 'White label on the danger fill --error #ed4245 is 3.84:1; High contrast mode swaps in #d83c3e-level fills.',
+    colors: { fg: '#ffffff', bg: '#ed4245' },
+  },
+  {
+    rule: 'color-contrast',
+    area: 'owner',
     reason: 'Role colours are member data (server role settings); names are drawn in the colour the role carries.',
     within: '.display-name',
   },
