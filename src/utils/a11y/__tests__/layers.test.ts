@@ -75,6 +75,38 @@ describe('Escape stack', () => {
     expect(onEscape).toHaveBeenCalledTimes(1)
   })
 
+  it('hands Escape from focus stranded on an inert background element to the topmost layer', () => {
+    const page = el('<div><button>opener</button></div>')
+    const layer = el('<div><button>in</button></div>')
+    document.body.append(page, layer)
+    const onEscape = vi.fn()
+    pushLayer({ kind: 'dialog', element: () => layer, onEscape })
+    inertOthers([layer])
+    escape(page.querySelector('button')!)
+    expect(onEscape).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not hand an Escape to a layer that its own dispatch opened', () => {
+    const page = el('<div><input /></div>')
+    const prompt = el('<div><button>discard</button></div>')
+    document.body.append(page)
+    const onEscape = vi.fn()
+    // A view's own Escape listener opens a prompt and makes the page inert.
+    document.addEventListener('keydown', function open(event) {
+      if (event.key !== 'Escape') return
+      document.removeEventListener('keydown', open)
+      document.body.append(prompt)
+      pushLayer({ kind: 'dialog', element: () => prompt, onEscape })
+      inertOthers([prompt])
+    })
+    // Registers the window listeners.
+    pushLayer({ kind: 'drawer', element: () => document.createElement('div'), onEscape: () => {} })()
+    escape(page.querySelector('input')!)
+    expect(onEscape).not.toHaveBeenCalled()
+    escape(prompt.querySelector('button')!)
+    expect(onEscape).toHaveBeenCalledTimes(1)
+  })
+
   it('lets an expanded combobox close its listbox first', () => {
     const layer = el('<div><input role="combobox" aria-expanded="true" /></div>')
     document.body.append(layer)

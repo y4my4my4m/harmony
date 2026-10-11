@@ -7,7 +7,10 @@
 //   only, then stops it. It does nothing when:
 //   - the event was already defaultPrevented (a widget inside consumed it),
 //   - focus is outside the topmost layer's element (an unregistered popup
-//     opened from it owns that Escape),
+//     opened from it owns that Escape); focus stranded on an element this
+//     module made inert counts as inside, since nothing there takes keys,
+//   - the topmost layer opened while this keydown was being dispatched (a
+//     view's own Escape listener opened it, e.g. a discard-changes prompt),
 //   - focus is on an expanded combobox or text field (aria-expanded="true"),
 //     whose listbox closes first.
 //   Widgets inside a layer that close themselves on Escape call
@@ -39,17 +42,31 @@ interface Layer extends LayerOptions {
 const layers: Layer[] = []
 let nextId = 1
 let listening = false
+// Id of the topmost layer when the current keydown entered the window (capture phase).
+let topIdAtDispatch = 0
 
 const EXPANDED_FIELD =
   'input[aria-expanded="true"], textarea[aria-expanded="true"], [role="combobox"][aria-expanded="true"], [contenteditable="true"][aria-expanded="true"]'
 
+function onKeydownCapture(): void {
+  topIdAtDispatch = layers[layers.length - 1]?.id ?? 0
+}
+
 function onKeydown(event: KeyboardEvent): void {
   if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing) return
   const top = layers[layers.length - 1]
-  if (!top) return
+  if (!top || top.id > topIdAtDispatch) return
   const root = top.element()
   const target = event.target
-  if (root && target instanceof Node && target !== document.body && target !== document.documentElement && !root.contains(target)) return
+  if (
+    root &&
+    target instanceof Node &&
+    target !== document.body &&
+    target !== document.documentElement &&
+    !root.contains(target) &&
+    !isInManagedInert(target)
+  )
+    return
   if (target instanceof Element && target !== root && target.closest(EXPANDED_FIELD)) return
   event.preventDefault()
   event.stopPropagation()
@@ -59,6 +76,7 @@ function onKeydown(event: KeyboardEvent): void {
 /** Registers an open overlay; returns its removal. */
 export function pushLayer(options: LayerOptions): () => void {
   if (!listening && typeof window !== 'undefined') {
+    window.addEventListener('keydown', onKeydownCapture, true)
     window.addEventListener('keydown', onKeydown)
     listening = true
   }
