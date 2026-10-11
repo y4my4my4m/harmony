@@ -41,9 +41,12 @@ vi.mock('@/stores/useServerUsers', () => ({ useServerUsersStore: () => serverUse
 vi.mock('@/stores/useServerChannel', () => ({ useServerChannelStore: () => ({ channels: [] }) }))
 vi.mock('@/services/callForegroundService', () => ({ setCallServiceActive: vi.fn() }))
 vi.mock('@/services/overlayBridge', () => ({ syncOverlayForCall: vi.fn() }))
-vi.mock('@/stores/useTheme', () => ({ useThemeStore: () => ({}) }))
+vi.mock('@/stores/useTheme', () => ({ useThemeStore: () => ({ playAudio: vi.fn() }) }))
 vi.mock('@/stores/useNotification', () => ({ useNotificationStore: () => ({}) }))
 vi.mock('@/composables/useUserData', () => ({ useUserData: () => ({}) }))
+vi.mock('@/services/voice/voiceAnnouncements', () => ({
+  voiceAnnouncer: new Proxy({}, { get: () => () => undefined }),
+}))
 vi.mock('@/composables/useKeybinds', () => ({ useKeybinds: () => ({}) }))
 vi.mock('@/services/encryption/VoiceE2EEService', () => ({ voiceE2EEService: {} }))
 vi.mock('@/services/ChannelEncryptionService', () => ({ fetchEffectiveChannelEncryption: vi.fn() }))
