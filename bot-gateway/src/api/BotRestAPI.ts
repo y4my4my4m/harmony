@@ -142,6 +142,18 @@ export function botContentParts(parts: unknown[]): any[] {
   return out
 }
 
+/** The string fields of a bridged thread's Discord starter, or null (bot_create_thread p_discord_user). */
+export function threadStarter(input: unknown): Record<string, string> | null {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return null
+  const user = input as Record<string, unknown>
+  if (typeof user.id !== 'string' || !SNOWFLAKE_RE.test(user.id)) return null
+  const out: Record<string, string> = { id: user.id }
+  for (const key of ['username', 'display_name', 'avatar_url']) {
+    if (typeof user[key] === 'string' && user[key]) out[key] = user[key] as string
+  }
+  return out
+}
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // role_mention roleId of @here (db_schema/migrations/20261011600001_here_mention.sql).
 const HERE_ROLE_ID = 'here'
@@ -382,14 +394,15 @@ export class BotRestAPI {
   }
 
   /**
-   * Body { name, message_id?, discord_thread_id? }. On message_id the thread hangs off that
-   * message (an existing thread of it is returned); otherwise it is standalone. A Discord
-   * thread id pairs the thread with the bot's bridge and makes the call idempotent.
+   * Body { name, message_id?, discord_thread_id?, discord_user? }. On message_id the thread
+   * hangs off that message (an existing thread of it is returned); otherwise it is standalone.
+   * A Discord thread id pairs the thread with the bot's bridge and makes the call idempotent;
+   * with it, discord_user (the member who started the Discord thread) names the notice.
    */
   private async createThread(req: BotRequest, res: Response) {
     try {
       const { channelId } = req.params
-      const { name, message_id, discord_thread_id } = req.body ?? {}
+      const { name, message_id, discord_thread_id, discord_user } = req.body ?? {}
       const botId = req.bot!.id
       if (typeof name !== 'string' || !name.trim()) {
         return res.status(400).json({ error: 'name is required' })
@@ -412,6 +425,7 @@ export class BotRestAPI {
         p_name: name,
         p_parent_message_id: message_id ?? null,
         p_discord_thread_id: discord_thread_id ?? null,
+        p_discord_user: discord_thread_id != null ? threadStarter(discord_user) : null,
       })
       if (error) {
         const status = error.code === 'P0002' ? 404 : error.code === '42501' ? 403 : error.code === '22023' ? 400 : 500
