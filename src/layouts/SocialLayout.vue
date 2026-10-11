@@ -103,13 +103,10 @@
                   <span class="trending-tag">#{{ trend.tag }}</span>
                   <span class="trending-count">{{ $t('activitypub.postsCountLabel', { count: formatNumber(trend.count) }, trend.count) }}</span>
                 </span>
-                <Icon
-                  v-if="trend.trend === 'up'"
-                  name="trending-up"
-                  :size="14"
-                  class="trending-rising"
-                  :aria-label="$t('activitypub.trendingRising')"
-                />
+                <template v-if="trend.trend === 'up'">
+                  <Icon name="trending-up" :size="14" class="trending-rising" />
+                  <span class="sr-only">{{ $t('activitypub.trendingRising') }}</span>
+                </template>
               </RouterLink>
             </div>
             <EmptyState v-else size="sm" icon="hash" :title="$t('activitypub.noTrendingHashtags')" />

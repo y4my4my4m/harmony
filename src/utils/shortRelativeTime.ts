@@ -55,3 +55,47 @@ export function formatFullDateTime(input: string | number | Date, locale = 'en')
   if (Number.isNaN(date.getTime())) return ''
   return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(date)
 }
+
+const relativeFormatters = new Map<string, Intl.RelativeTimeFormat>()
+
+function relativeFormatter(locale: string): Intl.RelativeTimeFormat {
+  let fmt = relativeFormatters.get(locale)
+  if (!fmt) {
+    fmt = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
+    relativeFormatters.set(locale, fmt)
+  }
+  return fmt
+}
+
+/**
+ * formatShortRelativeTime spelled out for accessible names, on the same
+ * thresholds: "now", "42 seconds ago", "5 minutes ago", "3 hours ago", "2 days
+ * ago", then the calendar date ("March 5"; year appended outside the current
+ * year). Returns '' for unparseable input.
+ */
+export function formatSpokenRelativeTime(
+  input: string | number | Date,
+  options: { now?: number; locale?: string } = {},
+): string {
+  const time = input instanceof Date ? input.getTime() : new Date(input).getTime()
+  if (Number.isNaN(time)) return ''
+
+  const now = options.now ?? Date.now()
+  const locale = options.locale ?? 'en'
+  const delta = now - time
+  const rtf = relativeFormatter(locale)
+
+  if (delta < 10 * SECOND) return rtf.format(0, 'second')
+  if (delta < MINUTE) return rtf.format(-Math.floor(delta / SECOND), 'second')
+  if (delta < HOUR) return rtf.format(-Math.floor(delta / MINUTE), 'minute')
+  if (delta < DAY) return rtf.format(-Math.floor(delta / HOUR), 'hour')
+  if (delta < WEEK) return rtf.format(-Math.floor(delta / DAY), 'day')
+
+  const date = new Date(time)
+  const sameYear = date.getFullYear() === new Date(now).getFullYear()
+  return new Intl.DateTimeFormat(locale, {
+    month: 'long',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  }).format(date)
+}

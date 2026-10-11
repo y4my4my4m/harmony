@@ -6,31 +6,77 @@
     class="media-gallery"
     :class="galleryClass"
   >
+    <!-- The reveal control comes first in reading order; until it is used the media
+         is out of the accessibility tree and unfocusable (inert). One overlay for the
+         whole gallery; the media stays blurred until revealed. -->
+    <button
+      v-if="isSensitive && !showSensitive"
+      ref="revealBtn"
+      type="button"
+      class="sensitive-overlay"
+      data-testid="media-reveal"
+      @click.stop="setRevealed(true)"
+    >
+      <span class="sensitive-title">{{ t('activitypub.sensitiveContent') }}</span>
+      <span class="sensitive-hint">{{ t('activitypub.clickToShow') }}</span>
+    </button>
+    <button
+      v-else-if="isSensitive"
+      ref="hideBtn"
+      type="button"
+      class="sensitive-hide-btn"
+      :aria-label="t('activitypub.hideMedia')"
+      :title="t('activitypub.hideMedia')"
+      @click.stop="setRevealed(false)"
+    >
+      <Icon name="eye-off" :size="16" />
+    </button>
+
     <div
       v-for="(media, index) in mediaAttachments"
       :key="media.id"
       class="media-item"
       :class="{ 'media-item-clickable': shouldOpenLightbox(media) }"
-      :role="shouldOpenLightbox(media) && showSensitive ? 'button' : undefined"
-      :tabindex="shouldOpenLightbox(media) && showSensitive ? 0 : undefined"
-      :aria-label="shouldOpenLightbox(media) && showSensitive ? (media.description || t('activitypub.openMedia')) : undefined"
-      @click.capture="handleMediaClick($event, index, media)"
-      @keydown.enter.self="shouldOpenLightbox(media) && showSensitive && openMedia(index)"
+      :inert="concealed || undefined"
+      :aria-hidden="concealed ? 'true' : undefined"
     >
-      <!-- Image -->
-      <img
-        v-if="media.type === 'image'"
-        :src="media.preview_url || media.url"
-        :alt="media.description || 'Image'"
-        class="media-image"
-        :style="coverStyle(media)"
-        loading="lazy"
-        @error="handleImageError"
-      />
+      <!-- Opens the lightbox: one button per tile, named by the image's description;
+           Enter and Space both work. Tile controls sit beside it, not inside. -->
+      <button
+        v-if="shouldOpenLightbox(media)"
+        type="button"
+        class="media-open"
+        :aria-label="media.type === 'image' ? undefined : mediaName(media)"
+        @click.stop="openMedia(index)"
+      >
+        <img
+          v-if="media.type === 'image'"
+          :src="media.preview_url || media.url"
+          :alt="mediaName(media)"
+          class="media-image"
+          :style="coverStyle(media)"
+          loading="lazy"
+          @error="handleImageError"
+        />
+        <video
+          v-else
+          :src="media.url"
+          :poster="media.preview_url"
+          class="media-video"
+          :style="coverStyle(media)"
+          preload="metadata"
+          muted
+          playsinline
+          :loop="media.type === 'gifv'"
+          :autoplay="media.type === 'gifv'"
+          aria-hidden="true"
+          @error="handleVideoError"
+        />
+      </button>
 
-      <!-- Video / GIFV -->
+      <!-- Video / GIFV played in place (a single video) -->
       <video
-        v-else-if="media.type === 'video' || media.type === 'gifv' || (media.type === 'unknown' && isVideoUrl(media.url))"
+        v-else-if="isVideoMedia(media)"
         :src="media.url"
         :poster="media.preview_url"
         class="media-video"
@@ -40,20 +86,21 @@
         :loop="media.type === 'gifv'"
         :autoplay="media.type === 'gifv'"
         :muted="media.type === 'gifv'"
+        :aria-label="mediaName(media)"
         @error="handleVideoError"
       >
         <source :src="media.url" :type="media.mime_type || 'video/mp4'">
-        Your browser does not support the video tag.
+        {{ t('a11y.lightbox.videoUnsupported') }}
       </video>
 
       <!-- Audio -->
       <div v-else-if="media.type === 'audio'" class="media-audio">
         <div class="audio-info">
           <Icon name="music" />
-          <span class="audio-title">{{ media.filename || 'Audio file' }}</span>
+          <span class="audio-title">{{ media.filename || t('activitypub.audio') }}</span>
         </div>
-        <audio :src="media.url" controls preload="metadata">
-          Your browser does not support the audio tag.
+        <audio :src="media.url" controls preload="metadata" :aria-label="mediaName(media)">
+          {{ t('a11y.lightbox.videoUnsupported') }}
         </audio>
       </div>
 
@@ -64,7 +111,12 @@
           <span class="file-name">{{ media.filename }}</span>
           <span class="file-size">{{ formatFileSize(media.size) }}</span>
         </div>
-        <a :href="safeHref(media.url)" target="_blank" class="download-btn">
+        <a
+          :href="safeHref(media.url)"
+          target="_blank"
+          class="download-btn"
+          :aria-label="t('activitypub.mediaA11y.download', { name: fileName(media) })"
+        >
           <Icon name="download" />
         </a>
       </div>
@@ -74,8 +126,8 @@
         v-if="canDownloadMedia(media) && showSensitive"
         type="button"
         class="media-download-overlay"
-        aria-label="Download"
-        title="Download"
+        :aria-label="t('activitypub.mediaA11y.download', { name: fileName(media) })"
+        :title="t('activitypub.mediaA11y.download', { name: fileName(media) })"
         @click.stop="downloadMedia(media)"
       >
         <Icon name="download" />
@@ -86,6 +138,7 @@
         type="button"
         class="alt-badge"
         :aria-expanded="showAltText"
+        :aria-controls="showAltText ? `${idBase}-alt-${index}` : undefined"
         :title="t('activitypub.altTextShow')"
         @click.stop="showAltText = !showAltText"
       >
@@ -93,31 +146,10 @@
       </button>
 
       <!-- Media description (alt text) -->
-      <div v-if="media.description && showAltText && showSensitive" class="media-description">
+      <div v-if="media.description && showAltText && showSensitive" :id="`${idBase}-alt-${index}`" class="media-description">
         {{ media.description }}
       </div>
     </div>
-
-    <!-- One overlay for the whole gallery; the media stays blurred until revealed. -->
-    <button
-      v-if="isSensitive && !showSensitive"
-      type="button"
-      class="sensitive-overlay"
-      @click.stop="showSensitive = true"
-    >
-      <span class="sensitive-title">{{ t('activitypub.sensitiveContent') }}</span>
-      <span class="sensitive-hint">{{ t('activitypub.clickToShow') }}</span>
-    </button>
-    <button
-      v-else-if="isSensitive"
-      type="button"
-      class="sensitive-hide-btn"
-      :aria-label="t('activitypub.hideMedia')"
-      :title="t('activitypub.hideMedia')"
-      @click.stop="showSensitive = false"
-    >
-      <Icon name="eye-off" :size="16" />
-    </button>
   </div>
 
   <MonyMediaLightbox
@@ -130,7 +162,7 @@
 
 <script setup lang="ts">
 import { safeHref } from '@/utils/sanitize';
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { debug } from '@/utils/debug'
 import type { MediaAttachment } from '@/types';
@@ -138,6 +170,7 @@ import Icon from '@/components/common/Icon.vue';
 import MonyMediaLightbox from './MonyMediaLightbox.vue';
 import { downloadMediaFromUrl, filenameFromUrl } from '@/utils/downloadMedia';
 import { attachmentObjectPosition } from '@/utils/focalPoint';
+import { uid } from '@/utils/a11y/focus';
 
 interface Props {
   mediaAttachments: MediaAttachment[];
@@ -152,7 +185,31 @@ const { t } = useI18n();
 
 // State
 const galleryRef = ref<HTMLElement | null>(null);
+const revealBtn = ref<HTMLButtonElement | null>(null);
+const hideBtn = ref<HTMLButtonElement | null>(null);
+const idBase = uid('media');
 const showSensitive = ref(!props.isSensitive);
+const concealed = computed(() => props.isSensitive && !showSensitive.value);
+
+/** Reveal and hide swap buttons in place; focus follows to the one now shown. */
+async function setRevealed(revealed: boolean) {
+  const hadFocus = !!galleryRef.value?.contains(document.activeElement);
+  showSensitive.value = revealed;
+  await nextTick();
+  if (hadFocus) (revealed ? hideBtn.value : revealBtn.value)?.focus();
+}
+
+/** Accessible name of an attachment: its description, else its kind. */
+function mediaName(media: MediaAttachment): string {
+  if (media.description) return media.description;
+  if (isVideoMedia(media)) return t('activitypub.video');
+  if (media.type === 'audio') return media.filename || t('activitypub.audio');
+  return t('activitypub.mediaA11y.imageNoDescription');
+}
+
+function fileName(media: MediaAttachment): string {
+  return media.filename || filenameFromUrl(media.url, media.type || 'media');
+}
 const showAltText = ref(false);
 const showModal = ref(false);
 const currentMediaIndex = ref(0);
@@ -241,15 +298,6 @@ function shouldOpenLightbox(media: MediaAttachment): boolean {
   return true;
 }
 
-function handleMediaClick(e: MouseEvent, index: number, media: MediaAttachment) {
-  if (props.isSensitive && !showSensitive.value) return;
-  if (!isViewableMedia(media)) return;
-  if (viewableCount.value === 1 && isVideoMedia(media)) return;
-  e.preventDefault();
-  e.stopPropagation();
-  openMedia(index);
-}
-
 const openMedia = (index: number) => {
   const media = props.mediaAttachments[index];
   if (!isViewableMedia(media)) return;
@@ -317,16 +365,23 @@ const openMedia = (index: number) => {
   transform: scale(1.1);
 }
 
-.media-item-clickable {
+.media-open {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
   cursor: pointer;
 }
 
-.media-item-clickable:hover {
+.media-open:hover {
   opacity: 0.9;
 }
 
-.media-item-clickable:focus-visible {
-  outline: 2px solid var(--harmony-primary);
+.media-open:focus-visible {
+  outline: 2px solid var(--border-focus);
   outline-offset: -2px;
 }
 

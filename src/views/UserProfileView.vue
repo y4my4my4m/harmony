@@ -13,19 +13,19 @@
       @scroll="handleScroll"
     >
       <!-- Loading State -->
-      <div v-if="isLoading" class="loading-state">
+      <div v-if="isLoading" class="loading-state" role="status">
         <LoadingSpinner :size="32" />
-        <p>Loading profile...</p>
+        <p>{{ t('activitypub.profileA11y.loading') }}</p>
       </div>
 
       <!-- Error State -->
       <div v-else-if="error" class="error-state">
         <Icon name="user-x" :size="48" />
-        <h2>Profile not found</h2>
+        <h2>{{ t('activitypub.profileA11y.notFound') }}</h2>
         <p>{{ error }}</p>
-        <button @click="$router.go(-1)" class="back-btn">
+        <button type="button" @click="$router.go(-1)" class="back-btn">
           <Icon name="arrow-left" />
-          Go back
+          {{ t('activitypub.profileA11y.goBack') }}
         </button>
       </div>
 
@@ -71,52 +71,63 @@
                   <Icon name="at-sign" :size="18" />
                 </button>
 
-                <div class="more-actions" ref="moreActionsBtnRef">
+                <div class="more-actions">
                   <button
+                    ref="moreActionsBtnRef"
                     type="button"
                     class="profile-icon-btn"
+                    data-testid="profile-more-btn"
                     :aria-label="t('activitypub.moreOptions')"
                     :title="t('activitypub.moreOptions')"
                     aria-haspopup="menu"
                     :aria-expanded="showActionsMenu"
-                    @click.stop="toggleActionsMenu"
+                    :aria-controls="showActionsMenu ? profileMenuId : undefined"
+                    @click.stop="showActionsMenu = !showActionsMenu"
+                    @keydown="onProfileMenuKeydown"
                   >
                     <Icon name="more-horizontal" :size="18" />
                   </button>
-                                
-                <Teleport to="body">
-                  <div v-if="showActionsMenu" class="actions-menu actions-menu-teleported" :style="actionsMenuStyle" v-click-outside="() => showActionsMenu = false">
-                  <!-- View in remote instance (for federated users) -->
-                  <a 
-                    v-if="!user.is_local && remoteProfileUrl" 
-                    :href="safeHref(remoteProfileUrl)" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    class="action-item"
-                    @click="showActionsMenu = false"
+
+                  <SocialMenu
+                    v-if="showActionsMenu"
+                    :id="profileMenuId"
+                    data-testid="profile-menu"
+                    :anchor="moreActionsBtnRef"
+                    :label="t('activitypub.moreOptions')"
+                    :initial-focus="profileMenuInitialFocus"
+                    @close="showActionsMenu = false"
                   >
-                    <Icon name="external-link" />
-                    <span>View on {{ user.domain }}</span>
-                  </a>
-                  
-                  <div v-if="!user.is_local && remoteProfileUrl" class="action-divider"></div>
-                  
-                  <button @click="handleMute" class="action-item" :class="{ active: isMuted }">
-                    <Icon name="volume-x" />
-                    <span>{{ isMuted ? 'Unmute' : 'Mute' }}</span>
-                  </button>
-                  
-                  <button @click="handleBlock" class="action-item danger" :class="{ active: isBlocked }">
-                    <Icon name="user-x" />
-                    <span>{{ isBlocked ? 'Unblock' : 'Block' }}</span>
-                  </button>
-                  
-                  <button @click="handleReport" class="action-item danger">
-                    <Icon name="flag" />
-                    <span>Report</span>
-                  </button>
-                </div>
-                </Teleport>
+                    <!-- View in remote instance (for federated users) -->
+                    <a
+                      v-if="!user.is_local && remoteProfileUrl"
+                      :href="safeHref(remoteProfileUrl)"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      role="menuitem"
+                      class="social-menu-item"
+                      @click="showActionsMenu = false"
+                    >
+                      <Icon name="external-link" />
+                      <span>{{ t('activitypub.viewOnDomain', { domain: user.domain }) }}</span>
+                    </a>
+
+                    <div v-if="!user.is_local && remoteProfileUrl" role="separator" class="social-menu-divider"></div>
+
+                    <button type="button" role="menuitem" class="social-menu-item" @click="handleMute">
+                      <Icon name="volume-x" />
+                      <span>{{ isMuted ? t('activitypub.profileA11y.unmute') : t('activitypub.profileA11y.mute') }}</span>
+                    </button>
+
+                    <button type="button" role="menuitem" class="social-menu-item danger" @click="handleBlock">
+                      <Icon name="user-x" />
+                      <span>{{ isBlocked ? t('activitypub.profileA11y.unblock') : t('activitypub.profileA11y.block') }}</span>
+                    </button>
+
+                    <button type="button" role="menuitem" class="social-menu-item danger" data-testid="profile-menu-report" @click="handleReport">
+                      <Icon name="flag" />
+                      <span>{{ t('activitypub.profileA11y.report') }}</span>
+                    </button>
+                  </SocialMenu>
                 </div>
 
                 <button
@@ -155,11 +166,11 @@
                       <DisplayName :userId="user.id" :fallback="user.display_name || user.username" />
                     </h1>
                     <Icon v-if="(user as any).verified" name="verified" class="verified-icon" />
-                    <span v-if="user.is_local && user.is_admin" class="instance-badge admin" title="Instance admin">
-                      <Icon name="shield" :size="11" /> Admin
+                    <span v-if="user.is_local && user.is_admin" class="instance-badge admin" :title="t('activitypub.instanceAdmin')">
+                      <Icon name="shield" :size="11" /> {{ t('activitypub.adminBadge') }}
                     </span>
-                    <span v-else-if="user.is_local && user.is_moderator" class="instance-badge mod" title="Instance moderator">
-                      <Icon name="shield" :size="11" /> Mod
+                    <span v-else-if="user.is_local && user.is_moderator" class="instance-badge mod" :title="t('activitypub.instanceModerator')">
+                      <Icon name="shield" :size="11" /> {{ t('activitypub.modBadge') }}
                     </span>
                   </div>
                   <p class="user-handle">
@@ -195,7 +206,7 @@
               <div class="meta-info-row">
                 <div v-if="user.created_at" class="join-date">
                   <Icon name="calendar" :size="16" />
-                  <span>Joined {{ formatJoinDate(user.created_at) }}</span>
+                  <span>{{ t('activitypub.profileA11y.joined', { date: formatJoinDate(user.created_at) }) }}</span>
                 </div>
               </div>
             </div>
@@ -209,36 +220,52 @@
           :target="movedTo"
         />
 
-        <!-- Profile Tabs -->
-        <div class="profile-tabs">
+        <!-- Profile Tabs (WAI-ARIA tabs, manual activation) -->
+        <div
+          class="profile-tabs"
+          role="tablist"
+          :aria-label="t('activitypub.profileA11y.sections')"
+          @keydown="tablistKeydown"
+        >
           <button
             v-for="tab in profileTabs"
+            :id="`profile-tab-${tab.id}`"
             :key="tab.id"
+            type="button"
+            role="tab"
+            :aria-selected="activeTab === tab.id"
+            aria-controls="profile-tabpanel"
+            :tabindex="activeTab === tab.id ? 0 : -1"
+            :data-testid="`profile-tab-${tab.id}`"
             @click="activeTab = tab.id"
             :class="['tab-btn', { active: activeTab === tab.id }]"
           >
             <Icon :name="tab.icon" />
             <span>{{ tab.label }}</span>
             <span v-if="tab.count !== undefined" class="tab-count">{{ tab.count }}</span>
-            <span
-              v-else-if="tab.hidden"
-              class="tab-count tab-count-hidden"
-              :title="t('activitypub.countHiddenBy', { domain: user.domain })"
-              :aria-label="t('activitypub.countHiddenBy', { domain: user.domain })"
-            >–</span>
+            <template v-else-if="tab.hidden">
+              <span class="tab-count tab-count-hidden" aria-hidden="true" :title="t('activitypub.countHiddenBy', { domain: user.domain })">–</span>
+              <span class="sr-only">{{ t('activitypub.countHiddenBy', { domain: user.domain }) }}</span>
+            </template>
           </button>
         </div>
 
         <!-- Tab Content -->
-        <div class="tab-content">
+        <div
+          id="profile-tabpanel"
+          class="tab-content"
+          role="tabpanel"
+          :aria-labelledby="`profile-tab-${activeTab}`"
+        >
+          <h2 class="sr-only">{{ activeTabLabel }}</h2>
           <!-- Blocked User Banner -->
           <div v-if="isBlocked && !isCurrentUser" class="blocked-user-banner">
             <div class="blocked-banner-content">
               <Icon name="user-x" :size="48" class="blocked-icon" />
-              <h3>You blocked @{{ user?.username }}</h3>
-              <p>You can't view or interact with their posts.</p>
-              <button @click="handleBlock" class="unblock-btn">
-                Unblock
+              <h3>{{ t('activitypub.profileA11y.youBlocked', { handle: user?.username }) }}</h3>
+              <p>{{ t('activitypub.profileA11y.blockedHint') }}</p>
+              <button type="button" @click="handleBlock" class="unblock-btn">
+                {{ t('activitypub.profileA11y.unblock') }}
               </button>
             </div>
           </div>
@@ -269,6 +296,7 @@
 
             <PostsContainer
               :posts="unpinnedUserPosts"
+              :feed-label="t('activitypub.profileA11y.postsBy', { name: plainDisplayName })"
               :is-loading="isLoadingPosts"
               :has-more="hasMorePosts"
               :empty-title="t('activitypub.noMoniesHereYet')"
@@ -412,6 +440,9 @@ import MovedAccountNotice from '@/components/activitypub/MovedAccountNotice.vue'
 import RemoteListNote from '@/components/activitypub/RemoteListNote.vue';
 import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
+import SocialMenu from '@/components/activitypub/SocialMenu.vue';
+import { useMenuButton } from '@/composables/useMenu';
+import { tablistKeydown } from '@/utils/tablistKeydown';
 
 // Props
 interface Props {
@@ -486,22 +517,15 @@ const error = ref<string | null>(null);
 const activeTab = ref('posts');
 const showActionsMenu = ref(false);
 const moreActionsBtnRef = ref<HTMLElement | null>(null);
-const actionsMenuStyle = ref<Record<string, string>>({});
+const {
+  menuId: profileMenuId,
+  onTriggerKeydown: onProfileMenuKeydown,
+  initialFocus: profileMenuInitialFocus,
+} = useMenuButton(showActionsMenu);
 const isFollowLoading = ref(false);
 // Pending request to an account that approves followers manually.
 const followRequested = ref(false);
 const { movedTo, isMoved } = useMovedAccount(() => user.value);
-
-const toggleActionsMenu = () => {
-  if (!showActionsMenu.value && moreActionsBtnRef.value) {
-    const rect = moreActionsBtnRef.value.getBoundingClientRect();
-    actionsMenuStyle.value = {
-      top: `${rect.bottom + 8}px`,
-      right: `${window.innerWidth - rect.right}px`,
-    };
-  }
-  showActionsMenu.value = !showActionsMenu.value;
-};
 
 // Posts
 const userPosts = ref<TimelinePost[]>([]);
@@ -611,6 +635,8 @@ const profileTabs = computed<ProfileTab[]>(() => [
   countTab('followers', t('activitypub.followers'), 'users', followersCount.value),
 ]);
 
+const activeTabLabel = computed(() => profileTabs.value.find((tab) => tab.id === activeTab.value)?.label ?? '');
+
 const bannerUrl = computed(() => {
   if (!user.value) return null
   return getUserBannerUrl(user.value.id).value || (user.value as any).banner_url || null
@@ -683,10 +709,11 @@ const followButtonText = computed(() => {
   return t('activitypub.follow');
 });
 
+// Starts with the visible label (voice control), then says what activating does.
 const followButtonLabel = computed(() => {
   const handle = user.value?.username || '';
-  if (isFollowing.value) return t('activitypub.unfollowUser', { handle });
-  if (followRequested.value) return t('activitypub.cancelFollowRequest');
+  if (isFollowing.value) return t('activitypub.profileA11y.followingUnfollow', { handle });
+  if (followRequested.value) return t('activitypub.profileA11y.requestedCancel', { handle });
   return t('activitypub.followUser', { handle });
 });
 
@@ -847,7 +874,7 @@ const loadUserProfile = async (handle: string, forceRefresh: boolean = false) =>
     }
   } catch (err) {
     debug.error('Failed to load user profile:', err);
-    error.value = 'Failed to load profile. The user might not exist or be unavailable.';
+    error.value = t('activitypub.profileA11y.loadFailed');
   } finally {
     isLoading.value = false;
   }
@@ -1702,64 +1729,6 @@ onUnmounted(() => {
   position: relative;
 }
 
-.actions-menu {
-  position: absolute;
-  top: calc(100% + 0.5rem);
-  right: 0;
-  width: 200px;
-  background: var(--background-floating);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
-  padding: 0.5rem;
-  z-index: 100;
-  box-shadow: var(--shadow-large);
-}
-
-.actions-menu-teleported {
-  position: fixed;
-  z-index: 9999;
-  min-width: 200px;
-}
-
-.action-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  width: 100%;
-  background: none;
-  border: none;
-  color: var(--text-primary);
-  padding: 0.75rem;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  text-align: left;
-  transition: all 0.2s ease;
-  font-size: 0.9rem;
-}
-
-.action-item:hover {
-  background: var(--background-modifier-hover);
-}
-
-.action-item.active {
-  color: var(--text-link);
-  background: var(--harmony-primary-alpha-light);
-}
-
-.action-item.danger {
-  color: var(--text-danger);
-}
-
-.action-item.danger:hover {
-  background: color-mix(in srgb, var(--error) 10%, transparent);
-}
-
-.action-divider {
-  height: 1px;
-  background: var(--border-primary);
-  margin: 0.25rem 0;
-}
-
 .profile-tabs {
   display: flex;
   border-bottom: 1px solid var(--border-primary);
@@ -1991,11 +1960,7 @@ onUnmounted(() => {
     flex-direction: column;
     gap: 0.25rem;
   }
-  
-  .actions-menu {
-    right: -0.5rem;
-    width: 180px;
-  }
+
 }
 
 @media (max-width: 480px) {
