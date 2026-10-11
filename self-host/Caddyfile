@@ -113,6 +113,25 @@
 		import federation_upstream
 	}
 
+	# The SPA's post page, the URL people copy from the address bar: ActivityPub clients and
+	# link-preview crawlers get /posts/<id> from the backend, browsers the SPA.
+	@socialPostAp {
+		path_regexp socialPostAp ^/social/post/([0-9a-f-]{36})/?$
+		header_regexp Accept (?i)application/(activity|ld)\+json
+	}
+	handle @socialPostAp {
+		rewrite * /posts/{re.socialPostAp.1}
+		import federation_upstream
+	}
+	@socialPostUnfurl {
+		path_regexp socialPostUnfurl ^/social/post/([0-9a-f-]{36})/?$
+		header_regexp User-Agent (?i)(discordbot|slackbot|twitterbot|facebookexternalhit|facebot|telegrambot|whatsapp|linkedinbot|mastodon|pleroma|akkoma|misskey|summalybot|gotosocial|friendica|lemmy|cardyb|synapse|mattermost-bot|zulipurlpreview|discourse|embedly|iframely|redditbot|skypeuripreview|microsoftpreview|vkshare|viber|kakaotalk-scrap)
+	}
+	handle @socialPostUnfurl {
+		rewrite * /posts/{re.socialPostUnfurl.1}
+		import federation_upstream
+	}
+
 	# Actor profile: ActivityPub clients get the actor, browsers the in-app
 	# profile. nginx tests Accept with ~* (case-insensitive).
 	@fedActor {

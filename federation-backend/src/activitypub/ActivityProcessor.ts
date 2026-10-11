@@ -133,6 +133,29 @@ async function resolveProfileByActorUrl(actorUrl: string): Promise<{ id: string 
   return null;
 }
 
+const AP_FETCH_RETRY_DELAY_MS = 750;
+
+// Connection-level failures worth one retry: a dropped SYN or reset to a distant host (the
+// 2026-10-11 mastodon.nzoss.nz miss) clears on the next attempt. safeFetch's own deadline
+// abort and HTTP statuses are not retried.
+const TRANSIENT_NETWORK_CODES = new Set([
+  'ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EPIPE', 'EAI_AGAIN', 'ENETUNREACH', 'EHOSTUNREACH',
+  'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT',
+]);
+
+/** The code of a transient network failure under undici's "fetch failed", else null. */
+export function transientNetworkCause(error: unknown): string | null {
+  if (!(error instanceof Error)) return null;
+  const cause = (error as Error & { cause?: unknown }).cause as
+    | (Error & { code?: string; errors?: Array<{ code?: string }> })
+    | undefined;
+  const codes = [cause?.code, ...(cause?.errors ?? []).map((e) => e?.code)].filter(
+    (code): code is string => typeof code === 'string',
+  );
+  const code = codes.find((c) => TRANSIENT_NETWORK_CODES.has(c));
+  return code ?? null;
+}
+
 /** Visibilities a boost or quote may copy (posts BEFORE INSERT, 20261005650001). */
 function isBoostableVisibility(visibility: unknown): boolean {
   return visibility === 'public' || visibility === 'unlisted';
@@ -183,20 +206,28 @@ export class ActivityProcessor {
       return null;
     }
 
-    try {
-      const response = await SignatureService.signedApFetch(url, {
-        headers: {
-          'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
-        },
-      });
-      onStatus?.(response.status);
-      const fetched = await readApDocument(response, url);
-      if (!fetched) logger.warn(`AP fetch for ${url} returned ${response.status} ${response.headers.get('content-type') ?? ''}`);
-      else noteDocumentSoftware(fetched.finalUrl, fetched.doc);
-      return fetched;
-    } catch (error) {
-      logger.warn(`AP fetch error for ${url}:`, error);
-      return null;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const response = await SignatureService.signedApFetch(url, {
+          headers: {
+            'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+          },
+        });
+        onStatus?.(response.status);
+        const fetched = await readApDocument(response, url);
+        if (!fetched) logger.warn(`AP fetch for ${url} returned ${response.status} ${response.headers.get('content-type') ?? ''}`);
+        else noteDocumentSoftware(fetched.finalUrl, fetched.doc);
+        return fetched;
+      } catch (error) {
+        const cause = transientNetworkCause(error);
+        if (cause && attempt === 1) {
+          logger.info(`AP fetch of ${url} failed (${cause}); retrying once`);
+          await new Promise((resolve) => setTimeout(resolve, AP_FETCH_RETRY_DELAY_MS));
+          continue;
+        }
+        logger.warn(`AP fetch error for ${url}: ${cause ?? (error instanceof Error ? error.message : String(error))}`);
+        return null;
+      }
     }
   }
 

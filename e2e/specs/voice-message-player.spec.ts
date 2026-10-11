@@ -3,7 +3,8 @@
 // the clip loads in CORS mode and is measured, which is what lets playback raise a quiet clip.
 //
 // The stack has no storage: the clip is served by a route at a fixed fixture URL, with the
-// Access-Control-Allow-Origin header storage sends.
+// Access-Control-Allow-Origin header and the byte-range answers storage sends. Chrome seeks a
+// WebM through Range requests; a server without them leaves every seek at 0.
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -48,10 +49,15 @@ test('a quiet voice message plays from the keyboard and is measured for a boost'
   let clipRequests = 0
   await page.route(CLIP_URL, (route) => {
     clipRequests += 1
+    const headers = { 'Content-Type': 'audio/webm', 'Access-Control-Allow-Origin': '*', 'Accept-Ranges': 'bytes' }
+    const range = /^bytes=(\d+)-(\d*)$/.exec(route.request().headers()['range'] ?? '')
+    if (!range) return route.fulfill({ status: 200, body: CLIP, headers })
+    const start = Number(range[1])
+    const end = range[2] ? Math.min(Number(range[2]), CLIP.length - 1) : CLIP.length - 1
     return route.fulfill({
-      status: 200,
-      body: CLIP,
-      headers: { 'Content-Type': 'audio/webm', 'Access-Control-Allow-Origin': '*' },
+      status: 206,
+      body: CLIP.subarray(start, end + 1),
+      headers: { ...headers, 'Content-Range': `bytes ${start}-${end}/${CLIP.length}` },
     })
   })
 
@@ -83,6 +89,9 @@ test('a quiet voice message plays from the keyboard and is measured for a boost'
     await expect(player.getByRole('button', { name: /^Play voice message/ })).toBeVisible()
     await position.focus()
     await page.keyboard.press('End')
+    await expect(position).toHaveAttribute('aria-valuenow', '3')
+    // The paused element fires `ended` once the seek lands; the position stays at the end.
+    await page.waitForTimeout(1000)
     await expect(position).toHaveAttribute('aria-valuenow', '3')
     await page.keyboard.press('Home')
     await expect(position).toHaveAttribute('aria-valuenow', '0')

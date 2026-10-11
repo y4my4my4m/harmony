@@ -382,7 +382,7 @@ import { useComposerActions } from '@/composables/useComposerActions';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 
-import { getOriginalPost, getOriginalPostId, getReplyMentionAuthor } from '@/utils/postReblog';
+import { getOriginalPost, getOriginalPostId, replyMentionPrefill } from '@/utils/postReblog';
 import { attachmentFocus } from '@/utils/focalPoint';
 import type { MediaEdit } from '@/utils/mediaEdit';
 import { messagePartsToRawText } from '@/utils/messageContentUtils';
@@ -927,20 +927,9 @@ onMounted(() => {
       }));
     }
   } else if (props.type === 'reply' && props.replyToPost) {
-    // `getReplyMentionAuthor` returns the original post's author for pure
-    // reblogs, the quoter for quote posts, and `undefined` for unhydrated
-    // reblogs - no prefill there, since mentioning the booster is wrong.
-    const author = getReplyMentionAuthor(props.replyToPost);
-    if (author) {
-      const username = author.username || '';
-      const domain = author.domain || '';
-      const isLocal = author.is_local !== false;
-
-      const mention = (!isLocal && domain)
-        ? `@${username}@${domain} `
-        : `@${username} `;
-      content.value = mention;
-    }
+    // Pure reblog → original author, quote → quoter, unhydrated reblog → no
+    // prefill; then the post's other mentions (utils/postReblog.ts).
+    content.value = replyMentionPrefill(props.replyToPost, currentUser.value?.id);
   } else if (props.type === 'post' && props.initialContent?.trim()) {
     content.value = props.initialContent;
     if (props.initialContentWarning) {
@@ -981,19 +970,10 @@ watch(() => props.initialContent, (val) => {
 
 watch(() => props.replyToPost, (replyPost) => {
   if (props.type === 'reply' && replyPost && content.value === '') {
-    // Same routing as onMounted: pure reblog → original author,
-    // quote → quoter, unhydrated reblog → no prefill.
-    const author = getReplyMentionAuthor(replyPost);
-    if (!author) return;
-    const username = author.username || '';
-    const domain = author.domain || '';
-    const isLocal = author.is_local !== false;
+    const prefill = replyMentionPrefill(replyPost, currentUser.value?.id);
+    if (!prefill) return;
+    content.value = prefill;
 
-    const mention = (!isLocal && domain)
-      ? `@${username}@${domain} `
-      : `@${username} `;
-    content.value = mention;
-    
     nextTick(() => {
       richEditorRef.value?.focus();
       // Cursor lands after the mention and its trailing space.

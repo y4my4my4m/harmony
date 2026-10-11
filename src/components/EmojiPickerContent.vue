@@ -884,7 +884,12 @@ onMounted(async () => {
     .then((ctx) => emojiCacheStore.loadPersonalEmojis(ctx.profileId ?? null))
     .catch(() => emojiCacheStore.loadPersonalEmojis(null));
 
+  // Runs after the awaits above. Focus already inside the picker (the dialog's own initial
+  // focus, or a header the user moved to meanwhile) stays where it is.
   nextTick(() => {
+    const active = document.activeElement;
+    const host = searchInput.value?.closest('[role="dialog"]') ?? searchInput.value?.parentElement?.parentElement;
+    if (active && active !== host && host?.contains(active)) return;
     searchInput.value?.focus();
   });
 });

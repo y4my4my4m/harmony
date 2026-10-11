@@ -324,6 +324,15 @@ test('emoji picker from the composer works by keyboard', async ({ page }) => {
   await signIn(page, owner)
   await openChannel(page, server.id, server.generalChannelId)
 
+  // The picker loads favourites after it opens. Held until focus has moved to a header, the
+  // answer must not pull focus back to the search, where Enter picks the first emoji.
+  let releaseFavourites!: () => void
+  const favouritesHeld = new Promise<void>((resolve) => { releaseFavourites = resolve })
+  await page.route('**/rest/v1/emoji_favorites*', async (route) => {
+    await favouritesHeld
+    await route.continue()
+  })
+
   const trigger = page.locator('[data-testid="message-input"]').getByRole('button', { name: 'Emoji picker' })
   await trigger.focus()
   await page.keyboard.press('Enter')
@@ -338,6 +347,11 @@ test('emoji picker from the composer works by keyboard', async ({ page }) => {
     const header = picker.getByRole('button', { name: 'People', exact: true })
     await expect(header).toHaveAttribute('aria-expanded', 'false')
     await header.focus()
+    const favourites = page.waitForResponse((r) => r.url().includes('/rest/v1/emoji_favorites'))
+    releaseFavourites()
+    await favourites
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+    await expect(header).toBeFocused()
     await page.keyboard.press('Enter')
     await expect(header).toHaveAttribute('aria-expanded', 'true')
     await expect(picker.locator('.emoji-item').first()).toBeVisible()
