@@ -9,6 +9,7 @@
  * without its credentials is skipped.
  */
 
+import { plainDisplayName } from '../utils/plainDisplayName.js';
 import webPush, { PushSubscription } from 'web-push';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
@@ -31,15 +32,8 @@ import {
   moveNoticeText,
 } from './pushPolicy.js';
 
-/**
- * Custom emojis (e.g. `:xp:`) cannot be rendered as images inside a Web Push
- * notification title/body - the OS only paints plain text. Strip shortcodes
- * so the username reads "Poring" instead of "Poring :xp:".
- */
-function stripEmojiShortcodes(text: string | null | undefined): string {
-  if (!text) return '';
-  return text.replace(/:[a-zA-Z0-9_+-]+(?:@[a-zA-Z0-9.-]+)?:/g, '').replace(/\s+/g, ' ').trim();
-}
+/** Web Push titles and bodies are plain text (utils/plainDisplayName.ts). */
+const stripEmojiShortcodes = (text: string | null | undefined): string => plainDisplayName(text);
 
 const supabaseAdmin = getSupabaseClient();
 

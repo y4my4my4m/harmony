@@ -7,6 +7,7 @@ import config from '../config/index.js';
 import { escapeHtml, originalStorageUrl } from '../utils/html.js';
 import { isDefaultServerIcon } from '../utils/urlUtils.js';
 import { inviteUrl, type InvitePreview } from './invitePreview.js';
+import { plainDisplayName } from '../utils/plainDisplayName.js';
 
 /** --harmony-primary, src/assets/design-system.css. Discord draws it as the embed bar. */
 export const THEME_COLOR = '#0EA5E9';
@@ -31,6 +32,11 @@ export interface InviteImage {
   height?: number;
 }
 
+/** Server name as a card paints it: plain text (utils/plainDisplayName.ts). */
+function cardName(preview: InvitePreview): string {
+  return plainDisplayName(preview.name, preview.name);
+}
+
 function absoluteHttpUrl(url: string): string {
   if (url.startsWith('/') && !url.startsWith('//')) return `https://${config.INSTANCE_DOMAIN}${url}`;
   return /^https?:\/\//i.test(url) ? url : '';
@@ -49,11 +55,11 @@ function defaultImage(): InviteImage {
 /** Banner as a large image, else a custom icon as a thumbnail, else the instance icon. */
 export function inviteImage(preview: InvitePreview): InviteImage {
   const banner = preview.banner ? absoluteHttpUrl(originalStorageUrl(preview.banner.trim(), 'server_banners')) : '';
-  if (banner) return { url: banner, alt: `${preview.name} banner`, large: true };
+  if (banner) return { url: banner, alt: `${cardName(preview)} banner`, large: true };
   const icon = preview.icon && !isDefaultServerIcon(preview.icon)
     ? absoluteHttpUrl(originalStorageUrl(preview.icon.trim(), 'server_icons'))
     : '';
-  if (icon) return { url: icon, alt: `${preview.name} icon`, large: false };
+  if (icon) return { url: icon, alt: `${cardName(preview)} icon`, large: false };
   return defaultImage();
 }
 
@@ -190,7 +196,7 @@ export function renderInvitePage(preview: InvitePreview, options: { oembed?: boo
     `<link rel="canonical" href="${escapeHtml(url)}">`,
     `<meta property="og:url" content="${escapeHtml(url)}">`,
     options.oembed
-      ? `<link rel="alternate" type="application/json+oembed" href="${escapeHtml(oembedUrl)}" title="${escapeHtml(preview.name)}">`
+      ? `<link rel="alternate" type="application/json+oembed" href="${escapeHtml(oembedUrl)}" title="${escapeHtml(cardName(preview))}">`
       : '',
   ].filter(Boolean).join('\n  ');
 
@@ -202,7 +208,7 @@ export function renderInvitePage(preview: InvitePreview, options: { oembed?: boo
     image.large ? '' : `        <img class="icon" src="${escapeHtml(image.url)}" alt="${escapeHtml(image.alt)}">`,
     '        <div>',
     `          <p class="eyebrow">${escapeHtml(INVITE_AUTHOR_LINE)}</p>`,
-    `          <h1>${escapeHtml(preview.name)}</h1>`,
+    `          <h1>${escapeHtml(cardName(preview))}</h1>`,
     `          <p class="counts">${escapeHtml(inviteCounts(preview))}</p>`,
     '        </div>',
     '      </div>',
@@ -211,7 +217,7 @@ export function renderInvitePage(preview: InvitePreview, options: { oembed?: boo
     '    </div>',
   ].filter(Boolean).join('\n');
 
-  return page({ title: preview.name, description, themeColor: THEME_COLOR, image, head, body });
+  return page({ title: cardName(preview), description, themeColor: THEME_COLOR, image, head, body });
 }
 
 function noticePage(title: string, description: string, themeColor: string, cta: { href: string; label: string }): string {
@@ -255,7 +261,7 @@ export function renderInviteOEmbed(preview: InvitePreview): object {
   return {
     version: '1.0',
     type: 'link',
-    title: preview.name,
+    title: cardName(preview),
     author_name: INVITE_AUTHOR_LINE,
     author_url: inviteUrl(preview.code),
     provider_name: config.INSTANCE_NAME,
