@@ -7,10 +7,10 @@
     data-rail-kind="server"
     :data-rail-id="server.id"
     :data-rail-folder="folderId ?? undefined"
-    :aria-label="serverDisplayLabel(server)"
+    :aria-label="label"
     :aria-current="selected ? 'page' : undefined"
   >
-    <div class="server-pill" :class="{ visible: selected, 'has-unread': hasUnread && !selected }"></div>
+    <div class="server-pill" :class="{ visible: selected, 'has-unread': hasUnread && !selected }" aria-hidden="true"></div>
     <ServerIcon
       :id="server.id"
       :src="server.icon"
@@ -25,15 +25,18 @@
     <div v-if="server.is_local_server === false" class="remote-server-badge" aria-hidden="true">
       <Icon name="globe" :size="10" />
     </div>
-    <div v-if="mentions > 0" class="unread-badge">{{ mentions > 99 ? '99+' : mentions }}</div>
+    <div v-if="mentions > 0" class="unread-badge" aria-hidden="true">{{ mentions > 99 ? '99+' : mentions }}</div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import ServerIcon from '@/components/common/ServerIcon.vue'
 import Icon from '@/components/common/Icon.vue'
 import { serverDisplayLabel } from '@/utils/serverUtils'
 import { useRailServerState } from './railState'
+import { railLabel } from './railLabel'
 import type { Server } from '@/types'
 
 const props = defineProps<{
@@ -41,7 +44,10 @@ const props = defineProps<{
   folderId: string | null
 }>()
 
+const { t } = useI18n()
 const { selected, mentions, hasUnread, muted } = useRailServerState(() => props.server)
+const label = computed(() =>
+  railLabel(t, serverDisplayLabel(props.server), { mentions: mentions.value, unread: hasUnread.value, muted: muted.value }))
 </script>
 
 <style scoped>

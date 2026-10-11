@@ -1852,6 +1852,27 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
+  /**
+   * Undoes hideConversation: the conversation returns to the list and its
+   * hidden flag is cleared.
+   */
+  const restoreConversation = async (conversation: DMConversation): Promise<boolean> => {
+    if (!conversations.value.some(c => c.id === conversation.id)) {
+      conversations.value.push({ ...conversation, hidden_at: null })
+    }
+    try {
+      const { error } = await supabase.rpc('set_conversation_hidden', {
+        p_conversation_id: conversation.id,
+        p_hidden: false,
+      })
+      if (error) throw error
+      return true
+    } catch (error) {
+      debug.error('Failed to restore conversation:', error)
+      return false
+    }
+  }
+
   const _createOrFindConversation = async (user1Id: string, user2Id: string): Promise<string | null> => {
     try {
       const { data: conversationId, error } = await supabase
@@ -3349,6 +3370,7 @@ export const useDMStore = defineStore('dm', () => {
     fetchUserConversations,
     fetchUserConversationsMetadata,
     hideConversation,
+    restoreConversation,
     fetchConversationMessages,
     prefetchConversationMessages,
     searchUsers,
