@@ -88,7 +88,7 @@ SELECT throws_ok($q$SELECT public.bot_create_thread('f1360000-0000-0000-0000-000
     '66666666-0000-0000-0000-000000000006', 'x', '99999999-0000-0000-0000-000000000009')$q$,
     'P0002', NULL, 'a starter message outside the channel is refused');
 
-SELECT ok(NOT has_function_privilege('authenticated', 'public.bot_create_thread(uuid, uuid, text, uuid, text)', 'EXECUTE'),
+SELECT ok(NOT has_function_privilege('authenticated', 'public.bot_create_thread(uuid, uuid, text, uuid, text, jsonb)', 'EXECUTE'),
     'clients cannot call bot_create_thread');
 SELECT ok(NOT has_table_privilege('authenticated', 'public.discord_bridge_threads', 'SELECT'),
     'clients cannot read the thread pairs');
