@@ -441,12 +441,12 @@ watch(() => props.serverId, () => {
 
 .radio-badge.recommended {
   background: color-mix(in srgb, var(--success) 20%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .radio-badge.secure {
   background: color-mix(in srgb, var(--error) 20%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .radio-description {
@@ -690,13 +690,13 @@ watch(() => props.serverId, () => {
 .save-message.success {
   background: color-mix(in srgb, var(--success) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--success) 20%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .save-message.error {
   background: color-mix(in srgb, var(--error) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--error) 20%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .message-icon {

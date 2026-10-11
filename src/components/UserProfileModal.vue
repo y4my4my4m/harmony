@@ -1691,12 +1691,12 @@ onMounted(() => {
 }
 
 .action-item.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .action-item.danger:hover {
   background: color-mix(in srgb, var(--error) 10%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .action-item-icon {
@@ -1809,7 +1809,7 @@ onMounted(() => {
 .verified-icon {
   width: 16px;
   height: 16px;
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .username {
@@ -1940,7 +1940,7 @@ onMounted(() => {
 }
 
 .stat-item.clickable:hover .stat-value {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .stat-value {
@@ -2036,7 +2036,7 @@ onMounted(() => {
   justify-content: center;
   width: 16px;
   height: 16px;
-  color: var(--success);
+  color: var(--text-success);
   flex-shrink: 0;
 }
 
@@ -2087,7 +2087,7 @@ onMounted(() => {
   justify-content: center;
   background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
   border-radius: 8px;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   flex-shrink: 0;
 }
 
@@ -2145,7 +2145,7 @@ onMounted(() => {
 }
 
 .federation-link {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-decoration: none;
   font-weight: 600;
 }
@@ -2169,7 +2169,7 @@ onMounted(() => {
 .instance-badge.online {
   background: color-mix(in srgb, var(--success) 20%, transparent);
   border-color: color-mix(in srgb, var(--success) 30%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .instance-badge.idle {
@@ -2181,7 +2181,7 @@ onMounted(() => {
 .instance-badge.dnd {
   background: color-mix(in srgb, var(--error) 20%, transparent);
   border-color: color-mix(in srgb, var(--error) 30%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .instance-badge.offline {
@@ -2327,7 +2327,7 @@ onMounted(() => {
 .secondary-action-btn.copied {
   background: color-mix(in srgb, var(--success) 12%, transparent);
   border-color: color-mix(in srgb, var(--success) 35%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 /* Server invite picker */

@@ -321,7 +321,7 @@ const getServerAcronym = (serverName: string): string => {
 .federation-icon {
   width: 10px;
   height: 10px;
-  color: var(--h-brand, var(--harmony-primary));
+  color: var(--text-link, var(--harmony-primary));
 }
 
 .server-image {
@@ -366,7 +366,7 @@ const getServerAcronym = (serverName: string): string => {
 .explore-btn,
 .settings-btn {
   background: var(--background-secondary);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .add-server-btn:hover,
@@ -378,7 +378,7 @@ const getServerAcronym = (serverName: string): string => {
 
 .add-server-btn .nav-icon,
 .explore-btn .nav-icon {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .add-server-btn:hover .nav-icon,

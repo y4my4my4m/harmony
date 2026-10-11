@@ -1096,7 +1096,7 @@ input:checked + .toggle-slider:before {
 }
 
 .delete-btn:hover {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .action-btn:disabled {

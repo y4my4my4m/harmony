@@ -20,7 +20,7 @@
       <ToggleSwitch
         :model-value="draft.enabled"
         :disabled="busy || isNew"
-        :aria-label="t('automod.rule.enabled')"
+        :label="t('automod.rule.enabled')"
         @update:model-value="toggleEnabled"
       />
     </div>
@@ -484,7 +484,7 @@ function toggleEnabled(value: boolean) {
   flex-shrink: 0;
   border-radius: 50%;
   background: var(--background-secondary);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .rule-titles {

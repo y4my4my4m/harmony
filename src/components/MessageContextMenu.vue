@@ -747,7 +747,7 @@ const copyRawData = async () => {
 /* Destructive items (Delete, Report) read in red and switch to a
    solid-red hover so the user gets a clear "this is dangerous" cue. */
 .context-menu-item.destructive-item {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .context-menu-item.destructive-item:hover {

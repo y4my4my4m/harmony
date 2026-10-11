@@ -500,7 +500,7 @@ onBeforeUnmount(() => {
 }
 
 .vcm-action.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .vcm-action.danger:hover,

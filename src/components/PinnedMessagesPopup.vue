@@ -264,7 +264,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 }
 
 .header-icon {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   display: flex;
   align-items: center;
 }

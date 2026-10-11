@@ -317,7 +317,7 @@ onMounted(load)
 }
 
 .badge.local {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .emoji-actions {
@@ -328,7 +328,7 @@ onMounted(load)
 
 .action-btn.danger:hover:not(:disabled) {
   border-color: var(--error, #ef4444);
-  color: var(--error, #ef4444);
+  color: var(--text-danger, #ef4444);
 }
 
 .rename-form {

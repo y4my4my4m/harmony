@@ -6,13 +6,18 @@
     v-if="isTauriClient && isAuthRoute && !showInstancePicker"
     class="instance-bar"
   >
-    <span class="instance-bar__dot" />
-    <span class="instance-bar__name">{{ storedInstanceName || 'No instance selected' }}</span>
+    <span class="instance-bar__dot" aria-hidden="true" />
+    <span class="instance-bar__name">{{ storedInstanceName || $t('a11y.instance.noneSelected') }}</span>
     <!-- Signed-out counterpart of the server-rail update indicator -->
     <button v-if="updateReady" type="button" class="instance-bar__update" @click="openUpdatePrompt">
       {{ $t('updater.readyTitle') }}
     </button>
-    <button class="instance-bar__change" @click="showInstancePicker = true">Change</button>
+    <button
+      type="button"
+      class="instance-bar__change"
+      :aria-label="$t('a11y.instance.change')"
+      @click="showInstancePicker = true"
+    >{{ $t('a11y.instance.changeShort') }}</button>
   </div>
 
   <!-- Conditional Layout Rendering -->
@@ -25,6 +30,7 @@
     @switchToChat="handleSwitchToChat"
   />
   
+  <LiveAnnouncer />
   <NotificationToast />
   <OfflineBanner />
 
@@ -119,6 +125,10 @@ import JoinFederatedServer from '@/components/JoinFederatedServer.vue'
 import BaseLayout from '@/layouts/BaseLayout.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import NotificationToast from '@/components/NotificationToast.vue'
+import LiveAnnouncer from '@/components/a11y/LiveAnnouncer.vue'
+import { useRouteA11y } from '@/composables/useRouteA11y'
+import { setAnnouncerMoreLabel } from '@/composables/useAnnouncer'
+import { useI18n } from 'vue-i18n'
 import OfflineBanner from '@/components/OfflineBanner.vue'
 import EncryptionFallbackModal from '@/components/EncryptionFallbackModal.vue'
 import EncryptionActionHost from '@/components/encryption/EncryptionActionHost.vue'
@@ -176,6 +186,9 @@ let uninstallLinkInterceptor: (() => void) | null = null
 let uninstallInterfaceSounds: (() => void) | null = null
 
 const router = useRouter()
+useRouteA11y(router)
+const { t: translate } = useI18n()
+setAnnouncerMoreLabel((count) => translate('a11y.announcer.more', { count }, count))
 const remoteInvitePrompt = useRemoteInvitePrompt()
 const remoteInviteUrl = remoteInvitePrompt.pendingUrl
 const route = useRoute()
@@ -423,7 +436,7 @@ async function handleIdentityChanged(e: CustomEvent) {
   .instance-bar__change {
     border: 1px solid var(--border-hover);
     background: transparent;
-    color: var(--harmony-primary);
+    color: var(--text-link);
     border-radius: var(--radius-full);
     padding: 4px 12px;
     font-size: var(--font-size-xs);

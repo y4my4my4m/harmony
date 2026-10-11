@@ -74,9 +74,7 @@
         </div>
         <ToggleSwitch
           :model-value="isPrivate"
-          role="switch"
-          :aria-checked="isPrivate"
-          :aria-label="$t('channel.private.label')"
+          :label="$t('channel.private.label')"
           @change="(value: boolean) => { isPrivate = value }"
         />
       </div>
@@ -102,9 +100,7 @@
           :model-value="encryptOnCreate"
           :disabled="encryptionRequired"
           :class="{ disabled: encryptionRequired }"
-          role="switch"
-          :aria-checked="encryptOnCreate"
-          :aria-label="$t('channelEncryption.create.label')"
+          :label="$t('channelEncryption.create.label')"
           :aria-disabled="encryptionRequired"
           :tabindex="encryptionRequired ? -1 : 0"
           @change="(value: boolean) => { encryptOnCreate = value }"
@@ -591,7 +587,7 @@ const closeForm = () => {
   border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
   border-radius: 16px;
   font-size: 12px;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-weight: 500;
 }
 

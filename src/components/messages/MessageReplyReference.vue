@@ -85,7 +85,8 @@ const {
   display: flex;
   align-items: center;
   gap: 4px;
-  opacity: 0.64;
+  /* 0.85 keeps --text-secondary at 4.5:1 or better on the light chat surface. */
+  opacity: 0.85;
   transition: opacity 0.2s ease;
   min-width: 0;
 }

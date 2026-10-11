@@ -537,7 +537,7 @@ onMounted(async () => {
 }
 
 .active-icon {
-  color: var(--h-brand);
+  color: var(--text-link);
   width: 18px;
   height: 18px;
 }
@@ -589,7 +589,7 @@ onMounted(async () => {
 
 .test-theme-btn:hover:not(:disabled) {
   border-color: var(--h-brand);
-  color: var(--h-brand);
+  color: var(--text-link);
 }
 
 .test-theme-btn:disabled {
@@ -715,7 +715,7 @@ onMounted(async () => {
   border: 1px solid var(--error);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
-  color: var(--error);
+  color: var(--text-danger);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   cursor: pointer;

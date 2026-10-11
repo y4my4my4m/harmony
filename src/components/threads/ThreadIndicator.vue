@@ -128,7 +128,7 @@ const formatRelativeTime = (date: Date | string | null | undefined) => {
 }
 
 .reply-count {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-weight: 500;
 }
 

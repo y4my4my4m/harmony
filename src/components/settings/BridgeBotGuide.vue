@@ -95,7 +95,7 @@ watch(
 
 .guide-text a,
 .guide-muted a {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .guide-muted {

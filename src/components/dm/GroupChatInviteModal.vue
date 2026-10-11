@@ -653,7 +653,7 @@ watch(() => props.show, (show) => {
 }
 
 .selection-indicator {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 /* Selected Users Section */
@@ -712,7 +712,7 @@ watch(() => props.show, (show) => {
 }
 
 .remove-user-btn:hover {
-  color: var(--error);
+  color: var(--text-danger);
   background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 

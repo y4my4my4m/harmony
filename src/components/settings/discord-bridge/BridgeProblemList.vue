@@ -309,7 +309,7 @@ async function turnOff(key: BridgeSettingKey) {
   display: flex;
   gap: 8px;
   align-items: flex-start;
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .problem--warn .problem-head {

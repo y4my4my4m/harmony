@@ -99,7 +99,7 @@ function setVolume(value: number): void {
 }
 
 .tile-volume.muted .tile-volume__btn {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 /* Collapsed until hovered or focused; width animates open. */

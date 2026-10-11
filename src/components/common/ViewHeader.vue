@@ -190,7 +190,7 @@ const goBack = () => {
 }
 
 .header-text-btn.danger:hover {
-  color: var(--error);
+  color: var(--text-danger);
   border-color: var(--error);
 }
 

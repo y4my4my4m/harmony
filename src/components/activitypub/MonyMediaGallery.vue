@@ -421,7 +421,7 @@ const openMedia = (index: number) => {
 }
 
 .download-btn {
-  color: var(--h-brand, var(--harmony-primary));
+  color: var(--text-link, var(--harmony-primary));
   text-decoration: none;
   padding: 0.5rem;
   border-radius: 6px;

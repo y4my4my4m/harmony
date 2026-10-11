@@ -9,7 +9,7 @@
       <ToggleSwitch
         :model-value="enabled"
         :disabled="busy || !loaded"
-        :aria-labelledby="labelId"
+        :labelledby="labelId"
         @update:model-value="save"
       />
     </div>

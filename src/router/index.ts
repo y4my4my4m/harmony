@@ -19,17 +19,19 @@ const router = createRouter({
       path: '/login',
       name: 'Login',
       component: () => import('@/views/LoginView.vue'),
+      meta: { titleKey: 'auth.login' }
     },
     {
       path: '/register',
       name: 'Register',
-      component: () => import('@/views/RegisterView.vue')
+      component: () => import('@/views/RegisterView.vue'),
+      meta: { titleKey: 'auth.register' }
     },
     {
       path: '/reset-password',
       name: 'ResetPassword',
       component: () => import('@/views/ResetPasswordView.vue'),
-      meta: { requiresAuth: false }
+      meta: { requiresAuth: false, titleKey: 'a11y.title.resetPassword' }
     },
     {
       path: '/auth/callback',
@@ -47,7 +49,7 @@ const router = createRouter({
       path: '/invite/:code',
       name: 'InviteAccept',
       component: () => import('@/components/InviteAccept.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, titleKey: 'a11y.title.invite' }
     },
     {
       path: '/demo',
@@ -65,7 +67,7 @@ const router = createRouter({
     {
       path: '/chat',
       component: () => import('@/layouts/ChatLayout.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, providesMain: true, titleKey: 'navigation.chat' },
       children: [
         {
           path: '',
@@ -101,7 +103,7 @@ const router = createRouter({
     {
       path: '/dm',
       component: () => import('@/layouts/ChatLayout.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, providesMain: true, titleKey: 'dm.title' },
       props: { isDM: true },
       children: [
         {
@@ -127,7 +129,7 @@ const router = createRouter({
     {
       path: '/posts/:postId',
       component: () => import('@/layouts/SocialLayout.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, providesMain: true, titleKey: 'activitypub.post' },
       children: [
         {
           path: '',
@@ -148,7 +150,7 @@ const router = createRouter({
     {
       path: '/social',
       component: () => import('@/layouts/SocialLayout.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, providesMain: true },
       props: route => {
         const childRoute = route.matched[route.matched.length - 1];
         return childRoute?.props?.default || {};
@@ -161,6 +163,7 @@ const router = createRouter({
         {
           path: 'home',
           name: 'SocialHome',
+          meta: { titleKey: 'activitypub.home' },
           component: () => import('@/views/TimelineView.vue'),
           props: {
             currentView: CurrentView.HOME,
@@ -170,6 +173,7 @@ const router = createRouter({
         {
           path: 'local',
           name: 'SocialLocal',
+          meta: { titleKey: 'activitypub.local' },
           component: () => import('@/views/TimelineView.vue'),
           props: {
             currentView: CurrentView.LOCAL,
@@ -179,6 +183,7 @@ const router = createRouter({
         {
           path: 'public',
           name: 'SocialPublic',
+          meta: { titleKey: 'activitypub.federated' },
           component: () => import('@/views/TimelineView.vue'),
           props: {
             currentView: CurrentView.PUBLIC,
@@ -188,6 +193,7 @@ const router = createRouter({
         {
           path: 'mentions',
           name: 'Mentions',
+          meta: { titleKey: 'activitypub.mentions' },
           component: () => import('@/views/MentionsView.vue'),
           props: {
             currentView: CurrentView.MENTIONS,
@@ -197,6 +203,7 @@ const router = createRouter({
         {
           path: 'bookmarks',
           name: 'Bookmarks',
+          meta: { titleKey: 'activitypub.bookmarks' },
           component: () => import('@/views/BookmarksView.vue'),
           props: {
             currentView: CurrentView.BOOKMARKS,
@@ -206,6 +213,7 @@ const router = createRouter({
         {
           path: 'lists',
           name: 'Lists',
+          meta: { titleKey: 'activitypub.lists' },
           component: () => import('@/views/ListsView.vue'),
           props: {
             currentView: CurrentView.LISTS,
@@ -215,30 +223,35 @@ const router = createRouter({
         {
           path: 'lists/:listId',
           name: 'ListDetail',
+          meta: { titleKey: 'activitypub.lists' },
           component: () => import('@/views/ListDetailView.vue'),
           props: true
         },
         {
           path: 'followers',
           name: 'Followers',
+          meta: { titleKey: 'activitypub.followers' },
           component: () => import('@/views/FollowersView.vue'),
           props: { view: 'followers' }
         },
         {
           path: 'following',
           name: 'Following',
+          meta: { titleKey: 'activitypub.following' },
           component: () => import('@/views/FollowersView.vue'),
           props: { view: 'following' }
         },
         {
           path: 'follow-requests',
           name: 'FollowRequests',
+          meta: { titleKey: 'a11y.title.followRequests' },
           component: () => import('@/views/FollowersView.vue'),
           props: { view: 'requests' }
         },
         {
           path: 'trending',
           name: 'SocialTrending',
+          meta: { titleKey: 'activitypub.trending' },
           component: () => import('@/views/ExploreView.vue'),
           props: {
             currentView: CurrentView.TRENDING,
@@ -248,6 +261,7 @@ const router = createRouter({
         {
           path: 'instances',
           name: 'SocialInstances',
+          meta: { titleKey: 'activitypub.instances' },
           component: () => import('@/views/ExploreView.vue'),
           props: {
             currentView: CurrentView.INSTANCES,
@@ -257,6 +271,7 @@ const router = createRouter({
         {
           path: 'posts/:handle/:noteId',
           name: 'RemotePostDetail',
+          meta: { titleKey: 'activitypub.post' },
           beforeEnter: async (to) => {
             const handle = to.params.handle as string
             const noteId = to.params.noteId as string
@@ -265,6 +280,7 @@ const router = createRouter({
             if (post?.id) {
               return {
                 name: 'PostDetail',
+          meta: { titleKey: 'activitypub.post' },
                 params: { postId: post.id },
                 query: to.query,
                 replace: true,
@@ -300,6 +316,7 @@ const router = createRouter({
         {
           path: 'profile/:handle',
           name: 'UserProfile',
+          meta: { titleKey: 'activitypub.profile' },
           component: () => import('@/views/UserProfileView.vue'),
           props: route => ({
             profileHandle: route.params.handle as string,
@@ -310,6 +327,7 @@ const router = createRouter({
         {
           path: 'hashtag/:tag',
           name: 'HashtagView',
+          meta: { titleKey: 'a11y.title.hashtag' },
           component: () => import('@/views/HashtagView.vue'),
           props: route => ({
             hashtag: route.params.tag as string,
@@ -357,28 +375,28 @@ const router = createRouter({
       path: '/settings/:section?',
       name: 'UserSettings',
       component: () => import('@/views/UserSettings.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, titleKey: 'settings.userSettings' },
       props: true
     },
     {
       path: '/server/:serverId',
       name: 'ServerSettings',
       component: () => import('@/views/ServerSettings.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, titleKey: 'a11y.title.serverSettings' },
       props: true
     },
     {
       path: '/admin',
       name: 'AdminPanel',
       component: () => import('@/views/AdminPanel.vue'),
-      meta: { requiresAuth: true, requiresStaff: true }
+      meta: { requiresAuth: true, requiresStaff: true, titleKey: 'settings.administration' }
     },
     // "Today" dashboard (beta, gated by a per-user setting)
     {
       path: '/today',
       name: 'Today',
       component: () => import('@/views/TodayView.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, titleKey: 'a11y.title.today' },
       beforeEnter: async () => {
         const { useTodayDashboard } = await import('@/composables/useTodayDashboard')
         const { todayDashboardEnabled } = useTodayDashboard()
@@ -389,7 +407,7 @@ const router = createRouter({
       path: '/new-profile',
       name: 'NewProfile',
       component: () => import('@/views/NewProfile.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, titleKey: 'a11y.title.newProfile', providesMain: true }
     },
     // Redirect legacy paths
     {
@@ -405,14 +423,14 @@ const router = createRouter({
       path: '/404',
       name: 'NotFound',
       component: () => import('@/views/NotFoundView.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, titleKey: 'notFound.pageNotFound' }
     },
     // 404 Routes - Unauthenticated users (auth layout)
     {
       path: '/404-public',
       name: 'NotFoundPublic',
       component: () => import('@/views/NotFoundView.vue'),
-      meta: { requiresAuth: false }
+      meta: { requiresAuth: false, titleKey: 'notFound.pageNotFound' }
     },
     // Catch-all route for undefined routes
     {

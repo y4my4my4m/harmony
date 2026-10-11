@@ -167,7 +167,7 @@ onUnmounted(() => {
   width: 48px;
   height: 48px;
   background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border-radius: var(--radius-lg);
   display: flex;
   align-items: center;

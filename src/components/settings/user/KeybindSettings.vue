@@ -7,6 +7,8 @@
       </p>
     </div>
 
+    <KeyboardNavigationHelp />
+
     <!-- Global Keybinds (Voice Connected) -->
     <div class="settings-section">
       <div class="section-header">
@@ -210,6 +212,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import KeyboardNavigationHelp from '@/components/a11y/KeyboardNavigationHelp.vue'
 import { useKeybinds, type KeybindAction, type KeybindModifiers } from '@/composables/useKeybinds'
 import Icon from '@/components/common/Icon.vue'
 
@@ -491,7 +494,7 @@ onUnmounted(() => {
 .keybind-button.recording {
   background-color: color-mix(in srgb, var(--harmony-primary) 30%, transparent);
   border-color: var(--harmony-primary);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   animation: pulse-keybind 1.5s ease-in-out infinite;
 }
 

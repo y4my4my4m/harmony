@@ -448,7 +448,7 @@ watch(() => props.inviteCode, () => {
 
 .error-icon {
   flex-shrink: 0;
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .error-content {
@@ -460,7 +460,7 @@ watch(() => props.inviteCode, () => {
 .error-title {
   font-size: 14px;
   font-weight: 600;
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .error-message {

@@ -539,7 +539,7 @@ const vClickOutside = {
 .verified-icon {
   width: 16px;
   height: 16px;
-  color: var(--success);
+  color: var(--text-success);
   background: var(--background-primary);
   border-radius: 50%;
   padding: 2px;
@@ -548,7 +548,7 @@ const vClickOutside = {
 .special-badge-icon {
   width: 16px;
   height: 16px;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   background: var(--background-primary);
   border-radius: 50%;
   padding: 2px;
@@ -757,12 +757,12 @@ const vClickOutside = {
 }
 
 .action-item.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .action-item.danger:hover {
   background: color-mix(in srgb, var(--error) 10%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .user-roles .instance-admin-badge {

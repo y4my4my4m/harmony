@@ -176,7 +176,7 @@ const confirmLeaveServer = async () => {
   }
 
   .leave-server .dropdown-item {
-    color: var(--error);
+    color: var(--text-danger);
   }
 
   .leave-server .dropdown-item:hover,

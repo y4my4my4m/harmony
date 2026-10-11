@@ -78,7 +78,7 @@ const goBack = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   margin-bottom: 8px;
 }
 

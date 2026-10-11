@@ -458,7 +458,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--error);
+  color: var(--text-danger);
   margin-bottom: 8px;
 }
 
@@ -468,7 +468,7 @@ onBeforeUnmount(() => {
 }
 
 .callback-content.error h2 {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .success-icon {
@@ -479,7 +479,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--success);
+  color: var(--text-success);
   margin-bottom: 8px;
 }
 
@@ -518,7 +518,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   margin-bottom: 8px;
 }
 
@@ -563,7 +563,7 @@ onBeforeUnmount(() => {
 
 .error-text {
   margin: 8px 0 0 0;
-  color: var(--error);
+  color: var(--text-danger);
   font-size: 0.875rem;
   text-align: center;
 }
@@ -581,7 +581,7 @@ onBeforeUnmount(() => {
 }
 
 .link-button:hover:not(:disabled) {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .link-button:disabled {

@@ -1525,7 +1525,7 @@ onUnmounted(() => {
 .follow-btn.is-following:focus-visible {
   border-color: var(--error);
   background: color-mix(in srgb, var(--error) 10%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .follow-label-hover {
@@ -1614,7 +1614,7 @@ onUnmounted(() => {
 }
 
 .verified-icon {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   flex-shrink: 0;
 }
 
@@ -1742,12 +1742,12 @@ onUnmounted(() => {
 }
 
 .action-item.active {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   background: var(--harmony-primary-alpha-light);
 }
 
 .action-item.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .action-item.danger:hover {
@@ -1795,7 +1795,7 @@ onUnmounted(() => {
 }
 
 .tab-btn.active {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border-bottom-color: var(--harmony-primary);
 }
 
@@ -1810,7 +1810,7 @@ onUnmounted(() => {
 
 .tab-btn.active .tab-count {
   background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .tab-count-hidden {
@@ -1901,7 +1901,7 @@ onUnmounted(() => {
   padding: 8px 24px;
   background: transparent;
   border: 1px solid var(--harmony-primary);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border-radius: var(--radius-full);
   font-weight: var(--font-weight-semibold);
   cursor: pointer;

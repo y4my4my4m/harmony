@@ -42,7 +42,7 @@
 
 <script setup lang="ts">
 import { safeHref } from '@/utils/sanitize';
-import { computed } from 'vue'
+import { computed, useSlots } from 'vue'
 
 interface Props {
   // Content
@@ -91,6 +91,12 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<Emits>()
+
+const slots = useSlots()
+// An icon-only button is named by ariaLabel alone (IconButton enforces it).
+if (import.meta.env.DEV && !props.ariaLabel && !props.text && !slots.default && (props.iconOnly || props.iconLeft || props.iconRight)) {
+  console.warn('[UnifiedButton] icon-only button without ariaLabel has no accessible name')
+}
 
 const buttonClasses = computed(() => [
   'btn',
@@ -253,7 +259,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 .btn-link {
   background: transparent;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border-color: transparent;
   text-decoration: none;
   padding: var(--space-1) var(--space-2);
@@ -268,7 +274,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 /* Outline variants */
 .btn-outline.btn-primary {
   background: transparent;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border-color: var(--harmony-primary);
 }
 
@@ -279,7 +285,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 .btn-outline.btn-success {
   background: transparent;
-  color: var(--success);
+  color: var(--text-success);
   border-color: var(--success);
 }
 
@@ -290,7 +296,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 .btn-outline.btn-danger {
   background: transparent;
-  color: var(--error);
+  color: var(--text-danger);
   border-color: var(--error);
 }
 

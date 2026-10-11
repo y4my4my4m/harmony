@@ -266,7 +266,7 @@ onMounted(() => {
   cursor: pointer;
   border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
   background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .android-push-btn.primary {

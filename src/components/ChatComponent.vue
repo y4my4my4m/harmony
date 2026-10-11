@@ -1295,7 +1295,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   }
 
   .drag-drop-area .upload-status {
-    color: var(--success);
+    color: var(--text-success);
   }
   .encryption-status-bar {
     display: flex;
@@ -1307,7 +1307,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
     border-top: 1px solid var(--border-color);
   }
   .encryption-status-bar.error {
-    color: var(--error);
+    color: var(--text-danger);
     background: color-mix(in srgb, var(--error) 8%, transparent);
     cursor: pointer;
   }
@@ -1324,17 +1324,17 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
     pointer-events: auto;
   }
   .encryption-status-tag.active {
-    color: var(--success);
+    color: var(--text-success);
   }
   .encryption-status-tag.locked {
     color: var(--warning);
   }
   .encryption-status-tag.setup-prompt {
-    color: var(--harmony-primary);
+    color: var(--text-link);
     opacity: 1;
   }
   .encryption-status-tag.error {
-    color: var(--error);
+    color: var(--text-danger);
   }
   @media (max-width: 768px) {
     .encryption-status-tag {

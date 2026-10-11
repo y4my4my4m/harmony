@@ -373,7 +373,7 @@ async function pairMatches() {
 
 .pair-arrow {
   font-size: 18px;
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .pair-meta {

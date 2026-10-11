@@ -848,7 +848,7 @@ defineExpose({ refresh })
 }
 
 .chip.is-active .chip-icon {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .chip-select {
@@ -897,7 +897,7 @@ defineExpose({ refresh })
   border: none;
   border-radius: var(--radius-full);
   background: transparent;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
@@ -985,7 +985,7 @@ defineExpose({ refresh })
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
-  color: var(--success);
+  color: var(--text-success);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
 }

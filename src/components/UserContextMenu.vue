@@ -494,7 +494,7 @@ watch(
 }
 
 .menu-item.destructive {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .menu-item.destructive:hover,

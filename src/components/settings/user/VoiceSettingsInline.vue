@@ -655,7 +655,7 @@ onUnmounted(() => {
 }
 
 .setting-value {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-weight: 600;
 }
 
@@ -962,7 +962,7 @@ onUnmounted(() => {
 .keybind-button.recording {
   background: var(--harmony-primary-light);
   border-color: var(--harmony-primary);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   animation: pulse 1.5s ease-in-out infinite;
 }
 

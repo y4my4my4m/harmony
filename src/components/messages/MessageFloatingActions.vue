@@ -68,7 +68,7 @@ const emit = defineEmits<{
 }
 
 .thread-btn {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .action-btn {
@@ -95,7 +95,7 @@ const emit = defineEmits<{
 }
 
 .action-btn.delete-danger {
-  color: var(--error) !important;
+  color: var(--text-danger) !important;
   background-color: color-mix(in srgb, var(--error) 50%, transparent) !important;
 }
 

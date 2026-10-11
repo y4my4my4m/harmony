@@ -746,7 +746,7 @@
       "reduceMotion": "Reducir movimiento",
       "reduceMotionDesc": "Reduce animaciones y transiciones.",
       "screenReader": "Soporte para lectores de pantalla",
-      "screenReaderDesc": "Optimizar para lectores de pantalla.",
+      "screenReaderDesc": "Anuncia actividad adicional a los lectores de pantalla (escritura, quién habla en voz, cambios de presencia) y dibuja un contorno de foco más grueso. Los anuncios esenciales están siempre activos.",
       "saveChanges": "Guardar cambios",
       "resetSettings": "Restablecer",
       "unsavedChanges": "Tienes cambios de apariencia sin guardar",
@@ -4402,6 +4402,144 @@
       "invalid": "Se rechazó el sonido. Revisa su nombre, emoji y volumen.",
       "load": "No se pudieron cargar los sonidos de este servidor.",
       "generic": "Algo salió mal. Inténtalo de nuevo."
+    }
+  },
+  "a11y": {
+    "unreadNotifications": "{count} notificación sin leer | {count} notificaciones sin leer",
+    "announcements": {
+      "pinned": "Fijado"
+    },
+    "skipToContent": "Saltar al contenido",
+    "loadingInstance": "Cargando {name}…",
+    "genericError": "Algo salió mal. Inténtalo de nuevo.",
+    "backOnline": "Conexión restablecida",
+    "bannerImage": "Imagen de portada",
+    "landmarks": {
+      "servers": "Servidores",
+      "channels": "Canales",
+      "directMessages": "Mensajes directos",
+      "members": "Miembros",
+      "userPanel": "Tu cuenta",
+      "social": "Navegación social",
+      "socialSidebar": "Tendencias y sugerencias"
+    },
+    "drawer": {
+      "navigation": "Menú de navegación",
+      "memberList": "Lista de miembros"
+    },
+    "title": {
+      "resetPassword": "Restablecer contraseña",
+      "invite": "Invitación",
+      "followRequests": "Solicitudes de seguimiento",
+      "hashtag": "Etiqueta",
+      "serverSettings": "Ajustes del servidor",
+      "thread": "Hilo",
+      "today": "Hoy",
+      "newProfile": "Crea tu perfil"
+    },
+    "announcer": {
+      "more": "{count} más | {count} más"
+    },
+    "toast": {
+      "dismiss": "Descartar notificación"
+    },
+    "confirm": {
+      "typeExact": "Escribe el texto exacto para confirmar.",
+      "typeToConfirm": "Escribe \"{text}\" para confirmar"
+    },
+    "moderation": {
+      "kickMember": "Expulsar miembro",
+      "banMember": "Vetar miembro",
+      "kick": "Expulsar",
+      "ban": "Vetar"
+    },
+    "instance": {
+      "noneSelected": "Ninguna instancia seleccionada",
+      "change": "Cambiar instancia",
+      "changeShort": "Cambiar"
+    },
+    "avatar": {
+      "view": "Ver avatar a tamaño completo",
+      "viewNamed": "Ver el avatar de {name} a tamaño completo",
+      "image": "Avatar",
+      "imageNamed": "Avatar de {name}",
+      "change": "Cambiar avatar"
+    },
+    "serverIcon": {
+      "view": "Ver icono del servidor a tamaño completo",
+      "viewNamed": "Ver el icono de {name} a tamaño completo",
+      "image": "Icono del servidor",
+      "imageNamed": "Icono de {name}",
+      "change": "Cambiar icono del servidor"
+    },
+    "lightbox": {
+      "label": "Visor multimedia",
+      "position": "{current} de {total}",
+      "previous": "Anterior",
+      "next": "Siguiente",
+      "zoomIn": "Acercar",
+      "zoomOut": "Alejar",
+      "resetZoom": "Restablecer zoom y rotación",
+      "rotateLeft": "Girar a la izquierda",
+      "rotateRight": "Girar a la derecha",
+      "videoUnsupported": "Este vídeo no se puede reproducir aquí."
+    },
+    "pwa": {
+      "installApp": "Instalar la app de Harmony",
+      "share": "Compartir Harmony"
+    },
+    "rail": {
+      "portal": "Portal de Harmony",
+      "fediverse": "Fediverso",
+      "funding": "Financiación de la instancia"
+    },
+    "notifications": {
+      "desktopFor": "{type}: notificaciones de escritorio",
+      "soundFor": "{type}: sonido",
+      "testFor": "Probar notificación: {type}",
+      "volume": "Volumen general"
+    },
+    "settings": {
+      "importThemeFile": "Archivo de tema para importar"
+    },
+    "shortcuts": {
+      "title": "Navegación",
+      "regions": "Ir a la región siguiente o anterior (servidores, canales, mensajes, miembros, voz)",
+      "regionsKeys": "F6 / Mayús+F6",
+      "browserNote": "En un navegador que reserva F6 para la barra de direcciones, usa Ctrl+F6 / Ctrl+Mayús+F6.",
+      "skip": "Saltar al contenido: la primera parada de Tab en cada página",
+      "skipKeys": "Tab",
+      "escape": "Cerrar el diálogo, menú o panel abierto; el foco vuelve a donde estaba",
+      "escapeKeys": "Escape"
+    }
+  },
+  "statusPicker": {
+    "setTitle": "Establecer estado personalizado",
+    "editTitle": "Editar estado personalizado",
+    "current": "Estado actual",
+    "clear": "Borrar estado",
+    "chooseEmoji": "Elegir emoji",
+    "emojiSelected": "Emoji: {name}. Cambiar emoji",
+    "charCount": "{count} de {max} caracteres",
+    "activity": "Actividad",
+    "customHint": "Solo texto o emoji (sin prefijo)",
+    "clearAfter": "Borrar después de",
+    "saving": "Guardando…",
+    "activities": {
+      "custom": "Personalizado",
+      "playing": "Jugando",
+      "listening": "Escuchando",
+      "watching": "Viendo",
+      "competing": "Compitiendo",
+      "streaming": "Transmitiendo"
+    },
+    "durations": {
+      "never": "No borrar",
+      "30m": "30 minutos",
+      "1h": "1 hora",
+      "4h": "4 horas",
+      "today": "Hoy",
+      "1w": "Esta semana"
     }
   }
 }

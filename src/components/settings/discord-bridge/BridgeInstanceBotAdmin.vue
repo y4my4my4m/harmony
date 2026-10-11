@@ -191,8 +191,8 @@
         <ToggleSwitch
           :model-value="enabled"
           :disabled="busy || switching || (!status.configured && !enabled)"
-          :aria-labelledby="`${uid}-enabled-label`"
-          :aria-describedby="`${uid}-enabled-hint`"
+          :labelledby="`${uid}-enabled-label`"
+          :describedby="`${uid}-enabled-hint`"
           data-testid="instance-bot-enabled"
           @update:model-value="setSwitch('enabled', $event)"
         />
@@ -206,8 +206,8 @@
         <ToggleSwitch
           :model-value="presence"
           :disabled="busy || switching"
-          :aria-labelledby="`${uid}-presence-label`"
-          :aria-describedby="`${uid}-presence-hint`"
+          :labelledby="`${uid}-presence-label`"
+          :describedby="`${uid}-presence-hint`"
           data-testid="instance-bot-presence"
           @update:model-value="setSwitch('presence', $event)"
         />
@@ -480,7 +480,7 @@ onMounted(load)
 }
 
 .portal-steps a {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .step-why {
@@ -529,7 +529,7 @@ onMounted(load)
 }
 
 .state--ok {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .hint {
@@ -576,11 +576,11 @@ onMounted(load)
 }
 
 .note a {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .error {
-  color: var(--error);
+  color: var(--text-danger);
   font-size: 13px;
 }
 </style>

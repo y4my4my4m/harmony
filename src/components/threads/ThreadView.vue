@@ -1553,7 +1553,7 @@ onUnmounted(() => {
 }
 
 .option-item.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .option-item.danger:hover {

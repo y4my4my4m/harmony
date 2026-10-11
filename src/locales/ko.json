@@ -746,7 +746,7 @@
       "reduceMotion": "모션 줄이기",
       "reduceMotionDesc": "애니메이션 및 전환을 줄입니다.",
       "screenReader": "화면 읽기 프로그램 지원",
-      "screenReaderDesc": "화면 읽기 프로그램에 최적화합니다.",
+      "screenReaderDesc": "스크린 리더에 추가 활동(입력 중, 음성에서 말하는 사람, 상태 변경)을 읽어 주고 키보드 포커스 테두리를 더 두껍게 표시합니다. 필수 안내는 항상 켜져 있습니다.",
       "saveChanges": "변경사항 저장",
       "resetSettings": "재설정",
       "unsavedChanges": "저장하지 않은 모양 변경사항이 있습니다",
@@ -4402,6 +4402,144 @@
       "invalid": "사운드가 거부되었습니다. 이름, 이모지, 음량을 확인하세요.",
       "load": "이 서버의 사운드를 불러오지 못했습니다.",
       "generic": "문제가 발생했습니다. 다시 시도하세요."
+    }
+  },
+  "a11y": {
+    "unreadNotifications": "읽지 않은 알림 {count}개",
+    "announcements": {
+      "pinned": "고정됨"
+    },
+    "skipToContent": "본문으로 건너뛰기",
+    "loadingInstance": "{name} 불러오는 중…",
+    "genericError": "문제가 발생했습니다. 다시 시도해 주세요.",
+    "backOnline": "다시 온라인 상태입니다",
+    "bannerImage": "배너 이미지",
+    "landmarks": {
+      "servers": "서버",
+      "channels": "채널",
+      "directMessages": "다이렉트 메시지",
+      "members": "멤버",
+      "userPanel": "내 계정",
+      "social": "소셜 탐색",
+      "socialSidebar": "트렌드 및 추천"
+    },
+    "drawer": {
+      "navigation": "탐색 메뉴",
+      "memberList": "멤버 목록"
+    },
+    "title": {
+      "resetPassword": "비밀번호 재설정",
+      "invite": "초대",
+      "followRequests": "팔로우 요청",
+      "hashtag": "해시태그",
+      "serverSettings": "서버 설정",
+      "thread": "스레드",
+      "today": "오늘",
+      "newProfile": "프로필 만들기"
+    },
+    "announcer": {
+      "more": "{count}개 더"
+    },
+    "toast": {
+      "dismiss": "알림 닫기"
+    },
+    "confirm": {
+      "typeExact": "확인하려면 정확한 텍스트를 입력하세요.",
+      "typeToConfirm": "확인하려면 \"{text}\"을(를) 입력하세요"
+    },
+    "moderation": {
+      "kickMember": "멤버 추방",
+      "banMember": "멤버 차단",
+      "kick": "추방",
+      "ban": "차단"
+    },
+    "instance": {
+      "noneSelected": "선택된 인스턴스 없음",
+      "change": "인스턴스 변경",
+      "changeShort": "변경"
+    },
+    "avatar": {
+      "view": "아바타 원본 크기로 보기",
+      "viewNamed": "{name}님의 아바타 원본 크기로 보기",
+      "image": "아바타",
+      "imageNamed": "{name}님의 아바타",
+      "change": "아바타 변경"
+    },
+    "serverIcon": {
+      "view": "서버 아이콘 원본 크기로 보기",
+      "viewNamed": "{name} 아이콘 원본 크기로 보기",
+      "image": "서버 아이콘",
+      "imageNamed": "{name} 아이콘",
+      "change": "서버 아이콘 변경"
+    },
+    "lightbox": {
+      "label": "미디어 뷰어",
+      "position": "{total}개 중 {current}번째",
+      "previous": "이전",
+      "next": "다음",
+      "zoomIn": "확대",
+      "zoomOut": "축소",
+      "resetZoom": "확대/축소 및 회전 초기화",
+      "rotateLeft": "왼쪽으로 회전",
+      "rotateRight": "오른쪽으로 회전",
+      "videoUnsupported": "이 동영상은 여기에서 재생할 수 없습니다."
+    },
+    "pwa": {
+      "installApp": "Harmony 앱 설치",
+      "share": "Harmony 공유"
+    },
+    "rail": {
+      "portal": "Harmony 포털",
+      "fediverse": "페디버스",
+      "funding": "인스턴스 후원"
+    },
+    "notifications": {
+      "desktopFor": "{type}: 데스크톱 알림",
+      "soundFor": "{type}: 소리",
+      "testFor": "{type} 알림 테스트",
+      "volume": "마스터 볼륨"
+    },
+    "settings": {
+      "importThemeFile": "가져올 테마 파일"
+    },
+    "shortcuts": {
+      "title": "탐색",
+      "regions": "다음 또는 이전 영역으로 이동 (서버, 채널, 메시지, 멤버, 음성)",
+      "regionsKeys": "F6 / Shift+F6",
+      "browserNote": "F6을 주소 표시줄에 사용하는 브라우저에서는 Ctrl+F6 / Ctrl+Shift+F6을 사용하세요.",
+      "skip": "본문으로 건너뛰기: 모든 페이지의 첫 번째 Tab 위치",
+      "skipKeys": "Tab",
+      "escape": "열린 대화 상자, 메뉴 또는 패널을 닫고 포커스를 원래 위치로 되돌립니다",
+      "escapeKeys": "Esc"
+    }
+  },
+  "statusPicker": {
+    "setTitle": "사용자 지정 상태 설정",
+    "editTitle": "사용자 지정 상태 편집",
+    "current": "현재 상태",
+    "clear": "상태 지우기",
+    "chooseEmoji": "이모지 선택",
+    "emojiSelected": "이모지: {name}. 이모지 변경",
+    "charCount": "{max}자 중 {count}자",
+    "activity": "활동",
+    "customHint": "텍스트 또는 이모지만 (접두사 없음)",
+    "clearAfter": "지우기 시점",
+    "saving": "저장 중…",
+    "activities": {
+      "custom": "사용자 지정",
+      "playing": "플레이 중",
+      "listening": "듣는 중",
+      "watching": "시청 중",
+      "competing": "경쟁 중",
+      "streaming": "방송 중"
+    },
+    "durations": {
+      "never": "지우지 않음",
+      "30m": "30분",
+      "1h": "1시간",
+      "4h": "4시간",
+      "today": "오늘",
+      "1w": "이번 주"
     }
   }
 }

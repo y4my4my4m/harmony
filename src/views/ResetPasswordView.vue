@@ -778,7 +778,7 @@ const toggleRecoveryCode = () => {
 
 .error-message {
   font-size: 0.875rem;
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .submit-btn {
@@ -862,11 +862,11 @@ const toggleRecoveryCode = () => {
 }
 
 .success-icon {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .error-icon {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .success-icon svg,
@@ -978,7 +978,7 @@ const toggleRecoveryCode = () => {
   margin: 0 auto 16px;
   width: 48px;
   height: 48px;
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .modal-title {

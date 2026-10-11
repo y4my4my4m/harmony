@@ -49,7 +49,7 @@ const glyphChars = computed(() =>
 
 /* Static accent tiers. */
 .egp-char:nth-child(5n) {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   opacity: 0.92;
 }
 .egp-char:nth-child(7n) {

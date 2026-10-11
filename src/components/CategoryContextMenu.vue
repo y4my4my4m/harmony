@@ -128,7 +128,7 @@ const deleteCategory = () => {
 }
 
 .context-menu-item.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .context-menu-item.danger:hover {

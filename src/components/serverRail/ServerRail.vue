@@ -9,7 +9,7 @@
     @mouseover="onMouseOver"
     @mouseout="onMouseOut"
     @focusin="onFocusIn"
-    @focusout="emit('leave-server')"
+    @focusout="onFocusOut"
   >
     <TransitionGroup tag="div" name="rail-move" class="rail-list">
       <div
@@ -387,6 +387,20 @@ const onFocusIn = (e: FocusEvent) => {
   const el = entryOf(e)
   const source = el ? sourceFromElement(el) : null
   if (source?.kind === 'server') emit('hover-server', source.id)
+  // Keyboard focus shows the same tooltip as hover.
+  if (!el || !source || drag.isDragging()) return
+  if (source.kind === 'server') {
+    const server = props.servers.find(s => s.id === source.id)
+    emit('tooltip', el, server ? serverDisplayLabel(server) : '')
+  } else {
+    const folder = serverChannelStore.folders.find(f => f.id === source.id)
+    emit('tooltip', el, folder?.name || t('serverRail.folder.unnamed'), layout.value.folders[source.id]?.length ?? 0)
+  }
+}
+
+const onFocusOut = () => {
+  emit('tooltip-hide')
+  emit('leave-server')
 }
 
 let releaseClock: (() => void) | null = null

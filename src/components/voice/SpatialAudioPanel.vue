@@ -1173,7 +1173,7 @@ onUnmounted(() => {
 }
 
 .status-enabled {
-  color: var(--success);
+  color: var(--text-success);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -1187,7 +1187,7 @@ onUnmounted(() => {
 }
 
 .status-updated {
-  color: var(--success);
+  color: var(--text-success);
   display: flex;
   align-items: center;
   gap: 4px;

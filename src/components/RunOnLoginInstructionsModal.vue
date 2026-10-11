@@ -231,7 +231,7 @@ watch(
   height: 44px;
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -409,11 +409,11 @@ watch(
 }
 
 .menu-mock-items li.highlight svg {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .menu-mock-items li.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .footnote {

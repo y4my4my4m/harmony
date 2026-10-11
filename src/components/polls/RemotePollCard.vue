@@ -149,7 +149,7 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-decoration: none;
 }
 

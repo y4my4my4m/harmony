@@ -529,7 +529,7 @@ input:checked + .toggle-slider:before {
   background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
   border-radius: var(--radius-base);
   font-size: 13px;
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .server-handle-card {
@@ -563,7 +563,7 @@ input:checked + .toggle-slider:before {
   background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
   border: 1px solid color-mix(in srgb, var(--harmony-primary) 40%, transparent);
   border-radius: var(--radius-base);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-size: 13px;
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
@@ -695,12 +695,12 @@ input:checked + .toggle-slider:before {
 }
 
 .info-icon {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .info-card.private .info-icon,
 .info-card.federation .info-icon {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .warning-card .warning-icon {
@@ -708,7 +708,7 @@ input:checked + .toggle-slider:before {
 }
 
 .disable-federation-warning .warning-icon {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .info-list,

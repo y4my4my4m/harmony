@@ -1385,7 +1385,7 @@ onMounted(() => {
 
 .report-action-btn.danger {
   background: color-mix(in srgb, var(--error) 20%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 
@@ -1454,7 +1454,7 @@ onMounted(() => {
 
 .report-action-btn.resolve {
   background: color-mix(in srgb, var(--success) 30%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 
@@ -1561,7 +1561,7 @@ onMounted(() => {
   padding: 2px 8px;
   border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-transform: none;
   letter-spacing: 0;
   font-weight: 600;
@@ -1587,7 +1587,7 @@ onMounted(() => {
 
 
 .section-description a {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 
@@ -1721,7 +1721,7 @@ onMounted(() => {
 .pending-amount {
   font-size: 16px;
   font-weight: 700;
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 
@@ -2164,7 +2164,7 @@ onMounted(() => {
 .donation-stat-value {
   font-size: 20px;
   font-weight: 700;
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 
@@ -2494,7 +2494,7 @@ onMounted(() => {
 .tier-adfree-badge {
   font-size: 10px;
   font-weight: 600;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border: 1px solid var(--harmony-primary-alpha, color-mix(in srgb, var(--harmony-primary) 40%, transparent));
   border-radius: var(--radius-sm);
   padding: 1px 5px;

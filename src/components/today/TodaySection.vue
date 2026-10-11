@@ -195,7 +195,7 @@ const headingId = computed(() => `today-${props.id}-heading`)
 }
 
 .today-section-error {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .today-section-error span {
@@ -203,7 +203,7 @@ const headingId = computed(() => `today-${props.id}-heading`)
 }
 
 .today-section-empty :deep(.icon-wrap) {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .today-link-button {
@@ -211,7 +211,7 @@ const headingId = computed(() => `today-${props.id}-heading`)
   border: none;
   border-radius: var(--radius-sm);
   background: none;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font: inherit;
   font-weight: var(--font-weight-semibold);
   cursor: pointer;

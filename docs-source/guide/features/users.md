@@ -64,6 +64,21 @@ The settings panel (`UserSettings` view) provides:
 | Bots | `UserBotsManagement` | Personal bot management |
 | Advanced | `AdvancedSettings` | Desktop app, developer mode, cache, account migration, account deletion |
 
+## Keyboard and Screen Readers
+
+- **Skip to content** is the first Tab stop on every page and moves focus to the main area.
+- **F6 / Shift+F6** move focus between regions: servers, channels, messages, members, the voice
+  connection and the account panel. Landing in a navigation region focuses its current item. In a
+  web browser that keeps F6 for its address bar, Ctrl+F6 does the same.
+- **Escape** closes the topmost dialog, menu or mobile drawer only; focus returns to the control
+  that opened it.
+- Page titles name the open channel, conversation or view, with the unread count first, and a
+  view change is announced.
+- Settings → Appearance → *Screen reader support* adds verbose announcements (typing, voice
+  speakers, presence changes) and a thicker focus outline. Essential announcements (new view,
+  errors, confirmations) are always on.
+- The page zooms with pinch and the browser's zoom controls.
+
 ## Account Migration
 
 Settings → Advanced → Account migration moves followers between a person's accounts, on this

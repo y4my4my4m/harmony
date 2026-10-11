@@ -355,11 +355,11 @@ onMounted(() => load(true))
 }
 
 .audit-perm.added {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .audit-perm.removed {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .audit-reason {
@@ -380,7 +380,7 @@ onMounted(() => load(true))
 .audit-error {
   margin: 8px 0 0;
   font-size: var(--font-size-sm);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .load-more {

@@ -1283,7 +1283,7 @@ onMounted(async () => {
 
 .profile-field-remove:hover {
   background: color-mix(in srgb, var(--error) 12%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
   border-color: color-mix(in srgb, var(--error) 35%, transparent);
 }
 
@@ -1362,7 +1362,7 @@ onMounted(async () => {
   margin: 0 0 10px;
   font-size: 13px;
   font-weight: var(--font-weight-bold);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-transform: none;
   letter-spacing: 0;
 }
@@ -1391,7 +1391,7 @@ onMounted(async () => {
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 13px;
   font-weight: var(--font-weight-semibold);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   user-select: all;
   word-break: break-all;
 }
@@ -1414,7 +1414,7 @@ onMounted(async () => {
 
 .donor-copy-btn:hover {
   border-color: var(--harmony-primary);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .donor-auto-credit {
@@ -1534,7 +1534,7 @@ onMounted(async () => {
 
 .supporter-active {
   font-size: var(--font-size-xs);
-  color: var(--success);
+  color: var(--text-success);
   font-weight: var(--font-weight-semibold);
 }
 

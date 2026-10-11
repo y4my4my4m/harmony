@@ -153,6 +153,6 @@ const emit = defineEmits<{ action: [] }>()
 
 .list-empty--error .list-empty__icon {
   background: color-mix(in srgb, var(--error) 14%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 </style>

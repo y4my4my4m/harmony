@@ -3,8 +3,10 @@
     <div class="header-left">
       <button 
         v-if="isMobile"
+        type="button"
         class="mobile-menu-btn"
-        aria-label="Toggle navigation"
+        :aria-label="t('a11y.drawer.navigation')"
+        v-bind="leftDrawerToggle"
         @click="$emit('toggle-left-sidebar')"
       >
         <svg viewBox="0 0 24 24" class="menu-icon" aria-hidden="true">
@@ -69,9 +71,10 @@
         class="action-btn members-btn"
         :class="{ active: props.rightSidebarOpen }"
         @click="handleMembersClick"
-        :title="props.rightSidebarOpen ? 'Hide member list' : 'Show member list'"
-        :aria-label="props.rightSidebarOpen ? 'Hide member list' : 'Show member list'"
-        :aria-pressed="!!props.rightSidebarOpen"
+        type="button"
+        :title="t('a11y.drawer.memberList')"
+        :aria-label="t('a11y.drawer.memberList')"
+        v-bind="rightDrawerToggle"
       >
         <Icon name="users" :size="16" />
       </button>
@@ -172,6 +175,7 @@ import type { Channel, Server } from '@/types'
 import Icon from '@/components/common/Icon.vue'
 import { usePinsStore, pinScopeKey } from '@/stores/usePins'
 import { useI18n } from 'vue-i18n'
+import { useAppDrawers } from '@/composables/useLayoutState'
 import { useNotificationStore } from '@/stores/useNotification'
 import { useServerNotificationSettingsStore } from '@/stores/useServerNotificationSettings'
 import { findOverride, inheritedLevel, isMuteActive, type NotificationLevel } from '@/services/notificationSettings'
@@ -221,6 +225,7 @@ const moreMenuRef = ref<HTMLElement | null>(null)
 const menuPosition = ref<Record<string, string>>({})
 
 const { t } = useI18n()
+const { leftDrawerToggle, rightDrawerToggle } = useAppDrawers()
 const notificationSettings = useServerNotificationSettingsStore()
 const serverId = computed(() => props.server?.id ?? props.channel?.server_id ?? null)
 const settings = computed(() => notificationSettings.settingsFor(serverId.value))
@@ -555,7 +560,7 @@ onUnmounted(() => {
 }
 
 .pinned-btn.has-pins {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .more-menu-wrapper {
@@ -666,7 +671,7 @@ onUnmounted(() => {
 }
 
 .more-menu .context-menu-item.item-active {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .more-menu .context-menu-item .check-icon {

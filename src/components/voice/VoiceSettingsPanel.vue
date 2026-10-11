@@ -778,7 +778,7 @@ export default defineComponent({
 }
 
 .setting-value {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-weight: 600;
 }
 
@@ -1039,7 +1039,7 @@ kbd {
 
 .reset-btn:hover {
   border-color: var(--error);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .footer-actions {

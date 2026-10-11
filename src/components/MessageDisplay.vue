@@ -3815,7 +3815,7 @@ defineExpose({ editLastOwnMessage });
   padding: 4px 8px;
   margin-top: 4px;
   font-size: 12px;
-  color: var(--error);
+  color: var(--text-danger);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--error) 8%, transparent);
 }
@@ -3850,7 +3850,7 @@ defineExpose({ editLastOwnMessage });
 }
 
 .failed-message-bar .discard-btn:hover {
-  color: var(--error);
+  color: var(--text-danger);
   background: color-mix(in srgb, var(--error) 15%, transparent);
 }
 
@@ -4007,7 +4007,7 @@ defineExpose({ editLastOwnMessage });
 
 /* Thread action button */
 .thread-btn {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 /* Compact message (no header) */
@@ -4075,7 +4075,7 @@ defineExpose({ editLastOwnMessage });
 }
 
 .action-btn.delete-danger {
-  color: var(--error)!important;
+  color: var(--text-danger)!important;
   background-color: color-mix(in srgb, var(--error) 50%, transparent)!important;
 }
 
@@ -4357,11 +4357,11 @@ defineExpose({ editLastOwnMessage });
 }
 
 .system-icon.join {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .system-icon.leave {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .system-text {
@@ -4404,7 +4404,7 @@ defineExpose({ editLastOwnMessage });
 .automod-timeout {
   margin-left: 6px;
   font-size: 0.75rem;
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .automod-alert-excerpt {
@@ -4437,7 +4437,7 @@ defineExpose({ editLastOwnMessage });
 
 .system-thread-link,
 .system-threads-link {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-weight: 600;
   cursor: pointer;
 }
@@ -4459,15 +4459,15 @@ defineExpose({ editLastOwnMessage });
 }
 
 .call-system-icon.active {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .call-system-icon.missed {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .call-missed {
-  color: var(--error);
+  color: var(--text-danger);
   font-size: 0.8rem;
   font-weight: 600;
 }
@@ -4487,7 +4487,6 @@ defineExpose({ editLastOwnMessage });
 .system-timestamp {
   font-size: 0.65rem;
   color: var(--text-muted);
-  opacity: 0.7;
   flex-shrink: 0;
 }
 
@@ -4668,7 +4667,7 @@ defineExpose({ editLastOwnMessage });
   display: inline-block;
   font-size: 0.7em;
   margin-left: 4px;
-  color: var(--error);
+  color: var(--text-danger);
   opacity: 0.7;
   cursor: help;
   transition: opacity 0.2s ease;
@@ -4708,7 +4707,7 @@ defineExpose({ editLastOwnMessage });
 }
 
 .reported-icon {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .reported-text {

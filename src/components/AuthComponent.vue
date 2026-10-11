@@ -1160,7 +1160,7 @@ onMounted(async () => {
 }
 
 .input-group.error label {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .input-group.error input {
@@ -1186,7 +1186,7 @@ onMounted(async () => {
   bottom: -20px;
   left: 0;
   font-size: 0.75rem;
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .error-text.centered {
@@ -1537,7 +1537,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .success-icon svg {

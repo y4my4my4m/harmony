@@ -3,10 +3,13 @@
     <div class="header-left">
       <button 
         v-if="isMobile"
+        type="button"
         class="mobile-menu-btn"
+        :aria-label="t('a11y.drawer.navigation')"
+        v-bind="leftDrawerToggle"
         @click="$emit('toggle-left-sidebar')"
       >
-        <svg viewBox="0 0 24 24" class="menu-icon">
+        <svg viewBox="0 0 24 24" class="menu-icon" aria-hidden="true">
           <path d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z" fill="currentColor"/>
         </svg>
       </button>
@@ -279,6 +282,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useT } from '@/composables/useT'
+import { useAppDrawers } from '@/composables/useLayoutState'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
@@ -301,6 +306,9 @@ import { debug } from '@/utils/debug'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { dmConversationIdFromChannel, useCallSwitch } from '@/composables/useCallSwitch'
 import { useDMCallJoin } from '@/composables/useDMCallJoin'
+
+const { t } = useT()
+const { leftDrawerToggle } = useAppDrawers()
 
 const router = useRouter()
 const { confirm } = useConfirmDialog()
@@ -1237,13 +1245,13 @@ const getDefaultGroupName = (): string => {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--success);
+  color: var(--text-success);
   font-size: 14px;
   font-weight: 600;
 }
 
 .call-icon {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .join-call-btn {
@@ -1304,7 +1312,7 @@ const getDefaultGroupName = (): string => {
 }
 
 .status.busy {
-  color: var(--danger-color, #ed4245);
+  color: var(--text-danger, #ed4245);
 }
 
 .status.offline {
@@ -1418,7 +1426,7 @@ const getDefaultGroupName = (): string => {
 }
 
 .action-item.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .action-item.danger:hover {

@@ -14,14 +14,17 @@
         <div class="header-content">
           <button 
             v-if="isMobile"
+            type="button"
             class="mobile-menu-btn"
+            :aria-label="t('a11y.drawer.navigation')"
+            v-bind="leftDrawerToggle"
             @click="$emit('toggleLeftSidebar')"
           >
-            <svg viewBox="0 0 24 24" class="menu-icon">
+            <svg viewBox="0 0 24 24" class="menu-icon" aria-hidden="true">
               <path d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z" fill="currentColor"/>
             </svg>
           </button>
-          <h2>Direct messages</h2>
+          <h2>{{ t('dm.title') }}</h2>
         </div>
       </div>
     </div>
@@ -96,6 +99,8 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useT } from '@/composables/useT'
+import { useAppDrawers } from '@/composables/useLayoutState'
 import { useToast } from 'vue-toastification'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 import Icon from '@/components/common/Icon.vue'
@@ -115,6 +120,9 @@ import { debug } from '@/utils/debug'
 // `ChatComponent` owns the DM send + fallback flow so it can await the outcome
 // before clearing the input. This file forwards notifications only.
 import { ViewMode, ViewType } from '@/types/viewTypes'
+
+const { t } = useT()
+const { leftDrawerToggle } = useAppDrawers()
 
 interface Props {
   isDM: boolean
@@ -612,7 +620,7 @@ const highlightSearchText = (messageElement: HTMLElement, query: string) => {
 
 .call-banner-join {
   background: var(--text-on-primary);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border: none;
   border-radius: 4px;
   padding: 4px 12px;

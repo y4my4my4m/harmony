@@ -228,7 +228,7 @@ onMounted(() => {
 }
 
 .banner-icon svg {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .banner-text {

@@ -267,7 +267,7 @@ onMounted(async () => {
   height: 56px;
   border-radius: 50%;
   background: color-mix(in srgb, var(--error) 15%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .invite-btn {

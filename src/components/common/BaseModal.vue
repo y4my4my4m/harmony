@@ -1,8 +1,21 @@
+<!--
+  BaseModal - styled modal dialog. Dialog semantics, focus, Escape and the inert
+  background come from composables/useDialog.ts.
+  Name: `title` (rendered as the heading), else `ariaLabel`, else the first
+  heading inside the content. `subtitle` describes the dialog.
+-->
 <template>
   <Teleport to="body">
     <div v-if="show" :class="['modal-overlay', overlayClass]" @click="handleOverlayClick">
       <div
+        ref="dialogEl"
         class="modal-container"
+        :role="role"
+        aria-modal="true"
+        :aria-labelledby="labelledBy"
+        :aria-label="labelledBy ? undefined : ariaLabel"
+        :aria-describedby="subtitle && showHeader ? descriptionId : undefined"
+        tabindex="-1"
         @click.stop
         :class="{ 'modal-compact': compact }"
       >
@@ -13,17 +26,24 @@
         <!-- Header -->
         <div class="modal-header" v-if="showHeader">
           <div class="header-content">
-            <div class="icon-container" v-if="icon">
+            <div class="icon-container" v-if="icon" aria-hidden="true">
               <Icon v-if="typeof icon === 'string'" :name="icon" class="modal-icon" :size="28" />
               <component v-else :is="icon" class="modal-icon" />
             </div>
             <div class="header-text">
-              <h2 class="modal-title">{{ title }}</h2>
-              <p class="modal-subtitle" v-if="subtitle">{{ subtitle }}</p>
+              <h2 :id="titleId" class="modal-title">{{ title }}</h2>
+              <p :id="descriptionId" class="modal-subtitle" v-if="subtitle">{{ subtitle }}</p>
             </div>
           </div>
-          <button class="close-button" @click="$emit('close')" v-if="showCloseButton">
-            <svg class="close-icon" viewBox="0 0 24 24">
+          <button
+            v-if="showCloseButton"
+            type="button"
+            class="close-button"
+            :aria-label="t('common.close')"
+            :title="t('common.close')"
+            @click="$emit('close')"
+          >
+            <svg class="close-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z" fill="currentColor"/>
             </svg>
           </button>
@@ -44,9 +64,11 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useT } from '@/composables/useT'
 import Icon from '@/components/common/Icon.vue'
 import { withRenderFallback } from '@/utils/renderFallback'
+import { useDialog, type InitialFocus } from '@/composables/useDialog'
 
 interface Props {
   show: boolean
@@ -57,50 +79,65 @@ interface Props {
   showHeader?: boolean
   showCloseButton?: boolean
   closeOnOverlay?: boolean
+  /** False: Escape does nothing (a step that must be finished or cancelled explicitly). */
+  closeOnEscape?: boolean
   /** Additional class for the overlay (e.g. "instance-detail-modal" for scoped child styles) */
   overlayClass?: string
   /** Blurred, darkened image layer behind the whole modal (e.g. server banner) */
   backgroundImage?: string | null
+  /** Accessible name when there is no visible title. */
+  ariaLabel?: string
+  /** See useDialog: 'auto', 'dialog', a selector or an element. */
+  initialFocus?: InitialFocus
+  role?: 'dialog' | 'alertdialog'
 }
 
 const props = withDefaults(defineProps<Props>(), {
   showHeader: true,
   showCloseButton: true,
   closeOnOverlay: true,
-  compact: false
+  closeOnEscape: true,
+  compact: false,
+  initialFocus: 'auto',
+  role: 'dialog',
 })
 
 const emit = defineEmits<{
   close: []
 }>()
 
+const { t } = useT()
+const dialogEl = ref<HTMLElement | null>(null)
+
+const { titleId, descriptionId, isActive } = useDialog({
+  open: () => props.show,
+  element: dialogEl,
+  onClose: () => emit('close'),
+  closeOnEscape: () => props.closeOnEscape,
+  initialFocus: () => props.initialFocus,
+})
+
+// Without a visible title, the first heading in the content names the dialog.
+const contentHeadingId = ref<string | undefined>()
+watch(isActive, (active) => {
+  if (!active || (props.showHeader && props.title) || props.ariaLabel) return
+  const heading = dialogEl.value?.querySelector<HTMLElement>('h1, h2, h3')
+  if (!heading) return
+  if (!heading.id) heading.id = `${titleId}-content`
+  contentHeadingId.value = heading.id
+})
+
+const labelledBy = computed(() => {
+  if (props.showHeader && props.title) return titleId
+  if (props.ariaLabel) return undefined
+  return contentHeadingId.value
+})
+
 const handleOverlayClick = () => {
   if (props.closeOnOverlay) {
     emit('close')
   }
 }
-
-const handleKeydown = (event: KeyboardEvent) => {
-  if (event.key === 'Escape' && props.show) {
-    emit('close')
-  }
-}
-
-watch(() => props.show, (visible) => {
-  document.body.style.overflow = visible ? 'hidden' : ''
-})
-
-onMounted(() => {
-  document.addEventListener('keydown', handleKeydown)
-  if (props.show) {
-    document.body.style.overflow = 'hidden'
-  }
-})
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown)
-  document.body.style.overflow = ''
-})
 </script>
 
 <style scoped>
@@ -120,6 +157,10 @@ onUnmounted(() => {
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+.modal-container:focus {
+  outline: none;
 }
 
 .modal-container {
@@ -221,7 +262,7 @@ onUnmounted(() => {
 .modal-icon {
   width: 28px;
   height: 28px;
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .header-text {

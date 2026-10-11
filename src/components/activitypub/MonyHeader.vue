@@ -7,6 +7,7 @@
         class="icon-btn"
         :aria-label="t('activitypub.openNavigation')"
         :title="t('activitypub.openNavigation')"
+        v-bind="leftDrawerToggle"
         @click="$emit('toggle-left-sidebar')"
       >
         <Icon name="menu" :size="20" />
@@ -112,10 +113,12 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useAppDrawers } from '@/composables/useLayoutState'
 import Icon from '@/components/common/Icon.vue'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 
 const { t } = useI18n()
+const { leftDrawerToggle } = useAppDrawers()
 const instanceSettings = useInstanceSettingsStore()
 
 interface Props {

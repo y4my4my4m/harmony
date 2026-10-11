@@ -127,7 +127,7 @@ const {
 
 .test-button:hover:not(:disabled) {
   border-color: var(--h-brand);
-  color: var(--h-brand);
+  color: var(--text-link);
 }
 
 .test-button:disabled {
@@ -209,7 +209,7 @@ const {
 }
 
 .check-icon {
-  color: var(--h-brand);
+  color: var(--text-link);
   width: 14px;
   height: 14px;
 }

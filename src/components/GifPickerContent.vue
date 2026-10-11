@@ -806,7 +806,7 @@ onMounted(async () => {
 }
 
 .gif-generate-quota.at-limit {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .gif-generate-input {

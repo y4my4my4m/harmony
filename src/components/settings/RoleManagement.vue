@@ -135,18 +135,18 @@
 
             <div class="form-group toggle-row">
               <div class="toggle-info">
-                <span class="toggle-title">Display role members separately</span>
-                <p class="form-help">Members with this role will be shown in their own group in the member list.</p>
+                <span :id="`${a11yId}-hoist`" class="toggle-title">Display role members separately</span>
+                <p :id="`${a11yId}-hoist-desc`" class="form-help">Members with this role will be shown in their own group in the member list.</p>
               </div>
-              <ToggleSwitch v-model="editForm.hoist" />
+              <ToggleSwitch v-model="editForm.hoist" :labelledby="`${a11yId}-hoist`" :describedby="`${a11yId}-hoist-desc`" />
             </div>
 
             <div class="form-group toggle-row">
               <div class="toggle-info">
-                <span class="toggle-title">Allow anyone to @mention this role</span>
-                <p class="form-help">When off, only members with <em>Mention @everyone</em> can ping it.</p>
+                <span :id="`${a11yId}-mention`" class="toggle-title">Allow anyone to @mention this role</span>
+                <p :id="`${a11yId}-mention-desc`" class="form-help">When off, only members with <em>Mention @everyone</em> can ping it.</p>
               </div>
-              <ToggleSwitch v-model="editForm.mentionable" />
+              <ToggleSwitch v-model="editForm.mentionable" :labelledby="`${a11yId}-mention`" :describedby="`${a11yId}-mention-desc`" />
             </div>
           </div>
 
@@ -175,10 +175,12 @@
                 class="perm-row"
               >
                 <div class="perm-row-text">
-                  <span class="perm-row-label">{{ perm.label }}</span>
-                  <span class="perm-row-desc">{{ perm.description }}</span>
+                  <span :id="`${a11yId}-perm-${perm.key}`" class="perm-row-label">{{ perm.label }}</span>
+                  <span :id="`${a11yId}-perm-${perm.key}-desc`" class="perm-row-desc">{{ perm.description }}</span>
                 </div>
                 <ToggleSwitch
+                  :labelledby="`${a11yId}-perm-${perm.key}`"
+                  :describedby="`${a11yId}-perm-${perm.key}-desc`"
                   :model-value="hasPermission(perm.key)"
                   :disabled="(selectedRole.is_admin && perm.key === 'ADMINISTRATOR') || (!hasPermission(perm.key) && !canGrant(perm.key))"
                   @update:model-value="togglePermission(perm.key)"
@@ -350,6 +352,11 @@ import {
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useToast } from 'vue-toastification'
 import { useProfileStore } from '@/stores/useProfile'
+
+import { uid } from '@/utils/a11y/focus'
+
+// Ids pairing each switch with its visible label.
+const a11yId = uid('role-management')
 
 interface RoleMemberRow {
   id: string
@@ -1125,7 +1132,7 @@ onMounted(() => {
 
 .role-badge.admin {
   background: color-mix(in srgb, var(--error) 15%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .role-badge.default {
@@ -1217,7 +1224,7 @@ onMounted(() => {
 
 .tab-btn:hover { color: var(--text-primary); }
 .tab-btn.active {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border-bottom-color: var(--harmony-primary);
 }
 
@@ -1385,7 +1392,7 @@ onMounted(() => {
 }
 
 .perm-group-dangerous .perm-group-label {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .perm-row {
@@ -1526,7 +1533,7 @@ onMounted(() => {
   height: 24px;
   border-radius: 50%;
   background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border: none;
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
@@ -1538,7 +1545,7 @@ onMounted(() => {
 
 .member-action-icon.danger {
   background: color-mix(in srgb, var(--error) 15%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .member-action-icon.danger:hover { background: color-mix(in srgb, var(--error) 25%, transparent); }
@@ -1565,7 +1572,7 @@ onMounted(() => {
 .delete-btn {
   background: transparent;
   border: none;
-  color: var(--error);
+  color: var(--text-danger);
   font-size: 13px;
   font-weight: var(--font-weight-semibold);
   cursor: pointer;

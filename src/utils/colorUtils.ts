@@ -779,7 +779,13 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.style.setProperty('--text-primary', palette.textPrimary)
   root.style.setProperty('--text-secondary', palette.textSecondary)
   root.style.setProperty('--text-tertiary', palette.textTertiary)
-  root.style.setProperty('--text-muted', palette.isLightTheme ? '#5e6168' : '#6d6f78')
+  root.style.setProperty('--text-muted', palette.isLightTheme ? '#5e6168' : '#8b8e96')
+  // Brand, danger and success hues as text: 4.5:1 against each surface.
+  const surfaces = [palette.bgPrimary, palette.bgSecondary, palette.bgTertiary].filter(Boolean)
+  const legible = (fg: string) => surfaces.reduce((c, bg) => ensureContrast(c, bg, 4.5), fg)
+  root.style.setProperty('--text-link', legible(palette.primary))
+  root.style.setProperty('--text-danger', legible(palette.isLightTheme ? '#b91c1c' : '#f05a5d'))
+  root.style.setProperty('--text-success', legible(palette.isLightTheme ? '#137638' : '#23a55a'))
   
   // Border colors
   root.style.setProperty('--border-primary', palette.borderPrimary)

@@ -465,7 +465,7 @@ onBeforeUnmount(() => {
 }
 
 .pip-btn--close:hover {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .pip-body {

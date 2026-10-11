@@ -433,7 +433,7 @@ onMounted(async () => {
   background: none;
   border: none;
   border-top: 1px solid var(--border-color);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-weight: 600;
   cursor: pointer;
 }

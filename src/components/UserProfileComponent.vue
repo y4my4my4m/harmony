@@ -694,7 +694,7 @@ onBeforeUnmount(() => {
 
 .clear-status-btn:hover {
   background: color-mix(in srgb, var(--error) 20%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .status-divider {

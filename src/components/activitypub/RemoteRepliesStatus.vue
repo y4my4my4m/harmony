@@ -107,7 +107,7 @@ const canRetry = computed(() => ['rate_limited', 'unreachable', 'failed'].includ
 }
 
 .remote-replies-status.is-error .status-icon {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .placeholder-row {

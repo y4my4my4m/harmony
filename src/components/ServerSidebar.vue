@@ -7,11 +7,13 @@
         class="portal"
         role="button"
         tabindex="0"
-        aria-label="Harmony Portal"
+        :aria-label="t('a11y.rail.portal')"
         @click="openPublicServers"
         @keydown.enter.prevent="openPublicServers"
         @keydown.space.prevent="openPublicServers"
-        @mouseenter="showSidebarTooltip($event, 'Harmony Portal'); schedulePortalPrefetch()"
+        @mouseenter="showSidebarTooltip($event, t('a11y.rail.portal')); schedulePortalPrefetch()"
+        @focusin="showSidebarTooltip($event, t('a11y.rail.portal'))"
+        @focusout="hideSidebarTooltip"
         @mouseleave="hideSidebarTooltip(); cancelServerPrefetch()"
         @focus="schedulePortalPrefetch"
         @blur="cancelServerPrefetch"
@@ -23,7 +25,9 @@
       <div
         v-if="todayDashboardEnabled"
         class="header-item-wrapper"
-        @mouseenter="showSidebarTooltip($event, 'Today')"
+        @mouseenter="showSidebarTooltip($event, t('a11y.title.today'))"
+        @focusin="showSidebarTooltip($event, t('a11y.title.today'))"
+        @focusout="hideSidebarTooltip"
         @mouseleave="hideSidebarTooltip"
       >
         <div class="server-pill" :class="{ 'visible': isTodaySelected }"></div>
@@ -32,7 +36,7 @@
           :class="{ 'selected': isTodaySelected }"
           role="button"
           tabindex="0"
-          aria-label="Today"
+          :aria-label="t('a11y.title.today')"
           :aria-current="isTodaySelected ? 'page' : undefined"
           @click="goToToday"
           @keydown.enter.prevent="goToToday"
@@ -46,14 +50,18 @@
       <!-- <div
         class="portal"
         @click="openPublicServers"
-        @mouseenter="showSidebarTooltip($event, 'Harmony Portal')"
+        @mouseenter="showSidebarTooltip($event, t('a11y.rail.portal'))"
+        @focusin="showSidebarTooltip($event, t('a11y.rail.portal'))"
+        @focusout="hideSidebarTooltip"
         @mouseleave="hideSidebarTooltip"
       >
         <svg fill="#FFF" width="24px" height="24px" viewBox="0 0 24 24" role="img" xmlns="http://www.w3.org/2000/svg"><path d="M6.353 0v2.824H4.94v2.823H3.53v2.824H2.118v2.823H.706v2.824h8.47v2.823H7.765v2.824H6.353v2.823h1.412v-1.412h1.411v-1.411h1.412v-1.412H12V16.94h1.412v-1.41h1.412v-1.411h1.411v-1.412h1.412v-1.412h1.412V9.882h1.412V8.471h1.411V7.059h-4.235V5.647h1.412V4.235h1.412V2.824h1.411V1.412h1.412V0zm0 22.588H4.94V24h1.412zM7.765 2.824h9.882v1.411h-1.412v1.412h-1.411V7.06h-1.412v1.41H12v1.411h1.412v1.412H12V9.882h-1.412v1.412H9.176V9.882H7.765v1.412H6.353V9.882H4.94V8.471h1.412V5.647h1.412zM6.353 8.47v1.411h1.412v-1.41zm2.823 1.411h1.412v-1.41H9.176zm5.648 0h1.411v1.412h-1.411z"/></svg>
       </div> -->
       <div
         class="header-item-wrapper"
-        @mouseenter="showSidebarTooltip($event, 'Direct messages')"
+        @mouseenter="showSidebarTooltip($event, t('dm.title'))"
+        @focusin="showSidebarTooltip($event, t('dm.title'))"
+        @focusout="hideSidebarTooltip"
         @mouseleave="hideSidebarTooltip"
       >
         <div class="server-pill" :class="{ 'visible': isDMSelected, 'has-unread': dmUnreadMentions > 0 && !isDMSelected }"></div>
@@ -62,7 +70,7 @@
           :class="{ 'selected': isDMSelected }"
           role="button"
           tabindex="0"
-          aria-label="Direct messages"
+          :aria-label="t('dm.title')"
           :aria-current="isDMSelected ? 'page' : undefined"
           @click="goToDMs"
           @keydown.enter.prevent="goToDMs"
@@ -79,7 +87,9 @@
 
       <div
         class="header-item-wrapper"
-        @mouseenter="showSidebarTooltip($event, 'Fediverse')"
+        @mouseenter="showSidebarTooltip($event, t('a11y.rail.fediverse'))"
+        @focusin="showSidebarTooltip($event, t('a11y.rail.fediverse'))"
+        @focusout="hideSidebarTooltip"
         @mouseleave="hideSidebarTooltip"
       >
         <div class="server-pill" :class="{ 'visible': isFediverseSelected, 'has-unread': unreadCount > 0 && !isFediverseSelected }"></div>
@@ -88,7 +98,7 @@
           :class="{ 'selected': isFediverseSelected }"
           role="button"
           tabindex="0"
-          aria-label="Fediverse"
+          :aria-label="t('a11y.rail.fediverse')"
           :aria-current="isFediverseSelected ? 'page' : undefined"
           @click="goToFediverse"
           @keydown.enter.prevent="goToFediverse"
@@ -120,9 +130,11 @@
           <button
             type="button"
             class="funding-button"
-            aria-label="Instance funding"
+            :aria-label="t('a11y.rail.funding')"
             @click="showFundingModal = true"
-            @mouseenter="showSidebarTooltip($event, 'Instance funding')"
+            @mouseenter="showSidebarTooltip($event, t('a11y.rail.funding'))"
+        @focusin="showSidebarTooltip($event, t('a11y.rail.funding'))"
+        @focusout="hideSidebarTooltip"
             @mouseleave="hideSidebarTooltip"
           >
             <svg viewBox="0 0 24 24" class="funding-icon" width="22" height="22" aria-hidden="true">
@@ -155,6 +167,8 @@
         :aria-label="updateReadyLabel"
         @click="openUpdatePrompt"
         @mouseenter="showSidebarTooltip($event, updateReadyLabel)"
+        @focusin="showSidebarTooltip($event, updateReadyLabel)"
+        @focusout="hideSidebarTooltip"
         @mouseleave="hideSidebarTooltip"
       >
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
@@ -172,6 +186,7 @@
       <div 
         v-if="sidebarTooltipVisible && sidebarTooltip"
         class="sidebar-tooltip"
+        aria-hidden="true"
         :style="{ top: sidebarTooltipY + 'px' }"
       >
         <div class="sidebar-tooltip-content">
@@ -399,7 +414,7 @@ watch(() => route.fullPath, () => {
   hideSidebarTooltip();
 });
 
-const showSidebarTooltip = (event: MouseEvent, name: string, serverCount?: number) => {
+const showSidebarTooltip = (event: MouseEvent | FocusEvent, name: string, serverCount?: number) => {
   if (isTouchOnly) return;
   showAnchoredTooltip(event, { name: name || t('serverRail.unnamedServer'), serverCount });
 };
@@ -490,7 +505,7 @@ const closeFolderModal = () => {
   border: none;
   border-radius: 50%;
   background: var(--background-secondary);
-  color: var(--success);
+  color: var(--text-success);
   display: flex;
   align-items: center;
   justify-content: center;

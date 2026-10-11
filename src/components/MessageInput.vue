@@ -1364,12 +1364,12 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
   }
 
   .slowmode-indicator.cooling {
-    color: var(--harmony-primary);
+    color: var(--text-link);
     background: color-mix(in srgb, var(--harmony-primary) 12%, transparent);
   }
 
   .message-char-count.over-limit {
-    color: var(--error);
+    color: var(--text-danger);
     font-weight: 600;
   }
 

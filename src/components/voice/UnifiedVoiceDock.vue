@@ -1492,12 +1492,12 @@ onUnmounted(() => {
 
 .dock-connection-badge.livekit {
   background: color-mix(in srgb, var(--success) 20%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .dock-connection-badge.p2p {
   background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 
@@ -1771,7 +1771,7 @@ onUnmounted(() => {
 .channel-icon {
   background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
   border-radius: var(--radius-md);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   width: 24px;
   height: 24px;
   padding: 4px;
@@ -1792,7 +1792,7 @@ onUnmounted(() => {
 
 .participant-count {
   background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   padding: 2px 6px;
   border-radius: var(--radius-full);
   font-size: 12px;
@@ -2093,7 +2093,7 @@ onUnmounted(() => {
   .channel-name {
     font-size: 11px;
     text-align: center;
-    color: var(--success);
+    color: var(--text-success);
   }
   
   .voice-controls {
@@ -2185,8 +2185,14 @@ onUnmounted(() => {
   max-width: min(420px, calc(100vw - 16px));
 }
 
-.dock-banner:empty {
-  display: none;
+/* No banner: out of the layout, but the status region inside stays in the
+   accessibility tree so the next banner is announced. */
+.dock-banner:not(:has(.vcb)) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
 }
 
 .dock-banner :deep(.vcb) {

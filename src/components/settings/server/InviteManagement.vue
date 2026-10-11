@@ -874,12 +874,12 @@ onMounted(() => {
 
 .status-badge.active {
   background: color-mix(in srgb, var(--success) 20%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .status-badge.expired {
   background: color-mix(in srgb, var(--error) 20%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .status-badge.used-up {
@@ -969,12 +969,12 @@ onMounted(() => {
 
 .action-btn.copy:hover:not(:disabled) {
   border-color: var(--harmony-primary);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .action-btn.revoke:hover:not(:disabled) {
   border-color: var(--error);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .action-icon {

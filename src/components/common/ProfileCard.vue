@@ -588,7 +588,7 @@ const vClickOutside = {
 .status-icon {
   width: 12px;
   height: 12px;
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 /* ===== USER INFO ===== */
@@ -615,7 +615,7 @@ const vClickOutside = {
 .verified-badge {
   width: 16px;
   height: 16px;
-  color: var(--success);
+  color: var(--text-success);
   flex-shrink: 0;
 }
 
@@ -633,7 +633,7 @@ const vClickOutside = {
   border-radius: var(--radius-full);
   font-size: 11px;
   line-height: 18px;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border: 1px solid color-mix(in srgb, var(--harmony-primary) 45%, transparent);
 }
 
@@ -871,7 +871,7 @@ const vClickOutside = {
 }
 
 .action-item.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .action-item.danger:hover {

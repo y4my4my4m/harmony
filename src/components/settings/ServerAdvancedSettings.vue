@@ -265,7 +265,7 @@ const formatDate = (dateString: string | undefined): string => {
 }
 
 .section-title.danger {
-  color: var(--error);
+  color: var(--text-danger);
   font-size: var(--font-size-lg);
 }
 
@@ -276,7 +276,7 @@ const formatDate = (dateString: string | undefined): string => {
 }
 
 .section-description.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .permission-notice {
@@ -383,7 +383,7 @@ const formatDate = (dateString: string | undefined): string => {
 .danger-label {
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
-  color: var(--error);
+  color: var(--text-danger);
   margin: 0 0 4px 0;
 }
 
@@ -498,13 +498,13 @@ const formatDate = (dateString: string | undefined): string => {
 
 .warning-icon {
   margin-bottom: 12px;
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .warning-title {
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
-  color: var(--error);
+  color: var(--text-danger);
   margin: 0 0 8px 0;
 }
 
@@ -560,7 +560,7 @@ const formatDate = (dateString: string | undefined): string => {
 
 .error-message {
   font-size: var(--font-size-xs);
-  color: var(--error);
+  color: var(--text-danger);
   margin-top: 4px;
 }
 

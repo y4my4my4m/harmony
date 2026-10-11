@@ -144,11 +144,11 @@ const inviteUrl = computed(() => buildDiscordInviteUrl(props.bridge.discord_appl
 }
 
 .check--ok {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .check--fail {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .check--waiting {

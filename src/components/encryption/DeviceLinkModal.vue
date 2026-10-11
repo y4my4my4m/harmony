@@ -439,7 +439,7 @@ onUnmounted(() => {
 
 .dl-ok,
 .dl-done {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .dl-device {
@@ -491,6 +491,6 @@ onUnmounted(() => {
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--error) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--error) 25%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 </style>

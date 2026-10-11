@@ -175,7 +175,7 @@ function cancel() {
 
 .instance-picker__error {
   margin-top: 1rem;
-  color: var(--error);
+  color: var(--text-danger);
   font-size: 0.9rem;
 }
 
@@ -188,7 +188,7 @@ function cancel() {
 .instance-picker__link {
   background: none;
   border: none;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   cursor: pointer;
   font-size: 0.85rem;
   text-decoration: underline;
