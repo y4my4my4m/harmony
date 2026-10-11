@@ -13,7 +13,16 @@
     further up the original DOM tree.
   -->
   <Teleport :to="teleportTo">
-    <div ref="emojiPopup" class="emoji-popup" :style="positionStyle">
+    <div
+      ref="emojiPopup"
+      class="emoji-popup"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="isReaction ? t('messageA11y.emoji.reactionDialog') : t('messageA11y.emoji.dialog')"
+      tabindex="-1"
+      data-testid="emoji-popup"
+      :style="positionStyle"
+    >
     <!-- Search Input -->
     <div class="emoji-search">
       <input
@@ -21,28 +30,37 @@
         v-model="searchQuery"
         type="text"
         :placeholder="$t('emoji.searchEmojis')"
+        :aria-label="t('messageA11y.emoji.search')"
+        :aria-describedby="searchHintId"
         class="search-input"
+        data-autofocus
+        @keydown="onSearchKeydown"
       />
+      <span :id="searchHintId" class="sr-only">{{ t('messageA11y.emoji.searchHint') }}</span>
     </div>
     <div v-if="limitNotice" class="emoji-limit-notice" role="status" data-testid="emoji-limit-notice">
       {{ limitNotice }}
     </div>
 
     <!-- Emoji Content Area -->
-    <div class="emoji-content">
+    <div ref="contentRef" class="emoji-content" @keydown="onGridKeydown">
       <!-- Favorite Emojis (always visible) -->
       <div v-if="!activeQuery" class="emoji-section">
-        <h3
-          class="section-title section-title-collapsible"
-          @click="toggleSection('favorites')"
-        >
-          <span class="section-chevron" :class="{ collapsed: isSectionCollapsed('favorites') }">&#9662;</span>
-          <Icon name="star" :size="12" />
-          Favorites
+        <h3 class="section-title">
+          <button
+            type="button"
+            class="section-title-collapsible"
+            :aria-expanded="!isSectionCollapsed('favorites')"
+            @click="toggleSection('favorites')"
+          >
+            <span aria-hidden="true" class="section-chevron" :class="{ collapsed: isSectionCollapsed('favorites') }">&#9662;</span>
+            <Icon name="star" :size="12" />
+            Favorites
+          </button>
         </h3>
         <template v-if="!isSectionCollapsed('favorites')">
           <div v-if="favoriteEmojis.length" class="emoji-list frequent-list">
-            <div
+            <button
               v-for="fav in favoriteEmojis"
               :key="fav.emoji_id"
               class="emoji-item"
@@ -53,19 +71,24 @@
               @touchstart="handleTouchHold($event, (e) => openEmojiCtxFavorite(fav, e))"
               @pointerenter="hoveredEmojiName = fav.emoji_name"
               @pointerleave="hoveredEmojiName = null"
+              type="button"
+              tabindex="-1"
+              :aria-label="favoriteLabel(fav)"
+              @focus="hoveredEmojiName = fav.emoji_name"
+              @blur="hoveredEmojiName = null"
             >
               <template v-if="fav.emoji_url">
                 <svg v-if="brokenEmojiUrls.has(fav.emoji_url)" class="emoji-broken-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" y1="13.5" x2="6" y2="21"/><line x1="18" y1="12" x2="21" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/></svg>
-                <img v-else :src="getEmojiUrl(fav.emoji_url, 42)" :alt="fav.emoji_name" class="frequent-emoji-img" @error="brokenEmojiUrls.add(fav.emoji_url!)" />
+                <img v-else :src="getEmojiUrl(fav.emoji_url, 42)" alt="" class="frequent-emoji-img" @error="brokenEmojiUrls.add(fav.emoji_url!)" />
               </template>
               <img
                 v-else-if="!isNativePack && getFavoriteSvgUrl(fav)"
                 :src="getFavoriteSvgUrl(fav)!"
-                :alt="fav.emoji_name"
+                alt=""
                 class="frequent-emoji-img"
               />
               <span v-else class="native-emoji-char">{{ fav.emoji_id }}</span>
-            </div>
+            </button>
           </div>
           <div v-else class="no-favorites-hint">
             <p>Right-click (or touch and hold) any emoji to add it here.</p>
@@ -75,16 +98,20 @@
 
       <!-- Frequently Used Emojis -->
       <div v-if="!activeQuery && hasFrequentEmojis" class="emoji-section">
-        <h3
-          class="section-title section-title-collapsible"
-          @click="toggleSection('frequent')"
-        >
-          <span class="section-chevron" :class="{ collapsed: isSectionCollapsed('frequent') }">&#9662;</span>
-          <Icon name="clock" :size="12" />
-          Frequently used
+        <h3 class="section-title">
+          <button
+            type="button"
+            class="section-title-collapsible"
+            :aria-expanded="!isSectionCollapsed('frequent')"
+            @click="toggleSection('frequent')"
+          >
+            <span aria-hidden="true" class="section-chevron" :class="{ collapsed: isSectionCollapsed('frequent') }">&#9662;</span>
+            <Icon name="clock" :size="12" />
+            Frequently used
+          </button>
         </h3>
         <div v-if="!isSectionCollapsed('frequent')" class="emoji-list frequent-list">
-          <div
+          <button
             v-for="emoji in topEmojisForPicker"
             :key="emoji.id"
             class="emoji-item"
@@ -95,20 +122,25 @@
             @touchstart="handleTouchHold($event, (e) => openEmojiCtxFrequent(emoji, e))"
             @pointerenter="hoveredEmojiName = emoji.name"
             @pointerleave="hoveredEmojiName = null"
+            type="button"
+            tabindex="-1"
+            :aria-label="frequentLabel(emoji)"
+            @focus="hoveredEmojiName = emoji.name"
+            @blur="hoveredEmojiName = null"
           >
             <template v-if="getFrequentEmojiDisplayUrl(emoji)">
               <svg v-if="brokenEmojiUrls.has(getFrequentEmojiDisplayUrl(emoji)!)" class="emoji-broken-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" y1="13.5" x2="6" y2="21"/><line x1="18" y1="12" x2="21" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/></svg>
-              <img v-else :src="getFrequentEmojiDisplayUrl(emoji) ?? undefined" :alt="emoji.name" class="frequent-emoji-img" @error="brokenEmojiUrls.add(getFrequentEmojiDisplayUrl(emoji)!)" />
+              <img v-else :src="getFrequentEmojiDisplayUrl(emoji) ?? undefined" alt="" class="frequent-emoji-img" @error="brokenEmojiUrls.add(getFrequentEmojiDisplayUrl(emoji)!)" />
             </template>
             <img
               v-else-if="!isNativePack && getFrequentEmojiSvgUrl(emoji)"
               :src="getFrequentEmojiSvgUrl(emoji) ?? undefined"
-              :alt="emoji.name"
+              alt=""
               class="frequent-emoji-img"
             />
             <span v-else-if="emoji.native">{{ emoji.native }}</span>
             <span v-else class="emoji-shortcode">:{{ emoji.name }}:</span>
-          </div>
+          </button>
         </div>
       </div>
 
@@ -120,17 +152,21 @@
           :emoji-count="isSectionCollapsed('server-' + group.serverId) ? 0 : group.emojis.length"
         >
           <template #header>
-            <h3
-              class="section-title section-title-collapsible"
-              @click="toggleSection('server-' + group.serverId)"
-            >
-              <span class="section-chevron" :class="{ collapsed: isSectionCollapsed('server-' + group.serverId) }">&#9662;</span>
-              <ServerIcon :src="group.server_icon" size="mini" shape="rounded" :show-title="false" class="section-server-icon" />
-              {{ group.server_name }}
+            <h3 class="section-title">
+              <button
+                type="button"
+                class="section-title-collapsible"
+                :aria-expanded="!isSectionCollapsed('server-' + group.serverId)"
+                @click="toggleSection('server-' + group.serverId)"
+              >
+                <span aria-hidden="true" class="section-chevron" :class="{ collapsed: isSectionCollapsed('server-' + group.serverId) }">&#9662;</span>
+                <ServerIcon :src="group.server_icon" size="mini" shape="rounded" :show-title="false" class="section-server-icon" />
+                {{ group.server_name }}
+              </button>
             </h3>
           </template>
           <div v-if="!isSectionCollapsed('server-' + group.serverId)" class="emoji-list">
-            <div
+            <button
               v-for="emoji in group.emojis"
               :key="emoji.id"
               class="emoji-item"
@@ -141,10 +177,15 @@
               @touchstart="handleTouchHold($event, (e) => openEmojiCtxServer(emoji, e))"
               @pointerenter="hoveredEmojiName = emoji.display_name"
               @pointerleave="hoveredEmojiName = null"
+              type="button"
+              tabindex="-1"
+              :aria-label="customEmojiLabel(emoji.name)"
+              @focus="hoveredEmojiName = emoji.display_name"
+              @blur="hoveredEmojiName = null"
             >
               <svg v-if="brokenEmojiUrls.has(emoji.url)" class="emoji-broken-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" y1="13.5" x2="6" y2="21"/><line x1="18" y1="12" x2="21" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/></svg>
-              <img v-else :src="getEmojiUrl(emoji.url, 42)" :alt="emoji.name" loading="lazy" decoding="async" @error="brokenEmojiUrls.add(emoji.url)" />
-            </div>
+              <img v-else :src="getEmojiUrl(emoji.url, 42)" alt="" loading="lazy" decoding="async" @error="brokenEmojiUrls.add(emoji.url)" />
+            </button>
           </div>
         </LazyEmojiSection>
       </div>
@@ -161,16 +202,20 @@
         :emoji-count="isSectionCollapsed('cat-' + category.id) ? 0 : category.emojis.length"
       >
         <template #header>
-          <h3
-            class="section-title section-title-collapsible"
-            @click="toggleSection('cat-' + category.id)"
-          >
-            <span class="section-chevron" :class="{ collapsed: isSectionCollapsed('cat-' + category.id) }">&#9662;</span>
-            {{ category.icon }} {{ category.name }}
+          <h3 class="section-title">
+            <button
+              type="button"
+              class="section-title-collapsible"
+              :aria-expanded="!isSectionCollapsed('cat-' + category.id)"
+              @click="toggleSection('cat-' + category.id)"
+            >
+              <span aria-hidden="true" class="section-chevron" :class="{ collapsed: isSectionCollapsed('cat-' + category.id) }">&#9662;</span>
+              <span aria-hidden="true">{{ category.icon }}</span> {{ category.name }}
+            </button>
           </h3>
         </template>
         <div v-if="!isSectionCollapsed('cat-' + category.id)" class="emoji-list unified-list">
-          <div
+          <button
             v-for="emoji in category.emojis"
             :key="emoji.shortcode"
             class="emoji-item"
@@ -181,17 +226,22 @@
             @touchstart="handleTouchHold($event, (e) => openEmojiCtxUnified(emoji, e))"
             @pointerenter="hoveredEmojiName = emoji.shortcode"
             @pointerleave="hoveredEmojiName = null"
+            type="button"
+            tabindex="-1"
+            :aria-label="humanizeEmojiName(emoji.shortcode)"
+            @focus="hoveredEmojiName = emoji.shortcode"
+            @blur="hoveredEmojiName = null"
           >
             <img 
               v-if="!isNativePack"
               :src="getEmojiSvgUrl(emoji)" 
-              :alt="emoji.shortcode"
+              alt=""
               loading="lazy"
               decoding="async"
               class="emoji-svg"
             />
             <span v-else class="native-emoji-char">{{ emoji.unicode }}</span>
-          </div>
+          </button>
         </div>
       </LazyEmojiSection>
       
@@ -206,13 +256,13 @@
     </div>
 
     <!-- Emoji preview bar -->
-    <div class="emoji-preview-bar">
+    <div class="emoji-preview-bar" aria-hidden="true">
       <span v-if="hoveredEmojiName" class="emoji-preview-name">:{{ hoveredEmojiName }}:</span>
     </div>
 
     <!-- Favorite toast -->
     <Transition name="fav-toast">
-      <div v-if="favToast" class="fav-toast">{{ favToast }}</div>
+      <div v-if="favToast" class="fav-toast" aria-hidden="true">{{ favToast }}</div>
     </Transition>
 
     <!-- Emoji right-click context menu -->
@@ -273,6 +323,12 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { customEmojiIndex, customEmojiUrlByName, customMatches } from '@/services/emojiSearchIndex';
 import { useEmojiSearchQuery } from '@/composables/useEmojiSearchQuery';
 import type { PickedEmoji } from '@/utils/reactionLimits';
+import { useDialog } from '@/composables/useDialog';
+import { useEmojiPickerA11y } from '@/composables/useEmojiPickerA11y';
+import { useT } from '@/composables/useT';
+import { announce } from '@/composables/useAnnouncer';
+import { uid } from '@/utils/a11y/focus';
+import { customEmojiLabel, humanizeEmojiName } from '@/utils/a11y/emojiNames';
 
 // --- Types ---
 
@@ -302,7 +358,7 @@ const props = withDefaults(
     closeEmojiList?: () => void;
     /** Flag indicating if the popup was opened via the icon click. */
     emojiIconClicked?: boolean;
-    /** Marks the selection as a reaction. Not read anywhere in this component. */
+    /** Marks the selection as a reaction; names the dialog "Add reaction". */
     isReaction?: boolean;
     /** The element that triggers the popup for positioning. */
     triggerElement?: HTMLElement;
@@ -356,7 +412,25 @@ const {
 
 const emojiPopup = ref<HTMLElement | null>(null);
 const searchInput = ref<HTMLInputElement | null>(null);
+const contentRef = ref<HTMLElement | null>(null);
 const { searchQuery, activeQuery } = useEmojiSearchQuery();
+const { t } = useT();
+const searchHintId = uid('emoji-search-hint');
+
+// Modal while mounted: focus starts in the search field, Escape closes, and
+// focus returns to the control that opened the picker.
+const { focusInitial } = useDialog({
+  open: () => true,
+  element: emojiPopup,
+  onClose: () => props.closeEmojiList?.(),
+  initialFocus: () => searchInput.value,
+});
+
+/** Accessible names: :name: for custom emoji, the shortcode in words otherwise. */
+const favoriteLabel = (fav: EmojiFavorite): string =>
+  fav.emoji_url ? customEmojiLabel(fav.emoji_name) : humanizeEmojiName(fav.emoji_name) || fav.emoji_id;
+const frequentLabel = (emoji: { id: string; native?: string; name: string; url?: string }): string =>
+  getFrequentEmojiDisplayUrl(emoji) ? customEmojiLabel(emoji.name) : humanizeEmojiName(emoji.name) || emoji.native || emoji.id;
 const hoveredEmojiName = ref<string | null>(null);
 const favoriteEmojis = ref<EmojiFavorite[]>([]);
 const collapsedSections = ref(new Set<string>());
@@ -628,11 +702,10 @@ const handleClickOutside = (event: MouseEvent): void => {
   props.closeEmojiList?.();
 };
 
-const handleKeyDown = (event: KeyboardEvent): void => {
-  if (event.key === 'Escape') {
-    props.closeEmojiList?.();
-  }
-};
+const { onGridKeydown, onSearchKeydown } = useEmojiPickerA11y(contentRef, activeQuery, () =>
+  filteredEmojiList.value.reduce((n, group) => n + group.emojis.length, 0)
+  + displayedCategories.value.reduce((n, category) => n + category.emojis.length, 0),
+);
 
 // --- Lifecycle Hooks ---
 
@@ -674,6 +747,7 @@ let favToastTimer: ReturnType<typeof setTimeout> | null = null;
 
 function showFavToast(msg: string) {
   favToast.value = msg;
+  announce(msg);
   if (favToastTimer) clearTimeout(favToastTimer);
   favToastTimer = setTimeout(() => { favToast.value = null; }, 1500);
 }
@@ -912,12 +986,15 @@ onMounted(async () => {
   outsideListenerTimeout = setTimeout(() => {
     outsideListenerTimeout = null;
     document.addEventListener('click', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
   }, 100);
 
+  // The popup stays visibility:hidden until positioned, and a hidden field
+  // takes no focus; initial focus runs again once it shows.
   nextTick(() => {
     updatePosition();
-    searchInput.value?.focus();
+    nextTick(() => {
+      if (!emojiPopup.value?.contains(document.activeElement)) focusInitial();
+    });
   });
 });
 
@@ -929,7 +1006,6 @@ onUnmounted(() => {
     outsideListenerTimeout = null;
   }
   document.removeEventListener('click', handleClickOutside);
-  document.removeEventListener('keydown', handleKeyDown);
   clearHold();
 });
 
@@ -1026,6 +1102,14 @@ watch(
 }
 
 .section-title-collapsible {
+  width: 100%;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  text-align: left;
   cursor: pointer;
   user-select: none;
   display: flex;
@@ -1038,6 +1122,12 @@ watch(
 
 .section-title-collapsible:hover {
   background: var(--background-modifier-hover);
+}
+
+.section-title-collapsible:focus-visible,
+.emoji-item:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
 }
 
 .section-server-icon {
@@ -1076,6 +1166,10 @@ watch(
 }
 
 .emoji-item {
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
   transition: background-color 0.15s ease;
   border-radius: 4px;
