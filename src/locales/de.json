@@ -4403,5 +4403,14 @@
       "load": "Die Sounds dieses Servers konnten nicht geladen werden.",
       "generic": "Etwas ist schiefgelaufen. Versuche es erneut."
     }
+  },
+  "voiceMessage": {
+    "label": "Sprachnachricht",
+    "play": "Sprachnachricht abspielen, {duration}",
+    "pause": "Sprachnachricht pausieren",
+    "position": "Wiedergabeposition",
+    "positionValue": "{current} von {total}",
+    "speed": "Wiedergabegeschwindigkeit {speed}x",
+    "playFailed": "Diese Sprachnachricht konnte nicht abgespielt werden."
   }
 }
