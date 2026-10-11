@@ -6,7 +6,8 @@
 //
 // Rules: WCAG 2.0/2.1 A and AA tags. Fails on serious and critical impact by
 // default (`impacts` widens it). axe is injected from node_modules/axe-core, so
-// runs need no network.
+// runs need no network. Each run waits for finite animations and transitions to
+// finish: axe reads colours mid-fade as blended.
 //
 // AXE_EXCLUSIONS below is the single list of known, not yet fixed violations.
 // Each entry names the area that owns the fix; the area builder deletes its
@@ -73,16 +74,40 @@ async function ensureAxe(page: Page): Promise<void> {
   if (!present) await page.addScriptTag({ path: AXE_PATH })
 }
 
+async function animationsSettled(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () => document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getTiming().iterations === Infinity),
+    undefined,
+    { timeout: 5000 },
+  )
+}
+
 /** Violations after impact filtering and AXE_EXCLUSIONS, without asserting. */
 export async function axeFindings(page: Page, options: AxeOptions = {}): Promise<AxeFinding[]> {
-  await ensureAxe(page)
+  // A reload between injection and the run, or during it, drops window.axe or the execution
+  // context; the run reports null and injects again.
+  for (let attempt = 1; ; attempt++) {
+    await animationsSettled(page)
+    await ensureAxe(page)
+    const findings = await runAxe(page, options).catch((error: Error) => {
+      if (/Execution context was destroyed|navigation/i.test(error.message)) return null
+      throw error
+    })
+    if (findings) return findings
+    if (attempt === 3) throw new Error('axe: window.axe vanished three times; the page keeps reloading')
+    await page.waitForLoadState('load')
+  }
+}
+
+async function runAxe(page: Page, options: AxeOptions): Promise<AxeFinding[] | null> {
   const impacts = options.impacts ?? ['serious', 'critical']
   const exclusions = options.noExclusions ? [] : AXE_EXCLUSIONS
   return page.evaluate(
     async ({ include, exclude, rules, disable, impacts, exclusions, tags }) => {
       type Node = { target: string[]; html: string; failureSummary?: string; any?: Array<{ data?: { fgColor?: string; bgColor?: string } }> }
       type Violation = { id: string; impact: string | null; help: string; nodes: Node[] }
-      const axe = (window as unknown as { axe: { run: (ctx: unknown, opts: unknown) => Promise<{ violations: Violation[] }> } }).axe
+      const axe = (window as unknown as { axe?: { run: (ctx: unknown, opts: unknown) => Promise<{ violations: Violation[] }> } }).axe
+      if (!axe) return null
       const context = { include: include ? [include] : [document], exclude: (exclude ?? []).map((s: string) => [s]) }
       const runOptions: Record<string, unknown> = { resultTypes: ['violations'] }
       if (rules?.length) runOptions.runOnly = { type: 'rule', values: rules }
