@@ -105,7 +105,12 @@
       "error": "Error de autenticación",
       "tryAgain": "Intentar de nuevo",
       "success": "¡Bienvenido!",
-      "redirecting": "Redirigiendo..."
+      "redirecting": "Redirigiendo...",
+      "noSession": "No se encontró ninguna sesión tras la autenticación",
+      "suspendedReason": "Tu cuenta ha sido suspendida: {reason}",
+      "suspended": "Tu cuenta ha sido suspendida. Contacta con la administración.",
+      "mfaStartFailed": "No se pudo iniciar la verificación en dos pasos. Inténtalo de nuevo.",
+      "failed": "La autenticación ha fallado. Inténtalo de nuevo."
     },
     "features": {
       "federated": "Federado",
@@ -122,12 +127,46 @@
       "invalidCredentials": "Correo o contraseña incorrectos",
       "accountNotFound": "Cuenta no encontrada",
       "emailInUse": "El correo electrónico ya está en uso",
-      "weakPassword": "La contraseña es demasiado débil"
+      "weakPassword": "La contraseña es demasiado débil",
+      "emailRequired": "El correo electrónico es obligatorio",
+      "passwordRequired": "La contraseña es obligatoria",
+      "emailServiceUnavailable": "El servicio de correo no está configurado. Contacta con la administración de la instancia.",
+      "oauthFailed": "No se pudo iniciar sesión con {provider}"
     },
     "logoutConfirm": {
       "title": "¿Cerrar sesión en este dispositivo?",
       "description": "Deberás iniciar sesión nuevamente para acceder a tu cuenta.",
       "cancel": "Cancelar"
+    },
+    "showPassword": "Mostrar contraseña",
+    "showNewPassword": "Mostrar nueva contraseña",
+    "showConfirmPassword": "Mostrar confirmación de contraseña",
+    "cancelSignIn": "Cancelar inicio de sesión",
+    "verifying": "Verificando…",
+    "sendingResetLink": "Enviando enlace de restablecimiento…",
+    "poweredBy": "Funciona con {name}",
+    "reset": {
+      "brandSubtitle": "Restablece tu contraseña para recuperar el acceso a tu cuenta",
+      "successTitle": "Contraseña restablecida",
+      "successBody": "Tu contraseña se ha actualizado. Ya puedes iniciar sesión con la nueva contraseña.",
+      "goToLogin": "Ir al inicio de sesión",
+      "invalidTitle": "Enlace no válido o caducado",
+      "invalidBody": "Este enlace de restablecimiento no es válido o ha caducado. Solicita uno nuevo.",
+      "enterNew": "Introduce tu nueva contraseña a continuación",
+      "newPlaceholder": "Introduce tu nueva contraseña",
+      "confirmPlaceholder": "Confirma tu nueva contraseña",
+      "remember": "¿Recuerdas tu contraseña?",
+      "verifying": "Verificando el enlace de restablecimiento…",
+      "verifyAndReset": "Verificar y restablecer contraseña",
+      "resetting": "Restableciendo contraseña…",
+      "confirmRequired": "Confirma tu contraseña",
+      "challengeFailed": "No se pudo iniciar la verificación en dos pasos. Inténtalo de nuevo.",
+      "linkMissing": "Token de restablecimiento no válido o ausente. Solicita un nuevo enlace.",
+      "linkExpired": "Este enlace de restablecimiento ha caducado. Solicita uno nuevo.",
+      "verifyFailed": "No se pudo verificar el enlace de restablecimiento. Inténtalo de nuevo.",
+      "mfaRequired": "Se requiere la verificación en dos pasos. Verifica tu código.",
+      "failed": "No se pudo restablecer la contraseña. Inténtalo de nuevo.",
+      "done": "Contraseña restablecida. Inicia sesión con la nueva contraseña."
     }
   },
   "server": {
@@ -1613,7 +1652,23 @@
       "otherLinks": "Tus otros enlaces activos ({count})",
       "showLink": "Mostrar este enlace"
     },
-    "bannedFromServer": "Estás baneado de este servidor"
+    "bannedFromServer": "Estás baneado de este servidor",
+    "a11y": {
+      "preview": "Invitación a {server}. Acepta o rechaza abajo.",
+      "member": "Ya eres miembro de {server}.",
+      "joining": "Uniéndote a {server}…"
+    },
+    "rules": {
+      "title": "Antes de unirte",
+      "subtitle": "Lee y acepta las normas antes de unirte",
+      "instanceHeading": "Normas de la instancia {instance}",
+      "instanceNote": "Se muestran una vez: se aplican en toda esta instancia.",
+      "serverHeading": "Normas de {server}",
+      "agreementNote": "Al unirte, aceptas estas normas.",
+      "agree": "Aceptar y unirme"
+    },
+    "joined": "Te has unido a {server}",
+    "joinFailed": "No se pudo unir al servidor"
   },
   "nav": {
     "chat": "Chat",
@@ -1709,7 +1764,9 @@
       "save": "Guardar",
       "saved": "Servidor de bienvenida guardado",
       "saveFailed": "No se pudo guardar el servidor de bienvenida"
-    }
+    },
+    "joiningNamed": "Uniéndote a {server}…",
+    "joinedNamed": "Te uniste a {server}"
   },
   "serverWelcome": {
     "kicker": "Te damos la bienvenida a",
@@ -3104,6 +3161,10 @@
         "notFound": "No hay ningún inicio de sesión para este código en tu cuenta. Comprueba que ambos dispositivos usan la misma cuenta.",
         "alreadyUsed": "Más de un dispositivo respondió a este código. No se envió nada. Muestra un código nuevo.",
         "generic": "No se pudo vincular."
+      },
+      "a11y": {
+        "showing": "Código en pantalla. Esperando a que el nuevo dispositivo lo escanee.",
+        "confirm": "{device} está listo para vincularse. Revisa los datos y confirma."
       }
     },
     "pairing": {
@@ -4550,5 +4611,15 @@
       "today": "Hoy",
       "1w": "Esta semana"
     }
+  },
+  "instancePicker": {
+    "title": "Te damos la bienvenida a Harmony",
+    "hint": "Harmony es federado: cualquiera puede alojar una instancia. Introduce el dominio de la instancia a la que quieres conectarte.",
+    "domainLabel": "Dominio de la instancia",
+    "connect": "Conectar",
+    "connecting": "Conectando…",
+    "unreachable": "No se pudo contactar con esa instancia",
+    "current": "Conectado actualmente a {name}",
+    "keep": "Mantener"
   }
 }

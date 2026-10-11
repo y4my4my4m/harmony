@@ -62,7 +62,7 @@ async function mountAuth() {
   wrapper = mount(AuthComponent, {
     props: { isLogin: true },
     attachTo: document.body,
-    global: { mocks: { $t: (key: string) => key } },
+    global: { mocks: { $t: (key: string) => key }, stubs: { 'i18n-t': true } },
   })
   await flushPromises()
   return wrapper

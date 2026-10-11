@@ -110,7 +110,12 @@
       "error": "Sign-in failed",
       "tryAgain": "Try again",
       "success": "Signed in",
-      "redirecting": "Redirecting you now..."
+      "redirecting": "Redirecting you now...",
+      "noSession": "No session found after authentication",
+      "suspendedReason": "Your account has been suspended: {reason}",
+      "suspended": "Your account has been suspended. Contact an administrator.",
+      "mfaStartFailed": "Could not start two-factor verification. Try again.",
+      "failed": "Authentication failed. Try again."
     },
     "features": {
       "federated": "Federated",
@@ -127,7 +132,41 @@
       "invalidCredentials": "Invalid email or password",
       "accountNotFound": "Account not found",
       "emailInUse": "Email is already in use",
-      "weakPassword": "Password is too weak"
+      "weakPassword": "Password is too weak",
+      "emailRequired": "Email is required",
+      "passwordRequired": "Password is required",
+      "emailServiceUnavailable": "Email service is not configured. Contact the instance administrator.",
+      "oauthFailed": "Could not sign in with {provider}"
+    },
+    "showPassword": "Show password",
+    "showNewPassword": "Show new password",
+    "showConfirmPassword": "Show password confirmation",
+    "cancelSignIn": "Cancel sign-in",
+    "verifying": "Verifying…",
+    "sendingResetLink": "Sending reset link…",
+    "poweredBy": "Powered by {name}",
+    "reset": {
+      "brandSubtitle": "Reset your password to regain access to your account",
+      "successTitle": "Password reset",
+      "successBody": "Your password has been updated. You can now log in with your new password.",
+      "goToLogin": "Go to login",
+      "invalidTitle": "Invalid or expired link",
+      "invalidBody": "This password reset link is invalid or has expired. Request a new one.",
+      "enterNew": "Enter your new password below",
+      "newPlaceholder": "Enter your new password",
+      "confirmPlaceholder": "Confirm your new password",
+      "remember": "Remember your password?",
+      "verifying": "Verifying password reset link…",
+      "verifyAndReset": "Verify and reset password",
+      "resetting": "Resetting password…",
+      "confirmRequired": "Confirm your password",
+      "challengeFailed": "Could not start two-factor verification. Try again.",
+      "linkMissing": "Invalid or missing password reset token. Request a new password reset link.",
+      "linkExpired": "This password reset link has expired. Request a new one.",
+      "verifyFailed": "Could not verify the password reset link. Try again.",
+      "mfaRequired": "Two-factor authentication is required. Verify your code.",
+      "failed": "Could not reset the password. Try again.",
+      "done": "Password reset. Log in with your new password."
     }
   },
   "server": {
@@ -1604,7 +1643,23 @@
       "otherLinks": "Your other active links ({count})",
       "showLink": "Show this link"
     },
-    "bannedFromServer": "You are banned from this server"
+    "bannedFromServer": "You are banned from this server",
+    "a11y": {
+      "preview": "Invite to {server}. Accept or decline below.",
+      "member": "You’re already a member of {server}.",
+      "joining": "Joining {server}…"
+    },
+    "rules": {
+      "title": "Before you join",
+      "subtitle": "Read and agree to the rules before joining",
+      "instanceHeading": "{instance} instance rules",
+      "instanceNote": "Shown once: these apply everywhere on this instance.",
+      "serverHeading": "{server} rules",
+      "agreementNote": "By joining, you agree to these rules.",
+      "agree": "Agree and join"
+    },
+    "joined": "Joined {server}",
+    "joinFailed": "Could not join the server"
   },
   "languages": {
     "en": "English",
@@ -1709,7 +1764,9 @@
       "save": "Save",
       "saved": "Welcome server saved",
       "saveFailed": "Could not save the welcome server"
-    }
+    },
+    "joiningNamed": "Joining {server}…",
+    "joinedNamed": "Joined {server}"
   },
   "serverWelcome": {
     "kicker": "Welcome to",
@@ -3100,6 +3157,10 @@
         "notFound": "No sign-in for this code on your account. Check that both devices use the same account.",
         "alreadyUsed": "This code was answered by more than one device. Nothing was sent. Show a new code.",
         "generic": "Linking failed."
+      },
+      "a11y": {
+        "showing": "Code shown. Waiting for the new device to scan it.",
+        "confirm": "{device} is ready to link. Check the details, then confirm."
       }
     },
     "pairing": {
@@ -4546,5 +4607,15 @@
       "today": "Today",
       "1w": "This week"
     }
+  },
+  "instancePicker": {
+    "title": "Welcome to Harmony",
+    "hint": "Harmony is federated: anyone can run an instance. Enter the domain of the instance you want to connect to.",
+    "domainLabel": "Instance domain",
+    "connect": "Connect",
+    "connecting": "Connecting…",
+    "unreachable": "Could not reach that instance",
+    "current": "Currently connected to {name}",
+    "keep": "Keep it"
   }
 }

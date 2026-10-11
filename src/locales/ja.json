@@ -105,7 +105,12 @@
       "error": "認証に失敗しました",
       "tryAgain": "再試行",
       "success": "ようこそ！",
-      "redirecting": "リダイレクトしています..."
+      "redirecting": "リダイレクトしています...",
+      "noSession": "認証後にセッションが見つかりませんでした",
+      "suspendedReason": "アカウントは停止されています: {reason}",
+      "suspended": "アカウントは停止されています。管理者に連絡してください。",
+      "mfaStartFailed": "2段階認証を開始できませんでした。もう一度お試しください。",
+      "failed": "認証に失敗しました。もう一度お試しください。"
     },
     "features": {
       "federated": "分散型",
@@ -122,12 +127,46 @@
       "invalidCredentials": "メールアドレスまたはパスワードが正しくありません",
       "accountNotFound": "アカウントが見つかりません",
       "emailInUse": "このメールアドレスは既に使用されています",
-      "weakPassword": "パスワードが弱すぎます"
+      "weakPassword": "パスワードが弱すぎます",
+      "emailRequired": "メールアドレスを入力してください",
+      "passwordRequired": "パスワードを入力してください",
+      "emailServiceUnavailable": "メールサービスが設定されていません。インスタンスの管理者に連絡してください。",
+      "oauthFailed": "{provider} でサインインできませんでした"
     },
     "logoutConfirm": {
       "title": "このデバイスからログアウトしますか?",
       "description": "アカウントにアクセスするには、もう一度サインインする必要があります。",
       "cancel": "キャンセル"
+    },
+    "showPassword": "パスワードを表示",
+    "showNewPassword": "新しいパスワードを表示",
+    "showConfirmPassword": "確認用パスワードを表示",
+    "cancelSignIn": "サインインをキャンセル",
+    "verifying": "確認中…",
+    "sendingResetLink": "リセットリンクを送信中…",
+    "poweredBy": "Powered by {name}",
+    "reset": {
+      "brandSubtitle": "パスワードをリセットしてアカウントへのアクセスを回復します",
+      "successTitle": "パスワードをリセットしました",
+      "successBody": "パスワードを更新しました。新しいパスワードでログインできます。",
+      "goToLogin": "ログインへ",
+      "invalidTitle": "無効または期限切れのリンク",
+      "invalidBody": "このパスワードリセットリンクは無効か期限切れです。新しいリンクをリクエストしてください。",
+      "enterNew": "新しいパスワードを入力してください",
+      "newPlaceholder": "新しいパスワードを入力",
+      "confirmPlaceholder": "新しいパスワードを再入力",
+      "remember": "パスワードを思い出しましたか？",
+      "verifying": "パスワードリセットリンクを確認中…",
+      "verifyAndReset": "確認してパスワードをリセット",
+      "resetting": "パスワードをリセット中…",
+      "confirmRequired": "パスワードを再入力してください",
+      "challengeFailed": "2段階認証を開始できませんでした。もう一度お試しください。",
+      "linkMissing": "パスワードリセットトークンが無効か見つかりません。新しいリンクをリクエストしてください。",
+      "linkExpired": "このパスワードリセットリンクは期限切れです。新しいリンクをリクエストしてください。",
+      "verifyFailed": "パスワードリセットリンクを確認できませんでした。もう一度お試しください。",
+      "mfaRequired": "2段階認証が必要です。コードを確認してください。",
+      "failed": "パスワードをリセットできませんでした。もう一度お試しください。",
+      "done": "パスワードをリセットしました。新しいパスワードでログインしてください。"
     }
   },
   "server": {
@@ -1613,7 +1652,23 @@
       "otherLinks": "その他の有効なリンク（{count}）",
       "showLink": "このリンクを表示"
     },
-    "bannedFromServer": "このサーバーから BAN されています"
+    "bannedFromServer": "このサーバーから BAN されています",
+    "a11y": {
+      "preview": "{server} への招待です。下で承諾または辞退できます。",
+      "member": "すでに {server} のメンバーです。",
+      "joining": "{server} に参加しています…"
+    },
+    "rules": {
+      "title": "参加する前に",
+      "subtitle": "参加する前にルールを読んで同意してください",
+      "instanceHeading": "{instance} インスタンスのルール",
+      "instanceNote": "一度だけ表示されます。このインスタンス全体に適用されます。",
+      "serverHeading": "{server} のルール",
+      "agreementNote": "参加すると、これらのルールに同意したことになります。",
+      "agree": "同意して参加"
+    },
+    "joined": "{server} に参加しました",
+    "joinFailed": "サーバーに参加できませんでした"
   },
   "nav": {
     "chat": "チャット",
@@ -1709,7 +1764,9 @@
       "save": "保存",
       "saved": "ウェルカムサーバーを保存しました",
       "saveFailed": "ウェルカムサーバーを保存できませんでした"
-    }
+    },
+    "joiningNamed": "{server} に参加中…",
+    "joinedNamed": "{server} に参加しました"
   },
   "serverWelcome": {
     "kicker": "ようこそ",
@@ -3104,6 +3161,10 @@
         "notFound": "このコードに対応するサインインがあなたのアカウントにありません。両方のデバイスが同じアカウントを使用しているか確認してください。",
         "alreadyUsed": "このコードには複数のデバイスが応答しました。何も送信されていません。新しいコードを表示してください。",
         "generic": "リンクに失敗しました。"
+      },
+      "a11y": {
+        "showing": "コードを表示しています。新しいデバイスがスキャンするのを待っています。",
+        "confirm": "{device} をリンクする準備ができました。内容を確認してから承認してください。"
       }
     },
     "pairing": {
@@ -4550,5 +4611,15 @@
       "today": "今日",
       "1w": "今週"
     }
+  },
+  "instancePicker": {
+    "title": "Harmony へようこそ",
+    "hint": "Harmony は連合型です。誰でもインスタンスを運営できます。接続するインスタンスのドメインを入力してください。",
+    "domainLabel": "インスタンスのドメイン",
+    "connect": "接続",
+    "connecting": "接続中…",
+    "unreachable": "そのインスタンスに接続できませんでした",
+    "current": "現在の接続先: {name}",
+    "keep": "このままにする"
   }
 }

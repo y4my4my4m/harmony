@@ -105,7 +105,12 @@
       "error": "Authentifizierung fehlgeschlagen",
       "tryAgain": "Erneut versuchen",
       "success": "Willkommen!",
-      "redirecting": "Weiterleitung..."
+      "redirecting": "Weiterleitung...",
+      "noSession": "Nach der Authentifizierung wurde keine Sitzung gefunden",
+      "suspendedReason": "Dein Konto wurde gesperrt: {reason}",
+      "suspended": "Dein Konto wurde gesperrt. Wende dich an die Administration.",
+      "mfaStartFailed": "Die Zwei-Faktor-Prüfung konnte nicht gestartet werden. Versuche es erneut.",
+      "failed": "Authentifizierung fehlgeschlagen. Versuche es erneut."
     },
     "features": {
       "federated": "Föderiert",
@@ -122,12 +127,46 @@
       "invalidCredentials": "Ungültige E-Mail oder Passwort",
       "accountNotFound": "Konto nicht gefunden",
       "emailInUse": "E-Mail wird bereits verwendet",
-      "weakPassword": "Passwort ist zu schwach"
+      "weakPassword": "Passwort ist zu schwach",
+      "emailRequired": "E-Mail ist erforderlich",
+      "passwordRequired": "Passwort ist erforderlich",
+      "emailServiceUnavailable": "Der E-Mail-Dienst ist nicht eingerichtet. Wende dich an die Instanz-Administration.",
+      "oauthFailed": "Anmeldung mit {provider} fehlgeschlagen"
     },
     "logoutConfirm": {
       "title": "Von diesem Gerät abmelden?",
       "description": "Sie müssen sich erneut anmelden, um auf Ihr Konto zuzugreifen.",
       "cancel": "Abbrechen"
+    },
+    "showPassword": "Passwort anzeigen",
+    "showNewPassword": "Neues Passwort anzeigen",
+    "showConfirmPassword": "Passwortbestätigung anzeigen",
+    "cancelSignIn": "Anmeldung abbrechen",
+    "verifying": "Wird überprüft…",
+    "sendingResetLink": "Link zum Zurücksetzen wird gesendet…",
+    "poweredBy": "Betrieben mit {name}",
+    "reset": {
+      "brandSubtitle": "Setze dein Passwort zurück, um wieder Zugriff auf dein Konto zu erhalten",
+      "successTitle": "Passwort zurückgesetzt",
+      "successBody": "Dein Passwort wurde geändert. Du kannst dich jetzt mit dem neuen Passwort anmelden.",
+      "goToLogin": "Zur Anmeldung",
+      "invalidTitle": "Ungültiger oder abgelaufener Link",
+      "invalidBody": "Dieser Link zum Zurücksetzen ist ungültig oder abgelaufen. Fordere einen neuen an.",
+      "enterNew": "Gib unten dein neues Passwort ein",
+      "newPlaceholder": "Neues Passwort eingeben",
+      "confirmPlaceholder": "Neues Passwort bestätigen",
+      "remember": "Passwort wieder eingefallen?",
+      "verifying": "Link zum Zurücksetzen wird überprüft…",
+      "verifyAndReset": "Bestätigen und Passwort zurücksetzen",
+      "resetting": "Passwort wird zurückgesetzt…",
+      "confirmRequired": "Bestätige dein Passwort",
+      "challengeFailed": "Die Zwei-Faktor-Prüfung konnte nicht gestartet werden. Versuche es erneut.",
+      "linkMissing": "Ungültiges oder fehlendes Token zum Zurücksetzen. Fordere einen neuen Link an.",
+      "linkExpired": "Dieser Link zum Zurücksetzen ist abgelaufen. Fordere einen neuen an.",
+      "verifyFailed": "Der Link zum Zurücksetzen konnte nicht überprüft werden. Versuche es erneut.",
+      "mfaRequired": "Zwei-Faktor-Authentifizierung ist erforderlich. Bestätige deinen Code.",
+      "failed": "Das Passwort konnte nicht zurückgesetzt werden. Versuche es erneut.",
+      "done": "Passwort zurückgesetzt. Melde dich mit dem neuen Passwort an."
     }
   },
   "server": {
@@ -1613,7 +1652,23 @@
       "otherLinks": "Deine anderen aktiven Links ({count})",
       "showLink": "Diesen Link anzeigen"
     },
-    "bannedFromServer": "Du bist von diesem Server gebannt"
+    "bannedFromServer": "Du bist von diesem Server gebannt",
+    "a11y": {
+      "preview": "Einladung zu {server}. Unten annehmen oder ablehnen.",
+      "member": "Du bist bereits Mitglied von {server}.",
+      "joining": "Trete {server} bei…"
+    },
+    "rules": {
+      "title": "Bevor du beitrittst",
+      "subtitle": "Lies die Regeln und stimme ihnen zu, bevor du beitrittst",
+      "instanceHeading": "Regeln der Instanz {instance}",
+      "instanceNote": "Wird einmal angezeigt: Sie gelten überall auf dieser Instanz.",
+      "serverHeading": "Regeln von {server}",
+      "agreementNote": "Mit dem Beitritt stimmst du diesen Regeln zu.",
+      "agree": "Zustimmen und beitreten"
+    },
+    "joined": "{server} beigetreten",
+    "joinFailed": "Beitritt zum Server fehlgeschlagen"
   },
   "nav": {
     "chat": "Chat",
@@ -1709,7 +1764,9 @@
       "save": "Speichern",
       "saved": "Willkommensserver gespeichert",
       "saveFailed": "Willkommensserver konnte nicht gespeichert werden"
-    }
+    },
+    "joiningNamed": "Tritt bei: {server}…",
+    "joinedNamed": "{server} beigetreten"
   },
   "serverWelcome": {
     "kicker": "Willkommen auf",
@@ -3104,6 +3161,10 @@
         "notFound": "Keine Anmeldung zu diesem Code in deinem Konto. Prüfe, ob beide Geräte dasselbe Konto verwenden.",
         "alreadyUsed": "Auf diesen Code hat mehr als ein Gerät geantwortet. Es wurde nichts gesendet. Zeige einen neuen Code an.",
         "generic": "Verknüpfung fehlgeschlagen."
+      },
+      "a11y": {
+        "showing": "Code wird angezeigt. Warte darauf, dass das neue Gerät ihn scannt.",
+        "confirm": "{device} ist bereit zum Verknüpfen. Prüfe die Angaben und bestätige dann."
       }
     },
     "pairing": {
@@ -4550,5 +4611,15 @@
       "today": "Heute",
       "1w": "Diese Woche"
     }
+  },
+  "instancePicker": {
+    "title": "Willkommen bei Harmony",
+    "hint": "Harmony ist föderiert: Jede Person kann eine Instanz betreiben. Gib die Domain der Instanz ein, mit der du dich verbinden möchtest.",
+    "domainLabel": "Domain der Instanz",
+    "connect": "Verbinden",
+    "connecting": "Verbindung wird hergestellt…",
+    "unreachable": "Diese Instanz ist nicht erreichbar",
+    "current": "Aktuell verbunden mit {name}",
+    "keep": "Beibehalten"
   }
 }

@@ -1,69 +1,81 @@
 <template>
-  <div class="invite-accept" :style="backdropStyle">
+  <div class="invite-accept" :style="backdropStyle" data-testid="invite-accept" :data-state="pageState">
     <div class="invite-accept__scrim"></div>
 
     <!-- Loading -->
-    <div v-if="status === 'loading'" class="invite-card">
-      <LoadingSpinner :size="36" />
-      <p class="invite-card__muted">{{ t('invite.loading', 'Loading invite…') }}</p>
+    <div v-if="status === 'loading'" class="invite-card" aria-busy="true">
+      <h1 class="sr-only">{{ t('a11y.title.invite') }}</h1>
+      <LoadingSpinner :size="36" aria-hidden="true" />
+      <p class="invite-card__muted">{{ t('invite.loading') }}</p>
     </div>
 
     <!-- Error -->
     <div v-else-if="status === 'error'" class="invite-card">
-      <div class="invite-card__error-icon">
+      <div class="invite-card__error-icon" aria-hidden="true">
         <Icon name="x" :size="28" />
       </div>
-      <h2 class="invite-card__title">{{ t('invite.invalidTitle', 'Invite invalid') }}</h2>
+      <h1 class="invite-card__title">{{ t('invite.invalidTitle') }}</h1>
       <p class="invite-card__muted">{{ errorMessage }}</p>
-      <button class="invite-btn primary" @click="$router.push('/chat')">
+      <button type="button" class="invite-btn primary" @click="$router.push('/chat')">
         {{ t('common.back') }}
       </button>
     </div>
 
     <!-- Invite preview -->
-    <div v-else-if="info" class="invite-card">
-      <div class="invite-card__icon">
+    <div v-else-if="info" class="invite-card" :aria-busy="isJoining || undefined">
+      <div class="invite-card__icon" aria-hidden="true">
         <img
           v-if="iconUrl && !iconLoadError"
           :src="iconUrl"
-          :alt="info.serverName"
+          alt=""
           @error="iconLoadError = true"
         />
         <span v-else class="invite-card__icon-fallback">{{ serverInitial }}</span>
       </div>
 
       <p class="invite-card__muted">
-        {{ info.isMember
-          ? t('invite.alreadyMember', "You're already a member of")
-          : t('invite.invitedToJoin', "You've been invited to join") }}
+        {{ info.isMember ? t('invite.alreadyMember') : t('invite.invitedToJoin') }}
       </p>
-      <h2 class="invite-card__title">{{ info.serverName }}</h2>
+      <h1 class="invite-card__title">{{ info.serverName }}</h1>
 
       <div class="invite-card__meta">
-        <span class="meta-dot"></span>
-        <span>{{ info.memberCount }} {{ info.memberCount === 1 ? t('invite.member', 'member') : t('invite.members', 'members') }}</span>
+        <span class="meta-dot" aria-hidden="true"></span>
+        <span>{{ info.memberCount }} {{ info.memberCount === 1 ? t('invite.member') : t('invite.members') }}</span>
       </div>
 
       <p v-if="info.description" class="invite-card__description">{{ info.description }}</p>
 
       <button
         v-if="info.isMember"
+        type="button"
         class="invite-btn primary"
+        data-testid="invite-open-server"
         @click="openServer(info.serverId)"
       >
-        {{ t('invite.openServer', 'Open server') }}
+        {{ t('invite.openServer') }}
       </button>
+      <!-- aria-disabled, not disabled: focus stays on the button while joining and returns to it when the rules dialog closes. -->
       <button
         v-else
+        type="button"
         class="invite-btn primary"
-        :disabled="isJoining"
+        :aria-disabled="isJoining || undefined"
+        :aria-busy="isJoining || undefined"
+        data-testid="invite-accept-button"
         @click="requestJoin"
       >
-        {{ isJoining ? t('invite.joining', 'Joining…') : t('invite.accept', 'Accept invite') }}
+        {{ isJoining ? t('invite.joining') : t('invite.accept') }}
       </button>
 
-      <button v-if="!info.isMember" class="invite-btn ghost" @click="$router.push('/chat')">
-        {{ t('invite.noThanks', 'No thanks') }}
+      <button
+        v-if="!info.isMember"
+        type="button"
+        class="invite-btn ghost"
+        :aria-disabled="isJoining || undefined"
+        data-testid="invite-decline-button"
+        @click="decline"
+      >
+        {{ t('invite.noThanks') }}
       </button>
     </div>
 
@@ -81,8 +93,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { ref, computed, onMounted, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { getInviteInfo, type InviteInfo } from '@/services/inviteService';
 import { useAuthStore } from '@/stores/auth';
@@ -95,11 +107,14 @@ import { debug } from '@/utils/debug';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import Icon from '@/components/common/Icon.vue';
 import ServerRulesModal from '@/components/invite/ServerRulesModal.vue';
+import { useAnnouncer } from '@/composables/useAnnouncer';
 
 const route = useRoute();
+const router = useRouter();
 const authStore = useAuthStore();
 const instanceSettings = useInstanceSettingsStore();
 const { t } = useI18n();
+const { polite, assertive } = useAnnouncer();
 
 const status = ref<'loading' | 'error' | 'ready'>('loading');
 const errorMessage = ref('');
@@ -119,6 +134,35 @@ const {
 });
 
 const instanceName = computed(() => instanceSettings.settings.instanceName);
+
+/** loading | error | preview | member | rules | joining; mirrored on data-state. */
+const pageState = computed(() => {
+  if (status.value !== 'ready' || !info.value) return status.value;
+  if (isJoining.value) return 'joining';
+  if (showRules.value) return 'rules';
+  return info.value.isMember ? 'member' : 'preview';
+});
+
+// Loading, preview and joining are spoken through the announcer: the card is
+// replaced wholesale, so a live region inside it would mount with its text.
+watch(
+  pageState,
+  (state, previous) => {
+    const server = info.value?.serverName ?? '';
+    if (state === 'loading') polite(t('invite.loading'));
+    else if (state === 'error') assertive(`${t('invite.invalidTitle')}. ${errorMessage.value}`);
+    else if (state === 'preview' && previous !== 'rules' && previous !== 'joining') {
+      polite(t('invite.a11y.preview', { server }));
+    } else if (state === 'member') polite(t('invite.a11y.member', { server }));
+    else if (state === 'joining') polite(t('invite.a11y.joining', { server }));
+  },
+  { immediate: true },
+);
+
+function decline() {
+  if (isJoining.value) return;
+  void router.push('/chat');
+}
 const serverInitial = computed(() => info.value?.serverName?.charAt(0).toUpperCase() || 'S');
 const iconUrl = computed(() => (info.value?.icon ? getServerIconUrl(info.value.icon, devicePixels(80)) : null));
 
@@ -287,11 +331,17 @@ onMounted(async () => {
   color: var(--text-on-primary);
 }
 
-.invite-btn.primary:hover:not(:disabled) {
+.invite-btn.primary:hover:not(:disabled, [aria-disabled='true']) {
   background: var(--harmony-primary-hover);
 }
 
-.invite-btn.primary:disabled {
+.invite-btn.primary:disabled,
+.invite-btn.primary[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.invite-btn.ghost[aria-disabled='true'] {
   opacity: 0.6;
   cursor: not-allowed;
 }

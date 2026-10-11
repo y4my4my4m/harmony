@@ -105,7 +105,12 @@
       "error": "身份验证失败",
       "tryAgain": "重试",
       "success": "欢迎！",
-      "redirecting": "正在为您跳转..."
+      "redirecting": "正在为您跳转...",
+      "noSession": "认证后未找到会话",
+      "suspendedReason": "你的账户已被停用：{reason}",
+      "suspended": "你的账户已被停用。请联系管理员。",
+      "mfaStartFailed": "无法开始两步验证。请重试。",
+      "failed": "认证失败。请重试。"
     },
     "features": {
       "federated": "联邦化",
@@ -122,12 +127,46 @@
       "invalidCredentials": "电子邮箱或密码无效",
       "accountNotFound": "未找到账户",
       "emailInUse": "电子邮箱已被使用",
-      "weakPassword": "密码太弱"
+      "weakPassword": "密码太弱",
+      "emailRequired": "请输入电子邮件",
+      "passwordRequired": "请输入密码",
+      "emailServiceUnavailable": "电子邮件服务未配置。请联系实例管理员。",
+      "oauthFailed": "无法使用 {provider} 登录"
     },
     "logoutConfirm": {
       "title": "从此设备注销?",
       "description": "您需要重新登录才能访问您的帐户。",
       "cancel": "取消"
+    },
+    "showPassword": "显示密码",
+    "showNewPassword": "显示新密码",
+    "showConfirmPassword": "显示确认密码",
+    "cancelSignIn": "取消登录",
+    "verifying": "正在验证…",
+    "sendingResetLink": "正在发送重置链接…",
+    "poweredBy": "由 {name} 驱动",
+    "reset": {
+      "brandSubtitle": "重置密码以重新访问你的账户",
+      "successTitle": "密码已重置",
+      "successBody": "你的密码已更新。现在可以使用新密码登录。",
+      "goToLogin": "前往登录",
+      "invalidTitle": "链接无效或已过期",
+      "invalidBody": "此密码重置链接无效或已过期。请重新申请。",
+      "enterNew": "请在下方输入新密码",
+      "newPlaceholder": "输入新密码",
+      "confirmPlaceholder": "确认新密码",
+      "remember": "想起密码了？",
+      "verifying": "正在验证密码重置链接…",
+      "verifyAndReset": "验证并重置密码",
+      "resetting": "正在重置密码…",
+      "confirmRequired": "请确认你的密码",
+      "challengeFailed": "无法开始两步验证。请重试。",
+      "linkMissing": "密码重置令牌无效或缺失。请重新申请重置链接。",
+      "linkExpired": "此密码重置链接已过期。请重新申请。",
+      "verifyFailed": "无法验证密码重置链接。请重试。",
+      "mfaRequired": "需要两步验证。请验证你的验证码。",
+      "failed": "无法重置密码。请重试。",
+      "done": "密码已重置。请使用新密码登录。"
     }
   },
   "server": {
@@ -1613,7 +1652,23 @@
       "otherLinks": "您的其他有效链接（{count}）",
       "showLink": "显示此链接"
     },
-    "bannedFromServer": "您已被此服务器封禁"
+    "bannedFromServer": "您已被此服务器封禁",
+    "a11y": {
+      "preview": "{server} 的邀请。请在下方接受或拒绝。",
+      "member": "你已是 {server} 的成员。",
+      "joining": "正在加入 {server}…"
+    },
+    "rules": {
+      "title": "加入之前",
+      "subtitle": "加入前请阅读并同意规则",
+      "instanceHeading": "{instance} 实例规则",
+      "instanceNote": "仅显示一次：适用于此实例的所有地方。",
+      "serverHeading": "{server} 规则",
+      "agreementNote": "加入即表示你同意这些规则。",
+      "agree": "同意并加入"
+    },
+    "joined": "已加入 {server}",
+    "joinFailed": "无法加入服务器"
   },
   "nav": {
     "chat": "聊天",
@@ -1709,7 +1764,9 @@
       "save": "保存",
       "saved": "欢迎服务器已保存",
       "saveFailed": "无法保存欢迎服务器"
-    }
+    },
+    "joiningNamed": "正在加入 {server}…",
+    "joinedNamed": "已加入 {server}"
   },
   "serverWelcome": {
     "kicker": "欢迎来到",
@@ -3104,6 +3161,10 @@
         "notFound": "您的账户中没有与此代码对应的登录。请确认两台设备使用的是同一账户。",
         "alreadyUsed": "此代码被多台设备响应。未发送任何内容。请显示新的代码。",
         "generic": "关联失败。"
+      },
+      "a11y": {
+        "showing": "代码已显示。正在等待新设备扫描。",
+        "confirm": "{device} 已准备好关联。请核对信息后确认。"
       }
     },
     "pairing": {
@@ -4550,5 +4611,15 @@
       "today": "今天",
       "1w": "本周"
     }
+  },
+  "instancePicker": {
+    "title": "欢迎使用 Harmony",
+    "hint": "Harmony 是联邦式的：任何人都可以运行实例。请输入要连接的实例域名。",
+    "domainLabel": "实例域名",
+    "connect": "连接",
+    "connecting": "正在连接…",
+    "unreachable": "无法访问该实例",
+    "current": "当前已连接到 {name}",
+    "keep": "保留"
   }
 }

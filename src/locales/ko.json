@@ -105,7 +105,12 @@
       "error": "인증 실패",
       "tryAgain": "다시 시도",
       "success": "환영합니다!",
-      "redirecting": "리디렉션 중..."
+      "redirecting": "리디렉션 중...",
+      "noSession": "인증 후 세션을 찾을 수 없습니다",
+      "suspendedReason": "계정이 정지되었습니다: {reason}",
+      "suspended": "계정이 정지되었습니다. 관리자에게 문의하세요.",
+      "mfaStartFailed": "2단계 인증을 시작하지 못했습니다. 다시 시도하세요.",
+      "failed": "인증에 실패했습니다. 다시 시도하세요."
     },
     "features": {
       "federated": "연합",
@@ -122,12 +127,46 @@
       "invalidCredentials": "잘못된 이메일 또는 비밀번호",
       "accountNotFound": "계정을 찾을 수 없습니다",
       "emailInUse": "이미 사용 중인 이메일입니다",
-      "weakPassword": "비밀번호가 너무 약합니다"
+      "weakPassword": "비밀번호가 너무 약합니다",
+      "emailRequired": "이메일을 입력하세요",
+      "passwordRequired": "비밀번호를 입력하세요",
+      "emailServiceUnavailable": "이메일 서비스가 설정되지 않았습니다. 인스턴스 관리자에게 문의하세요.",
+      "oauthFailed": "{provider}(으)로 로그인하지 못했습니다"
     },
     "logoutConfirm": {
       "title": "이 기기에서 로그아웃하시겠습니까?",
       "description": "계정에 액세스하려면 다시 로그인해야 합니다.",
       "cancel": "취소"
+    },
+    "showPassword": "비밀번호 표시",
+    "showNewPassword": "새 비밀번호 표시",
+    "showConfirmPassword": "비밀번호 확인 표시",
+    "cancelSignIn": "로그인 취소",
+    "verifying": "확인 중…",
+    "sendingResetLink": "재설정 링크 보내는 중…",
+    "poweredBy": "Powered by {name}",
+    "reset": {
+      "brandSubtitle": "비밀번호를 재설정하여 계정에 다시 접근하세요",
+      "successTitle": "비밀번호 재설정 완료",
+      "successBody": "비밀번호가 변경되었습니다. 이제 새 비밀번호로 로그인할 수 있습니다.",
+      "goToLogin": "로그인으로 이동",
+      "invalidTitle": "잘못되었거나 만료된 링크",
+      "invalidBody": "이 비밀번호 재설정 링크는 잘못되었거나 만료되었습니다. 새 링크를 요청하세요.",
+      "enterNew": "아래에 새 비밀번호를 입력하세요",
+      "newPlaceholder": "새 비밀번호 입력",
+      "confirmPlaceholder": "새 비밀번호 확인",
+      "remember": "비밀번호가 기억나셨나요?",
+      "verifying": "비밀번호 재설정 링크 확인 중…",
+      "verifyAndReset": "확인 후 비밀번호 재설정",
+      "resetting": "비밀번호 재설정 중…",
+      "confirmRequired": "비밀번호를 다시 입력하세요",
+      "challengeFailed": "2단계 인증을 시작하지 못했습니다. 다시 시도하세요.",
+      "linkMissing": "비밀번호 재설정 토큰이 잘못되었거나 없습니다. 새 링크를 요청하세요.",
+      "linkExpired": "이 비밀번호 재설정 링크가 만료되었습니다. 새 링크를 요청하세요.",
+      "verifyFailed": "비밀번호 재설정 링크를 확인하지 못했습니다. 다시 시도하세요.",
+      "mfaRequired": "2단계 인증이 필요합니다. 코드를 확인하세요.",
+      "failed": "비밀번호를 재설정하지 못했습니다. 다시 시도하세요.",
+      "done": "비밀번호가 재설정되었습니다. 새 비밀번호로 로그인하세요."
     }
   },
   "server": {
@@ -1613,7 +1652,23 @@
       "otherLinks": "내 다른 활성 링크({count})",
       "showLink": "이 링크 보기"
     },
-    "bannedFromServer": "이 서버에서 차단되었습니다"
+    "bannedFromServer": "이 서버에서 차단되었습니다",
+    "a11y": {
+      "preview": "{server} 초대입니다. 아래에서 수락하거나 거절하세요.",
+      "member": "이미 {server}의 멤버입니다.",
+      "joining": "{server}에 참가하는 중…"
+    },
+    "rules": {
+      "title": "참가하기 전에",
+      "subtitle": "참가하기 전에 규칙을 읽고 동의하세요",
+      "instanceHeading": "{instance} 인스턴스 규칙",
+      "instanceNote": "한 번만 표시됩니다. 이 인스턴스 전체에 적용됩니다.",
+      "serverHeading": "{server} 규칙",
+      "agreementNote": "참가하면 이 규칙에 동의하게 됩니다.",
+      "agree": "동의하고 참가"
+    },
+    "joined": "{server}에 참여했습니다",
+    "joinFailed": "서버에 참여하지 못했습니다"
   },
   "nav": {
     "chat": "채팅",
@@ -1709,7 +1764,9 @@
       "save": "저장",
       "saved": "환영 서버를 저장했습니다",
       "saveFailed": "환영 서버를 저장하지 못했습니다"
-    }
+    },
+    "joiningNamed": "{server}에 참여 중…",
+    "joinedNamed": "{server}에 참가했습니다"
   },
   "serverWelcome": {
     "kicker": "환영합니다",
@@ -3104,6 +3161,10 @@
         "notFound": "내 계정에 이 코드에 해당하는 로그인이 없습니다. 두 기기가 같은 계정을 사용하는지 확인하세요.",
         "alreadyUsed": "이 코드에 둘 이상의 기기가 응답했습니다. 아무것도 전송되지 않았습니다. 새 코드를 표시하세요.",
         "generic": "연결에 실패했습니다."
+      },
+      "a11y": {
+        "showing": "코드가 표시되었습니다. 새 기기가 스캔하기를 기다리는 중입니다.",
+        "confirm": "{device}을(를) 연결할 준비가 되었습니다. 내용을 확인한 뒤 승인하세요."
       }
     },
     "pairing": {
@@ -4550,5 +4611,15 @@
       "today": "오늘",
       "1w": "이번 주"
     }
+  },
+  "instancePicker": {
+    "title": "Harmony에 오신 것을 환영합니다",
+    "hint": "Harmony는 연합형입니다. 누구나 인스턴스를 운영할 수 있습니다. 연결할 인스턴스의 도메인을 입력하세요.",
+    "domainLabel": "인스턴스 도메인",
+    "connect": "연결",
+    "connecting": "연결 중…",
+    "unreachable": "해당 인스턴스에 연결할 수 없습니다",
+    "current": "현재 연결된 인스턴스: {name}",
+    "keep": "유지"
   }
 }

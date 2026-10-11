@@ -105,7 +105,12 @@
       "error": "Échec de l'authentification",
       "tryAgain": "Réessayer",
       "success": "Bienvenue !",
-      "redirecting": "Redirection en cours..."
+      "redirecting": "Redirection en cours...",
+      "noSession": "Aucune session trouvée après l’authentification",
+      "suspendedReason": "Votre compte a été suspendu : {reason}",
+      "suspended": "Votre compte a été suspendu. Contactez l’administration.",
+      "mfaStartFailed": "Impossible de lancer la vérification en deux étapes. Réessayez.",
+      "failed": "Échec de l’authentification. Réessayez."
     },
     "features": {
       "federated": "Fédéré",
@@ -122,12 +127,46 @@
       "invalidCredentials": "E-mail ou mot de passe invalide",
       "accountNotFound": "Compte introuvable",
       "emailInUse": "Cet e-mail est déjà utilisé",
-      "weakPassword": "Le mot de passe est trop faible"
+      "weakPassword": "Le mot de passe est trop faible",
+      "emailRequired": "L’adresse e-mail est requise",
+      "passwordRequired": "Le mot de passe est requis",
+      "emailServiceUnavailable": "Le service d’e-mail n’est pas configuré. Contactez l’administration de l’instance.",
+      "oauthFailed": "Impossible de se connecter avec {provider}"
     },
     "logoutConfirm": {
       "title": "Se déconnecter de cet appareil ?",
       "description": "Vous devrez vous reconnecter pour accéder à votre compte.",
       "cancel": "Annuler"
+    },
+    "showPassword": "Afficher le mot de passe",
+    "showNewPassword": "Afficher le nouveau mot de passe",
+    "showConfirmPassword": "Afficher la confirmation du mot de passe",
+    "cancelSignIn": "Annuler la connexion",
+    "verifying": "Vérification…",
+    "sendingResetLink": "Envoi du lien de réinitialisation…",
+    "poweredBy": "Propulsé par {name}",
+    "reset": {
+      "brandSubtitle": "Réinitialisez votre mot de passe pour retrouver l’accès à votre compte",
+      "successTitle": "Mot de passe réinitialisé",
+      "successBody": "Votre mot de passe a été mis à jour. Vous pouvez maintenant vous connecter avec le nouveau mot de passe.",
+      "goToLogin": "Aller à la connexion",
+      "invalidTitle": "Lien invalide ou expiré",
+      "invalidBody": "Ce lien de réinitialisation est invalide ou a expiré. Demandez-en un nouveau.",
+      "enterNew": "Saisissez votre nouveau mot de passe ci-dessous",
+      "newPlaceholder": "Saisissez votre nouveau mot de passe",
+      "confirmPlaceholder": "Confirmez votre nouveau mot de passe",
+      "remember": "Vous vous souvenez de votre mot de passe ?",
+      "verifying": "Vérification du lien de réinitialisation…",
+      "verifyAndReset": "Vérifier et réinitialiser le mot de passe",
+      "resetting": "Réinitialisation du mot de passe…",
+      "confirmRequired": "Confirmez votre mot de passe",
+      "challengeFailed": "Impossible de lancer la vérification en deux étapes. Réessayez.",
+      "linkMissing": "Jeton de réinitialisation invalide ou absent. Demandez un nouveau lien.",
+      "linkExpired": "Ce lien de réinitialisation a expiré. Demandez-en un nouveau.",
+      "verifyFailed": "Impossible de vérifier le lien de réinitialisation. Réessayez.",
+      "mfaRequired": "La vérification en deux étapes est requise. Vérifiez votre code.",
+      "failed": "Impossible de réinitialiser le mot de passe. Réessayez.",
+      "done": "Mot de passe réinitialisé. Connectez-vous avec le nouveau mot de passe."
     }
   },
   "server": {
@@ -1613,7 +1652,23 @@
       "otherLinks": "Vos autres liens actifs ({count})",
       "showLink": "Afficher ce lien"
     },
-    "bannedFromServer": "Vous êtes banni de ce serveur"
+    "bannedFromServer": "Vous êtes banni de ce serveur",
+    "a11y": {
+      "preview": "Invitation à {server}. Acceptez ou refusez ci-dessous.",
+      "member": "Vous êtes déjà membre de {server}.",
+      "joining": "Connexion à {server}…"
+    },
+    "rules": {
+      "title": "Avant de rejoindre",
+      "subtitle": "Lisez et acceptez les règles avant de rejoindre",
+      "instanceHeading": "Règles de l’instance {instance}",
+      "instanceNote": "Affichées une seule fois : elles s’appliquent partout sur cette instance.",
+      "serverHeading": "Règles de {server}",
+      "agreementNote": "En rejoignant, vous acceptez ces règles.",
+      "agree": "Accepter et rejoindre"
+    },
+    "joined": "Vous avez rejoint {server}",
+    "joinFailed": "Impossible de rejoindre le serveur"
   },
   "nav": {
     "chat": "Chat",
@@ -1709,7 +1764,9 @@
       "save": "Enregistrer",
       "saved": "Serveur d'accueil enregistré",
       "saveFailed": "Impossible d'enregistrer le serveur d'accueil"
-    }
+    },
+    "joiningNamed": "Adhésion à {server}…",
+    "joinedNamed": "Vous avez rejoint {server}"
   },
   "serverWelcome": {
     "kicker": "Bienvenue sur",
@@ -3104,6 +3161,10 @@
         "notFound": "Aucune connexion correspondant à ce code sur votre compte. Vérifiez que les deux appareils utilisent le même compte.",
         "alreadyUsed": "Plusieurs appareils ont répondu à ce code. Rien n'a été envoyé. Affichez un nouveau code.",
         "generic": "La liaison a échoué."
+      },
+      "a11y": {
+        "showing": "Code affiché. En attente du scan par le nouvel appareil.",
+        "confirm": "{device} est prêt à être associé. Vérifiez les détails, puis confirmez."
       }
     },
     "pairing": {
@@ -4550,5 +4611,15 @@
       "today": "Aujourd'hui",
       "1w": "Cette semaine"
     }
+  },
+  "instancePicker": {
+    "title": "Bienvenue sur Harmony",
+    "hint": "Harmony est fédéré : tout le monde peut héberger une instance. Saisissez le domaine de l’instance à laquelle vous voulez vous connecter.",
+    "domainLabel": "Domaine de l’instance",
+    "connect": "Se connecter",
+    "connecting": "Connexion…",
+    "unreachable": "Impossible de joindre cette instance",
+    "current": "Actuellement connecté à {name}",
+    "keep": "La garder"
   }
 }

@@ -6,13 +6,13 @@
       <div class="auth-branding">
         <div class="brand-content">
           <div class="logo-container">
-            <img src="/icon_3d.webp" alt="Harmony Logo" class="brand-logo" />
+            <img src="/icon_3d.webp" alt="" class="brand-logo" />
           </div>
           <h1 class="brand-title">
             <span class="harmony-logo">Harmony</span>
           </h1>
           <p class="brand-subtitle">
-            Reset your password to regain access to your account
+            {{ t('auth.reset.brandSubtitle') }}
           </p>
         </div>
       </div>
@@ -20,128 +20,147 @@
       <div class="auth-panel">
         <div class="auth-form-container">
           <div v-if="isSuccess" class="success-state">
-            <div class="success-icon">
+            <div class="success-icon" aria-hidden="true">
               <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
                 <circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.2"/>
                 <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </div>
-            <h2 class="form-title">Password reset</h2>
+            <h2 ref="stateHeading" class="form-title" tabindex="-1">{{ t('auth.reset.successTitle') }}</h2>
             <p class="form-subtitle">
-              Your password has been updated. You can now log in with your new password.
+              {{ t('auth.reset.successBody') }}
             </p>
             <button 
               type="button" 
               class="submit-btn"
               @click="goToLogin"
             >
-              Go to login
+              {{ t('auth.reset.goToLogin') }}
             </button>
           </div>
 
           <div v-else-if="isError" class="error-state">
-            <div class="error-icon">
+            <div class="error-icon" aria-hidden="true">
               <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
                 <circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.2"/>
                 <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               </svg>
             </div>
-            <h2 class="form-title">Invalid or expired link</h2>
+            <h2 ref="stateHeading" class="form-title" tabindex="-1">{{ t('auth.reset.invalidTitle') }}</h2>
             <p class="form-subtitle">
-              {{ errorMessage || 'This password reset link is invalid or has expired. Request a new one.' }}
+              {{ errorMessage || t('auth.reset.invalidBody') }}
             </p>
             <button 
               type="button" 
               class="submit-btn"
               @click="goToLogin"
             >
-              Go to login
+              {{ t('auth.reset.goToLogin') }}
             </button>
           </div>
 
           <div v-else-if="isValidToken">
             <div class="form-header">
-              <h2 class="form-title">Reset your password</h2>
+              <h2 :id="formTitleId" class="form-title">{{ t('auth.resetYourPassword') }}</h2>
               <p class="form-subtitle">
-                Enter your new password below
+                {{ t('auth.reset.enterNew') }}
               </p>
             </div>
 
-            <form @submit.prevent="handleResetPassword" class="auth-form">
+            <form @submit.prevent="handleResetPassword" class="auth-form" :aria-labelledby="formTitleId" novalidate>
               <div class="input-group">
-                <label class="input-label">New password</label>
+                <label :for="ids.password" class="input-label">{{ t('auth.newPassword') }}</label>
                 <div class="input-container">
                   <input 
+                    :id="ids.password"
+                    ref="passwordInput"
                     v-model="newPassword" 
                     :type="showPassword ? 'text' : 'password'"
                     class="form-input"
                     :class="{ 'error': passwordError, 'focused': passwordFocused }"
+                    :aria-invalid="passwordError ? 'true' : undefined"
+                    :aria-describedby="passwordError ? ids.passwordError : undefined"
                     @focus="passwordFocused = true"
                     @blur="passwordFocused = false"
                     @input="passwordError = ''"
                     required
                     autocomplete="new-password"
-                    placeholder="Enter your new password"
+                    :placeholder="t('auth.reset.newPlaceholder')"
                   />
                   <button 
                     type="button" 
                     class="password-toggle"
+                    :aria-label="t('auth.showNewPassword')"
+                    :aria-pressed="showPassword ? 'true' : 'false'"
+                    :aria-controls="ids.password"
                     @click="showPassword = !showPassword"
                   >
-                    <svg v-if="showPassword" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <svg v-if="showPassword" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                       <path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/>
                     </svg>
-                    <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                       <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
                     </svg>
                   </button>
                 </div>
-                <span v-if="passwordError" class="error-message">{{ passwordError }}</span>
+                <span :id="ids.passwordError" class="error-message" role="alert">{{ passwordError }}</span>
               </div>
 
               <div class="input-group">
-                <label class="input-label">Confirm new password</label>
+                <label :for="ids.confirm" class="input-label">{{ t('auth.confirmNewPassword') }}</label>
                 <div class="input-container">
                   <input 
+                    :id="ids.confirm"
+                    ref="confirmInput"
                     v-model="confirmPassword" 
                     :type="showConfirmPassword ? 'text' : 'password'"
                     class="form-input"
                     :class="{ 'error': confirmPasswordError, 'focused': confirmPasswordFocused }"
+                    :aria-invalid="confirmPasswordError ? 'true' : undefined"
+                    :aria-describedby="confirmPasswordError ? ids.confirmError : undefined"
                     @focus="confirmPasswordFocused = true"
                     @blur="confirmPasswordFocused = false"
                     @input="confirmPasswordError = ''"
                     required
                     autocomplete="new-password"
-                    placeholder="Confirm your new password"
+                    :placeholder="t('auth.reset.confirmPlaceholder')"
                   />
                   <button 
                     type="button" 
                     class="password-toggle"
+                    :aria-label="t('auth.showConfirmPassword')"
+                    :aria-pressed="showConfirmPassword ? 'true' : 'false'"
+                    :aria-controls="ids.confirm"
                     @click="showConfirmPassword = !showConfirmPassword"
                   >
-                    <svg v-if="showConfirmPassword" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <svg v-if="showConfirmPassword" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                       <path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/>
                     </svg>
-                    <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                       <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
                     </svg>
                   </button>
                 </div>
-                <span v-if="confirmPasswordError" class="error-message">{{ confirmPasswordError }}</span>
+                <span :id="ids.confirmError" class="error-message" role="alert">{{ confirmPasswordError }}</span>
               </div>
 
               <button 
                 type="submit" 
                 class="submit-btn"
                 :class="{ 'loading': isLoading }"
-                :disabled="isLoading || !newPassword || !confirmPassword"
+                :disabled="!isLoading && (!newPassword || !confirmPassword)"
+                :aria-disabled="isLoading ? 'true' : undefined"
+                :aria-busy="isLoading ? 'true' : undefined"
               >
-                <span v-if="!isLoading">Reset password</span>
-                <div v-else class="loading-spinner"></div>
+                <span v-if="!isLoading">{{ t('auth.resetPassword') }}</span>
+                <template v-else>
+                  <span class="sr-only">{{ t('auth.reset.resetting') }}</span>
+                  <div class="loading-spinner" aria-hidden="true"></div>
+                </template>
               </button>
 
               <div class="divider">
-                <span>Remember your password?</span>
+                <span>{{ t('auth.reset.remember') }}</span>
               </div>
 
               <button 
@@ -149,68 +168,87 @@
                 class="switch-mode-btn"
                 @click="goToLogin"
               >
-                Back to login
+                {{ t('auth.backToLogin') }}
               </button>
             </form>
           </div>
 
           <!-- Token check in flight. -->
-          <div v-else class="loading-state">
+          <div v-else class="loading-state" role="status">
             <LoadingSpinner :size="40" />
-            <p class="form-subtitle">Verifying password reset link...</p>
+            <p class="form-subtitle">{{ t('auth.reset.verifying') }}</p>
           </div>
         </div>
       </div>
     </div>
 
-    <div v-if="showMFAModal" class="modal-overlay" @click="closeMFAModal">
-      <div class="modal-content" @click.stop>
-        <button class="modal-close" @click="closeMFAModal" aria-label="Close">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+    <div v-if="showMFAModal" class="modal-overlay" @click.self="closeMFAModal">
+      <div
+        ref="mfaDialogEl"
+        class="modal-content"
+        role="dialog"
+        aria-modal="true"
+        :aria-labelledby="mfaTitleId"
+        :aria-describedby="mfaDescriptionId"
+        tabindex="-1"
+      >
+        <button type="button" class="modal-close" @click="closeMFAModal" :aria-label="t('common.close')">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
             <path d="M18 6L6 18M6 6l12 12" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </button>
 
         <div class="modal-header">
-          <div class="modal-icon">
+          <div class="modal-icon" aria-hidden="true">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
               <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
               <path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>
           </div>
-          <h2 class="modal-title">Two-factor authentication</h2>
-          <p class="modal-subtitle">
-            {{ useRecoveryCode ? $t('security.mfa.enterRecoveryCode') : 'Enter the 6-digit code from your authenticator app' }}
+          <h2 :id="mfaTitleId" class="modal-title">{{ t('auth.twoFactorAuth') }}</h2>
+          <p :id="mfaDescriptionId" class="modal-subtitle">
+            {{ useRecoveryCode ? t('security.mfa.enterRecoveryCode') : t('auth.enter6DigitCode') }}
           </p>
         </div>
 
-        <form @submit.prevent="handleMFAVerification" class="modal-form">
+        <form @submit.prevent="handleMFAVerification" class="modal-form" novalidate>
           <div class="input-group">
-            <label class="input-label">
-              {{ useRecoveryCode ? 'Recovery code' : '6-digit code' }}
+            <label :for="ids.mfaCode" class="input-label">
+              {{ useRecoveryCode ? t('auth.recoveryCode') : t('auth.verificationCode') }}
             </label>
             <input 
+              :id="ids.mfaCode"
+              ref="mfaInput"
               v-model="mfaCode" 
               type="text"
               :maxlength="useRecoveryCode ? RECOVERY_CODE_MAX_LENGTH : 6"
               class="form-input"
               :class="{ 'error': mfaError }"
+              :inputmode="useRecoveryCode ? 'text' : 'numeric'"
+              :aria-invalid="mfaError ? 'true' : undefined"
+              :aria-describedby="mfaError ? ids.mfaError : undefined"
               @input="mfaError = ''"
               required
               :placeholder="useRecoveryCode ? RECOVERY_CODE_PLACEHOLDER : '000000'"
-              autocomplete="off"
+              autocomplete="one-time-code"
+              autocapitalize="off"
+              spellcheck="false"
             />
-            <span v-if="mfaError" class="error-message">{{ mfaError }}</span>
+            <span :id="ids.mfaError" class="error-message" role="alert">{{ mfaError }}</span>
           </div>
 
           <button 
             type="submit" 
             class="submit-btn"
             :class="{ 'loading': mfaLoading }"
-            :disabled="mfaLoading"
+            :aria-disabled="mfaLoading ? 'true' : undefined"
+            :aria-busy="mfaLoading ? 'true' : undefined"
           >
-            <span v-if="!mfaLoading">Verify and reset password</span>
-            <div v-else class="loading-spinner"></div>
+            <span v-if="!mfaLoading">{{ t('auth.reset.verifyAndReset') }}</span>
+            <template v-else>
+              <span class="sr-only">{{ t('auth.verifying') }}</span>
+              <div class="loading-spinner" aria-hidden="true"></div>
+            </template>
           </button>
 
           <button 
@@ -218,7 +256,7 @@
             class="switch-mode-btn"
             @click="toggleRecoveryCode"
           >
-            {{ useRecoveryCode ? 'Use authenticator code' : 'Use recovery code' }}
+            {{ useRecoveryCode ? t('auth.useAuthenticatorCode') : t('auth.useRecoveryCode') }}
           </button>
 
           <button 
@@ -226,7 +264,7 @@
             class="cancel-btn"
             @click="closeMFAModal"
           >
-            Cancel
+            {{ t('common.cancel') }}
           </button>
         </form>
       </div>
@@ -235,7 +273,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, useId, watch } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -245,11 +283,30 @@ import { useAuthStore } from '@/stores/auth'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACEHOLDER, recoveryCodeLength } from '@/utils/mfaConstants'
 import { securityErrorMessage } from '@/services/AccountSecurityService'
+import { useDialog } from '@/composables/useDialog'
+import { useAnnouncer } from '@/composables/useAnnouncer'
 
 const router = useRouter()
 const { t } = useI18n()
 const toast = useToast()
 const authStore = useAuthStore()
+const { polite, assertive } = useAnnouncer()
+
+const uid = useId()
+const formTitleId = `reset-title-${uid}`
+const ids = {
+  password: `reset-password-${uid}`,
+  passwordError: `reset-password-error-${uid}`,
+  confirm: `reset-confirm-${uid}`,
+  confirmError: `reset-confirm-error-${uid}`,
+  mfaCode: `reset-mfa-code-${uid}`,
+  mfaError: `reset-mfa-error-${uid}`,
+}
+const passwordInput = ref<HTMLInputElement | null>(null)
+const confirmInput = ref<HTMLInputElement | null>(null)
+const stateHeading = ref<HTMLElement | null>(null)
+const mfaDialogEl = ref<HTMLElement | null>(null)
+const mfaInput = ref<HTMLInputElement | null>(null)
 
 const newPassword = ref('')
 const confirmPassword = ref('')
@@ -277,6 +334,21 @@ const mfaChallengeId = ref('')
 const useRecoveryCode = ref(false)
 
 const randomBg = ref('')
+
+const { titleId: mfaTitleId, descriptionId: mfaDescriptionId } = useDialog({
+  open: showMFAModal,
+  element: mfaDialogEl,
+  onClose: () => closeMFAModal(),
+})
+
+// The form unmounts on success or a dead link; focus goes to the new heading.
+watch([isSuccess, isError], async ([success, failed], [wasSuccess, wasFailed]) => {
+  if ((success && !wasSuccess) || (failed && !wasFailed)) {
+    await nextTick()
+    stateHeading.value?.focus()
+    if (failed) assertive(`${t('auth.reset.invalidTitle')}. ${errorMessage.value || t('auth.reset.invalidBody')}`)
+  }
+})
 
 const authStyles = computed(() => ({
   '--random-bg': randomBg.value
@@ -336,7 +408,7 @@ onMounted(async () => {
     
     if (!sessionData.session) {
       isError.value = true
-      errorMessage.value = 'Invalid or missing password reset token. Please request a new password reset link.'
+      errorMessage.value = t('auth.reset.linkMissing')
       authStateListener?.subscription.unsubscribe()
       return
     }
@@ -358,7 +430,7 @@ onMounted(async () => {
     // A session means the token was accepted.
     if (sessionError || !sessionData.session) {
       isError.value = true
-      errorMessage.value = 'This password reset link is invalid or has expired. Request a new one.'
+      errorMessage.value = t('auth.reset.invalidBody')
       authStateListener?.subscription.unsubscribe()
     } else {
       isValidToken.value = true
@@ -371,7 +443,7 @@ onMounted(async () => {
   } catch (error: any) {
     debug.error('Error checking recovery token:', error)
     isError.value = true
-    errorMessage.value = 'Failed to verify password reset link. Please try again.'
+    errorMessage.value = t('auth.reset.verifyFailed')
     authStateListener?.subscription.unsubscribe()
   }
 })
@@ -388,12 +460,12 @@ const validatePassword = (): boolean => {
   passwordError.value = ''
   
   if (!newPassword.value) {
-    passwordError.value = 'Password is required'
+    passwordError.value = t('auth.errors.passwordRequired')
     return false
   }
   
   if (newPassword.value.length < 6) {
-    passwordError.value = 'Password must be at least 6 characters'
+    passwordError.value = t('auth.errors.passwordTooShort')
     return false
   }
   
@@ -404,12 +476,12 @@ const validateConfirmPassword = (): boolean => {
   confirmPasswordError.value = ''
   
   if (!confirmPassword.value) {
-    confirmPasswordError.value = 'Please confirm your password'
+    confirmPasswordError.value = t('auth.reset.confirmRequired')
     return false
   }
   
   if (newPassword.value !== confirmPassword.value) {
-    confirmPasswordError.value = 'Passwords do not match'
+    confirmPasswordError.value = t('auth.errors.passwordsDontMatch')
     return false
   }
   
@@ -417,10 +489,16 @@ const validateConfirmPassword = (): boolean => {
 }
 
 const handleResetPassword = async () => {
+  if (isLoading.value) return
   passwordError.value = ''
   confirmPasswordError.value = ''
   
-  if (!validatePassword() || !validateConfirmPassword()) {
+  if (!validatePassword()) {
+    passwordInput.value?.focus()
+    return
+  }
+  if (!validateConfirmPassword()) {
+    confirmInput.value?.focus()
     return
   }
   
@@ -434,7 +512,7 @@ const handleResetPassword = async () => {
       
       if (challengeError) {
         debug.error('MFA challenge error:', challengeError)
-        passwordError.value = "Couldn't create MFA challenge. Try again."
+        passwordError.value = t('auth.reset.challengeFailed')
         return
       }
       
@@ -442,7 +520,7 @@ const handleResetPassword = async () => {
       showMFAModal.value = true
     } catch (error: any) {
       debug.error('MFA challenge error:', error)
-      passwordError.value = "Couldn't create MFA challenge. Try again."
+      passwordError.value = t('auth.reset.challengeFailed')
     }
     return
   }
@@ -452,6 +530,7 @@ const handleResetPassword = async () => {
 
 const performPasswordReset = async () => {
   isLoading.value = true
+  polite(t('auth.reset.resetting'))
   
   try {
     // updateUser applies the recovery token already held from the URL.
@@ -464,14 +543,14 @@ const performPasswordReset = async () => {
       
       if (error.message.includes('expired') || error.message.includes('invalid')) {
         isError.value = true
-        errorMessage.value = 'This password reset link has expired. Request a new one.'
+        errorMessage.value = t('auth.reset.linkExpired')
       } else if (error.message.includes('Password should be at least')) {
         passwordError.value = error.message
       } else if (error.message.includes('AAL2') || error.message.includes('aal2')) {
         // AAL2 required; unreachable once the MFA path has run.
-        passwordError.value = 'Multi-factor authentication is required. Verify your 2FA code.'
+        passwordError.value = t('auth.reset.mfaRequired')
       } else {
-        passwordError.value = error.message || 'Failed to reset password'
+        passwordError.value = error.message || t('auth.reset.failed')
       }
       return
     }
@@ -488,14 +567,14 @@ const performPasswordReset = async () => {
     await signOutAndForget()
     authStore.session = null
     
-    toast.success('Password reset. Log in with your new password.')
+    toast.success(t('auth.reset.done'))
     
     setTimeout(() => {
       router.push('/login')
     }, 3000)
   } catch (error: any) {
     debug.error('Password reset error:', error)
-    passwordError.value = error.message || 'Failed to reset password. Please try again.'
+    passwordError.value = error.message || t('auth.reset.failed')
   } finally {
     isLoading.value = false
   }
@@ -511,6 +590,7 @@ const goToLogin = async () => {
 }
 
 const handleMFAVerification = async () => {
+  if (mfaLoading.value) return
   if (useRecoveryCode.value) {
     if (recoveryCodeLength(mfaCode.value) < RECOVERY_CODE_MIN_LENGTH) {
       mfaError.value = t('security.mfa.recoveryCodeExample')
@@ -560,6 +640,10 @@ const handleMFAVerification = async () => {
   } finally {
     mfaLoading.value = false
   }
+  if (mfaError.value) {
+    await nextTick()
+    mfaInput.value?.focus()
+  }
 }
 
 const closeMFAModal = () => {
@@ -569,10 +653,12 @@ const closeMFAModal = () => {
   useRecoveryCode.value = false
 }
 
-const toggleRecoveryCode = () => {
+const toggleRecoveryCode = async () => {
   useRecoveryCode.value = !useRecoveryCode.value
   mfaCode.value = ''
   mfaError.value = ''
+  await nextTick()
+  mfaInput.value?.focus()
 }
 </script>
 
@@ -779,6 +865,25 @@ const toggleRecoveryCode = () => {
 .error-message {
   font-size: 0.875rem;
   color: var(--text-danger);
+}
+
+/* Empty alert regions stay in the tree; out of the flex flow while empty. */
+.error-message:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.password-toggle:focus-visible,
+.modal-close:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.form-title:focus {
+  outline: none;
 }
 
 .submit-btn {
