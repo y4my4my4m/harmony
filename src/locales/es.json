@@ -105,7 +105,12 @@
       "error": "Error de autenticación",
       "tryAgain": "Intentar de nuevo",
       "success": "¡Bienvenido!",
-      "redirecting": "Redirigiendo..."
+      "redirecting": "Redirigiendo...",
+      "noSession": "No se encontró ninguna sesión tras la autenticación",
+      "suspendedReason": "Tu cuenta ha sido suspendida: {reason}",
+      "suspended": "Tu cuenta ha sido suspendida. Contacta con la administración.",
+      "mfaStartFailed": "No se pudo iniciar la verificación en dos pasos. Inténtalo de nuevo.",
+      "failed": "La autenticación ha fallado. Inténtalo de nuevo."
     },
     "features": {
       "federated": "Federado",
@@ -122,12 +127,46 @@
       "invalidCredentials": "Correo o contraseña incorrectos",
       "accountNotFound": "Cuenta no encontrada",
       "emailInUse": "El correo electrónico ya está en uso",
-      "weakPassword": "La contraseña es demasiado débil"
+      "weakPassword": "La contraseña es demasiado débil",
+      "emailRequired": "El correo electrónico es obligatorio",
+      "passwordRequired": "La contraseña es obligatoria",
+      "emailServiceUnavailable": "El servicio de correo no está configurado. Contacta con la administración de la instancia.",
+      "oauthFailed": "No se pudo iniciar sesión con {provider}"
     },
     "logoutConfirm": {
       "title": "¿Cerrar sesión en este dispositivo?",
       "description": "Deberás iniciar sesión nuevamente para acceder a tu cuenta.",
       "cancel": "Cancelar"
+    },
+    "showPassword": "Mostrar contraseña",
+    "showNewPassword": "Mostrar nueva contraseña",
+    "showConfirmPassword": "Mostrar confirmación de contraseña",
+    "cancelSignIn": "Cancelar inicio de sesión",
+    "verifying": "Verificando…",
+    "sendingResetLink": "Enviando enlace de restablecimiento…",
+    "poweredBy": "Funciona con {name}",
+    "reset": {
+      "brandSubtitle": "Restablece tu contraseña para recuperar el acceso a tu cuenta",
+      "successTitle": "Contraseña restablecida",
+      "successBody": "Tu contraseña se ha actualizado. Ya puedes iniciar sesión con la nueva contraseña.",
+      "goToLogin": "Ir al inicio de sesión",
+      "invalidTitle": "Enlace no válido o caducado",
+      "invalidBody": "Este enlace de restablecimiento no es válido o ha caducado. Solicita uno nuevo.",
+      "enterNew": "Introduce tu nueva contraseña a continuación",
+      "newPlaceholder": "Introduce tu nueva contraseña",
+      "confirmPlaceholder": "Confirma tu nueva contraseña",
+      "remember": "¿Recuerdas tu contraseña?",
+      "verifying": "Verificando el enlace de restablecimiento…",
+      "verifyAndReset": "Verificar y restablecer contraseña",
+      "resetting": "Restableciendo contraseña…",
+      "confirmRequired": "Confirma tu contraseña",
+      "challengeFailed": "No se pudo iniciar la verificación en dos pasos. Inténtalo de nuevo.",
+      "linkMissing": "Token de restablecimiento no válido o ausente. Solicita un nuevo enlace.",
+      "linkExpired": "Este enlace de restablecimiento ha caducado. Solicita uno nuevo.",
+      "verifyFailed": "No se pudo verificar el enlace de restablecimiento. Inténtalo de nuevo.",
+      "mfaRequired": "Se requiere la verificación en dos pasos. Verifica tu código.",
+      "failed": "No se pudo restablecer la contraseña. Inténtalo de nuevo.",
+      "done": "Contraseña restablecida. Inicia sesión con la nueva contraseña."
     }
   },
   "server": {
@@ -353,7 +392,318 @@
     "failedToLoadEmojis": "No se pudieron cargar los emojis",
     "noPermissionSaveChanges": "No tienes permiso para guardar cambios",
     "serverUpdatedSuccess": "Servidor actualizado correctamente",
-    "failedToUpdateServer": "No se pudo actualizar el servidor"
+    "failedToUpdateServer": "No se pudo actualizar el servidor",
+    "banner": {
+      "title": "Banner del servidor",
+      "upload": "Subir banner del servidor",
+      "change": "Cambiar banner del servidor",
+      "remove": "Quitar banner",
+      "hint": "Recomendado: 1280×400 px. Se muestra en la parte superior de tu servidor.",
+      "none": "No hay banner del servidor"
+    },
+    "emojiActions": {
+      "copy": "Copiar {name}",
+      "rename": "Renombrar {name}",
+      "delete": "Eliminar {name}",
+      "renameField": "Nuevo nombre para {name}",
+      "copied": "{name} copiado"
+    },
+    "banList": {
+      "title": "Baneos del servidor",
+      "description": "Consulta y gestiona los usuarios baneados. Los miembros con el permiso Banear miembros pueden desbanear usuarios de esta lista.",
+      "loading": "Cargando baneos…",
+      "loadFailed": "No se pudieron cargar los baneos",
+      "bannedBy": "Baneado por {name} el {date}",
+      "unknownModerator": "Desconocido",
+      "revoke": "Revocar baneo",
+      "revokeFor": "Revocar baneo de {name}",
+      "unbanned": "{name} ha sido desbaneado",
+      "unbanFailed": "No se pudo desbanear al usuario"
+    },
+    "serverIdLabel": "ID del servidor",
+    "serverCreatedUnknown": "Desconocido",
+    "deleteServerNameMismatch": "El nombre del servidor no coincide",
+    "deleteServerTypeExact": "Escribe el nombre exacto del servidor para confirmar",
+    "deleteServerAuthRequired": "Se requiere autenticación",
+    "deleteServerDone": "Servidor eliminado",
+    "deleteServerFailed": "No se pudo eliminar el servidor",
+    "encryptionPolicy": {
+      "title": "Política de cifrado del servidor",
+      "description": "Controla los requisitos de cifrado de extremo a extremo de este servidor",
+      "loading": "Cargando la configuración de cifrado…",
+      "modeLabel": "Modo de cifrado",
+      "modeHint": "Elige cómo se aplica el cifrado",
+      "modes": {
+        "disabled": {
+          "name": "Desactivado",
+          "description": "Los canales no pueden activar el cifrado. El servidor puede leer todos los mensajes."
+        },
+        "optional": {
+          "name": "Opcional",
+          "description": "Los administradores de canales activan el cifrado en cada canal. Los canales nuevos empiezan sin cifrar."
+        },
+        "required": {
+          "name": "Obligatorio",
+          "description": "Todos los canales están cifrados y no se puede desactivar. Los miembros necesitan claves de cifrado para publicar."
+        }
+      },
+      "requiredWarning": "Los usuarios sin claves de cifrado no podrán enviar mensajes",
+      "status": {
+        "disabled": {
+          "title": "Cifrado desactivado",
+          "description": "Los mensajes se guardan en texto plano. Los operadores del servidor pueden leerlos."
+        },
+        "optional": {
+          "title": "Cifrado opcional",
+          "description": "Cada canal está cifrado o no, según elijan sus administradores."
+        },
+        "required": {
+          "title": "Cifrado obligatorio",
+          "description": "Todos los canales tienen cifrado de extremo a extremo."
+        }
+      },
+      "additionalOptions": "Opciones adicionales",
+      "forceKeySetup": "Pedir a los usuarios que configuren el cifrado",
+      "forceKeySetupHint": "Mostrar el asistente de configuración a usuarios sin claves",
+      "attachmentNote": "En los canales cifrados, los enlaces, nombres y tipos de archivo se cifran con el mensaje. Los archivos en sí se guardan sin cifrar.",
+      "voiceTitle": "Cifrado de voz y vídeo",
+      "voiceHint": "Cifra de extremo a extremo el contenido de las llamadas para que el servidor de medios no pueda acceder a él",
+      "voiceRequire": "Exigir voz y vídeo con cifrado de extremo a extremo",
+      "voiceRequireHint": "Cada canal de voz cifra las llamadas antes de que lleguen al servidor de medios. Sin esto, los administradores de canales eligen en cada canal de voz.",
+      "voiceWarning": "Los participantes que no hayan configurado el cifrado (y los clientes federados o antiguos) no podrán unirse a llamadas cifradas.",
+      "statsTitle": "Estadísticas del servidor",
+      "statsTotal": "Miembros en total",
+      "statsWithKeys": "Con cifrado",
+      "statsCoverage": "Cobertura",
+      "statsWarning": "{count} miembros deben configurar el cifrado para que el modo obligatorio funcione correctamente",
+      "helpTitle": "Acerca del cifrado de extremo a extremo",
+      "help": {
+        "disabled": "{mode}: los canales no pueden activar el cifrado y los mensajes se guardan en texto plano.",
+        "optional": "{mode}: los administradores de canales activan el cifrado en cada canal. Los canales nuevos empiezan sin cifrar.",
+        "required": "{mode}: todos los canales están cifrados y los miembros necesitan claves de cifrado para publicar."
+      },
+      "noteLabel": "Nota:",
+      "note": "El cifrado de extremo a extremo significa que el servidor no puede leer el contenido de los mensajes. Ofrece la máxima privacidad, pero desactiva funciones del servidor como la búsqueda y la moderación de contenido.",
+      "confirmDisable": {
+        "title": "Desactivar cifrado",
+        "message": "Los canales con cifrado activado enviarán los mensajes nuevos en texto plano. Los mensajes cifrados anteriores siguen cifrados.",
+        "confirm": "Desactivar cifrado"
+      },
+      "confirmRequired": {
+        "title": "Activar cifrado obligatorio",
+        "message": "Solo el {percentage} % de los miembros tiene claves de cifrado configuradas. El modo obligatorio impedirá participar a los usuarios sin claves. ¿Continuar?"
+      },
+      "saved": "Configuración de cifrado guardada",
+      "loadFailed": "No se pudo cargar la configuración",
+      "saveFailed": "No se pudo guardar la configuración"
+    },
+    "roleManagement": {
+      "intro": "Crea y gestiona los roles de tu servidor. Arrástralos para cambiar su prioridad o usa Subir y Bajar.",
+      "noPermission": "Para cambiar roles se necesita el permiso Gestionar roles.",
+      "create": "Crear rol",
+      "count": "{count} rol | {count} roles",
+      "dragHandle": "Arrastra para reordenar",
+      "badgeAdmin": "Admin",
+      "badgeDefault": "Predeterminado",
+      "emptyEditor": "Selecciona un rol a la izquierda para editarlo o crea uno nuevo.",
+      "tabs": {
+        "display": "Visualización",
+        "permissions": "Permisos",
+        "members": "Miembros"
+      },
+      "moveUp": "Subir {name}",
+      "moveDown": "Bajar {name}",
+      "position": "Posición {position} de {total}",
+      "moved": "{name} movido a la posición {position} de {total}",
+      "roleName": "Nombre del rol",
+      "everyoneNameLocked": "El nombre del rol {'@'}everyone no se puede cambiar.",
+      "roleColor": "Color del rol",
+      "hoist": "Mostrar a los miembros del rol por separado",
+      "hoistDesc": "Los miembros con este rol aparecerán en su propio grupo en la lista de miembros.",
+      "mentionable": "Permitir que cualquiera {'@'}mencione este rol",
+      "mentionableDesc": "Si está desactivado, solo los miembros con el permiso Mencionar {'@'}everyone pueden mencionarlo.",
+      "permIntro": "Permisos de este rol en todo el servidor. Las excepciones por canal (Permitir / Denegar / Heredar) se configuran en la pestaña Permisos de cada canal.",
+      "dangerWarn": "Concede todos los demás permisos y omite todas las excepciones de canal.",
+      "sections": {
+        "general": "Permisos generales",
+        "membership": "Permisos de membresía",
+        "text": "Permisos de texto",
+        "threads": "Permisos de hilos",
+        "voice": "Permisos de voz"
+      },
+      "perms": {
+        "VIEW_CHANNEL": {
+          "label": "Ver canales",
+          "description": "Permite a los miembros ver los canales de forma predeterminada"
+        },
+        "MANAGE_CHANNELS": {
+          "label": "Gestionar canales",
+          "description": "Crear, editar y eliminar canales"
+        },
+        "MANAGE_ROLES": {
+          "label": "Gestionar roles",
+          "description": "Crear, editar y eliminar roles por debajo de este"
+        },
+        "MANAGE_SERVER": {
+          "label": "Gestionar servidor",
+          "description": "Editar la configuración del servidor y eliminarlo"
+        },
+        "CREATE_INVITE": {
+          "label": "Crear invitación",
+          "description": "Crear invitaciones a este servidor"
+        },
+        "VIEW_AUDIT_LOG": {
+          "label": "Ver registro de auditoría",
+          "description": "Ver el registro de auditoría del servidor"
+        },
+        "MANAGE_EMOJIS": {
+          "label": "Gestionar expresiones",
+          "description": "Añadir, editar y quitar emojis personalizados y sonidos de la caja de sonidos"
+        },
+        "MANAGE_WEBHOOKS": {
+          "label": "Gestionar webhooks",
+          "description": "Crear, editar y eliminar webhooks"
+        },
+        "KICK_MEMBERS": {
+          "label": "Expulsar miembros",
+          "description": "Quitar miembros del servidor"
+        },
+        "BAN_MEMBERS": {
+          "label": "Banear miembros",
+          "description": "Banear miembros del servidor de forma permanente"
+        },
+        "TIMEOUT_MEMBERS": {
+          "label": "Aislar miembros",
+          "description": "Silenciar miembros temporalmente"
+        },
+        "SEND_MESSAGES": {
+          "label": "Enviar mensajes",
+          "description": "Enviar mensajes en canales de texto"
+        },
+        "EMBED_LINKS": {
+          "label": "Insertar enlaces",
+          "description": "Los enlaces mostrarán una vista previa"
+        },
+        "ATTACH_FILES": {
+          "label": "Adjuntar archivos",
+          "description": "Subir imágenes y archivos"
+        },
+        "ADD_REACTIONS": {
+          "label": "Añadir reacciones",
+          "description": "Reaccionar a mensajes con emojis"
+        },
+        "MENTION_EVERYONE": {
+          "label": "Mencionar {'@'}everyone",
+          "description": "Mencionar a {'@'}everyone y a todos los roles"
+        },
+        "MANAGE_MESSAGES": {
+          "label": "Gestionar mensajes",
+          "description": "Eliminar y fijar mensajes de otros"
+        },
+        "READ_MESSAGE_HISTORY": {
+          "label": "Leer el historial de mensajes",
+          "description": "Ver el historial de mensajes"
+        },
+        "USE_EXTERNAL_EMOJIS": {
+          "label": "Usar emojis externos",
+          "description": "Usar emojis de otros servidores"
+        },
+        "PIN_MESSAGES": {
+          "label": "Fijar mensajes",
+          "description": "Fijar mensajes en los canales"
+        },
+        "CREATE_PUBLIC_THREADS": {
+          "label": "Crear hilos públicos",
+          "description": "Crear hilos visibles para todos"
+        },
+        "CREATE_PRIVATE_THREADS": {
+          "label": "Crear hilos privados",
+          "description": "Crear hilos solo por invitación"
+        },
+        "SEND_MESSAGES_IN_THREADS": {
+          "label": "Enviar mensajes en hilos",
+          "description": "Responder en hilos"
+        },
+        "CONNECT": {
+          "label": "Conectar",
+          "description": "Unirse a canales de voz"
+        },
+        "SPEAK": {
+          "label": "Hablar",
+          "description": "Hablar en canales de voz"
+        },
+        "STREAM": {
+          "label": "Vídeo",
+          "description": "Compartir vídeo o pantalla"
+        },
+        "MUTE_MEMBERS": {
+          "label": "Silenciar miembros",
+          "description": "Silenciar a miembros en voz para todo el servidor"
+        },
+        "DEAFEN_MEMBERS": {
+          "label": "Ensordecer miembros",
+          "description": "Ensordecer a miembros en voz para todo el servidor"
+        },
+        "MOVE_MEMBERS": {
+          "label": "Mover miembros",
+          "description": "Mover miembros entre canales de voz"
+        },
+        "USE_SOUNDBOARD": {
+          "label": "Usar la caja de sonidos",
+          "description": "Reproducir sonidos de la caja de sonidos en canales de voz"
+        },
+        "USE_EXTERNAL_SOUNDS": {
+          "label": "Usar sonidos externos",
+          "description": "Reproducir sonidos de otros servidores a los que pertenecen"
+        }
+      },
+      "everyoneMembersNote": "El rol {'@'}everyone se aplica automáticamente a todos los miembros de este servidor. No hay lista que gestionar.",
+      "addMembers": "Añadir miembros",
+      "searchMembers": "Buscar miembros del servidor...",
+      "searchResults": "{count} miembro encontrado | {count} miembros encontrados",
+      "addMemberTo": "Añadir a {member} a {role}",
+      "currentMembers": "Miembros actuales",
+      "filterMembers": "Filtrar miembros",
+      "filterPlaceholder": "Filtrar...",
+      "removeMemberFrom": "Quitar a {member} de {role}",
+      "bridged": "Discord",
+      "bridgedTitle": "Miembro del puente de Discord",
+      "owner": "Propietario",
+      "protected": "Protegido",
+      "protectedTitle": "El propietario del servidor no se puede quitar del rol Admin.",
+      "deleteRole": "Eliminar rol",
+      "save": "Guardar cambios",
+      "saving": "Guardando...",
+      "saved": "Rol {name} guardado",
+      "changesReset": "Cambios restablecidos",
+      "created": "Rol {name} creado",
+      "deleted": "Rol {name} eliminado",
+      "memberAdded": "{member} añadido a {role}",
+      "memberRemoved": "{member} quitado de {role}",
+      "confirmDeleteTitle": "Eliminar rol",
+      "confirmDeleteMessage": "¿Seguro que quieres eliminar el rol «{name}»?",
+      "newRoleName": "Nuevo rol",
+      "errors": {
+        "create": "No se pudo crear el rol",
+        "save": "No se pudo guardar el rol",
+        "delete": "No se pudo eliminar el rol",
+        "removeOwnerAdmin": "No se puede quitar el rol Admin al propietario del servidor",
+        "removeMember": "No se pudo quitar al miembro del rol",
+        "addMember": "No se pudo añadir al miembro al rol",
+        "reorder": "No se pudieron reordenar los roles"
+      }
+    },
+    "privacy": {
+      "federatedMembers": "{count} miembro federado en este servidor | {count} miembros federados en este servidor",
+      "copyHandle": "Copiar el identificador del servidor {handle}",
+      "disableTitle": "¿Desactivar la federación?",
+      "disableBody": "Este servidor tiene {count} miembro federado de otras instancias. Desactivar la federación: | Este servidor tiene {count} miembros federados de otras instancias. Desactivar la federación:",
+      "disableConsequence1": "Bloqueará todas las nuevas solicitudes de unión de usuarios remotos",
+      "disableConsequence2": "Dejará de entregar mensajes a y desde miembros remotos",
+      "disableConsequence3": "Impedirá las reacciones y la participación por voz de usuarios remotos",
+      "disableConsequence4": "Mantendrá a los miembros federados actuales en la lista, sin poder interactuar",
+      "disableConfirm": "Desactivar la federación"
+    }
   },
   "channel": {
     "create": "Crear canal",
@@ -389,6 +739,149 @@
       "hint": "Solo los roles que elijas, el propietario y los administradores pueden verlo.",
       "whoCanSee": "Quién puede verlo",
       "noRoles": "Aún no hay roles: solo el propietario y los administradores lo verán."
+    },
+    "edit": {
+      "title": "Editar canal",
+      "tabs": {
+        "general": "General"
+      },
+      "namePlaceholder": "Introduce el nombre del canal",
+      "description": "Descripción",
+      "descriptionPlaceholder": "¿De qué trata este canal?",
+      "slowmode": "Modo lento",
+      "slowmodeHint": "Los miembros pueden enviar un mensaje por intervalo. Los moderadores con Gestionar mensajes están exentos.",
+      "slowmodeOff": "Desactivado",
+      "slowmodeShort": {
+        "seconds": "{n} s",
+        "minutes": "{n} min",
+        "hours": "{n} h"
+      },
+      "slowmodeLong": {
+        "seconds": "{n} segundo | {n} segundos",
+        "minutes": "{n} minuto | {n} minutos",
+        "hours": "{n} hora | {n} horas"
+      },
+      "textChannel": "Canal de texto",
+      "voiceChannel": "Canal de voz",
+      "typeHint": "El tipo de canal no se puede cambiar después de crearlo",
+      "noRoles": "Sin roles",
+      "loadingRoles": "Cargando roles...",
+      "overrideLegend": "Permitir concede, Denegar retira, Heredar usa el ajuste de todo el servidor.",
+      "resetRole": "Restablecer cambios",
+      "resetRoleFor": "Restablecer cambios de {role}",
+      "roleReset": "Cambios de {role} restablecidos",
+      "selectRole": "Selecciona un rol a la izquierda para editar sus excepciones en el canal.",
+      "tristate": {
+        "deny": "Denegar",
+        "inherit": "Heredar",
+        "inheritTitle": "Heredar del servidor",
+        "allow": "Permitir"
+      },
+      "groups": {
+        "general": "General",
+        "messages": "Mensajes",
+        "threads": "Hilos",
+        "voice": "Voz"
+      },
+      "perms": {
+        "VIEW_CHANNEL": {
+          "label": "Ver canal",
+          "description": "Ver este canal en la barra lateral y leer los mensajes."
+        },
+        "MANAGE_CHANNELS": {
+          "label": "Gestionar canal",
+          "description": "Renombrar, editar o eliminar este canal."
+        },
+        "SEND_MESSAGES": {
+          "label": "Enviar mensajes",
+          "description": "Publicar mensajes en este canal."
+        },
+        "EMBED_LINKS": {
+          "label": "Insertar enlaces",
+          "description": "Enviar contenido insertado y vistas previas de enlaces."
+        },
+        "ATTACH_FILES": {
+          "label": "Adjuntar archivos",
+          "description": "Subir archivos en este canal."
+        },
+        "ADD_REACTIONS": {
+          "label": "Añadir reacciones",
+          "description": "Reaccionar a mensajes con emojis."
+        },
+        "USE_EXTERNAL_EMOJIS": {
+          "label": "Usar emojis externos",
+          "description": "Enviar emojis de otros servidores."
+        },
+        "MENTION_EVERYONE": {
+          "label": "Mencionar {'@'}everyone",
+          "description": "Usar {'@'}everyone y {'@'}here."
+        },
+        "MANAGE_MESSAGES": {
+          "label": "Gestionar mensajes",
+          "description": "Eliminar y fijar mensajes de otros miembros. NO permite editarlos."
+        },
+        "READ_MESSAGE_HISTORY": {
+          "label": "Leer el historial de mensajes",
+          "description": "Ver los mensajes publicados antes de unirse."
+        },
+        "CREATE_PUBLIC_THREADS": {
+          "label": "Crear hilos públicos",
+          "description": "Iniciar hilos públicos a partir de mensajes."
+        },
+        "CREATE_PRIVATE_THREADS": {
+          "label": "Crear hilos privados",
+          "description": "Iniciar hilos solo por invitación."
+        },
+        "SEND_MESSAGES_IN_THREADS": {
+          "label": "Enviar en hilos",
+          "description": "Publicar mensajes dentro de los hilos."
+        },
+        "CONNECT": {
+          "label": "Conectar",
+          "description": "Unirse a este canal de voz."
+        },
+        "SPEAK": {
+          "label": "Hablar",
+          "description": "Hablar en este canal de voz."
+        },
+        "STREAM": {
+          "label": "Vídeo y transmisión",
+          "description": "Compartir la cámara o la pantalla."
+        },
+        "MUTE_MEMBERS": {
+          "label": "Silenciar miembros",
+          "description": "Silenciar a otros miembros aquí."
+        },
+        "DEAFEN_MEMBERS": {
+          "label": "Ensordecer miembros",
+          "description": "Ensordecer a otros miembros aquí."
+        },
+        "MOVE_MEMBERS": {
+          "label": "Mover miembros",
+          "description": "Mover miembros fuera de este canal."
+        },
+        "USE_SOUNDBOARD": {
+          "label": "Usar la caja de sonidos",
+          "description": "Reproducir sonidos de la caja de sonidos en este canal."
+        },
+        "USE_EXTERNAL_SOUNDS": {
+          "label": "Usar sonidos externos",
+          "description": "Reproducir sonidos de otros servidores en este canal."
+        }
+      },
+      "save": "Guardar cambios",
+      "saving": "Guardando...",
+      "savePermissions": "Guardar permisos",
+      "permissionsSaved": "Permisos del canal guardados",
+      "discardTitle": "¿Descartar los cambios?",
+      "discardMessage": "Este canal tiene cambios sin guardar. ¿Cerrar sin guardarlos?",
+      "discard": "Descartar",
+      "errors": {
+        "update": "No se pudo actualizar el canal. Inténtalo de nuevo.",
+        "loadPermissions": "No se pudieron cargar los permisos del canal",
+        "savePermissions": "No se pudieron guardar los permisos del canal",
+        "saveOverride": "No se pudo guardar la excepción de {role}"
+      }
     }
   },
   "message": {
@@ -735,7 +1228,50 @@
     "callVideo": "Vídeo",
     "callDecline": "Rechazar",
     "callMinimize": "Minimizar",
-    "callExpand": "Mostrar llamada"
+    "callExpand": "Mostrar llamada",
+    "groupSettings": {
+      "title": "Ajustes del grupo",
+      "groupIcon": "Icono del grupo",
+      "upload": "Subir",
+      "uploadIcon": "Subir icono del grupo",
+      "remove": "Quitar",
+      "removeIcon": "Quitar icono del grupo",
+      "dropHint": "Arrastra y suelta una imagen o haz clic para buscar",
+      "fileHint": "Máx. 5 MB • PNG, JPG, WebP",
+      "uploadingIcon": "Subiendo icono del grupo",
+      "uploadProgress": "{percent} % subido",
+      "groupName": "Nombre del grupo",
+      "groupNameHelp": "Déjalo vacío para usar los nombres de los participantes",
+      "saveChanges": "Guardar cambios",
+      "saving": "Guardando…",
+      "participants": "Participantes ({count})",
+      "add": "Añadir",
+      "addParticipant": "Añadir participante",
+      "creator": "Creador",
+      "removeParticipant": "Quitar a {name} del grupo",
+      "dangerZone": "Zona de peligro",
+      "leaveGroup": "Salir del grupo",
+      "deleteGroup": "Eliminar grupo",
+      "leave": "Salir",
+      "leaveConfirmMessage": "¿Seguro que quieres salir de este grupo? No podrás ver los mensajes nuevos.",
+      "deleteConfirmMessage": "¿Seguro que quieres eliminar este grupo? No se puede deshacer y se perderán todos los mensajes.",
+      "defaultName": "Chat de grupo",
+      "defaultNameMore": "{names} y {count} más",
+      "dropImage": "Suelta un archivo de imagen",
+      "iconUpdated": "Icono del grupo actualizado",
+      "iconUploadFailed": "No se pudo subir el icono",
+      "iconRemoved": "Icono del grupo quitado",
+      "iconRemoveFailed": "No se pudo quitar el icono",
+      "nameUpdated": "Nombre del grupo actualizado",
+      "nameUpdateFailed": "No se pudo actualizar el nombre del grupo",
+      "participantRemoved": "{name} ha salido del grupo",
+      "participantRemoveFailed": "No se pudo quitar al participante",
+      "usersAdded": "Usuarios añadidos al grupo",
+      "left": "Has salido del grupo",
+      "leaveFailed": "No se pudo salir del grupo",
+      "deleted": "Grupo eliminado",
+      "deleteFailed": "No se pudo eliminar el grupo"
+    }
   },
   "user": {
     "panelToggle": "Tu cuenta y controles de voz",
@@ -843,7 +1379,72 @@
       "quickReactEnable": "Doble toque para reaccionar rápido",
       "quickReactEnableDesc": "Toca dos veces (móvil) o haz doble clic (escritorio) en un mensaje para reaccionar al instante con el emoji que elijas.",
       "quickReactEmoji": "Emoji de reacción rápida",
-      "quickReactEmojiDesc": "El emoji que se aplica cuando tocas dos veces un mensaje."
+      "quickReactEmojiDesc": "El emoji que se aplica cuando tocas dos veces un mensaje.",
+      "changesReset": "Cambios de apariencia restablecidos",
+      "saved": "Apariencia guardada",
+      "editLivePreview": "Editar en vista previa en vivo",
+      "themeMode": "Modo del tema",
+      "savedTheme": "Tema guardado",
+      "savedThemeName": "Nombre del tema",
+      "saveTheme": "Guardar tema",
+      "deleteSavedTheme": "Eliminar el tema {name}",
+      "deleteSavedThemeConfirm": "¿Eliminar «{name}»?",
+      "themeRemoved": "Tema eliminado",
+      "lightness": "Luminosidad",
+      "saturation": "Saturación",
+      "darker": "Más oscuro",
+      "lighter": "Más claro",
+      "muted": "Apagado",
+      "vivid": "Vivo",
+      "toneValue": "{value}, {direction}",
+      "resetVariable": "Restablecer {name} al valor predeterminado",
+      "zoomIn": "Acercar",
+      "zoomOut": "Alejar",
+      "zoomValue": "Zoom {value} %",
+      "colors": {
+        "background": "Fondo",
+        "backgroundHint": "Tono, luminosidad y saturación",
+        "backgroundColor": "Color de fondo",
+        "primary": "Principal",
+        "primaryHint": "Botones y acciones clave",
+        "primaryColor": "Color principal",
+        "accent": "Acento",
+        "accentHint": "Enlaces y resaltados",
+        "accentColor": "Color de acento",
+        "sidebar": "Barra lateral",
+        "sidebarHintOn": "Tinte propio para las barras",
+        "sidebarHintOff": "Desactivado, igual que el fondo",
+        "sidebarEnable": "Usar un color propio para la barra lateral",
+        "sidebarColor": "Color de la barra lateral",
+        "advancedCss": "CSS avanzado",
+        "advancedCssHint": "Sobrescribir variables individuales",
+        "backgroundHelp": "Define el tono de color de todos los elementos de fondo",
+        "primaryHelp": "Color principal de la marca para botones y acciones clave",
+        "accentHelp": "Se usa para enlaces, resaltados y acentos"
+      },
+      "panel": {
+        "title": "Personaliza tu tema",
+        "close": "Cerrar el editor de temas",
+        "hint": "Los cambios se previsualizan en vivo en la aplicación detrás de este panel. Pulsa Aplicar para conservarlos.",
+        "apply": "Aplicar",
+        "fix": "Corregir",
+        "fixContrast": "Corregir el contraste del color principal",
+        "fixContrastHint": "Ajusta la luminosidad hasta que los enlaces e iconos de este color alcancen 3:1 sobre el fondo",
+        "labelContrast": "Etiqueta {ratio}:1",
+        "surfaceContrast": "Sobre el fondo {ratio}:1"
+      },
+      "overrides": {
+        "count": "{count} sustitución | {count} sustituciones",
+        "active": "{count} sustitución activa | {count} sustituciones activas",
+        "resetAll": "Restablecer todo",
+        "resetAllHint": "Quitar todas las sustituciones y restaurar los valores predeterminados"
+      },
+      "toasts": {
+        "exported": "Tema exportado",
+        "imported": "Tema importado",
+        "invalidFile": "Archivo de tema no válido",
+        "themeSaved": "«{name}» guardado"
+      }
     },
     "voice": {
       "title": "Voz y video",
@@ -917,7 +1518,265 @@
       "enableMentions": "Notificar en menciones",
       "enableDMs": "Notificar en mensajes directos",
       "muteAll": "Silenciar todo",
-      "muteDuration": "Duración del silencio"
+      "muteDuration": "Duración del silencio",
+      "dnd": {
+        "active": "Activo",
+        "inactive": "Inactivo",
+        "description": "Silencia sonidos, ventanas emergentes y notificaciones push en el horario elegido. Las notificaciones siguen llegando a tu bandeja."
+      },
+      "quietHours": {
+        "title": "Horas de silencio",
+        "description": "Define tu horario de no molestar (en tu hora local)",
+        "start": "Inicio de las horas de silencio",
+        "end": "Fin de las horas de silencio",
+        "to": "a"
+      },
+      "enableMobile": "Activar notificaciones",
+      "permission": {
+        "unsupported": "No compatible con este navegador",
+        "unsupportedMobile": "No compatible con este navegador. Instala la app para recibir notificaciones.",
+        "grant": "Conceder permiso",
+        "desktopEnabled": "Las notificaciones de escritorio están activadas",
+        "desktopRequired": "Las notificaciones de escritorio necesitan permiso",
+        "enabled": "Las notificaciones están activadas",
+        "required": "Las notificaciones necesitan permiso"
+      },
+      "chat": {
+        "description": "Notificaciones de servidores y mensajes directos"
+      },
+      "activitypub": {
+        "title": "ActivityPub y federación",
+        "description": "Notificaciones de la red federada"
+      },
+      "types": {
+        "chatMessages": {
+          "label": "Mensajes del chat",
+          "description": "Cuando se envía un mensaje en un canal que sigues"
+        },
+        "mentions": {
+          "label": "Menciones",
+          "description": "Cuando alguien te menciona"
+        },
+        "dms": {
+          "label": "Mensajes directos",
+          "description": "Cuando recibes un mensaje directo"
+        },
+        "replies": {
+          "label": "Respuestas",
+          "description": "Cuando alguien responde a tu mensaje"
+        },
+        "reactions": {
+          "label": "Reacciones",
+          "description": "Cuando alguien reacciona a tu mensaje"
+        },
+        "apFollows": {
+          "label": "Seguidores",
+          "name": "Seguidores del fediverso",
+          "description": "Cuando alguien te sigue"
+        },
+        "apMentions": {
+          "label": "Menciones",
+          "name": "Menciones del fediverso",
+          "description": "Cuando alguien te menciona en una publicación"
+        },
+        "apReplies": {
+          "label": "Respuestas",
+          "name": "Respuestas del fediverso",
+          "description": "Cuando alguien responde a tu publicación"
+        },
+        "apFavorites": {
+          "label": "Favoritos",
+          "name": "Favoritos del fediverso",
+          "description": "Cuando alguien marca tu publicación como favorita"
+        },
+        "apReblogs": {
+          "label": "Impulsos",
+          "name": "Impulsos del fediverso",
+          "description": "Cuando alguien impulsa tu publicación"
+        },
+        "apFollowRequests": {
+          "label": "Solicitudes de seguimiento",
+          "name": "Solicitudes de seguimiento del fediverso",
+          "description": "Cuando alguien solicita seguirte"
+        }
+      },
+      "sound": {
+        "title": "Ajustes de sonido",
+        "description": "Configura los sonidos de notificación",
+        "volumeDescription": "Ajusta el volumen de todos los sonidos de notificación",
+        "voiceActivity": "Sonidos de actividad de voz",
+        "voiceActivityDescription": "Reproduce sonidos por la actividad en canales de voz"
+      },
+      "push": {
+        "title": "Notificaciones push",
+        "titleOther": "Push a otros dispositivos",
+        "nativeMobileTitle": "La app tendrá notificaciones push en segundo plano",
+        "nativeMobileText": "Este dispositivo muestra notificaciones mientras Harmony está abierto, también en segundo plano. Las notificaciones push con la app cerrada del todo solo están disponibles en Android.",
+        "iosTitle": "iOS requiere instalar la app",
+        "iosText": "Para recibir notificaciones push en iOS, añade primero Harmony a la pantalla de inicio (Compartir → Añadir a pantalla de inicio).",
+        "unsupportedTitle": "Notificaciones push no compatibles",
+        "unsupportedText": "Tu navegador no admite notificaciones push. Prueba con Chrome, Firefox, Edge o Safari.",
+        "blockedTitle": "Permiso de notificaciones bloqueado",
+        "blockedText": "Las notificaciones están bloqueadas para este sitio. Permítelas en los ajustes del sitio del navegador y recarga; el push se reanuda solo.",
+        "errorTitle": "Error en las notificaciones push",
+        "turnOn": "Activar en este dispositivo",
+        "turnOff": "Desactivar en este dispositivo",
+        "test": "Probar push",
+        "toMyDevices": "Push a mis dispositivos",
+        "toMyDevicesDescription": "Desactiva el push en todas partes sin quitar ningún dispositivo",
+        "awayOnly": "Solo cuando no estoy",
+        "awayOnlyDescription": "Omite el push mientras Harmony está abierto y en uso en otro dispositivo",
+        "mentions": "Menciones",
+        "mentionsDescription": "Recibe notificaciones push cuando te mencionen",
+        "dms": "Mensajes directos",
+        "dmsDescription": "Recibe notificaciones push por nuevos mensajes directos",
+        "noDevices": "Aún no hay dispositivos suscritos al push. Activa las notificaciones push en tu teléfono o en un navegador y gestiona esos dispositivos aquí.",
+        "status": {
+          "fcm": "Este dispositivo: Google (FCM)",
+          "unifiedpush": "Este dispositivo: UnifiedPush",
+          "whileOpen": "Este dispositivo: mientras está abierta",
+          "foreground": "Este dispositivo: primer plano",
+          "native": "Este dispositivo: notificaciones nativas",
+          "notSupported": "No compatible",
+          "blocked": "Bloqueado",
+          "enabled": "Activado",
+          "available": "Disponible"
+        },
+        "descAndroid": "El push llega a este dispositivo con Harmony cerrado, a través de Google (FCM) o de la app UnifiedPush que elijas. Tus otros dispositivos suscritos aparecen abajo.",
+        "descNativeMobile": "Este dispositivo recibe notificaciones mientras la app está abierta. Gestiona abajo el push a tus otros dispositivos suscritos.",
+        "descDesktop": "La app de escritorio ya muestra notificaciones del sistema mientras se ejecuta. Estos ajustes gestionan el push a tus otros dispositivos (teléfono, navegadores) y qué tipos de notificación reciben.",
+        "descWeb": "Recibe notificaciones en tu dispositivo incluso con la app cerrada. Funciona en Android, iOS (requiere instalar la app) y navegadores de escritorio."
+      },
+      "devices": {
+        "title": "Dispositivos suscritos ({count})",
+        "added": "Añadido {when}",
+        "today": "hoy",
+        "yesterday": "ayer",
+        "remove": "Quitar {device}",
+        "unknown": "Dispositivo desconocido",
+        "android": "Dispositivo Android",
+        "windows": "PC con Windows",
+        "linux": "PC con Linux",
+        "chrome": "Navegador Chrome",
+        "firefox": "Navegador Firefox",
+        "safari": "Navegador Safari"
+      },
+      "haptics": {
+        "title": "Respuesta háptica",
+        "enabled": "Activada",
+        "disabled": "Desactivada",
+        "description": "Vibración al interactuar",
+        "enable": "Activar respuesta háptica",
+        "enableDescription": "Siente vibraciones al usar la app",
+        "messages": "Enviar mensajes",
+        "messagesDescription": "Al enviar un mensaje",
+        "reactions": "Reacciones",
+        "reactionsDescription": "Al añadir o quitar reacciones",
+        "navigation": "Navegación",
+        "navigationDescription": "Al cambiar de pestaña o abrir menús",
+        "voice": "Voz y llamadas",
+        "voiceDescription": "Al entrar o salir de canales de voz",
+        "interactions": "Interacciones",
+        "interactionsDescription": "Pulsación larga, deslizar para actualizar y gestos similares",
+        "toggles": "Interruptores",
+        "togglesDescription": "Al activar o desactivar ajustes",
+        "destructive": "Acciones destructivas",
+        "destructiveDescription": "Al eliminar mensajes o salir de servidores",
+        "test": "Probar respuesta háptica",
+        "sent": "Respuesta háptica enviada"
+      },
+      "test": {
+        "title": "Probar notificaciones",
+        "description": "Prueba tus ajustes de notificaciones",
+        "testing": "Probando…",
+        "all": "Probar todas las notificaciones",
+        "reset": "Restablecer valores predeterminados"
+      },
+      "toast": {
+        "updated": "Preferencias de notificaciones actualizadas",
+        "updateFailed": "No se pudieron actualizar las preferencias",
+        "unsupported": "Este navegador no admite notificaciones",
+        "permissionGranted": "Permiso de notificaciones concedido",
+        "permissionDenied": "Permiso de notificaciones denegado",
+        "permissionFailed": "No se pudo solicitar el permiso",
+        "testFailed": "No se pudo probar la notificación",
+        "allTested": "Se probaron todas las notificaciones activadas",
+        "allTestFailed": "No se pudieron probar todas las notificaciones",
+        "pushOn": "Las notificaciones push están activadas en este dispositivo",
+        "pushOnFailed": "No se pudieron activar las notificaciones push",
+        "pushOff": "Las notificaciones push están desactivadas en este dispositivo",
+        "pushOffFailed": "No se pudieron desactivar las notificaciones push",
+        "testPushSent": "Notificación push de prueba enviada",
+        "testPushFailed": "No se pudo enviar la notificación de prueba",
+        "deviceRemoved": "Dispositivo quitado",
+        "deviceRemoveFailed": "No se pudo quitar el dispositivo"
+      },
+      "samples": {
+        "mention": {
+          "title": "Mención de prueba",
+          "message": "Te mencionaron en un mensaje de prueba"
+        },
+        "dm": {
+          "title": "Mensaje directo de prueba",
+          "message": "Este es un mensaje directo de prueba"
+        },
+        "reply": {
+          "title": "Respuesta de prueba",
+          "message": "Alguien respondió a tu mensaje de prueba"
+        },
+        "reaction": {
+          "title": "Reacción de prueba",
+          "message": "Alguien reaccionó a tu mensaje de prueba"
+        },
+        "voiceActivity": {
+          "title": "Actividad de voz de prueba",
+          "message": "Alguien entró en un canal de voz"
+        },
+        "serverInvite": {
+          "title": "Invitación a servidor de prueba",
+          "message": "Te invitaron a unirte a un servidor"
+        },
+        "followRequest": {
+          "title": "Solicitud de seguimiento de prueba",
+          "message": "Alguien quiere seguirte"
+        },
+        "serverUpdate": {
+          "title": "Actualización de servidor de prueba",
+          "message": "Se actualizó un servidor"
+        },
+        "emojiAdded": {
+          "title": "Emoji añadido de prueba",
+          "message": "Se añadió un emoji nuevo al servidor"
+        },
+        "apFollow": {
+          "title": "Seguidor de ActivityPub de prueba",
+          "message": "Alguien del fediverso te siguió"
+        },
+        "apFavorite": {
+          "title": "Favorito de ActivityPub de prueba",
+          "message": "Alguien marcó como favorita tu publicación en el fediverso"
+        },
+        "apReblog": {
+          "title": "Impulso de ActivityPub de prueba",
+          "message": "Alguien impulsó tu publicación en el fediverso"
+        },
+        "apMention": {
+          "title": "Mención de ActivityPub de prueba",
+          "message": "Te mencionaron en una publicación del fediverso"
+        },
+        "apReply": {
+          "title": "Respuesta de ActivityPub de prueba",
+          "message": "Alguien respondió a tu publicación del fediverso"
+        },
+        "apFollowRequest": {
+          "title": "Solicitud de seguimiento de ActivityPub de prueba",
+          "message": "Alguien del fediverso solicitó seguirte"
+        },
+        "generic": {
+          "title": "Notificación de prueba",
+          "message": "Esta es una notificación de prueba"
+        }
+      }
     },
     "announcements": {
       "title": "Anuncios",
@@ -1027,7 +1886,40 @@
       "inputDevice": "Dispositivo de entrada",
       "outputDevice": "Dispositivo de salida",
       "inputVolume": "Volumen de entrada",
-      "outputVolume": "Volumen de salida"
+      "outputVolume": "Volumen de salida",
+      "playSound": "Reproducir el sonido de {sound}",
+      "sounds": {
+        "mention": "Mención",
+        "message": "Mensaje",
+        "reaction": "Reacción",
+        "voiceJoin": "Entrar a voz",
+        "voiceLeave": "Salir de voz",
+        "success": "Éxito",
+        "error": "Error",
+        "click": "Clic"
+      },
+      "themes": {
+        "title": "Temas de sonido",
+        "subtitle": "Paquetes de sonidos para notificaciones, llamadas y respuestas de la interfaz",
+        "builtIn": "Integrado",
+        "byAuthor": "por {author}",
+        "masterVolume": "Volumen general",
+        "mute": "Silenciar sonidos",
+        "playPreview": "Reproducir vista previa de {theme}",
+        "clearCache": "Vaciar la caché de audio",
+        "dismissError": "Descartar error",
+        "advanced": "Configuración avanzada",
+        "autoPreload": "Precargar temas automáticamente",
+        "volumeLow": "Bajo",
+        "volumeMedium": "Medio",
+        "volumeHigh": "Alto",
+        "volumeMax": "Máximo",
+        "cacheInfo": "Información de caché",
+        "cacheStats": "{sounds} sonidos en caché, {themes} temas cargados",
+        "exportSettings": "Exportar ajustes",
+        "importSettings": "Importar ajustes",
+        "resetDefaults": "Restablecer valores predeterminados"
+      }
     },
     "buildInfo": {
       "copyHint": "Haz clic para copiar la información de versión para informes de errores",
@@ -1035,6 +1927,55 @@
       "copyFailed": "No se pudo copiar la información de versión",
       "terms": "Términos del servicio",
       "privacy": "Política de privacidad"
+    },
+    "a11y": {
+      "sections": "Secciones de ajustes",
+      "close": "Cerrar ajustes",
+      "unreadAnnouncements": "{count} anuncio sin leer | {count} anuncios sin leer"
+    },
+    "toasts": {
+      "loggedOut": "Sesión cerrada",
+      "logoutFailed": "No se pudo cerrar la sesión",
+      "profileUpdated": "Perfil actualizado",
+      "profileUpdateFailed": "No se pudo actualizar tu perfil",
+      "avatarUpdated": "Avatar actualizado",
+      "avatarUploadFailed": "No se pudo subir el avatar",
+      "bannerUpdated": "Banner actualizado",
+      "bannerUploadFailed": "No se pudo subir el banner",
+      "profileLoadFailed": "No se pudo cargar tu perfil"
+    },
+    "unsaved": {
+      "title": "¿Descartar los cambios sin guardar?",
+      "message": "Tus cambios en estos ajustes no se han guardado.",
+      "discard": "Descartar cambios"
+    },
+    "userAccount": {
+      "changeBanner": "Cambiar el banner del perfil",
+      "bannerUploading": "Subiendo banner…",
+      "displayNameHint": "Así es como te ven los demás.",
+      "displayNameEmojiHint": "Escribe : para añadir emojis personalizados.",
+      "displayNameRequired": "El nombre visible no puede estar vacío.",
+      "displayNameNoEmoji": "Los emojis personalizados en los nombres visibles están desactivados en esta instancia. Quita los códigos de emoji como :name: de tu nombre visible.",
+      "usernameHint": "El nombre de usuario no se puede cambiar: otros servidores identifican tu cuenta con él.",
+      "bioCount": "{count}/{max} caracteres",
+      "displayColor": "Color visible",
+      "displayColorHint": "Se usa en tu nombre visible y en los detalles del perfil.",
+      "openColorPicker": "Abrir selector de color",
+      "resetColor": "Restablecer color visible",
+      "fieldsTitle": "Campos del perfil",
+      "fieldsDescription": "Añade hasta {max} enlaces o etiquetas breves a tu perfil: sitios web, usuarios en redes sociales, cualquier sitio donde quieras que te encuentren. Se muestran en tu perfil y se federan a otras instancias de ActivityPub.",
+      "fieldNameLabel": "Campo {n}: etiqueta",
+      "fieldValueLabel": "Campo {n}: valor",
+      "fieldNamePlaceholder": "Etiqueta (p. ej., Sitio web)",
+      "fieldValuePlaceholder": "Valor (p. ej., https://example.com)",
+      "removeFieldNamed": "Quitar el campo {name}",
+      "removeFieldNumbered": "Quitar el campo {n}",
+      "fieldsEmpty": "Aún no hay campos. Añade uno abajo.",
+      "fieldIncomplete": "Cada campo del perfil necesita una etiqueta y un valor.",
+      "addField": "Añadir campo",
+      "description": "Gestiona tu perfil y los datos de tu cuenta.",
+      "handleCopied": "Identificador copiado",
+      "copyFailed": "No se pudo copiar"
     }
   },
   "navigation": {
@@ -1419,6 +2360,23 @@
     },
     "securityNotification": {
       "short": "Seguridad de la cuenta"
+    },
+    "kickBan": {
+      "member": "Miembro",
+      "searchPlaceholder": "Buscar un miembro…",
+      "noMembers": "No se encontraron miembros",
+      "memberSelected": "{name} seleccionado",
+      "changeMember": "Elegir otro miembro en lugar de {name}",
+      "banWarning": "Este usuario será baneado permanentemente del servidor y no podrá volver a unirse hasta que se le desbanee.",
+      "reasonPlaceholderKick": "¿Por qué expulsas a este usuario?",
+      "reasonPlaceholderBan": "¿Por qué baneas a este usuario?",
+      "deleteMessages": "Eliminar historial de mensajes",
+      "deleteOptions": {
+        "none": "No eliminar nada",
+        "hour": "Última hora",
+        "day": "Últimas 24 horas",
+        "week": "Últimos 7 días"
+      }
     }
   },
   "files": {
@@ -1780,7 +2738,23 @@
       "otherLinks": "Tus otros enlaces activos ({count})",
       "showLink": "Mostrar este enlace"
     },
-    "bannedFromServer": "Estás baneado de este servidor"
+    "bannedFromServer": "Estás baneado de este servidor",
+    "a11y": {
+      "preview": "Invitación a {server}. Acepta o rechaza abajo.",
+      "member": "Ya eres miembro de {server}.",
+      "joining": "Uniéndote a {server}…"
+    },
+    "rules": {
+      "title": "Antes de unirte",
+      "subtitle": "Lee y acepta las normas antes de unirte",
+      "instanceHeading": "Normas de la instancia {instance}",
+      "instanceNote": "Se muestran una vez: se aplican en toda esta instancia.",
+      "serverHeading": "Normas de {server}",
+      "agreementNote": "Al unirte, aceptas estas normas.",
+      "agree": "Aceptar y unirme"
+    },
+    "joined": "Te has unido a {server}",
+    "joinFailed": "No se pudo unir al servidor"
   },
   "nav": {
     "chat": "Chat",
@@ -1876,7 +2850,9 @@
       "save": "Guardar",
       "saved": "Servidor de bienvenida guardado",
       "saveFailed": "No se pudo guardar el servidor de bienvenida"
-    }
+    },
+    "joiningNamed": "Uniéndote a {server}…",
+    "joinedNamed": "Te uniste a {server}"
   },
   "serverWelcome": {
     "kicker": "Te damos la bienvenida a",
@@ -3088,7 +4064,10 @@
         "setupFailed": "No se pudo iniciar la configuración de la autenticación de dos factores.",
         "copyFailed": "No se pudo copiar. Selecciona el texto y cópialo manualmente.",
         "actionFailed": "No funcionó. Inténtalo de nuevo."
-      }
+      },
+      "copyCodes": "Copiar códigos",
+      "enabledAnnouncement": "La autenticación en dos pasos está activada. Guarda tus códigos de recuperación.",
+      "newCodesAnnouncement": "Se generaron nuevos códigos de recuperación. Guárdalos ahora."
     },
     "sessions": {
       "title": "Dispositivos",
@@ -3271,6 +4250,10 @@
         "notFound": "No hay ningún inicio de sesión para este código en tu cuenta. Comprueba que ambos dispositivos usan la misma cuenta.",
         "alreadyUsed": "Más de un dispositivo respondió a este código. No se envió nada. Muestra un código nuevo.",
         "generic": "No se pudo vincular."
+      },
+      "a11y": {
+        "showing": "Código en pantalla. Esperando a que el nuevo dispositivo lo escanee.",
+        "confirm": "{device} está listo para vincularse. Revisa los datos y confirma."
       }
     },
     "pairing": {
@@ -4824,7 +5807,8 @@
       "skipKeys": "Tab",
       "escape": "Cerrar el diálogo, menú o panel abierto; el foco vuelve a donde estaba",
       "escapeKeys": "Escape"
-    }
+    },
+    "unsavedChanges": "Cambios sin guardar"
   },
   "statusPicker": {
     "setTitle": "Establecer estado personalizado",
@@ -4853,6 +5837,42 @@
       "4h": "4 horas",
       "today": "Hoy",
       "1w": "Esta semana"
+    }
+  },
+  "instancePicker": {
+    "title": "Te damos la bienvenida a Harmony",
+    "hint": "Harmony es federado: cualquiera puede alojar una instancia. Introduce el dominio de la instancia a la que quieres conectarte.",
+    "domainLabel": "Dominio de la instancia",
+    "connect": "Conectar",
+    "connecting": "Conectando…",
+    "unreachable": "No se pudo contactar con esa instancia",
+    "current": "Conectado actualmente a {name}",
+    "keep": "Mantener"
+  },
+  "colorPicker": {
+    "label": "Selector de color",
+    "saturationBrightness": "Saturación y brillo",
+    "saturationBrightnessValue": "Saturación {saturation} %, brillo {brightness} %",
+    "saturationBrightnessHelp": "Las flechas izquierda y derecha cambian la saturación; arriba y abajo, el brillo. Mantén Mayús para pasos más grandes.",
+    "hue": "Tono",
+    "hueValue": "{degrees} grado | {degrees} grados",
+    "hex": "Color hexadecimal",
+    "presets": "Colores predefinidos",
+    "swatch": "{name} {hex}",
+    "sampleText": "Texto de ejemplo",
+    "names": {
+      "red": "Rojo",
+      "orange": "Naranja",
+      "yellow": "Amarillo",
+      "green": "Verde",
+      "cyan": "Cian",
+      "blue": "Azul",
+      "purple": "Morado",
+      "pink": "Rosa",
+      "brown": "Marrón",
+      "grey": "Gris",
+      "white": "Blanco",
+      "black": "Negro"
     }
   }
 }

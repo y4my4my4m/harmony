@@ -29,13 +29,13 @@
         >
           <!-- Mobile Logo -->
           <div class="mobile-logo">
-            <img src="/icon_3d.webp" alt="Harmony" />
+            <img src="/icon_3d.webp" alt="" />
             <h1 class="mobile-title">{{ displayTitle }}</h1>
           </div>
 
           <!-- Form Header -->
           <div class="form-header">
-            <h2>{{ isLogin ? $t('auth.welcomeBack') : $t('auth.createAccount') }}</h2>
+            <h2 :id="formTitleId">{{ isLogin ? $t('auth.welcomeBack') : $t('auth.createAccount') }}</h2>
             <p>{{ isLogin ? $t('auth.welcomeBackSubtitle') : $t('auth.createAccountSubtitle') }}</p>
           </div>
 
@@ -49,47 +49,60 @@
               @click="handleOAuthLogin(provider.id)"
               :disabled="isLoading || oauthLoading !== null"
             >
-              <span class="oauth-icon" v-html="provider.icon"></span>
-              <span class="oauth-label">{{ $t(`auth.oauth.${provider.id}`) || `Continue with ${provider.name}` }}</span>
-              <span v-if="oauthLoading === provider.id" class="oauth-spinner"></span>
+              <span class="oauth-icon" aria-hidden="true" v-html="provider.icon"></span>
+              <span class="oauth-label">{{ $t(`auth.oauth.${provider.id}`) }}</span>
+              <span v-if="oauthLoading === provider.id" class="oauth-spinner" aria-hidden="true"></span>
             </button>
           </div>
 
           <!-- Divider (only show if OAuth providers are enabled) -->
           <div v-if="enabledOAuthProviders.length > 0" class="divider">
-            <span>{{ $t('auth.orContinueWith') || 'or' }}</span>
+            <span>{{ $t('auth.orContinueWith') }}</span>
           </div>
 
           <!-- Email/Password Form -->
-          <form @submit.prevent="handleSubmit" class="auth-form" data-testid="auth-form">
+          <form
+            @submit.prevent="handleSubmit"
+            class="auth-form"
+            data-testid="auth-form"
+            :aria-labelledby="formTitleId"
+            novalidate
+          >
             <div class="input-group" :class="{ 'focused': emailFocused, 'has-value': email, 'error': emailError }">
               <input 
+                ref="emailInput"
                 v-model="email" 
                 type="email" 
                 id="email"
                 data-testid="auth-email"
                 placeholder=" "
+                :aria-invalid="emailError ? 'true' : undefined"
+                :aria-describedby="emailError ? 'email-error' : undefined"
                 @focus="emailFocused = true"
                 @blur="emailFocused = false; validateEmail()"
-                @input="emailError = ''"
+                @input="emailError = ''; formError = ''"
                 required
                 autocomplete="email"
               />
               <label for="email">{{ $t('auth.email') }}</label>
               <div class="input-line"></div>
-              <span v-if="emailError" class="error-text" data-testid="auth-email-error">{{ emailError }}</span>
+              <!-- Mounted while empty: a live region inserted together with its text is not announced reliably. -->
+              <span id="email-error" class="error-text" role="alert" data-testid="auth-email-error">{{ emailError }}</span>
             </div>
 
             <div class="input-group" :class="{ 'focused': passwordFocused, 'has-value': password, 'error': passwordError }">
               <input 
+                ref="passwordInput"
                 v-model="password" 
                 :type="showPassword ? 'text' : 'password'"
                 id="password"
                 data-testid="auth-password"
                 placeholder=" "
+                :aria-invalid="passwordError ? 'true' : undefined"
+                :aria-describedby="passwordError ? 'password-error' : undefined"
                 @focus="passwordFocused = true"
                 @blur="passwordFocused = false; validatePassword()"
-                @input="passwordError = ''"
+                @input="passwordError = ''; formError = ''"
                 required
                 :autocomplete="isLogin ? 'current-password' : 'new-password'"
               />
@@ -97,49 +110,59 @@
               <button 
                 type="button" 
                 class="password-toggle"
+                data-testid="auth-password-toggle"
+                :aria-label="$t('auth.showPassword')"
+                :aria-pressed="showPassword ? 'true' : 'false'"
+                aria-controls="password"
                 @click="showPassword = !showPassword"
-                tabindex="-1"
               >
-                <svg v-if="showPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg v-if="showPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
                   <line x1="1" y1="1" x2="23" y2="23"/>
                 </svg>
-                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                   <circle cx="12" cy="12" r="3"/>
                 </svg>
               </button>
               <div class="input-line"></div>
-              <span v-if="passwordError" class="error-text">{{ passwordError }}</span>
+              <span id="password-error" class="error-text" role="alert" data-testid="auth-password-error">{{ passwordError }}</span>
             </div>
 
             <!-- Login Options -->
             <div v-if="isLogin" class="form-options">
               <label class="remember-me">
-                <input type="checkbox" v-model="rememberMe" />
-                <span class="checkbox-visual"></span>
+                <input type="checkbox" class="remember-me__input" data-testid="auth-remember-me" v-model="rememberMe" />
+                <span class="checkbox-visual" aria-hidden="true"></span>
                 <span>{{ $t('auth.rememberMe') }}</span>
               </label>
-              <button type="button" class="forgot-link" @click="showForgotPasswordModal = true">
+              <button type="button" class="forgot-link" aria-haspopup="dialog" @click="openForgotPassword">
                 {{ $t('auth.forgotPassword') }}
               </button>
             </div>
 
-            <!-- Submit Button -->
+            <p id="auth-form-error" class="form-error" role="alert" data-testid="auth-form-error">{{ formError }}</p>
+
+            <!-- aria-disabled, not disabled: a disabled button drops keyboard focus to <body>. -->
             <button 
               type="submit" 
               class="submit-btn"
               data-testid="auth-submit"
-              :disabled="isLoading"
+              :aria-disabled="isLoading ? 'true' : undefined"
+              :aria-busy="isLoading ? 'true' : undefined"
+              :class="{ 'is-busy': isLoading }"
             >
               <span v-if="!isLoading" class="btn-text">
                 {{ isLogin ? $t('auth.logIn') : $t('auth.createAccountButton') }}
               </span>
-              <span v-else class="btn-loader">
-                <span class="dot"></span>
-                <span class="dot"></span>
-                <span class="dot"></span>
-              </span>
+              <template v-else>
+                <span class="sr-only">{{ isLogin ? $t('auth.signingIn') : $t('auth.creatingAccount') }}</span>
+                <span class="btn-loader" aria-hidden="true">
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                </span>
+              </template>
             </button>
           </form>
 
@@ -153,12 +176,12 @@
 
           <!-- Terms -->
           <p v-if="!isLogin && (instanceSettings.settings.termsUrl || instanceSettings.settings.privacyUrl)" class="terms">
-            {{ $t('auth.termsPrefix') || 'By registering, you agree to our' }}
-            <a v-if="instanceSettings.settings.termsUrl" :href="safeHref(instanceSettings.settings.termsUrl)" target="_blank" rel="noopener">{{ $t('auth.termsOfService') || 'Terms of Service' }}</a>
+            {{ $t('auth.termsPrefix') }}
+            <a v-if="instanceSettings.settings.termsUrl" :href="safeHref(instanceSettings.settings.termsUrl)" target="_blank" rel="noopener">{{ $t('auth.termsOfService') }}</a>
             <template v-if="instanceSettings.settings.termsUrl && instanceSettings.settings.privacyUrl">
-              {{ $t('auth.and') || ' and ' }}
+              {{ $t('auth.and') }}
             </template>
-            <a v-if="instanceSettings.settings.privacyUrl" :href="safeHref(instanceSettings.settings.privacyUrl)" target="_blank" rel="noopener">{{ $t('auth.privacyPolicy') || 'Privacy Policy' }}</a>
+            <a v-if="instanceSettings.settings.privacyUrl" :href="safeHref(instanceSettings.settings.privacyUrl)" target="_blank" rel="noopener">{{ $t('auth.privacyPolicy') }}</a>
           </p>
         </div>
       </div>
@@ -166,16 +189,27 @@
 
     <!-- Powered by Harmony -->
     <a href="https://github.com/y4my4my4m/harmony" target="_blank" rel="noopener" class="powered-by">
-      Powered by <strong>Harmony</strong>
+      <i18n-t keypath="auth.poweredBy" scope="global">
+        <template #name><strong>Harmony</strong></template>
+      </i18n-t>
     </a>
 
     <!-- Forgot Password Modal -->
     <Teleport to="body">
       <Transition name="modal">
-        <div v-if="showForgotPasswordModal" class="modal-backdrop" @click.self="showForgotPasswordModal = false">
-          <div class="modal-card reset-modal">
-            <button class="modal-close" @click="showForgotPasswordModal = false">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <div v-if="showForgotPasswordModal" class="modal-backdrop" @click.self="closeForgotPasswordModal">
+          <div
+            ref="forgotDialogEl"
+            class="modal-card reset-modal"
+            role="dialog"
+            aria-modal="true"
+            :aria-labelledby="forgotTitleId"
+            :aria-describedby="forgotDescriptionId"
+            tabindex="-1"
+            data-testid="forgot-password-dialog"
+          >
+            <button type="button" class="modal-close" :aria-label="$t('common.close')" @click="closeForgotPasswordModal">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <line x1="18" y1="6" x2="6" y2="18"/>
                 <line x1="6" y1="6" x2="18" y2="18"/>
               </svg>
@@ -183,7 +217,7 @@
 
             <div v-if="forgotPasswordStep === 1" class="modal-content">
               <!-- Decorative header -->
-              <div class="modal-header-decoration">
+              <div class="modal-header-decoration" aria-hidden="true">
                 <div class="modal-icon-wrapper">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
@@ -192,40 +226,53 @@
                 </div>
               </div>
 
-              <h3>{{ $t('auth.resetYourPassword') }}</h3>
-              <p class="modal-description">{{ $t('auth.enterEmailForReset') }}</p>
+              <h3 :id="forgotTitleId">{{ $t('auth.resetYourPassword') }}</h3>
+              <p :id="forgotDescriptionId" class="modal-description">{{ $t('auth.enterEmailForReset') }}</p>
 
-              <form @submit.prevent="handleForgotPassword" class="modal-form">
+              <form @submit.prevent="handleForgotPassword" class="modal-form" novalidate>
                 <div class="input-group modal-input" :class="{ 'focused': forgotEmailFocused, 'has-value': forgotPasswordEmail, 'error': forgotPasswordError }">
                   <input 
                     v-model="forgotPasswordEmail" 
                     type="email"
                     id="forgot-email"
+                    data-testid="forgot-email"
                     placeholder=" "
+                    :aria-invalid="forgotPasswordError ? 'true' : undefined"
+                    :aria-describedby="forgotPasswordError ? 'forgot-email-error' : undefined"
                     @focus="forgotEmailFocused = true"
                     @blur="forgotEmailFocused = false"
+                    @input="forgotPasswordError = ''"
                     required
                     autocomplete="email"
                   />
                   <label for="forgot-email">{{ $t('auth.email') }}</label>
                   <div class="input-line"></div>
-                  <span v-if="forgotPasswordError" class="error-text">{{ forgotPasswordError }}</span>
+                  <span id="forgot-email-error" class="error-text" role="alert">{{ forgotPasswordError }}</span>
                 </div>
 
                 <div class="modal-actions stacked">
-                  <button type="submit" class="btn-primary" :disabled="forgotPasswordLoading || !forgotPasswordEmail">
+                  <button
+                    type="submit"
+                    class="btn-primary"
+                    data-testid="forgot-submit"
+                    :aria-disabled="forgotPasswordLoading ? 'true' : undefined"
+                    :aria-busy="forgotPasswordLoading ? 'true' : undefined"
+                  >
                     <span v-if="!forgotPasswordLoading">{{ $t('auth.sendResetLink') }}</span>
-                    <span v-else class="btn-loader"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
+                    <template v-else>
+                      <span class="sr-only">{{ $t('auth.sendingResetLink') }}</span>
+                      <span class="btn-loader" aria-hidden="true"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
+                    </template>
                   </button>
-                  <button type="button" class="btn-text-only" @click="showForgotPasswordModal = false">
-                    {{ $t('auth.backToLogin') || 'Back to login' }}
+                  <button type="button" class="btn-text-only" @click="closeForgotPasswordModal">
+                    {{ $t('auth.backToLogin') }}
                   </button>
                 </div>
               </form>
             </div>
 
             <div v-else class="modal-content success">
-              <div class="success-animation">
+              <div class="success-animation" aria-hidden="true">
                 <div class="success-ring"></div>
                 <div class="success-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -233,17 +280,17 @@
                   </svg>
                 </div>
               </div>
-              <h3>{{ $t('auth.checkEmail') }}</h3>
-              <p class="modal-description">
+              <h3 :id="forgotTitleId">{{ $t('auth.checkEmail') }}</h3>
+              <p :id="forgotDescriptionId" class="modal-description">
                 {{ $t('auth.checkEmailForReset') }}
               </p>
               <div class="email-preview">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                   <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                 </svg>
                 <span>{{ forgotPasswordEmail }}</span>
               </div>
-              <button class="btn-primary full-width" @click="closeForgotPasswordModal">
+              <button type="button" class="btn-primary full-width" data-autofocus @click="closeForgotPasswordModal">
                 {{ $t('auth.gotIt') }}
               </button>
             </div>
@@ -257,39 +304,62 @@
       <Transition name="modal">
         <!-- The pending aal1 session ends only through an explicit cancel: no backdrop or Escape dismissal. -->
         <div v-if="show2FAModal" class="modal-backdrop" data-testid="twofa-backdrop">
-          <div class="modal-card" role="dialog" aria-modal="true">
-            <button class="modal-close" data-testid="twofa-close" :disabled="twoFactorLoading" @click="cancel2FA">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <div
+            ref="twoFactorDialogEl"
+            class="modal-card"
+            role="dialog"
+            aria-modal="true"
+            :aria-labelledby="twoFactorTitleId"
+            :aria-describedby="twoFactorDescriptionId"
+            tabindex="-1"
+            data-testid="twofa-dialog"
+          >
+            <button
+              type="button"
+              class="modal-close"
+              data-testid="twofa-close"
+              :aria-label="$t('auth.cancelSignIn')"
+              :disabled="twoFactorLoading"
+              @click="cancel2FA"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <line x1="18" y1="6" x2="6" y2="18"/>
                 <line x1="6" y1="6" x2="18" y2="18"/>
               </svg>
             </button>
 
             <div class="modal-content">
-              <div class="modal-icon shield">
+              <div class="modal-icon shield" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                   <path d="M9 12l2 2 4-4"/>
                 </svg>
               </div>
-              <h3>{{ $t('auth.twoFactorAuth') }}</h3>
-              <p class="modal-description">{{ useRecoveryCode ? $t('auth.enterRecoveryCode') : $t('auth.enter6DigitCode') }}</p>
+              <h3 :id="twoFactorTitleId">{{ $t('auth.twoFactorAuth') }}</h3>
+              <p :id="twoFactorDescriptionId" class="modal-description">{{ useRecoveryCode ? $t('auth.enterRecoveryCode') : $t('auth.enter6DigitCode') }}</p>
 
-              <form @submit.prevent="handle2FAVerification" class="modal-form">
+              <form @submit.prevent="handle2FAVerification" class="modal-form" novalidate>
                 <div class="code-input-container">
+                  <label for="twofa-code" class="sr-only">{{ useRecoveryCode ? $t('auth.recoveryCode') : $t('auth.verificationCode') }}</label>
                   <input 
+                    id="twofa-code"
+                    ref="twoFactorInput"
                     v-model="twoFactorCode"
                     type="text"
                     class="code-input"
+                    data-testid="twofa-code"
                     :class="{ 'error': twoFactorError }"
                     :placeholder="useRecoveryCode ? RECOVERY_CODE_PLACEHOLDER : '000000'"
                     :maxlength="useRecoveryCode ? RECOVERY_CODE_MAX_LENGTH : 6"
                     :inputmode="useRecoveryCode ? 'text' : 'numeric'"
+                    :aria-invalid="twoFactorError ? 'true' : undefined"
+                    :aria-describedby="twoFactorError ? 'twofa-code-error' : undefined"
                     autocomplete="one-time-code"
-                    autofocus
+                    autocapitalize="off"
+                    spellcheck="false"
                     @input="handleCodeInput"
                   />
-                  <span v-if="twoFactorError" class="error-text centered">{{ twoFactorError }}</span>
+                  <span id="twofa-code-error" class="error-text centered" role="alert" data-testid="twofa-error">{{ twoFactorError }}</span>
                 </div>
 
                 <div class="modal-actions">
@@ -299,16 +369,23 @@
                   <button 
                     type="submit" 
                     class="btn-primary" 
-                    :disabled="twoFactorLoading || (useRecoveryCode ? recoveryCodeLength(twoFactorCode) < RECOVERY_CODE_MIN_LENGTH : twoFactorCode.length !== 6)"
+                    data-testid="twofa-submit"
+                    :aria-busy="twoFactorLoading ? 'true' : undefined"
+                    :disabled="!twoFactorLoading && (useRecoveryCode ? recoveryCodeLength(twoFactorCode) < RECOVERY_CODE_MIN_LENGTH : twoFactorCode.length !== 6)"
+                    :aria-disabled="twoFactorLoading ? 'true' : undefined"
                   >
                     <span v-if="!twoFactorLoading">{{ $t('auth.verify') }}</span>
-                    <span v-else class="btn-loader"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
+                    <template v-else>
+                      <span class="sr-only">{{ $t('auth.verifying') }}</span>
+                      <span class="btn-loader" aria-hidden="true"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
+                    </template>
                   </button>
                 </div>
 
                 <button 
                   type="button" 
                   class="toggle-recovery" 
+                  data-testid="twofa-toggle-recovery"
                   @click="toggleRecoveryCodeMode"
                   :disabled="twoFactorLoading"
                 >
@@ -325,7 +402,7 @@
 
 <script setup lang="ts">
 import { safeHref } from '@/utils/sanitize';
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import { useRoute, useRouter } from 'vue-router'
@@ -343,6 +420,8 @@ import { securityErrorMessage } from '@/services/AccountSecurityService'
 import { authErrorMessage } from '@/utils/authErrorMessage'
 import { consumePostAuthRedirect } from '@/utils/postAuthRedirect'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { useDialog } from '@/composables/useDialog'
+import { useAnnouncer } from '@/composables/useAnnouncer'
 
 // Props
 interface Props {
@@ -360,6 +439,9 @@ const { t } = useI18n()
 const authStore = useAuthStore()
 const instanceSettings = useInstanceSettingsStore()
 const toast = useToast()
+const { polite } = useAnnouncer()
+
+const formTitleId = `auth-title-${useId()}`
 
 // Supported OAuth providers. Apple is absent: it requires a paid Apple
 // developer account ($99/year).
@@ -402,6 +484,10 @@ const passwordFocused = ref(false)
 // Validation states
 const emailError = ref('')
 const passwordError = ref('')
+// Server answer to a submit (wrong credentials, rate limit), shown above the button.
+const formError = ref('')
+const emailInput = ref<HTMLInputElement | null>(null)
+const passwordInput = ref<HTMLInputElement | null>(null)
 
 // Forgot password state
 const showForgotPasswordModal = ref(false)
@@ -410,6 +496,7 @@ const forgotPasswordStep = ref(1)
 const forgotPasswordLoading = ref(false)
 const forgotPasswordError = ref('')
 const forgotEmailFocused = ref(false)
+const forgotDialogEl = ref<HTMLElement | null>(null)
 
 // 2FA state
 const show2FAModal = ref(false)
@@ -419,6 +506,22 @@ const twoFactorLoading = ref(false)
 const pendingFactorId = ref('')
 const pendingChallengeId = ref('')
 const useRecoveryCode = ref(false)
+const twoFactorDialogEl = ref<HTMLElement | null>(null)
+const twoFactorInput = ref<HTMLInputElement | null>(null)
+
+const { titleId: forgotTitleId, descriptionId: forgotDescriptionId, focusInitial: focusForgotStart } = useDialog({
+  open: showForgotPasswordModal,
+  element: forgotDialogEl,
+  onClose: () => closeForgotPasswordModal(),
+})
+
+const { titleId: twoFactorTitleId, descriptionId: twoFactorDescriptionId } = useDialog({
+  open: show2FAModal,
+  element: twoFactorDialogEl,
+  // The pending aal1 session ends only through Cancel.
+  closeOnEscape: false,
+  initialFocus: '#twofa-code',
+})
 
 // Background & effects
 const randomBg = ref('')
@@ -442,12 +545,13 @@ const authStyles = computed(() => ({
 }))
 
 // Validation
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 const validateEmail = () => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   if (!email.value) {
-    emailError.value = 'Email is required'
-  } else if (!emailRegex.test(email.value)) {
-    emailError.value = 'Please enter a valid email address'
+    emailError.value = t('auth.errors.emailRequired')
+  } else if (!EMAIL_PATTERN.test(email.value)) {
+    emailError.value = t('auth.errors.invalidEmail')
   } else {
     emailError.value = ''
   }
@@ -455,9 +559,9 @@ const validateEmail = () => {
 
 const validatePassword = () => {
   if (!password.value) {
-    passwordError.value = 'Password is required'
+    passwordError.value = t('auth.errors.passwordRequired')
   } else if (!props.isLogin && password.value.length < 6) {
-    passwordError.value = 'Password must be at least 6 characters'
+    passwordError.value = t('auth.errors.passwordTooShort')
   } else {
     passwordError.value = ''
   }
@@ -521,21 +625,26 @@ const handleOAuthLogin = async (providerId: string) => {
       return
     }
     debug.error('OAuth error:', error)
-    toast.error(authErrorMessage(error, `Failed to sign in with ${providerId}`))
+    formError.value = authErrorMessage(error, t('auth.errors.oauthFailed', { provider: providerId }))
     oauthLoading.value = null
   }
 }
 
 // Email/Password Submit
 const handleSubmit = async () => {
+  if (isLoading.value) return
+  formError.value = ''
   validateEmail()
   validatePassword()
   
   if (emailError.value || passwordError.value) {
+    // The field reads its label, invalid state and linked error.
+    ;(emailError.value ? emailInput.value : passwordInput.value)?.focus()
     return
   }
 
   isLoading.value = true
+  polite(props.isLogin ? t('auth.signingIn') : t('auth.creatingAccount'))
   
   try {
     if (props.isLogin) {
@@ -572,7 +681,7 @@ const handleSubmit = async () => {
     }
   } catch (error: any) {
     debug.error('Auth error:', error)
-    toast.error(authErrorMessage(error))
+    formError.value = authErrorMessage(error, t('auth.callback.failed'))
   } finally {
     isLoading.value = false
   }
@@ -580,6 +689,7 @@ const handleSubmit = async () => {
 
 // 2FA Verification
 const handle2FAVerification = async () => {
+  if (twoFactorLoading.value) return
   if (useRecoveryCode.value) {
     if (recoveryCodeLength(twoFactorCode.value) < RECOVERY_CODE_MIN_LENGTH) {
       twoFactorError.value = t('security.mfa.recoveryCodeExample')
@@ -615,12 +725,18 @@ const handle2FAVerification = async () => {
   } finally {
     twoFactorLoading.value = false
   }
+  if (twoFactorError.value) {
+    await nextTick()
+    twoFactorInput.value?.focus()
+  }
 }
 
-const toggleRecoveryCodeMode = () => {
+const toggleRecoveryCodeMode = async () => {
   useRecoveryCode.value = !useRecoveryCode.value
   twoFactorCode.value = ''
   twoFactorError.value = ''
+  await nextTick()
+  twoFactorInput.value?.focus()
 }
 
 const handleCodeInput = () => {
@@ -645,16 +761,16 @@ const cancel2FA = async () => {
 
 // Forgot Password
 const handleForgotPassword = async () => {
+  if (forgotPasswordLoading.value) return
   forgotPasswordError.value = ''
   
   if (!forgotPasswordEmail.value) {
-    forgotPasswordError.value = 'Email is required'
+    forgotPasswordError.value = t('auth.errors.emailRequired')
     return
   }
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!emailRegex.test(forgotPasswordEmail.value)) {
-    forgotPasswordError.value = 'Please enter a valid email address'
+  if (!EMAIL_PATTERN.test(forgotPasswordEmail.value)) {
+    forgotPasswordError.value = t('auth.errors.invalidEmail')
     return
   }
 
@@ -667,13 +783,25 @@ const handleForgotPassword = async () => {
   } catch (error: any) {
     debug.error('Password reset error:', error)
     if (error.message?.includes('SMTP') || error.message?.includes('email')) {
-      forgotPasswordError.value = 'Email service not configured. Please contact support.'
+      forgotPasswordError.value = t('auth.errors.emailServiceUnavailable')
     } else {
       forgotPasswordStep.value = 2
     }
   } finally {
     forgotPasswordLoading.value = false
   }
+  if (forgotPasswordStep.value === 2) {
+    // The submit button unmounted with step 1; focus moves to "Got it".
+    await nextTick()
+    focusForgotStart()
+    polite(`${t('auth.checkEmail')}. ${t('auth.checkEmailForReset')}`)
+  }
+}
+
+const openForgotPassword = () => {
+  forgotPasswordStep.value = 1
+  forgotPasswordError.value = ''
+  showForgotPasswordModal.value = true
 }
 
 const closeForgotPasswordModal = () => {
@@ -1211,6 +1339,39 @@ onMounted(async () => {
   color: var(--text);
 }
 
+.password-toggle:focus-visible,
+.forgot-link:focus-visible,
+.modal-close:focus-visible,
+.toggle-recovery:focus-visible {
+  outline: 2px solid var(--border-focus, var(--primary));
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.password-toggle[aria-pressed='true'] {
+  color: var(--text);
+}
+
+.form-error {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-danger);
+}
+
+/* Empty alert regions stay in the tree; out of the flex flow while empty. */
+.form-error:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.submit-btn.is-busy {
+  opacity: 0.7;
+  cursor: progress;
+}
+
 .password-toggle svg {
   width: 20px;
   height: 20px;
@@ -1227,6 +1388,7 @@ onMounted(async () => {
 }
 
 .remember-me {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1235,8 +1397,19 @@ onMounted(async () => {
   cursor: pointer;
 }
 
-.remember-me input {
-  display: none;
+/* Visually hidden, still focusable and announced; the custom box draws its state. */
+.remember-me__input {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.remember-me__input:focus-visible + .checkbox-visual {
+  outline: 2px solid var(--border-focus, var(--primary));
+  outline-offset: 2px;
 }
 
 .checkbox-visual {

@@ -36,7 +36,7 @@ Each post is rendered by `MonyPost`, which handles:
 - Rich content rendering with markdown
 - Media galleries (`MonyMediaGallery`)
 - Content warning expand/collapse
-- Reply threading (`ThreadedPost`)
+- Reply threading
 - Embed detection (links, server invites)
 - Fediverse polls (`RemotePollCard`): answers with vote shares, voters and time left, as last reported by the origin server, which sends `Update(Question)` as votes arrive. Votes are cast on the original post.
 - Counts of a federated post: the replies, boosts and favorites its origin server reports, read when the post arrives and again when it is shown, plus boosts, favorites and replies made here since that read

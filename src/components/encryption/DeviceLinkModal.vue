@@ -9,13 +9,13 @@
     :show-close-button="phase !== 'sending'"
     @close="close"
   >
-    <div class="device-link" data-testid="device-link-modal">
+    <div ref="contentEl" class="device-link" data-testid="device-link-modal" :data-phase="phase" :aria-busy="busy || undefined">
       <div v-if="phase === 'checking'" class="dl-status">
-        <LoadingSpinner :size="32" />
+        <LoadingSpinner :size="32" aria-hidden="true" />
       </div>
 
       <div v-else-if="phase === 'need-unlock'" class="dl-notice">
-        <Icon name="key" :size="22" />
+        <Icon name="key" :size="22" aria-hidden="true" />
         <p>{{ $t(needUnlockKey) }}</p>
         <button type="button" class="btn btn-primary btn-sm" @click="showPhraseEntry = true">
           {{ $t('encryption.linkDevice.enterPhrase') }}
@@ -41,7 +41,7 @@
         </i18n-t>
         <div class="dl-qr">
           <img v-if="qrUrl" :src="qrUrl" :alt="$t('encryption.linkDevice.qrAlt')" data-testid="link-qr" />
-          <LoadingSpinner v-else :size="36" />
+          <LoadingSpinner v-else :size="36" aria-hidden="true" />
         </div>
         <p class="dl-meta">
           <span v-if="secondsLeft > 0">{{ $t('encryption.code.expiresIn', { time: countdown }) }}</span>
@@ -54,7 +54,7 @@
       </template>
 
       <div v-else-if="phase === 'confirm' && link" class="dl-confirm" data-testid="link-confirm">
-        <Icon name="shield-check" :size="26" class="dl-ok" />
+        <Icon name="shield-check" :size="26" class="dl-ok" aria-hidden="true" />
         <p class="dl-device">{{ link.request.requesting_label || $t('encryption.linkDevice.newDevice') }}</p>
         <p class="dl-meta">
           {{ $t('encryption.linkDevice.signedIn', { ago: requestedAgo }) }}
@@ -71,7 +71,7 @@
           </span>
         </label>
         <div class="dl-actions">
-          <button type="button" class="btn btn-primary" data-testid="link-confirm-button" @click="send">
+          <button type="button" class="btn btn-primary" data-testid="link-confirm-button" data-autofocus @click="send">
             {{ $t('encryption.linkDevice.confirm') }}
           </button>
           <button type="button" class="btn btn-secondary" @click="close">{{ $t('common.cancel') }}</button>
@@ -79,19 +79,20 @@
       </div>
 
       <div v-else-if="phase === 'sending'" class="dl-status">
-        <LoadingSpinner :size="32" />
+        <LoadingSpinner :size="32" aria-hidden="true" />
         <p>{{ $t('encryption.linkDevice.sending') }}</p>
       </div>
 
       <div v-else-if="phase === 'done'" class="dl-status dl-done" data-testid="link-done">
-        <Icon name="check-circle" :size="32" />
-        <p>{{ $t('encryption.linkDevice.linked', { device: link?.request.requesting_label || $t('encryption.approval.newDeviceFallback') }) }}</p>
-        <button type="button" class="btn btn-primary btn-sm" @click="close">{{ $t('common.done') }}</button>
+        <Icon name="check-circle" :size="32" aria-hidden="true" />
+        <p>{{ linkedText }}</p>
+        <button type="button" class="btn btn-primary btn-sm" data-autofocus @click="close">{{ $t('common.done') }}</button>
       </div>
 
-      <div v-if="error" class="dl-error" role="alert" data-testid="link-error">
+      <!-- Spoken through the announcer when set; a role="alert" mounted with its text is announced unreliably. -->
+      <div v-if="error" class="dl-error" data-testid="link-error">
         <p>{{ error }}</p>
-        <button type="button" class="btn btn-secondary btn-sm" @click="retry">{{ $t('encryption.linkDevice.tryAgain') }}</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-autofocus @click="retry">{{ $t('encryption.linkDevice.tryAgain') }}</button>
       </div>
     </div>
 
@@ -107,7 +108,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseModal from '@/components/common/BaseModal.vue'
 import Icon from '@/components/common/Icon.vue'
@@ -117,6 +118,8 @@ import { renderQrDataUrl } from '@/utils/qrCode'
 import { debug } from '@/utils/debug'
 import { userEventChannel } from '@/services/UserEventChannel'
 import { useDeviceApprovals } from '@/composables/useDeviceApprovals'
+import { useAnnouncer } from '@/composables/useAnnouncer'
+import { tabbables } from '@/utils/a11y/focus'
 import { devicePairingService, type PendingLink } from '@/services/encryption/DevicePairingService'
 import {
   PairingError,
@@ -143,6 +146,60 @@ const now = ref(Date.now())
 const needUnlockKey = ref('')
 const showPhraseEntry = ref(false)
 const keepCopy = ref(true)
+const contentEl = ref<HTMLElement | null>(null)
+const { polite, assertive } = useAnnouncer()
+
+const busy = computed(() => phase.value === 'checking' || phase.value === 'sending')
+const deviceLabel = computed(() => link.value?.request.requesting_label || t('encryption.approval.newDeviceFallback'))
+const linkedText = computed(() => t('encryption.linkDevice.linked', { device: deviceLabel.value }))
+
+function phaseAnnouncement(value: Phase): string {
+  switch (value) {
+    case 'need-unlock': return needUnlockKey.value ? t(needUnlockKey.value) : ''
+    case 'scan': return t('encryption.linkDevice.scanHint')
+    case 'show': return t('encryption.linkDevice.a11y.showing')
+    case 'confirm': return t('encryption.linkDevice.a11y.confirm', { device: deviceLabel.value })
+    case 'sending': return t('encryption.linkDevice.sending')
+    case 'done': return linkedText.value
+    default: return ''
+  }
+}
+
+/**
+ * A phase change unmounts the control that caused it. Focus left on <body>
+ * moves to the new phase's [data-autofocus], else its first tabbable, else the
+ * content wrapper. Focus resting on the dialog shell moves only to a
+ * [data-autofocus] action (confirm, done, try again).
+ */
+async function keepFocusInPhase() {
+  await nextTick()
+  const root = contentEl.value
+  if (!root) return
+  const dialog = root.closest<HTMLElement>('[role="dialog"]')
+  const active = document.activeElement
+  const autofocus = root.querySelector<HTMLElement>('[data-autofocus]')
+  const lost = !active || active === document.body || !active.isConnected || !dialog?.contains(active)
+  if (lost) {
+    const target = autofocus ?? tabbables(root)[0]
+    if (target) target.focus()
+    else {
+      root.setAttribute('tabindex', '-1')
+      root.focus()
+    }
+  } else if (autofocus && (active === dialog || active === root)) {
+    autofocus.focus()
+  }
+}
+
+watch(phase, (value) => {
+  const text = phaseAnnouncement(value)
+  if (text) polite(text)
+  void keepFocusInPhase()
+})
+
+watch(error, (value) => {
+  if (value) assertive(value)
+})
 
 let session: ApproverCodeSession | null = null
 let profileId: string | null = null

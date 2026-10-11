@@ -22,32 +22,52 @@
         <div class="modal-body">
           <!-- Member selector (when no user pre-selected) -->
           <div v-if="needsMemberSelect && !selectedMember" class="form-group">
-            <label for="member-search">Member</label>
+            <label :for="`${uid}-member-search`">{{ t('moderation.kickBan.member') }}</label>
             <div class="member-search-wrapper">
               <input
-                id="member-search"
+                :id="`${uid}-member-search`"
                 ref="memberSearchInput"
                 v-model="memberSearch"
                 type="text"
                 class="form-input"
-                placeholder="Search for a member..."
+                role="combobox"
+                aria-autocomplete="list"
+                :aria-expanded="listOpen ? 'true' : 'false'"
+                :aria-controls="`${uid}-member-list`"
+                :aria-activedescendant="listOpen && activeIndex >= 0 ? `${uid}-member-${activeIndex}` : undefined"
+                :placeholder="t('moderation.kickBan.searchPlaceholder')"
                 autocomplete="off"
+                data-testid="kickban-member-search"
                 @focus="showDropdown = true"
+                @blur="showDropdown = false"
+                @input="onMemberSearchInput"
+                @keydown="onMemberSearchKeydown"
               />
-              <div v-if="showDropdown && filteredMembers.length > 0" class="member-list">
-                <div
-                  v-for="m in filteredMembers"
+              <ul
+                v-show="listOpen"
+                :id="`${uid}-member-list`"
+                class="member-list"
+                role="listbox"
+                :aria-label="t('moderation.kickBan.member')"
+                @mousedown.prevent
+              >
+                <li
+                  v-for="(m, index) in filteredMembers"
+                  :id="`${uid}-member-${index}`"
                   :key="m.id"
                   class="member-option"
+                  :class="{ selected: index === activeIndex }"
+                  role="option"
+                  :aria-selected="index === activeIndex ? 'true' : 'false'"
                   @click="selectMember(m)"
                 >
-                  <Avatar :src="m.avatar_url" :alt="m.display_name || m.username" size="xs" />
+                  <Avatar :src="m.avatar_url" size="xs" />
                   <span>{{ m.display_name || m.username }}</span>
                   <span class="member-option-username">@{{ m.username }}</span>
-                </div>
-              </div>
+                </li>
+              </ul>
               <div v-if="showDropdown && memberSearch && filteredMembers.length === 0" class="member-list member-list-empty">
-                <span>No members found</span>
+                <span>{{ t('moderation.kickBan.noMembers') }}</span>
               </div>
             </div>
           </div>
@@ -56,41 +76,48 @@
           <div v-if="targetUser" class="user-preview">
             <Avatar
               :src="targetUser.avatar_url"
-              :alt="targetDisplayName"
               size="sm"
             />
             <div class="user-info">
               <span class="user-display-name">{{ targetDisplayName }}</span>
               <span class="user-username">@{{ targetUser.username }}</span>
             </div>
-            <button v-if="needsMemberSelect" class="clear-member-btn" @click="clearSelectedMember" title="Change member">
-              <svg width="16" height="16" viewBox="0 0 24 24">
+            <button
+              v-if="needsMemberSelect"
+              type="button"
+              class="clear-member-btn"
+              :aria-label="t('moderation.kickBan.changeMember', { name: targetDisplayName })"
+              :title="t('moderation.kickBan.changeMember', { name: targetDisplayName })"
+              @click="clearSelectedMember"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
                 <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
               </svg>
             </button>
           </div>
 
-          <div v-if="mode === 'ban' && targetUser" class="warning-banner">
-            This user will be permanently banned from the server and will not be able to rejoin until unbanned.
+          <div v-if="mode === 'ban' && targetUser" :id="`${uid}-ban-warning`" class="warning-banner">
+            {{ t('moderation.kickBan.banWarning') }}
           </div>
 
           <div class="form-group">
-            <label for="mod-reason">Reason</label>
+            <label :for="`${uid}-reason`">{{ t('moderation.reason') }}</label>
             <textarea
-              id="mod-reason"
+              :id="`${uid}-reason`"
+              ref="reasonInput"
               v-model="reason"
               class="form-textarea"
-              :placeholder="`Why are you ${mode === 'ban' ? 'banning' : 'kicking'} this user?`"
+              :placeholder="mode === 'ban' ? t('moderation.kickBan.reasonPlaceholderBan') : t('moderation.kickBan.reasonPlaceholderKick')"
               maxlength="512"
               rows="2"
             />
           </div>
 
           <div class="form-group">
-            <label for="delete-messages">Delete message history</label>
-            <select id="delete-messages" v-model="deleteSeconds" class="form-select">
+            <label :for="`${uid}-delete-messages`">{{ t('moderation.kickBan.deleteMessages') }}</label>
+            <select :id="`${uid}-delete-messages`" v-model="deleteSeconds" class="form-select">
               <option v-for="opt in deleteOptions" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
+                {{ t(DELETE_OPTION_KEYS[opt.value]) }}
               </option>
             </select>
           </div>
@@ -99,8 +126,11 @@
         <div class="modal-footer">
           <button type="button" class="btn-cancel" @click="$emit('close')" :disabled="isLoading">{{ t('common.cancel') }}</button>
           <button
+            type="button"
             class="btn-confirm"
             :class="{ 'btn-ban': mode === 'ban' }"
+            :aria-describedby="mode === 'ban' && targetUser ? `${uid}-ban-warning` : undefined"
+            :aria-busy="isLoading || undefined"
             @click="confirm"
             :disabled="isLoading || !targetUser"
           >
@@ -114,7 +144,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, useId } from 'vue'
 import { moderationService, DELETE_MESSAGE_OPTIONS, type DeleteMessageDuration } from '@/services/ModerationService'
 import { userDataService } from '@/services/userDataService'
 import { getUserIdsForServer, getProfiles } from '@/services/usersService'
@@ -122,6 +152,7 @@ import { useAuthStore } from '@/stores/auth'
 import Avatar from '@/components/common/Avatar.vue'
 import { useT } from '@/composables/useT'
 import { useDialog } from '@/composables/useDialog'
+import { useAnnouncer } from '@/composables/useAnnouncer'
 
 interface MemberInfo {
   id: string
@@ -142,7 +173,16 @@ const emit = defineEmits<{
   done: [result: { success: boolean; messagesDeleted?: number }]
 }>()
 
+const DELETE_OPTION_KEYS: Record<DeleteMessageDuration, string> = {
+  0: 'moderation.kickBan.deleteOptions.none',
+  3600: 'moderation.kickBan.deleteOptions.hour',
+  86400: 'moderation.kickBan.deleteOptions.day',
+  604800: 'moderation.kickBan.deleteOptions.week',
+}
+
 const { t } = useT()
+const { polite } = useAnnouncer()
+const uid = `kbm-${useId()}`
 const dialogEl = ref<HTMLElement | null>(null)
 const { titleId } = useDialog({ open: () => props.show, element: dialogEl, onClose: () => emit('close') })
 
@@ -157,6 +197,8 @@ const memberSearchInput = ref<HTMLInputElement | null>(null)
 const selectedMember = ref<MemberInfo | null>(null)
 const serverMembers = ref<MemberInfo[]>([])
 const showDropdown = ref(false)
+const activeIndex = ref(-1)
+const reasonInput = ref<HTMLTextAreaElement | null>(null)
 
 const needsMemberSelect = computed(() => !props.user.id)
 
@@ -178,11 +220,62 @@ const filteredMembers = computed(() => {
     .slice(0, 10);
 })
 
+const listOpen = computed(() => showDropdown.value && filteredMembers.value.length > 0)
+
 function selectMember(m: MemberInfo) {
   selectedMember.value = m;
   showDropdown.value = false;
   memberSearch.value = '';
+  activeIndex.value = -1;
+  polite(t('moderation.kickBan.memberSelected', { name: m.display_name || m.username }));
+  nextTick(() => reasonInput.value?.focus());
 }
+
+function onMemberSearchInput() {
+  showDropdown.value = true;
+  activeIndex.value = -1;
+}
+
+function moveActive(index: number) {
+  activeIndex.value = index;
+  nextTick(() => document.getElementById(`${uid}-member-${index}`)?.scrollIntoView?.({ block: 'nearest' }));
+}
+
+// WAI-ARIA APG combobox: list autocomplete, focus stays on the input,
+// aria-activedescendant names the highlighted option.
+function onMemberSearchKeydown(event: KeyboardEvent) {
+  const count = filteredMembers.value.length;
+  switch (event.key) {
+    case 'ArrowDown':
+      event.preventDefault();
+      showDropdown.value = true;
+      if (count > 0) moveActive(activeIndex.value < count - 1 ? activeIndex.value + 1 : 0);
+      break;
+    case 'ArrowUp':
+      event.preventDefault();
+      showDropdown.value = true;
+      if (count > 0) moveActive(activeIndex.value > 0 ? activeIndex.value - 1 : count - 1);
+      break;
+    case 'Enter':
+      if (listOpen.value && activeIndex.value >= 0) {
+        event.preventDefault();
+        selectMember(filteredMembers.value[activeIndex.value]);
+      }
+      break;
+    case 'Escape':
+      if (listOpen.value || activeIndex.value >= 0) {
+        event.preventDefault();
+        showDropdown.value = false;
+        activeIndex.value = -1;
+      }
+      break;
+  }
+}
+
+watch(
+  () => showDropdown.value && !!memberSearch.value && filteredMembers.value.length === 0,
+  (empty) => { if (empty) polite(t('moderation.kickBan.noMembers')) },
+)
 
 function clearSelectedMember() {
   selectedMember.value = null;
@@ -461,6 +554,8 @@ async function confirm() {
 }
 
 .member-list {
+  list-style: none;
+  padding: 0;
   position: absolute;
   left: 0;
   right: 0;

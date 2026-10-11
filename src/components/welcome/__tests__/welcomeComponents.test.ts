@@ -102,13 +102,17 @@ describe('OnboardingServerSuggestions', () => {
     expect(w.emitted('skip')).toHaveLength(1)
   })
 
-  it('locks every button while a join is in flight', () => {
+  it('locks every button while a join is in flight', async () => {
     const w = mount(OnboardingServerSuggestions, {
       props: { servers: [hall], source: 'welcome', instanceName: 'Harmony', joiningId: 'hall' },
       global,
     })
-    expect(w.get('[data-testid="onboarding-join"]').text()).toBe('welcomeServer.joining')
-    expect(w.get('[data-testid="onboarding-join"]').attributes('disabled')).toBeDefined()
+    const join = w.get('[data-testid="onboarding-join"]')
+    expect(join.text()).toBe('welcomeServer.joining')
+    // Focusable while busy: aria-disabled, not disabled.
+    expect(join.attributes('aria-disabled')).toBe('true')
+    await join.trigger('click')
+    expect(w.emitted('join')).toBeUndefined()
     expect(w.get('[data-testid="onboarding-skip"]').attributes('disabled')).toBeDefined()
   })
 })

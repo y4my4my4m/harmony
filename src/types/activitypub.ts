@@ -55,7 +55,7 @@ export interface ActivityPubPost {
   is_reblogged?: boolean;
   is_bookmarked?: boolean;
   // Reply context - populated by code paths that hydrate the local reply tree
-  // (ThreadedPost, MonyPost). Optional because not all posts are fetched with
+  // (MonyPost). Optional because not all posts are fetched with
   // their reply subtree.
   replies?: ActivityPubPost[];
   // Author profile attached by enhanced-fetch paths (timeline RPCs and feed

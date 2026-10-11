@@ -1,48 +1,55 @@
 <template>
-  <BaseModal 
-    :show="show" 
-    :title="`Group settings`"
+  <BaseModal
+    :show="show"
+    :title="t('dm.groupSettings.title')"
     @close="handleClose"
   >
     <div class="settings-content">
       <!-- Group Icon Section -->
-      <div class="setting-section">
-        <h3 class="section-title">Group icon</h3>
+      <div class="setting-section" role="group" :aria-labelledby="`${uid}-icon-title`">
+        <h3 :id="`${uid}-icon-title`" class="section-title">{{ t('dm.groupSettings.groupIcon') }}</h3>
         <div class="icon-upload-section">
           <div class="current-icon">
             <GroupIcon
               :conversation-id="conversationId"
               :icon-path="localIconPath"
+              :alt="t('dm.groupSettings.groupIcon')"
               size="xl"
               :clickable="true"
               :loading="uploadingIcon"
               @click="triggerIconUpload"
             />
             <div class="icon-actions">
-              <button 
+              <button
+                type="button"
                 class="icon-btn upload-btn"
+                data-testid="group-icon-upload"
                 @click="triggerIconUpload"
                 :disabled="uploadingIcon"
-                title="Upload new icon"
+                :aria-label="t('dm.groupSettings.uploadIcon')"
+                :aria-describedby="`${uid}-file-hint`"
+                :title="t('dm.groupSettings.uploadIcon')"
               >
-                <Icon name="image" />
-                Upload
+                <Icon name="image" aria-hidden="true" />
+                {{ t('dm.groupSettings.upload') }}
               </button>
-              <button 
+              <button
                 v-if="hasCustomIcon"
+                type="button"
                 class="icon-btn remove-btn"
                 @click="removeIcon"
                 :disabled="uploadingIcon"
-                title="Remove custom icon"
+                :aria-label="t('dm.groupSettings.removeIcon')"
+                :title="t('dm.groupSettings.removeIcon')"
               >
-                <Icon name="trash" />
-                Remove
+                <Icon name="trash" aria-hidden="true" />
+                {{ t('dm.groupSettings.remove') }}
               </button>
             </div>
           </div>
-          
-          <!-- Drag & Drop Zone -->
-          <div 
+
+          <!-- Pointer-only drop target; the Upload button is the keyboard path. -->
+          <div
             class="drop-zone"
             :class="{ 'drag-over': isDragOver, 'uploading': uploadingIcon }"
             @drop="handleDrop"
@@ -50,66 +57,82 @@
             @dragleave="isDragOver = false"
             @click="triggerIconUpload"
           >
-            <Icon name="upload" />
-            <span>Drag & drop an image or click to browse</span>
-            <small>Max 5MB • PNG, JPG, WebP</small>
+            <Icon name="upload" aria-hidden="true" />
+            <span>{{ t('dm.groupSettings.dropHint') }}</span>
+            <small :id="`${uid}-file-hint`">{{ t('dm.groupSettings.fileHint') }}</small>
           </div>
-          
+
           <!-- Upload Progress -->
           <div v-if="uploadingIcon" class="upload-progress">
-            <div class="progress-bar">
+            <div
+              class="progress-bar"
+              role="progressbar"
+              :aria-label="t('dm.groupSettings.uploadingIcon')"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              :aria-valuenow="uploadProgress"
+            >
               <div class="progress-fill" :style="{ width: `${uploadProgress}%` }"></div>
             </div>
-            <span class="progress-text">{{ uploadProgress }}% uploaded</span>
+            <span class="progress-text" aria-hidden="true">{{ t('dm.groupSettings.uploadProgress', { percent: uploadProgress }) }}</span>
           </div>
         </div>
       </div>
 
       <!-- Group Name Section -->
       <div class="setting-section">
-        <h3 class="section-title">Group name</h3>
+        <h3 class="section-title">
+          <label :for="`${uid}-name`">{{ t('dm.groupSettings.groupName') }}</label>
+        </h3>
         <div class="name-input-section">
           <input
+            :id="`${uid}-name`"
             v-model="localGroupName"
             type="text"
             class="group-name-input"
             :placeholder="defaultGroupName"
             maxlength="50"
+            :aria-describedby="`${uid}-name-help ${uid}-name-count`"
           />
-          <span class="char-count">{{ localGroupName.length }}/50</span>
+          <span :id="`${uid}-name-count`" class="char-count">{{ localGroupName.length }}/50</span>
         </div>
-        <p class="input-help">Leave empty to use participant names</p>
+        <p :id="`${uid}-name-help`" class="input-help">{{ t('dm.groupSettings.groupNameHelp') }}</p>
       </div>
 
       <!-- Save changes (consistent with Server Settings, Channel Edit, etc.) -->
       <div v-if="hasGroupNameChanges" class="settings-actions">
         <button
+          type="button"
           class="save-btn"
           :disabled="savingGroupName"
+          :aria-busy="savingGroupName || undefined"
           @click="saveGroupName"
         >
-          {{ savingGroupName ? 'Saving...' : 'Save changes' }}
+          {{ savingGroupName ? t('dm.groupSettings.saving') : t('dm.groupSettings.saveChanges') }}
         </button>
       </div>
 
       <!-- Participants Section -->
       <div class="setting-section">
         <div class="section-header">
-          <h3 class="section-title">
-            Participants ({{ displayParticipants.length }})
+          <h3 :id="`${uid}-participants-title`" class="section-title">
+            {{ t('dm.groupSettings.participants', { count: displayParticipants.length }) }}
           </h3>
-          <button 
+          <button
+            type="button"
             class="add-participant-btn"
+            aria-haspopup="dialog"
+            :aria-label="t('dm.groupSettings.addParticipant')"
+            :title="t('dm.groupSettings.addParticipant')"
             @click="showAddParticipant = true"
-            title="Add participant"
           >
-            <Icon name="user-plus" />
-            Add
+            <Icon name="user-plus" aria-hidden="true" />
+            {{ t('dm.groupSettings.add') }}
           </button>
         </div>
-        
-        <div class="participants-list">
-          <div 
+
+        <ul class="participants-list" :aria-labelledby="`${uid}-participants-title`">
+          <li
             v-for="participant in displayParticipants"
             :key="participant.id"
             class="participant-item"
@@ -117,7 +140,6 @@
           >
             <Avatar
               :src="participant.avatar_url"
-              :alt="participant.display_name || participant.username"
               size="sm"
               class="participant-avatar"
             />
@@ -125,47 +147,53 @@
               <div class="participant-name">
                 <DisplayName :user-id="participant.id" :fallback="participant.display_name || participant.username" :truncate="true" />
                 <span v-if="participant.id === conversation.created_by" class="creator-badge">
-                  Creator
+                  {{ t('dm.groupSettings.creator') }}
                 </span>
               </div>
               <div v-if="!participant.is_local" class="participant-handle">
                 {{ participant.handle }}
               </div>
             </div>
-            
+
             <!-- Participant Actions -->
             <div class="participant-actions">
-              <button 
+              <button
                 v-if="canRemoveParticipant(participant)"
+                type="button"
                 class="action-btn remove-participant"
+                :aria-label="t('dm.groupSettings.removeParticipant', { name: participant.display_name || participant.username })"
+                :title="t('dm.groupSettings.removeParticipant', { name: participant.display_name || participant.username })"
                 @click="removeParticipant(participant)"
-                title="Remove from group"
               >
-                                 <Icon name="user-x" />
+                <Icon name="user-x" aria-hidden="true" />
               </button>
             </div>
-          </div>
-        </div>
+          </li>
+        </ul>
       </div>
 
       <!-- Danger Zone -->
       <div class="setting-section danger-zone">
-        <h3 class="section-title danger-title">Danger zone</h3>
+        <h3 class="section-title danger-title">{{ t('dm.groupSettings.dangerZone') }}</h3>
         <div class="danger-actions">
-          <button 
+          <button
+            type="button"
             class="danger-btn leave-group"
+            aria-haspopup="dialog"
             @click="showLeaveConfirm = true"
           >
-            <Icon name="x" />
-            Leave group
+            <Icon name="x" aria-hidden="true" />
+            {{ t('dm.groupSettings.leaveGroup') }}
           </button>
-          <button 
+          <button
             v-if="isCreator"
+            type="button"
             class="danger-btn delete-group"
+            aria-haspopup="dialog"
             @click="showDeleteConfirm = true"
           >
-            <Icon name="trash" />
-            Delete group
+            <Icon name="trash" aria-hidden="true" />
+            {{ t('dm.groupSettings.deleteGroup') }}
           </button>
         </div>
       </div>
@@ -192,18 +220,18 @@
     <!-- Confirmation Modals -->
     <ConfirmationModal
       :show="showLeaveConfirm"
-      title="Leave group"
-      message="Are you sure you want to leave this group? You won't be able to see new messages."
-      confirm-button-text="Leave"
+      :title="t('dm.groupSettings.leaveGroup')"
+      :message="t('dm.groupSettings.leaveConfirmMessage')"
+      :confirm-button-text="t('dm.groupSettings.leave')"
       @confirm="leaveGroup"
       @close="showLeaveConfirm = false"
     />
 
     <ConfirmationModal
       :show="showDeleteConfirm"
-      title="Delete group"
-      message="Are you sure you want to delete this group? This cannot be undone and all messages will be lost."
-      confirm-button-text="Delete"
+      :title="t('dm.groupSettings.deleteGroup')"
+      :message="t('dm.groupSettings.deleteConfirmMessage')"
+      :confirm-button-text="t('common.delete')"
       :require-confirmation="true"
       confirmation-text="DELETE"
       @confirm="deleteGroup"
@@ -213,7 +241,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, useId } from 'vue'
 import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import BaseModal from '@/components/common/BaseModal.vue'
@@ -223,6 +251,7 @@ import GroupIcon from '@/components/common/GroupIcon.vue'
 import GroupChatInviteModal from '@/components/dm/GroupChatInviteModal.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import ConfirmationModal from '@/components/ConfirmationModal.vue'
+import { useT } from '@/composables/useT'
 import { uploadGroupIcon, deleteGroupIcon } from '@/utils/groupIconUtils'
 import { imageSourceError } from '@/utils/uploadValidation'
 import { useImageCrop } from '@/composables/useImageCrop'
@@ -255,6 +284,8 @@ const displayParticipants = computed(() => {
 })
 
 // Composables
+const { t } = useT()
+const uid = `gsm-${useId()}`
 const toast = useToast()
 const { cropImage } = useImageCrop()
 const router = useRouter()
@@ -298,11 +329,11 @@ const defaultGroupName = computed(() => {
       .join(', ')
     
     if (props.participants.length > 4) {
-      return `${names}, and ${props.participants.length - 4} others`
+      return t('dm.groupSettings.defaultNameMore', { names, count: props.participants.length - 4 })
     }
     return names
   }
-  return 'Group Chat'
+  return t('dm.groupSettings.defaultName')
 })
 
 // Watchers
@@ -349,7 +380,7 @@ function handleDrop(event: DragEvent) {
   if (file && file.type.startsWith('image/')) {
     uploadIconFile(file)
   } else {
-    toast.error('Drop an image file')
+    toast.error(t('dm.groupSettings.dropImage'))
   }
 }
 
@@ -377,14 +408,14 @@ async function uploadIconFile(picked: File) {
     
     if (result.success && result.iconPath) {
       localIconPath.value = result.iconPath
-      toast.success('Group icon updated')
+      toast.success(t('dm.groupSettings.iconUpdated'))
       emit('updated')
     } else {
-      toast.error(result.error || 'Failed to upload icon')
+      toast.error(result.error || t('dm.groupSettings.iconUploadFailed'))
     }
   } catch (error: any) {
     debug.error('Icon upload failed:', error)
-    toast.error(error.message || 'Upload failed')
+    toast.error(error.message || t('dm.groupSettings.iconUploadFailed'))
   } finally {
     uploadingIcon.value = false
     uploadProgress.value = 0
@@ -399,14 +430,14 @@ async function removeIcon() {
     
     if (result.success) {
       localIconPath.value = undefined
-      toast.success('Group icon removed')
+      toast.success(t('dm.groupSettings.iconRemoved'))
       emit('updated')
     } else {
-      toast.error(result.error || 'Failed to remove icon')
+      toast.error(result.error || t('dm.groupSettings.iconRemoveFailed'))
     }
   } catch (error: any) {
     debug.error('Icon removal failed:', error)
-    toast.error(error.message || 'Removal failed')
+    toast.error(error.message || t('dm.groupSettings.iconRemoveFailed'))
   }
 }
 
@@ -423,15 +454,15 @@ async function saveGroupName() {
 
     if (error) {
       debug.error('Failed to update group name:', error)
-      toast.error('Failed to update group name')
+      toast.error(t('dm.groupSettings.nameUpdateFailed'))
       return
     }
 
-    toast.success('Group name updated')
+    toast.success(t('dm.groupSettings.nameUpdated'))
     emit('updated')
   } catch (error: any) {
     debug.error('Group name update failed:', error)
-    toast.error(error.message || 'Update failed')
+    toast.error(error.message || t('dm.groupSettings.nameUpdateFailed'))
   } finally {
     savingGroupName.value = false
   }
@@ -458,17 +489,17 @@ async function removeParticipant(participant: DMUser) {
 
     if (error) throw error
 
-    toast.success(`Removed ${participant.display_name || participant.username} from the group`)
+    toast.success(t('dm.groupSettings.participantRemoved', { name: participant.display_name || participant.username }))
     loadedParticipants.value = await dmStore.getConversationParticipants(props.conversationId)
     emit('updated')
   } catch (error: any) {
     debug.error('Failed to remove participant:', error)
-    toast.error(error.message || 'Removal failed')
+    toast.error(error.message || t('dm.groupSettings.participantRemoveFailed'))
   }
 }
 
 function handleUsersAdded() {
-  toast.success('Users added to group')
+  toast.success(t('dm.groupSettings.usersAdded'))
   emit('updated')
 }
 
@@ -485,12 +516,12 @@ async function leaveGroup() {
     if (error) throw error
 
     showLeaveConfirm.value = false
-    toast.success('You left the group')
+    toast.success(t('dm.groupSettings.left'))
     emit('close')
     router.push('/dm')
   } catch (error: any) {
     debug.error('Failed to leave group:', error)
-    toast.error(error.message || 'Failed to leave group')
+    toast.error(error.message || t('dm.groupSettings.leaveFailed'))
   }
 }
 
@@ -506,12 +537,12 @@ async function deleteGroup() {
     if (error) throw error
 
     showDeleteConfirm.value = false
-    toast.success('Group deleted')
+    toast.success(t('dm.groupSettings.deleted'))
     emit('close')
     router.push('/dm')
   } catch (error: any) {
     debug.error('Failed to delete group:', error)
-    toast.error(error.message || 'Failed to delete group')
+    toast.error(error.message || t('dm.groupSettings.deleteFailed'))
   }
 }
 </script>
@@ -749,6 +780,9 @@ async function deleteGroup() {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
   max-height: 300px;
   overflow-y: auto;
 }

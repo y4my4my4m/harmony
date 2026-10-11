@@ -210,6 +210,12 @@
   cursor: not-allowed;
 }
 
+/* Busy buttons keep focus: aria-disabled instead of disabled. */
+.sec-btn[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: progress;
+}
+
 .sec-btn-sm {
   padding: 6px 12px;
   font-size: 12px;

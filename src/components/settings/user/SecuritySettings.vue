@@ -22,45 +22,60 @@
           <label class="sec-label" for="current-password">{{ $t('auth.currentPassword') }}</label>
           <input
             id="current-password"
+            ref="currentInput"
             v-model="currentPassword"
             class="sec-input"
             :class="{ 'has-error': errors.current }"
             type="password"
             autocomplete="current-password"
+            :aria-invalid="!!errors.current || undefined"
+            :aria-describedby="errors.current ? 'current-password-error' : undefined"
             @input="errors.current = ''"
           />
-          <p v-if="errors.current" class="sec-error">{{ errors.current }}</p>
+          <p v-if="errors.current" id="current-password-error" class="sec-error" role="alert">{{ errors.current }}</p>
         </div>
         <div class="sec-field">
           <label class="sec-label" for="new-password">{{ $t('auth.newPassword') }}</label>
           <input
             id="new-password"
+            ref="nextInput"
             v-model="newPassword"
             class="sec-input"
             :class="{ 'has-error': errors.next }"
             type="password"
             autocomplete="new-password"
             minlength="8"
+            :aria-invalid="!!errors.next || undefined"
+            :aria-describedby="errors.next ? 'new-password-error' : 'new-password-hint'"
             @input="errors.next = ''"
           />
-          <p v-if="errors.next" class="sec-error">{{ errors.next }}</p>
-          <p v-else class="sec-hint">{{ $t('security.password.hint') }}</p>
+          <p v-if="errors.next" id="new-password-error" class="sec-error" role="alert">{{ errors.next }}</p>
+          <p v-else id="new-password-hint" class="sec-hint">{{ $t('security.password.hint') }}</p>
         </div>
         <div class="sec-field">
           <label class="sec-label" for="confirm-password">{{ $t('auth.confirmNewPassword') }}</label>
           <input
             id="confirm-password"
+            ref="confirmInput"
             v-model="confirmPassword"
             class="sec-input"
             :class="{ 'has-error': errors.confirm }"
             type="password"
             autocomplete="new-password"
+            :aria-invalid="!!errors.confirm || undefined"
+            :aria-describedby="errors.confirm ? 'confirm-password-error' : undefined"
             @input="errors.confirm = ''"
           />
-          <p v-if="errors.confirm" class="sec-error">{{ errors.confirm }}</p>
+          <p v-if="errors.confirm" id="confirm-password-error" class="sec-error" role="alert">{{ errors.confirm }}</p>
         </div>
         <div class="sec-actions sec-actions-start">
-          <button type="submit" class="sec-btn sec-btn-primary" :disabled="passwordBusy || !passwordFormReady">
+          <button
+            type="submit"
+            class="sec-btn sec-btn-primary"
+            :disabled="!passwordFormReady"
+            :aria-disabled="passwordBusy || undefined"
+            :aria-busy="passwordBusy || undefined"
+          >
             {{ passwordBusy ? $t('security.password.saving') : hasPassword ? $t('auth.changePassword') : $t('security.password.setPassword') }}
           </button>
         </div>
@@ -73,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { useToast } from 'vue-toastification'
 import { useI18n } from 'vue-i18n'
 import { supabase } from '@/supabase'
@@ -106,6 +121,18 @@ const newPassword = ref('')
 const confirmPassword = ref('')
 const passwordBusy = ref(false)
 const errors = ref({ current: '', next: '', confirm: '' })
+const currentInput = ref<HTMLInputElement | null>(null)
+const nextInput = ref<HTMLInputElement | null>(null)
+const confirmInput = ref<HTMLInputElement | null>(null)
+
+async function focusFirstError() {
+  await nextTick()
+  const field = errors.value.current ? currentInput.value
+    : errors.value.next ? nextInput.value
+      : errors.value.confirm ? confirmInput.value
+        : null
+  field?.focus()
+}
 
 const passwordFormReady = computed(() =>
   (!hasPassword.value || currentPassword.value.length > 0) &&
@@ -113,17 +140,17 @@ const passwordFormReady = computed(() =>
   confirmPassword.value.length > 0)
 
 async function changePassword() {
+  if (passwordBusy.value) return
   errors.value = { current: '', next: '', confirm: '' }
   if (newPassword.value.length < 8) {
     errors.value.next = t('security.password.errors.tooShort')
-    return
-  }
-  if (newPassword.value !== confirmPassword.value) {
+  } else if (newPassword.value !== confirmPassword.value) {
     errors.value.confirm = t('security.password.errors.mismatch')
-    return
-  }
-  if (hasPassword.value && newPassword.value === currentPassword.value) {
+  } else if (hasPassword.value && newPassword.value === currentPassword.value) {
     errors.value.next = t('security.password.errors.sameAsCurrent')
+  }
+  if (errors.value.next || errors.value.confirm) {
+    void focusFirstError()
     return
   }
 
@@ -159,6 +186,7 @@ async function changePassword() {
     toast.error(securityErrorMessage(error, t('security.password.changeFailed')))
   } finally {
     passwordBusy.value = false
+    void focusFirstError()
   }
 }
 </script>
