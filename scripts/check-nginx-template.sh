@@ -81,6 +81,28 @@ expect "$DISCORD"  /invite/ab                'SPA'
 expect "$DISCORD"  /invite/ABCD1234/extra    'SPA'
 expect "$FIREFOX"  /posts/00000000-0000-0000-0000-000000000001 'backend /posts/00000000-0000-0000-0000-000000000001'
 
+# expect_accept <accept> <path> <first line of the body>
+expect_accept() {
+  local got
+  got="$(docker exec "$CONTAINER" wget -q -O - -U "$FIREFOX" --header "Accept: $1" "http://127.0.0.1:8443$2" 2>/dev/null | head -1)" || true
+  if [ "$got" = "$3" ]; then
+    printf 'ok   %-40.40s %s -> %s\n' "$1" "$2" "$got"
+  else
+    err "Accept $1 $2: expected '$3', got '$got'"
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+POST=/social/post/00000000-0000-0000-0000-000000000001
+AP_MASTODON='application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams", text/html;q=0.1'
+log "/social/post/<id> routing"
+expect_accept "$AP_MASTODON"         $POST 'backend /posts/00000000-0000-0000-0000-000000000001'
+expect_accept 'application/ld+json'  $POST 'backend /posts/00000000-0000-0000-0000-000000000001'
+expect_accept 'text/html,*/*;q=0.8'  $POST 'SPA'
+expect "$DISCORD" $POST 'backend /posts/00000000-0000-0000-0000-000000000001'
+expect "$FIREFOX" $POST 'SPA'
+expect "$DISCORD" /social/post/not-a-post-id 'SPA'
+
 # The SPA answer varies by User-Agent and keeps the server-level headers.
 headers="$(docker exec "$CONTAINER" wget -q -S -O /dev/null -U "$FIREFOX" http://127.0.0.1:8443/invite/ABCD1234 2>&1 || true)"
 for h in 'Vary: User-Agent' 'X-Frame-Options: SAMEORIGIN' 'X-Content-Type-Options: nosniff'; do
@@ -93,4 +115,4 @@ for h in 'Vary: User-Agent' 'X-Frame-Options: SAMEORIGIN' 'X-Content-Type-Option
 done
 
 [ "$FAILED" -eq 0 ] || { err "$FAILED routing check(s) failed"; exit 1; }
-log "dev/nginx-harmony.template.conf parses and routes /invite/<code> by User-Agent"
+log "dev/nginx-harmony.template.conf parses and routes /invite/<code> and /social/post/<id>"
