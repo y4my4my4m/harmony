@@ -8,24 +8,37 @@
     }"
     data-block-sidebar-gestures
     ref="popupRef"
-    :style="popupStyle"
     role="dialog"
     aria-modal="true"
-    :aria-label="t('chatNav.mediaPicker.label')"
+    :aria-label="t('messageA11y.mediaPicker.label')"
     tabindex="-1"
+    data-testid="media-picker"
+    :style="popupStyle"
   >
     <span ref="safeAreaProbeRef" class="safe-area-probe" aria-hidden="true"></span>
     <!-- Tab Navigation Header (horizontally scrollable) -->
     <div class="picker-tabs">
       <div class="picker-tabs-scroll" ref="tabsScrollRef" @wheel="onTabsWheel">
-        <div class="picker-tabs-track" ref="tabsTrackRef" :style="tabsTrackStyle">
+        <div
+          class="picker-tabs-track"
+          ref="tabsTrackRef"
+          role="tablist"
+          :aria-label="t('messageA11y.mediaPicker.label')"
+          :style="tabsTrackStyle"
+          @keydown="onTabsKeydown"
+        >
           <button
             v-for="tab in tabs"
+            :id="tabId(tab.id)"
             :key="tab.id"
             type="button"
+            role="tab"
             class="tab-button"
             :class="{ active: activeTab === tab.id }"
-            :aria-pressed="activeTab === tab.id"
+            :aria-selected="activeTab === tab.id ? 'true' : 'false'"
+            :aria-controls="panelId"
+            :tabindex="activeTab === tab.id ? 0 : -1"
+            :data-tab="tab.id"
             @click="activeTab = tab.id"
           >
             {{ tab.label }}
@@ -38,7 +51,7 @@
         type="button"
         class="tab-icon-button"
         :class="{ active: showFavorites }"
-        :aria-pressed="showFavorites"
+        :aria-pressed="showFavorites ? 'true' : 'false'"
         :aria-label="t('gif.favorites')"
         @click="showFavorites = !showFavorites"
         :title="showFavorites ? t('gif.trending') : t('gif.favorites')"
@@ -53,7 +66,10 @@
     <!-- Klipy media content (gifs/stickers/clips/memes/ai-emojis) -->
     <GifPickerContent
       v-if="activeTab !== 'emoji'"
+      :id="panelId"
       :key="activeTab"
+      role="tabpanel"
+      :aria-labelledby="tabId(activeTab)"
       :show-favorites="showFavorites"
       :media-type="activeTab"
       :initial-search-query="activeTab === 'gifs' ? initialSearchQuery : ''"
@@ -65,6 +81,9 @@
     <!-- Emoji Content -->
     <EmojiPickerContent
       v-else
+      :id="panelId"
+      role="tabpanel"
+      :aria-labelledby="tabId(activeTab)"
       @send-emoji="handleSendEmoji"
     />
   </div>
@@ -82,10 +101,12 @@ import { useElasticHorizontalScroll } from '@/composables/useElasticHorizontalSc
 import GifPickerContent from '@/components/GifPickerContent.vue';
 import EmojiPickerContent from '@/components/EmojiPickerContent.vue';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
-import { useDialog } from '@/composables/useDialog';
-import { useT } from '@/composables/useT';
 import type { GifMediaType } from '@/services/gifProviderService';
 import type { Gif, Emoji } from '@/types';
+import { useDialog } from '@/composables/useDialog';
+import { useRovingTabindex } from '@/composables/useRovingTabindex';
+import { useT } from '@/composables/useT';
+import { uid } from '@/utils/a11y/focus';
 
 type PickerTab = GifMediaType | 'emoji';
 
@@ -142,6 +163,19 @@ watch(activeTab, () => { showFavorites.value = false; });
 watch(tabs, () => nextTick(() => measureTabs()));
 
 const popupRef = ref<HTMLElement | null>(null);
+const idBase = uid('media-picker');
+const panelId = `${idBase}-panel`;
+const tabId = (tab: PickerTab) => `${idBase}-tab-${tab}`;
+
+// Tabs follow the arrow keys (automatic activation).
+const { onKeydown: onTabsKeydown } = useRovingTabindex(tabsTrackRef, {
+  itemSelector: '[role="tab"]',
+  orientation: 'horizontal',
+  onActivate: (el) => {
+    const tab = el.dataset.tab as PickerTab | undefined;
+    if (tab) activeTab.value = tab;
+  },
+});
 
 // Modal popup: focus moves in (the search field; the popup itself on phones,
 // where a focused field raises the keyboard), Tab stays inside, Escape closes
@@ -398,7 +432,7 @@ onUnmounted(() => {
   border-bottom: 1px solid var(--border-secondary);
   gap: 4px;
   flex-shrink: 0;
-  background: var(--background-senary-alpha);
+  background: var(--background-secondary);
   min-width: 0;
 }
 

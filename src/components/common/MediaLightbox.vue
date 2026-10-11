@@ -53,6 +53,8 @@
 
           <p v-if="items.length > 1" class="lightbox-position" aria-live="polite">{{ positionText }}</p>
 
+          <slot name="actions" :src="currentSrc" :index="index" />
+
           <div class="media-container">
             <img
               v-if="currentItem && !isVideo(currentItem)"

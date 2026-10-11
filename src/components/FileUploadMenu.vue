@@ -1,7 +1,21 @@
+<!--
+  FileUploadMenu - the composer's + menu (upload a file, create a poll) on
+  components/a11y/AppMenu.vue, anchored to the attach button. The file input
+  stays mounted outside the menu: the menu closes while the system file picker
+  is open, and the input must still receive its change event.
+-->
 <template>
-  <div v-if="isVisible" class="file-upload-menu" @click.stop>
-    <div class="menu-item" @click="handleFileUpload">
-      <svg class="menu-icon" width="20" height="20" viewBox="0 0 24 24" fill="none">
+  <AppMenu
+    v-if="isVisible"
+    :id="menuId"
+    class="file-upload-menu"
+    :anchor="anchor"
+    :initial-focus="initialFocus"
+    :label="t('messageA11y.composer.attachMenu')"
+    @close="(reason) => emit('close', reason)"
+  >
+    <button type="button" role="menuitem" class="menu-item" data-testid="upload-menu-file" @click="handleFileUpload">
+      <svg class="menu-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -9,127 +23,116 @@
         <polyline points="10,9 9,9 8,9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <span>{{ t('files.uploadFile') }}</span>
-    </div>
-    <div v-if="allowPoll" class="menu-item" data-testid="upload-menu-poll" @click="handleCreatePoll">
+    </button>
+    <button v-if="allowPoll" type="button" role="menuitem" class="menu-item" data-testid="upload-menu-poll" @click="handleCreatePoll">
       <Icon name="bar-chart-2" :size="20" class="menu-icon" />
       <span>{{ t('polls.create') }}</span>
-    </div>
-    <input 
-      ref="fileInput"
-      type="file" 
-      multiple 
-      accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.zip,.rar"
-      @change="onFileSelect"
-      class="hidden-file-input"
-    />
-  </div>
+    </button>
+  </AppMenu>
+  <input
+    ref="fileInput"
+    type="file"
+    multiple
+    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.zip,.rar"
+    class="hidden-file-input"
+    tabindex="-1"
+    aria-hidden="true"
+    data-testid="composer-file-input"
+    @change="onFileSelect"
+  />
 </template>
 
-<script lang="ts">
-import { defineComponent, ref, onMounted, onUnmounted } from 'vue';
-import { useI18n } from 'vue-i18n';
+<script setup lang="ts">
+import { ref } from 'vue';
 import Icon from '@/components/common/Icon.vue';
+import AppMenu from '@/components/a11y/AppMenu.vue';
+import type { MenuCloseReason } from '@/composables/useMenu';
+import { useT } from '@/composables/useT';
 
-export default defineComponent({
-  name: 'FileUploadMenu',
-  components: { Icon },
-  props: {
-    isVisible: {
-      type: Boolean,
-      default: false
-    },
-    allowPoll: {
-      type: Boolean,
-      default: false
-    }
-  },
-  emits: ['files-selected', 'close', 'create-poll'],
-  setup(props, { emit }) {
-    const { t } = useI18n();
-    const fileInput = ref<HTMLInputElement | null>(null);
-
-    const handleFileUpload = () => {
-      fileInput.value?.click();
-    };
-
-    const handleCreatePoll = () => {
-      emit('create-poll');
-    };
-
-    const onFileSelect = (event: Event) => {
-      const target = event.target as HTMLInputElement;
-      const files = target.files;
-      
-      if (files && files.length > 0) {
-        const fileArray = Array.from(files);
-        emit('files-selected', fileArray);
-        
-        if (target) {
-          target.value = '';
-        }
-      }
-    };
-
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      const menu = target.closest('.file-upload-menu');
-      
-      if (!menu && props.isVisible) {
-        emit('close');
-      }
-    };
-
-    onMounted(() => {
-      document.addEventListener('click', handleClickOutside);
-    });
-
-    onUnmounted(() => {
-      document.removeEventListener('click', handleClickOutside);
-    });
-
-    return {
-      fileInput,
-      handleFileUpload,
-      handleCreatePoll,
-      onFileSelect,
-      t
-    };
-  }
+withDefaults(defineProps<{
+  isVisible?: boolean;
+  allowPoll?: boolean;
+  /** The attach button: the menu opens beside it and focus returns to it. */
+  anchor?: HTMLElement | null;
+  menuId?: string;
+  initialFocus?: 'first' | 'last';
+}>(), {
+  isVisible: false,
+  allowPoll: false,
+  anchor: null,
+  menuId: undefined,
+  initialFocus: 'first',
 });
+
+const emit = defineEmits<{
+  'files-selected': [files: File[]];
+  close: [reason?: MenuCloseReason];
+  'create-poll': [];
+}>();
+
+const { t } = useT();
+const fileInput = ref<HTMLInputElement | null>(null);
+
+const handleFileUpload = () => {
+  fileInput.value?.click();
+  emit('close', 'select');
+};
+
+const handleCreatePoll = () => {
+  emit('create-poll');
+};
+
+const onFileSelect = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const files = target.files;
+  if (files && files.length > 0) {
+    emit('files-selected', Array.from(files));
+    target.value = '';
+  }
+};
 </script>
 
-<style scoped>
-.file-upload-menu {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
+<style>
+/* The menu element is AppMenu's; scoped styles reach only the slot content. */
+.app-menu.file-upload-menu {
   background: var(--background-floating);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-large);
   padding: 8px;
-  z-index: 1000;
   min-width: 160px;
-  margin-bottom: 8px;
-  pointer-events: auto;
 }
 
+@media (max-width: 768px) {
+  .app-menu.file-upload-menu {
+    min-width: 150px;
+  }
+}
+</style>
+
+<style scoped>
 .menu-item {
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
   padding: 12px 16px;
+  border: none;
   border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
-  transition: background-color 0.2s;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   font-weight: 500;
 }
 
-.menu-item:hover {
+.menu-item:hover,
+.menu-item:focus {
   background-color: var(--harmony-primary);
   color: var(--text-on-primary);
+  outline: none;
 }
 
 .menu-icon {
@@ -143,10 +146,6 @@ export default defineComponent({
 }
 
 @media (max-width: 768px) {
-  .file-upload-menu {
-    min-width: 150px;
-  }
-  
   .menu-item {
     padding: 10px 12px;
     font-size: 13px;

@@ -960,6 +960,138 @@
       "unmark": "Spoiler entfernen"
     }
   },
+  "messageA11y": {
+    "list": {
+      "channel": "Nachrichten in #{name}",
+      "conversation": "Nachrichten mit {name}",
+      "thread": "Nachrichten in diesem Thread",
+      "generic": "Nachrichten"
+    },
+    "row": {
+      "blocked": "{count} blockierte Nachricht | {count} blockierte Nachrichten",
+      "showBlocked": "Nachricht anzeigen | Nachrichten anzeigen",
+      "reported": "Du hast diese Nachricht gemeldet",
+      "showReported": "Anzeigen",
+      "unhideReported": "Wieder einblenden",
+      "fromBlocked": "{count} Nachricht von einer blockierten Person | {count} Nachrichten von einer blockierten Person",
+      "hide": "Ausblenden",
+      "reportedBanner": "Gemeldete Nachricht",
+      "hideAgain": "Wieder ausblenden",
+      "mentionsYou": "erwähnt dich",
+      "edited": "bearbeitet",
+      "pinned": "angeheftet",
+      "encrypted": "Ende-zu-Ende-verschlüsselt",
+      "failed": "Senden fehlgeschlagen",
+      "sending": "wird gesendet"
+    },
+    "newMessagesDivider": "Neue Nachrichten",
+    "actions": {
+      "label": "Nachrichtenaktionen",
+      "thread": "Thread erstellen"
+    },
+    "failed": {
+      "label": "Senden fehlgeschlagen",
+      "retry": "Erneut versuchen",
+      "discard": "Löschen",
+      "announce": "Eine Nachricht konnte nicht gesendet werden. Versuche es erneut oder lösche sie in der Nachrichtenliste."
+    },
+    "deleted": "Nachricht gelöscht",
+    "image": {
+      "noDescription": "Bild ohne Beschreibung",
+      "open": "Bild in voller Größe anzeigen",
+      "openIndexed": "Bild {index} von {total} in voller Größe anzeigen",
+      "gif": "GIF ohne Beschreibung",
+      "sticker": "Sticker",
+      "emoji": "Emoji"
+    },
+    "menu": {
+      "label": "Nachrichtenoptionen",
+      "quickReactions": "Schnellreaktionen",
+      "reactWith": "Mit {emoji} reagieren",
+      "moreReactions": "Weitere Reaktionen"
+    },
+    "reply": {
+      "prefix": "Antwort auf"
+    },
+    "reactions": {
+      "pill": "{emoji}, {count} Reaktion | {emoji}, {count} Reaktionen",
+      "pillYou": "{emoji}, {count} Reaktion, auch von dir | {emoji}, {count} Reaktionen, auch von dir",
+      "hint": "Die Kontextmenütaste oder Umschalt+F10 zeigt, wer reagiert hat.",
+      "removed": "Reaktion entfernt: {emoji}"
+    },
+    "emoji": {
+      "reactionDialog": "Reaktion hinzufügen",
+      "dialog": "Emoji-Auswahl",
+      "search": "Emoji suchen",
+      "searchHint": "Eingabe wählt das erste Ergebnis. Pfeil nach unten springt zu den Emojis.",
+      "results": "{count} Emoji gefunden | {count} Emojis gefunden",
+      "noResults": "Keine Emojis gefunden"
+    },
+    "mediaPicker": {
+      "label": "GIFs, Sticker und Emojis"
+    },
+    "composer": {
+      "attach": "Anhang oder Umfrage hinzufügen",
+      "attachMenu": "Anhängen",
+      "gif": "GIF-Auswahl",
+      "emoji": "Emoji-Auswahl",
+      "nearLimit": "Noch {count} Zeichen | Noch {count} Zeichen",
+      "overLimit": "Nachricht um {count} Zeichen zu lang | Nachricht um {count} Zeichen zu lang",
+      "backUnderLimit": "Nachricht passt wieder, noch {count} Zeichen | Nachricht passt wieder, noch {count} Zeichen",
+      "suggestions": "{count} Vorschlag, mit den Pfeiltasten auswählen | {count} Vorschläge, mit den Pfeiltasten auswählen"
+    },
+    "upload": {
+      "done": "{name} hochgeladen",
+      "progress": "{name}: {percent} % hochgeladen",
+      "attached": "{count} Datei angehängt | {count} Dateien angehängt",
+      "removed": "{name} entfernt",
+      "attachedCount": "{count} Datei angehängt | {count} Dateien angehängt",
+      "uploading": "Wird hochgeladen...",
+      "listLabel": "Anhänge",
+      "progressLabel": "{name} wird hochgeladen",
+      "remove": "{name} entfernen"
+    },
+    "alt": {
+      "saved": "Beschreibung für {name} gespeichert",
+      "removed": "Beschreibung von {name} entfernt",
+      "title": "{name} beschreiben",
+      "edit": "Beschreibung von {name} bearbeiten",
+      "add": "Beschreibung zu {name} hinzufügen",
+      "editShort": "Beschreibung bearbeiten",
+      "addShort": "Beschreibung hinzufügen"
+    },
+    "encrypted": {
+      "lost": "Verschlüsselte Nachricht, die sich nicht mehr entschlüsseln lässt",
+      "decrypt": "Verschlüsselte Nachricht. Entschlüsseln",
+      "decrypting": "Verschlüsselte Nachricht wird entschlüsselt",
+      "locked": "Verschlüsselte Nachricht. Entsperre die Verschlüsselung unter Einstellungen, Privatsphäre und Verschlüsselung, um sie zu lesen."
+    },
+    "spoiler": {
+      "hidden": "Spoiler, verborgen. Aktivieren zum Aufdecken",
+      "revealed": "Spoiler: {text}"
+    },
+    "speech": {
+      "encrypted": "verschlüsselte Nachricht",
+      "spoiler": "Spoiler",
+      "imageWithAlt": "Bild: {alt}",
+      "image": "Bild",
+      "videoWithAlt": "Video: {alt}",
+      "video": "Video",
+      "audio": "Audio",
+      "file": "Datei {name}",
+      "poll": "Umfrage: {question}"
+    },
+    "announce": {
+      "one": "{name}: {text}",
+      "oneEmpty": "Neue Nachricht von {name}",
+      "andOthers": "{names} und {count} weitere Person | {names} und {count} weitere Personen",
+      "many": "{count} neue Nachricht von {names} | {count} neue Nachrichten von {names}"
+    },
+    "setting": {
+      "label": "Neue Nachrichten ansagen",
+      "description": "Screenreader lesen Nachrichten vor, die im geöffneten Kanal, Gespräch oder Thread eintreffen. Deine eigenen Nachrichten werden nicht vorgelesen."
+    }
+  },
   "messageSearch": {
     "title": "Nachrichten durchsuchen",
     "intro": "Gib Suchbegriffe ein oder grenze die Suche mit from:, mentions:, has:, in:, before:, during:, after: und pinned: ein.",

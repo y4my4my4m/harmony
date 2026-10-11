@@ -14,9 +14,8 @@
     aria-haspopup="listbox"
     aria-invalid="false"
     aria-autocomplete="list"
-    :aria-expanded="props.autoSuggestActive || false"
-    :aria-activedescendant="props.autoSuggestSelectedId || undefined"
-    aria-controls="auto-suggest-listbox"
+    :aria-activedescendant="props.autoSuggestActive && props.autoSuggestSelectedId ? props.autoSuggestSelectedId : undefined"
+    :aria-controls="props.autoSuggestActive ? 'auto-suggest-listbox' : undefined"
     autocorrect="off"
     data-can-focus="true"
     :aria-label="placeholder"
@@ -64,6 +63,12 @@ interface Props {
   minHeight?: number;
   /** Border with hover/focus states: harmony-primary-alpha on hover, harmony-primary on focus. */
   bordered?: boolean;
+  /**
+   * Suggestions show in the listbox #auto-suggest-listbox. role=textbox takes
+   * no aria-expanded (ARIA 1.2): while active, aria-controls names the listbox
+   * and aria-activedescendant its selected option; the composer announces the
+   * count.
+   */
   autoSuggestActive?: boolean;
   autoSuggestSelectedId?: string;
 }
@@ -1353,6 +1358,12 @@ onMounted(async () => {
   position: absolute;
   top: 11px;
   left: 12px;
+}
+
+.rich-text-editor:not(.bordered):focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+  border-radius: var(--radius-md, 8px);
 }
 
 /* Bordered variant: composer inline mode. */

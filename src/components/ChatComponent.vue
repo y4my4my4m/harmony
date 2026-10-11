@@ -119,6 +119,7 @@
       @click.stop
       @sendEmoji="handleSendEmoji"
       :closeEmojiList="closeReactionEmoji"
+      is-reaction
       :isEmojiBlocked="isReactionEmojiBlocked"
       :limitNotice="reactionLimitNotice"
       :emojiIconClicked="emojiIconClicked"
@@ -172,7 +173,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, onMounted, computed, watch, onUnmounted, defineAsyncComponent, toRaw } from 'vue';
+  import { ref, onMounted, computed, watch, onUnmounted, defineAsyncComponent, toRaw, nextTick } from 'vue';
   import MessageDisplay from './MessageDisplay.vue';
   import MessageInput from './MessageInput.vue';
   import Icon from '@/components/common/Icon.vue';
@@ -218,6 +219,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   import { useServerPermissions } from '@/composables/useServerPermissions';
   import { useI18n } from 'vue-i18n';
   import { useToast } from 'vue-toastification';
+  import { useAnnouncer } from '@/composables/useAnnouncer';
 
   interface Props {
     messages: Message[];
@@ -287,6 +289,10 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   } = useFileDragOverlay();
   const uploading = ref(false);
   const sendError = ref<string | null>(null);
+  const { assertive } = useAnnouncer();
+  watch(sendError, (message) => {
+    if (message) assertive(message);
+  });
 
   const welcomeStore = useServerWelcomeStore();
   const rulesPromptServerId = computed(() => {
@@ -978,6 +984,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
                 name: raw.name,
                 type: raw.type,
                 size: raw.size,
+                altText: raw.altText,
                 previewUrl: raw.preview,
                 upload: raw.upload,
                 uploadedPath: completed ? raw.uploadedPath : undefined,
@@ -1232,6 +1239,8 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         } else {
           messageContent.value += getEmojiShortcodeForInsert(emoji);
           debug.log("Emoji added in Parent:", messageContent.value);
+          // Typing continues where the emoji went, not on the picker's button.
+          void nextTick(() => messageInputRef.value?.focusEditor());
 
           if (currentUserId.value && !props.isDM && serverChannelStore.currentServerId) {
             recordEmojiUsage(

@@ -1,6 +1,6 @@
 <template>
   <div v-if="typingUsers.length > 0" class="typing-indicator">
-    <div class="typing-dots">
+    <div class="typing-dots" aria-hidden="true">
       <span></span>
       <span></span>
       <span></span>
@@ -39,19 +39,37 @@
 </template>
 
 <script setup lang="ts">
+import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { TypingUser } from '@/services/TypingIndicatorService'
 import { useUserData } from '@/composables/useUserData'
+import { announce } from '@/composables/useAnnouncer'
 import DisplayName from '@/components/DisplayName.vue'
 
 interface Props {
   typingUsers: TypingUser[]
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 const { t } = useI18n()
 const { getUserDisplayName } = useUserData()
+
+// Typing is a verbose announcement: spoken only with "Screen reader support"
+// on, the latest state replacing a pending one.
+const spokenTyping = computed(() => {
+  const users = props.typingUsers
+  const name = (index: number) => getUserDisplayName(users[index].user_id).value
+  if (users.length === 0) return ''
+  if (users.length === 1) return `${name(0)}${t('message.typing.single')}`
+  if (users.length === 2) return `${name(0)}${t('message.typing.two', { name2: name(1) })}`
+  if (users.length === 3) return `${name(0)}${t('message.typing.three', { name2: name(1), name3: name(2) })}`
+  return t('message.typing.many')
+})
+
+watch(spokenTyping, (text) => {
+  if (text) announce(text, { verbose: true, key: 'typing', dedupeMs: 5000 })
+})
 </script>
 
 <style scoped>

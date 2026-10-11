@@ -173,7 +173,7 @@ describe('MessageInput compact composer', () => {
     expect(isCollapsed(wrapper, '.left-icons .composer-expand')).toBe(true)
     expect(isCollapsed(wrapper, '.left-icons .plus-icon-container')).toBe(false)
     expect(isCollapsed(wrapper, '.right-icons .voice-recorder')).toBe(false)
-    expect(isCollapsed(wrapper, '.right-icons button[aria-label="GIFs"]')).toBe(false)
+    expect(isCollapsed(wrapper, '.right-icons [data-testid="composer-gif"]')).toBe(false)
     expect(wrapper.find('[data-testid="message-send-btn"]').exists()).toBe(false)
   })
 
@@ -183,7 +183,7 @@ describe('MessageInput compact composer', () => {
     expect(isCollapsed(wrapper, '.left-icons .composer-expand')).toBe(false)
     expect(isCollapsed(wrapper, '.left-icons .plus-icon-container')).toBe(true)
     expect(isCollapsed(wrapper, '.right-icons .voice-recorder')).toBe(true)
-    expect(isCollapsed(wrapper, '.right-icons button[aria-label="GIFs"]')).toBe(true)
+    expect(isCollapsed(wrapper, '.right-icons [data-testid="composer-gif"]')).toBe(true)
     expect(wrapper.get('.composer-expand').attributes('aria-label')).toBe('message.moreActions')
   })
 
@@ -195,7 +195,7 @@ describe('MessageInput compact composer', () => {
     expect(isCollapsed(wrapper, '.composer-expand')).toBe(true)
     expect(isCollapsed(wrapper, '.plus-icon-container')).toBe(false)
     expect(isCollapsed(wrapper, '.right-icons .voice-recorder')).toBe(false)
-    expect(isCollapsed(wrapper, '.right-icons button[aria-label="GIFs"]')).toBe(false)
+    expect(isCollapsed(wrapper, '.right-icons [data-testid="composer-gif"]')).toBe(false)
 
     await typeInEditor(wrapper, 'hello!')
     expect(isCollapsed(wrapper, '.plus-icon-container')).toBe(true)
@@ -205,7 +205,7 @@ describe('MessageInput compact composer', () => {
   it('collapses again once an expanded action is used', async () => {
     const wrapper = mountInput({ modelValue: 'hello' })
     await wrapper.get('.composer-expand').trigger('click')
-    await wrapper.get('.right-icons button[aria-label="GIFs"]').trigger('click')
+    await wrapper.get('.right-icons [data-testid="composer-gif"]').trigger('click')
     expect(wrapper.emitted('toggleGiphy')).toHaveLength(1)
     expect(isCollapsed(wrapper, '.plus-icon-container')).toBe(true)
   })
@@ -213,7 +213,7 @@ describe('MessageInput compact composer', () => {
   it('keeps + expanded while its upload menu is open', async () => {
     const wrapper = mountInput({ modelValue: 'hello' })
     await wrapper.get('.composer-expand').trigger('click')
-    await wrapper.get('.plus-icon-container .plus').trigger('click')
+    await wrapper.get('.plus-icon-container [data-testid="composer-attach"]').trigger('click')
     await typeInEditor(wrapper, 'hello!')
     expect(isCollapsed(wrapper, '.plus-icon-container')).toBe(false)
 
@@ -224,9 +224,9 @@ describe('MessageInput compact composer', () => {
 
   it('places emoji inside the field and not among the right icons', () => {
     const wrapper = mountInput()
-    const emoji = wrapper.get('.textarea-wrapper button[aria-label="Emoji"]')
-    expect(emoji.attributes('title')).toBe('Emoji')
-    expect(wrapper.find('.right-icons button[aria-label="Emoji"]').exists()).toBe(false)
+    const emoji = wrapper.get('.textarea-wrapper [data-testid="composer-emoji"]')
+    expect(emoji.attributes('title')).toBe('messageA11y.composer.emoji')
+    expect(wrapper.find('.right-icons [data-testid="composer-emoji"]').exists()).toBe(false)
     expect((wrapper.vm as unknown as { emojiTriggerRef: HTMLElement }).emojiTriggerRef).toBe(emoji.element)
   })
 
@@ -285,7 +285,7 @@ describe('MessageInput desktop composer', () => {
       Array.from(wrapper.get(selector).element.children).map((el) => el.getAttribute('aria-label') ?? el.className)
     expect(children('.left-icons')).toEqual(['plus-icon-container'])
     expect(children('.textarea-wrapper')).toEqual(['rich-text-editor'])
-    expect(children('.right-icons')).toEqual(['voice-recorder', 'GIFs', 'Emoji'])
+    expect(children('.right-icons')).toEqual(['voice-recorder', 'messageA11y.composer.gif', 'messageA11y.composer.emoji'])
     expect(wrapper.find('.is-collapsed').exists()).toBe(false)
   })
 

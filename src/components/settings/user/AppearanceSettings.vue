@@ -851,6 +851,7 @@
           />
         </div>
       </div>
+      <MessageAnnouncementSetting />
     </div>
 
     <Transition name="savebar">
@@ -871,6 +872,7 @@
 <script setup lang="ts">
 import { ref, computed, reactive, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
+import MessageAnnouncementSetting from '@/components/a11y/MessageAnnouncementSetting.vue'
 import { useToast } from 'vue-toastification'
 import type { User, Emoji } from '@/types'
 import { useFloatingVideo } from '@/composables/useFloatingVideo'

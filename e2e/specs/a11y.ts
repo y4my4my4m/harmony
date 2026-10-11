@@ -58,18 +58,6 @@ export const AXE_EXCLUSIONS: AxeExclusion[] = [
     reason: 'Role colours are member data (server role settings); names are drawn in the colour the role carries.',
     within: '.display-name',
   },
-  {
-    rule: 'aria-allowed-attr',
-    area: 'chat',
-    reason: 'Composer editor: aria-expanded on role=textbox (RichTextEditor.vue); needs the combobox pattern.',
-    within: '.rich-text-editor',
-  },
-  {
-    rule: 'label-content-name-mismatch',
-    area: 'chat',
-    reason: 'Composer GIF button: aria-label "GIFs" over the visible "GIF" glyph text.',
-    within: '[data-testid="message-input"]',
-  },
 ]
 
 export interface AxeOptions {

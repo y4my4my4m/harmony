@@ -49,14 +49,13 @@
           <Avatar
             v-else-if="suggestion.avatar"
             :src="suggestion.avatar"
-            :alt="suggestion.name || suggestion.display_name"
             class="suggest-icon suggest-avatar"
             size="xs"
           />
           <img
             v-else-if="suggestion.emoji && suggestion.url"
             :src="suggestion.url"
-            alt="Emoji"
+            alt=""
             class="suggest-icon emoji-icon"
           />
           <span

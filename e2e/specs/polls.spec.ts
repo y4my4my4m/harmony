@@ -53,12 +53,8 @@ const option = (card: Locator, text: string) =>
 const voters = (card: Locator) => card.locator('[data-testid="poll-voters"]')
 
 async function openPlusMenu(page: Page): Promise<void> {
-  await page
-    .locator('[data-testid="message-input"] .plus-icon-container > svg.icon-component')
-    .click()
-  await expect(page.locator('[data-testid="message-input"] .file-upload-menu')).toBeVisible({
-    timeout: 15000,
-  })
+  await page.locator('[data-testid="composer-attach"]').click()
+  await expect(page.locator('.file-upload-menu')).toBeVisible({ timeout: 15000 })
 }
 
 /** Clicks an answer and waits for vote_message_poll to land. */

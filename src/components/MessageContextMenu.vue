@@ -1,36 +1,43 @@
 <template>
-  <!-- Teleport to body so the menu is never clipped by an ancestor's
-       overflow/transform context, and so it sits ABOVE other portaled
-       UI like the mobile floating message-actions toolbar (which is
-       also teleported to body and would otherwise paint over us by
-       virtue of appearing later in the DOM). -->
-  <Teleport to="body">
-  <div 
-    v-if="isVisible" 
-    ref="menuRef"
+  <!-- AppMenu teleports to <body>: no ancestor overflow or transform clips it,
+       and it stacks above other portaled UI such as the mobile floating
+       message-actions toolbar. -->
+  <AppMenu
+    v-if="isVisible && message"
     class="context-menu"
-    :style="menuStyle"
+    data-testid="message-context-menu"
+    :x="position.x"
+    :y="position.y"
+    :trigger="trigger"
+    :label="t('messageA11y.menu.label')"
+    @close="$emit('close')"
     @click.stop
-    v-click-outside="() => $emit('close')"
   >
     <!-- Quick Reactions -->
-    <div class="quick-reactions-row">
+    <div class="quick-reactions-row" role="group" :aria-label="t('messageA11y.menu.quickReactions')">
       <button
         v-for="emoji in quickReactionEmojis"
         :key="emoji.id || emoji.native"
+        type="button"
+        role="menuitem"
         class="quick-reaction-btn"
+        :aria-label="t('messageA11y.menu.reactWith', { emoji: quickReactionName(emoji) })"
+        :title="quickReactionName(emoji)"
         @click="addQuickReaction(emoji)"
-        :title="emoji.name"
       >
-        <img v-if="(emoji as any).url" :src="getEmojiUrl((emoji as any).url, 32)" :alt="emoji.name" class="quick-reaction-custom-emoji" />
-        <template v-else>{{ (emoji as any).native || emoji.name }}</template>
+        <img v-if="(emoji as any).url" :src="getEmojiUrl((emoji as any).url, 32)" alt="" class="quick-reaction-custom-emoji" />
+        <span v-else aria-hidden="true">{{ (emoji as any).native || emoji.name }}</span>
       </button>
-      <button 
+      <button
+        type="button"
+        role="menuitem"
         class="quick-reaction-btn more-btn"
+        :aria-label="t('messageA11y.menu.moreReactions')"
+        :title="t('messageA11y.menu.moreReactions')"
+        aria-haspopup="dialog"
         @click="openEmojiPicker"
-        title="More reactions"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <circle cx="12" cy="12" r="10"/>
           <line x1="12" y1="8" x2="12" y2="16"/>
           <line x1="8" y1="12" x2="16" y2="12"/>
@@ -38,43 +45,43 @@
       </button>
     </div>
     
-    <div class="context-menu-divider"></div>
+    <div class="context-menu-divider" role="separator"></div>
 
     <!-- Primary actions: full-fidelity emoji picker, reply, edit, thread.
          These mirror what the floating message-actions toolbar exposes,
          so right-clicking a message gives the same affordances as
          hovering it - just always discoverable. -->
-    <div class="context-menu-item" @click="openEmojiPicker">
+    <button type="button" role="menuitem" class="context-menu-item" aria-haspopup="dialog" @click="openEmojiPicker">
       <ReactionIcon />
-      <span>Add reaction</span>
-    </div>
+      <span>{{ t('message.react') }}</span>
+    </button>
 
-    <div v-if="hasReactions" class="context-menu-item" data-testid="context-menu-view-reactions" @click="viewReactions">
+    <button v-if="hasReactions" type="button" role="menuitem" class="context-menu-item" aria-haspopup="dialog" data-testid="context-menu-view-reactions" @click="viewReactions">
       <Icon name="smile" size="sm" />
       <span>{{ $t('message.reactions.view') }}</span>
-    </div>
+    </button>
 
-    <div v-if="canReply" class="context-menu-item" @click="reply">
+    <button v-if="canReply" type="button" role="menuitem" class="context-menu-item" @click="reply">
       <ReplyIcon />
-      <span>Reply</span>
-    </div>
+      <span>{{ t('message.reply') }}</span>
+    </button>
 
-    <div v-if="canEdit" class="context-menu-item" @click="edit">
+    <button v-if="canEdit" type="button" role="menuitem" class="context-menu-item" @click="edit">
       <EditIcon />
-      <span>Edit message</span>
-    </div>
+      <span>{{ t('message.editMessage') }}</span>
+    </button>
 
-    <div v-if="canCreateThread" class="context-menu-item" @click="createThread">
+    <button v-if="canCreateThread" type="button" role="menuitem" class="context-menu-item" @click="createThread">
       <ThreadIcon />
-      <span>Create thread</span>
-    </div>
+      <span>{{ t('messageA11y.actions.thread') }}</span>
+    </button>
 
-    <div class="context-menu-divider"></div>
+    <div class="context-menu-divider" role="separator"></div>
 
-    <div v-if="hasTextContent" class="context-menu-item" @click="copyText">
+    <button v-if="hasTextContent" type="button" role="menuitem" class="context-menu-item" @click="copyText">
       <Icon name="copy" size="sm" />
       <span>Copy text</span>
-    </div>
+    </button>
 
     <!-- Image-specific actions. When the message has multiple image
          attachments we operate on the first one - that's the same image
@@ -82,85 +89,84 @@
          when right-clicking the message body (vs right-clicking a
          specific image, which is a separate per-image menu). -->
     <template v-if="firstImageAttachment">
-      <div class="context-menu-item" @click="copyImage">
+      <button type="button" role="menuitem" class="context-menu-item" @click="copyImage">
         <Icon name="copy" size="sm" />
         <span>Copy image</span>
-      </div>
+      </button>
 
-      <div class="context-menu-item" @click="saveImage">
+      <button type="button" role="menuitem" class="context-menu-item" @click="saveImage">
         <Icon name="download" size="sm" />
         <span>Save image</span>
-      </div>
+      </button>
     </template>
 
     <template v-if="firstVideoAttachment">
-      <div class="context-menu-item" @click="saveVideo">
+      <button type="button" role="menuitem" class="context-menu-item" @click="saveVideo">
         <Icon name="download" size="sm" />
         <span>Save video</span>
-      </div>
+      </button>
     </template>
 
     <template v-if="firstAudioAttachment">
-      <div class="context-menu-item" @click="saveAudio">
+      <button type="button" role="menuitem" class="context-menu-item" @click="saveAudio">
         <Icon name="download" size="sm" />
         <span>Save audio</span>
-      </div>
+      </button>
     </template>
 
     <template v-if="hasMediaURL">
-      <div class="context-menu-item" @click="copyLinkURL">
+      <button type="button" role="menuitem" class="context-menu-item" @click="copyLinkURL">
         <Icon name="link" size="sm" />
         <span>{{ mediaUrlLabel }}</span>
-      </div>
+      </button>
     </template>
 
-    <div class="context-menu-item" @click="copyMessageURL">
+    <button type="button" role="menuitem" class="context-menu-item" @click="copyMessageURL">
       <Icon name="link" size="sm" />
       <span>Copy message link</span>
-    </div>
+    </button>
 
-    <div v-if="canToggleEmbeds" class="context-menu-item" data-testid="context-menu-toggle-embeds" @click="toggleEmbeds">
+    <button v-if="canToggleEmbeds" type="button" role="menuitem" class="context-menu-item" data-testid="context-menu-toggle-embeds" @click="toggleEmbeds">
       <Icon :name="isEmbedsSuppressed ? 'eye' : 'eye-off'" size="sm" />
       <span>{{ isEmbedsSuppressed ? $t('message.embeds.show') : $t('message.embeds.remove') }}</span>
-    </div>
+    </button>
 
     <template v-if="canPin">
-      <div class="context-menu-item" @click="togglePin">
+      <button type="button" role="menuitem" class="context-menu-item" @click="togglePin">
         <Icon :name="isPinned ? 'pin-off' : 'pin'" size="sm" />
-        <span>{{ isPinned ? 'Unpin message' : 'Pin message' }}</span>
-      </div>
+        <span>{{ isPinned ? t('message.unpinMessage') : t('message.pinMessage') }}</span>
+      </button>
     </template>
 
     <!-- Destructive actions, grouped in their own section so they're
          visually separated from the safe ones above. -->
     <template v-if="canDelete || canReport">
-      <div class="context-menu-divider"></div>
+      <div class="context-menu-divider" role="separator"></div>
 
-      <div v-if="canDelete" class="context-menu-item destructive-item" @click="deleteMessage">
+      <button v-if="canDelete" type="button" role="menuitem" class="context-menu-item destructive-item" aria-haspopup="dialog" @click="deleteMessage">
         <DeleteIcon />
-        <span>Delete message</span>
-      </div>
+        <span>{{ t('message.deleteMessage') }}</span>
+      </button>
 
-      <div v-if="canReport" class="context-menu-item destructive-item" @click="reportMessage">
+      <button v-if="canReport" type="button" role="menuitem" class="context-menu-item destructive-item" aria-haspopup="dialog" @click="reportMessage">
         <Icon name="flag" size="sm" />
         <span>Report message</span>
-      </div>
+      </button>
     </template>
 
     <template v-if="developerToolsEnabled">
-      <div class="context-menu-divider"></div>
+      <div class="context-menu-divider" role="separator"></div>
       
-      <div class="context-menu-item" @click="copyRawData">
+      <button type="button" role="menuitem" class="context-menu-item" @click="copyRawData">
         <Icon name="copy" size="sm" />
         <span>{{ $t('settings.advanced.copyRawData') }}</span>
-      </div>
+      </button>
     </template>
-  </div>
-  </Teleport>
+  </AppMenu>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue';
+import { computed } from 'vue';
 import { debug } from '@/utils/debug'
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useHapticSettings } from '@/composables/useHapticSettings';
@@ -183,10 +189,15 @@ import ReplyIcon from '@/components/icons/Reply.vue';
 import ThreadIcon from '@/components/icons/Thread.vue';
 import EditIcon from '@/components/icons/Edit.vue';
 import DeleteIcon from '@/components/icons/Delete.vue';
+import AppMenu from '@/components/a11y/AppMenu.vue';
+import { useT } from '@/composables/useT';
+import { spokenEmojiName } from '@/utils/a11y/emojiNames';
 
 interface Props {
   isVisible: boolean;
   position: { x: number; y: number };
+  /** Where focus returns when the menu closes; default the element focused at opening. */
+  trigger?: HTMLElement | null;
   message: Message | null;
   serverId?: string;
   channelId?: string;
@@ -203,14 +214,14 @@ interface Props {
   canDelete?: boolean;
 }
 
-const menuRef = ref<HTMLElement | null>(null)
-const adjustedPosition = ref({ x: 0, y: 0 })
-
 const props = withDefaults(defineProps<Props>(), {
   hideThreadActions: false,
   canEdit: false,
   canDelete: false,
+  trigger: null,
 });
+
+const { t } = useT();
 
 // Tuple-based defineEmits is the modern Vue 3 syntax and plays better
 // with vue-tsc's `(...args: any[]) => any` listener-prop type than the
@@ -332,45 +343,6 @@ const firstAudioAttachment = computed(() => {
   return null;
 });
 
-const menuStyle = computed(() => ({
-  top: `${adjustedPosition.value.y}px`,
-  left: `${adjustedPosition.value.x}px`,
-}));
-
-// Watch for visibility changes to adjust position
-watch(() => props.isVisible, async (visible) => {
-  if (visible) {
-    adjustedPosition.value = { ...props.position }
-    
-    await nextTick()
-    
-    if (menuRef.value) {
-      const rect = menuRef.value.getBoundingClientRect()
-      const viewportWidth = window.innerWidth
-      const viewportHeight = window.innerHeight
-      const padding = 8
-      
-      let x = props.position.x
-      let y = props.position.y
-      
-      // Check right boundary
-      if (x + rect.width > viewportWidth - padding) {
-        x = viewportWidth - rect.width - padding
-      }
-      
-      // Check bottom boundary
-      if (y + rect.height > viewportHeight - padding) {
-        y = viewportHeight - rect.height - padding
-      }
-      
-      // Ensure not negative
-      x = Math.max(padding, x)
-      y = Math.max(padding, y)
-      
-      adjustedPosition.value = { x, y }
-    }
-  }
-});
 
 // Default emojis for quick reactions (used when no frequent emojis yet)
 const defaultQuickEmojis = [
@@ -379,6 +351,9 @@ const defaultQuickEmojis = [
   { id: '😂', native: '😂', name: 'laughing' },
   { id: '😮', native: '😮', name: 'wow' }
 ];
+
+const quickReactionName = (emoji: { name?: string; native?: string; url?: string }): string =>
+  spokenEmojiName({ name: emoji.name, url: emoji.url, native: emoji.native, shortcode: emoji.url ? undefined : emoji.name });
 
 const quickReactionEmojis = computed(() => {
   if (hasFrequentEmojis.value && topEmojisForContextMenu.value.length >= 4) {
@@ -403,7 +378,7 @@ const addQuickReaction = (emoji: any) => {
 };
 
 const openEmojiPicker = () => {
-  emit('open-emoji-picker', { ...adjustedPosition.value });
+  emit('open-emoji-picker', { ...props.position });
   emit('close');
 };
 
@@ -654,9 +629,9 @@ const copyRawData = async () => {
 };
 </script>
 
-<style scoped>
-.context-menu {
-  position: fixed;
+<style>
+/* The menu element is AppMenu's; scoped styles reach only the slot content. */
+.app-menu.context-menu {
   background: var(--background-floating);
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -668,7 +643,9 @@ const copyRawData = async () => {
      body, so DOM order alone isn't enough to guarantee we paint on top. */
   z-index: 1100;
 }
+</style>
 
+<style scoped>
 .quick-reactions-row {
   display: flex;
   align-items: center;
@@ -693,8 +670,14 @@ const copyRawData = async () => {
   overflow: hidden;
 }
 
-.quick-reaction-btn:hover {
+.quick-reaction-btn:hover,
+.quick-reaction-btn:focus-visible {
   background-color: var(--background-modifier-hover);
+}
+
+.quick-reaction-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
 }
 
 .quick-reaction-custom-emoji {
@@ -716,11 +699,15 @@ const copyRawData = async () => {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   padding: 8px 12px;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
   color: var(--text-secondary);
   cursor: pointer;
   font-size: 14px;
-  transition: background-color 0.1s ease;
 }
 
 /* Shared icons used in context rows should always inherit the row color
@@ -733,9 +720,11 @@ const copyRawData = async () => {
   cursor: inherit;
 }
 
-.context-menu-item:hover {
+.context-menu-item:hover,
+.context-menu-item:focus {
   background-color: var(--harmony-primary);
   color: var(--text-on-primary);
+  outline: none;
 }
 
 .context-menu-divider {
@@ -750,7 +739,8 @@ const copyRawData = async () => {
   color: var(--text-danger);
 }
 
-.context-menu-item.destructive-item:hover {
+.context-menu-item.destructive-item:hover,
+.context-menu-item.destructive-item:focus {
   background-color: var(--error);
   color: var(--text-on-primary);
 }

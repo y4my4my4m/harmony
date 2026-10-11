@@ -960,6 +960,138 @@
       "unmark": "Retirer le spoiler"
     }
   },
+  "messageA11y": {
+    "list": {
+      "channel": "Messages dans #{name}",
+      "conversation": "Messages avec {name}",
+      "thread": "Messages de ce fil",
+      "generic": "Messages"
+    },
+    "row": {
+      "blocked": "{count} message bloqué | {count} messages bloqués",
+      "showBlocked": "Afficher le message | Afficher les messages",
+      "reported": "Vous avez signalé ce message",
+      "showReported": "Afficher",
+      "unhideReported": "Ne plus masquer",
+      "fromBlocked": "{count} message d'un utilisateur bloqué | {count} messages d'un utilisateur bloqué",
+      "hide": "Masquer",
+      "reportedBanner": "Message signalé",
+      "hideAgain": "Masquer à nouveau",
+      "mentionsYou": "vous mentionne",
+      "edited": "modifié",
+      "pinned": "épinglé",
+      "encrypted": "chiffré de bout en bout",
+      "failed": "échec de l'envoi",
+      "sending": "envoi en cours"
+    },
+    "newMessagesDivider": "Nouveaux messages",
+    "actions": {
+      "label": "Actions du message",
+      "thread": "Créer un fil"
+    },
+    "failed": {
+      "label": "Échec de l'envoi",
+      "retry": "Réessayer",
+      "discard": "Supprimer",
+      "announce": "Un message n'a pas pu être envoyé. Réessayez ou supprimez-le dans la liste des messages."
+    },
+    "deleted": "Message supprimé",
+    "image": {
+      "noDescription": "Image sans description",
+      "open": "Afficher l'image en taille réelle",
+      "openIndexed": "Afficher l'image {index} sur {total} en taille réelle",
+      "gif": "GIF sans description",
+      "sticker": "Autocollant",
+      "emoji": "Emoji"
+    },
+    "menu": {
+      "label": "Options du message",
+      "quickReactions": "Réactions rapides",
+      "reactWith": "Réagir avec {emoji}",
+      "moreReactions": "Plus de réactions"
+    },
+    "reply": {
+      "prefix": "En réponse à"
+    },
+    "reactions": {
+      "pill": "{emoji}, {count} réaction | {emoji}, {count} réactions",
+      "pillYou": "{emoji}, {count} réaction, dont la vôtre | {emoji}, {count} réactions, dont la vôtre",
+      "hint": "La touche menu contextuel ou Maj+F10 affiche qui a réagi.",
+      "removed": "Réaction retirée : {emoji}"
+    },
+    "emoji": {
+      "reactionDialog": "Ajouter une réaction",
+      "dialog": "Sélecteur d'emoji",
+      "search": "Rechercher un emoji",
+      "searchHint": "Entrée choisit le premier résultat. La flèche bas passe aux emoji.",
+      "results": "{count} emoji trouvé | {count} emoji trouvés",
+      "noResults": "Aucun emoji trouvé"
+    },
+    "mediaPicker": {
+      "label": "GIF, autocollants et emoji"
+    },
+    "composer": {
+      "attach": "Ajouter une pièce jointe ou un sondage",
+      "attachMenu": "Joindre",
+      "gif": "Sélecteur de GIF",
+      "emoji": "Sélecteur d'emoji",
+      "nearLimit": "{count} caractère restant | {count} caractères restants",
+      "overLimit": "Message trop long de {count} caractère | Message trop long de {count} caractères",
+      "backUnderLimit": "Le message tient à nouveau, {count} caractère restant | Le message tient à nouveau, {count} caractères restants",
+      "suggestions": "{count} suggestion, choisissez avec les flèches haut et bas | {count} suggestions, choisissez avec les flèches haut et bas"
+    },
+    "upload": {
+      "done": "{name} envoyé",
+      "progress": "{name} : {percent} % envoyé",
+      "attached": "{count} fichier joint | {count} fichiers joints",
+      "removed": "{name} retiré",
+      "attachedCount": "{count} fichier joint | {count} fichiers joints",
+      "uploading": "Envoi en cours...",
+      "listLabel": "Pièces jointes",
+      "progressLabel": "Envoi de {name}",
+      "remove": "Retirer {name}"
+    },
+    "alt": {
+      "saved": "Description enregistrée pour {name}",
+      "removed": "Description retirée de {name}",
+      "title": "Décrire {name}",
+      "edit": "Modifier la description de {name}",
+      "add": "Ajouter une description à {name}",
+      "editShort": "Modifier la description",
+      "addShort": "Ajouter une description"
+    },
+    "encrypted": {
+      "lost": "Message chiffré qui ne peut plus être déchiffré",
+      "decrypt": "Message chiffré. Déchiffrer",
+      "decrypting": "Déchiffrement du message chiffré",
+      "locked": "Message chiffré. Déverrouillez le chiffrement dans Paramètres, Confidentialité et chiffrement, pour le lire."
+    },
+    "spoiler": {
+      "hidden": "Spoiler, masqué. Activez pour l'afficher",
+      "revealed": "Spoiler : {text}"
+    },
+    "speech": {
+      "encrypted": "message chiffré",
+      "spoiler": "spoiler",
+      "imageWithAlt": "image : {alt}",
+      "image": "image",
+      "videoWithAlt": "vidéo : {alt}",
+      "video": "vidéo",
+      "audio": "audio",
+      "file": "fichier {name}",
+      "poll": "sondage : {question}"
+    },
+    "announce": {
+      "one": "{name} : {text}",
+      "oneEmpty": "Nouveau message de {name}",
+      "andOthers": "{names} et {count} autre | {names} et {count} autres",
+      "many": "{count} nouveau message de {names} | {count} nouveaux messages de {names}"
+    },
+    "setting": {
+      "label": "Annoncer les nouveaux messages",
+      "description": "Les lecteurs d'écran lisent les messages qui arrivent dans le salon, la conversation ou le fil ouvert. Vos propres messages ne sont pas lus."
+    }
+  },
   "messageSearch": {
     "title": "Rechercher des messages",
     "intro": "Saisissez des mots à rechercher, ou affinez la recherche avec from:, mentions:, has:, in:, before:, during:, after: et pinned:.",

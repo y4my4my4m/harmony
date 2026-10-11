@@ -960,6 +960,138 @@
       "unmark": "스포일러 해제"
     }
   },
+  "messageA11y": {
+    "list": {
+      "channel": "#{name}의 메시지",
+      "conversation": "{name}님과의 메시지",
+      "thread": "이 스레드의 메시지",
+      "generic": "메시지"
+    },
+    "row": {
+      "blocked": "차단한 메시지 {count}개",
+      "showBlocked": "메시지 보기",
+      "reported": "이 메시지를 신고했습니다",
+      "showReported": "보기",
+      "unhideReported": "숨김 해제",
+      "fromBlocked": "차단한 사용자의 메시지 {count}개",
+      "hide": "숨기기",
+      "reportedBanner": "신고한 메시지",
+      "hideAgain": "다시 숨기기",
+      "mentionsYou": "나를 멘션함",
+      "edited": "수정됨",
+      "pinned": "고정됨",
+      "encrypted": "종단 간 암호화됨",
+      "failed": "전송 실패",
+      "sending": "전송 중"
+    },
+    "newMessagesDivider": "새 메시지",
+    "actions": {
+      "label": "메시지 작업",
+      "thread": "스레드 만들기"
+    },
+    "failed": {
+      "label": "전송 실패",
+      "retry": "다시 시도",
+      "discard": "삭제",
+      "announce": "메시지를 보내지 못했습니다. 메시지 목록에서 다시 시도하거나 삭제하세요."
+    },
+    "deleted": "메시지를 삭제했습니다",
+    "image": {
+      "noDescription": "이미지, 설명 없음",
+      "open": "이미지를 원본 크기로 보기",
+      "openIndexed": "이미지 {index}/{total}을(를) 원본 크기로 보기",
+      "gif": "GIF, 설명 없음",
+      "sticker": "스티커",
+      "emoji": "이모지"
+    },
+    "menu": {
+      "label": "메시지 옵션",
+      "quickReactions": "빠른 반응",
+      "reactWith": "{emoji}(으)로 반응",
+      "moreReactions": "반응 더 보기"
+    },
+    "reply": {
+      "prefix": "답장 대상"
+    },
+    "reactions": {
+      "pill": "{emoji}, 반응 {count}개",
+      "pillYou": "{emoji}, 나를 포함한 반응 {count}개",
+      "hint": "컨텍스트 메뉴 키나 Shift+F10을 누르면 반응한 사람을 볼 수 있습니다.",
+      "removed": "반응을 취소했습니다: {emoji}"
+    },
+    "emoji": {
+      "reactionDialog": "반응 추가",
+      "dialog": "이모지 선택기",
+      "search": "이모지 검색",
+      "searchHint": "Enter는 첫 번째 결과를 고릅니다. 아래쪽 화살표로 이모지로 이동합니다.",
+      "results": "이모지 {count}개를 찾았습니다",
+      "noResults": "이모지를 찾을 수 없습니다"
+    },
+    "mediaPicker": {
+      "label": "GIF, 스티커, 이모지"
+    },
+    "composer": {
+      "attach": "첨부 파일 또는 투표 추가",
+      "attachMenu": "첨부",
+      "gif": "GIF 선택기",
+      "emoji": "이모지 선택기",
+      "nearLimit": "{count}자 남음",
+      "overLimit": "메시지가 {count}자 초과했습니다",
+      "backUnderLimit": "메시지가 다시 들어갑니다. {count}자 남음",
+      "suggestions": "추천 {count}개, 위아래 화살표로 선택하세요"
+    },
+    "upload": {
+      "done": "{name} 업로드 완료",
+      "progress": "{name}: {percent}% 업로드됨",
+      "attached": "파일 {count}개를 첨부했습니다",
+      "removed": "{name}을(를) 제거했습니다",
+      "attachedCount": "파일 {count}개 첨부됨",
+      "uploading": "업로드 중...",
+      "listLabel": "첨부 파일",
+      "progressLabel": "{name} 업로드 중",
+      "remove": "{name} 제거"
+    },
+    "alt": {
+      "saved": "{name}의 설명을 저장했습니다",
+      "removed": "{name}의 설명을 제거했습니다",
+      "title": "{name} 설명",
+      "edit": "{name}의 설명 수정",
+      "add": "{name}에 설명 추가",
+      "editShort": "설명 수정",
+      "addShort": "설명 추가"
+    },
+    "encrypted": {
+      "lost": "더 이상 복호화할 수 없는 암호화된 메시지",
+      "decrypt": "암호화된 메시지. 복호화",
+      "decrypting": "암호화된 메시지를 복호화하는 중",
+      "locked": "암호화된 메시지. 읽으려면 설정의 개인정보 및 암호화에서 암호화를 잠금 해제하세요."
+    },
+    "spoiler": {
+      "hidden": "스포일러, 숨겨짐. 실행하면 표시",
+      "revealed": "스포일러: {text}"
+    },
+    "speech": {
+      "encrypted": "암호화된 메시지",
+      "spoiler": "스포일러",
+      "imageWithAlt": "이미지: {alt}",
+      "image": "이미지",
+      "videoWithAlt": "동영상: {alt}",
+      "video": "동영상",
+      "audio": "오디오",
+      "file": "파일 {name}",
+      "poll": "투표: {question}"
+    },
+    "announce": {
+      "one": "{name}: {text}",
+      "oneEmpty": "{name}님의 새 메시지",
+      "andOthers": "{names} 외 {count}명",
+      "many": "{names}님의 새 메시지 {count}개"
+    },
+    "setting": {
+      "label": "새 메시지 알려 주기",
+      "description": "열려 있는 채널, 대화, 스레드에 도착한 메시지를 화면 낭독기가 읽어 줍니다. 내 메시지는 읽지 않습니다."
+    }
+  },
   "messageSearch": {
     "title": "메시지 검색",
     "intro": "찾을 단어를 입력하거나 from:, mentions:, has:, in:, before:, during:, after:, pinned:로 검색 범위를 좁히세요.",

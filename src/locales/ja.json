@@ -960,6 +960,138 @@
       "unmark": "ネタバレを解除"
     }
   },
+  "messageA11y": {
+    "list": {
+      "channel": "#{name} のメッセージ",
+      "conversation": "{name} とのメッセージ",
+      "thread": "このスレッドのメッセージ",
+      "generic": "メッセージ"
+    },
+    "row": {
+      "blocked": "ブロックしたメッセージ {count} 件",
+      "showBlocked": "メッセージを表示",
+      "reported": "このメッセージを報告しました",
+      "showReported": "表示",
+      "unhideReported": "非表示を解除",
+      "fromBlocked": "ブロックしたユーザーのメッセージ {count} 件",
+      "hide": "非表示",
+      "reportedBanner": "報告したメッセージ",
+      "hideAgain": "再び非表示",
+      "mentionsYou": "あなたへのメンション",
+      "edited": "編集済み",
+      "pinned": "ピン留め",
+      "encrypted": "エンドツーエンド暗号化",
+      "failed": "送信失敗",
+      "sending": "送信中"
+    },
+    "newMessagesDivider": "新しいメッセージ",
+    "actions": {
+      "label": "メッセージの操作",
+      "thread": "スレッドを作成"
+    },
+    "failed": {
+      "label": "送信できませんでした",
+      "retry": "再試行",
+      "discard": "削除",
+      "announce": "メッセージを送信できませんでした。メッセージ一覧で再試行するか削除してください。"
+    },
+    "deleted": "メッセージを削除しました",
+    "image": {
+      "noDescription": "画像、説明なし",
+      "open": "画像を原寸で表示",
+      "openIndexed": "画像 {index}/{total} を原寸で表示",
+      "gif": "GIF、説明なし",
+      "sticker": "ステッカー",
+      "emoji": "絵文字"
+    },
+    "menu": {
+      "label": "メッセージのオプション",
+      "quickReactions": "クイックリアクション",
+      "reactWith": "{emoji} でリアクション",
+      "moreReactions": "その他のリアクション"
+    },
+    "reply": {
+      "prefix": "返信先"
+    },
+    "reactions": {
+      "pill": "{emoji}、{count} 件のリアクション",
+      "pillYou": "{emoji}、あなたを含む {count} 件のリアクション",
+      "hint": "コンテキストメニューキーまたは Shift+F10 でリアクションした人を表示します。",
+      "removed": "リアクションを取り消しました: {emoji}"
+    },
+    "emoji": {
+      "reactionDialog": "リアクションを追加",
+      "dialog": "絵文字ピッカー",
+      "search": "絵文字を検索",
+      "searchHint": "Enter で最初の結果を選択。下矢印で絵文字に移動します。",
+      "results": "{count} 件の絵文字が見つかりました",
+      "noResults": "絵文字が見つかりません"
+    },
+    "mediaPicker": {
+      "label": "GIF、ステッカー、絵文字"
+    },
+    "composer": {
+      "attach": "添付ファイルまたは投票を追加",
+      "attachMenu": "添付",
+      "gif": "GIF ピッカー",
+      "emoji": "絵文字ピッカー",
+      "nearLimit": "残り {count} 文字",
+      "overLimit": "メッセージが {count} 文字長すぎます",
+      "backUnderLimit": "メッセージが収まりました。残り {count} 文字",
+      "suggestions": "候補 {count} 件。上下の矢印キーで選択"
+    },
+    "upload": {
+      "done": "{name} をアップロードしました",
+      "progress": "{name}: {percent}% アップロード済み",
+      "attached": "{count} 件のファイルを添付しました",
+      "removed": "{name} を削除しました",
+      "attachedCount": "{count} 件のファイルを添付",
+      "uploading": "アップロード中...",
+      "listLabel": "添付ファイル",
+      "progressLabel": "{name} をアップロード中",
+      "remove": "{name} を削除"
+    },
+    "alt": {
+      "saved": "{name} の説明を保存しました",
+      "removed": "{name} の説明を削除しました",
+      "title": "{name} の説明",
+      "edit": "{name} の説明を編集",
+      "add": "{name} に説明を追加",
+      "editShort": "説明を編集",
+      "addShort": "説明を追加"
+    },
+    "encrypted": {
+      "lost": "復号できなくなった暗号化メッセージ",
+      "decrypt": "暗号化メッセージ。復号する",
+      "decrypting": "暗号化メッセージを復号中",
+      "locked": "暗号化メッセージ。読むには「設定」の「プライバシーと暗号化」で暗号化のロックを解除してください。"
+    },
+    "spoiler": {
+      "hidden": "ネタバレ、非表示。操作すると表示",
+      "revealed": "ネタバレ: {text}"
+    },
+    "speech": {
+      "encrypted": "暗号化メッセージ",
+      "spoiler": "ネタバレ",
+      "imageWithAlt": "画像: {alt}",
+      "image": "画像",
+      "videoWithAlt": "動画: {alt}",
+      "video": "動画",
+      "audio": "音声",
+      "file": "ファイル {name}",
+      "poll": "投票: {question}"
+    },
+    "announce": {
+      "one": "{name}: {text}",
+      "oneEmpty": "{name} から新しいメッセージ",
+      "andOthers": "{names} ほか {count} 人",
+      "many": "{names} から新しいメッセージ {count} 件"
+    },
+    "setting": {
+      "label": "新しいメッセージを読み上げる",
+      "description": "開いているチャンネル、会話、スレッドに届いたメッセージをスクリーンリーダーが読み上げます。自分のメッセージは読み上げません。"
+    }
+  },
   "messageSearch": {
     "title": "メッセージを検索",
     "intro": "検索する語句を入力するか、from:、mentions:、has:、in:、before:、during:、after:、pinned: で絞り込みます。",

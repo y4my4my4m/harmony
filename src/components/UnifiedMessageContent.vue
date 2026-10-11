@@ -1,5 +1,5 @@
 <template>
-  <div class="unified-content">
+  <div ref="rootRef" class="unified-content">
     <!-- Edit mode: RichTextEditor shows role/user mentions as colored pills -->
     <div v-if="editableMessageId === messageId" class="edit-container">
       <RichTextEditor
@@ -28,7 +28,7 @@
             v-if="isEditFileImage(file)"
             class="edit-attachment-thumb"
             :src="displayMediaUrl(file)"
-            :alt="file.fileName || 'attachment'"
+            :alt="imageAltText(file)"
           />
           <video
             v-else-if="isEditFileVideo(file)"
@@ -46,10 +46,11 @@
           <button
             type="button"
             class="edit-attachment-remove"
-            title="Remove attachment"
+            :title="t('messageA11y.upload.remove', { name: file.fileName || '' })"
+            :aria-label="t('messageA11y.upload.remove', { name: file.fileName || '' })"
             @click.stop="removeEditFile(fileIndex)"
           >
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
               <line x1="18" y1="6" x2="6" y2="18"/>
               <line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
@@ -111,6 +112,7 @@
               class="encrypted-no-decrypt encrypted-unrecoverable encrypted-glyphs"
               title="This message was encrypted with a previous key that no longer exists on this account, so it can't be decrypted."
             >
+              <span class="sr-only">{{ t('messageA11y.encrypted.lost') }}</span>
               <Icon name="lock" :size="12" class="unrecoverable-lock" aria-hidden="true" />
               <EncryptedGlyphPreview
                 :content="part.text || 'encrypted'"
@@ -119,13 +121,16 @@
               />
             </span>
             <!-- Clickable version (user has encryption set up) -->
-            <span 
+            <button
               v-else-if="canDecrypt"
+              type="button"
               class="encrypted-click-target encrypted-glyphs"
+              :aria-busy="decrypting ? 'true' : undefined"
               @click="handleDecryptClick"
               :title="decrypting ? 'Decrypting...' : 'Click to decrypt'"
             >
-              <span v-if="decrypting" class="decrypt-loading">
+              <span class="sr-only">{{ decrypting ? t('messageA11y.encrypted.decrypting') : t('messageA11y.encrypted.decrypt') }}</span>
+              <span v-if="decrypting" class="decrypt-loading" aria-hidden="true">
                 <Icon name="spinner" :size="20" class="decrypt-spinner" />
               </span>
               <EncryptedGlyphPreview
@@ -133,9 +138,10 @@
                 :message-id="messageId"
                 :decrypting="decrypting"
               />
-            </span>
+            </button>
             <!-- Non-clickable version (user doesn't have encryption) -->
             <span v-else class="encrypted-no-decrypt encrypted-glyphs">
+              <span class="sr-only">{{ t('messageA11y.encrypted.locked') }}</span>
               <EncryptedGlyphPreview
                 :content="part.text || 'encrypted'"
                 :message-id="messageId"
@@ -149,6 +155,7 @@
               class="text-content"
               v-html="segment.content"
               @click="revealTextSpoiler"
+              @keydown="onTextKeydown"
             ></span>
             <CodeBlock 
               v-else-if="segment.type === 'codeblock'"
@@ -159,8 +166,9 @@
         </template>
         
         <!-- User mentions (display name with @ prefix) -->
-        <span 
+        <button
           v-else-if="part && typeof part === 'object' && part.type === 'mention'" 
+          type="button"
           class="mention" 
           :class="{ 'bridged-mention': isBridgedMention(part), 'discord-mention': part.domain === 'discord.com', 'federated-mention': !!mentionSuffix(part) }"
           @click="handleMentionClick(part, $event)"
@@ -175,7 +183,7 @@
             v-if="mentionSuffix(part)"
             class="mention-domain"
           >@{{ mentionSuffix(part) }}</span>
-        </span>
+        </button>
 
         <!-- Role mentions -->
         <span
@@ -185,20 +193,22 @@
         >@{{ (part.roleName || 'Unknown Role').replace(/^@/, '') }}</span>
         
         <!-- Hashtags -->
-        <span
+        <button
           v-else-if="part && typeof part === 'object' && part.type === 'hashtag'"
+          type="button"
           class="hashtag"
           @click="handleHashtagClick(part.name, $event)"
           :title="`Used ${part.count || 0} times`"
-        >#{{ part.name }}</span>
+        >#{{ part.name }}</button>
 
         <!-- Channel references (server chat, Discord-style) -->
-        <span
+        <a
           v-else-if="part && typeof part === 'object' && part.type === 'channel_mention'"
           class="mention channel-mention"
+          :href="channelMentionHref(part)"
           :title="`Go to #${part.name}`"
-          @click="handleChannelMentionClick(part, $event)"
-        >#{{ part.name }}</span>
+          @click.prevent="handleChannelMentionClick(part, $event)"
+        >#{{ part.name }}</a>
         
         <!-- Custom emojis -->
         <img 
@@ -224,6 +234,7 @@
               <div v-if="!imageLoadedState[part.url]" class="media-skeleton image-skeleton"></div>
               <img
                 :src="displayMediaUrl(part.url)"
+                :alt="t('messageA11y.image.noDescription')"
                 @load="handleImageLoad(part.url)"
                 @error="onAttachmentMediaError(part.url)"
                 @click="$emit('open-lightbox', part.url)"
@@ -231,6 +242,12 @@
                 draggable="false"
                 class="content-image"
               />
+              <button
+                type="button"
+                class="media-open"
+                :aria-label="t('messageA11y.image.open')"
+                @click.stop="$emit('open-lightbox', part.url)"
+              ></button>
             </div>
           </div>
 
@@ -301,12 +318,19 @@
               <div v-if="!imageLoadedState[embedMedia(part)!.url]" class="media-skeleton image-skeleton"></div>
               <img
                 :src="embedMedia(part)!.url"
+                :alt="t('messageA11y.image.gif')"
                 @load="handleImageLoad(embedMedia(part)!.url)"
                 @click="$emit('open-lightbox', embedMedia(part)!.url)"
                 v-show="imageLoadedState[embedMedia(part)!.url]"
                 draggable="false"
                 class="content-image"
               />
+              <button
+                type="button"
+                class="media-open"
+                :aria-label="t('messageA11y.image.open')"
+                @click.stop="$emit('open-lightbox', embedMedia(part)!.url)"
+              ></button>
             </div>
           </div>
           <div
@@ -361,8 +385,11 @@
               @click="requestRemoveAttachment(part.url)"
             />
             <div v-if="!imageLoadedState[mediaLoadKey(part)]" class="media-skeleton image-skeleton"></div>
+            <!-- A covered spoiler is out of the accessibility tree until revealed. -->
             <img
               :src="displayMediaUrl(part)"
+              :alt="imageAltText(part)"
+              :aria-hidden="isHiddenSpoiler(part) ? 'true' : undefined"
               @load="handleImageLoad(mediaLoadKey(part))"
               @error="onAttachmentMediaError(part.url, part, 'thumbnail')"
               @click="!isStickerMedia(part.url) && $emit('open-lightbox', part.url)"
@@ -372,11 +399,18 @@
               :class="{ 'sticker-image': isStickerMedia(part.url), 'ai-emoji-image': isAiEmojiMedia(part.url) }"
             />
             <button
+              v-if="!isStickerMedia(part.url) && !isAiEmojiMedia(part.url) && !isHiddenSpoiler(part)"
+              type="button"
+              class="media-open"
+              :aria-label="t('messageA11y.image.open')"
+              @click.stop="$emit('open-lightbox', part.url)"
+            ></button>
+            <button
               v-if="isHiddenSpoiler(part)"
               type="button"
               class="media-spoiler-cover"
               :aria-label="t('message.spoiler.reveal')"
-              @click.stop="revealMediaSpoiler(part)"
+              @click.stop="revealMediaSpoiler(part, $event)"
             >{{ t('message.spoiler.label') }}</button>
             <MediaUploadProgress v-if="hasUpload(part)" :path="part.path!" />
             <!-- GIF/sticker Favorite Button (AI emoji are treated as plain emoji: no favorite) -->
@@ -387,8 +421,9 @@
               :class="{ 'favorited': isGifFavorited(part.url), 'visible': hoveredImageUrl === part.url || isGifFavorited(part.url) }"
               @click.stop="toggleGifFavorite(part.url)"
               :title="isGifFavorited(part.url) ? 'Remove from favorites' : 'Add to favorites'"
+              :aria-label="isGifFavorited(part.url) ? 'Remove from favorites' : 'Add to favorites'"
             >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
                 <path v-if="isGifFavorited(part.url)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
                 <path v-else d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
               </svg>
@@ -433,6 +468,9 @@
               controls
               class="content-video"
               preload="metadata"
+              :aria-label="part.altText || undefined"
+              :aria-hidden="isHiddenSpoiler(part) ? 'true' : undefined"
+              :tabindex="isHiddenSpoiler(part) ? -1 : undefined"
               @play="handleVideoPlay"
               @error="onAttachmentMediaError(part.url, part)"
             ></video>
@@ -441,7 +479,7 @@
               type="button"
               class="media-spoiler-cover"
               :aria-label="t('message.spoiler.reveal')"
-              @click.stop="revealMediaSpoiler(part)"
+              @click.stop="revealMediaSpoiler(part, $event)"
             >{{ t('message.spoiler.label') }}</button>
             <button
               v-if="floatingVideos.canPopOut(partIndex)"
@@ -463,8 +501,9 @@
               :class="{ 'favorited': isGifFavorited(part.url), 'visible': hoveredImageUrl === part.url || isGifFavorited(part.url) }"
               @click.stop="toggleGifFavorite(part.url)"
               :title="isGifFavorited(part.url) ? 'Remove from favorites' : 'Add to favorites'"
+              :aria-label="isGifFavorited(part.url) ? 'Remove from favorites' : 'Add to favorites'"
             >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
                 <path v-if="isGifFavorited(part.url)" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
                 <path v-else d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
               </svg>
@@ -551,29 +590,33 @@
         >
           <template v-if="part.event_type === 'join'">
             Everyone welcome 
-            <span 
-              class="system-username" 
+            <button
+              type="button"
+              class="system-username"
               @click="$emit('show-user-profile', part.user.id, $event)"
-            ><DisplayName :userId="part.user.id" :fallback="part.user.display_name || part.user.username" /></span>!
+            ><DisplayName :userId="part.user.id" :fallback="part.user.display_name || part.user.username" /></button>!
             <template v-if="part.initiated_by">
               They were invited by 
-              <span 
-                class="system-username" 
+              <button
+                type="button"
+                class="system-username"
                 @click="$emit('show-user-profile', part.initiated_by.id, $event)"
-              ><DisplayName :userId="part.initiated_by.id" :fallback="part.initiated_by.display_name || part.initiated_by.username" /></span>.
+              ><DisplayName :userId="part.initiated_by.id" :fallback="part.initiated_by.display_name || part.initiated_by.username" /></button>.
             </template>
           </template>
           <template v-else-if="part.event_type === 'leave'">
-            <span 
-              class="system-username" 
+            <button
+              type="button"
+              class="system-username"
               @click="$emit('show-user-profile', part.user.id, $event)"
-            ><DisplayName :userId="part.user.id" :fallback="part.user.display_name || part.user.username" /></span> has left the server.
+            ><DisplayName :userId="part.user.id" :fallback="part.user.display_name || part.user.username" /></button> has left the server.
           </template>
           <template v-else>
-            <span 
-              class="system-username" 
+            <button
+              type="button"
+              class="system-username"
               @click="$emit('show-user-profile', part.user.id, $event)"
-            ><DisplayName :userId="part.user.id" :fallback="part.user.display_name || part.user.username" /></span> {{ part.event_type }}
+            ><DisplayName :userId="part.user.id" :fallback="part.user.display_name || part.user.username" /></button> {{ part.event_type }}
           </template>
         </span>
 
@@ -598,7 +641,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, watch, ref, nextTick, reactive, onMounted, onUnmounted, computed, shallowRef, effectScope, type EffectScope } from 'vue';
+import { defineComponent, watch, ref, nextTick, reactive, onMounted, onUpdated, onUnmounted, computed, shallowRef, effectScope, type EffectScope } from 'vue';
 import type { PropType } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { EmbedPayload, MessagePart, FileContent } from '@/types';
@@ -655,6 +698,8 @@ import {
   parseKlipyKind,
 } from '@/utils/klipyAttribution';
 import { runtimeConfig } from '@/services/runtimeConfig';
+import { useAnnouncer } from '@/composables/useAnnouncer';
+import { focusElement } from '@/utils/a11y/focus';
 
 export default defineComponent({
   name: 'UnifiedMessageContent',
@@ -786,14 +831,66 @@ export default defineComponent({
     const revealedMediaSpoilers = reactive(new Set<string>());
     const isHiddenSpoiler = (part: { fileName?: string; url?: string; path?: string }) =>
       isSpoilerFileName(part.fileName) && !revealedMediaSpoilers.has(part.path || part.url || '');
-    const revealMediaSpoiler = (part: { url?: string; path?: string }) => {
+    // The cover unmounts on reveal; focus moves to the media it covered.
+    const revealMediaSpoiler = (part: { url?: string; path?: string }, event?: MouseEvent) => {
+      const frame = event?.currentTarget instanceof HTMLElement ? event.currentTarget.closest('.media-frame') : null;
+      const hadFocus = !!frame && frame.contains(document.activeElement);
       revealedMediaSpoilers.add(part.path || part.url || '');
+      if (hadFocus) nextTick(() => focusElement(frame?.querySelector<HTMLElement>('.media-open, video') ?? null));
+    };
+
+    // Text spoilers come from v-html, whose sanitizer keeps no ARIA. Covered
+    // ones become buttons named "Spoiler, hidden" whose text stays out of the
+    // accessibility tree (a button's content is presentational); revealing one
+    // turns it back into text and speaks it.
+    const rootRef = ref<HTMLElement | null>(null);
+    const { polite } = useAnnouncer();
+    const enhanceTextSpoilers = () => {
+      const root = rootRef.value;
+      if (!root) return;
+      for (const spoiler of Array.from(root.querySelectorAll<HTMLElement>('.md-spoiler:not(.revealed):not([role])'))) {
+        spoiler.setAttribute('role', 'button');
+        spoiler.setAttribute('tabindex', '0');
+        spoiler.setAttribute('aria-expanded', 'false');
+        spoiler.setAttribute('aria-label', t('messageA11y.spoiler.hidden'));
+      }
+    };
+    onMounted(enhanceTextSpoilers);
+    onUpdated(enhanceTextSpoilers);
+
+    const revealSpoilerElement = (spoiler: HTMLElement) => {
+      spoiler.classList.add('revealed');
+      spoiler.removeAttribute('role');
+      spoiler.removeAttribute('aria-label');
+      spoiler.removeAttribute('aria-expanded');
+      if (spoiler.hasAttribute('tabindex')) spoiler.setAttribute('tabindex', '-1');
     };
     const revealTextSpoiler = (event: MouseEvent) => {
-      const spoiler = (event.target as HTMLElement | null)?.closest('.md-spoiler');
+      const spoiler = (event.target as HTMLElement | null)?.closest<HTMLElement>('.md-spoiler');
       if (!spoiler || spoiler.classList.contains('revealed')) return;
-      spoiler.classList.add('revealed');
+      revealSpoilerElement(spoiler);
       event.stopPropagation();
+    };
+    const onTextKeydown = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const spoiler = (event.target as HTMLElement | null)?.closest<HTMLElement>('.md-spoiler[role="button"]');
+      if (!spoiler) return;
+      event.preventDefault();
+      event.stopPropagation();
+      revealSpoilerElement(spoiler);
+      polite(t('messageA11y.spoiler.revealed', { text: (spoiler.textContent ?? '').trim() }));
+    };
+
+    // Text alternative of an image part: its description, else what it is. The
+    // file name is never used.
+    const imageAltText = (part: { url?: string; altText?: unknown }): string => {
+      const alt = typeof part.altText === 'string' ? part.altText.trim() : '';
+      if (alt) return alt;
+      const url = part.url ?? '';
+      if (isStickerMessageUrl(url)) return t('messageA11y.image.sticker');
+      if (isAiEmojiMessageUrl(url)) return t('messageA11y.image.emoji');
+      if (isAnimatedImage(url)) return t('messageA11y.image.gif');
+      return t('messageA11y.image.noDescription');
     };
 
     // GIF favorites state
@@ -1315,6 +1412,12 @@ export default defineComponent({
       emit('hashtag-click', hashtag);
     };
 
+    const channelMentionHref = (part: any): string | undefined => {
+      if (!part?.channelId || !part?.serverId) return undefined;
+      const query = part.messageId ? `?messageId=${encodeURIComponent(part.messageId)}` : '';
+      return `/chat/${part.serverId}/${part.channelId}${query}`;
+    };
+
     const handleChannelMentionClick = async (part: any, event: MouseEvent) => {
       event.stopPropagation();
       if (!part?.channelId || !part?.serverId) return;
@@ -1408,6 +1511,10 @@ export default defineComponent({
     };
 
     return {
+      rootRef,
+      onTextKeydown,
+      imageAltText,
+      channelMentionHref,
       isHiddenSpoiler,
       revealMediaSpoiler,
       revealTextSpoiler,
@@ -1619,6 +1726,58 @@ export default defineComponent({
 
 .url-link:hover {
   text-decoration: underline;
+}
+
+/* Mentions, hashtags and names are buttons (channel references links) set in
+   the text flow. */
+button.mention,
+button.hashtag,
+button.system-username,
+button.encrypted-click-target {
+  border: none;
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
+}
+
+button.system-username,
+button.encrypted-click-target {
+  padding: 0;
+  background: none;
+}
+
+button.encrypted-click-target {
+  color: inherit;
+}
+
+a.channel-mention {
+  text-decoration: none;
+}
+
+.mention:focus-visible,
+.hashtag:focus-visible,
+.system-username:focus-visible,
+.encrypted-click-target:focus-visible,
+.text-content :deep(.md-spoiler:focus-visible) {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+/* Keyboard opener of the lightbox; pointer input reaches the image beneath. */
+.media-open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  pointer-events: none;
+}
+
+.media-open:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 /* User mentions */

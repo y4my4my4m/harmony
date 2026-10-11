@@ -960,6 +960,138 @@
       "unmark": "取消剧透"
     }
   },
+  "messageA11y": {
+    "list": {
+      "channel": "#{name} 中的消息",
+      "conversation": "与 {name} 的消息",
+      "thread": "此讨论串中的消息",
+      "generic": "消息"
+    },
+    "row": {
+      "blocked": "{count} 条已屏蔽的消息",
+      "showBlocked": "显示消息",
+      "reported": "你举报了这条消息",
+      "showReported": "显示",
+      "unhideReported": "取消隐藏",
+      "fromBlocked": "{count} 条来自已屏蔽用户的消息",
+      "hide": "隐藏",
+      "reportedBanner": "已举报的消息",
+      "hideAgain": "再次隐藏",
+      "mentionsYou": "提到了你",
+      "edited": "已编辑",
+      "pinned": "已置顶",
+      "encrypted": "端到端加密",
+      "failed": "发送失败",
+      "sending": "正在发送"
+    },
+    "newMessagesDivider": "新消息",
+    "actions": {
+      "label": "消息操作",
+      "thread": "创建讨论串"
+    },
+    "failed": {
+      "label": "发送失败",
+      "retry": "重试",
+      "discard": "删除",
+      "announce": "有一条消息发送失败。请在消息列表中重试或删除。"
+    },
+    "deleted": "消息已删除",
+    "image": {
+      "noDescription": "图片，无描述",
+      "open": "查看原尺寸图片",
+      "openIndexed": "查看第 {index} 张图片（共 {total} 张）的原尺寸",
+      "gif": "GIF，无描述",
+      "sticker": "贴纸",
+      "emoji": "表情"
+    },
+    "menu": {
+      "label": "消息选项",
+      "quickReactions": "快速回应",
+      "reactWith": "用 {emoji} 回应",
+      "moreReactions": "更多回应"
+    },
+    "reply": {
+      "prefix": "回复"
+    },
+    "reactions": {
+      "pill": "{emoji}，{count} 个回应",
+      "pillYou": "{emoji}，{count} 个回应，包括你",
+      "hint": "按上下文菜单键或 Shift+F10 查看谁做了回应。",
+      "removed": "已取消回应：{emoji}"
+    },
+    "emoji": {
+      "reactionDialog": "添加回应",
+      "dialog": "表情选择器",
+      "search": "搜索表情",
+      "searchHint": "按 Enter 选择第一个结果。按下箭头移到表情。",
+      "results": "找到 {count} 个表情",
+      "noResults": "未找到表情"
+    },
+    "mediaPicker": {
+      "label": "GIF、贴纸和表情"
+    },
+    "composer": {
+      "attach": "添加附件或投票",
+      "attachMenu": "附加",
+      "gif": "GIF 选择器",
+      "emoji": "表情选择器",
+      "nearLimit": "还剩 {count} 个字符",
+      "overLimit": "消息超出 {count} 个字符",
+      "backUnderLimit": "消息长度恢复正常，还剩 {count} 个字符",
+      "suggestions": "{count} 条建议，使用上下箭头选择"
+    },
+    "upload": {
+      "done": "{name} 已上传",
+      "progress": "{name}：已上传 {percent}%",
+      "attached": "已附加 {count} 个文件",
+      "removed": "已移除 {name}",
+      "attachedCount": "已附加 {count} 个文件",
+      "uploading": "正在上传...",
+      "listLabel": "附件",
+      "progressLabel": "正在上传 {name}",
+      "remove": "移除 {name}"
+    },
+    "alt": {
+      "saved": "已保存 {name} 的描述",
+      "removed": "已移除 {name} 的描述",
+      "title": "描述 {name}",
+      "edit": "编辑 {name} 的描述",
+      "add": "为 {name} 添加描述",
+      "editShort": "编辑描述",
+      "addShort": "添加描述"
+    },
+    "encrypted": {
+      "lost": "已无法解密的加密消息",
+      "decrypt": "加密消息。解密",
+      "decrypting": "正在解密加密消息",
+      "locked": "加密消息。请在“设置”的“隐私与加密”中解锁加密后阅读。"
+    },
+    "spoiler": {
+      "hidden": "剧透，已隐藏。激活以显示",
+      "revealed": "剧透：{text}"
+    },
+    "speech": {
+      "encrypted": "加密消息",
+      "spoiler": "剧透",
+      "imageWithAlt": "图片：{alt}",
+      "image": "图片",
+      "videoWithAlt": "视频：{alt}",
+      "video": "视频",
+      "audio": "音频",
+      "file": "文件 {name}",
+      "poll": "投票：{question}"
+    },
+    "announce": {
+      "one": "{name}：{text}",
+      "oneEmpty": "来自 {name} 的新消息",
+      "andOthers": "{names} 等 {count} 人",
+      "many": "来自 {names} 的 {count} 条新消息"
+    },
+    "setting": {
+      "label": "播报新消息",
+      "description": "屏幕阅读器会朗读当前频道、对话或讨论串中收到的消息。不会朗读你自己的消息。"
+    }
+  },
   "messageSearch": {
     "title": "搜索消息",
     "intro": "输入要查找的词语，或使用 from:、mentions:、has:、in:、before:、during:、after: 和 pinned: 缩小搜索范围。",
