@@ -1,11 +1,28 @@
 <template>
   <Teleport to="body">
     <Transition name="theme-panel">
-      <div v-if="isOpen" class="theme-panel" role="dialog" aria-label="Customize theme">
+      <!-- Non-modal: the app behind stays visible and usable for the live preview. -->
+      <div
+        v-if="isOpen"
+        ref="panelRef"
+        class="theme-panel"
+        role="dialog"
+        :aria-labelledby="titleId"
+        :aria-describedby="descriptionId"
+        tabindex="-1"
+        data-testid="theme-editor-panel"
+      >
         <div class="theme-panel-header">
-          <h3 class="theme-panel-title">Customize your theme</h3>
-          <button class="theme-panel-close" title="Close" @click="cancelAndClose">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+          <h3 :id="titleId" class="theme-panel-title">{{ t('settings.appearance.panel.title') }}</h3>
+          <button
+            type="button"
+            class="theme-panel-close"
+            :aria-label="t('settings.appearance.panel.close')"
+            :title="t('settings.appearance.panel.close')"
+            data-testid="theme-editor-close"
+            @click="cancelAndClose"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
@@ -13,24 +30,28 @@
 
         <div class="theme-panel-body">
           <div class="theme-panel-scroll">
-          <p class="theme-panel-hint">
-            Changes preview live on the app behind this panel. Click Apply to keep them.
+          <p :id="descriptionId" class="theme-panel-hint">
+            {{ t('settings.appearance.panel.hint') }}
           </p>
 
           <!-- Mode -->
           <div class="tp-section">
-            <label class="tp-label">Appearance</label>
-            <div class="tp-mode-toggle">
+            <span :id="`${baseId}-mode`" class="tp-label">{{ t('settings.appearance.themeMode') }}</span>
+            <div class="tp-mode-toggle" role="group" :aria-labelledby="`${baseId}-mode`">
               <button
+                type="button"
                 class="tp-mode-btn"
                 :class="{ active: working.customThemeMode === 'dark' }"
+                :aria-pressed="working.customThemeMode === 'dark' ? 'true' : 'false'"
                 @click="setMode('dark')"
-              >Dark</button>
+              >{{ t('settings.appearance.themes.dark') }}</button>
               <button
+                type="button"
                 class="tp-mode-btn"
                 :class="{ active: working.customThemeMode === 'light' }"
+                :aria-pressed="working.customThemeMode === 'light' ? 'true' : 'false'"
                 @click="setMode('light')"
-              >Light</button>
+              >{{ t('settings.appearance.themes.light') }}</button>
             </div>
           </div>
 
@@ -48,47 +69,54 @@
                 type="button"
                 class="tp-collapse-header"
                 :class="{ open: expanded.background }"
+                :aria-expanded="expanded.background ? 'true' : 'false'"
+                :aria-controls="`${baseId}-background`"
                 @click="expanded.background = !expanded.background"
               >
                 <span class="tp-collapse-swatch" :style="{ backgroundColor: working.customBackgroundColor }" />
                 <span class="tp-collapse-label">
-                  <span class="tp-collapse-title">Background</span>
-                  <span class="tp-collapse-hint">Tone, lightness &amp; saturation</span>
+                  <span class="tp-collapse-title">{{ t('settings.appearance.colors.background') }}</span>
+                  <span class="tp-collapse-hint">{{ t('settings.appearance.colors.backgroundHint') }}</span>
                 </span>
                 <span class="tp-collapse-hex">{{ working.customBackgroundColor }}</span>
-                <span class="tp-toggle-arrow" :class="{ open: expanded.background }">&#9660;</span>
+                <span class="tp-toggle-arrow" :class="{ open: expanded.background }" aria-hidden="true">&#9660;</span>
               </button>
-              <div v-show="expanded.background" class="tp-collapse-body">
+              <div v-show="expanded.background" :id="`${baseId}-background`" class="tp-collapse-body">
                 <ColorPicker
                   :color="working.customBackgroundColor"
+                  :label="t('settings.appearance.colors.backgroundColor')"
                   @update:color="onColor('customBackgroundColor', $event)"
                   @change="onColor('customBackgroundColor', $event)"
                 />
                 <div class="tp-slider-block">
-                  <label class="tp-slider-label">Lightness</label>
+                  <label :for="`${baseId}-lightness`" class="tp-slider-label">{{ t('settings.appearance.lightness') }}</label>
                   <div class="tp-slider-row">
-                    <span class="tp-slider-end">Darker</span>
+                    <span class="tp-slider-end" aria-hidden="true">{{ t('settings.appearance.darker') }}</span>
                     <input
+                      :id="`${baseId}-lightness`"
                       type="range" min="-50" max="50" step="1"
                       v-model.number="working.customBackgroundLightness"
+                      :aria-valuetext="toneValueText(working.customBackgroundLightness, 'settings.appearance.darker', 'settings.appearance.lighter')"
                       @input="onBackgroundToneSlidersChange"
                     />
-                    <span class="tp-slider-end">Lighter</span>
+                    <span class="tp-slider-end" aria-hidden="true">{{ t('settings.appearance.lighter') }}</span>
                   </div>
-                  <div class="tp-slider-value">{{ working.customBackgroundLightness > 0 ? '+' : '' }}{{ working.customBackgroundLightness }}</div>
+                  <div class="tp-slider-value" aria-hidden="true">{{ working.customBackgroundLightness > 0 ? '+' : '' }}{{ working.customBackgroundLightness }}</div>
                 </div>
                 <div class="tp-slider-block">
-                  <label class="tp-slider-label">Saturation</label>
+                  <label :for="`${baseId}-chroma`" class="tp-slider-label">{{ t('settings.appearance.saturation') }}</label>
                   <div class="tp-slider-row">
-                    <span class="tp-slider-end">Muted</span>
+                    <span class="tp-slider-end" aria-hidden="true">{{ t('settings.appearance.muted') }}</span>
                     <input
+                      :id="`${baseId}-chroma`"
                       type="range" min="-30" max="30" step="1"
                       v-model.number="working.customBackgroundChroma"
+                      :aria-valuetext="toneValueText(working.customBackgroundChroma, 'settings.appearance.muted', 'settings.appearance.vivid')"
                       @input="onBackgroundToneSlidersChange"
                     />
-                    <span class="tp-slider-end">Vivid</span>
+                    <span class="tp-slider-end" aria-hidden="true">{{ t('settings.appearance.vivid') }}</span>
                   </div>
-                  <div class="tp-slider-value">{{ working.customBackgroundChroma > 0 ? '+' : '' }}{{ working.customBackgroundChroma }}</div>
+                  <div class="tp-slider-value" aria-hidden="true">{{ working.customBackgroundChroma > 0 ? '+' : '' }}{{ working.customBackgroundChroma }}</div>
                 </div>
               </div>
             </div>
@@ -99,40 +127,45 @@
                 type="button"
                 class="tp-collapse-header"
                 :class="{ open: expanded.primary }"
+                :aria-expanded="expanded.primary ? 'true' : 'false'"
+                :aria-controls="`${baseId}-primary`"
                 @click="expanded.primary = !expanded.primary"
               >
                 <span class="tp-collapse-swatch" :style="{ backgroundColor: working.customPrimaryColor }" />
                 <span class="tp-collapse-label">
-                  <span class="tp-collapse-title">Primary</span>
-                  <span class="tp-collapse-hint">Buttons &amp; key actions</span>
+                  <span class="tp-collapse-title">{{ t('settings.appearance.colors.primary') }}</span>
+                  <span class="tp-collapse-hint">{{ t('settings.appearance.colors.primaryHint') }}</span>
                 </span>
                 <span class="tp-collapse-hex">{{ working.customPrimaryColor }}</span>
-                <span class="tp-toggle-arrow" :class="{ open: expanded.primary }">&#9660;</span>
+                <span class="tp-toggle-arrow" :class="{ open: expanded.primary }" aria-hidden="true">&#9660;</span>
               </button>
-              <div v-show="expanded.primary" class="tp-collapse-body">
+              <div v-show="expanded.primary" :id="`${baseId}-primary`" class="tp-collapse-body">
                 <ColorPicker
                   :color="working.customPrimaryColor"
+                  :label="t('settings.appearance.colors.primaryColor')"
                   @update:color="onColor('customPrimaryColor', $event)"
                   @change="onColor('customPrimaryColor', $event)"
                 />
                 <div class="tp-contrast">
                   <span
                     class="tp-contrast-sample"
+                    aria-hidden="true"
                     :style="{ background: working.customPrimaryColor, color: primaryLabelColor }"
                   >Aa</span>
                   <span class="tp-contrast-text">
-                    <span>Label {{ primaryLabelRatio.toFixed(1) }}:1</span>
+                    <span>{{ t('settings.appearance.panel.labelContrast', { ratio: primaryLabelRatio.toFixed(1) }) }}</span>
                     <span :class="{ 'tp-contrast-low': primaryOnSurfaceRatio < PRIMARY_ON_SURFACE_MIN }">
-                      On background {{ primaryOnSurfaceRatio.toFixed(1) }}:1
+                      {{ t('settings.appearance.panel.surfaceContrast', { ratio: primaryOnSurfaceRatio.toFixed(1) }) }}
                     </span>
                   </span>
                   <button
                     v-if="primaryOnSurfaceRatio < PRIMARY_ON_SURFACE_MIN"
                     type="button"
                     class="tp-contrast-fix"
-                    title="Adjust lightness until links and icons in this colour reach 3:1 on the background"
+                    :aria-label="t('settings.appearance.panel.fixContrast')"
+                    :title="t('settings.appearance.panel.fixContrastHint')"
                     @click="fixPrimaryContrast"
-                  >Fix</button>
+                  >{{ t('settings.appearance.panel.fix') }}</button>
                 </div>
               </div>
             </div>
@@ -143,19 +176,22 @@
                 type="button"
                 class="tp-collapse-header"
                 :class="{ open: expanded.accent }"
+                :aria-expanded="expanded.accent ? 'true' : 'false'"
+                :aria-controls="`${baseId}-accent`"
                 @click="expanded.accent = !expanded.accent"
               >
                 <span class="tp-collapse-swatch" :style="{ backgroundColor: working.customAccentColor }" />
                 <span class="tp-collapse-label">
-                  <span class="tp-collapse-title">Accent</span>
-                  <span class="tp-collapse-hint">Links &amp; highlights</span>
+                  <span class="tp-collapse-title">{{ t('settings.appearance.colors.accent') }}</span>
+                  <span class="tp-collapse-hint">{{ t('settings.appearance.colors.accentHint') }}</span>
                 </span>
                 <span class="tp-collapse-hex">{{ working.customAccentColor }}</span>
-                <span class="tp-toggle-arrow" :class="{ open: expanded.accent }">&#9660;</span>
+                <span class="tp-toggle-arrow" :class="{ open: expanded.accent }" aria-hidden="true">&#9660;</span>
               </button>
-              <div v-show="expanded.accent" class="tp-collapse-body">
+              <div v-show="expanded.accent" :id="`${baseId}-accent`" class="tp-collapse-body">
                 <ColorPicker
                   :color="working.customAccentColor"
+                  :label="t('settings.appearance.colors.accentColor')"
                   @update:color="onColor('customAccentColor', $event)"
                   @change="onColor('customAccentColor', $event)"
                 />
@@ -168,6 +204,8 @@
                 type="button"
                 class="tp-collapse-header"
                 :class="{ open: expanded.sidebar }"
+                :aria-expanded="expanded.sidebar ? 'true' : 'false'"
+                :aria-controls="`${baseId}-sidebar`"
                 @click="expanded.sidebar = !expanded.sidebar"
               >
                 <span
@@ -176,24 +214,22 @@
                   :style="{ backgroundColor: sidebarEnabled ? working.customSidebarColor : 'transparent' }"
                 />
                 <span class="tp-collapse-label">
-                  <span class="tp-collapse-title">Sidebar</span>
-                  <span class="tp-collapse-hint">{{ sidebarEnabled ? 'Separate rail tint' : 'Off — matches background' }}</span>
+                  <span class="tp-collapse-title">{{ t('settings.appearance.colors.sidebar') }}</span>
+                  <span class="tp-collapse-hint">{{ sidebarEnabled ? t('settings.appearance.colors.sidebarHintOn') : t('settings.appearance.colors.sidebarHintOff') }}</span>
                 </span>
                 <span v-if="sidebarEnabled" class="tp-collapse-hex">{{ working.customSidebarColor }}</span>
-                <span
-                  class="tp-collapse-enable"
-                  role="checkbox"
-                  :aria-checked="sidebarEnabled"
-                  title="Enable separate sidebar color"
-                  @click.stop="toggleSidebarEnabled"
-                >
-                  <input type="checkbox" v-model="sidebarEnabled" @change="onSidebarToggle" @click.stop />
-                </span>
-                <span class="tp-toggle-arrow" :class="{ open: expanded.sidebar }">&#9660;</span>
+                <span class="tp-toggle-arrow" :class="{ open: expanded.sidebar }" aria-hidden="true">&#9660;</span>
               </button>
-              <div v-show="expanded.sidebar && sidebarEnabled" class="tp-collapse-body">
+              <!-- The enable checkbox lives in the body: no control nests inside the header button. -->
+              <div v-show="expanded.sidebar" :id="`${baseId}-sidebar`" class="tp-collapse-body">
+                <label class="tp-toggle-row">
+                  <span class="tp-label-inline">{{ t('settings.appearance.colors.sidebarEnable') }}</span>
+                  <input v-model="sidebarEnabled" type="checkbox" data-testid="theme-editor-sidebar-toggle" @change="onSidebarToggle" />
+                </label>
                 <ColorPicker
+                  v-if="sidebarEnabled"
                   :color="working.customSidebarColor"
+                  :label="t('settings.appearance.colors.sidebarColor')"
                   @update:color="onColor('customSidebarColor', $event)"
                   @change="onColor('customSidebarColor', $event)"
                 />
@@ -206,21 +242,23 @@
                 type="button"
                 class="tp-collapse-header"
                 :class="{ open: expanded.advanced }"
+                :aria-expanded="expanded.advanced ? 'true' : 'false'"
+                :aria-controls="`${baseId}-advanced`"
                 @click="expanded.advanced = !expanded.advanced"
               >
-                <span class="tp-collapse-swatch tp-collapse-swatch-advanced">{ }</span>
+                <span class="tp-collapse-swatch tp-collapse-swatch-advanced" aria-hidden="true">{ }</span>
                 <span class="tp-collapse-label">
-                  <span class="tp-collapse-title">Advanced CSS</span>
-                  <span class="tp-collapse-hint">Override individual variables</span>
+                  <span class="tp-collapse-title">{{ t('settings.appearance.colors.advancedCss') }}</span>
+                  <span class="tp-collapse-hint">{{ t('settings.appearance.colors.advancedCssHint') }}</span>
                 </span>
                 <span v-if="overrideCount > 0" class="tp-override-badge">{{ overrideCount }}</span>
-                <span class="tp-toggle-arrow" :class="{ open: expanded.advanced }">&#9660;</span>
+                <span class="tp-toggle-arrow" :class="{ open: expanded.advanced }" aria-hidden="true">&#9660;</span>
               </button>
-              <div v-show="expanded.advanced" class="tp-collapse-body tp-css-vars">
+              <div v-show="expanded.advanced" :id="`${baseId}-advanced`" class="tp-collapse-body tp-css-vars">
                 <div v-if="overrideCount > 0" class="tp-overrides-toolbar">
-                  <span>{{ overrideCount }} override{{ overrideCount !== 1 ? 's' : '' }}</span>
+                  <span>{{ t('settings.appearance.overrides.count', { count: overrideCount }, overrideCount) }}</span>
                   <button type="button" class="tp-reset-overrides-btn" @click="resetAllOverrides">
-                    Reset all
+                    {{ t('settings.appearance.overrides.resetAll') }}
                   </button>
                 </div>
 
@@ -232,7 +270,7 @@
                     class="tp-var-item"
                     :class="{ 'has-override': working.customCssOverrides[varName] }"
                   >
-                    <label class="tp-var-name">{{ varName }}</label>
+                    <label :for="varInputId(varName)" class="tp-var-name">{{ varName }}</label>
                     <div class="tp-var-controls">
                       <CssVarSwatch
                         class="tp-var-swatch"
@@ -241,6 +279,7 @@
                         @pick="setCssOverrideFromInput(varName, $event)"
                       />
                       <input
+                        :id="varInputId(varName)"
                         type="text"
                         class="tp-var-text-input"
                         :class="{ invalid: invalidVar?.name === varName }"
@@ -253,10 +292,11 @@
                         v-if="working.customCssOverrides[varName]"
                         type="button"
                         class="tp-var-reset-btn"
-                        title="Reset to default"
+                        :aria-label="t('settings.appearance.resetVariable', { name: varName })"
+                        :title="t('settings.appearance.resetVariable', { name: varName })"
                         @click="removeCssOverrideVar(varName)"
                       >
-                        &#10005;
+                        <span aria-hidden="true">&#10005;</span>
                       </button>
                     </div>
                   </div>
@@ -268,8 +308,8 @@
         </div>
 
         <div class="theme-panel-footer">
-          <button class="tp-btn tp-btn-ghost" @click="resetWorking">Reset</button>
-          <button class="tp-btn tp-btn-primary" @click="applyAndPersist">Apply</button>
+          <button type="button" class="tp-btn tp-btn-ghost" @click="resetWorking">{{ t('common.reset') }}</button>
+          <button type="button" class="tp-btn tp-btn-primary" data-testid="theme-editor-apply" @click="applyAndPersist">{{ t('settings.appearance.panel.apply') }}</button>
         </div>
       </div>
     </Transition>
@@ -277,7 +317,8 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch, computed } from 'vue'
+import { reactive, ref, watch, computed, onBeforeUnmount } from 'vue'
+import { useI18n } from 'vue-i18n'
 import ColorPicker from '@/components/common/ColorPicker.vue'
 import CssVarSwatch from '@/components/settings/user/CssVarSwatch.vue'
 import ThemePaletteIdeas from '@/components/settings/user/ThemePaletteIdeas.vue'
@@ -296,9 +337,50 @@ import {
 import { PRIMARY_ON_SURFACE_MIN, contrastOnSurface, type ThemeColors } from '@/utils/themeHarmony'
 import { isValidCssColor } from '@/utils/cssColor'
 import { debug } from '@/utils/debug'
+import { MAIN_CONTENT_ID } from '@/composables/useRouteA11y'
+import { currentFocusOrigin, focusElement, focusProgrammatically, isVisibleForFocus, trackLastFocused, uid } from '@/utils/a11y/focus'
+import { pushLayer, resolveFocusOrigin } from '@/utils/a11y/layers'
 
+const { t } = useI18n()
 const { isOpen, close } = useThemeEditorPanel()
 const visualTheme = useVisualTheme()
+const baseId = uid('theme-panel')
+const panelRef = ref<HTMLElement | null>(null)
+
+// Non-modal dialog (APG): no inert background, no scroll lock, no aria-modal and
+// no Tab wrap; the live preview behind stays readable and usable. The layer kind
+// is 'popover': an open 'dialog' layer suspends F6 region cycling. Focus moves in
+// on open; Escape with focus inside cancels; on close focus returns to the
+// opener, else to the main landmark.
+const titleId = `${baseId}-title`
+const descriptionId = `${baseId}-desc`
+trackLastFocused()
+let opener: HTMLElement | null = null
+let releaseLayer: (() => void) | null = null
+
+watch(isOpen, (open, wasOpen) => {
+  if (open && !wasOpen) opener = resolveFocusOrigin(currentFocusOrigin())
+}, { flush: 'sync', immediate: true })
+
+watch(panelRef, (el, previous) => {
+  if (el && !releaseLayer) {
+    releaseLayer = pushLayer({ kind: 'popover', element: () => el, onEscape: () => cancelAndClose() })
+    if (!el.contains(document.activeElement)) focusProgrammatically(el)
+  } else if (!el && releaseLayer) {
+    releaseLayer()
+    releaseLayer = null
+    const focus = document.activeElement
+    const lost = !focus || focus === document.body || !!previous?.contains(focus)
+    if (!lost) return
+    const target = opener?.isConnected && isVisibleForFocus(opener) ? opener : document.getElementById(MAIN_CONTENT_ID)
+    if (target && !focusElement(target)) focusProgrammatically(target)
+  }
+}, { flush: 'post', immediate: true })
+
+onBeforeUnmount(() => {
+  releaseLayer?.()
+  releaseLayer = null
+})
 
 type Working = {
   customThemeMode: 'dark' | 'light'
@@ -402,6 +484,14 @@ function syncWorkingBackgroundToneFromPick(hex: string) {
 const getComputedVar = (varName: string): string =>
   getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || ''
 
+const varInputId = (varName: string): string => `${baseId}-var${varName.replace(/[^a-zA-Z0-9_-]/g, '')}`
+
+/** aria-valuetext for the signed tone sliders: "+10, Lighter", "-5, Darker", "0". */
+const toneValueText = (value: number, lowKey: string, highKey: string): string => {
+  if (!value) return '0'
+  return t('settings.appearance.toneValue', { value: value > 0 ? `+${value}` : `${value}`, direction: t(value > 0 ? highKey : lowKey) })
+}
+
 const getCssVarValue = (varName: string): string =>
   working.customCssOverrides[varName] || getComputedVar(varName)
 
@@ -485,11 +575,6 @@ const setMode = (mode: 'dark' | 'light') => {
 const onSidebarToggle = () => {
   if (sidebarEnabled.value) expanded.sidebar = true
   applyPreview()
-}
-
-const toggleSidebarEnabled = () => {
-  sidebarEnabled.value = !sidebarEnabled.value
-  onSidebarToggle()
 }
 
 const onBackgroundToneSlidersChange = () => {
@@ -792,20 +877,6 @@ const cancelAndClose = () => {
   font-size: 10px;
   color: var(--text-secondary);
   flex-shrink: 0;
-}
-
-.tp-collapse-enable {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  padding: 2px;
-}
-
-.tp-collapse-enable input {
-  width: 15px;
-  height: 15px;
-  cursor: pointer;
-  accent-color: var(--harmony-primary);
 }
 
 .tp-collapse-body {

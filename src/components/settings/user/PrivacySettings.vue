@@ -651,5 +651,6 @@ onMounted(async () => {
 
 .setting-description a {
   color: var(--text-link, var(--harmony-primary));
+  text-decoration: underline;
 }
 </style>

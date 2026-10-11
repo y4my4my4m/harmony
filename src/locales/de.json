@@ -392,7 +392,318 @@
     "federationBenefit2": "Nachrichten werden in Echtzeit mit föderierten Mitgliedern geteilt",
     "federationBenefit3": "Server erscheint in der föderierten Server-Suche",
     "federationHandle": "Server-Handle",
-    "federationHandleDesc": "Teile dieses Handle, damit Leute auf anderen Instanzen diesen Server finden und ihm beitreten können."
+    "federationHandleDesc": "Teile dieses Handle, damit Leute auf anderen Instanzen diesen Server finden und ihm beitreten können.",
+    "banner": {
+      "title": "Server-Banner",
+      "upload": "Server-Banner hochladen",
+      "change": "Server-Banner ändern",
+      "remove": "Banner entfernen",
+      "hint": "Empfohlen: 1280×400 px. Wird oben auf deinem Server angezeigt.",
+      "none": "Kein Server-Banner festgelegt"
+    },
+    "emojiActions": {
+      "copy": "{name} kopieren",
+      "rename": "{name} umbenennen",
+      "delete": "{name} löschen",
+      "renameField": "Neuer Name für {name}",
+      "copied": "{name} kopiert"
+    },
+    "banList": {
+      "title": "Server-Sperren",
+      "description": "Gesperrte Benutzer ansehen und verwalten. Mitglieder mit der Berechtigung „Mitglieder bannen“ können Sperren in dieser Liste aufheben.",
+      "loading": "Sperren werden geladen…",
+      "loadFailed": "Sperren konnten nicht geladen werden",
+      "bannedBy": "Gebannt von {name} am {date}",
+      "unknownModerator": "Unbekannt",
+      "revoke": "Sperre aufheben",
+      "revokeFor": "Sperre aufheben für {name}",
+      "unbanned": "Die Sperre für {name} wurde aufgehoben",
+      "unbanFailed": "Sperre konnte nicht aufgehoben werden"
+    },
+    "serverIdLabel": "Server-ID",
+    "serverCreatedUnknown": "Unbekannt",
+    "deleteServerNameMismatch": "Der Servername stimmt nicht überein",
+    "deleteServerTypeExact": "Gib zur Bestätigung den genauen Servernamen ein",
+    "deleteServerAuthRequired": "Anmeldung erforderlich",
+    "deleteServerDone": "Server gelöscht",
+    "deleteServerFailed": "Server konnte nicht gelöscht werden",
+    "encryptionPolicy": {
+      "title": "Verschlüsselungsrichtlinie des Servers",
+      "description": "Lege die Anforderungen an die Ende-zu-Ende-Verschlüsselung für diesen Server fest",
+      "loading": "Verschlüsselungseinstellungen werden geladen…",
+      "modeLabel": "Verschlüsselungsmodus",
+      "modeHint": "Wähle, wie die Verschlüsselung durchgesetzt wird",
+      "modes": {
+        "disabled": {
+          "name": "Deaktiviert",
+          "description": "Kanäle können keine Verschlüsselung aktivieren. Der Server kann jede Nachricht lesen."
+        },
+        "optional": {
+          "name": "Optional",
+          "description": "Kanalverwalter aktivieren die Verschlüsselung pro Kanal. Neue Kanäle starten unverschlüsselt."
+        },
+        "required": {
+          "name": "Erforderlich",
+          "description": "Jeder Kanal ist verschlüsselt, und das lässt sich nicht abschalten. Mitglieder brauchen Verschlüsselungsschlüssel, um zu schreiben."
+        }
+      },
+      "requiredWarning": "Benutzer ohne Verschlüsselungsschlüssel können keine Nachrichten senden",
+      "status": {
+        "disabled": {
+          "title": "Verschlüsselung deaktiviert",
+          "description": "Nachrichten werden im Klartext gespeichert. Serverbetreiber können sie lesen."
+        },
+        "optional": {
+          "title": "Optionale Verschlüsselung",
+          "description": "Jeder Kanal ist verschlüsselt oder nicht, wie seine Kanalverwalter es festlegen."
+        },
+        "required": {
+          "title": "Verschlüsselung erforderlich",
+          "description": "Jeder Kanal ist Ende-zu-Ende-verschlüsselt."
+        }
+      },
+      "additionalOptions": "Weitere Optionen",
+      "forceKeySetup": "Benutzer zur Einrichtung der Verschlüsselung auffordern",
+      "forceKeySetupHint": "Einrichtungsassistent für Benutzer ohne Schlüssel anzeigen",
+      "attachmentNote": "In verschlüsselten Kanälen werden Dateilinks, -namen und -typen mit der Nachricht verschlüsselt. Die Dateien selbst werden unverschlüsselt gespeichert.",
+      "voiceTitle": "Sprach- und Videoverschlüsselung",
+      "voiceHint": "Anrufmedien Ende-zu-Ende verschlüsseln, damit der Medienserver nicht darauf zugreifen kann",
+      "voiceRequire": "Ende-zu-Ende-verschlüsselte Sprache und Video verlangen",
+      "voiceRequireHint": "Jeder Sprachkanal verschlüsselt Anrufe, bevor sie den Medienserver erreichen. Ohne diese Option entscheiden Kanalverwalter pro Sprachkanal.",
+      "voiceWarning": "Teilnehmende ohne eingerichtete Verschlüsselung (sowie föderierte oder ältere Clients) können verschlüsselten Anrufen nicht beitreten.",
+      "statsTitle": "Serverstatistik",
+      "statsTotal": "Mitglieder insgesamt",
+      "statsWithKeys": "Mit Verschlüsselung",
+      "statsCoverage": "Abdeckung",
+      "statsWarning": "{count} Mitglieder müssen die Verschlüsselung einrichten, bevor der Pflichtmodus richtig funktioniert",
+      "helpTitle": "Über Ende-zu-Ende-Verschlüsselung",
+      "help": {
+        "disabled": "{mode}: Kanäle können keine Verschlüsselung aktivieren, und Nachrichten werden im Klartext gespeichert.",
+        "optional": "{mode}: Kanalverwalter aktivieren die Verschlüsselung pro Kanal. Neue Kanäle starten unverschlüsselt.",
+        "required": "{mode}: Jeder Kanal ist verschlüsselt, und Mitglieder brauchen Verschlüsselungsschlüssel, um zu schreiben."
+      },
+      "noteLabel": "Hinweis:",
+      "note": "Ende-zu-Ende-Verschlüsselung bedeutet, dass der Server Nachrichteninhalte nicht lesen kann. Das bietet maximale Privatsphäre, deaktiviert aber serverseitige Funktionen wie Suche und Inhaltsmoderation.",
+      "confirmDisable": {
+        "title": "Verschlüsselung deaktivieren",
+        "message": "Kanäle mit aktivierter Verschlüsselung senden neue Nachrichten im Klartext. Bereits verschlüsselte Nachrichten bleiben verschlüsselt.",
+        "confirm": "Verschlüsselung deaktivieren"
+      },
+      "confirmRequired": {
+        "title": "Pflichtverschlüsselung aktivieren",
+        "message": "Nur {percentage} % der Mitglieder haben Verschlüsselungsschlüssel eingerichtet. Im Pflichtmodus können Benutzer ohne Schlüssel nicht teilnehmen. Fortfahren?"
+      },
+      "saved": "Verschlüsselungseinstellungen gespeichert",
+      "loadFailed": "Einstellungen konnten nicht geladen werden",
+      "saveFailed": "Einstellungen konnten nicht gespeichert werden"
+    },
+    "roleManagement": {
+      "intro": "Erstelle und verwalte Rollen für deinen Server. Ziehe sie, um die Rangfolge zu ändern, oder nutze Nach oben und Nach unten.",
+      "noPermission": "Zum Ändern von Rollen ist die Berechtigung „Rollen verwalten“ nötig.",
+      "create": "Rolle erstellen",
+      "count": "{count} Rolle | {count} Rollen",
+      "dragHandle": "Zum Umsortieren ziehen",
+      "badgeAdmin": "Admin",
+      "badgeDefault": "Standard",
+      "emptyEditor": "Wähle links eine Rolle zum Bearbeiten aus oder erstelle eine neue.",
+      "tabs": {
+        "display": "Anzeige",
+        "permissions": "Berechtigungen",
+        "members": "Mitglieder"
+      },
+      "moveUp": "{name} nach oben verschieben",
+      "moveDown": "{name} nach unten verschieben",
+      "position": "Position {position} von {total}",
+      "moved": "{name} auf Position {position} von {total} verschoben",
+      "roleName": "Rollenname",
+      "everyoneNameLocked": "Der Name der Rolle {'@'}everyone kann nicht geändert werden.",
+      "roleColor": "Rollenfarbe",
+      "hoist": "Rollenmitglieder getrennt anzeigen",
+      "hoistDesc": "Mitglieder mit dieser Rolle erscheinen in der Mitgliederliste in einer eigenen Gruppe.",
+      "mentionable": "Allen erlauben, diese Rolle zu {'@'}erwähnen",
+      "mentionableDesc": "Wenn aus, können nur Mitglieder mit der Berechtigung „{'@'}everyone erwähnen“ sie anpingen.",
+      "permIntro": "Serverweite Berechtigungen dieser Rolle. Kanalspezifische Überschreibungen (Erlauben / Verweigern / Übernehmen) werden im Tab „Berechtigungen“ des jeweiligen Kanals festgelegt.",
+      "dangerWarn": "Gewährt alle anderen Berechtigungen und umgeht alle Kanalüberschreibungen.",
+      "sections": {
+        "general": "Allgemeine Berechtigungen",
+        "membership": "Mitgliedschaftsberechtigungen",
+        "text": "Textberechtigungen",
+        "threads": "Thread-Berechtigungen",
+        "voice": "Sprachberechtigungen"
+      },
+      "perms": {
+        "VIEW_CHANNEL": {
+          "label": "Kanäle ansehen",
+          "description": "Erlaubt Mitgliedern standardmäßig, Kanäle zu sehen"
+        },
+        "MANAGE_CHANNELS": {
+          "label": "Kanäle verwalten",
+          "description": "Kanäle erstellen, bearbeiten und löschen"
+        },
+        "MANAGE_ROLES": {
+          "label": "Rollen verwalten",
+          "description": "Rollen unterhalb dieser Rolle erstellen, bearbeiten und löschen"
+        },
+        "MANAGE_SERVER": {
+          "label": "Server verwalten",
+          "description": "Servereinstellungen bearbeiten und den Server löschen"
+        },
+        "CREATE_INVITE": {
+          "label": "Einladung erstellen",
+          "description": "Einladungen zu diesem Server erstellen"
+        },
+        "VIEW_AUDIT_LOG": {
+          "label": "Audit-Log ansehen",
+          "description": "Das Audit-Log des Servers ansehen"
+        },
+        "MANAGE_EMOJIS": {
+          "label": "Ausdrücke verwalten",
+          "description": "Eigene Emojis und Soundboard-Sounds hinzufügen, bearbeiten und entfernen"
+        },
+        "MANAGE_WEBHOOKS": {
+          "label": "Webhooks verwalten",
+          "description": "Webhooks erstellen, bearbeiten und löschen"
+        },
+        "KICK_MEMBERS": {
+          "label": "Mitglieder kicken",
+          "description": "Mitglieder vom Server entfernen"
+        },
+        "BAN_MEMBERS": {
+          "label": "Mitglieder bannen",
+          "description": "Mitglieder dauerhaft vom Server bannen"
+        },
+        "TIMEOUT_MEMBERS": {
+          "label": "Mitglieder stummschalten (Timeout)",
+          "description": "Mitglieder vorübergehend stummschalten"
+        },
+        "SEND_MESSAGES": {
+          "label": "Nachrichten senden",
+          "description": "Nachrichten in Textkanälen senden"
+        },
+        "EMBED_LINKS": {
+          "label": "Links einbetten",
+          "description": "Links zeigen eine Vorschau"
+        },
+        "ATTACH_FILES": {
+          "label": "Dateien anhängen",
+          "description": "Bilder und Dateien hochladen"
+        },
+        "ADD_REACTIONS": {
+          "label": "Reaktionen hinzufügen",
+          "description": "Mit Emojis auf Nachrichten reagieren"
+        },
+        "MENTION_EVERYONE": {
+          "label": "{'@'}everyone erwähnen",
+          "description": "{'@'}everyone und alle Rollen erwähnen"
+        },
+        "MANAGE_MESSAGES": {
+          "label": "Nachrichten verwalten",
+          "description": "Nachrichten anderer löschen und anheften"
+        },
+        "READ_MESSAGE_HISTORY": {
+          "label": "Nachrichtenverlauf lesen",
+          "description": "Den Nachrichtenverlauf ansehen"
+        },
+        "USE_EXTERNAL_EMOJIS": {
+          "label": "Externe Emojis verwenden",
+          "description": "Emojis von anderen Servern verwenden"
+        },
+        "PIN_MESSAGES": {
+          "label": "Nachrichten anheften",
+          "description": "Nachrichten in Kanälen anheften"
+        },
+        "CREATE_PUBLIC_THREADS": {
+          "label": "Öffentliche Threads erstellen",
+          "description": "Für alle sichtbare Threads erstellen"
+        },
+        "CREATE_PRIVATE_THREADS": {
+          "label": "Private Threads erstellen",
+          "description": "Threads nur auf Einladung erstellen"
+        },
+        "SEND_MESSAGES_IN_THREADS": {
+          "label": "Nachrichten in Threads senden",
+          "description": "In Threads antworten"
+        },
+        "CONNECT": {
+          "label": "Verbinden",
+          "description": "Sprachkanälen beitreten"
+        },
+        "SPEAK": {
+          "label": "Sprechen",
+          "description": "In Sprachkanälen sprechen"
+        },
+        "STREAM": {
+          "label": "Video",
+          "description": "Video oder Bildschirm teilen"
+        },
+        "MUTE_MEMBERS": {
+          "label": "Mitglieder stummschalten",
+          "description": "Mitglieder im Sprachkanal serverweit stummschalten"
+        },
+        "DEAFEN_MEMBERS": {
+          "label": "Mitglieder taub schalten",
+          "description": "Mitglieder im Sprachkanal serverweit taub schalten"
+        },
+        "MOVE_MEMBERS": {
+          "label": "Mitglieder verschieben",
+          "description": "Mitglieder zwischen Sprachkanälen verschieben"
+        },
+        "USE_SOUNDBOARD": {
+          "label": "Soundboard verwenden",
+          "description": "Soundboard-Sounds in Sprachkanälen abspielen"
+        },
+        "USE_EXTERNAL_SOUNDS": {
+          "label": "Externe Sounds verwenden",
+          "description": "Sounds von anderen Servern abspielen, denen sie angehören"
+        }
+      },
+      "everyoneMembersNote": "Die Rolle {'@'}everyone gilt automatisch für jedes Mitglied dieses Servers. Es gibt keine Mitgliederliste zu verwalten.",
+      "addMembers": "Mitglieder hinzufügen",
+      "searchMembers": "Servermitglieder suchen …",
+      "searchResults": "{count} Mitglied gefunden | {count} Mitglieder gefunden",
+      "addMemberTo": "{member} zu {role} hinzufügen",
+      "currentMembers": "Aktuelle Mitglieder",
+      "filterMembers": "Mitglieder filtern",
+      "filterPlaceholder": "Filtern …",
+      "removeMemberFrom": "{member} aus {role} entfernen",
+      "bridged": "Discord",
+      "bridgedTitle": "Mitglied über die Discord-Brücke",
+      "owner": "Eigentümer",
+      "protected": "Geschützt",
+      "protectedTitle": "Der Servereigentümer kann nicht aus der Admin-Rolle entfernt werden.",
+      "deleteRole": "Rolle löschen",
+      "save": "Änderungen speichern",
+      "saving": "Wird gespeichert …",
+      "saved": "Rolle {name} gespeichert",
+      "changesReset": "Änderungen zurückgesetzt",
+      "created": "Rolle {name} erstellt",
+      "deleted": "Rolle {name} gelöscht",
+      "memberAdded": "{member} zu {role} hinzugefügt",
+      "memberRemoved": "{member} aus {role} entfernt",
+      "confirmDeleteTitle": "Rolle löschen",
+      "confirmDeleteMessage": "Möchtest du die Rolle „{name}“ wirklich löschen?",
+      "newRoleName": "Neue Rolle",
+      "errors": {
+        "create": "Rolle konnte nicht erstellt werden",
+        "save": "Rolle konnte nicht gespeichert werden",
+        "delete": "Rolle konnte nicht gelöscht werden",
+        "removeOwnerAdmin": "Dem Servereigentümer kann die Admin-Rolle nicht entzogen werden",
+        "removeMember": "Mitglied konnte nicht aus der Rolle entfernt werden",
+        "addMember": "Mitglied konnte nicht zur Rolle hinzugefügt werden",
+        "reorder": "Rollen konnten nicht neu geordnet werden"
+      }
+    },
+    "privacy": {
+      "federatedMembers": "{count} föderiertes Mitglied ist derzeit auf diesem Server | {count} föderierte Mitglieder sind derzeit auf diesem Server",
+      "copyHandle": "Server-Handle {handle} kopieren",
+      "disableTitle": "Föderation deaktivieren?",
+      "disableBody": "Dieser Server hat {count} föderiertes Mitglied von anderen Instanzen. Das Deaktivieren der Föderation wird: | Dieser Server hat {count} föderierte Mitglieder von anderen Instanzen. Das Deaktivieren der Föderation wird:",
+      "disableConsequence1": "Alle neuen Beitrittsanfragen von entfernten Personen blockieren",
+      "disableConsequence2": "Keine Nachrichten mehr an und von entfernten Mitgliedern zustellen",
+      "disableConsequence3": "Reaktionen und Sprachteilnahme entfernter Personen verhindern",
+      "disableConsequence4": "Bestehende föderierte Mitglieder in der Mitgliederliste belassen, ohne dass sie interagieren können",
+      "disableConfirm": "Föderation deaktivieren"
+    }
   },
   "channel": {
     "create": "Kanal erstellen",
@@ -428,6 +739,149 @@
       "hint": "Nur die gewählten Rollen, der Besitzer und Administratoren können ihn sehen.",
       "whoCanSee": "Wer ihn sehen kann",
       "noRoles": "Noch keine Rollen: nur der Besitzer und Administratoren sehen ihn."
+    },
+    "edit": {
+      "title": "Kanal bearbeiten",
+      "tabs": {
+        "general": "Allgemein"
+      },
+      "namePlaceholder": "Kanalnamen eingeben",
+      "description": "Beschreibung",
+      "descriptionPlaceholder": "Worum geht es in diesem Kanal?",
+      "slowmode": "Langsamer Modus",
+      "slowmodeHint": "Mitglieder können pro Intervall eine Nachricht senden. Moderatoren mit „Nachrichten verwalten“ sind ausgenommen.",
+      "slowmodeOff": "Aus",
+      "slowmodeShort": {
+        "seconds": "{n} s",
+        "minutes": "{n} min",
+        "hours": "{n} h"
+      },
+      "slowmodeLong": {
+        "seconds": "{n} Sekunde | {n} Sekunden",
+        "minutes": "{n} Minute | {n} Minuten",
+        "hours": "{n} Stunde | {n} Stunden"
+      },
+      "textChannel": "Textkanal",
+      "voiceChannel": "Sprachkanal",
+      "typeHint": "Der Kanaltyp kann nach dem Erstellen nicht geändert werden",
+      "noRoles": "Keine Rollen",
+      "loadingRoles": "Rollen werden geladen …",
+      "overrideLegend": "Erlauben gewährt, Verweigern entzieht, Übernehmen nutzt die serverweite Einstellung.",
+      "resetRole": "Änderungen zurücksetzen",
+      "resetRoleFor": "Änderungen zurücksetzen für {role}",
+      "roleReset": "Änderungen für {role} zurückgesetzt",
+      "selectRole": "Wähle links eine Rolle aus, um ihre Kanalüberschreibungen zu bearbeiten.",
+      "tristate": {
+        "deny": "Verweigern",
+        "inherit": "Übernehmen",
+        "inheritTitle": "Vom Server übernehmen",
+        "allow": "Erlauben"
+      },
+      "groups": {
+        "general": "Allgemein",
+        "messages": "Nachrichten",
+        "threads": "Threads",
+        "voice": "Sprache"
+      },
+      "perms": {
+        "VIEW_CHANNEL": {
+          "label": "Kanal ansehen",
+          "description": "Diesen Kanal in der Seitenleiste sehen und Nachrichten lesen."
+        },
+        "MANAGE_CHANNELS": {
+          "label": "Kanal verwalten",
+          "description": "Diesen Kanal umbenennen, bearbeiten oder löschen."
+        },
+        "SEND_MESSAGES": {
+          "label": "Nachrichten senden",
+          "description": "Nachrichten in diesem Kanal posten."
+        },
+        "EMBED_LINKS": {
+          "label": "Links einbetten",
+          "description": "Einbettungen und Linkvorschauen senden."
+        },
+        "ATTACH_FILES": {
+          "label": "Dateien anhängen",
+          "description": "Dateien in diesem Kanal hochladen."
+        },
+        "ADD_REACTIONS": {
+          "label": "Reaktionen hinzufügen",
+          "description": "Mit Emojis auf Nachrichten reagieren."
+        },
+        "USE_EXTERNAL_EMOJIS": {
+          "label": "Externe Emojis verwenden",
+          "description": "Emojis von anderen Servern senden."
+        },
+        "MENTION_EVERYONE": {
+          "label": "{'@'}everyone erwähnen",
+          "description": "{'@'}everyone und {'@'}here verwenden."
+        },
+        "MANAGE_MESSAGES": {
+          "label": "Nachrichten verwalten",
+          "description": "Nachrichten anderer Mitglieder löschen und anheften. Bearbeiten ist NICHT erlaubt."
+        },
+        "READ_MESSAGE_HISTORY": {
+          "label": "Nachrichtenverlauf lesen",
+          "description": "Nachrichten sehen, die vor dem Beitritt gepostet wurden."
+        },
+        "CREATE_PUBLIC_THREADS": {
+          "label": "Öffentliche Threads erstellen",
+          "description": "Öffentliche Threads aus Nachrichten starten."
+        },
+        "CREATE_PRIVATE_THREADS": {
+          "label": "Private Threads erstellen",
+          "description": "Threads nur auf Einladung starten."
+        },
+        "SEND_MESSAGES_IN_THREADS": {
+          "label": "In Threads senden",
+          "description": "Nachrichten in Threads posten."
+        },
+        "CONNECT": {
+          "label": "Verbinden",
+          "description": "Diesem Sprachkanal beitreten."
+        },
+        "SPEAK": {
+          "label": "Sprechen",
+          "description": "In diesem Sprachkanal sprechen."
+        },
+        "STREAM": {
+          "label": "Video & Stream",
+          "description": "Kamera oder Bildschirm teilen."
+        },
+        "MUTE_MEMBERS": {
+          "label": "Mitglieder stummschalten",
+          "description": "Andere Mitglieder hier stummschalten."
+        },
+        "DEAFEN_MEMBERS": {
+          "label": "Mitglieder taub schalten",
+          "description": "Andere Mitglieder hier taub schalten."
+        },
+        "MOVE_MEMBERS": {
+          "label": "Mitglieder verschieben",
+          "description": "Mitglieder aus diesem Kanal verschieben."
+        },
+        "USE_SOUNDBOARD": {
+          "label": "Soundboard verwenden",
+          "description": "Soundboard-Sounds in diesem Kanal abspielen."
+        },
+        "USE_EXTERNAL_SOUNDS": {
+          "label": "Externe Sounds verwenden",
+          "description": "Sounds von anderen Servern in diesem Kanal abspielen."
+        }
+      },
+      "save": "Änderungen speichern",
+      "saving": "Wird gespeichert …",
+      "savePermissions": "Berechtigungen speichern",
+      "permissionsSaved": "Kanalberechtigungen gespeichert",
+      "discardTitle": "Änderungen verwerfen?",
+      "discardMessage": "Dieser Kanal hat ungespeicherte Änderungen. Ohne Speichern schließen?",
+      "discard": "Verwerfen",
+      "errors": {
+        "update": "Kanal konnte nicht aktualisiert werden. Versuche es erneut.",
+        "loadPermissions": "Kanalberechtigungen konnten nicht geladen werden",
+        "savePermissions": "Kanalberechtigungen konnten nicht gespeichert werden",
+        "saveOverride": "Überschreibung für {role} konnte nicht gespeichert werden"
+      }
     }
   },
   "message": {
@@ -696,7 +1150,50 @@
     "recipientDeleted": "Dieses Konto wurde gelöscht. Nachrichten an es werden nicht zugestellt.",
     "sendMessage": "Nachricht senden",
     "callInProgress": "Ein Anruf läuft",
-    "joinCall": "Anruf beitreten"
+    "joinCall": "Anruf beitreten",
+    "groupSettings": {
+      "title": "Gruppeneinstellungen",
+      "groupIcon": "Gruppensymbol",
+      "upload": "Hochladen",
+      "uploadIcon": "Gruppensymbol hochladen",
+      "remove": "Entfernen",
+      "removeIcon": "Gruppensymbol entfernen",
+      "dropHint": "Bild hierher ziehen oder klicken, um zu suchen",
+      "fileHint": "Max. 5 MB • PNG, JPG, WebP",
+      "uploadingIcon": "Gruppensymbol wird hochgeladen",
+      "uploadProgress": "{percent} % hochgeladen",
+      "groupName": "Gruppenname",
+      "groupNameHelp": "Leer lassen, um die Namen der Teilnehmenden zu verwenden",
+      "saveChanges": "Änderungen speichern",
+      "saving": "Wird gespeichert…",
+      "participants": "Teilnehmende ({count})",
+      "add": "Hinzufügen",
+      "addParticipant": "Teilnehmende hinzufügen",
+      "creator": "Ersteller",
+      "removeParticipant": "{name} aus der Gruppe entfernen",
+      "dangerZone": "Gefahrenzone",
+      "leaveGroup": "Gruppe verlassen",
+      "deleteGroup": "Gruppe löschen",
+      "leave": "Verlassen",
+      "leaveConfirmMessage": "Möchtest du diese Gruppe wirklich verlassen? Du siehst dann keine neuen Nachrichten mehr.",
+      "deleteConfirmMessage": "Möchtest du diese Gruppe wirklich löschen? Das kann nicht rückgängig gemacht werden, und alle Nachrichten gehen verloren.",
+      "defaultName": "Gruppenchat",
+      "defaultNameMore": "{names} und {count} weitere",
+      "dropImage": "Lege eine Bilddatei ab",
+      "iconUpdated": "Gruppensymbol aktualisiert",
+      "iconUploadFailed": "Symbol konnte nicht hochgeladen werden",
+      "iconRemoved": "Gruppensymbol entfernt",
+      "iconRemoveFailed": "Symbol konnte nicht entfernt werden",
+      "nameUpdated": "Gruppenname aktualisiert",
+      "nameUpdateFailed": "Gruppenname konnte nicht aktualisiert werden",
+      "participantRemoved": "{name} wurde aus der Gruppe entfernt",
+      "participantRemoveFailed": "Teilnehmende Person konnte nicht entfernt werden",
+      "usersAdded": "Benutzer zur Gruppe hinzugefügt",
+      "left": "Du hast die Gruppe verlassen",
+      "leaveFailed": "Gruppe konnte nicht verlassen werden",
+      "deleted": "Gruppe gelöscht",
+      "deleteFailed": "Gruppe konnte nicht gelöscht werden"
+    }
   },
   "user": {
     "panelToggle": "Dein Konto und Sprachsteuerung",
@@ -804,7 +1301,72 @@
       "quickReactEnable": "Doppeltippen für Schnellreaktion",
       "quickReactEnableDesc": "Doppeltippe (Mobilgerät) oder doppelklicke (Desktop) auf eine Nachricht, um sofort mit deinem gewählten Emoji zu reagieren.",
       "quickReactEmoji": "Emoji für Schnellreaktion",
-      "quickReactEmojiDesc": "Das Emoji, das beim Doppeltippen auf eine Nachricht verwendet wird."
+      "quickReactEmojiDesc": "Das Emoji, das beim Doppeltippen auf eine Nachricht verwendet wird.",
+      "changesReset": "Änderungen am Erscheinungsbild zurückgesetzt",
+      "saved": "Erscheinungsbild gespeichert",
+      "editLivePreview": "In der Live-Vorschau bearbeiten",
+      "themeMode": "Designmodus",
+      "savedTheme": "Gespeichertes Design",
+      "savedThemeName": "Designname",
+      "saveTheme": "Design speichern",
+      "deleteSavedTheme": "Design {name} löschen",
+      "deleteSavedThemeConfirm": "„{name}“ löschen?",
+      "themeRemoved": "Design entfernt",
+      "lightness": "Helligkeit",
+      "saturation": "Sättigung",
+      "darker": "Dunkler",
+      "lighter": "Heller",
+      "muted": "Gedämpft",
+      "vivid": "Kräftig",
+      "toneValue": "{value}, {direction}",
+      "resetVariable": "{name} auf Standard zurücksetzen",
+      "zoomIn": "Vergrößern",
+      "zoomOut": "Verkleinern",
+      "zoomValue": "Zoom {value} %",
+      "colors": {
+        "background": "Hintergrund",
+        "backgroundHint": "Ton, Helligkeit & Sättigung",
+        "backgroundColor": "Hintergrundfarbe",
+        "primary": "Primär",
+        "primaryHint": "Schaltflächen & wichtige Aktionen",
+        "primaryColor": "Primärfarbe",
+        "accent": "Akzent",
+        "accentHint": "Links & Hervorhebungen",
+        "accentColor": "Akzentfarbe",
+        "sidebar": "Seitenleiste",
+        "sidebarHintOn": "Eigene Tönung der Leisten",
+        "sidebarHintOff": "Aus, wie der Hintergrund",
+        "sidebarEnable": "Eigene Farbe für die Seitenleiste",
+        "sidebarColor": "Seitenleistenfarbe",
+        "advancedCss": "Erweitertes CSS",
+        "advancedCssHint": "Einzelne Variablen überschreiben",
+        "backgroundHelp": "Legt den Farbton aller Hintergrundelemente fest",
+        "primaryHelp": "Hauptfarbe für Schaltflächen und wichtige Aktionen",
+        "accentHelp": "Für Links, Hervorhebungen und Akzente"
+      },
+      "panel": {
+        "title": "Design anpassen",
+        "close": "Design-Editor schließen",
+        "hint": "Änderungen erscheinen sofort in der App hinter diesem Bereich. Klicke auf Übernehmen, um sie zu behalten.",
+        "apply": "Übernehmen",
+        "fix": "Beheben",
+        "fixContrast": "Kontrast der Primärfarbe beheben",
+        "fixContrastHint": "Helligkeit anpassen, bis Links und Symbole in dieser Farbe 3:1 zum Hintergrund erreichen",
+        "labelContrast": "Beschriftung {ratio}:1",
+        "surfaceContrast": "Auf dem Hintergrund {ratio}:1"
+      },
+      "overrides": {
+        "count": "{count} Überschreibung | {count} Überschreibungen",
+        "active": "{count} Überschreibung aktiv | {count} Überschreibungen aktiv",
+        "resetAll": "Alle zurücksetzen",
+        "resetAllHint": "Alle Überschreibungen entfernen und Standardwerte wiederherstellen"
+      },
+      "toasts": {
+        "exported": "Theme exportiert",
+        "imported": "Theme importiert",
+        "invalidFile": "Ungültige Theme-Datei",
+        "themeSaved": "„{name}“ gespeichert"
+      }
     },
     "voice": {
       "title": "Sprache & Video",
@@ -841,7 +1403,265 @@
       "enableMentions": "Bei Erwähnungen benachrichtigen",
       "enableDMs": "Bei Direktnachrichten benachrichtigen",
       "muteAll": "Alle stummschalten",
-      "muteDuration": "Stummschaltungsdauer"
+      "muteDuration": "Stummschaltungsdauer",
+      "dnd": {
+        "active": "Aktiv",
+        "inactive": "Inaktiv",
+        "description": "Stellt Töne, Pop-ups und Push zu festgelegten Zeiten stumm. Benachrichtigungen landen trotzdem in deinem Posteingang."
+      },
+      "quietHours": {
+        "title": "Ruhezeiten",
+        "description": "Lege deinen Bitte-nicht-stören-Zeitraum fest (in deiner Ortszeit)",
+        "start": "Beginn der Ruhezeit",
+        "end": "Ende der Ruhezeit",
+        "to": "bis"
+      },
+      "enableMobile": "Benachrichtigungen aktivieren",
+      "permission": {
+        "unsupported": "In diesem Browser nicht unterstützt",
+        "unsupportedMobile": "In diesem Browser nicht unterstützt. Installiere die App, um Benachrichtigungen zu erhalten.",
+        "grant": "Berechtigung erteilen",
+        "desktopEnabled": "Desktop-Benachrichtigungen sind aktiviert",
+        "desktopRequired": "Desktop-Benachrichtigungen benötigen eine Berechtigung",
+        "enabled": "Benachrichtigungen sind aktiviert",
+        "required": "Benachrichtigungen benötigen eine Berechtigung"
+      },
+      "chat": {
+        "description": "Benachrichtigungen von Servern und Direktnachrichten"
+      },
+      "activitypub": {
+        "title": "ActivityPub und Föderation",
+        "description": "Benachrichtigungen aus dem föderierten Netzwerk"
+      },
+      "types": {
+        "chatMessages": {
+          "label": "Chatnachrichten",
+          "description": "Wenn in einem Kanal, dem du folgst, eine Nachricht gesendet wird"
+        },
+        "mentions": {
+          "label": "Erwähnungen",
+          "description": "Wenn dich jemand erwähnt"
+        },
+        "dms": {
+          "label": "Direktnachrichten",
+          "description": "Wenn du eine Direktnachricht erhältst"
+        },
+        "replies": {
+          "label": "Antworten",
+          "description": "Wenn jemand auf deine Nachricht antwortet"
+        },
+        "reactions": {
+          "label": "Reaktionen",
+          "description": "Wenn jemand auf deine Nachricht reagiert"
+        },
+        "apFollows": {
+          "label": "Neue Follower",
+          "name": "Neue Follower im Fediverse",
+          "description": "Wenn dir jemand folgt"
+        },
+        "apMentions": {
+          "label": "Erwähnungen",
+          "name": "Erwähnungen im Fediverse",
+          "description": "Wenn dich jemand in einem Beitrag erwähnt"
+        },
+        "apReplies": {
+          "label": "Antworten",
+          "name": "Antworten im Fediverse",
+          "description": "Wenn jemand auf deinen Beitrag antwortet"
+        },
+        "apFavorites": {
+          "label": "Favoriten",
+          "name": "Favoriten im Fediverse",
+          "description": "Wenn jemand deinen Beitrag favorisiert"
+        },
+        "apReblogs": {
+          "label": "Boosts",
+          "name": "Boosts im Fediverse",
+          "description": "Wenn jemand deinen Beitrag teilt"
+        },
+        "apFollowRequests": {
+          "label": "Folgeanfragen",
+          "name": "Folgeanfragen im Fediverse",
+          "description": "Wenn dir jemand folgen möchte"
+        }
+      },
+      "sound": {
+        "title": "Toneinstellungen",
+        "description": "Lege fest, wie Benachrichtigungstöne abgespielt werden",
+        "volumeDescription": "Lautstärke aller Benachrichtigungstöne anpassen",
+        "voiceActivity": "Töne für Sprachaktivität",
+        "voiceActivityDescription": "Töne bei Aktivität in Sprachkanälen abspielen"
+      },
+      "push": {
+        "title": "Push-Benachrichtigungen",
+        "titleOther": "Push an andere Geräte",
+        "nativeMobileTitle": "Hintergrund-Push kommt in die App",
+        "nativeMobileText": "Dieses Gerät zeigt Benachrichtigungen, solange Harmony geöffnet ist, auch im Hintergrund. Push bei vollständig geschlossener App gibt es nur unter Android.",
+        "iosTitle": "iOS erfordert die Installation der App",
+        "iosText": "Um auf iOS Push-Benachrichtigungen zu erhalten, füge Harmony zuerst zum Home-Bildschirm hinzu (Teilen → Zum Home-Bildschirm).",
+        "unsupportedTitle": "Push-Benachrichtigungen nicht unterstützt",
+        "unsupportedText": "Dein Browser unterstützt keine Push-Benachrichtigungen. Versuche Chrome, Firefox, Edge oder Safari.",
+        "blockedTitle": "Benachrichtigungsberechtigung blockiert",
+        "blockedText": "Benachrichtigungen sind für diese Website blockiert. Erlaube sie in den Website-Einstellungen des Browsers und lade neu; Push läuft dann von selbst weiter.",
+        "errorTitle": "Fehler bei Push-Benachrichtigungen",
+        "turnOn": "Für dieses Gerät einschalten",
+        "turnOff": "Für dieses Gerät ausschalten",
+        "test": "Push testen",
+        "toMyDevices": "Push an meine Geräte",
+        "toMyDevicesDescription": "Schaltet Push überall aus, ohne Geräte zu entfernen",
+        "awayOnly": "Nur wenn ich abwesend bin",
+        "awayOnlyDescription": "Kein Push, solange Harmony auf einem anderen Gerät geöffnet ist und genutzt wird",
+        "mentions": "Erwähnungen",
+        "mentionsDescription": "Push-Benachrichtigungen erhalten, wenn du erwähnt wirst",
+        "dms": "Direktnachrichten",
+        "dmsDescription": "Push-Benachrichtigungen für neue Direktnachrichten erhalten",
+        "noDevices": "Noch keine Geräte für Push angemeldet. Aktiviere Push-Benachrichtigungen auf deinem Handy oder in einem Browser und verwalte die Geräte dann hier.",
+        "status": {
+          "fcm": "Dieses Gerät: Google (FCM)",
+          "unifiedpush": "Dieses Gerät: UnifiedPush",
+          "whileOpen": "Dieses Gerät: solange geöffnet",
+          "foreground": "Dieses Gerät: Vordergrund",
+          "native": "Dieses Gerät: native Benachrichtigungen",
+          "notSupported": "Nicht unterstützt",
+          "blocked": "Blockiert",
+          "enabled": "Aktiviert",
+          "available": "Verfügbar"
+        },
+        "descAndroid": "Push erreicht dieses Gerät auch bei geschlossenem Harmony, über Google (FCM) oder eine UnifiedPush-App deiner Wahl. Deine anderen angemeldeten Geräte stehen unten.",
+        "descNativeMobile": "Dieses Gerät erhält Benachrichtigungen, solange die App geöffnet ist. Push an deine anderen angemeldeten Geräte verwaltest du unten.",
+        "descDesktop": "Die Desktop-App zeigt bereits Systembenachrichtigungen, solange sie läuft. Diese Einstellungen steuern Push an deine anderen Geräte (Handy, Browser) und welche Benachrichtigungen sie erhalten.",
+        "descWeb": "Erhalte Benachrichtigungen auf deinem Gerät, auch wenn die App geschlossen ist. Funktioniert unter Android, iOS (installierte App nötig) und in Desktop-Browsern."
+      },
+      "devices": {
+        "title": "Angemeldete Geräte ({count})",
+        "added": "Hinzugefügt {when}",
+        "today": "heute",
+        "yesterday": "gestern",
+        "remove": "{device} entfernen",
+        "unknown": "Unbekanntes Gerät",
+        "android": "Android-Gerät",
+        "windows": "Windows-PC",
+        "linux": "Linux-PC",
+        "chrome": "Chrome-Browser",
+        "firefox": "Firefox-Browser",
+        "safari": "Safari-Browser"
+      },
+      "haptics": {
+        "title": "Haptisches Feedback",
+        "enabled": "Aktiviert",
+        "disabled": "Deaktiviert",
+        "description": "Vibration als Rückmeldung bei Interaktionen",
+        "enable": "Haptisches Feedback aktivieren",
+        "enableDescription": "Vibrationen bei der Bedienung der App spüren",
+        "messages": "Nachrichten senden",
+        "messagesDescription": "Beim Senden einer Nachricht",
+        "reactions": "Reaktionen",
+        "reactionsDescription": "Beim Hinzufügen oder Entfernen von Reaktionen",
+        "navigation": "Navigation",
+        "navigationDescription": "Beim Wechseln von Tabs oder Öffnen von Menüs",
+        "voice": "Sprache und Anrufe",
+        "voiceDescription": "Beim Betreten oder Verlassen von Sprachkanälen",
+        "interactions": "Interaktionen",
+        "interactionsDescription": "Lange drücken, zum Aktualisieren ziehen und ähnliche Gesten",
+        "toggles": "Schalter",
+        "togglesDescription": "Beim Ein- oder Ausschalten von Einstellungen",
+        "destructive": "Unwiderrufliche Aktionen",
+        "destructiveDescription": "Beim Löschen von Nachrichten oder Verlassen von Servern",
+        "test": "Haptisches Feedback testen",
+        "sent": "Haptisches Feedback gesendet"
+      },
+      "test": {
+        "title": "Benachrichtigungen testen",
+        "description": "Teste deine Benachrichtigungseinstellungen",
+        "testing": "Wird getestet…",
+        "all": "Alle Benachrichtigungen testen",
+        "reset": "Auf Standard zurücksetzen"
+      },
+      "toast": {
+        "updated": "Benachrichtigungseinstellungen aktualisiert",
+        "updateFailed": "Einstellungen konnten nicht aktualisiert werden",
+        "unsupported": "Benachrichtigungen werden in diesem Browser nicht unterstützt",
+        "permissionGranted": "Benachrichtigungsberechtigung erteilt",
+        "permissionDenied": "Benachrichtigungsberechtigung verweigert",
+        "permissionFailed": "Berechtigung konnte nicht angefragt werden",
+        "testFailed": "Benachrichtigung konnte nicht getestet werden",
+        "allTested": "Alle aktivierten Benachrichtigungen getestet",
+        "allTestFailed": "Nicht alle Benachrichtigungen konnten getestet werden",
+        "pushOn": "Push-Benachrichtigungen sind für dieses Gerät eingeschaltet",
+        "pushOnFailed": "Push-Benachrichtigungen konnten nicht aktiviert werden",
+        "pushOff": "Push-Benachrichtigungen sind für dieses Gerät ausgeschaltet",
+        "pushOffFailed": "Push-Benachrichtigungen konnten nicht deaktiviert werden",
+        "testPushSent": "Test-Push-Benachrichtigung gesendet",
+        "testPushFailed": "Testbenachrichtigung konnte nicht gesendet werden",
+        "deviceRemoved": "Gerät entfernt",
+        "deviceRemoveFailed": "Gerät konnte nicht entfernt werden"
+      },
+      "samples": {
+        "mention": {
+          "title": "Test-Erwähnung",
+          "message": "Du wurdest in einer Testnachricht erwähnt"
+        },
+        "dm": {
+          "title": "Test-Direktnachricht",
+          "message": "Das ist eine Test-Direktnachricht"
+        },
+        "reply": {
+          "title": "Test-Antwort",
+          "message": "Jemand hat auf deine Testnachricht geantwortet"
+        },
+        "reaction": {
+          "title": "Test-Reaktion",
+          "message": "Jemand hat auf deine Testnachricht reagiert"
+        },
+        "voiceActivity": {
+          "title": "Test-Sprachaktivität",
+          "message": "Jemand ist einem Sprachkanal beigetreten"
+        },
+        "serverInvite": {
+          "title": "Test-Servereinladung",
+          "message": "Du wurdest zu einem Server eingeladen"
+        },
+        "followRequest": {
+          "title": "Test-Folgeanfrage",
+          "message": "Jemand möchte dir folgen"
+        },
+        "serverUpdate": {
+          "title": "Test-Serveraktualisierung",
+          "message": "Ein Server wurde aktualisiert"
+        },
+        "emojiAdded": {
+          "title": "Test: Emoji hinzugefügt",
+          "message": "Dem Server wurde ein neues Emoji hinzugefügt"
+        },
+        "apFollow": {
+          "title": "Test: ActivityPub-Follower",
+          "message": "Jemand aus dem Fediverse folgt dir"
+        },
+        "apFavorite": {
+          "title": "Test: ActivityPub-Favorit",
+          "message": "Jemand hat deinen Beitrag im Fediverse favorisiert"
+        },
+        "apReblog": {
+          "title": "Test: ActivityPub-Boost",
+          "message": "Jemand hat deinen Beitrag im Fediverse geteilt"
+        },
+        "apMention": {
+          "title": "Test: ActivityPub-Erwähnung",
+          "message": "Du wurdest in einem Fediverse-Beitrag erwähnt"
+        },
+        "apReply": {
+          "title": "Test: ActivityPub-Antwort",
+          "message": "Jemand hat auf deinen Fediverse-Beitrag geantwortet"
+        },
+        "apFollowRequest": {
+          "title": "Test: ActivityPub-Folgeanfrage",
+          "message": "Jemand im Fediverse möchte dir folgen"
+        },
+        "generic": {
+          "title": "Testbenachrichtigung",
+          "message": "Das ist eine Testbenachrichtigung"
+        }
+      }
     },
     "announcements": {
       "title": "Ankündigungen",
@@ -899,7 +1719,40 @@
       "inputDevice": "Eingabegerät",
       "outputDevice": "Ausgabegerät",
       "inputVolume": "Eingabelautstärke",
-      "outputVolume": "Ausgabelautstärke"
+      "outputVolume": "Ausgabelautstärke",
+      "playSound": "Ton „{sound}“ abspielen",
+      "sounds": {
+        "mention": "Erwähnung",
+        "message": "Nachricht",
+        "reaction": "Reaktion",
+        "voiceJoin": "Sprachkanal betreten",
+        "voiceLeave": "Sprachkanal verlassen",
+        "success": "Erfolg",
+        "error": "Fehler",
+        "click": "Klick"
+      },
+      "themes": {
+        "title": "Audiodesigns",
+        "subtitle": "Klangpakete für Benachrichtigungen, Anrufe und Rückmeldungen der Oberfläche",
+        "builtIn": "Integriert",
+        "byAuthor": "von {author}",
+        "masterVolume": "Gesamtlautstärke",
+        "mute": "Töne stummschalten",
+        "playPreview": "Vorschau von {theme} abspielen",
+        "clearCache": "Audio-Cache leeren",
+        "dismissError": "Fehler ausblenden",
+        "advanced": "Erweiterte Einstellungen",
+        "autoPreload": "Designs automatisch vorladen",
+        "volumeLow": "Leise",
+        "volumeMedium": "Mittel",
+        "volumeHigh": "Laut",
+        "volumeMax": "Maximal",
+        "cacheInfo": "Cache-Informationen",
+        "cacheStats": "{sounds} Sounds im Cache, {themes} Themes geladen",
+        "exportSettings": "Einstellungen exportieren",
+        "importSettings": "Einstellungen importieren",
+        "resetDefaults": "Auf Standard zurücksetzen"
+      }
     },
     "buildInfo": {
       "copyHint": "Klicken, um Versionsinfos für Fehlerberichte zu kopieren",
@@ -907,6 +1760,55 @@
       "copyFailed": "Versionsinfos konnten nicht kopiert werden",
       "terms": "Nutzungsbedingungen",
       "privacy": "Datenschutzerklärung"
+    },
+    "a11y": {
+      "sections": "Einstellungsbereiche",
+      "close": "Einstellungen schließen",
+      "unreadAnnouncements": "{count} ungelesene Ankündigung | {count} ungelesene Ankündigungen"
+    },
+    "toasts": {
+      "loggedOut": "Abgemeldet",
+      "logoutFailed": "Abmelden fehlgeschlagen",
+      "profileUpdated": "Profil aktualisiert",
+      "profileUpdateFailed": "Profil konnte nicht aktualisiert werden",
+      "avatarUpdated": "Avatar aktualisiert",
+      "avatarUploadFailed": "Avatar konnte nicht hochgeladen werden",
+      "bannerUpdated": "Banner aktualisiert",
+      "bannerUploadFailed": "Banner konnte nicht hochgeladen werden",
+      "profileLoadFailed": "Dein Profil konnte nicht geladen werden"
+    },
+    "unsaved": {
+      "title": "Ungespeicherte Änderungen verwerfen?",
+      "message": "Deine Änderungen an diesen Einstellungen wurden nicht gespeichert.",
+      "discard": "Änderungen verwerfen"
+    },
+    "userAccount": {
+      "changeBanner": "Profilbanner ändern",
+      "bannerUploading": "Banner wird hochgeladen…",
+      "displayNameHint": "So sehen dich andere.",
+      "displayNameEmojiHint": "Tippe : für eigene Emojis.",
+      "displayNameRequired": "Der Anzeigename darf nicht leer sein.",
+      "displayNameNoEmoji": "Eigene Emojis in Anzeigenamen sind auf dieser Instanz deaktiviert. Entferne Emoji-Kürzel wie :name: aus deinem Anzeigenamen.",
+      "usernameHint": "Benutzernamen können nicht geändert werden: Andere Server erkennen dein Konto daran.",
+      "bioCount": "{count}/{max} Zeichen",
+      "displayColor": "Anzeigefarbe",
+      "displayColorHint": "Wird für deinen Anzeigenamen und Profilakzente verwendet.",
+      "openColorPicker": "Farbwähler öffnen",
+      "resetColor": "Anzeigefarbe zurücksetzen",
+      "fieldsTitle": "Profilfelder",
+      "fieldsDescription": "Füge deinem Profil bis zu {max} kurze Links oder Angaben hinzu: Websites, Social-Media-Namen, alles, worüber andere dich finden sollen. Sichtbar auf deiner Profilseite und an andere ActivityPub-Instanzen föderiert.",
+      "fieldNameLabel": "Feld {n}: Bezeichnung",
+      "fieldValueLabel": "Feld {n}: Wert",
+      "fieldNamePlaceholder": "Bezeichnung (z. B. Website)",
+      "fieldValuePlaceholder": "Wert (z. B. https://example.com)",
+      "removeFieldNamed": "Feld {name} entfernen",
+      "removeFieldNumbered": "Feld {n} entfernen",
+      "fieldsEmpty": "Noch keine Felder. Füge unten eins hinzu.",
+      "fieldIncomplete": "Jedes Profilfeld braucht eine Bezeichnung und einen Wert.",
+      "addField": "Feld hinzufügen",
+      "description": "Verwalte dein Profil und deine Kontodaten.",
+      "handleCopied": "Handle kopiert",
+      "copyFailed": "Kopieren fehlgeschlagen"
     }
   },
   "navigation": {
@@ -1291,6 +2193,23 @@
     },
     "securityNotification": {
       "short": "Kontosicherheit"
+    },
+    "kickBan": {
+      "member": "Mitglied",
+      "searchPlaceholder": "Nach einem Mitglied suchen…",
+      "noMembers": "Keine Mitglieder gefunden",
+      "memberSelected": "{name} ausgewählt",
+      "changeMember": "Anderes Mitglied statt {name} wählen",
+      "banWarning": "Dieser Benutzer wird dauerhaft vom Server gebannt und kann erst wieder beitreten, wenn die Sperre aufgehoben wird.",
+      "reasonPlaceholderKick": "Warum kickst du diesen Benutzer?",
+      "reasonPlaceholderBan": "Warum bannst du diesen Benutzer?",
+      "deleteMessages": "Nachrichtenverlauf löschen",
+      "deleteOptions": {
+        "none": "Nichts löschen",
+        "hour": "Letzte Stunde",
+        "day": "Letzte 24 Stunden",
+        "week": "Letzte 7 Tage"
+      }
     }
   },
   "files": {
@@ -2978,7 +3897,10 @@
         "setupFailed": "Die Zwei-Faktor-Einrichtung konnte nicht gestartet werden.",
         "copyFailed": "Kopieren fehlgeschlagen. Markiere den Text und kopiere ihn manuell.",
         "actionFailed": "Das hat nicht funktioniert. Versuche es erneut."
-      }
+      },
+      "copyCodes": "Codes kopieren",
+      "enabledAnnouncement": "Zwei-Faktor-Authentifizierung ist eingeschaltet. Speichere deine Wiederherstellungscodes.",
+      "newCodesAnnouncement": "Neue Wiederherstellungscodes erstellt. Speichere sie jetzt."
     },
     "sessions": {
       "title": "Geräte",
@@ -4581,7 +5503,8 @@
       "skipKeys": "Tab",
       "escape": "Geöffneten Dialog, Menü oder Bereich schließen; der Fokus kehrt zurück",
       "escapeKeys": "Esc"
-    }
+    },
+    "unsavedChanges": "Ungespeicherte Änderungen"
   },
   "statusPicker": {
     "setTitle": "Benutzerdefinierten Status festlegen",
@@ -4621,5 +5544,31 @@
     "unreachable": "Diese Instanz ist nicht erreichbar",
     "current": "Aktuell verbunden mit {name}",
     "keep": "Beibehalten"
+  },
+  "colorPicker": {
+    "label": "Farbauswahl",
+    "saturationBrightness": "Sättigung und Helligkeit",
+    "saturationBrightnessValue": "Sättigung {saturation} %, Helligkeit {brightness} %",
+    "saturationBrightnessHelp": "Pfeil links und rechts ändern die Sättigung, Pfeil hoch und runter die Helligkeit. Mit gedrückter Umschalttaste in größeren Schritten.",
+    "hue": "Farbton",
+    "hueValue": "{degrees} Grad",
+    "hex": "Hex-Farbe",
+    "presets": "Vorgegebene Farben",
+    "swatch": "{name} {hex}",
+    "sampleText": "Beispieltext",
+    "names": {
+      "red": "Rot",
+      "orange": "Orange",
+      "yellow": "Gelb",
+      "green": "Grün",
+      "cyan": "Cyan",
+      "blue": "Blau",
+      "purple": "Lila",
+      "pink": "Pink",
+      "brown": "Braun",
+      "grey": "Grau",
+      "white": "Weiß",
+      "black": "Schwarz"
+    }
   }
 }

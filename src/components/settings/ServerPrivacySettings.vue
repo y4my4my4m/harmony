@@ -10,11 +10,11 @@
     <!-- Permission Notice for Read-Only Users -->
     <div v-if="!permissions.canChangePrivacySettings" class="permission-notice">
       <div class="notice-content">
-        <svg class="notice-icon" width="20" height="20" viewBox="0 0 24 24">
+        <svg class="notice-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
           <path fill="currentColor" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
         </svg>
         <div class="notice-text">
-          <h4>{{ $t('server.viewOnlyAccess') }}</h4>
+          <h3>{{ $t('server.viewOnlyAccess') }}</h3>
           <p>{{ $t('server.viewOnlyMessage') }}</p>
         </div>
       </div>
@@ -25,20 +25,24 @@
       <div class="form-group">
         <div class="setting-row">
           <div class="setting-info">
-            <label class="form-label">{{ $t('server.federationEnabled', 'Enable Federation') }}</label>
-            <div class="form-hint">
-              {{ $t('server.federationEnabledDesc', 'Allow users from other Harmony instances to join and interact with this server. Required for cross-instance communication.') }}
+            <label class="form-label" :for="`${uid}-federation`">{{ $t('server.federationEnabled') }}</label>
+            <div :id="`${uid}-federation-hint`" class="form-hint">
+              {{ $t('server.federationEnabledDesc') }}
             </div>
           </div>
           <div class="setting-control">
             <label class="toggle-switch">
               <input
+                :id="`${uid}-federation`"
+                ref="federationToggle"
                 type="checkbox"
+                role="switch"
+                :aria-describedby="`${uid}-federation-hint`"
                 :checked="federationEnabled"
                 @change="handleFederationToggle"
                 :disabled="loading"
               />
-              <span class="toggle-slider"></span>
+              <span class="toggle-slider" aria-hidden="true"></span>
             </label>
           </div>
         </div>
@@ -47,31 +51,36 @@
       <div v-if="federationEnabled" class="federation-info">
         <div class="info-card federation">
           <div class="info-header">
-            <svg class="info-icon" width="20" height="20" viewBox="0 0 24 24">
+            <svg class="info-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
               <path fill="currentColor" d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6Z"/>
             </svg>
-            <h4 class="info-title">{{ $t('server.federationActive', 'Federation Active') }}</h4>
+            <h3 class="info-title">{{ $t('server.federationActive') }}</h3>
           </div>
           <ul class="info-list">
-            <li>{{ $t('server.federationBenefit1', 'Users from other instances can join via invite links') }}</li>
-            <li>{{ $t('server.federationBenefit2', 'Messages are shared with federated members in real-time') }}</li>
-            <li>{{ $t('server.federationBenefit3', 'Server appears in federated server discovery') }}</li>
+            <li>{{ $t('server.federationBenefit1') }}</li>
+            <li>{{ $t('server.federationBenefit2') }}</li>
+            <li>{{ $t('server.federationBenefit3') }}</li>
           </ul>
           <div v-if="federatedMemberCount > 0" class="federated-member-count">
-            {{ federatedMemberCount }} federated member{{ federatedMemberCount !== 1 ? 's' : '' }} currently in this server
+            {{ $t('server.privacy.federatedMembers', { count: federatedMemberCount }, federatedMemberCount) }}
           </div>
         </div>
 
         <!-- Federation handle: how people on other instances discover this server -->
-        <div v-if="serverHandle" class="server-handle-card">
-          <label class="form-label">{{ $t('server.federationHandle', 'Server handle') }}</label>
-          <div class="form-hint">
-            {{ $t('server.federationHandleDesc', 'Share this handle so people on other instances can find and join this server.') }}
+        <div v-if="serverHandle" class="server-handle-card" role="group" :aria-labelledby="`${uid}-handle-label`">
+          <span :id="`${uid}-handle-label`" class="form-label">{{ $t('server.federationHandle') }}</span>
+          <div :id="`${uid}-handle-hint`" class="form-hint">
+            {{ $t('server.federationHandleDesc') }}
           </div>
           <div class="handle-row">
             <code class="handle-value">{{ serverHandle }}</code>
-            <button type="button" class="handle-copy-btn" @click="copyHandle">
-              {{ copied ? $t('common.copied', 'Copied') : $t('common.copy', 'Copy') }}
+            <button
+              type="button"
+              class="handle-copy-btn"
+              :aria-label="$t('server.privacy.copyHandle', { handle: serverHandle })"
+              @click="copyHandle"
+            >
+              {{ copied ? $t('common.copied') : $t('common.copy') }}
             </button>
           </div>
         </div>
@@ -79,39 +88,46 @@
 
       <!-- Warning dialog when disabling federation with existing members -->
       <div v-if="showDisableWarning" class="disable-federation-warning-overlay" @click.self="cancelDisableFederation">
-        <div class="disable-federation-warning">
+        <div
+          ref="warningEl"
+          class="disable-federation-warning"
+          role="alertdialog"
+          aria-modal="true"
+          :aria-labelledby="warningTitleId"
+          :aria-describedby="warningDescriptionId"
+          tabindex="-1"
+        >
           <div class="warning-header">
-            <svg class="warning-icon" width="24" height="24" viewBox="0 0 24 24">
+            <svg class="warning-icon" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
               <path fill="currentColor" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
             </svg>
-            <h3>Disable federation?</h3>
+            <h3 :id="warningTitleId">{{ $t('server.privacy.disableTitle') }}</h3>
           </div>
-          <p class="warning-body">
-            This server currently has <strong>{{ federatedMemberCount }}</strong> federated member{{ federatedMemberCount !== 1 ? 's' : '' }}
-            from other instances. Disabling federation will:
+          <p :id="warningDescriptionId" class="warning-body">
+            {{ $t('server.privacy.disableBody', { count: federatedMemberCount }, federatedMemberCount) }}
           </p>
           <ul class="warning-consequences">
-            <li>Block all new join requests from remote users</li>
-            <li>Stop delivering messages to and from remote members</li>
-            <li>Prevent reactions and voice participation from remote users</li>
-            <li>Existing federated members will remain in the member list but will be unable to interact</li>
+            <li>{{ $t('server.privacy.disableConsequence1') }}</li>
+            <li>{{ $t('server.privacy.disableConsequence2') }}</li>
+            <li>{{ $t('server.privacy.disableConsequence3') }}</li>
+            <li>{{ $t('server.privacy.disableConsequence4') }}</li>
           </ul>
           <div class="warning-actions">
-            <button class="btn-cancel" @click="cancelDisableFederation">Cancel</button>
-            <button class="btn-confirm-danger" @click="confirmDisableFederation">Disable federation</button>
+            <button type="button" class="btn-cancel" data-autofocus @click="cancelDisableFederation">{{ $t('common.cancel') }}</button>
+            <button type="button" class="btn-confirm-danger" @click="confirmDisableFederation">{{ $t('server.privacy.disableConfirm') }}</button>
           </div>
         </div>
       </div>
     </div>
 
     <div class="settings-card">
-      <div class="form-group">
-        <label class="form-label">{{ $t('server.serverDiscovery') }}</label>
+      <fieldset class="form-group discovery-fieldset">
+        <legend class="form-label">{{ $t('server.serverDiscovery') }}</legend>
         <div class="discovery-options">
           <div class="discovery-option">
             <div class="option-content">
-              <div class="option-title">{{ $t('server.inviteOnly') }}</div>
-              <div class="option-description">
+              <div :id="`${uid}-invite-only-title`" class="option-title">{{ $t('server.inviteOnly') }}</div>
+              <div :id="`${uid}-invite-only-desc`" class="option-description">
                 {{ $t('server.inviteOnlyDesc') }}
               </div>
             </div>
@@ -120,19 +136,21 @@
                 type="radio"
                 id="invite-only"
                 name="discovery"
+                :aria-labelledby="`${uid}-invite-only-title`"
+                :aria-describedby="`${uid}-invite-only-desc`"
                 value="invite-only"
                 :checked="!isPublic"
                 @change="setDiscoveryMode('invite-only')"
                 :disabled="loading || !permissions.canChangePrivacySettings"
               />
-              <label for="invite-only" class="radio-label"></label>
+              <label for="invite-only" class="radio-label" aria-hidden="true"></label>
             </div>
           </div>
 
           <div class="discovery-option">
             <div class="option-content">
-              <div class="option-title">{{ $t('server.publicDirectory') }}</div>
-              <div class="option-description">
+              <div :id="`${uid}-public-title`" class="option-title">{{ $t('server.publicDirectory') }}</div>
+              <div :id="`${uid}-public-desc`" class="option-description">
                 {{ $t('server.publicDirectoryDesc') }}
               </div>
             </div>
@@ -141,16 +159,18 @@
                 type="radio"
                 id="public-directory"
                 name="discovery"
+                :aria-labelledby="`${uid}-public-title`"
+                :aria-describedby="`${uid}-public-desc`"
                 value="public-directory"
                 :checked="isPublic"
                 @change="setDiscoveryMode('public-directory')"
                 :disabled="loading || !permissions.canChangePrivacySettings"
               />
-              <label for="public-directory" class="radio-label"></label>
+              <label for="public-directory" class="radio-label" aria-hidden="true"></label>
             </div>
           </div>
         </div>
-      </div>
+      </fieldset>
 
       <div class="form-group category-group">
         <span id="server-category-label" class="form-label">{{ $t('server.discoveryCategory') }}</span>
@@ -169,10 +189,10 @@
       <div v-if="isPublic" class="public-server-info">
         <div class="info-card">
           <div class="info-header">
-            <svg class="info-icon" width="20" height="20" viewBox="0 0 24 24">
+            <svg class="info-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
               <path fill="currentColor" d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M11,16.5L18,9.5L16.59,8.09L11,13.67L7.41,10.09L6,11.5L11,16.5Z"/>
             </svg>
-            <h4 class="info-title">{{ $t('server.publicServerBenefits') }}</h4>
+            <h3 class="info-title">{{ $t('server.publicServerBenefits') }}</h3>
           </div>
           <ul class="info-list">
             <li>{{ $t('server.publicServerBenefit1') }}</li>
@@ -184,10 +204,10 @@
 
         <div class="warning-card">
           <div class="warning-header">
-            <svg class="warning-icon" width="20" height="20" viewBox="0 0 24 24">
+            <svg class="warning-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
               <path fill="currentColor" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
             </svg>
-            <h4 class="warning-title">{{ $t('server.importantConsiderations') }}</h4>
+            <h3 class="warning-title">{{ $t('server.importantConsiderations') }}</h3>
           </div>
           <ul class="warning-list">
             <li>{{ $t('server.consideration1') }}</li>
@@ -201,10 +221,10 @@
       <div v-else class="private-server-info">
         <div class="info-card private">
           <div class="info-header">
-            <svg class="info-icon" width="20" height="20" viewBox="0 0 24 24">
+            <svg class="info-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
               <path fill="currentColor" d="M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10A2,2 0 0,1 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/>
             </svg>
-            <h4 class="info-title">{{ $t('server.privateServer') }}</h4>
+            <h3 class="info-title">{{ $t('server.privateServer') }}</h3>
           </div>
           <p class="info-text">
             {{ $t('server.privateServerInfo') }}
@@ -217,14 +237,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, useId } from 'vue'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import ServerCategoryPicker from '@/components/common/ServerCategoryPicker.vue'
 import type { ServerCategory } from '@/utils/serverDiscovery'
 import { supabase } from '@/supabase'
 import { useI18n } from 'vue-i18n'
+import { useDialog } from '@/composables/useDialog'
 
 useI18n();
+const uid = `privacy-${useId()}`
 const instanceSettings = useInstanceSettingsStore()
 const instanceFederationEnabled = instanceSettings.isFederationEnabled
 
@@ -257,6 +279,15 @@ const federatedMemberCount = ref(0)
 const showDisableWarning = ref(false)
 const serverHandle = ref('')
 const copied = ref(false)
+const warningEl = ref<HTMLElement | null>(null)
+const federationToggle = ref<HTMLInputElement | null>(null)
+
+const { titleId: warningTitleId, descriptionId: warningDescriptionId } = useDialog({
+  open: showDisableWarning,
+  element: warningEl,
+  onClose: () => cancelDisableFederation(),
+  returnFocus: () => federationToggle.value,
+})
 
 async function fetchFederatedMemberCount() {
   if (!props.serverId) return
@@ -387,7 +418,7 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
   color: var(--warning);
 }
 
-.notice-text h4 {
+.notice-text h3 {
   margin: 0 0 4px 0;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
@@ -422,6 +453,22 @@ const setDiscoveryMode = (mode: 'invite-only' | 'public-directory') => {
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
   margin-bottom: 8px;
+}
+
+.discovery-fieldset {
+  border: none;
+  padding: 0;
+  min-width: 0;
+}
+
+.discovery-fieldset > legend {
+  padding: 0;
+}
+
+.toggle-switch input:focus-visible + .toggle-slider,
+.option-control input:focus-visible + .radio-label {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .form-hint {
@@ -772,11 +819,19 @@ input:checked + .toggle-slider:before {
 }
 
 .option-control {
+  position: relative;
   flex-shrink: 0;
 }
 
+/* Visually hidden, still focusable; the label draws the state. */
 .option-control input[type="radio"] {
-  display: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .radio-label {

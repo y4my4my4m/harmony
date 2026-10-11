@@ -1,63 +1,100 @@
 <template>
   <Teleport to="body">
-    <div v-if="show" class="modal-overlay" @click="closeModal">
-      <div class="modal-container" @click.stop>
+    <div
+      v-if="show"
+      class="modal-overlay"
+      @mousedown.self="pressedOverlay = true"
+      @click.self="onOverlayClick"
+    >
+      <div
+        ref="dialogEl"
+        class="modal-container"
+        role="dialog"
+        aria-modal="true"
+        :aria-labelledby="titleId"
+        tabindex="-1"
+        data-testid="channel-edit-dialog"
+      >
         <div class="modal-header">
-          <h2 class="modal-title">Edit channel</h2>
-          <button class="modal-close" @click="closeModal">
-            <svg width="24" height="24" viewBox="0 0 24 24">
+          <h2 :id="titleId" class="modal-title">{{ t('channel.edit.title') }}</h2>
+          <button
+            type="button"
+            class="modal-close"
+            :aria-label="t('common.close')"
+            :title="t('common.close')"
+            @click="requestClose"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
               <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
             </svg>
           </button>
         </div>
 
-        <!-- Tabs -->
-        <div class="modal-tabs">
+        <!-- Tabs: automatic activation, focus and selection move together. -->
+        <div
+          ref="tablistEl"
+          class="modal-tabs"
+          role="tablist"
+          :aria-labelledby="titleId"
+          @keydown="onTabsKeydown"
+        >
           <button
             v-for="tab in tabs"
             :key="tab.id"
+            :id="`${a11yId}-tab-${tab.id}`"
+            type="button"
+            role="tab"
             class="modal-tab"
             :class="{ active: activeTab === tab.id }"
+            :data-tab="tab.id"
+            :aria-selected="activeTab === tab.id ? 'true' : 'false'"
+            :aria-controls="`${a11yId}-panel-${tab.id}`"
+            :tabindex="activeTab === tab.id ? 0 : -1"
             @click="activeTab = tab.id"
           >
             {{ tab.label }}
           </button>
         </div>
 
-        <div class="modal-body">
+        <div
+          :id="`${a11yId}-panel-${activeTab}`"
+          class="modal-body"
+          role="tabpanel"
+          :aria-labelledby="`${a11yId}-tab-${activeTab}`"
+          tabindex="0"
+        >
           <!-- General tab -->
           <template v-if="activeTab === 'general'">
             <div class="form-group">
-              <label for="channel-name">Channel name</label>
+              <label for="channel-name">{{ t('channel.channelName') }}</label>
               <input
                 id="channel-name"
                 v-model="editedName"
                 type="text"
                 class="form-input"
-                placeholder="Enter channel name"
+                :placeholder="t('channel.edit.namePlaceholder')"
                 maxlength="100"
                 @keydown.enter="saveChanges"
-                @keydown.escape="closeModal"
                 ref="nameInput"
               />
-              <div class="character-count">{{ editedName.length }}/100</div>
+              <div class="character-count" aria-hidden="true">{{ editedName.length }}/100</div>
             </div>
 
             <div class="form-group">
-              <label for="channel-description">Description</label>
+              <label for="channel-description">{{ t('channel.edit.description') }}</label>
               <textarea
                 id="channel-description"
                 v-model="editedDescription"
                 class="form-textarea"
-                placeholder="What's this channel about?"
+                :placeholder="t('channel.edit.descriptionPlaceholder')"
                 maxlength="1024"
                 rows="3"
               />
-              <div class="character-count">{{ (editedDescription || '').length }}/1024</div>
+              <div class="character-count" aria-hidden="true">{{ (editedDescription || '').length }}/1024</div>
             </div>
 
             <div v-if="channel?.type === 0" class="form-group">
-              <label for="channel-slowmode">Slowmode</label>
+              <label for="channel-slowmode">{{ t('channel.edit.slowmode') }}</label>
               <div class="slowmode-control">
                 <input
                   id="channel-slowmode"
@@ -67,26 +104,28 @@
                   :max="SLOWMODE_STEPS.length - 1"
                   step="1"
                   class="slowmode-slider"
+                  :aria-valuetext="slowmodeSpoken"
+                  :aria-describedby="`${a11yId}-slowmode-hint`"
                 />
-                <span class="slowmode-value" :class="{ off: editedSlowmode === 0 }">
+                <span class="slowmode-value" :class="{ off: editedSlowmode === 0 }" aria-hidden="true">
                   {{ slowmodeLabel }}
                 </span>
               </div>
-              <div class="form-hint">
-                Members can send one message per interval. Moderators with Manage Messages are exempt.
+              <div :id="`${a11yId}-slowmode-hint`" class="form-hint">
+                {{ t('channel.edit.slowmodeHint') }}
               </div>
             </div>
 
             <div class="form-group">
-              <label>Channel type</label>
+              <label>{{ t('channel.channelType') }}</label>
               <div class="channel-type-display">
-                <div class="channel-type-icon">
+                <div class="channel-type-icon" aria-hidden="true">
                   <HashTagIcon v-if="channel?.type === 0" />
                   <SpeakerIcon v-else />
                 </div>
-                <span>{{ channel?.type === 0 ? 'Text channel' : 'Voice channel' }}</span>
+                <span>{{ channel?.type === 0 ? t('channel.edit.textChannel') : t('channel.edit.voiceChannel') }}</span>
               </div>
-              <div class="form-hint">Channel type cannot be changed after creation</div>
+              <div class="form-hint">{{ t('channel.edit.typeHint') }}</div>
             </div>
 
             <ChannelEncryptionSection
@@ -100,65 +139,81 @@
           <template v-else-if="activeTab === 'permissions'">
             <div v-if="!rolesLoading && everyoneRole" class="private-card">
               <div class="private-head">
-                <Icon name="eye-off" :size="18" class="private-icon" />
+                <Icon name="eye-off" :size="18" class="private-icon" aria-hidden="true" />
                 <div class="private-text">
-                  <span class="private-title">Private channel</span>
-                  <span class="private-desc">
-                    Hidden from everyone except the roles chosen here, the server owner and administrators.
-                  </span>
+                  <span class="private-title" aria-hidden="true">{{ t('channel.private.label') }}</span>
+                  <span :id="`${a11yId}-private-desc`" class="private-desc">{{ t('channel.private.hint') }}</span>
                 </div>
-                <ToggleSwitch :model-value="isPrivate" :label="$t('channel.private.label')" @change="setPrivate" />
+                <ToggleSwitch
+                  :model-value="isPrivate"
+                  :label="t('channel.private.label')"
+                  :describedby="`${a11yId}-private-desc`"
+                  @change="setPrivate"
+                />
               </div>
               <div v-if="isPrivate" class="private-roles">
-                <span class="perm-rail-label">Who can see it</span>
-                <div class="private-role-list">
+                <span :id="`${a11yId}-who`" class="perm-rail-label">{{ t('channel.private.whoCanSee') }}</span>
+                <div class="private-role-list" role="group" :aria-labelledby="`${a11yId}-who`">
                   <label v-for="role in assignableRoles" :key="role.id" class="private-role">
                     <input
                       type="checkbox"
                       :checked="getPermState(role.id, Permission.VIEW_CHANNEL) === 'allow'"
                       @change="setRoleCanView(role.id, ($event.target as HTMLInputElement).checked)"
                     />
-                    <span class="role-color-dot" :style="{ background: role.color || '#99aab5' }"></span>
+                    <span class="role-color-dot" :style="{ background: role.color || '#99aab5' }" aria-hidden="true"></span>
                     <span>{{ role.name }}</span>
                   </label>
-                  <span v-if="assignableRoles.length === 0" class="private-desc">No roles yet: only the owner and administrators will see it.</span>
+                  <span v-if="assignableRoles.length === 0" class="private-desc">{{ t('channel.private.noRoles') }}</span>
                 </div>
               </div>
             </div>
             <div class="perm-layout">
               <!-- Role rail (left) - Discord-style role list -->
-              <aside class="perm-role-rail">
-                <div class="perm-rail-label">Roles</div>
-                <button
-                  v-for="role in serverRoles"
-                  :key="role.id"
-                  type="button"
-                  class="perm-role-pill"
-                  :class="{ active: selectedRoleId === role.id, dirty: isRoleDirty(role.id) }"
-                  @click="selectedRoleId = role.id"
-                >
-                  <span class="role-color-dot" :style="{ background: role.color || '#99aab5' }"></span>
-                  <span class="role-pill-name">{{ role.name }}</span>
-                  <span v-if="isRoleDirty(role.id)" class="role-pill-dot" title="Unsaved changes"></span>
-                </button>
+              <div class="perm-role-rail">
+                <h3 :id="`${a11yId}-roles`" class="perm-rail-label">{{ t('server.roles') }}</h3>
+                <ul class="perm-role-list" :aria-labelledby="`${a11yId}-roles`">
+                  <li v-for="role in serverRoles" :key="role.id">
+                    <button
+                      type="button"
+                      class="perm-role-pill"
+                      :class="{ active: selectedRoleId === role.id, dirty: isRoleDirty(role.id) }"
+                      :data-role-id="role.id"
+                      :aria-current="selectedRoleId === role.id ? 'true' : undefined"
+                      @click="selectedRoleId = role.id"
+                    >
+                      <span class="role-color-dot" :style="{ background: role.color || '#99aab5' }" aria-hidden="true"></span>
+                      <span class="role-pill-name">{{ role.name }}</span>
+                      <template v-if="isRoleDirty(role.id)">
+                        <span class="role-pill-dot" :title="t('a11y.unsavedChanges')" aria-hidden="true"></span>
+                        <span class="sr-only">{{ t('a11y.unsavedChanges') }}</span>
+                      </template>
+                    </button>
+                  </li>
+                </ul>
                 <div v-if="!rolesLoading && serverRoles.length === 0" class="perm-empty-mini">
-                  No roles
+                  {{ t('channel.edit.noRoles') }}
                 </div>
-              </aside>
+              </div>
 
               <!-- Permission editor (right) -->
               <section class="perm-editor">
-                <div v-if="rolesLoading" class="perm-loading">Loading roles...</div>
+                <div v-if="rolesLoading" class="perm-loading" role="status">{{ t('channel.edit.loadingRoles') }}</div>
                 <template v-else-if="selectedRole">
                   <header class="perm-editor-head">
                     <div class="perm-editor-title">
-                      <span class="role-color-dot" :style="{ background: selectedRole.color || '#99aab5' }"></span>
-                      <h4>{{ selectedRole.name }}</h4>
+                      <span class="role-color-dot" :style="{ background: selectedRole.color || '#99aab5' }" aria-hidden="true"></span>
+                      <h3 ref="roleTitleEl" :id="`${a11yId}-role-title`" tabindex="-1">{{ selectedRole.name }}</h3>
                     </div>
                     <p class="perm-editor-sub">
-                      <strong>Allow</strong> grants, <strong>Deny</strong> revokes, <strong>Inherit</strong> uses the server-wide setting.
-                      <button v-if="isRoleDirty(selectedRole.id)" type="button" class="perm-reset-link" @click="resetRole(selectedRole.id)">
-                        Reset changes
+                      {{ t('channel.edit.overrideLegend') }}
+                      <button
+                        v-if="isRoleDirty(selectedRole.id)"
+                        type="button"
+                        class="perm-reset-link"
+                        :aria-label="t('channel.edit.resetRoleFor', { role: selectedRole.name })"
+                        @click="onResetRole(selectedRole)"
+                      >
+                        {{ t('channel.edit.resetRole') }}
                       </button>
                     </p>
                   </header>
@@ -168,36 +223,27 @@
                     :key="group.id"
                     class="perm-group"
                   >
-                    <div class="perm-group-label">{{ group.label }}</div>
+                    <h4 class="perm-group-label">{{ t(`channel.edit.groups.${group.id}`) }}</h4>
                     <div
                       v-for="perm in group.permissions"
                       :key="perm.key"
                       class="perm-row"
+                      :data-perm="perm.key"
                     >
                       <div class="perm-row-text">
-                        <span class="perm-row-label">{{ perm.label }}</span>
-                        <span class="perm-row-desc">{{ perm.description }}</span>
+                        <span :id="`${a11yId}-perm-${perm.key}`" class="perm-row-label">{{ t(`channel.edit.perms.${perm.key}.label`) }}</span>
+                        <span :id="`${a11yId}-perm-${perm.key}-desc`" class="perm-row-desc">{{ t(`channel.edit.perms.${perm.key}.description`) }}</span>
                       </div>
-                      <div class="perm-tristate" role="radiogroup" :aria-label="perm.label">
-                        <button
-                          v-for="state in TRISTATE_OPTIONS"
-                          :key="state.value"
-                          type="button"
-                          class="perm-tristate-btn"
-                          :class="[
-                            `state-${state.value}`,
-                            { active: getPermState(selectedRole.id, perm.key) === state.value },
-                          ]"
-                          :title="state.label"
-                          @click="setPermState(selectedRole.id, perm.key, state.value)"
-                        >
-                          <Icon :name="state.icon" :size="14" />
-                        </button>
-                      </div>
+                      <ChannelPermissionTriState
+                        :model-value="getPermState(selectedRole.id, perm.key)"
+                        :labelledby="`${a11yId}-perm-${perm.key}`"
+                        :describedby="`${a11yId}-perm-${perm.key}-desc`"
+                        @update:model-value="setPermState(selectedRole.id, perm.key, $event)"
+                      />
                     </div>
                   </div>
                 </template>
-                <div v-else class="perm-empty">Select a role on the left to edit its channel overrides.</div>
+                <div v-else class="perm-empty">{{ t('channel.edit.selectRole') }}</div>
               </section>
             </div>
           </template>
@@ -209,26 +255,29 @@
         </div>
 
         <div class="modal-footer">
-          <button class="btn btn-secondary" @click="closeModal">
-            Cancel
+          <button type="button" class="btn btn-secondary" @click="requestClose">
+            {{ t('common.cancel') }}
           </button>
           <button
             v-if="activeTab === 'general'"
+            type="button"
             class="btn btn-primary"
             @click="saveChanges"
             :disabled="!isValidName || isLoading"
           >
-            <span v-if="isLoading" class="loading-spinner"></span>
-            {{ isLoading ? 'Saving...' : 'Save changes' }}
+            <span v-if="isLoading" class="loading-spinner" aria-hidden="true"></span>
+            {{ isLoading ? t('channel.edit.saving') : t('channel.edit.save') }}
           </button>
+          <!-- aria-disabled, not disabled: focus stays on the button once the save clears the changes. -->
           <button
             v-else-if="activeTab === 'permissions'"
+            type="button"
             class="btn btn-primary"
+            :aria-disabled="!permissionsDirty || savingPermissions ? 'true' : undefined"
             @click="savePermissions"
-            :disabled="!permissionsDirty || savingPermissions"
           >
-            <span v-if="savingPermissions" class="loading-spinner"></span>
-            {{ savingPermissions ? 'Saving...' : 'Save permissions' }}
+            <span v-if="savingPermissions" class="loading-spinner" aria-hidden="true"></span>
+            {{ savingPermissions ? t('channel.edit.saving') : t('channel.edit.savePermissions') }}
           </button>
         </div>
       </div>
@@ -248,7 +297,13 @@ import Icon from '@/components/common/Icon.vue'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import ChannelEncryptionSection from '@/components/ChannelEncryptionSection.vue'
 import ChannelWebhooksSection from '@/components/ChannelWebhooksSection.vue'
+import ChannelPermissionTriState, { type TriState } from '@/components/ChannelPermissionTriState.vue'
 import { useServerPermissions } from '@/composables/useServerPermissions'
+import { useDialog } from '@/composables/useDialog'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { useAnnouncer } from '@/composables/useAnnouncer'
+import { useRovingTabindex } from '@/composables/useRovingTabindex'
+import { uid, focusProgrammatically } from '@/utils/a11y/focus'
 import { userDataService } from '@/services/userDataService'
 import {
   roleService,
@@ -258,68 +313,50 @@ import {
 } from '@/services/RoleService'
 import type { Channel } from '@/types'
 
-type TriState = 'allow' | 'inherit' | 'deny'
-
-const TRISTATE_OPTIONS: Array<{ value: TriState; label: string; icon: string }> = [
-  { value: 'deny', label: 'Deny', icon: 'x' },
-  { value: 'inherit', label: 'Inherit from server', icon: 'minus' },
-  { value: 'allow', label: 'Allow', icon: 'check' },
-]
-
 // Permissions are grouped Discord-style rather than as one flat toggle list.
 // Editing another user's messages is owner/admin-only and lives outside the
 // channel-override surface, so it is absent here. MANAGE_MESSAGES covers
-// delete and pin only.
-const PERMISSION_GROUPS: Array<{
-  id: string
-  label: string
-  permissions: Array<{ key: Permission; label: string; description: string }>
-}> = [
+// delete and pin only. Group names are channel.edit.groups.<id>; labels and
+// descriptions channel.edit.perms.<KEY>.{label,description}.
+const PERMISSION_GROUPS: Array<{ id: string; permissions: Array<{ key: Permission }> }> = [
   {
     id: 'general',
-    label: 'General',
-    permissions: [
-      { key: Permission.VIEW_CHANNEL,    label: 'View Channel',    description: 'See this channel in the sidebar and read messages.' },
-      { key: Permission.MANAGE_CHANNELS, label: 'Manage Channel',  description: 'Rename, edit, or delete this channel.' },
-    ],
+    permissions: [{ key: Permission.VIEW_CHANNEL }, { key: Permission.MANAGE_CHANNELS }],
   },
   {
     id: 'messages',
-    label: 'Messages',
     permissions: [
-      { key: Permission.SEND_MESSAGES,         label: 'Send Messages',         description: 'Post messages in this channel.' },
-      { key: Permission.EMBED_LINKS,           label: 'Embed Links',           description: 'Send embeds and link previews.' },
-      { key: Permission.ATTACH_FILES,          label: 'Attach Files',          description: 'Upload files in this channel.' },
-      { key: Permission.ADD_REACTIONS,         label: 'Add Reactions',         description: 'React to messages with emoji.' },
-      { key: Permission.USE_EXTERNAL_EMOJIS,   label: 'Use External Emojis',   description: 'Send emojis from other servers.' },
-      { key: Permission.MENTION_EVERYONE,      label: 'Mention @everyone',     description: 'Use @everyone and @here.' },
-      { key: Permission.MANAGE_MESSAGES,       label: 'Manage Messages',       description: 'Delete and pin other members\' messages. Does NOT allow editing.' },
-      { key: Permission.READ_MESSAGE_HISTORY,  label: 'Read Message History',  description: 'See messages posted before they joined.' },
+      { key: Permission.SEND_MESSAGES },
+      { key: Permission.EMBED_LINKS },
+      { key: Permission.ATTACH_FILES },
+      { key: Permission.ADD_REACTIONS },
+      { key: Permission.USE_EXTERNAL_EMOJIS },
+      { key: Permission.MENTION_EVERYONE },
+      { key: Permission.MANAGE_MESSAGES },
+      { key: Permission.READ_MESSAGE_HISTORY },
     ],
   },
   {
     id: 'threads',
-    label: 'Threads',
     permissions: [
-      { key: Permission.CREATE_PUBLIC_THREADS,  label: 'Create Public Threads',  description: 'Start public threads from messages.' },
-      { key: Permission.CREATE_PRIVATE_THREADS, label: 'Create Private Threads', description: 'Start invite-only threads.' },
-      { key: Permission.SEND_MESSAGES_IN_THREADS, label: 'Send in Threads',      description: 'Post messages inside threads.' },
+      { key: Permission.CREATE_PUBLIC_THREADS },
+      { key: Permission.CREATE_PRIVATE_THREADS },
+      { key: Permission.SEND_MESSAGES_IN_THREADS },
     ],
   },
 ]
 
 const VOICE_GROUP = {
   id: 'voice',
-  label: 'Voice',
   permissions: [
-    { key: Permission.CONNECT,        label: 'Connect',        description: 'Join this voice channel.' },
-    { key: Permission.SPEAK,          label: 'Speak',          description: 'Talk in this voice channel.' },
-    { key: Permission.STREAM,         label: 'Video & Stream', description: 'Share camera or screen.' },
-    { key: Permission.MUTE_MEMBERS,   label: 'Mute Members',   description: 'Mute other members here.' },
-    { key: Permission.DEAFEN_MEMBERS, label: 'Deafen Members', description: 'Deafen other members here.' },
-    { key: Permission.MOVE_MEMBERS,   label: 'Move Members',   description: 'Move members out of this channel.' },
-    { key: Permission.USE_SOUNDBOARD, label: 'Use Soundboard', description: 'Play soundboard sounds in this channel.' },
-    { key: Permission.USE_EXTERNAL_SOUNDS, label: 'Use External Sounds', description: 'Play sounds from other servers in this channel.' },
+    { key: Permission.CONNECT },
+    { key: Permission.SPEAK },
+    { key: Permission.STREAM },
+    { key: Permission.MUTE_MEMBERS },
+    { key: Permission.DEAFEN_MEMBERS },
+    { key: Permission.MOVE_MEMBERS },
+    { key: Permission.USE_SOUNDBOARD },
+    { key: Permission.USE_EXTERNAL_SOUNDS },
   ],
 }
 
@@ -339,6 +376,13 @@ const emit = defineEmits<Emits>()
 const serverChannelStore = useServerChannelStore()
 const { canManageChannels, canManageWebhooks, isCurrentUserServerOwner } = useServerPermissions()
 const { t } = useI18n()
+const { confirm } = useConfirmDialog()
+const { polite } = useAnnouncer()
+
+const a11yId = uid('channel-edit')
+const dialogEl = ref<HTMLElement | null>(null)
+const tablistEl = ref<HTMLElement | null>(null)
+const roleTitleEl = ref<HTMLElement | null>(null)
 
 const canManageEncryption = computed(() =>
   isCurrentUserServerOwner.value
@@ -352,11 +396,14 @@ const canManageChannelWebhooks = computed(() =>
 // Discord-style slowmode intervals (seconds)
 const SLOWMODE_STEPS = [0, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600]
 
-function formatSlowmode(seconds: number): string {
-  if (seconds === 0) return 'Off'
-  if (seconds < 60) return `${seconds}s`
-  if (seconds < 3600) return `${seconds / 60}m`
-  return `${seconds / 3600}h`
+// Short form beside the slider ("5m"), long form as its aria-valuetext ("5 minutes").
+const SLOWMODE_FORM = { short: 'slowmodeShort', long: 'slowmodeLong' } as const
+
+function formatSlowmode(seconds: number, form: 'short' | 'long'): string {
+  if (seconds === 0) return t('channel.edit.slowmodeOff')
+  if (seconds < 60) return t(`channel.edit.${SLOWMODE_FORM[form]}.seconds`, seconds)
+  if (seconds < 3600) return t(`channel.edit.${SLOWMODE_FORM[form]}.minutes`, seconds / 60)
+  return t(`channel.edit.${SLOWMODE_FORM[form]}.hours`, seconds / 3600)
 }
 
 const editedName = ref('')
@@ -366,15 +413,60 @@ const isLoading = ref(false)
 const nameInput = ref<HTMLInputElement>()
 
 const editedSlowmode = computed(() => SLOWMODE_STEPS[slowmodeIndex.value] ?? 0)
-const slowmodeLabel = computed(() => formatSlowmode(editedSlowmode.value))
+const slowmodeLabel = computed(() => formatSlowmode(editedSlowmode.value, 'short'))
+const slowmodeSpoken = computed(() => formatSlowmode(editedSlowmode.value, 'long'))
 
 const isValidName = computed(() => {
   return editedName.value.trim().length > 0 && editedName.value.trim().length <= 100
 })
 
+// General-tab values as loaded, for the unsaved-changes check.
+const savedGeneral = ref({ name: '', description: '', slowmodeIndex: 0 })
+const generalDirty = computed(() =>
+  editedName.value.trim() !== savedGeneral.value.name.trim()
+  || (editedDescription.value ?? '').trim() !== savedGeneral.value.description.trim()
+  || slowmodeIndex.value !== savedGeneral.value.slowmodeIndex)
+
 const closeModal = () => {
   emit('close')
 }
+
+// Unsaved edits ask before they are dropped.
+let closePrompt: Promise<void> | null = null
+function requestClose() {
+  if (closePrompt) return
+  if (!generalDirty.value && !permissionsDirty.value) {
+    closeModal()
+    return
+  }
+  closePrompt = (async () => {
+    try {
+      const discard = await confirm({
+        title: t('channel.edit.discardTitle'),
+        message: t('channel.edit.discardMessage'),
+        confirmButtonText: t('channel.edit.discard'),
+        dangerAction: true,
+      })
+      if (discard) closeModal()
+    } finally {
+      closePrompt = null
+    }
+  })()
+}
+
+// A drag that starts inside the panel and ends on the overlay is not a click on it.
+const pressedOverlay = ref(false)
+function onOverlayClick() {
+  const pressed = pressedOverlay.value
+  pressedOverlay.value = false
+  if (pressed) requestClose()
+}
+
+const { titleId } = useDialog({
+  open: () => props.show,
+  element: dialogEl,
+  onClose: requestClose,
+})
 
 const saveChanges = async () => {
   if (!props.channel || !isValidName.value || isLoading.value) return
@@ -410,33 +502,37 @@ const saveChanges = async () => {
   } catch (error: any) {
     debug.error('Failed to update channel:', error)
     const toast = useToast()
-    toast.error(error?.message || "Couldn't update channel. Try again.")
+    toast.error(error?.message || t('channel.edit.errors.update'))
   } finally {
     isLoading.value = false
   }
 }
 
+function resetGeneral(channel: Channel) {
+  editedName.value = channel.name || ''
+  editedDescription.value = channel.description || ''
+  const savedSlowmode = channel.slowmode_seconds ?? 0
+  let stepIndex = SLOWMODE_STEPS.indexOf(savedSlowmode)
+  if (stepIndex < 0) {
+    // Custom value (e.g. set via API): snap to the closest step below.
+    stepIndex = 0
+    for (let i = SLOWMODE_STEPS.length - 1; i >= 0; i--) {
+      if (SLOWMODE_STEPS[i] <= savedSlowmode) { stepIndex = i; break }
+    }
+  }
+  slowmodeIndex.value = stepIndex
+  savedGeneral.value = { name: editedName.value, description: editedDescription.value, slowmodeIndex: stepIndex }
+}
+
 // Watch for channel changes to reset form
 watch(() => props.channel, (newChannel) => {
-  if (newChannel) {
-    editedName.value = newChannel.name || ''
-    editedDescription.value = newChannel.description || ''
-    const savedSlowmode = newChannel.slowmode_seconds ?? 0
-    let stepIndex = SLOWMODE_STEPS.indexOf(savedSlowmode)
-    if (stepIndex < 0) {
-      // Custom value (e.g. set via API): snap to the closest step below.
-      stepIndex = 0
-      for (let i = SLOWMODE_STEPS.length - 1; i >= 0; i--) {
-        if (SLOWMODE_STEPS[i] <= savedSlowmode) { stepIndex = i; break }
-      }
-    }
-    slowmodeIndex.value = stepIndex
-  }
+  if (newChannel) resetGeneral(newChannel)
 }, { immediate: true })
 
-// Focus input when modal opens
+// Reopening starts from the saved values: discarded edits do not come back.
 watch(() => props.show, (isVisible) => {
   if (isVisible) {
+    if (props.channel) resetGeneral(props.channel)
     nextTick(() => {
       nameInput.value?.focus()
       nameInput.value?.select()
@@ -452,12 +548,20 @@ type ChannelEditTab = 'general' | 'permissions' | 'webhooks'
 const tabs = computed(() => {
   const list: Array<{ id: ChannelEditTab; label: string }> = []
   if (canManageEncryption.value || !canManageChannelWebhooks.value) {
-    list.push({ id: 'general', label: 'General' }, { id: 'permissions', label: 'Permissions' })
+    list.push({ id: 'general', label: t('channel.edit.tabs.general') }, { id: 'permissions', label: t('channel.permissions') })
   }
   if (canManageChannelWebhooks.value) list.push({ id: 'webhooks', label: t('webhooks.tab') })
   return list
 })
 const activeTab = ref<ChannelEditTab>('general')
+
+const { onKeydown: onTabsKeydown } = useRovingTabindex(tablistEl, {
+  itemSelector: '[role="tab"]',
+  orientation: 'horizontal',
+  onActivate: (item) => {
+    activeTab.value = item.dataset.tab as ChannelEditTab
+  },
+})
 
 watch([() => props.show, tabs], ([visible]) => {
   if (visible && !tabs.value.some(tab => tab.id === activeTab.value)) {
@@ -520,6 +624,14 @@ function resetRole(roleId: string) {
   )
 }
 
+// The reset link unmounts once the role is clean; focus lands on the role's heading.
+async function onResetRole(role: ServerRole) {
+  resetRole(role.id)
+  polite(t('channel.edit.roleReset', { role: role.name }))
+  await nextTick()
+  focusProgrammatically(roleTitleEl.value)
+}
+
 const permissionsDirty = computed(() => {
   return JSON.stringify(initialPermState.value) !== JSON.stringify(workingPermState.value)
 })
@@ -570,8 +682,7 @@ async function loadPermissions() {
     }
   } catch (err) {
     debug.error('Failed to load channel permissions:', err)
-    const t = useToast()
-    t.error('Failed to load channel permissions')
+    useToast().error(t('channel.edit.errors.loadPermissions'))
   } finally {
     rolesLoading.value = false
   }
@@ -580,7 +691,7 @@ async function loadPermissions() {
 async function savePermissions() {
   if (!props.channel || savingPermissions.value || !permissionsDirty.value) return
   savingPermissions.value = true
-  const t = useToast()
+  const toast = useToast()
   try {
     for (const role of serverRoles.value) {
       const before = initialPermState.value[role.id] ?? {}
@@ -604,14 +715,14 @@ async function savePermissions() {
         deny,
         editablePermissions.value.map(p => p.key),
       )
-      if (!ok) throw new Error(`Failed to save override for ${role.name}`)
+      if (!ok) throw new Error(t('channel.edit.errors.saveOverride', { role: role.name }))
     }
 
     initialPermState.value = JSON.parse(JSON.stringify(workingPermState.value))
-    t.success('Channel permissions saved')
+    toast.success(t('channel.edit.permissionsSaved'))
   } catch (err: any) {
     debug.error('Failed to save channel permissions:', err)
-    t.error(err?.message || 'Failed to save channel permissions')
+    toast.error(err?.message || t('channel.edit.errors.savePermissions'))
   } finally {
     savingPermissions.value = false
   }
@@ -707,6 +818,11 @@ watch(() => props.show, (visible) => {
   overflow-y: auto;
   flex: 1;
   min-height: 0;
+}
+
+.modal-body:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
 }
 
 .form-group {
@@ -840,7 +956,8 @@ watch(() => props.show, (visible) => {
   gap: 8px;
 }
 
-.btn:disabled {
+.btn:disabled,
+.btn[aria-disabled='true'] {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -860,7 +977,7 @@ watch(() => props.show, (visible) => {
   color: var(--text-on-primary);
 }
 
-.btn-primary:hover:not(:disabled) {
+.btn-primary:hover:not(:disabled):not([aria-disabled='true']) {
   background: var(--harmony-primary-hover);
 }
 
@@ -1036,12 +1153,22 @@ watch(() => props.show, (visible) => {
 }
 
 .perm-rail-label {
+  margin: 0;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
   padding: 0 8px 8px;
+}
+
+.perm-role-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .perm-role-pill {
@@ -1111,7 +1238,7 @@ watch(() => props.show, (visible) => {
   margin-bottom: 6px;
 }
 
-.perm-editor-title h4 {
+.perm-editor-title h3 {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
@@ -1197,46 +1324,5 @@ watch(() => props.show, (visible) => {
 .perm-row-desc {
   font-size: 11px;
   color: var(--text-secondary);
-}
-
-/* Tri-state allow/inherit/deny toggle - Discord-style three-button group */
-.perm-tristate {
-  display: inline-flex;
-  background: var(--background-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.perm-tristate-btn {
-  width: 36px;
-  height: 28px;
-  background: transparent;
-  border: none;
-  color: var(--text-tertiary, var(--text-secondary));
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 700;
-  transition: background 0.15s, color 0.15s;
-}
-
-.perm-tristate-btn:hover {
-  background: var(--background-modifier-hover);
-}
-
-.perm-tristate-btn.active.state-allow {
-  background: color-mix(in srgb, var(--success) 18%, transparent);
-  color: var(--text-success);
-}
-
-.perm-tristate-btn.active.state-deny {
-  background: color-mix(in srgb, var(--error) 18%, transparent);
-  color: var(--text-danger);
-}
-
-.perm-tristate-btn.active.state-inherit {
-  background: var(--background-modifier-selected);
-  color: var(--text-primary);
 }
 </style>

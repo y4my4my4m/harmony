@@ -12,14 +12,14 @@
       <div class="section-header">
         <h3 class="section-title">{{ $t('user.dnd') }}</h3>
         <div class="dnd-status" :class="{ active: isDndActive }">
-          {{ isDndActive ? 'Active' : 'Inactive' }}
+          {{ isDndActive ? t('settings.notifications.dnd.active') : t('settings.notifications.dnd.inactive') }}
         </div>
       </div>
       
       <div class="setting-item">
         <div class="setting-info">
           <h4 class="setting-label" :id="`${a11yId}-t1`">{{ $t('user.dnd') }}</h4>
-          <p class="setting-description" :id="`${a11yId}-t1-desc`">Silence sounds, pop-ups and push during set hours. Notifications still reach your inbox.</p>
+          <p class="setting-description" :id="`${a11yId}-t1-desc`">{{ t('settings.notifications.dnd.description') }}</p>
         </div>
         <div class="setting-control">
           <ToggleSwitch :labelledby="`${a11yId}-t1`" :describedby="`${a11yId}-t1-desc`" 
@@ -31,22 +31,33 @@
 
       <div v-if="preferences.dnd_enabled" class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Quiet hours</h4>
-          <p class="setting-description">Set your do not disturb schedule (shown in your local time)</p>
+          <h4 class="setting-label" :id="`${a11yId}-quiet`">{{ t('settings.notifications.quietHours.title') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-quiet-desc`">{{ t('settings.notifications.quietHours.description') }}</p>
         </div>
-        <div class="setting-control time-range">
-          <input 
-            type="time" 
+        <div
+          class="setting-control time-range"
+          role="group"
+          :aria-labelledby="`${a11yId}-quiet`"
+          :aria-describedby="`${a11yId}-quiet-desc`"
+        >
+          <label class="sr-only" :for="`${a11yId}-quiet-start`">{{ t('settings.notifications.quietHours.start') }}</label>
+          <input
+            :id="`${a11yId}-quiet-start`"
+            type="time"
             :value="dndStartTimeLocal"
             @change="onDndStartChange"
             class="time-input"
+            data-testid="quiet-hours-start"
           />
-          <span class="time-separator">to</span>
-          <input 
-            type="time" 
+          <span class="time-separator" aria-hidden="true">{{ t('settings.notifications.quietHours.to') }}</span>
+          <label class="sr-only" :for="`${a11yId}-quiet-end`">{{ t('settings.notifications.quietHours.end') }}</label>
+          <input
+            :id="`${a11yId}-quiet-end`"
+            type="time"
             :value="dndEndTimeLocal"
             @change="onDndEndChange"
             class="time-input"
+            data-testid="quiet-hours-end"
           />
         </div>
       </div>
@@ -54,15 +65,15 @@
 
     <div class="settings-section">
       <div class="section-header">
-        <h3 class="section-title">{{ isMobileClient ? 'Enable notifications' : $t('settings.notifications.enableDesktop') }}</h3>
+        <h3 class="section-title">{{ isMobileClient ? t('settings.notifications.enableMobile') : t('settings.notifications.enableDesktop') }}</h3>
         <div class="permission-status">
           <div v-if="!systemNotificationsAvailable" class="permission-info">
-            <Icon name="alert-circle" class="permission-denied" />
-            <span class="permission-text">Not supported in this browser{{ isMobileClient ? ' — install the app to get notifications' : '' }}</span>
+            <Icon name="alert-circle" class="permission-denied" aria-hidden="true" />
+            <span class="permission-text">{{ isMobileClient ? t('settings.notifications.permission.unsupportedMobile') : t('settings.notifications.permission.unsupported') }}</span>
           </div>
           <template v-else>
             <div class="permission-info">
-              <Icon :name="permissionIcon" :class="permissionClass" />
+              <Icon :name="permissionIcon" :class="permissionClass" aria-hidden="true" />
               <span class="permission-text">{{ permissionText }}</span>
             </div>
             <button
@@ -71,8 +82,8 @@
               class="permission-btn"
               :disabled="isRequestingPermission"
             >
-              <Icon v-if="isRequestingPermission" name="loader" class="spinning" />
-              <span>{{ isRequestingPermission ? $t('common.loading') : 'Grant permission' }}</span>
+              <Icon v-if="isRequestingPermission" name="loader" class="spinning" aria-hidden="true" />
+              <span>{{ isRequestingPermission ? t('common.loading') : t('settings.notifications.permission.grant') }}</span>
             </button>
           </template>
         </div>
@@ -82,10 +93,10 @@
         <!-- Chat Notifications -->
         <div class="notification-category">
           <div class="category-header">
-            <Icon name="message-circle" class="category-icon chat" :size="20" />
+            <Icon name="message-circle" class="category-icon chat" :size="20" aria-hidden="true" />
             <div class="category-info">
               <h4 class="category-title" :id="`${a11yId}-t2`">{{ $t('navigation.chat') }} & {{ $t('activitypub.messages') }}</h4>
-              <p class="category-description" :id="`${a11yId}-t2-desc`">Notifications from servers and direct messages</p>
+              <p class="category-description" :id="`${a11yId}-t2-desc`">{{ t('settings.notifications.chat.description') }}</p>
             </div>
             <ToggleSwitch :labelledby="`${a11yId}-t2`" :describedby="`${a11yId}-t2-desc`" 
               v-model="preferences.desktop_notifications"
@@ -97,7 +108,7 @@
             <div class="notification-type-grid">
               <div class="notification-type" v-for="type in chatNotificationTypes" :key="type.key">
                 <div class="type-header">
-                  <Icon :name="type.icon" class="type-icon" />
+                  <Icon :name="type.icon" class="type-icon" aria-hidden="true" />
                   <div class="type-info">
                     <span class="type-label">{{ type.label }}</span>
                     <span class="type-description">{{ type.description }}</span>
@@ -105,18 +116,18 @@
                 </div>
                 <div class="type-controls">
                   <div class="control-group">
-                    <Icon name="monitor" class="control-icon" />
+                    <Icon name="monitor" class="control-icon" aria-hidden="true" />
                     <ToggleSwitch 
-                      :label="$t('a11y.notifications.desktopFor', { type: type.label })"
+                      :label="t('a11y.notifications.desktopFor', { type: type.name })"
                       v-model="(preferences as any)[type.desktopKey]"
                       @change="updatePreferences"
                       size="small"
                     />
                   </div>
                   <div class="control-group">
-                    <Icon name="volume-2" class="control-icon" />
+                    <Icon name="volume-2" class="control-icon" aria-hidden="true" />
                     <ToggleSwitch 
-                      :label="$t('a11y.notifications.soundFor', { type: type.label })"
+                      :label="t('a11y.notifications.soundFor', { type: type.name })"
                       v-model="(preferences as any)[type.soundKey]"
                       @change="updatePreferences"
                       size="small"
@@ -125,19 +136,21 @@
                   <button 
                     type="button"
                     class="test-btn" 
-                    :aria-label="$t('a11y.notifications.testFor', { type: type.label })"
-                    :title="$t('a11y.notifications.testFor', { type: type.label })"
+                    :aria-label="t('a11y.notifications.testFor', { type: type.name })"
+                    :title="t('a11y.notifications.testFor', { type: type.name })"
+                    :aria-disabled="isTestingType === type.testType || undefined"
+                    :aria-busy="isTestingType === type.testType || undefined"
+                    data-testid="notification-test"
                     @click="testNotification(type.testType as NotificationType)"
-                    :disabled="isTestingType === type.testType"
                   >
-                    <Icon v-if="isTestingType === type.testType" name="loader" class="spinning" />
-                    <Icon v-else name="play" />
+                    <Icon v-if="isTestingType === type.testType" name="loader" class="spinning" aria-hidden="true" />
+                    <Icon v-else name="play" aria-hidden="true" />
                   </button>
                 </div>
               </div>
               <div class="notification-type" data-testid="newcomer-alerts-preference">
                 <div class="type-header">
-                  <Icon name="user-plus" class="type-icon" />
+                  <Icon name="user-plus" class="type-icon" aria-hidden="true" />
                   <div class="type-info">
                     <span class="type-label">{{ $t('newcomerAlerts.preference.label') }}</span>
                     <span class="type-description">{{ $t('newcomerAlerts.preference.description') }}</span>
@@ -145,7 +158,7 @@
                 </div>
                 <div class="type-controls">
                   <div class="control-group">
-                    <Icon name="bell" class="control-icon" />
+                    <Icon name="bell" class="control-icon" aria-hidden="true" />
                     <ToggleSwitch
                       v-model="preferences.newcomer_alerts"
                       :label="$t('newcomerAlerts.preference.label')"
@@ -162,10 +175,10 @@
         <!-- ActivityPub Notifications -->
         <div class="notification-category">
           <div class="category-header">
-            <Icon name="globe" class="category-icon activitypub" />
+            <Icon name="globe" class="category-icon activitypub" aria-hidden="true" />
             <div class="category-info">
-              <h4 class="category-title" :id="`${a11yId}-t6`">ActivityPub & federation</h4>
-              <p class="category-description" :id="`${a11yId}-t6-desc`">Notifications from the federated network</p>
+              <h4 class="category-title" :id="`${a11yId}-t6`">{{ t('settings.notifications.activitypub.title') }}</h4>
+              <p class="category-description" :id="`${a11yId}-t6-desc`">{{ t('settings.notifications.activitypub.description') }}</p>
             </div>
             <ToggleSwitch :labelledby="`${a11yId}-t6`" :describedby="`${a11yId}-t6-desc`" 
               v-model="preferences.activitypub_notifications"
@@ -177,7 +190,7 @@
             <div class="notification-type-grid">
               <div class="notification-type" v-for="type in activityPubNotificationTypes" :key="type.key">
                 <div class="type-header">
-                  <Icon :name="type.icon" class="type-icon" />
+                  <Icon :name="type.icon" class="type-icon" aria-hidden="true" />
                   <div class="type-info">
                     <span class="type-label">{{ type.label }}</span>
                     <span class="type-description">{{ type.description }}</span>
@@ -185,18 +198,18 @@
                 </div>
                 <div class="type-controls">
                   <div class="control-group">
-                    <Icon name="monitor" class="control-icon" />
+                    <Icon name="monitor" class="control-icon" aria-hidden="true" />
                     <ToggleSwitch 
-                      :label="$t('a11y.notifications.desktopFor', { type: type.label })"
+                      :label="t('a11y.notifications.desktopFor', { type: type.name })"
                       v-model="(preferences as any)[type.desktopKey]"
                       @change="updatePreferences"
                       size="small"
                     />
                   </div>
                   <div class="control-group">
-                    <Icon name="volume-2" class="control-icon" />
+                    <Icon name="volume-2" class="control-icon" aria-hidden="true" />
                     <ToggleSwitch 
-                      :label="$t('a11y.notifications.soundFor', { type: type.label })"
+                      :label="t('a11y.notifications.soundFor', { type: type.name })"
                       v-model="(preferences as any)[type.soundKey]"
                       @change="updatePreferences"
                       size="small"
@@ -205,13 +218,15 @@
                   <button 
                     type="button"
                     class="test-btn" 
-                    :aria-label="$t('a11y.notifications.testFor', { type: type.label })"
-                    :title="$t('a11y.notifications.testFor', { type: type.label })"
+                    :aria-label="t('a11y.notifications.testFor', { type: type.name })"
+                    :title="t('a11y.notifications.testFor', { type: type.name })"
+                    :aria-disabled="isTestingType === type.testType || undefined"
+                    :aria-busy="isTestingType === type.testType || undefined"
+                    data-testid="notification-test"
                     @click="testNotification(type.testType as NotificationType)"
-                    :disabled="isTestingType === type.testType"
                   >
-                    <Icon v-if="isTestingType === type.testType" name="loader" class="spinning" />
-                    <Icon v-else name="play" />
+                    <Icon v-if="isTestingType === type.testType" name="loader" class="spinning" aria-hidden="true" />
+                    <Icon v-else name="play" aria-hidden="true" />
                   </button>
                 </div>
               </div>
@@ -223,37 +238,41 @@
 
     <!-- Sound Settings Section -->
     <div class="settings-section">
-      <h3 class="section-title">Sound settings</h3>
-      <p class="section-description">Configure sound notification behavior</p>
+      <h3 class="section-title">{{ t('settings.notifications.sound.title') }}</h3>
+      <p class="section-description">{{ t('settings.notifications.sound.description') }}</p>
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Master volume</h4>
-          <p class="setting-description">Adjust the volume for all notification sounds</p>
+          <h4 class="setting-label">
+            <label :for="`${a11yId}-volume`">{{ t('a11y.notifications.volume') }}</label>
+          </h4>
+          <p class="setting-description" :id="`${a11yId}-volume-desc`">{{ t('settings.notifications.sound.volumeDescription') }}</p>
         </div>
         <div class="setting-control">
           <div class="volume-control">
-            <Icon name="volume-1" />
+            <Icon name="volume-1" aria-hidden="true" />
             <input 
+              :id="`${a11yId}-volume`"
               type="range" 
               min="0" 
               max="100" 
               v-model.number="soundVolume"
-              :aria-label="$t('a11y.notifications.volume')"
+              :aria-describedby="`${a11yId}-volume-desc`"
               :aria-valuetext="`${soundVolume}%`"
               class="volume-slider"
+              data-testid="notification-volume"
               @input="onVolumeChange"
             />
-            <Icon name="volume-2" />
-            <span class="volume-value">{{ soundVolume }}%</span>
+            <Icon name="volume-2" aria-hidden="true" />
+            <span class="volume-value" aria-hidden="true">{{ soundVolume }}%</span>
           </div>
         </div>
       </div>
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label" :id="`${a11yId}-t9`">Voice activity sounds</h4>
-          <p class="setting-description" :id="`${a11yId}-t9-desc`">Play sounds for voice channel activity</p>
+          <h4 class="setting-label" :id="`${a11yId}-t9`">{{ t('settings.notifications.sound.voiceActivity') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t9-desc`">{{ t('settings.notifications.sound.voiceActivityDescription') }}</p>
         </div>
         <div class="setting-control">
           <ToggleSwitch :labelledby="`${a11yId}-t9`" :describedby="`${a11yId}-t9-desc`" 
@@ -267,11 +286,11 @@
     <div class="settings-section">
       <div class="section-header">
         <h3 class="section-title">
-          <Icon name="smartphone" class="section-icon" />
-          {{ isNativeClient && !isAndroidClient ? 'Push to other devices' : 'Push notifications' }}
+          <Icon name="smartphone" class="section-icon" aria-hidden="true" />
+          {{ isNativeClient && !isAndroidClient ? t('settings.notifications.push.titleOther') : t('settings.notifications.push.title') }}
         </h3>
         <div class="push-status-badge" :class="isNativeClient ? 'available' : pushStatusClass">
-          <Icon :name="isNativeClient ? 'info' : pushStatusIcon" />
+          <Icon :name="isNativeClient ? 'info' : pushStatusIcon" aria-hidden="true" />
           <span>{{ pushStatusBadgeText }}</span>
         </div>
       </div>
@@ -283,54 +302,54 @@
 
       <!-- Native mobile app other than Android: no background push transport -->
       <div v-else-if="isNativeMobile" class="push-warning">
-        <Icon name="info" />
+        <Icon name="info" aria-hidden="true" />
         <div>
-          <strong>Background push coming to the app</strong>
-          <p>This device shows notifications while Harmony is open (including backgrounded). Push while the app is fully closed is available on Android only.</p>
+          <strong>{{ t('settings.notifications.push.nativeMobileTitle') }}</strong>
+          <p>{{ t('settings.notifications.push.nativeMobileText') }}</p>
         </div>
       </div>
 
       <!-- iOS PWA Warning -->
       <div v-if="!isNativeClient && pushNotifications.requiresPWA.value" class="push-warning">
-        <Icon name="info" />
+        <Icon name="info" aria-hidden="true" />
         <div>
-          <strong>iOS requires installing the app</strong>
-          <p>To receive push notifications on iOS, add Harmony to your home screen first (Share → Add to Home Screen).</p>
+          <strong>{{ t('settings.notifications.push.iosTitle') }}</strong>
+          <p>{{ t('settings.notifications.push.iosText') }}</p>
         </div>
       </div>
 
       <!-- Not Supported Warning -->
       <div v-if="!isNativeClient && !pushNotifications.isSupported.value" class="push-warning error">
-        <Icon name="alert-triangle" />
+        <Icon name="alert-triangle" aria-hidden="true" />
         <div>
-          <strong>Push notifications not supported</strong>
-          <p>Your browser doesn't support push notifications. Try using Chrome, Firefox, Edge, or Safari.</p>
+          <strong>{{ t('settings.notifications.push.unsupportedTitle') }}</strong>
+          <p>{{ t('settings.notifications.push.unsupportedText') }}</p>
         </div>
       </div>
 
       <!-- Permission Denied Warning -->
       <div v-else-if="!isNativeClient && pushNotifications.permission.value === 'denied'" class="push-warning error">
-        <Icon name="x-circle" />
+        <Icon name="x-circle" aria-hidden="true" />
         <div>
-          <strong>Notification permission blocked</strong>
-          <p>Notifications are blocked for this site. Allow them in the browser's site settings, then reload; push resumes on its own.</p>
+          <strong>{{ t('settings.notifications.push.blockedTitle') }}</strong>
+          <p>{{ t('settings.notifications.push.blockedText') }}</p>
         </div>
       </div>
 
       <!-- Push error (e.g. 429) with Retry -->
       <div v-else-if="pushNotifications.error.value && !isAndroidClient" class="push-warning error push-error-with-retry">
-        <Icon name="alert-triangle" />
+        <Icon name="alert-triangle" aria-hidden="true" />
         <div>
-          <strong>Push notification error</strong>
+          <strong>{{ t('settings.notifications.push.errorTitle') }}</strong>
           <p>{{ pushNotifications.error.value }}</p>
           <button
             class="retry-btn"
             :disabled="pushNotifications.isLoading.value"
             @click="pushNotifications.retryInitialize"
           >
-            <Icon v-if="pushNotifications.isLoading.value" name="loader" class="spinning" />
-            <Icon v-else name="refresh-cw" />
-            Retry
+            <Icon v-if="pushNotifications.isLoading.value" name="loader" class="spinning" aria-hidden="true" />
+            <Icon v-else name="refresh-cw" aria-hidden="true" />
+            {{ t('common.retry') }}
           </button>
         </div>
       </div>
@@ -343,9 +362,9 @@
           class="push-subscribe-btn"
           :disabled="pushNotifications.isLoading.value || !pushNotifications.canSubscribe.value"
         >
-          <Icon v-if="pushNotifications.isLoading.value" name="loader" class="spinning" />
-          <Icon v-else name="bell" />
-          <span>Turn on for this device</span>
+          <Icon v-if="pushNotifications.isLoading.value" name="loader" class="spinning" aria-hidden="true" />
+          <Icon v-else name="bell" aria-hidden="true" />
+          <span>{{ t('settings.notifications.push.turnOn') }}</span>
         </button>
 
         <button 
@@ -354,9 +373,9 @@
           class="push-unsubscribe-btn"
           :disabled="pushNotifications.isLoading.value"
         >
-          <Icon v-if="pushNotifications.isLoading.value" name="loader" class="spinning" />
-          <Icon v-else name="bell-off" />
-          <span>Turn off for this device</span>
+          <Icon v-if="pushNotifications.isLoading.value" name="loader" class="spinning" aria-hidden="true" />
+          <Icon v-else name="bell-off" aria-hidden="true" />
+          <span>{{ t('settings.notifications.push.turnOff') }}</span>
         </button>
 
         <button 
@@ -365,9 +384,9 @@
           class="push-test-btn"
           :disabled="pushNotifications.isLoading.value"
         >
-          <Icon v-if="isTestingPush" name="loader" class="spinning" />
-          <Icon v-else name="send" />
-          <span>Test push</span>
+          <Icon v-if="isTestingPush" name="loader" class="spinning" aria-hidden="true" />
+          <Icon v-else name="send" aria-hidden="true" />
+          <span>{{ t('settings.notifications.push.test') }}</span>
         </button>
       </div>
 
@@ -375,8 +394,8 @@
       <div v-if="pushNotifications.isSubscribed.value || pushNotifications.subscriptions.value.length > 0" class="push-preferences">
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label" :id="`${a11yId}-t10`">Push to my devices</h4>
-            <p class="setting-description" :id="`${a11yId}-t10-desc`">Turns push off everywhere without removing any device</p>
+            <h4 class="setting-label" :id="`${a11yId}-t10`">{{ t('settings.notifications.push.toMyDevices') }}</h4>
+            <p class="setting-description" :id="`${a11yId}-t10-desc`">{{ t('settings.notifications.push.toMyDevicesDescription') }}</p>
           </div>
           <div class="setting-control">
             <ToggleSwitch :labelledby="`${a11yId}-t10`" :describedby="`${a11yId}-t10-desc`"
@@ -389,8 +408,8 @@
         <template v-if="preferences.push_notifications">
           <div class="setting-item">
             <div class="setting-info">
-              <h4 class="setting-label" :id="`${a11yId}-t11`">Only when I'm away</h4>
-              <p class="setting-description" :id="`${a11yId}-t11-desc`">Skip push while Harmony is open and in use on another device</p>
+              <h4 class="setting-label" :id="`${a11yId}-t11`">{{ t('settings.notifications.push.awayOnly') }}</h4>
+              <p class="setting-description" :id="`${a11yId}-t11-desc`">{{ t('settings.notifications.push.awayOnlyDescription') }}</p>
             </div>
             <div class="setting-control">
               <ToggleSwitch :labelledby="`${a11yId}-t11`" :describedby="`${a11yId}-t11-desc`"
@@ -402,8 +421,8 @@
 
           <div class="setting-item">
             <div class="setting-info">
-              <h4 class="setting-label" :id="`${a11yId}-t12`">Mentions</h4>
-              <p class="setting-description" :id="`${a11yId}-t12-desc`">Receive push notifications when you're mentioned</p>
+              <h4 class="setting-label" :id="`${a11yId}-t12`">{{ t('settings.notifications.push.mentions') }}</h4>
+              <p class="setting-description" :id="`${a11yId}-t12-desc`">{{ t('settings.notifications.push.mentionsDescription') }}</p>
             </div>
             <div class="setting-control">
               <ToggleSwitch :labelledby="`${a11yId}-t12`" :describedby="`${a11yId}-t12-desc`"
@@ -415,8 +434,8 @@
 
           <div class="setting-item">
             <div class="setting-info">
-              <h4 class="setting-label" :id="`${a11yId}-t13`">Direct messages</h4>
-              <p class="setting-description" :id="`${a11yId}-t13-desc`">Receive push notifications for new DMs</p>
+              <h4 class="setting-label" :id="`${a11yId}-t13`">{{ t('settings.notifications.push.dms') }}</h4>
+              <p class="setting-description" :id="`${a11yId}-t13-desc`">{{ t('settings.notifications.push.dmsDescription') }}</p>
             </div>
             <div class="setting-control">
               <ToggleSwitch :labelledby="`${a11yId}-t13`" :describedby="`${a11yId}-t13-desc`"
@@ -433,42 +452,44 @@
         v-if="isNativeClient && !isAndroidClient && !pushNotifications.isSubscribed.value && pushNotifications.subscriptions.value.length === 0"
         class="push-empty-note"
       >
-        No devices are subscribed to push yet. Enable push notifications on your phone or in a browser, then manage those devices here.
+        {{ t('settings.notifications.push.noDevices') }}
       </p>
 
       <!-- Subscribed Devices List -->
       <div v-if="pushNotifications.subscriptions.value.length > 0" class="subscribed-devices">
-        <h4 class="devices-title">
-          <Icon name="devices" />
-          Subscribed Devices ({{ pushNotifications.subscriptions.value.length }})
+        <h4 class="devices-title" :id="`${a11yId}-devices`">
+          <Icon name="devices" aria-hidden="true" />
+          {{ t('settings.notifications.devices.title', { count: pushNotifications.subscriptions.value.length }) }}
         </h4>
-        <div class="device-list">
-          <div 
+        <ul class="device-list" :aria-labelledby="`${a11yId}-devices`">
+          <li
             v-for="sub in pushNotifications.subscriptions.value" 
             :key="sub.id" 
             class="device-item"
           >
             <div class="device-info">
-              <Icon :name="getDeviceIcon(sub.user_agent)" class="device-icon" />
+              <Icon :name="getDeviceIcon(sub.user_agent)" class="device-icon" aria-hidden="true" />
               <div class="device-details">
                 <span class="device-name">
                   {{ sub.device_name || getDeviceName(sub.user_agent) }}
-                  <span v-if="sub.endpoint === pushNotifications.currentEndpoint.value" class="device-current">This device</span>
+                  <span v-if="sub.endpoint === pushNotifications.currentEndpoint.value" class="device-current">{{ t('security.sessions.thisDevice') }}</span>
                 </span>
                 <span class="device-date">
-                  Added {{ formatDate(sub.created_at) }}<template v-if="sub.transport === 'fcm'"> · Google (FCM)</template><template v-else-if="sub.transport === 'unifiedpush'"> · UnifiedPush</template><template v-if="sub.failure_count >= 5"> · Not reachable</template>
+                  {{ t('settings.notifications.devices.added', { when: formatDate(sub.created_at) }) }}<template v-if="sub.transport === 'fcm'"> · Google (FCM)</template><template v-else-if="sub.transport === 'unifiedpush'"> · UnifiedPush</template><template v-if="sub.failure_count >= 5"> · {{ t('security.sessions.otherPush.unreachable') }}</template>
                 </span>
               </div>
             </div>
             <button 
+              type="button"
               @click="handleRemoveDevice(sub)"
               class="device-remove-btn"
-              title="Remove this device"
+              :aria-label="t('settings.notifications.devices.remove', { device: sub.device_name || getDeviceName(sub.user_agent) })"
+              :title="t('settings.notifications.devices.remove', { device: sub.device_name || getDeviceName(sub.user_agent) })"
             >
-              <Icon name="x" />
+              <Icon name="x" aria-hidden="true" />
             </button>
-          </div>
-        </div>
+          </li>
+        </ul>
       </div>
     </div>
 
@@ -476,17 +497,17 @@
     <!-- Haptic Feedback Section (mobile devices only) -->
     <div class="settings-section" v-if="hapticsAvailable">
       <div class="section-header">
-        <h3 class="section-title">Haptic feedback</h3>
+        <h3 class="section-title">{{ t('settings.notifications.haptics.title') }}</h3>
         <div class="haptic-status" :class="{ active: hapticSettings.isEnabled.value }">
-          {{ hapticSettings.isEnabled.value ? 'Enabled' : 'Disabled' }}
+          {{ hapticSettings.isEnabled.value ? t('settings.notifications.haptics.enabled') : t('settings.notifications.haptics.disabled') }}
         </div>
       </div>
-      <p class="section-description">Vibration feedback for interactions</p>
+      <p class="section-description">{{ t('settings.notifications.haptics.description') }}</p>
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label" :id="`${a11yId}-t14`">Enable haptic feedback</h4>
-          <p class="setting-description" :id="`${a11yId}-t14-desc`">Feel vibrations when interacting with the app</p>
+          <h4 class="setting-label" :id="`${a11yId}-t14`">{{ t('settings.notifications.haptics.enable') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t14-desc`">{{ t('settings.notifications.haptics.enableDescription') }}</p>
         </div>
         <div class="setting-control">
           <ToggleSwitch :labelledby="`${a11yId}-t14`" :describedby="`${a11yId}-t14-desc`" 
@@ -498,8 +519,8 @@
       <div v-if="hapticSettings.isEnabled.value" class="haptic-categories">
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label" :id="`${a11yId}-t15`">Sending messages</h4>
-            <p class="setting-description" :id="`${a11yId}-t15-desc`">When sending a message</p>
+            <h4 class="setting-label" :id="`${a11yId}-t15`">{{ t('settings.notifications.haptics.messages') }}</h4>
+            <p class="setting-description" :id="`${a11yId}-t15-desc`">{{ t('settings.notifications.haptics.messagesDescription') }}</p>
           </div>
           <div class="setting-control">
             <ToggleSwitch :labelledby="`${a11yId}-t15`" :describedby="`${a11yId}-t15-desc`" 
@@ -511,8 +532,8 @@
 
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label" :id="`${a11yId}-t16`">Reactions</h4>
-            <p class="setting-description" :id="`${a11yId}-t16-desc`">When adding or removing reactions</p>
+            <h4 class="setting-label" :id="`${a11yId}-t16`">{{ t('settings.notifications.haptics.reactions') }}</h4>
+            <p class="setting-description" :id="`${a11yId}-t16-desc`">{{ t('settings.notifications.haptics.reactionsDescription') }}</p>
           </div>
           <div class="setting-control">
             <ToggleSwitch :labelledby="`${a11yId}-t16`" :describedby="`${a11yId}-t16-desc`" 
@@ -524,8 +545,8 @@
 
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label" :id="`${a11yId}-t17`">Navigation</h4>
-            <p class="setting-description" :id="`${a11yId}-t17-desc`">When switching tabs or opening menus</p>
+            <h4 class="setting-label" :id="`${a11yId}-t17`">{{ t('settings.notifications.haptics.navigation') }}</h4>
+            <p class="setting-description" :id="`${a11yId}-t17-desc`">{{ t('settings.notifications.haptics.navigationDescription') }}</p>
           </div>
           <div class="setting-control">
             <ToggleSwitch :labelledby="`${a11yId}-t17`" :describedby="`${a11yId}-t17-desc`" 
@@ -537,8 +558,8 @@
 
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label" :id="`${a11yId}-t18`">Voice & calls</h4>
-            <p class="setting-description" :id="`${a11yId}-t18-desc`">When joining/leaving voice channels</p>
+            <h4 class="setting-label" :id="`${a11yId}-t18`">{{ t('settings.notifications.haptics.voice') }}</h4>
+            <p class="setting-description" :id="`${a11yId}-t18-desc`">{{ t('settings.notifications.haptics.voiceDescription') }}</p>
           </div>
           <div class="setting-control">
             <ToggleSwitch :labelledby="`${a11yId}-t18`" :describedby="`${a11yId}-t18-desc`" 
@@ -550,8 +571,8 @@
 
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label" :id="`${a11yId}-t19`">Interactions</h4>
-            <p class="setting-description" :id="`${a11yId}-t19-desc`">Long press, pull to refresh, etc.</p>
+            <h4 class="setting-label" :id="`${a11yId}-t19`">{{ t('settings.notifications.haptics.interactions') }}</h4>
+            <p class="setting-description" :id="`${a11yId}-t19-desc`">{{ t('settings.notifications.haptics.interactionsDescription') }}</p>
           </div>
           <div class="setting-control">
             <ToggleSwitch :labelledby="`${a11yId}-t19`" :describedby="`${a11yId}-t19-desc`" 
@@ -563,8 +584,8 @@
 
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label" :id="`${a11yId}-t20`">Toggle switches</h4>
-            <p class="setting-description" :id="`${a11yId}-t20-desc`">When toggling settings on/off</p>
+            <h4 class="setting-label" :id="`${a11yId}-t20`">{{ t('settings.notifications.haptics.toggles') }}</h4>
+            <p class="setting-description" :id="`${a11yId}-t20-desc`">{{ t('settings.notifications.haptics.togglesDescription') }}</p>
           </div>
           <div class="setting-control">
             <ToggleSwitch :labelledby="`${a11yId}-t20`" :describedby="`${a11yId}-t20-desc`" 
@@ -576,8 +597,8 @@
 
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label" :id="`${a11yId}-t21`">Destructive actions</h4>
-            <p class="setting-description" :id="`${a11yId}-t21-desc`">When deleting messages or leaving servers</p>
+            <h4 class="setting-label" :id="`${a11yId}-t21`">{{ t('settings.notifications.haptics.destructive') }}</h4>
+            <p class="setting-description" :id="`${a11yId}-t21-desc`">{{ t('settings.notifications.haptics.destructiveDescription') }}</p>
           </div>
           <div class="setting-control">
             <ToggleSwitch :labelledby="`${a11yId}-t21`" :describedby="`${a11yId}-t21-desc`" 
@@ -588,9 +609,9 @@
         </div>
 
         <div class="haptic-test">
-          <button @click="testHaptic" class="test-haptic-btn">
-            <Icon name="zap" />
-            <span>Test haptic feedback</span>
+          <button type="button" @click="testHaptic" class="test-haptic-btn">
+            <Icon name="zap" aria-hidden="true" />
+            <span>{{ t('settings.notifications.haptics.test') }}</span>
           </button>
         </div>
       </div>
@@ -598,27 +619,30 @@
 
     <!-- Test All Section -->
     <div class="settings-section">
-      <h3 class="section-title">Test notifications</h3>
-      <p class="section-description">Test your notification settings</p>
+      <h3 class="section-title">{{ t('settings.notifications.test.title') }}</h3>
+      <p class="section-description">{{ t('settings.notifications.test.description') }}</p>
       
       <div class="test-actions">
         <button 
+          type="button"
           @click="testAllNotifications"
           class="test-all-btn"
-          :disabled="isTesting"
+          :aria-disabled="isTesting || undefined"
+          :aria-busy="isTesting || undefined"
         >
-          <Icon v-if="isTesting" name="loader" class="spinning" />
-          <Icon v-else name="zap" />
-          <span>{{ isTesting ? 'Testing...' : 'Test all notifications' }}</span>
+          <Icon v-if="isTesting" name="loader" class="spinning" aria-hidden="true" />
+          <Icon v-else name="zap" aria-hidden="true" />
+          <span>{{ isTesting ? t('settings.notifications.test.testing') : t('settings.notifications.test.all') }}</span>
         </button>
         
         <button 
+          type="button"
           @click="resetToDefaults"
           class="reset-btn"
-          :disabled="isAtDefaults"
+          :aria-disabled="isAtDefaults || undefined"
         >
-          <Icon name="rotate-ccw" />
-          <span>Reset to defaults</span>
+          <Icon name="rotate-ccw" aria-hidden="true" />
+          <span>{{ t('settings.notifications.test.reset') }}</span>
         </button>
       </div>
     </div>
@@ -627,6 +651,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, reactive } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import { useNotificationStore } from '@/stores/useNotification'
 import { useToast } from 'vue-toastification'
@@ -645,6 +670,8 @@ import { uid } from '@/utils/a11y/focus'
 // Ids pairing each switch with its visible label.
 const a11yId = uid('notification-settings')
 
+const { t } = useI18n()
+
 // Stores
 const notificationStore = useNotificationStore()
 const toast = useToast()
@@ -661,7 +688,7 @@ const systemNotificationsAvailable = isNativeClient || typeof Notification !== '
 // Test haptic feedback
 const testHaptic = () => {
   hapticSettings.hapticManager.trigger({ pattern: 'success' })
-  toast.success('Haptic feedback sent')
+  toast.success(t('settings.notifications.haptics.sent'))
 }
 
 // State (initial values double as the factory defaults for reset)
@@ -727,111 +754,57 @@ const isTestingType = ref<string | null>(null)
 const soundVolume = ref(70)
 const isTestingPush = ref(false)
 
-// Notification type configurations
-const chatNotificationTypes = [
-  {
-    key: 'desktop_chat_messages',
-    label: 'Chat Messages',
-    description: 'When a message is sent in a channel you follow',
-    icon: 'message-square',
-    desktopKey: 'desktop_chat_messages',
-    soundKey: 'sound_chat_messages',
-    testType: 'chat_message'
-  },
-  {
-    key: 'desktop_mentions',
-    label: 'Mentions',
-    description: 'When someone mentions you',
-    icon: 'at-sign',
-    desktopKey: 'desktop_mentions',
-    soundKey: 'sound_mentions',
-    testType: 'mention'
-  },
-  {
-    key: 'desktop_dms',
-    label: 'Direct Messages',
-    description: 'When you receive a DM',
-    icon: 'message-circle',
-    desktopKey: 'desktop_dms',
-    soundKey: 'sound_dms',
-    testType: 'dm'
-  },
-  {
-    key: 'desktop_replies',
-    label: 'Replies',
-    description: 'When someone replies to your message',
-    icon: 'corner-down-left',
-    desktopKey: 'desktop_replies',
-    soundKey: 'sound_replies',
-    testType: 'reply'
-  },
-  {
-    key: 'desktop_reactions',
-    label: 'Reactions',
-    description: 'When someone reacts to your message',
-    icon: 'smile',
-    desktopKey: 'desktop_reactions',
-    soundKey: 'sound_reactions',
-    testType: 'reaction'
-  }
-]
+// Notification type configurations. `name` is the label qualified for the
+// assistive names of the per-type controls ("Fediverse mentions" vs "Mentions").
+interface NotificationTypeRow {
+  key: string
+  label: string
+  name: string
+  description: string
+  icon: string
+  desktopKey: string
+  soundKey: string
+  testType: string
+}
 
-const activityPubNotificationTypes = [
-  {
-    key: 'activitypub_follows',
-    label: 'Follows',
-    description: 'When someone follows you',
-    icon: 'user-plus',
-    desktopKey: 'activitypub_desktop_follows',
-    soundKey: 'activitypub_sound_follows',
-    testType: 'activitypub_follow'
-  },
-  {
-    key: 'activitypub_mentions',
-    label: 'Mentions',
-    description: 'When someone mentions you in a post',
-    icon: 'at-sign',
-    desktopKey: 'activitypub_desktop_mentions',
-    soundKey: 'activitypub_sound_mentions',
-    testType: 'activitypub_mention'
-  },
-  {
-    key: 'activitypub_replies',
-    label: 'Replies',
-    description: 'When someone replies to your post',
-    icon: 'message-circle',
-    desktopKey: 'activitypub_desktop_replies',
-    soundKey: 'activitypub_sound_replies',
-    testType: 'activitypub_reply'
-  },
-  {
-    key: 'activitypub_favorites',
-    label: 'Favorites',
-    description: 'When someone favorites your post',
-    icon: 'heart',
-    desktopKey: 'activitypub_desktop_favorites',
-    soundKey: 'activitypub_sound_favorites',
-    testType: 'activitypub_favorite'
-  },
-  {
-    key: 'activitypub_reblogs',
-    label: 'Reblogs',
-    description: 'When someone reblogs your post',
-    icon: 'repeat',
-    desktopKey: 'activitypub_desktop_reblogs',
-    soundKey: 'activitypub_sound_reblogs',
-    testType: 'activitypub_reblog'
-  },
-  {
-    key: 'activitypub_follow_requests',
-    label: 'Follow Requests',
-    description: 'When someone requests to follow you',
-    icon: 'user-check',
-    desktopKey: 'activitypub_desktop_follows',
-    soundKey: 'activitypub_sound_follows',
-    testType: 'activitypub_follow_request'
+const typeRow = (
+  key: string,
+  i18nKey: string,
+  icon: string,
+  desktopKey: string,
+  soundKey: string,
+  testType: string,
+  fediverse = false,
+): NotificationTypeRow => {
+  const label = t(`settings.notifications.types.${i18nKey}.label`)
+  return {
+    key,
+    label,
+    name: fediverse ? t(`settings.notifications.types.${i18nKey}.name`) : label,
+    description: t(`settings.notifications.types.${i18nKey}.description`),
+    icon,
+    desktopKey,
+    soundKey,
+    testType,
   }
-]
+}
+
+const chatNotificationTypes = computed<NotificationTypeRow[]>(() => [
+  typeRow('desktop_chat_messages', 'chatMessages', 'message-square', 'desktop_chat_messages', 'sound_chat_messages', 'chat_message'),
+  typeRow('desktop_mentions', 'mentions', 'at-sign', 'desktop_mentions', 'sound_mentions', 'mention'),
+  typeRow('desktop_dms', 'dms', 'message-circle', 'desktop_dms', 'sound_dms', 'dm'),
+  typeRow('desktop_replies', 'replies', 'corner-down-left', 'desktop_replies', 'sound_replies', 'reply'),
+  typeRow('desktop_reactions', 'reactions', 'smile', 'desktop_reactions', 'sound_reactions', 'reaction'),
+])
+
+const activityPubNotificationTypes = computed<NotificationTypeRow[]>(() => [
+  typeRow('activitypub_follows', 'apFollows', 'user-plus', 'activitypub_desktop_follows', 'activitypub_sound_follows', 'activitypub_follow', true),
+  typeRow('activitypub_mentions', 'apMentions', 'at-sign', 'activitypub_desktop_mentions', 'activitypub_sound_mentions', 'activitypub_mention', true),
+  typeRow('activitypub_replies', 'apReplies', 'message-circle', 'activitypub_desktop_replies', 'activitypub_sound_replies', 'activitypub_reply', true),
+  typeRow('activitypub_favorites', 'apFavorites', 'heart', 'activitypub_desktop_favorites', 'activitypub_sound_favorites', 'activitypub_favorite', true),
+  typeRow('activitypub_reblogs', 'apReblogs', 'repeat', 'activitypub_desktop_reblogs', 'activitypub_sound_reblogs', 'activitypub_reblog', true),
+  typeRow('activitypub_follow_requests', 'apFollowRequests', 'user-check', 'activitypub_desktop_follows', 'activitypub_sound_follows', 'activitypub_follow_request', true),
+])
 
 // Computed properties
 const isDndActive = computed(() => notificationStore.isDndActive)
@@ -851,8 +824,11 @@ const permissionClass = computed(() => {
 })
 
 const permissionText = computed(() => {
-  const label = isNativeClient || isMobileClient ? 'Notifications' : 'Desktop notifications'
-  return hasNotificationPermission.value ? `${label} are enabled` : `${label} require permission`
+  const generic = isNativeClient || isMobileClient
+  if (hasNotificationPermission.value) {
+    return generic ? t('settings.notifications.permission.enabled') : t('settings.notifications.permission.desktopEnabled')
+  }
+  return generic ? t('settings.notifications.permission.required') : t('settings.notifications.permission.desktopRequired')
 })
 
 // Methods
@@ -899,10 +875,10 @@ const onDndEndChange = (e: Event) => {
 const updatePreferences = async () => {
   try {
     await notificationStore.updatePreferences(preferences)
-    toast.success('Notification preferences updated')
+    toast.success(t('settings.notifications.toast.updated'))
   } catch (error) {
     debug.error('Failed to update preferences:', error)
-    toast.error('Failed to update preferences')
+    toast.error(t('settings.notifications.toast.updateFailed'))
   }
 }
 
@@ -916,7 +892,7 @@ const requestPermission = async () => {
         || (await requestNativePermission()) === 'granted'
     } else {
       if (typeof Notification === 'undefined') {
-        toast.error('Notifications are not supported in this browser')
+        toast.error(t('settings.notifications.toast.unsupported'))
         return
       }
       const permission = await Notification.requestPermission()
@@ -924,13 +900,13 @@ const requestPermission = async () => {
     }
 
     if (hasNotificationPermission.value) {
-      toast.success('Notification permission granted')
+      toast.success(t('settings.notifications.toast.permissionGranted'))
     } else {
-      toast.error('Notification permission denied')
+      toast.error(t('settings.notifications.toast.permissionDenied'))
     }
   } catch (error) {
     debug.error('Failed to request permission:', error)
-    toast.error('Failed to request permission')
+    toast.error(t('settings.notifications.toast.permissionFailed'))
   } finally {
     isRequestingPermission.value = false
   }
@@ -956,7 +932,7 @@ const testNotification = async (type: NotificationType) => {
     await notificationStore.playNotificationSound(type)
     
     if (hasNotificationPermission.value) {
-      const iconUrl = testData.avatar.value || '/img/app_icon_square.webp'
+      const iconUrl = testData.avatar || '/img/app_icon_square.webp'
 
       if (isNativeClient) {
         const { nativeNotify } = await import('@/services/nativeNotify')
@@ -965,7 +941,7 @@ const testNotification = async (type: NotificationType) => {
           sender: testData.title,
           conversationTitle: '',
           message: testData.message,
-          avatarUrl: testData.avatar.value,
+          avatarUrl: testData.avatar,
         })
       } else if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
         const registration = await navigator.serviceWorker.ready
@@ -990,7 +966,7 @@ const testNotification = async (type: NotificationType) => {
     // toast.success(`Test notification sent for ${type}`)
   } catch (error) {
     debug.error('Failed to test notification:', error)
-    toast.error('Failed to test notification')
+    toast.error(t('settings.notifications.toast.testFailed'))
   } finally {
     setTimeout(() => {
       isTestingType.value = null
@@ -998,90 +974,32 @@ const testNotification = async (type: NotificationType) => {
   }
 }
 
-// Helper function to create test notification data
+// Sample title and body per notification type.
+const SAMPLE_KEYS: Record<string, string> = {
+  mention: 'mention',
+  dm: 'dm',
+  reply: 'reply',
+  reaction: 'reaction',
+  voice_channel_activity: 'voiceActivity',
+  server_invite: 'serverInvite',
+  friend_request: 'followRequest',
+  server_update: 'serverUpdate',
+  emoji_added: 'emojiAdded',
+  activitypub_follow: 'apFollow',
+  activitypub_favorite: 'apFavorite',
+  activitypub_reblog: 'apReblog',
+  activitypub_mention: 'apMention',
+  activitypub_reply: 'apReply',
+  activitypub_follow_request: 'apFollowRequest',
+}
+const SERVER_SAMPLES = new Set(['server_invite', 'server_update', 'emoji_added'])
+
 const createTestNotificationData = (type: NotificationType) => {
-  const testMessages = {
-    mention: {
-      title: 'Test mention',
-      message: 'You were mentioned in a test message',
-      avatar: userData.getUserAvatarUrlCurrent
-    },
-    dm: {
-      title: 'Test direct message',
-      message: 'This is a test direct message',
-      avatar: userData.getUserAvatarUrlCurrent
-    },
-    reply: {
-      title: 'Test reply',
-      message: 'Someone replied to your test message',
-      avatar: userData.getUserAvatarUrlCurrent
-    },
-    reaction: {
-      title: 'Test reaction',
-      message: 'Someone reacted to your test message',
-      avatar: userData.getUserAvatarUrlCurrent
-    },
-    voice_channel_activity: {
-      title: 'Test voice activity',
-      message: 'Someone joined a voice channel',
-      avatar: userData.getUserAvatarUrlCurrent
-    },
-    server_invite: {
-      title: 'Test server invite',
-      message: 'You were invited to join a server',
-      avatar: '/default_server.webp'
-    },
-    friend_request: {
-      title: 'Test follow request',
-      message: 'Someone wants to follow you',
-      avatar: userData.getUserAvatarUrlCurrent
-    },
-    server_update: {
-      title: 'Test server update',
-      message: 'A server has been updated',
-      avatar: '/default_server.webp'
-    },
-    emoji_added: {
-      title: 'Test emoji added',
-      message: 'A new emoji was added to the server',
-      avatar: '/default_server.webp'
-    },
-    activitypub_follow: {
-      title: 'Test ActivityPub follow',
-      message: 'Someone followed you from the fediverse',
-      avatar: userData.getUserAvatarUrlCurrent
-    },
-    activitypub_favorite: {
-      title: 'Test ActivityPub favorite',
-      message: 'Someone favorited your post on the fediverse',
-      avatar: userData.getUserAvatarUrlCurrent
-    },
-    activitypub_reblog: {
-      title: 'Test ActivityPub reblog',
-      message: 'Someone reblogged your post on the fediverse',
-      avatar: userData.getUserAvatarUrlCurrent
-    },
-    activitypub_mention: {
-      title: 'Test ActivityPub mention',
-      message: 'You were mentioned in a fediverse post',
-      avatar: userData.getUserAvatarUrlCurrent
-    },
-    activitypub_reply: {
-      title: 'Test ActivityPub reply',
-      message: 'Someone replied to your fediverse post',
-      avatar: userData.getUserAvatarUrlCurrent
-    },
-    activitypub_follow_request: {
-      title: 'Test ActivityPub follow request',
-      message: 'Someone requested to follow you on the fediverse',
-      avatar: userData.getUserAvatarUrlCurrent
-    }
-  }
-  
-  return (testMessages as any)[type] || {
-    title: 'Test notification',
-    message: 'This is a test notification',
-    avatar: userData.getUserAvatarUrlCurrent
+  const sample = SAMPLE_KEYS[type] ?? 'generic'
+  return {
+    title: t(`settings.notifications.samples.${sample}.title`),
+    message: t(`settings.notifications.samples.${sample}.message`),
+    avatar: SERVER_SAMPLES.has(type) ? '/default_server.webp' : userData.getUserAvatarUrlCurrent.value,
   }
 }
 
@@ -1091,7 +1009,7 @@ const testAllNotifications = async () => {
   try {
     isTesting.value = true
     
-    const allTypes = [...chatNotificationTypes, ...activityPubNotificationTypes]
+    const allTypes = [...chatNotificationTypes.value, ...activityPubNotificationTypes.value]
     
     for (const type of allTypes) {
       // Type-safe access to preferences
@@ -1102,10 +1020,10 @@ const testAllNotifications = async () => {
       }
     }
     
-    toast.success('All enabled notifications tested')
+    toast.success(t('settings.notifications.toast.allTested'))
   } catch (error) {
     debug.error('Failed to test all notifications:', error)
-    toast.error('Failed to test all notifications')
+    toast.error(t('settings.notifications.toast.allTestFailed'))
   } finally {
     isTesting.value = false
   }
@@ -1114,6 +1032,7 @@ const testAllNotifications = async () => {
 // Restores factory defaults, not the last-saved state: toggles save
 // immediately, so "last saved" equals the current state.
 const resetToDefaults = async () => {
+  if (isAtDefaults.value) return
   Object.assign(preferences, DEFAULT_PREFERENCES)
   await updatePreferences()
 }
@@ -1139,29 +1058,25 @@ const pushStatusIcon = computed(() => {
 const pushStatusBadgeText = computed(() => {
   if (isAndroidClient) {
     const choice = pushNotifications.androidChoice.value
-    if (choice?.kind === 'fcm') return 'This device: Google (FCM)'
-    if (choice?.kind === 'unifiedpush') return 'This device: UnifiedPush'
-    return 'This device: while open'
+    if (choice?.kind === 'fcm') return t('settings.notifications.push.status.fcm')
+    if (choice?.kind === 'unifiedpush') return t('settings.notifications.push.status.unifiedpush')
+    return t('settings.notifications.push.status.whileOpen')
   }
   if (isNativeClient) {
-    return isNativeMobile ? 'This device: foreground' : 'This device: native notifications'
+    return isNativeMobile ? t('settings.notifications.push.status.foreground') : t('settings.notifications.push.status.native')
   }
-  if (!pushNotifications.isSupported.value) return 'Not supported'
-  if (pushNotifications.permission.value === 'denied') return 'Blocked'
-  if (pushNotifications.isSubscribed.value) return 'Enabled'
-  return 'Available'
+  if (!pushNotifications.isSupported.value) return t('settings.notifications.push.status.notSupported')
+  if (pushNotifications.permission.value === 'denied') return t('settings.notifications.push.status.blocked')
+  if (pushNotifications.isSubscribed.value) return t('settings.notifications.push.status.enabled')
+  return t('settings.notifications.push.status.available')
 })
 
 const pushSectionDescription = computed(() => {
-  if (isAndroidClient) {
-    return 'Push reaches this device when Harmony is closed, through Google (FCM) or a UnifiedPush app of your choice. Your other subscribed devices are listed below.'
-  }
+  if (isAndroidClient) return t('settings.notifications.push.descAndroid')
   if (isNativeClient) {
-    return isNativeMobile
-      ? 'This device gets notifications while the app is open. Manage push to your other subscribed devices below.'
-      : 'The desktop app already shows system notifications while it\'s running. These settings manage push to your other devices (phone, browsers) and which notification types they receive.'
+    return isNativeMobile ? t('settings.notifications.push.descNativeMobile') : t('settings.notifications.push.descDesktop')
   }
-  return 'Receive notifications on your device even when the app is closed. Works on Android, iOS (PWA required), and desktop browsers.'
+  return t('settings.notifications.push.descWeb')
 })
 
 const handlePushSubscribe = async () => {
@@ -1173,9 +1088,9 @@ const handlePushSubscribe = async () => {
       preferences.push_notifications = true
       await updatePreferences()
     }
-    toast.success('Push notifications are on for this device')
+    toast.success(t('settings.notifications.toast.pushOn'))
   } else {
-    toast.error(result.error || 'Failed to enable push notifications')
+    toast.error(result.error || t('settings.notifications.toast.pushOnFailed'))
   }
 }
 
@@ -1184,9 +1099,9 @@ const handlePushUnsubscribe = async () => {
   const result = await pushNotifications.unsubscribe()
   if (result.success) {
     localStorage.setItem('harmony-push-disabled', 'true')
-    toast.success('Push notifications are off for this device')
+    toast.success(t('settings.notifications.toast.pushOff'))
   } else {
-    toast.error(result.error || 'Failed to disable push notifications')
+    toast.error(result.error || t('settings.notifications.toast.pushOffFailed'))
   }
 }
 
@@ -1195,9 +1110,9 @@ const handleTestPush = async () => {
   try {
     const result = await pushNotifications.sendTestNotification()
     if (result.success) {
-      toast.success('Test push notification sent')
+      toast.success(t('settings.notifications.toast.testPushSent'))
     } else {
-      toast.error(result.error || 'Failed to send test notification')
+      toast.error(result.error || t('settings.notifications.toast.testPushFailed'))
     }
   } finally {
     isTestingPush.value = false
@@ -1207,9 +1122,9 @@ const handleTestPush = async () => {
 const handleRemoveDevice = async (sub: { id: string; endpoint: string }) => {
   const result = await pushNotifications.removeSubscription(sub)
   if (result.success) {
-    toast.success('Device removed')
+    toast.success(t('settings.notifications.toast.deviceRemoved'))
   } else {
-    toast.error(result.error || 'Failed to remove device')
+    toast.error(result.error || t('settings.notifications.toast.deviceRemoveFailed'))
   }
 }
 
@@ -1226,18 +1141,18 @@ const getDeviceIcon = (userAgent?: string): string => {
 }
 
 const getDeviceName = (userAgent?: string): string => {
-  if (!userAgent) return 'Unknown device'
+  if (!userAgent) return t('settings.notifications.devices.unknown')
   const ua = userAgent.toLowerCase()
   if (ua.includes('iphone')) return 'iPhone'
   if (ua.includes('ipad')) return 'iPad'
-  if (ua.includes('android')) return 'Android device'
-  if (ua.includes('windows')) return 'Windows PC'
+  if (ua.includes('android')) return t('settings.notifications.devices.android')
+  if (ua.includes('windows')) return t('settings.notifications.devices.windows')
   if (ua.includes('mac')) return 'Mac'
-  if (ua.includes('linux')) return 'Linux PC'
-  if (ua.includes('chrome')) return 'Chrome browser'
-  if (ua.includes('firefox')) return 'Firefox browser'
-  if (ua.includes('safari')) return 'Safari browser'
-  return 'Unknown device'
+  if (ua.includes('linux')) return t('settings.notifications.devices.linux')
+  if (ua.includes('chrome')) return t('settings.notifications.devices.chrome')
+  if (ua.includes('firefox')) return t('settings.notifications.devices.firefox')
+  if (ua.includes('safari')) return t('settings.notifications.devices.safari')
+  return t('settings.notifications.devices.unknown')
 }
 
 const formatDate = (dateStr: string): string => {
@@ -1246,10 +1161,13 @@ const formatDate = (dateStr: string): string => {
   const diffMs = now.getTime() - date.getTime()
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
   
-  if (diffDays === 0) return 'today'
-  if (diffDays === 1) return 'yesterday'
-  if (diffDays < 7) return `${diffDays} days ago`
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
+  if (diffDays === 0) return t('settings.notifications.devices.today')
+  if (diffDays === 1) return t('settings.notifications.devices.yesterday')
+  if (diffDays < 7) return t('time.daysAgo', { count: diffDays })
+  if (diffDays < 30) {
+    const weeks = Math.floor(diffDays / 7)
+    return weeks === 1 ? t('time.weekAgo') : t('time.weeksAgo', { count: weeks })
+  }
   return date.toLocaleDateString()
 }
 
@@ -1697,7 +1615,8 @@ watch(() => notificationStore.preferences, (newPreferences) => {
   color: var(--text-primary);
 }
 
-.test-btn:disabled {
+.test-btn:disabled,
+.test-btn[aria-disabled='true'] {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -1739,7 +1658,8 @@ watch(() => notificationStore.preferences, (newPreferences) => {
   color: var(--text-primary);
 }
 
-.test-all-btn:disabled, .reset-btn:disabled {
+.test-all-btn:disabled, .reset-btn:disabled,
+.test-all-btn[aria-disabled='true'], .reset-btn[aria-disabled='true'] {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -1952,6 +1872,9 @@ watch(() => notificationStore.preferences, (newPreferences) => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .device-item {

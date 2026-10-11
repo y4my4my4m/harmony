@@ -1,62 +1,73 @@
 <template>
   <div class="server-encryption-settings">
     <div class="settings-section">
-      <h2 class="section-title">Server encryption policy</h2>
+      <h2 class="section-title">{{ t('server.encryptionPolicy.title') }}</h2>
       <p class="section-description">
-        Control end-to-end encryption requirements for this server
+        {{ t('server.encryptionPolicy.description') }}
       </p>
     </div>
 
-    <div v-if="loading" class="loading-state">
+    <div v-if="loading" class="loading-state" role="status">
       <LoadingSpinner :size="40" />
-      <p>Loading encryption settings...</p>
+      <p>{{ t('server.encryptionPolicy.loading') }}</p>
     </div>
 
     <div v-else class="settings-card">
       <!-- Current Status -->
       <div class="status-card" :class="statusClass">
-        <div class="status-icon">
+        <div class="status-icon" aria-hidden="true">
           <Icon :name="statusIcon" :size="24" />
         </div>
         <div class="status-info">
-          <h4>{{ statusTitle }}</h4>
+          <p class="status-title">{{ statusTitle }}</p>
           <p>{{ statusDescription }}</p>
         </div>
       </div>
 
       <!-- Encryption Mode Selection -->
       <div class="setting-group">
-        <label class="setting-label">
-          Encryption mode
-          <span class="setting-hint">Choose how encryption is enforced</span>
-        </label>
+        <div class="setting-label">
+          <h3 :id="`${uid}-mode-label`" class="setting-heading">{{ t('server.encryptionPolicy.modeLabel') }}</h3>
+          <span :id="`${uid}-mode-hint`" class="setting-hint">{{ t('server.encryptionPolicy.modeHint') }}</span>
+        </div>
 
-        <div class="mode-options">
+        <div
+          class="mode-options"
+          role="radiogroup"
+          :aria-labelledby="`${uid}-mode-label`"
+          :aria-describedby="`${uid}-mode-hint`"
+          data-testid="encryption-mode-group"
+        >
           <div
             v-for="mode in encryptionModes"
             :key="mode.value"
             class="mode-option"
             :class="{ selected: currentMode === mode.value }"
-            @click="selectMode(mode.value as 'disabled' | 'optional' | 'required')"
+            @click="selectMode(mode.value)"
           >
             <div class="mode-header">
               <input
                 type="radio"
-                :id="`mode-${mode.value}`"
+                :id="`${uid}-mode-${mode.value}`"
+                :name="`${uid}-mode`"
                 :value="mode.value"
-                v-model="currentMode"
+                :checked="currentMode === mode.value"
                 :disabled="!canModify"
+                :aria-describedby="mode.value === 'required'
+                  ? `${uid}-mode-${mode.value}-desc ${uid}-mode-required-warning`
+                  : `${uid}-mode-${mode.value}-desc`"
+                @change="selectMode(mode.value)"
               />
-              <label :for="`mode-${mode.value}`">
-                <span class="mode-icon"><Icon :name="mode.icon" :size="18" /></span>
+              <label :for="`${uid}-mode-${mode.value}`">
+                <span class="mode-icon" aria-hidden="true"><Icon :name="mode.icon" :size="18" /></span>
                 <span class="mode-name">{{ mode.name }}</span>
               </label>
             </div>
-            <p class="mode-description">{{ mode.description }}</p>
-            
-            <div v-if="mode.value === 'required'" class="mode-warning">
-              <span class="warning-icon"><Icon name="alert-triangle" :size="16" /></span>
-              <span>Users without encryption keys won't be able to send messages</span>
+            <p :id="`${uid}-mode-${mode.value}-desc`" class="mode-description">{{ mode.description }}</p>
+
+            <div v-if="mode.value === 'required'" :id="`${uid}-mode-required-warning`" class="mode-warning">
+              <span class="warning-icon" aria-hidden="true"><Icon name="alert-triangle" :size="16" /></span>
+              <span>{{ t('server.encryptionPolicy.requiredWarning') }}</span>
             </div>
           </div>
         </div>
@@ -64,78 +75,86 @@
 
       <!-- Server-wide Settings -->
       <div class="setting-group">
-        <label class="setting-label">Additional options</label>
+        <div class="setting-label">
+          <h3 class="setting-heading">{{ t('server.encryptionPolicy.additionalOptions') }}</h3>
+        </div>
 
         <div class="checkbox-option">
           <input
             type="checkbox"
-            id="force-key-setup"
+            :id="`${uid}-force-key-setup`"
             v-model="forceKeySetup"
             :disabled="!canModify || currentMode === 'disabled'"
+            :aria-describedby="`${uid}-force-key-setup-hint`"
           />
-          <label for="force-key-setup">
-            <span class="option-name">Prompt users to set up encryption</span>
-            <span class="option-hint">Show setup wizard for users without keys</span>
+          <label :for="`${uid}-force-key-setup`">
+            <span class="option-name">{{ t('server.encryptionPolicy.forceKeySetup') }}</span>
+            <span :id="`${uid}-force-key-setup-hint`" class="option-hint">{{ t('server.encryptionPolicy.forceKeySetupHint') }}</span>
           </label>
         </div>
 
         <p class="attachment-note">
-          <Icon name="info" :size="14" />
-          <span>In encrypted channels, file links, names and types are encrypted with the message. The files themselves are stored unencrypted.</span>
+          <Icon name="info" :size="14" aria-hidden="true" />
+          <span>{{ t('server.encryptionPolicy.attachmentNote') }}</span>
         </p>
 
       </div>
 
       <!-- Voice / Video E2EE -->
       <div class="setting-group">
-        <label class="setting-label">
-          Voice &amp; video encryption
-          <span class="setting-hint">End-to-end encrypt call media so the media server can't access it</span>
-        </label>
+        <div class="setting-label">
+          <h3 class="setting-heading">{{ t('server.encryptionPolicy.voiceTitle') }}</h3>
+          <span class="setting-hint">{{ t('server.encryptionPolicy.voiceHint') }}</span>
+        </div>
 
         <div class="checkbox-option">
           <input
             type="checkbox"
-            id="voice-e2ee"
+            :id="`${uid}-voice-e2ee`"
             :checked="voiceEncryptionMode === 'required'"
             :disabled="!canModify"
+            :aria-describedby="voiceEncryptionMode === 'required'
+              ? `${uid}-voice-e2ee-hint ${uid}-voice-e2ee-warning`
+              : `${uid}-voice-e2ee-hint`"
             @change="voiceEncryptionMode = ($event.target as HTMLInputElement).checked ? 'required' : 'disabled'"
           />
-          <label for="voice-e2ee">
-            <span class="option-name">Require end-to-end encrypted voice and video</span>
-            <span class="option-hint">Every voice channel encrypts calls before they reach the media server. Without this, channel managers choose per voice channel.</span>
+          <label :for="`${uid}-voice-e2ee`">
+            <span class="option-name">{{ t('server.encryptionPolicy.voiceRequire') }}</span>
+            <span :id="`${uid}-voice-e2ee-hint`" class="option-hint">{{ t('server.encryptionPolicy.voiceRequireHint') }}</span>
           </label>
         </div>
 
-        <div v-if="voiceEncryptionMode === 'required'" class="mode-warning">
-          <span class="warning-icon"><Icon name="alert-triangle" :size="16" /></span>
-          <span>Participants who haven't set up encryption (and federated/legacy clients) will be unable to join encrypted calls.</span>
+        <div v-if="voiceEncryptionMode === 'required'" :id="`${uid}-voice-e2ee-warning`" class="mode-warning">
+          <span class="warning-icon" aria-hidden="true"><Icon name="alert-triangle" :size="16" /></span>
+          <span>{{ t('server.encryptionPolicy.voiceWarning') }}</span>
         </div>
       </div>
 
       <!-- Server Encryption Status -->
       <div class="setting-group">
-        <label class="setting-label">Server statistics</label>
-        
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-value">{{ memberStats.total }}</div>
-            <div class="stat-label">Total members</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ memberStats.withKeys }}</div>
-            <div class="stat-label">With encryption</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ memberStats.percentage }}%</div>
-            <div class="stat-label">Coverage</div>
-          </div>
+        <div class="setting-label">
+          <h3 class="setting-heading">{{ t('server.encryptionPolicy.statsTitle') }}</h3>
         </div>
 
+        <dl class="stats-grid">
+          <div class="stat-card">
+            <dt class="stat-label">{{ t('server.encryptionPolicy.statsTotal') }}</dt>
+            <dd class="stat-value">{{ memberStats.total }}</dd>
+          </div>
+          <div class="stat-card">
+            <dt class="stat-label">{{ t('server.encryptionPolicy.statsWithKeys') }}</dt>
+            <dd class="stat-value">{{ memberStats.withKeys }}</dd>
+          </div>
+          <div class="stat-card">
+            <dt class="stat-label">{{ t('server.encryptionPolicy.statsCoverage') }}</dt>
+            <dd class="stat-value">{{ memberStats.percentage }}%</dd>
+          </div>
+        </dl>
+
         <div v-if="memberStats.percentage < 100 && currentMode === 'required'" class="warning-banner">
-          <span class="warning-icon"><Icon name="alert-triangle" :size="16" /></span>
+          <span class="warning-icon" aria-hidden="true"><Icon name="alert-triangle" :size="16" /></span>
           <span>
-            {{ memberStats.total - memberStats.withKeys }} members need to set up encryption before required mode can function properly
+            {{ t('server.encryptionPolicy.statsWarning', { count: memberStats.total - memberStats.withKeys }) }}
           </span>
         </div>
       </div>
@@ -144,38 +163,46 @@
 
       <!-- Help Section -->
       <div class="help-section">
-        <h4>About end-to-end encryption</h4>
+        <h3 class="help-title">{{ t('server.encryptionPolicy.helpTitle') }}</h3>
         <ul>
-          <li><strong>Disabled:</strong> channels can't turn on encryption, and messages are stored as plaintext.</li>
-          <li><strong>Optional:</strong> channel managers turn encryption on per channel. New channels start unencrypted.</li>
-          <li><strong>Required:</strong> every channel is encrypted, and members need encryption keys to post.</li>
+          <li v-for="mode in encryptionModes" :key="mode.value">
+            <i18n-t :keypath="`server.encryptionPolicy.help.${mode.value}`" tag="span">
+              <template #mode><strong>{{ mode.name }}</strong></template>
+            </i18n-t>
+          </li>
         </ul>
         <p class="help-note">
-          <strong>Note:</strong> End-to-end encryption means the server cannot read message content.
-          This provides maximum privacy but disables server-side features like search and content moderation.
+          <strong>{{ t('server.encryptionPolicy.noteLabel') }}</strong>
+          {{ t('server.encryptionPolicy.note') }}
         </p>
       </div>
     </div>
 
     <!-- Error Display -->
     <div v-if="error" class="error-banner">
-      <span class="error-icon"><Icon name="x-circle" :size="16" /></span>
+      <span class="error-icon" aria-hidden="true"><Icon name="x-circle" :size="16" /></span>
       <span>{{ error }}</span>
-      <button @click="error = null" class="close-btn">×</button>
+      <button type="button" @click="error = null" class="close-btn" :aria-label="t('common.close')" :title="t('common.close')">
+        <span aria-hidden="true">×</span>
+      </button>
     </div>
 
     <!-- Success Display -->
     <div v-if="successMessage" class="success-banner">
-      <span class="success-icon"><Icon name="check-circle" :size="16" /></span>
+      <span class="success-icon" aria-hidden="true"><Icon name="check-circle" :size="16" /></span>
       <span>{{ successMessage }}</span>
-      <button @click="successMessage = null" class="close-btn">×</button>
+      <button type="button" @click="successMessage = null" class="close-btn" :aria-label="t('common.close')" :title="t('common.close')">
+        <span aria-hidden="true">×</span>
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import Icon from '@/components/common/Icon.vue'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, useId, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useAnnouncer } from '@/composables/useAnnouncer'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
@@ -187,7 +214,12 @@ interface Props {
   serverId: string
 }
 
+type EncryptionMode = 'disabled' | 'optional' | 'required'
+
 const props = defineProps<Props>()
+const { t } = useI18n()
+const uid = `ses-${useId()}`
+const { polite, assertive } = useAnnouncer()
 const { confirm } = useConfirmDialog()
 const serverChannelStore = useServerChannelStore()
 
@@ -215,27 +247,16 @@ const memberStats = ref({
   percentage: 0
 })
 
-// Encryption mode options
-const encryptionModes = [
-  {
-    value: 'disabled',
-    name: 'Disabled',
-    icon: 'unlock',
-    description: "Channels can't turn on encryption. The server can read every message."
-  },
-  {
-    value: 'optional',
-    name: 'Optional',
-    icon: 'lock',
-    description: 'Channel managers turn encryption on per channel. New channels start unencrypted.'
-  },
-  {
-    value: 'required',
-    name: 'Required',
-    icon: 'shield-check',
-    description: "Every channel is encrypted and can't be turned off. Members need encryption keys to post."
-  }
-]
+const MODE_ICONS: Record<EncryptionMode, string> = { disabled: 'unlock', optional: 'lock', required: 'shield-check' }
+
+const encryptionModes = computed(() =>
+  (['disabled', 'optional', 'required'] as const).map((value) => ({
+    value,
+    name: t(`server.encryptionPolicy.modes.${value}.name`),
+    icon: MODE_ICONS[value],
+    description: t(`server.encryptionPolicy.modes.${value}.description`),
+  })),
+)
 
 // Computed
 // server_encryption_settings_modify admits the server owner only.
@@ -269,27 +290,9 @@ const statusIcon = computed(() => {
   }
 })
 
-const statusTitle = computed(() => {
-  switch (currentMode.value) {
-    case 'disabled': return 'Encryption disabled'
-    case 'optional': return 'Optional encryption'
-    case 'required': return 'Encryption required'
-    default: return 'Unknown'
-  }
-})
+const statusTitle = computed(() => t(`server.encryptionPolicy.status.${currentMode.value}.title`))
 
-const statusDescription = computed(() => {
-  switch (currentMode.value) {
-    case 'disabled':
-      return 'Messages are stored as plaintext. Server operators can read them.'
-    case 'optional':
-      return 'Each channel is encrypted or not, as its channel managers choose.'
-    case 'required':
-      return 'Every channel is end-to-end encrypted.'
-    default:
-      return ''
-  }
-})
+const statusDescription = computed(() => t(`server.encryptionPolicy.status.${currentMode.value}.description`))
 
 // Methods
 async function loadSettings() {
@@ -322,7 +325,7 @@ async function loadSettings() {
     debug.log('Encryption settings loaded')
   } catch (err: any) {
     debug.error('Failed to load encryption settings:', err)
-    error.value = err.message || 'Failed to load settings'
+    error.value = err.message || t('server.encryptionPolicy.loadFailed')
   } finally {
     loading.value = false
   }
@@ -345,7 +348,7 @@ async function loadMemberStats() {
   }
 }
 
-function selectMode(mode: 'disabled' | 'optional' | 'required') {
+function selectMode(mode: EncryptionMode) {
   if (!canModify.value) return
   currentMode.value = mode
 
@@ -370,9 +373,9 @@ async function saveSettings() {
   try {
     if (currentMode.value === 'disabled' && originalMode.value !== 'disabled') {
       const confirmed = await confirm({
-        title: 'Disable encryption',
-        message: 'Channels with encryption turned on will send new messages as plaintext. Earlier encrypted messages stay encrypted.',
-        confirmButtonText: 'Disable encryption',
+        title: t('server.encryptionPolicy.confirmDisable.title'),
+        message: t('server.encryptionPolicy.confirmDisable.message'),
+        confirmButtonText: t('server.encryptionPolicy.confirmDisable.confirm'),
         dangerAction: true,
       })
       if (!confirmed) {
@@ -383,10 +386,9 @@ async function saveSettings() {
 
     if (currentMode.value === 'required' && memberStats.value.percentage < 50) {
       const confirmed = await confirm({
-        title: 'Enable required encryption',
-        message: `Warning: Only ${memberStats.value.percentage}% of members have encryption keys set up. ` +
-          'Required mode will prevent users without keys from participating. Continue?',
-        confirmButtonText: 'Continue',
+        title: t('server.encryptionPolicy.confirmRequired.title'),
+        message: t('server.encryptionPolicy.confirmRequired.message', { percentage: memberStats.value.percentage }),
+        confirmButtonText: t('common.continue'),
         dangerAction: true,
       })
       if (!confirmed) {
@@ -415,7 +417,7 @@ async function saveSettings() {
     originalForceKeySetup.value = forceKeySetup.value
     originalVoiceEncryptionMode.value = voiceEncryptionMode.value
 
-    successMessage.value = 'Encryption settings saved'
+    successMessage.value = t('server.encryptionPolicy.saved')
     
     setTimeout(() => {
       successMessage.value = null
@@ -424,7 +426,7 @@ async function saveSettings() {
     debug.log('Encryption settings saved')
   } catch (err: any) {
     debug.error('Failed to save encryption settings:', err)
-    error.value = err.message || 'Failed to save settings'
+    error.value = err.message || t('server.encryptionPolicy.saveFailed')
   } finally {
     saving.value = false
   }
@@ -437,6 +439,10 @@ function resetSettings() {
   error.value = null
   successMessage.value = null
 }
+
+// The banners appear with their text; the announcer's persistent regions speak it.
+watch(error, (text) => { if (text) assertive(text) })
+watch(successMessage, (text) => { if (text) polite(text) })
 
 // Expose for parent component
 defineExpose({
@@ -515,8 +521,9 @@ onMounted(() => {
   font-size: 32px;
 }
 
-.status-info h4 {
+.status-info .status-title {
   margin: 0 0 4px 0;
+  color: var(--text-primary);
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
 }
@@ -538,6 +545,13 @@ onMounted(() => {
   font-weight: var(--font-weight-semibold);
   margin-bottom: 16px;
   color: var(--text-primary);
+}
+
+.setting-heading {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
 }
 
 .setting-hint {
@@ -669,10 +683,12 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
-  margin-bottom: 16px;
+  margin: 0 0 16px;
 }
 
 .stat-card {
+  display: flex;
+  flex-direction: column;
   padding: 16px;
   background: var(--surface-inset);
   border-radius: var(--radius-md);
@@ -680,6 +696,7 @@ onMounted(() => {
 }
 
 .stat-value {
+  margin-left: 0;
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
   color: var(--text-link);
@@ -687,6 +704,7 @@ onMounted(() => {
 }
 
 .stat-label {
+  order: 1;
   font-size: 13px;
   color: var(--text-secondary);
 }
@@ -755,7 +773,8 @@ onMounted(() => {
   border-radius: var(--radius-md);
 }
 
-.help-section h4 {
+.help-section .help-title {
+  font-size: var(--font-size-base);
   margin: 0 0 12px 0;
   color: var(--text-primary);
 }

@@ -87,6 +87,7 @@
     <!-- User Profile at Bottom (desktop only; mobile uses server rail above) -->
     <section
       v-if="!isMobile"
+      ref="userPanelEl"
       class="user-profile-section"
       data-region="user"
       :aria-label="t('a11y.landmarks.userPanel')"
@@ -143,6 +144,7 @@ import { useDrawer } from '@/composables/useDrawer'
 import { useRegionNavigation } from '@/composables/useRegionNavigation'
 import { MAIN_CONTENT_ID } from '@/composables/useRouteA11y'
 import { drawerPanelElements, drawerPanelIds, useDrawerPanel } from '@/composables/useLayoutState'
+import { holdInert } from '@/utils/a11y/layers'
 
 const serverChannelStore = useServerChannelStore()
 const authStore = useAuthStore()
@@ -221,6 +223,20 @@ useDrawer({
   moveFocus: () => !isDragging.value,
 })
 useRegionNavigation()
+
+// A view with meta.fullScreen covers the rail and the user panel; they leave the
+// tab order and the accessibility tree while it is shown.
+const userPanelEl = ref<HTMLElement | null>(null)
+const coveredByView = computed(() => route.matched.some(r => r.meta?.fullScreen === true))
+watch(
+  [coveredByView, railEl, userPanelEl],
+  ([covered, rail, panel], _previous, onCleanup) => {
+    if (!covered) return
+    const releases = [rail, panel].filter((el): el is HTMLElement => !!el).map(holdInert)
+    onCleanup(() => releases.forEach((release) => release()))
+  },
+  { flush: 'post', immediate: true },
+)
 
 // ChatLayout and SocialLayout render their own <main> around the view.
 const layoutProvidesMain = computed(() => route.matched.some(r => r.meta?.providesMain === true))

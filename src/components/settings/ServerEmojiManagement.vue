@@ -14,7 +14,7 @@
           <path fill="currentColor" d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
         </svg>
         <div class="notice-text">
-          <h4>{{ $t('confirmation.emojiViewOnlyAccess') }}</h4>
+          <h3>{{ $t('confirmation.emojiViewOnlyAccess') }}</h3>
           <p>{{ $t('confirmation.emojiViewOnlyMessage') }}</p>
         </div>
       </div>
@@ -24,8 +24,8 @@
       <div class="form-group">
         <div class="setting-row">
           <div class="setting-info">
-            <label class="form-label">{{ $t('server.allowCrossServer') }}</label>
-            <div class="form-hint">
+            <span :id="`${uid}-cross-label`" class="form-label">{{ $t('server.allowCrossServer') }}</span>
+            <div :id="`${uid}-cross-hint`" class="form-hint">
               {{ $t('server.allowCrossServerDesc') }}
             </div>
           </div>
@@ -33,11 +33,14 @@
             <label class="toggle-switch">
               <input
                 type="checkbox"
+                role="switch"
+                :aria-labelledby="`${uid}-cross-label`"
+                :aria-describedby="`${uid}-cross-hint`"
                 :checked="allowCrossServer"
                 @change="handleCrossServerToggle"
                 :disabled="loading"
               />
-              <span class="toggle-slider"></span>
+              <span class="toggle-slider" aria-hidden="true"></span>
             </label>
           </div>
         </div>
@@ -46,41 +49,54 @@
 
     <div class="settings-card" v-if="permissions.canUpload">
       <div class="form-group">
-        <label class="form-label">{{ $t('server.uploadEmoji') }}</label>
-        <div 
-          class="emoji-upload-area"
+        <span :id="`${uid}-upload-label`" class="form-label">{{ $t('server.uploadEmoji') }}</span>
+        <label
+          class="emoji-upload-area file-pick"
           :class="{ 'dragover': isDragOver }"
+          data-testid="emoji-upload-area"
           @drop="handleDrop"
           @dragover.prevent="isDragOver = true"
           @dragleave="isDragOver = false"
-          @click="triggerFileInput"
         >
-          <svg class="upload-icon" width="48" height="48" viewBox="0 0 24 24">
+          <svg class="upload-icon" width="48" height="48" viewBox="0 0 24 24" aria-hidden="true">
             <path fill="currentColor" d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
           </svg>
-          <h3 class="upload-text">{{ $t('files.upload') }}</h3>
-          <p class="upload-hint">{{ $t('server.emojiUploadRecommendation') }}</p>
-          
+          <span class="upload-text" aria-hidden="true">{{ $t('files.upload') }}</span>
+          <span :id="`${uid}-upload-hint`" class="upload-hint">{{ $t('server.emojiUploadRecommendation') }}</span>
+
           <input
             ref="emojiFileInput"
             type="file"
             accept="image/png,image/gif,image/webp,image/apng,image/svg+xml,image/jpeg"
             multiple
-            class="hidden-file-input"
+            class="sr-only"
+            data-testid="emoji-upload-input"
+            :aria-labelledby="`${uid}-upload-label`"
+            :aria-describedby="`${uid}-upload-hint`"
+            :aria-busy="uploadingEmoji || undefined"
+            :aria-disabled="uploadingEmoji || undefined"
+            :disabled="loading"
+            @click="uploadingEmoji && $event.preventDefault()"
             @change="handleEmojiUpload"
-            :disabled="loading || uploadingEmoji"
           />
-        </div>
-        
+        </label>
+
         <!-- Upload Progress -->
         <div v-if="uploadProgress.total > 0" class="upload-progress">
           <div class="progress-header">
-            <span class="progress-text">
+            <span :id="`${uid}-progress-label`" class="progress-text">
               {{ $t('server.uploadingEmojis', { current: uploadProgress.current, total: uploadProgress.total }) }}
             </span>
-            <span class="progress-count">{{ uploadProgress.completed }}/{{ uploadProgress.total }}</span>
+            <span class="progress-count" aria-hidden="true">{{ uploadProgress.completed }}/{{ uploadProgress.total }}</span>
           </div>
-          <div class="progress-bar">
+          <div
+            class="progress-bar"
+            role="progressbar"
+            :aria-labelledby="`${uid}-progress-label`"
+            aria-valuemin="0"
+            :aria-valuemax="uploadProgress.total"
+            :aria-valuenow="uploadProgress.completed"
+          >
             <div 
               class="progress-fill" 
               :style="{ width: (uploadProgress.completed / uploadProgress.total * 100) + '%' }"
@@ -100,11 +116,13 @@
         <div class="header-right" v-if="emojis.length > 0">
           <button
             v-if="!selectionMode"
+            ref="selectToggle"
+            type="button"
             class="btn btn-secondary"
             @click="enterSelectionMode"
             :disabled="!permissions.canDelete && !permissions.canRename"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24">
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
               <path fill="currentColor" d="M19,3H5A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3M19,19H5V5H19V19M17,17H7V16L12,11L17,16V17Z"/>
             </svg>
             {{ $t('common.select') }}
@@ -114,18 +132,20 @@
             <span class="selection-count">{{ $t('common.select') }}: {{ selectedEmojis.length }}</span>
             <div class="selection-actions">
               <button
+                type="button"
                 class="btn btn-danger"
                 @click="bulkDeleteSelected"
                 :disabled="selectedEmojis.length === 0 || deletingEmoji === 'bulk'"
                 v-if="permissions.canDelete"
               >
-                <span v-if="deletingEmoji === 'bulk'" class="btn-spinner"></span>
-                <svg v-else width="16" height="16" viewBox="0 0 24 24">
+                <span v-if="deletingEmoji === 'bulk'" class="btn-spinner" aria-hidden="true"></span>
+                <svg v-else width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
                   <path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
                 </svg>
                 {{ deletingEmoji === 'bulk' ? $t('common.deleting') : $t('common.delete') }} ({{ selectedEmojis.length }})
               </button>
               <button
+                type="button"
                 class="btn btn-secondary"
                 @click="exitSelectionMode"
                 :disabled="deletingEmoji === 'bulk'"
@@ -144,7 +164,7 @@
         :description="permissions.canUpload ? $t('server.addFirstEmoji') : undefined"
       />
       
-      <div v-else class="emoji-grid">
+      <div v-else ref="emojiGrid" class="emoji-grid">
         <div 
           v-for="emoji in emojis" 
           :key="emoji.id"
@@ -183,11 +203,14 @@
               <input
                 :ref="el => { if (el) emojiRenameInput = el as any }"
                 v-model="tempEmojiName"
-                @keyup.enter="saveEmojiRename(emoji)"
-                @keyup.escape="cancelEmojiRename"
-                @blur="saveEmojiRename(emoji)"
+                type="text"
                 class="emoji-name-input"
+                data-testid="emoji-rename-input"
+                :aria-label="t('server.emojiActions.renameField', { name: `:${emoji.name}:` })"
                 :placeholder="emoji.name"
+                @keydown.enter.prevent="saveEmojiRename(emoji, true)"
+                @keydown.escape.prevent="endRename(emoji.id, true)"
+                @blur="saveEmojiRename(emoji)"
               />
             </div>
             <div v-else class="emoji-name">:{{ emoji.name }}:</div>
@@ -200,33 +223,40 @@
           
           <div class="emoji-actions" v-if="!selectionMode">
             <button
+              type="button"
               class="action-btn copy-btn"
               @click="copyEmojiName(emoji.name)"
+              :aria-label="t('server.emojiActions.copy', { name: `:${emoji.name}:` })"
               :title="$t('server.copyEmojiName')"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24">
+              <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
                 <path fill="currentColor" d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"/>
               </svg>
             </button>
             <button
               v-if="permissions.canRename"
+              type="button"
               class="action-btn rename-btn"
+              :data-emoji-rename="emoji.id"
               @click="startEmojiRename(emoji)"
               :disabled="renamingEmoji === emoji.id"
+              :aria-label="t('server.emojiActions.rename', { name: `:${emoji.name}:` })"
               :title="$t('server.renameEmoji')"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24">
+              <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
                 <path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
               </svg>
             </button>
             <button
               v-if="permissions.canDelete"
+              type="button"
               class="action-btn delete-btn"
               @click="confirmDeleteEmoji(emoji)"
               :disabled="deletingEmoji === emoji.id"
+              :aria-label="t('server.emojiActions.delete', { name: `:${emoji.name}:` })"
               :title="$t('server.deleteEmojiTitle')"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24">
+              <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
                 <path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
               </svg>
             </button>
@@ -238,7 +268,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, computed } from 'vue'
+import { ref, nextTick, computed, useId } from 'vue'
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
@@ -251,8 +281,10 @@ import { MAX_IMAGE_SOURCE_BYTES } from '@/utils/imageResize'
 import type { Emoji } from '@/types'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useProfileStore } from '@/stores/useProfile'
+import EmptyState from '@/components/common/EmptyState.vue'
 
 const { t } = useI18n()
+const uid = `sem-${useId()}`
 const { confirm } = useConfirmDialog()
 const instanceSettings = useInstanceSettingsStore()
 
@@ -303,6 +335,7 @@ const selectedEmojis = ref<string[]>([])
 // Renaming state  
 const renamingEmoji = ref<string | null>(null)
 const tempEmojiName = ref('')
+const renameSaving = ref(false)
 const emojiRenameInput = ref<HTMLInputElement>()
 
 // Upload progress tracking
@@ -323,11 +356,6 @@ const handleCrossServerToggle = (event: Event) => {
   emit('update:allowCrossServer', target.checked)
 }
 
-const triggerFileInput = () => {
-  if (!props.permissions.canUpload) return
-  emojiFileInput.value?.click()
-}
-
 const handleDrop = (event: DragEvent) => {
   if (!props.permissions.canUpload) return
   event.preventDefault()
@@ -344,8 +372,11 @@ const handleDrop = (event: DragEvent) => {
 }
 
 const handleEmojiUpload = (event: Event) => {
-  if (!props.permissions.canUpload) return
   const input = event.target as HTMLInputElement
+  if (!props.permissions.canUpload || uploadingEmoji.value) {
+    input.value = ''
+    return
+  }
   const files = input.files
   if (files && files.length > 0) {
     const fileArray = Array.from(files)
@@ -508,15 +539,21 @@ const handleBulkEmojiUpload = async (files: File[]) => {
   }
 }
 
-// Selection mode methods
-const enterSelectionMode = () => {
+const selectToggle = ref<HTMLButtonElement | null>(null)
+const emojiGrid = ref<HTMLElement | null>(null)
+
+const enterSelectionMode = async () => {
   selectionMode.value = true
   selectedEmojis.value = []
+  await nextTick()
+  emojiGrid.value?.querySelector<HTMLElement>('[role="checkbox"]')?.focus()
 }
 
-const exitSelectionMode = () => {
+const exitSelectionMode = async () => {
   selectionMode.value = false
   selectedEmojis.value = []
+  await nextTick()
+  selectToggle.value?.focus()
 }
 
 const toggleEmojiSelection = (emojiId: string) => {
@@ -579,12 +616,14 @@ const startEmojiRename = async (emoji: Emoji) => {
   emojiRenameInput.value?.select()
 }
 
-const saveEmojiRename = async (emoji: Emoji) => {
+const saveEmojiRename = async (emoji: Emoji, restoreFocus = false) => {
+  if (renamingEmoji.value !== emoji.id || renameSaving.value) return
   if (!tempEmojiName.value.trim() || tempEmojiName.value === emoji.name) {
-    cancelEmojiRename()
+    endRename(emoji.id, restoreFocus)
     return
   }
 
+  renameSaving.value = true
   try {
     const success = await renameEmoji(emoji.id, tempEmojiName.value.trim(), props.serverId)
     
@@ -601,18 +640,23 @@ const saveEmojiRename = async (emoji: Emoji) => {
     debug.error('Error renaming emoji:', error)
     toast.error(t('server.failedToRenameEmoji'))
   } finally {
-    cancelEmojiRename()
+    renameSaving.value = false
+    endRename(emoji.id, restoreFocus)
   }
 }
 
-const cancelEmojiRename = () => {
+const endRename = async (emojiId: string, restoreFocus: boolean) => {
+  if (renamingEmoji.value !== emojiId) return
   renamingEmoji.value = null
   tempEmojiName.value = ''
+  if (!restoreFocus) return
+  await nextTick()
+  document.querySelector<HTMLElement>(`[data-emoji-rename="${CSS.escape(emojiId)}"]`)?.focus()
 }
 
 const copyEmojiName = (name: string) => {
   navigator.clipboard.writeText(`:${name}:`)
-  toast.success('Emoji name copied')
+  toast.success(t('server.emojiActions.copied', { name: `:${name}:` }))
 }
 
 const formatFileSize = (bytes: number): string => {
@@ -683,7 +727,7 @@ const getEmojiAnalytics = () => {
   color: var(--warning);
 }
 
-.notice-text h4 {
+.notice-text h3 {
   margin: 0 0 4px 0;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
@@ -785,7 +829,13 @@ input:checked + .toggle-slider:before {
   transform: translateX(20px);
 }
 
+.toggle-switch input:focus-visible + .toggle-slider {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
 .emoji-upload-area {
+  display: block;
   border: 2px dashed var(--input-border);
   border-radius: var(--radius-md);
   padding: 32px;
@@ -793,6 +843,12 @@ input:checked + .toggle-slider:before {
   cursor: pointer;
   transition: all 0.15s ease;
   background-color: var(--input-bg);
+}
+
+.emoji-upload-area:focus-within {
+  border-color: var(--harmony-primary);
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .emoji-upload-area:hover,
@@ -807,19 +863,18 @@ input:checked + .toggle-slider:before {
 }
 
 .upload-text {
+  display: block;
   font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0 0 4px 0;
 }
 
 .upload-hint {
+  display: block;
   font-size: var(--font-size-xs);
   color: var(--text-muted);
   margin: 0;
-}
-
-.hidden-file-input {
-  display: none;
 }
 
 .emoji-list-header {

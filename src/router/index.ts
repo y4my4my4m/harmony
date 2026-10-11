@@ -375,7 +375,8 @@ const router = createRouter({
       path: '/settings/:section?',
       name: 'UserSettings',
       component: () => import('@/views/UserSettings.vue'),
-      meta: { requiresAuth: true, titleKey: 'settings.userSettings' },
+      // fullScreen: the view covers the server rail and the user panel.
+      meta: { requiresAuth: true, titleKey: 'settings.userSettings', fullScreen: true },
       props: true
     },
     {

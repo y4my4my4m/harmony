@@ -10,16 +10,21 @@
     <div class="settings-section">
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.language.selectLanguage') }}</h4>
-          <p class="setting-description">{{ $t('settings.language.selectLanguageDesc') }}</p>
+          <h4 class="setting-label">
+            <label :for="`${uid}-language`">{{ $t('settings.language.selectLanguage') }}</label>
+          </h4>
+          <p :id="`${uid}-language-desc`" class="setting-description">{{ $t('settings.language.selectLanguageDesc') }}</p>
         </div>
         <div class="setting-control">
           <select 
+            :id="`${uid}-language`"
             v-model="selectedLanguage"
             class="form-select"
+            :aria-describedby="`${uid}-language-desc`"
+            data-testid="language-select"
             @change="onLanguageChange"
           >
-            <option v-for="lang in availableLanguages" :key="lang.code" :value="lang.code">
+            <option v-for="lang in availableLanguages" :key="lang.code" :value="lang.code" :lang="lang.code">
               {{ lang.name }}
             </option>
           </select>
@@ -30,7 +35,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, useId } from 'vue'
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n'
 import { setLocale, availableLocales } from '@/i18n'
@@ -50,6 +55,7 @@ const emit = defineEmits<{
 
 const { locale } = useI18n()
 const authStore = useAuthStore()
+const uid = `language-${useId()}`
 
 const selectedLanguage = ref(locale.value)
 const availableLanguages = availableLocales

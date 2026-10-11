@@ -392,7 +392,318 @@
     "federationBenefit2": "메시지는 연합 멤버와 실시간으로 공유됩니다",
     "federationBenefit3": "서버가 연합 서버 검색에 표시됩니다",
     "federationHandle": "서버 핸들",
-    "federationHandleDesc": "이 핸들을 공유하면 다른 인스턴스의 사람들이 이 서버를 찾아 참여할 수 있습니다."
+    "federationHandleDesc": "이 핸들을 공유하면 다른 인스턴스의 사람들이 이 서버를 찾아 참여할 수 있습니다.",
+    "banner": {
+      "title": "서버 배너",
+      "upload": "서버 배너 업로드",
+      "change": "서버 배너 변경",
+      "remove": "배너 제거",
+      "hint": "권장: 1280×400px. 서버 상단에 표시됩니다.",
+      "none": "서버 배너가 설정되지 않았습니다"
+    },
+    "emojiActions": {
+      "copy": "{name} 복사",
+      "rename": "{name} 이름 변경",
+      "delete": "{name} 삭제",
+      "renameField": "{name}의 새 이름",
+      "copied": "{name} 복사됨"
+    },
+    "banList": {
+      "title": "서버 차단",
+      "description": "차단된 사용자를 보고 관리합니다. 멤버 차단 권한이 있는 멤버는 이 목록에서 차단을 해제할 수 있습니다.",
+      "loading": "차단 목록을 불러오는 중…",
+      "loadFailed": "차단 목록을 불러오지 못했습니다",
+      "bannedBy": "{date}에 {name}님이 차단함",
+      "unknownModerator": "알 수 없음",
+      "revoke": "차단 해제",
+      "revokeFor": "{name}님의 차단 해제",
+      "unbanned": "{name}님의 차단이 해제되었습니다",
+      "unbanFailed": "차단을 해제하지 못했습니다"
+    },
+    "serverIdLabel": "서버 ID",
+    "serverCreatedUnknown": "알 수 없음",
+    "deleteServerNameMismatch": "서버 이름이 일치하지 않습니다",
+    "deleteServerTypeExact": "확인하려면 서버 이름을 정확히 입력하세요",
+    "deleteServerAuthRequired": "인증이 필요합니다",
+    "deleteServerDone": "서버가 삭제되었습니다",
+    "deleteServerFailed": "서버를 삭제하지 못했습니다",
+    "encryptionPolicy": {
+      "title": "서버 암호화 정책",
+      "description": "이 서버의 종단 간 암호화 요구 사항을 설정합니다",
+      "loading": "암호화 설정을 불러오는 중…",
+      "modeLabel": "암호화 모드",
+      "modeHint": "암호화 적용 방식을 선택하세요",
+      "modes": {
+        "disabled": {
+          "name": "사용 안 함",
+          "description": "채널에서 암호화를 켤 수 없습니다. 서버가 모든 메시지를 읽을 수 있습니다."
+        },
+        "optional": {
+          "name": "선택",
+          "description": "채널 관리자가 채널별로 암호화를 켭니다. 새 채널은 암호화 없이 시작됩니다."
+        },
+        "required": {
+          "name": "필수",
+          "description": "모든 채널이 암호화되며 끌 수 없습니다. 게시하려면 암호화 키가 필요합니다."
+        }
+      },
+      "requiredWarning": "암호화 키가 없는 사용자는 메시지를 보낼 수 없습니다",
+      "status": {
+        "disabled": {
+          "title": "암호화 사용 안 함",
+          "description": "메시지가 평문으로 저장됩니다. 서버 운영자가 읽을 수 있습니다."
+        },
+        "optional": {
+          "title": "선택적 암호화",
+          "description": "각 채널의 암호화 여부는 채널 관리자가 정합니다."
+        },
+        "required": {
+          "title": "암호화 필수",
+          "description": "모든 채널이 종단 간 암호화됩니다."
+        }
+      },
+      "additionalOptions": "추가 옵션",
+      "forceKeySetup": "사용자에게 암호화 설정 안내",
+      "forceKeySetupHint": "키가 없는 사용자에게 설정 마법사를 표시합니다",
+      "attachmentNote": "암호화된 채널에서는 파일 링크, 이름, 형식이 메시지와 함께 암호화됩니다. 파일 자체는 암호화되지 않은 채로 저장됩니다.",
+      "voiceTitle": "음성 및 영상 암호화",
+      "voiceHint": "통화 미디어를 종단 간 암호화하여 미디어 서버가 접근할 수 없게 합니다",
+      "voiceRequire": "음성 및 영상 종단 간 암호화 필수",
+      "voiceRequireHint": "모든 음성 채널이 통화를 미디어 서버에 도달하기 전에 암호화합니다. 끄면 채널 관리자가 음성 채널별로 선택합니다.",
+      "voiceWarning": "암호화를 설정하지 않은 참가자(및 연합 또는 구형 클라이언트)는 암호화된 통화에 참여할 수 없습니다.",
+      "statsTitle": "서버 통계",
+      "statsTotal": "전체 멤버",
+      "statsWithKeys": "암호화 설정됨",
+      "statsCoverage": "적용률",
+      "statsWarning": "필수 모드가 제대로 작동하려면 멤버 {count}명이 암호화를 설정해야 합니다",
+      "helpTitle": "종단 간 암호화 정보",
+      "help": {
+        "disabled": "{mode}: 채널에서 암호화를 켤 수 없으며 메시지는 평문으로 저장됩니다.",
+        "optional": "{mode}: 채널 관리자가 채널별로 암호화를 켭니다. 새 채널은 암호화 없이 시작됩니다.",
+        "required": "{mode}: 모든 채널이 암호화되며 게시하려면 암호화 키가 필요합니다."
+      },
+      "noteLabel": "참고:",
+      "note": "종단 간 암호화를 사용하면 서버가 메시지 내용을 읽을 수 없습니다. 개인정보 보호는 극대화되지만 검색, 콘텐츠 관리 같은 서버 측 기능은 비활성화됩니다.",
+      "confirmDisable": {
+        "title": "암호화 끄기",
+        "message": "암호화가 켜진 채널은 새 메시지를 평문으로 보냅니다. 이전에 암호화된 메시지는 그대로 암호화됩니다.",
+        "confirm": "암호화 끄기"
+      },
+      "confirmRequired": {
+        "title": "필수 암호화 켜기",
+        "message": "암호화 키를 설정한 멤버는 {percentage}%뿐입니다. 필수 모드에서는 키가 없는 사용자가 참여할 수 없습니다. 계속할까요?"
+      },
+      "saved": "암호화 설정이 저장되었습니다",
+      "loadFailed": "설정을 불러오지 못했습니다",
+      "saveFailed": "설정을 저장하지 못했습니다"
+    },
+    "roleManagement": {
+      "intro": "서버의 역할을 만들고 관리합니다. 드래그하거나 위로 이동/아래로 이동으로 우선순위를 바꿀 수 있습니다.",
+      "noPermission": "역할을 변경하려면 역할 관리 권한이 필요합니다.",
+      "create": "역할 만들기",
+      "count": "역할 {count}개",
+      "dragHandle": "드래그하여 순서 변경",
+      "badgeAdmin": "관리자",
+      "badgeDefault": "기본",
+      "emptyEditor": "왼쪽에서 역할을 선택해 편집하거나 새 역할을 만드세요.",
+      "tabs": {
+        "display": "표시",
+        "permissions": "권한",
+        "members": "멤버"
+      },
+      "moveUp": "{name} 위로 이동",
+      "moveDown": "{name} 아래로 이동",
+      "position": "{total}개 중 {position}번째",
+      "moved": "{name}을(를) {total}개 중 {position}번째로 이동했습니다",
+      "roleName": "역할 이름",
+      "everyoneNameLocked": "{'@'}everyone 역할의 이름은 변경할 수 없습니다.",
+      "roleColor": "역할 색상",
+      "hoist": "역할 멤버를 따로 표시",
+      "hoistDesc": "이 역할을 가진 멤버는 멤버 목록에서 별도 그룹으로 표시됩니다.",
+      "mentionable": "누구나 이 역할을 {'@'}멘션할 수 있도록 허용",
+      "mentionableDesc": "끄면 {'@'}everyone 멘션 권한이 있는 멤버만 알릴 수 있습니다.",
+      "permIntro": "이 역할의 서버 전체 권한입니다. 채널별 재정의(허용 / 거부 / 상속)는 각 채널의 권한 탭에서 설정합니다.",
+      "dangerWarn": "다른 모든 권한을 부여하고 모든 채널 재정의를 무시합니다.",
+      "sections": {
+        "general": "일반 권한",
+        "membership": "멤버십 권한",
+        "text": "텍스트 권한",
+        "threads": "스레드 권한",
+        "voice": "음성 권한"
+      },
+      "perms": {
+        "VIEW_CHANNEL": {
+          "label": "채널 보기",
+          "description": "멤버가 기본적으로 채널을 볼 수 있습니다"
+        },
+        "MANAGE_CHANNELS": {
+          "label": "채널 관리",
+          "description": "채널을 만들고 편집하고 삭제합니다"
+        },
+        "MANAGE_ROLES": {
+          "label": "역할 관리",
+          "description": "이 역할보다 낮은 역할을 만들고 편집하고 삭제합니다"
+        },
+        "MANAGE_SERVER": {
+          "label": "서버 관리",
+          "description": "서버 설정을 편집하고 서버를 삭제합니다"
+        },
+        "CREATE_INVITE": {
+          "label": "초대 만들기",
+          "description": "이 서버로의 초대를 만듭니다"
+        },
+        "VIEW_AUDIT_LOG": {
+          "label": "감사 로그 보기",
+          "description": "서버 감사 로그를 봅니다"
+        },
+        "MANAGE_EMOJIS": {
+          "label": "표현 관리",
+          "description": "사용자 지정 이모지와 사운드보드 소리를 추가, 편집, 제거합니다"
+        },
+        "MANAGE_WEBHOOKS": {
+          "label": "웹후크 관리",
+          "description": "웹후크를 만들고 편집하고 삭제합니다"
+        },
+        "KICK_MEMBERS": {
+          "label": "멤버 추방",
+          "description": "서버에서 멤버를 내보냅니다"
+        },
+        "BAN_MEMBERS": {
+          "label": "멤버 차단",
+          "description": "서버에서 멤버를 영구 차단합니다"
+        },
+        "TIMEOUT_MEMBERS": {
+          "label": "멤버 타임아웃",
+          "description": "멤버를 일시적으로 음소거합니다"
+        },
+        "SEND_MESSAGES": {
+          "label": "메시지 보내기",
+          "description": "텍스트 채널에서 메시지를 보냅니다"
+        },
+        "EMBED_LINKS": {
+          "label": "링크 임베드",
+          "description": "링크에 미리보기가 표시됩니다"
+        },
+        "ATTACH_FILES": {
+          "label": "파일 첨부",
+          "description": "이미지와 파일을 업로드합니다"
+        },
+        "ADD_REACTIONS": {
+          "label": "반응 추가",
+          "description": "이모지로 메시지에 반응합니다"
+        },
+        "MENTION_EVERYONE": {
+          "label": "{'@'}everyone 멘션",
+          "description": "{'@'}everyone 및 모든 역할을 멘션합니다"
+        },
+        "MANAGE_MESSAGES": {
+          "label": "메시지 관리",
+          "description": "다른 사람의 메시지를 삭제하고 고정합니다"
+        },
+        "READ_MESSAGE_HISTORY": {
+          "label": "메시지 기록 읽기",
+          "description": "메시지 기록을 봅니다"
+        },
+        "USE_EXTERNAL_EMOJIS": {
+          "label": "외부 이모지 사용",
+          "description": "다른 서버의 이모지를 사용합니다"
+        },
+        "PIN_MESSAGES": {
+          "label": "메시지 고정",
+          "description": "채널에서 메시지를 고정합니다"
+        },
+        "CREATE_PUBLIC_THREADS": {
+          "label": "공개 스레드 만들기",
+          "description": "모두에게 보이는 스레드를 만듭니다"
+        },
+        "CREATE_PRIVATE_THREADS": {
+          "label": "비공개 스레드 만들기",
+          "description": "초대 전용 스레드를 만듭니다"
+        },
+        "SEND_MESSAGES_IN_THREADS": {
+          "label": "스레드에서 메시지 보내기",
+          "description": "스레드에서 답장합니다"
+        },
+        "CONNECT": {
+          "label": "연결",
+          "description": "음성 채널에 참여합니다"
+        },
+        "SPEAK": {
+          "label": "말하기",
+          "description": "음성 채널에서 말합니다"
+        },
+        "STREAM": {
+          "label": "비디오",
+          "description": "비디오나 화면을 공유합니다"
+        },
+        "MUTE_MEMBERS": {
+          "label": "멤버 음소거",
+          "description": "음성에서 멤버를 서버 음소거합니다"
+        },
+        "DEAFEN_MEMBERS": {
+          "label": "멤버 소리 차단",
+          "description": "음성에서 멤버의 소리를 서버 차단합니다"
+        },
+        "MOVE_MEMBERS": {
+          "label": "멤버 이동",
+          "description": "음성 채널 간에 멤버를 이동합니다"
+        },
+        "USE_SOUNDBOARD": {
+          "label": "사운드보드 사용",
+          "description": "음성 채널에서 사운드보드 소리를 재생합니다"
+        },
+        "USE_EXTERNAL_SOUNDS": {
+          "label": "외부 소리 사용",
+          "description": "속한 다른 서버의 소리를 재생합니다"
+        }
+      },
+      "everyoneMembersNote": "{'@'}everyone 역할은 이 서버의 모든 멤버에게 자동으로 적용됩니다. 관리할 명단이 없습니다.",
+      "addMembers": "멤버 추가",
+      "searchMembers": "서버 멤버 검색...",
+      "searchResults": "멤버 {count}명을 찾았습니다",
+      "addMemberTo": "{member}을(를) {role}에 추가",
+      "currentMembers": "현재 멤버",
+      "filterMembers": "멤버 필터",
+      "filterPlaceholder": "필터...",
+      "removeMemberFrom": "{role}에서 {member} 제거",
+      "bridged": "Discord",
+      "bridgedTitle": "Discord 브리지 멤버",
+      "owner": "소유자",
+      "protected": "보호됨",
+      "protectedTitle": "서버 소유자는 관리자 역할에서 제거할 수 없습니다.",
+      "deleteRole": "역할 삭제",
+      "save": "변경 사항 저장",
+      "saving": "저장 중...",
+      "saved": "역할 {name}을(를) 저장했습니다",
+      "changesReset": "변경 사항을 재설정했습니다",
+      "created": "역할 {name}을(를) 만들었습니다",
+      "deleted": "역할 {name}을(를) 삭제했습니다",
+      "memberAdded": "{member}을(를) {role}에 추가했습니다",
+      "memberRemoved": "{role}에서 {member}을(를) 제거했습니다",
+      "confirmDeleteTitle": "역할 삭제",
+      "confirmDeleteMessage": "'{name}' 역할을 삭제할까요?",
+      "newRoleName": "새 역할",
+      "errors": {
+        "create": "역할을 만들지 못했습니다",
+        "save": "역할을 저장하지 못했습니다",
+        "delete": "역할을 삭제하지 못했습니다",
+        "removeOwnerAdmin": "서버 소유자에게서 관리자 역할을 제거할 수 없습니다",
+        "removeMember": "역할에서 멤버를 제거하지 못했습니다",
+        "addMember": "역할에 멤버를 추가하지 못했습니다",
+        "reorder": "역할 순서를 바꾸지 못했습니다"
+      }
+    },
+    "privacy": {
+      "federatedMembers": "현재 이 서버에 연합 멤버 {count}명이 있습니다 | 현재 이 서버에 연합 멤버 {count}명이 있습니다",
+      "copyHandle": "서버 핸들 {handle} 복사",
+      "disableTitle": "연합을 비활성화할까요?",
+      "disableBody": "이 서버에는 다른 인스턴스의 연합 멤버 {count}명이 있습니다. 연합을 비활성화하면: | 이 서버에는 다른 인스턴스의 연합 멤버 {count}명이 있습니다. 연합을 비활성화하면:",
+      "disableConsequence1": "원격 사용자의 새 가입 요청이 모두 차단됩니다",
+      "disableConsequence2": "원격 멤버와 주고받는 메시지 전달이 중단됩니다",
+      "disableConsequence3": "원격 사용자의 반응과 음성 참여가 막힙니다",
+      "disableConsequence4": "기존 연합 멤버는 멤버 목록에 남지만 상호작용할 수 없습니다",
+      "disableConfirm": "연합 비활성화"
+    }
   },
   "channel": {
     "create": "채널 만들기",
@@ -428,6 +739,149 @@
       "hint": "선택한 역할, 소유자, 관리자만 볼 수 있습니다.",
       "whoCanSee": "볼 수 있는 사람",
       "noRoles": "아직 역할이 없습니다. 소유자와 관리자만 볼 수 있습니다."
+    },
+    "edit": {
+      "title": "채널 편집",
+      "tabs": {
+        "general": "일반"
+      },
+      "namePlaceholder": "채널 이름 입력",
+      "description": "설명",
+      "descriptionPlaceholder": "이 채널은 어떤 곳인가요?",
+      "slowmode": "슬로우 모드",
+      "slowmodeHint": "멤버는 간격마다 메시지를 하나씩 보낼 수 있습니다. 메시지 관리 권한이 있는 관리자는 제외됩니다.",
+      "slowmodeOff": "끔",
+      "slowmodeShort": {
+        "seconds": "{n}초",
+        "minutes": "{n}분",
+        "hours": "{n}시간"
+      },
+      "slowmodeLong": {
+        "seconds": "{n}초",
+        "minutes": "{n}분",
+        "hours": "{n}시간"
+      },
+      "textChannel": "텍스트 채널",
+      "voiceChannel": "음성 채널",
+      "typeHint": "채널 유형은 만든 후 변경할 수 없습니다",
+      "noRoles": "역할 없음",
+      "loadingRoles": "역할 불러오는 중...",
+      "overrideLegend": "허용은 부여하고, 거부는 취소하며, 상속은 서버 전체 설정을 따릅니다.",
+      "resetRole": "변경 사항 재설정",
+      "resetRoleFor": "변경 사항 재설정: {role}",
+      "roleReset": "{role}의 변경 사항을 재설정했습니다",
+      "selectRole": "왼쪽에서 역할을 선택해 채널 재정의를 편집하세요.",
+      "tristate": {
+        "deny": "거부",
+        "inherit": "상속",
+        "inheritTitle": "서버 설정 상속",
+        "allow": "허용"
+      },
+      "groups": {
+        "general": "일반",
+        "messages": "메시지",
+        "threads": "스레드",
+        "voice": "음성"
+      },
+      "perms": {
+        "VIEW_CHANNEL": {
+          "label": "채널 보기",
+          "description": "사이드바에서 이 채널을 보고 메시지를 읽습니다."
+        },
+        "MANAGE_CHANNELS": {
+          "label": "채널 관리",
+          "description": "이 채널의 이름을 바꾸거나 편집하거나 삭제합니다."
+        },
+        "SEND_MESSAGES": {
+          "label": "메시지 보내기",
+          "description": "이 채널에 메시지를 게시합니다."
+        },
+        "EMBED_LINKS": {
+          "label": "링크 임베드",
+          "description": "임베드와 링크 미리보기를 보냅니다."
+        },
+        "ATTACH_FILES": {
+          "label": "파일 첨부",
+          "description": "이 채널에 파일을 업로드합니다."
+        },
+        "ADD_REACTIONS": {
+          "label": "반응 추가",
+          "description": "이모지로 메시지에 반응합니다."
+        },
+        "USE_EXTERNAL_EMOJIS": {
+          "label": "외부 이모지 사용",
+          "description": "다른 서버의 이모지를 보냅니다."
+        },
+        "MENTION_EVERYONE": {
+          "label": "{'@'}everyone 멘션",
+          "description": "{'@'}everyone 및 {'@'}here를 사용합니다."
+        },
+        "MANAGE_MESSAGES": {
+          "label": "메시지 관리",
+          "description": "다른 멤버의 메시지를 삭제하고 고정합니다. 편집은 할 수 없습니다."
+        },
+        "READ_MESSAGE_HISTORY": {
+          "label": "메시지 기록 읽기",
+          "description": "참여하기 전에 게시된 메시지를 봅니다."
+        },
+        "CREATE_PUBLIC_THREADS": {
+          "label": "공개 스레드 만들기",
+          "description": "메시지에서 공개 스레드를 시작합니다."
+        },
+        "CREATE_PRIVATE_THREADS": {
+          "label": "비공개 스레드 만들기",
+          "description": "초대 전용 스레드를 시작합니다."
+        },
+        "SEND_MESSAGES_IN_THREADS": {
+          "label": "스레드에서 보내기",
+          "description": "스레드 안에 메시지를 게시합니다."
+        },
+        "CONNECT": {
+          "label": "연결",
+          "description": "이 음성 채널에 참여합니다."
+        },
+        "SPEAK": {
+          "label": "말하기",
+          "description": "이 음성 채널에서 말합니다."
+        },
+        "STREAM": {
+          "label": "비디오 및 방송",
+          "description": "카메라나 화면을 공유합니다."
+        },
+        "MUTE_MEMBERS": {
+          "label": "멤버 음소거",
+          "description": "여기에서 다른 멤버를 음소거합니다."
+        },
+        "DEAFEN_MEMBERS": {
+          "label": "멤버 소리 차단",
+          "description": "여기에서 다른 멤버의 소리를 차단합니다."
+        },
+        "MOVE_MEMBERS": {
+          "label": "멤버 이동",
+          "description": "이 채널에서 멤버를 내보냅니다."
+        },
+        "USE_SOUNDBOARD": {
+          "label": "사운드보드 사용",
+          "description": "이 채널에서 사운드보드 소리를 재생합니다."
+        },
+        "USE_EXTERNAL_SOUNDS": {
+          "label": "외부 소리 사용",
+          "description": "이 채널에서 다른 서버의 소리를 재생합니다."
+        }
+      },
+      "save": "변경 사항 저장",
+      "saving": "저장 중...",
+      "savePermissions": "권한 저장",
+      "permissionsSaved": "채널 권한을 저장했습니다",
+      "discardTitle": "변경 사항을 버릴까요?",
+      "discardMessage": "이 채널에 저장되지 않은 변경 사항이 있습니다. 저장하지 않고 닫을까요?",
+      "discard": "버리기",
+      "errors": {
+        "update": "채널을 업데이트하지 못했습니다. 다시 시도하세요.",
+        "loadPermissions": "채널 권한을 불러오지 못했습니다",
+        "savePermissions": "채널 권한을 저장하지 못했습니다",
+        "saveOverride": "{role}의 재정의를 저장하지 못했습니다"
+      }
     }
   },
   "message": {
@@ -696,7 +1150,50 @@
     "recipientDeleted": "삭제된 계정입니다. 이 계정에 보낸 메시지는 전달되지 않습니다.",
     "sendMessage": "메시지 보내기",
     "callInProgress": "통화 중입니다",
-    "joinCall": "통화 참여"
+    "joinCall": "통화 참여",
+    "groupSettings": {
+      "title": "그룹 설정",
+      "groupIcon": "그룹 아이콘",
+      "upload": "업로드",
+      "uploadIcon": "그룹 아이콘 업로드",
+      "remove": "제거",
+      "removeIcon": "그룹 아이콘 제거",
+      "dropHint": "이미지를 끌어다 놓거나 클릭하여 찾아보기",
+      "fileHint": "최대 5MB • PNG, JPG, WebP",
+      "uploadingIcon": "그룹 아이콘 업로드 중",
+      "uploadProgress": "{percent}% 업로드됨",
+      "groupName": "그룹 이름",
+      "groupNameHelp": "비워 두면 참가자 이름을 사용합니다",
+      "saveChanges": "변경사항 저장",
+      "saving": "저장 중…",
+      "participants": "참가자 ({count})",
+      "add": "추가",
+      "addParticipant": "참가자 추가",
+      "creator": "생성자",
+      "removeParticipant": "{name}님을 그룹에서 제거",
+      "dangerZone": "위험 구역",
+      "leaveGroup": "그룹 나가기",
+      "deleteGroup": "그룹 삭제",
+      "leave": "나가기",
+      "leaveConfirmMessage": "이 그룹에서 나가시겠어요? 새 메시지를 볼 수 없게 됩니다.",
+      "deleteConfirmMessage": "이 그룹을 삭제하시겠어요? 되돌릴 수 없으며 모든 메시지가 사라집니다.",
+      "defaultName": "그룹 채팅",
+      "defaultNameMore": "{names} 외 {count}명",
+      "dropImage": "이미지 파일을 놓으세요",
+      "iconUpdated": "그룹 아이콘이 업데이트되었습니다",
+      "iconUploadFailed": "아이콘을 업로드하지 못했습니다",
+      "iconRemoved": "그룹 아이콘이 제거되었습니다",
+      "iconRemoveFailed": "아이콘을 제거하지 못했습니다",
+      "nameUpdated": "그룹 이름이 업데이트되었습니다",
+      "nameUpdateFailed": "그룹 이름을 업데이트하지 못했습니다",
+      "participantRemoved": "{name}님을 그룹에서 제거했습니다",
+      "participantRemoveFailed": "참가자를 제거하지 못했습니다",
+      "usersAdded": "사용자를 그룹에 추가했습니다",
+      "left": "그룹에서 나갔습니다",
+      "leaveFailed": "그룹에서 나가지 못했습니다",
+      "deleted": "그룹이 삭제되었습니다",
+      "deleteFailed": "그룹을 삭제하지 못했습니다"
+    }
   },
   "user": {
     "panelToggle": "계정 및 음성 컨트롤",
@@ -804,7 +1301,72 @@
       "quickReactEnable": "두 번 탭하여 빠른 반응",
       "quickReactEnableDesc": "메시지를 두 번 탭(모바일)하거나 더블클릭(데스크톱)하면 선택한 이모지로 바로 반응합니다.",
       "quickReactEmoji": "빠른 반응 이모지",
-      "quickReactEmojiDesc": "메시지를 두 번 탭할 때 적용되는 이모지입니다."
+      "quickReactEmojiDesc": "메시지를 두 번 탭할 때 적용되는 이모지입니다.",
+      "changesReset": "모양 변경사항을 초기화했습니다",
+      "saved": "모양을 저장했습니다",
+      "editLivePreview": "실시간 미리보기에서 편집",
+      "themeMode": "테마 모드",
+      "savedTheme": "저장된 테마",
+      "savedThemeName": "테마 이름",
+      "saveTheme": "테마 저장",
+      "deleteSavedTheme": "{name} 테마 삭제",
+      "deleteSavedThemeConfirm": "\"{name}\"을(를) 삭제할까요?",
+      "themeRemoved": "테마를 삭제했습니다",
+      "lightness": "명도",
+      "saturation": "채도",
+      "darker": "더 어둡게",
+      "lighter": "더 밝게",
+      "muted": "차분하게",
+      "vivid": "선명하게",
+      "toneValue": "{value}, {direction}",
+      "resetVariable": "{name}을(를) 기본값으로 초기화",
+      "zoomIn": "확대",
+      "zoomOut": "축소",
+      "zoomValue": "확대/축소 {value}%",
+      "colors": {
+        "background": "배경",
+        "backgroundHint": "톤, 명도 및 채도",
+        "backgroundColor": "배경색",
+        "primary": "기본",
+        "primaryHint": "버튼 및 주요 동작",
+        "primaryColor": "기본 색상",
+        "accent": "강조",
+        "accentHint": "링크 및 강조 표시",
+        "accentColor": "강조 색상",
+        "sidebar": "사이드바",
+        "sidebarHintOn": "레일 전용 색조",
+        "sidebarHintOff": "꺼짐, 배경과 동일",
+        "sidebarEnable": "사이드바에 별도 색상 사용",
+        "sidebarColor": "사이드바 색상",
+        "advancedCss": "고급 CSS",
+        "advancedCssHint": "개별 변수 재정의",
+        "backgroundHelp": "모든 배경 요소의 색조를 설정합니다",
+        "primaryHelp": "버튼과 주요 동작에 쓰이는 대표 색상",
+        "accentHelp": "링크, 강조 표시 및 포인트에 사용됩니다"
+      },
+      "panel": {
+        "title": "테마 사용자 지정",
+        "close": "테마 편집기 닫기",
+        "hint": "변경사항은 이 패널 뒤의 앱에 실시간으로 미리 표시됩니다. 유지하려면 적용을 클릭하세요.",
+        "apply": "적용",
+        "fix": "수정",
+        "fixContrast": "기본 색상 대비 수정",
+        "fixContrastHint": "이 색상의 링크와 아이콘이 배경 대비 3:1에 도달할 때까지 명도를 조정합니다",
+        "labelContrast": "레이블 {ratio}:1",
+        "surfaceContrast": "배경 위 {ratio}:1"
+      },
+      "overrides": {
+        "count": "재정의 {count}개 | 재정의 {count}개",
+        "active": "재정의 {count}개 적용 중 | 재정의 {count}개 적용 중",
+        "resetAll": "모두 재설정",
+        "resetAllHint": "모든 재정의를 제거하고 기본값으로 되돌립니다"
+      },
+      "toasts": {
+        "exported": "테마를 내보냈습니다",
+        "imported": "테마를 가져왔습니다",
+        "invalidFile": "잘못된 테마 파일입니다",
+        "themeSaved": "“{name}” 저장됨"
+      }
     },
     "voice": {
       "title": "음성 및 비디오",
@@ -841,7 +1403,265 @@
       "enableMentions": "멘션 알림",
       "enableDMs": "다이렉트 메시지 알림",
       "muteAll": "모두 음소거",
-      "muteDuration": "음소거 기간"
+      "muteDuration": "음소거 기간",
+      "dnd": {
+        "active": "사용 중",
+        "inactive": "사용 안 함",
+        "description": "정한 시간 동안 소리, 팝업, 푸시를 끕니다. 알림은 받은 편지함에 계속 도착합니다."
+      },
+      "quietHours": {
+        "title": "방해 금지 시간",
+        "description": "방해 금지 일정을 설정합니다 (현지 시간 기준)",
+        "start": "방해 금지 시작 시간",
+        "end": "방해 금지 종료 시간",
+        "to": "~"
+      },
+      "enableMobile": "알림 사용",
+      "permission": {
+        "unsupported": "이 브라우저에서는 지원되지 않습니다",
+        "unsupportedMobile": "이 브라우저에서는 지원되지 않습니다. 알림을 받으려면 앱을 설치하세요.",
+        "grant": "권한 허용",
+        "desktopEnabled": "데스크톱 알림이 켜져 있습니다",
+        "desktopRequired": "데스크톱 알림에는 권한이 필요합니다",
+        "enabled": "알림이 켜져 있습니다",
+        "required": "알림에는 권한이 필요합니다"
+      },
+      "chat": {
+        "description": "서버와 다이렉트 메시지 알림"
+      },
+      "activitypub": {
+        "title": "ActivityPub 및 연합",
+        "description": "연합 네트워크 알림"
+      },
+      "types": {
+        "chatMessages": {
+          "label": "채팅 메시지",
+          "description": "팔로우하는 채널에 메시지가 올라올 때"
+        },
+        "mentions": {
+          "label": "멘션",
+          "description": "누군가 나를 멘션할 때"
+        },
+        "dms": {
+          "label": "다이렉트 메시지",
+          "description": "다이렉트 메시지를 받을 때"
+        },
+        "replies": {
+          "label": "답글",
+          "description": "누군가 내 메시지에 답글을 달 때"
+        },
+        "reactions": {
+          "label": "반응",
+          "description": "누군가 내 메시지에 반응할 때"
+        },
+        "apFollows": {
+          "label": "팔로우",
+          "name": "연합우주 팔로우",
+          "description": "누군가 나를 팔로우할 때"
+        },
+        "apMentions": {
+          "label": "멘션",
+          "name": "연합우주 멘션",
+          "description": "누군가 게시물에서 나를 멘션할 때"
+        },
+        "apReplies": {
+          "label": "답글",
+          "name": "연합우주 답글",
+          "description": "누군가 내 게시물에 답글을 달 때"
+        },
+        "apFavorites": {
+          "label": "좋아요",
+          "name": "연합우주 좋아요",
+          "description": "누군가 내 게시물에 좋아요를 누를 때"
+        },
+        "apReblogs": {
+          "label": "부스트",
+          "name": "연합우주 부스트",
+          "description": "누군가 내 게시물을 부스트할 때"
+        },
+        "apFollowRequests": {
+          "label": "팔로우 요청",
+          "name": "연합우주 팔로우 요청",
+          "description": "누군가 나를 팔로우하겠다고 요청할 때"
+        }
+      },
+      "sound": {
+        "title": "소리 설정",
+        "description": "알림 소리 동작을 설정합니다",
+        "volumeDescription": "모든 알림 소리의 음량을 조절합니다",
+        "voiceActivity": "음성 활동 소리",
+        "voiceActivityDescription": "음성 채널 활동 시 소리를 재생합니다"
+      },
+      "push": {
+        "title": "푸시 알림",
+        "titleOther": "다른 기기로 푸시",
+        "nativeMobileTitle": "앱의 백그라운드 푸시는 준비 중입니다",
+        "nativeMobileText": "이 기기는 Harmony가 열려 있는 동안(백그라운드 포함) 알림을 표시합니다. 앱을 완전히 닫은 상태의 푸시는 Android에서만 지원됩니다.",
+        "iosTitle": "iOS에서는 앱을 설치해야 합니다",
+        "iosText": "iOS에서 푸시 알림을 받으려면 먼저 Harmony를 홈 화면에 추가하세요 (공유 → 홈 화면에 추가).",
+        "unsupportedTitle": "푸시 알림이 지원되지 않습니다",
+        "unsupportedText": "사용 중인 브라우저는 푸시 알림을 지원하지 않습니다. Chrome, Firefox, Edge 또는 Safari를 사용해 보세요.",
+        "blockedTitle": "알림 권한이 차단되었습니다",
+        "blockedText": "이 사이트의 알림이 차단되어 있습니다. 브라우저의 사이트 설정에서 허용한 뒤 새로고침하면 푸시가 자동으로 다시 시작됩니다.",
+        "errorTitle": "푸시 알림 오류",
+        "turnOn": "이 기기에서 켜기",
+        "turnOff": "이 기기에서 끄기",
+        "test": "푸시 테스트",
+        "toMyDevices": "내 기기로 푸시",
+        "toMyDevicesDescription": "기기를 삭제하지 않고 모든 곳에서 푸시를 끕니다",
+        "awayOnly": "자리를 비웠을 때만",
+        "awayOnlyDescription": "다른 기기에서 Harmony를 열어 사용 중일 때는 푸시를 보내지 않습니다",
+        "mentions": "멘션",
+        "mentionsDescription": "멘션되면 푸시 알림을 받습니다",
+        "dms": "다이렉트 메시지",
+        "dmsDescription": "새 다이렉트 메시지에 대한 푸시 알림을 받습니다",
+        "noDevices": "아직 푸시를 구독한 기기가 없습니다. 휴대폰이나 브라우저에서 푸시 알림을 켠 뒤 여기에서 기기를 관리하세요.",
+        "status": {
+          "fcm": "이 기기: Google (FCM)",
+          "unifiedpush": "이 기기: UnifiedPush",
+          "whileOpen": "이 기기: 열려 있을 때",
+          "foreground": "이 기기: 포그라운드",
+          "native": "이 기기: 기본 알림",
+          "notSupported": "지원되지 않음",
+          "blocked": "차단됨",
+          "enabled": "사용 중",
+          "available": "사용 가능"
+        },
+        "descAndroid": "Harmony를 닫아도 Google (FCM) 또는 원하는 UnifiedPush 앱을 통해 이 기기로 푸시가 전달됩니다. 구독한 다른 기기는 아래에 표시됩니다.",
+        "descNativeMobile": "이 기기는 앱이 열려 있을 때 알림을 받습니다. 구독한 다른 기기로의 푸시는 아래에서 관리하세요.",
+        "descDesktop": "데스크톱 앱은 실행 중일 때 이미 시스템 알림을 표시합니다. 이 설정은 다른 기기(휴대폰, 브라우저)로의 푸시와 받을 알림 종류를 관리합니다.",
+        "descWeb": "앱을 닫아도 기기에서 알림을 받을 수 있습니다. Android, iOS(앱 설치 필요), 데스크톱 브라우저에서 작동합니다."
+      },
+      "devices": {
+        "title": "구독한 기기 ({count})",
+        "added": "추가됨: {when}",
+        "today": "오늘",
+        "yesterday": "어제",
+        "remove": "{device} 삭제",
+        "unknown": "알 수 없는 기기",
+        "android": "Android 기기",
+        "windows": "Windows PC",
+        "linux": "Linux PC",
+        "chrome": "Chrome 브라우저",
+        "firefox": "Firefox 브라우저",
+        "safari": "Safari 브라우저"
+      },
+      "haptics": {
+        "title": "햅틱 피드백",
+        "enabled": "사용 중",
+        "disabled": "사용 안 함",
+        "description": "상호작용 시 진동 피드백",
+        "enable": "햅틱 피드백 사용",
+        "enableDescription": "앱을 사용할 때 진동을 느낍니다",
+        "messages": "메시지 보내기",
+        "messagesDescription": "메시지를 보낼 때",
+        "reactions": "반응",
+        "reactionsDescription": "반응을 추가하거나 삭제할 때",
+        "navigation": "탐색",
+        "navigationDescription": "탭을 전환하거나 메뉴를 열 때",
+        "voice": "음성 및 통화",
+        "voiceDescription": "음성 채널에 참가하거나 나갈 때",
+        "interactions": "상호작용",
+        "interactionsDescription": "길게 누르기, 당겨서 새로고침 등의 제스처",
+        "toggles": "토글 스위치",
+        "togglesDescription": "설정을 켜거나 끌 때",
+        "destructive": "되돌릴 수 없는 작업",
+        "destructiveDescription": "메시지를 삭제하거나 서버를 나갈 때",
+        "test": "햅틱 피드백 테스트",
+        "sent": "햅틱 피드백을 보냈습니다"
+      },
+      "test": {
+        "title": "알림 테스트",
+        "description": "알림 설정을 테스트합니다",
+        "testing": "테스트 중…",
+        "all": "모든 알림 테스트",
+        "reset": "기본값으로 초기화"
+      },
+      "toast": {
+        "updated": "알림 설정을 업데이트했습니다",
+        "updateFailed": "설정을 업데이트하지 못했습니다",
+        "unsupported": "이 브라우저는 알림을 지원하지 않습니다",
+        "permissionGranted": "알림 권한이 허용되었습니다",
+        "permissionDenied": "알림 권한이 거부되었습니다",
+        "permissionFailed": "권한을 요청하지 못했습니다",
+        "testFailed": "알림을 테스트하지 못했습니다",
+        "allTested": "켜져 있는 모든 알림을 테스트했습니다",
+        "allTestFailed": "모든 알림을 테스트하지 못했습니다",
+        "pushOn": "이 기기의 푸시 알림이 켜졌습니다",
+        "pushOnFailed": "푸시 알림을 켜지 못했습니다",
+        "pushOff": "이 기기의 푸시 알림이 꺼졌습니다",
+        "pushOffFailed": "푸시 알림을 끄지 못했습니다",
+        "testPushSent": "테스트 푸시 알림을 보냈습니다",
+        "testPushFailed": "테스트 알림을 보내지 못했습니다",
+        "deviceRemoved": "기기를 삭제했습니다",
+        "deviceRemoveFailed": "기기를 삭제하지 못했습니다"
+      },
+      "samples": {
+        "mention": {
+          "title": "테스트 멘션",
+          "message": "테스트 메시지에서 멘션되었습니다"
+        },
+        "dm": {
+          "title": "테스트 다이렉트 메시지",
+          "message": "테스트용 다이렉트 메시지입니다"
+        },
+        "reply": {
+          "title": "테스트 답글",
+          "message": "누군가 테스트 메시지에 답글을 달았습니다"
+        },
+        "reaction": {
+          "title": "테스트 반응",
+          "message": "누군가 테스트 메시지에 반응했습니다"
+        },
+        "voiceActivity": {
+          "title": "테스트 음성 활동",
+          "message": "누군가 음성 채널에 참가했습니다"
+        },
+        "serverInvite": {
+          "title": "테스트 서버 초대",
+          "message": "서버에 초대되었습니다"
+        },
+        "followRequest": {
+          "title": "테스트 팔로우 요청",
+          "message": "누군가 나를 팔로우하고 싶어 합니다"
+        },
+        "serverUpdate": {
+          "title": "테스트 서버 업데이트",
+          "message": "서버가 업데이트되었습니다"
+        },
+        "emojiAdded": {
+          "title": "테스트 이모지 추가",
+          "message": "서버에 새 이모지가 추가되었습니다"
+        },
+        "apFollow": {
+          "title": "테스트 ActivityPub 팔로우",
+          "message": "연합우주의 누군가 나를 팔로우했습니다"
+        },
+        "apFavorite": {
+          "title": "테스트 ActivityPub 좋아요",
+          "message": "연합우주에서 누군가 내 게시물에 좋아요를 눌렀습니다"
+        },
+        "apReblog": {
+          "title": "테스트 ActivityPub 부스트",
+          "message": "연합우주에서 누군가 내 게시물을 부스트했습니다"
+        },
+        "apMention": {
+          "title": "테스트 ActivityPub 멘션",
+          "message": "연합우주 게시물에서 멘션되었습니다"
+        },
+        "apReply": {
+          "title": "테스트 ActivityPub 답글",
+          "message": "누군가 연합우주 게시물에 답글을 달았습니다"
+        },
+        "apFollowRequest": {
+          "title": "테스트 ActivityPub 팔로우 요청",
+          "message": "연합우주의 누군가 팔로우를 요청했습니다"
+        },
+        "generic": {
+          "title": "테스트 알림",
+          "message": "테스트 알림입니다"
+        }
+      }
     },
     "announcements": {
       "title": "공지",
@@ -899,7 +1719,40 @@
       "inputDevice": "입력 장치",
       "outputDevice": "출력 장치",
       "inputVolume": "입력 볼륨",
-      "outputVolume": "출력 볼륨"
+      "outputVolume": "출력 볼륨",
+      "playSound": "{sound} 소리 재생",
+      "sounds": {
+        "mention": "멘션",
+        "message": "메시지",
+        "reaction": "반응",
+        "voiceJoin": "음성 참가",
+        "voiceLeave": "음성 나가기",
+        "success": "성공",
+        "error": "오류",
+        "click": "클릭"
+      },
+      "themes": {
+        "title": "오디오 테마",
+        "subtitle": "알림, 통화 및 인터페이스 피드백용 사운드 팩",
+        "builtIn": "기본 제공",
+        "byAuthor": "제작: {author}",
+        "masterVolume": "마스터 볼륨",
+        "mute": "소리 음소거",
+        "playPreview": "{theme} 미리 듣기",
+        "clearCache": "오디오 캐시 지우기",
+        "dismissError": "오류 닫기",
+        "advanced": "고급 설정",
+        "autoPreload": "테마 자동 미리 불러오기",
+        "volumeLow": "낮음",
+        "volumeMedium": "보통",
+        "volumeHigh": "높음",
+        "volumeMax": "최대",
+        "cacheInfo": "캐시 정보",
+        "cacheStats": "사운드 {sounds}개 캐시됨, 테마 {themes}개 로드됨",
+        "exportSettings": "설정 내보내기",
+        "importSettings": "설정 가져오기",
+        "resetDefaults": "기본값으로 재설정"
+      }
     },
     "buildInfo": {
       "copyHint": "클릭하여 버그 신고용 버전 정보 복사",
@@ -907,6 +1760,55 @@
       "copyFailed": "버전 정보를 복사할 수 없습니다",
       "terms": "서비스 약관",
       "privacy": "개인정보 처리방침"
+    },
+    "a11y": {
+      "sections": "설정 항목",
+      "close": "설정 닫기",
+      "unreadAnnouncements": "읽지 않은 공지 {count}개 | 읽지 않은 공지 {count}개"
+    },
+    "toasts": {
+      "loggedOut": "로그아웃했습니다",
+      "logoutFailed": "로그아웃하지 못했습니다",
+      "profileUpdated": "프로필을 업데이트했습니다",
+      "profileUpdateFailed": "프로필을 업데이트하지 못했습니다",
+      "avatarUpdated": "아바타를 업데이트했습니다",
+      "avatarUploadFailed": "아바타를 업로드하지 못했습니다",
+      "bannerUpdated": "배너를 업데이트했습니다",
+      "bannerUploadFailed": "배너를 업로드하지 못했습니다",
+      "profileLoadFailed": "프로필을 불러오지 못했습니다"
+    },
+    "unsaved": {
+      "title": "저장하지 않은 변경 사항을 버릴까요?",
+      "message": "이 설정의 변경 사항이 저장되지 않았습니다.",
+      "discard": "변경 사항 버리기"
+    },
+    "userAccount": {
+      "changeBanner": "프로필 배너 변경",
+      "bannerUploading": "배너 업로드 중…",
+      "displayNameHint": "다른 사람에게 이렇게 표시됩니다.",
+      "displayNameEmojiHint": ":를 입력하면 사용자 지정 이모지를 추가할 수 있습니다.",
+      "displayNameRequired": "표시 이름은 비워 둘 수 없습니다.",
+      "displayNameNoEmoji": "이 인스턴스에서는 표시 이름에 사용자 지정 이모지를 사용할 수 없습니다. :name: 같은 이모지 코드를 표시 이름에서 지워 주세요.",
+      "usernameHint": "사용자 이름은 변경할 수 없습니다. 다른 서버가 사용자 이름으로 계정을 식별합니다.",
+      "bioCount": "{count}/{max}자",
+      "displayColor": "표시 색상",
+      "displayColorHint": "표시 이름과 프로필 강조 색에 사용됩니다.",
+      "openColorPicker": "색상 선택기 열기",
+      "resetColor": "표시 색상 재설정",
+      "fieldsTitle": "프로필 항목",
+      "fieldsDescription": "프로필에 짧은 링크나 라벨을 최대 {max}개까지 추가할 수 있습니다. 웹사이트, 소셜 계정 등 다른 사람이 나를 찾을 수 있는 곳을 적어 보세요. 프로필 페이지에 표시되며 다른 ActivityPub 인스턴스로 연합됩니다.",
+      "fieldNameLabel": "항목 {n} 라벨",
+      "fieldValueLabel": "항목 {n} 값",
+      "fieldNamePlaceholder": "라벨 (예: 웹사이트)",
+      "fieldValuePlaceholder": "값 (예: https://example.com)",
+      "removeFieldNamed": "{name} 항목 삭제",
+      "removeFieldNumbered": "항목 {n} 삭제",
+      "fieldsEmpty": "아직 항목이 없습니다. 아래에서 추가하세요.",
+      "fieldIncomplete": "모든 프로필 항목에는 라벨과 값이 모두 필요합니다.",
+      "addField": "항목 추가",
+      "description": "프로필과 계정 정보를 관리합니다.",
+      "handleCopied": "핸들을 복사했습니다",
+      "copyFailed": "복사하지 못했습니다"
     }
   },
   "navigation": {
@@ -1291,6 +2193,23 @@
     },
     "securityNotification": {
       "short": "계정 보안"
+    },
+    "kickBan": {
+      "member": "멤버",
+      "searchPlaceholder": "멤버 검색…",
+      "noMembers": "멤버를 찾을 수 없습니다",
+      "memberSelected": "{name}님을 선택했습니다",
+      "changeMember": "{name}님 대신 다른 멤버 선택",
+      "banWarning": "이 사용자는 서버에서 영구 차단되며 차단이 해제될 때까지 다시 참여할 수 없습니다.",
+      "reasonPlaceholderKick": "이 사용자를 추방하는 이유는 무엇인가요?",
+      "reasonPlaceholderBan": "이 사용자를 차단하는 이유는 무엇인가요?",
+      "deleteMessages": "메시지 기록 삭제",
+      "deleteOptions": {
+        "none": "삭제하지 않음",
+        "hour": "최근 1시간",
+        "day": "최근 24시간",
+        "week": "최근 7일"
+      }
     }
   },
   "files": {
@@ -2978,7 +3897,10 @@
         "setupFailed": "2단계 인증 설정을 시작하지 못했습니다.",
         "copyFailed": "복사하지 못했습니다. 텍스트를 선택하여 직접 복사하세요.",
         "actionFailed": "실패했습니다. 다시 시도하세요."
-      }
+      },
+      "copyCodes": "코드 복사",
+      "enabledAnnouncement": "2단계 인증이 켜졌습니다. 복구 코드를 저장하세요.",
+      "newCodesAnnouncement": "새 복구 코드를 생성했습니다. 지금 저장하세요."
     },
     "sessions": {
       "title": "기기",
@@ -4581,7 +5503,8 @@
       "skipKeys": "Tab",
       "escape": "열린 대화 상자, 메뉴 또는 패널을 닫고 포커스를 원래 위치로 되돌립니다",
       "escapeKeys": "Esc"
-    }
+    },
+    "unsavedChanges": "저장되지 않은 변경 사항"
   },
   "statusPicker": {
     "setTitle": "사용자 지정 상태 설정",
@@ -4621,5 +5544,31 @@
     "unreachable": "해당 인스턴스에 연결할 수 없습니다",
     "current": "현재 연결된 인스턴스: {name}",
     "keep": "유지"
+  },
+  "colorPicker": {
+    "label": "색상 선택기",
+    "saturationBrightness": "채도와 밝기",
+    "saturationBrightnessValue": "채도 {saturation}%, 밝기 {brightness}%",
+    "saturationBrightnessHelp": "왼쪽·오른쪽 화살표로 채도를, 위·아래 화살표로 밝기를 바꿉니다. Shift를 누르면 크게 바뀝니다.",
+    "hue": "색조",
+    "hueValue": "{degrees}도",
+    "hex": "16진수 색상",
+    "presets": "미리 설정된 색상",
+    "swatch": "{name} {hex}",
+    "sampleText": "샘플 텍스트",
+    "names": {
+      "red": "빨강",
+      "orange": "주황",
+      "yellow": "노랑",
+      "green": "초록",
+      "cyan": "청록",
+      "blue": "파랑",
+      "purple": "보라",
+      "pink": "분홍",
+      "brown": "갈색",
+      "grey": "회색",
+      "white": "흰색",
+      "black": "검정"
+    }
   }
 }
