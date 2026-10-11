@@ -1880,6 +1880,33 @@
     "myBots": "我的机器人",
     "supporter": "支持",
     "myBotsDescription": "管理您创建的机器人",
+    "myEmojis": {
+      "title": "我的表情",
+      "description": "你的个人表情，包括你在表情选择器中用 AI 生成的表情。消息通过名称引用自定义表情，因此重命名或删除后，之前的消息会显示 :name: 文本而不是图片。",
+      "loading": "正在加载你的表情…",
+      "empty": "你还没有个人表情。你在表情选择器中用 AI 生成的表情会显示在这里。",
+      "listLabel": "你的表情",
+      "aiBadge": "AI",
+      "aiGenerated": "AI 生成",
+      "uses": "尚未使用 | 使用过 1 次 | 使用过 {count} 次",
+      "rename": "重命名 :{name}:",
+      "delete": "删除 :{name}:",
+      "newName": ":{name}: 的新名称",
+      "nameHint": "2 到 64 个字母、数字、_ 或 -。按 Enter 保存，按 Escape 取消。",
+      "renamed": "已将 :{from}: 重命名为 :{to}:",
+      "deleted": "已删除 :{name}:",
+      "deleteTitle": "删除表情",
+      "confirmDelete": "删除 :{name}:？使用它的回应会被移除，之前使用它的消息会显示 :{name}: 文本而不是图片。",
+      "retry": "重试",
+      "errors": {
+        "load": "无法加载你的表情。",
+        "rename": "无法重命名该表情。",
+        "delete": "无法删除该表情。",
+        "invalidName": "名称为 2 到 64 个字母、数字、_ 或 -。",
+        "nameTaken": "你已有同名的表情。",
+        "notFound": "该表情已不存在。"
+      }
+    },
     "audio": {
       "title": "声音",
       "description": "配置您的音频设置。",
@@ -4688,14 +4715,16 @@
     "instanceEmojis": {
       "tab": "表情",
       "title": "实例表情",
-      "hint": "实例级表情和导入的表情：管理员上传的表情、Discord 桥接和机器人的表情，以及来自联邦回应和帖子的表情。服务器表情和个人表情由其所有者管理。消息通过名称引用自定义表情，因此重命名或删除后，之前的消息会显示 :name: 文本而不是图片。",
+      "hint": "实例级表情和导入的表情：管理员上传的表情、Discord 桥接和机器人的表情，以及来自联邦回应和帖子的表情。服务器表情由各自的服务器管理；个人表情和 AI 生成的表情列在“用户表情”下。消息通过名称引用自定义表情，因此重命名或删除后，之前的消息会显示 :name: 文本而不是图片。",
       "refresh": "刷新",
       "searchPlaceholder": "按名称或域名搜索",
+      "searchPlaceholderUser": "按名称或所有者搜索",
       "source": {
         "label": "来源",
         "all": "所有来源",
         "local": "本地",
-        "remote": "远程和桥接"
+        "remote": "远程和桥接",
+        "user": "用户表情"
       },
       "sort": {
         "label": "排序",
@@ -4703,8 +4732,14 @@
         "name": "名称 (A-Z)"
       },
       "empty": "没有匹配的实例表情。",
+      "emptyUser": "没有匹配的用户表情。",
       "localBadge": "本地",
+      "personalBadge": "个人",
+      "aiBadge": "AI",
+      "aiGenerated": "AI 生成",
       "uploadedBy": "由 {user} 上传",
+      "ownedBy": "所有者 {user}",
+      "noOwner": "已删除的账户",
       "reactions": "无回应 | {count} 个回应 | {count} 个回应",
       "rename": "重命名",
       "newName": "新名称",
@@ -4716,12 +4751,15 @@
       "deleteTitle": "删除表情",
       "confirmDelete": "删除 :{name}:？使用它的旧消息将显示 :{name}: 文本而不是图片。",
       "confirmDeleteInUse": "删除 :{name}:？它的 {count} 个回应将被移除，使用它的旧消息将显示 :{name}: 文本而不是图片。 | 删除 :{name}:？它的 {count} 个回应将被移除，使用它的旧消息将显示 :{name}: 文本而不是图片。",
+      "confirmDeleteUser": "从 {user} 的表情中删除 :{name}:？之前使用它的消息会显示 :{name}: 文本而不是图片。",
+      "confirmDeleteUserInUse": "从 {user} 的表情中删除 :{name}:？它的 {count} 个回应会被移除，之前使用它的消息会显示 :{name}: 文本而不是图片。 | 从 {user} 的表情中删除 :{name}:？它的 {count} 个回应会被移除，之前使用它的消息会显示 :{name}: 文本而不是图片。",
       "errors": {
         "load": "无法加载实例表情。",
         "rename": "无法重命名表情。",
         "delete": "无法删除表情。",
         "invalidName": "名称为 2 到 64 个字母、数字、_ 或 -。",
-        "nameTaken": "另一个实例表情已使用该名称。"
+        "nameTaken": "另一个实例表情已使用该名称。",
+        "nameTakenUser": "所有者已有同名的表情。"
       }
     }
   },

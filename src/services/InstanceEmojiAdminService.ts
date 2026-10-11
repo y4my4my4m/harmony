@@ -13,9 +13,11 @@ export interface InstanceEmojiRow {
   usage_count: number
   reaction_count: number
   total_count: number
+  is_ai_generated: boolean
 }
 
-export type InstanceEmojiSource = 'all' | 'local' | 'remote'
+/** 'user' lists personal (scope = 'user') emojis; the others list instance-level emojis. */
+export type InstanceEmojiSource = 'all' | 'local' | 'remote' | 'user'
 export type InstanceEmojiSort = 'newest' | 'name'
 
 export interface InstanceEmojiPage {
@@ -43,7 +45,12 @@ export async function listInstanceEmojis(params: {
   if (error) throw error
   const rows = (data ?? []) as InstanceEmojiRow[]
   return {
-    rows: rows.map((r) => ({ ...r, reaction_count: Number(r.reaction_count), total_count: Number(r.total_count) })),
+    rows: rows.map((r) => ({
+      ...r,
+      reaction_count: Number(r.reaction_count),
+      total_count: Number(r.total_count),
+      is_ai_generated: r.is_ai_generated === true,
+    })),
     total: rows.length ? Number(rows[0].total_count) : 0,
   }
 }
