@@ -130,6 +130,12 @@ interface MediaAttachment {
 }
 `
 
+Each attached image can carry a description for people who cannot see it: the pencil button
+beside the attachment in the composer opens a field for it (up to 1500 characters). It is stored
+as `altText` on the message's file part, the field remote ActivityPub attachments carry too, and
+shown as the image's alt text. The file name is never used as alt text; an image without a
+description is announced as "Image, no description".
+
 ## Message Features
 
 ### Reactions
@@ -245,6 +251,28 @@ async function loadMoreMessages() {
   messages.value.unshift(...olderMessages)
 }
 `
+
+## Keyboard and Screen Readers
+
+- The message list is a list of messages, each named by its author, the message it replies to,
+  its content, its time and its state (edited, mentions you, pinned, failed to send). Days and the
+  first unread message are headings.
+- Tab reaches the newest message (or the last one focused); **Up/Down** move between messages,
+  **Page Up/Page Down** by a screenful, **Home/End** to the first and last loaded. Tab then walks the
+  focused message's own controls: author, links, the action bar (Add reaction, Reply, Create thread,
+  Edit, Delete, More actions) and reactions.
+- **Enter**, the **ContextMenu** key or **Shift+F10** on a message opens its menu. After an edit
+  focus returns to where it started; after a delete it lands on the next message.
+- A reaction is a toggle button: "thumbs up, 3 reactions, including you". The ContextMenu key or
+  Shift+F10 on it lists who reacted.
+- The emoji pickers are dialogs. In the search field Down moves to the emoji and Enter picks the
+  first result; arrows move in the grid; the number of results is announced.
+- Covered spoilers are buttons that say "Spoiler, hidden" and keep their text out of reach until
+  revealed; images open full size from the keyboard.
+- Messages arriving in the open channel, conversation or thread are announced ("Alice: lunch?",
+  or "3 new messages from Alice, Bob" for a burst); your own are not. Settings → Appearance →
+  *Announce new messages* turns this off on the device. Typing is announced only with *Screen
+  reader support* on.
 
 ## Integration with Other Systems
 

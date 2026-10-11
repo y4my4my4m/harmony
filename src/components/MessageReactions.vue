@@ -1,17 +1,28 @@
 <template>
-  <div v-if="showReactions && reactions.length > 0" class="message-reactions" data-testid="message-reactions">
-    <div class="reactions-gutter"></div>
-    <TransitionGroup name="reaction-list" tag="div" class="reactions-container">
-      <div
+  <div v-if="showReactions && reactions.length > 0" ref="rootRef" class="message-reactions" data-testid="message-reactions">
+    <div class="reactions-gutter" aria-hidden="true"></div>
+    <TransitionGroup
+      name="reaction-list"
+      tag="div"
+      class="reactions-container"
+      role="group"
+      :aria-label="t('message.reactions.title')"
+    >
+      <button
         v-for="reactionGroup in reactions"
         :key="getReactionKey(reactionGroup)"
+        type="button"
         class="reaction"
         :class="{ 
           'reacted': reactionGroup.current_user_reacted,
           'loading': isLoadingReactions 
         }"
         :data-emoji-key="getReactionKey(reactionGroup)"
-        @click="handleReactionClick(reactionGroup.emoji, getReactionKey(reactionGroup))"
+        :aria-pressed="reactionGroup.current_user_reacted ? 'true' : 'false'"
+        :aria-label="reactionLabel(reactionGroup)"
+        :aria-describedby="hintId"
+        @click="handleReactionClick(reactionGroup, $event)"
+        @keydown="handlePillKeydown(reactionGroup, $event)"
         @mouseenter="showTooltip($event, reactionGroup)"
         @mouseleave="hideTooltip"
         @contextmenu="handlePillContextMenu(reactionGroup, $event)"
@@ -31,7 +42,7 @@
           <img 
             v-else
             :src="getEmojiUrl(reactionGroup.emoji.url, 32)" 
-            :alt="reactionGroup.emoji.name || 'emoji'"
+            :alt="customEmojiLabel(reactionGroup.emoji.name) || 'emoji'"
             class="reaction-emoji"
             @error="handleEmojiError(reactionGroup.emoji)"
           />
@@ -41,32 +52,36 @@
           <img 
             v-if="getResolvedEmoji(reactionGroup)!.display.type === 'svg'"
             :src="getResolvedEmoji(reactionGroup)!.display.content"
-            :alt="getResolvedEmoji(reactionGroup)!.shortcode || 'emoji'"
+            :alt="humanizeEmojiName(getResolvedEmoji(reactionGroup)!.shortcode) || 'emoji'"
             class="reaction-emoji"
           />
-          <span v-else class="native-emoji">{{ getResolvedEmoji(reactionGroup)!.display.content }}</span>
+          <span v-else class="native-emoji" aria-hidden="true">{{ getResolvedEmoji(reactionGroup)!.display.content }}</span>
         </template>
         <!-- Fallback for missing emoji -->
-        <span v-else class="missing-emoji" :title="`Emoji: ${reactionGroup.emoji?.name || reactionGroup.emoji_id}`">?</span>
+        <span v-else class="missing-emoji" aria-hidden="true" :title="`Emoji: ${reactionGroup.emoji?.name || reactionGroup.emoji_id}`">?</span>
         <span class="reaction-count" data-testid="reaction-count">{{ reactionGroup.count }}</span>
-      </div>
+      </button>
       
       <!-- Add reaction button (only shown when reactions exist) -->
       <button 
         v-if="reactions.length > 0"
         key="add-reaction-btn"
+        type="button"
         class="add-reaction-btn"
         data-testid="add-reaction-btn"
+        :aria-label="t('message.reactions.add')"
+        :title="t('message.reactions.add')"
+        aria-haspopup="dialog"
         @click="handleAddReactionClick"
-        title="Add reaction"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="10"/>
           <line x1="12" y1="8" x2="12" y2="16"/>
           <line x1="8" y1="12" x2="16" y2="12"/>
         </svg>
       </button>
     </TransitionGroup>
+    <span :id="hintId" class="sr-only">{{ t('messageA11y.reactions.hint') }}</span>
   </div>
 </template>
 
@@ -82,7 +97,12 @@ import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { reactionGroupKey } from '@/utils/reactionUsers';
 import Icon from '@/components/common/Icon.vue';
-import type { Message, Emoji } from '@/types';
+import type { Message, Emoji, ReactionGroup } from '@/types';
+import { useT } from '@/composables/useT';
+import { useAnnouncer } from '@/composables/useAnnouncer';
+import { isContextMenuKey } from '@/composables/useMenu';
+import { customEmojiLabel, humanizeEmojiName, spokenEmojiName } from '@/utils/a11y/emojiNames';
+import { focusElement, uid } from '@/utils/a11y/focus';
 
 interface Props {
   message: Message;
@@ -104,6 +124,11 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>();
 
 const getReactionKey = reactionGroupKey;
+
+const { t } = useT();
+const { polite } = useAnnouncer();
+const hintId = uid('reactions-hint');
+const rootRef = ref<HTMLElement | null>(null);
 
 const reactionsStore = useReactionsStore();
 const profileStore = useProfileStore();
@@ -131,8 +156,32 @@ const isLoadingReactions = computed(() =>
 // when optimistic state reconciles).
 const currentUserId = computed(() => profileStore.profileId);
 
-const handleReactionClick = async (emoji: Emoji, emojiId: string) => {
+/** Spoken emoji of a pill: :name: for a custom emoji, the shortcode in words otherwise. */
+const emojiSpoken = (reactionGroup: ReactionGroup): string => {
+  const emoji = reactionGroup.emoji as (Emoji & { is_native?: boolean; content?: string }) | undefined;
+  if (emoji?.url && !emoji.is_native) return customEmojiLabel(emoji.name);
+  const resolved = getResolvedEmoji(reactionGroup);
+  return spokenEmojiName({ shortcode: resolved?.shortcode, name: emoji?.name, native: emoji?.content }) || reactionGroup.emoji_id || '';
+};
+
+/** "thumbs up, 3 reactions, including you". */
+const reactionLabel = (reactionGroup: ReactionGroup): string => {
+  const params = { emoji: emojiSpoken(reactionGroup), count: reactionGroup.count };
+  return reactionGroup.current_user_reacted
+    ? t('messageA11y.reactions.pillYou', params, reactionGroup.count)
+    : t('messageA11y.reactions.pill', params, reactionGroup.count);
+};
+
+const handleReactionClick = async (reactionGroup: ReactionGroup, event?: MouseEvent) => {
+  const emoji = reactionGroup.emoji as Emoji;
+  const emojiId = getReactionKey(reactionGroup);
   if (!currentUserId.value) return;
+  // Removing the viewer's sole reaction removes the pill; keyboard focus moves
+  // to the add button, or to the message when no reaction is left.
+  const pill = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+  const vanishes = reactionGroup.current_user_reacted && reactionGroup.count <= 1;
+  const hadFocus = !!pill && document.activeElement === pill;
+  const row = pill?.closest<HTMLElement>('[data-message-row]') ?? null;
   
   // Dismiss tooltip immediately so it doesn't linger if the chip is removed from DOM
   emit('hide-reaction-tooltip');
@@ -146,11 +195,27 @@ const handleReactionClick = async (emoji: Emoji, emojiId: string) => {
     url: emoji.url
   });
   
+  const spoken = emojiSpoken(reactionGroup);
   const result = await reactionsStore.toggleReaction(props.message.id, emojiId, currentUserId.value, emoji);
   
   if (!result.success && result.reason !== 'Request already in progress') {
     debug.error('Failed to toggle reaction:', result.reason);
+    return;
   }
+  if (!vanishes || !hadFocus) return;
+  polite(t('messageA11y.reactions.removed', { emoji: spoken }));
+  await nextTick();
+  const add = rootRef.value?.querySelector<HTMLElement>('.add-reaction-btn');
+  if (reactions.value.length > 0 && add) focusElement(add);
+  else focusElement(row);
+};
+
+// The ContextMenu key and Shift+F10 open the list of who reacted.
+const handlePillKeydown = (reactionGroup: ReactionGroup, event: KeyboardEvent) => {
+  if (!isContextMenuKey(event)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  openReactions(reactionGroup);
 };
 
 const showTooltip = (event: MouseEvent, reactionGroup: any) => {
@@ -342,8 +407,19 @@ watch(() => props.message.id, (newMessageId, oldMessageId) => {
   min-height: 22px;
 }
 
+.reaction {
+  font-family: inherit;
+  color: inherit;
+}
+
 .reaction:active {
   transform: scale(0.92);
+}
+
+.reaction:focus-visible,
+.add-reaction-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
 }
 
 .reaction:hover {

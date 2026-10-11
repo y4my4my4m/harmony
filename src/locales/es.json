@@ -467,6 +467,138 @@
       "unmark": "Quitar spoiler"
     }
   },
+  "messageA11y": {
+    "list": {
+      "channel": "Mensajes en #{name}",
+      "conversation": "Mensajes con {name}",
+      "thread": "Mensajes en este hilo",
+      "generic": "Mensajes"
+    },
+    "row": {
+      "blocked": "{count} mensaje bloqueado | {count} mensajes bloqueados",
+      "showBlocked": "Mostrar mensaje | Mostrar mensajes",
+      "reported": "Denunciaste este mensaje",
+      "showReported": "Mostrar",
+      "unhideReported": "Dejar de ocultar",
+      "fromBlocked": "{count} mensaje de un usuario bloqueado | {count} mensajes de un usuario bloqueado",
+      "hide": "Ocultar",
+      "reportedBanner": "Mensaje denunciado",
+      "hideAgain": "Volver a ocultar",
+      "mentionsYou": "te menciona",
+      "edited": "editado",
+      "pinned": "fijado",
+      "encrypted": "cifrado de extremo a extremo",
+      "failed": "no se pudo enviar",
+      "sending": "enviando"
+    },
+    "newMessagesDivider": "Mensajes nuevos",
+    "actions": {
+      "label": "Acciones del mensaje",
+      "thread": "Crear hilo"
+    },
+    "failed": {
+      "label": "No se pudo enviar",
+      "retry": "Reintentar",
+      "discard": "Eliminar",
+      "announce": "Un mensaje no se pudo enviar. Reinténtalo o elimínalo en la lista de mensajes."
+    },
+    "deleted": "Mensaje eliminado",
+    "image": {
+      "noDescription": "Imagen sin descripción",
+      "open": "Ver la imagen a tamaño completo",
+      "openIndexed": "Ver la imagen {index} de {total} a tamaño completo",
+      "gif": "GIF sin descripción",
+      "sticker": "Sticker",
+      "emoji": "Emoji"
+    },
+    "menu": {
+      "label": "Opciones del mensaje",
+      "quickReactions": "Reacciones rápidas",
+      "reactWith": "Reaccionar con {emoji}",
+      "moreReactions": "Más reacciones"
+    },
+    "reply": {
+      "prefix": "En respuesta a"
+    },
+    "reactions": {
+      "pill": "{emoji}, {count} reacción | {emoji}, {count} reacciones",
+      "pillYou": "{emoji}, {count} reacción, incluida la tuya | {emoji}, {count} reacciones, incluida la tuya",
+      "hint": "La tecla de menú contextual o Mayús+F10 muestra quién reaccionó.",
+      "removed": "Reacción quitada: {emoji}"
+    },
+    "emoji": {
+      "reactionDialog": "Añadir reacción",
+      "dialog": "Selector de emojis",
+      "search": "Buscar emoji",
+      "searchHint": "Intro elige el primer resultado. La flecha abajo pasa a los emojis.",
+      "results": "{count} emoji encontrado | {count} emojis encontrados",
+      "noResults": "No se encontraron emojis"
+    },
+    "mediaPicker": {
+      "label": "GIFs, stickers y emojis"
+    },
+    "composer": {
+      "attach": "Añadir un adjunto o una encuesta",
+      "attachMenu": "Adjuntar",
+      "gif": "Selector de GIF",
+      "emoji": "Selector de emojis",
+      "nearLimit": "Queda {count} carácter | Quedan {count} caracteres",
+      "overLimit": "El mensaje sobra en {count} carácter | El mensaje sobra en {count} caracteres",
+      "backUnderLimit": "El mensaje vuelve a caber, queda {count} carácter | El mensaje vuelve a caber, quedan {count} caracteres",
+      "suggestions": "{count} sugerencia, usa las flechas arriba y abajo para elegir | {count} sugerencias, usa las flechas arriba y abajo para elegir"
+    },
+    "upload": {
+      "done": "{name} subido",
+      "progress": "{name}: {percent} % subido",
+      "attached": "{count} archivo adjunto | {count} archivos adjuntos",
+      "removed": "{name} quitado",
+      "attachedCount": "{count} archivo adjunto | {count} archivos adjuntos",
+      "uploading": "Subiendo...",
+      "listLabel": "Adjuntos",
+      "progressLabel": "Subiendo {name}",
+      "remove": "Quitar {name}"
+    },
+    "alt": {
+      "saved": "Descripción guardada para {name}",
+      "removed": "Descripción quitada de {name}",
+      "title": "Describir {name}",
+      "edit": "Editar la descripción de {name}",
+      "add": "Añadir una descripción a {name}",
+      "editShort": "Editar descripción",
+      "addShort": "Añadir descripción"
+    },
+    "encrypted": {
+      "lost": "Mensaje cifrado que ya no se puede descifrar",
+      "decrypt": "Mensaje cifrado. Descifrar",
+      "decrypting": "Descifrando el mensaje cifrado",
+      "locked": "Mensaje cifrado. Desbloquea el cifrado en Ajustes, Privacidad y cifrado, para leerlo."
+    },
+    "spoiler": {
+      "hidden": "Spoiler, oculto. Actívalo para mostrarlo",
+      "revealed": "Spoiler: {text}"
+    },
+    "speech": {
+      "encrypted": "mensaje cifrado",
+      "spoiler": "spoiler",
+      "imageWithAlt": "imagen: {alt}",
+      "image": "imagen",
+      "videoWithAlt": "vídeo: {alt}",
+      "video": "vídeo",
+      "audio": "audio",
+      "file": "archivo {name}",
+      "poll": "encuesta: {question}"
+    },
+    "announce": {
+      "one": "{name}: {text}",
+      "oneEmpty": "Mensaje nuevo de {name}",
+      "andOthers": "{names} y {count} más | {names} y {count} más",
+      "many": "{count} mensaje nuevo de {names} | {count} mensajes nuevos de {names}"
+    },
+    "setting": {
+      "label": "Anunciar mensajes nuevos",
+      "description": "Los lectores de pantalla leen los mensajes que llegan al canal, la conversación o el hilo abiertos. Tus propios mensajes no se leen."
+    }
+  },
   "messageSearch": {
     "title": "Buscar mensajes",
     "intro": "Escribe palabras para buscar o acota la búsqueda con from:, mentions:, has:, in:, before:, during:, after: y pinned:.",

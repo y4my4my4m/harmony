@@ -476,6 +476,138 @@
       "unmark": "Remove spoiler"
     }
   },
+  "messageA11y": {
+    "list": {
+      "channel": "Messages in #{name}",
+      "conversation": "Messages with {name}",
+      "thread": "Messages in this thread",
+      "generic": "Messages"
+    },
+    "row": {
+      "blocked": "{count} blocked message | {count} blocked messages",
+      "showBlocked": "Show message | Show messages",
+      "reported": "You reported this message",
+      "showReported": "Show",
+      "unhideReported": "Unhide",
+      "fromBlocked": "{count} message from a blocked user | {count} messages from a blocked user",
+      "hide": "Hide",
+      "reportedBanner": "Reported message",
+      "hideAgain": "Hide again",
+      "mentionsYou": "mentions you",
+      "edited": "edited",
+      "pinned": "pinned",
+      "encrypted": "end-to-end encrypted",
+      "failed": "failed to send",
+      "sending": "sending"
+    },
+    "newMessagesDivider": "New messages",
+    "actions": {
+      "label": "Message actions",
+      "thread": "Create thread"
+    },
+    "failed": {
+      "label": "Failed to send",
+      "retry": "Retry",
+      "discard": "Delete",
+      "announce": "A message failed to send. Retry or delete it in the message list."
+    },
+    "deleted": "Message deleted",
+    "image": {
+      "noDescription": "Image, no description",
+      "open": "View image full size",
+      "openIndexed": "View image {index} of {total} full size",
+      "gif": "GIF, no description",
+      "sticker": "Sticker",
+      "emoji": "Emoji"
+    },
+    "menu": {
+      "label": "Message options",
+      "quickReactions": "Quick reactions",
+      "reactWith": "React with {emoji}",
+      "moreReactions": "More reactions"
+    },
+    "reply": {
+      "prefix": "Replying to"
+    },
+    "reactions": {
+      "pill": "{emoji}, {count} reaction | {emoji}, {count} reactions",
+      "pillYou": "{emoji}, {count} reaction, including you | {emoji}, {count} reactions, including you",
+      "hint": "The context menu key or Shift+F10 lists who reacted.",
+      "removed": "Reaction removed: {emoji}"
+    },
+    "emoji": {
+      "reactionDialog": "Add reaction",
+      "dialog": "Emoji picker",
+      "search": "Search emoji",
+      "searchHint": "Enter picks the first result. Down arrow moves to the emoji.",
+      "results": "{count} emoji found | {count} emoji found",
+      "noResults": "No emoji found"
+    },
+    "mediaPicker": {
+      "label": "GIFs, stickers and emoji"
+    },
+    "composer": {
+      "attach": "Add an attachment or poll",
+      "attachMenu": "Attach",
+      "gif": "GIF picker",
+      "emoji": "Emoji picker",
+      "nearLimit": "{count} character left | {count} characters left",
+      "overLimit": "Message too long by {count} character | Message too long by {count} characters",
+      "backUnderLimit": "Message fits again, {count} character left | Message fits again, {count} characters left",
+      "suggestions": "{count} suggestion, use the up and down arrows to choose | {count} suggestions, use the up and down arrows to choose"
+    },
+    "upload": {
+      "done": "{name} uploaded",
+      "progress": "{name}: {percent}% uploaded",
+      "attached": "{count} file attached | {count} files attached",
+      "removed": "{name} removed",
+      "attachedCount": "{count} file attached | {count} files attached",
+      "uploading": "Uploading...",
+      "listLabel": "Attachments",
+      "progressLabel": "Uploading {name}",
+      "remove": "Remove {name}"
+    },
+    "alt": {
+      "saved": "Description saved for {name}",
+      "removed": "Description removed from {name}",
+      "title": "Describe {name}",
+      "edit": "Edit the description of {name}",
+      "add": "Add a description to {name}",
+      "editShort": "Edit description",
+      "addShort": "Add description"
+    },
+    "encrypted": {
+      "lost": "Encrypted message that can no longer be decrypted",
+      "decrypt": "Encrypted message. Decrypt",
+      "decrypting": "Decrypting the encrypted message",
+      "locked": "Encrypted message. Unlock encryption in Settings, Privacy and encryption, to read it."
+    },
+    "spoiler": {
+      "hidden": "Spoiler, hidden. Activate to reveal",
+      "revealed": "Spoiler: {text}"
+    },
+    "speech": {
+      "encrypted": "encrypted message",
+      "spoiler": "spoiler",
+      "imageWithAlt": "image: {alt}",
+      "image": "image",
+      "videoWithAlt": "video: {alt}",
+      "video": "video",
+      "audio": "audio",
+      "file": "file {name}",
+      "poll": "poll: {question}"
+    },
+    "announce": {
+      "one": "{name}: {text}",
+      "oneEmpty": "New message from {name}",
+      "andOthers": "{names} and {count} other | {names} and {count} others",
+      "many": "{count} new message from {names} | {count} new messages from {names}"
+    },
+    "setting": {
+      "label": "Announce new messages",
+      "description": "Screen readers read out messages that arrive in the open channel, conversation or thread. Your own messages are not read."
+    }
+  },
   "messageSearch": {
     "title": "Search messages",
     "intro": "Type words to find, or narrow the search with from:, mentions:, has:, in:, before:, during:, after: and pinned:.",
