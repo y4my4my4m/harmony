@@ -19,47 +19,52 @@
       class="user-context-menu"
       :style="menuStyle"
       role="menu"
+      :aria-label="displayName"
       @click.stop
       @contextmenu.prevent
     >
       <!-- Profile -->
-      <button class="menu-item" role="menuitem" @click="emitAction('profile')">
-        <span class="menu-item-label">Profile</span>
+      <button type="button" class="menu-item" role="menuitem" @click="emitAction('profile')">
+        <span class="menu-item-label">{{ t('user.profile') }}</span>
       </button>
 
       <!-- Mention -->
       <button
+        type="button"
         v-if="canMention"
         class="menu-item"
         role="menuitem"
         @click="emitAction('mention')"
       >
-        <span class="menu-item-label">Mention</span>
+        <span class="menu-item-label">{{ t('chatNav.user.mention') }}</span>
       </button>
 
       <!-- Send Message (local users only, not self, not blocked) -->
       <button
+        type="button"
         v-if="canMessage"
         class="menu-item"
         role="menuitem"
         @click="emitAction('message')"
       >
-        <span class="menu-item-label">Message</span>
+        <span class="menu-item-label">{{ t('chatNav.user.message') }}</span>
       </button>
 
       <!-- Start a Call (local users only, not self, not blocked) -->
       <button
+        type="button"
         v-if="canCall"
         class="menu-item"
         role="menuitem"
         @click="emitAction('call')"
       >
-        <span class="menu-item-label">Start a call</span>
+        <span class="menu-item-label">{{ t('chatNav.user.call') }}</span>
       </button>
 
       <!-- Add Note - opens the profile modal containing the note section -->
       <!-- Hidden: notes feature not shipped (see UserProfileModal).
       <button
+        type="button"
         v-if="!isSelf"
         class="menu-item with-subtitle"
         role="menuitem"
@@ -72,79 +77,86 @@
 
       <!-- Change Server Nickname (own profile, in server) - routes through Edit Profile -->
       <button
+        type="button"
         v-if="canEditOwnProfile"
         class="menu-item"
         role="menuitem"
         @click="emitAction('change-nickname')"
       >
-        <span class="menu-item-label">Change nickname</span>
+        <span class="menu-item-label">{{ t('chatNav.user.nickname') }}</span>
       </button>
 
-      <div v-if="hasAnyMidSectionItem" class="menu-divider"></div>
+      <div v-if="hasAnyMidSectionItem" class="menu-divider" role="separator"></div>
 
       <!-- Invite to Server -->
       <button
+        type="button"
         v-if="canInvite"
         class="menu-item"
         role="menuitem"
         @click="emitAction('invite')"
       >
-        <span class="menu-item-label">Invite to server</span>
+        <span class="menu-item-label">{{ t('chatNav.user.invite') }}</span>
       </button>
 
       <!-- Mute / Unmute -->
       <button
+        type="button"
         v-if="!isSelf"
         class="menu-item"
         role="menuitem"
         @click="emitAction('toggle-mute')"
       >
-        <span class="menu-item-label">{{ isMuted ? 'Unmute user' : 'Mute user' }}</span>
+        <span class="menu-item-label">{{ isMuted ? t('chatNav.user.unmute') : t('chatNav.user.mute') }}</span>
       </button>
 
       <!-- Block / Unblock -->
       <button
+        type="button"
         v-if="!isSelf"
         class="menu-item destructive"
         role="menuitem"
         @click="emitAction('toggle-block')"
       >
-        <span class="menu-item-label">{{ isBlocked ? 'Unblock' : 'Block' }}</span>
+        <span class="menu-item-label">{{ isBlocked ? t('moderation.unblock') : t('moderation.block') }}</span>
       </button>
 
       <!-- Moderation -->
       <template v-if="canKick || canBan">
-        <div class="menu-divider"></div>
+        <div class="menu-divider" role="separator"></div>
 
         <button
+          type="button"
           v-if="canKick"
           class="menu-item destructive"
           role="menuitem"
           @click="emitAction('kick')"
         >
-          <span class="menu-item-label">Kick {{ displayName }}</span>
+          <span class="menu-item-label">{{ t('chatNav.user.kick', { name: displayName }) }}</span>
         </button>
 
         <button
+          type="button"
           v-if="canBan"
           class="menu-item destructive"
           role="menuitem"
           @click="emitAction('ban')"
         >
-          <span class="menu-item-label">Ban {{ displayName }}</span>
+          <span class="menu-item-label">{{ t('chatNav.user.ban', { name: displayName }) }}</span>
         </button>
       </template>
 
-      <div class="menu-divider"></div>
+      <div class="menu-divider" role="separator"></div>
 
       <!-- Copy User ID -->
       <button
+        type="button"
         class="menu-item with-trailing"
         role="menuitem"
         @click="emitAction('copy-id')"
       >
-        <span class="menu-item-label">Copy user ID</span>
-        <span class="menu-item-trailing">
+        <span class="menu-item-label">{{ t('chatNav.user.copyId') }}</span>
+        <span class="menu-item-trailing" aria-hidden="true">
           <Icon name="copy" :size="14" />
         </span>
       </button>
@@ -163,8 +175,10 @@
  * Friend Nickname, Apps, Roles management and Mod View are absent - not
  * implemented in the app.
  */
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { useMenu } from '@/composables/useMenu';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useUserData } from '@/composables/useUserData';
@@ -202,6 +216,7 @@ const emit = defineEmits<{
 }>();
 
 const route = useRoute();
+const { t } = useI18n();
 const activityPubStore = useActivityPubStore();
 const serverChannelStore = useServerChannelStore();
 const { getCurrentUser, getUserDisplayName } = useUserData();
@@ -234,8 +249,8 @@ const isInChatContext = computed(() => {
 });
 
 const displayName = computed(() => {
-  if (!props.user?.id) return 'User';
-  return getUserDisplayName(props.user.id).value || props.user.display_name || props.user.username || 'User';
+  if (!props.user?.id) return t('chatNav.user.fallbackName');
+  return getUserDisplayName(props.user.id).value || props.user.display_name || props.user.username || t('chatNav.user.fallbackName');
 });
 
 // Absent `is_local` counts as local - same rule as UserProfileModal.
@@ -353,17 +368,11 @@ function emitAction(action: UserContextAction) {
   close();
 }
 
-// Escape-to-close matches MessageContextMenu and VoiceUserContextMenu.
-function handleKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && props.visible) close();
-}
-
-onMounted(() => {
-  document.addEventListener('keydown', handleKeydown);
-});
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown);
+// Focus moves in on open and returns to the member row on close; arrows,
+// Home/End, typeahead, Escape and Tab follow the menu pattern.
+useMenu(menuRef, {
+  open: () => props.visible,
+  onClose: () => close(),
 });
 
 watch(

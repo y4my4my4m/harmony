@@ -1,107 +1,97 @@
 <template>
-  <div 
-    v-if="isVisible" 
+  <ChatMenu
+    v-if="isVisible && thread"
+    :x="position.x"
+    :y="position.y"
+    :label="thread.name"
+    :trigger="trigger"
     class="context-menu"
-    :style="menuStyle"
-    @click.stop
+    @close="emit('close')"
   >
-    <!-- Leave/Join Thread -->
-    <div class="context-menu-item" @click="leaveThread">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <button type="button" role="menuitem" class="chat-menu-item context-menu-item" @click="leaveThread">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
         <polyline points="16 17 21 12 16 7"/>
         <line x1="21" y1="12" x2="9" y2="12"/>
       </svg>
-      <span>Leave thread</span>
-    </div>
+      <span>{{ t('chatNav.thread.leave') }}</span>
+    </button>
 
-    <div class="context-menu-divider"></div>
+    <div class="chat-menu-divider" role="separator"></div>
 
-    <!-- Edit Thread -->
-    <div class="context-menu-item" @click="editThread" v-if="canManageThread">
-      <svg width="16" height="16" viewBox="0 0 24 24">
+    <button v-if="canManageThread" type="button" role="menuitem" class="chat-menu-item context-menu-item" @click="editThread">
+      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
         <path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
       </svg>
-      <span>Edit thread</span>
-    </div>
+      <span>{{ t('chatNav.thread.edit') }}</span>
+    </button>
 
-    <!-- Open in Split View -->
-    <div class="context-menu-item" @click="openInSplitView">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <button type="button" role="menuitem" class="chat-menu-item context-menu-item" @click="openInSplitView">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M3 5v14h18V5H3zm8 12H5V7h6v10zm8 0h-6V7h6v10z"/>
       </svg>
-      <span>Open in split view</span>
-    </div>
+      <span>{{ t('chatNav.thread.splitView') }}</span>
+    </button>
 
-    <div class="context-menu-divider" v-if="canManageThread"></div>
+    <div v-if="canManageThread" class="chat-menu-divider" role="separator"></div>
 
-    <!-- Close Thread (Archive) -->
-    <div class="context-menu-item" @click="closeThread" v-if="canManageThread && !thread?.archived">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <button v-if="canManageThread && !thread.archived" type="button" role="menuitem" class="chat-menu-item context-menu-item" @click="closeThread">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/>
       </svg>
-      <span>Close thread</span>
-    </div>
+      <span>{{ t('chatNav.thread.close') }}</span>
+    </button>
 
-    <!-- Reopen Thread (if archived) -->
-    <div class="context-menu-item" @click="reopenThread" v-if="canManageThread && thread?.archived">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <button v-if="canManageThread && thread.archived" type="button" role="menuitem" class="chat-menu-item context-menu-item" @click="reopenThread">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 6.5L17.5 12H14v2h-4v-2H6.5L12 6.5zM5.12 5l.81-1h12l.94 1H5.12z"/>
       </svg>
-      <span>Reopen thread</span>
-    </div>
+      <span>{{ t('chatNav.thread.reopen') }}</span>
+    </button>
 
-    <!-- Lock Thread -->
-    <div class="context-menu-item" @click="lockThread" v-if="canManageThread && !thread?.locked">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <button v-if="canManageThread && !thread.locked" type="button" role="menuitem" class="chat-menu-item context-menu-item" @click="lockThread">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
       </svg>
-      <span>Lock thread</span>
-    </div>
+      <span>{{ t('chatNav.thread.lock') }}</span>
+    </button>
 
-    <!-- Unlock Thread -->
-    <div class="context-menu-item" @click="unlockThread" v-if="canManageThread && thread?.locked">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <button v-if="canManageThread && thread.locked" type="button" role="menuitem" class="chat-menu-item context-menu-item" @click="unlockThread">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10z"/>
       </svg>
-      <span>Unlock thread</span>
-    </div>
+      <span>{{ t('chatNav.thread.unlock') }}</span>
+    </button>
 
-    <!-- Delete Thread -->
-    <div class="context-menu-item danger" @click="deleteThread" v-if="canManageThread">
-      <svg width="16" height="16" viewBox="0 0 24 24">
+    <button v-if="canManageThread" type="button" role="menuitem" class="chat-menu-item context-menu-item danger" @click="deleteThread">
+      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
         <path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
       </svg>
-      <span>Delete thread</span>
-    </div>
+      <span>{{ t('chatNav.thread.delete') }}</span>
+    </button>
 
-    <div class="context-menu-divider"></div>
+    <div class="chat-menu-divider" role="separator"></div>
 
-    <!-- Copy Link -->
-    <div class="context-menu-item" @click="copyLink">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <button type="button" role="menuitem" class="chat-menu-item context-menu-item" @click="copyLink">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
       </svg>
-      <span>Copy link</span>
-    </div>
+      <span>{{ t('message.copyLink') }}</span>
+    </button>
 
-    <!-- Copy Thread ID -->
-    <div class="context-menu-item" @click="copyThreadId">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <button type="button" role="menuitem" class="chat-menu-item context-menu-item" @click="copyThreadId">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
       </svg>
-      <span>Copy thread ID</span>
-      <span class="menu-hint">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" opacity="0.5">
-          <path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
-        </svg>
-      </span>
-    </div>
-  </div>
+      <span>{{ t('chatNav.thread.copyId') }}</span>
+    </button>
+  </ChatMenu>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import ChatMenu from '@/components/chat/ChatMenu.vue'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
@@ -111,9 +101,11 @@ interface Props {
   position: { x: number; y: number }
   thread: ThreadWithDetails | null
   serverId?: string
+  /** Element focus returns to on close: the thread row. */
+  trigger?: HTMLElement | null
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), { serverId: undefined, trigger: null })
 
 // Tuple-based defineEmits is the modern Vue 3 syntax and plays better
 // with vue-tsc's `(...args: any[]) => any` listener-prop type than the
@@ -131,167 +123,40 @@ const emit = defineEmits<{
   delete: [thread: ThreadWithDetails]
 }>()
 
+const { t } = useI18n()
 const { canManageChannels } = useServerPermissions()
 
-const menuStyle = computed(() => {
-  const menuWidth = 200
-  const menuHeight = 350
-  const padding = 10
-  
-  let x = props.position.x
-  let y = props.position.y
-  
-  // Adjust if menu would go off right edge
-  if (x + menuWidth > window.innerWidth - padding) {
-    x = window.innerWidth - menuWidth - padding
-  }
-  
-  // Adjust if menu would go off bottom edge
-  if (y + menuHeight > window.innerHeight - padding) {
-    y = window.innerHeight - menuHeight - padding
-  }
-  
-  return {
-    top: y + 'px',
-    left: x + 'px'
-  }
-})
+// Thread membership alone grants no management.
+const canManageThread = computed(() => canManageChannels.value)
 
-const canManageThread = computed(() => {
-  // Can manage threads only if user has MANAGE_CHANNELS permission
-  // Thread membership alone should not grant management capabilities
-  return canManageChannels.value
-})
+const withThread = (fn: (thread: ThreadWithDetails) => void) => () => {
+  if (props.thread) fn(props.thread)
+  emit('close')
+}
 
 const leaveThread = () => {
   emit('leave')
   emit('close')
 }
-
-const editThread = () => {
-  if (props.thread) {
-    emit('edit', props.thread)
-  }
-  emit('close')
-}
-
-const openInSplitView = () => {
-  if (props.thread) {
-    emit('open-split-view', props.thread)
-  }
-  emit('close')
-}
-
-const closeThread = () => {
-  if (props.thread) {
-    emit('close-thread', props.thread)
-  }
-  emit('close')
-}
-
-const reopenThread = () => {
-  if (props.thread) {
-    emit('reopen', props.thread)
-  }
-  emit('close')
-}
-
-const lockThread = () => {
-  if (props.thread) {
-    emit('lock', props.thread)
-  }
-  emit('close')
-}
-
-const unlockThread = () => {
-  if (props.thread) {
-    emit('unlock', props.thread)
-  }
-  emit('close')
-}
-
-const deleteThread = () => {
-  if (props.thread) {
-    emit('delete', props.thread)
-  }
-  emit('close')
-}
+const editThread = withThread((thread) => emit('edit', thread))
+const openInSplitView = withThread((thread) => emit('open-split-view', thread))
+const closeThread = withThread((thread) => emit('close-thread', thread))
+const reopenThread = withThread((thread) => emit('reopen', thread))
+const lockThread = withThread((thread) => emit('lock', thread))
+const unlockThread = withThread((thread) => emit('unlock', thread))
+const deleteThread = withThread((thread) => emit('delete', thread))
 
 const copyLink = async () => {
-  if (props.thread && props.serverId) {
-    const url = `${resolveHarmonyBaseUrl()}/chat/${props.serverId}/thread/${props.thread.id}`
-    await navigator.clipboard.writeText(url)
-  }
+  const thread = props.thread
   emit('close')
+  if (thread && props.serverId) {
+    await navigator.clipboard.writeText(`${resolveHarmonyBaseUrl()}/chat/${props.serverId}/thread/${thread.id}`)
+  }
 }
 
 const copyThreadId = async () => {
-  if (props.thread) {
-    await navigator.clipboard.writeText(props.thread.id)
-  }
+  const thread = props.thread
   emit('close')
+  if (thread) await navigator.clipboard.writeText(thread.id)
 }
-
-const handleClickOutside = (_e: MouseEvent) => {
-  emit('close')
-}
-
-onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
-})
 </script>
-
-<style scoped>
-.context-menu {
-  position: fixed;
-  background: var(--background-floating);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 6px 0;
-  min-width: 188px;
-  box-shadow: var(--shadow-large);
-  z-index: 1000;
-}
-
-.context-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.1s ease;
-}
-
-.context-menu-item:hover {
-  background: var(--background-modifier-hover);
-  color: var(--text-primary);
-}
-
-.context-menu-item.danger {
-  color: var(--text-danger);
-}
-
-.context-menu-item.danger:hover {
-  background: color-mix(in srgb, var(--error) 10%, transparent);
-  color: var(--text-danger);
-}
-
-.context-menu-divider {
-  height: 1px;
-  background: var(--border-color, var(--background-quinary));
-  margin: 4px 8px;
-}
-
-.menu-hint {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-}
-</style>
-

@@ -4093,6 +4093,143 @@
       "failed": "Couldn't leave the server"
     }
   },
+  "chatNav": {
+    "channel": {
+      "text": "text channel",
+      "voice": "voice channel",
+      "unread": "unread",
+      "mentions": "{count} mention | {count} mentions",
+      "muted": "muted",
+      "private": "private",
+      "connected": "{count} connected | {count} connected",
+      "youAreConnected": "you are connected",
+      "joinHint": "Joins the voice call",
+      "openChatHint": "Opens the channel's chat",
+      "previewHint": "Shows who is here, with options to join",
+      "openChat": "Open chat in {name}",
+      "openChatShort": "Open chat",
+      "threadsOf": "Threads in {name}",
+      "thread": "thread",
+      "dropHere": "Drop channels here",
+      "moved": "{name} moved to position {position} of {total}",
+      "moveFailed": "Couldn't move {name}"
+    },
+    "menu": {
+      "editChannel": "Edit channel",
+      "editCategory": "Edit category",
+      "deleteCategory": "Delete category"
+    },
+    "thread": {
+      "leave": "Leave thread",
+      "join": "Join thread",
+      "edit": "Edit thread",
+      "splitView": "Open in split view",
+      "close": "Close thread",
+      "reopen": "Reopen thread",
+      "lock": "Lock thread",
+      "unlock": "Unlock thread",
+      "delete": "Delete thread",
+      "mute": "Mute thread",
+      "unmute": "Unmute thread",
+      "copyId": "Copy thread ID",
+      "closePanel": "Close thread panel",
+      "options": "Thread options",
+      "replies": "{count} reply | {count} replies",
+      "draftHint": "Send a message to start this thread",
+      "loading": "Loading messages…",
+      "loadingOlder": "Loading…",
+      "loadOlder": "Load older messages"
+    },
+    "header": {
+      "pinnedCount": "{count} pinned message | {count} pinned messages",
+      "threads": "View all threads",
+      "threadsShort": "View threads",
+      "more": "More options"
+    },
+    "user": {
+      "mention": "Mention",
+      "message": "Message",
+      "call": "Start a call",
+      "nickname": "Change nickname",
+      "invite": "Invite to server",
+      "mute": "Mute user",
+      "unmute": "Unmute user",
+      "kick": "Kick {name}",
+      "ban": "Ban {name}",
+      "copyId": "Copy user ID",
+      "fallbackName": "User"
+    },
+    "rail": {
+      "folder": "folder",
+      "servers": "{count} server | {count} servers",
+      "unreadMessages": "{count} unread message | {count} unread messages"
+    },
+    "dm": {
+      "startNew": "Start a new DM",
+      "createGroup": "Create group chat",
+      "searchLabel": "Search users",
+      "listLabel": "Conversations",
+      "group": "group, {count} member | group, {count} members",
+      "dismissed": "Conversation with {name} dismissed",
+      "dismissNamed": "Dismiss conversation with {name}",
+      "restored": "Conversation with {name} restored",
+      "restoreFailed": "Couldn't restore the conversation",
+      "joinCallWith": "Join call with {name}"
+    },
+    "members": {
+      "search": "Search members",
+      "clearSearch": "Clear search",
+      "found": "{count} member found | {count} members found",
+      "group": "{title}, {count} member | {title}, {count} members",
+      "discord": "Discord bridge member",
+      "instanceAdmin": "instance admin",
+      "instanceMod": "instance moderator"
+    },
+    "create": {
+      "textHint": "Use lowercase letters, numbers, dashes and underscores; spaces become dashes",
+      "voiceHint": "Choose a name that describes your voice channel",
+      "looksGood": "Looks good",
+      "nameRequired": "Channel name is required",
+      "nameTooLong": "Channel name must be 100 characters or less",
+      "voiceInvalid": "Voice channel name contains invalid characters",
+      "categorySubtitle": "Organize your channels with categories",
+      "categoryName": "Category name",
+      "categoryPlaceholder": "Enter category name…",
+      "categoryHint": "Categories help organize your channels",
+      "categoryGood": "Good choice! This will help organize your channels",
+      "categoryRequired": "Category name is required",
+      "categoryTooShort": "Category name must be at least 2 characters",
+      "categoryTooLong": "Category name must be 100 characters or less",
+      "categoryInvalid": "Category name can only contain letters, numbers, hyphens and underscores"
+    },
+    "pinned": {
+      "count": "{count} message | {count} messages",
+      "none": "No pinned messages",
+      "loading": "Loading pinned messages…",
+      "jump": "Jump to message",
+      "unpin": "Unpin",
+      "by": "Pinned by {name}"
+    },
+    "threadsModal": {
+      "title": "Threads",
+      "search": "Search for thread name",
+      "joined": "{count} joined thread | {count} joined threads",
+      "older": "Older threads",
+      "noMessages": "No messages yet",
+      "startedBy": "Started by",
+      "lastActive": "Last active {time}",
+      "loading": "Loading threads…"
+    },
+    "mediaPicker": {
+      "label": "GIFs, stickers and emoji",
+      "gifs": "GIFs",
+      "stickers": "Stickers",
+      "emoji": "Emoji",
+      "clips": "Clips",
+      "memes": "Memes",
+      "aiEmoji": "AI Emoji"
+    }
+  },
   "embeds": {
     "popOut": "Pop out",
     "open": "Open",

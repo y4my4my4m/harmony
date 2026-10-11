@@ -155,7 +155,7 @@ describe('ChannelContextMenu — Copy channel ID', () => {
   function mountMenu() {
     return mount(ChannelContextMenu, {
       props: { isVisible: true, position: { x: 10, y: 10 }, channel },
-      global: { plugins: [makeI18n()] },
+      global: { plugins: [makeI18n()], stubs: { teleport: true } },
     })
   }
 

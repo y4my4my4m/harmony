@@ -1,8 +1,8 @@
 <template>
   <BaseModal 
     :show="true"
-    title="Create Category"
-    subtitle="Organize your channels with categories"
+    :title="t('category.create')"
+    :subtitle="t('chatNav.create.categorySubtitle')"
     icon="layers"
     compact
     @close="closeCategoryCreator"
@@ -10,8 +10,8 @@
     <form @submit.prevent="handleCreation" class="category-form">
       <ModernInput
         :model-value="categoryName"
-        label="Category Name"
-        placeholder="Enter category name..."
+        :label="t('chatNav.create.categoryName')"
+        :placeholder="t('chatNav.create.categoryPlaceholder')"
         :max-length="100"
         :show-char-count="true"
         :error-message="errorMessage"
@@ -27,12 +27,12 @@
       <div class="modal-actions">
         <UnifiedButton
           variant="ghost"
-          text="Cancel"
+          :text="t('common.cancel')"
           @click="closeCategoryCreator"
         />
         <UnifiedButton
           variant="success"
-          text="Create Category"
+          :text="t('category.create')"
           :disabled="!canCreate"
           :loading="isCreating"
           @click="handleCreation"
@@ -117,31 +117,31 @@ const canCreate = computed(() => {
 
 const hint = computed(() => {
   if (categoryName.value.length === 0) {
-    return 'Categories help organize your channels'
+    return t('chatNav.create.categoryHint')
   }
   if (categoryName.value.length > 0 && categoryName.value.length < 2) {
-    return 'Category name must be at least 2 characters'
+    return t('chatNav.create.categoryTooShort')
   }
-  return 'Good choice! This will help organize your channels'
+  return t('chatNav.create.categoryGood')
 })
 
 const validateCategoryName = (name: string): string => {
   const trimmed = name.trim()
   
   if (!trimmed) {
-    return 'Category name is required'
+    return t('chatNav.create.categoryRequired')
   }
   
   if (trimmed.length < 2) {
-    return 'Category name must be at least 2 characters'
+    return t('chatNav.create.categoryTooShort')
   }
   
   if (trimmed.length > 100) {
-    return 'Category name must be 100 characters or less'
+    return t('chatNav.create.categoryTooLong')
   }
   
   if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
-    return 'Category name can only contain letters, numbers, hyphens, and underscores'
+    return t('chatNav.create.categoryInvalid')
   }
   
   return ''

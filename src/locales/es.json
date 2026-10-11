@@ -4097,6 +4097,143 @@
       "failed": "No se pudo salir del servidor"
     }
   },
+  "chatNav": {
+    "channel": {
+      "text": "canal de texto",
+      "voice": "canal de voz",
+      "unread": "sin leer",
+      "mentions": "{count} mención | {count} menciones",
+      "muted": "silenciado",
+      "private": "privado",
+      "connected": "{count} conectado | {count} conectados",
+      "youAreConnected": "estás conectado",
+      "joinHint": "Se une a la llamada de voz",
+      "openChatHint": "Abre el chat del canal",
+      "previewHint": "Muestra quién está, con opciones para unirse",
+      "openChat": "Abrir el chat de {name}",
+      "openChatShort": "Abrir chat",
+      "threadsOf": "Hilos en {name}",
+      "thread": "hilo",
+      "dropHere": "Suelta los canales aquí",
+      "moved": "{name} movido a la posición {position} de {total}",
+      "moveFailed": "No se pudo mover {name}"
+    },
+    "menu": {
+      "editChannel": "Editar canal",
+      "editCategory": "Editar categoría",
+      "deleteCategory": "Eliminar categoría"
+    },
+    "thread": {
+      "leave": "Salir del hilo",
+      "join": "Unirse al hilo",
+      "edit": "Editar hilo",
+      "splitView": "Abrir en vista dividida",
+      "close": "Cerrar hilo",
+      "reopen": "Reabrir hilo",
+      "lock": "Bloquear hilo",
+      "unlock": "Desbloquear hilo",
+      "delete": "Eliminar hilo",
+      "mute": "Silenciar hilo",
+      "unmute": "Dejar de silenciar hilo",
+      "copyId": "Copiar ID del hilo",
+      "closePanel": "Cerrar el panel del hilo",
+      "options": "Opciones del hilo",
+      "replies": "{count} respuesta | {count} respuestas",
+      "draftHint": "Envía un mensaje para iniciar este hilo",
+      "loading": "Cargando mensajes…",
+      "loadingOlder": "Cargando…",
+      "loadOlder": "Cargar mensajes anteriores"
+    },
+    "header": {
+      "pinnedCount": "{count} mensaje fijado | {count} mensajes fijados",
+      "threads": "Ver todos los hilos",
+      "threadsShort": "Ver hilos",
+      "more": "Más opciones"
+    },
+    "user": {
+      "mention": "Mencionar",
+      "message": "Mensaje",
+      "call": "Iniciar una llamada",
+      "nickname": "Cambiar apodo",
+      "invite": "Invitar al servidor",
+      "mute": "Silenciar usuario",
+      "unmute": "Dejar de silenciar usuario",
+      "kick": "Expulsar a {name}",
+      "ban": "Banear a {name}",
+      "copyId": "Copiar ID de usuario",
+      "fallbackName": "Usuario"
+    },
+    "rail": {
+      "folder": "carpeta",
+      "servers": "{count} servidor | {count} servidores",
+      "unreadMessages": "{count} mensaje sin leer | {count} mensajes sin leer"
+    },
+    "dm": {
+      "startNew": "Nuevo mensaje directo",
+      "createGroup": "Crear chat de grupo",
+      "searchLabel": "Buscar usuarios",
+      "listLabel": "Conversaciones",
+      "group": "grupo, {count} miembro | grupo, {count} miembros",
+      "dismissed": "Conversación con {name} ocultada",
+      "dismissNamed": "Ocultar conversación con {name}",
+      "restored": "Conversación con {name} restaurada",
+      "restoreFailed": "No se pudo restaurar la conversación",
+      "joinCallWith": "Unirse a la llamada con {name}"
+    },
+    "members": {
+      "search": "Buscar miembros",
+      "clearSearch": "Borrar búsqueda",
+      "found": "{count} miembro encontrado | {count} miembros encontrados",
+      "group": "{title}, {count} miembro | {title}, {count} miembros",
+      "discord": "Miembro del puente de Discord",
+      "instanceAdmin": "administrador de la instancia",
+      "instanceMod": "moderador de la instancia"
+    },
+    "create": {
+      "textHint": "Usa minúsculas, números, guiones y guiones bajos; los espacios se convierten en guiones",
+      "voiceHint": "Elige un nombre que describa tu canal de voz",
+      "looksGood": "Se ve bien",
+      "nameRequired": "El nombre del canal es obligatorio",
+      "nameTooLong": "El nombre del canal debe tener 100 caracteres o menos",
+      "voiceInvalid": "El nombre del canal de voz contiene caracteres no válidos",
+      "categorySubtitle": "Organiza tus canales con categorías",
+      "categoryName": "Nombre de la categoría",
+      "categoryPlaceholder": "Escribe el nombre de la categoría…",
+      "categoryHint": "Las categorías ayudan a organizar tus canales",
+      "categoryGood": "¡Buena elección! Esto ayudará a organizar tus canales",
+      "categoryRequired": "El nombre de la categoría es obligatorio",
+      "categoryTooShort": "El nombre de la categoría debe tener al menos 2 caracteres",
+      "categoryTooLong": "El nombre de la categoría debe tener 100 caracteres o menos",
+      "categoryInvalid": "El nombre de la categoría solo puede contener letras, números, guiones y guiones bajos"
+    },
+    "pinned": {
+      "count": "{count} mensaje | {count} mensajes",
+      "none": "No hay mensajes fijados",
+      "loading": "Cargando mensajes fijados…",
+      "jump": "Ir al mensaje",
+      "unpin": "Dejar de fijar",
+      "by": "Fijado por {name}"
+    },
+    "threadsModal": {
+      "title": "Hilos",
+      "search": "Buscar por nombre de hilo",
+      "joined": "{count} hilo unido | {count} hilos unidos",
+      "older": "Hilos anteriores",
+      "noMessages": "Aún no hay mensajes",
+      "startedBy": "Iniciado por",
+      "lastActive": "Última actividad: {time}",
+      "loading": "Cargando hilos…"
+    },
+    "mediaPicker": {
+      "label": "GIF, stickers y emojis",
+      "gifs": "GIF",
+      "stickers": "Stickers",
+      "emoji": "Emojis",
+      "clips": "Clips",
+      "memes": "Memes",
+      "aiEmoji": "Emojis IA"
+    }
+  },
   "embeds": {
     "popOut": "Desacoplar",
     "open": "Abrir",

@@ -39,32 +39,35 @@
 
     <div class="header-actions">
       <button 
+        type="button"
         class="action-btn pinned-btn"
         :class="{ 'has-pins': pinnedCount > 0 }"
         @click="handlePinnedClick"
-        :title="pinnedCount > 0 ? `${pinnedCount} pinned message${pinnedCount !== 1 ? 's' : ''}` : 'Pinned messages'"
-        aria-label="Pinned messages"
+        :title="pinnedCount > 0 ? t('chatNav.header.pinnedCount', { count: pinnedCount }, pinnedCount) : t('message.pinned')"
+        :aria-label="pinnedCount > 0 ? t('chatNav.header.pinnedCount', { count: pinnedCount }, pinnedCount) : t('message.pinned')"
       >
-        <Icon name="pin" :size="16" />
-        <span v-if="pinnedCount > 0" class="pinned-count">{{ pinnedCount }}</span>
+        <Icon name="pin" :size="16" aria-hidden="true" />
+        <span v-if="pinnedCount > 0" class="pinned-count" aria-hidden="true">{{ pinnedCount }}</span>
       </button>
       
       <button 
+        type="button"
         class="action-btn threads-btn"
         @click="handleThreadsClick"
-        title="View all threads"
-        aria-label="View all threads"
+        :title="t('chatNav.header.threads')"
+        :aria-label="t('chatNav.header.threads')"
       >
-        <Icon name="thread" :size="16" />
+        <Icon name="thread" :size="16" aria-hidden="true" />
       </button>
       
       <button 
+        type="button"
         class="action-btn search-btn"
         @click="handleSearchClick"
-        title="Search messages"
-        aria-label="Search messages"
+        :title="t('messageSearch.title')"
+        :aria-label="t('messageSearch.title')"
       >
-        <Icon name="search" :size="16" />
+        <Icon name="search" :size="16" aria-hidden="true" />
       </button>
       
       <button 
@@ -76,103 +79,120 @@
         :aria-label="t('a11y.drawer.memberList')"
         v-bind="rightDrawerToggle"
       >
-        <Icon name="users" :size="16" />
+        <Icon name="users" :size="16" aria-hidden="true" />
       </button>
       
-      <div class="more-menu-wrapper" ref="moreMenuRef">
+      <div class="more-menu-wrapper">
         <button 
+          ref="moreBtnRef"
+          type="button"
           class="action-btn more-btn"
           :class="{ active: showOptionsMenu }"
-          @click="handleMoreClick"
-          title="More options"
-          aria-label="More options"
+          :title="t('chatNav.header.more')"
+          :aria-label="t('chatNav.header.more')"
           aria-haspopup="menu"
           :aria-expanded="showOptionsMenu"
+          :aria-controls="showOptionsMenu ? moreMenu.menuId : undefined"
+          @click="handleMoreClick"
+          @keydown="moreMenu.onTriggerKeydown"
         >
-          <Icon name="dots-vertical" :size="16" />
+          <Icon name="dots-vertical" :size="16" aria-hidden="true" />
         </button>
 
+        <!-- Covers the page, the trigger included, so a click outside closes the
+             menu without reaching anything underneath. -->
         <Teleport to="body">
-          <div v-if="showOptionsMenu" class="more-menu-backdrop" @click="showOptionsMenu = false"></div>
-          <div
-            v-if="showOptionsMenu"
-            class="more-menu"
-            :style="menuPosition"
-            @click.stop
-          >
-            <!-- Mobile: pinned/threads buttons are hidden from the header
-                 and exposed here instead. -->
-            <template v-if="isMobile">
-              <div class="context-menu-item" @click="handleMenuPinned">
-                <Icon name="pin" :size="16" />
-                <span>Pinned messages<template v-if="pinnedCount > 0"> ({{ pinnedCount }})</template></span>
-              </div>
-              <div class="context-menu-item" @click="handleMenuThreads">
-                <Icon name="thread" :size="16" />
-                <span>View threads</span>
-              </div>
-              <div class="context-menu-divider"></div>
-            </template>
+          <div v-if="showOptionsMenu" class="more-menu-backdrop" aria-hidden="true" @click="showOptionsMenu = false"></div>
+        </Teleport>
+        <ChatMenu
+          v-if="showOptionsMenu"
+          :id="moreMenu.menuId"
+          :anchor="moreBtnRef"
+          :label="t('chatNav.header.more')"
+          :initial-focus="moreMenu.initialFocus.value"
+          class="more-menu"
+          @close="showOptionsMenu = false"
+        >
+          <!-- Mobile: pinned/threads buttons are hidden from the header
+               and exposed here instead. -->
+          <template v-if="isMobile">
+            <button type="button" role="menuitem" class="chat-menu-item context-menu-item" @click="handleMenuPinned">
+              <Icon name="pin" :size="16" aria-hidden="true" />
+              <span>{{ t('message.pinned') }}<template v-if="pinnedCount > 0"> ({{ pinnedCount }})</template></span>
+            </button>
+            <button type="button" role="menuitem" class="chat-menu-item context-menu-item" @click="handleMenuThreads">
+              <Icon name="thread" :size="16" aria-hidden="true" />
+              <span>{{ t('chatNav.header.threadsShort') }}</span>
+            </button>
+            <div class="chat-menu-divider" role="separator"></div>
+          </template>
 
-            <div class="context-menu-item" @click="handleMarkAsRead">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M0.41,13.41L6,19L7.41,17.58L1.83,12M22.24,5.58L11.66,16.17L7.5,12L6.07,13.41L11.66,19L23.66,7M18,7L16.59,5.58L10.24,11.93L11.66,13.34L18,7Z"/>
-              </svg>
-              <span>{{ $t('notificationSettings.header.markRead') }}</span>
-            </div>
+          <button type="button" role="menuitem" class="chat-menu-item context-menu-item" @click="handleMarkAsRead">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M0.41,13.41L6,19L7.41,17.58L1.83,12M22.24,5.58L11.66,16.17L7.5,12L6.07,13.41L11.66,19L23.66,7M18,7L16.59,5.58L10.24,11.93L11.66,13.34L18,7Z"/>
+            </svg>
+            <span>{{ $t('notificationSettings.header.markRead') }}</span>
+          </button>
 
-            <div class="context-menu-item" data-testid="channel-mute-toggle" @click="handleToggleMute">
-              <svg v-if="isChannelMuted" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12,4L9.91,6.09L12,8.18M4.27,3L3,4.27L7.73,9H3V15H7L12,20V13.27L16.25,17.53C15.58,18.04 14.83,18.46 14,18.7V20.77C15.38,20.45 16.63,19.82 17.68,18.96L19.73,21L21,19.73L12,10.73M19,12C19,12.94 18.8,13.82 18.46,14.64L19.97,16.15C20.62,14.91 21,13.5 21,12C21,7.72 18,4.14 14,3.23V5.29C16.89,6.15 19,8.83 19,12M16.5,12C16.5,10.23 15.5,8.71 14,7.97V10.18L16.45,12.63C16.5,12.43 16.5,12.21 16.5,12Z"/>
-              </svg>
-              <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z"/>
-              </svg>
-              <span>{{ $t(muteLabelKey) }}</span>
-            </div>
+          <button type="button" role="menuitem" class="chat-menu-item context-menu-item" data-testid="channel-mute-toggle" @click="handleToggleMute">
+            <svg v-if="isChannelMuted" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12,4L9.91,6.09L12,8.18M4.27,3L3,4.27L7.73,9H3V15H7L12,20V13.27L16.25,17.53C15.58,18.04 14.83,18.46 14,18.7V20.77C15.38,20.45 16.63,19.82 17.68,18.96L19.73,21L21,19.73L12,10.73M19,12C19,12.94 18.8,13.82 18.46,14.64L19.97,16.15C20.62,14.91 21,13.5 21,12C21,7.72 18,4.14 14,3.23V5.29C16.89,6.15 19,8.83 19,12M16.5,12C16.5,10.23 15.5,8.71 14,7.97V10.18L16.45,12.63C16.5,12.43 16.5,12.21 16.5,12Z"/>
+            </svg>
+            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z"/>
+            </svg>
+            <span>{{ $t(muteLabelKey) }}</span>
+          </button>
 
-            <div class="context-menu-divider"></div>
-            <div class="context-menu-label">{{ $t('notificationSettings.header.level') }}</div>
-            <div
+          <div class="chat-menu-divider" role="separator"></div>
+          <div role="group" :aria-labelledby="levelLabelId">
+            <div :id="levelLabelId" class="chat-menu-label">{{ $t('notificationSettings.header.level') }}</div>
+            <button
               v-for="option in levelOptions"
               :key="option.value ?? 'default'"
-              class="context-menu-item"
+              type="button"
+              role="menuitemradio"
+              class="chat-menu-item context-menu-item"
               :class="{ 'item-active': channelLevel === option.value }"
+              :aria-checked="channelLevel === option.value"
               :data-testid="`channel-level-${option.value ?? 'default'}`"
               @click="setNotificationLevel(option.value)"
             >
-              <Icon :name="option.icon" :size="16" />
+              <Icon :name="option.icon" :size="16" aria-hidden="true" />
               <span>{{ option.label }}</span>
-              <svg v-if="channelLevel === option.value" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="check-icon">
+              <svg v-if="channelLevel === option.value" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="check-icon" aria-hidden="true">
                 <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
               </svg>
-            </div>
-            <div v-if="serverId" class="context-menu-item" data-testid="channel-open-notification-settings" @click="openServerNotificationSettings">
-              <Icon name="settings" :size="16" />
-              <span>{{ $t('notificationSettings.menuEntry') }}</span>
-            </div>
-
-            <template v-if="canManageChannels || (canManageWebhooks && channel?.type === 0)">
-              <div class="context-menu-divider"></div>
-
-              <div class="context-menu-item" @click="handleEditChannel">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
-                </svg>
-                <span>Edit channel</span>
-              </div>
-            </template>
+            </button>
           </div>
-        </Teleport>
+          <button v-if="serverId" type="button" role="menuitem" class="chat-menu-item context-menu-item" data-testid="channel-open-notification-settings" @click="openServerNotificationSettings">
+            <Icon name="settings" :size="16" aria-hidden="true" />
+            <span>{{ $t('notificationSettings.menuEntry') }}</span>
+          </button>
+
+          <template v-if="canManageChannels || (canManageWebhooks && channel?.type === 0)">
+            <div class="chat-menu-divider" role="separator"></div>
+
+            <button type="button" role="menuitem" class="chat-menu-item context-menu-item" @click="handleEditChannel">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
+              </svg>
+              <span>{{ t('chatNav.menu.editChannel') }}</span>
+            </button>
+          </template>
+        </ChatMenu>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import type { Channel, Server } from '@/types'
 import Icon from '@/components/common/Icon.vue'
+import ChatMenu from '@/components/chat/ChatMenu.vue'
+import { useMenuButton } from '@/composables/useMenu'
+import { uid } from '@/utils/a11y/focus'
 import { usePinsStore, pinScopeKey } from '@/stores/usePins'
 import { useI18n } from 'vue-i18n'
 import { useAppDrawers } from '@/composables/useLayoutState'
@@ -221,8 +241,9 @@ const showMembersList = ref(false)
 const showOptionsMenu = ref(false)
 const pinsStore = usePinsStore()
 const pinnedCount = computed(() => pinsStore.pinnedCount(pinScopeKey(props.channel?.id)))
-const moreMenuRef = ref<HTMLElement | null>(null)
-const menuPosition = ref<Record<string, string>>({})
+const moreBtnRef = ref<HTMLElement | null>(null)
+const moreMenu = useMenuButton(showOptionsMenu)
+const levelLabelId = uid('channel-level')
 
 const { t } = useI18n()
 const { leftDrawerToggle, rightDrawerToggle } = useAppDrawers()
@@ -310,16 +331,6 @@ const handleMembersClick = () => {
 }
 
 const handleMoreClick = () => {
-  if (!showOptionsMenu.value) {
-    const btn = moreMenuRef.value?.querySelector('.more-btn')
-    if (btn) {
-      const rect = btn.getBoundingClientRect()
-      menuPosition.value = {
-        top: `${rect.bottom + 4}px`,
-        right: `${window.innerWidth - rect.right}px`,
-      }
-    }
-  }
   showOptionsMenu.value = !showOptionsMenu.value
 }
 
@@ -379,10 +390,6 @@ const handleToggleMute = () => {
   void notificationSettings.updateOverride(serverId.value, { channelId }, { muted: !ownMuted.value })
 }
 
-const handleKeyDown = (e: KeyboardEvent) => {
-  if (e.key === 'Escape') showOptionsMenu.value = false
-}
-
 watch(() => [props.channel?.id, serverId.value], () => {
   loadPinnedCount()
   loadMuteState()
@@ -392,11 +399,6 @@ watch(() => [props.channel?.id, serverId.value], () => {
 onMounted(() => {
   loadPinnedCount()
   loadMuteState()
-  document.addEventListener('keydown', handleKeyDown)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeyDown)
 })
 </script>
 
@@ -626,55 +628,16 @@ onUnmounted(() => {
   z-index: 999;
 }
 
-.more-menu {
-  position: fixed;
-  background: var(--background-floating);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 6px 0;
-  min-width: 200px;
-  box-shadow: var(--shadow-large);
-  z-index: 1000;
+.chat-menu.more-menu .check-icon {
+  margin-left: auto;
 }
 
-.more-menu .context-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.1s ease;
-  user-select: none;
-}
-
-.more-menu .context-menu-item:hover:not(.disabled) {
-  background-color: var(--harmony-primary);
-  color: var(--text-on-primary);
-}
-
-
-.more-menu .context-menu-divider {
-  height: 1px;
-  background: var(--border-color, var(--background-quinary));
-  margin: 4px 8px;
-}
-
-.more-menu .context-menu-label {
-  padding: 4px 12px 2px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  letter-spacing: 0.02em;
-}
-
-.more-menu .context-menu-item.item-active {
+.chat-menu.more-menu .item-active {
   color: var(--text-link);
 }
 
-.more-menu .context-menu-item .check-icon {
-  margin-left: auto;
+.chat-menu.more-menu .item-active:hover,
+.chat-menu.more-menu .item-active:focus-visible {
+  color: var(--text-on-primary);
 }
 </style>
