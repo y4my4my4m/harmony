@@ -117,7 +117,7 @@ const headingId = computed(() => `today-${props.id}-heading`)
   min-width: 20px;
   padding: 0 6px;
   border-radius: var(--radius-full);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);

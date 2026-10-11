@@ -256,7 +256,7 @@ onMounted(async () => {
   justify-content: center;
   width: 100%;
   height: 100%;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   font-size: 32px;
   font-weight: 700;
   color: var(--text-on-primary);
@@ -327,7 +327,7 @@ onMounted(async () => {
 
 .invite-btn.primary {
   margin-top: 8px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 

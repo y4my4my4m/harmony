@@ -556,7 +556,7 @@ onUnmounted(() => {
 }
 
 .toggle-btn.active {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
@@ -575,7 +575,7 @@ onUnmounted(() => {
 }
 
 .count-pending {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
@@ -607,12 +607,12 @@ onUnmounted(() => {
 }
 
 .request-btn.accept {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .request-btn.accept:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .request-btn.reject {

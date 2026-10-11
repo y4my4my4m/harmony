@@ -2281,7 +2281,7 @@ onMounted(() => {
 }
 
 .primary-action-btn {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
@@ -2290,7 +2290,7 @@ onMounted(() => {
 }
 
 .primary-action-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .primary-action-btn.following:hover {
@@ -2392,7 +2392,7 @@ onMounted(() => {
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   display: flex;
   align-items: center;
   justify-content: center;

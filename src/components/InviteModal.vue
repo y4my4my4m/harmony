@@ -324,7 +324,7 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   overflow: hidden;
   border-radius: var(--radius-lg);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
@@ -402,7 +402,7 @@ onBeforeUnmount(() => {
   padding: 0 var(--space-4);
   border: none;
   border-radius: var(--radius-md);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font: inherit;
   font-size: var(--font-size-sm);
@@ -419,7 +419,7 @@ onBeforeUnmount(() => {
 
 .copy-btn:hover:not(:disabled),
 .primary-btn:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .copy-btn.copied {

@@ -195,13 +195,13 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 /* Variant styles */
 .btn-primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary, #ffffff);
   border-color: transparent;
 }
 
 .btn-primary:hover:not(.btn-disabled):not(.btn-loading) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .btn-secondary {
@@ -226,13 +226,13 @@ const handleKeydown = (event: KeyboardEvent) => {
 }
 
 .btn-danger {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary, #ffffff);
   border-color: transparent;
 }
 
 .btn-danger:hover:not(.btn-disabled):not(.btn-loading) {
-  background: var(--error-hover);
+  background: var(--error-fill-hover);
 }
 
 .btn-warning {
@@ -279,7 +279,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 }
 
 .btn-outline.btn-primary:hover:not(.btn-disabled):not(.btn-loading) {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary, #ffffff);
 }
 
@@ -301,7 +301,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 }
 
 .btn-outline.btn-danger:hover:not(.btn-disabled):not(.btn-loading) {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary, #ffffff);
 }
 
@@ -414,7 +414,7 @@ const handleKeydown = (event: KeyboardEvent) => {
   position: absolute;
   top: -4px;
   right: -4px;
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary, #ffffff);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);

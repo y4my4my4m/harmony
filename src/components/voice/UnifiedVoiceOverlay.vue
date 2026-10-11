@@ -1159,7 +1159,7 @@ onUnmounted(() => {
 .channel-icon {
   width: 36px;
   height: 36px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1270,13 +1270,13 @@ onUnmounted(() => {
 }
 
 .layout-btn.active {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border-color: var(--harmony-primary);
 }
 
 .layout-btn.active:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .spatial-btn.spatial-enabled {
@@ -1290,7 +1290,7 @@ onUnmounted(() => {
 }
 
 .close-btn:hover {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   border-color: var(--error);
 }
@@ -1457,14 +1457,14 @@ onUnmounted(() => {
 }
 
 .control-button.muted {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   border-color: var(--error);
 }
 
 /* Active screenshare: red like Discord's stop-streaming affordance */
 .control-button.streaming {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   border-color: var(--error);
 }

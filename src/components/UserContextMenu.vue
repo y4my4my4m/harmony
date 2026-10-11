@@ -455,7 +455,7 @@ watch(
 
 .menu-item:hover,
 .menu-item:focus-visible {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   outline: none;
 }
@@ -508,7 +508,7 @@ watch(
 
 .menu-item.destructive:hover,
 .menu-item.destructive:focus-visible {
-  background-color: var(--error);
+  background-color: var(--error-fill);
   color: var(--text-on-primary);
 }
 

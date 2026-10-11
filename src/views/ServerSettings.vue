@@ -826,12 +826,12 @@ watch(hasChanges, (newValue) => {
 }
 
 .btn-primary {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary, #ffffff);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--harmony-primary-hover);
+  background-color: var(--harmony-primary-fill-hover);
 }
 
 .btn-secondary {

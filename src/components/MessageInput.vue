@@ -1583,7 +1583,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
   /* Send button; rendered on mobile only. */
   .send-button {
-    background-color: var(--harmony-primary) !important;
+    background-color: var(--harmony-primary-fill) !important;
     border-radius: 50% !important;
     width: 40px !important;
     height: 40px !important;
@@ -1593,7 +1593,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
   }
 
   .send-button:hover {
-    background-color: var(--harmony-primary-hover) !important;
+    background-color: var(--harmony-primary-fill-hover) !important;
   }
 
   .send-button:active {

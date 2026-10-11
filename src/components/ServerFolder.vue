@@ -207,7 +207,7 @@ const onIconError = (event: Event) => {
   position: absolute;
   top: -6px;
   right: -6px;
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   font-size: 10px;
   font-weight: bold;

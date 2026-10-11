@@ -347,7 +347,7 @@ onMounted(async () => {
 }
 
 .current-theme-card {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-radius: var(--radius-lg);
   padding: 24px;
   display: flex;

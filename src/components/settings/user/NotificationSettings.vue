@@ -1295,7 +1295,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border: none;
   border-radius: var(--radius-md);
@@ -1306,7 +1306,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 }
 
 .test-haptic-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .setting-item {
@@ -1435,7 +1435,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 }
 
 .permission-btn {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: none;
   border-radius: var(--radius-base);
   padding: 8px 16px;
@@ -1450,7 +1450,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 }
 
 .permission-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .permission-btn:disabled {
@@ -1629,7 +1629,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 }
 
 .test-all-btn, .reset-btn {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: none;
   border-radius: var(--radius-md);
   padding: 12px 24px;
@@ -1758,7 +1758,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
   gap: 8px;
   padding: 8px 16px;
   margin-top: 4px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border: none;
   border-radius: var(--radius-md);
@@ -1770,7 +1770,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 }
 
 .push-error-with-retry .retry-btn:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .push-error-with-retry .retry-btn:disabled {

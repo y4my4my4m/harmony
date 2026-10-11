@@ -1618,13 +1618,13 @@ onBeforeUnmount(() => {
   font-size: 13px;
   font-weight: var(--font-weight-medium);
   cursor: pointer;
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   border: none;
 }
 
 .confirm-delete-btn:hover {
-  background: var(--error-hover);
+  background: var(--error-fill-hover);
 }
 
 .custom-color-section {
@@ -2380,12 +2380,12 @@ onBeforeUnmount(() => {
 }
 
 .btn-primary {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--harmony-primary-hover);
+  background-color: var(--harmony-primary-fill-hover);
 }
 
 .btn-secondary {
@@ -2548,7 +2548,7 @@ onBeforeUnmount(() => {
 
 .save-theme-btn {
   padding: 10px 20px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border: none;
   border-radius: var(--radius-base);
@@ -2558,7 +2558,7 @@ onBeforeUnmount(() => {
 }
 
 .save-theme-btn:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .save-theme-btn:disabled {
@@ -2598,7 +2598,7 @@ onBeforeUnmount(() => {
   height: 20px;
   padding: 0 6px;
   border-radius: var(--radius-full);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: 11px;
   font-weight: var(--font-weight-bold);
@@ -2637,7 +2637,7 @@ onBeforeUnmount(() => {
 }
 
 .reset-all-btn:hover {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
 }
 

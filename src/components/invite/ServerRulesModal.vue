@@ -177,12 +177,12 @@ function agree() {
 }
 
 .rules-btn.primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .rules-btn.primary:hover:not([aria-disabled='true']) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .rules-btn.primary[aria-disabled='true'] {

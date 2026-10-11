@@ -999,12 +999,12 @@ input:checked + .toggle-slider:before {
 }
 
 .btn-danger {
-  background-color: var(--error);
+  background-color: var(--error-fill);
   color: var(--text-on-primary);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background-color: var(--error-hover);
+  background-color: var(--error-fill-hover);
 }
 
 .emoji-grid {

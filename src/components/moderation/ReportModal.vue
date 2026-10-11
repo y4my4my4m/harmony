@@ -493,13 +493,13 @@ textarea:focus {
 }
 
 .btn-submit {
-  background: var(--error);
+  background: var(--error-fill);
   border: none;
   color: var(--text-on-primary);
 }
 
 .btn-submit:hover:not(:disabled) {
-  background: var(--error-hover);
+  background: var(--error-fill-hover);
 }
 
 .btn-submit:disabled {
@@ -559,13 +559,13 @@ textarea:focus {
   font-weight: 600;
   cursor: pointer;
   font-size: 14px;
-  background: var(--error);
+  background: var(--error-fill);
   border: none;
   color: var(--text-on-primary);
 }
 
 .btn-hide:hover {
-  background: var(--error-hover);
+  background: var(--error-fill-hover);
 }
 
 .hide-hint {
@@ -574,12 +574,12 @@ textarea:focus {
 }
 
 .btn-done {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: none;
   color: var(--text-on-primary);
 }
 
 .btn-done:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 </style>

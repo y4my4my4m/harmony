@@ -1478,7 +1478,7 @@ watch(() => props.replyToPost, (replyPost) => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1.25rem;
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   border: none;
   border-radius: var(--radius-full);
   color: var(--text-on-primary);
@@ -1488,7 +1488,7 @@ watch(() => props.replyToPost, (replyPost) => {
 }
 
 .post-button:hover:not(:disabled) {
-  background-color: var(--harmony-primary-hover);
+  background-color: var(--harmony-primary-fill-hover);
 }
 
 .post-button:disabled {

@@ -713,7 +713,13 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.style.setProperty('--h-primary-dark', palette.primaryDark)
   root.style.setProperty('--h-brand', palette.primary)
   // Contrast-picked; presets take the #fff in design-system.css.
-  root.style.setProperty('--text-on-primary', readableTextOn(palette.primary))
+  const onPrimary = readableTextOn(palette.primary)
+  root.style.setProperty('--text-on-primary', onPrimary)
+  // Fill under that label: a white label darkens the fill until it reaches 4.5:1; a dark label
+  // already passes on the primary itself.
+  const primaryFill = onPrimary === '#ffffff' ? ensureContrast(palette.primary, '#ffffff', 4.5) : palette.primary
+  root.style.setProperty('--harmony-primary-fill', primaryFill)
+  root.style.setProperty('--harmony-primary-fill-hover', adjustLightness(primaryFill, -8))
 
   // Secondary / accent brand colors
   root.style.setProperty('--harmony-secondary', palette.secondary)

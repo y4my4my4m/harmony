@@ -1145,7 +1145,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 9px 14px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border: none;
   border-radius: var(--radius-base);
@@ -1156,7 +1156,7 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.create-role-btn:hover { background: var(--harmony-primary-hover); }
+.create-role-btn:hover { background: var(--harmony-primary-fill-hover); }
 
 .role-layout {
   display: grid;
@@ -1783,7 +1783,7 @@ onMounted(() => {
 .cancel-btn[aria-disabled='true'] { opacity: 0.4; cursor: not-allowed; }
 
 .save-btn {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border: none;
   padding: 9px 18px;
@@ -1794,7 +1794,7 @@ onMounted(() => {
   transition: background-color var(--transition-fast);
 }
 
-.save-btn:hover:not([aria-disabled='true']) { background: var(--harmony-primary-hover); }
+.save-btn:hover:not([aria-disabled='true']) { background: var(--harmony-primary-fill-hover); }
 .save-btn[aria-disabled='true'] { opacity: 0.5; cursor: not-allowed; }
 
 /* ===== Misc ===== */

@@ -478,12 +478,12 @@ const formatDate = (dateString: string | undefined): string => {
 }
 
 .btn-danger {
-  background-color: var(--error);
+  background-color: var(--error-fill);
   color: var(--text-on-primary);
 }
 
 .btn-danger:hover:not(:disabled):not([aria-disabled="true"]) {
-  background-color: var(--error-hover);
+  background-color: var(--error-fill-hover);
 }
 
 .btn-secondary {

@@ -95,7 +95,7 @@ function go() {
   padding: 6px 14px;
   border-radius: var(--radius-full);
   border: none;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);

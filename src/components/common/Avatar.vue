@@ -434,7 +434,7 @@ onUnmounted(() => {
   height: 24px;
   border-radius: 50%;
   border: none;
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   cursor: pointer;
   display: flex;
@@ -445,7 +445,7 @@ onUnmounted(() => {
 }
 
 .avatar-edit-btn:hover:not(:disabled) {
-  background-color: var(--harmony-primary-hover);
+  background-color: var(--harmony-primary-fill-hover);
 }
 
 .avatar-edit-btn:disabled {

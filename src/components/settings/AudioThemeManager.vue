@@ -501,7 +501,7 @@ watch(() => themeStore.currentAudioTheme, (id) => {
 .header-icon {
   width: 48px;
   height: 48px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
@@ -825,7 +825,7 @@ watch(() => themeStore.currentAudioTheme, (id) => {
   top: 12px;
   right: 12px;
   color: var(--text-on-primary);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-radius: 50%;
   width: 24px;
   height: 24px;
@@ -983,7 +983,7 @@ watch(() => themeStore.currentAudioTheme, (id) => {
 }
 
 .preset-btn.active {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-color: var(--harmony-primary);
   color: var(--text-on-primary);
 }

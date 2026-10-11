@@ -700,7 +700,7 @@ input:checked + .toggle-slider:before {
 
 .btn-confirm-danger {
   padding: 10px 20px;
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   border: none;
   border-radius: var(--radius-md);
@@ -710,7 +710,7 @@ input:checked + .toggle-slider:before {
 }
 
 .btn-confirm-danger:hover {
-  background: var(--error-hover);
+  background: var(--error-fill-hover);
 }
 
 .warning-card {

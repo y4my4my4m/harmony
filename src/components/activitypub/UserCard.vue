@@ -453,7 +453,7 @@ const handleReport = () => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: var(--h-brand, var(--harmony-primary));
+  background: var(--harmony-primary-fill);
   border: none;
   border-radius: var(--radius-base);
   color: var(--text-on-primary);
@@ -466,7 +466,7 @@ const handleReport = () => {
 }
 
 .follow-btn:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .follow-btn.following {

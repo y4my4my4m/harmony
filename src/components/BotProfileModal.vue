@@ -562,7 +562,7 @@ async function goToSupportServer() {
   flex-shrink: 0;
   padding: 2px 6px;
   border-radius: 4px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary, #ffffff);
   font-size: 11px;
   font-weight: 700;
@@ -836,12 +836,12 @@ a.link-row:hover {
 }
 
 .primary-action-btn {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .primary-action-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .secondary-action-btn {

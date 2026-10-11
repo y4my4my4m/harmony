@@ -1002,7 +1002,7 @@ const cancelAndClose = () => {
 }
 
 .tp-btn-primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary, #fff);
 }
 
@@ -1029,7 +1029,7 @@ const cancelAndClose = () => {
   height: 18px;
   padding: 0 5px;
   border-radius: 9px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary, #fff);
   font-size: 10px;
   font-weight: 700;

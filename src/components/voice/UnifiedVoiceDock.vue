@@ -1650,7 +1650,7 @@ onUnmounted(() => {
 }
 
 .control-btn.muted {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   border-color: var(--error);
 }
@@ -1766,7 +1766,7 @@ onUnmounted(() => {
 }
 
 .leave-btn:hover {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   border-color: var(--error);
 }
@@ -1966,7 +1966,7 @@ onUnmounted(() => {
 }
 
 .mini-control-btn.muted {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   border-color: var(--error);
 }
@@ -1984,13 +1984,13 @@ onUnmounted(() => {
 }
 
 .mini-control-btn.leave {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   border-color: var(--error);
 }
 
 .mini-control-btn.leave:hover {
-  background: var(--error-hover);
+  background: var(--error-fill-hover);
   border-color: var(--error-hover);
 }
 

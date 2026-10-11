@@ -109,7 +109,7 @@ const emit = defineEmits<{ action: [] }>()
   padding: 0 var(--space-4);
   border: none;
   border-radius: var(--radius-md);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font: inherit;
   font-size: var(--font-size-sm);
@@ -120,7 +120,7 @@ const emit = defineEmits<{ action: [] }>()
 
 .list-empty__button:hover,
 .list-empty__actions :slotted(.list-empty__button:hover) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .list-empty__actions :slotted(.list-empty__button--secondary) {

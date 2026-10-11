@@ -226,13 +226,13 @@ onUnmounted(() => {
 }
 
 .send-btn {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: #fff;
   box-shadow: 0 2px 8px color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
 .send-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .waveform-area {

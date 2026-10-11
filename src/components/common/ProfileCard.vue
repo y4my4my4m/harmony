@@ -825,14 +825,14 @@ const closeActionsMenu = () => {
 }
 
 .follow-btn {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-color: var(--harmony-primary);
   color: var(--text-on-primary);
 }
 
 /* Keep primary follow styling when pixel-art skin flattens .action-btn */
 .profile-card.compact .action-btn.follow-btn {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-color: var(--harmony-primary);
   color: var(--text-on-primary);
 }
@@ -844,7 +844,7 @@ const closeActionsMenu = () => {
 }
 
 .follow-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
   border-color: var(--harmony-primary-hover);
   color: var(--text-on-primary);
 }

@@ -306,12 +306,12 @@ onMounted(() => {
 }
 
 .primary-btn {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .primary-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .secondary-btn {
@@ -405,13 +405,13 @@ onMounted(() => {
 }
 
 .auth-btn.primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border: none;
 }
 
 .auth-btn.primary:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .auth-btn.secondary {

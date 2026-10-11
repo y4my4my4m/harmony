@@ -112,7 +112,7 @@ const goBack = () => {
 
 .btn-logout {
   padding: 14px 32px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: none;
   border-radius: var(--radius-lg);
   font-size: 1rem;
@@ -123,7 +123,7 @@ const goBack = () => {
 }
 
 .btn-logout:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .btn-cancel {

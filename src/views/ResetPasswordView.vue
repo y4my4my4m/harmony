@@ -889,7 +889,7 @@ const toggleRecoveryCode = async () => {
 .submit-btn {
   width: 100%;
   padding: 14px 24px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: none;
   border-radius: var(--radius-md);
   color: var(--text-on-primary);
@@ -901,7 +901,7 @@ const toggleRecoveryCode = async () => {
 }
 
 .submit-btn:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .submit-btn:disabled {

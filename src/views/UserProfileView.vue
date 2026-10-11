@@ -1401,7 +1401,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: none;
   border-radius: var(--radius-md);
   color: var(--text-on-primary);
@@ -1412,7 +1412,7 @@ onUnmounted(() => {
 }
 
 .back-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .profile-content {
@@ -1480,7 +1480,7 @@ onUnmounted(() => {
   width: 20px;
   height: 20px;
   border-radius: var(--radius-full);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: 2px solid var(--background-primary);
   display: flex;
   align-items: center;
@@ -1533,12 +1533,12 @@ onUnmounted(() => {
 
 .follow-btn {
   border: 1px solid var(--harmony-primary);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .follow-btn:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
   border-color: var(--harmony-primary-hover);
 }
 
@@ -1878,7 +1878,7 @@ onUnmounted(() => {
 }
 
 .unblock-btn:hover {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 

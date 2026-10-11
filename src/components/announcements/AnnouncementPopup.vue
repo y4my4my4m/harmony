@@ -213,7 +213,7 @@ onMounted(async () => {
 }
 
 .unread-badge {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   padding: 2px 8px;
   border-radius: var(--radius-full);
@@ -277,7 +277,7 @@ onMounted(async () => {
 }
 
 .pin-badge {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   padding: 2px 8px;
   border-radius: var(--radius-sm);
@@ -341,7 +341,7 @@ onMounted(async () => {
 }
 
 .mark-all-btn {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border: none;
   padding: 8px 20px;
@@ -351,7 +351,7 @@ onMounted(async () => {
 }
 
 .mark-all-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .view-past-btn {

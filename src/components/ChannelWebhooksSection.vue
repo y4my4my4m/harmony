@@ -446,12 +446,12 @@ watch(() => props.channelId, () => {
 }
 
 .wh-btn-primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .wh-btn-primary:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .wh-btn:disabled,

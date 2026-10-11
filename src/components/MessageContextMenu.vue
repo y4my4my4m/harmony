@@ -722,7 +722,7 @@ const copyRawData = async () => {
 
 .context-menu-item:hover,
 .context-menu-item:focus {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   outline: none;
 }
@@ -741,7 +741,7 @@ const copyRawData = async () => {
 
 .context-menu-item.destructive-item:hover,
 .context-menu-item.destructive-item:focus {
-  background-color: var(--error);
+  background-color: var(--error-fill);
   color: var(--text-on-primary);
 }
 </style>

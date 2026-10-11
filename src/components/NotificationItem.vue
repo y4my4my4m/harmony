@@ -430,7 +430,7 @@ async function respondToFollow(accept: boolean) {
 
 .quick-btn.primary {
   border-color: transparent;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary, #fff);
 }
 

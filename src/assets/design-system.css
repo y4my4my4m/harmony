@@ -7,6 +7,10 @@
   --harmony-primary: #0EA5E9;
   --harmony-primary-hover: #0284C7;
   --harmony-primary-light: rgba(14, 165, 233, 0.1);
+  /* Fills under white text (buttons, badges, pills): 4.5:1 or better against #fff.
+     #0369A1 5.9:1; the brand #0EA5E9 is 2.77:1 and stays for accents, rings and outlines. */
+  --harmony-primary-fill: #0369A1;
+  --harmony-primary-fill-hover: #075985;
   --harmony-secondary: #38BDF8;
   --harmony-accent: #ff7675;
   
@@ -22,6 +26,9 @@
   --warning: #fee75c;
   --error: #ed4245;
   --error-hover: #c73232;
+  /* #d83c3e 4.53:1 against #fff; --error #ed4245 is 3.84:1. */
+  --error-fill: #d83c3e;
+  --error-fill-hover: #b3292b;
   --info: #5bc0de;
   
   /* Background Colors */
@@ -729,12 +736,12 @@ strong {
 
 /* Button Variants */
 .btn-primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary, #ffffff);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .btn-secondary {
@@ -758,12 +765,12 @@ strong {
 }
 
 .btn-danger {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary, #ffffff);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: var(--error-hover);
+  background: var(--error-fill-hover);
 }
 
 .btn-ghost {

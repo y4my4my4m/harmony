@@ -1057,7 +1057,7 @@ onUnmounted(() => {
 }
 
 .conversation-dismiss:hover {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
 }
 
@@ -1167,7 +1167,7 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: var(--h-brand, var(--harmony-primary));
+  background: var(--harmony-primary-fill);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1251,7 +1251,7 @@ onUnmounted(() => {
 }
 
 .unread-count {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   font-size: 10px;
   font-weight: 600;

@@ -602,7 +602,7 @@ const formatFileSize = (bytes: number): string => {
 }
 
 .mention:hover {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
@@ -678,7 +678,7 @@ const formatFileSize = (bytes: number): string => {
 
 .content-html :deep(.hashtag:hover),
 :deep(.hashtag:hover) {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 

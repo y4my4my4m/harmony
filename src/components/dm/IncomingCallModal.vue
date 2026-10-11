@@ -386,7 +386,7 @@ const handleDecline = () => {
   right: -5px;
   width: 48px;
   height: 48px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: 4px solid var(--background-primary);
   border-radius: 50%;
   display: flex;

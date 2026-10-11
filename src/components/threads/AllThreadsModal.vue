@@ -396,7 +396,7 @@ onMounted(() => {
   padding: 6px 12px;
   border: none;
   border-radius: 4px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-weight: 600;
   white-space: nowrap;
@@ -454,7 +454,7 @@ onMounted(() => {
 }
 
 .new-thread-submit {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-weight: 600;
 }

@@ -737,13 +737,13 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border: none;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .btn-primary:disabled {
@@ -820,7 +820,7 @@ onMounted(() => {
 }
 
 .error-banner {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
 }
 

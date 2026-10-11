@@ -78,7 +78,7 @@ const emit = defineEmits<{ close: [reason: MenuCloseReason] }>()
 
 .chat-menu-item:hover:not([disabled]),
 .chat-menu-item:focus-visible {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   outline: none;
 }
@@ -94,7 +94,7 @@ const emit = defineEmits<{ close: [reason: MenuCloseReason] }>()
 
 .chat-menu-item.danger:hover:not([disabled]),
 .chat-menu-item.danger:focus-visible {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
 }
 

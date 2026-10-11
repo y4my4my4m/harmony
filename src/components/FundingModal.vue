@@ -543,13 +543,13 @@ onBeforeUnmount(() => {
 }
 
 .funding-link--primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-color: var(--harmony-primary);
   color: var(--text-on-primary);
 }
 
 .funding-link--primary:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
   border-color: var(--harmony-primary-hover);
 }
 

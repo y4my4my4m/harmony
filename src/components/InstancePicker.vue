@@ -199,7 +199,7 @@ function cancel() {
   padding: 0.7rem;
   border-radius: 8px;
   border: none;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: 1rem;
   font-weight: 600;

@@ -550,7 +550,7 @@ onMounted(() => {
   position: absolute;
   top: -4px;
   right: -4px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: 10px;
   font-weight: 600;

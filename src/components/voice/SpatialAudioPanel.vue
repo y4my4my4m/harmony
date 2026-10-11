@@ -908,7 +908,7 @@ onUnmounted(() => {
 .panel-icon {
   width: 40px;
   height: 40px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -958,7 +958,7 @@ onUnmounted(() => {
 }
 
 .control-btn.active {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border-color: var(--harmony-primary);
 }
@@ -969,7 +969,7 @@ onUnmounted(() => {
 }
 
 .close-btn:hover {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   border-color: var(--error);
 }
@@ -1204,7 +1204,7 @@ onUnmounted(() => {
   position: absolute;
   top: -8px;
   right: -8px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   padding: 2px 4px;
   border-radius: var(--radius-md);

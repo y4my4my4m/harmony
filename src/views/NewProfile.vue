@@ -608,7 +608,7 @@ async function finishSetup(userId: string, created: unknown) {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary, #fff);
   display: flex;
   align-items: center;

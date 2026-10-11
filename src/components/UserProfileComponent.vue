@@ -596,12 +596,12 @@ onBeforeUnmount(() => {
 }
 
 .icon-button.muted {
-  background-color: var(--error);
+  background-color: var(--error-fill);
   color: var(--text-on-primary);
 }
 
 .icon-button.muted:hover {
-  background-color: var(--error-hover);
+  background-color: var(--error-fill-hover);
 }
 
 .icon-button.voice-active {
@@ -746,7 +746,7 @@ onBeforeUnmount(() => {
 }
 
 .status-option.active {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
@@ -797,7 +797,7 @@ onBeforeUnmount(() => {
   height: 18px;
   padding: 0 5px;
   border-radius: 9px;
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   font-size: 11px;
   font-weight: 700;

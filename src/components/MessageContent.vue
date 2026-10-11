@@ -232,7 +232,7 @@ export default defineComponent({
   font-weight:500;
 }
 .mention:hover {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 .file-container {

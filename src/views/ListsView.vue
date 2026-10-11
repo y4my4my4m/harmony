@@ -354,7 +354,7 @@ onMounted(async () => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.625rem 1rem;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border: none;
   border-radius: 0.5rem;
@@ -364,7 +364,7 @@ onMounted(async () => {
 }
 
 .create-list-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .create-list-btn .icon {
@@ -591,13 +591,13 @@ onMounted(async () => {
 }
 
 .btn-submit {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: none;
   color: var(--text-on-primary);
 }
 
 .btn-submit:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .btn-submit:disabled {

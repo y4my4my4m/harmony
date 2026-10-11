@@ -1159,7 +1159,7 @@ const formatNumber = (num: number | undefined) => {
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: none;
   border-radius: var(--radius-base);
   color: var(--text-on-primary);
@@ -1190,7 +1190,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 .primary-btn:hover, .primary-btn-sm:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 
@@ -1580,7 +1580,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 .tab-btn.active {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 

@@ -211,12 +211,12 @@ onUnmounted(() => {
 }
 
 .banner-btn.primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .banner-btn.primary:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .banner-btn.secondary {

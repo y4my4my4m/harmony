@@ -639,7 +639,7 @@ onMounted(async () => {
 }
 
 .filter-btn.active {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-color: var(--harmony-primary);
   color: var(--text-on-primary);
 }
@@ -664,7 +664,7 @@ onMounted(async () => {
 
 /* Reports & Moderation */
 .reports-badge {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   font-size: 11px;
   font-weight: 700;

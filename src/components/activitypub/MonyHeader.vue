@@ -343,7 +343,7 @@ const handleTabKeydown = (event: KeyboardEvent) => {
   padding: 0 var(--space-4) 0 var(--space-3);
   border: none;
   border-radius: var(--radius-full);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
@@ -353,7 +353,7 @@ const handleTabKeydown = (event: KeyboardEvent) => {
 }
 
 .new-post-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .new-post-btn.icon-only {

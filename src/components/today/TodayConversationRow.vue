@@ -108,7 +108,7 @@ const linkLabel = computed(() =>
   min-width: 20px;
   padding: 0 6px;
   border-radius: var(--radius-full);
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);

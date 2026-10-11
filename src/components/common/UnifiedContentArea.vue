@@ -445,7 +445,7 @@ const getSpecialViewEmptyMessage = (viewType: any) => {
   padding: var(--space-2) var(--space-4);
   border: none;
   border-radius: var(--radius-full);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
@@ -454,7 +454,7 @@ const getSpecialViewEmptyMessage = (viewType: any) => {
 }
 
 .new-posts-pill:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .new-posts-pill:focus-visible {

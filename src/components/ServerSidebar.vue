@@ -636,7 +636,7 @@ const closeFolderModal = () => {
   position: absolute;
   top: -8px;
   right: -8px;
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   font-size: 10px;
   font-weight: bold;

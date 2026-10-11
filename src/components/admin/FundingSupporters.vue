@@ -1316,7 +1316,7 @@ onMounted(() => {
 
 .save-btn {
   padding: 8px 16px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: none;
   border-radius: var(--radius-base);
   color: var(--text-on-primary);
@@ -1336,7 +1336,7 @@ onMounted(() => {
 
 
 .save-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 
@@ -1665,7 +1665,7 @@ onMounted(() => {
   font-size: 11px;
   padding: 2px 8px;
   border-radius: var(--radius-full);
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   text-transform: none;
   letter-spacing: 0;

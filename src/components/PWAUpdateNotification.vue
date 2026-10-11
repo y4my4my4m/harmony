@@ -217,12 +217,12 @@ onUnmounted(() => {
 }
 
 .update-btn.primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .update-btn.primary:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .update-btn.primary:disabled {

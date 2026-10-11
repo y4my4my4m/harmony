@@ -250,7 +250,7 @@ watch(() => props.inviteCode, () => {
   width: 56px;
   height: 56px;
   border-radius: var(--radius-xl);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -222,12 +222,12 @@
 }
 
 .sec-btn-primary {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .sec-btn-primary:hover:not(:disabled) {
-  background-color: var(--harmony-primary-hover);
+  background-color: var(--harmony-primary-fill-hover);
 }
 
 .sec-btn-secondary {
@@ -242,12 +242,12 @@
 }
 
 .sec-btn-danger {
-  background-color: var(--error);
+  background-color: var(--error-fill);
   color: var(--text-on-primary);
 }
 
 .sec-btn-danger:hover:not(:disabled) {
-  background-color: var(--error-hover);
+  background-color: var(--error-fill-hover);
 }
 
 .sec-icon-btn {
@@ -325,7 +325,7 @@
 
 .sec-stepper li.active::before,
 .sec-stepper li.done::before {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 

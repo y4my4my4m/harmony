@@ -130,7 +130,7 @@ const onFileSelect = (event: Event) => {
 
 .menu-item:hover,
 .menu-item:focus {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   outline: none;
 }

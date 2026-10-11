@@ -1375,7 +1375,7 @@ watch(
 }
 
 .emoji-ctx-item:hover {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 

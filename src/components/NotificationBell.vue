@@ -711,7 +711,7 @@ onBeforeUnmount(() => {
   min-width: 18px;
   padding: 0 5px;
   border-radius: var(--radius-full);
-  background: var(--error);
+  background: var(--error-fill);
   color: #fff;
   font-size: 11px;
   font-weight: var(--font-weight-bold);

@@ -1797,7 +1797,7 @@ a.channel-mention {
 }
 
 .mention:hover {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
@@ -1828,7 +1828,7 @@ a.channel-mention {
 }
 
 .hashtag:hover {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 

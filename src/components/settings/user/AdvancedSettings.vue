@@ -792,12 +792,12 @@ const clearCache = async () => {
 }
 
 .btn-danger {
-  background-color: var(--error);
+  background-color: var(--error-fill);
   color: var(--text-on-primary);
 }
 
 .btn-danger:hover {
-  background-color: var(--error-hover);
+  background-color: var(--error-fill-hover);
 }
 
 .modal-overlay {

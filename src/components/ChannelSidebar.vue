@@ -2002,7 +2002,7 @@ onUnmounted(() => {
 .notification-badge {
   min-width: 18px;
   height: 18px;
-  background-color: var(--error);
+  background-color: var(--error-fill);
   border-radius: var(--radius-full);
   margin-left: auto;
   margin-right: 8px;

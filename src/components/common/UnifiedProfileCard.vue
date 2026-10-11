@@ -720,19 +720,19 @@ const vClickOutside = {
 }
 
 .follow-btn.following:hover {
-  background: var(--error);
+  background: var(--error-fill);
   border-color: var(--error);
   color: var(--text-on-primary);
 }
 
 .message-btn {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-color: var(--harmony-primary);
   color: var(--text-on-primary);
 }
 
 .message-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
   border-color: var(--harmony-primary-hover);
   color: var(--text-on-primary);
 }

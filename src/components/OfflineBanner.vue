@@ -50,7 +50,7 @@ onUnmounted(() => {
   justify-content: center;
   gap: 8px;
   padding: 6px 16px;
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   font-size: 13px;
   font-weight: 500;

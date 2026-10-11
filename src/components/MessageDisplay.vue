@@ -4407,7 +4407,7 @@ defineExpose({ editLastOwnMessage });
 
 .bot-badge {
   display: inline-block;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: 0.625rem;
   font-weight: 600;

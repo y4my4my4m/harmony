@@ -39,22 +39,6 @@ export const AXE_EXCLUSIONS: AxeExclusion[] = [
   {
     rule: 'color-contrast',
     area: 'owner',
-    reason:
-      'White label on the brand fill #0ea5e9 is 2.77:1. readableTextOn() keeps white above 2.6:1 by design; ' +
-      'a dark label (7.6:1) or a darker fill is a brand decision left to the owner.',
-    colors: { fg: '#ffffff', bg: '#0ea5e9' },
-  },
-  {
-    rule: 'color-contrast',
-    area: 'owner',
-    reason:
-      'White label on the danger fill --error #ed4245 is 3.84:1 (.btn-danger and the components copying it); ' +
-      '#d83c3e reaches 4.53:1. A palette decision left to the owner, as for the brand fill.',
-    colors: { fg: '#ffffff', bg: '#ed4245' },
-  },
-  {
-    rule: 'color-contrast',
-    area: 'owner',
     reason: 'Role colours are member data (server role settings); names are drawn in the colour the role carries.',
     within: '.display-name',
   },

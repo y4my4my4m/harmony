@@ -75,7 +75,7 @@ const kind = computed<'reconnecting' | 'blocked' | null>(() => {
   padding: 5px 12px;
   border: none;
   border-radius: var(--radius-base);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font: inherit;
   font-weight: 600;
@@ -83,7 +83,7 @@ const kind = computed<'reconnecting' | 'blocked' | null>(() => {
 }
 
 .vcb-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .vcb-btn:focus-visible {

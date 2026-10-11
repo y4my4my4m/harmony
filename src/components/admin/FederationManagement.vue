@@ -1371,7 +1371,7 @@ onMounted(() => {
 
 
 .tab-btn.active {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 

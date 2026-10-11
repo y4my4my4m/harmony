@@ -463,8 +463,8 @@ onMounted(async () => {
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-sm { padding: 6px 12px; }
 
-.btn-primary { background: var(--primary, var(--harmony-primary)); color: #fff; }
-.btn-primary:hover:not(:disabled) { background: var(--primary-hover, var(--harmony-primary-hover)); }
+.btn-primary { background: var(--harmony-primary-fill); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--harmony-primary-fill-hover); }
 
 .btn-secondary {
   background: var(--bg-tertiary, #3a3a4e);

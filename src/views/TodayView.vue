@@ -858,7 +858,7 @@ watch(refreshing, (value, previous) => {
 .today-beta {
   padding: 1px 6px;
   border-radius: var(--radius-sm);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: 10px;
   font-weight: var(--font-weight-bold);
@@ -1285,7 +1285,7 @@ a.today-chip:hover {
   flex-shrink: 0;
   padding: 0 5px;
   border-radius: var(--radius-full);
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   font-size: 11px;
   font-weight: var(--font-weight-bold);
@@ -1493,12 +1493,12 @@ a.today-chip:hover {
 
 .today-pill-button.primary {
   border-color: var(--harmony-primary);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .today-pill-button.primary:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .today-followers {

@@ -949,7 +949,7 @@ export default defineComponent({
 }
 
 .test-btn {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: none;
   border-radius: var(--radius-md);
   padding: 8px 16px;
@@ -963,7 +963,7 @@ export default defineComponent({
 }
 
 .test-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .test-btn.active {
@@ -1114,7 +1114,7 @@ kbd {
 }
 
 .save-btn {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: none;
   border-radius: var(--radius-md);
   padding: 8px 20px;
@@ -1125,7 +1125,7 @@ kbd {
 }
 
 .save-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .settings-content::-webkit-scrollbar {

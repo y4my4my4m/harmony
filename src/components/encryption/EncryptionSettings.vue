@@ -1040,12 +1040,12 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .btn-secondary {
@@ -1059,12 +1059,12 @@ onMounted(() => {
 }
 
 .btn-danger {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: var(--error-hover);
+  background: var(--error-fill-hover);
 }
 
 .diagnostic-list {

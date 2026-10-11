@@ -1700,7 +1700,7 @@ onMounted(() => {
 
 .save-btn {
   padding: 8px 16px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: none;
   border-radius: var(--radius-base);
   color: var(--text-on-primary);
@@ -1720,7 +1720,7 @@ onMounted(() => {
 
 
 .save-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 

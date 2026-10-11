@@ -299,7 +299,7 @@ watch(() => props.src, (newSrc) => {
   height: 36px;
   border-radius: 50%;
   border: none;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   cursor: pointer;
   flex-shrink: 0;
@@ -307,7 +307,7 @@ watch(() => props.src, (newSrc) => {
 }
 
 .play-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .player-body {

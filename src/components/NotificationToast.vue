@@ -373,12 +373,12 @@ const getTypeIcon = (type: NotificationType) => {
 }
 
 .toast-action-btn.primary {
-  background: var(--h-brand);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .toast-action-btn.primary:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .toast-action-btn.secondary {
@@ -393,12 +393,12 @@ const getTypeIcon = (type: NotificationType) => {
 }
 
 .toast-action-btn.danger {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
 }
 
 .toast-action-btn.danger:hover {
-  background: var(--error-hover);
+  background: var(--error-fill-hover);
 }
 
 .toast-close {

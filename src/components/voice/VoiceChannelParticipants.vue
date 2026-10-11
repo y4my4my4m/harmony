@@ -311,7 +311,7 @@ button.live-pill {
 .live-pill {
   padding: 0 4px;
   border-radius: var(--radius-sm);
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   font-size: 9px;
   font-weight: 700;

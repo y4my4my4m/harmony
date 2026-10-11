@@ -538,7 +538,7 @@ onMounted(async () => {
 
 .unblock-btn {
   padding: 6px 12px;
-  background-color: var(--error);
+  background-color: var(--error-fill);
   border: none;
   border-radius: var(--radius-sm);
   color: var(--text-on-primary);
@@ -549,7 +549,7 @@ onMounted(async () => {
 }
 
 .unblock-btn:hover {
-  background-color: var(--error-hover);
+  background-color: var(--error-fill-hover);
 }
 
 .settings-actions {
@@ -578,12 +578,12 @@ onMounted(async () => {
 }
 
 .btn-primary {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--harmony-primary-hover);
+  background-color: var(--harmony-primary-fill-hover);
 }
 
 .btn-secondary {

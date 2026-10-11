@@ -182,7 +182,7 @@ const statsText = computed(() => {
 
 .category-chip--active,
 .category-chip--active:hover {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-color: var(--harmony-primary);
   color: var(--text-on-primary);
 }

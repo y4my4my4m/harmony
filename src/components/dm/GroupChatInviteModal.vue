@@ -844,13 +844,13 @@ watch(() => props.show, (show) => {
 }
 
 .footer-button.primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border-color: var(--harmony-primary);
 }
 
 .footer-button.primary:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .footer-button:disabled {

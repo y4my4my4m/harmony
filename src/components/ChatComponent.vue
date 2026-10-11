@@ -1365,7 +1365,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
     padding: 1px 6px;
     border-radius: var(--radius-sm);
     border: none;
-    background: var(--harmony-primary);
+    background: var(--harmony-primary-fill);
     color: var(--text-on-primary);
     font-size: 0.6rem;
     font-weight: 600;
@@ -1373,6 +1373,6 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
     transition: background-color 0.15s ease;
   }
   .encryption-setup-btn:hover {
-    background: var(--harmony-primary-hover);
+    background: var(--harmony-primary-fill-hover);
   }
 </style>

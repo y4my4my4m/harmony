@@ -1457,7 +1457,7 @@ onMounted(async () => {
 .submit-btn {
   width: 100%;
   padding: 14px;
-  background: var(--primary);
+  background: var(--harmony-primary-fill);
   border: none;
   border-radius: 8px;
   font-size: 1rem;
@@ -1470,7 +1470,7 @@ onMounted(async () => {
 }
 
 .submit-btn:hover:not(:disabled) {
-  background: var(--primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .submit-btn:disabled {
@@ -1637,7 +1637,7 @@ onMounted(async () => {
 .modal-icon-wrapper {
   position: absolute;
   inset: 8px;
-  background: var(--primary);
+  background: var(--harmony-primary-fill);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1790,13 +1790,13 @@ onMounted(async () => {
 }
 
 .btn-primary {
-  background: var(--primary);
+  background: var(--harmony-primary-fill);
   border: none;
   color: var(--text-on-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .btn-primary:disabled {

@@ -240,7 +240,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border: none;
   border-radius: var(--radius-md);
@@ -252,7 +252,7 @@ onUnmounted(() => {
 }
 
 .install-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .dismiss-btn {
@@ -279,7 +279,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   width: 100%;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border: none;
   border-radius: var(--radius-md);
@@ -291,7 +291,7 @@ onUnmounted(() => {
 }
 
 .settings-install-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .share-btn {

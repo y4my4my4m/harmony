@@ -535,7 +535,7 @@ onBeforeUnmount(() => {
 .btn-primary {
   margin-top: 16px;
   padding: 14px 32px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: none;
   border-radius: var(--radius-lg);
   font-size: 1rem;
@@ -546,7 +546,7 @@ onBeforeUnmount(() => {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .btn-primary:disabled {
