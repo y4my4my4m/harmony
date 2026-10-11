@@ -749,6 +749,7 @@ export class EventDispatcher {
       d: {
         id: message.id,
         channel_id: message.channel_id,
+        thread_id: message.thread_id ?? null,
         metadata: message.metadata
       }
     }
@@ -872,6 +873,7 @@ export class EventDispatcher {
     return {
       id: message.id,
       channel_id: message.channel_id,
+      thread_id: message.thread_id ?? null,
       author,
       content: this.contentToText(message.content),
       // Attachments of the message's room carry a signed url (utils/messageMedia.ts).

@@ -49,6 +49,11 @@ export interface EmbedPayload {
   /** Preview is media only (GIF page etc.); clients render the image itself,
       not a link card. */
   mediaOnly?: boolean;
+  /** A playable video: og:video, twitter:player:stream, or the link itself answering with
+      video (embed-fixer sites redirect previewers straight to the file). */
+  video?: { url: string; type?: string; width?: number; height?: number };
+  /** The page could not be read. Never stored on a message; cached briefly and retried. */
+  failed?: boolean;
   fetchedAt: string;
   expiresAt: string;
   harmony?: {
@@ -78,7 +83,56 @@ const TTL_BY_PROVIDER: Record<EmbedProvider, number> = {
   generic: 24 * 60 * 60 * 1000, // 24 hours
 };
 
-const USER_AGENT = 'HarmonyLinkPreview/1.0 (+https://har.mony.lol)';
+// Embed-fixer sites (vxtwitter, fxtwitter, kkinstagram, ddinstagram, fxbsky, ...) serve their
+// embed, or redirect to the media file, only for the user agents of known link previewers;
+// others get a stub page or a redirect to the original site. vxtwitter matches
+// facebookexternalhit/1.1, kkinstagram Discordbot and TelegramBot. Harmony's own name comes
+// first.
+const USER_AGENT = 'Mozilla/5.0 (compatible; HarmonyLinkPreview/1.0; +https://har.mony.lol) facebookexternalhit/1.1 Discordbot/2.0 TelegramBot';
+/** A page's metadata lives in <head>; the read stops there or at this many bytes. */
+const HEAD_READ_LIMIT = 1024 * 1024;
+const HTML_FETCH_TIMEOUT_MS = 15_000;
+/** A failed preview is retried after this long. */
+const FAILED_PREVIEW_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * Every <meta> tag's property, name or itemprop and its content, attributes in any order and
+ * either quote style; the first occurrence of a key wins. Keys are lower-cased.
+ */
+export function parseMetaTags(html: string): Map<string, string> {
+  const tags = new Map<string, string>();
+  const tagPattern = /<meta\b([^>]*)>/gi;
+  const attrPattern = /([a-z:_-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/gi;
+  for (const tag of html.matchAll(tagPattern)) {
+    const attrs: Record<string, string> = {};
+    for (const a of tag[1].matchAll(attrPattern)) attrs[a[1].toLowerCase()] = a[2] ?? a[3] ?? a[4] ?? '';
+    const key = (attrs.property || attrs.name || attrs.itemprop || '').toLowerCase();
+    const content = attrs.content
+    if (key && content !== undefined && content !== '' && !tags.has(key)) tags.set(key, decodeHtmlEntities(content));
+  }
+  return tags;
+}
+
+/** The response body up to the end of <head>, at most `limit` bytes; the rest is not read. */
+async function readHead(response: Response, limit = HEAD_READ_LIMIT): Promise<string> {
+  if (!response.body) return '';
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+  let bytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      text += decoder.decode(value, { stream: true });
+      if (bytes >= limit || /<\/head\s*>/i.test(text)) break;
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+  }
+  return text;
+}
 
 // Hosts whose preview is media only (GIF sites). Combined with a .gif
 // og:image heuristic to set EmbedPayload.mediaOnly.
@@ -177,7 +231,7 @@ class LinkPreviewService {
     const normalizedUrl = this.normalizeUrl(url);
 
     // SSRF protection: reject private/internal URLs
-    validateExternalUrl(normalizedUrl);
+    validateExternalUrl(normalizedUrl, { allowPlainHttp: true });
 
     const provider = this.detectProvider(normalizedUrl);
     const cacheKey = `${provider}:${normalizedUrl}`;
@@ -222,10 +276,11 @@ class LinkPreviewService {
     }
 
     const effectiveProvider = payload.provider;
+    const ttl = payload.failed ? FAILED_PREVIEW_TTL_MS : TTL_BY_PROVIDER[effectiveProvider];
     payload.fetchedAt = new Date().toISOString();
-    payload.expiresAt = new Date(Date.now() + TTL_BY_PROVIDER[effectiveProvider]).toISOString();
+    payload.expiresAt = new Date(Date.now() + ttl).toISOString();
 
-    this.cache.set(cacheKey, payload, TTL_BY_PROVIDER[effectiveProvider] / 1000);
+    this.cache.set(cacheKey, payload, ttl / 1000);
     return payload;
   }
 
@@ -738,9 +793,12 @@ class LinkPreviewService {
 
     // Step 2: Fetch HTML and look for AP alternate link or extract OG metadata
     try {
+      // Slow pages (a game server under load answered q3.pieter.com in over 10 s) get 15 s;
+      // the fetch runs in the background of a sent message.
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
+      const timeout = setTimeout(() => controller.abort(), HTML_FETCH_TIMEOUT_MS);
       let response: Response;
+      let html = '';
       try {
         response = await safeFetch(url, {
           headers: {
@@ -752,16 +810,42 @@ class LinkPreviewService {
           // canonical → cookie consent). The default of 3 suffices for AP
           // content but truncates these, so this call allows 5.
           maxRedirects: 5,
+          maxBodyBytes: Infinity,
+          allowPlainHttp: true,
+          timeoutMs: HTML_FETCH_TIMEOUT_MS,
         });
+
+        if (!response.ok) {
+          await response.body?.cancel().catch(() => {});
+          throw new Error(`Request failed (${response.status})`);
+        }
+
+        // The link answered with the media itself (embed fixers redirect previewers to it).
+        const contentType = (response.headers.get('content-type') || '').toLowerCase();
+        const finalUrl = response.url || url;
+        if (contentType.startsWith('image/') || contentType.startsWith('video/')) {
+          await response.body?.cancel().catch(() => {});
+          const media = contentType.startsWith('video/')
+            ? { video: { url: finalUrl, type: contentType.split(';')[0] } }
+            : { image: finalUrl };
+          return {
+            cacheKey: '',
+            url,
+            normalizedUrl: url,
+            provider: 'generic',
+            title: hostname,
+            siteName: hostname,
+            mediaOnly: true,
+            ...media,
+            fetchedAt: '',
+            expiresAt: '',
+          };
+        }
+
+        html = await readHead(response);
       } finally {
         clearTimeout(timeout);
       }
-
-      if (!response.ok) {
-        throw new Error(`Request failed (${response.status})`);
-      }
-
-      const html = await response.text();
 
       // An ActivityPub alternate link upgrades to a fediverse embed. Covers
       // the case where the AP endpoint URL differs from the HTML page URL.
@@ -784,25 +868,28 @@ class LinkPreviewService {
         }
       }
 
-      const title = this.extractMeta(html, [
-        /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i,
-        /<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']+)["']/i,
-        /<title[^>]*>([^<]+)<\/title>/i,
-      ]);
+      const meta = parseMetaTags(html);
+      const first = (...keys: string[]) => keys.map(k => meta.get(k)).find(Boolean);
 
-      const description = this.extractMeta(html, [
-        /<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i,
-        /<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i,
-      ]);
-
-      const image = this.extractMeta(html, [
-        /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
-        /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i,
-      ]);
-
+      const title = first('og:title', 'twitter:title')
+        ?? this.extractMeta(html, [/<title[^>]*>([^<]+)<\/title>/i]);
+      const description = first('og:description', 'twitter:description', 'description');
+      const image = first('og:image:secure_url', 'og:image', 'og:image:url', 'twitter:image', 'twitter:image:src');
+      const siteName = first('og:site_name', 'application-name');
       const icon = this.extractMeta(html, [
         /<link[^>]+rel=["'](?:shortcut )?icon["'][^>]+href=["']([^"']+)["']/i,
       ]);
+
+      const videoUrl = first('og:video:secure_url', 'og:video:url', 'og:video', 'twitter:player:stream');
+      const videoType = first('og:video:type', 'twitter:player:stream:content_type');
+      // An HTML player page (YouTube's og:video) is not a file a <video> element plays.
+      const playable = videoUrl && (
+        (videoType ?? '').toLowerCase().startsWith('video/') || /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(videoUrl)
+      );
+      const dimension = (key: string) => {
+        const n = Number(meta.get(key));
+        return Number.isFinite(n) && n > 0 ? n : undefined;
+      };
 
       return {
         cacheKey: '',
@@ -811,22 +898,31 @@ class LinkPreviewService {
         provider: 'generic',
         title: title || url,
         description: description || undefined,
-        siteName: hostname,
+        siteName: siteName || hostname,
         image: image ? this.makeAbsoluteUrl(url, image) : undefined,
         icon: icon ? this.makeAbsoluteUrl(url, icon) : undefined,
+        ...(playable ? {
+          video: {
+            url: this.makeAbsoluteUrl(url, videoUrl!),
+            type: videoType,
+            width: dimension('og:video:width') ?? dimension('twitter:player:width'),
+            height: dimension('og:video:height') ?? dimension('twitter:player:height'),
+          },
+        } : {}),
         fetchedAt: '',
         expiresAt: '',
       };
     } catch (error) {
-      logger.warn('Failed to fetch generic preview', { url, error });
+      // The reason stays in the log; a reader sees no card rather than an error message.
+      logger.warn('Failed to fetch generic preview', { url, error: (error as Error).message });
       return {
         cacheKey: '',
         url,
         normalizedUrl: url,
         provider: 'generic',
         title: url,
-        description: (error as Error).message,
         siteName: hostname,
+        failed: true,
         fetchedAt: '',
         expiresAt: '',
       };

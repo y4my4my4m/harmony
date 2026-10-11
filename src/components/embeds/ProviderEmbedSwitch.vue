@@ -7,7 +7,7 @@
   />
   
   <!-- Regular embed with header/collapse -->
-  <div v-else class="provider-embed" ref="embedWrapper" :class="[`provider-${payload.provider}`, { 'is-collapsed': collapsed }]">
+  <div v-else-if="!emptyPreview" class="provider-embed" ref="embedWrapper" :class="[`provider-${payload.provider}`, { 'is-collapsed': collapsed }]">
     <div class="provider-embed__header" v-if="payload.provider !== 'harmony-post' && payload.provider !== 'fediverse-post'">
       <div class="provider-embed__label">
         {{ providerLabel }}
@@ -148,6 +148,7 @@ import { parseEmbedUrl, buildYouTubePlayerSrc, buildSpotifyEmbedUrl, isYouTubePl
 import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import LinkEmbedCard from './LinkEmbedCard.vue';
+import { isEmptyPreview } from '@/utils/embedPreview';
 import ServerInviteCard from './ServerInviteCard.vue';
 import { runtimeConfig } from '@/services/runtimeConfig';
 
@@ -209,6 +210,7 @@ const inviteCode = computed(() => {
 // Frame name: the embed's title, else its provider ("YouTube", "Spotify").
 const iframeTitle = computed(() => props.payload.title?.trim() || providerLabel.value);
 
+const emptyPreview = computed(() => isEmptyPreview(props.payload));
 const isHarmony = computed(() => props.payload.provider === 'harmony-post');
 const isFediverse = computed(() => props.payload.provider === 'fediverse-post');
 const providerLabel = computed(() => {

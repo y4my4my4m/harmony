@@ -385,7 +385,7 @@ describe('message change feed', () => {
     db.rows('messages').find((m) => m.id === 'm-soft')!.updated_at = at(dbClock)
     await poll()
 
-    expect(events('MESSAGE_DELETE')).toEqual([{ id: 'm-soft', channel_id: GENERAL, metadata: BRIDGE_METADATA }])
+    expect(events('MESSAGE_DELETE')).toEqual([{ id: 'm-soft', channel_id: GENERAL, thread_id: null, metadata: BRIDGE_METADATA }])
     expect(events('MESSAGE_UPDATE')).toEqual([])
   })
 
@@ -397,7 +397,7 @@ describe('message change feed', () => {
     await dispatcher.messageHardDeleted({ id: 'm-hard', channel_id: GENERAL, metadata: BRIDGE_METADATA })
     await poll()
 
-    expect(events('MESSAGE_DELETE')).toEqual([{ id: 'm-hard', channel_id: GENERAL, metadata: BRIDGE_METADATA }])
+    expect(events('MESSAGE_DELETE')).toEqual([{ id: 'm-hard', channel_id: GENERAL, thread_id: null, metadata: BRIDGE_METADATA }])
   })
 
   it('withholds edits and deletes of a channel hidden from @everyone', async () => {
