@@ -2,29 +2,49 @@
   <Teleport to="body">
     <Transition name="slide-panel">
       <div v-if="isVisible" class="thread-overlay" @click.self="close">
-        <div class="thread-panel">
+        <div
+          ref="panelEl"
+          class="thread-panel"
+          role="dialog"
+          aria-modal="true"
+          :aria-labelledby="dialogTitleId"
+          tabindex="-1"
+        >
           <!-- Thread Header -->
           <div class="thread-header">
             <div class="header-left">
-              <button class="back-btn" @click="close" title="Close thread">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <button
+                type="button"
+                class="back-btn"
+                :title="t('chatNav.thread.closePanel')"
+                :aria-label="t('chatNav.thread.closePanel')"
+                @click="close"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <path d="M19 12H5M12 19l-7-7 7-7"/>
                 </svg>
               </button>
               <div class="thread-info">
-                <h3>{{ displayThreadName }}</h3>
+                <h3 :id="dialogTitleId">{{ displayThreadName }}</h3>
                 <p class="thread-channel">
-                  <span class="hash">#</span>{{ displayChannelName }}
+                  <span class="hash" aria-hidden="true">#</span>{{ displayChannelName }}
                 </p>
               </div>
             </div>
             <div class="header-actions">
               <button 
+                ref="optionsButtonEl"
+                type="button"
                 class="action-btn"
-                @click="showOptions = !showOptions"
-                title="Thread options"
+                :title="t('chatNav.thread.options')"
+                :aria-label="t('chatNav.thread.options')"
+                aria-haspopup="menu"
+                :aria-expanded="showOptions"
+                :aria-controls="showOptions ? optionsMenu.menuId : undefined"
+                @click.stop="showOptions = !showOptions"
+                @keydown="optionsMenu.onTriggerKeydown"
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <circle cx="12" cy="5" r="2"/>
                   <circle cx="12" cy="12" r="2"/>
                   <circle cx="12" cy="19" r="2"/>
@@ -34,98 +54,106 @@
           </div>
 
           <!-- Thread Options Menu -->
-          <div v-if="showOptions" class="options-menu" v-click-outside="() => showOptions = false">
-            <button v-if="!isMember" @click="joinThread" class="option-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <div
+            v-if="showOptions"
+            :id="optionsMenu.menuId"
+            ref="optionsMenuEl"
+            class="options-menu"
+            role="menu"
+            :aria-label="t('chatNav.thread.options')"
+            v-click-outside="() => showOptions = false"
+          >
+            <button type="button" role="menuitem" v-if="!isMember" @click="joinThread" class="option-item">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                 <circle cx="8.5" cy="7" r="4"/>
                 <line x1="20" y1="8" x2="20" y2="14"/>
                 <line x1="23" y1="11" x2="17" y2="11"/>
               </svg>
-              Join thread
+              {{ t('chatNav.thread.join') }}
             </button>
-            <button v-if="isMember" @click="leaveThread" class="option-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <button type="button" role="menuitem" v-if="isMember" @click="leaveThread" class="option-item">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
                 <polyline points="16 17 21 12 16 7"/>
                 <line x1="21" y1="12" x2="9" y2="12"/>
               </svg>
-              Leave thread
+              {{ t('chatNav.thread.leave') }}
             </button>
 
-            <div class="options-divider"></div>
+            <div class="options-divider" role="separator"></div>
 
-            <button v-if="canManageThread" @click="editThread" class="option-item">
-              <svg width="16" height="16" viewBox="0 0 24 24">
+            <button type="button" role="menuitem" v-if="canManageThread" @click="editThread" class="option-item">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
               </svg>
-              Edit thread
+              {{ t('chatNav.thread.edit') }}
             </button>
 
-            <button v-if="canManageThread && !thread?.archived" @click="closeThread" class="option-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <button type="button" role="menuitem" v-if="canManageThread && !thread?.archived" @click="closeThread" class="option-item">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/>
               </svg>
-              Close thread
+              {{ t('chatNav.thread.close') }}
             </button>
 
-            <button v-if="canManageThread && thread?.archived" @click="reopenThread" class="option-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <button type="button" role="menuitem" v-if="canManageThread && thread?.archived" @click="reopenThread" class="option-item">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 6.5L17.5 12H14v2h-4v-2H6.5L12 6.5zM5.12 5l.81-1h12l.94 1H5.12z"/>
               </svg>
-              Reopen thread
+              {{ t('chatNav.thread.reopen') }}
             </button>
 
-            <button v-if="canManageThread && !thread?.locked" @click="lockThread" class="option-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <button type="button" role="menuitem" v-if="canManageThread && !thread?.locked" @click="lockThread" class="option-item">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
               </svg>
-              Lock thread
+              {{ t('chatNav.thread.lock') }}
             </button>
 
-            <button v-if="canManageThread && thread?.locked" @click="unlockThread" class="option-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <button type="button" role="menuitem" v-if="canManageThread && thread?.locked" @click="unlockThread" class="option-item">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10z"/>
               </svg>
-              Unlock thread
+              {{ t('chatNav.thread.unlock') }}
             </button>
 
-            <button v-if="canManageThread" @click="deleteThread" class="option-item danger">
-              <svg width="16" height="16" viewBox="0 0 24 24">
+            <button type="button" role="menuitem" v-if="canManageThread" @click="deleteThread" class="option-item danger">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
               </svg>
-              Delete thread
+              {{ t('chatNav.thread.delete') }}
             </button>
 
-            <div class="options-divider"></div>
+            <div class="options-divider" role="separator"></div>
 
-            <button v-if="thread?.muted" @click="toggleMute" class="option-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <button type="button" role="menuitem" v-if="thread?.muted" @click="toggleMute" class="option-item">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
               </svg>
-              Unmute thread
+              {{ t('chatNav.thread.unmute') }}
             </button>
-            <button v-else @click="toggleMute" class="option-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <button type="button" role="menuitem" v-else @click="toggleMute" class="option-item">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
               </svg>
-              Mute thread
+              {{ t('chatNav.thread.mute') }}
             </button>
 
-            <div class="options-divider"></div>
+            <div class="options-divider" role="separator"></div>
 
-            <button @click="copyThreadLink" class="option-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <button type="button" role="menuitem" @click="copyThreadLink" class="option-item">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
               </svg>
-              Copy link
+              {{ t('message.copyLink') }}
             </button>
 
-            <button @click="copyThreadId" class="option-item">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <button type="button" role="menuitem" @click="copyThreadId" class="option-item">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
               </svg>
-              Copy thread ID
+              {{ t('chatNav.thread.copyId') }}
             </button>
           </div>
 
@@ -158,22 +186,22 @@
           <!-- Divider with count (only show when thread exists) -->
           <div class="thread-divider" v-if="!isDraftMode">
             <div class="divider-line"></div>
-            <span class="reply-count">{{ thread?.message_count || 0 }} repl{{ (thread?.message_count || 0) === 1 ? 'y' : 'ies' }}</span>
+            <span class="reply-count">{{ t('chatNav.thread.replies', { count: thread?.message_count || 0 }, thread?.message_count || 0) }}</span>
             <div class="divider-line"></div>
           </div>
           
           <!-- Draft mode hint -->
           <div class="draft-hint" v-if="isDraftMode">
             <div class="divider-line"></div>
-            <span class="hint-text">Send a message to start this thread</span>
+            <span class="hint-text">{{ t('chatNav.thread.draftHint') }}</span>
             <div class="divider-line"></div>
           </div>
 
           <!-- Thread Messages - Reuse MessageDisplay component (DRY) -->
           <div class="thread-messages" ref="messagesContainer">
-            <div v-if="loading" class="loading-state">
+            <div v-if="loading" class="loading-state" role="status">
               <LoadingSpinner :size="32" />
-              <p>Loading messages...</p>
+              <p>{{ t('chatNav.thread.loading') }}</p>
             </div>
             
             <template v-else>
@@ -183,7 +211,7 @@
                 @click="loadMore"
                 :disabled="loadingMore"
               >
-                {{ loadingMore ? 'Loading...' : 'Load older messages' }}
+                {{ loadingMore ? t('chatNav.thread.loadingOlder') : t('chatNav.thread.loadOlder') }}
               </button>
               
               <!-- Use the same MessageDisplay component as the main chat -->
@@ -301,6 +329,8 @@ import type { ThreadWithDetails } from '@/services/ThreadService'
 import type { FilePreviewData } from '@/components/FilePreview.vue'
 import { attachmentParts, mediaRoom } from '@/services/privateMedia'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { useDialog } from '@/composables/useDialog'
+import { useMenu, useMenuButton } from '@/composables/useMenu'
 
 interface Props {
   isVisible: boolean
@@ -400,6 +430,27 @@ const hasMore = ref(false)
 const isMember = ref(true) // Default to true to allow sending
 const joining = ref(false)
 const showOptions = ref(false)
+
+// Modal panel: focus moves in (the composer), Tab stays inside, Escape closes
+// and focus returns to the control that opened it.
+const panelEl = ref<HTMLElement | null>(null)
+const { titleId: dialogTitleId } = useDialog({
+  open: () => props.isVisible,
+  element: panelEl,
+  onClose: () => close(),
+})
+
+const optionsButtonEl = ref<HTMLElement | null>(null)
+const optionsMenuEl = ref<HTMLElement | null>(null)
+const optionsMenu = useMenuButton(showOptions)
+// Outside clicks close through v-click-outside; the trigger toggles on its own.
+useMenu(optionsMenuEl, {
+  open: showOptions,
+  onClose: () => { showOptions.value = false },
+  trigger: optionsButtonEl,
+  initialFocus: () => optionsMenu.initialFocus.value,
+  closeOnOutsidePointer: false,
+})
 const messageText = ref('')
 const sending = ref(false)
 
@@ -1548,15 +1599,22 @@ onUnmounted(() => {
   transition: background 0.15s;
 }
 
-.option-item:hover {
+.option-item:hover,
+.option-item:focus-visible {
   background: var(--background-modifier-hover);
+  outline: none;
+}
+
+.option-item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--border-focus, var(--harmony-primary));
 }
 
 .option-item.danger {
   color: var(--text-danger);
 }
 
-.option-item.danger:hover {
+.option-item.danger:hover,
+.option-item.danger:focus-visible {
   background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 

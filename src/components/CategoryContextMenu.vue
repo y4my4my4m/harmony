@@ -1,37 +1,53 @@
 <template>
-  <div 
-    v-if="isVisible" 
+  <ChatMenu
+    v-if="isVisible && category && canManageCategory"
+    :x="position.x"
+    :y="position.y"
+    :label="category.name"
+    :trigger="trigger"
     class="context-menu"
-    :style="menuStyle"
-    @click.stop
+    @close="emit('close')"
   >
-    <div class="context-menu-item" @click="createChannel" v-if="canManageCategory">
-      <svg width="16" height="16" viewBox="0 0 24 24">
+    <button type="button" role="menuitem" class="chat-menu-item context-menu-item" @click="createChannel">
+      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
         <path fill="currentColor" d="M20,14H14V20H10V14H4V10H10V4H14V10H20V14Z"/>
       </svg>
-      <span>Create Channel</span>
-    </div>
-    
-    <div class="context-menu-divider" v-if="canManageCategory"></div>
-    
-    <div class="context-menu-item" @click="editCategory" v-if="canManageCategory">
-      <svg width="16" height="16" viewBox="0 0 24 24">
+      <span>{{ t('channel.create') }}</span>
+    </button>
+
+    <div class="chat-menu-divider" role="separator"></div>
+
+    <button type="button" role="menuitem" class="chat-menu-item context-menu-item" data-action="move-up" :disabled="!canMoveUp" @click="move(-1)">
+      <span>{{ t('serverRail.menu.moveUp') }}</span>
+      <span class="chat-menu-trail" aria-hidden="true">Alt+↑</span>
+    </button>
+    <button type="button" role="menuitem" class="chat-menu-item context-menu-item" data-action="move-down" :disabled="!canMoveDown" @click="move(1)">
+      <span>{{ t('serverRail.menu.moveDown') }}</span>
+      <span class="chat-menu-trail" aria-hidden="true">Alt+↓</span>
+    </button>
+
+    <div class="chat-menu-divider" role="separator"></div>
+
+    <button type="button" role="menuitem" class="chat-menu-item context-menu-item" @click="editCategory">
+      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
         <path fill="currentColor" d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
       </svg>
-      <span>Edit Category</span>
-    </div>
-    
-    <div class="context-menu-item danger" @click="deleteCategory" v-if="canManageCategory">
-      <svg width="16" height="16" viewBox="0 0 24 24">
+      <span>{{ t('chatNav.menu.editCategory') }}</span>
+    </button>
+
+    <button type="button" role="menuitem" class="chat-menu-item context-menu-item danger" @click="deleteCategory">
+      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
         <path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
       </svg>
-      <span>Delete Category</span>
-    </div>
-  </div>
+      <span>{{ t('chatNav.menu.deleteCategory') }}</span>
+    </button>
+  </ChatMenu>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import ChatMenu from '@/components/chat/ChatMenu.vue'
 import { useServerPermissions } from '@/composables/useServerPermissions'
 import type { Category } from '@/types'
 
@@ -39,6 +55,10 @@ interface Props {
   isVisible: boolean
   position: { x: number; y: number }
   category: Category | null
+  /** Element focus returns to on close: the category header. */
+  trigger?: HTMLElement | null
+  canMoveUp?: boolean
+  canMoveDown?: boolean
 }
 
 interface Emits {
@@ -46,99 +66,39 @@ interface Emits {
   (e: 'create-channel', category: Category): void
   (e: 'edit-category', category: Category): void
   (e: 'delete-category', category: Category): void
+  (e: 'move', category: Category, delta: -1 | 1): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  trigger: null,
+  canMoveUp: false,
+  canMoveDown: false,
+})
 const emit = defineEmits<Emits>()
 
+const { t } = useI18n()
 const { canManageChannels } = useServerPermissions()
 
-const canManageCategory = computed(() => {
-  return canManageChannels.value && props.category
-})
-
-const menuStyle = computed(() => {
-  const menuWidth = 200
-  const menuHeight = canManageCategory.value ? 150 : 40
-  const padding = 10
-
-  let x = props.position.x
-  let y = props.position.y
-
-  if (typeof window !== 'undefined') {
-    if (x + menuWidth > window.innerWidth - padding) {
-      x = window.innerWidth - menuWidth - padding
-    }
-    if (y + menuHeight > window.innerHeight - padding) {
-      y = window.innerHeight - menuHeight - padding
-    }
-  }
-
-  return { top: y + 'px', left: x + 'px' }
-})
+const canManageCategory = computed(() => canManageChannels.value && !!props.category)
 
 const createChannel = () => {
-  if (props.category) {
-    emit('create-channel', props.category)
-  }
+  if (props.category) emit('create-channel', props.category)
   emit('close')
 }
 
+const move = (delta: -1 | 1) => {
+  const category = props.category
+  emit('close')
+  if (category) emit('move', category, delta)
+}
+
 const editCategory = () => {
-  if (props.category) {
-    emit('edit-category', props.category)
-  }
+  if (props.category) emit('edit-category', props.category)
   emit('close')
 }
 
 const deleteCategory = () => {
-  if (props.category) {
-    emit('delete-category', props.category)
-  }
+  if (props.category) emit('delete-category', props.category)
   emit('close')
 }
 </script>
-
-<style scoped>
-.context-menu {
-  position: fixed;
-  background: var(--background-floating);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-base);
-  padding: 6px 0;
-  min-width: 160px;
-  box-shadow: var(--shadow-large);
-  z-index: 1000;
-}
-
-.context-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  transition: background-color 0.1s ease;
-}
-
-.context-menu-item:hover {
-  background-color: var(--harmony-primary);
-  color: var(--text-on-primary);
-}
-
-.context-menu-item.danger {
-  color: var(--text-danger);
-}
-
-.context-menu-item.danger:hover {
-  background-color: var(--error);
-  color: var(--text-on-primary);
-}
-
-.context-menu-divider {
-  height: 1px;
-  background: var(--border-color, var(--background-quinary));
-  margin: 4px 8px;
-}
-</style>

@@ -4097,6 +4097,143 @@
       "failed": "Der Server konnte nicht verlassen werden"
     }
   },
+  "chatNav": {
+    "channel": {
+      "text": "Textkanal",
+      "voice": "Sprachkanal",
+      "unread": "ungelesen",
+      "mentions": "{count} Erwähnung | {count} Erwähnungen",
+      "muted": "stummgeschaltet",
+      "private": "privat",
+      "connected": "{count} verbunden | {count} verbunden",
+      "youAreConnected": "du bist verbunden",
+      "joinHint": "Tritt dem Sprachanruf bei",
+      "openChatHint": "Öffnet den Chat des Kanals",
+      "previewHint": "Zeigt, wer da ist, mit Optionen zum Beitreten",
+      "openChat": "Chat in {name} öffnen",
+      "openChatShort": "Chat öffnen",
+      "threadsOf": "Threads in {name}",
+      "thread": "Thread",
+      "dropHere": "Kanäle hierher ziehen",
+      "moved": "{name} an Position {position} von {total} verschoben",
+      "moveFailed": "{name} konnte nicht verschoben werden"
+    },
+    "menu": {
+      "editChannel": "Kanal bearbeiten",
+      "editCategory": "Kategorie bearbeiten",
+      "deleteCategory": "Kategorie löschen"
+    },
+    "thread": {
+      "leave": "Thread verlassen",
+      "join": "Thread beitreten",
+      "edit": "Thread bearbeiten",
+      "splitView": "In geteilter Ansicht öffnen",
+      "close": "Thread schließen",
+      "reopen": "Thread wieder öffnen",
+      "lock": "Thread sperren",
+      "unlock": "Thread entsperren",
+      "delete": "Thread löschen",
+      "mute": "Thread stummschalten",
+      "unmute": "Stummschaltung des Threads aufheben",
+      "copyId": "Thread-ID kopieren",
+      "closePanel": "Thread-Bereich schließen",
+      "options": "Thread-Optionen",
+      "replies": "{count} Antwort | {count} Antworten",
+      "draftHint": "Sende eine Nachricht, um diesen Thread zu starten",
+      "loading": "Nachrichten werden geladen…",
+      "loadingOlder": "Wird geladen…",
+      "loadOlder": "Ältere Nachrichten laden"
+    },
+    "header": {
+      "pinnedCount": "{count} angeheftete Nachricht | {count} angeheftete Nachrichten",
+      "threads": "Alle Threads anzeigen",
+      "threadsShort": "Threads anzeigen",
+      "more": "Weitere Optionen"
+    },
+    "user": {
+      "mention": "Erwähnen",
+      "message": "Nachricht",
+      "call": "Anruf starten",
+      "nickname": "Spitznamen ändern",
+      "invite": "Zum Server einladen",
+      "mute": "Nutzer stummschalten",
+      "unmute": "Stummschaltung aufheben",
+      "kick": "{name} kicken",
+      "ban": "{name} bannen",
+      "copyId": "Nutzer-ID kopieren",
+      "fallbackName": "Nutzer"
+    },
+    "rail": {
+      "folder": "Ordner",
+      "servers": "{count} Server | {count} Server",
+      "unreadMessages": "{count} ungelesene Nachricht | {count} ungelesene Nachrichten"
+    },
+    "dm": {
+      "startNew": "Neue Direktnachricht",
+      "createGroup": "Gruppenchat erstellen",
+      "searchLabel": "Nutzer suchen",
+      "listLabel": "Unterhaltungen",
+      "group": "Gruppe, {count} Mitglied | Gruppe, {count} Mitglieder",
+      "dismissed": "Unterhaltung mit {name} ausgeblendet",
+      "dismissNamed": "Unterhaltung mit {name} ausblenden",
+      "restored": "Unterhaltung mit {name} wiederhergestellt",
+      "restoreFailed": "Die Unterhaltung konnte nicht wiederhergestellt werden",
+      "joinCallWith": "Anruf mit {name} beitreten"
+    },
+    "members": {
+      "search": "Mitglieder suchen",
+      "clearSearch": "Suche leeren",
+      "found": "{count} Mitglied gefunden | {count} Mitglieder gefunden",
+      "group": "{title}, {count} Mitglied | {title}, {count} Mitglieder",
+      "discord": "Mitglied über die Discord-Brücke",
+      "instanceAdmin": "Instanz-Admin",
+      "instanceMod": "Instanz-Moderator"
+    },
+    "create": {
+      "textHint": "Kleinbuchstaben, Ziffern, Binde- und Unterstriche verwenden; Leerzeichen werden zu Bindestrichen",
+      "voiceHint": "Wähle einen Namen, der deinen Sprachkanal beschreibt",
+      "looksGood": "Sieht gut aus",
+      "nameRequired": "Ein Kanalname ist erforderlich",
+      "nameTooLong": "Der Kanalname darf höchstens 100 Zeichen lang sein",
+      "voiceInvalid": "Der Name des Sprachkanals enthält ungültige Zeichen",
+      "categorySubtitle": "Ordne deine Kanäle mit Kategorien",
+      "categoryName": "Kategoriename",
+      "categoryPlaceholder": "Kategorienamen eingeben…",
+      "categoryHint": "Kategorien helfen, deine Kanäle zu ordnen",
+      "categoryGood": "Gute Wahl! Das hilft, deine Kanäle zu ordnen",
+      "categoryRequired": "Ein Kategoriename ist erforderlich",
+      "categoryTooShort": "Der Kategoriename muss mindestens 2 Zeichen lang sein",
+      "categoryTooLong": "Der Kategoriename darf höchstens 100 Zeichen lang sein",
+      "categoryInvalid": "Der Kategoriename darf nur Buchstaben, Ziffern, Binde- und Unterstriche enthalten"
+    },
+    "pinned": {
+      "count": "{count} Nachricht | {count} Nachrichten",
+      "none": "Keine angehefteten Nachrichten",
+      "loading": "Angeheftete Nachrichten werden geladen…",
+      "jump": "Zur Nachricht springen",
+      "unpin": "Lösen",
+      "by": "Angeheftet von {name}"
+    },
+    "threadsModal": {
+      "title": "Threads",
+      "search": "Nach Threadnamen suchen",
+      "joined": "{count} beigetretener Thread | {count} beigetretene Threads",
+      "older": "Ältere Threads",
+      "noMessages": "Noch keine Nachrichten",
+      "startedBy": "Gestartet von",
+      "lastActive": "Zuletzt aktiv: {time}",
+      "loading": "Threads werden geladen…"
+    },
+    "mediaPicker": {
+      "label": "GIFs, Sticker und Emojis",
+      "gifs": "GIFs",
+      "stickers": "Sticker",
+      "emoji": "Emojis",
+      "clips": "Clips",
+      "memes": "Memes",
+      "aiEmoji": "KI-Emojis"
+    }
+  },
   "embeds": {
     "popOut": "Herauslösen",
     "open": "Öffnen",

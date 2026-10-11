@@ -1,21 +1,20 @@
 <template>
-  <div class="channel-sidebar">
+  <div ref="sidebarEl" class="channel-sidebar" @keydown="onNavKeydown">
     <CategoryCreator
       v-if="isCategoryCreatorOpen"
       @showCategoryCreator="showCategoryCreator"
       @createCategory="createCategory"
     />
     <div class="server-header">
-      <div
+      <button
+        type="button"
         class="server-name"
         :class="{ open: isDropdownOpen }"
-        role="button"
-        tabindex="0"
         aria-haspopup="menu"
         :aria-expanded="isDropdownOpen"
+        :aria-controls="isDropdownOpen ? serverMenuButton.menuId : undefined"
         @click.stop="toggleDropdown"
-        @keydown.enter.prevent.stop="toggleDropdown"
-        @keydown.space.prevent.stop="toggleDropdown"
+        @keydown="serverMenuButton.onTriggerKeydown"
       >
         <Icon
           v-if="remoteHost !== null"
@@ -25,8 +24,8 @@
           :aria-label="$t('federation.remoteServer')"
         />
         <span class="server-name-text">{{ currentServer.name }}</span>
-        <Icon name="chevron-down" :size="16" class="server-name-chevron" />
-      </div>
+        <Icon name="chevron-down" :size="16" class="server-name-chevron" aria-hidden="true" />
+      </button>
       <div
         v-if="remoteHost !== null"
         class="server-remote-strip"
@@ -37,13 +36,21 @@
       <ServerDropdown
         :serverId="currentServer.id"
         :isVisible="isDropdownOpen"
-        @toggle="toggleDropdown"
+        :menu-id="serverMenuButton.menuId"
+        :label="currentServer.name"
+        :initial-focus="serverMenuButton.initialFocus.value"
+        @close="closeDropdown"
         @showCategoryCreator="showCategoryCreator"
         @createChannel="emitCreateChannel"
         @openInviteModal="openInviteModal"
       />
     </div>
-    
+
+    <!-- Descriptions for voice channel rows: what activating one does. -->
+    <span :id="ids.voiceJoin" hidden>{{ t('chatNav.channel.joinHint') }}</span>
+    <span :id="ids.voiceOpen" hidden>{{ t('chatNav.channel.openChatHint') }}</span>
+    <span :id="ids.voicePreview" hidden>{{ t('chatNav.channel.previewHint') }}</span>
+
     <!-- Channels belonging to no category -->
     <div class="orphan-channels">
       <!-- force-fallback: pointer-driven drag. Tauri's WebView2 drag-drop handler (on for OS file drops) swallows HTML5 drag and drop on Windows. -->
@@ -57,73 +64,78 @@
         @end="onDragEnd"
         @add="onChannelAddedToOrphans"
         item-key="id"
-        tag="div"
+        tag="ul"
+        role="list"
+        class="channel-list-items"
         :class="{ 'drag-disabled': !canDragAndDrop || isMobile }"
       >
         <template #item="{ element }">
-          <div 
-            :key="element.id" 
+          <li
+            :key="element.id"
             class="channel-wrapper"
             :data-channel-id="element.id"
             :data-category-id="null"
           >
-            <div 
-              :class="['channel-item', { 
-                'selected': element.id === currentChannelId && !selectedThreadId,
-                'dragging': dragState.isDragging && dragState.draggedItem?.id === element.id,
-                'voice-channel': isVoiceType(element.type),
-                'voice-connected': isVoiceType(element.type) && isUserInVoiceChannel(element.id),
-                'channel-unread': hasUnreadMessages(element.id) && element.id !== currentChannelId,
-                'muted': mutedChannelIds.has(element.id)
-              }]" 
-              role="button"
-              tabindex="0"
-              :aria-current="element.id === currentChannelId && !selectedThreadId ? 'page' : undefined"
-              @click="isVoiceType(element.type) ? handleVoiceChannelClick(element.id) : selectChannel(element.id)"
-              @keydown.enter.self.prevent="isVoiceType(element.type) ? handleVoiceChannelClick(element.id) : selectChannel(element.id)"
-              @mouseenter="scheduleChannelPrefetch(element)"
-              @mouseleave="cancelChannelPrefetch"
-              @focus="scheduleChannelPrefetch(element)"
-              @blur="cancelChannelPrefetch"
-              @contextmenu="openChannelContextMenu($event, element)"
-              :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === element.id) }"
-            >
-              <div class="unread-dot" v-if="hasUnreadMessages(element.id) && element.id !== currentChannelId"></div>
-              <div class="channel-content">
-                <HashTagIcon v-if="!isVoiceType(element.type)" />
-                <SpeakerIcon v-else />
-                <span class="channel-name">{{ element.name }}</span>
-                <span
-                  v-if="channelLockKey(element)"
-                  class="channel-lock"
-                  role="img"
-                  :title="$t(channelLockKey(element)!)"
-                  :aria-label="$t(channelLockKey(element)!)"
-                ><Icon name="lock" :size="12" /></span>
-                <span
-                  v-if="serverChannelStore.isPrivateChannel(element.id)"
-                  class="channel-lock"
-                  role="img"
-                  :title="$t('channel.private.label')"
-                  :aria-label="$t('channel.private.label')"
-                ><Icon name="eye-off" :size="12" /></span>
-              </div>
-              <Icon v-if="mutedChannelIds.has(element.id)" name="bell-off" :size="12" class="muted-icon" />
-              <div v-if="getChannelUnreadMentions(element.id) > 0" class="notification-badge">
-                {{ getChannelUnreadMentions(element.id) > 99 ? '99+' : getChannelUnreadMentions(element.id) }}
-              </div>
-              <div v-if="isVoiceType(element.type)" class="voice-controls">
-                <span v-if="getUsersInVoiceChannel(element.id).length > 0" class="user-count">
-                  {{ getUsersInVoiceChannel(element.id).length }}
+            <div class="channel-row" :class="{ 'voice-row': isVoiceType(element.type), 'voice-connected': isVoiceType(element.type) && isUserInVoiceChannel(element.id) }">
+              <component
+                :is="isVoiceType(element.type) ? 'button' : 'a'"
+                v-bind="channelRowAttrs(element)"
+                :class="['channel-item', channelItemClasses(element, null)]"
+                data-roving-item
+                data-nav-kind="channel"
+                :data-nav-id="element.id"
+                tabindex="-1"
+                draggable="false"
+                :aria-current="element.id === currentChannelId && !selectedThreadId ? 'page' : undefined"
+                :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === element.id) }"
+                @click="onChannelClick($event, element)"
+                @mouseenter="scheduleChannelPrefetch(element)"
+                @mouseleave="cancelChannelPrefetch"
+                @focus="scheduleChannelPrefetch(element)"
+                @blur="cancelChannelPrefetch"
+                @contextmenu="openChannelContextMenu($event, element)"
+              >
+                <span v-if="isChannelUnread(element.id)" class="unread-dot" aria-hidden="true"></span>
+                <span class="channel-content">
+                  <HashTagIcon v-if="!isVoiceType(element.type)" aria-hidden="true" />
+                  <SpeakerIcon v-else aria-hidden="true" />
+                  <span class="channel-name">{{ element.name }}</span>
+                  <span class="sr-only">{{ channelStateText(element) }}</span>
+                  <span
+                    v-if="channelLockKey(element)"
+                    class="channel-lock"
+                    aria-hidden="true"
+                    :title="$t(channelLockKey(element)!)"
+                  ><Icon name="lock" :size="12" /></span>
+                  <span
+                    v-if="serverChannelStore.isPrivateChannel(element.id)"
+                    class="channel-lock"
+                    aria-hidden="true"
+                    :title="$t('channel.private.label')"
+                  ><Icon name="eye-off" :size="12" /></span>
                 </span>
-                <button
-                  @click.stop="openVoiceChannelChat(element.id)"
-                  class="voice-btn chat-btn"
-                  title="Open chat"
-                >
-                  <ChatBubbleIcon />
-                </button>
-              </div>
+                <Icon v-if="mutedChannelIds.has(element.id)" name="bell-off" :size="12" class="muted-icon" aria-hidden="true" />
+                <span v-if="getChannelUnreadMentions(element.id) > 0" class="notification-badge" aria-hidden="true">
+                  {{ getChannelUnreadMentions(element.id) > 99 ? '99+' : getChannelUnreadMentions(element.id) }}
+                </span>
+                <span v-if="isVoiceType(element.type) && getUsersInVoiceChannel(element.id).length > 0" class="voice-controls" aria-hidden="true">
+                  <span class="user-count">{{ getUsersInVoiceChannel(element.id).length }}</span>
+                </span>
+              </component>
+              <button
+                v-if="isVoiceType(element.type)"
+                type="button"
+                class="voice-btn chat-btn"
+                data-roving-item
+                data-nav-kind="voice-chat"
+                :data-nav-id="element.id"
+                tabindex="-1"
+                :aria-label="t('chatNav.channel.openChat', { name: element.name })"
+                :title="t('chatNav.channel.openChatShort')"
+                @click="openVoiceChannelChat(element.id)"
+              >
+                <ChatBubbleIcon aria-hidden="true" />
+              </button>
             </div>
             <VoiceChannelParticipants
               v-if="isVoiceType(element.type) && isUserInVoiceChannel(element.id)"
@@ -137,21 +149,31 @@
               :call-start-time="getChannelCallStartTime(element.id)"
             />
             <!-- Active threads nested under the channel -->
-            <div 
-              v-for="thread in getChannelActiveThreads(element.id)"
-              :key="thread.id"
-              class="channel-thread-item"
-              :class="{ 'selected': selectedThreadId === thread.id }"
-              role="button"
-              tabindex="0"
-              @click.stop="openThread(thread)"
-              @keydown.enter.self.prevent="openThread(thread)"
-              @contextmenu.stop="openThreadContextMenu($event, thread)"
+            <ul
+              v-if="getChannelActiveThreads(element.id).length > 0"
+              class="channel-threads"
+              :aria-label="t('chatNav.channel.threadsOf', { name: element.name })"
             >
-              <div class="thread-branch"></div>
-              <span class="thread-name">{{ thread.name }}</span>
-            </div>
-          </div>
+              <li v-for="thread in getChannelActiveThreads(element.id)" :key="thread.id" class="channel-thread-entry">
+                <a
+                  :href="threadHref(thread)"
+                  class="channel-thread-item"
+                  :class="{ 'selected': selectedThreadId === thread.id }"
+                  :aria-current="selectedThreadId === thread.id ? 'page' : undefined"
+                  data-roving-item
+                  data-nav-kind="thread"
+                  :data-nav-id="thread.id"
+                  tabindex="-1"
+                  draggable="false"
+                  @click.prevent="openThread(thread)"
+                  @contextmenu.stop="openThreadContextMenu($event, thread)"
+                >
+                  <span class="thread-branch" aria-hidden="true"></span>
+                  <span class="thread-name">{{ thread.name }}<span class="sr-only">, {{ t('chatNav.channel.thread') }}</span></span>
+                </a>
+              </li>
+            </ul>
+          </li>
         </template>
       </draggable>
     </div>
@@ -169,33 +191,40 @@
     >
       <template #item="{ element: category }">
         <div :key="category.id" class="category-section">
-          <div 
-            class="category-header"
-            role="button"
-            tabindex="0"
-            :aria-expanded="!collapsedCategories.has(category.id)"
-            @click="toggleCategory(category.id)"
-            @keydown.enter.self.prevent="toggleCategory(category.id)"
-            @keydown.space.self.prevent="toggleCategory(category.id)"
-            @contextmenu="openCategoryContextMenu($event, category)"
-            :class="{ 
-              'collapsed': collapsedCategories.has(category.id),
-              'has-visible-channels': shouldShowCategoryContent(category)
-            }"
-          >
-            <Icon 
-              name="chevron-down" 
-              class="category-arrow" 
-              :class="{ 'rotated': collapsedCategories.has(category.id) }"
-              :size="12"
-            />
-            <span class="category-name">{{ category.name.toUpperCase() }}</span>
-          </div>
+          <h2 class="category-heading">
+            <button
+              :id="categoryHeaderId(category.id)"
+              type="button"
+              class="category-header"
+              :class="{
+                'collapsed': collapsedCategories.has(category.id),
+                'has-visible-channels': shouldShowCategoryContent(category)
+              }"
+              :aria-expanded="!collapsedCategories.has(category.id)"
+              :aria-controls="categoryListId(category.id)"
+              data-roving-item
+              data-nav-kind="category"
+              :data-nav-id="category.id"
+              tabindex="-1"
+              @click="toggleCategory(category.id)"
+              @contextmenu="openCategoryContextMenu($event, category)"
+            >
+              <Icon
+                name="chevron-down"
+                class="category-arrow"
+                :class="{ 'rotated': collapsedCategories.has(category.id) }"
+                :size="12"
+                aria-hidden="true"
+              />
+              <span class="category-name">{{ category.name }}</span>
+            </button>
+          </h2>
 
           <!-- Rendered when empty as well; an empty list is a valid drop target -->
-          <div 
+          <div
+            :id="categoryListId(category.id)"
             class="channel-list"
-            :class="{ 
+            :class="{
               'collapsed-list': collapsedCategories.has(category.id),
               'empty-category': getCachedCategoryChannels(category.id).value.length === 0
             }"
@@ -211,76 +240,79 @@
               @add="(evt: any) => onChannelAddedToCategory(evt, category.id)"
               @remove="onChannelRemovedFromCategory"
               item-key="id"
-              tag="div"
-              class="category-channels"
+              tag="ul"
+              role="list"
+              :aria-labelledby="categoryHeaderId(category.id)"
+              class="category-channels channel-list-items"
               :class="{ 'empty-drop-zone': getCachedCategoryChannels(category.id).value.length === 0 }"
             >
               <template #item="{ element: channel }">
-                <div 
-                  :key="channel.id" 
+                <li
+                  :key="channel.id"
                   class="channel-wrapper"
                   :data-channel-id="channel.id"
                   :data-category-id="category.id"
                 >
-                  <div
-                    class="channel-item"
-                    :class="{ 
-                      'selected': currentChannelId === channel.id && !selectedThreadId,
-                      'in-collapsed-category': collapsedCategories.has(category.id),
-                      'dragging': dragState.isDragging && dragState.draggedItem?.id === channel.id,
-                      'voice-channel': isVoiceType(channel.type),
-                      'voice-connected': isVoiceType(channel.type) && isUserInVoiceChannel(channel.id),
-                      'channel-unread': hasUnreadMessages(channel.id) && channel.id !== currentChannelId,
-                      'muted': mutedChannelIds.has(channel.id)
-                    }"
-                    role="button"
-                    tabindex="0"
-                    :aria-current="currentChannelId === channel.id && !selectedThreadId ? 'page' : undefined"
-                    @click="isVoiceType(channel.type) ? handleVoiceChannelClick(channel.id) : selectChannel(channel.id)"
-                    @keydown.enter.self.prevent="isVoiceType(channel.type) ? handleVoiceChannelClick(channel.id) : selectChannel(channel.id)"
-                    @mouseenter="scheduleChannelPrefetch(channel)"
-                    @mouseleave="cancelChannelPrefetch"
-                    @focus="scheduleChannelPrefetch(channel)"
-                    @blur="cancelChannelPrefetch"
-                    @contextmenu="openChannelContextMenu($event, channel)"
-                    :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === channel.id) }"
-                  >
-                    <div class="unread-dot" v-if="hasUnreadMessages(channel.id) && channel.id !== currentChannelId"></div>
-                    <div class="channel-content">
-                      <HashTagIcon v-if="!isVoiceType(channel.type)" />
-                      <SpeakerIcon v-else />
-                      <span class="channel-name">{{ channel.name }}</span>
-                      <span
-                        v-if="channelLockKey(channel)"
-                        class="channel-lock"
-                        role="img"
-                        :title="$t(channelLockKey(channel)!)"
-                        :aria-label="$t(channelLockKey(channel)!)"
-                      ><Icon name="lock" :size="12" /></span>
-                <span
-                  v-if="serverChannelStore.isPrivateChannel(channel.id)"
-                  class="channel-lock"
-                  role="img"
-                  :title="$t('channel.private.label')"
-                  :aria-label="$t('channel.private.label')"
-                ><Icon name="eye-off" :size="12" /></span>
-                    </div>
-                    <Icon v-if="mutedChannelIds.has(channel.id)" name="bell-off" :size="12" class="muted-icon" />
-                    <div v-if="getChannelUnreadMentions(channel.id) > 0" class="notification-badge">
-                      {{ getChannelUnreadMentions(channel.id) > 99 ? '99+' : getChannelUnreadMentions(channel.id) }}
-                    </div>
-                    <div v-if="isVoiceType(channel.type)" class="voice-controls">
-                      <span v-if="getUsersInVoiceChannel(channel.id).length > 0" class="user-count">
-                        {{ getUsersInVoiceChannel(channel.id).length }}
+                  <div class="channel-row" :class="{ 'voice-row': isVoiceType(channel.type), 'voice-connected': isVoiceType(channel.type) && isUserInVoiceChannel(channel.id) }">
+                    <component
+                      :is="isVoiceType(channel.type) ? 'button' : 'a'"
+                      v-bind="channelRowAttrs(channel)"
+                      :class="['channel-item', channelItemClasses(channel, category.id)]"
+                      data-roving-item
+                      data-nav-kind="channel"
+                      :data-nav-id="channel.id"
+                      tabindex="-1"
+                      draggable="false"
+                      :aria-current="currentChannelId === channel.id && !selectedThreadId ? 'page' : undefined"
+                      :style="{ cursor: getDragCursor('channel', dragState.isDragging && dragState.draggedItem?.id === channel.id) }"
+                      @click="onChannelClick($event, channel)"
+                      @mouseenter="scheduleChannelPrefetch(channel)"
+                      @mouseleave="cancelChannelPrefetch"
+                      @focus="scheduleChannelPrefetch(channel)"
+                      @blur="cancelChannelPrefetch"
+                      @contextmenu="openChannelContextMenu($event, channel)"
+                    >
+                      <span v-if="isChannelUnread(channel.id)" class="unread-dot" aria-hidden="true"></span>
+                      <span class="channel-content">
+                        <HashTagIcon v-if="!isVoiceType(channel.type)" aria-hidden="true" />
+                        <SpeakerIcon v-else aria-hidden="true" />
+                        <span class="channel-name">{{ channel.name }}</span>
+                        <span class="sr-only">{{ channelStateText(channel) }}</span>
+                        <span
+                          v-if="channelLockKey(channel)"
+                          class="channel-lock"
+                          aria-hidden="true"
+                          :title="$t(channelLockKey(channel)!)"
+                        ><Icon name="lock" :size="12" /></span>
+                        <span
+                          v-if="serverChannelStore.isPrivateChannel(channel.id)"
+                          class="channel-lock"
+                          aria-hidden="true"
+                          :title="$t('channel.private.label')"
+                        ><Icon name="eye-off" :size="12" /></span>
                       </span>
-                      <button
-                        @click.stop="openVoiceChannelChat(channel.id)"
-                        class="voice-btn chat-btn"
-                        title="Open chat"
-                      >
-                        <ChatBubbleIcon />
-                      </button>
-                    </div>
+                      <Icon v-if="mutedChannelIds.has(channel.id)" name="bell-off" :size="12" class="muted-icon" aria-hidden="true" />
+                      <span v-if="getChannelUnreadMentions(channel.id) > 0" class="notification-badge" aria-hidden="true">
+                        {{ getChannelUnreadMentions(channel.id) > 99 ? '99+' : getChannelUnreadMentions(channel.id) }}
+                      </span>
+                      <span v-if="isVoiceType(channel.type) && getUsersInVoiceChannel(channel.id).length > 0" class="voice-controls" aria-hidden="true">
+                        <span class="user-count">{{ getUsersInVoiceChannel(channel.id).length }}</span>
+                      </span>
+                    </component>
+                    <button
+                      v-if="isVoiceType(channel.type)"
+                      type="button"
+                      class="voice-btn chat-btn"
+                      data-roving-item
+                      data-nav-kind="voice-chat"
+                      :data-nav-id="channel.id"
+                      tabindex="-1"
+                      :aria-label="t('chatNav.channel.openChat', { name: channel.name })"
+                      :title="t('chatNav.channel.openChatShort')"
+                      @click="openVoiceChannelChat(channel.id)"
+                    >
+                      <ChatBubbleIcon aria-hidden="true" />
+                    </button>
                   </div>
                   <VoiceChannelParticipants
                     v-if="isVoiceType(channel.type) && isUserInVoiceChannel(channel.id)"
@@ -294,26 +326,36 @@
                     :call-start-time="getChannelCallStartTime(channel.id)"
                   />
                   <!-- Active threads nested under the channel -->
-                  <div 
-                    v-for="thread in getChannelActiveThreads(channel.id)"
-                    :key="thread.id"
-                    class="channel-thread-item"
-                    :class="{ 'selected': selectedThreadId === thread.id }"
-                    role="button"
-                    tabindex="0"
-                    @click.stop="openThread(thread)"
-                    @keydown.enter.self.prevent="openThread(thread)"
-                    @contextmenu.stop="openThreadContextMenu($event, thread)"
+                  <ul
+                    v-if="getChannelActiveThreads(channel.id).length > 0"
+                    class="channel-threads"
+                    :aria-label="t('chatNav.channel.threadsOf', { name: channel.name })"
                   >
-                    <div class="thread-branch"></div>
-                    <span class="thread-name">{{ thread.name }}</span>
-                  </div>
-                </div>
+                    <li v-for="thread in getChannelActiveThreads(channel.id)" :key="thread.id" class="channel-thread-entry">
+                      <a
+                        :href="threadHref(thread)"
+                        class="channel-thread-item"
+                        :class="{ 'selected': selectedThreadId === thread.id }"
+                        :aria-current="selectedThreadId === thread.id ? 'page' : undefined"
+                        data-roving-item
+                        data-nav-kind="thread"
+                        :data-nav-id="thread.id"
+                        tabindex="-1"
+                        draggable="false"
+                        @click.prevent="openThread(thread)"
+                        @contextmenu.stop="openThreadContextMenu($event, thread)"
+                      >
+                        <span class="thread-branch" aria-hidden="true"></span>
+                        <span class="thread-name">{{ thread.name }}<span class="sr-only">, {{ t('chatNav.channel.thread') }}</span></span>
+                      </a>
+                    </li>
+                  </ul>
+                </li>
               </template>
               <template #footer v-if="getCachedCategoryChannels(category.id).value.length === 0 && dragState.isDragging">
-                <div class="empty-category-placeholder">
-                  Drop channels here
-                </div>
+                <li class="empty-category-placeholder">
+                  {{ t('chatNav.channel.dropHere') }}
+                </li>
               </template>
             </draggable>
           </div>
@@ -328,44 +370,51 @@
       @close="closeInviteModal"
     />
 
-    <!-- Teleported to body: an ancestor's will-change:transform breaks position:fixed -->
-    <Teleport to="body">
-      <ChannelContextMenu
-        :is-visible="showChannelContextMenu"
-        :position="contextMenuPosition"
-        :channel="selectedChannel"
-        @close="closeContextMenus"
-        @invite-users="handleInviteUsers"
-        @edit-channel="handleEditChannel"
-        @delete-channel="handleDeleteChannel"
-      />
+    <ChannelContextMenu
+      :is-visible="showChannelContextMenu"
+      :position="contextMenuPosition"
+      :channel="selectedChannel"
+      :trigger="contextMenuTrigger"
+      :can-reorder="canDragAndDrop"
+      :can-move-up="!!selectedChannel && canMoveChannel(selectedChannel, -1)"
+      :can-move-down="!!selectedChannel && canMoveChannel(selectedChannel, 1)"
+      @close="closeContextMenus"
+      @invite-users="handleInviteUsers"
+      @edit-channel="handleEditChannel"
+      @delete-channel="handleDeleteChannel"
+      @move="moveChannel"
+    />
 
-      <CategoryContextMenu
-        :is-visible="showCategoryContextMenu"
-        :position="contextMenuPosition"
-        :category="selectedCategory"
-        @close="closeContextMenus"
-        @create-channel="handleCreateChannelInCategory"
-        @edit-category="handleEditCategory"
-        @delete-category="handleDeleteCategory"
-      />
+    <CategoryContextMenu
+      :is-visible="showCategoryContextMenu"
+      :position="contextMenuPosition"
+      :category="selectedCategory"
+      :trigger="contextMenuTrigger"
+      :can-move-up="!!selectedCategory && canMoveCategory(selectedCategory, -1)"
+      :can-move-down="!!selectedCategory && canMoveCategory(selectedCategory, 1)"
+      @close="closeContextMenus"
+      @create-channel="handleCreateChannelInCategory"
+      @edit-category="handleEditCategory"
+      @delete-category="handleDeleteCategory"
+      @move="moveCategory"
+    />
 
-      <ThreadContextMenu
-        :is-visible="showThreadContextMenu"
-        :position="contextMenuPosition"
-        :thread="selectedThread"
-        :server-id="currentServer?.id"
-        @close="closeContextMenus"
-        @leave="handleLeaveThread"
-        @edit="handleEditThread"
-        @open-split-view="handleOpenSplitView"
-        @close-thread="handleCloseThread"
-        @reopen="handleReopenThread"
-        @lock="handleLockThread"
-        @unlock="handleUnlockThread"
-        @delete="handleDeleteThread"
-      />
-    </Teleport>
+    <ThreadContextMenu
+      :is-visible="showThreadContextMenu"
+      :position="contextMenuPosition"
+      :thread="selectedThread"
+      :server-id="currentServer?.id"
+      :trigger="contextMenuTrigger"
+      @close="closeContextMenus"
+      @leave="handleLeaveThread"
+      @edit="handleEditThread"
+      @open-split-view="handleOpenSplitView"
+      @close-thread="handleCloseThread"
+      @reopen="handleReopenThread"
+      @lock="handleLockThread"
+      @unlock="handleUnlockThread"
+      @delete="handleDeleteThread"
+    />
 
     <ChannelEditModal
       :show="showChannelEditModal"
@@ -414,7 +463,7 @@
 
 <script setup lang="ts">
 // Channel and category lists are not virtualized.
-import { ref, computed, watch, onMounted, onUnmounted, type WritableComputedRef } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onUnmounted, type WritableComputedRef } from 'vue';
 import { debug } from '@/utils/debug'
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from '@/stores/useServerChannel';
@@ -429,6 +478,10 @@ import { useThemeStore } from '@/stores/useTheme';
 import { useChannelEncryptionStore } from '@/stores/useChannelEncryption';
 import { useChatStore } from '@/stores/useChat';
 import { statePersistence } from '@/services/StatePersistence';
+import { useRovingTabindex } from '@/composables/useRovingTabindex';
+import { isContextMenuKey, useMenuButton } from '@/composables/useMenu';
+import { useAnnouncer } from '@/composables/useAnnouncer';
+import { focusElement, uid } from '@/utils/a11y/focus';
 
 import type { PropType } from 'vue';
 import type { Channel, Category } from '@/types';
@@ -520,6 +573,7 @@ const channelLockKey = (channel: Channel): string | null => {
 
 // State
 const isDropdownOpen = ref(false);
+const serverMenuButton = useMenuButton(isDropdownOpen);
 const showInviteModal = ref(false);
 const isCategoryCreatorOpen = ref(false);
 
@@ -539,6 +593,8 @@ const contextMenuPosition = ref({ x: 0, y: 0 });
 const selectedChannel = ref<Channel | null>(null);
 const selectedCategory = ref<Category | null>(null);
 const selectedThread = ref<ThreadWithDetails | null>(null);
+// Row that opened the context menu; focus returns to it on close.
+const contextMenuTrigger = ref<HTMLElement | null>(null);
 
 // Modal state
 const showChannelEditModal = ref(false);
@@ -846,6 +902,7 @@ const toggleCategory = async (categoryId: string) => {
 };
 
 const toggleDropdown = () => isDropdownOpen.value = !isDropdownOpen.value;
+const closeDropdown = () => { isDropdownOpen.value = false; };
 
 // Same intent threshold as the server rail.
 const CHANNEL_PREFETCH_DELAY_MS = 100;
@@ -1093,6 +1150,7 @@ const openContextMenu = (event: MouseEvent, item: Channel | Category, type: 'cha
   event.preventDefault();
   event.stopPropagation();
   closeContextMenus();
+  contextMenuTrigger.value = event.currentTarget as HTMLElement | null;
   if (type === 'channel') {
     selectedChannel.value = item as Channel;
     showChannelContextMenu.value = true;
@@ -1117,6 +1175,7 @@ const openThreadContextMenu = (event: MouseEvent, thread: ThreadWithDetails) => 
   event.stopPropagation();
   closeContextMenus();
   if (isOptimisticThreadId(thread.id)) return;
+  contextMenuTrigger.value = event.currentTarget as HTMLElement | null;
   selectedThread.value = thread;
   showThreadContextMenu.value = true;
   contextMenuPosition.value = { x: event.clientX, y: event.clientY };
@@ -1339,23 +1398,262 @@ watch(() => route.params.threadId, (threadId) => {
   }
 }, { immediate: true });
 
-const closeContextMenusOnEscape = (event: KeyboardEvent) => {
-  if (event.key === 'Escape') closeContextMenus();
+// Keyboard and screen-reader layer: row names, roving focus, context menus
+// from the keyboard, Move up/down.
+
+const { polite, assertive } = useAnnouncer();
+const idPrefix = uid('channels');
+const ids = {
+  voiceJoin: `${idPrefix}-voice-join`,
+  voiceOpen: `${idPrefix}-voice-open`,
+  voicePreview: `${idPrefix}-voice-preview`,
+};
+const categoryHeaderId = (categoryId: string) => `${idPrefix}-cat-${categoryId}`;
+const categoryListId = (categoryId: string) => `${idPrefix}-list-${categoryId}`;
+
+const isChannelUnread = (channelId: string): boolean =>
+  hasUnreadMessages(channelId) && channelId !== props.currentChannelId;
+
+const channelItemClasses = (channel: Channel, categoryId: string | null) => ({
+  'selected': channel.id === props.currentChannelId && !selectedThreadId.value,
+  'in-collapsed-category': categoryId !== null && collapsedCategories.value.has(categoryId),
+  'dragging': dragState.value.isDragging && dragState.value.draggedItem?.id === channel.id,
+  'voice-channel': isVoiceType(channel.type),
+  'voice-connected': isVoiceType(channel.type) && isUserInVoiceChannel(channel.id),
+  'channel-unread': isChannelUnread(channel.id),
+  'muted': mutedChannelIds.value.has(channel.id),
+});
+
+const channelHref = (channelId: string): string =>
+  router.resolve({ name: 'ChatChannel', params: { serverId: props.currentServer.id, channelId } }).href;
+
+const threadHref = (thread: ThreadWithDetails): string =>
+  router.resolve({ name: 'ThreadView', params: { serverId: props.currentServer.id, threadId: thread.id } }).href;
+
+/**
+ * A text channel is a link to its chat. A voice channel is a button, since
+ * activating it joins the call; its description says so.
+ */
+const channelRowAttrs = (channel: Channel): Record<string, string> => {
+  if (!isVoiceType(channel.type)) return { href: channelHref(channel.id) };
+  let hint = ids.voiceJoin;
+  if (isUserInVoiceChannel(channel.id)) hint = ids.voiceOpen;
+  else if (isMobile.value) hint = ids.voicePreview;
+  return { type: 'button', 'aria-describedby': hint };
 };
 
-// contextmenu is captured so any right-click, including one whose trigger
-// stops propagation, dismisses these menus before a new one opens.
+/** Text after the visible name in a row's accessible name: type, then state. */
+const channelStateText = (channel: Channel): string => {
+  const voice = isVoiceType(channel.type);
+  const parts = [voice ? t('chatNav.channel.voice') : t('chatNav.channel.text')];
+  if (voice) {
+    if (isUserInVoiceChannel(channel.id)) parts.push(t('chatNav.channel.youAreConnected'));
+    const present = getUsersInVoiceChannel(channel.id).length;
+    if (present > 0) parts.push(t('chatNav.channel.connected', { count: present }, present));
+  }
+  if (isChannelUnread(channel.id)) parts.push(t('chatNav.channel.unread'));
+  const mentions = getChannelUnreadMentions(channel.id);
+  if (mentions > 0) parts.push(t('chatNav.channel.mentions', { count: mentions }, mentions));
+  if (mutedChannelIds.value.has(channel.id)) parts.push(t('chatNav.channel.muted'));
+  if (serverChannelStore.isPrivateChannel(channel.id)) parts.push(t('chatNav.channel.private'));
+  const lock = channelLockKey(channel);
+  if (lock) parts.push(t(lock));
+  return `, ${parts.join(', ')}`;
+};
+
+const onChannelClick = (event: MouseEvent, channel: Channel) => {
+  event.preventDefault();
+  if (isVoiceType(channel.type)) void handleVoiceChannelClick(channel.id);
+  else selectChannel(channel.id);
+};
+
+const sidebarEl = ref<HTMLElement | null>(null);
+const roving = useRovingTabindex(sidebarEl, { itemSelector: '[data-roving-item]', typeahead: true });
+
+const navItem = (kind: string, id: string): HTMLElement | null =>
+  sidebarEl.value?.querySelector<HTMLElement>(`[data-nav-kind="${kind}"][data-nav-id="${CSS.escape(id)}"]`) ?? null;
+
+const focusNavItem = (kind: string, id: string) => {
+  const el = navItem(kind, id);
+  if (el && focusElement(el)) roving.sync();
+};
+
+// Rows are rendered by the draggable lists, whose updates do not re-render this
+// component; the observer keeps exactly one tab stop as rows come and go.
+let rovingSyncQueued = false;
+const rovingObserver = typeof MutationObserver === 'undefined' ? null : new MutationObserver(() => {
+  if (rovingSyncQueued) return;
+  rovingSyncQueued = true;
+  queueMicrotask(() => {
+    rovingSyncQueued = false;
+    roving.sync();
+  });
+});
+
+// The tab stop follows the current channel while focus is elsewhere.
+watch([() => props.currentChannelId, selectedThreadId], async () => {
+  await nextTick();
+  const root = sidebarEl.value;
+  if (!root || root.contains(document.activeElement)) return;
+  roving.items().forEach(el => el.setAttribute('tabindex', '-1'));
+  roving.sync();
+});
+
+const menuPointFor = (el: HTMLElement) => {
+  const r = el.getBoundingClientRect();
+  return { x: r.left + Math.min(24, r.width / 2), y: r.bottom };
+};
+
+const openContextMenuFromKeyboard = (el: HTMLElement, kind: string, id: string) => {
+  closeContextMenus();
+  if (kind === 'channel' || kind === 'voice-chat') {
+    const channel = props.channels.find(c => c.id === id);
+    if (!channel) return;
+    selectedChannel.value = channel;
+    showChannelContextMenu.value = true;
+  } else if (kind === 'category') {
+    const category = storeCategories.value.find((c: Category) => c.id === id);
+    if (!category) return;
+    selectedCategory.value = category;
+    showCategoryContextMenu.value = true;
+  } else if (kind === 'thread') {
+    const thread = threadsStore.byId[id] ?? findActiveThread(id);
+    if (!thread || isOptimisticThreadId(thread.id)) return;
+    selectedThread.value = thread;
+    showThreadContextMenu.value = true;
+  } else {
+    return;
+  }
+  contextMenuTrigger.value = el;
+  contextMenuPosition.value = menuPointFor(el);
+};
+
+const findActiveThread = (threadId: string): ThreadWithDetails | null => {
+  for (const channel of props.channels) {
+    const hit = getChannelActiveThreads(channel.id).find(th => th.id === threadId);
+    if (hit) return hit;
+  }
+  return null;
+};
+
+const onNavKeydown = (event: KeyboardEvent) => {
+  const el = event.target as HTMLElement | null;
+  const kind = el?.dataset?.navKind;
+  const id = el?.dataset?.navId;
+  if (!el || !kind || !id) return;
+  if (isContextMenuKey(event)) {
+    event.preventDefault();
+    openContextMenuFromKeyboard(el, kind, id);
+    return;
+  }
+  if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+    const delta = event.key === 'ArrowUp' ? -1 : 1;
+    if (kind === 'channel') {
+      const channel = props.channels.find(c => c.id === id);
+      if (channel && canMoveChannel(channel, delta)) {
+        event.preventDefault();
+        void moveChannel(channel, delta);
+      }
+    } else if (kind === 'category') {
+      const category = storeCategories.value.find((c: Category) => c.id === id);
+      if (category && canMoveCategory(category, delta)) {
+        event.preventDefault();
+        void moveCategory(category, delta);
+      }
+    }
+    return;
+  }
+  // A native link activates on Enter only; Space activates it as it does a button.
+  if (event.key === ' ' && el.tagName === 'A') {
+    event.preventDefault();
+    el.click();
+    return;
+  }
+  roving.onKeydown(event);
+};
+
+// Move up/down: the keyboard and single-pointer alternative to dragging.
+
+const byOrder = (a: Channel, b: Channel) => (a.order || 0) - (b.order || 0);
+
+const channelCategoryId = (channel: Channel): string | null => {
+  for (const [categoryId, list] of Object.entries(props.categoryChannels || {})) {
+    if (list.some(c => c.id === channel.id)) return categoryId;
+  }
+  return null;
+};
+
+/** Every channel in the channel's own list, collapsed categories included, in order. */
+const siblingChannels = (categoryId: string | null): Channel[] => {
+  if (categoryId === null) return [...orphanChannels.value];
+  const members = new Set((props.categoryChannels[categoryId] || []).map(c => c.id));
+  return props.channels.filter(c => members.has(c.id)).sort(byOrder);
+};
+
+const canMoveChannel = (channel: Channel, delta: -1 | 1): boolean => {
+  if (!canDragAndDrop.value) return false;
+  const list = siblingChannels(channelCategoryId(channel));
+  const index = list.findIndex(c => c.id === channel.id);
+  return index >= 0 && index + delta >= 0 && index + delta < list.length;
+};
+
+const moveChannel = async (channel: Channel, delta: -1 | 1) => {
+  if (!canMoveChannel(channel, delta)) return;
+  const categoryId = channelCategoryId(channel);
+  const list = siblingChannels(categoryId);
+  const index = list.findIndex(c => c.id === channel.id);
+  const next = [...list];
+  [next[index], next[index + delta]] = [next[index + delta], next[index]];
+  // The store reorders optimistically before its first await.
+  const saved = serverChannelStore.reorderChannelsInCategory(categoryId, next);
+  await nextTick();
+  focusNavItem('channel', channel.id);
+  polite(t('chatNav.channel.moved', { name: channel.name, position: index + delta + 1, total: list.length }));
+  try {
+    await saved;
+  } catch (error) {
+    debug.error('Failed to move channel:', error);
+    assertive(t('chatNav.channel.moveFailed', { name: channel.name }));
+    await nextTick();
+    focusNavItem('channel', channel.id);
+  }
+};
+
+const canMoveCategory = (category: Category, delta: -1 | 1): boolean => {
+  if (!canDragAndDrop.value) return false;
+  const list = reorderableCategories.value;
+  const index = list.findIndex(c => c.id === category.id);
+  return index >= 0 && index + delta >= 0 && index + delta < list.length;
+};
+
+const moveCategory = async (category: Category, delta: -1 | 1) => {
+  if (!canMoveCategory(category, delta)) return;
+  const list = reorderableCategories.value;
+  const index = list.findIndex(c => c.id === category.id);
+  const next = [...list];
+  [next[index], next[index + delta]] = [next[index + delta], next[index]];
+  const saved = serverChannelStore.updateCategoryOrder(next);
+  // The category list re-mounts on an order change (categoriesKey).
+  await nextTick();
+  focusNavItem('category', category.id);
+  polite(t('chatNav.channel.moved', { name: category.name, position: index + delta + 1, total: list.length }));
+  try {
+    await saved;
+  } catch (error) {
+    debug.error('Failed to move category:', error);
+    assertive(t('chatNav.channel.moveFailed', { name: category.name }));
+    await nextTick();
+    focusNavItem('category', category.id);
+  }
+};
+
 onMounted(() => {
-  document.addEventListener('click', closeContextMenus);
-  document.addEventListener('contextmenu', closeContextMenus, true);
-  document.addEventListener('keydown', closeContextMenusOnEscape);
+  if (sidebarEl.value) rovingObserver?.observe(sidebarEl.value, { childList: true, subtree: true });
 });
 
 onUnmounted(() => {
   cancelChannelPrefetch();
-  document.removeEventListener('click', closeContextMenus);
-  document.removeEventListener('contextmenu', closeContextMenus, true);
-  document.removeEventListener('keydown', closeContextMenusOnEscape);
+  rovingObserver?.disconnect();
 });
 
 
@@ -1384,6 +1682,10 @@ onUnmounted(() => {
 }
 
 .server-name {
+  width: 100%;
+  border: none;
+  border-radius: 0;
+  font-family: inherit;
   font-size: 1.2rem;
   font-weight: 500;
   background: var(--background-tertiary);
@@ -1406,6 +1708,11 @@ onUnmounted(() => {
 
 .server-name:hover {
   background: var(--background-secondary);
+}
+
+.server-name:focus-visible {
+  outline: 2px solid var(--border-focus, var(--harmony-primary));
+  outline-offset: -2px;
 }
 
 .server-name-text {
@@ -1453,7 +1760,30 @@ onUnmounted(() => {
   width: 100%;
 }
 
+.channel-list-items,
+.channel-threads {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.category-heading {
+  margin: 0;
+  font: inherit;
+}
+
+/* Row plus its sibling "Open chat" button for voice channels. */
+.channel-row {
+  position: relative;
+}
+
 .channel-item {
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  text-decoration: none;
   padding: 6px 10px;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1472,6 +1802,22 @@ onUnmounted(() => {
   background-color: var(--channel-item-hover-bg, var(--background-quaternary));
 }
 
+.channel-item:focus-visible,
+.category-header:focus-visible,
+.channel-thread-item:focus-visible .thread-name,
+.chat-btn:focus-visible {
+  outline: 2px solid var(--border-focus, var(--harmony-primary));
+  outline-offset: -2px;
+}
+
+.channel-thread-item:focus-visible {
+  outline: none;
+}
+
+.channel-row.voice-row .channel-item {
+  padding-right: 36px;
+}
+
 .channel-item.selected {
   position: relative;
   background-color: var(--channel-item-selected-bg, var(--background-quaternary));
@@ -1486,15 +1832,20 @@ onUnmounted(() => {
   background-color: color-mix(in srgb, var(--success) 15%, transparent);
 }
 
-/* Muted channels dim the name and icon. The bell-off indicator and the
-   mention badge stay at full opacity: mentions cut through mute, and the
-   bell-off icon is the mute cue. */
+/* Muted channels dim the name and icon. The name keeps the muted text token
+   (4.5:1); the icons fade further. The bell-off indicator and the mention
+   badge stay at full strength: mentions cut through mute, and the bell-off
+   icon is the mute cue. */
 .channel-item.muted .channel-content {
-  opacity: 0.5;
+  color: var(--text-muted);
+}
+
+.channel-item.muted .channel-content > svg {
+  opacity: 0.6;
 }
 
 .channel-item.muted:hover .channel-content {
-  opacity: 0.75;
+  color: var(--text-secondary);
 }
 
 /* Overrides channel-unread bold/white on muted channels regardless of the
@@ -1581,6 +1932,12 @@ onUnmounted(() => {
 }
 
 .category-header {
+  box-sizing: border-box;
+  width: calc(100% - 8px);
+  border: none;
+  background: none;
+  font-family: inherit;
+  text-align: left;
   cursor: pointer;
   padding: 8px 10px;
   margin-top: 6px;
@@ -1630,10 +1987,6 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 
-.category-header.has-visible-channels.collapsed {
-  opacity: 0.8;
-}
-
 .category-name {
   flex: 1;
   min-width: 0;
@@ -1668,16 +2021,34 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.voice-controls,
+.chat-btn {
   opacity: 0;
   transition: opacity 0.2s ease;
 }
 
-.channel-item:hover .voice-controls {
+.channel-row:hover .voice-controls,
+.channel-row:focus-within .voice-controls,
+.channel-row.voice-connected .voice-controls,
+.channel-row:hover .chat-btn,
+.channel-row:focus-within .chat-btn,
+.channel-row.voice-connected .chat-btn {
   opacity: 1;
 }
 
-.channel-item.voice-connected .voice-controls {
-  opacity: 1;
+.chat-btn {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+}
+
+@media (hover: none) {
+  .chat-btn {
+    opacity: 1;
+  }
 }
 
 .voice-btn {
@@ -1739,6 +2110,8 @@ onUnmounted(() => {
 
 /* Thread items nested under a channel */
 .channel-thread-item {
+  box-sizing: border-box;
+  text-decoration: none;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1805,12 +2178,12 @@ onUnmounted(() => {
 }
 
 /* Last item: corner rounds off */
-.channel-thread-item:last-of-type .thread-branch::before {
+.channel-thread-entry:last-child .thread-branch::before {
   border-bottom-left-radius: 4px;
 }
 
 /* Otherwise the vertical segment runs to the next item */
-.channel-thread-item:not(:last-of-type) .thread-branch::before {
+.channel-thread-entry:not(:last-child) .thread-branch::before {
   bottom: 0;
 }
 
@@ -1842,40 +2215,6 @@ onUnmounted(() => {
 
 .empty-category-placeholder:hover {
   background-color: var(--background-modifier-hover);
-}
-
-.channel-context-menu,
-.category-context-menu {
-  position: absolute;
-  z-index: 1000;
-  background: var(--background-floating);
-  border: 1px solid var(--border-primary);
-  border-radius: 4px;
-  box-shadow: var(--shadow-medium);
-  padding: 8px 0;
-  width: 200px;
-}
-
-.context-menu-item {
-  padding: 8px 12px;
-  cursor: pointer;
-  transition: background 0.2s ease;
-  font-size: 14px;
-  color: var(--text-primary);
-}
-
-.context-menu-item:hover {
-  background: var(--background-modifier-hover);
-}
-
-.channel-context-menu,
-.category-context-menu {
-  display: none;
-}
-
-.channel-context-menu.active,
-.category-context-menu.active {
-  display: block;
 }
 
 /* =====================================
@@ -1948,22 +2287,6 @@ onUnmounted(() => {
     min-height: 44px;
   }
 
-
-  .channel-context-menu,
-  .category-context-menu {
-    width: 90vw;
-    max-width: 280px;
-    border-radius: 12px;
-    box-shadow: var(--shadow-large);
-  }
-
-  .context-menu-item {
-    padding: 16px 20px;
-    font-size: 16px;
-    min-height: 52px;
-    display: flex;
-    align-items: center;
-  }
 
   /* Drag is disabled on mobile; pointer cursor and no text selection. */
   .drag-disabled {

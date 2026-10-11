@@ -4097,6 +4097,143 @@
       "failed": "Impossible de quitter le serveur"
     }
   },
+  "chatNav": {
+    "channel": {
+      "text": "salon textuel",
+      "voice": "salon vocal",
+      "unread": "non lu",
+      "mentions": "{count} mention | {count} mentions",
+      "muted": "en sourdine",
+      "private": "privé",
+      "connected": "{count} connecté | {count} connectés",
+      "youAreConnected": "vous êtes connecté",
+      "joinHint": "Rejoint l'appel vocal",
+      "openChatHint": "Ouvre le chat du salon",
+      "previewHint": "Affiche qui est présent, avec des options pour rejoindre",
+      "openChat": "Ouvrir le chat de {name}",
+      "openChatShort": "Ouvrir le chat",
+      "threadsOf": "Fils dans {name}",
+      "thread": "fil",
+      "dropHere": "Déposez les salons ici",
+      "moved": "{name} déplacé en position {position} sur {total}",
+      "moveFailed": "Impossible de déplacer {name}"
+    },
+    "menu": {
+      "editChannel": "Modifier le salon",
+      "editCategory": "Modifier la catégorie",
+      "deleteCategory": "Supprimer la catégorie"
+    },
+    "thread": {
+      "leave": "Quitter le fil",
+      "join": "Rejoindre le fil",
+      "edit": "Modifier le fil",
+      "splitView": "Ouvrir en vue partagée",
+      "close": "Fermer le fil",
+      "reopen": "Rouvrir le fil",
+      "lock": "Verrouiller le fil",
+      "unlock": "Déverrouiller le fil",
+      "delete": "Supprimer le fil",
+      "mute": "Mettre le fil en sourdine",
+      "unmute": "Réactiver le son du fil",
+      "copyId": "Copier l'identifiant du fil",
+      "closePanel": "Fermer le panneau du fil",
+      "options": "Options du fil",
+      "replies": "{count} réponse | {count} réponses",
+      "draftHint": "Envoyez un message pour démarrer ce fil",
+      "loading": "Chargement des messages…",
+      "loadingOlder": "Chargement…",
+      "loadOlder": "Charger les messages plus anciens"
+    },
+    "header": {
+      "pinnedCount": "{count} message épinglé | {count} messages épinglés",
+      "threads": "Voir tous les fils",
+      "threadsShort": "Voir les fils",
+      "more": "Plus d'options"
+    },
+    "user": {
+      "mention": "Mentionner",
+      "message": "Message",
+      "call": "Démarrer un appel",
+      "nickname": "Changer de pseudo",
+      "invite": "Inviter sur le serveur",
+      "mute": "Mettre l'utilisateur en sourdine",
+      "unmute": "Réactiver le son de l'utilisateur",
+      "kick": "Expulser {name}",
+      "ban": "Bannir {name}",
+      "copyId": "Copier l'identifiant de l'utilisateur",
+      "fallbackName": "Utilisateur"
+    },
+    "rail": {
+      "folder": "dossier",
+      "servers": "{count} serveur | {count} serveurs",
+      "unreadMessages": "{count} message non lu | {count} messages non lus"
+    },
+    "dm": {
+      "startNew": "Nouveau message privé",
+      "createGroup": "Créer une discussion de groupe",
+      "searchLabel": "Rechercher des utilisateurs",
+      "listLabel": "Conversations",
+      "group": "groupe, {count} membre | groupe, {count} membres",
+      "dismissed": "Conversation avec {name} masquée",
+      "dismissNamed": "Masquer la conversation avec {name}",
+      "restored": "Conversation avec {name} rétablie",
+      "restoreFailed": "Impossible de rétablir la conversation",
+      "joinCallWith": "Rejoindre l'appel avec {name}"
+    },
+    "members": {
+      "search": "Rechercher des membres",
+      "clearSearch": "Effacer la recherche",
+      "found": "{count} membre trouvé | {count} membres trouvés",
+      "group": "{title}, {count} membre | {title}, {count} membres",
+      "discord": "Membre du pont Discord",
+      "instanceAdmin": "administrateur de l'instance",
+      "instanceMod": "modérateur de l'instance"
+    },
+    "create": {
+      "textHint": "Utilisez des minuscules, des chiffres, des tirets et des tirets bas ; les espaces deviennent des tirets",
+      "voiceHint": "Choisissez un nom qui décrit votre salon vocal",
+      "looksGood": "Parfait",
+      "nameRequired": "Le nom du salon est requis",
+      "nameTooLong": "Le nom du salon doit comporter 100 caractères au maximum",
+      "voiceInvalid": "Le nom du salon vocal contient des caractères non valides",
+      "categorySubtitle": "Organisez vos salons avec des catégories",
+      "categoryName": "Nom de la catégorie",
+      "categoryPlaceholder": "Saisissez le nom de la catégorie…",
+      "categoryHint": "Les catégories aident à organiser vos salons",
+      "categoryGood": "Bon choix ! Cela aidera à organiser vos salons",
+      "categoryRequired": "Le nom de la catégorie est requis",
+      "categoryTooShort": "Le nom de la catégorie doit comporter au moins 2 caractères",
+      "categoryTooLong": "Le nom de la catégorie doit comporter 100 caractères au maximum",
+      "categoryInvalid": "Le nom de la catégorie ne peut contenir que des lettres, des chiffres, des tirets et des tirets bas"
+    },
+    "pinned": {
+      "count": "{count} message | {count} messages",
+      "none": "Aucun message épinglé",
+      "loading": "Chargement des messages épinglés…",
+      "jump": "Aller au message",
+      "unpin": "Désépingler",
+      "by": "Épinglé par {name}"
+    },
+    "threadsModal": {
+      "title": "Fils",
+      "search": "Rechercher un nom de fil",
+      "joined": "{count} fil rejoint | {count} fils rejoints",
+      "older": "Fils plus anciens",
+      "noMessages": "Pas encore de messages",
+      "startedBy": "Lancé par",
+      "lastActive": "Dernière activité : {time}",
+      "loading": "Chargement des fils…"
+    },
+    "mediaPicker": {
+      "label": "GIF, autocollants et emoji",
+      "gifs": "GIF",
+      "stickers": "Autocollants",
+      "emoji": "Emoji",
+      "clips": "Clips",
+      "memes": "Mèmes",
+      "aiEmoji": "Emoji IA"
+    }
+  },
   "embeds": {
     "popOut": "Détacher",
     "open": "Ouvrir",

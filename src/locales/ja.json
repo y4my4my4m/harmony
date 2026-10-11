@@ -4097,6 +4097,143 @@
       "failed": "サーバーから脱退できませんでした"
     }
   },
+  "chatNav": {
+    "channel": {
+      "text": "テキストチャンネル",
+      "voice": "ボイスチャンネル",
+      "unread": "未読",
+      "mentions": "メンション {count} 件",
+      "muted": "ミュート中",
+      "private": "非公開",
+      "connected": "{count} 人が接続中",
+      "youAreConnected": "接続中",
+      "joinHint": "通話に参加します",
+      "openChatHint": "チャンネルのチャットを開きます",
+      "previewHint": "参加中のメンバーと参加オプションを表示します",
+      "openChat": "{name} のチャットを開く",
+      "openChatShort": "チャットを開く",
+      "threadsOf": "{name} のスレッド",
+      "thread": "スレッド",
+      "dropHere": "ここにチャンネルをドロップ",
+      "moved": "{name} を {total} 件中 {position} 番目に移動しました",
+      "moveFailed": "{name} を移動できませんでした"
+    },
+    "menu": {
+      "editChannel": "チャンネルを編集",
+      "editCategory": "カテゴリーを編集",
+      "deleteCategory": "カテゴリーを削除"
+    },
+    "thread": {
+      "leave": "スレッドから退出",
+      "join": "スレッドに参加",
+      "edit": "スレッドを編集",
+      "splitView": "分割ビューで開く",
+      "close": "スレッドをクローズ",
+      "reopen": "スレッドを再開",
+      "lock": "スレッドをロック",
+      "unlock": "スレッドのロックを解除",
+      "delete": "スレッドを削除",
+      "mute": "スレッドをミュート",
+      "unmute": "スレッドのミュートを解除",
+      "copyId": "スレッド ID をコピー",
+      "closePanel": "スレッドパネルを閉じる",
+      "options": "スレッドのオプション",
+      "replies": "返信 {count} 件",
+      "draftHint": "メッセージを送信してスレッドを始めましょう",
+      "loading": "メッセージを読み込み中…",
+      "loadingOlder": "読み込み中…",
+      "loadOlder": "以前のメッセージを読み込む"
+    },
+    "header": {
+      "pinnedCount": "ピン留めされたメッセージ {count} 件",
+      "threads": "すべてのスレッドを表示",
+      "threadsShort": "スレッドを表示",
+      "more": "その他のオプション"
+    },
+    "user": {
+      "mention": "メンション",
+      "message": "メッセージ",
+      "call": "通話を開始",
+      "nickname": "ニックネームを変更",
+      "invite": "サーバーに招待",
+      "mute": "ユーザーをミュート",
+      "unmute": "ユーザーのミュートを解除",
+      "kick": "{name} をキック",
+      "ban": "{name} をBAN",
+      "copyId": "ユーザー ID をコピー",
+      "fallbackName": "ユーザー"
+    },
+    "rail": {
+      "folder": "フォルダー",
+      "servers": "サーバー {count} 件",
+      "unreadMessages": "未読メッセージ {count} 件"
+    },
+    "dm": {
+      "startNew": "新しい DM を開始",
+      "createGroup": "グループチャットを作成",
+      "searchLabel": "ユーザーを検索",
+      "listLabel": "会話",
+      "group": "グループ、メンバー {count} 人",
+      "dismissed": "{name} との会話を非表示にしました",
+      "dismissNamed": "{name} との会話を非表示",
+      "restored": "{name} との会話を元に戻しました",
+      "restoreFailed": "会話を元に戻せませんでした",
+      "joinCallWith": "{name} との通話に参加"
+    },
+    "members": {
+      "search": "メンバーを検索",
+      "clearSearch": "検索をクリア",
+      "found": "{count} 人のメンバーが見つかりました",
+      "group": "{title}、{count} 人",
+      "discord": "Discord ブリッジのメンバー",
+      "instanceAdmin": "インスタンス管理者",
+      "instanceMod": "インスタンスモデレーター"
+    },
+    "create": {
+      "textHint": "小文字・数字・ハイフン・アンダースコアが使えます。スペースはハイフンになります",
+      "voiceHint": "ボイスチャンネルを表す名前を付けましょう",
+      "looksGood": "問題ありません",
+      "nameRequired": "チャンネル名は必須です",
+      "nameTooLong": "チャンネル名は 100 文字以内にしてください",
+      "voiceInvalid": "ボイスチャンネル名に使えない文字が含まれています",
+      "categorySubtitle": "カテゴリーでチャンネルを整理しましょう",
+      "categoryName": "カテゴリー名",
+      "categoryPlaceholder": "カテゴリー名を入力…",
+      "categoryHint": "カテゴリーでチャンネルを整理できます",
+      "categoryGood": "いいですね。チャンネルの整理に役立ちます",
+      "categoryRequired": "カテゴリー名は必須です",
+      "categoryTooShort": "カテゴリー名は 2 文字以上にしてください",
+      "categoryTooLong": "カテゴリー名は 100 文字以内にしてください",
+      "categoryInvalid": "カテゴリー名には英数字・ハイフン・アンダースコアのみ使えます"
+    },
+    "pinned": {
+      "count": "メッセージ {count} 件",
+      "none": "ピン留めされたメッセージはありません",
+      "loading": "ピン留めメッセージを読み込み中…",
+      "jump": "メッセージへ移動",
+      "unpin": "ピン留めを外す",
+      "by": "{name} がピン留め"
+    },
+    "threadsModal": {
+      "title": "スレッド",
+      "search": "スレッド名で検索",
+      "joined": "参加中のスレッド {count} 件",
+      "older": "以前のスレッド",
+      "noMessages": "まだメッセージはありません",
+      "startedBy": "作成者",
+      "lastActive": "最終アクティブ: {time}",
+      "loading": "スレッドを読み込み中…"
+    },
+    "mediaPicker": {
+      "label": "GIF・ステッカー・絵文字",
+      "gifs": "GIF",
+      "stickers": "ステッカー",
+      "emoji": "絵文字",
+      "clips": "クリップ",
+      "memes": "ミーム",
+      "aiEmoji": "AI 絵文字"
+    }
+  },
   "embeds": {
     "popOut": "ポップアウト",
     "open": "開く",

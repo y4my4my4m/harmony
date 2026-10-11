@@ -63,12 +63,6 @@ export const AXE_EXCLUSIONS: AxeExclusion[] = [
     within: '[data-testid="message-input"]',
   },
   {
-    rule: 'nested-interactive',
-    area: 'chat',
-    reason: 'Voice channel rows (role=button) contain the "Open chat" button (ChannelSidebar.vue).',
-    within: '.channel-sidebar',
-  },
-  {
     rule: 'label-content-name-mismatch',
     area: 'voice',
     reason: 'User panel avatar button: aria-label "Your account and voice controls" omits the visible name (UserProfileComponent.vue).',

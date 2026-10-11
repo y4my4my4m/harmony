@@ -11,11 +11,11 @@
       tabindex="0"
       data-rail-kind="folder"
       :data-rail-id="folder.id"
-      :aria-label="label"
+      :aria-label="stateLabel"
       aria-expanded="false"
     >
-      <div class="server-pill" :class="{ 'has-unread': hasUnread }"></div>
-      <div class="folder-grid">
+      <div class="server-pill" :class="{ 'has-unread': hasUnread }" aria-hidden="true"></div>
+      <div class="folder-grid" aria-hidden="true">
         <div v-for="server in previewServers" :key="server.id" class="folder-grid-item">
           <img
             :src="iconUrl(server.icon)"
@@ -30,7 +30,7 @@
           />
         </div>
       </div>
-      <div v-if="mentions > 0" class="unread-badge">{{ mentions > 99 ? '99+' : mentions }}</div>
+      <div v-if="mentions > 0" class="unread-badge" aria-hidden="true">{{ mentions > 99 ? '99+' : mentions }}</div>
     </div>
 
     <div v-else class="folder-expanded">
@@ -40,7 +40,7 @@
         tabindex="0"
         data-rail-kind="folder"
         :data-rail-id="folder.id"
-        :aria-label="label"
+        :aria-label="stateLabel"
         aria-expanded="true"
       >
         <svg class="folder-cap-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -61,6 +61,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ServerRailItem from '@/components/serverRail/ServerRailItem.vue'
 import { useRailFolderState } from '@/components/serverRail/railState'
+import { railLabel } from '@/components/serverRail/railLabel'
 import { getServerIconUrl } from '@/utils/serverUtils'
 import { devicePixels } from '@/utils/imageTransformUtils'
 import type { Server, ServerFolder } from '@/types'
@@ -75,6 +76,8 @@ const { t } = useI18n()
 const label = computed(() => props.folder.name || t('serverRail.folder.unnamed'))
 const previewServers = computed(() => props.servers.slice(0, 4))
 const { mentions, hasUnread } = useRailFolderState(() => props.servers)
+const stateLabel = computed(() =>
+  railLabel(t, label.value, { servers: props.servers.length, mentions: mentions.value, unread: hasUnread.value }))
 
 // Grid tiles are 20 CSS px; requesting that size keeps the rail off full icons.
 const tilePixels = devicePixels(20)

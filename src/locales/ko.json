@@ -4097,6 +4097,143 @@
       "failed": "서버에서 나가지 못했습니다"
     }
   },
+  "chatNav": {
+    "channel": {
+      "text": "텍스트 채널",
+      "voice": "음성 채널",
+      "unread": "읽지 않음",
+      "mentions": "멘션 {count}개",
+      "muted": "음소거됨",
+      "private": "비공개",
+      "connected": "{count}명 접속 중",
+      "youAreConnected": "접속 중",
+      "joinHint": "음성 통화에 참여합니다",
+      "openChatHint": "채널 채팅을 엽니다",
+      "previewHint": "참여 중인 사람과 참여 옵션을 표시합니다",
+      "openChat": "{name} 채팅 열기",
+      "openChatShort": "채팅 열기",
+      "threadsOf": "{name}의 스레드",
+      "thread": "스레드",
+      "dropHere": "여기에 채널을 놓으세요",
+      "moved": "{name}을(를) {total}개 중 {position}번째로 옮겼습니다",
+      "moveFailed": "{name}을(를) 옮기지 못했습니다"
+    },
+    "menu": {
+      "editChannel": "채널 편집",
+      "editCategory": "카테고리 편집",
+      "deleteCategory": "카테고리 삭제"
+    },
+    "thread": {
+      "leave": "스레드 나가기",
+      "join": "스레드 참여",
+      "edit": "스레드 편집",
+      "splitView": "분할 보기로 열기",
+      "close": "스레드 닫기",
+      "reopen": "스레드 다시 열기",
+      "lock": "스레드 잠금",
+      "unlock": "스레드 잠금 해제",
+      "delete": "스레드 삭제",
+      "mute": "스레드 음소거",
+      "unmute": "스레드 음소거 해제",
+      "copyId": "스레드 ID 복사",
+      "closePanel": "스레드 패널 닫기",
+      "options": "스레드 옵션",
+      "replies": "답글 {count}개",
+      "draftHint": "메시지를 보내 이 스레드를 시작하세요",
+      "loading": "메시지를 불러오는 중…",
+      "loadingOlder": "불러오는 중…",
+      "loadOlder": "이전 메시지 불러오기"
+    },
+    "header": {
+      "pinnedCount": "고정된 메시지 {count}개",
+      "threads": "모든 스레드 보기",
+      "threadsShort": "스레드 보기",
+      "more": "추가 옵션"
+    },
+    "user": {
+      "mention": "멘션",
+      "message": "메시지",
+      "call": "통화 시작",
+      "nickname": "닉네임 변경",
+      "invite": "서버에 초대",
+      "mute": "사용자 음소거",
+      "unmute": "사용자 음소거 해제",
+      "kick": "{name} 추방",
+      "ban": "{name} 차단",
+      "copyId": "사용자 ID 복사",
+      "fallbackName": "사용자"
+    },
+    "rail": {
+      "folder": "폴더",
+      "servers": "서버 {count}개",
+      "unreadMessages": "읽지 않은 메시지 {count}개"
+    },
+    "dm": {
+      "startNew": "새 DM 시작",
+      "createGroup": "그룹 채팅 만들기",
+      "searchLabel": "사용자 검색",
+      "listLabel": "대화",
+      "group": "그룹, 멤버 {count}명",
+      "dismissed": "{name}님과의 대화를 숨겼습니다",
+      "dismissNamed": "{name}님과의 대화 숨기기",
+      "restored": "{name}님과의 대화를 복원했습니다",
+      "restoreFailed": "대화를 복원하지 못했습니다",
+      "joinCallWith": "{name}님과의 통화 참여"
+    },
+    "members": {
+      "search": "멤버 검색",
+      "clearSearch": "검색 지우기",
+      "found": "멤버 {count}명을 찾았습니다",
+      "group": "{title}, {count}명",
+      "discord": "Discord 브리지 멤버",
+      "instanceAdmin": "인스턴스 관리자",
+      "instanceMod": "인스턴스 모더레이터"
+    },
+    "create": {
+      "textHint": "소문자, 숫자, 하이픈, 밑줄을 사용하세요. 공백은 하이픈이 됩니다",
+      "voiceHint": "음성 채널을 설명하는 이름을 정하세요",
+      "looksGood": "좋습니다",
+      "nameRequired": "채널 이름은 필수입니다",
+      "nameTooLong": "채널 이름은 100자 이하여야 합니다",
+      "voiceInvalid": "음성 채널 이름에 사용할 수 없는 문자가 있습니다",
+      "categorySubtitle": "카테고리로 채널을 정리하세요",
+      "categoryName": "카테고리 이름",
+      "categoryPlaceholder": "카테고리 이름 입력…",
+      "categoryHint": "카테고리는 채널 정리에 도움이 됩니다",
+      "categoryGood": "좋아요! 채널 정리에 도움이 됩니다",
+      "categoryRequired": "카테고리 이름은 필수입니다",
+      "categoryTooShort": "카테고리 이름은 2자 이상이어야 합니다",
+      "categoryTooLong": "카테고리 이름은 100자 이하여야 합니다",
+      "categoryInvalid": "카테고리 이름에는 문자, 숫자, 하이픈, 밑줄만 사용할 수 있습니다"
+    },
+    "pinned": {
+      "count": "메시지 {count}개",
+      "none": "고정된 메시지가 없습니다",
+      "loading": "고정된 메시지를 불러오는 중…",
+      "jump": "메시지로 이동",
+      "unpin": "고정 해제",
+      "by": "{name}님이 고정함"
+    },
+    "threadsModal": {
+      "title": "스레드",
+      "search": "스레드 이름 검색",
+      "joined": "참여한 스레드 {count}개",
+      "older": "이전 스레드",
+      "noMessages": "아직 메시지가 없습니다",
+      "startedBy": "시작한 사람",
+      "lastActive": "마지막 활동: {time}",
+      "loading": "스레드를 불러오는 중…"
+    },
+    "mediaPicker": {
+      "label": "GIF, 스티커, 이모지",
+      "gifs": "GIF",
+      "stickers": "스티커",
+      "emoji": "이모지",
+      "clips": "클립",
+      "memes": "밈",
+      "aiEmoji": "AI 이모지"
+    }
+  },
   "embeds": {
     "popOut": "팝아웃",
     "open": "열기",

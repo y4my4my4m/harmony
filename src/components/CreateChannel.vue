@@ -22,50 +22,62 @@
       <!-- NOTE: Removed @enter handler - form @submit.prevent handles Enter key.
            Having both caused double channel creation! -->
       
-      <div class="channel-type-section">
-        <label class="section-label">{{ $t('channel.channelType') }}</label>
+      <fieldset class="channel-type-section">
+        <legend class="section-label">{{ $t('channel.channelType') }}</legend>
         <div class="channel-type-grid">
-          <div 
-            class="channel-type-option"
-            :class="{ active: channelType === 0 }"
-            @click="setChannelType(0)"
-          >
-            <div class="option-icon text-channel">
+          <label class="channel-type-option" :class="{ active: channelType === 0 }">
+            <input
+              v-model="channelType"
+              type="radio"
+              class="channel-type-radio sr-only"
+              :name="typeGroupName"
+              :value="0"
+              :aria-labelledby="`${typeGroupName}-text`"
+              :aria-describedby="`${typeGroupName}-text-desc`"
+              data-testid="channel-type-text"
+            />
+            <span class="option-icon text-channel" aria-hidden="true">
               <Icon name="hash" :size="24" />
-            </div>
-            <div class="option-content">
-              <h4 class="option-title">{{ $t('channel.text') }}</h4>
-              <p class="option-description">{{ $t('channel.textDesc') }}</p>
-            </div>
-            <div class="option-check" v-if="channelType === 0">
+            </span>
+            <span class="option-content">
+              <span :id="`${typeGroupName}-text`" class="option-title">{{ $t('channel.text') }}</span>
+              <span :id="`${typeGroupName}-text-desc`" class="option-description">{{ $t('channel.textDesc') }}</span>
+            </span>
+            <span v-if="channelType === 0" class="option-check" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="currentColor">
                 <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
               </svg>
-            </div>
-          </div>
-          
-          <div 
-            class="channel-type-option"
-            :class="{ active: channelType === 1 }"
-            @click="setChannelType(1)"
-          >
-            <div class="option-icon voice-channel">
+            </span>
+          </label>
+
+          <label class="channel-type-option" :class="{ active: channelType === 1 }">
+            <input
+              v-model="channelType"
+              type="radio"
+              class="channel-type-radio sr-only"
+              :name="typeGroupName"
+              :value="1"
+              :aria-labelledby="`${typeGroupName}-voice`"
+              :aria-describedby="`${typeGroupName}-voice-desc`"
+              data-testid="channel-type-voice"
+            />
+            <span class="option-icon voice-channel" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 14C13.66 14 15 12.66 15 11V5C15 3.34 13.66 2 12 2S9 3.34 9 5V11C9 12.66 10.34 14 12 14M19 11C19 14.53 16.39 17.44 13 17.93V21H11V17.93C7.61 17.44 5 14.53 5 11H7A5 5 0 0 0 12 16A5 5 0 0 0 17 11H19Z"/>
               </svg>
-            </div>
-            <div class="option-content">
-              <h4 class="option-title">{{ $t('channel.voice') }}</h4>
-              <p class="option-description">{{ $t('channel.voiceDesc') }}</p>
-            </div>
-            <div class="option-check" v-if="channelType === 1">
+            </span>
+            <span class="option-content">
+              <span :id="`${typeGroupName}-voice`" class="option-title">{{ $t('channel.voice') }}</span>
+              <span :id="`${typeGroupName}-voice-desc`" class="option-description">{{ $t('channel.voiceDesc') }}</span>
+            </span>
+            <span v-if="channelType === 1" class="option-check" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="currentColor">
                 <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
               </svg>
-            </div>
-          </div>
+            </span>
+          </label>
         </div>
-      </div>
+      </fieldset>
       
       <div class="encryption-option">
         <div class="encryption-option-text">
@@ -158,6 +170,7 @@ import { roleService, type ServerRole } from '@/services/RoleService'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { isRequiredMode, normalizeServerMode, type ServerEncryptionMode } from '@/utils/channelEncryption'
 import { formatChannelNameInput, finalizeChannelName } from '@/utils/channelName'
+import { uid } from '@/utils/a11y/focus'
 
 // Max channels per server
 const MAX_CHANNELS_PER_SERVER = 100
@@ -182,6 +195,7 @@ const serverChannelStore = useServerChannelStore()
 
 const newChannelName = ref('')
 const channelType = ref(0) // Default to text channel
+const typeGroupName = uid('channel-type')
 
 // Private: @everyone loses View Channel; the chosen roles keep it (create_channel).
 const isPrivate = ref(false)
@@ -281,15 +295,15 @@ const canCreate = computed(() => {
 const channelNameHint = computed(() => {
   if (newChannelName.value.length === 0) {
     return channelType.value === 0 
-      ? 'Use lowercase letters, numbers, dashes and underscores; spaces become dashes'
-      : 'Choose a name that describes your voice channel'
+      ? t('chatNav.create.textHint')
+      : t('chatNav.create.voiceHint')
   }
   
   if (channelNameError.value) {
     return ''
   }
   
-  return 'Looks good'
+  return t('chatNav.create.looksGood')
 })
 
 const validateChannelName = () => {
@@ -300,35 +314,32 @@ const validateChannelName = () => {
   const name = channelType.value === 0 ? finalizeChannelName(newChannelName.value) : newChannelName.value.trim()
   
   if (!name) {
-    channelNameError.value = 'Channel name is required'
+    channelNameError.value = t('chatNav.create.nameRequired')
     return
   }
   
   if (name.length < 1) {
-    channelNameError.value = 'Channel name must be at least 1 character'
+    channelNameError.value = t('chatNav.create.nameRequired')
     return
   }
   
   if (name.length > 100) {
-    channelNameError.value = 'Channel name must be 100 characters or less'
+    channelNameError.value = t('chatNav.create.nameTooLong')
     return
   }
   
   if (channelType.value !== 0 && !/^[a-zA-Z0-9\s\-_.,!?()[\]]+$/.test(name)) {
-    channelNameError.value = 'Voice channel name contains invalid characters'
+    channelNameError.value = t('chatNav.create.voiceInvalid')
     return
   }
   
   channelNameError.value = ''
 }
 
-const setChannelType = (type: number) => {
-  channelType.value = type
-  // Re-validate when type changes
-  if (newChannelName.value.trim()) {
-    validateChannelName()
-  }
-}
+// The radio group's v-model sets the type; the name re-validates against it.
+watch(channelType, () => {
+  if (newChannelName.value.trim()) validateChannelName()
+})
 
 const createChannel = async () => {
   if (!canCreate.value) return
@@ -408,9 +419,15 @@ const closeForm = () => {
 }
 
 .channel-type-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.channel-type-section > legend {
+  padding: 0;
+  margin-bottom: 12px;
 }
 
 .section-label {
@@ -451,6 +468,11 @@ const closeForm = () => {
   border-color: var(--harmony-primary);
 }
 
+.channel-type-option:has(.channel-type-radio:focus-visible) {
+  outline: 2px solid var(--border-focus, var(--harmony-primary));
+  outline-offset: 2px;
+}
+
 .option-icon {
   width: 48px;
   height: 48px;
@@ -478,6 +500,11 @@ const closeForm = () => {
 .option-content {
   flex: 1;
   min-width: 0;
+}
+
+.option-title,
+.option-description {
+  display: block;
 }
 
 .option-title {
