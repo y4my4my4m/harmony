@@ -199,6 +199,22 @@ test('messages read in order with author and time; arrows move between them', as
     await expect(row).toBeFocused()
   })
 
+  await test.step('a right-click opens the message menu at the pointer', async () => {
+    const text = rowOf(page, 'Coffee is ready').getByText('Coffee is ready')
+    const box = (await text.boundingBox())!
+    const x = Math.round(box.x + box.width - 4)
+    const y = Math.round(box.y + box.height / 2)
+    await page.mouse.click(x, y, { button: 'right' })
+    const menu = page.getByRole('menu', { name: 'Message options' })
+    await expect(menu).toBeVisible()
+    // Placed at the pointer, unless the viewport edge pushes it back.
+    const placed = (await menu.boundingBox())!
+    expect(Math.abs(placed.x - x)).toBeLessThanOrEqual(24)
+    expect(Math.abs(placed.y - y)).toBeLessThanOrEqual(24)
+    await page.keyboard.press('Escape')
+    await expect(menu).toBeHidden()
+  })
+
   await test.step('a pointer click leaves the action bar to hover', async () => {
     const row = rowOf(page, 'Morning everyone')
     await row.locator('.message-group').click({ position: { x: 300, y: 8 } })

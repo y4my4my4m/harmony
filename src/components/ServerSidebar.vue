@@ -216,6 +216,9 @@ import FundingModal from '@/components/FundingModal.vue';
 import { useFundingStore } from '@/stores/useFunding';
 import { useTodayDashboard } from '@/composables/useTodayDashboard';
 import { useViewport } from '@/composables/useViewport';
+import { useDMStore } from '@/stores/useDM';
+import { useProfileStore } from '@/stores/useProfile';
+import { dmButtonTarget, lastDm, rememberLastDm } from '@/utils/lastDm';
 import { useAnchoredTooltip } from '@/composables/useAnchoredTooltip';
 import { useDesktopUpdater } from '@/composables/useDesktopUpdater';
 import { useI18n } from 'vue-i18n';
@@ -235,6 +238,8 @@ const showFundingModal = ref(false);
 
 const fundingStore = useFundingStore();
 const { isMobileViewport, isTouchOnly } = useViewport();
+const dmStore = useDMStore();
+const profileStore = useProfileStore();
 const showFundingButton = computed(() => !!fundingStore.config?.enabled && isMobileViewport.value);
 
 const { t } = useI18n();
@@ -403,8 +408,24 @@ const selectServer = async (serverId?: string) => {
 
 const goToDMs = () => {
   emit('switch-to-chat');
-  router.push({ name: 'DMHome' });
+  const conversations = dmStore.conversations;
+  const target = dmButtonTarget({
+    inDms: route.name === 'DMHome' || route.name === 'DMConversation',
+    mobile: isMobileViewport.value,
+    last: lastDm(profileStore.profile?.id),
+    known: conversations.length > 0 ? conversations.map((c) => c.id) : null,
+  });
+  if (target === 'list') router.push({ name: 'DMHome' });
+  else router.push({ name: 'DMConversation', params: { conversationId: target.conversationId } });
 };
+
+watch(
+  () => (route.name === 'DMConversation' ? (route.params.conversationId as string) : null),
+  (conversationId) => {
+    if (conversationId) rememberLastDm(profileStore.profile?.id, conversationId);
+  },
+  { immediate: true },
+);
 
 const goToToday = () => {
   router.push({ name: 'Today' });

@@ -2706,6 +2706,12 @@ watch(() => props.messages, (newMessages) => {
               }
               if (dividerScrollAttempts < 6) {
                 setTimeout(scrollToDivider, dividerScrollAttempts < 3 ? 50 : 150);
+              } else if (distanceFromBottom(c) <= PIN_THRESHOLD_PX) {
+                // The settled landing shows the end: a channel shorter than the
+                // view, or few new messages. No scroll event re-pins a view that
+                // never scrolled, and an unpinned view leaves later arrivals and
+                // late-loading media below it.
+                setPinned(true);
               }
             });
           };
@@ -3971,8 +3977,13 @@ const openContextMenu = (message: Message, event: MouseEvent) => {
   // Every menu action acts on the message's id, which an unsent row lacks.
   if (isOptimisticId(message.id)) return;
   const trigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
-  // A keyboard click on the More button carries no pointer position.
-  if (event.detail === 0 && trigger) {
+  // A keyboard click on the More button carries no pointer position: a click with detail 0.
+  // A pointer contextmenu also reports detail 0 in Chromium, with the pointer's coordinates;
+  // only a contextmenu at (0, 0) came from the keyboard.
+  const fromKeyboard = event.type === 'click'
+    ? event.detail === 0
+    : event.clientX === 0 && event.clientY === 0;
+  if (fromKeyboard && trigger) {
     const box = trigger.getBoundingClientRect();
     showContextMenu(message, box.left, box.bottom + 4, trigger);
     return;
