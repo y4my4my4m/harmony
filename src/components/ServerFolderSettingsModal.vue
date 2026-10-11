@@ -28,8 +28,9 @@
 
             <!-- Folder Color -->
             <div class="form-group">
-              <label class="form-label">Folder color</label>
+              <span class="form-label" aria-hidden="true">Folder color</span>
               <ColorPicker
+                label="Folder color"
                 :color="selectedColor"
                 @update:color="selectedColor = $event"
                 @change="selectedColor = $event"

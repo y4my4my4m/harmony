@@ -392,9 +392,10 @@
         </div>
 
         <div class="setting-group">
-          <label>Theme color</label>
+          <span class="form-label-text" aria-hidden="true">Theme color</span>
           <div style="display: flex; align-items: center; gap: 12px;">
             <ColorPicker
+              label="Theme color"
               :color="instanceConfig.themeColor || '#0EA5E9'"
               @update:color="instanceConfig.themeColor = $event; instanceBrandingChanged = true"
               @change="instanceConfig.themeColor = $event; instanceBrandingChanged = true"
@@ -1101,7 +1102,8 @@ onMounted(() => {
 
 
 
-.setting-group label {
+.setting-group label,
+.setting-group .form-label-text {
   display: block;
   font-size: 14px;
   font-weight: 500;
