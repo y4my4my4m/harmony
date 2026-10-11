@@ -83,6 +83,9 @@ async function directConversation(a: SpecUser, b: SpecUser, text: string): Promi
 test.describe.configure({ mode: 'serial' })
 
 test.beforeAll(async () => {
+  // Seeding runs again in each retry's fresh worker; on a loaded CI runner it outlasts the
+  // default 30 s and fails every test of the file.
+  test.setTimeout(120_000)
   owner = await createUser(admin, 'navo')
   reader = await createUser(admin, 'navr')
   friend = await createUser(admin, 'navf')
@@ -562,6 +565,14 @@ test('thread panel: a modal dialog; focus moves in, Escape closes and returns to
   test.setTimeout(150_000)
   await signIn(page, reader)
   await openChannel(page, server.id, server.generalChannelId)
+  // The panel reads the reader's membership after it opens. Held until the options menu
+  // holds focus, the answer must not replace the item focus sits on.
+  let releaseMembership!: () => void
+  const membershipHeld = new Promise<void>((resolve) => { releaseMembership = resolve })
+  await page.route('**/rest/v1/thread_members*', async (route) => {
+    await membershipHeld
+    await route.continue()
+  })
   const view = page.locator('[data-testid="message-list"]').getByRole('button', { name: /View Thread/ })
   await expect(view).toBeVisible({ timeout: 30000 })
   await view.focus()
@@ -581,6 +592,12 @@ test('thread panel: a modal dialog; focus moves in, Escape closes and returns to
     await page.keyboard.press('Enter')
     const menu = page.getByRole('menu', { name: 'Thread options' })
     await expect(menu).toBeVisible()
+    await expectFocused(menu.getByRole('menuitem').first())
+    const membership = page.waitForResponse((r) => r.url().includes('/rest/v1/thread_members'))
+    releaseMembership()
+    await membership
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+    await expect(menu.getByRole('menuitem', { name: /Join thread/ })).toBeVisible()
     await expectFocused(menu.getByRole('menuitem').first())
     await page.keyboard.press('Escape')
     await expect(menu).toBeHidden()
