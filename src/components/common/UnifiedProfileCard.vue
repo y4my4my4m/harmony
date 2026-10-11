@@ -9,7 +9,7 @@
       <div class="avatar-wrapper">
         <Avatar
           :src="user.avatar_url"
-          :alt="displayName"
+          alt=""
           :size="isCompact ? 'md' : 'lg'"
           :status="chatUserStatus"
           :interactive="isInteractive"
@@ -23,9 +23,16 @@
     <!-- User Information -->
     <div class="profile-info">
       <div class="name-section">
+        <!-- Keyboard and screen-reader way in; the card is the pointer target. -->
         <h3 class="user-name" :style="{ color: user.color || undefined }">
-          <DisplayName v-if="user.id" :user-id="user.id" :fallback="displayName" :color="user.color || undefined" />
-          <template v-else>{{ displayName }}</template>
+          <button v-if="isInteractive" type="button" class="card-name-btn" @click.stop="handleClick">
+            <DisplayName v-if="user.id" :user-id="user.id" :fallback="displayName" :color="user.color || undefined" />
+            <template v-else>{{ displayName }}</template>
+          </button>
+          <template v-else>
+            <DisplayName v-if="user.id" :user-id="user.id" :fallback="displayName" :color="user.color || undefined" />
+            <template v-else>{{ displayName }}</template>
+          </template>
         </h3>
         <p class="user-handle">{{ displayHandle }}</p>
         <RemoteInstanceBadge
@@ -485,6 +492,23 @@ const vClickOutside = {
 </script>
 
 <style scoped>
+.card-name-btn {
+  display: inline-flex;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.card-name-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
 .unified-profile-card {
   background: var(--background-secondary);
   border: 1px solid var(--border-color);

@@ -9,39 +9,43 @@
         <p class="page-subtitle">{{ viewSubtitle }}</p>
       </div>
       
-      <div class="view-toggle">
-        <button 
-          @click="currentView = 'followers'"
-          :class="['toggle-btn', { active: currentView === 'followers' }]"
-        >
-          <Icon name="users" />
-          {{ $t('activitypub.followers') }}
-          <span class="count">{{ followersCount }}</span>
-        </button>
+      <!-- WAI-ARIA tabs, manual activation. -->
+      <div
+        class="view-toggle"
+        role="tablist"
+        :aria-label="viewTitle"
+        @keydown="tablistKeydown"
+      >
         <button
-          @click="currentView = 'following'"
-          :class="['toggle-btn', { active: currentView === 'following' }]"
+          v-for="tab in tabs"
+          :id="`follow-tab-${tab.id}`"
+          :key="tab.id"
+          type="button"
+          role="tab"
+          :aria-selected="currentView === tab.id"
+          aria-controls="follow-tabpanel"
+          :tabindex="currentView === tab.id ? 0 : -1"
+          :data-testid="`follow-tab-${tab.id}`"
+          @click="currentView = tab.id"
+          :class="['toggle-btn', { active: currentView === tab.id }]"
         >
-          <Icon name="user-check" />
-          Following
-          <span class="count">{{ followingCount }}</span>
-        </button>
-        <button
-          v-if="isOwnProfile"
-          @click="currentView = 'requests'"
-          :class="['toggle-btn', { active: currentView === 'requests' }]"
-        >
-          <Icon name="user-plus" />
-          Requests
-          <span class="count" :class="{ 'count-pending': requestsCount > 0 }">{{ requestsCount }}</span>
+          <Icon :name="tab.icon" />
+          {{ tab.label }}
+          <span class="count" :class="{ 'count-pending': tab.id === 'requests' && requestsCount > 0 }">{{ tab.count }}</span>
         </button>
       </div>
     </div>
 
-    <div class="followers-content">
-      <div v-if="isLoading && users.length === 0" class="loading-state">
+    <div
+      id="follow-tabpanel"
+      class="followers-content"
+      role="tabpanel"
+      :aria-labelledby="`follow-tab-${currentView}`"
+      :aria-busy="isLoading ? 'true' : 'false'"
+    >
+      <div v-if="isLoading && users.length === 0" class="loading-state" role="status">
         <LoadingSpinner :size="32" />
-        <p>Loading {{ currentView }}...</p>
+        <p>{{ t('common.loading') }}</p>
       </div>
 
       <EmptyState
@@ -86,26 +90,34 @@
               />
               <div v-if="currentView === 'requests'" class="request-actions">
                 <button
+                  type="button"
                   class="request-btn accept"
+                  data-testid="follow-request-accept"
+                  :aria-label="t('today.social.acceptLabel', { name: personName(users[virtualRow.index]) })"
                   :disabled="processingRequests.has(users[virtualRow.index].id)"
                   @click="handleAcceptRequest(users[virtualRow.index])"
                 >
                   <Icon name="check" />
-                  Accept
+                  {{ t('today.social.accept') }}
                 </button>
                 <button
+                  type="button"
                   class="request-btn reject"
+                  data-testid="follow-request-reject"
+                  :aria-label="t('today.social.declineLabel', { name: personName(users[virtualRow.index]) })"
                   :disabled="processingRequests.has(users[virtualRow.index].id)"
                   @click="handleRejectRequest(users[virtualRow.index])"
                 >
                   <Icon name="x" />
-                  Reject
+                  {{ t('today.social.decline') }}
                 </button>
               </div>
               <div v-else-if="currentView === 'followers' && isOwnProfile" class="request-actions">
                 <button
+                  type="button"
                   class="request-btn reject"
                   data-testid="remove-follower-btn"
+                  :aria-label="t('activitypub.followA11y.removeFollowerNamed', { name: personName(users[virtualRow.index]) })"
                   :disabled="processingRequests.has(users[virtualRow.index].id)"
                   @click="handleRemoveFollower(users[virtualRow.index])"
                 >
@@ -119,16 +131,17 @@
 
         <!-- Infinite scroll sentinel + fallback -->
         <div v-if="hasMore" ref="sentinelRef" class="load-more-section">
-          <div v-if="isLoading" class="loading-more">
+          <div v-if="isLoading" class="loading-more" role="status">
             <Icon name="loader" class="spinning" />
-            <span>Loading...</span>
+            <span>{{ t('common.loading') }}</span>
           </div>
           <button 
             v-else
+            type="button"
             @click="loadMore"
             class="load-more-btn"
           >
-            Load more
+            {{ t('activitypub.loadMore') }}
           </button>
         </div>
       </div>
@@ -137,7 +150,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useVirtualizer } from '@tanstack/vue-virtual';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
@@ -157,6 +170,9 @@ import UserCard from '@/components/activitypub/UserCard.vue';
 import Icon from '@/components/common/Icon.vue';
 import EmptyState from '@/components/common/EmptyState.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
+import { tablistKeydown } from '@/utils/tablistKeydown';
+import { plainDisplayName } from '@/utils/plainDisplayName';
+import { useAnnouncer } from '@/composables/useAnnouncer';
 
 const activityPubStore = useActivityPubStore();
 const authStore = useAuthStore();
@@ -231,20 +247,31 @@ const targetUserId = computed(() => {
 const isOwnProfile = computed(() => targetUserId.value === currentUserId.value);
 
 const viewTitle = computed(() => {
-  if (currentView.value === 'requests') return 'Follow requests';
-  return currentView.value === 'followers' ? 'Followers' : 'Following';
+  if (currentView.value === 'requests') return t('a11y.title.followRequests');
+  return currentView.value === 'followers' ? t('activitypub.followers') : t('activitypub.following');
 });
 
 const viewSubtitle = computed(() => {
   if (currentView.value === 'requests') {
     const count = requestsCount.value;
-    return `${count} ${count === 1 ? 'person wants' : 'people want'} to follow you`;
+    return t('activitypub.followA11y.requestsSubtitle', { count }, count);
   }
   const count = currentView.value === 'followers' ? followersCount.value : followingCount.value;
   return currentView.value === 'followers'
-    ? `${count} ${count === 1 ? 'person follows' : 'people follow'} you`
-    : `${count} ${count === 1 ? 'person' : 'people'} you follow`;
+    ? t('activitypub.followA11y.followersSubtitle', { count }, count)
+    : t('activitypub.followA11y.followingSubtitle', { count }, count);
 });
+
+const tabs = computed(() => [
+  { id: 'followers' as const, label: t('activitypub.followers'), icon: 'users', count: followersCount.value },
+  { id: 'following' as const, label: t('activitypub.following'), icon: 'user-check', count: followingCount.value },
+  ...(isOwnProfile.value
+    ? [{ id: 'requests' as const, label: t('activitypub.followA11y.requests'), icon: 'user-plus', count: requestsCount.value }]
+    : []),
+]);
+
+const personName = (user: FederatedUser) => plainDisplayName(user.display_name, user.username);
+const { polite } = useAnnouncer();
 
 const loadUsers = async (refresh = false) => {
   if (isLoading.value || !targetUserId.value) return;
@@ -275,7 +302,7 @@ const loadUsers = async (refresh = false) => {
     hasMore.value = result.length === PAGE_SIZE;
   } catch (error) {
     debug.error(`Failed to load ${currentView.value}:`, error);
-    toast.error(`Failed to load ${currentView.value}`);
+    toast.error(t('activitypub.followA11y.loadFailed'));
   } finally {
     isLoading.value = false;
   }
@@ -351,10 +378,11 @@ const handleAcceptRequest = async (user: FederatedUser) => {
     users.value = users.value.filter(u => u.id !== user.id);
     requestsCount.value = Math.max(0, requestsCount.value - 1);
     followersCount.value++;
-    toast.success(`Accepted follow request from ${user.display_name || user.username}`);
+    toast.success(t('activitypub.followA11y.accepted', { name: personName(user) }));
+    focusAfterRequest();
   } catch (error) {
     debug.error('Failed to accept follow request:', error);
-    toast.error('Failed to accept follow request');
+    toast.error(t('activitypub.followA11y.acceptFailed'));
   } finally {
     processingRequests.value.delete(user.id);
   }
@@ -367,13 +395,25 @@ const handleRejectRequest = async (user: FederatedUser) => {
     await interactionService.rejectFollowRequest(user.id);
     users.value = users.value.filter(u => u.id !== user.id);
     requestsCount.value = Math.max(0, requestsCount.value - 1);
-    toast.success(`Rejected follow request from ${user.display_name || user.username}`);
+    toast.success(t('activitypub.followA11y.rejected', { name: personName(user) }));
+    focusAfterRequest();
   } catch (error) {
     debug.error('Failed to reject follow request:', error);
-    toast.error('Failed to reject follow request');
+    toast.error(t('activitypub.followA11y.rejectFailed'));
   } finally {
     processingRequests.value.delete(user.id);
   }
+};
+
+// The answered row unmounts with the button that held focus; focus moves to the
+// next request's Accept, else to the Requests tab.
+const focusAfterRequest = () => {
+  void nextTick(() => {
+    const next = scrollContainerRef.value?.querySelector<HTMLElement>('[data-testid="follow-request-accept"]:not([disabled])');
+    const fallback = scrollContainerRef.value?.querySelector<HTMLElement>('#follow-tab-requests');
+    (next ?? fallback)?.focus();
+    if (!next) polite(t('empty.requests.title'));
+  });
 };
 
 // A remote follower is sent a Reject by the database, so its server stops delivering.

@@ -1,12 +1,18 @@
 <!-- UserSearchModal - Search for federated users -->
 <template>
-  <Teleport to="body">
-    <div class="modal-overlay" @click="handleOverlayClick">
-      <div class="search-modal" @click.stop>
+  <AppDialog
+    :open="true"
+    class="user-search-dialog"
+    overlay-class="user-search-overlay"
+    data-testid="user-search-dialog"
+    @close="$emit('close')"
+    v-slot="{ titleId }"
+  >
+      <div class="search-modal">
         <!-- Header -->
         <div class="modal-header">
-          <h2 class="modal-title">Search users</h2>
-          <button @click="$emit('close')" class="close-btn" title="Close">
+          <h2 :id="titleId" class="modal-title">{{ t('activitypub.searchA11y.title') }}</h2>
+          <button type="button" @click="$emit('close')" class="close-btn" :aria-label="t('common.close')" :title="t('common.close')">
             <Icon name="x" />
           </button>
         </div>
@@ -18,28 +24,35 @@
             <input
               ref="searchInputRef"
               v-model="searchQuery"
-              type="text"
-              placeholder="Search for users (@username@domain or display name)"
+              type="search"
+              :aria-label="t('activitypub.searchA11y.inputLabel')"
+              :placeholder="t('activitypub.searchA11y.placeholder')"
+              aria-controls="user-search-results"
               class="search-input"
+              data-testid="user-search-input"
               @input="handleSearchInput"
               @keydown.enter="performSearch"
-              @keydown.escape="$emit('close')"
             />
             <button
               v-if="searchQuery"
+              type="button"
               @click="clearSearch"
               class="clear-btn"
-              title="Clear search"
+              :aria-label="t('activitypub.searchA11y.clear')"
+              :title="t('activitypub.searchA11y.clear')"
             >
               <Icon name="x" :size="16" />
             </button>
           </div>
           
-          <!-- Search Filters -->
-          <div class="search-filters">
+          <!-- Search Filters: toggle buttons, one pressed. -->
+          <div class="search-filters" role="group" :aria-label="t('activitypub.searchA11y.filters')">
             <button
               v-for="filter in searchFilters"
               :key="filter.id"
+              type="button"
+              :aria-pressed="activeFilter === filter.id"
+              :data-testid="`user-search-filter-${filter.id}`"
               @click="setActiveFilter(filter.id)"
               :class="['filter-btn', { active: activeFilter === filter.id }]"
             >
@@ -50,7 +63,13 @@
         </div>
 
         <!-- Search Results -->
-        <div class="search-results">
+        <div
+          id="user-search-results"
+          class="search-results"
+          role="region"
+          :aria-label="t('activitypub.searchA11y.results')"
+          :aria-busy="isSearching ? 'true' : 'false'"
+        >
           <!-- Loading State -->
           <div v-if="isSearching" class="loading-state">
             <LoadingSpinner :size="32" />
@@ -79,22 +98,23 @@
           <!-- Initial State -->
           <div v-else-if="!searchQuery" class="initial-state">
             <Icon name="search" :size="48" />
-            <h3>Search for users</h3>
-            <p>Find users from this instance or across the fediverse.</p>
+            <h3>{{ t('activitypub.searchA11y.title') }}</h3>
+            <p>{{ t('activitypub.searchA11y.intro') }}</p>
             
             <!-- Recent Searches -->
             <div v-if="recentSearches.length > 0" class="recent-searches">
-              <h4>Recent searches</h4>
+              <h4>{{ t('activitypub.searchA11y.recent') }}</h4>
               <div class="recent-list">
                 <button
                   v-for="search in recentSearches"
                   :key="search.id"
+                  type="button"
                   @click="selectRecentSearch(search)"
                   class="recent-item"
                 >
                   <img 
                     :src="search.avatar_url || '/default_avatar.webp'" 
-                    :alt="search.display_name"
+                    alt=""
                     class="recent-avatar"
                   />
                   <div class="recent-info">
@@ -107,7 +127,7 @@
 
             <!-- Suggested Users -->
             <div v-if="suggestedUsers.length > 0" class="suggested-users">
-              <h4>Suggested users</h4>
+              <h4>{{ t('activitypub.searchA11y.suggested') }}</h4>
               <div class="suggested-list">
                 <UserCard
                   v-for="user in suggestedUsers"
@@ -122,15 +142,15 @@
           </div>
 
           <!-- Search Results List -->
-          <div v-else class="results-list">
-            <UserCard
-              v-for="user in filteredResults"
-              :key="user.id"
-              :user="user"
-              :is-compact="true"
-              :show-follow-btn="true"
-              @user-click="selectUser"
-            />
+          <div v-else class="results-list" role="list">
+            <div v-for="user in filteredResults" :key="user.id" role="listitem">
+              <UserCard
+                :user="user"
+                :is-compact="true"
+                :show-follow-btn="true"
+                @user-click="selectUser"
+              />
+            </div>
           </div>
         </div>
 
@@ -138,21 +158,22 @@
         <div class="search-actions">
           <button
             v-if="hasMoreResults"
+            type="button"
             @click="loadMoreResults"
             :disabled="isLoadingMore"
             class="load-more-btn"
           >
             <Icon v-if="isLoadingMore" name="loader" class="spinning" />
-            <span>{{ isLoadingMore ? 'Loading...' : 'Load more' }}</span>
+            <span>{{ isLoadingMore ? t('common.loading') : t('activitypub.loadMore') }}</span>
           </button>
         </div>
       </div>
-    </div>
-  </Teleport>
+  </AppDialog>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { debug } from '@/utils/debug'
 import { activityPubService } from '@/services/activityPubService';
 import type { FederatedUser } from '@/types';
@@ -161,12 +182,17 @@ import EmptyState from '@/components/common/EmptyState.vue';
 import UserCard from './UserCard.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
+import AppDialog from '@/components/a11y/AppDialog.vue';
+import { useAnnouncer } from '@/composables/useAnnouncer';
 
 // Emits
 const emit = defineEmits<{
   'close': [];
   'user-selected': [user: FederatedUser];
 }>();
+
+const { t } = useI18n();
+const { polite } = useAnnouncer();
 
 // Refs
 const searchInputRef = ref<HTMLInputElement>();
@@ -182,11 +208,11 @@ const recentSearches = ref<FederatedUser[]>([]);
 const suggestedUsers = ref<FederatedUser[]>([]);
 
 // Configuration
-const searchFilters = [
-  { id: 'all', label: 'All', icon: 'users' },
-  { id: 'local', label: 'Local', icon: 'home' },
-  { id: 'remote', label: 'Federated', icon: 'globe' }
-];
+const searchFilters = computed(() => [
+  { id: 'all', label: t('activitypub.searchA11y.filterAll'), icon: 'users' },
+  { id: 'local', label: t('activitypub.local'), icon: 'home' },
+  { id: 'remote', label: t('activitypub.federated'), icon: 'globe' }
+]);
 
 // Computed
 const filteredResults = computed(() => {
@@ -196,11 +222,20 @@ const filteredResults = computed(() => {
   return searchResults.value;
 });
 
-// Methods
-const handleOverlayClick = () => {
-  emit('close');
+// Search progress and outcome reach screen readers through the shared polite
+// region; the key lets a result replace a pending "searching" message.
+watch(isSearching, (searching) => {
+  if (searching) polite(t('activitypub.searchingFediverse'), { key: 'user-search' });
+});
+const announceResults = () => {
+  const count = filteredResults.value.length;
+  polite(
+    count > 0 ? t('activitypub.searchA11y.found', { count }, count) : t('activitypub.noUsersFound'),
+    { key: 'user-search' },
+  );
 };
 
+// Methods
 const clearSearch = () => {
   searchQuery.value = '';
   searchResults.value = [];
@@ -209,6 +244,7 @@ const clearSearch = () => {
 
 const setActiveFilter = (filterId: string) => {
   activeFilter.value = filterId;
+  if (searchQuery.value.trim().length >= 2 && !isSearching.value) announceResults();
 };
 
 const handleSearchInput = () => {
@@ -266,6 +302,7 @@ const performSearch = async () => {
   } finally {
     if (seq === searchSeq) {
       isSearching.value = false;
+      announceResults();
     }
   }
 };
@@ -346,8 +383,6 @@ const loadSuggestedUsers = async () => {
 
 // Lifecycle
 onMounted(async () => {
-  await nextTick();
-  searchInputRef.value?.focus();
   loadRecentSearches();
   loadSuggestedUsers();
 });
@@ -358,18 +393,13 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+:global(.user-search-overlay) {
   background: rgba(0, 0, 0, 0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
+}
+
+:global(.user-search-dialog) {
+  width: 100%;
+  max-width: 600px;
 }
 
 .search-modal {
@@ -453,6 +483,12 @@ onUnmounted(() => {
 .search-input:focus {
   outline: none;
   border-color: var(--harmony-primary);
+}
+
+/* type="search" draws its own clear control; the Clear search button is the one shown. */
+.search-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .search-input::placeholder {

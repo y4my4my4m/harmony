@@ -175,8 +175,8 @@
 
         <ol v-else class="tag-list" data-testid="trending-hashtags">
           <li v-for="(item, index) in hashtags.items" :key="item.tag">
-            <button type="button" class="tag-row" @click="openHashtag(item.tag)">
-              <span class="tag-rank">{{ index + 1 }}</span>
+            <RouterLink :to="{ name: 'HashtagView', params: { tag: item.tag } }" class="tag-row">
+              <span class="tag-rank" aria-hidden="true">{{ index + 1 }}</span>
               <span class="tag-main">
                 <span class="tag-name">#{{ item.tag }}</span>
                 <span class="tag-meta">{{ hashtagMeta(item) }}</span>
@@ -185,7 +185,7 @@
                 <Icon name="trending-up" :size="14" />
                 {{ t('activitypub.trendingRising') }}
               </span>
-            </button>
+            </RouterLink>
           </li>
         </ol>
       </div>
@@ -942,6 +942,7 @@ defineExpose({ refresh })
   color: inherit;
   font: inherit;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
   transition: background-color var(--transition-fast);
 }
