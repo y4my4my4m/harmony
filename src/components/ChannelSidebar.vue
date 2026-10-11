@@ -1120,8 +1120,8 @@ const getVoiceSessionStartTime = (channelId: string) => {
 };
 
 const joinVoiceChannel = async (channelId: string): Promise<boolean> => {
-  // Feedback fires before the connection resolves.
-  themeStore.playAudio('voice_connect');
+  // Haptics fire before the connection resolves; the join sound and
+  // announcement follow it (unifiedVoiceChannel announceConnected).
   triggerVoice('success');
   
   const success = await voiceChannelStore.joinVoiceChannel(channelId, props.currentServer.id);

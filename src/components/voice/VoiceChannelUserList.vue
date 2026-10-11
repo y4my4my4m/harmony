@@ -1,19 +1,21 @@
 <template>
   <div v-if="userIds.length > 0" class="voice-channel-users">
     <div class="users-header">
-      <span class="user-count">{{ userIds.length }} in call</span>
-      <span v-if="callDuration" class="call-duration">{{ callDuration }}</span>
+      <span :id="headerId" class="user-count">{{ t('voice.inCallCount', { count: userIds.length }, userIds.length) }}</span>
+      <span v-if="callDuration" class="call-duration">
+        <span class="sr-only">{{ t('voice.callDuration') }} </span>{{ callDuration }}
+      </span>
     </div>
-    <div class="users-list">
-      <div v-for="userId in userIds" :key="userId" class="user-item">
+    <ul class="users-list" :aria-labelledby="headerId">
+      <li v-for="userId in userIds" :key="userId" class="user-item" :data-testid="`voice-roster-${userId}`">
         <Avatar
           :src="getUserAvatarUrl(userId).value"
-          :alt="getUserDisplayName(userId).value || 'User'"
+          alt=""
           size="xs"
         />
         <span class="user-name"><DisplayName :userId="userId" /></span>
-      </div>
-    </div>
+      </li>
+    </ul>
   </div>
 </template>
 
@@ -22,6 +24,8 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import { useUserData } from '@/composables/useUserData';
+import { useT } from '@/composables/useT';
+import { uid } from '@/utils/a11y/focus';
 
 interface Props {
   userIds: string[];
@@ -30,7 +34,9 @@ interface Props {
 
 const props = defineProps<Props>();
 
-const { getUserDisplayName, getUserAvatarUrl } = useUserData();
+const { getUserAvatarUrl } = useUserData();
+const { t } = useT();
+const headerId = uid('voice-roster-header');
 
 const callDuration = ref<string>('');
 let intervalId: number | null = null;
@@ -100,6 +106,9 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .user-item {

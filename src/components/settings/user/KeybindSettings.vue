@@ -1,219 +1,86 @@
 <template>
   <div class="keybind-settings">
     <div class="settings-header">
-      <h2 class="settings-title">{{ $t('settings.keybinds.title') }}</h2>
+      <h2 class="settings-title">{{ t('settings.keybinds.title') }}</h2>
       <p class="settings-description">
-        {{ $t('settings.keybinds.description') }}
+        {{ t('settings.keybinds.description') }}
       </p>
     </div>
 
     <KeyboardNavigationHelp />
 
-    <!-- Global Keybinds (Voice Connected) -->
-    <div class="settings-section">
+    <section class="settings-section" :aria-labelledby="sectionTitleId">
       <div class="section-header">
-        <h3 class="section-title">Voice keybinds</h3>
-        <button class="reset-btn" @click="resetAllKeybinds" title="Reset all to defaults">
-          <Icon name="refresh" />
-          Reset all
+        <h3 :id="sectionTitleId" class="section-title">{{ t('settings.keybinds.voiceSection') }}</h3>
+        <button type="button" class="reset-btn" data-testid="keybinds-reset-all" @click="resetAllKeybinds">
+          <Icon name="refresh" aria-hidden="true" />
+          {{ t('settings.keybinds.resetAll') }}
         </button>
       </div>
-      <p class="section-description">These shortcuts work when connected to a voice channel.</p>
-      
-      <!-- Push to Talk -->
-      <div class="keybind-item">
-        <div class="keybind-info">
-          <h4 class="keybind-label">Push to talk</h4>
-          <p class="keybind-description">
-            Hold to talk in voice channels.
-            <span v-if="!isPTTMode" class="mode-note">(Currently using voice activity mode)</span>
-          </p>
-        </div>
-        <div class="keybind-control">
-          <button 
-            class="keybind-button" 
-            :class="{ 
-              recording: recordingAction === 'push-to-talk',
-              inactive: !isPTTMode 
-            }"
-            @click="startRecording('push-to-talk')"
-          >
-            <span v-if="recordingAction === 'push-to-talk'">Press any key...</span>
-            <span v-else>{{ getKeybindDisplay('push-to-talk') }}</span>
-          </button>
-          <button 
-            class="reset-single-btn" 
-            @click="resetKeybind('push-to-talk')"
-            title="Reset to default"
-          >
-            <Icon name="x" />
-          </button>
-        </div>
+      <p class="section-description">{{ t('settings.keybinds.voiceSectionDescription') }}</p>
+
+      <div v-if="singleKeyVoiceShortcuts" class="single-key-note" data-testid="keybinds-single-key-note">
+        <p>{{ t('settings.keybinds.singleKeyNote') }}</p>
+        <button type="button" class="reset-btn" data-testid="keybinds-use-chorded" @click="useChordedDefaults">
+          {{ t('settings.keybinds.useChorded', { mute: chordedDisplay.mute, deafen: chordedDisplay.deafen }) }}
+        </button>
       </div>
 
-      <!-- Toggle Mute -->
-      <div class="keybind-item">
-        <div class="keybind-info">
-          <h4 class="keybind-label">Toggle mute</h4>
-          <p class="keybind-description">Mute or unmute your microphone.</p>
-        </div>
-        <div class="keybind-control">
-          <button 
-            class="keybind-button" 
-            :class="{ recording: recordingAction === 'toggle-mute' }"
-            @click="startRecording('toggle-mute')"
-          >
-            <span v-if="recordingAction === 'toggle-mute'">Press any key...</span>
-            <span v-else>{{ getKeybindDisplay('toggle-mute') }}</span>
-          </button>
-          <button 
-            class="reset-single-btn" 
-            @click="resetKeybind('toggle-mute')"
-            title="Reset to default"
-          >
-            <Icon name="x" />
-          </button>
-        </div>
-      </div>
-
-      <!-- Toggle Deafen -->
-      <div class="keybind-item">
-        <div class="keybind-info">
-          <h4 class="keybind-label">Toggle deafen</h4>
-          <p class="keybind-description">Deafen or undeafen yourself.</p>
-        </div>
-        <div class="keybind-control">
-          <button 
-            class="keybind-button" 
-            :class="{ recording: recordingAction === 'toggle-deafen' }"
-            @click="startRecording('toggle-deafen')"
-          >
-            <span v-if="recordingAction === 'toggle-deafen'">Press any key...</span>
-            <span v-else>{{ getKeybindDisplay('toggle-deafen') }}</span>
-          </button>
-          <button 
-            class="reset-single-btn" 
-            @click="resetKeybind('toggle-deafen')"
-            title="Reset to default"
-          >
-            <Icon name="x" />
-          </button>
-        </div>
-      </div>
-
-      <!-- Toggle Camera -->
-      <div class="keybind-item">
-        <div class="keybind-info">
-          <h4 class="keybind-label">Toggle camera</h4>
-          <p class="keybind-description">Turn camera on or off.</p>
-        </div>
-        <div class="keybind-control">
-          <button 
-            class="keybind-button" 
-            :class="{ recording: recordingAction === 'toggle-camera' }"
-            @click="startRecording('toggle-camera')"
-          >
-            <span v-if="recordingAction === 'toggle-camera'">Press any key...</span>
-            <span v-else>{{ getKeybindDisplay('toggle-camera') }}</span>
-          </button>
-          <button 
-            class="reset-single-btn" 
-            @click="resetKeybind('toggle-camera')"
-            title="Reset to default"
-          >
-            <Icon name="x" />
-          </button>
-        </div>
-      </div>
-
-      <!-- Toggle Screen Share -->
-      <div class="keybind-item">
-        <div class="keybind-info">
-          <h4 class="keybind-label">Toggle screen share</h4>
-          <p class="keybind-description">Start or stop screen sharing.</p>
-        </div>
-        <div class="keybind-control">
-          <button 
-            class="keybind-button" 
-            :class="{ recording: recordingAction === 'toggle-screenshare' }"
-            @click="startRecording('toggle-screenshare')"
-          >
-            <span v-if="recordingAction === 'toggle-screenshare'">Press any key...</span>
-            <span v-else>{{ getKeybindDisplay('toggle-screenshare') }}</span>
-          </button>
-          <button 
-            class="reset-single-btn" 
-            @click="resetKeybind('toggle-screenshare')"
-            title="Reset to default"
-          >
-            <Icon name="x" />
-          </button>
-        </div>
-      </div>
-
-      <!-- Voice Settings -->
-      <div class="keybind-item">
-        <div class="keybind-info">
-          <h4 class="keybind-label">Open voice settings</h4>
-          <p class="keybind-description">Open voice settings panel.</p>
-        </div>
-        <div class="keybind-control">
-          <button 
-            class="keybind-button" 
-            :class="{ recording: recordingAction === 'toggle-voice-settings' }"
-            @click="startRecording('toggle-voice-settings')"
-          >
-            <span v-if="recordingAction === 'toggle-voice-settings'">Press any key...</span>
-            <span v-else>{{ getKeybindDisplay('toggle-voice-settings') }}</span>
-          </button>
-          <button 
-            class="reset-single-btn" 
-            @click="resetKeybind('toggle-voice-settings')"
-            title="Reset to default"
-          >
-            <Icon name="x" />
-          </button>
-        </div>
-      </div>
-
-      <!-- Exit/Escape -->
-      <div class="keybind-item">
-        <div class="keybind-info">
-          <h4 class="keybind-label">Exit / Close</h4>
-          <p class="keybind-description">Exit fullscreen or close panels.</p>
-        </div>
-        <div class="keybind-control">
-          <button 
-            class="keybind-button" 
-            :class="{ recording: recordingAction === 'exit-fullscreen' }"
-            @click="startRecording('exit-fullscreen')"
-          >
-            <span v-if="recordingAction === 'exit-fullscreen'">Press any key...</span>
-            <span v-else>{{ getKeybindDisplay('exit-fullscreen') }}</span>
-          </button>
-          <button 
-            class="reset-single-btn" 
-            @click="resetKeybind('exit-fullscreen')"
-            title="Reset to default"
-          >
-            <Icon name="x" />
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Conflict Warning -->
-    <div v-if="hasConflict" class="conflict-warning">
-      <Icon name="alert-triangle" />
-      <span>{{ conflictMessage }}</span>
-    </div>
+      <ul class="keybind-list">
+        <li
+          v-for="action in LISTED_KEYBINDS"
+          :key="action"
+          class="keybind-item"
+          :data-testid="`keybind-row-${action}`"
+        >
+          <div class="keybind-info">
+            <h4 :id="`${idBase}-${action}-label`" class="keybind-label">{{ keybindName(t, action) }}</h4>
+            <p :id="`${idBase}-${action}-desc`" class="keybind-description">
+              {{ keybindDescription(t, action) }}
+              <span v-if="action === 'push-to-talk' && !isPTTMode" class="mode-note">{{ t('settings.keybinds.pttInactive') }}</span>
+            </p>
+          </div>
+          <div class="keybind-control">
+            <ToggleSwitch
+              :model-value="isEnabled(action)"
+              :label="t('settings.keybinds.enabledFor', { name: keybindName(t, action) })"
+              :describedby="`${idBase}-${action}-desc`"
+              :data-testid="`keybind-toggle-${action}`"
+              @update:model-value="setEnabled(action, $event)"
+            />
+            <KeybindRecorder
+              :action="action"
+              :name="keybindName(t, action)"
+              :describedby="`${idBase}-${action}-desc`"
+              :inactive="!isEnabled(action) || (action === 'push-to-talk' && !isPTTMode)"
+              @change="onRecorded"
+            />
+            <IconButton
+              class="reset-single-btn"
+              icon="x"
+              :size="14"
+              :label="t('settings.keybinds.resetOne', { name: keybindName(t, action) })"
+              :data-testid="`keybind-reset-${action}`"
+              @click="resetKeybind(action)"
+            />
+          </div>
+        </li>
+      </ul>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed } from 'vue'
 import KeyboardNavigationHelp from '@/components/a11y/KeyboardNavigationHelp.vue'
+import IconButton from '@/components/a11y/IconButton.vue'
+import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
+import KeybindRecorder from '@/components/voice/KeybindRecorder.vue'
+import { keybindDescription, keybindName, LISTED_KEYBINDS } from '@/components/voice/keybindLabels'
 import { useKeybinds, type KeybindAction, type KeybindModifiers } from '@/composables/useKeybinds'
+import { useAnnouncer } from '@/composables/useAnnouncer'
+import { useT } from '@/composables/useT'
+import { uid } from '@/utils/a11y/focus'
 import Icon from '@/components/common/Icon.vue'
 
 interface Props {
@@ -227,133 +94,63 @@ const emit = defineEmits<{
   'update-keybinds': [settings: any]
 }>()
 
-// Centralized keybind system
+const { t } = useT()
+const { polite } = useAnnouncer()
 const keybinds = useKeybinds()
+const idBase = uid('keybind')
+const sectionTitleId = `${idBase}-section`
 
-// Local state
-const recordingAction = ref<KeybindAction | null>(null)
-const hasConflict = ref(false)
-const conflictMessage = ref('')
-
-// Computed
 const isPTTMode = keybinds.isPTTMode
 
-const getKeybindDisplay = (action: KeybindAction): string => {
-  return keybinds.getKeybindDisplay(action)
+const CHORD: KeybindModifiers = { ctrl: true, alt: false, shift: true, meta: false }
+const chordedDisplay = computed(() => ({
+  mute: keybinds.formatKeybind('KeyM', CHORD),
+  deafen: keybinds.formatKeybind('KeyD', CHORD),
+}))
+
+const noModifier = (action: KeybindAction): boolean => {
+  const kb = keybinds.getKeybind(action)
+  if (!kb || !kb.enabled || kb.key.startsWith('Mouse')) return false
+  const m = kb.modifiers
+  return !m.ctrl && !m.alt && !m.shift && !m.meta
 }
 
-const startRecording = (action: KeybindAction) => {
-  if (recordingAction.value === action) {
-    // Cancel if clicking same button
-    recordingAction.value = null
-    return
-  }
-  recordingAction.value = action
-  hasConflict.value = false
+// Mute and deafen on bare letters fire from any focused button and are taken
+// by screen-reader browse mode; the note offers the chorded defaults.
+const singleKeyVoiceShortcuts = computed(() => {
+  void keybinds.allKeybinds.value
+  return noModifier('toggle-mute') || noModifier('toggle-deafen')
+})
+
+const isEnabled = (action: KeybindAction): boolean => {
+  void keybinds.allKeybinds.value
+  return keybinds.getKeybind(action)?.enabled ?? false
+}
+
+const setEnabled = (action: KeybindAction, enabled: boolean) => {
+  keybinds.setKeybindEnabled(action, enabled)
+  emit('update-keybinds', { action, enabled })
+}
+
+const onRecorded = (payload: { action: KeybindAction; key: string; modifiers: KeybindModifiers }) => {
+  emit('update-keybinds', payload)
 }
 
 const resetKeybind = (action: KeybindAction) => {
   keybinds.resetKeybind(action)
+  polite(t('settings.keybinds.set', { name: keybindName(t, action), keys: keybinds.getKeybindDisplay(action) }), { dedupeMs: 0 })
 }
 
 const resetAllKeybinds = () => {
   keybinds.resetAllKeybinds()
+  polite(t('settings.keybinds.resetAllDone'), { dedupeMs: 0 })
 }
 
-// Check for conflicts
-const checkConflict = (action: KeybindAction, key: string, modifiers: KeybindModifiers): string | null => {
-  for (const kb of keybinds.voiceKeybinds.value) {
-    if (kb.id === action) continue
-    if (kb.key === key && 
-        kb.modifiers.ctrl === modifiers.ctrl &&
-        kb.modifiers.alt === modifiers.alt &&
-        kb.modifiers.shift === modifiers.shift &&
-        kb.modifiers.meta === modifiers.meta) {
-      return `This keybind conflicts with "${kb.name}"`
-    }
-  }
-  return null
+const useChordedDefaults = () => {
+  keybinds.setKeybind('toggle-mute', 'KeyM', CHORD)
+  keybinds.setKeybind('toggle-deafen', 'KeyD', CHORD)
+  polite(t('settings.keybinds.chordedApplied', { mute: chordedDisplay.value.mute, deafen: chordedDisplay.value.deafen }), { dedupeMs: 0 })
 }
-
-const handleKeydown = (event: KeyboardEvent) => {
-  if (!recordingAction.value) return
-  
-  event.preventDefault()
-  event.stopPropagation()
-  
-  // Ignore modifier-only keys
-  if (['Control', 'Alt', 'Shift', 'Meta'].includes(event.key)) {
-    return
-  }
-  
-  // Escape cancels
-  if (event.code === 'Escape') {
-    recordingAction.value = null
-    return
-  }
-  
-  recordKey(event.code, {
-    ctrl: event.ctrlKey,
-    alt: event.altKey,
-    shift: event.shiftKey,
-    meta: event.metaKey,
-  })
-}
-
-const handleMousedown = (event: MouseEvent) => {
-  if (!recordingAction.value) return
-  
-  // Only capture extra mouse buttons (3, 4, 5+) by default
-  // Left (0), Middle (1), Right (2) are used for UI interaction
-  if (event.button < 3) {
-    // Allow capturing if user holds a modifier key
-    if (!event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey) {
-      return
-    }
-  }
-  
-  event.preventDefault()
-  event.stopPropagation()
-  
-  const mouseKey = `Mouse${event.button}`
-  recordKey(mouseKey, {
-    ctrl: event.ctrlKey,
-    alt: event.altKey,
-    shift: event.shiftKey,
-    meta: event.metaKey,
-  })
-}
-
-// Common recording logic
-const recordKey = (key: string, modifiers: KeybindModifiers) => {
-  if (!recordingAction.value) return
-  
-  // Check for conflicts
-  const conflict = checkConflict(recordingAction.value, key, modifiers)
-  if (conflict) {
-    hasConflict.value = true
-    conflictMessage.value = conflict
-  } else {
-    hasConflict.value = false
-  }
-  
-  const action = recordingAction.value
-  keybinds.setKeybind(action, key, modifiers)
-  recordingAction.value = null
-  
-  emit('update-keybinds', { action, key, modifiers })
-}
-
-// Lifecycle
-onMounted(() => {
-  window.addEventListener('keydown', handleKeydown, { capture: true })
-  window.addEventListener('mousedown', handleMousedown, { capture: true })
-})
-
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeydown, { capture: true })
-  window.removeEventListener('mousedown', handleMousedown, { capture: true })
-})
 </script>
 
 <style scoped>
@@ -431,8 +228,37 @@ onUnmounted(() => {
   height: 14px;
 }
 
+.keybind-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.single-key-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin: 0 0 20px 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--background-tertiary);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.single-key-note p {
+  margin: 0;
+  flex: 1;
+  min-width: 200px;
+}
+
 .keybind-item {
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 20px;
@@ -448,7 +274,7 @@ onUnmounted(() => {
 
 .keybind-info {
   flex: 1;
-  margin-right: 16px;
+  min-width: 200px;
 }
 
 .keybind-label {
@@ -467,39 +293,9 @@ onUnmounted(() => {
 
 .keybind-control {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   flex-shrink: 0;
-}
-
-.keybind-button {
-  padding: 6px 16px;
-  background-color: var(--input-bg);
-  border: 1px solid var(--input-border);
-  border-radius: 4px;
-  color: var(--text-primary);
-  font-size: 12px;
-  font-family: monospace;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  min-width: 100px;
-  text-align: center;
-}
-
-.keybind-button:hover {
-  background-color: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
-  border-color: var(--harmony-primary);
-}
-
-.keybind-button.recording {
-  background-color: color-mix(in srgb, var(--harmony-primary) 30%, transparent);
-  border-color: var(--harmony-primary);
-  color: var(--text-link);
-  animation: pulse-keybind 1.5s ease-in-out infinite;
-}
-
-.keybind-button.inactive {
-  opacity: 0.5;
 }
 
 .reset-single-btn {
@@ -514,7 +310,7 @@ onUnmounted(() => {
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
-  opacity: 0.5;
+  opacity: 0.7;
 }
 
 .reset-single-btn:hover {
@@ -529,15 +325,6 @@ onUnmounted(() => {
   height: 14px;
 }
 
-@keyframes pulse-keybind {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.6;
-  }
-}
-
 .mode-note {
   display: block;
   font-size: 11px;
@@ -546,21 +333,4 @@ onUnmounted(() => {
   margin-top: 4px;
 }
 
-.conflict-warning {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  background-color: rgba(250, 166, 26, 0.1);
-  border: 1px solid rgba(250, 166, 26, 0.3);
-  border-radius: 8px;
-  color: #faa61a;
-  font-size: 13px;
-}
-
-.conflict-warning :deep(svg) {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-}
 </style>

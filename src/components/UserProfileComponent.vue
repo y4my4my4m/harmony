@@ -8,7 +8,7 @@
       class="avatar-wrapper"
       :role="docked ? 'button' : undefined"
       :tabindex="docked ? 0 : undefined"
-      :aria-label="docked ? t('user.panelToggle') : undefined"
+      :aria-label="docked ? avatarToggleLabel : undefined"
       :aria-expanded="docked ? dockOpen : undefined"
       @click.stop="handleAvatarClick"
       @keydown.enter.prevent="docked && toggleDock()"
@@ -26,7 +26,7 @@
       <div
         v-if="(isMobile || docked) && mobileUnreadCount > 0"
         class="mobile-avatar-badge"
-        :aria-label="`${mobileUnreadCount} unread notification${mobileUnreadCount === 1 ? '' : 's'}`"
+        aria-hidden="true"
       >
         {{ mobileUnreadCount > 99 ? '99+' : mobileUnreadCount }}
       </div>
@@ -61,10 +61,11 @@
           muted: !isMicActive,
           'voice-active': isInVoiceChannel
         }"
-        :title="isMicActive ? 'Mute' : 'Unmute'"
-        :aria-label="isMicActive ? 'Mute' : 'Unmute'"
+        :title="t('voice.mute')"
+        :aria-label="t('voice.mute')"
+        :aria-pressed="!isMicActive"
       >
-        <Icon :name="isMicActive ? 'mic' : 'mic-off'" />
+        <Icon :name="isMicActive ? 'mic' : 'mic-off'" aria-hidden="true" />
       </button>
       <button
         type="button"
@@ -75,17 +76,18 @@
           muted: !isHeadphonesActive,
           'voice-active': isInVoiceChannel
         }"
-        :title="isHeadphonesActive ? 'Deafen' : 'Undeafen'"
-        :aria-label="isHeadphonesActive ? 'Deafen' : 'Undeafen'"
+        :title="t('voice.deafen')"
+        :aria-label="t('voice.deafen')"
+        :aria-pressed="!isHeadphonesActive"
       >
-        <HeadphonesIcon :isHeadphonesActive="isHeadphonesActive" />
+        <HeadphonesIcon :isHeadphonesActive="isHeadphonesActive" aria-hidden="true" />
       </button>
       <button
         type="button"
         class="icon-button settings"
         data-action="settings"
-        title="Settings"
-        aria-label="Settings"
+        :title="t('settings.title')"
+        :aria-label="t('settings.title')"
         @click="goToSettings"
       ><SettingsIcon/></button>
     </div>
@@ -187,6 +189,15 @@ const { t } = useI18n()
 // Mirrors NotificationBell.unreadCount so the collapsed-mobile avatar badge
 // matches the bell when it becomes visible after expansion.
 const mobileUnreadCount = computed(() => notificationStore.unreadCount)
+
+// The badge's count is visible text inside the docked avatar button, so the
+// name carries it too (WCAG 2.5.3 label in name).
+const avatarToggleLabel = computed(() => {
+  const count = mobileUnreadCount.value
+  if (count <= 0) return t('user.panelToggle')
+  const shown = count > 99 ? '99+' : String(count)
+  return `${t('user.panelToggle')}, ${t('a11y.unreadNotifications', { count: shown }, count)}`
+})
 const showStatusDropdown = ref(false)
 const targetRef = ref<HTMLElement | null>(null)
 const { isMobile, closeMobileSidebars } = useLayoutState()

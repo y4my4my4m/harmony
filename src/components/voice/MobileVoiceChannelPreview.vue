@@ -2,27 +2,32 @@
   <Teleport to="body">
     <Transition name="slide-up">
       <div v-if="isVisible" class="mobile-voice-preview-backdrop" @click.self="close">
-        <div class="mobile-voice-preview">
+        <div
+          ref="sheetEl"
+          class="mobile-voice-preview"
+          role="dialog"
+          aria-modal="true"
+          :aria-labelledby="titleId"
+          tabindex="-1"
+          data-testid="mobile-voice-preview"
+        >
           <!-- Header with channel info -->
           <div class="preview-header">
-            <button class="close-btn" @click="close">
-              <svg viewBox="0 0 24 24" width="24" height="24">
+            <button type="button" class="close-btn" :aria-label="t('common.close')" :title="t('common.close')" @click="close">
+              <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
                 <path fill="currentColor" d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
               </svg>
             </button>
             <div class="channel-info">
-              <div class="channel-icon">
+              <div class="channel-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="20" height="20">
                   <path fill="currentColor" d="M12,1A3,3 0 0,1 15,4V12A3,3 0 0,1 12,15A3,3 0 0,1 9,12V4A3,3 0 0,1 12,1M19,12C19,15.53 16.39,18.44 13,18.93V21H17V23H7V21H11V18.93C7.61,18.44 5,15.53 5,12H7A5,5 0 0,0 12,17A5,5 0 0,0 17,12H19Z"/>
                 </svg>
               </div>
-              <span class="channel-name">{{ channelName }}</span>
+              <h2 :id="titleId" class="channel-name">{{ channelName }}</h2>
             </div>
-            <button class="menu-btn">
-              <svg viewBox="0 0 24 24" width="24" height="24">
-                <path fill="currentColor" d="M12,8A2,2 0 0,1 14,10A2,2 0 0,1 12,12A2,2 0 0,1 10,10A2,2 0 0,1 12,8M12,14A2,2 0 0,1 14,16A2,2 0 0,1 12,18A2,2 0 0,1 10,16A2,2 0 0,1 12,14M12,2A2,2 0 0,1 14,4A2,2 0 0,1 12,6A2,2 0 0,1 10,4A2,2 0 0,1 12,2Z"/>
-              </svg>
-            </button>
+            <!-- Balances the close button so the title stays centred -->
+            <span class="header-spacer" aria-hidden="true"></span>
           </div>
 
           <!-- Participants section -->
@@ -33,34 +38,48 @@
               :title="$t('empty.voiceParticipants.title')"
               :description="$t('empty.voiceParticipants.description')"
             />
-            <div v-else class="participants-list">
-              <div v-for="participant in participants" :key="participant.id" class="participant-item">
+            <ul v-else class="participants-list" :aria-label="t('voice.inCallCount', { count: participants.length }, participants.length)">
+              <li v-for="participant in participants" :key="participant.id" class="participant-item">
                 <Avatar
                   :src="getUserAvatarUrl(participant.id).value"
-                  :alt="getUserDisplayName(participant.id).value || 'User'"
+                  alt=""
                   size="md"
                   class="participant-avatar"
                 />
                 <span class="participant-name"><DisplayName :userId="participant.id" /></span>
-              </div>
-            </div>
+              </li>
+            </ul>
           </div>
 
           <!-- Control buttons -->
           <div class="preview-controls">
-            <button class="control-btn mute-btn" :class="{ 'active': isMuted }" @click="toggleMuted">
-              <svg v-if="isMuted" viewBox="0 0 24 24" width="24" height="24">
+            <button
+              type="button"
+              class="control-btn mute-btn"
+              :class="{ 'active': isMuted }"
+              :aria-label="t('voice.joinMuted')"
+              :title="t('voice.joinMuted')"
+              :aria-pressed="isMuted"
+              @click="toggleMuted"
+            >
+              <svg v-if="isMuted" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
                 <path fill="currentColor" d="M1.27,1.73L0,3L4.73,7.73C4.26,8.31 4,9.09 4,10V17L6,15V10A2,2 0 0,1 8,8L10.45,10.45C10.17,10.75 10,11.15 10,11.6V16.4C10,17.08 10.54,17.63 11.2,17.63H12.8C13.46,17.63 14,17.08 14,16.4V14.45L20.27,20.73L21.54,19.46L1.27,1.73M11.2,6.37H12.8C13.46,6.37 14,6.92 14,7.6V8.86L20,14.86V4A2,2 0 0,0 18,2H6.5L8.5,4H18V6H8.5L10,7.5V7.6C10,7.14 10.17,6.74 10.45,6.45L11.2,6.37Z"/>
               </svg>
-              <svg v-else viewBox="0 0 24 24" width="24" height="24">
+              <svg v-else viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
                 <path fill="currentColor" d="M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z"/>
               </svg>
             </button>
-            <button class="join-btn" @click="handleJoin">
-              <span>Join Voice</span>
+            <button type="button" class="join-btn" data-autofocus @click="handleJoin">
+              <span>{{ t('voice.join') }}</span>
             </button>
-            <button class="control-btn chat-btn" @click="handleOpenChat">
-              <svg viewBox="0 0 24 24" width="24" height="24">
+            <button
+              type="button"
+              class="control-btn chat-btn"
+              :aria-label="t('voice.openChat')"
+              :title="t('voice.openChat')"
+              @click="handleOpenChat"
+            >
+              <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
                 <path fill="currentColor" d="M20,2H4A2,2 0 0,0 2,4V22L6,18H20A2,2 0 0,0 22,16V4A2,2 0 0,0 20,2M6,9H18V11H6M14,14H6V12H14M18,8H6V6H18"/>
               </svg>
             </button>
@@ -73,6 +92,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useDialog } from '@/composables/useDialog'
+import { useT } from '@/composables/useT'
 import Avatar from '@/components/common/Avatar.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import DisplayName from '@/components/DisplayName.vue'
@@ -97,13 +118,20 @@ interface Emits {
   (e: 'open-chat'): void
 }
 
-// eslint-disable-next-line unused-imports/no-unused-vars
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-const { getUserDisplayName, getUserAvatarUrl } = useUserData()
+const { getUserAvatarUrl } = useUserData()
+const { t } = useT()
 
 const isMuted = ref(false)
+const sheetEl = ref<HTMLElement | null>(null)
+
+const { titleId } = useDialog({
+  open: () => props.isVisible,
+  element: sheetEl,
+  onClose: () => emit('close'),
+})
 
 const toggleMuted = () => {
   isMuted.value = !isMuted.value
@@ -172,8 +200,12 @@ const handleOpenChat = () => {
   border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
 }
 
-.close-btn,
-.menu-btn {
+.header-spacer {
+  width: 40px;
+  flex-shrink: 0;
+}
+
+.close-btn {
   width: 40px;
   height: 40px;
   display: flex;
@@ -187,8 +219,7 @@ const handleOpenChat = () => {
   transition: background 0.15s ease;
 }
 
-.close-btn:hover,
-.menu-btn:hover {
+.close-btn:hover {
   background: rgba(255, 255, 255, 0.1);
 }
 
@@ -212,6 +243,7 @@ const handleOpenChat = () => {
 }
 
 .channel-name {
+  margin: 0;
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary, #fff);
@@ -229,6 +261,9 @@ const handleOpenChat = () => {
   grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
   gap: 16px;
   justify-items: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .participant-item {

@@ -8,6 +8,7 @@ import { clampVolume, remoteAudioMixer, type RemoteAudioKind } from '@/services/
 import { loadAudioPrefs as readAudioPrefs, saveMutes, saveVolumes } from '@/services/voice/voiceAudioPrefs';
 import { closeVoiceAudioContext } from '@/services/voice/voiceAudioContext';
 import { liveReactions, liveReactionsAvailable } from '@/services/voice/liveReactions';
+import { voiceAnnouncer } from '@/services/voice/voiceAnnouncements';
 import { connectLiveReactions } from '@/services/voice/liveReactionBridge';
 import { VoiceSettingsService, normalizeOutputVolume } from '@/services/VoiceSettingsService';
 import { spatialAudioService } from '@/services/spatialAudio';
@@ -35,6 +36,7 @@ let voiceSessionHeartbeat: ReturnType<typeof setInterval> | null = null;
 
 let keybindListenersSetup = false;
 let inputModeWatchStop: WatchStopHandle | null = null;
+let keybindDisposers: Array<() => void> = [];
 
 let webrtcListenersRegistered = false;
 
@@ -401,6 +403,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.optimisticServerId = serverId;
         this.optimisticChannelName = channel?.name || 'Voice Channel';
         this.isConnecting = true;
+        if (serverId !== 'dm') voiceAnnouncer.connecting(this.optimisticChannelName);
         // Library download overlaps the presence and token round trips.
         webrtcManager.preloadTransport();
 
@@ -645,7 +648,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       // isOverlayVisible is owned by the user-joined / user-state-changed
       // handlers, which set it on detecting existing video or screenshare.
 
-      // Join sound is played by ChannelSidebar for optimistic UX.
+      this.announceConnected();
 
       return true;
     },
@@ -773,8 +776,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             this.localStream = webrtcManager.getLocalStream();
             
             this.setupPushToTalk();
-            
-            // Join sound is played by ChannelSidebar for optimistic UX.
+
+            this.announceConnected();
 
             resolve(true);
           } catch (error) {
@@ -898,7 +901,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       }
     },
 
-    async leaveVoiceChannel(): Promise<boolean> {
+    /** `lost`: the transport dropped the call; its toast is the announcement. */
+    async leaveVoiceChannel(opts: { lost?: boolean } = {}): Promise<boolean> {
       try {
         const authStore = useAuthStore();
         const serverUsersStore = useServerUsersStore();
@@ -1045,6 +1049,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         this.resetState();
         
         themeStore.playAudio('voice_disconnect');
+        if (!opts.lost) voiceAnnouncer.disconnected();
 
         return true;
       } catch (error) {
@@ -1106,11 +1111,13 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           this.localState.isMuted = !this.localState.isMuted;
         }
         themeStore.playAudio(this.localState.isMuted ? 'mic_off' : 'mic_on');
+        voiceAnnouncer.selfMuted(this.localState.isMuted);
         return this.localState.isMuted;
       } else {
         this.localState.isMuted = !this.localState.isMuted;
         debug.log('Setting preemptive mute state:', this.localState.isMuted);
         themeStore.playAudio(this.localState.isMuted ? 'mic_off' : 'mic_on');
+        voiceAnnouncer.selfMuted(this.localState.isMuted);
         return this.localState.isMuted;
       }
     },
@@ -1146,6 +1153,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const deafened = webrtcManager.toggleDeafen();
         this.localState = webrtcManager.getLocalState();
         themeStore.playAudio(deafened ? 'deafen_on' : 'deafen_off');
+        voiceAnnouncer.selfDeafened(deafened);
         return deafened;
       } else {
         this.localState.isDeafened = !this.localState.isDeafened;
@@ -1157,6 +1165,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         debug.log('Setting preemptive deafen state:', this.localState.isDeafened);
         themeStore.playAudio(this.localState.isDeafened ? 'deafen_on' : 'deafen_off');
+        voiceAnnouncer.selfDeafened(this.localState.isDeafened);
         return this.localState.isDeafened;
       }
     },
@@ -1327,7 +1336,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       clearReconnectGiveUp();
       if (!this.isConnected) return;
       debug.warn('Voice connection lost; leaving channel');
-      await this.leaveVoiceChannel();
+      await this.leaveVoiceChannel({ lost: true });
       useNotificationStore().showToast(
         'server_update',
         'Disconnected from voice',
@@ -1474,6 +1483,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
       webrtcManager.on('user-joined', async (data: any) => {
         debug.log('User joined:', data);
+        // Participants already in the room arrive here during the handshake,
+        // before isConnected; only later arrivals are announced.
+        const announceArrival = this.isConnected && !!data?.userId && data.userId !== currentUserId;
         
         const existingIndex = this.allUsers.findIndex(u => u.userId === data.userId);
         if (existingIndex === -1) {
@@ -1503,10 +1515,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           debug.warn('Failed to load profile for voice user:', data.userId, error);
         }
 
-        // Self-join sound is played by ChannelSidebar for optimistic UX.
+        // Self-join sound is played once the join resolves (announceConnected).
         if (currentUserId && data.userId !== currentUserId) {
           themeStore.playAudio('voice_connect');
         }
+        if (announceArrival && this.isConnected) voiceAnnouncer.participantJoined(data.userId);
       });
 
       webrtcManager.on('user-left', (data: any) => {
@@ -1540,6 +1553,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         // Self-disconnect sound is played by leaveVoiceChannel / ChannelSidebar.
         if (currentUserId && data.userId !== currentUserId) {
           themeStore.playAudio('voice_disconnect');
+          if (this.isConnected) voiceAnnouncer.participantLeft(data.userId);
         }
       });
 
@@ -1569,6 +1583,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
           // Screenshare toggles do not touch spatial audio: only the mic is
           // spatialized (addUserToSpatialAudio takes the mic-only stream) and
           // screenshare audio plays through its own stereo element.
+        }
+
+        if (oldState && this.isConnected && oldState.isScreenSharing !== !!data.mediaState?.isScreenSharing
+          && data.userId !== this.localState.userId) {
+          voiceAnnouncer.streamChanged(data.userId, !!data.mediaState.isScreenSharing);
         }
 
         // No overlay auto-open here; this fires on every state change.
@@ -1604,9 +1623,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         const themeStore = useThemeStore();
         if (wasSharing !== state.isScreenSharing) {
           themeStore.playAudio(state.isScreenSharing ? 'screenshare_on' : 'screenshare_off');
+          voiceAnnouncer.selfStreamChanged(!!state.isScreenSharing);
         }
         if (hadVideo !== state.isVideoEnabled) {
           themeStore.playAudio(state.isVideoEnabled ? 'camera_on' : 'camera_off');
+          voiceAnnouncer.selfCamera(!!state.isVideoEnabled);
         }
       });
       
@@ -1642,6 +1663,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             if (speaking) {
               this.updateRecentSpeakers(data.userId);
             }
+            voiceAnnouncer.speakingChanged(data.userId, speaking);
           }
         }
       });
@@ -1656,6 +1678,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             void this.dropLostVoiceConnection();
           }, VOICE_RECONNECT_GIVE_UP_MS);
         } else if (state === 'connected') {
+          // "Reconnecting…" is spoken by VoiceCallBanner's status region, which
+          // empties silently; the recovery is announced here.
+          if (this.connectionState === 'reconnecting') voiceAnnouncer.reconnected();
           this.connectionState = 'connected';
           clearReconnectGiveUp();
         }
@@ -1988,6 +2013,12 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       spatialAudioService.destroy();
     },
 
+    /** Join sound and "Connected to X", once the transport is up. */
+    announceConnected(): void {
+      useThemeStore().playAudio('voice_connect');
+      voiceAnnouncer.connected(this.currentChannelName || 'Voice Channel');
+    },
+
     /**
      * Transmit gate = not in PTT mode, or the PTT key is held. Explicit mute
      * is applied on top of this by the services.
@@ -2005,13 +2036,13 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
       keybinds.activateContext('voice-connected');
 
-      keybinds.registerHandler('push-to-talk', () => this.syncTransmitGate());
-
-      // The overlay registers its own handlers, which take priority while open.
-      keybinds.registerHandler('toggle-mute', () => this.toggleMute());
-      keybinds.registerHandler('toggle-deafen', () => this.toggleDeafen());
-      keybinds.registerHandler('toggle-camera', () => this.toggleVideo());
-      keybinds.registerHandler('toggle-screenshare', () => this.toggleScreenShare());
+      keybindDisposers = [
+        keybinds.registerHandler('push-to-talk', () => this.syncTransmitGate()),
+        keybinds.registerHandler('toggle-mute', () => { void this.toggleMute(); }),
+        keybinds.registerHandler('toggle-deafen', () => { void this.toggleDeafen(); }),
+        keybinds.registerHandler('toggle-camera', () => { void this.toggleVideo(); }),
+        keybinds.registerHandler('toggle-screenshare', () => { void this.toggleScreenShare(); }),
+      ];
 
       keybinds.setupListeners();
 
@@ -2029,11 +2060,8 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
       keybinds.deactivateContext('voice-connected');
 
-      keybinds.unregisterHandler('push-to-talk');
-      keybinds.unregisterHandler('toggle-mute');
-      keybinds.unregisterHandler('toggle-deafen');
-      keybinds.unregisterHandler('toggle-camera');
-      keybinds.unregisterHandler('toggle-screenshare');
+      keybindDisposers.forEach((dispose) => dispose());
+      keybindDisposers = [];
 
       keybinds.cleanupListeners();
 

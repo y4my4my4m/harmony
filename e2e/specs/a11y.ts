@@ -62,12 +62,6 @@ export const AXE_EXCLUSIONS: AxeExclusion[] = [
     reason: 'Composer GIF button: aria-label "GIFs" over the visible "GIF" glyph text.',
     within: '[data-testid="message-input"]',
   },
-  {
-    rule: 'label-content-name-mismatch',
-    area: 'voice',
-    reason: 'User panel avatar button: aria-label "Your account and voice controls" omits the visible name (UserProfileComponent.vue).',
-    within: '[data-region="user"], .user-profile-section',
-  },
 ]
 
 export interface AxeOptions {

@@ -259,7 +259,6 @@ export async function joinVoiceFromToday(router: Router, voice: TodayVoiceChanne
   const ready = await waitFor(() => serverChannelStore.currentServer?.id === voice.server.id, 10_000)
   if (!ready) return false
 
-  themeStore.playAudio('voice_connect')
   const joined = await voiceStore.joinVoiceChannel(voice.channelId, voice.server.id)
   if (!joined) themeStore.playAudio('voice_disconnect')
   return joined
