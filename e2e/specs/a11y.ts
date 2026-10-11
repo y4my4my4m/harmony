@@ -51,18 +51,6 @@ export const AXE_EXCLUSIONS: AxeExclusion[] = [
     within: '.display-name',
   },
   {
-    rule: 'aria-allowed-attr',
-    area: 'chat',
-    reason: 'Composer editor: aria-expanded on role=textbox (RichTextEditor.vue); needs the combobox pattern.',
-    within: '.rich-text-editor',
-  },
-  {
-    rule: 'label-content-name-mismatch',
-    area: 'chat',
-    reason: 'Composer GIF button: aria-label "GIFs" over the visible "GIF" glyph text.',
-    within: '[data-testid="message-input"]',
-  },
-  {
     rule: 'nested-interactive',
     area: 'chat',
     reason: 'Voice channel rows (role=button) contain the "Open chat" button (ChannelSidebar.vue).',
