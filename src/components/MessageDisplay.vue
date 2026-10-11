@@ -202,11 +202,14 @@
                   <Icon name="thread" :size="16" class="system-icon" />
                   <div class="system-text thread-created-text">
                     <button
+                      v-if="item.message.user_id && !item.message.bot_id && !hasDiscordUserMetadata(item.message)"
                       type="button"
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
                       :style="{ color: resolveChatUserColor(item.message.user_id) }"
                     ><DisplayName :userId="item.message.user_id" /></button>
+                    <!-- A bridged Discord person, a webhook or a bot: no Harmony profile to open. -->
+                    <span v-else class="system-user-name">{{ getAuthorDisplayName(item.message).value }}</span>
                     started a thread: 
                     <button
                       type="button"
@@ -4946,6 +4949,10 @@ defineExpose({ editLastOwnMessage });
 .system-user-mention {
   font-weight: 600;
   cursor: pointer;
+}
+
+.system-user-name {
+  font-weight: 600;
 }
 
 .system-user-mention:hover {

@@ -75,7 +75,7 @@ backfill_timeline_on_follow		trigger	definer	public, extensions, pg_temp	anon+au
 ban_server_member	p_server_id uuid, p_user_id uuid, p_reason text, p_delete_message_seconds integer	jsonb	definer	public, extensions, pg_temp	authenticated+service_role	client
 batch_set_instance_config	p_keys text[], p_values jsonb[]	boolean	definer	public, pg_temp	authenticated+service_role	client
 begin_account_move	p_target_profile_id uuid, p_password text	jsonb	definer	pg_catalog, public, pg_temp	authenticated+service_role	client
-bot_create_thread	p_bot_id uuid, p_channel_id uuid, p_name text, p_parent_message_id uuid, p_discord_thread_id text	uuid	definer	public, pg_temp	service_role	client
+bot_create_thread	p_bot_id uuid, p_channel_id uuid, p_name text, p_parent_message_id uuid, p_discord_thread_id text, p_discord_user jsonb	uuid	definer	public, pg_temp	service_role	client
 bot_flag_permission	p_flag text	text	invoker	public, pg_temp	authenticated+service_role	unreferenced
 bot_is_integration	p_bot_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	policy
 bridge_import_server_emoji	p_bot_id uuid, p_server_id uuid, p_discord_emoji_id text, p_name text, p_url text	TABLE(status text, id uuid, name text, url text, discord_emoji_id text)	definer	public, pg_temp	service_role	client

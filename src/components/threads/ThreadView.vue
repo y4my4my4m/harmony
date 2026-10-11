@@ -160,15 +160,16 @@
           <div class="parent-message" v-if="displayParentMessage">
             <div class="message-avatar">
               <Avatar 
-                :src="getAuthorAvatar(displayParentMessage.user_id)" 
-                :alt="getAuthorName(displayParentMessage.user_id)"
+                :src="parentForeignAuthor ? (parentForeignAuthor.avatar_url || '/default_avatar.webp') : getAuthorAvatar(displayParentMessage.user_id)" 
+                :alt="parentForeignAuthor ? parentForeignAuthor.name : getAuthorName(displayParentMessage.user_id)"
                 size="sm"
-                :interactive="true"
+                :interactive="!parentForeignAuthor"
               />
             </div>
             <div class="message-main">
               <div class="message-meta">
-                <span class="username" :style="{ color: getAuthorColor(displayParentMessage.user_id) }">
+                <span v-if="parentForeignAuthor" class="username">{{ parentForeignAuthor.name }}</span>
+                <span v-else class="username" :style="{ color: getAuthorColor(displayParentMessage.user_id) }">
                   <DisplayName :userId="displayParentMessage.user_id" />
                 </span>
                 <span class="timestamp">{{ formatTimestamp(displayParentMessage.created_at) }}</span>
@@ -328,6 +329,7 @@ import type { ThreadWithDetails } from '@/services/ThreadService'
 import type { FilePreviewData } from '@/components/FilePreview.vue'
 import { attachmentParts, mediaRoom } from '@/services/privateMedia'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { getForeignAuthor } from '@/utils/messageAuthor'
 import { useDialog } from '@/composables/useDialog'
 import { useMenu, useMenuButton } from '@/composables/useMenu'
 
@@ -487,6 +489,9 @@ const displayParentMessage = computed(() => {
   const parent = thread.value?.parent_message
   return isThreadNoticeParent(parent) ? null : parent
 })
+
+// A starter written by a bridged Discord person, a webhook or a bot has no profile to show.
+const parentForeignAuthor = computed(() => getForeignAuthor(displayParentMessage.value as Message | null | undefined))
 
 // Thread name (or generate from parent message in draft mode)
 const displayThreadName = computed(() => {

@@ -1,7 +1,8 @@
 /**
  * Thread routes a Discord bridge relies on (bridge 2.4): sending into a thread, creating a
  * thread (paired with a Discord thread or not), finding a pair, reading a thread and pairing a
- * Harmony-created one. bot_create_thread is an rpc; its SQL is covered by pgTAP test 136.
+ * Harmony-created one. bot_create_thread is an rpc; its SQL is covered by pgTAP tests 136
+ * and 137.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import express from 'express'
@@ -121,7 +122,7 @@ describe('POST /channels/:id/threads', () => {
       expect(fn).toBe('bot_create_thread')
       expect(args).toEqual({
         p_bot_id: BOT_ID, p_channel_id: PAIRED, p_name: 'From Discord',
-        p_parent_message_id: STARTER, p_discord_thread_id: '1234567890123',
+        p_parent_message_id: STARTER, p_discord_thread_id: '1234567890123', p_discord_user: null,
       })
       db.rows('discord_bridge_threads').push({ thread_id: THREAD, bridge_id: BRIDGE_ID, discord_thread_id: '1234567890123' })
       return { data: THREAD, error: null }
@@ -131,6 +132,26 @@ describe('POST /channels/:id/threads', () => {
       .send({ name: 'From Discord', message_id: STARTER, discord_thread_id: '1234567890123' })
     expect(res.status).toBe(201)
     expect(res.body).toMatchObject({ id: THREAD, channel_id: PAIRED, parent_message_id: STARTER, discord_thread_id: '1234567890123' })
+  })
+
+  it('names the notice after the Discord member who started the thread, only for a paired thread', async () => {
+    seed()
+    const calls: Record<string, unknown>[] = []
+    mocks.rpc.mockImplementation(async (_fn: string, args: Record<string, unknown>) => {
+      calls.push(args)
+      return { data: THREAD, error: null }
+    })
+    const dana = { id: '1400000000000000003', username: 'dana', display_name: 'Dana', avatar_url: 'https://cdn.discordapp.com/a.png', discriminator: '0', bot: true }
+    await supertest(app()).post(`/api/v1/channels/${PAIRED}/threads`)
+      .send({ name: 'x', discord_thread_id: '1234567890123', discord_user: dana })
+    await supertest(app()).post(`/api/v1/channels/${PAIRED}/threads`)
+      .send({ name: 'x', discord_thread_id: '1234567890124', discord_user: { id: 'dana' } })
+    await supertest(app()).post(`/api/v1/channels/${PAIRED}/threads`).send({ name: 'x', discord_user: dana })
+    expect(calls.map(c => c.p_discord_user)).toEqual([
+      { id: '1400000000000000003', username: 'dana', display_name: 'Dana', avatar_url: 'https://cdn.discordapp.com/a.png' },
+      null,
+      null,
+    ])
   })
 
   it('refuses a Discord pair in a channel the bot does not bridge, and a bot without send_messages', async () => {
