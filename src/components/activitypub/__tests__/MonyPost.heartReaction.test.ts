@@ -273,7 +273,6 @@ describe('MonyPost heart and reactions', () => {
     const wrapper = mountPost(post)
 
     expect(heart(wrapper).attributes('title')).toBe('activitypub.unfavoriteWithReactions(2)')
-    expect(heart(wrapper).attributes('aria-label')).toBe('activitypub.unfavoriteWithReactions(2)')
 
     usePostReactionsStore().bulkSetReactions({ 'post-1': [chip('🚀', false)] as any })
     await wrapper.vm.$nextTick()
@@ -282,6 +281,22 @@ describe('MonyPost heart and reactions', () => {
     post.is_favorited = false
     await wrapper.vm.$nextTick()
     expect(heart(wrapper).attributes('title')).toBe('activitypub.favorite')
+  })
+
+  it('keeps the heart\'s accessible name fixed while aria-pressed carries the state', async () => {
+    const post = makePost({ favorites_count: 2 })
+    post.is_favorited = true
+    usePostReactionsStore().bulkSetReactions({ 'post-1': [chip('🎉', true, 2)] as any })
+    const wrapper = mountPost(post)
+
+    expect(heart(wrapper).attributes('aria-label')).toBe('activitypub.postA11y.actionCount')
+    expect(heart(wrapper).attributes('aria-pressed')).toBe('true')
+
+    post.is_favorited = false
+    await wrapper.vm.$nextTick()
+    expect(heart(wrapper).attributes('aria-label')).toBe('activitypub.postA11y.actionCount')
+    expect(heart(wrapper).attributes('aria-pressed')).toBe('false')
+    expect(heart(wrapper).attributes('aria-expanded')).toBeUndefined()
   })
 
   it('unfavouriting drops the caller\'s reaction chips at once and refetches them', async () => {

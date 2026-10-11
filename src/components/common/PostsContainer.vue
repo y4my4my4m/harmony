@@ -6,7 +6,7 @@
       class="skeleton-list feed-column"
       role="status"
       aria-busy="true"
-      :aria-label="loadingMessage"
+      :aria-label="loadingMessage || t('common.loading')"
     >
       <div v-for="n in skeletonCount" :key="n" class="skeleton-row" aria-hidden="true">
         <div class="skeleton-avatar" />
@@ -41,54 +41,83 @@
       @action="$emit('empty-action')"
     />
 
-    <!-- Virtualized Posts -->
-    <div v-else class="posts-list feed-column" :style="{ height: `${totalSize}px`, position: 'relative' }">
+    <!-- Virtualized posts in a role="feed" (WAI-ARIA feed pattern): articles carry
+         aria-posinset/aria-setsize, PageDown/PageUp (and j/k outside text fields)
+         move between them, Ctrl+End/Ctrl+Home leave the feed. The article holding
+         focus stays rendered while scrolled out of the window. -->
+    <template v-else>
       <div
-        v-for="virtualRow in virtualRows"
-        :key="virtualRow.index < posts.length ? posts[virtualRow.index].id : '__loader__'"
-        :data-index="virtualRow.index"
-        :ref="measureElement"
-        class="virtual-post-row"
-        :style="{
-          position: 'absolute',
-          top: `${virtualRow.start}px`,
-          left: 0,
-          width: '100%',
-        }"
+        ref="feedEl"
+        class="posts-list feed-column"
+        role="feed"
+        :aria-label="feedLabel || t('activitypub.feedA11y.label')"
+        :aria-busy="isLoading ? 'true' : 'false'"
+        :style="{ height: `${totalSize}px`, position: 'relative' }"
+        @keydown="onFeedKeydown"
+        @focusin="onFeedFocusIn"
+        @focusout="onFeedFocusOut"
       >
-        <div v-if="virtualRow.index >= posts.length" class="loading-more">
-          <template v-if="loadMoreFailed">
-            <span>{{ t('activitypub.loadMoreFailed') }}</span>
-            <button type="button" class="retry-btn" @click="retryLoadMore">{{ t('common.retry') }}</button>
-          </template>
-          <template v-else>
-            <LoadingSpinner :size="18" :thickness="2" />
-            <span class="sr-only">{{ t('activitypub.loadingMore') }}</span>
-          </template>
+        <div
+          v-for="virtualRow in virtualRows"
+          :key="posts[virtualRow.index]?.id ?? virtualRow.index"
+          :data-index="virtualRow.index"
+          :ref="measureElement"
+          class="virtual-post-row"
+          :style="{
+            position: 'absolute',
+            top: `${virtualRow.start}px`,
+            left: 0,
+            width: '100%',
+          }"
+        >
+          <MonyPost
+            v-if="posts[virtualRow.index]"
+            :post="posts[virtualRow.index]"
+            v-bind="postProps"
+            :posinset="virtualRow.index + 1"
+            :setsize="hasMore ? -1 : posts.length"
+            @reply="$emit('reply', $event)"
+            @favorite="$emit('favorite', posts[virtualRow.index])"
+            @reblog="$emit('reblog', posts[virtualRow.index])"
+            @bookmark="$emit('bookmark', posts[virtualRow.index])"
+            @delete="$emit('delete', posts[virtualRow.index])"
+            @edit="$emit('edit', $event)"
+            @user-click="$emit('user-click', $event)"
+            @hashtag-click="$emit('hashtag-click', $event)"
+            @show-conversation="$emit('show-conversation', $event)"
+          />
         </div>
-        <MonyPost
-          v-else
-          :post="posts[virtualRow.index]"
-          v-bind="postProps"
-          @reply="$emit('reply', $event)"
-          @favorite="$emit('favorite', posts[virtualRow.index])"
-          @reblog="$emit('reblog', posts[virtualRow.index])"
-          @bookmark="$emit('bookmark', posts[virtualRow.index])"
-          @delete="$emit('delete', posts[virtualRow.index])"
-          @edit="$emit('edit', $event)"
-          @user-click="$emit('user-click', $event)"
-          @hashtag-click="$emit('hashtag-click', $event)"
-          @show-conversation="$emit('show-conversation', $event)"
-        />
       </div>
-    </div>
+
+      <!-- Outside the feed: a feed owns articles only. -->
+      <div v-if="hasMore || loadMoreFailed" class="loading-more feed-column" data-testid="feed-footer">
+        <template v-if="loadMoreFailed">
+          <span>{{ t('activitypub.loadMoreFailed') }}</span>
+          <button type="button" class="retry-btn" @click="retryLoadMore">{{ t('common.retry') }}</button>
+        </template>
+        <button
+          v-else
+          ref="loadMoreBtn"
+          type="button"
+          class="retry-btn load-more-btn"
+          data-testid="feed-load-more"
+          :aria-disabled="isLoading ? 'true' : undefined"
+          @click="onLoadMoreClick"
+        >
+          <LoadingSpinner v-if="isLoading" :size="16" :thickness="2" />
+          <span>{{ isLoading ? t('activitypub.loadingMore') : t('activitypub.loadMoreMonies') }}</span>
+        </button>
+      </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted, watchEffect } from 'vue'
+import { computed, nextTick, ref, watch, onMounted, onUnmounted, watchEffect } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useVirtualizer } from '@tanstack/vue-virtual'
+import { defaultRangeExtractor, useVirtualizer, type Range } from '@tanstack/vue-virtual'
+import { useAnnouncer } from '@/composables/useAnnouncer'
+import { tabbables } from '@/utils/a11y/focus'
 import MonyPost from '@/components/activitypub/MonyPost.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -109,13 +138,15 @@ interface Props {
   error?: string | null
   errorTitle?: string
   skeletonCount?: number
+  /** Accessible name of the feed ("Local timeline"). */
+  feedLabel?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   posts: () => [],
   isLoading: false,
   hasMore: false,
-  loadingMessage: 'Loading posts...',
+  loadingMessage: undefined,
   emptyTitle: undefined,
   emptyMessage: undefined,
   emptyIcon: 'users',
@@ -124,10 +155,12 @@ const props = withDefaults(defineProps<Props>(), {
   registerScroll: undefined,
   error: null,
   errorTitle: undefined,
-  skeletonCount: 5
+  skeletonCount: 5,
+  feedLabel: undefined
 })
 
 const { t } = useI18n()
+const { polite } = useAnnouncer()
 
 const emit = defineEmits<{
   'load-more': []
@@ -159,7 +192,22 @@ const emit = defineEmits<{
 }>()
 
 const scrollContainer = ref<HTMLDivElement | null>(null)
+const feedEl = ref<HTMLElement | null>(null)
+const loadMoreBtn = ref<HTMLButtonElement | null>(null)
 const observedElements = new Set<HTMLElement>()
+
+// Post whose article holds focus; rangeExtractor keeps its row rendered so focus
+// is not dropped to <body> when the row scrolls out of the window. Kept by id:
+// realtime prepends shift indexes.
+let focusedPostId: string | null = null
+
+const keepFocusedRow = (range: Range): number[] => {
+  const indexes = defaultRangeExtractor(range)
+  if (!focusedPostId) return indexes
+  const focused = props.posts.findIndex((p) => p.id === focusedPostId)
+  if (focused < 0 || indexes.includes(focused)) return indexes
+  return [...indexes, focused].sort((a, b) => a - b)
+}
 
 const resizeObserver = new ResizeObserver((entries) => {
   for (const entry of entries) {
@@ -196,15 +244,15 @@ const estimatePostSize = (index: number): number => {
   return Math.max(estimate, 120)
 }
 
-// +1 phantom row when there's more to load - acts as in-flow loading indicator
 const rowVirtualizer = useVirtualizer<HTMLElement, Element>(
   computed(() => ({
-    count: props.hasMore ? props.posts.length + 1 : props.posts.length,
+    count: props.posts.length,
     getScrollElement: () => scrollContainer.value,
     estimateSize: estimatePostSize,
     // Measurements follow the post, not the index, across realtime prepends.
-    getItemKey: (index: number) => props.posts[index]?.id ?? '__loader__',
+    getItemKey: (index: number) => props.posts[index]?.id ?? index,
     overscan: 8,
+    rangeExtractor: keepFocusedRow,
   })) as any
 )
 
@@ -222,10 +270,12 @@ const measureElement = (el: any) => {
 
 const lastEmittedIndex = ref(-1)
 const loadMoreFailed = ref(false)
+// A load started from the Load more button moves focus to its first new post.
+let focusNewPosts = false
 
 // `load-more` handlers report failure only by settling with no new posts;
 // `hasMore` stays set. Without an explicit failed state the tail index latch
-// never reopens, since the phantom row is always the highest index.
+// never reopens, since the last row is always the highest index.
 let attemptActive = false
 let attemptTimer: ReturnType<typeof setTimeout> | null = null
 // Covers handlers that never flip `isLoading`, leaving no edge to settle on.
@@ -241,6 +291,7 @@ const clearAttemptTimer = () => {
 const failAttempt = () => {
   clearAttemptTimer()
   attemptActive = false
+  focusNewPosts = false
   loadMoreFailed.value = true
 }
 
@@ -249,11 +300,38 @@ const retryLoadMore = () => {
   lastEmittedIndex.value = -1
 }
 
-watch(() => props.posts.length, () => {
+const startAttempt = () => {
+  attemptActive = true
+  clearAttemptTimer()
+  attemptTimer = setTimeout(() => {
+    attemptTimer = null
+    if (props.isLoading) return
+    failAttempt()
+  }, ATTEMPT_TIMEOUT_MS)
+  emit('load-more')
+}
+
+const onLoadMoreClick = () => {
+  focusNewPosts = true
+  if (props.isLoading || attemptActive) return
+  lastEmittedIndex.value = props.posts.length - 1
+  startAttempt()
+}
+
+// Runs before the render that may unmount the footer, so a focused Load more
+// button is still detectable; its focus moves to the first new post.
+watch(() => props.posts.length, (length, previous) => {
+  const loaded = attemptActive && length > previous ? length - previous : 0
+  const fromButton = focusNewPosts || (!!loadMoreBtn.value && document.activeElement === loadMoreBtn.value)
   clearAttemptTimer()
   attemptActive = false
   loadMoreFailed.value = false
   lastEmittedIndex.value = -1
+  if (loaded > 0) {
+    polite(t('activitypub.feedA11y.postsLoaded', { count: loaded }, loaded), { key: 'feed-loaded' })
+    if (fromButton) void focusPost(previous)
+  }
+  focusNewPosts = false
 })
 
 watch(() => props.isLoading, (loading) => {
@@ -274,20 +352,100 @@ watchEffect(() => {
     lastItem.index >= props.posts.length - 1 &&
     props.hasMore &&
     !props.isLoading &&
+    !attemptActive &&
     !loadMoreFailed.value &&
     lastItem.index !== lastEmittedIndex.value
   ) {
     lastEmittedIndex.value = lastItem.index
-    attemptActive = true
-    clearAttemptTimer()
-    attemptTimer = setTimeout(() => {
-      attemptTimer = null
-      if (props.isLoading) return
-      failAttempt()
-    }, ATTEMPT_TIMEOUT_MS)
-    emit('load-more')
+    startAttempt()
   }
 })
+
+const articleAt = (index: number) =>
+  feedEl.value?.querySelector<HTMLElement>(`article[aria-posinset="${index + 1}"]`) ?? null
+
+const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+
+/** Moves focus to the post at `index`, scrolling its row into the window first. */
+const focusPost = async (index: number): Promise<boolean> => {
+  if (index < 0 || index >= props.posts.length) return false
+  await nextTick()
+  let el = articleAt(index)
+  if (!el) {
+    rowVirtualizer.value.scrollToIndex(index, { align: 'start' })
+    for (let attempt = 0; attempt < 6 && !el; attempt++) {
+      await nextFrame()
+      el = articleAt(index)
+    }
+  }
+  if (!el) return false
+  focusedPostId = props.posts[index]?.id ?? null
+  el.focus({ preventScroll: true })
+  const box = scrollContainer.value?.getBoundingClientRect()
+  const rect = el.getBoundingClientRect()
+  if (box && (rect.top < box.top || rect.top > box.bottom - 48)) el.scrollIntoView({ block: 'start' })
+  return document.activeElement === el
+}
+
+/** First tabbable element after (or last before) the feed, for Ctrl+End / Ctrl+Home. */
+const focusBeyondFeed = (after: boolean) => {
+  const feed = feedEl.value
+  if (!feed) return
+  const outside = tabbables(document.body).filter((el) => {
+    if (feed.contains(el)) return false
+    const position = feed.compareDocumentPosition(el)
+    return after ? !!(position & Node.DOCUMENT_POSITION_FOLLOWING) : !!(position & Node.DOCUMENT_POSITION_PRECEDING)
+  })
+  const target = after ? outside[0] : outside[outside.length - 1]
+  target?.focus()
+}
+
+const isTextEntry = (el: HTMLElement) => el.isContentEditable || el.matches('input, textarea, select')
+
+const onFeedKeydown = (event: KeyboardEvent) => {
+  if (event.defaultPrevented || event.altKey || event.metaKey) return
+  const target = event.target as HTMLElement
+  const article = target.closest<HTMLElement>('article[aria-posinset]')
+  if (!article || !feedEl.value?.contains(article)) return
+  const index = Number(article.getAttribute('aria-posinset')) - 1
+  if (Number.isNaN(index)) return
+  const typing = isTextEntry(target)
+
+  let step = 0
+  if ((event.key === 'PageDown' || event.key === 'PageUp') && !event.ctrlKey && !event.shiftKey && !typing) {
+    step = event.key === 'PageDown' ? 1 : -1
+  } else if ((event.key === 'j' || event.key === 'k') && !event.ctrlKey && !event.shiftKey && !typing) {
+    step = event.key === 'j' ? 1 : -1
+  } else if ((event.key === 'End' || event.key === 'Home') && event.ctrlKey && !typing) {
+    event.preventDefault()
+    focusBeyondFeed(event.key === 'End')
+    return
+  }
+  if (step === 0) return
+  event.preventDefault()
+  const next = index + step
+  if (next >= props.posts.length) {
+    loadMoreBtn.value?.focus()
+    return
+  }
+  void focusPost(Math.max(0, next))
+}
+
+const onFeedFocusIn = (event: FocusEvent) => {
+  const article = (event.target as HTMLElement).closest<HTMLElement>('article[aria-posinset]')
+  const index = article ? Number(article.getAttribute('aria-posinset')) - 1 : -1
+  focusedPostId = props.posts[index]?.id ?? focusedPostId
+}
+
+const onFeedFocusOut = (event: FocusEvent) => {
+  const next = event.relatedTarget
+  if (next instanceof Node && feedEl.value?.contains(next)) return
+  // A menu or dialog opened from a post returns focus to it, so its row stays.
+  if (next === null || (next instanceof Element && next.closest('[role="menu"], [role="dialog"], [role="alertdialog"]'))) return
+  focusedPostId = null
+}
+
+defineExpose({ focusPost })
 
 // Emit visible post ids whenever the virtualizer's rendered window changes.
 // Keyed-dedup on the joined id string prevents redundant emits while the
@@ -415,18 +573,19 @@ onUnmounted(() => {
   background: var(--background-modifier-hover);
 }
 
+.load-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.load-more-btn[aria-disabled='true'] {
+  cursor: progress;
+}
+
 .retry-btn:focus-visible {
   outline: 2px solid var(--harmony-primary);
   outline-offset: 2px;
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
 }
 
 /* The column rules run to the bottom whether the feed is loading, listed or empty. */

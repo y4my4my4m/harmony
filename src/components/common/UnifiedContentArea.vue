@@ -33,6 +33,7 @@
           :has-more="hasMoreSpecialData"
           :error="loadError"
           :loading-message="t('common.loading')"
+          :feed-label="specialFeedLabel"
           :empty-title="getEmptyStateTitle(viewType)"
           :empty-message="getSpecialViewEmptyMessage(viewType)"
           :empty-icon="getViewIcon(viewType)"
@@ -66,6 +67,7 @@
             v-if="pendingCount > 0"
             type="button"
             class="new-posts-pill"
+            data-testid="new-posts-pill"
             @click="handleShowPending"
           >
             <Icon name="arrow-up" :size="16" />
@@ -73,7 +75,9 @@
           </button>
 
           <PostsContainer
+            ref="timelineFeedRef"
             :posts="posts"
+            :feed-label="timelineFeedLabel"
             :register-scroll="handleRegisterScroll"
             :is-loading="isLoadingFeed"
             :has-more="hasMorePosts"
@@ -113,7 +117,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onUnmounted, watch } from 'vue'
+import { computed, nextTick, ref, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import ChatComponent from '@/components/ChatComponent.vue'
@@ -121,6 +125,7 @@ import Icon from '@/components/common/Icon.vue'
 import Composer from '@/components/activitypub/Composer.vue'
 import PostsContainer from './PostsContainer.vue'
 import ViewHeader from './ViewHeader.vue'
+import { useAnnouncer } from '@/composables/useAnnouncer'
 import type { Message, TimelinePost, FederatedUser } from '@/types'
 import { ViewMode, ViewType } from '@/types/viewTypes'
 
@@ -176,11 +181,17 @@ function handleTimelineScroll() {
   })
 }
 
-function handleShowPending() {
+const timelineFeedRef = ref<InstanceType<typeof PostsContainer> | null>(null)
+
+// The pending posts are prepended on show-pending; focus moves to the first of them
+// rather than staying on the pill, which unmounts.
+async function handleShowPending() {
   const el = timelineScrollEl.value
   if (el) el.scrollTop = 0
   composerHidden.value = false
   emit('show-pending')
+  await nextTick()
+  await timelineFeedRef.value?.focusPost(0)
 }
 
 onUnmounted(() => {
@@ -298,6 +309,32 @@ const handleEditPost = (postId: string) => {
 }
 
 const { t } = useI18n()
+const { polite } = useAnnouncer()
+
+// Posts queued behind the pill are announced as the count grows; the key keeps a
+// burst to its latest count.
+watch(() => props.pendingCount, (count, previous) => {
+  if (count > 0 && count > (previous ?? 0)) {
+    polite(t('activitypub.newPostsCount', { count }, count), { key: 'new-posts' })
+  }
+})
+
+const timelineFeedLabel = computed(() => {
+  const name: Record<string, string> = {
+    home: t('activitypub.home'),
+    local: t('activitypub.local'),
+    public: t('activitypub.federated'),
+  }
+  const view = name[props.currentView]
+  return view ? t('activitypub.feedA11y.timeline', { name: view }) : undefined
+})
+
+const specialFeedLabel = computed(() => {
+  const type = String(props.viewType)
+  if (type === 'bookmarks') return t('activitypub.bookmarks')
+  if (type === 'mentions') return t('activitypub.mentions')
+  return undefined
+})
 
 // Feed switches reuse this instance; a new feed opens at its top.
 watch(() => props.currentView, () => {

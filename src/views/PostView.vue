@@ -26,66 +26,82 @@
         </button>
         <div class="more-actions-wrapper">
           <button
+            ref="moreBtnRef"
             type="button"
             class="action-btn"
+            data-testid="post-view-more-btn"
             :aria-label="t('activitypub.moreOptions')"
             :title="t('activitypub.moreOptions')"
             aria-haspopup="menu"
             :aria-expanded="showActionsMenu"
+            :aria-controls="showActionsMenu ? actionsMenuId : undefined"
             @click="showActionsMenu = !showActionsMenu"
+            @keydown="onActionsMenuKeydown"
           >
             <Icon name="more-horizontal" :size="18" />
           </button>
-          <div v-if="showActionsMenu" class="actions-dropdown" role="menu">
-            <button @click="copyPostLink" class="dropdown-item">
+          <SocialMenu
+            v-if="showActionsMenu"
+            :id="actionsMenuId"
+            :anchor="moreBtnRef"
+            :label="t('activitypub.moreOptions')"
+            :initial-focus="actionsMenuInitialFocus"
+            @close="showActionsMenu = false"
+          >
+            <button type="button" role="menuitem" class="social-menu-item" @click="copyPostLink">
               <Icon name="link" :size="16" />
-              <span>Copy link</span>
+              <span>{{ t('activitypub.postMenu.copyLink') }}</span>
             </button>
             <a
               v-if="isViewingRemotePost && originalInstanceUrl"
               :href="safeHref(originalInstanceUrl)"
               target="_blank"
               rel="noopener noreferrer"
-              class="dropdown-item"
+              role="menuitem"
+              class="social-menu-item"
               @click="showActionsMenu = false"
             >
               <Icon name="external-link" :size="16" />
-              <span>View on {{ originalInstanceDomain || 'original instance' }}</span>
+              <span>{{ t('activitypub.viewOnDomain', { domain: originalInstanceDomain || '' }) }}</span>
             </a>
             <button
               v-if="isViewingRemotePost && !isFetchingReactions"
+              type="button"
+              role="menuitem"
+              class="social-menu-item"
               @click="handleFetchReactions"
-              class="dropdown-item"
             >
               <Icon name="heart" :size="16" />
-              <span>Fetch reactions</span>
+              <span>{{ t('activitypub.postMenu.fetchReactions') }}</span>
             </button>
             <button
               v-if="isViewingRemotePost && repliesView?.kind !== 'fetching'"
+              type="button"
+              role="menuitem"
+              class="social-menu-item"
               @click="handleFetchReplies"
-              class="dropdown-item"
             >
               <Icon name="message-circle" :size="16" />
               <span>{{ t('activitypub.refreshReplies') }}</span>
             </button>
-            <button v-if="isOwnPost" @click="handleDeletePost" class="dropdown-item danger">
+            <button v-if="isOwnPost" type="button" role="menuitem" class="social-menu-item danger" @click="handleDeletePost">
               <Icon name="trash" :size="16" />
-              <span>Delete post</span>
+              <span>{{ t('activitypub.postMenu.delete') }}</span>
             </button>
-          </div>
+          </SocialMenu>
         </div>
       </template>
     </ViewHeader>
 
     <div class="post-content" ref="postContainer">
-      <div v-if="isLoading" class="loading-state">
+      <div v-if="isLoading" class="loading-state" role="status">
         <LoadingSpinner :size="32" />
-        <p>Loading...</p>
+        <p>{{ t('common.loading') }}</p>
       </div>
 
       <div v-else-if="error" class="error-state">
         <Icon name="alert-circle" :size="48" />
-        <h3>Post not found</h3>
+        <h2>{{ t('activitypub.threadA11y.notFound') }}</h2>
         <p>{{ error }}</p>
         <a
           v-if="remoteOriginalUrl"
@@ -95,17 +111,19 @@
           class="back-home-btn"
           style="text-decoration: none;"
         >
-          View on original instance
+          {{ t('activitypub.threadA11y.viewOriginal') }}
         </a>
-        <button @click="goBack" class="back-home-btn">
-          Go back to timeline
+        <button type="button" @click="goBack" class="back-home-btn">
+          {{ t('activitypub.threadA11y.backToTimeline') }}
         </button>
       </div>
 
       <div v-else-if="postWithContext" class="post-container">
-        <!-- Thread order: ancestors, main, the reply crawl's row, descendants. -->
+        <!-- Thread order: ancestors, main, the reply crawl's row, descendants. Each
+             MonyPost is the article; its heading says where it sits in the thread and
+             the opened post carries aria-current. -->
         <template v-for="(post, index) in allPostsInOrder" :key="post.id">
-          <article
+          <div
             class="thread-post"
             :class="{
               'highlighted-post': post.id === highlightedPostId,
@@ -120,6 +138,9 @@
               :is-in-thread="true"
               :hide-reply-context="true"
               :detailed="post.id === mainPost?.id"
+              :current="post.id === mainPost?.id"
+              :heading-level="2"
+              :thread-cue="threadCue(post, index)"
               @reply="handleReply"
               @reply-created="handleInlineReplyCreated"
               @replies-refreshed="handleRepliesRefreshed"
@@ -130,7 +151,7 @@
               @edit="handleEdit"
               @user-click="handleUserClick"
             />
-          </article>
+          </div>
           <RemoteRepliesStatus
             v-if="post.id === mainPost?.id && repliesView"
             :view="repliesView"
@@ -185,6 +206,9 @@ import ViewHeader from '@/components/common/ViewHeader.vue';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import Composer from '@/components/activitypub/Composer.vue';
 import RemoteRepliesStatus from '@/components/activitypub/RemoteRepliesStatus.vue';
+import SocialMenu from '@/components/activitypub/SocialMenu.vue';
+import { useMenuButton } from '@/composables/useMenu';
+import { plainDisplayName } from '@/utils/plainDisplayName';
 import { getOriginalPost, getOriginalPostId, getOriginalApId, isReblogPost } from '@/utils/postReblog';
 
 import type { 
@@ -267,6 +291,12 @@ const postContainer = ref<HTMLElement>();
 const postRefs = ref<Record<string, HTMLElement>>({});
 const maxThreadDepth = ref(10);
 const showActionsMenu = ref(false);
+const moreBtnRef = ref<HTMLElement | null>(null);
+const {
+  menuId: actionsMenuId,
+  onTriggerKeydown: onActionsMenuKeydown,
+  initialFocus: actionsMenuInitialFocus,
+} = useMenuButton(showActionsMenu);
 
 const mainPost = computed(() => postWithContext.value?.mainPost);
 const ancestors = computed(() => postWithContext.value?.ancestors || []);
@@ -303,6 +333,33 @@ const allPostsInOrder = computed(() => {
   }
   return posts;
 });
+
+/**
+ * The post a descendant answers. get_post_with_context returns descendants
+ * depth-first with `depth` (0 = reply to the main post) and no in_reply_to; a
+ * reply appended here after posting carries in_reply_to.
+ */
+const parentOf = (post: TimelinePost, index: number): TimelinePost | undefined => {
+  const posts = allPostsInOrder.value;
+  if (post.in_reply_to) return posts.find((p) => p.id === post.in_reply_to);
+  const depth = (post as { depth?: number }).depth;
+  if (typeof depth !== 'number') return undefined;
+  if (depth === 0) return mainPost.value;
+  for (let i = index - 1; i > ancestors.value.length; i--) {
+    if ((posts[i] as { depth?: number }).depth === depth - 1) return posts[i];
+  }
+  return undefined;
+};
+
+/** Where a post sits in the thread, appended to its heading. */
+const threadCue = (post: TimelinePost, index: number): string => {
+  if (post.id === mainPost.value?.id) return t('activitypub.threadA11y.focused');
+  if (index < ancestors.value.length) return t('activitypub.threadA11y.ancestor');
+  const author = parentOf(post, index)?.author;
+  return author
+    ? t('activitypub.threadA11y.replyTo', { name: plainDisplayName(author.display_name, author.username || '') })
+    : t('activitypub.threadA11y.reply');
+};
 
 // Maps a remote reference (@user@domain + noteId) to the local post UUID.
 const resolveRemotePost = async (handle: string, noteId: string): Promise<string | null> => {
@@ -407,8 +464,8 @@ const loadPostWithContext = async () => {
     
   } catch (err) {
     debug.error('Failed to load post with context:', err);
-    error.value = err instanceof Error ? err.message : 'Failed to load post';
-    toast.error('Failed to load post');
+    error.value = err instanceof Error ? err.message : t('activitypub.threadA11y.loadFailed');
+    toast.error(t('activitypub.threadA11y.loadFailed'));
   } finally {
     isLoading.value = false;
   }
@@ -540,13 +597,13 @@ const handleFetchReactions = async () => {
   try {
     const result = await activityPubService.fetchRemoteReactions(targetApId, targetId);
     if (result) {
-      toast.success(`Fetched ${result.count || 0} reactions`);
+      toast.success(t('activitypub.threadA11y.reactionsFetched', { count: result.count || 0 }, result.count || 0));
       await loadPostWithContext();
     } else {
-      toast.error('Failed to fetch reactions');
+      toast.error(t('activitypub.threadA11y.reactionsFetchFailed'));
     }
   } catch {
-    toast.error('Failed to fetch reactions');
+    toast.error(t('activitypub.threadA11y.reactionsFetchFailed'));
   } finally {
     isFetchingReactions.value = false;
   }
@@ -640,7 +697,7 @@ const handleReplyCreated = async (newReply?: TimelinePost) => {
     debug.log('Reply added optimistically:', newReply.id);
   }
   
-  toast.success('Reply posted');
+  toast.success(t('activitypub.threadA11y.replyPosted'));
   
   setTimeout(() => {
     loadPostWithContext().catch(err => {
@@ -650,15 +707,15 @@ const handleReplyCreated = async (newReply?: TimelinePost) => {
 };
 
 const handleDelete = async (postId: string) => {
-  if (!(await confirm({ title: 'Delete post', message: 'Are you sure you want to delete this post?', confirmButtonText: 'Delete', dangerAction: true }))) return;
+  if (!(await confirm({ title: t('activitypub.postMenu.deleteConfirmTitle'), message: t('activitypub.postMenu.deleteConfirmMessage'), confirmButtonText: t('activitypub.postMenu.delete'), dangerAction: true }))) return;
   
   try {
     await activityPubService.deletePost(postId);
-    toast.success('Post deleted');
+    toast.success(t('activitypub.postDeleted'));
     goBack();
   } catch (err) {
     debug.error('Failed to delete post:', err);
-    toast.error('Failed to delete post');
+    toast.error(t('activitypub.postMenu.deleteFailed'));
   }
 };
 
@@ -739,9 +796,9 @@ const sharePost = async () => {
   } else {
     try {
       await navigator.clipboard.writeText(url);
-      toast.success('Link copied');
+      toast.success(t('activitypub.postMenu.linkCopied'));
     } catch (err) {
-      toast.error('Failed to copy link');
+      toast.error(t('activitypub.postMenu.linkCopyFailed'));
     }
   }
 };
@@ -758,22 +815,29 @@ const copyPostLink = async () => {
   const url = getPostUrl();
   try {
     await navigator.clipboard.writeText(url);
-    toast.success('Link copied');
+    toast.success(t('activitypub.postMenu.linkCopied'));
   } catch {
-    toast.error('Failed to copy link');
+    toast.error(t('activitypub.postMenu.linkCopyFailed'));
   }
 };
 
 const handleDeletePost = async () => {
   showActionsMenu.value = false;
   if (!mainPost.value) return;
+  const confirmed = await confirm({
+    title: t('activitypub.postMenu.deleteConfirmTitle'),
+    message: t('activitypub.postMenu.deleteConfirmMessage'),
+    confirmButtonText: t('activitypub.postMenu.delete'),
+    dangerAction: true,
+  });
+  if (!confirmed) return;
   try {
     await activityPubService.deletePost(mainPost.value.id);
-    toast.success('Post deleted');
+    toast.success(t('activitypub.postDeleted'));
     goBack();
   } catch (err) {
     debug.error('Failed to delete post:', err);
-    toast.error('Failed to delete post');
+    toast.error(t('activitypub.postMenu.deleteFailed'));
   }
 };
 
@@ -863,59 +927,13 @@ onMounted(loadPostWithContext);
 }
 
 .action-btn:focus-visible,
-.dropdown-item:focus-visible,
 .back-home-btn:focus-visible {
   outline: 2px solid var(--harmony-primary);
   outline-offset: 2px;
 }
 
-a.dropdown-item {
-  text-decoration: none;
-  color: var(--text-primary);
-}
-
 .more-actions-wrapper {
   position: relative;
-}
-
-.actions-dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 4px;
-  min-width: 180px;
-  background: var(--background-floating, var(--background-secondary));
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
-  padding: var(--space-1);
-  z-index: 100;
-  box-shadow: var(--shadow-large);
-}
-
-.dropdown-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 12px;
-  background: none;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-}
-
-.dropdown-item:hover {
-  background: var(--background-modifier-hover);
-}
-
-.dropdown-item.danger {
-  color: var(--text-danger);
-}
-
-.dropdown-item.danger:hover {
-  background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
 /* Stable gutter, like the feed scroller: the post column sits on the timeline's axis
