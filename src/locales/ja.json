@@ -4403,5 +4403,14 @@
       "load": "このサーバーのサウンドを読み込めませんでした。",
       "generic": "問題が発生しました。もう一度お試しください。"
     }
+  },
+  "voiceMessage": {
+    "label": "ボイスメッセージ",
+    "play": "ボイスメッセージを再生、{duration}",
+    "pause": "ボイスメッセージを一時停止",
+    "position": "再生位置",
+    "positionValue": "{total}中{current}",
+    "speed": "再生速度 {speed}倍",
+    "playFailed": "このボイスメッセージを再生できませんでした。"
   }
 }

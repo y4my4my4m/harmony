@@ -4403,5 +4403,14 @@
       "load": "이 서버의 사운드를 불러오지 못했습니다.",
       "generic": "문제가 발생했습니다. 다시 시도하세요."
     }
+  },
+  "voiceMessage": {
+    "label": "음성 메시지",
+    "play": "음성 메시지 재생, {duration}",
+    "pause": "음성 메시지 일시정지",
+    "position": "재생 위치",
+    "positionValue": "{total} 중 {current}",
+    "speed": "재생 속도 {speed}배",
+    "playFailed": "이 음성 메시지를 재생할 수 없습니다."
   }
 }

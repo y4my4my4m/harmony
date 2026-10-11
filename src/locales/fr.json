@@ -4403,5 +4403,14 @@
       "load": "Impossible de charger les sons de ce serveur.",
       "generic": "Une erreur s'est produite. Réessayez."
     }
+  },
+  "voiceMessage": {
+    "label": "Message vocal",
+    "play": "Lire le message vocal, {duration}",
+    "pause": "Mettre en pause le message vocal",
+    "position": "Position de lecture",
+    "positionValue": "{current} sur {total}",
+    "speed": "Vitesse de lecture {speed}x",
+    "playFailed": "Impossible de lire ce message vocal."
   }
 }

@@ -4399,5 +4399,14 @@
       "load": "Couldn't load this server's sounds.",
       "generic": "Something went wrong. Try again."
     }
+  },
+  "voiceMessage": {
+    "label": "Voice message",
+    "play": "Play voice message, {duration}",
+    "pause": "Pause voice message",
+    "position": "Playback position",
+    "positionValue": "{current} of {total}",
+    "speed": "Playback speed {speed}x",
+    "playFailed": "Couldn't play this voice message."
   }
 }
