@@ -1,16 +1,16 @@
 <template>
   <button 
     v-if="thread" 
+    type="button"
     class="thread-indicator"
     @click="$emit('open', thread)"
   >
     <div class="indicator-left">
-      <div class="participant-avatars">
+      <div class="participant-avatars" aria-hidden="true">
         <Avatar 
           v-for="(participant, i) in displayParticipants" 
           :key="participant.id"
           :src="getParticipantAvatar(participant.id)"
-          :alt="participant.display_name || 'User'"
           size="mini"
           class="participant-avatar"
           :style="{ zIndex: displayParticipants.length - i }"
@@ -24,7 +24,7 @@
       </span>
     </div>
     <span class="view-thread">View Thread</span>
-    <svg class="arrow-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <svg class="arrow-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M10 17l5-5-5-5v10z"/>
     </svg>
   </button>

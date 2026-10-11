@@ -2,12 +2,19 @@
   <Teleport to="body">
     <Transition name="modal">
       <div v-if="isVisible" class="threads-modal-overlay" @click.self="close">
-        <div class="threads-modal">
+        <div
+          ref="modalEl"
+          class="threads-modal"
+          role="dialog"
+          aria-modal="true"
+          :aria-labelledby="titleId"
+          tabindex="-1"
+        >
           <!-- Header -->
           <div class="modal-header">
             <div class="header-left">
-              <Icon name="thread" />
-              <h2>Threads</h2>
+              <Icon name="thread" aria-hidden="true" />
+              <h2 :id="titleId">{{ t('chatNav.threadsModal.title') }}</h2>
             </div>
             <div class="header-actions">
               <button
@@ -17,21 +24,22 @@
                 :disabled="creating"
                 @click="startCreating"
               >
-                <Icon name="plus" :size="16" />
+                <Icon name="plus" :size="16" aria-hidden="true" />
                 <span>{{ $t('threadCreate.button') }}</span>
               </button>
               <div class="search-box">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path d="M21.53 20.47l-3.66-3.66C19.195 15.24 20 13.214 20 11c0-4.97-4.03-9-9-9s-9 4.03-9 9 4.03 9 9 9c2.215 0 4.24-.804 5.808-2.13l3.66 3.66c.147.146.34.22.53.22s.385-.073.53-.22c.295-.293.295-.767.002-1.06zM3.5 11c0-4.135 3.365-7.5 7.5-7.5s7.5 3.365 7.5 7.5-3.365 7.5-7.5 7.5-7.5-3.365-7.5-7.5z"/>
                 </svg>
                 <input 
                   v-model="searchQuery"
                   type="text" 
-                  placeholder="Search for thread name"
+                  :placeholder="t('chatNav.threadsModal.search')"
+                  :aria-label="t('chatNav.threadsModal.search')"
                 />
               </div>
-              <button class="close-btn" aria-label="Close" @click="close">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <button type="button" class="close-btn" :aria-label="t('common.close')" :title="t('common.close')" @click="close">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <line x1="18" y1="6" x2="6" y2="18"/>
                   <line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
@@ -67,11 +75,11 @@
 
             <!-- Joined Threads Section -->
             <div v-if="joinedThreads.length > 0" class="thread-section">
-              <h3 class="section-title">{{ joinedThreads.length }} joined threads</h3>
-              <div class="thread-list">
+              <h3 :id="`${titleId}-joined`" class="section-title">{{ t('chatNav.threadsModal.joined', { count: joinedThreads.length }, joinedThreads.length) }}</h3>
+              <ul class="thread-list" :aria-labelledby="`${titleId}-joined`">
+                <li v-for="thread in joinedThreads" :key="thread.id">
                 <button
-                  v-for="thread in joinedThreads"
-                  :key="thread.id"
+                  type="button"
                   class="thread-item"
                   @click="selectThread(thread)"
                 >
@@ -85,8 +93,8 @@
                       />
                       <span class="creator-name"><DisplayName :userId="thread.created_by" :fallback="getCreatorName(thread.created_by)" /></span>
                       <span class="separator">:</span>
-                      <span class="last-message">{{ thread.last_message_preview || 'No messages yet' }}</span>
-                      <span class="dot">•</span>
+                      <span class="last-message">{{ thread.last_message_preview || t('chatNav.threadsModal.noMessages') }}</span>
+                      <span class="dot" aria-hidden="true">•</span>
                       <span class="time">{{ formatRelativeTime(thread.last_message_at) }}</span>
                     </div>
                   </div>
@@ -97,26 +105,27 @@
                     class="thread-avatar"
                   />
                 </button>
-              </div>
+                </li>
+              </ul>
             </div>
 
             <!-- Older Threads Section -->
             <div v-if="olderThreads.length > 0" class="thread-section">
-              <h3 class="section-title">Older threads</h3>
-              <div class="thread-list">
+              <h3 :id="`${titleId}-older`" class="section-title">{{ t('chatNav.threadsModal.older') }}</h3>
+              <ul class="thread-list" :aria-labelledby="`${titleId}-older`">
+                <li v-for="thread in olderThreads" :key="thread.id">
                 <button
-                  v-for="thread in olderThreads"
-                  :key="thread.id"
+                  type="button"
                   class="thread-item"
                   @click="selectThread(thread)"
                 >
                   <div class="thread-info">
                     <div class="thread-name">{{ thread.name }}</div>
                     <div class="thread-meta">
-                      <span class="started-by">Started by</span>
+                      <span class="started-by">{{ t('chatNav.threadsModal.startedBy') }}</span>
                       <span class="creator-name"><DisplayName :userId="thread.created_by" :fallback="getCreatorName(thread.created_by)" /></span>
-                      <span class="dot">•</span>
-                      <span class="time">Last active {{ formatRelativeTime(thread.last_message_at) }}</span>
+                      <span class="dot" aria-hidden="true">•</span>
+                      <span class="time">{{ t('chatNav.threadsModal.lastActive', { time: formatRelativeTime(thread.last_message_at) }) }}</span>
                     </div>
                   </div>
                   <Avatar 
@@ -126,7 +135,8 @@
                     class="thread-avatar"
                   />
                 </button>
-              </div>
+                </li>
+              </ul>
             </div>
 
             <!-- Empty State -->
@@ -140,9 +150,9 @@
             />
 
             <!-- Loading -->
-            <div v-if="loading" class="loading-state">
+            <div v-if="loading" class="loading-state" role="status">
               <LoadingSpinner :size="32" />
-              <p>Loading threads...</p>
+              <p>{{ t('chatNav.threadsModal.loading') }}</p>
             </div>
           </div>
         </div>
@@ -152,7 +162,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { useDialog } from '@/composables/useDialog'
 import { useI18n } from 'vue-i18n'
 import { useThreadsStore, isOptimisticThreadId } from '@/stores/useThreads'
 import { threadService } from '@/services/ThreadService'
@@ -241,6 +252,13 @@ const formatRelativeTime = (date?: Date | string | null) => {
 
 const { t } = useI18n()
 const { canCreateThreads } = useServerPermissions()
+
+const modalEl = ref<HTMLElement | null>(null)
+const { titleId } = useDialog({
+  open: () => props.isVisible,
+  element: modalEl,
+  onClose: () => close(),
+})
 const canCreate = computed(() => !!props.channelId && canCreateThreads.value)
 
 const creating = ref(false)
@@ -305,19 +323,10 @@ watch(() => props.isVisible, (visible) => {
   }
 })
 
-const onKeydown = (event: KeyboardEvent) => {
-  if (event.key === 'Escape' && props.isVisible) close()
-}
-
 onMounted(() => {
-  document.addEventListener('keydown', onKeydown)
   if (props.isVisible) {
     loadThreads()
   }
-})
-
-onBeforeUnmount(() => {
-  document.removeEventListener('keydown', onKeydown)
 })
 </script>
 
@@ -530,6 +539,9 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .thread-item {
