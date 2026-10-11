@@ -1,10 +1,18 @@
 <template>
   <div class="settings-overlay" @click.self="$emit('close')">
-    <div class="settings-panel">
+    <div
+      ref="panelRef"
+      class="settings-panel"
+      role="dialog"
+      aria-modal="true"
+      :aria-labelledby="titleId"
+      tabindex="-1"
+      data-testid="voice-settings-panel"
+    >
       <div class="settings-header">
-        <h3>Voice & video settings</h3>
-        <button @click="$emit('close')" class="close-btn">
-          <Icon name="x" />
+        <h3 :id="titleId">{{ t('settings.voice.panelTitle') }}</h3>
+        <button type="button" @click="$emit('close')" class="close-btn" :aria-label="t('common.close')" :title="t('common.close')">
+          <Icon name="x" aria-hidden="true" />
         </button>
       </div>
 
@@ -12,13 +20,13 @@
         <!-- Audio Settings -->
         <div class="settings-section">
           <h4 class="section-title">
-            <Icon name="mic" />
-            Audio
+            <Icon name="mic" aria-hidden="true" />
+            {{ t('settings.voice.audio') }}
           </h4>
           
           <div class="setting-group">
-            <label class="setting-label">Input device</label>
-            <select v-model="selectedInputDevice" class="setting-select" @change="updateInputDevice">
+            <label :for="`${idBase}-input`" class="setting-label">{{ t('settings.voice.inputDevice') }}</label>
+            <select :id="`${idBase}-input`" v-model="selectedInputDevice" class="setting-select" @change="updateInputDevice">
               <option v-for="device in inputDevices" :key="device.deviceId" :value="device.deviceId">
                 {{ device.label || `Microphone ${device.deviceId.slice(0, 8)}` }}
               </option>
@@ -26,8 +34,8 @@
           </div>
 
           <div class="setting-group">
-            <label class="setting-label">Output device</label>
-            <select v-model="selectedOutputDevice" class="setting-select" @change="updateOutputDevice">
+            <label :for="`${idBase}-output`" class="setting-label">{{ t('settings.voice.outputDevice') }}</label>
+            <select :id="`${idBase}-output`" v-model="selectedOutputDevice" class="setting-select" @change="updateOutputDevice">
               <option v-for="device in outputDevices" :key="device.deviceId" :value="device.deviceId">
                 {{ device.label || `Speaker ${device.deviceId.slice(0, 8)}` }}
               </option>
@@ -35,40 +43,45 @@
           </div>
 
           <div class="setting-group">
-            <label class="setting-label">
-              Input volume
-              <span class="setting-value">{{ inputVolume }}%</span>
+            <label :for="`${idBase}-input-volume`" class="setting-label">
+              {{ t('settings.voice.inputVolume') }}
+              <span class="setting-value" aria-hidden="true">{{ inputVolume }}%</span>
             </label>
             <div class="volume-control">
               <input
+                :id="`${idBase}-input-volume`"
                 type="range"
                 v-model.number="inputVolume"
                 min="0"
                 max="200"
                 class="setting-slider"
+                :aria-valuetext="t('settings.voice.percent', { value: inputVolume })"
+                :aria-describedby="`${idBase}-input-volume-hint`"
                 @input="updateInputVolume"
                 @dblclick="inputVolume = 100; updateInputVolume()"
               />
               <div class="volume-indicator" :style="{ width: `${inputVolume / 2}%` }"></div>
             </div>
-            <small class="setting-hint">
+            <small :id="`${idBase}-input-volume-hint`" class="setting-hint">
               {{ t('voice.inputVolumeHint') }}
               <template v-if="autoGainControl">{{ t('voice.inputVolumeAgcHint') }}</template>
             </small>
           </div>
 
           <div class="setting-group">
-            <label class="setting-label">
-              Output volume
-              <span class="setting-value">{{ outputVolume }}%</span>
+            <label :for="`${idBase}-output-volume`" class="setting-label">
+              {{ t('settings.voice.outputVolume') }}
+              <span class="setting-value" aria-hidden="true">{{ outputVolume }}%</span>
             </label>
             <div class="volume-control">
               <input
+                :id="`${idBase}-output-volume`"
                 type="range"
                 v-model.number="outputVolume"
                 min="0"
                 max="200"
                 class="setting-slider"
+                :aria-valuetext="t('settings.voice.percent', { value: outputVolume })"
                 @input="updateOutputVolume"
                 @dblclick="outputVolume = 100; updateOutputVolume()"
               />
@@ -79,11 +92,20 @@
           <!-- Audio Test -->
           <div class="setting-group">
             <div class="audio-test">
-              <button @click="testMicrophone" class="test-btn" :class="{ active: isTesting }">
-                <Icon name="mic" />
-                {{ isTesting ? 'Testing…' : 'Test microphone' }}
+              <button type="button" @click="testMicrophone" class="test-btn" :class="{ active: isTesting }" :aria-pressed="isTesting">
+                <Icon name="mic" aria-hidden="true" />
+                {{ t('voice.testMicrophone') }}
               </button>
-              <div v-if="isTesting" class="test-indicator">
+              <div
+                v-if="isTesting"
+                class="test-indicator"
+                role="meter"
+                :aria-label="t('settings.voice.micLevel')"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                :aria-valuenow="Math.round(testLevel)"
+                :aria-valuetext="micMeterText"
+              >
                 <div class="test-level" :style="{ width: `${testLevel}%` }"></div>
               </div>
             </div>
@@ -93,8 +115,8 @@
         <!-- Audio Quality -->
         <div class="settings-section">
           <h4 class="section-title">
-            <Icon name="settings" />
-            Audio quality
+            <Icon name="settings" aria-hidden="true" />
+            {{ t('settings.voice.audioQuality') }}
           </h4>
 
           <div class="setting-group checkbox-group">
@@ -107,8 +129,8 @@
               />
               <div class="checkbox-custom"></div>
               <div class="checkbox-content">
-                <span>Echo cancellation</span>
-                <small>Reduces echo from your speakers</small>
+                <span>{{ t('settings.voice.echoCancellation') }}</span>
+                <small>{{ t('settings.voice.echoCancellationDesc') }}</small>
               </div>
             </label>
           </div>
@@ -123,8 +145,8 @@
               />
               <div class="checkbox-custom"></div>
               <div class="checkbox-content">
-                <span>Noise suppression</span>
-                <small>Filters background noise</small>
+                <span>{{ t('settings.voice.noiseSuppression') }}</span>
+                <small>{{ t('settings.voice.noiseSuppressionDesc') }}</small>
               </div>
             </label>
           </div>
@@ -139,8 +161,8 @@
               />
               <div class="checkbox-custom"></div>
               <div class="checkbox-content">
-                <span>Auto gain control</span>
-                <small>Automatically adjusts microphone sensitivity</small>
+                <span>{{ t('settings.voice.autoGainControl') }}</span>
+                <small>{{ t('settings.voice.autoGainControlDesc') }}</small>
               </div>
             </label>
           </div>
@@ -149,23 +171,24 @@
         <!-- Soundboard -->
         <div class="settings-section">
           <h4 class="section-title">
-            <Icon name="music" />
+            <Icon name="music" aria-hidden="true" />
             {{ t('soundboard.title') }}
           </h4>
 
           <div class="setting-group">
-            <label class="setting-label">
+            <label :for="`${idBase}-soundboard-volume`" class="setting-label">
               {{ t('soundboard.volume') }}
-              <span class="setting-value">{{ soundboardVolume }}%</span>
+              <span class="setting-value" aria-hidden="true">{{ soundboardVolume }}%</span>
             </label>
             <div class="volume-control">
               <input
+                :id="`${idBase}-soundboard-volume`"
                 type="range"
                 v-model.number="soundboardVolume"
                 min="0"
                 max="100"
                 class="setting-slider"
-                :aria-label="t('soundboard.volume')"
+                :aria-valuetext="t('settings.voice.percent', { value: soundboardVolume })"
                 @input="updateSoundboardVolume"
                 @dblclick="soundboardVolume = 100; updateSoundboardVolume()"
               />
@@ -193,14 +216,14 @@
         <!-- Video Settings -->
         <div class="settings-section">
           <h4 class="section-title">
-            <Icon name="video" />
-            Video
+            <Icon name="video" aria-hidden="true" />
+            {{ t('settings.voice.video') }}
           </h4>
 
           <div class="setting-group">
-            <label class="setting-label">Camera</label>
-            <select v-model="selectedVideoDevice" class="setting-select">
-              <option value="">No camera</option>
+            <label :for="`${idBase}-camera`" class="setting-label">{{ t('settings.voice.videoDevice') }}</label>
+            <select :id="`${idBase}-camera`" v-model="selectedVideoDevice" class="setting-select">
+              <option value="">{{ t('settings.voice.noCamera') }}</option>
               <option v-for="device in videoDevices" :key="device.deviceId" :value="device.deviceId">
                 {{ device.label || `Camera ${device.deviceId.slice(0, 8)}` }}
               </option>
@@ -208,8 +231,8 @@
           </div>
 
           <div class="setting-group">
-            <label class="setting-label">Resolution</label>
-            <select v-model="videoQuality" class="setting-select" @change="updateVideoSettings">
+            <label :for="`${idBase}-resolution`" class="setting-label">{{ t('settings.voice.resolution') }}</label>
+            <select :id="`${idBase}-resolution`" v-model="videoQuality" class="setting-select" @change="updateVideoSettings">
               <option value="360p">360p (Low)</option>
               <option value="480p">480p (SD)</option>
               <option value="720p">720p (HD)</option>
@@ -219,8 +242,8 @@
           </div>
 
           <div class="setting-group">
-            <label class="setting-label">Frame rate</label>
-            <select v-model="frameRate" class="setting-select" @change="updateVideoSettings">
+            <label :for="`${idBase}-fps`" class="setting-label">{{ t('settings.voice.frameRate') }}</label>
+            <select :id="`${idBase}-fps`" v-model="frameRate" class="setting-select" @change="updateVideoSettings">
               <option value="10">10 FPS (Low)</option>
               <option value="15">15 FPS</option>
               <option value="24">24 FPS (Cinema)</option>
@@ -230,8 +253,8 @@
           </div>
 
           <div class="setting-group">
-            <label class="setting-label">Audio bitrate</label>
-            <select v-model="audioBitrate" class="setting-select" @change="updateVideoSettings">
+            <label :for="`${idBase}-bitrate`" class="setting-label">{{ t('settings.voice.audioBitrate') }}</label>
+            <select :id="`${idBase}-bitrate`" v-model="audioBitrate" class="setting-select" @change="updateVideoSettings">
               <option value="32">32 kbps (Low)</option>
               <option value="64">64 kbps (Voice)</option>
               <option value="128">128 kbps (Standard)</option>
@@ -248,10 +271,11 @@
                 muted
                 playsinline
                 class="preview-stream"
+                :aria-label="t('settings.voice.cameraPreview')"
               ></video>
               <div v-if="!previewStream" class="preview-placeholder">
-                <Icon name="video-off" size="xl" />
-                <span>Camera preview</span>
+                <Icon name="video-off" size="xl" aria-hidden="true" />
+                <span>{{ t('settings.voice.cameraPreview') }}</span>
               </div>
             </div>
           </div>
@@ -259,8 +283,8 @@
 
         <div class="settings-section">
           <h4 class="section-title">
-            <Icon name="mic" />
-            Input mode
+            <Icon name="mic" aria-hidden="true" />
+            {{ t('settings.voice.inputMode') }}
           </h4>
           <VoiceInputModeSettings />
         </div>
@@ -268,62 +292,33 @@
         <!-- Keybinds - Hidden on touch devices -->
         <div v-if="!isTouchDevice" class="settings-section keybinds-section">
           <h4 class="section-title">
-            <Icon name="keyboard" />
-            Keybinds
+            <Icon name="keyboard" aria-hidden="true" />
+            {{ t('settings.keybinds.title') }}
           </h4>
-          <p class="keybind-hint">Active when voice overlay is open</p>
+          <p class="keybind-hint">{{ t('settings.voice.keybindsHint') }}</p>
 
-          <div class="keybind-list">
-            <div class="keybind-item">
-              <span>Toggle mute</span>
-              <div class="keybind-combo">
-                <kbd>M</kbd>
-              </div>
+          <dl class="keybind-list">
+            <div v-for="row in keybindRows" :key="row.action" class="keybind-item">
+              <dt>{{ row.name }}</dt>
+              <dd class="keybind-combo">
+                <kbd v-if="row.enabled">{{ row.keys }}</kbd>
+                <span v-else class="keybind-off">{{ t('settings.keybinds.off') }}</span>
+              </dd>
             </div>
-            <div class="keybind-item">
-              <span>Toggle deafen</span>
-              <div class="keybind-combo">
-                <kbd>D</kbd>
-              </div>
-            </div>
-            <div class="keybind-item">
-              <span>Toggle camera</span>
-              <div class="keybind-combo">
-                <kbd>V</kbd>
-              </div>
-            </div>
-            <div class="keybind-item">
-              <span>Toggle screen share</span>
-              <div class="keybind-combo">
-                <kbd>S</kbd>
-              </div>
-            </div>
-            <div class="keybind-item">
-              <span>Voice settings</span>
-              <div class="keybind-combo">
-                <kbd>,</kbd>
-              </div>
-            </div>
-            <div class="keybind-item">
-              <span>Exit / Close</span>
-              <div class="keybind-combo">
-                <kbd>Esc</kbd>
-              </div>
-            </div>
-          </div>
+          </dl>
         </div>
       </div>
 
       <div class="settings-footer">
-        <button @click="resetSettings" class="reset-btn">
-          Reset to default
+        <button type="button" @click="resetSettings" class="reset-btn">
+          {{ t('settings.voice.resetDefaults') }}
         </button>
         <div class="footer-actions">
-          <button @click="$emit('close')" class="cancel-btn">
-            Cancel
+          <button type="button" @click="$emit('close')" class="cancel-btn">
+            {{ t('common.cancel') }}
           </button>
-          <button @click="saveSettings" class="save-btn">
-            Save changes
+          <button type="button" @click="saveSettings" class="save-btn">
+            {{ t('settings.voice.saveChanges') }}
           </button>
         </div>
       </div>
@@ -333,6 +328,11 @@
 
 <script lang="ts">
 import { defineComponent, ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { useDialog } from '@/composables/useDialog';
+import { useKeybinds } from '@/composables/useKeybinds';
+import { uid } from '@/utils/a11y/focus';
+import { keybindName, LISTED_KEYBINDS } from './keybindLabels';
+import { useMicTestStatus } from './useMicTestStatus';
 import { useViewport } from '@/composables/useViewport';
 import { enumerateMediaDevices } from '@/utils/mediaDevices';
 import { webrtcManager } from '@/services/webrtcManager';
@@ -378,6 +378,33 @@ export default defineComponent({
     // Post-gain meter: the level a call would send.
     const micTest = useMicTest();
     const { isTesting, testLevel } = micTest;
+    const { meterText: micMeterText } = useMicTestStatus(isTesting, testLevel);
+
+    // Mounted with v-if: open for its whole lifetime. Escape closes.
+    const panelRef = ref<HTMLElement | null>(null);
+    const { titleId } = useDialog({
+      open: () => true,
+      element: panelRef,
+      onClose: () => emit('close'),
+      initialFocus: 'dialog',
+    });
+    const idBase = uid('voice-panel');
+
+    const keybinds = useKeybinds();
+    const keybindRows = computed(() => {
+      void keybinds.allKeybinds.value;
+      return LISTED_KEYBINDS
+        .filter((action) => action !== 'push-to-talk' || keybinds.isPTTMode.value)
+        .map((action) => {
+          const kb = keybinds.getKeybind(action);
+          return {
+            action,
+            name: keybindName(t, action),
+            keys: keybinds.getKeybindDisplay(action),
+            enabled: !!kb?.enabled,
+          };
+        });
+    });
     const testMicrophone = () => micTest.toggle(selectedInputDevice.value || null, inputVolume.value);
     const previewStream = ref<MediaStream | null>(null);
     const previewVideo = ref<HTMLVideoElement | null>(null);
@@ -644,6 +671,11 @@ export default defineComponent({
 
     return {
       t,
+      panelRef,
+      titleId,
+      idBase,
+      micMeterText,
+      keybindRows,
       inputDevices,
       outputDevices,
       videoDevices,
@@ -982,7 +1014,7 @@ export default defineComponent({
 
 .keybind-hint {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   margin: 0 0 12px 0;
   font-style: italic;
 }
@@ -991,6 +1023,26 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   gap: 12px;
+  margin: 0;
+}
+
+.keybind-combo {
+  margin: 0;
+}
+
+.keybind-off {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.settings-panel :is(button, select, input):focus-visible,
+.setting-checkbox:focus-visible + .checkbox-custom {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.settings-panel:focus {
+  outline: none;
 }
 
 .keybind-item {

@@ -68,15 +68,30 @@ export type KeybindAction =
   | 'exit-fullscreen'
   | 'minimize-overlay'
 
-// Handler types
-type KeybindHandler = () => void
+// A press handler returning false leaves the event unconsumed: no
+// preventDefault, and the next matching keybind is tried.
+type KeybindHandler = () => void | boolean
 type HoldKeyHandler = (isPressed: boolean) => void
+type AnyHandler = KeybindHandler | HoldKeyHandler
 
 // CONSTANTS
 
 const STORAGE_KEY = 'harmony-keybinds'
 
 const NO_MODIFIERS: KeybindModifiers = { ctrl: false, alt: false, shift: false, meta: false }
+const CTRL_SHIFT: KeybindModifiers = { ctrl: true, alt: false, shift: true, meta: false }
+
+// Stored records carry `defaults`. Version 1 (absent) had single-key M and D
+// for mute and deafen; version 2 has Ctrl+Shift+M and Ctrl+Shift+D. Single
+// letters fire from any focused button and are eaten by screen-reader browse
+// mode, so new installs get the chorded pair.
+export const KEYBIND_DEFAULTS_VERSION = 2
+export const LEGACY_DEFAULTS: Partial<Record<KeybindAction, { key: string; modifiers: KeybindModifiers }>> = {
+  'toggle-mute': { key: 'KeyM', modifiers: NO_MODIFIERS },
+  'toggle-deafen': { key: 'KeyD', modifiers: NO_MODIFIERS },
+}
+// Signed-in user id, written by utils/userScopedStorage on sign-in.
+const SIGNED_IN_MARKER = 'harmony_current_user_id'
 
 // Default keybind definitions
 const DEFAULT_KEYBINDS: Record<KeybindAction, Omit<KeybindDefinition, 'key' | 'modifiers'>> = {
@@ -97,7 +112,7 @@ const DEFAULT_KEYBINDS: Record<KeybindAction, Omit<KeybindDefinition, 'key' | 'm
     description: 'Mute or unmute your microphone',
     category: 'voice',
     defaultKey: 'KeyM',
-    defaultModifiers: NO_MODIFIERS,
+    defaultModifiers: CTRL_SHIFT,
     enabled: true,
     context: 'voice-connected',
     holdMode: false,
@@ -108,7 +123,7 @@ const DEFAULT_KEYBINDS: Record<KeybindAction, Omit<KeybindDefinition, 'key' | 'm
     description: 'Deafen or undeafen yourself',
     category: 'voice',
     defaultKey: 'KeyD',
-    defaultModifiers: NO_MODIFIERS,
+    defaultModifiers: CTRL_SHIFT,
     enabled: true,
     context: 'voice-connected',
     holdMode: false,
@@ -173,11 +188,30 @@ const DEFAULT_KEYBINDS: Record<KeybindAction, Omit<KeybindDefinition, 'key' | 'm
 // STATE (Singleton)
 
 const keybinds = ref<Map<KeybindAction, KeybindDefinition>>(new Map())
-const handlers = ref<Map<KeybindAction, KeybindHandler | HoldKeyHandler>>(new Map())
+// Per-action handler stack; the last registered handler is live and
+// unregistering it restores the previous one.
+const handlers = new Map<KeybindAction, AnyHandler[]>()
 const holdState = ref<Map<KeybindAction, boolean>>(new Map()) // Track held keys
 const activeContexts = ref<Set<KeybindContext>>(new Set(['global']))
 const isInitialized = ref(false)
 const isListenerSetup = ref(false)
+// A keybind recorder owns the keyboard; no keybind fires meanwhile.
+const recordingCount = ref(0)
+
+// The defaults choice is written at module load, before this session can sign
+// in: an install without a record that has signed in before gets a version-1
+// record (old defaults kept), any other install without one a current record.
+// Deferring it to first use would read a fresh install's first sign-in as a
+// prior install.
+;(() => {
+  try {
+    if (localStorage.getItem(STORAGE_KEY) !== null) return
+    const signedInBefore = localStorage.getItem(SIGNED_IN_MARKER) !== null
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(signedInBefore ? { keybinds: {} } : { defaults: KEYBIND_DEFAULTS_VERSION, keybinds: {} }))
+  } catch {
+    // Storage unavailable: the current defaults apply and nothing persists.
+  }
+})()
 
 // Input mode for voice (voice_activity vs push_to_talk)
 const inputMode = ref<'voice_activity' | 'push_to_talk'>('voice_activity')
@@ -217,7 +251,7 @@ function isMouseButton(key: string): boolean {
 /**
  * Convert key code to display string
  */
-function keyToDisplay(key: string, modifiers: KeybindModifiers): string {
+export function keyToDisplay(key: string, modifiers: KeybindModifiers): string {
   const parts: string[] = []
   
   if (modifiers.ctrl) parts.push('Ctrl')
@@ -260,6 +294,10 @@ function keyToDisplay(key: string, modifiers: KeybindModifiers): string {
   return parts.join(' + ')
 }
 
+function sameModifiers(a: KeybindModifiers, b: KeybindModifiers): boolean {
+  return a.ctrl === b.ctrl && a.alt === b.alt && a.shift === b.shift && a.meta === b.meta
+}
+
 /**
  * Check if event matches a keybind
  */
@@ -282,13 +320,32 @@ function isContextActive(context: KeybindContext): boolean {
   return activeContexts.value.has(context)
 }
 
-/**
- * Check if the event originated from a text-entry element
- */
-function isTypingTarget(event: Event): boolean {
-  const target = event.target as HTMLElement | null
-  if (!target) return false
-  return target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+// Elements that consume printable keys or arrows themselves: text entry,
+// native selects and composite ARIA widgets.
+const TYPING_SELECTOR = [
+  'input',
+  'textarea',
+  'select',
+  '[contenteditable]:not([contenteditable="false"])',
+  '[role="textbox"]',
+  '[role="combobox"]',
+  '[role="listbox"]',
+  '[role="grid"]',
+  '[role="slider"]',
+  '[role="spinbutton"]',
+].join(', ')
+
+/** True when the event comes from inside a text field, select or composite widget. */
+export function isTypingTarget(event: Event): boolean {
+  const target = event.target
+  if (!(target instanceof Element)) return false
+  if (target instanceof HTMLElement && target.isContentEditable) return true
+  return target.closest(TYPING_SELECTOR) !== null
+}
+
+function topHandler(action: KeybindAction): AnyHandler | undefined {
+  const stack = handlers.get(action)
+  return stack?.[stack.length - 1]
 }
 
 // HOLD-MODE CORE — single path for all input sources (keyboard, mouse, native capture, touch)
@@ -301,7 +358,7 @@ function pressHold(action: KeybindAction): void {
   }
   if (holdState.value.get(action)) return
   holdState.value.set(action, true)
-  const handler = handlers.value.get(action)
+  const handler = topHandler(action)
   if (handler) (handler as HoldKeyHandler)(true)
   debug.log(`[Keybinds] ${action} hold start`)
 }
@@ -313,7 +370,7 @@ function releaseHold(action: KeybindAction, immediate = false): void {
   const finish = (): void => {
     releaseTimers.delete(action)
     holdState.value.set(action, false)
-    const handler = handlers.value.get(action)
+    const handler = topHandler(action)
     if (handler) (handler as HoldKeyHandler)(false)
     debug.log(`[Keybinds] ${action} hold end`)
   }
@@ -344,20 +401,22 @@ function initializeKeybinds(): void {
 }
 
 function loadKeybinds(): void {
+  let data: Record<string, any> | null = null
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {
-      const data = JSON.parse(stored)
-      
-      if (data.inputMode) {
-        inputMode.value = data.inputMode
+      const parsed: Record<string, any> = JSON.parse(stored)
+      data = parsed
+
+      if (parsed.inputMode) {
+        inputMode.value = parsed.inputMode
       }
-      if (data.releaseDelay !== undefined) {
-        releaseDelay.value = data.releaseDelay
+      if (parsed.releaseDelay !== undefined) {
+        releaseDelay.value = parsed.releaseDelay
       }
-      
-      if (data.keybinds) {
-        for (const [action, custom] of Object.entries(data.keybinds)) {
+
+      if (parsed.keybinds) {
+        for (const [action, custom] of Object.entries(parsed.keybinds)) {
           const keybind = keybinds.value.get(action as KeybindAction)
           if (keybind && custom) {
             const customData = custom as { key?: string; modifiers?: KeybindModifiers; enabled?: boolean }
@@ -373,11 +432,27 @@ function loadKeybinds(): void {
   } catch (error) {
     debug.warn('[Keybinds] Failed to load from storage:', error)
   }
+  applyDefaultsVersion(data)
+}
+
+// A record older than KEYBIND_DEFAULTS_VERSION keeps the old single-key
+// defaults for the bindings it never customised; saving then marks it current.
+function applyDefaultsVersion(data: Record<string, any> | null): void {
+  if (!data || Number(data.defaults) >= KEYBIND_DEFAULTS_VERSION) return
+  for (const [action, binding] of Object.entries(LEGACY_DEFAULTS) as Array<[KeybindAction, { key: string; modifiers: KeybindModifiers }]>) {
+    if (data.keybinds?.[action]?.key) continue
+    const keybind = keybinds.value.get(action)
+    if (!keybind) continue
+    keybind.key = binding.key
+    keybind.modifiers = { ...binding.modifiers }
+  }
+  saveKeybinds()
 }
 
 function saveKeybinds(): void {
   try {
     const data: Record<string, any> = {
+      defaults: KEYBIND_DEFAULTS_VERSION,
       inputMode: inputMode.value,
       releaseDelay: releaseDelay.value,
       keybinds: {},
@@ -409,47 +484,45 @@ function saveKeybinds(): void {
 // EVENT HANDLERS
 
 function handleKeyDown(event: KeyboardEvent): void {
+  if (recordingCount.value > 0 || event.defaultPrevented) return
   const typing = isTypingTarget(event)
 
-  // Check each keybind
   for (const [action, keybind] of keybinds.value.entries()) {
     if (!keybind.enabled) continue
     if (!isContextActive(keybind.context)) continue
     if (!matchesKeybind(event, keybind)) continue
 
-    // While typing only hold-mode binds (PTT) and Escape stay live, like Discord
-    if (typing && !keybind.holdMode && event.code !== 'Escape') continue
+    // Inside text fields and composite widgets a press bind fires only with
+    // Ctrl, Alt or Meta, which type nothing; hold-mode binds (PTT) stay live
+    // and leave the key to the field: PTT transmits and types.
+    const chorded = keybind.modifiers.ctrl || keybind.modifiers.alt || keybind.modifiers.meta
+    if (typing && !keybind.holdMode && !chorded) continue
 
-    // Special handling for PTT in voice_activity mode
-    if (action === 'push-to-talk' && inputMode.value !== 'push_to_talk') {
-      continue // Skip PTT when not in PTT mode
-    }
+    if (action === 'push-to-talk' && inputMode.value !== 'push_to_talk') continue
 
-    // Special handling for toggle-camera when PTT uses same key
+    // PTT takes priority over a camera toggle on the same key.
     if (action === 'toggle-camera' && inputMode.value === 'push_to_talk') {
       const pttKeybind = keybinds.value.get('push-to-talk')
-      if (pttKeybind && matchesKeybind(event, pttKeybind)) {
-        continue // PTT takes priority
-      }
+      if (pttKeybind && matchesKeybind(event, pttKeybind)) continue
     }
 
-    const handler = handlers.value.get(action)
+    const handler = topHandler(action)
     if (!handler) continue
 
-    // Don't eat the character while typing — PTT transmits AND types (Discord behavior)
-    if (!typing || event.code === 'Escape') {
-      event.preventDefault()
-      event.stopPropagation()
-    }
-
     if (keybind.holdMode) {
+      if (!typing) {
+        event.preventDefault()
+        event.stopPropagation()
+      }
       pressHold(action)
-    } else {
-      ;(handler as KeybindHandler)()
-      debug.log(`[Keybinds] ${action} triggered`)
+      return
     }
 
-    return // Only handle first matching keybind
+    if ((handler as KeybindHandler)() === false) continue
+    event.preventDefault()
+    event.stopPropagation()
+    debug.log(`[Keybinds] ${action} triggered`)
+    return
   }
 }
 
@@ -483,8 +556,7 @@ function handleWindowBlur(): void {
 // MOUSE EVENT HANDLERS
 
 function handleMouseDown(event: MouseEvent): void {
-  // Only handle extra buttons (3, 4, 5, etc.) - not left/right/middle click for normal use
-  // But we DO handle them if they're explicitly bound
+  if (recordingCount.value > 0) return
   const mouseKey = `Mouse${event.button}`
   
   // Check each keybind
@@ -507,20 +579,21 @@ function handleMouseDown(event: MouseEvent): void {
       continue
     }
     
-    event.preventDefault()
-    event.stopPropagation()
-    
-    const handler = handlers.value.get(action)
+    const handler = topHandler(action)
     if (!handler) continue
-    
+
     if (keybind.holdMode) {
+      event.preventDefault()
+      event.stopPropagation()
       pressHold(action)
-    } else {
-      ;(handler as KeybindHandler)()
-      debug.log(`[Keybinds] ${action} mouse triggered`)
+      return
     }
 
-    return // Only handle first matching keybind
+    if ((handler as KeybindHandler)() === false) continue
+    event.preventDefault()
+    event.stopPropagation()
+    debug.log(`[Keybinds] ${action} mouse triggered`)
+    return
   }
 }
 
@@ -602,13 +675,43 @@ export function useKeybinds() {
     return keyToDisplay(keybind.key, keybind.modifiers)
   }
   
-  const registerHandler = (action: KeybindAction, handler: KeybindHandler | HoldKeyHandler): void => {
-    handlers.value.set(action, handler)
+  /** Pushes `handler` for `action`; the returned function removes exactly it. */
+  const registerHandler = (action: KeybindAction, handler: AnyHandler): (() => void) => {
+    const stack = handlers.get(action) ?? []
+    stack.push(handler)
+    handlers.set(action, stack)
+    return () => unregisterHandler(action, handler)
   }
-  
-  // Unregister handler
-  const unregisterHandler = (action: KeybindAction): void => {
-    handlers.value.delete(action)
+
+  /** Removes `handler` from the stack, wherever it sits; without one, the live handler. */
+  const unregisterHandler = (action: KeybindAction, handler?: AnyHandler): void => {
+    const stack = handlers.get(action)
+    if (!stack) return
+    const i = handler ? stack.lastIndexOf(handler) : stack.length - 1
+    if (i >= 0) stack.splice(i, 1)
+    if (stack.length === 0) handlers.delete(action)
+  }
+
+  const hasHandler = (action: KeybindAction): boolean => !!topHandler(action)
+
+  /** Holds keybinds off while a shortcut recorder listens; returns the release. */
+  const beginRecording = (): (() => void) => {
+    recordingCount.value++
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      recordingCount.value--
+    }
+  }
+
+  /** Another enabled binding on the same key and modifiers, if any. */
+  const findConflict = (action: KeybindAction, key: string, modifiers: KeybindModifiers): KeybindDefinition | null => {
+    for (const kb of keybinds.value.values()) {
+      if (kb.id === action || !kb.enabled) continue
+      if (kb.key === key && sameModifiers(kb.modifiers, modifiers)) return kb
+    }
+    return null
   }
   
   const setKeybind = (action: KeybindAction, key: string, modifiers: KeybindModifiers): void => {
@@ -642,11 +745,15 @@ export function useKeybinds() {
   
   const toggleKeybindEnabled = (action: KeybindAction): void => {
     const keybind = keybinds.value.get(action)
-    if (keybind) {
-      keybind.enabled = !keybind.enabled
-      saveKeybinds()
-      syncNativeCapture()
-    }
+    if (keybind) setKeybindEnabled(action, !keybind.enabled)
+  }
+
+  const setKeybindEnabled = (action: KeybindAction, enabled: boolean): void => {
+    const keybind = keybinds.value.get(action)
+    if (!keybind || keybind.enabled === enabled) return
+    keybind.enabled = enabled
+    saveKeybinds()
+    syncNativeCapture()
   }
 
   const setInputMode = (mode: 'voice_activity' | 'push_to_talk'): void => {
@@ -764,18 +871,23 @@ export function useKeybinds() {
     // Getters
     getKeybind,
     getKeybindDisplay,
+    formatKeybind: keyToDisplay,
     matchesEvent,
     shouldBlockShortcut,
     
     // Actions
     registerHandler,
     unregisterHandler,
+    hasHandler,
+    beginRecording,
+    findConflict,
     pressHold,
     releaseHold,
     setKeybind,
     resetKeybind,
     resetAllKeybinds,
     toggleKeybindEnabled,
+    setKeybindEnabled,
     setInputMode,
     setReleaseDelay,
     activateContext,
@@ -787,3 +899,16 @@ export function useKeybinds() {
   }
 }
 
+/** Test hook: drops handlers, holds and stored state; the next use re-initialises. */
+export function resetKeybindsForTests(): void {
+  handlers.clear()
+  holdState.value.clear()
+  keybinds.value.clear()
+  activeContexts.value = new Set(['global'])
+  recordingCount.value = 0
+  inputMode.value = 'voice_activity'
+  releaseDelay.value = 200
+  for (const timer of releaseTimers.values()) clearTimeout(timer)
+  releaseTimers.clear()
+  isInitialized.value = false
+}
