@@ -12,6 +12,7 @@ import { ref, computed, watch, nextTick, effectScope, toRaw } from 'vue'
 import {
   generateThemePalette,
   applyThemePalette,
+  applyContrastFills,
   applySurfaceSemanticTokens,
   canonicalizeBackgroundTone,
 } from '@/utils/colorUtils'
@@ -680,6 +681,8 @@ function applySettings(settings: VisualThemeSettings) {
   } else {
     root.removeAttribute('data-high-contrast')
   }
+  // After the theme pass: the fills derive from the primary it wrote.
+  applyContrastFills(!!settings.highContrast)
   
   if (settings.reduceMotion) {
     root.setAttribute('data-reduce-motion', 'true')

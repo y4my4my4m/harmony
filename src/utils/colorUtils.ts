@@ -698,6 +698,28 @@ const RAISED_SURFACE_L = {
   light: { quaternary: -5.5, quinary: -8 },
 } as const
 
+const FILL_VARS = ['--harmony-primary-fill', '--harmony-primary-fill-hover', '--error-fill', '--error-fill-hover']
+
+/**
+ * High contrast: fills under white labels darkened to 4.5:1 against #fff, from the primary and
+ * --error in effect on <html>. A primary light enough to take a dark label keeps its own fill.
+ * Off: the inline fills go and design-system.css's brand fills apply.
+ */
+export function applyContrastFills(enabled: boolean): void {
+  const root = document.documentElement
+  FILL_VARS.forEach((name) => root.style.removeProperty(name))
+  if (!enabled) return
+  const style = getComputedStyle(root)
+  const primary = style.getPropertyValue('--harmony-primary').trim() || '#0EA5E9'
+  const error = style.getPropertyValue('--error').trim() || '#ed4245'
+  const primaryFill = readableTextOn(primary) === '#ffffff' ? ensureContrast(primary, '#ffffff', 4.5) : primary
+  const errorFill = ensureContrast(error, '#ffffff', 4.5)
+  root.style.setProperty('--harmony-primary-fill', primaryFill)
+  root.style.setProperty('--harmony-primary-fill-hover', adjustLightness(primaryFill, -8))
+  root.style.setProperty('--error-fill', errorFill)
+  root.style.setProperty('--error-fill-hover', adjustLightness(errorFill, -8))
+}
+
 /**
  * Apply theme palette to CSS custom properties using OKLCH
  */
@@ -715,11 +737,6 @@ export function applyThemePalette(palette: ThemePalette): void {
   // Contrast-picked; presets take the #fff in design-system.css.
   const onPrimary = readableTextOn(palette.primary)
   root.style.setProperty('--text-on-primary', onPrimary)
-  // Fill under that label: a white label darkens the fill until it reaches 4.5:1; a dark label
-  // already passes on the primary itself.
-  const primaryFill = onPrimary === '#ffffff' ? ensureContrast(palette.primary, '#ffffff', 4.5) : palette.primary
-  root.style.setProperty('--harmony-primary-fill', primaryFill)
-  root.style.setProperty('--harmony-primary-fill-hover', adjustLightness(primaryFill, -8))
 
   // Secondary / accent brand colors
   root.style.setProperty('--harmony-secondary', palette.secondary)
