@@ -1146,7 +1146,7 @@ onUnmounted(() => {
 }
 
 .thread-channel:hover {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-decoration: underline;
 }
 
@@ -1225,7 +1225,7 @@ onUnmounted(() => {
 }
 
 .option-item.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .option-item.danger:hover {
@@ -1233,7 +1233,7 @@ onUnmounted(() => {
 }
 
 .option-item.danger svg {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .options-divider {
@@ -1315,7 +1315,7 @@ onUnmounted(() => {
   background: var(--background-secondary);
   border: none;
   border-radius: 4px;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-size: 13px;
   cursor: pointer;
   transition: background 0.15s;

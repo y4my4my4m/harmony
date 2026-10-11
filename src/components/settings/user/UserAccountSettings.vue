@@ -3,16 +3,17 @@
     <div class="settings-header">
       <h2 class="settings-title">{{ $t('settings.account') }}</h2>
       <p class="settings-description">
-        Manage your profile and account details.
+        {{ t('settings.userAccount.description') }}
       </p>
     </div>
 
     <div class="settings-section" style="padding: 0">
       <div class="profile-preview">
-        <div 
-          class="profile-banner" 
+        <label
+          class="profile-banner"
+          :class="{ 'is-uploading': bannerUploading }"
           :style="bannerStyle"
-          @click="triggerBannerUpload"
+          data-testid="profile-banner-upload"
         >
           <BannerImage
             v-if="bannerSrc"
@@ -21,22 +22,26 @@
             :width="BANNER_BOX.width"
             :height="BANNER_BOX.height"
           />
-          <div v-if="bannerUploading" class="banner-loading-overlay">
+          <div v-if="bannerUploading" class="banner-loading-overlay" aria-hidden="true">
             <span class="banner-spinner"></span>
-            <span>Uploading...</span>
+            <span>{{ t('settings.userAccount.bannerUploading') }}</span>
           </div>
-          <div v-else class="banner-overlay">
+          <div v-else class="banner-overlay" aria-hidden="true">
             <Icon name="camera" />
-            <span>{{ $t('user.banner') }}</span>
+            <span>{{ t('user.banner') }}</span>
           </div>
           <input
             ref="bannerInput"
             type="file"
+            class="sr-only"
             accept="image/*"
+            :aria-label="t('settings.userAccount.changeBanner')"
+            :aria-busy="bannerUploading || undefined"
+            data-testid="profile-banner-input"
+            @click="onBannerInputClick"
             @change="handleBannerFileSelect"
-            style="display: none"
           />
-        </div>
+        </label>
         <div class="profile-info">
           <div class="avatar-wrapper">
             <Avatar 
@@ -66,15 +71,18 @@
 
     <div class="settings-section">
       <div class="form-group">
-        <label class="form-label">{{ $t('auth.displayName') }}</label>
+        <label class="form-label" :for="`${uid}-display-name`">{{ t('auth.displayName') }}</label>
         <div class="display-name-input-wrapper">
           <input
+            :id="`${uid}-display-name`"
             ref="displayNameInput"
             v-model="localProfile.display_name"
             type="text"
             class="form-input"
-            :placeholder="$t('auth.displayName')"
+            :placeholder="t('auth.displayName')"
             maxlength="50"
+            :aria-invalid="!!displayNameError || undefined"
+            :aria-describedby="displayNameError ? `${uid}-display-name-error ${uid}-display-name-hint` : `${uid}-display-name-hint`"
             @input="onDisplayNameInput"
             @keydown="onDisplayNameKeyDown"
           />
@@ -88,46 +96,50 @@
             @select="onDisplayNameEmojiSelect"
           />
         </div>
-        <div class="form-hint">
-          This is how others see you.{{ instanceSettings.settings.allowCustomEmojisInDisplayNames ? ' Type : to add custom emoji.' : '' }} {{ (localProfile.display_name?.length || 0) }}/50
+        <p v-if="displayNameError" :id="`${uid}-display-name-error`" class="form-error" role="alert">{{ displayNameError }}</p>
+        <div :id="`${uid}-display-name-hint`" class="form-hint">
+          {{ t('settings.userAccount.displayNameHint') }}{{ instanceSettings.settings.allowCustomEmojisInDisplayNames ? ' ' + t('settings.userAccount.displayNameEmojiHint') : '' }} {{ (localProfile.display_name?.length || 0) }}/50
         </div>
       </div>
 
       <div class="form-group">
-        <label class="form-label">{{ $t('auth.username') }}</label>
+        <label class="form-label" :for="`${uid}-username`">{{ t('auth.username') }}</label>
         <div class="username-input-container">
           <input
+            :id="`${uid}-username`"
             v-model="localProfile.username"
             type="text"
             class="form-input"
-            :placeholder="$t('auth.username')"
+            :placeholder="t('auth.username')"
             maxlength="32"
-            disabled
             readonly
+            :aria-describedby="`${uid}-username-hint`"
           />
         </div>
-        <div class="form-hint">
-          Usernames can't be changed: other servers identify your account by it.
+        <div :id="`${uid}-username-hint`" class="form-hint">
+          {{ t('settings.userAccount.usernameHint') }}
         </div>
       </div>
 
       <div class="form-group">
-        <label class="form-label">{{ $t('user.bio') }}</label>
+        <label class="form-label" :for="`${uid}-bio`">{{ t('user.bio') }}</label>
         <textarea
+          :id="`${uid}-bio`"
           v-model="localProfile.bio"
           class="form-textarea"
-          :placeholder="$t('user.placeholders.bio')"
+          :placeholder="t('user.placeholders.bio')"
           maxlength="500"
           rows="3"
+          :aria-describedby="`${uid}-bio-hint`"
           @input="onProfileChange"
         ></textarea>
-        <div class="form-hint">
-          {{ (localProfile.bio?.length || 0) }}/500 characters
+        <div :id="`${uid}-bio-hint`" class="form-hint">
+          {{ t('settings.userAccount.bioCount', { count: localProfile.bio?.length || 0, max: 500 }) }}
         </div>
       </div>
 
       <div class="form-group">
-        <label class="form-label">Display color</label>
+        <label class="form-label" :for="`${uid}-color`">{{ t('settings.userAccount.displayColor') }}</label>
         <div class="color-picker-container">
           <div class="color-preview-row">
             <div class="color-hex-field">
@@ -136,36 +148,50 @@
                 class="color-hex-swatch"
                 :style="{ backgroundColor: localProfile.color || '#0EA5E9' }"
                 ref="colorPreviewRef"
-                aria-label="Open color picker"
+                :aria-label="t('settings.userAccount.openColorPicker')"
+                :aria-expanded="showColorPicker"
+                :aria-controls="`${uid}-color-picker`"
                 @click="toggleColorPicker"
               ></button>
               <input
+                :id="`${uid}-color`"
                 v-model="localProfile.color"
                 type="text"
                 class="form-input color-hex-input"
                 :placeholder="localProfile.color || '#0EA5E9'"
+                spellcheck="false"
+                autocomplete="off"
+                :aria-describedby="`${uid}-color-hint`"
                 @input="onColorChange"
               />
             </div>
-            <button type="button" class="btn btn-secondary color-reset-btn" @click="resetColor">
-              {{ $t('common.reset') }}
+            <button
+              type="button"
+              class="btn btn-secondary color-reset-btn"
+              :aria-label="t('settings.userAccount.resetColor')"
+              @click="resetColor"
+            >
+              {{ t('common.reset') }}
             </button>
           </div>
           <div
             v-show="showColorPicker"
+            :id="`${uid}-color-picker`"
             v-click-outside="closeColorPicker"
             ref="colorPickerRef"
             class="color-picker-popover"
+            @keydown.esc="onColorPickerEscape"
           >
             <ColorPicker
               :color="normalizedProfileColor"
+              :label="t('settings.userAccount.displayColor')"
               @update:color="onColorPickerChange"
               @change="onColorPickerChange"
             />
           </div>
         </div>
-        <div class="form-hint">
-          Used for your display name and profile accents.
+        <div :id="`${uid}-color-hint`" class="form-hint">
+          {{ t('settings.userAccount.displayColorHint') }}
         </div>
       </div>
     </div>
@@ -178,10 +204,10 @@
       toActivityPub.ts:191). Capped at PROFILE_FIELDS_MAX rows so the
       profile UI stays readable and to match Mastodon/Misskey conventions.
     -->
-    <div class="settings-section">
-      <h3 class="section-title">Profile fields</h3>
+    <div class="settings-section" role="group" :aria-labelledby="`${uid}-fields-title`">
+      <h3 :id="`${uid}-fields-title`" class="section-title">{{ t('settings.userAccount.fieldsTitle') }}</h3>
       <p class="section-description">
-        Add up to {{ PROFILE_FIELDS_MAX }} short links or labels to your profile - websites, social handles, anything you want others to find you on. Visible on your profile page and federated to other ActivityPub instances.
+        {{ t('settings.userAccount.fieldsDescription', { max: PROFILE_FIELDS_MAX }) }}
       </p>
 
       <div class="profile-fields-editor" v-if="localProfileFields.length > 0">
@@ -189,46 +215,59 @@
           v-for="(field, index) in localProfileFields"
           :key="index"
           class="profile-field-row"
+          data-testid="profile-field-row"
         >
           <div class="profile-field-inputs">
+            <label class="sr-only" :for="`${uid}-field-${index}-name`">{{ t('settings.userAccount.fieldNameLabel', { n: index + 1 }) }}</label>
             <input
+              :id="`${uid}-field-${index}-name`"
               v-model="field.name"
               type="text"
               class="form-input profile-field-name"
-              placeholder="Label (e.g. Website)"
+              :placeholder="t('settings.userAccount.fieldNamePlaceholder')"
               :maxlength="PROFILE_FIELD_NAME_MAX"
-              @input="onProfileChange"
+              :aria-invalid="fieldErrorIndex === index && !field.name.trim() ? true : undefined"
+              :aria-describedby="fieldErrorIndex === index ? `${uid}-fields-error` : undefined"
+              @input="onProfileFieldInput"
             />
+            <label class="sr-only" :for="`${uid}-field-${index}-value`">{{ t('settings.userAccount.fieldValueLabel', { n: index + 1 }) }}</label>
             <input
+              :id="`${uid}-field-${index}-value`"
               v-model="field.value"
               type="text"
               class="form-input profile-field-value"
-              placeholder="Value (e.g. https://example.com)"
+              :placeholder="t('settings.userAccount.fieldValuePlaceholder')"
               :maxlength="PROFILE_FIELD_VALUE_MAX"
-              @input="onProfileChange"
+              :aria-invalid="fieldErrorIndex === index && !field.value.trim() ? true : undefined"
+              :aria-describedby="fieldErrorIndex === index ? `${uid}-fields-error` : undefined"
+              @input="onProfileFieldInput"
             />
           </div>
           <button
             type="button"
             class="profile-field-remove"
-            :title="'Remove this field'"
-            :aria-label="'Remove field'"
+            :title="removeFieldLabel(field, index)"
+            :aria-label="removeFieldLabel(field, index)"
             @click="removeProfileField(index)"
           >
-            <Icon name="x" :size="14" />
+            <Icon name="x" :size="14" aria-hidden="true" />
           </button>
         </div>
       </div>
-      <p v-else class="profile-fields-empty">No fields yet. Add one below.</p>
+      <p v-else class="profile-fields-empty">{{ t('settings.userAccount.fieldsEmpty') }}</p>
+      <p v-if="fieldErrorIndex !== null" :id="`${uid}-fields-error`" class="form-error" role="alert">
+        {{ t('settings.userAccount.fieldIncomplete') }}
+      </p>
 
       <button
+        ref="addFieldButton"
         type="button"
         class="profile-field-add"
         :disabled="localProfileFields.length >= PROFILE_FIELDS_MAX"
         @click="addProfileField"
       >
-        <Icon name="plus" :size="14" />
-        Add field
+        <Icon name="plus" :size="14" aria-hidden="true" />
+        {{ t('settings.userAccount.addField') }}
         <span class="profile-field-count">{{ localProfileFields.length }} / {{ PROFILE_FIELDS_MAX }}</span>
       </button>
     </div>
@@ -377,7 +416,8 @@
 
 <script setup lang="ts">
 import { safeHref } from '@/utils/sanitize';
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, nextTick, useId } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import { useAuthStore } from '@/stores/auth'
 import type { User } from '@/types'
@@ -412,6 +452,7 @@ import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 import { useToast } from 'vue-toastification'
 import { imageSourceError } from '@/utils/uploadValidation'
 import { useImageCrop } from '@/composables/useImageCrop'
+import { useAnnouncer } from '@/composables/useAnnouncer'
 
 // Props
 interface Props {
@@ -434,6 +475,9 @@ const authStore = useAuthStore()
 const instanceSettings = useInstanceSettingsStore()
 const toast = useToast()
 const { cropImage } = useImageCrop()
+const { t } = useI18n()
+const { polite } = useAnnouncer()
+const uid = `account-${useId()}`
 
 // State
 const localProfile = ref<Partial<User>>({})
@@ -491,13 +535,41 @@ function decodeFieldValueForEditing(value: string): string {
   return value
 }
 
-function addProfileField() {
-  if (localProfileFields.value.length >= PROFILE_FIELDS_MAX) return
-  localProfileFields.value.push({ name: '', value: '' })
+const addFieldButton = ref<HTMLButtonElement | null>(null)
+const displayNameError = ref('')
+/** Row holding a label without a value or a value without a label; null when none. */
+const fieldErrorIndex = ref<number | null>(null)
+
+function focusFieldInput(index: number, part: 'name' | 'value' = 'name') {
+  document.getElementById(`${uid}-field-${index}-${part}`)?.focus()
 }
 
-function removeProfileField(index: number) {
+async function addProfileField() {
+  if (localProfileFields.value.length >= PROFILE_FIELDS_MAX) return
+  localProfileFields.value.push({ name: '', value: '' })
+  await nextTick()
+  focusFieldInput(localProfileFields.value.length - 1)
+}
+
+async function removeProfileField(index: number) {
   localProfileFields.value.splice(index, 1)
+  fieldErrorIndex.value = null
+  onProfileChange()
+  await nextTick()
+  const remaining = localProfileFields.value.length
+  if (remaining > 0) focusFieldInput(Math.min(index, remaining - 1))
+  else addFieldButton.value?.focus()
+}
+
+function removeFieldLabel(field: EditableField, index: number): string {
+  const name = field.name.trim()
+  return name
+    ? t('settings.userAccount.removeFieldNamed', { name })
+    : t('settings.userAccount.removeFieldNumbered', { n: index + 1 })
+}
+
+function onProfileFieldInput() {
+  fieldErrorIndex.value = null
   onProfileChange()
 }
 
@@ -625,6 +697,7 @@ const onProfileChange = () => {
 }
 
 const onDisplayNameInput = () => {
+  displayNameError.value = ''
   const el = displayNameInput.value
   if (!el) return
   displayNameAutoSuggest.handleInput(el.value, el.selectionStart || el.value.length)
@@ -673,6 +746,15 @@ const closeColorPicker = () => {
   showColorPicker.value = false
 }
 
+// Escape stops here; UserSettings closes on a document-level Escape.
+const onColorPickerEscape = (event: KeyboardEvent) => {
+  if (!showColorPicker.value) return
+  event.preventDefault()
+  event.stopPropagation()
+  showColorPicker.value = false
+  colorPreviewRef.value?.focus()
+}
+
 const resetColor = () => {
   localProfile.value.color = '#0EA5E9'
 }
@@ -681,10 +763,14 @@ const handleAvatarUpload = (file: File) => {
   emit('upload-avatar', file)
 }
 
-const triggerBannerUpload = () => {
-  debug.log('Banner upload triggered')
-  bannerInput.value?.click()
+// The input stays enabled while uploading so focus is not dropped; a second pick waits.
+const onBannerInputClick = (event: MouseEvent) => {
+  if (props.bannerUploading) event.preventDefault()
 }
+
+watch(() => props.bannerUploading, (uploading) => {
+  if (uploading) polite(t('settings.userAccount.bannerUploading'))
+})
 
 const handleBannerFileSelect = async (event: Event) => {
   debug.log('Banner file selected')
@@ -716,16 +802,20 @@ const saveChanges = () => {
   // `CoreProfileService.validateProfileData` and the DB CHECK constraint
   // `profiles_display_name_not_blank`. Checking here yields a toast instead of
   // a roundtrip plus generic error.
+  displayNameError.value = ''
+  fieldErrorIndex.value = null
   const trimmedDisplayName = (localProfile.value.display_name || '').trim()
   if (trimmedDisplayName.length === 0) {
-    toast.error('Display name cannot be empty.')
+    displayNameError.value = t('settings.userAccount.displayNameRequired')
+    displayNameInput.value?.focus()
     return
   }
   // Persist the trimmed value; no leading/trailing whitespace is stored.
   localProfile.value.display_name = trimmedDisplayName
 
   if (!instanceSettings.settings.allowCustomEmojisInDisplayNames && localProfile.value.display_name && DISPLAY_NAME_EMOJI_REGEX.test(localProfile.value.display_name)) {
-    toast.error('Custom emojis in display names are disabled on this instance. Please remove emoji shortcodes (e.g. :name:) from your display name.')
+    displayNameError.value = t('settings.userAccount.displayNameNoEmoji')
+    displayNameInput.value?.focus()
     return
   }
 
@@ -737,12 +827,13 @@ const saveChanges = () => {
   //   - encode URL-shaped values into <a> wrappers so federated renderers
   //     produce clickable links.
   const cleanedFields: Array<{ name: string; value: string }> = []
-  for (const row of localProfileFields.value) {
+  for (const [index, row] of localProfileFields.value.entries()) {
     const name = row.name.trim()
     const value = row.value.trim()
     if (!name && !value) continue
     if (!name || !value) {
-      toast.error('Each profile field needs both a label and a value.')
+      fieldErrorIndex.value = index
+      focusFieldInput(index, name ? 'value' : 'name')
       return
     }
     cleanedFields.push({
@@ -758,6 +849,8 @@ const saveChanges = () => {
 }
 
 const resetChanges = () => {
+  displayNameError.value = ''
+  fieldErrorIndex.value = null
   syncLocalProfile()
 }
 
@@ -812,9 +905,9 @@ const copyCurrentSupportHandle = async () => {
     await navigator.clipboard.writeText(
       `@${currentUserHandleShort.value}@${supporterInstanceDomain.value}`,
     )
-    toast.success('Handle copied')
+    toast.success(t('settings.userAccount.handleCopied'))
   } catch {
-    toast.error('Failed to copy')
+    toast.error(t('settings.userAccount.copyFailed'))
   }
 }
 
@@ -881,6 +974,7 @@ onMounted(async () => {
 }
 
 .profile-banner {
+  display: block;
   height: 120px;
   background: var(--color);
   position: relative;
@@ -891,6 +985,16 @@ onMounted(async () => {
 
 .profile-banner:hover {
   filter: brightness(0.9);
+}
+
+.profile-banner.is-uploading {
+  cursor: progress;
+}
+
+/* Inset: .profile-preview clips overflow. */
+.profile-banner:focus-within {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: -4px;
 }
 
 .banner-overlay {
@@ -909,7 +1013,8 @@ onMounted(async () => {
   font-weight: var(--font-weight-medium);
 }
 
-.profile-banner:hover .banner-overlay {
+.profile-banner:hover .banner-overlay,
+.profile-banner:focus-within .banner-overlay {
   opacity: 1;
 }
 
@@ -999,10 +1104,15 @@ onMounted(async () => {
   border-color: var(--harmony-primary);
 }
 
-.form-input:disabled,
-.form-input[readonly] {
+.form-input:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  background-color: var(--background-tertiary);
+}
+
+/* Read-only text stays readable: no opacity, secondary text colour. */
+.form-input[readonly] {
+  color: var(--text-secondary);
   background-color: var(--background-tertiary);
 }
 
@@ -1015,6 +1125,16 @@ onMounted(async () => {
   font-size: var(--font-size-xs);
   color: var(--text-muted);
   margin-top: 8px;
+}
+
+.form-error {
+  margin: 8px 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-danger);
+}
+
+.form-input[aria-invalid='true'] {
+  border-color: var(--text-danger);
 }
 
 .color-picker-container {
@@ -1168,12 +1288,12 @@ onMounted(async () => {
 }
 
 .btn-primary {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--harmony-primary-hover);
+  background-color: var(--harmony-primary-fill-hover);
 }
 
 .btn-secondary {
@@ -1283,7 +1403,7 @@ onMounted(async () => {
 
 .profile-field-remove:hover {
   background: color-mix(in srgb, var(--error) 12%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
   border-color: color-mix(in srgb, var(--error) 35%, transparent);
 }
 
@@ -1362,7 +1482,7 @@ onMounted(async () => {
   margin: 0 0 10px;
   font-size: 13px;
   font-weight: var(--font-weight-bold);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-transform: none;
   letter-spacing: 0;
 }
@@ -1391,7 +1511,7 @@ onMounted(async () => {
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 13px;
   font-weight: var(--font-weight-semibold);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   user-select: all;
   word-break: break-all;
 }
@@ -1414,7 +1534,7 @@ onMounted(async () => {
 
 .donor-copy-btn:hover {
   border-color: var(--harmony-primary);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .donor-auto-credit {
@@ -1534,7 +1654,7 @@ onMounted(async () => {
 
 .supporter-active {
   font-size: var(--font-size-xs);
-  color: var(--success);
+  color: var(--text-success);
   font-weight: var(--font-weight-semibold);
 }
 

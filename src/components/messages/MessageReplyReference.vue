@@ -1,7 +1,8 @@
 <template>
-  <div class="reply-reference" @click="emit('open-reply', replyToMessageId)">
-    <div class="reply-spine"></div>
-    <div class="reply-content">
+  <button type="button" class="reply-reference" @click="emit('open-reply', replyToMessageId)">
+    <span class="reply-spine" aria-hidden="true"></span>
+    <span class="reply-content">
+      <span class="sr-only">{{ t('messageA11y.reply.prefix') }}</span>
       <Avatar :src="avatarUrl" size="mini" class="reply-avatar" />
       <MessageAuthorLabel
         class="reply-username"
@@ -11,11 +12,11 @@
         :color="usernameColor"
         truncate
       />
-      <div class="reply-preview">
+      <span class="reply-preview">
         {{ previewText }}
-      </div>
-    </div>
-  </div>
+      </span>
+    </span>
+  </button>
 </template>
 
 <script setup lang="ts">
@@ -23,6 +24,9 @@ import { computed, toRef } from 'vue'
 import Avatar from '@/components/common/Avatar.vue'
 import MessageAuthorLabel from '@/components/messages/MessageAuthorLabel.vue'
 import { useReplyTarget } from '@/composables/useReplyTarget'
+import { useT } from '@/composables/useT'
+
+const { t } = useT()
 
 const props = defineProps<{
   replyToMessageId: string
@@ -54,10 +58,24 @@ const {
 
 <style scoped>
 .reply-reference {
+  display: block;
+  max-width: calc(100% - 54px);
   margin-left: 54px;
   margin-bottom: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
   cursor: pointer;
   position: relative;
+}
+
+.reply-reference:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 .reply-spine {
@@ -85,7 +103,8 @@ const {
   display: flex;
   align-items: center;
   gap: 4px;
-  opacity: 0.64;
+  /* 0.85 keeps --text-secondary at 4.5:1 or better on the light chat surface. */
+  opacity: 0.85;
   transition: opacity 0.2s ease;
   min-width: 0;
 }
@@ -106,6 +125,7 @@ const {
 }
 
 .reply-preview {
+  display: block;
   color: var(--text-secondary);
   font-size: 0.875rem;
   overflow: hidden;

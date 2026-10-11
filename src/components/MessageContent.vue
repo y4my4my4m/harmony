@@ -226,13 +226,13 @@ export default defineComponent({
   padding: 0 2px;
   font-weight: 500;
   cursor: pointer;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   display: inline-block;
   transition: 0.2s;
   font-weight:500;
 }
 .mention:hover {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 .file-container {
@@ -304,7 +304,7 @@ export default defineComponent({
 }
 
 .edit-action {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   cursor: pointer;
   font-weight: 500;
 }

@@ -80,7 +80,7 @@ async function dismiss() {
 
 .optin-icon {
   flex-shrink: 0;
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .optin-text {

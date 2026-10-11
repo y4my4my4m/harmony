@@ -1,14 +1,24 @@
 <template>
   <div class="auth-layout">
-    <!-- Main Content Area -->
-    <div class="auth-content">
+    <component
+      :is="ownMain ? 'div' : 'main'"
+      :id="ownMain ? undefined : MAIN_CONTENT_ID"
+      :tabindex="ownMain ? undefined : -1"
+      class="auth-content"
+    >
       <RouterView />
-    </div>
+    </component>
   </div>
 </template>
 
 <script setup lang="ts">
-// Wrapper only; no logic.
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+import { MAIN_CONTENT_ID } from '@/composables/useRouteA11y'
+
+const route = useRoute()
+// Views that render their own <main> (NewProfile) set meta.providesMain.
+const ownMain = computed(() => route.matched.some(r => r.meta?.providesMain === true))
 </script>
 
 <style scoped>

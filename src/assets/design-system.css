@@ -7,6 +7,10 @@
   --harmony-primary: #0EA5E9;
   --harmony-primary-hover: #0284C7;
   --harmony-primary-light: rgba(14, 165, 233, 0.1);
+  /* Fills under white text (buttons, badges, pills). The brand fill; High contrast replaces
+     both fills inline with 4.5:1-against-#fff versions (applyContrastFills). */
+  --harmony-primary-fill: var(--harmony-primary);
+  --harmony-primary-fill-hover: var(--harmony-primary-hover);
   --harmony-secondary: #38BDF8;
   --harmony-accent: #ff7675;
   
@@ -22,6 +26,8 @@
   --warning: #fee75c;
   --error: #ed4245;
   --error-hover: #c73232;
+  --error-fill: var(--error);
+  --error-fill-hover: var(--error-hover);
   --info: #5bc0de;
   
   /* Background Colors */
@@ -41,9 +47,16 @@
   /* Text Colors */
   --text-primary: #f2f3f5;
   --text-secondary: #b5bac1;
-  --text-tertiary: #80848e;
-  --text-muted: #6d6f78;
+  /* 4.5:1 or better on every dark surface up to #222327. */
+  --text-tertiary: #8e9199;
+  --text-muted: #8b8e96;
   --text-inverse: #1e1f22;
+  /* Brand, danger and success hues as text on surfaces. Fills keep the brand
+     tokens; light themes darken these (see the data-theme-type="light" block),
+     custom palettes compute them (applyThemePalette). */
+  --text-link: var(--harmony-primary);
+  --text-danger: #f05a5d;
+  --text-success: var(--success);
   
   /* Border Colors */
   --border-primary: rgba(255, 255, 255, 0.08);
@@ -511,7 +524,7 @@ optgroup {
 
 a {
   text-decoration: none;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   transition: 0.4s;
 }
 
@@ -722,12 +735,12 @@ strong {
 
 /* Button Variants */
 .btn-primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary, #ffffff);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .btn-secondary {
@@ -751,12 +764,12 @@ strong {
 }
 
 .btn-danger {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary, #ffffff);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: var(--error-hover);
+  background: var(--error-fill-hover);
 }
 
 .btn-ghost {
@@ -869,7 +882,7 @@ strong {
 .form-error {
   margin-top: var(--space-1);
   font-size: var(--font-size-xs);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .form-hint {
@@ -1258,10 +1271,10 @@ div.loading:has(> .harmony-spinner) {
 :root .Vue-Toastification__toast--warning { border-left-color: var(--warning); }
 :root .Vue-Toastification__toast--info,
 :root .Vue-Toastification__toast--default { border-left-color: var(--harmony-primary); }
-:root .Vue-Toastification__toast--success .Vue-Toastification__icon { color: var(--success); }
-:root .Vue-Toastification__toast--error .Vue-Toastification__icon { color: var(--error); }
+:root .Vue-Toastification__toast--success .Vue-Toastification__icon { color: var(--text-success); }
+:root .Vue-Toastification__toast--error .Vue-Toastification__icon { color: var(--text-danger); }
 :root .Vue-Toastification__toast--warning .Vue-Toastification__icon { color: var(--warning); }
-:root .Vue-Toastification__toast--info .Vue-Toastification__icon { color: var(--harmony-primary); }
+:root .Vue-Toastification__toast--info .Vue-Toastification__icon { color: var(--text-link); }
 :root .Vue-Toastification__close-button { color: var(--text-muted); }
 :root .Vue-Toastification__progress-bar { background-color: var(--border-hover); }
 
@@ -1270,6 +1283,35 @@ div.loading:has(> .harmony-spinner) {
 :where(a, button, [role="button"], [role="tab"], [role="menuitem"], summary, [tabindex]):focus-visible {
   outline: 2px solid var(--harmony-primary);
   outline-offset: 2px;
+}
+
+/* Screen-reader-only text, independent of any setting. */
+.sr-only,
+.sr-only-focusable:not(:focus):not(:focus-within) {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* A landmark reached with F6 (useRegionNavigation). */
+[data-region-focus]:focus {
+  outline: none;
+}
+
+[data-region-focus]:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+
+/* Double-tap zoom off, pinch zoom kept (the viewport no longer locks scale). */
+html {
+  touch-action: manipulation;
 }
 
 /* Reduced Motion Support */
@@ -1363,10 +1405,15 @@ div.loading:has(> .harmony-spinner) {
 }
 
 /* Contrast on white: #fee75c 1.3:1, #5bc0de 2.1:1. These keep the hue at
-   4.9:1 and 5.9:1. */
+   4.9:1 and 5.9:1. Text tokens: 4.5:1 or better from #ffffff down to the
+   #dfe0e1 hover surface (#0ea5e9 is 2.77:1 on white, #ed4245 3.84:1,
+   #23a55a 3.18:1). */
 :root[data-theme-type="light"] {
   --warning: #a16207;
   --info: #0369a1;
+  --text-link: #036399;
+  --text-danger: #b91c1c;
+  --text-success: #137638;
 }
 
 /* ===== Light-theme corrective overrides =====

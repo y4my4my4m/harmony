@@ -64,6 +64,29 @@ The settings panel (`UserSettings` view) provides:
 | Bots | `UserBotsManagement` | Personal bot management |
 | Advanced | `AdvancedSettings` | Desktop app, developer mode, cache, account migration, account deletion |
 
+## Keyboard and Screen Readers
+
+- **Skip to content** is the first Tab stop on every page and moves focus to the main area.
+- **F6 / Shift+F6** move focus between regions: servers, channels, messages, members, the voice
+  connection and the account panel. Landing in a navigation region focuses its current item. In a
+  web browser that keeps F6 for its address bar, Ctrl+F6 does the same.
+- **Escape** closes the topmost dialog, menu or mobile drawer only; focus returns to the control
+  that opened it.
+- Page titles name the open channel, conversation or view, with the unread count first, and a
+  view change is announced.
+- Settings → Appearance → *Screen reader support* adds verbose announcements (typing, voice
+  speakers, presence changes) and a thicker focus outline. Essential announcements (new view,
+  errors, confirmations) are always on.
+- The page zooms with pinch and the browser's zoom controls.
+- In user and server settings the section list is a navigation region marking the current
+  section; choosing a section moves focus to its heading. On a phone the list is a drawer.
+  Escape in server settings with unsaved changes asks before discarding them.
+- Sets of choices (themes, sound themes, colour swatches, channel permission overrides
+  Allow / Inherit / Deny) take one Tab stop; the arrow keys move and select. The colour picker's
+  field and hue track are sliders: arrows adjust, Shift for larger steps, Home/End for the ends.
+- In Server settings → Roles, Alt+ArrowUp / Alt+ArrowDown on a role, or the *Move up* /
+  *Move down* buttons beside the selected role, reorder it and announce its new position.
+
 ## Account Migration
 
 Settings → Advanced → Account migration moves followers between a person's accounts, on this

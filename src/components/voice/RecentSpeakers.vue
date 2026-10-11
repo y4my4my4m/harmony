@@ -1,7 +1,7 @@
 <template>
   <div v-if="displayedSpeakers.length > 0" class="recent-speakers">
-    <TransitionGroup name="speaker" tag="div" class="speakers-list">
-      <div
+    <TransitionGroup name="speaker" tag="ul" class="speakers-list" :aria-label="t('voice.recentSpeakers')">
+      <li
         v-for="speaker in displayedSpeakers"
         :key="speaker.userId"
         class="speaker-item"
@@ -10,16 +10,17 @@
       >
         <Avatar
           :src="getSpeakerAvatar(speaker.userId)"
-          :alt="getSpeakerName(speaker.userId)"
+          alt=""
           size="xs"
           class="speaker-avatar"
         />
-        <div v-if="isSpeaking(speaker.userId)" class="speaking-indicator">
+        <span class="sr-only">{{ speakerLabel(speaker.userId) }}</span>
+        <div v-if="isSpeaking(speaker.userId)" class="speaking-indicator" aria-hidden="true">
           <span class="wave"></span>
           <span class="wave"></span>
           <span class="wave"></span>
         </div>
-      </div>
+      </li>
     </TransitionGroup>
   </div>
 </template>
@@ -29,6 +30,8 @@ import { computed } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useUserData } from '@/composables/useUserData';
 import Avatar from '@/components/common/Avatar.vue';
+import { useT } from '@/composables/useT';
+import { participantLabel, useHeldIds } from './participantLabel';
 
 interface Props {
   maxSpeakers?: number;
@@ -40,6 +43,8 @@ const props = withDefaults(defineProps<Props>(), {
 
 const voiceStore = useUnifiedVoiceChannelStore();
 const { getUser } = useUserData();
+const { t } = useT();
+const speakingIds = useHeldIds(() => voiceStore.activelySpeakingUserIds);
 
 const displayedSpeakers = computed(() => {
   return voiceStore.getRecentSpeakers.slice(0, props.maxSpeakers);
@@ -58,6 +63,9 @@ const getSpeakerName = (userId: string) => {
   const profile = getUser(userId)?.value;
   return profile?.displayName || profile?.username || 'User';
 };
+
+const speakerLabel = (userId: string) =>
+  participantLabel(t, getSpeakerName(userId), { speaking: speakingIds.value.has(userId) });
 </script>
 
 <style scoped>
@@ -69,6 +77,9 @@ const getSpeakerName = (userId: string) => {
 .speakers-list {
   display: flex;
   gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .speaker-item {

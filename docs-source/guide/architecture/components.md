@@ -36,7 +36,7 @@ Root-level components in `src/components/` include major features like `MessageD
 ### Layout Components
 
 - **Layouts** (`src/layouts/`): `BaseLayout`, `AuthLayout`, `ChatLayout`, `SocialLayout` - control the overall page structure depending on the route
-- **Navigation**: `MainNavigation`, `ServerSidebar`, `ChannelSidebar`, `DMSidebar` - persistent navigation elements
+- **Navigation**: `ServerSidebar`, `ChannelSidebar`, `DMSidebar` - persistent navigation elements
 
 ### View Components
 

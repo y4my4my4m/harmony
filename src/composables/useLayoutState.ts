@@ -1,4 +1,4 @@
-import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, reactive, shallowReactive, computed, onMounted, onBeforeUnmount, watch, type Ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { debug } from '@/utils/debug'
 import { useViewport } from '@/composables/useViewport'
@@ -84,6 +84,59 @@ export function useSidebarPanel(side: PanelSide, present: () => boolean = () => 
   onBeforeUnmount(() => {
     panelSources[side].delete(id)
   })
+}
+
+// Drawer panel elements by side, for useDrawer in BaseLayout: the left drawer
+// is the server rail plus the layout's channel panel, the right one the member
+// list or social sidebar. Ids feed aria-controls on the toggles.
+interface DrawerPanel {
+  id: string
+  el: Ref<HTMLElement | null>
+}
+// Shallow: the entries hold refs, which a deep reactive Map would unwrap.
+const drawerPanels = {
+  left: shallowReactive(new Map<symbol, DrawerPanel>()),
+  right: shallowReactive(new Map<symbol, DrawerPanel>()),
+}
+
+/** Registers `el` (rendered with `id`) as part of the side's drawer for the caller's lifetime. */
+export function useDrawerPanel(side: PanelSide, id: string, el: Ref<HTMLElement | null>): void {
+  const key = Symbol(id)
+  drawerPanels[side].set(key, { id, el })
+  onBeforeUnmount(() => {
+    drawerPanels[side].delete(key)
+  })
+}
+
+export function drawerPanelElements(side: PanelSide): HTMLElement[] {
+  return [...drawerPanels[side].values()].map((p) => p.el.value).filter((el): el is HTMLElement => !!el)
+}
+
+export function drawerPanelIds(side: PanelSide): string[] {
+  return [...drawerPanels[side].values()].filter((p) => !!p.el.value).map((p) => p.id)
+}
+
+/**
+ * aria-expanded / aria-controls for buttons that toggle the app drawers
+ * (hamburgers, the member-list button). The left drawer only collapses on
+ * mobile; on desktop its toggles report it expanded.
+ */
+export function useAppDrawers() {
+  const left = computed(() => {
+    const ids = drawerPanelIds('left')
+    return {
+      'aria-expanded': (leftSidebarOpen.value || !isMobile.value ? 'true' : 'false') as 'true' | 'false',
+      'aria-controls': ids.length ? ids.join(' ') : undefined,
+    }
+  })
+  const right = computed(() => {
+    const ids = drawerPanelIds('right')
+    return {
+      'aria-expanded': (rightSidebarOpen.value ? 'true' : 'false') as 'true' | 'false',
+      'aria-controls': ids.length ? ids.join(' ') : undefined,
+    }
+  })
+  return { leftDrawerToggle: left, rightDrawerToggle: right }
 }
 
 // Distance each drag gesture spans, px. Left: rail plus panel, or the rail alone.

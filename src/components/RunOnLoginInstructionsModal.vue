@@ -231,7 +231,7 @@ watch(
   height: 44px;
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -270,7 +270,7 @@ watch(
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   display: flex;
   align-items: center;
@@ -339,7 +339,7 @@ watch(
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border: none;
   border-radius: var(--radius-base);
@@ -351,7 +351,7 @@ watch(
 }
 
 .copy-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .copy-btn.copied {
@@ -409,11 +409,11 @@ watch(
 }
 
 .menu-mock-items li.highlight svg {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .menu-mock-items li.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .footnote {
@@ -460,12 +460,12 @@ watch(
 }
 
 .btn-primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .btn-primary:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .run-on-login-modal-enter-active,

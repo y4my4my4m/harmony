@@ -1,15 +1,15 @@
 <template>
   <div class="bans-settings">
     <div class="settings-header">
-      <h2 class="settings-title">Server bans</h2>
+      <h2 ref="headingEl" class="settings-title" tabindex="-1">{{ t('server.banList.title') }}</h2>
       <p class="settings-description">
-        View and manage banned users. Users with the Ban Members permission can unban users from this list.
+        {{ t('server.banList.description') }}
       </p>
     </div>
 
-    <div v-if="isLoading" class="loading-state">
+    <div v-if="isLoading" class="loading-state" role="status">
       <LoadingSpinner :size="20" />
-      <span>Loading bans...</span>
+      <span>{{ t('server.banList.loading') }}</span>
     </div>
 
     <EmptyState
@@ -17,58 +17,77 @@
       tone="error"
       icon="alert-circle"
       :title="error"
-      :action-label="$t('common.retry')"
+      :action-label="t('common.retry')"
       @action="loadBans"
     />
 
     <EmptyState
       v-else-if="bans.length === 0"
       icon="gavel"
-      :title="$t('empty.bans.title')"
-      :description="$t('empty.bans.description')"
+      :title="t('empty.bans.title')"
+      :description="t('empty.bans.description')"
     />
 
-    <div v-else class="bans-list">
-      <div v-for="ban in bans" :key="ban.id" class="ban-item">
+    <ul v-else ref="listEl" class="bans-list" :aria-label="t('server.banList.title')">
+      <li v-for="ban in bans" :key="ban.id" class="ban-item" data-testid="ban-item">
         <div class="ban-user">
-          <img :src="ban.avatar_url || '/default_avatar.webp'" :alt="ban.username" class="ban-avatar" />
+          <img :src="ban.avatar_url || '/default_avatar.webp'" alt="" class="ban-avatar" />
           <div class="ban-info">
-            <span class="ban-display-name">{{ ban.display_name || ban.username }}</span>
+            <span class="ban-display-name">{{ displayName(ban) }}</span>
             <span class="ban-username">@{{ ban.username }}</span>
           </div>
         </div>
         <div class="ban-details">
-          <span v-if="ban.reason" class="ban-reason" :title="ban.reason">{{ ban.reason }}</span>
+          <span v-if="ban.reason" class="ban-reason" :title="ban.reason">
+            <span class="sr-only">{{ t('moderation.reason') }}: </span>{{ ban.reason }}
+          </span>
           <span class="ban-meta">
-            Banned by {{ ban.banned_by_username || 'Unknown' }} on {{ formatDate(ban.created_at) }}
+            {{ t('server.banList.bannedBy', { name: ban.banned_by_username || t('server.banList.unknownModerator'), date: formatDate(ban.created_at) }) }}
           </span>
         </div>
-        <button class="btn-unban" @click="handleUnban(ban)" :disabled="unbanningId === ban.user_id">
-          <span v-if="unbanningId === ban.user_id" class="loading-spinner small"></span>
-          <span v-else>Revoke ban</span>
+        <button
+          type="button"
+          class="btn-unban"
+          data-testid="ban-revoke"
+          :data-ban-user="ban.user_id"
+          :aria-label="t('server.banList.revokeFor', { name: displayName(ban) })"
+          :aria-busy="unbanningId === ban.user_id || undefined"
+          :aria-disabled="unbanningId === ban.user_id || undefined"
+          @click="handleUnban(ban)"
+        >
+          <span v-if="unbanningId === ban.user_id" class="loading-spinner small" aria-hidden="true"></span>
+          <span v-else>{{ t('server.banList.revoke') }}</span>
         </button>
-      </div>
-    </div>
+      </li>
+    </ul>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { useToast } from 'vue-toastification'
+import { useT } from '@/composables/useT'
 import { moderationService, type ServerBan } from '@/services/ModerationService'
 
 const props = defineProps<{ serverId: string }>()
 
+const { t, locale } = useT()
 const toast = useToast()
 const bans = ref<ServerBan[]>([])
 const isLoading = ref(false)
 const error = ref('')
 const unbanningId = ref<string | null>(null)
+const headingEl = ref<HTMLElement | null>(null)
+const listEl = ref<HTMLElement | null>(null)
+
+function displayName(ban: ServerBan): string {
+  return ban.display_name || ban.username
+}
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  return new Date(dateStr).toLocaleDateString(locale.value, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 async function loadBans() {
@@ -77,21 +96,32 @@ async function loadBans() {
   try {
     bans.value = await moderationService.getServerBans(props.serverId)
   } catch (err: any) {
-    error.value = err.message || 'Failed to load bans'
+    error.value = err.message || t('server.banList.loadFailed')
   } finally {
     isLoading.value = false
   }
 }
 
+async function focusAfterRemoval(index: number) {
+  await nextTick()
+  const buttons = listEl.value?.querySelectorAll<HTMLElement>('[data-testid="ban-revoke"]')
+  const next = buttons?.[Math.min(index, buttons.length - 1)]
+  ;(next ?? headingEl.value)?.focus()
+}
+
 async function handleUnban(ban: ServerBan) {
+  if (unbanningId.value === ban.user_id) return
   unbanningId.value = ban.user_id
   try {
     const result = await moderationService.unbanMember(props.serverId, ban.user_id)
     if (result.success) {
+      const index = bans.value.findIndex(b => b.user_id === ban.user_id)
+      const hadFocus = document.activeElement instanceof HTMLElement && document.activeElement.dataset.banUser === ban.user_id
       bans.value = bans.value.filter(b => b.user_id !== ban.user_id)
-      toast.success(`${ban.display_name || ban.username} has been unbanned`)
+      toast.success(t('server.banList.unbanned', { name: displayName(ban) }))
+      if (hadFocus) void focusAfterRemoval(index)
     } else {
-      toast.error(result.error || 'Failed to unban user')
+      toast.error(result.error || t('server.banList.unbanFailed'))
     }
   } finally {
     unbanningId.value = null
@@ -108,6 +138,10 @@ onMounted(loadBans)
 
 .settings-header {
   margin-bottom: 24px;
+}
+
+.settings-title:focus {
+  outline: none;
 }
 
 .settings-title {
@@ -138,6 +172,9 @@ onMounted(loadBans)
   display: flex;
   flex-direction: column;
   gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .ban-item {
@@ -214,11 +251,11 @@ onMounted(loadBans)
   align-items: center;
   gap: 4px;
 }
-.btn-unban:hover:not(:disabled) {
+.btn-unban:hover:not([aria-disabled="true"]) {
   background: var(--background-modifier-hover);
   border-color: var(--text-muted);
 }
-.btn-unban:disabled {
+.btn-unban[aria-disabled="true"] {
   opacity: 0.5;
   cursor: not-allowed;
 }

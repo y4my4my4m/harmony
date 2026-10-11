@@ -548,7 +548,7 @@ onMounted(load)
   gap: 6px;
   margin: 0;
   font-size: 12px;
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .am-warn {

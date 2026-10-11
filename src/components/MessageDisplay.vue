@@ -42,13 +42,27 @@
       </div>
     </div>
     
-    <!-- Virtual scrolled message list -->
-    <div v-if="displayItems.length > 0" ref="virtualListRef" :style="{ height: `${totalSize}px`, width: '100%', position: 'relative' }">
+    <!-- Virtual scrolled message list. Each virtual row is a listitem; the
+         article inside it is the focusable row (keyboard model: onListKeydown). -->
+    <div
+      v-if="displayItems.length > 0"
+      ref="virtualListRef"
+      role="list"
+      :aria-label="listLabel"
+      :aria-busy="isLoadingOlderMessages ? 'true' : undefined"
+      :style="{ height: `${totalSize}px`, width: '100%', position: 'relative' }"
+      @keydown="onListKeydown"
+      @focusin="onListFocusIn"
+      @focusout="onListFocusOut"
+    >
       <div
         v-for="virtualRow in virtualRows"
         :key="displayItems[virtualRow.index].key"
         :data-index="virtualRow.index"
         :ref="measureElement"
+        role="listitem"
+        :aria-posinset="virtualRow.index + 1"
+        :aria-setsize="isAllMessagesLoaded ? displayItems.length : -1"
         :style="{
           position: 'absolute',
           top: 0,
@@ -59,25 +73,41 @@
       >
       <template v-for="item in [displayItems[virtualRow.index]]" :key="item.key ?? virtualRow.index">
       <!-- Blocked Group Placeholder -->
-      <div v-if="item.type === 'blocked-group'" class="blocked-message-group">
+      <div
+        v-if="item.type === 'blocked-group'"
+        class="blocked-message-group"
+        role="article"
+        data-message-row
+        :data-row-key="item.key"
+        :tabindex="rowTabindex(item.key)"
+        :aria-label="t('messageA11y.row.blocked', { count: item.count }, item.count)"
+      >
         <div class="blocked-group-content">
           <Icon name="ban" :size="16" class="blocked-icon" />
-          <span class="blocked-text">{{ item.count }} blocked message{{ item.count > 1 ? 's' : '' }}</span>
-          <span class="blocked-separator">-</span>
-          <button class="reveal-btn" @click="revealBlockedGroup(item.groupId)">
-            Show message{{ item.count > 1 ? 's' : '' }}
+          <span class="blocked-text">{{ t('messageA11y.row.blocked', { count: item.count }, item.count) }}</span>
+          <span class="blocked-separator" aria-hidden="true">-</span>
+          <button type="button" class="reveal-btn" @click="revealBlockedGroup(item.groupId)">
+            {{ t('messageA11y.row.showBlocked', { count: item.count }, item.count) }}
           </button>
         </div>
       </div>
       
       <!-- Reported Message Placeholder -->
-      <div v-else-if="item.type === 'reported'" class="reported-message-group">
+      <div
+        v-else-if="item.type === 'reported'"
+        class="reported-message-group"
+        role="article"
+        data-message-row
+        :data-row-key="item.key"
+        :tabindex="rowTabindex(item.key)"
+        :aria-label="t('messageA11y.row.reported')"
+      >
         <div class="reported-group-content">
           <Icon name="flag" :size="14" class="reported-icon" />
-          <span class="reported-text">You reported this message</span>
-          <span class="blocked-separator">-</span>
-          <button class="reveal-btn" @click="revealedReportedIds.add(item.message.id)">Show</button>
-          <button class="reveal-btn unreport-btn" @click="unreportMessage(item.message.id)">Unhide</button>
+          <span class="reported-text">{{ t('messageA11y.row.reported') }}</span>
+          <span class="blocked-separator" aria-hidden="true">-</span>
+          <button type="button" class="reveal-btn" @click="revealedReportedIds.add(item.message.id)">{{ t('messageA11y.row.showReported') }}</button>
+          <button type="button" class="reveal-btn unreport-btn" @click="unreportMessage(item.message.id)">{{ t('messageA11y.row.unhideReported') }}</button>
         </div>
       </div>
 
@@ -92,22 +122,28 @@
         />
 
         <!-- Date separator -->
-        <div v-if="shouldShowDateSeparator(item.message, item.index)" class="date-separator">
-          <div class="date-separator-line"></div>
+        <div v-if="shouldShowDateSeparator(item.message, item.index)" class="date-separator" role="heading" aria-level="3">
+          <div class="date-separator-line" aria-hidden="true"></div>
           <span class="date-separator-text">{{ formatDateSeparator(item.message.created_at) }}</span>
-          <div class="date-separator-line"></div>
+          <div class="date-separator-line" aria-hidden="true"></div>
         </div>
 
         <!-- "New messages" divider: pinned above the first unread message on open -->
-        <div v-if="item.message.id === dividerBeforeMessageId" class="new-messages-divider">
-          <span class="new-messages-label">{{ $t('message.newMessages') }}</span>
-          <div class="new-messages-line"></div>
+        <div v-if="item.message.id === dividerBeforeMessageId" class="new-messages-divider" role="heading" aria-level="3">
+          <span class="new-messages-label" aria-hidden="true">{{ $t('message.newMessages') }}</span>
+          <span class="sr-only">{{ t('messageA11y.newMessagesDivider') }}</span>
+          <div class="new-messages-line" aria-hidden="true"></div>
         </div>
 
         <div 
           :id="`message-${item.message.id}`" 
           :data-message-id="item.message.id"
           class="message-item" 
+          role="article"
+          data-message-row
+          :data-row-key="item.key"
+          :tabindex="rowTabindex(item.key)"
+          :aria-labelledby="rowLabelledBy(item.message)"
           :class="{ 
             'shake-reject': isMessageShaking(item.message.id),
             'revealed-blocked': item.isRevealed,
@@ -126,15 +162,25 @@
           @touchcancel.passive="cancelMessageLongPress"
           @contextmenu="handleMessageContextMenu(item.message, $event)"
         >
+          <!-- Row name parts (rowLabelledBy). The author is spoken in browse mode
+               only where no visible header names it. -->
+          <span
+            v-if="!item.message.is_system"
+            :id="`msg-head-${item.message.id}`"
+            class="sr-only"
+            :aria-hidden="shouldShowHeader(item.message, item.index) ? 'true' : undefined"
+          >{{ getAuthorDisplayName(item.message).value }}</span>
+          <span v-if="mentionsMe(item.message)" class="sr-only">{{ t('messageA11y.row.mentionsYou') }}</span>
+          <span :id="`msg-meta-${item.message.id}`" class="sr-only" aria-hidden="true">{{ rowMeta(item.message) }}</span>
           <!-- Hide button for revealed blocked messages -->
           <div v-if="item.isRevealed && item.isFirstInRevealedGroup" class="revealed-blocked-banner">
-            <span class="blocked-warning">{{ item.revealedCount ?? 1 }} message{{ (item.revealedCount ?? 1) > 1 ? 's' : '' }} from blocked user</span>
-            <button class="hide-btn" @click="item.groupId && hideBlockedGroup(item.groupId)">Hide</button>
+            <span class="blocked-warning">{{ t('messageA11y.row.fromBlocked', { count: item.revealedCount ?? 1 }, item.revealedCount ?? 1) }}</span>
+            <button type="button" class="hide-btn" @click="item.groupId && hideBlockedGroup(item.groupId)">{{ t('messageA11y.row.hide') }}</button>
           </div>
           <!-- Banner for temporarily revealed reported message -->
           <div v-if="revealedReportedIds.has(item.message?.id)" class="revealed-blocked-banner reported-banner">
-            <span class="blocked-warning">Reported message</span>
-            <button class="hide-btn" @click="revealedReportedIds.delete(item.message.id)">Hide again</button>
+            <span class="blocked-warning">{{ t('messageA11y.row.reportedBanner') }}</span>
+            <button type="button" class="hide-btn" @click="revealedReportedIds.delete(item.message.id)">{{ t('messageA11y.row.hideAgain') }}</button>
           </div>
           
           <!-- Gap indicator for jumped-to messages -->
@@ -147,51 +193,58 @@
           <!-- System Message (join/leave announcements, thread creation) -->
           <div v-if="item.message.is_system" class="system-message">
             <div class="system-message-content">
-              <div class="system-timestamp" v-html="formatSystemTimestamp(item.message.created_at)"></div>
-              <div class="system-content">
+              <AppTimestamp class="system-timestamp" :value="item.message.created_at">
+                <template v-for="(line, lineIndex) in systemTimestampLines(item.message.created_at)" :key="lineIndex"><br v-if="lineIndex > 0" />{{ line }}</template>
+              </AppTimestamp>
+              <div :id="`msg-body-${item.message.id}`" class="system-content">
                 <!-- Thread created system message -->
                 <template v-if="item.message.metadata?.type === 'thread_created'">
                   <Icon name="thread" :size="16" class="system-icon" />
                   <div class="system-text thread-created-text">
-                    <span 
+                    <button
+                      type="button"
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
                       :style="{ color: resolveChatUserColor(item.message.user_id) }"
-                    ><DisplayName :userId="item.message.user_id" /></span>
+                    ><DisplayName :userId="item.message.user_id" /></button>
                     started a thread: 
-                    <span 
+                    <button
+                      type="button"
                       class="system-thread-link"
                       @click="handleOpenThread(item.message.metadata?.thread_id, item.message.metadata?.thread_name)"
-                    >{{ item.message.metadata?.thread_name || 'Thread' }}</span>. 
+                    >{{ item.message.metadata?.thread_name || 'Thread' }}</button>. 
                     See 
-                    <span 
+                    <button
+                      type="button"
                       class="system-threads-link"
                       @click="emit('showAllThreads')"
-                    >all threads</span>.
+                    >all threads</button>.
                   </div>
                 </template>
                 <!-- Call system message (started / ended) -->
                 <template v-else-if="item.message.metadata?.type === 'call_started' || item.message.metadata?.type === 'call_ended'">
                   <div class="system-icon call-icon-container">
-                    <svg viewBox="0 0 24 24" width="18" height="18" class="call-system-icon" :class="{ active: item.message.metadata?.type === 'call_started', missed: isMissedCall(item.message) }">
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" class="call-system-icon" :class="{ active: item.message.metadata?.type === 'call_started', missed: isMissedCall(item.message) }">
                       <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56-.35-.12-.74-.03-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z" fill="currentColor"/>
                     </svg>
                   </div>
                   <!-- Nobody answered: the callee reads it as missed, the caller as no answer (Discord). -->
                   <div v-if="isMissedCall(item.message) && item.message.user_id !== profileStore.profile?.id" class="system-text call-system-text">
                     You missed a {{ item.message.metadata?.call_type || 'voice' }} call from
-                    <span
+                    <button
+                      type="button"
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
                       :style="{ color: resolveChatUserColor(item.message.user_id) }"
-                    ><DisplayName :userId="item.message.user_id" /></span>
+                    ><DisplayName :userId="item.message.user_id" /></button>
                   </div>
                   <div v-else class="system-text call-system-text">
-                    <span
+                    <button
+                      type="button"
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
                       :style="{ color: resolveChatUserColor(item.message.user_id) }"
-                    ><DisplayName :userId="item.message.user_id" /></span>
+                    ><DisplayName :userId="item.message.user_id" /></button>
                     <template v-if="isMissedCall(item.message)">
                       started a {{ item.message.metadata?.call_type || 'voice' }} call
                       <span class="call-missed">No answer</span>
@@ -227,11 +280,12 @@
                 <template v-else-if="item.message.metadata?.type === 'member_join'">
                   <Icon name="arrow-right" :size="16" class="system-icon join" />
                   <div class="system-text">
-                    <span 
+                    <button
+                      type="button"
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
                       :style="{ color: resolveChatUserColor(item.message.user_id) }"
-                    ><DisplayName :userId="item.message.user_id" /></span>
+                    ><DisplayName :userId="item.message.user_id" /></button>
                     has joined the server
                   </div>
                 </template>
@@ -239,11 +293,12 @@
                 <template v-else-if="item.message.metadata?.type === 'member_leave'">
                   <Icon name="arrow-left" :size="16" class="system-icon leave" />
                   <div class="system-text">
-                    <span 
+                    <button
+                      type="button"
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
                       :style="{ color: resolveChatUserColor(item.message.user_id) }"
-                    ><DisplayName :userId="item.message.user_id" /></span>
+                    ><DisplayName :userId="item.message.user_id" /></button>
                     has left the server
                   </div>
                 </template>
@@ -251,34 +306,38 @@
                 <template v-else-if="item.message.metadata?.type === 'member_kick'">
                   <Icon name="user-x" :size="16" class="system-icon leave" />
                   <div class="system-text">
-                    <span
+                    <button
+                      type="button"
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
                       :style="{ color: resolveChatUserColor(item.message.user_id) }"
-                    >{{ getUserDisplayName(item.message.user_id).value }}</span>
+                    >{{ getUserDisplayName(item.message.user_id).value }}</button>
                     was kicked<template v-if="item.message.metadata?.kicked_by"> by
-                    <span
+                    <button
+                      type="button"
                       class="system-user-mention"
                       @click="showUserProfile(item.message.metadata.kicked_by)"
                       :style="{ color: resolveChatUserColor(item.message.metadata.kicked_by) }"
-                    ><DisplayName :userId="item.message.metadata.kicked_by" /></span></template><template v-if="item.message.metadata?.reason"> - {{ item.message.metadata.reason }}</template>
+                    ><DisplayName :userId="item.message.metadata.kicked_by" /></button></template><template v-if="item.message.metadata?.reason"> - {{ item.message.metadata.reason }}</template>
                   </div>
                 </template>
                 <!-- Member ban system message -->
                 <template v-else-if="item.message.metadata?.type === 'member_ban'">
                   <Icon name="gavel" :size="16" class="system-icon leave" />
                   <div class="system-text">
-                    <span
+                    <button
+                      type="button"
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
                       :style="{ color: resolveChatUserColor(item.message.user_id) }"
-                    ><DisplayName :userId="item.message.user_id" /></span>
+                    ><DisplayName :userId="item.message.user_id" /></button>
                     was banned<template v-if="item.message.metadata?.banned_by"> by
-                    <span
+                    <button
+                      type="button"
                       class="system-user-mention"
                       @click="showUserProfile(item.message.metadata.banned_by)"
                       :style="{ color: resolveChatUserColor(item.message.metadata.banned_by) }"
-                    ><DisplayName :userId="item.message.metadata.banned_by" /></span></template><template v-if="item.message.metadata?.reason"> - {{ item.message.metadata.reason }}</template>
+                    ><DisplayName :userId="item.message.metadata.banned_by" /></button></template><template v-if="item.message.metadata?.reason"> - {{ item.message.metadata.reason }}</template>
                   </div>
                 </template>
                 <!-- Channel encryption turned on or off -->
@@ -289,11 +348,12 @@
                     class="system-icon"
                   />
                   <div class="system-text">
-                    <span
+                    <button
+                      type="button"
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
                       :style="{ color: resolveChatUserColor(item.message.user_id) }"
-                    ><DisplayName :userId="item.message.user_id" /></span>
+                    ><DisplayName :userId="item.message.user_id" /></button>
                     {{ $t(channelEncryptionEventKey(item.message.metadata?.type)!) }}
                   </div>
                 </template>
@@ -313,12 +373,13 @@
                       {{ $t(item.message.metadata?.automod?.actions?.includes('block')
                         ? (item.message.metadata?.automod?.event_type === 'edit' ? 'automod.alert.blockedEdit' : 'automod.alert.blocked')
                         : 'automod.alert.flagged') }}
-                      <span
+                      <button
                         v-if="item.message.metadata?.automod?.user_id"
+                        type="button"
                         class="system-user-mention"
                         @click="showUserProfile(item.message.metadata.automod.user_id)"
                         :style="{ color: resolveChatUserColor(item.message.metadata.automod.user_id) }"
-                      ><DisplayName :userId="item.message.metadata.automod.user_id" /></span>
+                      ><DisplayName :userId="item.message.metadata.automod.user_id" /></button>
                       <span
                         v-else-if="item.message.metadata?.automod?.author_name"
                         class="system-user-mention"
@@ -350,11 +411,17 @@
               </div>
             </div>
             
-            <!-- Message actions for system messages (if hovered); on mobile with tap use floating popup -->
-            <div class="message-actions" v-if="hoveredMessageId === item.message.id && !(isMobile && mobileActionTapPosition)" :style="actionBarShift ? { right: `${actionBarShift}px` } : undefined">
-              <div class="action-btn" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></div>
-              <div class="action-btn" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></div>
-              <div class="action-btn" @click="openContextMenu(item.message, $event)"><MoreIcon/></div>
+            <!-- Message actions for system messages (hover or focus within the row); on mobile with tap use floating popup -->
+            <div
+              v-if="showsActionBar(item.message.id)"
+              class="message-actions"
+              role="group"
+              :aria-label="t('messageA11y.actions.label')"
+              :style="actionBarShift ? { right: `${actionBarShift}px` } : undefined"
+            >
+              <button type="button" class="action-btn" data-testid="msg-action-react" :aria-label="t('message.react')" :title="t('message.react')" aria-haspopup="dialog" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></button>
+              <button type="button" class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" :aria-label="t('message.deleteMessage')" :title="t('message.deleteMessage')" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></button>
+              <button type="button" class="action-btn" data-testid="msg-action-more" :aria-label="t('message.moreActions')" :title="t('message.moreActions')" aria-haspopup="menu" :aria-expanded="isMenuOpenFor(item.message.id) ? 'true' : 'false'" @click="openContextMenu(item.message, $event)"><MoreIcon/></button>
             </div>
             
             <!-- Reactions for system messages -->
@@ -373,6 +440,7 @@
             <!-- Reply reference -->
             <MessageReplyReference
               v-if="item.message.reply_to"
+              :id="`msg-reply-${item.message.id}`"
               :reply-to-message-id="item.message.reply_to"
               :channel-id="channelId"
               :conversation-id="conversationId"
@@ -394,7 +462,7 @@
           </div>
           <div class="message-main">
             <div class="message-meta">
-              <span class="username" :style="{color: getAuthorColor(item.message).value}" @click="handleAuthorClick(item.message, $event)">
+              <button type="button" class="username" :style="{color: getAuthorColor(item.message).value}" @click="handleAuthorClick(item.message, $event)">
                 <span class="username-text"><DisplayName v-if="item.message.user_id && !item.message.bot_id && !hasDiscordUserMetadata(item.message)" :user-id="item.message.user_id" /><template v-else>{{ getAuthorDisplayName(item.message).value }}</template></span>
                 <BridgeSourceBadge v-if="hasDiscordUserMetadata(item.message)" source="discord" />
                 <span v-else-if="getWebhookAuthor(item.message)" class="bot-badge webhook-badge">{{ $t('webhooks.badge') }}</span>
@@ -408,30 +476,33 @@
                   MOD
                 </span>
                 <SupporterBadge v-if="getMessageAuthorId(item.message)" :user-id="getMessageAuthorId(item.message)!" />
-              </span>
-              <span class="timestamp" :title="formatFullTimestamp(item.message.created_at)">
-                {{ formatTimestamp(item.message.created_at) }}
-                <!-- Pin indicator -->
-                <span 
-                  v-if="item.message.is_pinned" 
+              </button>
+              <!-- Pin and encryption state are spoken in the row name (rowMeta). -->
+              <span class="timestamp">
+                <AppTimestamp :value="item.message.created_at" :short="formatTimestamp(item.message.created_at)" />
+                <span
+                  v-if="item.message.is_pinned"
                   class="pin-indicator"
-                  title="Pinned message"
+                  :title="t('messageA11y.row.pinned')"
+                  aria-hidden="true"
                 ><Icon name="pin" :size="14" /></span>
-                <!-- Encryption indicators -->
                 <span
                   v-if="item.message.decrypted"
                   class="encryption-dot decrypted"
-                  :title="'End-to-end encrypted'"
+                  :title="t('messageA11y.row.encrypted')"
+                  aria-hidden="true"
                 ></span>
                 <span
                   v-else-if="item.message.encrypted"
                   class="encryption-indicator locked"
                   :class="{ unrecoverable: item.message.decryption_unrecoverable }"
                   :title="encryptionLockTooltip(item.message)"
+                  aria-hidden="true"
                 ><Icon name="lock" :size="12" /></span>
               </span>
             </div>
             <UnifiedMessageContent 
+              :id="`msg-body-${item.message.id}`"
               :content="getDisplayContent(item.message)"
               :message-id="item.message.id"
               :editable-message-id="editableMessageId"
@@ -461,15 +532,18 @@
               v-if="isMessageEdited(item.message)" 
               class="edited-indicator inline"
               :title="item.message.updated_at ? `Edited at ${formatTimestamp(item.message.updated_at)}` : 'Edited'"
-            >(edited)</span>
+            >({{ $t('message.edited') }})</span>
           </div>
         </div>
         
         <!-- Compact message (no header, just content aligned with previous messages) -->
         <div v-else class="message-content-only">
-          <div class="message-gutter" :data-timestamp="formatTimeOnly(item.message.created_at)" :title="formatFullTimestamp(item.message.created_at)"></div>
+          <div class="message-gutter">
+            <AppTimestamp class="message-gutter-time" :value="item.message.created_at" :short="formatTimeOnly(item.message.created_at)" />
+          </div>
           <div class="message-main">
             <UnifiedMessageContent 
+              :id="`msg-body-${item.message.id}`"
               :content="getDisplayContent(item.message)"
               :message-id="item.message.id"
               :editable-message-id="editableMessageId"
@@ -499,26 +573,32 @@
               v-if="isMessageEdited(item.message)" 
               class="edited-indicator compact"
               :title="item.message.updated_at ? `Edited at ${formatTimestamp(item.message.updated_at)}` : 'Edited'"
-            >(edited)</span>
+            >({{ $t('message.edited') }})</span>
           </div>
         </div>
         
         <!-- Failed message indicator with retry/discard -->
         <div v-if="item.message.failed" class="failed-message-bar">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-          <span>Failed to send</span>
-          <button class="retry-btn" @click="$emit('retry-message', item.message)">Retry</button>
-          <button class="discard-btn" @click="$emit('discard-message', item.message)">Delete</button>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+          <span>{{ t('messageA11y.failed.label') }}</span>
+          <button type="button" class="retry-btn" @click="$emit('retry-message', item.message)">{{ t('messageA11y.failed.retry') }}</button>
+          <button type="button" class="discard-btn" @click="$emit('discard-message', item.message)">{{ t('messageA11y.failed.discard') }}</button>
         </div>
 
-        <!-- Message actions; on mobile with tap use floating popup -->
-        <div class="message-actions" v-if="!item.message.failed && hoveredMessageId === item.message.id && !(isMobile && mobileActionTapPosition)" :style="actionBarShift ? { right: `${actionBarShift}px` } : undefined">
-          <div ref="reactionBtn" class="action-btn" data-testid="msg-action-react" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></div>
-          <div class="action-btn" data-testid="msg-action-reply" @click="replyTo(item.message)"><ReplyIcon/></div>
-          <div class="action-btn thread-btn" data-testid="msg-action-thread" v-if="!props.hideThreadActions" @click="createThread(item.message)" title="Create thread"><ThreadIcon/></div>
-          <div class="action-btn" data-testid="msg-action-edit" v-if="canEditMessage(item.message)" @click="startEdit(item.message)"><EditIcon/></div>
-          <div class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></div>
-          <div class="action-btn" data-testid="msg-action-more" @click="openContextMenu(item.message, $event)"><MoreIcon/></div>
+        <!-- Message actions on hover or focus within the row; on mobile with tap use floating popup -->
+        <div
+          v-if="!item.message.failed && showsActionBar(item.message.id)"
+          class="message-actions"
+          role="group"
+          :aria-label="t('messageA11y.actions.label')"
+          :style="actionBarShift ? { right: `${actionBarShift}px` } : undefined"
+        >
+          <button type="button" class="action-btn" data-testid="msg-action-react" :aria-label="t('message.react')" :title="t('message.react')" aria-haspopup="dialog" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></button>
+          <button type="button" class="action-btn" data-testid="msg-action-reply" :aria-label="t('message.reply')" :title="t('message.reply')" @click="replyTo(item.message)"><ReplyIcon/></button>
+          <button type="button" class="action-btn thread-btn" data-testid="msg-action-thread" v-if="!props.hideThreadActions" :aria-label="t('messageA11y.actions.thread')" :title="t('messageA11y.actions.thread')" @click="createThread(item.message)"><ThreadIcon/></button>
+          <button type="button" class="action-btn" data-testid="msg-action-edit" v-if="canEditMessage(item.message)" :aria-label="t('message.editMessage')" :title="t('message.editMessage')" @click="startEdit(item.message)"><EditIcon/></button>
+          <button type="button" class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" :aria-label="t('message.deleteMessage')" :title="t('message.deleteMessage')" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></button>
+          <button type="button" class="action-btn" data-testid="msg-action-more" :aria-label="t('message.moreActions')" :title="t('message.moreActions')" aria-haspopup="menu" :aria-expanded="isMenuOpenFor(item.message.id) ? 'true' : 'false'" @click="openContextMenu(item.message, $event)"><MoreIcon/></button>
         </div>
         
         <!-- Reactions -->
@@ -565,17 +645,17 @@
     </div>
   </div>
   
-  <vue-easy-lightbox
-    teleport="body"
+  <MediaLightbox
     :visible="isLightboxOpen"
     :imgs="activeLightboxImages"
-    :index="indexRef"
+    :alts="activeLightboxAlts"
+    v-model:index="indexRef"
     @hide="closeLightbox"
-  />
-  <LightboxDownloadButton
-    :visible="isLightboxOpen"
-    :url="activeLightboxImages[indexRef] ?? ''"
-  />
+  >
+    <template #actions="{ src }">
+      <LightboxDownloadButton :visible="true" :url="src" :teleport="false" />
+    </template>
+  </MediaLightbox>
 
   <!-- Modern User Profile Modal -->
   <UserProfileModal
@@ -641,6 +721,7 @@
   <MessageContextMenu
     :is-visible="contextMenuVisible"
     :position="contextMenuPosition"
+    :trigger="contextMenuTrigger"
     :message="contextMenuMessage"
     :server-id="serverChannelStore.currentServerId ?? undefined"
     :channel-id="props.channelId"
@@ -676,7 +757,7 @@
   <!-- Delete Message Confirmation Modal -->
   <ConfirmationModal
     :show="showDeleteConfirmModal"
-    title="Delete message"
+    :title="t('message.deleteMessage')"
     :message="deleteConfirmConfig.hasThread ? `This message has a thread attached: '${deleteConfirmConfig.threadName}'` : 'Are you sure you want to delete this message? This action cannot be undone.'"
     :secondary-message="deleteConfirmConfig.hasThread ? 'Deleting this message will permanently delete the thread and all its replies.' : undefined"
     :confirm-button-text="deleteConfirmConfig.hasThread ? 'Delete message and thread' : 'Delete'"
@@ -770,6 +851,16 @@ import ThreadIndicator from '@/components/threads/ThreadIndicator.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import MessageFloatingActions from '@/components/messages/MessageFloatingActions.vue';
 import MessageReplyReference from '@/components/messages/MessageReplyReference.vue';
+import AppTimestamp from '@/components/a11y/AppTimestamp.vue';
+import MediaLightbox from '@/components/common/MediaLightbox.vue';
+import { useT } from '@/composables/useT';
+import { useAnnouncer } from '@/composables/useAnnouncer';
+import { useRovingTabindex } from '@/composables/useRovingTabindex';
+import { isContextMenuKey } from '@/composables/useMenu';
+import { createNewMessageAnnouncer } from '@/composables/useNewMessageAnnouncer';
+import { messageSpeechText } from '@/utils/a11y/messageSpeech';
+import { currentFocusOrigin, focusElement } from '@/utils/a11y/focus';
+import { hasOpenLayer, resolveFocusOrigin } from '@/utils/a11y/layers';
 import { useThreadsStore } from '@/stores/useThreads';
 import type { ThreadWithDetails } from '@/services/ThreadService';
 import { messagePartsToMarkdown, isSingleEmojiMessage as checkSingleEmoji, stripLeadingSelfMention } from '@/utils/messageContentUtils';
@@ -827,6 +918,8 @@ const props = defineProps({
 const emit = defineEmits(['loadMoreMessages', 'toggleEmojiList', 'sendReaction', 'replyingTo', 'update:isAtBottom', 'createThread', 'showAllThreads', 'mentionUser', 'retry-message', 'discard-message']);
 
 // --- STORES & COMPOSABLES ---
+const { t, locale } = useT();
+const { polite, assertive } = useAnnouncer();
 const serverUsersStore = useServerUsersStore();
 const serverChannelStore = useServerChannelStore();
 const serverRolesStore = useServerRolesStore();
@@ -1525,6 +1618,10 @@ const tooltipTimer: Ref<NodeJS.Timeout | null> = ref(null);
 const editableMessageId = ref<string | null>(null);
 const editableMessageContent = ref('');
 const hoveredMessageId = ref<string | null>(null);
+// Row that holds the tab stop once a row has been focused; null: the newest row.
+const activeRowKey = ref<string | null>(null);
+// Message whose row holds focus; its action bar shows as on hover.
+const focusMessageId = ref<string | null>(null);
 const longPressTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const LONG_PRESS_DURATION = 500;
 /** On mobile: tap position for positioning message-actions above the finger (thumb reach ~48px) */
@@ -1664,7 +1761,7 @@ const selectedBot = ref<(Partial<ServerBot> & { id: string }) | null>(null);
 const showInviteModal = ref(false);
 
 const showDeleteConfirmModal = ref(false);
-const deleteConfirmConfig = ref({
+const deleteConfirmConfig = ref<{ messageId: string; hasThread: boolean; threadName: string; focusAfter?: string | null }>({
   messageId: '',
   hasThread: false,
   threadName: '',
@@ -1697,6 +1794,7 @@ const reportTargetUser = ref<{ username: string; display_name?: string; avatar_u
 const isLightboxOpen = ref(false);
 const indexRef = ref(0);
 const activeLightboxImages = ref<string[]>([]);
+const activeLightboxAlts = ref<string[]>([]);
 
 // --- STICK TO BOTTOM ---
 // Whether the view follows the end of the list; rules in utils/chatScroll.
@@ -1762,7 +1860,7 @@ const ACTION_BAR_GAP_PX = 8;
 
 const updateActionBarShift = () => {
   const btn = jumpButtonRef.value;
-  const id = hoveredMessageId.value;
+  const id = hoveredMessageId.value ?? focusMessageId.value;
   const bar = btn && id ? document.getElementById(`message-${id}`)?.querySelector<HTMLElement>('.message-actions') : null;
   const item = bar?.offsetParent;
   if (!btn || !bar || !item) {
@@ -1778,7 +1876,7 @@ const updateActionBarShift = () => {
   actionBarShift.value = overlaps ? Math.ceil(right - b.left + ACTION_BAR_GAP_PX) : 0;
 };
 
-watch([hoveredMessageId, showJump], () => nextTick(updateActionBarShift));
+watch([hoveredMessageId, focusMessageId, showJump], () => nextTick(updateActionBarShift));
 
 // Seats a pinned view at the end. Synchronous, so a call before paint leaves no
 // frame with the end uncovered.
@@ -1828,6 +1926,23 @@ const adjustForItemResize = (item: VirtualItem, delta: number): boolean => {
 const frozenInitialOffset = ref(0);
 let hasSetInitialOffset = false;
 
+// --- KEYBOARD ROWS ---
+// One row holds the tab stop: the last focused row, else the newest. It stays
+// mounted while scrolled out of range, so the tab stop and focus survive
+// virtualization.
+const ROW_SELECTOR = '[data-message-row]';
+const tabStopKey = computed(() => {
+  const items = displayItems.value;
+  const active = activeRowKey.value;
+  if (active && items.some(item => item.key === active)) return active;
+  return items[items.length - 1]?.key ?? null;
+});
+const tabStopIndex = computed(() => {
+  const key = tabStopKey.value;
+  return key ? displayItems.value.findIndex(item => item.key === key) : -1;
+});
+const rowTabindex = (key: string) => (key === tabStopKey.value ? 0 : -1);
+
 // The row holding the floating video stays mounted while it is out of range;
 // its placeholder is where the video docks when scrolled back into view.
 const { floatingMessageId } = useFloatingVideo();
@@ -1840,6 +1955,7 @@ const floatingRowIndex = computed(() => {
 const rowVirtualizer = useVirtualizer<HTMLDivElement, Element>(
   computed(() => {
     const pinnedIndex = floatingRowIndex.value;
+    const stopIndex = tabStopIndex.value;
     return {
       count: displayItems.value.length,
       getScrollElement: () => messageDisplayContainer.value,
@@ -1857,8 +1973,8 @@ const rowVirtualizer = useVirtualizer<HTMLDivElement, Element>(
       onChange: handleVirtualizerChange,
       rangeExtractor: (range: Range) => {
         const indexes = defaultRangeExtractor(range);
-        if (pinnedIndex < 0 || indexes.includes(pinnedIndex)) return indexes;
-        return [...indexes, pinnedIndex].sort((a, b) => a - b);
+        const extra = [pinnedIndex, stopIndex].filter((index, n, all) => index >= 0 && !indexes.includes(index) && all.indexOf(index) === n);
+        return extra.length > 0 ? [...indexes, ...extra].sort((a, b) => a - b) : indexes;
       },
     };
   }) as any
@@ -1868,6 +1984,280 @@ rowVirtualizer.value.shouldAdjustScrollPositionOnItemSizeChange = adjustForItemR
 
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems());
 const totalSize = computed(() => rowVirtualizer.value.getTotalSize());
+
+// --- ROW SEMANTICS ---
+const listLabel = computed(() => {
+  if (props.threadId) return t('messageA11y.list.thread');
+  const name = beginningInfo.value.name;
+  if (props.conversationId) return name ? t('messageA11y.list.conversation', { name }) : t('messageA11y.list.generic');
+  return name ? t('messageA11y.list.channel', { name }) : t('messageA11y.list.generic');
+});
+
+const spokenTimeFormat = computed(() => new Intl.DateTimeFormat(locale.value, { dateStyle: 'long', timeStyle: 'short' }));
+const spokenTime = (value: Date | string): string => {
+  const date = new Date(value);
+  return isValid(date) ? spokenTimeFormat.value.format(date) : '';
+};
+
+const isSendingRow = (message: Message): boolean =>
+  !message.failed && (!!message.sending || !!message.id?.startsWith('temp-'));
+
+/** Time and state, read after the row's content in its accessible name. */
+const rowMeta = (message: Message): string => {
+  const parts = [spokenTime(message.created_at)];
+  if (isMessageEdited(message)) parts.push(t('messageA11y.row.edited'));
+  if (mentionsMe(message)) parts.push(t('messageA11y.row.mentionsYou'));
+  if (message.is_pinned) parts.push(t('messageA11y.row.pinned'));
+  if (message.decrypted) parts.push(t('messageA11y.row.encrypted'));
+  if (message.failed) parts.push(t('messageA11y.row.failed'));
+  else if (isSendingRow(message)) parts.push(t('messageA11y.row.sending'));
+  return parts.filter(Boolean).join(', ');
+};
+
+/** Author, reply reference, content, then time and state. */
+const rowLabelledBy = (message: Message): string => {
+  const id = message.id;
+  if (message.is_system) return `msg-body-${id} msg-meta-${id}`;
+  const parts = [`msg-head-${id}`];
+  if (message.reply_to) parts.push(`msg-reply-${id}`);
+  parts.push(`msg-body-${id}`, `msg-meta-${id}`);
+  return parts.join(' ');
+};
+
+const showsActionBar = (messageId: string): boolean =>
+  (hoveredMessageId.value === messageId || (!isMobile.value && focusMessageId.value === messageId))
+  && editableMessageId.value !== messageId
+  && !(isMobile.value && mobileActionTapPosition.value);
+
+const isMenuOpenFor = (messageId: string): boolean =>
+  contextMenuVisible.value && contextMenuMessage.value?.id === messageId;
+
+// --- ROW FOCUS ---
+// Popups opened from a row; focus inside one keeps the row's action bar, so
+// focus can return to the button that opened it.
+const POPUP_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"]';
+
+const rowOf = (target: EventTarget | null): HTMLElement | null =>
+  target instanceof Element ? target.closest<HTMLElement>(ROW_SELECTOR) : null;
+
+const findRow = (key: string): HTMLElement | null =>
+  Array.from(virtualListRef.value?.querySelectorAll<HTMLElement>(ROW_SELECTOR) ?? []).find(el => el.dataset.rowKey === key) ?? null;
+
+/** False for focus a pointer press gave; such a row shows its bar on hover only. */
+const isKeyboardFocus = (el: Element): boolean => {
+  try {
+    return el.matches(':focus-visible');
+  } catch {
+    return true;
+  }
+};
+
+const onListFocusIn = (event: FocusEvent) => {
+  const row = rowOf(event.target);
+  if (!row) return;
+  const key = row.dataset.rowKey ?? null;
+  if (key && key !== activeRowKey.value) activeRowKey.value = key;
+  if (isKeyboardFocus(event.target as Element)) focusMessageId.value = row.dataset.messageId ?? null;
+  scheduleMute();
+};
+
+const releaseRowFocus = () => {
+  const active = document.activeElement;
+  if (active instanceof Element && (virtualListRef.value?.contains(active) || active.closest(POPUP_SELECTOR))) return;
+  if (hasOpenLayer('dialog') || hasOpenLayer('menu')) return;
+  focusMessageId.value = null;
+};
+
+const onListFocusOut = (event: FocusEvent) => {
+  const next = event.relatedTarget;
+  if (next instanceof Node && virtualListRef.value?.contains(next)) return;
+  if (next instanceof Element && next.closest(POPUP_SELECTOR)) return;
+  setTimeout(releaseRowFocus, 0);
+};
+
+const onDocumentFocusIn = (event: FocusEvent) => {
+  const target = event.target;
+  if (!(target instanceof Element) || virtualListRef.value?.contains(target) || target.closest(POPUP_SELECTOR)) return;
+  focusMessageId.value = null;
+};
+
+// Row moves use the roving helper while the target row is mounted; a row off
+// the rendered range is scrolled to first and focused once it mounts.
+const roving = useRovingTabindex(virtualListRef, {
+  itemSelector: ROW_SELECTOR,
+  loop: false,
+  onActivate: (el) => { activeRowKey.value = el.dataset.rowKey ?? null; },
+  initialIndex: (items) => {
+    const at = items.findIndex(el => el.dataset.rowKey === tabStopKey.value);
+    return at >= 0 ? at : items.length - 1;
+  },
+});
+
+/** Keeps a focused row inside the viewport; a row taller than it aligns by its top. */
+const revealRow = (el: HTMLElement) => {
+  const c = messageDisplayContainer.value;
+  if (!c) return;
+  const box = el.getBoundingClientRect();
+  const view = c.getBoundingClientRect();
+  const margin = 8;
+  if (box.top < view.top + margin || box.height > view.height - 2 * margin) c.scrollTop += box.top - view.top - margin;
+  else if (box.bottom > view.bottom - margin) c.scrollTop += box.bottom - view.bottom + margin;
+};
+
+const focusRowIndex = (index: number) => {
+  const item = displayItems.value[index];
+  if (!item) return;
+  activeRowKey.value = item.key;
+  const mounted = roving.items();
+  const at = mounted.findIndex(el => el.dataset.rowKey === item.key);
+  if (at >= 0) {
+    roving.focusItem(at);
+    revealRow(mounted[at]);
+    return;
+  }
+  rowVirtualizer.value.scrollToIndex(index, { align: 'auto' });
+  nextTick(() => requestAnimationFrame(() => {
+    const el = findRow(item.key);
+    if (el && focusElement(el)) revealRow(el);
+  }));
+};
+
+const focusRowKey = (key: string | null | undefined) => {
+  if (!key) return;
+  const index = displayItems.value.findIndex(item => item.key === key);
+  if (index >= 0) focusRowIndex(index);
+};
+
+/** Rows that fit the viewport, less one: the PageUp/PageDown step. */
+const pageStep = (): number => {
+  const c = messageDisplayContainer.value;
+  if (!c) return 5;
+  const view = c.getBoundingClientRect();
+  const visible = roving.items().filter((el) => {
+    const box = el.getBoundingClientRect();
+    return box.bottom > view.top && box.top < view.bottom;
+  }).length;
+  return Math.max(1, visible - 1);
+};
+
+/** Enter, the ContextMenu key or Shift+F10 on a row. */
+const activateRow = (item: DisplayItem, row: HTMLElement) => {
+  if (item.type === 'blocked-group') {
+    revealBlockedGroup(item.groupId);
+    nextTick(() => focusRowKey(`msg-${item.groupId}`));
+    return;
+  }
+  if (item.type === 'reported') {
+    revealedReportedIds.value.add(item.message.id);
+    nextTick(() => focusRowKey(`msg-${item.message.id}`));
+    return;
+  }
+  if (isOptimisticId(item.message.id)) return;
+  const box = row.getBoundingClientRect();
+  showContextMenu(item.message, box.left + 56, box.top + Math.min(box.height, 24), row);
+};
+
+const onListKeydown = (event: KeyboardEvent) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement) || !target.matches(ROW_SELECTOR) || event.altKey || event.metaKey) return;
+  const items = displayItems.value;
+  const index = items.findIndex(item => item.key === target.dataset.rowKey);
+  if (index < 0) return;
+  if (isContextMenuKey(event) || (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey)) {
+    event.preventDefault();
+    activateRow(items[index], target);
+    return;
+  }
+  let next: number;
+  switch (event.key) {
+    case 'ArrowUp': next = index - 1; break;
+    case 'ArrowDown': next = index + 1; break;
+    case 'PageUp': next = index - pageStep(); break;
+    case 'PageDown': next = index + pageStep(); break;
+    case 'Home': next = 0; break;
+    case 'End': next = items.length - 1; break;
+    default: return;
+  }
+  event.preventDefault();
+  if (next < 0 && !isAllMessagesLoaded.value) props.loadMoreMessages?.();
+  next = Math.max(0, Math.min(items.length - 1, next));
+  if (next !== index) focusRowIndex(next);
+};
+
+// Interactive content of rows other than the tab stop row leaves the Tab
+// sequence: Tab from a row walks that row's controls, then leaves the list.
+// The original tabindex is kept in data-roving-muted and restored when the
+// row becomes the tab stop or takes focus.
+const ROW_INNER_FOCUSABLE = 'a[href], button, input, select, textarea, iframe, audio[controls], video[controls], [contenteditable="true"], [tabindex]';
+
+const muteInactiveRows = () => {
+  const list = virtualListRef.value;
+  if (!list) return;
+  const active = document.activeElement;
+  for (const row of Array.from(list.querySelectorAll<HTMLElement>(ROW_SELECTOR))) {
+    const live = row.dataset.rowKey === tabStopKey.value || (!!active && row.contains(active));
+    for (const el of Array.from(row.querySelectorAll<HTMLElement>(ROW_INNER_FOCUSABLE))) {
+      const muted = el.getAttribute('data-roving-muted');
+      if (live) {
+        if (muted === null) continue;
+        el.removeAttribute('data-roving-muted');
+        if (muted === '') el.removeAttribute('tabindex');
+        else el.setAttribute('tabindex', muted);
+      } else if (muted === null) {
+        el.setAttribute('data-roving-muted', el.getAttribute('tabindex') ?? '');
+        el.setAttribute('tabindex', '-1');
+      }
+    }
+  }
+};
+
+let muteFrame = 0;
+const scheduleMute = () => {
+  if (muteFrame || typeof requestAnimationFrame === 'undefined') return;
+  muteFrame = requestAnimationFrame(() => {
+    muteFrame = 0;
+    muteInactiveRows();
+  });
+};
+
+let rowMutations: MutationObserver | null = null;
+watch(virtualListRef, (el) => {
+  rowMutations?.disconnect();
+  rowMutations = null;
+  if (!el || typeof MutationObserver === 'undefined') return;
+  rowMutations = new MutationObserver(scheduleMute);
+  rowMutations.observe(el, { childList: true, subtree: true });
+  scheduleMute();
+});
+watch(tabStopKey, scheduleMute);
+
+// --- ANNOUNCEMENTS ---
+const newMessageAnnouncer = createNewMessageAnnouncer(t);
+// Messages appended this soon after a context opens are the catch-up of what
+// arrived while away, not live arrivals.
+const ARRIVAL_GRACE_MS = 2500;
+let announceArrivalsAfter = Number.POSITIVE_INFINITY;
+
+const announceArrivals = (messages: Message[]) => {
+  if (Date.now() < announceArrivalsAfter) return;
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+  const items = messages
+    .filter(message => !message.is_system)
+    .map(message => ({
+      authorName: getAuthorDisplayName(message).value,
+      text: messageSpeechText(getDisplayContent(message), t, { encrypted: !!message.encrypted && !message.decrypted }),
+    }));
+  newMessageAnnouncer.push(items);
+};
+
+const announcedFailures = new Set<string>();
+watch(() => props.messages.filter(message => message.failed).map(message => message.id), (ids) => {
+  for (const id of ids) {
+    if (announcedFailures.has(id)) continue;
+    announcedFailures.add(id);
+    assertive(t('messageA11y.failed.announce'));
+  }
+});
 
 // Vue invokes a function ref on every patch of the row. The first measurement
 // of a connected row registers it with the virtualizer's ResizeObserver, which
@@ -1901,8 +2291,15 @@ const remeasureItem = (messageId: string) => {
 // --- COMPUTED PROPERTIES ---
 // Images of the loaded messages, keyed by part.url. Private parts resolve to
 // signed URLs when the lightbox opens.
+// Text alternative of a chat image: its description, else a statement that it
+// has none. The file name is never used.
+const imageAlt = (part: object): string => {
+  const alt = (part as { altText?: unknown }).altText;
+  return (typeof alt === 'string' && alt.trim()) || t('messageA11y.image.noDescription');
+};
+
 const lightboxImages = computed(() => {
-  const images: Array<{ url: string; path?: string }> = [];
+  const images: Array<{ url: string; path?: string; alt: string }> = [];
   if (!props.messages || !Array.isArray(props.messages)) {
     return images;
   }
@@ -1918,10 +2315,11 @@ const lightboxImages = computed(() => {
       }
       
       if (part.type === 'file' && part.fileType === 'image' && part.url) {
-        images.push(isPrivateMediaPart(part) ? { url: part.url, path: part.path } : { url: part.url });
+        const alt = imageAlt(part);
+        images.push(isPrivateMediaPart(part) ? { url: part.url, path: part.path, alt } : { url: part.url, alt });
       }
       else if (part.type === 'url' && part.url && (part.url.endsWith('.jpg') || part.url.endsWith('.png') || part.url.endsWith('.webp'))) {
-        images.push({ url: part.url });
+        images.push({ url: part.url, alt: imageAlt(part) });
       }
     });
   });
@@ -1989,6 +2387,10 @@ const resetForContextChange = () => {
   activeContextKey = key;
   hasInitiallyScrolled = false;
   hasSetInitialOffset = false;
+  announceArrivalsAfter = Number.POSITIVE_INFINITY;
+  newMessageAnnouncer.cancel();
+  activeRowKey.value = null;
+  focusMessageId.value = null;
   setPinned(true);
   pinState.lastScrollTop = messageDisplayContainer.value?.scrollTop ?? 0;
   lastKnownMessageCount.value = 0;
@@ -2035,6 +2437,7 @@ watch(() => props.messages, (newMessages) => {
   let appendedOwn = 0;
   let appendedOwnPending = 0;
   let appendedOthers = 0;
+  const arrivals: Message[] = [];
   if (
     newMessages.length > prevCount &&
     prevFirstId !== null &&
@@ -2048,9 +2451,11 @@ watch(() => props.messages, (newMessages) => {
         if (m.id?.startsWith('temp-') || m.sending) appendedOwnPending++;
       } else {
         appendedOthers++;
+        if (m && !isOptimisticId(m.id)) arrivals.push(m);
       }
     }
   }
+  if (arrivals.length > 0) announceArrivals(arrivals);
 
   // Retires the "New messages" divider as soon as the current user sends a
   // message in this context. Sending implies everything above has been seen,
@@ -2155,6 +2560,7 @@ watch(() => props.messages, (newMessages) => {
         // If this is the initial load, scroll to bottom
         if (!hasInitiallyScrolled && newMessages.length > 0) {
           hasInitiallyScrolled = true;
+          announceArrivalsAfter = Date.now() + ARRIVAL_GRACE_MS;
           // The new context's messages are now on screen; advance the coloring
           // server so author names resolve against this server's roles. Doing it
           // here (rather than on currentServerId change) prevents the previous
@@ -2766,6 +3172,7 @@ onMounted(() => {
   setupResizeObserver();
   window.addEventListener('keydown', onShiftDown);
   window.addEventListener('keyup', onShiftUp);
+  document.addEventListener('focusin', onDocumentFocusIn);
   chatStore.highlightMessage = (messageId: string) => { jumpToMessageRow(messageId); };
 });
 
@@ -2779,6 +3186,10 @@ watch(() => dmStore.highlightedMessageId, (messageId) => {
 onUnmounted(() => {
   window.removeEventListener('keydown', onShiftDown);
   window.removeEventListener('keyup', onShiftUp);
+  document.removeEventListener('focusin', onDocumentFocusIn);
+  newMessageAnnouncer.cancel();
+  rowMutations?.disconnect();
+  if (muteFrame) cancelAnimationFrame(muteFrame);
   if (longPressTimer.value) {
     clearTimeout(longPressTimer.value);
   }
@@ -2844,7 +3255,7 @@ const handleScrollThrottled = throttle(() => {
   }
 
   emit('update:isAtBottom', distanceFromBottom(messageDisplayContainer.value) <= PIN_THRESHOLD_PX);
-  if (hoveredMessageId.value) updateActionBarShift();
+  if (hoveredMessageId.value || focusMessageId.value) updateActionBarShift();
 }, 16);
 
 // Not throttled: a size change in the same frame reads the pin, and a stale
@@ -2939,19 +3350,13 @@ const formatTimeOnly = (timestamp: Date) => {
   return format(date, 'p');
 };
 
-/** Full datetime for title/tooltip (e.g. "March 9, 2025 at 3:45 PM") */
-const formatFullTimestamp = (timestamp: Date) => {
+/** Visible lines of a system message's timestamp. */
+const systemTimestampLines = (timestamp: Date): string[] => {
   const date = new Date(timestamp);
-  if (!isValid(date)) return '';
-  return format(date, "MMMM d, yyyy 'at' p");
-};
-
-const formatSystemTimestamp = (timestamp: Date) => {
-  const date = new Date(timestamp);
-  if (!isValid(date)) return '';
-  if (isToday(date)) return format(date, 'p');
-  if (isYesterday(date)) return `Yesterday at<br/>${format(date, 'p')}`;
-  return `${format(date, 'MMM d, yyyy')}<br/>${format(date, 'p')}`;
+  if (!isValid(date)) return [];
+  if (isToday(date)) return [format(date, 'p')];
+  if (isYesterday(date)) return ['Yesterday at', format(date, 'p')];
+  return [format(date, 'MMM d, yyyy'), format(date, 'p')];
 };
 
 // System message metadata.type written by set_channel_encryption().
@@ -3039,22 +3444,27 @@ const canDeleteMessage = (message: Message) => {
 
 
 
-    const startEdit = (message: Message) => {
-    if (!canEditMessage(message)) return;
-    editableMessageId.value = message.id;
-    // Exclude file parts from the editable text - attachments are shown and
-    // managed as a separate, individually-removable media list in edit mode.
-    editableMessageContent.value = messagePartsToMarkdown(message.content, { excludeFiles: true });
-    hoveredMessageId.value = null;
-    nextTick(() => {
-      const editInput = document.querySelector(`#edit-input-${message.id}`) as HTMLTextAreaElement;
-      if (editInput) {
-        editInput.focus();
-        const len = editInput.value.length;
-        editInput.setSelectionRange(len, len);
-      }
-    });
-  };
+// Where focus returns after an edit: the control it started from (the More
+// button or row behind a menu item, the composer for ArrowUp), else the row.
+let editOrigin: HTMLElement | null = null;
+
+const startEdit = (message: Message) => {
+  if (!canEditMessage(message)) return;
+  editOrigin = resolveFocusOrigin(currentFocusOrigin());
+  editableMessageId.value = message.id;
+  // Exclude file parts from the editable text - attachments are shown and
+  // managed as a separate, individually-removable media list in edit mode.
+  editableMessageContent.value = messagePartsToMarkdown(message.content, { excludeFiles: true });
+  hoveredMessageId.value = null;
+  nextTick(() => {
+    const editInput = document.querySelector(`#edit-input-${message.id}`) as HTMLTextAreaElement;
+    if (editInput) {
+      editInput.focus();
+      const len = editInput.value.length;
+      editInput.setSelectionRange(len, len);
+    }
+  });
+};
 
 const saveEdit = async (messageId: string, newContent?: string, retainedFiles: FileContent[] = []) => {
   if (!editableMessageId.value) return;
@@ -3090,8 +3500,20 @@ const saveEdit = async (messageId: string, newContent?: string, retainedFiles: F
 };
 
 const cancelEdit = () => {
+  const id = editableMessageId.value;
+  const row = id ? document.getElementById(`message-${id}`) : null;
+  const active = document.activeElement;
+  const hadFocus = !!row && !!active && row.contains(active);
   editableMessageId.value = null;
   editableMessageContent.value = '';
+  const origin = editOrigin;
+  editOrigin = null;
+  if (!id || !hadFocus) return;
+  nextTick(() => {
+    if (origin?.isConnected && !origin.closest('.edit-container') && focusElement(origin)) return;
+    const el = document.getElementById(`message-${id}`);
+    if (el) focusElement(el);
+  });
 };
 
 const removeAttachment = async (messageId: string, url: string) => {
@@ -3136,6 +3558,19 @@ const editLastOwnMessage = () => {
   }
 };
 
+/** The row after the message, else the one before: focus lands there once it is deleted. */
+const neighborRowKey = (messageId: string): string | null => {
+  const items = displayItems.value;
+  const index = items.findIndex(item => item.type !== 'blocked-group' && item.message.id === messageId);
+  if (index < 0) return null;
+  return items[index + 1]?.key ?? items[index - 1]?.key ?? null;
+};
+
+const afterDelete = (focusKey: string | null | undefined) => {
+  polite(t('messageA11y.deleted'));
+  nextTick(() => focusRowKey(focusKey));
+};
+
 const deleteMessage = (messageId: string, event?: MouseEvent) => {
   const bypassConfirm = event?.shiftKey === true;
   hoveredMessageId.value = null;
@@ -3146,33 +3581,35 @@ const deleteMessage = (messageId: string, event?: MouseEvent) => {
     return;
   }
   const thread = getThreadForMessage(messageId);
+  const focusAfter = neighborRowKey(messageId);
   
   if (thread) {
     deleteConfirmConfig.value = {
       messageId,
       hasThread: true,
       threadName: thread.name || 'this thread',
+      focusAfter,
     };
     showDeleteConfirmModal.value = true;
   } else if (bypassConfirm) {
     triggerDestructive();
-    if (props.channelId) {
-      chatStore.deleteMessage(messageId);
-    } else if (props.conversationId) {
-      dmStore.deleteMessage(messageId);
-    }
+    const removal = props.channelId
+      ? chatStore.deleteMessage(messageId)
+      : props.conversationId ? dmStore.deleteMessage(messageId) : null;
+    void removal?.then(() => afterDelete(focusAfter), () => {});
   } else {
     deleteConfirmConfig.value = {
       messageId,
       hasThread: false,
       threadName: '',
+      focusAfter,
     };
     showDeleteConfirmModal.value = true;
   }
 };
 
 const confirmDeleteMessage = async () => {
-  const { messageId, hasThread } = deleteConfirmConfig.value;
+  const { messageId, hasThread, focusAfter } = deleteConfirmConfig.value;
   if (outbox.has(messageId)) {
     outbox.discard(messageId);
     showDeleteConfirmModal.value = false;
@@ -3193,6 +3630,7 @@ const confirmDeleteMessage = async () => {
   }
   
   showDeleteConfirmModal.value = false;
+  afterDelete(focusAfter);
 };
 
 const cancelDeleteMessage = () => {
@@ -3490,9 +3928,11 @@ const handleOpenLightbox = async (url: string) => {
     await ensureMediaPartSources(images);
     indexRef.value = index;
     activeLightboxImages.value = images.map((image) => mediaPartSource(image) ?? image.url);
+    activeLightboxAlts.value = images.map((image) => image.alt);
   } else {
     // Image from an embed not in the pre-computed list - show standalone
     activeLightboxImages.value = [url];
+    activeLightboxAlts.value = [t('messageA11y.image.noDescription')];
     indexRef.value = 0;
   }
   isLightboxOpen.value = true;
@@ -3502,13 +3942,11 @@ const closeLightbox = () => {
   isLightboxOpen.value = false;
 };
 
-// Context menu handlers
-const openContextMenu = (message: Message, event: MouseEvent) => {
-  event.preventDefault();
-  event.stopPropagation();
-  // Every menu action acts on the message's id, which an unsent row lacks.
-  if (isOptimisticId(message.id)) return;
-  
+// Context menu handlers. `trigger` is where focus returns when the menu closes
+// from the keyboard: the More button, or the row.
+const contextMenuTrigger = ref<HTMLElement | null>(null);
+
+const showContextMenu = (message: Message, x: number, y: number, trigger: HTMLElement | null) => {
   // Haptic feedback for context menu
   triggerInteraction();
 
@@ -3522,11 +3960,24 @@ const openContextMenu = (message: Message, event: MouseEvent) => {
   }
 
   contextMenuMessage.value = message;
-  contextMenuPosition.value = {
-    x: event.clientX,
-    y: event.clientY
-  };
+  contextMenuPosition.value = { x, y };
+  contextMenuTrigger.value = trigger;
   contextMenuVisible.value = true;
+};
+
+const openContextMenu = (message: Message, event: MouseEvent) => {
+  event.preventDefault();
+  event.stopPropagation();
+  // Every menu action acts on the message's id, which an unsent row lacks.
+  if (isOptimisticId(message.id)) return;
+  const trigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+  // A keyboard click on the More button carries no pointer position.
+  if (event.detail === 0 && trigger) {
+    const box = trigger.getBoundingClientRect();
+    showContextMenu(message, box.left, box.bottom + 4, trigger);
+    return;
+  }
+  showContextMenu(message, event.clientX, event.clientY, trigger);
 };
 
 // Native right-click on a message row opens the same context menu as the
@@ -3555,6 +4006,7 @@ const handleMessageContextMenu = (message: Message, event: MouseEvent) => {
 const closeContextMenu = () => {
   contextMenuVisible.value = false;
   contextMenuMessage.value = null;
+  contextMenuTrigger.value = null;
 };
 
 const reactionUserResolvers: ReactionUserResolvers = {
@@ -3815,7 +4267,7 @@ defineExpose({ editLastOwnMessage });
   padding: 4px 8px;
   margin-top: 4px;
   font-size: 12px;
-  color: var(--error);
+  color: var(--text-danger);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--error) 8%, transparent);
 }
@@ -3850,11 +4302,23 @@ defineExpose({ editLastOwnMessage });
 }
 
 .failed-message-bar .discard-btn:hover {
-  color: var(--error);
+  color: var(--text-danger);
   background: color-mix(in srgb, var(--error) 15%, transparent);
 }
 
 .message-item:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.message-item:focus {
+  outline: none;
+}
+
+.message-item:focus-visible,
+.blocked-message-group:focus-visible,
+.reported-message-group:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
   background-color: var(--background-modifier-hover);
 }
 
@@ -3899,6 +4363,24 @@ defineExpose({ editLastOwnMessage });
   line-height: 1.375rem;
 }
 
+.username {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.username:focus-visible,
+.system-user-mention:focus-visible,
+.system-thread-link:focus-visible,
+.system-threads-link:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 .username-text {
   font-weight: 500;
   font-size: 1rem;
@@ -3925,7 +4407,7 @@ defineExpose({ editLastOwnMessage });
 
 .bot-badge {
   display: inline-block;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: 0.625rem;
   font-weight: 600;
@@ -4007,7 +4489,7 @@ defineExpose({ editLastOwnMessage });
 
 /* Thread action button */
 .thread-btn {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 /* Compact message (no header) */
@@ -4024,9 +4506,9 @@ defineExpose({ editLastOwnMessage });
   height: 1.375rem; /* Match line height */
 }
 
-/* Show timestamp on hover for compact messages */
-.message-content-only:hover .message-gutter::before {
-  content: attr(data-timestamp);
+/* Compact rows show their time on hover or keyboard focus; screen readers
+   read its full text at all times. */
+.message-gutter-time {
   position: absolute;
   left: 0;
   right: 0;
@@ -4036,6 +4518,12 @@ defineExpose({ editLastOwnMessage });
   font-size: 0.6875rem;
   color: var(--text-muted);
   font-weight: 500;
+  opacity: 0;
+}
+
+.message-content-only:hover .message-gutter-time,
+.message-item:focus-within .message-gutter-time {
+  opacity: 1;
 }
 
 /* Message actions */
@@ -4057,6 +4545,9 @@ defineExpose({ editLastOwnMessage });
   justify-content: center;
   width: 32px;
   height: 32px;
+  padding: 0;
+  border: none;
+  background: none;
   cursor: pointer;
   color: var(--text-secondary);
   transition: all 0.15s ease-out;
@@ -4074,8 +4565,13 @@ defineExpose({ editLastOwnMessage });
   transform: scale(0.95);
 }
 
+.action-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+
 .action-btn.delete-danger {
-  color: var(--error)!important;
+  color: var(--text-danger)!important;
   background-color: color-mix(in srgb, var(--error) 50%, transparent)!important;
 }
 
@@ -4357,11 +4853,11 @@ defineExpose({ editLastOwnMessage });
 }
 
 .system-icon.join {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .system-icon.leave {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .system-text {
@@ -4404,7 +4900,7 @@ defineExpose({ editLastOwnMessage });
 .automod-timeout {
   margin-left: 6px;
   font-size: 0.75rem;
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .automod-alert-excerpt {
@@ -4426,6 +4922,16 @@ defineExpose({ editLastOwnMessage });
   gap: 4px;
 }
 
+.system-user-mention,
+.system-thread-link,
+.system-threads-link {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: inherit;
+}
+
 .system-user-mention {
   font-weight: 600;
   cursor: pointer;
@@ -4437,7 +4943,7 @@ defineExpose({ editLastOwnMessage });
 
 .system-thread-link,
 .system-threads-link {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-weight: 600;
   cursor: pointer;
 }
@@ -4459,15 +4965,15 @@ defineExpose({ editLastOwnMessage });
 }
 
 .call-system-icon.active {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .call-system-icon.missed {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .call-missed {
-  color: var(--error);
+  color: var(--text-danger);
   font-size: 0.8rem;
   font-weight: 600;
 }
@@ -4487,7 +4993,6 @@ defineExpose({ editLastOwnMessage });
 .system-timestamp {
   font-size: 0.65rem;
   color: var(--text-muted);
-  opacity: 0.7;
   flex-shrink: 0;
 }
 
@@ -4668,7 +5173,7 @@ defineExpose({ editLastOwnMessage });
   display: inline-block;
   font-size: 0.7em;
   margin-left: 4px;
-  color: var(--error);
+  color: var(--text-danger);
   opacity: 0.7;
   cursor: help;
   transition: opacity 0.2s ease;
@@ -4708,7 +5213,7 @@ defineExpose({ editLastOwnMessage });
 }
 
 .reported-icon {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .reported-text {

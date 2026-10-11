@@ -1,10 +1,10 @@
 import { onScopeDispose, ref } from 'vue'
 
 /**
- * Hover tooltip bound to the element that opened it. A tooltip whose anchor
- * leaves the DOM (folder collapse, list reorder) or stops being hovered hides
- * on the next check; mouseleave never fires for an anchor that unmounts under
- * a stationary pointer.
+ * Hover and keyboard-focus tooltip bound to the element that opened it. A
+ * tooltip whose anchor leaves the DOM (folder collapse, list reorder) or is
+ * neither hovered nor holding focus hides on the next check; mouseleave never
+ * fires for an anchor that unmounts under a stationary pointer.
  */
 export function useAnchoredTooltip<T extends object>(delayMs = 400, checkMs = 200) {
   const visible = ref(false)
@@ -15,7 +15,8 @@ export function useAnchoredTooltip<T extends object>(delayMs = 400, checkMs = 20
   let showTimer: ReturnType<typeof setTimeout> | null = null
   let watchTimer: ReturnType<typeof setInterval> | null = null
 
-  const anchorIsLive = () => !!anchor && anchor.isConnected && anchor.matches(':hover')
+  const anchorIsLive = () =>
+    !!anchor && anchor.isConnected && (anchor.matches(':hover') || anchor.matches(':focus-within'))
 
   const stopWatching = () => {
     if (watchTimer) {
@@ -35,7 +36,7 @@ export function useAnchoredTooltip<T extends object>(delayMs = 400, checkMs = 20
   }
 
   /** `event.currentTarget` is the anchor; its vertical centre is the tooltip's y, in viewport px. */
-  const show = (event: MouseEvent, data: T) => {
+  const show = (event: MouseEvent | FocusEvent, data: T) => {
     const target = event.currentTarget as HTMLElement | null
     if (target) showFor(target, data)
   }

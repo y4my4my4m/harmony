@@ -9,7 +9,7 @@
       <ToggleSwitch
         :model-value="!!state?.system_messages_enabled"
         :disabled="busy || !state"
-        :aria-labelledby="toggleLabelId"
+        :labelledby="toggleLabelId"
         @update:model-value="(v: boolean) => save(state?.system_channel_id ?? null, v)"
       />
     </div>
@@ -134,7 +134,7 @@ watch(() => props.serverId, load, { immediate: true })
 
 .error-text {
   font-size: 13px;
-  color: var(--status-danger);
+  color: var(--text-danger);
   margin: 4px 0 0;
 }
 

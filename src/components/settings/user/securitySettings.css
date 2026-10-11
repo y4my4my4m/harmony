@@ -80,7 +80,7 @@
 }
 
 .sec-badge-on {
-  color: var(--success);
+  color: var(--text-success);
   background: color-mix(in srgb, var(--success) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--success) 35%, transparent);
 }
@@ -175,7 +175,7 @@
 
 .sec-error {
   font-size: 12px;
-  color: var(--error);
+  color: var(--text-danger);
   margin: 0;
 }
 
@@ -210,18 +210,24 @@
   cursor: not-allowed;
 }
 
+/* Busy buttons keep focus: aria-disabled instead of disabled. */
+.sec-btn[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: progress;
+}
+
 .sec-btn-sm {
   padding: 6px 12px;
   font-size: 12px;
 }
 
 .sec-btn-primary {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .sec-btn-primary:hover:not(:disabled) {
-  background-color: var(--harmony-primary-hover);
+  background-color: var(--harmony-primary-fill-hover);
 }
 
 .sec-btn-secondary {
@@ -236,12 +242,12 @@
 }
 
 .sec-btn-danger {
-  background-color: var(--error);
+  background-color: var(--error-fill);
   color: var(--text-on-primary);
 }
 
 .sec-btn-danger:hover:not(:disabled) {
-  background-color: var(--error-hover);
+  background-color: var(--error-fill-hover);
 }
 
 .sec-icon-btn {
@@ -319,7 +325,7 @@
 
 .sec-stepper li.active::before,
 .sec-stepper li.done::before {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
@@ -434,7 +440,7 @@
 }
 
 .sec-device-icon.current {
-  color: var(--success);
+  color: var(--text-success);
   background: color-mix(in srgb, var(--success) 14%, transparent);
 }
 
@@ -455,7 +461,7 @@
 }
 
 .sec-pill-current {
-  color: var(--success);
+  color: var(--text-success);
   background: color-mix(in srgb, var(--success) 14%, transparent);
 }
 
@@ -514,7 +520,7 @@
 }
 
 .sec-modal-title.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .sec-bullets {

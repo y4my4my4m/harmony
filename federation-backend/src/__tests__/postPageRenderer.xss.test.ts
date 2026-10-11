@@ -267,3 +267,33 @@ describe('renderPostPage - XSS regression', () => {
     expect(island).toContain('#tag');
   });
 });
+
+describe('postPageRenderer head', () => {
+  it('escapes post text and the display name in <title> and the meta tags', () => {
+    const html = renderPostPage(
+      basePost([{ type: 'text', text: '</title><script>alert(1)</script>' }]),
+      { ...baseAuthor, display_name: 'A&B "<b>x</b>"' },
+    );
+    const head = html.slice(0, html.indexOf('</head>'));
+    expect(head).not.toMatch(/<script>alert/);
+    expect(head).toContain('&lt;/title&gt;&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(head).not.toContain('&amp;amp;');
+    expect(head).toContain('content="A&amp;B &quot;&lt;b&gt;x&lt;/b&gt;&quot; (@alice@harmony.test)"');
+  });
+});
+
+describe('postPageRenderer plain-text names', () => {
+  it('drops custom emoji shortcodes and their spacers from the card title and oEmbed author', async () => {
+    const author = { ...baseAuthor, display_name: 'y4my4m ​:big_smile_mony:​' };
+    const html = renderPostPage(basePost([{ type: 'text', text: 'hi' }]), author);
+    expect(html).toContain('<meta property="og:title" content="y4my4m (@alice@harmony.test)">');
+    expect(html).toContain('<title>y4my4m: &quot;hi&quot; - Harmony</title>');
+    const { renderOEmbed } = await import('../activitypub/postPageRenderer.js');
+    expect((renderOEmbed(basePost([]), author) as { author_name: string }).author_name).toBe('y4my4m (@alice@harmony.test)');
+  });
+
+  it('falls back to the username when the name is emoji only', () => {
+    const html = renderPostPage(basePost([]), { ...baseAuthor, display_name: ':blobcat: :blob@misskey.example:' });
+    expect(html).toContain('<meta property="og:title" content="alice (@alice@harmony.test)">');
+  });
+});

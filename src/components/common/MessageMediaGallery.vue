@@ -25,6 +25,7 @@
         <img
           v-if="item.fileType === 'image'"
           :src="thumbnailFor(item)"
+          :alt="altFor(item)"
           class="content-image"
           :class="{ 'sticker-image': item.isSticker, 'ai-emoji-image': item.isAiEmoji }"
           draggable="false"
@@ -33,12 +34,20 @@
           @error="onItemError(item, 'thumbnail')"
           @click="!item.isSticker && $emit('open-lightbox', item.url)"
         />
+        <button
+          v-if="item.fileType === 'image' && !item.isSticker && !item.isAiEmoji"
+          type="button"
+          class="media-open"
+          :aria-label="items.length > 1 ? t('messageA11y.image.openIndexed', { index: index + 1, total: items.length }) : t('messageA11y.image.open')"
+          @click.stop="$emit('open-lightbox', item.url)"
+        ></button>
         <video
           v-else-if="item.fileType === 'video'"
           :src="sourceFor(item)"
           class="content-video"
           controls
           preload="metadata"
+          :aria-label="item.altText || undefined"
           @play="onVideoPlay"
           @error="onItemError(item)"
         />
@@ -89,6 +98,8 @@ export interface GalleryMediaItem {
   fileType: 'image' | 'video';
   isSticker: boolean;
   isAiEmoji: boolean;
+  /** Description from the file part; never the file name. */
+  altText?: string;
 }
 
 const props = defineProps<{
@@ -137,13 +148,23 @@ function partToGalleryItem(part: MessagePart): GalleryMediaItem | null {
 
   if (!url || !fileType) return null;
 
+  const altText = (part as { altText?: unknown }).altText;
   return {
     url,
     ...(isPrivateMediaPart(part) ? { path: part.path } : {}),
     fileType,
     isSticker: isStickerMessageUrl(url),
     isAiEmoji: isAiEmojiMessageUrl(url),
+    ...(typeof altText === 'string' && altText.trim() ? { altText: altText.trim() } : {}),
   };
+}
+
+/** The description, else what the image is. */
+function altFor(item: GalleryMediaItem): string {
+  if (item.altText) return item.altText;
+  if (item.isSticker) return t('messageA11y.image.sticker');
+  if (item.isAiEmoji) return t('messageA11y.image.emoji');
+  return t('messageA11y.image.noDescription');
 }
 
 const items = computed(() =>
@@ -206,6 +227,22 @@ function sourceFor(item: GalleryMediaItem): string | undefined {
 </script>
 
 <style scoped>
+/* Keyboard opener of the lightbox; pointer input reaches the image beneath. */
+.media-open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 0;
+  border: none;
+  background: transparent;
+  pointer-events: none;
+}
+
+.media-open:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+
 /* Discord-ish caps: 400px wide mosaics, 350px tall singles, cover-crop in grids */
 .message-media-gallery {
   --gallery-max-width: min(400px, 100%);

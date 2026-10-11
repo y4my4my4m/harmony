@@ -416,7 +416,7 @@ onBeforeUnmount(() => {
   flex: none;
   padding: 1px 5px;
   border-radius: var(--radius-sm);
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   font-size: 10px;
   font-weight: 700;
@@ -465,7 +465,7 @@ onBeforeUnmount(() => {
 }
 
 .pip-btn--close:hover {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .pip-body {

@@ -13,8 +13,8 @@
       <ToggleSwitch
         :model-value="enabled"
         :disabled="!loaded || switching"
-        :aria-labelledby="`${uid}-label`"
-        :aria-describedby="`${uid}-hint`"
+        :labelledby="`${uid}-label`"
+        :describedby="`${uid}-hint`"
         data-testid="hosting-toggle"
         @update:model-value="setEnabled"
       />
@@ -195,11 +195,11 @@ onMounted(async () => {
 }
 
 .note a {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .error {
-  color: var(--error);
+  color: var(--text-danger);
   font-size: 13px;
 }
 </style>

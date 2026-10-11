@@ -207,7 +207,7 @@ onUnmounted(() => {
 .poll-icon {
   flex-shrink: 0;
   margin-top: 2px;
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .poll-question {
@@ -328,7 +328,7 @@ onUnmounted(() => {
   background: none;
   border: none;
   font: inherit;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   cursor: pointer;
 }
 

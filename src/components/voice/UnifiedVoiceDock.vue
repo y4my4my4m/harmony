@@ -1,5 +1,12 @@
 <template>
-  <div v-if="voiceStore.isConnectedOrJoining" class="unified-voice-dock" :class="[dockMode, { 'is-connecting': voiceStore.isConnecting }]">
+  <section
+    v-if="voiceStore.isConnectedOrJoining"
+    ref="dockRootRef"
+    class="unified-voice-dock"
+    :class="[dockMode, { 'is-connecting': voiceStore.isConnecting }]"
+    :aria-label="t('voice.region')"
+    data-testid="voice-dock"
+  >
     <!-- Compact mode: floating bar at bottom -->
     <div 
       v-if="currentMode === 'dock'" 
@@ -56,7 +63,10 @@
           <span class="channel-name">
             <DisplayName v-if="voiceStore.dmOtherUserId" :user-id="voiceStore.dmOtherUserId" :fallback="channelName" :truncate="true" />
             <span v-else class="dock-channel-text">{{ channelName }}</span>
-            <span v-if="voiceStore.isConnecting || voiceStore.connectionState === 'reconnecting'" class="dock-connecting-spinner" :title="voiceStore.isConnecting ? 'Connecting…' : t('voice.reconnecting')"></span>
+            <span v-if="voiceStore.isConnecting || voiceStore.connectionState === 'reconnecting'" class="dock-connecting-status" :title="voiceStore.isConnecting ? t('voice.connecting') : t('voice.reconnecting')">
+              <span class="dock-connecting-spinner" aria-hidden="true"></span>
+              <span class="sr-only">{{ voiceStore.isConnecting ? t('voice.connecting') : t('voice.reconnecting') }}</span>
+            </span>
             <span
               v-else-if="voiceStore.transportLabel"
               class="dock-connection-badge"
@@ -64,13 +74,10 @@
             >
               {{ voiceStore.transportLabel }}
             </span>
-            <Icon
-              v-if="ownQualityWarning"
-              name="wifi-off"
-              :size="12"
-              class="dock-quality-warn"
-              :title="t(`voice.quality.${ownQuality}`)"
-            />
+            <span v-if="ownQualityWarning" class="dock-quality-warn" :title="t(`voice.quality.${ownQuality}`)">
+              <Icon name="wifi-off" :size="12" aria-hidden="true" />
+              <span class="sr-only">{{ t(`voice.quality.${ownQuality}`) }}</span>
+            </span>
             <VoiceEncryptionBadge v-if="voiceStore.connectionMode" :encrypted="voiceStore.isEncrypted" />
           </span>
         </div>
@@ -78,40 +85,45 @@
 
       <div class="voice-controls" @mousedown.stop @touchstart.stop>
         <button
-          @click="voiceStore.toggleMute"
+          @click="voiceStore.toggleMute()"
           :class="['control-btn', 'mic-btn', {
             active: !voiceStore.localState.isMuted && !voiceStore.localState.isDeafened && (!isPTTMode || isPTTActive),
             muted: voiceStore.localState.isMuted,
             'ptt-mode': isPTTMode,
             'ptt-active': isPTTActive && !voiceStore.localState.isMuted
           }]"
-          :title="voiceStore.localState.isMuted
-            ? 'Unmute'
-            : isPTTMode
-              ? (isPTTActive ? `Transmitting (${pttKeyDisplay})` : `Push ${pttKeyDisplay} to talk — click to mute`)
-              : 'Mute'"
+          :title="micTitle"
+          :aria-label="t('voice.mute')"
+          :aria-pressed="voiceStore.localState.isMuted"
+          data-testid="dock-mute"
         >
           <Icon :name="voiceStore.localState.isMuted || voiceStore.localState.isDeafened ? 'mic-off' : 'mic'" />
-          <span v-if="isPTTMode && !voiceStore.localState.isMuted" class="ptt-indicator" :class="{ active: isPTTActive }">PTT</span>
+          <span v-if="isPTTMode && !voiceStore.localState.isMuted" class="ptt-indicator" :class="{ active: isPTTActive }" aria-hidden="true">PTT</span>
         </button>
 
         <button
-          @click="voiceStore.toggleDeafen"
+          @click="voiceStore.toggleDeafen()"
           :class="['control-btn', 'headphones-btn', { 
             active: !voiceStore.localState.isDeafened,
             deafened: voiceStore.localState.isDeafened 
           }]"
-          :title="voiceStore.localState.isDeafened ? 'Undeafen' : 'Deafen'"
+          :title="withShortcut(t('voice.deafen'), 'toggle-deafen')"
+          :aria-label="t('voice.deafen')"
+          :aria-pressed="voiceStore.localState.isDeafened"
+          data-testid="dock-deafen"
         >
           <Icon :name="voiceStore.localState.isDeafened ? 'headphones-off' : 'headphones'" />
         </button>
 
         <button
-          @click="voiceStore.toggleVideo"
+          @click="voiceStore.toggleVideo()"
           :class="['control-btn', 'video-btn', {
             active: voiceStore.localState.isVideoEnabled
           }]"
-          :title="voiceStore.localState.isVideoEnabled ? 'Turn off camera' : 'Turn on camera'"
+          :title="t('voice.camera')"
+          :aria-label="t('voice.camera')"
+          :aria-pressed="voiceStore.localState.isVideoEnabled"
+          data-testid="dock-camera"
         >
           <Icon :name="voiceStore.localState.isVideoEnabled ? 'video' : 'video-off'" />
         </button>
@@ -123,8 +135,11 @@
             active: voiceStore.localState.isScreenSharing
           }]"
           :title="voiceStore.localState.isScreenSharing ? t('voice.streamSettings') : t('voice.shareScreen')"
-          :aria-label="voiceStore.localState.isScreenSharing ? t('voice.streamSettings') : t('voice.shareScreen')"
+          :aria-label="t('voice.shareScreen')"
+          :aria-pressed="voiceStore.localState.isScreenSharing"
           aria-haspopup="dialog"
+          :aria-expanded="showStreamPicker"
+          data-testid="dock-share"
         >
           <Icon name="screen-share" />
         </button>
@@ -161,15 +176,22 @@
             active: spatialStore.isPanelVisible,
             'spatial-enabled': spatialStore.settings.enabled
           }]"
-          :title="spatialStore.settings.enabled ? 'Spatial audio on' : 'Spatial audio off'"
+          :title="spatialStore.settings.enabled ? t('voice.spatialAudioOn') : t('voice.spatialAudioOff')"
+          :aria-label="t('voice.spatialAudio')"
+          aria-haspopup="dialog"
+          :aria-expanded="spatialStore.isPanelVisible"
         >
           <Icon name="audio-lines" />
         </button>
 
         <button
+          ref="dockSettingsButtonRef"
           @click="toggleSettings"
           :class="['control-btn', 'settings-btn', { active: showSettings }]"
-          title="Voice settings"
+          :title="t('voice.settings')"
+          :aria-label="t('voice.settings')"
+          aria-haspopup="dialog"
+          :aria-expanded="showSettings"
         >
           <Icon name="settings" />
         </button>
@@ -187,10 +209,15 @@
       <div 
         v-if="activeVideoUser && !voiceStore.pipActive && !stripExpanded"
         class="dock-video-preview"
+        role="button"
+        tabindex="0"
+        :aria-label="activeVideoLabel"
         @click="expandToOverlay"
+        @keydown.enter.prevent="expandToOverlay"
+        @keydown.space.prevent="expandToOverlay"
         @mousedown.stop
         @touchstart.stop
-        :title="`${activeVideoUserName} is ${activeVideoUser.isScreenSharing ? 'sharing screen' : 'on camera'}`"
+        :title="activeVideoLabel"
       >
         <video
           ref="dockVideoRef"
@@ -201,7 +228,7 @@
           :class="{ mirrored: activeVideoIsSelfCamera }"
         />
         <LiveReactionLayer :user-id="activeVideoUser.userId" :source="activeVideoSource" compact />
-        <div class="dock-video-badge">
+        <div class="dock-video-badge" aria-hidden="true">
           <Icon :name="activeVideoUser.isScreenSharing ? 'screen-share' : 'video'" />
         </div>
       </div>
@@ -211,7 +238,10 @@
           @click.stop="toggleParticipantsDropdown"
           class="control-btn participants-btn"
           :class="{ active: showParticipantsDropdown }"
-          title="Show participants"
+          :title="t('voice.participants')"
+          :aria-label="t('voice.participants')"
+          :aria-expanded="showParticipantsDropdown"
+          :aria-controls="showParticipantsDropdown ? participantsPanelId : undefined"
         >
           <Icon name="users" />
         </button>
@@ -219,7 +249,10 @@
         <button
           @click="expandToOverlay"
           class="control-btn expand-btn"
-          title="Expand to overlay"
+          :title="t('voice.openCallView')"
+          :aria-label="t('voice.openCallView')"
+          aria-haspopup="dialog"
+          data-voice-expand
         >
           <Icon name="maximize" />
         </button>
@@ -227,7 +260,9 @@
         <button
           @click="minimizeDock"
           class="control-btn minimize-btn"
-          title="Minimize"
+          :title="t('voice.minimizePanel')"
+          :aria-label="t('voice.minimizePanel')"
+          data-testid="dock-minimize"
         >
           <Icon name="minimize" />
         </button>
@@ -235,7 +270,9 @@
         <button
           @click="leaveChannel"
           class="control-btn leave-btn"
-          title="Leave channel"
+          :title="t('voice.leave')"
+          :aria-label="t('voice.leave')"
+          data-testid="dock-leave"
         >
           <Icon name="phone-off" />
         </button>
@@ -272,7 +309,8 @@
           <button
             class="mini-pip-btn"
             @click.stop="activatePIPForActiveVideo"
-            title="Pop out"
+            :title="t('voice.popOut')"
+            :aria-label="t('voice.popOut')"
           >
             <Icon name="maximize-2" />
           </button>
@@ -285,45 +323,63 @@
           @mousedown="startDrag"
           @touchstart="startDrag"
         >
-          <Icon name="volume" class="channel-icon" />
+          <Icon name="volume" class="channel-icon" aria-hidden="true" />
           <span class="channel-name">
             <DisplayName v-if="voiceStore.dmOtherUserId" :user-id="voiceStore.dmOtherUserId" :fallback="channelName" :truncate="true" />
             <span v-else class="dock-channel-text">{{ channelName }}</span>
           </span>
-          <span class="participant-count">{{ voiceStore.connectionStats.total }}</span>
+          <span class="participant-count" :title="participantCountLabel">
+            <span aria-hidden="true">{{ voiceStore.connectionStats.total }}</span>
+            <span class="sr-only">{{ participantCountLabel }}</span>
+          </span>
           <VoiceEncryptionBadge v-if="voiceStore.connectionMode" :encrypted="voiceStore.isEncrypted" />
           <RecentSpeakers class="recent-speakers-container" :max-speakers="4" />
         </div>
         
         <div class="minimized-controls">
-          <Transition name="mini-audio">
-            <div v-if="showMiniAudioControls" class="mini-audio-controls">
-              <button
-                @click.stop="voiceStore.toggleMute"
-                class="mini-control-btn mini-mic-btn"
-                :class="{ muted: voiceStore.localState.isMuted, 'ptt-active': isPTTActive && !voiceStore.localState.isMuted }"
-                :title="voiceStore.localState.isMuted
-                  ? 'Unmute'
-                  : isPTTMode ? `Push ${pttKeyDisplay} to talk — click to mute` : 'Mute'"
-              >
-                <Icon :name="voiceStore.localState.isMuted || voiceStore.localState.isDeafened ? 'mic-off' : 'mic'" />
-              </button>
+          <!-- Concealed beside the user panel's own pair; shown again when it holds focus -->
+          <div class="mini-audio-controls" :class="{ 'is-concealed': !showMiniAudioControls }">
+            <button
+              @click.stop="voiceStore.toggleMute()"
+              class="mini-control-btn mini-mic-btn"
+              :class="{ muted: voiceStore.localState.isMuted, 'ptt-active': isPTTActive && !voiceStore.localState.isMuted }"
+              :title="micTitle"
+              :aria-label="t('voice.mute')"
+              :aria-pressed="voiceStore.localState.isMuted"
+              data-testid="mini-mute"
+            >
+              <Icon :name="voiceStore.localState.isMuted || voiceStore.localState.isDeafened ? 'mic-off' : 'mic'" />
+            </button>
 
-              <button 
-                @click.stop="voiceStore.toggleDeafen"
-                class="mini-control-btn mini-deafen-btn"
-                :class="{ deafened: voiceStore.localState.isDeafened }"
-                :title="voiceStore.localState.isDeafened ? 'Undeafen' : 'Deafen'"
-              >
-                <HeadphonesIcon :isHeadphonesActive="!voiceStore.localState.isDeafened" />
-              </button>
-            </div>
-          </Transition>
+            <button 
+              @click.stop="voiceStore.toggleDeafen()"
+              class="mini-control-btn mini-deafen-btn"
+              :class="{ deafened: voiceStore.localState.isDeafened }"
+              :title="withShortcut(t('voice.deafen'), 'toggle-deafen')"
+              :aria-label="t('voice.deafen')"
+              :aria-pressed="voiceStore.localState.isDeafened"
+              data-testid="mini-deafen"
+            >
+              <HeadphonesIcon :isHeadphonesActive="!voiceStore.localState.isDeafened" aria-hidden="true" />
+            </button>
+          </div>
+
+          <button
+            ref="miniExpandButtonRef"
+            @click.stop="expandToDock"
+            class="mini-control-btn mini-expand"
+            :title="t('voice.expandPanel')"
+            :aria-label="t('voice.expandPanel')"
+            data-testid="mini-expand"
+          >
+            <Icon name="maximize-2" />
+          </button>
           
           <button 
             @click.stop="leaveChannel"
             class="mini-control-btn leave"
-            title="Leave channel"
+            :title="t('voice.leave')"
+            :aria-label="t('voice.leave')"
           >
             <Icon name="phone-off" />
           </button>
@@ -341,13 +397,16 @@
         @click.stop="toggleParticipantsDropdown"
         class="participants-dropdown-btn"
         :class="{ active: showParticipantsDropdown }"
-        title="Show participants"
+        :title="t('voice.participants')"
+        :aria-label="t('voice.participants')"
+        :aria-expanded="showParticipantsDropdown"
+        :aria-controls="showParticipantsDropdown ? participantsPanelId : undefined"
       >
         <Icon name="chevron-down" :class="{ rotated: showParticipantsDropdown }" />
       </button>
       
       <Transition name="participants-dropdown">
-        <div v-if="showParticipantsDropdown" class="participants-dropdown">
+        <div v-if="showParticipantsDropdown" :id="participantsPanelId" class="participants-dropdown">
           <VoiceChannelParticipants 
             :participants="voiceStore.allParticipants"
             :session-start-time="voiceStore.callStartTime ? new Date(voiceStore.callStartTime) : null"
@@ -363,7 +422,7 @@
       :style="dockParticipantsDropdownStyle"
     >
       <Transition name="participants-dropdown">
-        <div v-if="showParticipantsDropdown" class="participants-dropdown dock-participants-dropdown-content">
+        <div v-if="showParticipantsDropdown" :id="participantsPanelId" class="participants-dropdown dock-participants-dropdown-content">
           <VoiceChannelParticipants 
             :participants="voiceStore.allParticipants"
             :session-start-time="voiceStore.callStartTime ? new Date(voiceStore.callStartTime) : null"
@@ -375,7 +434,7 @@
     <StreamQualityPicker
       :visible="showStreamPicker"
       :anchor="streamPickerAnchor"
-      @close="showStreamPicker = false"
+      @close="closeStreamPicker"
     />
 
     <LiveReactionPopover
@@ -394,7 +453,7 @@
 
     <VoiceSettingsPanel
       v-if="showSettings"
-      @close="showSettings = false"
+      @close="closeSettings"
     />
 
     <!-- Overlay mode renders its own spatial audio panel -->
@@ -406,16 +465,17 @@
     <UnifiedVoiceOverlay
       v-if="currentMode === 'overlay'"
       :channel-name="channelName"
+      :return-focus="overlayReturnFocus"
       @close="handleOverlayClosed"
       @minimize="collapseToDock"
     />
     
     <!-- Rendered for every dock mode so PIP survives minimize -->
     <ScreensharePIP />
-  </div>
+  </section>
 </template>
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted, defineAsyncComponent, type Ref } from 'vue';
+import { computed, ref, watch, nextTick, onMounted, onUnmounted, defineAsyncComponent, type Ref } from 'vue';
 import { debug } from '@/utils/debug'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSpatialAudioStore } from '@/stores/spatialAudio';
@@ -443,7 +503,9 @@ import { showsMinimizedAudioControls } from './minimizedVoiceControls';
 import { userPanelDocked } from '@/composables/useUserPanelDock';
 import type { Rect } from './voiceMenuModel';
 import { isMobileUserAgent } from '@/utils/platform';
+import { uid } from '@/utils/a11y/focus';
 import { useI18n } from 'vue-i18n';
+import { focusAfterVoiceLeave, restoreFocusIfLost } from './voiceFocus';
 
 const { t } = useI18n();
 
@@ -458,6 +520,12 @@ const isPTTActive = keybinds.isPTTActive;
 const pttKeyDisplay = computed(() => keybinds.getKeybindDisplay('push-to-talk'));
 const isTouchDevice = isMobileUserAgent();
 
+const withShortcut = (label: string, action: 'toggle-mute' | 'toggle-deafen'): string => {
+  if (!keybinds.getKeybind(action)?.enabled) return label;
+  const key = keybinds.getKeybindDisplay(action);
+  return key ? `${label} (${key})` : label;
+};
+
 const SpatialAudioPanel = defineAsyncComponent(() => import('./SpatialAudioPanel.vue'));
 const RecentSpeakers = defineAsyncComponent(() => import('./RecentSpeakers.vue'));
 const ScreensharePIP = defineAsyncComponent(() => import('./ScreensharePIP.vue'));
@@ -471,6 +539,10 @@ const { isMobileViewport } = useViewport();
 const { getUser } = useUserData();
 
 // STATE
+const dockRootRef = ref<HTMLElement | null>(null);
+const dockSettingsButtonRef = ref<HTMLButtonElement | null>(null);
+const miniExpandButtonRef = ref<HTMLButtonElement | null>(null);
+const participantsPanelId = uid('voice-participants');
 const currentMode = ref<'dock' | 'minimized' | 'overlay'>('dock');
 const showSettings = ref(false);
 const showParticipantsDropdown = ref(false);
@@ -684,6 +756,25 @@ const activeVideoUserName = computed(() => {
   return profile?.displayName || profile?.username || 'User';
 });
 
+const activeVideoLabel = computed(() => {
+  if (!activeVideoUser.value) return '';
+  const key = activeVideoUser.value.isScreenSharing ? 'voice.previewStream' : 'voice.previewCamera';
+  return t(key, { name: activeVideoUserName.value });
+});
+
+const micTitle = computed(() => {
+  if (!voiceStore.localState.isMuted && isPTTMode.value) {
+    return isPTTActive.value
+      ? t('voice.pttTransmitting', { key: pttKeyDisplay.value })
+      : t('voice.pttHint', { key: pttKeyDisplay.value });
+  }
+  return withShortcut(t('voice.mute'), 'toggle-mute');
+});
+
+const participantCountLabel = computed(() =>
+  t('voice.participantCount', { count: voiceStore.connectionStats.total }, voiceStore.connectionStats.total)
+);
+
 const ownQuality = computed(() => voiceStore.getConnectionQuality(voiceStore.localState.userId));
 const ownQualityWarning = computed(() => ownQuality.value === 'poor' || ownQuality.value === 'lost');
 
@@ -694,6 +785,11 @@ const streamPickerAnchor = ref<Rect | null>(null);
 
 const dockSoundboardButtonRef = ref<HTMLButtonElement | null>(null);
 const soundboardButton = useSoundboardButton(dockSoundboardButtonRef);
+
+const closeStreamPicker = () => {
+  showStreamPicker.value = false;
+  void nextTick(() => restoreFocusIfLost(dockShareButtonRef.value));
+};
 
 const onDockShareButton = () => {
   if (showStreamPicker.value) {
@@ -729,15 +825,27 @@ const openFocused = (userId: string, source: 'camera' | 'screen') => {
   expandToOverlay();
 };
 
+// Focus follows a mode switch only from a control that the switch removes.
+const focusInRoot = (selector: string) => {
+  void nextTick(() => restoreFocusIfLost(dockRootRef.value?.querySelector<HTMLElement>(selector)));
+};
+
 const expandToDock = () => {
   currentMode.value = 'dock';
   voiceStore.isOverlayVisible = false;
+  focusInRoot('.dock-container .minimize-btn');
 };
 
 const minimizeDock = () => {
   currentMode.value = 'minimized';
   voiceStore.isOverlayVisible = false;
+  focusInRoot('.mini-expand');
 };
+
+// The call view closes into dock mode; its expand button takes focus when
+// the control that opened the view is gone.
+const overlayReturnFocus = (): HTMLElement | null =>
+  dockRootRef.value?.querySelector<HTMLElement>('[data-voice-expand]') ?? null;
 
 const collapseToDock = () => {
   currentMode.value = 'dock';
@@ -746,6 +854,11 @@ const collapseToDock = () => {
 
 const toggleSettings = () => {
   showSettings.value = !showSettings.value;
+};
+
+const closeSettings = () => {
+  showSettings.value = false;
+  void nextTick(() => restoreFocusIfLost(dockSettingsButtonRef.value));
 };
 
 const toggleParticipantsDropdown = () => {
@@ -757,8 +870,11 @@ const toggleSpatialPanel = () => {
 };
 
 const leaveChannel = async () => {
+  const channelId = voiceStore.currentChannelId;
   await voiceStore.leaveVoiceChannel();
   currentMode.value = 'dock';
+  await nextTick();
+  focusAfterVoiceLeave(channelId);
 };
 
 const handleOverlayClosed = () => {
@@ -1492,12 +1608,12 @@ onUnmounted(() => {
 
 .dock-connection-badge.livekit {
   background: color-mix(in srgb, var(--success) 20%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .dock-connection-badge.p2p {
   background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 
@@ -1534,7 +1650,7 @@ onUnmounted(() => {
 }
 
 .control-btn.muted {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   border-color: var(--error);
 }
@@ -1650,7 +1766,7 @@ onUnmounted(() => {
 }
 
 .leave-btn:hover {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   border-color: var(--error);
 }
@@ -1771,7 +1887,7 @@ onUnmounted(() => {
 .channel-icon {
   background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
   border-radius: var(--radius-md);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   width: 24px;
   height: 24px;
   padding: 4px;
@@ -1792,7 +1908,7 @@ onUnmounted(() => {
 
 .participant-count {
   background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   padding: 2px 6px;
   border-radius: var(--radius-full);
   font-size: 12px;
@@ -1812,19 +1928,20 @@ onUnmounted(() => {
   gap: 6px;
 }
 
-/* Width collapses with the fade so the leave button slides into place. */
-.mini-audio-enter-active,
-.mini-audio-leave-active {
-  transition: opacity 0.2s ease, max-width 0.2s ease, margin-right 0.2s ease;
-  max-width: 62px; /* two 28px buttons and the 6px gap */
+/* Out of the layout but in the tab order; the pair reappears while it holds focus. */
+.mini-audio-controls.is-concealed:not(:focus-within) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
   overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
-.mini-audio-enter-from,
-.mini-audio-leave-to {
-  opacity: 0;
-  max-width: 0;
-  margin-right: -6px; /* absorbs the parent gap */
+.dock-connecting-status {
+  display: inline-flex;
+  align-items: center;
 }
 
 .mini-control-btn {
@@ -1849,7 +1966,7 @@ onUnmounted(() => {
 }
 
 .mini-control-btn.muted {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   border-color: var(--error);
 }
@@ -1867,13 +1984,13 @@ onUnmounted(() => {
 }
 
 .mini-control-btn.leave {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   border-color: var(--error);
 }
 
 .mini-control-btn.leave:hover {
-  background: var(--error-hover);
+  background: var(--error-fill-hover);
   border-color: var(--error-hover);
 }
 
@@ -2093,7 +2210,7 @@ onUnmounted(() => {
   .channel-name {
     font-size: 11px;
     text-align: center;
-    color: var(--success);
+    color: var(--text-success);
   }
   
   .voice-controls {
@@ -2185,8 +2302,14 @@ onUnmounted(() => {
   max-width: min(420px, calc(100vw - 16px));
 }
 
-.dock-banner:empty {
-  display: none;
+/* No banner: out of the layout, but the status region inside stays in the
+   accessibility tree so the next banner is announced. */
+.dock-banner:not(:has(.vcb)) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
 }
 
 .dock-banner :deep(.vcb) {
@@ -2198,6 +2321,7 @@ onUnmounted(() => {
 }
 
 .dock-quality-warn {
+  display: inline-flex;
   color: var(--warning);
   flex-shrink: 0;
 }
@@ -2206,16 +2330,6 @@ onUnmounted(() => {
   .dock-connecting-spinner {
     animation-duration: 2.4s;
   }
-
-  .mini-audio-enter-active,
-  .mini-audio-leave-active {
-    transition: none;
-  }
-}
-
-:root[data-reduce-motion="true"] .mini-audio-enter-active,
-:root[data-reduce-motion="true"] .mini-audio-leave-active {
-  transition: none;
 }
 </style>
 

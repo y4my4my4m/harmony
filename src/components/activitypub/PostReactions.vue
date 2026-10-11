@@ -1,52 +1,65 @@
 <template>
-  <div v-if="reactions.length > 0" class="post-reactions" data-testid="post-reactions">
+  <div
+    v-if="reactions.length > 0"
+    class="post-reactions"
+    data-testid="post-reactions"
+    role="group"
+    :aria-label="t('activitypub.reactionsA11y.group')"
+  >
     <TransitionGroup name="reaction-list" tag="div" class="reactions-container">
       <!-- Loading state -->
       <div v-if="isLoadingReactions && reactions.length === 0" key="loading" class="reaction-loading">
         <LoadingSpinner :size="16" />
       </div>
-      
-      <!-- Reaction groups -->
-      <div
-        v-for="reaction in reactions"
+
+      <!-- Reaction chips: toggle buttons named by emoji and count; who reacted is
+           their description and the hover/focus tooltip. -->
+      <button
+        v-for="(reaction, index) in reactions"
         :key="(reaction.emoji_id || reaction.emoji_name || reaction.custom_emoji_content) ?? undefined"
+        type="button"
         class="reaction"
-        :class="{ 
+        :class="{
           'reacted': reaction.current_user_reacted,
           'loading': isLoadingReactions
         }"
+        :aria-pressed="reaction.current_user_reacted"
+        :aria-label="chipLabel(reaction)"
+        :aria-describedby="reactorNames(reaction) ? `${idBase}-${index}` : undefined"
         @click="handleReactionClick(reaction)"
         @mouseenter="showTooltip($event, reaction)"
         @mouseleave="hideTooltip"
+        @focus="showTooltip($event, reaction)"
+        @blur="hideTooltip"
       >
         <!-- Custom emoji image -->
         <template v-if="reaction.emoji_url">
-          <Icon 
-            v-if="brokenEmojiUrls.has(reaction.emoji_url)" 
-            name="image-off" 
+          <Icon
+            v-if="brokenEmojiUrls.has(reaction.emoji_url)"
+            name="image-off"
             class="reaction-emoji-broken"
-            :title="reaction.emoji_name || 'Broken emoji'"
           />
-          <img 
+          <img
             v-else
-            :src="getEmojiUrl(reaction.emoji_url, 32)" 
-            :alt="reaction.emoji_name || 'emoji'"
+            :src="getEmojiUrl(reaction.emoji_url, 32)"
+            alt=""
             class="reaction-emoji"
             @error="handleEmojiError(reaction)"
           />
         </template>
         <!-- Unicode emoji -->
-        <span 
+        <span
           v-else-if="reaction.custom_emoji_content"
           class="reaction-emoji unicode-emoji"
         >
           {{ reaction.custom_emoji_content }}
         </span>
         <!-- Fallback for missing emoji -->
-        <span v-else class="missing-emoji" :title="`Emoji not found: ${reaction.emoji_name}`">?</span>
-        
+        <span v-else class="missing-emoji" aria-hidden="true">?</span>
+
         <span class="reaction-count">{{ reaction.reaction_count }}</span>
-      </div>
+        <span v-if="reactorNames(reaction)" :id="`${idBase}-${index}`" class="sr-only">{{ reactorNames(reaction) }}</span>
+      </button>
     </TransitionGroup>
   </div>
 </template>
@@ -66,6 +79,8 @@ import { getEmojiUrl } from '@/utils/emojiUtils';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { postReactionsRealtime } from '@/services/PostReactionsRealtime';
 import { isHeartEmoji } from '@/utils/heartReaction';
+import { plainDisplayName } from '@/utils/plainDisplayName';
+import { uid } from '@/utils/a11y/focus';
 import Icon from '@/components/common/Icon.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import type { TimelinePost } from '@/types';
@@ -101,7 +116,7 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'show-reaction-tooltip', event: MouseEvent, reaction: PostEmojiReaction): void;
+  (e: 'show-reaction-tooltip', event: MouseEvent | FocusEvent, reaction: PostEmojiReaction): void;
   (e: 'hide-reaction-tooltip'): void;
   /** A reaction of the current user was added or removed; the favourite may follow. */
   (e: 'reactions-changed', change: { added: boolean }): void;
@@ -118,7 +133,46 @@ const themeStore = useThemeStore();
 const postReactionsStore = usePostReactionsStore();
 const { triggerReaction } = useHapticSettings();
 const { recordEmojiUsage } = useFrequentEmojis();
-const { t } = useI18n();
+const i18n = useI18n();
+const { t } = i18n;
+
+const idBase = uid('reactors');
+/** Reactor names spoken per chip before the rest are counted. */
+const MAX_NAMED_REACTORS = 10;
+
+const localeCode = (): string => {
+  const loc = (i18n as { locale?: { value?: unknown } }).locale?.value;
+  return typeof loc === 'string' && loc ? loc : 'en';
+};
+
+/** The emoji as a screen reader should say it: the character, or the shortcode in words. */
+const emojiLabel = (reaction: PostEmojiReaction): string => {
+  const content = reaction.custom_emoji_content;
+  if (content && !/^:.*:$/.test(content)) return content;
+  const name = (reaction.emoji_name || content || '').replace(/^:+|:+$/g, '').replace(/@[^@]*$/, '');
+  return name.replace(/[_-]+/g, ' ').trim() || t('activitypub.reactionsA11y.unknownEmoji');
+};
+
+const chipLabel = (reaction: PostEmojiReaction): string =>
+  t('activitypub.reactionsA11y.chip', { emoji: emojiLabel(reaction), count: reaction.reaction_count }, reaction.reaction_count);
+
+/** "Reacted by Alice, Bob and 3 more"; empty when nobody is known by name. */
+const reactorNames = (reaction: PostEmojiReaction): string => {
+  const names = [
+    ...(reaction.user_reactions || []).map((u) => plainDisplayName(u.display_name, u.username)),
+    ...(reaction.reactors || []).map((r) => plainDisplayName(r.display_name, r.username)),
+  ].filter(Boolean);
+  if (names.length === 0) return '';
+  const shown = names.slice(0, MAX_NAMED_REACTORS);
+  const rest = names.length - shown.length;
+  if (rest > 0) shown.push(t('activitypub.reactionsA11y.more', { count: rest }, rest));
+  // Intl.ListFormat (ES2021) is absent in older WebViews; the comma list stands there.
+  const ListFormat = (Intl as unknown as { ListFormat?: new (locale: string, options: object) => { format: (items: string[]) => string } }).ListFormat;
+  const list = ListFormat
+    ? new ListFormat(localeCode(), { style: 'long', type: 'conjunction' }).format(shown)
+    : shown.join(', ');
+  return t('activitypub.reactionsA11y.reactedBy', { names: list });
+};
 const toast = useToast();
 const instanceSettings = useInstanceSettingsStore();
 
@@ -285,7 +339,7 @@ const handleReactionClick = async (reaction: PostEmojiReaction) => {
   }
 };
 
-const showTooltip = (event: MouseEvent, reaction: PostEmojiReaction) => {
+const showTooltip = (event: MouseEvent | FocusEvent, reaction: PostEmojiReaction) => {
   emit('show-reaction-tooltip', event, reaction);
 };
 
@@ -368,6 +422,8 @@ defineExpose({
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
+  color: inherit;
+  font: inherit;
   background-color: var(--background-quinary);
   border: 1px solid transparent;
   border-radius: var(--radius-md);
@@ -392,6 +448,11 @@ defineExpose({
   background-color: var(--harmony-primary-alpha);
   /* border-color: color-mix(in srgb, var(--harmony-primary) 50%, transparent); */
   border-color: var(--harmony-primary);
+}
+
+.reaction:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .reaction.loading {

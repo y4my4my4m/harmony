@@ -13,6 +13,8 @@ import {
   adjustHue,
   generateThemePalette,
   applyThemePalette,
+  applyContrastFills,
+  contrastRatio,
   composeBackgroundToneHex,
   decomposeBackgroundToneHex,
   generatePreviewColors,
@@ -300,6 +302,21 @@ describe('colorUtils', () => {
       applyThemePalette(generateThemePalette('#0EA5E9', 'light'))
       expect(root.style.getPropertyValue('--icon-primary')).toBe('#5e6168')
     })
+
+    it.each(['#0EA5E9', '#ed4245', '#8B5CF6', '#facc15', '#22c55e'])(
+      'high contrast gives the primary fill 4.5:1 against its label and drops it when off (%s)',
+      (primary) => {
+        applyThemePalette(generateThemePalette(primary, 'dark'))
+        applyContrastFills(true)
+        const root = document.documentElement
+        const label = root.style.getPropertyValue('--text-on-primary')
+        expect(contrastRatio(label, root.style.getPropertyValue('--harmony-primary-fill'))).toBeGreaterThanOrEqual(4.5)
+        expect(contrastRatio('#ffffff', root.style.getPropertyValue('--error-fill'))).toBeGreaterThanOrEqual(4.5)
+        applyContrastFills(false)
+        expect(root.style.getPropertyValue('--harmony-primary-fill')).toBe('')
+        expect(root.style.getPropertyValue('--error-fill')).toBe('')
+      },
+    )
   })
 
   describe('generatePreviewColors', () => {

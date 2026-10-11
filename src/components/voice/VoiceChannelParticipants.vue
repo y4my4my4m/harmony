@@ -2,44 +2,62 @@
   <div v-if="participants.length > 0" class="voice-participants">
     <div class="participants-header">
       <span class="participants-header-left">
-        <span class="participant-count">{{ participants.length }} in call</span>
+        <span :id="headerId" class="participant-count">{{ t('voice.inCallCount', { count: participants.length }, participants.length) }}</span>
         <VoiceEncryptionBadge v-if="voiceStore.connectionMode" :encrypted="voiceStore.isEncrypted" />
       </span>
-      <span v-if="sessionDuration" class="session-duration">{{ sessionDuration }}</span>
+      <span v-if="sessionDuration" class="session-duration">
+        <span class="sr-only">{{ t('voice.callDuration') }} </span>{{ sessionDuration }}
+      </span>
     </div>
-    <div class="participants-list">
-      <div
+    <ul class="participants-list" :aria-labelledby="headerId">
+      <li
         v-for="participant in participants"
         :key="participant.userId"
-        class="participant-item"
-        tabindex="0"
-        @contextmenu.prevent="openMenu(participant, $event.clientX, $event.clientY)"
-        @keydown.shift.f10.prevent="openMenuFromKeyboard(participant, $event)"
-        @keydown.context-menu.prevent="openMenuFromKeyboard(participant, $event)"
-        @click="onParticipantClick(participant)"
+        class="participant-row"
       >
-        <Avatar
-          :src="getUserAvatarUrl(participant.userId).value"
-          :alt="getUserDisplayName(participant.userId).value || 'User'"
-          size="xs"
-          :class="{ 'speaking': isSpeaking(participant) }"
-        />
-        <span class="participant-name"><DisplayName :userId="participant.userId" /></span>
-        <div class="participant-status">
-          <Icon
-            v-if="isLocallyMuted(participant.userId)"
-            name="volume-x"
-            class="status-icon local-muted"
+        <button
+          type="button"
+          class="participant-item"
+          :aria-label="rowLabel(participant)"
+          aria-haspopup="menu"
+          :aria-expanded="menuUser?.userId === participant.userId"
+          :data-testid="`voice-participant-${participant.userId}`"
+          @click="openMenuFromKeyboard(participant, $event)"
+          @contextmenu.prevent="openMenu(participant, $event.clientX, $event.clientY)"
+          @keydown.shift.f10.prevent="openMenuFromKeyboard(participant, $event)"
+          @keydown.context-menu.prevent="openMenuFromKeyboard(participant, $event)"
+        >
+          <Avatar
+            :src="getUserAvatarUrl(participant.userId).value"
+            alt=""
             size="xs"
-            :title="t('voice.mutedByYou')"
+            :class="{ 'speaking': isSpeaking(participant) }"
           />
-          <Icon v-if="participant.isMuted" name="mic-off" class="status-icon muted" size="xs" :title="t('voice.statusMuted')" />
-          <Icon v-if="participant.isDeafened" name="headphones-off" class="status-icon deafened" size="xs" :title="t('voice.statusDeafened')" />
-          <Icon v-if="participant.isVideoEnabled" name="video" class="status-icon video" size="xs" :title="t('voice.statusCameraOn')" />
-          <span v-if="participant.isScreenSharing" class="live-pill" :title="t('voice.statusStreaming')">{{ t('voice.live') }}</span>
-        </div>
-      </div>
-    </div>
+          <span class="participant-name" aria-hidden="true"><DisplayName :userId="participant.userId" /></span>
+          <span class="participant-status" aria-hidden="true">
+            <Icon
+              v-if="isLocallyMuted(participant.userId)"
+              name="volume-x"
+              class="status-icon local-muted"
+              size="xs"
+              :title="t('voice.mutedByYou')"
+            />
+            <Icon v-if="participant.isMuted" name="mic-off" class="status-icon muted" size="xs" :title="t('voice.statusMuted')" />
+            <Icon v-if="participant.isDeafened" name="headphones-off" class="status-icon deafened" size="xs" :title="t('voice.statusDeafened')" />
+            <Icon v-if="participant.isVideoEnabled" name="video" class="status-icon video" size="xs" :title="t('voice.statusCameraOn')" />
+          </span>
+        </button>
+        <button
+          v-if="participant.isScreenSharing && participant.userId !== voiceStore.localState.userId"
+          type="button"
+          class="live-pill"
+          :title="t('voice.watchStreamOf', { name: getUserDisplayName(participant.userId).value })"
+          :aria-label="t('voice.watchStreamOf', { name: getUserDisplayName(participant.userId).value })"
+          @click="watchStream(participant)"
+        >{{ t('voice.live') }}</button>
+        <span v-else-if="participant.isScreenSharing" class="live-pill" aria-hidden="true">{{ t('voice.live') }}</span>
+      </li>
+    </ul>
 
     <VoiceUserContextMenu
       v-if="menuUser"
@@ -48,13 +66,13 @@
       :y="menuPosition.y"
       :visible="!!menuUser"
       :source="menuUser.isScreenSharing ? 'screen' : 'camera'"
-      @close="menuUser = null"
+      @close="closeMenu"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, nextTick, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
@@ -64,6 +82,9 @@ import VoiceUserContextMenu from './VoiceUserContextMenu.vue';
 import { useUserData } from '@/composables/useUserData';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
+import { uid } from '@/utils/a11y/focus';
+import { participantLabel, useHeldIds } from './participantLabel';
+import { restoreFocusIfLost } from './voiceFocus';
 
 interface Props {
   participants: UserMediaState[];
@@ -76,23 +97,39 @@ const { t } = useI18n();
 const { getUserDisplayName, getUserAvatarUrl } = useUserData();
 const voiceStore = useUnifiedVoiceChannelStore();
 
-// Right-click a member for per-user volume, like Discord's channel list.
+const headerId = uid('voice-participants-header');
+
+// A row opens the member's voice menu (volume, local mute, watch), like
+// Discord's channel list; right-click and Shift+F10 open it in place.
 const menuUser = ref<UserMediaState | null>(null);
 const menuPosition = ref({ x: 0, y: 0 });
+let menuOpener: HTMLElement | null = null;
 
-const openMenu = (participant: UserMediaState, x: number, y: number) => {
+const openMenu = (participant: UserMediaState, x: number, y: number, opener?: HTMLElement) => {
+  if (menuUser.value?.userId === participant.userId) {
+    closeMenu();
+    return;
+  }
+  menuOpener = opener ?? null;
   menuPosition.value = { x, y };
   menuUser.value = participant;
 };
 
-const openMenuFromKeyboard = (participant: UserMediaState, event: KeyboardEvent) => {
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-  openMenu(participant, rect.left + 24, rect.bottom);
+const openMenuFromKeyboard = (participant: UserMediaState, event: Event) => {
+  const el = event.currentTarget as HTMLElement;
+  const rect = el.getBoundingClientRect();
+  openMenu(participant, rect.left + 24, rect.bottom, el);
+};
+
+const closeMenu = () => {
+  menuUser.value = null;
+  const opener = menuOpener;
+  menuOpener = null;
+  void nextTick(() => restoreFocusIfLost(opener));
 };
 
 // A live stream opens in the call view, watched.
-const onParticipantClick = (participant: UserMediaState) => {
-  if (!participant.isScreenSharing || participant.userId === voiceStore.localState.userId) return;
+const watchStream = (participant: UserMediaState) => {
   voiceStore.watchStream(participant.userId);
   voiceStore.isOverlayVisible = true;
   voiceStore.enterFullscreen(participant.userId, 'screen');
@@ -109,6 +146,19 @@ const isSpeaking = (participant: UserMediaState) => {
   }
   return participant.isSpeaking;
 };
+
+const speakingIds = useHeldIds(() => props.participants.filter(isSpeaking).map((p) => p.userId));
+
+const rowLabel = (participant: UserMediaState) =>
+  participantLabel(t, getUserDisplayName(participant.userId).value, {
+    self: participant.userId === voiceStore.localState.userId,
+    muted: participant.isMuted,
+    deafened: participant.isDeafened,
+    camera: participant.isVideoEnabled,
+    streaming: participant.isScreenSharing,
+    speaking: speakingIds.value.has(participant.userId),
+    mutedByYou: isLocallyMuted(participant.userId),
+  });
 
 const sessionDuration = ref<string>('');
 let intervalId: number | null = null;
@@ -189,21 +239,48 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.participant-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .participant-item {
   display: flex;
+  flex: 1;
+  min-width: 0;
   align-items: center;
   gap: 8px;
   padding: 4px;
+  border: none;
   border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   transition: background 0.15s ease;
 }
 
 .participant-item:hover,
 .participant-item:focus-visible {
   background: var(--background-modifier-hover);
-  outline: none;
+}
+
+.participant-item:focus-visible,
+button.live-pill:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+button.live-pill {
+  border: none;
+  cursor: pointer;
 }
 
 .participant-item .speaking {
@@ -234,7 +311,7 @@ onUnmounted(() => {
 .live-pill {
   padding: 0 4px;
   border-radius: var(--radius-sm);
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   font-size: 9px;
   font-weight: 700;
@@ -264,7 +341,7 @@ onUnmounted(() => {
 }
 
 .status-icon.muted {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .status-icon.deafened {
@@ -272,7 +349,7 @@ onUnmounted(() => {
 }
 
 .status-icon.video {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .status-icon.local-muted {
@@ -280,7 +357,7 @@ onUnmounted(() => {
 }
 
 .status-icon.screen {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 </style>
 

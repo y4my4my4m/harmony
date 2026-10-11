@@ -383,7 +383,7 @@ export default defineComponent({
   background-color: var(--background-quinary);
   border: 1px solid var(--harmony-primary);
   border-radius: var(--radius-sm);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
@@ -397,7 +397,7 @@ export default defineComponent({
 }
 
 .copy-button:hover {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 

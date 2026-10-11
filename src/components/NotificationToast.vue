@@ -11,11 +11,11 @@
           :data-toast-id="toast.id"
           @click="handleToastClick(toast)"
         >
-          <div class="toast-icon">
+          <div class="toast-icon" aria-hidden="true">
             <Avatar 
               v-if="toast.avatar" 
               :src="toast.avatar" 
-              :alt="toast.title"
+              alt=""
               class="toast-avatar"
               @error="handleAvatarError"
             />
@@ -25,7 +25,8 @@
           </div>
           
           <div class="toast-content">
-            <h4 class="toast-title">
+            <button type="button" class="toast-open" @click.stop="handleToastClick(toast)">
+            <span class="toast-title">
               <template v-if="toast.type === 'activitypub_reaction' || toast.type === 'reaction'">
                 <!-- For reactions, show emoji inline in title -->
                 <template v-if="toast.type === 'activitypub_reaction'">
@@ -73,12 +74,14 @@
               <template v-else>
                 {{ toast.title }}
               </template>
-            </h4>
-            <p v-if="toast.message" class="toast-message">{{ toast.message }}</p>
+            </span>
+            <span v-if="toast.message" class="toast-message">{{ toast.message }}</span>
+            </button>
             <div class="toast-actions" v-if="toast.actions">
               <button
                 v-for="action in toast.actions"
                 :key="action.label"
+                type="button"
                 @click.stop="action.action"
                 class="toast-action-btn"
                 :class="action.style || 'primary'"
@@ -88,14 +91,14 @@
             </div>
           </div>
           
-          <button type="button" @click.stop="removeToast(toast.id)" class="toast-close" aria-label="Dismiss">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+          <button type="button" @click.stop="removeToast(toast.id)" class="toast-close" :aria-label="t('a11y.toast.dismiss')" :title="t('a11y.toast.dismiss')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
             </svg>
           </button>
           
           <!-- Progress bar -->
-          <div class="toast-progress">
+          <div class="toast-progress" aria-hidden="true">
             <div 
               class="toast-progress-bar"
               :style="{ animationDuration: `${toast.duration}ms` }"
@@ -109,12 +112,14 @@
 
 <script setup lang="ts">
 import { computed, h } from 'vue'
+import { useT } from '@/composables/useT'
 import { useNotificationStore } from '@/stores/useNotification'
 import type { NotificationToast, NotificationType } from '@/types'
 import Avatar from './common/Avatar.vue'
 import DisplayName from './DisplayName.vue'
 
 const notificationStore = useNotificationStore()
+const { t } = useT()
 
 // Computed
 const toasts = computed(() => notificationStore.toasts)
@@ -196,6 +201,29 @@ const getTypeIcon = (type: NotificationType) => {
   flex-direction: column-reverse;
   gap: 12px;
   pointer-events: none;
+}
+
+.toast-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.toast-open:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.toast-open .toast-message {
+  display: block;
 }
 
 .notification-toast {
@@ -345,12 +373,12 @@ const getTypeIcon = (type: NotificationType) => {
 }
 
 .toast-action-btn.primary {
-  background: var(--h-brand);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .toast-action-btn.primary:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .toast-action-btn.secondary {
@@ -365,12 +393,12 @@ const getTypeIcon = (type: NotificationType) => {
 }
 
 .toast-action-btn.danger {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
 }
 
 .toast-action-btn.danger:hover {
-  background: var(--error-hover);
+  background: var(--error-fill-hover);
 }
 
 .toast-close {

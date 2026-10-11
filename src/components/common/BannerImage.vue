@@ -20,7 +20,7 @@
     @keydown.enter.prevent="openFullSize"
     @keydown.space.prevent="openFullSize"
   />
-  <MediaLightbox v-if="lightboxOpen && fullSize" :visible="true" :imgs="[fullSize]" @hide="lightboxOpen = false" />
+  <MediaLightbox v-if="lightboxOpen && fullSize" :visible="true" :imgs="[fullSize]" :alts="[alt || t('a11y.bannerImage')]" @hide="lightboxOpen = false" />
 </template>
 
 <script setup lang="ts">

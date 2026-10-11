@@ -175,7 +175,7 @@
 }
 
 .icon-button.muted {
-  color: var(--error);
+  color: var(--text-danger);
   fill: var(--error);
   background-color: rgba(240, 71, 71, 0.18);
 }
@@ -193,7 +193,7 @@
 }
 
 .form-error {
-  color: var(--error);
+  color: var(--text-danger);
   font-size: var(--font-size-sm);
   margin-top: var(--space-1);
 }

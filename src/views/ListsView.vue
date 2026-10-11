@@ -11,16 +11,16 @@
         <Icon name="menu" :size="20" />
       </button>
       <h1 class="lists-title">{{ $t('activitypub.lists') }}</h1>
-      <button class="create-list-btn" @click="showCreateModal = true">
-        <span class="icon">+</span>
-        New list
+      <button type="button" class="create-list-btn" data-testid="list-create" @click="showCreateModal = true">
+        <span class="icon" aria-hidden="true">+</span>
+        {{ t('activitypub.listsA11y.newList') }}
       </button>
     </div>
 
     <!-- Loading State -->
-    <div v-if="isLoadingLists" class="lists-loading">
+    <div v-if="isLoadingLists" class="lists-loading" role="status">
       <LoadingSpinner :size="32" />
-      <span>Loading lists...</span>
+      <span>{{ t('activitypub.listsA11y.loading') }}</span>
     </div>
 
     <!-- Empty State -->
@@ -33,21 +33,27 @@
       @action="showCreateModal = true"
     />
 
-    <!-- Lists Grid -->
-    <div v-else class="lists-grid">
-      <div 
+    <!-- Lists Grid. The title link opens a list; the card around it is a larger
+         pointer target for the same route. -->
+    <ul v-else class="lists-grid">
+      <li
         v-for="list in lists" 
         :key="list.id"
         class="list-card"
+        data-testid="list-card"
         @click="openList(list)"
       >
         <div class="list-card-header">
-          <h3 class="list-title">{{ list.title }}</h3>
+          <h2 class="list-title">
+            <RouterLink :to="{ name: 'ListDetail', params: { listId: list.id } }" class="list-link" @click.stop>
+              {{ list.title }}
+            </RouterLink>
+          </h2>
           <div class="list-badges">
-            <span v-if="list.is_exclusive" class="badge exclusive" title="Exclusive list">
+            <span v-if="list.is_exclusive" class="badge exclusive" role="img" :aria-label="t('activitypub.listsA11y.exclusive')" :title="t('activitypub.listsA11y.exclusive')">
               <Icon name="star" :size="14" />
             </span>
-            <span v-if="list.is_public" class="badge public" title="Public list">
+            <span v-if="list.is_public" class="badge public" role="img" :aria-label="t('activitypub.listsA11y.public')" :title="t('activitypub.listsA11y.public')">
               <Icon name="globe" :size="14" />
             </span>
           </div>
@@ -57,118 +63,122 @@
         </p>
         <div class="list-meta">
           <span class="members-count">
-            {{ list.members_count || 0 }} {{ list.members_count === 1 ? 'member' : 'members' }}
+            {{ t('activitypub.listsA11y.members', { count: list.members_count || 0 }, list.members_count || 0) }}
           </span>
           <span class="replies-policy">
             {{ formatRepliesPolicy(list.replies_policy) }}
           </span>
         </div>
         <div class="list-actions" @click.stop>
-          <button class="action-btn edit" @click="editList(list)" title="Edit list" aria-label="Edit list">
+          <button
+            type="button"
+            class="action-btn edit"
+            :title="t('activitypub.listsA11y.edit')"
+            :aria-label="t('activitypub.listsA11y.editNamed', { title: list.title })"
+            @click="editList(list)"
+          >
             <Icon name="pencil" :size="16" />
           </button>
-          <button class="action-btn delete" @click="confirmDeleteList(list)" title="Delete list" aria-label="Delete list">
+          <button
+            type="button"
+            class="action-btn delete"
+            :title="t('activitypub.listsA11y.delete')"
+            :aria-label="t('activitypub.listsA11y.deleteNamed', { title: list.title })"
+            @click="confirmDeleteList(list)"
+          >
             <Icon name="trash" :size="16" />
           </button>
         </div>
-      </div>
-    </div>
+      </li>
+    </ul>
 
-    <!-- Create/Edit Modal -->
-    <Teleport to="body">
-      <div v-if="showCreateModal || editingList" class="modal-overlay" @click="closeModal">
-        <div class="modal-content" @click.stop>
-          <h2>{{ editingList ? 'Edit list' : 'Create new list' }}</h2>
-          <form @submit.prevent="handleSubmit">
-            <div class="form-group">
-              <label for="title">Title *</label>
-              <input
-                id="title"
-                v-model="formData.title"
-                type="text"
-                required
-                placeholder="e.g., Friends, News, Tech"
-                maxlength="64"
-              />
-            </div>
-            <div class="form-group">
-              <label for="description">Description</label>
-              <textarea
-                id="description"
-                v-model="formData.description"
-                placeholder="What is this list for?"
-                maxlength="255"
-                rows="2"
-              />
-            </div>
-            <div class="form-group">
-              <label for="replies_policy">Show replies to</label>
-              <select id="replies_policy" v-model="formData.replies_policy">
-                <option value="list">List members only</option>
-                <option value="followed">Anyone you follow</option>
-                <option value="none">No replies</option>
-              </select>
-            </div>
-            <div class="form-group checkbox">
-              <label>
-                <input v-model="formData.is_exclusive" type="checkbox" />
-                <span>Exclusive list</span>
-              </label>
-              <p class="help-text">Hide list members from your home timeline</p>
-            </div>
-            <div class="form-group checkbox">
-              <label>
-                <input v-model="formData.is_public" type="checkbox" />
-                <span>Public list</span>
-              </label>
-              <p class="help-text">Allow others to view this list</p>
-            </div>
-            <div class="modal-actions">
-              <button type="button" class="btn-cancel" @click="closeModal">
-                Cancel
-              </button>
-              <button type="submit" class="btn-submit" :disabled="isSubmitting">
-                {{ editingList ? 'Save changes' : 'Create list' }}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </Teleport>
-
-    <!-- Delete Confirmation Modal -->
-    <Teleport to="body">
-      <div v-if="listToDelete" class="modal-overlay" @click="listToDelete = null">
-        <div class="modal-content delete-modal" @click.stop>
-          <h2>Delete list</h2>
-          <p>Are you sure you want to delete "{{ listToDelete.title }}"?</p>
-          <p class="warning">This action cannot be undone.</p>
+    <!-- Create/Edit dialog -->
+    <AppDialog
+      :open="showCreateModal || !!editingList"
+      class="lists-dialog"
+      data-testid="list-dialog"
+      @close="closeModal"
+      v-slot="{ titleId }"
+    >
+      <div class="modal-content">
+        <h2 :id="titleId">{{ editingList ? t('activitypub.listsA11y.editTitle') : t('activitypub.listsA11y.createTitle') }}</h2>
+        <form @submit.prevent="handleSubmit">
+          <div class="form-group">
+            <label for="list-title">{{ t('activitypub.listsA11y.titleLabel') }}</label>
+            <input
+              id="list-title"
+              v-model="formData.title"
+              type="text"
+              required
+              aria-required="true"
+              :placeholder="t('activitypub.listsA11y.titlePlaceholder')"
+              maxlength="64"
+            />
+          </div>
+          <div class="form-group">
+            <label for="list-description">{{ t('activitypub.listsA11y.descriptionLabel') }}</label>
+            <textarea
+              id="list-description"
+              v-model="formData.description"
+              :placeholder="t('activitypub.listsA11y.descriptionPlaceholder')"
+              maxlength="255"
+              rows="2"
+            />
+          </div>
+          <div class="form-group">
+            <label for="list-replies-policy">{{ t('activitypub.listsA11y.repliesLabel') }}</label>
+            <select id="list-replies-policy" v-model="formData.replies_policy">
+              <option value="list">{{ t('activitypub.listsA11y.repliesList') }}</option>
+              <option value="followed">{{ t('activitypub.listsA11y.repliesFollowed') }}</option>
+              <option value="none">{{ t('activitypub.listsA11y.repliesNone') }}</option>
+            </select>
+          </div>
+          <div class="form-group checkbox">
+            <label>
+              <input v-model="formData.is_exclusive" type="checkbox" aria-describedby="list-exclusive-help" />
+              <span>{{ t('activitypub.listsA11y.exclusive') }}</span>
+            </label>
+            <p id="list-exclusive-help" class="help-text">{{ t('activitypub.listsA11y.exclusiveHelp') }}</p>
+          </div>
+          <div class="form-group checkbox">
+            <label>
+              <input v-model="formData.is_public" type="checkbox" aria-describedby="list-public-help" />
+              <span>{{ t('activitypub.listsA11y.public') }}</span>
+            </label>
+            <p id="list-public-help" class="help-text">{{ t('activitypub.listsA11y.publicHelp') }}</p>
+          </div>
           <div class="modal-actions">
-            <button class="btn-cancel" @click="listToDelete = null">
-              Cancel
+            <button type="button" class="btn-cancel" @click="closeModal">
+              {{ t('common.cancel') }}
             </button>
-            <button class="btn-delete" :disabled="isDeleting" @click="handleDelete">
-              Delete list
+            <button type="submit" class="btn-submit" :disabled="isSubmitting">
+              {{ editingList ? t('activitypub.listsA11y.saveChanges') : t('activitypub.listsA11y.create') }}
             </button>
           </div>
-        </div>
+        </form>
       </div>
-    </Teleport>
+    </AppDialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import Icon from '@/components/common/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import AppDialog from '@/components/a11y/AppDialog.vue'
 import { computed, onMounted, ref, reactive } from 'vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
 import { useActivityPubStore, type UserList } from '@/stores/useActivityPub'
 import { useLayoutState } from '@/composables/useLayoutState'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 // Router
 const router = useRouter()
+const route = useRoute()
+const { t } = useI18n()
+const { confirm } = useConfirmDialog()
 const { isMobile, openLeftSidebar } = useLayoutState()
 
 const activityPubStore = useActivityPubStore()
@@ -177,7 +187,6 @@ const activityPubStore = useActivityPubStore()
 const isLoadingLists = ref(false)
 const showCreateModal = ref(false)
 const editingList = ref<UserList | null>(null)
-const listToDelete = ref<UserList | null>(null)
 const isSubmitting = ref(false)
 const isDeleting = ref(false)
 
@@ -195,9 +204,9 @@ const lists = computed(() => activityPubStore.lists)
 
 const formatRepliesPolicy = (policy: string) => {
   switch (policy) {
-    case 'followed': return 'Replies to followed'
-    case 'list': return 'Replies to list'
-    case 'none': return 'No replies'
+    case 'followed': return t('activitypub.listsA11y.policyFollowed')
+    case 'list': return t('activitypub.listsA11y.policyList')
+    case 'none': return t('activitypub.listsA11y.policyNone')
     default: return policy
   }
 }
@@ -227,9 +236,22 @@ const editList = (list: UserList) => {
   formData.is_public = list.is_public
 }
 
-// Confirm delete
-const confirmDeleteList = (list: UserList) => {
-  listToDelete.value = list
+const confirmDeleteList = async (list: UserList) => {
+  const confirmed = await confirm({
+    title: t('activitypub.listsA11y.deleteTitle'),
+    message: t('activitypub.listsA11y.deleteConfirm', { title: list.title }),
+    confirmButtonText: t('activitypub.listsA11y.delete'),
+    dangerAction: true,
+  })
+  if (!confirmed || isDeleting.value) return
+  isDeleting.value = true
+  try {
+    await activityPubStore.deleteList(list.id)
+  } catch (error) {
+    debug.error('Failed to delete list:', error)
+  } finally {
+    isDeleting.value = false
+  }
 }
 
 const closeModal = () => {
@@ -272,22 +294,12 @@ const handleSubmit = async () => {
   }
 }
 
-const handleDelete = async () => {
-  if (!listToDelete.value) return
-
-  isDeleting.value = true
-  try {
-    await activityPubStore.deleteList(listToDelete.value.id)
-    listToDelete.value = null
-  } catch (error) {
-    debug.error('Failed to delete list:', error)
-  } finally {
-    isDeleting.value = false
-  }
-}
-
-onMounted(() => {
-  loadLists()
+// ListDetailView's Edit button opens this view with ?edit=<list id>.
+onMounted(async () => {
+  await loadLists()
+  const editId = route.query.edit
+  const list = typeof editId === 'string' ? lists.value.find((l) => l.id === editId) : undefined
+  if (list) editList(list)
 })
 </script>
 
@@ -342,7 +354,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.625rem 1rem;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   border: none;
   border-radius: 0.5rem;
@@ -352,7 +364,7 @@ onMounted(() => {
 }
 
 .create-list-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .create-list-btn .icon {
@@ -377,6 +389,9 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .list-card {
@@ -405,6 +420,21 @@ onMounted(() => {
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin: 0;
+}
+
+.list-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.list-link:hover {
+  text-decoration: underline;
+}
+
+.list-link:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .list-badges {
@@ -443,7 +473,8 @@ onMounted(() => {
   transition: opacity 0.2s;
 }
 
-.list-card:hover .list-actions {
+.list-card:hover .list-actions,
+.list-card:focus-within .list-actions {
   opacity: 1;
 }
 
@@ -464,19 +495,9 @@ onMounted(() => {
   background: var(--error);
 }
 
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  backdrop-filter: blur(4px);
+:global(.lists-dialog) {
+  width: 90%;
+  max-width: 420px;
 }
 
 .modal-content {
@@ -484,8 +505,6 @@ onMounted(() => {
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-xl);
   padding: 1.5rem;
-  width: 90%;
-  max-width: 420px;
   box-shadow: var(--shadow-modal);
   max-height: 90vh;
   overflow-y: auto;
@@ -553,8 +572,7 @@ onMounted(() => {
 }
 
 .btn-cancel,
-.btn-submit,
-.btn-delete {
+.btn-submit {
   padding: 0.625rem 1.25rem;
   border-radius: 0.5rem;
   font-weight: var(--font-weight-semibold);
@@ -573,13 +591,13 @@ onMounted(() => {
 }
 
 .btn-submit {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border: none;
   color: var(--text-on-primary);
 }
 
 .btn-submit:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .btn-submit:disabled {
@@ -587,23 +605,4 @@ onMounted(() => {
   cursor: not-allowed;
 }
 
-.delete-modal .warning {
-  color: var(--error);
-  font-size: 0.875rem;
-}
-
-.btn-delete {
-  background: var(--error);
-  border: none;
-  color: var(--text-on-primary);
-}
-
-.btn-delete:hover:not(:disabled) {
-  background: var(--error-hover);
-}
-
-.btn-delete:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
 </style>

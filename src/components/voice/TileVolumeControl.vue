@@ -3,12 +3,12 @@
     <button
       type="button"
       class="tile-volume__btn"
-      :title="isMuted ? unmuteLabel : muteLabel"
-      :aria-label="isMuted ? unmuteLabel : muteLabel"
+      :title="muteLabel"
+      :aria-label="muteLabel"
       :aria-pressed="isMuted"
-      @click="voiceStore.toggleUserLocalMute(userId, kind)"
+      @click="toggleMute"
     >
-      <Icon :name="icon" :size="16" />
+      <Icon :name="icon" :size="16" aria-hidden="true" />
     </button>
     <div class="tile-volume__slider">
       <VolumeSlider
@@ -27,6 +27,7 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
+import { useUserData } from '@/composables/useUserData';
 import type { RemoteAudioKind } from '@/services/voice/remoteAudioMixer';
 import Icon from '@/components/common/Icon.vue';
 import VolumeSlider from './VolumeSlider.vue';
@@ -40,6 +41,9 @@ const props = defineProps<{
 
 const { t } = useI18n();
 const voiceStore = useUnifiedVoiceChannelStore();
+const { getUserDisplayName } = useUserData();
+// Named per person: the call view holds one of these per tile beside the own mute.
+const name = computed(() => getUserDisplayName(props.userId).value);
 
 const volume = computed(() =>
   props.kind === 'mic'
@@ -48,9 +52,22 @@ const volume = computed(() =>
 );
 const isMuted = computed(() => voiceStore.isUserLocallyMuted(props.userId, props.kind) || volume.value === 0);
 
-const label = computed(() => (props.kind === 'mic' ? t('voice.userVolume') : t('voice.streamVolume')));
-const muteLabel = computed(() => (props.kind === 'mic' ? t('voice.muteUser') : t('voice.muteStream')));
-const unmuteLabel = computed(() => t('voice.unmute'));
+const label = computed(() =>
+  t(props.kind === 'mic' ? 'voice.userVolumeNamed' : 'voice.streamVolumeNamed', { name: name.value })
+);
+const muteLabel = computed(() =>
+  t(props.kind === 'mic' ? 'voice.muteUserNamed' : 'voice.muteStreamNamed', { name: name.value })
+);
+
+// Pressed reads "muted" whether by the mute or by a zero volume; a press
+// clears either.
+function toggleMute(): void {
+  if (!voiceStore.isUserLocallyMuted(props.userId, props.kind) && volume.value === 0) {
+    setVolume(100);
+    return;
+  }
+  voiceStore.toggleUserLocalMute(props.userId, props.kind);
+}
 
 const icon = computed(() => {
   if (isMuted.value) return 'volume-x';
@@ -99,7 +116,7 @@ function setVolume(value: number): void {
 }
 
 .tile-volume.muted .tile-volume__btn {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 /* Collapsed until hovered or focused; width animates open. */

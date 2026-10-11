@@ -1,135 +1,124 @@
 <template>
   <div class="input-mode-settings">
-    <div class="input-mode-options">
+    <fieldset class="input-mode-options">
+      <legend class="sr-only">{{ t('settings.voice.inputMode') }}</legend>
       <label
         class="input-mode-option"
         :class="{ active: inputMode === 'voice_activity' }"
-        @click="setInputMode('voice_activity')"
       >
-        <div class="radio-custom" :class="{ checked: inputMode === 'voice_activity' }">
-          <div class="radio-inner"></div>
-        </div>
-        <div class="mode-content">
-          <span class="mode-title">Voice Activity</span>
-          <small class="mode-description">Automatically transmit when you speak</small>
-        </div>
+        <input
+          type="radio"
+          class="input-mode-radio"
+          :name="groupName"
+          value="voice_activity"
+          :checked="inputMode === 'voice_activity'"
+          :aria-describedby="`${idBase}-va-desc`"
+          data-testid="input-mode-voice-activity"
+          @change="setInputMode('voice_activity')"
+        />
+        <span class="radio-custom" :class="{ checked: inputMode === 'voice_activity' }" aria-hidden="true">
+          <span class="radio-inner"></span>
+        </span>
+        <span class="mode-content">
+          <span class="mode-title">{{ t('settings.voice.voiceActivity') }}</span>
+          <small :id="`${idBase}-va-desc`" class="mode-description">{{ t('settings.voice.voiceActivityDesc') }}</small>
+        </span>
       </label>
 
       <label
         class="input-mode-option"
         :class="{ active: inputMode === 'push_to_talk' }"
-        @click="setInputMode('push_to_talk')"
       >
-        <div class="radio-custom" :class="{ checked: inputMode === 'push_to_talk' }">
-          <div class="radio-inner"></div>
-        </div>
-        <div class="mode-content">
-          <span class="mode-title">Push to Talk</span>
-          <small class="mode-description">Hold a key to transmit</small>
-        </div>
+        <input
+          type="radio"
+          class="input-mode-radio"
+          :name="groupName"
+          value="push_to_talk"
+          :checked="inputMode === 'push_to_talk'"
+          :aria-describedby="`${idBase}-ptt-desc`"
+          data-testid="input-mode-push-to-talk"
+          @change="setInputMode('push_to_talk')"
+        />
+        <span class="radio-custom" :class="{ checked: inputMode === 'push_to_talk' }" aria-hidden="true">
+          <span class="radio-inner"></span>
+        </span>
+        <span class="mode-content">
+          <span class="mode-title">{{ t('settings.voice.pushToTalk') }}</span>
+          <small :id="`${idBase}-ptt-desc`" class="mode-description">{{ t('settings.voice.pushToTalkDesc') }}</small>
+        </span>
       </label>
-    </div>
+    </fieldset>
 
     <div v-if="inputMode === 'push_to_talk'" class="ptt-settings">
       <div class="setting-group">
-        <label class="setting-label">Push to Talk Shortcut</label>
-        <button
-          class="keybind-button"
-          :class="{ recording: isRecordingKeybind }"
-          @click="toggleRecording"
-        >
-          <Icon name="keyboard" />
-          <span v-if="isRecordingKeybind">Press any key...</span>
-          <span v-else>{{ pttKeyDisplay }}</span>
-        </button>
-        <small class="setting-hint">Click, then press a key. {{ captureScopeHint }}</small>
+        <span :id="`${idBase}-ptt-label`" class="setting-label">{{ t('settings.voice.pttShortcut') }}</span>
+        <KeybindRecorder
+          class="ptt-recorder"
+          action="push-to-talk"
+          :name="t('settings.keybinds.actions.pushToTalk.name')"
+          :describedby="`${idBase}-ptt-hint`"
+        />
+        <small :id="`${idBase}-ptt-hint`" class="setting-hint">{{ captureScopeHint }}</small>
       </div>
 
       <div class="setting-group">
-        <label class="setting-label">
-          Release Delay
-          <span class="setting-value">{{ releaseDelay }}ms</span>
+        <label :for="`${idBase}-delay`" class="setting-label">
+          {{ t('settings.voice.releaseDelay') }}
+          <span class="setting-value" aria-hidden="true">{{ t('settings.voice.milliseconds', { ms: releaseDelay }) }}</span>
         </label>
         <input
+          :id="`${idBase}-delay`"
           type="range"
           v-model.number="localReleaseDelay"
           min="0"
           max="500"
           step="50"
           class="setting-slider"
+          :aria-valuetext="t('settings.voice.millisecondsLong', { ms: localReleaseDelay })"
+          :aria-describedby="`${idBase}-delay-hint`"
+          data-testid="ptt-release-delay"
           @input="ptt.setReleaseDelay(localReleaseDelay)"
         />
-        <small class="setting-hint">Delay before muting after release (prevents cutting off words)</small>
+        <small :id="`${idBase}-delay-hint`" class="setting-hint">{{ t('settings.voice.releaseDelayHint') }}</small>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue';
+import { ref, computed } from 'vue';
 import { usePushToTalk } from '@/composables/usePushToTalk';
 import { useKeybinds } from '@/composables/useKeybinds';
+import { useT } from '@/composables/useT';
+import { uid } from '@/utils/a11y/focus';
 import { isTauriDesktop, isMobileUserAgent } from '@/utils/platform';
-import Icon from '@/components/common/Icon.vue';
+import KeybindRecorder from './KeybindRecorder.vue';
 
 const emit = defineEmits<{ 'input-mode-change': [mode: 'voice_activity' | 'push_to_talk'] }>();
 
+const { t } = useT();
 const ptt = usePushToTalk();
 const keybinds = useKeybinds();
 const inputMode = ptt.inputMode;
-const pttKeyDisplay = ptt.pttKeyDisplay;
 const releaseDelay = ptt.releaseDelay;
-const isRecordingKeybind = ptt.isRecordingKeybind;
 const localReleaseDelay = ref(ptt.releaseDelay.value);
+const idBase = uid('input-mode');
+const groupName = `${idBase}-mode`;
 
 const captureScopeHint = computed(() => {
-  if (isMobileUserAgent()) return 'On mobile, hold the on-screen Talk button in the voice dock.';
+  if (isMobileUserAgent()) return t('settings.voice.pttScopeMobile');
   if (isTauriDesktop()) {
     return keybinds.nativePttAvailable.value === false
-      ? 'System-wide capture is unavailable in this session (Wayland or missing permissions) — the key works while Harmony is focused.'
-      : 'Works system-wide, even while Harmony is in the background.';
+      ? t('settings.voice.pttScopeDesktopFocused')
+      : t('settings.voice.pttScopeDesktop');
   }
-  return 'Browsers only deliver keys while the Harmony tab is focused.';
+  return t('settings.voice.pttScopeBrowser');
 });
 
 function setInputMode(mode: 'voice_activity' | 'push_to_talk') {
   ptt.setInputMode(mode);
   emit('input-mode-change', mode);
 }
-
-function onKey(e: KeyboardEvent) {
-  if (ptt.recordKeybind(e)) {
-    e.preventDefault();
-    e.stopPropagation();
-    stopRecording();
-  }
-}
-
-function onMouse(e: MouseEvent) {
-  if (ptt.recordMouseButton(e)) {
-    e.preventDefault();
-    e.stopPropagation();
-    stopRecording();
-  }
-}
-
-function stopRecording() {
-  window.removeEventListener('keydown', onKey, true);
-  window.removeEventListener('mousedown', onMouse, true);
-}
-
-function toggleRecording() {
-  if (isRecordingKeybind.value) {
-    ptt.cancelRecordingKeybind();
-    stopRecording();
-  } else {
-    ptt.startRecordingKeybind();
-    window.addEventListener('keydown', onKey, true);
-    window.addEventListener('mousedown', onMouse, true);
-  }
-}
-
-onUnmounted(stopRecording);
 </script>
 
 <style scoped>
@@ -137,9 +126,13 @@ onUnmounted(stopRecording);
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-bottom: 20px;
+  margin: 0 0 20px 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
 }
 .input-mode-option {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -173,6 +166,19 @@ onUnmounted(stopRecording);
 .radio-custom.checked {
   border-color: var(--harmony-primary);
 }
+/* Native radio carries focus and state; the drawn circle shows it. */
+.input-mode-radio {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+.input-mode-option:has(.input-mode-radio:focus-visible) {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
 .radio-inner {
   width: 10px;
   height: 10px;
@@ -184,6 +190,7 @@ onUnmounted(stopRecording);
   background: var(--harmony-primary);
 }
 .mode-content {
+  display: block;
   flex: 1;
 }
 .mode-title {
@@ -219,32 +226,8 @@ onUnmounted(stopRecording);
   margin-bottom: 8px;
 }
 .setting-value {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-weight: 600;
-}
-.keybind-button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 12px 16px;
-  background: var(--background-tertiary);
-  border: 1px solid var(--border-primary);
-  border-radius: 8px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-.keybind-button:hover {
-  background: var(--background-secondary);
-  border-color: var(--border-hover);
-}
-.keybind-button.recording {
-  background: var(--harmony-primary-light);
-  border-color: var(--harmony-primary);
-  color: var(--harmony-primary);
 }
 .setting-slider {
   width: 100%;
@@ -265,11 +248,22 @@ onUnmounted(stopRecording);
   border-radius: 50%;
   cursor: pointer;
 }
+.ptt-recorder {
+  align-items: stretch;
+}
+.ptt-recorder :deep(.keybind-recorder__input) {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 14px;
+}
+.setting-slider:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 4px;
+}
 .setting-hint {
   display: block;
   margin-top: 8px;
   font-size: 12px;
   color: var(--text-secondary);
-  opacity: 0.8;
 }
 </style>

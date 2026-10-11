@@ -154,7 +154,7 @@ onUnmounted(() => {
   padding: 0 var(--space-4);
   border: none;
   border-radius: var(--radius-md);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font: inherit;
   font-size: var(--font-size-sm);
@@ -164,7 +164,7 @@ onUnmounted(() => {
 }
 
 .banner-install:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .banner-install:disabled {

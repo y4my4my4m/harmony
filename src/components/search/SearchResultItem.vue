@@ -128,7 +128,7 @@ const handleClick = (event: MouseEvent) => {
   flex-shrink: 0;
   padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: 10px;
   font-weight: var(--font-weight-semibold);

@@ -2,9 +2,17 @@
 <template>
   <component :is="wrapperComponent" v-bind="wrapperProps">
     <div :class="composerClasses" @click.self="handleOverlayClick">
-      <div :class="contentClasses">
+      <!-- Modal mode is a dialog (useDialog). -->
+      <div
+        ref="dialogEl"
+        :class="contentClasses"
+        :role="mode === 'modal' ? 'dialog' : undefined"
+        :aria-modal="mode === 'modal' ? 'true' : undefined"
+        :aria-labelledby="mode === 'modal' ? titleId : undefined"
+        :tabindex="mode === 'modal' ? -1 : undefined"
+      >
         <div v-if="!(mode === 'inline' && type === 'reply')" class="composer-header">
-          <h2 class="composer-title">
+          <h2 :id="titleId" class="composer-title">
             {{ headerTitle }}
           </h2>
           <button
@@ -26,7 +34,7 @@
           <div class="reply-to-post">
             <Avatar 
               :src="effectiveReplyToPost.author?.avatar_url"
-              :alt="effectiveReplyToPost.author?.display_name || effectiveReplyToPost.author?.username"
+              alt=""
               size="md"
               :interactive="true"
             />
@@ -45,12 +53,12 @@
         <div v-if="type === 'quote' && quotePost" class="quote-preview-section">
           <div class="quote-preview-header">
             <Icon name="edit" :size="16" />
-            <span>Quoting</span>
+            <span>{{ t('activitypub.composerA11y.quoting') }}</span>
           </div>
           <div class="quote-preview">
             <Avatar 
               :src="quoteAuthor?.avatar_url || quotePost.author?.avatar_url"
-              :alt="quoteAuthor?.display_name || quotePost.author?.display_name"
+              alt=""
               size="sm"
               :interactive="true"
             />
@@ -70,7 +78,7 @@
           <div class="composer-user">
             <Avatar 
               :src="currentUser?.avatar_url"
-              :alt="currentUser?.display_name || currentUser?.username"
+              alt=""
               :size="mode === 'inline' && type === 'reply' ? 'sm' : 'md'"
               :interactive="true"
             />
@@ -103,6 +111,8 @@
                 :max-height="200"
                 :min-height="60"
                 :bordered="mode === 'inline'"
+                :auto-suggest-active="autoSuggest.state.value.isActive"
+                :auto-suggest-selected-id="autoSuggest.state.value.isActive ? 'suggest-' + autoSuggest.state.value.selectedIndex : undefined"
                 @update:model-value="handleContentUpdate"
                 @keydown="handleKeydown"
                 @cursor-position-changed="handleCursorPositionChanged"
@@ -111,7 +121,7 @@
               
               <div v-if="isDragging" class="drag-drop-overlay">
                 <Icon name="upload" :size="32" />
-                <span>Drop images or videos here</span>
+                <span>{{ t('activitypub.composerA11y.dropMedia') }}</span>
               </div>
               
               <AutoSuggest
@@ -244,10 +254,13 @@
                 ref="visibilityTriggerRef"
                 type="button"
                 class="visibility-chip"
-                aria-haspopup="listbox"
+                data-testid="compose-visibility"
+                aria-haspopup="menu"
                 :aria-expanded="showVisibilityMenu"
+                :aria-controls="showVisibilityMenu ? visibilityMenuId : undefined"
                 :aria-label="t('activitypub.visibilityLabel', { visibility: currentVisibility.label })"
                 @click.stop="toggleVisibilityMenu"
+                @keydown="onVisibilityTriggerKeydown"
               >
                 <Icon :name="currentVisibility.icon" :size="14" />
                 <span class="visibility-chip-label">{{ currentVisibility.label }}</span>
@@ -255,13 +268,14 @@
               </button>
 
               <div class="action-group">
+                <!-- Read in browse mode; threshold crossings are announced. -->
                 <span
                   v-if="charactersUsed > 0"
                   class="character-counter"
                   :class="characterCounterClass"
-                  role="status"
-                  :aria-label="t('activitypub.charactersRemaining', { count: remainingCharacters })"
+                  data-testid="compose-counter"
                 >
+                  <span class="sr-only">{{ counterText }}</span>
                   <svg class="counter-ring" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
                     <circle class="counter-track" cx="12" cy="12" r="10" />
                     <circle
@@ -308,35 +322,36 @@
           </div>
         </div>
 
-        <Teleport to="body">
-          <div
-            v-if="showVisibilityMenu"
-            v-click-outside="closeVisibilityMenu"
-            class="composer-visibility-menu"
-            role="listbox"
-            :aria-label="t('activitypub.postVisibility')"
-            :style="visibilityMenuStyle"
-            @keydown.esc="closeVisibilityMenu"
+        <!-- Visibility: a menu of radio items; focus starts on the checked one. -->
+        <SocialMenu
+          v-if="showVisibilityMenu"
+          :id="visibilityMenuId"
+          class="composer-visibility-menu"
+          data-testid="compose-visibility-menu"
+          :anchor="visibilityTriggerRef"
+          :label="t('activitypub.postVisibility')"
+          initial-item="[aria-checked='true']"
+          @close="closeVisibilityMenu"
+        >
+          <button
+            v-for="option in visibilityOptions"
+            :key="option.value"
+            type="button"
+            role="menuitemradio"
+            :aria-checked="visibility === option.value"
+            class="social-menu-item visibility-option"
+            :class="{ active: visibility === option.value }"
+            :data-visibility="option.value"
+            @click.stop="setVisibility(option.value)"
           >
-            <button
-              v-for="option in visibilityOptions"
-              :key="option.value"
-              type="button"
-              role="option"
-              :aria-selected="visibility === option.value"
-              class="visibility-option"
-              :class="{ active: visibility === option.value }"
-              @click.stop="setVisibility(option.value)"
-            >
-              <Icon :name="option.icon" :size="18" />
-              <span class="option-details">
-                <span class="option-label">{{ option.label }}</span>
-                <span class="option-description">{{ option.description }}</span>
-              </span>
-              <Icon v-if="visibility === option.value" name="check" :size="16" />
-            </button>
-          </div>
-        </Teleport>
+            <Icon :name="option.icon" :size="18" />
+            <span class="option-details">
+              <span class="option-label">{{ option.label }}</span>
+              <span class="option-description">{{ option.description }}</span>
+            </span>
+            <Icon v-if="visibility === option.value" name="check" :size="16" />
+          </button>
+        </SocialMenu>
 
         <Teleport to="body">
           <MediaPickerPopup
@@ -367,7 +382,7 @@ import { useComposerActions } from '@/composables/useComposerActions';
 import { useAutoSuggest } from '@/composables/useAutoSuggest';
 import type { SuggestionItem } from '@/components/AutoSuggest.vue';
 
-import { getOriginalPost, getOriginalPostId, getReplyMentionAuthor } from '@/utils/postReblog';
+import { getOriginalPost, getOriginalPostId, replyMentionPrefill, replyVisibility } from '@/utils/postReblog';
 import { attachmentFocus } from '@/utils/focalPoint';
 import type { MediaEdit } from '@/utils/mediaEdit';
 import { messagePartsToRawText } from '@/utils/messageContentUtils';
@@ -382,7 +397,11 @@ import Avatar from '../common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import AutoSuggest from '@/components/AutoSuggest.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
+import SocialMenu from './SocialMenu.vue';
 import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
+import { useDialog } from '@/composables/useDialog';
+import { useMenuButton } from '@/composables/useMenu';
+import { useAnnouncer } from '@/composables/useAnnouncer';
 
 const { t } = useI18n();
 const toast = useToast();
@@ -421,7 +440,7 @@ const instanceSettings = useInstanceSettingsStore();
 const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
 const fileInputRef = ref<HTMLInputElement>();
 const visibilityTriggerRef = ref<HTMLElement | null>(null);
-const visibilityMenuStyle = ref<Record<string, string>>({});
+const dialogEl = ref<HTMLElement | null>(null);
 const emojiTriggerRef = ref<HTMLElement | null>(null);
 const gifTriggerRef = ref<HTMLElement | null>(null);
 const mediaPickerTriggerRef = computed(() => gifTriggerRef.value || emojiTriggerRef.value);
@@ -445,6 +464,7 @@ const visibility = ref<Post['visibility']>(props.defaultVisibility || 'public');
 const isSensitive = ref(false);
 const showContentWarning = ref(false);
 const showVisibilityMenu = ref(false);
+const { menuId: visibilityMenuId, onTriggerKeydown: onVisibilityTriggerKeydown } = useMenuButton(showVisibilityMenu);
 const showMediaPicker = ref(false);
 const mediaPickerInitialTab = ref<'gifs' | 'emoji'>('gifs');
 
@@ -481,6 +501,16 @@ const characterCounterClass = computed(() => {
   if (remaining <= COUNTER_NUMBER_THRESHOLD) return 'warning';
   return '';
 });
+const counterText = computed(() => remainingCharacters.value < 0
+  ? t('activitypub.composerA11y.charactersOver', { count: -remainingCharacters.value }, -remainingCharacters.value)
+  : t('activitypub.charactersRemaining', { count: remainingCharacters.value }));
+
+// Spoken when the count crosses into the warning band or past the limit, not per keystroke.
+const { polite } = useAnnouncer();
+watch(characterCounterClass, (band, previous) => {
+  if (band && band !== previous) polite(counterText.value, { key: 'composer-counter' });
+});
+
 const counterDashOffset = computed(() => {
   const ratio = Math.min(1, charactersUsed.value / Math.max(1, characterLimit.value));
   return COUNTER_CIRCUMFERENCE * (1 - ratio);
@@ -671,10 +701,6 @@ const handleKeydown = (event: KeyboardEvent) => {
       handleSubmit();
     }
   }
-  
-  if (event.key === 'Escape' && props.mode === 'modal') {
-    handleClose();
-  }
 };
 
 const triggerFileUpload = () => {
@@ -754,27 +780,8 @@ const closeVisibilityMenu = () => {
   showVisibilityMenu.value = false;
 };
 
-// Teleported to <body>: the modal body and the mobile toolbar are scroll
-// containers and clip positioned descendants.
-const positionVisibilityMenu = () => {
-  const trigger = visibilityTriggerRef.value;
-  if (!trigger) return;
-  const rect = trigger.getBoundingClientRect();
-  const menuWidth = Math.min(280, window.innerWidth - 16);
-  const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
-  const spaceBelow = window.innerHeight - rect.bottom;
-  const style: Record<string, string> = { left: `${left}px`, width: `${menuWidth}px` };
-  if (spaceBelow < 300 && rect.top > spaceBelow) {
-    style.bottom = `${window.innerHeight - rect.top + 6}px`;
-  } else {
-    style.top = `${rect.bottom + 6}px`;
-  }
-  visibilityMenuStyle.value = style;
-};
-
 const toggleVisibilityMenu = () => {
   showMediaPicker.value = false;
-  if (!showVisibilityMenu.value) positionVisibilityMenu();
   showVisibilityMenu.value = !showVisibilityMenu.value;
 };
 
@@ -789,6 +796,12 @@ const toggleGifPicker = () => {
   mediaPickerInitialTab.value = 'gifs';
   showMediaPicker.value = !showMediaPicker.value;
 };
+
+const { titleId } = useDialog({
+  open: () => props.mode === 'modal' && props.isOpen,
+  element: dialogEl,
+  onClose: () => handleClose(),
+});
 
 const handleOverlayClick = () => {
   if (props.mode === 'modal') {
@@ -914,20 +927,10 @@ onMounted(() => {
       }));
     }
   } else if (props.type === 'reply' && props.replyToPost) {
-    // `getReplyMentionAuthor` returns the original post's author for pure
-    // reblogs, the quoter for quote posts, and `undefined` for unhydrated
-    // reblogs - no prefill there, since mentioning the booster is wrong.
-    const author = getReplyMentionAuthor(props.replyToPost);
-    if (author) {
-      const username = author.username || '';
-      const domain = author.domain || '';
-      const isLocal = author.is_local !== false;
-
-      const mention = (!isLocal && domain)
-        ? `@${username}@${domain} `
-        : `@${username} `;
-      content.value = mention;
-    }
+    // Pure reblog → original author, quote → quoter, unhydrated reblog → no
+    // prefill; then the post's other mentions (utils/postReblog.ts).
+    content.value = replyMentionPrefill(props.replyToPost, currentUser.value?.id);
+    visibility.value = replyVisibility(props.replyToPost, props.defaultVisibility);
   } else if (props.type === 'post' && props.initialContent?.trim()) {
     content.value = props.initialContent;
     if (props.initialContentWarning) {
@@ -968,19 +971,11 @@ watch(() => props.initialContent, (val) => {
 
 watch(() => props.replyToPost, (replyPost) => {
   if (props.type === 'reply' && replyPost && content.value === '') {
-    // Same routing as onMounted: pure reblog → original author,
-    // quote → quoter, unhydrated reblog → no prefill.
-    const author = getReplyMentionAuthor(replyPost);
-    if (!author) return;
-    const username = author.username || '';
-    const domain = author.domain || '';
-    const isLocal = author.is_local !== false;
+    visibility.value = replyVisibility(replyPost, props.defaultVisibility);
+    const prefill = replyMentionPrefill(replyPost, currentUser.value?.id);
+    if (!prefill) return;
+    content.value = prefill;
 
-    const mention = (!isLocal && domain)
-      ? `@${username}@${domain} `
-      : `@${username} `;
-    content.value = mention;
-    
     nextTick(() => {
       richEditorRef.value?.focus();
       // Cursor lands after the mention and its trailing space.
@@ -990,22 +985,6 @@ watch(() => props.replyToPost, (replyPost) => {
     });
   }
 });
-
-const vClickOutside = {
-  mounted(el: HTMLElement & { _clickOutsideHandler?: (event: Event) => void }, binding: any) {
-    el._clickOutsideHandler = (event: Event) => {
-      if (!(el === event.target || el.contains(event.target as Node))) {
-        binding.value();
-      }
-    };
-    document.addEventListener('click', el._clickOutsideHandler);
-  },
-  unmounted(el: HTMLElement & { _clickOutsideHandler?: (event: Event) => void }) {
-    if (el._clickOutsideHandler) {
-      document.removeEventListener('click', el._clickOutsideHandler);
-    }
-  }
-};
 </script>
 
 <style scoped>
@@ -1037,6 +1016,15 @@ const vClickOutside = {
 
 .composer-modal.is-reply {
   max-width: 700px;
+}
+
+.composer-modal:focus {
+  outline: none;
+}
+
+.composer-modal:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .composer-inline {
@@ -1301,7 +1289,7 @@ const vClickOutside = {
 }
 
 .character-counter.over-limit {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .character-counter.over-limit .counter-progress {
@@ -1338,7 +1326,7 @@ const vClickOutside = {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  color: var(--success);
+  color: var(--text-success);
   font-size: 0.75rem;
 }
 
@@ -1363,7 +1351,7 @@ const vClickOutside = {
 }
 
 .option-button.active {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   background-color: var(--harmony-primary-alpha);
 }
 
@@ -1377,7 +1365,7 @@ const vClickOutside = {
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-full);
   background: transparent;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-size: 0.8125rem;
   font-weight: var(--font-weight-semibold);
   white-space: nowrap;
@@ -1408,14 +1396,8 @@ const vClickOutside = {
   display: flex;
 }
 
-.composer-visibility-menu {
-  position: fixed;
-  z-index: 10000;
-  background-color: var(--background-floating, var(--background-primary));
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
-  padding: 0.25rem;
-  box-shadow: var(--shadow-large);
+:global(.composer-visibility-menu) {
+  width: min(280px, calc(100vw - 16px));
 }
 
 .visibility-option {
@@ -1438,7 +1420,7 @@ const vClickOutside = {
 }
 
 .visibility-option.active {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .option-details {
@@ -1478,7 +1460,7 @@ const vClickOutside = {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1.25rem;
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   border: none;
   border-radius: var(--radius-full);
   color: var(--text-on-primary);
@@ -1488,7 +1470,7 @@ const vClickOutside = {
 }
 
 .post-button:hover:not(:disabled) {
-  background-color: var(--harmony-primary-hover);
+  background-color: var(--harmony-primary-fill-hover);
 }
 
 .post-button:disabled {

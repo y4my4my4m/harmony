@@ -41,14 +41,14 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Today dashboard</h4>
-          <p class="setting-description">
+          <h4 class="setting-label" :id="`${a11yId}-t1`">Today dashboard</h4>
+          <p class="setting-description" :id="`${a11yId}-t1-desc`">
             A daily digest of channels with unread activity, threads you're part of,
             and trending posts. Adds a sun icon to the server sidebar.
           </p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch
+          <ToggleSwitch :labelledby="`${a11yId}-t1`" :describedby="`${a11yId}-t1-desc`"
             :model-value="todayDashboardEnabled"
             @update:model-value="setTodayDashboardEnabled"
           />
@@ -57,8 +57,8 @@
 
       <div class="setting-item" :class="{ 'disabled-option': !todayDashboardEnabled }">
         <div class="setting-info">
-          <h4 class="setting-label">On-device AI summaries</h4>
-          <p class="setting-description">
+          <h4 class="setting-label" :id="`${a11yId}-t2`">On-device AI summaries</h4>
+          <p class="setting-description" :id="`${a11yId}-t2-desc`">
             Summarize the Today digest with your browser's built-in AI model
             (Chrome's Gemini Nano). Runs entirely on your device - nothing is sent
             to a server.
@@ -66,7 +66,7 @@
           </p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch
+          <ToggleSwitch :labelledby="`${a11yId}-t2`" :describedby="`${a11yId}-t2-desc`"
             :model-value="todayAiSummariesEnabled"
             :disabled="!todayDashboardEnabled || !onDeviceAiSupported"
             @update:model-value="setTodayAiSummariesEnabled"
@@ -80,31 +80,31 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Launch at startup</h4>
-          <p class="setting-description">Start Harmony automatically when you log into your computer. It launches minimized to the tray.</p>
+          <h4 class="setting-label" :id="`${a11yId}-t3`">Launch at startup</h4>
+          <p class="setting-description" :id="`${a11yId}-t3-desc`">Start Harmony automatically when you log into your computer. It launches minimized to the tray.</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch v-model="launchAtLogin" @change="onLaunchAtLoginChange" />
+          <ToggleSwitch :labelledby="`${a11yId}-t3`" :describedby="`${a11yId}-t3-desc`" v-model="launchAtLogin" @change="onLaunchAtLoginChange" />
         </div>
       </div>
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Game activity (rich presence)</h4>
-          <p class="setting-description">Show the game you're playing as your status. Detection runs locally; only the game name is shared, as your status text.</p>
+          <h4 class="setting-label" :id="`${a11yId}-t4`">Game activity (rich presence)</h4>
+          <p class="setting-description" :id="`${a11yId}-t4-desc`">Show the game you're playing as your status. Detection runs locally; only the game name is shared, as your status text.</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch v-model="richPresence" @change="onRichPresenceChange" />
+          <ToggleSwitch :labelledby="`${a11yId}-t4`" :describedby="`${a11yId}-t4-desc`" v-model="richPresence" @change="onRichPresenceChange" />
         </div>
       </div>
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">In-game voice overlay</h4>
-          <p class="setting-description">Floating, click-through voice tiles over your game while in a call. Press Ctrl+Shift+O to toggle interaction.</p>
+          <h4 class="setting-label" :id="`${a11yId}-t5`">In-game voice overlay</h4>
+          <p class="setting-description" :id="`${a11yId}-t5-desc`">Floating, click-through voice tiles over your game while in a call. Press Ctrl+Shift+O to toggle interaction.</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch v-model="gameOverlay" @change="onGameOverlayChange" />
+          <ToggleSwitch :labelledby="`${a11yId}-t5`" :describedby="`${a11yId}-t5-desc`" v-model="gameOverlay" @change="onGameOverlayChange" />
         </div>
       </div>
     </div>
@@ -150,11 +150,11 @@
 
       <div class="setting-item" :class="{ 'disabled-option': !updaterActive }">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('updater.settings.autoDownload') }}</h4>
-          <p class="setting-description">{{ $t('updater.settings.autoDownloadDescription') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t6`">{{ $t('updater.settings.autoDownload') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t6-desc`">{{ $t('updater.settings.autoDownloadDescription') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch
+          <ToggleSwitch :labelledby="`${a11yId}-t6`" :describedby="`${a11yId}-t6-desc`"
             :model-value="updaterState.autoDownload"
             :disabled="!updaterActive"
             @update:model-value="setAutoDownload"
@@ -168,11 +168,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.advanced.developerMode') }}</h4>
-          <p class="setting-description">{{ $t('settings.advanced.developerModeDescription') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t7`">{{ $t('settings.advanced.developerMode') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t7-desc`">{{ $t('settings.advanced.developerModeDescription') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch
+          <ToggleSwitch :labelledby="`${a11yId}-t7`" :describedby="`${a11yId}-t7-desc`"
             v-model="settings.developerMode"
             @change="onSettingChange"
           />
@@ -347,6 +347,11 @@ import {
   isChromiumDesktop,
   isPWA,
 } from '@/utils/pwaUtils'
+
+import { uid } from '@/utils/a11y/focus'
+
+// Ids pairing each switch with its visible label.
+const a11yId = uid('advanced-settings')
 
 interface Props {
   loading: boolean
@@ -697,7 +702,7 @@ const clearCache = async () => {
 }
 
 .section-title.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .setting-item {
@@ -728,13 +733,13 @@ const clearCache = async () => {
 }
 
 .setting-label.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 
 
 .setting-description a {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .setting-description {
@@ -787,12 +792,12 @@ const clearCache = async () => {
 }
 
 .btn-danger {
-  background-color: var(--error);
+  background-color: var(--error-fill);
   color: var(--text-on-primary);
 }
 
 .btn-danger:hover {
-  background-color: var(--error-hover);
+  background-color: var(--error-fill-hover);
 }
 
 .modal-overlay {

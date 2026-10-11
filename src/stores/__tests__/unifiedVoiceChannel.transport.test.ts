@@ -54,6 +54,9 @@ vi.mock('@/services/overlayBridge', () => ({ syncOverlayForCall: vi.fn() }))
 vi.mock('@/stores/useTheme', () => ({ useThemeStore: () => ({ playAudio: vi.fn() }) }))
 vi.mock('@/stores/useNotification', () => ({ useNotificationStore: () => ({ showToast: vi.fn() }) }))
 vi.mock('@/composables/useUserData', () => ({ useUserData: () => ({ ensureProfilesAvailable: async () => undefined }) }))
+vi.mock('@/services/voice/voiceAnnouncements', () => ({
+  voiceAnnouncer: new Proxy({}, { get: () => () => undefined }),
+}))
 vi.mock('@/composables/useKeybinds', () => ({ useKeybinds: () => ({}) }))
 vi.mock('@/services/encryption/VoiceE2EEService', () => ({ voiceE2EEService: { canParticipate: () => true } }))
 vi.mock('@/services/ChannelEncryptionService', () => ({ fetchEffectiveChannelEncryption: vi.fn(async () => null) }))

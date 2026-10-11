@@ -403,7 +403,7 @@ onMounted(() => {
 }
 
 .check-mark {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-size: var(--font-size-sm);
 }
 

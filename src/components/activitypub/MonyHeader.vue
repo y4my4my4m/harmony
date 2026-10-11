@@ -7,6 +7,7 @@
         class="icon-btn"
         :aria-label="t('activitypub.openNavigation')"
         :title="t('activitypub.openNavigation')"
+        v-bind="leftDrawerToggle"
         @click="$emit('toggle-left-sidebar')"
       >
         <Icon name="menu" :size="20" />
@@ -112,10 +113,12 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useAppDrawers } from '@/composables/useLayoutState'
 import Icon from '@/components/common/Icon.vue'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 
 const { t } = useI18n()
+const { leftDrawerToggle } = useAppDrawers()
 const instanceSettings = useInstanceSettingsStore()
 
 interface Props {
@@ -340,7 +343,7 @@ const handleTabKeydown = (event: KeyboardEvent) => {
   padding: 0 var(--space-4) 0 var(--space-3);
   border: none;
   border-radius: var(--radius-full);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
@@ -350,7 +353,7 @@ const handleTabKeydown = (event: KeyboardEvent) => {
 }
 
 .new-post-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .new-post-btn.icon-only {

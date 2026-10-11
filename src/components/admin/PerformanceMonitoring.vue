@@ -654,7 +654,7 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.metric-icon.requests { background: color-mix(in srgb, var(--harmony-primary) 15%, transparent); color: var(--harmony-primary); }
+.metric-icon.requests { background: color-mix(in srgb, var(--harmony-primary) 15%, transparent); color: var(--text-link); }
 .metric-icon.latency { background: rgba(46, 204, 113, 0.15); color: #2ECC71; }
 .metric-icon.errors { background: rgba(231, 76, 60, 0.15); color: #E74C3C; }
 .metric-icon.federation { background: rgba(155, 89, 182, 0.15); color: #9B59B6; }

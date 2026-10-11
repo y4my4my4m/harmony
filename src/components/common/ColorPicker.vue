@@ -1,12 +1,27 @@
 <template>
-  <div class="color-picker" :class="{ 'color-picker--wide': layout === 'wide' }">
+  <div
+    class="color-picker"
+    :class="{ 'color-picker--wide': layout === 'wide' }"
+    role="group"
+    :aria-label="label || t('colorPicker.label')"
+  >
     <div class="color-picker-content">
-      <!-- Saturation / Value gradient field -->
+      <!-- Saturation / Value gradient field: Left/Right saturation, Up/Down brightness. -->
       <div
         ref="svFieldRef"
         class="sv-field"
+        role="slider"
+        tabindex="0"
+        :aria-label="t('colorPicker.saturationBrightness')"
+        :aria-describedby="`${baseId}-sv-help`"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        :aria-valuenow="satPercent"
+        :aria-valuetext="t('colorPicker.saturationBrightnessValue', { saturation: satPercent, brightness: valPercent })"
+        data-testid="color-sv"
         :style="{ backgroundColor: hueHex }"
         @pointerdown="onSvPointerDown"
+        @keydown="onSvKeydown"
       >
         <div class="sv-white"></div>
         <div class="sv-black"></div>
@@ -15,12 +30,22 @@
           :style="{ left: `${sat * 100}%`, top: `${(1 - val) * 100}%`, backgroundColor: localColor }"
         ></div>
       </div>
+      <span :id="`${baseId}-sv-help`" class="sr-only">{{ t('colorPicker.saturationBrightnessHelp') }}</span>
 
       <!-- Hue slider -->
       <div
         ref="hueTrackRef"
         class="hue-track"
+        role="slider"
+        tabindex="0"
+        :aria-label="t('colorPicker.hue')"
+        aria-valuemin="0"
+        aria-valuemax="360"
+        :aria-valuenow="hueDegrees"
+        :aria-valuetext="t('colorPicker.hueValue', { degrees: hueDegrees }, hueDegrees)"
+        data-testid="color-hue"
         @pointerdown="onHuePointerDown"
+        @keydown="onHueKeydown"
       >
         <div class="hue-thumb" :style="{ left: `${(hue / 360) * 100}%` }"></div>
       </div>
@@ -28,11 +53,16 @@
       <!-- Hex input -->
       <div class="color-section">
         <div class="custom-color-input">
+          <label :for="`${baseId}-hex`" class="hex-label">{{ t('colorPicker.hex') }}</label>
           <input
+            :id="`${baseId}-hex`"
             v-model="hexInput"
             type="text"
             class="hex-input"
             placeholder="#0EA5E9"
+            spellcheck="false"
+            autocomplete="off"
+            data-testid="color-hex"
             @input="onHexInput"
             @blur="commitHexInput"
             @keydown.enter="commitHexInput"
@@ -40,42 +70,63 @@
         </div>
       </div>
 
-      <!-- Preset swatches -->
+      <!-- Preset swatches: one Tab stop, arrows move and select. -->
       <div class="color-section">
-        <div class="preset-colors">
-          <div
-            v-for="presetColor in presetColors"
+        <div
+          ref="presetsRef"
+          class="preset-colors"
+          role="radiogroup"
+          :aria-label="t('colorPicker.presets')"
+          @keydown="onPresetKeydown"
+        >
+          <button
+            v-for="(presetColor, i) in presetColors"
             :key="presetColor"
+            type="button"
+            role="radio"
             class="preset-color"
             :class="{ active: sameColor(localColor, presetColor) }"
             :style="{ backgroundColor: presetColor }"
+            :aria-checked="sameColor(localColor, presetColor) ? 'true' : 'false'"
+            :aria-label="t('colorPicker.swatch', { name: t(`colorPicker.names.${colorName(presetColor)}`), hex: presetColor.toUpperCase() })"
+            :tabindex="i === presetTabStop ? 0 : -1"
+            :data-color="presetColor"
             data-testid="color-preset"
             @click="selectColor(presetColor)"
-          ></div>
+          ></button>
         </div>
       </div>
 
       <!-- Preview -->
-      <div class="color-preview-large" :style="{ backgroundColor: localColor }">
-        <span class="preview-text">Sample text</span>
+      <div class="color-preview-large" :style="{ backgroundColor: localColor }" aria-hidden="true">
+        <span class="preview-text">{{ t('colorPicker.sampleText') }}</span>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
+import { useT } from '@/composables/useT'
+import { useRovingTabindex } from '@/composables/useRovingTabindex'
+import { uid } from '@/utils/a11y/focus'
 
 interface Props {
   color?: string
   /** compact: narrow panels (8-col grid). wide: full-width settings with more swatches. */
   layout?: 'compact' | 'wide'
+  /** Accessible name of the picker group, e.g. "Role color". Default "Color picker". */
+  label?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   color: '#0EA5E9',
   layout: 'compact',
+  label: '',
 })
+
+const { t } = useT()
+const baseId = uid('color-picker')
 
 const emit = defineEmits<{
   'update:color': [color: string]
@@ -106,10 +157,21 @@ const val = ref(0)
 
 const svFieldRef = ref<HTMLElement | null>(null)
 const hueTrackRef = ref<HTMLElement | null>(null)
+const presetsRef = ref<HTMLElement | null>(null)
 
 const hueHex = computed(() => hsvToHex(hue.value, 1, 1))
 const localColor = computed(() => hsvToHex(hue.value, sat.value, val.value))
 const hexInput = ref(props.color)
+
+const satPercent = computed(() => Math.round(sat.value * 100))
+const valPercent = computed(() => Math.round(val.value * 100))
+const hueDegrees = computed(() => Math.round(hue.value))
+
+// The checked swatch holds the Tab stop; with none checked, the first.
+const presetTabStop = computed(() => {
+  const i = presetColors.value.findIndex((c) => sameColor(localColor.value, c))
+  return i < 0 ? 0 : i
+})
 
 // ---- color math -------------------------------------------------------------
 function clamp(n: number, min: number, max: number) {
@@ -177,6 +239,24 @@ function sameColor(a: string, b: string): boolean {
   return normalizeHex(a) === normalizeHex(b)
 }
 
+/** Basic colour term for a swatch's accessible name; a key under colorPicker.names. */
+function colorName(hex: string): string {
+  const hsv = hexToHsv(hex)
+  if (!hsv) return 'grey'
+  const { h, s, v } = hsv
+  if (v < 0.15) return 'black'
+  if (s < 0.15) return v > 0.9 ? 'white' : 'grey'
+  if (h >= 15 && h < 45 && v < 0.6) return 'brown'
+  if (h < 15 || h >= 345) return 'red'
+  if (h < 40) return 'orange'
+  if (h < 65) return 'yellow'
+  if (h < 165) return 'green'
+  if (h < 195) return 'cyan'
+  if (h < 255) return 'blue'
+  if (h < 290) return 'purple'
+  return 'pink'
+}
+
 // ---- syncing ----------------------------------------------------------------
 function setFromHex(hex: string, silent = false) {
   const hsv = hexToHsv(hex)
@@ -203,9 +283,7 @@ watch(() => props.color, (c) => {
   }
 })
 
-onMounted(() => {
-  setFromHex(props.color || '#0EA5E9', true)
-})
+setFromHex(props.color || '#0EA5E9', true)
 
 // ---- interactions -----------------------------------------------------------
 const selectColor = (color: string) => {
@@ -226,6 +304,61 @@ const commitHexInput = () => {
     hexInput.value = localColor.value
   }
 }
+
+// ---- keyboard -----------------------------------------------------------------
+// Slider steps: 1 % / 1 degree, Shift or PageUp/PageDown 10.
+const SMALL_STEP = 1
+const LARGE_STEP = 10
+
+const onSvKeydown = (e: KeyboardEvent) => {
+  const step = e.shiftKey ? LARGE_STEP : SMALL_STEP
+  let s = satPercent.value
+  let v = valPercent.value
+  switch (e.key) {
+    case 'ArrowLeft': s -= step; break
+    case 'ArrowRight': s += step; break
+    case 'ArrowDown': v -= step; break
+    case 'ArrowUp': v += step; break
+    case 'PageDown': v -= LARGE_STEP; break
+    case 'PageUp': v += LARGE_STEP; break
+    case 'Home': s = 0; break
+    case 'End': s = 100; break
+    default: return
+  }
+  e.preventDefault()
+  sat.value = clamp(s, 0, 100) / 100
+  val.value = clamp(v, 0, 100) / 100
+  emitColor()
+}
+
+const onHueKeydown = (e: KeyboardEvent) => {
+  const step = e.shiftKey ? LARGE_STEP : SMALL_STEP
+  let h = hueDegrees.value
+  switch (e.key) {
+    case 'ArrowLeft':
+    case 'ArrowDown': h -= step; break
+    case 'ArrowRight':
+    case 'ArrowUp': h += step; break
+    case 'PageDown': h -= LARGE_STEP; break
+    case 'PageUp': h += LARGE_STEP; break
+    case 'Home': h = 0; break
+    case 'End': h = 360; break
+    default: return
+  }
+  e.preventDefault()
+  hue.value = clamp(h, 0, 360)
+  emitColor()
+}
+
+// Radio group: moving focus selects (APG radio group).
+const { onKeydown: onPresetKeydown } = useRovingTabindex(presetsRef, {
+  itemSelector: '[role="radio"]',
+  orientation: 'both',
+  onActivate: (item) => {
+    const color = item.dataset.color
+    if (color) selectColor(color)
+  },
+})
 
 // SV field drag
 let svDragging = false
@@ -377,6 +510,7 @@ onBeforeUnmount(() => {
 .preset-color {
   width: 24px;
   height: 24px;
+  padding: 0;
   border-radius: 50%;
   cursor: pointer;
   border: 2px solid transparent;
@@ -399,8 +533,16 @@ onBeforeUnmount(() => {
   align-items: center;
 }
 
+.hex-label {
+  flex-shrink: 0;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
+}
+
 .hex-input {
   flex: 1;
+  min-width: 0;
   padding: 8px 12px;
   background-color: var(--input-bg);
   border: 1px solid var(--input-border);

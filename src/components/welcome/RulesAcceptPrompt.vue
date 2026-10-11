@@ -31,7 +31,7 @@ const emit = defineEmits<{ review: [] }>()
 .rap-icon {
   flex-shrink: 0;
   display: flex;
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .rap-text {

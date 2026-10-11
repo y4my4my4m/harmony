@@ -1,9 +1,18 @@
 <!-- MonyPost Component - Individual post display -->
 <template>
   <!-- v-show, not v-if: v-if drops the post on re-render. authorFallback covers a
-       momentarily missing author so the article still renders. -->
+       momentarily missing author so the article still renders. The hidden heading
+       (author, time) names it; tabindex -1 lets focus move to the post itself. -->
   <article class="mony-post" data-testid="post-item"
-  v-show="post && (author || authorFallback)" :class="{ 'is-reply': post.reply_context, 'is-reblog': isPureReblog, 'is-pinned': showPinnedHeader && post.is_pinned, 'is-detailed': detailed }">
+  v-show="post && (author || authorFallback)" :class="{ 'is-reply': post.reply_context, 'is-reblog': isPureReblog, 'is-pinned': showPinnedHeader && post.is_pinned, 'is-detailed': detailed }"
+  tabindex="-1"
+  :data-post-id="post.id"
+  :aria-labelledby="headingId"
+  :aria-posinset="posinset"
+  :aria-setsize="posinset !== undefined ? setsize : undefined"
+  :aria-current="current ? 'true' : undefined">
+
+    <component :is="`h${headingLevel}`" :id="headingId" class="sr-only">{{ headingText }}</component>
 
     <!-- Pinned indicator (profile timeline pinned section only) -->
     <div v-if="showPinnedHeader && post.is_pinned" class="post-prepend">
@@ -27,7 +36,7 @@
         <RouterLink :to="profileRoute(displayAuthor)" class="author-info">
           <Avatar
             :src="displayAuthor.avatar_url"
-            :alt="displayAuthor.display_name || displayAuthor.username"
+            alt=""
             size="md"
           />
           <span class="author-details">
@@ -42,13 +51,16 @@
         </RouterLink>
 
         <div v-if="!detailed" class="post-meta">
-          <RouterLink :to="postRoute" class="post-time" :title="formatFullDate(originalCreatedAt)">
-            <time :datetime="originalCreatedAt">{{ formatRelativeTime(originalCreatedAt) }}</time>
+          <RouterLink :to="postRoute" class="post-time">
+            <AppTimestamp :value="originalCreatedAt" :short="formatRelativeTime(originalCreatedAt)" />
           </RouterLink>
           <span class="visibility-indicator" role="img" :title="visibilityTitle" :aria-label="visibilityTitle">
             <Icon :name="visibilityIcon" :size="14" />
           </span>
-          <span v-if="isEdited" class="edited-indicator" :title="t('activitypub.editedTitle')">*</span>
+          <span v-if="isEdited" class="edited-indicator" :title="t('activitypub.editedTitle')">
+            <span aria-hidden="true">*</span>
+            <span class="sr-only">{{ t('activitypub.edited') }}</span>
+          </span>
         </div>
       </div>
 
@@ -123,13 +135,13 @@
             <div v-if="quotedAuthor" class="quoted-post-header">
               <Avatar
                 :src="quotedAuthor.avatar_url"
-                :alt="quotedAuthor.display_name || quotedAuthor.username"
+                alt=""
                 size="sm"
               />
               <div class="quoted-author-info">
                 <span class="quoted-author-name"><DisplayName :userId="quotedAuthor.id" :fallback="quotedAuthor.display_name || quotedAuthor.username" /></span>
                 <span class="quoted-author-handle">{{ formatHandle(quotedAuthor) }}</span>
-                <time class="quoted-post-time" :datetime="quotedCreatedAt" :title="formatFullDate(quotedCreatedAt)">{{ formatRelativeTime(quotedCreatedAt) }}</time>
+                <AppTimestamp class="quoted-post-time" :value="quotedCreatedAt" :short="formatRelativeTime(quotedCreatedAt)" />
               </div>
             </div>
             
@@ -228,7 +240,7 @@
       <template v-if="detailed">
         <div class="detail-meta">
           <RouterLink :to="postRoute" class="detail-time">
-            <time :datetime="originalCreatedAt">{{ formatFullDate(originalCreatedAt) }}</time>
+            <AppTimestamp :value="originalCreatedAt" :short="formatFullDate(originalCreatedAt)" />
           </RouterLink>
           <span aria-hidden="true">·</span>
           <span class="visibility-indicator" role="img" :title="visibilityTitle" :aria-label="visibilityTitle">
@@ -250,7 +262,8 @@
         </div>
       </template>
 
-      <!-- Action Buttons -->
+      <!-- Action Buttons. Toggle names stay fixed; aria-pressed carries the state and
+           the visible count is part of the name. -->
       <div class="post-actions">
         <div class="reply-action">
           <button
@@ -271,12 +284,13 @@
             class="action-count reply-count-link"
             data-testid="post-reply-count"
             :title="t('activitypub.viewReplies')"
-            :aria-label="`${t('activitypub.viewReplies')}: ${displayInteractionCounts.replies_count}`"
+            :aria-label="`${t('activitypub.viewReplies')}: ${formatCount(displayInteractionCounts.replies_count)}`"
           >{{ formatCount(displayInteractionCounts.replies_count) }}</RouterLink>
         </div>
 
-        <div class="reblog-menu-container" v-click-outside="() => showReblogMenu = false">
+        <div class="reblog-menu-container">
           <button
+            ref="reblogButtonRef"
             type="button"
             class="action-button reblog-button"
             data-testid="post-reblog-btn"
@@ -286,24 +300,30 @@
             }"
             @click="handleReblogClick"
             :disabled="!canReblog && !displayInteractionCounts.is_reblogged"
-            :title="boostLabel"
-            :aria-label="boostLabel"
+            :title="boostTitle"
+            :aria-label="actionName('activitypub.boost', displayInteractionCounts.reblogs_count)"
             :aria-pressed="displayInteractionCounts.is_reblogged"
-            :aria-expanded="displayInteractionCounts.is_reblogged ? undefined : showReblogMenu"
           >
             <span class="action-glyph"><Icon name="reblog" :size="ACTION_GLYPH.reblog" :stroke-width="glyphStroke(ACTION_GLYPH.reblog)" /></span>
             <span v-if="!detailed && displayInteractionCounts.reblogs_count > 0" class="action-count">{{ formatCount(displayInteractionCounts.reblogs_count) }}</span>
           </button>
 
-          <!-- Boost dropdown menu -->
-          <div v-if="showReblogMenu && canReblog" class="reblog-dropdown" role="menu">
+          <!-- Boost menu: opens from an unpressed boost button; focus moves to its first item. -->
+          <SocialMenu
+            v-if="showReblogMenu && canReblog"
+            class="reblog-dropdown"
+            :anchor="reblogButtonRef"
+            :label="t('activitypub.boost')"
+            align="start"
+            placement="above"
+            @close="showReblogMenu = false"
+          >
             <button
               type="button"
               role="menuitem"
-              class="reblog-option"
+              class="social-menu-item reblog-option"
               data-testid="reblog-option-boost"
               @click="handleSimpleReblog"
-              :disabled="displayInteractionCounts.is_reblogged"
             >
               <Icon name="reblog" :size="16" />
               <span>{{ t('activitypub.boost') }}</span>
@@ -311,13 +331,14 @@
             <button
               type="button"
               role="menuitem"
-              class="reblog-option"
+              class="social-menu-item reblog-option"
+              data-testid="reblog-option-quote"
               @click="handleQuoteReblog"
             >
               <Icon name="edit" :size="16" />
               <span>{{ t('activitypub.quote') }}</span>
             </button>
-          </div>
+          </SocialMenu>
         </div>
 
         <button
@@ -327,7 +348,7 @@
           :class="{ active: displayInteractionCounts.is_favorited }"
           @click="handleToggleFavorite"
           :title="favoriteLabel"
-          :aria-label="favoriteLabel"
+          :aria-label="actionName('activitypub.favorite', displayInteractionCounts.favorites_count)"
           :aria-pressed="displayInteractionCounts.is_favorited"
         >
           <span class="action-glyph"><Icon :name="displayInteractionCounts.is_favorited ? 'heart-filled' : 'heart'" :size="ACTION_GLYPH.default" /></span>
@@ -352,7 +373,7 @@
           :class="{ active: displayInteractionCounts.is_bookmarked }"
           @click="handleToggleBookmark"
           :title="bookmarkLabel"
-          :aria-label="bookmarkLabel"
+          :aria-label="t('activitypub.bookmark')"
           :aria-pressed="displayInteractionCounts.is_bookmarked"
         >
           <span class="action-glyph"><Icon :name="displayInteractionCounts.is_bookmarked ? 'bookmark-filled' : 'bookmark'" :size="ACTION_GLYPH.default" /></span>
@@ -363,164 +384,203 @@
             ref="menuButtonRef"
             type="button"
             class="action-button menu-button"
-            @click="handleMenuToggle"
-            :title="t('activitypub.moreOptions')"
-            :aria-label="t('activitypub.moreOptions')"
+            data-testid="post-menu-btn"
             aria-haspopup="menu"
             :aria-expanded="showMenu"
+            :aria-controls="showMenu ? postMenuId : undefined"
+            @click="showMenu = !showMenu"
+            @keydown="onMenuTriggerKeydown"
+            :title="t('activitypub.moreOptions')"
+            :aria-label="t('activitypub.moreOptions')"
           >
             <span class="action-glyph"><Icon name="more-horizontal" :size="ACTION_GLYPH.default" /></span>
           </button>
-        
-          <!-- Teleported to body to escape virtual-scroll stacking contexts -->
-          <Teleport to="body">
-            <div v-if="showMenu" ref="dropdownRef" class="action-dropdown" :style="dropdownStyle">
-              <button 
-                class="dropdown-item"
-                @click="copyLink"
-              >
-                <Icon name="link" />
-                <span>Copy link</span>
-              </button>
-              
-              <button 
-                v-if="canEdit && !isPureReblog"
-                class="dropdown-item"
-                @click="onEdit"
-              >
-                <Icon name="edit" />
-                <span>Edit</span>
-              </button>
-              
-              <button
-                v-if="canEdit && !isPureReblog"
-                class="dropdown-item"
-                @click="onTogglePin"
-              >
-                <Icon :name="props.post.is_pinned ? 'pin-off' : 'pin'" />
-                <span>{{ props.post.is_pinned ? 'Unpin from profile' : 'Pin to profile' }}</span>
-              </button>
 
-              <button
-                v-if="isPureReblog && canDelete"
-                class="dropdown-item"
-                @click="onUndoReblog"
-              >
-                <Icon name="reblog" />
-                <span>{{ t('activitypub.undoBoost') }}</span>
-              </button>
-              
-              <button 
-                v-if="!isPureReblog && canDelete"
-                class="dropdown-item danger"
-                @click="onDelete"
-              >
-                <Icon name="trash" />
-                <span>Delete</span>
-              </button>
+          <SocialMenu
+            v-if="showMenu"
+            :id="postMenuId"
+            class="action-dropdown"
+            data-testid="post-menu"
+            :anchor="menuButtonRef"
+            :label="t('activitypub.moreOptions')"
+            :initial-focus="postMenuInitialFocus"
+            @close="closeMenu"
+          >
+            <button type="button" role="menuitem" class="social-menu-item" @click="copyLink">
+              <Icon name="link" />
+              <span>{{ t('activitypub.postMenu.copyLink') }}</span>
+            </button>
 
-              <button
-                v-if="!isPureReblog && canDelete"
-                class="dropdown-item danger"
-                @click="onDeleteAndRedraft"
-              >
-                <Icon name="edit" />
-                <span>Delete and redraft</span>
-              </button>
-              
-              <div v-if="isRemotePost" class="dropdown-divider"></div>
-              
-              <button 
-                v-if="isRemotePost && !isFetchingReactions"
-                class="dropdown-item"
-                @click="handleFetchRemoteReactions"
-              >
-                <Icon name="heart" />
-                <span>Fetch reactions</span>
-              </button>
-              
-              <button 
-                v-if="isRemotePost && !isFetchingReplies"
-                class="dropdown-item"
-                data-testid="post-refresh-replies"
-                @click="handleFetchRemoteReplies"
-              >
-                <Icon name="message-circle" />
-                <span>{{ t('activitypub.refreshReplies') }}</span>
-              </button>
-              
-              <button
-                v-if="isRemotePost && isCurrentUserAdminOrMod && !isRefetchingContent"
-                class="dropdown-item"
-                @click="handleRefetchFromSource"
-              >
-                <Icon name="refresh-cw" />
-                <span>Refetch from source</span>
-              </button>
-              
-              <div 
-                v-if="isRemotePost && (isFetchingReactions || isFetchingReplies || isRefetchingContent)"
-                class="dropdown-item loading-item"
-              >
-                <Icon name="loader" class="spinning" />
-                <span>Loading...</span>
-              </div>
+            <button
+              v-if="canEdit && !isPureReblog"
+              type="button"
+              role="menuitem"
+              class="social-menu-item"
+              @click="onEdit"
+            >
+              <Icon name="edit" />
+              <span>{{ t('activitypub.postMenu.edit') }}</span>
+            </button>
 
-              <div v-if="isCurrentUserAdminOrMod && !canDelete" class="dropdown-divider"></div>
-              <button
-                v-if="isCurrentUserAdminOrMod"
-                class="dropdown-item"
-                @click="handleAdminToggleSensitive"
-              >
-                <Icon :name="displayIsSensitive ? 'eye' : 'eye-off'" />
-                <span>{{ displayIsSensitive ? 'Unmark sensitive' : 'Mark sensitive' }}</span>
-              </button>
-              <button
-                v-if="isCurrentUserAdminOrMod"
-                class="dropdown-item"
-                @click="handleAdminSetCW"
-              >
-                <Icon name="alert-triangle" />
-                <span>{{ displayContentWarning ? 'Edit content warning' : 'Add content warning' }}</span>
-              </button>
-              <button
-                v-if="isCurrentUserAdminOrMod && !canDelete"
-                class="dropdown-item danger"
-                @click="handleAdminDeletePost"
-              >
-                <Icon name="trash" />
-                <span>Delete (admin)</span>
-              </button>
+            <button
+              v-if="canEdit && !isPureReblog"
+              type="button"
+              role="menuitem"
+              class="social-menu-item"
+              @click="onTogglePin"
+            >
+              <Icon :name="props.post.is_pinned ? 'pin-off' : 'pin'" />
+              <span>{{ props.post.is_pinned ? t('activitypub.postMenu.unpin') : t('activitypub.postMenu.pin') }}</span>
+            </button>
 
-              <div v-if="!canDelete" class="dropdown-divider"></div>
-              <button
-                v-if="!canDelete && displayAuthor?.id"
-                class="dropdown-item"
-                @click="onMuteAuthor"
-              >
-                <Icon name="volume-x" />
-                <span>{{ isAuthorMuted ? 'Unmute' : 'Mute' }} @{{ displayAuthor.username }}</span>
-              </button>
-              <button
-                v-if="!canDelete && displayAuthor?.id"
-                class="dropdown-item danger"
-                @click="onBlockAuthor"
-              >
-                <Icon name="ban" />
-                <span>Block @{{ displayAuthor.username }}</span>
-              </button>
-              <button
-                v-if="!canDelete"
-                class="dropdown-item danger"
-                @click="openReportModal"
-              >
-                <Icon name="flag" />
-                <span>Report post</span>
-              </button>
+            <button
+              v-if="isPureReblog && canDelete"
+              type="button"
+              role="menuitem"
+              class="social-menu-item"
+              @click="onUndoReblog"
+            >
+              <Icon name="reblog" />
+              <span>{{ t('activitypub.undoBoost') }}</span>
+            </button>
+
+            <button
+              v-if="!isPureReblog && canDelete"
+              type="button"
+              role="menuitem"
+              class="social-menu-item danger"
+              data-testid="post-menu-delete"
+              @click="onDelete"
+            >
+              <Icon name="trash" />
+              <span>{{ t('activitypub.postMenu.delete') }}</span>
+            </button>
+
+            <button
+              v-if="!isPureReblog && canDelete"
+              type="button"
+              role="menuitem"
+              class="social-menu-item danger"
+              @click="onDeleteAndRedraft"
+            >
+              <Icon name="edit" />
+              <span>{{ t('activitypub.postMenu.deleteAndRedraft') }}</span>
+            </button>
+
+            <div v-if="isRemotePost" role="separator" class="social-menu-divider"></div>
+
+            <button
+              v-if="isRemotePost && !isFetchingReactions"
+              type="button"
+              role="menuitem"
+              class="social-menu-item"
+              @click="handleFetchRemoteReactions"
+            >
+              <Icon name="heart" />
+              <span>{{ t('activitypub.postMenu.fetchReactions') }}</span>
+            </button>
+
+            <button
+              v-if="isRemotePost && !isFetchingReplies"
+              type="button"
+              role="menuitem"
+              class="social-menu-item"
+              data-testid="post-refresh-replies"
+              @click="handleFetchRemoteReplies"
+            >
+              <Icon name="message-circle" />
+              <span>{{ t('activitypub.refreshReplies') }}</span>
+            </button>
+
+            <button
+              v-if="isRemotePost && isCurrentUserAdminOrMod && !isRefetchingContent"
+              type="button"
+              role="menuitem"
+              class="social-menu-item"
+              @click="handleRefetchFromSource"
+            >
+              <Icon name="refresh-cw" />
+              <span>{{ t('activitypub.postMenu.refetch') }}</span>
+            </button>
+
+            <div
+              v-if="isRemotePost && (isFetchingReactions || isFetchingReplies || isRefetchingContent)"
+              role="menuitem"
+              aria-disabled="true"
+              class="social-menu-item loading-item"
+            >
+              <Icon name="loader" class="spinning" />
+              <span>{{ t('common.loading') }}</span>
             </div>
-          </Teleport>
+
+            <div v-if="isCurrentUserAdminOrMod && !canDelete" role="separator" class="social-menu-divider"></div>
+            <button
+              v-if="isCurrentUserAdminOrMod"
+              type="button"
+              role="menuitem"
+              class="social-menu-item"
+              @click="handleAdminToggleSensitive"
+            >
+              <Icon :name="displayIsSensitive ? 'eye' : 'eye-off'" />
+              <span>{{ displayIsSensitive ? t('activitypub.postMenu.unmarkSensitive') : t('activitypub.postMenu.markSensitive') }}</span>
+            </button>
+            <button
+              v-if="isCurrentUserAdminOrMod"
+              type="button"
+              role="menuitem"
+              class="social-menu-item"
+              @click="handleAdminSetCW"
+            >
+              <Icon name="alert-triangle" />
+              <span>{{ displayContentWarning ? t('activitypub.postMenu.editContentWarning') : t('activitypub.postMenu.addContentWarning') }}</span>
+            </button>
+            <button
+              v-if="isCurrentUserAdminOrMod && !canDelete"
+              type="button"
+              role="menuitem"
+              class="social-menu-item danger"
+              @click="handleAdminDeletePost"
+            >
+              <Icon name="trash" />
+              <span>{{ t('activitypub.postMenu.adminDelete') }}</span>
+            </button>
+
+            <div v-if="!canDelete" role="separator" class="social-menu-divider"></div>
+            <button
+              v-if="!canDelete && displayAuthor?.id"
+              type="button"
+              role="menuitem"
+              class="social-menu-item"
+              data-testid="post-menu-mute"
+              @click="onMuteAuthor"
+            >
+              <Icon name="volume-x" />
+              <span>{{ isAuthorMuted ? t('activitypub.postMenu.unmuteUser', { handle: displayAuthor.username }) : t('activitypub.postMenu.muteUser', { handle: displayAuthor.username }) }}</span>
+            </button>
+            <button
+              v-if="!canDelete && displayAuthor?.id"
+              type="button"
+              role="menuitem"
+              class="social-menu-item danger"
+              @click="onBlockAuthor"
+            >
+              <Icon name="ban" />
+              <span>{{ t('activitypub.postMenu.blockUser', { handle: displayAuthor.username }) }}</span>
+            </button>
+            <button
+              v-if="!canDelete"
+              type="button"
+              role="menuitem"
+              class="social-menu-item danger"
+              data-testid="post-menu-report"
+              @click="openReportModal"
+            >
+              <Icon name="flag" />
+              <span>{{ t('activitypub.postMenu.report') }}</span>
+            </button>
+          </SocialMenu>
+        </div>
       </div>
-    </div>
     </div>
 
     <!-- Report Modal -->
@@ -549,8 +609,9 @@
     <!-- Delete Confirmation Modal -->
     <ConfirmationModal
       :show="showDeleteConfirmation"
-      title="Delete post?"
-      message="Are you sure you want to delete this post? This action cannot be undone."
+      :title="t('activitypub.postMenu.deleteConfirmTitle')"
+      :message="t('activitypub.postMenu.deleteConfirmMessage')"
+      :confirm-button-text="t('activitypub.postMenu.delete')"
       @confirm="handleDeleteConfirm"
       @cancel="handleDeleteCancel"
       @close="handleDeleteCancel"
@@ -578,6 +639,7 @@
       <div
         v-if="tooltip.visible"
         class="reaction-tooltip"
+        aria-hidden="true"
         :style="{ top: `${tooltip.y}px`, left: `${tooltip.x}px` }"
       >
         <div class="tooltip-header">
@@ -634,7 +696,7 @@
 
 <script setup lang="ts">
 import { safeHref } from '@/utils/sanitize';
-import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
+import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { debug } from '@/utils/debug'
 import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 import { useI18n } from 'vue-i18n';
@@ -645,7 +707,10 @@ import { useThemeStore } from '@/stores/useTheme';
 import { usePostInteractions } from '@/composables/usePostInteractions';
 import { useRemotePostSync } from '@/composables/useRemotePostSync';
 import ConversationService from '@/services/ConversationService';
-import { formatShortRelativeTime, formatFullDateTime } from '@/utils/shortRelativeTime';
+import { formatShortRelativeTime, formatFullDateTime, formatSpokenRelativeTime } from '@/utils/shortRelativeTime';
+import { plainDisplayName } from '@/utils/plainDisplayName';
+import { uid } from '@/utils/a11y/focus';
+import { useMenuButton } from '@/composables/useMenu';
 import DisplayName from '@/components/DisplayName.vue';
 import { userDataService } from '@/services/userDataService';
 import { unicodeToShortcode } from '@/services/unifiedEmojiService';
@@ -669,6 +734,8 @@ import MonyContent from './MonyContent.vue';
 import LinkEmbedCard from '@/components/embeds/LinkEmbedCard.vue';
 import { parseEmbedUrl, isYouTubeUrl } from '@/utils/embedDetection';
 import Icon from '@/components/common/Icon.vue';
+import AppTimestamp from '@/components/a11y/AppTimestamp.vue';
+import SocialMenu from './SocialMenu.vue';
 import LightboxDownloadButton from '@/components/common/LightboxDownloadButton.vue';
 import Avatar from '../common/Avatar.vue';
 import Composer from './Composer.vue';
@@ -699,6 +766,16 @@ interface Props {
   showPinnedHeader?: boolean;
   /** Focused post in a thread: full timestamp and count summary. */
   detailed?: boolean;
+  /** 1-based position in a role="feed"; sets aria-posinset/aria-setsize. */
+  posinset?: number;
+  /** Feed length; -1 while more can load. */
+  setsize?: number;
+  /** Level of the hidden heading that names the post. */
+  headingLevel?: 2 | 3 | 4;
+  /** The thread view's focused post (aria-current). */
+  current?: boolean;
+  /** Position cue appended to the heading in a thread ("earlier in the thread"). */
+  threadCue?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -707,6 +784,11 @@ const props = withDefaults(defineProps<Props>(), {
   embedded: false,
   showPinnedHeader: false,
   detailed: false,
+  posinset: undefined,
+  setsize: -1,
+  headingLevel: 3,
+  current: false,
+  threadCue: undefined,
 });
 
 const i18n = useI18n();
@@ -745,8 +827,14 @@ const { toggleFavorite, toggleReblog, toggleBookmark, togglePinPost } = usePostI
 const showSensitiveContent = ref(false);
 const showMenu = ref(false);
 const menuButtonRef = ref<HTMLElement | null>(null);
-const dropdownRef = ref<HTMLElement | null>(null);
+const {
+  menuId: postMenuId,
+  onTriggerKeydown: onMenuTriggerKeydown,
+  initialFocus: postMenuInitialFocus,
+} = useMenuButton(showMenu);
 const showReblogMenu = ref(false);
+const reblogButtonRef = ref<HTMLElement | null>(null);
+const headingId = uid('post-heading');
 const showInlineReply = ref(false);
 const showDeleteConfirmation = ref(false);
 const isDeleting = ref(false);
@@ -1008,6 +1096,21 @@ const displayHandle = computed(() => {
 
 const originalCreatedAt = computed(() => {
   return (isPureReblog.value && props.post.reblog) ? props.post.reblog.created_at : props.post.created_at;
+});
+
+// Accessible name of the article: "Alice, 5 minutes ago" or "Bob boosted Alice, 5 minutes ago".
+const headingText = computed(() => {
+  const target = displayAuthor.value;
+  const name = plainDisplayName(target?.display_name, target?.username || '');
+  const time = formatSpokenRelativeTime(originalCreatedAt.value, { locale: currentLocale() });
+  const heading = isPureReblog.value && author.value
+    ? t('activitypub.postA11y.boostHeading', {
+        booster: plainDisplayName(author.value.display_name, author.value.username || ''),
+        name,
+        time,
+      })
+    : t('activitypub.postA11y.heading', { name, time });
+  return props.threadCue ? `${heading}, ${props.threadCue}` : heading;
 });
 
 const isEdited = computed(() => {
@@ -1437,7 +1540,14 @@ const replyLabel = computed(() => t('activitypub.replyToUser', {
   name: displayAuthor.value?.display_name || displayAuthor.value?.username || '',
 }));
 
-const boostLabel = computed(() => {
+/** Fixed toggle name, with the count the button shows: "Boost, 12". */
+const actionName = (key: string, count: number) =>
+  !props.detailed && count > 0
+    ? t('activitypub.postA11y.actionCount', { action: t(key), count: formatCount(count) })
+    : t(key);
+
+// Hover text; the accessible name stays fixed and aria-pressed carries the state.
+const boostTitle = computed(() => {
   const counts = displayInteractionCounts.value;
   if (!canReblog.value && !counts.is_reblogged) return reblogDisabledReason.value;
   return counts.is_reblogged ? t('activitypub.undoBoost') : t('activitypub.boost');
@@ -1647,7 +1757,7 @@ const escapeHtml = (text: string): string => {
   return div.innerHTML;
 };
 
-const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
+const handleShowReactionTooltip = (event: MouseEvent | FocusEvent, reaction: any) => {
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
   
   debug.log('Reaction tooltip data:', {
@@ -1697,7 +1807,11 @@ const handleShowReactionTooltip = (event: MouseEvent, reaction: any) => {
   // Combine local and remote users
   const usersDetails = [...localUsers, ...remoteUsers];
   
-  const anchor = getReactionTooltipAnchor(event);
+  // Keyboard focus opens the same tooltip, anchored on the focused chip.
+  const chip = event.currentTarget instanceof HTMLElement ? event.currentTarget.getBoundingClientRect() : null;
+  const anchor = event instanceof MouseEvent
+    ? getReactionTooltipAnchor(event)
+    : { x: chip ? chip.left + chip.width / 2 : 0, y: chip?.top ?? 0 };
 
   // Show tooltip after a delay
   tooltipTimer.value = setTimeout(() => {
@@ -1730,9 +1844,9 @@ const onTogglePin = async () => {
   closeMenu();
   const result = await togglePinPost(props.post);
   if (!result.success) {
-    toast.error(result.error || 'Failed to toggle pin');
+    toast.error(result.error || t('activitypub.postMenu.pinFailed'));
   } else {
-    toast.success(result.pinned ? 'Pinned to profile' : 'Unpinned from profile');
+    toast.success(result.pinned ? t('activitypub.postMenu.pinned') : t('activitypub.postMenu.unpinned'));
   }
 };
 
@@ -1747,9 +1861,9 @@ const onDeleteAndRedraft = async () => {
   closeMenu();
   if (isDeleting.value) return;
   const confirmed = await confirm({
-    title: 'Delete and redraft',
-    message: 'Delete this post and move its content back into the composer? Favorites and boosts on it are lost.',
-    confirmButtonText: 'Delete and redraft',
+    title: t('activitypub.postMenu.deleteAndRedraft'),
+    message: t('activitypub.postMenu.redraftConfirmMessage'),
+    confirmButtonText: t('activitypub.postMenu.deleteAndRedraft'),
     dangerAction: true,
   });
   if (!confirmed) return;
@@ -1767,7 +1881,7 @@ const onDeleteAndRedraft = async () => {
     activityPubStore.openComposer(draft);
   } catch (error: any) {
     debug.error('Failed to delete & re-draft:', error);
-    toast.error(error?.message || 'Failed to delete post');
+    toast.error(error?.message || t('activitypub.postMenu.deleteFailed'));
   } finally {
     isDeleting.value = false;
   }
@@ -1785,13 +1899,13 @@ const onMuteAuthor = async () => {
   try {
     if (isAuthorMuted.value) {
       await activityPubStore.unmuteUser(author.id);
-      toast.success(`Unmuted @${author.username}`);
+      toast.success(t('activitypub.postMenu.unmuted', { handle: author.username }));
     } else {
       await activityPubStore.muteUser(author.id);
-      toast.success(`Muted @${author.username} - their posts are hidden from your feeds`);
+      toast.success(t('activitypub.postMenu.muted', { handle: author.username }));
     }
   } catch (error: any) {
-    toast.error(error?.message || 'Failed to update mute');
+    toast.error(error?.message || t('activitypub.postMenu.muteFailed'));
   }
 };
 
@@ -1800,17 +1914,17 @@ const onBlockAuthor = async () => {
   const author = displayAuthor.value;
   if (!author?.id) return;
   const confirmed = await confirm({
-    title: `Block @${author.username}?`,
-    message: 'They won\'t be able to follow you or see your posts, and you won\'t see theirs.',
-    confirmButtonText: 'Block',
+    title: t('activitypub.postMenu.blockConfirmTitle', { handle: author.username }),
+    message: t('activitypub.postMenu.blockConfirmMessage'),
+    confirmButtonText: t('activitypub.postMenu.block'),
     dangerAction: true,
   });
   if (!confirmed) return;
   try {
     await activityPubStore.blockUser(author.id);
-    toast.success(`Blocked @${author.username}`);
+    toast.success(t('activitypub.postMenu.blocked', { handle: author.username }));
   } catch (error: any) {
-    toast.error(error?.message || 'Failed to block user');
+    toast.error(error?.message || t('activitypub.postMenu.blockFailed'));
   }
 };
 
@@ -1853,8 +1967,8 @@ const handleDeleteConfirm = async () => {
     
     notificationStore.showToast(
       'server_update',
-      'Post deleted',
-      'Your post was deleted',
+      t('activitypub.postDeleted'),
+      t('activitypub.postMenu.deletedMessage'),
       3000
     );
     
@@ -1865,8 +1979,8 @@ const handleDeleteConfirm = async () => {
     
     notificationStore.showToast(
       'server_update',
-      'Delete failed',
-      'Failed to delete post. Please try again.',
+      t('activitypub.postMenu.deleteFailedTitle'),
+      t('activitypub.postMenu.deleteFailed'),
       5000
     );
   } finally {
@@ -1909,10 +2023,10 @@ const copyLink = async () => {
   try {
     const url = props.post.url || `${resolveHarmonyBaseUrl()}/posts/${props.post.id}`;
     await navigator.clipboard.writeText(url);
-    toast.success('Link copied');
+    toast.success(t('activitypub.postMenu.linkCopied'));
   } catch (error) {
     debug.error('Failed to copy link:', error);
-    toast.error('Failed to copy link');
+    toast.error(t('activitypub.postMenu.linkCopyFailed'));
   }
   closeMenu();
 };
@@ -1921,55 +2035,11 @@ const closeMenu = () => {
   showMenu.value = false;
 };
 
-function handleDropdownOutsideClick(e: MouseEvent) {
-  const target = e.target as Node;
-  if (menuButtonRef.value?.contains(target) || dropdownRef.value?.contains(target)) return;
-  closeMenu();
-}
-
-watch(showMenu, (isOpen) => {
-  if (isOpen) {
-    nextTick(() => {
-      document.addEventListener('mousedown', handleDropdownOutsideClick);
-    });
-  } else {
-    document.removeEventListener('mousedown', handleDropdownOutsideClick);
-  }
-});
-
 onBeforeUnmount(() => {
-  document.removeEventListener('mousedown', handleDropdownOutsideClick);
   if (tooltipTimer.value) clearTimeout(tooltipTimer.value);
   tooltipTimer.value = null;
   tooltip.value.visible = false;
 });
-
-const dropdownStyle = ref<Record<string, string>>({});
-
-const handleMenuToggle = () => {
-  if (!showMenu.value && menuButtonRef.value) {
-    const rect = menuButtonRef.value.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const left = Math.max(8, rect.right - 150);
-
-    if (spaceBelow < 200) {
-      dropdownStyle.value = {
-        position: 'fixed',
-        bottom: `${window.innerHeight - rect.top + 4}px`,
-        left: `${left}px`,
-        zIndex: '9999',
-      };
-    } else {
-      dropdownStyle.value = {
-        position: 'fixed',
-        top: `${rect.bottom + 4}px`,
-        left: `${left}px`,
-        zIndex: '9999',
-      };
-    }
-  }
-  showMenu.value = !showMenu.value;
-};
 
 // Optimistic favorite toggle - fills/unfills the heart immediately
 const handleToggleFavorite = async () => {
@@ -2147,9 +2217,9 @@ const handleRefetchFromSource = async () => {
       activityPubStore.updatePostContentInAllFeeds(props.post.id, result.content);
     }
 
-    notificationStore.showToast('server_update', 'Post refetched', 'Content updated from source.', 3000);
+    notificationStore.showToast('server_update', t('activitypub.postMenu.refetched'), t('activitypub.postMenu.refetchedMessage'), 3000);
   } catch (error: any) {
-    notificationStore.showToast('server_update', 'Refetch failed', error.message || 'Could not refetch post.', 5000);
+    notificationStore.showToast('server_update', t('activitypub.postMenu.refetchFailed'), error.message || t('activitypub.postMenu.refetchFailedMessage'), 5000);
   } finally {
     isRefetchingContent.value = false;
   }
@@ -2168,9 +2238,9 @@ const handleAdminToggleSensitive = async () => {
       // eslint-disable-next-line vue/no-mutating-props -- store-shared ref, see above
       props.post.reblog.is_sensitive = newVal;
     }
-    notificationStore.showToast('server_update', 'Post updated', newVal ? 'Post marked as sensitive.' : 'Post unmarked as sensitive.', 3000);
+    notificationStore.showToast('server_update', t('activitypub.postMenu.postUpdated'), newVal ? t('activitypub.postMenu.markedSensitive') : t('activitypub.postMenu.unmarkedSensitive'), 3000);
   } catch (error: any) {
-    notificationStore.showToast('server_update', 'Failed', error.message || 'Could not update post.', 5000);
+    notificationStore.showToast('server_update', t('activitypub.postMenu.failed'), error.message || t('activitypub.postMenu.updateFailed'), 5000);
   }
 };
 
@@ -2179,11 +2249,11 @@ const handleAdminSetCW = async () => {
   const postId = originalPostId.value;
   const existingCw = (isPureReblog.value && props.post.reblog?.content_warning) || props.post.content_warning || '';
   const cw = await prompt({
-    title: 'Content warning',
-    message: 'Leave empty to remove the content warning.',
-    label: 'Content warning text',
+    title: t('activitypub.contentWarning'),
+    message: t('activitypub.postMenu.cwPromptMessage'),
+    label: t('activitypub.postMenu.cwPromptLabel'),
     initialValue: existingCw,
-    confirmButtonText: 'Save',
+    confirmButtonText: t('activitypub.save'),
   });
   if (cw === null) return;
   try {
@@ -2194,7 +2264,7 @@ const handleAdminSetCW = async () => {
         // eslint-disable-next-line vue/no-mutating-props -- store-shared ref, see above
         props.post.reblog.content_warning = cw.trim();
       }
-      notificationStore.showToast('server_update', 'Content warning set', '', 3000);
+      notificationStore.showToast('server_update', t('activitypub.postMenu.cwSet'), '', 3000);
     } else {
       await adminService.moderatePost(postId, 'remove_cw');
       activityPubStore.updatePostFieldInAllFeeds(postId, 'content_warning', null);
@@ -2202,23 +2272,23 @@ const handleAdminSetCW = async () => {
         // eslint-disable-next-line vue/no-mutating-props -- store-shared ref, see above
         props.post.reblog.content_warning = null;
       }
-      notificationStore.showToast('server_update', 'Content warning removed', '', 3000);
+      notificationStore.showToast('server_update', t('activitypub.postMenu.cwRemoved'), '', 3000);
     }
   } catch (error: any) {
-    notificationStore.showToast('server_update', 'Failed', error.message || 'Could not update content warning.', 5000);
+    notificationStore.showToast('server_update', t('activitypub.postMenu.failed'), error.message || t('activitypub.postMenu.cwFailed'), 5000);
   }
 };
 
 const handleAdminDeletePost = async () => {
   showMenu.value = false;
   const postId = originalPostId.value;
-  if (!(await confirm({ title: 'Delete post (admin)', message: 'Delete this post as admin? This cannot be undone.', confirmButtonText: 'Delete', dangerAction: true }))) return;
+  if (!(await confirm({ title: t('activitypub.postMenu.adminDelete'), message: t('activitypub.postMenu.adminDeleteConfirm'), confirmButtonText: t('activitypub.postMenu.delete'), dangerAction: true }))) return;
   try {
     await adminService.moderatePost(postId, 'delete');
     activityPubStore.updatePostFieldInAllFeeds(postId, 'is_deleted', true);
-    notificationStore.showToast('server_update', 'Post deleted', 'Post has been removed by admin.', 3000);
+    notificationStore.showToast('server_update', t('activitypub.postDeleted'), t('activitypub.postMenu.adminDeleted'), 3000);
   } catch (error: any) {
-    notificationStore.showToast('server_update', 'Failed', error.message || 'Could not delete post.', 5000);
+    notificationStore.showToast('server_update', t('activitypub.postMenu.failed'), error.message || t('activitypub.postMenu.deleteFailed'), 5000);
   }
 };
 
@@ -2266,6 +2336,15 @@ const closeLightbox = () => {
 
 .mony-post.is-detailed:hover {
   background-color: transparent;
+}
+
+.mony-post:focus {
+  outline: none;
+}
+
+.mony-post:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
 }
 
 /* Boost / pinned line above the header. Starts at the avatar's left edge, where the post
@@ -2432,7 +2511,7 @@ const closeLightbox = () => {
 }
 
 .reply-author-link {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-decoration: none;
   overflow-wrap: anywhere;
 }
@@ -2446,7 +2525,7 @@ const closeLightbox = () => {
   padding: 0;
   border: none;
   background: none;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font: inherit;
   cursor: pointer;
 }
@@ -2634,7 +2713,7 @@ const closeLightbox = () => {
 }
 
 .reply-count-link:hover {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-decoration: underline;
 }
 
@@ -2660,13 +2739,13 @@ const closeLightbox = () => {
 }
 
 .reply-button:hover {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   background-color: var(--harmony-primary-alpha);
 }
 
 .reblog-button:hover:not(:disabled),
 .reblog-button.active {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .reblog-button:hover:not(:disabled) {
@@ -2675,7 +2754,7 @@ const closeLightbox = () => {
 
 .favorite-button:hover,
 .favorite-button.active {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .favorite-button:hover {
@@ -2701,106 +2780,12 @@ const closeLightbox = () => {
   border-radius: var(--radius-full);
 }
 
-/* Boost dropdown */
 .reblog-menu-container {
   position: relative;
 }
 
-.reblog-dropdown {
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--background-floating, var(--background-primary));
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-medium);
-  padding: var(--space-1);
-  min-width: 140px;
-  z-index: 100;
-  margin-bottom: var(--space-2);
-}
-
-.reblog-option {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  background: none;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-}
-
-.reblog-option:hover:not(:disabled) {
-  background: var(--background-modifier-hover);
-}
-
-.reblog-option:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .action-menu {
   position: relative;
-}
-
-/* Dropdown styles use :global() because the dropdown is Teleported to <body> */
-:global(.action-dropdown) {
-  position: fixed;
-  background-color: var(--background-floating, var(--background-primary));
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
-  padding: var(--space-1);
-  min-width: 180px;
-  box-shadow: var(--shadow-large);
-  z-index: 9999;
-}
-
-:global(.action-dropdown .dropdown-item) {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  background: none;
-  border: none;
-  color: var(--text-primary);
-  text-align: left;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
-}
-
-:global(.action-dropdown .dropdown-item:hover) {
-  background-color: var(--background-modifier-hover);
-}
-
-:global(.action-dropdown .dropdown-item:focus-visible) {
-  outline: 2px solid var(--harmony-primary);
-  outline-offset: -2px;
-}
-
-:global(.action-dropdown .dropdown-item.danger) {
-  color: var(--error);
-}
-
-:global(.action-dropdown .dropdown-item.danger:hover) {
-  background-color: color-mix(in srgb, var(--error) 12%, transparent);
-}
-
-:global(.action-dropdown .dropdown-divider) {
-  height: 1px;
-  background: var(--border-color);
-  margin: var(--space-1) 0;
-}
-
-:global(.action-dropdown .loading-item) {
-  color: var(--text-secondary);
-  cursor: wait;
 }
 
 :global(.action-dropdown .loading-item .spinning) {
@@ -2834,7 +2819,7 @@ const closeLightbox = () => {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-decoration: none;
   font-size: var(--font-size-sm);
   width: fit-content;

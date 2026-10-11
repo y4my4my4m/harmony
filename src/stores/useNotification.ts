@@ -1,3 +1,5 @@
+import { setTitleInstance, setTitleUnread } from '@/utils/a11y/documentTitle'
+import { announce } from '@/composables/useAnnouncer'
 import { defineStore } from 'pinia'
 import { supabase } from '@/supabase'
 import router from '@/router'
@@ -1387,7 +1389,15 @@ export const useNotificationStore = defineStore('notification', {
     },
 
     updateUnreadCount() {
+      const previous = this.unreadCount
       this.unreadCount = this.notifications.filter(n => !n.is_read).length
+      // Verbose only ("Screen reader support"): the count is in the title anyway.
+      if (this.unreadCount > previous) {
+        announce(i18n.global.t('a11y.unreadNotifications', { count: this.unreadCount }, this.unreadCount), {
+          verbose: true,
+          key: 'unread-notifications',
+        })
+      }
       
       if (typeof navigator !== 'undefined' && 'setAppBadge' in navigator) {
         if (this.unreadCount > 0) {
@@ -1397,14 +1407,8 @@ export const useNotificationStore = defineStore('notification', {
         }
       }
 
-      if (typeof document !== 'undefined') {
-        const baseTitle = useInstanceSettingsStore().settings.instanceName || 'Harmony'
-        if (this.unreadCount > 0) {
-          document.title = `(${this.unreadCount}) ${baseTitle}`
-        } else {
-          document.title = baseTitle
-        }
-      }
+      setTitleInstance(useInstanceSettingsStore().settings.instanceName)
+      setTitleUnread(this.unreadCount)
 
       updateFaviconBadge(this.unreadCount)
     },

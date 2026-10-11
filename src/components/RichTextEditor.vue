@@ -5,6 +5,7 @@
     :class="{ 
       'is-empty': !modelValue && !hasContent, 
       'is-focused': isFocused,
+      'keyboard-focused': keyboardFocused,
       'single-line': isSingleLine,
       'bordered': bordered
     }"
@@ -14,9 +15,8 @@
     aria-haspopup="listbox"
     aria-invalid="false"
     aria-autocomplete="list"
-    :aria-expanded="props.autoSuggestActive || false"
-    :aria-activedescendant="props.autoSuggestSelectedId || undefined"
-    aria-controls="auto-suggest-listbox"
+    :aria-activedescendant="props.autoSuggestActive && props.autoSuggestSelectedId ? props.autoSuggestSelectedId : undefined"
+    :aria-controls="props.autoSuggestActive ? 'auto-suggest-listbox' : undefined"
     autocorrect="off"
     data-can-focus="true"
     :aria-label="placeholder"
@@ -56,6 +56,7 @@ import { applyInlineFormatToggle, type InlineFormatKind } from '@/utils/richText
 import { HANDLE_PATTERN, continuesHandle } from '@/utils/mentionGrammar';
 import { HERE_ROLE_ID } from '@/utils/hereMention';
 import { pastedText, writeTokenTextToClipboard } from '@/utils/emojiClipboard';
+import { focusFromNavigationKey, trackNavigationKeys } from '@/utils/a11y/focus';
 
 interface Props {
   modelValue: string;
@@ -64,6 +65,12 @@ interface Props {
   minHeight?: number;
   /** Border with hover/focus states: harmony-primary-alpha on hover, harmony-primary on focus. */
   bordered?: boolean;
+  /**
+   * Suggestions show in the listbox #auto-suggest-listbox. role=textbox takes
+   * no aria-expanded (ARIA 1.2): while active, aria-controls names the listbox
+   * and aria-activedescendant its selected option; the composer announces the
+   * count.
+   */
   autoSuggestActive?: boolean;
   autoSuggestSelectedId?: string;
 }
@@ -91,6 +98,8 @@ const { isMobileViewport, isTouchOnly } = useViewport();
 
 const editorRef = ref<HTMLDivElement>();
 const isFocused = ref(false);
+const keyboardFocused = ref(false);
+trackNavigationKeys();
 const serverChannelStore = useServerChannelStore();
 // Only `unifiedLoaded` is consumed locally, watched for re-render.
 // Emoji resolution goes through emojiShortcodeResolver.findEmojiByName.
@@ -1103,11 +1112,13 @@ const handleKeyDown = (event: KeyboardEvent) => {
 
 const handleFocus = (event: FocusEvent) => {
   isFocused.value = true;
+  keyboardFocused.value = focusFromNavigationKey();
   emit('focus', event);
 };
 
 const handleBlur = (event: FocusEvent) => {
   isFocused.value = false;
+  keyboardFocused.value = false;
   emit('blur', event);
 };
 
@@ -1355,6 +1366,14 @@ onMounted(async () => {
   left: 12px;
 }
 
+/* A contenteditable matches :focus-visible on programmatic focus too (channel switch); the
+   ring marks focus moved by Tab or F6 only. */
+.rich-text-editor:not(.bordered).keyboard-focused {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+  border-radius: var(--radius-md, 8px);
+}
+
 /* Bordered variant: composer inline mode. */
 .rich-text-editor.bordered {
   border: 1px solid var(--border-color);
@@ -1521,7 +1540,7 @@ onMounted(async () => {
 .rich-text-editor :deep(.token.entity) { cursor: help; }
 
 .rich-text-editor :deep(.editor-mention) {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   background-color: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
   border-radius: 3px;
   padding: 0 2px;

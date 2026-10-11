@@ -7,61 +7,80 @@
         class="media-lightbox-overlay"
         @click.self="onHide"
       >
-        <button
-          class="close-btn"
-          aria-label="Close"
-          @click="onHide"
+        <div
+          ref="dialogEl"
+          class="media-lightbox-dialog"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="dialogLabel"
+          tabindex="-1"
+          @click.self="onHide"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
-        </button>
-
-        <button
-          v-if="items.length > 1 && index > 0"
-          class="nav-btn prev"
-          aria-label="Previous"
-          @click="prev"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-        </button>
-        <button
-          v-if="items.length > 1 && index < items.length - 1"
-          class="nav-btn next"
-          aria-label="Next"
-          @click="next"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9 18l6-6-6-6" />
-          </svg>
-        </button>
-
-        <div class="media-container">
-          <img
-            v-if="currentItem && !isVideo(currentItem)"
-            :src="currentSrc"
-            :alt="currentAlt"
-            class="media-content media-image"
-          />
-          <video
-            v-else-if="currentItem && isVideo(currentItem)"
-            ref="videoRef"
-            :src="currentSrc"
-            :poster="currentPoster"
-            class="media-content media-video"
-            controls
-            preload="auto"
-            autoplay
-            playsinline
-            loop
-            :muted="videoMuted"
-            @volumechange="onVolumeChange"
-            @loadedmetadata="onVideoLoadedMetadata"
+          <button
+            type="button"
+            class="close-btn"
+            :aria-label="t('common.close')"
+            :title="t('common.close')"
+            @click="onHide"
           >
-            Your browser does not support the video tag.
-          </video>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+
+          <button
+            v-if="items.length > 1 && index > 0"
+            type="button"
+            class="nav-btn prev"
+            :aria-label="t('a11y.lightbox.previous')"
+            @click="prev"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+          <button
+            v-if="items.length > 1 && index < items.length - 1"
+            type="button"
+            class="nav-btn next"
+            :aria-label="t('a11y.lightbox.next')"
+            @click="next"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+
+          <p v-if="items.length > 1" class="lightbox-position" aria-live="polite">{{ positionText }}</p>
+
+          <slot name="actions" :src="currentSrc" :index="index" />
+
+          <div class="media-container">
+            <img
+              v-if="currentItem && !isVideo(currentItem)"
+              :src="currentSrc"
+              :alt="currentAlt"
+              class="media-content media-image"
+            />
+            <video
+              v-else-if="currentItem && isVideo(currentItem)"
+              ref="videoRef"
+              :src="currentSrc"
+              :poster="currentPoster"
+              :aria-label="currentAlt || undefined"
+              class="media-content media-video"
+              controls
+              preload="auto"
+              :autoplay="autoplayCurrent"
+              playsinline
+              :loop="isGifv"
+              :muted="videoMuted || isGifv"
+              @volumechange="onVolumeChange"
+              @loadedmetadata="onVideoLoadedMetadata"
+            >
+              {{ t('a11y.lightbox.videoUnsupported') }}
+            </video>
+          </div>
         </div>
       </div>
     </Transition>
@@ -70,6 +89,9 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch, onMounted, onUnmounted } from 'vue';
+import { useT } from '@/composables/useT';
+import { useDialog } from '@/composables/useDialog';
+import { isTopLayerElement } from '@/utils/a11y/layers';
 
 const STORAGE_KEY = 'harmony-media-lightbox-video-muted';
 
@@ -99,11 +121,16 @@ function onVolumeChange() {
   }
 }
 
-export type LightboxItem = string | { src: string; type: 'video'; poster?: string; isGifv?: boolean };
+export type LightboxItem =
+  | string
+  | { src: string; type?: 'image'; alt?: string }
+  | { src: string; type: 'video'; poster?: string; isGifv?: boolean; alt?: string };
 
 interface Props {
   visible: boolean;
   imgs: LightboxItem[];
+  /** Text alternatives by index, for string items. */
+  alts?: string[];
 }
 
 const props = defineProps<Props>();
@@ -120,6 +147,9 @@ function isVideo(item: LightboxItem): boolean {
   return typeof item === 'object' && item !== null && item.type === 'video';
 }
 
+const { t } = useT();
+const dialogEl = ref<HTMLElement | null>(null);
+
 function getSrc(item: LightboxItem): string {
   return typeof item === 'string' ? item : item.src;
 }
@@ -127,15 +157,36 @@ function getSrc(item: LightboxItem): string {
 const items = computed(() => props.imgs || []);
 const currentItem = computed(() => items.value[index.value]);
 const currentSrc = computed(() => (currentItem.value ? getSrc(currentItem.value) : ''));
-const currentAlt = computed(() => '');
-const currentPoster = computed(() =>
-  typeof currentItem.value === 'object' && currentItem.value?.poster
-    ? currentItem.value.poster
-    : undefined
+const currentAlt = computed(() => {
+  const item = currentItem.value;
+  if (item && typeof item === 'object' && item.alt) return item.alt;
+  return props.alts?.[index.value] ?? '';
+});
+const positionText = computed(() => t('a11y.lightbox.position', { current: index.value + 1, total: items.value.length }));
+const dialogLabel = computed(() =>
+  items.value.length > 1 ? `${t('a11y.lightbox.label')}, ${positionText.value}` : t('a11y.lightbox.label'),
 );
+const currentPoster = computed(() => {
+  const item = currentItem.value;
+  return item && typeof item === 'object' && 'poster' in item ? item.poster : undefined;
+});
 const isGifv = computed(() =>
   typeof currentItem.value === 'object' && (currentItem.value as { isGifv?: boolean }).isGifv === true
 );
+
+// Videos wait for the play control. GIF-style clips (muted, looping) start on
+// their own unless reduced motion is asked for, by the OS or the appearance setting.
+function prefersReducedMotion(): boolean {
+  if (typeof document !== 'undefined' && document.documentElement.getAttribute('data-reduce-motion') === 'true') return true;
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+const autoplayCurrent = computed(() => isGifv.value && !prefersReducedMotion());
+
+useDialog({
+  open: () => props.visible,
+  element: dialogEl,
+  onClose: () => onHide(),
+});
 
 // Playback position per video (src -> seconds) for resuming when switching slides or reopening
 const playbackPositions = ref<Record<string, number>>({});
@@ -159,7 +210,7 @@ function onVideoLoadedMetadata() {
       vid.currentTime = Math.min(pos, vid.duration > 0 ? vid.duration : pos);
     }
   }
-  vid.play().catch(() => {});
+  if (autoplayCurrent.value) vid.play().catch(() => {});
 }
 
 function onHide() {
@@ -177,38 +228,33 @@ function next() {
   if (index.value < items.value.length - 1) index.value++;
 }
 
-// Window capture phase runs ahead of the document and window listeners of the
-// dialog underneath, which would otherwise close on the same Escape.
+// Left/Right step through the items while this viewer is the topmost layer;
+// a focused <video> keeps them for seeking. Escape is the dialog stack's.
 function handleKeydown(e: KeyboardEvent) {
-  if (!props.visible) return;
-  if (e.key === 'Escape') onHide();
-  else if (e.key === 'ArrowLeft') prev();
+  if (!props.visible || !isTopLayerElement(dialogEl.value)) return;
+  if ((e.target as Element | null)?.closest?.('video')) return;
+  if (e.key === 'ArrowLeft') prev();
   else if (e.key === 'ArrowRight') next();
   else return;
+  e.preventDefault();
   e.stopImmediatePropagation();
 }
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown, true);
-  if (props.visible) document.body.style.overflow = 'hidden';
 });
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown, true);
-  document.body.style.overflow = '';
 });
 
-watch(
-  () => props.visible,
-  (v) => { document.body.style.overflow = v ? 'hidden' : ''; }
-);
-
-// Ensure video autoplays when switching to it (helps when autoplay attr doesn't fire)
+// GIF-style clips start when switched to (the autoplay attribute does not
+// fire on a reused <video>).
 watch(
   () => [props.visible, index.value] as const,
   ([visible, idx]) => {
     const item = items.value[idx];
-    if (visible && item && isVideo(item)) {
+    if (visible && item && isVideo(item) && autoplayCurrent.value) {
       nextTick(() => {
         videoRef.value?.play().catch(() => {});
       });
@@ -219,6 +265,33 @@ watch(
 </script>
 
 <style scoped>
+.media-lightbox-dialog {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.media-lightbox-dialog:focus {
+  outline: none;
+}
+
+.lightbox-position {
+  position: absolute;
+  top: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: var(--font-size-sm);
+  z-index: 10;
+}
+
 .media-lightbox-overlay {
   position: fixed;
   inset: 0;

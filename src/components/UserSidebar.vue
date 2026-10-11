@@ -4,21 +4,29 @@
     <div class="sidebar-header">
       <div class="search-container">
         <div class="search-input-wrapper">
-          <svg class="search-icon" viewBox="0 0 24 24" fill="currentColor">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M21.53 20.47l-3.66-3.66C19.195 15.24 20 13.214 20 11c0-4.97-4.03-9-9-9s-9 4.03-9 9 4.03 9 9 9c2.215 0 4.24-.804 5.808-2.13l3.66 3.66c.147.146.34.22.53.22s.385-.073.53-.22c.295-.293.295-.767.002-1.06zM3.5 11c0-4.135 3.365-7.5 7.5-7.5s7.5 3.365 7.5 7.5-3.365 7.5-7.5 7.5-7.5-3.365-7.5-7.5z"/>
           </svg>
           <input
             v-model="searchQuery"
             type="text"
             :placeholder="$t('server.searchMembersPlaceholder')"
+            :aria-label="t('chatNav.members.search')"
+            :aria-describedby="memberCountId"
             class="search-input"
+            data-testid="member-search"
+            @keydown.escape="onSearchEscape"
           />
           <button 
             v-if="searchQuery"
-            @click="searchQuery = ''"
+            ref="clearSearchRef"
+            type="button"
+            :aria-label="t('chatNav.members.clearSearch')"
+            :title="t('chatNav.members.clearSearch')"
+            @click="clearSearch"
             class="clear-search"
           >
-            <svg viewBox="0 0 24 24" fill="currentColor">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
             </svg>
           </button>
@@ -57,7 +65,7 @@
       </div> -->
 
       <!-- Member Count -->
-      <div class="member-count">
+      <div :id="memberCountId" class="member-count">
         {{ $t('server.membersCount', totalMemberCount) }}
       </div>
     </div>
@@ -72,10 +80,20 @@
         </div>
       </div>
 
-      <div v-else-if="sidebarDisplayItems.length > 0" :style="{ height: `${sidebarTotalSize}px`, position: 'relative' }">
+      <div
+        v-else-if="sidebarDisplayItems.length > 0"
+        ref="memberListRef"
+        role="list"
+        :aria-label="t('a11y.drawer.memberList')"
+        :style="{ height: `${sidebarTotalSize}px`, position: 'relative' }"
+        @keydown="onMemberListKeydown"
+      >
         <div
           v-for="virtualRow in sidebarVirtualRows"
           :key="sidebarDisplayItems[virtualRow.index].key"
+          role="listitem"
+          :aria-setsize="sidebarDisplayItems.length"
+          :aria-posinset="virtualRow.index + 1"
           :data-index="virtualRow.index"
           :ref="sidebarMeasureElement"
           :style="{
@@ -90,16 +108,22 @@
             <!-- Group header -->
             <button
               v-if="item.type === 'header'"
-              @click="toggleGroup(item.groupKey!)"
+              type="button"
               class="group-header"
               :class="{ 'group-collapsed': item.isCollapsed }"
+              :aria-expanded="!item.isCollapsed"
+              data-member-item
+              :data-member-index="virtualRow.index"
+              tabindex="-1"
+              @click="toggleGroup(item.groupKey!)"
             >
-              <svg class="group-arrow" viewBox="0 0 24 24" fill="currentColor">
+              <svg class="group-arrow" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
               </svg>
               <span class="group-title">
-                <span v-if="item.roleColor" class="role-color-dot" :style="{ backgroundColor: item.roleColor }"></span>
-                <span class="group-title-text">{{ item.title }} - {{ item.count }}</span>
+                <span v-if="item.roleColor" class="role-color-dot" :style="{ backgroundColor: item.roleColor }" aria-hidden="true"></span>
+                <span class="group-title-text" aria-hidden="true">{{ item.title }} - {{ item.count }}</span>
+                <span class="sr-only">{{ t('chatNav.members.group', { title: item.title, count: item.count ?? 0 }, item.count ?? 0) }}</span>
               </span>
             </button>
 
@@ -109,11 +133,16 @@
               class="user-item bridged-discord-user"
               :class="{ 'offline-user': item.isOffline }"
               :title="`Discord: @${item.bridgedUser.username}`"
+              role="button"
+              data-member-item
+              :data-member-index="virtualRow.index"
+              tabindex="-1"
               @click="showBridgedDiscordUserProfile(item.bridgedUser)"
+              @keydown.enter.self.prevent="showBridgedDiscordUserProfile(item.bridgedUser)"
+              @keydown.space.self.prevent="showBridgedDiscordUserProfile(item.bridgedUser)"
             >
               <Avatar
                 :src="item.bridgedUser.avatarUrl || '/default_avatar.webp'"
-                :alt="item.bridgedUser.displayName || item.bridgedUser.username"
                 size="sm"
                 :status="getBridgedAvatarStatus(item.bridgedUser)"
                 class="user-avatar"
@@ -126,7 +155,8 @@
                   >
                     {{ item.bridgedUser.displayName || item.bridgedUser.username }}
                   </span>
-                  <span class="discord-bridge-badge" title="Discord bridge member">
+                  <span class="sr-only">{{ memberStateText(item) }}</span>
+                  <span class="discord-bridge-badge" :title="t('chatNav.members.discord')" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="#5865F2" class="discord-bridge-icon" aria-hidden="true">
                       <path d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a.09.09 0 0 0-.07.03c-.18.33-.39.76-.53 1.09a16.09 16.09 0 0 0-4.8 0c-.14-.34-.35-.76-.54-1.09c-.01-.02-.04-.03-.07-.03c-1.5.26-2.93.71-4.27 1.33c-.01 0-.02.01-.03.02c-2.72 4.07-3.47 8.03-3.1 11.95c0 .02.01.04.03.05c1.8 1.32 3.53 2.12 5.24 2.65c.03.01.06 0 .07-.02c.4-.55.76-1.13 1.07-1.74c.02-.04 0-.08-.04-.09c-.57-.22-1.11-.48-1.64-.78c-.04-.02-.04-.08-.01-.11c.11-.08.22-.17.33-.25c.02-.02.05-.02.07-.01c3.44 1.57 7.15 1.57 10.55 0c.02-.01.05-.01.07.01c.11.09.22.17.33.26c.04.03.04.09-.01.11c-.52.31-1.07.56-1.64.78c-.04.01-.05.06-.04.09c.32.61.68 1.19 1.07 1.74c.03.01.06.02.09.01c1.72-.53 3.45-1.33 5.25-2.65c.02-.01.03-.03.03-.05c.44-4.53-.73-8.46-3.1-11.95c-.01-.01-.02-.02-.04-.02zM8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.84 2.12-1.89 2.12zm6.97 0c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.83 2.12-1.89 2.12z"/>
                     </svg>
@@ -151,13 +181,15 @@
               :class="{ 'offline-user': item.isOffline }"
               :title="`@${item.bot.username}`"
               role="button"
-              tabindex="0"
+              data-member-item
+              :data-member-index="virtualRow.index"
+              tabindex="-1"
               @click="openBotCard(item.bot)"
               @keydown.enter.self.prevent="openBotCard(item.bot)"
+              @keydown.space.self.prevent="openBotCard(item.bot)"
             >
               <Avatar
                 :src="item.bot.avatarUrl"
-                :alt="item.bot.displayName"
                 size="sm"
                 :status="item.bot.status"
                 class="user-avatar"
@@ -166,6 +198,7 @@
                 <div class="user-name-row">
                   <span class="user-name" :style="botNameStyle">{{ item.bot.displayName }}</span>
                   <span class="bot-tag">{{ $t('bots.badge.bot') }}</span>
+                  <span class="sr-only">{{ memberStateText(item) }}</span>
                 </div>
                 <div v-if="item.showStatus !== 'none' && item.bot.statusText" class="user-custom-status">
                   <ActivityIcon
@@ -184,9 +217,12 @@
               class="user-item"
               :class="{ 'offline-user': item.isOffline }"
               role="button"
-              tabindex="0"
+              data-member-item
+              :data-member-index="virtualRow.index"
+              tabindex="-1"
               @click="handleUserItemClick(item.user!)"
               @keydown.enter.self.prevent="handleUserItemClick(item.user!)"
+              @keydown.space.self.prevent="handleUserItemClick(item.user!)"
               @contextmenu="handleUserContextMenu(item.user!, $event)"
               @touchstart.passive="handleUserTouchStart(item.user!, $event)"
               @touchend.passive="handleUserTouchEnd"
@@ -195,7 +231,6 @@
             >
               <Avatar
                 :src="getUserAvatarUrl(item.user!.id).value"
-                :alt="getUserDisplayName(item.user!.id).value || 'Unknown User'"
                 size="sm"
                 :status="getStatusForAvatarValue(item.user!.id)"
                 class="user-avatar"
@@ -208,19 +243,21 @@
                   >
                     <DisplayName :user-id="item.user!.id" :truncate="true" />
                   </span>
+                  <span class="sr-only">{{ memberStateText(item) }}</span>
                   <span
                     v-if="!isUserLocal(item.user!.id).value"
                     class="federation-badge"
+                    aria-hidden="true"
                     :title="getUserDomain(item.user!.id).value ? `From ${getUserDomain(item.user!.id).value}` : 'Federated user'"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" class="federation-icon">
                       <path d="M17.9,17.39C17.64,16.59 16.89,16 16,16H15V13A1,1 0 0,0 14,12H8V10H10A1,1 0 0,0 11,9V7H13A2,2 0 0,0 15,5V4.59C17.93,5.77 20,8.64 20,12C20,14.08 19.2,15.97 17.9,17.39M11,19.93C7.05,19.44 4,16.08 4,12C4,11.38 4.08,10.79 4.21,10.21L9,15V16A2,2 0 0,0 11,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
                     </svg>
                   </span>
-                  <span v-if="isUserInstanceAdmin(item.user!.id).value" class="instance-badge admin" title="Instance Admin">
+                  <span v-if="isUserInstanceAdmin(item.user!.id).value" class="instance-badge admin" :title="t('chatNav.members.instanceAdmin')" aria-hidden="true">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                   </span>
-                  <span v-else-if="isUserInstanceMod(item.user!.id).value" class="instance-badge mod" title="Instance Moderator">
+                  <span v-else-if="isUserInstanceMod(item.user!.id).value" class="instance-badge mod" :title="t('chatNav.members.instanceMod')" aria-hidden="true">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                   </span>
                 </div>
@@ -311,6 +348,11 @@
 import { ref, computed, watch, onUnmounted, nextTick } from 'vue';
 import { useVirtualizer } from '@tanstack/vue-virtual';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { useRovingTabindex } from '@/composables/useRovingTabindex';
+import { isContextMenuKey } from '@/composables/useMenu';
+import { focusElement, uid } from '@/utils/a11y/focus';
+import { useAnnouncer } from '@/composables/useAnnouncer';
 import { debug } from '@/utils/debug'
 import type { User } from '@/types';
 import UserProfileModal from '@/components/UserProfileModal.vue';
@@ -357,6 +399,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const serverChannelStore = useServerChannelStore();
 const serverRolesStore = useServerRolesStore();
+const { t } = useI18n();
 
 // Same precedence as chat authors (MessageDisplay.resolveChatUserColor):
 // highest colored role in the current server, then profile color. Uncoloured
@@ -743,6 +786,8 @@ async function copyUserId(user: User) {
 // An in-flight long-press timer would fire after the list unmounts on server
 // switch or route change.
 onUnmounted(() => {
+  memberObserver?.disconnect();
+  if (searchAnnounceTimer) clearTimeout(searchAnnounceTimer);
   clearLongPressTimer();
 });
 
@@ -1154,11 +1199,11 @@ const sidebarDisplayItems = computed((): SidebarItem[] => {
     });
   }
   const bots = groupedBots.value;
-  addGroup('online', 'Online', groupedUsers.value.online, bridgedDiscordGrouping.value.byPresence.online, { showStatus: 'full' }, bots.online);
-  addGroup('away', 'Away', groupedUsers.value.away, bridgedDiscordGrouping.value.byPresence.away, { showStatus: 'partial' }, bots.away);
-  addGroup('busy', 'Busy', groupedUsers.value.busy, bridgedDiscordGrouping.value.byPresence.busy, { showStatus: 'none' }, bots.busy);
-  addGroup('federated', 'Federated', groupedUsers.value.federated, [], { showStatus: 'full' });
-  addGroup('offline', 'Offline', groupedUsers.value.offline, bridgedDiscordGrouping.value.byPresence.offline, { isOffline: true, showStatus: 'none' }, bots.offline);
+  addGroup('online', t('user.online'), groupedUsers.value.online, bridgedDiscordGrouping.value.byPresence.online, { showStatus: 'full' }, bots.online);
+  addGroup('away', t('user.away'), groupedUsers.value.away, bridgedDiscordGrouping.value.byPresence.away, { showStatus: 'partial' }, bots.away);
+  addGroup('busy', t('user.busy'), groupedUsers.value.busy, bridgedDiscordGrouping.value.byPresence.busy, { showStatus: 'none' }, bots.busy);
+  addGroup('federated', t('federation.federatedBadge'), groupedUsers.value.federated, [], { showStatus: 'full' });
+  addGroup('offline', t('user.offline'), groupedUsers.value.offline, bridgedDiscordGrouping.value.byPresence.offline, { isOffline: true, showStatus: 'none' }, bots.offline);
   }
 
   return items;
@@ -1177,6 +1222,120 @@ const sidebarVirtualizer = useVirtualizer<HTMLElement, Element>(
 );
 
 const sidebarVirtualRows = computed(() => sidebarVirtualizer.value.getVirtualItems());
+
+// --- KEYBOARD AND SCREEN READER ---
+// One Tab stop for the list; arrows move between group headers and members.
+// Rows outside the virtualizer's window are not in the DOM: Home/End scroll
+// to the ends first, and every focus move scrolls its row into view.
+
+const memberCountId = uid('member-count');
+const memberListRef = ref<HTMLElement | null>(null);
+const clearSearchRef = ref<HTMLButtonElement | null>(null);
+
+const memberRoving = useRovingTabindex(memberListRef, {
+  itemSelector: '[data-member-item]',
+  onActivate: (el) => el.scrollIntoView?.({ block: 'nearest' }),
+});
+
+// Virtual rows mount and unmount on scroll, outside this component's render.
+let memberSyncQueued = false;
+const memberObserver = typeof MutationObserver === 'undefined' ? null : new MutationObserver(() => {
+  if (memberSyncQueued) return;
+  memberSyncQueued = true;
+  queueMicrotask(() => {
+    memberSyncQueued = false;
+    memberRoving.sync();
+  });
+});
+watch(memberListRef, (el, old) => {
+  if (old) memberObserver?.disconnect();
+  if (el) memberObserver?.observe(el, { childList: true, subtree: true });
+});
+
+const focusMemberIndex = async (index: number) => {
+  sidebarVirtualizer.value.scrollToIndex(index, { align: 'auto' });
+  await nextTick();
+  await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+  const el = memberListRef.value?.querySelector<HTMLElement>(`[data-member-index="${index}"]`);
+  if (el) memberRoving.focusItem(memberRoving.items().indexOf(el));
+};
+
+const onMemberListKeydown = (event: KeyboardEvent) => {
+  const target = event.target as HTMLElement | null;
+  if (!target?.matches('[data-member-item]')) return;
+  if (isContextMenuKey(event)) {
+    const index = Number(target.dataset.memberIndex);
+    const user = sidebarDisplayItems.value[index]?.user;
+    if (user) {
+      event.preventDefault();
+      const r = target.getBoundingClientRect();
+      openContextMenu(user, r.left + 24, r.bottom);
+    }
+    return;
+  }
+  if ((event.key === 'Home' || event.key === 'End') && !event.altKey && !event.metaKey) {
+    event.preventDefault();
+    void focusMemberIndex(event.key === 'Home' ? 0 : sidebarDisplayItems.value.length - 1);
+    return;
+  }
+  memberRoving.onKeydown(event);
+};
+
+const clearSearch = () => {
+  searchQuery.value = '';
+  focusElement(document.querySelector<HTMLElement>('[data-testid="member-search"]'));
+};
+
+// Result count, spoken once typing pauses.
+const { polite } = useAnnouncer();
+const SEARCH_ANNOUNCE_MS = 600;
+let searchAnnounceTimer: ReturnType<typeof setTimeout> | null = null;
+watch(searchQuery, (query) => {
+  if (searchAnnounceTimer) clearTimeout(searchAnnounceTimer);
+  if (!query.trim()) return;
+  searchAnnounceTimer = setTimeout(() => {
+    searchAnnounceTimer = null;
+    const found = sidebarDisplayItems.value.filter(item => item.type === 'user').length;
+    polite(t('chatNav.members.found', { count: found }, found), { key: 'member-search' });
+  }, SEARCH_ANNOUNCE_MS);
+});
+
+const onSearchEscape = (event: KeyboardEvent) => {
+  if (!searchQuery.value) return;
+  event.preventDefault();
+  searchQuery.value = '';
+};
+
+const presenceStatusKey = (status: string | null | undefined): string =>
+  ['online', 'away', 'busy', 'offline'].includes(status ?? '') ? `user.${status}` : 'user.offline';
+
+const groupTitles = computed(() => {
+  const titles = new Map<string, string>();
+  for (const item of sidebarDisplayItems.value) {
+    if (item.type === 'header' && item.groupKey) titles.set(item.groupKey, item.title ?? '');
+  }
+  return titles;
+});
+
+/** Text after the visible name in a member row's accessible name: presence, then group context. */
+const memberStateText = (item: SidebarItem): string => {
+  const parts: string[] = [];
+  if (item.bridgedUser) {
+    parts.push(t('chatNav.members.discord'), t(presenceStatusKey(getBridgedAvatarStatus(item.bridgedUser))));
+  } else if (item.bot) {
+    parts.push(t(presenceStatusKey(item.bot.status)));
+  } else if (item.user) {
+    parts.push(t(presenceStatusKey(getStatusForAvatarValue(item.user.id))));
+    if (isUserInstanceAdmin(item.user.id).value) parts.push(t('chatNav.members.instanceAdmin'));
+    else if (isUserInstanceMod(item.user.id).value) parts.push(t('chatNav.members.instanceMod'));
+  }
+  const group = item.groupKey ?? '';
+  if (group.startsWith('role:') || group === 'federated') {
+    const title = groupTitles.value.get(group);
+    if (title) parts.push(title);
+  }
+  return `, ${parts.join(', ')}. `;
+};
 const sidebarTotalSize = computed(() => sidebarVirtualizer.value.getTotalSize());
 
 // The first measurement of a connected row registers it with the
@@ -1757,7 +1916,7 @@ const closeInviteModal = () => {
   flex-shrink: 0;
   padding: 1px 4px;
   border-radius: 3px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary, #ffffff);
   font-size: 10px;
   font-weight: 700;

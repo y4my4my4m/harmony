@@ -243,7 +243,7 @@ onBeforeUnmount(detach);
   padding: 6px 12px;
   border: none;
   border-radius: var(--radius-full);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font: inherit;
   font-size: 12px;

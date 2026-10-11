@@ -161,6 +161,7 @@ vi.mock('@/components/MessageInput.vue', async () => {
 })
 
 import ChatComponent from '../ChatComponent.vue'
+import { THROTTLE_MS, WRITE_DELAY_MS, announcerRegions, resetAnnouncer } from '@/composables/useAnnouncer'
 import { startMessageMediaUpload } from '@/services/messageMediaUpload'
 import type { FilePreviewData } from '@/components/FilePreview.vue'
 
@@ -400,5 +401,36 @@ describe('ChatComponent polls', () => {
     input.vm.$emit('createPoll')
     await settle()
     expect(wrapper.findComponent({ name: 'PollCreateModal' }).exists()).toBe(false)
+  })
+})
+
+describe('ChatComponent image descriptions and send errors', () => {
+  it('queues an attachment with its description on the file part', async () => {
+    const wrapper = mountChat()
+    const file = new File(['png'], 'cat.png', { type: 'image/png' })
+    const described: FilePreviewData = {
+      file, name: 'cat.png', size: file.size, type: 'image/png',
+      preview: 'blob:cat', uploadStatus: 'pending', altText: 'A grey cat asleep',
+    }
+    wrapper.findComponent({ name: 'MessageInput' }).vm.$emit('sendMessage', '', [described], undefined)
+    await flushPromises()
+    const [row] = displayed(wrapper)
+    expect(row.content).toEqual([expect.objectContaining({ type: 'file', fileName: 'cat.png', altText: 'A grey cat asleep' })])
+  })
+
+  it('speaks a send error assertively', async () => {
+    const { assertiveText } = announcerRegions()
+    resetAnnouncer()
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      mountChat()
+      window.dispatchEvent(new CustomEvent('encryption-fallback', { detail: { failClosed: true } }))
+      await flushPromises()
+      vi.advanceTimersByTime(THROTTLE_MS + WRITE_DELAY_MS + 1)
+      expect(assertiveText.value).toMatch(/Encryption failed/)
+    } finally {
+      vi.useRealTimers()
+      resetAnnouncer()
+    }
   })
 })

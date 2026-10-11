@@ -6,6 +6,7 @@
     hide-header
     no-padding
     container-class="message-search-modal"
+    :aria-label="t('messageSearch.title')"
     @close="emit('close')"
     @open="focusInput"
   >
@@ -551,7 +552,7 @@ watch(() => [props.serverId, props.conversationId], () => {
 .search-link {
   border: none;
   background: none;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-size: var(--font-size-xs);
   cursor: pointer;
 }
@@ -560,14 +561,14 @@ watch(() => [props.serverId, props.conversationId], () => {
   padding: var(--space-2) var(--space-4);
   border: none;
   border-radius: var(--radius-md);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: var(--font-size-sm);
   cursor: pointer;
 }
 
 .search-button:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .search-pager {
@@ -594,7 +595,7 @@ watch(() => [props.serverId, props.conversationId], () => {
 }
 
 .search-page.active {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-color: var(--harmony-primary);
   color: var(--text-on-primary);
 }

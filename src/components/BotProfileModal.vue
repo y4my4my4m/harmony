@@ -562,7 +562,7 @@ async function goToSupportServer() {
   flex-shrink: 0;
   padding: 2px 6px;
   border-radius: 4px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary, #ffffff);
   font-size: 11px;
   font-weight: 700;
@@ -583,7 +583,7 @@ async function goToSupportServer() {
 .verified-icon {
   width: 16px;
   height: 16px;
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .username {
@@ -797,7 +797,7 @@ a.link-row:hover {
   padding: 4px 0;
   background: none;
   border: none;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -836,12 +836,12 @@ a.link-row:hover {
 }
 
 .primary-action-btn {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .primary-action-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .secondary-action-btn {
@@ -857,13 +857,13 @@ a.link-row:hover {
 }
 
 .secondary-action-btn.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .secondary-action-btn.danger:hover:not(:disabled) {
   background: color-mix(in srgb, var(--error) 10%, transparent);
   border-color: color-mix(in srgb, var(--error) 35%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .secondary-action-btn:disabled {
@@ -952,7 +952,7 @@ a.link-row:hover {
 }
 
 .picker-server-state.add {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-weight: 600;
 }
 

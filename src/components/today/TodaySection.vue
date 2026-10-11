@@ -117,7 +117,7 @@ const headingId = computed(() => `today-${props.id}-heading`)
   min-width: 20px;
   padding: 0 6px;
   border-radius: var(--radius-full);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
@@ -195,7 +195,7 @@ const headingId = computed(() => `today-${props.id}-heading`)
 }
 
 .today-section-error {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .today-section-error span {
@@ -203,7 +203,7 @@ const headingId = computed(() => `today-${props.id}-heading`)
 }
 
 .today-section-empty :deep(.icon-wrap) {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .today-link-button {
@@ -211,7 +211,7 @@ const headingId = computed(() => `today-${props.id}-heading`)
   border: none;
   border-radius: var(--radius-sm);
   background: none;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font: inherit;
   font-weight: var(--font-weight-semibold);
   cursor: pointer;

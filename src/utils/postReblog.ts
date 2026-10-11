@@ -176,3 +176,43 @@ export function getReplyMentionAuthor(post: TimelinePost): FederatedUser | undef
   const target = getOriginalPost(post);
   return target.author as unknown as FederatedUser | undefined;
 }
+
+/**
+ * Composer prefill for a reply, as Mastodon builds it: the replied-to author, then each account
+ * the post mentions in order, once each and never the viewer, followed by one space. Empty when
+ * nobody remains (a reply to one's own post that mentions no one) or the author is unknown.
+ */
+export function replyMentionPrefill(post: TimelinePost, viewerId: string | null | undefined): string {
+  const author = getReplyMentionAuthor(post);
+  if (!author) return '';
+  const handles: string[] = [];
+  const seen = new Set<string>();
+  const add = (id: string | undefined, username: string | undefined, domain: string | undefined, isLocal: boolean) => {
+    if (!username || (viewerId && id === viewerId)) return;
+    const handle = !isLocal && domain ? `@${username}@${domain}` : `@${username}`;
+    const key = handle.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    handles.push(handle);
+  };
+  add(author.id, author.username, author.domain, author.is_local !== false);
+  for (const part of getOriginalPost(post).content ?? []) {
+    if (part.type === 'mention') add(part.userId, part.username, part.domain, part.isLocal);
+  }
+  return handles.length ? `${handles.join(' ')} ` : '';
+}
+
+type Visibility = 'public' | 'unlisted' | 'followers' | 'direct';
+const VISIBILITY_RANK: Record<Visibility, number> = { public: 0, unlisted: 1, followers: 2, direct: 3 };
+
+/**
+ * Starting visibility of a reply, as Mastodon picks it: the more restrictive of the replier's
+ * preferred visibility and the replied-to post's. A reply to an unlisted post is unlisted, a
+ * reply in a direct conversation stays direct. The composer still lets the replier change it.
+ */
+export function replyVisibility(post: TimelinePost, preferred: Visibility | null | undefined): Visibility {
+  const mine: Visibility = preferred && preferred in VISIBILITY_RANK ? preferred : 'public';
+  const parent = getOriginalPost(post).visibility as Visibility | undefined;
+  if (!parent || !(parent in VISIBILITY_RANK)) return mine;
+  return VISIBILITY_RANK[parent] > VISIBILITY_RANK[mine] ? parent : mine;
+}

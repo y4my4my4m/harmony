@@ -72,7 +72,7 @@ watch(
 .update-prompt-icon {
   width: 24px;
   height: 24px;
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .update-prompt-body {

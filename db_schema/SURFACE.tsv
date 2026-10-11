@@ -17,7 +17,7 @@ add_user_prekeys	p_user_id uuid, p_device_id text, p_prekeys jsonb	integer	defin
 add_user_to_conversation	conversation_uuid uuid, user_uuid uuid, user_role text	uuid	definer	public, pg_temp	authenticated+service_role	client
 admin_add_supporter	p_user_id uuid, p_tier_id uuid, p_amount numeric, p_platform text	uuid	definer	public, pg_temp	authenticated+service_role	client
 admin_delete_instance_emoji	p_emoji_id uuid	void	definer	public, pg_temp	authenticated+service_role	client
-admin_list_instance_emojis	p_search text, p_source text, p_sort text, p_limit integer, p_offset integer	TABLE(id uuid, name text, url text, domain text, scope text, uploader uuid, uploader_username text, created_at timestamp with time zone, usage_count integer, reaction_count bigint, total_count bigint)	definer	public, pg_temp	authenticated+service_role	client
+admin_list_instance_emojis	p_search text, p_source text, p_sort text, p_limit integer, p_offset integer	TABLE(id uuid, name text, url text, domain text, scope text, uploader uuid, uploader_username text, created_at timestamp with time zone, usage_count integer, reaction_count bigint, total_count bigint, is_ai_generated boolean)	definer	public, pg_temp	authenticated+service_role	client
 admin_list_supporters		jsonb	definer	public, pg_temp	authenticated+service_role	client
 admin_moderate_post	p_post_id uuid, p_action text, p_value text	boolean	definer	public, pg_temp	anon+authenticated+service_role	client
 admin_rename_instance_emoji	p_emoji_id uuid, p_name text	void	definer	public, pg_temp	authenticated+service_role	client
@@ -525,6 +525,7 @@ queue_push_dismissal	p_user_id uuid, p_ids uuid[]	void	definer	public, pg_temp	s
 queue_push_dismissal_on_delete		trigger	definer	public, pg_temp	service_role	trigger
 queue_push_dismissal_on_read		trigger	definer	public, pg_temp	service_role	trigger
 recompute_supporter_tier	p_user_id uuid	uuid	definer	public, pg_temp	authenticated+service_role	client
+record_ai_emoji_generation		trigger	definer	public, pg_temp	service_role	trigger
 record_emoji_usage	p_emoji_id uuid, p_user_id uuid, p_server_id uuid, p_context_type text, p_context_id uuid	void	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client
 record_instance_software	p_domain text, p_software text, p_version text, p_source text	text	definer	public, pg_temp	service_role	client
 record_metric	p_metric_type text, p_metric_name text, p_value double precision, p_unit text, p_labels jsonb, p_source text	uuid	definer	public, extensions, pg_temp	service_role	unreferenced
@@ -551,6 +552,7 @@ remove_message_from_index		trigger	definer	public, extensions, pg_temp	anon+auth
 remove_post_emoji_reaction	p_user_id uuid, p_post_id uuid, p_emoji_id uuid, p_custom_emoji_content text	boolean	definer	public, extensions, pg_temp	anon+authenticated+service_role	client
 remove_timeline_on_unfollow		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 remove_voice_participant	p_channel_id uuid, p_user_id uuid, p_joined_before timestamp with time zone	boolean	definer	public, pg_temp	service_role	client
+rename_my_emoji	p_emoji_id uuid, p_name text	void	definer	public, pg_temp	authenticated+service_role	client
 report_content_snapshot	p_user_id uuid, p_post_ids uuid[], p_message_id uuid, p_server_id uuid	jsonb	invoker	public, pg_temp	service_role	unreferenced
 request_my_data_export		jsonb	definer	pg_catalog, public, pg_temp	authenticated+service_role	client
 request_room_epoch_bump	p_room_id text, p_reason text	integer	definer	public, pg_temp	anon+authenticated+service_role	client

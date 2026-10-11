@@ -698,6 +698,28 @@ const RAISED_SURFACE_L = {
   light: { quaternary: -5.5, quinary: -8 },
 } as const
 
+const FILL_VARS = ['--harmony-primary-fill', '--harmony-primary-fill-hover', '--error-fill', '--error-fill-hover']
+
+/**
+ * High contrast: fills under white labels darkened to 4.5:1 against #fff, from the primary and
+ * --error in effect on <html>. A primary light enough to take a dark label keeps its own fill.
+ * Off: the inline fills go and design-system.css's brand fills apply.
+ */
+export function applyContrastFills(enabled: boolean): void {
+  const root = document.documentElement
+  FILL_VARS.forEach((name) => root.style.removeProperty(name))
+  if (!enabled) return
+  const style = getComputedStyle(root)
+  const primary = style.getPropertyValue('--harmony-primary').trim() || '#0EA5E9'
+  const error = style.getPropertyValue('--error').trim() || '#ed4245'
+  const primaryFill = readableTextOn(primary) === '#ffffff' ? ensureContrast(primary, '#ffffff', 4.5) : primary
+  const errorFill = ensureContrast(error, '#ffffff', 4.5)
+  root.style.setProperty('--harmony-primary-fill', primaryFill)
+  root.style.setProperty('--harmony-primary-fill-hover', adjustLightness(primaryFill, -8))
+  root.style.setProperty('--error-fill', errorFill)
+  root.style.setProperty('--error-fill-hover', adjustLightness(errorFill, -8))
+}
+
 /**
  * Apply theme palette to CSS custom properties using OKLCH
  */
@@ -713,7 +735,8 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.style.setProperty('--h-primary-dark', palette.primaryDark)
   root.style.setProperty('--h-brand', palette.primary)
   // Contrast-picked; presets take the #fff in design-system.css.
-  root.style.setProperty('--text-on-primary', readableTextOn(palette.primary))
+  const onPrimary = readableTextOn(palette.primary)
+  root.style.setProperty('--text-on-primary', onPrimary)
 
   // Secondary / accent brand colors
   root.style.setProperty('--harmony-secondary', palette.secondary)
@@ -779,7 +802,13 @@ export function applyThemePalette(palette: ThemePalette): void {
   root.style.setProperty('--text-primary', palette.textPrimary)
   root.style.setProperty('--text-secondary', palette.textSecondary)
   root.style.setProperty('--text-tertiary', palette.textTertiary)
-  root.style.setProperty('--text-muted', palette.isLightTheme ? '#5e6168' : '#6d6f78')
+  root.style.setProperty('--text-muted', palette.isLightTheme ? '#5e6168' : '#8b8e96')
+  // Brand, danger and success hues as text: 4.5:1 against each surface.
+  const surfaces = [palette.bgPrimary, palette.bgSecondary, palette.bgTertiary].filter(Boolean)
+  const legible = (fg: string) => surfaces.reduce((c, bg) => ensureContrast(c, bg, 4.5), fg)
+  root.style.setProperty('--text-link', legible(palette.primary))
+  root.style.setProperty('--text-danger', legible(palette.isLightTheme ? '#b91c1c' : '#f05a5d'))
+  root.style.setProperty('--text-success', legible(palette.isLightTheme ? '#137638' : '#23a55a'))
   
   // Border colors
   root.style.setProperty('--border-primary', palette.borderPrimary)

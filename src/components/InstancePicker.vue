@@ -1,17 +1,26 @@
 <template>
   <div class="instance-picker">
-    <div class="instance-picker__card">
+    <div
+      ref="dialogEl"
+      class="instance-picker__card"
+      role="dialog"
+      aria-modal="true"
+      :aria-labelledby="titleId"
+      tabindex="-1"
+      data-testid="instance-picker"
+    >
       <img src="/icon_3d.webp" alt="" class="instance-picker__logo" />
-      <h1>Welcome to Harmony</h1>
-      <p class="instance-picker__hint">
-        Harmony is federated — anyone can run an instance. Enter the domain of
-        the instance you want to connect to.
-      </p>
+      <h1 :id="titleId">{{ t('instancePicker.title') }}</h1>
+      <p :id="hintId" class="instance-picker__hint">{{ t('instancePicker.hint') }}</p>
 
-      <form @submit.prevent="connect">
+      <form :aria-busy="busy ? 'true' : undefined" @submit.prevent="connect">
+        <label :for="inputId" class="sr-only">{{ t('instancePicker.domainLabel') }}</label>
         <div class="instance-picker__field">
           <span class="instance-picker__scheme" aria-hidden="true">https://</span>
+          <!-- readonly, not disabled, while connecting: a disabled field drops focus to <body>. -->
           <input
+            :id="inputId"
+            ref="inputEl"
             v-model="domain"
             type="text"
             inputmode="url"
@@ -19,59 +28,88 @@
             autocapitalize="none"
             autocorrect="off"
             spellcheck="false"
-            :disabled="busy"
-            :autofocus="!prefilled"
+            :readonly="busy"
+            :aria-invalid="error ? 'true' : undefined"
+            :aria-describedby="error ? `${errorId} ${hintId}` : hintId"
+            @input="error = ''"
           />
         </div>
-        <button ref="connectButton" type="submit" :disabled="busy || !domain.trim()">
-          {{ busy ? 'Connecting…' : 'Connect' }}
+        <button
+          ref="connectButton"
+          type="submit"
+          :disabled="!busy && !domain.trim()"
+          :aria-disabled="busy ? 'true' : undefined"
+        >
+          {{ busy ? t('instancePicker.connecting') : t('instancePicker.connect') }}
         </button>
       </form>
 
-      <p v-if="error" class="instance-picker__error">{{ error }}</p>
+      <p :id="errorId" class="instance-picker__error" role="alert">{{ error }}</p>
       <p v-if="current" class="instance-picker__current">
-        Currently connected to <strong>{{ current.name }}</strong>
-        <button class="instance-picker__link" @click="cancel">Keep it</button>
+        <i18n-t keypath="instancePicker.current" scope="global">
+          <template #name><strong>{{ current.name }}</strong></template>
+        </i18n-t>
+        <button type="button" class="instance-picker__link" @click="cancel">{{ t('instancePicker.keep') }}</button>
       </p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { ref, useId } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   defaultInstanceInput,
   fetchInstanceInfo,
   getStoredInstance,
   setStoredInstance,
 } from '@/services/instanceConfig';
+import { useDialog } from '@/composables/useDialog';
+import { useAnnouncer } from '@/composables/useAnnouncer';
 
 const emit = defineEmits<{ (e: 'close'): void }>();
+
+const { t } = useI18n();
+const { polite } = useAnnouncer();
 
 const current = getStoredInstance();
 const prefilled = !current && defaultInstanceInput() !== '';
 const domain = ref(current ? new URL(current.origin).hostname : defaultInstanceInput());
+const dialogEl = ref<HTMLElement | null>(null);
 const connectButton = ref<HTMLButtonElement | null>(null);
+const inputEl = ref<HTMLInputElement | null>(null);
 const busy = ref(false);
 const error = ref('');
 
+const uid = useId();
+const inputId = `instance-domain-${uid}`;
+const hintId = `instance-hint-${uid}`;
+const errorId = `instance-error-${uid}`;
+
+// Mandatory on first run: Escape closes only when an instance is already stored.
+const { titleId } = useDialog({
+  open: () => true,
+  element: dialogEl,
+  onClose: () => cancel(),
+  closeOnEscape: !!current,
+  initialFocus: () => (prefilled ? connectButton.value : inputEl.value),
+});
+
 async function connect() {
+  if (busy.value || !domain.value.trim()) return;
   busy.value = true;
   error.value = '';
+  polite(t('instancePicker.connecting'));
   try {
     const info = await fetchInstanceInfo(domain.value);
     setStoredInstance(info);
     // full reload: supabase.ts reads the instance config at module init
     window.location.reload();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Could not reach that instance';
+    error.value = e instanceof Error ? e.message : t('instancePicker.unreachable');
     busy.value = false;
   }
 }
-
-onMounted(() => {
-  if (prefilled) connectButton.value?.focus();
-});
 
 function cancel() {
   emit('close');
@@ -161,22 +199,32 @@ function cancel() {
   padding: 0.7rem;
   border-radius: 8px;
   border: none;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
 }
 
-.instance-picker__card button[type='submit']:disabled {
+.instance-picker__card button[type='submit']:disabled,
+.instance-picker__card button[type='submit'][aria-disabled='true'] {
   opacity: 0.5;
   cursor: default;
 }
 
+.instance-picker__card button:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
 .instance-picker__error {
   margin-top: 1rem;
-  color: var(--error);
+  color: var(--text-danger);
   font-size: 0.9rem;
+}
+
+.instance-picker__error:empty {
+  margin: 0;
 }
 
 .instance-picker__current {
@@ -188,7 +236,7 @@ function cancel() {
 .instance-picker__link {
   background: none;
   border: none;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   cursor: pointer;
   font-size: 0.85rem;
   text-decoration: underline;

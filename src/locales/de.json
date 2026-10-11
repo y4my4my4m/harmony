@@ -105,7 +105,12 @@
       "error": "Authentifizierung fehlgeschlagen",
       "tryAgain": "Erneut versuchen",
       "success": "Willkommen!",
-      "redirecting": "Weiterleitung..."
+      "redirecting": "Weiterleitung...",
+      "noSession": "Nach der Authentifizierung wurde keine Sitzung gefunden",
+      "suspendedReason": "Dein Konto wurde gesperrt: {reason}",
+      "suspended": "Dein Konto wurde gesperrt. Wende dich an die Administration.",
+      "mfaStartFailed": "Die Zwei-Faktor-Prüfung konnte nicht gestartet werden. Versuche es erneut.",
+      "failed": "Authentifizierung fehlgeschlagen. Versuche es erneut."
     },
     "features": {
       "federated": "Föderiert",
@@ -122,12 +127,46 @@
       "invalidCredentials": "Ungültige E-Mail oder Passwort",
       "accountNotFound": "Konto nicht gefunden",
       "emailInUse": "E-Mail wird bereits verwendet",
-      "weakPassword": "Passwort ist zu schwach"
+      "weakPassword": "Passwort ist zu schwach",
+      "emailRequired": "E-Mail ist erforderlich",
+      "passwordRequired": "Passwort ist erforderlich",
+      "emailServiceUnavailable": "Der E-Mail-Dienst ist nicht eingerichtet. Wende dich an die Instanz-Administration.",
+      "oauthFailed": "Anmeldung mit {provider} fehlgeschlagen"
     },
     "logoutConfirm": {
       "title": "Von diesem Gerät abmelden?",
       "description": "Sie müssen sich erneut anmelden, um auf Ihr Konto zuzugreifen.",
       "cancel": "Abbrechen"
+    },
+    "showPassword": "Passwort anzeigen",
+    "showNewPassword": "Neues Passwort anzeigen",
+    "showConfirmPassword": "Passwortbestätigung anzeigen",
+    "cancelSignIn": "Anmeldung abbrechen",
+    "verifying": "Wird überprüft…",
+    "sendingResetLink": "Link zum Zurücksetzen wird gesendet…",
+    "poweredBy": "Betrieben mit {name}",
+    "reset": {
+      "brandSubtitle": "Setze dein Passwort zurück, um wieder Zugriff auf dein Konto zu erhalten",
+      "successTitle": "Passwort zurückgesetzt",
+      "successBody": "Dein Passwort wurde geändert. Du kannst dich jetzt mit dem neuen Passwort anmelden.",
+      "goToLogin": "Zur Anmeldung",
+      "invalidTitle": "Ungültiger oder abgelaufener Link",
+      "invalidBody": "Dieser Link zum Zurücksetzen ist ungültig oder abgelaufen. Fordere einen neuen an.",
+      "enterNew": "Gib unten dein neues Passwort ein",
+      "newPlaceholder": "Neues Passwort eingeben",
+      "confirmPlaceholder": "Neues Passwort bestätigen",
+      "remember": "Passwort wieder eingefallen?",
+      "verifying": "Link zum Zurücksetzen wird überprüft…",
+      "verifyAndReset": "Bestätigen und Passwort zurücksetzen",
+      "resetting": "Passwort wird zurückgesetzt…",
+      "confirmRequired": "Bestätige dein Passwort",
+      "challengeFailed": "Die Zwei-Faktor-Prüfung konnte nicht gestartet werden. Versuche es erneut.",
+      "linkMissing": "Ungültiges oder fehlendes Token zum Zurücksetzen. Fordere einen neuen Link an.",
+      "linkExpired": "Dieser Link zum Zurücksetzen ist abgelaufen. Fordere einen neuen an.",
+      "verifyFailed": "Der Link zum Zurücksetzen konnte nicht überprüft werden. Versuche es erneut.",
+      "mfaRequired": "Zwei-Faktor-Authentifizierung ist erforderlich. Bestätige deinen Code.",
+      "failed": "Das Passwort konnte nicht zurückgesetzt werden. Versuche es erneut.",
+      "done": "Passwort zurückgesetzt. Melde dich mit dem neuen Passwort an."
     }
   },
   "server": {
@@ -353,7 +392,318 @@
     "federationBenefit2": "Nachrichten werden in Echtzeit mit föderierten Mitgliedern geteilt",
     "federationBenefit3": "Server erscheint in der föderierten Server-Suche",
     "federationHandle": "Server-Handle",
-    "federationHandleDesc": "Teile dieses Handle, damit Leute auf anderen Instanzen diesen Server finden und ihm beitreten können."
+    "federationHandleDesc": "Teile dieses Handle, damit Leute auf anderen Instanzen diesen Server finden und ihm beitreten können.",
+    "banner": {
+      "title": "Server-Banner",
+      "upload": "Server-Banner hochladen",
+      "change": "Server-Banner ändern",
+      "remove": "Banner entfernen",
+      "hint": "Empfohlen: 1280×400 px. Wird oben auf deinem Server angezeigt.",
+      "none": "Kein Server-Banner festgelegt"
+    },
+    "emojiActions": {
+      "copy": "{name} kopieren",
+      "rename": "{name} umbenennen",
+      "delete": "{name} löschen",
+      "renameField": "Neuer Name für {name}",
+      "copied": "{name} kopiert"
+    },
+    "banList": {
+      "title": "Server-Sperren",
+      "description": "Gesperrte Benutzer ansehen und verwalten. Mitglieder mit der Berechtigung „Mitglieder bannen“ können Sperren in dieser Liste aufheben.",
+      "loading": "Sperren werden geladen…",
+      "loadFailed": "Sperren konnten nicht geladen werden",
+      "bannedBy": "Gebannt von {name} am {date}",
+      "unknownModerator": "Unbekannt",
+      "revoke": "Sperre aufheben",
+      "revokeFor": "Sperre aufheben für {name}",
+      "unbanned": "Die Sperre für {name} wurde aufgehoben",
+      "unbanFailed": "Sperre konnte nicht aufgehoben werden"
+    },
+    "serverIdLabel": "Server-ID",
+    "serverCreatedUnknown": "Unbekannt",
+    "deleteServerNameMismatch": "Der Servername stimmt nicht überein",
+    "deleteServerTypeExact": "Gib zur Bestätigung den genauen Servernamen ein",
+    "deleteServerAuthRequired": "Anmeldung erforderlich",
+    "deleteServerDone": "Server gelöscht",
+    "deleteServerFailed": "Server konnte nicht gelöscht werden",
+    "encryptionPolicy": {
+      "title": "Verschlüsselungsrichtlinie des Servers",
+      "description": "Lege die Anforderungen an die Ende-zu-Ende-Verschlüsselung für diesen Server fest",
+      "loading": "Verschlüsselungseinstellungen werden geladen…",
+      "modeLabel": "Verschlüsselungsmodus",
+      "modeHint": "Wähle, wie die Verschlüsselung durchgesetzt wird",
+      "modes": {
+        "disabled": {
+          "name": "Deaktiviert",
+          "description": "Kanäle können keine Verschlüsselung aktivieren. Der Server kann jede Nachricht lesen."
+        },
+        "optional": {
+          "name": "Optional",
+          "description": "Kanalverwalter aktivieren die Verschlüsselung pro Kanal. Neue Kanäle starten unverschlüsselt."
+        },
+        "required": {
+          "name": "Erforderlich",
+          "description": "Jeder Kanal ist verschlüsselt, und das lässt sich nicht abschalten. Mitglieder brauchen Verschlüsselungsschlüssel, um zu schreiben."
+        }
+      },
+      "requiredWarning": "Benutzer ohne Verschlüsselungsschlüssel können keine Nachrichten senden",
+      "status": {
+        "disabled": {
+          "title": "Verschlüsselung deaktiviert",
+          "description": "Nachrichten werden im Klartext gespeichert. Serverbetreiber können sie lesen."
+        },
+        "optional": {
+          "title": "Optionale Verschlüsselung",
+          "description": "Jeder Kanal ist verschlüsselt oder nicht, wie seine Kanalverwalter es festlegen."
+        },
+        "required": {
+          "title": "Verschlüsselung erforderlich",
+          "description": "Jeder Kanal ist Ende-zu-Ende-verschlüsselt."
+        }
+      },
+      "additionalOptions": "Weitere Optionen",
+      "forceKeySetup": "Benutzer zur Einrichtung der Verschlüsselung auffordern",
+      "forceKeySetupHint": "Einrichtungsassistent für Benutzer ohne Schlüssel anzeigen",
+      "attachmentNote": "In verschlüsselten Kanälen werden Dateilinks, -namen und -typen mit der Nachricht verschlüsselt. Die Dateien selbst werden unverschlüsselt gespeichert.",
+      "voiceTitle": "Sprach- und Videoverschlüsselung",
+      "voiceHint": "Anrufmedien Ende-zu-Ende verschlüsseln, damit der Medienserver nicht darauf zugreifen kann",
+      "voiceRequire": "Ende-zu-Ende-verschlüsselte Sprache und Video verlangen",
+      "voiceRequireHint": "Jeder Sprachkanal verschlüsselt Anrufe, bevor sie den Medienserver erreichen. Ohne diese Option entscheiden Kanalverwalter pro Sprachkanal.",
+      "voiceWarning": "Teilnehmende ohne eingerichtete Verschlüsselung (sowie föderierte oder ältere Clients) können verschlüsselten Anrufen nicht beitreten.",
+      "statsTitle": "Serverstatistik",
+      "statsTotal": "Mitglieder insgesamt",
+      "statsWithKeys": "Mit Verschlüsselung",
+      "statsCoverage": "Abdeckung",
+      "statsWarning": "{count} Mitglieder müssen die Verschlüsselung einrichten, bevor der Pflichtmodus richtig funktioniert",
+      "helpTitle": "Über Ende-zu-Ende-Verschlüsselung",
+      "help": {
+        "disabled": "{mode}: Kanäle können keine Verschlüsselung aktivieren, und Nachrichten werden im Klartext gespeichert.",
+        "optional": "{mode}: Kanalverwalter aktivieren die Verschlüsselung pro Kanal. Neue Kanäle starten unverschlüsselt.",
+        "required": "{mode}: Jeder Kanal ist verschlüsselt, und Mitglieder brauchen Verschlüsselungsschlüssel, um zu schreiben."
+      },
+      "noteLabel": "Hinweis:",
+      "note": "Ende-zu-Ende-Verschlüsselung bedeutet, dass der Server Nachrichteninhalte nicht lesen kann. Das bietet maximale Privatsphäre, deaktiviert aber serverseitige Funktionen wie Suche und Inhaltsmoderation.",
+      "confirmDisable": {
+        "title": "Verschlüsselung deaktivieren",
+        "message": "Kanäle mit aktivierter Verschlüsselung senden neue Nachrichten im Klartext. Bereits verschlüsselte Nachrichten bleiben verschlüsselt.",
+        "confirm": "Verschlüsselung deaktivieren"
+      },
+      "confirmRequired": {
+        "title": "Pflichtverschlüsselung aktivieren",
+        "message": "Nur {percentage} % der Mitglieder haben Verschlüsselungsschlüssel eingerichtet. Im Pflichtmodus können Benutzer ohne Schlüssel nicht teilnehmen. Fortfahren?"
+      },
+      "saved": "Verschlüsselungseinstellungen gespeichert",
+      "loadFailed": "Einstellungen konnten nicht geladen werden",
+      "saveFailed": "Einstellungen konnten nicht gespeichert werden"
+    },
+    "roleManagement": {
+      "intro": "Erstelle und verwalte Rollen für deinen Server. Ziehe sie, um die Rangfolge zu ändern, oder nutze Nach oben und Nach unten.",
+      "noPermission": "Zum Ändern von Rollen ist die Berechtigung „Rollen verwalten“ nötig.",
+      "create": "Rolle erstellen",
+      "count": "{count} Rolle | {count} Rollen",
+      "dragHandle": "Zum Umsortieren ziehen",
+      "badgeAdmin": "Admin",
+      "badgeDefault": "Standard",
+      "emptyEditor": "Wähle links eine Rolle zum Bearbeiten aus oder erstelle eine neue.",
+      "tabs": {
+        "display": "Anzeige",
+        "permissions": "Berechtigungen",
+        "members": "Mitglieder"
+      },
+      "moveUp": "{name} nach oben verschieben",
+      "moveDown": "{name} nach unten verschieben",
+      "position": "Position {position} von {total}",
+      "moved": "{name} auf Position {position} von {total} verschoben",
+      "roleName": "Rollenname",
+      "everyoneNameLocked": "Der Name der Rolle {'@'}everyone kann nicht geändert werden.",
+      "roleColor": "Rollenfarbe",
+      "hoist": "Rollenmitglieder getrennt anzeigen",
+      "hoistDesc": "Mitglieder mit dieser Rolle erscheinen in der Mitgliederliste in einer eigenen Gruppe.",
+      "mentionable": "Allen erlauben, diese Rolle zu {'@'}erwähnen",
+      "mentionableDesc": "Wenn aus, können nur Mitglieder mit der Berechtigung „{'@'}everyone erwähnen“ sie anpingen.",
+      "permIntro": "Serverweite Berechtigungen dieser Rolle. Kanalspezifische Überschreibungen (Erlauben / Verweigern / Übernehmen) werden im Tab „Berechtigungen“ des jeweiligen Kanals festgelegt.",
+      "dangerWarn": "Gewährt alle anderen Berechtigungen und umgeht alle Kanalüberschreibungen.",
+      "sections": {
+        "general": "Allgemeine Berechtigungen",
+        "membership": "Mitgliedschaftsberechtigungen",
+        "text": "Textberechtigungen",
+        "threads": "Thread-Berechtigungen",
+        "voice": "Sprachberechtigungen"
+      },
+      "perms": {
+        "VIEW_CHANNEL": {
+          "label": "Kanäle ansehen",
+          "description": "Erlaubt Mitgliedern standardmäßig, Kanäle zu sehen"
+        },
+        "MANAGE_CHANNELS": {
+          "label": "Kanäle verwalten",
+          "description": "Kanäle erstellen, bearbeiten und löschen"
+        },
+        "MANAGE_ROLES": {
+          "label": "Rollen verwalten",
+          "description": "Rollen unterhalb dieser Rolle erstellen, bearbeiten und löschen"
+        },
+        "MANAGE_SERVER": {
+          "label": "Server verwalten",
+          "description": "Servereinstellungen bearbeiten und den Server löschen"
+        },
+        "CREATE_INVITE": {
+          "label": "Einladung erstellen",
+          "description": "Einladungen zu diesem Server erstellen"
+        },
+        "VIEW_AUDIT_LOG": {
+          "label": "Audit-Log ansehen",
+          "description": "Das Audit-Log des Servers ansehen"
+        },
+        "MANAGE_EMOJIS": {
+          "label": "Ausdrücke verwalten",
+          "description": "Eigene Emojis und Soundboard-Sounds hinzufügen, bearbeiten und entfernen"
+        },
+        "MANAGE_WEBHOOKS": {
+          "label": "Webhooks verwalten",
+          "description": "Webhooks erstellen, bearbeiten und löschen"
+        },
+        "KICK_MEMBERS": {
+          "label": "Mitglieder kicken",
+          "description": "Mitglieder vom Server entfernen"
+        },
+        "BAN_MEMBERS": {
+          "label": "Mitglieder bannen",
+          "description": "Mitglieder dauerhaft vom Server bannen"
+        },
+        "TIMEOUT_MEMBERS": {
+          "label": "Mitglieder stummschalten (Timeout)",
+          "description": "Mitglieder vorübergehend stummschalten"
+        },
+        "SEND_MESSAGES": {
+          "label": "Nachrichten senden",
+          "description": "Nachrichten in Textkanälen senden"
+        },
+        "EMBED_LINKS": {
+          "label": "Links einbetten",
+          "description": "Links zeigen eine Vorschau"
+        },
+        "ATTACH_FILES": {
+          "label": "Dateien anhängen",
+          "description": "Bilder und Dateien hochladen"
+        },
+        "ADD_REACTIONS": {
+          "label": "Reaktionen hinzufügen",
+          "description": "Mit Emojis auf Nachrichten reagieren"
+        },
+        "MENTION_EVERYONE": {
+          "label": "{'@'}everyone erwähnen",
+          "description": "{'@'}everyone und alle Rollen erwähnen"
+        },
+        "MANAGE_MESSAGES": {
+          "label": "Nachrichten verwalten",
+          "description": "Nachrichten anderer löschen und anheften"
+        },
+        "READ_MESSAGE_HISTORY": {
+          "label": "Nachrichtenverlauf lesen",
+          "description": "Den Nachrichtenverlauf ansehen"
+        },
+        "USE_EXTERNAL_EMOJIS": {
+          "label": "Externe Emojis verwenden",
+          "description": "Emojis von anderen Servern verwenden"
+        },
+        "PIN_MESSAGES": {
+          "label": "Nachrichten anheften",
+          "description": "Nachrichten in Kanälen anheften"
+        },
+        "CREATE_PUBLIC_THREADS": {
+          "label": "Öffentliche Threads erstellen",
+          "description": "Für alle sichtbare Threads erstellen"
+        },
+        "CREATE_PRIVATE_THREADS": {
+          "label": "Private Threads erstellen",
+          "description": "Threads nur auf Einladung erstellen"
+        },
+        "SEND_MESSAGES_IN_THREADS": {
+          "label": "Nachrichten in Threads senden",
+          "description": "In Threads antworten"
+        },
+        "CONNECT": {
+          "label": "Verbinden",
+          "description": "Sprachkanälen beitreten"
+        },
+        "SPEAK": {
+          "label": "Sprechen",
+          "description": "In Sprachkanälen sprechen"
+        },
+        "STREAM": {
+          "label": "Video",
+          "description": "Video oder Bildschirm teilen"
+        },
+        "MUTE_MEMBERS": {
+          "label": "Mitglieder stummschalten",
+          "description": "Mitglieder im Sprachkanal serverweit stummschalten"
+        },
+        "DEAFEN_MEMBERS": {
+          "label": "Mitglieder taub schalten",
+          "description": "Mitglieder im Sprachkanal serverweit taub schalten"
+        },
+        "MOVE_MEMBERS": {
+          "label": "Mitglieder verschieben",
+          "description": "Mitglieder zwischen Sprachkanälen verschieben"
+        },
+        "USE_SOUNDBOARD": {
+          "label": "Soundboard verwenden",
+          "description": "Soundboard-Sounds in Sprachkanälen abspielen"
+        },
+        "USE_EXTERNAL_SOUNDS": {
+          "label": "Externe Sounds verwenden",
+          "description": "Sounds von anderen Servern abspielen, denen sie angehören"
+        }
+      },
+      "everyoneMembersNote": "Die Rolle {'@'}everyone gilt automatisch für jedes Mitglied dieses Servers. Es gibt keine Mitgliederliste zu verwalten.",
+      "addMembers": "Mitglieder hinzufügen",
+      "searchMembers": "Servermitglieder suchen …",
+      "searchResults": "{count} Mitglied gefunden | {count} Mitglieder gefunden",
+      "addMemberTo": "{member} zu {role} hinzufügen",
+      "currentMembers": "Aktuelle Mitglieder",
+      "filterMembers": "Mitglieder filtern",
+      "filterPlaceholder": "Filtern …",
+      "removeMemberFrom": "{member} aus {role} entfernen",
+      "bridged": "Discord",
+      "bridgedTitle": "Mitglied über die Discord-Brücke",
+      "owner": "Eigentümer",
+      "protected": "Geschützt",
+      "protectedTitle": "Der Servereigentümer kann nicht aus der Admin-Rolle entfernt werden.",
+      "deleteRole": "Rolle löschen",
+      "save": "Änderungen speichern",
+      "saving": "Wird gespeichert …",
+      "saved": "Rolle {name} gespeichert",
+      "changesReset": "Änderungen zurückgesetzt",
+      "created": "Rolle {name} erstellt",
+      "deleted": "Rolle {name} gelöscht",
+      "memberAdded": "{member} zu {role} hinzugefügt",
+      "memberRemoved": "{member} aus {role} entfernt",
+      "confirmDeleteTitle": "Rolle löschen",
+      "confirmDeleteMessage": "Möchtest du die Rolle „{name}“ wirklich löschen?",
+      "newRoleName": "Neue Rolle",
+      "errors": {
+        "create": "Rolle konnte nicht erstellt werden",
+        "save": "Rolle konnte nicht gespeichert werden",
+        "delete": "Rolle konnte nicht gelöscht werden",
+        "removeOwnerAdmin": "Dem Servereigentümer kann die Admin-Rolle nicht entzogen werden",
+        "removeMember": "Mitglied konnte nicht aus der Rolle entfernt werden",
+        "addMember": "Mitglied konnte nicht zur Rolle hinzugefügt werden",
+        "reorder": "Rollen konnten nicht neu geordnet werden"
+      }
+    },
+    "privacy": {
+      "federatedMembers": "{count} föderiertes Mitglied ist derzeit auf diesem Server | {count} föderierte Mitglieder sind derzeit auf diesem Server",
+      "copyHandle": "Server-Handle {handle} kopieren",
+      "disableTitle": "Föderation deaktivieren?",
+      "disableBody": "Dieser Server hat {count} föderiertes Mitglied von anderen Instanzen. Das Deaktivieren der Föderation wird: | Dieser Server hat {count} föderierte Mitglieder von anderen Instanzen. Das Deaktivieren der Föderation wird:",
+      "disableConsequence1": "Alle neuen Beitrittsanfragen von entfernten Personen blockieren",
+      "disableConsequence2": "Keine Nachrichten mehr an und von entfernten Mitgliedern zustellen",
+      "disableConsequence3": "Reaktionen und Sprachteilnahme entfernter Personen verhindern",
+      "disableConsequence4": "Bestehende föderierte Mitglieder in der Mitgliederliste belassen, ohne dass sie interagieren können",
+      "disableConfirm": "Föderation deaktivieren"
+    }
   },
   "channel": {
     "create": "Kanal erstellen",
@@ -389,6 +739,149 @@
       "hint": "Nur die gewählten Rollen, der Besitzer und Administratoren können ihn sehen.",
       "whoCanSee": "Wer ihn sehen kann",
       "noRoles": "Noch keine Rollen: nur der Besitzer und Administratoren sehen ihn."
+    },
+    "edit": {
+      "title": "Kanal bearbeiten",
+      "tabs": {
+        "general": "Allgemein"
+      },
+      "namePlaceholder": "Kanalnamen eingeben",
+      "description": "Beschreibung",
+      "descriptionPlaceholder": "Worum geht es in diesem Kanal?",
+      "slowmode": "Langsamer Modus",
+      "slowmodeHint": "Mitglieder können pro Intervall eine Nachricht senden. Moderatoren mit „Nachrichten verwalten“ sind ausgenommen.",
+      "slowmodeOff": "Aus",
+      "slowmodeShort": {
+        "seconds": "{n} s",
+        "minutes": "{n} min",
+        "hours": "{n} h"
+      },
+      "slowmodeLong": {
+        "seconds": "{n} Sekunde | {n} Sekunden",
+        "minutes": "{n} Minute | {n} Minuten",
+        "hours": "{n} Stunde | {n} Stunden"
+      },
+      "textChannel": "Textkanal",
+      "voiceChannel": "Sprachkanal",
+      "typeHint": "Der Kanaltyp kann nach dem Erstellen nicht geändert werden",
+      "noRoles": "Keine Rollen",
+      "loadingRoles": "Rollen werden geladen …",
+      "overrideLegend": "Erlauben gewährt, Verweigern entzieht, Übernehmen nutzt die serverweite Einstellung.",
+      "resetRole": "Änderungen zurücksetzen",
+      "resetRoleFor": "Änderungen zurücksetzen für {role}",
+      "roleReset": "Änderungen für {role} zurückgesetzt",
+      "selectRole": "Wähle links eine Rolle aus, um ihre Kanalüberschreibungen zu bearbeiten.",
+      "tristate": {
+        "deny": "Verweigern",
+        "inherit": "Übernehmen",
+        "inheritTitle": "Vom Server übernehmen",
+        "allow": "Erlauben"
+      },
+      "groups": {
+        "general": "Allgemein",
+        "messages": "Nachrichten",
+        "threads": "Threads",
+        "voice": "Sprache"
+      },
+      "perms": {
+        "VIEW_CHANNEL": {
+          "label": "Kanal ansehen",
+          "description": "Diesen Kanal in der Seitenleiste sehen und Nachrichten lesen."
+        },
+        "MANAGE_CHANNELS": {
+          "label": "Kanal verwalten",
+          "description": "Diesen Kanal umbenennen, bearbeiten oder löschen."
+        },
+        "SEND_MESSAGES": {
+          "label": "Nachrichten senden",
+          "description": "Nachrichten in diesem Kanal posten."
+        },
+        "EMBED_LINKS": {
+          "label": "Links einbetten",
+          "description": "Einbettungen und Linkvorschauen senden."
+        },
+        "ATTACH_FILES": {
+          "label": "Dateien anhängen",
+          "description": "Dateien in diesem Kanal hochladen."
+        },
+        "ADD_REACTIONS": {
+          "label": "Reaktionen hinzufügen",
+          "description": "Mit Emojis auf Nachrichten reagieren."
+        },
+        "USE_EXTERNAL_EMOJIS": {
+          "label": "Externe Emojis verwenden",
+          "description": "Emojis von anderen Servern senden."
+        },
+        "MENTION_EVERYONE": {
+          "label": "{'@'}everyone erwähnen",
+          "description": "{'@'}everyone und {'@'}here verwenden."
+        },
+        "MANAGE_MESSAGES": {
+          "label": "Nachrichten verwalten",
+          "description": "Nachrichten anderer Mitglieder löschen und anheften. Bearbeiten ist NICHT erlaubt."
+        },
+        "READ_MESSAGE_HISTORY": {
+          "label": "Nachrichtenverlauf lesen",
+          "description": "Nachrichten sehen, die vor dem Beitritt gepostet wurden."
+        },
+        "CREATE_PUBLIC_THREADS": {
+          "label": "Öffentliche Threads erstellen",
+          "description": "Öffentliche Threads aus Nachrichten starten."
+        },
+        "CREATE_PRIVATE_THREADS": {
+          "label": "Private Threads erstellen",
+          "description": "Threads nur auf Einladung starten."
+        },
+        "SEND_MESSAGES_IN_THREADS": {
+          "label": "In Threads senden",
+          "description": "Nachrichten in Threads posten."
+        },
+        "CONNECT": {
+          "label": "Verbinden",
+          "description": "Diesem Sprachkanal beitreten."
+        },
+        "SPEAK": {
+          "label": "Sprechen",
+          "description": "In diesem Sprachkanal sprechen."
+        },
+        "STREAM": {
+          "label": "Video & Stream",
+          "description": "Kamera oder Bildschirm teilen."
+        },
+        "MUTE_MEMBERS": {
+          "label": "Mitglieder stummschalten",
+          "description": "Andere Mitglieder hier stummschalten."
+        },
+        "DEAFEN_MEMBERS": {
+          "label": "Mitglieder taub schalten",
+          "description": "Andere Mitglieder hier taub schalten."
+        },
+        "MOVE_MEMBERS": {
+          "label": "Mitglieder verschieben",
+          "description": "Mitglieder aus diesem Kanal verschieben."
+        },
+        "USE_SOUNDBOARD": {
+          "label": "Soundboard verwenden",
+          "description": "Soundboard-Sounds in diesem Kanal abspielen."
+        },
+        "USE_EXTERNAL_SOUNDS": {
+          "label": "Externe Sounds verwenden",
+          "description": "Sounds von anderen Servern in diesem Kanal abspielen."
+        }
+      },
+      "save": "Änderungen speichern",
+      "saving": "Wird gespeichert …",
+      "savePermissions": "Berechtigungen speichern",
+      "permissionsSaved": "Kanalberechtigungen gespeichert",
+      "discardTitle": "Änderungen verwerfen?",
+      "discardMessage": "Dieser Kanal hat ungespeicherte Änderungen. Ohne Speichern schließen?",
+      "discard": "Verwerfen",
+      "errors": {
+        "update": "Kanal konnte nicht aktualisiert werden. Versuche es erneut.",
+        "loadPermissions": "Kanalberechtigungen konnten nicht geladen werden",
+        "savePermissions": "Kanalberechtigungen konnten nicht gespeichert werden",
+        "saveOverride": "Überschreibung für {role} konnte nicht gespeichert werden"
+      }
     }
   },
   "message": {
@@ -465,6 +958,138 @@
       "reveal": "Spoiler anzeigen",
       "mark": "Als Spoiler markieren",
       "unmark": "Spoiler entfernen"
+    }
+  },
+  "messageA11y": {
+    "list": {
+      "channel": "Nachrichten in #{name}",
+      "conversation": "Nachrichten mit {name}",
+      "thread": "Nachrichten in diesem Thread",
+      "generic": "Nachrichten"
+    },
+    "row": {
+      "blocked": "{count} blockierte Nachricht | {count} blockierte Nachrichten",
+      "showBlocked": "Nachricht anzeigen | Nachrichten anzeigen",
+      "reported": "Du hast diese Nachricht gemeldet",
+      "showReported": "Anzeigen",
+      "unhideReported": "Wieder einblenden",
+      "fromBlocked": "{count} Nachricht von einer blockierten Person | {count} Nachrichten von einer blockierten Person",
+      "hide": "Ausblenden",
+      "reportedBanner": "Gemeldete Nachricht",
+      "hideAgain": "Wieder ausblenden",
+      "mentionsYou": "erwähnt dich",
+      "edited": "bearbeitet",
+      "pinned": "angeheftet",
+      "encrypted": "Ende-zu-Ende-verschlüsselt",
+      "failed": "Senden fehlgeschlagen",
+      "sending": "wird gesendet"
+    },
+    "newMessagesDivider": "Neue Nachrichten",
+    "actions": {
+      "label": "Nachrichtenaktionen",
+      "thread": "Thread erstellen"
+    },
+    "failed": {
+      "label": "Senden fehlgeschlagen",
+      "retry": "Erneut versuchen",
+      "discard": "Löschen",
+      "announce": "Eine Nachricht konnte nicht gesendet werden. Versuche es erneut oder lösche sie in der Nachrichtenliste."
+    },
+    "deleted": "Nachricht gelöscht",
+    "image": {
+      "noDescription": "Bild ohne Beschreibung",
+      "open": "Bild in voller Größe anzeigen",
+      "openIndexed": "Bild {index} von {total} in voller Größe anzeigen",
+      "gif": "GIF ohne Beschreibung",
+      "sticker": "Sticker",
+      "emoji": "Emoji"
+    },
+    "menu": {
+      "label": "Nachrichtenoptionen",
+      "quickReactions": "Schnellreaktionen",
+      "reactWith": "Mit {emoji} reagieren",
+      "moreReactions": "Weitere Reaktionen"
+    },
+    "reply": {
+      "prefix": "Antwort auf"
+    },
+    "reactions": {
+      "pill": "{emoji}, {count} Reaktion | {emoji}, {count} Reaktionen",
+      "pillYou": "{emoji}, {count} Reaktion, auch von dir | {emoji}, {count} Reaktionen, auch von dir",
+      "hint": "Die Kontextmenütaste oder Umschalt+F10 zeigt, wer reagiert hat.",
+      "removed": "Reaktion entfernt: {emoji}"
+    },
+    "emoji": {
+      "reactionDialog": "Reaktion hinzufügen",
+      "dialog": "Emoji-Auswahl",
+      "search": "Emoji suchen",
+      "searchHint": "Eingabe wählt das erste Ergebnis. Pfeil nach unten springt zu den Emojis.",
+      "results": "{count} Emoji gefunden | {count} Emojis gefunden",
+      "noResults": "Keine Emojis gefunden"
+    },
+    "mediaPicker": {
+      "label": "GIFs, Sticker und Emojis"
+    },
+    "composer": {
+      "attach": "Anhang oder Umfrage hinzufügen",
+      "attachMenu": "Anhängen",
+      "gif": "GIF-Auswahl",
+      "emoji": "Emoji-Auswahl",
+      "nearLimit": "Noch {count} Zeichen | Noch {count} Zeichen",
+      "overLimit": "Nachricht um {count} Zeichen zu lang | Nachricht um {count} Zeichen zu lang",
+      "backUnderLimit": "Nachricht passt wieder, noch {count} Zeichen | Nachricht passt wieder, noch {count} Zeichen",
+      "suggestions": "{count} Vorschlag, mit den Pfeiltasten auswählen | {count} Vorschläge, mit den Pfeiltasten auswählen"
+    },
+    "upload": {
+      "done": "{name} hochgeladen",
+      "progress": "{name}: {percent} % hochgeladen",
+      "attached": "{count} Datei angehängt | {count} Dateien angehängt",
+      "removed": "{name} entfernt",
+      "attachedCount": "{count} Datei angehängt | {count} Dateien angehängt",
+      "uploading": "Wird hochgeladen...",
+      "listLabel": "Anhänge",
+      "progressLabel": "{name} wird hochgeladen",
+      "remove": "{name} entfernen"
+    },
+    "alt": {
+      "saved": "Beschreibung für {name} gespeichert",
+      "removed": "Beschreibung von {name} entfernt",
+      "title": "{name} beschreiben",
+      "edit": "Beschreibung von {name} bearbeiten",
+      "add": "Beschreibung zu {name} hinzufügen",
+      "editShort": "Beschreibung bearbeiten",
+      "addShort": "Beschreibung hinzufügen"
+    },
+    "encrypted": {
+      "lost": "Verschlüsselte Nachricht, die sich nicht mehr entschlüsseln lässt",
+      "decrypt": "Verschlüsselte Nachricht. Entschlüsseln",
+      "decrypting": "Verschlüsselte Nachricht wird entschlüsselt",
+      "locked": "Verschlüsselte Nachricht. Entsperre die Verschlüsselung unter Einstellungen, Privatsphäre und Verschlüsselung, um sie zu lesen."
+    },
+    "spoiler": {
+      "hidden": "Spoiler, verborgen. Aktivieren zum Aufdecken",
+      "revealed": "Spoiler: {text}"
+    },
+    "speech": {
+      "encrypted": "verschlüsselte Nachricht",
+      "spoiler": "Spoiler",
+      "imageWithAlt": "Bild: {alt}",
+      "image": "Bild",
+      "videoWithAlt": "Video: {alt}",
+      "video": "Video",
+      "audio": "Audio",
+      "file": "Datei {name}",
+      "poll": "Umfrage: {question}"
+    },
+    "announce": {
+      "one": "{name}: {text}",
+      "oneEmpty": "Neue Nachricht von {name}",
+      "andOthers": "{names} und {count} weitere Person | {names} und {count} weitere Personen",
+      "many": "{count} neue Nachricht von {names} | {count} neue Nachrichten von {names}"
+    },
+    "setting": {
+      "label": "Neue Nachrichten ansagen",
+      "description": "Screenreader lesen Nachrichten vor, die im geöffneten Kanal, Gespräch oder Thread eintreffen. Deine eigenen Nachrichten werden nicht vorgelesen."
     }
   },
   "messageSearch": {
@@ -632,7 +1257,74 @@
     "joinCallFailed": "Dem Anruf konnte nicht beigetreten werden",
     "onVideo": "{n} mit Video",
     "showVideo": "Video anzeigen",
-    "hideVideo": "Video ausblenden"
+    "hideVideo": "Video ausblenden",
+    "announce": {
+      "joined": "{name} ist beigetreten",
+      "left": "{name} hat verlassen",
+      "startedStreaming": "{name} hat einen Stream gestartet",
+      "stoppedStreaming": "{name} hat den Stream beendet",
+      "selfStreaming": "Du bist live",
+      "selfStreamStopped": "Du hast den Stream beendet",
+      "connectingTo": "Verbinde mit {channel} …",
+      "connectedTo": "Verbunden mit {channel}",
+      "reconnected": "Wieder verbunden",
+      "unmuted": "Stummschaltung aufgehoben",
+      "undeafened": "Ton wieder an",
+      "cameraOff": "Kamera aus",
+      "speaking": "{name} spricht"
+    },
+    "region": "Sprachverbindung",
+    "openCallView": "Anrufansicht öffnen",
+    "minimizeCallView": "Anrufansicht minimieren",
+    "closeCallView": "Anrufansicht schließen",
+    "minimizePanel": "Sprachleiste minimieren",
+    "expandPanel": "Sprachleiste erweitern",
+    "participantCount": "{count} Teilnehmer | {count} Teilnehmer",
+    "inCallCount": "{count} im Anruf | {count} im Anruf",
+    "speakingCount": "{count} sprechen",
+    "recentSpeakers": "Zuletzt gesprochen",
+    "selfName": "{name} (du)",
+    "watchStreamOf": "Stream von {name} ansehen",
+    "previewStream": "{name} teilt den Bildschirm. Anrufansicht öffnen",
+    "previewCamera": "{name} hat die Kamera an. Anrufansicht öffnen",
+    "pttTransmitting": "Sendet ({key})",
+    "pttHint": "{key} halten zum Sprechen. Klicken zum Stummschalten.",
+    "pttHold": "Halten zum Sprechen",
+    "pttTransmittingShort": "Sendet",
+    "pttLatched": "Spricht – tippen zum Beenden",
+    "pttButtonHint": "Zum Sprechen halten oder tippen, um bis zum nächsten Tippen eingeschaltet zu bleiben. Mit der Tastatur die Leertaste halten.",
+    "joinMuted": "Stumm beitreten",
+    "openChat": "Chat öffnen",
+    "unknownUser": "Unbekannter Benutzer",
+    "spatialAudio": "Räumlicher Klang",
+    "spatialAudioOn": "Räumlicher Klang an",
+    "spatialAudioOff": "Räumlicher Klang aus",
+    "spatialOn": "An",
+    "spatialOff": "Aus",
+    "spatialSettings": "Einstellungen für räumlichen Klang",
+    "spatialMaxDistance": "Maximale Entfernung",
+    "spatialRolloff": "Abklingfaktor",
+    "spatialDistanceModel": "Entfernungsmodell",
+    "spatialPanningModel": "Panoramamodell",
+    "spatialReverb": "Hall aktivieren",
+    "spatialRoomSize": "Raumgröße",
+    "spatialPositions": "Positionen der Teilnehmer",
+    "spatialInstructions": "Einen Teilnehmer fokussieren und mit den Pfeiltasten verschieben. Umschalt halten für größere Schritte.",
+    "spatialCenter": "Mitte",
+    "spatialSelfLabel": "{name} (du)",
+    "spatialDistanceLabel": "{name}, {distance} Pixel von dir entfernt",
+    "spatialUpdated": "Aktualisiert",
+    "spatialUpdating": "Audio wird aktualisiert …",
+    "spatialActive": "Räumlicher Klang aktiv",
+    "spatialInactive": "Räumlicher Klang deaktiviert",
+    "spatialReset": "Zurücksetzen",
+    "spatialResetTitle": "Alle Positionen zurücksetzen",
+    "spatialRandomize": "Zufällig",
+    "spatialRandomizeTitle": "Positionen zufällig verteilen",
+    "muteUserNamed": "{name} stummschalten",
+    "muteStreamNamed": "Stream von {name} stummschalten",
+    "userVolumeNamed": "Lautstärke von {name}",
+    "streamVolumeNamed": "Stream-Lautstärke von {name}"
   },
   "dm": {
     "directMessages": "Direktnachrichten",
@@ -664,7 +1356,61 @@
     "recipientDeleted": "Dieses Konto wurde gelöscht. Nachrichten an es werden nicht zugestellt.",
     "sendMessage": "Nachricht senden",
     "callInProgress": "Ein Anruf läuft",
-    "joinCall": "Anruf beitreten"
+    "joinCall": "Anruf beitreten",
+    "incomingVoiceCall": "Eingehender Sprachanruf",
+    "incomingVideoCall": "Eingehender Videoanruf",
+    "groupVoiceCallFrom": "{name} hat einen Sprachanruf gestartet",
+    "groupVideoCallFrom": "{name} hat einen Videoanruf gestartet",
+    "callAccept": "Annehmen",
+    "callAcceptVoice": "Sprachanruf annehmen",
+    "callAcceptVideo": "Mit Video annehmen",
+    "callVideo": "Video",
+    "callDecline": "Ablehnen",
+    "callMinimize": "Minimieren",
+    "callExpand": "Anruf anzeigen",
+    "groupSettings": {
+      "title": "Gruppeneinstellungen",
+      "groupIcon": "Gruppensymbol",
+      "upload": "Hochladen",
+      "uploadIcon": "Gruppensymbol hochladen",
+      "remove": "Entfernen",
+      "removeIcon": "Gruppensymbol entfernen",
+      "dropHint": "Bild hierher ziehen oder klicken, um zu suchen",
+      "fileHint": "Max. 5 MB • PNG, JPG, WebP",
+      "uploadingIcon": "Gruppensymbol wird hochgeladen",
+      "uploadProgress": "{percent} % hochgeladen",
+      "groupName": "Gruppenname",
+      "groupNameHelp": "Leer lassen, um die Namen der Teilnehmenden zu verwenden",
+      "saveChanges": "Änderungen speichern",
+      "saving": "Wird gespeichert…",
+      "participants": "Teilnehmende ({count})",
+      "add": "Hinzufügen",
+      "addParticipant": "Teilnehmende hinzufügen",
+      "creator": "Ersteller",
+      "removeParticipant": "{name} aus der Gruppe entfernen",
+      "dangerZone": "Gefahrenzone",
+      "leaveGroup": "Gruppe verlassen",
+      "deleteGroup": "Gruppe löschen",
+      "leave": "Verlassen",
+      "leaveConfirmMessage": "Möchtest du diese Gruppe wirklich verlassen? Du siehst dann keine neuen Nachrichten mehr.",
+      "deleteConfirmMessage": "Möchtest du diese Gruppe wirklich löschen? Das kann nicht rückgängig gemacht werden, und alle Nachrichten gehen verloren.",
+      "defaultName": "Gruppenchat",
+      "defaultNameMore": "{names} und {count} weitere",
+      "dropImage": "Lege eine Bilddatei ab",
+      "iconUpdated": "Gruppensymbol aktualisiert",
+      "iconUploadFailed": "Symbol konnte nicht hochgeladen werden",
+      "iconRemoved": "Gruppensymbol entfernt",
+      "iconRemoveFailed": "Symbol konnte nicht entfernt werden",
+      "nameUpdated": "Gruppenname aktualisiert",
+      "nameUpdateFailed": "Gruppenname konnte nicht aktualisiert werden",
+      "participantRemoved": "{name} wurde aus der Gruppe entfernt",
+      "participantRemoveFailed": "Teilnehmende Person konnte nicht entfernt werden",
+      "usersAdded": "Benutzer zur Gruppe hinzugefügt",
+      "left": "Du hast die Gruppe verlassen",
+      "leaveFailed": "Gruppe konnte nicht verlassen werden",
+      "deleted": "Gruppe gelöscht",
+      "deleteFailed": "Gruppe konnte nicht gelöscht werden"
+    }
   },
   "user": {
     "panelToggle": "Dein Konto und Sprachsteuerung",
@@ -753,7 +1499,7 @@
       "reduceMotion": "Bewegung reduzieren",
       "reduceMotionDesc": "Animationen und Übergänge reduzieren.",
       "screenReader": "Bildschirmleser-Unterstützung",
-      "screenReaderDesc": "Für Bildschirmleser optimieren.",
+      "screenReaderDesc": "Sagt Screenreadern zusätzliche Aktivität an (Tippen, wer im Sprachkanal spricht, Statuswechsel) und zeichnet einen dickeren Tastaturfokus-Rahmen. Wichtige Ansagen sind immer aktiv.",
       "saveChanges": "Änderungen speichern",
       "resetSettings": "Zurücksetzen",
       "unsavedChanges": "Du hast ungespeicherte Änderungen am Erscheinungsbild",
@@ -772,7 +1518,72 @@
       "quickReactEnable": "Doppeltippen für Schnellreaktion",
       "quickReactEnableDesc": "Doppeltippe (Mobilgerät) oder doppelklicke (Desktop) auf eine Nachricht, um sofort mit deinem gewählten Emoji zu reagieren.",
       "quickReactEmoji": "Emoji für Schnellreaktion",
-      "quickReactEmojiDesc": "Das Emoji, das beim Doppeltippen auf eine Nachricht verwendet wird."
+      "quickReactEmojiDesc": "Das Emoji, das beim Doppeltippen auf eine Nachricht verwendet wird.",
+      "changesReset": "Änderungen am Erscheinungsbild zurückgesetzt",
+      "saved": "Erscheinungsbild gespeichert",
+      "editLivePreview": "In der Live-Vorschau bearbeiten",
+      "themeMode": "Designmodus",
+      "savedTheme": "Gespeichertes Design",
+      "savedThemeName": "Designname",
+      "saveTheme": "Design speichern",
+      "deleteSavedTheme": "Design {name} löschen",
+      "deleteSavedThemeConfirm": "„{name}“ löschen?",
+      "themeRemoved": "Design entfernt",
+      "lightness": "Helligkeit",
+      "saturation": "Sättigung",
+      "darker": "Dunkler",
+      "lighter": "Heller",
+      "muted": "Gedämpft",
+      "vivid": "Kräftig",
+      "toneValue": "{value}, {direction}",
+      "resetVariable": "{name} auf Standard zurücksetzen",
+      "zoomIn": "Vergrößern",
+      "zoomOut": "Verkleinern",
+      "zoomValue": "Zoom {value} %",
+      "colors": {
+        "background": "Hintergrund",
+        "backgroundHint": "Ton, Helligkeit & Sättigung",
+        "backgroundColor": "Hintergrundfarbe",
+        "primary": "Primär",
+        "primaryHint": "Schaltflächen & wichtige Aktionen",
+        "primaryColor": "Primärfarbe",
+        "accent": "Akzent",
+        "accentHint": "Links & Hervorhebungen",
+        "accentColor": "Akzentfarbe",
+        "sidebar": "Seitenleiste",
+        "sidebarHintOn": "Eigene Tönung der Leisten",
+        "sidebarHintOff": "Aus, wie der Hintergrund",
+        "sidebarEnable": "Eigene Farbe für die Seitenleiste",
+        "sidebarColor": "Seitenleistenfarbe",
+        "advancedCss": "Erweitertes CSS",
+        "advancedCssHint": "Einzelne Variablen überschreiben",
+        "backgroundHelp": "Legt den Farbton aller Hintergrundelemente fest",
+        "primaryHelp": "Hauptfarbe für Schaltflächen und wichtige Aktionen",
+        "accentHelp": "Für Links, Hervorhebungen und Akzente"
+      },
+      "panel": {
+        "title": "Design anpassen",
+        "close": "Design-Editor schließen",
+        "hint": "Änderungen erscheinen sofort in der App hinter diesem Bereich. Klicke auf Übernehmen, um sie zu behalten.",
+        "apply": "Übernehmen",
+        "fix": "Beheben",
+        "fixContrast": "Kontrast der Primärfarbe beheben",
+        "fixContrastHint": "Helligkeit anpassen, bis Links und Symbole in dieser Farbe 3:1 zum Hintergrund erreichen",
+        "labelContrast": "Beschriftung {ratio}:1",
+        "surfaceContrast": "Auf dem Hintergrund {ratio}:1"
+      },
+      "overrides": {
+        "count": "{count} Überschreibung | {count} Überschreibungen",
+        "active": "{count} Überschreibung aktiv | {count} Überschreibungen aktiv",
+        "resetAll": "Alle zurücksetzen",
+        "resetAllHint": "Alle Überschreibungen entfernen und Standardwerte wiederherstellen"
+      },
+      "toasts": {
+        "exported": "Theme exportiert",
+        "imported": "Theme importiert",
+        "invalidFile": "Ungültige Theme-Datei",
+        "themeSaved": "„{name}“ gespeichert"
+      }
     },
     "voice": {
       "title": "Sprache & Video",
@@ -798,7 +1609,44 @@
       "pttShortcutHint": "Klicken Sie hier, um die Tastenbelegung zu ändern",
       "releaseDelay": "Loslassverzögerung",
       "releaseDelayHint": "Verzögerung vor dem Stummschalten nach Loslassen der Taste (verhindert das Abschneiden von Wörtern)",
-      "pressAnyKey": "Drücken Sie eine beliebige Taste..."
+      "pressAnyKey": "Drücken Sie eine beliebige Taste...",
+      "panelTitle": "Sprach- und Videoeinstellungen",
+      "audio": "Audio",
+      "audioDevices": "Audiogeräte",
+      "audioQuality": "Audioqualität",
+      "echoCancellationDesc": "Verringert das Echo deiner Lautsprecher",
+      "noiseSuppressionDesc": "Filtert Hintergrundgeräusche",
+      "autoGainControlDesc": "Passt die Mikrofonempfindlichkeit automatisch an",
+      "video": "Video",
+      "noCamera": "Keine Kamera",
+      "resolution": "Auflösung",
+      "frameRate": "Bildrate",
+      "audioBitrate": "Audio-Bitrate",
+      "cameraPreview": "Kameravorschau",
+      "percent": "{value} Prozent",
+      "milliseconds": "{ms} ms",
+      "millisecondsLong": "{ms} Millisekunden",
+      "micLevel": "Mikrofonpegel",
+      "micLevelValue": "{level} Prozent",
+      "micTestStarted": "Mikrofontest läuft. Sprich, um den Pegel zu prüfen.",
+      "micTestHeard": "Ton erkannt",
+      "micTestSilent": "Noch kein Ton erkannt. Eingabegerät und Eingangslautstärke prüfen.",
+      "keybindsHint": "Änderbar unter Einstellungen › Tastenkürzel.",
+      "resetDefaults": "Auf Standard zurücksetzen",
+      "saveChanges": "Änderungen speichern",
+      "pttScopeBrowser": "Browser liefern Tasten nur, solange der Harmony-Tab im Fokus ist.",
+      "pttScopeDesktop": "Funktioniert systemweit, auch wenn Harmony im Hintergrund ist.",
+      "pttScopeDesktopFocused": "Systemweite Erfassung ist in dieser Sitzung nicht verfügbar (Wayland oder fehlende Berechtigungen); die Taste wirkt, solange Harmony im Fokus ist.",
+      "pttScopeMobile": "Auf Mobilgeräten die Sprechen-Taste in der Sprachleiste halten.",
+      "microphone": "Mikrofon",
+      "speakers": "Lautsprecher / Kopfhörer",
+      "noMicrophones": "Keine Mikrofone gefunden",
+      "noSpeakers": "Keine Lautsprecher gefunden",
+      "noCameras": "Keine Kameras gefunden",
+      "audioSettings": "Audioeinstellungen",
+      "selectMicrophone": "Mikrofon wählen",
+      "selectSpeaker": "Lautsprecher wählen",
+      "selectCamera": "Kamera wählen"
     },
     "notifications": {
       "title": "Benachrichtigungen",
@@ -809,7 +1657,265 @@
       "enableMentions": "Bei Erwähnungen benachrichtigen",
       "enableDMs": "Bei Direktnachrichten benachrichtigen",
       "muteAll": "Alle stummschalten",
-      "muteDuration": "Stummschaltungsdauer"
+      "muteDuration": "Stummschaltungsdauer",
+      "dnd": {
+        "active": "Aktiv",
+        "inactive": "Inaktiv",
+        "description": "Stellt Töne, Pop-ups und Push zu festgelegten Zeiten stumm. Benachrichtigungen landen trotzdem in deinem Posteingang."
+      },
+      "quietHours": {
+        "title": "Ruhezeiten",
+        "description": "Lege deinen Bitte-nicht-stören-Zeitraum fest (in deiner Ortszeit)",
+        "start": "Beginn der Ruhezeit",
+        "end": "Ende der Ruhezeit",
+        "to": "bis"
+      },
+      "enableMobile": "Benachrichtigungen aktivieren",
+      "permission": {
+        "unsupported": "In diesem Browser nicht unterstützt",
+        "unsupportedMobile": "In diesem Browser nicht unterstützt. Installiere die App, um Benachrichtigungen zu erhalten.",
+        "grant": "Berechtigung erteilen",
+        "desktopEnabled": "Desktop-Benachrichtigungen sind aktiviert",
+        "desktopRequired": "Desktop-Benachrichtigungen benötigen eine Berechtigung",
+        "enabled": "Benachrichtigungen sind aktiviert",
+        "required": "Benachrichtigungen benötigen eine Berechtigung"
+      },
+      "chat": {
+        "description": "Benachrichtigungen von Servern und Direktnachrichten"
+      },
+      "activitypub": {
+        "title": "ActivityPub und Föderation",
+        "description": "Benachrichtigungen aus dem föderierten Netzwerk"
+      },
+      "types": {
+        "chatMessages": {
+          "label": "Chatnachrichten",
+          "description": "Wenn in einem Kanal, dem du folgst, eine Nachricht gesendet wird"
+        },
+        "mentions": {
+          "label": "Erwähnungen",
+          "description": "Wenn dich jemand erwähnt"
+        },
+        "dms": {
+          "label": "Direktnachrichten",
+          "description": "Wenn du eine Direktnachricht erhältst"
+        },
+        "replies": {
+          "label": "Antworten",
+          "description": "Wenn jemand auf deine Nachricht antwortet"
+        },
+        "reactions": {
+          "label": "Reaktionen",
+          "description": "Wenn jemand auf deine Nachricht reagiert"
+        },
+        "apFollows": {
+          "label": "Neue Follower",
+          "name": "Neue Follower im Fediverse",
+          "description": "Wenn dir jemand folgt"
+        },
+        "apMentions": {
+          "label": "Erwähnungen",
+          "name": "Erwähnungen im Fediverse",
+          "description": "Wenn dich jemand in einem Beitrag erwähnt"
+        },
+        "apReplies": {
+          "label": "Antworten",
+          "name": "Antworten im Fediverse",
+          "description": "Wenn jemand auf deinen Beitrag antwortet"
+        },
+        "apFavorites": {
+          "label": "Favoriten",
+          "name": "Favoriten im Fediverse",
+          "description": "Wenn jemand deinen Beitrag favorisiert"
+        },
+        "apReblogs": {
+          "label": "Boosts",
+          "name": "Boosts im Fediverse",
+          "description": "Wenn jemand deinen Beitrag teilt"
+        },
+        "apFollowRequests": {
+          "label": "Folgeanfragen",
+          "name": "Folgeanfragen im Fediverse",
+          "description": "Wenn dir jemand folgen möchte"
+        }
+      },
+      "sound": {
+        "title": "Toneinstellungen",
+        "description": "Lege fest, wie Benachrichtigungstöne abgespielt werden",
+        "volumeDescription": "Lautstärke aller Benachrichtigungstöne anpassen",
+        "voiceActivity": "Töne für Sprachaktivität",
+        "voiceActivityDescription": "Töne bei Aktivität in Sprachkanälen abspielen"
+      },
+      "push": {
+        "title": "Push-Benachrichtigungen",
+        "titleOther": "Push an andere Geräte",
+        "nativeMobileTitle": "Hintergrund-Push kommt in die App",
+        "nativeMobileText": "Dieses Gerät zeigt Benachrichtigungen, solange Harmony geöffnet ist, auch im Hintergrund. Push bei vollständig geschlossener App gibt es nur unter Android.",
+        "iosTitle": "iOS erfordert die Installation der App",
+        "iosText": "Um auf iOS Push-Benachrichtigungen zu erhalten, füge Harmony zuerst zum Home-Bildschirm hinzu (Teilen → Zum Home-Bildschirm).",
+        "unsupportedTitle": "Push-Benachrichtigungen nicht unterstützt",
+        "unsupportedText": "Dein Browser unterstützt keine Push-Benachrichtigungen. Versuche Chrome, Firefox, Edge oder Safari.",
+        "blockedTitle": "Benachrichtigungsberechtigung blockiert",
+        "blockedText": "Benachrichtigungen sind für diese Website blockiert. Erlaube sie in den Website-Einstellungen des Browsers und lade neu; Push läuft dann von selbst weiter.",
+        "errorTitle": "Fehler bei Push-Benachrichtigungen",
+        "turnOn": "Für dieses Gerät einschalten",
+        "turnOff": "Für dieses Gerät ausschalten",
+        "test": "Push testen",
+        "toMyDevices": "Push an meine Geräte",
+        "toMyDevicesDescription": "Schaltet Push überall aus, ohne Geräte zu entfernen",
+        "awayOnly": "Nur wenn ich abwesend bin",
+        "awayOnlyDescription": "Kein Push, solange Harmony auf einem anderen Gerät geöffnet ist und genutzt wird",
+        "mentions": "Erwähnungen",
+        "mentionsDescription": "Push-Benachrichtigungen erhalten, wenn du erwähnt wirst",
+        "dms": "Direktnachrichten",
+        "dmsDescription": "Push-Benachrichtigungen für neue Direktnachrichten erhalten",
+        "noDevices": "Noch keine Geräte für Push angemeldet. Aktiviere Push-Benachrichtigungen auf deinem Handy oder in einem Browser und verwalte die Geräte dann hier.",
+        "status": {
+          "fcm": "Dieses Gerät: Google (FCM)",
+          "unifiedpush": "Dieses Gerät: UnifiedPush",
+          "whileOpen": "Dieses Gerät: solange geöffnet",
+          "foreground": "Dieses Gerät: Vordergrund",
+          "native": "Dieses Gerät: native Benachrichtigungen",
+          "notSupported": "Nicht unterstützt",
+          "blocked": "Blockiert",
+          "enabled": "Aktiviert",
+          "available": "Verfügbar"
+        },
+        "descAndroid": "Push erreicht dieses Gerät auch bei geschlossenem Harmony, über Google (FCM) oder eine UnifiedPush-App deiner Wahl. Deine anderen angemeldeten Geräte stehen unten.",
+        "descNativeMobile": "Dieses Gerät erhält Benachrichtigungen, solange die App geöffnet ist. Push an deine anderen angemeldeten Geräte verwaltest du unten.",
+        "descDesktop": "Die Desktop-App zeigt bereits Systembenachrichtigungen, solange sie läuft. Diese Einstellungen steuern Push an deine anderen Geräte (Handy, Browser) und welche Benachrichtigungen sie erhalten.",
+        "descWeb": "Erhalte Benachrichtigungen auf deinem Gerät, auch wenn die App geschlossen ist. Funktioniert unter Android, iOS (installierte App nötig) und in Desktop-Browsern."
+      },
+      "devices": {
+        "title": "Angemeldete Geräte ({count})",
+        "added": "Hinzugefügt {when}",
+        "today": "heute",
+        "yesterday": "gestern",
+        "remove": "{device} entfernen",
+        "unknown": "Unbekanntes Gerät",
+        "android": "Android-Gerät",
+        "windows": "Windows-PC",
+        "linux": "Linux-PC",
+        "chrome": "Chrome-Browser",
+        "firefox": "Firefox-Browser",
+        "safari": "Safari-Browser"
+      },
+      "haptics": {
+        "title": "Haptisches Feedback",
+        "enabled": "Aktiviert",
+        "disabled": "Deaktiviert",
+        "description": "Vibration als Rückmeldung bei Interaktionen",
+        "enable": "Haptisches Feedback aktivieren",
+        "enableDescription": "Vibrationen bei der Bedienung der App spüren",
+        "messages": "Nachrichten senden",
+        "messagesDescription": "Beim Senden einer Nachricht",
+        "reactions": "Reaktionen",
+        "reactionsDescription": "Beim Hinzufügen oder Entfernen von Reaktionen",
+        "navigation": "Navigation",
+        "navigationDescription": "Beim Wechseln von Tabs oder Öffnen von Menüs",
+        "voice": "Sprache und Anrufe",
+        "voiceDescription": "Beim Betreten oder Verlassen von Sprachkanälen",
+        "interactions": "Interaktionen",
+        "interactionsDescription": "Lange drücken, zum Aktualisieren ziehen und ähnliche Gesten",
+        "toggles": "Schalter",
+        "togglesDescription": "Beim Ein- oder Ausschalten von Einstellungen",
+        "destructive": "Unwiderrufliche Aktionen",
+        "destructiveDescription": "Beim Löschen von Nachrichten oder Verlassen von Servern",
+        "test": "Haptisches Feedback testen",
+        "sent": "Haptisches Feedback gesendet"
+      },
+      "test": {
+        "title": "Benachrichtigungen testen",
+        "description": "Teste deine Benachrichtigungseinstellungen",
+        "testing": "Wird getestet…",
+        "all": "Alle Benachrichtigungen testen",
+        "reset": "Auf Standard zurücksetzen"
+      },
+      "toast": {
+        "updated": "Benachrichtigungseinstellungen aktualisiert",
+        "updateFailed": "Einstellungen konnten nicht aktualisiert werden",
+        "unsupported": "Benachrichtigungen werden in diesem Browser nicht unterstützt",
+        "permissionGranted": "Benachrichtigungsberechtigung erteilt",
+        "permissionDenied": "Benachrichtigungsberechtigung verweigert",
+        "permissionFailed": "Berechtigung konnte nicht angefragt werden",
+        "testFailed": "Benachrichtigung konnte nicht getestet werden",
+        "allTested": "Alle aktivierten Benachrichtigungen getestet",
+        "allTestFailed": "Nicht alle Benachrichtigungen konnten getestet werden",
+        "pushOn": "Push-Benachrichtigungen sind für dieses Gerät eingeschaltet",
+        "pushOnFailed": "Push-Benachrichtigungen konnten nicht aktiviert werden",
+        "pushOff": "Push-Benachrichtigungen sind für dieses Gerät ausgeschaltet",
+        "pushOffFailed": "Push-Benachrichtigungen konnten nicht deaktiviert werden",
+        "testPushSent": "Test-Push-Benachrichtigung gesendet",
+        "testPushFailed": "Testbenachrichtigung konnte nicht gesendet werden",
+        "deviceRemoved": "Gerät entfernt",
+        "deviceRemoveFailed": "Gerät konnte nicht entfernt werden"
+      },
+      "samples": {
+        "mention": {
+          "title": "Test-Erwähnung",
+          "message": "Du wurdest in einer Testnachricht erwähnt"
+        },
+        "dm": {
+          "title": "Test-Direktnachricht",
+          "message": "Das ist eine Test-Direktnachricht"
+        },
+        "reply": {
+          "title": "Test-Antwort",
+          "message": "Jemand hat auf deine Testnachricht geantwortet"
+        },
+        "reaction": {
+          "title": "Test-Reaktion",
+          "message": "Jemand hat auf deine Testnachricht reagiert"
+        },
+        "voiceActivity": {
+          "title": "Test-Sprachaktivität",
+          "message": "Jemand ist einem Sprachkanal beigetreten"
+        },
+        "serverInvite": {
+          "title": "Test-Servereinladung",
+          "message": "Du wurdest zu einem Server eingeladen"
+        },
+        "followRequest": {
+          "title": "Test-Folgeanfrage",
+          "message": "Jemand möchte dir folgen"
+        },
+        "serverUpdate": {
+          "title": "Test-Serveraktualisierung",
+          "message": "Ein Server wurde aktualisiert"
+        },
+        "emojiAdded": {
+          "title": "Test: Emoji hinzugefügt",
+          "message": "Dem Server wurde ein neues Emoji hinzugefügt"
+        },
+        "apFollow": {
+          "title": "Test: ActivityPub-Follower",
+          "message": "Jemand aus dem Fediverse folgt dir"
+        },
+        "apFavorite": {
+          "title": "Test: ActivityPub-Favorit",
+          "message": "Jemand hat deinen Beitrag im Fediverse favorisiert"
+        },
+        "apReblog": {
+          "title": "Test: ActivityPub-Boost",
+          "message": "Jemand hat deinen Beitrag im Fediverse geteilt"
+        },
+        "apMention": {
+          "title": "Test: ActivityPub-Erwähnung",
+          "message": "Du wurdest in einem Fediverse-Beitrag erwähnt"
+        },
+        "apReply": {
+          "title": "Test: ActivityPub-Antwort",
+          "message": "Jemand hat auf deinen Fediverse-Beitrag geantwortet"
+        },
+        "apFollowRequest": {
+          "title": "Test: ActivityPub-Folgeanfrage",
+          "message": "Jemand im Fediverse möchte dir folgen"
+        },
+        "generic": {
+          "title": "Testbenachrichtigung",
+          "message": "Das ist eine Testbenachrichtigung"
+        }
+      }
     },
     "announcements": {
       "title": "Ankündigungen",
@@ -844,7 +1950,59 @@
     "keybinds": {
       "title": "Tastenkombinationen",
       "description": "Passe Tastaturkürzel an.",
-      "searchKeybinds": "Tastenkombinationen suchen..."
+      "searchKeybinds": "Tastenkombinationen suchen...",
+      "voiceSection": "Sprach-Tastenkürzel",
+      "voiceSectionDescription": "Diese Kürzel funktionieren, solange du mit einem Sprachkanal verbunden bist. In einem Textfeld lösen nur Push-to-Talk und Kürzel mit Strg, Alt oder Meta aus.",
+      "resetAll": "Alle zurücksetzen",
+      "resetAllDone": "Alle Kürzel auf Standard zurückgesetzt",
+      "resetOne": "{name} auf Standard zurücksetzen",
+      "enabledFor": "Kürzel für {name} verwenden",
+      "shortcutFor": "Kürzel für {name}",
+      "recorderHint": "Eingabetaste drücken, um ein neues Kürzel aufzunehmen.",
+      "recordingHint": "Aufnahme läuft. Neues Kürzel drücken oder Escape zum Abbrechen.",
+      "recordingStarted": "Aufnahme eines Kürzels für {name}. Tasten drücken oder Escape zum Abbrechen.",
+      "pressKeys": "Tasten drücken …",
+      "reservedKey": "Eingabe, Leertaste und Pfeiltasten brauchen eine Zusatztaste wie Strg.",
+      "set": "{name} auf {keys} gesetzt",
+      "unchanged": "Kürzel für {name} unverändert",
+      "conflict": "{keys} wird bereits von {other} verwendet. Nicht zugewiesen.",
+      "assignAnyway": "Trotzdem zuweisen",
+      "notSet": "Nicht festgelegt",
+      "off": "Aus",
+      "pttInactive": "Inaktiv: Sprachaktivierung ist der aktuelle Eingabemodus.",
+      "singleKeyNote": "Stummschalten und Ton aus liegen auf einzelnen Tasten. Sie lösen auf jeder fokussierten Schaltfläche aus, und Screenreader nutzen Buchstaben im Lesemodus zur Navigation.",
+      "useChorded": "{mute} und {deafen} verwenden",
+      "chordedApplied": "Stummschalten ist {mute}, Ton aus ist {deafen}",
+      "actions": {
+        "pushToTalk": {
+          "name": "Push-to-Talk",
+          "description": "Halten, um in Sprachkanälen zu sprechen."
+        },
+        "toggleMute": {
+          "name": "Stummschalten umschalten",
+          "description": "Mikrofon stummschalten oder wieder einschalten."
+        },
+        "toggleDeafen": {
+          "name": "Ton aus umschalten",
+          "description": "Ton für dich aus- oder wieder einschalten."
+        },
+        "toggleCamera": {
+          "name": "Kamera umschalten",
+          "description": "Kamera ein- oder ausschalten, solange die Anrufansicht offen ist."
+        },
+        "toggleScreenshare": {
+          "name": "Bildschirmfreigabe umschalten",
+          "description": "Bildschirmfreigabe starten oder beenden, solange die Anrufansicht offen ist."
+        },
+        "toggleVoiceSettings": {
+          "name": "Spracheinstellungen öffnen",
+          "description": "Spracheinstellungen öffnen, solange die Anrufansicht offen ist."
+        },
+        "exitFullscreen": {
+          "name": "Beenden / schließen",
+          "description": "Vollbild oder Fokusansicht verlassen, Bereiche schließen, dann die Anrufansicht minimieren. Wirkt mit Fokus in der Anrufansicht."
+        }
+      }
     },
     "advanced": {
       "title": "Erweitert",
@@ -861,13 +2019,73 @@
     "myBots": "Meine Bots",
     "supporter": "Unterstützung",
     "myBotsDescription": "Verwalten Sie die von Ihnen erstellten Bots",
+    "myEmojis": {
+      "title": "Meine Emojis",
+      "description": "Deine persönlichen Emojis, auch die, die du in der Emoji-Auswahl mit KI erzeugst. Nachrichten verweisen über den Namen auf eigene Emojis; nach dem Umbenennen oder Löschen zeigen ältere Nachrichten den Text :name: statt des Bildes.",
+      "loading": "Deine Emojis werden geladen…",
+      "empty": "Du hast noch keine persönlichen Emojis. Emojis, die du in der Emoji-Auswahl mit KI erzeugst, erscheinen hier.",
+      "listLabel": "Deine Emojis",
+      "aiBadge": "KI",
+      "aiGenerated": "Mit KI erzeugt",
+      "uses": "noch nicht verwendet | einmal verwendet | {count}-mal verwendet",
+      "rename": ":{name}: umbenennen",
+      "delete": ":{name}: löschen",
+      "newName": "Neuer Name für :{name}:",
+      "nameHint": "2 bis 64 Buchstaben, Ziffern, _ oder -. Eingabe speichert, Escape bricht ab.",
+      "renamed": ":{from}: in :{to}: umbenannt",
+      "deleted": ":{name}: gelöscht",
+      "deleteTitle": "Emoji löschen",
+      "confirmDelete": ":{name}: löschen? Reaktionen damit werden entfernt, und ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes.",
+      "retry": "Erneut versuchen",
+      "errors": {
+        "load": "Deine Emojis konnten nicht geladen werden.",
+        "rename": "Das Emoji konnte nicht umbenannt werden.",
+        "delete": "Das Emoji konnte nicht gelöscht werden.",
+        "invalidName": "Namen bestehen aus 2 bis 64 Buchstaben, Ziffern, _ oder -.",
+        "nameTaken": "Du hast bereits ein Emoji mit diesem Namen.",
+        "notFound": "Dieses Emoji existiert nicht mehr."
+      }
+    },
     "audio": {
       "title": "Töne",
       "description": "Konfigurieren Sie Ihre Audioeinstellungen.",
       "inputDevice": "Eingabegerät",
       "outputDevice": "Ausgabegerät",
       "inputVolume": "Eingabelautstärke",
-      "outputVolume": "Ausgabelautstärke"
+      "outputVolume": "Ausgabelautstärke",
+      "playSound": "Ton „{sound}“ abspielen",
+      "sounds": {
+        "mention": "Erwähnung",
+        "message": "Nachricht",
+        "reaction": "Reaktion",
+        "voiceJoin": "Sprachkanal betreten",
+        "voiceLeave": "Sprachkanal verlassen",
+        "success": "Erfolg",
+        "error": "Fehler",
+        "click": "Klick"
+      },
+      "themes": {
+        "title": "Audiodesigns",
+        "subtitle": "Klangpakete für Benachrichtigungen, Anrufe und Rückmeldungen der Oberfläche",
+        "builtIn": "Integriert",
+        "byAuthor": "von {author}",
+        "masterVolume": "Gesamtlautstärke",
+        "mute": "Töne stummschalten",
+        "playPreview": "Vorschau von {theme} abspielen",
+        "clearCache": "Audio-Cache leeren",
+        "dismissError": "Fehler ausblenden",
+        "advanced": "Erweiterte Einstellungen",
+        "autoPreload": "Designs automatisch vorladen",
+        "volumeLow": "Leise",
+        "volumeMedium": "Mittel",
+        "volumeHigh": "Laut",
+        "volumeMax": "Maximal",
+        "cacheInfo": "Cache-Informationen",
+        "cacheStats": "{sounds} Sounds im Cache, {themes} Themes geladen",
+        "exportSettings": "Einstellungen exportieren",
+        "importSettings": "Einstellungen importieren",
+        "resetDefaults": "Auf Standard zurücksetzen"
+      }
     },
     "buildInfo": {
       "copyHint": "Klicken, um Versionsinfos für Fehlerberichte zu kopieren",
@@ -875,6 +2093,55 @@
       "copyFailed": "Versionsinfos konnten nicht kopiert werden",
       "terms": "Nutzungsbedingungen",
       "privacy": "Datenschutzerklärung"
+    },
+    "a11y": {
+      "sections": "Einstellungsbereiche",
+      "close": "Einstellungen schließen",
+      "unreadAnnouncements": "{count} ungelesene Ankündigung | {count} ungelesene Ankündigungen"
+    },
+    "toasts": {
+      "loggedOut": "Abgemeldet",
+      "logoutFailed": "Abmelden fehlgeschlagen",
+      "profileUpdated": "Profil aktualisiert",
+      "profileUpdateFailed": "Profil konnte nicht aktualisiert werden",
+      "avatarUpdated": "Avatar aktualisiert",
+      "avatarUploadFailed": "Avatar konnte nicht hochgeladen werden",
+      "bannerUpdated": "Banner aktualisiert",
+      "bannerUploadFailed": "Banner konnte nicht hochgeladen werden",
+      "profileLoadFailed": "Dein Profil konnte nicht geladen werden"
+    },
+    "unsaved": {
+      "title": "Ungespeicherte Änderungen verwerfen?",
+      "message": "Deine Änderungen an diesen Einstellungen wurden nicht gespeichert.",
+      "discard": "Änderungen verwerfen"
+    },
+    "userAccount": {
+      "changeBanner": "Profilbanner ändern",
+      "bannerUploading": "Banner wird hochgeladen…",
+      "displayNameHint": "So sehen dich andere.",
+      "displayNameEmojiHint": "Tippe : für eigene Emojis.",
+      "displayNameRequired": "Der Anzeigename darf nicht leer sein.",
+      "displayNameNoEmoji": "Eigene Emojis in Anzeigenamen sind auf dieser Instanz deaktiviert. Entferne Emoji-Kürzel wie :name: aus deinem Anzeigenamen.",
+      "usernameHint": "Benutzernamen können nicht geändert werden: Andere Server erkennen dein Konto daran.",
+      "bioCount": "{count}/{max} Zeichen",
+      "displayColor": "Anzeigefarbe",
+      "displayColorHint": "Wird für deinen Anzeigenamen und Profilakzente verwendet.",
+      "openColorPicker": "Farbwähler öffnen",
+      "resetColor": "Anzeigefarbe zurücksetzen",
+      "fieldsTitle": "Profilfelder",
+      "fieldsDescription": "Füge deinem Profil bis zu {max} kurze Links oder Angaben hinzu: Websites, Social-Media-Namen, alles, worüber andere dich finden sollen. Sichtbar auf deiner Profilseite und an andere ActivityPub-Instanzen föderiert.",
+      "fieldNameLabel": "Feld {n}: Bezeichnung",
+      "fieldValueLabel": "Feld {n}: Wert",
+      "fieldNamePlaceholder": "Bezeichnung (z. B. Website)",
+      "fieldValuePlaceholder": "Wert (z. B. https://example.com)",
+      "removeFieldNamed": "Feld {name} entfernen",
+      "removeFieldNumbered": "Feld {n} entfernen",
+      "fieldsEmpty": "Noch keine Felder. Füge unten eins hinzu.",
+      "fieldIncomplete": "Jedes Profilfeld braucht eine Bezeichnung und einen Wert.",
+      "addField": "Feld hinzufügen",
+      "description": "Verwalte dein Profil und deine Kontodaten.",
+      "handleCopied": "Handle kopiert",
+      "copyFailed": "Kopieren fehlgeschlagen"
     }
   },
   "navigation": {
@@ -1184,7 +2451,200 @@
     "followApprovalTitle": "Follower",
     "followApprovalLabel": "Folgeanfragen bestätigen",
     "followApprovalDescription": "Neue Follower senden eine Anfrage, die du annimmst oder ablehnst. Wer dir schon folgt, bleibt. Beim Ausschalten werden alle offenen Anfragen angenommen.",
-    "followApprovalFailed": "Folgebestätigung konnte nicht gespeichert werden. Bitte erneut versuchen."
+    "followApprovalFailed": "Folgebestätigung konnte nicht gespeichert werden. Bitte erneut versuchen.",
+    "feedA11y": {
+      "label": "Beiträge",
+      "timeline": "Timeline {name}",
+      "postsLoaded": "{count} Beitrag geladen | {count} Beiträge geladen"
+    },
+    "postA11y": {
+      "heading": "{name}, {time}",
+      "boostHeading": "{booster} hat {name} geboostet, {time}",
+      "actionCount": "{action}, {count}"
+    },
+    "postMenu": {
+      "copyLink": "Link kopieren",
+      "edit": "Bearbeiten",
+      "pin": "Im Profil anheften",
+      "unpin": "Vom Profil lösen",
+      "delete": "Löschen",
+      "deleteAndRedraft": "Löschen und neu entwerfen",
+      "fetchReactions": "Reaktionen abrufen",
+      "refetch": "Von der Quelle neu laden",
+      "markSensitive": "Als sensibel markieren",
+      "unmarkSensitive": "Sensibel-Markierung entfernen",
+      "addContentWarning": "Inhaltswarnung hinzufügen",
+      "editContentWarning": "Inhaltswarnung bearbeiten",
+      "adminDelete": "Löschen (Admin)",
+      "muteUser": "{'@'}{handle} stummschalten",
+      "unmuteUser": "Stummschaltung von {'@'}{handle} aufheben",
+      "blockUser": "{'@'}{handle} blockieren",
+      "report": "Beitrag melden",
+      "deleteConfirmTitle": "Beitrag löschen?",
+      "deleteConfirmMessage": "Diesen Beitrag wirklich löschen? Das kann nicht rückgängig gemacht werden.",
+      "deletedMessage": "Dein Beitrag wurde gelöscht",
+      "deleteFailedTitle": "Löschen fehlgeschlagen",
+      "deleteFailed": "Beitrag konnte nicht gelöscht werden. Bitte erneut versuchen.",
+      "redraftConfirmMessage": "Diesen Beitrag löschen und den Inhalt zurück in den Editor holen? Favoriten und Boosts gehen verloren.",
+      "pinFailed": "Anheften konnte nicht geändert werden",
+      "pinned": "Im Profil angeheftet",
+      "unpinned": "Vom Profil gelöst",
+      "muted": "{'@'}{handle} stummgeschaltet – Beiträge sind in deinen Feeds ausgeblendet",
+      "unmuted": "Stummschaltung von {'@'}{handle} aufgehoben",
+      "muteFailed": "Stummschaltung konnte nicht geändert werden",
+      "blockConfirmTitle": "{'@'}{handle} blockieren?",
+      "blockConfirmMessage": "Diese Person kann dir nicht folgen und deine Beiträge nicht sehen, und du siehst ihre nicht.",
+      "block": "Blockieren",
+      "blocked": "{'@'}{handle} blockiert",
+      "blockFailed": "Konnte nicht blockiert werden",
+      "linkCopied": "Link kopiert",
+      "linkCopyFailed": "Link konnte nicht kopiert werden",
+      "refetched": "Beitrag neu geladen",
+      "refetchedMessage": "Inhalt von der Quelle aktualisiert.",
+      "refetchFailed": "Neu laden fehlgeschlagen",
+      "refetchFailedMessage": "Beitrag konnte nicht neu geladen werden.",
+      "postUpdated": "Beitrag aktualisiert",
+      "markedSensitive": "Beitrag als sensibel markiert.",
+      "unmarkedSensitive": "Sensibel-Markierung entfernt.",
+      "failed": "Fehlgeschlagen",
+      "updateFailed": "Beitrag konnte nicht aktualisiert werden.",
+      "cwPromptMessage": "Leer lassen, um die Inhaltswarnung zu entfernen.",
+      "cwPromptLabel": "Text der Inhaltswarnung",
+      "cwSet": "Inhaltswarnung gesetzt",
+      "cwRemoved": "Inhaltswarnung entfernt",
+      "cwFailed": "Inhaltswarnung konnte nicht aktualisiert werden.",
+      "adminDeleteConfirm": "Diesen Beitrag als Admin löschen? Das kann nicht rückgängig gemacht werden.",
+      "adminDeleted": "Beitrag wurde von einem Admin entfernt."
+    },
+    "reactionsA11y": {
+      "group": "Reaktionen",
+      "chip": "{emoji}, {count} Reaktion | {emoji}, {count} Reaktionen",
+      "reactedBy": "Reagiert haben {names}",
+      "more": "{count} weitere | {count} weitere",
+      "unknownEmoji": "Emoji"
+    },
+    "composerA11y": {
+      "quoting": "Zitiert",
+      "dropMedia": "Bilder oder Videos hier ablegen",
+      "charactersOver": "{count} Zeichen über dem Limit | {count} Zeichen über dem Limit"
+    },
+    "mediaA11y": {
+      "editNamed": "{name} bearbeiten",
+      "altFor": "ALT-Text für {name}",
+      "removeNamed": "{name} entfernen",
+      "uploading": "{name} wird hochgeladen",
+      "download": "{name} herunterladen",
+      "imageNoDescription": "Bild ohne Beschreibung"
+    },
+    "profileA11y": {
+      "loading": "Profil wird geladen…",
+      "notFound": "Profil nicht gefunden",
+      "goBack": "Zurück",
+      "mute": "Stummschalten",
+      "unmute": "Stummschaltung aufheben",
+      "block": "Blockieren",
+      "unblock": "Blockierung aufheben",
+      "report": "Melden",
+      "mention": "Erwähnen",
+      "joined": "Beigetreten {date}",
+      "sections": "Profilbereiche",
+      "youBlocked": "Du hast {'@'}{handle} blockiert",
+      "blockedHint": "Du kannst ihre Beiträge weder sehen noch darauf reagieren.",
+      "followingUnfollow": "Folge ich {'@'}{handle}, entfolgen",
+      "requestedCancel": "Angefragt {'@'}{handle}, Anfrage zurückziehen",
+      "loadFailed": "Profil konnte nicht geladen werden. Die Person existiert vielleicht nicht oder ist nicht erreichbar.",
+      "postsBy": "Beiträge von {name}"
+    },
+    "followA11y": {
+      "requests": "Anfragen",
+      "requestsSubtitle": "{count} Person möchte dir folgen | {count} Personen möchten dir folgen",
+      "followersSubtitle": "{count} Person folgt dir | {count} Personen folgen dir",
+      "followingSubtitle": "Du folgst {count} Person | Du folgst {count} Personen",
+      "removeFollowerNamed": "Follower entfernen: {name}",
+      "accepted": "Folgeanfrage von {name} angenommen",
+      "rejected": "Folgeanfrage von {name} abgelehnt",
+      "acceptFailed": "Folgeanfrage konnte nicht angenommen werden",
+      "rejectFailed": "Folgeanfrage konnte nicht abgelehnt werden",
+      "loadFailed": "Liste konnte nicht geladen werden. Bitte erneut versuchen.",
+      "moreFor": "Weitere Optionen für {name}",
+      "message": "Nachricht",
+      "messageNamed": "Nachricht an {name}",
+      "viewProfile": "Profil ansehen",
+      "instanceOwner": "Instanzbetreiber",
+      "instanceMod": "Instanz-Mod"
+    },
+    "listsA11y": {
+      "newList": "Neue Liste",
+      "loading": "Listen werden geladen…",
+      "exclusive": "Exklusive Liste",
+      "public": "Öffentliche Liste",
+      "members": "{count} Mitglied | {count} Mitglieder",
+      "policyFollowed": "Antworten an Gefolgte",
+      "policyList": "Antworten an die Liste",
+      "policyNone": "Keine Antworten",
+      "edit": "Liste bearbeiten",
+      "editNamed": "{title} bearbeiten",
+      "delete": "Liste löschen",
+      "deleteNamed": "{title} löschen",
+      "deleteTitle": "Liste löschen",
+      "deleteConfirm": "„{title}“ wirklich löschen? Das kann nicht rückgängig gemacht werden.",
+      "createTitle": "Neue Liste erstellen",
+      "editTitle": "Liste bearbeiten",
+      "titleLabel": "Titel",
+      "titlePlaceholder": "z. B. Freunde, Nachrichten, Technik",
+      "descriptionLabel": "Beschreibung",
+      "descriptionPlaceholder": "Wofür ist diese Liste?",
+      "repliesLabel": "Antworten anzeigen an",
+      "repliesList": "Nur Listenmitglieder",
+      "repliesFollowed": "Alle, denen du folgst",
+      "repliesNone": "Keine Antworten",
+      "exclusiveHelp": "Listenmitglieder in deiner Home-Timeline ausblenden",
+      "publicHelp": "Anderen erlauben, diese Liste zu sehen",
+      "saveChanges": "Änderungen speichern",
+      "create": "Liste erstellen",
+      "back": "Zurück zu den Listen",
+      "list": "Liste",
+      "membersTitle": "Mitglieder",
+      "membersCount": "Mitglieder ({count})",
+      "searchToAdd": "Personen zum Hinzufügen suchen",
+      "searchResultsLabel": "Personen zum Hinzufügen",
+      "searchResults": "{count} Person gefunden | {count} Personen gefunden",
+      "add": "Hinzufügen",
+      "addNamed": "{name} hinzufügen",
+      "added": "Hinzugefügt",
+      "addedNamed": "Hinzugefügt: {name}",
+      "remove": "Entfernen",
+      "removeNamed": "{name} entfernen"
+    },
+    "searchA11y": {
+      "title": "Personen suchen",
+      "inputLabel": "Personen suchen",
+      "placeholder": "Personen suchen ({'@'}name{'@'}domain oder Anzeigename)",
+      "clear": "Suche leeren",
+      "filters": "Ergebnisse filtern",
+      "filterAll": "Alle",
+      "results": "Suchergebnisse",
+      "found": "{count} Person gefunden | {count} Personen gefunden",
+      "intro": "Finde Personen auf dieser Instanz oder im ganzen Fediverse.",
+      "recent": "Letzte Suchen",
+      "suggested": "Vorgeschlagene Personen"
+    },
+    "sidebarA11y": {
+      "unread": "{count} ungelesen | {count} ungelesen"
+    },
+    "threadA11y": {
+      "focused": "geöffneter Beitrag",
+      "ancestor": "weiter oben im Thread",
+      "replyTo": "Antwort an {name}",
+      "reply": "Antwort",
+      "notFound": "Beitrag nicht gefunden",
+      "viewOriginal": "Auf der Ursprungsinstanz ansehen",
+      "backToTimeline": "Zurück zur Timeline",
+      "reactionsFetched": "{count} Reaktion abgerufen | {count} Reaktionen abgerufen",
+      "reactionsFetchFailed": "Reaktionen konnten nicht abgerufen werden",
+      "loadFailed": "Beitrag konnte nicht geladen werden",
+      "replyPosted": "Antwort veröffentlicht"
+    }
   },
   "moderation": {
     "report": "Melden",
@@ -1259,6 +2719,23 @@
     },
     "securityNotification": {
       "short": "Kontosicherheit"
+    },
+    "kickBan": {
+      "member": "Mitglied",
+      "searchPlaceholder": "Nach einem Mitglied suchen…",
+      "noMembers": "Keine Mitglieder gefunden",
+      "memberSelected": "{name} ausgewählt",
+      "changeMember": "Anderes Mitglied statt {name} wählen",
+      "banWarning": "Dieser Benutzer wird dauerhaft vom Server gebannt und kann erst wieder beitreten, wenn die Sperre aufgehoben wird.",
+      "reasonPlaceholderKick": "Warum kickst du diesen Benutzer?",
+      "reasonPlaceholderBan": "Warum bannst du diesen Benutzer?",
+      "deleteMessages": "Nachrichtenverlauf löschen",
+      "deleteOptions": {
+        "none": "Nichts löschen",
+        "hour": "Letzte Stunde",
+        "day": "Letzte 24 Stunden",
+        "week": "Letzte 7 Tage"
+      }
     }
   },
   "files": {
@@ -1620,7 +3097,23 @@
       "otherLinks": "Deine anderen aktiven Links ({count})",
       "showLink": "Diesen Link anzeigen"
     },
-    "bannedFromServer": "Du bist von diesem Server gebannt"
+    "bannedFromServer": "Du bist von diesem Server gebannt",
+    "a11y": {
+      "preview": "Einladung zu {server}. Unten annehmen oder ablehnen.",
+      "member": "Du bist bereits Mitglied von {server}.",
+      "joining": "Trete {server} bei…"
+    },
+    "rules": {
+      "title": "Bevor du beitrittst",
+      "subtitle": "Lies die Regeln und stimme ihnen zu, bevor du beitrittst",
+      "instanceHeading": "Regeln der Instanz {instance}",
+      "instanceNote": "Wird einmal angezeigt: Sie gelten überall auf dieser Instanz.",
+      "serverHeading": "Regeln von {server}",
+      "agreementNote": "Mit dem Beitritt stimmst du diesen Regeln zu.",
+      "agree": "Zustimmen und beitreten"
+    },
+    "joined": "{server} beigetreten",
+    "joinFailed": "Beitritt zum Server fehlgeschlagen"
   },
   "nav": {
     "chat": "Chat",
@@ -1716,7 +3209,9 @@
       "save": "Speichern",
       "saved": "Willkommensserver gespeichert",
       "saveFailed": "Willkommensserver konnte nicht gespeichert werden"
-    }
+    },
+    "joiningNamed": "Tritt bei: {server}…",
+    "joinedNamed": "{server} beigetreten"
   },
   "serverWelcome": {
     "kicker": "Willkommen auf",
@@ -2928,7 +4423,10 @@
         "setupFailed": "Die Zwei-Faktor-Einrichtung konnte nicht gestartet werden.",
         "copyFailed": "Kopieren fehlgeschlagen. Markiere den Text und kopiere ihn manuell.",
         "actionFailed": "Das hat nicht funktioniert. Versuche es erneut."
-      }
+      },
+      "copyCodes": "Codes kopieren",
+      "enabledAnnouncement": "Zwei-Faktor-Authentifizierung ist eingeschaltet. Speichere deine Wiederherstellungscodes.",
+      "newCodesAnnouncement": "Neue Wiederherstellungscodes erstellt. Speichere sie jetzt."
     },
     "sessions": {
       "title": "Geräte",
@@ -3111,6 +4609,10 @@
         "notFound": "Keine Anmeldung zu diesem Code in deinem Konto. Prüfe, ob beide Geräte dasselbe Konto verwenden.",
         "alreadyUsed": "Auf diesen Code hat mehr als ein Gerät geantwortet. Es wurde nichts gesendet. Zeige einen neuen Code an.",
         "generic": "Verknüpfung fehlgeschlagen."
+      },
+      "a11y": {
+        "showing": "Code wird angezeigt. Warte darauf, dass das neue Gerät ihn scannt.",
+        "confirm": "{device} ist bereit zum Verknüpfen. Prüfe die Angaben und bestätige dann."
       }
     },
     "pairing": {
@@ -3352,14 +4854,16 @@
     "instanceEmojis": {
       "tab": "Emojis",
       "title": "Instanz-Emojis",
-      "hint": "Instanzweite und importierte Emojis: Uploads von Admins, Emojis von Discord-Brücken und Bots sowie Emojis aus föderierten Reaktionen und Beiträgen. Server- und persönliche Emojis verwalten ihre Besitzer. Nachrichten verweisen über den Namen auf eigene Emojis; nach dem Umbenennen oder Löschen zeigen ältere Nachrichten den Text :name: statt des Bildes.",
+      "hint": "Instanzweite und importierte Emojis: Uploads von Admins, Emojis von Discord-Brücken und Bots sowie Emojis aus föderierten Reaktionen und Beiträgen. Server-Emojis verwalten ihre Server; persönliche und mit KI erzeugte Emojis stehen unter Nutzer-Emojis. Nachrichten verweisen über den Namen auf eigene Emojis; nach dem Umbenennen oder Löschen zeigen ältere Nachrichten den Text :name: statt des Bildes.",
       "refresh": "Aktualisieren",
       "searchPlaceholder": "Nach Name oder Domain suchen",
+      "searchPlaceholderUser": "Nach Name oder Besitzer suchen",
       "source": {
         "label": "Quelle",
         "all": "Alle Quellen",
         "local": "Lokal",
-        "remote": "Entfernt und überbrückt"
+        "remote": "Entfernt und überbrückt",
+        "user": "Nutzer-Emojis"
       },
       "sort": {
         "label": "Sortierung",
@@ -3367,8 +4871,14 @@
         "name": "Name (A-Z)"
       },
       "empty": "Keine passenden Instanz-Emojis.",
+      "emptyUser": "Keine Nutzer-Emojis gefunden.",
       "localBadge": "lokal",
+      "personalBadge": "persönlich",
+      "aiBadge": "KI",
+      "aiGenerated": "Mit KI erzeugt",
       "uploadedBy": "von {user}",
+      "ownedBy": "gehört {user}",
+      "noOwner": "gelöschtes Konto",
       "reactions": "keine Reaktionen | {count} Reaktion | {count} Reaktionen",
       "rename": "Umbenennen",
       "newName": "Neuer Name",
@@ -3380,12 +4890,15 @@
       "deleteTitle": "Emoji löschen",
       "confirmDelete": ":{name}: löschen? Ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes.",
       "confirmDeleteInUse": ":{name}: löschen? Seine {count} Reaktion wird entfernt, und ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes. | :{name}: löschen? Seine {count} Reaktionen werden entfernt, und ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes.",
+      "confirmDeleteUser": ":{name}: aus den Emojis von {user} löschen? Ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes.",
+      "confirmDeleteUserInUse": ":{name}: aus den Emojis von {user} löschen? Seine {count} Reaktion wird entfernt, und ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes. | :{name}: aus den Emojis von {user} löschen? Seine {count} Reaktionen werden entfernt, und ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes.",
       "errors": {
         "load": "Instanz-Emojis konnten nicht geladen werden.",
         "rename": "Das Emoji konnte nicht umbenannt werden.",
         "delete": "Das Emoji konnte nicht gelöscht werden.",
         "invalidName": "Namen bestehen aus 2 bis 64 Buchstaben, Ziffern, _ oder -.",
-        "nameTaken": "Ein anderes Instanz-Emoji verwendet diesen Namen bereits."
+        "nameTaken": "Ein anderes Instanz-Emoji verwendet diesen Namen bereits.",
+        "nameTakenUser": "Der Besitzer hat bereits ein Emoji mit diesem Namen."
       }
     }
   },
@@ -4104,6 +5617,143 @@
       "failed": "Der Server konnte nicht verlassen werden"
     }
   },
+  "chatNav": {
+    "channel": {
+      "text": "Textkanal",
+      "voice": "Sprachkanal",
+      "unread": "ungelesen",
+      "mentions": "{count} Erwähnung | {count} Erwähnungen",
+      "muted": "stummgeschaltet",
+      "private": "privat",
+      "connected": "{count} verbunden | {count} verbunden",
+      "youAreConnected": "du bist verbunden",
+      "joinHint": "Tritt dem Sprachanruf bei",
+      "openChatHint": "Öffnet den Chat des Kanals",
+      "previewHint": "Zeigt, wer da ist, mit Optionen zum Beitreten",
+      "openChat": "Chat in {name} öffnen",
+      "openChatShort": "Chat öffnen",
+      "threadsOf": "Threads in {name}",
+      "thread": "Thread",
+      "dropHere": "Kanäle hierher ziehen",
+      "moved": "{name} an Position {position} von {total} verschoben",
+      "moveFailed": "{name} konnte nicht verschoben werden"
+    },
+    "menu": {
+      "editChannel": "Kanal bearbeiten",
+      "editCategory": "Kategorie bearbeiten",
+      "deleteCategory": "Kategorie löschen"
+    },
+    "thread": {
+      "leave": "Thread verlassen",
+      "join": "Thread beitreten",
+      "edit": "Thread bearbeiten",
+      "splitView": "In geteilter Ansicht öffnen",
+      "close": "Thread schließen",
+      "reopen": "Thread wieder öffnen",
+      "lock": "Thread sperren",
+      "unlock": "Thread entsperren",
+      "delete": "Thread löschen",
+      "mute": "Thread stummschalten",
+      "unmute": "Stummschaltung des Threads aufheben",
+      "copyId": "Thread-ID kopieren",
+      "closePanel": "Thread-Bereich schließen",
+      "options": "Thread-Optionen",
+      "replies": "{count} Antwort | {count} Antworten",
+      "draftHint": "Sende eine Nachricht, um diesen Thread zu starten",
+      "loading": "Nachrichten werden geladen…",
+      "loadingOlder": "Wird geladen…",
+      "loadOlder": "Ältere Nachrichten laden"
+    },
+    "header": {
+      "pinnedCount": "{count} angeheftete Nachricht | {count} angeheftete Nachrichten",
+      "threads": "Alle Threads anzeigen",
+      "threadsShort": "Threads anzeigen",
+      "more": "Weitere Optionen"
+    },
+    "user": {
+      "mention": "Erwähnen",
+      "message": "Nachricht",
+      "call": "Anruf starten",
+      "nickname": "Spitznamen ändern",
+      "invite": "Zum Server einladen",
+      "mute": "Nutzer stummschalten",
+      "unmute": "Stummschaltung aufheben",
+      "kick": "{name} kicken",
+      "ban": "{name} bannen",
+      "copyId": "Nutzer-ID kopieren",
+      "fallbackName": "Nutzer"
+    },
+    "rail": {
+      "folder": "Ordner",
+      "servers": "{count} Server | {count} Server",
+      "unreadMessages": "{count} ungelesene Nachricht | {count} ungelesene Nachrichten"
+    },
+    "dm": {
+      "startNew": "Neue Direktnachricht",
+      "createGroup": "Gruppenchat erstellen",
+      "searchLabel": "Nutzer suchen",
+      "listLabel": "Unterhaltungen",
+      "group": "Gruppe, {count} Mitglied | Gruppe, {count} Mitglieder",
+      "dismissed": "Unterhaltung mit {name} ausgeblendet",
+      "dismissNamed": "Unterhaltung mit {name} ausblenden",
+      "restored": "Unterhaltung mit {name} wiederhergestellt",
+      "restoreFailed": "Die Unterhaltung konnte nicht wiederhergestellt werden",
+      "joinCallWith": "Anruf mit {name} beitreten"
+    },
+    "members": {
+      "search": "Mitglieder suchen",
+      "clearSearch": "Suche leeren",
+      "found": "{count} Mitglied gefunden | {count} Mitglieder gefunden",
+      "group": "{title}, {count} Mitglied | {title}, {count} Mitglieder",
+      "discord": "Mitglied über die Discord-Brücke",
+      "instanceAdmin": "Instanz-Admin",
+      "instanceMod": "Instanz-Moderator"
+    },
+    "create": {
+      "textHint": "Kleinbuchstaben, Ziffern, Binde- und Unterstriche verwenden; Leerzeichen werden zu Bindestrichen",
+      "voiceHint": "Wähle einen Namen, der deinen Sprachkanal beschreibt",
+      "looksGood": "Sieht gut aus",
+      "nameRequired": "Ein Kanalname ist erforderlich",
+      "nameTooLong": "Der Kanalname darf höchstens 100 Zeichen lang sein",
+      "voiceInvalid": "Der Name des Sprachkanals enthält ungültige Zeichen",
+      "categorySubtitle": "Ordne deine Kanäle mit Kategorien",
+      "categoryName": "Kategoriename",
+      "categoryPlaceholder": "Kategorienamen eingeben…",
+      "categoryHint": "Kategorien helfen, deine Kanäle zu ordnen",
+      "categoryGood": "Gute Wahl! Das hilft, deine Kanäle zu ordnen",
+      "categoryRequired": "Ein Kategoriename ist erforderlich",
+      "categoryTooShort": "Der Kategoriename muss mindestens 2 Zeichen lang sein",
+      "categoryTooLong": "Der Kategoriename darf höchstens 100 Zeichen lang sein",
+      "categoryInvalid": "Der Kategoriename darf nur Buchstaben, Ziffern, Binde- und Unterstriche enthalten"
+    },
+    "pinned": {
+      "count": "{count} Nachricht | {count} Nachrichten",
+      "none": "Keine angehefteten Nachrichten",
+      "loading": "Angeheftete Nachrichten werden geladen…",
+      "jump": "Zur Nachricht springen",
+      "unpin": "Lösen",
+      "by": "Angeheftet von {name}"
+    },
+    "threadsModal": {
+      "title": "Threads",
+      "search": "Nach Threadnamen suchen",
+      "joined": "{count} beigetretener Thread | {count} beigetretene Threads",
+      "older": "Ältere Threads",
+      "noMessages": "Noch keine Nachrichten",
+      "startedBy": "Gestartet von",
+      "lastActive": "Zuletzt aktiv: {time}",
+      "loading": "Threads werden geladen…"
+    },
+    "mediaPicker": {
+      "label": "GIFs, Sticker und Emojis",
+      "gifs": "GIFs",
+      "stickers": "Sticker",
+      "emoji": "Emojis",
+      "clips": "Clips",
+      "memes": "Memes",
+      "aiEmoji": "KI-Emojis"
+    }
+  },
   "embeds": {
     "popOut": "Herauslösen",
     "open": "Öffnen",
@@ -4259,7 +5909,8 @@
     },
     "remote": {
       "voters": "{count} Person hat abgestimmt | {count} Personen haben abgestimmt",
-      "voteOnOriginal": "Im Originalbeitrag abstimmen"
+      "voteOnOriginal": "Im Originalbeitrag abstimmen",
+      "label": "Umfrage"
     }
   },
   "serverTemplate": {
@@ -4409,6 +6060,190 @@
       "invalid": "Der Sound wurde abgelehnt. Prüfe Name, Emoji und Lautstärke.",
       "load": "Die Sounds dieses Servers konnten nicht geladen werden.",
       "generic": "Etwas ist schiefgelaufen. Versuche es erneut."
+    }
+  },
+  "voiceMessage": {
+    "label": "Sprachnachricht",
+    "play": "Sprachnachricht abspielen, {duration}",
+    "pause": "Sprachnachricht pausieren",
+    "position": "Wiedergabeposition",
+    "positionValue": "{current} von {total}",
+    "speed": "Wiedergabegeschwindigkeit {speed}x",
+    "playFailed": "Diese Sprachnachricht konnte nicht abgespielt werden."
+  },
+  "a11y": {
+    "unreadNotifications": "{count} ungelesene Benachrichtigung | {count} ungelesene Benachrichtigungen",
+    "announcements": {
+      "pinned": "Angeheftet"
+    },
+    "skipToContent": "Zum Inhalt springen",
+    "loadingInstance": "{name} wird geladen…",
+    "genericError": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "backOnline": "Wieder online",
+    "bannerImage": "Bannerbild",
+    "landmarks": {
+      "servers": "Server",
+      "channels": "Kanäle",
+      "directMessages": "Direktnachrichten",
+      "members": "Mitglieder",
+      "userPanel": "Dein Konto",
+      "social": "Soziale Navigation",
+      "socialSidebar": "Trends und Vorschläge"
+    },
+    "drawer": {
+      "navigation": "Navigationsmenü",
+      "memberList": "Mitgliederliste"
+    },
+    "title": {
+      "resetPassword": "Passwort zurücksetzen",
+      "invite": "Einladung",
+      "followRequests": "Folgeanfragen",
+      "hashtag": "Hashtag",
+      "serverSettings": "Servereinstellungen",
+      "thread": "Thread",
+      "today": "Heute",
+      "newProfile": "Erstelle dein Profil"
+    },
+    "announcer": {
+      "more": "{count} weitere | {count} weitere"
+    },
+    "toast": {
+      "dismiss": "Benachrichtigung schließen"
+    },
+    "confirm": {
+      "typeExact": "Gib den genauen Text zur Bestätigung ein.",
+      "typeToConfirm": "Gib „{text}\" zur Bestätigung ein"
+    },
+    "moderation": {
+      "kickMember": "Mitglied kicken",
+      "banMember": "Mitglied bannen",
+      "kick": "Kicken",
+      "ban": "Bannen"
+    },
+    "instance": {
+      "noneSelected": "Keine Instanz ausgewählt",
+      "change": "Instanz wechseln",
+      "changeShort": "Wechseln"
+    },
+    "avatar": {
+      "view": "Avatar in voller Größe anzeigen",
+      "viewNamed": "Avatar von {name} in voller Größe anzeigen",
+      "image": "Avatar",
+      "imageNamed": "Avatar von {name}",
+      "change": "Avatar ändern"
+    },
+    "serverIcon": {
+      "view": "Server-Symbol in voller Größe anzeigen",
+      "viewNamed": "Symbol von {name} in voller Größe anzeigen",
+      "image": "Server-Symbol",
+      "imageNamed": "Symbol von {name}",
+      "change": "Server-Symbol ändern"
+    },
+    "lightbox": {
+      "label": "Medienansicht",
+      "position": "{current} von {total}",
+      "previous": "Zurück",
+      "next": "Weiter",
+      "zoomIn": "Vergrößern",
+      "zoomOut": "Verkleinern",
+      "resetZoom": "Zoom und Drehung zurücksetzen",
+      "rotateLeft": "Nach links drehen",
+      "rotateRight": "Nach rechts drehen",
+      "videoUnsupported": "Dieses Video kann hier nicht abgespielt werden."
+    },
+    "pwa": {
+      "installApp": "Harmony-App installieren",
+      "share": "Harmony teilen"
+    },
+    "rail": {
+      "portal": "Harmony-Portal",
+      "fediverse": "Fediverse",
+      "funding": "Finanzierung der Instanz"
+    },
+    "notifications": {
+      "desktopFor": "{type}: Desktop-Benachrichtigungen",
+      "soundFor": "{type}: Ton",
+      "testFor": "Benachrichtigung testen: {type}",
+      "volume": "Gesamtlautstärke"
+    },
+    "settings": {
+      "importThemeFile": "Zu importierende Theme-Datei"
+    },
+    "shortcuts": {
+      "title": "Navigation",
+      "regions": "Zum nächsten oder vorherigen Bereich wechseln (Server, Kanäle, Nachrichten, Mitglieder, Sprache)",
+      "regionsKeys": "F6 / Umschalt+F6",
+      "browserNote": "In einem Browser, der F6 für die Adressleiste nutzt: Strg+F6 / Strg+Umschalt+F6.",
+      "skip": "Zum Inhalt springen: der erste Tab-Stopp auf jeder Seite",
+      "skipKeys": "Tab",
+      "escape": "Geöffneten Dialog, Menü oder Bereich schließen; der Fokus kehrt zurück",
+      "escapeKeys": "Esc"
+    },
+    "unsavedChanges": "Ungespeicherte Änderungen"
+  },
+  "statusPicker": {
+    "setTitle": "Benutzerdefinierten Status festlegen",
+    "editTitle": "Benutzerdefinierten Status bearbeiten",
+    "current": "Aktueller Status",
+    "clear": "Status löschen",
+    "chooseEmoji": "Emoji auswählen",
+    "emojiSelected": "Emoji: {name}. Emoji ändern",
+    "charCount": "{count} von {max} Zeichen",
+    "activity": "Aktivität",
+    "customHint": "Nur Text oder Emoji (ohne Präfix)",
+    "clearAfter": "Löschen nach",
+    "saving": "Wird gespeichert…",
+    "activities": {
+      "custom": "Benutzerdefiniert",
+      "playing": "Spielt",
+      "listening": "Hört",
+      "watching": "Schaut",
+      "competing": "Tritt an",
+      "streaming": "Streamt"
+    },
+    "durations": {
+      "never": "Nicht löschen",
+      "30m": "30 Minuten",
+      "1h": "1 Stunde",
+      "4h": "4 Stunden",
+      "today": "Heute",
+      "1w": "Diese Woche"
+    }
+  },
+  "instancePicker": {
+    "title": "Willkommen bei Harmony",
+    "hint": "Harmony ist föderiert: Jede Person kann eine Instanz betreiben. Gib die Domain der Instanz ein, mit der du dich verbinden möchtest.",
+    "domainLabel": "Domain der Instanz",
+    "connect": "Verbinden",
+    "connecting": "Verbindung wird hergestellt…",
+    "unreachable": "Diese Instanz ist nicht erreichbar",
+    "current": "Aktuell verbunden mit {name}",
+    "keep": "Beibehalten"
+  },
+  "colorPicker": {
+    "label": "Farbauswahl",
+    "saturationBrightness": "Sättigung und Helligkeit",
+    "saturationBrightnessValue": "Sättigung {saturation} %, Helligkeit {brightness} %",
+    "saturationBrightnessHelp": "Pfeil links und rechts ändern die Sättigung, Pfeil hoch und runter die Helligkeit. Mit gedrückter Umschalttaste in größeren Schritten.",
+    "hue": "Farbton",
+    "hueValue": "{degrees} Grad",
+    "hex": "Hex-Farbe",
+    "presets": "Vorgegebene Farben",
+    "swatch": "{name} {hex}",
+    "sampleText": "Beispieltext",
+    "names": {
+      "red": "Rot",
+      "orange": "Orange",
+      "yellow": "Gelb",
+      "green": "Grün",
+      "cyan": "Cyan",
+      "blue": "Blau",
+      "purple": "Lila",
+      "pink": "Pink",
+      "brown": "Braun",
+      "grey": "Grau",
+      "white": "Weiß",
+      "black": "Schwarz"
     }
   }
 }

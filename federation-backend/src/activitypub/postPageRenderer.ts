@@ -9,6 +9,7 @@
 import config from '../config/index.js';
 import { stripTrackingParameters } from '../utils/urlTrackerStripper.js';
 import { escapeHtml, originalStorageUrl, resolveStorageUrl } from '../utils/html.js';
+import { plainDisplayName } from '../utils/plainDisplayName.js';
 
 function stripHtml(html: string): string {
   return String(html ?? '').replace(/<[^>]*>/g, '').trim();
@@ -301,7 +302,8 @@ export function renderPostPage(post: any, author: any): string {
 
   const displayNameEmojis = getDisplayNameEmojis(author);
   const displayNameHtml = renderDisplayNameHtml(author.display_name || author.username, displayNameEmojis);
-  const displayNamePlain = escapeHtml(author.display_name || author.username);
+  // Raw text below; every interpolation into the page escapes once.
+  const displayNamePlain = plainDisplayName(author.display_name, author.username);
   const handle = `@${author.username}@${domain}`;
 
   const ogDescription = plainText.length > 200
@@ -309,7 +311,7 @@ export function renderPostPage(post: any, author: any): string {
     : plainText || `Post by ${displayNamePlain}`;
 
   const ogTitle = post.content_warning
-    ? `CW: ${escapeHtml(post.content_warning)}`
+    ? `CW: ${post.content_warning}`
     : `${displayNamePlain}: "${ogDescription.substring(0, 80)}${ogDescription.length > 80 ? '...' : ''}"`;
 
   const avatarUrl = resolveStorageUrl(author.avatar_url, 'avatars', 96) || `https://${domain}/default-avatar.png`;
@@ -325,7 +327,7 @@ export function renderPostPage(post: any, author: any): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${ogTitle} - ${escapeHtml(instanceName)}</title>
+  <title>${escapeHtml(ogTitle)} - ${escapeHtml(instanceName)}</title>
 
   <!-- Open Graph -->
   <meta property="og:type" content="article">
@@ -535,7 +537,7 @@ export function renderPostPage(post: any, author: any): string {
   <div class="container">
     <div class="post-card">
       <a href="${escapeHtml(authorUrl)}" class="author">
-        <img src="${escapeHtml(avatarUrl)}" alt="${displayNamePlain}" class="avatar" loading="lazy">
+        <img src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(displayNamePlain)}" class="avatar" loading="lazy">
         <div class="author-info">
           <div class="display-name">${displayNameHtml}</div>
           <div class="handle">${escapeHtml(handle)}</div>
@@ -579,7 +581,7 @@ export function renderOEmbed(post: any, author: any): object {
   const domain = config.INSTANCE_DOMAIN;
   const instanceName = config.INSTANCE_NAME;
   const plainText = extractPlainText(post.content);
-  const displayName = author.display_name || author.username;
+  const displayName = plainDisplayName(author.display_name, author.username);
   const handle = `@${author.username}@${domain}`;
 
   return {

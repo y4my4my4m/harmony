@@ -284,7 +284,7 @@ const formattedAcceptedAt = computed(() => {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   background: color-mix(in srgb, var(--harmony-primary) 18%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .ws-rule-text {
@@ -335,7 +335,7 @@ const formattedAcceptedAt = computed(() => {
 .ws-error {
   margin: 0;
   font-size: var(--font-size-xs);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .ws-action {

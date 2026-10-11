@@ -799,7 +799,7 @@ onBeforeUnmount(() => {
 .bot-badge {
   display: inline-block;
   padding: 1px 6px;
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary, #ffffff);
   font-size: 10px;
   font-weight: 700;

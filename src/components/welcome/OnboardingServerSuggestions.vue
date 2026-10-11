@@ -30,13 +30,18 @@
             <p v-if="server.description" class="os-description">{{ server.description }}</p>
           </div>
         </div>
+        <!-- The joining button keeps focus (aria-disabled); the others are disabled. -->
         <button
           type="button"
           class="btn btn-primary os-join"
-          :disabled="!!joiningId"
-          :aria-label="$t('welcomeServer.joinNamed', { server: server.name })"
+          :disabled="!!joiningId && joiningId !== server.id"
+          :aria-disabled="joiningId === server.id || undefined"
+          :aria-busy="joiningId === server.id || undefined"
+          :aria-label="joiningId === server.id
+            ? $t('welcomeServer.joiningNamed', { server: server.name })
+            : $t('welcomeServer.joinNamed', { server: server.name })"
           data-testid="onboarding-join"
-          @click="emit('join', server.id)"
+          @click="requestJoin(server.id)"
         >
           <span v-if="joiningId === server.id" class="os-spinner" aria-hidden="true"></span>
           {{ joiningId === server.id ? $t('welcomeServer.joining') : $t('welcomeServer.join') }}
@@ -51,14 +56,17 @@
 </template>
 
 <script setup lang="ts">
-import { useId } from 'vue'
+import { onBeforeUnmount, useId, watch } from 'vue'
 import Icon from '@/components/common/Icon.vue'
 import ServerIcon from '@/components/common/ServerIcon.vue'
 import { getServerBannerUrl } from '@/utils/serverUtils'
 import { withRenderFallback } from '@/utils/renderFallback'
 import type { OnboardingServer } from '@/services/ServerWelcomeService'
+import { useAnnouncer } from '@/composables/useAnnouncer'
+import { useT } from '@/composables/useT'
+import { useServerChannelStore } from '@/stores/useServerChannel'
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   servers: OnboardingServer[]
   source: 'welcome' | 'featured'
   instanceName: string
@@ -75,6 +83,43 @@ const emit = defineEmits<{
 }>()
 
 const headingId = `os-${useId()}`
+const { t } = useT()
+const { polite } = useAnnouncer()
+
+function requestJoin(serverId: string) {
+  if (props.joiningId) return
+  emit('join', serverId)
+}
+
+function serverName(id: string): string {
+  return props.servers.find((s) => s.id === id)?.name ?? ''
+}
+
+/** True once the server is in the member's list; a failed join toasts on its own. */
+function isMember(id: string): boolean {
+  try {
+    return useServerChannelStore().servers.some((s) => s.id === id)
+  } catch {
+    return false
+  }
+}
+
+function announceJoined(id: string) {
+  if (isMember(id)) polite(t('welcomeServer.joinedNamed', { server: serverName(id) }))
+}
+
+watch(
+  () => props.joiningId,
+  (id, previous) => {
+    if (id) polite(t('welcomeServer.joiningNamed', { server: serverName(id) }))
+    else if (previous) announceJoined(previous)
+  },
+)
+
+// A successful join can unmount the parent before joiningId clears.
+onBeforeUnmount(() => {
+  if (props.joiningId) announceJoined(props.joiningId)
+})
 
 const numberFormat = new Intl.NumberFormat()
 function formatCount(count: number): string {
@@ -224,6 +269,11 @@ function bannerStyle(server: OnboardingServer): Record<string, string> {
 .is-primary .os-join {
   margin: 0 var(--space-4) var(--space-4);
   min-height: 44px;
+}
+
+.os-join[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: progress;
 }
 
 .os-spinner {

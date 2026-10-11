@@ -57,6 +57,8 @@ export interface OutboxAttachment {
   size: number
   /** Object URL of `file`; owned by the outbox once enqueued. */
   previewUrl?: string
+  /** Image or video description; the file part's altText. */
+  altText?: string
   /** Composer upload of `file`, running or settled. */
   upload?: MessageMediaUpload | null
   /** Object name and compat URL of a completed composer upload. */
@@ -96,6 +98,7 @@ export interface OutboxFile {
   status: OutboxFileStatus
   error: string | null
   upload: MessageMediaUpload | null
+  altText?: string
 }
 
 /**
@@ -155,6 +158,7 @@ function pendingFilePart(file: OutboxFile): FileContent {
     fileType: file.fileType,
     fileName: file.name,
     fileSize: file.size,
+    ...(file.altText ? { altText: file.altText } : {}),
   }
 }
 
@@ -252,6 +256,7 @@ export const useOutboxStore = defineStore('outbox', () => {
       status: 'pending',
       error: null,
       upload: null,
+      ...(attachment.altText?.trim() ? { altText: attachment.altText.trim() } : {}),
     }
     const handle = attachment.upload
     if (attachment.uploadedPath && attachment.uploadedUrl) {
@@ -378,6 +383,7 @@ export const useOutboxStore = defineStore('outbox', () => {
         fileType: file.fileType,
         fileName: file.name,
         fileSize: file.size,
+        ...(file.altText ? { altText: file.altText } : {}),
       })
     }
     return parts

@@ -2,20 +2,22 @@
   <Teleport to="body">
     <div
       class="message-actions message-actions-floating"
+      role="group"
+      :aria-label="t('messageA11y.actions.label')"
       :style="style"
     >
       <template v-if="message.is_system">
-        <div class="action-btn" data-testid="msg-action-react" @click="emit('react', message, $event)"><ReactionIcon/></div>
-        <div class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDelete" @click="emit('delete', message.id, $event)"><DeleteIcon/></div>
-        <div class="action-btn" data-testid="msg-action-more" @click="emit('context-menu', message, $event)"><MoreIcon/></div>
+        <button type="button" class="action-btn" data-testid="msg-action-react" :aria-label="t('message.react')" aria-haspopup="dialog" @click="emit('react', message, $event)"><ReactionIcon/></button>
+        <button type="button" class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDelete" :aria-label="t('message.deleteMessage')" @click="emit('delete', message.id, $event)"><DeleteIcon/></button>
+        <button type="button" class="action-btn" data-testid="msg-action-more" :aria-label="t('message.moreActions')" aria-haspopup="menu" @click="emit('context-menu', message, $event)"><MoreIcon/></button>
       </template>
       <template v-else>
-        <div class="action-btn" data-testid="msg-action-react" @click="emit('react', message, $event)"><ReactionIcon/></div>
-        <div class="action-btn" data-testid="msg-action-reply" @click="emit('reply', message)"><ReplyIcon/></div>
-        <div class="action-btn thread-btn" data-testid="msg-action-thread" v-if="!hideThreadActions" @click="emit('thread', message)" title="Create thread"><ThreadIcon/></div>
-        <div class="action-btn" data-testid="msg-action-edit" v-if="canEdit" @click="emit('edit', message)"><EditIcon/></div>
-        <div class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDelete" @click="emit('delete', message.id, $event)"><DeleteIcon/></div>
-        <div class="action-btn" data-testid="msg-action-more" @click="emit('context-menu', message, $event)"><MoreIcon/></div>
+        <button type="button" class="action-btn" data-testid="msg-action-react" :aria-label="t('message.react')" aria-haspopup="dialog" @click="emit('react', message, $event)"><ReactionIcon/></button>
+        <button type="button" class="action-btn" data-testid="msg-action-reply" :aria-label="t('message.reply')" @click="emit('reply', message)"><ReplyIcon/></button>
+        <button type="button" class="action-btn thread-btn" data-testid="msg-action-thread" v-if="!hideThreadActions" :aria-label="t('messageA11y.actions.thread')" @click="emit('thread', message)"><ThreadIcon/></button>
+        <button type="button" class="action-btn" data-testid="msg-action-edit" v-if="canEdit" :aria-label="t('message.editMessage')" @click="emit('edit', message)"><EditIcon/></button>
+        <button type="button" class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDelete" :aria-label="t('message.deleteMessage')" @click="emit('delete', message.id, $event)"><DeleteIcon/></button>
+        <button type="button" class="action-btn" data-testid="msg-action-more" :aria-label="t('message.moreActions')" aria-haspopup="menu" @click="emit('context-menu', message, $event)"><MoreIcon/></button>
       </template>
     </div>
   </Teleport>
@@ -29,6 +31,7 @@ import ThreadIcon from '@/components/icons/Thread.vue';
 import EditIcon from '@/components/icons/Edit.vue';
 import DeleteIcon from '@/components/icons/Delete.vue';
 import MoreIcon from '@/components/icons/More.vue';
+import { useT } from '@/composables/useT';
 
 interface Props {
   message: Message;
@@ -43,6 +46,8 @@ withDefaults(defineProps<Props>(), {
   hideThreadActions: false,
   isShiftHeld: false,
 });
+
+const { t } = useT();
 
 const emit = defineEmits<{
   (e: 'react', message: Message, event: MouseEvent): void;
@@ -68,7 +73,7 @@ const emit = defineEmits<{
 }
 
 .thread-btn {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .action-btn {
@@ -77,6 +82,9 @@ const emit = defineEmits<{
   justify-content: center;
   width: 32px;
   height: 32px;
+  padding: 0;
+  border: none;
+  background: none;
   cursor: pointer;
   color: var(--text-secondary);
   transition: all 0.15s ease-out;
@@ -94,8 +102,13 @@ const emit = defineEmits<{
   transform: scale(0.95);
 }
 
+.action-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+
 .action-btn.delete-danger {
-  color: var(--error) !important;
+  color: var(--text-danger) !important;
   background-color: color-mix(in srgb, var(--error) 50%, transparent) !important;
 }
 

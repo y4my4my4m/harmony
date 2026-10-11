@@ -3,8 +3,8 @@
     <!-- Input Mode Settings -->
     <div class="settings-section">
       <h4 class="section-title">
-        <Icon name="mic" />
-        Input mode
+        <Icon name="mic" aria-hidden="true" />
+        {{ t('settings.voice.inputMode') }}
       </h4>
       
       <VoiceInputModeSettings @input-mode-change="onInputModeChange" />
@@ -13,13 +13,13 @@
     <!-- Audio Settings -->
     <div class="settings-section">
       <h4 class="section-title">
-        <Icon name="volume-2" />
-        Audio devices
+        <Icon name="volume-2" aria-hidden="true" />
+        {{ t('settings.voice.audioDevices') }}
       </h4>
       
       <div class="setting-group">
-        <label class="setting-label">Input device</label>
-        <select v-model="selectedInputDevice" class="setting-select" @change="updateInputDevice">
+        <label :for="`${idBase}-input`" class="setting-label">{{ t('settings.voice.inputDevice') }}</label>
+        <select :id="`${idBase}-input`" v-model="selectedInputDevice" class="setting-select" data-testid="voice-input-device" @change="updateInputDevice">
           <option v-for="device in inputDevices" :key="device.deviceId" :value="device.deviceId">
             {{ device.label || `Microphone ${device.deviceId.slice(0, 8)}` }}
           </option>
@@ -27,8 +27,8 @@
       </div>
 
       <div class="setting-group">
-        <label class="setting-label">Output device</label>
-        <select v-model="selectedOutputDevice" class="setting-select" @change="updateOutputDevice">
+        <label :for="`${idBase}-output`" class="setting-label">{{ t('settings.voice.outputDevice') }}</label>
+        <select :id="`${idBase}-output`" v-model="selectedOutputDevice" class="setting-select" data-testid="voice-output-device" @change="updateOutputDevice">
           <option v-for="device in outputDevices" :key="device.deviceId" :value="device.deviceId">
             {{ device.label || `Speaker ${device.deviceId.slice(0, 8)}` }}
           </option>
@@ -36,40 +36,47 @@
       </div>
 
       <div class="setting-group">
-        <label class="setting-label">
-          Input volume
-          <span class="setting-value">{{ inputVolume }}%</span>
+        <label :for="`${idBase}-input-volume`" class="setting-label">
+          {{ t('settings.voice.inputVolume') }}
+          <span class="setting-value" aria-hidden="true">{{ inputVolume }}%</span>
         </label>
         <div class="volume-control">
           <input
+            :id="`${idBase}-input-volume`"
             type="range"
             v-model.number="inputVolume"
             min="0"
             max="200"
             class="setting-slider"
+            :aria-valuetext="t('settings.voice.percent', { value: inputVolume })"
+            :aria-describedby="`${idBase}-input-volume-hint`"
+            data-testid="voice-input-volume"
             @input="updateInputVolume"
             @dblclick="resetInputVolume"
           />
           <div class="volume-indicator" :style="{ width: `${inputVolume / 2}%` }"></div>
         </div>
-        <small class="setting-hint">
+        <small :id="`${idBase}-input-volume-hint`" class="setting-hint">
           {{ t('voice.inputVolumeHint') }}
           <template v-if="autoGainControl">{{ t('voice.inputVolumeAgcHint') }}</template>
         </small>
       </div>
 
       <div class="setting-group">
-        <label class="setting-label">
-          Output volume
-          <span class="setting-value">{{ outputVolume }}%</span>
+        <label :for="`${idBase}-output-volume`" class="setting-label">
+          {{ t('settings.voice.outputVolume') }}
+          <span class="setting-value" aria-hidden="true">{{ outputVolume }}%</span>
         </label>
         <div class="volume-control">
           <input
+            :id="`${idBase}-output-volume`"
             type="range"
             v-model.number="outputVolume"
             min="0"
             max="200"
             class="setting-slider"
+            :aria-valuetext="t('settings.voice.percent', { value: outputVolume })"
+            data-testid="voice-output-volume"
             @input="updateOutputVolume"
             @dblclick="resetOutputVolume"
           />
@@ -80,11 +87,27 @@
       <!-- Audio Test -->
       <div class="setting-group">
         <div class="audio-test">
-          <button @click="micTest.toggle(selectedInputDevice || null, inputVolume)" class="test-btn" :class="{ active: isTesting }">
-            <Icon name="mic" />
-            {{ isTesting ? 'Testing...' : 'Test microphone' }}
+          <button
+            type="button"
+            class="test-btn"
+            :class="{ active: isTesting }"
+            :aria-pressed="isTesting"
+            data-testid="voice-mic-test"
+            @click="micTest.toggle(selectedInputDevice || null, inputVolume)"
+          >
+            <Icon name="mic" aria-hidden="true" />
+            {{ t('voice.testMicrophone') }}
           </button>
-          <div v-if="isTesting" class="test-indicator">
+          <div
+            v-if="isTesting"
+            class="test-indicator"
+            role="meter"
+            :aria-label="t('settings.voice.micLevel')"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            :aria-valuenow="Math.round(testLevel)"
+            :aria-valuetext="micMeterText"
+          >
             <div class="test-level" :style="{ width: `${testLevel}%` }"></div>
           </div>
         </div>
@@ -94,8 +117,8 @@
     <!-- Audio Quality -->
     <div class="settings-section">
       <h4 class="section-title">
-        <Icon name="settings" />
-        Audio quality
+        <Icon name="settings" aria-hidden="true" />
+        {{ t('settings.voice.audioQuality') }}
       </h4>
 
       <div class="setting-group checkbox-group">
@@ -108,8 +131,8 @@
           />
           <div class="checkbox-custom"></div>
           <div class="checkbox-content">
-            <span>Echo cancellation</span>
-            <small>Reduces echo from your speakers</small>
+            <span>{{ t('settings.voice.echoCancellation') }}</span>
+            <small>{{ t('settings.voice.echoCancellationDesc') }}</small>
           </div>
         </label>
       </div>
@@ -124,8 +147,8 @@
           />
           <div class="checkbox-custom"></div>
           <div class="checkbox-content">
-            <span>Noise suppression</span>
-            <small>Filters background noise</small>
+            <span>{{ t('settings.voice.noiseSuppression') }}</span>
+            <small>{{ t('settings.voice.noiseSuppressionDesc') }}</small>
           </div>
         </label>
       </div>
@@ -140,8 +163,8 @@
           />
           <div class="checkbox-custom"></div>
           <div class="checkbox-content">
-            <span>Auto gain control</span>
-            <small>Automatically adjusts microphone sensitivity</small>
+            <span>{{ t('settings.voice.autoGainControl') }}</span>
+            <small>{{ t('settings.voice.autoGainControlDesc') }}</small>
           </div>
         </label>
       </div>
@@ -150,7 +173,7 @@
     <!-- Streams -->
     <div class="settings-section">
       <h4 class="section-title">
-        <Icon name="screen-share" />
+        <Icon name="screen-share" aria-hidden="true" />
         {{ t('voice.streamSettings') }}
       </h4>
 
@@ -190,23 +213,24 @@
     <!-- Soundboard -->
     <div class="settings-section">
       <h4 class="section-title">
-        <Icon name="music" />
+        <Icon name="music" aria-hidden="true" />
         {{ t('soundboard.title') }}
       </h4>
 
       <div class="setting-group">
-        <label class="setting-label">
+        <label :for="`${idBase}-soundboard-volume`" class="setting-label">
           {{ t('soundboard.volume') }}
-          <span class="setting-value">{{ soundboardVolume }}%</span>
+          <span class="setting-value" aria-hidden="true">{{ soundboardVolume }}%</span>
         </label>
         <div class="volume-control">
           <input
+            :id="`${idBase}-soundboard-volume`"
             type="range"
             v-model.number="soundboardVolume"
             min="0"
             max="100"
             class="setting-slider"
-            :aria-label="t('soundboard.volume')"
+            :aria-valuetext="t('settings.voice.percent', { value: soundboardVolume })"
             @input="updateSoundboardVolume"
             @dblclick="soundboardVolume = 100; updateSoundboardVolume()"
           />
@@ -234,14 +258,14 @@
     <!-- Video Settings -->
     <div class="settings-section">
       <h4 class="section-title">
-        <Icon name="video" />
-        Video
+        <Icon name="video" aria-hidden="true" />
+        {{ t('settings.voice.video') }}
       </h4>
 
       <div class="setting-group">
-        <label class="setting-label">Camera</label>
-        <select v-model="selectedVideoDevice" class="setting-select" @change="updateVideoSettings">
-          <option value="">No camera</option>
+        <label :for="`${idBase}-camera`" class="setting-label">{{ t('settings.voice.videoDevice') }}</label>
+        <select :id="`${idBase}-camera`" v-model="selectedVideoDevice" class="setting-select" @change="updateVideoSettings">
+          <option value="">{{ t('settings.voice.noCamera') }}</option>
           <option v-for="device in videoDevices" :key="device.deviceId" :value="device.deviceId">
             {{ device.label || `Camera ${device.deviceId.slice(0, 8)}` }}
           </option>
@@ -249,8 +273,8 @@
       </div>
 
       <div class="setting-group">
-        <label class="setting-label">Quality</label>
-        <select v-model="videoQuality" class="setting-select" @change="updateVideoSettings">
+        <label :for="`${idBase}-quality`" class="setting-label">{{ t('settings.voice.videoQuality') }}</label>
+        <select :id="`${idBase}-quality`" v-model="videoQuality" class="setting-select" @change="updateVideoSettings">
           <option value="480p">480p (Standard)</option>
           <option value="720p">720p (HD)</option>
           <option value="1080p">1080p (Full HD)</option>
@@ -258,8 +282,8 @@
       </div>
 
       <div class="setting-group">
-        <label class="setting-label">Frame rate</label>
-        <select v-model="frameRate" class="setting-select" @change="updateVideoSettings">
+        <label :for="`${idBase}-fps`" class="setting-label">{{ t('settings.voice.frameRate') }}</label>
+        <select :id="`${idBase}-fps`" v-model="frameRate" class="setting-select" @change="updateVideoSettings">
           <option value="15">15 FPS</option>
           <option value="30">30 FPS</option>
           <option value="60">60 FPS</option>
@@ -275,10 +299,11 @@
             muted
             playsinline
             class="preview-stream"
+            :aria-label="t('settings.voice.cameraPreview')"
           ></video>
           <div v-if="!previewStream" class="preview-placeholder">
-            <Icon name="video-off" size="xl" />
-            <span>Camera preview</span>
+            <Icon name="video-off" size="xl" aria-hidden="true" />
+            <span>{{ t('settings.voice.cameraPreview') }}</span>
           </div>
         </div>
       </div>
@@ -295,8 +320,10 @@ import { webrtcManager } from '@/services/webrtcManager';
 import { VoiceSettingsService, normalizeInputVolume, normalizeOutputVolume } from '@/services/VoiceSettingsService';
 import { useMicTest } from '@/composables/useMicTest';
 import { useSoundboardSettings } from '@/composables/useSoundboardSettings';
+import { uid } from '@/utils/a11y/focus';
 import Icon from '@/components/common/Icon.vue';
 import VoiceInputModeSettings from '@/components/voice/VoiceInputModeSettings.vue';
+import { useMicTestStatus } from '@/components/voice/useMicTestStatus';
 
 interface Props {
   loading?: boolean;
@@ -344,6 +371,8 @@ const frameRate = ref('30');
 // Post-gain meter: the level a call would send.
 const micTest = useMicTest();
 const { isTesting, testLevel } = micTest;
+const { meterText: micMeterText } = useMicTestStatus(isTesting, testLevel);
+const idBase = uid('voice-settings');
 const previewStream = ref<MediaStream | null>(null);
 const previewVideo = ref<HTMLVideoElement | null>(null);
 
@@ -655,7 +684,7 @@ onUnmounted(() => {
 }
 
 .setting-value {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-weight: 600;
 }
 
@@ -751,6 +780,14 @@ onUnmounted(() => {
   transition: all 0.2s ease;
   flex-shrink: 0;
   margin-top: 2px;
+}
+
+.setting-checkbox:focus-visible + .checkbox-custom,
+.setting-select:focus-visible,
+.setting-slider:focus-visible,
+.test-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .setting-checkbox:checked + .checkbox-custom {
@@ -855,131 +892,10 @@ onUnmounted(() => {
   color: var(--text-secondary);
 }
 
-/* Input Mode Styles */
-.input-mode-options {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.input-mode-option {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 16px;
-  background: var(--background-tertiary);
-  border: 2px solid var(--border-primary);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.input-mode-option:hover {
-  background: var(--background-secondary);
-  border-color: var(--border-hover);
-}
-
-.input-mode-option.active {
-  background: var(--harmony-primary-light);
-  border-color: var(--harmony-primary);
-}
-
-.radio-custom {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--text-muted);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  margin-top: 2px;
-  transition: all 0.2s ease;
-}
-
-.radio-custom.checked {
-  border-color: var(--harmony-primary);
-}
-
-.radio-inner {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: transparent;
-  transition: all 0.2s ease;
-}
-
-.radio-custom.checked .radio-inner {
-  background: var(--harmony-primary);
-}
-
-.mode-content {
-  flex: 1;
-}
-
-.mode-title {
-  display: block;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 4px;
-}
-
-.mode-description {
-  display: block;
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.4;
-}
-
-.ptt-settings {
-  padding-top: 16px;
-  border-top: 1px solid var(--border-primary);
-}
-
-.keybind-button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 12px 16px;
-  background: var(--background-tertiary);
-  border: 1px solid var(--border-primary);
-  border-radius: 8px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.keybind-button:hover {
-  background: var(--background-secondary);
-  border-color: var(--border-hover);
-}
-
-.keybind-button.recording {
-  background: var(--harmony-primary-light);
-  border-color: var(--harmony-primary);
-  color: var(--harmony-primary);
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
-}
-
 .setting-hint {
   display: block;
   margin-top: 8px;
   font-size: 12px;
   color: var(--text-secondary);
-  opacity: 0.8;
 }
 </style>

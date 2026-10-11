@@ -4,12 +4,13 @@
       type="button"
       class="build-line"
       :title="$t('settings.buildInfo.copyHint')"
-      :aria-label="$t('settings.buildInfo.copyHint')"
+      :aria-describedby="hintId"
       data-testid="build-line"
       @click="copySupportInfo"
     >
       {{ versionLine }}
     </button>
+    <span :id="hintId" class="sr-only">{{ $t('settings.buildInfo.copyHint') }}</span>
     <div class="legal-links">
       <a :href="termsUrl" target="_blank" rel="noopener noreferrer">{{ $t('settings.buildInfo.terms') }}</a>
       <a :href="privacyUrl" target="_blank" rel="noopener noreferrer">{{ $t('settings.buildInfo.privacy') }}</a>
@@ -18,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
@@ -40,6 +41,7 @@ const { t } = useI18n()
 const toast = useToast()
 const instanceSettings = useInstanceSettingsStore()
 
+const hintId = `build-hint-${useId()}`
 const build = getBuildInfo()
 const platform = getPlatformLabel()
 const nativeVersion = ref<string | null>(null)
@@ -87,6 +89,11 @@ async function copySupportInfo() {
 
 .build-line:hover {
   color: var(--text-secondary);
+}
+
+.build-line:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .legal-links {

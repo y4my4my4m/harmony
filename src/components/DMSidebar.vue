@@ -5,24 +5,27 @@
       <h2 class="dm-title">{{ $t('dm.directMessages') }}</h2>
       <div class="header-actions">
         <button 
+          ref="newDmButtonRef"
+          type="button"
           class="new-dm-btn"
           data-testid="dm-new-conversation"
           @click="showUserSearch = !showUserSearch"
-          title="Start a new DM"
-          aria-label="Start a new DM"
+          :title="t('chatNav.dm.startNew')"
+          :aria-label="t('chatNav.dm.startNew')"
           :aria-expanded="showUserSearch"
         >
-          <svg viewBox="0 0 24 24" class="icon">
+          <svg viewBox="0 0 24 24" class="icon" aria-hidden="true">
             <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="currentColor"/>
           </svg>
         </button>
         <button 
+          type="button"
           class="group-chat-btn"
           @click="showGroupChatModal = true"
-          title="Create group chat"
-          aria-label="Create group chat"
+          :title="t('chatNav.dm.createGroup')"
+          :aria-label="t('chatNav.dm.createGroup')"
         >
-          <svg viewBox="0 0 24 24" class="icon">
+          <svg viewBox="0 0 24 24" class="icon" aria-hidden="true">
             <path d="M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25M0,20V18.5C0,17.11 1.89,15.94 4.45,15.6C3.86,16.28 3.5,17.22 3.5,18.25V20H0M24,20H20.5V18.25C20.5,17.22 20.14,16.28 19.55,15.6C22.11,15.94 24,17.11 24,18.5V20Z" fill="currentColor"/>
           </svg>
         </button>
@@ -37,16 +40,20 @@
           v-model="searchQuery"
           type="text"
           :placeholder="$t('dm.searchUsersPlaceholder')"
+          :aria-label="t('chatNav.dm.searchLabel')"
           class="search-input"
           @input="handleSearch"
           @keydown.escape="closeSearch"
         />
         <button 
           v-if="searchQuery"
+          type="button"
+          :aria-label="t('chatNav.members.clearSearch')"
+          :title="t('chatNav.members.clearSearch')"
           @click="clearSearch"
           class="clear-search-btn"
         >
-          <svg viewBox="0 0 24 24" class="icon">
+          <svg viewBox="0 0 24 24" class="icon" aria-hidden="true">
             <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" fill="currentColor"/>
           </svg>
         </button>
@@ -54,7 +61,7 @@
 
       <!-- Search Results (filtered to exclude blocked users) -->
       <div v-if="searchQuery" class="search-results">
-        <div v-if="dmStore.isSearching" class="search-loading">
+        <div v-if="dmStore.isSearching" class="search-loading" role="status">
           {{ $t('common.search') }}...
         </div>
         <EmptyState
@@ -63,16 +70,16 @@
           icon="search"
           :title="$t('dm.noUsersFound')"
         />
-        <div 
+        <button 
           v-else
           v-for="user in filteredSearchResults"
           :key="user.id"
+          type="button"
           class="search-result-item"
           @click="startConversation(user)"
         >
           <Avatar
             :src="getUserAvatarUrl(user.id).value"
-            :alt="getUserDisplayName(user.id).value"
             size="sm"
             :status="getUserStatus(user.id)"
             class="user-avatar"
@@ -80,7 +87,7 @@
           <div class="user-info">
             <div class="user-name-container">
               <div class="user-name"><DisplayName :user-id="user.id" :truncate="true" /></div>
-              <div v-if="!user.is_local && user.domain" class="federated-indicator" title="Federated user">
+              <div v-if="!user.is_local && user.domain" class="federated-indicator" :title="t('federation.federatedBadge')" aria-hidden="true">
                 <svg viewBox="0 0 24 24" class="icon">
                   <path d="M16.36,14C16.44,13.34 16.5,12.68 16.5,12C16.5,11.32 16.44,10.66 16.36,10H19.74C19.9,10.64 20,11.31 20,12C20,12.69 19.9,13.36 19.74,14M14.59,19.56C15.19,18.45 15.65,17.25 15.97,16H18.92C17.96,17.65 16.43,18.93 14.59,19.56M14.34,14H9.66C9.56,13.34 9.5,12.68 9.5,12C9.5,11.32 9.56,10.65 9.66,10H14.34C14.43,10.65 14.5,11.32 14.5,12C14.5,12.68 14.43,13.34 14.34,14M12,19.96C11.17,18.76 10.5,17.43 10.09,16H13.91C13.5,17.43 12.83,18.76 12,19.96M8,8H5.08C6.03,6.34 7.57,5.06 9.4,4.44C8.8,5.55 8.35,6.75 8,8M5.08,16H8C8.35,17.25 8.8,18.45 9.4,19.56C7.57,18.93 6.03,17.65 5.08,16M4.26,14C4.1,13.36 4,12.69 4,12C4,11.31 4.1,10.64 4.26,10H7.64C7.56,10.66 7.5,11.32 7.5,12C7.5,12.68 7.56,13.34 7.64,14M12,4.03C12.83,5.23 13.5,6.57 13.91,8H10.09C10.5,6.57 11.17,5.23 12,4.03M18.92,8H15.97C15.65,6.75 15.19,5.55 14.59,4.44C16.43,5.07 17.96,6.34 18.92,8M12,2C6.47,2 2,6.5 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" fill="currentColor"/>
                 </svg>
@@ -90,7 +97,7 @@
               {{ !user.is_local && user.handle ? user.handle : user.username }}
             </div>
           </div>
-        </div>
+        </button>
       </div>
     </div>
 
@@ -114,7 +121,7 @@
       </div>
       
       <EmptyState
-        v-else-if="sortedConversations.length === 0"
+        v-else-if="displayConversations.length === 0"
         size="sm"
         icon="message-circle"
         :title="$t('dm.noConversations')"
@@ -123,112 +130,145 @@
         @action="showUserSearch = true"
       />
 
-      <div v-else class="conversations-list">
-        <div 
-          v-for="conversation in sortedConversations"
-          :key="conversation.id"
-          class="conversation-item"
-          data-testid="dm-conversation-item"
-          :class="{ 
-            'active': conversation.id === dmStore.currentConversationId,
-            'unread': conversation.unread_count && conversation.unread_count > 0,
-            'group-chat': conversation.type === 'group',
-            'muted': conversation.is_muted,
-            'in-call': liveCallIds.has(conversation.id)
-          }"
-          @click="selectConversation(conversation.id)"
-          @mouseenter="handleConversationHover(conversation.id); scheduleConversationPrefetch(conversation.id)"
-          @mouseleave="cancelConversationPrefetch"
-        >
-          <!-- Group Chat Avatar: Uses group icon from metadata -->
-          <GroupIcon
-            v-if="conversation.type === 'group'"
-            :conversation-id="conversation.id"
-            :icon-path="conversation.icon_url"
-            size="sm"
-            :show-participant-count="true"
-            :participant-count="conversation.participant_count"
-            class="conversation-avatar"
-          />
-
-          <!-- Direct Chat Avatar: Uses other user's profile avatar -->
-          <Avatar
+      <ul v-else class="conversations-list" :aria-label="t('chatNav.dm.listLabel')">
+        <template v-for="entry in displayConversations" :key="entry.key">
+          <!-- A dismissed conversation leaves an Undo in its place; focus moves to it. -->
+          <li v-if="entry.kind === 'dismissed'" class="conversation-dismissed" data-testid="dm-dismissed">
+            <span :id="dismissedTextId" class="dismissed-text">{{ t('chatNav.dm.dismissed', { name: entry.name }) }}</span>
+            <button
+              ref="undoButtonRef"
+              type="button"
+              class="dismissed-undo"
+              data-testid="dm-undo-dismiss"
+              :aria-describedby="dismissedTextId"
+              @click="undoDismiss"
+            >
+              {{ t('common.undo') }}
+            </button>
+          </li>
+          <li
             v-else
-            :src="getConversationAvatarUrl(conversation)"
-            :alt="getConversationDisplayName(conversation)"
-            size="sm"
-            :status="getConversationUserStatus(conversation)"
-            class="conversation-avatar"
-          />
-          
-          <div class="conversation-content">
-            <div class="conversation-header">
-              <div class="conversation-name-container">
-                <div class="conversation-name">
-                  <!-- Group Chat Name -->
-                  <template v-if="conversation.type === 'group'">
-                    {{ conversation.name || getDefaultGroupName(conversation) }}
-                  </template>
-                  <!-- Direct Chat Name -->
-                  <template v-else>
-                    <DisplayName v-if="conversation.other_user?.id" :user-id="conversation.other_user.id" :truncate="true" />
-                    <template v-else>{{ getConversationDisplayName(conversation) }}</template>
-                  </template>
-                </div>
-                <div v-if="conversation.other_user && !conversation.other_user.is_local && conversation.other_user.domain" 
-                     class="federated-indicator" 
-                     title="Federated user">
-                  <svg viewBox="0 0 24 24" class="icon">
-                    <path d="M16.36,14C16.44,13.34 16.5,12.68 16.5,12C16.5,11.32 16.44,10.66 16.36,10H19.74C19.9,10.64 20,11.31 20,12C20,12.69 19.9,13.36 19.74,14M14.59,19.56C15.19,18.45 15.65,17.25 15.97,16H18.92C17.96,17.65 16.43,18.93 14.59,19.56M14.34,14H9.66C9.56,13.34 9.5,12.68 9.5,12C9.5,11.32 9.56,10.65 9.66,10H14.34C14.43,10.65 14.5,11.32 14.5,12C14.5,12.68 14.43,13.34 14.34,14M12,19.96C11.17,18.76 10.5,17.43 10.09,16H13.91C13.5,17.43 12.83,18.76 12,19.96M8,8H5.08C6.03,6.34 7.57,5.06 9.4,4.44C8.8,5.55 8.35,6.75 8,8M5.08,16H8C8.35,17.25 8.8,18.45 9.4,19.56C7.57,18.93 6.03,17.65 5.08,16M4.26,14C4.1,13.36 4,12.69 4,12C4,11.31 4.1,10.64 4.26,10H7.64C7.56,10.66 7.5,11.32 7.5,12C7.5,12.68 7.56,13.34 7.64,14M12,4.03C12.83,5.23 13.5,6.57 13.91,8H10.09C10.5,6.57 11.17,5.23 12,4.03M18.92,8H15.97C15.65,6.75 15.19,5.55 14.59,4.44C16.43,5.07 17.96,6.34 18.92,8M12,2C6.47,2 2,6.5 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" fill="currentColor"/>
-                  </svg>
-                </div>
-              </div>
-              <div class="conversation-time">
-                <Icon v-if="conversation.is_muted" name="bell-off" :size="12" class="muted-icon" />
-                {{ formatMessageTime(conversation.last_activity || conversation.created_at) }}
-              </div>
-            </div>
-            
-            <div class="conversation-preview">
-              <div v-if="liveCallIds.has(conversation.id)" class="last-message call-live" data-testid="dm-conversation-call">
-                <Icon name="phone" :size="12" class="call-live-icon" />
-                {{ $t('dm.callInProgress') }}
-              </div>
-              <div v-else class="last-message">
-                {{ getLastMessagePreview(conversation) }}
-              </div>
-              <button
-                v-if="liveCallIds.has(conversation.id) && joinedCallId !== conversation.id"
-                class="conversation-join-call"
-                type="button"
-                data-testid="dm-conversation-join-call"
-                :title="$t('dm.joinCall')"
-                :aria-label="$t('dm.joinCall')"
-                @click.stop="joinCallFromList(conversation.id)"
-              >
-                <Icon name="phone" :size="14" />
-              </button>
-              <div 
-                v-if="conversation.unread_count && conversation.unread_count > 0"
-                class="unread-count"
-              >
-                {{ conversation.unread_count > 99 ? '99+' : conversation.unread_count }}
-              </div>
-            </div>
-          </div>
-
-          <!-- Dismiss (hide from list without deleting). Appears on hover. -->
-          <button
-            class="conversation-dismiss"
-            type="button"
-            :title="$t('dm.dismissConversation')"
-            :aria-label="$t('dm.dismissConversation')"
-            @click.stop="dismissConversation(conversation)"
+            class="conversation-item"
+            data-testid="dm-conversation-item"
+            :data-conversation-id="entry.conversation.id"
+            :class="{ 
+              'active': entry.conversation.id === dmStore.currentConversationId,
+              'unread': entry.conversation.unread_count && entry.conversation.unread_count > 0,
+              'group-chat': entry.conversation.type === 'group',
+              'muted': entry.conversation.is_muted,
+              'in-call': liveCallIds.has(entry.conversation.id)
+            }"
+            @mouseenter="handleConversationHover(entry.conversation.id); scheduleConversationPrefetch(entry.conversation.id)"
+            @mouseleave="cancelConversationPrefetch"
           >
-            <Icon name="x" :size="14" />
-          </button>
-        </div>
-      </div>
+            <a
+              class="conversation-link"
+              :href="`/dm/${entry.conversation.id}`"
+              :aria-current="entry.conversation.id === dmStore.currentConversationId ? 'page' : undefined"
+              data-testid="dm-conversation-link"
+              @click.prevent="selectConversation(entry.conversation.id)"
+              @focus="handleConversationHover(entry.conversation.id); scheduleConversationPrefetch(entry.conversation.id)"
+              @blur="cancelConversationPrefetch"
+            >
+              <!-- Group Chat Avatar: Uses group icon from metadata -->
+              <GroupIcon
+                v-if="entry.conversation.type === 'group'"
+                :conversation-id="entry.conversation.id"
+                :icon-path="entry.conversation.icon_url"
+                size="sm"
+                :show-participant-count="true"
+                :participant-count="entry.conversation.participant_count"
+                class="conversation-avatar"
+                aria-hidden="true"
+              />
+
+              <!-- Direct Chat Avatar: decorative beside the name -->
+              <Avatar
+                v-else
+                :src="getConversationAvatarUrl(entry.conversation)"
+                size="sm"
+                :status="getConversationUserStatus(entry.conversation)"
+                class="conversation-avatar"
+              />
+              
+              <span class="conversation-content">
+                <span class="conversation-header">
+                  <span class="conversation-name-container">
+                    <span class="conversation-name">
+                      <!-- Group Chat Name -->
+                      <template v-if="entry.conversation.type === 'group'">
+                        {{ entry.conversation.name || getDefaultGroupName(entry.conversation) }}
+                      </template>
+                      <!-- Direct Chat Name -->
+                      <template v-else>
+                        <DisplayName v-if="entry.conversation.other_user?.id" :user-id="entry.conversation.other_user.id" :truncate="true" />
+                        <template v-else>{{ getConversationDisplayName(entry.conversation) }}</template>
+                      </template>
+                    </span>
+                    <span class="sr-only">{{ conversationStateText(entry.conversation) }}</span>
+                    <span
+                      v-if="entry.conversation.other_user && !entry.conversation.other_user.is_local && entry.conversation.other_user.domain" 
+                      class="federated-indicator" 
+                      :title="t('federation.federatedBadge')"
+                      aria-hidden="true"
+                    >
+                      <svg viewBox="0 0 24 24" class="icon">
+                        <path d="M16.36,14C16.44,13.34 16.5,12.68 16.5,12C16.5,11.32 16.44,10.66 16.36,10H19.74C19.9,10.64 20,11.31 20,12C20,12.69 19.9,13.36 19.74,14M14.59,19.56C15.19,18.45 15.65,17.25 15.97,16H18.92C17.96,17.65 16.43,18.93 14.59,19.56M14.34,14H9.66C9.56,13.34 9.5,12.68 9.5,12C9.5,11.32 9.56,10.65 9.66,10H14.34C14.43,10.65 14.5,11.32 14.5,12C14.5,12.68 14.43,13.34 14.34,14M12,19.96C11.17,18.76 10.5,17.43 10.09,16H13.91C13.5,17.43 12.83,18.76 12,19.96M8,8H5.08C6.03,6.34 7.57,5.06 9.4,4.44C8.8,5.55 8.35,6.75 8,8M5.08,16H8C8.35,17.25 8.8,18.45 9.4,19.56C7.57,18.93 6.03,17.65 5.08,16M4.26,14C4.1,13.36 4,12.69 4,12C4,11.31 4.1,10.64 4.26,10H7.64C7.56,10.66 7.5,11.32 7.5,12C7.5,12.68 7.56,13.34 7.64,14M12,4.03C12.83,5.23 13.5,6.57 13.91,8H10.09C10.5,6.57 11.17,5.23 12,4.03M18.92,8H15.97C15.65,6.75 15.19,5.55 14.59,4.44C16.43,5.07 17.96,6.34 18.92,8M12,2C6.47,2 2,6.5 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" fill="currentColor"/>
+                      </svg>
+                    </span>
+                  </span>
+                  <span class="conversation-time" aria-hidden="true">
+                    <Icon v-if="entry.conversation.is_muted" name="bell-off" :size="12" class="muted-icon" />
+                    {{ formatMessageTime(entry.conversation.last_activity || entry.conversation.created_at) }}
+                  </span>
+                </span>
+                
+                <span class="conversation-preview">
+                  <span v-if="liveCallIds.has(entry.conversation.id)" class="last-message call-live" data-testid="dm-conversation-call">
+                    <Icon name="phone" :size="12" class="call-live-icon" aria-hidden="true" />
+                    {{ $t('dm.callInProgress') }}
+                  </span>
+                  <span v-else class="last-message">
+                    {{ getLastMessagePreview(entry.conversation) }}
+                  </span>
+                  <span 
+                    v-if="entry.conversation.unread_count && entry.conversation.unread_count > 0"
+                    class="unread-count"
+                    aria-hidden="true"
+                  >
+                    {{ entry.conversation.unread_count > 99 ? '99+' : entry.conversation.unread_count }}
+                  </span>
+                </span>
+              </span>
+            </a>
+
+            <button
+              v-if="liveCallIds.has(entry.conversation.id) && joinedCallId !== entry.conversation.id"
+              class="conversation-join-call"
+              type="button"
+              data-testid="dm-conversation-join-call"
+              :title="$t('dm.joinCall')"
+              :aria-label="t('chatNav.dm.joinCallWith', { name: conversationLabel(entry.conversation) })"
+              @click.stop="joinCallFromList(entry.conversation.id)"
+            >
+              <Icon name="phone" :size="14" aria-hidden="true" />
+            </button>
+
+            <!-- Dismiss hides the conversation from the list without deleting it.
+                 Shown on hover and while focus is in the row. -->
+            <button
+              class="conversation-dismiss"
+              type="button"
+              data-testid="dm-conversation-dismiss"
+              :title="$t('dm.dismissConversation')"
+              :aria-label="t('chatNav.dm.dismissNamed', { name: conversationLabel(entry.conversation) })"
+              @click.stop="dismissConversation(entry.conversation)"
+            >
+              <Icon name="x" :size="14" aria-hidden="true" />
+            </button>
+          </li>
+        </template>
+      </ul>
     </div>
 
     <!-- Group Chat Invite Modal -->
@@ -262,6 +302,8 @@ import { useToast } from 'vue-toastification'
 import { useI18n } from 'vue-i18n'
 import { isUndecrypted } from '@/utils/channelEncryption'
 import { pollPreview } from '@/utils/messagePoll'
+import { useAnnouncer } from '@/composables/useAnnouncer'
+import { focusElement, uid } from '@/utils/a11y/focus'
 
 const toast = useToast()
 const { t } = useI18n()
@@ -432,13 +474,109 @@ const selectConversation = (conversationId: string) => {
   emit('conversationSelected', conversationId)
 }
 
-const dismissConversation = async (conversation: DMConversation) => {
-  const ok = await dmStore.hideConversation(conversation.id)
-  if (ok) {
-    toast.success(t('dm.conversationDismissed'))
-  } else {
-    toast.error(t('dm.failedToDismissConversation'))
+// Dismiss and undo. The dismissed row is replaced by an Undo button that takes
+// focus, so a stray Enter on Dismiss is reversed by a second Enter.
+
+/** Undo stays offered this long, ms. */
+const UNDO_MS = 10_000
+
+interface PendingDismiss {
+  conversation: DMConversation
+  index: number
+  name: string
+}
+
+const { polite } = useAnnouncer()
+const dismissedTextId = uid('dm-dismissed')
+const pendingDismiss = ref<PendingDismiss | null>(null)
+const undoButtonRef = ref<HTMLButtonElement | HTMLButtonElement[] | null>(null)
+const newDmButtonRef = ref<HTMLButtonElement | null>(null)
+let undoTimer: ReturnType<typeof setTimeout> | null = null
+
+type DisplayEntry =
+  | { kind: 'conversation'; key: string; conversation: DMConversation }
+  | { kind: 'dismissed'; key: string; name: string }
+
+const displayConversations = computed<DisplayEntry[]>(() => {
+  const list: DisplayEntry[] = sortedConversations.value.map(conversation => ({ kind: 'conversation', key: conversation.id, conversation }))
+  const pending = pendingDismiss.value
+  // A new message brings the conversation back; its Undo is then moot.
+  if (pending && !sortedConversations.value.some(c => c.id === pending.conversation.id)) {
+    list.splice(Math.min(pending.index, list.length), 0, { kind: 'dismissed', key: `dismissed-${pending.conversation.id}`, name: pending.name })
   }
+  return list
+})
+
+const conversationLabel = (conversation: DMConversation): string =>
+  conversation.type === 'group'
+    ? conversation.name || getDefaultGroupName(conversation)
+    : getConversationDisplayName(conversation)
+
+/** Text after the visible name in a row's accessible name; the preview follows it. */
+const conversationStateText = (conversation: DMConversation): string => {
+  const parts: string[] = []
+  if (conversation.type === 'group') {
+    const members = conversation.participant_count || conversation.participants?.length || 0
+    parts.push(t('chatNav.dm.group', { count: members }, members))
+  }
+  const unread = conversation.unread_count || 0
+  if (unread > 0) parts.push(t('chatNav.rail.unreadMessages', { count: unread }, unread))
+  if (conversation.is_muted) parts.push(t('chatNav.channel.muted'))
+  return parts.length > 0 ? `, ${parts.join(', ')}. ` : '. '
+}
+
+const undoButton = (): HTMLButtonElement | null => {
+  const el = undoButtonRef.value
+  return Array.isArray(el) ? el[0] ?? null : el
+}
+
+const conversationLink = (conversationId: string): HTMLElement | null =>
+  document.querySelector<HTMLElement>(`[data-conversation-id="${CSS.escape(conversationId)}"] .conversation-link`)
+
+const clearPendingDismiss = () => {
+  if (undoTimer) clearTimeout(undoTimer)
+  undoTimer = null
+  pendingDismiss.value = null
+}
+
+/** Undo expired: focus on it moves to the row now in its place, else the one above, else New DM. */
+const expirePendingDismiss = async () => {
+  const pending = pendingDismiss.value
+  const hadFocus = !!undoButton() && document.activeElement === undoButton()
+  clearPendingDismiss()
+  if (!pending || !hadFocus) return
+  await nextTick()
+  const list = sortedConversations.value
+  const target = list[Math.min(pending.index, list.length - 1)]
+  const link = target ? conversationLink(target.id) : null
+  if (!focusElement(link)) focusElement(newDmButtonRef.value)
+}
+
+const dismissConversation = async (conversation: DMConversation) => {
+  clearPendingDismiss()
+  const index = sortedConversations.value.findIndex(c => c.id === conversation.id)
+  pendingDismiss.value = { conversation, index: Math.max(0, index), name: conversationLabel(conversation) }
+  // Removal is optimistic: the row is gone before the request settles.
+  const hidden = dmStore.hideConversation(conversation.id)
+  await nextTick()
+  focusElement(undoButton())
+  undoTimer = setTimeout(() => void expirePendingDismiss(), UNDO_MS)
+  if (await hidden) return
+  clearPendingDismiss()
+  toast.error(t('dm.failedToDismissConversation'))
+  await nextTick()
+  focusElement(conversationLink(conversation.id))
+}
+
+const undoDismiss = async () => {
+  const pending = pendingDismiss.value
+  if (!pending) return
+  clearPendingDismiss()
+  const restored = dmStore.restoreConversation(pending.conversation)
+  await nextTick()
+  focusElement(conversationLink(pending.conversation.id))
+  if (await restored) polite(t('chatNav.dm.restored', { name: pending.name }))
+  else toast.error(t('chatNav.dm.restoreFailed'))
 }
 
 const handleGroupChatCreated = (conversationId: string) => {
@@ -577,6 +715,7 @@ const handleConversationHover = async (conversationId: string) => {
 
 onUnmounted(() => {
   cancelConversationPrefetch()
+  if (undoTimer) clearTimeout(undoTimer)
   if (searchTimeout.value) {
     clearTimeout(searchTimeout.value)
   }
@@ -699,6 +838,20 @@ onUnmounted(() => {
   overflow-y: auto;
 }
 
+.search-result-item {
+  width: 100%;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.search-result-item:focus-visible {
+  outline: 2px solid var(--border-focus, var(--harmony-primary));
+  outline-offset: -2px;
+}
+
 .search-loading,
 .search-result-item {
   display: flex;
@@ -789,6 +942,8 @@ onUnmounted(() => {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+  list-style: none;
+  margin: 0;
   /* Bottom strip reserved for the floating user panel, as in ChannelSidebar. */
   padding: 8px 0 96px;
 }
@@ -797,15 +952,77 @@ onUnmounted(() => {
   position: relative;
   display: flex;
   align-items: center;
-  padding: 8px 16px;
   cursor: pointer;
   transition: background-color 0.15s ease;
-  gap: 12px;
-  border-radius: 0;
   margin: 0 8px;
   border-radius: 4px;
   min-width: 0;
   overflow: hidden;
+}
+
+/* The row's link: avatar, name, state and preview. */
+.conversation-link {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 12px;
+  padding: 8px 16px;
+  border-radius: 4px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.conversation-link:focus-visible,
+.conversation-dismiss:focus-visible,
+.conversation-join-call:focus-visible,
+.dismissed-undo:focus-visible {
+  outline: 2px solid var(--border-focus, var(--harmony-primary));
+  outline-offset: -2px;
+}
+
+.conversation-content,
+.conversation-name,
+.last-message {
+  display: block;
+}
+
+/* Left in place of a dismissed conversation until it is undone or expires. */
+.conversation-dismissed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 8px;
+  padding: 8px 16px;
+  min-height: 48px;
+  border: 1px dashed var(--border-color);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.dismissed-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dismissed-undo {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--background-secondary);
+  color: var(--text-link);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dismissed-undo:hover {
+  background: var(--background-modifier-hover);
 }
 
 .conversation-item:hover {
@@ -833,19 +1050,21 @@ onUnmounted(() => {
   transition: opacity 0.12s ease, background-color 0.12s ease, color 0.12s ease;
 }
 
-.conversation-item:hover .conversation-dismiss {
+.conversation-item:hover .conversation-dismiss,
+.conversation-item:focus-within .conversation-dismiss {
   opacity: 1;
   pointer-events: auto;
 }
 
 .conversation-dismiss:hover {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
 }
 
 /* The dismiss button sits over the timestamp's corner. */
 @media (hover: hover) {
-  .conversation-item:hover .conversation-time {
+  .conversation-item:hover .conversation-time,
+  .conversation-item:focus-within .conversation-time {
     visibility: hidden;
   }
 }
@@ -891,7 +1110,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
-  color: var(--success);
+  color: var(--text-success);
   font-weight: 500;
 }
 
@@ -905,7 +1124,7 @@ onUnmounted(() => {
   justify-content: center;
   width: 24px;
   height: 24px;
-  margin-left: 8px;
+  margin: 0 8px;
   padding: 0;
   flex-shrink: 0;
   border: none;
@@ -948,7 +1167,7 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: var(--h-brand, var(--harmony-primary));
+  background: var(--harmony-primary-fill);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1032,7 +1251,7 @@ onUnmounted(() => {
 }
 
 .unread-count {
-  background: var(--error);
+  background: var(--error-fill);
   color: var(--text-on-primary);
   font-size: 10px;
   font-weight: 600;
@@ -1118,10 +1337,13 @@ onUnmounted(() => {
 
   .conversation-item {
     min-height: 64px;
-    padding: 12px 16px;
     border-radius: 12px;
     margin: 4px 8px;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .conversation-link {
+    padding: 12px 16px;
   }
 
   .conversation-item:active {
@@ -1170,8 +1392,11 @@ onUnmounted(() => {
   
   .conversation-item {
     min-height: 60px;
-    padding: 10px 16px;
     margin: 2px 8px;
+  }
+
+  .conversation-link {
+    padding: 10px 16px;
   }
 
   .user-avatar {

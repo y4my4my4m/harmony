@@ -806,7 +806,7 @@ onMounted(async () => {
 }
 
 .gif-generate-quota.at-limit {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .gif-generate-input {
@@ -823,7 +823,7 @@ onMounted(async () => {
   padding: 0 14px;
   border: none;
   border-radius: var(--radius-base);
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: 13px;
   font-weight: 600;
@@ -832,7 +832,7 @@ onMounted(async () => {
 }
 
 .gif-generate-button:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .gif-generate-button:disabled {

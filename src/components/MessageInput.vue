@@ -12,6 +12,7 @@
       :files="attachedFiles"
       @remove-file="removeFile"
       @toggle-spoiler="toggleFileSpoiler"
+      @update-alt="setFileAltText"
     />
     <!-- Live media results for /gif, /sticker, /clip, /meme, /aiemoji -->
     <InlineGifPicker
@@ -81,10 +82,28 @@
             <Icon name="chevron-right" :size="22" />
           </button>
           <div class="plus-icon-container" :class="{ 'is-collapsed': actionsCollapsed }">
-            <PlusIcon @click="toggleUploadMenu" :class="{ active: showUploadMenu }" />
+            <button
+              ref="attachButtonRef"
+              type="button"
+              class="attach-button"
+              :class="{ active: showUploadMenu }"
+              :aria-label="t('messageA11y.composer.attach')"
+              :title="t('messageA11y.composer.attach')"
+              data-testid="composer-attach"
+              aria-haspopup="menu"
+              :aria-expanded="showUploadMenu ? 'true' : 'false'"
+              :aria-controls="showUploadMenu ? attachMenuId : undefined"
+              @click.stop="toggleUploadMenu"
+              @keydown="onAttachKeydown"
+            >
+              <PlusIcon />
+            </button>
             <FileUploadMenu
               :isVisible="showUploadMenu"
               :allow-poll="allowPolls"
+              :anchor="attachButtonRef"
+              :menu-id="attachMenuId"
+              :initial-focus="attachInitialFocus"
               @files-selected="handleFilesSelected"
               @create-poll="handleCreatePoll"
               @close="closeUploadMenu"
@@ -124,11 +143,20 @@
               v-if="showCharCount"
               class="message-char-count"
               :class="{ 'over-limit': messageTooLong }"
-              :aria-live="messageTooLong ? 'assertive' : 'polite'"
               :title="charCountTitle"
             >{{ maxMessageLength - characterCount }}</span>
-            <button ref="emojiTriggerRef" @click.stop="toggleEmojiList" class="icon-button" aria-label="Emoji" title="Emoji">
-              <EmojiUI />
+            <button
+              ref="emojiTriggerRef"
+              type="button"
+              class="icon-button"
+              data-testid="composer-emoji"
+              :aria-label="t('messageA11y.composer.emoji')"
+              :title="t('messageA11y.composer.emoji')"
+              aria-haspopup="dialog"
+              :aria-expanded="emojiListOpen ? 'true' : 'false'"
+              @click.stop="toggleEmojiList"
+            >
+              <EmojiUI aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -152,7 +180,6 @@
             v-if="showCharCount && !isCompact"
             class="message-char-count"
             :class="{ 'over-limit': messageTooLong }"
-            :aria-live="messageTooLong ? 'assertive' : 'polite'"
             :title="charCountTitle"
           >{{ maxMessageLength - characterCount }}</span>
           <VoiceRecorder
@@ -162,11 +189,34 @@
             @recording-complete="handleVoiceRecordingComplete"
             @recording-cancelled="isVoiceRecording = false"
           />
-          <button ref="gifTriggerRef" @click.stop="toggleGiphy" class="icon-button" :class="{ 'is-collapsed': actionsCollapsed }" aria-label="GIFs" title="GIFs">
+          <!-- The name starts with the visible "GIF" glyph text (WCAG 2.5.3). -->
+          <button
+            ref="gifTriggerRef"
+            type="button"
+            class="icon-button"
+            :class="{ 'is-collapsed': actionsCollapsed }"
+            data-testid="composer-gif"
+            :aria-label="t('messageA11y.composer.gif')"
+            :title="t('messageA11y.composer.gif')"
+            aria-haspopup="dialog"
+            :aria-expanded="giphyOpen ? 'true' : 'false'"
+            @click.stop="toggleGiphy"
+          >
             <GifIcon />
           </button>
-          <button v-if="!isCompact" ref="emojiTriggerRef" @click.stop="toggleEmojiList" class="icon-button" aria-label="Emoji" title="Emoji">
-            <EmojiUI />
+          <button
+            v-if="!isCompact"
+            ref="emojiTriggerRef"
+            type="button"
+            class="icon-button"
+            data-testid="composer-emoji"
+            :aria-label="t('messageA11y.composer.emoji')"
+            :title="t('messageA11y.composer.emoji')"
+            aria-haspopup="dialog"
+            :aria-expanded="emojiListOpen ? 'true' : 'false'"
+            @click.stop="toggleEmojiList"
+          >
+            <EmojiUI aria-hidden="true" />
           </button>
           <Transition name="composer-send">
             <button
@@ -246,6 +296,8 @@ import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { roleService, Permission } from '@/services/RoleService';
+import { useAnnouncer } from '@/composables/useAnnouncer';
+import { useMenuButton, type MenuCloseReason } from '@/composables/useMenu';
 
 interface Props {
   giphyOpen?: boolean;
@@ -334,6 +386,13 @@ const uploadRoom = computed(() =>
 const { triggerMessage } = useHapticSettings();
 const { recordEmojiUsage } = useFrequentEmojis();
 const showUploadMenu = ref(false);
+const attachButtonRef = ref<HTMLButtonElement | null>(null);
+const {
+  menuId: attachMenuId,
+  onTriggerKeydown: onAttachKeydown,
+  initialFocus: attachInitialFocus,
+} = useMenuButton(showUploadMenu);
+const { polite, assertive, announce } = useAnnouncer();
 const attachedFiles = ref<FilePreviewData[]>([]);
 const isDragging = ref(false);
 const richEditorRef = ref<InstanceType<typeof RichTextEditor>>();
@@ -507,6 +566,15 @@ const messageTooLong = computed(() => characterCount.value > maxMessageLength.va
 const showCharCount = computed(
   () => characterCount.value > maxMessageLength.value * 0.85,
 );
+// The counter is announced when it appears, when the draft goes over the
+// limit and when it comes back under; never per keystroke.
+watch([showCharCount, messageTooLong], ([near, over], [wasNear, wasOver]) => {
+  const left = maxMessageLength.value - characterCount.value;
+  if (over && !wasOver) assertive(t('messageA11y.composer.overLimit', { count: -left }, -left));
+  else if (!over && wasOver) polite(t('messageA11y.composer.backUnderLimit', { count: left }, left));
+  else if (near && !wasNear) polite(t('messageA11y.composer.nearLimit', { count: left }, left));
+});
+
 const charCountTitle = computed(() => messageTooLong.value
   ? `Message too long (${characterCount.value} / ${maxMessageLength.value})`
   : `${characterCount.value} / ${maxMessageLength.value}`);
@@ -650,6 +718,17 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText, {
   enableChannels: !!props.channelId && !props.conversationId,
   pollsEnabled: () => props.allowPolls,
 });
+
+// The editor carries no aria-expanded (role=textbox); the list opening and its
+// size are spoken instead.
+watch(
+  () => (autoSuggest.state.value.isActive ? autoSuggest.suggestions.value.length : 0),
+  (count, before) => {
+    if (count > 0 && count !== before) {
+      announce(t('messageA11y.composer.suggestions', { count }, count), { key: 'composer-suggestions' });
+    }
+  },
+);
 
 // Maps the active media slash command to the inline picker's media type.
 const INLINE_MEDIA_COMMANDS: Record<string, GifMediaType> = {
@@ -914,14 +993,19 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       emit('update:replyMessageId', newReplyMessageId);
     };
 
+    // A press on the attach button while the menu is open closes it on
+    // pointerdown ('outside'); the click that follows must not reopen it.
+    let uploadMenuClosedAt = 0;
     const toggleUploadMenu = (event?: Event) => {
       if (event) {
         event.stopPropagation();
       }
+      if (!showUploadMenu.value && performance.now() - uploadMenuClosedAt < 400) return;
       showUploadMenu.value = !showUploadMenu.value;
     };
 
-    const closeUploadMenu = () => {
+    const closeUploadMenu = (reason?: MenuCloseReason) => {
+      if (reason === 'outside') uploadMenuClosedAt = performance.now();
       showUploadMenu.value = false;
       actionsExpanded.value = false;
     };
@@ -976,7 +1060,12 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
           validate: true,
           onProgress: (fraction) => {
             if (!isAttached(fileData)) return;
+            const before = Math.floor((fileData.uploadProgress ?? 0) / 25);
             fileData.uploadProgress = fraction * 100;
+            const after = Math.floor(fileData.uploadProgress / 25);
+            if (after > before && after < 4) {
+              announce(t('messageA11y.upload.progress', { name: fileData.name, percent: after * 25 }), { verbose: true, key: `upload-${fileData.name}` });
+            }
             refreshUploads();
           },
         },
@@ -991,12 +1080,14 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
           fileData.uploadedUrl = uploaded.url;
           fileData.uploadedPath = uploaded.path;
           fileData.uploadProgress = 100;
+          if (isAttached(fileData)) polite(t('messageA11y.upload.done', { name: fileData.name }));
         },
         (error: unknown) => {
           if (error instanceof UploadAbortedError) return;
           fileData.uploadStatus = 'error';
           fileData.uploadError = error instanceof Error ? error.message : 'Upload failed';
           fileData.uploadProgress = 0;
+          if (isAttached(fileData)) assertive(t('message.upload.failedToast', { name: fileData.name, reason: fileData.uploadError }));
         },
       ).finally(() => {
         if (isAttached(fileData)) refreshUploads();
@@ -1035,6 +1126,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
       attachedFiles.value.push(...newFiles);
       emit('files-attached', attachedFiles.value);
+      if (newFiles.length > 0) polite(t('messageA11y.upload.attached', { count: newFiles.length }, newFiles.length));
       
       newFiles.forEach((fileData) => {
         startBackgroundUpload(fileData);
@@ -1046,6 +1138,13 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     const toggleFileSpoiler = (index: number) => {
       const file = attachedFiles.value[index];
       if (file) file.name = toggleSpoilerFileName(file.name);
+    };
+
+    const setFileAltText = (index: number, altText: string) => {
+      const file = attachedFiles.value[index];
+      if (!file) return;
+      file.altText = altText.trim() || undefined;
+      polite(file.altText ? t('messageA11y.alt.saved', { name: file.name }) : t('messageA11y.alt.removed', { name: file.name }));
     };
 
     const removeFile = (index: number) => {
@@ -1060,6 +1159,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       attachedFiles.value.splice(index, 1);
       emit('files-attached', attachedFiles.value);
       emit('upload-status-changed', hasActiveUploads());
+      polite(t('messageA11y.upload.removed', { name: removedFile.name }));
     };
 
     const handleDragEnter = (event: DragEvent) => {
@@ -1178,12 +1278,17 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       emit('upload-status-changed', hasActiveUploads());
     };
 
+    const focusEditor = () => {
+      richEditorRef.value?.focus?.();
+    };
+
     defineExpose({
       composerRef,
       gifTriggerRef,
       emojiTriggerRef,
       flashRejection,
-      restoreAttachments
+      restoreAttachments,
+      focusEditor
     });
 
 
@@ -1364,12 +1469,12 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
   }
 
   .slowmode-indicator.cooling {
-    color: var(--harmony-primary);
+    color: var(--text-link);
     background: color-mix(in srgb, var(--harmony-primary) 12%, transparent);
   }
 
   .message-char-count.over-limit {
-    color: var(--error);
+    color: var(--text-danger);
     font-weight: 600;
   }
 
@@ -1386,6 +1491,26 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
   }
   .plus-icon-container:hover {
     background-color: color-mix(in srgb, var(--text-primary) 24%, transparent);
+  }
+
+  .attach-button {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    border-radius: inherit;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .attach-button:focus-visible,
+  .icon-button:focus-visible {
+    outline: 2px solid var(--border-focus);
+    outline-offset: 2px;
   }
 
   .message-container {
@@ -1458,7 +1583,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
 
   /* Send button; rendered on mobile only. */
   .send-button {
-    background-color: var(--harmony-primary) !important;
+    background-color: var(--harmony-primary-fill) !important;
     border-radius: 50% !important;
     width: 40px !important;
     height: 40px !important;
@@ -1468,7 +1593,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
   }
 
   .send-button:hover {
-    background-color: var(--harmony-primary-hover) !important;
+    background-color: var(--harmony-primary-fill-hover) !important;
   }
 
   .send-button:active {

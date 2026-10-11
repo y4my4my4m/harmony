@@ -9,7 +9,7 @@
       <div class="avatar-wrapper">
         <Avatar
           :src="user.avatar_url"
-          :alt="displayName"
+          alt=""
           :size="isCompact ? 'md' : 'lg'"
           :status="chatUserStatus"
           :interactive="isInteractive"
@@ -23,9 +23,16 @@
     <!-- User Information -->
     <div class="profile-info">
       <div class="name-section">
+        <!-- Keyboard and screen-reader way in; the card is the pointer target. -->
         <h3 class="user-name" :style="{ color: user.color || undefined }">
-          <DisplayName v-if="user.id" :user-id="user.id" :fallback="displayName" :color="user.color || undefined" />
-          <template v-else>{{ displayName }}</template>
+          <button v-if="isInteractive" type="button" class="card-name-btn" @click.stop="handleClick">
+            <DisplayName v-if="user.id" :user-id="user.id" :fallback="displayName" :color="user.color || undefined" />
+            <template v-else>{{ displayName }}</template>
+          </button>
+          <template v-else>
+            <DisplayName v-if="user.id" :user-id="user.id" :fallback="displayName" :color="user.color || undefined" />
+            <template v-else>{{ displayName }}</template>
+          </template>
         </h3>
         <p class="user-handle">{{ displayHandle }}</p>
         <RemoteInstanceBadge
@@ -485,6 +492,23 @@ const vClickOutside = {
 </script>
 
 <style scoped>
+.card-name-btn {
+  display: inline-flex;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.card-name-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
 .unified-profile-card {
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
@@ -539,7 +563,7 @@ const vClickOutside = {
 .verified-icon {
   width: 16px;
   height: 16px;
-  color: var(--success);
+  color: var(--text-success);
   background: var(--background-primary);
   border-radius: 50%;
   padding: 2px;
@@ -548,7 +572,7 @@ const vClickOutside = {
 .special-badge-icon {
   width: 16px;
   height: 16px;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   background: var(--background-primary);
   border-radius: 50%;
   padding: 2px;
@@ -696,19 +720,19 @@ const vClickOutside = {
 }
 
 .follow-btn.following:hover {
-  background: var(--error);
+  background: var(--error-fill);
   border-color: var(--error);
   color: var(--text-on-primary);
 }
 
 .message-btn {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   border-color: var(--harmony-primary);
   color: var(--text-on-primary);
 }
 
 .message-btn:hover {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
   border-color: var(--harmony-primary-hover);
   color: var(--text-on-primary);
 }
@@ -757,12 +781,12 @@ const vClickOutside = {
 }
 
 .action-item.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .action-item.danger:hover {
   background: color-mix(in srgb, var(--error) 10%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .user-roles .instance-admin-badge {

@@ -9,6 +9,7 @@ import { acceptInvite, type InviteInfo } from '@/services/inviteService'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { debug } from '@/utils/debug'
+import { useT } from '@/composables/useT'
 
 const INSTANCE_RULES_ACK_KEY = 'harmony-instance-rules-ack'
 
@@ -18,6 +19,7 @@ export function useInviteJoin(
 ) {
   const router = useRouter()
   const toast = useToast()
+  const { t } = useT()
   const serverStore = useServerChannelStore()
   const instanceSettings = useInstanceSettingsStore()
 
@@ -56,7 +58,7 @@ export function useInviteJoin(
 
       const result = await acceptInvite(invite.code)
       if (!result.success || !result.serverId) {
-        toast.error(result.error || 'Failed to join server')
+        toast.error(result.error || t('invite.joinFailed'))
         return
       }
 
@@ -64,12 +66,12 @@ export function useInviteJoin(
         localStorage.setItem(INSTANCE_RULES_ACK_KEY, 'true')
       }
 
-      toast.success(`Joined ${invite.serverName}!`)
+      toast.success(t('invite.joined', { server: invite.serverName }))
       await serverStore.fetchServersForUser(profileId)
       options.onJoined?.(result.serverId)
     } catch (error) {
       debug.error('Error joining server via invite:', error)
-      toast.error('Failed to join server')
+      toast.error(t('invite.joinFailed'))
     } finally {
       isJoining.value = false
     }

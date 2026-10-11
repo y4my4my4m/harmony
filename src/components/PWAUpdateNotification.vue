@@ -172,7 +172,7 @@ onUnmounted(() => {
 .update-icon {
   flex-shrink: 0;
   background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border-radius: var(--radius-md);
   padding: 10px;
   display: flex;
@@ -217,12 +217,12 @@ onUnmounted(() => {
 }
 
 .update-btn.primary {
-  background: var(--harmony-primary);
+  background: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .update-btn.primary:hover:not(:disabled) {
-  background: var(--harmony-primary-hover);
+  background: var(--harmony-primary-fill-hover);
 }
 
 .update-btn.primary:disabled {

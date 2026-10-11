@@ -24,11 +24,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('activitypub.followApprovalLabel') }}</h4>
-          <p class="setting-description">{{ $t('activitypub.followApprovalDescription') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t1`">{{ $t('activitypub.followApprovalLabel') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t1-desc`">{{ $t('activitypub.followApprovalDescription') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch
+          <ToggleSwitch :labelledby="`${a11yId}-t1`" :describedby="`${a11yId}-t1-desc`"
             v-model="requireFollowApproval"
             :disabled="followApprovalSaving || !profile?.id"
             data-testid="follow-approval-toggle"
@@ -52,13 +52,13 @@
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Strip tracking parameters from URLs</h4>
-          <p class="setting-description">
+          <h4 class="setting-label" :id="`${a11yId}-t2`">Strip tracking parameters from URLs</h4>
+          <p class="setting-description" :id="`${a11yId}-t2-desc`">
             Automatically remove tracking parameters (like ?si=...) from URLs in your messages for YouTube, X/Twitter, TikTok, Instagram, and Facebook.
           </p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch
+          <ToggleSwitch :labelledby="`${a11yId}-t2`" :describedby="`${a11yId}-t2-desc`"
             v-model="settings.stripUrlTrackers"
             @change="onUrlStripChange"
           />
@@ -173,6 +173,11 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import ShieldIcon from '@/components/icons/Shield.vue'
 import EncryptionSettings from '@/components/encryption/EncryptionSettings.vue'
 import DataExportPanel from './DataExportPanel.vue'
+
+import { uid } from '@/utils/a11y/focus'
+
+// Ids pairing each switch with its visible label.
+const a11yId = uid('privacy-settings')
 
 // Props
 interface Props {
@@ -533,7 +538,7 @@ onMounted(async () => {
 
 .unblock-btn {
   padding: 6px 12px;
-  background-color: var(--error);
+  background-color: var(--error-fill);
   border: none;
   border-radius: var(--radius-sm);
   color: var(--text-on-primary);
@@ -544,7 +549,7 @@ onMounted(async () => {
 }
 
 .unblock-btn:hover {
-  background-color: var(--error-hover);
+  background-color: var(--error-fill-hover);
 }
 
 .settings-actions {
@@ -573,12 +578,12 @@ onMounted(async () => {
 }
 
 .btn-primary {
-  background-color: var(--harmony-primary);
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--harmony-primary-hover);
+  background-color: var(--harmony-primary-fill-hover);
 }
 
 .btn-secondary {
@@ -646,5 +651,6 @@ onMounted(async () => {
 
 .setting-description a {
   color: var(--text-link, var(--harmony-primary));
+  text-decoration: underline;
 }
 </style>

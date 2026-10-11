@@ -2,6 +2,8 @@
  * InstanceEmojiAdmin.vue: pages admin_list_instance_emojis, filters and searches from the
  * first page, renames through admin_rename_instance_emoji and deletes through
  * admin_delete_instance_emoji after a confirmation naming the reactions it removes.
+ * The User emojis source lists personal emojis with their owner and the AI flag; actions
+ * on them are audited as user_emoji_rename and user_emoji_delete.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -203,6 +205,73 @@ describe('InstanceEmojiAdmin', () => {
     expect(expirePersonalEmojis).toHaveBeenCalled()
     expect(toast.success).toHaveBeenCalledWith('Emoji deleted')
     expect(listCalls()).toHaveLength(2)
+  })
+
+  it('lists user emojis with the owner and the AI flag under User emojis', async () => {
+    const w = await render()
+    expect(w.findAll('select')[0].findAll('option').map((o) => o.attributes('value'))).toEqual(['all', 'local', 'remote', 'user'])
+    listResult = {
+      data: [
+        row(7, { scope: 'user', uploader: 'p-bob', uploader_username: 'bob', is_ai_generated: true, total_count: 2 }),
+        row(8, { scope: 'user', uploader: null, uploader_username: null, total_count: 2 }),
+      ],
+      error: null,
+    }
+    await w.findAll('select')[0].setValue('user')
+    await flushPromises()
+    expect(listCalls().at(-1)).toMatchObject({ p_source: 'user', p_offset: 0 })
+    expect(w.find('input[type="search"]').attributes('aria-label')).toBe('Search by name or owner')
+    const [ai, orphan] = w.findAll('.emoji-row')
+    expect(ai.find('.badge.personal').text()).toBe('personal')
+    expect(ai.find('.badge.ai .sr-only').text()).toBe('AI-generated')
+    expect(ai.text()).toContain('owned by @bob')
+    expect(orphan.find('.badge.ai').exists()).toBe(false)
+    expect(orphan.text()).toContain('deleted account')
+
+    listResult = { data: [], error: null }
+    await w.findAll('select')[0].setValue('local')
+    await w.findAll('select')[0].setValue('user')
+    await flushPromises()
+    expect(w.find('.empty-state').text()).toBe('No user emojis match.')
+  })
+
+  it('audits user emoji actions with the owner and reports per-owner name collisions', async () => {
+    listResult = {
+      data: [row(7, { scope: 'user', uploader: 'p-bob', uploader_username: 'bob', is_ai_generated: true, reaction_count: 2 })],
+      error: null,
+    }
+    const w = await render()
+    renameResult = { data: null, error: { code: '23505', message: 'exists' } }
+    await w.find('.emoji-actions .action-btn').trigger('click')
+    await w.find('.rename-input').setValue('taken')
+    await w.find('.rename-form').trigger('submit')
+    await flushPromises()
+    expect(toast.error).toHaveBeenCalledWith('The owner already has an emoji with that name.')
+
+    renameResult = { data: null, error: null }
+    await w.find('.rename-input').setValue('cool_cat')
+    await w.find('.rename-form').trigger('submit')
+    await flushPromises()
+    expect(rpc).toHaveBeenCalledWith('admin_rename_instance_emoji', { p_emoji_id: 'e7', p_name: 'cool_cat' })
+    expect(logAdminAction).toHaveBeenCalledWith({
+      action: 'user_emoji_rename',
+      targetType: 'emoji',
+      targetId: 'e7',
+      details: { from: 'emoji_7', to: 'cool_cat', owner_id: 'p-bob', owner_username: 'bob', is_ai_generated: true },
+    })
+
+    confirm.mockResolvedValueOnce(true)
+    await w.find('.action-btn.danger').trigger('click')
+    await flushPromises()
+    expect(confirm.mock.calls[0][0].message).toBe(
+      "Delete :cool_cat: from @bob's emojis? Its 2 reactions are removed, and earlier messages that use it show the :cool_cat: text instead of the image.",
+    )
+    expect(rpc).toHaveBeenCalledWith('admin_delete_instance_emoji', { p_emoji_id: 'e7' })
+    expect(logAdminAction).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'user_emoji_delete',
+      targetId: 'e7',
+      details: expect.objectContaining({ name: 'cool_cat', owner_id: 'p-bob', owner_username: 'bob', is_ai_generated: true }),
+    }))
   })
 
   it('steps back a page when a delete empties the last one', async () => {
