@@ -34,3 +34,22 @@ export function getWebhookAuthor(message: Message | null | undefined): MessageWe
     avatar_url: typeof webhook.avatar_url === 'string' && webhook.avatar_url ? webhook.avatar_url : null,
   }
 }
+
+/**
+ * Name and avatar of an author with no Harmony profile: a bridged Discord person, a channel
+ * webhook, or a bot (joined as `bot`). Null for a message a profile wrote.
+ */
+export function getForeignAuthor(message: Message | null | undefined): { name: string; avatar_url: string | null } | null {
+  const discord = message?.metadata?.discord_user
+  if (discord && typeof discord === 'object') {
+    const name = discord.display_name || discord.username
+    return { name: typeof name === 'string' && name ? name : 'Discord user', avatar_url: discord.avatar_url || null }
+  }
+  const webhook = getWebhookAuthor(message)
+  if (webhook) return { name: webhook.name, avatar_url: webhook.avatar_url }
+  if (message?.bot_id) {
+    const bot = (message as Message & { bot?: { display_name?: string; username?: string; avatar_url?: string | null } }).bot
+    return { name: bot?.display_name || bot?.username || 'Bot', avatar_url: bot?.avatar_url ?? null }
+  }
+  return null
+}
