@@ -380,17 +380,20 @@ async function isGenerationEnabled(): Promise<boolean> {
   }
 }
 
-/** Count today's (UTC) AI-generated emoji, optionally scoped to one uploader. */
+/**
+ * Count today's (UTC) AI emoji generations, optionally scoped to one profile.
+ * ai_emoji_generations keeps a row after its emoji is deleted, so a deletion
+ * does not return quota.
+ */
 async function countGeneratedToday(profileId?: string): Promise<number> {
   const supabase = getSupabaseClient();
   const start = new Date();
   start.setUTCHours(0, 0, 0, 0);
   let q = supabase
-    .from('emojis')
-    .select('id', { count: 'exact', head: true })
-    .eq('is_ai_generated', true)
+    .from('ai_emoji_generations')
+    .select('emoji_id', { count: 'exact', head: true })
     .gte('created_at', start.toISOString());
-  if (profileId) q = q.eq('uploader', profileId);
+  if (profileId) q = q.eq('profile_id', profileId);
   const { count, error } = await q;
   if (error) {
     logger.warn('Failed to count generated emoji:', error.message);
