@@ -76,14 +76,16 @@ test.afterAll(async () => {
 
 const picker = (page: Page) => page.locator('.emoji-picker-content')
 
-/** Opens the composer's emoji picker, waits for its personal groups, then toggles it shut. */
+/** Opens the composer's emoji picker, waits for its personal groups, then closes it. */
 async function pickerShows(page: Page, present: string | null, absent: string[]) {
-  const trigger = page.locator('[data-testid="message-input"] button[aria-label="Emoji"]:visible').first()
+  const trigger = page.locator('[data-testid="message-input"] button[aria-label="Emoji picker"]:visible').first()
   await trigger.click()
   await expect(picker(page)).toBeVisible({ timeout: 15000 })
-  if (present) await expect(picker(page).locator(`img[alt="${present}"]`)).toBeVisible({ timeout: 15000 })
-  for (const name of absent) await expect(picker(page).locator(`img[alt="${name}"]`)).toHaveCount(0)
-  await trigger.click()
+  // Custom emoji are buttons named ":name:"; their images are decorative.
+  if (present) await expect(picker(page).locator(`button[aria-label=":${present}:"]`).first()).toBeVisible({ timeout: 15000 })
+  for (const name of absent) await expect(picker(page).locator(`button[aria-label=":${name}:"]`)).toHaveCount(0)
+  // The picker is a modal dialog; Escape closes it and returns focus to the trigger.
+  await page.keyboard.press('Escape')
   await expect(picker(page)).toBeHidden({ timeout: 5000 })
 }
 
