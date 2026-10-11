@@ -61,7 +61,7 @@ const { t } = useI18n()
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-weight: var(--font-weight-semibold);
   text-decoration: none;
   overflow-wrap: anywhere;

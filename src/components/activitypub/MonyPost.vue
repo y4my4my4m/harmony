@@ -2432,7 +2432,7 @@ const closeLightbox = () => {
 }
 
 .reply-author-link {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-decoration: none;
   overflow-wrap: anywhere;
 }
@@ -2446,7 +2446,7 @@ const closeLightbox = () => {
   padding: 0;
   border: none;
   background: none;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font: inherit;
   cursor: pointer;
 }
@@ -2634,7 +2634,7 @@ const closeLightbox = () => {
 }
 
 .reply-count-link:hover {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-decoration: underline;
 }
 
@@ -2660,13 +2660,13 @@ const closeLightbox = () => {
 }
 
 .reply-button:hover {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   background-color: var(--harmony-primary-alpha);
 }
 
 .reblog-button:hover:not(:disabled),
 .reblog-button.active {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .reblog-button:hover:not(:disabled) {
@@ -2675,7 +2675,7 @@ const closeLightbox = () => {
 
 .favorite-button:hover,
 .favorite-button.active {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .favorite-button:hover {
@@ -2785,7 +2785,7 @@ const closeLightbox = () => {
 }
 
 :global(.action-dropdown .dropdown-item.danger) {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 :global(.action-dropdown .dropdown-item.danger:hover) {
@@ -2834,7 +2834,7 @@ const closeLightbox = () => {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-decoration: none;
   font-size: var(--font-size-sm);
   width: fit-content;

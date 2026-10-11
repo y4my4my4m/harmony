@@ -1443,7 +1443,7 @@ onMounted(() => {
 
 .delete-btn:hover {
   border-color: var(--error);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 
@@ -1484,7 +1484,7 @@ onMounted(() => {
 }
 
 .config-tab-btn.active {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border-bottom-color: var(--harmony-primary);
 }
 

@@ -780,7 +780,7 @@
       "reduceMotion": "Reduce motion",
       "reduceMotionDesc": "Reduce animations and transitions.",
       "screenReader": "Screen reader support",
-      "screenReaderDesc": "Optimize for screen readers.",
+      "screenReaderDesc": "Speaks extra activity to screen readers (typing, voice speakers, presence changes) and draws a thicker keyboard focus outline. Essential announcements are always on.",
       "saveChanges": "Save changes",
       "resetSettings": "Reset",
       "unsavedChanges": "You have unsaved appearance changes",
@@ -4408,5 +4408,143 @@
     "positionValue": "{current} of {total}",
     "speed": "Playback speed {speed}x",
     "playFailed": "Couldn't play this voice message."
+  },
+  "a11y": {
+    "unreadNotifications": "{count} unread notification | {count} unread notifications",
+    "announcements": {
+      "pinned": "Pinned"
+    },
+    "skipToContent": "Skip to content",
+    "loadingInstance": "Loading {name}…",
+    "genericError": "Something went wrong. Please try again.",
+    "backOnline": "Back online",
+    "bannerImage": "Banner image",
+    "landmarks": {
+      "servers": "Servers",
+      "channels": "Channels",
+      "directMessages": "Direct messages",
+      "members": "Members",
+      "userPanel": "Your account",
+      "social": "Social navigation",
+      "socialSidebar": "Trends and suggestions"
+    },
+    "drawer": {
+      "navigation": "Navigation menu",
+      "memberList": "Member list"
+    },
+    "title": {
+      "resetPassword": "Reset password",
+      "invite": "Invite",
+      "followRequests": "Follow requests",
+      "hashtag": "Hashtag",
+      "serverSettings": "Server settings",
+      "thread": "Thread",
+      "today": "Today",
+      "newProfile": "Create your profile"
+    },
+    "announcer": {
+      "more": "{count} more | {count} more"
+    },
+    "toast": {
+      "dismiss": "Dismiss notification"
+    },
+    "confirm": {
+      "typeExact": "Type the exact text to confirm.",
+      "typeToConfirm": "Type \"{text}\" to confirm"
+    },
+    "moderation": {
+      "kickMember": "Kick member",
+      "banMember": "Ban member",
+      "kick": "Kick",
+      "ban": "Ban"
+    },
+    "instance": {
+      "noneSelected": "No instance selected",
+      "change": "Change instance",
+      "changeShort": "Change"
+    },
+    "avatar": {
+      "view": "View avatar full size",
+      "viewNamed": "View {name}'s avatar full size",
+      "image": "Avatar",
+      "imageNamed": "{name}'s avatar",
+      "change": "Change avatar"
+    },
+    "serverIcon": {
+      "view": "View server icon full size",
+      "viewNamed": "View {name} icon full size",
+      "image": "Server icon",
+      "imageNamed": "{name} icon",
+      "change": "Change server icon"
+    },
+    "lightbox": {
+      "label": "Media viewer",
+      "position": "{current} of {total}",
+      "previous": "Previous",
+      "next": "Next",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "resetZoom": "Reset zoom and rotation",
+      "rotateLeft": "Rotate left",
+      "rotateRight": "Rotate right",
+      "videoUnsupported": "This video cannot be played here."
+    },
+    "pwa": {
+      "installApp": "Install Harmony app",
+      "share": "Share Harmony"
+    },
+    "rail": {
+      "portal": "Harmony Portal",
+      "fediverse": "Fediverse",
+      "funding": "Instance funding"
+    },
+    "notifications": {
+      "desktopFor": "{type}: desktop notifications",
+      "soundFor": "{type}: sound",
+      "testFor": "Test {type} notification",
+      "volume": "Master volume"
+    },
+    "settings": {
+      "importThemeFile": "Theme file to import"
+    },
+    "shortcuts": {
+      "title": "Navigation",
+      "regions": "Move to the next or previous region (servers, channels, messages, members, voice)",
+      "regionsKeys": "F6 / Shift+F6",
+      "browserNote": "In a web browser that keeps F6 for its address bar, use Ctrl+F6 / Ctrl+Shift+F6.",
+      "skip": "Skip to content: the first Tab stop on every page",
+      "skipKeys": "Tab",
+      "escape": "Close the open dialog, menu or drawer; focus returns to where it was",
+      "escapeKeys": "Escape"
+    }
+  },
+  "statusPicker": {
+    "setTitle": "Set custom status",
+    "editTitle": "Edit custom status",
+    "current": "Current status",
+    "clear": "Clear status",
+    "chooseEmoji": "Choose emoji",
+    "emojiSelected": "Emoji: {name}. Change emoji",
+    "charCount": "{count} of {max} characters",
+    "activity": "Activity",
+    "customHint": "Plain text or emoji only (no prefix)",
+    "clearAfter": "Clear after",
+    "saving": "Saving…",
+    "activities": {
+      "custom": "Custom",
+      "playing": "Playing",
+      "listening": "Listening",
+      "watching": "Watching",
+      "competing": "Competing",
+      "streaming": "Streaming"
+    },
+    "durations": {
+      "never": "Don't clear",
+      "30m": "30 minutes",
+      "1h": "1 hour",
+      "4h": "4 hours",
+      "today": "Today",
+      "1w": "This week"
+    }
   }
 }

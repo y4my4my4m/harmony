@@ -622,7 +622,7 @@ onBeforeUnmount(() => {
 
 .donor-instructions-icon {
   flex-shrink: 0;
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .donor-instructions-chevron {
@@ -684,7 +684,7 @@ onBeforeUnmount(() => {
 
 .donor-copy-btn:hover {
   border-color: var(--harmony-primary);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 /* Tiers */
@@ -782,7 +782,7 @@ onBeforeUnmount(() => {
 
 .my-badge-active {
   font-size: var(--font-size-xs);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 /* My donations */
@@ -829,7 +829,7 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
-  color: var(--success);
+  color: var(--text-success);
   text-align: center;
 }
 

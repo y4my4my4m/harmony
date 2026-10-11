@@ -867,7 +867,7 @@ onMounted(async () => {
 
 
 
-.report-status-badge.resolved { background: color-mix(in srgb, var(--success) 20%, transparent); color: var(--success); }
+.report-status-badge.resolved { background: color-mix(in srgb, var(--success) 20%, transparent); color: var(--text-success); }
 
 
 
@@ -931,7 +931,7 @@ onMounted(async () => {
 
 
 .report-proof :deep(.report-link) {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-decoration: underline;
   word-break: break-all;
 }
@@ -988,7 +988,7 @@ onMounted(async () => {
 
 .report-action-btn.danger {
   background: color-mix(in srgb, var(--error) 20%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 
@@ -1045,7 +1045,7 @@ onMounted(async () => {
 
 .report-action-btn.resolve {
   background: color-mix(in srgb, var(--success) 30%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 
@@ -1080,7 +1080,7 @@ onMounted(async () => {
 
 .federation-badge {
   background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   padding: 1px 6px;
   border-radius: var(--radius-sm);
   font-size: 11px;
@@ -1105,7 +1105,7 @@ onMounted(async () => {
 
 .report-user-link:hover {
   text-decoration: underline;
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 
@@ -1127,7 +1127,7 @@ onMounted(async () => {
 
 .report-external-link:hover {
   opacity: 1;
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 
@@ -1210,7 +1210,7 @@ onMounted(async () => {
   color: var(--text-secondary);
 }
 
-.badge-mini.danger { color: var(--error); }
+.badge-mini.danger { color: var(--text-danger); }
 .badge-mini.warning { color: var(--warning); }
 
 .evidence-note {

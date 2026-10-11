@@ -560,11 +560,11 @@ onBeforeUnmount(detach);
 }
 
 .pill-icon.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .pill-icon.live {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .pill-live-badge {
@@ -588,7 +588,7 @@ onBeforeUnmount(detach);
   height: 24px;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.65);
-  color: var(--error);
+  color: var(--text-danger);
   display: flex;
   align-items: center;
   justify-content: center;

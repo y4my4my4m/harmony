@@ -406,20 +406,20 @@ onMounted(async () => {
 
 .status-badge.ready {
   background: color-mix(in srgb, var(--success) 15%, transparent);
-  color: var(--success);
+  color: var(--text-success);
   border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
 }
 
 .status-badge.loading,
 .status-badge.preloading {
   background: var(--harmony-primary-alpha);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border: 1px solid var(--harmony-primary-alpha-strong);
 }
 
 .status-badge.error {
   background: color-mix(in srgb, var(--error) 15%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
   border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
 }
 
@@ -459,7 +459,7 @@ onMounted(async () => {
 
 .dev-btn.danger {
   border-color: color-mix(in srgb, var(--error) 30%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .dev-btn.danger:hover {
@@ -532,11 +532,11 @@ onMounted(async () => {
 }
 
 .toast.success .toast-icon {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .toast.error .toast-icon {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .toast.info .toast-icon {

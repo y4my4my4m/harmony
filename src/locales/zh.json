@@ -746,7 +746,7 @@
       "reduceMotion": "减少动画",
       "reduceMotionDesc": "减少动画和过渡效果。",
       "screenReader": "屏幕阅读器支持",
-      "screenReaderDesc": "为屏幕阅读器优化。",
+      "screenReaderDesc": "向屏幕阅读器播报更多动态（正在输入、语音中谁在说话、在线状态变化），并显示更粗的键盘焦点轮廓。重要播报始终开启。",
       "saveChanges": "保存更改",
       "resetSettings": "重置",
       "unsavedChanges": "您有未保存的外观更改",
@@ -4412,5 +4412,143 @@
     "positionValue": "{current} / {total}",
     "speed": "播放速度 {speed}x",
     "playFailed": "无法播放此语音消息。"
+  },
+  "a11y": {
+    "unreadNotifications": "{count} 条未读通知",
+    "announcements": {
+      "pinned": "已置顶"
+    },
+    "skipToContent": "跳到内容",
+    "loadingInstance": "正在加载 {name}…",
+    "genericError": "出了点问题，请重试。",
+    "backOnline": "已恢复联网",
+    "bannerImage": "横幅图片",
+    "landmarks": {
+      "servers": "服务器",
+      "channels": "频道",
+      "directMessages": "私信",
+      "members": "成员",
+      "userPanel": "你的账户",
+      "social": "社交导航",
+      "socialSidebar": "趋势与推荐"
+    },
+    "drawer": {
+      "navigation": "导航菜单",
+      "memberList": "成员列表"
+    },
+    "title": {
+      "resetPassword": "重置密码",
+      "invite": "邀请",
+      "followRequests": "关注请求",
+      "hashtag": "话题标签",
+      "serverSettings": "服务器设置",
+      "thread": "子区",
+      "today": "今天",
+      "newProfile": "创建个人资料"
+    },
+    "announcer": {
+      "more": "还有 {count} 条"
+    },
+    "toast": {
+      "dismiss": "关闭通知"
+    },
+    "confirm": {
+      "typeExact": "请输入完全相同的文本以确认。",
+      "typeToConfirm": "输入\"{text}\"以确认"
+    },
+    "moderation": {
+      "kickMember": "踢出成员",
+      "banMember": "封禁成员",
+      "kick": "踢出",
+      "ban": "封禁"
+    },
+    "instance": {
+      "noneSelected": "未选择实例",
+      "change": "更换实例",
+      "changeShort": "更换"
+    },
+    "avatar": {
+      "view": "查看头像原图",
+      "viewNamed": "查看 {name} 的头像原图",
+      "image": "头像",
+      "imageNamed": "{name} 的头像",
+      "change": "更换头像"
+    },
+    "serverIcon": {
+      "view": "查看服务器图标原图",
+      "viewNamed": "查看 {name} 的图标原图",
+      "image": "服务器图标",
+      "imageNamed": "{name} 的图标",
+      "change": "更换服务器图标"
+    },
+    "lightbox": {
+      "label": "媒体查看器",
+      "position": "第 {current} 项，共 {total} 项",
+      "previous": "上一项",
+      "next": "下一项",
+      "zoomIn": "放大",
+      "zoomOut": "缩小",
+      "resetZoom": "重置缩放和旋转",
+      "rotateLeft": "向左旋转",
+      "rotateRight": "向右旋转",
+      "videoUnsupported": "此视频无法在这里播放。"
+    },
+    "pwa": {
+      "installApp": "安装 Harmony 应用",
+      "share": "分享 Harmony"
+    },
+    "rail": {
+      "portal": "Harmony 门户",
+      "fediverse": "联邦宇宙",
+      "funding": "实例资助"
+    },
+    "notifications": {
+      "desktopFor": "{type}：桌面通知",
+      "soundFor": "{type}：声音",
+      "testFor": "测试{type}通知",
+      "volume": "主音量"
+    },
+    "settings": {
+      "importThemeFile": "要导入的主题文件"
+    },
+    "shortcuts": {
+      "title": "导航",
+      "regions": "移到下一个或上一个区域（服务器、频道、消息、成员、语音）",
+      "regionsKeys": "F6 / Shift+F6",
+      "browserNote": "如果浏览器把 F6 用于地址栏，请使用 Ctrl+F6 / Ctrl+Shift+F6。",
+      "skip": "跳到内容：每个页面上第一个 Tab 位置",
+      "skipKeys": "Tab",
+      "escape": "关闭打开的对话框、菜单或面板，焦点回到原处",
+      "escapeKeys": "Esc"
+    }
+  },
+  "statusPicker": {
+    "setTitle": "设置自定义状态",
+    "editTitle": "编辑自定义状态",
+    "current": "当前状态",
+    "clear": "清除状态",
+    "chooseEmoji": "选择表情",
+    "emojiSelected": "表情：{name}。更换表情",
+    "charCount": "{count}/{max} 个字符",
+    "activity": "活动",
+    "customHint": "仅文本或表情（无前缀）",
+    "clearAfter": "清除时间",
+    "saving": "正在保存…",
+    "activities": {
+      "custom": "自定义",
+      "playing": "正在玩",
+      "listening": "正在听",
+      "watching": "正在看",
+      "competing": "正在比赛",
+      "streaming": "正在直播"
+    },
+    "durations": {
+      "never": "不清除",
+      "30m": "30 分钟",
+      "1h": "1 小时",
+      "4h": "4 小时",
+      "today": "今天",
+      "1w": "本周"
+    }
   }
 }

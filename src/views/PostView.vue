@@ -911,7 +911,7 @@ a.dropdown-item {
 }
 
 .dropdown-item.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .dropdown-item.danger:hover {

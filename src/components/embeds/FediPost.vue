@@ -305,7 +305,7 @@ const platformLabel = computed(() => softwareDisplayName(props.fediverse.platfor
 }
 
 .fedi-post__content :deep(a) {
-  color: var(--harmony-primary, #58a6ff);
+  color: var(--text-link, #58a6ff);
   text-decoration: none;
 }
 
@@ -386,6 +386,6 @@ const platformLabel = computed(() => softwareDisplayName(props.fediverse.platfor
 }
 
 .fedi-post__view-link:hover {
-  color: var(--harmony-primary, #58a6ff);
+  color: var(--text-link, #58a6ff);
 }
 </style>

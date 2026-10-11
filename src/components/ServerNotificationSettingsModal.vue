@@ -30,7 +30,7 @@
           </select>
           <ToggleSwitch
             :model-value="settings.muted"
-            aria-labelledby="ns-mute-label"
+            labelledby="ns-mute-label"
             data-testid="ns-mute-toggle"
             @update:model-value="toggleMute"
           />
@@ -75,7 +75,7 @@
           </div>
           <ToggleSwitch
             :model-value="settings[flag.key]"
-            :aria-labelledby="`ns-${flag.key}-label`"
+            :labelledby="`ns-${flag.key}-label`"
             :data-testid="flag.testid"
             @update:model-value="(value: boolean) => store.updateServer(settings!.server_id, { [flag.key]: value })"
           />

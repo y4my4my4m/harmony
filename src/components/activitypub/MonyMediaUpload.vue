@@ -294,7 +294,7 @@ const formatFileSize = (bytes?: number): string => {
 
 .alt-btn.has-alt {
   border-color: var(--success);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .remove-btn {
@@ -314,7 +314,7 @@ const formatFileSize = (bytes?: number): string => {
 }
 
 .remove-btn:hover {
-  color: var(--error);
+  color: var(--text-danger);
   background-color: color-mix(in srgb, var(--error) 12%, transparent);
 }
 

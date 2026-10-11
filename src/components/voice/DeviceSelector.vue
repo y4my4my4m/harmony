@@ -482,7 +482,7 @@ watch(isOpen, (newVal) => {
 
 .device-item.active {
   background: var(--harmony-primary-light);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .device-item.active:hover {

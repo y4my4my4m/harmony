@@ -458,7 +458,7 @@ onBeforeUnmount(() => {
 
 .new-thread-error {
   margin: 8px 0 0;
-  color: var(--error);
+  color: var(--text-danger);
   font-size: 13px;
 }
 
@@ -578,7 +578,7 @@ onBeforeUnmount(() => {
 }
 
 .creator-name {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-weight: 500;
 }
 

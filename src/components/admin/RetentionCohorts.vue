@@ -302,7 +302,7 @@ onMounted(load)
 
 .segment.active {
   background: color-mix(in srgb, var(--harmony-primary) 14%, var(--background-tertiary));
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .segment:focus-visible {

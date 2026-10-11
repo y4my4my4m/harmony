@@ -18,11 +18,11 @@
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('user.dnd') }}</h4>
-          <p class="setting-description">Silence sounds, pop-ups and push during set hours. Notifications still reach your inbox.</p>
+          <h4 class="setting-label" :id="`${a11yId}-t1`">{{ $t('user.dnd') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t1-desc`">Silence sounds, pop-ups and push during set hours. Notifications still reach your inbox.</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch :labelledby="`${a11yId}-t1`" :describedby="`${a11yId}-t1-desc`" 
             v-model="preferences.dnd_enabled"
             @change="updatePreferences"
           />
@@ -84,10 +84,10 @@
           <div class="category-header">
             <Icon name="message-circle" class="category-icon chat" :size="20" />
             <div class="category-info">
-              <h4 class="category-title">{{ $t('navigation.chat') }} & {{ $t('activitypub.messages') }}</h4>
-              <p class="category-description">Notifications from servers and direct messages</p>
+              <h4 class="category-title" :id="`${a11yId}-t2`">{{ $t('navigation.chat') }} & {{ $t('activitypub.messages') }}</h4>
+              <p class="category-description" :id="`${a11yId}-t2-desc`">Notifications from servers and direct messages</p>
             </div>
-            <ToggleSwitch 
+            <ToggleSwitch :labelledby="`${a11yId}-t2`" :describedby="`${a11yId}-t2-desc`" 
               v-model="preferences.desktop_notifications"
               @change="updatePreferences"
             />
@@ -107,6 +107,7 @@
                   <div class="control-group">
                     <Icon name="monitor" class="control-icon" />
                     <ToggleSwitch 
+                      :label="$t('a11y.notifications.desktopFor', { type: type.label })"
                       v-model="(preferences as any)[type.desktopKey]"
                       @change="updatePreferences"
                       size="small"
@@ -115,13 +116,17 @@
                   <div class="control-group">
                     <Icon name="volume-2" class="control-icon" />
                     <ToggleSwitch 
+                      :label="$t('a11y.notifications.soundFor', { type: type.label })"
                       v-model="(preferences as any)[type.soundKey]"
                       @change="updatePreferences"
                       size="small"
                     />
                   </div>
                   <button 
+                    type="button"
                     class="test-btn" 
+                    :aria-label="$t('a11y.notifications.testFor', { type: type.label })"
+                    :title="$t('a11y.notifications.testFor', { type: type.label })"
                     @click="testNotification(type.testType as NotificationType)"
                     :disabled="isTestingType === type.testType"
                   >
@@ -143,7 +148,7 @@
                     <Icon name="bell" class="control-icon" />
                     <ToggleSwitch
                       v-model="preferences.newcomer_alerts"
-                      :aria-label="$t('newcomerAlerts.preference.label')"
+                      :label="$t('newcomerAlerts.preference.label')"
                       @change="updatePreferences"
                       size="small"
                     />
@@ -159,10 +164,10 @@
           <div class="category-header">
             <Icon name="globe" class="category-icon activitypub" />
             <div class="category-info">
-              <h4 class="category-title">ActivityPub & federation</h4>
-              <p class="category-description">Notifications from the federated network</p>
+              <h4 class="category-title" :id="`${a11yId}-t6`">ActivityPub & federation</h4>
+              <p class="category-description" :id="`${a11yId}-t6-desc`">Notifications from the federated network</p>
             </div>
-            <ToggleSwitch 
+            <ToggleSwitch :labelledby="`${a11yId}-t6`" :describedby="`${a11yId}-t6-desc`" 
               v-model="preferences.activitypub_notifications"
               @change="updatePreferences"
             />
@@ -182,6 +187,7 @@
                   <div class="control-group">
                     <Icon name="monitor" class="control-icon" />
                     <ToggleSwitch 
+                      :label="$t('a11y.notifications.desktopFor', { type: type.label })"
                       v-model="(preferences as any)[type.desktopKey]"
                       @change="updatePreferences"
                       size="small"
@@ -190,13 +196,17 @@
                   <div class="control-group">
                     <Icon name="volume-2" class="control-icon" />
                     <ToggleSwitch 
+                      :label="$t('a11y.notifications.soundFor', { type: type.label })"
                       v-model="(preferences as any)[type.soundKey]"
                       @change="updatePreferences"
                       size="small"
                     />
                   </div>
                   <button 
+                    type="button"
                     class="test-btn" 
+                    :aria-label="$t('a11y.notifications.testFor', { type: type.label })"
+                    :title="$t('a11y.notifications.testFor', { type: type.label })"
                     @click="testNotification(type.testType as NotificationType)"
                     :disabled="isTestingType === type.testType"
                   >
@@ -229,6 +239,8 @@
               min="0" 
               max="100" 
               v-model.number="soundVolume"
+              :aria-label="$t('a11y.notifications.volume')"
+              :aria-valuetext="`${soundVolume}%`"
               class="volume-slider"
               @input="onVolumeChange"
             />
@@ -240,11 +252,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Voice activity sounds</h4>
-          <p class="setting-description">Play sounds for voice channel activity</p>
+          <h4 class="setting-label" :id="`${a11yId}-t9`">Voice activity sounds</h4>
+          <p class="setting-description" :id="`${a11yId}-t9-desc`">Play sounds for voice channel activity</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch :labelledby="`${a11yId}-t9`" :describedby="`${a11yId}-t9-desc`" 
             v-model="preferences.sound_voice_activity"
             @change="updatePreferences"
           />
@@ -363,11 +375,11 @@
       <div v-if="pushNotifications.isSubscribed.value || pushNotifications.subscriptions.value.length > 0" class="push-preferences">
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label">Push to my devices</h4>
-            <p class="setting-description">Turns push off everywhere without removing any device</p>
+            <h4 class="setting-label" :id="`${a11yId}-t10`">Push to my devices</h4>
+            <p class="setting-description" :id="`${a11yId}-t10-desc`">Turns push off everywhere without removing any device</p>
           </div>
           <div class="setting-control">
-            <ToggleSwitch
+            <ToggleSwitch :labelledby="`${a11yId}-t10`" :describedby="`${a11yId}-t10-desc`"
               v-model="preferences.push_notifications"
               @change="updatePreferences"
             />
@@ -377,11 +389,11 @@
         <template v-if="preferences.push_notifications">
           <div class="setting-item">
             <div class="setting-info">
-              <h4 class="setting-label">Only when I'm away</h4>
-              <p class="setting-description">Skip push while Harmony is open and in use on another device</p>
+              <h4 class="setting-label" :id="`${a11yId}-t11`">Only when I'm away</h4>
+              <p class="setting-description" :id="`${a11yId}-t11-desc`">Skip push while Harmony is open and in use on another device</p>
             </div>
             <div class="setting-control">
-              <ToggleSwitch
+              <ToggleSwitch :labelledby="`${a11yId}-t11`" :describedby="`${a11yId}-t11-desc`"
                 v-model="preferences.push_offline_only"
                 @change="updatePreferences"
               />
@@ -390,11 +402,11 @@
 
           <div class="setting-item">
             <div class="setting-info">
-              <h4 class="setting-label">Mentions</h4>
-              <p class="setting-description">Receive push notifications when you're mentioned</p>
+              <h4 class="setting-label" :id="`${a11yId}-t12`">Mentions</h4>
+              <p class="setting-description" :id="`${a11yId}-t12-desc`">Receive push notifications when you're mentioned</p>
             </div>
             <div class="setting-control">
-              <ToggleSwitch
+              <ToggleSwitch :labelledby="`${a11yId}-t12`" :describedby="`${a11yId}-t12-desc`"
                 v-model="preferences.push_mentions"
                 @change="updatePreferences"
               />
@@ -403,11 +415,11 @@
 
           <div class="setting-item">
             <div class="setting-info">
-              <h4 class="setting-label">Direct messages</h4>
-              <p class="setting-description">Receive push notifications for new DMs</p>
+              <h4 class="setting-label" :id="`${a11yId}-t13`">Direct messages</h4>
+              <p class="setting-description" :id="`${a11yId}-t13-desc`">Receive push notifications for new DMs</p>
             </div>
             <div class="setting-control">
-              <ToggleSwitch
+              <ToggleSwitch :labelledby="`${a11yId}-t13`" :describedby="`${a11yId}-t13-desc`"
                 v-model="preferences.push_dms"
                 @change="updatePreferences"
               />
@@ -473,11 +485,11 @@
       
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Enable haptic feedback</h4>
-          <p class="setting-description">Feel vibrations when interacting with the app</p>
+          <h4 class="setting-label" :id="`${a11yId}-t14`">Enable haptic feedback</h4>
+          <p class="setting-description" :id="`${a11yId}-t14-desc`">Feel vibrations when interacting with the app</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch :labelledby="`${a11yId}-t14`" :describedby="`${a11yId}-t14-desc`" 
             v-model="hapticSettings.isEnabled.value"
           />
         </div>
@@ -486,11 +498,11 @@
       <div v-if="hapticSettings.isEnabled.value" class="haptic-categories">
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label">Sending messages</h4>
-            <p class="setting-description">When sending a message</p>
+            <h4 class="setting-label" :id="`${a11yId}-t15`">Sending messages</h4>
+            <p class="setting-description" :id="`${a11yId}-t15-desc`">When sending a message</p>
           </div>
           <div class="setting-control">
-            <ToggleSwitch 
+            <ToggleSwitch :labelledby="`${a11yId}-t15`" :describedby="`${a11yId}-t15-desc`" 
               v-model="hapticSettings.hapticTriggers.value.messages"
               size="small"
             />
@@ -499,11 +511,11 @@
 
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label">Reactions</h4>
-            <p class="setting-description">When adding or removing reactions</p>
+            <h4 class="setting-label" :id="`${a11yId}-t16`">Reactions</h4>
+            <p class="setting-description" :id="`${a11yId}-t16-desc`">When adding or removing reactions</p>
           </div>
           <div class="setting-control">
-            <ToggleSwitch 
+            <ToggleSwitch :labelledby="`${a11yId}-t16`" :describedby="`${a11yId}-t16-desc`" 
               v-model="hapticSettings.hapticTriggers.value.reactions"
               size="small"
             />
@@ -512,11 +524,11 @@
 
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label">Navigation</h4>
-            <p class="setting-description">When switching tabs or opening menus</p>
+            <h4 class="setting-label" :id="`${a11yId}-t17`">Navigation</h4>
+            <p class="setting-description" :id="`${a11yId}-t17-desc`">When switching tabs or opening menus</p>
           </div>
           <div class="setting-control">
-            <ToggleSwitch 
+            <ToggleSwitch :labelledby="`${a11yId}-t17`" :describedby="`${a11yId}-t17-desc`" 
               v-model="hapticSettings.hapticTriggers.value.navigation"
               size="small"
             />
@@ -525,11 +537,11 @@
 
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label">Voice & calls</h4>
-            <p class="setting-description">When joining/leaving voice channels</p>
+            <h4 class="setting-label" :id="`${a11yId}-t18`">Voice & calls</h4>
+            <p class="setting-description" :id="`${a11yId}-t18-desc`">When joining/leaving voice channels</p>
           </div>
           <div class="setting-control">
-            <ToggleSwitch 
+            <ToggleSwitch :labelledby="`${a11yId}-t18`" :describedby="`${a11yId}-t18-desc`" 
               v-model="hapticSettings.hapticTriggers.value.voice"
               size="small"
             />
@@ -538,11 +550,11 @@
 
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label">Interactions</h4>
-            <p class="setting-description">Long press, pull to refresh, etc.</p>
+            <h4 class="setting-label" :id="`${a11yId}-t19`">Interactions</h4>
+            <p class="setting-description" :id="`${a11yId}-t19-desc`">Long press, pull to refresh, etc.</p>
           </div>
           <div class="setting-control">
-            <ToggleSwitch 
+            <ToggleSwitch :labelledby="`${a11yId}-t19`" :describedby="`${a11yId}-t19-desc`" 
               v-model="hapticSettings.hapticTriggers.value.interactions"
               size="small"
             />
@@ -551,11 +563,11 @@
 
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label">Toggle switches</h4>
-            <p class="setting-description">When toggling settings on/off</p>
+            <h4 class="setting-label" :id="`${a11yId}-t20`">Toggle switches</h4>
+            <p class="setting-description" :id="`${a11yId}-t20-desc`">When toggling settings on/off</p>
           </div>
           <div class="setting-control">
-            <ToggleSwitch 
+            <ToggleSwitch :labelledby="`${a11yId}-t20`" :describedby="`${a11yId}-t20-desc`" 
               v-model="hapticSettings.hapticTriggers.value.toggles"
               size="small"
             />
@@ -564,11 +576,11 @@
 
         <div class="setting-item">
           <div class="setting-info">
-            <h4 class="setting-label">Destructive actions</h4>
-            <p class="setting-description">When deleting messages or leaving servers</p>
+            <h4 class="setting-label" :id="`${a11yId}-t21`">Destructive actions</h4>
+            <p class="setting-description" :id="`${a11yId}-t21-desc`">When deleting messages or leaving servers</p>
           </div>
           <div class="setting-control">
-            <ToggleSwitch 
+            <ToggleSwitch :labelledby="`${a11yId}-t21`" :describedby="`${a11yId}-t21-desc`" 
               v-model="hapticSettings.hapticTriggers.value.destructive"
               size="small"
             />
@@ -627,6 +639,11 @@ import { isTauri, isTauriMobile, isMobileDevice, supportsHaptics } from '@/utils
 import { useHapticSettings } from '@/composables/useHapticSettings'
 import { isAndroidApp } from '@/services/androidPush'
 import AndroidPushSettings from '@/components/settings/user/AndroidPushSettings.vue'
+
+import { uid } from '@/utils/a11y/focus'
+
+// Ids pairing each switch with its visible label.
+const a11yId = uid('notification-settings')
 
 // Stores
 const notificationStore = useNotificationStore()
@@ -1337,12 +1354,12 @@ watch(() => notificationStore.preferences, (newPreferences) => {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   background: color-mix(in srgb, var(--error) 10%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .haptic-status.active {
   background: color-mix(in srgb, var(--success) 10%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .haptic-categories {
@@ -1487,11 +1504,11 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 }
 
 .permission-granted {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .permission-denied {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .permission-text {
@@ -1755,18 +1772,18 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 
 .push-status-badge.subscribed {
   background: color-mix(in srgb, var(--success) 10%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .push-status-badge.available {
   background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .push-status-badge.denied,
 .push-status-badge.not-supported {
   background: color-mix(in srgb, var(--error) 10%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .push-warning {
@@ -1792,7 +1809,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 }
 
 .push-warning.error > svg {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .push-warning strong {
@@ -1873,7 +1890,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 
 .push-unsubscribe-btn {
   background: color-mix(in srgb, var(--error) 10%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
   border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
 }
 
@@ -1883,7 +1900,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 
 .push-test-btn {
   background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
@@ -1959,7 +1976,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
   padding: 6px;
   background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
   border-radius: var(--radius-md);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .device-details {
@@ -1978,7 +1995,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
   padding: 1px 6px;
   border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
-  color: var(--h-brand);
+  color: var(--text-link);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold, 600);
 }
@@ -2000,7 +2017,7 @@ watch(() => notificationStore.preferences, (newPreferences) => {
 
 .device-remove-btn:hover {
   background: color-mix(in srgb, var(--error) 10%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 /* Responsive design */

@@ -31,6 +31,7 @@ import { webrtcManager } from '@/services/webrtcManager';
 import { livekitWebRTC } from '@/services/livekitWebRTC';
 import { detectAvailablePacks } from '@/services/emojiPackService';
 import { installRenderFallback } from '@/utils/renderFallback';
+import { toastRole } from '@/utils/a11y/toastRole';
 
 // Expose for debugging in browser console
 if (typeof window !== 'undefined') {
@@ -49,14 +50,38 @@ app.use(Toast, {
   transition: "Vue-Toastification__bounce",
   maxToasts: 20,
   newestOnTop: true,
-  timeout: 2500,
+  // Long enough to be read, or heard, before it goes (WCAG 2.2.1).
+  timeout: 6000,
   pauseOnHover: true,
+  pauseOnFocusLoss: true,
   closeOnClick: true,
   // Warnings/errors go top-center with longer timeouts so they don't get
   // buried under routine info/success toasts in the corner.
   toastDefaults: {
     error: { position: 'top-center', timeout: 8000 },
     warning: { position: 'top-center', timeout: 8000 },
+  },
+  // Errors and warnings interrupt (role=alert); the rest are polite (role=status).
+  filterBeforeCreate: (toast: any) => ({
+    ...toast,
+    accessibility: {
+      toastRole: toastRole(toast.type),
+      closeButtonLabel: i18n.global.t('a11y.toast.dismiss'),
+    },
+  }),
+  // The toast host is a direct child of <body>: an open modal must not make it
+  // inert. Keyboard focus on a toast (its close button) pauses its timer the way
+  // the pointer does: the library listens for mouseenter/mouseleave only.
+  onMounted: (component: any) => {
+    const host: HTMLElement | undefined = component?.$el
+    if (!host?.setAttribute) return
+    host.setAttribute('data-a11y-persistent', '')
+    const toastOf = (target: EventTarget | null) => (target as Element | null)?.closest?.('.Vue-Toastification__toast')
+    host.addEventListener('focusin', (e) => toastOf(e.target)?.dispatchEvent(new MouseEvent('mouseenter')))
+    host.addEventListener('focusout', (e) => {
+      const toast = toastOf(e.target)
+      if (toast && !toast.contains(e.relatedTarget as Node | null)) toast.dispatchEvent(new MouseEvent('mouseleave'))
+    })
   },
 });
 

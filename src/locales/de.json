@@ -746,7 +746,7 @@
       "reduceMotion": "Bewegung reduzieren",
       "reduceMotionDesc": "Animationen und Übergänge reduzieren.",
       "screenReader": "Bildschirmleser-Unterstützung",
-      "screenReaderDesc": "Für Bildschirmleser optimieren.",
+      "screenReaderDesc": "Sagt Screenreadern zusätzliche Aktivität an (Tippen, wer im Sprachkanal spricht, Statuswechsel) und zeichnet einen dickeren Tastaturfokus-Rahmen. Wichtige Ansagen sind immer aktiv.",
       "saveChanges": "Änderungen speichern",
       "resetSettings": "Zurücksetzen",
       "unsavedChanges": "Du hast ungespeicherte Änderungen am Erscheinungsbild",
@@ -4412,5 +4412,143 @@
     "positionValue": "{current} von {total}",
     "speed": "Wiedergabegeschwindigkeit {speed}x",
     "playFailed": "Diese Sprachnachricht konnte nicht abgespielt werden."
+  },
+  "a11y": {
+    "unreadNotifications": "{count} ungelesene Benachrichtigung | {count} ungelesene Benachrichtigungen",
+    "announcements": {
+      "pinned": "Angeheftet"
+    },
+    "skipToContent": "Zum Inhalt springen",
+    "loadingInstance": "{name} wird geladen…",
+    "genericError": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "backOnline": "Wieder online",
+    "bannerImage": "Bannerbild",
+    "landmarks": {
+      "servers": "Server",
+      "channels": "Kanäle",
+      "directMessages": "Direktnachrichten",
+      "members": "Mitglieder",
+      "userPanel": "Dein Konto",
+      "social": "Soziale Navigation",
+      "socialSidebar": "Trends und Vorschläge"
+    },
+    "drawer": {
+      "navigation": "Navigationsmenü",
+      "memberList": "Mitgliederliste"
+    },
+    "title": {
+      "resetPassword": "Passwort zurücksetzen",
+      "invite": "Einladung",
+      "followRequests": "Folgeanfragen",
+      "hashtag": "Hashtag",
+      "serverSettings": "Servereinstellungen",
+      "thread": "Thread",
+      "today": "Heute",
+      "newProfile": "Erstelle dein Profil"
+    },
+    "announcer": {
+      "more": "{count} weitere | {count} weitere"
+    },
+    "toast": {
+      "dismiss": "Benachrichtigung schließen"
+    },
+    "confirm": {
+      "typeExact": "Gib den genauen Text zur Bestätigung ein.",
+      "typeToConfirm": "Gib „{text}\" zur Bestätigung ein"
+    },
+    "moderation": {
+      "kickMember": "Mitglied kicken",
+      "banMember": "Mitglied bannen",
+      "kick": "Kicken",
+      "ban": "Bannen"
+    },
+    "instance": {
+      "noneSelected": "Keine Instanz ausgewählt",
+      "change": "Instanz wechseln",
+      "changeShort": "Wechseln"
+    },
+    "avatar": {
+      "view": "Avatar in voller Größe anzeigen",
+      "viewNamed": "Avatar von {name} in voller Größe anzeigen",
+      "image": "Avatar",
+      "imageNamed": "Avatar von {name}",
+      "change": "Avatar ändern"
+    },
+    "serverIcon": {
+      "view": "Server-Symbol in voller Größe anzeigen",
+      "viewNamed": "Symbol von {name} in voller Größe anzeigen",
+      "image": "Server-Symbol",
+      "imageNamed": "Symbol von {name}",
+      "change": "Server-Symbol ändern"
+    },
+    "lightbox": {
+      "label": "Medienansicht",
+      "position": "{current} von {total}",
+      "previous": "Zurück",
+      "next": "Weiter",
+      "zoomIn": "Vergrößern",
+      "zoomOut": "Verkleinern",
+      "resetZoom": "Zoom und Drehung zurücksetzen",
+      "rotateLeft": "Nach links drehen",
+      "rotateRight": "Nach rechts drehen",
+      "videoUnsupported": "Dieses Video kann hier nicht abgespielt werden."
+    },
+    "pwa": {
+      "installApp": "Harmony-App installieren",
+      "share": "Harmony teilen"
+    },
+    "rail": {
+      "portal": "Harmony-Portal",
+      "fediverse": "Fediverse",
+      "funding": "Finanzierung der Instanz"
+    },
+    "notifications": {
+      "desktopFor": "{type}: Desktop-Benachrichtigungen",
+      "soundFor": "{type}: Ton",
+      "testFor": "Benachrichtigung testen: {type}",
+      "volume": "Gesamtlautstärke"
+    },
+    "settings": {
+      "importThemeFile": "Zu importierende Theme-Datei"
+    },
+    "shortcuts": {
+      "title": "Navigation",
+      "regions": "Zum nächsten oder vorherigen Bereich wechseln (Server, Kanäle, Nachrichten, Mitglieder, Sprache)",
+      "regionsKeys": "F6 / Umschalt+F6",
+      "browserNote": "In einem Browser, der F6 für die Adressleiste nutzt: Strg+F6 / Strg+Umschalt+F6.",
+      "skip": "Zum Inhalt springen: der erste Tab-Stopp auf jeder Seite",
+      "skipKeys": "Tab",
+      "escape": "Geöffneten Dialog, Menü oder Bereich schließen; der Fokus kehrt zurück",
+      "escapeKeys": "Esc"
+    }
+  },
+  "statusPicker": {
+    "setTitle": "Benutzerdefinierten Status festlegen",
+    "editTitle": "Benutzerdefinierten Status bearbeiten",
+    "current": "Aktueller Status",
+    "clear": "Status löschen",
+    "chooseEmoji": "Emoji auswählen",
+    "emojiSelected": "Emoji: {name}. Emoji ändern",
+    "charCount": "{count} von {max} Zeichen",
+    "activity": "Aktivität",
+    "customHint": "Nur Text oder Emoji (ohne Präfix)",
+    "clearAfter": "Löschen nach",
+    "saving": "Wird gespeichert…",
+    "activities": {
+      "custom": "Benutzerdefiniert",
+      "playing": "Spielt",
+      "listening": "Hört",
+      "watching": "Schaut",
+      "competing": "Tritt an",
+      "streaming": "Streamt"
+    },
+    "durations": {
+      "never": "Nicht löschen",
+      "30m": "30 Minuten",
+      "1h": "1 Stunde",
+      "4h": "4 Stunden",
+      "today": "Heute",
+      "1w": "Diese Woche"
+    }
   }
 }

@@ -203,6 +203,7 @@
 </template>
 
 <script setup lang="ts">
+import { hasOpenLayer } from '@/utils/a11y/layers'
 import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
@@ -586,7 +587,8 @@ const handleSettingsKeydown = (event: KeyboardEvent) => {
   // user can re-open the settings, but we make sure we're not stealing
   // Escape from a modal that has it open on top of us.
   const target = event.target as HTMLElement | null
-  if (target?.closest('.modal-overlay')) return
+  // A dialog, menu or drawer above the view owns this Escape (utils/a11y/layers.ts).
+  if (event.defaultPrevented || hasOpenLayer() || target?.closest('.modal-overlay')) return
   closeSettings()
 }
 
@@ -865,13 +867,13 @@ onUnmounted(() => {
 }
 
 .logout-btn {
-  color: var(--error) !important;
+  color: var(--text-danger) !important;
   margin-top: 16px;
 }
 
 .logout-btn:hover {
   background-color: color-mix(in srgb, var(--error) 10%, transparent) !important;
-  color: var(--error) !important;
+  color: var(--text-danger) !important;
 }
 
 /* Main Content */

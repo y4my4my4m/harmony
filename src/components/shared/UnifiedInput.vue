@@ -310,7 +310,7 @@ defineExpose({
 }
 
 .input-required {
-  color: var(--error);
+  color: var(--text-danger);
   margin-left: var(--space-1);
 }
 
@@ -481,7 +481,7 @@ defineExpose({
 /* Error message */
 .input-error {
   font-size: var(--font-size-xs);
-  color: var(--error);
+  color: var(--text-danger);
   margin-top: -var(--space-1);
 }
 

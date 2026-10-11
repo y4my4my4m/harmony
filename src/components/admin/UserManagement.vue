@@ -621,7 +621,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 
 .user-stat.clickable:hover {
   background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 
@@ -671,7 +671,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 
 .delete-btn:hover {
   border-color: var(--error);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 
@@ -680,7 +680,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 
 .unsuspend-btn {
   border-color: color-mix(in srgb, var(--success) 30%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 
@@ -730,7 +730,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
 
 
 .promote-btn {
-  color: var(--success) !important;
+  color: var(--text-success) !important;
   &:hover { background: color-mix(in srgb, var(--success) 20%, transparent) !important; }
 }
 
@@ -966,7 +966,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
   align-items: center;
   justify-content: center;
   background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-size: 20px;
   font-weight: 700;
 }

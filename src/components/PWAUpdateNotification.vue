@@ -172,7 +172,7 @@ onUnmounted(() => {
 .update-icon {
   flex-shrink: 0;
   background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border-radius: var(--radius-md);
   padding: 10px;
   display: flex;

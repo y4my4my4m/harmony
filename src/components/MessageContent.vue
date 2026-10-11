@@ -226,7 +226,7 @@ export default defineComponent({
   padding: 0 2px;
   font-weight: 500;
   cursor: pointer;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   display: inline-block;
   transition: 0.2s;
   font-weight:500;
@@ -304,7 +304,7 @@ export default defineComponent({
 }
 
 .edit-action {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   cursor: pointer;
   font-weight: 500;
 }

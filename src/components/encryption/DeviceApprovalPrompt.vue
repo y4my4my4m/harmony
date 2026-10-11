@@ -218,7 +218,7 @@ onMounted(async () => {
 }
 
 .device-approval-card-waiting .dap-icon {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .dap-body {

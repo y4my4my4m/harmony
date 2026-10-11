@@ -346,7 +346,7 @@ watch(() => props.selectedIndex, (newIndex) => {
   padding: 0 4px;
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .role-icon {

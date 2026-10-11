@@ -2,12 +2,19 @@
   <Teleport to="body">
     <Transition name="modal">
       <div v-if="isVisible" class="status-modal-overlay" @click.self="close">
-        <div class="status-modal">
+        <div
+          ref="dialogEl"
+          class="status-modal"
+          role="dialog"
+          aria-modal="true"
+          :aria-labelledby="titleId"
+          tabindex="-1"
+        >
           <!-- Header -->
           <div class="modal-header">
-            <h2>{{ hasCurrentStatus ? 'Edit custom status' : 'Set custom status' }}</h2>
-            <button class="close-btn" @click="close">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <h2 :id="titleId">{{ hasCurrentStatus ? t('statusPicker.editTitle') : t('statusPicker.setTitle') }}</h2>
+            <button type="button" class="close-btn" :aria-label="t('common.close')" :title="t('common.close')" @click="close">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M18.3 5.71a1 1 0 00-1.42 0L12 10.59 7.11 5.7A1 1 0 105.7 7.11L10.59 12 5.7 16.89a1 1 0 101.41 1.41L12 13.41l4.89 4.89a1 1 0 001.41-1.41L13.41 12l4.89-4.89a1 1 0 000-1.4z"/>
               </svg>
             </button>
@@ -15,18 +22,18 @@
 
           <!-- Current Status Preview -->
           <div class="status-preview" v-if="hasCurrentStatus">
-            <div class="preview-label">Current status</div>
+            <div class="preview-label">{{ t('statusPicker.current') }}</div>
             <div class="preview-content">
               <img 
                 v-if="currentStatus?.emoji_url" 
                 :src="getEmojiUrl(currentStatus.emoji_url, 32)" 
-                :alt="currentStatus.emoji || 'Emoji'"
+                :alt="currentStatus.emoji || ''"
                 class="preview-emoji-img"
               />
               <span v-else-if="currentStatus?.emoji" class="preview-emoji">{{ currentStatus.emoji }}</span>
               <span class="preview-text">{{ currentStatusDisplayText }}</span>
             </div>
-            <button class="clear-btn" @click="clearStatus">Clear status</button>
+            <button type="button" class="clear-btn" @click="clearStatus">{{ t('statusPicker.clear') }}</button>
           </div>
 
           <!-- Form -->
@@ -37,18 +44,20 @@
                 ref="emojiButtonRef"
                 type="button" 
                 class="emoji-btn"
+                :aria-label="selectedEmoji?.name ? t('statusPicker.emojiSelected', { name: selectedEmoji.name }) : t('statusPicker.chooseEmoji')"
+                :aria-expanded="showEmojiPicker ? 'true' : 'false'"
                 @click.stop="toggleEmojiPicker"
               >
                 <img 
                   v-if="selectedEmoji?.url" 
                   :src="selectedEmoji.url" 
-                  :alt="selectedEmoji.name || 'Emoji'"
+                  alt=""
                   class="selected-emoji-img"
                 />
-                <span v-else-if="selectedEmoji?.native" class="selected-emoji">
+                <span v-else-if="selectedEmoji?.native" class="selected-emoji" aria-hidden="true">
                   {{ selectedEmoji.native }}
                 </span>
-                <svg v-else width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="emoji-placeholder">
+                <svg v-else width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="emoji-placeholder" aria-hidden="true">
                   <path d="M12 2a10 10 0 1010 10A10 10 0 0012 2zm0 18a8 8 0 118-8 8 8 0 01-8 8zm2.44-9a1.5 1.5 0 101.5-1.5 1.5 1.5 0 00-1.5 1.5zM8.5 11a1.5 1.5 0 101.5-1.5A1.5 1.5 0 008.5 11zm7.56 3.15a.76.76 0 00-1.06-.21 4.85 4.85 0 01-6 0 .76.76 0 10-.85 1.26 6.33 6.33 0 007.7 0 .76.76 0 00.21-1.05z"/>
                 </svg>
               </button>
@@ -57,11 +66,13 @@
                 v-model="statusText"
                 type="text"
                 class="status-input"
-                placeholder="What's happening?"
+                :placeholder="t('user.statusPlaceholder')"
+                :aria-label="t('user.customStatus')"
+                :aria-describedby="`${titleId}-count`"
                 maxlength="128"
               />
               
-              <span class="char-count">{{ statusText.length }}/128</span>
+              <span :id="`${titleId}-count`" class="char-count">{{ t('statusPicker.charCount', { count: statusText.length, max: 128 }) }}</span>
             </div>
 
             <!-- Emoji Popup -->
@@ -78,47 +89,49 @@
 
             <!-- Activity: Custom = plain text/emoji only; others add a prefix (e.g. "Playing: ...") -->
             <div class="input-row activity-row">
-              <label class="input-label">Activity</label>
-              <div class="activity-selector">
+              <span :id="`${titleId}-activity`" class="input-label">{{ t('statusPicker.activity') }}</span>
+              <div class="activity-selector" role="group" :aria-labelledby="`${titleId}-activity`">
                 <button
                   v-for="activity in activityTypes"
                   :key="activity.value"
                   type="button"
                   class="activity-btn"
                   :class="{ active: selectedActivity === activity.value }"
-                  :title="activity.value === 'custom' ? 'Plain text or emoji only (no prefix)' : undefined"
+                  :aria-pressed="selectedActivity === activity.value ? 'true' : 'false'"
+                  :title="activity.value === 'custom' ? t('statusPicker.customHint') : undefined"
                   @click="selectedActivity = activity.value"
                 >
-                  <component :is="activity.icon" class="activity-icon" />
-                  <span>{{ activity.label }}</span>
+                  <component :is="activity.icon" class="activity-icon" aria-hidden="true" />
+                  <span>{{ t(`statusPicker.activities.${activity.value}`) }}</span>
                 </button>
               </div>
             </div>
 
             <!-- Duration -->
             <div class="input-row">
-              <label class="input-label">Clear after</label>
-              <select v-model="selectedDuration" class="duration-select">
-                <option value="never">Don't clear</option>
-                <option value="30m">30 minutes</option>
-                <option value="1h">1 hour</option>
-                <option value="4h">4 hours</option>
-                <option value="today">Today</option>
-                <option value="1w">This week</option>
+              <label :for="`${titleId}-duration`" class="input-label">{{ t('statusPicker.clearAfter') }}</label>
+              <select :id="`${titleId}-duration`" v-model="selectedDuration" class="duration-select">
+                <option value="never">{{ t('statusPicker.durations.never') }}</option>
+                <option value="30m">{{ t('statusPicker.durations.30m') }}</option>
+                <option value="1h">{{ t('statusPicker.durations.1h') }}</option>
+                <option value="4h">{{ t('statusPicker.durations.4h') }}</option>
+                <option value="today">{{ t('statusPicker.durations.today') }}</option>
+                <option value="1w">{{ t('statusPicker.durations.1w') }}</option>
               </select>
             </div>
 
             <!-- Actions -->
             <div class="form-actions">
               <button type="button" class="btn btn-secondary" @click="close">
-                Cancel
+                {{ t('common.cancel') }}
               </button>
               <button 
                 type="submit" 
                 class="btn btn-primary"
                 :disabled="saving"
+                :aria-busy="saving || undefined"
               >
-                {{ saving ? 'Saving...' : 'Save' }}
+                {{ saving ? t('statusPicker.saving') : t('common.save') }}
               </button>
             </div>
           </form>
@@ -134,6 +147,8 @@ import { userDataService } from '@/services/userDataService'
 import { getEmojiUrl } from '@/utils/emojiUtils'
 import { formatCustomStatusDisplay } from '@/utils/customStatusDisplay'
 import EmojiPopup from '@/components/EmojiPopup.vue'
+import { useT } from '@/composables/useT'
+import { useDialog } from '@/composables/useDialog'
 import type { CustomUserStatus, Emoji } from '@/types'
 
 interface Props {
@@ -155,15 +170,24 @@ const CompetingIcon = { render: () => h('svg', { width: 16, height: 16, viewBox:
 const StreamingIcon = { render: () => h('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'currentColor' }, [h('path', { d: 'M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z' })] ) }
 const CustomIcon = { render: () => h('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'currentColor' }, [h('path', { d: 'M12 2a10 10 0 1010 10A10 10 0 0012 2zm0 18a8 8 0 118-8 8 8 0 01-8 8zm2.44-9a1.5 1.5 0 101.5-1.5 1.5 1.5 0 00-1.5 1.5zM8.5 11a1.5 1.5 0 101.5-1.5A1.5 1.5 0 008.5 11zm7.56 3.15a.76.76 0 00-1.06-.21 4.85 4.85 0 01-6 0 .76.76 0 10-.85 1.26 6.33 6.33 0 007.7 0 .76.76 0 00.21-1.05z' })] ) }
 
-// Activity types
+// Activity types; labels are statusPicker.activities.<value>.
 const activityTypes = [
-  { value: 'custom', label: 'Custom', icon: CustomIcon },
-  { value: 'playing', label: 'Playing', icon: PlayingIcon },
-  { value: 'listening', label: 'Listening', icon: ListeningIcon },
-  { value: 'watching', label: 'Watching', icon: WatchingIcon },
-  { value: 'competing', label: 'Competing', icon: CompetingIcon },
-  { value: 'streaming', label: 'Streaming', icon: StreamingIcon },
+  { value: 'custom', icon: CustomIcon },
+  { value: 'playing', icon: PlayingIcon },
+  { value: 'listening', icon: ListeningIcon },
+  { value: 'watching', icon: WatchingIcon },
+  { value: 'competing', icon: CompetingIcon },
+  { value: 'streaming', icon: StreamingIcon },
 ]
+
+const { t } = useT()
+const dialogEl = ref<HTMLElement | null>(null)
+const { titleId } = useDialog({
+  open: () => props.isVisible,
+  element: dialogEl,
+  // Escape closes the emoji picker first.
+  onClose: () => (showEmojiPicker.value ? closeEmojiPicker() : close()),
+})
 
 // State
 const statusText = ref('')
@@ -321,7 +345,7 @@ watch(() => props.isVisible, (visible) => {
     selectedEmoji.value = props.currentStatus?.emoji
       ? { native: props.currentStatus.emoji, url: (props.currentStatus as any).emoji_url || undefined }
       : (props.currentStatus as any)?.emoji_url
-        ? { native: undefined, name: 'Emoji', url: (props.currentStatus as any).emoji_url }
+        ? { native: undefined, name: undefined, url: (props.currentStatus as any).emoji_url }
         : null
     selectedActivity.value = props.currentStatus?.type || 'custom'
     selectedDuration.value = getDurationFromExpiresAt(props.currentStatus?.expiresAt)
@@ -550,7 +574,7 @@ watch(() => props.isVisible, (visible) => {
 .activity-btn.active {
   border-color: var(--harmony-primary);
   background: var(--harmony-primary-alpha, color-mix(in srgb, var(--harmony-primary) 15%, transparent));
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .activity-icon {

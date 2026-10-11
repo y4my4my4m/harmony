@@ -643,7 +643,7 @@ onMounted(() => {
   padding: 0.5rem 1rem;
   background: color-mix(in srgb, var(--success) 20%, transparent);
   border-radius: var(--radius-base);
-  color: var(--success);
+  color: var(--text-success);
   font-size: 0.875rem;
 }
 

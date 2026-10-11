@@ -69,7 +69,7 @@ function go() {
 
 .moved-icon {
   flex-shrink: 0;
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .moved-body {

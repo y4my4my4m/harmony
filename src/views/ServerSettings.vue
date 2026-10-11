@@ -236,6 +236,7 @@
 </template>
 
 <script setup lang="ts">
+import { hasOpenLayer } from '@/utils/a11y/layers'
 import { onMounted, ref, computed, watch, onUnmounted, defineAsyncComponent } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRoute, useRouter } from 'vue-router'
@@ -578,7 +579,8 @@ const handleBeforeUnload = (e: BeforeUnloadEvent) => {
 const handleSettingsKeydown = (event: KeyboardEvent) => {
   if (event.key !== 'Escape') return
   const target = event.target as HTMLElement | null
-  if (target?.closest('.modal-overlay')) return
+  // A dialog, menu or drawer above the view owns this Escape (utils/a11y/layers.ts).
+  if (event.defaultPrevented || hasOpenLayer() || target?.closest('.modal-overlay')) return
   back()
 }
 

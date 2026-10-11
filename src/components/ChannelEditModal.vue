@@ -107,7 +107,7 @@
                     Hidden from everyone except the roles chosen here, the server owner and administrators.
                   </span>
                 </div>
-                <ToggleSwitch :model-value="isPrivate" aria-label="Private channel" @change="setPrivate" />
+                <ToggleSwitch :model-value="isPrivate" :label="$t('channel.private.label')" @change="setPrivate" />
               </div>
               <div v-if="isPrivate" class="private-roles">
                 <span class="perm-rail-label">Who can see it</span>
@@ -808,7 +808,7 @@ watch(() => props.show, (visible) => {
   text-align: right;
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .slowmode-value.off {
@@ -947,7 +947,7 @@ watch(() => props.show, (visible) => {
 }
 
 .modal-tab.active {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border-bottom-color: var(--harmony-primary);
 }
 
@@ -1134,7 +1134,7 @@ watch(() => props.show, (visible) => {
   border: none;
   padding: 0;
   font-size: 12px;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   cursor: pointer;
   text-decoration: underline;
 }
@@ -1227,12 +1227,12 @@ watch(() => props.show, (visible) => {
 
 .perm-tristate-btn.active.state-allow {
   background: color-mix(in srgb, var(--success) 18%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .perm-tristate-btn.active.state-deny {
   background: color-mix(in srgb, var(--error) 18%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .perm-tristate-btn.active.state-inherit {

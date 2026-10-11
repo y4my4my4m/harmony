@@ -1521,7 +1521,7 @@ onMounted(async () => {
 .rich-text-editor :deep(.token.entity) { cursor: help; }
 
 .rich-text-editor :deep(.editor-mention) {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   background-color: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
   border-radius: 3px;
   padding: 0 2px;

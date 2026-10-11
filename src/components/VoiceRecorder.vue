@@ -173,7 +173,7 @@ onUnmounted(() => {
 }
 
 .mic-trigger:hover:not(.disabled) {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
 }
 

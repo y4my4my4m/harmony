@@ -453,7 +453,7 @@ textarea:focus {
 }
 
 .report-error {
-  color: var(--error);
+  color: var(--text-danger);
   font-size: 13px;
   margin: 0;
 }

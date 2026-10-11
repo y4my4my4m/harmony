@@ -1,11 +1,19 @@
 <template>
   <Teleport to="body">
     <div v-if="show" class="modal-overlay" @click="$emit('close')">
-      <div class="modal-container" @click.stop>
+      <div
+        ref="dialogEl"
+        class="modal-container"
+        role="dialog"
+        aria-modal="true"
+        :aria-labelledby="titleId"
+        tabindex="-1"
+        @click.stop
+      >
         <div class="modal-header" :class="{ 'ban-header': mode === 'ban' }">
-          <h2 class="modal-title">{{ mode === 'ban' ? 'Ban member' : 'Kick member' }}</h2>
-          <button class="modal-close" @click="$emit('close')">
-            <svg width="24" height="24" viewBox="0 0 24 24">
+          <h2 :id="titleId" class="modal-title">{{ mode === 'ban' ? t('a11y.moderation.banMember') : t('a11y.moderation.kickMember') }}</h2>
+          <button type="button" class="modal-close" :aria-label="t('common.close')" :title="t('common.close')" @click="$emit('close')">
+            <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
               <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
             </svg>
           </button>
@@ -89,15 +97,15 @@
         </div>
 
         <div class="modal-footer">
-          <button class="btn-cancel" @click="$emit('close')" :disabled="isLoading">Cancel</button>
+          <button type="button" class="btn-cancel" @click="$emit('close')" :disabled="isLoading">{{ t('common.cancel') }}</button>
           <button
             class="btn-confirm"
             :class="{ 'btn-ban': mode === 'ban' }"
             @click="confirm"
             :disabled="isLoading || !targetUser"
           >
-            <span v-if="isLoading" class="loading-spinner"></span>
-            <span v-else>{{ mode === 'ban' ? 'Ban' : 'Kick' }}</span>
+            <span v-if="isLoading" class="loading-spinner" aria-hidden="true"></span>
+            <span :class="{ 'sr-only': isLoading }">{{ mode === 'ban' ? t('a11y.moderation.ban') : t('a11y.moderation.kick') }}</span>
           </button>
         </div>
       </div>
@@ -112,6 +120,8 @@ import { userDataService } from '@/services/userDataService'
 import { getUserIdsForServer, getProfiles } from '@/services/usersService'
 import { useAuthStore } from '@/stores/auth'
 import Avatar from '@/components/common/Avatar.vue'
+import { useT } from '@/composables/useT'
+import { useDialog } from '@/composables/useDialog'
 
 interface MemberInfo {
   id: string
@@ -131,6 +141,10 @@ const emit = defineEmits<{
   close: []
   done: [result: { success: boolean; messagesDeleted?: number }]
 }>()
+
+const { t } = useT()
+const dialogEl = ref<HTMLElement | null>(null)
+const { titleId } = useDialog({ open: () => props.show, element: dialogEl, onClose: () => emit('close') })
 
 const authStore = useAuthStore()
 const reason = ref('')

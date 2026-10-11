@@ -1049,7 +1049,7 @@ onUnmounted(() => {
 .ai-gen-error {
   margin: 0 0 8px;
   font-size: 12px;
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 /* Favorites */

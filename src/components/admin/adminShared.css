@@ -183,7 +183,7 @@
 
 
 .error-text {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 
@@ -211,14 +211,14 @@
 
 .badge.trusted {
   background: color-mix(in srgb, var(--success) 20%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 
 
 .badge.blocked {
   background: color-mix(in srgb, var(--error) 20%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .badge.limited {
@@ -237,7 +237,7 @@
 
 .badge.success {
   background: color-mix(in srgb, var(--success) 20%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 
@@ -270,7 +270,7 @@
 
 .pagination-btn:hover:not(:disabled) {
   border-color: var(--harmony-primary);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .pagination-btn:disabled {
@@ -295,17 +295,17 @@
 
 .action-btn-sm:hover {
   border-color: var(--harmony-primary);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .action-btn-sm.trusted {
   border-color: color-mix(in srgb, var(--success) 50%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .danger-btn-sm:hover {
   border-color: color-mix(in srgb, var(--error) 50%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .danger-btn {
@@ -313,7 +313,7 @@
   border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
   border-radius: var(--radius-base);
   background: color-mix(in srgb, var(--error) 8%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -340,7 +340,7 @@
 
 .cyber-btn-sm:hover {
   border-color: var(--harmony-primary);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .spin {
@@ -358,7 +358,7 @@
 
 .delete-btn:hover {
   border-color: color-mix(in srgb, var(--error) 50%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 
@@ -388,14 +388,14 @@
 
 .badge.admin {
   background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 
 
 .badge.moderator {
   background: color-mix(in srgb, var(--success) 20%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 

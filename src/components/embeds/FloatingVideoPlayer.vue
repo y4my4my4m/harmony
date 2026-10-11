@@ -334,7 +334,7 @@ onBeforeUnmount(() => {
 }
 
 .mini-player__btn--close:hover {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .mini-player__body {

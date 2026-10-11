@@ -441,7 +441,7 @@ function formatExpiry(expiresAt: string): string {
   height: 40px;
   flex-shrink: 0;
   background: var(--harmony-primary-light);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
@@ -553,7 +553,7 @@ function formatExpiry(expiresAt: string): string {
   background: color-mix(in srgb, var(--error) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
   border-radius: var(--radius-md);
-  color: var(--error);
+  color: var(--text-danger);
   font-size: var(--font-size-sm);
   margin-bottom: var(--space-5);
 }
@@ -648,7 +648,7 @@ function formatExpiry(expiresAt: string): string {
   padding: 4px 10px;
   background: var(--harmony-primary-light);
   border-radius: var(--radius-full);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   margin-bottom: var(--space-3);
@@ -760,7 +760,7 @@ function formatExpiry(expiresAt: string): string {
 }
 
 .already-joined > .icon-wrap {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .modal-actions {

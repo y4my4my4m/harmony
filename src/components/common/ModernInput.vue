@@ -155,7 +155,7 @@ defineExpose({
 }
 
 .required-indicator {
-  color: var(--error);
+  color: var(--text-danger);
   font-weight: 600;
 }
 
@@ -246,7 +246,7 @@ defineExpose({
   align-items: center;
   gap: 6px;
   font-size: var(--font-size-xs);
-  color: var(--error);
+  color: var(--text-danger);
   margin-top: -4px;
 }
 
@@ -261,7 +261,7 @@ defineExpose({
   align-items: center;
   gap: 6px;
   font-size: var(--font-size-xs);
-  color: var(--success);
+  color: var(--text-success);
   margin-top: -4px;
 }
 

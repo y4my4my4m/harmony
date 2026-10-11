@@ -6,6 +6,7 @@
     hide-header
     no-padding
     container-class="message-search-modal"
+    :aria-label="t('messageSearch.title')"
     @close="emit('close')"
     @open="focusInput"
   >
@@ -551,7 +552,7 @@ watch(() => [props.serverId, props.conversationId], () => {
 .search-link {
   border: none;
   background: none;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-size: var(--font-size-xs);
   cursor: pointer;
 }

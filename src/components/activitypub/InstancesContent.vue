@@ -437,7 +437,7 @@ defineExpose({ refreshContent });
 .refresh-btn:hover:not(:disabled) {
   border-color: var(--harmony-primary-alpha);
   background: var(--harmony-primary-light);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .refresh-btn:disabled {
@@ -606,7 +606,7 @@ defineExpose({ refreshContent });
 
 .instance-status-pill.status-online {
   background: color-mix(in srgb, var(--success) 14%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .instance-status-pill.status-slow {
@@ -616,7 +616,7 @@ defineExpose({ refreshContent });
 
 .instance-status-pill.status-offline {
   background: color-mix(in srgb, var(--error) 14%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .instance-status-pill.status-unknown {

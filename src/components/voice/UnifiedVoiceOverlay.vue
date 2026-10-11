@@ -1035,13 +1035,13 @@ onUnmounted(() => {
 
 .connection-mode-indicator.livekit {
   background: color-mix(in srgb, var(--success) 15%, transparent);
-  color: var(--success);
+  color: var(--text-success);
   border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
 }
 
 .connection-mode-indicator.p2p {
   background: color-mix(in srgb, var(--harmony-primary) 15%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
 }
 
@@ -1091,7 +1091,7 @@ onUnmounted(() => {
 }
 
 .speaking-count {
-  color: var(--success);
+  color: var(--text-success);
   font-weight: 600;
 }
 

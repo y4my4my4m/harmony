@@ -509,7 +509,7 @@ const formatNumber = (num: number | undefined) => {
 
 .system-status.healthy {
   background: color-mix(in srgb, var(--success) 10%, transparent);
-  color: var(--success);
+  color: var(--text-success);
   border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
 }
 
@@ -537,7 +537,7 @@ const formatNumber = (num: number | undefined) => {
 
 .system-status.error {
   background: color-mix(in srgb, var(--error) 10%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
   border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
 }
 
@@ -665,7 +665,7 @@ const formatNumber = (num: number | undefined) => {
 }
 
 .admin-tab-btn.active {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border-color: var(--harmony-primary);
   background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
 }
@@ -791,7 +791,7 @@ const formatNumber = (num: number | undefined) => {
   padding: 12px;
   background: color-mix(in srgb, var(--harmony-primary) 10%, transparent);
   border-radius: var(--radius-md);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 
@@ -857,7 +857,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 .stat-change.positive {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 
@@ -1126,7 +1126,7 @@ const formatNumber = (num: number | undefined) => {
   background: color-mix(in srgb, var(--error) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
   border-radius: var(--radius-base);
-  color: var(--error);
+  color: var(--text-danger);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -1278,7 +1278,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 .error-text {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 
@@ -1353,7 +1353,7 @@ const formatNumber = (num: number | undefined) => {
 
 .badge.trusted {
   background: color-mix(in srgb, var(--success) 20%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 
@@ -1366,7 +1366,7 @@ const formatNumber = (num: number | undefined) => {
 
 .badge.blocked {
   background: color-mix(in srgb, var(--error) 20%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 
@@ -1392,7 +1392,7 @@ const formatNumber = (num: number | undefined) => {
 
 .badge.success {
   background: color-mix(in srgb, var(--success) 20%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 
@@ -1448,7 +1448,7 @@ const formatNumber = (num: number | undefined) => {
 
 .action-btn-sm:hover {
   border-color: var(--harmony-primary);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 
@@ -1461,7 +1461,7 @@ const formatNumber = (num: number | undefined) => {
 
 .action-btn-sm.trusted {
   border-color: color-mix(in srgb, var(--success) 50%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 
@@ -1474,7 +1474,7 @@ const formatNumber = (num: number | undefined) => {
 
 .danger-btn-sm:hover {
   border-color: color-mix(in srgb, var(--error) 50%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 
@@ -1522,7 +1522,7 @@ const formatNumber = (num: number | undefined) => {
 
 .pagination-btn:hover:not(:disabled) {
   border-color: var(--harmony-primary);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 
@@ -1726,7 +1726,7 @@ const formatNumber = (num: number | undefined) => {
 
 .badge.admin {
   background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 
@@ -1739,7 +1739,7 @@ const formatNumber = (num: number | undefined) => {
 
 .badge.moderator {
   background: color-mix(in srgb, var(--success) 20%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 
@@ -2097,7 +2097,7 @@ const formatNumber = (num: number | undefined) => {
   position: absolute;
   bottom: -4px;
   right: -4px;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   background: var(--background-secondary);
   border-radius: 50%;
   padding: 2px;
@@ -2137,7 +2137,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 
-.featured-server-item .action-btn-sm.pin-btn { color: var(--harmony-primary); }
+.featured-server-item .action-btn-sm.pin-btn { color: var(--text-link); }
 
 
 
@@ -2258,7 +2258,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 .config-tab-btn.active {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   border-bottom-color: var(--harmony-primary);
 }
 
@@ -2533,7 +2533,7 @@ const formatNumber = (num: number | undefined) => {
 
 
 .report-proof :deep(.report-link) {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-decoration: underline;
   word-break: break-all;
 }

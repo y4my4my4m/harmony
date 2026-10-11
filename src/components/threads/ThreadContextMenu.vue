@@ -274,12 +274,12 @@ onUnmounted(() => {
 }
 
 .context-menu-item.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .context-menu-item.danger:hover {
   background: color-mix(in srgb, var(--error) 10%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .context-menu-divider {

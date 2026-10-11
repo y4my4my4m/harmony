@@ -1,52 +1,54 @@
 <template>
-  <div v-if="showInstallPrompt" class="pwa-install-banner">
+  <section v-if="showInstallPrompt" class="pwa-install-banner" :aria-label="t('pwa.installTitle')">
     <div class="install-content">
       <div class="install-icon">
-        <img src="/img/app_icon_square.webp" alt="Harmony" class="app-icon">
+        <img src="/img/app_icon_square.webp" alt="" class="app-icon">
       </div>
       <div class="install-text">
-        <h4>Install Harmony</h4>
-        <p>Faster loading and offline access</p>
+        <h4>{{ t('pwa.installTitle') }}</h4>
+        <p>{{ t('pwa.installDescription') }}</p>
       </div>
       <div class="install-actions">
-        <button @click="installApp" class="install-btn">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <button type="button" @click="installApp" class="install-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
           </svg>
-          Install
+          {{ t('pwa.install') }}
         </button>
-        <button @click="dismissPrompt" class="dismiss-btn">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+        <button type="button" @click="dismissPrompt" class="dismiss-btn" :aria-label="t('pwa.dismiss')" :title="t('pwa.dismiss')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
           </svg>
         </button>
       </div>
     </div>
-  </div>
+  </section>
 
   <!-- Install Button for Settings -->
   <button 
     v-else-if="canShowInstallButton && !isInstalled" 
+    type="button"
     @click="installApp"
     class="settings-install-btn"
   >
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
     </svg>
-    Install Harmony app
+    {{ t('a11y.pwa.installApp') }}
   </button>
 
   <!-- Share Button -->
   <button
     v-if="supportsShare"
+    type="button"
     @click="shareApp"
     class="share-btn"
     :class="{ 'settings-btn': isInSettings }"
   >
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/>
     </svg>
-    Share Harmony
+    {{ t('a11y.pwa.share') }}
   </button>
 </template>
 
@@ -54,6 +56,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { debug } from '@/utils/debug'
 import { pwaManager } from '@/services/PWAManager'
+import { useT } from '@/composables/useT'
 import {
   showInstallFailedToast,
   showInstallUnavailableToast,
@@ -68,6 +71,8 @@ const props = withDefaults(defineProps<Props>(), {
   variant: 'banner',
   isInSettings: false
 })
+
+const { t } = useT()
 
 // Reactive state
 const showInstallPrompt = ref(false)

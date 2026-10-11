@@ -789,7 +789,7 @@ onMounted(() => {
   background: color-mix(in srgb, var(--success) 10%, transparent);
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .backup-icon {
@@ -877,7 +877,7 @@ onMounted(() => {
 }
 
 .danger-zone .subsection-title {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .modal-overlay {
@@ -931,12 +931,12 @@ onMounted(() => {
 }
 
 .warning-text {
-  color: var(--error) !important;
+  color: var(--text-danger) !important;
   font-weight: var(--font-weight-medium);
 }
 
 .error-text {
-  color: var(--error);
+  color: var(--text-danger);
   font-size: var(--font-size-sm);
 }
 
@@ -972,7 +972,7 @@ onMounted(() => {
 }
 
 .info-item .value.success {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .info-item .value.code {
@@ -1092,8 +1092,8 @@ onMounted(() => {
   width: 14px;
   flex-shrink: 0;
 }
-.diagnostic-state.ok { color: var(--success); }
-.diagnostic-state.fail { color: var(--error); }
+.diagnostic-state.ok { color: var(--text-success); }
+.diagnostic-state.fail { color: var(--text-danger); }
 .diagnostic-state.na { color: var(--text-secondary); }
 
 .diagnostic-label {

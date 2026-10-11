@@ -1,6 +1,7 @@
 <template>
+  <div class="android-update-region" role="status">
   <Transition name="android-update">
-    <div v-if="release" class="android-update" role="status">
+    <div v-if="release" class="android-update">
       <span class="android-update__text">
         {{ t('updater.android.available', { version: release.version }) }}
       </span>
@@ -18,6 +19,7 @@
       </button>
     </div>
   </Transition>
+  </div>
 </template>
 
 <script setup lang="ts">

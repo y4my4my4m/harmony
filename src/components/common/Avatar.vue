@@ -9,13 +9,15 @@
       decoding="async"
       :role="fullSize ? 'button' : undefined"
       :tabindex="fullSize ? 0 : undefined"
+      :aria-label="fullSize ? (alt ? t('a11y.avatar.viewNamed', { name: alt }) : t('a11y.avatar.view')) : undefined"
       @click="handleClick"
       @keydown.enter.prevent="handleClick"
+      @keydown.space.prevent="handleClick"
       @error="handleImageError"
       @load="handleImageLoad"
     />
 
-    <MediaLightbox v-if="lightboxOpen && fullSize" :visible="true" :imgs="[fullSize]" @hide="lightboxOpen = false" />
+    <MediaLightbox v-if="lightboxOpen && fullSize" :visible="true" :imgs="[fullSize]" :alts="[alt ? t('a11y.avatar.imageNamed', { name: alt }) : t('a11y.avatar.image')]" @hide="lightboxOpen = false" />
 
     <div v-if="loading" class="avatar-loading">
       <LoadingSpinner :size="20" />
@@ -25,6 +27,7 @@
       v-if="status && !isMobile"
       class="avatar-status"
       :class="`status-${status}`"
+      v-bind="statusAttrs"
     ></div>
 
     <!-- Phone icon replaces the status dot on mobile -->
@@ -32,19 +35,23 @@
       v-if="status && isMobile"
       class="avatar-status avatar-status-mobile"
       :class="`status-${status}`"
+      v-bind="statusAttrs"
     >
-      <svg viewBox="0 0 24 24" fill="currentColor" class="mobile-icon">
+      <svg viewBox="0 0 24 24" fill="currentColor" class="mobile-icon" aria-hidden="true">
         <path d="M15.5 1h-8C6.12 1 5 2.12 5 3.5v17C5 21.88 6.12 23 7.5 23h8c1.38 0 2.5-1.12 2.5-2.5v-17C18 2.12 16.88 1 15.5 1zm-4 21c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4.5-4H7V4h9v14z"/>
       </svg>
     </div>
 
     <button
       v-if="editable"
+      type="button"
       class="avatar-edit-btn"
+      :aria-label="t('a11y.avatar.change')"
+      :title="t('a11y.avatar.change')"
       @click="handleEdit"
       :disabled="loading"
     >
-      <CameraIcon />
+      <CameraIcon aria-hidden="true" />
     </button>
 
     <input
@@ -53,6 +60,8 @@
       type="file"
       accept="image/*"
       style="display: none"
+      tabindex="-1"
+      aria-hidden="true"
       @change="handleFileSelect"
     />
   </div>
@@ -60,6 +69,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
+import { useT } from '@/composables/useT'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import { getAvatarUrl, getFullSizeAvatarUrl } from '@/utils/avatarUtils'
@@ -78,6 +88,10 @@ type UserStatus = 'online' | 'away' | 'busy' | 'offline' | 'invisible'
 
 interface Props {
   src?: string | null
+  /**
+   * Text alternative. Default "": the avatar is decorative beside the name it
+   * accompanies. Give a name only where the avatar stands alone.
+   */
   alt?: string
   size?: AvatarSize
   status?: UserStatus
@@ -94,7 +108,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  alt: 'Avatar',
+  alt: '',
   size: 'md',
   isMobile: false,
   editable: false,
@@ -108,6 +122,22 @@ const emit = defineEmits<{
   'upload': [file: File]
   'edit': []
 }>()
+
+const { t } = useT()
+
+// Presence is spoken with a named avatar; beside a visible name the row says it.
+const STATUS_KEYS: Record<UserStatus, string> = {
+  online: 'user.online',
+  away: 'user.away',
+  busy: 'user.dnd',
+  offline: 'user.offline',
+  invisible: 'user.invisible',
+}
+const statusAttrs = computed(() =>
+  props.alt && props.status
+    ? { role: 'img', 'aria-label': t(STATUS_KEYS[props.status] ?? 'user.offline') }
+    : { 'aria-hidden': 'true' as const },
+)
 
 const imageError = ref(false)
 

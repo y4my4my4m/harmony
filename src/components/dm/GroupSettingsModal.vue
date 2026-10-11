@@ -588,7 +588,7 @@ async function deleteGroup() {
 
 .remove-btn {
   background: color-mix(in srgb, var(--error) 10%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .remove-btn:hover:not(:disabled) {
@@ -784,7 +784,7 @@ async function deleteGroup() {
 .creator-badge {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   background: var(--harmony-primary-alpha-light);
   padding: 2px var(--space-1);
   border-radius: var(--radius-sm);
@@ -814,7 +814,7 @@ async function deleteGroup() {
 
 .remove-participant {
   background: color-mix(in srgb, var(--error) 10%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .remove-participant:hover {
@@ -829,7 +829,7 @@ async function deleteGroup() {
 }
 
 .danger-title {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .danger-actions {
@@ -843,7 +843,7 @@ async function deleteGroup() {
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   background: color-mix(in srgb, var(--error) 10%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
   border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);

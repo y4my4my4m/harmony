@@ -1012,7 +1012,7 @@ const cancelAndClose = () => {
   border-radius: 4px;
   border: 1px solid var(--error, #ed4245);
   background: transparent;
-  color: var(--error, #ed4245);
+  color: var(--text-danger, #ed4245);
   font-size: 11px;
   cursor: pointer;
 }
@@ -1097,7 +1097,7 @@ const cancelAndClose = () => {
 }
 
 .tp-var-reset-btn:hover {
-  color: var(--error, #ed4245);
+  color: var(--text-danger, #ed4245);
   background: var(--background-modifier-hover);
 }
 </style>

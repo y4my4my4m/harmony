@@ -1608,7 +1608,7 @@ export default defineComponent({
 
 /* URL links */
 .url-link {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-decoration: none;
   overflow-wrap: anywhere;
   user-select: text;
@@ -1628,7 +1628,7 @@ export default defineComponent({
   padding: 0 2px;
   font-weight: 500;
   cursor: pointer;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   display: inline-block;
   transition: background-color 0.2s ease;
   user-select: text;
@@ -1659,7 +1659,7 @@ export default defineComponent({
   padding: 0 2px;
   cursor: pointer;
   font-weight: 500;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   display: inline-block;
   transition: background-color 0.2s ease;
   user-select: text;
@@ -1925,7 +1925,7 @@ export default defineComponent({
 }
 
 .file-name {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-decoration: none;
   font-weight: 500;
   flex: 1;
@@ -2073,7 +2073,7 @@ export default defineComponent({
 }
 
 .edit-action {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   cursor: pointer;
   font-weight: 500;
 }
@@ -2120,13 +2120,13 @@ export default defineComponent({
 }
 
 .system-username:hover {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-decoration: underline;
 }
 
 /* Mention styling */
 .mention {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   background-color: var(--harmony-primary-alpha);
   border-radius: 3px;
   padding: 0 2px;

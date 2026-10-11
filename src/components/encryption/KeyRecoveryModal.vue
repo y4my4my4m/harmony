@@ -409,7 +409,7 @@ async function restoreEncryption() {
   font-size: 10px;
   font-weight: var(--font-weight-semibold);
   background: color-mix(in srgb, var(--success) 18%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .tab-btn.active .tab-badge {
@@ -541,13 +541,13 @@ async function restoreEncryption() {
 .validation-message:not(.error) {
   background: color-mix(in srgb, var(--success) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .validation-message.error {
   background: color-mix(in srgb, var(--error) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--error) 25%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 /* Recovery-key QR (secondary) */

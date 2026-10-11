@@ -1,3 +1,9 @@
+<!--
+  UnifiedModal - v-model modal with optional header, footer and action buttons.
+  Dialog semantics, focus, Escape (topmost dialog only) and the inert background
+  come from composables/useDialog.ts.
+  Name: `title`, else `ariaLabel`, else the first heading inside the modal.
+-->
 <template>
   <Teleport to="body">
     <Transition
@@ -12,11 +18,9 @@
         class="modal-overlay"
         :class="{ 'modal-overlay--topmost': topmost }"
         @click="handleOverlayClick"
-        @keydown.esc="handleEscape"
-        tabindex="-1"
-        ref="overlayRef"
       >
         <div
+          ref="containerRef"
           class="modal-container"
           :class="[
             `modal-${size}`,
@@ -27,8 +31,13 @@
             },
             containerClass
           ]"
+          :role="role"
+          aria-modal="true"
+          :aria-labelledby="labelledBy"
+          :aria-label="labelledBy ? undefined : ariaLabel"
+          :aria-describedby="describedby || (subtitle && !hideHeader && !$slots.customHeader ? descriptionId : undefined)"
+          tabindex="-1"
           @click.stop
-          ref="containerRef"
         >
           <!-- Custom Header Slot (for profile banners, etc.) -->
           <div v-if="$slots.customHeader" class="modal-custom-header">
@@ -36,10 +45,10 @@
           </div>
 
           <!-- Header with optional icon -->
-          <header v-if="!hideHeader && !$slots.customHeader" class="modal-header">
+          <div v-if="!hideHeader && !$slots.customHeader" class="modal-header">
             <div class="modal-header-content">
               <!-- Icon slot or component -->
-              <div v-if="icon || $slots.icon" class="modal-icon">
+              <div v-if="icon || $slots.icon" class="modal-icon" aria-hidden="true">
                 <slot name="icon">
                   <component :is="icon" v-if="icon" />
                 </slot>
@@ -47,8 +56,8 @@
               
               <!-- Title and subtitle -->
               <div class="modal-title-section">
-                <h2 v-if="title" class="modal-title">{{ title }}</h2>
-                <p v-if="subtitle" class="modal-subtitle">{{ subtitle }}</p>
+                <h2 v-if="title" :id="titleId" class="modal-title">{{ title }}</h2>
+                <p v-if="subtitle" :id="descriptionId" class="modal-subtitle">{{ subtitle }}</p>
                 <slot name="header-content" />
               </div>
             </div>
@@ -56,41 +65,45 @@
             <!-- Close button -->
             <button
               v-if="showCloseButton"
+              type="button"
               class="modal-close"
               @click="handleClose"
-              :aria-label="closeButtonLabel"
+              :aria-label="closeButtonLabel || t('common.close')"
+              :title="closeButtonLabel || t('common.close')"
             >
-              <svg class="modal-close-icon" viewBox="0 0 24 24">
+              <svg class="modal-close-icon" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z" fill="currentColor"/>
               </svg>
             </button>
-          </header>
+          </div>
 
-          <!-- Main content area -->
-          <main class="modal-body custom-scrollbar" :class="{ 'no-padding': noPadding }">
+          <!-- Content area -->
+          <div class="modal-body custom-scrollbar" :class="{ 'no-padding': noPadding }">
             <slot />
-          </main>
+          </div>
 
           <!-- Footer with actions -->
-          <footer v-if="$slots.footer || actions?.length" class="modal-footer">
+          <div v-if="$slots.footer || actions?.length" class="modal-footer">
             <slot name="footer">
               <!-- Default action buttons -->
               <div v-if="actions?.length" class="modal-actions">
                 <button
                   v-for="action in actions"
                   :key="action.key"
+                  type="button"
                   class="btn"
                   :class="action.variant ? `btn-${action.variant}` : 'btn-secondary'"
                   :disabled="action.disabled || action.loading"
+                  :aria-busy="action.loading || undefined"
                   @click="handleAction(action)"
                 >
-                  <div v-if="action.loading" class="spinner"></div>
-                  <component v-if="action.icon && !action.loading" :is="action.icon" />
+                  <div v-if="action.loading" class="spinner" aria-hidden="true"></div>
+                  <component v-if="action.icon && !action.loading" :is="action.icon" aria-hidden="true" />
                   {{ action.label }}
                 </button>
               </div>
             </slot>
-          </footer>
+          </div>
         </div>
       </div>
     </Transition>
@@ -98,9 +111,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { computed, ref, useSlots, watch } from 'vue'
+import { useT } from '@/composables/useT'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
+import { useDialog, type InitialFocus } from '@/composables/useDialog'
 
 export interface ModalAction {
   key: string
@@ -131,6 +146,12 @@ interface Props {
   noPadding?: boolean
   /** Above full-screen sheets and context menus (z-index 10001-10006). */
   topmost?: boolean
+  /** Accessible name when there is no visible title. */
+  ariaLabel?: string
+  /** Id of the element describing the dialog; default: the subtitle. */
+  describedby?: string
+  initialFocus?: InitialFocus
+  role?: 'dialog' | 'alertdialog'
 }
 
 interface Emits {
@@ -146,28 +167,14 @@ const props = withDefaults(defineProps<Props>(), {
   closeOnOverlay: true,
   closeOnEscape: true,
   persistent: false,
-  closeButtonLabel: 'Close modal'
+  initialFocus: 'auto',
+  role: 'dialog',
 })
 
 const emit = defineEmits<Emits>()
+const { t } = useT()
 
-const overlayRef = ref<HTMLElement>()
 const containerRef = ref<HTMLElement>()
-const previousActiveElement = ref<HTMLElement>()
-
-const handleOpen = () => {
-  previousActiveElement.value = document.activeElement as HTMLElement
-  
-  // Prevent body scroll
-  document.body.style.overflow = 'hidden'
-  
-  // Focus the modal for accessibility
-  nextTick(() => {
-    overlayRef.value?.focus()
-  })
-  
-  emit('open')
-}
 
 const handleClose = () => {
   if (props.persistent) return
@@ -176,14 +183,34 @@ const handleClose = () => {
   emit('close')
 }
 
+const { titleId, descriptionId, isActive } = useDialog({
+  open: () => props.modelValue,
+  element: containerRef,
+  onClose: handleClose,
+  closeOnEscape: () => props.closeOnEscape && !props.persistent,
+  initialFocus: () => props.initialFocus,
+})
+
+// Without a visible title, the first heading inside names the dialog.
+const contentHeadingId = ref<string | undefined>()
+watch(isActive, (active) => {
+  if (!active || props.title || props.ariaLabel) return
+  const heading = containerRef.value?.querySelector<HTMLElement>('h1, h2, h3')
+  if (!heading) return
+  if (!heading.id) heading.id = `${titleId}-content`
+  contentHeadingId.value = heading.id
+})
+
+const slots = useSlots()
+const labelledBy = computed(() => {
+  // customHeader replaces the titled header.
+  if (props.title && !props.hideHeader && !slots.customHeader) return titleId
+  if (props.ariaLabel) return undefined
+  return contentHeadingId.value
+})
+
 const handleOverlayClick = () => {
   if (props.closeOnOverlay && !props.persistent) {
-    handleClose()
-  }
-}
-
-const handleEscape = () => {
-  if (props.closeOnEscape && !props.persistent) {
     handleClose()
   }
 }
@@ -195,75 +222,13 @@ const handleAction = async (action: ModalAction) => {
     emit('action', action)
   } catch (error: any) {
     debug.error('Modal action error:', error)
-    const msg = error?.message || 'Something went wrong. Please try again.'
+    const msg = error?.message || t('a11y.genericError')
     toast.error(msg)
   }
 }
 
-// Watch for modal value changes
 watch(() => props.modelValue, (isOpen) => {
-  if (isOpen) {
-    handleOpen()
-  } else {
-    // Restore body scroll
-    document.body.style.overflow = ''
-    
-    // Restore focus
-    if (previousActiveElement.value) {
-      previousActiveElement.value.focus()
-    }
-  }
-})
-
-const handleKeydown = (event: KeyboardEvent) => {
-  if (!props.modelValue) return
-
-  // Escape closes the modal regardless of focus location. The
-  // `@keydown.esc` handler on the overlay only fires when the overlay
-  // itself has focus, which often isn't the case after the user
-  // interacts with form fields inside the modal. The document-level
-  // listener registered below makes Escape work reliably.
-  if (event.key === 'Escape') {
-    if (props.closeOnEscape && !props.persistent) {
-      event.preventDefault()
-      handleClose()
-    }
-    return
-  }
-
-  // Trap focus within modal
-  if (event.key === 'Tab') {
-    const focusableElements = containerRef.value?.querySelectorAll(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    )
-    
-    if (focusableElements && focusableElements.length > 0) {
-      const firstElement = focusableElements[0] as HTMLElement
-      const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement
-      
-      if (event.shiftKey) {
-        if (document.activeElement === firstElement) {
-          event.preventDefault()
-          lastElement.focus()
-        }
-      } else {
-        if (document.activeElement === lastElement) {
-          event.preventDefault()
-          firstElement.focus()
-        }
-      }
-    }
-  }
-}
-
-onMounted(() => {
-  document.addEventListener('keydown', handleKeydown)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown)
-  // Ensure body scroll is restored
-  document.body.style.overflow = ''
+  if (isOpen) emit('open')
 })
 </script>
 
@@ -343,7 +308,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   flex-shrink: 0;
 }
 
@@ -409,7 +374,7 @@ onUnmounted(() => {
 }
 
 /* Focus management */
-.modal-overlay:focus {
+.modal-container:focus {
   outline: none;
 }
 

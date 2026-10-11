@@ -462,7 +462,7 @@ onBeforeUnmount(() => {
   border: none;
   border-radius: var(--radius-base);
   background: transparent;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font: inherit;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
@@ -474,7 +474,7 @@ onBeforeUnmount(() => {
 }
 
 .text-btn.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .settings {
@@ -601,7 +601,7 @@ onBeforeUnmount(() => {
 
 .icon-btn:hover {
   background: color-mix(in srgb, var(--error) 14%, transparent);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .sr-only {

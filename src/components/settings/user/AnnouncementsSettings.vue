@@ -545,7 +545,7 @@ onMounted(() => {
 
 .badge-pinned {
   background: color-mix(in srgb, var(--harmony-primary) 18%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .badge-inactive,
@@ -568,7 +568,7 @@ onMounted(() => {
 }
 
 .announcement-content :deep(a) {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .announcement-content :deep(p) {

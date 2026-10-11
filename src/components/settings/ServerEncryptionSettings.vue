@@ -682,7 +682,7 @@ onMounted(() => {
 .stat-value {
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
-  color: var(--harmony-primary);
+  color: var(--text-link);
   margin-bottom: 4px;
 }
 

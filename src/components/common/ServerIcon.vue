@@ -12,13 +12,15 @@
       decoding="async"
       :role="fullSize ? 'button' : undefined"
       :tabindex="fullSize ? 0 : undefined"
+      :aria-label="fullSize ? (alt ? t('a11y.serverIcon.viewNamed', { name: alt }) : t('a11y.serverIcon.view')) : undefined"
       @click="handleClick"
       @keydown.enter.prevent="handleClick"
+      @keydown.space.prevent="handleClick"
       @error="onImgError"
       @load="onImgLoad"
     />
 
-    <MediaLightbox v-if="lightboxOpen && fullSize" :visible="true" :imgs="[fullSize]" @hide="lightboxOpen = false" />
+    <MediaLightbox v-if="lightboxOpen && fullSize" :visible="true" :imgs="[fullSize]" :alts="[alt ? t('a11y.serverIcon.imageNamed', { name: alt }) : t('a11y.serverIcon.image')]" @hide="lightboxOpen = false" />
 
     <!-- Loading State -->
     <div v-if="loading" class="server-loading">
@@ -30,16 +32,20 @@
       v-if="status"
       class="server-status"
       :class="`status-${status}`"
+      aria-hidden="true"
     ></div>
 
     <!-- Edit Button -->
     <button
       v-if="editable"
+      type="button"
       class="server-edit-btn"
+      :aria-label="t('a11y.serverIcon.change')"
+      :title="t('a11y.serverIcon.change')"
       @click="handleEdit"
       :disabled="loading"
     >
-      <CameraIcon />
+      <CameraIcon aria-hidden="true" />
     </button>
 
     <!-- Hidden file input -->
@@ -49,6 +55,8 @@
       type="file"
       accept="image/*"
       style="display: none"
+      tabindex="-1"
+      aria-hidden="true"
       @change="handleFileSelect"
     />
   </div>
@@ -56,6 +64,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
+import { useT } from '@/composables/useT'
 import { useToast } from 'vue-toastification'
 import { getRawServerIconUrl, getServerIconUrl } from '../../utils/serverUtils'
 import { devicePixels } from '@/utils/imageTransformUtils'
@@ -98,7 +107,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  alt: 'server',
+  alt: '',
   size: 'md',
   editable: false,
   interactive: false,
@@ -114,6 +123,8 @@ const emit = defineEmits<{
   'upload': [file: File]
   'edit': []
 }>()
+
+const { t } = useT()
 
 // Refs
 const fileInput = ref<HTMLInputElement>()

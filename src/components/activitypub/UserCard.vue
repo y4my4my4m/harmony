@@ -394,7 +394,7 @@ onBeforeUnmount(() => {
 }
 
 .verified-icon {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   flex-shrink: 0;
 }
 
@@ -460,13 +460,13 @@ onBeforeUnmount(() => {
 .follow-btn.following {
   background: transparent;
   border: 1px solid var(--h-brand, var(--harmony-primary));
-  color: var(--h-brand, var(--harmony-primary));
+  color: var(--text-link, var(--harmony-primary));
 }
 
 .follow-btn.following:hover:not(:disabled) {
   background: color-mix(in srgb, var(--error) 10%, transparent);
   border-color: var(--error);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .follow-btn:disabled {
@@ -545,11 +545,11 @@ onBeforeUnmount(() => {
 }
 
 .action-item.active {
-  color: var(--h-brand, var(--harmony-primary));
+  color: var(--text-link, var(--harmony-primary));
 }
 
 .action-item.danger {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .action-item.danger:hover {

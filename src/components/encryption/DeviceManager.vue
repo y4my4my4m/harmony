@@ -424,7 +424,7 @@ onMounted(async () => {
 }
 
 .dm-trust.trust-verified { color: #27ae60; background: rgba(39, 174, 96, 0.12); }
-.dm-trust.trust-recovery { color: var(--harmony-primary); background: color-mix(in srgb, var(--harmony-primary) 12%, transparent); }
+.dm-trust.trust-recovery { color: var(--text-link); background: color-mix(in srgb, var(--harmony-primary) 12%, transparent); }
 .dm-trust.trust-account { color: #f1c40f; background: rgba(241, 196, 15, 0.12); }
 .dm-trust.trust-revoked,
 .dm-trust.trust-untrusted { color: #e74c3c; background: rgba(231, 76, 60, 0.12); }

@@ -1301,7 +1301,7 @@ const vClickOutside = {
 }
 
 .character-counter.over-limit {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .character-counter.over-limit .counter-progress {
@@ -1338,7 +1338,7 @@ const vClickOutside = {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  color: var(--success);
+  color: var(--text-success);
   font-size: 0.75rem;
 }
 
@@ -1363,7 +1363,7 @@ const vClickOutside = {
 }
 
 .option-button.active {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   background-color: var(--harmony-primary-alpha);
 }
 
@@ -1377,7 +1377,7 @@ const vClickOutside = {
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-full);
   background: transparent;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-size: 0.8125rem;
   font-weight: var(--font-weight-semibold);
   white-space: nowrap;
@@ -1438,7 +1438,7 @@ const vClickOutside = {
 }
 
 .visibility-option.active {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .option-details {

@@ -275,6 +275,8 @@
             type="file"
             accept=".json,application/json"
             class="hidden-file-input"
+            tabindex="-1"
+            :aria-label="$t('a11y.settings.importThemeFile')"
             @change="handleImportFile"
           />
         </div>
@@ -417,6 +419,7 @@
           </div>
           <div class="setting-control">
             <ToggleSwitch
+              :label="option.label"
               :model-value="getActiveSkinOptionValue(option.id)"
               @update:model-value="(v: boolean) => onSkinOptionToggle(option.id, v)"
             />
@@ -456,8 +459,8 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.fontSize') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.fontSizeDesc') }}</p>
+          <h4 :id="`${a11yId}-font-size`" class="setting-label">{{ $t('settings.appearance.fontSize') }}</h4>
+          <p :id="`${a11yId}-font-size-desc`" class="setting-description">{{ $t('settings.appearance.fontSizeDesc') }}</p>
         </div>
         <div class="setting-control">
           <div class="font-size-slider">
@@ -468,6 +471,9 @@
               max="20"
               step="1"
               class="slider"
+              :aria-labelledby="`${a11yId}-font-size`"
+              :aria-describedby="`${a11yId}-font-size-desc`"
+              :aria-valuetext="`${settings.fontSize}px`"
             />
             <div class="font-size-display">{{ settings.fontSize }}px</div>
           </div>
@@ -506,11 +512,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.showTimestamps') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.showTimestampsDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t2`">{{ $t('settings.appearance.showTimestamps') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t2-desc`">{{ $t('settings.appearance.showTimestampsDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch :labelledby="`${a11yId}-t2`" :describedby="`${a11yId}-t2-desc`" 
             v-model="settings.showTimestamps"
           />
         </div>
@@ -518,11 +524,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.use24Hour') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.use24HourDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t3`">{{ $t('settings.appearance.use24Hour') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t3-desc`">{{ $t('settings.appearance.use24HourDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch :labelledby="`${a11yId}-t3`" :describedby="`${a11yId}-t3-desc`" 
             v-model="settings.use24HourTime"
           />
         </div>
@@ -530,11 +536,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.compactMode') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.compactModeDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t4`">{{ $t('settings.appearance.compactMode') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t4-desc`">{{ $t('settings.appearance.compactModeDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch :labelledby="`${a11yId}-t4`" :describedby="`${a11yId}-t4-desc`" 
             v-model="settings.compactMode"
           />
         </div>
@@ -542,12 +548,14 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.bridgeSourceBadge') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.bridgeSourceBadgeDesc') }}</p>
+          <h4 :id="`${a11yId}-badge`" class="setting-label">{{ $t('settings.appearance.bridgeSourceBadge') }}</h4>
+          <p :id="`${a11yId}-badge-desc`" class="setting-description">{{ $t('settings.appearance.bridgeSourceBadgeDesc') }}</p>
         </div>
         <div class="setting-control">
           <select
             v-model="settings.bridgeSourceBadge"
+            :aria-labelledby="`${a11yId}-badge`"
+            :aria-describedby="`${a11yId}-badge-desc`"
             class="form-select"
           >
             <option value="icon">{{ $t('settings.appearance.bridgeSourceBadgeIcon') }}</option>
@@ -558,21 +566,21 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.floatingVideo') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.floatingVideoDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t5`">{{ $t('settings.appearance.floatingVideo') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t5-desc`">{{ $t('settings.appearance.floatingVideoDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch v-model="local.floatingVideoEnabled" />
+          <ToggleSwitch :labelledby="`${a11yId}-t5`" :describedby="`${a11yId}-t5-desc`" v-model="local.floatingVideoEnabled" />
         </div>
       </div>
 
       <div v-if="instanceSettings.settings.allowCustomEmojisInDisplayNames" class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.showCustomEmojisInDisplayNames') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.showCustomEmojisInDisplayNamesDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t6`">{{ $t('settings.appearance.showCustomEmojisInDisplayNames') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t6-desc`">{{ $t('settings.appearance.showCustomEmojisInDisplayNamesDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch :labelledby="`${a11yId}-t6`" :describedby="`${a11yId}-t6-desc`" 
             :model-value="settings.showCustomEmojisInDisplayNames !== false"
             @update:model-value="(v: boolean) => (settings.showCustomEmojisInDisplayNames = v)"
           />
@@ -581,11 +589,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.greentext') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.greentextDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t7`">{{ $t('settings.appearance.greentext') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t7-desc`">{{ $t('settings.appearance.greentextDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch
+          <ToggleSwitch :labelledby="`${a11yId}-t7`" :describedby="`${a11yId}-t7-desc`"
             :model-value="settings.greentextEnabled !== false"
             @update:model-value="(v: boolean) => (settings.greentextEnabled = v)"
           />
@@ -594,11 +602,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.convertSentEmoticons') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.convertSentEmoticonsDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t8`">{{ $t('settings.appearance.convertSentEmoticons') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t8-desc`">{{ $t('settings.appearance.convertSentEmoticonsDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch
+          <ToggleSwitch :labelledby="`${a11yId}-t8`" :describedby="`${a11yId}-t8-desc`"
             :model-value="settings.convertSentEmoticons !== false"
             @update:model-value="(v: boolean) => (settings.convertSentEmoticons = v)"
           />
@@ -607,11 +615,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.renderEmoticonsAsEmoji') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.renderEmoticonsAsEmojiDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t9`">{{ $t('settings.appearance.renderEmoticonsAsEmoji') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t9-desc`">{{ $t('settings.appearance.renderEmoticonsAsEmojiDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch
+          <ToggleSwitch :labelledby="`${a11yId}-t9`" :describedby="`${a11yId}-t9-desc`"
             :model-value="settings.renderEmoticonsAsEmoji !== false"
             @update:model-value="(v: boolean) => (settings.renderEmoticonsAsEmoji = v)"
           />
@@ -620,11 +628,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.inviteBannerBg') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.inviteBannerBgDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t10`">{{ $t('settings.appearance.inviteBannerBg') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t10-desc`">{{ $t('settings.appearance.inviteBannerBgDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch
+          <ToggleSwitch :labelledby="`${a11yId}-t10`" :describedby="`${a11yId}-t10-desc`"
             :model-value="settings.inviteBannerBackground !== false"
             @update:model-value="(v: boolean) => (settings.inviteBannerBackground = v)"
           />
@@ -637,11 +645,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.quickReactEnable') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.quickReactEnableDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t11`">{{ $t('settings.appearance.quickReactEnable') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t11-desc`">{{ $t('settings.appearance.quickReactEnableDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch v-model="local.quickReactEnabled" />
+          <ToggleSwitch :labelledby="`${a11yId}-t11`" :describedby="`${a11yId}-t11-desc`" v-model="local.quickReactEnabled" />
         </div>
       </div>
 
@@ -714,8 +722,8 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">Enable blur &amp; glass effects</h4>
-          <p class="setting-description">
+          <h4 class="setting-label" :id="`${a11yId}-t12`">Enable blur &amp; glass effects</h4>
+          <p class="setting-description" :id="`${a11yId}-t12-desc`">
             Many surfaces (modals, popovers, the voice dock, the sidebar) use
             <code>backdrop-filter: blur</code> for a frosted-glass look. Turn
             off for a flat / sharper UI, or if your device struggles with
@@ -723,7 +731,7 @@
           </p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch
+          <ToggleSwitch :labelledby="`${a11yId}-t12`" :describedby="`${a11yId}-t12-desc`"
             :model-value="settings.glassEffectsEnabled !== false"
             @update:model-value="(v: boolean) => (settings.glassEffectsEnabled = v)"
           />
@@ -736,11 +744,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.highContrast') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.highContrastDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t13`">{{ $t('settings.appearance.highContrast') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t13-desc`">{{ $t('settings.appearance.highContrastDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch :labelledby="`${a11yId}-t13`" :describedby="`${a11yId}-t13-desc`" 
             v-model="settings.highContrast"
           />
         </div>
@@ -748,11 +756,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.reduceMotion') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.reduceMotionDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t14`">{{ $t('settings.appearance.reduceMotion') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t14-desc`">{{ $t('settings.appearance.reduceMotionDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch :labelledby="`${a11yId}-t14`" :describedby="`${a11yId}-t14-desc`" 
             v-model="settings.reduceMotion"
           />
         </div>
@@ -760,11 +768,11 @@
 
       <div class="setting-item">
         <div class="setting-info">
-          <h4 class="setting-label">{{ $t('settings.appearance.screenReader') }}</h4>
-          <p class="setting-description">{{ $t('settings.appearance.screenReaderDesc') }}</p>
+          <h4 class="setting-label" :id="`${a11yId}-t15`">{{ $t('settings.appearance.screenReader') }}</h4>
+          <p class="setting-description" :id="`${a11yId}-t15-desc`">{{ $t('settings.appearance.screenReaderDesc') }}</p>
         </div>
         <div class="setting-control">
-          <ToggleSwitch 
+          <ToggleSwitch :labelledby="`${a11yId}-t15`" :describedby="`${a11yId}-t15-desc`" 
             v-model="settings.screenReaderSupport"
           />
         </div>
@@ -819,6 +827,11 @@ import ThemePaletteIdeas from '@/components/settings/user/ThemePaletteIdeas.vue'
 import type { ThemeColors } from '@/utils/themeHarmony'
 import Icon from '@/components/common/Icon.vue'
 import EmojiPopup from '@/components/EmojiPopup.vue'
+
+import { uid } from '@/utils/a11y/focus'
+
+// Ids pairing each switch with its visible label.
+const a11yId = uid('appearance-settings')
 
 interface Props {
   profile: User | null
@@ -2461,7 +2474,7 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-sm);
   border: 1px solid var(--error);
   background: transparent;
-  color: var(--error);
+  color: var(--text-danger);
   font-size: var(--font-size-xs);
   cursor: pointer;
   transition: all 0.15s;
@@ -2551,7 +2564,7 @@ onBeforeUnmount(() => {
 }
 
 .var-reset-btn:hover {
-  color: var(--error);
+  color: var(--text-danger);
   background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 </style>

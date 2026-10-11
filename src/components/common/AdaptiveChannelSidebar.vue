@@ -575,7 +575,7 @@ onUnmounted(() => {
 
 .mode-toggle-btn:hover {
   background: var(--background-hover);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .user-profile-card {
@@ -657,7 +657,7 @@ onUnmounted(() => {
 
 .nav-item.active {
   background: var(--background-modifier-selected);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .nav-badge {
@@ -751,7 +751,7 @@ onUnmounted(() => {
   margin-top: 2px;
   font-size: 10px;
   font-weight: 600;
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .spinning :deep(.icon-wrap) {

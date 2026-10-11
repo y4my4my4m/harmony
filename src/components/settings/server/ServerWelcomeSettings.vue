@@ -18,7 +18,7 @@
           </div>
           <ToggleSwitch
             v-model="form.enabled"
-            :aria-labelledby="`${uid}-enabled`"
+            :labelledby="`${uid}-enabled`"
             data-testid="welcome-enabled"
           />
         </div>
@@ -124,7 +124,7 @@
           <ToggleSwitch
             v-model="form.requireAcceptance"
             :disabled="!hasRules"
-            :aria-labelledby="`${uid}-require`"
+            :labelledby="`${uid}-require`"
             data-testid="welcome-require-acceptance"
           />
         </div>
@@ -470,7 +470,7 @@ watch(() => props.serverId, load, { immediate: true })
   font-size: 12px;
   font-weight: 600;
   background: color-mix(in srgb, var(--harmony-primary) 18%, transparent);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 
 .rule-fields {
@@ -507,7 +507,7 @@ watch(() => props.serverId, load, { immediate: true })
 }
 
 .icon-btn.danger:hover:not(:disabled) {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .icon-btn:disabled {
@@ -552,7 +552,7 @@ watch(() => props.serverId, load, { immediate: true })
 
 .error-state {
   margin: 0 0 12px;
-  color: var(--error);
+  color: var(--text-danger);
   font-size: 14px;
 }
 

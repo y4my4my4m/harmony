@@ -66,8 +66,8 @@
           </select>
         </label>
         <div class="poll-setting">
-          <span>{{ t('polls.allowMultiple') }}</span>
-          <ToggleSwitch v-model="allowMultiple" data-testid="poll-allow-multiple" />
+          <span :id="`${a11yId}-multiple`">{{ t('polls.allowMultiple') }}</span>
+          <ToggleSwitch v-model="allowMultiple" :labelledby="`${a11yId}-multiple`" data-testid="poll-allow-multiple" />
         </div>
       </div>
 
@@ -110,6 +110,10 @@ import {
   pollDraftProblem,
 } from '@/utils/messagePoll'
 import { debug } from '@/utils/debug'
+
+import { uid } from '@/utils/a11y/focus'
+
+const a11yId = uid('poll-create')
 
 const props = defineProps<{
   show: boolean
@@ -351,7 +355,7 @@ async function submit() {
 .poll-error {
   margin: 8px 0 0;
   font-size: var(--font-size-sm);
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .poll-actions {

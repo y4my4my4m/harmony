@@ -14,7 +14,7 @@
         <ToggleSwitch
           :model-value="shared"
           :disabled="!canManage || sharingBusy"
-          :aria-labelledby="`${uid}-sharing`"
+          :labelledby="`${uid}-sharing`"
           data-testid="soundboard-share-toggle"
           @update:model-value="setSharing"
         />
@@ -732,7 +732,7 @@ onBeforeUnmount(() => {
 }
 
 .icon-btn.danger:hover:not(:disabled) {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .icon-btn:disabled {
@@ -759,7 +759,7 @@ onBeforeUnmount(() => {
 
 .error-state {
   margin: 8px 0 0;
-  color: var(--error);
+  color: var(--text-danger);
   font-size: 14px;
 }
 

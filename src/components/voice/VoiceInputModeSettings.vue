@@ -219,7 +219,7 @@ onUnmounted(stopRecording);
   margin-bottom: 8px;
 }
 .setting-value {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   font-weight: 600;
 }
 .keybind-button {
@@ -244,7 +244,7 @@ onUnmounted(stopRecording);
 .keybind-button.recording {
   background: var(--harmony-primary-light);
   border-color: var(--harmony-primary);
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 .setting-slider {
   width: 100%;

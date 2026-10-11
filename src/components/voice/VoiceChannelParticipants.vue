@@ -264,7 +264,7 @@ onUnmounted(() => {
 }
 
 .status-icon.muted {
-  color: var(--error);
+  color: var(--text-danger);
 }
 
 .status-icon.deafened {
@@ -272,7 +272,7 @@ onUnmounted(() => {
 }
 
 .status-icon.video {
-  color: var(--success);
+  color: var(--text-success);
 }
 
 .status-icon.local-muted {
@@ -280,7 +280,7 @@ onUnmounted(() => {
 }
 
 .status-icon.screen {
-  color: var(--harmony-primary);
+  color: var(--text-link);
 }
 </style>
 

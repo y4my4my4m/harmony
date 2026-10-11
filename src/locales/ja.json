@@ -746,7 +746,7 @@
       "reduceMotion": "モーション削減",
       "reduceMotionDesc": "アニメーションとトランジションを減らします。",
       "screenReader": "スクリーンリーダーサポート",
-      "screenReaderDesc": "スクリーンリーダー向けに最適化します。",
+      "screenReaderDesc": "スクリーンリーダーに追加のアクティビティ（入力中、ボイスで話している人、オンライン状態の変化）を読み上げ、キーボードフォーカスの枠を太くします。重要な読み上げは常に有効です。",
       "saveChanges": "変更を保存",
       "resetSettings": "リセット",
       "unsavedChanges": "保存されていない外観の変更があります",
@@ -4412,5 +4412,143 @@
     "positionValue": "{total}中{current}",
     "speed": "再生速度 {speed}倍",
     "playFailed": "このボイスメッセージを再生できませんでした。"
+  },
+  "a11y": {
+    "unreadNotifications": "未読の通知 {count} 件",
+    "announcements": {
+      "pinned": "固定"
+    },
+    "skipToContent": "コンテンツへスキップ",
+    "loadingInstance": "{name} を読み込み中…",
+    "genericError": "問題が発生しました。もう一度お試しください。",
+    "backOnline": "オンラインに戻りました",
+    "bannerImage": "バナー画像",
+    "landmarks": {
+      "servers": "サーバー",
+      "channels": "チャンネル",
+      "directMessages": "ダイレクトメッセージ",
+      "members": "メンバー",
+      "userPanel": "あなたのアカウント",
+      "social": "ソーシャルナビゲーション",
+      "socialSidebar": "トレンドとおすすめ"
+    },
+    "drawer": {
+      "navigation": "ナビゲーションメニュー",
+      "memberList": "メンバーリスト"
+    },
+    "title": {
+      "resetPassword": "パスワードをリセット",
+      "invite": "招待",
+      "followRequests": "フォローリクエスト",
+      "hashtag": "ハッシュタグ",
+      "serverSettings": "サーバー設定",
+      "thread": "スレッド",
+      "today": "今日",
+      "newProfile": "プロフィールを作成"
+    },
+    "announcer": {
+      "more": "ほか {count} 件"
+    },
+    "toast": {
+      "dismiss": "通知を閉じる"
+    },
+    "confirm": {
+      "typeExact": "確認のため、正確なテキストを入力してください。",
+      "typeToConfirm": "確認のため「{text}」と入力してください"
+    },
+    "moderation": {
+      "kickMember": "メンバーをキック",
+      "banMember": "メンバーをBAN",
+      "kick": "キック",
+      "ban": "BAN"
+    },
+    "instance": {
+      "noneSelected": "インスタンスが選択されていません",
+      "change": "インスタンスを変更",
+      "changeShort": "変更"
+    },
+    "avatar": {
+      "view": "アバターを原寸で表示",
+      "viewNamed": "{name} のアバターを原寸で表示",
+      "image": "アバター",
+      "imageNamed": "{name} のアバター",
+      "change": "アバターを変更"
+    },
+    "serverIcon": {
+      "view": "サーバーアイコンを原寸で表示",
+      "viewNamed": "{name} のアイコンを原寸で表示",
+      "image": "サーバーアイコン",
+      "imageNamed": "{name} のアイコン",
+      "change": "サーバーアイコンを変更"
+    },
+    "lightbox": {
+      "label": "メディアビューアー",
+      "position": "{total} 件中 {current} 件目",
+      "previous": "前へ",
+      "next": "次へ",
+      "zoomIn": "拡大",
+      "zoomOut": "縮小",
+      "resetZoom": "ズームと回転をリセット",
+      "rotateLeft": "左に回転",
+      "rotateRight": "右に回転",
+      "videoUnsupported": "この動画はここでは再生できません。"
+    },
+    "pwa": {
+      "installApp": "Harmony アプリをインストール",
+      "share": "Harmony を共有"
+    },
+    "rail": {
+      "portal": "Harmony ポータル",
+      "fediverse": "フェディバース",
+      "funding": "インスタンスの資金"
+    },
+    "notifications": {
+      "desktopFor": "{type}：デスクトップ通知",
+      "soundFor": "{type}：サウンド",
+      "testFor": "{type} の通知をテスト",
+      "volume": "マスター音量"
+    },
+    "settings": {
+      "importThemeFile": "インポートするテーマファイル"
+    },
+    "shortcuts": {
+      "title": "ナビゲーション",
+      "regions": "次または前の領域へ移動（サーバー、チャンネル、メッセージ、メンバー、ボイス）",
+      "regionsKeys": "F6 / Shift+F6",
+      "browserNote": "F6 をアドレスバーに使うブラウザーでは Ctrl+F6 / Ctrl+Shift+F6 を使ってください。",
+      "skip": "コンテンツへスキップ：各ページで最初の Tab 位置",
+      "skipKeys": "Tab",
+      "escape": "開いているダイアログ、メニュー、パネルを閉じ、フォーカスを元の場所に戻す",
+      "escapeKeys": "Esc"
+    }
+  },
+  "statusPicker": {
+    "setTitle": "カスタムステータスを設定",
+    "editTitle": "カスタムステータスを編集",
+    "current": "現在のステータス",
+    "clear": "ステータスをクリア",
+    "chooseEmoji": "絵文字を選択",
+    "emojiSelected": "絵文字：{name}。絵文字を変更",
+    "charCount": "{max} 文字中 {count} 文字",
+    "activity": "アクティビティ",
+    "customHint": "テキストまたは絵文字のみ（接頭辞なし）",
+    "clearAfter": "クリアまでの時間",
+    "saving": "保存中…",
+    "activities": {
+      "custom": "カスタム",
+      "playing": "プレイ中",
+      "listening": "再生中",
+      "watching": "視聴中",
+      "competing": "参戦中",
+      "streaming": "配信中"
+    },
+    "durations": {
+      "never": "クリアしない",
+      "30m": "30分",
+      "1h": "1時間",
+      "4h": "4時間",
+      "today": "今日",
+      "1w": "今週"
+    }
   }
 }

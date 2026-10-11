@@ -588,7 +588,7 @@ onMounted(() => {
 }
 
 .delete-modal .warning {
-  color: var(--error);
+  color: var(--text-danger);
   font-size: 0.875rem;
 }
 

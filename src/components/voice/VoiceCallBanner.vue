@@ -1,16 +1,18 @@
 <template>
-  <div v-if="kind" class="vcb" :class="[`vcb--${kind}`, { compact }]" role="status" aria-live="polite">
+  <div class="vcb-region" role="status">
+  <div v-if="kind" class="vcb" :class="[`vcb--${kind}`, { compact }]">
     <template v-if="kind === 'reconnecting'">
       <span class="vcb-spinner" aria-hidden="true" />
       <span class="vcb-text">{{ t('voice.reconnecting') }}</span>
     </template>
     <template v-else>
-      <Icon name="volume-x" :size="16" class="vcb-icon" />
+      <Icon name="volume-x" :size="16" class="vcb-icon" aria-hidden="true" />
       <span class="vcb-text">{{ t('voice.audioBlocked') }}</span>
       <button type="button" class="vcb-btn" @click.stop="voiceStore.unlockAudio()">
         {{ t('voice.enableAudio') }}
       </button>
     </template>
+  </div>
   </div>
 </template>
 
@@ -64,7 +66,7 @@ const kind = computed<'reconnecting' | 'blocked' | null>(() => {
 }
 
 .vcb-icon {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   flex-shrink: 0;
 }
 

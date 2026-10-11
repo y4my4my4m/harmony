@@ -479,6 +479,6 @@ watch(() => props.channelId, () => {
 }
 
 .wh-icon-btn.danger:hover:not(:disabled) {
-  color: var(--error);
+  color: var(--text-danger);
 }
 </style>

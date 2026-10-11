@@ -1,3 +1,4 @@
+import { setTitleInstance } from '@/utils/a11y/documentTitle'
 import { defineStore } from 'pinia'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
@@ -341,7 +342,7 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
      */
     applyBranding(): void {
       if (typeof document === 'undefined') return
-      document.title = this.settings.instanceName || 'Harmony'
+      setTitleInstance(this.settings.instanceName)
       if (this.settings.instanceIcon) {
         setBaseFavicon(this.settings.instanceIcon)
       }

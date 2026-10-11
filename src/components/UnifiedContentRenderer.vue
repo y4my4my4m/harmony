@@ -583,7 +583,7 @@ const formatFileSize = (bytes: number): string => {
   padding: 0 2px;
   font-weight: 500;
   cursor: pointer;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   display: inline-block;
   transition: background-color 0.2s ease;
   user-select: text;
@@ -645,7 +645,7 @@ const formatFileSize = (bytes: number): string => {
 /* HTML mode mentions (for ActivityPub content) */
 .content-html :deep(.mention) {
   background-color: color-mix(in srgb, var(--success) 10%, transparent);
-  color: var(--success);
+  color: var(--text-success);
   cursor: pointer;
   padding: 1px 2px;
   border-radius: 3px;
@@ -667,7 +667,7 @@ const formatFileSize = (bytes: number): string => {
   padding: 0 3px;
   cursor: pointer;
   font-weight: 500;
-  color: var(--harmony-primary);
+  color: var(--text-link);
   display: inline-block;
   transition: background-color 0.2s ease;
   user-select: text;
@@ -759,7 +759,7 @@ const formatFileSize = (bytes: number): string => {
 
 /* URLs */
 .url-link {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-decoration: underline;
   transition: color 0.2s ease;
 }
@@ -769,7 +769,7 @@ const formatFileSize = (bytes: number): string => {
 }
 
 .content-html :deep(.url-link) {
-  color: var(--harmony-primary);
+  color: var(--text-link);
   text-decoration: underline;
 }
 
