@@ -74,12 +74,15 @@ async function ensureAxe(page: Page): Promise<void> {
   if (!present) await page.addScriptTag({ path: AXE_PATH })
 }
 
+// Bounded: a finite animation restarted in a loop never settles, and axe then runs anyway.
 async function animationsSettled(page: Page): Promise<void> {
-  await page.waitForFunction(
-    () => document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getTiming().iterations === Infinity),
-    undefined,
-    { timeout: 5000 },
-  )
+  await page
+    .waitForFunction(
+      () => document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getTiming().iterations === Infinity),
+      undefined,
+      { timeout: 3000 },
+    )
+    .catch(() => {})
 }
 
 /** Violations after impact filtering and AXE_EXCLUSIONS, without asserting. */
