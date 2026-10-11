@@ -2706,6 +2706,12 @@ watch(() => props.messages, (newMessages) => {
               }
               if (dividerScrollAttempts < 6) {
                 setTimeout(scrollToDivider, dividerScrollAttempts < 3 ? 50 : 150);
+              } else if (distanceFromBottom(c) <= PIN_THRESHOLD_PX) {
+                // The settled landing shows the end: a channel shorter than the
+                // view, or few new messages. No scroll event re-pins a view that
+                // never scrolled, and an unpinned view leaves later arrivals and
+                // late-loading media below it.
+                setPinned(true);
               }
             });
           };
