@@ -68,12 +68,6 @@ export const AXE_EXCLUSIONS: AxeExclusion[] = [
     reason: 'Voice channel rows (role=button) contain the "Open chat" button (ChannelSidebar.vue).',
     within: '.channel-sidebar',
   },
-  {
-    rule: 'label-content-name-mismatch',
-    area: 'voice',
-    reason: 'User panel avatar button: aria-label "Your account and voice controls" omits the visible name (UserProfileComponent.vue).',
-    within: '[data-region="user"], .user-profile-section',
-  },
 ]
 
 export interface AxeOptions {
