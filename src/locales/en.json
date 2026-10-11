@@ -719,6 +719,33 @@
     "myBots": "My bots",
     "supporter": "Support",
     "myBotsDescription": "Manage bots you have created",
+    "myEmojis": {
+      "title": "My emojis",
+      "description": "Your personal emojis, including the ones you generate with AI in the emoji picker. Messages reference custom emojis by name, so after a rename or delete, earlier messages show the :name: text instead of the image.",
+      "loading": "Loading your emojis…",
+      "empty": "You have no personal emojis yet. Emojis you generate with AI in the emoji picker appear here.",
+      "listLabel": "Your emojis",
+      "aiBadge": "AI",
+      "aiGenerated": "AI-generated",
+      "uses": "not used yet | used once | used {count} times",
+      "rename": "Rename :{name}:",
+      "delete": "Delete :{name}:",
+      "newName": "New name for :{name}:",
+      "nameHint": "2 to 64 letters, digits, _ or -. Enter saves, Escape cancels.",
+      "renamed": "Renamed :{from}: to :{to}:",
+      "deleted": "Deleted :{name}:",
+      "deleteTitle": "Delete emoji",
+      "confirmDelete": "Delete :{name}:? Reactions with it are removed, and earlier messages that use it show the :{name}: text instead of the image.",
+      "retry": "Try again",
+      "errors": {
+        "load": "Could not load your emojis.",
+        "rename": "Could not rename the emoji.",
+        "delete": "Could not delete the emoji.",
+        "invalidName": "Names are 2 to 64 letters, digits, _ or -.",
+        "nameTaken": "You already have an emoji with that name.",
+        "notFound": "That emoji no longer exists."
+      }
+    },
     "authorizedApps": "Authorized apps",
     "connections": "Connections",
     "administration": "Administration",
@@ -3341,14 +3368,16 @@
     "instanceEmojis": {
       "tab": "Emojis",
       "title": "Instance emojis",
-      "hint": "Instance-wide and imported emojis: admin uploads, Discord bridge and bot emojis, and emojis from federated reactions and posts. Server and personal emojis stay with their owners. Messages reference custom emojis by name, so after a rename or delete, earlier messages show the :name: text instead of the image.",
+      "hint": "Instance-wide and imported emojis: admin uploads, Discord bridge and bot emojis, and emojis from federated reactions and posts. Server emojis stay with their servers; personal and AI-generated emojis are listed under User emojis. Messages reference custom emojis by name, so after a rename or delete, earlier messages show the :name: text instead of the image.",
       "refresh": "Refresh",
       "searchPlaceholder": "Search by name or domain",
+      "searchPlaceholderUser": "Search by name or owner",
       "source": {
         "label": "Source",
         "all": "All sources",
         "local": "Local",
-        "remote": "Remote and bridged"
+        "remote": "Remote and bridged",
+        "user": "User emojis"
       },
       "sort": {
         "label": "Sort",
@@ -3356,8 +3385,14 @@
         "name": "Name (A-Z)"
       },
       "empty": "No instance emojis match.",
+      "emptyUser": "No user emojis match.",
       "localBadge": "local",
+      "personalBadge": "personal",
+      "aiBadge": "AI",
+      "aiGenerated": "AI-generated",
       "uploadedBy": "by {user}",
+      "ownedBy": "owned by {user}",
+      "noOwner": "deleted account",
       "reactions": "no reactions | {count} reaction | {count} reactions",
       "rename": "Rename",
       "newName": "New name",
@@ -3369,12 +3404,15 @@
       "deleteTitle": "Delete emoji",
       "confirmDelete": "Delete :{name}:? Earlier messages that use it show the :{name}: text instead of the image.",
       "confirmDeleteInUse": "Delete :{name}:? Its {count} reaction is removed, and earlier messages that use it show the :{name}: text instead of the image. | Delete :{name}:? Its {count} reactions are removed, and earlier messages that use it show the :{name}: text instead of the image.",
+      "confirmDeleteUser": "Delete :{name}: from {user}'s emojis? Earlier messages that use it show the :{name}: text instead of the image.",
+      "confirmDeleteUserInUse": "Delete :{name}: from {user}'s emojis? Its {count} reaction is removed, and earlier messages that use it show the :{name}: text instead of the image. | Delete :{name}: from {user}'s emojis? Its {count} reactions are removed, and earlier messages that use it show the :{name}: text instead of the image.",
       "errors": {
         "load": "Could not load instance emojis.",
         "rename": "Could not rename the emoji.",
         "delete": "Could not delete the emoji.",
         "invalidName": "Names are 2 to 64 letters, digits, _ or -.",
-        "nameTaken": "Another instance emoji already uses that name."
+        "nameTaken": "Another instance emoji already uses that name.",
+        "nameTakenUser": "The owner already has an emoji with that name."
       }
     }
   },

@@ -854,6 +854,33 @@
     "myBots": "Meine Bots",
     "supporter": "Unterstützung",
     "myBotsDescription": "Verwalten Sie die von Ihnen erstellten Bots",
+    "myEmojis": {
+      "title": "Meine Emojis",
+      "description": "Deine persönlichen Emojis, auch die, die du in der Emoji-Auswahl mit KI erzeugst. Nachrichten verweisen über den Namen auf eigene Emojis; nach dem Umbenennen oder Löschen zeigen ältere Nachrichten den Text :name: statt des Bildes.",
+      "loading": "Deine Emojis werden geladen…",
+      "empty": "Du hast noch keine persönlichen Emojis. Emojis, die du in der Emoji-Auswahl mit KI erzeugst, erscheinen hier.",
+      "listLabel": "Deine Emojis",
+      "aiBadge": "KI",
+      "aiGenerated": "Mit KI erzeugt",
+      "uses": "noch nicht verwendet | einmal verwendet | {count}-mal verwendet",
+      "rename": ":{name}: umbenennen",
+      "delete": ":{name}: löschen",
+      "newName": "Neuer Name für :{name}:",
+      "nameHint": "2 bis 64 Buchstaben, Ziffern, _ oder -. Eingabe speichert, Escape bricht ab.",
+      "renamed": ":{from}: in :{to}: umbenannt",
+      "deleted": ":{name}: gelöscht",
+      "deleteTitle": "Emoji löschen",
+      "confirmDelete": ":{name}: löschen? Reaktionen damit werden entfernt, und ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes.",
+      "retry": "Erneut versuchen",
+      "errors": {
+        "load": "Deine Emojis konnten nicht geladen werden.",
+        "rename": "Das Emoji konnte nicht umbenannt werden.",
+        "delete": "Das Emoji konnte nicht gelöscht werden.",
+        "invalidName": "Namen bestehen aus 2 bis 64 Buchstaben, Ziffern, _ oder -.",
+        "nameTaken": "Du hast bereits ein Emoji mit diesem Namen.",
+        "notFound": "Dieses Emoji existiert nicht mehr."
+      }
+    },
     "audio": {
       "title": "Töne",
       "description": "Konfigurieren Sie Ihre Audioeinstellungen.",
@@ -3345,14 +3372,16 @@
     "instanceEmojis": {
       "tab": "Emojis",
       "title": "Instanz-Emojis",
-      "hint": "Instanzweite und importierte Emojis: Uploads von Admins, Emojis von Discord-Brücken und Bots sowie Emojis aus föderierten Reaktionen und Beiträgen. Server- und persönliche Emojis verwalten ihre Besitzer. Nachrichten verweisen über den Namen auf eigene Emojis; nach dem Umbenennen oder Löschen zeigen ältere Nachrichten den Text :name: statt des Bildes.",
+      "hint": "Instanzweite und importierte Emojis: Uploads von Admins, Emojis von Discord-Brücken und Bots sowie Emojis aus föderierten Reaktionen und Beiträgen. Server-Emojis verwalten ihre Server; persönliche und mit KI erzeugte Emojis stehen unter Nutzer-Emojis. Nachrichten verweisen über den Namen auf eigene Emojis; nach dem Umbenennen oder Löschen zeigen ältere Nachrichten den Text :name: statt des Bildes.",
       "refresh": "Aktualisieren",
       "searchPlaceholder": "Nach Name oder Domain suchen",
+      "searchPlaceholderUser": "Nach Name oder Besitzer suchen",
       "source": {
         "label": "Quelle",
         "all": "Alle Quellen",
         "local": "Lokal",
-        "remote": "Entfernt und überbrückt"
+        "remote": "Entfernt und überbrückt",
+        "user": "Nutzer-Emojis"
       },
       "sort": {
         "label": "Sortierung",
@@ -3360,8 +3389,14 @@
         "name": "Name (A-Z)"
       },
       "empty": "Keine passenden Instanz-Emojis.",
+      "emptyUser": "Keine Nutzer-Emojis gefunden.",
       "localBadge": "lokal",
+      "personalBadge": "persönlich",
+      "aiBadge": "KI",
+      "aiGenerated": "Mit KI erzeugt",
       "uploadedBy": "von {user}",
+      "ownedBy": "gehört {user}",
+      "noOwner": "gelöschtes Konto",
       "reactions": "keine Reaktionen | {count} Reaktion | {count} Reaktionen",
       "rename": "Umbenennen",
       "newName": "Neuer Name",
@@ -3373,12 +3408,15 @@
       "deleteTitle": "Emoji löschen",
       "confirmDelete": ":{name}: löschen? Ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes.",
       "confirmDeleteInUse": ":{name}: löschen? Seine {count} Reaktion wird entfernt, und ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes. | :{name}: löschen? Seine {count} Reaktionen werden entfernt, und ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes.",
+      "confirmDeleteUser": ":{name}: aus den Emojis von {user} löschen? Ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes.",
+      "confirmDeleteUserInUse": ":{name}: aus den Emojis von {user} löschen? Seine {count} Reaktion wird entfernt, und ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes. | :{name}: aus den Emojis von {user} löschen? Seine {count} Reaktionen werden entfernt, und ältere Nachrichten, die es verwenden, zeigen den Text :{name}: statt des Bildes.",
       "errors": {
         "load": "Instanz-Emojis konnten nicht geladen werden.",
         "rename": "Das Emoji konnte nicht umbenannt werden.",
         "delete": "Das Emoji konnte nicht gelöscht werden.",
         "invalidName": "Namen bestehen aus 2 bis 64 Buchstaben, Ziffern, _ oder -.",
-        "nameTaken": "Ein anderes Instanz-Emoji verwendet diesen Namen bereits."
+        "nameTaken": "Ein anderes Instanz-Emoji verwendet diesen Namen bereits.",
+        "nameTakenUser": "Der Besitzer hat bereits ein Emoji mit diesem Namen."
       }
     }
   },

@@ -854,6 +854,33 @@
     "myBots": "Mis bots",
     "supporter": "Soporte",
     "myBotsDescription": "Gestiona los bots que has creado",
+    "myEmojis": {
+      "title": "Mis emojis",
+      "description": "Tus emojis personales, incluidos los que generas con IA en el selector de emojis. Los mensajes hacen referencia a los emojis personalizados por su nombre; tras renombrarlos o eliminarlos, los mensajes anteriores muestran el texto :nombre: en lugar de la imagen.",
+      "loading": "Cargando tus emojis…",
+      "empty": "Todavía no tienes emojis personales. Los emojis que generas con IA en el selector de emojis aparecen aquí.",
+      "listLabel": "Tus emojis",
+      "aiBadge": "IA",
+      "aiGenerated": "Generado con IA",
+      "uses": "sin usar todavía | usado una vez | usado {count} veces",
+      "rename": "Renombrar :{name}:",
+      "delete": "Eliminar :{name}:",
+      "newName": "Nuevo nombre para :{name}:",
+      "nameHint": "De 2 a 64 letras, dígitos, _ o -. Intro guarda, Escape cancela.",
+      "renamed": ":{from}: renombrado a :{to}:",
+      "deleted": ":{name}: eliminado",
+      "deleteTitle": "Eliminar emoji",
+      "confirmDelete": "¿Eliminar :{name}:? Se quitan las reacciones con él, y los mensajes anteriores que lo usan muestran el texto :{name}: en lugar de la imagen.",
+      "retry": "Reintentar",
+      "errors": {
+        "load": "No se pudieron cargar tus emojis.",
+        "rename": "No se pudo renombrar el emoji.",
+        "delete": "No se pudo eliminar el emoji.",
+        "invalidName": "Los nombres tienen de 2 a 64 letras, dígitos, _ o -.",
+        "nameTaken": "Ya tienes un emoji con ese nombre.",
+        "notFound": "Ese emoji ya no existe."
+      }
+    },
     "audio": {
       "title": "Sonidos",
       "description": "Configura tus ajustes de audio.",
@@ -3345,14 +3372,16 @@
     "instanceEmojis": {
       "tab": "Emojis",
       "title": "Emojis de la instancia",
-      "hint": "Emojis de toda la instancia e importados: subidas de administradores, emojis de puentes de Discord y bots, y emojis de reacciones y publicaciones federadas. Los emojis de servidor y personales los gestionan sus propietarios. Los mensajes hacen referencia a los emojis personalizados por su nombre; tras renombrarlos o eliminarlos, los mensajes anteriores muestran el texto :nombre: en lugar de la imagen.",
+      "hint": "Emojis de toda la instancia e importados: subidas de administradores, emojis de puentes de Discord y bots, y emojis de reacciones y publicaciones federadas. Los emojis de servidor los gestionan sus servidores; los emojis personales y generados con IA aparecen en Emojis de usuarios. Los mensajes hacen referencia a los emojis personalizados por su nombre; tras renombrarlos o eliminarlos, los mensajes anteriores muestran el texto :nombre: en lugar de la imagen.",
       "refresh": "Actualizar",
       "searchPlaceholder": "Buscar por nombre o dominio",
+      "searchPlaceholderUser": "Buscar por nombre o propietario",
       "source": {
         "label": "Origen",
         "all": "Todos los orígenes",
         "local": "Locales",
-        "remote": "Remotos y puenteados"
+        "remote": "Remotos y puenteados",
+        "user": "Emojis de usuarios"
       },
       "sort": {
         "label": "Orden",
@@ -3360,8 +3389,14 @@
         "name": "Nombre (A-Z)"
       },
       "empty": "Ningún emoji de la instancia coincide.",
+      "emptyUser": "Ningún emoji de usuario coincide.",
       "localBadge": "local",
+      "personalBadge": "personal",
+      "aiBadge": "IA",
+      "aiGenerated": "Generado con IA",
       "uploadedBy": "por {user}",
+      "ownedBy": "de {user}",
+      "noOwner": "cuenta eliminada",
       "reactions": "sin reacciones | {count} reacción | {count} reacciones",
       "rename": "Renombrar",
       "newName": "Nuevo nombre",
@@ -3373,12 +3408,15 @@
       "deleteTitle": "Eliminar emoji",
       "confirmDelete": "¿Eliminar :{name}:? Los mensajes anteriores que lo usan muestran el texto :{name}: en lugar de la imagen.",
       "confirmDeleteInUse": "¿Eliminar :{name}:? Se elimina su {count} reacción, y los mensajes anteriores que lo usan muestran el texto :{name}: en lugar de la imagen. | ¿Eliminar :{name}:? Se eliminan sus {count} reacciones, y los mensajes anteriores que lo usan muestran el texto :{name}: en lugar de la imagen.",
+      "confirmDeleteUser": "¿Eliminar :{name}: de los emojis de {user}? Los mensajes anteriores que lo usan muestran el texto :{name}: en lugar de la imagen.",
+      "confirmDeleteUserInUse": "¿Eliminar :{name}: de los emojis de {user}? Se quita su {count} reacción, y los mensajes anteriores que lo usan muestran el texto :{name}: en lugar de la imagen. | ¿Eliminar :{name}: de los emojis de {user}? Se quitan sus {count} reacciones, y los mensajes anteriores que lo usan muestran el texto :{name}: en lugar de la imagen.",
       "errors": {
         "load": "No se pudieron cargar los emojis de la instancia.",
         "rename": "No se pudo renombrar el emoji.",
         "delete": "No se pudo eliminar el emoji.",
         "invalidName": "Los nombres tienen de 2 a 64 letras, dígitos, _ o -.",
-        "nameTaken": "Otro emoji de la instancia ya usa ese nombre."
+        "nameTaken": "Otro emoji de la instancia ya usa ese nombre.",
+        "nameTakenUser": "El propietario ya tiene un emoji con ese nombre."
       }
     }
   },

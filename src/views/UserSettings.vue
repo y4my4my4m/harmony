@@ -132,6 +132,8 @@
             :loading="loading"
           />
 
+          <MyEmojisSettings v-else-if="activeSection === 'emojis'" />
+
           <!-- Appearance Section -->
           <AppearanceSettings 
             v-else-if="activeSection === 'appearance'"
@@ -230,6 +232,7 @@ import KeybindSettings from '@/components/settings/user/KeybindSettings.vue'
 import LanguageSettings from '@/components/settings/user/LanguageSettings.vue'
 import AdvancedSettings from '@/components/settings/user/AdvancedSettings.vue'
 import UserBotsManagement from '@/components/settings/user/UserBotsManagement.vue'
+import MyEmojisSettings from '@/components/settings/user/MyEmojisSettings.vue'
 import AnnouncementsSettings from '@/components/settings/user/AnnouncementsSettings.vue'
 import SettingsBuildFooter from '@/components/settings/user/SettingsBuildFooter.vue'
 import { useAnnouncementUnreadCount } from '@/composables/useAnnouncementUnreadCount'
@@ -247,6 +250,7 @@ import KeyboardIcon from '@/components/icons/Keyboard.vue'
 import GlobeIcon from '@/components/icons/Globe.vue'
 import CogIcon from '@/components/icons/Cog.vue'
 import RobotIcon from '@/components/icons/Robot.vue'
+import EmojiIcon from '@/components/icons/EmojiIcon.vue'
 import LogoutIcon from '@/components/icons/Logout.vue'
 import CloseIcon from '@/components/icons/Close.vue'
 
@@ -301,7 +305,8 @@ const userSections = computed(() => [
   { id: 'account', label: 'settings.account', icon: UserIcon },
   { id: 'security', label: 'settings.security', icon: LockIcon },
   { id: 'privacy', label: 'settings.privacy', icon: ShieldIcon },
-  { id: 'bots', label: 'settings.myBots', icon: RobotIcon }
+  { id: 'bots', label: 'settings.myBots', icon: RobotIcon },
+  { id: 'emojis', label: 'settings.myEmojis.title', icon: EmojiIcon }
 ])
 
 const appSections = computed(() => [

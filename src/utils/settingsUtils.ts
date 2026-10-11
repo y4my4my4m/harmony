@@ -8,6 +8,7 @@ export type SettingsSection =
   | 'account' 
   | 'security'
   | 'privacy' 
+  | 'emojis'
   | 'appearance' 
   | 'notifications' 
   | 'announcements'
@@ -42,6 +43,7 @@ export function isValidSettingsSection(section: string): section is SettingsSect
     'account',
     'security',
     'privacy', 
+    'emojis',
     'appearance',
     'notifications',
     'announcements',
