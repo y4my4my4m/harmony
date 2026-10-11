@@ -12,7 +12,8 @@ export const DISCORD_AUTHORIZE_URL = 'https://discord.com/oauth2/authorize'
  * Channels, Send Messages, Manage Messages, Embed Links, Attach Files, Read Message History,
  * Add Reactions, Manage Webhooks) plus Use External Emojis. Manage Messages deletes the
  * Discord original of a Discord-origin message deleted on Harmony (bridge 2.2.0); a guild
- * linked with an earlier set lacks it until linked again.
+ * linked with an earlier set lacks it until linked again. Create Public Threads and Send Messages
+ * in Threads carry threads across the bridge (bridge 2.4.0, Harmony 1.7.5).
  */
 export const INSTANCE_BOT_PERMISSION_BITS = {
   addReactions: 1n << 6n,
@@ -24,9 +25,11 @@ export const INSTANCE_BOT_PERMISSION_BITS = {
   readMessageHistory: 1n << 16n,
   useExternalEmojis: 1n << 18n,
   manageWebhooks: 1n << 29n,
+  createPublicThreads: 1n << 35n,
+  sendMessagesInThreads: 1n << 38n,
 } as const
 
-/** 537259072. */
+/** 309774904384. */
 export const INSTANCE_BOT_PERMISSIONS = Object.values(INSTANCE_BOT_PERMISSION_BITS)
   .reduce((acc, bit) => acc | bit, 0n)
   .toString()

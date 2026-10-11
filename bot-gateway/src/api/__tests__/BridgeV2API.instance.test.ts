@@ -126,7 +126,7 @@ describe('GET /bridge/v2/discord/authorize', () => {
     expect(Object.fromEntries(location.searchParams)).toEqual({
       client_id: APP_ID,
       scope: 'bot applications.commands',
-      permissions: '537259072',
+      permissions: '309774904384',
       response_type: 'code',
       integration_type: '0',
       redirect_uri: CALLBACK,
@@ -140,8 +140,8 @@ describe('GET /bridge/v2/discord/authorize', () => {
     // View Channels, Send Messages, Embed Links, Attach Files, Read Message History, Add Reactions,
     // Manage Webhooks (536988736, the bridge README's invite before 2.2) + Manage Messages
     // (1 << 13, bridge 2.2) + Use External Emojis (1 << 18).
-    expect(INSTANCE_BOT_PERMISSIONS).toBe(String(536988736 + 8192 + 262144))
-    expect(INSTANCE_BOT_PERMISSIONS).toBe('537259072')
+    expect(INSTANCE_BOT_PERMISSIONS).toBe(String(536988736 + 8192 + 262144 + 2 ** 35 + 2 ** 38))
+    expect(INSTANCE_BOT_PERMISSIONS).toBe('309774904384')
   })
 
   it('returns an expired or used state to the bridge settings before Discord is involved', async () => {
