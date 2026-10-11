@@ -13,6 +13,7 @@ const TestDialog = defineComponent({
     label: { type: String, default: 'Dialog' },
     withField: { type: Boolean, default: true },
     closeOnEscape: { type: Boolean, default: true },
+    hidden: { type: Boolean, default: false },
     initialFocus: { type: [String, Object] as unknown as () => InitialFocus, default: 'auto' },
   },
   emits: ['close'],
@@ -27,7 +28,7 @@ const TestDialog = defineComponent({
     })
     return () =>
       h(Teleport, { to: 'body' }, props.open
-        ? [h('div', { ref: el, role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId, tabindex: '-1', 'data-testid': props.label }, [
+        ? [h('div', { ref: el, role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId, tabindex: '-1', 'data-testid': props.label, style: props.hidden ? 'visibility: hidden' : undefined }, [
             h('h2', { id: titleId }, props.label),
             props.withField ? h('input', { 'data-testid': `${props.label}-field` }) : null,
             h('button', { 'data-testid': `${props.label}-first` }, 'first'),
@@ -84,6 +85,20 @@ describe('useDialog', () => {
     await wrapper.setProps({ open: true })
     await nextTick()
     expect(document.activeElement).toBe(q('plain'))
+  })
+
+  it('moves focus in on the first frame a dialog hidden while positioning shows', async () => {
+    const opener = document.createElement('button')
+    document.body.append(opener)
+    opener.focus()
+    const wrapper = mount(TestDialog, { props: { open: false, label: 'placed', hidden: true } })
+    await wrapper.setProps({ open: true })
+    await nextTick()
+    expect(document.activeElement).toBe(opener)
+    await wrapper.setProps({ hidden: false })
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+    expect(document.activeElement).toBe(q('placed-field'))
   })
 
   it('honours an initialFocus selector', async () => {

@@ -16,7 +16,8 @@
  * While open and mounted:
  * - focus moves in: options.initialFocus, else [data-autofocus]/[autofocus],
  *   else the first text field, else the dialog element itself (which reads
- *   its label);
+ *   its label); a dialog still hidden while it positions (visibility:hidden
+ *   takes no focus) gets it on the first frame it shows;
  * - Tab and Shift+Tab wrap inside the dialog;
  * - Escape reaches only the topmost layer (utils/a11y/layers.ts) and calls
  *   onClose unless closeOnEscape is false, in which case it is swallowed;
@@ -76,6 +77,9 @@ export interface UseDialogOptions {
 // the dialog it sat in.
 const openers = new WeakMap<Element, HTMLElement | null>()
 
+// Frames a dialog may stay hidden after activation before initial focus runs regardless.
+const SHOW_WAIT_FRAMES = 30
+
 function usable(el: HTMLElement | null | undefined): el is HTMLElement {
   return !!el && el.isConnected && isVisibleForFocus(el)
 }
@@ -130,6 +134,7 @@ export function useDialog(options: UseDialogOptions) {
   let fallbackOpener: HTMLElement | null = null
   let activeEl: HTMLElement | null = null
   let cleanups: Array<() => void> = []
+  let showFrame = 0
 
   const captureOpener = () => {
     opener = resolveFocusOrigin(currentFocusOrigin())
@@ -173,13 +178,30 @@ export function useDialog(options: UseDialogOptions) {
       document.removeEventListener('keydown', onKeydown, true)
       document.removeEventListener('focusin', onFocusIn, true)
     })
-    if (!el.contains(document.activeElement)) focusDialogStart(el, toValue(options.initialFocus))
+    if (isVisibleForFocus(el)) {
+      if (!el.contains(document.activeElement)) focusDialogStart(el, toValue(options.initialFocus))
+    } else {
+      focusWhenShown(el, SHOW_WAIT_FRAMES)
+    }
+  }
+
+  const focusWhenShown = (el: HTMLElement, framesLeft: number) => {
+    showFrame = 0
+    if (activeEl !== el) return
+    if (!isVisibleForFocus(el) && framesLeft > 0) {
+      showFrame = requestAnimationFrame(() => focusWhenShown(el, framesLeft - 1))
+      return
+    }
+    const focus = document.activeElement
+    if (!focus || focus === el || !el.contains(focus)) focusDialogStart(el, toValue(options.initialFocus))
   }
 
   const deactivate = (restore = true) => {
     const el = activeEl
     activeEl = null
     active.value = false
+    if (showFrame) cancelAnimationFrame(showFrame)
+    showFrame = 0
     cleanups.forEach((fn) => fn())
     cleanups = []
     const fallback = toValue(options.returnFocus)
