@@ -2315,6 +2315,10 @@
     "openNavigation": "Navigation öffnen",
     "editProfile": "Profil bearbeiten",
     "followUser": "{'@'}{handle} folgen",
+    "requestToFollow": "Folgen anfragen",
+    "requestToFollowUser": "Folgen anfragen: {'@'}{handle}",
+    "sendFriendRequest": "Freundschaftsanfrage senden",
+    "sendFriendRequestUser": "Freundschaftsanfrage an {'@'}{handle} senden",
     "unfollowUser": "{'@'}{handle} entfolgen",
     "mentionUser": "{'@'}{handle} erwähnen",
     "requested": "Angefragt",
@@ -4183,7 +4187,9 @@
     },
     "profilePosts": {
       "self": "Du hast noch nichts gepostet.",
-      "other": "{name} hat noch nichts gepostet."
+      "other": "{name} hat noch nichts gepostet.",
+      "withheldTitle": "Keine öffentlichen Beiträge",
+      "withheld": "{domain} veröffentlicht die Beiträge dieses Kontos nicht. Hier erscheinen nur Beiträge, die diesen Server erreichen."
     },
     "profileFollowing": {
       "other": "{name} folgt noch niemandem."

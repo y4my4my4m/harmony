@@ -2374,6 +2374,10 @@
     "openNavigation": "ナビゲーションを開く",
     "editProfile": "プロフィールを編集",
     "followUser": "{'@'}{handle} をフォロー",
+    "requestToFollow": "フォローをリクエスト",
+    "requestToFollowUser": "{'@'}{handle} にフォローをリクエスト",
+    "sendFriendRequest": "フレンドリクエストを送信",
+    "sendFriendRequestUser": "{'@'}{handle} にフレンドリクエストを送信",
     "unfollowUser": "{'@'}{handle} のフォローを解除",
     "mentionUser": "{'@'}{handle} にメンション",
     "requested": "リクエスト済み",
@@ -4183,7 +4187,9 @@
     },
     "profilePosts": {
       "self": "まだ何も投稿していません。",
-      "other": "{name} はまだ何も投稿していません。"
+      "other": "{name} はまだ何も投稿していません。",
+      "withheldTitle": "公開投稿はありません",
+      "withheld": "{domain} はこのアカウントの投稿を公開していません。このサーバーに届いた投稿のみここに表示されます。"
     },
     "profileFollowing": {
       "other": "{name} はまだ誰もフォローしていません。"

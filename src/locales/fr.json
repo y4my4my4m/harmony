@@ -2315,6 +2315,10 @@
     "openNavigation": "Ouvrir la navigation",
     "editProfile": "Modifier le profil",
     "followUser": "Suivre {'@'}{handle}",
+    "requestToFollow": "Demander à suivre",
+    "requestToFollowUser": "Demander à suivre {'@'}{handle}",
+    "sendFriendRequest": "Envoyer une demande d'ami",
+    "sendFriendRequestUser": "Envoyer une demande d'ami à {'@'}{handle}",
     "unfollowUser": "Ne plus suivre {'@'}{handle}",
     "mentionUser": "Mentionner {'@'}{handle}",
     "requested": "Demandé",
@@ -4183,7 +4187,9 @@
     },
     "profilePosts": {
       "self": "Vous n'avez encore rien publié.",
-      "other": "{name} n'a encore rien publié."
+      "other": "{name} n'a encore rien publié.",
+      "withheldTitle": "Aucune publication publique",
+      "withheld": "{domain} ne publie pas les publications de ce compte. Seules celles qui parviennent à ce serveur s'affichent ici."
     },
     "profileFollowing": {
       "other": "{name} ne suit encore personne."

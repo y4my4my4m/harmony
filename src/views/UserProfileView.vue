@@ -299,8 +299,10 @@
               :feed-label="t('activitypub.profileA11y.postsBy', { name: plainDisplayName })"
               :is-loading="isLoadingPosts"
               :has-more="hasMorePosts"
-              :empty-title="t('activitypub.noMoniesHereYet')"
-              :empty-message="isCurrentUser ? t('empty.profilePosts.self') : t('empty.profilePosts.other', { name: plainDisplayName })"
+              :empty-title="postsWithheld ? t('empty.profilePosts.withheldTitle') : t('activitypub.noMoniesHereYet')"
+              :empty-message="postsWithheld
+                ? t('empty.profilePosts.withheld', { domain: user.domain })
+                : isCurrentUser ? t('empty.profilePosts.self') : t('empty.profilePosts.other', { name: plainDisplayName })"
               empty-icon="message-circle"
               @load-more="loadMorePosts"
               @reply="replyToPost"
@@ -410,6 +412,7 @@ import { useProfileStore } from '@/stores/useProfile';
 import { useUserData } from '@/composables/useUserData'
 import { useFeedRealtime, type FeedKind } from '@/composables/useFeedRealtime'
 import { useMovedAccount } from '@/composables/useMovedAccount'
+import { FOLLOW_ACTION_KEYS, useFollowAction } from '@/composables/useFollowAction'
 import { runtimeConfig } from '@/services/runtimeConfig'
 import { isRemoteProfile, profileCount, remoteCountFields } from '@/utils/profileCounts'
 
@@ -526,6 +529,7 @@ const isFollowLoading = ref(false);
 // Pending request to an account that approves followers manually.
 const followRequested = ref(false);
 const { movedTo, isMoved } = useMovedAccount(() => user.value);
+const { action: followAction } = useFollowAction(() => user.value);
 
 // Posts
 const userPosts = ref<TimelinePost[]>([]);
@@ -608,6 +612,8 @@ const unpinnedUserPosts = computed(() => userPosts.value.filter(p => !pinnedPost
 // A remote account shows its origin's totals; its lists hold the accounts known here.
 const isRemoteUser = computed(() => isRemoteProfile(user.value));
 const postsCount = computed(() => profileCount(user.value, 'posts'));
+// The account's server serves no outbox total: no outbox, a 401/403/404/410, or no totalItems.
+const postsWithheld = computed(() => isRemoteUser.value && postsCount.value === null);
 const followingCount = computed(() => profileCount(user.value, 'following'));
 const followersCount = computed(() => profileCount(user.value, 'followers'));
 
@@ -706,7 +712,7 @@ const remoteProfileUrl = computed(() => {
 const followButtonText = computed(() => {
   if (isFollowing.value) return t('activitypub.following');
   if (followRequested.value) return t('activitypub.requested');
-  return t('activitypub.follow');
+  return t(FOLLOW_ACTION_KEYS[followAction.value].text);
 });
 
 // Starts with the visible label (voice control), then says what activating does.
@@ -714,7 +720,7 @@ const followButtonLabel = computed(() => {
   const handle = user.value?.username || '';
   if (isFollowing.value) return t('activitypub.profileA11y.followingUnfollow', { handle });
   if (followRequested.value) return t('activitypub.profileA11y.requestedCancel', { handle });
-  return t('activitypub.followUser', { handle });
+  return t(FOLLOW_ACTION_KEYS[followAction.value].label, { handle });
 });
 
 const loadRelationship = async () => {

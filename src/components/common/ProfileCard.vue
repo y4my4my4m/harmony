@@ -198,6 +198,7 @@
 import { computed, ref } from 'vue'
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n'
+import { FOLLOW_ACTION_KEYS, useFollowAction } from '@/composables/useFollowAction'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useActivityPubStore } from '@/stores/useActivityPub'
@@ -278,6 +279,7 @@ const { menuId, onTriggerKeydown: onMenuTriggerKeydown, initialFocus: menuInitia
 const followInProgress = ref(false)
 // Pending request to a locked or remote account, set from the answer to a follow sent here.
 const followRequested = ref(false)
+const { action: followAction } = useFollowAction(() => props.user as FederatedUser)
 
 // ===== TYPE GUARDS =====
 const isFederatedUser = computed(() => {
@@ -377,7 +379,7 @@ const isBlocked = computed(() => {
 const followButtonText = computed(() => {
   if (isFollowLoading.value) return t('common.loading')
   if (isFollowing.value) return t('activitypub.following')
-  return followRequested.value ? t('activitypub.requested') : t('activitypub.follow')
+  return followRequested.value ? t('activitypub.requested') : t(FOLLOW_ACTION_KEYS[followAction.value].text)
 })
 
 // Starts with the visible label, then names the account and what activating does.
@@ -385,7 +387,7 @@ const followButtonLabel = computed(() => {
   if (isFollowLoading.value) return t('common.loading')
   if (isFollowing.value) return t('activitypub.profileA11y.followingUnfollow', { handle: plainHandle.value })
   if (followRequested.value) return t('activitypub.profileA11y.requestedCancel', { handle: plainHandle.value })
-  return t('activitypub.followUser', { handle: plainHandle.value })
+  return t(FOLLOW_ACTION_KEYS[followAction.value].label, { handle: plainHandle.value })
 })
 
 // ===== METHODS =====

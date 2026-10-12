@@ -374,7 +374,7 @@
             >
               <Icon v-if="followBusy" name="spinner" :size="16" class="follow-spin" />
               <Icon v-else :name="getUserIsFollowing(user) || followRequested ? 'unfollow' : 'follow'" :size="16" />
-              {{ followRequested ? t('activitypub.cancelFollowRequest') : getUserIsFollowing(user) ? t('activitypub.unfollow') : t('activitypub.follow') }}
+              {{ followRequested ? t('activitypub.cancelFollowRequest') : getUserIsFollowing(user) ? t('activitypub.unfollow') : t(FOLLOW_ACTION_KEYS[followAction].text) }}
             </button>
             
             <!-- All Users: Mention -->
@@ -473,6 +473,7 @@ import SupporterBadge from './common/SupporterBadge.vue'
 import DisplayName from './DisplayName.vue'
 import MovedAccountNotice from './activitypub/MovedAccountNotice.vue'
 import { useMovedAccount } from '@/composables/useMovedAccount'
+import { FOLLOW_ACTION_KEYS, useFollowAction } from '@/composables/useFollowAction'
 import { runtimeConfig } from '@/services/runtimeConfig'
 import { activityPubService } from '@/services/activityPubService'
 import { profileCount, remoteCountFields, type ProfileCountSource } from '@/utils/profileCounts'
@@ -1120,6 +1121,7 @@ const followRequested = ref(false)
 
 const isLockedAccount = computed(() =>
   fetchedLocked.value ?? ((props.user as FederatedUser | null)?.manually_approves_followers === true))
+const { action: followAction } = useFollowAction(() => (props.show ? props.user as FederatedUser | null : null), () => isLockedAccount.value)
 
 // The store tracks accepted follows only; a pending request is read from the follows row.
 async function loadFollowRequestState(userId: string) {

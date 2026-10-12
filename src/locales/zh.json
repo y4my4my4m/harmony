@@ -2315,6 +2315,10 @@
     "openNavigation": "打开导航",
     "editProfile": "编辑个人资料",
     "followUser": "关注 {'@'}{handle}",
+    "requestToFollow": "请求关注",
+    "requestToFollowUser": "请求关注 {'@'}{handle}",
+    "sendFriendRequest": "发送好友请求",
+    "sendFriendRequestUser": "向 {'@'}{handle} 发送好友请求",
     "unfollowUser": "取消关注 {'@'}{handle}",
     "mentionUser": "提及 {'@'}{handle}",
     "requested": "已请求",
@@ -4183,7 +4187,9 @@
     },
     "profilePosts": {
       "self": "您还没有发布任何内容。",
-      "other": "{name} 还没有发布任何内容。"
+      "other": "{name} 还没有发布任何内容。",
+      "withheldTitle": "没有公开帖子",
+      "withheld": "{domain} 不公开此账号的帖子。这里只显示到达本服务器的帖子。"
     },
     "profileFollowing": {
       "other": "{name} 还没有关注任何人。"
