@@ -426,7 +426,9 @@ export default defineComponent({
   font-size: 0.875rem;
   line-height: 1.125rem;
   overflow-x: auto;
-  white-space: pre;
+  /* Long lines wrap, unbroken runs at any character: Discord's code blocks. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   user-select: text;
   -webkit-user-select: text;
   -moz-user-select: text;
@@ -440,7 +442,7 @@ export default defineComponent({
   border-radius: 0;
   color: inherit;
   display: block;
-  white-space: pre;
+  white-space: inherit;
   user-select: text;
   -webkit-user-select: text;
   -moz-user-select: text;
