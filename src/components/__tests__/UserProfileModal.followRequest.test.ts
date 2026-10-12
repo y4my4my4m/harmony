@@ -145,7 +145,8 @@ describe('UserProfileModal follow request', () => {
 
     expect(store.unfollowUser).toHaveBeenCalledWith('target')
     expect(store.followUser).not.toHaveBeenCalled()
-    expect(followButton(wrapper).text()).toContain('activitypub.follow')
+    // The account approves followers: following it sends a request.
+    expect(followButton(wrapper).text()).toContain('activitypub.requestToFollow')
   })
 
   it('still shows the request after the card is closed and reopened', async () => {
@@ -154,7 +155,7 @@ describe('UserProfileModal follow request', () => {
 
     const wrapper = open()
     await flushPromises()
-    expect(followButton(wrapper).text()).toContain('activitypub.follow')
+    expect(followButton(wrapper).text()).toContain('activitypub.requestToFollow')
 
     await followButton(wrapper).trigger('click')
     await flushPromises()

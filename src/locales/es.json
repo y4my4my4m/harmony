@@ -913,6 +913,8 @@
     "newMessages": "Nuevo",
     "loadingOlder": "Cargando mensajes antiguos...",
     "newMessagesBelow": "{count} mensaje nuevo | {count} mensajes nuevos",
+    "unreadSince": "{count} mensaje nuevo desde {time} | {count} mensajes nuevos desde {time}",
+    "markAsRead": "Marcar como leído",
     "jumpToPresent": "Ir al presente",
     "conversationBeginning": "Este es el comienzo de tu conversación",
     "conversationBeginningSubtitle": "¡Comienza a chatear y hazlo memorable!",
@@ -2374,6 +2376,10 @@
     "openNavigation": "Abrir navegación",
     "editProfile": "Editar perfil",
     "followUser": "Seguir a {'@'}{handle}",
+    "requestToFollow": "Solicitar seguir",
+    "requestToFollowUser": "Solicitar seguir a {'@'}{handle}",
+    "sendFriendRequest": "Enviar solicitud de amistad",
+    "sendFriendRequestUser": "Enviar solicitud de amistad a {'@'}{handle}",
     "unfollowUser": "Dejar de seguir a {'@'}{handle}",
     "mentionUser": "Mencionar a {'@'}{handle}",
     "requested": "Solicitado",
@@ -4183,7 +4189,9 @@
     },
     "profilePosts": {
       "self": "Aún no has publicado nada.",
-      "other": "{name} aún no ha publicado nada."
+      "other": "{name} aún no ha publicado nada.",
+      "withheldTitle": "Sin publicaciones públicas",
+      "withheld": "{domain} no publica las publicaciones de esta cuenta. Aquí solo aparecen las que llegan a este servidor."
     },
     "profileFollowing": {
       "other": "{name} aún no sigue a nadie."

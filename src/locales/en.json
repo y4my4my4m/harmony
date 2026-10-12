@@ -928,6 +928,8 @@
     "newMessages": "New",
     "loadingOlder": "Loading older messages...",
     "newMessagesBelow": "{count} new message | {count} new messages",
+    "unreadSince": "{count} new message since {time} | {count} new messages since {time}",
+    "markAsRead": "Mark as read",
     "jumpToPresent": "Jump to present",
     "conversationBeginning": "This is the beginning of your conversation",
     "conversationBeginningSubtitle": "This is the start of your conversation.",
@@ -2389,6 +2391,10 @@
     "openNavigation": "Open navigation",
     "editProfile": "Edit profile",
     "followUser": "Follow {'@'}{handle}",
+    "requestToFollow": "Request to follow",
+    "requestToFollowUser": "Request to follow {'@'}{handle}",
+    "sendFriendRequest": "Send friend request",
+    "sendFriendRequestUser": "Send friend request to {'@'}{handle}",
     "unfollowUser": "Unfollow {'@'}{handle}",
     "mentionUser": "Mention {'@'}{handle}",
     "requested": "Requested",
@@ -4183,7 +4189,9 @@
     },
     "profilePosts": {
       "self": "You haven't posted anything yet.",
-      "other": "{name} hasn't posted anything yet."
+      "other": "{name} hasn't posted anything yet.",
+      "withheldTitle": "No public posts",
+      "withheld": "{domain} doesn't publish this account's posts. Only posts that reach this server show here."
     },
     "profileFollowing": {
       "other": "{name} isn't following anyone yet."

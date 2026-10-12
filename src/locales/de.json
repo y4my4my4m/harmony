@@ -913,6 +913,8 @@
     "newMessages": "Neu",
     "loadingOlder": "Lade ältere Nachrichten...",
     "newMessagesBelow": "{count} neue Nachricht | {count} neue Nachrichten",
+    "unreadSince": "{count} neue Nachricht seit {time} | {count} neue Nachrichten seit {time}",
+    "markAsRead": "Als gelesen markieren",
     "jumpToPresent": "Zur Gegenwart springen",
     "conversationBeginning": "Dies ist der Beginn deiner Unterhaltung",
     "conversationBeginningSubtitle": "Beginne zu chatten und mache es unvergesslich!",
@@ -2315,6 +2317,10 @@
     "openNavigation": "Navigation öffnen",
     "editProfile": "Profil bearbeiten",
     "followUser": "{'@'}{handle} folgen",
+    "requestToFollow": "Folgen anfragen",
+    "requestToFollowUser": "Folgen anfragen: {'@'}{handle}",
+    "sendFriendRequest": "Freundschaftsanfrage senden",
+    "sendFriendRequestUser": "Freundschaftsanfrage an {'@'}{handle} senden",
     "unfollowUser": "{'@'}{handle} entfolgen",
     "mentionUser": "{'@'}{handle} erwähnen",
     "requested": "Angefragt",
@@ -4183,7 +4189,9 @@
     },
     "profilePosts": {
       "self": "Du hast noch nichts gepostet.",
-      "other": "{name} hat noch nichts gepostet."
+      "other": "{name} hat noch nichts gepostet.",
+      "withheldTitle": "Keine öffentlichen Beiträge",
+      "withheld": "{domain} veröffentlicht die Beiträge dieses Kontos nicht. Hier erscheinen nur Beiträge, die diesen Server erreichen."
     },
     "profileFollowing": {
       "other": "{name} folgt noch niemandem."

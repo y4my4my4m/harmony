@@ -1,9 +1,9 @@
 // Journey: locked accounts. An account turns on "Require follow approval" in Privacy
-// settings; a follow of it is a request, shown as Requested on the profile and as Cancel
-// request on the profile card however often the card is reopened. The owner accepts it from
-// the notification panel and the follower reads followers-only posts; removing the follower
-// hides them again. Turning approval off accepts a request still waiting, and an account the
-// owner blocks cannot follow at all.
+// settings; its profile offers Request to follow, and a follow of it is a request, shown as
+// Requested on the profile and as Cancel request on the profile card however often the card
+// is reopened. The owner accepts it from the notification panel and the follower reads
+// followers-only posts; removing the follower hides them again. Turning approval off accepts
+// a request still waiting, and an account the owner blocks cannot follow at all.
 //
 // Followers-only posts are seeded through the service role; every follow and answer goes
 // through the UI.
@@ -108,7 +108,7 @@ test('a locked account holds follows as requests until it accepts them', async (
       await expect(fanPage.locator('[data-testid="profile-locked-badge"]')).toBeVisible({ timeout: 15000 })
       await expect(fanPage.getByText(publicText)).toBeVisible({ timeout: 30000 })
       await expect(fanPage.getByText(followersText)).toHaveCount(0)
-      await expect(followLabel(fanPage)).toHaveText('Follow', { timeout: 15000 })
+      await expect(followLabel(fanPage)).toHaveText('Request to follow', { timeout: 15000 })
 
       await fanPage.locator('[data-testid="profile-follow-btn"]').click()
       await expect(followLabel(fanPage)).toHaveText('Requested', { timeout: 15000 })
@@ -171,7 +171,7 @@ test('a locked account holds follows as requests until it accepts them', async (
       await openProfile(fanPage, owner)
       await expect(fanPage.getByText(publicText)).toBeVisible({ timeout: 30000 })
       await expect(fanPage.getByText(followersText)).toHaveCount(0)
-      await expect(followLabel(fanPage)).toHaveText('Follow', { timeout: 15000 })
+      await expect(followLabel(fanPage)).toHaveText('Request to follow', { timeout: 15000 })
     })
   } finally {
     await deleteUser(admin, fan)

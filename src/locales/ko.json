@@ -913,6 +913,8 @@
     "newMessages": "새 메시지",
     "loadingOlder": "이전 메시지 로딩 중...",
     "newMessagesBelow": "새 메시지 {count}개",
+    "unreadSince": "{time} 이후 새 메시지 {count}개",
+    "markAsRead": "읽음으로 표시",
     "jumpToPresent": "최신으로 이동",
     "conversationBeginning": "대화의 시작입니다",
     "conversationBeginningSubtitle": "채팅을 시작하고 기억에 남게 만드세요!",
@@ -2315,6 +2317,10 @@
     "openNavigation": "탐색 열기",
     "editProfile": "프로필 편집",
     "followUser": "{'@'}{handle} 팔로우",
+    "requestToFollow": "팔로우 요청",
+    "requestToFollowUser": "{'@'}{handle}에게 팔로우 요청",
+    "sendFriendRequest": "친구 요청 보내기",
+    "sendFriendRequestUser": "{'@'}{handle}에게 친구 요청 보내기",
     "unfollowUser": "{'@'}{handle} 언팔로우",
     "mentionUser": "{'@'}{handle} 멘션",
     "requested": "요청됨",
@@ -4183,7 +4189,9 @@
     },
     "profilePosts": {
       "self": "아직 게시한 내용이 없습니다.",
-      "other": "{name}님은 아직 아무것도 게시하지 않았습니다."
+      "other": "{name}님은 아직 아무것도 게시하지 않았습니다.",
+      "withheldTitle": "공개 게시물 없음",
+      "withheld": "{domain}은(는) 이 계정의 게시물을 공개하지 않습니다. 이 서버에 도달한 게시물만 여기에 표시됩니다."
     },
     "profileFollowing": {
       "other": "{name}님은 아직 아무도 팔로우하지 않습니다."

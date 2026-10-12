@@ -133,6 +133,7 @@
 import { computed, ref } from 'vue';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
+import { FOLLOW_ACTION_KEYS, useFollowAction } from '@/composables/useFollowAction';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
 import { usePostInteractions } from '@/composables/usePostInteractions';
@@ -204,6 +205,7 @@ const { menuId, onTriggerKeydown: onMenuTriggerKeydown, initialFocus: menuInitia
 const followInProgress = ref(false);
 // Pending request to a locked or remote account, set from the answer to a follow sent here.
 const followRequested = ref(false);
+const { action: followAction } = useFollowAction(() => props.user);
 
 // Computed
 
@@ -230,7 +232,7 @@ const isBlocked = computed(() => {
 const followButtonText = computed(() => {
   if (getLoadingState().follow) return t('common.loading');
   if (isFollowing.value) return t('activitypub.following');
-  return followRequested.value ? t('activitypub.requested') : t('activitypub.follow');
+  return followRequested.value ? t('activitypub.requested') : t(FOLLOW_ACTION_KEYS[followAction.value].text);
 });
 
 const personName = computed(() => plainDisplayName(props.user.display_name, props.user.username));
@@ -240,7 +242,7 @@ const followButtonLabel = computed(() => {
   if (getLoadingState().follow) return t('common.loading');
   if (isFollowing.value) return t('activitypub.profileA11y.followingUnfollow', { handle: handle.value });
   if (followRequested.value) return t('activitypub.profileA11y.requestedCancel', { handle: handle.value });
-  return t('activitypub.followUser', { handle: handle.value });
+  return t(FOLLOW_ACTION_KEYS[followAction.value].label, { handle: handle.value });
 });
 
 const bioHtml = computed(() => parseDisplayNameOrBioForDisplay(props.user.bio, ''));

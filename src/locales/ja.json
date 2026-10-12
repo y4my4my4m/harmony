@@ -913,6 +913,8 @@
     "newMessages": "新着",
     "loadingOlder": "古いメッセージを読み込み中...",
     "newMessagesBelow": "{count} 件の新しいメッセージ",
+    "unreadSince": "{time} 以降の新着メッセージ {count} 件",
+    "markAsRead": "既読にする",
     "jumpToPresent": "最新に移動",
     "conversationBeginning": "これは会話の始まりです",
     "conversationBeginningSubtitle": "チャットを始めて、思い出に残るものにしましょう！",
@@ -2374,6 +2376,10 @@
     "openNavigation": "ナビゲーションを開く",
     "editProfile": "プロフィールを編集",
     "followUser": "{'@'}{handle} をフォロー",
+    "requestToFollow": "フォローをリクエスト",
+    "requestToFollowUser": "{'@'}{handle} にフォローをリクエスト",
+    "sendFriendRequest": "フレンドリクエストを送信",
+    "sendFriendRequestUser": "{'@'}{handle} にフレンドリクエストを送信",
     "unfollowUser": "{'@'}{handle} のフォローを解除",
     "mentionUser": "{'@'}{handle} にメンション",
     "requested": "リクエスト済み",
@@ -4183,7 +4189,9 @@
     },
     "profilePosts": {
       "self": "まだ何も投稿していません。",
-      "other": "{name} はまだ何も投稿していません。"
+      "other": "{name} はまだ何も投稿していません。",
+      "withheldTitle": "公開投稿はありません",
+      "withheld": "{domain} はこのアカウントの投稿を公開していません。このサーバーに届いた投稿のみここに表示されます。"
     },
     "profileFollowing": {
       "other": "{name} はまだ誰もフォローしていません。"
