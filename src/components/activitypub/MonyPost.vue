@@ -130,8 +130,18 @@
             />
           </div>
           
-          <!-- Quoted post content -->
-          <div class="quoted-post">
+          <!-- Quoted post content; a quote whose post was never fetched links to it. -->
+          <a
+            v-if="!props.post.reblog && reblogReferenceUrl"
+            :href="safeHref(reblogReferenceUrl)"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="quoted-post quoted-post-link"
+          >
+            <Icon name="external-link" :size="14" />
+            {{ t('activitypub.viewQuotedPost') }}
+          </a>
+          <div v-else-if="props.post.reblog" class="quoted-post">
             <div v-if="quotedAuthor" class="quoted-post-header">
               <Avatar
                 :src="quotedAuthor.avatar_url"
@@ -716,7 +726,7 @@ import { userDataService } from '@/services/userDataService';
 import { unicodeToShortcode } from '@/services/unifiedEmojiService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
-import { getOriginalApId, getOriginalPost } from '@/utils/postReblog';
+import { getOriginalApId, getOriginalPost, quoteTargetUrl, withoutQuoteFallback } from '@/utils/postReblog';
 import { isHeartEmoji } from '@/utils/heartReaction';
 import { remotePollFromMetadata } from '@/utils/remotePoll';
 import {
@@ -986,7 +996,7 @@ const isReblog = computed(() => {
 
 // Check if this is a remote reblog without hydrated data (needs to show placeholder)
 const isUnhydratedReblog = computed(() => {
-  return isReblog.value && !props.post.reblog && (
+  return isReblog.value && !props.post.reblog && !isQuotePost.value && (
     props.post.metadata?.reblog_of || 
     props.post.metadata?.reblog_of_ap_url
   );
@@ -1041,9 +1051,7 @@ const isQuotePost = computed(() => {
 const isPureReblog = computed(() => isReblog.value && !isQuotePost.value);
 
 const reblogReferenceUrl = computed(() => {
-  return props.post.metadata?.reblog_of_ap_url || 
-         props.post.metadata?.quote_url || 
-         null;
+  return props.post.metadata?.reblog_of_ap_url || quoteTargetUrl(props.post);
 });
 
 // eslint-disable-next-line unused-imports/no-unused-vars
@@ -1126,7 +1134,8 @@ const quoteOwnMedia = computed(() => isQuotePost.value ? galleryMedia(props.post
 
 // For quote posts, we show both the user's content AND the quoted content
 const userQuoteContent = computed(() => {
-  return isQuotePost.value ? withoutGalleryMedia(props.post.content, quoteOwnMedia.value) : null;
+  if (!isQuotePost.value) return null;
+  return withoutQuoteFallback(withoutGalleryMedia(props.post.content, quoteOwnMedia.value), quoteTargetUrl(props.post));
 });
 
 const displayContent = computed(() => {
@@ -2798,6 +2807,19 @@ const closeLightbox = () => {
 }
 
 /* Unhydrated boost (remote boost without loaded content) */
+.quoted-post-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-link);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+}
+
+.quoted-post-link:hover {
+  text-decoration: underline;
+}
+
 .unhydrated-reblog {
   display: flex;
   flex-direction: column;

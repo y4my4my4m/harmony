@@ -494,6 +494,13 @@ onUnmounted(() => {
   height: 100%;
 }
 
+/* Rows are absolutely positioned, so the list's automatic minimum height is 0: a shrinkable
+   list collapses to the scroller's height and the footer lands over a post. */
+.posts-list,
+.loading-more {
+  flex-shrink: 0;
+}
+
 .virtual-post-row {
   padding: 0;
 }

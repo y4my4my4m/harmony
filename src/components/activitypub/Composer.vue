@@ -929,7 +929,7 @@ onMounted(() => {
   } else if (props.type === 'reply' && props.replyToPost) {
     // Pure reblog → original author, quote → quoter, unhydrated reblog → no
     // prefill; then the post's other mentions (utils/postReblog.ts).
-    content.value = replyMentionPrefill(props.replyToPost, currentUser.value?.id);
+    content.value = replyMentionPrefill(props.replyToPost, currentUser.value);
     visibility.value = replyVisibility(props.replyToPost, props.defaultVisibility);
   } else if (props.type === 'post' && props.initialContent?.trim()) {
     content.value = props.initialContent;
@@ -972,7 +972,7 @@ watch(() => props.initialContent, (val) => {
 watch(() => props.replyToPost, (replyPost) => {
   if (props.type === 'reply' && replyPost && content.value === '') {
     visibility.value = replyVisibility(replyPost, props.defaultVisibility);
-    const prefill = replyMentionPrefill(replyPost, currentUser.value?.id);
+    const prefill = replyMentionPrefill(replyPost, currentUser.value);
     if (!prefill) return;
     content.value = prefill;
 

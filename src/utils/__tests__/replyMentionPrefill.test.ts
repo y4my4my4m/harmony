@@ -5,6 +5,8 @@ import { replyMentionPrefill, replyVisibility } from '../postReblog'
 const author = (id: string, username: string, domain: string, is_local: boolean) => ({ id, username, domain, is_local })
 const mention = (userId: string, username: string, domain: string, isLocal: boolean) => ({ type: 'mention', userId, username, domain, isLocal })
 
+const ME = { id: 'me', username: 'me' }
+
 function post(over: Record<string, unknown>): TimelinePost {
   return { id: 'p1', content: [], author: author('a', 'alice', 'remote.example', false), ...over } as unknown as TimelinePost
 }
@@ -20,23 +22,31 @@ describe('replyMentionPrefill', () => {
         mention('c', 'carol', 'other.example', false),
       ],
     })
-    expect(replyMentionPrefill(p, 'me')).toBe('@alice@remote.example @bob @carol@other.example ')
+    expect(replyMentionPrefill(p, ME)).toBe('@alice@remote.example @bob @carol@other.example ')
   })
 
   it('never mentions the viewer', () => {
     const p = post({ content: [mention('me', 'me', 'har.mony.lol', true), mention('b', 'bob', 'har.mony.lol', true)] })
-    expect(replyMentionPrefill(p, 'me')).toBe('@alice@remote.example @bob ')
+    expect(replyMentionPrefill(p, ME)).toBe('@alice@remote.example @bob ')
+  })
+
+  it('never mentions the viewer named by a remote post, whose mention carries an actor URL', () => {
+    const p = post({
+      author: author('s', 'strypey', 'mastodon.nzoss.nz', false),
+      content: [mention('https://har.mony.lol/users/Me', 'Me', 'har.mony.lol', true), mention('https://other.example/users/me', 'me', 'other.example', false)],
+    })
+    expect(replyMentionPrefill(p, ME)).toBe('@strypey@mastodon.nzoss.nz @me@other.example ')
   })
 
   it('is empty for a reply to one\'s own post that mentions no one else', () => {
     const p = post({ author: author('me', 'me', 'har.mony.lol', true), content: [mention('me', 'me', 'har.mony.lol', true)] })
-    expect(replyMentionPrefill(p, 'me')).toBe('')
+    expect(replyMentionPrefill(p, ME)).toBe('')
   })
 
   it('uses the boosted post for a hydrated reblog, never the booster', () => {
     const original = post({ id: 'o', author: author('c', 'carol', 'other.example', false), content: [mention('b', 'bob', 'har.mony.lol', true)] })
     const reblog = post({ id: 'r', author: author('d', 'dave', 'har.mony.lol', true), reblog: original, reblog_author: original.author })
-    expect(replyMentionPrefill(reblog, 'me')).toBe('@carol@other.example @bob ')
+    expect(replyMentionPrefill(reblog, ME)).toBe('@carol@other.example @bob ')
   })
 })
 
