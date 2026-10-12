@@ -41,6 +41,19 @@
         <span>{{ $t('message.loadingOlder') }}</span>
       </div>
     </div>
+
+    <!-- The "New messages" line is above the view: Discord's "new messages since" bar.
+         Same zero-height sticky wrapper as the indicator above. -->
+    <div v-if="showUnreadBar" class="unread-bar-anchor">
+      <div class="unread-bar" data-testid="unread-bar">
+        <button type="button" class="unread-bar-jump" aria-keyshortcuts="Shift+PageUp" @click="jumpToDivider">
+          {{ $t('message.unreadSince', { count: unreadAfterDivider, time: dividerTime }, unreadAfterDivider) }}
+        </button>
+        <button type="button" class="unread-bar-dismiss" @click="clearReadDivider">
+          {{ $t('message.markAsRead') }}
+        </button>
+      </div>
+    </div>
     
     <!-- Virtual scrolled message list. Each virtual row is a listitem; the
          article inside it is the focusable row (keyboard model: onListKeydown). -->
@@ -1018,7 +1031,14 @@ const reactionsStore = useReactionsStore();
 const postReactionsStore = usePostReactionsStore();
 
 const isShiftHeld = ref(false);
-const onShiftDown = (e: KeyboardEvent) => { if (e.key === 'Shift') isShiftHeld.value = true; };
+const onShiftDown = (e: KeyboardEvent) => {
+  if (e.key === 'Shift') isShiftHeld.value = true;
+  // Discord's "jump to oldest unread". A row's own PageUp has already moved focus.
+  if (e.key === 'PageUp' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !e.defaultPrevented && dividerBeforeMessageId.value) {
+    e.preventDefault();
+    jumpToDivider();
+  }
+};
 const onShiftUp = (e: KeyboardEvent) => { if (e.key === 'Shift') isShiftHeld.value = false; };
 
 // Track which blocked message groups the user has chosen to reveal (by first message ID in group)
@@ -1836,6 +1856,72 @@ const measureEnd = () => {
   if (!el) return;
   distanceToEnd.value = distanceFromBottom(el);
   viewportHeight.value = el.clientHeight;
+  measureDivider(el);
+};
+
+// The "New messages" line is above the view: its row ends above the viewport, or
+// is not rendered and precedes the first rendered row.
+const dividerAbove = ref(false);
+const measureDivider = (el: HTMLElement) => {
+  const id = dividerBeforeMessageId.value;
+  if (!id) {
+    dividerAbove.value = false;
+    return;
+  }
+  const line = el.querySelector('.new-messages-divider');
+  if (line) {
+    dividerAbove.value = line.getBoundingClientRect().bottom <= el.getBoundingClientRect().top;
+    return;
+  }
+  const idx = displayItems.value.findIndex(it => it.type === 'message' && it.message.id === id);
+  const first = rowVirtualizer.value.getVirtualItems()[0]?.index;
+  dividerAbove.value = idx >= 0 && first !== undefined && idx < first;
+};
+
+const showUnreadBar = computed(() => !!dividerBeforeMessageId.value && dividerAbove.value);
+
+// Loaded messages from the divider on, other authors only: the ones the line marks.
+const unreadAfterDivider = computed(() => {
+  const id = dividerBeforeMessageId.value;
+  const start = id ? props.messages.findIndex(m => m.id === id) : -1;
+  if (start < 0) return 0;
+  return props.messages.slice(start).filter(m => m.user_id !== props.currentUserId).length;
+});
+
+const dividerTime = computed(() => {
+  const id = dividerBeforeMessageId.value;
+  const message = id ? props.messages.find(m => m.id === id) : undefined;
+  return message ? formatTimestamp(message.created_at) : '';
+});
+
+// Seats the "New messages" line near the top with read context above it; retries
+// while rows above it measure.
+const jumpToDivider = () => {
+  const id = dividerBeforeMessageId.value;
+  if (!id) return;
+  setPinned(false);
+  openFollowBottomUntil = 0;
+  const generation = ++seatGeneration;
+  let attempts = 0;
+  const seat = () => {
+    if (generation !== seatGeneration) return;
+    attempts++;
+    const idx = displayItems.value.findIndex(it => it.type === 'message' && it.message.id === id);
+    if (idx < 0) return;
+    rowVirtualizer.value.scrollToIndex(idx, { align: 'start' });
+    requestAnimationFrame(() => {
+      const c = messageDisplayContainer.value;
+      if (!c || generation !== seatGeneration) return;
+      const line = c.querySelector('.new-messages-divider');
+      if (line) {
+        const delta = line.getBoundingClientRect().top - c.getBoundingClientRect().top - CONTEXT_NUDGE_PX;
+        c.scrollTop = Math.max(0, c.scrollTop + delta);
+      }
+      if (attempts < 6) setTimeout(seat, attempts < 3 ? 50 : 150);
+      else measureEnd();
+    });
+  };
+  seat();
 };
 
 // The list holds rows a jump to an older message spliced in; the history
@@ -1880,6 +1966,7 @@ const updateActionBarShift = () => {
 };
 
 watch([hoveredMessageId, focusMessageId, showJump], () => nextTick(updateActionBarShift));
+watch(dividerBeforeMessageId, () => nextTick(measureEnd));
 
 // Seats a pinned view at the end. Synchronous, so a call before paint leaves no
 // frame with the end uncovered.
@@ -2570,12 +2657,9 @@ watch(() => props.messages, (newMessages) => {
           // server's messages from being briefly repainted during the switch.
           coloringServerId.value = serverChannelStore.currentServerId;
 
-          // Resolve the "New messages" divider against the freshly-loaded set.
-          const dividerMsgId = resolveDivider(newMessages, props.currentUserId);
-          const dividerIndex = dividerMsgId
-            ? displayItems.value.findIndex(it => it.type === 'message' && it.message.id === dividerMsgId)
-            : -1;
-          const hasDivider = dividerIndex >= 0;
+          // Marks the first unread message with the "New messages" line. The view
+          // opens at the end, as Discord's does; the unread bar jumps to the line.
+          resolveDivider(newMessages, props.currentUserId);
 
           // The floating player's return button navigated here: land on the
           // video's message, where its placeholder docks it.
@@ -2583,26 +2667,22 @@ watch(() => props.messages, (newMessages) => {
           const returnIndex = returnMsgId
             ? displayItems.value.findIndex(it => it.type === 'message' && it.message.id === returnMsgId)
             : -1;
-          const anchorIndex = returnIndex >= 0 ? returnIndex : dividerIndex;
-          const hasAnchor = anchorIndex >= 0;
+          const hasAnchor = returnIndex >= 0;
 
-          // Freezes the initial offset for this channel. With a divider the
-          // offset is seeded near it rather than at the bottom, so the
-          // virtualizer starts close to its final resting place.
+          // Freezes the initial offset for this channel, seeded near the landing
+          // so the virtualizer starts close to its final resting place.
           if (!hasSetInitialOffset) {
             hasSetInitialOffset = true;
-            frozenInitialOffset.value = (hasAnchor ? anchorIndex : displayItems.value.length) * 60;
+            frozenInitialOffset.value = (hasAnchor ? returnIndex : displayItems.value.length) * 60;
           }
-          debug.log(hasDivider ? 'Initial load - scrolling to NEW divider' : 'Initial load - scrolling to bottom');
 
-          // Landing on a divider or a floating video's message is not the bottom;
-          // size changes must not pull the view down. Scroll events re-pin it if
-          // the landing reaches the end.
+          // Landing on a floating video's message is not the bottom; size changes
+          // must not pull the view down. Scroll events re-pin it if the landing
+          // reaches the end.
           setPinned(!hasAnchor);
 
-          // No divider means the target is the bottom. Messages arriving in
-          // the next couple of seconds (revalidate catch-up / realtime) are
-          // followed so the view settles on the real end of the channel.
+          // Messages arriving in the next couple of seconds (the cache path's
+          // catch-up, realtime) are followed so the view settles on the real end.
           openFollowBottomUntil = hasAnchor ? 0 : Date.now() + 2500;
           
           const imageUrlsInMessages = new Set<string>();
@@ -2676,49 +2756,6 @@ watch(() => props.messages, (newMessages) => {
             });
           };
 
-          // Scroll so the "New messages" divider sits near the top with a little
-          // context above it (Discord behaviour). Retries while the virtualizer
-          // measures real row heights so it settles on the right spot.
-          let dividerScrollAttempts = 0;
-          const scrollToDivider = () => {
-            if (landing !== seatGeneration) return;
-            dividerScrollAttempts++;
-            const idx = displayItems.value.findIndex(
-              it => it.type === 'message' && it.message.id === dividerMsgId
-            );
-            if (idx < 0) {
-              // Divider message no longer present; fall back.
-              scrollToBottom();
-              return;
-            }
-            // Bring the divider row into the render window first.
-            rowVirtualizer.value.scrollToIndex(idx, { align: 'start' });
-            requestAnimationFrame(() => {
-              const c = messageDisplayContainer.value;
-              if (!c || landing !== seatGeneration) return;
-              // Positioned from the divider's REAL rendered position, not the
-              // virtualizer's height estimate, which lands above the divider
-              // when rows are taller than estimated. Measuring the DOM node
-              // keeps it in view with some read context above the line.
-              const dividerEl = c.querySelector('.new-messages-divider') as HTMLElement | null;
-              if (dividerEl) {
-                const delta = dividerEl.getBoundingClientRect().top - c.getBoundingClientRect().top - CONTEXT_NUDGE_PX;
-                c.scrollTop = Math.max(0, c.scrollTop + delta);
-              } else {
-                c.scrollTop = Math.max(0, c.scrollTop - CONTEXT_NUDGE_PX);
-              }
-              if (dividerScrollAttempts < 6) {
-                setTimeout(scrollToDivider, dividerScrollAttempts < 3 ? 50 : 150);
-              } else if (distanceFromBottom(c) <= PIN_THRESHOLD_PX) {
-                // The settled landing shows the end: a channel shorter than the
-                // view, or few new messages. No scroll event re-pins a view that
-                // never scrolled, and an unpinned view leaves later arrivals and
-                // late-loading media below it.
-                setPinned(true);
-              }
-            });
-          };
-
           // Centres the floating video's placeholder; retries while rows measure.
           let returnScrollAttempts = 0;
           const scrollToReturn = () => {
@@ -2745,9 +2782,7 @@ watch(() => props.messages, (newMessages) => {
             });
           };
 
-          const scrollToTarget = () => (
-            returnIndex >= 0 ? scrollToReturn() : hasDivider ? scrollToDivider() : scrollToBottom()
-          );
+          const scrollToTarget = () => (returnIndex >= 0 ? scrollToReturn() : scrollToBottom());
 
           if (pendingImages.length === 0 && totalEmbeds === 0) {
             // Scroll immediately, then retry after virtualizer renders
@@ -2790,9 +2825,9 @@ watch(() => props.messages, (newMessages) => {
           // The bottom is followed when the view is pinned there, when one of
           // the new messages was just sent from this client, or while the
           // post-open grace window is active (catch-up messages from
-          // revalidate / realtime) and no divider anchors the view.
+          // revalidate / realtime).
           const followBottom = pinState.pinned || appendedOwnPending > 0 ||
-            (Date.now() < openFollowBottomUntil && !dividerBeforeMessageId.value);
+            Date.now() < openFollowBottomUntil;
           if (isAppend && followBottom) {
             debug.log('New messages - scrolling to bottom (pinned / own / open grace)');
             setPinned(true);
@@ -2811,7 +2846,7 @@ watch(() => props.messages, (newMessages) => {
           // second absolute write on the next frame would undo any scrolling
           // done in between. `scrollToIndex` is not used: it issues a new
           // scroll command and re-fires as rows re-measure.
-          else if (!isAppend) {
+          else if (!isAppend && newMessages.some(m => m.id === prevFirstId)) {
             const container = messageDisplayContainer.value;
             if (container) {
               const next = scrollTopAfterPrepend(oldScrollTopForPrepend, oldScrollHeight, container.scrollHeight);
@@ -2822,6 +2857,18 @@ watch(() => props.messages, (newMessages) => {
             // unused-var lint quiet.
             void prevDisplayItemCount;
           }
+        }
+
+        // The list was replaced: the newest page reloaded over a gap.
+        const replaced = prevFirstId !== null && !newMessages.some(m => m.id === prevFirstId);
+        // Rows the open's catch-up or a reload brought can hold the first unread
+        // message; the line is placed against the rows now loaded.
+        if (replaced || (!dividerBeforeMessageId.value && Date.now() < openFollowBottomUntil)) {
+          resolveDivider(newMessages, props.currentUserId);
+        }
+        if (replaced && pinState.pinned) {
+          stickToBottom();
+          requestAnimationFrame(stickToBottom);
         }
         
         checkScrollable();
@@ -5123,6 +5170,57 @@ defineExpose({ editLastOwnMessage });
   .jump-present.has-count {
     height: 36px;
   }
+}
+
+/* Zero-height sticky wrapper, as .loading-older-anchor: toggling it moves no row. */
+.unread-bar-anchor {
+  position: sticky;
+  top: 0;
+  height: 0;
+  z-index: 3;
+}
+
+.unread-bar {
+  position: absolute;
+  top: 0;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  align-items: stretch;
+  border-radius: 0 0 8px 8px;
+  background: var(--harmony-primary-fill);
+  color: var(--text-on-primary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  overflow: hidden;
+}
+
+.unread-bar button {
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 6px 12px;
+}
+
+.unread-bar-jump {
+  flex: 1;
+  text-align: left;
+}
+
+.unread-bar-dismiss {
+  flex: none;
+  border-left: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+}
+
+.unread-bar button:hover {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.unread-bar button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -4px;
 }
 
 /* An in-flow row here shifts the list by its height whenever it toggles and

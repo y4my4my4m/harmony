@@ -913,6 +913,8 @@
     "newMessages": "新消息",
     "loadingOlder": "加载更早的消息...",
     "newMessagesBelow": "{count} 条新消息",
+    "unreadSince": "自 {time} 以来有 {count} 条新消息",
+    "markAsRead": "标记为已读",
     "jumpToPresent": "跳转到最新",
     "conversationBeginning": "这是您对话的开始",
     "conversationBeginningSubtitle": "开始聊天，让它难忘！",

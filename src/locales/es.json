@@ -913,6 +913,8 @@
     "newMessages": "Nuevo",
     "loadingOlder": "Cargando mensajes antiguos...",
     "newMessagesBelow": "{count} mensaje nuevo | {count} mensajes nuevos",
+    "unreadSince": "{count} mensaje nuevo desde {time} | {count} mensajes nuevos desde {time}",
+    "markAsRead": "Marcar como leído",
     "jumpToPresent": "Ir al presente",
     "conversationBeginning": "Este es el comienzo de tu conversación",
     "conversationBeginningSubtitle": "¡Comienza a chatear y hazlo memorable!",

@@ -22,6 +22,9 @@ import { isModerationRejectionCode } from '@/services/AutoModService'
 import { releaseFloatingVideo } from '@/composables/useFloatingVideo'
 import { useMessagePollsStore } from '@/stores/useMessagePolls'
 
+/** Rows a catch-up after the newest loaded message reads at once. */
+const CATCH_UP_LIMIT = 50
+
 export interface DMUser {
   id: string
   username: string
@@ -190,12 +193,18 @@ export const useDMStore = defineStore('dm', () => {
       if (!afterTs) return
 
       const { messages: messagesData } = await services.messages.loadConversationMessages(conversationId, {
-        limit: 50,
+        limit: CATCH_UP_LIMIT,
         after: afterTs,
       })
       if (!messagesData || messagesData.length === 0) return
       // Conversation may have changed during the fetch.
       if (currentConversationId.value !== conversationId) return
+      // The page holds the newest rows after the cursor; a full one can leave
+      // older missed rows between them and the list.
+      if (messagesData.length >= CATCH_UP_LIMIT) {
+        await reloadNewestPage(conversationId)
+        return
+      }
 
       const existingIds = new Set(currentDMMessages.value.map(m => m.id))
       const freshRaw = messagesData.filter(m => !existingIds.has(m.id))

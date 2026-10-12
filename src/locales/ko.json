@@ -913,6 +913,8 @@
     "newMessages": "새 메시지",
     "loadingOlder": "이전 메시지 로딩 중...",
     "newMessagesBelow": "새 메시지 {count}개",
+    "unreadSince": "{time} 이후 새 메시지 {count}개",
+    "markAsRead": "읽음으로 표시",
     "jumpToPresent": "최신으로 이동",
     "conversationBeginning": "대화의 시작입니다",
     "conversationBeginningSubtitle": "채팅을 시작하고 기억에 남게 만드세요!",

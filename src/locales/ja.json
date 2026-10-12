@@ -913,6 +913,8 @@
     "newMessages": "新着",
     "loadingOlder": "古いメッセージを読み込み中...",
     "newMessagesBelow": "{count} 件の新しいメッセージ",
+    "unreadSince": "{time} 以降の新着メッセージ {count} 件",
+    "markAsRead": "既読にする",
     "jumpToPresent": "最新に移動",
     "conversationBeginning": "これは会話の始まりです",
     "conversationBeginningSubtitle": "チャットを始めて、思い出に残るものにしましょう！",
