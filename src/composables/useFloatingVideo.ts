@@ -412,6 +412,13 @@ function float(el: HTMLElement, reg: Registration, manual = false): void {
   el.classList.add('floating-video')
   getObserver()?.observe(placeholder)
   attachViewportListeners()
+  if (video && !(video.videoWidth > 0 && video.videoHeight > 0)) {
+    // Floated before its metadata: the frame took the chat box's shape until the video's own is known.
+    video.addEventListener('loadedmetadata', () => {
+      const now = current.value
+      if (now?.element === el) current.value = { ...now, aspect: mediaAspect(el) }
+    }, { once: true })
+  }
 }
 
 function canDock(cur: FloatingVideo): boolean {

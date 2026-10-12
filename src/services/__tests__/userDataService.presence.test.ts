@@ -135,3 +135,21 @@ describe('presence', () => {
     expect(db.calls.at(-1)).toEqual({ fn: 'presence_offline', args: { p_device_id: 'tab-1' } })
   })
 })
+
+describe('status expiry', () => {
+  it('drops an expired status of any cached user and announces it, leaving live ones', () => {
+    const users = (userDataService as any).users as Map<string, any>
+    users.set(FRIEND, { ...(users.get(FRIEND) ?? { id: FRIEND }), customStatus: { text: 'OBS Studio', type: 'streaming', expiresAt: '2026-10-12T00:00:00.000Z' } })
+    users.set(STRANGER, { ...(users.get(STRANGER) ?? { id: STRANGER }), customStatus: { text: 'lunch', expiresAt: '2026-10-12T01:00:00.000Z' } })
+    const seen: string[] = []
+    const onChange = (e: Event) => seen.push((e as CustomEvent).detail.userId)
+    userDataService.addEventListener('custom-status-changed', onChange)
+
+    userDataService.dropExpiredStatuses(Date.parse('2026-10-12T00:30:00.000Z'))
+
+    userDataService.removeEventListener('custom-status-changed', onChange)
+    expect(users.get(FRIEND).customStatus).toBeUndefined()
+    expect(users.get(STRANGER).customStatus?.text).toBe('lunch')
+    expect(seen).toEqual([FRIEND])
+  })
+})

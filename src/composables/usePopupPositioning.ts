@@ -173,10 +173,17 @@ export function usePopupPositioning(
   const positionResult = ref<PopupPositionResult | null>(null);
 
   const updatePosition = () => {
-    if (!triggerElement.value) return;
-    
+    const trigger = triggerElement.value;
+    if (!trigger) return;
+    // A trigger that left the layout (a hover toolbar that hid, a re-rendered row) measures
+    // 0x0 at the viewport origin; a position already taken from it stands.
+    if (positionResult.value) {
+      const rect = trigger.getBoundingClientRect();
+      if (!trigger.isConnected || (rect.width === 0 && rect.height === 0)) return;
+    }
+
     positionResult.value = calculatePopupPosition(
-      triggerElement.value,
+      trigger,
       popupDimensions,
       options
     );

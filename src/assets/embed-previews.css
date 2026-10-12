@@ -74,6 +74,11 @@
   aspect-ratio: 16 / 9;
 }
 
+.provider-embed__media--portrait {
+  aspect-ratio: 9 / 16;
+  width: min(100%, 320px);
+}
+
 .provider-embed__media--spotify {
   min-height: 152px;
 }
