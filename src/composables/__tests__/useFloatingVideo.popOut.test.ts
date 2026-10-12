@@ -223,3 +223,45 @@ describe('useFloatingVideo popOut', () => {
     }
   })
 })
+
+describe('useFloatingVideo frame shape', () => {
+  beforeEach(() => {
+    FakeIntersectionObserver.instances = []
+    vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver)
+    localStorage.clear()
+    sessionStorage.clear()
+    document.body.innerHTML = ''
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('takes a portrait video\'s shape once its metadata arrives after floating', async () => {
+    const { api, player, message } = await setup()
+    const { container, video } = makeVideoEmbed(message, 'https://cdn.test/reel.mp4')
+    container.getBoundingClientRect = () => ({ width: 640, height: 360, top: 0, left: 0, right: 640, bottom: 360, x: 0, y: 0, toJSON() {} })
+    api.registerVideo(container, { type: 'video', messageId: 'm1' })
+    expect(api.popOut(container)).toBe(true)
+    expect(player.current.value?.aspect).toBeCloseTo(16 / 9)
+
+    Object.defineProperty(video, 'videoWidth', { value: 720, configurable: true })
+    Object.defineProperty(video, 'videoHeight', { value: 1280, configurable: true })
+    video.dispatchEvent(new Event('loadedmetadata'))
+    expect(player.current.value?.aspect).toBeCloseTo(9 / 16)
+  })
+
+  it('floats a portrait iframe box portrait', async () => {
+    const { api, player, message } = await setup()
+    const container = document.createElement('div')
+    const iframe = document.createElement('iframe')
+    iframe.setAttribute('src', 'about:blank')
+    iframe.getBoundingClientRect = () => ({ width: 320, height: 569, top: 0, left: 0, right: 320, bottom: 569, x: 0, y: 0, toJSON() {} })
+    container.appendChild(iframe)
+    message.appendChild(container)
+    api.registerVideo(container, { type: 'youtube', messageId: 'm2' })
+    expect(api.popOut(container)).toBe(true)
+    expect(player.current.value?.aspect).toBeCloseTo(9 / 16, 2)
+  })
+})
+

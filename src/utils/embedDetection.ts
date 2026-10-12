@@ -96,6 +96,17 @@ export function isSpotifyUrl(url: URL): boolean {
   return url.hostname.toLowerCase().endsWith('spotify.com');
 }
 
+/** A YouTube Short: a portrait (9:16) video. */
+export function isYouTubeShort(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  try {
+    const url = new URL(raw);
+    return url.hostname.toLowerCase().endsWith('youtube.com') && url.pathname.startsWith('/shorts/');
+  } catch {
+    return false;
+  }
+}
+
 export function extractYouTubeId(url: URL): string | null {
   const host = url.hostname.toLowerCase();
   if (host === 'youtu.be') {

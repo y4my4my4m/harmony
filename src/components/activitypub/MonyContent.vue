@@ -1,7 +1,7 @@
 <!-- MonyContent - Render ActivityPub post content with rich formatting -->
 <template>
   <UnifiedContentRenderer
-    :content="props.content"
+    :content="displayContent"
     :mode="props.isPreview ? 'preview' : 'display'"
     :max-preview-length="props.previewLength || 500"
     render-mode="html"
@@ -13,7 +13,9 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import UnifiedContentRenderer from '@/components/UnifiedContentRenderer.vue';
+import { withoutStrayMentionAt } from '@/utils/postReblog';
 
 interface Props {
   content: string | any[] | any; // Can be string, JSONB array, or other format
@@ -22,6 +24,8 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+
+const displayContent = computed(() => withoutStrayMentionAt(props.content));
 
 const emit = defineEmits<{
   'user-mention-click': [handle: string];

@@ -202,6 +202,45 @@ Limits: a person holds at most `max_post_reactions_per_user` (admin setting, def
 different emoji on a post, and a chat message holds at most 20 different emoji. Remote
 reactions past either limit are dropped.
 
+## Post Objects
+
+`GET /posts/<id>` (also reached from a post's page URL with an ActivityPub `Accept`) serves
+a local post's `Note` as Mastodon writes one: `content` in `<p>` paragraphs with `<br>` line
+breaks and h-card mentions, `url` the post's page, `likes` and `shares` collections carrying
+`totalItems`, and an `interactionPolicy`. A stored remote post answers with a redirect to
+its origin; the `replies` collection lists replies by id. A deleted public post answers
+`410 Gone`. One serializer (`buildLocalNote`, `federation-backend/src/listeners/FederationHandlers.ts`)
+builds the Note for `Create`, `Update`, the outbox, the featured collection and `GET`.
+
+A public or unlisted reply also reaches the remote author it answers, and a quote the
+remote author it quotes, whether or not they are mentioned.
+
+## Quote Posts
+
+Quotes follow FEP-044f, which Mastodon 4.5 implements
+(`federation-backend/src/activitypub/quoteAuthorization.ts`).
+
+| Post visibility | `interactionPolicy.canQuote.automaticApproval` | A `QuoteRequest` from |
+|---|---|---|
+| Public, unlisted | `as:Public` | anyone the author does not block: `Accept` |
+| Followers only | the author's followers collection | an accepted follower: `Accept`; anyone else: `Reject` |
+| Direct | the author alone | anyone: `Reject` |
+
+An `Accept` carries a `QuoteAuthorization` as its `result`, stored in
+`quote_authorizations` and served at `/users/<author>/quote_authorizations/<id>` to anyone
+who may read the quoted post. Deleting the post deletes its authorizations.
+
+A local quote names its target in `quote`, `quoteUrl`, `quoteUri` and `_misskey_quote`, and
+ends its `content` with a `RE: <url>` line of class `quote-inline`. A quote of another
+account's remote post sends that author a `QuoteRequest`; their `Accept` is recorded in
+the post's `metadata.quote_authorization` and the Note goes out again as an `Update` with
+`quoteAuthorization`. A quote of another local account's post carries an authorization
+issued here.
+
+Inbound, `quote` is read before `quoteUrl`, `quoteUri` and `_misskey_quote`, and the
+`quote-inline` element is dropped from the content. A quote whose post cannot be fetched
+shows a link to it.
+
 ## Server Discovery
 
 ### WebFinger

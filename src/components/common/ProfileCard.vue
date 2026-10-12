@@ -7,9 +7,13 @@
       'no-actions': !showActions,
       'menu-open': showActionsMenu,
       'has-corner-badge': showRemoteInstanceBadge && instanceBadgeVariant === 'corner',
+      'has-banner': hasBanner,
     }" 
     @click="handleClick"
   >
+    <div v-if="hasBanner" class="card-banner" :style="bannerStyle" aria-hidden="true">
+      <img v-if="bannerSrc" :src="bannerSrc" alt="" loading="lazy" @error="bannerFailed = true" />
+    </div>
     <!-- Avatar Section -->
     <div class="avatar-section">
       <div class="avatar-wrapper">
@@ -209,6 +213,7 @@ import { useMenuButton } from '@/composables/useMenu'
 import { plainDisplayName } from '@/utils/plainDisplayName'
 import type { User, FederatedUser } from '@/types'
 import { profileCount } from '@/utils/profileCounts'
+import { getBannerUrl } from '@/utils/bannerUtils'
 
 const { t } = useI18n()
 
@@ -225,6 +230,8 @@ interface Props {
   instanceBadgeVariant?: 'corner' | 'inline'
   hasStats?: boolean
   maxBioLength?: number
+  /** Header strip: the profile banner, else the profile colour. Not in the compact layout. */
+  showBanner?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -236,8 +243,14 @@ const props = withDefaults(defineProps<Props>(), {
   showInstanceBadge: true,
   instanceBadgeVariant: 'corner',
   hasStats: true,
-  maxBioLength: 120
+  maxBioLength: 120,
+  showBanner: false
 })
+
+const bannerFailed = ref(false)
+const hasBanner = computed(() => props.showBanner && !props.isCompact)
+const bannerSrc = computed(() => bannerFailed.value ? null : getBannerUrl(props.user.banner_url, { width: 480, height: 120 }))
+const bannerStyle = computed(() => (props.user.color ? { backgroundColor: props.user.color } : {}))
 
 const emit = defineEmits<{
   click: [user: User | FederatedUser]
@@ -600,6 +613,35 @@ const closeActionsMenu = () => {
 /* ===== AVATAR SECTION ===== */
 .avatar-section {
   flex-shrink: 0;
+}
+
+/* Bleeds to the card's edges; the avatar sits over its lower edge. */
+.card-banner {
+  height: 72px;
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) 0;
+  /* The card's top corners. */
+  border-radius: inherit;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  overflow: hidden;
+  background: var(--background-tertiary);
+}
+
+.card-banner img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-card.has-banner .avatar-section {
+  margin-top: calc(-1 * var(--space-3) - 32px);
+}
+
+.profile-card.has-banner .avatar-wrapper {
+  width: fit-content;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px var(--background-secondary);
 }
 
 .avatar-wrapper {

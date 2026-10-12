@@ -61,7 +61,12 @@
         </template>
         <LinkEmbedCard v-else :payload="payload" @load="handleEmbedLoad" />
       </template>
-      <div v-else-if="youtubeEmbedUrl" class="provider-embed__media provider-embed__media--video" ref="youtubeContainer">
+      <div
+        v-else-if="youtubeEmbedUrl"
+        class="provider-embed__media provider-embed__media--video"
+        :class="{ 'provider-embed__media--portrait': youtubeShort }"
+        ref="youtubeContainer"
+      >
         <iframe
           ref="youtubeIframe"
           :id="`youtube-player-${messageId}`"
@@ -144,7 +149,7 @@ import { debug } from '@/utils/debug'
 // `TimelinePost` is already imported in the module-scope <script lang="ts">
 // block above for the cache helpers; re-importing it here is a TS duplicate.
 import type { EmbedPayload } from '@/types';
-import { parseEmbedUrl, buildYouTubePlayerSrc, buildSpotifyEmbedUrl, isYouTubePlayerOrigin } from '@/utils/embedDetection';
+import { parseEmbedUrl, buildYouTubePlayerSrc, buildSpotifyEmbedUrl, isYouTubePlayerOrigin, isYouTubeShort } from '@/utils/embedDetection';
 import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import LinkEmbedCard from './LinkEmbedCard.vue';
@@ -249,6 +254,9 @@ const youtubeEmbedUrl = computed(() => {
   
   return buildYouTubePlayerSrc(parsed);
 });
+
+// A Short plays portrait; the floating player takes the frame's shape from this box.
+const youtubeShort = computed(() => isYouTubeShort(props.payload.url) || isYouTubeShort(props.payload.normalizedUrl));
 
 const spotifyEmbedUrl = computed(() => {
   if (props.payload.provider !== 'spotify') return null;

@@ -228,6 +228,8 @@ export interface FederatedUserSearchResult {
   display_name: string;
   domain: string;
   avatar_url?: string;
+  banner_url?: string | null;
+  color?: string | null;
   handle: string; // @username or @username@domain
   is_local: boolean;
 }

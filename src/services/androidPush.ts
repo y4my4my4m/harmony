@@ -279,6 +279,29 @@ export async function nativePushStatus(): Promise<NativePushStatus | null> {
   }
 }
 
+export type RingerMode = 'normal' | 'vibrate' | 'silent'
+
+/**
+ * The phone's ringer mode, Do Not Disturb counting as silent. Null outside the Android app
+ * or with a build whose plugin lacks the command.
+ */
+export async function ringerMode(): Promise<RingerMode | null> {
+  if (!isAndroidApp()) return null
+  try {
+    return (await call<{ mode: RingerMode }>('ringer_mode')).mode
+  } catch {
+    return null
+  }
+}
+
+/** One short buzz, in place of an alert sound while the phone is on vibrate. */
+export async function buzz(): Promise<void> {
+  if (!isAndroidApp()) return
+  try {
+    await call('vibrate')
+  } catch { /* plugin without the command */ }
+}
+
 export async function requestNativePermission(): Promise<NativePermission> {
   const result = await call<{ permission: NativePermission }>('request_permission')
   return result.permission

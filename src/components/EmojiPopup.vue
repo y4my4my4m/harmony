@@ -964,8 +964,10 @@ let isUnmounted = false;
 let outsideListenerTimeout: ReturnType<typeof setTimeout> | null = null;
 
 onMounted(async () => {
-  // Show popup immediately, load emojis in background (non-blocking)
-  
+  // Positioned against the trigger as it is now: the first open loads the emoji data below,
+  // and by then a hover toolbar trigger may have hidden.
+  updatePosition();
+
   const { triggerEmojiDataLoad } = await import('@/composables/useEmojiLoader')
   triggerEmojiDataLoad()
   

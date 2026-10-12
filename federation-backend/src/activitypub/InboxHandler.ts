@@ -449,11 +449,11 @@ async function handleInbox(
       return;
     }
 
-    // Like/Undo/Accept/Reject/Follow are implicitly addressed: they reference
-    // the user's own content. Flag carries no audience; Mastodon
+    // Like/EmojiReact/Undo/Accept/Reject/Follow/QuoteRequest are implicitly addressed:
+    // they reference the user's own content. Flag carries no audience; Mastodon
     // (ReportService#forward_to_origin!) and Misskey deliver it to the
-    // reported account's personal inbox. Mastodon's Move has no audience either.
-    const implicitTypes = ['Like', 'Undo', 'Accept', 'Reject', 'Follow', 'Flag', 'Move'];
+    // reported account's personal inbox. Mastodon's Move and Block have no audience either.
+    const implicitTypes = ['Like', 'EmojiReact', 'EmojiReaction', 'Undo', 'Accept', 'Reject', 'Follow', 'Flag', 'Move', 'Block', 'QuoteRequest'];
     if (!implicitTypes.includes(activity.type)) {
       const to = Array.isArray(activity.to) ? activity.to : [activity.to].filter(Boolean);
       const cc = Array.isArray(activity.cc) ? activity.cc : [activity.cc].filter(Boolean);

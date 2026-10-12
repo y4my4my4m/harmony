@@ -122,6 +122,8 @@ vi.mock('../listeners/FederationHandlers.js', () => ({
   createUndoAnnounceActivity: vi.fn().mockReturnValue({ type: 'Undo' }),
   loadReblogTarget: vi.fn().mockResolvedValue({ objectUrl: 'https://other.instance/posts/abc', authorActorUrl: null, authorInbox: null }),
   announceActivityId: vi.fn((post: any) => `https://harmony.test/activities/${post.id}`),
+  loadQuoteTarget: vi.fn().mockResolvedValue(null),
+  quoteRequestFor: vi.fn().mockResolvedValue(null),
 }));
 
 // Default to "wrote embeds" so the success path is the default.

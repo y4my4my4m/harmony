@@ -11,6 +11,8 @@ const COMMANDS: &[&str] = &[
   "unified_push_unregister",
   "register_listener",
   "remove_listener",
+  "ringer_mode",
+  "vibrate",
 ];
 
 fn main() {

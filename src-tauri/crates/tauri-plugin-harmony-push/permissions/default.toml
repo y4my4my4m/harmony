@@ -14,4 +14,6 @@ permissions = [
   "allow-unified-push-unregister",
   "allow-register-listener",
   "allow-remove-listener",
+  "allow-ringer-mode",
+  "allow-vibrate",
 ]

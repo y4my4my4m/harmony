@@ -29,6 +29,57 @@
 import type { TimelinePost, ActivityPubPost, FederatedUser } from '@/types';
 
 /**
+ * Content without the lone "@" a text part ends with right before a mention part. Remote
+ * posts parsed before 2026-10-02 kept the mention anchor's "@" as text, so they render
+ * "@@user". Other content is returned unchanged.
+ */
+export function withoutStrayMentionAt<T>(content: T): T {
+  if (!Array.isArray(content)) return content;
+  let changed = false;
+  const out: any[] = [];
+  content.forEach((part: any, i: number) => {
+    const next = content[i + 1] as any;
+    if (part?.type === 'text' && typeof part.text === 'string' && part.text.endsWith('@') && next?.type === 'mention') {
+      changed = true;
+      const text = part.text.slice(0, -1);
+      if (text) out.push({ ...part, text });
+      return;
+    }
+    out.push(part);
+  });
+  return (changed ? out : content) as T;
+}
+
+/** The quoted post's URL of a quote post, from the federation backend or the local compose path. */
+export function quoteTargetUrl(post: TimelinePost | null | undefined): string | null {
+  const m = (post as TimelinePost | null | undefined)?.metadata;
+  const url = m?.quote_ap_url || m?.quote_url;
+  return typeof url === 'string' && url ? url : null;
+}
+
+/**
+ * Content without the leading "RE: <quoted url>" line that FEP-044f quote posts carry for
+ * software that cannot show quotes (Mastodon's span or p of class quote-inline).
+ */
+export function withoutQuoteFallback<T extends { type?: string; text?: string; url?: string }>(
+  content: T[] | null | undefined,
+  quoteUrl: string | null,
+): T[] {
+  const parts = Array.isArray(content) ? content : [];
+  if (!quoteUrl || parts.length < 2) return parts;
+  const [first, second] = parts;
+  if (first?.type !== 'text' || !/^\s*RE:\s*$/i.test(first.text ?? '')) return parts;
+  if (second?.type !== 'url' || second.url !== quoteUrl) return parts;
+  const rest = parts.slice(2);
+  const next = rest[0];
+  if (next?.type === 'text' && typeof next.text === 'string') {
+    const text = next.text.replace(/^\s+/, '');
+    return text ? [{ ...next, text }, ...rest.slice(1)] : rest.slice(1);
+  }
+  return rest;
+}
+
+/**
  * `true` if the post is a quote - a first-class user post that references
  * another note via `reblog`. Mirrors `MonyPost.isQuotePost`'s logic so all
  * code paths agree on classification.
@@ -181,14 +232,23 @@ export function getReplyMentionAuthor(post: TimelinePost): FederatedUser | undef
  * Composer prefill for a reply, as Mastodon builds it: the replied-to author, then each account
  * the post mentions in order, once each and never the viewer, followed by one space. Empty when
  * nobody remains (a reply to one's own post that mentions no one) or the author is unknown.
+ *
+ * A remote post names a local account by actor URL, not profile id, so the viewer is also
+ * matched as a local account of the same username.
  */
-export function replyMentionPrefill(post: TimelinePost, viewerId: string | null | undefined): string {
+export function replyMentionPrefill(
+  post: TimelinePost,
+  viewer: { id?: string | null; username?: string | null } | null | undefined,
+): string {
   const author = getReplyMentionAuthor(post);
   if (!author) return '';
+  const viewerName = viewer?.username?.toLowerCase();
+  const isViewer = (id: string | undefined, username: string, isLocal: boolean) =>
+    (!!viewer?.id && id === viewer.id) || (isLocal && !!viewerName && username.toLowerCase() === viewerName);
   const handles: string[] = [];
   const seen = new Set<string>();
   const add = (id: string | undefined, username: string | undefined, domain: string | undefined, isLocal: boolean) => {
-    if (!username || (viewerId && id === viewerId)) return;
+    if (!username || isViewer(id, username, isLocal)) return;
     const handle = !isLocal && domain ? `@${username}@${domain}` : `@${username}`;
     const key = handle.toLowerCase();
     if (seen.has(key)) return;

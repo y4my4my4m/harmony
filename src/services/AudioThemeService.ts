@@ -1,4 +1,5 @@
 import type { AudioTheme, AudioAction, AudioThemeSettings } from '@/types'
+import { isAndroidApp } from '@/services/androidReleaseNotice'
 import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
 import { savePackBlob, getPackBlob, getAllPackBlobs, deletePackBlobs } from '@/utils/audioPackStorage'
@@ -14,6 +15,18 @@ function normalizeAudioThemeId(themeId: string | undefined | null): string {
   if (!themeId || themeId === LEGACY_AUDIO_THEME_HARMONY) return DEFAULT_AUDIO_THEME_ID
   return themeId
 }
+
+/**
+ * Alerts. In the Android app the webview plays every sound on the media stream, which the
+ * ringer mode does not silence; these follow the ringer instead: silent on vibrate or silent
+ * (Do Not Disturb included), a buzz in place of the BUZZ_ACTIONS on vibrate. Feedback sounds
+ * (mic, camera, voice join) play as any app's media.
+ */
+const RINGER_ACTIONS = new Set<AudioAction>([
+  'mention', 'dm', 'reaction', 'reply', 'server_invite', 'friend_request', 'server_update',
+  'emoji_added', 'voice_channel_activity', 'call_incoming', 'ui_notification',
+])
+const BUZZ_ACTIONS = new Set<AudioAction>(['mention', 'dm', 'reply', 'call_incoming'])
 
 /** Every action a generated pack (scripts/sound-packs) renders. */
 const GENERATED_PACK_ACTIONS: AudioAction[] = [
@@ -557,6 +570,14 @@ export class AudioThemeService {
    * Internal audio playback with fallback chain
    */
   private async performAudioPlayback(action: AudioAction): Promise<void> {
+    if (RINGER_ACTIONS.has(action) && isAndroidApp()) {
+      const { ringerMode, buzz } = await import('@/services/androidPush')
+      const mode = await ringerMode()
+      if (mode === 'vibrate' || mode === 'silent') {
+        if (mode === 'vibrate' && BUZZ_ACTIONS.has(action)) void buzz()
+        return
+      }
+    }
     try {
       // Fast path: try cached audio first (stays within user gesture window)
       const soundPath = this.resolveSoundPath(action)
