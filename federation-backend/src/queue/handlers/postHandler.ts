@@ -16,7 +16,9 @@ import {
   createReblogActivity,
   createUndoAnnounceActivity,
   loadReblogTarget,
+  loadQuoteTarget,
   announceActivityId,
+  quoteRequestFor,
 } from '../../listeners/FederationHandlers.js';
 import { enrichPostLinkPreviews } from '../../listeners/DatabaseListener.js';
 import {
@@ -107,6 +109,12 @@ export async function handlePostJob(data: FederationJobData): Promise<void> {
         await deliverToAudience(post, activity, author, recipients);
         if (post.visibility === 'direct') {
           logger.info(`Direct post ${post.id} delivered to ${recipients.length} mentioned user(s)`);
+        }
+
+        const quoteRequest = await quoteRequestFor(post, author, activity.object);
+        if (quoteRequest) {
+          await DeliveryQueue.sendToInbox(quoteRequest.inbox, quoteRequest.activity, author.id);
+          logger.info(`Quote ${post.id}: QuoteRequest sent to ${quoteRequest.inbox}`);
         }
 
         // Home-feed realtime fan-out is handled by the
@@ -229,7 +237,8 @@ async function resolveMentions(post: any, handles: MentionHandle[]): Promise<Men
 /**
  * Deliver to the post's audience: followers unless the post is direct, plus
  * every mentioned remote user. A direct post's content never goes to
- * followers' inboxes.
+ * followers' inboxes. A public or unlisted reply or quote also reaches the
+ * remote author it answers or quotes, as Mastodon's StatusReachFinder does.
  */
 async function deliverToAudience(
   post: any,
@@ -240,7 +249,29 @@ async function deliverToAudience(
   if (post.visibility !== 'direct') {
     await DeliveryQueue.broadcastToFollowers(author.id, activity);
   }
-  await deliverToMentionedUsers(recipients, activity, author);
+  const inboxes = recipients.map((r) => r.inbox);
+  if (post.visibility === 'public' || post.visibility === 'unlisted') {
+    inboxes.push(...await interactedAuthorInboxes(post));
+  }
+  await deliverToInboxes(inboxes, activity, author);
+}
+
+/** Inboxes of the remote authors of the post's parent and quoted post. */
+async function interactedAuthorInboxes(post: any): Promise<string[]> {
+  const inboxes: string[] = [];
+  if (post.in_reply_to) {
+    const { data: parent } = await getSupabaseClient()
+      .from('posts')
+      .select('author:profiles!posts_author_id_fkey ( is_local, inbox_url, shared_inbox_url )')
+      .eq('id', post.in_reply_to)
+      .maybeSingle();
+    const parentAuthor: any = (parent as any)?.author;
+    const inbox = parentAuthor?.is_local === false ? parentAuthor.shared_inbox_url || parentAuthor.inbox_url : null;
+    if (inbox) inboxes.push(inbox);
+  }
+  const quoted = await loadQuoteTarget(post);
+  if (quoted?.authorInbox) inboxes.push(quoted.authorInbox);
+  return inboxes;
 }
 
 /**
@@ -251,9 +282,13 @@ async function deliverToMentionedUsers(
   activity: any,
   author: any,
 ): Promise<void> {
-  const inboxes = Array.from(new Set(recipients.map((r) => r.inbox)));
-  await Promise.all(inboxes.map(async (inbox) => {
-    logger.info(`Delivering to mentioned user inbox: ${inbox}`);
+  await deliverToInboxes(recipients.map((r) => r.inbox), activity, author);
+}
+
+/** One delivery per distinct inbox. Follower shared inboxes already got the activity. */
+async function deliverToInboxes(inboxes: string[], activity: any, author: any): Promise<void> {
+  await Promise.all(Array.from(new Set(inboxes)).map(async (inbox) => {
+    logger.info(`Delivering to inbox: ${inbox}`);
     await DeliveryQueue.sendToInbox(inbox, activity, author.id);
   }));
 }

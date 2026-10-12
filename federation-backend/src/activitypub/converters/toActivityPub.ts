@@ -1,5 +1,4 @@
 import config from '../../config/index.js';
-import { logger } from '../../utils/logger.js';
 import { getFullAvatarUrl, getFullBannerUrl } from '../../utils/urlUtils.js';
 import { getSupabaseClient } from '../../config/supabase.js';
 import { FOCAL_POINT_CONTEXT, storedFocalPoint } from '../../utils/focalPoint.js';
@@ -52,19 +51,84 @@ function mentionLabel(item: any): string {
   return domain === String(config.INSTANCE_DOMAIN).toLowerCase() ? `@${username}` : `@${username}@${domain}`;
 }
 
+const AS_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
+
+/** Namespace of Harmony's own actor and object extensions (`harmony:*` keys). */
+export const HARMONY_NS = 'https://har.mony.lol/ns#';
+
 /**
- * Convert internal post format to ActivityPub Note
- * Supports quote posts via quoteUrl (Fediverse) and _misskey_quote (Misskey)
+ * Note @context: Mastodon's status terms, FEP-044f quotes and quote authorizations, and
+ * GoToSocial's interaction policy vocabulary as Mastodon 4.5 emits it.
+ */
+export const NOTE_CONTEXT = [
+  'https://www.w3.org/ns/activitystreams',
+  {
+    sensitive: 'as:sensitive',
+    Hashtag: 'as:Hashtag',
+    toot: 'http://joinmastodon.org/ns#',
+    Emoji: 'toot:Emoji',
+    blurhash: 'toot:blurhash',
+    quote: { '@id': 'https://w3id.org/fep/044f#quote', '@type': '@id' },
+    quoteAuthorization: { '@id': 'https://w3id.org/fep/044f#quoteAuthorization', '@type': '@id' },
+    quoteUrl: 'as:quoteUrl',
+    quoteUri: 'http://fedibird.com/ns#quoteUri',
+    misskey: 'https://misskey-hub.net/ns#',
+    _misskey_quote: 'misskey:_misskey_quote',
+    gts: 'https://gotosocial.org/ns#',
+    interactionPolicy: { '@id': 'gts:interactionPolicy', '@type': '@id' },
+    canQuote: { '@id': 'gts:canQuote', '@type': '@id' },
+    automaticApproval: { '@id': 'gts:automaticApproval', '@type': '@id' },
+    manualApproval: { '@id': 'gts:manualApproval', '@type': '@id' },
+  },
+];
+
+/** What a Note carries beyond the post row: counts and the quote's approval stamp. */
+export interface NoteExtras {
+  /** FEP-044f QuoteAuthorization id approving this post's quote. */
+  quoteAuthorization?: string | null;
+  likesCount?: number | null;
+  sharesCount?: number | null;
+}
+
+/**
+ * FEP-044f canQuote of a post. Public and unlisted posts are quotable by anyone, a
+ * followers-only post by the author's followers; a direct post by its author alone, the
+ * FEP's encoding of "nobody else".
+ */
+export function quotePolicy(visibility: string, authorUrl: string): { canQuote: { automaticApproval: string[] } } {
+  const allowed = visibility === 'public' || visibility === 'unlisted' ? AS_PUBLIC
+    : visibility === 'followers' ? `${authorUrl}/followers`
+    : authorUrl;
+  return { canQuote: { automaticApproval: [allowed] } };
+}
+
+/** Human page of a local post. */
+export function postPageUrl(postId: string): string {
+  return `https://${config.INSTANCE_DOMAIN}/social/post/${postId}`;
+}
+
+/** Hashtag page on this instance; the SPA route, which also serves crawlers. */
+function hashtagUrl(name: string): string {
+  return `https://${config.INSTANCE_DOMAIN}/social/hashtag/${encodeURIComponent(name)}`;
+}
+
+/**
+ * Convert a LOCAL post to an ActivityPub Note. `attributedTo` and the addressing name the
+ * local `author`; a remote row is never serialized here (its origin serves it).
  *
  * Addressing follows Mastodon: public is to Public, cc followers; unlisted
  * is to followers, cc Public; followers-only is to followers; direct is to
  * the mentioned actors. Mentioned actors are cc'd on the first three.
+ *
+ * A quote carries FEP-044f `quote` plus the quoteUrl, quoteUri and _misskey_quote aliases,
+ * and a "RE: <url>" line of class quote-inline for software that shows no quotes.
  */
 export function postToNote(
   post: any,
   author: any,
   quoteUrl?: string,
   mentionActorUrls?: Map<string, string>,
+  extras: NoteExtras = {},
 ): any {
   const domain = config.INSTANCE_DOMAIN;
   const authorUrl = `https://${domain}/users/${author.username}`;
@@ -86,33 +150,36 @@ export function postToNote(
     }
   }
 
+  let content = extractContentAsHtml(post.content, mentionActorUrls);
+  if (quoteUrl) {
+    const href = escapeHtmlAttr(safeAttrUrlOutbound(quoteUrl));
+    content += `<p class="quote-inline">RE: <a href="${href}">${href}</a></p>`;
+  }
+
   const note: any = {
-    '@context': [
-      'https://www.w3.org/ns/activitystreams',
-      {
-        'quoteUrl': 'as:quoteUrl',
-        'misskey': 'https://misskey-hub.net/ns#',
-        '_misskey_quote': 'misskey:_misskey_quote',
-      }
-    ],
+    '@context': structuredClone(NOTE_CONTEXT),
     id: postUrl,
     type: 'Note',
     attributedTo: authorUrl,
     published: post.created_at,
-    content: extractContentAsHtml(post.content, mentionActorUrls),
+    url: post.id ? postPageUrl(post.id) : postUrl,
+    content,
     to: toAddresses,
     cc: ccAddresses,
-    likes: `${postUrl}/likes`,
+    sensitive: !!post.is_sensitive,
+    likes: collectionRef(`${postUrl}/likes`, extras.likesCount),
+    shares: collectionRef(`${postUrl}/shares`, extras.sharesCount),
     replies: `${postUrl}/replies`,
+    interactionPolicy: quotePolicy(post.visibility, authorUrl),
   };
+
+  if (typeof post.language === 'string' && /^[a-z]{2,3}(?:-[A-Za-z0-9]+)*$/.test(post.language)) {
+    note.contentMap = { [post.language]: content };
+  }
 
   // Add content warning (ActivityPub uses 'summary' for CW)
   if (post.content_warning) {
     note.summary = post.content_warning;
-  }
-
-  if (post.is_sensitive) {
-    note.sensitive = true;
   }
 
   const attachments = extractAttachments(post.content);
@@ -134,18 +201,26 @@ export function postToNote(
   }
 
   if (post.in_reply_to) {
-    // in_reply_to is a UUID - need to get the ap_id of the parent post
-    // For federated posts, this is their original ActivityPub URL
-    // For local posts, this is our generated URL
-    note.inReplyTo = post.in_reply_to; // Will be resolved in createPostActivity
+    // A UUID here; FederationHandlers.buildLocalNote replaces it with the parent's AP id.
+    note.inReplyTo = post.in_reply_to;
   }
 
   if (quoteUrl) {
+    note.quote = quoteUrl;
     note.quoteUrl = quoteUrl;
-    note._misskey_quote = quoteUrl; // Misskey compatibility
+    note.quoteUri = quoteUrl;
+    note._misskey_quote = quoteUrl;
+    if (extras.quoteAuthorization) note.quoteAuthorization = extras.quoteAuthorization;
   }
 
   return note;
+}
+
+/** A collection reference: inline with totalItems when the count is known, else the URL. */
+function collectionRef(id: string, totalItems: number | null | undefined): any {
+  return typeof totalItems === 'number' && totalItems >= 0
+    ? { id, type: 'Collection', totalItems }
+    : id;
 }
 
 /**
@@ -198,13 +273,13 @@ export function profileToActor(profile: any): any {
     '@context': [
       'https://www.w3.org/ns/activitystreams',
       'https://w3id.org/security/v1',
-      ACCOUNT_MIGRATION_CONTEXT,
+      { ...ACCOUNT_MIGRATION_CONTEXT, harmony: HARMONY_NS },
     ],
     id: userUrl,
     type: 'Person',
     preferredUsername: profile.username,
     name: normalizeShortcodeBoundaries(profile.display_name || profile.username),
-    summary: profile.bio || '',
+    summary: textToHtml(profile.bio || ''),
     inbox: `${userUrl}/inbox`,
     outbox: `${userUrl}/outbox`,
     followers: `${userUrl}/followers`,
@@ -567,7 +642,8 @@ export function createAnnounceActivity(user: any, objectUrl: string): any {
 }
 
 /**
- * Create a Delete activity
+ * Delete of a post as Mastodon sends it: the object a Tombstone carrying the id, addressed to
+ * Public. Pleroma's DeleteValidator reads the audience from to/cc.
  */
 export function createDeleteActivity(user: any, objectUrl: string): any {
   const domain = config.INSTANCE_DOMAIN;
@@ -579,7 +655,8 @@ export function createDeleteActivity(user: any, objectUrl: string): any {
     id: activityId,
     type: 'Delete',
     actor: userUrl,
-    object: objectUrl,
+    to: [AS_PUBLIC],
+    object: { id: objectUrl, type: 'Tombstone' },
   };
 }
 
@@ -652,17 +729,16 @@ function extractContentAsHtml(content: any, mentionActorUrls?: Map<string, strin
   // own sanitizers but we shouldn't rely on theirs - escape so user
   // content can never go out as live HTML markup.
   if (typeof content === 'string') {
-    return escapeHtmlAttr(content);
+    return paragraphs(escapeHtmlAttr(content));
   }
 
   if (!Array.isArray(content)) {
     return '';
   }
 
-  return content
+  const inline = content
     .map((item) => {
       if (item.type === 'text') {
-        // Escape HTML entities for safety (match SQL logic)
         let text = item.text || '';
         text = text.replace(/&/g, '&amp;');
         text = text.replace(/</g, '&lt;');
@@ -670,18 +746,16 @@ function extractContentAsHtml(content: any, mentionActorUrls?: Map<string, strin
         return text;
       }
       else if (item.type === 'mention') {
-        // `username` / `domain` originate in a (possibly federated)
-        // MessagePart, so escape both before splicing them into the URL
-        // and the visible label. Receiving servers do further sanitisation,
-        // but we shouldn't emit broken HTML in the first place.
+        // Mastodon's h-card markup around the full handle (mentionLabel); Misskey rebuilds a
+        // short one from the href, Pleroma shows the text as written. `username` / `domain`
+        // come from a possibly federated part.
         const href = safeAttrUrlOutbound(mentionHref(item, mentionActorUrls));
-        const displayName = mentionLabel(item);
-        return `<a href="${escapeHtmlAttr(href)}" class="mention">${escapeHtmlAttr(displayName)}</a>`;
+        return `<span class="h-card" translate="no"><a href="${escapeHtmlAttr(href)}" class="u-url mention">${escapeHtmlAttr(mentionLabel(item))}</a></span>`;
       }
       else if (item.type === 'hashtag') {
         const name = item.name || '';
-        const href = safeAttrUrlOutbound(`https://${config.INSTANCE_DOMAIN}/tags/${name}`);
-        return `<a href="${escapeHtmlAttr(href)}" class="mention hashtag" rel="tag">#${escapeHtmlAttr(name)}</a>`;
+        const href = safeAttrUrlOutbound(hashtagUrl(name));
+        return `<a href="${escapeHtmlAttr(href)}" class="mention hashtag" rel="tag">#<span>${escapeHtmlAttr(name)}</span></a>`;
       }
       else if (item.type === 'emoji') {
         // Custom emoji - use :name: syntax, actual emoji data in tags.
@@ -698,10 +772,38 @@ function extractContentAsHtml(content: any, mentionActorUrls?: Map<string, strin
         if (!safeUrl) {
           return escapeHtmlAttr(item.url || '');
         }
-        return `<a href="${escapeHtmlAttr(safeUrl)}" rel="noopener noreferrer" target="_blank">${escapeHtmlAttr(safeUrl)}</a>`;
+        return `<a href="${escapeHtmlAttr(safeUrl)}" rel="nofollow noopener noreferrer" target="_blank">${escapeHtmlAttr(safeUrl)}</a>`;
       }
       return '';
     })
+    .join('');
+  return paragraphs(inline);
+}
+
+/** Plain text as HTML: escaped, http(s) URLs linked, paragraphs and line breaks kept. */
+export function textToHtml(text: string): string {
+  const linked = String(text ?? '')
+    .split(/(https?:\/\/[^\s<>"']+)/)
+    .map((piece, i) => {
+      if (i % 2 === 0) return escapeHtmlAttr(piece);
+      const href = escapeHtmlAttr(safeAttrUrlOutbound(piece));
+      return href ? `<a href="${href}" rel="nofollow noopener noreferrer" target="_blank">${href}</a>` : escapeHtmlAttr(piece);
+    })
+    .join('');
+  return paragraphs(linked);
+}
+
+/**
+ * Inline HTML whose line breaks are still `\n` → paragraphs as Mastodon writes them: a blank
+ * line separates <p> elements, a single newline is a <br>. Text parts are the only source of
+ * newlines; markup never contains one.
+ */
+function paragraphs(inline: string): string {
+  const body = inline.replace(/\r\n?/g, '\n').replace(/^\s*\n|\n\s*$/g, '');
+  if (!body.trim()) return '';
+  return body
+    .split(/\n[^\S\n]*\n\s*/)
+    .map((p) => `<p>${p.replace(/\n/g, '<br>')}</p>`)
     .join('');
 }
 
@@ -840,16 +942,6 @@ function extractTags(content: any, mentionActorUrls?: Map<string, string>): any[
 
   content.forEach((item) => {
     if (item.type === 'mention') {
-      // Debug logging
-      logger.info('Processing mention tag: ' + JSON.stringify({
-        username: item.username,
-        domain: item.domain,
-        isLocal: item.isLocal,
-        userId: item.userId,
-        fullItem: item
-      }));
-      
-      // MessagePart format uses username and domain, not mention string
       const href = mentionHref(item, mentionActorUrls);
       const name = mentionLabel(item);
       
@@ -861,7 +953,7 @@ function extractTags(content: any, mentionActorUrls?: Map<string, string>): any[
     }
     
     if (item.type === 'hashtag') {
-      const href = `https://${config.INSTANCE_DOMAIN}/tags/${item.name}`;
+      const href = hashtagUrl(item.name || '');
       tags.push({
         type: 'Hashtag',
         href: href,

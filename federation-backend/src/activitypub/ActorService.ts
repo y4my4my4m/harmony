@@ -1,8 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { profileToActor } from './converters/toActivityPub.js';
-import { actorToProfile, extractMediaAttachments, noteToContent } from './converters/fromActivityPub.js';
+import { profileToActor, NOTE_CONTEXT } from './converters/toActivityPub.js';
+import { actorToProfile, extractMediaAttachments, noteToContent, noteQuoteUrl } from './converters/fromActivityPub.js';
 import { misskeyDisplayNameEmojis } from '../utils/misskeyEmojis.js';
 import { resolveLocalProfileEmojis } from './emojiResolver.js';
 import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
@@ -673,6 +673,11 @@ router.post(
             return;
           }
         } catch { /* invalid URL, proceed */ }
+
+        try {
+          validateExternalUrl(entry.post_ap_id);
+          queueBackgroundReplyCrawl(entry.post_ap_id);
+        } catch { /* not a fetchable URL; the reactions read below reports it */ }
 
         const cachedRow = entry.post_id ? postRowsById.get(entry.post_id) : null;
 
@@ -1695,6 +1700,52 @@ function startReplyCrawl(postApId: string, postId: string | undefined, supabase:
   return crawl;
 }
 
+/** Whether a crawl of `postApId` is due: its last one, recorded or remembered, is older than the interval. */
+function replyCrawlDue(postApId: string, target: ReplyTarget | null, now: number, forced: boolean): boolean {
+  const recorded = target?.replies_fetched_at ? Date.parse(target.replies_fetched_at) : NaN;
+  const remembered = lastReplyCrawls.get(postApId) ?? NaN;
+  const last = Math.max(Number.isFinite(recorded) ? recorded : -Infinity, Number.isFinite(remembered) ? remembered : -Infinity);
+  const interval = forced ? FORCED_REPLY_CRAWL_COOLDOWN_MS : replyCrawlInterval(target?.created_at, now);
+  return now - last >= interval;
+}
+
+/** Remote posts a timeline showed, awaiting a background reply crawl. */
+const backgroundReplyQueue = new Set<string>();
+const BACKGROUND_REPLY_QUEUE_LIMIT = 500;
+let backgroundReplyPump: Promise<void> | null = null;
+
+/**
+ * Queue a reply crawl of a remote post a timeline shows, so its replies and reply total are
+ * read without the thread being opened (Mastodon serves no reply total; a complete walk
+ * establishes it). Crawls run one at a time, when due, and leave one MAX_REPLY_CRAWLS slot
+ * to readers.
+ */
+function queueBackgroundReplyCrawl(postApId: string): void {
+  if (backgroundReplyQueue.has(postApId) || inflightReplyCrawls.has(postApId)) return;
+  if (backgroundReplyQueue.size >= BACKGROUND_REPLY_QUEUE_LIMIT) return;
+  backgroundReplyQueue.add(postApId);
+  backgroundReplyPump ??= pumpBackgroundReplyCrawls().finally(() => { backgroundReplyPump = null; });
+}
+
+async function pumpBackgroundReplyCrawls(): Promise<void> {
+  const supabase = getSupabaseClient();
+  for (const postApId of backgroundReplyQueue) {
+    backgroundReplyQueue.delete(postApId);
+    try {
+      while (inflightReplyCrawls.size >= MAX_REPLY_CRAWLS - 1) {
+        await Promise.race(inflightReplyCrawls.values());
+      }
+      if (inflightReplyCrawls.has(postApId)) continue;
+      const target = await readReplyTarget(supabase, postApId);
+      const now = Date.now();
+      if (!target || !replyCrawlDue(postApId, target, now, false)) continue;
+      await startReplyCrawl(postApId, target.id, supabase, DEFAULT_REPLY_CRAWL.maxReplies, now);
+    } catch (error) {
+      logger.warn(`Background reply crawl of ${postApId} failed:`, error);
+    }
+  }
+}
+
 /** The crawl's result when it ends within `ms`, else null. */
 async function replyCrawlWithin(crawl: Promise<RemoteReplyFetch>, ms: number): Promise<RemoteReplyFetch | null> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -1758,11 +1809,7 @@ router.post(
     let status: 'started' | 'running' | 'recent' = crawl ? 'running' : 'recent';
     if (!crawl) {
       const now = Date.now();
-      const recorded = target?.replies_fetched_at ? Date.parse(target.replies_fetched_at) : NaN;
-      const remembered = lastReplyCrawls.get(post_ap_id) ?? NaN;
-      const last = Math.max(Number.isFinite(recorded) ? recorded : -Infinity, Number.isFinite(remembered) ? remembered : -Infinity);
-      const interval = force === true ? FORCED_REPLY_CRAWL_COOLDOWN_MS : replyCrawlInterval(target?.created_at, now);
-      if (now - last >= interval) {
+      if (replyCrawlDue(post_ap_id, target, now, force === true)) {
         if (inflightReplyCrawls.size >= MAX_REPLY_CRAWLS) {
           res.setHeader('Retry-After', 5);
           return res.status(503).json({ success: false, status: 'busy', error: 'Too many reply fetches running', retry_after: 5 });
@@ -2160,7 +2207,7 @@ router.get(
 
     const { data: pinnedPosts, error: postsError } = await supabase
       .from('posts')
-      .select('id, ap_id, content, created_at, visibility, content_warning, is_sensitive')
+      .select('*')
       .eq('author_id', user.id)
       .eq('is_pinned', true)
       .eq('is_deleted', false)
@@ -2174,45 +2221,16 @@ router.get(
       return;
     }
 
-    const orderedItems = (pinnedPosts || []).map(post => {
-      const postUrl = post.ap_id || `${baseUrl}/posts/${post.id}`;
-      
-      let textContent = '';
-      if (Array.isArray(post.content)) {
-        textContent = post.content
-          .filter((p: any) => p.type === 'text')
-          .map((p: any) => p.text || '')
-          .join('');
-      }
-
-      const note: any = {
-        id: postUrl,
-        type: 'Note',
-        attributedTo: `${baseUrl}/users/${username}`,
-        content: textContent,
-        published: post.created_at,
-        to: post.visibility === 'public' 
-          ? ['https://www.w3.org/ns/activitystreams#Public']
-          : [`${baseUrl}/users/${username}/followers`],
-        cc: post.visibility === 'public'
-          ? [`${baseUrl}/users/${username}/followers`]
-          : [],
-      };
-
-      if (post.content_warning) {
-        note.summary = post.content_warning;
-      }
-      if (post.is_sensitive) {
-        note.sensitive = true;
-      }
-
+    const { buildLocalNote } = await import('../listeners/FederationHandlers.js');
+    const orderedItems = await Promise.all((pinnedPosts || []).map(async (post) => {
+      const { '@context': _context, ...note } = await buildLocalNote(post, user);
       return note;
-    });
+    }));
 
     res.setHeader('Content-Type', 'application/activity+json');
     res.setHeader('Cache-Control', 'public, max-age=300');
     res.json({
-      '@context': 'https://www.w3.org/ns/activitystreams',
+      '@context': NOTE_CONTEXT,
       id: featuredUrl,
       type: 'OrderedCollection',
       totalItems: orderedItems.length,
@@ -2792,8 +2810,7 @@ async function importOutboxItem(
       Object.assign(metadata, questionPollMetadata(note));
     }
 
-    // Quote target: Mastodon quoteUrl/quoteUri, Misskey _misskey_quote.
-    const quoteUrl = note.quoteUrl || note.quoteUri || note._misskey_quote;
+    const quoteUrl = noteQuoteUrl(note);
     if (quoteUrl) {
       metadata.is_quote = true;
       metadata.quote_url = quoteUrl;

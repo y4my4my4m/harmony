@@ -22,6 +22,11 @@ vi.mock('../activitypub/postPageRenderer.js', () => ({
 }))
 
 const AUTHOR = { id: 'author', username: 'alice', display_name: 'Alice', domain: 'harmony.test', is_local: true }
+const REMOTE_AUTHOR = { id: 'strypey', username: 'strypey', domain: 'mastodon.test', is_local: false, federated_id: 'https://mastodon.test/users/strypey' }
+const REMOTE_POSTS: Record<string, any> = {
+  'p-remote': { visibility: 'public', ap_id: 'https://mastodon.test/users/strypey/statuses/1', author: REMOTE_AUTHOR },
+}
+let listRows: any[] = []
 const POSTS: Record<string, any> = {
   'p-public': { visibility: 'public' },
   'p-unlisted': { visibility: 'unlisted' },
@@ -60,13 +65,13 @@ function query(table: string) {
       ? { data: AUTHOR, error: null }
       : { data: null, error: null }),
     maybeSingle: () => Promise.resolve({
-      data: table === 'posts' && id && POSTS[id]
+      data: table === 'posts' && id && (POSTS[id] || REMOTE_POSTS[id])
         ? { id, ap_id: null, author_id: 'author', created_at: '2026-01-01T00:00:00Z', content: [{ type: 'text', text: id }],
-            media_attachments: [], author: AUTHOR, ...POSTS[id] }
+            media_attachments: [], author: AUTHOR, ...POSTS[id], ...REMOTE_POSTS[id] }
         : null,
       error: null,
     }),
-    then: (resolve: any) => resolve({ data: [], count: 0, error: null }),
+    then: (resolve: any) => resolve({ data: listRows, count: listRows.length, error: null }),
   }
   return q
 }
@@ -95,6 +100,7 @@ beforeEach(() => {
   rpc.mockClear()
   filters.length = 0
   signer.url = null
+  listRows = []
 })
 
 const callers: Array<[string, string | null]> = [
@@ -154,6 +160,36 @@ describe('likes and replies collections', () => {
     if (res.status === 200) {
       expect(filters).toContainEqual({ table: 'posts', column: 'visibility', values: ['public', 'unlisted'] })
     }
+  })
+})
+
+describe('shares collection', () => {
+  it.each(cells)('$postId shares for $caller', async ({ postId, caller, url }) => {
+    signer.url = url
+    const res = await ap(`/posts/${postId}/shares`)
+    expect(res.status).toBe(expected[postId][caller])
+    if (res.status === 200) expect(res.body).toMatchObject({ type: 'OrderedCollection', totalItems: 0 })
+  })
+})
+
+describe('objects this instance does not own', () => {
+  it('sends a remote post to its origin instead of serving it under a local author', async () => {
+    const res = await ap('/posts/p-remote')
+    expect(res.status).toBe(302)
+    expect(res.headers.location).toBe('https://mastodon.test/users/strypey/statuses/1')
+    expect(res.headers.vary).toMatch(/Accept/)
+  })
+
+  it('lists replies by id, never as Notes re-attributed to this host', async () => {
+    listRows = [
+      { id: 'r1', ap_id: 'https://mastodon.test/users/strypey/statuses/2' },
+      { id: 'r2', ap_id: null },
+    ]
+    const res = await ap('/posts/p-public/replies?page=1')
+    expect(res.body.orderedItems).toEqual([
+      'https://mastodon.test/users/strypey/statuses/2',
+      'https://harmony.test/posts/r2',
+    ])
   })
 })
 

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { postToNote } from './converters/toActivityPub.js';
+import { buildLocalNote } from '../listeners/FederationHandlers.js';
 import { renderPostPage, renderOEmbed } from './postPageRenderer.js';
 import config from '../config/index.js';
 import { isPublicView, loadGroupAccess, readableChannelIds, verifiedSigner } from './groupAccess.js';
@@ -9,6 +9,7 @@ import { PRIVATE_CACHE, PUBLIC_VISIBILITIES, canReadConversation, canReadPost } 
 import { inviteCodeFromUrl, loadInvitePreview } from '../services/invitePreview.js';
 import { renderInviteOEmbed } from '../services/invitePageRenderer.js';
 import { isBoostPost } from '../utils/boostPost.js';
+import { quoteAuthorizationObject } from './quoteAuthorization.js';
 
 const router = Router();
 
@@ -137,7 +138,7 @@ router.get(
       }
     }
 
-    const orderedItems = items.map((post: any) => {
+    const orderedItems = await Promise.all(items.map(async (post: any) => {
       if (isBoostPost(post)) {
         // Announce (reblog)
         return {
@@ -155,7 +156,7 @@ router.get(
           object: originalApIds.get(post.metadata.reblog_of) || `${baseUrl}/posts/${post.metadata.reblog_of}`,
         };
       } else {
-        const note = postToNote(post, user);
+        const note = await buildLocalNote(post, user);
         return {
           '@context': 'https://www.w3.org/ns/activitystreams',
           id: `${baseUrl}/activities/${post.id}`,
@@ -167,7 +168,7 @@ router.get(
           object: note,
         };
       }
-    });
+    }));
 
     const response: any = {
       '@context': 'https://www.w3.org/ns/activitystreams',
@@ -223,16 +224,27 @@ router.get(
       .select(`
         *,
         author:profiles!posts_author_id_fkey (
-          id, username, display_name, avatar_url, domain, is_local, public_key, federation_metadata
+          id, username, display_name, avatar_url, domain, is_local, public_key, federation_metadata, federated_id
         )
       `)
       .eq('id', postId)
-      .eq('is_deleted', false)
       .maybeSingle();
 
     if (error || !post || !post.author) {
       if (wantsActivityPub) {
         return res.status(404).json({ error: 'Post not found' });
+      }
+      return res.status(404).send(render404Page());
+    }
+
+    // A deleted public post answers 410 Gone, as Mastodon's does: remotes drop their copy.
+    // A deleted non-public post reads as absent, like any it was never served to.
+    if (post.is_deleted) {
+      const wasPublic = post.visibility === 'public' || post.visibility === 'unlisted';
+      if (wantsActivityPub) {
+        return wasPublic && post.author.is_local !== false
+          ? res.status(410).json({ id: post.ap_id || `https://${config.INSTANCE_DOMAIN}/posts/${post.id}`, type: 'Tombstone' })
+          : res.status(404).json({ error: 'Post not found' });
       }
       return res.status(404).send(render404Page());
     }
@@ -245,19 +257,18 @@ router.get(
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    if (wantsActivityPub) {
-      const note = postToNote(post, post.author);
+    // One URL answers HTML and ActivityPub.
+    res.setHeader('Vary', 'Accept');
 
-      if (post.in_reply_to) {
-        const { data: parent } = await supabase
-          .from('posts')
-          .select('ap_id, id')
-          .eq('id', post.in_reply_to)
-          .maybeSingle();
-        if (parent) {
-          note.inReplyTo = parent.ap_id || `https://${config.INSTANCE_DOMAIN}/posts/${parent.id}`;
+    if (wantsActivityPub) {
+      // A remote post is its origin's object; serving it here would forge its author.
+      if (post.author.is_local === false) {
+        if (typeof post.ap_id === 'string' && /^https?:\/\//.test(post.ap_id) && !post.ap_id.startsWith(`https://${config.INSTANCE_DOMAIN}/`)) {
+          return res.redirect(302, post.ap_id);
         }
+        return res.status(404).json({ error: 'Post not found' });
       }
+      const note = await buildLocalNote(post, post.author);
 
       res.setHeader('Content-Type', 'application/activity+json');
       res.setHeader('Cache-Control', post.visibility === 'public' || post.visibility === 'unlisted'
@@ -468,6 +479,101 @@ router.get(
 );
 
 /**
+ * FEP-044f QuoteAuthorization of a local post, served to anyone who may read the post.
+ * GET /users/:username/quote_authorizations/:stampId
+ */
+router.get(
+  '/users/:username/quote_authorizations/:stampId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { username, stampId } = req.params;
+    if (!/^[0-9a-f-]{36}$/i.test(stampId)) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    const supabase = getSupabaseClient();
+    const { data: stamp } = await supabase
+      .from('quote_authorizations')
+      .select('id, quoting_post_uri, post:posts!quote_authorizations_quoted_post_id_fkey ( id, ap_id, visibility, is_deleted, author:profiles!posts_author_id_fkey ( username, is_local ) )')
+      .eq('id', stampId)
+      .maybeSingle();
+    const post: any = (stamp as any)?.post;
+    if (!stamp || !post || post.is_deleted || post.author?.is_local === false || post.author?.username !== username
+      || !(await canReadPost(req, post))) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    res.setHeader('Content-Type', 'application/activity+json');
+    res.setHeader('Cache-Control', post.visibility === 'public' || post.visibility === 'unlisted' ? 'public, max-age=300' : PRIVATE_CACHE);
+    return res.json(quoteAuthorizationObject(stamp as any, post, username));
+  })
+);
+
+/**
+ * Shares collection for a post: its public and unlisted boosts, as Announce ids. Mastodon
+ * reads totalItems as the boosts count.
+ * GET /posts/:postId/shares
+ */
+router.get(
+  '/posts/:postId/shares',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { postId } = req.params;
+    const supabase = getSupabaseClient();
+    const collectionUrl = `https://${config.INSTANCE_DOMAIN}/posts/${postId}/shares`;
+
+    const { data: post } = await supabase
+      .from('posts')
+      .select('id, ap_id, visibility')
+      .eq('id', postId)
+      .eq('is_deleted', false)
+      .maybeSingle();
+
+    if (!post || !(await canReadPost(req, post))) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    if (post.visibility !== 'public' && post.visibility !== 'unlisted') {
+      res.setHeader('Cache-Control', PRIVATE_CACHE);
+    }
+
+    const boosts = () => supabase
+      .from('posts')
+      .select('id, ap_id', { count: 'exact' })
+      .eq('metadata->>reblog_of', postId)
+      .not('metadata->>is_quote', 'eq', 'true')
+      .eq('is_deleted', false)
+      .in('visibility', [...PUBLIC_VISIBILITIES]);
+
+    const page = req.query.page as string | undefined;
+    res.setHeader('Content-Type', 'application/activity+json');
+    if (!page) {
+      const { count } = await boosts().limit(0);
+      return res.json({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: collectionUrl,
+        type: 'OrderedCollection',
+        totalItems: count || 0,
+        first: `${collectionUrl}?page=1`,
+      });
+    }
+
+    const pageNum = parseInt(page, 10) || 1;
+    const limit = 50;
+    const offset = (pageNum - 1) * limit;
+    const { data: rows, count } = await boosts()
+      .order('created_at', { ascending: true })
+      .range(offset, offset + limit - 1);
+    const totalItems = count || 0;
+    const result: any = {
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: `${collectionUrl}?page=${pageNum}`,
+      type: 'OrderedCollectionPage',
+      partOf: collectionUrl,
+      totalItems,
+      orderedItems: (rows || []).map((row: any) => row.ap_id || `https://${config.INSTANCE_DOMAIN}/activities/${row.id}`),
+    };
+    if (offset + limit < totalItems) result.next = `${collectionUrl}?page=${pageNum + 1}`;
+    return res.json(result);
+  })
+);
+
+/**
  * Replies collection for a post
  * GET /posts/:postId/replies
  */
@@ -520,18 +626,17 @@ router.get(
 
     const { data: replies } = await supabase
       .from('posts')
-      .select(`
-        id, ap_id, created_at, content, visibility, content_warning, is_sensitive,
-        author:profiles!posts_author_id_fkey ( id, username, display_name, avatar_url, domain, is_local )
-      `)
+      .select('id, ap_id')
       .eq('in_reply_to', postId)
       .eq('is_deleted', false)
       .in('visibility', [...PUBLIC_VISIBILITIES])
       .order('created_at', { ascending: true })
       .range(offset, offset + limit - 1);
 
+    // Items are ids, as Mastodon lists other accounts' replies: each object is dereferenced
+    // from its own host.
     const items = (replies || []).map((reply: any) =>
-      postToNote(reply, reply.author)
+      reply.ap_id || `https://${config.INSTANCE_DOMAIN}/posts/${reply.id}`
     );
 
     const totalItems = count || 0;

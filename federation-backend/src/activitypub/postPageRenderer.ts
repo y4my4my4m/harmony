@@ -292,7 +292,12 @@ export function renderPostPage(post: any, author: any): string {
   const instanceName = config.INSTANCE_NAME;
   const postUrl = `https://${domain}/posts/${post.id}`;
   const spaPostUrl = `https://${domain}/social/post/${post.id}`;
-  const authorUrl = `https://${domain}/users/${author.username}`;
+  // A remote post's ActivityPub object and author live on its origin.
+  const remote = author.is_local === false;
+  const apObjectUrl = remote && typeof post.ap_id === 'string' && /^https?:\/\//.test(post.ap_id) ? post.ap_id : postUrl;
+  const authorUrl = remote
+    ? (typeof author.federated_id === 'string' && author.federated_id) || `https://${author.domain}/users/${author.username}`
+    : `https://${domain}/users/${author.username}`;
   const oembedUrl = `https://${domain}/oembed?url=${encodeURIComponent(postUrl)}&format=json`;
 
   const plainText = extractPlainText(post.content);
@@ -349,7 +354,7 @@ export function renderPostPage(post: any, author: any): string {
   <link rel="alternate" type="application/json+oembed" href="${escapeHtml(oembedUrl)}" title="${escapeHtml(ogTitle)}">
 
   <!-- ActivityPub alternate -->
-  <link rel="alternate" type="application/activity+json" href="${escapeHtml(postUrl)}">
+  <link rel="alternate" type="application/activity+json" href="${escapeHtml(apObjectUrl)}">
 
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }

@@ -39,6 +39,53 @@ function mentionTagInfo(tag: any): MentionTagInfo | null {
   return { username, domain, hrefHost, href };
 }
 
+/** An IRI given as a string, or as an object with an `id` or `href`. */
+function iriOf(value: unknown): string | null {
+  if (typeof value === 'string') return value || null;
+  if (value && typeof value === 'object') {
+    const v = value as { id?: unknown; href?: unknown };
+    if (typeof v.id === 'string' && v.id) return v.id;
+    if (typeof v.href === 'string' && v.href) return v.href;
+  }
+  return null;
+}
+
+/** Quoted object of a Note: FEP-044f `quote`, then quoteUrl, quoteUri and _misskey_quote. */
+export function noteQuoteUrl(note: any): string | null {
+  for (const key of ['quote', 'quoteUrl', 'quoteUri', '_misskey_quote']) {
+    const iri = iriOf(note?.[key]);
+    if (iri && /^https?:\/\//i.test(iri)) return iri;
+  }
+  return null;
+}
+
+/** Human page of a Note: `url` as a string, a Link's href, or the first text/html entry of an array. */
+export function noteUrl(note: any): string | null {
+  const url = note?.url;
+  const candidates = Array.isArray(url) ? url : [url];
+  const html = candidates.find((u: any) => u && typeof u === 'object' && u.mediaType === 'text/html') ?? candidates[0];
+  const iri = iriOf(html);
+  return iri && /^https?:\/\//i.test(iri) ? iri : null;
+}
+
+/**
+ * HTML without its FEP-044f fallback element: the first <p> or <span> of class quote-inline
+ * and everything nested in it. Applied only to a Note that carries a quote.
+ */
+export function stripQuoteInline(html: string): string {
+  const open = /<(p|span)\b[^>]*\bclass\s*=\s*["'][^"']*\bquote-inline\b[^"']*["'][^>]*>/i.exec(html);
+  if (!open) return html;
+  const tag = open[1].toLowerCase();
+  const re = new RegExp(`<(/?)${tag}\\b[^>]*>`, 'gi');
+  re.lastIndex = open.index + open[0].length;
+  let depth = 1;
+  for (let m = re.exec(html); m; m = re.exec(html)) {
+    depth += m[1] ? -1 : 1;
+    if (depth === 0) return html.slice(0, open.index) + html.slice(m.index + m[0].length);
+  }
+  return html;
+}
+
 /**
  * Convert ActivityPub Note to internal MessagePart[] format
  * Uses the same logic as the SQL convert_ap_to_jsonb function
@@ -46,14 +93,16 @@ function mentionTagInfo(tag: any): MentionTagInfo | null {
 export function noteToContent(note: any): any[] {
   const parts: any[] = [];
 
+  const html = typeof note.content === 'string' && noteQuoteUrl(note) ? stripQuoteInline(note.content) : note.content;
+
   // Media-only Notes carry an empty content.
-  if (!note.content) {
+  if (!html) {
     addAttachments(parts, note.attachment);
     return parts.length > 0 ? parts : [{ type: 'text', text: '' }];
   }
   
   // Step 1: Clean HTML to get plain text
-  let cleanText: string = note.content;
+  let cleanText: string = html;
   cleanText = cleanText.replace(/<br\s*\/?>/gi, '\n');
   // Block-level closing tags: <p>, <blockquote>, <h1>-<h6> imply paragraph breaks (double newline)
   cleanText = cleanText.replace(/<\/(?:p|blockquote|h[1-6])>/gi, '\n\n');
@@ -154,8 +203,14 @@ export function noteToContent(note: any): any[] {
       position = cleanText.indexOf(searchText);
     }
     
-    if (position >= 0) {
-      tagPositions.push({ position, length: searchText.length, tag, text: searchText });
+    // An emoji or hashtag tag covers every use of its name, not only the first. A hashtag
+    // ends where a word does: #cat is not the start of #catfood.
+    while (position >= 0 && searchText) {
+      const after = cleanText[position + searchText.length] ?? '';
+      if (tag.type !== 'Hashtag' || !/[\p{L}\p{N}_]/u.test(after)) {
+        tagPositions.push({ position, length: searchText.length, tag, text: searchText });
+      }
+      position = cleanText.indexOf(searchText, position + searchText.length);
     }
   }
   

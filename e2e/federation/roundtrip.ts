@@ -75,6 +75,7 @@ import { caseFollowApproval } from './cases/followApproval.ts'
 import { runOutboundFederationCases } from './cases/outboundFederation.ts'
 import { caseInboundPosts } from './cases/inbound-posts.ts'
 import { caseRemoteReplies } from './cases/remoteReplies.ts'
+import { caseQuotes } from './cases/quotes.ts'
 import { caseSoundboardTokenGrants } from './cases/soundboardTokens.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -2509,6 +2510,7 @@ async function main() {
       },
     })
     await caseRemoteReplies({ db, localUrl, peerHost: env.HMFED_PEER_HOST, assert, eq })
+    await caseQuotes({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, ids: { alice: ALICE, remote: REMOTE }, post, signedHeaders, assert, eq })
     await caseSoundboardTokenGrants({
       db, assert, eq, localUrl, serverId: PRIV_SERVER, channelId: PRIV_VOICE,
       member: { id: CAROL, auth: CAROL_AUTH }, bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),

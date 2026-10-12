@@ -4,18 +4,7 @@ import { logger } from '../utils/logger.js';
 import { stripIncomingMediaPaths } from '../utils/privateMedia.js';
 import { mergeQuestionPoll, questionPollMetadata, withoutPollParts } from '../utils/polls.js';
 import { normalizeInboundMentions, actorHostname } from '../utils/mentionParts.js';
-import {
-  actorToProfile,
-  noteToContent,
-  extractFollowData,
-  extractLikeData,
-  extractAnnounceData,
-  extractDeleteData,
-  extractMediaAttachments,
-  normalizeActor,
-  parseAlsoKnownAs,
-  parseMovedTo,
-} from './converters/fromActivityPub.js';
+import { actorToProfile, noteToContent, extractFollowData, extractLikeData, extractAnnounceData, extractDeleteData, extractMediaAttachments, normalizeActor, parseAlsoKnownAs, parseMovedTo, noteQuoteUrl, noteUrl } from './converters/fromActivityPub.js';
 import { VoiceActivityHandler } from './VoiceActivityHandler.js';
 import { SignatureService } from './SignatureService.js';
 import config from '../config/index.js';
@@ -30,6 +19,7 @@ import { noteEngagementColumns, refreshRemoteProfileCounts } from './remoteCount
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { flagComment, flagObjectUris, parseLocalObjectUri } from './flag.js';
 import { evaluateInboundCreate } from '../services/FederationSpamGuard.js';
+import { answersQuoteRequest, processQuoteAnswer, processQuoteRequest } from './quoteAuthorization.js';
 import { activityReference, movedColumns, MOVE_COOLDOWN_MS } from './accountMigration.js';
 import {
   authorizeChannelWrite,
@@ -287,6 +277,16 @@ export class ActivityProcessor {
       case 'Move':
         await this.processMove(activity);
         break;
+      case 'QuoteRequest':
+        await this.ensureRemoteUser(normalizeActor(activity.actor));
+        await processQuoteRequest(activity, {
+          resolveProfile: resolveProfileByActorUrl,
+          sendToInbox: async (inbox, answer, senderId) => {
+            const { DeliveryQueue } = await import('./DeliveryQueue.js');
+            return DeliveryQueue.sendToInbox(inbox, answer, senderId);
+          },
+        });
+        break;
       default:
         if (VoiceActivityHandler.isVoiceActivity(activity)) {
           await VoiceActivityHandler.processVoiceActivity(activity);
@@ -460,10 +460,23 @@ export class ActivityProcessor {
     return byPair ?? null;
   }
 
+  /** Accept or Reject of a QuoteRequest sent for a local quote; an approval re-sends the Note. */
+  private static async processQuoteAnswerActivity(activity: any, accepted: boolean): Promise<void> {
+    const changed = await processQuoteAnswer(activity, accepted);
+    if (!changed || !accepted) return;
+    const { bullmqManager } = await import('../queue/BullMQManager.js');
+    await bullmqManager.addJob('federate-post', { type: 'update', post_id: changed.postId, author_id: changed.authorId });
+  }
+
   private static async processAccept(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
 
     if (!activity.object) return;
+
+    if (answersQuoteRequest(activity)) {
+      await this.processQuoteAnswerActivity(activity, true);
+      return;
+    }
 
     if (typeof activity.object === 'string' || activity.object.type === 'Follow') {
       const responderUrl = normalizeActor(activity.actor);
@@ -544,6 +557,11 @@ export class ActivityProcessor {
     const supabase = getSupabaseClient();
 
     if (!activity.object) return;
+
+    if (answersQuoteRequest(activity)) {
+      await this.processQuoteAnswerActivity(activity, false);
+      return;
+    }
 
     if (typeof activity.object === 'string' || activity.object.type === 'Follow') {
       const responderUrl = normalizeActor(activity.actor);
@@ -677,8 +695,7 @@ export class ActivityProcessor {
 
       const rawContent = noteToContent(object);
       
-      // Quote target: `quoteUrl` is the Fediverse form, `_misskey_quote` Misskey's.
-      const quoteUrl = object.quoteUrl || object._misskey_quote;
+      const quoteUrl = noteQuoteUrl(object);
       
       logger.info('Processing ActivityPub Note: ' + JSON.stringify({
         id: object.id,
@@ -730,6 +747,7 @@ export class ActivityProcessor {
         }
 
         let quotedPostData: any = null;
+        let quoteWithheld = false;
         if (quoteUrl) {
           logger.info(`Processing quote post, quoted URL: ${quoteUrl}`);
           quotedPostData = await this.resolveQuotedPost(quoteUrl);
@@ -737,6 +755,7 @@ export class ActivityProcessor {
           if (quotedPostData && (quotedPostData.is_deleted === true || !isBoostableVisibility(quotedPostData.visibility))) {
             logger.info(`Dropping quote of ${quotedPostData.id}: ${quotedPostData.is_deleted ? 'deleted' : quotedPostData.visibility}`);
             quotedPostData = null;
+            quoteWithheld = true;
           }
         }
 
@@ -744,15 +763,20 @@ export class ActivityProcessor {
         if (object.inReplyTo) {
           metadata.in_reply_to_ap_url = object.inReplyTo;
         }
-        if (quotedPostData) {
+        // A quote whose post could not be read keeps its target, shown as a link; one whose
+        // post is deleted or not public is a plain post.
+        if (quoteUrl && !quoteWithheld) {
           metadata.is_quote = true;
-          metadata.reblog_of = quotedPostData.id;
           metadata.quote_ap_url = quoteUrl;
+        }
+        if (quotedPostData) {
+          metadata.reblog_of = quotedPostData.id;
         }
 
         // `in_reply_to` is a UUID column holding the parent post id.
         const postData: any = {
           ap_id: object.id,
+          url: noteUrl(object),
           author_id: author.id,
           content,
           visibility,
@@ -1224,6 +1248,11 @@ export class ActivityProcessor {
       const metadata: Record<string, any> = isQuestion ? { ...questionPollMetadata(remoteObject) } : {};
       if (remoteObject.inReplyTo) {
         metadata.in_reply_to_ap_url = remoteObject.inReplyTo;
+      }
+      const quoteUrl = noteQuoteUrl(remoteObject);
+      if (quoteUrl) {
+        metadata.is_quote = true;
+        metadata.quote_ap_url = quoteUrl;
       }
 
       const insertPost = () => supabase
@@ -2253,9 +2282,30 @@ export class ActivityProcessor {
           await this.processUndoAnnounce(activityData.id, actorUrl);
         }
         break;
+      case 'Block':
+        if (activityData) {
+          await this.processUndoBlock(activityData, actorUrl);
+        }
+        break;
       default:
         logger.warn(`Unhandled Undo object type: ${activityType}`);
     }
+  }
+
+  /** Undo Block: lifts the signer's block of the target, as Mastodon's UnblockService. */
+  private static async processUndoBlock(blockActivity: any, actorUrl: string): Promise<void> {
+    const supabase = getSupabaseClient();
+    const blockedUrl = typeof blockActivity.object === 'string' ? blockActivity.object : blockActivity.object?.id;
+    if (!blockedUrl) return;
+    const blocker = await resolveProfileByActorUrl(actorUrl);
+    const blocked = await resolveProfileByActorUrl(normalizeActor(blockedUrl));
+    if (!blocker || !blocked) return;
+    await supabase
+      .from('user_blocks')
+      .delete()
+      .eq('blocker_id', blocker.id)
+      .eq('blocked_user_id', blocked.id);
+    logger.info(`Unblocked: ${actorUrl} → ${blockedUrl}`);
   }
 
   /** Undo Follow: removes the signer's follow of the target. */
@@ -2954,11 +3004,8 @@ export class ActivityProcessor {
       .eq('federated_id', actorUrl)
       .single();
 
-    const { data: blocked } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('federated_id', blockedUrl)
-      .maybeSingle();
+    // A local target may carry no federated_id.
+    const blocked = await resolveProfileByActorUrl(normalizeActor(blockedUrl));
 
     if (!blocker || !blocked) {
       logger.warn(`Could not find users for Block activity`);

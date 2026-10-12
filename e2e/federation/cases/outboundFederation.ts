@@ -384,7 +384,7 @@ async function caseDeleteReachesMentionee(ctx: OutboundContext, alice: SupabaseC
   ctx.eq(toStranger.length, 1, 'the mentionee receives the Delete')
   ctx.eq(toStranger[0]?.body?.type, 'Delete', 'the delivery is a Delete')
   ctx.eq(
-    toStranger[0]?.body?.object,
+    toStranger[0]?.body?.object?.id,
     created.data.ap_id || `https://${ctx.instanceDomain}/posts/${created.data.id}`,
     'the Delete names the post',
   )
