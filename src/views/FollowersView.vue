@@ -81,6 +81,7 @@
           >
             <div class="user-item">
               <UserCard
+                show-banner
                 :user="users[virtualRow.index]"
                 :show-follow-btn="currentView !== 'requests' && users[virtualRow.index].id !== currentUserId"
                 :show-more-actions="currentView !== 'requests'"
@@ -208,6 +209,8 @@ const usersVirtualizer = useVirtualizer<HTMLDivElement, Element>(
     count: users.value.length,
     getScrollElement: () => scrollContainerRef.value,
     estimateSize: () => 100,
+    // Measurements follow the person, not the index, as the list pages and shrinks.
+    getItemKey: (index: number) => users.value[index]?.id ?? index,
     overscan: 5,
   })) as any
 );
@@ -215,9 +218,26 @@ const usersVirtualizer = useVirtualizer<HTMLDivElement, Element>(
 const usersVirtualRows = computed(() => usersVirtualizer.value.getVirtualItems());
 const usersTotalSize = computed(() => usersVirtualizer.value.getTotalSize());
 
+// A row's ref fires before it is attached and the list renders before the scroll element
+// exists, so the virtualizer measures nothing then; rows are re-measured on every resize,
+// as PostsContainer does.
+const rowResizeObserver = typeof ResizeObserver !== 'undefined'
+  ? new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const el = entry.target as HTMLElement;
+        if (el.isConnected && el.dataset.index !== undefined) usersVirtualizer.value.measureElement(el);
+      }
+    })
+  : null;
+const observedRows = new WeakSet<HTMLElement>();
+
 const usersMeasureElement = (el: any) => {
   if (!el || !(el instanceof HTMLElement)) return;
   usersVirtualizer.value.measureElement(el);
+  if (rowResizeObserver && !observedRows.has(el)) {
+    rowResizeObserver.observe(el);
+    observedRows.add(el);
+  }
 };
 
 let scrollObserver: IntersectionObserver | null = null;
@@ -481,6 +501,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  rowResizeObserver?.disconnect();
   if (scrollObserver) {
     scrollObserver.disconnect();
     scrollObserver = null;

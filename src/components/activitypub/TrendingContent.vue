@@ -241,6 +241,7 @@
               :user="user"
               :show-follow-btn="true"
               :max-bio-length="140"
+              show-banner
               class="people-card"
               @click="openProfile(user)"
             />
