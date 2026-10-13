@@ -263,7 +263,7 @@ function buildText() {
 function setInks() {
   if (!gl || !glyphProg) return
   gl.useProgram(glyphProg)
-  if (wallpaper.dark) gl.uniform3f(UG.u_dim!, 0.86, 0.84, 0.8)
+  if (wallpaper.dark) gl.uniform3f(UG.u_dim!, 0.46, 0.48, 0.52)
   else gl.uniform3f(UG.u_dim!, 26 / 255, 23 / 255, 18 / 255)
   gl.uniform3f(UG.u_hot!, 14 / 255, 165 / 255, 233 / 255)
   gl.uniform3f(UG.u_white!, 235 / 255, 78 / 255, 44 / 255)

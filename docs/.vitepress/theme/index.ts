@@ -45,6 +45,9 @@ function markScreenLinks(path: string) {
   })
 }
 
+// Light glyphs on a dark desk read louder than ink on paper; dark mode prints fainter.
+const intensityFor = (home: boolean, dark: boolean) => (home ? 0.85 : 0.4) * (dark ? 0.45 : 1)
+
 export default {
   extends: DefaultTheme,
   Layout: () =>
@@ -65,7 +68,7 @@ export default {
       (path) => {
         wallpaper.mode = modeForPath(path)
         const home = frontmatter.value.layout === 'home'
-        wallpaper.intensity = home ? 0.85 : 0.4
+        wallpaper.intensity = intensityFor(home, isDark.value)
         nextTick(() => {
           followRedirect(frontmatter.value)
           // Home hero text gets a quiet field.
@@ -74,7 +77,14 @@ export default {
       },
       { immediate: true },
     )
-    watch(isDark, (d) => (wallpaper.dark = d), { immediate: true })
+    watch(
+      isDark,
+      (d) => {
+        wallpaper.dark = d
+        wallpaper.intensity = intensityFor(frontmatter.value.layout === 'home', d)
+      },
+      { immediate: true },
+    )
     onContentUpdated(squish)
     onMounted(() => {
       squish()
