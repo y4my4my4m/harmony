@@ -5,8 +5,8 @@ the federation backend, Redis and Supabase, plus LiveKit voice, the bot
 gateway and Discord bridge hosting when enabled. Harmony's services run
 prebuilt images from `ghcr.io/y4my4my4m`.
 
-The guide for operators is **[docs/self-hosting.md](../docs/self-hosting.md)**
-(also at <https://docs.mony.lol/self-hosting>). This file describes the
+The guide for operators is **[docs/self-host/](../docs/self-host/index.md)**
+(also at <https://docs.mony.lol/self-host/>). This file describes the
 directory.
 
 ## Install

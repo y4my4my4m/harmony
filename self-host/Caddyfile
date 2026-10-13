@@ -243,7 +243,7 @@
 	# in the source format otherwise, under one ETag and without Vary. A cache
 	# in front (Cloudflare) would serve one client's format to all; the pinned
 	# Accept makes every render WebP. Every Harmony client decodes WebP. Same
-	# rule as the nginx Accept pin in docs/self-hosting.md.
+	# rule as the nginx Accept pin in docs/self-host/docker-compose.md.
 	@publicRender path /storage/v1/render/image/public/*
 	request_header @publicRender Accept "image/webp,*/*;q=0.8"
 

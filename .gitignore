@@ -21,8 +21,8 @@ src-tauri/target/
 # VitePress build output (cache is below)
 docs/.vitepress/dist/
 
-# Generated docs (npm run docs:generate-*).
-# Run docs:generate-all to (re)build before docs:dev / docs:build.
+# Output of the retired docs generators; stale copies in older checkouts.
+# docs/.vitepress/config.ts excludes them from the build as well.
 docs/api/
 docs/components/
 docs/generated/

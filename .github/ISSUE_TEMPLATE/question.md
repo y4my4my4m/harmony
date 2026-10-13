@@ -19,7 +19,7 @@ Provide any context that might help us answer your question.
 Have you checked the documentation or searched existing issues?
 
 - [ ] I've read the README
-- [ ] I've read the [self-hosting guide](../../docs/self-hosting.md)
+- [ ] I've read the [self-hosting guide](https://docs.mony.lol/self-host/)
 - [ ] I've searched existing issues
 - [ ] I've checked the discussions
 

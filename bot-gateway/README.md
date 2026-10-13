@@ -2,7 +2,7 @@
 
 Node service that serves Harmony's Bot API: a WebSocket gateway that pushes events to bots and a REST API under `/api/v1` that bots call to act. Bots authenticate with tokens issued in the Harmony web client. The service talks to Supabase with the service-role key and produces events by polling the `messages` and `reactions` tables.
 
-Bot developers: the protocol reference is [docs/bot-api.md](../docs/bot-api.md).
+Bot developers: the protocol reference is [docs/build/](../docs/build/index.md) ([gateway](../docs/build/gateway.md), [REST](../docs/build/rest.md)).
 
 ## Routes
 
@@ -33,7 +33,7 @@ Bot developers: the protocol reference is [docs/bot-api.md](../docs/bot-api.md).
 | REST base | `https://<instance>/bot-gateway/api/v1` | `http://localhost:3002/api/v1` |
 | Health | `https://<instance>/bot-gateway/health` | `http://localhost:3002/health` |
 
-Any other reverse proxy must forward the whole `/bot-gateway/` prefix, strip it, and pass WebSocket upgrades on `/bot-gateway/gateway`. The web client calls `/bot-gateway/bridged-users/*` and `/bot-gateway/attachments/refresh` on the app origin. The nginx equivalent is in [BOT_GATEWAY_SETUP.md](../docs/BOT_GATEWAY_SETUP.md).
+Any other reverse proxy must forward the whole `/bot-gateway/` prefix, strip it, and pass WebSocket upgrades on `/bot-gateway/gateway`. The web client calls `/bot-gateway/bridged-users/*` and `/bot-gateway/attachments/refresh` on the app origin. The nginx equivalent is in [docs/self-host/docker-compose.md](../docs/self-host/docker-compose.md#route-harmony-with-your-own-proxy).
 
 ## Configuration
 
@@ -97,7 +97,7 @@ Compose files start the service under the `bots` profile:
 
 Users create bots in the web client under **User Settings → My Bots → New bot**. The token is shown once, in a dialog after creation; Harmony stores its SHA-256 hash. Tokens have the form `harmony_bot_` followed by 64 hex characters. **Reset token** on the bot's page revokes the old token immediately and shows the new one once. The gateway verifies tokens at IDENTIFY and rechecks every open connection each `WS_REVALIDATE_INTERVAL_MS`: a connection whose token was revoked, rotated or expired, or whose bot was deactivated or deleted, closes with `4004`.
 
-Server owners add bots from the bot's page (**Add to server**) or under **Server Settings → Advanced → Server Bots**, where they also set the bot's permissions. The gateway enforces `read_messages`, `send_messages`, `manage_messages`, `add_reactions`, `manage_channels` and `manage_roles`; see [docs/bot-api.md](../docs/bot-api.md#permissions).
+Server owners add bots from the bot's page (**Add to server**) or under **Server Settings → Advanced → Server Bots**, where they also set the bot's permissions. The gateway enforces `read_messages`, `send_messages`, `manage_messages`, `add_reactions`, `manage_channels` and `manage_roles`; see [docs/build/permissions-rate-limits.md](../docs/build/permissions-rate-limits.md).
 
 ## Events
 

@@ -30,7 +30,7 @@ cd my-bridge/
 
 2. Follow template README
 
-3. Read [Plugin System Guide](../docs/PLUGIN_SYSTEM.md)
+3. Read [Writing a bridge](../docs/build/bridges.md)
 
 ## Official Plugins
 
@@ -58,7 +58,7 @@ Cross-platform bridge connecting Discord and Harmony servers.
 
 ### How to Contribute
 
-1. Create your plugin following the [Plugin System Guide](../docs/PLUGIN_SYSTEM.md)
+1. Create your plugin following [Writing a bridge](../docs/build/bridges.md) or the [bot quickstart](../docs/build/bot-quickstart.md)
 2. Test thoroughly
 3. Add comprehensive README
 4. Submit PR to `community/your-plugin/`
@@ -75,9 +75,9 @@ Cross-platform bridge connecting Discord and Harmony servers.
 
 ## Documentation
 
-- [Plugin System Guide](../docs/PLUGIN_SYSTEM.md) - Architecture and patterns
-- [Bot API Reference](../docs/bot-api.md) - API documentation
-- [E2EE Implementation](../docs/E2EE_IMPLEMENTATION.md) - Encryption details
+- [Writing a bridge](../docs/build/bridges.md) - Bridge v2 API and patterns
+- [Bot API reference](../docs/build/rest.md) - REST routes; [gateway](../docs/build/gateway.md) for events
+- [Architecture](../docs/contribute/architecture.md) - Encryption and the rest of the system
 
 ## Resources
 
@@ -202,5 +202,5 @@ Each plugin may document its own terms. The Discord bridge in this repo follows 
 
 **Happy building! 🚀**
 
-For questions, check [docs/PLUGIN_SYSTEM.md](../docs/PLUGIN_SYSTEM.md) or reach out to the community.
+For questions, check [docs/build/](../docs/build/index.md) or reach out to the community.
 

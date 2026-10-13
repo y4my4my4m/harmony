@@ -1,78 +1,90 @@
 ---
 layout: home
+title: Harmony Docs
+titleTemplate: false
+description: Documentation for Harmony, the open-source federated chat app. Use it, run a server on it, host your own instance, or build bots and bridges for it.
 
 hero:
-  name: "Harmony"
-  text: "Federated chat and social, in one app"
-  tagline: "Discord-style servers and DMs with ActivityPub federation"
+  name: Harmony
+  text: Documentation
+  tagline: Open-source chat with servers, channels, DMs, threads and voice, plus a social timeline. Instances federate with each other and with the rest of the fediverse over ActivityPub.
   image:
     src: /logo.png
-    alt: Harmony Logo
+    alt: Harmony logo
   actions:
     - theme: brand
-      text: Get Started
-      link: /guide/
+      text: Open har.mony.lol
+      link: https://har.mony.lol
     - theme: alt
-      text: Source on GitHub
-      link: https://github.com/y4my4my4m/harmony
+      text: Self-host an instance
+      link: /self-host/install
+    - theme: alt
+      text: Project site
+      link: https://mony.lol
 
 features:
-  - icon: 💬
-    title: Chat
-    details: Discord-style servers, channels, DMs, threads, plus voice and video calls.
-  - icon: 🌐
-    title: Federation
-    details: ActivityPub-compatible - federate with Mastodon, Pleroma, and other instances. Members from multiple Harmony instances can co-exist in one server.
-  - icon: 🔒
-    title: End-to-end encryption
-    details: Megolm-style per-room session keys, recovery-key backup, cross-device key sharing.
-  - icon: 📱
-    title: Web and desktop
-    details: Same codebase as a Vite web app and a Tauri desktop app. PWA support for mobile install.
-  - icon: 🛠️
-    title: Self-hostable
-    details: Supabase + a Node federation backend. See the self-hosting guide for a one-command install.
-  - icon: ⚡
-    title: Realtime
-    details: Live messages, reactions, presence, typing, voice state - broadcast via three core channels (per-user, per-server-structure, per-server-presence).
+  - title: Use Harmony
+    details: Create an account, join servers with an invite, send messages and threads, make calls, set notifications and secure your account.
+    link: /use/
+    linkText: For members
+  - title: Run a server
+    details: Set up channels and invites, give out roles and permissions, moderate with AutoMod and reports, bridge a Discord server.
+    link: /run/
+    linkText: For owners and moderators
+  - title: Self-host
+    details: Install an instance with one command, then configure email, sign-in providers, voice and push, and keep it updated and backed up.
+    link: /self-host/
+    linkText: For instance operators
+  - title: Build
+    details: Write bots against the gateway and REST API, post through webhooks, or connect another chat network with the bridge API.
+    link: /build/
+    linkText: For developers
 ---
 
-## What is Harmony?
+<div class="hm-home">
 
-Harmony is a federated social app. It looks like Discord (servers, channels, DMs, voice) and talks like Mastodon (ActivityPub), so the same account can post into a private server, into a public timeline, and across the wider fediverse.
+<section class="hm-install">
 
-## Quick start
+## Run your own instance
 
-```bash
-git clone https://github.com/y4my4m/harmony.git
-cd harmony
-npm install
-cp .env.example .env
-# fill in Supabase URL + anon key + instance domain
-npm run dev
-```
-
-Federation backend (optional for chat-only dev):
+On a Linux server with a domain pointed at it, one command checks the server, offers to install Docker, asks a few questions, starts the stack and creates the admin account. Running it again is safe.
 
 ```bash
-cd federation-backend
-npm install
-cp env.template .env
-npm run dev
+curl -fsSL https://raw.githubusercontent.com/y4my4my4m/harmony/master/self-host/install.sh | bash
 ```
 
-## What's under the hood
+Read [Install](/self-host/install) first for the server size, DNS records and the questions the installer asks.
 
-- Vue 3 (Composition + Options API), Pinia, Vite, TypeScript
-- Supabase (Postgres + RLS, auth, realtime, storage)
-- Node.js federation service (`federation-backend/`) for ActivityPub
-- Tauri (`src-tauri/`) for the desktop builds
-- Megolm-style E2EE (`src/services/encryption/`)
+</section>
 
-## More
+<div class="hm-more">
+<div>
 
-- [Architecture overview](./ARCHITECTURE.md)
-- [Self-hosting](./self-hosting.md)
-- [Bot API](./bot-api.md)
-- [Federation](./FEDERATION.md)
-- [E2EE](./E2EE_IMPLEMENTATION.md)
+### Federation
+
+How Harmony talks to other Harmony instances and to Mastodon and the rest of the fediverse, and the ActivityPub details for implementers.
+
+[Federation overview](/federation/)
+
+</div>
+<div>
+
+### Contribute
+
+Set up a development environment, learn the architecture, run the test suites and ship a database migration.
+
+[Development setup](/contribute/)
+
+</div>
+<div>
+
+### Changelog
+
+Each version is a GitHub release with the desktop installers and the Android APK attached.
+
+[Changelog](/changelog)
+
+</div>
+</div>
+
+</div>

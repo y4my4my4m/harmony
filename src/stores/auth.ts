@@ -77,7 +77,7 @@ export const useAuthStore = defineStore('auth', {
      * has `totp` in `amr` after Supabase's automatic AAL2 expiry downgrade
      * to AAL1 (~24h default). That distinguishes "long session whose MFA
      * grace period expired" (safe - keep the user logged in per
-     * docs/2FA_SECURITY_MODEL.md) from "fresh AAL1 mid-login that never
+     * docs/contribute/architecture.md#two-factor-enforcement) from "fresh AAL1 mid-login that never
      * completed MFA" (unsafe - must reject, BUGS.md C11/M64).
      */
     getAMR(session: Session | null): string[] {
@@ -107,7 +107,7 @@ export const useAuthStore = defineStore('auth', {
      * - User has MFA, session is at AAL1, AND the session's `amr` claim
      *   contains `totp` (i.e. MFA was completed earlier in this session
      *   and AAL2 has since expired naturally - the documented long-session
-     *   UX in `docs/2FA_SECURITY_MODEL.md`).
+     *   UX in `docs/contribute/architecture.md#two-factor-enforcement`).
      *
      * One rejected shape (return false):
      * - User has MFA, session is at AAL1, AND `amr` does NOT contain `totp`.
@@ -140,7 +140,7 @@ export const useAuthStore = defineStore('auth', {
         if (amr.includes('totp')) {
           // The AAL2 grace window has lapsed but the user previously
           // completed TOTP verification on this session. Per
-          // docs/2FA_SECURITY_MODEL.md, AAL1 is accepted here so sessions
+          // docs/contribute/architecture.md#two-factor-enforcement, AAL1 is accepted here so sessions
           // survive across days: 2FA gates the login, not the session.
           debug.log('AAL1 session with prior TOTP verification - accepting (AAL2 expired post-login, refresh-token still valid)');
           return true;
