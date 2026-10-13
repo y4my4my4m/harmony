@@ -3270,6 +3270,8 @@
     "listTitle": "봇({count})",
     "noDescription": "설명 없음",
     "serverCount": "참여한 서버 없음 | 서버 {count}개에 참여 | 서버 {count}개에 참여",
+    "inServers": "{servers}에 참여",
+    "inServersMore": "{servers} 외 서버 {count}개에 참여",
     "lastConnected": "마지막 연결: {time}",
     "neverConnected": "연결한 적 없음",
     "back": "모든 봇",

@@ -203,7 +203,7 @@
         <p class="section-description">
           {{ t('bots.install.description') }}
           <template v-if="serverCounts[detailBot.id] !== undefined">
-            {{ t('bots.serverCount', serverCounts[detailBot.id]) }}.
+            {{ installSummary(detailBot.id, Infinity) }}.
           </template>
         </p>
 
@@ -295,9 +295,13 @@
               <span class="bot-bio">{{ bot.bio || t('bots.noDescription') }}</span>
               <span class="bot-meta">
                 <span>@{{ bot.username }}</span>
-                <span v-if="serverCounts[bot.id] !== undefined">{{ t('bots.serverCount', serverCounts[bot.id]) }}</span>
+                <span
+                  v-if="serverCounts[bot.id] !== undefined"
+                  class="bot-servers"
+                  :title="botServers[bot.id]?.map(s => s.name).join(', ')"
+                >{{ installSummary(bot.id) }}</span>
                 <span>
-                  {{ bot.last_online_at ? t('bots.lastConnected', { time: relativeTime(bot.last_online_at) }) : t('bots.neverConnected') }}
+                  {{ isOnline(bot.id) ? t('bots.status.online') : bot.last_online_at ? t('bots.lastConnected', { time: relativeTime(bot.last_online_at) }) : t('bots.neverConnected') }}
                 </span>
               </span>
             </span>
@@ -537,6 +541,7 @@ function selectContents(el: HTMLElement | null) {
 const isLoading = ref(false)
 const myBots = ref<BotRow[]>([])
 const serverCounts = ref<Record<string, number>>({})
+const botServers = ref<Record<string, Array<{ id: string; name: string }>>>({})
 const presence = ref<Record<string, BotPresenceRow>>({})
 let presenceTimer: ReturnType<typeof setInterval> | null = null
 
@@ -566,6 +571,19 @@ async function loadMyBots() {
 }
 
 async function loadServerCounts() {
+  const named = await supabase.rpc('get_owned_bot_servers')
+  if (!named.error) {
+    const servers: Record<string, Array<{ id: string; name: string }>> = {}
+    for (const bot of myBots.value) servers[bot.id] = []
+    for (const row of (named.data ?? []) as Array<{ bot_id: string; server_id: string; server_name: string }>) {
+      ;(servers[row.bot_id] ??= []).push({ id: row.server_id, name: row.server_name })
+    }
+    botServers.value = servers
+    serverCounts.value = Object.fromEntries(Object.entries(servers).map(([id, list]) => [id, list.length]))
+    return
+  }
+  // A database without get_owned_bot_servers still counts installations.
+  debug.warn('get_owned_bot_servers failed:', named.error)
   const { data, error } = await supabase.rpc('get_owned_bot_server_counts')
   if (error) {
     debug.warn('get_owned_bot_server_counts failed:', error)
@@ -573,6 +591,17 @@ async function loadServerCounts() {
   }
   const rows = (data ?? []) as Array<{ bot_id: string; server_count: number }>
   serverCounts.value = Object.fromEntries(rows.map(r => [r.bot_id, r.server_count]))
+}
+
+/** "In Town Hall, ARM sucks and 3 more"; the bare count when names are not loaded. */
+function installSummary(botId: string, shown = 2): string {
+  const count = serverCounts.value[botId] ?? 0
+  const servers = botServers.value[botId]
+  if (!servers || servers.length === 0 || servers.length !== count) return t('bots.serverCount', count)
+  const names = servers.slice(0, shown).map(s => s.name).join(', ')
+  return servers.length > shown
+    ? t('bots.inServersMore', { servers: names, count: servers.length - shown })
+    : t('bots.inServers', { servers: names })
 }
 
 async function loadPresence() {
@@ -986,6 +1015,7 @@ async function createBot() {
     showCreateModal.value = false
     myBots.value = [bot, ...myBots.value.filter(b => b.id !== bot.id)]
     serverCounts.value = { ...serverCounts.value, [bot.id]: 0 }
+    botServers.value = { ...botServers.value, [bot.id]: [] }
     openDetail(bot)
     revealToken(token)
     toast.success(t('bots.create.success', { name: botName(bot) }))

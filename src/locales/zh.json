@@ -3270,6 +3270,8 @@
     "listTitle": "机器人（{count}）",
     "noDescription": "无描述",
     "serverCount": "未加入任何服务器 | 已加入 {count} 个服务器 | 已加入 {count} 个服务器",
+    "inServers": "已加入 {servers}",
+    "inServersMore": "已加入 {servers} 及另外 {count} 个服务器",
     "lastConnected": "上次连接：{time}",
     "neverConnected": "从未连接",
     "back": "所有机器人",
