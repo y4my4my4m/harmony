@@ -1,0 +1,2066 @@
+/*
+ * PAPER
+ *
+ * The v2 site's paper desktop (harmony-website design3:
+ * src/assets/styles/variables.css, global.css, components/os/Window.vue).
+ * Newsprint desk, warm ink, 1-bit window chrome: 2px ink frames, hard ink
+ * offsets with no blur, and a classic-Mac title strip of 1.5px ink lines with
+ * a square close box on dialogs, the settings window and the profile card.
+ * A focused window prints its stripes solid; others are faint. The chat is a
+ * window on the desk whose header doubles as its title bar. Code prints on a
+ * dark screen, as the site's terminals. Dark mode is the docs' inversion:
+ * pale frames on a dark desk with black offsets.
+ *
+ * The mascot blue #0EA5E9 is a fill, never darkened; #0B6E9C is the
+ * text-size blue on paper. Red-orange marks mentions, unread and danger
+ * only. The highlighter marks the open channel, hovered rows and mentions.
+ *
+ * Every rule sits under :root[data-skin="paper"]. Theme tokens written
+ * inline on <html> are overridden on body. Surfaces come from the --pp-*
+ * tokens, not the theme palette, so the desk holds under any stored hue.
+ *
+ * Contrast (WCAG 2.x, measured on the token pairs):
+ *   ink #1A1712 on desk #F3EEE3 15.4, on window #FBF8F1 16.9
+ *   ink-soft #4A443A on desk 8.3, on desk-3 #E3DAC7 6.9
+ *   ink-faint #635C4F on desk 5.7, on window 6.2, on desk-3 4.8
+ *   blue text #0B6E9C on desk 4.9, on window 5.3
+ *   red text #B33A1E on desk 5.1, on window 5.6
+ *   ink on blue #0EA5E9 6.5, on red #EB4E2C 4.8, on marker #FFE45C 14.0
+ *   rule-strong #7C7466 on desk 4.0: rules and scrollbars, never text
+ *   ink-faint on the 55% marker tint 5.6, on the 30% mention wash 5.9
+ *   Dark: #ECEEF1 on window #17191E 15.1, #B4BCC8 9.2, #8A93A0 5.7,
+ *         blue text #38BDF8 8.2, red text #FF9B85 8.6, frame #D9DCE1 12.8,
+ *         #8A93A0 on the 8% marker tint 4.7
+ *   Screen #15171C: #ECEEF1 15.4, comments #8A93A0 5.8, every token 7.8+
+ *
+ *   1. Fonts
+ *   2. Tokens
+ *   3. Desk and layout
+ *   4. Type
+ *   5. Window chrome
+ *   6. Controls
+ *   7. Server rail
+ *   8. Channels, members and user panel
+ *   9. Messages
+ *  10. Composer
+ *  11. Menus, popovers, tooltips, toasts
+ *  12. Settings, auth and voice
+ *  13. Options, gated by data-skin-<option>="on"
+ *  14. High contrast
+ *  15. Motion
+ */
+
+/* ============================================================================
+   1. FONTS
+   ============================================================================
+   OFL-1.1, public/assets/fonts/paper/OFL.txt. Declared here, so the files
+   load only while this sheet is injected and a glyph in range is drawn.
+   Latin subset only; other scripts fall back to Figtree and the system. */
+
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 200 800;
+  font-stretch: 75% 100%;
+  font-display: swap;
+  src: url('/assets/fonts/paper/BricolageGrotesque-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/assets/fonts/paper/InstrumentSans-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Martian Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-stretch: 75% 112.5%;
+  font-display: swap;
+  src: url('/assets/fonts/paper/MartianMono-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ============================================================================
+   2. TOKENS
+   ============================================================================ */
+
+:root[data-skin="paper"] {
+  /* Desk and windows. */
+  --pp-desk: #F3EEE3;
+  --pp-desk-2: #ECE5D6;
+  --pp-desk-3: #E3DAC7;
+  --pp-window: #FBF8F1;
+  --pp-rule: #D8CFBD;
+  --pp-rule-strong: #7C7466;
+
+  /* Ink. --pp-frame draws outlines, title strips and frame rules;
+     --pp-shadow the hard offsets. */
+  --pp-ink: #1A1712;
+  --pp-ink-soft: #4A443A;
+  --pp-ink-faint: #635C4F;
+  --pp-frame: #1A1712;
+  --pp-shadow: #1A1712;
+  --pp-hover: rgb(26 23 18 / 0.05);
+  --pp-press: rgb(26 23 18 / 0.1);
+
+  /* Spot colours. The blue fill is the mascot blue and is never darkened. */
+  --pp-blue: #0EA5E9;
+  --pp-blue-text: #0B6E9C;
+  --pp-blue-wash: #CFE9F6;
+  --pp-red: #EB4E2C;
+  --pp-red-text: #B33A1E;
+  --pp-red-wash: #FBD9CE;
+  --pp-marker: #FFE45C;
+  --pp-marker-soft: color-mix(in srgb, var(--pp-marker) 55%, var(--pp-window));
+  --pp-leaf: #2F9E5B;
+  --pp-leaf-text: #1F7A45;
+  --pp-focus: #0B6E9C;
+
+  /* Fills under labels. High contrast swaps them for the app's fills
+     (section 14). */
+  --pp-fill-blue: var(--pp-blue);
+  --pp-on-blue: #1A1712;
+  --pp-fill-red: var(--pp-red);
+  --pp-on-red: #1A1712;
+
+  /* Dark screens for code and tooltips, after the site's .screen. */
+  --pp-screen: #15171C;
+  --pp-screen-2: #1B1E24;
+  --pp-screen-text: #ECEEF1;
+  --pp-screen-soft: #B4BCC8;
+  --pp-screen-faint: #8A93A0;
+  --pp-screen-line: rgb(255 255 255 / 0.14);
+
+  /* Hard offsets. */
+  --pp-shadow-sm: 2px 2px 0 var(--pp-shadow);
+  --pp-shadow-md: 3px 3px 0 var(--pp-shadow);
+  --pp-shadow-lg: 6px 6px 0 var(--pp-shadow);
+  --pp-shadow-xl: 8px 8px 0 var(--pp-shadow);
+
+  /* Title strip ink, faint while the window is unfocused. Strips write the
+     gradient inline: a token built from var(--pp-stripe) resolves here on
+     :root and misses a focused window's override. */
+  --pp-stripe: color-mix(in srgb, var(--pp-frame) 24%, transparent);
+
+  --pp-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --pp-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.10 0 0 0 0 0.09 0 0 0 0 0.07 0 0 0 .14 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+
+  --pp-display: 'Bricolage Grotesque', 'Figtree', system-ui, sans-serif;
+  --pp-body: 'Instrument Sans', 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --pp-mono: 'Martian Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --radius-sm: 3px;
+  --radius-base: 5px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 10px;
+  --radius-2xl: 14px;
+  --radius-full: 9999px;
+
+  --glass-bg: var(--pp-window);
+  --glass-blur: 0px;
+  --shadow-small: none;
+  --shadow-medium: none;
+  --shadow-large: var(--pp-shadow-lg);
+  --shadow-modal: var(--pp-shadow-xl);
+  --tooltip-bg: var(--pp-screen);
+  --tooltip-text: var(--pp-screen-text);
+  --tooltip-arrow: var(--pp-screen);
+  --background-floating: var(--pp-window);
+  --background-modifier-hover: var(--pp-hover);
+  --background-modifier-active: var(--pp-press);
+  --background-modifier-selected: var(--pp-press);
+  --surface-inset: var(--pp-desk-2);
+
+  color-scheme: light;
+  scrollbar-color: var(--pp-rule-strong) transparent;
+}
+
+/* Dark: the docs' inversion, pale frames on a dark desk. */
+:root[data-skin="paper"][data-theme-type="dark"] {
+  --pp-desk: #101114;
+  --pp-desk-2: #0C0D10;
+  --pp-desk-3: #1D2026;
+  --pp-window: #17191E;
+  --pp-rule: #2C3039;
+  --pp-rule-strong: #6B7380;
+
+  --pp-ink: #ECEEF1;
+  --pp-ink-soft: #B4BCC8;
+  --pp-ink-faint: #8A93A0;
+  --pp-frame: #D9DCE1;
+  --pp-shadow: #000000;
+  --pp-hover: rgb(255 255 255 / 0.05);
+  --pp-press: rgb(255 255 255 / 0.1);
+
+  --pp-blue-text: #38BDF8;
+  --pp-blue-wash: #12344A;
+  --pp-red-text: #FF9B85;
+  --pp-red-wash: #3D1C15;
+  /* 8% keeps #8A93A0 at 4.7:1 on the tint. */
+  --pp-marker-soft: color-mix(in srgb, var(--pp-marker) 8%, var(--pp-window));
+  --pp-leaf-text: #6FD49A;
+  --pp-focus: #38BDF8;
+
+  --pp-screen: #0E0F12;
+  --pp-screen-2: #15171C;
+
+  --pp-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+
+  color-scheme: dark;
+}
+
+/* Theme-written inline tokens. */
+:root[data-skin="paper"] body {
+  --font-family: var(--pp-body);
+
+  --background-primary: var(--pp-window);
+  --background-secondary: var(--pp-desk);
+  --background-tertiary: var(--pp-desk-2);
+  --background-quaternary: var(--pp-desk-3);
+  --background-quinary: var(--pp-window);
+  --background-senary: var(--pp-desk-3);
+  --background-senary-alpha: color-mix(in srgb, var(--pp-desk-3) 90%, transparent);
+  --background-primary-alpha: color-mix(in srgb, var(--pp-window) 67%, transparent);
+  --background-secondary-alpha: color-mix(in srgb, var(--pp-desk) 67%, transparent);
+  --background-tertiary-alpha: color-mix(in srgb, var(--pp-desk-2) 67%, transparent);
+
+  --text-primary: var(--pp-ink);
+  --text-secondary: var(--pp-ink-soft);
+  --text-tertiary: var(--pp-ink-faint);
+  --text-muted: var(--pp-ink-faint);
+  --text-link: var(--pp-blue-text);
+  --text-danger: var(--pp-red-text);
+  --text-success: var(--pp-leaf-text);
+  --text-inverse: var(--pp-desk);
+
+  --border-primary: var(--pp-rule);
+  --border-secondary: var(--pp-rule);
+  --border-color: var(--pp-rule);
+  --color-border: var(--pp-rule);
+  --border-hover: var(--pp-rule-strong);
+  --border-focus: var(--pp-focus);
+  --input-border: var(--pp-frame);
+
+  --icon-primary: var(--pp-ink-soft);
+  --icon-secondary: var(--pp-ink-faint);
+  --icon-active: var(--pp-ink);
+
+  --harmony-primary-hover: #38BDF8;
+  --harmony-secondary: var(--pp-blue);
+  --harmony-secondary-hover: var(--pp-blue);
+  --harmony-accent: var(--pp-red);
+  --harmony-primary-alpha: color-mix(in srgb, var(--pp-blue) 18%, transparent);
+  --harmony-primary-alpha-light: color-mix(in srgb, var(--pp-blue) 10%, transparent);
+  --harmony-primary-alpha-strong: color-mix(in srgb, var(--pp-blue) 28%, transparent);
+
+  --success: var(--pp-leaf);
+  --warning: var(--pp-marker);
+  --error: var(--pp-red);
+  --error-hover: var(--pp-red);
+
+  --status-online: var(--pp-leaf);
+  --status-away: #E8A317;
+  --status-busy: var(--pp-red);
+  --status-offline: var(--pp-rule-strong);
+
+  --channel-item-hover-bg: var(--pp-marker-soft);
+  --channel-item-selected-bg: var(--pp-marker);
+  --nav-rail-button-bg: var(--pp-window);
+  --nav-rail-button-icon: var(--pp-ink);
+  --toggle-knob: var(--pp-window);
+}
+
+/* High contrast writes its own fills inline on <html>; they stay in charge. */
+:root[data-skin="paper"]:not([data-high-contrast="true"]) body {
+  --harmony-primary-fill: var(--pp-blue);
+  --harmony-primary-fill-hover: var(--pp-blue);
+  --error-fill: var(--pp-red);
+  --error-fill-hover: var(--pp-red);
+  --text-on-primary: #1A1712;
+}
+
+/* ============================================================================
+   3. DESK AND LAYOUT
+   ============================================================================ */
+
+:root[data-skin="paper"] body {
+  background-color: var(--pp-desk);
+  color: var(--pp-ink);
+  font-family: var(--pp-body);
+}
+
+/* Containers that paint an opaque theme surface over the desk. */
+:root[data-skin="paper"] :is(
+  .base-layout,
+  .content-area,
+  .server-sidebar-container,
+  .channel-sidebar-container,
+  .adaptive-channel-sidebar,
+  .chat-mode-container,
+  .chat-content,
+  .channel-sidebar,
+  .social-sidebar-container,
+  .context-bar-container,
+  .user-profile-wrapper,
+  .special-view,
+  .view-renderer,
+  .auth-layout,
+  .auth-content
+) {
+  background: transparent;
+}
+:root[data-skin="paper"] .adaptive-channel-sidebar {
+  border-color: transparent;
+}
+
+/* Server name: a masthead over a 2px ink rule. */
+:root[data-skin="paper"] .server-header .server-name {
+  background: transparent;
+  border-bottom: 2px solid var(--pp-frame);
+}
+:root[data-skin="paper"] .server-header .server-name:hover {
+  background: var(--pp-marker-soft);
+}
+
+/* The chat window: header, messages, composer and members. */
+:root[data-skin="paper"] :is(.main-and-right-container, .chat-header-container, .chat-header, .chat-placeholder-header, .main-content-area) {
+  background: var(--pp-window);
+}
+:root[data-skin="paper"] :is(.chat-header, .chat-placeholder-header, .dm-header, .view-header) {
+  border-bottom: 2px solid var(--pp-frame);
+}
+:root[data-skin="paper"] .right-sidebar-container.sidebar-open {
+  border-left: 2px solid var(--pp-rule);
+  background: var(--pp-desk);
+}
+:root[data-skin="paper"] :is(.user-sidebar, .user-groups, .sidebar-header) {
+  background: transparent;
+}
+
+@media (min-width: 769px) {
+  :root[data-skin="paper"] [data-region="main"] {
+    margin: 2px 14px 14px 4px;
+    border: 2px solid var(--pp-frame);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--pp-shadow-lg);
+  }
+  :root[data-skin="paper"] [data-region="main"]:focus-within {
+    --pp-stripe: var(--pp-frame);
+  }
+  :root[data-skin="paper"] :is([data-region="header"], [data-region="header"] .chat-header, [data-region="header"] .chat-placeholder-header) {
+    border-radius: calc(var(--radius-lg) - 2px) calc(var(--radius-lg) - 2px) 0 0;
+  }
+}
+
+/* Context bar: the server's name in a capsule on the desk, after the site's
+   menu bar. */
+:root[data-skin="paper"] .unified-context-bar {
+  background: transparent;
+  border-bottom: none;
+}
+:root[data-skin="paper"] .unified-context-bar .context-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding: 0 12px 0 8px;
+  border: 2px solid var(--pp-frame);
+  border-radius: 999px;
+  background: var(--pp-window);
+  box-shadow: var(--pp-shadow-sm);
+}
+:root[data-skin="paper"] .unified-context-bar .context-title::before {
+  content: '';
+  flex: none;
+  width: 9px;
+  height: 9px;
+  background: var(--pp-red);
+  border: 1.5px solid var(--pp-frame);
+}
+:root[data-skin="paper"] .unified-context-bar :is(.server-name, .dm-title, .app-name) {
+  font-family: var(--pp-display);
+  font-stretch: 82%;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--pp-ink);
+}
+:root[data-skin="paper"] .unified-context-bar .server-info :is(img, .server-icon) {
+  border-radius: 999px;
+}
+
+/* Selection and scrollbars. */
+:root[data-skin="paper"] ::selection {
+  background: var(--pp-marker);
+  color: #1A1712;
+}
+:root[data-skin="paper"] ::-webkit-scrollbar { width: 12px; height: 12px; }
+:root[data-skin="paper"] ::-webkit-scrollbar-track { background: transparent; }
+:root[data-skin="paper"] ::-webkit-scrollbar-thumb {
+  background: var(--pp-rule-strong);
+  border: 4px solid transparent;
+  border-radius: 2px;
+  background-clip: padding-box;
+}
+:root[data-skin="paper"] ::-webkit-scrollbar-thumb:hover {
+  background-color: var(--pp-ink-soft);
+}
+
+/* Keyboard focus: the text-size blue, 4.9:1 on the desk. Colour only; the
+   app's widths and offsets stand. */
+:root[data-skin="paper"] :focus-visible {
+  outline-color: var(--pp-focus);
+}
+
+/* ============================================================================
+   4. TYPE
+   ============================================================================ */
+
+/* Display: heavy condensed grotesque, wdth 82 as the site's headings. */
+:root[data-skin="paper"] :is(
+  .server-name-text,
+  .chat-header .channel-name,
+  .chat-placeholder-header h2,
+  .dm-header .header-title,
+  .view-header .header-title,
+  .beginning-title,
+  .settings-title,
+  .modal-title,
+  .section-title,
+  .panel-title,
+  .drawer-header h3,
+  .thread-header h3,
+  .theme-panel-title,
+  .brand-title,
+  .welcome-title,
+  .form-header h2,
+  .skin-card-name,
+  .server-settings-title,
+  .profile-modal-content .display-name
+) {
+  font-family: var(--pp-display);
+  font-stretch: 82%;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+:root[data-skin="paper"] .server-name-text {
+  font-size: 1.3rem;
+  letter-spacing: -0.025em;
+}
+:root[data-skin="paper"] .chat-header .channel-icon {
+  color: var(--pp-ink-soft);
+}
+@media (min-width: 769px) {
+  :root[data-skin="paper"] .chat-header .channel-name {
+    font-size: 1.2rem;
+  }
+}
+:root[data-skin="paper"] .chat-header .channel-description {
+  color: var(--pp-ink-soft);
+}
+:root[data-skin="paper"] :is(.beginning-title, .settings-title, .brand-title, .form-header h2) {
+  font-stretch: 78%;
+  letter-spacing: -0.035em;
+  line-height: 0.98;
+}
+:root[data-skin="paper"] .beginning-title {
+  font-size: clamp(30px, 3.4 * var(--app-vw), 46px);
+}
+:root[data-skin="paper"] :is(.beginning-subtitle, .settings-description, .modal-subtitle) {
+  color: var(--pp-ink-soft);
+}
+
+/* Labels: Martian Mono caps at 87.5% width. */
+:root[data-skin="paper"] :is(
+  .category-name,
+  .nav-section-title,
+  .group-title,
+  .member-count,
+  .date-separator-text,
+  .search-group-title,
+  .search-recent-header,
+  .skin-active-options-title,
+  .tp-label,
+  .tp-slider-label,
+  .language-label
+) {
+  font-family: var(--pp-mono);
+  font-stretch: 87.5%;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pp-ink-soft);
+}
+
+/* The site's microlabel: a red square in an ink outline before a section. */
+:root[data-skin="paper"] :is(.category-name, .nav-section-title, .skin-active-options-title)::before {
+  content: '';
+  display: inline-block;
+  width: 0.72em;
+  height: 0.72em;
+  margin-right: 0.6em;
+  background: var(--pp-red);
+  border: 1.5px solid var(--pp-frame);
+  vertical-align: -0.04em;
+}
+
+/* Times, counts and badges. */
+:root[data-skin="paper"] :is(
+  .message-item .timestamp,
+  .system-timestamp,
+  .message-gutter-time,
+  .message-time,
+  .search-result-time,
+  .reaction .reaction-count,
+  .pinned-count,
+  .unread-count,
+  .unread-badge,
+  .notification-badge,
+  .nav-badge,
+  .beta-badge,
+  .user-count,
+  .user-domain,
+  .tp-slider-value,
+  .edited-indicator
+) {
+  font-family: var(--pp-mono);
+  font-stretch: 87.5%;
+  letter-spacing: 0;
+}
+:root[data-skin="paper"] :is(.message-item .timestamp, .system-timestamp, .message-gutter-time) {
+  font-size: 10.5px;
+  color: var(--pp-ink-faint);
+  opacity: 1;
+}
+:root[data-skin="paper"] .edited-indicator {
+  font-size: 10px;
+  color: var(--pp-ink-faint);
+  opacity: 1;
+}
+
+/* Links in content: blue ink, highlighted on hover as the site's .link. */
+:root[data-skin="paper"] :is(.unified-content, .unified-content-renderer, .markdown-content, .mony-post) :is(a:not([class]), a.url-link) {
+  color: var(--pp-blue-text);
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 0.2em;
+}
+:root[data-skin="paper"] :is(.unified-content, .unified-content-renderer, .markdown-content, .mony-post) :is(a:not([class]), a.url-link):hover {
+  color: #1A1712;
+  background: var(--pp-marker);
+}
+
+/* ============================================================================
+   5. WINDOW CHROME
+   ============================================================================
+   Window.vue's .win-bar: a 30px strip over a 2px frame rule, 1.5px lines
+   every 3.5px across a 12px band, inset 8px. The strip is an in-flow
+   ::before, so it stacks above the content of a block or column host; the
+   settings shell is a row and takes it absolutely over a 32px top padding.
+   Close buttons move into the strip as a square box. The strip sits at
+   z-index 1: BaseModal's header is a z-index 1 stacking context, so its
+   close box paints over the strip only by document order. */
+
+:root[data-skin="paper"] :is(.modal-container, .user-settings-container)::before {
+  content: '';
+  display: block;
+  flex: none;
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  height: 32px;
+  border-bottom: 2px solid var(--pp-frame);
+  background-color: var(--pp-window);
+  background-image: repeating-linear-gradient(to bottom, var(--pp-stripe) 0 1.5px, transparent 1.5px 3.5px);
+  background-repeat: no-repeat;
+  background-size: calc(100% - 48px) 12px;
+  background-position: 40px 9px;
+}
+:root[data-skin="paper"] :is(.modal-container, .user-settings-container):focus-within {
+  --pp-stripe: var(--pp-frame);
+}
+/* No close box to make room for: stripes run the full inset. */
+:root[data-skin="paper"] .modal-container:not(:has(> .modal-header > :is(.close-button, .modal-close)))::before {
+  background-size: calc(100% - 16px) 12px;
+  background-position: 8px 9px;
+}
+
+/* Dialogs. */
+:root[data-skin="paper"] :is(.modal-overlay, .modal-backdrop) {
+  background: rgb(26 23 18 / 0.3);
+  -webkit-backdrop-filter: none;
+          backdrop-filter: none;
+}
+:root[data-skin="paper"][data-theme-type="dark"] :is(.modal-overlay, .modal-backdrop) {
+  background: rgb(0 0 0 / 0.55);
+}
+:root[data-skin="paper"] :is(
+  .modal-container,
+  .threads-modal,
+  .public-servers-modal,
+  .create-server-modal,
+  .incoming-call-modal,
+  .theme-panel
+) {
+  background: var(--pp-window);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--pp-shadow-xl);
+  color: var(--pp-ink);
+}
+:root[data-skin="paper"] .modal-container > .modal-header {
+  position: relative;
+}
+:root[data-skin="paper"] :is(.modal-header, .drawer-header, .thread-header, .theme-panel-header) {
+  background: transparent;
+  border-bottom: 2px solid var(--pp-rule);
+}
+:root[data-skin="paper"] .modal-overlay > .modal-container > .modal-header {
+  padding-top: 20px;
+}
+:root[data-skin="paper"] :is(.modal-footer, .theme-panel-footer) {
+  background: var(--pp-desk);
+  border-top: 2px solid var(--pp-rule);
+}
+:root[data-skin="paper"] .modal-container .icon-container {
+  background: var(--pp-blue-wash);
+  color: var(--pp-ink);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-md);
+}
+:root[data-skin="paper"] .modal-container .icon-container :is(svg, .modal-icon, .icon-wrap) {
+  color: var(--pp-ink);
+}
+:root[data-skin="paper"] .modal-bg__scrim {
+  background: color-mix(in srgb, var(--pp-window) 84%, transparent);
+}
+
+/* Close box: 22px, in the strip's left inset. The header starts under the
+   32px strip, so -28px centres it in the strip's 30px. */
+:root[data-skin="paper"] .modal-container > .modal-header > :is(.close-button, .modal-close),
+:root[data-skin="paper"] .user-settings-container > .settings-close {
+  position: absolute;
+  top: -28px;
+  left: 8px;
+  right: auto;
+  z-index: 3;
+  width: 22px;
+  height: 22px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: var(--pp-window);
+  border: 2px solid var(--pp-frame);
+  border-radius: 2px;
+  box-shadow: none;
+  color: var(--pp-ink);
+  transition: background-color 0.12s ease;
+}
+:root[data-skin="paper"] .user-settings-container > .settings-close {
+  top: 4px;
+}
+:root[data-skin="paper"] .modal-container > .modal-header > :is(.close-button, .modal-close) :is(svg, .close-icon, .modal-close-icon),
+:root[data-skin="paper"] .user-settings-container > .settings-close svg {
+  width: 12px;
+  height: 12px;
+  color: inherit;
+}
+:root[data-skin="paper"] .modal-container > .modal-header > :is(.close-button, .modal-close):hover,
+:root[data-skin="paper"] .user-settings-container > .settings-close:hover {
+  background: var(--pp-marker);
+  border-color: var(--pp-frame);
+  color: #1A1712;
+}
+:root[data-skin="paper"] .modal-container > .modal-header > :is(.close-button, .modal-close):active,
+:root[data-skin="paper"] .user-settings-container > .settings-close:active {
+  background: var(--pp-frame);
+  color: var(--pp-window);
+}
+
+/* Profile card: banner buttons as boxes on the art. */
+:root[data-skin="paper"] .profile-modal-content .banner-gradient {
+  display: none;
+}
+:root[data-skin="paper"] .profile-modal-content .profile-banner {
+  border-bottom: 2px solid var(--pp-frame);
+}
+:root[data-skin="paper"] .profile-modal-content .banner-actions :is(.close-button, .action-button) {
+  background: var(--pp-window);
+  border: 2px solid var(--pp-frame);
+  border-radius: 4px;
+  color: var(--pp-ink);
+  box-shadow: var(--pp-shadow-sm);
+}
+:root[data-skin="paper"] .profile-modal-content .banner-actions :is(.close-button, .action-button):hover,
+:root[data-skin="paper"] .profile-modal-content .banner-actions .action-button.active {
+  background: var(--pp-marker);
+  border-color: var(--pp-frame);
+  color: #1A1712;
+}
+:root[data-skin="paper"] .profile-modal-content .banner-actions :is(.close-icon, .action-icon) {
+  color: inherit;
+}
+:root[data-skin="paper"] .profile-modal-content .avatar-wrapper .avatar-image {
+  box-shadow: 0 0 0 3px var(--pp-window), 0 0 0 5px var(--pp-frame);
+}
+:root[data-skin="paper"] .profile-modal-content .actions-dropdown {
+  background: var(--pp-window);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-md);
+  box-shadow: var(--pp-shadow-lg);
+}
+:root[data-skin="paper"] .profile-modal-content .action-item:hover {
+  background: var(--pp-marker);
+  color: #1A1712;
+}
+:root[data-skin="paper"] .profile-modal-content .action-item.danger {
+  color: var(--pp-red-text);
+}
+:root[data-skin="paper"] .profile-modal-content .action-item.danger:hover {
+  background: var(--pp-fill-red);
+  color: var(--pp-on-red);
+}
+
+/* Settings: a window on the desk at desktop widths, its close box in the
+   strip. Narrower windows keep the full-screen sheet. */
+@media (min-width: 769px) {
+  :root[data-skin="paper"] .user-settings {
+    background-color: var(--pp-desk);
+  }
+  :root[data-skin="paper"] .user-settings-container {
+    width: calc(100 * var(--app-vw) - 48px);
+    height: calc(100 * var(--app-vh) - 44px);
+    padding-top: 32px;
+    box-sizing: border-box;
+    /* scrollIntoView scrolls a hidden-overflow box to its padding edge,
+       which would lift the strip out of view; clip forbids that scroll. */
+    overflow: clip;
+    translate: -3px -3px;
+    background: var(--pp-window);
+    border: 2px solid var(--pp-frame);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--pp-shadow-xl);
+  }
+  :root[data-skin="paper"] .user-settings-container::before {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    border-radius: calc(var(--radius-lg) - 2px) calc(var(--radius-lg) - 2px) 0 0;
+  }
+}
+@media (max-width: 768px) {
+  :root[data-skin="paper"] .user-settings-container::before {
+    display: none;
+  }
+}
+
+/* The chat header is the chat window's title bar: stripes fill the space
+   between the channel's name and its actions. */
+@media (min-width: 769px) {
+  :root[data-skin="paper"] :is(.chat-header .channel-description, .dm-header .conversation-info) {
+    flex: 0 1 auto;
+  }
+  :root[data-skin="paper"] :is(.chat-header .channel-details, .dm-header .header-left)::after {
+    content: '';
+    flex: 1 1 24px;
+    min-width: 24px;
+    height: 12px;
+    margin: 0 4px 0 10px;
+    align-self: center;
+    background: repeating-linear-gradient(to bottom, var(--pp-stripe) 0 1.5px, transparent 1.5px 3.5px);
+  }
+}
+
+/* Palettes: pickers and panels, framed with a thin strip like a Mac
+   windoid. */
+:root[data-skin="paper"] :is(.emoji-popup, .media-picker-popup, .notification-panel, .pinned-messages-drawer) {
+  --pp-stripe: var(--pp-frame);
+  background: var(--pp-window);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--pp-shadow-lg);
+  color: var(--pp-ink);
+}
+:root[data-skin="paper"] :is(.emoji-popup, .media-picker-popup, .notification-panel, .pinned-messages-drawer)::before {
+  content: '';
+  display: block;
+  flex: none;
+  box-sizing: border-box;
+  height: 14px;
+  border-radius: calc(var(--radius-lg) - 2px) calc(var(--radius-lg) - 2px) 0 0;
+  border-bottom: 2px solid var(--pp-frame);
+  background: repeating-linear-gradient(to bottom, var(--pp-stripe) 0 1.5px, transparent 1.5px 3.5px) center 1.75px / calc(100% - 12px) 8.5px no-repeat, var(--pp-window);
+}
+
+/* ============================================================================
+   6. CONTROLS
+   ============================================================================
+   Global.css .btn: 1-bit buttons, 2px ink outline, 8px corners, a 3px ink
+   offset that prints flat on press. */
+
+:root[data-skin="paper"] :is(
+  .btn-primary,
+  .submit-btn,
+  .search-button,
+  .tp-btn-primary,
+  .join-btn,
+  .primary-button,
+  .btn.primary,
+  button.primary,
+  .primary-btn,
+  .primary-btn-sm,
+  .primary-action-btn,
+  .sec-btn-primary,
+  .wh-btn-primary,
+  .save-btn,
+  .list-empty__button,
+  .new-post-btn,
+  .post-button,
+  .btn-submit,
+  .btn-done,
+  .confirm-btn,
+  .create-role-btn,
+  .create-list-btn,
+  .new-thread-submit,
+  .save-theme-btn,
+  .encryption-setup-btn,
+  .btn-secondary,
+  .secondary-button,
+  .btn.secondary,
+  .live-editor-btn,
+  .cancel-btn,
+  .tp-btn-ghost,
+  .pi-action,
+  .secondary-action-btn,
+  .sec-btn-secondary,
+  .load-more-btn,
+  .btn-danger,
+  .danger-button,
+  .btn.danger,
+  .leave-button,
+  .sec-btn-danger
+) {
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-md);
+  font-family: var(--pp-body);
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
+  box-shadow: var(--pp-shadow-md);
+  transition: box-shadow 0.14s var(--pp-ease), background-color 0.14s ease, color 0.14s ease;
+}
+:root[data-skin="paper"] :is(
+  .btn-primary,
+  .submit-btn,
+  .search-button,
+  .tp-btn-primary,
+  .join-btn,
+  .primary-button,
+  .btn.primary,
+  button.primary,
+  .primary-btn,
+  .primary-btn-sm,
+  .primary-action-btn,
+  .sec-btn-primary,
+  .wh-btn-primary,
+  .save-btn,
+  .list-empty__button,
+  .new-post-btn,
+  .post-button,
+  .btn-submit,
+  .btn-done,
+  .confirm-btn,
+  .create-role-btn,
+  .create-list-btn,
+  .new-thread-submit,
+  .save-theme-btn,
+  .encryption-setup-btn,
+  .btn-secondary,
+  .secondary-button,
+  .btn.secondary,
+  .live-editor-btn,
+  .cancel-btn,
+  .tp-btn-ghost,
+  .pi-action,
+  .secondary-action-btn,
+  .sec-btn-secondary,
+  .load-more-btn,
+  .btn-danger,
+  .danger-button,
+  .btn.danger,
+  .leave-button,
+  .sec-btn-danger
+):hover:not(:disabled) {
+  box-shadow: 4px 4px 0 var(--pp-shadow);
+}
+:root[data-skin="paper"] :is(
+  .btn-primary,
+  .submit-btn,
+  .search-button,
+  .tp-btn-primary,
+  .join-btn,
+  .primary-button,
+  .btn.primary,
+  button.primary,
+  .primary-btn,
+  .primary-btn-sm,
+  .primary-action-btn,
+  .sec-btn-primary,
+  .wh-btn-primary,
+  .save-btn,
+  .list-empty__button,
+  .new-post-btn,
+  .post-button,
+  .btn-submit,
+  .btn-done,
+  .confirm-btn,
+  .create-role-btn,
+  .create-list-btn,
+  .new-thread-submit,
+  .save-theme-btn,
+  .encryption-setup-btn,
+  .btn-secondary,
+  .secondary-button,
+  .btn.secondary,
+  .live-editor-btn,
+  .cancel-btn,
+  .tp-btn-ghost,
+  .pi-action,
+  .secondary-action-btn,
+  .sec-btn-secondary,
+  .load-more-btn,
+  .btn-danger,
+  .danger-button,
+  .btn.danger,
+  .leave-button,
+  .sec-btn-danger
+):active:not(:disabled) {
+  animation: none;
+  translate: 2px 2px;
+  box-shadow: 1px 1px 0 var(--pp-shadow);
+}
+
+/* Primary: blue fill, ink type. */
+:root[data-skin="paper"] :is(.btn-primary, .submit-btn, .search-button, .tp-btn-primary, .join-btn, .primary-button, .btn.primary, button.primary, .primary-btn, .primary-btn-sm, .primary-action-btn, .sec-btn-primary, .wh-btn-primary, .save-btn, .list-empty__button, .new-post-btn, .post-button, .btn-submit, .btn-done, .confirm-btn, .create-role-btn, .create-list-btn, .new-thread-submit, .save-theme-btn, .encryption-setup-btn),
+:root[data-skin="paper"] :is(.btn-primary, .submit-btn, .search-button, .tp-btn-primary, .join-btn, .primary-button, .btn.primary, button.primary, .primary-btn, .primary-btn-sm, .primary-action-btn, .sec-btn-primary, .wh-btn-primary, .save-btn, .list-empty__button, .new-post-btn, .post-button, .btn-submit, .btn-done, .confirm-btn, .create-role-btn, .create-list-btn, .new-thread-submit, .save-theme-btn, .encryption-setup-btn):hover:not(:disabled) {
+  background: var(--pp-fill-blue);
+  color: var(--pp-on-blue);
+  font-weight: 700;
+}
+:root[data-skin="paper"] :is(.btn-primary, .submit-btn, .search-button, .tp-btn-primary, .join-btn, .primary-button, .btn.primary, button.primary, .primary-btn, .primary-btn-sm, .primary-action-btn, .sec-btn-primary, .wh-btn-primary, .save-btn, .list-empty__button, .new-post-btn, .post-button, .btn-submit, .btn-done, .confirm-btn, .create-role-btn, .create-list-btn, .new-thread-submit, .save-theme-btn, .encryption-setup-btn, .btn-danger, .danger-button, .btn.danger, .leave-button, .sec-btn-danger) :is(svg, .icon-wrap) {
+  color: inherit;
+}
+
+/* Secondary and outline: window fill, ink type. */
+:root[data-skin="paper"] :is(.btn-secondary, .secondary-button, .btn.secondary, .live-editor-btn, .cancel-btn, .tp-btn-ghost, .pi-action, .secondary-action-btn, .sec-btn-secondary, .load-more-btn),
+:root[data-skin="paper"] :is(.btn-secondary, .secondary-button, .btn.secondary, .live-editor-btn, .cancel-btn, .tp-btn-ghost, .pi-action, .secondary-action-btn, .sec-btn-secondary, .load-more-btn):hover:not(:disabled) {
+  background: var(--pp-window);
+  color: var(--pp-ink);
+}
+:root[data-skin="paper"] :is(.btn-secondary, .secondary-button, .btn.secondary, .live-editor-btn, .cancel-btn, .tp-btn-ghost, .pi-action, .secondary-action-btn, .sec-btn-secondary, .load-more-btn):hover:not(:disabled) {
+  background: var(--pp-marker-soft);
+}
+
+/* The empty state's secondary action shares the primary's class. */
+:root[data-skin="paper"] .list-empty__button.list-empty__button--secondary,
+:root[data-skin="paper"] .list-empty__button.list-empty__button--secondary:hover:not(:disabled) {
+  background: var(--pp-window);
+  color: var(--pp-ink);
+}
+
+/* Destructive: red fill, ink type. */
+:root[data-skin="paper"] :is(.btn-danger, .danger-button, .btn.danger, .leave-button, .sec-btn-danger),
+:root[data-skin="paper"] :is(.btn-danger, .danger-button, .btn.danger, .leave-button, .sec-btn-danger):hover:not(:disabled) {
+  background: var(--pp-fill-red);
+  color: var(--pp-on-red);
+}
+
+:root[data-skin="paper"] :is(
+  .btn-primary,
+  .submit-btn,
+  .search-button,
+  .tp-btn-primary,
+  .join-btn,
+  .primary-button,
+  .btn.primary,
+  button.primary,
+  .primary-btn,
+  .primary-btn-sm,
+  .primary-action-btn,
+  .sec-btn-primary,
+  .wh-btn-primary,
+  .save-btn,
+  .list-empty__button,
+  .new-post-btn,
+  .post-button,
+  .btn-submit,
+  .btn-done,
+  .confirm-btn,
+  .create-role-btn,
+  .create-list-btn,
+  .new-thread-submit,
+  .save-theme-btn,
+  .encryption-setup-btn,
+  .btn-secondary,
+  .secondary-button,
+  .btn.secondary,
+  .live-editor-btn,
+  .cancel-btn,
+  .tp-btn-ghost,
+  .pi-action,
+  .secondary-action-btn,
+  .sec-btn-secondary,
+  .load-more-btn,
+  .btn-danger,
+  .danger-button,
+  .btn.danger,
+  .leave-button,
+  .sec-btn-danger
+):disabled {
+  box-shadow: none;
+  opacity: 0.55;
+}
+
+/* Icon buttons: square, a highlighter on hover. */
+:root[data-skin="paper"] :is(.icon-button, .action-btn, .header-icon-btn, .close-btn, .close-button, .modal-close, .theme-panel-close) {
+  border-radius: var(--radius-base);
+  color: var(--pp-ink-soft);
+}
+:root[data-skin="paper"] :is(.icon-button, .action-btn, .header-icon-btn, .close-btn, .close-button, .modal-close, .theme-panel-close):hover {
+  background: var(--pp-marker-soft);
+  color: var(--pp-ink);
+}
+:root[data-skin="paper"] :is(.action-btn.active, .icon-button.active, .chat-header .pinned-btn.has-pins) {
+  background: var(--pp-marker);
+  color: #1A1712;
+}
+
+/* Stepper buttons. */
+:root[data-skin="paper"] .zoom-btn {
+  background: var(--pp-window);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-md);
+  color: var(--pp-ink);
+  box-shadow: var(--pp-shadow-sm);
+}
+:root[data-skin="paper"] .zoom-btn:hover:not([aria-disabled="true"]) {
+  background: var(--pp-marker);
+  color: #1A1712;
+}
+
+/* Fields: window wells with an ink outline; focus prints a blue offset. */
+:root[data-skin="paper"] :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), textarea, select):not(.rich-text-editor *) {
+  border-radius: var(--radius-md);
+}
+:root[data-skin="paper"] :is(.form-input, .text-input, .settings-input, .input-field, .tp-var-text-input, .search-input-wrapper, .search-bar, .modal-content input[type="text"], .modal-content textarea, .modal-content select) {
+  background: var(--pp-window);
+  border: 2px solid var(--pp-frame);
+  color: var(--pp-ink);
+  box-shadow: none;
+}
+:root[data-skin="paper"] .search-input-wrapper input {
+  background: transparent;
+  border: none;
+}
+:root[data-skin="paper"] :is(.form-input, .text-input, .settings-input, .input-field, .tp-var-text-input, .modal-content input[type="text"], .modal-content textarea, .modal-content select):focus,
+:root[data-skin="paper"] :is(.search-input-wrapper, .search-bar):focus-within {
+  outline: none;
+  border-color: var(--pp-frame);
+  box-shadow: 3px 3px 0 var(--pp-blue);
+}
+:root[data-skin="paper"] ::placeholder {
+  color: var(--pp-ink-faint);
+  opacity: 1;
+}
+
+/* Toggles: inked track and window knob; on is blue with an ink knob. The
+   ToggleSwitch button is the track; a checkbox's sibling slider is the track
+   in the older pattern. */
+:root[data-skin="paper"] .toggle-switch {
+  background: var(--pp-desk-3);
+  box-shadow: inset 0 0 0 2px var(--pp-frame);
+}
+:root[data-skin="paper"] .toggle-switch:hover:not(.disabled) {
+  background: var(--pp-rule);
+}
+:root[data-skin="paper"] .toggle-switch.active,
+:root[data-skin="paper"] .toggle-switch.active:hover:not(.disabled),
+:root[data-skin="paper"] input:checked + .toggle-slider {
+  background: var(--pp-fill-blue);
+  box-shadow: inset 0 0 0 2px var(--pp-frame);
+}
+:root[data-skin="paper"] input + .toggle-slider {
+  background: var(--pp-desk-3);
+  box-shadow: inset 0 0 0 2px var(--pp-frame);
+}
+:root[data-skin="paper"] :is(.toggle-switch .toggle-knob, input + .toggle-slider::before) {
+  background: var(--pp-window);
+  box-shadow: 0 0 0 2px var(--pp-frame);
+}
+:root[data-skin="paper"] :is(.toggle-switch.active .toggle-knob, input:checked + .toggle-slider::before) {
+  background: var(--pp-on-blue);
+  box-shadow: 0 0 0 2px var(--pp-on-blue);
+}
+:root[data-skin="paper"] :is(input[type="checkbox"], input[type="radio"], input[type="range"], progress) {
+  accent-color: var(--pp-blue);
+}
+
+/* Badges and counters: red-orange stamps with ink type (4.8:1). */
+:root[data-skin="paper"] :is(.unread-badge, .notification-badge, .nav-badge, .unread-count, .mention-badge, .sidebar-tooltip-count) {
+  background: var(--pp-fill-red);
+  color: var(--pp-on-red);
+  font-weight: 600;
+  box-shadow: 0 0 0 1.5px var(--pp-frame);
+}
+:root[data-skin="paper"] :is(.beta-badge, .tp-override-badge) {
+  background: var(--pp-marker);
+  border: 1.5px solid #1A1712;
+  border-radius: 3px;
+  color: #1A1712;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+:root[data-skin="paper"] .pinned-count {
+  background: var(--pp-fill-blue);
+  color: var(--pp-on-blue);
+}
+
+/* Avatars: a 2px ink ring. */
+:root[data-skin="paper"] :is(.message-avatar, .user-item, .user-profile, .reply-avatar) .avatar-image {
+  box-shadow: 0 0 0 2px var(--pp-frame);
+}
+:root[data-skin="paper"] .avatar-status {
+  box-shadow: 0 0 0 2px var(--pp-frame);
+}
+
+/* ============================================================================
+   7. SERVER RAIL
+   ============================================================================
+   Servers are inked discs on a hard offset; the open one is a tile. */
+
+:root[data-skin="paper"] .server-item {
+  box-shadow: 0 0 0 2px var(--pp-frame), 3px 3px 0 2px var(--pp-shadow);
+  transition: border-radius 0.15s ease, box-shadow 0.12s ease;
+}
+:root[data-skin="paper"] .server-item.selected,
+:root[data-skin="paper"] .rail-server:hover .server-item.selected {
+  border: none;
+  border-radius: 12px;
+}
+:root[data-skin="paper"] .rail-server .server-item.selected .server-image {
+  border-radius: 12px;
+}
+:root[data-skin="paper"] .rail-server:active .server-item {
+  translate: 3px 3px;
+  box-shadow: 0 0 0 2px var(--pp-frame), 0 0 0 2px var(--pp-shadow);
+}
+:root[data-skin="paper"] .server-pill {
+  background: var(--pp-ink);
+  border-radius: 0 2px 2px 0;
+}
+:root[data-skin="paper"] .server-pill.has-unread {
+  background: var(--pp-red);
+  width: 7px;
+  height: 7px;
+  border-radius: 0;
+  left: -10px;
+  box-shadow: 0 0 0 1.5px var(--pp-frame);
+}
+:root[data-skin="paper"] .rail-server .unread-badge {
+  box-shadow: 0 0 0 1.5px var(--pp-frame), 0 0 0 4px var(--pp-desk);
+}
+:root[data-skin="paper"] .remote-server-badge {
+  background: var(--pp-window);
+  color: var(--pp-ink);
+  box-shadow: 0 0 0 1.5px var(--pp-frame);
+}
+
+/* Today, DMs and fediverse: window discs; open is a blue tile. */
+:root[data-skin="paper"] :is(.dm-button, .fediverse-button, .today-button, .funding-button) {
+  background: var(--pp-window);
+  color: var(--pp-ink);
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px var(--pp-frame), 3px 3px 0 2px var(--pp-shadow);
+  transition: border-radius 0.15s ease, box-shadow 0.12s ease, background-color 0.15s ease;
+}
+:root[data-skin="paper"] :is(.dm-button, .fediverse-button, .today-button, .funding-button):hover {
+  background: var(--pp-marker);
+}
+:root[data-skin="paper"] :is(.dm-button, .fediverse-button, .today-button).selected,
+:root[data-skin="paper"] :is(.dm-button, .fediverse-button, .today-button).selected:hover {
+  background: var(--pp-fill-blue);
+  border-radius: 12px;
+}
+:root[data-skin="paper"] :is(.dm-button, .fediverse-button, .today-button, .funding-button):active {
+  translate: 3px 3px;
+  box-shadow: 0 0 0 2px var(--pp-frame), 0 0 0 2px var(--pp-shadow);
+}
+:root[data-skin="paper"] :is(.dm-button, .fediverse-button, .today-button, .funding-button) :is(svg, .dm-icon, .fediverse-icon) {
+  color: var(--pp-ink);
+}
+:root[data-skin="paper"] :is(.dm-button, .fediverse-button, .today-button, .funding-button):hover :is(svg, .dm-icon, .fediverse-icon) {
+  color: #1A1712;
+}
+:root[data-skin="paper"] :is(.dm-button, .fediverse-button, .today-button).selected :is(svg, .dm-icon, .fediverse-icon) {
+  color: var(--pp-on-blue);
+}
+:root[data-skin="paper"] .portal-icon {
+  border-radius: 999px;
+}
+:root[data-skin="paper"] .server-sidebar .separator {
+  height: 2px;
+  background: var(--pp-frame);
+  opacity: 0.35;
+}
+
+/* Rail tooltip: a dark screen label on a hard offset. The outer box carries
+   the fill; the content box stays bare. */
+:root[data-skin="paper"] .sidebar-tooltip {
+  background: var(--pp-screen);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-md);
+  box-shadow: var(--pp-shadow-md);
+}
+:root[data-skin="paper"] .sidebar-tooltip-content {
+  background: transparent;
+  box-shadow: none;
+}
+:root[data-skin="paper"] .sidebar-tooltip-name {
+  font-family: var(--pp-display);
+  font-stretch: 85%;
+  font-weight: 700;
+  color: var(--pp-screen-text);
+}
+:root[data-skin="paper"] .sidebar-tooltip-arrow {
+  display: none;
+}
+
+/* ============================================================================
+   8. CHANNELS, MEMBERS AND USER PANEL
+   ============================================================================ */
+
+:root[data-skin="paper"] .channel-item {
+  border-radius: var(--radius-base);
+  color: var(--pp-ink-soft);
+}
+:root[data-skin="paper"] .channel-item:hover:not(.selected) {
+  background: var(--pp-marker-soft);
+  color: var(--pp-ink);
+}
+:root[data-skin="paper"] .channel-item:hover:not(.selected) :is(.channel-name, .channel-content, svg, .icon-wrap) {
+  color: var(--pp-ink);
+}
+/* The open channel: a highlighter stroke in ink type. */
+:root[data-skin="paper"] .channel-item.selected,
+:root[data-skin="paper"] .channel-item.in-collapsed-category.selected {
+  background: var(--pp-marker);
+  color: #1A1712;
+}
+:root[data-skin="paper"] .channel-item.selected :is(.channel-name, .channel-content, svg, .icon-wrap) {
+  color: #1A1712;
+  font-weight: 650;
+}
+:root[data-skin="paper"] .channel-item.channel-unread .channel-name {
+  color: var(--pp-ink);
+  font-weight: 700;
+}
+:root[data-skin="paper"] .unread-dot {
+  background: var(--pp-red);
+  width: 7px;
+  height: 7px;
+  border-radius: 0;
+  box-shadow: 0 0 0 1.5px var(--pp-frame);
+}
+:root[data-skin="paper"] .channel-item .notification-badge {
+  border-radius: 999px;
+}
+:root[data-skin="paper"] .channel-item.voice-connected {
+  background: color-mix(in srgb, var(--pp-leaf) 16%, transparent);
+}
+:root[data-skin="paper"] .category-header:hover {
+  background: transparent;
+}
+:root[data-skin="paper"] .category-header:hover .category-name {
+  color: var(--pp-ink);
+}
+:root[data-skin="paper"] .user-count {
+  background: var(--pp-window);
+  color: var(--pp-ink);
+  box-shadow: 0 0 0 1.5px var(--pp-frame);
+}
+
+/* Member list. */
+:root[data-skin="paper"] :is(.user-item, .nav-item, .search-result, .status-option, .menu-item, .context-menu-item, .option-item) {
+  border-radius: var(--radius-base);
+}
+:root[data-skin="paper"] .user-sidebar .user-item:hover {
+  background: var(--pp-marker-soft);
+}
+:root[data-skin="paper"] .user-sidebar .group-header:hover .group-title {
+  color: var(--pp-ink);
+}
+:root[data-skin="paper"] .user-domain {
+  font-size: 10px;
+  color: var(--pp-ink-faint);
+}
+
+/* User panel: a small window on the desk. */
+:root[data-skin="paper"] .user-profile {
+  background: var(--pp-window);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-lg);
+}
+@media (min-width: 769px) {
+  :root[data-skin="paper"] [data-region="user"] .user-profile {
+    box-shadow: var(--pp-shadow-md);
+  }
+}
+:root[data-skin="paper"] .user-profile.is-docked.is-collapsed {
+  border-radius: 999px;
+}
+:root[data-skin="paper"] .user-profile .user-name {
+  font-family: var(--pp-display);
+  font-stretch: 88%;
+  font-weight: 700;
+  color: var(--pp-ink);
+}
+:root[data-skin="paper"] .user-profile .user-status-container {
+  font-family: var(--pp-mono);
+  font-stretch: 87.5%;
+  font-size: 10.5px;
+  color: var(--pp-ink-soft);
+}
+:root[data-skin="paper"] .user-profile .icon-button.muted {
+  background: var(--pp-fill-red);
+  color: var(--pp-on-red);
+}
+:root[data-skin="paper"] .user-profile .icon-button.voice-active {
+  background: var(--pp-leaf);
+  color: #1A1712;
+}
+
+/* ============================================================================
+   9. MESSAGES
+   ============================================================================ */
+
+:root[data-skin="paper"] .message-item:hover {
+  background: var(--pp-hover);
+}
+:root[data-skin="paper"] .message-item .username-text {
+  font-weight: 650;
+}
+
+/* A message that mentions you: a highlighter wash and a red margin mark. */
+:root[data-skin="paper"] .message-item.mentions-me {
+  background: color-mix(in srgb, var(--pp-marker) 30%, transparent);
+  box-shadow: inset 3px 0 0 var(--pp-red);
+}
+:root[data-skin="paper"] .message-item.mentions-me:hover {
+  background: color-mix(in srgb, var(--pp-marker) 40%, transparent);
+}
+:root[data-skin="paper"][data-theme-type="dark"] .message-item.mentions-me,
+:root[data-skin="paper"][data-theme-type="dark"] .message-item.mentions-me:hover {
+  background: color-mix(in srgb, var(--pp-marker) 8%, transparent);
+}
+
+/* Mentions: highlighter marks in ink type. */
+:root[data-skin="paper"] :is(.mention, .role-mention, .channel-mention) {
+  background: var(--pp-marker);
+  color: #1A1712;
+  font-weight: 650;
+  border-radius: 2px;
+  padding: 0 3px;
+}
+:root[data-skin="paper"] :is(.mention, .role-mention, .channel-mention):hover {
+  background: var(--pp-marker);
+  color: #1A1712;
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+}
+
+/* Replies: an ink spine. */
+:root[data-skin="paper"] :is(.reply-spine, .reply-spine::after) {
+  background-color: var(--pp-rule-strong);
+}
+:root[data-skin="paper"] .reply-reference .reply-content {
+  opacity: 1;
+}
+:root[data-skin="paper"] .reply-reference .reply-preview {
+  color: var(--pp-ink-soft);
+}
+:root[data-skin="paper"] .reply-reference:hover .reply-preview {
+  color: var(--pp-ink);
+}
+
+/* Separators. */
+:root[data-skin="paper"] :is(.date-separator-line, .gap-line) {
+  height: 2px;
+  background: var(--pp-rule);
+}
+:root[data-skin="paper"] .date-separator-text {
+  color: var(--pp-ink-soft);
+}
+:root[data-skin="paper"] .new-messages-line {
+  height: 2px;
+  background: var(--pp-red);
+}
+:root[data-skin="paper"] .new-messages-label {
+  background: var(--pp-fill-red);
+  color: var(--pp-on-red);
+  font-family: var(--pp-mono);
+  font-stretch: 87.5%;
+  font-weight: 600;
+  border-radius: 2px 0 0 2px;
+}
+:root[data-skin="paper"] .highlighted {
+  border-left-color: var(--pp-blue);
+  background-color: color-mix(in srgb, var(--pp-marker) 40%, transparent) !important;
+}
+:root[data-skin="paper"] .search-highlight {
+  background: var(--pp-marker);
+  color: #1A1712;
+}
+
+/* Code: a dark screen inside the window, after the site's terminals. */
+:root[data-skin="paper"] .code-block-wrapper {
+  background: var(--pp-screen);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-md);
+  box-shadow: var(--pp-shadow-md);
+  font-family: var(--pp-mono);
+}
+:root[data-skin="paper"] .code-block-wrapper .code-block-header {
+  background: var(--pp-screen-2);
+  border-bottom: 1px solid var(--pp-screen-line);
+}
+:root[data-skin="paper"] .code-block-wrapper .language-label {
+  color: var(--pp-screen-soft);
+}
+:root[data-skin="paper"] .code-block-wrapper .code-block {
+  background: transparent;
+  color: var(--pp-screen-text);
+  font-family: var(--pp-mono);
+  font-stretch: 87.5%;
+}
+:root[data-skin="paper"] .code-block-wrapper .copy-button {
+  background: transparent;
+  border: 1.5px solid var(--pp-screen-line);
+  border-radius: var(--radius-base);
+  color: var(--pp-screen-soft);
+  font-family: var(--pp-mono);
+  font-stretch: 87.5%;
+}
+:root[data-skin="paper"] .code-block-wrapper .copy-button:hover {
+  background: var(--pp-blue);
+  border-color: var(--pp-blue);
+  color: #0B0C0E;
+}
+/* Syntax: the site's .screen palette, 7.8:1 or better on the screen. */
+:root[data-skin="paper"] .code-block :is(.hl-keyword, .hl-tag) { color: #38BDF8; }
+:root[data-skin="paper"] .code-block :is(.hl-string, .hl-attr-value) { color: #3DDC97; }
+:root[data-skin="paper"] .code-block :is(.hl-number, .hl-literal, .hl-builtin) { color: #F5B841; }
+:root[data-skin="paper"] .code-block :is(.hl-function, .hl-title) { color: #C4B5FD; }
+:root[data-skin="paper"] .code-block :is(.hl-comment) { color: #8A93A0; font-style: italic; }
+:root[data-skin="paper"] .code-block :is(.hl-operator, .hl-punctuation) { color: #B4BCC8; }
+:root[data-skin="paper"] .code-block :is(.hl-attr, .hl-variable) { color: #F9A8C9; }
+
+:root[data-skin="paper"] :is(.unified-content, .markdown-content, .text-content) :not(pre) > code,
+:root[data-skin="paper"] .md-code {
+  background: var(--pp-desk-2);
+  border: 1px solid var(--pp-rule);
+  border-radius: 3px;
+  color: var(--pp-ink);
+  font-family: var(--pp-mono);
+  font-stretch: 87.5%;
+  font-size: 0.84em;
+}
+:root[data-skin="paper"] :is(.unified-content, .markdown-content) blockquote {
+  border-left-color: var(--pp-rule-strong);
+}
+
+/* Embeds and attachments: small windows. */
+:root[data-skin="paper"] :is(.link-embed-card, .provider-embed, .embed, .link-embed, .embed-container, .file-attachment) {
+  background: var(--pp-window);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-md);
+  box-shadow: var(--pp-shadow-md);
+}
+:root[data-skin="paper"] :is(.link-embed-card__title, .provider-embed__header) {
+  font-family: var(--pp-display);
+  font-stretch: 88%;
+  font-weight: 700;
+}
+:root[data-skin="paper"] :is(.link-embed-card__site, .provider-embed__label) {
+  font-family: var(--pp-mono);
+  font-stretch: 87.5%;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pp-ink-soft);
+}
+
+/* Reactions: ink-outlined chips; yours sit on an offset in the blue wash. */
+:root[data-skin="paper"] .reaction {
+  background: var(--pp-window);
+  border: 1.5px solid var(--pp-frame);
+  border-radius: var(--radius-base);
+}
+:root[data-skin="paper"] .reaction:hover {
+  background: var(--pp-marker-soft);
+  border-color: var(--pp-frame);
+}
+:root[data-skin="paper"] .reaction.reacted {
+  background: var(--pp-blue-wash);
+  border-color: var(--pp-frame);
+  box-shadow: var(--pp-shadow-sm);
+}
+:root[data-skin="paper"] .reaction .reaction-count,
+:root[data-skin="paper"] .reaction.reacted .reaction-count {
+  color: var(--pp-ink);
+  font-weight: 600;
+}
+:root[data-skin="paper"] .add-reaction-btn {
+  border: 1.5px dashed var(--pp-rule-strong);
+  border-radius: var(--radius-base);
+  color: var(--pp-ink-soft);
+  background: transparent;
+}
+:root[data-skin="paper"] .add-reaction-btn:hover {
+  border-style: solid;
+  border-color: var(--pp-frame);
+  color: var(--pp-ink);
+}
+
+/* Hover toolbar: a small inked strip. */
+:root[data-skin="paper"] .message-actions {
+  background: var(--pp-window);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-md);
+  box-shadow: var(--pp-shadow-md);
+}
+:root[data-skin="paper"] .message-actions .action-btn:hover {
+  background: var(--pp-marker);
+  color: #1A1712;
+}
+
+:root[data-skin="paper"] :is(.bot-badge, .instance-badge) {
+  font-family: var(--pp-mono);
+  font-stretch: 87.5%;
+  letter-spacing: 0.02em;
+}
+:root[data-skin="paper"] .bot-badge:not(.discord) {
+  background: var(--pp-fill-blue);
+  color: var(--pp-on-blue);
+}
+
+/* ============================================================================
+   10. COMPOSER
+   ============================================================================ */
+
+:root[data-skin="paper"] [data-region="composer"] .message-container {
+  background: var(--pp-window);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--pp-shadow-md);
+  transition: box-shadow 0.15s ease;
+}
+:root[data-skin="paper"] [data-region="composer"] .message-container:focus-within {
+  box-shadow: 3px 3px 0 var(--pp-blue);
+}
+:root[data-skin="paper"] .plus-icon-container {
+  border-radius: var(--radius-base);
+  background: var(--pp-ink);
+  color: var(--pp-window);
+}
+:root[data-skin="paper"] .plus-icon-container :is(svg, .icon-wrap, button) {
+  color: var(--pp-window);
+}
+:root[data-skin="paper"] [data-region="composer"] :is(.right-icons button, .mic-trigger) {
+  color: var(--pp-ink-soft);
+}
+:root[data-skin="paper"] [data-region="composer"] :is(.right-icons button, .mic-trigger):hover {
+  color: var(--pp-ink);
+}
+:root[data-skin="paper"] .send-button {
+  background: var(--pp-fill-blue);
+  color: var(--pp-on-blue);
+  border-radius: var(--radius-base);
+  box-shadow: 0 0 0 2px var(--pp-frame);
+}
+:root[data-skin="paper"] :is(.typing-indicator, .composer-status) {
+  font-family: var(--pp-mono);
+  font-stretch: 87.5%;
+  font-size: 10.5px;
+  color: var(--pp-ink-soft);
+}
+@media (max-width: 768px) {
+  :root[data-skin="paper"] [data-region="composer"] .message-container,
+  :root[data-skin="paper"] [data-region="composer"] .message-container:focus-within {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+  :root[data-skin="paper"] [data-region="composer"] .textarea-wrapper {
+    background: var(--pp-window);
+    border: 2px solid var(--pp-frame);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--pp-shadow-sm);
+  }
+}
+
+/* ============================================================================
+   11. MENUS, POPOVERS, TOOLTIPS, TOASTS
+   ============================================================================
+   The site's command palette: window fill, ink frame, hard offset. */
+
+:root[data-skin="paper"] :is(
+  .context-menu,
+  .user-context-menu,
+  .more-menu,
+  .action-dropdown,
+  .status-dropdown,
+  .file-upload-menu,
+  .device-dropdown,
+  .search-popover,
+  .participants-dropdown,
+  .server-dropdown,
+  .autocomplete-popup,
+  .mention-popup,
+  .rail-menu
+) {
+  background: var(--pp-window);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--pp-shadow-lg);
+  color: var(--pp-ink);
+}
+:root[data-skin="paper"] :is(.context-menu-item, .menu-item, .status-option, .option-item, .dropdown-item):is(:hover, :focus-visible) {
+  background: var(--pp-marker);
+  color: #1A1712;
+}
+:root[data-skin="paper"] :is(.context-menu-item, .menu-item, .status-option, .option-item, .dropdown-item):is(:hover, :focus-visible) :is(svg, .icon-wrap, span) {
+  color: #1A1712;
+}
+:root[data-skin="paper"] :is(.context-menu-item, .menu-item, .dropdown-item):is(.danger, .destructive, .delete) {
+  color: var(--pp-red-text);
+}
+:root[data-skin="paper"] :is(.context-menu-item, .menu-item, .dropdown-item):is(.danger, .destructive, .delete):is(:hover, :focus-visible) {
+  background: var(--pp-fill-red);
+  color: var(--pp-on-red);
+}
+:root[data-skin="paper"] :is(.context-menu-item, .menu-item, .dropdown-item):is(.danger, .destructive, .delete):is(:hover, :focus-visible) :is(svg, .icon-wrap, span) {
+  color: var(--pp-on-red);
+}
+:root[data-skin="paper"] :is(.context-menu-separator, .menu-separator, .menu-divider, .status-divider, .chat-menu-divider) {
+  background: var(--pp-rule);
+  height: 2px;
+}
+
+/* Tooltips: dark screen labels. */
+:root[data-skin="paper"] :is([role="tooltip"], .tooltip, .reaction-tooltip) {
+  background: var(--pp-screen);
+  color: var(--pp-screen-text);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-base);
+  box-shadow: var(--pp-shadow-sm);
+}
+
+/* Toasts. */
+:root[data-skin="paper"] :is(.Vue-Toastification__toast, .notification-toast) {
+  background: var(--pp-window);
+  color: var(--pp-ink);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--pp-shadow-lg);
+}
+:root[data-skin="paper"] .toast-title {
+  font-family: var(--pp-display);
+  font-stretch: 88%;
+  font-weight: 700;
+}
+
+/* Search. */
+:root[data-skin="paper"] .search-chip {
+  background: var(--pp-marker);
+  border: 1.5px solid #1A1712;
+  border-radius: var(--radius-sm);
+  color: #1A1712;
+  font-family: var(--pp-mono);
+  font-stretch: 87.5%;
+}
+:root[data-skin="paper"] .search-chip-key {
+  color: #1A1712;
+  font-weight: 600;
+}
+:root[data-skin="paper"] :is(.search-sort-option, .search-option).active {
+  background: var(--pp-marker);
+  color: #1A1712;
+}
+
+/* Pins, threads, floating video. */
+:root[data-skin="paper"] :is(.pinned-message-item, .thread-item) {
+  border-radius: var(--radius-md);
+}
+:root[data-skin="paper"] .thread-indicator {
+  border-radius: var(--radius-md);
+  border-color: var(--pp-frame);
+}
+:root[data-skin="paper"] .thread-panel {
+  background: var(--pp-window);
+  border-left: 2px solid var(--pp-frame);
+}
+:root[data-skin="paper"] .mini-player {
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--pp-shadow-lg);
+  overflow: hidden;
+}
+
+/* ============================================================================
+   12. SETTINGS, AUTH AND VOICE
+   ============================================================================ */
+
+:root[data-skin="paper"] :is(.user-settings-container, .settings-main, .settings-content, .server-settings) {
+  background: transparent;
+}
+:root[data-skin="paper"] .user-settings-container {
+  background: var(--pp-window);
+}
+:root[data-skin="paper"] .settings-sidebar {
+  background: var(--pp-desk);
+  border-right: 2px solid var(--pp-frame);
+}
+/* The social column sits on the desk like the channel list. */
+:root[data-skin="paper"] .social-sidebar {
+  background: transparent;
+  border-right-color: transparent;
+}
+:root[data-skin="paper"] .activitypub-right-sidebar .sidebar-section {
+  background: var(--pp-window);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--pp-shadow-md);
+}
+:root[data-skin="paper"] :is(.settings-nav, .social-nav, .settings-sidebar) .nav-item {
+  color: var(--pp-ink-soft);
+}
+:root[data-skin="paper"] :is(.settings-nav, .social-nav, .settings-sidebar) .nav-item:hover {
+  background: var(--pp-marker-soft);
+  color: var(--pp-ink);
+}
+:root[data-skin="paper"] :is(.settings-nav, .social-nav, .settings-sidebar) .nav-item.active {
+  background: var(--pp-marker);
+  color: #1A1712;
+  font-weight: 650;
+}
+:root[data-skin="paper"] :is(.settings-nav, .social-nav, .settings-sidebar) .nav-item.active :is(svg, .icon-wrap, span) {
+  color: #1A1712;
+}
+:root[data-skin="paper"] .settings-section {
+  background: var(--pp-window);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--pp-shadow-md);
+}
+:root[data-skin="paper"] .setting-item + .setting-item {
+  border-top-color: var(--pp-rule);
+}
+:root[data-skin="paper"] .setting-label {
+  font-weight: 650;
+}
+:root[data-skin="paper"] .skin-active-options {
+  background: var(--pp-desk);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-lg);
+}
+
+/* Picker cards: framed windows that lift onto their offset. */
+:root[data-skin="paper"] :is(.skin-card, .theme-option, .preset-card, .pi-card, .tp-collapse, .font-family-btn) {
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-lg);
+  background: var(--pp-window);
+  transition: translate 0.2s var(--pp-ease), box-shadow 0.2s var(--pp-ease);
+}
+:root[data-skin="paper"] :is(.skin-card, .theme-option, .preset-card, .font-family-btn):hover {
+  border-color: var(--pp-frame);
+  translate: -2px -2px;
+  box-shadow: var(--pp-shadow-lg);
+}
+/* Selected: the tint and a 5px highlighter band along the foot. */
+:root[data-skin="paper"] :is(.skin-card.active, .theme-option.active, .preset-card.active, .font-family-btn.active) {
+  border-color: var(--pp-frame);
+  box-shadow: var(--pp-shadow-md);
+  background: linear-gradient(var(--pp-marker), var(--pp-marker)) bottom / 100% 5px no-repeat, var(--pp-marker-soft);
+}
+:root[data-skin="paper"] .skin-card-preview {
+  border-bottom: 2px solid var(--pp-frame);
+}
+
+/* Sign-in: a window on the desk. The form keeps its own local tokens. */
+:root[data-skin="paper"] .auth-wrapper {
+  --primary: var(--pp-blue);
+  --primary-hover: var(--pp-blue);
+  --surface: var(--pp-window);
+  --surface-light: var(--pp-desk);
+  --surface-hover: var(--pp-hover);
+  --border: var(--pp-rule);
+  --border-focus: var(--pp-frame);
+  --text: var(--pp-ink);
+  --text-muted: var(--pp-ink-soft);
+  --text-dim: var(--pp-ink-faint);
+  --scrim: transparent;
+  --brand-card-bg: var(--pp-window);
+  --brand-card-border: var(--pp-frame);
+  --autofill-bg: var(--pp-window);
+  background: transparent;
+}
+:root[data-skin="paper"] .auth-wrapper .bg-gradient-overlay {
+  display: none;
+}
+:root[data-skin="paper"] :is(.auth-card, .brand-card) {
+  background: var(--pp-window);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--pp-shadow-xl);
+  color: var(--pp-ink);
+}
+:root[data-skin="paper"] .auth-wrapper .input-line {
+  background-color: var(--pp-frame);
+}
+:root[data-skin="paper"] .auth-wrapper :is(.forgot-link, .switch-mode button) {
+  color: var(--pp-blue-text);
+  font-weight: 650;
+}
+:root[data-skin="paper"] .auth-wrapper .oauth-btn {
+  background: var(--pp-window);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-md);
+  color: var(--pp-ink);
+  box-shadow: var(--pp-shadow-md);
+}
+
+/* Voice dock and panels. */
+:root[data-skin="paper"] .unified-voice-dock .dock-container {
+  background: var(--pp-window);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--pp-shadow-lg);
+}
+:root[data-skin="paper"] .unified-voice-dock .minimized-container {
+  border: 2px solid var(--pp-frame);
+  border-radius: 999px;
+  box-shadow: var(--pp-shadow-sm);
+}
+:root[data-skin="paper"] :is(.unified-voice-dock, .voice-overlay) .channel-name {
+  font-family: var(--pp-display);
+  font-stretch: 85%;
+  font-weight: 750;
+}
+:root[data-skin="paper"] .voice-overlay .voice-container {
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-lg);
+}
+:root[data-skin="paper"] .voice-tile {
+  border-radius: var(--radius-lg);
+}
+:root[data-skin="paper"] .voice-tile.speaking {
+  outline-color: var(--pp-leaf);
+}
+:root[data-skin="paper"] .voice-tile.speaking::after {
+  border-color: var(--pp-leaf);
+  border-radius: var(--radius-lg);
+}
+:root[data-skin="paper"] .voice-tile .tile-pill {
+  border-radius: var(--radius-sm);
+  font-family: var(--pp-mono);
+  font-stretch: 87.5%;
+}
+:root[data-skin="paper"] :is(.control-btn, .control-button, .mini-control-btn) {
+  border-radius: var(--radius-md);
+}
+:root[data-skin="paper"] :is(.control-btn, .control-button, .mini-control-btn):is(.muted, .deafened) {
+  background: var(--pp-fill-red);
+  color: var(--pp-on-red);
+  box-shadow: 0 0 0 2px var(--pp-frame);
+}
+
+/* ============================================================================
+   13. OPTIONS
+   ============================================================================ */
+
+/* 13.1 Paper grain: fixed noise over the desk. */
+:root[data-skin="paper"][data-skin-grain="on"]:not([data-high-contrast="true"]) :is(body, .user-settings) {
+  background-image: var(--pp-grain);
+  background-size: 160px 160px;
+  background-attachment: fixed;
+}
+
+/* 13.2 Glyph wallpaper: chat text along a Chladni plate's nodal lines,
+   static behind the messages (scripts/skins/paper-glyphs.mjs). A scroller's
+   own background stays put while its content scrolls. */
+:root[data-skin="paper"][data-skin-glyphs="on"]:not([data-high-contrast="true"]) [data-region="messages"] {
+  background-image: url('/assets/skins/paper/glyphs.svg');
+  background-size: 784px 784px;
+  background-repeat: repeat;
+}
+
+/* 13.3 Ink shadows off: outlines stay, every offset goes. Pressed controls
+   still sink. */
+:root[data-skin="paper"][data-skin-shadows="off"] {
+  --pp-shadow: transparent;
+  --pp-shadow-sm: none;
+  --pp-shadow-md: none;
+  --pp-shadow-lg: none;
+  --pp-shadow-xl: none;
+  --shadow-large: none;
+  --shadow-modal: none;
+}
+:root[data-skin="paper"][data-skin-shadows="off"] :is(
+  .server-item,
+  .dm-button,
+  .fediverse-button,
+  .today-button,
+  .funding-button
+) {
+  box-shadow: 0 0 0 2px var(--pp-frame);
+}
+:root[data-skin="paper"][data-skin-shadows="off"] :is(
+  .form-input,
+  .text-input,
+  .settings-input,
+  .input-field,
+  .tp-var-text-input,
+  .modal-content input[type="text"],
+  .modal-content textarea,
+  .modal-content select
+):focus,
+:root[data-skin="paper"][data-skin-shadows="off"] :is(.search-input-wrapper, .search-bar):focus-within,
+:root[data-skin="paper"][data-skin-shadows="off"] [data-region="composer"] .message-container:focus-within {
+  box-shadow: none;
+}
+
+/* ============================================================================
+   14. HIGH CONTRAST
+   ============================================================================
+   The app's high contrast stays in charge of fills: labelled fills take its
+   darkened --harmony-primary-fill and --error-fill with their own label
+   colour. Secondary inks step up to full ink; rules to the strong rule. */
+
+:root[data-skin="paper"][data-high-contrast="true"] {
+  --pp-ink-soft: var(--pp-ink);
+  --pp-ink-faint: #4A443A;
+  --pp-rule: var(--pp-rule-strong);
+  --pp-stripe: var(--pp-frame);
+  --pp-fill-blue: var(--harmony-primary-fill);
+  --pp-on-blue: var(--text-on-primary, #ffffff);
+  --pp-fill-red: var(--error-fill);
+  --pp-on-red: #ffffff;
+}
+:root[data-skin="paper"][data-high-contrast="true"][data-theme-type="dark"] {
+  --pp-ink-faint: #B4BCC8;
+}
+
+/* ============================================================================
+   15. MOTION
+   ============================================================================
+   Jelly: global.css @keyframes jelly, on the scale property so it composes
+   with a component's own transform. Gated by the jelly option, the app's
+   reduce-motion setting and the OS preference. */
+
+@keyframes harmony-paper-jelly {
+  0% { scale: 1 1; }
+  22% { scale: 1.08 0.9; }
+  40% { scale: 0.95 1.06; }
+  56% { scale: 1.03 0.97; }
+  72% { scale: 0.99 1.01; }
+  100% { scale: 1 1; }
+}
+@keyframes harmony-paper-pop {
+  from { opacity: 0; translate: -3px -3px; }
+  to { opacity: 1; translate: 0 0; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-skin="paper"][data-skin-jelly="on"]:not([data-reduce-motion="true"]) :is(
+    .btn-primary,
+    .submit-btn,
+    .search-button,
+    .tp-btn-primary,
+    .join-btn,
+    .primary-button,
+    .btn.primary,
+    button.primary,
+    .primary-btn,
+    .primary-btn-sm,
+    .primary-action-btn,
+    .sec-btn-primary,
+    .wh-btn-primary,
+    .save-btn,
+    .list-empty__button,
+    .new-post-btn,
+    .post-button,
+    .btn-submit,
+    .btn-done,
+    .confirm-btn,
+    .create-role-btn,
+    .create-list-btn,
+    .new-thread-submit,
+    .save-theme-btn,
+    .encryption-setup-btn,
+    .btn-secondary,
+    .secondary-button,
+    .btn.secondary,
+    .live-editor-btn,
+    .cancel-btn,
+    .tp-btn-ghost,
+    .pi-action,
+    .secondary-action-btn,
+    .sec-btn-secondary,
+    .load-more-btn,
+    .btn-danger,
+    .danger-button,
+    .btn.danger,
+    .leave-button,
+    .sec-btn-danger,
+    .reaction,
+    .add-reaction-btn,
+    .search-chip,
+    .zoom-btn,
+    .plus-icon-container,
+    .send-button,
+    .dm-button,
+    .fediverse-button,
+    .today-button,
+    .funding-button
+  ):hover:not(:disabled, :active) {
+    animation: harmony-paper-jelly 620ms var(--pp-ease) both;
+  }
+  :root[data-skin="paper"][data-skin-jelly="on"]:not([data-reduce-motion="true"]) .rail-server:hover:not(:active) .server-item {
+    animation: harmony-paper-jelly 620ms var(--pp-ease) both;
+  }
+  :root[data-skin="paper"][data-skin-jelly="on"]:not([data-reduce-motion="true"]) .unified-context-bar .context-title:hover {
+    animation: harmony-paper-jelly 620ms var(--pp-ease) both;
+  }
+  :root[data-skin="paper"]:not([data-reduce-motion="true"]) :is(
+    .context-menu,
+    .user-context-menu,
+    .more-menu,
+    .action-dropdown,
+    .status-dropdown,
+    .file-upload-menu,
+    .device-dropdown,
+    .search-popover,
+    .participants-dropdown
+  ) {
+    animation: harmony-paper-pop 0.14s ease-out backwards;
+  }
+}

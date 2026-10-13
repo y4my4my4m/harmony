@@ -154,6 +154,140 @@ describe('lattice layout', () => {
   })
 })
 
+/** Style rules with their declaration text and enclosing at-rule preludes, comments stripped. */
+function rulesOf(css: string): { selector: string; body: string; at: string[] }[] {
+  const src = css.replace(/\/\*[\s\S]*?\*\//g, '')
+  const out: { selector: string; body: string; at: string[] }[] = []
+  const stack: string[] = []
+  let buf = ''
+  for (const ch of src) {
+    if (ch === '{') {
+      stack.push(buf.trim())
+      buf = ''
+    } else if (ch === '}') {
+      const prelude = stack.pop() ?? ''
+      if (prelude && !prelude.startsWith('@') && !stack.some((p) => p.startsWith('@keyframes'))) {
+        out.push({ selector: prelude, body: buf, at: stack.filter((p) => p.startsWith('@')) })
+      }
+      buf = ''
+    } else {
+      buf += ch
+    }
+  }
+  return out
+}
+
+describe('paper', () => {
+  const skin = BUILTIN_SKINS.find((s) => s.id === 'paper')!
+  const css = readFileSync(resolve(__dirname, '..', 'paper', 'skin.css'), 'utf8')
+  const rules = rulesOf(css)
+  const decls = (r: { body: string }) => r.body.split(';').map((d) => d.trim()).filter(Boolean)
+
+  it('applies a light custom theme on the mascot blue and clears a stored sidebar hue', () => {
+    const next = resolveSkin(baseSettings(), 'paper')
+    expect(next.activeSkinId).toBe('paper')
+    expect(next.theme).toBe('custom')
+    expect(next.customThemeMode).toBe('light')
+    expect(next.customPrimaryColor).toBe('#0EA5E9')
+    expect(next.customSidebarColor).toBe('')
+    expect(next.customSkinCss).toBe('')
+  })
+
+  it('restores the pre-skin settings when cleared', () => {
+    const base = baseSettings()
+    const cleared = resolveSkin(resolveSkin(base, 'paper'), null)
+    expect(cleared.activeSkinId).toBeNull()
+    expect(cleared.customSidebarColor).toBe('#ff00aa')
+    expect(cleared.customThemeMode).toBe(base.customThemeMode)
+    expect(cleared.theme).toBe(base.theme)
+  })
+
+  it('loads its stylesheet lazily and declares its toggles, glyph wallpaper off', () => {
+    expect(typeof skin.loadCss).toBe('function')
+    expect(skin.loadScene).toBeUndefined()
+    expect((skin as { globalCss?: unknown }).globalCss).toBeUndefined()
+    expect((skin.options ?? []).map((o) => o.id)).toEqual(['shadows', 'jelly', 'grain', 'glyphs'])
+    expect(skin.options?.find((o) => o.id === 'glyphs')?.default).toBe(false)
+  })
+
+  it('ships every font file its stylesheet declares', () => {
+    const urls = [...css.matchAll(/url\('(\/assets\/fonts\/[^']+)'\)/g)].map((m) => m[1])
+    expect(urls.length).toBe(3)
+    for (const url of urls) expect(existsSync(resolve(PUBLIC, url.slice(1))), url).toBe(true)
+    expect(existsSync(resolve(PUBLIC, 'assets/fonts/paper/OFL.txt'))).toBe(true)
+  })
+
+  // The brand blue fill is never darkened, and High contrast keeps its own fills.
+  it('keeps the brand blue fill and leaves high-contrast fills alone', () => {
+    const blues = [...css.matchAll(/--pp-blue:\s*([^;]+);/g)].map((m) => m[1].trim())
+    expect(blues).toEqual(['#0EA5E9'])
+    expect(css).not.toMatch(/--harmony-primary:/)
+    const fillRules = rules.filter((r) => /--harmony-primary-fill:/.test(r.body))
+    expect(fillRules.length).toBe(1)
+    expect(fillRules[0].selector).toContain(':not([data-high-contrast="true"])')
+    const contrast = rules.find((r) => r.selector === ':root[data-skin="paper"][data-high-contrast="true"]')
+    expect(contrast?.body).toMatch(/--pp-fill-blue:\s*var\(--harmony-primary-fill\)/)
+    expect(contrast?.body).toMatch(/--pp-fill-red:\s*var\(--error-fill\)/)
+  })
+
+  // Inset margin marks may be red; offset shadows are ink, or blue under a focused field.
+  it('keeps red-orange out of offset shadows', () => {
+    for (const r of rules) {
+      for (const decl of decls(r)) {
+        if (/^box-shadow\s*:/.test(decl) && !/\binset\b/.test(decl)) {
+          expect(decl, r.selector).not.toMatch(/--pp-red|#EB4E2C/i)
+        }
+      }
+    }
+  })
+
+  it('strips dialogs and the settings window, solid only while focused, with the close box in the strip', () => {
+    const strip = rules.find((r) => r.selector.includes('.modal-container') && r.selector.endsWith('::before') && r.body.includes('repeating-linear-gradient(to bottom, var(--pp-stripe) '))
+    expect(strip?.selector).toContain('.user-settings-container')
+    const faint = rules.find((r) => r.selector === ':root[data-skin="paper"]')
+    expect(faint?.body).toMatch(/--pp-stripe:\s*color-mix\(in srgb, var\(--pp-frame\) \d+%, transparent\)/)
+    const solid = rules.filter((r) => /--pp-stripe:\s*var\(--pp-frame\)/.test(r.body)).map((r) => r.selector)
+    expect(solid.some((s) => s.includes('.modal-container, .user-settings-container):focus-within'))).toBe(true)
+    expect(solid.some((s) => s.includes('[data-region="main"]:focus-within'))).toBe(true)
+    const box = rules.find((r) => r.selector.includes('.modal-container > .modal-header > :is(.close-button, .modal-close)') && /position:\s*absolute/.test(r.body))
+    expect(box?.selector).toContain('.user-settings-container > .settings-close')
+  })
+
+  it('draws the glyph wallpaper from a static asset, only with the option on and outside high contrast', () => {
+    const wall = rules.filter((r) => r.body.includes('/assets/skins/paper/glyphs.svg'))
+    expect(wall.length).toBe(1)
+    expect(wall[0].selector).toContain('[data-skin-glyphs="on"]')
+    expect(wall[0].selector).toContain(':not([data-high-contrast="true"])')
+    expect(wall[0].body).not.toMatch(/animation/)
+    const svg = readFileSync(resolve(PUBLIC, 'assets/skins/paper/glyphs.svg'), 'utf8')
+    expect(svg).not.toMatch(/<(script|animate|set|foreignObject)\b/)
+    expect(svg).not.toMatch(/\bhref=/)
+    expect(svg.length).toBeLessThan(40_000)
+  })
+
+  it('runs jelly only with the option on and motion allowed', () => {
+    const jelly = rules.filter((r) => /harmony-paper-jelly/.test(r.body))
+    expect(jelly.length).toBeGreaterThan(0)
+    for (const r of jelly) {
+      expect(r.at).toContain('@media (prefers-reduced-motion: no-preference)')
+      for (const sel of splitList(r.selector)) {
+        expect(sel).toContain('[data-skin-jelly="on"]')
+        expect(sel).toContain(':not([data-reduce-motion="true"])')
+      }
+    }
+  })
+
+  // The chat window moves the main region; below 769px nav, rail and aside are touch drawers.
+  it('frames regions only inside a desktop media query', () => {
+    const layoutProps = /\b(margin|padding-bottom|left|right|top|bottom|flex-direction)\s*:/
+    for (const r of rules) {
+      if (/data-region="(main|nav|rail|aside|workspace|user)"/.test(r.selector) && layoutProps.test(r.body)) {
+        expect(r.at, r.selector).toContain('@media (min-width: 769px)')
+      }
+    }
+  })
+})
+
 describe('flux', () => {
   const skin = BUILTIN_SKINS.find((s) => s.id === 'flux')!
 

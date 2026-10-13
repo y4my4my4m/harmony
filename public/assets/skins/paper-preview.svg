@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 280" width="600" height="280">
+  <defs>
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix values="0 0 0 0 0.10 0 0 0 0 0.09 0 0 0 0 0.07 0 0 0 0.14 0"/>
+    </filter>
+    <pattern id="stripes" width="4" height="3.5" patternUnits="userSpaceOnUse">
+      <rect width="4" height="1.5" fill="#1A1712"/>
+    </pattern>
+    <pattern id="stripes-faint" width="4" height="3.5" patternUnits="userSpaceOnUse">
+      <rect width="4" height="1.5" fill="#1A1712" fill-opacity="0.24"/>
+    </pattern>
+  </defs>
+
+  <!-- Desk -->
+  <rect width="600" height="280" fill="#F3EEE3"/>
+  <rect width="600" height="280" filter="url(#grain)"/>
+
+  <!-- Context capsule -->
+  <rect x="300" y="8" width="112" height="17" rx="8.5" fill="#1A1712"/>
+  <rect x="298" y="6" width="112" height="17" rx="8.5" fill="#FBF8F1" stroke="#1A1712" stroke-width="2"/>
+  <rect x="306" y="10.5" width="7" height="7" fill="#EB4E2C" stroke="#1A1712" stroke-width="1.5"/>
+  <rect x="318" y="11.5" width="82" height="6" rx="1.5" fill="#1A1712"/>
+
+  <!-- Rail: inked discs on offsets; the open server is a blue tile -->
+  <g stroke="#1A1712" stroke-width="2">
+    <rect x="20" y="33" width="26" height="26" rx="7" fill="#1A1712"/>
+    <rect x="17" y="30" width="26" height="26" rx="7" fill="#0EA5E9"/>
+    <circle cx="33" cy="84" r="13" fill="#1A1712"/>
+    <circle cx="30" cy="81" r="13" fill="#FBF8F1"/>
+    <circle cx="33" cy="120" r="13" fill="#1A1712"/>
+    <circle cx="30" cy="117" r="13" fill="#FFE45C"/>
+    <circle cx="33" cy="156" r="13" fill="#1A1712"/>
+    <circle cx="30" cy="153" r="13" fill="#FBF8F1"/>
+  </g>
+  <rect x="38" y="104" width="8" height="8" fill="#EB4E2C" stroke="#1A1712" stroke-width="1.5"/>
+
+  <!-- Channels on the desk -->
+  <rect x="62" y="32" width="96" height="10" rx="2" fill="#1A1712"/>
+  <rect x="58" y="48" width="118" height="2" fill="#1A1712"/>
+  <rect x="64" y="60" width="6" height="6" fill="#EB4E2C" stroke="#1A1712" stroke-width="1.2"/>
+  <rect x="75" y="61" width="30" height="4" rx="1" fill="#4A443A"/>
+  <rect x="64" y="73" width="70" height="5" rx="2" fill="#4A443A"/>
+  <rect x="60" y="83" width="114" height="15" rx="3" fill="#FFE45C"/>
+  <rect x="66" y="88" width="58" height="5" rx="2" fill="#1A1712"/>
+  <rect x="64" y="105" width="56" height="5" rx="2" fill="#4A443A"/>
+  <rect x="64" y="118" width="78" height="5" rx="2" fill="#1A1712"/>
+  <rect x="163" y="117" width="7" height="7" fill="#EB4E2C" stroke="#1A1712" stroke-width="1.5"/>
+  <rect x="64" y="137" width="6" height="6" fill="#EB4E2C" stroke="#1A1712" stroke-width="1.2"/>
+  <rect x="75" y="138" width="26" height="4" rx="1" fill="#4A443A"/>
+  <rect x="64" y="150" width="62" height="5" rx="2" fill="#4A443A"/>
+
+  <!-- User panel -->
+  <rect x="13" y="239" width="160" height="30" rx="8" fill="#1A1712"/>
+  <rect x="10" y="236" width="160" height="30" rx="8" fill="#FBF8F1" stroke="#1A1712" stroke-width="2"/>
+  <circle cx="26" cy="251" r="9" fill="#CFE9F6" stroke="#1A1712" stroke-width="2"/>
+  <rect x="42" y="245" width="44" height="5" rx="2" fill="#1A1712"/>
+  <rect x="42" y="254" width="30" height="4" rx="1" fill="#635C4F"/>
+
+  <!-- Chat window: header is the title bar -->
+  <rect x="192" y="36" width="398" height="236" rx="9" fill="#1A1712"/>
+  <rect x="186" y="30" width="398" height="236" rx="9" fill="#FBF8F1" stroke="#1A1712" stroke-width="2"/>
+  <text x="198" y="54" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="15" fill="#4A443A">#</text>
+  <rect x="212" y="43" width="56" height="9" rx="2" fill="#1A1712"/>
+  <rect x="274" y="45" width="60" height="5" rx="2" fill="#4A443A"/>
+  <rect x="342" y="42" width="168" height="12" fill="url(#stripes)"/>
+  <g fill="none" stroke="#4A443A" stroke-width="1.8">
+    <circle cx="526" cy="48" r="4.5"/>
+    <path d="M541 44 h9 M541 48 h9 M541 52 h9"/>
+    <circle cx="566" cy="48" r="4.5"/>
+  </g>
+  <rect x="187" y="61" width="396" height="2" fill="#1A1712"/>
+
+  <!-- Members column -->
+  <rect x="502" y="63" width="81" height="202" fill="#F3EEE3"/>
+  <rect x="502" y="63" width="2" height="202" fill="#D8CFBD"/>
+  <rect x="512" y="74" width="5" height="5" fill="#EB4E2C" stroke="#1A1712" stroke-width="1"/>
+  <rect x="521" y="75" width="30" height="3.5" rx="1" fill="#4A443A"/>
+  <circle cx="518" cy="94" r="6.5" fill="#FFE45C" stroke="#1A1712" stroke-width="1.8"/>
+  <rect x="529" y="91" width="40" height="5" rx="2" fill="#1A1712"/>
+  <circle cx="518" cy="112" r="6.5" fill="#CFE9F6" stroke="#1A1712" stroke-width="1.8"/>
+  <rect x="529" y="109" width="34" height="5" rx="2" fill="#1A1712"/>
+  <circle cx="518" cy="130" r="6.5" fill="#FBD9CE" stroke="#1A1712" stroke-width="1.8"/>
+  <rect x="529" y="127" width="44" height="5" rx="2" fill="#4A443A"/>
+
+  <!-- Messages -->
+  <circle cx="208" cy="82" r="9" fill="#CFE9F6" stroke="#1A1712" stroke-width="2"/>
+  <rect x="224" y="74" width="36" height="5.5" rx="2" fill="#1A1712"/>
+  <rect x="265" y="75" width="18" height="4" rx="1" fill="#635C4F"/>
+  <rect x="224" y="85" width="170" height="5" rx="2" fill="#4A443A"/>
+
+  <!-- A message that mentions you -->
+  <rect x="187" y="100" width="315" height="30" fill="#FFE45C" fill-opacity="0.3"/>
+  <rect x="187" y="100" width="3" height="30" fill="#EB4E2C"/>
+  <circle cx="208" cy="114" r="9" fill="#FBD9CE" stroke="#1A1712" stroke-width="2"/>
+  <rect x="224" y="106" width="30" height="5.5" rx="2" fill="#1A1712"/>
+  <rect x="259" y="107" width="18" height="4" rx="1" fill="#635C4F"/>
+  <rect x="224" y="117" width="28" height="7" rx="1.5" fill="#FFE45C"/>
+  <rect x="227" y="118.5" width="22" height="4" rx="1" fill="#1A1712"/>
+  <rect x="256" y="118" width="112" height="5" rx="2" fill="#4A443A"/>
+
+  <!-- Code on a dark screen -->
+  <circle cx="208" cy="146" r="9" fill="#FFE45C" stroke="#1A1712" stroke-width="2"/>
+  <rect x="224" y="138" width="40" height="5.5" rx="2" fill="#1A1712"/>
+  <rect x="227" y="154" width="200" height="44" rx="6" fill="#1A1712"/>
+  <rect x="224" y="151" width="200" height="44" rx="6" fill="#15171C" stroke="#1A1712" stroke-width="2"/>
+  <rect x="233" y="160" width="30" height="4" rx="1" fill="#38BDF8"/>
+  <rect x="267" y="160" width="58" height="4" rx="1" fill="#ECEEF1"/>
+  <rect x="241" y="170" width="44" height="4" rx="1" fill="#3DDC97"/>
+  <rect x="289" y="170" width="38" height="4" rx="1" fill="#F5B841"/>
+  <rect x="233" y="180" width="64" height="4" rx="1" fill="#8A93A0"/>
+
+  <!-- Reactions -->
+  <rect x="226" y="205" width="30" height="13" rx="4" fill="#1A1712"/>
+  <rect x="224" y="203" width="30" height="13" rx="4" fill="#CFE9F6" stroke="#1A1712" stroke-width="1.5"/>
+  <circle cx="232" cy="209.5" r="3" fill="#EB4E2C"/>
+  <rect x="238" y="208" width="10" height="3.5" rx="1" fill="#1A1712"/>
+  <rect x="260" y="203" width="28" height="13" rx="4" fill="#FBF8F1" stroke="#1A1712" stroke-width="1.5"/>
+  <circle cx="268" cy="209.5" r="3" fill="#0EA5E9"/>
+  <rect x="274" y="208" width="9" height="3.5" rx="1" fill="#1A1712"/>
+
+  <!-- Composer -->
+  <rect x="201" y="234" width="292" height="22" rx="7" fill="#1A1712"/>
+  <rect x="198" y="231" width="292" height="22" rx="7" fill="#FBF8F1" stroke="#1A1712" stroke-width="2"/>
+  <rect x="204" y="236" width="12" height="12" rx="3" fill="#1A1712"/>
+  <path d="M210 239 v6 M207 242 h6" stroke="#FBF8F1" stroke-width="1.6"/>
+  <rect x="222" y="240" width="74" height="4" rx="1" fill="#635C4F"/>
+
+  <!-- A dialog window: striped strip, close box, hard shadow -->
+  <rect x="384" y="146" width="168" height="98" rx="8" fill="#1A1712"/>
+  <rect x="376" y="138" width="168" height="98" rx="8" fill="#FBF8F1" stroke="#1A1712" stroke-width="2"/>
+  <rect x="377" y="157" width="166" height="2" fill="#1A1712"/>
+  <rect x="382" y="142" width="12" height="12" rx="1" fill="#FBF8F1" stroke="#1A1712" stroke-width="1.8"/>
+  <path d="M385.5 145.5 l5 5 M390.5 145.5 l-5 5" stroke="#1A1712" stroke-width="1.4"/>
+  <rect x="400" y="143" width="138" height="10" fill="url(#stripes)"/>
+  <rect x="386" y="168" width="78" height="9" rx="2" fill="#1A1712"/>
+  <rect x="386" y="183" width="120" height="4" rx="1" fill="#4A443A"/>
+  <rect x="386" y="191" width="96" height="4" rx="1" fill="#4A443A"/>
+  <rect x="436" y="210" width="44" height="16" rx="4" fill="#1A1712"/>
+  <rect x="434" y="208" width="44" height="16" rx="4" fill="#FBF8F1" stroke="#1A1712" stroke-width="1.8"/>
+  <rect x="442" y="214" width="28" height="4" rx="1" fill="#1A1712"/>
+  <rect x="488" y="210" width="48" height="16" rx="4" fill="#1A1712"/>
+  <rect x="486" y="208" width="48" height="16" rx="4" fill="#0EA5E9" stroke="#1A1712" stroke-width="1.8"/>
+  <rect x="494" y="214" width="32" height="4" rx="1" fill="#1A1712"/>
+</svg>
