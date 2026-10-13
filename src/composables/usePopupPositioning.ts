@@ -5,6 +5,7 @@
 
 import { computed, ref, type Ref } from 'vue';
 import { debug } from '@/utils/debug'
+import { styleRect, styleViewport } from '@/utils/appZoom'
 
 export type PopupPosition = 'above' | 'below' | 'left' | 'right' | 'auto';
 export type PopupPositionKey = 'above' | 'below' | 'left' | 'right';
@@ -62,8 +63,9 @@ export function calculatePopupPosition(
     };
   }
 
-  const triggerRect = triggerElement.getBoundingClientRect();
+  const triggerRect = styleRect(triggerElement);
   const { width: popupWidth, height: popupHeight } = popupDimensions;
+  const { width: viewportWidth, height: viewportHeight } = styleViewport();
   
   const positions = {
     above: {
@@ -91,16 +93,16 @@ export function calculatePopupPosition(
   const fitsInViewport = (pos: PopupPositionResult) => {
     return pos.x >= viewport.padding &&
            pos.y >= viewport.padding &&
-           pos.x + popupWidth <= window.innerWidth - viewport.padding &&
-           pos.y + popupHeight <= window.innerHeight - viewport.padding;
+           pos.x + popupWidth <= viewportWidth - viewport.padding &&
+           pos.y + popupHeight <= viewportHeight - viewport.padding;
   };
 
   // If specific position requested and it fits, use it
   if (position !== 'auto' && positions[position] && fitsInViewport(positions[position])) {
     const result = positions[position];
     return {
-      x: Math.max(viewport.padding, Math.min(result.x, window.innerWidth - popupWidth - viewport.padding)),
-      y: Math.max(viewport.padding, Math.min(result.y, window.innerHeight - popupHeight - viewport.padding)),
+      x: Math.max(viewport.padding, Math.min(result.x, viewportWidth - popupWidth - viewport.padding)),
+      y: Math.max(viewport.padding, Math.min(result.y, viewportHeight - popupHeight - viewport.padding)),
       actualPosition: result.actualPosition
     };
   }
@@ -117,8 +119,8 @@ export function calculatePopupPosition(
   // No position fits perfectly, use the best fit with viewport clamping
   const bestFit = positions.above; // Default to above
   return {
-    x: Math.max(viewport.padding, Math.min(bestFit.x, window.innerWidth - popupWidth - viewport.padding)),
-    y: Math.max(viewport.padding, Math.min(bestFit.y, window.innerHeight - popupHeight - viewport.padding)),
+    x: Math.max(viewport.padding, Math.min(bestFit.x, viewportWidth - popupWidth - viewport.padding)),
+    y: Math.max(viewport.padding, Math.min(bestFit.y, viewportHeight - popupHeight - viewport.padding)),
     actualPosition: bestFit.actualPosition
   };
 }
@@ -144,7 +146,7 @@ export interface ComposerAnchorOptions {
  * composer's top, sides inset `edge` px from the composer's sides. Height
  * fills the space up to the safe area, clamped to [minHeight, maxHeight].
  * Below minHeight of room the picker rises past the safe area instead of
- * covering the composer. All values in layout-viewport px.
+ * covering the composer. All values in CSS px.
  */
 export function calculateComposerAnchoredRect(
   composer: { top: number; left: number; right: number },

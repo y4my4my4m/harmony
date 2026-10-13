@@ -46,7 +46,7 @@ const emit = defineEmits<{ close: [reason: MenuCloseReason] }>()
 .chat-menu {
   min-width: 200px;
   max-width: 280px;
-  max-height: calc(100vh - 16px);
+  max-height: calc(100 * var(--app-vh) - 16px);
   overflow-y: auto;
   padding: 6px;
   background: var(--background-floating);

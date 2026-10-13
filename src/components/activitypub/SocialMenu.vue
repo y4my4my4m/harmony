@@ -40,6 +40,7 @@
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useMenu, type MenuCloseReason } from '@/composables/useMenu'
 import { focusElement } from '@/utils/a11y/focus'
+import { styleRect, styleViewport } from '@/utils/appZoom'
 
 defineOptions({ inheritAttrs: false })
 
@@ -96,19 +97,20 @@ onMounted(() => {
   }
   const el = menuEl.value
   if (!el || !props.anchor) return
-  const r = el.getBoundingClientRect()
-  const a = props.anchor.getBoundingClientRect()
+  const r = styleRect(el)
+  const a = styleRect(props.anchor)
+  const viewport = styleViewport()
   const below = a.bottom + GAP
   const above = a.top - r.height - GAP
-  const fitsBelow = below + r.height <= window.innerHeight - EDGE
+  const fitsBelow = below + r.height <= viewport.height - EDGE
   const fitsAbove = above >= EDGE
   const y = props.placement === 'above'
     ? (fitsAbove || !fitsBelow ? above : below)
     : (fitsBelow || !fitsAbove ? below : above)
   const x = props.align === 'end' ? a.right - r.width : a.left
   pos.value = {
-    x: Math.max(EDGE, Math.min(x, window.innerWidth - r.width - EDGE)),
-    y: Math.max(EDGE, Math.min(y, window.innerHeight - r.height - EDGE)),
+    x: Math.max(EDGE, Math.min(x, viewport.width - r.width - EDGE)),
+    y: Math.max(EDGE, Math.min(y, viewport.height - r.height - EDGE)),
   }
 })
 
@@ -124,7 +126,7 @@ defineExpose({ element: menuEl })
   position: fixed;
   z-index: 10003;
   min-width: 180px;
-  max-width: min(320px, calc(100vw - 16px));
+  max-width: min(320px, calc(100 * var(--app-vw) - 16px));
   padding: var(--space-1);
   background-color: var(--background-floating, var(--background-primary));
   border: 1px solid var(--border-primary);

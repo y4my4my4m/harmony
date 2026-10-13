@@ -106,6 +106,7 @@ import {
   type Box,
   type Point,
 } from '@/utils/floatingVideoGeometry';
+import { cssZoom, styleViewport, toStylePx } from '@/utils/appZoom';
 
 const { t } = useI18n();
 const voiceStore = useUnifiedVoiceChannelStore();
@@ -127,7 +128,7 @@ const showReactions = ref(false);
 const aspect = ref(16 / 9);
 const width = ref(420);
 const position = ref<Point | null>(null);
-const viewport = ref<Box>({ left: 0, top: 0, width: window.innerWidth, height: window.innerHeight });
+const viewport = ref<Box>({ left: 0, top: 0, ...styleViewport() });
 
 const pipParticipant = computed(() => {
   if (!voiceStore.pipUserId) return null;
@@ -192,7 +193,8 @@ function onVideoMetadata(): void {
 }
 
 // One pointer, captured, until release or cancel. Movement under
-// `threshold` px never starts the gesture. Mirrors FloatingVideoPlayer.
+// `threshold` viewport px never starts the gesture; `move` receives CSS px.
+// Mirrors FloatingVideoPlayer.
 function trackPointer(
   e: PointerEvent,
   threshold: number,
@@ -212,7 +214,7 @@ function trackPointer(
       active = true;
       handlers.start();
     }
-    handlers.move(dx, dy);
+    handlers.move(toStylePx(dx), toStylePx(dy));
   };
   const onEnd = (ev: PointerEvent) => {
     if (ev.pointerId !== pointerId || finished) return;
@@ -270,9 +272,10 @@ function onGripPointerDown(e: PointerEvent): void {
 
 function onViewportChange(): void {
   const vv = window.visualViewport;
+  const z = cssZoom();
   viewport.value = vv
-    ? { left: vv.offsetLeft, top: vv.offsetTop, width: vv.width, height: vv.height }
-    : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+    ? { left: vv.offsetLeft / z, top: vv.offsetTop / z, width: vv.width / z, height: vv.height / z }
+    : { left: 0, top: 0, ...styleViewport() };
 }
 
 // VIDEO

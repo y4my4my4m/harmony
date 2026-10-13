@@ -930,8 +930,8 @@ const createServer = async () => {
   .create-server-modal {
     max-width: none;
     max-height: none;
-    height: 100vh;
-    height: 100dvh;
+    height: calc(100 * var(--app-vh));
+    height: calc(100 * var(--app-dvh));
     border: none;
     border-radius: 0;
     padding-top: env(safe-area-inset-top, 0px);

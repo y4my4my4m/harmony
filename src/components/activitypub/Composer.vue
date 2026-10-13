@@ -1009,7 +1009,7 @@ watch(() => props.replyToPost, (replyPost) => {
   border-radius: 1rem;
   max-width: 600px;
   width: 100%;
-  max-height: 90vh;
+  max-height: calc(90 * var(--app-vh));
   overflow-y: auto;
   border: 1px solid var(--border-primary);
 }
@@ -1397,7 +1397,7 @@ watch(() => props.replyToPost, (replyPost) => {
 }
 
 :global(.composer-visibility-menu) {
-  width: min(280px, calc(100vw - 16px));
+  width: min(280px, calc(100 * var(--app-vw) - 16px));
 }
 
 .visibility-option {
@@ -1536,7 +1536,7 @@ watch(() => props.replyToPost, (replyPost) => {
   }
 
   .composer-modal {
-    max-height: 85vh;
+    max-height: calc(85 * var(--app-vh));
     height: auto;
     max-width: 100%;
     border-radius: 1rem;

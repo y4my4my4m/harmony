@@ -115,7 +115,7 @@ watch(testText, (newValue) => {
   padding: 20px;
   color: var(--h-text, #ffffff);
   background: var(--h-bg, var(--background-secondary));
-  min-height: 100vh;
+  min-height: calc(100 * var(--app-vh));
 }
 
 .demo-section {

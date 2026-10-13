@@ -716,8 +716,8 @@ export default defineComponent({
 <style scoped>
 .settings-overlay {
   position: static;
-  width: 100vw;
-  height: 100vh;
+  width: calc(100 * var(--app-vw));
+  height: calc(100 * var(--app-vh));
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(8px);
   display: flex;
@@ -731,9 +731,9 @@ export default defineComponent({
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-primary);
   box-shadow: var(--shadow-modal);
-  width: 90vw;
+  width: calc(90 * var(--app-vw));
   max-width: 600px;
-  max-height: 80vh;
+  max-height: calc(80 * var(--app-vh));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1152,8 +1152,8 @@ kbd {
 /* Tablet */
 @media (max-width: 768px) {
   .settings-panel {
-    width: 95vw;
-    max-height: 90vh;
+    width: calc(95 * var(--app-vw));
+    max-height: calc(90 * var(--app-vh));
   }
   
   .settings-header {

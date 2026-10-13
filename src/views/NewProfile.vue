@@ -514,8 +514,8 @@ async function finishSetup(userId: string, created: unknown) {
 
 <style scoped>
 .new-profile-page {
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: calc(100 * var(--app-vh));
+  min-height: calc(100 * var(--app-dvh));
   width: 100%;
   display: flex;
   align-items: flex-start;

@@ -16,7 +16,7 @@
     :data-source="source"
     @click="onTileClick"
     @dblclick="emit('request-fullscreen')"
-    @contextmenu.prevent="openMenuAt($event.clientX, $event.clientY)"
+    @contextmenu.prevent="openMenuAtPointer($event)"
     @keydown.enter.self.prevent="onTileClick"
     @keydown.shift.f10.prevent="openMenuFromKeyboard"
     @keydown.context-menu.prevent="openMenuFromKeyboard"
@@ -206,6 +206,7 @@ import { getBannerUrl } from '@/utils/bannerUtils';
 import { participantLabel, useHeldFlag } from './participantLabel';
 import { restoreFocusIfLost } from './voiceFocus';
 import { withRenderFallback } from '@/utils/renderFallback';
+import { stylePoint, styleRect } from '@/utils/appZoom';
 
 const props = withDefaults(defineProps<{
   userState: UserMediaState;
@@ -369,14 +370,19 @@ const openMenuFromButton = () => {
     showContextMenu.value = false;
     return;
   }
-  const rect = moreButton.value?.getBoundingClientRect();
-  if (!rect) return;
+  if (!moreButton.value) return;
+  const rect = styleRect(moreButton.value);
   openMenuAt(rect.left, rect.bottom + 4);
 };
 
 const openMenuFromKeyboard = (event: KeyboardEvent) => {
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  const rect = styleRect(event.currentTarget as HTMLElement);
   openMenuAt(rect.left + rect.width / 2, rect.top + rect.height / 2);
+};
+
+const openMenuAtPointer = (event: MouseEvent) => {
+  const p = stylePoint(event);
+  openMenuAt(p.x, p.y);
 };
 
 let menuOpener: HTMLElement | null = null;

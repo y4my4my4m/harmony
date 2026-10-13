@@ -506,6 +506,7 @@ import { isMobileUserAgent } from '@/utils/platform';
 import { uid } from '@/utils/a11y/focus';
 import { useI18n } from 'vue-i18n';
 import { focusAfterVoiceLeave, restoreFocusIfLost } from './voiceFocus';
+import { stylePoint, styleRect, styleViewport } from '@/utils/appZoom';
 
 const { t } = useI18n();
 
@@ -796,7 +797,7 @@ const onDockShareButton = () => {
     showStreamPicker.value = false;
     return;
   }
-  const r = dockShareButtonRef.value?.getBoundingClientRect();
+  const r = dockShareButtonRef.value ? styleRect(dockShareButtonRef.value) : null;
   streamPickerAnchor.value = r ? { left: r.left, top: r.top, width: r.width, height: r.height } : null;
   showStreamPicker.value = true;
 };
@@ -984,18 +985,17 @@ const startDrag = (e: MouseEvent | TouchEvent) => {
   // Dimensions cached once; move handler must not hit the layout.
   const container = minimizedContainerRef.value;
   if (container) {
-    const rect = container.getBoundingClientRect();
+    const rect = styleRect(container);
     containerDimensions.value = { width: rect.width, height: rect.height };
   }
   
-  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+  const pointer = stylePoint('touches' in e ? e.touches[0] : e);
   
-  dragInitialMousePos.value = { x: clientX, y: clientY };
+  dragInitialMousePos.value = { x: pointer.x, y: pointer.y };
   
   dragStartPos.value = {
-    x: clientX - minimizedPosition.value.left,
-    y: window.innerHeight - clientY - minimizedPosition.value.bottom
+    x: pointer.x - minimizedPosition.value.left,
+    y: styleViewport().height - pointer.y - minimizedPosition.value.bottom
   };
   
   // passive: false is required for preventDefault in the move handler.
@@ -1018,11 +1018,10 @@ const handleDrag = (e: MouseEvent | TouchEvent) => {
   
   e.preventDefault();
   
-  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+  const pointer = stylePoint('touches' in e ? e.touches[0] : e);
   
-  const deltaX = Math.abs(clientX - dragInitialMousePos.value.x);
-  const deltaY = Math.abs(clientY - dragInitialMousePos.value.y);
+  const deltaX = Math.abs(pointer.x - dragInitialMousePos.value.x);
+  const deltaY = Math.abs(pointer.y - dragInitialMousePos.value.y);
   const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
   
   if (distance > CLICK_THRESHOLD) {
@@ -1036,12 +1035,12 @@ const handleDrag = (e: MouseEvent | TouchEvent) => {
   rafId = requestAnimationFrame(() => {
     if (!isDragging.value) return;
     
-    const newLeft = clientX - dragStartPos.value.x;
-    const newBottom = window.innerHeight - clientY - dragStartPos.value.y;
+    const newLeft = pointer.x - dragStartPos.value.x;
+    const newBottom = styleViewport().height - pointer.y - dragStartPos.value.y;
     
     // Clamp to viewport.
-    const maxLeft = window.innerWidth - containerDimensions.value.width;
-    const maxBottom = window.innerHeight - containerDimensions.value.height;
+    const maxLeft = styleViewport().width - containerDimensions.value.width;
+    const maxBottom = styleViewport().height - containerDimensions.value.height;
     
     minimizedPosition.value = {
       left: Math.max(0, Math.min(newLeft, maxLeft)),
@@ -1162,22 +1161,21 @@ const startDockDrag = (e: MouseEvent | TouchEvent) => {
   // Dimensions cached once; move handler must not hit the layout.
   const container = dockContainerRef.value;
   if (container) {
-    const rect = container.getBoundingClientRect();
+    const rect = styleRect(container);
     dockContainerDimensions.value = { width: rect.width, height: rect.height };
   }
   
-  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+  const pointer = stylePoint('touches' in e ? e.touches[0] : e);
   
-  dockDragInitialMousePos.value = { x: clientX, y: clientY };
+  dockDragInitialMousePos.value = { x: pointer.x, y: pointer.y };
   
   const currentLeft = dockPosition.value.left === 0 
-    ? window.innerWidth / 2 - (dockContainerDimensions.value.width / 2)
+    ? styleViewport().width / 2 - (dockContainerDimensions.value.width / 2)
     : dockPosition.value.left;
   
   dockDragStartPos.value = {
-    x: clientX - currentLeft,
-    y: window.innerHeight - clientY - dockPosition.value.bottom
+    x: pointer.x - currentLeft,
+    y: styleViewport().height - pointer.y - dockPosition.value.bottom
   };
   
   // passive: false is required for preventDefault in the move handler.
@@ -1200,11 +1198,10 @@ const handleDockDrag = (e: MouseEvent | TouchEvent) => {
   
   e.preventDefault();
   
-  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+  const pointer = stylePoint('touches' in e ? e.touches[0] : e);
   
-  const deltaX = Math.abs(clientX - dockDragInitialMousePos.value.x);
-  const deltaY = Math.abs(clientY - dockDragInitialMousePos.value.y);
+  const deltaX = Math.abs(pointer.x - dockDragInitialMousePos.value.x);
+  const deltaY = Math.abs(pointer.y - dockDragInitialMousePos.value.y);
   const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
   
   if (distance > CLICK_THRESHOLD) {
@@ -1218,12 +1215,12 @@ const handleDockDrag = (e: MouseEvent | TouchEvent) => {
   dockRafId = requestAnimationFrame(() => {
     if (!isDockDragging.value) return;
     
-    const newLeft = clientX - dockDragStartPos.value.x;
-    const newBottom = window.innerHeight - clientY - dockDragStartPos.value.y;
+    const newLeft = pointer.x - dockDragStartPos.value.x;
+    const newBottom = styleViewport().height - pointer.y - dockDragStartPos.value.y;
     
     // Clamp to viewport.
-    const maxLeft = window.innerWidth - dockContainerDimensions.value.width;
-    const maxBottom = window.innerHeight - dockContainerDimensions.value.height;
+    const maxLeft = styleViewport().width - dockContainerDimensions.value.width;
+    const maxBottom = styleViewport().height - dockContainerDimensions.value.height;
     
     dockPosition.value = {
       left: Math.max(0, Math.min(newLeft, maxLeft)),
@@ -1262,10 +1259,10 @@ const stopDockDrag = () => {
   // Snap to default on release, desktop only.
   if (isDesktop.value) {
     const currentLeft = dockPosition.value.left === 0 
-      ? window.innerWidth / 2 - (dockContainerDimensions.value.width / 2)
+      ? styleViewport().width / 2 - (dockContainerDimensions.value.width / 2)
       : dockPosition.value.left;
     
-    const centerX = window.innerWidth / 2 - dockContainerDimensions.value.width / 2;
+    const centerX = styleViewport().width / 2 - dockContainerDimensions.value.width / 2;
     const distanceToDefault = Math.sqrt(
       Math.pow(currentLeft - centerX, 2) + 
       Math.pow(dockPosition.value.bottom - DEFAULT_DOCK_POSITION.bottom, 2)
@@ -2299,7 +2296,7 @@ onUnmounted(() => {
 
 .dock-banner {
   width: max-content;
-  max-width: min(420px, calc(100vw - 16px));
+  max-width: min(420px, calc(100 * var(--app-vw) - 16px));
 }
 
 /* No banner: out of the layout, but the status region inside stays in the
@@ -2317,7 +2314,7 @@ onUnmounted(() => {
 }
 
 .dock-soundboard-activity {
-  max-width: min(420px, calc(100vw - 16px));
+  max-width: min(420px, calc(100 * var(--app-vw) - 16px));
 }
 
 .dock-quality-warn {

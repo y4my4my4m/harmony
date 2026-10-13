@@ -860,6 +860,7 @@ import MessageReactions from '@/components/MessageReactions.vue';
 import MessageContextMenu from '@/components/MessageContextMenu.vue';
 import LightboxDownloadButton from '@/components/common/LightboxDownloadButton.vue';
 import { shouldAllowNativeContextMenu } from '@/utils/nativeContextMenu';
+import { stylePoint, styleRect, styleViewport } from '@/utils/appZoom';
 import ReportModal from '@/components/moderation/ReportModal.vue';
 import SupporterBadge from '@/components/common/SupporterBadge.vue';
 import { fundingService } from '@/services/FundingService';
@@ -1299,9 +1300,10 @@ const THUMB_REACH_PX = 48;
 const floatingActionsStyle = computed((): Record<string, string> => {
   const pos = mobileActionTapPosition.value;
   if (!pos || typeof window === 'undefined') return {};
-  const bottomPx = Math.max(8, window.innerHeight - pos.y + THUMB_REACH_PX);
+  const viewport = styleViewport();
+  const bottomPx = Math.max(8, viewport.height - pos.y + THUMB_REACH_PX);
   const popupWidth = 220;
-  const leftPx = Math.max(popupWidth / 2, Math.min(pos.x, window.innerWidth - popupWidth / 2));
+  const leftPx = Math.max(popupWidth / 2, Math.min(pos.x, viewport.width - popupWidth / 2));
   return {
     left: `${leftPx}px`,
     bottom: `${bottomPx}px`,
@@ -1685,11 +1687,12 @@ const handleMessageTouchStart = (messageId: string, event: TouchEvent) => {
   if (outbox.has(messageId) || isReactionTouch(event)) return;
   const touch = event.touches[0];
   const tapPos = touch ? { x: touch.clientX, y: touch.clientY } : null;
+  const tapStylePos = touch ? stylePoint(touch) : null;
   longPressStartPos = tapPos;
   longPressTimer.value = setTimeout(() => {
     longPressTimer.value = null;
     hoveredMessageId.value = messageId;
-    mobileActionTapPosition.value = tapPos;
+    mobileActionTapPosition.value = tapStylePos;
     triggerInteraction();
   }, LONG_PRESS_DURATION);
 };
@@ -1914,7 +1917,7 @@ const jumpToDivider = () => {
       if (!c || generation !== seatGeneration) return;
       const line = c.querySelector('.new-messages-divider');
       if (line) {
-        const delta = line.getBoundingClientRect().top - c.getBoundingClientRect().top - CONTEXT_NUDGE_PX;
+        const delta = styleRect(line).top - styleRect(c).top - CONTEXT_NUDGE_PX;
         c.scrollTop = Math.max(0, c.scrollTop + delta);
       }
       if (attempts < 6) setTimeout(seat, attempts < 3 ? 50 : 150);
@@ -1957,10 +1960,10 @@ const updateActionBarShift = () => {
     return;
   }
   // Resting box: the shift moves the bar horizontally only.
-  const a = bar.getBoundingClientRect();
-  const right = item.getBoundingClientRect().right;
+  const a = styleRect(bar);
+  const right = styleRect(item).right;
   const left = right - a.width;
-  const b = btn.getBoundingClientRect();
+  const b = styleRect(btn);
   const overlaps = left < b.right && b.left < right && a.top < b.bottom && b.top < a.bottom;
   actionBarShift.value = overlaps ? Math.ceil(right - b.left + ACTION_BAR_GAP_PX) : 0;
 };
@@ -2007,7 +2010,7 @@ const adjustForItemResize = (item: VirtualItem, delta: number): boolean => {
   const el = messageDisplayContainer.value;
   const list = virtualListRef.value;
   if (!el || !list || pinState.pinned) return false;
-  const listOffset = list.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
+  const listOffset = styleRect(list).top - styleRect(el).top + el.scrollTop;
   return correctForItemResize(el, listOffset, item.start, delta);
 };
 
@@ -2187,8 +2190,8 @@ const roving = useRovingTabindex(virtualListRef, {
 const revealRow = (el: HTMLElement) => {
   const c = messageDisplayContainer.value;
   if (!c) return;
-  const box = el.getBoundingClientRect();
-  const view = c.getBoundingClientRect();
+  const box = styleRect(el);
+  const view = styleRect(c);
   const margin = 8;
   if (box.top < view.top + margin || box.height > view.height - 2 * margin) c.scrollTop += box.top - view.top - margin;
   else if (box.bottom > view.bottom - margin) c.scrollTop += box.bottom - view.bottom + margin;
@@ -2243,7 +2246,7 @@ const activateRow = (item: DisplayItem, row: HTMLElement) => {
     return;
   }
   if (isOptimisticId(item.message.id)) return;
-  const box = row.getBoundingClientRect();
+  const box = styleRect(row);
   showContextMenu(item.message, box.left + 56, box.top + Math.min(box.height, 24), row);
 };
 
@@ -2774,8 +2777,8 @@ watch(() => props.messages, (newMessages) => {
               const c = messageDisplayContainer.value;
               const placeholder = c?.querySelector('.floating-video-placeholder') as HTMLElement | null;
               if (c && placeholder) {
-                const box = placeholder.getBoundingClientRect();
-                const view = c.getBoundingClientRect();
+                const box = styleRect(placeholder);
+                const view = styleRect(c);
                 c.scrollTop += box.top + box.height / 2 - (view.top + view.height / 2);
               }
               if (returnScrollAttempts < 6) setTimeout(scrollToReturn, returnScrollAttempts < 3 ? 50 : 150);
@@ -3197,8 +3200,8 @@ const jumpToMessageRow = (messageId: string): boolean => {
       const c = messageDisplayContainer.value;
       const el = document.getElementById(`message-${messageId}`);
       if (c && el) {
-        const box = el.getBoundingClientRect();
-        const view = c.getBoundingClientRect();
+        const box = styleRect(el);
+        const view = styleRect(c);
         c.scrollTop += box.height > view.height - CONTEXT_NUDGE_PX
           ? box.top - view.top - CONTEXT_NUDGE_PX
           : box.top + box.height / 2 - (view.top + view.height / 2);
@@ -4034,11 +4037,12 @@ const openContextMenu = (message: Message, event: MouseEvent) => {
     ? event.detail === 0
     : event.clientX === 0 && event.clientY === 0;
   if (fromKeyboard && trigger) {
-    const box = trigger.getBoundingClientRect();
+    const box = styleRect(trigger);
     showContextMenu(message, box.left, box.bottom + 4, trigger);
     return;
   }
-  showContextMenu(message, event.clientX, event.clientY, trigger);
+  const point = stylePoint(event);
+  showContextMenu(message, point.x, point.y, trigger);
 };
 
 // Native right-click on a message row opens the same context menu as the
@@ -4864,7 +4868,7 @@ defineExpose({ editLastOwnMessage });
     /* inline-flex ignores text-overflow. */
     display: inline-block;
     vertical-align: bottom;
-    max-width: 40vw;
+    max-width: calc(40 * var(--app-vw));
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

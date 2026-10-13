@@ -510,6 +510,7 @@ import { threadService, type ThreadWithDetails } from '@/services/ThreadService'
 import { useThreadsStore, isOptimisticThreadId } from '@/stores/useThreads';
 import { useUnreadCounts } from '@/composables/useUnreadCounts';
 import { supabase } from '@/supabase';
+import { stylePoint, styleRect } from '@/utils/appZoom';
 
 import draggable from "vuedraggable";
 
@@ -1158,7 +1159,7 @@ const openContextMenu = (event: MouseEvent, item: Channel | Category, type: 'cha
     selectedCategory.value = item as Category;
     showCategoryContextMenu.value = true;
   }
-  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
+  contextMenuPosition.value = stylePoint(event);
 };
 
 const openChannelContextMenu = (event: MouseEvent, channel: Channel) => openContextMenu(event, channel, 'channel');
@@ -1178,7 +1179,7 @@ const openThreadContextMenu = (event: MouseEvent, thread: ThreadWithDetails) => 
   contextMenuTrigger.value = event.currentTarget as HTMLElement | null;
   selectedThread.value = thread;
   showThreadContextMenu.value = true;
-  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
+  contextMenuPosition.value = stylePoint(event);
 };
 
 const handleInviteUsers = () => openInviteModal();
@@ -1500,7 +1501,7 @@ watch([() => props.currentChannelId, selectedThreadId], async () => {
 });
 
 const menuPointFor = (el: HTMLElement) => {
-  const r = el.getBoundingClientRect();
+  const r = styleRect(el);
   return { x: r.left + Math.min(24, r.width / 2), y: r.bottom };
 };
 

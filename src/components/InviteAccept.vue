@@ -205,7 +205,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
+  min-height: calc(100 * var(--app-vh));
   padding: 24px;
   background: var(--background-primary);
   background-size: cover;

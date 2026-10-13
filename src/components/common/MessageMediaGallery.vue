@@ -278,7 +278,7 @@ function sourceFor(item: GalleryMediaItem): string | undefined {
   display: block;
   width: auto;
   max-width: 100%;
-  max-height: min(350px, 50vh);
+  max-height: min(350px, 50 * var(--app-vh));
   object-fit: contain;
   background: #000;
   cursor: pointer;
@@ -335,7 +335,7 @@ function sourceFor(item: GalleryMediaItem): string | undefined {
 .message-media-gallery-count-2 {
   grid-template-columns: 1fr 1fr;
   aspect-ratio: 2 / 1;
-  max-height: min(300px, 50vh);
+  max-height: min(300px, 50 * var(--app-vh));
 }
 
 .message-media-gallery-count-2 .message-media-gallery__item:nth-child(1) {
@@ -351,7 +351,7 @@ function sourceFor(item: GalleryMediaItem): string | undefined {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
   aspect-ratio: 4 / 3;
-  max-height: min(300px, 50vh);
+  max-height: min(300px, 50 * var(--app-vh));
 }
 
 .message-media-gallery-count-3 .message-media-gallery__item:first-child {
@@ -372,7 +372,7 @@ function sourceFor(item: GalleryMediaItem): string | undefined {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
   aspect-ratio: 1 / 1;
-  max-height: min(400px, 60vh);
+  max-height: min(400px, 60 * var(--app-vh));
 }
 
 .message-media-gallery-count-4 .message-media-gallery__item:nth-child(1) {
@@ -396,7 +396,7 @@ function sourceFor(item: GalleryMediaItem): string | undefined {
   grid-template-columns: repeat(6, 1fr);
   grid-template-rows: 1fr 1fr;
   aspect-ratio: 3 / 2;
-  max-height: min(320px, 55vh);
+  max-height: min(320px, 55 * var(--app-vh));
 }
 
 .message-media-gallery-count-5 .message-media-gallery__item:nth-child(1) {
@@ -432,14 +432,14 @@ function sourceFor(item: GalleryMediaItem): string | undefined {
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: 1fr 1fr;
   aspect-ratio: 3 / 2;
-  max-height: min(320px, 55vh);
+  max-height: min(320px, 55 * var(--app-vh));
 }
 
 .message-media-gallery-count-7 {
   grid-template-columns: repeat(3, 1fr);
   grid-auto-rows: 1fr;
   aspect-ratio: 3 / 2;
-  max-height: min(360px, 60vh);
+  max-height: min(360px, 60 * var(--app-vh));
 }
 
 .message-media-gallery-count-7 .message-media-gallery__item:first-child {
@@ -452,7 +452,7 @@ function sourceFor(item: GalleryMediaItem): string | undefined {
   grid-template-columns: repeat(3, 1fr);
   grid-auto-rows: 1fr;
   aspect-ratio: 1 / 1;
-  max-height: min(400px, 60vh);
+  max-height: min(400px, 60 * var(--app-vh));
 }
 
 .message-media-gallery-count-8 .message-media-gallery__item:nth-child(1),

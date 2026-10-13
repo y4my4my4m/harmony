@@ -909,7 +909,7 @@ onBeforeUnmount(() => {
   }
   .mobile-profile-overlay .status-dropdown {
     position: fixed;
-    width: 95vw;
+    width: calc(95 * var(--app-vw));
     bottom: 100px;
     margin-top: 8px;
     box-shadow: none;

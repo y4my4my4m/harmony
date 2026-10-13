@@ -21,6 +21,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
 import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
+import { applyAppZoom } from '@/utils/appZoom'
 import { audioThemeService } from '@/services/AudioThemeService'
 import { BUILTIN_SKINS, type SkinScene } from './skins'
 import { setVerboseAnnouncements } from '@/composables/useAnnouncer'
@@ -666,9 +667,7 @@ function applySettings(settings: VisualThemeSettings) {
   applySkinStyles(settings.activeSkinId, settings.customSkinCss)
   syncSkinScene(settings.activeSkinId, skinOptionValues)
   
-  // Apply zoom level. `zoom` is a non-standard CSS property not present on
-  // `CSSStyleDeclaration` in lib.dom, but every browser we target understands it.
-  ;(root.style as any).zoom = `${settings.zoomLevel}%`
+  applyAppZoom(settings.zoomLevel)
   
   if (settings.compactMode) {
     root.setAttribute('data-compact-mode', 'true')

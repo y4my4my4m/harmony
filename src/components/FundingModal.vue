@@ -372,7 +372,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   width: 100%;
   max-width: 480px;
-  max-height: min(85vh, 760px);
+  max-height: min(85 * var(--app-vh), 760px);
   overflow: hidden;
   background: var(--background-primary);
   border: 1px solid var(--border-color);
@@ -842,7 +842,7 @@ onBeforeUnmount(() => {
 
   .funding-modal {
     max-width: none;
-    max-height: 92vh;
+    max-height: calc(92 * var(--app-vh));
     border-bottom: none;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }

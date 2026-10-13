@@ -328,6 +328,7 @@ import { useEmojiPickerA11y } from '@/composables/useEmojiPickerA11y';
 import { useT } from '@/composables/useT';
 import { announce } from '@/composables/useAnnouncer';
 import { uid } from '@/utils/a11y/focus';
+import { stylePoint, styleViewport } from '@/utils/appZoom';
 import { customEmojiLabel, humanizeEmojiName } from '@/utils/a11y/emojiNames';
 
 // --- Types ---
@@ -808,16 +809,16 @@ const emojiCtx = ref<EmojiCtxState>({
 
 function positionCtxMenu(event: MouseEvent | Touch): { x: number; y: number } {
   const menuW = 200, menuH = 120;
-  let x = event.clientX;
-  let y = event.clientY;
+  let { x, y } = stylePoint(event);
   // On touch: position menu well above finger so it's not hidden under the thumb
   const isTouch = !('button' in event);
   if (isTouch) {
     y = Math.max(8, y - menuH - 120);
   }
-  if (x + menuW > window.innerWidth - 8) x = window.innerWidth - menuW - 8;
+  const vp = styleViewport();
+  if (x + menuW > vp.width - 8) x = vp.width - menuW - 8;
   if (x < 8) x = 8;
-  if (y + menuH > window.innerHeight - 8) y = window.innerHeight - menuH - 8;
+  if (y + menuH > vp.height - 8) y = vp.height - menuH - 8;
   if (y < 8) y = 8;
   return { x, y };
 }

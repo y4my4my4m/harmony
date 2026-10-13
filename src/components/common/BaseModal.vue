@@ -170,7 +170,7 @@ const handleOverlayClick = () => {
   box-shadow: var(--shadow-modal);
   width: 100%;
   max-width: 540px;
-  max-height: 90vh;
+  max-height: calc(90 * var(--app-vh));
   display: flex;
   flex-direction: column;
   position: relative;

@@ -419,7 +419,7 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 14px;
-  min-width: min(420px, 80vw);
+  min-width: min(420px, 80 * var(--app-vw));
   text-align: center;
 }
 

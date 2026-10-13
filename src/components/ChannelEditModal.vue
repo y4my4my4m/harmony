@@ -766,7 +766,7 @@ watch(() => props.show, (visible) => {
   box-shadow: var(--shadow-large);
   width: 100%;
   max-width: 480px;
-  max-height: 90vh;
+  max-height: calc(90 * var(--app-vh));
   display: flex;
   flex-direction: column;
   overflow: hidden;

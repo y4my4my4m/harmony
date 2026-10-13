@@ -542,7 +542,7 @@ onUnmounted(() => {
 
 .performance-monitoring.is-fullscreen {
   max-width: none;
-  height: 100vh;
+  height: calc(100 * var(--app-vh));
   overflow-y: auto;
   background: var(--background-primary, #1e1f22);
 }

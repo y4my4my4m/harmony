@@ -359,7 +359,7 @@ onMounted(() => {
 <style>
 .instance-detail-modal .modal-container {
   max-width: 560px;
-  width: 92vw;
+  width: calc(92 * var(--app-vw));
   border: none;
   border-radius: 10px;
   overflow: hidden;
@@ -368,7 +368,7 @@ onMounted(() => {
 .instance-detail-modal .modal-content {
   padding: 0;
   overflow: hidden;
-  max-height: min(85vh, 720px);
+  max-height: min(85 * var(--app-vh), 720px);
   display: flex;
   flex-direction: column;
 }

@@ -404,7 +404,7 @@
 @media (max-width: 768px) {
 
   .admin-module {
-    max-width: calc(100vw - 32px);
+    max-width: calc(100 * var(--app-vw) - 32px);
   }
 
 
@@ -417,7 +417,7 @@
 @media (max-width: 480px) {
 
   .admin-module {
-    max-width: calc(100vw - 24px);
+    max-width: calc(100 * var(--app-vw) - 24px);
   }
 
   .stats-grid {

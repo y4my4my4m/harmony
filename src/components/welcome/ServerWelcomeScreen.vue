@@ -380,7 +380,7 @@ const formattedAcceptedAt = computed(() => {
 
   .modal-overlay.server-welcome-overlay .modal-container {
     max-width: none;
-    max-height: 100dvh;
+    max-height: calc(100 * var(--app-dvh));
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }
 }

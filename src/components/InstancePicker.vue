@@ -129,7 +129,7 @@ function cancel() {
 }
 
 .instance-picker__card {
-  width: min(420px, 90vw);
+  width: min(420px, 90 * var(--app-vw));
   padding: 2rem;
   border-radius: 12px;
   background: var(--background-secondary);

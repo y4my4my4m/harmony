@@ -166,7 +166,7 @@ defineExpose({ focus: () => dialogRef.value?.focus() })
   flex-direction: column;
   width: 100%;
   max-width: 560px;
-  max-height: calc(100dvh - 2 * var(--space-4));
+  max-height: calc(100 * var(--app-dvh) - 2 * var(--space-4));
   overflow: hidden;
   background: var(--background-quinary);
   border: 1px solid var(--border-primary);
@@ -246,7 +246,7 @@ defineExpose({ focus: () => dialogRef.value?.focus() })
   }
 
   .image-editor {
-    max-height: calc(100dvh - 2 * var(--space-2));
+    max-height: calc(100 * var(--app-dvh) - 2 * var(--space-2));
   }
 
   .image-editor-header,

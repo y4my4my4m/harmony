@@ -62,6 +62,7 @@ import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import Icon from '@/components/common/Icon.vue';
 import StreamQualityOptions from './StreamQualityOptions.vue';
 import { VOICE_POPOVER_DISMISS, placePopover, type Rect } from './voiceMenuModel';
+import { styleRect, styleViewport } from '@/utils/appZoom';
 
 // Discord's "Go live" step: quality before capture, and the same panel with
 // "Stop streaming" while live.
@@ -110,8 +111,8 @@ async function place(): Promise<void> {
   await nextTick();
   const el = panelRef.value;
   if (!el) return;
-  const rect = el.getBoundingClientRect();
-  const viewport = { width: window.innerWidth, height: window.innerHeight };
+  const rect = styleRect(el);
+  const viewport = styleViewport();
   const anchor = props.anchor ?? { left: viewport.width / 2, top: viewport.height / 2, width: 0, height: 0 };
   position.value = placePopover(anchor, { width: rect.width, height: rect.height }, viewport);
   (goLiveRef.value ?? el).focus({ preventScroll: true });
@@ -153,8 +154,8 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 14px;
   width: 320px;
-  max-width: calc(100vw - 16px);
-  max-height: calc(100vh - 16px);
+  max-width: calc(100 * var(--app-vw) - 16px);
+  max-height: calc(100 * var(--app-vh) - 16px);
   overflow-y: auto;
   padding: 14px;
   background: var(--background-floating);

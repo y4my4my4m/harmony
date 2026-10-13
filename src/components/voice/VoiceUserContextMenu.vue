@@ -102,6 +102,7 @@ import {
   type VoiceMenuAction,
   type VoiceVolumeSection,
 } from './voiceMenuModel';
+import { styleRect, styleViewport } from '@/utils/appZoom';
 
 const props = withDefaults(defineProps<{
   userState: UserMediaState;
@@ -293,11 +294,11 @@ async function place(): Promise<void> {
   await nextTick();
   const el = menuRef.value;
   if (!el) return;
-  const rect = el.getBoundingClientRect();
+  const rect = styleRect(el);
   position.value = placePopover(
     { x: props.x, y: props.y },
     { width: rect.width, height: rect.height },
-    { width: window.innerWidth, height: window.innerHeight },
+    styleViewport(),
   );
   el.focus({ preventScroll: true });
 }
@@ -343,8 +344,8 @@ onBeforeUnmount(() => {
   position: fixed;
   z-index: 10006;
   width: 300px;
-  max-width: calc(100vw - 16px);
-  max-height: calc(100vh - 16px);
+  max-width: calc(100 * var(--app-vw) - 16px);
+  max-height: calc(100 * var(--app-vh) - 16px);
   overflow-y: auto;
   background: var(--background-floating);
   border: 1px solid var(--border-primary);

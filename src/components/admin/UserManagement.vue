@@ -836,7 +836,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
   border-radius: var(--radius-lg);
   max-width: 600px;
   width: 90%;
-  max-height: 80vh;
+  max-height: calc(80 * var(--app-vh));
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow-large);

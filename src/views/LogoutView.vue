@@ -42,8 +42,8 @@ const goBack = () => {
 
 <style scoped>
 .logout-wrapper {
-  min-height: 100vh;
-  min-width: 100vw;
+  min-height: calc(100 * var(--app-vh));
+  min-width: calc(100 * var(--app-vw));
   display: flex;
   align-items: center;
   justify-content: center;

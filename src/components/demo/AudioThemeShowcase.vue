@@ -292,7 +292,7 @@ onMounted(async () => {
 
 <style scoped>
 .audio-theme-showcase {
-  min-height: 100vh;
+  min-height: calc(100 * var(--app-vh));
   background: var(--background-primary);
   color: var(--text-primary);
   padding: 32px;

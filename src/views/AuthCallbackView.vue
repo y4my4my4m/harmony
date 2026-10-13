@@ -424,7 +424,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .callback-wrapper {
-  min-height: 100vh;
+  min-height: calc(100 * var(--app-vh));
   display: flex;
   align-items: center;
   justify-content: center;

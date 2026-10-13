@@ -373,7 +373,7 @@ watch(() => props.isVisible, (visible) => {
   border-radius: var(--radius-lg);
   width: 100%;
   max-width: 480px;
-  max-height: 90vh;
+  max-height: calc(90 * var(--app-vh));
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -667,7 +667,7 @@ watch(() => props.isVisible, (visible) => {
 @media (max-width: 520px) {
   .status-modal {
     margin: 16px;
-    max-height: calc(100vh - 32px);
+    max-height: calc(100 * var(--app-vh) - 32px);
   }
   
   .activity-selector {

@@ -506,7 +506,7 @@ onMounted(async () => {
   border-radius: var(--radius-xl);
   padding: 1.5rem;
   box-shadow: var(--shadow-modal);
-  max-height: 90vh;
+  max-height: calc(90 * var(--app-vh));
   overflow-y: auto;
 }
 

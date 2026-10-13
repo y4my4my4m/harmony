@@ -1014,7 +1014,7 @@ watch(hasChanges, (newValue) => {
 /* Extra small screens */
 @media (max-width: 480px) {
   .server-settings-sidebar {
-    width: 100vw;
+    width: calc(100 * var(--app-vw));
   }
   
   .server-settings-main {

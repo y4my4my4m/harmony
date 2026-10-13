@@ -1007,7 +1007,7 @@ onMounted(loadPostWithContext);
   gap: var(--space-2);
   padding: 3rem 2rem;
   text-align: center;
-  min-height: 50vh;
+  min-height: calc(50 * var(--app-vh));
   color: var(--text-secondary);
 }
 

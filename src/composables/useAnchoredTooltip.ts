@@ -1,4 +1,5 @@
 import { onScopeDispose, ref } from 'vue'
+import { styleRect } from '@/utils/appZoom'
 
 /**
  * Hover and keyboard-focus tooltip bound to the element that opened it. A
@@ -35,7 +36,7 @@ export function useAnchoredTooltip<T extends object>(delayMs = 400, checkMs = 20
     visible.value = false
   }
 
-  /** `event.currentTarget` is the anchor; its vertical centre is the tooltip's y, in viewport px. */
+  /** `event.currentTarget` is the anchor; its vertical centre is the tooltip's y, in CSS px. */
   const show = (event: MouseEvent | FocusEvent, data: T) => {
     const target = event.currentTarget as HTMLElement | null
     if (target) showFor(target, data)
@@ -47,7 +48,7 @@ export function useAnchoredTooltip<T extends object>(delayMs = 400, checkMs = 20
     stopWatching()
 
     anchor = target
-    const rect = target.getBoundingClientRect()
+    const rect = styleRect(target)
     const nextY = rect.top + rect.height / 2
 
     showTimer = setTimeout(() => {

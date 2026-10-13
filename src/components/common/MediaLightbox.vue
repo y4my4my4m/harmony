@@ -367,8 +367,8 @@ watch(
 
 .media-container {
   position: relative;
-  max-width: 90vw;
-  max-height: 85vh;
+  max-width: calc(90 * var(--app-vw));
+  max-height: calc(85 * var(--app-vh));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -376,7 +376,7 @@ watch(
 
 .media-content {
   max-width: 100%;
-  max-height: 85vh;
+  max-height: calc(85 * var(--app-vh));
   object-fit: contain;
 }
 

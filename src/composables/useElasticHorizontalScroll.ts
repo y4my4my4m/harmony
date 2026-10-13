@@ -1,4 +1,5 @@
 import { ref, computed, onMounted, onUnmounted, watch, type Ref } from 'vue';
+import { toStylePx } from '@/utils/appZoom';
 
 interface VelocitySample {
   x: number;
@@ -156,7 +157,7 @@ export function useElasticHorizontalScroll(
     touchStartY = touch.clientY;
     scrollStartX = scrollX.value;
     lastTouchTime = performance.now();
-    velocitySamples = [{ x: touch.clientX, t: lastTouchTime }];
+    velocitySamples = [{ x: toStylePx(touch.clientX), t: lastTouchTime }];
     e.stopPropagation();
   };
 
@@ -179,10 +180,10 @@ export function useElasticHorizontalScroll(
     e.stopPropagation();
 
     const now = performance.now();
-    velocitySamples.push({ x: touch.clientX, t: now });
+    velocitySamples.push({ x: toStylePx(touch.clientX), t: now });
     if (velocitySamples.length > 6) velocitySamples.shift();
 
-    const raw = scrollStartX - (touch.clientX - touchStartX);
+    const raw = scrollStartX - toStylePx(touch.clientX - touchStartX);
     scrollX.value = applyRubber(raw);
 
     lastTouchTime = now;

@@ -200,7 +200,7 @@ onMounted(async () => {
   display: flex;
   gap: 14px;
   width: 360px;
-  max-width: calc(100vw - 40px);
+  max-width: calc(100 * var(--app-vw) - 40px);
   padding: 16px;
   background: var(--background-floating);
   border: 1px solid var(--warning);

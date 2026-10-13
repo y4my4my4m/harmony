@@ -10,8 +10,9 @@
 
     <AppMenu v-if="open" :anchor="buttonEl" :id="menuId" :initial-focus="initialFocus" :label="t('...')" @close="open = false">
 
-  Position: `x`/`y` (viewport px) or `anchor` (below it, left-aligned, flipped
-  above when it would overflow), clamped EDGE px inside the viewport.
+  Position: `x`/`y` (CSS px, see utils/appZoom) or `anchor` (below it,
+  left-aligned, flipped above when it would overflow), clamped EDGE px inside
+  the viewport.
   `trigger` overrides the element focus returns to. Attributes (class, id,
   data-testid) land on the menu element. `@close` carries the reason
   ('escape' | 'tab' | 'outside' | 'dismiss').
@@ -36,6 +37,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useMenu, type MenuCloseReason } from '@/composables/useMenu'
+import { styleRect, styleViewport } from '@/utils/appZoom'
 
 defineOptions({ inheritAttrs: false })
 
@@ -74,18 +76,19 @@ useMenu(menuEl, {
 onMounted(() => {
   const el = menuEl.value
   if (!el || !props.teleport) return
-  const r = el.getBoundingClientRect()
+  const r = styleRect(el)
+  const viewport = styleViewport()
   let x = props.x
   let y = props.y
   if (props.anchor) {
-    const a = props.anchor.getBoundingClientRect()
+    const a = styleRect(props.anchor)
     x = a.left
     y = a.bottom + 4
-    if (y + r.height > window.innerHeight - EDGE) y = a.top - r.height - 4
+    if (y + r.height > viewport.height - EDGE) y = a.top - r.height - 4
   }
   pos.value = {
-    x: Math.max(EDGE, Math.min(x, window.innerWidth - r.width - EDGE)),
-    y: Math.max(EDGE, Math.min(y, window.innerHeight - r.height - EDGE)),
+    x: Math.max(EDGE, Math.min(x, viewport.width - r.width - EDGE)),
+    y: Math.max(EDGE, Math.min(y, viewport.height - r.height - EDGE)),
   }
 })
 

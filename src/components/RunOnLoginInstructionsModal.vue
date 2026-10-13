@@ -189,7 +189,7 @@ watch(
   padding: 24px;
   max-width: 520px;
   width: 100%;
-  max-height: 92vh;
+  max-height: calc(92 * var(--app-vh));
   overflow-y: auto;
   box-shadow: var(--shadow-modal);
   color: var(--text-primary);

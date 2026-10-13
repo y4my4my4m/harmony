@@ -254,7 +254,7 @@ onMounted(() => {
 .pinned-messages-drawer {
   width: 100%;
   max-width: 520px;
-  max-height: 70vh;
+  max-height: calc(70 * var(--app-vh));
   margin: 20px;
   background: var(--background-secondary);
   border-radius: var(--radius-lg);
@@ -470,7 +470,7 @@ onMounted(() => {
 /* Mobile */
 @media (max-width: 768px) {
   .pinned-messages-drawer {
-    max-height: 90vh;
+    max-height: calc(90 * var(--app-vh));
     margin: 0;
     border-radius: 12px;
   }

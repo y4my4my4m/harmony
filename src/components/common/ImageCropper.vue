@@ -117,6 +117,7 @@ import {
   type Rotation,
 } from '@/utils/cropGeometry'
 import type { FrameShape } from '@/utils/imageCrop'
+import { stylePoint, styleRect } from '@/utils/appZoom'
 
 interface Props {
   /** Upright image; `preview` is drawn, scaled to width×height. */
@@ -261,9 +262,11 @@ function onSlider(event: Event) {
 // Pointer gestures: one pointer pans, two pointers pinch about their midpoint.
 const pointers = new Map<number, { x: number; y: number }>()
 
+/** Pointer position in stage CSS px. */
 function stagePoint(event: PointerEvent | WheelEvent): { x: number; y: number } {
-  const rect = stageRef.value?.getBoundingClientRect()
-  return { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) }
+  const p = stylePoint(event)
+  const rect = stageRef.value ? styleRect(stageRef.value) : null
+  return { x: p.x - (rect?.left ?? 0), y: p.y - (rect?.top ?? 0) }
 }
 
 function onPointerDown(event: PointerEvent) {
@@ -413,7 +416,7 @@ defineExpose({ focus: () => stageRef.value?.focus({ preventScroll: true }) })
 /* Checkerboard shows through transparent pixels. */
 .cropper-stage {
   position: relative;
-  height: clamp(220px, 46vh, 360px);
+  height: clamp(220px, 46 * var(--app-vh), 360px);
   overflow: hidden;
   border-radius: var(--radius-md);
   background-color: var(--background-tertiary);

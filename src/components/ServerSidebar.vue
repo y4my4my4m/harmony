@@ -759,7 +759,7 @@ const closeFolderModal = () => {
   z-index: 1001;
   pointer-events: none;
   /* Long names wrap inside the viewport instead of running off its edge. */
-  max-width: min(320px, calc(100vw - 96px));
+  max-width: min(320px, calc(100 * var(--app-vw) - 96px));
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -832,7 +832,7 @@ const closeFolderModal = () => {
   z-index: 10001;
   pointer-events: none;
   /* Long names wrap inside the viewport instead of running off its edge. */
-  max-width: min(320px, calc(100vw - 96px));
+  max-width: min(320px, calc(100 * var(--app-vw) - 96px));
   white-space: normal;
   overflow-wrap: anywhere;
 }

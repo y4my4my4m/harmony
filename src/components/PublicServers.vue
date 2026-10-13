@@ -261,7 +261,7 @@ onBeforeUnmount(() => {
   box-shadow: var(--shadow-modal);
   width: 100%;
   max-width: 1000px;
-  height: min(90vh, 900px);
+  height: min(90 * var(--app-vh), 900px);
   overflow: hidden;
   animation: slideUp 0.2s ease-out;
   display: flex;
@@ -282,8 +282,8 @@ onBeforeUnmount(() => {
 
   .public-servers-modal {
     max-width: none;
-    height: 100vh;
-    height: 100dvh;
+    height: calc(100 * var(--app-vh));
+    height: calc(100 * var(--app-dvh));
     border: none;
     border-radius: 0;
     padding-top: env(safe-area-inset-top, 0px);

@@ -967,7 +967,7 @@ onMounted(async () => {
   --brand-card-border: rgba(255, 255, 255, 0.06);
   --autofill-bg: rgb(17, 17, 23);
   
-  min-height: 100vh;
+  min-height: calc(100 * var(--app-vh));
   width: 100%;
   display: flex;
   font-family: var(--font-family);
@@ -1009,7 +1009,7 @@ onMounted(async () => {
 .auth-container {
   position: relative;
   z-index: 10;
-  min-height: 100vh;
+  min-height: calc(100 * var(--app-vh));
   width: 100%;
   display: flex;
 }
@@ -1946,7 +1946,7 @@ onMounted(async () => {
   
   .auth-card {
     max-width: 100%;
-    min-height: 100vh;
+    min-height: calc(100 * var(--app-vh));
     border-radius: 0;
     padding: 60px 24px 40px;
     display: flex;
@@ -1985,7 +1985,7 @@ onMounted(async () => {
   .modal-card {
     margin: 0;
     max-width: 100%;
-    min-height: 100vh;
+    min-height: calc(100 * var(--app-vh));
     border-radius: 0;
     display: flex;
     flex-direction: column;
