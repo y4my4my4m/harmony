@@ -43,6 +43,11 @@ Third-party assets bundled with this project, with their own licenses:
     public/assets/fonts/Figtree-latin-ext.woff2
     Copyright notice and full license text: public/assets/fonts/Figtree-OFL.txt
 
+  - Bricolage Grotesque, Instrument Sans,  SIL Open Font License 1.1
+    Martian Mono
+    public/assets/fonts/paper/  (Paper skin; fetched only while it is active)
+    Copyright notices and full license text: public/assets/fonts/paper/OFL.txt
+
   - Feather-style icon set                 MIT
     public/assets/skins/sdr-001/icons/
     Copyright (c) 2019 Gerrit Halfmann
