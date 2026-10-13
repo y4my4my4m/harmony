@@ -321,11 +321,11 @@ const openPublicServers = () => {
 const SERVER_PREFETCH_DELAY_MS = 100;
 let serverPrefetchTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** Warms the structure and the default channel's newest page for a hovered or focused server. */
+/** Warms the structure and the landing channel's newest page for a hovered or focused server. */
 const prefetchServer = async (serverId: string) => {
   if (serverId === serverChannelStore.currentServerId) return;
   await serverChannelStore.prefetchServerStructure(serverId);
-  const channelId = serverChannelStore.defaultChannelFor(serverId);
+  const channelId = serverChannelStore.landingChannelFor(serverId);
   if (!channelId) return;
   const { useChatStore } = await import('@/stores/useChat');
   void useChatStore().prefetchChannelMessages(channelId);
@@ -361,6 +361,9 @@ const selectServer = async (serverId?: string) => {
   cancelServerPrefetch();
   if (!serverId) return;
 
+  // The open server stays where it is, channel or thread.
+  if ((route.name === 'ChatChannel' || route.name === 'ThreadView') && route.params.serverId === serverId) return;
+
   emit('switch-to-chat');
 
   // setCurrentServer synchronously swaps in this server's cached channel
@@ -373,9 +376,9 @@ const selectServer = async (serverId?: string) => {
 
   if (hasCachedStructure) {
     // Instant path: navigate immediately off the snapshot, refresh behind it.
-    const defaultChannelId = serverChannelStore.getDefaultChannel();
-    if (defaultChannelId) {
-      router.push({ name: 'ChatChannel', params: { serverId, channelId: defaultChannelId } });
+    const channelId = serverChannelStore.landingChannelFor(serverId);
+    if (channelId) {
+      router.push({ name: 'ChatChannel', params: { serverId, channelId } });
     } else {
       router.push({ name: 'Chat' });
     }
@@ -394,15 +397,9 @@ const selectServer = async (serverId?: string) => {
   // The user may have clicked another server while this one loaded.
   if (serverChannelStore.currentServerId !== serverId) return;
 
-  const defaultChannelId = serverChannelStore.getDefaultChannel();
-  if (defaultChannelId) {
-    router.push({
-      name: 'ChatChannel',
-      params: {
-        serverId: serverId,
-        channelId: defaultChannelId
-      }
-    });
+  const channelId = serverChannelStore.landingChannelFor(serverId);
+  if (channelId) {
+    router.push({ name: 'ChatChannel', params: { serverId, channelId } });
   }
 };
 
