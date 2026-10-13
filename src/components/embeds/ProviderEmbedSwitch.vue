@@ -7,20 +7,45 @@
   />
   
   <!-- Regular embed with header/collapse -->
-  <div v-else-if="!emptyPreview" class="provider-embed" ref="embedWrapper" :class="[`provider-${payload.provider}`, { 'is-collapsed': collapsed }]">
+  <div
+    v-else-if="!emptyPreview"
+    class="provider-embed"
+    ref="embedWrapper"
+    :class="[`provider-${payload.provider}`, { 'is-collapsed': collapsed, 'provider-embed--portrait': youtubeShort && !collapsed }]"
+  >
     <div class="provider-embed__header" v-if="payload.provider !== 'harmony-post' && payload.provider !== 'fediverse-post'">
       <div class="provider-embed__label">
         {{ providerLabel }}
       </div>
       <div class="provider-embed__actions">
-        <button v-if="poppable && !collapsed" class="embed-action" type="button" @click="popOutEmbed">
-          {{ t('embeds.popOut') }}
+        <button
+          v-if="poppable && !collapsed"
+          class="embed-action"
+          type="button"
+          :title="t('embeds.popOut')"
+          :aria-label="t('embeds.popOut')"
+          @click="popOutEmbed"
+        >
+          <Icon name="picture-in-picture" :size="15" />
         </button>
-        <button class="embed-action" type="button" @click="openLink">
-          {{ t('embeds.open') }}
+        <button
+          class="embed-action"
+          type="button"
+          :title="t('embeds.open')"
+          :aria-label="t('embeds.open')"
+          @click="openLink"
+        >
+          <Icon name="external-link" :size="15" />
         </button>
-        <button class="embed-action" type="button" @click="toggleCollapse">
-          {{ collapsed ? t('embeds.show') : t('embeds.hide') }}
+        <button
+          class="embed-action"
+          type="button"
+          :title="collapsed ? t('embeds.show') : t('embeds.hide')"
+          :aria-label="collapsed ? t('embeds.show') : t('embeds.hide')"
+          :aria-expanded="!collapsed"
+          @click="toggleCollapse"
+        >
+          <Icon :name="collapsed ? 'chevron-down' : 'x'" :size="16" />
         </button>
       </div>
     </div>

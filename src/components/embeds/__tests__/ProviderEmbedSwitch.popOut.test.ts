@@ -55,7 +55,7 @@ async function setup(payload: typeof YOUTUBE | typeof SPOTIFY) {
 }
 
 function actionLabels(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']): string[] {
-  return wrapper.findAll('.embed-action').map(b => b.text())
+  return wrapper.findAll('.embed-action').map(b => b.attributes('aria-label') ?? '')
 }
 
 // happy-dom fetches iframe pages over the network unless page loading is

@@ -80,11 +80,12 @@ const emit = defineEmits<{
 // variant), so the parent's load listener fires without waiting.
 const imageLoaded = ref((!props.payload.image && !props.payload.video?.url) || props.variant === 'compact');
 
-// Media-first layout (Discord-style): a preview carrying an image and no
-// description (e.g. a GIF page) is the content, so it renders at natural
+// Media-first layout (Discord-style): a playable video, or an image with no
+// description (e.g. a GIF page), is the content, so it renders at natural
 // size instead of a 100px cropped square thumbnail.
 const isMediaCard = computed(() =>
-  props.variant === 'default' && !!props.payload.image && !props.payload.description
+  props.variant === 'default'
+  && (!!props.payload.video?.url || (!!props.payload.image && !props.payload.description))
 );
 
 const displaySiteName = computed(() => {
