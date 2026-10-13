@@ -95,7 +95,7 @@ is_root() { [[ $(id -u) -eq 0 ]]; }
 
 # --- stage 1: host -------------------------------------------------------------
 check_platform() {
-	[[ "$(uname -s)" == Linux ]] || die "the installer runs on Linux (a VPS, a home server, a VM). See https://docs.mony.lol/self-hosting for other setups."
+	[[ "$(uname -s)" == Linux ]] || die "the installer runs on Linux (a VPS, a home server, a VM). See https://docs.mony.lol/self-host/docker-compose for other setups."
 	case "$(uname -m)" in
 		x86_64|amd64|aarch64|arm64) ;;
 		*) truthy "${HARMONY_BUILD:-}" || die "no prebuilt images for $(uname -m) (amd64 and arm64 only); HARMONY_BUILD=1 builds Harmony's images on this machine, if Supabase's run here" ;;
@@ -269,7 +269,7 @@ check_ports() {
 	done
 	if [[ ${#bad[@]} -gt 0 ]]; then
 		command -v ss >/dev/null && is_root && ss -ltnup 2>/dev/null | grep -E ":($(printf '%s|' "${bad[@]%/*}" | sed 's/|$//'))\b" >&2 || true
-		die "port(s) ${bad[*]} are in use by another program. Stop it (often: systemctl disable --now nginx apache2), or see https://docs.mony.lol/self-hosting#behind-another-reverse-proxy"
+		die "port(s) ${bad[*]} are in use by another program. Stop it (often: systemctl disable --now nginx apache2), or see https://docs.mony.lol/self-host/docker-compose#behind-another-reverse-proxy"
 	fi
 	ok "Ports free: ${specs[*]}"
 }
@@ -564,7 +564,7 @@ main() {
 			--dir) HARMONY_DIR="${2:?--dir needs a path}"; export HARMONY_DIR; shift ;;
 			--ref) HARMONY_REF="${2:?--ref needs a tag or branch}"; export HARMONY_REF; shift ;;
 			--non-interactive) export HARMONY_NONINTERACTIVE=1 ;;
-			-h|--help) sed -n '2,50p' "${BASH_SOURCE[0]:-/dev/null}" 2>/dev/null || echo "see https://docs.mony.lol/self-hosting"; exit 0 ;;
+			-h|--help) sed -n '2,50p' "${BASH_SOURCE[0]:-/dev/null}" 2>/dev/null || echo "see https://docs.mony.lol/self-host/install"; exit 0 ;;
 			*) die "unknown argument: $1 (see --help)" ;;
 		esac
 		shift

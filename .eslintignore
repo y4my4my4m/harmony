@@ -11,7 +11,7 @@ src-tauri/target/
 docs/.vitepress/dist/
 docs/.vitepress/cache/
 
-# Generated documentation
+# Output of the retired docs generators
 docs/generated/
 docs/api/
 docs/components/

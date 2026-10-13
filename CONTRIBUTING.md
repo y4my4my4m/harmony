@@ -248,10 +248,11 @@ describe('POST /api/messages', () => {
 
 ## Documentation
 
-### VitePress site and guides
+### Documentation site
 
-- From the repo root: `npm run docs:dev` (see [docs/README.md](./docs/README.md)).
-- Edit guides under `docs-source/guide/`, then run `npm run docs:generate-guide` (do not edit `docs/guide/` directly).
+- The site at https://docs.mony.lol is hand-written Markdown under `docs/`, built with VitePress.
+- `npm run docs:dev` previews it; `npm run docs:build` builds it and fails on dead links. CI runs the build.
+- Organisation, writing rules and how to add a page: [docs/contribute/docs-style.md](./docs/contribute/docs-style.md).
 
 ### Code Documentation
 
@@ -264,7 +265,7 @@ describe('POST /api/messages', () => {
 
 - Update README.md for user-facing changes
 - Add examples for new features
-- Update guides under `docs-source/guide/` for structural changes
+- Update the pages under `docs/` for structural changes
 - Create guides for complex features
 
 ## Pull Request Process

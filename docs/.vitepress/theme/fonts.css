@@ -1,0 +1,26 @@
+/* Latin subsets from @fontsource-variable, SIL OFL 1.1 (fonts/OFL.txt). */
+@font-face {
+  font-family: 'Bricolage Grotesque Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  font-stretch: 75% 100%;
+  src: url(./fonts/bricolage-grotesque-latin-wdth-normal.woff2) format('woff2-variations');
+}
+
+@font-face {
+  font-family: 'Instrument Sans Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400 700;
+  src: url(./fonts/instrument-sans-latin-wght-normal.woff2) format('woff2-variations');
+}
+
+@font-face {
+  font-family: 'Martian Mono Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  font-stretch: 75% 112.5%;
+  src: url(./fonts/martian-mono-latin-wdth-normal.woff2) format('woff2-variations');
+}

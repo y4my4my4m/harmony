@@ -182,7 +182,7 @@ describe('useAuthStore', () => {
 
     // AAL1 sessions whose JWT amr already records a `totp` verification are
     // accepted after Supabase's ~24h AAL2 grace period expires. Matches the
-    // long-session model in `docs/2FA_SECURITY_MODEL.md`.
+    // long-session model in `docs/contribute/architecture.md#two-factor-enforcement`.
     it('accepts AAL1 session when amr already records totp (post-AAL2-expiry long session)', async () => {
       const store = useAuthStore()
       const listFactors = vi.fn().mockResolvedValue({
