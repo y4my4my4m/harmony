@@ -348,7 +348,7 @@ onMounted(() => {
 .threads-modal {
   width: 100%;
   max-width: 540px;
-  max-height: 80vh;
+  max-height: calc(80 * var(--app-vh));
   background: var(--background-primary);
   border-radius: 8px;
   display: flex;

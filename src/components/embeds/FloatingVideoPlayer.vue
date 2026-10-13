@@ -79,6 +79,7 @@ import { useRouter } from 'vue-router'
 import Icon from '@/components/common/Icon.vue'
 import { FLOATING_VIDEO_BAR_HEIGHT, useFloatingVideoPlayer } from '@/composables/useFloatingVideo'
 import { oppositeCorner, resizedFrameWidth } from '@/utils/floatingVideoGeometry'
+import { toStylePx } from '@/utils/appZoom'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -128,7 +129,8 @@ function openSource(): void {
 }
 
 // Tracks one pointer on `target` with capture until release or cancel.
-// Movement below `threshold` px never starts the gesture.
+// Movement below `threshold` viewport px never starts the gesture; `move`
+// receives CSS px.
 function trackPointer(
   e: PointerEvent,
   threshold: number,
@@ -148,7 +150,7 @@ function trackPointer(
       active = true
       handlers.start()
     }
-    handlers.move(dx, dy)
+    handlers.move(toStylePx(dx), toStylePx(dy))
   }
   const onEnd = (ev: PointerEvent) => {
     if (ev.pointerId !== pointerId || finished) return

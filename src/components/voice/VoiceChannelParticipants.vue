@@ -23,7 +23,7 @@
           :aria-expanded="menuUser?.userId === participant.userId"
           :data-testid="`voice-participant-${participant.userId}`"
           @click="openMenuFromKeyboard(participant, $event)"
-          @contextmenu.prevent="openMenu(participant, $event.clientX, $event.clientY)"
+          @contextmenu.prevent="openMenuAtPointer(participant, $event)"
           @keydown.shift.f10.prevent="openMenuFromKeyboard(participant, $event)"
           @keydown.context-menu.prevent="openMenuFromKeyboard(participant, $event)"
         >
@@ -85,6 +85,7 @@ import type { UserMediaState } from '@/services/unifiedWebRTC';
 import { uid } from '@/utils/a11y/focus';
 import { participantLabel, useHeldIds } from './participantLabel';
 import { restoreFocusIfLost } from './voiceFocus';
+import { stylePoint, styleRect } from '@/utils/appZoom';
 
 interface Props {
   participants: UserMediaState[];
@@ -117,8 +118,13 @@ const openMenu = (participant: UserMediaState, x: number, y: number, opener?: HT
 
 const openMenuFromKeyboard = (participant: UserMediaState, event: Event) => {
   const el = event.currentTarget as HTMLElement;
-  const rect = el.getBoundingClientRect();
+  const rect = styleRect(el);
   openMenu(participant, rect.left + 24, rect.bottom, el);
+};
+
+const openMenuAtPointer = (participant: UserMediaState, event: MouseEvent) => {
+  const p = stylePoint(event);
+  openMenu(participant, p.x, p.y);
 };
 
 const closeMenu = () => {

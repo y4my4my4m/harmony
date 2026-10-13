@@ -657,7 +657,7 @@ const cancelAndClose = () => {
   right: 0;
   bottom: 0;
   width: 340px;
-  max-width: 90vw;
+  max-width: calc(90 * var(--app-vw));
   z-index: 4000;
   display: flex;
   flex-direction: column;

@@ -641,7 +641,7 @@ watch(() => props.serverId, loadAll)
   top: calc(100% + 4px);
   z-index: 20;
   width: 320px;
-  max-width: calc(100vw - 32px);
+  max-width: calc(100 * var(--app-vw) - 32px);
   max-height: 360px;
   overflow-y: auto;
   background: var(--background-floating, var(--background-secondary));

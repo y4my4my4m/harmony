@@ -726,6 +726,7 @@ import { userDataService } from '@/services/userDataService';
 import { unicodeToShortcode } from '@/services/unifiedEmojiService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
+import { styleRect } from '@/utils/appZoom';
 import { getOriginalApId, getOriginalPost, quoteTargetUrl, withoutQuoteFallback } from '@/utils/postReblog';
 import { isHeartEmoji } from '@/utils/heartReaction';
 import { remotePollFromMetadata } from '@/utils/remotePoll';
@@ -1817,7 +1818,7 @@ const handleShowReactionTooltip = (event: MouseEvent | FocusEvent, reaction: any
   const usersDetails = [...localUsers, ...remoteUsers];
   
   // Keyboard focus opens the same tooltip, anchored on the focused chip.
-  const chip = event.currentTarget instanceof HTMLElement ? event.currentTarget.getBoundingClientRect() : null;
+  const chip = event.currentTarget instanceof HTMLElement ? styleRect(event.currentTarget) : null;
   const anchor = event instanceof MouseEvent
     ? getReactionTooltipAnchor(event)
     : { x: chip ? chip.left + chip.width / 2 : 0, y: chip?.top ?? 0 };

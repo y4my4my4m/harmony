@@ -163,7 +163,7 @@ const handleOpenChat = () => {
 
 .mobile-voice-preview {
   width: 100%;
-  max-height: 80vh;
+  max-height: calc(80 * var(--app-vh));
   background: var(--bg-primary, #1e1f22);
   border-radius: 16px 16px 0 0;
   display: flex;

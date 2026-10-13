@@ -271,12 +271,12 @@ watch(() => props.modelValue, (isOpen) => {
 }
 
 .modal-full {
-  max-width: 95vw;
-  max-height: 95vh;
+  max-width: calc(95 * var(--app-vw));
+  max-height: calc(95 * var(--app-vh));
 }
 
 .modal-full-height {
-  height: 90vh;
+  height: calc(90 * var(--app-vh));
 }
 
 .modal-full-height .modal-body {
@@ -346,13 +346,13 @@ watch(() => props.modelValue, (isOpen) => {
   .modal-md,
   .modal-lg,
   .modal-xl {
-    max-width: 95vw;
+    max-width: calc(95 * var(--app-vw));
     margin: 0 var(--space-2);
   }
   
   .modal-full {
-    max-width: 100vw;
-    max-height: 100vh;
+    max-width: calc(100 * var(--app-vw));
+    max-height: calc(100 * var(--app-vh));
     margin: 0;
     border-radius: 0;
   }

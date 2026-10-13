@@ -332,6 +332,7 @@ get_or_create_discord_bridge_pairing	p_server_id uuid	text	definer	public, pg_te
 get_or_create_dm_conversation	p_user1_id uuid, p_user2_id uuid	uuid	definer	public, extensions, pg_temp	service_role	client
 get_or_create_federated_group_conversation	p_actor_id uuid, p_local_recipient_ids uuid[], p_remote_conversation_id text	uuid	definer	public, pg_temp	service_role	client
 get_owned_bot_server_counts		TABLE(bot_id uuid, server_count integer)	definer	public, pg_temp	authenticated+service_role	client
+get_owned_bot_servers		TABLE(bot_id uuid, server_id uuid, server_name text)	definer	public, pg_temp	authenticated+service_role	client
 get_pending_reports_count		integer	definer	public, pg_temp	anon+authenticated+service_role	client
 get_post_emoji_reactions	p_post_id uuid, p_user_limit integer	TABLE(emoji_id uuid, emoji_name text, emoji_url text, custom_emoji_content text, reaction_count bigint, user_reactions jsonb, current_user_reacted boolean)	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client
 get_post_with_context	p_post_id uuid, p_user_id uuid, p_context_type text, p_highlight_reply uuid, p_max_depth integer, p_include_interactions boolean	jsonb	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client

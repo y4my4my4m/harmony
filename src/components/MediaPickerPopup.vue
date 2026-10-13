@@ -107,6 +107,7 @@ import { useDialog } from '@/composables/useDialog';
 import { useRovingTabindex } from '@/composables/useRovingTabindex';
 import { useT } from '@/composables/useT';
 import { uid } from '@/utils/a11y/focus';
+import { cssZoom, styleRect, styleViewport } from '@/utils/appZoom';
 
 type PickerTab = GifMediaType | 'emoji';
 
@@ -198,7 +199,7 @@ const updateTriggerAnchor = () => {
     triggerAnchorTop.value = null;
     return;
   }
-  triggerAnchorTop.value = trigger.getBoundingClientRect().top;
+  triggerAnchorTop.value = styleRect(trigger).top;
 };
 
 watch(() => props.triggerElement, (newTrigger) => {
@@ -218,11 +219,11 @@ const { positionStyle, updatePosition } = usePopupPositioning(
 const visualViewportRect = ref({
   top: 0,
   left: 0,
-  width: typeof window !== 'undefined' ? window.innerWidth : 400,
-  height: typeof window !== 'undefined' ? window.innerHeight : 700,
+  width: typeof window !== 'undefined' ? styleViewport().width : 400,
+  height: typeof window !== 'undefined' ? styleViewport().height : 700,
 });
 
-const layoutHeight = ref(typeof window !== 'undefined' ? window.innerHeight : 700);
+const layoutHeight = ref(typeof window !== 'undefined' ? styleViewport().height : 700);
 
 // Matches the compact composer's 8px strip padding (MessageInput.vue).
 const COMPOSER_EDGE = 8;
@@ -239,7 +240,7 @@ const updateComposerAnchor = () => {
     composerRect.value = null;
     return;
   }
-  const r = composer.getBoundingClientRect();
+  const r = styleRect(composer);
   composerRect.value = { top: r.top, left: r.left, right: r.right };
   const probe = safeAreaProbeRef.value;
   safeAreaTop.value = probe ? parseFloat(getComputedStyle(probe).paddingTop) || 0 : 0;
@@ -269,21 +270,23 @@ watch(
 const KEYBOARD_OPEN_THRESHOLD = 120;
 
 const syncVisualViewport = () => {
-  layoutHeight.value = window.innerHeight;
+  const layout = styleViewport();
+  layoutHeight.value = layout.height;
   const vv = window.visualViewport;
   if (!vv) {
     visualViewportRect.value = {
       top: 0,
       left: 0,
-      width: window.innerWidth,
-      height: window.innerHeight,
+      width: layout.width,
+      height: layout.height,
     };
   } else {
+    const z = cssZoom();
     visualViewportRect.value = {
-      top: vv.offsetTop,
-      left: vv.offsetLeft,
-      width: vv.width,
-      height: vv.height,
+      top: vv.offsetTop / z,
+      left: vv.offsetLeft / z,
+      width: vv.width / z,
+      height: vv.height / z,
     };
   }
   updateTriggerAnchor();
@@ -292,7 +295,7 @@ const syncVisualViewport = () => {
 
 const keyboardOpen = computed(() => {
   if (!isMobile.value) return false;
-  return layoutHeight.value - visualViewportRect.value.height > KEYBOARD_OPEN_THRESHOLD;
+  return (layoutHeight.value - visualViewportRect.value.height) * cssZoom() > KEYBOARD_OPEN_THRESHOLD;
 });
 
 /**

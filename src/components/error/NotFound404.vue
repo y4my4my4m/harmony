@@ -429,7 +429,7 @@ onMounted(() => {
 @media (max-width: 768px) {
   .not-found-404 {
     padding: 1rem;
-    min-height: 100vh;
+    min-height: calc(100 * var(--app-vh));
   }
   
   .error-container {

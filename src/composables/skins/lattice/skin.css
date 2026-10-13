@@ -358,7 +358,7 @@
   line-height: 1.05;
 }
 :root[data-skin="lattice"] .beginning-title {
-  font-size: clamp(28px, 3.4vw, 44px);
+  font-size: clamp(28px, 3.4 * var(--app-vw), 44px);
 }
 :root[data-skin="lattice"] .beginning-subtitle {
   font-family: var(--lt-mono);
@@ -878,10 +878,10 @@
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(38vmax 26vmax at 96% 104%, rgb(255 138 216 / 0.2), transparent 70%),
-    radial-gradient(34vmax 24vmax at 78% 112%, rgb(138 216 255 / 0.18), transparent 70%),
-    radial-gradient(30vmax 22vmax at 104% 70%, rgb(164 138 255 / 0.18), transparent 70%),
-    radial-gradient(26vmax 18vmax at -4% -6%, rgb(138 255 193 / 0.1), transparent 70%);
+    radial-gradient(calc(38 * var(--app-vmax)) calc(26 * var(--app-vmax)) at 96% 104%, rgb(255 138 216 / 0.2), transparent 70%),
+    radial-gradient(calc(34 * var(--app-vmax)) calc(24 * var(--app-vmax)) at 78% 112%, rgb(138 216 255 / 0.18), transparent 70%),
+    radial-gradient(calc(30 * var(--app-vmax)) calc(22 * var(--app-vmax)) at 104% 70%, rgb(164 138 255 / 0.18), transparent 70%),
+    radial-gradient(calc(26 * var(--app-vmax)) calc(18 * var(--app-vmax)) at -4% -6%, rgb(138 255 193 / 0.1), transparent 70%);
 }
 :root[data-skin="lattice"][data-skin-prism="on"] [data-region="composer"] .message-container:focus-within {
   border-color: transparent;

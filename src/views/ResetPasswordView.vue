@@ -664,7 +664,7 @@ const toggleRecoveryCode = async () => {
 
 <style scoped>
 .reset-password-wrapper {
-  min-height: 100vh;
+  min-height: calc(100 * var(--app-vh));
   background: var(--random-bg) center center;
   background-size: cover;
   background-attachment: fixed;
@@ -707,9 +707,9 @@ const toggleRecoveryCode = async () => {
 .reset-password-container {
   position: relative;
   z-index: 10;
-  min-height: 100vh;
+  min-height: calc(100 * var(--app-vh));
   display: flex;
-  width: 100vw;
+  width: calc(100 * var(--app-vw));
   margin: 0;
 }
 

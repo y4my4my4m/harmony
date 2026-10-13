@@ -613,7 +613,7 @@ watch(() => [props.serverId, props.conversationId], () => {
 
 <style>
 .message-search-modal.modal-container {
-  height: min(90vh, 900px);
+  height: min(90 * var(--app-vh), 900px);
 }
 
 .message-search-modal .modal-body {

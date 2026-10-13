@@ -10,6 +10,7 @@
 
 import { onBeforeUnmount, type Ref } from 'vue'
 import { resolveDropTarget, type DragSource, type DropTarget, type RailRect } from './railModel'
+import { stylePoint, styleRect, toStylePx } from '@/utils/appZoom'
 
 export const MOUSE_DRAG_THRESHOLD_PX = 4
 export const TOUCH_SLOP_PX = 8
@@ -34,6 +35,7 @@ export interface RailDragOptions {
 interface Pending {
   pointerId: number
   pointerType: string
+  /** Viewport px. */
   startX: number
   startY: number
   source: DragSource
@@ -49,8 +51,9 @@ interface Active {
   offsetX: number
   offsetY: number
   rects: RailRect[]
-  clientX: number
-  clientY: number
+  /** Pointer position, CSS px. */
+  x: number
+  y: number
   target: DropTarget | null
   frame: number
 }
@@ -64,13 +67,13 @@ export function sourceFromElement(el: HTMLElement): DragSource | null {
 
 /** Snapshot of every rail entry in content coordinates, in visual order. */
 export function measureRail(container: HTMLElement): RailRect[] {
-  const box = container.getBoundingClientRect()
+  const box = styleRect(container)
   const scroll = container.scrollTop
   const rects: RailRect[] = []
   container.querySelectorAll<HTMLElement>('[data-rail-kind]').forEach((el) => {
     const source = sourceFromElement(el)
     if (!source) return
-    const r = el.getBoundingClientRect()
+    const r = styleRect(el)
     const folderId = el.dataset.railFolder ?? null
     rects.push({
       top: r.top - box.top + scroll,
@@ -89,12 +92,12 @@ export function useRailDrag(opts: RailDragOptions) {
   let suppressClickUntil = 0
   let lastTouchAt = Number.NEGATIVE_INFINITY
 
-  const contentY = (container: HTMLElement, clientY: number) =>
-    clientY - container.getBoundingClientRect().top + container.scrollTop
+  const contentY = (container: HTMLElement, y: number) =>
+    y - styleRect(container).top + container.scrollTop
 
   const elementBox = (container: HTMLElement, el: Element) => {
-    const box = container.getBoundingClientRect()
-    const r = el.getBoundingClientRect()
+    const box = styleRect(container)
+    const r = styleRect(el)
     return { top: r.top - box.top + container.scrollTop, height: r.height }
   }
 
@@ -149,19 +152,19 @@ export function useRailDrag(opts: RailDragOptions) {
     const container = opts.container.value
     if (!container) return
     active.ghost.style.transform =
-      `translate3d(${active.clientX - active.offsetX}px, ${active.clientY - active.offsetY}px, 0) scale(1.06)`
+      `translate3d(${active.x - active.offsetX}px, ${active.y - active.offsetY}px, 0) scale(1.06)`
 
-    const box = container.getBoundingClientRect()
-    const fromTop = active.clientY - box.top
-    const fromBottom = box.bottom - active.clientY
+    const box = styleRect(container)
+    const fromTop = active.y - box.top
+    const fromBottom = box.bottom - active.y
     if (fromTop < AUTOSCROLL_EDGE_PX) {
       container.scrollTop -= Math.ceil(AUTOSCROLL_MAX_PX * (1 - Math.max(fromTop, 0) / AUTOSCROLL_EDGE_PX))
     } else if (fromBottom < AUTOSCROLL_EDGE_PX) {
       container.scrollTop += Math.ceil(AUTOSCROLL_MAX_PX * (1 - Math.max(fromBottom, 0) / AUTOSCROLL_EDGE_PX))
     }
 
-    const outside = active.clientX < box.left - DROP_SLACK_PX || active.clientX > box.right + DROP_SLACK_PX
-    const target = outside ? null : resolveDropTarget(contentY(container, active.clientY), active.rects, active.source)
+    const outside = active.x < box.left - DROP_SLACK_PX || active.x > box.right + DROP_SLACK_PX
+    const target = outside ? null : resolveDropTarget(contentY(container, active.y), active.rects, active.source)
     if (!sameTarget(target, active.target)) {
       active.target = target
       const onSelf = !!target && (target.kind === 'before' || target.kind === 'after') && target.id === active.source.id
@@ -173,8 +176,10 @@ export function useRailDrag(opts: RailDragOptions) {
   const activate = () => {
     const container = opts.container.value
     if (!pending || !container) return
-    const { el, source, startX, startY } = pending
-    const r = el.getBoundingClientRect()
+    const { el, source } = pending
+    const startX = toStylePx(pending.startX)
+    const startY = toStylePx(pending.startY)
+    const r = styleRect(el)
     const ghost = el.cloneNode(true) as HTMLElement
     ghost.removeAttribute('data-rail-kind')
     ghost.removeAttribute('data-rail-id')
@@ -202,8 +207,8 @@ export function useRailDrag(opts: RailDragOptions) {
       offsetX: startX - r.left,
       offsetY: startY - r.top,
       rects: measureRail(container),
-      clientX: startX,
-      clientY: startY,
+      x: startX,
+      y: startY,
       target: null,
       frame: 0,
     }
@@ -231,8 +236,9 @@ export function useRailDrag(opts: RailDragOptions) {
 
   function onMove(e: PointerEvent) {
     if (active) {
-      active.clientX = e.clientX
-      active.clientY = e.clientY
+      const p = stylePoint(e)
+      active.x = p.x
+      active.y = p.y
       return
     }
     if (!pending || e.pointerId !== pending.pointerId) return
@@ -249,7 +255,7 @@ export function useRailDrag(opts: RailDragOptions) {
   function onUp(e: PointerEvent) {
     if (active) {
       const { source, target } = active
-      active.clientY = e.clientY
+      active.y = stylePoint(e).y
       teardown()
       suppressClickUntil = performance.now() + 50
       if (target) opts.onDrop(source, target)

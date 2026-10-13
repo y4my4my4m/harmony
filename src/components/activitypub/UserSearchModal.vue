@@ -405,7 +405,7 @@ onUnmounted(() => {
 .search-modal {
   width: 100%;
   max-width: 600px;
-  height: 80vh;
+  height: calc(80 * var(--app-vh));
   background: var(--background-quaternary);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-modal);
@@ -707,7 +707,7 @@ onUnmounted(() => {
   }
   
   .search-modal {
-    height: 100vh;
+    height: calc(100 * var(--app-vh));
     border-radius: 0;
   }
   

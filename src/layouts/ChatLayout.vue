@@ -499,7 +499,7 @@ const navigateToDefaultIfNeeded = async () => {
       }
 
       if (!targetChannelId && serverChannelStore.channels.length > 0) {
-        targetChannelId = serverChannelStore.getDefaultChannel()
+        targetChannelId = serverChannelStore.landingChannelFor(targetServerId)
         if (targetChannelId) {
           serverChannelStore.setCurrentChannel(targetChannelId)
         }
@@ -548,7 +548,7 @@ watch(
 
     const routeChannelId = route.params.channelId as string | undefined
     if (routeChannelId && serverChannelStore.currentChannelId !== routeChannelId) {
-      serverChannelStore.setCurrentChannel(routeChannelId)
+      serverChannelStore.setCurrentChannel(routeChannelId, routeServerId)
     }
   },
   { immediate: true }

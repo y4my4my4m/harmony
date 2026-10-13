@@ -124,6 +124,7 @@ import { VoiceSettingsService } from '@/services/VoiceSettingsService';
 import { DEFAULT_SOUNDS, type SoundboardSound } from '@/services/soundboard/sounds';
 import { SOUNDBOARD_COOLDOWN_MS } from '@/services/soundboard/protocol';
 import { VOICE_POPOVER_DISMISS, placePopover, type Rect } from './voiceMenuModel';
+import { styleRect, styleViewport } from '@/utils/appZoom';
 
 const props = defineProps<{
   visible: boolean;
@@ -257,8 +258,8 @@ async function place(): Promise<void> {
   await nextTick();
   const el = panelRef.value;
   if (!el) return;
-  const rect = el.getBoundingClientRect();
-  const viewport = { width: window.innerWidth, height: window.innerHeight };
+  const rect = styleRect(el);
+  const viewport = styleViewport();
   const anchor = props.anchor ?? { left: viewport.width / 2, top: viewport.height / 2, width: 0, height: 0 };
   position.value = placePopover(anchor, { width: rect.width, height: rect.height }, viewport);
   el.focus({ preventScroll: true });
@@ -318,8 +319,8 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 10px;
   width: 360px;
-  max-width: calc(100vw - 16px);
-  max-height: min(480px, calc(100vh - 16px));
+  max-width: calc(100 * var(--app-vw) - 16px);
+  max-height: min(480px, calc(100 * var(--app-vh) - 16px));
   padding: 14px 14px 0;
   background: var(--background-floating);
   border: 1px solid var(--border-primary);

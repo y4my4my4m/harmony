@@ -252,8 +252,8 @@ export default defineComponent({
 }
 
 .file-container > video {
-  max-width: 25vw!important;
-  max-height: 25vh !important;
+  max-width: calc(25 * var(--app-vw))!important;
+  max-height: calc(25 * var(--app-vh)) !important;
   border: 1px solid var(--border-hover);
   border-radius: 4px;
 }
@@ -261,7 +261,7 @@ export default defineComponent({
 /* Edit interface styles */
 .edit-container {
   width: 100%;
-  max-width: calc(100vw - 200px);
+  max-width: calc(100 * var(--app-vw) - 200px);
 }
 
 .edit-textarea {
@@ -319,7 +319,7 @@ export default defineComponent({
   }
   
   .edit-container {
-    max-width: calc(100vw - 40px);
+    max-width: calc(100 * var(--app-vw) - 40px);
   }
 }
 

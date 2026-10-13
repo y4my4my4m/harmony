@@ -254,20 +254,7 @@ export class WebSocketGateway {
       if (botConnection) {
         console.log(`Bot disconnected: ${botConnection.username}`)
         this.connections.delete(ws)
-        
-        this.cleanupBotBridgeData(botConnection.botId)
-        
-        supabase
-          .from('bot_presence')
-          .update({
-            status: 'offline',
-            last_heartbeat_at: new Date().toISOString()
-          })
-          .eq('bot_id', botConnection.botId)
-          .then(
-            ({ error }) => logPresenceError('offline update', error),
-            (err) => logPresenceError('offline update', err)
-          )
+        this.handleBotDisconnect(botConnection)
       }
     })
     
@@ -678,7 +665,32 @@ export class WebSocketGateway {
     this.bridgedUsersByChannel.delete(channelId)
   }
 
-  // Called on bot disconnect.
+  // A client that sees its socket drop (1006) reconnects and can identify
+  // before the server sees the old socket close. The bridge registration and
+  // the presence row then belong to the newer session: the registration stays
+  // while any connection of the bot is open in this process, and the row is
+  // written offline only while it still names the closing session.
+  private handleBotDisconnect(conn: BotConnection) {
+    for (const other of this.connections.values()) {
+      if (other.botId === conn.botId) return
+    }
+
+    this.cleanupBotBridgeData(conn.botId)
+
+    supabase
+      .from('bot_presence')
+      .update({
+        status: 'offline',
+        last_heartbeat_at: new Date().toISOString()
+      })
+      .eq('bot_id', conn.botId)
+      .eq('gateway_session_id', conn.sessionId)
+      .then(
+        ({ error }) => logPresenceError('offline update', error),
+        (err) => logPresenceError('offline update', err)
+      )
+  }
+
   private cleanupBotBridgeData(botId: string) {
     this.usersByBot.delete(botId)
     const botChannels = this.channelsByBot.get(botId)

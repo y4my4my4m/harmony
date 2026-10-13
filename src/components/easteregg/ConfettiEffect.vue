@@ -104,7 +104,7 @@ watch(isActive, (active) => {
     opacity: 1;
   }
   100% {
-    transform: translateY(100vh) rotate(calc(var(--rotation) + 720deg));
+    transform: translateY(calc(100 * var(--app-vh))) rotate(calc(var(--rotation) + 720deg));
     opacity: 0;
   }
 }

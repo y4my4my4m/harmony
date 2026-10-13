@@ -1392,7 +1392,7 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: calc(100vh - 64px);
+  min-height: calc(100 * var(--app-vh) - 64px);
   text-align: center;
   color: var(--text-tertiary);
   padding: 2rem;
@@ -1971,12 +1971,12 @@ onUnmounted(() => {
 
 @media (max-width: 480px) {
   .profile-content {
-    min-height: calc(100vh - 56px);
+    min-height: calc(100 * var(--app-vh) - 56px);
   }
   
   .loading-state,
   .error-state {
-    min-height: calc(100vh - 56px);
+    min-height: calc(100 * var(--app-vh) - 56px);
   }
 }
 </style>

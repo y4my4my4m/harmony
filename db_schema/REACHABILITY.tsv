@@ -332,6 +332,7 @@ get_or_create_discord_bridge_pairing	definer	text	anon+authenticated+service_rol
 get_or_create_dm_conversation	definer	uuid	service_role	client	rpc in federation-backend/src/activitypub/ActivityProcessor.ts
 get_or_create_federated_group_conversation	definer	uuid	service_role	client	rpc in federation-backend/src/activitypub/ActivityProcessor.ts
 get_owned_bot_server_counts	definer	TABLE(bot_id uuid, server_count integer)	authenticated+service_role	client	rpc in src/components/settings/user/UserBotsManagement.vue
+get_owned_bot_servers	definer	TABLE(bot_id uuid, server_id uuid, server_name text)	authenticated+service_role	client	rpc in src/components/settings/user/UserBotsManagement.vue
 get_pending_reports_count	definer	integer	anon+authenticated+service_role	client	rpc in src/services/ReportService.ts
 get_post_emoji_reactions	invoker	TABLE(emoji_id uuid, emoji_name text, emoji_url text, custom_emoji_content text, reaction_count bigint, user_reactions jsonb, current_user_reacted boolean)	anon+authenticated+service_role	client	rpc in src/services/core/CorePostService.ts, src/stores/postReactions.ts
 get_post_with_context	invoker	jsonb	anon+authenticated+service_role	client	rpc in src/services/activityPubService.ts

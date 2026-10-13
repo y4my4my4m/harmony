@@ -19,6 +19,7 @@
  * once per change. With reduced motion it never drifts.
  */
 import type { SkinScene } from '../types'
+import { styleRect } from '@/utils/appZoom'
 
 const RENDER_SCALE = 0.5
 const DRIFT_FPS = 20
@@ -210,8 +211,8 @@ export default function createFluxScene(): SkinScene {
   Object.assign(canvas.style, {
     position: 'fixed',
     inset: '0',
-    width: '100vw',
-    height: '100vh',
+    width: 'calc(100 * var(--app-vw))',
+    height: 'calc(100 * var(--app-vh))',
     zIndex: '-1',
     pointerEvents: 'none',
   })
@@ -366,7 +367,7 @@ export default function createFluxScene(): SkinScene {
     if (!dockActive()) return
     const icon = (e.target as Element | null)?.closest?.('[data-region="rail"] :is(.rail-entry, .header-item-wrapper, .portal)')
     if (!icon) return
-    const r = icon.getBoundingClientRect()
+    const r = styleRect(icon)
     body.style.setProperty('--flux-tip-x', `${r.left + r.width / 2}px`)
     body.style.setProperty('--flux-tip-y', `${r.bottom + 10}px`)
   }

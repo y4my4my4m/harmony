@@ -399,6 +399,7 @@ import Avatar from '@/components/common/Avatar.vue';
 import { useUserData } from '@/composables/useUserData';
 import { dmCallSignaling } from '@/services/DMCallSignaling';
 import { dmConversationIdFromChannel } from '@/composables/useCallSwitch';
+import { styleRect } from '@/utils/appZoom';
 
 const SoundboardPopover = defineAsyncComponent(() => import('./SoundboardPopover.vue'));
 
@@ -433,7 +434,7 @@ const openStreamPicker = () => {
     showStreamPicker.value = false;
     return;
   }
-  const r = shareButtonRef.value?.getBoundingClientRect();
+  const r = shareButtonRef.value ? styleRect(shareButtonRef.value) : null;
   streamPickerAnchor.value = r ? { left: r.left, top: r.top, width: r.width, height: r.height } : null;
   showStreamPicker.value = true;
 };
@@ -719,7 +720,7 @@ watch(gridEl, (el) => {
       }
     });
     resizeObserver.observe(el);
-    const rect = el.getBoundingClientRect();
+    const rect = styleRect(el);
     stageSize.value = { width: rect.width, height: rect.height };
   }
 });
@@ -1054,7 +1055,7 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   max-width: 1600px;
-  max-height: 94vh;
+  max-height: calc(94 * var(--app-vh));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1638,7 +1639,7 @@ onUnmounted(() => {
 
   .voice-container {
     border-radius: 0;
-    max-height: 100vh;
+    max-height: calc(100 * var(--app-vh));
     height: 100%;
   }
 

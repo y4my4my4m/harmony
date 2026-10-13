@@ -212,7 +212,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: clamp(220px, 46vh, 360px);
+  height: clamp(220px, 46 * var(--app-vh), 360px);
   padding: var(--space-4);
   border-radius: var(--radius-md);
   background: var(--background-tertiary);
@@ -220,7 +220,7 @@ onBeforeUnmount(() => {
 
 /* Fits the frame aspect inside the stage less its padding, as ImageCropper does. */
 .crop-dialog-animated-frame {
-  width: min(100%, calc((clamp(220px, 46vh, 360px) - 2 * var(--space-4)) * var(--frame-aspect)));
+  width: min(100%, calc((clamp(220px, 46 * var(--app-vh), 360px) - 2 * var(--space-4)) * var(--frame-aspect)));
   aspect-ratio: var(--frame-aspect);
   overflow: hidden;
   outline: 1.5px solid rgba(255, 255, 255, 0.9);

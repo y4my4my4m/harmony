@@ -510,6 +510,7 @@ import { threadService, type ThreadWithDetails } from '@/services/ThreadService'
 import { useThreadsStore, isOptimisticThreadId } from '@/stores/useThreads';
 import { useUnreadCounts } from '@/composables/useUnreadCounts';
 import { supabase } from '@/supabase';
+import { stylePoint, styleRect } from '@/utils/appZoom';
 
 import draggable from "vuedraggable";
 
@@ -1158,7 +1159,7 @@ const openContextMenu = (event: MouseEvent, item: Channel | Category, type: 'cha
     selectedCategory.value = item as Category;
     showCategoryContextMenu.value = true;
   }
-  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
+  contextMenuPosition.value = stylePoint(event);
 };
 
 const openChannelContextMenu = (event: MouseEvent, channel: Channel) => openContextMenu(event, channel, 'channel');
@@ -1178,7 +1179,7 @@ const openThreadContextMenu = (event: MouseEvent, thread: ThreadWithDetails) => 
   contextMenuTrigger.value = event.currentTarget as HTMLElement | null;
   selectedThread.value = thread;
   showThreadContextMenu.value = true;
-  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
+  contextMenuPosition.value = stylePoint(event);
 };
 
 const handleInviteUsers = () => openInviteModal();
@@ -1500,7 +1501,7 @@ watch([() => props.currentChannelId, selectedThreadId], async () => {
 });
 
 const menuPointFor = (el: HTMLElement) => {
-  const r = el.getBoundingClientRect();
+  const r = styleRect(el);
   return { x: r.left + Math.min(24, r.width / 2), y: r.bottom };
 };
 
@@ -1777,6 +1778,14 @@ onUnmounted(() => {
   position: relative;
 }
 
+/* Channel row inset, shared with the thread rows nested under a channel:
+   margin, left padding, and the space between the channel icon and name. */
+.channel-sidebar {
+  --channel-row-margin: 4px;
+  --channel-row-pad: 10px;
+  --channel-icon-gap: 8px;
+}
+
 .channel-item {
   box-sizing: border-box;
   border: none;
@@ -1784,18 +1793,18 @@ onUnmounted(() => {
   font-family: inherit;
   text-align: left;
   text-decoration: none;
-  padding: 6px 10px;
+  padding: 6px 10px 6px var(--channel-row-pad);
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
-  width: calc(100% - 8px);
+  width: calc(100% - 2 * var(--channel-row-margin));
   font-size: 14px;
   font-weight: 500;
   color: var(--text-secondary);
   position: relative;
   border-radius: 4px;
-  margin: 1px 4px;
+  margin: 1px var(--channel-row-margin);
 }
 
 .channel-item:hover {
@@ -2115,15 +2124,16 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 0 2px 34px;
+  /* Label starts where the channel name does: icon is 16px wide. */
+  padding: 2px 0 2px calc(var(--channel-row-pad) + 16px + var(--channel-icon-gap));
   border-radius: 4px;
   cursor: pointer;
   color: var(--text-secondary);
   font-size: 14px;
   transition: all 0.1s ease;
   position: relative;
-  margin: 0 auto;
-  width: calc(100% - 8px);
+  margin: 0 var(--channel-row-margin);
+  width: calc(100% - 2 * var(--channel-row-margin));
 }
 .channel-thread-item .thread-name {
   padding: 6px;
@@ -2142,10 +2152,10 @@ onUnmounted(() => {
   background: var(--channel-item-selected-bg, var(--background-quaternary));
 }
 
-/* Tree line joining a thread to its parent channel */
+/* Tree line joining a thread to its parent channel, under the icon's centre */
 .channel-thread-item .thread-branch {
   position: absolute;
-  left: 16px;
+  left: calc(var(--channel-row-pad) + 7px);
   width: 10px;
   height: 100%;
   pointer-events: none;
@@ -2170,7 +2180,8 @@ onUnmounted(() => {
   left: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 14px;
+  /* Ends 3px short of the label */
+  width: calc(var(--channel-icon-gap) + 6px);
   height: 2px;
   background: var(--text-muted);
   opacity: 0.5;
@@ -2225,6 +2236,13 @@ onUnmounted(() => {
   .server-header {
     width:100%;
   }
+  .channel-sidebar {
+    --channel-row-margin: 8px;
+    --channel-row-pad: 24px;
+    /* svg margin-right plus the .channel-content gap */
+    --channel-icon-gap: 20px;
+  }
+
   /* 48px minimum touch target */
   .channel-item,
   .category-header {
@@ -2301,6 +2319,10 @@ onUnmounted(() => {
 }
 
 @media (max-width: 1024px) and (min-width: 769px) {
+  .channel-sidebar {
+    --channel-row-pad: 14px;
+  }
+
   .channel-item,
   .category-header {
     min-height: 44px;

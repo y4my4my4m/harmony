@@ -408,7 +408,7 @@ const formatNumber = (num: number | undefined) => {
 .admin-panel {
   padding: 24px;
   background: var(--background-primary);
-  min-height: 100vh;
+  min-height: calc(100 * var(--app-vh));
   color: var(--text-primary);
   font-family: var(--font-family);
   overflow-y: auto;
@@ -2301,7 +2301,7 @@ const formatNumber = (num: number | undefined) => {
 
 
   .admin-module {
-    max-width: calc(100vw - 32px);
+    max-width: calc(100 * var(--app-vw) - 32px);
   }
 
 
@@ -2365,7 +2365,7 @@ const formatNumber = (num: number | undefined) => {
 
 
   .admin-module {
-    max-width: calc(100vw - 24px);
+    max-width: calc(100 * var(--app-vw) - 24px);
   }
 
 

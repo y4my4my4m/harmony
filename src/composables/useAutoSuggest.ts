@@ -12,6 +12,7 @@ import { ensureEmojiDataLoaded } from '@/composables/useEmojiLoader';
 import { customEmojiIndex, searchCustomIndex } from '@/services/emojiSearchIndex';
 import type { SuggestionItem, SuggestionPosition } from '@/components/AutoSuggest.vue';
 import { debug } from '@/utils/debug';
+import { cssZoom, styleRect, styleViewport } from '@/utils/appZoom';
 import { supabase } from '@/supabase';
 import {
   clearBridgedUsersCache,
@@ -69,7 +70,7 @@ interface RichTextEditorRef {
 
 type InputElementType = HTMLTextAreaElement | HTMLInputElement | RichTextEditorRef | any;
 
-/** Viewport rect the popup anchors to: the caret line, or the input box when no caret rect exists. */
+/** Rect the popup anchors to, CSS px: the caret line, or the input box when no caret rect exists. */
 export interface SuggestionAnchorRect {
   left: number;
   top: number;
@@ -93,7 +94,7 @@ export function inputDomElement(input: InputElementType | null | undefined): HTM
  * estimated at 8 px per character of the text before the caret.
  */
 export function suggestionAnchorRect(el: HTMLElement): SuggestionAnchorRect {
-  const box = el.getBoundingClientRect();
+  const box = styleRect(el);
 
   if ('selectionStart' in el && typeof (el as HTMLTextAreaElement).selectionStart === 'number') {
     const field = el as HTMLTextAreaElement;
@@ -112,7 +113,8 @@ export function suggestionAnchorRect(el: HTMLElement): SuggestionAnchorRect {
       const rects = caret.getClientRects?.();
       const rect = rects && rects.length > 0 ? rects[0] : caret.getBoundingClientRect?.();
       if (rect && (rect.top !== 0 || rect.bottom !== 0 || rect.left !== 0)) {
-        return { left: rect.left, top: rect.top, bottom: rect.bottom };
+        const z = cssZoom();
+        return { left: rect.left / z, top: rect.top / z, bottom: rect.bottom / z };
       }
     }
   }
@@ -121,7 +123,7 @@ export function suggestionAnchorRect(el: HTMLElement): SuggestionAnchorRect {
 }
 
 /**
- * Popup origin in viewport px: below the anchor, above it when the space
+ * Popup origin in CSS px: below the anchor, above it when the space
  * below cannot hold the popup, on the roomier side when neither can.
  * x starts 12 px left of the anchor and is clamped to the viewport inset.
  */
@@ -802,7 +804,7 @@ export function useAutoSuggest(
     return placeSuggestionPopup(
       suggestionAnchorRect(el),
       { width: popupWidth, height: popupHeight },
-      { width: window.innerWidth, height: window.innerHeight },
+      styleViewport(),
     );
   };
 

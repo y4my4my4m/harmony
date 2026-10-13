@@ -3270,6 +3270,8 @@
     "listTitle": "Bots ({count})",
     "noDescription": "Keine Beschreibung",
     "serverCount": "Auf keinem Server | Auf {count} Server | Auf {count} Servern",
+    "inServers": "Auf {servers}",
+    "inServersMore": "Auf {servers} und {count} weiteren",
     "lastConnected": "Zuletzt verbunden {time}",
     "neverConnected": "Nie verbunden",
     "back": "Alle Bots",

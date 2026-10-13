@@ -174,7 +174,7 @@ defineExpose({ focus: () => stageRef.value?.focus({ preventScroll: true }) })
 /* Fits the image aspect inside the wrap width and a 180-320 px height. */
 .focal-stage {
   position: relative;
-  width: min(100%, calc(clamp(180px, 38vh, 320px) * var(--focal-aspect)));
+  width: min(100%, calc(clamp(180px, 38 * var(--app-vh), 320px) * var(--focal-aspect)));
   aspect-ratio: var(--focal-aspect);
   cursor: crosshair;
   touch-action: none;

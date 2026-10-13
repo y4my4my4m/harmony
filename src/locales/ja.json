@@ -3270,6 +3270,8 @@
     "listTitle": "ボット（{count}）",
     "noDescription": "説明なし",
     "serverCount": "どのサーバーにも未参加 | {count} 個のサーバーに参加 | {count} 個のサーバーに参加",
+    "inServers": "{servers} に参加",
+    "inServersMore": "{servers} ほか {count} 個のサーバーに参加",
     "lastConnected": "最終接続：{time}",
     "neverConnected": "未接続",
     "back": "すべてのボット",

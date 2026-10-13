@@ -3,6 +3,17 @@
 
 /* === CSS CUSTOM PROPERTIES === */
 :root {
+  /* Viewport units with the CSS zoom multiplier (--viewport-zoom) divided
+     out: under CSS zoom Chromium multiplies vh/vw by the zoom factor, WebKit
+     does not. Raw viewport units are not used elsewhere in src. */
+  --app-vh: calc(1vh / var(--viewport-zoom, 1));
+  --app-dvh: calc(1dvh / var(--viewport-zoom, 1));
+  --app-svh: calc(1svh / var(--viewport-zoom, 1));
+  --app-lvh: calc(1lvh / var(--viewport-zoom, 1));
+  --app-vw: calc(1vw / var(--viewport-zoom, 1));
+  --app-vmin: calc(1vmin / var(--viewport-zoom, 1));
+  --app-vmax: calc(1vmax / var(--viewport-zoom, 1));
+
   /* Brand Colors */
   --harmony-primary: #0EA5E9;
   --harmony-primary-hover: #0284C7;
@@ -360,7 +371,7 @@ html {
 
 body {
   height: 100%;
-  min-height: 100vh;
+  min-height: calc(100 * var(--app-vh));
   font-family: var(--font-family);
   font-size: var(--font-size-base);
   line-height: var(--line-height-normal);
@@ -985,7 +996,7 @@ strong {
   box-shadow: var(--shadow-modal);
   width: 100%;
   max-width: 540px;
-  max-height: 90vh;
+  max-height: calc(90 * var(--app-vh));
   overflow: hidden;
   animation: modalContainerEnter var(--transition-bounce) ease-out;
   position: relative;
@@ -1036,7 +1047,7 @@ strong {
 .modal-body {
   padding: var(--space-6) var(--space-8);
   overflow-y: auto;
-  max-height: calc(90vh - 200px);
+  max-height: calc(90 * var(--app-vh) - 200px);
 }
 
 .modal-footer {

@@ -89,6 +89,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useNotificationStore } from '@/stores/useNotification'
 import { useServerNotificationSettingsStore } from '@/stores/useServerNotificationSettings'
 import { debug } from '@/utils/debug'
+import { stylePoint, styleRect } from '@/utils/appZoom'
 import type { Server, ServerFolder as ServerFolderType } from '@/types'
 
 const props = defineProps<{
@@ -202,7 +203,7 @@ const openMenuFor = (el: HTMLElement, at?: { x: number; y: number }) => {
   const source = sourceFromElement(el)
   if (!source) return
   emit('tooltip-hide')
-  const r = el.getBoundingClientRect()
+  const r = styleRect(el)
   const pos = at ?? { x: r.right + 8, y: r.top }
   menu.value = { kind: source.kind, id: source.id, ...pos }
 }
@@ -352,7 +353,7 @@ const onContextMenu = (e: MouseEvent) => {
   if (!el) return
   e.preventDefault()
   if (drag.isTouchContextMenu()) return
-  openMenuFor(el, { x: e.clientX, y: e.clientY })
+  openMenuFor(el, stylePoint(e))
 }
 
 let hovered: HTMLElement | null = null

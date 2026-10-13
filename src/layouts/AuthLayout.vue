@@ -23,9 +23,9 @@ const ownMain = computed(() => route.matched.some(r => r.meta?.providesMain === 
 
 <style scoped>
 .auth-layout {
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh; /* mobile: exclude browser chrome so content isn't clipped */
+  width: calc(100 * var(--app-vw));
+  height: calc(100 * var(--app-vh));
+  height: calc(100 * var(--app-dvh)); /* mobile: exclude browser chrome so content isn't clipped */
   display: flex;
   align-items: center;
   justify-content: center;

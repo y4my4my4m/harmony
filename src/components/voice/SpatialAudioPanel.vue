@@ -313,6 +313,7 @@ import DisplayName from '@/components/DisplayName.vue';
 import { useT } from '@/composables/useT';
 import { useAnnouncer } from '@/composables/useAnnouncer';
 import { uid } from '@/utils/a11y/focus';
+import { stylePoint, styleRect, styleViewport } from '@/utils/appZoom';
 
 // PROPS & EMITS
 
@@ -366,17 +367,18 @@ function handlePanelDragStart(e: MouseEvent) {
   const panelEl = (e.target as HTMLElement).closest('.spatial-audio-panel') as HTMLElement;
   if (!panelEl) return;
   
-  const rect = panelEl.getBoundingClientRect();
+  const rect = styleRect(panelEl);
   const currentX = rect.left;
-  const currentY = window.innerHeight - rect.bottom;
+  const currentY = styleViewport().height - rect.bottom;
   
-  panelDragStartPos = { x: e.clientX, y: e.clientY };
+  panelDragStartPos = stylePoint(e);
   panelDragInitialPos = { x: currentX, y: currentY };
   isPanelDragging.value = false;
   
   const onMove = (ev: MouseEvent) => {
-    const dx = ev.clientX - panelDragStartPos.x;
-    const dy = ev.clientY - panelDragStartPos.y;
+    const p = stylePoint(ev);
+    const dx = p.x - panelDragStartPos.x;
+    const dy = p.y - panelDragStartPos.y;
     
     if (!isPanelDragging.value && Math.abs(dx) + Math.abs(dy) > PANEL_CLICK_THRESHOLD) {
       isPanelDragging.value = true;
@@ -409,19 +411,20 @@ function handlePanelTouchStart(e: TouchEvent) {
   const panelEl = (e.target as HTMLElement).closest('.spatial-audio-panel') as HTMLElement;
   if (!panelEl) return;
   
-  const rect = panelEl.getBoundingClientRect();
+  const rect = styleRect(panelEl);
   const currentX = rect.left;
-  const currentY = window.innerHeight - rect.bottom;
+  const currentY = styleViewport().height - rect.bottom;
   
-  panelDragStartPos = { x: touch.clientX, y: touch.clientY };
+  panelDragStartPos = stylePoint(touch);
   panelDragInitialPos = { x: currentX, y: currentY };
   isPanelDragging.value = false;
   
   const onTouchMove = (ev: TouchEvent) => {
     const t = ev.touches[0];
     if (!t) return;
-    const dx = t.clientX - panelDragStartPos.x;
-    const dy = t.clientY - panelDragStartPos.y;
+    const p = stylePoint(t);
+    const dx = p.x - panelDragStartPos.x;
+    const dy = p.y - panelDragStartPos.y;
     
     if (!isPanelDragging.value && Math.abs(dx) + Math.abs(dy) > PANEL_CLICK_THRESHOLD) {
       isPanelDragging.value = true;
@@ -532,11 +535,12 @@ const handleAvatarMouseDown = (event: MouseEvent, userId: string) => {
   event.preventDefault();
   event.stopPropagation();
   
-  const rect = gridContainer.value?.getBoundingClientRect();
+  const rect = gridContainer.value ? styleRect(gridContainer.value) : null;
   if (!rect) return;
   
-  const startX = event.clientX - rect.left;
-  const startY = event.clientY - rect.top;
+  const p = stylePoint(event);
+  const startX = p.x - rect.left;
+  const startY = p.y - rect.top;
   
   spatialStore.startDrag(userId, startX, startY);
   
@@ -556,11 +560,12 @@ const handleGridMouseDown = (event: MouseEvent) => {
 const handleGridMouseMove = (event: MouseEvent) => {
   if (!spatialStore.isDragging || !spatialStore.draggedUserId) return;
   
-  const rect = gridContainer.value?.getBoundingClientRect();
+  const rect = gridContainer.value ? styleRect(gridContainer.value) : null;
   if (!rect) return;
   
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
+  const p = stylePoint(event);
+  const x = p.x - rect.left;
+  const y = p.y - rect.top;
   
   const dragOffset = spatialStore.dragOffset;
   const newX = Math.max(20, Math.min(rect.width - 20, x - dragOffset.x));
@@ -606,11 +611,12 @@ const handleAvatarTouchStart = (event: TouchEvent, userId: string) => {
   const touch = event.touches[0];
   if (!touch) return;
   
-  const rect = gridContainer.value?.getBoundingClientRect();
+  const rect = gridContainer.value ? styleRect(gridContainer.value) : null;
   if (!rect) return;
   
-  const startX = touch.clientX - rect.left;
-  const startY = touch.clientY - rect.top;
+  const p = stylePoint(touch);
+  const startX = p.x - rect.left;
+  const startY = p.y - rect.top;
   
   spatialStore.startDrag(userId, startX, startY);
   
@@ -631,11 +637,12 @@ const handleGridTouchMove = (event: TouchEvent) => {
   const touch = event.touches[0];
   if (!touch) return;
   
-  const rect = gridContainer.value?.getBoundingClientRect();
+  const rect = gridContainer.value ? styleRect(gridContainer.value) : null;
   if (!rect) return;
   
-  const x = touch.clientX - rect.left;
-  const y = touch.clientY - rect.top;
+  const p = stylePoint(touch);
+  const x = p.x - rect.left;
+  const y = p.y - rect.top;
   
   const dragOffset = spatialStore.dragOffset;
   const newX = Math.max(20, Math.min(rect.width - 20, x - dragOffset.x));
@@ -712,7 +719,7 @@ const onAvatarKeydown = (event: KeyboardEvent, userId: string) => {
   const move = delta[event.key];
   if (!move) return;
   event.preventDefault();
-  const rect = gridContainer.value?.getBoundingClientRect();
+  const rect = gridContainer.value ? styleRect(gridContainer.value) : null;
   // An unmeasured grid (0 px) clamps at the near edge only.
   const clamp = (v: number, size: number) => Math.max(EDGE, size > 2 * EDGE ? Math.min(size - EDGE, v) : v);
   const current = getPosition(userId);
@@ -775,7 +782,7 @@ const randomizePositions = () => {
 
 const updateGridSize = () => {
   if (gridContainer.value) {
-    const rect = gridContainer.value.getBoundingClientRect();
+    const rect = styleRect(gridContainer.value);
     gridSize.value = { width: rect.width, height: rect.height };
     spatialStore.setPanelSize(rect.width, rect.height);
   }
@@ -1321,8 +1328,8 @@ onUnmounted(() => {
 /* Responsive */
 @media (max-width: 768px) {
   .spatial-audio-panel {
-    width: calc(100vw - 40px);
-    height: calc(100vh - 100px);
+    width: calc(100 * var(--app-vw) - 40px);
+    height: calc(100 * var(--app-vh) - 100px);
     bottom: 20px;
     left: 20px;
     right: 20px;
@@ -1412,7 +1419,7 @@ onUnmounted(() => {
   /* Settings panel takes more space */
   .settings-panel {
     padding: 16px;
-    max-height: 50vh;
+    max-height: calc(50 * var(--app-vh));
     overflow-y: auto;
   }
   

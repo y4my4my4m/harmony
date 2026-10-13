@@ -363,7 +363,7 @@
 
   /* Dock tooltips sit under the hovered icon. top is an inline style. */
   :root[data-skin="flux"][data-skin-dock="on"] .sidebar-tooltip {
-    left: var(--flux-tip-x, 50vw);
+    left: var(--flux-tip-x, calc(50 * var(--app-vw)));
     top: var(--flux-tip-y, 84px) !important;
     transform: translateX(-50%);
   }
@@ -647,7 +647,7 @@
   letter-spacing: -0.03em;
 }
 :root[data-skin="flux"] .beginning-title {
-  font-size: clamp(34px, 4.2vw, 60px);
+  font-size: clamp(34px, 4.2 * var(--app-vw), 60px);
   font-weight: 800;
   letter-spacing: -0.05em;
   line-height: 0.98;
@@ -1072,9 +1072,9 @@
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(34vmax 30vmax at 72% 28%, color-mix(in oklab, var(--fx-a) 45%, transparent), transparent 70%),
-    radial-gradient(30vmax 26vmax at 30% 78%, color-mix(in oklab, var(--fx-b) 35%, transparent), transparent 70%),
-    radial-gradient(22vmax 20vmax at 88% 86%, color-mix(in oklab, var(--fx-a) 30%, transparent), transparent 70%);
+    radial-gradient(calc(34 * var(--app-vmax)) calc(30 * var(--app-vmax)) at 72% 28%, color-mix(in oklab, var(--fx-a) 45%, transparent), transparent 70%),
+    radial-gradient(calc(30 * var(--app-vmax)) calc(26 * var(--app-vmax)) at 30% 78%, color-mix(in oklab, var(--fx-b) 35%, transparent), transparent 70%),
+    radial-gradient(calc(22 * var(--app-vmax)) calc(20 * var(--app-vmax)) at 88% 86%, color-mix(in oklab, var(--fx-a) 30%, transparent), transparent 70%);
 }
 
 /* 10.2 Morph: servers and message avatars melt into a moving blob under the

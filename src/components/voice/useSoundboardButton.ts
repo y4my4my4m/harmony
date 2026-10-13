@@ -2,6 +2,7 @@ import { computed, ref, watch, type Ref } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useSoundboardStore } from '@/stores/soundboard';
 import type { Rect } from './voiceMenuModel';
+import { styleRect } from '@/utils/appZoom';
 
 /**
  * Soundboard button of a voice control bar: shown in a local server's voice
@@ -34,7 +35,7 @@ export function useSoundboardButton(buttonRef: Ref<HTMLElement | null>) {
       visible.value = false;
       return;
     }
-    const r = buttonRef.value?.getBoundingClientRect();
+    const r = buttonRef.value ? styleRect(buttonRef.value) : null;
     anchor.value = r ? { left: r.left, top: r.top, width: r.width, height: r.height } : null;
     visible.value = true;
   };

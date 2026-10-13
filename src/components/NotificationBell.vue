@@ -189,6 +189,7 @@ import { ref, computed, nextTick, watch, onBeforeUnmount, type ComponentPublicIn
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { debug } from '@/utils/debug'
+import { styleRect, styleViewport } from '@/utils/appZoom'
 import { useNotificationStore } from '@/stores/useNotification'
 import { useAuthStore } from '@/stores/auth'
 import { useLayoutState } from '@/composables/useLayoutState'
@@ -274,9 +275,8 @@ function positionPanel() {
     panelStyle.value = {}
     return
   }
-  const rect = bellRef.value.getBoundingClientRect()
-  const vw = window.innerWidth
-  const vh = window.innerHeight
+  const rect = styleRect(bellRef.value)
+  const { width: vw, height: vh } = styleViewport()
   const width = Math.min(PANEL_WIDTH, vw - GAP * 2)
   const left = Math.min(Math.max(rect.left, GAP), vw - width - GAP)
   const above = rect.top > vh / 2

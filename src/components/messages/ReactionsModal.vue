@@ -464,7 +464,7 @@ const handleTabKeydown = (event: KeyboardEvent) => {
 <style>
 .modal-overlay.reactions-modal .modal-container {
   max-width: 460px;
-  height: min(70vh, 520px);
+  height: min(70 * var(--app-vh), 520px);
 }
 
 .modal-overlay.reactions-modal .modal-content {
@@ -476,7 +476,7 @@ const handleTabKeydown = (event: KeyboardEvent) => {
 
 @media (max-width: 768px), (pointer: coarse) {
   .modal-overlay.reactions-modal .modal-container {
-    height: min(80vh, 560px);
+    height: min(80 * var(--app-vh), 560px);
   }
 }
 </style>

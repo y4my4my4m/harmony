@@ -315,9 +315,9 @@ onMounted(() => {
 .emoji-picker {
   background: var(--background-floating);
   border-radius: var(--radius-lg);
-  width: 90vw;
+  width: calc(90 * var(--app-vw));
   max-width: 400px;
-  max-height: 80vh;
+  max-height: calc(80 * var(--app-vh));
   box-shadow: var(--shadow-large);
   border: 1px solid var(--color-border);
   display: flex;
@@ -546,8 +546,8 @@ onMounted(() => {
 /* Mobile responsive */
 @media (max-width: 480px) {
   .emoji-picker {
-    width: 95vw;
-    max-height: 70vh;
+    width: calc(95 * var(--app-vw));
+    max-height: calc(70 * var(--app-vh));
   }
   
   .quick-reactions-grid {

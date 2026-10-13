@@ -698,8 +698,8 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  width: 100vw;
-  height: 100vh;
+  width: calc(100 * var(--app-vw));
+  height: calc(100 * var(--app-vh));
   background-color: rgba(0, 0, 0, 0.85);
   display: flex;
   align-items: center;
@@ -710,8 +710,8 @@ onUnmounted(() => {
 }
 
 .user-settings-container {
-  width: 100vw;
-  height: 100vh;
+  width: calc(100 * var(--app-vw));
+  height: calc(100 * var(--app-vh));
   max-width: none;
   background-color: var(--background-tertiary);
   border-radius: 0;
@@ -991,8 +991,8 @@ onUnmounted(() => {
   }
   
   .user-settings-container {
-    height: 100vh;
-    height: 100dvh;
+    height: calc(100 * var(--app-vh));
+    height: calc(100 * var(--app-dvh));
     border-radius: 0;
     max-width: none;
     padding-top: env(safe-area-inset-top, 0px);
@@ -1063,7 +1063,7 @@ onUnmounted(() => {
 /* Extra small screens */
 @media (max-width: 480px) {
   .settings-sidebar {
-    width: 100vw;
+    width: calc(100 * var(--app-vw));
   }
   
   .settings-content {

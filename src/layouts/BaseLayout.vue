@@ -131,6 +131,7 @@ import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useMobileGestures } from '@/composables/useMobileGestures'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { useTimelineSwipe } from '@/composables/useTimelineSwipe'
+import { toStylePx } from '@/utils/appZoom'
 import { routeAwareInitialization } from '@/services/RouteAwareInitialization'
 import { supabase } from '@/supabase'
 import { globalDMCallListener } from '@/services/GlobalDMCallListener'
@@ -1034,7 +1035,7 @@ const wrappedTouchMove = (event: TouchEvent) => {
     },
     onDragMove: (deltaX, direction) => {
       if (isActivityPubTimeline && !hasOpenSidebars) return
-      updateDragOffset(deltaX, direction)
+      updateDragOffset(toStylePx(deltaX), direction)
     }
   })
 }
@@ -1132,8 +1133,8 @@ onBeforeUnmount(() => {
 
 .base-layout {
   width: 100%;
-  height: 100vh;
-  height: 100dvh; /* mobile: exclude browser chrome so content isn't clipped */
+  height: calc(100 * var(--app-vh));
+  height: calc(100 * var(--app-dvh)); /* mobile: exclude browser chrome so content isn't clipped */
   display: flex;
   background: var(--background-primary);
   position: relative;
@@ -1161,7 +1162,7 @@ onBeforeUnmount(() => {
   top: 0;
   bottom: 0;
   width: 100%;
-  height: 100vh;
+  height: calc(100 * var(--app-vh));
   pointer-events: none;
   z-index: 300;
 }
@@ -1169,7 +1170,7 @@ onBeforeUnmount(() => {
 .edge-indicator {
   position: absolute;
   width: 4px;
-  height: 100vh;
+  height: calc(100 * var(--app-vh));
   background: var(--harmony-primary);
   opacity: 0;
   transition: opacity 0.15s ease;
@@ -1239,8 +1240,8 @@ onBeforeUnmount(() => {
     position: fixed;
     top: 0;
     left: 0;
-    height: 100vh;
-    height: 100dvh;
+    height: calc(100 * var(--app-vh));
+    height: calc(100 * var(--app-dvh));
     z-index: 200;
     transform: translateX(-100%);
     padding-top: env(safe-area-inset-top, 0px);

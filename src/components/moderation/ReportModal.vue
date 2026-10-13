@@ -257,9 +257,9 @@ onUnmounted(() => {
   background: var(--background-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  width: 90vw;
+  width: calc(90 * var(--app-vw));
   max-width: 480px;
-  max-height: 85vh;
+  max-height: calc(85 * var(--app-vh));
   display: flex;
   flex-direction: column;
   overflow: hidden;

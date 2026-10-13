@@ -357,7 +357,7 @@ async function confirm() {
   border-radius: var(--radius-md);
   width: 100%;
   max-width: 440px;
-  max-height: 90vh;
+  max-height: calc(90 * var(--app-vh));
   overflow-y: auto;
   box-shadow: var(--shadow-modal);
 }
