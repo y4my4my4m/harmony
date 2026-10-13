@@ -297,6 +297,54 @@ describe('gateway frames', () => {
   })
 })
 
+describe('gateway disconnect', () => {
+  /** `.eq()` filters of each offline write to bot_presence, in call order. */
+  function offlineWrites(): [string, unknown][][] {
+    const writes: [string, unknown][][] = []
+    let current: [string, unknown][] | null = null
+    for (const c of tableCalls) {
+      if (c.table !== 'bot_presence') continue
+      if (c.method === 'update') {
+        current = c.args[0]?.status === 'offline' ? [] : null
+        if (current) writes.push(current)
+      } else if (c.method === 'eq' && current) {
+        current.push([c.args[0], c.args[1]])
+      } else {
+        current = null
+      }
+    }
+    return writes
+  }
+
+  it('leaves the bot online when an earlier socket closes after it reconnected', async () => {
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+    const first = await identify(TOKEN)
+    const second = await identify(TOKEN)
+    expect(gateway.getTotalConnectionCount()).toBe(2)
+
+    first.ws.close()
+    await vi.waitFor(() => expect(gateway.getTotalConnectionCount()).toBe(1))
+    expect(offlineWrites()).toEqual([])
+    expect(gateway.getConnectedBotCount()).toBe(1)
+
+    second.ws.close()
+    await vi.waitFor(() => expect(offlineWrites()).toHaveLength(1))
+    expect(offlineWrites()[0]).toEqual([
+      ['bot_id', BOT_ID],
+      ['gateway_session_id', second.event.frame.d.session_id],
+    ])
+  })
+
+  it('writes offline only for the session the presence row names', async () => {
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+    const { ws, event } = await identify(TOKEN)
+
+    ws.close()
+    await vi.waitFor(() => expect(offlineWrites()).toHaveLength(1))
+    expect(offlineWrites()[0]).toContainEqual(['gateway_session_id', event.frame.d.session_id])
+  })
+})
+
 describe('gateway frame limit', () => {
   function closed(ws: WebSocket): Promise<{ code: number; reason: string }> {
     return new Promise((resolve) => ws.once('close', (code, raw) => resolve({ code, reason: raw.toString() })))
@@ -765,6 +813,26 @@ describe('bridge presence deltas (op 7)', () => {
     // The server-side close handler writes bot_presence; it runs before the mocks are restored.
     ws.close()
     await vi.waitFor(() => expect(gateway.getConnectedBotCount()).toBe(0))
+  })
+
+  it('keeps the registration while another connection of the bot is open', async () => {
+    await register(BOT_ID, { channels: [{ harmonyChannelId: CHANNEL_A, members: [member(ALICE_ID, 'alice')] }] })
+    const live = new WebSocket('ws://127.0.0.1:1')
+    live.on('error', () => {})
+    ;(gateway as any).connections.set(live, { ...conn(BOT_ID), sessionId: 'newer' })
+
+    ;(gateway as any).handleBotDisconnect({ ...conn(BOT_ID), sessionId: 'older' })
+
+    expect(gateway.getBridgedUsers(CHANNEL_A).map((u) => u.id)).toEqual([ALICE_ID])
+    ;(gateway as any).connections.delete(live)
+  })
+
+  it('forgets the registration when the last connection of the bot closes', async () => {
+    await register(BOT_ID, { channels: [{ harmonyChannelId: CHANNEL_A, members: [member(ALICE_ID, 'alice')] }] })
+
+    ;(gateway as any).handleBotDisconnect(conn(BOT_ID))
+
+    expect(gateway.getBridgedUsers(CHANNEL_A)).toEqual([])
   })
 
   it('forgets the registration index when the bot disconnects', async () => {

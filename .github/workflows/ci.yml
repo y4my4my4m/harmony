@@ -209,7 +209,8 @@ jobs:
   # Browser journeys against the same stack as e2e-stack, driving the built app.
   # Separate job: it needs a browser and a dev server, and a Playwright install
   # failure must not read as a schema failure. The webhook and account migration
-  # journeys run the federation backend's HTTP app (e2e/specs/backend.ts).
+  # journeys run the federation backend's HTTP app (e2e/specs/backend.ts); the bot
+  # gateway journeys run bot-gateway (e2e/specs/botGateway.ts).
   # ----------------------------------------------------------------
   e2e-journeys:
     name: E2E Journeys
@@ -225,11 +226,15 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             federation-backend/package-lock.json
+            bot-gateway/package-lock.json
 
       - run: npm ci
 
       - run: npm ci
         working-directory: federation-backend
+
+      - run: npm ci
+        working-directory: bot-gateway
 
       - run: google-chrome --version
       - run: npm run e2e:up
