@@ -237,6 +237,7 @@ the sign-in service. A Supabase stack without it needs the
 | `SUPABASE_ANON_KEY` | required | Supabase anon key for the web container; copied from `supabase/.env` |
 | `ENABLED_OAUTH_PROVIDERS` | empty | Comma-separated OAuth buttons (`google`, `github`, `twitch`) for the web container |
 | `TERMS_URL`, `PRIVACY_URL` | empty | Legal links for the web container; see the table above for which value applies |
+| `STATUS_URL` | empty | Service status page (an Uptime Kuma status page, for example) linked under the sign-in form and in Settings; no link when empty |
 | `REDIS_PASSWORD` | generated | Redis password (`requirepass`) |
 
 ## Supabase .env
@@ -292,11 +293,12 @@ non-empty key in `/config.json` wins.
 | `altDomains` | `HARMONY_ALT_DOMAINS` | `VITE_HARMONY_ALT_DOMAINS` | Comma-separated other host names of this instance, treated as local by link embeds |
 | `termsUrl` | `TERMS_URL` | `VITE_TERMS_URL` | Terms of service link on the registration page |
 | `privacyUrl` | `PRIVACY_URL` | `VITE_PRIVACY_URL` | Privacy policy link on the registration page |
+| `statusUrl` | `STATUS_URL` | `VITE_STATUS_URL` | Service status page linked under the sign-in form and in Settings. No link when unset |
 | `oauthProviders` | `ENABLED_OAUTH_PROVIDERS` | `VITE_ENABLED_OAUTH_PROVIDERS` | Comma-separated OAuth buttons when the database names none |
 
 `self-host/docker-compose.yml` passes the web container `SUPABASE_URL`,
 `SUPABASE_ANON_KEY`, `DOMAIN`, `INSTANCE_NAME`, `APP_URL`,
-`ENABLED_OAUTH_PROVIDERS`, `TERMS_URL` and `PRIVACY_URL`. The other keys
+`ENABLED_OAUTH_PROVIDERS`, `TERMS_URL`, `PRIVACY_URL` and `STATUS_URL`. The other keys
 reach it only through an edit to the `web` service's `environment:`.
 
 Build-only variables:

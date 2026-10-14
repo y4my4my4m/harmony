@@ -145,6 +145,7 @@
     "verifying": "確認中…",
     "sendingResetLink": "リセットリンクを送信中…",
     "poweredBy": "Powered by {name}",
+    "serviceStatus": "サービスの状態",
     "reset": {
       "successTitle": "パスワードをリセットしました",
       "successBody": "パスワードを更新しました。新しいパスワードでログインできます。",
@@ -2088,6 +2089,7 @@
       }
     },
     "buildInfo": {
+      "status": "サービスの状態",
       "copyHint": "クリックしてバグ報告用のバージョン情報をコピー",
       "copied": "バージョン情報をコピーしました",
       "copyFailed": "バージョン情報をコピーできませんでした",

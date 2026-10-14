@@ -31,6 +31,8 @@ export interface RuntimeConfig {
   termsUrl?: string
   /** VITE_PRIVACY_URL */
   privacyUrl?: string
+  /** VITE_STATUS_URL: public service status page; no link when unset. */
+  statusUrl?: string
   /** VITE_ENABLED_OAUTH_PROVIDERS: comma-separated provider ids. */
   oauthProviders?: string
 }
@@ -47,6 +49,7 @@ export const RUNTIME_CONFIG_KEYS = [
   'altDomains',
   'termsUrl',
   'privacyUrl',
+  'statusUrl',
   'oauthProviders',
 ] as const satisfies readonly (keyof RuntimeConfig)[]
 
@@ -169,6 +172,9 @@ export const runtimeConfig = {
   },
   get privacyUrl(): string | undefined {
     return runtime.privacyUrl || import.meta.env.VITE_PRIVACY_URL
+  },
+  get statusUrl(): string | undefined {
+    return runtime.statusUrl || import.meta.env.VITE_STATUS_URL
   },
   get oauthProviders(): string | undefined {
     return runtime.oauthProviders || import.meta.env.VITE_ENABLED_OAUTH_PROVIDERS

@@ -145,6 +145,7 @@
     "verifying": "Wird überprüft…",
     "sendingResetLink": "Link zum Zurücksetzen wird gesendet…",
     "poweredBy": "Betrieben mit {name}",
+    "serviceStatus": "Dienststatus",
     "reset": {
       "successTitle": "Passwort zurückgesetzt",
       "successBody": "Dein Passwort wurde geändert. Du kannst dich jetzt mit dem neuen Passwort anmelden.",
@@ -2088,6 +2089,7 @@
       }
     },
     "buildInfo": {
+      "status": "Dienststatus",
       "copyHint": "Klicken, um Versionsinfos für Fehlerberichte zu kopieren",
       "copied": "Versionsinfos kopiert",
       "copyFailed": "Versionsinfos konnten nicht kopiert werden",

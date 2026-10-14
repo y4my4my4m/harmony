@@ -47,14 +47,21 @@
 
           <slot />
         </div>
+
+        <!-- In flow under the card: no window height puts it over the card. -->
+        <p class="auth-footer">
+          <a href="https://github.com/y4my4my4m/harmony" target="_blank" rel="noopener" class="powered-by">
+            <i18n-t keypath="auth.poweredBy" scope="global">
+              <template #name><strong>Harmony</strong></template>
+            </i18n-t>
+          </a>
+          <template v-if="statusUrl">
+            <span aria-hidden="true">·</span>
+            <a :href="statusUrl" target="_blank" rel="noopener" data-testid="auth-status-link">{{ $t('auth.serviceStatus') }}</a>
+          </template>
+        </p>
       </div>
     </div>
-
-    <a href="https://github.com/y4my4my4m/harmony" target="_blank" rel="noopener" class="powered-by">
-      <i18n-t keypath="auth.poweredBy" scope="global">
-        <template #name><strong>Harmony</strong></template>
-      </i18n-t>
-    </a>
   </div>
 </template>
 
@@ -64,6 +71,8 @@ import { debug } from '@/utils/debug'
 import { loginBackground } from '@/utils/backgroundUtils'
 import { adminService } from '@/services/AdminService'
 import { getStoredInstance } from '@/services/instanceConfig'
+import { runtimeConfig } from '@/services/runtimeConfig'
+import { safeHref } from '@/utils/sanitize'
 
 // public/mascot/<pose>.webp. All four load with the page so a pose change never waits on the network.
 const MASCOT_POSES = ['idle', 'hide', 'peek', 'oops'] as const
@@ -78,6 +87,7 @@ withDefaults(defineProps<{
   busy: false,
 })
 
+const statusUrl = safeHref(runtimeConfig.statusUrl)
 const artUrl = ref(loginBackground())
 const artLoaded = ref(false)
 
@@ -237,6 +247,7 @@ onMounted(async () => {
    ======================================== */
 .auth-panel {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: calc(var(--mascot-size) + 32px) 40px 64px;
@@ -343,18 +354,22 @@ svg.auth-instance-icon {
 /* ========================================
    Powered By
    ======================================== */
-.powered-by {
-  position: fixed;
-  bottom: 16px;
-  right: 20px;
-  z-index: 20;
+.auth-footer {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 20px 0 0;
   font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.auth-footer a {
   color: var(--text-muted);
   text-decoration: none;
   transition: color 0.2s ease;
 }
 
-.powered-by:hover {
+.auth-footer a:hover {
   color: var(--text);
 }
 
@@ -425,6 +440,7 @@ svg.auth-instance-icon {
 
   .auth-card {
     display: flex;
+    flex: 1;
     flex-direction: column;
     max-width: none;
     border-width: 1px 0 0;
@@ -442,11 +458,10 @@ svg.auth-instance-icon {
     width: var(--mascot-size);
   }
 
-  .powered-by {
-    position: static;
-    display: block;
-    padding: 0 16px 24px;
-    text-align: center;
+  .auth-footer {
+    margin: 0;
+    padding: 4px 16px 24px;
+    background: var(--surface);
   }
 }
 
@@ -457,7 +472,7 @@ svg.auth-instance-icon {
       margin-top: calc(var(--art-gap) + env(safe-area-inset-top));
     }
 
-    .powered-by {
+    .auth-footer {
       padding-bottom: calc(24px + env(safe-area-inset-bottom));
     }
   }

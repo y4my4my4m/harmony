@@ -145,6 +145,7 @@
     "verifying": "正在验证…",
     "sendingResetLink": "正在发送重置链接…",
     "poweredBy": "由 {name} 驱动",
+    "serviceStatus": "服务状态",
     "reset": {
       "successTitle": "密码已重置",
       "successBody": "你的密码已更新。现在可以使用新密码登录。",
@@ -2088,6 +2089,7 @@
       }
     },
     "buildInfo": {
+      "status": "服务状态",
       "copyHint": "点击复制版本信息以用于错误报告",
       "copied": "已复制版本信息",
       "copyFailed": "无法复制版本信息",

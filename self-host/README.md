@@ -86,7 +86,7 @@ environment of a command overrides it for that run.
 The web image carries no instance values: its entrypoint writes
 `/config.json` from the container environment (`SUPABASE_URL`,
 `SUPABASE_ANON_KEY`, `DOMAIN`, `INSTANCE_NAME`, `APP_URL`,
-`ENABLED_OAUTH_PROVIDERS`, `TERMS_URL`, `PRIVACY_URL`; the full list is in
+`ENABLED_OAUTH_PROVIDERS`, `TERMS_URL`, `PRIVACY_URL`, `STATUS_URL`; the full list is in
 `web-entrypoint.d/40-harmony-config.sh`). The backend images run Node 24 as
 uid 1000 (`node`).
 

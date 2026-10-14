@@ -145,6 +145,7 @@
     "verifying": "확인 중…",
     "sendingResetLink": "재설정 링크 보내는 중…",
     "poweredBy": "Powered by {name}",
+    "serviceStatus": "서비스 상태",
     "reset": {
       "successTitle": "비밀번호 재설정 완료",
       "successBody": "비밀번호가 변경되었습니다. 이제 새 비밀번호로 로그인할 수 있습니다.",
@@ -2088,6 +2089,7 @@
       }
     },
     "buildInfo": {
+      "status": "서비스 상태",
       "copyHint": "클릭하여 버그 신고용 버전 정보 복사",
       "copied": "버전 정보가 복사되었습니다",
       "copyFailed": "버전 정보를 복사할 수 없습니다",

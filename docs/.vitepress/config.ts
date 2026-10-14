@@ -216,7 +216,7 @@ export default withMermaid(
       },
 
       footer: {
-        message: 'AGPL-3.0 · Harmony contributors',
+        message: 'AGPL-3.0 · Harmony contributors · <a href="https://status.mony.lol">har.mony.lol status</a>',
       },
 
       search: {

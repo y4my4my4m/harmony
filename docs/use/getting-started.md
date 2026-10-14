@@ -8,7 +8,7 @@ This page is for people new to Harmony. It covers what an instance is, creating 
 
 ## Instances and accounts
 
-An instance is one Harmony deployment, reached at its own domain and run by its own operator. https://har.mony.lol is the flagship instance; anyone can run another one ([Self-host](/self-host/)).
+An instance is one Harmony deployment, reached at its own domain and run by its own operator. https://har.mony.lol is the flagship instance, with its service status at https://status.mony.lol; anyone can run another one ([Self-host](/self-host/)).
 
 Your account lives on one instance. Your handle is your username followed by that instance's domain, for example `@sam@har.mony.lol`. Servers, the communities you chat in, are hosted on an instance too. Instances federate, so from your account you can join a server hosted on another Harmony instance and mention people on other instances ([Join a server on another instance](#join-a-server-on-another-instance)).
 
