@@ -6,7 +6,7 @@ describe('SERVER_SETTINGS_KEYS', () => {
   it('match the columns update_server writes', () => {
     expect([...SERVER_SETTINGS_KEYS]).toEqual([
       'name', 'description', 'icon', 'banner', 'public', 'federation_enabled',
-      'allow_cross_server_emojis', 'rules', 'category',
+      'allow_cross_server_emojis', 'rules', 'category', 'sidebar_banner',
     ])
   })
 })

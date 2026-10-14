@@ -12,7 +12,7 @@ const CLAP = 'b1260000-0000-0000-0000-000000000002'
 
 const voice = vi.hoisted(() => ({ state: null as any }))
 const webrtc = vi.hoisted(() => ({ sendSoundboard: vi.fn() }))
-const player = vi.hoisted(() => ({ play: vi.fn(), stopAll: vi.fn() }))
+const player = vi.hoisted(() => ({ play: vi.fn(), stopAll: vi.fn(), prewarm: vi.fn() }))
 const settings = vi.hoisted(() => ({ soundboardVolume: 100, soundboardMuted: false }))
 const mixer = vi.hoisted(() => ({ master: 100, muted: new Set<string>() }))
 const perms = vi.hoisted(() => ({ value: {} as Record<string, boolean> }))

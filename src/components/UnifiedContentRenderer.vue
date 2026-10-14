@@ -105,11 +105,15 @@
             v-else-if="!isPreviewMode && showVideos && renderer.isVideoUrl(part.url)" 
             class="media-container video-container"
           >
-            <video
-              :src="part.url"
-              controls
-              class="content-video"
-            ></video>
+            <div class="video-frame">
+              <video
+                :src="part.url"
+                :controls="nativeVideoControls"
+                class="content-video"
+                preload="metadata"
+              ></video>
+              <VideoControls v-if="!nativeVideoControls" />
+            </div>
           </div>
           
           <!-- Regular URL links -->
@@ -148,11 +152,15 @@
             v-else-if="!isPreviewMode && showVideos && part.fileType === 'video'" 
             class="media-container video-container"
           >
-            <video
-              :src="part.url"
-              controls
-              class="content-video"
-            ></video>
+            <div class="video-frame">
+              <video
+                :src="part.url"
+                :controls="nativeVideoControls"
+                class="content-video"
+                preload="metadata"
+              ></video>
+              <VideoControls v-if="!nativeVideoControls" />
+            </div>
           </div>
           
           <!-- Audio files -->
@@ -199,6 +207,8 @@ import { escapeHtml, sanitizeMessageHtml, safeHref } from '@/utils/sanitize';
 import { isTauriRuntime } from '@/services/instanceConfig';
 import { openExternalUrl } from '@/services/tauriLinks';
 import DisplayName from '@/components/DisplayName.vue';
+import VideoControls from '@/components/common/VideoControls.vue';
+import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 import { useUserData } from '@/composables/useUserData';
 import { mentionDisplayDomain } from '@/utils/mentionGrammar';
 import Icon from '@/components/common/Icon.vue';
@@ -260,6 +270,7 @@ const contentRef = computed(() => props.content);
 // Vue's typed `emit` is a tuple-of-overloads function; useContentRenderer
 // expects the simpler `(event, ...args) => void` shape. The runtime call
 // signature matches; cast to bridge the type-level mismatch.
+const nativeVideoControls = useNativeVideoControls();
 const renderer = useContentRenderer(contentRef, contentOptions, emit as unknown as (event: string, ...args: any[]) => void);
 
 // Computed helpers
@@ -873,6 +884,19 @@ const formatFileSize = (bytes: number): string => {
 
 .content-html :deep(.audio-container) {
   margin: 8px 0;
+}
+
+/* Shrinks to the video so the player chrome covers the video only. */
+.video-frame {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
+  border-radius: 4px;
+}
+
+.video-frame .content-video {
+  display: block;
 }
 
 /* Media containers */

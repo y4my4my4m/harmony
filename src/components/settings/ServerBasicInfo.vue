@@ -212,6 +212,20 @@
           {{ t('server.banner.hint') }}
         </div>
       </div>
+      <div class="form-group toggle-row sidebar-banner-row">
+        <div class="toggle-info">
+          <span :id="`${uid}-sidebar-banner`" class="toggle-title">{{ t('server.banner.sidebar') }}</span>
+          <p :id="`${uid}-sidebar-banner-desc`" class="form-hint">{{ t('server.banner.sidebarHint') }}</p>
+        </div>
+        <ToggleSwitch
+          :model-value="!!server.sidebar_banner"
+          :disabled="!permissions.canChangeServerIcon || !hasBanner"
+          :labelledby="`${uid}-sidebar-banner`"
+          :describedby="`${uid}-sidebar-banner-desc`"
+          data-testid="server-sidebar-banner-toggle"
+          @update:model-value="setSidebarBanner"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -226,6 +240,7 @@ import { withRenderFallback } from '@/utils/renderFallback'
 import { imageSourceError } from '@/utils/uploadValidation'
 import { useImageCrop } from '@/composables/useImageCrop'
 import ServerIcon from '@/components/common/ServerIcon.vue'
+import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 
 const { t } = useI18n()
 const uid = `sbi-${useId()}`
@@ -314,6 +329,14 @@ const handleBannerFileChange = async (event: Event) => {
   }
 
   emit('banner-change', file)
+}
+
+// A stored banner, or one picked and not yet saved.
+const hasBanner = computed(() => !!props.selectedBannerFile || !!props.server.banner)
+
+const setSidebarBanner = (on: boolean) => {
+  if (!props.permissions.canChangeServerIcon || !hasBanner.value) return
+  emit('update:server', { ...props.server, sidebar_banner: on })
 }
 
 const removeBanner = () => {
@@ -523,6 +546,25 @@ const updateServerDescription = (event: Event) => {
   color: var(--text-muted);
   margin-top: 8px;
 }
+
+.form-group.toggle-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.toggle-info { flex: 1; min-width: 0; }
+
+.toggle-title {
+  display: block;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.toggle-info .form-hint { margin-top: 4px; }
 
 .read-only-hint {
   font-size: 12px;

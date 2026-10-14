@@ -62,24 +62,26 @@
               :alt="currentAlt"
               class="media-content media-image"
             />
-            <video
-              v-else-if="currentItem && isVideo(currentItem)"
-              ref="videoRef"
-              :src="currentSrc"
-              :poster="currentPoster"
-              :aria-label="currentAlt || undefined"
-              class="media-content media-video"
-              controls
-              preload="auto"
-              :autoplay="autoplayCurrent"
-              playsinline
-              :loop="isGifv"
-              :muted="videoMuted || isGifv"
-              @volumechange="onVolumeChange"
-              @loadedmetadata="onVideoLoadedMetadata"
-            >
-              {{ t('a11y.lightbox.videoUnsupported') }}
-            </video>
+            <div v-else-if="currentItem && isVideo(currentItem)" class="media-video-frame">
+              <video
+                ref="videoRef"
+                :src="currentSrc"
+                :poster="currentPoster"
+                :aria-label="currentAlt || undefined"
+                class="media-content media-video"
+                :controls="nativeVideoControls || isGifv"
+                preload="auto"
+                :autoplay="autoplayCurrent"
+                playsinline
+                :loop="isGifv"
+                :muted="videoMuted || isGifv"
+                @volumechange="onVolumeChange"
+                @loadedmetadata="onVideoLoadedMetadata"
+              >
+                {{ t('a11y.lightbox.videoUnsupported') }}
+              </video>
+              <VideoControls v-if="!nativeVideoControls && !isGifv" :key="currentSrc" :label="currentAlt || undefined" />
+            </div>
           </div>
         </div>
       </div>
@@ -90,6 +92,8 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch, onMounted, onUnmounted } from 'vue';
 import { useT } from '@/composables/useT';
+import VideoControls from '@/components/common/VideoControls.vue';
+import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 import { useDialog } from '@/composables/useDialog';
 import { isTopLayerElement } from '@/utils/a11y/layers';
 
@@ -148,6 +152,7 @@ function isVideo(item: LightboxItem): boolean {
 }
 
 const { t } = useT();
+const nativeVideoControls = useNativeVideoControls();
 const dialogEl = ref<HTMLElement | null>(null);
 
 function getSrc(item: LightboxItem): string {
@@ -229,10 +234,10 @@ function next() {
 }
 
 // Left/Right step through the items while this viewer is the topmost layer;
-// a focused <video> keeps them for seeking. Escape is the dialog stack's.
+// a focused <video> or player keeps them for seeking. Escape is the dialog stack's.
 function handleKeydown(e: KeyboardEvent) {
   if (!props.visible || !isTopLayerElement(dialogEl.value)) return;
-  if ((e.target as Element | null)?.closest?.('video')) return;
+  if ((e.target as Element | null)?.closest?.('video, .hv')) return;
   if (e.key === 'ArrowLeft') prev();
   else if (e.key === 'ArrowRight') next();
   else return;
@@ -378,6 +383,18 @@ watch(
   max-width: 100%;
   max-height: calc(85 * var(--app-vh));
   object-fit: contain;
+}
+
+/* Shrinks to the video so the player chrome covers the video only. */
+.media-video-frame {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  line-height: 0;
+}
+
+.media-video-frame .media-video {
+  display: block;
 }
 
 .lightbox-fade-enter-active,

@@ -399,7 +399,9 @@
       "change": "Change server banner",
       "remove": "Remove banner",
       "hint": "Recommended: 1280×400px. Displayed at the top of your server.",
-      "none": "No server banner set"
+      "none": "No server banner set",
+      "sidebar": "Show the banner above the channel list",
+      "sidebarHint": "Members see the server banner at the top of the channel list."
     },
     "emojiActions": {
       "copy": "Copy {name}",
@@ -1535,6 +1537,10 @@
       "bridgeSourceBadgeText": "Text label (DISCORD)",
       "floatingVideo": "Floating video player",
       "floatingVideoDesc": "Keep a playing video in a small player when you scroll away from it. Works with YouTube and uploaded videos.",
+      "videoPlayer": "Video player",
+      "videoPlayerDesc": "Harmony's player, or the browser's own controls.",
+      "videoPlayerHarmony": "Harmony",
+      "videoPlayerNative": "Browser default",
       "showCustomEmojisInDisplayNames": "Show emojis in display names",
       "showCustomEmojisInDisplayNamesDesc": "When enabled, other users' display names show emoji images. When disabled, emojis and shortcodes are hidden entirely.",
       "greentext": "Greentext",
@@ -6020,7 +6026,9 @@
       "airhorn": "Air horn",
       "crickets": "Crickets",
       "golf-clap": "Golf clap",
-      "quack": "Quack"
+      "quack": "Quack",
+      "pop": "Pop",
+      "stop-having-fun": "Stop having fun"
     },
     "settings": {
       "navLabel": "Soundboard",
@@ -6245,5 +6253,21 @@
       "white": "White",
       "black": "Black"
     }
+  },
+  "videoPlayer": {
+    "player": "Video player",
+    "play": "Play",
+    "pause": "Pause",
+    "replay": "Replay",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "volume": "Volume",
+    "seek": "Seek",
+    "seekValue": "{current} of {total}",
+    "speed": "Playback speed {rate}×",
+    "pip": "Picture in picture",
+    "exitPip": "Exit picture in picture",
+    "fullscreen": "Full screen",
+    "exitFullscreen": "Exit full screen"
   }
 }

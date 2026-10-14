@@ -26,6 +26,7 @@ import { audioThemeService } from '@/services/AudioThemeService'
 import { BUILTIN_SKINS, type SkinScene } from './skins'
 import { setVerboseAnnouncements } from '@/composables/useAnnouncer'
 import type { VisualThemeSettings } from './useVisualTheme.types'
+import { setVideoPlayerPreference } from './useVideoPlayerPreference'
 
 const AUDIO_THEME_WHEN_SKIN_CLEARED = 'default'
 
@@ -297,6 +298,7 @@ function createDefaultSettings(theme: VisualThemeSettings['theme'] = 'dark'): Vi
     renderEmoticonsAsEmoji: true,
     inviteBannerBackground: true,
     bridgeSourceBadge: 'icon',
+    videoPlayer: 'harmony',
     fontFamily: 'system',
     glassEffectsEnabled: true,
     activeSkinId: null,
@@ -306,6 +308,7 @@ function createDefaultSettings(theme: VisualThemeSettings['theme'] = 'dark'): Vi
 
 // Global state (singleton pattern)
 const settings = ref<VisualThemeSettings>(createDefaultSettings(systemPreset()))
+watch(() => settings.value.videoPlayer, setVideoPlayerPreference, { immediate: true })
 
 const isInitialized = ref(false)
 const isSaving = ref(false)

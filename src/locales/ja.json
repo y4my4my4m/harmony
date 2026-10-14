@@ -399,7 +399,9 @@
       "change": "サーバーバナーを変更",
       "remove": "バナーを削除",
       "hint": "推奨：1280×400px。サーバーの上部に表示されます。",
-      "none": "サーバーバナーは設定されていません"
+      "none": "サーバーバナーは設定されていません",
+      "sidebar": "チャンネルリストの上にバナーを表示",
+      "sidebarHint": "メンバーにはチャンネルリストの上部にサーバーバナーが表示されます。"
     },
     "emojiActions": {
       "copy": "{name} をコピー",
@@ -1489,6 +1491,10 @@
       "bridgeSourceBadgeText": "テキストラベル（DISCORD）",
       "floatingVideo": "フローティング動画プレーヤー",
       "floatingVideoDesc": "スクロールすると再生中の動画が隅に移動します。YouTubeとネイティブ動画で動作します。",
+      "videoPlayer": "ビデオプレーヤー",
+      "videoPlayerDesc": "Harmony のプレーヤー、またはブラウザ標準のコントロール。",
+      "videoPlayerHarmony": "Harmony",
+      "videoPlayerNative": "ブラウザの既定",
       "highContrast": "ハイコントラスト",
       "highContrastDesc": "視認性を向上させるためにコントラストを増やします。",
       "reduceMotion": "モーション削減",
@@ -6024,7 +6030,9 @@
       "airhorn": "エアホーン",
       "crickets": "コオロギ",
       "golf-clap": "控えめな拍手",
-      "quack": "ガーガー"
+      "quack": "ガーガー",
+      "pop": "ポン",
+      "stop-having-fun": "楽しむのをやめろ"
     },
     "settings": {
       "navLabel": "サウンドボード",
@@ -6249,5 +6257,21 @@
       "white": "白",
       "black": "黒"
     }
+  },
+  "videoPlayer": {
+    "player": "ビデオプレーヤー",
+    "play": "再生",
+    "pause": "一時停止",
+    "replay": "もう一度再生",
+    "mute": "ミュート",
+    "unmute": "ミュート解除",
+    "volume": "音量",
+    "seek": "シーク",
+    "seekValue": "{total} 中 {current}",
+    "speed": "再生速度 {rate}×",
+    "pip": "ピクチャー・イン・ピクチャー",
+    "exitPip": "ピクチャー・イン・ピクチャーを終了",
+    "fullscreen": "全画面表示",
+    "exitFullscreen": "全画面表示を終了"
   }
 }

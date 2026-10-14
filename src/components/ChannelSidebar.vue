@@ -5,7 +5,7 @@
       @showCategoryCreator="showCategoryCreator"
       @createCategory="createCategory"
     />
-    <div class="server-header">
+    <div class="server-header" :class="{ 'has-banner': showBanner, 'over-banner': showBanner && !bannerCovered }">
       <button
         type="button"
         class="server-name"
@@ -44,6 +44,11 @@
         @createChannel="emitCreateChannel"
         @openInviteModal="openInviteModal"
       />
+    </div>
+    <!-- Server banner, the owner's choice: scrolls under the sticky name bar. -->
+    <div v-if="showBanner" class="server-banner" data-testid="server-sidebar-banner">
+      <BannerImage :src="bannerSrc" :fallback-src="bannerFullSize" eager @failed="bannerFailed = true" />
+      <div ref="bannerEndEl" class="server-banner-end" aria-hidden="true"></div>
     </div>
 
     <!-- Descriptions for voice channel rows: what activating one does. -->
@@ -490,10 +495,11 @@ import HashTagIcon from '@/components/icons/HashTag.vue';
 import SpeakerIcon from '@/components/icons/Speaker.vue';
 import ChatBubbleIcon from '@/components/icons/ChatBubble.vue';
 import Icon from '@/components/common/Icon.vue';
-import { remoteServerHost } from '@/utils/serverUtils';
+import { getRawServerBannerUrl, getServerBannerUrl, remoteServerHost } from '@/utils/serverUtils';
 import { useToast } from 'vue-toastification';
 import { useI18n } from 'vue-i18n';
 import ServerDropdown from './ServerDropdown.vue';
+import BannerImage from '@/components/common/BannerImage.vue';
 import CategoryCreator from './CategoryCreator.vue';
 import InviteModal from './InviteModal.vue';
 import VoiceChannelParticipants from '@/components/voice/VoiceChannelParticipants.vue';
@@ -1648,6 +1654,44 @@ const moveCategory = async (category: Category, delta: -1 | 1) => {
   }
 };
 
+// --- SERVER BANNER ---
+// Stored banners are cropped to 16:5 (imageCrop server_banner); 640x200 covers the sidebar at 2x.
+const BANNER_BOX = { width: 640, height: 200 } as const;
+const bannerFailed = ref(false);
+const bannerSrc = computed(() => getServerBannerUrl(props.currentServer?.banner, BANNER_BOX));
+const bannerFullSize = computed(() => getRawServerBannerUrl(props.currentServer?.banner));
+const showBanner = computed(() => props.currentServer?.sidebar_banner === true && !!bannerSrc.value && !bannerFailed.value);
+watch(() => props.currentServer?.banner, () => { bannerFailed.value = false; });
+
+// The name bar is transparent over the banner and solid once the banner's end has
+// scrolled under it.
+const bannerEndEl = ref<HTMLElement | null>(null);
+const bannerCovered = ref(false);
+let bannerObserver: IntersectionObserver | null = null;
+
+const scrollParentOf = (el: HTMLElement): HTMLElement | null => {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const overflow = getComputedStyle(p).overflowY;
+    if (overflow === 'auto' || overflow === 'scroll') return p;
+  }
+  return null;
+};
+
+watch(bannerEndEl, (el) => {
+  bannerObserver?.disconnect();
+  bannerObserver = null;
+  bannerCovered.value = false;
+  if (!el || typeof IntersectionObserver === 'undefined') return;
+  const header = sidebarEl.value?.querySelector('.server-header') as HTMLElement | null;
+  const inset = header?.offsetHeight ?? 48;
+  bannerObserver = new IntersectionObserver(
+    // rootBounds is the scroll box less the name bar; above its top the banner has scrolled under the bar.
+    ([entry]) => { bannerCovered.value = !entry.isIntersecting && entry.boundingClientRect.top < (entry.rootBounds?.top ?? inset); },
+    { root: scrollParentOf(el), rootMargin: `-${inset}px 0px 0px 0px` },
+  );
+  bannerObserver.observe(el);
+}, { flush: 'post' });
+
 onMounted(() => {
   if (sidebarEl.value) rovingObserver?.observe(sidebarEl.value, { childList: true, subtree: true });
 });
@@ -1655,6 +1699,7 @@ onMounted(() => {
 onUnmounted(() => {
   cancelChannelPrefetch();
   rovingObserver?.disconnect();
+  bannerObserver?.disconnect();
 });
 
 
@@ -1680,6 +1725,46 @@ onUnmounted(() => {
   position: relative;
   z-index: 10;
   flex-shrink: 0;
+}
+
+/* With a banner the name bar stays at the top while the banner scrolls under it. */
+.server-header.has-banner {
+  position: sticky;
+  top: 0;
+}
+
+.server-header.over-banner .server-name {
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.55), rgb(0 0 0 / 0));
+  border-bottom-color: transparent;
+  color: #fff;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.6);
+}
+
+.server-header.over-banner .server-name:hover {
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.7), rgb(0 0 0 / 0.1));
+}
+
+.server-header.over-banner .server-name-chevron {
+  color: #fff;
+}
+
+/* 16:5, the stored crop; a 112px floor keeps it taller than the name bar on a narrow
+   sidebar, trimming the sides. 47px under the name bar, pulled up beneath it. */
+.server-banner {
+  position: relative;
+  aspect-ratio: 16 / 5;
+  min-height: 112px;
+  margin-top: -47px;
+  overflow: hidden;
+  background: var(--background-secondary);
+}
+
+.server-banner-end {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
 }
 
 .server-name {
@@ -1924,8 +2009,11 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
+/* Shrinks for the ellipsis but does not grow: the lock and private marks follow the name,
+   and a mention badge at the row's end leaves them in place. */
 .channel-name {
-  flex: 1;
+  flex: 0 1 auto;
+  min-width: 0;
   text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;

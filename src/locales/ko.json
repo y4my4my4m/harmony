@@ -399,7 +399,9 @@
       "change": "서버 배너 변경",
       "remove": "배너 제거",
       "hint": "권장: 1280×400px. 서버 상단에 표시됩니다.",
-      "none": "서버 배너가 설정되지 않았습니다"
+      "none": "서버 배너가 설정되지 않았습니다",
+      "sidebar": "채널 목록 위에 배너 표시",
+      "sidebarHint": "멤버는 채널 목록 상단에서 서버 배너를 볼 수 있습니다."
     },
     "emojiActions": {
       "copy": "{name} 복사",
@@ -1489,6 +1491,10 @@
       "bridgeSourceBadgeText": "텍스트 라벨(DISCORD)",
       "floatingVideo": "플로팅 비디오 플레이어",
       "floatingVideoDesc": "스크롤하면 재생 중인 비디오가 모서리로 이동합니다. YouTube 및 기본 비디오에서 작동합니다.",
+      "videoPlayer": "동영상 플레이어",
+      "videoPlayerDesc": "Harmony 플레이어 또는 브라우저 기본 컨트롤.",
+      "videoPlayerHarmony": "Harmony",
+      "videoPlayerNative": "브라우저 기본값",
       "highContrast": "고대비",
       "highContrastDesc": "가시성을 높이기 위해 대비를 증가시킵니다.",
       "reduceMotion": "모션 줄이기",
@@ -6024,7 +6030,9 @@
       "airhorn": "에어혼",
       "crickets": "귀뚜라미",
       "golf-clap": "골프 박수",
-      "quack": "꽥"
+      "quack": "꽥",
+      "pop": "뿅",
+      "stop-having-fun": "그만 즐겨"
     },
     "settings": {
       "navLabel": "사운드보드",
@@ -6249,5 +6257,21 @@
       "white": "흰색",
       "black": "검정"
     }
+  },
+  "videoPlayer": {
+    "player": "동영상 플레이어",
+    "play": "재생",
+    "pause": "일시정지",
+    "replay": "다시 재생",
+    "mute": "음소거",
+    "unmute": "음소거 해제",
+    "volume": "볼륨",
+    "seek": "탐색",
+    "seekValue": "{total} 중 {current}",
+    "speed": "재생 속도 {rate}×",
+    "pip": "PIP 모드",
+    "exitPip": "PIP 모드 종료",
+    "fullscreen": "전체 화면",
+    "exitFullscreen": "전체 화면 종료"
   }
 }

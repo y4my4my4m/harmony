@@ -525,26 +525,27 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  /* Same box as .attachment-remove-btn beside it. */
+  width: 30px;
+  height: 30px;
   padding: 0;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 8px;
+  background: rgb(12 14 20 / 0.72);
   color: #fff;
   cursor: pointer;
   opacity: 0;
   transition: opacity var(--transition-fast), background-color var(--transition-fast);
 }
 
-/* Left of the attachment remove button (32px at right: 8px) or the clip
-   favorite button (28px at right: 8px). */
+/* Left of the attachment remove button (30px at right: 8px), 6px apart. */
 .floating-video-popout--inset {
   right: 44px;
 }
 
 .floating-video-popout:hover {
-  background: rgba(0, 0, 0, 0.85);
+  background: var(--harmony-primary, #0ea5e9);
+  border-color: var(--harmony-primary, #0ea5e9);
 }
 
 :hover > .floating-video-popout,

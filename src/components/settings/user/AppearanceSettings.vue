@@ -646,6 +646,26 @@
         </div>
       </div>
 
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 :id="`${a11yId}-player`" class="setting-label">{{ $t('settings.appearance.videoPlayer') }}</h4>
+          <p :id="`${a11yId}-player-desc`" class="setting-description">{{ $t('settings.appearance.videoPlayerDesc') }}</p>
+        </div>
+        <div class="setting-control">
+          <select
+            :value="settings.videoPlayer === 'native' ? 'native' : 'harmony'"
+            :aria-labelledby="`${a11yId}-player`"
+            :aria-describedby="`${a11yId}-player-desc`"
+            class="form-select"
+            data-testid="video-player-setting"
+            @change="settings.videoPlayer = ($event.target as HTMLSelectElement).value === 'native' ? 'native' : 'harmony'"
+          >
+            <option value="harmony">{{ $t('settings.appearance.videoPlayerHarmony') }}</option>
+            <option value="native">{{ $t('settings.appearance.videoPlayerNative') }}</option>
+          </select>
+        </div>
+      </div>
+
       <div v-if="instanceSettings.settings.allowCustomEmojisInDisplayNames" class="setting-item">
         <div class="setting-info">
           <h4 class="setting-label" :id="`${a11yId}-t6`">{{ $t('settings.appearance.showCustomEmojisInDisplayNames') }}</h4>

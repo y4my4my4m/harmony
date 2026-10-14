@@ -399,7 +399,9 @@
       "change": "Cambiar banner del servidor",
       "remove": "Quitar banner",
       "hint": "Recomendado: 1280×400 px. Se muestra en la parte superior de tu servidor.",
-      "none": "No hay banner del servidor"
+      "none": "No hay banner del servidor",
+      "sidebar": "Mostrar el banner sobre la lista de canales",
+      "sidebarHint": "Los miembros ven el banner del servidor en la parte superior de la lista de canales."
     },
     "emojiActions": {
       "copy": "Copiar {name}",
@@ -1489,6 +1491,10 @@
       "bridgeSourceBadgeText": "Etiqueta de texto (DISCORD)",
       "floatingVideo": "Reproductor de video flotante",
       "floatingVideoDesc": "Los videos en reproducción flotan en la esquina al desplazarse. Funciona con YouTube y videos nativos.",
+      "videoPlayer": "Reproductor de vídeo",
+      "videoPlayerDesc": "El reproductor de Harmony o los controles del navegador.",
+      "videoPlayerHarmony": "Harmony",
+      "videoPlayerNative": "Predeterminado del navegador",
       "highContrast": "Alto contraste",
       "highContrastDesc": "Aumenta el contraste para mejor visibilidad.",
       "reduceMotion": "Reducir movimiento",
@@ -6024,7 +6030,9 @@
       "airhorn": "Bocina",
       "crickets": "Grillos",
       "golf-clap": "Aplauso de golf",
-      "quack": "Cuac"
+      "quack": "Cuac",
+      "pop": "Pop",
+      "stop-having-fun": "Dejen de divertirse"
     },
     "settings": {
       "navLabel": "Panel de sonidos",
@@ -6249,5 +6257,21 @@
       "white": "Blanco",
       "black": "Negro"
     }
+  },
+  "videoPlayer": {
+    "player": "Reproductor de vídeo",
+    "play": "Reproducir",
+    "pause": "Pausa",
+    "replay": "Volver a reproducir",
+    "mute": "Silenciar",
+    "unmute": "Activar sonido",
+    "volume": "Volumen",
+    "seek": "Buscar",
+    "seekValue": "{current} de {total}",
+    "speed": "Velocidad de reproducción {rate}×",
+    "pip": "Imagen en imagen",
+    "exitPip": "Salir de imagen en imagen",
+    "fullscreen": "Pantalla completa",
+    "exitFullscreen": "Salir de pantalla completa"
   }
 }

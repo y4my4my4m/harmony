@@ -45,12 +45,13 @@
           v-else-if="item.fileType === 'video'"
           :src="sourceFor(item)"
           class="content-video"
-          controls
+          :controls="nativeVideoControls"
           preload="metadata"
           :aria-label="item.altText || undefined"
           @play="onVideoPlay"
           @error="onItemError(item)"
         />
+        <VideoControls v-if="item.fileType === 'video' && !nativeVideoControls" :label="item.altText || undefined" />
         <button
           v-if="item.fileType === 'video' && floatingVideos.canPopOut(videoKey(item, index))"
           type="button"
@@ -83,6 +84,8 @@ import { isPrivateMediaPart, mediaPartSource, reportMediaPartError } from '@/ser
 import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.vue';
 import Icon from '@/components/common/Icon.vue';
 import MediaUploadProgress from '@/components/common/MediaUploadProgress.vue';
+import VideoControls from '@/components/common/VideoControls.vue';
+import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 import { useFloatingVideo, useFloatingVideoRefs } from '@/composables/useFloatingVideo';
 import { messageMediaUploadState } from '@/services/messageMediaUpload';
 import {
@@ -108,6 +111,8 @@ const props = defineProps<{
   canRemove?: boolean;
   messageId?: string;
 }>();
+
+const nativeVideoControls = useNativeVideoControls();
 
 const onItemError = (item: GalleryMediaItem, variant: 'original' | 'thumbnail' = 'original') => {
   if (isDiscordCdnUrl(item.url)) requestAttachmentRefresh(props.messageId);

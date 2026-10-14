@@ -6,6 +6,7 @@ import { VoiceSettingsService, normalizeSoundboardVolume } from '@/services/Voic
 import { remoteAudioMixer } from '@/services/voice/remoteAudioMixer'
 import { soundboardGain, soundboardPlayer } from '@/services/soundboard/player'
 import {
+  DEFAULT_SOUNDS,
   defaultSound,
   listServerSounds,
   listSoundboardLibrary,
@@ -125,6 +126,10 @@ export const useSoundboardStore = defineStore('soundboard', {
         return false
       }
       const key = `${channel.serverId}:${channel.channelId}:${channel.selfId}`
+      // Sounds of the call's server and the built-in clips decode while the call settles:
+      // a play, ours or another member's, then starts from memory.
+      soundboardPlayer.prewarm(DEFAULT_SOUNDS.map((s) => s.url))
+      void this.loadServerSounds(channel.serverId)
       try {
         const perms = await roleService.getUserPermissions(channel.selfId, channel.serverId, channel.channelId)
         const current = this.currentChannel()
@@ -164,6 +169,7 @@ export const useSoundboardStore = defineStore('soundboard', {
     setServerSounds(serverId: string, sounds: SoundboardSound[]): void {
       this.soundsByServer[serverId] = sounds
       this.loadedAt[serverId] = Date.now()
+      if (this.currentChannel()?.serverId === serverId) soundboardPlayer.prewarm(sounds.map((s) => s.url))
     },
 
     /** The caller's servers that share their sounds; the previous list when the request fails. */

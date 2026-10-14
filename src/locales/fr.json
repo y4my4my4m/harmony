@@ -399,7 +399,9 @@
       "change": "Changer la bannière du serveur",
       "remove": "Supprimer la bannière",
       "hint": "Recommandé : 1280×400 px. Affichée en haut de votre serveur.",
-      "none": "Aucune bannière de serveur"
+      "none": "Aucune bannière de serveur",
+      "sidebar": "Afficher la bannière au-dessus de la liste des salons",
+      "sidebarHint": "Les membres voient la bannière du serveur en haut de la liste des salons."
     },
     "emojiActions": {
       "copy": "Copier {name}",
@@ -1489,6 +1491,10 @@
       "bridgeSourceBadgeText": "Libellé texte (DISCORD)",
       "floatingVideo": "Lecteur vidéo flottant",
       "floatingVideoDesc": "Les vidéos en lecture flottent dans le coin lors du défilement. Fonctionne avec YouTube et les vidéos natives.",
+      "videoPlayer": "Lecteur vidéo",
+      "videoPlayerDesc": "Le lecteur de Harmony ou les commandes du navigateur.",
+      "videoPlayerHarmony": "Harmony",
+      "videoPlayerNative": "Par défaut du navigateur",
       "highContrast": "Contraste élevé",
       "highContrastDesc": "Augmenter le contraste pour une meilleure visibilité.",
       "reduceMotion": "Réduire les mouvements",
@@ -6024,7 +6030,9 @@
       "airhorn": "Corne de brume",
       "crickets": "Grillons",
       "golf-clap": "Applaudissements polis",
-      "quack": "Coin-coin"
+      "quack": "Coin-coin",
+      "pop": "Pop",
+      "stop-having-fun": "Arrêtez de vous amuser"
     },
     "settings": {
       "navLabel": "Soundboard",
@@ -6249,5 +6257,21 @@
       "white": "Blanc",
       "black": "Noir"
     }
+  },
+  "videoPlayer": {
+    "player": "Lecteur vidéo",
+    "play": "Lire",
+    "pause": "Pause",
+    "replay": "Relire",
+    "mute": "Couper le son",
+    "unmute": "Rétablir le son",
+    "volume": "Volume",
+    "seek": "Position",
+    "seekValue": "{current} sur {total}",
+    "speed": "Vitesse de lecture {rate}×",
+    "pip": "Image dans l'image",
+    "exitPip": "Quitter l'image dans l'image",
+    "fullscreen": "Plein écran",
+    "exitFullscreen": "Quitter le plein écran"
   }
 }

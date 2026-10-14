@@ -476,6 +476,10 @@ const closeFolderModal = () => {
   width: 100%;
 }
 
+.fixed-footer .separator {
+  margin-bottom: 5px;
+}
+
 .fixed-footer {
   flex-shrink: 0;
   display: flex;
@@ -713,7 +717,8 @@ const closeFolderModal = () => {
   width: 80%;
   border-top: 1px solid var(--border-secondary);
   border-bottom: 1px solid var(--border-color);
-  margin-bottom: 5px;
+  /* The rail list below adds 8px, room for a badge above the first server. */
+  margin-bottom: 1px;
 }
 
 .server-pill {
