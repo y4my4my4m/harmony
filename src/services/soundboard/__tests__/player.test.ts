@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SOUNDBOARD_MAX_CONCURRENT, SoundboardPlayer, soundboardGain } from '../player';
+import { SOUNDBOARD_MAX_CONCURRENT, SOUNDBOARD_MAX_DECODED, SoundboardPlayer, soundboardGain } from '../player';
 import { setVoiceAudioSink } from '@/services/voice/voiceAudioContext';
 
 class FakeAudio {
@@ -130,4 +130,126 @@ describe('SoundboardPlayer', () => {
     expect(player.activeCount).toBe(0);
     expect(created.every((a) => a.paused)).toBe(true);
   });
+});
+
+// A Web Audio context that records what it decodes and plays.
+function fakeContext(options: { sink?: boolean } = {}) {
+  const started: string[] = [];
+  const stopped: string[] = [];
+  const decodes: string[] = [];
+  const ctx = {
+    state: 'running',
+    destination: {},
+    decodeAudioData: vi.fn(async (bytes: ArrayBuffer) => {
+      const url = new TextDecoder().decode(bytes);
+      decodes.push(url);
+      return { url } as unknown as AudioBuffer;
+    }),
+    createGain: () => ({ gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() }),
+    createBufferSource: () => {
+      const source = {
+        buffer: null as unknown as { url: string } | null,
+        onended: null as null | (() => void),
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        start: vi.fn(() => started.push(source.buffer!.url)),
+        stop: vi.fn(() => stopped.push(source.buffer!.url)),
+      };
+      return source;
+    },
+    resume: vi.fn(async () => {}),
+    ...(options.sink ? { setSinkId: vi.fn(async () => {}) } : {}),
+  };
+  return { ctx: ctx as unknown as AudioContext, started, stopped, decodes };
+}
+
+const settle = async () => {
+  for (let i = 0; i < 6; i++) await new Promise((r) => setTimeout(r, 20));
+};
+
+function makeWebAudioPlayer(options: { sink?: boolean } = {}) {
+  const audio = fakeContext(options);
+  const created: FakeAudio[] = [];
+  const player = new SoundboardPlayer(
+    () => {
+      const element = new FakeAudio();
+      created.push(element);
+      return element as unknown as HTMLAudioElement;
+    },
+    () => audio.ctx,
+    async (url) => new TextEncoder().encode(url).buffer as ArrayBuffer,
+  );
+  return { player, created, ...audio };
+}
+
+describe('SoundboardPlayer from memory', () => {
+  it('plays a prewarmed clip from its decoded buffer, without an element', async () => {
+    const { player, created, started, decodes } = makeWebAudioPlayer();
+    player.prewarm(['/a.mp3', '/b.mp3']);
+    await settle();
+    expect(decodes).toEqual(['/a.mp3', '/b.mp3']);
+    expect(player.play('/a.mp3', 0.5)).not.toBeNull();
+    expect(started).toEqual(['/a.mp3']);
+    expect(created).toHaveLength(0);
+    expect(player.activeCount).toBe(1);
+  });
+
+  it('plays a clip not yet decoded by element and decodes it for the next play', async () => {
+    const { player, created, started, decodes } = makeWebAudioPlayer();
+    player.play('/a.mp3', 1);
+    expect(created).toHaveLength(1);
+    await settle();
+    expect(decodes).toEqual(['/a.mp3']);
+    player.play('/a.mp3', 1);
+    expect(started).toEqual(['/a.mp3']);
+    expect(created).toHaveLength(1);
+  });
+
+  it('decodes a clip once however often it is prewarmed', async () => {
+    const { player, decodes } = makeWebAudioPlayer();
+    player.prewarm(['/a.mp3']);
+    player.prewarm(['/a.mp3', '/a.mp3']);
+    await settle();
+    player.prewarm(['/a.mp3']);
+    await settle();
+    expect(decodes).toEqual(['/a.mp3']);
+  });
+
+  it('uses an element for a device the context cannot reach', async () => {
+    await setVoiceAudioSink('headset-1');
+    const { player, created, started } = makeWebAudioPlayer({ sink: false });
+    player.prewarm(['/a.mp3']);
+    await settle();
+    player.play('/a.mp3', 1);
+    expect(started).toEqual([]);
+    expect(created[0].setSinkId).toHaveBeenCalledWith('headset-1');
+  });
+
+  it('plays from memory on a device the context routes to', async () => {
+    await setVoiceAudioSink('headset-1');
+    const { player, created, started } = makeWebAudioPlayer({ sink: true });
+    player.prewarm(['/a.mp3']);
+    await settle();
+    player.play('/a.mp3', 1);
+    expect(started).toEqual(['/a.mp3']);
+    expect(created).toHaveLength(0);
+  });
+
+  it('stops the oldest clip past the concurrency cap', async () => {
+    const { player, stopped } = makeWebAudioPlayer();
+    const urls = Array.from({ length: SOUNDBOARD_MAX_CONCURRENT + 1 }, (_, i) => `/${i}.mp3`);
+    player.prewarm(urls);
+    await settle();
+    for (const url of urls) player.play(url, 1);
+    expect(player.activeCount).toBe(SOUNDBOARD_MAX_CONCURRENT);
+    expect(stopped).toEqual(['/0.mp3']);
+  });
+
+  it(`keeps at most ${SOUNDBOARD_MAX_DECODED} decoded clips`, async () => {
+    const { player } = makeWebAudioPlayer();
+    const urls = Array.from({ length: SOUNDBOARD_MAX_DECODED + 5 }, (_, i) => `/${i}.mp3`);
+    for (const url of urls) player.play(url, 1);
+    for (let i = 0; i < 20; i++) await settle();
+    expect(player.decodedCount).toBe(SOUNDBOARD_MAX_DECODED);
+  }, 20000);
 });

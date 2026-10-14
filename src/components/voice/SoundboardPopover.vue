@@ -123,6 +123,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { VoiceSettingsService } from '@/services/VoiceSettingsService';
 import { DEFAULT_SOUNDS, type SoundboardSound } from '@/services/soundboard/sounds';
 import { SOUNDBOARD_COOLDOWN_MS } from '@/services/soundboard/protocol';
+import { soundboardPlayer } from '@/services/soundboard/player';
 import { VOICE_POPOVER_DISMISS, placePopover, type Rect } from './voiceMenuModel';
 import { styleRect, styleViewport } from '@/utils/appZoom';
 
@@ -274,7 +275,8 @@ async function open(): Promise<void> {
   const library = soundboard.loadLibrary();
   const id = serverId.value;
   if (id) {
-    loading.value = true;
+    // Cached sounds show at once; the list refreshes behind them.
+    loading.value = !soundboard.soundsByServer[id];
     try {
       await soundboard.loadServerSounds(id, true);
     } finally {
@@ -282,6 +284,8 @@ async function open(): Promise<void> {
     }
   }
   await library;
+  // Clips of the other servers on show decode too; their first play starts from memory.
+  soundboardPlayer.prewarm(soundboard.library.flatMap((server) => server.sounds.map((sound) => sound.url)));
   void place();
 }
 
