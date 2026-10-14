@@ -34,6 +34,7 @@ import {
   type SpecUser,
 } from './harness'
 import { expectNoAxeViolations } from './a11y'
+import { announced, recordAnnouncements } from './a11y-keyboard'
 
 const admin = adminClient()
 let owner: SpecUser
@@ -459,6 +460,7 @@ test('image descriptions: rendered as alt text, kept on attachments, lightbox by
   })
 
   await test.step('an attached image takes a description in a labelled field', async () => {
+    await recordAnnouncements(page)
     await page.locator('[data-testid="composer-file-input"]').setInputFiles({
       name: 'holiday.png',
       mimeType: 'image/png',
@@ -466,8 +468,10 @@ test('image descriptions: rendered as alt text, kept on attachments, lightbox by
     })
     const item = page.locator('[data-testid="file-preview-item"]').filter({ hasText: 'holiday.png' })
     await expect(item).toBeVisible()
-    await expect(announcer(page)).toHaveText(/1 file attached/)
     await expect(item).toContainText('Uploaded', { timeout: 15000 })
+    await expect.poll(() => announced(page)).toEqual(
+      expect.arrayContaining([expect.stringMatching(/1 file attached/), expect.stringMatching(/holiday\.png uploaded/)]),
+    )
     const describe = item.getByRole('button', { name: 'Add a description to holiday.png' })
     await describe.focus()
     await page.keyboard.press('Enter')

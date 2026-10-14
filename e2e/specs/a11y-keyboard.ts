@@ -44,6 +44,30 @@ export async function describedByText(target: Locator): Promise<string> {
 export const politeRegion = (page: Page) => page.getByTestId('live-announcer-polite')
 
 /**
+ * Keeps every text either live region shows from now on. A message replaced
+ * within a poll interval (an upload that finishes as it is attached) never
+ * reaches toHaveText; screen readers still queue it.
+ */
+export async function recordAnnouncements(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const log: string[] = []
+    ;(window as unknown as { __announced: string[] }).__announced = log
+    for (const id of ['live-announcer-polite', 'live-announcer-assertive']) {
+      const region = document.querySelector(`[data-testid="${id}"]`)
+      if (!region) continue
+      new MutationObserver(() => {
+        const text = region.textContent?.trim()
+        if (text) log.push(text)
+      }).observe(region, { childList: true, characterData: true, subtree: true })
+    }
+  })
+}
+
+/** Texts seen since recordAnnouncements. */
+export const announced = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __announced?: string[] }).__announced ?? [])
+
+/**
  * Waits until no CSS animation or transition is running: axe reads colours
  * mid-fade as blended and reports contrast that the settled page does not have.
  */
