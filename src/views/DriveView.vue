@@ -186,56 +186,59 @@
       @delete="(file) => file.state === 'trashed' ? (deleteForever = [file.id]) : trash([file.id])"
     />
 
-    <AppMenu v-if="fileMenu" :x="fileMenu.x" :y="fileMenu.y" :label="t('drive.menu.file')" data-testid="drive-file-menu" @close="fileMenu = null">
-      <button type="button" role="menuitem" @click="fileMenu && openPreview(fileMenu.entry); fileMenu = null">
+    <ChatMenu v-if="fileMenu" :x="fileMenu.x" :y="fileMenu.y" :label="t('drive.menu.file')" data-testid="drive-file-menu" @close="fileMenu = null">
+      <button type="button" role="menuitem" class="chat-menu-item" @click="fileMenu && openPreview(fileMenu.entry); fileMenu = null">
         <Icon name="eye" :size="15" />{{ t('drive.actions.open') }}
       </button>
-      <button type="button" role="menuitem" @click="fileMenu && download(fileMenu.entry.file); fileMenu = null">
+      <button type="button" role="menuitem" class="chat-menu-item" @click="fileMenu && download(fileMenu.entry.file); fileMenu = null">
         <Icon name="download" :size="15" />{{ t('drive.actions.download') }}
       </button>
       <template v-if="fileMenu && fileMenu.entry.file.owner_id === ownId">
         <template v-if="fileMenu.entry.file.state !== 'trashed'">
-          <button type="button" role="menuitem" @click="renameFromMenu">
+          <button type="button" role="menuitem" class="chat-menu-item" @click="renameFromMenu">
             <Icon name="pencil" :size="15" />{{ t('drive.actions.rename') }}
           </button>
           <button v-if="fileMenu.entry.file.bucket === 'message_media'" type="button" role="menuitem" @click="shareFile = fileMenu!.entry.file; fileMenu = null">
             <Icon name="share" :size="15" />{{ t('drive.actions.share') }}
           </button>
-          <button type="button" role="menuitem" @click="moveTarget = { files: [...drive.selected], folder: null }; fileMenu = null">
+          <button type="button" role="menuitem" class="chat-menu-item" @click="moveTarget = { files: [...drive.selected], folder: null }; fileMenu = null">
             <Icon name="folder-input" :size="15" />{{ t('drive.actions.move') }}
           </button>
           <button v-if="fileMenu.entry.file.state === 'ephemeral'" type="button" role="menuitem" @click="keep([...drive.selected]); fileMenu = null">
             <Icon name="hard-drive" :size="15" />{{ t('drive.actions.keep') }}
           </button>
-          <button type="button" role="menuitem" class="danger" @click="trash([...drive.selected]); fileMenu = null">
+          <div class="chat-menu-divider" role="separator" />
+          <button type="button" role="menuitem" class="chat-menu-item danger" @click="trash([...drive.selected]); fileMenu = null">
             <Icon name="trash-2" :size="15" />{{ t('drive.actions.trash') }}
           </button>
         </template>
         <template v-else>
-          <button type="button" role="menuitem" @click="restore([...drive.selected]); fileMenu = null">
+          <button type="button" role="menuitem" class="chat-menu-item" @click="restore([...drive.selected]); fileMenu = null">
             <Icon name="undo" :size="15" />{{ t('drive.actions.restore') }}
           </button>
-          <button type="button" role="menuitem" class="danger" @click="deleteForever = [...drive.selected]; fileMenu = null">
+          <div class="chat-menu-divider" role="separator" />
+          <button type="button" role="menuitem" class="chat-menu-item danger" @click="deleteForever = [...drive.selected]; fileMenu = null">
             <Icon name="trash-2" :size="15" />{{ t('drive.actions.deleteForever') }}
           </button>
         </template>
       </template>
-    </AppMenu>
+    </ChatMenu>
 
-    <AppMenu v-if="folderMenu" :x="folderMenu.x" :y="folderMenu.y" :label="folderMenu.folder.name" data-testid="drive-folder-menu" @close="folderMenu = null">
-      <button type="button" role="menuitem" @click="navigate({ view: 'folder', id: folderMenu!.folder.id }); folderMenu = null">
+    <ChatMenu v-if="folderMenu" :x="folderMenu.x" :y="folderMenu.y" :label="folderMenu.folder.name" data-testid="drive-folder-menu" @close="folderMenu = null">
+      <button type="button" role="menuitem" class="chat-menu-item" @click="navigate({ view: 'folder', id: folderMenu!.folder.id }); folderMenu = null">
         <Icon name="folder-open" :size="15" />{{ t('drive.actions.open') }}
       </button>
-      <button type="button" role="menuitem" @click="renameFolderTarget = folderMenu!.folder; folderMenu = null">
+      <button type="button" role="menuitem" class="chat-menu-item" @click="renameFolderTarget = folderMenu!.folder; folderMenu = null">
         <Icon name="pencil" :size="15" />{{ t('drive.actions.rename') }}
       </button>
-      <button type="button" role="menuitem" @click="moveTarget = { files: [], folder: folderMenu!.folder.id }; folderMenu = null">
+      <button type="button" role="menuitem" class="chat-menu-item" @click="moveTarget = { files: [], folder: folderMenu!.folder.id }; folderMenu = null">
         <Icon name="folder-input" :size="15" />{{ t('drive.actions.move') }}
       </button>
-      <button type="button" role="menuitem" class="danger" data-testid="drive-folder-delete" @click="deleteFolderTarget = folderMenu!.folder; folderMenu = null">
+      <div class="chat-menu-divider" role="separator" />
+      <button type="button" role="menuitem" class="chat-menu-item danger" data-testid="drive-folder-delete" @click="deleteFolderTarget = folderMenu!.folder; folderMenu = null">
         <Icon name="trash-2" :size="15" />{{ t('drive.actions.deleteFolder') }}
       </button>
-    </AppMenu>
+    </ChatMenu>
 
     <DriveNameDialog
       v-if="newFolderOpen"
@@ -323,7 +326,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import AppMenu from '@/components/a11y/AppMenu.vue'
+import ChatMenu from '@/components/chat/ChatMenu.vue'
 import ConfirmDialog from '@/components/drive/DriveConfirmDialog.vue'
 import DriveSidebar from '@/components/drive/DriveSidebar.vue'
 import DriveItems from '@/components/drive/DriveItems.vue'
