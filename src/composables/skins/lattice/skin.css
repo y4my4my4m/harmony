@@ -806,7 +806,7 @@
   box-shadow: 0 0 0 1px var(--lt-signal);
 }
 
-:root[data-skin="lattice"] :is(.auth-card, .brand-card) {
+:root[data-skin="lattice"] :is(.auth-card, .auth-art) {
   background: var(--lt-marks), var(--lt-panel-solid);
   background-origin: border-box;
   border: 1px solid var(--lt-line-strong);

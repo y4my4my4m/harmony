@@ -22,6 +22,7 @@
         <ServerIcon
           :src="server.icon"
           :alt="`${server.name} icon`"
+          :name="server.name"
           size="lg"
           shape="big-rounded"
           @error="handleImageError"
@@ -109,6 +110,7 @@ import type { PublicServerWithStats } from '@/stores/usePublicServers'
 import ServerIcon from './ServerIcon.vue'
 import { getServerBannerUrl, getRawServerBannerUrl } from '@/utils/serverUtils'
 import { categoryIcon, categoryLabelKey } from '@/utils/serverDiscovery'
+import { serverMonogramUrl } from '@/utils/serverMonogram'
 
 const { t } = useI18n()
 
@@ -169,7 +171,8 @@ const formatMemberCount = (count?: number): string => {
 
 const handleImageError = (event: Event) => {
   const img = event.target as HTMLImageElement
-  img.src = '/default_server.webp'
+  const fallback = serverMonogramUrl(props.server.name) ?? '/default_server.webp'
+  if (img.src !== fallback) img.src = fallback
 }
 </script>
 

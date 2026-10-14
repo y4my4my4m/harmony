@@ -51,6 +51,7 @@ import {
 import { getLiveKitToken } from './livekitTokens';
 import { LIVE_REACTION_TOPIC, MAX_LIVE_REACTION_BYTES } from './voice/liveReactions';
 import { SOUNDBOARD_MESSAGE_MAX_BYTES, SOUNDBOARD_TOPIC, soundboardExternalGrant, soundboardGrant } from './soundboard/protocol';
+import { ACTIVITY_MESSAGE_MAX_BYTES, ACTIVITY_TOPIC } from '@/services/activities/protocol';
 
 // FEDERATED IDENTITY HELPERS
 
@@ -1676,6 +1677,8 @@ export class LiveKitWebRTCService {
         this.handleLiveReactionData(payload, participant);
       } else if (topic === SOUNDBOARD_TOPIC) {
         this.handleSoundboardData(payload, participant);
+      } else if (topic === ACTIVITY_TOPIC) {
+        this.handleActivityData(payload, participant);
       }
     });
 
@@ -1919,7 +1922,7 @@ export class LiveKitWebRTCService {
 
     // Data received (for custom messaging like media state)
     this.room.on(RoomEvent.DataReceived, (payload: Uint8Array, participant?: RemoteParticipant, _kind?: unknown, topic?: string) => {
-      if (topic === LIVE_REACTION_TOPIC || topic === SOUNDBOARD_TOPIC) return;
+      if (topic === LIVE_REACTION_TOPIC || topic === SOUNDBOARD_TOPIC || topic === ACTIVITY_TOPIC) return;
       try {
         const message = JSON.parse(new TextDecoder().decode(payload));
 
@@ -2041,6 +2044,22 @@ export class LiveKitWebRTCService {
 
   sendSoundboard(message: unknown): void {
     this.publishJson(message, 'soundboard', SOUNDBOARD_TOPIC);
+  }
+
+  sendActivity(message: unknown): void {
+    this.publishJson(message, 'activity', ACTIVITY_TOPIC);
+  }
+
+  /** Emits 'activity' for a participant whose identity has resolved to a profile. */
+  private handleActivityData(payload: Uint8Array, participant?: RemoteParticipant): void {
+    if (!participant || payload.byteLength > ACTIVITY_MESSAGE_MAX_BYTES) return;
+    const userId = this.allUserStates.get(participant.identity)?.userId;
+    if (!userId) return;
+    try {
+      this.emit('activity', { userId, message: JSON.parse(new TextDecoder().decode(payload)) });
+    } catch {
+      /* not JSON */
+    }
   }
 
   /** Emits 'soundboard' for a participant whose identity has resolved to a profile. */

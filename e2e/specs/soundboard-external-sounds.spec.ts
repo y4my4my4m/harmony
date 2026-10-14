@@ -59,8 +59,7 @@ async function addVoiceChannel(server: SeededServer, name: string): Promise<stri
 }
 
 async function addSound(server: SeededServer, id: string, name: string, emoji: string): Promise<void> {
-  // Service-role inserts skip the client guard that wants the file in the soundboard bucket;
-  // the stack has no storage.
+  // Service-role inserts skip the client guard that wants the file in the soundboard bucket.
   const { error } = await admin.from('server_sounds').insert({
     id,
     server_id: server.id,

@@ -8,6 +8,7 @@ import { updateUserStatus } from '@/services/ProfileService';
 import { userDataService } from '@/services/userDataService';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { debug } from '@/utils/debug'
+import { useActivitiesStore } from '@/stores/activities';
 
 /** A DM call room id (dm-{conversation} or federated-dm-{conversation}-{millis}), not a server channel. */
 function isDmRoom(channelId: string | null | undefined): boolean {
@@ -303,6 +304,11 @@ export const useServerUsersStore = defineStore('serverUsers', {
     handleVoiceChannelEvent(serverId: string, data: any) {
       debug.log('Received voice channel event:', data);
       const { event, userId, channelId, callStartTime, federated } = data ?? {};
+
+      if (event === 'activity') {
+        useActivitiesStore().receiveBroadcast(data);
+        return;
+      }
 
       if (event === 'user-joined') {
         if (!this.usersInVoiceChannels[channelId]) {

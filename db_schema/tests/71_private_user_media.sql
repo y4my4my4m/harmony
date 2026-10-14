@@ -1,6 +1,7 @@
--- message_media from 20261006900001_private_user_media.sql: storage policies, the message
--- path guard, federation_media_access, federation_post_access, the cleanup trigger and
--- message_media_deletable. queue_federation_job is replaced for the transaction so queued
+-- message_media from 20261006900001_private_user_media.sql, with the read and guard rules of
+-- 20261015100001_drive_core.sql: storage policies, the message path guard,
+-- federation_media_access, federation_post_access, the cleanup trigger and
+-- message_media_deletable. A room reads an object while a live message names it. queue_federation_job is replaced for the transaction so queued
 -- jobs can be read back.
 --
 --   alice    owns server_1, participant in the DM
@@ -10,7 +11,7 @@
 --   carol    remote member of server_1 on remote71.example, participant in g71
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(66);
+SELECT plan(70);
 -- Newer storage schemas refuse direct DELETE unless this is set, as storage-api does;
 -- RLS still applies.
 SELECT set_config('storage.allow_delete_query', 'true', true);
@@ -121,6 +122,17 @@ SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
 SELECT is((SELECT count(*)::int FROM storage.objects
             WHERE bucket_id = 'message_media'
               AND name = 'c/66666666-0000-0000-0000-000000000006/aaaaaaaa-0000-0000-0000-000000000001/a.png'),
+  0, 'a member cannot read an upload no message names yet');
+SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
+INSERT INTO public.messages (id, channel_id, user_id, content) VALUES
+  ('f7160000-0000-0000-0000-000000000001', '66666666-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000001',
+   '[{"type":"file","fileType":"image","url":"","path":"c/66666666-0000-0000-0000-000000000006/aaaaaaaa-0000-0000-0000-000000000001/a.png"}]'),
+  ('f7160000-0000-0000-0000-000000000002', 'f7100000-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000001',
+   '[{"type":"file","fileType":"image","url":"","path":"c/f7100000-0000-0000-0000-000000000001/aaaaaaaa-0000-0000-0000-000000000001/s.png"}]');
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
+SELECT is((SELECT count(*)::int FROM storage.objects
+            WHERE bucket_id = 'message_media'
+              AND name = 'c/66666666-0000-0000-0000-000000000006/aaaaaaaa-0000-0000-0000-000000000001/a.png'),
   1, 'a member reads a channel attachment');
 SELECT is((SELECT count(*)::int FROM storage.objects
             WHERE bucket_id = 'message_media'
@@ -161,6 +173,10 @@ SELECT is((SELECT count(*)::int FROM storage.objects
             WHERE bucket_id = 'message_media' AND name LIKE 'd/77777777-0000-0000-0000-000000000007/%'),
   0, 'a server member outside the conversation cannot read DM attachments');
 
+SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
+INSERT INTO public.messages (id, conversation_id, user_id, content) VALUES
+  ('f7160000-0000-0000-0000-000000000003', '77777777-0000-0000-0000-000000000007', '11111111-0000-0000-0000-000000000001',
+   '[{"type":"file","fileType":"image","url":"","path":"d/77777777-0000-0000-0000-000000000007/aaaaaaaa-0000-0000-0000-000000000001/dm.png"}]');
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
 SELECT is((SELECT count(*)::int FROM storage.objects
             WHERE bucket_id = 'message_media'
@@ -247,8 +263,13 @@ SELECT lives_ok(
 SELECT throws_ok(
     $q$INSERT INTO public.messages (channel_id, user_id, content)
        VALUES ('66666666-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000001',
-               '[{"type":"file","fileType":"image","url":"","path":"d/77777777-0000-0000-0000-000000000007/aaaaaaaa-0000-0000-0000-000000000001/dm.png"}]')$q$,
-    '42501'::char(5), NULL, 'a channel message cannot name a DM object');
+               '[{"type":"file","fileType":"image","url":"","path":"d/77777777-0000-0000-0000-000000000007/bbbbbbbb-0000-0000-0000-000000000002/dm.png"}]')$q$,
+    '42501'::char(5), NULL, 'a channel message cannot name another member''s DM object');
+SELECT lives_ok(
+    $q$INSERT INTO public.messages (channel_id, user_id, content)
+       VALUES ('66666666-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000001',
+               '[{"type":"file","fileType":"image","url":"","path":"c/f7100000-0000-0000-0000-000000000001/aaaaaaaa-0000-0000-0000-000000000001/s.png"}]')$q$,
+    'the author names her own Drive file from another room');
 SELECT throws_ok(
     $q$INSERT INTO public.messages (channel_id, user_id, content)
        VALUES ('66666666-0000-0000-0000-000000000006', '11111111-0000-0000-0000-000000000001',
@@ -257,8 +278,8 @@ SELECT throws_ok(
 SELECT throws_ok(
     $q$INSERT INTO public.messages (conversation_id, user_id, content)
        VALUES ('77777777-0000-0000-0000-000000000007', '11111111-0000-0000-0000-000000000001',
-               '[{"type":"file","fileType":"image","url":"","path":"c/66666666-0000-0000-0000-000000000006/aaaaaaaa-0000-0000-0000-000000000001/a.png"}]')$q$,
-    '42501'::char(5), NULL, 'a DM cannot name a channel object');
+               '[{"type":"file","fileType":"image","url":"","path":"c/66666666-0000-0000-0000-000000000006/bbbbbbbb-0000-0000-0000-000000000002/a.png"}]')$q$,
+    '42501'::char(5), NULL, 'a DM cannot name another member''s channel object');
 SELECT lives_ok(
     $q$INSERT INTO public.messages (conversation_id, user_id, content)
        VALUES ('77777777-0000-0000-0000-000000000007', '11111111-0000-0000-0000-000000000001',
@@ -266,9 +287,9 @@ SELECT lives_ok(
     'a legacy URL part without a path is accepted');
 SELECT throws_ok(
     $q$UPDATE public.messages
-          SET content = '[{"type":"file","fileType":"image","url":"","path":"c/f7100000-0000-0000-0000-000000000001/aaaaaaaa-0000-0000-0000-000000000001/s.png"}]'
+          SET content = '[{"type":"file","fileType":"image","url":"","path":"c/f7100000-0000-0000-0000-000000000001/bbbbbbbb-0000-0000-0000-000000000002/s.png"}]'
         WHERE id = '88888888-0000-0000-0000-000000000008'$q$,
-    '42501'::char(5), NULL, 'an edit cannot point a part at another channel');
+    '42501'::char(5), NULL, 'an edit cannot point a part at another member''s object in another channel');
 
 -- Service writes follow the same rule.
 SELECT tests.clear_authentication();
@@ -285,8 +306,11 @@ SELECT throws_ok(
 
 -- federation_media_access. --------------------------------------------------------------
 SELECT ok(public.federation_media_access(
-              'c/66666666-0000-0000-0000-000000000006/aaaaaaaa-0000-0000-0000-000000000001/a.png', 'remote71.example'),
+              'c/66666666-0000-0000-0000-000000000006/x/a.png', 'remote71.example'),
   'a remote instance with a member reads the channel''s objects');
+SELECT ok(NOT public.federation_media_access(
+              'c/66666666-0000-0000-0000-000000000006/aaaaaaaa-0000-0000-0000-000000000001/a.png', 'remote71.example'),
+  'a deleted Drive file is served to no instance');
 SELECT ok(public.federation_media_access(
               'c/66666666-0000-0000-0000-000000000006/x/a.png', 'REMOTE71.example '),
   'the domain compares case- and space-insensitively');
@@ -416,6 +440,17 @@ INSERT INTO public.messages (id, conversation_id, user_id, content) VALUES
    '[{"type":"file","fileType":"file","url":"","path":"d/77777777-0000-0000-0000-000000000007/bbbbbbbb-0000-0000-0000-000000000002/exported.pdf"}]');
 SELECT is((SELECT count(*)::int FROM tests.jobs71 WHERE name = 'delete-message-media'), 0,
   'sending attachments queues no cleanup');
+-- The sweep rules below are those of files outside Drive: these objects were uploaded as
+-- ephemeral. keep.png stays a Drive file.
+UPDATE public.drive_files
+   SET state = 'ephemeral', ephemeral_at_upload = true, expires_at = now() + interval '30 days'
+ WHERE bucket = 'message_media'
+   AND path IN ('c/66666666-0000-0000-0000-000000000006/aaaaaaaa-0000-0000-0000-000000000001/drop.png',
+                'c/66666666-0000-0000-0000-000000000006/aaaaaaaa-0000-0000-0000-000000000001/twice.png',
+                'c/66666666-0000-0000-0000-000000000006/aaaaaaaa-0000-0000-0000-000000000001/orphan.png',
+                'c/66666666-0000-0000-0000-000000000006/aaaaaaaa-0000-0000-0000-000000000001/fresh.png',
+                'd/77777777-0000-0000-0000-000000000007/bbbbbbbb-0000-0000-0000-000000000002/reported.pdf',
+                'd/77777777-0000-0000-0000-000000000007/bbbbbbbb-0000-0000-0000-000000000002/exported.pdf');
 
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 UPDATE public.messages
@@ -461,6 +496,12 @@ UPDATE public.account_data_exports SET expires_at = now() - interval '1 minute'
 SELECT ok('d/77777777-0000-0000-0000-000000000007/bbbbbbbb-0000-0000-0000-000000000002/exported.pdf'
           IN (SELECT public.message_media_deletable(NULL, interval '1 day')),
   'an expired export no longer holds the uploader''s objects');
+
+UPDATE public.messages SET content = '[{"type":"text","text":"[deleted]"}]', is_deleted = true
+ WHERE id = 'f7150000-0000-0000-0000-000000000001';
+SELECT ok('c/66666666-0000-0000-0000-000000000006/aaaaaaaa-0000-0000-0000-000000000001/keep.png'
+          NOT IN (SELECT public.message_media_deletable(NULL, interval '1 day')),
+  'a Drive file outlives the message that named it');
 
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT throws_ok($q$SELECT public.message_media_deletable(NULL)$q$,

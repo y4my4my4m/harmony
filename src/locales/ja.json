@@ -54,7 +54,7 @@
     "displayName": "表示名",
     "welcomeBack": "おかえりなさい！",
     "createAccount": "アカウントを作成",
-    "welcomeBackSubtitle": "メールアドレスとパスワードでログインしてください。",
+    "instanceLabel": "インスタンス",
     "createAccountSubtitle": "次にユーザー名とプロフィールを設定します。",
     "confirmEmailSent": "{email} に確認リンクを送信しました。リンクを開いてからログインしてください。",
     "forgotPassword": "パスワードをお忘れですか？",
@@ -146,7 +146,6 @@
     "sendingResetLink": "リセットリンクを送信中…",
     "poweredBy": "Powered by {name}",
     "reset": {
-      "brandSubtitle": "パスワードをリセットしてアカウントへのアクセスを回復します",
       "successTitle": "パスワードをリセットしました",
       "successBody": "パスワードを更新しました。新しいパスワードでログインできます。",
       "goToLogin": "ログインへ",
@@ -6273,5 +6272,335 @@
     "exitPip": "ピクチャー・イン・ピクチャーを終了",
     "fullscreen": "全画面表示",
     "exitFullscreen": "全画面表示を終了"
+  },
+  "activities": {
+    "title": "一緒に見る・聴く",
+    "addTitle": "アクティビティに追加",
+    "lede": "通話中の全員が同じものを同じタイミングで再生します。YouTube、SoundCloud、Spotify のリンク、動画や音声ファイルのリンクを貼り付けるか、Drive から選択してください。",
+    "linkPlaceholder": "リンクを貼り付け",
+    "badLink": "このリンクは Harmony で一緒に再生できません。",
+    "watchTogether": "一緒に見る",
+    "listenTogether": "一緒に聴く",
+    "playTogether": "一緒に再生",
+    "playNow": "今すぐ再生",
+    "addToQueue": "キューに追加",
+    "or": "または",
+    "fromDrive": "Drive から選択",
+    "pickTitle": "動画または音声ファイルを選択",
+    "spotifyHint": "Harmony で Spotify にサインインしているリスナーはフルで再生され、それ以外の人にはプレビューが流れます。",
+    "region": "アクティビティ",
+    "open": "アクティビティを開く",
+    "hideForMe": "自分だけ停止",
+    "clickToPlay": "クリックして再生",
+    "play": "再生",
+    "pause": "一時停止",
+    "seek": "再生位置",
+    "seekValue": "{position} / {duration}",
+    "mute": "アクティビティをミュート",
+    "unmute": "アクティビティのミュートを解除",
+    "volume": "アクティビティの音量",
+    "next": "キューの次へ",
+    "stop": "アクティビティを終了",
+    "queue": "キュー",
+    "queueEmpty": "キューは空です。",
+    "removeFromQueue": "キューから削除",
+    "controlsHost": "自分だけが操作",
+    "controlsEveryone": "全員が操作できるようにする",
+    "watching": "視聴中",
+    "listening": "再生中",
+    "source": {
+      "drive": "Drive のファイル",
+      "link": "リンク"
+    }
+  },
+  "driveAdmin": {
+    "settings": "Drive ストレージ",
+    "quotaUser": "アカウントごとのストレージ",
+    "quotaModerator": "インスタンスモデレーターごとのストレージ",
+    "quotaAdmin": "インスタンス管理者ごとのストレージ",
+    "ephemeralDays": "一時ファイルの保存期間",
+    "days": "日",
+    "ephemeralDaily": "Drive がいっぱいのときの 1 日あたりの一時アップロード数",
+    "linkSharing": "ファイルのリンク共有を許可",
+    "hint": "アカウントのストレージを超えたアップロードは一時ファイルになり、上記の日数が過ぎると削除されます。ストレージを超えていて 1 日の一時アップロード枠を使い切ったアカウントは、翌日になるか空き容量を作るまでアップロードできません。",
+    "save": "保存",
+    "saved": "保存しました",
+    "usage": "アカウント別のストレージ",
+    "account": "アカウント",
+    "used": "使用量",
+    "temporary": "一時ファイル",
+    "quota": "ストレージ",
+    "override": "{name} のストレージ（MB）。空欄でロールの既定値",
+    "noUsage": "ファイルを保存しているアカウントはまだありません。",
+    "blocked": "ブロックされたファイル",
+    "unblock": "ブロック解除",
+    "noBlocked": "ブロックされたファイルはありません。報告されたファイルを「削除して再アップロードをブロック」で削除すると、ここに追加されます。",
+    "reportFiles": "添付ファイル",
+    "removeFile": "ファイルを削除",
+    "removeAndBlock": "削除して再アップロードをブロック",
+    "removed": "削除しました"
+  },
+  "drive": {
+    "title": "Drive",
+    "actions": {
+      "upload": "アップロード",
+      "newFolder": "新しいフォルダー",
+      "open": "開く",
+      "download": "ダウンロード",
+      "rename": "名前を変更",
+      "share": "共有",
+      "move": "移動",
+      "keep": "Drive に保存",
+      "trash": "ゴミ箱に移動",
+      "restore": "復元",
+      "deleteForever": "完全に削除",
+      "deleteFolder": "フォルダーを削除",
+      "emptyTrash": "ゴミ箱を空にする"
+    },
+    "nav": {
+      "myDrive": "マイ Drive",
+      "recent": "最近",
+      "temporary": "一時ファイル",
+      "shared": "共有アイテム",
+      "trash": "ゴミ箱",
+      "whereSent": "送信した場所",
+      "dms": "ダイレクトメッセージ",
+      "fediverse": "Fediverse の投稿",
+      "server": "サーバー",
+      "channel": "チャンネル",
+      "conversation": "会話",
+      "open": "Drive のナビゲーションを開く",
+      "path": "フォルダーのパス"
+    },
+    "tree": {
+      "expand": "フォルダーを展開",
+      "collapse": "フォルダーを折りたたむ"
+    },
+    "usage": {
+      "label": "Drive の使用量",
+      "summary": "{quota} 中 {used} を使用",
+      "temporary": "一時ファイル {size}",
+      "full": "Drive の容量がいっぱいです。新しいアップロードは一時ファイルになり、{count} 日後に削除されます。 | Drive の容量がいっぱいです。新しいアップロードは一時ファイルになり、{count} 日後に削除されます。"
+    },
+    "columns": {
+      "name": "名前",
+      "type": "種類",
+      "owner": "所有者",
+      "size": "サイズ",
+      "added": "追加日",
+      "trashed": "削除日"
+    },
+    "kind": {
+      "image": "画像",
+      "video": "動画",
+      "audio": "音声",
+      "document": "ドキュメント",
+      "other": "ファイル"
+    },
+    "filter": {
+      "label": "ファイルの種類",
+      "all": "すべて",
+      "images": "画像",
+      "videos": "動画",
+      "audio": "音声",
+      "documents": "ドキュメント"
+    },
+    "sort": {
+      "label": "並べ替え",
+      "newest": "新しい順",
+      "oldest": "古い順",
+      "name": "名前",
+      "size": "大きい順"
+    },
+    "layout": {
+      "label": "表示",
+      "grid": "グリッド",
+      "list": "リスト"
+    },
+    "search": {
+      "placeholder": "Drive を検索",
+      "results": "「{query}」の検索結果"
+    },
+    "selection": {
+      "label": "選択したファイル",
+      "count": "{count} 件を選択中 | {count} 件を選択中",
+      "clear": "選択を解除"
+    },
+    "state": {
+      "expiresIn": "{count} 日後に削除 | {count} 日後に削除",
+      "daysShort": "{count}日"
+    },
+    "banner": {
+      "temporary": "一時ファイルはアップロードから {count} 日後に削除されます。必要なものは Drive に保存してください。 | 一時ファイルはアップロードから {count} 日後に削除されます。必要なものは Drive に保存してください。",
+      "trash": "ゴミ箱のファイルもストレージ使用量に含まれ、30 日後に削除されます。"
+    },
+    "empty": {
+      "folderTitle": "まだ何もありません",
+      "folderText": "ファイルをアップロードするか、ここにドロップしてください。チャットで送信したファイルもすべて Drive に保存されます。",
+      "temporaryTitle": "一時ファイルはありません",
+      "temporaryText": "Drive がいっぱいのときにアップロードしたファイルや、一時ファイルとして送信したファイルがここに表示されます。",
+      "sharedTitle": "共有されたものはありません",
+      "sharedText": "このインスタンスのユーザーがあなた、あなたのサーバー、チャンネルと共有したファイルがここに表示されます。",
+      "trashTitle": "ゴミ箱は空です",
+      "trashText": "削除したファイルはここに 30 日間保存されます。",
+      "otherTitle": "ファイルはありません",
+      "otherText": "ここで送信したファイルがここに表示されます。",
+      "searchTitle": "一致するものはありません",
+      "searchText": "その検索に一致するファイル名は Drive にありません。"
+    },
+    "errors": {
+      "load": "Drive を読み込めませんでした",
+      "temporary": "変更を保存できませんでした：{reason}",
+      "blocked": "このファイルはインスタンスのモデレーターによって削除されました。"
+    },
+    "details": {
+      "label": "ファイルの詳細",
+      "title": "詳細",
+      "name": "ファイル名",
+      "rename": "名前を変更",
+      "type": "種類",
+      "size": "サイズ",
+      "added": "追加日",
+      "owner": "所有者",
+      "used": "使用場所",
+      "unused": "まだどこにも送信されていません。",
+      "post": "Fediverse の投稿",
+      "sharing": "共有"
+    },
+    "file": {
+      "renameTitle": "ファイル名を変更",
+      "unnamed": "名前のないファイル"
+    },
+    "folder": {
+      "newTitle": "新しいフォルダー",
+      "renameTitle": "フォルダー名を変更",
+      "name": "フォルダー名",
+      "create": "作成",
+      "deleteTitle": "「{name}」を削除しますか？",
+      "deleteText": "中のファイルはゴミ箱に移動し、サブフォルダーは削除されます。"
+    },
+    "delete": {
+      "title": "{count} 件のファイルを完全に削除しますか？ | {count} 件のファイルを完全に削除しますか？",
+      "text": "これらのファイルを使用しているメッセージや投稿では、削除済みとして表示されます。この操作は元に戻せません。"
+    },
+    "trash": {
+      "emptyTitle": "ゴミ箱を空にしますか？"
+    },
+    "move": {
+      "title": "{count} 件のアイテムを移動 | {count} 件のアイテムを移動",
+      "here": "ここに移動"
+    },
+    "menu": {
+      "file": "ファイルの操作"
+    },
+    "drop": {
+      "title": "ドロップして {place} にアップロード"
+    },
+    "uploads": {
+      "label": "アップロード",
+      "title": "{count} 件のファイルをアップロード中 | {count} 件のファイルをアップロード中"
+    },
+    "toast": {
+      "trashed": "{count} 件のファイルをゴミ箱に移動しました | {count} 件のファイルをゴミ箱に移動しました",
+      "restored": "{count} 件のファイルを復元しました | {count} 件のファイルを復元しました",
+      "deleted": "{count} 件のファイルを削除しました | {count} 件のファイルを削除しました",
+      "moved": "{count} 件のファイルを移動しました | {count} 件のファイルを移動しました",
+      "kept": "{count} 件のファイルを Drive に保存しました | {count} 件のファイルを Drive に保存しました",
+      "keepPartial": "{total} 件中 {kept} 件を保存しました。残りは Drive に入りません",
+      "folderDeleted": "フォルダーを削除し、{count} 件のファイルをゴミ箱に移動しました | フォルダーを削除し、{count} 件のファイルをゴミ箱に移動しました"
+    },
+    "share": {
+      "title": "共有",
+      "linkTitle": "リンクを知っている全員",
+      "linkOn": "リンクを知っている人は誰でも表示とダウンロードができます。",
+      "linkOff": "下のユーザーと送信先の場所のみ。",
+      "copy": "コピー",
+      "copied": "コピーしました",
+      "expires": "リンクの有効期限",
+      "never": "なし",
+      "days": "{count} 日後 | {count} 日後",
+      "people": "ユーザーと場所",
+      "searchPeople": "このインスタンスのユーザーを追加",
+      "server": "サーバー",
+      "channel": "チャンネル",
+      "pickServer": "サーバーを選択",
+      "wholeServer": "サーバー全体",
+      "add": "共有",
+      "remove": "{name} との共有を停止",
+      "private": "あなたと、送信した会話のみ。",
+      "summaryLink": "リンクを知っている全員",
+      "summaryPeople": "{count} 件のユーザーまたは場所と共有中 | {count} 件のユーザーまたは場所と共有中",
+      "summaryBoth": "リンク共有オン、{count} 件のユーザーまたは場所 | リンク共有オン、{count} 件のユーザーまたは場所",
+      "scope": {
+        "user": "ユーザー",
+        "server": "サーバー",
+        "channel": "チャンネル",
+        "link": "リンク"
+      }
+    },
+    "preview": {
+      "previous": "前のファイル",
+      "next": "次のファイル",
+      "none": "このファイルのプレビューはありません。"
+    },
+    "picker": {
+      "title": "Drive から選択",
+      "folder": "フォルダー",
+      "everything": "すべてのファイル",
+      "empty": "ファイルはありません。",
+      "attach": "{count} 件を添付 | {count} 件を添付"
+    },
+    "composer": {
+      "fromDriveMenu": "Drive から",
+      "fromDrive": "Drive から",
+      "reused": "Drive に保存済み",
+      "reusedHint": "このファイルはすでに Drive にあるため、再アップロードはしていません。",
+      "temporaryDays": "一時ファイル、{count} 日 | 一時ファイル、{count} 日",
+      "makeTemporary": "一時ファイルにする：{count} 日後に削除 | 一時ファイルにする：{count} 日後に削除",
+      "keep": "Drive に保存",
+      "makeTemporaryFile": "{name} を一時ファイルにする",
+      "keepFile": "{name} を Drive に保存",
+      "markedTemporary": "{name} は一時ファイルです",
+      "markedKept": "{name} は Drive に保存されます",
+      "fullHint": "Drive がいっぱいです：アップロードは一時ファイルになります"
+    },
+    "gone": {
+      "expired": "このファイルは期限切れです",
+      "deleted": "このファイルは削除されました",
+      "removed": "このファイルはモデレーターによって削除されました",
+      "trashed": "このファイルは利用できません"
+    },
+    "link": {
+      "title": "共有ファイル",
+      "missingTitle": "このリンクは無効です",
+      "missingText": "期限が切れたか、所有者がファイルの共有を停止しました。",
+      "sharedBy": "{name} が共有",
+      "expires": "リンクの有効期限：{date}",
+      "footer": "{instance} から共有"
+    }
+  },
+  "support": {
+    "title": "このインスタンスを支援",
+    "progress": "資金の状況",
+    "raisedMonth": "集まりました（今月の目標 {goal}）",
+    "raisedTotal": "集まりました（目標総額 {goal}）",
+    "funded": "達成",
+    "supporters": "サポーター | サポーター",
+    "heading": "支援",
+    "oneTime": "1 回のみ",
+    "onPlatform": "{platform} で支援",
+    "credited": "アカウントに自動で反映されます",
+    "badgeAuto": "サポーターバッジを自動で獲得",
+    "handleTitle": "{platforms} で支援しますか？ハンドルを追加してください",
+    "handleText": "メッセージのどこかにハンドルを記入してください。ティアは今期の支援総額に応じて決まります。",
+    "handleHint": "ハンドルのない支払いは、管理者が手動で割り当てるまで保留されます。",
+    "copy": "コピー",
+    "copied": "コピーしました",
+    "tiers": "サポーターティア",
+    "from": "{amount} から",
+    "yours": "あなたの支援",
+    "tierSupporter": "{tier} サポーター",
+    "active": "有効",
+    "history": "支援履歴"
   }
 }

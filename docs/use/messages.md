@@ -1,10 +1,10 @@
 ---
 title: Messages and threads
-description: Send, edit and delete messages in Harmony; reply, start threads, post polls, react with emoji, hide spoilers, describe images, mention people and format text with markdown.
+description: Send, edit and delete messages in Harmony; attach files, play music links, reply, start threads, post polls, react with emoji, hide spoilers, describe images, mention people and format text with markdown.
 ---
 # Messages and threads
 
-This page is for people chatting in Harmony's text channels and direct messages. It covers writing and managing messages, replies, threads, polls, reactions, spoilers, image descriptions, mentions, pins and search, and ends with the formatting reference. Voice messages are covered in [Voice and video](/use/voice-video); end-to-end encrypted channels in [Privacy and security](/use/privacy-security).
+This page is for people chatting in Harmony's text channels and direct messages. It covers writing and managing messages, attachments and music links, replies, threads, polls, reactions, spoilers, image descriptions, mentions, pins and search, and ends with the formatting reference. Voice messages are covered in [Voice and video](/use/voice-video); end-to-end encrypted channels in [Privacy and security](/use/privacy-security).
 
 ## Send a message
 
@@ -24,8 +24,25 @@ Type in the composer at the bottom of the channel and send:
 ## Attach files, GIFs and stickers
 
 - Select **Add an attachment or poll** (the plus button) and choose **Upload file**, drag files onto the composer, or paste them. The file picker offers images, video, audio, PDF, `.doc`, `.docx`, `.txt`, `.zip` and `.rar` files. Each file may be up to 50 MB unless the instance sets another limit.
+- **From Drive**, in the same menu, attaches files already in your [Drive](/use/drive) without uploading them again.
 - Attached files appear above the composer. Each one has buttons to describe it ([Describe an image](#describe-an-image)), mark it as a spoiler ([Spoilers](#spoilers)) and remove it. The placeholder changes to **Add a comment...** for text sent with the files.
+- Every file you send is kept in your Drive and counts toward your storage. The clock button on an attachment makes it temporary instead: it is deleted after a number of days the instance sets, 30 by default. When your Drive is full, every upload is temporary. See [Storage and temporary files](/use/drive#storage-and-temporary-files).
 - **GIF picker** opens tabs for **GIFs**, **Stickers** and **Emoji**, plus **Clips**, **Memes** and **AI Emoji** when the instance enables them. GIFs and stickers come from KLIPY. Hover a GIF or sticker in a message and select the star to add it to your favourites. **Emoji picker**, beside it, inserts emoji into your message.
+
+## Music links
+
+A link to a music service plays in that service's own player inside the message, in place of the preview card:
+
+| Service | Links that play |
+|---|---|
+| Spotify | Tracks, albums, playlists, artists, podcast episodes and shows |
+| Apple Music | Songs, albums, playlists, music videos and stations |
+| SoundCloud | Tracks and playlists (sets) |
+| Deezer | Tracks, albums, playlists, artists, podcast episodes and shows |
+| TIDAL | Tracks, albums, playlists and videos |
+| Bandcamp | Pages where the instance's link preview finds a player |
+
+Short share links play once the instance's link preview resolves them to the full address. Each player is the service's own page, loaded from its site when the message comes into view. To play music for everyone in a voice call, see [Watch or listen together](/use/voice-video#watch-or-listen-together).
 
 ## Reply to a message
 
@@ -201,7 +218,7 @@ In a server channel, right-click a message and choose **Pin message**, or **Unpi
 | `before:DATE`, `after:DATE`, `during:DATE` | Before or after a day, or during a day, month or year. |
 | `pinned:true`, `pinned:false` | That are pinned, or not. |
 
-`DATE` is `YYYY-MM-DD`, `YYYY-MM`, `YYYY`, `today` or `yesterday`, in your local time. Put a value with spaces in double quotes: `from:"Display name"`. Results sort by **Newest**, **Oldest** or **Most relevant**. Encrypted messages are searched on your device only, among the messages already loaded.
+`DATE` is `YYYY-MM-DD`, `YYYY-MM`, `YYYY`, `today` or `yesterday`, in your local time. Put a value with spaces in double quotes: `from:"Display name"`. Results sort by **Newest**, **Oldest** or **Most relevant**. Words also match the names of files attached to unencrypted messages. Encrypted messages are searched on your device only, among the messages already loaded.
 
 ## Message actions
 

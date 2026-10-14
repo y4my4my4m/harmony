@@ -84,6 +84,24 @@
           <blockquote v-html="linkifyReportPreview(item.text)"></blockquote>
         </div>
 
+        <div v-if="!serverId && isInstanceModerator && snapshotFiles(report.content_snapshot).length" class="report-proof" data-testid="report-files">
+          <label>{{ t('driveAdmin.reportFiles') }}</label>
+          <ul class="report-files">
+            <li v-for="file in snapshotFiles(report.content_snapshot)" :key="file.path">
+              <span class="report-file-name">{{ file.name }}</span>
+              <span v-if="removedFiles[file.path]" class="report-file-done">{{ t('driveAdmin.removed') }}</span>
+              <template v-else>
+                <button class="report-link-btn" data-testid="report-remove-file" @click.stop="removeReportedFile(report, file.path, false)">
+                  <Icon name="trash-2" :size="14" /> {{ t('driveAdmin.removeFile') }}
+                </button>
+                <button class="report-link-btn" data-testid="report-block-file" @click.stop="removeReportedFile(report, file.path, true)">
+                  <Icon name="shield" :size="14" /> {{ t('driveAdmin.removeAndBlock') }}
+                </button>
+              </template>
+            </li>
+          </ul>
+        </div>
+
         <div v-if="report.reported_message_id || report.report_type === 'message'" class="report-proof">
           <label>{{ t('admin.reports.messageNow') }}</label>
           <p v-if="report.reported_message_is_deleted" class="evidence-gone">Deleted since the report</p>
@@ -229,6 +247,39 @@ const props = defineProps<{
 const { confirm, prompt } = useConfirmDialog()
 const router = useRouter()
 const toast = useToast()
+
+/** message_media objects a report's message snapshot names, for removal from Drive. */
+const snapshotFiles = (snapshot: unknown): Array<{ path: string; name: string }> => {
+  const message = (snapshot as { message?: { content?: unknown; media_paths?: unknown } } | null)?.message
+  const parts = Array.isArray(message?.content) ? message!.content as Array<Record<string, unknown>> : []
+  const out = new Map<string, string>()
+  for (const part of parts) {
+    if (part?.type === 'file' && typeof part.path === 'string') {
+      out.set(part.path, typeof part.fileName === 'string' && part.fileName ? part.fileName : String(part.path).split('/').pop() ?? '')
+    }
+  }
+  for (const path of Array.isArray(message?.media_paths) ? message!.media_paths as unknown[] : []) {
+    if (typeof path === 'string' && !out.has(path)) out.set(path, path.split('/').pop() ?? path)
+  }
+  return [...out].map(([path, name]) => ({ path, name }))
+}
+
+const removedFiles = ref<Record<string, boolean>>({})
+
+const removeReportedFile = async (report: { reason?: string | null }, path: string, block: boolean) => {
+  const { error } = await supabase.rpc('admin_drive_remove_file', {
+    p_file: null,
+    p_block: block,
+    p_reason: report.reason ?? null,
+    p_bucket: 'message_media',
+    p_path: path,
+  })
+  if (error) {
+    toast.error(error.message)
+    return
+  }
+  removedFiles.value = { ...removedFiles.value, [path]: true }
+}
 const { t } = useI18n()
 
 const PAGE = 50
@@ -515,6 +566,35 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.report-files {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.report-files li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.report-file-name {
+  flex: 1;
+  min-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-file-done {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 
 
 

@@ -215,7 +215,8 @@ jobs:
   e2e-journeys:
     name: E2E Journeys
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 144 journeys on one worker: 19 min on 2026-10-13, over 20 min since.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 

@@ -366,13 +366,6 @@ test('the composer dialog: visibility menu by keyboard and an image posted with 
   const text = `composer a11y ${writer.username}`
   const alt = `a single transparent pixel for ${writer.username}`
   try {
-    // Storage is absent from the stack; the upload is answered here as storage-js expects.
-    await page.route('**/storage/v1/object/user_media/**', async (route) => {
-      if (route.request().method() !== 'POST') return route.fallback()
-      const key = new URL(route.request().url()).pathname.split('/storage/v1/object/')[1]
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ Key: key, Id: key }) })
-    })
-
     await signIn(page, writer)
     await page.goto('/social/home')
     await dismissAnnouncements(page)

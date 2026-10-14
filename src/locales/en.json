@@ -59,7 +59,7 @@
     "displayName": "Display name",
     "welcomeBack": "Welcome back",
     "createAccount": "Create an account",
-    "welcomeBackSubtitle": "Log in with your email and password.",
+    "instanceLabel": "Instance",
     "createAccountSubtitle": "You'll choose a username and profile next.",
     "confirmEmailSent": "We sent a confirmation link to {email}. Open it, then log in.",
     "forgotPassword": "Forgot your password?",
@@ -146,7 +146,6 @@
     "sendingResetLink": "Sending reset link…",
     "poweredBy": "Powered by {name}",
     "reset": {
-      "brandSubtitle": "Reset your password to regain access to your account",
       "successTitle": "Password reset",
       "successBody": "Your password has been updated. You can now log in with your new password.",
       "goToLogin": "Go to login",
@@ -6269,5 +6268,335 @@
     "exitPip": "Exit picture in picture",
     "fullscreen": "Full screen",
     "exitFullscreen": "Exit full screen"
+  },
+  "drive": {
+    "title": "Drive",
+    "actions": {
+      "upload": "Upload",
+      "newFolder": "New folder",
+      "open": "Open",
+      "download": "Download",
+      "rename": "Rename",
+      "share": "Share",
+      "move": "Move",
+      "keep": "Keep in Drive",
+      "trash": "Move to trash",
+      "restore": "Restore",
+      "deleteForever": "Delete forever",
+      "deleteFolder": "Delete folder",
+      "emptyTrash": "Empty trash"
+    },
+    "nav": {
+      "myDrive": "My Drive",
+      "recent": "Recent",
+      "temporary": "Temporary",
+      "shared": "Shared with me",
+      "trash": "Trash",
+      "whereSent": "Where you sent them",
+      "dms": "Direct messages",
+      "fediverse": "Fediverse posts",
+      "server": "Server",
+      "channel": "Channel",
+      "conversation": "Conversation",
+      "open": "Open Drive navigation",
+      "path": "Folder path"
+    },
+    "tree": {
+      "expand": "Expand folder",
+      "collapse": "Collapse folder"
+    },
+    "usage": {
+      "label": "Drive storage used",
+      "summary": "{used} of {quota} used",
+      "temporary": "{size} in temporary files",
+      "full": "Your Drive is full. New uploads are temporary and are deleted after {count} day. | Your Drive is full. New uploads are temporary and are deleted after {count} days."
+    },
+    "columns": {
+      "name": "Name",
+      "type": "Type",
+      "owner": "Owner",
+      "size": "Size",
+      "added": "Added",
+      "trashed": "Trashed"
+    },
+    "kind": {
+      "image": "Image",
+      "video": "Video",
+      "audio": "Audio",
+      "document": "Document",
+      "other": "File"
+    },
+    "filter": {
+      "label": "File type",
+      "all": "All",
+      "images": "Images",
+      "videos": "Videos",
+      "audio": "Audio",
+      "documents": "Documents"
+    },
+    "sort": {
+      "label": "Sort by",
+      "newest": "Newest first",
+      "oldest": "Oldest first",
+      "name": "Name",
+      "size": "Largest first"
+    },
+    "layout": {
+      "label": "Layout",
+      "grid": "Grid",
+      "list": "List"
+    },
+    "search": {
+      "placeholder": "Search your Drive",
+      "results": "Results for “{query}”"
+    },
+    "selection": {
+      "label": "Selected files",
+      "count": "{count} selected | {count} selected",
+      "clear": "Clear selection"
+    },
+    "state": {
+      "expiresIn": "Deleted in {count} day | Deleted in {count} days",
+      "daysShort": "{count}d"
+    },
+    "banner": {
+      "temporary": "Temporary files are deleted {count} day after upload. Keep the ones you need in Drive. | Temporary files are deleted {count} days after upload. Keep the ones you need in Drive.",
+      "trash": "Files in the trash count toward your storage and are deleted after 30 days."
+    },
+    "empty": {
+      "folderTitle": "Nothing here yet",
+      "folderText": "Upload files or drop them here. Everything you send in chats lands in your Drive too.",
+      "temporaryTitle": "No temporary files",
+      "temporaryText": "Files uploaded while your Drive is full, or sent as temporary, show up here.",
+      "sharedTitle": "Nothing shared with you",
+      "sharedText": "Files people on this instance share with you, your servers or your channels show up here.",
+      "trashTitle": "Trash is empty",
+      "trashText": "Deleted files stay here for 30 days.",
+      "otherTitle": "No files here",
+      "otherText": "Files you send in this place show up here.",
+      "searchTitle": "No matches",
+      "searchText": "No file name in your Drive matches that search."
+    },
+    "errors": {
+      "load": "Drive could not be loaded",
+      "temporary": "That change did not save: {reason}",
+      "blocked": "This file was removed by the instance moderators."
+    },
+    "details": {
+      "label": "File details",
+      "title": "Details",
+      "name": "File name",
+      "rename": "Rename",
+      "type": "Type",
+      "size": "Size",
+      "added": "Added",
+      "owner": "Owner",
+      "used": "Where it's used",
+      "unused": "Not sent anywhere yet.",
+      "post": "Fediverse post",
+      "sharing": "Sharing"
+    },
+    "file": {
+      "renameTitle": "Rename file",
+      "unnamed": "Unnamed file"
+    },
+    "folder": {
+      "newTitle": "New folder",
+      "renameTitle": "Rename folder",
+      "name": "Folder name",
+      "create": "Create",
+      "deleteTitle": "Delete “{name}”?",
+      "deleteText": "Its files go to the trash and its subfolders are deleted."
+    },
+    "delete": {
+      "title": "Delete {count} file forever? | Delete {count} files forever?",
+      "text": "Messages and posts that use these files will show them as removed. This cannot be undone."
+    },
+    "trash": {
+      "emptyTitle": "Empty the trash?"
+    },
+    "move": {
+      "title": "Move {count} item | Move {count} items",
+      "here": "Move here"
+    },
+    "menu": {
+      "file": "File actions"
+    },
+    "drop": {
+      "title": "Drop to upload to {place}"
+    },
+    "uploads": {
+      "label": "Uploads",
+      "title": "Uploading {count} file | Uploading {count} files"
+    },
+    "toast": {
+      "trashed": "{count} file moved to the trash | {count} files moved to the trash",
+      "restored": "{count} file restored | {count} files restored",
+      "deleted": "{count} file deleted | {count} files deleted",
+      "moved": "{count} file moved | {count} files moved",
+      "kept": "{count} file kept in Drive | {count} files kept in Drive",
+      "keepPartial": "{kept} of {total} kept: the rest does not fit in your Drive",
+      "folderDeleted": "Folder deleted; {count} file moved to the trash | Folder deleted; {count} files moved to the trash"
+    },
+    "share": {
+      "title": "Share",
+      "linkTitle": "Anyone with the link",
+      "linkOn": "Anyone with the link can view and download.",
+      "linkOff": "Only the people below and the places you sent it.",
+      "copy": "Copy",
+      "copied": "Copied",
+      "expires": "Link expires",
+      "never": "Never",
+      "days": "In {count} day | In {count} days",
+      "people": "People and places",
+      "searchPeople": "Add people on this instance",
+      "server": "Server",
+      "channel": "Channel",
+      "pickServer": "Choose a server",
+      "wholeServer": "Whole server",
+      "add": "Share",
+      "remove": "Stop sharing with {name}",
+      "private": "Only you and the conversations you sent it in.",
+      "summaryLink": "Anyone with the link",
+      "summaryPeople": "Shared with {count} person or place | Shared with {count} people or places",
+      "summaryBoth": "Link on, and {count} person or place | Link on, and {count} people or places",
+      "scope": {
+        "user": "Person",
+        "server": "Server",
+        "channel": "Channel",
+        "link": "Link"
+      }
+    },
+    "preview": {
+      "previous": "Previous file",
+      "next": "Next file",
+      "none": "No preview for this file."
+    },
+    "picker": {
+      "title": "Choose from Drive",
+      "folder": "Folder",
+      "everything": "All files",
+      "empty": "No files here.",
+      "attach": "Attach {count} | Attach {count}"
+    },
+    "composer": {
+      "fromDriveMenu": "From Drive",
+      "fromDrive": "From Drive",
+      "reused": "In your Drive",
+      "reusedHint": "These bytes were in your Drive already: nothing was uploaded again.",
+      "temporaryDays": "Temporary, {count} day | Temporary, {count} days",
+      "makeTemporary": "Make temporary: deleted after {count} day | Make temporary: deleted after {count} days",
+      "keep": "Keep in Drive",
+      "makeTemporaryFile": "Make {name} temporary",
+      "keepFile": "Keep {name} in Drive",
+      "markedTemporary": "{name} is temporary",
+      "markedKept": "{name} stays in your Drive",
+      "fullHint": "Your Drive is full: uploads are temporary"
+    },
+    "gone": {
+      "expired": "This file expired",
+      "deleted": "This file was deleted",
+      "removed": "This file was removed by the moderators",
+      "trashed": "This file is unavailable"
+    },
+    "link": {
+      "title": "Shared file",
+      "missingTitle": "This link does not work",
+      "missingText": "It expired, or its owner stopped sharing the file.",
+      "sharedBy": "Shared by {name}",
+      "expires": "Link expires {date}",
+      "footer": "Shared from {instance}"
+    }
+  },
+  "activities": {
+    "title": "Watch or listen together",
+    "addTitle": "Add to the activity",
+    "lede": "Everyone in the call plays the same thing at the same moment. Paste a YouTube, SoundCloud or Spotify link, a video or audio file link, or pick from your Drive.",
+    "linkPlaceholder": "Paste a link",
+    "badLink": "That link is not something Harmony can play together.",
+    "watchTogether": "Watch together",
+    "listenTogether": "Listen together",
+    "playTogether": "Play together",
+    "playNow": "Play now",
+    "addToQueue": "Add to queue",
+    "or": "or",
+    "fromDrive": "Choose from your Drive",
+    "pickTitle": "Pick a video or audio file",
+    "spotifyHint": "Spotify plays full tracks for listeners signed in to Spotify in Harmony; others hear previews.",
+    "region": "Activity",
+    "open": "Open the activity",
+    "hideForMe": "Stop for me",
+    "clickToPlay": "Click to play",
+    "play": "Play",
+    "pause": "Pause",
+    "seek": "Position",
+    "seekValue": "{position} of {duration}",
+    "mute": "Mute the activity",
+    "unmute": "Unmute the activity",
+    "volume": "Activity volume",
+    "next": "Next in queue",
+    "stop": "End the activity",
+    "queue": "Queue",
+    "queueEmpty": "Nothing queued.",
+    "removeFromQueue": "Remove from queue",
+    "controlsHost": "Only I control it",
+    "controlsEveryone": "Let everyone control it",
+    "watching": "Watching",
+    "listening": "Listening to",
+    "source": {
+      "drive": "Drive file",
+      "link": "Link"
+    }
+  },
+  "support": {
+    "title": "Support this instance",
+    "progress": "Funding progress",
+    "raisedMonth": "raised of {goal} this month",
+    "raisedTotal": "raised of {goal} in total",
+    "funded": "funded",
+    "supporters": "supporter | supporters",
+    "heading": "Support",
+    "oneTime": "One-time",
+    "onPlatform": "Support on {platform}",
+    "credited": "Credited to your account automatically",
+    "badgeAuto": "Get your supporter badge automatically",
+    "handleTitle": "Supporting on {platforms}? Add your handle",
+    "handleText": "Include your handle anywhere in the message. Your tier follows your total support this cycle.",
+    "handleHint": "Payments without a handle are queued for the admins to attribute by hand.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "tiers": "Supporter tiers",
+    "from": "from {amount}",
+    "yours": "Your support",
+    "tierSupporter": "{tier} supporter",
+    "active": "Active",
+    "history": "Your support history"
+  },
+  "driveAdmin": {
+    "settings": "Drive storage",
+    "quotaUser": "Storage per account",
+    "quotaModerator": "Storage per instance moderator",
+    "quotaAdmin": "Storage per instance admin",
+    "ephemeralDays": "Temporary files are kept",
+    "days": "days",
+    "ephemeralDaily": "Temporary uploads per day once Drive is full",
+    "linkSharing": "Files can be shared by link",
+    "hint": "Uploads past an account's storage are temporary and deleted after the days above. An account over its storage that has used its daily temporary allowance cannot upload until the next day or until it frees space.",
+    "save": "Save",
+    "saved": "Saved",
+    "usage": "Storage by account",
+    "account": "Account",
+    "used": "Used",
+    "temporary": "Temporary",
+    "quota": "Storage",
+    "override": "Storage for {name}, MB; empty for the role default",
+    "noUsage": "No account stores files yet.",
+    "blocked": "Blocked files",
+    "unblock": "Unblock",
+    "noBlocked": "No file is blocked. A reported file removed with “Remove and block re-uploads” is listed here.",
+    "reportFiles": "Attached files",
+    "removeFile": "Remove file",
+    "removeAndBlock": "Remove and block re-uploads",
+    "removed": "Removed"
   }
 }

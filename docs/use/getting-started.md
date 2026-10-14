@@ -124,7 +124,7 @@ On a desktop-sized window the app has five areas from left to right:
 
 | Area | What it holds |
 |---|---|
-| Server rail | Harmony Portal, Today, Direct messages, Fediverse, then your servers and folders. |
+| Server rail | Harmony Portal, Today, Direct messages, Fediverse, Drive, then your servers and folders. |
 | Channel sidebar | The server name menu, categories, text and voice channels, and active threads. |
 | Chat area | The channel header, the messages and the message composer. |
 | Member list | The server's members, grouped by role and online status. |
@@ -140,6 +140,7 @@ On a phone, the chat area fills the screen. **Navigation menu** in the channel h
 | **Today** | Opens the Today digest. Shown while the Today dashboard is on ([Today](#today)). |
 | **Direct messages** | Opens your direct messages and group chats. A number counts unread mentions. |
 | **Fediverse** | Opens the social timeline ([Social](/use/social)). |
+| **Drive** | Opens your files ([Drive](/use/drive)). |
 | Server icons | Open a server. A pill beside an icon marks unread messages; a number counts mentions. |
 
 Right-click a server icon, or press and hold it on a touch screen, for its menu: **Mark as read**, **Invite people**, **Mute server** (for 15 minutes, 1, 3, 8 or 24 hours, or **Until I turn it back on**), **Notification settings**, **Server settings** or **Overview**, **Move up**, **Move down**, folder actions, **Copy server ID** and **Leave server**. Members who manage channels also see **Create channel** and **Create category**.

@@ -160,7 +160,7 @@
                 @click="toggleSection('server-' + group.serverId)"
               >
                 <span aria-hidden="true" class="section-chevron" :class="{ collapsed: isSectionCollapsed('server-' + group.serverId) }">&#9662;</span>
-                <ServerIcon :src="group.server_icon" size="mini" shape="rounded" :show-title="false" class="section-server-icon" />
+                <ServerIcon :src="group.server_icon" :name="group.server_name" size="mini" shape="rounded" :show-title="false" class="section-server-icon" />
                 {{ group.server_name }}
               </button>
             </h3>

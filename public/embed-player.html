@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Player</title>
+<style>
+html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+#root, #root > iframe, #root > div, #root iframe { width: 100%; height: 100%; border: 0; display: block; }
+body.activity { background: #000; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+// Players of music and video services, served by the instance over https.
+//
+// ?src=<player url>  Frames one provider player (hosts in PLAYER_HOSTS, https only) and relays
+//                    postMessage both ways. The native apps load from tauri://localhost, which
+//                    sends no Referer; some players refuse such embeds.
+// ?activity=1        An activity player. The parent (the Harmony page that frames this one)
+//                    sends {harmonyPlayer: 1, cmd} commands; this page loads the provider's
+//                    official API and answers {harmonyPlayer: 1, ev} events.
+//   commands  load {source: youtube|soundcloud|spotify, item, startMs, autoplay}, play, pause,
+//             seek {ms}, volume {value 0..1}, rate {value}
+//   events    ready, state {playing, buffering, positionMs, durationMs}, ended, error {message}
+// Commands are taken from window.parent only.
+(function () {
+  'use strict';
+  var params = new URLSearchParams(location.search);
+  var root = document.getElementById('root');
+  var PLAYER_HOSTS = {
+    'open.spotify.com': '/embed',
+    'embed.music.apple.com': '/',
+    'w.soundcloud.com': '/player',
+    'widget.deezer.com': '/widget',
+    'embed.tidal.com': '/',
+    'bandcamp.com': '/EmbeddedPlayer',
+    'www.youtube.com': '/embed/'
+  };
+
+  function post(message) {
+    message.harmonyPlayer = 1;
+    window.parent.postMessage(message, '*');
+  }
+
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.async = true;
+      s.onload = function () { resolve(); };
+      s.onerror = function () { reject(new Error('Could not load ' + src)); };
+      document.head.appendChild(s);
+    });
+  }
+
+  // ---- relay ---------------------------------------------------------------------------
+  var src = params.get('src');
+  if (src) {
+    var target;
+    try { target = new URL(src); } catch (e) { return; }
+    var prefix = PLAYER_HOSTS[target.hostname];
+    if (target.protocol !== 'https:' || prefix === undefined || target.pathname.indexOf(prefix) !== 0
+        || target.username || target.password) return;
+    var frame = document.createElement('iframe');
+    frame.src = target.toString();
+    frame.allow = 'autoplay *; clipboard-write; encrypted-media *; fullscreen *; picture-in-picture';
+    frame.allowFullscreen = true;
+    frame.referrerPolicy = 'strict-origin-when-cross-origin';
+    root.appendChild(frame);
+    window.addEventListener('message', function (event) {
+      if (event.source === frame.contentWindow && event.origin === target.origin) {
+        window.parent.postMessage(event.data, '*');
+      } else if (event.source === window.parent && frame.contentWindow) {
+        frame.contentWindow.postMessage(event.data, target.origin);
+      }
+    });
+    return;
+  }
+
+  if (!params.get('activity')) return;
+  document.body.className = 'activity';
+
+  // ---- activity player -----------------------------------------------------------------
+  var adapter = null;
+  var ticker = null;
+
+  function stopTicker() {
+    if (ticker) clearInterval(ticker);
+    ticker = null;
+  }
+
+  function startTicker() {
+    stopTicker();
+    ticker = setInterval(function () { if (adapter) adapter.report(); }, 250);
+  }
+
+  function reset() {
+    stopTicker();
+    if (adapter && adapter.destroy) {
+      try { adapter.destroy(); } catch (e) { /* gone already */ }
+    }
+    adapter = null;
+    root.innerHTML = '';
+  }
+
+  // YouTube IFrame API.
+  var ytReady = null;
+  function youtube(item, startMs, autoplay) {
+    if (!/^[A-Za-z0-9_-]{6,20}$/.test(item.video_id || '')) throw new Error('Not a YouTube video id');
+    ytReady = ytReady || new Promise(function (resolve, reject) {
+      window.onYouTubeIframeAPIReady = function () { resolve(); };
+      loadScript('https://www.youtube.com/iframe_api').catch(reject);
+    });
+    var holder = document.createElement('div');
+    holder.id = 'yt-' + Date.now();
+    root.appendChild(holder);
+    var player = null;
+    var state = -1;
+    var a = {
+      play: function () { if (player) player.playVideo(); },
+      pause: function () { if (player) player.pauseVideo(); },
+      seek: function (ms) { if (player) player.seekTo(ms / 1000, true); },
+      volume: function (v) { if (player) player.setVolume(Math.round(v * 100)); },
+      rate: function (r) { if (player) player.setPlaybackRate(r); },
+      report: function () {
+        if (!player || !player.getCurrentTime) return;
+        post({ ev: 'state', playing: state === 1, buffering: state === 3 || state === -1,
+          positionMs: Math.round(player.getCurrentTime() * 1000), durationMs: Math.round((player.getDuration() || 0) * 1000) });
+      },
+      destroy: function () { if (player) player.destroy(); }
+    };
+    ytReady.then(function () {
+      player = new window.YT.Player(holder.id, {
+        videoId: item.video_id,
+        width: '100%',
+        height: '100%',
+        playerVars: { autoplay: autoplay ? 1 : 0, start: Math.floor(startMs / 1000), playsinline: 1, rel: 0, modestbranding: 1, origin: location.origin },
+        events: {
+          onReady: function () { post({ ev: 'ready' }); a.report(); },
+          onStateChange: function (e) {
+            state = e.data;
+            if (state === 0) post({ ev: 'ended' });
+            a.report();
+          },
+          onError: function (e) { post({ ev: 'error', message: 'YouTube error ' + e.data }); }
+        }
+      });
+    }, function (err) { post({ ev: 'error', message: String(err && err.message) }); });
+    return a;
+  }
+
+  // SoundCloud Widget API.
+  function soundcloud(item, startMs, autoplay) {
+    if (!/^https:\/\/(www\.|m\.)?soundcloud\.com\/[A-Za-z0-9_-]+\/[A-Za-z0-9_/-]+$/.test(item.url || '')) throw new Error('Not a SoundCloud URL');
+    var frame = document.createElement('iframe');
+    var q = new URLSearchParams({ url: item.url, auto_play: autoplay ? 'true' : 'false', visual: 'true', hide_related: 'true', show_comments: 'false', show_reposts: 'false', show_teaser: 'false' });
+    frame.src = 'https://w.soundcloud.com/player/?' + q.toString();
+    frame.allow = 'autoplay';
+    root.appendChild(frame);
+    var widget = null;
+    var playing = false;
+    var position = startMs;
+    var duration = 0;
+    var a = {
+      play: function () { if (widget) widget.play(); },
+      pause: function () { if (widget) widget.pause(); },
+      seek: function (ms) { position = ms; if (widget) widget.seekTo(ms); },
+      volume: function (v) { if (widget) widget.setVolume(Math.round(v * 100)); },
+      rate: function () { /* the widget plays at 1x only */ },
+      report: function () { post({ ev: 'state', playing: playing, buffering: false, positionMs: Math.round(position), durationMs: duration }); },
+      destroy: function () { if (widget) widget.unbind(window.SC.Widget.Events.PLAY_PROGRESS); }
+    };
+    loadScript('https://w.soundcloud.com/player/api.js').then(function () {
+      var E = window.SC.Widget.Events;
+      widget = window.SC.Widget(frame);
+      widget.bind(E.READY, function () {
+        widget.getDuration(function (d) { duration = d || 0; });
+        if (startMs > 0) widget.seekTo(startMs);
+        post({ ev: 'ready' });
+      });
+      widget.bind(E.PLAY, function () { playing = true; a.report(); });
+      widget.bind(E.PAUSE, function () { playing = false; a.report(); });
+      widget.bind(E.FINISH, function () { playing = false; post({ ev: 'ended' }); });
+      widget.bind(E.PLAY_PROGRESS, function (e) { position = e.currentPosition; });
+      widget.bind(E.ERROR, function () { post({ ev: 'error', message: 'SoundCloud could not play this' }); });
+    }, function (err) { post({ ev: 'error', message: String(err && err.message) }); });
+    return a;
+  }
+
+  // Spotify Embed iFrame API. Full tracks need the listener signed in to Spotify here.
+  var spotifyApi = null;
+  function spotify(item, startMs, autoplay) {
+    if (!/^spotify:(track|album|playlist|episode|show):[A-Za-z0-9]{10,40}$/.test(item.uri || '')) throw new Error('Not a Spotify URI');
+    spotifyApi = spotifyApi || new Promise(function (resolve, reject) {
+      window.onSpotifyIframeApiReady = function (api) { resolve(api); };
+      loadScript('https://open.spotify.com/embed/iframe-api/v1').catch(reject);
+    });
+    var holder = document.createElement('div');
+    root.appendChild(holder);
+    var controller = null;
+    var playing = false;
+    var position = startMs;
+    var duration = 0;
+    var a = {
+      play: function () { if (controller) controller.resume(); },
+      pause: function () { if (controller) controller.pause(); },
+      seek: function (ms) { position = ms; if (controller) controller.seek(ms / 1000); },
+      volume: function () { /* no volume control in the embed API */ },
+      rate: function () { /* plays at 1x only */ },
+      report: function () { post({ ev: 'state', playing: playing, buffering: false, positionMs: Math.round(position), durationMs: duration }); },
+      destroy: function () { if (controller) controller.destroy(); }
+    };
+    spotifyApi.then(function (api) {
+      api.createController(holder, { uri: item.uri, width: '100%', height: '100%' }, function (c) {
+        controller = c;
+        c.addListener('ready', function () {
+          if (startMs > 0) c.seek(startMs / 1000);
+          if (autoplay) c.play();
+          post({ ev: 'ready' });
+        });
+        c.addListener('playback_update', function (e) {
+          var d = e.data || {};
+          var wasPlaying = playing;
+          playing = !d.isPaused && !d.isBuffering;
+          position = d.position || 0;
+          duration = d.duration || duration;
+          if (wasPlaying && d.isPaused && duration > 0 && position >= duration - 500) post({ ev: 'ended' });
+        });
+      });
+    }, function (err) { post({ ev: 'error', message: String(err && err.message) }); });
+    return a;
+  }
+
+  var SOURCES = { youtube: youtube, soundcloud: soundcloud, spotify: spotify };
+
+  window.addEventListener('message', function (event) {
+    if (event.source !== window.parent) return;
+    var d = event.data;
+    if (!d || d.harmonyPlayer !== 1 || typeof d.cmd !== 'string') return;
+    try {
+      if (d.cmd === 'load') {
+        var make = SOURCES[d.source];
+        if (!make) throw new Error('Unknown source');
+        reset();
+        adapter = make(d.item || {}, Math.max(0, Number(d.startMs) || 0), !!d.autoplay);
+        startTicker();
+      } else if (adapter) {
+        if (d.cmd === 'play') adapter.play();
+        else if (d.cmd === 'pause') adapter.pause();
+        else if (d.cmd === 'seek') adapter.seek(Math.max(0, Number(d.ms) || 0));
+        else if (d.cmd === 'volume') adapter.volume(Math.min(1, Math.max(0, Number(d.value))));
+        else if (d.cmd === 'rate') adapter.rate(Math.min(4, Math.max(0.25, Number(d.value) || 1)));
+      }
+    } catch (err) {
+      post({ ev: 'error', message: String(err && err.message) });
+    }
+  });
+
+  post({ ev: 'host-ready' });
+})();
+</script>
+</body>
+</html>

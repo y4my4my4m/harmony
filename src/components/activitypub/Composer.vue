@@ -200,6 +200,19 @@
                 </button>
 
                 <button
+                  v-if="driveEnabled"
+                  type="button"
+                  class="option-button"
+                  :disabled="!canAddMedia"
+                  :title="t('drive.composer.fromDriveMenu')"
+                  :aria-label="t('drive.composer.fromDriveMenu')"
+                  data-testid="compose-from-drive"
+                  @click="drivePickerOpen = true"
+                >
+                  <Icon name="hard-drive" />
+                </button>
+
+                <button
                   ref="gifTriggerRef"
                   type="button"
                   class="option-button"
@@ -364,6 +377,14 @@
             :initialTab="mediaPickerInitialTab"
           />
         </Teleport>
+        <DrivePickerModal
+          v-if="drivePickerOpen"
+          :kinds="['image', 'video']"
+          :buckets="['message_media', 'user_media']"
+          multiple
+          @pick="attachFromDrive"
+          @close="drivePickerOpen = false"
+        />
       </div>
     </div>
   </component>
@@ -393,6 +414,8 @@ import MediaPickerPopup from '@/components/MediaPickerPopup.vue';
 import GifIcon from '@/components/icons/Gif.vue';
 import EmojiUI from '@/components/EmojiUI.vue';
 import Icon from '@/components/common/Icon.vue';
+import DrivePickerModal from '@/components/drive/DrivePickerModal.vue';
+import { driveAvailable, driveViewUrl, type DriveFile } from '@/services/drive/driveService';
 import Avatar from '../common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import AutoSuggest from '@/components/AutoSuggest.vue';
@@ -520,6 +543,28 @@ const canSubmit = computed(() => {
   return hasContent && remainingCharacters.value >= 0;
 });
 const canAddMedia = computed(() => mediaAttachments.value.length < maxMediaAttachments.value);
+
+const driveEnabled = ref(false);
+const drivePickerOpen = ref(false);
+void driveAvailable().then((ok) => { driveEnabled.value = ok; });
+
+/** Post media from Drive is reused as is; a chat file is copied into post media when the post is sent. */
+async function attachFromDrive(files: DriveFile[]): Promise<void> {
+  drivePickerOpen.value = false;
+  const room = Math.max(0, maxMediaAttachments.value - mediaAttachments.value.length);
+  for (const file of files.slice(0, room)) {
+    const url = await driveViewUrl(file).catch(() => null);
+    if (!url) continue;
+    const type = file.kind === 'video' ? 'video' : 'image';
+    const name = file.name ?? undefined;
+    mediaAttachments.value.push(file.bucket === 'user_media'
+      ? { id: `drive_${file.id}`, type, url, preview_url: url, filename: name, size: file.size_bytes,
+          mime_type: file.mime_type ?? undefined,
+          stored: { type: type === 'video' ? 'Video' : 'Image', url, mediaType: file.mime_type, name } } as any
+      : { id: `drive_${file.id}`, type, url, preview_url: url, filename: name, size: file.size_bytes,
+          mime_type: file.mime_type ?? undefined, drivePath: file.path });
+  }
+}
 
 const visibilityOptions = computed(() => [
   { value: 'public' as const, label: t('activitypub.public'), description: t('activitypub.visibleToEveryone'), icon: 'globe' },

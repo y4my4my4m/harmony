@@ -84,7 +84,7 @@
             <Icon name="external-link" :size="14" class="link-row-trail" />
           </a>
           <div v-if="profile.supportServer" class="link-row">
-            <ServerIcon :src="profile.supportServer.icon" size="mini" shape="rounded" :show-title="false" />
+            <ServerIcon :src="profile.supportServer.icon" :name="profile.supportServer.name" size="mini" shape="rounded" :show-title="false" />
             <span class="link-row-label">{{ t('bots.profile.supportServer') }}</span>
             <span class="link-row-value">{{ profile.supportServer.name }}</span>
             <button type="button" class="btn-inline" :disabled="joining" @click="goToSupportServer">
@@ -138,7 +138,7 @@
                   :disabled="installTargets.installed.has(server.id) || addingServerId !== null"
                   @click="addTo(server)"
                 >
-                  <ServerIcon :src="server.icon" size="mini" shape="rounded" :show-title="false" />
+                  <ServerIcon :src="server.icon" :name="server.name" size="mini" shape="rounded" :show-title="false" />
                   <span class="picker-server-name">{{ server.name }}</span>
                   <span v-if="installTargets.installed.has(server.id)" class="picker-server-state">
                     <Icon name="check" :size="14" />

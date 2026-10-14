@@ -140,7 +140,7 @@ export function extractYouTubeId(url: URL): string | null {
  * Parse YouTube time parameter to seconds.
  * Handles: ?t=90, ?t=1m30s, ?t=1h2m30s, &t=90, youtu.be/id?t=90
  */
-function parseYouTubeTime(url: URL): number | null {
+export function parseYouTubeTime(url: URL): number | null {
   const t = url.searchParams.get('t') || url.searchParams.get('start');
   if (!t) return null;
 
@@ -192,6 +192,14 @@ export function youtubeRelayOrigin(): string | null {
   } catch {
     return null;
   }
+}
+
+/** Instance page that frames provider players and hosts activity players (public/embed-player.html). */
+export const EMBED_RELAY_PATH = '/embed-player.html';
+
+/** Origin of the embed relay, or null when this page frames players itself; as youtubeRelayOrigin. */
+export function embedRelayOrigin(): string | null {
+  return youtubeRelayOrigin();
 }
 
 /** Origin of a window that speaks the YouTube IFrame API to this page. */

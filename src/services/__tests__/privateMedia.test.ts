@@ -83,18 +83,21 @@ describe('room prefixes', () => {
     expect(messageMediaPath(`c/${CHANNEL}`, UID, 'evil.p/hp')).toMatch(/\.bin$/)
   })
 
-  it('lists the objects of the room that file parts name, sorted and distinct', () => {
+  it('lists the objects file parts name, Drive files sent again included, sorted and distinct', () => {
     const b = `c/${CHANNEL}/${UID}/b.png`
     const a = `c/${CHANNEL}/${UID}/a.png`
+    const reused = `c/${OTHER_CHANNEL}/${UID}/c.png`
+    const drive = `u/${UID}/d.png`
     expect(messageMediaPathsIn([
       { type: 'text', text: 'x' },
       { type: 'file', url: '', path: b },
       { type: 'file', url: '', path: a },
       { type: 'file', url: '', path: b },
-      { type: 'file', url: '', path: `c/${OTHER_CHANNEL}/${UID}/c.png` },
+      { type: 'file', url: '', path: reused },
+      { type: 'file', url: '', path: drive },
       { type: 'file', url: 'https://cdn.example/legacy.png' },
       { type: 'image', path: `c/${CHANNEL}/${UID}/not-a-file-part.png` },
-    ], `c/${CHANNEL}`)).toEqual([a, b])
+    ], `c/${CHANNEL}`)).toEqual([a, b, reused, drive].sort())
     expect(messageMediaPathsIn([{ type: 'file', url: '', path: a }], null)).toEqual([])
     expect(messageMediaPathsIn([{ type: 'text', text: 'x' }], `c/${CHANNEL}`)).toEqual([])
   })
@@ -103,6 +106,8 @@ describe('room prefixes', () => {
     expect(isPrivateMediaPart({ type: 'file', url: 'x', path: `c/${CHANNEL}/${UID}/a.png` })).toBe(true)
     expect(isPrivateMediaPart({ type: 'file', url: 'https://cdn.example/a.png' })).toBe(false)
     expect(isPrivateMediaPart({ type: 'file', url: 'x', path: `${UID}/a.png` })).toBe(false)
+    expect(isPrivateMediaPart({ type: 'file', url: 'x', path: `u/${UID}/a.png` })).toBe(true)
+    expect(isPrivateMediaPart({ type: 'file', url: 'x', path: `u/${UID}/../a.png` })).toBe(false)
     expect(isPrivateMediaPart(null)).toBe(false)
   })
 

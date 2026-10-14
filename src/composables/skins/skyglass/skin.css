@@ -772,13 +772,13 @@
   box-shadow: var(--sg-glow);
 }
 
-:root[data-skin="skyglass"] :is(.auth-card, .brand-card) {
+:root[data-skin="skyglass"] :is(.auth-card, .auth-art) {
   background: var(--sg-glass-deep);
   border: 1px solid var(--sg-glass-line);
   border-radius: 22px;
   box-shadow: var(--sg-shadow-pop), inset 0 1px 0 var(--sg-glass-edge);
 }
-:root[data-skin="skyglass"]:not([data-disable-blur="true"]) :is(.auth-card, .brand-card) {
+:root[data-skin="skyglass"]:not([data-disable-blur="true"]) .auth-card {
   -webkit-backdrop-filter: blur(24px) saturate(180%);
           backdrop-filter: blur(24px) saturate(180%);
 }

@@ -73,6 +73,7 @@
   
   <!-- Persistent Voice Connection (only when authenticated) -->
   <PersistentVoiceConnection v-if="!isAuthRoute" />
+  <ActivityHost v-if="!isAuthRoute && inVoiceCall" />
 
   <!-- PWA Components. The install prompt waits for sign-in; on auth routes it
        covers the form on small screens. -->
@@ -136,6 +137,7 @@ import EncryptionFallbackModal from '@/components/EncryptionFallbackModal.vue'
 import EncryptionActionHost from '@/components/encryption/EncryptionActionHost.vue'
 import DeviceApprovalPrompt from '@/components/encryption/DeviceApprovalPrompt.vue'
 import PersistentVoiceConnection from '@/components/PersistentVoiceConnection.vue'
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import PWAInstallBanner from '@/components/PWAInstallBanner.vue'
 import PWAUpdateNotification from '@/components/PWAUpdateNotification.vue'
 import PushNotificationPrompt from '@/components/PushNotificationPrompt.vue'
@@ -177,6 +179,7 @@ const {
 
 const ImageCropDialog = defineAsyncComponent(() => import('@/components/common/ImageCropDialog.vue'))
 const ThemeCustomizerPanel = defineAsyncComponent(() => import('@/components/settings/user/ThemeCustomizerPanel.vue'))
+const ActivityHost = defineAsyncComponent(() => import('@/components/activities/ActivityHost.vue'))
 // Mounted from the first open on, so its close transition plays.
 const { isOpen: themePanelOpen } = useThemeEditorPanel()
 const themePanelOpened = ref(themePanelOpen.value)
@@ -198,11 +201,13 @@ setAnnouncerMoreLabel((count) => translate('a11y.announcer.more', { count }, cou
 const remoteInvitePrompt = useRemoteInvitePrompt()
 const remoteInviteUrl = remoteInvitePrompt.pendingUrl
 const route = useRoute()
+const voiceStore = useUnifiedVoiceChannelStore()
+const inVoiceCall = computed(() => voiceStore.isConnected)
 
 // Auth route detection
 const isAuthRoute = computed(() => {
   const authRoutes = ['/login', '/register', '/reset-password', '/new-profile', '/404-public', '/logout']
-  return authRoutes.includes(route.path) || route.name === 'NotFoundPublic'
+  return authRoutes.includes(route.path) || route.name === 'NotFoundPublic' || route.name === 'DriveLink'
 })
 
 // Global modal state

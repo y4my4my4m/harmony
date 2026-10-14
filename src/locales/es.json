@@ -54,7 +54,7 @@
     "displayName": "Nombre para mostrar",
     "welcomeBack": "¡Bienvenido de nuevo!",
     "createAccount": "Crear una cuenta",
-    "welcomeBackSubtitle": "Inicia sesión con tu correo y contraseña.",
+    "instanceLabel": "Instancia",
     "createAccountSubtitle": "A continuación elegirás un nombre de usuario y tu perfil.",
     "confirmEmailSent": "Te enviamos un enlace de confirmación a {email}. Ábrelo y luego inicia sesión.",
     "forgotPassword": "¿Olvidaste tu contraseña?",
@@ -146,7 +146,6 @@
     "sendingResetLink": "Enviando enlace de restablecimiento…",
     "poweredBy": "Funciona con {name}",
     "reset": {
-      "brandSubtitle": "Restablece tu contraseña para recuperar el acceso a tu cuenta",
       "successTitle": "Contraseña restablecida",
       "successBody": "Tu contraseña se ha actualizado. Ya puedes iniciar sesión con la nueva contraseña.",
       "goToLogin": "Ir al inicio de sesión",
@@ -6273,5 +6272,335 @@
     "exitPip": "Salir de imagen en imagen",
     "fullscreen": "Pantalla completa",
     "exitFullscreen": "Salir de pantalla completa"
+  },
+  "activities": {
+    "title": "Ver o escuchar juntos",
+    "addTitle": "Añadir a la actividad",
+    "lede": "Todos en la llamada reproducen lo mismo en el mismo momento. Pega un enlace de YouTube, SoundCloud o Spotify, un enlace a un archivo de video o audio, o elige uno de tu Drive.",
+    "linkPlaceholder": "Pega un enlace",
+    "badLink": "Harmony no puede reproducir ese enlace en grupo.",
+    "watchTogether": "Ver juntos",
+    "listenTogether": "Escuchar juntos",
+    "playTogether": "Reproducir juntos",
+    "playNow": "Reproducir ahora",
+    "addToQueue": "Añadir a la cola",
+    "or": "o",
+    "fromDrive": "Elegir de tu Drive",
+    "pickTitle": "Elige un archivo de video o audio",
+    "spotifyHint": "Spotify reproduce las canciones completas para quienes iniciaron sesión en Spotify en Harmony; los demás oyen un fragmento.",
+    "region": "Actividad",
+    "open": "Abrir la actividad",
+    "hideForMe": "Detener para mí",
+    "clickToPlay": "Haz clic para reproducir",
+    "play": "Reproducir",
+    "pause": "Pausa",
+    "seek": "Posición",
+    "seekValue": "{position} de {duration}",
+    "mute": "Silenciar la actividad",
+    "unmute": "Activar el sonido de la actividad",
+    "volume": "Volumen de la actividad",
+    "next": "Siguiente en la cola",
+    "stop": "Terminar la actividad",
+    "queue": "Cola",
+    "queueEmpty": "No hay nada en la cola.",
+    "removeFromQueue": "Quitar de la cola",
+    "controlsHost": "Solo yo la controlo",
+    "controlsEveryone": "Dejar que todos la controlen",
+    "watching": "Viendo",
+    "listening": "Escuchando",
+    "source": {
+      "drive": "Archivo de Drive",
+      "link": "Enlace"
+    }
+  },
+  "driveAdmin": {
+    "settings": "Almacenamiento de Drive",
+    "quotaUser": "Almacenamiento por cuenta",
+    "quotaModerator": "Almacenamiento por moderador de la instancia",
+    "quotaAdmin": "Almacenamiento por administrador de la instancia",
+    "ephemeralDays": "Los archivos temporales se conservan",
+    "days": "días",
+    "ephemeralDaily": "Subidas temporales por día con Drive lleno",
+    "linkSharing": "Los archivos se pueden compartir por enlace",
+    "hint": "Las subidas que superan el almacenamiento de una cuenta son temporales y se eliminan tras los días indicados arriba. Una cuenta que supera su almacenamiento y ya agotó su cupo diario de subidas temporales no puede subir nada hasta el día siguiente o hasta que libere espacio.",
+    "save": "Guardar",
+    "saved": "Guardado",
+    "usage": "Uso de almacenamiento por cuenta",
+    "account": "Cuenta",
+    "used": "Usado",
+    "temporary": "Temporal",
+    "quota": "Almacenamiento",
+    "override": "Almacenamiento para {name}, en MB; vacío para usar el del rol",
+    "noUsage": "Ninguna cuenta guarda archivos todavía.",
+    "blocked": "Archivos bloqueados",
+    "unblock": "Desbloquear",
+    "noBlocked": "No hay archivos bloqueados. Un archivo reportado que se elimina con «Eliminar y bloquear nuevas subidas» aparece aquí.",
+    "reportFiles": "Archivos adjuntos",
+    "removeFile": "Eliminar archivo",
+    "removeAndBlock": "Eliminar y bloquear nuevas subidas",
+    "removed": "Eliminado"
+  },
+  "drive": {
+    "title": "Drive",
+    "actions": {
+      "upload": "Subir",
+      "newFolder": "Nueva carpeta",
+      "open": "Abrir",
+      "download": "Descargar",
+      "rename": "Renombrar",
+      "share": "Compartir",
+      "move": "Mover",
+      "keep": "Conservar en Drive",
+      "trash": "Mover a la papelera",
+      "restore": "Restaurar",
+      "deleteForever": "Eliminar para siempre",
+      "deleteFolder": "Eliminar carpeta",
+      "emptyTrash": "Vaciar papelera"
+    },
+    "nav": {
+      "myDrive": "Mi Drive",
+      "recent": "Recientes",
+      "temporary": "Temporales",
+      "shared": "Compartido conmigo",
+      "trash": "Papelera",
+      "whereSent": "Dónde los enviaste",
+      "dms": "Mensajes directos",
+      "fediverse": "Publicaciones del fediverso",
+      "server": "Servidor",
+      "channel": "Canal",
+      "conversation": "Conversación",
+      "open": "Abrir la navegación de Drive",
+      "path": "Ruta de la carpeta"
+    },
+    "tree": {
+      "expand": "Expandir carpeta",
+      "collapse": "Contraer carpeta"
+    },
+    "usage": {
+      "label": "Almacenamiento de Drive usado",
+      "summary": "{used} de {quota} usados",
+      "temporary": "{size} en archivos temporales",
+      "full": "Tu Drive está lleno. Las nuevas subidas son temporales y se eliminan tras {count} día. | Tu Drive está lleno. Las nuevas subidas son temporales y se eliminan tras {count} días."
+    },
+    "columns": {
+      "name": "Nombre",
+      "type": "Tipo",
+      "owner": "Propietario",
+      "size": "Tamaño",
+      "added": "Añadido",
+      "trashed": "Eliminado"
+    },
+    "kind": {
+      "image": "Imagen",
+      "video": "Video",
+      "audio": "Audio",
+      "document": "Documento",
+      "other": "Archivo"
+    },
+    "filter": {
+      "label": "Tipo de archivo",
+      "all": "Todos",
+      "images": "Imágenes",
+      "videos": "Videos",
+      "audio": "Audio",
+      "documents": "Documentos"
+    },
+    "sort": {
+      "label": "Ordenar por",
+      "newest": "Más recientes primero",
+      "oldest": "Más antiguos primero",
+      "name": "Nombre",
+      "size": "Más grandes primero"
+    },
+    "layout": {
+      "label": "Vista",
+      "grid": "Cuadrícula",
+      "list": "Lista"
+    },
+    "search": {
+      "placeholder": "Buscar en tu Drive",
+      "results": "Resultados para «{query}»"
+    },
+    "selection": {
+      "label": "Archivos seleccionados",
+      "count": "{count} seleccionado | {count} seleccionados",
+      "clear": "Borrar selección"
+    },
+    "state": {
+      "expiresIn": "Se elimina en {count} día | Se elimina en {count} días",
+      "daysShort": "{count} d"
+    },
+    "banner": {
+      "temporary": "Los archivos temporales se eliminan {count} día después de subirlos. Conserva en Drive los que necesites. | Los archivos temporales se eliminan {count} días después de subirlos. Conserva en Drive los que necesites.",
+      "trash": "Los archivos de la papelera cuentan para tu almacenamiento y se eliminan pasados 30 días."
+    },
+    "empty": {
+      "folderTitle": "Aún no hay nada aquí",
+      "folderText": "Sube archivos o suéltalos aquí. Todo lo que envías en los chats también llega a tu Drive.",
+      "temporaryTitle": "No hay archivos temporales",
+      "temporaryText": "Aquí aparecen los archivos subidos con tu Drive lleno o enviados como temporales.",
+      "sharedTitle": "Nadie ha compartido nada contigo",
+      "sharedText": "Aquí aparecen los archivos que las personas de esta instancia comparten contigo, con tus servidores o con tus canales.",
+      "trashTitle": "La papelera está vacía",
+      "trashText": "Los archivos eliminados se quedan aquí 30 días.",
+      "otherTitle": "No hay archivos aquí",
+      "otherText": "Aquí aparecen los archivos que envías en este lugar.",
+      "searchTitle": "Sin resultados",
+      "searchText": "Ningún nombre de archivo de tu Drive coincide con esa búsqueda."
+    },
+    "errors": {
+      "load": "No se pudo cargar Drive",
+      "temporary": "Ese cambio no se guardó: {reason}",
+      "blocked": "Los moderadores de la instancia eliminaron este archivo."
+    },
+    "details": {
+      "label": "Detalles del archivo",
+      "title": "Detalles",
+      "name": "Nombre del archivo",
+      "rename": "Renombrar",
+      "type": "Tipo",
+      "size": "Tamaño",
+      "added": "Añadido",
+      "owner": "Propietario",
+      "used": "Dónde se usa",
+      "unused": "Aún no se ha enviado a ningún sitio.",
+      "post": "Publicación del fediverso",
+      "sharing": "Uso compartido"
+    },
+    "file": {
+      "renameTitle": "Renombrar archivo",
+      "unnamed": "Archivo sin nombre"
+    },
+    "folder": {
+      "newTitle": "Nueva carpeta",
+      "renameTitle": "Renombrar carpeta",
+      "name": "Nombre de la carpeta",
+      "create": "Crear",
+      "deleteTitle": "¿Eliminar «{name}»?",
+      "deleteText": "Sus archivos van a la papelera y sus subcarpetas se eliminan."
+    },
+    "delete": {
+      "title": "¿Eliminar {count} archivo para siempre? | ¿Eliminar {count} archivos para siempre?",
+      "text": "Los mensajes y publicaciones que usan estos archivos los mostrarán como eliminados. No se puede deshacer."
+    },
+    "trash": {
+      "emptyTitle": "¿Vaciar la papelera?"
+    },
+    "move": {
+      "title": "Mover {count} elemento | Mover {count} elementos",
+      "here": "Mover aquí"
+    },
+    "menu": {
+      "file": "Acciones del archivo"
+    },
+    "drop": {
+      "title": "Suelta para subir a {place}"
+    },
+    "uploads": {
+      "label": "Subidas",
+      "title": "Subiendo {count} archivo | Subiendo {count} archivos"
+    },
+    "toast": {
+      "trashed": "{count} archivo movido a la papelera | {count} archivos movidos a la papelera",
+      "restored": "{count} archivo restaurado | {count} archivos restaurados",
+      "deleted": "{count} archivo eliminado | {count} archivos eliminados",
+      "moved": "{count} archivo movido | {count} archivos movidos",
+      "kept": "{count} archivo conservado en Drive | {count} archivos conservados en Drive",
+      "keepPartial": "{kept} de {total} conservados: el resto no cabe en tu Drive",
+      "folderDeleted": "Carpeta eliminada; {count} archivo movido a la papelera | Carpeta eliminada; {count} archivos movidos a la papelera"
+    },
+    "share": {
+      "title": "Compartir",
+      "linkTitle": "Cualquiera con el enlace",
+      "linkOn": "Cualquiera con el enlace puede verlo y descargarlo.",
+      "linkOff": "Solo las personas de abajo y los lugares donde lo enviaste.",
+      "copy": "Copiar",
+      "copied": "Copiado",
+      "expires": "El enlace caduca",
+      "never": "Nunca",
+      "days": "En {count} día | En {count} días",
+      "people": "Personas y lugares",
+      "searchPeople": "Añadir personas de esta instancia",
+      "server": "Servidor",
+      "channel": "Canal",
+      "pickServer": "Elige un servidor",
+      "wholeServer": "Todo el servidor",
+      "add": "Compartir",
+      "remove": "Dejar de compartir con {name}",
+      "private": "Solo tú y las conversaciones donde lo enviaste.",
+      "summaryLink": "Cualquiera con el enlace",
+      "summaryPeople": "Compartido con {count} persona o lugar | Compartido con {count} personas o lugares",
+      "summaryBoth": "Enlace activado y {count} persona o lugar | Enlace activado y {count} personas o lugares",
+      "scope": {
+        "user": "Persona",
+        "server": "Servidor",
+        "channel": "Canal",
+        "link": "Enlace"
+      }
+    },
+    "preview": {
+      "previous": "Archivo anterior",
+      "next": "Archivo siguiente",
+      "none": "No hay vista previa para este archivo."
+    },
+    "picker": {
+      "title": "Elegir de Drive",
+      "folder": "Carpeta",
+      "everything": "Todos los archivos",
+      "empty": "No hay archivos aquí.",
+      "attach": "Adjuntar {count} | Adjuntar {count}"
+    },
+    "composer": {
+      "fromDriveMenu": "Desde Drive",
+      "fromDrive": "Desde Drive",
+      "reused": "En tu Drive",
+      "reusedHint": "Estos datos ya estaban en tu Drive: no se volvió a subir nada.",
+      "temporaryDays": "Temporal, {count} día | Temporal, {count} días",
+      "makeTemporary": "Hacer temporal: se elimina tras {count} día | Hacer temporal: se elimina tras {count} días",
+      "keep": "Conservar en Drive",
+      "makeTemporaryFile": "Hacer temporal {name}",
+      "keepFile": "Conservar {name} en Drive",
+      "markedTemporary": "{name} es temporal",
+      "markedKept": "{name} se queda en tu Drive",
+      "fullHint": "Tu Drive está lleno: las subidas son temporales"
+    },
+    "gone": {
+      "expired": "Este archivo caducó",
+      "deleted": "Este archivo se eliminó",
+      "removed": "Los moderadores eliminaron este archivo",
+      "trashed": "Este archivo no está disponible"
+    },
+    "link": {
+      "title": "Archivo compartido",
+      "missingTitle": "Este enlace no funciona",
+      "missingText": "Caducó o su propietario dejó de compartir el archivo.",
+      "sharedBy": "Compartido por {name}",
+      "expires": "El enlace caduca {date}",
+      "footer": "Compartido desde {instance}"
+    }
+  },
+  "support": {
+    "title": "Apoyar a esta instancia",
+    "progress": "Progreso de la financiación",
+    "raisedMonth": "recaudado de {goal} este mes",
+    "raisedTotal": "recaudado de {goal} en total",
+    "funded": "financiado",
+    "supporters": "patrocinador | patrocinadores",
+    "heading": "Apoyo",
+    "oneTime": "Pago único",
+    "onPlatform": "Apoyar en {platform}",
+    "credited": "Se acredita en tu cuenta automáticamente",
+    "badgeAuto": "Recibe tu insignia de patrocinador automáticamente",
+    "handleTitle": "¿Apoyas en {platforms}? Añade tu identificador",
+    "handleText": "Incluye tu identificador en cualquier parte del mensaje. Tu nivel depende de tu apoyo total en este ciclo.",
+    "handleHint": "Los pagos sin identificador quedan en cola para que la administración los asigne a mano.",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "tiers": "Niveles de patrocinio",
+    "from": "desde {amount}",
+    "yours": "Tu apoyo",
+    "tierSupporter": "Patrocinador {tier}",
+    "active": "Activo",
+    "history": "Tu historial de apoyo"
   }
 }

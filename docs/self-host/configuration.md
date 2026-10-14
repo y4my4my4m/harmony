@@ -60,6 +60,37 @@ Some settings exist both as a variable and in the database:
 | Registration | `REGISTRATION` | `instance_config.open_registration` | `harmony registration` sets both, together with `DISABLE_SIGNUP` in `supabase/.env` |
 | Call transport, federated calls | `WEBRTC_MODE`, `ALLOW_FEDERATED_VOICE` | `instance_webrtc_settings` | The variables. The backend does not read the values the **Voice & video** tab stores |
 
+### Drive storage
+
+The admin panel's **Drive** tab, shown to instance admins only, holds the
+settings of [Drive](/use/drive), the file storage of each account. They live
+in `public.instance_config` and apply when you click **Save**.
+
+| Setting | Key | Default | Meaning |
+|---|---|---|---|
+| **Storage per account** | `drive_quota_user_mb` | `1024` | Storage of an account that is neither instance admin nor moderator, in MB |
+| **Storage per instance moderator** | `drive_quota_moderator_mb` | `25600` | Storage of an instance moderator, in MB |
+| **Storage per instance admin** | `drive_quota_admin_mb` | `102400` | Storage of an instance admin, in MB |
+| **Temporary files are kept** | `drive_ephemeral_days` | `30` | Days after which a temporary upload is deleted |
+| **Temporary uploads per day once Drive is full** | `drive_ephemeral_daily_mb` | `2048` | MB of temporary uploads an account over its storage may make in 24 hours. Past it, the account's uploads are refused |
+| **Files can be shared by link** | `drive_link_sharing` | `true` | Whether people can share a file by a link that needs no account. While it is off, existing links do not open |
+
+An upload that would take an account past its storage is temporary. Storage
+counts the files kept in Drive and in the trash; files with the same
+contents count once, once the server has hashed them.
+
+**Storage by account** lists the accounts that store files, largest first,
+with their used and temporary bytes. Its **Storage** field sets one
+account's limit in MB; clearing it returns the account to its role's limit.
+
+**Blocked files** lists the file contents blocked from a report, with
+**Unblock** to lift a block; see
+[Remove a reported file](/run/moderation#remove-a-reported-file).
+
+The federation worker hashes new files, deletes temporary files whose days
+have passed and trash older than 30 days, and removes the stored bytes of
+deleted files. It sweeps every 10 minutes.
+
 ## Change a setting
 
 ### With harmony config

@@ -7,7 +7,26 @@ import { validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 import { decodeHtmlEntities } from '../utils/contentUtils.js';
 import { fetchKlipyMediaBySlug } from './KlipyService.js';
 
-export type EmbedProvider = 'harmony-post' | 'fediverse-post' | 'youtube' | 'spotify' | 'reddit' | 'generic';
+export type EmbedProvider =
+  | 'harmony-post' | 'fediverse-post' | 'youtube' | 'spotify' | 'reddit' | 'generic'
+  | 'soundcloud' | 'apple-music' | 'bandcamp' | 'deezer' | 'tidal';
+
+/** Hosts of provider player pages a payload may name in `player`. */
+const PLAYER_HOSTS = new Set([
+  'w.soundcloud.com', 'bandcamp.com', 'embed.music.apple.com', 'open.spotify.com',
+  'widget.deezer.com', 'embed.tidal.com',
+]);
+
+/** An https player page on PLAYER_HOSTS, else undefined. */
+export function providerPlayerUrl(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'https:' && PLAYER_HOSTS.has(url.hostname.toLowerCase()) ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export interface FediverseEmbedData {
   authorName: string;
@@ -54,6 +73,10 @@ export interface EmbedPayload {
   video?: { url: string; type?: string; width?: number; height?: number };
   /** The page could not be read. Never stored on a message; cached briefly and retried. */
   failed?: boolean;
+  /** Where the link led after redirects, or the page's og:url (short links of music services). */
+  canonicalUrl?: string;
+  /** The provider's player page (twitter:player, og:video or oEmbed iframe), PLAYER_HOSTS only. */
+  player?: { url: string; height?: number };
   fetchedAt: string;
   expiresAt: string;
   harmony?: {
@@ -80,6 +103,11 @@ const TTL_BY_PROVIDER: Record<EmbedProvider, number> = {
   youtube: 6 * 60 * 60 * 1000, // 6 hours
   spotify: 6 * 60 * 60 * 1000,
   reddit: 6 * 60 * 60 * 1000,
+  soundcloud: 6 * 60 * 60 * 1000,
+  'apple-music': 6 * 60 * 60 * 1000,
+  bandcamp: 6 * 60 * 60 * 1000,
+  deezer: 6 * 60 * 60 * 1000,
+  tidal: 6 * 60 * 60 * 1000,
   generic: 24 * 60 * 60 * 1000, // 24 hours
 };
 
@@ -247,7 +275,12 @@ class LinkPreviewService {
     } else if (provider === 'youtube') {
       payload = await this.fetchOEmbed(normalizedUrl, 'https://www.youtube.com/oembed');
     } else if (provider === 'spotify') {
-      payload = await this.fetchOEmbed(normalizedUrl, 'https://open.spotify.com/oembed');
+      // Short links (spotify.link) are not oEmbed URLs; the page they lead to names the item.
+      payload = await this.fetchOEmbed(normalizedUrl, 'https://open.spotify.com/oembed')
+        .catch(() => this.fetchGenericPreview(normalizedUrl));
+    } else if (provider === 'soundcloud') {
+      payload = await this.fetchOEmbed(normalizedUrl, 'https://soundcloud.com/oembed')
+        .catch(() => this.fetchGenericPreview(normalizedUrl));
     } else if (provider === 'reddit') {
       payload = await this.fetchRedditPreview(normalizedUrl);
     } else {
@@ -316,8 +349,23 @@ class LinkPreviewService {
     if (host.includes('youtube.com') || host === 'youtu.be') {
       return 'youtube';
     }
-    if (host.endsWith('spotify.com')) {
+    if (host.endsWith('spotify.com') || host === 'spotify.link' || host === 'spotify.app.link') {
       return 'spotify';
+    }
+    if (host === 'soundcloud.com' || host.endsWith('.soundcloud.com')) {
+      return 'soundcloud';
+    }
+    if (host === 'music.apple.com' || host === 'embed.music.apple.com') {
+      return 'apple-music';
+    }
+    if (host === 'bandcamp.com' || host.endsWith('.bandcamp.com')) {
+      return 'bandcamp';
+    }
+    if (host === 'deezer.com' || host.endsWith('.deezer.com') || host === 'deezer.page.link' || host === 'link.deezer.com') {
+      return 'deezer';
+    }
+    if (host === 'tidal.com' || host.endsWith('.tidal.com')) {
+      return 'tidal';
     }
     if (host.endsWith('reddit.com')) {
       return 'reddit';
@@ -722,6 +770,8 @@ class LinkPreviewService {
     }
 
     const data = await response.json();
+    const frameSrc = typeof data.html === 'string' ? /<iframe[^>]+src=["']([^"']+)["']/i.exec(data.html)?.[1] : undefined;
+    const player = providerPlayerUrl(frameSrc ? decodeHtmlEntities(frameSrc) : undefined);
     return {
       cacheKey: '',
       url,
@@ -734,6 +784,7 @@ class LinkPreviewService {
       html: data.html,
       width: data.width,
       height: data.height,
+      ...(player ? { player: { url: player, ...(Number(data.height) > 0 ? { height: Number(data.height) } : {}) } } : {}),
       fetchedAt: '',
       expiresAt: '',
     };
@@ -799,6 +850,7 @@ class LinkPreviewService {
       const timeout = setTimeout(() => controller.abort(), HTML_FETCH_TIMEOUT_MS);
       let response: Response;
       let html = '';
+      let landedAt = url;
       try {
         response = await safeFetch(url, {
           headers: {
@@ -823,6 +875,7 @@ class LinkPreviewService {
         // The link answered with the media itself (embed fixers redirect previewers to it).
         const contentType = (response.headers.get('content-type') || '').toLowerCase();
         const finalUrl = response.url || url;
+        landedAt = finalUrl;
         if (contentType.startsWith('image/') || contentType.startsWith('video/')) {
           await response.body?.cancel().catch(() => {});
           const media = contentType.startsWith('video/')
@@ -890,12 +943,17 @@ class LinkPreviewService {
         const n = Number(meta.get(key));
         return Number.isFinite(n) && n > 0 ? n : undefined;
       };
+      const ogUrl = first('og:url');
+      const canonical = ogUrl ? this.makeAbsoluteUrl(url, ogUrl) : (landedAt !== url ? landedAt : undefined);
+      const playerPage = providerPlayerUrl(first('twitter:player') ?? (playable ? undefined : videoUrl));
 
       return {
         cacheKey: '',
         url,
         normalizedUrl: url,
         provider: 'generic',
+        ...(canonical && canonical !== url ? { canonicalUrl: canonical } : {}),
+        ...(playerPage ? { player: { url: playerPage, height: dimension('twitter:player:height') } } : {}),
         title: title || url,
         description: description || undefined,
         siteName: siteName || hostname,

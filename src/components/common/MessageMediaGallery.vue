@@ -18,12 +18,18 @@
           v-if="canRemove"
           @click="$emit('remove-attachment', item.url)"
         />
+        <DriveGoneFile
+          v-if="goneReason(item)"
+          :reason="goneReason(item)!"
+          :file-type="item.fileType"
+          compact
+        />
         <div
-          v-if="item.fileType === 'image' && !imageLoaded[loadKey(item)]"
+          v-else-if="item.fileType === 'image' && !imageLoaded[loadKey(item)]"
           class="media-skeleton image-skeleton"
         />
         <img
-          v-if="item.fileType === 'image'"
+          v-if="!goneReason(item) && item.fileType === 'image'"
           :src="thumbnailFor(item)"
           :alt="altFor(item)"
           class="content-image"
@@ -35,14 +41,14 @@
           @click="!item.isSticker && $emit('open-lightbox', item.url)"
         />
         <button
-          v-if="item.fileType === 'image' && !item.isSticker && !item.isAiEmoji"
+          v-if="!goneReason(item) && item.fileType === 'image' && !item.isSticker && !item.isAiEmoji"
           type="button"
           class="media-open"
           :aria-label="items.length > 1 ? t('messageA11y.image.openIndexed', { index: index + 1, total: items.length }) : t('messageA11y.image.open')"
           @click.stop="$emit('open-lightbox', item.url)"
         ></button>
         <video
-          v-else-if="item.fileType === 'video'"
+          v-else-if="!goneReason(item) && item.fileType === 'video'"
           :src="sourceFor(item)"
           class="content-video"
           :controls="nativeVideoControls"
@@ -51,7 +57,7 @@
           @play="onVideoPlay"
           @error="onItemError(item)"
         />
-        <VideoControls v-if="item.fileType === 'video' && !nativeVideoControls" :label="item.altText || undefined" />
+        <VideoControls v-if="!goneReason(item) && item.fileType === 'video' && !nativeVideoControls" :label="item.altText || undefined" />
         <button
           v-if="item.fileType === 'video' && floatingVideos.canPopOut(videoKey(item, index))"
           type="button"
@@ -80,7 +86,8 @@ import {
 } from '@/utils/mediaGalleryUtils';
 import { stripKlipyAttributionFragment, isStickerMessageUrl, isAiEmojiMessageUrl } from '@/utils/klipyAttribution';
 import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
-import { isPrivateMediaPart, mediaPartSource, reportMediaPartError } from '@/services/privateMedia';
+import { isPrivateMediaPart, mediaPartGone, mediaPartSource, reportMediaPartError } from '@/services/privateMedia';
+import DriveGoneFile from '@/components/drive/DriveGoneFile.vue';
 import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.vue';
 import Icon from '@/components/common/Icon.vue';
 import MediaUploadProgress from '@/components/common/MediaUploadProgress.vue';
@@ -187,6 +194,8 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+const goneReason = (item: { path?: string }) => mediaPartGone(item);
 const { notifyPlaybackStarted } = useFloatingVideo();
 const floatingVideos = useFloatingVideoRefs();
 

@@ -5,6 +5,7 @@ import { bannerRenderSize, canonicalSquareSize } from '@/utils/imageTransformUti
 import { publicImageUrl, rawStorageUrl } from '@/utils/storageImageUtils'
 import { knownRenderFallback } from '@/utils/renderFallback'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { serverMonogramUrl } from '@/utils/serverMonogram'
 
 // Constants
 const DEFAULT_SERVER_ICON = '/default_server.webp'
@@ -69,16 +70,18 @@ function transformSupabaseStoragePath(path: string, size: number): string {
  * 
  * @param serverUrl - The server icon URL (can be null, undefined, or various formats)
  * @param size - Desired icon size in pixels (default: 96)
- * @returns Normalized URL string, or default icon path if invalid
+ * @param name - The server's name: without an icon, its dot monogram replaces the default image
+ * @returns Normalized URL string, or the monogram / default icon path if invalid
  */
-export function getServerIconUrl(serverUrl: string | null | undefined, size: number = 96): string {
+export function getServerIconUrl(serverUrl: string | null | undefined, size: number = 96, name?: string | null): string {
+  const fallback = () => (name ? serverMonogramUrl(name) : null) ?? DEFAULT_SERVER_ICON
   if (!serverUrl || typeof serverUrl !== 'string') {
-    return DEFAULT_SERVER_ICON
+    return fallback()
   }
 
   const trimmed = serverUrl.trim()
-  if (!trimmed) {
-    return DEFAULT_SERVER_ICON
+  if (!trimmed || trimmed === DEFAULT_SERVER_ICON) {
+    return fallback()
   }
 
   // Blob URLs (file preview) - return as-is
@@ -112,7 +115,7 @@ export function getServerIconUrl(serverUrl: string | null | undefined, size: num
   }
 
   // Unknown format - return default
-  return DEFAULT_SERVER_ICON
+  return fallback()
 }
 
 /** Stored server icon, untransformed; null for the bundled default. */

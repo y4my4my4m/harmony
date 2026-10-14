@@ -156,9 +156,9 @@ Open `https://chat.example.com` and sign in with the admin email and
 password. The admin panel is in **User settings** → **Instance admin**
 (`https://chat.example.com/admin`). Its tabs are **Overview**,
 **Federation**, **Users**, **Retention**, **Reports**, **Anti-spam**,
-**Content**, **Emojis**, **Config**, **Funding** and **Tools**. The instance
-name, description, rules, icon and legal links are under **Config** →
-**Branding**.
+**Content**, **Emojis**, **Config**, **Funding**, **Drive** and **Tools**.
+The instance name, description, rules, icon and legal links are under
+**Config** → **Branding**.
 
 Instance moderators see the same entry as **Instance moderation**, with the
 **Federation**, **Users**, **Reports** and **Anti-spam** tabs.

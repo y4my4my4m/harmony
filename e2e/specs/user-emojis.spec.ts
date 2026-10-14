@@ -8,8 +8,8 @@
 // An instance admin finds another user's AI emoji only under the User emojis source, deletes
 // it, and the deletion is audited as user_emoji_delete.
 //
-// The stack has no storage or AI backend: emoji images come from the dev server and no
-// generation runs. axe covers the settings section, its rename form and the admin list.
+// The stack has no AI backend: emoji images come from the dev server and no generation
+// runs. axe covers the settings section, its rename form and the admin list.
 
 import { test, expect, type Page } from '@playwright/test'
 import {

@@ -387,6 +387,14 @@
           />
         </template>
         
+        <!-- A Drive file that expired or was deleted. -->
+        <DriveGoneFile
+          v-else-if="part && typeof part === 'object' && part.type === 'file' && mediaPartGone(part)"
+          :reason="mediaPartGone(part)!"
+          :name="part.fileName"
+          :file-type="part.fileType"
+        />
+
         <!-- Image files -->
         <div 
           v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'image'" 
@@ -689,7 +697,9 @@ import PollCard from '@/components/polls/PollCard.vue';
 import { groupMediaGalleryParts } from '@/utils/mediaGalleryUtils';
 import { undecryptedDisplayParts } from '@/utils/channelEncryption';
 import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
-import { isPrivateMediaPart, mediaLoadKey, mediaPartFileName, mediaPartSource, reportMediaPartError } from '@/services/privateMedia';
+import { isPrivateMediaPart, mediaLoadKey, mediaPartFileName, mediaPartGone, mediaPartSource, reportMediaPartError } from '@/services/privateMedia';
+import DriveGoneFile from '@/components/drive/DriveGoneFile.vue';
+import { musicEmbedFor } from '@/utils/musicEmbeds';
 import { messageMediaUploadState } from '@/services/messageMediaUpload';
 import {
   isDiscordCdnUrl,
@@ -730,6 +740,7 @@ export default defineComponent({
     RichTextEditor,
     VoiceMessagePlayer,
     MessageMediaGallery,
+    DriveGoneFile,
     AttachmentRemoveButton,
     MediaUploadProgress,
     ConfirmationModal,
@@ -1182,6 +1193,18 @@ export default defineComponent({
             expiresAt: new Date(Date.now() + 86400000).toISOString(),
           };
         }
+        // A music link the server never previewed still gets its player.
+        const music = part.type === 'url' ? musicEmbedFor(part.url) : null;
+        if (music) {
+          return {
+            cacheKey: `music-${part.url}`,
+            url: part.url,
+            normalizedUrl: part.url,
+            provider: music.provider,
+            fetchedAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 86400000).toISOString(),
+          };
+        }
       }
 
       return null;
@@ -1542,6 +1565,7 @@ export default defineComponent({
     return {
       rootRef,
       nativeVideoControls,
+      mediaPartGone,
       onTextKeydown,
       imageAltText,
       channelMentionHref,

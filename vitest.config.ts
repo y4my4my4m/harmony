@@ -1,9 +1,10 @@
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
+import { backgrounds } from './vite-plugin-backgrounds'
 
 export default defineConfig({
-  plugins: [vue() as any],
+  plugins: [vue() as any, backgrounds() as any],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

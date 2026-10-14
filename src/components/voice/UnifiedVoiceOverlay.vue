@@ -142,8 +142,28 @@
           <div class="stage-banner">
             <VoiceCallBanner />
           </div>
+          <!-- Activity: the shared player, the call as a filmstrip -->
+          <template v-if="stageActivity">
+            <div class="focus-area activity-area" @click.stop>
+              <ActivityStage :activity="stageActivity" />
+            </div>
+            <div v-if="tiles.length > 0" class="filmstrip-container" @click.stop>
+              <div class="filmstrip">
+                <VoiceTile
+                  v-for="tile in tiles"
+                  :key="tile.id"
+                  :user-state="tile.userState"
+                  :source="tile.source"
+                  class="filmstrip-tile"
+                  @expand="focusTile(tile)"
+                  @request-fullscreen="fullscreenTile(tile)"
+                />
+              </div>
+            </div>
+          </template>
+
           <!-- Grid view -->
-          <div v-if="!focusedTile" ref="gridEl" class="tile-grid">
+          <div v-else-if="!focusedTile" ref="gridEl" class="tile-grid">
             <VoiceTile
               v-for="tile in tiles"
               :key="tile.id"
@@ -299,6 +319,21 @@
             </button>
 
             <button
+              v-if="activityButton.available.value"
+              ref="activityButtonRef"
+              @click="activityButton.toggle"
+              class="control-button"
+              :class="{ active: activityButton.visible.value || activityButton.running.value }"
+              :title="t('activities.title')"
+              :aria-label="t('activities.title')"
+              aria-haspopup="dialog"
+              :aria-expanded="activityButton.visible.value"
+              data-testid="overlay-activity-button"
+            >
+              <Icon name="popcorn" />
+            </button>
+
+            <button
               v-if="soundboardButton.available.value"
               ref="soundboardButtonRef"
               @click="soundboardButton.toggle"
@@ -390,6 +425,9 @@ import StreamQualityPicker from './StreamQualityPicker.vue';
 import LiveReactionPopover from './LiveReactionPopover.vue';
 import SoundboardActivity from './SoundboardActivity.vue';
 import { useSoundboardButton } from './useSoundboardButton';
+import { useActivityButton } from '@/components/activities/useActivityButton';
+import { useActivitiesStore } from '@/stores/activities';
+import ActivityStage from '@/components/activities/ActivityStage.vue';
 import ConfettiEffect from '../easteregg/ConfettiEffect.vue';
 import Icon from '@/components/common/Icon.vue';
 import DisplayName from '@/components/DisplayName.vue';
@@ -424,6 +462,10 @@ const streamPickerAnchor = ref<Rect | null>(null);
 
 const soundboardButtonRef = ref<HTMLButtonElement | null>(null);
 const soundboardButton = useSoundboardButton(soundboardButtonRef);
+const activityButtonRef = ref<HTMLButtonElement | null>(null);
+const activityButton = useActivityButton(activityButtonRef);
+const activitiesStore = useActivitiesStore();
+const stageActivity = computed(() => (activitiesStore.playingHere ? activitiesStore.current : null));
 
 watch(showStreamPicker, (open) => {
   if (!open) void nextTick(() => restoreFocusIfLost(shareButtonRef.value));
@@ -1332,6 +1374,11 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   display: flex;
+}
+
+.activity-area {
+  padding: 12px 16px;
+  overflow-y: auto;
 }
 
 .focus-tile {
