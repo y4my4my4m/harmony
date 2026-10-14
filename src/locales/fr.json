@@ -6030,7 +6030,9 @@
       "airhorn": "Corne de brume",
       "crickets": "Grillons",
       "golf-clap": "Applaudissements polis",
-      "quack": "Coin-coin"
+      "quack": "Coin-coin",
+      "pop": "Pop",
+      "stop-having-fun": "Arrêtez de vous amuser"
     },
     "settings": {
       "navLabel": "Soundboard",

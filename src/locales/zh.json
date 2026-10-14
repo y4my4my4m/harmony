@@ -6030,7 +6030,9 @@
       "airhorn": "气笛",
       "crickets": "蟋蟀",
       "golf-clap": "礼貌鼓掌",
-      "quack": "嘎嘎"
+      "quack": "嘎嘎",
+      "pop": "啵",
+      "stop-having-fun": "别玩了"
     },
     "settings": {
       "navLabel": "音效板",

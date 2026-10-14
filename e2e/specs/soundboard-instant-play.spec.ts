@@ -7,8 +7,15 @@
 // (soundboard-external-sounds.spec.ts does the same). The built-in clips are the dev
 // server's own files.
 
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { test, expect, type Page } from '@playwright/test'
 import { adminClient, createUser, deleteUser, openChannel, seedServer, signIn, type SeededServer, type SpecUser } from './harness'
+
+const BUILTIN_CLIPS = fs.readdirSync(
+  path.join(path.dirname(fileURLToPath(import.meta.url)), '../../public/assets/sounds/soundboard'),
+).filter((name) => name.endsWith('.mp3')).length
 
 const admin = adminClient()
 let user: SpecUser
@@ -75,8 +82,8 @@ test('a built-in sound plays from memory on its first click', async ({ page }) =
   await test.step('joining the call fetches the built-in clips', async () => {
     await enterVoice(page)
     await expect.poll(() => clipRequests.includes('/assets/sounds/soundboard/ding.mp3'), { timeout: 30000 }).toBe(true)
-    // Decoding runs one clip at a time while the page is idle.
-    await expect.poll(() => new Set(clipRequests).size, { timeout: 30000 }).toBe(10)
+    // Decoding runs one clip at a time while the page is idle; every built-in clip is fetched.
+    await expect.poll(() => new Set(clipRequests).size, { timeout: 30000 }).toBe(BUILTIN_CLIPS)
   })
 
   await test.step('a click plays the clip from memory', async () => {

@@ -6030,7 +6030,9 @@
       "airhorn": "エアホーン",
       "crickets": "コオロギ",
       "golf-clap": "控えめな拍手",
-      "quack": "ガーガー"
+      "quack": "ガーガー",
+      "pop": "ポン",
+      "stop-having-fun": "楽しむのをやめろ"
     },
     "settings": {
       "navLabel": "サウンドボード",

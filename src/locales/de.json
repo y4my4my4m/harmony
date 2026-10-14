@@ -6030,7 +6030,9 @@
       "airhorn": "Drucklufthorn",
       "crickets": "Grillen",
       "golf-clap": "Höflicher Applaus",
-      "quack": "Quak"
+      "quack": "Quak",
+      "pop": "Plopp",
+      "stop-having-fun": "Hört auf, Spaß zu haben"
     },
     "settings": {
       "navLabel": "Soundboard",

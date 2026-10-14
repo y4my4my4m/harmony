@@ -6030,7 +6030,9 @@
       "airhorn": "Bocina",
       "crickets": "Grillos",
       "golf-clap": "Aplauso de golf",
-      "quack": "Cuac"
+      "quack": "Cuac",
+      "pop": "Pop",
+      "stop-having-fun": "Dejen de divertirse"
     },
     "settings": {
       "navLabel": "Panel de sonidos",

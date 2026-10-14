@@ -6026,7 +6026,9 @@
       "airhorn": "Air horn",
       "crickets": "Crickets",
       "golf-clap": "Golf clap",
-      "quack": "Quack"
+      "quack": "Quack",
+      "pop": "Pop",
+      "stop-having-fun": "Stop having fun"
     },
     "settings": {
       "navLabel": "Soundboard",
