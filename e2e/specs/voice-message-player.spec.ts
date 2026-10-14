@@ -2,8 +2,8 @@
 // The player is a named group; its play button and position slider work from the keyboard;
 // the clip loads in CORS mode and is measured, which is what lets playback raise a quiet clip.
 //
-// The stack has no storage: the clip is served by a route at a fixed fixture URL, with the
-// Access-Control-Allow-Origin header and the byte-range answers storage sends. Chrome seeks a
+// The clip is served by a route at a fixed fixture URL, with the Access-Control-Allow-Origin
+// header and the byte-range answers storage sends. Chrome seeks a
 // WebM through Range requests; a server without them leaves every seek at 0.
 
 import fs from 'node:fs'

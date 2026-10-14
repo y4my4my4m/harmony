@@ -4,7 +4,7 @@
 // to (112px at least); the bar is transparent over it and turns solid once the channel list
 // scrolls the banner away.
 //
-// The stack has no storage: the banner is one of the dev server's own images.
+// The banner is one of the dev server's own images.
 
 import { test, expect, type Page } from '@playwright/test'
 import {

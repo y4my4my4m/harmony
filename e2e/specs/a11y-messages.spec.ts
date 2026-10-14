@@ -9,11 +9,11 @@
 // alt text and open by keyboard. Arriving messages are announced through the
 // polite live region. axe runs on each of these screens.
 //
-// The stack has no storage and no realtime:
+// The stack has no realtime:
 // - image descriptions are rendered from message rows written as the member
 //   (proving the message guards accept `altText` on a file part); the composer
-//   half is checked up to the attachment's description, uploads fail there and
-//   the send path is covered by unit tests (MessageInput.altText, useOutbox.altText);
+//   half is checked up to the attachment's description, and the send path is
+//   covered by unit tests (MessageInput.altText, useOutbox.altText);
 // - an arriving message is inserted with the admin client and handed to the chat
 //   store through addMessageToCache, the entry point the realtime INSERT handler
 //   calls.
@@ -467,8 +467,7 @@ test('image descriptions: rendered as alt text, kept on attachments, lightbox by
     const item = page.locator('[data-testid="file-preview-item"]').filter({ hasText: 'holiday.png' })
     await expect(item).toBeVisible()
     await expect(announcer(page)).toHaveText(/1 file attached/)
-    // No storage on the stack: the upload fails, and says so.
-    await expect(page.getByTestId('live-announcer-assertive')).toHaveText(/holiday.png failed to upload/, { timeout: 15000 })
+    await expect(item).toContainText('Uploaded', { timeout: 15000 })
     const describe = item.getByRole('button', { name: 'Add a description to holiday.png' })
     await describe.focus()
     await page.keyboard.press('Enter')

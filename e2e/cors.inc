@@ -13,6 +13,6 @@ proxy_hide_header Access-Control-Max-Age;
 add_header Access-Control-Allow-Origin $http_origin always;
 add_header Access-Control-Allow-Credentials true always;
 add_header Access-Control-Allow-Methods 'GET, POST, PATCH, PUT, DELETE, OPTIONS' always;
-add_header Access-Control-Allow-Headers 'authorization, apikey, content-type, x-client-info, accept, accept-profile, content-profile, prefer, range, x-supabase-api-version' always;
+add_header Access-Control-Allow-Headers 'authorization, apikey, content-type, x-client-info, accept, accept-profile, content-profile, prefer, range, x-supabase-api-version, x-upsert, cache-control, x-metadata' always;
 add_header Access-Control-Expose-Headers 'content-range, content-profile, content-location, range-unit, x-supabase-api-version' always;
 add_header Access-Control-Max-Age 3600 always;
