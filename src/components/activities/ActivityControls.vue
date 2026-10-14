@@ -1,5 +1,5 @@
 <!-- Shared controls of the call's activity: play/pause, seek, time, volume, queue, host lock,
-     stop. Every change goes to the row; the player follows. -->
+     stop (compact form). Every change goes to the row; the player follows. -->
 <template>
   <div class="activity-controls" :class="{ compact }" data-testid="activity-controls">
     <button
@@ -77,7 +77,9 @@
     >
       <Icon name="skip-forward" :size="16" />
     </button>
+    <!-- The stage names this in its header; the dock card has room for the icon only. -->
     <button
+      v-if="compact"
       type="button"
       class="activity-controls__btn activity-controls__btn--stop"
       :disabled="!canControl"
@@ -96,24 +98,19 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import Icon from '@/components/common/Icon.vue'
 import { useT } from '@/composables/useT'
 import { useActivitiesStore } from '@/stores/activities'
-import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
-import { useProfileStore } from '@/stores/useProfile'
 import type { VoiceActivity } from '@/services/activities/activityService'
+import { useActivityControl } from './useActivityControl'
 
 const props = withDefaults(defineProps<{ activity: VoiceActivity; compact?: boolean }>(), { compact: false })
 
 const { t } = useT()
 const actStore = useActivitiesStore()
-const voice = useUnifiedVoiceChannelStore()
-const profile = useProfileStore()
 const track = ref<HTMLElement | null>(null)
 const now = ref(Date.now())
 const scrubMs = ref<number | null>(null)
 let timer: ReturnType<typeof setInterval> | null = null
 
-const isHost = computed(() => props.activity.host_id === profile.profile?.id)
-const hostPresent = computed(() => voice.allParticipants.some((p: { userId?: string }) => p.userId === props.activity.host_id))
-const canControl = computed(() => props.activity.controls === 'everyone' || isHost.value || !hostPresent.value)
+const { isHost, canControl } = useActivityControl(() => props.activity)
 
 const duration = computed(() => actStore.status.durationMs || props.activity.item.duration_ms || 0)
 const position = computed(() => {

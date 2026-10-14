@@ -67,6 +67,12 @@
       <span v-else class="activity-host__art activity-host__art--empty"><Icon name="music" :size="34" /></span>
       <span class="activity-host__bars" :class="{ 'is-playing': actStore.status.playing }"><i /><i /><i /><i /><i /></span>
     </div>
+    <LiveReactionLayer
+      v-if="placement !== 'hidden'"
+      user-id=""
+      source="activity"
+      :compact="placement === 'corner'"
+    />
     <button
       v-if="placement === 'corner'"
       type="button"
@@ -82,6 +88,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Icon from '@/components/common/Icon.vue'
+import LiveReactionLayer from '@/components/voice/LiveReactionLayer.vue'
 import { useT } from '@/composables/useT'
 import { useActivitiesStore } from '@/stores/activities'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
@@ -169,7 +176,9 @@ function openStage(): void {
 // ---- embedded players -------------------------------------------------------------------
 
 function sendEmbed(command: Record<string, unknown>): void {
-  frameEl.value?.contentWindow?.postMessage({ harmonyPlayer: 1, ...command }, playerOrigin.value)
+  // JSON copy: postMessage throws DataCloneError on a reactive Proxy such as the activity's item.
+  const message = JSON.parse(JSON.stringify({ harmonyPlayer: 1, ...command }))
+  frameEl.value?.contentWindow?.postMessage(message, playerOrigin.value)
 }
 
 function loadEmbed(): void {
