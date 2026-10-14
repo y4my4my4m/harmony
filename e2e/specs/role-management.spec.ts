@@ -184,3 +184,61 @@ test("the owner saves @everyone's permissions", async ({ page }) => {
     await expect(permToggle(page, 'Add Reactions')).toHaveAttribute('aria-checked', 'false')
   })
 })
+
+// The owner of a new server creates a role and renames the Admin role the server starts
+// with. Admin was a protected role whose rename the database refused, so Save failed.
+test('the owner creates a role and renames the Admin role', async ({ page }) => {
+  test.setTimeout(150_000)
+  const created = `Mods ${owner.username.slice(-4)}`
+  const adminName = `the big sleaze ${owner.username.slice(-4)}`
+  const adminPill = page
+    .locator('.role-rail .role-pill')
+    .filter({ has: page.locator('.role-badge.admin') })
+
+  await signIn(page, owner)
+  await openRoles(page)
+
+  await test.step('Create role adds a role the owner names and saves', async () => {
+    const inserted = page.waitForResponse(
+      (r) => r.url().includes('/rest/v1/server_roles') && r.request().method() === 'POST',
+    )
+    await page.locator('.create-role-btn').click()
+    expect((await inserted).ok()).toBe(true)
+    await expect(page.locator('.role-editor h3')).toHaveText('New Role')
+    await nameInput(page).fill(created)
+    await save(page)
+    const { data } = await admin
+      .from('server_roles')
+      .select('id, is_admin, is_default')
+      .eq('server_id', server.id)
+      .eq('name', created)
+    expect(data).toHaveLength(1)
+    expect(data![0]).toMatchObject({ is_admin: false, is_default: false })
+  })
+
+  await test.step('the Admin role renames and keeps its flags', async () => {
+    await adminPill.click()
+    await expect(nameInput(page)).toBeEnabled()
+    await nameInput(page).fill(adminName)
+    await save(page)
+    await expect(page.getByText('Failed to save role')).toHaveCount(0)
+    const { data } = await admin
+      .from('server_roles')
+      .select('name, is_admin')
+      .eq('server_id', server.id)
+      .eq('is_admin', true)
+      .single()
+    expect(data).toEqual({ name: adminName, is_admin: true })
+  })
+
+  await test.step('@everyone keeps its name', async () => {
+    await page.locator('.role-rail .role-pill').filter({ has: page.locator('.role-badge.default') }).click()
+    await expect(nameInput(page)).toBeDisabled()
+  })
+
+  await test.step('the edits survive a reload', async () => {
+    await openRoles(page)
+    await expect(pill(page, created)).toBeVisible()
+    await expect(adminPill.locator('.role-pill-name')).toHaveText(adminName)
+  })
+})
