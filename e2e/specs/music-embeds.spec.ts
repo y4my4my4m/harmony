@@ -21,6 +21,8 @@ import {
 
 const SOUNDCLOUD = 'https://soundcloud.com/someone/night-drive'
 const SPOTIFY = 'https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC'
+// As the Spotify app shares it: si and nd identify the share, not the track.
+const SPOTIFY_SHARED = `${SPOTIFY}?si=a1b2c3d4e5f6&nd=1`
 const APPLE = 'https://music.apple.com/us/album/blinding-lights/1499378108?i=1499378615'
 const PLAYER_HOSTS = ['https://w.soundcloud.com/**', 'https://open.spotify.com/**', 'https://embed.music.apple.com/**']
 
@@ -47,7 +49,7 @@ test.beforeAll(async () => {
   user = await createUser(admin, 'music')
   server = await seedServer(admin, user, `Music ${user.username}`)
   await post('cloud', SOUNDCLOUD, payload(SOUNDCLOUD, { title: SOUNDCLOUD, failed: true }))
-  await post('spot', SPOTIFY, payload(SPOTIFY, { provider: 'spotify', title: 'Blinding Lights', siteName: 'Spotify' }))
+  await post('spot', SPOTIFY_SHARED, payload(SPOTIFY_SHARED, { provider: 'spotify', title: 'Blinding Lights', siteName: 'Spotify' }))
   await post('apple', APPLE, null)
 })
 
@@ -80,6 +82,19 @@ test('music links render their service player, not a card', async ({ page }) => 
       await expect(row(c.label).locator('.link-embed-card')).toHaveCount(0)
     })
   }
+})
+
+test('a shared Spotify link renders without its share tracking ids', async ({ page }) => {
+  for (const host of PLAYER_HOSTS) {
+    await page.route(host, (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>player</title>' }))
+  }
+  await signIn(page, user)
+  await openChannel(page, server.id, server.generalChannelId)
+  const row = messageList(page).locator('.message-item').filter({ hasText: 'spot ' })
+  await expect(row).toBeVisible({ timeout: 30000 })
+  const link = row.locator('a.url-link')
+  await expect(link).toHaveAttribute('href', SPOTIFY)
+  await expect(link).toHaveText(SPOTIFY)
 })
 
 test('the relay page frames allowlisted https players only', async ({ page }) => {

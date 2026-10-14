@@ -298,12 +298,12 @@
           <!-- sanitizeUrl rejects javascript:/data:/etc. and returns "". When empty,
                render as inert text (no <a>) so dangerous URLs can't execute on click. -->
           <a
-            v-else-if="sanitizeUrl(part.url)"
-            :href="sanitizeUrl(part.url)"
+            v-else-if="sanitizeUrl(shownUrl(part.url))"
+            :href="sanitizeUrl(shownUrl(part.url))"
             target="_blank"
             rel="noopener noreferrer"
             class="url-link"
-          >{{ part.url }}</a>
+          >{{ shownUrl(part.url) }}</a>
           <span
             v-else
             class="url-link url-link--unsafe"
@@ -711,6 +711,7 @@ import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { gifService } from '@/services/GifService';
 import { debug } from '@/utils/debug';
 import { sanitizeUrl } from '@/utils/sanitize';
+import { isUrlTrackingStrippingEnabled, stripTrackingParameters } from '@/utils/urlTrackerStripper';
 import { isSpoilerFileName } from '@/utils/spoiler';
 import { pollPartOf } from '@/utils/messagePoll';
 import { renderChatMessageText } from '@/utils/chatMessageTextRenderer';
@@ -1123,6 +1124,9 @@ export default defineComponent({
     // metadata.suppress_embeds (set_message_embeds_suppressed) hides every preview and inline
     // media of the message; its links render as <url> parts do.
     const embedsSuppressed = computed(() => props.metadata?.suppress_embeds === true);
+    // The link as shown and opened; part.url keeps what the sender wrote.
+    const shownUrl = (url: string): string => (isUrlTrackingStrippingEnabled() ? stripTrackingParameters(url) : url);
+
     const showsPreview = (part: MessagePart): boolean => {
       const preview = (part as { preview?: unknown }).preview;
       return preview !== false && preview !== 'false';
@@ -1601,6 +1605,7 @@ export default defineComponent({
       isImageUrl,
       isVideoUrl,
       showsPreview,
+      shownUrl,
       isAudioUrl,
       sanitizeUrl,
       formatFileSize,
