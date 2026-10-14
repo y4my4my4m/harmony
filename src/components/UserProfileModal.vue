@@ -413,8 +413,8 @@
                   @click="inviteToServer(server)"
                 >
                   <img
-                    v-if="(server as any).icon_url || server.icon"
-                    :src="getServerIconUrl((server as any).icon_url || server.icon, 64)"
+                    v-if="(server as any).icon_url || server.icon || server.name"
+                    :src="getServerIconUrl((server as any).icon_url || server.icon, 64, server.name)"
                     :alt="server.name"
                     class="picker-server-icon"
                   />

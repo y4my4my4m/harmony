@@ -18,7 +18,7 @@
       <div class="folder-grid" aria-hidden="true">
         <div v-for="server in previewServers" :key="server.id" class="folder-grid-item">
           <img
-            :src="iconUrl(server.icon)"
+            :src="iconUrl(server.icon, server.name)"
             alt=""
             class="folder-grid-icon"
             width="20"
@@ -26,7 +26,7 @@
             loading="lazy"
             decoding="async"
             draggable="false"
-            @error="onIconError"
+            @error="onIconError($event, server.name)"
           />
         </div>
       </div>
@@ -81,11 +81,12 @@ const stateLabel = computed(() =>
 
 // Grid tiles are 20 CSS px; requesting that size keeps the rail off full icons.
 const tilePixels = devicePixels(20)
-const iconUrl = (icon: string | null | undefined) => getServerIconUrl(icon, tilePixels)
+const iconUrl = (icon: string | null | undefined, name?: string | null) => getServerIconUrl(icon, tilePixels, name)
 
-const onIconError = (event: Event) => {
+const onIconError = (event: Event, name?: string | null) => {
   const img = event.target as HTMLImageElement
-  if (!img.src.endsWith('/default_server.webp')) img.src = '/default_server.webp'
+  const fallback = getServerIconUrl(null, tilePixels, name)
+  if (img.src !== fallback && !img.src.endsWith('/default_server.webp')) img.src = fallback
 }
 </script>
 

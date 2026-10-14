@@ -169,8 +169,8 @@
           >
             <div class="server-icon">
               <img 
-                v-if="server.icon_url" 
-                :src="getServerIconUrl(server.icon_url)" 
+                v-if="server.icon_url || server.name"
+                :src="getServerIconUrl(server.icon_url, 96, server.name)" 
                 :alt="server.name"
               />
               <div v-else class="server-icon-placeholder">

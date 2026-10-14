@@ -213,7 +213,7 @@
         <p v-else-if="ownedServers.length === 0" class="muted">{{ t('bots.install.noServers') }}</p>
         <ul v-else class="server-list">
           <li v-for="server in ownedServers" :key="server.id" class="server-row">
-            <ServerIcon :src="server.icon" size="mini" shape="rounded" :show-title="false" />
+            <ServerIcon :src="server.icon" :name="server.name" size="mini" shape="rounded" :show-title="false" />
             <span class="server-name">{{ server.name }}</span>
             <span v-if="installedServerIds.has(server.id)" class="installed-tag">
               <Icon name="check" :size="14" />

@@ -67,6 +67,7 @@ import { ref, computed, watch, onUnmounted } from 'vue'
 import { useT } from '@/composables/useT'
 import { useToast } from 'vue-toastification'
 import { getRawServerIconUrl, getServerIconUrl } from '../../utils/serverUtils'
+import { serverMonogramUrl } from '@/utils/serverMonogram'
 import { devicePixels } from '@/utils/imageTransformUtils'
 import { debug } from '@/utils/debug'
 import { imageSourceError } from '@/utils/uploadValidation'
@@ -88,6 +89,8 @@ interface Props {
   id?: string
   src?: string | null
   alt?: string
+  /** Server name for the dot monogram shown without an icon; alt when absent. */
+  name?: string | null
   classes?: string[]
   size?: serverSize
   status?: UserStatus
@@ -143,13 +146,14 @@ const sizeMap: Record<serverSize, number> = {
 const sizeClass = computed(() => `server-${props.size}`)
 
 // --- Fallback image logic ---
-const fallbackImage = '/default_server.webp'
+// The server's dot monogram when its name is known (alt), else the bundled image.
+const fallbackImage = computed(() => serverMonogramUrl(props.name ?? props.alt) ?? '/default_server.webp')
 
 // Use a local ref for the img src to allow error handling
-const imgSrc = ref<string>(fallbackImage)
+const imgSrc = ref<string>(fallbackImage.value)
 // The "real" URL we last computed from props; needed so retries can restore
 // the real URL after we temporarily swapped in the fallback on @error.
-const realImgSrc = ref<string>(fallbackImage)
+const realImgSrc = ref<string>(fallbackImage.value)
 
 // Transient network failures (imgproxy/R2 latency) should not permanently
 // pin the icon to the fallback. Retry a few times with backoff before giving up.
@@ -168,7 +172,7 @@ const clearRetryTimer = () => {
 const scheduleRetry = () => {
   clearRetryTimer()
   if (retryCount.value >= MAX_RETRIES) return
-  if (realImgSrc.value === fallbackImage) return
+  if (realImgSrc.value === fallbackImage.value) return
   const delay = RETRY_DELAYS_MS[retryCount.value] ?? 3000
   retryTimer = setTimeout(() => {
     retryTimer = null
@@ -180,10 +184,10 @@ const scheduleRetry = () => {
 }
 
 watch(
-  () => [props.src, props.size, props.fetchSize],
+  () => [props.src, props.size, props.fetchSize, props.name, props.alt],
   () => {
     const pixelSize = props.fetchSize ?? devicePixels(sizeMap[props.size] || 48)
-    const resolved = getServerIconUrl(props.src, pixelSize) || fallbackImage
+    const resolved = getServerIconUrl(props.src, pixelSize, props.name ?? props.alt) || fallbackImage.value
     realImgSrc.value = resolved
     imgSrc.value = resolved
     retryCount.value = 0
@@ -195,18 +199,18 @@ watch(
 // Error handler for <img>
 const onImgError = () => {
   // If we're already on the fallback, the fallback itself failed - don't loop.
-  if (imgSrc.value === fallbackImage) {
+  if (imgSrc.value === fallbackImage.value) {
     debug.warn('Server icon fallback image failed to load')
     clearRetryTimer()
     return
   }
-  imgSrc.value = fallbackImage
+  imgSrc.value = fallbackImage.value
   scheduleRetry()
 }
 
 const onImgLoad = () => {
   // Successful load of the real URL: forgive past failures.
-  if (imgSrc.value !== fallbackImage && retryCount.value > 0) {
+  if (imgSrc.value !== fallbackImage.value && retryCount.value > 0) {
     retryCount.value = 0
     clearRetryTimer()
   }

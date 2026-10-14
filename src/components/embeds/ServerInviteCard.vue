@@ -105,6 +105,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { getInviteInfo, type InviteInfo } from '@/services/inviteService';
 import { useInviteJoin } from '@/composables/useInviteJoin';
+import { serverMonogramUrl } from '@/utils/serverMonogram';
 import { getServerIconUrl, getServerBannerUrl } from '@/utils/serverUtils';
 import { devicePixels } from '@/utils/imageTransformUtils';
 import ServerRulesModal from '@/components/invite/ServerRulesModal.vue';
@@ -153,7 +154,7 @@ const serverData = computed(() => {
   return {
     name: info.value.serverName,
     // 56px on the card, 72px in InviteAcceptModal.
-    icon_url: info.value.icon ? getServerIconUrl(info.value.icon, devicePixels(72)) : undefined,
+    icon_url: info.value.icon ? getServerIconUrl(info.value.icon, devicePixels(72)) : serverMonogramUrl(info.value.serverName) ?? undefined,
     description: info.value.description ?? undefined,
     member_count: info.value.memberCount,
     online_count: info.value.onlineCount ?? undefined,
