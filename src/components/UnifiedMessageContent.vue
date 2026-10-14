@@ -1190,6 +1190,12 @@ export default defineComponent({
      * still upgrade to media rendering.
      */
     const embedMedia = (part: MessagePart): { kind: 'image' | 'video' | 'clip'; url: string } | null => {
+      // A link to a media file already plays or shows inline; its preview answers with the
+      // same file.
+      if (part && typeof part === 'object' && part.type === 'url' && showsPreview(part)
+          && (isImageUrl(part.url) || isVideoUrl(part.url) || isAudioUrl(part.url))) {
+        return null;
+      }
       const payload = resolveEmbedPayload(part);
       // The link answered with a video (embed-fixer sites): a player, not a looping GIF.
       if (payload?.mediaOnly && payload.video?.url) return { kind: 'clip', url: payload.video.url };

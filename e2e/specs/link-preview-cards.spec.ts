@@ -1,7 +1,9 @@
 // Journey: stored link previews as a reader sees them. A preview whose page could not be read
 // (flagged failed, or stored earlier with the error as its description) shows no card; a link
 // that answered with a video (embed-fixer sites) plays as a video; a page with an og:video
-// shows its player in the card.
+// shows its player in the card. A link straight to a video or GIF file shows that file once:
+// its preview, which answers with the same file, rendered a second player beside the inline
+// one.
 //
 // The stack runs no federation backend: previews are written into message metadata as the
 // backend's enrichment writes them.
@@ -27,6 +29,9 @@ const FAILED = 'https://slow.example/'
 const LEGACY = 'https://legacy.example/'
 const REEL = 'https://www.kkinstagram.com/p/DdEJpNJIV_e/'
 const TWEET = 'https://vxtwitter.com/someone/status/1'
+// Discord CDN links carry signed query parameters and end in "&".
+const CDN_CLIP = 'https://cdn.discordapp.com/attachments/1/2/clip.mp4?ex=6ad0146a&is=6acec2ea&hm=cc41&'
+const CDN_GIF = 'https://media.example/dance.gif'
 const BASE_URL = process.env.BASE_URL || 'http://localhost:5173'
 // The dev server's own asset stands in for the video file.
 const VIDEO = new URL('/default_avatar.webp', BASE_URL).href
@@ -56,6 +61,10 @@ test.beforeAll(async () => {
     title: 'someone (@someone)', description: 'look at this', siteName: 'vxTwitter / fixvx',
     image: VIDEO, video: { url: VIDEO, type: 'video/mp4' },
   }))
+  await post(CDN_CLIP, 'cdnclip', payload(CDN_CLIP, {
+    title: 'cdn.discordapp.com', siteName: 'cdn.discordapp.com', mediaOnly: true, video: { url: CDN_CLIP, type: 'video/mp4' },
+  }))
+  await post(CDN_GIF, 'cdngif', payload(CDN_GIF, { title: 'media.example', mediaOnly: true, image: CDN_GIF }))
 })
 
 test.afterAll(async () => {
@@ -84,4 +93,8 @@ test('failed previews show no card; video answers and og:video play', async ({ p
   await expect(card).toContainText('someone (@someone)')
   await expect(card).toContainText('vxTwitter / fixvx')
   await expect(card.locator('video')).toHaveAttribute('src', VIDEO)
+
+  await expect(row('cdnclip').locator('video')).toHaveCount(1)
+  await expect(row('cdnclip').locator('video')).toHaveAttribute('src', CDN_CLIP)
+  await expect(row('cdngif').locator('img.content-image')).toHaveCount(1)
 })
