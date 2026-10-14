@@ -6273,5 +6273,335 @@
     "exitPip": "Quitter l'image dans l'image",
     "fullscreen": "Plein écran",
     "exitFullscreen": "Quitter le plein écran"
+  },
+  "activities": {
+    "title": "Regarder ou écouter ensemble",
+    "addTitle": "Ajouter à l'activité",
+    "lede": "Tout le monde dans l'appel lit la même chose au même moment. Collez un lien YouTube, SoundCloud ou Spotify, un lien vers un fichier vidéo ou audio, ou choisissez dans votre Drive.",
+    "linkPlaceholder": "Collez un lien",
+    "badLink": "Ce lien ne peut pas être lu ensemble dans Harmony.",
+    "watchTogether": "Regarder ensemble",
+    "listenTogether": "Écouter ensemble",
+    "playTogether": "Lire ensemble",
+    "playNow": "Lire maintenant",
+    "addToQueue": "Ajouter à la file d'attente",
+    "or": "ou",
+    "fromDrive": "Choisir dans votre Drive",
+    "pickTitle": "Choisissez un fichier vidéo ou audio",
+    "spotifyHint": "Spotify lit les morceaux en entier pour les auditeurs connectés à Spotify dans Harmony ; les autres entendent des extraits.",
+    "region": "Activité",
+    "open": "Ouvrir l'activité",
+    "hideForMe": "Arrêter pour moi",
+    "clickToPlay": "Cliquez pour lire",
+    "play": "Lire",
+    "pause": "Pause",
+    "seek": "Position",
+    "seekValue": "{position} sur {duration}",
+    "mute": "Couper le son de l'activité",
+    "unmute": "Rétablir le son de l'activité",
+    "volume": "Volume de l'activité",
+    "next": "Suivant dans la file",
+    "stop": "Terminer l'activité",
+    "queue": "File d'attente",
+    "queueEmpty": "Rien dans la file d'attente.",
+    "removeFromQueue": "Retirer de la file d'attente",
+    "controlsHost": "Garder le contrôle pour moi",
+    "controlsEveryone": "Laisser tout le monde contrôler",
+    "watching": "Visionnage :",
+    "listening": "Écoute :",
+    "source": {
+      "drive": "Fichier Drive",
+      "link": "Lien"
+    }
+  },
+  "driveAdmin": {
+    "settings": "Stockage Drive",
+    "quotaUser": "Stockage par compte",
+    "quotaModerator": "Stockage par modérateur de l'instance",
+    "quotaAdmin": "Stockage par administrateur de l'instance",
+    "ephemeralDays": "Les fichiers temporaires sont conservés",
+    "days": "jours",
+    "ephemeralDaily": "Téléversements temporaires par jour une fois le Drive plein",
+    "linkSharing": "Les fichiers peuvent être partagés par lien",
+    "hint": "Les téléversements au-delà du stockage d'un compte sont temporaires et supprimés après le nombre de jours ci-dessus. Un compte qui dépasse son stockage et a épuisé son quota quotidien de fichiers temporaires ne peut plus téléverser avant le lendemain ou avant d'avoir libéré de l'espace.",
+    "save": "Enregistrer",
+    "saved": "Enregistré",
+    "usage": "Stockage par compte",
+    "account": "Compte",
+    "used": "Utilisé",
+    "temporary": "Temporaire",
+    "quota": "Stockage",
+    "override": "Stockage pour {name}, en Mo ; vide pour la valeur par défaut du rôle",
+    "noUsage": "Aucun compte ne stocke encore de fichiers.",
+    "blocked": "Fichiers bloqués",
+    "unblock": "Débloquer",
+    "noBlocked": "Aucun fichier n'est bloqué. Un fichier signalé retiré avec « Retirer et bloquer la remise en ligne » apparaît ici.",
+    "reportFiles": "Fichiers joints",
+    "removeFile": "Retirer le fichier",
+    "removeAndBlock": "Retirer et bloquer la remise en ligne",
+    "removed": "Retiré"
+  },
+  "drive": {
+    "title": "Drive",
+    "actions": {
+      "upload": "Téléverser",
+      "newFolder": "Nouveau dossier",
+      "open": "Ouvrir",
+      "download": "Télécharger",
+      "rename": "Renommer",
+      "share": "Partager",
+      "move": "Déplacer",
+      "keep": "Conserver dans Drive",
+      "trash": "Mettre à la corbeille",
+      "restore": "Restaurer",
+      "deleteForever": "Supprimer définitivement",
+      "deleteFolder": "Supprimer le dossier",
+      "emptyTrash": "Vider la corbeille"
+    },
+    "nav": {
+      "myDrive": "Mon Drive",
+      "recent": "Récents",
+      "temporary": "Temporaires",
+      "shared": "Partagés avec moi",
+      "trash": "Corbeille",
+      "whereSent": "Où vous les avez envoyés",
+      "dms": "Messages privés",
+      "fediverse": "Publications du Fediverse",
+      "server": "Serveur",
+      "channel": "Salon",
+      "conversation": "Conversation",
+      "open": "Ouvrir la navigation de Drive",
+      "path": "Chemin du dossier"
+    },
+    "tree": {
+      "expand": "Déplier le dossier",
+      "collapse": "Replier le dossier"
+    },
+    "usage": {
+      "label": "Stockage Drive utilisé",
+      "summary": "{used} utilisés sur {quota}",
+      "temporary": "{size} en fichiers temporaires",
+      "full": "Votre Drive est plein. Les nouveaux téléversements sont temporaires et supprimés après {count} jour. | Votre Drive est plein. Les nouveaux téléversements sont temporaires et supprimés après {count} jours."
+    },
+    "columns": {
+      "name": "Nom",
+      "type": "Type",
+      "owner": "Propriétaire",
+      "size": "Taille",
+      "added": "Ajouté",
+      "trashed": "Supprimé"
+    },
+    "kind": {
+      "image": "Image",
+      "video": "Vidéo",
+      "audio": "Audio",
+      "document": "Document",
+      "other": "Fichier"
+    },
+    "filter": {
+      "label": "Type de fichier",
+      "all": "Tous",
+      "images": "Images",
+      "videos": "Vidéos",
+      "audio": "Audio",
+      "documents": "Documents"
+    },
+    "sort": {
+      "label": "Trier par",
+      "newest": "Plus récents d'abord",
+      "oldest": "Plus anciens d'abord",
+      "name": "Nom",
+      "size": "Plus volumineux d'abord"
+    },
+    "layout": {
+      "label": "Disposition",
+      "grid": "Grille",
+      "list": "Liste"
+    },
+    "search": {
+      "placeholder": "Rechercher dans votre Drive",
+      "results": "Résultats pour « {query} »"
+    },
+    "selection": {
+      "label": "Fichiers sélectionnés",
+      "count": "{count} sélectionné | {count} sélectionnés",
+      "clear": "Effacer la sélection"
+    },
+    "state": {
+      "expiresIn": "Supprimé dans {count} jour | Supprimé dans {count} jours",
+      "daysShort": "{count}j"
+    },
+    "banner": {
+      "temporary": "Les fichiers temporaires sont supprimés {count} jour après leur téléversement. Conservez dans Drive ceux dont vous avez besoin. | Les fichiers temporaires sont supprimés {count} jours après leur téléversement. Conservez dans Drive ceux dont vous avez besoin.",
+      "trash": "Les fichiers de la corbeille comptent dans votre stockage et sont supprimés après 30 jours."
+    },
+    "empty": {
+      "folderTitle": "Rien ici pour l'instant",
+      "folderText": "Téléversez des fichiers ou déposez-les ici. Tout ce que vous envoyez dans les discussions arrive aussi dans votre Drive.",
+      "temporaryTitle": "Aucun fichier temporaire",
+      "temporaryText": "Les fichiers téléversés quand votre Drive est plein, ou envoyés comme temporaires, apparaissent ici.",
+      "sharedTitle": "Rien n'est partagé avec vous",
+      "sharedText": "Les fichiers que des personnes de cette instance partagent avec vous, vos serveurs ou vos salons apparaissent ici.",
+      "trashTitle": "La corbeille est vide",
+      "trashText": "Les fichiers supprimés restent ici pendant 30 jours.",
+      "otherTitle": "Aucun fichier ici",
+      "otherText": "Les fichiers que vous envoyez à cet endroit apparaissent ici.",
+      "searchTitle": "Aucun résultat",
+      "searchText": "Aucun nom de fichier de votre Drive ne correspond à cette recherche."
+    },
+    "errors": {
+      "load": "Impossible de charger Drive",
+      "temporary": "Cette modification n'a pas été enregistrée : {reason}",
+      "blocked": "Ce fichier a été retiré par les modérateurs de l'instance."
+    },
+    "details": {
+      "label": "Détails du fichier",
+      "title": "Détails",
+      "name": "Nom du fichier",
+      "rename": "Renommer",
+      "type": "Type",
+      "size": "Taille",
+      "added": "Ajouté",
+      "owner": "Propriétaire",
+      "used": "Où il est utilisé",
+      "unused": "Envoyé nulle part pour l'instant.",
+      "post": "Publication du Fediverse",
+      "sharing": "Partage"
+    },
+    "file": {
+      "renameTitle": "Renommer le fichier",
+      "unnamed": "Fichier sans nom"
+    },
+    "folder": {
+      "newTitle": "Nouveau dossier",
+      "renameTitle": "Renommer le dossier",
+      "name": "Nom du dossier",
+      "create": "Créer",
+      "deleteTitle": "Supprimer « {name} » ?",
+      "deleteText": "Ses fichiers vont à la corbeille et ses sous-dossiers sont supprimés."
+    },
+    "delete": {
+      "title": "Supprimer définitivement {count} fichier ? | Supprimer définitivement {count} fichiers ?",
+      "text": "Les messages et publications qui utilisent ces fichiers les afficheront comme supprimés. Cette action ne peut pas être annulée."
+    },
+    "trash": {
+      "emptyTitle": "Vider la corbeille ?"
+    },
+    "move": {
+      "title": "Déplacer {count} élément | Déplacer {count} éléments",
+      "here": "Déplacer ici"
+    },
+    "menu": {
+      "file": "Actions du fichier"
+    },
+    "drop": {
+      "title": "Déposez pour téléverser dans {place}"
+    },
+    "uploads": {
+      "label": "Téléversements",
+      "title": "Téléversement de {count} fichier | Téléversement de {count} fichiers"
+    },
+    "toast": {
+      "trashed": "{count} fichier mis à la corbeille | {count} fichiers mis à la corbeille",
+      "restored": "{count} fichier restauré | {count} fichiers restaurés",
+      "deleted": "{count} fichier supprimé | {count} fichiers supprimés",
+      "moved": "{count} fichier déplacé | {count} fichiers déplacés",
+      "kept": "{count} fichier conservé dans Drive | {count} fichiers conservés dans Drive",
+      "keepPartial": "{kept} sur {total} conservés : le reste ne tient pas dans votre Drive",
+      "folderDeleted": "Dossier supprimé ; {count} fichier mis à la corbeille | Dossier supprimé ; {count} fichiers mis à la corbeille"
+    },
+    "share": {
+      "title": "Partager",
+      "linkTitle": "Toute personne ayant le lien",
+      "linkOn": "Toute personne ayant le lien peut le voir et le télécharger.",
+      "linkOff": "Seulement les personnes ci-dessous et les endroits où vous l'avez envoyé.",
+      "copy": "Copier",
+      "copied": "Copié",
+      "expires": "Expiration du lien",
+      "never": "Jamais",
+      "days": "Dans {count} jour | Dans {count} jours",
+      "people": "Personnes et endroits",
+      "searchPeople": "Ajouter des personnes de cette instance",
+      "server": "Serveur",
+      "channel": "Salon",
+      "pickServer": "Choisir un serveur",
+      "wholeServer": "Tout le serveur",
+      "add": "Partager",
+      "remove": "Arrêter le partage avec {name}",
+      "private": "Seulement vous et les conversations où vous l'avez envoyé.",
+      "summaryLink": "Toute personne ayant le lien",
+      "summaryPeople": "Partagé avec {count} personne ou endroit | Partagé avec {count} personnes ou endroits",
+      "summaryBoth": "Lien activé et {count} personne ou endroit | Lien activé et {count} personnes ou endroits",
+      "scope": {
+        "user": "Personne",
+        "server": "Serveur",
+        "channel": "Salon",
+        "link": "Lien"
+      }
+    },
+    "preview": {
+      "previous": "Fichier précédent",
+      "next": "Fichier suivant",
+      "none": "Aucun aperçu pour ce fichier."
+    },
+    "picker": {
+      "title": "Choisir dans Drive",
+      "folder": "Dossier",
+      "everything": "Tous les fichiers",
+      "empty": "Aucun fichier ici.",
+      "attach": "Joindre {count} | Joindre {count}"
+    },
+    "composer": {
+      "fromDriveMenu": "Depuis Drive",
+      "fromDrive": "Depuis Drive",
+      "reused": "Dans votre Drive",
+      "reusedHint": "Ce contenu était déjà dans votre Drive : rien n'a été téléversé à nouveau.",
+      "temporaryDays": "Temporaire, {count} jour | Temporaire, {count} jours",
+      "makeTemporary": "Rendre temporaire : supprimé après {count} jour | Rendre temporaire : supprimé après {count} jours",
+      "keep": "Conserver dans Drive",
+      "makeTemporaryFile": "Rendre {name} temporaire",
+      "keepFile": "Conserver {name} dans Drive",
+      "markedTemporary": "{name} est temporaire",
+      "markedKept": "{name} reste dans votre Drive",
+      "fullHint": "Votre Drive est plein : les téléversements sont temporaires"
+    },
+    "gone": {
+      "expired": "Ce fichier a expiré",
+      "deleted": "Ce fichier a été supprimé",
+      "removed": "Ce fichier a été retiré par les modérateurs",
+      "trashed": "Ce fichier n'est pas disponible"
+    },
+    "link": {
+      "title": "Fichier partagé",
+      "missingTitle": "Ce lien ne fonctionne pas",
+      "missingText": "Il a expiré, ou son propriétaire a arrêté de partager le fichier.",
+      "sharedBy": "Partagé par {name}",
+      "expires": "Expiration du lien : {date}",
+      "footer": "Partagé depuis {instance}"
+    }
+  },
+  "support": {
+    "title": "Soutenir cette instance",
+    "progress": "Progression du financement",
+    "raisedMonth": "collectés sur {goal} ce mois-ci",
+    "raisedTotal": "collectés sur {goal} au total",
+    "funded": "financé",
+    "supporters": "soutien | soutiens",
+    "heading": "Soutien",
+    "oneTime": "Ponctuel",
+    "onPlatform": "Soutenir sur {platform}",
+    "credited": "Crédité automatiquement sur votre compte",
+    "badgeAuto": "Recevez votre badge de soutien automatiquement",
+    "handleTitle": "Vous soutenez sur {platforms} ? Ajoutez votre identifiant",
+    "handleText": "Indiquez votre identifiant n'importe où dans le message. Votre palier dépend de votre soutien total sur ce cycle.",
+    "handleHint": "Les paiements sans identifiant attendent que l'administration les attribue à la main.",
+    "copy": "Copier",
+    "copied": "Copié",
+    "tiers": "Paliers de soutien",
+    "from": "à partir de {amount}",
+    "yours": "Votre soutien",
+    "tierSupporter": "Soutien {tier}",
+    "active": "Actif",
+    "history": "Historique de votre soutien"
   }
 }

@@ -6273,5 +6273,335 @@
     "exitPip": "PIP 모드 종료",
     "fullscreen": "전체 화면",
     "exitFullscreen": "전체 화면 종료"
+  },
+  "activities": {
+    "title": "함께 보기 또는 듣기",
+    "addTitle": "활동에 추가",
+    "lede": "통화 중인 모두가 같은 순간에 같은 콘텐츠를 재생합니다. YouTube, SoundCloud, Spotify 링크나 동영상 또는 오디오 파일 링크를 붙여넣거나 Drive에서 선택하세요.",
+    "linkPlaceholder": "링크 붙여넣기",
+    "badLink": "Harmony에서 함께 재생할 수 없는 링크입니다.",
+    "watchTogether": "함께 보기",
+    "listenTogether": "함께 듣기",
+    "playTogether": "함께 재생",
+    "playNow": "지금 재생",
+    "addToQueue": "대기열에 추가",
+    "or": "또는",
+    "fromDrive": "Drive에서 선택",
+    "pickTitle": "동영상 또는 오디오 파일 선택",
+    "spotifyHint": "Harmony에서 Spotify에 로그인한 사람은 전체 트랙을 듣고, 나머지는 미리 듣기를 듣습니다.",
+    "region": "활동",
+    "open": "활동 열기",
+    "hideForMe": "나만 중지",
+    "clickToPlay": "클릭하여 재생",
+    "play": "재생",
+    "pause": "일시정지",
+    "seek": "재생 위치",
+    "seekValue": "{duration} 중 {position}",
+    "mute": "활동 음소거",
+    "unmute": "활동 음소거 해제",
+    "volume": "활동 음량",
+    "next": "대기열의 다음 항목",
+    "stop": "활동 종료",
+    "queue": "대기열",
+    "queueEmpty": "대기열이 비어 있습니다.",
+    "removeFromQueue": "대기열에서 제거",
+    "controlsHost": "나만 제어",
+    "controlsEveryone": "모두가 제어할 수 있음",
+    "watching": "시청 중",
+    "listening": "듣는 중",
+    "source": {
+      "drive": "Drive 파일",
+      "link": "링크"
+    }
+  },
+  "driveAdmin": {
+    "settings": "Drive 저장 공간",
+    "quotaUser": "계정당 저장 공간",
+    "quotaModerator": "인스턴스 모더레이터당 저장 공간",
+    "quotaAdmin": "인스턴스 관리자당 저장 공간",
+    "ephemeralDays": "임시 파일 보관 기간",
+    "days": "일",
+    "ephemeralDaily": "Drive가 가득 찬 후 하루 임시 업로드 수",
+    "linkSharing": "링크로 파일 공유 허용",
+    "hint": "계정의 저장 공간을 넘는 업로드는 임시 파일이 되며 위에서 정한 기간이 지나면 삭제됩니다. 저장 공간을 넘은 계정이 하루 임시 업로드 한도를 모두 쓰면 다음 날이 되거나 공간을 확보할 때까지 업로드할 수 없습니다.",
+    "save": "저장",
+    "saved": "저장됨",
+    "usage": "계정별 저장 공간",
+    "account": "계정",
+    "used": "사용량",
+    "temporary": "임시",
+    "quota": "저장 공간",
+    "override": "{name}의 저장 공간(MB), 비워 두면 역할 기본값",
+    "noUsage": "아직 파일을 저장한 계정이 없습니다.",
+    "blocked": "차단된 파일",
+    "unblock": "차단 해제",
+    "noBlocked": "차단된 파일이 없습니다. 신고된 파일을 “삭제하고 재업로드 차단”으로 삭제하면 여기에 추가됩니다.",
+    "reportFiles": "첨부 파일",
+    "removeFile": "파일 삭제",
+    "removeAndBlock": "삭제하고 재업로드 차단",
+    "removed": "삭제됨"
+  },
+  "drive": {
+    "title": "Drive",
+    "actions": {
+      "upload": "업로드",
+      "newFolder": "새 폴더",
+      "open": "열기",
+      "download": "다운로드",
+      "rename": "이름 변경",
+      "share": "공유",
+      "move": "이동",
+      "keep": "Drive에 보관",
+      "trash": "휴지통으로 이동",
+      "restore": "복원",
+      "deleteForever": "영구 삭제",
+      "deleteFolder": "폴더 삭제",
+      "emptyTrash": "휴지통 비우기"
+    },
+    "nav": {
+      "myDrive": "내 Drive",
+      "recent": "최근",
+      "temporary": "임시",
+      "shared": "나와 공유됨",
+      "trash": "휴지통",
+      "whereSent": "보낸 곳",
+      "dms": "다이렉트 메시지",
+      "fediverse": "Fediverse 게시물",
+      "server": "서버",
+      "channel": "채널",
+      "conversation": "대화",
+      "open": "Drive 탐색 열기",
+      "path": "폴더 경로"
+    },
+    "tree": {
+      "expand": "폴더 펼치기",
+      "collapse": "폴더 접기"
+    },
+    "usage": {
+      "label": "Drive 저장 공간 사용량",
+      "summary": "{quota} 중 {used} 사용",
+      "temporary": "임시 파일 {size}",
+      "full": "Drive가 가득 찼습니다. 새 업로드는 임시 파일이 되며 {count}일 후 삭제됩니다. | Drive가 가득 찼습니다. 새 업로드는 임시 파일이 되며 {count}일 후 삭제됩니다."
+    },
+    "columns": {
+      "name": "이름",
+      "type": "유형",
+      "owner": "소유자",
+      "size": "크기",
+      "added": "추가일",
+      "trashed": "삭제일"
+    },
+    "kind": {
+      "image": "이미지",
+      "video": "동영상",
+      "audio": "오디오",
+      "document": "문서",
+      "other": "파일"
+    },
+    "filter": {
+      "label": "파일 유형",
+      "all": "전체",
+      "images": "이미지",
+      "videos": "동영상",
+      "audio": "오디오",
+      "documents": "문서"
+    },
+    "sort": {
+      "label": "정렬 기준",
+      "newest": "최신순",
+      "oldest": "오래된순",
+      "name": "이름",
+      "size": "큰 파일순"
+    },
+    "layout": {
+      "label": "레이아웃",
+      "grid": "그리드",
+      "list": "목록"
+    },
+    "search": {
+      "placeholder": "Drive 검색",
+      "results": "“{query}” 검색 결과"
+    },
+    "selection": {
+      "label": "선택한 파일",
+      "count": "{count}개 선택됨 | {count}개 선택됨",
+      "clear": "선택 해제"
+    },
+    "state": {
+      "expiresIn": "{count}일 후 삭제 | {count}일 후 삭제",
+      "daysShort": "{count}일"
+    },
+    "banner": {
+      "temporary": "임시 파일은 업로드 후 {count}일이 지나면 삭제됩니다. 필요한 파일은 Drive에 보관하세요. | 임시 파일은 업로드 후 {count}일이 지나면 삭제됩니다. 필요한 파일은 Drive에 보관하세요.",
+      "trash": "휴지통의 파일도 저장 공간을 차지하며 30일 후 삭제됩니다."
+    },
+    "empty": {
+      "folderTitle": "아직 아무것도 없습니다",
+      "folderText": "파일을 업로드하거나 여기에 끌어다 놓으세요. 채팅에서 보낸 파일도 모두 Drive에 저장됩니다.",
+      "temporaryTitle": "임시 파일 없음",
+      "temporaryText": "Drive가 가득 찬 상태에서 업로드했거나 임시로 보낸 파일이 여기에 표시됩니다.",
+      "sharedTitle": "공유받은 파일 없음",
+      "sharedText": "이 인스턴스의 사람들이 나, 내 서버 또는 내 채널과 공유한 파일이 여기에 표시됩니다.",
+      "trashTitle": "휴지통이 비어 있습니다",
+      "trashText": "삭제한 파일은 30일 동안 여기에 보관됩니다.",
+      "otherTitle": "파일 없음",
+      "otherText": "이곳에서 보낸 파일이 여기에 표시됩니다.",
+      "searchTitle": "일치하는 항목 없음",
+      "searchText": "검색어와 일치하는 파일 이름이 Drive에 없습니다."
+    },
+    "errors": {
+      "load": "Drive를 불러오지 못했습니다",
+      "temporary": "변경 사항을 저장하지 못했습니다: {reason}",
+      "blocked": "이 파일은 인스턴스 모더레이터가 삭제했습니다."
+    },
+    "details": {
+      "label": "파일 세부 정보",
+      "title": "세부 정보",
+      "name": "파일 이름",
+      "rename": "이름 변경",
+      "type": "유형",
+      "size": "크기",
+      "added": "추가일",
+      "owner": "소유자",
+      "used": "사용된 곳",
+      "unused": "아직 아무 곳에도 보내지 않았습니다.",
+      "post": "Fediverse 게시물",
+      "sharing": "공유"
+    },
+    "file": {
+      "renameTitle": "파일 이름 변경",
+      "unnamed": "이름 없는 파일"
+    },
+    "folder": {
+      "newTitle": "새 폴더",
+      "renameTitle": "폴더 이름 변경",
+      "name": "폴더 이름",
+      "create": "만들기",
+      "deleteTitle": "“{name}”을(를) 삭제할까요?",
+      "deleteText": "폴더 안의 파일은 휴지통으로 이동하고 하위 폴더는 삭제됩니다."
+    },
+    "delete": {
+      "title": "파일 {count}개를 영구 삭제할까요? | 파일 {count}개를 영구 삭제할까요?",
+      "text": "이 파일을 사용하는 메시지와 게시물에는 파일이 삭제된 것으로 표시됩니다. 되돌릴 수 없습니다."
+    },
+    "trash": {
+      "emptyTitle": "휴지통을 비울까요?"
+    },
+    "move": {
+      "title": "항목 {count}개 이동 | 항목 {count}개 이동",
+      "here": "여기로 이동"
+    },
+    "menu": {
+      "file": "파일 작업"
+    },
+    "drop": {
+      "title": "놓아서 {place}에 업로드"
+    },
+    "uploads": {
+      "label": "업로드",
+      "title": "파일 {count}개 업로드 중 | 파일 {count}개 업로드 중"
+    },
+    "toast": {
+      "trashed": "파일 {count}개를 휴지통으로 이동했습니다 | 파일 {count}개를 휴지통으로 이동했습니다",
+      "restored": "파일 {count}개를 복원했습니다 | 파일 {count}개를 복원했습니다",
+      "deleted": "파일 {count}개를 삭제했습니다 | 파일 {count}개를 삭제했습니다",
+      "moved": "파일 {count}개를 이동했습니다 | 파일 {count}개를 이동했습니다",
+      "kept": "파일 {count}개를 Drive에 보관했습니다 | 파일 {count}개를 Drive에 보관했습니다",
+      "keepPartial": "{total}개 중 {kept}개 보관됨: 나머지는 Drive에 공간이 부족합니다",
+      "folderDeleted": "폴더를 삭제했습니다. 파일 {count}개를 휴지통으로 이동했습니다 | 폴더를 삭제했습니다. 파일 {count}개를 휴지통으로 이동했습니다"
+    },
+    "share": {
+      "title": "공유",
+      "linkTitle": "링크가 있는 모든 사용자",
+      "linkOn": "링크가 있는 사람은 누구나 보고 다운로드할 수 있습니다.",
+      "linkOff": "아래 사용자와 파일을 보낸 곳에서만 볼 수 있습니다.",
+      "copy": "복사",
+      "copied": "복사됨",
+      "expires": "링크 만료",
+      "never": "만료 없음",
+      "days": "{count}일 후 | {count}일 후",
+      "people": "사용자 및 장소",
+      "searchPeople": "이 인스턴스의 사용자 추가",
+      "server": "서버",
+      "channel": "채널",
+      "pickServer": "서버 선택",
+      "wholeServer": "서버 전체",
+      "add": "공유",
+      "remove": "{name}과(와) 공유 중지",
+      "private": "나와 파일을 보낸 대화에서만 볼 수 있습니다.",
+      "summaryLink": "링크가 있는 모든 사용자",
+      "summaryPeople": "대상 {count}개와 공유됨 | 대상 {count}개와 공유됨",
+      "summaryBoth": "링크 켜짐, 대상 {count}개와 공유됨 | 링크 켜짐, 대상 {count}개와 공유됨",
+      "scope": {
+        "user": "사용자",
+        "server": "서버",
+        "channel": "채널",
+        "link": "링크"
+      }
+    },
+    "preview": {
+      "previous": "이전 파일",
+      "next": "다음 파일",
+      "none": "이 파일은 미리보기를 지원하지 않습니다."
+    },
+    "picker": {
+      "title": "Drive에서 선택",
+      "folder": "폴더",
+      "everything": "모든 파일",
+      "empty": "파일이 없습니다.",
+      "attach": "{count}개 첨부 | {count}개 첨부"
+    },
+    "composer": {
+      "fromDriveMenu": "Drive에서",
+      "fromDrive": "Drive에서",
+      "reused": "Drive에 있음",
+      "reusedHint": "이미 Drive에 있는 파일이라 다시 업로드하지 않았습니다.",
+      "temporaryDays": "임시, {count}일 | 임시, {count}일",
+      "makeTemporary": "임시로 설정: {count}일 후 삭제 | 임시로 설정: {count}일 후 삭제",
+      "keep": "Drive에 보관",
+      "makeTemporaryFile": "{name}을(를) 임시로 설정",
+      "keepFile": "{name}을(를) Drive에 보관",
+      "markedTemporary": "{name}은(는) 임시 파일입니다",
+      "markedKept": "{name}은(는) Drive에 보관됩니다",
+      "fullHint": "Drive가 가득 찼습니다: 업로드는 임시 파일이 됩니다"
+    },
+    "gone": {
+      "expired": "만료된 파일입니다",
+      "deleted": "삭제된 파일입니다",
+      "removed": "모더레이터가 삭제한 파일입니다",
+      "trashed": "이 파일을 사용할 수 없습니다"
+    },
+    "link": {
+      "title": "공유된 파일",
+      "missingTitle": "이 링크는 작동하지 않습니다",
+      "missingText": "링크가 만료되었거나 소유자가 파일 공유를 중지했습니다.",
+      "sharedBy": "{name}님이 공유함",
+      "expires": "링크 만료: {date}",
+      "footer": "{instance}에서 공유됨"
+    }
+  },
+  "support": {
+    "title": "이 인스턴스 후원하기",
+    "progress": "후원 진행률",
+    "raisedMonth": "모금 / 이번 달 목표 {goal}",
+    "raisedTotal": "모금 / 전체 목표 {goal}",
+    "funded": "달성",
+    "supporters": "명의 후원자 | 명의 후원자",
+    "heading": "후원",
+    "oneTime": "일회성",
+    "onPlatform": "{platform}에서 후원",
+    "credited": "계정에 자동으로 반영됩니다",
+    "badgeAuto": "후원자 배지를 자동으로 받습니다",
+    "handleTitle": "{platforms}에서 후원하시나요? 핸들을 추가하세요",
+    "handleText": "메시지 어디에든 핸들을 포함하세요. 등급은 이번 주기의 총 후원액에 따라 정해집니다.",
+    "handleHint": "핸들이 없는 결제는 관리자가 직접 연결하도록 대기열에 추가됩니다.",
+    "copy": "복사",
+    "copied": "복사됨",
+    "tiers": "후원 등급",
+    "from": "{amount}부터",
+    "yours": "내 후원",
+    "tierSupporter": "{tier} 후원자",
+    "active": "활성",
+    "history": "내 후원 기록"
   }
 }

@@ -6273,5 +6273,335 @@
     "exitPip": "退出画中画",
     "fullscreen": "全屏",
     "exitFullscreen": "退出全屏"
+  },
+  "activities": {
+    "title": "一起看或一起听",
+    "addTitle": "添加到活动",
+    "lede": "通话中的每个人会同时播放相同的内容。粘贴 YouTube、SoundCloud 或 Spotify 链接、视频或音频文件链接，或从你的 Drive 中选择。",
+    "linkPlaceholder": "粘贴链接",
+    "badLink": "Harmony 无法一起播放此链接。",
+    "watchTogether": "一起看",
+    "listenTogether": "一起听",
+    "playTogether": "一起播放",
+    "playNow": "立即播放",
+    "addToQueue": "加入队列",
+    "or": "或",
+    "fromDrive": "从你的 Drive 选择",
+    "pickTitle": "选择视频或音频文件",
+    "spotifyHint": "在 Harmony 中登录了 Spotify 的听众可播放完整曲目；其他人只能听到试听片段。",
+    "region": "活动",
+    "open": "打开活动",
+    "hideForMe": "仅对我停止",
+    "clickToPlay": "点击播放",
+    "play": "播放",
+    "pause": "暂停",
+    "seek": "进度",
+    "seekValue": "{position} / {duration}",
+    "mute": "将活动静音",
+    "unmute": "取消活动静音",
+    "volume": "活动音量",
+    "next": "播放队列中的下一项",
+    "stop": "结束活动",
+    "queue": "队列",
+    "queueEmpty": "队列为空。",
+    "removeFromQueue": "从队列中移除",
+    "controlsHost": "仅我可控制",
+    "controlsEveryone": "允许所有人控制",
+    "watching": "正在观看",
+    "listening": "正在收听",
+    "source": {
+      "drive": "Drive 文件",
+      "link": "链接"
+    }
+  },
+  "driveAdmin": {
+    "settings": "Drive 存储",
+    "quotaUser": "每个账户的存储空间",
+    "quotaModerator": "每位实例版主的存储空间",
+    "quotaAdmin": "每位实例管理员的存储空间",
+    "ephemeralDays": "临时文件保留",
+    "days": "天",
+    "ephemeralDaily": "Drive 已满后每天可上传的临时文件数",
+    "linkSharing": "允许通过链接分享文件",
+    "hint": "超出账户存储空间的上传为临时文件，将在上述天数后删除。已超出存储空间且用完每日临时上传额度的账户，需等到次日或释放空间后才能继续上传。",
+    "save": "保存",
+    "saved": "已保存",
+    "usage": "各账户存储用量",
+    "account": "账户",
+    "used": "已用",
+    "temporary": "临时",
+    "quota": "存储空间",
+    "override": "{name} 的存储空间（MB）；留空则使用角色默认值",
+    "noUsage": "尚无账户存储文件。",
+    "blocked": "已屏蔽的文件",
+    "unblock": "解除屏蔽",
+    "noBlocked": "没有被屏蔽的文件。使用“移除并屏蔽重新上传”移除被举报的文件后，该文件会添加到这里。",
+    "reportFiles": "附件",
+    "removeFile": "移除文件",
+    "removeAndBlock": "移除并屏蔽重新上传",
+    "removed": "已移除"
+  },
+  "drive": {
+    "title": "Drive",
+    "actions": {
+      "upload": "上传",
+      "newFolder": "新建文件夹",
+      "open": "打开",
+      "download": "下载",
+      "rename": "重命名",
+      "share": "分享",
+      "move": "移动",
+      "keep": "保留在 Drive",
+      "trash": "移至回收站",
+      "restore": "恢复",
+      "deleteForever": "永久删除",
+      "deleteFolder": "删除文件夹",
+      "emptyTrash": "清空回收站"
+    },
+    "nav": {
+      "myDrive": "我的 Drive",
+      "recent": "最近",
+      "temporary": "临时",
+      "shared": "与我共享",
+      "trash": "回收站",
+      "whereSent": "发送位置",
+      "dms": "私信",
+      "fediverse": "联邦宇宙帖子",
+      "server": "服务器",
+      "channel": "频道",
+      "conversation": "对话",
+      "open": "打开 Drive 导航",
+      "path": "文件夹路径"
+    },
+    "tree": {
+      "expand": "展开文件夹",
+      "collapse": "折叠文件夹"
+    },
+    "usage": {
+      "label": "Drive 已用存储空间",
+      "summary": "已用 {used}，共 {quota}",
+      "temporary": "临时文件占用 {size}",
+      "full": "你的 Drive 已满。新上传的文件为临时文件，将在 {count} 天后删除。 | 你的 Drive 已满。新上传的文件为临时文件，将在 {count} 天后删除。"
+    },
+    "columns": {
+      "name": "名称",
+      "type": "类型",
+      "owner": "所有者",
+      "size": "大小",
+      "added": "添加时间",
+      "trashed": "删除时间"
+    },
+    "kind": {
+      "image": "图片",
+      "video": "视频",
+      "audio": "音频",
+      "document": "文档",
+      "other": "文件"
+    },
+    "filter": {
+      "label": "文件类型",
+      "all": "全部",
+      "images": "图片",
+      "videos": "视频",
+      "audio": "音频",
+      "documents": "文档"
+    },
+    "sort": {
+      "label": "排序方式",
+      "newest": "最新优先",
+      "oldest": "最早优先",
+      "name": "名称",
+      "size": "最大优先"
+    },
+    "layout": {
+      "label": "布局",
+      "grid": "网格",
+      "list": "列表"
+    },
+    "search": {
+      "placeholder": "搜索你的 Drive",
+      "results": "“{query}”的搜索结果"
+    },
+    "selection": {
+      "label": "已选文件",
+      "count": "已选 {count} 项 | 已选 {count} 项",
+      "clear": "清除选择"
+    },
+    "state": {
+      "expiresIn": "{count} 天后删除 | {count} 天后删除",
+      "daysShort": "{count}天"
+    },
+    "banner": {
+      "temporary": "临时文件会在上传 {count} 天后删除。请将需要的文件保留在 Drive 中。 | 临时文件会在上传 {count} 天后删除。请将需要的文件保留在 Drive 中。",
+      "trash": "回收站中的文件计入你的存储空间，并会在 30 天后删除。"
+    },
+    "empty": {
+      "folderTitle": "这里还没有内容",
+      "folderText": "上传文件或将文件拖放到这里。你在聊天中发送的所有文件也会存入你的 Drive。",
+      "temporaryTitle": "没有临时文件",
+      "temporaryText": "Drive 已满时上传的文件或作为临时文件发送的文件会显示在这里。",
+      "sharedTitle": "没有与你共享的内容",
+      "sharedText": "此实例上的用户与你、你的服务器或你的频道共享的文件会显示在这里。",
+      "trashTitle": "回收站为空",
+      "trashText": "已删除的文件会在这里保留 30 天。",
+      "otherTitle": "这里没有文件",
+      "otherText": "你在此处发送的文件会显示在这里。",
+      "searchTitle": "无匹配结果",
+      "searchText": "你的 Drive 中没有与该搜索匹配的文件名。"
+    },
+    "errors": {
+      "load": "无法加载 Drive",
+      "temporary": "更改未保存：{reason}",
+      "blocked": "此文件已被实例版主移除。"
+    },
+    "details": {
+      "label": "文件详情",
+      "title": "详情",
+      "name": "文件名",
+      "rename": "重命名",
+      "type": "类型",
+      "size": "大小",
+      "added": "添加时间",
+      "owner": "所有者",
+      "used": "使用位置",
+      "unused": "尚未发送到任何地方。",
+      "post": "联邦宇宙帖子",
+      "sharing": "分享"
+    },
+    "file": {
+      "renameTitle": "重命名文件",
+      "unnamed": "未命名文件"
+    },
+    "folder": {
+      "newTitle": "新建文件夹",
+      "renameTitle": "重命名文件夹",
+      "name": "文件夹名称",
+      "create": "创建",
+      "deleteTitle": "删除“{name}”？",
+      "deleteText": "其中的文件将移至回收站，子文件夹将被删除。"
+    },
+    "delete": {
+      "title": "永久删除 {count} 个文件？ | 永久删除 {count} 个文件？",
+      "text": "使用这些文件的消息和帖子将显示其已被移除。此操作无法撤销。"
+    },
+    "trash": {
+      "emptyTitle": "清空回收站？"
+    },
+    "move": {
+      "title": "移动 {count} 项 | 移动 {count} 项",
+      "here": "移到此处"
+    },
+    "menu": {
+      "file": "文件操作"
+    },
+    "drop": {
+      "title": "拖放以上传到 {place}"
+    },
+    "uploads": {
+      "label": "上传",
+      "title": "正在上传 {count} 个文件 | 正在上传 {count} 个文件"
+    },
+    "toast": {
+      "trashed": "{count} 个文件已移至回收站 | {count} 个文件已移至回收站",
+      "restored": "已恢复 {count} 个文件 | 已恢复 {count} 个文件",
+      "deleted": "已删除 {count} 个文件 | 已删除 {count} 个文件",
+      "moved": "已移动 {count} 个文件 | 已移动 {count} 个文件",
+      "kept": "已将 {count} 个文件保留在 Drive | 已将 {count} 个文件保留在 Drive",
+      "keepPartial": "已保留 {kept} 个（共 {total} 个）：其余文件超出你的 Drive 空间",
+      "folderDeleted": "文件夹已删除；{count} 个文件已移至回收站 | 文件夹已删除；{count} 个文件已移至回收站"
+    },
+    "share": {
+      "title": "分享",
+      "linkTitle": "任何拥有链接的人",
+      "linkOn": "任何拥有链接的人都可以查看和下载。",
+      "linkOff": "仅限下方的人员和你发送过的地方。",
+      "copy": "复制",
+      "copied": "已复制",
+      "expires": "链接过期时间",
+      "never": "永不",
+      "days": "{count} 天后 | {count} 天后",
+      "people": "人员和位置",
+      "searchPeople": "添加此实例上的用户",
+      "server": "服务器",
+      "channel": "频道",
+      "pickServer": "选择服务器",
+      "wholeServer": "整个服务器",
+      "add": "分享",
+      "remove": "停止与 {name} 分享",
+      "private": "仅你和你发送过它的对话。",
+      "summaryLink": "任何拥有链接的人",
+      "summaryPeople": "已与 {count} 个人员或位置分享 | 已与 {count} 个人员或位置分享",
+      "summaryBoth": "链接已开启，并与 {count} 个人员或位置分享 | 链接已开启，并与 {count} 个人员或位置分享",
+      "scope": {
+        "user": "用户",
+        "server": "服务器",
+        "channel": "频道",
+        "link": "链接"
+      }
+    },
+    "preview": {
+      "previous": "上一个文件",
+      "next": "下一个文件",
+      "none": "此文件无法预览。"
+    },
+    "picker": {
+      "title": "从 Drive 选择",
+      "folder": "文件夹",
+      "everything": "所有文件",
+      "empty": "这里没有文件。",
+      "attach": "附加 {count} 个 | 附加 {count} 个"
+    },
+    "composer": {
+      "fromDriveMenu": "从 Drive 选择",
+      "fromDrive": "从 Drive 选择",
+      "reused": "已在你的 Drive 中",
+      "reusedHint": "这些内容已在你的 Drive 中，未重复上传。",
+      "temporaryDays": "临时，{count} 天 | 临时，{count} 天",
+      "makeTemporary": "设为临时：{count} 天后删除 | 设为临时：{count} 天后删除",
+      "keep": "保留在 Drive",
+      "makeTemporaryFile": "将 {name} 设为临时",
+      "keepFile": "将 {name} 保留在 Drive",
+      "markedTemporary": "{name} 为临时文件",
+      "markedKept": "{name} 将保留在你的 Drive 中",
+      "fullHint": "你的 Drive 已满：上传的文件为临时文件"
+    },
+    "gone": {
+      "expired": "此文件已过期",
+      "deleted": "此文件已被删除",
+      "removed": "此文件已被版主移除",
+      "trashed": "此文件不可用"
+    },
+    "link": {
+      "title": "分享的文件",
+      "missingTitle": "此链接无效",
+      "missingText": "链接已过期，或文件所有者已停止分享。",
+      "sharedBy": "由 {name} 分享",
+      "expires": "链接将于 {date} 过期",
+      "footer": "分享自 {instance}"
+    }
+  },
+  "support": {
+    "title": "支持此实例",
+    "progress": "资助进度",
+    "raisedMonth": "本月已筹集，目标 {goal}",
+    "raisedTotal": "累计已筹集，目标 {goal}",
+    "funded": "已资助",
+    "supporters": "支持者 | 支持者",
+    "heading": "支持",
+    "oneTime": "一次性",
+    "onPlatform": "在 {platform} 上支持",
+    "credited": "自动计入你的账户",
+    "badgeAuto": "自动获得支持者徽章",
+    "handleTitle": "在 {platforms} 上支持？请附上你的用户名",
+    "handleText": "在留言中的任意位置附上你的用户名。你的等级取决于本周期内的累计支持金额。",
+    "handleHint": "未附用户名的付款会进入队列，由管理员手动归属。",
+    "copy": "复制",
+    "copied": "已复制",
+    "tiers": "支持者等级",
+    "from": "{amount} 起",
+    "yours": "你的支持",
+    "tierSupporter": "{tier} 支持者",
+    "active": "生效中",
+    "history": "你的支持记录"
   }
 }
