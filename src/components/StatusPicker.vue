@@ -142,11 +142,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, h } from 'vue'
+import { ref, computed, watch, h, defineAsyncComponent } from 'vue'
 import { userDataService } from '@/services/userDataService'
 import { getEmojiUrl } from '@/utils/emojiUtils'
 import { formatCustomStatusDisplay } from '@/utils/customStatusDisplay'
-import EmojiPopup from '@/components/EmojiPopup.vue'
+const EmojiPopup = defineAsyncComponent(() => import('@/components/EmojiPopup.vue'))
 import { useT } from '@/composables/useT'
 import { useDialog } from '@/composables/useDialog'
 import type { CustomUserStatus, Emoji } from '@/types'

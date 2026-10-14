@@ -10,9 +10,10 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, computed } from 'vue';
+import { defineComponent, computed, defineAsyncComponent } from 'vue';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
-import UnifiedVoiceDock from './voice/UnifiedVoiceDock.vue';
+// Loaded with the first call: nothing of the dock renders outside one.
+const UnifiedVoiceDock = defineAsyncComponent(() => import('./voice/UnifiedVoiceDock.vue'));
 
 export default defineComponent({
   name: 'PersistentVoiceConnection',

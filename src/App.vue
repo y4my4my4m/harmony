@@ -107,15 +107,17 @@
     @joined="remoteInvitePrompt.close()"
   />
 
-  <!-- Floating live theme editor (Discord-style side panel over the app) -->
-  <ThemeCustomizerPanel v-if="!isAuthRoute" />
+  <!-- Floating live theme editor (Discord-style side panel over the app); loaded on first open -->
+  <ThemeCustomizerPanel v-if="!isAuthRoute && themePanelOpened" />
 
   <!-- Mini player for video embeds scrolled out of view -->
   <FloatingVideoPlayer v-if="!isAuthRoute" />
 </template>
 
 <script setup lang="ts">
-import { ref, computed, defineAsyncComponent } from 'vue'
+import { ref, computed, defineAsyncComponent, watch } from 'vue'
+import { useThemeEditorPanel } from '@/composables/useThemeEditorPanel'
+import { warmLazyUi } from '@/utils/warmLazyUi'
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import { installInternalLinkInterceptor } from '@/utils/internalLinks'
@@ -140,7 +142,6 @@ import PushNotificationPrompt from '@/components/PushNotificationPrompt.vue'
 import RunOnLoginPrompt from '@/components/RunOnLoginPrompt.vue'
 import PublicServers from '@/components/PublicServers.vue'
 import AnnouncementPopup from '@/components/announcements/AnnouncementPopup.vue'
-import ThemeCustomizerPanel from '@/components/settings/user/ThemeCustomizerPanel.vue'
 import UnifiedConfirmationModal from '@/components/shared/UnifiedConfirmationModal.vue'
 import InstancePicker from '@/components/InstancePicker.vue'
 import FloatingVideoPlayer from '@/components/embeds/FloatingVideoPlayer.vue'
@@ -175,6 +176,11 @@ const {
 } = useConfirmDialog()
 
 const ImageCropDialog = defineAsyncComponent(() => import('@/components/common/ImageCropDialog.vue'))
+const ThemeCustomizerPanel = defineAsyncComponent(() => import('@/components/settings/user/ThemeCustomizerPanel.vue'))
+// Mounted from the first open on, so its close transition plays.
+const { isOpen: themePanelOpen } = useThemeEditorPanel()
+const themePanelOpened = ref(themePanelOpen.value)
+watch(themePanelOpen, (open) => { if (open) themePanelOpened.value = true })
 const { cropRequest, settle: settleCrop } = useImageCrop()
 import { onMounted, onUnmounted } from 'vue'
 import { hapticManager } from '@/utils/hapticFeedback'
@@ -220,6 +226,7 @@ const handleSwitchToChat = () => {
 }
 
 onMounted(() => {
+  warmLazyUi()
   // Theme/language settings load in the background; rendering does not wait.
   initializeAppSettings().catch(err => {
     debug.error('Failed to initialize app settings:', err)

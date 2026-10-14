@@ -553,18 +553,6 @@ function applyCssOverridesToDom() {
   }
 }
 
-watch(isOpen, (open) => {
-  if (open) {
-    seedFromCurrent()
-    invalidVar.value = null
-    applyPreview()
-    expanded.background = true
-    expanded.primary = false
-    expanded.accent = false
-    expanded.sidebar = false
-    expanded.advanced = false
-  }
-})
 
 const setMode = (mode: 'dark' | 'light') => {
   working.customThemeMode = mode
@@ -609,6 +597,20 @@ const applyPreview = () => {
     debug.error('Theme panel preview failed:', e)
   }
 }
+
+// Immediate: the panel mounts on its first open, with isOpen already true.
+watch(isOpen, (open) => {
+  if (open) {
+    seedFromCurrent()
+    invalidVar.value = null
+    applyPreview()
+    expanded.background = true
+    expanded.primary = false
+    expanded.accent = false
+    expanded.sidebar = false
+    expanded.advanced = false
+  }
+}, { immediate: true })
 
 const resetWorking = () => {
   Object.assign(working, { ...DEFAULTS, customCssOverrides: working.customCssOverrides })
