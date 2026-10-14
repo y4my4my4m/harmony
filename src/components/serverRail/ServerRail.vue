@@ -2,6 +2,7 @@
   <div
     ref="scrollEl"
     class="servers-scroll-area"
+    :class="{ 'fade-top': fadeTop, 'fade-bottom': fadeBottom }"
     @pointerdown="onPointerDown"
     @click="onClick"
     @keydown="onKeydown"
@@ -406,13 +407,39 @@ const onFocusOut = () => {
 
 let releaseClock: (() => void) | null = null
 
+// Entries beyond the top or bottom edge fade out under it instead of being cut.
+const fadeTop = ref(false)
+const fadeBottom = ref(false)
+let edgeFrame = 0
+const measureEdges = () => {
+  edgeFrame = 0
+  const el = scrollEl.value
+  if (!el) return
+  fadeTop.value = el.scrollTop > 1
+  fadeBottom.value = el.scrollTop + el.clientHeight < el.scrollHeight - 1
+}
+const queueEdges = () => { if (!edgeFrame) edgeFrame = requestAnimationFrame(measureEdges) }
+let edgeObserver: ResizeObserver | null = null
+
 onMounted(() => {
   releaseClock = retainRailClock()
-  scrollEl.value?.addEventListener('touchmove', drag.onTouchMove, { passive: false })
+  const el = scrollEl.value
+  el?.addEventListener('touchmove', drag.onTouchMove, { passive: false })
+  el?.addEventListener('scroll', queueEdges, { passive: true })
+  if (el && typeof ResizeObserver !== 'undefined') {
+    edgeObserver = new ResizeObserver(queueEdges)
+    edgeObserver.observe(el)
+    const list = el.querySelector('.rail-list')
+    if (list) edgeObserver.observe(list)
+  }
+  queueEdges()
 })
 
 onBeforeUnmount(() => {
   releaseClock?.()
+  if (edgeFrame) cancelAnimationFrame(edgeFrame)
+  edgeObserver?.disconnect()
+  scrollEl.value?.removeEventListener('scroll', queueEdges)
   scrollEl.value?.removeEventListener('touchmove', drag.onTouchMove)
 })
 </script>
@@ -436,6 +463,23 @@ onBeforeUnmount(() => {
   display: none;
 }
 
+/* 20px fades at an edge with entries beyond it. The trailing ::after space is part of the
+   scroll height, so the bottom fade shows until it is reached. */
+.servers-scroll-area.fade-top {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 20px, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 20px, #000 100%);
+}
+
+.servers-scroll-area.fade-bottom {
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 20px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 20px), transparent 100%);
+}
+
+.servers-scroll-area.fade-top.fade-bottom {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
+}
+
 /* Trailing space: a drop below the last entry lands at the end. */
 .servers-scroll-area::after {
   content: '';
@@ -451,7 +495,8 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 4px 0;
+  /* 8px above the first entry: a badge sits 6px above its icon. */
+  padding: 8px 0 4px;
 }
 
 .rail-entry {

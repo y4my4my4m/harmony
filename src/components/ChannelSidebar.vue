@@ -2009,8 +2009,11 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
+/* Shrinks for the ellipsis but does not grow: the lock and private marks follow the name,
+   and a mention badge at the row's end leaves them in place. */
 .channel-name {
-  flex: 1;
+  flex: 0 1 auto;
+  min-width: 0;
   text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
