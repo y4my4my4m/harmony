@@ -399,7 +399,9 @@
       "change": "Change server banner",
       "remove": "Remove banner",
       "hint": "Recommended: 1280×400px. Displayed at the top of your server.",
-      "none": "No server banner set"
+      "none": "No server banner set",
+      "sidebar": "Show the banner above the channel list",
+      "sidebarHint": "Members see the server banner at the top of the channel list."
     },
     "emojiActions": {
       "copy": "Copy {name}",

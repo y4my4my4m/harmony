@@ -9,6 +9,8 @@ export interface Server {
   owner: string;
   icon: string;
   banner?: string;
+  /** Show `banner` above the channel list; the owner's choice. */
+  sidebar_banner?: boolean;
   /** Rule titles shown in the invite accept flow; a copy of the welcome screen's rules when one exists. */
   rules?: string[];
   allow_cross_server_emojis: boolean;

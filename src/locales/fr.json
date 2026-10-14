@@ -399,7 +399,9 @@
       "change": "Changer la bannière du serveur",
       "remove": "Supprimer la bannière",
       "hint": "Recommandé : 1280×400 px. Affichée en haut de votre serveur.",
-      "none": "Aucune bannière de serveur"
+      "none": "Aucune bannière de serveur",
+      "sidebar": "Afficher la bannière au-dessus de la liste des salons",
+      "sidebarHint": "Les membres voient la bannière du serveur en haut de la liste des salons."
     },
     "emojiActions": {
       "copy": "Copier {name}",

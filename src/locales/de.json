@@ -399,7 +399,9 @@
       "change": "Server-Banner ändern",
       "remove": "Banner entfernen",
       "hint": "Empfohlen: 1280×400 px. Wird oben auf deinem Server angezeigt.",
-      "none": "Kein Server-Banner festgelegt"
+      "none": "Kein Server-Banner festgelegt",
+      "sidebar": "Banner über der Kanalliste anzeigen",
+      "sidebarHint": "Mitglieder sehen das Serverbanner oben in der Kanalliste."
     },
     "emojiActions": {
       "copy": "{name} kopieren",

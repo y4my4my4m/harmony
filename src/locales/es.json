@@ -399,7 +399,9 @@
       "change": "Cambiar banner del servidor",
       "remove": "Quitar banner",
       "hint": "Recomendado: 1280×400 px. Se muestra en la parte superior de tu servidor.",
-      "none": "No hay banner del servidor"
+      "none": "No hay banner del servidor",
+      "sidebar": "Mostrar el banner sobre la lista de canales",
+      "sidebarHint": "Los miembros ven el banner del servidor en la parte superior de la lista de canales."
     },
     "emojiActions": {
       "copy": "Copiar {name}",
