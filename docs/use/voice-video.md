@@ -1,10 +1,10 @@
 ---
 title: Voice, video and calls
-description: Join voice channels, place direct message calls, share your screen, play soundboard sounds, send voice messages and set up your microphone and camera in Harmony.
+description: Join voice channels, place direct message calls, share your screen, watch or listen together, play soundboard sounds, send voice messages and set up your microphone and camera in Harmony.
 ---
 # Voice, video and calls
 
-This page is for people using Harmony. It covers voice channels, direct message calls, camera and screen sharing, spatial audio, the soundboard, live reactions, voice messages and your voice settings. Server owners who want to set up voice channels or add soundboard sounds should read [Set up a server](/run/setup); instance operators who need to set up the voice server should read [Voice and TURN](/self-host/voice).
+This page is for people using Harmony. It covers voice channels, direct message calls, camera and screen sharing, watching or listening together, spatial audio, the soundboard, live reactions, voice messages and your voice settings. Server owners who want to set up voice channels or add soundboard sounds should read [Set up a server](/run/setup); instance operators who need to set up the voice server should read [Voice and TURN](/self-host/voice).
 
 ## How calls connect
 
@@ -61,6 +61,7 @@ The call bar holds the controls for the call you are in. Hover a button to see i
 | **Camera** | Turns your camera on or off. |
 | **Share screen** | Opens the screen share panel. See [Share your screen](#share-your-screen). |
 | **React** | Sends a live reaction. Shown only when someone has video or a stream on, on an SFU call. |
+| **Watch or listen together** | Starts an activity, or adds to the running one. Shown in voice channels of servers on your own instance. See [Watch or listen together](#watch-or-listen-together). |
 | **Soundboard** | Opens the soundboard. Shown only where you may play sounds. |
 | **Spatial audio** | Opens the spatial audio panel. |
 | **Voice settings** | Opens **Voice & video settings** for devices and audio processing. |
@@ -113,6 +114,47 @@ On the Linux desktop app in a Wayland session, the picker is the system's screen
 On an **SFU** call, a stream starts as a **Live** tile and you receive nothing until you click **Watch stream**. **Stop watching** stops receiving it. To receive every stream as soon as it starts, turn on **Watch streams automatically** under **User settings** → **Voice & video**.
 
 A watched stream can be focused, taken **Full screen**, or **Pop out** into a floating player you can move around the window.
+
+## Watch or listen together
+
+An activity plays a video or music for everyone in a voice channel at the same moment. Activities work in voice channels of servers on your own instance, not in direct message calls or in servers hosted on other instances. Anyone in the voice channel can start one.
+
+1. Click **Watch or listen together** in the call bar.
+2. Paste a link and click **Watch together** or **Listen together**. Or click **Choose from your Drive**, pick a video or audio file and click **Play together**.
+
+| Source | What plays |
+|---|---|
+| YouTube | A video link, YouTube Music included. A start time in the link (`t=`) is kept. |
+| SoundCloud | A track or playlist link. |
+| Spotify | A track, album, playlist, podcast episode or show link. Spotify plays full tracks for listeners signed in to Spotify in Harmony; others hear previews. |
+| A media file | An `https` link to a file ending in `.mp4`, `.m4v`, `.webm`, `.mov`, `.mkv`, `.ogv`, `.mp3`, `.m4a`, `.aac`, `.ogg`, `.oga`, `.opus`, `.wav` or `.flac`. |
+| Your Drive | A video or audio file of your own [Drive](/use/drive). Everyone who can see the voice channel can open the file while it plays. |
+
+While an activity runs, the call bar shows a small player with its title, **Play** or **Pause**, the position and **End the activity**. **Open the activity** opens the call view, where the player takes the main area and the participants move to a strip:
+
+| Control | What it does |
+|---|---|
+| **Play**, **Pause**, **Position** | Play, pause or seek for everyone. On the position slider, the arrow keys move 5 seconds and Shift+arrow 30 seconds. |
+| **Mute the activity**, **Activity volume** | Your own level. Harmony remembers the volume on this device. |
+| **Queue** | Shows what plays next. |
+| **Next in queue** | Skips to the next item. |
+| **Only I control it**, **Let everyone control it** | Shown to the host. See [Who controls an activity](#who-controls-an-activity). |
+| **End the activity** | Ends it for everyone. |
+| **Stop for me** | Stops the player on your device only; the others keep playing. |
+
+If your browser blocks autoplay, the player shows **Click to play**.
+
+Under the voice channel in the channel list, everyone who can see the channel reads **Watching** or **Listening to** followed by the title.
+
+### Queue
+
+Clicking **Watch or listen together** while an activity runs opens **Add to the activity**: **Add to queue** puts the link or file at the end of the queue, and **Play now** starts a new activity in its place, with an empty queue. In the call view, **Queue** lists up to 50 items, each with **Play now**, which plays it and keeps the rest of the queue, and **Remove from queue**. When an item ends, the next one plays.
+
+An activity ends when someone clicks **End the activity**, when the last item ends with nothing queued, or when the last person leaves the voice channel.
+
+### Who controls an activity
+
+Everyone in the call controls an activity unless its host restricts it. The host is the person who started it. **Only I control it** leaves the host as the only one who can play, pause, seek, skip, change the queue, start something else or end it, as long as they are in the voice channel. **Let everyone control it** lifts the restriction. When the host leaves the call, everyone can control the activity again.
 
 ## Use spatial audio
 

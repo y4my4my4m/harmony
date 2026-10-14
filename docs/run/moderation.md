@@ -145,6 +145,24 @@ Before resolving or dismissing you can write a "Note to the reporter (optional, 
 
 Suspending accounts, warning them, and forwarding reports to other instances are the instance staff's actions, not a server moderator's.
 
+### Remove a reported file
+
+Removing files is also for instance staff: the instance's administrators and moderators, not server moderators. In the admin panel's **Reports** tab (**User settings** → **Instance admin**, or **Instance moderation** for instance moderators), a reported message that carries files lists them under **Attached files**:
+
+| Action | Effect |
+|---|---|
+| **Remove file** | Deletes the file from its owner's [Drive](/use/drive). Messages that sent it show "This file was removed by the moderators". |
+| **Remove and block re-uploads** | Removes the file and blocks its contents on the instance. |
+
+A block works on the SHA-256 the server computes from the file's bytes, never on a hash the uploader's app reports. Once a file's contents are blocked:
+
+- other copies of the same bytes on the instance are removed, in every account's Drive; a copy the server has not hashed yet is removed once it has;
+- a later upload that reports the blocked hash is refused with "This file was removed by the instance moderators.", and any other upload of the same bytes is removed once the server has hashed it.
+
+When the server has not hashed the file yet, **Remove and block re-uploads** removes it at once, and the block applies once the server has hashed it.
+
+Blocked files are listed under **Blocked files** in the admin panel's **Drive** tab, which only instance admins see. **Unblock** lifts a block; files already removed stay removed.
+
 ## Moderate messages
 
 Open a message's menu by right-clicking it.

@@ -25,6 +25,7 @@ const sidebar: DefaultTheme.Sidebar = {
       text: 'Guides',
       items: [
         { text: 'Messages and threads', link: '/use/messages' },
+        { text: 'Drive', link: '/use/drive' },
         { text: 'Voice and video', link: '/use/voice-video' },
         { text: 'Notifications and apps', link: '/use/notifications-apps' },
         { text: 'Social', link: '/use/social' },
