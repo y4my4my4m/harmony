@@ -86,6 +86,8 @@ export interface MediaAttachment {
   filename?: string; // Original filename if available
   size?: number; // Size in bytes
   file?: File; // Original File reference for reliable uploads
+  /** A private Drive chat file; posting copies it into public post media. */
+  drivePath?: string;
 }
 
 export interface ActivityPubFollow {

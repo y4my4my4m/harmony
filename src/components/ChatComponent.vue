@@ -64,6 +64,7 @@
       :channel-name="effectiveChannelName"
       :username="effectiveDMUsername"
       :allow-polls="pollsAllowed"
+      :encrypted-room="composerEncrypted"
       background-send
       @toggleGiphy="toggleGiphy"
       @toggleEmojiList="toggleEmojiList"
@@ -450,6 +451,9 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
       const showKeyRecoveryModal = ref(false)
 
       const encryptionStatus = computed(() => encryptionStatusData.value)
+      // Messages here are encrypted: attachments go to Drive without their names.
+      const composerEncrypted = computed(() =>
+        encryptionStatusData.value?.level === 'active' || encryptionStatusData.value?.level === 'locked')
 
       async function checkEncryptionStatus() {
         if (props.isDM) {
@@ -989,6 +993,8 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
                 upload: raw.upload,
                 uploadedPath: completed ? raw.uploadedPath : undefined,
                 uploadedUrl: completed ? raw.uploadedUrl : undefined,
+                temporary: raw.temporary,
+                driveName: composerEncrypted.value ? undefined : raw.name,
               };
             }),
             extraMetadata,

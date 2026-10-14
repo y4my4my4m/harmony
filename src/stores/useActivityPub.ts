@@ -13,6 +13,7 @@ import { fetchedReactionsThisSession } from '@/composables/useRemotePostSync';
 import { insertRealtimePost, flushPendingPosts } from '@/utils/realtimeFeed';
 import { attachmentFocus } from '@/utils/focalPoint';
 import { isStoredMedia, withMediaEdits } from '@/utils/mediaEdit';
+import { copyDriveFileToPostMedia } from '@/services/drive/driveService';
 import { mentionPostId, strandedMentionIds, type MentionNotificationRow } from '@/utils/mentionsFeed';
 import type { 
   Post, 
@@ -1964,6 +1965,15 @@ export const useActivityPubStore = defineStore('activitypub', {
       const uploadPromises = attachments.map(async (attachment) => {
         const description = typeof attachment?.description === 'string' ? attachment.description.trim() : '';
         const focus = attachment instanceof File ? null : attachmentFocus(attachment);
+        if (typeof attachment?.drivePath === 'string' && !(attachment.file instanceof File)) {
+          const url = await copyDriveFileToPostMedia(attachment.drivePath, authUserId);
+          return withMediaEdits({
+            type: attachment.type === 'video' ? 'Video' : attachment.type === 'audio' ? 'Audio' : 'Image',
+            url,
+            mediaType: attachment.mime_type,
+            name: attachment.filename,
+          }, description, focus);
+        }
         if (isStoredMedia(attachment)) {
           return withMediaEdits(attachment.stored ?? { type: attachment.type, url: attachment.url }, description, focus);
         }

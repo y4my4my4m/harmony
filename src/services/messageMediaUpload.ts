@@ -5,17 +5,29 @@ import { humanizeUploadError, validateImageUpload } from '@/utils/uploadValidati
 import {
   MESSAGE_MEDIA_BUCKET,
   compatUrlFor,
-  mediaRoomOfPath,
+  isMessageMediaPath,
   type UploadedMessageMedia,
 } from '@/services/privateMedia'
+import {
+  driveAvailable,
+  findDriveFilesByHash,
+  isDriveHashBlocked,
+  sha256OfBlob,
+  type DriveUploadMetadata,
+} from '@/services/drive/driveService'
 
 /**
  * Chat attachment uploads into message_media over XMLHttpRequest, for upload
  * progress and abort. The request mirrors @supabase/storage-js 2.84
  * StorageFileApi.uploadOrUpdate for a Blob body: POST
- * /storage/v1/object/<bucket>/<path>, multipart body with `cacheControl` and the
- * file under an empty field name, `x-upsert: false`, and the session's access
- * token (the anon key without a session) as bearer, as supabase-js fetchWithAuth.
+ * /storage/v1/object/<bucket>/<path>, multipart body with `cacheControl`, `metadata`
+ * (JSON, stored as user_metadata) and the file under an empty field name,
+ * `x-upsert: false`, and the session's access token (the anon key without a session) as
+ * bearer, as supabase-js fetchWithAuth.
+ *
+ * On an instance with Drive the upload carries its SHA-256 and name (none for encrypted
+ * rooms), and a file the account already keeps in Drive with the same SHA-256 is not sent
+ * again: the result names that object (`reused`).
  *
  * Upload state is kept per object name and is reactive, so any render of a part
  * naming the object reads its progress.
@@ -32,11 +44,29 @@ export interface MessageMediaUploadState {
   cancel?: () => void
 }
 
+export interface MessageMediaUploadResult extends UploadedMessageMedia {
+  /** The bytes were in Drive already; `path` names that object, not the planned one. */
+  reused?: boolean
+}
+
+export interface MessageMediaUploadOptions {
+  validate?: boolean
+  onProgress?: (fraction: number) => void
+  /** Drive name of the file; omitted for encrypted rooms. */
+  name?: string
+  /** Kept only until drive_ephemeral_days. */
+  ephemeral?: boolean
+  /** Send the existing Drive file with the same bytes instead of uploading them again. */
+  reuse?: boolean
+  /** Drive folder of the new file. */
+  folder?: string | null
+}
+
 export interface MessageMediaUpload {
   readonly path: string
   readonly state: MessageMediaUploadState
   /** Rejects with UploadAbortedError after abort(). */
-  readonly result: Promise<UploadedMessageMedia>
+  readonly result: Promise<MessageMediaUploadResult>
   abort(): void
 }
 
@@ -117,7 +147,7 @@ function responseError(xhr: XMLHttpRequest): Error {
 export function startMessageMediaUpload(
   path: string,
   file: Blob,
-  options: { validate?: boolean; onProgress?: (fraction: number) => void } = {},
+  options: MessageMediaUploadOptions = {},
 ): MessageMediaUpload {
   const state = reactive<MessageMediaUploadState>({ progress: 0, status: 'uploading', error: null })
   states.set(path, state)
@@ -137,9 +167,21 @@ export function startMessageMediaUpload(
     }, UPLOAD_STALL_MS)
   }
 
-  const transfer = async (): Promise<void> => {
-    if (!mediaRoomOfPath(path)) throw new Error('Attachments need a channel or conversation')
+  const transfer = async (): Promise<string | null> => {
+    if (!isMessageMediaPath(path)) throw new Error('Attachments need a channel or conversation')
     if (options.validate) await validateChatUpload(file)
+    const metadata: DriveUploadMetadata = {}
+    if (await driveAvailable()) {
+      metadata.sha256 = await sha256OfBlob(file)
+      if (options.name) metadata.name = options.name
+      if (options.ephemeral) metadata.ephemeral = true
+      if (options.folder) metadata.folder = options.folder
+      if (options.reuse !== false) {
+        const existing = (await findDriveFilesByHash(metadata.sha256).catch(() => []))
+          .find((f) => f.bucket === MESSAGE_MEDIA_BUCKET && f.state === 'drive' && f.size_bytes === file.size)
+        if (existing) return existing.path
+      }
+    }
     const token = await accessToken()
     if (aborted) throw new UploadAbortedError()
 
@@ -160,7 +202,13 @@ export function startMessageMediaUpload(
       request.onload = () => {
         clearStall()
         if (request.status >= 200 && request.status < 300) resolve()
-        else reject(responseError(request))
+        else if (metadata.sha256 && request.status < 500) {
+          // A blocked hash surfaces as storage-api's generic row-level security refusal.
+          const refused = responseError(request)
+          isDriveHashBlocked(metadata.sha256).catch(() => false).then((blocked) => {
+            reject(blocked ? new Error(i18n.global.t('drive.errors.blocked') as string) : refused)
+          })
+        } else reject(responseError(request))
       }
       request.onerror = () => {
         clearStall()
@@ -175,19 +223,22 @@ export function startMessageMediaUpload(
 
       const body = new FormData()
       body.append('cacheControl', CACHE_CONTROL)
+      if (Object.keys(metadata).length > 0) body.append('metadata', JSON.stringify(metadata))
       body.append('', file)
       request.send(body)
       armStall()
     })
+    return null
   }
 
   const result = transfer().then(
-    async () => {
-      const url = await compatUrlFor(path)
+    async (reusedPath) => {
+      const stored = reusedPath ?? path
+      const url = await compatUrlFor(stored)
       state.progress = 1
       state.status = 'completed'
       options.onProgress?.(1)
-      return { path, url }
+      return reusedPath ? { path: stored, url, reused: true } : { path: stored, url }
     },
     (error: unknown) => {
       clearStall()

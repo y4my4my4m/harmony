@@ -111,6 +111,32 @@
         </div>
       </div>
 
+      <div
+        class="header-item-wrapper"
+        @mouseenter="showSidebarTooltip($event, t('drive.title'))"
+        @focusin="showSidebarTooltip($event, t('drive.title'))"
+        @focusout="hideSidebarTooltip"
+        @mouseleave="hideSidebarTooltip"
+      >
+        <div class="server-pill" :class="{ 'visible': isDriveSelected }" aria-hidden="true"></div>
+        <div
+          class="dm-button drive-button"
+          :class="{ 'selected': isDriveSelected }"
+          role="button"
+          tabindex="0"
+          :aria-label="t('drive.title')"
+          :aria-current="isDriveSelected ? 'page' : undefined"
+          data-testid="rail-drive"
+          @click="goToDrive"
+          @keydown.enter.prevent="goToDrive"
+          @keydown.space.prevent="goToDrive"
+        >
+          <svg viewBox="0 0 24 24" class="dm-icon" aria-hidden="true">
+            <path d="M6.5 20A4.5 4.5 0 0 1 2 15.5a4.5 4.5 0 0 1 3.37-4.36A6.5 6.5 0 0 1 18 9.5a5 5 0 0 1 .63 9.96L18.5 19.5H6.5Zm0-2h12a3 3 0 0 0 0-6h-1.36l-.16-1.15a4.5 4.5 0 0 0-8.9.48L7.9 12.8l-1.22.15A2.5 2.5 0 0 0 6.5 18Z" fill="currentColor"/>
+          </svg>
+        </div>
+      </div>
+
       <div class="separator"></div>
     </div>
 
@@ -280,6 +306,7 @@ const isDMSelected = computed(() => {
 });
 
 const isTodaySelected = computed(() => route.name === 'Today');
+const isDriveSelected = computed(() => route.name === 'Drive');
 
 const isFediverseSelected = computed(() => {
   return isActivityPubRoute(route.name as string);
@@ -301,7 +328,7 @@ const fediverseButtonLabel = computed(() => unreadCount.value > 0
   : t('a11y.rail.fediverse'));
 
 const activeServerId = computed(() => {
-  if (isDMSelected.value || isFediverseSelected.value || isTodaySelected.value) return null;
+  if (isDMSelected.value || isFediverseSelected.value || isTodaySelected.value || isDriveSelected.value) return null;
   return serverChannelStore.currentServerId;
 });
 
@@ -426,6 +453,10 @@ watch(
 
 const goToToday = () => {
   router.push({ name: 'Today' });
+};
+
+const goToDrive = () => {
+  router.push({ name: 'Drive' });
 };
 
 const goToFediverse = () => {

@@ -24,6 +24,10 @@
       </svg>
       <span>{{ t('files.uploadFile') }}</span>
     </button>
+    <button v-if="allowDrive" type="button" role="menuitem" class="menu-item" data-testid="upload-menu-drive" @click="handlePickDrive">
+      <Icon name="hard-drive" :size="20" class="menu-icon" />
+      <span>{{ t('drive.composer.fromDriveMenu') }}</span>
+    </button>
     <button v-if="allowPoll" type="button" role="menuitem" class="menu-item" data-testid="upload-menu-poll" @click="handleCreatePoll">
       <Icon name="bar-chart-2" :size="20" class="menu-icon" />
       <span>{{ t('polls.create') }}</span>
@@ -52,6 +56,8 @@ import { useT } from '@/composables/useT';
 withDefaults(defineProps<{
   isVisible?: boolean;
   allowPoll?: boolean;
+  /** Offers files from Drive; the parent handles `pick-drive`. */
+  allowDrive?: boolean;
   /** The attach button: the menu opens beside it and focus returns to it. */
   anchor?: HTMLElement | null;
   menuId?: string;
@@ -59,6 +65,7 @@ withDefaults(defineProps<{
 }>(), {
   isVisible: false,
   allowPoll: false,
+  allowDrive: false,
   anchor: null,
   menuId: undefined,
   initialFocus: 'first',
@@ -68,10 +75,16 @@ const emit = defineEmits<{
   'files-selected': [files: File[]];
   close: [reason?: MenuCloseReason];
   'create-poll': [];
+  'pick-drive': [];
 }>();
 
 const { t } = useT();
 const fileInput = ref<HTMLInputElement | null>(null);
+
+const handlePickDrive = () => {
+  emit('pick-drive');
+  emit('close', 'select');
+};
 
 const handleFileUpload = () => {
   fileInput.value?.click();

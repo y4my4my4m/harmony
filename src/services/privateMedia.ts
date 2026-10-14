@@ -5,6 +5,7 @@ import { debug } from '@/utils/debug'
 import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils'
 import { stripKlipyAttributionFragment } from '@/utils/klipyAttribution'
 import type { FileContent } from '@/types'
+import { driveAvailable, getDriveFileStatus } from '@/services/drive/driveService'
 
 /**
  * Chat attachments in the private `message_media` bucket.
@@ -85,23 +86,36 @@ export function messageMediaPath(room: string, uploaderId: string, fileName?: st
   return `${room}/${uploaderId}/${uuidv4()}.${fileExtension(fileName)}`
 }
 
+/** An object uploaded in Drive itself: `u/<uploader auth uid>/<file>`. */
+export function isDriveUploadPath(path: string | null | undefined): boolean {
+  if (typeof path !== 'string') return false
+  const segments = path.split('/')
+  return segments.length === 3 && segments[0] === 'u' && UUID.test(segments[1]) && /^[^?#\\]+$/.test(segments[2])
+    && segments[2] !== '.' && segments[2] !== '..'
+}
+
+/** An object name of message_media: a room object or a Drive upload. */
+export function isMessageMediaPath(path: string | null | undefined): path is string {
+  return mediaRoomOfPath(path) !== null || isDriveUploadPath(path)
+}
+
 export function isPrivateMediaPart(part: unknown): part is MediaPartLike & { path: string } {
   if (!part || typeof part !== 'object') return false
   const path = (part as { path?: unknown }).path
-  return typeof path === 'string' && mediaRoomOfPath(path) !== null
+  return typeof path === 'string' && isMessageMediaPath(path)
 }
 
 /**
- * Objects of `room` the file parts of `content` name, sorted and distinct: messages.media_paths
- * of an encrypted message, whose parts the server cannot read. Message media cleanup keeps
- * these objects while the message lives and deletes them when an edit or delete drops them.
+ * Objects the file parts of `content` name, sorted and distinct: messages.media_paths of an
+ * encrypted message, whose parts the server cannot read. Besides objects of the message's
+ * room these are the author's Drive files sent again. Read access of the room, cleanup and
+ * Drive's "where used" follow this list while the message lives.
  */
 export function messageMediaPathsIn(content: readonly unknown[], room: string | null): string[] {
   if (!room) return []
   const paths = new Set<string>()
   for (const part of content) {
-    if ((part as { type?: unknown })?.type === 'file' && isPrivateMediaPart(part)
-        && mediaRoomOfPath(part.path) === room) {
+    if ((part as { type?: unknown })?.type === 'file' && isPrivateMediaPart(part)) {
       paths.add(part.path)
     }
   }
@@ -161,6 +175,32 @@ let flushScheduled = false
 
 const cacheKey = (variant: MediaVariant, path: string) => `${variant}:${path}`
 
+/** 'trashed' is in its owner's trash: unreadable to others until restored. */
+export type GoneReason = 'expired' | 'deleted' | 'removed' | 'trashed'
+
+/** Objects storage refused to sign whose Drive file is gone, by object name. */
+const gone = shallowReactive(new Map<string, GoneReason>())
+const goneChecked = new Set<string>()
+
+async function lookUpGone(paths: string[]): Promise<void> {
+  const fresh = paths.filter((p) => !goneChecked.has(p))
+  if (fresh.length === 0 || !(await driveAvailable())) return
+  fresh.forEach((p) => goneChecked.add(p))
+  try {
+    for (const row of await getDriveFileStatus(fresh)) {
+      if (row.state === 'gone' && row.gone_reason) gone.set(row.path, row.gone_reason)
+      else if (row.state === 'trashed') gone.set(row.path, 'trashed')
+    }
+  } catch (error) {
+    debug.warn('Drive file status lookup failed', error)
+  }
+}
+
+/** Why a private part's object is no longer there, once signing it failed; else null. */
+export function mediaPartGone(part: MediaPartLike | null | undefined): GoneReason | null {
+  return isPrivateMediaPart(part) ? gone.get(part.path) ?? null : null
+}
+
 function effectiveVariant(path: string, variant: MediaVariant): MediaVariant {
   return variant === 'thumbnail' && STATIC_IMAGE_EXT.test(path) ? 'thumbnail' : 'original'
 }
@@ -205,14 +245,17 @@ async function signOriginals(paths: string[]): Promise<void> {
         .createSignedUrls(batch, VIEW_URL_TTL_SECONDS)
       if (error) throw error
       const byPath = new Map((data || []).map((row) => [row.path, row]))
+      const refused: string[] = []
       for (const path of batch) {
         const row = byPath.get(path)
         if (row?.signedUrl && !row.error) {
           settle(cacheKey('original', path), { url: row.signedUrl, expiresAt })
         } else {
           settle(cacheKey('original', path), { url: null, expiresAt: Date.now() + FAILURE_RETRY_MS })
+          refused.push(path)
         }
       }
+      if (refused.length > 0) void lookUpGone(refused)
     } catch (error) {
       debug.warn('Signing message media failed', error)
       for (const path of batch) {
@@ -478,14 +521,17 @@ export async function uploadMessageMedia(
 }
 
 /**
- * The upload as an object of `room`. An attachment uploaded before the composer
- * switched rooms is copied there: a message part names objects of its own room.
+ * The upload as an object a message in `room` may name. An attachment uploaded before the
+ * composer switched rooms is copied there on instances without Drive.
  */
 export async function placeUploadInRoom(
   upload: UploadedMessageMedia,
   room: string,
 ): Promise<UploadedMessageMedia> {
   if (mediaRoomOfPath(upload.path) === room) return upload
+  // On an instance with Drive a message names its author's Drive files wherever they were
+  // uploaded; the copy is for instances before it.
+  if (await driveAvailable()) return upload
   const rest = upload.path.split('/').slice(2).join('/')
   const target = `${room}/${rest}`
   const { error } = await supabase.storage.from(MESSAGE_MEDIA_BUCKET).copy(upload.path, target)
