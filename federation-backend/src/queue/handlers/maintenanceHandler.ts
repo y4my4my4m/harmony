@@ -11,9 +11,10 @@ import { logger } from '../../utils/logger.js';
 import { getSupabaseClient } from '../../config/supabase.js';
 import { SignatureService } from '../../activitypub/SignatureService.js';
 import { sweepMessageMedia } from './messageMediaCleanupHandler.js';
+import { sweepDrive } from './driveHandler.js';
 
 export interface MaintenanceJobData {
-  task: 'keygen-sweep' | 'cleanup-orphans' | 'verify-federation' | 'sweep-message-media';
+  task: 'keygen-sweep' | 'cleanup-orphans' | 'verify-federation' | 'sweep-message-media' | 'sweep-drive';
   triggered_by?: string;
 }
 
@@ -36,6 +37,9 @@ export async function handleMaintenanceJob(data: MaintenanceJobData): Promise<vo
       break;
     case 'sweep-message-media':
       await sweepMessageMedia();
+      break;
+    case 'sweep-drive':
+      await sweepDrive();
       break;
     default:
       logger.warn(`Unknown maintenance task: ${data.task}`);

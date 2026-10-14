@@ -1,4 +1,5 @@
--- messages.media_paths from 20261007300001_encrypted_message_media.sql: the path guard on the
+-- messages.media_paths from 20261007300001_encrypted_message_media.sql (sweep rules as amended by
+-- 20261015100001_drive_core.sql): the path guard on the
 -- list, the cleanup trigger for encrypted edits and deletes, message_media_deletable keep
 -- rules for listed and unlisted encrypted messages, and report snapshots. queue_federation_job
 -- is replaced for the transaction so queued jobs can be read back.
@@ -48,10 +49,16 @@ SELECT 'message_media', 'd/77777777-0000-0000-0000-000000000007/aaaaaaaa-0000-00
 INSERT INTO storage.objects (bucket_id, name, created_at) VALUES
   ('message_media', 'c/66666666-0000-0000-0000-000000000006/bbbbbbbb-0000-0000-0000-000000000002/c.png', now() - interval '2 days');
 
-SELECT ok(NOT has_function_privilege('authenticated', 'public.message_media_refs(jsonb, text[])', 'EXECUTE')
+-- The sweep rules here are those of files outside Drive: the objects are ephemeral uploads.
+UPDATE public.drive_files
+   SET state = 'ephemeral', ephemeral_at_upload = true, expires_at = now() + interval '30 days'
+ WHERE bucket = 'message_media';
+
+-- authenticated evaluates it in idx_messages_media_refs on every message write.
+SELECT ok(has_function_privilege('authenticated', 'public.message_media_refs(jsonb, text[])', 'EXECUTE')
           AND NOT has_function_privilege('anon', 'public.message_media_refs(jsonb, text[])', 'EXECUTE')
           AND has_function_privilege('service_role', 'public.message_media_refs(jsonb, text[])', 'EXECUTE'),
-  'message_media_refs is not callable by clients');
+  'message_media_refs is callable by authenticated and service_role, not anon');
 
 -- The sweep before any list. -------------------------------------------------------------
 SELECT is(

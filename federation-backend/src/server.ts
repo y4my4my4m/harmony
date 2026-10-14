@@ -30,6 +30,7 @@ import kofiWebhookRouter from './routes/webhooks/kofi.js';
 import stripeWebhookRouter from './routes/webhooks/stripe.js';
 import channelWebhookRouter from './routes/webhooks/channelWebhooks.js';
 import mediaRouter from './routes/media.js';
+import driveLinkRouter from './routes/driveLink.js';
 import accountMigrationRouter from './routes/accountMigration.js';
 
 import webFingerRouter from './activitypub/WebFingerService.js';
@@ -121,6 +122,8 @@ export function createApp(): Application {
   app.use('/api/federation/realtime', realtimeRouter);
   app.use('/media', mediaLimiter, mediaRouter);
   app.use('/api/federation/media', mediaLimiter, mediaRouter);
+  app.use('/drive', mediaLimiter, driveLinkRouter);
+  app.use('/api/federation/drive', mediaLimiter, driveLinkRouter);
   app.use('/account', accountMigrationRouter);
   app.use('/api/federation/account', accountMigrationRouter);
 
