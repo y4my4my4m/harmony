@@ -198,13 +198,13 @@
           <button type="button" role="menuitem" class="chat-menu-item" @click="renameFromMenu">
             <Icon name="pencil" :size="15" />{{ t('drive.actions.rename') }}
           </button>
-          <button v-if="fileMenu.entry.file.bucket === 'message_media'" type="button" role="menuitem" @click="shareFile = fileMenu!.entry.file; fileMenu = null">
+          <button v-if="fileMenu.entry.file.bucket === 'message_media'" type="button" role="menuitem" class="chat-menu-item" @click="shareFile = fileMenu!.entry.file; fileMenu = null">
             <Icon name="share" :size="15" />{{ t('drive.actions.share') }}
           </button>
           <button type="button" role="menuitem" class="chat-menu-item" @click="moveTarget = { files: [...drive.selected], folder: null }; fileMenu = null">
             <Icon name="folder-input" :size="15" />{{ t('drive.actions.move') }}
           </button>
-          <button v-if="fileMenu.entry.file.state === 'ephemeral'" type="button" role="menuitem" @click="keep([...drive.selected]); fileMenu = null">
+          <button v-if="fileMenu.entry.file.state === 'ephemeral'" type="button" role="menuitem" class="chat-menu-item" @click="keep([...drive.selected]); fileMenu = null">
             <Icon name="hard-drive" :size="15" />{{ t('drive.actions.keep') }}
           </button>
           <div class="chat-menu-divider" role="separator" />

@@ -66,12 +66,15 @@ test('upload, file away, search, trash and share a link', async ({ page, browser
     await expect(folder).toBeVisible()
 
     await file(page, IMAGE).click({ button: 'right' })
-    // A menu panel: items stack, one per row.
+    // A menu panel: every item is a full-width row, stacked.
     const items = page.getByTestId('drive-file-menu').getByRole('menuitem')
-    const first = (await items.nth(0).boundingBox())!
-    const second = (await items.nth(1).boundingBox())!
-    expect(second.y).toBeGreaterThanOrEqual(first.y + first.height - 1)
-    expect(Math.abs(second.x - first.x)).toBeLessThan(2)
+    const boxes = await items.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().toJSON() as DOMRect))
+    expect(boxes.length).toBeGreaterThan(4)
+    boxes.slice(1).forEach((box, i) => {
+      expect(box.y).toBeGreaterThanOrEqual(boxes[i].y + boxes[i].height - 1)
+      expect(Math.abs(box.x - boxes[0].x)).toBeLessThan(2)
+      expect(Math.abs(box.width - boxes[0].width)).toBeLessThan(2)
+    })
     await page.getByTestId('drive-file-menu').getByRole('menuitem', { name: 'Move', exact: true }).click()
     const dialog = page.getByTestId('drive-move-dialog')
     await dialog.getByTestId('drive-move-folder').filter({ hasText: FOLDER }).click()
