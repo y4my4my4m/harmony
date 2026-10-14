@@ -1,198 +1,154 @@
 <template>
-  <div class="auth-wrapper" :style="authStyles">
-    <!-- Background scrim -->
-    <div class="bg-gradient-overlay"></div>
-
-    <!-- Main Auth Container -->
-    <div class="auth-container">
-      <!-- Branding Section (Desktop) -->
-      <div class="auth-branding">
-        <div class="brand-card">
-          <div class="brand-content">
-            <div class="logo-container">
-              <img src="/icon_3d.webp" alt="" class="brand-logo" />
-            </div>
-            
-            <h1 class="brand-title">{{ displayTitle }}</h1>
-            
-            <p class="brand-tagline">{{ instanceDescription }}</p>
-            
-          </div>
-        </div>
-      </div>
-
-      <!-- Auth Form Panel -->
-      <div class="auth-panel">
-        <div 
-          class="auth-card" 
-          :class="{ 'loading-state': isLoading }"
-        >
-          <!-- Mobile Logo -->
-          <div class="mobile-logo">
-            <img src="/icon_3d.webp" alt="" />
-            <h1 class="mobile-title">{{ displayTitle }}</h1>
-          </div>
-
-          <!-- Form Header -->
-          <div class="form-header">
-            <h2 :id="formTitleId">{{ isLogin ? $t('auth.welcomeBack') : $t('auth.createAccount') }}</h2>
-            <p>{{ isLogin ? $t('auth.welcomeBackSubtitle') : $t('auth.createAccountSubtitle') }}</p>
-          </div>
-
-          <!-- OAuth Providers -->
-          <div v-if="enabledOAuthProviders.length > 0" class="oauth-section">
-            <button 
-              v-for="provider in enabledOAuthProviders" 
-              :key="provider.id"
-              class="oauth-btn"
-              :class="[`oauth-${provider.id}`, { 'loading': oauthLoading === provider.id }]"
-              @click="handleOAuthLogin(provider.id)"
-              :disabled="isLoading || oauthLoading !== null"
-            >
-              <span class="oauth-icon" aria-hidden="true" v-html="provider.icon"></span>
-              <span class="oauth-label">{{ $t(`auth.oauth.${provider.id}`) }}</span>
-              <span v-if="oauthLoading === provider.id" class="oauth-spinner" aria-hidden="true"></span>
-            </button>
-          </div>
-
-          <!-- Divider (only show if OAuth providers are enabled) -->
-          <div v-if="enabledOAuthProviders.length > 0" class="divider">
-            <span>{{ $t('auth.orContinueWith') }}</span>
-          </div>
-
-          <!-- Email/Password Form -->
-          <form
-            @submit.prevent="handleSubmit"
-            class="auth-form"
-            data-testid="auth-form"
-            :aria-labelledby="formTitleId"
-            novalidate
-          >
-            <div class="input-group" :class="{ 'focused': emailFocused, 'has-value': email, 'error': emailError }">
-              <input 
-                ref="emailInput"
-                v-model="email" 
-                type="email" 
-                id="email"
-                data-testid="auth-email"
-                placeholder=" "
-                :aria-invalid="emailError ? 'true' : undefined"
-                :aria-describedby="emailError ? 'email-error' : undefined"
-                @focus="emailFocused = true"
-                @blur="emailFocused = false; validateEmail()"
-                @input="emailError = ''; formError = ''"
-                required
-                autocomplete="email"
-              />
-              <label for="email">{{ $t('auth.email') }}</label>
-              <div class="input-line"></div>
-              <!-- Mounted while empty: a live region inserted together with its text is not announced reliably. -->
-              <span id="email-error" class="error-text" role="alert" data-testid="auth-email-error">{{ emailError }}</span>
-            </div>
-
-            <div class="input-group" :class="{ 'focused': passwordFocused, 'has-value': password, 'error': passwordError }">
-              <input 
-                ref="passwordInput"
-                v-model="password" 
-                :type="showPassword ? 'text' : 'password'"
-                id="password"
-                data-testid="auth-password"
-                placeholder=" "
-                :aria-invalid="passwordError ? 'true' : undefined"
-                :aria-describedby="passwordError ? 'password-error' : undefined"
-                @focus="passwordFocused = true"
-                @blur="passwordFocused = false; validatePassword()"
-                @input="passwordError = ''; formError = ''"
-                required
-                :autocomplete="isLogin ? 'current-password' : 'new-password'"
-              />
-              <label for="password">{{ $t('auth.password') }}</label>
-              <button 
-                type="button" 
-                class="password-toggle"
-                data-testid="auth-password-toggle"
-                :aria-label="$t('auth.showPassword')"
-                :aria-pressed="showPassword ? 'true' : 'false'"
-                aria-controls="password"
-                @click="showPassword = !showPassword"
-              >
-                <svg v-if="showPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                  <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-                  <line x1="1" y1="1" x2="23" y2="23"/>
-                </svg>
-                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-              </button>
-              <div class="input-line"></div>
-              <span id="password-error" class="error-text" role="alert" data-testid="auth-password-error">{{ passwordError }}</span>
-            </div>
-
-            <!-- Login Options -->
-            <div v-if="isLogin" class="form-options">
-              <label class="remember-me">
-                <input type="checkbox" class="remember-me__input" data-testid="auth-remember-me" v-model="rememberMe" />
-                <span class="checkbox-visual" aria-hidden="true"></span>
-                <span>{{ $t('auth.rememberMe') }}</span>
-              </label>
-              <button type="button" class="forgot-link" aria-haspopup="dialog" @click="openForgotPassword">
-                {{ $t('auth.forgotPassword') }}
-              </button>
-            </div>
-
-            <p id="auth-form-error" class="form-error" role="alert" data-testid="auth-form-error">{{ formError }}</p>
-
-            <!-- aria-disabled, not disabled: a disabled button drops keyboard focus to <body>. -->
-            <button 
-              type="submit" 
-              class="submit-btn"
-              data-testid="auth-submit"
-              :aria-disabled="isLoading ? 'true' : undefined"
-              :aria-busy="isLoading ? 'true' : undefined"
-              :class="{ 'is-busy': isLoading }"
-            >
-              <span v-if="!isLoading" class="btn-text">
-                {{ isLogin ? $t('auth.logIn') : $t('auth.createAccountButton') }}
-              </span>
-              <template v-else>
-                <span class="sr-only">{{ isLogin ? $t('auth.signingIn') : $t('auth.creatingAccount') }}</span>
-                <span class="btn-loader" aria-hidden="true">
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                </span>
-              </template>
-            </button>
-          </form>
-
-          <!-- Switch Mode -->
-          <div class="switch-mode">
-            <span>{{ isLogin ? $t('auth.dontHaveAccount') : $t('auth.alreadyHaveAccount') }}</span>
-            <button type="button" @click="toggleMode" data-testid="auth-switch-mode">
-              {{ isLogin ? $t('auth.register') : $t('auth.logIn') }}
-            </button>
-          </div>
-
-          <!-- Terms -->
-          <p v-if="!isLogin && (instanceSettings.settings.termsUrl || instanceSettings.settings.privacyUrl)" class="terms">
-            {{ $t('auth.termsPrefix') }}
-            <a v-if="instanceSettings.settings.termsUrl" :href="safeHref(instanceSettings.settings.termsUrl)" target="_blank" rel="noopener">{{ $t('auth.termsOfService') }}</a>
-            <template v-if="instanceSettings.settings.termsUrl && instanceSettings.settings.privacyUrl">
-              {{ $t('auth.and') }}
-            </template>
-            <a v-if="instanceSettings.settings.privacyUrl" :href="safeHref(instanceSettings.settings.privacyUrl)" target="_blank" rel="noopener">{{ $t('auth.privacyPolicy') }}</a>
-          </p>
-        </div>
-      </div>
+  <AuthShell :mascot-pose="mascotPose" :busy="isLoading">
+    <div class="form-header">
+      <h2 :id="formTitleId">{{ isLogin ? $t('auth.welcomeBack') : $t('auth.createAccount') }}</h2>
+      <p v-if="!isLogin">{{ $t('auth.createAccountSubtitle') }}</p>
     </div>
 
-    <!-- Powered by Harmony -->
-    <a href="https://github.com/y4my4my4m/harmony" target="_blank" rel="noopener" class="powered-by">
-      <i18n-t keypath="auth.poweredBy" scope="global">
-        <template #name><strong>Harmony</strong></template>
-      </i18n-t>
-    </a>
+    <!-- OAuth Providers -->
+    <div v-if="enabledOAuthProviders.length > 0" class="oauth-section">
+      <button 
+        v-for="provider in enabledOAuthProviders" 
+        :key="provider.id"
+        class="oauth-btn"
+        :class="[`oauth-${provider.id}`, { 'loading': oauthLoading === provider.id }]"
+        @click="handleOAuthLogin(provider.id)"
+        :disabled="isLoading || oauthLoading !== null"
+      >
+        <span class="oauth-icon" aria-hidden="true" v-html="provider.icon"></span>
+        <span class="oauth-label">{{ $t(`auth.oauth.${provider.id}`) }}</span>
+        <span v-if="oauthLoading === provider.id" class="oauth-spinner" aria-hidden="true"></span>
+      </button>
+    </div>
+
+    <!-- Divider (only show if OAuth providers are enabled) -->
+    <div v-if="enabledOAuthProviders.length > 0" class="divider">
+      <span>{{ $t('auth.orContinueWith') }}</span>
+    </div>
+
+    <!-- Email/Password Form -->
+    <form
+      @submit.prevent="handleSubmit"
+      class="auth-form"
+      data-testid="auth-form"
+      :aria-labelledby="formTitleId"
+      novalidate
+    >
+      <div class="input-group" :class="{ 'focused': emailFocused, 'has-value': email, 'error': emailError }">
+        <input 
+          ref="emailInput"
+          v-model="email" 
+          type="email" 
+          id="email"
+          data-testid="auth-email"
+          placeholder=" "
+          :aria-invalid="emailError ? 'true' : undefined"
+          :aria-describedby="emailError ? 'email-error' : undefined"
+          @focus="emailFocused = true"
+          @blur="emailFocused = false; validateEmail()"
+          @input="emailError = ''; formError = ''"
+          required
+          autocomplete="email"
+        />
+        <label for="email">{{ $t('auth.email') }}</label>
+        <div class="input-line"></div>
+        <!-- Mounted while empty: a live region inserted together with its text is not announced reliably. -->
+        <span id="email-error" class="error-text" role="alert" data-testid="auth-email-error">{{ emailError }}</span>
+      </div>
+
+      <div class="input-group" :class="{ 'focused': passwordFocused, 'has-value': password, 'error': passwordError }">
+        <input 
+          ref="passwordInput"
+          v-model="password" 
+          :type="showPassword ? 'text' : 'password'"
+          id="password"
+          data-testid="auth-password"
+          placeholder=" "
+          :aria-invalid="passwordError ? 'true' : undefined"
+          :aria-describedby="passwordError ? 'password-error' : undefined"
+          @focus="passwordFocused = true"
+          @blur="passwordFocused = false; validatePassword()"
+          @input="passwordError = ''; formError = ''"
+          required
+          :autocomplete="isLogin ? 'current-password' : 'new-password'"
+        />
+        <label for="password">{{ $t('auth.password') }}</label>
+        <button 
+          type="button" 
+          class="password-toggle"
+          data-testid="auth-password-toggle"
+          :aria-label="$t('auth.showPassword')"
+          :aria-pressed="showPassword ? 'true' : 'false'"
+          aria-controls="password"
+          @click="showPassword = !showPassword"
+        >
+          <svg v-if="showPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+            <line x1="1" y1="1" x2="23" y2="23"/>
+          </svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+        <div class="input-line"></div>
+        <span id="password-error" class="error-text" role="alert" data-testid="auth-password-error">{{ passwordError }}</span>
+      </div>
+
+      <!-- Login Options -->
+      <div v-if="isLogin" class="form-options">
+        <label class="remember-me">
+          <input type="checkbox" class="remember-me__input" data-testid="auth-remember-me" v-model="rememberMe" />
+          <span class="checkbox-visual" aria-hidden="true"></span>
+          <span>{{ $t('auth.rememberMe') }}</span>
+        </label>
+        <button type="button" class="forgot-link" aria-haspopup="dialog" @click="openForgotPassword">
+          {{ $t('auth.forgotPassword') }}
+        </button>
+      </div>
+
+      <p id="auth-form-error" class="form-error" role="alert" data-testid="auth-form-error">{{ formError }}</p>
+
+      <!-- aria-disabled, not disabled: a disabled button drops keyboard focus to <body>. -->
+      <button 
+        type="submit" 
+        class="submit-btn"
+        data-testid="auth-submit"
+        :aria-disabled="isLoading ? 'true' : undefined"
+        :aria-busy="isLoading ? 'true' : undefined"
+        :class="{ 'is-busy': isLoading }"
+      >
+        <span v-if="!isLoading" class="btn-text">
+          {{ isLogin ? $t('auth.logIn') : $t('auth.createAccountButton') }}
+        </span>
+        <template v-else>
+          <span class="sr-only">{{ isLogin ? $t('auth.signingIn') : $t('auth.creatingAccount') }}</span>
+          <span class="btn-loader" aria-hidden="true">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </span>
+        </template>
+      </button>
+    </form>
+
+    <!-- Switch Mode -->
+    <div class="switch-mode">
+      <span>{{ isLogin ? $t('auth.dontHaveAccount') : $t('auth.alreadyHaveAccount') }}</span>
+      <button type="button" @click="toggleMode" data-testid="auth-switch-mode">
+        {{ isLogin ? $t('auth.register') : $t('auth.logIn') }}
+      </button>
+    </div>
+
+    <!-- Terms -->
+    <p v-if="!isLogin && (instanceSettings.settings.termsUrl || instanceSettings.settings.privacyUrl)" class="terms">
+      {{ $t('auth.termsPrefix') }}
+      <a v-if="instanceSettings.settings.termsUrl" :href="safeHref(instanceSettings.settings.termsUrl)" target="_blank" rel="noopener">{{ $t('auth.termsOfService') }}</a>
+      <template v-if="instanceSettings.settings.termsUrl && instanceSettings.settings.privacyUrl">
+        {{ $t('auth.and') }}
+      </template>
+      <a v-if="instanceSettings.settings.privacyUrl" :href="safeHref(instanceSettings.settings.privacyUrl)" target="_blank" rel="noopener">{{ $t('auth.privacyPolicy') }}</a>
+    </p>
 
     <!-- Forgot Password Modal -->
     <Teleport to="body">
@@ -397,7 +353,7 @@
         </div>
       </Transition>
     </Teleport>
-  </div>
+  </AuthShell>
 </template>
 
 <script setup lang="ts">
@@ -410,9 +366,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { useToast } from 'vue-toastification'
 import { supabase, setRememberMe, getRememberMe } from '@/supabase'
-import { getRandomLoginBackground } from '@/utils/backgroundUtils'
+import AuthShell, { type MascotPose } from '@/components/auth/AuthShell.vue'
 import { adminService } from '@/services/AdminService'
-import { getStoredInstance } from '@/services/instanceConfig'
 import { isTauriDesktop } from '@/utils/platform'
 import type { Provider } from '@supabase/supabase-js'
 import { RECOVERY_CODE_MIN_LENGTH, RECOVERY_CODE_MAX_LENGTH, RECOVERY_CODE_PLACEHOLDER, recoveryCodeLength } from '@/utils/mfaConstants'
@@ -523,26 +478,14 @@ const { titleId: twoFactorTitleId, descriptionId: twoFactorDescriptionId } = use
   initialFocus: '#twofa-code',
 })
 
-// Background & effects
-const randomBg = ref('')
-
-// Instance branding
-const instanceName = ref('Harmony')
-const instanceDescription = ref('')
-// The native/universal client picks an instance explicitly, so the title shows
-// that domain. Web/PWA has no stored instance and falls back to the brand name.
-const displayTitle = computed(() => {
-  const stored = getStoredInstance()
-  if (stored) {
-    try { return new URL(stored.origin).host } catch { /* fall through */ }
-  }
-  return instanceName.value
+// Covers its eyes while a hidden password is typed, peeks while it is shown,
+// looks sorry after a rejected sign-in until the form is edited.
+const mascotPose = computed<MascotPose>(() => {
+  if (showPassword.value && password.value) return 'peek'
+  if (passwordFocused.value && !showPassword.value) return 'hide'
+  if (formError.value) return 'oops'
+  return 'idle'
 })
-
-// Computed styles
-const authStyles = computed(() => ({
-  '--bg-image': randomBg.value,
-}))
 
 // Validation
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -918,18 +861,6 @@ const loadEnabledOAuthProviders = async () => {
   }
 }
 
-const loadInstanceBranding = async () => {
-  try {
-    const config = await adminService.getInstanceConfig()
-    if (config?.instance) {
-      instanceName.value = config.instance.name || 'Harmony'
-      instanceDescription.value = config.instance.description || ''
-    }
-  } catch (error) {
-    debug.warn('Failed to load instance branding, using defaults:', error)
-  }
-}
-
 // Lifecycle
 const SIGN_OUT_REASONS: Record<string, string> = {
   session_revoked: 'security.signOutReason.sessionRevoked',
@@ -939,199 +870,28 @@ const SIGN_OUT_REASONS: Record<string, string> = {
 onMounted(async () => {
   const reason = SIGN_OUT_REASONS[String(route.query.reason ?? '')]
   if (reason) toast.info(t(reason), { timeout: 8000 })
-  randomBg.value = await getRandomLoginBackground()
-  await Promise.all([
-    loadInstanceBranding(),
-    loadEnabledOAuthProviders()
-  ])
+  await loadEnabledOAuthProviders()
 })
 </script>
 
 <style scoped>
-/* ========================================
-   CSS Variables & Base Styles
-   ======================================== */
-.auth-wrapper {
-  --primary: var(--harmony-primary);
-  --primary-hover: var(--harmony-primary-hover);
-  --surface: rgba(17, 17, 23, 0.92);
-  --surface-light: rgba(255, 255, 255, 0.03);
-  --surface-hover: rgba(255, 255, 255, 0.06);
-  --border: rgba(255, 255, 255, 0.08);
-  --border-focus: color-mix(in srgb, var(--harmony-primary) 50%, transparent);
-  --text: #ffffff;
-  --text-muted: rgba(255, 255, 255, 0.6);
-  --text-dim: rgba(255, 255, 255, 0.4);
-  --scrim: rgba(0, 0, 0, 0.6);
-  --brand-card-bg: rgba(255, 255, 255, 0.03);
-  --brand-card-border: rgba(255, 255, 255, 0.06);
-  --autofill-bg: rgb(17, 17, 23);
-  
-  min-height: calc(100 * var(--app-vh));
-  width: 100%;
-  display: flex;
-  font-family: var(--font-family);
-  background: var(--bg-image) center/cover no-repeat fixed;
-  position: relative;
-  overflow: hidden;
-}
-
-/* Light themes, including the signed-out system-light preset. On --surface:
-   --text 16.5:1, --text-muted 6.1:1. */
-:root[data-theme-type="light"] .auth-wrapper {
-  --surface: rgba(255, 255, 255, 0.94);
-  --surface-light: rgba(0, 0, 0, 0.03);
-  --surface-hover: rgba(0, 0, 0, 0.06);
-  --border: rgba(0, 0, 0, 0.12);
-  --text: #1e1f22;
-  --text-muted: rgba(30, 31, 34, 0.7);
-  --text-dim: rgba(30, 31, 34, 0.55);
-  --scrim: rgba(255, 255, 255, 0.55);
-  --brand-card-bg: rgba(255, 255, 255, 0.7);
-  --brand-card-border: rgba(0, 0, 0, 0.08);
-  --autofill-bg: #ffffff;
-}
-
-/* ========================================
-   Background Effects
-   ======================================== */
-.bg-gradient-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--scrim);
-  backdrop-filter: blur(4px);
-  pointer-events: none;
-}
-
-/* ========================================
-   Layout
-   ======================================== */
-.auth-container {
-  position: relative;
-  z-index: 10;
-  min-height: calc(100 * var(--app-vh));
-  width: 100%;
-  display: flex;
-}
-
-.auth-branding {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 48px;
-  position: relative;
-  overflow: hidden;
-}
-
-/* Glass brand card */
-.brand-card {
-  position: relative;
-  z-index: 1;
-  background: var(--brand-card-bg);
-  border: 1px solid var(--brand-card-border);
-  border-radius: 32px;
-  padding: 48px 40px;
-  max-width: 460px;
-  width: 100%;
-}
-
-.brand-content {
-  text-align: center;
-}
-
-.logo-container {
-  position: relative;
-  display: inline-block;
-  margin-bottom: 24px;
-}
-
-.brand-logo {
-  width: 88px;
-  height: 88px;
-}
-
-.brand-title {
-  font-size: 2.5rem;
-  font-weight: 700;
-  margin: 0 0 12px;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  color: var(--text);
-  overflow-wrap: anywhere;
-}
-
-.brand-tagline {
-  font-size: 1.05rem;
-  color: var(--text-muted);
-  margin: 0;
-  line-height: 1.6;
-  max-width: 320px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-/* ========================================
-   Auth Panel & Card
-   ======================================== */
-.auth-panel {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px;
-}
-
-.auth-card {
-  width: 100%;
-  max-width: 420px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 40px;
-  box-shadow: var(--shadow-large);
-}
-
-.auth-card.loading-state {
-  pointer-events: none;
-  opacity: 0.7;
-}
-
-.mobile-logo {
-  display: none;
-  text-align: center;
-  margin-bottom: 24px;
-}
-
-.mobile-logo img {
-  width: 56px;
-  height: 56px;
-  margin-bottom: 8px;
-}
-
-.mobile-title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--text);
-  margin: 0;
-}
-
 .form-header {
-  text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 28px;
 }
 
 .form-header h2 {
-  font-size: 1.75rem;
-  font-weight: 600;
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
   color: var(--text);
-  margin: 0 0 8px;
 }
 
 .form-header p {
+  margin: 8px 0 0;
   font-size: 0.95rem;
   color: var(--text-muted);
-  margin: 0;
 }
 
 /* ========================================
@@ -1284,7 +1044,7 @@ onMounted(async () => {
 .input-group input:not(:placeholder-shown) + label {
   top: -8px;
   font-size: 0.75rem;
-  color: var(--primary);
+  color: var(--text-link);
 }
 
 .input-group.error label {
@@ -1441,14 +1201,14 @@ onMounted(async () => {
 .forgot-link {
   background: none;
   border: none;
-  color: var(--primary);
+  color: var(--text-link);
   font-size: 0.875rem;
   cursor: pointer;
   transition: color 0.2s ease;
 }
 
 .forgot-link:hover {
-  color: var(--primary-hover);
+  text-decoration: underline;
 }
 
 /* ========================================
@@ -1513,7 +1273,7 @@ onMounted(async () => {
 .switch-mode button {
   background: none;
   border: none;
-  color: var(--primary);
+  color: var(--text-link);
   font-weight: 600;
   cursor: pointer;
   margin-left: 4px;
@@ -1521,19 +1281,19 @@ onMounted(async () => {
 }
 
 .switch-mode button:hover {
-  color: var(--primary-hover);
+  text-decoration: underline;
 }
 
 .terms {
   text-align: center;
   font-size: 0.8rem;
-  color: var(--text-dim);
+  color: var(--text-muted);
   margin-top: 20px;
   line-height: 1.5;
 }
 
 .terms a {
-  color: var(--primary);
+  color: var(--text-link);
   text-decoration: none;
 }
 
@@ -1862,7 +1622,7 @@ onMounted(async () => {
 }
 
 .toggle-recovery:hover:not(:disabled) {
-  color: var(--primary);
+  color: var(--text-link);
 }
 
 /* ========================================
@@ -1899,89 +1659,30 @@ onMounted(async () => {
 /* ========================================
    Responsive Design - Mobile
    ======================================== */
-@media (max-width: 1024px) {
-  .auth-container {
-    flex-direction: column;
-  }
-  
-  .auth-branding {
-    padding: 32px 24px 24px;
-  }
-
-  .brand-card {
-    padding: 32px 28px;
-    max-width: 100%;
-    border-radius: 24px;
-  }
-
-  .brand-title {
-    font-size: 2.25rem;
-  }
-
-  .brand-logo {
-    width: 64px;
-    height: 64px;
-  }
-
-  .logo-container {
-    margin-bottom: 16px;
-  }
-  
-  .brand-tagline {
-    margin-bottom: 20px;
-    font-size: 0.95rem;
-  }
-  
-}
-
-@media (max-width: 768px) {
-  .auth-branding {
-    display: none;
-  }
-
-  .auth-panel {
-    padding: 0;
-    align-items: flex-start;
-  }
-  
-  .auth-card {
-    max-width: 100%;
-    min-height: calc(100 * var(--app-vh));
-    border-radius: 0;
-    padding: 60px 24px 40px;
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .mobile-logo {
-    display: block;
-  }
-  
-  .form-header {
-    margin-bottom: 28px;
-  }
-  
+@media (max-width: 959px) {
   .form-header h2 {
-    font-size: 1.5rem;
+    font-size: 1.625rem;
   }
-  
+
   .form-header p {
     font-size: 0.9rem;
   }
-  
+
   .oauth-section {
     gap: 10px;
   }
-  
+
   .oauth-btn {
     padding: 14px 16px;
   }
-  
+
   .switch-mode {
     margin-top: auto;
     padding-top: 24px;
   }
-  
+}
+
+@media (max-width: 768px) {
   .modal-card {
     margin: 0;
     max-width: 100%;
@@ -1991,61 +1692,27 @@ onMounted(async () => {
     flex-direction: column;
     justify-content: center;
   }
-  
+
   .reset-modal {
     padding: 40px 24px;
   }
 }
 
 @media (max-width: 480px) {
-  .auth-card {
-    padding: 48px 20px 32px;
-  }
-  
   .form-options {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
   }
-  
+
   .forgot-link {
     align-self: flex-start;
   }
 }
 
-/* ========================================
-   Powered By
-   ======================================== */
-.powered-by {
-  position: fixed;
-  bottom: 16px;
-  right: 20px;
-  z-index: 20;
-  font-size: 0.75rem;
-  color: var(--text-dim);
-  text-decoration: none;
-  opacity: 0.6;
-  transition: opacity 0.2s ease, color 0.2s ease;
-}
-
-.powered-by:hover {
-  opacity: 1;
-  color: var(--text-muted);
-}
-
-.powered-by strong {
-  font-weight: 600;
-  color: var(--primary);
-}
-
 /* Safe area insets for notched phones */
 @supports (padding-top: env(safe-area-inset-top)) {
   @media (max-width: 768px) {
-    .auth-card {
-      padding-top: calc(60px + env(safe-area-inset-top));
-      padding-bottom: calc(40px + env(safe-area-inset-bottom));
-    }
-    
     .modal-card {
       padding-top: calc(40px + env(safe-area-inset-top));
       padding-bottom: calc(40px + env(safe-area-inset-bottom));

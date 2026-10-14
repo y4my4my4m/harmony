@@ -59,7 +59,7 @@
     "displayName": "Display name",
     "welcomeBack": "Welcome back",
     "createAccount": "Create an account",
-    "welcomeBackSubtitle": "Log in with your email and password.",
+    "instanceLabel": "Instance",
     "createAccountSubtitle": "You'll choose a username and profile next.",
     "confirmEmailSent": "We sent a confirmation link to {email}. Open it, then log in.",
     "forgotPassword": "Forgot your password?",
@@ -146,7 +146,6 @@
     "sendingResetLink": "Sending reset link…",
     "poweredBy": "Powered by {name}",
     "reset": {
-      "brandSubtitle": "Reset your password to regain access to your account",
       "successTitle": "Password reset",
       "successBody": "Your password has been updated. You can now log in with your new password.",
       "goToLogin": "Go to login",

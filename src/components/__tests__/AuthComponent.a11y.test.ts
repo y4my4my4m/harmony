@@ -52,7 +52,7 @@ vi.mock('@/supabase', () => ({
   setRememberMe: vi.fn(),
   getRememberMe: () => true,
 }))
-vi.mock('@/utils/backgroundUtils', () => ({ getRandomLoginBackground: vi.fn().mockResolvedValue('') }))
+vi.mock('@/utils/backgroundUtils', () => ({ loginBackground: vi.fn().mockReturnValue('') }))
 vi.mock('@/services/AdminService', () => ({ adminService: { getInstanceConfig: vi.fn().mockResolvedValue(null) } }))
 vi.mock('@/services/instanceConfig', () => ({ getStoredInstance: () => null }))
 vi.mock('@/utils/platform', () => ({ isTauriDesktop: () => false }))

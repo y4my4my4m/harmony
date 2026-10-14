@@ -54,7 +54,7 @@
     "displayName": "Anzeigename",
     "welcomeBack": "Willkommen zurück!",
     "createAccount": "Konto erstellen",
-    "welcomeBackSubtitle": "Melde dich mit E-Mail und Passwort an.",
+    "instanceLabel": "Instanz",
     "createAccountSubtitle": "Als Nächstes wählst du einen Benutzernamen und dein Profil.",
     "confirmEmailSent": "Wir haben einen Bestätigungslink an {email} gesendet. Öffne ihn und melde dich dann an.",
     "forgotPassword": "Passwort vergessen?",
@@ -146,7 +146,6 @@
     "sendingResetLink": "Link zum Zurücksetzen wird gesendet…",
     "poweredBy": "Betrieben mit {name}",
     "reset": {
-      "brandSubtitle": "Setze dein Passwort zurück, um wieder Zugriff auf dein Konto zu erhalten",
       "successTitle": "Passwort zurückgesetzt",
       "successBody": "Dein Passwort wurde geändert. Du kannst dich jetzt mit dem neuen Passwort anmelden.",
       "goToLogin": "Zur Anmeldung",

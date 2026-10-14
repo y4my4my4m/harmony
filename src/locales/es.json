@@ -54,7 +54,7 @@
     "displayName": "Nombre para mostrar",
     "welcomeBack": "¡Bienvenido de nuevo!",
     "createAccount": "Crear una cuenta",
-    "welcomeBackSubtitle": "Inicia sesión con tu correo y contraseña.",
+    "instanceLabel": "Instancia",
     "createAccountSubtitle": "A continuación elegirás un nombre de usuario y tu perfil.",
     "confirmEmailSent": "Te enviamos un enlace de confirmación a {email}. Ábrelo y luego inicia sesión.",
     "forgotPassword": "¿Olvidaste tu contraseña?",
@@ -146,7 +146,6 @@
     "sendingResetLink": "Enviando enlace de restablecimiento…",
     "poweredBy": "Funciona con {name}",
     "reset": {
-      "brandSubtitle": "Restablece tu contraseña para recuperar el acceso a tu cuenta",
       "successTitle": "Contraseña restablecida",
       "successBody": "Tu contraseña se ha actualizado. Ya puedes iniciar sesión con la nueva contraseña.",
       "goToLogin": "Ir al inicio de sesión",

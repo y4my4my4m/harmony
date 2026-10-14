@@ -54,7 +54,7 @@
     "displayName": "Nom d'affichage",
     "welcomeBack": "Bon retour !",
     "createAccount": "Créer un compte",
-    "welcomeBackSubtitle": "Connectez-vous avec votre e-mail et votre mot de passe.",
+    "instanceLabel": "Instance",
     "createAccountSubtitle": "Vous choisirez ensuite un nom d'utilisateur et votre profil.",
     "confirmEmailSent": "Nous avons envoyé un lien de confirmation à {email}. Ouvrez-le, puis connectez-vous.",
     "forgotPassword": "Mot de passe oublié ?",
@@ -146,7 +146,6 @@
     "sendingResetLink": "Envoi du lien de réinitialisation…",
     "poweredBy": "Propulsé par {name}",
     "reset": {
-      "brandSubtitle": "Réinitialisez votre mot de passe pour retrouver l’accès à votre compte",
       "successTitle": "Mot de passe réinitialisé",
       "successBody": "Votre mot de passe a été mis à jour. Vous pouvez maintenant vous connecter avec le nouveau mot de passe.",
       "goToLogin": "Aller à la connexion",

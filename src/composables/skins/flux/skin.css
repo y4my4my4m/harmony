@@ -957,7 +957,7 @@
   .theme-panel,
   .unified-voice-dock .dock-container,
   .auth-card,
-  .brand-card
+  .auth-art
 ) {
   border: none;
   background: var(--sm-fill-deep);

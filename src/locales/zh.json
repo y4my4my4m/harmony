@@ -54,7 +54,7 @@
     "displayName": "显示名称",
     "welcomeBack": "欢迎回来！",
     "createAccount": "创建账户",
-    "welcomeBackSubtitle": "使用邮箱和密码登录。",
+    "instanceLabel": "实例",
     "createAccountSubtitle": "接下来你将设置用户名和个人资料。",
     "confirmEmailSent": "我们已向 {email} 发送确认链接。请打开该链接，然后登录。",
     "forgotPassword": "忘记密码？",
@@ -146,7 +146,6 @@
     "sendingResetLink": "正在发送重置链接…",
     "poweredBy": "由 {name} 驱动",
     "reset": {
-      "brandSubtitle": "重置密码以重新访问你的账户",
       "successTitle": "密码已重置",
       "successBody": "你的密码已更新。现在可以使用新密码登录。",
       "goToLogin": "前往登录",

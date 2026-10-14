@@ -1818,16 +1818,10 @@
   --text: var(--pp-ink);
   --text-muted: var(--pp-ink-soft);
   --text-dim: var(--pp-ink-faint);
-  --scrim: transparent;
-  --brand-card-bg: var(--pp-window);
-  --brand-card-border: var(--pp-frame);
   --autofill-bg: var(--pp-window);
   background: transparent;
 }
-:root[data-skin="paper"] .auth-wrapper .bg-gradient-overlay {
-  display: none;
-}
-:root[data-skin="paper"] :is(.auth-card, .brand-card) {
+:root[data-skin="paper"] :is(.auth-card, .auth-art) {
   background: var(--pp-window);
   border: 2px solid var(--pp-frame);
   border-radius: var(--radius-lg);

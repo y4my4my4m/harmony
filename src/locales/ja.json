@@ -54,7 +54,7 @@
     "displayName": "表示名",
     "welcomeBack": "おかえりなさい！",
     "createAccount": "アカウントを作成",
-    "welcomeBackSubtitle": "メールアドレスとパスワードでログインしてください。",
+    "instanceLabel": "インスタンス",
     "createAccountSubtitle": "次にユーザー名とプロフィールを設定します。",
     "confirmEmailSent": "{email} に確認リンクを送信しました。リンクを開いてからログインしてください。",
     "forgotPassword": "パスワードをお忘れですか？",
@@ -146,7 +146,6 @@
     "sendingResetLink": "リセットリンクを送信中…",
     "poweredBy": "Powered by {name}",
     "reset": {
-      "brandSubtitle": "パスワードをリセットしてアカウントへのアクセスを回復します",
       "successTitle": "パスワードをリセットしました",
       "successBody": "パスワードを更新しました。新しいパスワードでログインできます。",
       "goToLogin": "ログインへ",
