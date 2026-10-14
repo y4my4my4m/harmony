@@ -1491,6 +1491,10 @@
       "bridgeSourceBadgeText": "Textlabel (DISCORD)",
       "floatingVideo": "Schwebendes Video-Player",
       "floatingVideoDesc": "Abgespielte Videos schweben in die Ecke, wenn wegscrollt wird. Funktioniert mit YouTube und nativen Videos.",
+      "videoPlayer": "Videoplayer",
+      "videoPlayerDesc": "Der Player von Harmony oder die Steuerung des Browsers.",
+      "videoPlayerHarmony": "Harmony",
+      "videoPlayerNative": "Browser-Standard",
       "highContrast": "Hoher Kontrast",
       "highContrastDesc": "Kontrast für bessere Sichtbarkeit erhöhen.",
       "reduceMotion": "Bewegung reduzieren",
@@ -6251,5 +6255,21 @@
       "white": "Weiß",
       "black": "Schwarz"
     }
+  },
+  "videoPlayer": {
+    "player": "Videoplayer",
+    "play": "Abspielen",
+    "pause": "Pause",
+    "replay": "Erneut abspielen",
+    "mute": "Stummschalten",
+    "unmute": "Ton an",
+    "volume": "Lautstärke",
+    "seek": "Suchen",
+    "seekValue": "{current} von {total}",
+    "speed": "Wiedergabegeschwindigkeit {rate}×",
+    "pip": "Bild im Bild",
+    "exitPip": "Bild im Bild beenden",
+    "fullscreen": "Vollbild",
+    "exitFullscreen": "Vollbild beenden"
   }
 }

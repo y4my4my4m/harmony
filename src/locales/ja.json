@@ -1491,6 +1491,10 @@
       "bridgeSourceBadgeText": "テキストラベル（DISCORD）",
       "floatingVideo": "フローティング動画プレーヤー",
       "floatingVideoDesc": "スクロールすると再生中の動画が隅に移動します。YouTubeとネイティブ動画で動作します。",
+      "videoPlayer": "ビデオプレーヤー",
+      "videoPlayerDesc": "Harmony のプレーヤー、またはブラウザ標準のコントロール。",
+      "videoPlayerHarmony": "Harmony",
+      "videoPlayerNative": "ブラウザの既定",
       "highContrast": "ハイコントラスト",
       "highContrastDesc": "視認性を向上させるためにコントラストを増やします。",
       "reduceMotion": "モーション削減",
@@ -6251,5 +6255,21 @@
       "white": "白",
       "black": "黒"
     }
+  },
+  "videoPlayer": {
+    "player": "ビデオプレーヤー",
+    "play": "再生",
+    "pause": "一時停止",
+    "replay": "もう一度再生",
+    "mute": "ミュート",
+    "unmute": "ミュート解除",
+    "volume": "音量",
+    "seek": "シーク",
+    "seekValue": "{total} 中 {current}",
+    "speed": "再生速度 {rate}×",
+    "pip": "ピクチャー・イン・ピクチャー",
+    "exitPip": "ピクチャー・イン・ピクチャーを終了",
+    "fullscreen": "全画面表示",
+    "exitFullscreen": "全画面表示を終了"
   }
 }

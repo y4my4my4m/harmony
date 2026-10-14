@@ -86,13 +86,15 @@ test('failed previews show no card; video answers and og:video play', async ({ p
   await expect(row('legacy')).not.toContainText('Blocked protocol')
 
   await expect(row('reel').locator('video')).toHaveAttribute('src', VIDEO)
-  await expect(row('reel').locator('video')).toHaveAttribute('controls', '')
+  // A player, not a looping GIF: Harmony's controls are over it.
+  await expect(row('reel').getByTestId('video-controls')).toHaveCount(1)
   await expect(row('reel').locator('.provider-embed')).toHaveCount(0)
 
   const card = row('tweet').locator('.link-embed-card')
   await expect(card).toContainText('someone (@someone)')
   await expect(card).toContainText('vxTwitter / fixvx')
   await expect(card.locator('video')).toHaveAttribute('src', VIDEO)
+  await expect(card.getByTestId('video-controls')).toHaveCount(1)
 
   await expect(row('cdnclip').locator('video')).toHaveCount(1)
   await expect(row('cdnclip').locator('video')).toHaveAttribute('src', CDN_CLIP)

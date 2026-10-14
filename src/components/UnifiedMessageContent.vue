@@ -260,12 +260,13 @@
             <div class="media-frame">
               <video
                 :src="part.url"
-                controls
+                :controls="nativeVideoControls"
                 class="content-video"
                 preload="metadata"
                 @play="handleVideoPlay"
                 @error="onAttachmentMediaError(part.url)"
               ></video>
+              <VideoControls v-if="!nativeVideoControls" />
               <button
                 v-if="floatingVideos.canPopOut(partIndex)"
                 type="button"
@@ -357,11 +358,12 @@
             <div class="media-frame">
               <video
                 :src="embedMedia(part)!.url"
-                controls
+                :controls="nativeVideoControls"
                 playsinline
                 class="content-video"
                 preload="metadata"
               ></video>
+              <VideoControls v-if="!nativeVideoControls" />
             </div>
           </div>
           <ProviderEmbedSwitch
@@ -479,7 +481,7 @@
             />
             <video
               :src="mediaSrc(part)"
-              controls
+              :controls="nativeVideoControls"
               class="content-video"
               preload="metadata"
               :aria-label="part.altText || undefined"
@@ -488,6 +490,7 @@
               @play="handleVideoPlay"
               @error="onAttachmentMediaError(part.url, part)"
             ></video>
+            <VideoControls v-if="!nativeVideoControls && !isHiddenSpoiler(part)" :label="part.altText || part.fileName || undefined" />
             <button
               v-if="isHiddenSpoiler(part)"
               type="button"
@@ -679,6 +682,8 @@ import MessageMediaGallery from '@/components/common/MessageMediaGallery.vue';
 import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.vue';
 import MediaUploadProgress from '@/components/common/MediaUploadProgress.vue';
 import Icon from '@/components/common/Icon.vue';
+import VideoControls from '@/components/common/VideoControls.vue';
+import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import PollCard from '@/components/polls/PollCard.vue';
 import { groupMediaGalleryParts } from '@/utils/mediaGalleryUtils';
@@ -731,6 +736,7 @@ export default defineComponent({
     EncryptedGlyphPreview,
     Icon,
     PollCard,
+    VideoControls,
   },
   props: {
     content: {
@@ -808,6 +814,7 @@ export default defineComponent({
   },
   emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'embed-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click', 'decrypt-message', 'remove-attachment'],
   setup(props, { emit }) {
+    const nativeVideoControls = useNativeVideoControls();
     const localEditableContent = ref(props.editableContent);
     // Attachments retained while editing. Seeded from the message's file parts
     // when edit mode opens, removable individually, merged back on save.
@@ -1534,6 +1541,7 @@ export default defineComponent({
 
     return {
       rootRef,
+      nativeVideoControls,
       onTextKeydown,
       imageAltText,
       channelMentionHref,

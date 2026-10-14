@@ -75,23 +75,25 @@
       </button>
 
       <!-- Video / GIFV played in place (a single video) -->
-      <video
-        v-else-if="isVideoMedia(media)"
-        :src="media.url"
-        :poster="media.preview_url"
-        class="media-video"
-        :style="coverStyle(media)"
-        :controls="media.type !== 'gifv'"
-        preload="metadata"
-        :loop="media.type === 'gifv'"
-        :autoplay="media.type === 'gifv'"
-        :muted="media.type === 'gifv'"
-        :aria-label="mediaName(media)"
-        @error="handleVideoError"
-      >
-        <source :src="media.url" :type="media.mime_type || 'video/mp4'">
-        {{ t('a11y.lightbox.videoUnsupported') }}
-      </video>
+      <template v-else-if="isVideoMedia(media)">
+        <video
+          :src="media.url"
+          :poster="media.preview_url"
+          class="media-video"
+          :style="coverStyle(media)"
+          :controls="media.type !== 'gifv' && nativeVideoControls"
+          preload="metadata"
+          :loop="media.type === 'gifv'"
+          :autoplay="media.type === 'gifv'"
+          :muted="media.type === 'gifv'"
+          :aria-label="mediaName(media)"
+          @error="handleVideoError"
+        >
+          <source :src="media.url" :type="media.mime_type || 'video/mp4'">
+          {{ t('a11y.lightbox.videoUnsupported') }}
+        </video>
+        <VideoControls v-if="media.type !== 'gifv' && !nativeVideoControls" :label="mediaName(media)" />
+      </template>
 
       <!-- Audio -->
       <div v-else-if="media.type === 'audio'" class="media-audio">
@@ -167,6 +169,8 @@ import { useI18n } from 'vue-i18n';
 import { debug } from '@/utils/debug'
 import type { MediaAttachment } from '@/types';
 import Icon from '@/components/common/Icon.vue';
+import VideoControls from '@/components/common/VideoControls.vue';
+import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 import MonyMediaLightbox from './MonyMediaLightbox.vue';
 import { downloadMediaFromUrl, filenameFromUrl } from '@/utils/downloadMedia';
 import { attachmentObjectPosition } from '@/utils/focalPoint';
@@ -182,6 +186,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const { t } = useI18n();
+const nativeVideoControls = useNativeVideoControls();
 
 // State
 const galleryRef = ref<HTMLElement | null>(null);

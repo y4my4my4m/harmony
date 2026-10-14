@@ -16,11 +16,12 @@
       <video
         :src="payload.video.url"
         :poster="payload.image"
-        controls
+        :controls="nativeVideoControls"
         playsinline
         preload="metadata"
         @loadedmetadata="handleImageLoad"
       ></video>
+      <VideoControls v-if="!nativeVideoControls" :label="payload.title || undefined" />
     </div>
     <div v-else-if="payload.image && variant !== 'compact'" class="link-embed-card__media">
       <img
@@ -48,6 +49,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import type { EmbedPayload } from '@/types';
+import VideoControls from '@/components/common/VideoControls.vue';
+import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 
 const props = withDefaults(
   defineProps<{
@@ -78,6 +81,7 @@ const emit = defineEmits<{
 
 // Starts loaded when no image will paint (no payload image, or the compact
 // variant), so the parent's load listener fires without waiting.
+const nativeVideoControls = useNativeVideoControls();
 const imageLoaded = ref((!props.payload.image && !props.payload.video?.url) || props.variant === 'compact');
 
 // Media-first layout (Discord-style): a playable video, or an image with no

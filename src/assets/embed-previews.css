@@ -602,6 +602,10 @@ a:hover > .link-embed-card--thumbnail,
   object-fit: contain;
 }
 
+.link-embed-card__media--video {
+  position: relative;
+}
+
 .link-embed-card__media--video video {
   display: block;
   width: 100%;

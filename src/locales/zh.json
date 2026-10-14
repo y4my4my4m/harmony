@@ -1491,6 +1491,10 @@
       "bridgeSourceBadgeText": "文字标签（DISCORD）",
       "floatingVideo": "浮动视频播放器",
       "floatingVideoDesc": "滚动时播放的视频会浮动到角落。适用于 YouTube 和原生视频。",
+      "videoPlayer": "视频播放器",
+      "videoPlayerDesc": "Harmony 播放器，或浏览器自带的控件。",
+      "videoPlayerHarmony": "Harmony",
+      "videoPlayerNative": "浏览器默认",
       "highContrast": "高对比度",
       "highContrastDesc": "增加对比度以提高可见性。",
       "reduceMotion": "减少动画",
@@ -6251,5 +6255,21 @@
       "white": "白色",
       "black": "黑色"
     }
+  },
+  "videoPlayer": {
+    "player": "视频播放器",
+    "play": "播放",
+    "pause": "暂停",
+    "replay": "重新播放",
+    "mute": "静音",
+    "unmute": "取消静音",
+    "volume": "音量",
+    "seek": "进度",
+    "seekValue": "{current} / {total}",
+    "speed": "播放速度 {rate}×",
+    "pip": "画中画",
+    "exitPip": "退出画中画",
+    "fullscreen": "全屏",
+    "exitFullscreen": "退出全屏"
   }
 }

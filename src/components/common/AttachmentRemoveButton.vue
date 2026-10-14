@@ -28,20 +28,23 @@ defineEmits<{ click: [] }>();
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  /* Same box as .floating-video-popout beside it. */
+  width: 30px;
+  height: 30px;
   padding: 0;
-  border: none;
-  border-radius: 4px;
-  background: #f23f43;
-  color: #fff;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 8px;
+  background: rgb(12 14 20 / 0.72);
+  color: #ff7a7d;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s ease, background-color 0.15s ease;
+  transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
 
 .attachment-remove-btn:hover {
-  background: #d83438;
+  background: #f23f43;
+  border-color: #f23f43;
+  color: #fff;
 }
 
 .media-frame:hover > .attachment-remove-btn,

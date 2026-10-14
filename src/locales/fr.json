@@ -1491,6 +1491,10 @@
       "bridgeSourceBadgeText": "Libellé texte (DISCORD)",
       "floatingVideo": "Lecteur vidéo flottant",
       "floatingVideoDesc": "Les vidéos en lecture flottent dans le coin lors du défilement. Fonctionne avec YouTube et les vidéos natives.",
+      "videoPlayer": "Lecteur vidéo",
+      "videoPlayerDesc": "Le lecteur de Harmony ou les commandes du navigateur.",
+      "videoPlayerHarmony": "Harmony",
+      "videoPlayerNative": "Par défaut du navigateur",
       "highContrast": "Contraste élevé",
       "highContrastDesc": "Augmenter le contraste pour une meilleure visibilité.",
       "reduceMotion": "Réduire les mouvements",
@@ -6251,5 +6255,21 @@
       "white": "Blanc",
       "black": "Noir"
     }
+  },
+  "videoPlayer": {
+    "player": "Lecteur vidéo",
+    "play": "Lire",
+    "pause": "Pause",
+    "replay": "Relire",
+    "mute": "Couper le son",
+    "unmute": "Rétablir le son",
+    "volume": "Volume",
+    "seek": "Position",
+    "seekValue": "{current} sur {total}",
+    "speed": "Vitesse de lecture {rate}×",
+    "pip": "Image dans l'image",
+    "exitPip": "Quitter l'image dans l'image",
+    "fullscreen": "Plein écran",
+    "exitFullscreen": "Quitter le plein écran"
   }
 }
