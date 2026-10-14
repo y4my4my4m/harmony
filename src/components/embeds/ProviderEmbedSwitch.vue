@@ -86,6 +86,13 @@
         </template>
         <LinkEmbedCard v-else :payload="payload" @load="handleEmbedLoad" />
       </template>
+      <MusicEmbed
+        v-else-if="music"
+        :embed="music"
+        :title="iframeTitle"
+        :artwork="payload.image || null"
+        @load="handleEmbedLoad"
+      />
       <div
         v-else-if="youtubeEmbedUrl"
         class="provider-embed__media provider-embed__media--video"
@@ -100,16 +107,6 @@
           frameborder="0"
           allowfullscreen
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          loading="lazy"
-          @load="handleEmbedLoad"
-        ></iframe>
-      </div>
-      <div v-else-if="spotifyEmbedUrl" class="provider-embed__media provider-embed__media--spotify">
-        <iframe
-          :src="spotifyEmbedUrl"
-          :title="iframeTitle"
-          frameborder="0"
-          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
           loading="lazy"
           @load="handleEmbedLoad"
         ></iframe>
@@ -174,10 +171,12 @@ import { debug } from '@/utils/debug'
 // `TimelinePost` is already imported in the module-scope <script lang="ts">
 // block above for the cache helpers; re-importing it here is a TS duplicate.
 import type { EmbedPayload } from '@/types';
-import { parseEmbedUrl, buildYouTubePlayerSrc, buildSpotifyEmbedUrl, isYouTubePlayerOrigin, isYouTubeShort } from '@/utils/embedDetection';
+import { parseEmbedUrl, buildYouTubePlayerSrc, isYouTubePlayerOrigin, isYouTubeShort } from '@/utils/embedDetection';
 import { useFloatingVideo } from '@/composables/useFloatingVideo';
 import MonyPost from '@/components/activitypub/MonyPost.vue';
 import LinkEmbedCard from './LinkEmbedCard.vue';
+import MusicEmbed from '@/components/embeds/MusicEmbed.vue';
+import { musicEmbedFor, musicProviderLabel } from '@/utils/musicEmbeds';
 import { isEmptyPreview } from '@/utils/embedPreview';
 import ServerInviteCard from './ServerInviteCard.vue';
 import { runtimeConfig } from '@/services/runtimeConfig';
@@ -240,7 +239,16 @@ const inviteCode = computed(() => {
 // Frame name: the embed's title, else its provider ("YouTube", "Spotify").
 const iframeTitle = computed(() => props.payload.title?.trim() || providerLabel.value);
 
-const emptyPreview = computed(() => isEmptyPreview(props.payload));
+// A music service's player, chosen by the link; previews that failed still get one.
+const music = computed(() => musicEmbedFor(props.payload.url, {
+  provider: props.payload.provider,
+  canonicalUrl: props.payload.canonicalUrl,
+  player: props.payload.player,
+}) ?? (props.payload.normalizedUrl && props.payload.normalizedUrl !== props.payload.url
+  ? musicEmbedFor(props.payload.normalizedUrl, { provider: props.payload.provider, player: props.payload.player })
+  : null));
+
+const emptyPreview = computed(() => !music.value && isEmptyPreview(props.payload));
 const isHarmony = computed(() => props.payload.provider === 'harmony-post');
 const isFediverse = computed(() => props.payload.provider === 'fediverse-post');
 const providerLabel = computed(() => {
@@ -264,10 +272,8 @@ const providerLabel = computed(() => {
     }
     case 'youtube':
       return 'YouTube';
-    case 'spotify':
-      return 'Spotify';
     default:
-      return 'Link Preview';
+      return music.value ? musicProviderLabel(music.value.provider) : 'Link Preview';
   }
 });
 
@@ -283,13 +289,6 @@ const youtubeEmbedUrl = computed(() => {
 // A Short plays portrait; the floating player takes the frame's shape from this box.
 const youtubeShort = computed(() => isYouTubeShort(props.payload.url) || isYouTubeShort(props.payload.normalizedUrl));
 
-const spotifyEmbedUrl = computed(() => {
-  if (props.payload.provider !== 'spotify') return null;
-  const normalized = props.payload.normalizedUrl || props.payload.url;
-  const parsed = parseEmbedUrl(normalized);
-  if (!parsed) return null;
-  return buildSpotifyEmbedUrl(parsed);
-});
 
 onMounted(() => {
   if (isHarmony.value) {

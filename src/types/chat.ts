@@ -262,7 +262,9 @@ export interface UrlContent {
   embedId?: string;
 }
 
-export type EmbedProvider = 'harmony-post' | 'harmony-invite' | 'fediverse-post' | 'youtube' | 'spotify' | 'generic';
+export type EmbedProvider =
+  | 'harmony-post' | 'harmony-invite' | 'fediverse-post' | 'youtube' | 'spotify' | 'generic'
+  | 'soundcloud' | 'apple-music' | 'bandcamp' | 'deezer' | 'tidal' | 'reddit';
 
 export interface FediverseEmbedSummary {
   authorName: string;
@@ -323,6 +325,10 @@ export interface EmbedPayload {
   video?: { url: string; type?: string; width?: number; height?: number };
   /** The page could not be read; no card renders. */
   failed?: boolean;
+  /** Where a short link led (music services). */
+  canonicalUrl?: string;
+  /** The provider's player page, from the server's preview. */
+  player?: { url: string; height?: number };
   harmony?: HarmonyEmbedSummary;
   fediverse?: FediverseEmbedSummary;
   oEmbed?: Record<string, any>;

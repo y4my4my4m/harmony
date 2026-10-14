@@ -219,6 +219,16 @@
             :is-sensitive="displayIsSensitive"
           />
 
+          <!-- Music services' own players. -->
+          <MusicEmbed
+            v-for="item in musicEmbeds"
+            :key="`music-${item.url}`"
+            class="post-music-embed"
+            :embed="item.embed"
+            :title="item.title || item.url"
+            :artwork="item.image || null"
+          />
+
           <!-- Link preview cards. Variant is `thumbnail` (small horizontal
                card) when the post also has a media attachment, so we don't
                visually double the dominant image. Otherwise `default` (big
@@ -743,6 +753,8 @@ import type { TimelinePost, DisplayNamePart } from '@/types';
 // Components
 import MonyContent from './MonyContent.vue';
 import LinkEmbedCard from '@/components/embeds/LinkEmbedCard.vue';
+import MusicEmbed from '@/components/embeds/MusicEmbed.vue';
+import { musicEmbedFor } from '@/utils/musicEmbeds';
 import { parseEmbedUrl, isYouTubeUrl } from '@/utils/embedDetection';
 import Icon from '@/components/common/Icon.vue';
 import AppTimestamp from '@/components/a11y/AppTimestamp.vue';
@@ -1189,8 +1201,14 @@ const isInlineRichEmbed = (embed: { url: string; provider?: string }): boolean =
   return !!parsed && isYouTubeUrl(parsed);
 };
 
+const musicFor = (embed: { url: string; provider?: string; canonicalUrl?: string; player?: { url: string; height?: number } }) =>
+  embed?.url ? musicEmbedFor(embed.url, { provider: embed.provider, canonicalUrl: embed.canonicalUrl, player: embed.player }) : null;
+
 const inlineRichEmbeds = computed(() => postEmbeds.value.filter(isInlineRichEmbed));
-const cardEmbeds = computed(() => postEmbeds.value.filter((e) => !isInlineRichEmbed(e)));
+const musicEmbeds = computed(() => postEmbeds.value
+  .map((e: any) => ({ url: e.url as string, title: e.title as string | undefined, image: e.image as string | undefined, embed: musicFor(e) }))
+  .filter((e): e is { url: string; title: string | undefined; image: string | undefined; embed: NonNullable<ReturnType<typeof musicFor>> } => !!e.embed));
+const cardEmbeds = computed(() => postEmbeds.value.filter((e) => !isInlineRichEmbed(e) && !musicFor(e as any)));
 
 // When the post also has a media attachment, render link cards in the
 // `thumbnail` variant: a fixed-size horizontal card with a small image on
@@ -2604,6 +2622,10 @@ const closeLightbox = () => {
   max-width: 120px;
   vertical-align: -0.2em;
   margin: 0 1px;
+}
+
+.post-music-embed {
+  margin-top: var(--space-3);
 }
 
 .post-link-preview {
