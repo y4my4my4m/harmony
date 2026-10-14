@@ -18,6 +18,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from './useServerChannel';
 import { useSoundboardStore } from './soundboard';
+import { useActivitiesStore } from '@/stores/activities';
 import type { SoundboardTransportEvent } from '@/services/soundboard/protocol';
 import { setCallServiceActive } from '@/services/callForegroundService';
 import { syncOverlayForCall } from '@/services/overlayBridge';
@@ -1736,6 +1737,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
       webrtcManager.on('soundboard', (event: SoundboardTransportEvent) => {
         void useSoundboardStore().receive(event);
+      });
+
+      webrtcManager.on('activity', (event: { userId: string; message: unknown }) => {
+        useActivitiesStore().receivePeer(event);
       });
     },
 

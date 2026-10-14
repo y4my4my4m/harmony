@@ -110,6 +110,7 @@ class WebRTCManagerService implements WebRTCManager {
       'e2ee-status-changed',
       'live-reaction',
       'soundboard',
+      'activity',
     ];
     
     for (const event of eventsToForward) {
@@ -624,6 +625,11 @@ class WebRTCManagerService implements WebRTCManager {
 
   liveReactionUserId(wireId: string): string | null {
     return this.activeService === 'livekit' ? livekitWebRTC.liveReactionUserId(wireId) : null;
+  }
+
+  /** Sends an activity state on the LiveKit data channel; P2P calls read the row instead. */
+  sendActivity(message: unknown): void {
+    if (this.activeService === 'livekit') livekitWebRTC.sendActivity(message);
   }
 
   /** Sends a soundboard play to everyone in the call on the active transport. */

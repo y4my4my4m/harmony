@@ -111,6 +111,7 @@ vi.mock('@/stores/unifiedVoiceChannel', () => {
   }
 })
 vi.mock('@/stores/useTheme', () => ({ useThemeStore: () => ({ playAudio: vi.fn() }) }))
+vi.mock('@/stores/activities', () => ({ useActivitiesStore: () => ({ byChannel: {}, refreshServer: vi.fn() }) }))
 vi.mock('@/stores/useChannelEncryption', () => ({ useChannelEncryptionStore: () => ({ loadServer: vi.fn(), stateFor: () => null }) }))
 vi.mock('@/stores/useChat', () => ({ useChatStore: () => ({ prefetchChannelMessages: vi.fn() }) }))
 vi.mock('@/services/StatePersistence', () => ({

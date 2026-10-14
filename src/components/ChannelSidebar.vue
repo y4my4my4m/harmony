@@ -142,6 +142,10 @@
                 <ChatBubbleIcon aria-hidden="true" />
               </button>
             </div>
+            <VoiceActivityLine
+              v-if="isVoiceType(element.type) && activitiesStore.byChannel[element.id]"
+              :activity="activitiesStore.byChannel[element.id]!"
+            />
             <VoiceChannelParticipants
               v-if="isVoiceType(element.type) && isUserInVoiceChannel(element.id)"
               :participants="getVoiceChannelParticipants(element.id)"
@@ -319,6 +323,10 @@
                       <ChatBubbleIcon aria-hidden="true" />
                     </button>
                   </div>
+                  <VoiceActivityLine
+                    v-if="isVoiceType(channel.type) && activitiesStore.byChannel[channel.id]"
+                    :activity="activitiesStore.byChannel[channel.id]!"
+                  />
                   <VoiceChannelParticipants
                     v-if="isVoiceType(channel.type) && isUserInVoiceChannel(channel.id)"
                     :participants="getVoiceChannelParticipants(channel.id)"
@@ -504,6 +512,8 @@ import CategoryCreator from './CategoryCreator.vue';
 import InviteModal from './InviteModal.vue';
 import VoiceChannelParticipants from '@/components/voice/VoiceChannelParticipants.vue';
 import VoiceChannelUserList from '@/components/voice/VoiceChannelUserList.vue';
+import VoiceActivityLine from '@/components/activities/VoiceActivityLine.vue';
+import { useActivitiesStore } from '@/stores/activities';
 import MobileVoiceChannelPreview from '@/components/voice/MobileVoiceChannelPreview.vue';
 import ChannelContextMenu from './ChannelContextMenu.vue';
 import CategoryContextMenu from './CategoryContextMenu.vue';
@@ -636,6 +646,10 @@ const frozenCategoryChannels = ref<Map<string, Channel[]>>(new Map());
 
 // Stores and Composables
 const serverChannelStore = useServerChannelStore();
+const activitiesStore = useActivitiesStore();
+watch(() => serverChannelStore.currentServerId, (id) => {
+  if (id && id !== 'dm') void activitiesStore.refreshServer(id);
+}, { immediate: true });
 const router = useRouter();
 const route = useRoute();
 const serverUsersStore = useServerUsersStore();

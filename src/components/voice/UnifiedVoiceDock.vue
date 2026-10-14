@@ -31,6 +31,7 @@
           @open="openFocused"
         />
         <SoundboardActivity class="dock-soundboard-activity" />
+        <ActivityDockCard v-if="dockActivity" :activity="dockActivity" />
       </div>
       <!-- Tapping expands to overlay on viewports <= 480px -->
       <div 
@@ -155,6 +156,20 @@
           :aria-expanded="showReactions"
         >
           <Icon name="smile-plus" />
+        </button>
+
+        <button
+          v-if="activityButton.available.value"
+          ref="dockActivityButtonRef"
+          @click="activityButton.toggle"
+          :class="['control-btn', 'activity-btn', { active: activityButton.visible.value || activityButton.running.value }]"
+          :title="t('activities.title')"
+          :aria-label="t('activities.title')"
+          aria-haspopup="dialog"
+          :aria-expanded="activityButton.visible.value"
+          data-testid="activity-button"
+        >
+          <Icon name="popcorn" />
         </button>
 
         <button
@@ -444,6 +459,12 @@
       @close="showReactions = false"
     />
 
+    <ActivityLauncher
+      v-if="activityButton.visible.value"
+      :anchor="activityButton.anchor.value"
+      @close="activityButton.close"
+    />
+
     <SoundboardPopover
       v-if="currentMode !== 'overlay' && soundboardButton.visible.value"
       :visible="soundboardButton.visible.value"
@@ -499,6 +520,10 @@ import LiveReactionPopover from './LiveReactionPopover.vue';
 import type { LiveReactionTarget } from '@/services/voice/liveReactions';
 import { useDockVideoStrip } from './useDockVideoStrip';
 import { useSoundboardButton } from './useSoundboardButton';
+import { useActivityButton } from '@/components/activities/useActivityButton';
+import { useActivitiesStore } from '@/stores/activities';
+import ActivityDockCard from '@/components/activities/ActivityDockCard.vue';
+import ActivityLauncher from '@/components/activities/ActivityLauncher.vue';
 import { showsMinimizedAudioControls } from './minimizedVoiceControls';
 import { userPanelDocked } from '@/composables/useUserPanelDock';
 import type { Rect } from './voiceMenuModel';
@@ -786,6 +811,11 @@ const streamPickerAnchor = ref<Rect | null>(null);
 
 const dockSoundboardButtonRef = ref<HTMLButtonElement | null>(null);
 const soundboardButton = useSoundboardButton(dockSoundboardButtonRef);
+const dockActivityButtonRef = ref<HTMLButtonElement | null>(null);
+const activityButton = useActivityButton(dockActivityButtonRef);
+const activitiesStore = useActivitiesStore();
+// The dock card shows while the overlay is closed; the overlay shows the stage instead.
+const dockActivity = computed(() => (currentMode.value === 'dock' && activitiesStore.playingHere ? activitiesStore.current : null));
 
 const closeStreamPicker = () => {
   showStreamPicker.value = false;
