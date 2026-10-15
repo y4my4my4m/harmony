@@ -208,8 +208,10 @@ Open **Server settings** → **Bans** (needs **Ban Members**). Each entry shows 
 
 A timed-out member, until the timeout ends:
 
-- cannot send or edit messages in the server's channels and threads, even with AutoMod switched off ("You are timed out in this server until … and cannot send messages.");
-- cannot join the server's voice channels.
+- cannot send or edit messages in the server's channels and threads, even with AutoMod switched off ("You are timed out in this server until … and cannot send messages, react or start threads.");
+- cannot add a reaction, or join one someone else added;
+- cannot start a thread;
+- cannot join the server's voice channels, and is removed from the one they are in when the timeout starts.
 
 They can still read, and delete their own messages. Their direct messages are not affected.
 

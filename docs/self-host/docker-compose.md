@@ -196,6 +196,7 @@ case-sensitively.
 | `/servers/...` | federation server | Servers as ActivityPub Groups |
 | `/posts/ID`, `/posts/ID/likes`, `/posts/ID/shares`, `/posts/ID/replies` | federation server | `/posts/ID` answers ActivityPub JSON or an HTML page with OpenGraph tags |
 | `/messages/UUID` | federation server | Chat and direct message `Note`s; 406 without an ActivityPub `Accept` |
+| `/threads/UUID`, `/threads/UUID/members`, `/channels/UUID/threads` | federation server | Chat threads as `ChatThread`s; 406 without an ActivityPub `Accept` |
 | `/invite/CODE` from a link-preview crawler | federation server | Decided by `User-Agent`; everyone else gets the web app |
 | `/social/post/UUID` with an ActivityPub `Accept`, or from a link-preview crawler | federation server, rewritten to `/posts/UUID` | Everyone else gets the web app |
 | `/health...`, `/link-preview...` | federation server | Prefixes without a trailing slash |

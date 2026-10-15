@@ -179,6 +179,20 @@ Spatial audio places each participant around you on a 2D map, so voices come fro
 
 Harmony remembers whether spatial audio is on. Stream sound is not positioned.
 
+## Moderate a voice channel
+
+Members with the right permissions moderate others in voice from the participant menu (right-click a participant in the call or in the channel list, or open it with the keyboard). Each action needs the member to rank below you, as kicks and bans do.
+
+| Action | Permission | What it does |
+|---|---|---|
+| **Server mute** | Mute Members | Turns the member's microphone and soundboard off in every voice channel of the server until you lift it. Their own mute button shows it is locked. |
+| **Server deafen** | Deafen Members | The member hears nothing and their microphone is off until you lift it. |
+| **Move to** | Move Members | Moves the member to another voice channel. You can also drag them onto a voice channel in the channel list. |
+| **Disconnect** | Move Members | Removes the member from voice. |
+| **Kick**, **Ban** | Kick Members, Ban Members | Opens the kick or ban dialog; the member leaves voice at once. |
+
+A member without **Video & Stream** in a channel cannot turn on the camera or share the screen there; without **Speak** they join as a listener. On calls that connect peer to peer rather than through the instance's voice server, the member's own app applies these.
+
 ## Call someone from direct messages
 
 1. Open the conversation.
