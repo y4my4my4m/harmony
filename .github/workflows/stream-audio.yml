@@ -66,26 +66,54 @@ jobs:
           PLIST
           codesign --force -s - "$app"
 
+      # ToneWindow is launched through LaunchServices, so it is its own responsible process, as
+      # an app the user opens is. afplay and the probe share the runner's responsibility.
       - name: System scope (macOS)
         if: ${{ !cancelled() && runner.os == 'macOS' }}
         working-directory: src-tauri
         run: |
-          afplay "$RUNNER_TEMP/tone-440-long.wav" & player=$!
-          sleep 1
-          code=0; target/debug/examples/probe system || code=$?
-          kill $player 2>/dev/null || true
+          open -n "$RUNNER_TEMP/ToneWindow.app" --args native "Harmony probe system" "$RUNNER_TEMP/tone-440.wav"
+          sleep 4
+          code=0; target/debug/examples/probe --expect-hz 440 system || code=$?
+          pkill -x ToneWindow || true
           echo "probe exit $code"; exit $code
 
-      - name: App scope, afplay by pid (macOS)
+      - name: System scope, afplay (macOS, diagnostic)
         if: ${{ !cancelled() && runner.os == 'macOS' }}
+        continue-on-error: true
         working-directory: src-tauri
         run: |
           afplay "$RUNNER_TEMP/tone-440-long.wav" & player=$!
+          ( for _ in $(seq 1 10); do afplay /System/Library/Sounds/Submarine.aiff || true; done ) & loop=$!
+          sleep 1
+          code=0; target/debug/examples/probe system || code=$?
+          kill $player $loop 2>/dev/null || true; pkill -x afplay || true
+          echo "probe exit $code"; exit $code
+
+      - name: App scope by pid (macOS)
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
+        working-directory: src-tauri
+        run: |
+          open -n "$RUNNER_TEMP/ToneWindow.app" --args native "Harmony probe app" "$RUNNER_TEMP/tone-440.wav"
           afplay "$RUNNER_TEMP/tone-1000-long.wav" & distractor=$!
+          sleep 4
+          pid=$(pgrep -n -x ToneWindow)
+          code=0; target/debug/examples/probe --expect-hz 440 app "$pid" || code=$?
+          pkill -x ToneWindow || true; kill $distractor 2>/dev/null || true
+          echo "probe exit $code"; exit $code
+
+      # A process without a window-server connection is no SCRunningApplication, so an
+      # including content filter cannot name it.
+      - name: App scope, afplay by pid (macOS, diagnostic)
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
+        continue-on-error: true
+        working-directory: src-tauri
+        run: |
+          afplay "$RUNNER_TEMP/tone-440-long.wav" & player=$!
           sleep 1
           target/debug/examples/probe list afplay
-          code=0; target/debug/examples/probe --expect-hz 440 app $player || code=$?
-          kill $player $distractor 2>/dev/null || true
+          code=0; target/debug/examples/probe --seconds 3 app $player || code=$?
+          kill $player 2>/dev/null || true
           echo "probe exit $code"; exit $code
 
       - name: Window scope, native player (macOS)
@@ -95,11 +123,11 @@ jobs:
           open -n "$RUNNER_TEMP/ToneWindow.app" --args native "Harmony probe window" "$RUNNER_TEMP/tone-440.wav"
           afplay "$RUNNER_TEMP/tone-1000-long.wav" & distractor=$!
           sleep 4
-          target/debug/examples/probe list ToneWindow
           code=0; target/debug/examples/probe --expect-hz 440 window "Harmony probe window" || code=$?
           pkill -x ToneWindow || true; kill $distractor 2>/dev/null || true
           echo "probe exit $code"; exit $code
 
+      # WebKit renders the page's audio in its GPU process, an XPC service of the host app.
       - name: Window scope, WKWebView page (macOS)
         if: ${{ !cancelled() && runner.os == 'macOS' }}
         working-directory: src-tauri
@@ -112,22 +140,47 @@ jobs:
           pkill -x ToneWindow || true; kill $distractor 2>/dev/null || true
           echo "probe exit $code"; exit $code
 
-      # The tester's case: a browser window whose page plays audio.
+      # The tester's case: a browser window whose page plays audio. Chrome renders it in its
+      # audio service, a helper process. `open` runs in the background: it can wait on a
+      # first-launch check.
       - name: Window scope, Google Chrome (macOS)
         if: ${{ !cancelled() && runner.os == 'macOS' }}
+        timeout-minutes: 5
         working-directory: src-tauri
         run: |
-          test -d "/Applications/Google Chrome.app" || { echo "::error::Google Chrome is not installed"; exit 1; }
+          chrome="/Applications/Google Chrome.app"
+          test -d "$chrome" || { echo "::error::Google Chrome is not installed"; exit 1; }
+          xattr "$chrome" || true
+          sudo xattr -dr com.apple.quarantine "$chrome" || true
           open -na "Google Chrome" --args --user-data-dir="$RUNNER_TEMP/chrome" --no-first-run \
-            --no-default-browser-check --use-mock-keychain --password-store=basic \
-            --autoplay-policy=no-user-gesture-required --new-window "file://$RUNNER_TEMP/tone.html"
+            --no-default-browser-check --use-mock-keychain --autoplay-policy=no-user-gesture-required \
+            --new-window "file://$RUNNER_TEMP/tone.html" > "$RUNNER_TEMP/open.log" 2>&1 &
+          found=0
+          for i in $(seq 1 60); do
+            if target/debug/examples/probe list 2>/dev/null | grep -q 'Harmony probe tone'; then found=1; echo "window after ~$((i * 2)) s"; break; fi
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/open.log" || true
+          if [ $found = 0 ]; then
+            ps -axo pid,ppid,etime,comm | grep -iE 'chrome|/open$|CoreServicesUIAgent|syspolicyd' | grep -v grep || true
+            echo "::error::no Chrome window titled Harmony probe tone"; exit 1
+          fi
           afplay "$RUNNER_TEMP/tone-1000-long.wav" & distractor=$!
-          sleep 10
+          sleep 3
           target/debug/examples/probe list Chrome
           code=0; target/debug/examples/probe --expect-hz 440 window "Harmony probe tone" || code=$?
-          osascript -e 'quit app "Google Chrome"' || pkill -x "Google Chrome" || true
-          kill $distractor 2>/dev/null || true
+          pkill -x "Google Chrome" || true; kill $distractor 2>/dev/null || true
           echo "probe exit $code"; exit $code
+
+      - name: Screen at failure (macOS)
+        if: ${{ failure() && runner.os == 'macOS' }}
+        run: screencapture -x "$RUNNER_TEMP/screen.png" || true
+      - uses: actions/upload-artifact@v7
+        if: ${{ failure() && runner.os == 'macOS' }}
+        with:
+          name: probe-screen-macos
+          path: ${{ runner.temp }}/screen.png
+          if-no-files-found: ignore
 
       - name: Sources (Windows)
         if: runner.os == 'Windows'
