@@ -15,8 +15,8 @@
  *                       synced. Run by the worker's voice sweep, it covers
  *                       changes that reached the database without passing the
  *                       routes above (AutoMod timeouts, direct RPC calls).
- *                       Permission changes alone (SPEAK, STREAM, CONNECT) wait
- *                       for the participant's next token.
+ *                       Permission changes (SPEAK, STREAM, CONNECT, VIEW_CHANNEL)
+ *                       are voiceGrantSync.ts's.
  *
  * Rooms are channel-{id} and stage-{id}. A participant is matched by the
  * identities its tokens carry (identitiesOf) or by metadata.profileId.

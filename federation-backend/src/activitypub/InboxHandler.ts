@@ -11,6 +11,7 @@ import { pgrstEscape } from '../utils/postgrestFilter.js';
 import { isInstanceActorUsername } from './InstanceActor.js';
 import { syntheticFlagId } from './flag.js';
 import { relayedActivity } from './groupRelay.js';
+import { isVoiceMemberActivity } from './voiceModerationFederation.js';
 
 const router = Router();
 
@@ -352,10 +353,12 @@ async function handleInbox(
 
   const signature = req.headers.signature as string;
   // Flag creates moderation work attributed to the signer's domain, Move rewrites
-  // local follows, and a Group relay vouches for another actor's activity, so each
-  // is refused unsigned or unverified whatever REQUIRE_VALID_SIGNATURES says.
+  // local follows, a Group relay vouches for another actor's activity and a voice
+  // member activity moves a local client, so each is refused unsigned or unverified
+  // whatever REQUIRE_VALID_SIGNATURES says.
   const isFlag = activity.type === 'Flag';
-  const signerRequired = isFlag || activity.type === 'Move' || relayedActivity(activity) !== null;
+  const signerRequired = isFlag || activity.type === 'Move' || relayedActivity(activity) !== null
+    || isVoiceMemberActivity(activity);
   let signatureVerified = false;
   let verifiedSigner: string | null = null;
 

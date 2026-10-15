@@ -134,7 +134,7 @@ SELECT is(public.get_server_voice_moderation('55555555-0000-0000-0000-0000000000
           '[{"muted": true, "user_id": "33333333-0000-0000-0000-000000000003", "deafened": false}]'::jsonb,
           'the muted member reads their own state');
 SELECT throws_ok($q$SELECT public.set_server_voice_state('55555555-0000-0000-0000-000000000005', '33333333-0000-0000-0000-000000000003', false)$q$,
-                 '42501', 'You cannot moderate your own voice', 'and cannot lift it');
+                 '42501', 'Missing permission: MUTE_MEMBERS', 'and cannot lift it without Mute Members');
 SELECT tests.authenticate_as('dddddddd-0000-0000-0000-000000000004');
 SELECT is(public.get_server_voice_moderation('55555555-0000-0000-0000-000000000005'), '[]'::jsonb,
           'a banned user reads nothing');
@@ -180,16 +180,16 @@ SELECT is(ARRAY[public.has_permission('f1540000-0000-0000-0000-00000000000e', '5
                 public.has_permission('f1540000-0000-0000-0000-00000000000e', '55555555-0000-0000-0000-000000000005', 'USE_EXTERNAL_SOUNDS', 'f1541000-0000-0000-0000-000000000007')],
           ARRAY[false, true, false], 'a channel Deny of SPEAK and USE_EXTERNAL_SOUNDS leaves USE_SOUNDBOARD, which the token pairs with SPEAK');
 
--- Role order and the owner. ------------------------------------------------------------------
-SELECT throws_ok($q$SELECT public.set_server_voice_state('55555555-0000-0000-0000-000000000005', 'f1540000-0000-0000-0000-00000000000d', true)$q$,
-                 '42501', 'Cannot moderate a member with an equal or higher role', 'a moderator does not mute an equal role');
-SELECT throws_ok($q$SELECT public.set_server_voice_state('55555555-0000-0000-0000-000000000005', '11111111-0000-0000-0000-000000000001', true)$q$,
-                 '42501', 'The server owner cannot be voice-moderated', 'nor the owner');
+-- The permission decides, not role order (20261017100005). ------------------------------------
+SELECT is(public.set_server_voice_state('55555555-0000-0000-0000-000000000005', 'f1540000-0000-0000-0000-00000000000d', true)
+            ->> 'muted', 'true', 'a moderator mutes an equal role');
+SELECT is(public.set_server_voice_state('55555555-0000-0000-0000-000000000005', '11111111-0000-0000-0000-000000000001', true)
+            ->> 'muted', 'true', 'and the owner');
 SELECT is(public.set_server_voice_state('55555555-0000-0000-0000-000000000005', 'f1540000-0000-0000-0000-00000000000c', NULL, true)
             ->> 'deafened', 'true', 'an administrator ranked below is server-deafened');
 SELECT tests.authenticate_as('cccccccc-1540-0000-0000-000000000005');
-SELECT throws_ok($q$SELECT public.set_server_voice_state('55555555-0000-0000-0000-000000000005', '22222222-0000-0000-0000-000000000002', true)$q$,
-                 '42501', 'Cannot moderate a member with an equal or higher role', 'an administrator does not mute a higher role');
+SELECT is(public.set_server_voice_state('55555555-0000-0000-0000-000000000005', '22222222-0000-0000-0000-000000000002', true)
+            ->> 'muted', 'true', 'an administrator mutes a higher role');
 SELECT is(public.set_server_voice_state('55555555-0000-0000-0000-000000000005', 'f1540000-0000-0000-0000-00000000000e', true)
             ->> 'muted', 'true', 'an administrator mutes a member below them without the bit');
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
@@ -246,8 +246,11 @@ SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
 SELECT throws_ok($q$SELECT public.move_voice_member('55555555-0000-0000-0000-000000000005', 'f1540000-0000-0000-0000-00000000000e')$q$,
                  '42501', 'Missing permission: MOVE_MEMBERS', 'a member without MOVE_MEMBERS disconnects nobody');
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
-SELECT throws_ok($q$SELECT public.move_voice_member('55555555-0000-0000-0000-000000000005', 'f1540000-0000-0000-0000-00000000000d')$q$,
-                 '42501', 'Cannot moderate a member with an equal or higher role', 'a moderator does not disconnect an equal role');
+SELECT is(public.move_voice_member('55555555-0000-0000-0000-000000000005', 'f1540000-0000-0000-0000-00000000000d') ->> 'channel_id',
+          NULL, 'a moderator disconnects an equal role');
+SELECT tests.clear_authentication();
+SELECT pg_temp.seat('f1540000-0000-0000-0000-00000000000d', 'f1541000-0000-0000-0000-000000000001');
+SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
 SELECT throws_ok($q$SELECT public.move_voice_member('55555555-0000-0000-0000-000000000005', '33333333-0000-0000-0000-000000000003', 'f1541000-0000-0000-0000-000000000001')$q$,
                  '22023', 'Member is already in that channel', 'a move names another channel');
 SELECT throws_ok($q$SELECT public.move_voice_member('55555555-0000-0000-0000-000000000005', '33333333-0000-0000-0000-000000000003', '66666666-0000-0000-0000-000000000006')$q$,
@@ -304,8 +307,8 @@ SELECT is((SELECT details ->> 'channel_name' FROM public.server_audit_log
 
 SELECT pg_temp.seat('11111111-0000-0000-0000-000000000001', 'f1541000-0000-0000-0000-000000000001');
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
-SELECT throws_ok($q$SELECT public.move_voice_member('55555555-0000-0000-0000-000000000005', '11111111-0000-0000-0000-000000000001')$q$,
-                 '42501', 'The server owner cannot be voice-moderated', 'the owner is not disconnected');
+SELECT is(public.move_voice_member('55555555-0000-0000-0000-000000000005', '11111111-0000-0000-0000-000000000001') ->> 'channel_id',
+          NULL, 'the owner is disconnected like any member');
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT is(public.move_voice_member('55555555-0000-0000-0000-000000000005', 'f1540000-0000-0000-0000-00000000000d', 'f1541000-0000-0000-0000-000000000005')
             ->> 'channel_id', 'f1541000-0000-0000-0000-000000000005', 'the owner moves a member of any rank');

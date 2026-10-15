@@ -78,9 +78,11 @@ export interface VoiceModerationMenuInput {
   moveTargets: number;
 }
 
-/** The menu's moderation items, in Discord's order. */
+/**
+ * The menu's moderation items, in Discord's order. One's own row offers the
+ * voice items the permissions allow, never kick or ban.
+ */
 export function buildModerationActions(input: VoiceModerationMenuInput): VoiceModerationAction[] {
-  if (input.isSelf) return [];
   const actions: VoiceModerationAction[] = [];
   if (input.can.mute) actions.push('server-mute');
   if (input.can.deafen) actions.push('server-deafen');
@@ -88,6 +90,7 @@ export function buildModerationActions(input: VoiceModerationMenuInput): VoiceMo
     if (input.moveTargets > 0) actions.push('move');
     actions.push('disconnect');
   }
+  if (input.isSelf) return actions;
   if (input.can.kick) actions.push('kick');
   if (input.can.ban) actions.push('ban');
   return actions;

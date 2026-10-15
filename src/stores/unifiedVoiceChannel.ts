@@ -396,7 +396,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     async joinVoiceChannel(
       channelId: string,
       serverId: string,
-      opts: { livekit?: { wsUrl: string; token: string }; local?: boolean } = {},
+      opts: { livekit?: { wsUrl: string; token: string }; local?: boolean; federated?: boolean } = {},
     ): Promise<boolean> {
       this.joinError = null;
       try {
@@ -486,9 +486,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         debug.log('Joining voice channel:', channelId, 'on server:', serverId);
         
         // DM calls never go through a remote server's voice join, whichever
-        // server was viewed last.
+        // server was viewed last. `federated` names a remote server's channel
+        // whatever server is in view: a move its Group relayed.
         const isRemoteServer = serverId !== 'dm' && !opts.local
-          && serverChannelStore.currentServer?.is_local_server === false;
+          && (opts.federated === true || serverChannelStore.currentServer?.is_local_server === false);
         this.isFederatedChannel = isRemoteServer;
         
         if (isRemoteServer) {

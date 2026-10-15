@@ -59,7 +59,8 @@
         "policy:messages:messages_insert_member",
         "policy:channels:channels_select_member",
         "policy:threads:threads_select_member",
-        "policy:reactions:reactions_select_visible"
+        "policy:reactions:reactions_select_visible",
+        "function:voice_participant_grants"
       ],
       "backend": [
         "federation-backend/src/activitypub/channelWriteAuthz.ts",
@@ -707,25 +708,31 @@
         "function:voice_channel_admits",
         "function:current_user_may_connect_voice",
         "function:move_voice_member",
-        "policy:voice_channel_participants:voice_participants_insert_self"
+        "policy:voice_channel_participants:voice_participants_insert_self",
+        "function:voice_participant_grants"
       ],
       "backend": [
         "federation-backend/src/services/voiceAccess.ts"
       ],
       "client": [],
       "pgtap": [
-        "db_schema/tests/154_voice_moderation.sql"
+        "db_schema/tests/154_voice_moderation.sql",
+        "db_schema/tests/157_voice_moderation_followups.sql"
       ],
       "e2e": [
-        "e2e/specs/voice-moderation.spec.ts"
+        "e2e/specs/voice-moderation.spec.ts",
+        "e2e/specs/voice-moderation-followups.spec.ts"
       ],
       "unit": [
-        "federation-backend/src/__tests__/voiceModeration.test.ts"
+        "federation-backend/src/__tests__/voiceModeration.test.ts",
+        "federation-backend/src/__tests__/voiceGrantSync.test.ts"
       ]
     },
     "SPEAK": {
       "scope": "channel",
-      "sql": [],
+      "sql": [
+        "function:voice_participant_grants"
+      ],
       "backend": [
         "federation-backend/src/services/voiceAccess.ts",
         "federation-backend/src/services/voiceGrants.ts"
@@ -734,18 +741,23 @@
         "src/services/voice/voiceGrants.ts"
       ],
       "pgtap": [
-        "db_schema/tests/154_voice_moderation.sql"
+        "db_schema/tests/154_voice_moderation.sql",
+        "db_schema/tests/157_voice_moderation_followups.sql"
       ],
       "e2e": [
-        "e2e/specs/voice-moderation.spec.ts"
+        "e2e/specs/voice-moderation.spec.ts",
+        "e2e/specs/voice-moderation-followups.spec.ts"
       ],
       "unit": [
-        "federation-backend/src/__tests__/voiceModeration.test.ts"
+        "federation-backend/src/__tests__/voiceModeration.test.ts",
+        "federation-backend/src/__tests__/voiceGrantSync.test.ts"
       ]
     },
     "STREAM": {
       "scope": "channel",
-      "sql": [],
+      "sql": [
+        "function:voice_participant_grants"
+      ],
       "backend": [
         "federation-backend/src/services/voiceAccess.ts",
         "federation-backend/src/services/voiceGrants.ts"
@@ -754,7 +766,8 @@
         "src/services/voice/voiceGrants.ts"
       ],
       "pgtap": [
-        "db_schema/tests/154_voice_moderation.sql"
+        "db_schema/tests/154_voice_moderation.sql",
+        "db_schema/tests/157_voice_moderation_followups.sql"
       ],
       "e2e": [
         "e2e/specs/voice-moderation.spec.ts"
@@ -773,13 +786,16 @@
         "src/stores/voiceModeration.ts"
       ],
       "pgtap": [
-        "db_schema/tests/154_voice_moderation.sql"
+        "db_schema/tests/154_voice_moderation.sql",
+        "db_schema/tests/157_voice_moderation_followups.sql"
       ],
       "e2e": [
-        "e2e/specs/voice-moderation.spec.ts"
+        "e2e/specs/voice-moderation.spec.ts",
+        "e2e/specs/voice-moderation-followups.spec.ts"
       ],
       "unit": [
-        "federation-backend/src/__tests__/voiceModeration.test.ts"
+        "federation-backend/src/__tests__/voiceModeration.test.ts",
+        "src/stores/__tests__/voiceModeration.followups.test.ts"
       ]
     },
     "DEAFEN_MEMBERS": {
@@ -792,12 +808,16 @@
         "src/stores/voiceModeration.ts"
       ],
       "pgtap": [
-        "db_schema/tests/154_voice_moderation.sql"
+        "db_schema/tests/154_voice_moderation.sql",
+        "db_schema/tests/157_voice_moderation_followups.sql"
       ],
       "e2e": [
-        "e2e/specs/voice-moderation.spec.ts"
+        "e2e/specs/voice-moderation.spec.ts",
+        "e2e/specs/voice-moderation-followups.spec.ts"
       ],
-      "unit": []
+      "unit": [
+        "src/stores/__tests__/voiceModeration.followups.test.ts"
+      ]
     },
     "MOVE_MEMBERS": {
       "scope": "channel",
@@ -810,16 +830,22 @@
         "src/stores/voiceModeration.ts"
       ],
       "pgtap": [
-        "db_schema/tests/154_voice_moderation.sql"
+        "db_schema/tests/154_voice_moderation.sql",
+        "db_schema/tests/157_voice_moderation_followups.sql"
       ],
       "e2e": [
-        "e2e/specs/voice-moderation.spec.ts"
+        "e2e/specs/voice-moderation.spec.ts",
+        "e2e/specs/voice-moderation-followups.spec.ts"
       ],
-      "unit": []
+      "unit": [
+        "src/stores/__tests__/voiceModeration.followups.test.ts"
+      ]
     },
     "USE_SOUNDBOARD": {
       "scope": "channel",
-      "sql": [],
+      "sql": [
+        "function:voice_participant_grants"
+      ],
       "backend": [
         "federation-backend/src/services/voiceAccess.ts"
       ],
@@ -839,7 +865,9 @@
     },
     "USE_EXTERNAL_SOUNDS": {
       "scope": "channel",
-      "sql": [],
+      "sql": [
+        "function:voice_participant_grants"
+      ],
       "backend": [
         "federation-backend/src/services/voiceAccess.ts"
       ],

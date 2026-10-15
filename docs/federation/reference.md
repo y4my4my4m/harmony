@@ -165,7 +165,7 @@ Harmony does not send RFC 9421 signatures.
 | Request | Signed by |
 |---|---|
 | Activities of an account: posts, follows, reactions, blocks, profile updates, `Move`, direct messages, its chat messages and threads, voice | The account |
-| Activities whose `actor` is a chat server `Group` (`Accept` and `Reject` of a `Join`, channel `Add`, `Update` and `Remove`, `Update` of the Group, `Delete` of a channel message, the `Announce` relaying a member's activity) | The `Group`'s own key |
+| Activities whose `actor` is a chat server `Group` (`Accept` and `Reject` of a `Join`, channel `Add`, `Update` and `Remove`, `Update` of the Group, `Delete` of a channel message, the `Announce` relaying a member's activity, voice moderation of a member) | The `Group`'s own key |
 | `harmony:VoiceChannelJoinAccept` | The server owner, who is also its `actor` |
 | `Flag` | The instance actor |
 | `GET` on behalf of a member: a private server's Group, channels and members | That member |
@@ -176,7 +176,7 @@ Each redirect hop of a `GET` is signed again for its own target. A 401 or 403 to
 
 ### Inbound deliveries
 
-The three inboxes require a valid signature. Unsigned or failing deliveries answer 401. `REQUIRE_VALID_SIGNATURES=false` turns the requirement off for development only; the backend refuses to start with it in production. `Flag`, `Move` and a Group relay (an `Announce` of an embedded activity) require a matching signature in every mode.
+The three inboxes require a valid signature. Unsigned or failing deliveries answer 401. `REQUIRE_VALID_SIGNATURES=false` turns the requirement off for development only; the backend refuses to start with it in production. `Flag`, `Move`, a Group relay (an `Announce` of an embedded activity) and the voice moderation activities (`harmony:VoiceMemberMove`, `harmony:VoiceMemberDisconnect`, `harmony:VoiceMemberState`) require a matching signature in every mode.
 
 draft-cavage signatures:
 
@@ -278,6 +278,7 @@ Chat-server activities:
 | `Update` | Group | `Group` | The server's name, description, icon or banner changes | Member instances |
 | `harmony:VoiceChannelJoin` / `harmony:VoiceChannelLeave` | Account | `harmony:VoiceChannel` | An account joins or leaves a remote voice channel | Group inbox |
 | `harmony:VoiceChannelJoinAccept` | Server owner | The `Join` id; `result` a `harmony:VoiceToken` | Host admits a voice join | The joining account's host, once, not retried |
+| `harmony:VoiceMemberMove` / `harmony:VoiceMemberDisconnect` / `harmony:VoiceMemberState` | Group | The member | A moderator moves, disconnects, server-mutes or server-deafens a member of another instance, or the member leaves voice another way (see [Voice moderation](#voice-moderation)) | The member's instance, at its copy's inbox |
 | `harmony:VoiceCallInvite` / `Accept` / `Reject` / `End` | Account | `harmony:VoiceCall`, or the invite id | A direct-message call | The other party |
 
 ### Group relay
@@ -336,6 +337,7 @@ Shared and personal inboxes:
 | `Move` | The actor, `target` the new account | Followers move (see [Account moves](#account-moves)) |
 | `QuoteRequest` | Local post id, `instrument` the quoting post | `Accept` with a `QuoteAuthorization`, or `Reject` (see [Quote posts](#quote-posts)) |
 | `harmony:VoiceCall*`, `harmony:VoiceChannelJoinAccept`, `harmony:VoiceChannelJoinReject` | | See [Voice](#voice) |
+| `harmony:VoiceMemberMove`, `harmony:VoiceMemberDisconnect`, `harmony:VoiceMemberState` | A local account | From the `Group` of a mirrored server; see [Voice moderation](#voice-moderation) |
 
 A chat server inbox (`/servers/<uuid>/inbox`) accepts:
 
@@ -351,7 +353,7 @@ A chat server inbox (`/servers/<uuid>/inbox`) accepts:
 | `Undo` | Of a `Join` (leave) or a reaction |
 | `harmony:VoiceChannelJoin`, `harmony:VoiceChannelLeave` | See [Voice](#voice) |
 
-With federation off for the server, everything except `Leave` is dropped, and a `Join` is answered with `Reject`. `Accept` and `Reject` sent to a server inbox are ignored. Accepted messages, edits, deletions, reactions and their removals are relayed to the other member instances (see [Group relay](#group-relay)). The inbox of a remote server's copy takes only that server's Group's relays.
+With federation off for the server, everything except `Leave` is dropped, and a `Join` is answered with `Reject`. `Accept` and `Reject` sent to a server inbox are ignored. Accepted messages, edits, deletions, reactions and their removals are relayed to the other member instances (see [Group relay](#group-relay)). The inbox of a remote server's copy takes only that server's Group's relays and voice moderation activities.
 
 ## Objects
 
@@ -528,6 +530,36 @@ Voice media goes through LiveKit, not ActivityPub; the activities exchange token
 
 With `ALLOW_FEDERATED_VOICE=false`, an instance ignores call invites and refuses federated call tokens.
 
+### Voice moderation
+
+**Mute Members**, **Deafen Members** and **Move Members** decide alone, as in Discord: role order does not apply, and a holder acts on any member, the owner and themself included. A server mute or deafen lasts across leaving and rejoining voice and ends with membership. When permissions change (a role's permissions, a member's roles, a channel override, the owner), the host updates the connected participants at once: a participant who lost **Speak** or **Video** loses that source in LiveKit, one who lost **Connect** or **View Channel** is removed.
+
+A member on another instance hears of moderation from the server's Group. The host sends, signed with the Group's key, to the member instance's copy of the server (`https://<instance>/servers/<uuid>/inbox`):
+
+```json
+{
+  "@context": ["https://www.w3.org/ns/activitystreams", "https://harmony.social/ns/voice"],
+  "id": "https://chat.example.com/servers/<server>/voice-moderation/<uuid>",
+  "type": "harmony:VoiceMemberMove",
+  "actor": "https://chat.example.com/servers/<server>",
+  "to": ["https://other.example/users/bob"],
+  "object": "https://other.example/users/bob",
+  "origin": "https://chat.example.com/servers/<server>/channels/<channel left>",
+  "target": "https://chat.example.com/servers/<server>/channels/<channel to join>",
+  "harmony:reason": "moved"
+}
+```
+
+| Type | Properties | Meaning |
+|---|---|---|
+| `harmony:VoiceMemberMove` | `origin`, `target` | The member is out of `origin` and admitted to `target` for 120 seconds without **Connect**. Their client joins `target`, fetching its token from the host as for any join. |
+| `harmony:VoiceMemberDisconnect` | `origin`, `harmony:reason` | The member is out of voice: `disconnected` by a moderator, `timed_out`, `removed` from the server, or `revoked`, having lost **Connect** or **View Channel** |
+| `harmony:VoiceMemberState` | `harmony:serverMuted`, `harmony:serverDeafened` | The member's server mute and deafen, sent when either changes |
+
+A move and a disconnect are delivered once and retried for a short while, since the move's admission expires; a state change is retried as any delivery. Channels are named by their id under the Group. This is not ActivityPub's `Move`, which migrates an account.
+
+A receiver accepts them only from the Group of a server it mirrors (`servers.ap_id`, exact, the signing key the Group's), for an account of its own that is an accepted member of its copy, naming voice channels of that copy. It refuses anything else and stores nothing. It tells the member's client as the host tells its own: a move or disconnect as `voice:moved` on the member's user channel, a state stored in the copy, where the copy's rosters and the member's controls read it. Harmony before 1.8.4 ignores them.
+
 ## Extension properties
 
 Harmony uses four namespaces. None is served as a JSON-LD document by Harmony, and Harmony reads its extension properties by their compact `harmony:` names, not by JSON-LD expansion.
@@ -561,6 +593,9 @@ Harmony uses four namespaces. None is served as a JSON-LD document by Harmony, a
 | `harmony:channelId`, `harmony:standalone` | `ChatThread` | Channel UUID; `true` for a thread without a parent message |
 | `harmony:VoiceCallInvite`, `harmony:VoiceCallAccept`, `harmony:VoiceCallReject`, `harmony:VoiceCallEnd` | Activity types | Direct-message calls |
 | `harmony:VoiceChannelJoin`, `harmony:VoiceChannelLeave`, `harmony:VoiceChannelJoinAccept`, `harmony:VoiceChannelJoinReject` | Activity types | Voice channels |
+| `harmony:VoiceMemberMove`, `harmony:VoiceMemberDisconnect`, `harmony:VoiceMemberState` | Activity types | Voice moderation of a member |
+| `harmony:reason` | `harmony:VoiceMemberMove`, `harmony:VoiceMemberDisconnect` | `moved`, `disconnected`, `timed_out`, `removed` or `revoked` |
+| `harmony:serverMuted`, `harmony:serverDeafened` | `harmony:VoiceMemberState` | The member's server mute and server deafen |
 | `harmony:VoiceCall`, `harmony:VoiceChannel`, `harmony:VoiceToken` | Voice objects | Call, channel and token objects |
 
 Harmony also writes and reads terms from other software: Mastodon's `Emoji`, `blurhash`, `focalPoint`, `sensitive`, `alsoKnownAs` and `movedTo`; Misskey's `_misskey_reaction`, `_misskey_quote` and the `emojis` map; Fedibird's `quoteUri`; litepub's `EmojiReact`; GoToSocial's `interactionPolicy`, `interactingObject` and `interactionTarget`; and `directMessage` on direct messages.

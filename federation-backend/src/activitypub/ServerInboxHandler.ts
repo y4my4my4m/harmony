@@ -18,6 +18,7 @@ import config from '../config/index.js';
 import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.js';
 import { INVITE_REFUSALS } from '../utils/inviteRefusals.js';
 import { relayedActivity, relayToChannelReaders, type RelayServer } from './groupRelay.js';
+import { isVoiceMemberActivity, processVoiceMemberActivity } from './voiceModerationFederation.js';
 import {
   authorizeChannelWrite,
   federatedUploadUrls,
@@ -209,15 +210,21 @@ export async function processServerInboxActivity(
     return;
   }
 
-  // A remote server's copy takes only the relays of that server's Group (groupRelay.ts),
-  // signed with the Group's key.
+  // A remote server's copy takes only the relays (groupRelay.ts) and voice member activities
+  // (voiceModerationFederation.ts) of that server's Group, signed with the Group's key.
   if (!server.is_local_server) {
-    if (!relayedActivity(activity)) {
+    const voiceMember = isVoiceMemberActivity(activity);
+    if (!relayedActivity(activity) && !voiceMember) {
       logger.warn(`Server ${serverId} is not local, cannot process inbox`);
       return;
     }
+    const what = voiceMember ? activity.type : 'Group relay';
     if (!opts.verifiedSigner || !server.ap_id || !SignatureService.verifyActorMatch(opts.verifiedSigner, server.ap_id)) {
-      logDenied('Group relay', opts.verifiedSigner ?? 'an unsigned sender', `the signer is not the Group of server ${serverId}`);
+      logDenied(what, opts.verifiedSigner ?? 'an unsigned sender', `the signer is not the Group of server ${serverId}`);
+      return;
+    }
+    if (voiceMember) {
+      await processVoiceMemberActivity(server, activity);
       return;
     }
     await ActivityProcessor.processGroupRelay(server as RelayServer, activity);

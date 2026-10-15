@@ -37,6 +37,8 @@ vi.mock('@/services/userDataService', () => ({ userDataService: { getAllUsers: (
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: { user: { id: 'me' } } }) }))
 vi.mock('@/stores/unifiedVoiceChannel', () => ({ useUnifiedVoiceChannelStore: () => voice }))
 vi.mock('@/utils/debug', () => ({ debug: { log: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
+const moderation = vi.hoisted(() => ({ apply: vi.fn(), load: vi.fn(async () => undefined), recheckGrants: vi.fn(async () => undefined) }))
+vi.mock('@/stores/voiceModeration', () => ({ useVoiceModerationStore: () => moderation }))
 
 import { useServerUsersStore } from '@/stores/useServerUsers'
 
@@ -97,5 +99,16 @@ describe('voice-channels broadcast', () => {
     Object.assign(voice, { currentChannelId: 'voice-a', currentServerId: S })
     await request()
     expect(payloads()).toEqual(['user-joined:voice-a'])
+  })
+})
+
+describe('voice-grants', () => {
+  it('passes a permission change of this server to the voice moderation store', async () => {
+    await useServerUsersStore().setupVoiceChannelBroadcast(S)
+    const deliver = (payload: any, i = 0) => realtime.opened[i].handlers['voice-channel-event']({ payload })
+    deliver({ event: 'voice-grants', serverId: S, channelId: null, userId: 'me' })
+    deliver({ event: 'voice-grants', serverId: 'server-b', channelId: null, userId: null })
+    deliver({ event: 'voice-grants', serverId: S, channelId: 'voice-staff', userId: null }, 1)
+    expect(moderation.recheckGrants.mock.calls).toEqual([[S, null, 'me'], [S, 'voice-staff', null]])
   })
 })

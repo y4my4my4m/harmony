@@ -33,7 +33,7 @@ async function post(path: string, body: Record<string, unknown>): Promise<any> {
   return json;
 }
 
-/** Muted and deafened members of a local server; empty for a remote one. */
+/** Muted and deafened members of a server: a local one's, or what a remote one's Group sent. */
 export async function fetchServerVoiceModeration(serverId: string): Promise<Record<string, VoiceModerationFlags>> {
   const { data, error } = await supabase.rpc('get_server_voice_moderation', { p_server_id: serverId });
   if (error) throw error;
@@ -54,6 +54,13 @@ export async function fetchMyVoiceState(serverId: string): Promise<MyVoiceState 
     muted: data.muted === true,
     deafened: data.deafened === true,
   };
+}
+
+/** The channel admits the caller: VIEW_CHANNEL, CONNECT or a live move grant, no timeout. */
+export async function mayConnectVoice(channelId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('current_user_may_connect_voice', { p_channel: channelId });
+  if (error) throw error;
+  return data === true;
 }
 
 /** Server mute and deafen; an absent flag is left as it is. */

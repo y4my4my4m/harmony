@@ -20,7 +20,7 @@
           class="participant-item"
           :class="{ dragging: drag.dragging.value === participant.userId }"
           :aria-label="rowLabel(participant)"
-          :aria-describedby="canDragRow(participant.userId) ? dragHintId : undefined"
+          :aria-describedby="powers.move ? dragHintId : undefined"
           aria-haspopup="menu"
           :aria-expanded="menuUser?.userId === participant.userId"
           :data-testid="`voice-participant-${participant.userId}`"
@@ -114,7 +114,6 @@ import { participantLabel, useHeldIds } from './participantLabel';
 import { restoreFocusIfLost } from './voiceFocus';
 import { stylePoint, styleRect } from '@/utils/appZoom';
 import { NO_VOICE_CAPABILITIES, useVoiceModerationStore, type VoiceModerationCapabilities } from '@/stores/voiceModeration';
-import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useVoiceMemberDrag } from './useVoiceMemberDrag';
 
 interface Props {
@@ -132,7 +131,6 @@ const headerId = uid('voice-participants-header');
 const dragHintId = uid('voice-participants-drag');
 
 const moderation = useVoiceModerationStore();
-const serverChannelStore = useServerChannelStore();
 const serverFlags = (userId: string) => moderation.flagsOf(voiceStore.currentServerId, userId);
 
 // Moderation powers in the call's channel: drag to move, and the menu's moderation items.
@@ -144,18 +142,11 @@ watch(() => [voiceStore.currentServerId, callChannel.value] as const, async ([se
   if (voiceStore.currentServerId === serverId && callChannel.value === channelId) powers.value = result;
 }, { immediate: true });
 
-const serverOwner = computed(() => {
-  const id = voiceStore.currentServerId;
-  return serverChannelStore.servers.find((s) => s.id === id)?.owner
-    ?? (serverChannelStore.currentServer?.id === id ? serverChannelStore.currentServer.owner : null);
-});
-
-const canDragRow = (userId: string) =>
-  powers.value.move && userId !== voiceStore.localState.userId && userId !== serverOwner.value;
 
 const drag = useVoiceMemberDrag({
   channelId: () => callChannel.value,
-  canDrag: canDragRow,
+  // Move Members alone decides, as in Discord: the owner and oneself are dragged like anyone.
+  canDrag: () => powers.value.move,
   label: (userId) => getUserDisplayName(userId).value,
   drop: (userId, channelId) => {
     const serverId = voiceStore.currentServerId;

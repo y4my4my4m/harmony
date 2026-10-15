@@ -53,7 +53,9 @@
 //     accepts; a DM call the peer hosts: fx_bob accepts and the local instance
 //     fetches fx_bob's token from the peer, signed with fx_bob's key;
 //   - a voice channel of the peer's Group joined by fx_bob, and one of the
-//     hosted private server joined by the peer's user.
+//     hosted private server joined by the peer's user;
+//   - voice moderation of a member of the other instance, from the server's
+//     Group, each way (cases/voiceModerationFederation.ts).
 // Each ends with both sides' tokens joined to the same LiveKit room over its
 // signalling WebSocket.
 //
@@ -83,6 +85,7 @@ import { caseRemoteReplies } from './cases/remoteReplies.ts'
 import { caseQuotes } from './cases/quotes.ts'
 import { caseSoundboardTokenGrants } from './cases/soundboardTokens.ts'
 import { caseVoiceModeration } from './cases/voiceModeration.ts'
+import { caseVoiceModerationFederation } from './cases/voiceModerationFederation.ts'
 import { caseGroupActor } from './cases/groupActor.ts'
 import { caseChannelPermissions } from './cases/channelPermissions.ts'
 import { caseGroupRelay } from './cases/groupRelay.ts'
@@ -2530,6 +2533,20 @@ async function main() {
     })
     await caseRemoteReplies({ db, localUrl, peerHost: env.HMFED_PEER_HOST, assert, eq })
     await caseQuotes({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, ids: { alice: ALICE, remote: REMOTE }, post, signedHeaders, assert, eq })
+    // After caseQuotes, which posts without retrying: these deliveries spend the peer's inbox budget.
+    await caseVoiceModerationFederation({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
+      livekit: { url: env.HMFED_LIVEKIT_URL, key: env.HMFED_LIVEKIT_KEY, secret: env.HMFED_LIVEKIT_SECRET, join: (t) => lk.join(t) },
+      bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+      ids: {
+        hostedServer: PRIV_SERVER, hostedVoice: PRIV_VOICE, ownerAuth: ALICE_AUTH, remote: REMOTE,
+        bob: BOB, bobAuth: BOB_AUTH, carol: CAROL, remoteRef: REMOTE_REF, remoteVoice: REMOTE_VOICE,
+      },
+    })
     await caseSoundboardTokenGrants({
       db, assert, eq, localUrl, serverId: PRIV_SERVER, channelId: PRIV_VOICE,
       member: { id: CAROL, auth: CAROL_AUTH }, bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),

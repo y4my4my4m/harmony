@@ -2,7 +2,9 @@
  * Runs reconcileVoiceParticipants against this instance's LiveKit: every
  * VOICE_RECONCILE_INTERVAL_SECONDS in the worker, and for one room on a
  * LiveKit webhook in the server. The worker's run also applies
- * enforceVoiceRooms (voiceModeration.ts).
+ * enforceVoiceRooms (voiceModeration.ts) and the grant resyncs older than
+ * STALE_RESYNC_MS (voiceGrantSync.ts), which their voice-grant-sync job
+ * handles first.
  */
 
 import config from '../config/index.js';
@@ -15,6 +17,9 @@ import {
   type ReconcileResult,
 } from './voiceParticipantReconciler.js';
 import { enforceVoiceRooms, type EnforceResult } from './voiceModeration.js';
+import { syncStaleVoiceGrants, type GrantSyncResult } from './voiceGrantSync.js';
+
+export const STALE_RESYNC_MS = 30_000;
 
 let timer: ReturnType<typeof setInterval> | null = null;
 let running = false;
@@ -45,6 +50,14 @@ export async function enforceVoiceNow(): Promise<EnforceResult | null> {
   });
 }
 
+export async function syncStaleGrantsNow(): Promise<GrantSyncResult | null> {
+  if (!voiceReconcileEnabled()) return null;
+  return syncStaleVoiceGrants({
+    roomService: livekitService.roomServiceClient(),
+    supabase: getSupabaseClient(),
+  }, STALE_RESYNC_MS);
+}
+
 async function tick(): Promise<void> {
   if (running) return;
   running = true;
@@ -62,6 +75,14 @@ async function tick(): Promise<void> {
     }
   } catch (error) {
     logger.error('Voice enforcement failed:', error);
+  }
+  try {
+    const synced = await syncStaleGrantsNow();
+    if (synced && (synced.removed > 0 || synced.updated > 0)) {
+      logger.info(`Voice grant resync removed ${synced.removed} and updated ${synced.updated} of ${synced.checked} participants`);
+    }
+  } catch (error) {
+    logger.error('Voice grant resync failed:', error);
   } finally {
     running = false;
   }

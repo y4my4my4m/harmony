@@ -319,6 +319,13 @@ export const useServerUsersStore = defineStore('serverUsers', {
         return;
       }
 
+      if (event === 'voice-grants') {
+        if (data?.serverId === serverId) {
+          void useVoiceModerationStore().recheckGrants(serverId, channelId ?? null, userId ?? null);
+        }
+        return;
+      }
+
       if (event === 'user-joined') {
         if (!this.usersInVoiceChannels[channelId]) {
           this.usersInVoiceChannels[channelId] = [];

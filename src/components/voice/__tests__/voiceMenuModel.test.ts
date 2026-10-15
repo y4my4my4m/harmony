@@ -96,9 +96,14 @@ describe('buildModerationActions', () => {
   const none = { mute: false, deafen: false, move: false, kick: false, ban: false };
   const all = { mute: true, deafen: true, move: true, kick: true, ban: true };
 
-  it('offers nothing without the permissions, and nothing on oneself', () => {
+  it('offers nothing without the permissions', () => {
     expect(buildModerationActions({ isSelf: false, can: none, inVoice: true, moveTargets: 2 })).toEqual([]);
-    expect(buildModerationActions({ isSelf: true, can: all, inVoice: true, moveTargets: 2 })).toEqual([]);
+    expect(buildModerationActions({ isSelf: true, can: none, inVoice: true, moveTargets: 2 })).toEqual([]);
+  });
+
+  it('offers the voice items on oneself, as Discord does, but never kick or ban', () => {
+    expect(buildModerationActions({ isSelf: true, can: all, inVoice: true, moveTargets: 2 }))
+      .toEqual(['server-mute', 'server-deafen', 'move', 'disconnect']);
   });
 
   it('lists server mute, deafen, move, disconnect, kick and ban in that order', () => {

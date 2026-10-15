@@ -35,7 +35,7 @@ const kickBanUser = computed(() => {
   };
 });
 
-const REASONS: VoiceDepartureReason[] = ['moved', 'disconnected', 'removed', 'timed_out'];
+const REASONS: VoiceDepartureReason[] = ['moved', 'disconnected', 'removed', 'timed_out', 'revoked'];
 
 let offs: Array<() => void> = [];
 

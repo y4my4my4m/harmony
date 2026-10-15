@@ -253,7 +253,6 @@ const moderationActions = computed(() => buildModerationActions({
 async function loadCapabilities(): Promise<void> {
   const target = userId.value;
   can.value = NO_VOICE_CAPABILITIES;
-  if (isSelf.value) return;
   const result = await moderation.capabilities(menuServerId.value, menuChannelId.value, target);
   if (props.visible && userId.value === target) can.value = result;
 }

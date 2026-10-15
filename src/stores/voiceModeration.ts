@@ -7,9 +7,13 @@ import { debug } from '@/utils/debug';
  *
  * Flags of a server's members come from get_server_voice_moderation and the
  * voice-moderation broadcast; flags of the call's participants also from their
- * LiveKit metadata, which a remote server's host sets. The member's own client
- * follows a move or disconnect from user:<self> (voice:moved) and, while
- * realtime is down, from my_voice_state every SELF_POLL_OFFLINE_MS.
+ * LiveKit metadata, which a remote server's host sets. A remote server's copy
+ * holds what its Group sent (20261017100005_voice_moderation_followups.sql).
+ * The member's own client follows a move or disconnect from user:<self>
+ * (voice:moved), the host's own or relayed by this instance for a remote
+ * server, and, while realtime is down, from my_voice_state every
+ * SELF_POLL_OFFLINE_MS. A voice-grants broadcast makes a P2P client re-read
+ * its grants.
  */
 
 /** my_voice_state re-read period in a call, ms. */
@@ -36,7 +40,14 @@ export const NO_VOICE_CAPABILITIES: VoiceModerationCapabilities = {
   mute: false, deafen: false, move: false, kick: false, ban: false,
 };
 
-export type VoiceDepartureReason = 'moved' | 'disconnected' | 'removed' | 'timed_out';
+export type VoiceDepartureReason = 'moved' | 'disconnected' | 'removed' | 'timed_out' | 'revoked';
+
+const DEPARTURE_TEXT: Record<Exclude<VoiceDepartureReason, 'moved'>, string> = {
+  disconnected: 'youWereDisconnected',
+  removed: 'youWereRemoved',
+  timed_out: 'youWereTimedOut',
+  revoked: 'youLostAccess',
+};
 
 const NOT_FLAGGED: VoiceModerationFlags = { muted: false, deafened: false };
 
@@ -177,22 +188,29 @@ export const useVoiceModerationStore = defineStore('voiceModeration', {
 
     /**
      * What the caller may do to `targetId` in `channelId` of `serverId`, for the
-     * menus. The database decides; this hides what it would refuse.
+     * menus. The database decides; this hides what it would refuse. As in
+     * Discord, Mute, Deafen and Move Members ignore role order and apply to the
+     * owner and the caller too; kick and ban need a target ranked below the
+     * caller, never the owner or the caller.
      */
     async capabilities(serverId: string | null | undefined, channelId: string | null | undefined, targetId: string): Promise<VoiceModerationCapabilities> {
       if (!serverId || serverId === 'dm' || !targetId) return NO_VOICE_CAPABILITIES;
       try {
         const p = await powersOf(serverId, channelId);
-        if (!p || p.me === targetId || targetId === p.server.owner) return NO_VOICE_CAPABILITIES;
+        if (!p) return NO_VOICE_CAPABILITIES;
+        const can = capabilitiesFrom(p);
+        if (!can.kick && !can.ban) return can;
+        const noRemoval = { ...can, kick: false, ban: false };
+        if (p.me === targetId || targetId === p.server.owner) return noRemoval;
         if (p.me !== p.server.owner) {
           const { roleService } = await import('@/services/RoleService');
           const [mine, theirs] = await Promise.all([
             roleService.getUserRoles(p.me, serverId),
             roleService.getUserRoles(targetId, serverId),
           ]);
-          if ((mine[0]?.position ?? 0) <= (theirs[0]?.position ?? 0)) return NO_VOICE_CAPABILITIES;
+          if ((mine[0]?.position ?? 0) <= (theirs[0]?.position ?? 0)) return noRemoval;
         }
-        return capabilitiesFrom(p);
+        return can;
       } catch (error) {
         debug.warn('[VoiceModeration] capabilities unavailable:', error);
         return NO_VOICE_CAPABILITIES;
@@ -283,11 +301,11 @@ export const useVoiceModerationStore = defineStore('voiceModeration', {
         const text = await translate('voice.moderation.youWereMoved', { channel: name });
         notify.showToast('server_update', await translate('voice.moderation.youWereMovedTitle'), text, 6000);
         void say(text, true);
-        await voice.joinVoiceChannel(channelId, serverId, { local: true });
+        // A remote server's channel is joined through its host, which admits the move.
+        await voice.joinVoiceChannel(channelId, serverId, voice.isFederatedChannel ? { federated: true } : { local: true });
         return;
       }
-      const key = reason === 'removed' ? 'youWereRemoved' : reason === 'timed_out' ? 'youWereTimedOut' : 'youWereDisconnected';
-      const text = await translate(`voice.moderation.${key}`);
+      const text = await translate(`voice.moderation.${DEPARTURE_TEXT[reason === 'moved' ? 'disconnected' : reason]}`);
       notify.showToast('server_update', await translate('voice.moderation.youWereDisconnectedTitle'), text, 6000);
       void say(text, true);
       await voice.leaveVoiceChannel();
@@ -321,6 +339,34 @@ export const useVoiceModerationStore = defineStore('voiceModeration', {
         }
       } catch (error) {
         debug.warn('[VoiceModeration] own state unavailable:', error);
+      }
+    },
+
+    /**
+     * A voice-grants broadcast: permissions changed for the server, `channelId`
+     * or `userId` (NULL widens). Off LiveKit a client in scope re-reads SPEAK
+     * and STREAM and leaves a channel that no longer admits it; on LiveKit the
+     * server updates or removes its participant.
+     */
+    async recheckGrants(serverId: string, channelId: string | null, userId: string | null): Promise<void> {
+      const { voice } = await stores();
+      const here = voice.currentChannelId;
+      const self = voice.localState.userId;
+      if (!voice.isConnected || voice.currentServerId !== serverId || !here || !self || voice.isFederatedChannel) return;
+      if ((channelId && channelId !== here) || (userId && userId !== self)) return;
+      const { roleService } = await import('@/services/RoleService');
+      roleService.clearServerCache(serverId);
+      if (voice.connectionMode === 'livekit') return;
+      try {
+        const admitted = await (await api()).mayConnectVoice(here);
+        if (voice.currentChannelId !== here) return;
+        if (!admitted) {
+          await this.followDeparture(serverId, here, null, 'revoked');
+          return;
+        }
+        await voice.loadChannelGrants(serverId, here, self);
+      } catch (error) {
+        debug.warn('[VoiceModeration] grants unavailable:', error);
       }
     },
 

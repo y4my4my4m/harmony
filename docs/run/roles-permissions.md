@@ -80,7 +80,7 @@ A member's rank is the position of their highest role (the owner outranks everyo
 
 The owner and the instance's administrators pass every rank and grant check.
 
-Rank also limits moderation: kicking and banning need a highest role strictly above the target's highest role (see [Moderation](/run/moderation)).
+Rank also limits moderation: kicking and banning need a highest role strictly above the target's highest role (see [Moderation](/run/moderation)). Voice moderation (Mute, Deafen and Move Members) ignores rank, as in Discord.
 
 ### Colour, separate display and mentions
 
@@ -159,9 +159,9 @@ The bit is the position in the 64-bit mask stored for roles (`server_roles.permi
 | 24 | 16777216 | `CONNECT` | Connect | Connect | Yes | Join a voice channel (also needs View Channel and no active timeout). |
 | 25 | 33554432 | `SPEAK` | Speak | Speak | Yes | Send microphone audio in a voice channel. Without it the member joins as a listener. |
 | 26 | 67108864 | `STREAM` | Video | Video & Stream | Yes | Turn on the camera and share the screen (with its sound) in a voice channel. |
-| 27 | 134217728 | `MUTE_MEMBERS` | Mute Members | Mute Members | Yes | Server-mute a lower-ranked member: their microphone and soundboard stay off, in every voice channel, until lifted. |
-| 28 | 268435456 | `DEAFEN_MEMBERS` | Deafen Members | Deafen Members | Yes | Server-deafen a lower-ranked member: they hear nothing and their microphone stays off until lifted. |
-| 29 | 536870912 | `MOVE_MEMBERS` | Move Members | Move Members | Yes | Move a lower-ranked member to another voice channel (also one they cannot connect to themselves, if they can see it) or disconnect them; end anyone's watch-together activity. |
+| 27 | 134217728 | `MUTE_MEMBERS` | Mute Members | Mute Members | Yes | Server-mute any member, the owner and oneself included: their microphone and soundboard stay off, in every voice channel, until lifted or they leave the server. |
+| 28 | 268435456 | `DEAFEN_MEMBERS` | Deafen Members | Deafen Members | Yes | Server-deafen any member, the owner and oneself included: they hear nothing and their microphone stays off until lifted or they leave the server. |
+| 29 | 536870912 | `MOVE_MEMBERS` | Move Members | Move Members | Yes | Move any member, the owner and oneself included, to another voice channel (also one they cannot connect to themselves, if they can see it) or disconnect them; end anyone's watch-together activity. Moving into a channel also needs Connect there. |
 | 30 | 1073741824 | `USE_SOUNDBOARD` | Use Soundboard | Use Soundboard | Yes | Play the server's soundboard sounds in a voice channel. Also needs Speak there. |
 | 31 | 2147483648 | `USE_EXTERNAL_SOUNDS` | Use External Sounds | Use External Sounds | Yes | Play sounds from the member's other servers. Also needs Use Soundboard and Speak there. |
 

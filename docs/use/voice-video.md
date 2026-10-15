@@ -181,17 +181,19 @@ Harmony remembers whether spatial audio is on. Stream sound is not positioned.
 
 ## Moderate a voice channel
 
-Members with the right permissions moderate others in voice from the participant menu (right-click a participant in the call or in the channel list, or open it with the keyboard). Each action needs the member to rank below you, as kicks and bans do.
+Members with the right permissions moderate others in voice from the participant menu (right-click a participant in the call or in the channel list, or open it with the keyboard). As in Discord, role order does not matter for the voice actions: the permission alone decides, on any member, the server owner and yourself included. **Kick** and **Ban** still need the member to rank below you.
 
 | Action | Permission | What it does |
 |---|---|---|
-| **Server mute** | Mute Members | Turns the member's microphone and soundboard off in every voice channel of the server until you lift it. Their own mute button shows it is locked. |
-| **Server deafen** | Deafen Members | The member hears nothing and their microphone is off until you lift it. |
+| **Server mute** | Mute Members | Turns the member's microphone and soundboard off in every voice channel of the server until you lift it or they leave the server. Their own mute button shows it is locked. |
+| **Server deafen** | Deafen Members | The member hears nothing and their microphone is off until you lift it or they leave the server. |
 | **Move to** | Move Members | Moves the member to another voice channel. You can also drag them onto a voice channel in the channel list. |
 | **Disconnect** | Move Members | Removes the member from voice. |
 | **Kick**, **Ban** | Kick Members, Ban Members | Opens the kick or ban dialog; the member leaves voice at once. |
 
-A member without **Video & Stream** in a channel cannot turn on the camera or share the screen there; without **Speak** they join as a listener. On calls that connect peer to peer rather than through the instance's voice server, the member's own app applies these.
+A member without **Video & Stream** in a channel cannot turn on the camera or share the screen there; without **Speak** they join as a listener. A change to roles or channel permissions applies to people already in the call at once: losing **Speak** or **Video & Stream** turns that off, losing **Connect** or **View Channel** takes them out of the channel. On calls that connect peer to peer rather than through the instance's voice server, the member's own app applies these.
+
+Members from other Harmony instances are moderated the same way: their instance hears of a move, a disconnect or a server mute from your server and their app follows it.
 
 ## Call someone from direct messages
 

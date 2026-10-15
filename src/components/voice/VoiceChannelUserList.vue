@@ -18,7 +18,7 @@
             'aria-haspopup': 'menu',
             'aria-expanded': menuUserId === userId,
             'aria-label': rowLabel(userId),
-            'aria-describedby': canDragRow(userId) ? dragHintId : undefined,
+            'aria-describedby': powers.move ? dragHintId : undefined,
           } : {}"
           @pointerdown="drag.onPointerDown($event, userId)"
           @mousedown="drag.shield($event, userId)"
@@ -102,9 +102,6 @@ watch(() => [serverId.value, props.channelId] as const, async ([server, channel]
 }, { immediate: true });
 
 const moderates = computed(() => Object.values(powers.value).some(Boolean));
-const serverOwner = computed(() => serverChannelStore.currentServer?.owner ?? null);
-
-const canDragRow = (userId: string) => powers.value.move && userId !== serverOwner.value;
 
 const rowLabel = (userId: string) => participantLabel(t, getUserDisplayName(userId).value, {
   serverMuted: flags(userId).muted,
@@ -113,7 +110,8 @@ const rowLabel = (userId: string) => participantLabel(t, getUserDisplayName(user
 
 const drag = useVoiceMemberDrag({
   channelId: () => props.channelId,
-  canDrag: canDragRow,
+  // Move Members alone decides, as in Discord: the owner and oneself are dragged like anyone.
+  canDrag: () => powers.value.move,
   label: (userId) => getUserDisplayName(userId).value,
   drop: (userId, channelId) => {
     if (!serverId.value) return;
