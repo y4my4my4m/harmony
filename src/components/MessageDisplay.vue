@@ -813,6 +813,7 @@ import { supabase } from '@/supabase';
 import { throttle } from '@/utils/throttle';
 import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
 import { useServerPermissions } from '@/composables/useServerPermissions';
+import { useChannelMessagePermissions } from '@/composables/useChannelMessagePermissions';
 import { useUserData, DEFAULT_USER_COLOR } from '@/composables/useUserData';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useQuickReactSettings } from '@/composables/useQuickReactSettings';
@@ -1310,7 +1311,9 @@ const floatingActionsStyle = computed((): Record<string, string> => {
     transform: 'translateX(-50%)',
   };
 });
-const { isCurrentUserServerOwner, canManageMessages, getCurrentUserRole } = useServerPermissions();
+const { isCurrentUserServerOwner, getCurrentUserRole } = useServerPermissions();
+// Channel-resolved, as messages_update_authorized and messages_delete_authorized decide it.
+const { canManageMessages } = useChannelMessagePermissions(() => serverChannelStore.currentServerId, () => props.channelId);
 const viewerRoleIds = computed(() => new Set((getCurrentUserRole.value?.roles ?? []).map(role => role.id)));
 // A conversation has no roles, @everyone or @here; its messages are not highlighted.
 const mentionsMe = (message: Message): boolean =>
@@ -3493,7 +3496,7 @@ const canDeleteMessage = (message: Message) => {
   }
 
   if (isOwnMessage) return true;
-  if (isCurrentUserServerOwner.value) return true;
+  if (isCurrentUserServerOwner.value && !message.conversation_id) return true;
   if (profileStore.profile?.is_admin || profileStore.profile?.is_moderator) return true;
   if (canManageMessages.value) return true;
 
