@@ -3,6 +3,7 @@ import { markRaw } from 'vue';
 import { supabase } from '@/supabase';
 import type { Emoji, ResolvedEmoji } from '@/types';
 import { debug } from '@/utils/debug'
+import { getAvatarUrl } from '@/utils/avatarUtils';
 import {
   getAllCachedServerEmojis,
   setCachedServerEmojis,
@@ -15,6 +16,8 @@ import {
  * in :shortcode: at send time) but are not real servers - they're never
  * persisted to IndexedDB and the picker renders them as their own sections.
  */
+const INSTANCE_ICON_FALLBACK = '/img/app_icon_square.webp';
+
 export const PERSONAL_EMOJI_GROUPS = {
   ai: '__ai_generated__',
   user: '__user_emoji__',
@@ -458,17 +461,27 @@ export const useEmojiCacheStore = defineStore('emojiCache', {
         const aiEmojis = userEmojis.filter((e) => (e as any).is_ai_generated === true);
         const ownEmojis = userEmojis.filter((e) => (e as any).is_ai_generated !== true);
 
-        // Name the instance group after the instance (e.g. "Spacify Emoji").
+        // Name the instance group after the instance (e.g. "Spacify Emoji") and show the icon
+        // other instances see (instance_icon, served in NodeInfo); the app icon when unset.
         let instanceLabel = 'Instance Emoji';
+        let instanceIcon = INSTANCE_ICON_FALLBACK;
         try {
           const { useInstanceSettingsStore } = await import('@/stores/useInstanceSettings');
-          const name = useInstanceSettingsStore().settings.instanceName?.trim();
+          const settings = useInstanceSettingsStore().settings;
+          const name = settings.instanceName?.trim();
           if (name) instanceLabel = `${name} Emoji`;
+          if (settings.instanceIcon?.trim()) instanceIcon = settings.instanceIcon.trim();
         } catch { /* settings not ready — keep fallback */ }
+        // "My Emoji" shows the viewer's own avatar.
+        let ownIcon: string | undefined;
+        try {
+          const { useProfileStore } = await import('@/stores/useProfile');
+          ownIcon = getAvatarUrl(useProfileStore().profile?.avatar_url, 64);
+        } catch { /* profile not ready — ServerIcon falls back to the monogram */ }
 
         this.updateServerCache(PERSONAL_EMOJI_GROUPS.ai, aiEmojis, { name: 'AI Generated' }, false);
-        this.updateServerCache(PERSONAL_EMOJI_GROUPS.user, ownEmojis, { name: 'My Emoji' }, false);
-        this.updateServerCache(PERSONAL_EMOJI_GROUPS.instance, instanceEmojis, { name: instanceLabel }, false);
+        this.updateServerCache(PERSONAL_EMOJI_GROUPS.user, ownEmojis, { name: 'My Emoji', icon: ownIcon }, false);
+        this.updateServerCache(PERSONAL_EMOJI_GROUPS.instance, instanceEmojis, { name: instanceLabel, icon: instanceIcon }, false);
         this.rebuildResolvedEmojis();
 
         this._personalEmojiLoadedAt = Date.now();
