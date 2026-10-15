@@ -531,9 +531,14 @@
         "membership": "Membership Permissions",
         "text": "Text Permissions",
         "threads": "Thread Permissions",
-        "voice": "Voice Permissions"
+        "voice": "Voice Permissions",
+        "dangerous": "Dangerous Permissions"
       },
       "perms": {
+        "ADMINISTRATOR": {
+          "label": "Administrator",
+          "description": "Every permission in every channel; only the owner can delete the server"
+        },
         "VIEW_CHANNEL": {
           "label": "View Channels",
           "description": "Allows members to view channels by default"
@@ -544,11 +549,11 @@
         },
         "MANAGE_ROLES": {
           "label": "Manage Roles",
-          "description": "Create, edit, and delete roles below this role"
+          "description": "Create, edit, assign, and delete roles below their highest role, and edit channel permissions"
         },
         "MANAGE_SERVER": {
           "label": "Manage Server",
-          "description": "Edit server settings and delete the server"
+          "description": "Edit server settings, AutoMod, welcome screen and bots; only the owner can delete the server"
         },
         "CREATE_INVITE": {
           "label": "Create Invite",
@@ -576,7 +581,7 @@
         },
         "TIMEOUT_MEMBERS": {
           "label": "Timeout Members",
-          "description": "Temporarily mute members"
+          "description": "Temporarily stop members from sending messages, reacting, starting threads and joining voice"
         },
         "SEND_MESSAGES": {
           "label": "Send Messages",
@@ -584,7 +589,7 @@
         },
         "EMBED_LINKS": {
           "label": "Embed Links",
-          "description": "Links will show a preview"
+          "description": "Links they post show previews; without it, links post plain"
         },
         "ATTACH_FILES": {
           "label": "Attach Files",
@@ -604,11 +609,11 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "Read Message History",
-          "description": "View message history"
+          "description": "Read messages sent before they opened the channel; without it, they see only messages sent since they opened it"
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "Use External Emojis",
-          "description": "Use emojis from other servers"
+          "description": "Use emoji from other servers, the instance and their own; without it, only unicode and this server's"
         },
         "PIN_MESSAGES": {
           "label": "Pin Messages",
@@ -620,7 +625,7 @@
         },
         "CREATE_PRIVATE_THREADS": {
           "label": "Create Private Threads",
-          "description": "Create invite-only threads"
+          "description": "Grants nothing: every Harmony thread is visible to the whole channel"
         },
         "SEND_MESSAGES_IN_THREADS": {
           "label": "Send Messages in Threads",
@@ -648,7 +653,7 @@
         },
         "MOVE_MEMBERS": {
           "label": "Move Members",
-          "description": "Move members between voice channels"
+          "description": "Move members between voice channels or disconnect them"
         },
         "USE_SOUNDBOARD": {
           "label": "Use Soundboard",
@@ -794,13 +799,25 @@
           "label": "Manage Channel",
           "description": "Rename, edit, or delete this channel."
         },
+        "MANAGE_ROLES": {
+          "label": "Manage Permissions",
+          "description": "Edit this channel's permission overrides."
+        },
+        "MANAGE_WEBHOOKS": {
+          "label": "Manage Webhooks",
+          "description": "Create, edit, and delete this channel's webhooks."
+        },
+        "PIN_MESSAGES": {
+          "label": "Pin Messages",
+          "description": "Pin and unpin messages in this channel."
+        },
         "SEND_MESSAGES": {
           "label": "Send Messages",
           "description": "Post messages in this channel."
         },
         "EMBED_LINKS": {
           "label": "Embed Links",
-          "description": "Send embeds and link previews."
+          "description": "Links posted here show previews."
         },
         "ATTACH_FILES": {
           "label": "Attach Files",
@@ -812,7 +829,7 @@
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "Use External Emojis",
-          "description": "Send emojis from other servers."
+          "description": "Use emoji from outside this server in messages and reactions."
         },
         "MENTION_EVERYONE": {
           "label": "Mention {'@'}everyone",
@@ -824,7 +841,7 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "Read Message History",
-          "description": "See messages posted before they joined."
+          "description": "See messages posted before they opened the channel."
         },
         "CREATE_PUBLIC_THREADS": {
           "label": "Create Public Threads",
@@ -860,7 +877,7 @@
         },
         "MOVE_MEMBERS": {
           "label": "Move Members",
-          "description": "Move members out of this channel."
+          "description": "Move or disconnect members in this channel."
         },
         "USE_SOUNDBOARD": {
           "label": "Use Soundboard",
@@ -933,14 +950,15 @@
     "unreadSince": "{count} new message since {time} | {count} new messages since {time}",
     "markAsRead": "Mark as read",
     "jumpToPresent": "Jump to present",
+    "viewingOlder": "You're viewing older messages",
     "conversationBeginning": "This is the beginning of your conversation",
     "conversationBeginningSubtitle": "This is the start of your conversation.",
     "channelWelcome": "Welcome to #{name}",
     "channelWelcomeSubtitle": "This is the start of the #{name} channel.",
+    "historyRestricted": "Messages sent before you opened this channel are hidden: you don't have Read Message History in this channel.",
     "dmBeginning": "This is the very beginning of your direct messages with {name}.",
     "groupBeginning": "This is the very beginning of the {name} group.",
     "groupBeginningUnnamed": "This is the very beginning of this group.",
-    "jumpInConversation": "Jump in conversation",
     "reactions": {
       "add": "Add reaction",
       "remove": "Remove reaction",
@@ -1332,7 +1350,38 @@
     "muteUserNamed": "Mute {name}",
     "muteStreamNamed": "Mute {name}’s stream",
     "userVolumeNamed": "{name}’s volume",
-    "streamVolumeNamed": "{name}’s stream volume"
+    "streamVolumeNamed": "{name}’s stream volume",
+    "moderation": {
+      "section": "Moderation",
+      "serverMute": "Server mute",
+      "serverDeafen": "Server deafen",
+      "serverMuted": "Server muted",
+      "serverDeafened": "Server deafened",
+      "moveTo": "Move to",
+      "disconnect": "Disconnect",
+      "kick": "Kick",
+      "ban": "Ban",
+      "dragHint": "Drag to another voice channel to move them.",
+      "lockedTitle": "Not allowed here",
+      "serverMutedHint": "A moderator server-muted you. You can unmute once they lift it.",
+      "serverDeafenedHint": "A moderator server-deafened you. You can undeafen once they lift it.",
+      "noSpeakHint": "You don't have permission to speak in this channel.",
+      "noStreamHint": "You don't have permission to share video or your screen in this channel.",
+      "failedTitle": "Voice moderation failed",
+      "mutedAnnounce": "{name} is server-muted",
+      "unmutedAnnounce": "{name} is no longer server-muted",
+      "deafenedAnnounce": "{name} is server-deafened",
+      "undeafenedAnnounce": "{name} is no longer server-deafened",
+      "movedAnnounce": "Moved {name} to {channel}",
+      "disconnectedAnnounce": "Disconnected {name} from voice",
+      "youWereMovedTitle": "Moved to another channel",
+      "youWereMoved": "A moderator moved you to {channel}.",
+      "youWereDisconnectedTitle": "Removed from voice",
+      "youWereDisconnected": "A moderator disconnected you from voice.",
+      "youWereRemoved": "You are no longer a member of this server.",
+      "youLostAccess": "You no longer have access to that voice channel.",
+      "youWereTimedOut": "You were timed out on this server."
+    }
   },
   "dm": {
     "title": "Direct messages",
@@ -2808,6 +2857,7 @@
   "emoji": {
     "messageReactionLimit": "This message has {count} different reactions. Add to one of them.",
     "reactionNotAllowed": "You can only join existing reactions in this channel.",
+    "externalNotAllowed": "Only unicode and this server's emoji can be used in this channel.",
     "postReactionLimit": "You have {count} reactions on this post. Remove one to add another.",
     "search": "Search emoji...",
     "searchEmojis": "Search emojis...",
@@ -4023,7 +4073,7 @@
       "generic": "Your message was blocked by this server's AutoMod.",
       "timedOutUntil": "You are timed out until {time}."
     },
-    "timedOut": "You are timed out in this server until {time} and cannot send messages.",
+    "timedOut": "You are timed out in this server until {time} and cannot send messages, react or start threads.",
     "antispam": {
       "rateLimited": "New accounts can only send a few messages at a time. Try again in {seconds} s.",
       "linksBlocked": "New accounts cannot post links yet.",
@@ -4100,6 +4150,12 @@
       "member_unban": "{actor} unbanned {target}",
       "member_timeout": "{actor} timed out {target} until {until}",
       "member_timeout_remove": "{actor} removed the timeout on {target}",
+      "member_voice_mute": "{actor} server-muted {target}",
+      "member_voice_unmute": "{actor} lifted the server mute on {target}",
+      "member_voice_deafen": "{actor} server-deafened {target}",
+      "member_voice_undeafen": "{actor} lifted the server deafen on {target}",
+      "member_voice_move": "{actor} moved {target} to another voice channel",
+      "member_voice_disconnect": "{actor} disconnected {target} from voice",
       "message_delete": "{actor} deleted a message by {target} in {channel} | {actor} deleted {count} messages by {target} in {channel}",
       "server_update": "{actor} updated the server",
       "settings_update": "{actor} updated the server settings",

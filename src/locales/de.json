@@ -531,9 +531,14 @@
         "membership": "Mitgliedschaftsberechtigungen",
         "text": "Textberechtigungen",
         "threads": "Thread-Berechtigungen",
-        "voice": "Sprachberechtigungen"
+        "voice": "Sprachberechtigungen",
+        "dangerous": "Gefährliche Berechtigungen"
       },
       "perms": {
+        "ADMINISTRATOR": {
+          "label": "Administrator",
+          "description": "Jede Berechtigung in jedem Kanal; nur der Eigentümer kann den Server löschen"
+        },
         "VIEW_CHANNEL": {
           "label": "Kanäle ansehen",
           "description": "Erlaubt Mitgliedern standardmäßig, Kanäle zu sehen"
@@ -544,11 +549,11 @@
         },
         "MANAGE_ROLES": {
           "label": "Rollen verwalten",
-          "description": "Rollen unterhalb dieser Rolle erstellen, bearbeiten und löschen"
+          "description": "Rollen unterhalb der eigenen höchsten Rolle erstellen, bearbeiten, zuweisen und löschen sowie Kanalberechtigungen bearbeiten"
         },
         "MANAGE_SERVER": {
           "label": "Server verwalten",
-          "description": "Servereinstellungen bearbeiten und den Server löschen"
+          "description": "Servereinstellungen, AutoMod, Willkommensbildschirm und Bots bearbeiten; nur der Eigentümer kann den Server löschen"
         },
         "CREATE_INVITE": {
           "label": "Einladung erstellen",
@@ -576,7 +581,7 @@
         },
         "TIMEOUT_MEMBERS": {
           "label": "Mitglieder stummschalten (Timeout)",
-          "description": "Mitglieder vorübergehend stummschalten"
+          "description": "Mitglieder vorübergehend am Senden von Nachrichten, Reagieren, Starten von Threads und Beitreten zu Sprachkanälen hindern"
         },
         "SEND_MESSAGES": {
           "label": "Nachrichten senden",
@@ -584,7 +589,7 @@
         },
         "EMBED_LINKS": {
           "label": "Links einbetten",
-          "description": "Links zeigen eine Vorschau"
+          "description": "Ihre Links zeigen eine Vorschau; ohne diese Berechtigung erscheinen Links ohne Vorschau"
         },
         "ATTACH_FILES": {
           "label": "Dateien anhängen",
@@ -604,11 +609,11 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "Nachrichtenverlauf lesen",
-          "description": "Den Nachrichtenverlauf ansehen"
+          "description": "Nachrichten von vor dem Öffnen des Kanals lesen; ohne diese Berechtigung sehen sie nur Nachrichten seit dem Öffnen"
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "Externe Emojis verwenden",
-          "description": "Emojis von anderen Servern verwenden"
+          "description": "Emojis anderer Server, der Instanz und eigene verwenden; ohne diese Berechtigung nur Unicode und Emojis dieses Servers"
         },
         "PIN_MESSAGES": {
           "label": "Nachrichten anheften",
@@ -620,7 +625,7 @@
         },
         "CREATE_PRIVATE_THREADS": {
           "label": "Private Threads erstellen",
-          "description": "Threads nur auf Einladung erstellen"
+          "description": "Gewährt nichts: Jeder Thread in Harmony ist für den ganzen Kanal sichtbar"
         },
         "SEND_MESSAGES_IN_THREADS": {
           "label": "Nachrichten in Threads senden",
@@ -648,7 +653,7 @@
         },
         "MOVE_MEMBERS": {
           "label": "Mitglieder verschieben",
-          "description": "Mitglieder zwischen Sprachkanälen verschieben"
+          "description": "Mitglieder zwischen Sprachkanälen verschieben oder trennen"
         },
         "USE_SOUNDBOARD": {
           "label": "Soundboard verwenden",
@@ -794,13 +799,25 @@
           "label": "Kanal verwalten",
           "description": "Diesen Kanal umbenennen, bearbeiten oder löschen."
         },
+        "MANAGE_ROLES": {
+          "label": "Berechtigungen verwalten",
+          "description": "Die Berechtigungsüberschreibungen dieses Kanals bearbeiten."
+        },
+        "MANAGE_WEBHOOKS": {
+          "label": "Webhooks verwalten",
+          "description": "Webhooks dieses Kanals erstellen, bearbeiten und löschen."
+        },
+        "PIN_MESSAGES": {
+          "label": "Nachrichten anheften",
+          "description": "Nachrichten in diesem Kanal anheften und lösen."
+        },
         "SEND_MESSAGES": {
           "label": "Nachrichten senden",
           "description": "Nachrichten in diesem Kanal posten."
         },
         "EMBED_LINKS": {
           "label": "Links einbetten",
-          "description": "Einbettungen und Linkvorschauen senden."
+          "description": "Hier gepostete Links zeigen eine Vorschau."
         },
         "ATTACH_FILES": {
           "label": "Dateien anhängen",
@@ -812,7 +829,7 @@
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "Externe Emojis verwenden",
-          "description": "Emojis von anderen Servern senden."
+          "description": "Emojis von außerhalb dieses Servers in Nachrichten und Reaktionen verwenden."
         },
         "MENTION_EVERYONE": {
           "label": "{'@'}everyone erwähnen",
@@ -824,7 +841,7 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "Nachrichtenverlauf lesen",
-          "description": "Nachrichten sehen, die vor dem Beitritt gepostet wurden."
+          "description": "Nachrichten sehen, die vor dem Öffnen des Kanals gepostet wurden."
         },
         "CREATE_PUBLIC_THREADS": {
           "label": "Öffentliche Threads erstellen",
@@ -860,7 +877,7 @@
         },
         "MOVE_MEMBERS": {
           "label": "Mitglieder verschieben",
-          "description": "Mitglieder aus diesem Kanal verschieben."
+          "description": "Mitglieder in diesem Kanal verschieben oder trennen."
         },
         "USE_SOUNDBOARD": {
           "label": "Soundboard verwenden",
@@ -918,14 +935,15 @@
     "unreadSince": "{count} neue Nachricht seit {time} | {count} neue Nachrichten seit {time}",
     "markAsRead": "Als gelesen markieren",
     "jumpToPresent": "Zur Gegenwart springen",
+    "viewingOlder": "Du siehst ältere Nachrichten",
     "conversationBeginning": "Dies ist der Beginn deiner Unterhaltung",
     "conversationBeginningSubtitle": "Beginne zu chatten und mache es unvergesslich!",
     "channelWelcome": "Willkommen in #{name}",
     "channelWelcomeSubtitle": "Dies ist der Anfang des Kanals #{name}.",
+    "historyRestricted": "Nachrichten von vor dem Öffnen dieses Kanals sind ausgeblendet: Dir fehlt in diesem Kanal „Nachrichtenverlauf lesen“.",
     "dmBeginning": "Dies ist der Anfang deiner Direktnachrichten mit {name}.",
     "groupBeginning": "Dies ist der Anfang der Gruppe {name}.",
     "groupBeginningUnnamed": "Dies ist der Anfang dieser Gruppe.",
-    "jumpInConversation": "Sprung in der Unterhaltung",
     "reactions": {
       "add": "Reaktion hinzufügen",
       "remove": "Reaktion entfernen",
@@ -1323,7 +1341,38 @@
     "muteUserNamed": "{name} stummschalten",
     "muteStreamNamed": "Stream von {name} stummschalten",
     "userVolumeNamed": "Lautstärke von {name}",
-    "streamVolumeNamed": "Stream-Lautstärke von {name}"
+    "streamVolumeNamed": "Stream-Lautstärke von {name}",
+    "moderation": {
+      "section": "Moderation",
+      "serverMute": "Serverweit stummschalten",
+      "serverDeafen": "Serverweit taub schalten",
+      "serverMuted": "Serverweit stummgeschaltet",
+      "serverDeafened": "Serverweit taub geschaltet",
+      "moveTo": "Verschieben nach",
+      "disconnect": "Trennen",
+      "kick": "Kicken",
+      "ban": "Bannen",
+      "dragHint": "Zum Verschieben in einen anderen Sprachkanal ziehen.",
+      "lockedTitle": "Hier nicht erlaubt",
+      "serverMutedHint": "Ein Moderator hat dich serverweit stummgeschaltet. Du kannst die Stummschaltung erst aufheben, wenn er sie zurücknimmt.",
+      "serverDeafenedHint": "Ein Moderator hat dich serverweit taub geschaltet. Du kannst erst wieder hören, wenn er es zurücknimmt.",
+      "noSpeakHint": "Du darfst in diesem Kanal nicht sprechen.",
+      "noStreamHint": "Du darfst in diesem Kanal weder Video noch deinen Bildschirm teilen.",
+      "failedTitle": "Sprachmoderation fehlgeschlagen",
+      "mutedAnnounce": "{name} ist serverweit stummgeschaltet",
+      "unmutedAnnounce": "{name} ist nicht mehr serverweit stummgeschaltet",
+      "deafenedAnnounce": "{name} ist serverweit taub geschaltet",
+      "undeafenedAnnounce": "{name} ist nicht mehr serverweit taub geschaltet",
+      "movedAnnounce": "{name} nach {channel} verschoben",
+      "disconnectedAnnounce": "{name} vom Sprachchat getrennt",
+      "youWereMovedTitle": "In einen anderen Kanal verschoben",
+      "youWereMoved": "Ein Moderator hat dich nach {channel} verschoben.",
+      "youWereDisconnectedTitle": "Aus dem Sprachchat entfernt",
+      "youWereDisconnected": "Ein Moderator hat dich vom Sprachchat getrennt.",
+      "youWereRemoved": "Du bist kein Mitglied dieses Servers mehr.",
+      "youLostAccess": "Du hast keinen Zugriff mehr auf diesen Sprachkanal.",
+      "youWereTimedOut": "Du wurdest auf diesem Server in ein Timeout geschickt."
+    }
   },
   "dm": {
     "directMessages": "Direktnachrichten",
@@ -2793,6 +2842,7 @@
   "emoji": {
     "messageReactionLimit": "Diese Nachricht hat {count} verschiedene Reaktionen. Schließe dich einer davon an.",
     "reactionNotAllowed": "In diesem Kanal kannst du dich nur bestehenden Reaktionen anschließen.",
+    "externalNotAllowed": "In diesem Kanal kannst du nur Unicode-Emojis und die Emojis dieses Servers verwenden.",
     "postReactionLimit": "Du hast {count} Reaktionen auf diesen Beitrag. Entferne eine, um eine weitere hinzuzufügen.",
     "search": "Emoji suchen...",
     "searchEmojis": "Emojis suchen...",
@@ -4023,7 +4073,7 @@
       "generic": "Deine Nachricht wurde vom AutoMod dieses Servers blockiert.",
       "timedOutUntil": "Du bist bis {time} im Timeout."
     },
-    "timedOut": "Du bist auf diesem Server bis {time} im Timeout und kannst keine Nachrichten senden.",
+    "timedOut": "Du bist auf diesem Server bis {time} im Timeout und kannst keine Nachrichten senden, nicht reagieren und keine Threads starten.",
     "antispam": {
       "rateLimited": "Neue Konten können nur wenige Nachrichten auf einmal senden. Versuche es in {seconds} s erneut.",
       "linksBlocked": "Neue Konten können noch keine Links posten.",
@@ -4100,6 +4150,12 @@
       "member_unban": "{actor} hat den Bann von {target} aufgehoben",
       "member_timeout": "{actor} hat {target} bis {until} in den Timeout versetzt",
       "member_timeout_remove": "{actor} hat den Timeout von {target} aufgehoben",
+      "member_voice_mute": "{actor} hat {target} serverweit stummgeschaltet",
+      "member_voice_unmute": "{actor} hat die serverweite Stummschaltung von {target} aufgehoben",
+      "member_voice_deafen": "{actor} hat {target} serverweit taub geschaltet",
+      "member_voice_undeafen": "{actor} hat die serverweite Taubschaltung von {target} aufgehoben",
+      "member_voice_move": "{actor} hat {target} in einen anderen Sprachkanal verschoben",
+      "member_voice_disconnect": "{actor} hat {target} aus dem Sprachkanal getrennt",
       "message_delete": "{actor} hat eine Nachricht von {target} in {channel} gelöscht | {actor} hat {count} Nachrichten von {target} in {channel} gelöscht",
       "server_update": "{actor} hat den Server bearbeitet",
       "settings_update": "{actor} hat die Servereinstellungen geändert",

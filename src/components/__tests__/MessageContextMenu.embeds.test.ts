@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { ref } from 'vue'
 
-const perms = vi.hoisted(() => ({ manage: false }))
+const perms = vi.hoisted(() => ({ manage: false, embed: true as boolean | null }))
 const setEmbedsSuppressed = vi.hoisted(() => vi.fn(async () => undefined))
 
 vi.mock('@/stores/useReactions', () => ({ useReactionsStore: () => ({ getMessageReactions: () => [] }) }))
@@ -19,7 +19,9 @@ vi.mock('@/composables/useServerPermissions', () => ({
   useServerPermissions: () => ({ canPinMessages: ref(false), canManageMessages: ref(false) }),
 }))
 vi.mock('@/composables/useChannelMessagePermissions', () => ({
-  useChannelMessagePermissions: () => ({ canPinMessages: ref(false), canManageMessages: ref(perms.manage) }),
+  useChannelMessagePermissions: () => ({
+    canPinMessages: ref(false), canManageMessages: ref(perms.manage), canCreateThreads: ref(true), canEmbedLinks: ref(perms.embed),
+  }),
 }))
 vi.mock('@/composables/useDeveloperTools', () => ({ useDeveloperTools: () => ({ developerToolsEnabled: ref(false) }) }))
 vi.mock('@/composables/usePinActions', () => ({ usePinActions: () => ({ setPinned: vi.fn() }) }))
@@ -50,6 +52,7 @@ const item = '[data-testid="context-menu-toggle-embeds"]'
 
 beforeEach(() => {
   perms.manage = false
+  perms.embed = true
   setEmbedsSuppressed.mockClear()
 })
 
@@ -66,6 +69,13 @@ describe('MessageContextMenu embeds', () => {
   it('offers Show embeds on a suppressed message', () => {
     const wrapper = mountMenu(linkMessage('me', { suppress_embeds: true }), { channelId: 'c1' })
     expect(wrapper.get(item).text()).toBe('message.embeds.show')
+  })
+
+  it('offers the author no Show embeds without EMBED_LINKS in the channel, but Remove embeds still', () => {
+    perms.embed = false
+    expect(mountMenu(linkMessage('me', { suppress_embeds: true }), { channelId: 'c1' }).find(item).exists()).toBe(false)
+    expect(mountMenu(linkMessage('me'), { channelId: 'c1' }).get(item).text()).toBe('message.embeds.remove')
+    expect(mountMenu(linkMessage('me', { suppress_embeds: true }), { conversationId: 'd1' }).find(item).exists()).toBe(true)
   })
 
   it('offers it to MANAGE_MESSAGES in a channel, not in a DM, and not to other members', () => {

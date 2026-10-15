@@ -9,7 +9,7 @@ A webhook is a secret URL that lets another service, such as GitHub or a build p
 
 ## Who can manage webhooks
 
-You need **Manage Webhooks** in the channel and must be able to see the channel. The server owner and the instance's administrators can always manage them. Grant **Manage Webhooks** on a role (see [Roles and permissions](/run/roles-permissions)); Harmony honours a channel override of it, but the channel editor does not offer one.
+You need **Manage Webhooks** in the channel and must be able to see the channel. The server owner and the instance's administrators can always manage them. Grant **Manage Webhooks** on a role (see [Roles and permissions](/run/roles-permissions)); A channel override of it, set in the channel editor, grants or removes it in that channel.
 
 Webhooks work only in:
 

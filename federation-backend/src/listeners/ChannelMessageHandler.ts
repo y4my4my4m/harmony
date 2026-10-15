@@ -290,6 +290,14 @@ export async function handleChannelMessageUpdate(
       return;
     }
 
+    // A remote member's edit reaches the other instances as the Group's relay of it
+    // (ServerInboxHandler). Signing as a remote profile would generate a key pair for it
+    // and overwrite its published key.
+    if (message.author.is_local !== true) {
+      logger.info(`Edit of ${message_id} by a remote author is relayed by the server inbox`);
+      return;
+    }
+
     const remoteMemberGroups = await getChannelRecipientGroups(channel_id);
 
     if (remoteMemberGroups.length === 0) {

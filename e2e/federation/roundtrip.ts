@@ -40,6 +40,9 @@
 //     against that member's published key.
 // Activities whose actor is a Group (Join answers, channel Update, message
 // Delete) are signed with that Group's own key, each way (cases/groupActor.ts).
+// A member's activities reach the other member instances as the Group's
+// Announce, with a third instance each way (cases/groupRelay.ts), and threads
+// are dereferenced under their channel's read rules (cases/threadRoutes.ts).
 // The proxy authenticates its caller with a Supabase JWT; roundtrip.ts signs
 // those itself and gateway.conf answers /auth/v1/user (auth-user-shim.sql).
 //
@@ -50,7 +53,9 @@
 //     accepts; a DM call the peer hosts: fx_bob accepts and the local instance
 //     fetches fx_bob's token from the peer, signed with fx_bob's key;
 //   - a voice channel of the peer's Group joined by fx_bob, and one of the
-//     hosted private server joined by the peer's user.
+//     hosted private server joined by the peer's user;
+//   - voice moderation of a member of the other instance, from the server's
+//     Group, each way (cases/voiceModerationFederation.ts).
 // Each ends with both sides' tokens joined to the same LiveKit room over its
 // signalling WebSocket.
 //
@@ -79,8 +84,12 @@ import { caseInboundPosts } from './cases/inbound-posts.ts'
 import { caseRemoteReplies } from './cases/remoteReplies.ts'
 import { caseQuotes } from './cases/quotes.ts'
 import { caseSoundboardTokenGrants } from './cases/soundboardTokens.ts'
+import { caseVoiceModeration } from './cases/voiceModeration.ts'
+import { caseVoiceModerationFederation } from './cases/voiceModerationFederation.ts'
 import { caseGroupActor } from './cases/groupActor.ts'
 import { caseChannelPermissions } from './cases/channelPermissions.ts'
+import { caseGroupRelay } from './cases/groupRelay.ts'
+import { caseThreadRoutes } from './cases/threadRoutes.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -2502,6 +2511,12 @@ async function main() {
     await casePeerHostedDmCall(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
     await caseRemoteVoiceJoin(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
     await caseHostedVoiceJoin(db, peer, localUrl, env.HMFED_JWT_SECRET, lk, backend)
+    await caseVoiceModeration({
+      db, localUrl, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
+      livekit: { url: env.HMFED_LIVEKIT_URL, key: env.HMFED_LIVEKIT_KEY, secret: env.HMFED_LIVEKIT_SECRET, join: (t) => lk.join(t) },
+      peer, bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),
+      ids: { serverId: PRIV_SERVER, channelId: PRIV_VOICE, ownerAuth: ALICE_AUTH, remote: REMOTE },
+    })
     await caseSignedOnlyActor(db, peer, localUrl)
     await caseFollowApproval({
       db, peer, assert, eq, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, verifySignature: backend.verifySignature,
@@ -2518,6 +2533,20 @@ async function main() {
     })
     await caseRemoteReplies({ db, localUrl, peerHost: env.HMFED_PEER_HOST, assert, eq })
     await caseQuotes({ db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, ids: { alice: ALICE, remote: REMOTE }, post, signedHeaders, assert, eq })
+    // After caseQuotes, which posts without retrying: these deliveries spend the peer's inbox budget.
+    await caseVoiceModerationFederation({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
+      livekit: { url: env.HMFED_LIVEKIT_URL, key: env.HMFED_LIVEKIT_KEY, secret: env.HMFED_LIVEKIT_SECRET, join: (t) => lk.join(t) },
+      bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+      ids: {
+        hostedServer: PRIV_SERVER, hostedVoice: PRIV_VOICE, ownerAuth: ALICE_AUTH, remote: REMOTE,
+        bob: BOB, bobAuth: BOB_AUTH, carol: CAROL, remoteRef: REMOTE_REF, remoteVoice: REMOTE_VOICE,
+      },
+    })
     await caseSoundboardTokenGrants({
       db, assert, eq, localUrl, serverId: PRIV_SERVER, channelId: PRIV_VOICE,
       member: { id: CAROL, auth: CAROL_AUTH }, bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),
@@ -2532,6 +2561,20 @@ async function main() {
     await caseChannelPermissions({
       db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, signedHeaders, assert, eq,
       ids: { alice: ALICE, remote: REMOTE, hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, otherChannel: PRIV_VOICE },
+    })
+    await caseGroupRelay({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
+      ids: {
+        alice: ALICE, bob: BOB, remote: REMOTE,
+        hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
+      },
+    })
+    await caseThreadRoutes({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, get, signedGetHeaders, assert, eq,
+      ids: {
+        alice: ALICE, remote: REMOTE, privServer: PRIV_SERVER, privGeneral: PRIV_GENERAL, privSecret: PRIV_SECRET,
+        pubServer: PUB_SERVER, pubGeneral: PUB_GENERAL,
+      },
     })
   } finally {
     await new Promise<void>((resolve) => local.close(() => resolve()))

@@ -4,6 +4,10 @@ import type { Message, MessagePart } from '@/types'
 import { debug } from '@/utils/debug'
 
 import { coreMessageService, type SendOptions } from './core'
+import { JUMP_AFTER, JUMP_BEFORE, cursorOf, jumpWindow, type JumpWindow } from '@/utils/messageWindow'
+
+/** A channel's main list (thread replies excluded) or a conversation. */
+export type MessageScope = { channelId: string } | { conversationId: string }
 
 export interface CreateChannelMessageData {
   content: MessagePart[]
@@ -254,6 +258,44 @@ export class MessageService {
       debug.error('MessageService: Failed to load conversation messages:', error)
       throw error
     }
+  }
+
+  /** Rows from `from` on, oldest first; see CoreMessageService.loadMessagesFrom. */
+  async loadMessagesFrom(
+    scope: MessageScope,
+    options: { from: string; inclusive?: boolean; limit?: number; signal?: AbortSignal }
+  ): Promise<{ messages: Message[]; hasMore: boolean }> {
+    const { limit = 50 } = options
+    const messages = await coreMessageService.loadMessagesFrom(scope, { ...options, limit })
+    return { messages, hasMore: messages.length === limit }
+  }
+
+  /**
+   * The rows around a message: up to JUMP_BEFORE before it, the message, up to
+   * JUMP_AFTER after it. Null when the message is not a visible row of `scope`:
+   * deleted, a thread reply, another context's, or hidden by RLS.
+   */
+  async loadMessageWindow(
+    scope: MessageScope,
+    messageId: string,
+    options: { isRemote?: boolean } = {}
+  ): Promise<JumpWindow<Message> | null> {
+    const target: any = await coreMessageService.loadMessage(messageId)
+    if (!target || target.is_deleted) return null
+    if ('channelId' in scope ? target.channel_id !== scope.channelId || target.thread_id : target.conversation_id !== scope.conversationId) {
+      return null
+    }
+    const at = cursorOf(target)
+    if (!at) return null
+
+    const [older, fromTarget] = await Promise.all([
+      'channelId' in scope
+        ? this.loadChannelMessages(scope.channelId, { limit: JUMP_BEFORE, before: at, isRemote: options.isRemote })
+        : this.loadConversationMessages(scope.conversationId, { limit: JUMP_BEFORE, before: at }),
+      coreMessageService.loadMessagesFrom(scope, { from: at, inclusive: true, limit: JUMP_AFTER + 1 }),
+    ])
+    if (!fromTarget.some(m => m.id === messageId)) return null
+    return jumpWindow(older.messages, fromTarget, JUMP_BEFORE, JUMP_AFTER)
   }
 
   async loadMessage(messageId: string): Promise<Message | null> {

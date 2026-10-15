@@ -1,7 +1,10 @@
 /**
  * Runs reconcileVoiceParticipants against this instance's LiveKit: every
  * VOICE_RECONCILE_INTERVAL_SECONDS in the worker, and for one room on a
- * LiveKit webhook in the server.
+ * LiveKit webhook in the server. The worker's run also applies
+ * enforceVoiceRooms (voiceModeration.ts) and the grant resyncs older than
+ * STALE_RESYNC_MS (voiceGrantSync.ts), which their voice-grant-sync job
+ * handles first.
  */
 
 import config from '../config/index.js';
@@ -13,6 +16,10 @@ import {
   type Departure,
   type ReconcileResult,
 } from './voiceParticipantReconciler.js';
+import { enforceVoiceRooms, type EnforceResult } from './voiceModeration.js';
+import { syncStaleVoiceGrants, type GrantSyncResult } from './voiceGrantSync.js';
+
+export const STALE_RESYNC_MS = 30_000;
 
 let timer: ReturnType<typeof setInterval> | null = null;
 let running = false;
@@ -34,6 +41,23 @@ export async function reconcileVoiceNow(
   });
 }
 
+export async function enforceVoiceNow(): Promise<EnforceResult | null> {
+  if (!voiceReconcileEnabled()) return null;
+  return enforceVoiceRooms({
+    roomService: livekitService.roomServiceClient(),
+    supabase: getSupabaseClient(),
+    instanceDomain: config.INSTANCE_DOMAIN,
+  });
+}
+
+export async function syncStaleGrantsNow(): Promise<GrantSyncResult | null> {
+  if (!voiceReconcileEnabled()) return null;
+  return syncStaleVoiceGrants({
+    roomService: livekitService.roomServiceClient(),
+    supabase: getSupabaseClient(),
+  }, STALE_RESYNC_MS);
+}
+
 async function tick(): Promise<void> {
   if (running) return;
   running = true;
@@ -43,6 +67,22 @@ async function tick(): Promise<void> {
     else if (result.removed > 0) logger.info(`Voice participant sweep removed ${result.removed} of ${result.checked} rows`);
   } catch (error) {
     logger.error('Voice participant sweep failed:', error);
+  }
+  try {
+    const enforced = await enforceVoiceNow();
+    if (enforced && (enforced.removed > 0 || enforced.updated > 0)) {
+      logger.info(`Voice enforcement removed ${enforced.removed} and updated ${enforced.updated} of ${enforced.checked} participants`);
+    }
+  } catch (error) {
+    logger.error('Voice enforcement failed:', error);
+  }
+  try {
+    const synced = await syncStaleGrantsNow();
+    if (synced && (synced.removed > 0 || synced.updated > 0)) {
+      logger.info(`Voice grant resync removed ${synced.removed} and updated ${synced.updated} of ${synced.checked} participants`);
+    }
+  } catch (error) {
+    logger.error('Voice grant resync failed:', error);
   } finally {
     running = false;
   }

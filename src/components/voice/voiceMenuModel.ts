@@ -66,6 +66,36 @@ export function buildVoiceMenu(input: VoiceMenuInput): VoiceMenuModel {
   return { volumes, showQuality: false, actions };
 }
 
+export type VoiceModerationAction = 'server-mute' | 'server-deafen' | 'move' | 'disconnect' | 'kick' | 'ban';
+
+export interface VoiceModerationMenuInput {
+  isSelf: boolean;
+  /** What the viewer may do to this member (voiceModeration capabilities). */
+  can: { mute: boolean; deafen: boolean; move: boolean; kick: boolean; ban: boolean };
+  /** The member is in a voice channel of the server. */
+  inVoice: boolean;
+  /** Voice channels the member could be moved to. */
+  moveTargets: number;
+}
+
+/**
+ * The menu's moderation items, in Discord's order. One's own row offers the
+ * voice items the permissions allow, never kick or ban.
+ */
+export function buildModerationActions(input: VoiceModerationMenuInput): VoiceModerationAction[] {
+  const actions: VoiceModerationAction[] = [];
+  if (input.can.mute) actions.push('server-mute');
+  if (input.can.deafen) actions.push('server-deafen');
+  if (input.can.move && input.inVoice) {
+    if (input.moveTargets > 0) actions.push('move');
+    actions.push('disconnect');
+  }
+  if (input.isSelf) return actions;
+  if (input.can.kick) actions.push('kick');
+  if (input.can.ban) actions.push('ban');
+  return actions;
+}
+
 export interface Point {
   x: number;
   y: number;

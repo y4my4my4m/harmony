@@ -19,6 +19,8 @@ const translate = vi.hoisted(() => (key: string, params?: Record<string, unknown
     'voice.statusStreaming': 'Streaming',
     'voice.statusSpeaking': 'Speaking',
     'voice.mutedByYou': 'Muted by you',
+    'voice.moderation.serverMuted': 'Server muted',
+    'voice.moderation.serverDeafened': 'Server deafened',
     'voice.live': 'Live',
     'voice.selfName': `${params?.name} (you)`,
     'voice.inCallCount': `${params?.count} in call`,
@@ -30,6 +32,14 @@ const translate = vi.hoisted(() => (key: string, params?: Record<string, unknown
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: translate }) }))
 vi.mock('@/composables/useT', () => ({ useT: () => ({ t: translate, locale: { value: 'en' } }) }))
 vi.mock('@/stores/unifiedVoiceChannel', () => ({ useUnifiedVoiceChannelStore: () => h.store }))
+vi.mock('@/stores/voiceModeration', () => ({
+  NO_VOICE_CAPABILITIES: { mute: false, deafen: false, move: false, kick: false, ban: false },
+  useVoiceModerationStore: () => ({
+    flagsOf: () => ({ muted: false, deafened: false }),
+    channelPowers: async () => ({ mute: false, deafen: false, move: false, kick: false, ban: false }),
+  }),
+}))
+vi.mock('@/stores/useServerChannel', () => ({ useServerChannelStore: () => ({ servers: [], currentServer: null, channels: [] }) }))
 vi.mock('@/composables/useUserData', () => ({
   useUserData: () => ({
     getUserProfile: (id: string) => ({ value: { display_name: id === 'me' ? 'Me' : 'Bob' } }),
@@ -96,6 +106,13 @@ afterEach(() => {
 })
 
 describe('participantLabel', () => {
+  it('names a server mute or deafen in place of the member\'s own', () => {
+    const t = (key: string) => translate(key)
+    expect(participantStates(t, { muted: true, serverMuted: true })).toEqual(['Server muted'])
+    expect(participantStates(t, { deafened: true, serverMuted: true, serverDeafened: true })).toEqual(['Server deafened'])
+    expect(participantLabel(t, 'Bob', { serverMuted: true, camera: true })).toBe('Bob, Server muted, Camera on')
+  })
+
   it('lists state in a fixed order; deafened replaces muted', () => {
     expect(participantStates(translate, { muted: true, deafened: true, camera: true, streaming: true, speaking: true }))
       .toEqual(['Deafened', 'Camera on', 'Streaming', 'Speaking'])

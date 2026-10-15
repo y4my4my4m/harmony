@@ -242,6 +242,7 @@
             :giphy-open="giphyOpen"
             :emoji-list-open="emojiListOpen"
             :thread-id="effectiveThreadIdForTyping"
+            :thread-channel-id="threadChannelId"
             :media-room="threadMediaRoom"
             @send-message="handleSendMessage"
             @send-voice-message="handleSendVoiceMessage"
@@ -261,6 +262,7 @@
       @click.stop
       @sendEmoji="handleSendEmoji"
       :closeEmojiList="closeReactionEmoji"
+      :channelId="threadChannelId"
       :isEmojiBlocked="isReactionEmojiBlocked"
       :limitNotice="reactionLimitNotice"
       :emojiIconClicked="emojiIconClicked"
@@ -280,6 +282,7 @@
       :triggerElement="mediaPickerTriggerElement || undefined"
       :composerElement="composerElement || undefined"
       :initialTab="mediaPickerInitialTab"
+      :channelId="threadChannelId"
     />
   </Teleport>
 </template>
@@ -287,7 +290,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { supabase } from '@/supabase'
-import { isModerationRejectionCode } from '@/services/AutoModService'
+import { isModerationRejectionCode, moderationRejectionFromError } from '@/services/AutoModService'
 import { threadService, isThreadNoticeParent } from '@/services/ThreadService'
 import { useUserData } from '@/composables/useUserData'
 import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt'
@@ -508,9 +511,9 @@ const displayThreadName = computed(() => {
 
 
 // Thread replies name the thread's channel; so do their attachments.
-const threadMediaRoom = computed(() => mediaRoom({
-  channelId: thread.value?.channel_id || props.draftParentMessage?.channel_id || props.channelId,
-}))
+const threadChannelId = computed(() =>
+  thread.value?.channel_id || props.draftParentMessage?.channel_id || props.channelId)
+const threadMediaRoom = computed(() => mediaRoom({ channelId: threadChannelId.value }))
 
 // Drafts have no thread row; the channel list names the parent's channel.
 const displayChannelName = computed(() => {
@@ -650,7 +653,8 @@ const startDraftThread = (): DraftThreadStart | null => {
         thread.value = null
         messages.value = []
       }
-      toast.error(t('chat.threadCreateFailed'))
+      // A timeout refuses the thread with MEMBER_TIMED_OUT; its notice names the end.
+      toast.error(moderationRejectionFromError(error)?.message ?? t('chat.threadCreateFailed'))
       return null
     })
 

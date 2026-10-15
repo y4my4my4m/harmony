@@ -51,6 +51,15 @@ const distanceFromBottom = (page: Page) =>
   list(page).evaluate((el) => el.scrollHeight - el.clientHeight - el.scrollTop)
 const jumpToPresent = (page: Page) => page.getByTestId('jump-to-present')
 
+/** Seed numbers of the rows the chat store holds, in list order; other rows are left out. */
+const loadedSeeds = (page: Page) => page.evaluate(() => {
+  const app = (document.querySelector('#app') as unknown as { __vue_app__: { config: { globalProperties: { $pinia: { _s: Map<string, { messages: Array<{ content: Array<{ text?: string }> }> }> } } } } }).__vue_app__
+  const chat = app.config.globalProperties.$pinia._s.get('chat')!
+  return chat.messages
+    .map((m) => Number(/^seed (\d+):/.exec(m.content?.[0]?.text ?? '')?.[1] ?? NaN))
+    .filter((n) => !Number.isNaN(n))
+})
+
 test('the list holds its position', async ({ page }) => {
   test.setTimeout(180_000)
 
@@ -125,20 +134,25 @@ test('the list holds its position', async ({ page }) => {
     await expect(jumpToPresent(page)).toBeHidden()
   })
 
-  // The jump splices the oldest message in ahead of the newest page; the seeds
-  // between the two stay unloaded.
-  await test.step('jump to present replaces a jump to an old message with the newest page', async () => {
+  // The jump opens the seeds from the oldest message on. Three pages of history
+  // leave the end of them in reach: the pages after them load in order up to the
+  // newest, and the list ends at the present again.
+  await test.step('jump to present after a jump to the oldest message', async () => {
     await page.goto(`/chat/${server.id}/${server.generalChannelId}?messageId=${oldestId}`)
     await expect(list(page).getByText('seed 0:')).toBeVisible({ timeout: 30000 })
-    await expect(list(page).getByText('seed 1:')).toHaveCount(0)
+    await expect(list(page).getByText('seed 1:')).toBeAttached()
+    await expect(async () => {
+      await list(page).evaluate((el) => { el.scrollTop = el.scrollHeight })
+      await expect(list(page).getByText(`seed ${SEEDED - 1}:`)).toBeAttached({ timeout: 1000 })
+    }).toPass({ timeout: 30000 })
+    await expect(page.getByTestId('history-bar')).toBeHidden({ timeout: 10000 })
+    expect(await loadedSeeds(page)).toEqual(Array.from({ length: SEEDED }, (_, i) => i))
+
+    await list(page).evaluate((el) => { el.scrollTop = el.scrollHeight - 2.5 * el.clientHeight })
     await expect(jumpToPresent(page)).toBeVisible()
     await jumpToPresent(page).click()
     await expect(list(page).getByText(`seed ${SEEDED - 1}:`)).toBeInViewport({ timeout: 15000 })
     await expect.poll(() => distanceFromBottom(page)).toBeLessThanOrEqual(1)
-    await expect(list(page).getByText('seed 0:')).toHaveCount(0)
     await expect(jumpToPresent(page)).toBeHidden()
-    // History above the newest page loads without the hole.
-    await list(page).evaluate((el) => { el.scrollTop = 0 })
-    await expect(list(page).getByText('seed 30:')).toBeAttached({ timeout: 15000 })
   })
 })

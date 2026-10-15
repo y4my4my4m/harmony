@@ -531,9 +531,14 @@
         "membership": "成员权限",
         "text": "文字权限",
         "threads": "话题权限",
-        "voice": "语音权限"
+        "voice": "语音权限",
+        "dangerous": "危险权限"
       },
       "perms": {
+        "ADMINISTRATOR": {
+          "label": "管理员",
+          "description": "在所有频道中拥有全部权限；只有所有者可以删除服务器"
+        },
         "VIEW_CHANNEL": {
           "label": "查看频道",
           "description": "允许成员默认查看频道"
@@ -544,11 +549,11 @@
         },
         "MANAGE_ROLES": {
           "label": "管理角色",
-          "description": "创建、编辑和删除低于此角色的角色"
+          "description": "创建、编辑、分配和删除低于自己最高角色的角色，并编辑频道权限"
         },
         "MANAGE_SERVER": {
           "label": "管理服务器",
-          "description": "编辑服务器设置并删除服务器"
+          "description": "编辑服务器设置、AutoMod、欢迎界面和机器人；只有所有者可以删除服务器"
         },
         "CREATE_INVITE": {
           "label": "创建邀请",
@@ -576,7 +581,7 @@
         },
         "TIMEOUT_MEMBERS": {
           "label": "禁言成员",
-          "description": "暂时禁言成员"
+          "description": "暂时禁止成员发送消息、添加反应、创建话题和加入语音"
         },
         "SEND_MESSAGES": {
           "label": "发送消息",
@@ -584,7 +589,7 @@
         },
         "EMBED_LINKS": {
           "label": "嵌入链接",
-          "description": "链接会显示预览"
+          "description": "发布的链接显示预览；没有此权限时，链接不显示预览"
         },
         "ATTACH_FILES": {
           "label": "附加文件",
@@ -604,11 +609,11 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "阅读消息历史",
-          "description": "查看消息历史"
+          "description": "阅读打开频道之前发送的消息；没有此权限时，只显示打开频道之后发送的消息"
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "使用外部表情符号",
-          "description": "使用其他服务器的表情符号"
+          "description": "使用其他服务器、实例和个人的表情符号；没有此权限时，只能使用 Unicode 和本服务器的表情符号"
         },
         "PIN_MESSAGES": {
           "label": "置顶消息",
@@ -620,7 +625,7 @@
         },
         "CREATE_PRIVATE_THREADS": {
           "label": "创建私密话题",
-          "description": "创建仅限邀请的话题"
+          "description": "无效果：Harmony 的所有话题对整个频道可见"
         },
         "SEND_MESSAGES_IN_THREADS": {
           "label": "在话题中发送消息",
@@ -648,7 +653,7 @@
         },
         "MOVE_MEMBERS": {
           "label": "移动成员",
-          "description": "在语音频道之间移动成员"
+          "description": "在语音频道之间移动成员或断开其连接"
         },
         "USE_SOUNDBOARD": {
           "label": "使用音效板",
@@ -794,13 +799,25 @@
           "label": "管理频道",
           "description": "重命名、编辑或删除此频道。"
         },
+        "MANAGE_ROLES": {
+          "label": "管理权限",
+          "description": "编辑此频道的权限覆盖。"
+        },
+        "MANAGE_WEBHOOKS": {
+          "label": "管理 Webhook",
+          "description": "创建、编辑和删除此频道的 Webhook。"
+        },
+        "PIN_MESSAGES": {
+          "label": "置顶消息",
+          "description": "在此频道中置顶和取消置顶消息。"
+        },
         "SEND_MESSAGES": {
           "label": "发送消息",
           "description": "在此频道中发布消息。"
         },
         "EMBED_LINKS": {
           "label": "嵌入链接",
-          "description": "发送嵌入内容和链接预览。"
+          "description": "在此发布的链接显示预览。"
         },
         "ATTACH_FILES": {
           "label": "附加文件",
@@ -812,7 +829,7 @@
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "使用外部表情符号",
-          "description": "发送其他服务器的表情符号。"
+          "description": "在消息和反应中使用本服务器以外的表情符号。"
         },
         "MENTION_EVERYONE": {
           "label": "提及 {'@'}everyone",
@@ -824,7 +841,7 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "阅读消息历史",
-          "description": "查看加入之前发布的消息。"
+          "description": "查看打开频道之前发布的消息。"
         },
         "CREATE_PUBLIC_THREADS": {
           "label": "创建公开话题",
@@ -860,7 +877,7 @@
         },
         "MOVE_MEMBERS": {
           "label": "移动成员",
-          "description": "将成员移出此频道。"
+          "description": "移动或断开此频道中的成员。"
         },
         "USE_SOUNDBOARD": {
           "label": "使用音效板",
@@ -918,14 +935,15 @@
     "unreadSince": "自 {time} 以来有 {count} 条新消息",
     "markAsRead": "标记为已读",
     "jumpToPresent": "跳转到最新",
+    "viewingOlder": "你正在查看较早的消息",
     "conversationBeginning": "这是您对话的开始",
     "conversationBeginningSubtitle": "开始聊天，让它难忘！",
     "channelWelcome": "欢迎来到 #{name}",
     "channelWelcomeSubtitle": "这是 #{name} 频道的开端。",
+    "historyRestricted": "打开此频道之前发送的消息已隐藏：你在此频道没有“阅读消息历史”权限。",
     "dmBeginning": "这是您与 {name} 私信的最开始。",
     "groupBeginning": "这是 {name} 群组的最开始。",
     "groupBeginningUnnamed": "这是本群组的最开始。",
-    "jumpInConversation": "跳转到对话",
     "reactions": {
       "add": "添加反应",
       "remove": "移除反应",
@@ -1323,7 +1341,38 @@
     "muteUserNamed": "静音 {name}",
     "muteStreamNamed": "静音 {name} 的直播",
     "userVolumeNamed": "{name} 的音量",
-    "streamVolumeNamed": "{name} 的直播音量"
+    "streamVolumeNamed": "{name} 的直播音量",
+    "moderation": {
+      "section": "管理",
+      "serverMute": "服务器静音",
+      "serverDeafen": "服务器闭听",
+      "serverMuted": "已被服务器静音",
+      "serverDeafened": "已被服务器闭听",
+      "moveTo": "移动到",
+      "disconnect": "断开连接",
+      "kick": "踢出",
+      "ban": "封禁",
+      "dragHint": "拖到另一个语音频道即可移动。",
+      "lockedTitle": "此处不允许",
+      "serverMutedHint": "管理员已将你服务器静音。解除之前你无法取消静音。",
+      "serverDeafenedHint": "管理员已将你服务器闭听。解除之前你无法恢复收听。",
+      "noSpeakHint": "你没有在此频道说话的权限。",
+      "noStreamHint": "你没有在此频道共享视频或屏幕的权限。",
+      "failedTitle": "语音管理失败",
+      "mutedAnnounce": "已将 {name} 服务器静音",
+      "unmutedAnnounce": "已解除 {name} 的服务器静音",
+      "deafenedAnnounce": "已将 {name} 服务器闭听",
+      "undeafenedAnnounce": "已解除 {name} 的服务器闭听",
+      "movedAnnounce": "已将 {name} 移动到 {channel}",
+      "disconnectedAnnounce": "已将 {name} 断开语音",
+      "youWereMovedTitle": "已被移到另一个频道",
+      "youWereMoved": "管理员已将你移动到 {channel}。",
+      "youWereDisconnectedTitle": "已离开语音",
+      "youWereDisconnected": "管理员已断开你的语音连接。",
+      "youWereRemoved": "你已不再是此服务器的成员。",
+      "youLostAccess": "你已无权访问该语音频道。",
+      "youWereTimedOut": "你在此服务器被禁言。"
+    }
   },
   "dm": {
     "directMessages": "私信",
@@ -2793,6 +2842,7 @@
   "emoji": {
     "messageReactionLimit": "此消息已有 {count} 种不同的反应。请在现有反应中选择一个。",
     "reactionNotAllowed": "在此频道中只能加入已有的反应。",
+    "externalNotAllowed": "此频道只能使用 Unicode 表情符号和本服务器的表情符号。",
     "postReactionLimit": "您已对此帖子添加 {count} 个反应。请移除一个后再添加。",
     "search": "搜索表情...",
     "searchEmojis": "搜索表情...",
@@ -4023,7 +4073,7 @@
       "generic": "您的消息已被此服务器的 AutoMod 拦截。",
       "timedOutUntil": "您已被禁言至 {time}。"
     },
-    "timedOut": "您在此服务器中已被禁言至 {time}，无法发送消息。",
+    "timedOut": "您在此服务器中已被禁言至 {time}，无法发送消息、添加反应或创建话题。",
     "antispam": {
       "rateLimited": "新账户一次只能发送少量消息。请在 {seconds} 秒后重试。",
       "linksBlocked": "新账户暂时无法发布链接。",
@@ -4100,6 +4150,12 @@
       "member_unban": "{actor} 解除了对 {target} 的封禁",
       "member_timeout": "{actor} 将 {target} 禁言至 {until}",
       "member_timeout_remove": "{actor} 解除了 {target} 的禁言",
+      "member_voice_mute": "{actor} 将 {target} 设为服务器静音",
+      "member_voice_unmute": "{actor} 解除了 {target} 的服务器静音",
+      "member_voice_deafen": "{actor} 将 {target} 设为服务器拒听",
+      "member_voice_undeafen": "{actor} 解除了 {target} 的服务器拒听",
+      "member_voice_move": "{actor} 将 {target} 移到了另一个语音频道",
+      "member_voice_disconnect": "{actor} 断开了 {target} 的语音连接",
       "message_delete": "{actor} 在 {channel} 中删除了 {target} 的 {count} 条消息",
       "server_update": "{actor} 编辑了服务器",
       "settings_update": "{actor} 修改了服务器设置",

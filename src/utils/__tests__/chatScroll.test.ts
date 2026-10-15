@@ -114,9 +114,9 @@ describe('scrollTopAfterPrepend', () => {
 })
 
 describe('showJumpToPresent', () => {
-  // 600 px viewport, released, nothing new, no jump.
+  // 600 px viewport, released, nothing new, attached.
   const at = (o: Partial<JumpToPresentState>): JumpToPresentState =>
-    ({ distance: 0, viewport: 600, pinned: false, unseen: 0, jumped: false, ...o })
+    ({ distance: 0, viewport: 600, pinned: false, unseen: 0, detached: false, ...o })
 
   it('shows more than one viewport above the end', () => {
     expect(showJumpToPresent(at({ distance: 601 }))).toBe(true)
@@ -131,11 +131,11 @@ describe('showJumpToPresent', () => {
     expect(showJumpToPresent(at({ distance: 40, unseen: 3 }))).toBe(true)
   })
 
-  it('shows after a jump at any distance', () => {
-    expect(showJumpToPresent(at({ distance: 40, jumped: true }))).toBe(true)
+  it('never shows on a detached list', () => {
+    expect(showJumpToPresent(at({ detached: true, distance: 5000, unseen: 2 }))).toBe(false)
   })
 
   it('never shows on a pinned view', () => {
-    expect(showJumpToPresent(at({ pinned: true, distance: 5000, unseen: 2, jumped: true }))).toBe(false)
+    expect(showJumpToPresent(at({ pinned: true, distance: 5000, unseen: 2 }))).toBe(false)
   })
 })

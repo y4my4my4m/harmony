@@ -531,9 +531,14 @@
         "membership": "メンバーシップの権限",
         "text": "テキストの権限",
         "threads": "スレッドの権限",
-        "voice": "ボイスの権限"
+        "voice": "ボイスの権限",
+        "dangerous": "危険な権限"
       },
       "perms": {
+        "ADMINISTRATOR": {
+          "label": "管理者",
+          "description": "すべてのチャンネルですべての権限を持ちます。サーバーを削除できるのはオーナーのみです"
+        },
         "VIEW_CHANNEL": {
           "label": "チャンネルを見る",
           "description": "メンバーがデフォルトでチャンネルを見られるようにします"
@@ -544,11 +549,11 @@
         },
         "MANAGE_ROLES": {
           "label": "ロールの管理",
-          "description": "このロールより下のロールを作成・編集・削除します"
+          "description": "自分の最上位ロールより下のロールを作成・編集・付与・削除し、チャンネルの権限を編集します"
         },
         "MANAGE_SERVER": {
           "label": "サーバーの管理",
-          "description": "サーバー設定を編集し、サーバーを削除します"
+          "description": "サーバー設定、AutoMod、ウェルカム画面、ボットを編集します。サーバーを削除できるのはオーナーのみです"
         },
         "CREATE_INVITE": {
           "label": "招待を作成",
@@ -576,7 +581,7 @@
         },
         "TIMEOUT_MEMBERS": {
           "label": "メンバーをタイムアウト",
-          "description": "メンバーを一時的にミュートします"
+          "description": "メンバーのメッセージ送信、リアクション、スレッド作成、ボイス参加を一時的に停止します"
         },
         "SEND_MESSAGES": {
           "label": "メッセージを送信",
@@ -584,7 +589,7 @@
         },
         "EMBED_LINKS": {
           "label": "リンクを埋め込む",
-          "description": "リンクにプレビューが表示されます"
+          "description": "投稿したリンクにプレビューが表示されます。ない場合、リンクはプレビューなしで投稿されます"
         },
         "ATTACH_FILES": {
           "label": "ファイルを添付",
@@ -604,11 +609,11 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "メッセージ履歴を読む",
-          "description": "メッセージ履歴を表示します"
+          "description": "チャンネルを開く前に送信されたメッセージを読めます。ない場合、開いた後に送信されたメッセージのみ表示されます"
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "外部の絵文字を使用",
-          "description": "他のサーバーの絵文字を使用します"
+          "description": "他のサーバー、インスタンス、自分の絵文字を使用します。ない場合はUnicodeとこのサーバーの絵文字のみです"
         },
         "PIN_MESSAGES": {
           "label": "メッセージをピン留め",
@@ -620,7 +625,7 @@
         },
         "CREATE_PRIVATE_THREADS": {
           "label": "プライベートスレッドを作成",
-          "description": "招待制のスレッドを作成します"
+          "description": "効果はありません。Harmony のスレッドはチャンネル全体に公開されます"
         },
         "SEND_MESSAGES_IN_THREADS": {
           "label": "スレッドでメッセージを送信",
@@ -648,7 +653,7 @@
         },
         "MOVE_MEMBERS": {
           "label": "メンバーを移動",
-          "description": "ボイスチャンネル間でメンバーを移動します"
+          "description": "ボイスチャンネル間でメンバーを移動または切断します"
         },
         "USE_SOUNDBOARD": {
           "label": "サウンドボードを使用",
@@ -794,13 +799,25 @@
           "label": "チャンネルの管理",
           "description": "このチャンネルの名前変更・編集・削除を行います。"
         },
+        "MANAGE_ROLES": {
+          "label": "権限の管理",
+          "description": "このチャンネルの権限の上書きを編集します。"
+        },
+        "MANAGE_WEBHOOKS": {
+          "label": "Webhookの管理",
+          "description": "このチャンネルのWebhookを作成・編集・削除します。"
+        },
+        "PIN_MESSAGES": {
+          "label": "メッセージをピン留め",
+          "description": "このチャンネルでメッセージをピン留め・解除します。"
+        },
         "SEND_MESSAGES": {
           "label": "メッセージを送信",
           "description": "このチャンネルにメッセージを投稿します。"
         },
         "EMBED_LINKS": {
           "label": "リンクを埋め込む",
-          "description": "埋め込みとリンクのプレビューを送信します。"
+          "description": "ここに投稿したリンクにプレビューが表示されます。"
         },
         "ATTACH_FILES": {
           "label": "ファイルを添付",
@@ -812,7 +829,7 @@
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "外部の絵文字を使用",
-          "description": "他のサーバーの絵文字を送信します。"
+          "description": "このサーバー以外の絵文字をメッセージとリアクションで使用します。"
         },
         "MENTION_EVERYONE": {
           "label": "{'@'}everyone をメンション",
@@ -824,7 +841,7 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "メッセージ履歴を読む",
-          "description": "参加前に投稿されたメッセージを表示します。"
+          "description": "チャンネルを開く前に投稿されたメッセージを表示します。"
         },
         "CREATE_PUBLIC_THREADS": {
           "label": "公開スレッドを作成",
@@ -860,7 +877,7 @@
         },
         "MOVE_MEMBERS": {
           "label": "メンバーを移動",
-          "description": "このチャンネルからメンバーを移動します。"
+          "description": "このチャンネルのメンバーを移動または切断します。"
         },
         "USE_SOUNDBOARD": {
           "label": "サウンドボードを使用",
@@ -918,14 +935,15 @@
     "unreadSince": "{time} 以降の新着メッセージ {count} 件",
     "markAsRead": "既読にする",
     "jumpToPresent": "最新に移動",
+    "viewingOlder": "過去のメッセージを表示中",
     "conversationBeginning": "これは会話の始まりです",
     "conversationBeginningSubtitle": "チャットを始めて、思い出に残るものにしましょう！",
     "channelWelcome": "#{name} へようこそ",
     "channelWelcomeSubtitle": "ここは #{name} チャンネルの始まりです。",
+    "historyRestricted": "このチャンネルを開く前に送信されたメッセージは表示されません。このチャンネルでは「メッセージ履歴を読む」権限がありません。",
     "dmBeginning": "ここが {name} とのダイレクトメッセージの始まりです。",
     "groupBeginning": "ここが {name} グループの始まりです。",
     "groupBeginningUnnamed": "ここがこのグループの始まりです。",
-    "jumpInConversation": "会話にジャンプ",
     "reactions": {
       "add": "リアクションを追加",
       "remove": "リアクションを削除",
@@ -1323,7 +1341,38 @@
     "muteUserNamed": "{name}さんをミュート",
     "muteStreamNamed": "{name}さんの配信をミュート",
     "userVolumeNamed": "{name}さんの音量",
-    "streamVolumeNamed": "{name}さんの配信の音量"
+    "streamVolumeNamed": "{name}さんの配信の音量",
+    "moderation": {
+      "section": "モデレーション",
+      "serverMute": "サーバーミュート",
+      "serverDeafen": "サーバースピーカーミュート",
+      "serverMuted": "サーバーミュート中",
+      "serverDeafened": "サーバースピーカーミュート中",
+      "moveTo": "移動先",
+      "disconnect": "切断",
+      "kick": "キック",
+      "ban": "BAN",
+      "dragHint": "別のボイスチャンネルへドラッグして移動します。",
+      "lockedTitle": "ここでは使えません",
+      "serverMutedHint": "モデレーターがあなたをサーバーミュートしました。解除されるまでミュートを外せません。",
+      "serverDeafenedHint": "モデレーターがあなたのスピーカーをサーバーミュートしました。解除されるまで戻せません。",
+      "noSpeakHint": "このチャンネルで発言する権限がありません。",
+      "noStreamHint": "このチャンネルでビデオや画面を共有する権限がありません。",
+      "failedTitle": "ボイスのモデレーションに失敗しました",
+      "mutedAnnounce": "{name}さんをサーバーミュートしました",
+      "unmutedAnnounce": "{name}さんのサーバーミュートを解除しました",
+      "deafenedAnnounce": "{name}さんのスピーカーをサーバーミュートしました",
+      "undeafenedAnnounce": "{name}さんのスピーカーミュートを解除しました",
+      "movedAnnounce": "{name}さんを{channel}へ移動しました",
+      "disconnectedAnnounce": "{name}さんをボイスから切断しました",
+      "youWereMovedTitle": "別のチャンネルへ移動されました",
+      "youWereMoved": "モデレーターがあなたを{channel}へ移動しました。",
+      "youWereDisconnectedTitle": "ボイスから外されました",
+      "youWereDisconnected": "モデレーターがあなたをボイスから切断しました。",
+      "youWereRemoved": "このサーバーのメンバーではなくなりました。",
+      "youLostAccess": "そのボイスチャンネルへのアクセス権がなくなりました。",
+      "youWereTimedOut": "このサーバーでタイムアウトされました。"
+    }
   },
   "dm": {
     "directMessages": "ダイレクトメッセージ",
@@ -2774,6 +2823,7 @@
   "emoji": {
     "messageReactionLimit": "このメッセージには {count} 種類のリアクションがあります。既存のリアクションに追加してください。",
     "reactionNotAllowed": "このチャンネルでは既存のリアクションにのみ追加できます。",
+    "externalNotAllowed": "このチャンネルではUnicode絵文字とこのサーバーの絵文字のみ使用できます。",
     "postReactionLimit": "この投稿に {count} 件のリアクションを付けています。追加するには1つ削除してください。",
     "search": "絵文字を検索...",
     "recent": "最近使った絵文字",
@@ -4023,7 +4073,7 @@
       "generic": "メッセージはこのサーバーの AutoMod によってブロックされました。",
       "timedOutUntil": "{time} までタイムアウト中です。"
     },
-    "timedOut": "このサーバーでは {time} までタイムアウト中のため、メッセージを送信できません。",
+    "timedOut": "このサーバーでは {time} までタイムアウト中のため、メッセージの送信、リアクション、スレッドの作成ができません。",
     "antispam": {
       "rateLimited": "新しいアカウントは一度に少数のメッセージしか送信できません。{seconds} 秒後にもう一度お試しください。",
       "linksBlocked": "新しいアカウントはまだリンクを投稿できません。",
@@ -4100,6 +4150,12 @@
       "member_unban": "{actor}が{target}のBANを解除しました",
       "member_timeout": "{actor}が{target}を{until}までタイムアウトしました",
       "member_timeout_remove": "{actor}が{target}のタイムアウトを解除しました",
+      "member_voice_mute": "{actor}が{target}をサーバーミュートしました",
+      "member_voice_unmute": "{actor}が{target}のサーバーミュートを解除しました",
+      "member_voice_deafen": "{actor}が{target}をサーバースピーカーミュートしました",
+      "member_voice_undeafen": "{actor}が{target}のサーバースピーカーミュートを解除しました",
+      "member_voice_move": "{actor}が{target}を別のボイスチャンネルに移動しました",
+      "member_voice_disconnect": "{actor}が{target}をボイスから切断しました",
       "message_delete": "{actor}が{channel}で{target}のメッセージを{count}件削除しました",
       "server_update": "{actor}がサーバーを編集しました",
       "settings_update": "{actor}がサーバー設定を変更しました",

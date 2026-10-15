@@ -21,6 +21,8 @@ import { insertMessageSorted, evictOldestCacheEntry, trimCachedMessages, waitFor
 import { isModerationRejectionCode } from '@/services/AutoModService'
 import { releaseFloatingVideo } from '@/composables/useFloatingVideo'
 import { useMessagePollsStore } from '@/stores/useMessagePolls'
+import { useProfileStore } from '@/stores/useProfile'
+import { NEWER_PAGE, acceptsLiveRow, appendNewer, cursorOf, isPendingRow, mergeTail, newestPersisted } from '@/utils/messageWindow'
 
 /** Rows a catch-up after the newest loaded message reads at once. */
 const CATCH_UP_LIMIT = 50
@@ -94,6 +96,20 @@ export const useDMStore = defineStore('dm', () => {
   const messageCache = ref<Map<string, DMCache>>(new Map())
   const cacheValidityDuration = 5 * 60 * 1000 // 5 minutes
   const maxCacheSize = 50
+
+  /** The list ends before the conversation's newest message: a jump detached it from the present. */
+  const hasNewerMessages = ref(false)
+  const loadingNewerMessages = ref(false)
+  /** Messages from others that arrived while the list is detached. */
+  const unseenWhileDetached = ref(0)
+  // Bumped by every load that replaces the list (jump, newest page); a load
+  // started under an older value is discarded.
+  let windowSeq = 0
+
+  const resetDetached = () => {
+    hasNewerMessages.value = false
+    unseenWhileDetached.value = 0
+  }
   
   const dmSubscriptions = ref<Map<string, any>>(new Map())
   const currentSubscription = ref<any | null>(null)
@@ -176,6 +192,7 @@ export const useDMStore = defineStore('dm', () => {
       debug.log(`Loading cached DM messages instantly: ${conversationId}`)
       currentDMMessages.value = [...cached.messages]
       allMessagesLoaded.value = cached.allMessagesLoaded
+      resetDetached()
     }
   }
 
@@ -185,6 +202,7 @@ export const useDMStore = defineStore('dm', () => {
    */
   const revalidateRecentDMMessages = async (conversationId: string) => {
     try {
+      if (hasNewerMessages.value) return
       const msgs = currentDMMessages.value
       const newest = msgs.length ? msgs[msgs.length - 1] : null
       if (!newest) return // empty conversation; realtime populates it
@@ -197,8 +215,8 @@ export const useDMStore = defineStore('dm', () => {
         after: afterTs,
       })
       if (!messagesData || messagesData.length === 0) return
-      // Conversation may have changed during the fetch.
-      if (currentConversationId.value !== conversationId) return
+      // The conversation may have changed, or a jump detached the list, during the fetch.
+      if (currentConversationId.value !== conversationId || hasNewerMessages.value) return
       // The page holds the newest rows after the cursor; a full one can leave
       // older missed rows between them and the list.
       if (messagesData.length >= CATCH_UP_LIMIT) {
@@ -215,7 +233,7 @@ export const useDMStore = defineStore('dm', () => {
         const serverUsersStore = useServerUsersStore()
         await serverUsersStore.fetchMultipleUserProfiles(userIds)
       }
-      if (currentConversationId.value !== conversationId) return
+      if (currentConversationId.value !== conversationId || hasNewerMessages.value) return
 
       // CoreMessageService already decrypted these. Preserve the flags and
       // normalize to the shape the initial load produces.
@@ -255,9 +273,11 @@ export const useDMStore = defineStore('dm', () => {
     } catch (error) {
       debug.warn('Failed to prepare DM message embeds:', error)
     }
-    if (currentConversationId.value === message.conversation_id) {
-      if (!currentDMMessages.value.some(msg => msg.id === message.id)) {
+    if (currentConversationId.value === message.conversation_id && !currentDMMessages.value.some(msg => msg.id === message.id)) {
+      if (acceptsLiveRow(currentDMMessages.value, message, hasNewerMessages.value)) {
         insertMessageSorted(currentDMMessages.value, message)
+      } else if (message.user_id !== useProfileStore().profileId) {
+        unseenWhileDetached.value++
       }
     }
 
@@ -417,12 +437,14 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   const highlightedMessageId = ref<string | null>(null)
-  // Ids of rows a jump spliced in from outside the loaded range.
-  const jumpedMessageIds = ref(new Set<string>())
 
+  /**
+   * Shows a message. One outside the list replaces it with the rows around the
+   * message, detached from the present when newer rows follow them. Mirrors
+   * useChat.jumpToMessage.
+   */
   const jumpToMessage = async (messageId: string): Promise<boolean> => {
-    const existingMessage = currentDMMessages.value.find(msg => msg.id === messageId)
-    if (existingMessage) {
+    if (currentDMMessages.value.some(msg => msg.id === messageId)) {
       highlightedMessageId.value = messageId
       return true
     }
@@ -430,42 +452,91 @@ export const useDMStore = defineStore('dm', () => {
     const conversationId = currentConversationId.value
     if (!conversationId) return false
 
+    const seq = ++windowSeq
     try {
-      const { data: message, error } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('id', messageId)
-        .eq('conversation_id', conversationId)
-        .single()
-
-      if (error || !message) {
-        debug.error('DM message not found for jump:', error)
+      const window = await services.messages.loadMessageWindow({ conversationId }, messageId)
+      if (seq !== windowSeq || currentConversationId.value !== conversationId) return false
+      if (!window) {
+        debug.warn('Jump target is not a visible message of the conversation:', messageId)
         return false
       }
-      if (currentConversationId.value !== conversationId) return false
-
-      const messageDate = new Date(message.created_at)
-      const msgs = [...currentDMMessages.value]
-      let insertIndex = 0
-      for (let i = 0; i < msgs.length; i++) {
-        if (new Date(msgs[i].created_at) > messageDate) {
-          insertIndex = i
-          break
-        }
-        insertIndex = i + 1
+      const rows = prepareRows(conversationId, window.messages)
+      allMessagesLoaded.value = window.allOlderLoaded
+      if (window.hasNewer) {
+        currentDMMessages.value = rows
+        hasNewerMessages.value = true
+        unseenWhileDetached.value = 0
+      } else {
+        attachList(conversationId, rows)
       }
-      currentDMMessages.value.splice(insertIndex, 0, toConversationMessages(conversationId, [message])[0])
-      jumpedMessageIds.value.add(messageId)
-
       setTimeout(() => {
         highlightedMessageId.value = messageId
       }, 100)
-
       return true
     } catch (error) {
       debug.error('Error jumping to DM message:', error)
       return false
     }
+  }
+
+  /**
+   * Appends the next page toward the present to a detached list. A short page
+   * reached the newest message and attaches the list again.
+   */
+  const fetchNewerMessages = async (conversationId: string): Promise<void> => {
+    if (!hasNewerMessages.value || loadingNewerMessages.value || currentConversationId.value !== conversationId) return
+    const cursorRow = newestPersisted(currentDMMessages.value)
+    const from = cursorOf(cursorRow)
+    if (!cursorRow || !from) return
+
+    const seq = windowSeq
+    loadingNewerMessages.value = true
+    try {
+      const { messages: page } = await services.messages.loadMessagesFrom({ conversationId }, { from, limit: NEWER_PAGE })
+      if (seq !== windowSeq || currentConversationId.value !== conversationId || !hasNewerMessages.value) return
+      if (newestPersisted(currentDMMessages.value)?.id !== cursorRow.id) return
+      const next = appendNewer(currentDMMessages.value, prepareRows(conversationId, page), NEWER_PAGE)
+      if (next.hasNewer) currentDMMessages.value = next.messages
+      else attachList(conversationId, next.messages)
+    } catch (error) {
+      debug.error('Failed to load newer DM messages:', error)
+    } finally {
+      loadingNewerMessages.value = false
+    }
+  }
+
+  /** Rows newer than any page loaded: the list itself, or the cache while detached. */
+  const liveTail = (conversationId: string): Message[] => {
+    if (!hasNewerMessages.value) return currentDMMessages.value
+    return [...(messageCache.value.get(conversationId)?.messages ?? []), ...currentDMMessages.value.filter(isPendingRow)]
+  }
+
+  /**
+   * Shows `rows`, which end at the conversation's newest message, followed by
+   * what arrived while they loaded. The cache mirrors the attached list.
+   */
+  const attachList = (conversationId: string, rows: Message[]) => {
+    const merged = mergeTail(rows, liveTail(conversationId))
+    currentDMMessages.value = merged
+    resetDetached()
+
+    evictOldestCache()
+    messageCache.value.set(conversationId, {
+      messages: [...merged],
+      lastFetchedAt: new Date(),
+      oldestMessageId: merged[0]?.id || null,
+      allMessagesLoaded: allMessagesLoaded.value,
+      lastModified: new Date(),
+    })
+  }
+
+  const prepareRows = (conversationId: string, rows: any[]): Message[] => {
+    const formatted = toConversationMessages(conversationId, rows)
+    const userIds = [...new Set(formatted.map(m => m.user_id).filter(Boolean))] as string[]
+    if (userIds.length > 0) {
+      void useServerUsersStore().fetchMultipleUserProfiles(userIds).catch(() => {})
+    }
+    return formatted
   }
 
   const fetchReplyMessage = async (messageId: string): Promise<Message | null> => {
@@ -1642,6 +1713,7 @@ export const useDMStore = defineStore('dm', () => {
       if (beforeMessageId === undefined) {
         currentDMMessages.value = formattedMessages
         allMessagesLoaded.value = allLoaded
+        resetDetached()
 
         evictOldestCache()
         messageCache.value.set(conversationId, {
@@ -1657,7 +1729,8 @@ export const useDMStore = defineStore('dm', () => {
         currentDMMessages.value = [...formattedMessages, ...currentDMMessages.value]
         allMessagesLoaded.value = allLoaded
 
-        const cached = messageCache.value.get(conversationId)
+        // The cache holds the newest rows; a detached list is not a prefix of them.
+        const cached = hasNewerMessages.value ? undefined : messageCache.value.get(conversationId)
         if (cached) {
           cached.messages = [...formattedMessages, ...cached.messages]
           cached.oldestMessageId = formattedMessages[0]?.id || cached.oldestMessageId
@@ -1686,32 +1759,15 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   /**
-   * Replaces the loaded rows with the conversation's newest page and drops
-   * jumped-to rows. Mirrors useChat.reloadNewestPage.
+   * Replaces the list with the conversation's newest page and attaches it to
+   * the present. Mirrors useChat.reloadNewestPage.
    */
   const reloadNewestPage = async (conversationId: string) => {
+    const seq = ++windowSeq
     const { messages: rows, hasMore } = await services.messages.loadConversationMessages(conversationId, { limit: 20 })
-    if (currentConversationId.value !== conversationId || !rows || rows.length === 0) return
-    const page = toConversationMessages(conversationId, rows)
-
-    const pageIds = new Set(page.map(m => m.id))
-    const newestAt = new Date(page[page.length - 1].created_at).getTime()
-    const later = currentDMMessages.value.filter(m =>
-      !pageIds.has(m.id) && new Date(m.created_at).getTime() > newestAt
-    )
-    const merged = [...page, ...later]
-    currentDMMessages.value = merged
+    if (seq !== windowSeq || currentConversationId.value !== conversationId || !rows || rows.length === 0) return
     allMessagesLoaded.value = !hasMore
-    jumpedMessageIds.value.clear()
-
-    evictOldestCache()
-    messageCache.value.set(conversationId, {
-      messages: [...merged],
-      lastFetchedAt: new Date(),
-      oldestMessageId: merged[0]?.id || null,
-      allMessagesLoaded: !hasMore,
-      lastModified: new Date(),
-    })
+    attachList(conversationId, toConversationMessages(conversationId, rows))
   }
 
   const searchUsers = async (query: string, currentUserId: string) => {
@@ -2174,6 +2230,7 @@ export const useDMStore = defineStore('dm', () => {
   const clearDMMessages = () => {
     currentDMMessages.value = []
     allMessagesLoaded.value = false
+    resetDetached()
   }
 
   const cleanupRealtimeSubscriptions = () => {
@@ -2281,6 +2338,8 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   const reconcileOnce = async (conversationId: string): Promise<number> => {
+    // A detached list holds history; pages toward the present fill it.
+    if (hasNewerMessages.value) return 0
     try {
       const newest = currentDMMessages.value[currentDMMessages.value.length - 1]
       let query = supabase
@@ -2802,6 +2861,7 @@ export const useDMStore = defineStore('dm', () => {
     
     // Active-conversation message state is always dropped; it is re-fetched on open.
     currentDMMessages.value = []
+    resetDetached()
     currentConversationId.value = null
     searchResults.value = []
     replyMessageCache.value.clear()
@@ -2810,7 +2870,6 @@ export const useDMStore = defineStore('dm', () => {
     if (resetData) {
       conversations.value = []
       messageCache.value.clear()
-      jumpedMessageIds.value.clear()
     }
     // Otherwise `conversations` and the message cache stay warm.
     
@@ -3376,7 +3435,10 @@ export const useDMStore = defineStore('dm', () => {
     editMessage,
     deleteMessage,
     jumpToMessage,
-    jumpedMessageIds,
+    fetchNewerMessages,
+    hasNewerMessages,
+    loadingNewerMessages,
+    unseenWhileDetached,
     reloadNewestPage,
     highlightedMessageId,
     initializeDMEnvironment,

@@ -13,13 +13,15 @@
  *   - on a local server, VIEW_CHANNEL and the kind's permission through
  *     has_permission, and ATTACH_FILES for a message or edit carrying new
  *     uploads (federatedUploadUrls);
- *   - on a remote server's local copy, a signer on the server's host. The host
- *     enforces permissions; the copy's roles and overrides are incomplete, so
- *     has_permission is not consulted there.
+ *   - on a remote server's local copy, a signer on the server's host, or a relay
+ *     by the server's Group (`relayedBy`, groupRelay.ts) for an actor elsewhere.
+ *     The host enforces permissions; the copy's roles and overrides are
+ *     incomplete, so has_permission is not consulted there.
  */
 
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
+import { sameUrl } from '../utils/apOrigin.js';
 
 type Supabase = ReturnType<typeof getSupabaseClient>;
 
@@ -40,7 +42,8 @@ export type ChannelWriteKind =
 const KIND_PERMISSIONS: Record<ChannelWriteKind, string[][]> = {
   message: [['SEND_MESSAGES']],
   thread_message: [['SEND_MESSAGES_IN_THREADS']],
-  thread_create: [['CREATE_PUBLIC_THREADS', 'CREATE_PRIVATE_THREADS']],
+  // Harmony threads are public; CREATE_PRIVATE_THREADS grants no thread, as create_thread.
+  thread_create: [['CREATE_PUBLIC_THREADS']],
   reaction: [['ADD_REACTIONS']],
   edit: [],
 };
@@ -164,6 +167,8 @@ export async function authorizeChannelWrite(
     kind: ChannelWriteKind;
     /** Objects the write uploads that the row does not hold yet. */
     newUploads?: number;
+    /** Group whose verified Announce carried the write; only a remote server's own Group passes. */
+    relayedBy?: string;
   },
 ): Promise<ChannelWriteDecision> {
   const { actorUrl, serverId, channelId, kind } = target;
@@ -193,7 +198,11 @@ export async function authorizeChannelWrite(
   if (author.is_suspended === true) return { ok: false, reason: 'suspended' };
 
   const isLocal = server.is_local_server !== false;
-  if (!isLocal) {
+  if (target.relayedBy !== undefined) {
+    if (isLocal || !server.ap_id || !sameUrl(target.relayedBy, server.ap_id)) {
+      return { ok: false, reason: 'relayed by a Group that does not host the server' };
+    }
+  } else if (!isLocal) {
     const actorHost = hostOf(actorUrl);
     if (!actorHost || !remoteServerHosts(server as ChannelWriteServer).has(actorHost)) {
       return { ok: false, reason: 'signer is not on the server host' };

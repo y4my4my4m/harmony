@@ -196,6 +196,7 @@
       :giphy-open="giphyOpen"
       :emoji-list-open="emojiListOpen"
       :thread-id="props.threadId"
+      :thread-channel-id="thread?.channel_id"
       :media-room="threadMediaRoom"
       @send-message="handleSendMessage"
       @send-voice-message="handleSendVoiceMessage"
@@ -211,6 +212,7 @@
       @click.stop
       @sendEmoji="handleSendEmoji"
       :closeEmojiList="closeReactionEmoji"
+      :channelId="thread?.channel_id ?? null"
       :isEmojiBlocked="isReactionEmojiBlocked"
       :limitNotice="reactionLimitNotice"
       :emojiIconClicked="emojiIconClicked"
@@ -230,6 +232,7 @@
       :triggerElement="mediaPickerTriggerElement || undefined"
       :composerElement="composerElement || undefined"
       :initialTab="mediaPickerInitialTab"
+      :channelId="thread?.channel_id ?? null"
     />
   </div>
 </template>
@@ -237,6 +240,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { takeJumpTarget } from '@/utils/messageJumpQuery'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import { threadService, isThreadNoticeParent } from '@/services/ThreadService'
@@ -1038,8 +1042,9 @@ async function scrollToThreadMessage(messageId: string) {
   if (el) highlight(el)
 }
 
-watch(() => route.query.messageId, async (messageId) => {
-  if (!messageId || typeof messageId !== 'string') return
+watch(() => route.query.messageId, async () => {
+  const target = takeJumpTarget(route, router)
+  if (!target) return
   if (loading.value) {
     await new Promise<void>((resolve) => {
       const stop = watch(loading, (isLoading) => {
@@ -1050,7 +1055,7 @@ watch(() => route.query.messageId, async (messageId) => {
       })
     })
   }
-  await scrollToThreadMessage(messageId)
+  await scrollToThreadMessage(target.messageId)
 }, { immediate: true })
 
 // Watch for threadId changes

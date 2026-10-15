@@ -88,11 +88,22 @@ for c in likes shares replies; do
 done
 expect "$AP"   $POST                  "backend $POST"
 expect "$AP"   /messages/00000000-0000-0000-0000-000000000003 'backend /messages/00000000-0000-0000-0000-000000000003'
+THREAD=/threads/00000000-0000-0000-0000-000000000004
+THREADS=/channels/00000000-0000-0000-0000-000000000005/threads
+expect "$AP"   $THREAD                "backend $THREAD"
+expect "$HTML" $THREAD                "backend $THREAD"
+expect "$AP"   $THREAD/members        "backend $THREAD/members"
+expect "$AP"   "$THREAD/members?page=1" "backend $THREAD/members?page=1"
+expect "$AP"   $THREADS               "backend $THREADS"
+expect "$AP"   "$THREADS?page=1"      "backend $THREADS?page=1"
 
 log "everything else"
 expect "$HTML" /                      'SPA'
 expect "$HTML" /users/fx_alice/quote_authorizations 'SPA'
 expect "$HTML" /servers               'SPA'
+expect "$HTML" /threads               'SPA'
+expect "$HTML" /channels/00000000-0000-0000-0000-000000000005 'SPA'
+expect "$HTML" $THREAD/messages       'SPA'
 
 [ "$FAILED" -eq 0 ] || { err "$FAILED routing check(s) failed"; exit 1; }
 log "self-host/Caddyfile routes the ActivityPub-only paths to the federation backend"

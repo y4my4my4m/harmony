@@ -137,7 +137,10 @@ Each `harmony:channels` entry has `type` (`harmony:TextChannel`, `harmony:VoiceC
 | `GET /servers/<uuid>/outbox` | `OrderedCollection` of `Create` activities from the channels the caller may read, 20 per page |
 | `GET /servers/<uuid>/channels/<channel uuid>` | Channel object |
 | `GET /servers/<uuid>/channels/<channel uuid>/messages` | `OrderedCollection` of the channel's messages as `Note`s, 50 per page; `/outbox` at the same place serves the same collection |
-| `POST /servers/<uuid>/inbox` | Chat server inbox |
+| `POST /servers/<uuid>/inbox` | Chat server inbox; on a copy of a remote server, its Group's relays (see [Group relay](#group-relay)) |
+| `GET /threads/<uuid>` | `ChatThread` of a thread in a local server's channel; only with an ActivityPub `Accept`, else 406 |
+| `GET /threads/<uuid>/members` | `OrderedCollection` of the thread's member actor ids, 50 per page |
+| `GET /channels/<channel uuid>/threads` | `OrderedCollection` of the channel's threads as `ChatThread`s, 20 per page; a thread opened on another instance by id |
 | `GET /api/federation/invites/<code>` | JSON preview of a server invite (see [Invites](#invites)) |
 | `GET /oembed?url=<post or invite URL>` | oEmbed for posts and invites |
 | `POST /api/livekit/federated-token` | LiveKit token for a federated direct-message call (see [Voice](#voice)) |
@@ -162,8 +165,7 @@ Harmony does not send RFC 9421 signatures.
 | Request | Signed by |
 |---|---|
 | Activities of an account: posts, follows, reactions, blocks, profile updates, `Move`, direct messages, its chat messages and threads, voice | The account |
-| Activities whose `actor` is a chat server `Group` (`Accept` and `Reject` of a `Join`, channel `Add`, `Update` and `Remove`, `Update` of the Group, `Delete` of a channel message) | The `Group`'s own key |
-| A member's channel message, edit, deletion or reaction relayed by the host to other member instances | The server owner's account key |
+| Activities whose `actor` is a chat server `Group` (`Accept` and `Reject` of a `Join`, channel `Add`, `Update` and `Remove`, `Update` of the Group, `Delete` of a channel message, the `Announce` relaying a member's activity, voice moderation of a member) | The `Group`'s own key |
 | `harmony:VoiceChannelJoinAccept` | The server owner, who is also its `actor` |
 | `Flag` | The instance actor |
 | `GET` on behalf of a member: a private server's Group, channels and members | That member |
@@ -174,7 +176,7 @@ Each redirect hop of a `GET` is signed again for its own target. A 401 or 403 to
 
 ### Inbound deliveries
 
-The three inboxes require a valid signature. Unsigned or failing deliveries answer 401. `REQUIRE_VALID_SIGNATURES=false` turns the requirement off for development only; the backend refuses to start with it in production. `Flag` and `Move` require a matching signature in every mode.
+The three inboxes require a valid signature. Unsigned or failing deliveries answer 401. `REQUIRE_VALID_SIGNATURES=false` turns the requirement off for development only; the backend refuses to start with it in production. `Flag`, `Move`, a Group relay (an `Announce` of an embedded activity) and the voice moderation activities (`harmony:VoiceMemberMove`, `harmony:VoiceMemberDisconnect`, `harmony:VoiceMemberState`) require a matching signature in every mode.
 
 draft-cavage signatures:
 
@@ -205,6 +207,7 @@ The activity's `actor` must equal the key owner (scheme, host and path compared,
 | Direct and group direct messages (`/messages/<uuid>`) | A verified signer whose instance has a participant in the conversation |
 | A public server, and the channels `@everyone` can view | Anyone |
 | A private server, and channels `@everyone` cannot view | A verified signer who is an accepted member and can view the channel; the instance actor and Group actors are not members |
+| A thread, its members, a channel's threads | As the thread's channel. Only threads this instance named are served at `/threads/<uuid>`. |
 
 Anything else answers exactly as an unknown id does: 404, same body. A response that holds non-public content is sent with `Cache-Control: private, no-store`.
 
@@ -229,7 +232,7 @@ A personal inbox accepts `Like`, `EmojiReact`, `EmojiReaction`, `Undo`, `Accept`
 
 ### Delivery
 
-Harmony delivers to a follower's shared inbox when it has one, else to the personal inbox. A direct message goes to the personal inbox first. Chat activities go to the shared inbox of each member instance. A delivery is attempted at once, then retried after 5, 10, 20 and 40 minutes, five attempts in all. A 4xx answer other than 401, 408 and 429 ends the retries. Blocked instances and endpoints marked dead receive nothing.
+Harmony delivers to a follower's shared inbox when it has one, else to the personal inbox. A direct message goes to the personal inbox first. Chat activities go to the shared inbox of each member instance; the Group's relays go to each member instance's copy of the server, `/servers/<uuid>/inbox`. A delivery is attempted at once, then retried after 5, 10, 20 and 40 minutes, five attempts in all. A 4xx answer other than 401, 408 and 429 ends the retries. Blocked instances and endpoints marked dead receive nothing.
 
 ## Activities sent
 
@@ -268,15 +271,41 @@ Chat-server activities:
 | `Accept` / `Reject` | Group | The received `Join`; a `Reject` has a `summary` reason | Host answers a `Join` | Joining account |
 | `Create` / `Update` | Message author | Channel message `Note` | A message is sent or edited | Host: each instance with a member who can view the channel. Member: the Group inbox |
 | `Delete` | `https://<sending domain>/servers/<uuid>` | Message id | A message is deleted | As `Create` |
-| `Like` / `Undo` | Reactor | Message id | A reaction is added or removed | Instances with a member who can view the channel |
+| `Like` / `Undo` | Reactor | Message id | A reaction is added or removed | Host: each instance with a member who can view the channel. Member: the Group inbox |
+| `Announce` | Group | A member's `Create`, `Update` or `Delete` of a message, a reaction, or the `Undo` of one, embedded unchanged | The host accepted it on the Group inbox | Each other member instance with a member who can view the channel, at its copy's inbox |
 | `Create` / `Update` / `Delete` | Thread creator | `ChatThread` | A thread is created, changed or deleted | As channel messages |
 | `Add` / `Update` / `Remove` | Group | `harmony:TextChannel`, `harmony:VoiceChannel`, `harmony:Category` | A channel or category is created, changed or removed | Member instances |
 | `Update` | Group | `Group` | The server's name, description, icon or banner changes | Member instances |
 | `harmony:VoiceChannelJoin` / `harmony:VoiceChannelLeave` | Account | `harmony:VoiceChannel` | An account joins or leaves a remote voice channel | Group inbox |
 | `harmony:VoiceChannelJoinAccept` | Server owner | The `Join` id; `result` a `harmony:VoiceToken` | Host admits a voice join | The joining account's host, once, not retried |
+| `harmony:VoiceMemberMove` / `harmony:VoiceMemberDisconnect` / `harmony:VoiceMemberState` | Group | The member | A moderator moves, disconnects, server-mutes or server-deafens a member of another instance, or the member leaves voice another way (see [Voice moderation](#voice-moderation)) | The member's instance, at its copy's inbox |
 | `harmony:VoiceCallInvite` / `Accept` / `Reject` / `End` | Account | `harmony:VoiceCall`, or the invite id | A direct-message call | The other party |
 
-A message the host accepted from one member instance is relayed to the other member instances with the original `actor`, addressed to that instance's members.
+### Group relay
+
+What a member on one instance does in a channel reaches the members on other instances as the Group's `Announce` of it, as in FEP-1b12:
+
+```json
+{
+  "id": "https://chat.example.com/servers/<server>/relays/<id>",
+  "type": "Announce",
+  "actor": "https://chat.example.com/servers/<server>",
+  "object": { "type": "Create", "actor": "https://other.example/users/bob", "object": { "type": "Note", "...": "..." } },
+  "to": ["<the receiving instance's members>"],
+  "cc": ["https://chat.example.com/servers/<server>/members"]
+}
+```
+
+The host relays the `Create`, `Update` and `Delete` of a channel message, reactions and the `Undo` of a reaction, once it has accepted them on the Group inbox. The `Announce` is signed with the Group's key and sent to the copy of the server on each other instance with a member who can view the channel, at `https://<instance>/servers/<uuid>/inbox`; never to the sender's instance, and not to an instance known to run software other than Harmony. Its id derives from the inner activity's, so a redelivery is the same activity.
+
+A receiver takes the relay from the Group of a server it copies, signed with that Group's key, and applies the inner activity without checking channel permissions again, which its copy holds incompletely. It refuses:
+
+- an inner actor that is the Group, on the receiving instance, on a blocked instance, or suspended there;
+- an inner actor that is not a member: neither an accepted member of the copy nor listed by the Group's `members` collection, which is read signed as a local member and then recorded in the copy. A ban on the copy refuses;
+- a `Note` whose `harmony:serverId` is another server, whose `context` is not a channel of the Group, whose id is not on its author's host, or attributed to another actor;
+- an edit, delete, reaction or `Undo` naming no message in the server's channels; an edit or `Undo` of another actor's message or reaction.
+
+The inner object is not fetched from its origin: an instance serves a channel message only under its host's read rules. Harmony before 1.8.4 ignores activities on a copy's inbox.
 
 ## Activities accepted
 
@@ -293,11 +322,12 @@ Shared and personal inboxes:
 | `Create` | `Question` | A post with a read-only poll (`oneOf` or `anyOf`, `votersCount`, `endTime`, `closed`) |
 | `Create` | `ChatThread` | A thread in a channel of a server this instance mirrors |
 | `Update` | `Person`, `Service`, `Application`, `Organization` | Profile refreshed. The signer must be the actor. |
-| `Update` | `Note`, `Article`, `Question` | Post edited or poll counts refreshed, by its author only |
+| `Update` | `Note`, `Article`, `Question` | Post edited or poll counts refreshed, by its author only. A `Note` with `harmony:serverId` edits a channel message of a mirrored server, by its author on the server's host. |
 | `Update` | `Group`, channel types, `ChatThread`, group conversation | Mirrored server, channel, thread or group conversation updated |
 | `Delete` | Post or message id, or a `ChatThread` | Soft-deleted, by its author. A channel message of a mirrored server is also deleted by that server's `Group`. A `Delete` of an actor removes nothing. |
 | `Like`, `EmojiReact`, `EmojiReaction` | Post or message | A `Like` with no emoji or a heart (❤, ♥) is a favourite. A `Like` with `_misskey_reaction` or `content`, and an `EmojiReact`, is a reaction and implies the favourite. |
 | `Announce` | Post | Boost; the original is fetched when unknown |
+| `Announce` | An embedded channel activity, from the `Group` of a mirrored server | See [Group relay](#group-relay) |
 | `Undo` | `Like`, `EmojiReact`, `EmojiReaction`, `Follow`, `Announce`, `Block`, embedded or by id | Reverted. The undone activity's actor must be the signer. |
 | `Add` / `Remove` | Post, `target` a `featured` collection | Pin or unpin, by the post's author |
 | `Add` / `Remove` | Channel types, `target` a Group | Channel or category of a mirrored server added or removed |
@@ -307,6 +337,7 @@ Shared and personal inboxes:
 | `Move` | The actor, `target` the new account | Followers move (see [Account moves](#account-moves)) |
 | `QuoteRequest` | Local post id, `instrument` the quoting post | `Accept` with a `QuoteAuthorization`, or `Reject` (see [Quote posts](#quote-posts)) |
 | `harmony:VoiceCall*`, `harmony:VoiceChannelJoinAccept`, `harmony:VoiceChannelJoinReject` | | See [Voice](#voice) |
+| `harmony:VoiceMemberMove`, `harmony:VoiceMemberDisconnect`, `harmony:VoiceMemberState` | A local account | From the `Group` of a mirrored server; see [Voice moderation](#voice-moderation) |
 
 A chat server inbox (`/servers/<uuid>/inbox`) accepts:
 
@@ -322,7 +353,7 @@ A chat server inbox (`/servers/<uuid>/inbox`) accepts:
 | `Undo` | Of a `Join` (leave) or a reaction |
 | `harmony:VoiceChannelJoin`, `harmony:VoiceChannelLeave` | See [Voice](#voice) |
 
-With federation off for the server, everything except `Leave` is dropped, and a `Join` is answered with `Reject`. `Accept` and `Reject` sent to a server inbox are ignored. Accepted messages, edits, deletions and reactions are relayed to the other member instances.
+With federation off for the server, everything except `Leave` is dropped, and a `Join` is answered with `Reject`. `Accept` and `Reject` sent to a server inbox are ignored. Accepted messages, edits, deletions, reactions and their removals are relayed to the other member instances (see [Group relay](#group-relay)). The inbox of a remote server's copy takes only that server's Group's relays and voice moderation activities.
 
 ## Objects
 
@@ -499,6 +530,36 @@ Voice media goes through LiveKit, not ActivityPub; the activities exchange token
 
 With `ALLOW_FEDERATED_VOICE=false`, an instance ignores call invites and refuses federated call tokens.
 
+### Voice moderation
+
+**Mute Members**, **Deafen Members** and **Move Members** decide alone, as in Discord: role order does not apply, and a holder acts on any member, the owner and themself included. A server mute or deafen lasts across leaving and rejoining voice and ends with membership. When permissions change (a role's permissions, a member's roles, a channel override, the owner), the host updates the connected participants at once: a participant who lost **Speak** or **Video** loses that source in LiveKit, one who lost **Connect** or **View Channel** is removed.
+
+A member on another instance hears of moderation from the server's Group. The host sends, signed with the Group's key, to the member instance's copy of the server (`https://<instance>/servers/<uuid>/inbox`):
+
+```json
+{
+  "@context": ["https://www.w3.org/ns/activitystreams", "https://harmony.social/ns/voice"],
+  "id": "https://chat.example.com/servers/<server>/voice-moderation/<uuid>",
+  "type": "harmony:VoiceMemberMove",
+  "actor": "https://chat.example.com/servers/<server>",
+  "to": ["https://other.example/users/bob"],
+  "object": "https://other.example/users/bob",
+  "origin": "https://chat.example.com/servers/<server>/channels/<channel left>",
+  "target": "https://chat.example.com/servers/<server>/channels/<channel to join>",
+  "harmony:reason": "moved"
+}
+```
+
+| Type | Properties | Meaning |
+|---|---|---|
+| `harmony:VoiceMemberMove` | `origin`, `target` | The member is out of `origin` and admitted to `target` for 120 seconds without **Connect**. Their client joins `target`, fetching its token from the host as for any join. |
+| `harmony:VoiceMemberDisconnect` | `origin`, `harmony:reason` | The member is out of voice: `disconnected` by a moderator, `timed_out`, `removed` from the server, or `revoked`, having lost **Connect** or **View Channel** |
+| `harmony:VoiceMemberState` | `harmony:serverMuted`, `harmony:serverDeafened` | The member's server mute and deafen, sent when either changes |
+
+A move and a disconnect are delivered once and retried for a short while, since the move's admission expires; a state change is retried as any delivery. Channels are named by their id under the Group. This is not ActivityPub's `Move`, which migrates an account.
+
+A receiver accepts them only from the Group of a server it mirrors (`servers.ap_id`, exact, the signing key the Group's), for an account of its own that is an accepted member of its copy, naming voice channels of that copy. It refuses anything else and stores nothing. It tells the member's client as the host tells its own: a move or disconnect as `voice:moved` on the member's user channel, a state stored in the copy, where the copy's rosters and the member's controls read it. Harmony before 1.8.4 ignores them.
+
 ## Extension properties
 
 Harmony uses four namespaces. None is served as a JSON-LD document by Harmony, and Harmony reads its extension properties by their compact `harmony:` names, not by JSON-LD expansion.
@@ -532,6 +593,9 @@ Harmony uses four namespaces. None is served as a JSON-LD document by Harmony, a
 | `harmony:channelId`, `harmony:standalone` | `ChatThread` | Channel UUID; `true` for a thread without a parent message |
 | `harmony:VoiceCallInvite`, `harmony:VoiceCallAccept`, `harmony:VoiceCallReject`, `harmony:VoiceCallEnd` | Activity types | Direct-message calls |
 | `harmony:VoiceChannelJoin`, `harmony:VoiceChannelLeave`, `harmony:VoiceChannelJoinAccept`, `harmony:VoiceChannelJoinReject` | Activity types | Voice channels |
+| `harmony:VoiceMemberMove`, `harmony:VoiceMemberDisconnect`, `harmony:VoiceMemberState` | Activity types | Voice moderation of a member |
+| `harmony:reason` | `harmony:VoiceMemberMove`, `harmony:VoiceMemberDisconnect` | `moved`, `disconnected`, `timed_out`, `removed` or `revoked` |
+| `harmony:serverMuted`, `harmony:serverDeafened` | `harmony:VoiceMemberState` | The member's server mute and server deafen |
 | `harmony:VoiceCall`, `harmony:VoiceChannel`, `harmony:VoiceToken` | Voice objects | Call, channel and token objects |
 
 Harmony also writes and reads terms from other software: Mastodon's `Emoji`, `blurhash`, `focalPoint`, `sensitive`, `alsoKnownAs` and `movedTo`; Misskey's `_misskey_reaction`, `_misskey_quote` and the `emojis` map; Fedibird's `quoteUri`; litepub's `EmojiReact`; GoToSocial's `interactionPolicy`, `interactingObject` and `interactionTarget`; and `directMessage` on direct messages.

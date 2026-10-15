@@ -91,6 +91,20 @@ describe('AllThreadsModal New thread', () => {
     expect(wrapper.emitted('select-thread')).toBeUndefined()
   })
 
+  it('names the timeout end when a timed-out member is refused', async () => {
+    const until = Math.floor(Date.now() / 1000) + 3600
+    state.createChannelThread.mockRejectedValue(new Error(`MEMBER_TIMED_OUT:${until}`))
+    const wrapper = mountModal()
+
+    await wrapper.find('.new-thread-btn').trigger('click')
+    await wrapper.find('#new-thread-name').setValue('Plans')
+    await wrapper.find('.new-thread-form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.find('.new-thread-error').text()).not.toBe('threadCreate.failed')
+    expect(wrapper.find('.new-thread-error').text()).toMatch(/timed out/i)
+  })
+
   it('does not submit a blank name', async () => {
     const wrapper = mountModal()
     await wrapper.find('.new-thread-btn').trigger('click')

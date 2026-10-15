@@ -531,9 +531,14 @@
         "membership": "Permissions des membres",
         "text": "Permissions textuelles",
         "threads": "Permissions des fils",
-        "voice": "Permissions vocales"
+        "voice": "Permissions vocales",
+        "dangerous": "Permissions dangereuses"
       },
       "perms": {
+        "ADMINISTRATOR": {
+          "label": "Administrateur",
+          "description": "Toutes les permissions dans tous les salons ; seul le propriétaire peut supprimer le serveur"
+        },
         "VIEW_CHANNEL": {
           "label": "Voir les salons",
           "description": "Permet aux membres de voir les salons par défaut"
@@ -544,11 +549,11 @@
         },
         "MANAGE_ROLES": {
           "label": "Gérer les rôles",
-          "description": "Créer, modifier et supprimer les rôles inférieurs à celui-ci"
+          "description": "Créer, modifier, attribuer et supprimer les rôles inférieurs à leur rôle le plus élevé, et modifier les permissions des salons"
         },
         "MANAGE_SERVER": {
           "label": "Gérer le serveur",
-          "description": "Modifier les paramètres du serveur et le supprimer"
+          "description": "Modifier les paramètres du serveur, l'AutoMod, l'écran d'accueil et les bots ; seul le propriétaire peut supprimer le serveur"
         },
         "CREATE_INVITE": {
           "label": "Créer une invitation",
@@ -576,7 +581,7 @@
         },
         "TIMEOUT_MEMBERS": {
           "label": "Exclure temporairement des membres",
-          "description": "Rendre des membres muets temporairement"
+          "description": "Empêcher temporairement des membres d'envoyer des messages, de réagir, de lancer des fils et de rejoindre les salons vocaux"
         },
         "SEND_MESSAGES": {
           "label": "Envoyer des messages",
@@ -584,7 +589,7 @@
         },
         "EMBED_LINKS": {
           "label": "Intégrer des liens",
-          "description": "Les liens afficheront un aperçu"
+          "description": "Leurs liens affichent un aperçu ; sans cette permission, les liens sont publiés sans aperçu"
         },
         "ATTACH_FILES": {
           "label": "Joindre des fichiers",
@@ -604,11 +609,11 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "Lire l'historique des messages",
-          "description": "Voir l'historique des messages"
+          "description": "Lire les messages envoyés avant l'ouverture du salon ; sans cette permission, seuls les messages envoyés depuis son ouverture sont visibles"
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "Utiliser des émojis externes",
-          "description": "Utiliser des émojis d'autres serveurs"
+          "description": "Utiliser les émojis d'autres serveurs, de l'instance et les leurs ; sans cette permission, seulement Unicode et ceux de ce serveur"
         },
         "PIN_MESSAGES": {
           "label": "Épingler des messages",
@@ -620,7 +625,7 @@
         },
         "CREATE_PRIVATE_THREADS": {
           "label": "Créer des fils privés",
-          "description": "Créer des fils sur invitation uniquement"
+          "description": "N'accorde rien : dans Harmony, chaque fil est visible par tout le salon"
         },
         "SEND_MESSAGES_IN_THREADS": {
           "label": "Envoyer des messages dans les fils",
@@ -648,7 +653,7 @@
         },
         "MOVE_MEMBERS": {
           "label": "Déplacer des membres",
-          "description": "Déplacer des membres entre les salons vocaux"
+          "description": "Déplacer des membres entre les salons vocaux ou les déconnecter"
         },
         "USE_SOUNDBOARD": {
           "label": "Utiliser la soundboard",
@@ -794,13 +799,25 @@
           "label": "Gérer le salon",
           "description": "Renommer, modifier ou supprimer ce salon."
         },
+        "MANAGE_ROLES": {
+          "label": "Gérer les permissions",
+          "description": "Modifier les exceptions de permissions de ce salon."
+        },
+        "MANAGE_WEBHOOKS": {
+          "label": "Gérer les webhooks",
+          "description": "Créer, modifier et supprimer les webhooks de ce salon."
+        },
+        "PIN_MESSAGES": {
+          "label": "Épingler des messages",
+          "description": "Épingler et désépingler des messages dans ce salon."
+        },
         "SEND_MESSAGES": {
           "label": "Envoyer des messages",
           "description": "Publier des messages dans ce salon."
         },
         "EMBED_LINKS": {
           "label": "Intégrer des liens",
-          "description": "Envoyer des intégrations et des aperçus de liens."
+          "description": "Les liens publiés ici affichent un aperçu."
         },
         "ATTACH_FILES": {
           "label": "Joindre des fichiers",
@@ -812,7 +829,7 @@
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "Utiliser des émojis externes",
-          "description": "Envoyer des émojis d'autres serveurs."
+          "description": "Utiliser des émojis extérieurs à ce serveur dans les messages et réactions."
         },
         "MENTION_EVERYONE": {
           "label": "Mentionner {'@'}everyone",
@@ -824,7 +841,7 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "Lire l'historique des messages",
-          "description": "Voir les messages publiés avant leur arrivée."
+          "description": "Voir les messages publiés avant l'ouverture du salon."
         },
         "CREATE_PUBLIC_THREADS": {
           "label": "Créer des fils publics",
@@ -860,7 +877,7 @@
         },
         "MOVE_MEMBERS": {
           "label": "Déplacer des membres",
-          "description": "Déplacer des membres hors de ce salon."
+          "description": "Déplacer ou déconnecter des membres de ce salon."
         },
         "USE_SOUNDBOARD": {
           "label": "Utiliser la soundboard",
@@ -918,14 +935,15 @@
     "unreadSince": "{count} nouveau message depuis {time} | {count} nouveaux messages depuis {time}",
     "markAsRead": "Marquer comme lu",
     "jumpToPresent": "Aller au présent",
+    "viewingOlder": "Vous consultez d'anciens messages",
     "conversationBeginning": "Ceci est le début de votre conversation",
     "conversationBeginningSubtitle": "Commencez à discuter et rendez-le mémorable !",
     "channelWelcome": "Bienvenue dans #{name}",
     "channelWelcomeSubtitle": "Ceci est le début du canal #{name}.",
+    "historyRestricted": "Les messages envoyés avant que vous ouvriez ce salon sont masqués : vous n'avez pas « Lire l'historique des messages » dans ce salon.",
     "dmBeginning": "Ceci est le tout début de vos messages privés avec {name}.",
     "groupBeginning": "Ceci est le tout début du groupe {name}.",
     "groupBeginningUnnamed": "Ceci est le tout début de ce groupe.",
-    "jumpInConversation": "Sauter dans la conversation",
     "reactions": {
       "add": "Ajouter une réaction",
       "remove": "Retirer la réaction",
@@ -1323,7 +1341,38 @@
     "muteUserNamed": "Couper {name}",
     "muteStreamNamed": "Couper le stream de {name}",
     "userVolumeNamed": "Volume de {name}",
-    "streamVolumeNamed": "Volume du stream de {name}"
+    "streamVolumeNamed": "Volume du stream de {name}",
+    "moderation": {
+      "section": "Modération",
+      "serverMute": "Rendre muet sur le serveur",
+      "serverDeafen": "Rendre sourd sur le serveur",
+      "serverMuted": "Muet sur le serveur",
+      "serverDeafened": "Sourd sur le serveur",
+      "moveTo": "Déplacer vers",
+      "disconnect": "Déconnecter",
+      "kick": "Expulser",
+      "ban": "Bannir",
+      "dragHint": "Faites glisser vers un autre salon vocal pour le déplacer.",
+      "lockedTitle": "Non autorisé ici",
+      "serverMutedHint": "Un modérateur vous a rendu muet sur le serveur. Vous pourrez réactiver le micro quand il le lèvera.",
+      "serverDeafenedHint": "Un modérateur vous a rendu sourd sur le serveur. Vous pourrez réentendre quand il le lèvera.",
+      "noSpeakHint": "Vous n'avez pas la permission de parler dans ce salon.",
+      "noStreamHint": "Vous n'avez pas la permission de partager une vidéo ou votre écran dans ce salon.",
+      "failedTitle": "La modération vocale a échoué",
+      "mutedAnnounce": "{name} est muet sur le serveur",
+      "unmutedAnnounce": "{name} n'est plus muet sur le serveur",
+      "deafenedAnnounce": "{name} est sourd sur le serveur",
+      "undeafenedAnnounce": "{name} n'est plus sourd sur le serveur",
+      "movedAnnounce": "{name} déplacé vers {channel}",
+      "disconnectedAnnounce": "{name} déconnecté du vocal",
+      "youWereMovedTitle": "Déplacé vers un autre salon",
+      "youWereMoved": "Un modérateur vous a déplacé vers {channel}.",
+      "youWereDisconnectedTitle": "Retiré du vocal",
+      "youWereDisconnected": "Un modérateur vous a déconnecté du vocal.",
+      "youWereRemoved": "Vous n'êtes plus membre de ce serveur.",
+      "youLostAccess": "Vous n'avez plus accès à ce salon vocal.",
+      "youWereTimedOut": "Vous avez été exclu temporairement de ce serveur."
+    }
   },
   "dm": {
     "directMessages": "Messages directs",
@@ -2793,6 +2842,7 @@
   "emoji": {
     "messageReactionLimit": "Ce message a {count} réactions différentes. Ajoutez-vous à l'une d'elles.",
     "reactionNotAllowed": "Dans ce salon, vous pouvez seulement vous ajouter aux réactions existantes.",
+    "externalNotAllowed": "Dans ce salon, seuls les émojis Unicode et ceux de ce serveur sont utilisables.",
     "postReactionLimit": "Vous avez {count} réactions sur cette publication. Retirez-en une pour en ajouter une autre.",
     "search": "Rechercher des émojis...",
     "searchEmojis": "Rechercher des émojis...",
@@ -4023,7 +4073,7 @@
       "generic": "Votre message a été bloqué par l'AutoMod de ce serveur.",
       "timedOutUntil": "Vous êtes exclu temporairement jusqu'à {time}."
     },
-    "timedOut": "Vous êtes exclu temporairement de ce serveur jusqu'à {time} et ne pouvez pas envoyer de messages.",
+    "timedOut": "Vous êtes exclu temporairement de ce serveur jusqu'à {time} et ne pouvez pas envoyer de messages, réagir ni lancer de fils.",
     "antispam": {
       "rateLimited": "Les nouveaux comptes ne peuvent envoyer que quelques messages à la fois. Réessayez dans {seconds} s.",
       "linksBlocked": "Les nouveaux comptes ne peuvent pas encore publier de liens.",
@@ -4100,6 +4150,12 @@
       "member_unban": "{actor} a débanni {target}",
       "member_timeout": "{actor} a exclu temporairement {target} jusqu'au {until}",
       "member_timeout_remove": "{actor} a levé l'exclusion temporaire de {target}",
+      "member_voice_mute": "{actor} a rendu {target} muet sur le serveur",
+      "member_voice_unmute": "{actor} a levé la mise en sourdine serveur de {target}",
+      "member_voice_deafen": "{actor} a rendu {target} sourd sur le serveur",
+      "member_voice_undeafen": "{actor} a levé la mise en sourdine du son serveur de {target}",
+      "member_voice_move": "{actor} a déplacé {target} vers un autre salon vocal",
+      "member_voice_disconnect": "{actor} a déconnecté {target} du vocal",
       "message_delete": "{actor} a supprimé un message de {target} dans {channel} | {actor} a supprimé {count} messages de {target} dans {channel}",
       "server_update": "{actor} a modifié le serveur",
       "settings_update": "{actor} a modifié les paramètres du serveur",

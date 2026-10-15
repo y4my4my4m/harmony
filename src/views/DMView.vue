@@ -99,6 +99,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { takeJumpTarget } from '@/utils/messageJumpQuery'
 import { useT } from '@/composables/useT'
 import { useAppDrawers } from '@/composables/useLayoutState'
 import { useToast } from 'vue-toastification'
@@ -392,11 +393,11 @@ const getCallerAvatar = computed(() => {
 
 watch(() => route.params.conversationId, loadMessages, { immediate: true })
 
-watch(() => route.query.messageId, async (messageId) => {
-  if (messageId && typeof messageId === 'string') {
-    await nextTick()
-    await scrollToMessage(messageId)
-  }
+watch(() => route.query.messageId, async () => {
+  const target = takeJumpTarget(route, router)
+  if (!target) return
+  await nextTick()
+  await scrollToMessage(target.messageId, target.searchQuery)
 }, { immediate: true })
 
 const waitForMessages = async () => {
@@ -413,7 +414,7 @@ const waitForMessages = async () => {
 
 // Mirrors ChatView.scrollToMessage: the list is virtualized, so the store's jump loads the
 // message when needed and MessageDisplay scrolls to its index and highlights it.
-const scrollToMessage = async (messageId: string) => {
+const scrollToMessage = async (messageId: string, searchQuery?: string) => {
   await waitForMessages()
   await nextTick()
 
@@ -428,7 +429,6 @@ const scrollToMessage = async (messageId: string) => {
     await notificationStore.markAsRead(notification.id)
   }
 
-  const searchQuery = route.query.searchQuery as string
   if (found && searchQuery) {
     await new Promise(resolve => setTimeout(resolve, 400))
     const messageElement = document.getElementById(`message-${messageId}`)

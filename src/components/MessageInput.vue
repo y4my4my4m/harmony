@@ -51,7 +51,8 @@
         </svg>
       </button>
     </div>
-    <!-- Read-only state: user lacks SEND_MESSAGES on this channel.
+    <!-- Read-only state: user lacks SEND_MESSAGES on this channel, or
+         SEND_MESSAGES_IN_THREADS on a thread's channel.
          Backend RLS and triggers enforce it; this is UX, not security. -->
     <div v-if="!canSendMessages" class="message-readonly-banner" role="status">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
@@ -326,6 +327,8 @@ interface Props {
   username?: string;
   channelId?: string;
   threadId?: string;
+  /** The thread's channel; SEND_MESSAGES_IN_THREADS there gates the thread composer. */
+  threadChannelId?: string;
   conversationId?: string;
   /** Room of uploaded attachments ('c/<channel id>' or 'd/<conversation id>'); derived from
       channelId or conversationId when absent. */
@@ -487,7 +490,10 @@ watch(() => props.channelId, () => {
 });
 
 async function refreshSendPermission() {
-  if (!props.channelId || props.conversationId) {
+  // A thread message needs SEND_MESSAGES_IN_THREADS, as messages_insert_member.
+  const channelId = props.threadId ? props.threadChannelId : props.channelId;
+  const sendPermission = props.threadId ? Permission.SEND_MESSAGES_IN_THREADS : Permission.SEND_MESSAGES;
+  if (!channelId || props.conversationId) {
     canSendMessages.value = true;
     slowmodeExempt.value = true;
     return;
@@ -501,8 +507,8 @@ async function refreshSendPermission() {
   isResolvingPermissions.value = true;
   try {
     const [allowed, canManage] = await Promise.all([
-      roleService.hasPermission(userId, serverId, Permission.SEND_MESSAGES, props.channelId),
-      roleService.hasPermission(userId, serverId, Permission.MANAGE_MESSAGES, props.channelId),
+      roleService.hasPermission(userId, serverId, sendPermission, channelId),
+      roleService.hasPermission(userId, serverId, Permission.MANAGE_MESSAGES, channelId),
     ]);
     canSendMessages.value = allowed;
     slowmodeExempt.value = canManage;
@@ -516,13 +522,14 @@ async function refreshSendPermission() {
 }
 
 watch(
-  () => [props.channelId, authStore.session?.user?.id, serverChannelStore.currentServerId],
+  () => [props.channelId, props.threadId, props.threadChannelId, authStore.session?.user?.id, serverChannelStore.currentServerId],
   () => { void refreshSendPermission(); },
   { immediate: true },
 );
 
 const readOnlyPlaceholder = computed(() => {
   if (isResolvingPermissions.value) return 'Checking permissions...';
+  if (props.threadId) return 'You do not have permission to send messages in this thread.';
   return 'You do not have permission to send messages in this channel.';
 });
 
@@ -737,6 +744,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText, {
   mode: 'chat',
   enableChannels: !!props.channelId && !props.conversationId,
   pollsEnabled: () => props.allowPolls,
+  channelId: () => (props.conversationId ? null : props.channelId),
 });
 
 // The editor carries no aria-expanded (role=textbox); the list opening and its

@@ -788,7 +788,7 @@ router.post(
 
     const { processServerInboxActivity } = await import('./ServerInboxHandler.js');
     try {
-      await processServerInboxActivity(serverId, activity);
+      await processServerInboxActivity(serverId, activity, { verifiedSigner });
     } catch (error) {
       if (claimedForProcessing) {
         await supabase.rpc('complete_ap_activity', {

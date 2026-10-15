@@ -21,6 +21,8 @@ import {
 } from '@/services/bridgedChannelUsersService';
 import { runtimeConfig } from '@/services/runtimeConfig';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
+import { useChannelMessagePermissions } from '@/composables/useChannelMessagePermissions';
+import { useExternalEmojiPolicy } from '@/composables/useExternalEmojiPolicy';
 import { discordEmojiCdnUrl, discordEmojiRefFromPicked, discordEmojiToken } from '@/utils/discordEmoji';
 import { HERE_MENTION_TOKEN, HERE_ROLE_ID } from '@/utils/hereMention';
 
@@ -58,6 +60,8 @@ export interface AutoSuggestConfig {
   enableCommands?: boolean;
   /** '/poll' is offered while this returns true. */
   pollsEnabled?: () => boolean;
+  /** Server channel the text goes to; without USE_EXTERNAL_EMOJIS there, only its server's custom emoji are offered. */
+  channelId?: () => string | null | undefined;
   maxSuggestions?: number;
 }
 
@@ -159,6 +163,12 @@ export function useAutoSuggest(
   const { hasCurrentUserPermission, Permission, isCurrentUserServerOwner } = useServerPermissions();
   const { searchEmojiHits, isLoaded: unifiedLoaded, isNativePack, getTwemojiUrl } = useUnifiedEmoji();
   const { frequentEmojis } = useFrequentEmojis();
+  const { restricted: externalRestricted, serverId: policyServerId } =
+    useExternalEmojiPolicy(() => config.channelId?.() ?? null);
+  const { canMentionEveryone } = useChannelMessagePermissions(
+    () => serverChannelStore.currentServerId,
+    () => config.channelId?.() ?? serverChannelStore.currentChannelId,
+  );
 
   const finalConfig = {
     enableEmojis: true,
@@ -253,7 +263,10 @@ export function useAutoSuggest(
     const seenNames = new Set<string>();
 
     const customEntries = customEmojiIndex(emojiCacheStore.resolvedEmojis, serverChannelStore.currentServerId ?? null);
-    for (const hit of searchCustomIndex(customEntries, query, limit)) {
+    const offered = externalRestricted.value
+      ? customEntries.filter((entry) => entry.serverId === policyServerId.value)
+      : customEntries;
+    for (const hit of searchCustomIndex(offered, query, limit)) {
       const { emoji, serverName, name, order } = hit.item;
       seenNames.add(name);
       ranked.push({
@@ -276,6 +289,7 @@ export function useAutoSuggest(
     // They insert as `:discord:[a:]<name>:<id>:`.
     const seenDiscord = new Set<string>();
     frequentEmojis.value.forEach((recent, order) => {
+      if (externalRestricted.value) return;
       const ref = discordEmojiRefFromPicked(recent);
       if (!ref) return;
       const lower = ref.name.toLowerCase();
@@ -436,9 +450,9 @@ export function useAutoSuggest(
         }
       }
 
-      // MENTION_EVERYONE covers @everyone, @here and roles not marked mentionable
-      // (handle_role_mention_notifications enforces the same rule).
-      const canMentionAll = hasCurrentUserPermission(Permission.MENTION_EVERYONE);
+      // MENTION_EVERYONE covers @everyone, @here and roles not marked mentionable, resolved in
+      // this channel as handle_role_mention_notifications resolves it.
+      const canMentionAll = canMentionEveryone.value;
       for (const role of serverRoles.value) {
         if (!canMentionAll && (role.is_default || !role.mentionable)) continue;
 

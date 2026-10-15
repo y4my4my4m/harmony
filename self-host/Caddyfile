@@ -105,6 +105,11 @@
 	handle @fedMessages {
 		import federation_upstream
 	}
+	# Threads, their members and a channel's threads; 406 to any other Accept, as messages.
+	@fedThreads path_regexp ^/(threads/[0-9a-f-]+(/members)?|channels/[0-9a-f-]+/threads)$
+	handle @fedThreads {
+		import federation_upstream
+	}
 
 	# Post permalinks: the backend negotiates (AP Note JSON for fediverse
 	# clients, HTML with OpenGraph tags for browsers and crawlers).

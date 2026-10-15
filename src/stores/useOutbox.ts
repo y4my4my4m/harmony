@@ -25,7 +25,7 @@ import {
 } from '@/services/messageMediaUpload'
 import { createTempMessageId, getRandomId } from '@/stores/shared/optimisticMessages'
 import { sendToTarget, targetKey, targetMediaRoom, type MessageTarget } from '@/stores/shared/sendToTarget'
-import { classifySendFailure } from '@/utils/sendFailure'
+import { classifySendFailure, permissionRefusalMessage } from '@/utils/sendFailure'
 import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
 import { useServerWelcomeStore } from '@/stores/useServerWelcome'
@@ -434,6 +434,9 @@ export const useOutboxStore = defineStore('outbox', () => {
         break
       case 'slowmode':
         toast.info(msg)
+        break
+      case 'permission':
+        toast.error(permissionRefusalMessage(error))
         break
       case 'rules': {
         const details = (error as { details?: { serverId?: string } })?.details

@@ -138,3 +138,46 @@ describe('generic previews', () => {
     expect(pulled).toBeLessThanOrEqual(2)
   })
 })
+
+describe('Wikipedia previews', () => {
+  const GIF = 'https://upload.wikimedia.org/wikipedia/en/2/27/Moustapha_Akkad.gif?utm_source=en.wikipedia.org'
+
+  it('reads the REST page summary: title, lead extract and thumbnail, as a card', async () => {
+    const extract = 'Moustapha al Akkad was a Syrian-American film producer and director. '.repeat(6)
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      type: 'standard',
+      title: 'Moustapha Akkad',
+      description: 'Syrian-American director (1930–2005)',
+      extract,
+      thumbnail: { source: GIF, width: 100, height: 138 },
+    }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    try {
+      const preview = await linkPreviewService.getPreview('https://en.m.wikipedia.org/wiki/Moustapha_Akkad')
+      expect(fetchSpy.mock.calls[0][0]).toBe('https://en.wikipedia.org/api/rest_v1/page/summary/Moustapha_Akkad')
+      expect(preview).toMatchObject({ title: 'Moustapha Akkad', siteName: 'Wikipedia', image: GIF, width: 100, height: 138 })
+      expect(preview.mediaOnly).toBeFalsy()
+      expect(preview.description!.length).toBeLessThanOrEqual(300)
+      expect(preview.description!.endsWith('…')).toBe(true)
+      expect(safeFetch).not.toHaveBeenCalled()
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
+  it('a still GIF og:image on a Wikimedia page is no GIF page', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 404 }))
+    try {
+      const url = 'https://commons.wikimedia.org/wiki/File:Moustapha_Akkad.gif'
+      safeFetch.mockResolvedValue(page(`<head><meta property="og:title" content="File:Moustapha Akkad.gif">
+        <meta property="og:image" content="${GIF}"></head>`, url))
+      expect((await linkPreviewService.getPreview(url)).mediaOnly).toBeFalsy()
+
+      const gifSite = fresh('/view/cat')
+      safeFetch.mockResolvedValue(page(`<head><meta property="og:title" content="Cat">
+        <meta property="og:image" content="https://media.example/cat.gif"></head>`, gifSite))
+      expect((await linkPreviewService.getPreview(gifSite)).mediaOnly).toBe(true)
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+})

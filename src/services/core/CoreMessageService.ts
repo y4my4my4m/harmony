@@ -20,6 +20,7 @@ import {
 } from '@/services/core/channelMessageEncryption'
 import { blockedMessageRejection, moderationRejectionFromError } from '@/services/AutoModService'
 import { mediaRoom, messageMediaPathsIn } from '@/services/privateMedia'
+import { beginHistoryView, historyCutoff, historyViewBegun, recordHistoryCutoff } from '@/services/channelHistoryCutoff'
 
 export interface SendMessageData {
   content: MessagePart[]
@@ -753,12 +754,20 @@ export class CoreMessageService {
     before?: string
   }): Promise<{ messages: any[]; reactionsByMessage: Record<string, any[]> } | null> {
     try {
-      const { data, error } = await supabase.rpc('get_message_page', {
+      const fetchPage = () => supabase.rpc('get_message_page', {
         p_channel_id: params.channelId ?? null,
         p_conversation_id: params.conversationId ?? null,
         p_limit: params.limit,
         p_before: params.before ?? null
       })
+      // The newest page of a channel that withholds READ_MESSAGE_HISTORY starts this session's
+      // view first. A page reporting a cutoff the session has not started reads again after it.
+      const channelId = !params.before ? params.channelId : undefined
+      if (channelId && historyCutoff(channelId) && !historyViewBegun(channelId)) await beginHistoryView(channelId)
+      let { data, error } = await fetchPage()
+      if (!error && channelId && (data as { history_since?: unknown } | null)?.history_since && !historyViewBegun(channelId)) {
+        if (await beginHistoryView(channelId)) ({ data, error } = await fetchPage())
+      }
 
       if (error) {
         debug.warn('Core: get_message_page RPC unavailable, using legacy multi-query load:', error.message)
@@ -768,6 +777,9 @@ export class CoreMessageService {
       const messages: any[] = data?.messages || []
       const messageIds = messages.map((m: any) => m.id)
       const reactionsByMessage = this.groupReactionRows(messageIds, data?.reactions || [])
+      if (params.channelId && data && typeof data === 'object') {
+        recordHistoryCutoff(params.channelId, (data as { history_since?: unknown }).history_since)
+      }
       return { messages, reactionsByMessage }
     } catch (error) {
       debug.warn('Core: get_message_page RPC failed, using legacy multi-query load:', error)
@@ -932,6 +944,45 @@ export class CoreMessageService {
       debug.error('Core: Failed to load channel messages:', error)
       throw error
     }
+  }
+
+  /**
+   * Rows of a channel (thread replies excluded) or a conversation from `from` on,
+   * oldest first: created_at >= from when `inclusive`, > from otherwise. Read
+   * through RLS, which applies the READ_MESSAGE_HISTORY cutoff; a remote channel
+   * reads the rows federation stored locally.
+   */
+  async loadMessagesFrom(
+    scope: { channelId: string } | { conversationId: string },
+    options: { from: string; inclusive?: boolean; limit?: number; signal?: AbortSignal }
+  ): Promise<Message[]> {
+    const { from, inclusive = false, limit = 50, signal } = options
+    let query = supabase
+      .from('messages')
+      .select('*')
+      .or('is_deleted.is.null,is_deleted.eq.false')
+      .order('created_at', { ascending: true })
+      .limit(limit)
+    query = 'channelId' in scope
+      ? query.eq('channel_id', scope.channelId).is('thread_id', null)
+      : query.eq('conversation_id', scope.conversationId)
+    query = inclusive ? query.gte('created_at', from) : query.gt('created_at', from)
+
+    if (signal?.aborted) throw this.createError('ABORTED', 'Request was aborted')
+    const { data, error } = await query
+    if (error) throw this.createError('LOAD_MESSAGES_FAILED', error.message, error)
+
+    const rows = data || []
+    if (rows.length > 0) {
+      const reactionsByMessage = await this.getBatchMessageReactions(rows.map(m => m.id))
+      rows.forEach(message => {
+        message.reactions = reactionsByMessage[message.id] || []
+      })
+      await this.populateReactionsStoreCache(reactionsByMessage)
+    }
+
+    const { processMessageDecryption } = await import('@/utils/messageDecryption')
+    return await processMessageDecryption(rows)
   }
 
   private async loadRemoteChannelMessages(

@@ -2,7 +2,7 @@
 // and a Discord bridge keeps the members it registered. A client sees a dropped connection
 // (1006) first and identifies on a new socket; the old socket's close reaches the gateway
 // after that. The bot reads offline and its members are released only when its last
-// connection closes.
+// connection closes, whichever connection that is.
 //
 // A bot holds at most WS_MAX_CONNECTIONS_PER_BOT (default 5) identified connections; the
 // identify past it closes with 4029. A socket without a successful identify within
@@ -174,6 +174,29 @@ test('a bot holds at most five gateway connections', async () => {
     expect(again.ready?.session_id).toBeTruthy()
   } finally {
     for (const ws of open) ws.close()
+    await expect.poll(connectionCount, { timeout: 15000 }).toBe(0)
+  }
+})
+
+test('a bot reads online until its last connection closes, newest closing first', async () => {
+  test.setTimeout(60_000)
+  const open = [await identify(), await identify(), await identify()]
+  const [oldest, middle, newest] = open
+  try {
+    expect(open.every((c) => c.ready?.session_id)).toBe(true)
+    await expect.poll(async () => (await presence()).gateway_session_id, { timeout: 15000 }).toBe(newest.ready.session_id)
+
+    newest.ws.close()
+    await expect.poll(connectionCount, { timeout: 15000 }).toBe(2)
+    oldest.ws.close()
+    await expect.poll(connectionCount, { timeout: 15000 }).toBe(1)
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+    expect((await presence()).status).toBe('online')
+
+    middle.ws.close()
+    await expect.poll(async () => (await presence()).status, { timeout: 15000 }).toBe('offline')
+  } finally {
+    for (const { ws } of open) ws.close()
     await expect.poll(connectionCount, { timeout: 15000 }).toBe(0)
   }
 })

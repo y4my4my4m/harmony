@@ -13,3 +13,19 @@ export function isEmptyPreview(payload: EmbedPayload | null | undefined): boolea
   const title = (payload.title ?? '').trim()
   return !title || title === payload.url || title === payload.normalizedUrl
 }
+
+// Mirrors WIKIMEDIA_HOST in federation-backend/src/services/LinkPreviewService.ts.
+const WIKIMEDIA_HOST = /(^|\.)(wikipedia|wikimedia|wiktionary|wikiquote|wikibooks|wikisource|wikivoyage|wikinews|wikiversity|wikidata)\.org$/
+
+/**
+ * A Wikimedia page. Its projects store still photos as GIF, so a .gif preview image there is no
+ * GIF page; previews stored with mediaOnly from that heuristic still render as cards.
+ */
+export function isWikimediaPage(url: string | null | undefined): boolean {
+  if (!url) return false
+  try {
+    return WIKIMEDIA_HOST.test(new URL(url).hostname.toLowerCase())
+  } catch {
+    return false
+  }
+}

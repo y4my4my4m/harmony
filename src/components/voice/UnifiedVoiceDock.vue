@@ -91,15 +91,20 @@
           :class="['control-btn', 'mic-btn', {
             active: !voiceStore.localState.isMuted && !voiceStore.localState.isDeafened && (!isPTTMode || isPTTActive),
             muted: voiceStore.localState.isMuted,
+            locked: voiceStore.speakLocked,
             'ptt-mode': isPTTMode,
             'ptt-active': isPTTActive && !voiceStore.localState.isMuted
           }]"
           :title="micTitle"
           :aria-label="t('voice.mute')"
           :aria-pressed="voiceStore.localState.isMuted"
+          :aria-disabled="voiceStore.speakLocked || undefined"
+          :aria-describedby="voiceStore.speakLocked ? lockHintId : undefined"
+          :data-locked="voiceStore.speakLocked ? 'true' : undefined"
           data-testid="dock-mute"
         >
           <Icon :name="voiceStore.localState.isMuted || voiceStore.localState.isDeafened ? 'mic-off' : 'mic'" />
+          <Icon v-if="voiceStore.speakLocked" name="lock" :size="10" class="lock-badge" aria-hidden="true" />
           <span v-if="isPTTMode && !voiceStore.localState.isMuted" class="ptt-indicator" :class="{ active: isPTTActive }" aria-hidden="true">PTT</span>
         </button>
 
@@ -107,17 +112,23 @@
           @click="voiceStore.toggleDeafen()"
           :class="['control-btn', 'headphones-btn', { 
             active: !voiceStore.localState.isDeafened,
-            deafened: voiceStore.localState.isDeafened 
+            deafened: voiceStore.localState.isDeafened,
+            locked: voiceStore.deafenLocked
           }]"
-          :title="withShortcut(t('voice.deafen'), 'toggle-deafen')"
+          :title="voiceStore.deafenLocked ? t('voice.moderation.serverDeafenedHint') : withShortcut(t('voice.deafen'), 'toggle-deafen')"
           :aria-label="t('voice.deafen')"
           :aria-pressed="voiceStore.localState.isDeafened"
+          :aria-disabled="voiceStore.deafenLocked || undefined"
+          :data-locked="voiceStore.deafenLocked ? 'true' : undefined"
           data-testid="dock-deafen"
         >
           <Icon :name="voiceStore.localState.isDeafened ? 'headphones-off' : 'headphones'" />
+          <Icon v-if="voiceStore.deafenLocked" name="lock" :size="10" class="lock-badge" aria-hidden="true" />
         </button>
+        <span v-if="voiceStore.speakLockReason" :id="lockHintId" hidden>{{ t(voiceStore.speakLockReason) }}</span>
 
         <button
+          v-if="voiceStore.canStream"
           @click="voiceStore.toggleVideo()"
           :class="['control-btn', 'video-btn', {
             active: voiceStore.localState.isVideoEnabled
@@ -131,6 +142,7 @@
         </button>
 
         <button
+          v-if="voiceStore.canStream"
           ref="dockShareButtonRef"
           @click="onDockShareButton"
           :class="['control-btn', 'screen-btn', {
@@ -358,10 +370,12 @@
             <button
               @click.stop="voiceStore.toggleMute()"
               class="mini-control-btn mini-mic-btn"
-              :class="{ muted: voiceStore.localState.isMuted, 'ptt-active': isPTTActive && !voiceStore.localState.isMuted }"
+              :class="{ muted: voiceStore.localState.isMuted, locked: voiceStore.speakLocked, 'ptt-active': isPTTActive && !voiceStore.localState.isMuted }"
               :title="micTitle"
               :aria-label="t('voice.mute')"
               :aria-pressed="voiceStore.localState.isMuted"
+              :aria-disabled="voiceStore.speakLocked || undefined"
+              :data-locked="voiceStore.speakLocked ? 'true' : undefined"
               data-testid="mini-mute"
             >
               <Icon :name="voiceStore.localState.isMuted || voiceStore.localState.isDeafened ? 'mic-off' : 'mic'" />
@@ -370,10 +384,12 @@
             <button 
               @click.stop="voiceStore.toggleDeafen()"
               class="mini-control-btn mini-deafen-btn"
-              :class="{ deafened: voiceStore.localState.isDeafened }"
-              :title="withShortcut(t('voice.deafen'), 'toggle-deafen')"
+              :class="{ deafened: voiceStore.localState.isDeafened, locked: voiceStore.deafenLocked }"
+              :title="voiceStore.deafenLocked ? t('voice.moderation.serverDeafenedHint') : withShortcut(t('voice.deafen'), 'toggle-deafen')"
               :aria-label="t('voice.deafen')"
               :aria-pressed="voiceStore.localState.isDeafened"
+              :aria-disabled="voiceStore.deafenLocked || undefined"
+              :data-locked="voiceStore.deafenLocked ? 'true' : undefined"
               data-testid="mini-deafen"
             >
               <HeadphonesIcon :isHeadphonesActive="!voiceStore.localState.isDeafened" aria-hidden="true" />
@@ -790,7 +806,10 @@ const activeVideoLabel = computed(() => {
   return t(key, { name: activeVideoUserName.value });
 });
 
+const lockHintId = uid('voice-lock-hint');
+
 const micTitle = computed(() => {
+  if (voiceStore.speakLockReason) return t(voiceStore.speakLockReason);
   if (!voiceStore.localState.isMuted && isPTTMode.value) {
     return isPTTActive.value
       ? t('voice.pttTransmitting', { key: pttKeyDisplay.value })
@@ -1677,6 +1696,19 @@ onUnmounted(() => {
   background: var(--success);
   color: var(--text-on-primary);
   border-color: var(--success);
+}
+
+.control-btn.locked,
+.mini-control-btn.locked {
+  position: relative;
+  cursor: not-allowed;
+}
+
+.lock-badge {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  color: var(--text-danger);
 }
 
 .control-btn.muted {

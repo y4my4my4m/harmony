@@ -29,6 +29,8 @@
       class="no-messages"
       icon="message-circle"
       :title="$t('message.noMessagesHere')"
+      :description="historyRestricted ? $t('message.historyRestricted') : undefined"
+      :data-testid="historyRestricted ? 'history-restricted' : undefined"
     />
     <!-- Sentinel for auto-loading older messages when the top is visible -->
     <div ref="topSentinelRef" class="top-sentinel"></div>
@@ -75,7 +77,7 @@
         :ref="measureElement"
         role="listitem"
         :aria-posinset="virtualRow.index + 1"
-        :aria-setsize="isAllMessagesLoaded ? displayItems.length : -1"
+        :aria-setsize="isAllMessagesLoaded && !isDetached ? displayItems.length : -1"
         :style="{
           position: 'absolute',
           top: 0,
@@ -132,6 +134,7 @@
           :kind="beginningInfo.kind"
           :name="beginningInfo.name"
           :user-id="beginningInfo.userId"
+          :history-restricted="historyRestricted"
         />
 
         <!-- Date separator -->
@@ -162,7 +165,8 @@
             'revealed-blocked': item.isRevealed,
             'is-sending': !item.message.failed && (item.message.sending || (item.message.id?.startsWith('temp-') && !item.message.failed)),
             'is-failed': item.message.failed,
-            'mentions-me': mentionsMe(item.message)
+            'mentions-me': mentionsMe(item.message),
+            'highlighted': highlightedRowId === item.message.id
           }"
           @mouseover="handleMessageMouseover(item.message.id)" 
           @mouseleave="handleMessageMouseleave"
@@ -194,13 +198,6 @@
           <div v-if="revealedReportedIds.has(item.message?.id)" class="revealed-blocked-banner reported-banner">
             <span class="blocked-warning">{{ t('messageA11y.row.reportedBanner') }}</span>
             <button type="button" class="hide-btn" @click="revealedReportedIds.delete(item.message.id)">{{ t('messageA11y.row.hideAgain') }}</button>
-          </div>
-          
-          <!-- Gap indicator for jumped-to messages -->
-          <div v-if="chatStore.messageGaps.has(`gap-before-${item.message.id}`)" class="message-gap">
-            <div class="gap-line"></div>
-            <div class="gap-text">{{ $t('message.jumpInConversation') }}</div>
-            <div class="gap-line"></div>
           </div>
 
           <!-- System Message (join/leave announcements, thread creation) -->
@@ -611,7 +608,7 @@
         >
           <button type="button" class="action-btn" data-testid="msg-action-react" :aria-label="t('message.react')" :title="t('message.react')" aria-haspopup="dialog" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></button>
           <button type="button" class="action-btn" data-testid="msg-action-reply" :aria-label="t('message.reply')" :title="t('message.reply')" @click="replyTo(item.message)"><ReplyIcon/></button>
-          <button type="button" class="action-btn thread-btn" data-testid="msg-action-thread" v-if="!props.hideThreadActions" :aria-label="t('messageA11y.actions.thread')" :title="t('messageA11y.actions.thread')" @click="createThread(item.message)"><ThreadIcon/></button>
+          <button type="button" class="action-btn thread-btn" data-testid="msg-action-thread" v-if="!hideThreadCreate" :aria-label="t('messageA11y.actions.thread')" :title="t('messageA11y.actions.thread')" @click="createThread(item.message)"><ThreadIcon/></button>
           <button type="button" class="action-btn" data-testid="msg-action-edit" v-if="canEditMessage(item.message)" :aria-label="t('message.editMessage')" :title="t('message.editMessage')" @click="startEdit(item.message)"><EditIcon/></button>
           <button type="button" class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" :aria-label="t('message.deleteMessage')" :title="t('message.deleteMessage')" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></button>
           <button type="button" class="action-btn" data-testid="msg-action-more" :aria-label="t('message.moreActions')" :title="t('message.moreActions')" aria-haspopup="menu" :aria-expanded="isMenuOpenFor(item.message.id) ? 'true' : 'false'" @click="openContextMenu(item.message, $event)"><MoreIcon/></button>
@@ -641,6 +638,21 @@
       </template>
     </div>
   </div>
+
+    <!-- A jump detached the list from the present: Discord's "viewing older messages" bar.
+         It replaces the floating control below. -->
+    <div v-if="isDetached" class="history-bar-anchor">
+      <div class="history-bar" data-testid="history-bar">
+        <span class="history-bar-text">
+          {{ $t('message.viewingOlder') }}
+          <template v-if="detachedUnseen > 0"> - {{ $t('message.newMessagesBelow', { count: detachedUnseen }, detachedUnseen) }}</template>
+        </span>
+        <button type="button" class="history-bar-jump" data-testid="history-jump-present" @click="jumpToPresent">
+          {{ $t('message.jumpToPresent') }}
+          <Icon name="arrow-down" :size="14" />
+        </button>
+      </div>
+    </div>
 
     <!-- Jump to present; rules in utils/chatScroll showJumpToPresent. With messages
          that arrived while scrolled up it carries their count. -->
@@ -721,7 +733,7 @@
     v-if="isMobile && hoveredMessageId && mobileActionTapPosition && hoveredMessageItem"
     :message="hoveredMessageItem.message"
     :style="floatingActionsStyle"
-    :hide-thread-actions="props.hideThreadActions"
+    :hide-thread-actions="hideThreadCreate"
     :is-shift-held="isShiftHeld"
     :can-edit="canEditMessage(hoveredMessageItem.message)"
     :can-delete="canDeleteMessage(hoveredMessageItem.message)"
@@ -787,6 +799,8 @@ defineOptions({ inheritAttrs: false })
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import Icon from '@/components/common/Icon.vue';
 import EmptyState from '@/components/common/EmptyState.vue';
+import { historyCutoff } from '@/services/channelHistoryCutoff';
+import { classifySendFailure, permissionRefusalMessage } from '@/utils/sendFailure';
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';
@@ -1313,7 +1327,9 @@ const floatingActionsStyle = computed((): Record<string, string> => {
 });
 const { isCurrentUserServerOwner, getCurrentUserRole } = useServerPermissions();
 // Channel-resolved, as messages_update_authorized and messages_delete_authorized decide it.
-const { canManageMessages } = useChannelMessagePermissions(() => serverChannelStore.currentServerId, () => props.channelId);
+const { canManageMessages, canCreateThreads } = useChannelMessagePermissions(() => serverChannelStore.currentServerId, () => props.channelId);
+// create_thread needs CREATE_PUBLIC_THREADS in the channel.
+const hideThreadCreate = computed(() => props.hideThreadActions || !canCreateThreads.value);
 const viewerRoleIds = computed(() => new Set((getCurrentUserRole.value?.roles ?? []).map(role => role.id)));
 // A conversation has no roles, @everyone or @here; its messages are not highlighted.
 const mentionsMe = (message: Message): boolean =>
@@ -1610,7 +1626,31 @@ const isAllMessagesLoaded = computed(() => {
   return false;
 });
 
+// A jump detached the list from the present: it ends before the newest message.
+// Thread views carry their parent channel's id but not its list.
+const isDetached = computed(() => {
+  if (props.conversationId) return dmStore.hasNewerMessages;
+  if (props.channelId && !props.threadId) return chatStore.hasNewerMessages;
+  return false;
+});
+
+const isLoadingNewerMessages = computed(() => {
+  if (props.conversationId) return dmStore.loadingNewerMessages;
+  if (props.channelId && !props.threadId) return chatStore.loadingNewerMessages;
+  return false;
+});
+
+// Messages from others that arrived while detached.
+const detachedUnseen = computed(() => {
+  if (props.conversationId) return dmStore.unseenWhileDetached;
+  if (props.channelId && !props.threadId) return chatStore.unseenWhileDetached;
+  return 0;
+});
+
 // Context shown by the conversation-start line (channel vs DM vs group).
+// get_message_page reported a READ_MESSAGE_HISTORY cutoff: the channel starts where the viewer opened it.
+const historyRestricted = computed(() => !!props.channelId && !props.conversationId && !!historyCutoff(props.channelId));
+
 const beginningInfo = computed((): { kind: 'channel' | 'dm' | 'group'; name: string; userId?: string } => {
   if (props.channelId) {
     const channel = serverChannelStore.channels.find(c => c.id === props.channelId);
@@ -1841,11 +1881,13 @@ const setPinned = (pinned: boolean) => {
   if (pinned) unseenCount.value = 0;
 };
 
-// Pin state after the scroll position moved; rules in nextPinState.
+// Pin state after the scroll position moved; rules in nextPinState. The end of a
+// detached list is not the present and never pins.
 const applyScroll = (el: HTMLElement) => {
   const settling = Date.now() < openFollowBottomUntil;
   const next = nextPinState(pinState, el, { settling });
   pinState.lastScrollTop = next.lastScrollTop;
+  if (isDetached.value) next.pinned = false;
   if (next.pinned !== pinState.pinned) {
     setPinned(next.pinned);
     // A deliberate scroll-up ends the post-open grace window.
@@ -1930,21 +1972,19 @@ const jumpToDivider = () => {
   seat();
 };
 
-// The list holds rows a jump to an older message spliced in; the history
-// between them and the newest page is not loaded.
-const listJumped = computed(() => {
-  const ids = props.conversationId ? dmStore.jumpedMessageIds : props.channelId ? chatStore.jumpedToMessages : null;
-  if (!ids?.size) return false;
-  return props.messages.some(m => ids.has(m.id));
-});
-
 const showJump = computed(() => showJumpToPresent({
   distance: distanceToEnd.value,
   viewport: viewportHeight.value,
   pinned: isPinned.value,
   unseen: unseenCount.value,
-  jumped: listJumped.value,
+  detached: isDetached.value,
 }));
+
+watch(isDetached, (detached) => {
+  if (!detached) return;
+  setPinned(false);
+  openFollowBottomUntil = 0;
+});
 
 // The control sits at the bottom-right of the viewport, where the action bar of
 // a message near the bottom edge opens. That bar moves left of the control
@@ -2457,6 +2497,9 @@ const lastKnownMessageCount = ref(0);
 const lastKnownFirstMessageId = ref<string | null>(null);
 const lastKnownLastMessageId = ref<string | null>(null);
 const lastKnownDisplayItemCount = ref(0);
+// Detached at the previous run of the messages watcher. Realtime rows stay out
+// of a detached list, so rows appended to one are a page toward the present.
+let lastKnownDetached = false;
 
 // --- WATCHERS ---
 let hasInitiallyScrolled = false;
@@ -2493,6 +2536,7 @@ const resetForContextChange = () => {
   lastKnownFirstMessageId.value = null;
   lastKnownLastMessageId.value = null;
   lastKnownDisplayItemCount.value = 0;
+  lastKnownDetached = false;
   enrichmentRequestedUserIds.clear();
   enrichmentFetchedReactionIds.clear();
   enrichmentFetchedEmbedPostIds.clear();
@@ -2523,16 +2567,19 @@ watch(() => props.messages, (newMessages) => {
   const prevFirstId = lastKnownFirstMessageId.value;
   const prevLastId = lastKnownLastMessageId.value;
   const prevDisplayItemCount = lastKnownDisplayItemCount.value;
+  const prevDetached = lastKnownDetached;
   lastKnownMessageCount.value = newMessages.length;
   lastKnownFirstMessageId.value = newMessages[0]?.id ?? null;
   lastKnownLastMessageId.value = newMessages[newMessages.length - 1]?.id ?? null;
+  lastKnownDetached = isDetached.value;
 
   // Appended tail, split by author: front unchanged and the previous last
-  // message still at its index (a jump-to-message insert lands mid-list).
+  // message still at its index.
   // Optimistic own rows (temp- id or sending) are messages sent from this client.
   let appendedOwn = 0;
   let appendedOwnPending = 0;
   let appendedOthers = 0;
+  let pageAppend = false;
   const arrivals: Message[] = [];
   if (
     newMessages.length > prevCount &&
@@ -2550,8 +2597,16 @@ watch(() => props.messages, (newMessages) => {
         if (m && !isOptimisticId(m.id)) arrivals.push(m);
       }
     }
+    if (prevDetached && appendedOwnPending === 0) {
+      pageAppend = true;
+      appendedOwn = 0;
+      appendedOthers = 0;
+      arrivals.length = 0;
+    }
   }
   if (arrivals.length > 0) announceArrivals(arrivals);
+  // A send from a detached list returns to the present, as in Discord.
+  if (prevDetached && appendedOwnPending > 0) void jumpToPresent();
 
   // Retires the "New messages" divider as soon as the current user sends a
   // message in this context. Sending implies everything above has been seen,
@@ -2832,8 +2887,8 @@ watch(() => props.messages, (newMessages) => {
           // the new messages was just sent from this client, or while the
           // post-open grace window is active (catch-up messages from
           // revalidate / realtime).
-          const followBottom = pinState.pinned || appendedOwnPending > 0 ||
-            Date.now() < openFollowBottomUntil;
+          const followBottom = !pageAppend && (pinState.pinned || appendedOwnPending > 0 ||
+            Date.now() < openFollowBottomUntil);
           if (isAppend && followBottom) {
             debug.log('New messages - scrolling to bottom (pinned / own / open grace)');
             setPinned(true);
@@ -2841,7 +2896,7 @@ watch(() => props.messages, (newMessages) => {
             // resizes re-seat the view again.
             stickToBottom();
             requestAnimationFrame(stickToBottom);
-          } else if (isAppend) {
+          } else if (isAppend && !pageAppend) {
             unseenCount.value += appendedOthers;
           }
           // Load older messages (prepend): everything added sits above the
@@ -2872,7 +2927,7 @@ watch(() => props.messages, (newMessages) => {
         if (replaced || (!dividerBeforeMessageId.value && Date.now() < openFollowBottomUntil)) {
           resolveDivider(newMessages, props.currentUserId);
         }
-        if (replaced && pinState.pinned) {
+        if (replaced && pinState.pinned && !isDetached.value) {
           stickToBottom();
           requestAnimationFrame(stickToBottom);
         }
@@ -2962,8 +3017,10 @@ const setupUnreadObserver = () => {
   });
 };
 
+// Rows of a detached list are history; a read of one would move the channel's
+// last read message back.
 const queueUnreadUpdate = (messageId: string) => {
-  if (!sendsReadMarkers()) return;
+  if (!sendsReadMarkers() || isDetached.value) return;
   const message = props.messages.find(m => m.id === messageId);
   if (!message) return;
   const channelId = props.channelId || message.channel_id || null;
@@ -3163,10 +3220,10 @@ const seatAtEnd = () => {
   stickToBottom();
 };
 
-// A list holding jumped-to rows is then replaced by the newest page, as a cold
-// open loads it, and the view seats at its end.
+// A detached list is then replaced by the newest page, as a cold open loads it,
+// and the view seats at its end.
 const jumpToPresent = async () => {
-  const reload = listJumped.value;
+  const reload = isDetached.value;
   seatGeneration++;
   seatAtEnd();
   if (!reload) return;
@@ -3180,6 +3237,42 @@ const jumpToPresent = async () => {
   seatAtEnd();
 };
 
+// Rows toward the present load while the end of a detached list is within this
+// distance of the viewport, as older rows do near the top.
+const NEWER_PREFETCH_PX = 400;
+
+const loadNewerMessages = () => {
+  if (props.conversationId) void dmStore.fetchNewerMessages(props.conversationId);
+  else if (props.channelId) void chatStore.fetchNewerMessages(props.channelId);
+};
+
+const maybeLoadNewer = () => {
+  const el = messageDisplayContainer.value;
+  if (!el || !isDetached.value || isLoadingNewerMessages.value) return;
+  if (distanceFromBottom(el) < NEWER_PREFETCH_PX) loadNewerMessages();
+};
+
+// A page that leaves the end of the list within reach loads the next one; no
+// scroll event follows a page appended below the view.
+watch(isLoadingNewerMessages, (loading, wasLoading) => {
+  if (wasLoading && !loading) setTimeout(maybeLoadNewer, 300);
+});
+
+// The message a jump landed on. Bound in the template, so it survives the row
+// leaving the rendered range.
+const highlightedRowId = ref<string | null>(null);
+let highlightTimer: ReturnType<typeof setTimeout> | null = null;
+const HIGHLIGHT_MS = 3000;
+
+const highlightRow = (messageId: string) => {
+  if (highlightTimer) clearTimeout(highlightTimer);
+  highlightedRowId.value = messageId;
+  highlightTimer = setTimeout(() => {
+    highlightTimer = null;
+    if (highlightedRowId.value === messageId) highlightedRowId.value = null;
+  }, HIGHLIGHT_MS);
+};
+
 // Centres a message row and highlights it. The virtualizer's smooth scroll targets
 // estimated offsets and does not follow rows that measure while it runs, so the
 // position is re-seated from the row's DOM box while rows above it settle. A row
@@ -3190,6 +3283,8 @@ const jumpToMessageRow = (messageId: string): boolean => {
   );
   if (indexOf() < 0) return false;
   setPinned(false);
+  openFollowBottomUntil = 0;
+  highlightRow(messageId);
   const generation = ++seatGeneration;
   let attempts = 0;
   const seat = () => {
@@ -3208,12 +3303,9 @@ const jumpToMessageRow = (messageId: string): boolean => {
         c.scrollTop += box.height > view.height - CONTEXT_NUDGE_PX
           ? box.top - view.top - CONTEXT_NUDGE_PX
           : box.top + box.height / 2 - (view.top + view.height / 2);
-        if (attempts === 1) {
-          el.classList.add('highlighted');
-          setTimeout(() => el.classList.remove('highlighted'), 3000);
-        }
       }
       if (attempts < 6) setTimeout(seat, attempts < 3 ? 50 : 150);
+      else maybeLoadNewer();
     });
   };
   seat();
@@ -3235,12 +3327,13 @@ onMounted(() => {
   window.addEventListener('keydown', onShiftDown);
   window.addEventListener('keyup', onShiftUp);
   document.addEventListener('focusin', onDocumentFocusIn);
-  chatStore.highlightMessage = (messageId: string) => { jumpToMessageRow(messageId); };
+  // A thread view shares the channel id but not the channel's list.
+  if (!props.threadId) chatStore.highlightMessage = (messageId: string) => { jumpToMessageRow(messageId); };
 });
 
 // Watch for DM highlight requests (reply jump in DMs)
 watch(() => dmStore.highlightedMessageId, (messageId) => {
-  if (!messageId) return;
+  if (!messageId || !props.conversationId) return;
   jumpToMessageRow(messageId);
   dmStore.highlightedMessageId = null;
 });
@@ -3256,7 +3349,8 @@ onUnmounted(() => {
     clearTimeout(longPressTimer.value);
   }
   clearReadDivider();
-  chatStore.highlightMessage = (_messageId: string) => {};
+  if (!props.threadId) chatStore.highlightMessage = (_messageId: string) => {};
+  if (highlightTimer) clearTimeout(highlightTimer);
 });
 
 // --- METHODS ---
@@ -3315,6 +3409,7 @@ const handleScrollThrottled = throttle(() => {
       props.loadMoreMessages();
     }
   }
+  maybeLoadNewer();
 
   emit('update:isAtBottom', distanceFromBottom(messageDisplayContainer.value) <= PIN_THRESHOLD_PX);
   if (hoveredMessageId.value || focusMessageId.value) updateActionBarShift();
@@ -3557,6 +3652,8 @@ const saveEdit = async (messageId: string, newContent?: string, retainedFiles: F
     // An AutoMod block leaves the edit open with the reason; the text is kept.
     if (isModerationRejectionCode(error?.code) && error?.message) {
       toast.error(error.message);
+    } else if (classifySendFailure(error) === 'permission') {
+      toast.error(permissionRefusalMessage(error));
     }
   }
 };
@@ -3819,6 +3916,11 @@ const replyTo = (message: Message) => {
 };
 
 const handleReplyClick = async (replyMessageId: string) => {
+  // A thread view's rows are its own; the channel's list is not on screen.
+  if (props.threadId) {
+    if (!jumpToMessageRow(replyMessageId)) debug.warn(`Reply target is not in this thread: ${replyMessageId}`);
+    return;
+  }
   if (props.channelId && chatStore.currentChannelId) {
     const success = await chatStore.jumpToMessage(replyMessageId, chatStore.currentChannelId);
     if (!success) debug.warn(`Could not jump to message: ${replyMessageId}`);
@@ -4660,28 +4762,6 @@ defineExpose({ editLastOwnMessage });
   color: var(--error-hover)!important;
 }
 
-/* Gap indicator */
-.message-gap {
-  display: flex;
-  align-items: center;
-  margin: 24px 16px;
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-.gap-line {
-  flex: 1;
-  height: 1px;
-  background-color: var(--background-quinary);
-}
-
-.gap-text {
-  padding: 0 16px;
-  background-color: var(--background-secondary);
-  position: relative;
-}
-
 /* Date separator */
 .date-separator {
   display: flex;
@@ -5126,6 +5206,77 @@ defineExpose({ editLastOwnMessage });
   height: 1px;
   width: 100%;
   pointer-events: none;
+}
+
+/* Zero-height sticky box, as .jump-present-anchor: the bar adds nothing to
+   scrollHeight, so the distance to the end of the list is the rows' alone. */
+.history-bar-anchor {
+  position: sticky;
+  bottom: 0;
+  height: 0;
+  z-index: 3;
+}
+
+.history-bar {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+  padding: 4px 4px 4px 14px;
+  border-radius: var(--radius-md);
+  background-color: var(--harmony-secondary);
+  color: var(--text-on-primary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.history-bar-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-bar-jump {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.history-bar-jump:hover {
+  background-color: color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.history-bar-jump:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* 44 px touch target. */
+@media (max-width: 768px) {
+  .history-bar {
+    left: 12px;
+    right: 12px;
+  }
+
+  .history-bar-jump {
+    min-height: 44px;
+  }
 }
 
 /* Zero-height sticky box at the end of the list: the control floats over the

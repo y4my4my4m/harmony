@@ -27,6 +27,19 @@ interface ReactionDeletePayload {
   emoji_id?: string;
 }
 
+/**
+ * Inboxes a local user's reaction goes to. On a remote server's channel, the server's own
+ * inbox: its host checks the reaction and its Group relays it to the other member instances
+ * (groupRelay.ts). On a local server's, the shared inbox of every instance with readers.
+ */
+async function reactionInboxes(server: any, channelId: string): Promise<string[]> {
+  if (server.is_local_server === false) {
+    return typeof server.federation_inbox_url === 'string' ? [server.federation_inbox_url] : [];
+  }
+  return (await getChannelRecipientGroups(channelId))
+    .map((group) => group.shared_inbox || `https://${group.instance}/inbox`);
+}
+
 // ADD REACTION HANDLER
 
 /**
@@ -72,7 +85,7 @@ export async function handleChannelReactionFederation(
         channel:channels!messages_channel_id_fkey(
           id,
           server_id,
-          server:servers!channels_server_id_fkey(id, federation_enabled, owner)
+          server:servers!channels_server_id_fkey(id, federation_enabled, owner, is_local_server, federation_inbox_url)
         )
       `)
       .eq('id', message_id)
@@ -89,9 +102,8 @@ export async function handleChannelReactionFederation(
       return;
     }
 
-    const remoteMemberGroups = await getChannelRecipientGroups(message.channel_id);
-    
-    if (remoteMemberGroups.length === 0) {
+    const inboxes = await reactionInboxes(server, message.channel_id);
+    if (inboxes.length === 0) {
       logger.info('No remote members, skipping reaction federation');
       return;
     }
@@ -134,12 +146,9 @@ export async function handleChannelReactionFederation(
       published: new Date().toISOString(),
     };
 
-    for (const group of remoteMemberGroups) {
-      const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
-      
+    for (const inbox of inboxes) {
       await DeliveryQueue.enqueue(activity, inbox, reaction.user.id);
-      
-      logger.info(`Queued reaction delivery to ${group.instance}`);
+      logger.info(`Queued reaction delivery to ${inbox}`);
     }
 
     await supabase
@@ -185,7 +194,7 @@ export async function handleChannelReactionRemoval(
         channel_id,
         metadata,
         channel:channels!messages_channel_id_fkey(
-          server:servers!channels_server_id_fkey(id, federation_enabled, owner)
+          server:servers!channels_server_id_fkey(id, federation_enabled, owner, is_local_server, federation_inbox_url)
         )
       `)
       .eq('id', message_id)
@@ -200,9 +209,8 @@ export async function handleChannelReactionRemoval(
       return;
     }
 
-    const remoteMemberGroups = await getChannelRecipientGroups(message.channel_id);
-    
-    if (remoteMemberGroups.length === 0) {
+    const inboxes = await reactionInboxes(server, message.channel_id);
+    if (inboxes.length === 0) {
       return;
     }
 
@@ -246,12 +254,11 @@ export async function handleChannelReactionRemoval(
       published: new Date().toISOString(),
     };
 
-    for (const group of remoteMemberGroups) {
-      const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
+    for (const inbox of inboxes) {
       await DeliveryQueue.enqueue(undoActivity, inbox, user.id);
     }
 
-    logger.info(`Reaction removal federated to ${remoteMemberGroups.length} instances`);
+    logger.info(`Reaction removal federated to ${inboxes.length} inboxes`);
   } catch (error) {
     logger.error('Error handling reaction removal federation:', error);
   }

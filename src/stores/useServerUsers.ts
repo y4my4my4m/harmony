@@ -9,6 +9,7 @@ import { userDataService } from '@/services/userDataService';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { debug } from '@/utils/debug'
 import { useActivitiesStore } from '@/stores/activities';
+import { useVoiceModerationStore } from '@/stores/voiceModeration';
 
 /** A DM call room id (dm-{conversation} or federated-dm-{conversation}-{millis}), not a server channel. */
 function isDmRoom(channelId: string | null | undefined): boolean {
@@ -268,6 +269,7 @@ export const useServerUsersStore = defineStore('serverUsers', {
       this.closeRestrictedVoiceBroadcasts()
 
       debug.log('Setting up voice channel broadcast for server:', serverId);
+      void useVoiceModerationStore().load(serverId);
 
       // Voice channel state is ephemeral (broadcast-only, no DB table for initial state).
       this.voiceChannelBroadcast = supabase.channel(`voice-channels:${serverId}`, {
@@ -307,6 +309,20 @@ export const useServerUsersStore = defineStore('serverUsers', {
 
       if (event === 'activity') {
         useActivitiesStore().receiveBroadcast(data);
+        return;
+      }
+
+      if (event === 'voice-moderation') {
+        if (userId && data?.serverId === serverId) {
+          useVoiceModerationStore().apply(serverId, userId, { muted: data.muted === true, deafened: data.deafened === true });
+        }
+        return;
+      }
+
+      if (event === 'voice-grants') {
+        if (data?.serverId === serverId) {
+          void useVoiceModerationStore().recheckGrants(serverId, channelId ?? null, userId ?? null);
+        }
         return;
       }
 

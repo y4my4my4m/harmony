@@ -156,6 +156,7 @@
               v-else-if="isVoiceType(element.type) && getUsersInVoiceChannel(element.id).length > 0"
               :user-ids="getUsersInVoiceChannel(element.id)"
               :call-start-time="getChannelCallStartTime(element.id)"
+              :channel-id="element.id"
             />
             <!-- Active threads nested under the channel -->
             <ul
@@ -337,6 +338,7 @@
                     v-else-if="isVoiceType(channel.type) && getUsersInVoiceChannel(channel.id).length > 0"
                     :user-ids="getUsersInVoiceChannel(channel.id)"
                     :call-start-time="getChannelCallStartTime(channel.id)"
+                    :channel-id="channel.id"
                   />
                   <!-- Active threads nested under the channel -->
                   <ul

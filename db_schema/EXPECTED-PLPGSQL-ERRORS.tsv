@@ -1,12 +1,4 @@
-# plpgsql_check errors that are environmental, not defects.
-#
-# broadcast_notification_delete, queue_push_dismissal_on_read and
-# queue_push_dismissal_on_delete read their triggers' transition tables, which
-# plpgsql_check_function_tb resolves only when passed oldtable/newtable; the gate passes
-# relid alone.
+# plpgsql_check errors that are environmental, not defects, with the reason.
 #
 # Format: <function signature>\t<sqlstate>\t<message>
 #
-broadcast_notification_delete()	42P01	relation "deleted_notifications" does not exist
-queue_push_dismissal_on_delete()	42P01	relation "push_deleted" does not exist
-queue_push_dismissal_on_read()	42P01	relation "push_read_new" does not exist

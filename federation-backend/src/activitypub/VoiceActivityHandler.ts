@@ -19,6 +19,7 @@ import {
 } from '../services/voiceAccess.js';
 import { SignatureService } from './SignatureService.js';
 import { remoteServerHosts, type ChannelWriteServer } from './channelWriteAuthz.js';
+import { copyOfGroup, processVoiceMemberActivity, VOICE_MEMBER_TYPES } from './voiceModerationFederation.js';
 import { sameOrigin, urlHost } from '../utils/apOrigin.js';
 import { safeFetch } from '../utils/ssrfProtection.js';
 import type { 
@@ -107,7 +108,7 @@ export class VoiceActivityHandler {
   }
 
   static async processVoiceActivity(activity: VoiceActivity): Promise<void> {
-    const activityType = activity.type;
+    const activityType: string = activity.type;
     
     logger.info(`Processing voice activity: ${activityType} from ${activity.actor}`);
 
@@ -136,6 +137,18 @@ export class VoiceActivityHandler {
       case HARMONY_VOICE_TYPES.VoiceChannelJoinReject:
         await this.handleVoiceChannelJoinReject(activity as VoiceChannelJoinReject);
         break;
+      // On the shared inbox, which has matched the signer to the actor.
+      case VOICE_MEMBER_TYPES.Move:
+      case VOICE_MEMBER_TYPES.Disconnect:
+      case VOICE_MEMBER_TYPES.State: {
+        const copy = await copyOfGroup((activity as any).actor);
+        if (!copy) {
+          logger.warn(`Ignoring ${activityType} from ${activity.actor}: no server copied here has that Group`);
+          break;
+        }
+        await processVoiceMemberActivity(copy, activity);
+        break;
+      }
       default:
         logger.warn(`Unknown voice activity type: ${activityType}`);
     }
@@ -515,7 +528,7 @@ export class VoiceActivityHandler {
    *
    * On a server hosted here: authorizeVoiceChannel (membership, ban, timeout,
    * VIEW_CHANNEL + CONNECT, federation_enabled), then a LiveKit token whose
-   * publish grant follows SPEAK, answered with VoiceChannelJoinAccept.
+   * grants follow it (voiceGrants.ts), answered with VoiceChannelJoinAccept.
    *
    * On a remote server's local copy: a presence notice. The sender must be on
    * the server's host and an accepted member of the copy.
@@ -589,8 +602,6 @@ export class VoiceActivityHandler {
         actorId: actorUrl,
         roomName,
         roomType: 'voice_channel',
-        canPublish: decision.canPublish,
-        canSubscribe: true,
       });
       const clientWsUrl = livekitService.getClientConfig().wsUrl;
       if (!clientWsUrl) {

@@ -36,6 +36,7 @@ import { handleGroupParticipantChangeJob } from './handlers/groupParticipantHand
 import { handleReleaseHeldActivityJob } from './handlers/heldActivityHandler.js';
 import { handleMessageMediaCleanupJob } from './handlers/messageMediaCleanupHandler.js';
 import { handleDriveHashJob, handleDrivePurgeJob } from './handlers/driveHandler.js';
+import { handleVoiceGrantSyncJob, handleVoiceModerationJob } from './handlers/voiceModerationHandler.js';
 
 export type JobType =
   | 'federate-post'
@@ -56,6 +57,8 @@ export type JobType =
   | 'federate-thread'
   | 'federate-voice-join'
   | 'federate-voice-leave'
+  | 'federate-voice-moderation'
+  | 'voice-grant-sync'
   | 'federate-group-invite'
   | 'federate-group-update'
   | 'federate-group-participant-change'
@@ -97,6 +100,8 @@ const JOB_TYPES: JobType[] = [
   'federate-thread',
   'federate-voice-join',
   'federate-voice-leave',
+  'federate-voice-moderation',
+  'voice-grant-sync',
   'federate-group-invite',
   'federate-group-update',
   'federate-group-participant-change',
@@ -218,6 +223,8 @@ class BullMQManagerService {
     this.handlerMap.set('federate-thread', handleThreadJob);
     this.handlerMap.set('federate-voice-join', handleVoiceJoinJob);
     this.handlerMap.set('federate-voice-leave', handleVoiceLeaveJob);
+    this.handlerMap.set('federate-voice-moderation', handleVoiceModerationJob);
+    this.handlerMap.set('voice-grant-sync', handleVoiceGrantSyncJob);
     this.handlerMap.set('federate-group-invite', handleGroupInviteJob as unknown as HandlerFn);
     this.handlerMap.set('federate-group-update', handleGroupUpdateJob as unknown as HandlerFn);
     this.handlerMap.set('federate-group-participant-change', handleGroupParticipantChangeJob as unknown as HandlerFn);

@@ -19,6 +19,8 @@ const KNOWN_ACTIONS = new Set([
   'role.create', 'role.update', 'role.delete', 'role.reorder',
   'member.role_add', 'member.role_remove', 'member.kick', 'member.ban', 'member.unban',
   'member.timeout', 'member.timeout_remove',
+  'member.voice_mute', 'member.voice_unmute', 'member.voice_deafen', 'member.voice_undeafen',
+  'member.voice_move', 'member.voice_disconnect',
   'message.delete',
   'server.update', 'settings.update',
   'invite.create', 'invite.delete',

@@ -39,9 +39,9 @@ vi.mock('@/stores/useServerChannel', () => ({
 }))
 vi.mock('@/stores/useServerRoles', () => ({ useServerRolesStore: () => loose({ getUserRoleColor: () => null }) }))
 vi.mock('@/stores/useChat', () => ({
-  useChatStore: () => loose({ messageGaps: new Set(), allMessagesLoaded: true, loadingOlderMessages: false }),
+  useChatStore: () => loose({ hasNewerMessages: false, allMessagesLoaded: true, loadingOlderMessages: false }),
 }))
-vi.mock('@/stores/useDM', () => ({ useDMStore: () => loose({ allMessagesLoaded: true }) }))
+vi.mock('@/stores/useDM', () => ({ useDMStore: () => loose({ allMessagesLoaded: true, hasNewerMessages: false }) }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => loose({ session: { user: { id: 'auth-1' } } }) }))
 vi.mock('@/stores/useProfile', () => ({ useProfileStore: () => loose({ profile: { id: 'me' }, profileId: 'me' }) }))
 vi.mock('@/stores/useNotification', () => ({
