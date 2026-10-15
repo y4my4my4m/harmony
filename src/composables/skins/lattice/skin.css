@@ -52,13 +52,17 @@
   --lt-mark: rgb(255 255 255 / 0.5);
   --lt-ink: #f3f3f1;
   --lt-ink-soft: #a7a7a3;
-  --lt-ink-faint: #7a7a76;
+  /* 4.5:1 on the lightest theme surface it lands on (#1e2124, midnight). */
+  --lt-ink-faint: #8e8e8a;
   --lt-invert-bg: #f3f3f1;
   --lt-invert-fg: #09090a;
+  --lt-danger: #ff5a52;
   --lt-shadow: 0 24px 60px -20px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(0 0 0 / 0.6);
 
   /* Holographic edge: pastel spectrum, hue order of a thin-film reflection. */
   --lt-iris: linear-gradient(105deg, #ff8ad8 0%, #ffb38a 17%, #f2ee8a 33%, #8affc1 50%, #8ad8ff 67%, #a48aff 83%, #ff8ad8 100%);
+  /* Gradient for clipped title text; the edge spectrum in dark. */
+  --lt-iris-text: var(--lt-iris);
   --lt-iris-glow: rgb(164 138 255 / 0.4);
 
   /* Corner brackets, 9px arms, drawn on the frame's border box. */
@@ -112,10 +116,14 @@
   --lt-mark: rgb(0 0 0 / 0.9);
   --lt-ink: #0b0b0c;
   --lt-ink-soft: #4b4b48;
-  --lt-ink-faint: #6e6d68;
+  /* 4.5:1 on the darkest theme surface it lands on (#dfdedb). */
+  --lt-ink-faint: #5e5d58;
   --lt-invert-bg: #0b0b0c;
   --lt-invert-fg: #f6f5f1;
+  --lt-danger: #b3261e;
   --lt-shadow: 6px 6px 0 rgb(0 0 0 / 0.85);
+  /* Same hue order at 4.6:1 or better on bone (#ebe9e3). */
+  --lt-iris-text: linear-gradient(105deg, #a8287a 0%, #9a4a12 17%, #6b5f00 33%, #0b6b40 50%, #155f91 67%, #5236c4 83%, #a8287a 100%);
   --lt-iris-glow: rgb(164 138 255 / 0.25);
 
   color-scheme: light;
@@ -134,6 +142,8 @@
   --input-border: var(--lt-line);
   --channel-item-hover-bg: var(--lt-raise);
   --channel-item-selected-bg: var(--lt-invert-bg);
+  --channel-item-selected-text: var(--lt-invert-fg);
+  --channel-item-selected-text-muted: color-mix(in srgb, var(--lt-invert-fg) 72%, var(--lt-invert-bg));
   --nav-rail-button-bg: var(--lt-raise-strong);
   --nav-rail-button-icon: var(--lt-ink);
   --text-on-primary: #000;
@@ -184,11 +194,16 @@
   [data-region="header"],
   [data-region="view"],
   [data-region="aside"].sidebar-open,
-  .user-profile
+  .user-profile,
+  .drive-view
 ) {
   background: var(--lt-marks), var(--lt-panel);
   background-origin: border-box;
   border: 1px solid var(--lt-frame);
+}
+:root[data-skin="lattice"] .drive-view .drive-sidebar {
+  background: transparent;
+  border-right: 1px solid var(--lt-frame);
 }
 
 :root[data-skin="lattice"] [data-region="context"] .unified-context-bar {
@@ -224,6 +239,10 @@
     left: 20px;
     bottom: 20px;
   }
+  /* Rail 72 + gap 10 + nav 295, less the 10px inset on each side. */
+  :root[data-skin="lattice"][data-skin-bento="on"] [data-region="user"]:not(.docked) .user-profile {
+    width: 357px;
+  }
   :root[data-skin="lattice"][data-skin-bento="on"] [data-region="nav"] {
     padding-bottom: 72px;
     box-sizing: border-box;
@@ -251,6 +270,9 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--lt-ink-soft);
+}
+:root[data-skin="lattice"] .unified-context-bar :is(.server-name, .dm-title, .app-name) {
+  opacity: 1;
 }
 :root[data-skin="lattice"] .unified-context-bar .context-title::before {
   content: '';
@@ -382,7 +404,7 @@
    ============================================================================ */
 
 /* Primary: inverted pill, mono caps; signal on hover. */
-:root[data-skin="lattice"] :is(.btn-primary, .submit-btn, .search-button, .tp-btn-primary, .join-btn, .primary-button, .btn.primary, button.primary) {
+:root[data-skin="lattice"] :is(.btn-primary, .submit-btn, .search-button, .tp-btn-primary, .join-btn, .primary-button, .btn.primary, button.primary, .primary-action-btn) {
   background: var(--lt-invert-bg);
   border: 1px solid var(--lt-invert-bg);
   border-radius: 999px;
@@ -395,17 +417,17 @@
   box-shadow: none;
   transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
-:root[data-skin="lattice"] :is(.btn-primary, .submit-btn, .search-button, .tp-btn-primary, .join-btn, .primary-button, .btn.primary, button.primary):hover:not(:disabled) {
+:root[data-skin="lattice"] :is(.btn-primary, .submit-btn, .search-button, .tp-btn-primary, .join-btn, .primary-button, .btn.primary, button.primary, .primary-action-btn):hover:not(:disabled) {
   background: var(--lt-signal);
   border-color: var(--lt-signal);
   color: #000;
 }
-:root[data-skin="lattice"] :is(.btn-primary, .submit-btn, .tp-btn-primary, .join-btn, .primary-button) :is(svg, .icon-wrap) {
+:root[data-skin="lattice"] :is(.btn-primary, .submit-btn, .tp-btn-primary, .join-btn, .primary-button, .primary-action-btn) :is(svg, .icon-wrap) {
   color: inherit;
 }
 
 /* Secondary: outline pill. */
-:root[data-skin="lattice"] :is(.btn-secondary, .secondary-button, .cancel-btn, .btn.secondary, .tp-btn-ghost, .live-editor-btn, .pi-action) {
+:root[data-skin="lattice"] :is(.btn-secondary, .secondary-button, .cancel-btn, .btn.secondary, .tp-btn-ghost, .live-editor-btn, .pi-action, .secondary-action-btn) {
   background: transparent;
   border: 1px solid var(--lt-line-strong);
   border-radius: 999px;
@@ -415,7 +437,7 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-:root[data-skin="lattice"] :is(.btn-secondary, .secondary-button, .cancel-btn, .btn.secondary, .tp-btn-ghost, .live-editor-btn, .pi-action):hover {
+:root[data-skin="lattice"] :is(.btn-secondary, .secondary-button, .cancel-btn, .btn.secondary, .tp-btn-ghost, .live-editor-btn, .pi-action, .secondary-action-btn):hover {
   background: var(--lt-invert-bg);
   border-color: var(--lt-invert-bg);
   color: var(--lt-invert-fg);
@@ -426,7 +448,7 @@
   background: transparent;
   border: 1px solid #ff3b30;
   border-radius: 999px;
-  color: #ff5a52;
+  color: var(--lt-danger);
   font-family: var(--lt-mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -498,6 +520,9 @@
   border-radius: 2px;
   font-weight: 700;
 }
+:root[data-skin="lattice"] .notification-badge .badge-text {
+  color: #000;
+}
 :root[data-skin="lattice"] :is(.beta-badge, .tp-override-badge) {
   background: transparent;
   border: 1px solid var(--lt-signal);
@@ -523,7 +548,10 @@
 :root[data-skin="lattice"] .server-item:hover {
   box-shadow: 0 0 0 1px var(--lt-ink);
 }
+/* ServerRailItem's 2px --harmony-secondary ring: a panel-coloured mat inside
+   the ink ring, keeping the accent hue off the monochrome rail. */
 :root[data-skin="lattice"] .server-item.selected {
+  border-color: var(--lt-panel-solid);
   box-shadow: 0 0 0 1px var(--lt-ink), 0 0 0 4px var(--lt-signal-wash);
 }
 :root[data-skin="lattice"] .server-pill {
@@ -549,6 +577,30 @@
 }
 :root[data-skin="lattice"] .channel-item.selected :is(.channel-name, svg, .icon-wrap) {
   color: var(--lt-invert-fg);
+}
+:root[data-skin="lattice"] .channel-thread-item.selected .thread-name {
+  border-radius: 0;
+  color: var(--lt-invert-fg);
+}
+
+/* DM rows: channel-row states. The open conversation inverts on every
+   theme, unread included. */
+:root[data-skin="lattice"] .conversation-item,
+:root[data-skin="lattice"] .conversation-item :is(.conversation-link, .conversation-dismiss) {
+  border-radius: 0;
+}
+:root[data-skin="lattice"] .conversation-item:hover:not(.active) {
+  background: var(--lt-raise);
+  box-shadow: inset 2px 0 0 var(--lt-signal);
+}
+:root[data-skin="lattice"] .conversation-item.active {
+  background: var(--lt-invert-bg);
+}
+:root[data-skin="lattice"] .conversation-item.active .conversation-link :is(.conversation-name, .display-name, svg, .icon-wrap) {
+  color: var(--channel-item-selected-text);
+}
+:root[data-skin="lattice"] .conversation-item.active .conversation-link :is(.last-message, .conversation-time) {
+  color: var(--channel-item-selected-text-muted);
 }
 :root[data-skin="lattice"] :is(.user-item, .nav-item, .search-result, .status-option, .menu-item, .context-menu-item, .option-item) {
   border-radius: 0;
@@ -578,6 +630,31 @@
 :root[data-skin="lattice"] .message-item .username {
   font-weight: 600;
   letter-spacing: -0.005em;
+}
+/* Mentions take the signal colour, not the theme's warning amber. */
+:root[data-skin="lattice"] .message-item.mentions-me {
+  background: var(--lt-signal-wash);
+  box-shadow: inset 2px 0 0 var(--lt-signal);
+}
+:root[data-skin="lattice"] .message-item.mentions-me:hover {
+  background: color-mix(in oklab, var(--lt-signal) 22%, transparent);
+}
+/* Chat mentions only; ActivityPub HTML mentions (.content-html) keep theirs.
+   The second selector is (0,7,0): component rules on .mentions-me .mention
+   reach (0,6,0). */
+:root[data-skin="lattice"] .mention:not(.content-html .mention),
+:root[data-skin="lattice"][data-theme-type] .message-item .mention:not(.content-html .mention) {
+  border-radius: 0;
+  background: color-mix(in oklab, var(--lt-signal) 24%, transparent);
+  color: var(--lt-ink);
+}
+:root[data-skin="lattice"] .mention:not(.content-html .mention) .mention-at {
+  opacity: 1;
+}
+:root[data-skin="lattice"] .mention:not(.content-html .mention):hover,
+:root[data-skin="lattice"][data-theme-type] .message-item .mention:not(.content-html .mention):hover {
+  background: var(--lt-signal);
+  color: #000;
 }
 :root[data-skin="lattice"] .date-separator-line {
   background: var(--lt-line);
@@ -615,6 +692,17 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
+/* CodeBlock.vue paints a Dark+ palette; on bone it drops to 1.1-2.7:1.
+   Light+ hues, darkened to 4.5:1 or better on #dcdad5. */
+:root[data-skin="lattice"][data-theme-type="light"] .code-block .hl-keyword { color: #8a00b0; }
+:root[data-skin="lattice"][data-theme-type="light"] .code-block :is(.hl-string, .hl-value) { color: #a31515; }
+:root[data-skin="lattice"][data-theme-type="light"] .code-block .hl-number { color: #0a6e48; }
+:root[data-skin="lattice"][data-theme-type="light"] .code-block .hl-comment { color: #3b6627; }
+:root[data-skin="lattice"][data-theme-type="light"] .code-block .hl-function { color: #6f5522; }
+:root[data-skin="lattice"][data-theme-type="light"] .code-block :is(.hl-variable, .hl-property) { color: #001080; }
+:root[data-skin="lattice"][data-theme-type="light"] .code-block :is(.hl-tag, .hl-tag-name, .hl-selector) { color: #800000; }
+:root[data-skin="lattice"][data-theme-type="light"] .code-block :is(.hl-attr, .hl-attr-name) { color: #0451a5; }
+:root[data-skin="lattice"][data-theme-type="light"] .code-block .hl-operator { color: var(--lt-ink-soft); }
 :root[data-skin="lattice"] :is(.unified-content, .markdown-content) :not(pre) > code {
   border-radius: 0;
   background: var(--lt-raise-strong);
@@ -622,6 +710,15 @@
 }
 :root[data-skin="lattice"] :is(.embed, .link-embed, .embed-container, .attachment, .file-attachment) {
   border-radius: 0;
+}
+:root[data-skin="lattice"] .provider-embed {
+  border-radius: 0;
+  border-color: var(--lt-line-strong);
+  background: var(--lt-raise);
+}
+:root[data-skin="lattice"] .provider-embed__header {
+  background: transparent;
+  border-bottom: 1px solid var(--lt-line);
 }
 
 /* Composer: a prompt bar. */
@@ -632,9 +729,13 @@
   box-shadow: 0 18px 50px -18px rgb(0 0 0 / 0.75);
   transition: border-color 0.15s ease, box-shadow 0.2s ease;
 }
-:root[data-skin="lattice"][data-theme-type="light"] [data-region="composer"] .message-container {
-  border-color: var(--lt-frame);
-  box-shadow: 4px 4px 0 rgb(0 0 0 / 0.85);
+/* Desktop only: below 769px the bar is bare and the textarea carries the
+   frame, so an offset shadow would underline the whole input row. */
+@media (min-width: 769px) {
+  :root[data-skin="lattice"][data-theme-type="light"] [data-region="composer"] .message-container {
+    border-color: var(--lt-frame);
+    box-shadow: 4px 4px 0 rgb(0 0 0 / 0.85);
+  }
 }
 :root[data-skin="lattice"] [data-region="composer"] .message-container:focus-within {
   border-color: var(--lt-ink);
@@ -657,6 +758,9 @@
     border: 1px solid var(--lt-line-strong);
     border-radius: 14px;
     background: var(--lt-panel-solid);
+  }
+  :root[data-skin="lattice"] [data-region="composer"] .textarea-wrapper:focus-within {
+    border-color: var(--lt-signal);
   }
 }
 
@@ -691,6 +795,13 @@
 :root[data-skin="lattice"] :is(.context-menu-item, .menu-item, .status-option, .option-item):hover :is(svg, .icon-wrap, span) {
   color: var(--lt-invert-fg);
 }
+:root[data-skin="lattice"] .chat-menu-item .chat-menu-trail {
+  opacity: 1;
+  color: var(--lt-ink-faint);
+}
+:root[data-skin="lattice"] .chat-menu-item:is(:hover, :focus-visible) .chat-menu-trail {
+  color: inherit;
+}
 
 :root[data-skin="lattice"] :is(
   .modal-container,
@@ -710,6 +821,20 @@
 :root[data-skin="lattice"] :is(.modal-header, .drawer-header, .thread-header, .theme-panel-header) {
   border-bottom: 1px solid var(--lt-line);
   background: transparent;
+}
+/* shared.css gives every .modal-content its own surface and shadow-modal;
+   inside a modal frame that draws a second offset shadow over the footer. */
+:root[data-skin="lattice"] .modal-container .modal-content {
+  background: transparent;
+  box-shadow: none;
+}
+:root[data-skin="lattice"] .modal-container .modal-footer {
+  background: var(--lt-raise);
+  border-top-color: var(--lt-line);
+}
+/* Banner controls sit on a fixed rgb(0 0 0 / 0.5) fill over the banner. */
+:root[data-skin="lattice"] .profile-banner :is(.action-button, .close-button) {
+  color: #fff;
 }
 :root[data-skin="lattice"] :is(.modal-overlay, .modal-backdrop) {
   background:
@@ -801,6 +926,14 @@
 :root[data-skin="lattice"] :is(.skin-card, .theme-option, .preset-card, .pi-card, .tp-collapse, .pi-moods, .pi-mood) {
   border-radius: 0;
 }
+
+/* Social sidebars: square cards on the frame. */
+:root[data-skin="lattice"] [data-region="nav"] :is(.user-profile-card, .quick-stats),
+:root[data-skin="lattice"] [data-region="aside"] .sidebar-section {
+  border-radius: 0;
+  border-color: var(--lt-line);
+  background: var(--lt-raise);
+}
 :root[data-skin="lattice"] :is(.skin-card.active, .theme-option.active) {
   border-color: var(--lt-signal);
   box-shadow: 0 0 0 1px var(--lt-signal);
@@ -826,6 +959,10 @@
 }
 :root[data-skin="lattice"] :is(.unified-voice-dock .minimized-container, .voice-overlay .voice-container, .voice-tile, .voice-tile .tile-pill) {
   border-radius: 0;
+}
+/* A camera-off tile and the grid share one fill in dark. */
+:root[data-skin="lattice"] .voice-tile {
+  box-shadow: 0 0 0 1px var(--lt-line);
 }
 :root[data-skin="lattice"] :is(.unified-voice-dock, .voice-overlay) .channel-name {
   font-family: var(--lt-mono);
@@ -883,15 +1020,17 @@
     radial-gradient(calc(30 * var(--app-vmax)) calc(22 * var(--app-vmax)) at 104% 70%, rgb(164 138 255 / 0.18), transparent 70%),
     radial-gradient(calc(26 * var(--app-vmax)) calc(18 * var(--app-vmax)) at -4% -6%, rgb(138 255 193 / 0.1), transparent 70%);
 }
-:root[data-skin="lattice"][data-skin-prism="on"] [data-region="composer"] .message-container:focus-within {
-  border-color: transparent;
-  background:
-    linear-gradient(var(--lt-panel-solid), var(--lt-panel-solid)) padding-box,
-    var(--lt-iris) border-box;
-  box-shadow: 0 18px 50px -18px rgb(0 0 0 / 0.75), 0 0 42px -12px var(--lt-iris-glow);
-}
-:root[data-skin="lattice"][data-skin-prism="on"][data-theme-type="light"] [data-region="composer"] .message-container:focus-within {
-  box-shadow: 4px 4px 0 rgb(0 0 0 / 0.85), 0 0 42px -12px var(--lt-iris-glow);
+@media (min-width: 769px) {
+  :root[data-skin="lattice"][data-skin-prism="on"] [data-region="composer"] .message-container:focus-within {
+    border-color: transparent;
+    background:
+      linear-gradient(var(--lt-panel-solid), var(--lt-panel-solid)) padding-box,
+      var(--lt-iris) border-box;
+    box-shadow: 0 18px 50px -18px rgb(0 0 0 / 0.75), 0 0 42px -12px var(--lt-iris-glow);
+  }
+  :root[data-skin="lattice"][data-skin-prism="on"][data-theme-type="light"] [data-region="composer"] .message-container:focus-within {
+    box-shadow: 4px 4px 0 rgb(0 0 0 / 0.85), 0 0 42px -12px var(--lt-iris-glow);
+  }
 }
 :root[data-skin="lattice"][data-skin-prism="on"] .server-item.selected {
   box-shadow: 0 0 0 1px var(--lt-ink), 0 0 22px -4px var(--lt-iris-glow);
@@ -909,7 +1048,7 @@
   pointer-events: none;
 }
 :root[data-skin="lattice"][data-skin-prism="on"] :is(.beginning-title, .settings-title) {
-  background: linear-gradient(100deg, var(--lt-ink) 0 45%, transparent 75%), var(--lt-iris);
+  background: linear-gradient(100deg, var(--lt-ink) 0 45%, transparent 75%), var(--lt-iris-text);
   -webkit-background-clip: text;
           background-clip: text;
   color: transparent;

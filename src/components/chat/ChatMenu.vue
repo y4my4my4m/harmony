@@ -76,6 +76,11 @@ const emit = defineEmits<{ close: [reason: MenuCloseReason] }>()
   flex-shrink: 0;
 }
 
+/* Rows without an icon line up with the labels of rows that have one: 8 + 16 + 10. */
+.chat-menu-item:not(:has(> svg, > .icon)) {
+  padding-left: 34px;
+}
+
 .chat-menu-item:hover:not([disabled]),
 .chat-menu-item:focus-visible {
   background: var(--harmony-primary-fill);
@@ -100,7 +105,12 @@ const emit = defineEmits<{ close: [reason: MenuCloseReason] }>()
 
 .chat-menu-item .chat-menu-trail {
   margin-left: auto;
-  opacity: 0.7;
+  color: var(--text-muted);
+}
+
+.chat-menu-item:hover:not([disabled]) .chat-menu-trail,
+.chat-menu-item:focus-visible .chat-menu-trail {
+  color: inherit;
 }
 
 .chat-menu-item[aria-checked='true'] {

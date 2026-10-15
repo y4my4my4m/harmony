@@ -1929,7 +1929,7 @@ onUnmounted(() => {
 .channel-item.selected {
   position: relative;
   background-color: var(--channel-item-selected-bg, var(--background-quaternary));
-  color: var(--text-primary);
+  color: var(--channel-item-selected-text, var(--text-primary));
 }
 
 .channel-item.voice-connected {
@@ -2095,7 +2095,7 @@ onUnmounted(() => {
 .channel-item.in-collapsed-category.selected {
   opacity: 1;
   background-color: var(--channel-item-selected-bg, var(--background-quaternary));
-  color: var(--text-primary);
+  color: var(--channel-item-selected-text, var(--text-primary));
 }
 
 .category-name {
@@ -2250,7 +2250,7 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 .channel-thread-item.selected .thread-name {
-  color: var(--text-primary);
+  color: var(--channel-item-selected-text, var(--text-primary));
   background: var(--channel-item-selected-bg, var(--background-quaternary));
 }
 

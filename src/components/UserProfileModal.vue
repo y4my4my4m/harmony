@@ -121,7 +121,8 @@
                   class="role-badge"
                   :style="{ 
                     backgroundColor: role.color,
-                    borderColor: role.color + '33'
+                    borderColor: role.color + '33',
+                    color: roleLabelColor(role.color)
                   }"
                 >
                   {{ role.name }}
@@ -454,7 +455,8 @@ import { supabase } from '@/supabase'
 import { useActivityPubStore } from '../stores/useActivityPub'
 import { useServerChannelStore } from '../stores/useServerChannel'
 import { showInstanceStaffBadge } from '@/utils/instanceBadge'
-import { useUserData } from '@/composables/useUserData'
+import { useUserData, DEFAULT_USER_COLOR } from '@/composables/useUserData'
+import { contrastRatio } from '@/utils/colorUtils'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { getBannerUrl, getRawBannerUrl } from '@/utils/bannerUtils'
 import BannerImage from '@/components/common/BannerImage.vue'
@@ -957,10 +959,16 @@ const bannerStyle = computed(() => {
   if (isBridgedDiscord.value && bridgedProfile.value?.accent_color) {
     return { backgroundColor: bridgedProfile.value.accent_color }
   }
-  return {
-    background: userColor.value || 'var(--harmony-primary)'
-  }
+  // The default name colour is the text colour: a white banner on dark themes.
+  const colour = userColor.value && userColor.value !== DEFAULT_USER_COLOR ? userColor.value : 'var(--harmony-primary)'
+  return { background: colour }
 })
+
+/** White or near-black, whichever reads better on a role's colour; undefined keeps the theme text. */
+function roleLabelColor(color: string | null | undefined): string | undefined {
+  if (!color || !/^#[0-9a-f]{6}$/i.test(color)) return undefined
+  return contrastRatio(color, '#ffffff') >= contrastRatio(color, '#111214') ? '#ffffff' : '#111214'
+}
 
 // Methods
 const handleAvatarError = (event: Event) => {
@@ -1604,7 +1612,8 @@ onMounted(() => {
   background: rgba(0, 0, 0, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-md);
-  color: var(--text-primary);
+  /* Fixed dark fill over the banner in every theme. */
+  color: #fff;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -2288,7 +2297,7 @@ onMounted(() => {
 }
 
 .primary-action-btn.following {
-  background: var(--success);
+  background: var(--success-fill);
 }
 
 .primary-action-btn:hover {

@@ -1026,7 +1026,7 @@ onUnmounted(() => {
 }
 
 .conversation-item:hover {
-  background: var(--background-quaternary, var(--background-quinary));
+  background: var(--channel-item-hover-bg, var(--background-modifier-hover));
 }
 
 /* Dismiss button - hidden until the row is hovered (or always shown on touch). */
@@ -1083,16 +1083,10 @@ onUnmounted(() => {
 /* Same selection surface as the channel list. */
 .conversation-item.active {
   background: var(--channel-item-selected-bg, var(--background-modifier-selected));
+  color: var(--channel-item-selected-text, var(--text-primary));
 }
 
-.conversation-item.unread {
-  background: var(--background-modifier-hover);
-}
-
-.conversation-item.unread:hover {
-  background: var(--background-quaternary, var(--background-quinary));
-}
-
+/* Unread reads from the bold name and the badge; a fill would look like selection. */
 .conversation-item.muted {
   opacity: 0.5;
 }
@@ -1265,9 +1259,12 @@ onUnmounted(() => {
   margin-left: 8px;
   flex-shrink: 0;
 }
+.active .conversation-name {
+  color: var(--channel-item-selected-text, var(--text-primary));
+}
 .active .conversation-time,
 .active .conversation-preview .last-message {
-  color: color-mix(in srgb, var(--text-primary) 53%, transparent);
+  color: var(--channel-item-selected-text-muted, var(--text-secondary));
 }
 
 .user-name-container, .conversation-name-container {

@@ -4387,13 +4387,25 @@ defineExpose({ editLastOwnMessage });
   background-color: var(--background-modifier-hover);
 }
 
+/* --mention-highlight: the warning colour unless the theme or a skin sets one. */
 .message-item.mentions-me {
-  background-color: color-mix(in srgb, var(--warning) 10%, transparent);
-  box-shadow: inset 2px 0 0 var(--warning);
+  background-color: color-mix(in srgb, var(--mention-highlight, var(--warning)) 10%, transparent);
+  box-shadow: inset 2px 0 0 var(--mention-highlight, var(--warning));
 }
 
 .message-item.mentions-me:hover {
-  background-color: color-mix(in srgb, var(--warning) 15%, transparent);
+  background-color: color-mix(in srgb, var(--mention-highlight, var(--warning)) 15%, transparent);
+}
+
+/* On the warning tint: the muted timestamp drops to 3.9:1 (midnight) and the brand-blue mention
+   pill to 3.6:1. The pill text lightens instead; the brand blue itself is unchanged. Paper paints
+   mentions on its yellow marker with ink and keeps its own colour. */
+.message-item.mentions-me .timestamp {
+  color: var(--text-secondary);
+}
+
+:root[data-theme-type="dark"]:not([data-skin="paper"]) .message-item.mentions-me :deep(.mention) {
+  color: color-mix(in srgb, var(--harmony-primary) 75%, #fff);
 }
 
 /* Message group - contains header and/or content */
@@ -4709,7 +4721,8 @@ defineExpose({ editLastOwnMessage });
   flex-shrink: 0;
   padding: 1px 10px;
   border-radius: 0 8px 8px 0;
-  background-color: var(--harmony-secondary);
+  /* White on --harmony-secondary #38bdf8 is 2.1:1; on the brand fill, the accepted 2.77:1. */
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: 0.65rem;
   font-weight: 700;
@@ -4721,7 +4734,7 @@ defineExpose({ editLastOwnMessage });
 .new-messages-line {
   flex: 1;
   height: 1px;
-  background: var(--harmony-secondary);
+  background: var(--harmony-primary-fill);
 }
 
 /* Highlighted message */
@@ -4742,10 +4755,10 @@ defineExpose({ editLastOwnMessage });
 
 @keyframes highlight-fade {
   0% {
-    background-color: hsl(34, 100%, 50%, 0.3) !important;
+    background-color: hsl(34, 100%, 50%, 0.3);
   }
   100% {
-    background-color: hsl(34, 100%, 50%, 0.1) !important;
+    background-color: hsl(34, 100%, 50%, 0.1);
   }
 }
 

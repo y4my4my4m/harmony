@@ -6,23 +6,25 @@
     </label>
     
     <div class="input-wrapper">
-      <input
-        :id="inputId"
-        :type="type"
-        :value="modelValue"
-        :placeholder="placeholder"
-        :required="required"
-        :disabled="disabled"
-        :maxlength="maxLength"
-        class="modern-input"
-        @input="handleInput"
-        @focus="handleFocus"
-        @blur="handleBlur"
-        @keydown="handleKeydown"
-        ref="inputRef"
-      />
-      <div class="input-accent"></div>
-      
+      <div class="modern-input-field">
+        <input
+          :id="inputId"
+          :type="type"
+          :value="modelValue"
+          :placeholder="placeholder"
+          :required="required"
+          :disabled="disabled"
+          :maxlength="maxLength"
+          class="modern-input"
+          @input="handleInput"
+          @focus="handleFocus"
+          @blur="handleBlur"
+          @keydown="handleKeydown"
+          ref="inputRef"
+        />
+        <div class="input-accent"></div>
+      </div>
+
       <!-- Character count for text inputs -->
       <div v-if="showCharCount && maxLength" class="char-count">
         {{ currentLength }} / {{ maxLength }}
@@ -160,6 +162,12 @@ defineExpose({
 }
 
 .input-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The accent's containing block: the field, not the count below it. */
+.modern-input-field {
   position: relative;
   display: flex;
   flex-direction: column;

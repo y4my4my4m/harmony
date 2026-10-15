@@ -26,6 +26,7 @@
  *   blue text #0B6E9C on desk 4.9, on window 5.3
  *   red text #B33A1E on desk 5.1, on window 5.6
  *   ink on blue #0EA5E9 6.5, on red #EB4E2C 4.8, on marker #FFE45C 14.0
+ *   ink-soft on marker 7.6; dark mode keeps the light ink on the marker
  *   rule-strong #7C7466 on desk 4.0: rules and scrollbars, never text
  *   ink-faint on the 55% marker tint 5.6, on the 30% mention wash 5.9
  *   Dark: #ECEEF1 on window #17191E 15.1, #B4BCC8 9.2, #8A93A0 5.7,
@@ -44,7 +45,7 @@
  *   9. Messages
  *  10. Composer
  *  11. Menus, popovers, tooltips, toasts
- *  12. Settings, auth and voice
+ *  12. Settings, auth, voice and Drive
  *  13. Options, gated by data-skin-<option>="on"
  *  14. High contrast
  *  15. Motion
@@ -126,6 +127,9 @@
   --pp-on-blue: #1A1712;
   --pp-fill-red: var(--pp-red);
   --pp-on-red: #1A1712;
+  /* Type on the highlighter, the same in both themes. */
+  --pp-on-marker: #1A1712;
+  --pp-on-marker-soft: #4A443A;
 
   /* Dark screens for code and tooltips, after the site's .screen. */
   --pp-screen: #15171C;
@@ -487,7 +491,8 @@
   .skin-active-options-title,
   .tp-label,
   .tp-slider-label,
-  .language-label
+  .language-label,
+  .drive-sidebar__heading
 ) {
   font-family: var(--pp-mono);
   font-stretch: 87.5%;
@@ -1081,6 +1086,11 @@
   color: var(--pp-ink-faint);
   opacity: 1;
 }
+/* ModernInput's focus underline sits under its character count, apart from
+   the field; the blue offset marks focus instead. */
+:root[data-skin="paper"] .input-group .input-accent {
+  display: none;
+}
 
 /* Toggles: inked track and window knob; on is blue with an ink knob. The
    ToggleSwitch button is the track; a checkbox's sibling slider is the track
@@ -1120,6 +1130,10 @@
   color: var(--pp-on-red);
   font-weight: 600;
   box-shadow: 0 0 0 1.5px var(--pp-frame);
+}
+/* The bell's count sets its own white on the badge. */
+:root[data-skin="paper"] .notification-badge .badge-text {
+  color: inherit;
 }
 :root[data-skin="paper"] :is(.beta-badge, .tp-override-badge) {
   background: var(--pp-marker);
@@ -1270,6 +1284,11 @@
   color: #1A1712;
   font-weight: 650;
 }
+/* The open thread: the same stroke. */
+:root[data-skin="paper"] .channel-thread-item.selected .thread-name {
+  color: var(--pp-on-marker);
+  font-weight: 650;
+}
 :root[data-skin="paper"] .channel-item.channel-unread .channel-name {
   color: var(--pp-ink);
   font-weight: 700;
@@ -1297,6 +1316,32 @@
   background: var(--pp-window);
   color: var(--pp-ink);
   box-shadow: 0 0 0 1.5px var(--pp-frame);
+}
+
+/* Conversation list: hover and the open conversation as the channel rows.
+   The open row's preview and time print in soft ink (7.6:1 on the marker),
+   not the app's 53% alpha of the theme ink. */
+:root[data-skin="paper"] .conversation-item:hover:not(.active) {
+  background: var(--pp-marker-soft);
+}
+:root[data-skin="paper"] .conversation-item.active,
+:root[data-skin="paper"] .conversation-item.active:hover {
+  background: var(--pp-marker);
+}
+:root[data-skin="paper"] .conversation-item.active :is(.conversation-name, .conversation-name *, .muted-icon, .federated-indicator) {
+  color: var(--pp-on-marker);
+}
+:root[data-skin="paper"] .conversation-item.active :is(.conversation-time, .conversation-preview .last-message) {
+  color: var(--pp-on-marker-soft);
+}
+:root[data-skin="paper"] .conversation-item.active .conversation-dismiss {
+  background: var(--pp-window);
+  color: var(--pp-ink);
+  box-shadow: 0 0 0 1.5px var(--pp-frame);
+}
+:root[data-skin="paper"] .conversation-item.active .conversation-dismiss:hover {
+  background: var(--pp-fill-red);
+  color: var(--pp-on-red);
 }
 
 /* Member list. */
@@ -1344,7 +1389,7 @@
   background: var(--pp-fill-red);
   color: var(--pp-on-red);
 }
-:root[data-skin="paper"] .user-profile .icon-button.voice-active {
+:root[data-skin="paper"] .user-profile .icon-button.voice-active:not(.muted) {
   background: var(--pp-leaf);
   color: #1A1712;
 }
@@ -1425,6 +1470,10 @@
 :root[data-skin="paper"] .highlighted {
   border-left-color: var(--pp-blue);
   background-color: color-mix(in srgb, var(--pp-marker) 40%, transparent) !important;
+}
+/* The mention wash's 8%: above it #8A93A0 times drop under 4.5:1. */
+:root[data-skin="paper"][data-theme-type="dark"] .highlighted {
+  background-color: color-mix(in srgb, var(--pp-marker) 8%, transparent) !important;
 }
 :root[data-skin="paper"] .search-highlight {
   background: var(--pp-marker);
@@ -1661,6 +1710,15 @@
 :root[data-skin="paper"] :is(.context-menu-item, .menu-item, .dropdown-item):is(.danger, .destructive, .delete):is(:hover, :focus-visible) :is(svg, .icon-wrap, span) {
   color: var(--pp-on-red);
 }
+/* Shortcut hints: faint ink at full opacity (6.2:1 on the window), not the
+   app's 70% fade of the item ink. */
+:root[data-skin="paper"] .chat-menu-item .chat-menu-trail {
+  opacity: 1;
+  color: var(--pp-ink-faint);
+  font-family: var(--pp-mono);
+  font-stretch: 87.5%;
+  font-size: 10.5px;
+}
 :root[data-skin="paper"] :is(.context-menu-separator, .menu-separator, .menu-divider, .status-divider, .chat-menu-divider) {
   background: var(--pp-rule);
   height: 2px;
@@ -1727,7 +1785,7 @@
 }
 
 /* ============================================================================
-   12. SETTINGS, AUTH AND VOICE
+   12. SETTINGS, AUTH, VOICE AND DRIVE
    ============================================================================ */
 
 :root[data-skin="paper"] :is(.user-settings-container, .settings-main, .settings-content, .server-settings) {
@@ -1888,6 +1946,129 @@
   box-shadow: 0 0 0 2px var(--pp-frame);
 }
 
+/* Drive: a window on the desk at desktop widths, its folder list a desk
+   column inside the frame, as the settings window. */
+@media (min-width: 769px) {
+  :root[data-skin="paper"] .drive-view {
+    height: calc(100% - 28px);
+    margin: 14px 14px 14px 4px;
+    overflow: hidden;
+    border: 2px solid var(--pp-frame);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--pp-shadow-lg);
+  }
+}
+:root[data-skin="paper"] .drive-view {
+  background: var(--pp-window);
+}
+:root[data-skin="paper"] .drive-sidebar {
+  background: var(--pp-desk);
+  border-right: 2px solid var(--pp-frame);
+}
+:root[data-skin="paper"] .drive-sidebar__footer {
+  border-top: 2px solid var(--pp-rule);
+}
+:root[data-skin="paper"] .drive-toolbar {
+  border-bottom: 2px solid var(--pp-frame);
+}
+:root[data-skin="paper"] .drive-crumbs__title {
+  font-family: var(--pp-display);
+  font-stretch: 82%;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+:root[data-skin="paper"] .drive-nav-item:hover {
+  background: var(--pp-marker-soft);
+  color: var(--pp-ink);
+}
+:root[data-skin="paper"] .drive-nav-item.active {
+  background: var(--pp-marker);
+  color: var(--pp-on-marker);
+  font-weight: 650;
+}
+:root[data-skin="paper"] .drive-nav-item.active :is(svg, .icon-wrap, span) {
+  color: var(--pp-on-marker);
+}
+:root[data-skin="paper"] .drive-btn:not(.drive-btn--ghost) {
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-md);
+  font-weight: 650;
+  box-shadow: var(--pp-shadow-md);
+  transition: box-shadow 0.14s var(--pp-ease), background-color 0.14s ease, color 0.14s ease;
+}
+:root[data-skin="paper"] .drive-btn:not(.drive-btn--ghost):hover:not(:disabled) {
+  box-shadow: 4px 4px 0 var(--pp-shadow);
+}
+:root[data-skin="paper"] .drive-btn:not(.drive-btn--ghost):active:not(:disabled) {
+  animation: none;
+  translate: 2px 2px;
+  box-shadow: 1px 1px 0 var(--pp-shadow);
+}
+:root[data-skin="paper"] .drive-btn:not(.drive-btn--ghost):disabled {
+  box-shadow: none;
+}
+:root[data-skin="paper"] .drive-btn--primary,
+:root[data-skin="paper"] .drive-btn--primary:hover:not(:disabled) {
+  background: var(--pp-fill-blue);
+  color: var(--pp-on-blue);
+}
+:root[data-skin="paper"] .drive-btn--secondary {
+  background: var(--pp-window);
+  color: var(--pp-ink);
+}
+:root[data-skin="paper"] .drive-btn--secondary:hover:not(:disabled) {
+  background: var(--pp-marker-soft);
+}
+:root[data-skin="paper"] .drive-btn--danger,
+:root[data-skin="paper"] .drive-btn--danger:hover:not(:disabled) {
+  background: var(--pp-fill-red);
+  color: var(--pp-on-red);
+}
+:root[data-skin="paper"] .drive-btn--ghost:hover:not(:disabled),
+:root[data-skin="paper"] .drive-icon-btn:hover {
+  background: var(--pp-marker-soft);
+  color: var(--pp-ink);
+}
+:root[data-skin="paper"] .drive-icon-btn[aria-pressed="true"] {
+  background: var(--pp-marker);
+  color: var(--pp-on-marker);
+}
+:root[data-skin="paper"] :is(.drive-input, .drive-select) {
+  background: var(--pp-window);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-md);
+  color: var(--pp-ink);
+}
+:root[data-skin="paper"] .drive-input:focus {
+  border-color: var(--pp-frame);
+  box-shadow: 3px 3px 0 var(--pp-blue);
+}
+:root[data-skin="paper"] .drive-segmented {
+  background: var(--pp-window);
+  border: 1.5px solid var(--pp-frame);
+  border-radius: var(--radius-md);
+}
+:root[data-skin="paper"] .drive-chip {
+  background: var(--pp-window);
+  border: 1.5px solid var(--pp-frame);
+  color: var(--pp-ink-soft);
+}
+:root[data-skin="paper"] .drive-chip:hover {
+  background: var(--pp-marker-soft);
+  color: var(--pp-ink);
+}
+:root[data-skin="paper"] .drive-chip.active {
+  background: var(--pp-marker);
+  border-color: var(--pp-frame);
+  color: var(--pp-on-marker);
+}
+:root[data-skin="paper"] .drive-empty__glyph {
+  background: var(--pp-blue-wash);
+  border: 2px solid var(--pp-frame);
+  border-radius: var(--radius-md);
+  color: var(--pp-ink);
+}
+
 /* ============================================================================
    13. OPTIONS
    ============================================================================ */
@@ -1909,7 +2090,7 @@
 }
 
 /* 13.3 Ink shadows off: outlines stay, every offset goes. Pressed controls
-   still sink. */
+   still sink; focused fields trade the blue offset for a focus ring. */
 :root[data-skin="paper"][data-skin-shadows="off"] {
   --pp-shadow: transparent;
   --pp-shadow-sm: none;
@@ -1938,9 +2119,12 @@
   .modal-content textarea,
   .modal-content select
 ):focus,
+:root[data-skin="paper"][data-skin-shadows="off"] .drive-input:focus,
 :root[data-skin="paper"][data-skin-shadows="off"] :is(.search-input-wrapper, .search-bar):focus-within,
 :root[data-skin="paper"][data-skin-shadows="off"] [data-region="composer"] .message-container:focus-within {
   box-shadow: none;
+  outline: 2px solid var(--pp-focus);
+  outline-offset: 2px;
 }
 
 /* ============================================================================
@@ -2034,7 +2218,10 @@
     .dm-button,
     .fediverse-button,
     .today-button,
-    .funding-button
+    .funding-button,
+    .drive-btn--primary,
+    .drive-btn--secondary,
+    .drive-btn--danger
   ):hover:not(:disabled, :active) {
     animation: harmony-paper-jelly 620ms var(--pp-ease) both;
   }

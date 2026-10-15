@@ -60,6 +60,7 @@ vi.mock('@/composables/useUserData', async () => {
   const { ref } = await import('vue')
   const none = () => ref(null)
   return {
+    DEFAULT_USER_COLOR: 'var(--text-primary)',
     useUserData: () => ({
       getUser: none,
       getUserStatusText: () => ref('Offline'),

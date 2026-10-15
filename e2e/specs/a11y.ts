@@ -55,7 +55,8 @@ export const AXE_EXCLUSIONS: AxeExclusion[] = [
     rule: 'color-contrast',
     area: 'owner',
     reason: 'Role colours are member data (server role settings); names are drawn in the colour the role carries.',
-    within: '.display-name',
+    // Mention pills wrap a .display-name but are drawn in the theme's link colour.
+    within: '.display-name:not(.mention .display-name)',
   },
 ]
 

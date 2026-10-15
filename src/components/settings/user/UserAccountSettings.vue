@@ -59,7 +59,7 @@
                 v-if="localProfile.display_name"
                 :parts="previewDisplayNameParts"
                 :fallback="localProfile.display_name || profile?.display_name || $t('auth.displayName')"
-                :color="localProfile.color || profile?.color || '#ffffff'"
+                :color="localProfile.color || DEFAULT_USER_COLOR"
               />
               <template v-else>{{ profile?.display_name || $t('auth.displayName') }}</template>
             </h3>
@@ -146,7 +146,7 @@
               <button
                 type="button"
                 class="color-hex-swatch"
-                :style="{ backgroundColor: localProfile.color || '#0EA5E9' }"
+                :style="{ backgroundColor: localProfile.color || DEFAULT_USER_COLOR }"
                 ref="colorPreviewRef"
                 :aria-label="t('settings.userAccount.openColorPicker')"
                 :aria-expanded="showColorPicker"
@@ -453,6 +453,7 @@ import { useToast } from 'vue-toastification'
 import { imageSourceError } from '@/utils/uploadValidation'
 import { useImageCrop } from '@/composables/useImageCrop'
 import { useAnnouncer } from '@/composables/useAnnouncer'
+import { DEFAULT_USER_COLOR } from '@/composables/useUserData'
 
 // Props
 interface Props {
@@ -607,7 +608,7 @@ const hasChanges = computed(() => {
   const baseChanged =
     localProfile.value.display_name !== props.profile.display_name ||
     localProfile.value.bio !== props.profile.bio ||
-    localProfile.value.color !== props.profile.color
+    (localProfile.value.color || null) !== (props.profile.color || null)
   if (baseChanged) return true
 
   // Comparing the editable mirror against the sync-time snapshot makes both
@@ -679,7 +680,8 @@ const syncLocalProfile = () => {
       display_name: props.profile.display_name || '',
       username: props.profile.username || '',
       bio: props.profile.bio || '',
-      color: props.profile.color || '#0EA5E9'
+      // Empty is the theme's default name colour; the form must not invent one.
+      color: props.profile.color || ''
     }
     // Decode stored HTML wrappers (e.g. `<a href="...">URL</a>`) back to bare
     // plain text so the user edits what was originally typed.
@@ -756,7 +758,7 @@ const onColorPickerEscape = (event: KeyboardEvent) => {
 }
 
 const resetColor = () => {
-  localProfile.value.color = '#0EA5E9'
+  localProfile.value.color = ''
 }
 
 const handleAvatarUpload = (file: File) => {
@@ -844,6 +846,7 @@ const saveChanges = () => {
 
   emit('update-profile', {
     ...localProfile.value,
+    color: localProfile.value.color || null,
     profile_fields: cleanedFields,
   } as Partial<User>)
 }
@@ -1622,10 +1625,6 @@ onMounted(async () => {
   background: var(--background-secondary);
   border-radius: var(--radius-md);
   margin-bottom: 12px;
-}
-
-.supporter-inactive {
-  opacity: 0.6;
 }
 
 .supporter-badge-preview {

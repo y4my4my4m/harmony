@@ -51,7 +51,7 @@
 .drive-btn--danger {
   background: transparent;
   border-color: color-mix(in srgb, var(--danger) 45%, transparent);
-  color: var(--danger);
+  color: var(--text-danger);
 }
 
 .drive-btn--danger:hover:not(:disabled) {

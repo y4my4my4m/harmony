@@ -39,6 +39,9 @@
   --error-hover: #c73232;
   --error-fill: var(--error);
   --error-fill-hover: var(--error-hover);
+  /* White on --success is 3.18:1; white on this fill is 5.04:1. */
+  --success-fill: #1a7f45;
+  --success-fill-hover: #166c3b;
   --info: #5bc0de;
   
   /* Background Colors */
@@ -282,7 +285,10 @@
   --nav-rail-button-bg: #000000;
   --nav-rail-button-icon: #f2f3f5;
   --channel-item-hover-bg: #35373c;
-  --channel-item-selected-bg: #35373c;
+  --channel-item-selected-bg: #404249;
+  /* --channel-item-selected-text and --channel-item-selected-text-muted stay unset: selected
+     rows fall back to --text-primary and --text-secondary. A skin whose selection colour needs
+     other text sets both. */
 }
 
 /* ActivityPub feed canvas/header – dark matches content surface; light recesses */
@@ -1425,6 +1431,8 @@ html {
   --text-link: #036399;
   --text-danger: #b91c1c;
   --text-success: #137638;
+  /* Mention rows tint 10% of this; a wash of the text amber above reads olive. */
+  --mention-highlight: #f0b232;
 }
 
 /* ===== Light-theme corrective overrides =====

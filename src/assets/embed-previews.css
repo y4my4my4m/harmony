@@ -57,7 +57,7 @@
 }
 
 .embed-action:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--background-modifier-hover);
   color: var(--text-primary, #fff);
 }
 
@@ -373,7 +373,7 @@
 a:hover > .link-embed-card--thumbnail,
 .link-embed-card--thumbnail:hover {
   background: var(--background-tertiary, rgba(28, 31, 38, 0.7));
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: var(--border-hover);
 }
 
 .link-embed-card--thumbnail .link-embed-card__media {
