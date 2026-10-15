@@ -342,9 +342,16 @@ process.on('SIGINT', shutdown)
 async function shutdown() {
   console.log('Received shutdown signal')
   
+  // Hard exit 10s after the shutdown signal.
+  setTimeout(() => {
+    console.error('Forced shutdown after timeout')
+    process.exit(1)
+  }, 10000)
+  
   bridgeConfigWatcher.stop()
 
-  gateway.shutdown()
+  // Awaited: the exit in the server.close callback drops bot_presence writes still in flight.
+  await gateway.shutdown()
   
   await eventDispatcher.shutdown()
   
@@ -352,12 +359,6 @@ async function shutdown() {
     console.log('Server shut down gracefully')
     process.exit(0)
   })
-  
-  // Hard exit 10s after the shutdown signal.
-  setTimeout(() => {
-    console.error('Forced shutdown after timeout')
-    process.exit(1)
-  }, 10000)
 }
 
 const PORT = config.port

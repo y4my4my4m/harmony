@@ -1,6 +1,7 @@
 /**
  * In-memory stand-in for the supabase-js query builder over plain row arrays. Filters apply;
- * column lists, ordering and JSON-path filters do not. Every builder is a thenable resolving to
+ * column lists, ordering and JSON-path filters do not. An upsert with onConflict updates the row
+ * equal on those columns; without it, it inserts. Every builder is a thenable resolving to
  * { data, error }, as in supabase-js.
  */
 
@@ -51,6 +52,7 @@ export class FakeDb {
 export class FakeQuery implements PromiseLike<FakeResult> {
   private op: 'select' | FakeWrite['op'] = 'select'
   private payload: any
+  private conflict: string[] = []
   private filters: Array<(row: Row) => boolean> = []
   private limitN: number | null = null
 
@@ -69,9 +71,10 @@ export class FakeQuery implements PromiseLike<FakeResult> {
     return this
   }
 
-  upsert(values: Row | Row[], _options?: unknown): this {
+  upsert(values: Row | Row[], options?: { onConflict?: string }): this {
     this.op = 'upsert'
     this.payload = values
+    this.conflict = options?.onConflict?.split(',').map((column) => column.trim()) ?? []
     return this
   }
 
@@ -171,8 +174,15 @@ export class FakeQuery implements PromiseLike<FakeResult> {
       case 'insert':
       case 'upsert': {
         const input: Row[] = Array.isArray(this.payload) ? this.payload : [this.payload]
-        const rows = input.map((values) => ({ id: this.db.nextId(), ...values }))
-        all.push(...rows)
+        const rows = input.map((values) => {
+          const existing = this.conflict.length > 0
+            ? all.find((row) => this.conflict.every((column) => row[column] === values[column]))
+            : undefined
+          if (existing) return Object.assign(existing, values)
+          const row = { id: this.db.nextId(), ...values }
+          all.push(row)
+          return row
+        })
         this.db.writes.push({ table: this.table, op: this.op, rows: rows.map(copy) })
         return { data: rows.map(copy), error: null }
       }
