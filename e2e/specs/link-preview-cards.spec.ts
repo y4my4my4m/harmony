@@ -3,7 +3,8 @@
 // that answered with a video (embed-fixer sites) plays as a video; a page with an og:video
 // shows its player in the card. A link straight to a video or GIF file shows that file once:
 // its preview, which answers with the same file, rendered a second player beside the inline
-// one.
+// one. A Wikipedia article is a card with its lead text, also when its preview was stored
+// media-only (Wikimedia keeps still photos as GIF, which read as a GIF page).
 //
 // The stack runs no federation backend: previews are written into message metadata as the
 // backend's enrichment writes them.
@@ -32,6 +33,8 @@ const TWEET = 'https://vxtwitter.com/someone/status/1'
 // Discord CDN links carry signed query parameters and end in "&".
 const CDN_CLIP = 'https://cdn.discordapp.com/attachments/1/2/clip.mp4?ex=6ad0146a&is=6acec2ea&hm=cc41&'
 const CDN_GIF = 'https://media.example/dance.gif'
+const WIKI_STORED = 'https://en.wikipedia.org/wiki/Moustapha_Akkad'
+const WIKI = 'https://en.m.wikipedia.org/wiki/The_Message_(1976_film)'
 const BASE_URL = process.env.BASE_URL || 'http://localhost:5173'
 // The dev server's own asset stands in for the video file.
 const VIDEO = new URL('/default_avatar.webp', BASE_URL).href
@@ -65,6 +68,11 @@ test.beforeAll(async () => {
     title: 'cdn.discordapp.com', siteName: 'cdn.discordapp.com', mediaOnly: true, video: { url: CDN_CLIP, type: 'video/mp4' },
   }))
   await post(CDN_GIF, 'cdngif', payload(CDN_GIF, { title: 'media.example', mediaOnly: true, image: CDN_GIF }))
+  await post(WIKI_STORED, 'storedwp', payload(WIKI_STORED, { title: 'Moustapha Akkad - Wikipedia', mediaOnly: true, image: VIDEO }))
+  await post(WIKI, 'wparticle', payload(WIKI, {
+    title: 'The Message (1976 film)', siteName: 'Wikipedia', image: VIDEO,
+    description: 'The Message is a 1976 epic historical drama film directed by Moustapha Akkad.',
+  }))
 })
 
 test.afterAll(async () => {
@@ -99,4 +107,13 @@ test('failed previews show no card; video answers and og:video play', async ({ p
   await expect(row('cdnclip').locator('video')).toHaveCount(1)
   await expect(row('cdnclip').locator('video')).toHaveAttribute('src', CDN_CLIP)
   await expect(row('cdngif').locator('img.content-image')).toHaveCount(1)
+
+  await expect(row('storedwp').locator('.link-embed-card')).toContainText('Moustapha Akkad - Wikipedia')
+  await expect(row('storedwp').locator('img.content-image')).toHaveCount(0)
+  const wiki = row('wparticle').locator('.link-embed-card')
+  await expect(wiki).toContainText('The Message (1976 film)')
+  await expect(wiki).toContainText('epic historical drama')
+  await expect(wiki).toContainText('Wikipedia')
+  await expect(wiki).not.toHaveClass(/link-embed-card--media/)
+  await expect(row('wparticle').locator('img.content-image')).toHaveCount(0)
 })

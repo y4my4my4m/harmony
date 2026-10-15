@@ -166,6 +166,9 @@ async function readHead(response: Response, limit = HEAD_READ_LIMIT): Promise<st
 // og:image heuristic to set EmbedPayload.mediaOnly.
 const GIF_PAGE_HOSTS = new Set(['tenor.com', 'giphy.com', 'klipy.com']);
 
+// Wikimedia projects store still photos as GIF; their .gif images are no GIF page.
+const WIKIMEDIA_HOST = /(^|\.)(wikipedia|wikimedia|wiktionary|wikiquote|wikibooks|wikisource|wikivoyage|wikinews|wikiversity|wikidata)\.org$/;
+
 const NON_AP_DOMAINS = new Set([
   'google.com', 'google.co.jp', 'google.co.uk', 'google.de', 'google.fr',
   'googleapis.com', 'gstatic.com',
@@ -287,7 +290,8 @@ class LinkPreviewService {
       const klipyPayload = await this.fetchKlipyPreview(normalizedUrl);
       // x.com serves scrapers a login wall; FxTwitter exposes the real tweet.
       const twitterPayload = klipyPayload ? null : await this.fetchTwitterPreview(normalizedUrl);
-      payload = klipyPayload ?? twitterPayload ?? await this.fetchGenericPreview(normalizedUrl);
+      const wikipediaPayload = klipyPayload || twitterPayload ? null : await this.fetchWikipediaPreview(normalizedUrl);
+      payload = klipyPayload ?? twitterPayload ?? wikipediaPayload ?? await this.fetchGenericPreview(normalizedUrl);
     }
 
     payload.cacheKey = cacheKey;
@@ -302,7 +306,7 @@ class LinkPreviewService {
     if (!payload.mediaOnly && payload.image && payload.provider === 'generic') {
       try {
         const host = new URL(normalizedUrl).hostname.toLowerCase().replace(/^www\./, '');
-        if (GIF_PAGE_HOSTS.has(host) || /\.gif(\?|#|$)/i.test(payload.image)) {
+        if (GIF_PAGE_HOSTS.has(host) || (!WIKIMEDIA_HOST.test(host) && /\.gif(\?|#|$)/i.test(payload.image))) {
           payload.mediaOnly = true;
         }
       } catch { /* keep card rendering */ }
@@ -471,6 +475,56 @@ class LinkPreviewService {
       };
     } catch (err) {
       logger.debug(`FxTwitter lookup failed for ${url}:`, err);
+      return null;
+    }
+  }
+
+  /**
+   * <lang>.wikipedia.org/wiki/<title> → the REST page summary: title, lead extract and
+   * thumbnail. Article pages carry no og:description. Returns null for other URLs
+   * or failures (falls through to generic).
+   */
+  private async fetchWikipediaPreview(url: string): Promise<EmbedPayload | null> {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return null;
+    }
+
+    const lang = parsed.hostname.toLowerCase().match(/^([a-z0-9-]+)\.(?:m\.)?wikipedia\.org$/)?.[1];
+    const title = parsed.pathname.match(/^\/wiki\/([^/]+)$/)?.[1];
+    if (!lang || lang === 'www' || !title) return null;
+
+    try {
+      const res = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${title}`, {
+        headers: { Accept: 'application/json', 'User-Agent': 'HarmonyFederation/1.0 (link preview)' },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) return null;
+      const data: any = await res.json();
+      if (typeof data?.title !== 'string' || !data.title) return null;
+
+      const extract = typeof data.extract === 'string' ? data.extract.trim() : '';
+      const lead = extract.length > 300 ? `${extract.slice(0, 299).trimEnd()}…` : extract;
+      const thumbnail = data.thumbnail?.source ? data.thumbnail : null;
+      return {
+        cacheKey: '',
+        url,
+        normalizedUrl: url,
+        provider: 'generic',
+        title: data.title,
+        description: lead || (typeof data.description === 'string' ? data.description : undefined),
+        siteName: 'Wikipedia',
+        image: thumbnail?.source,
+        width: thumbnail?.width,
+        height: thumbnail?.height,
+        icon: `https://${lang}.wikipedia.org/static/favicon/wikipedia.ico`,
+        fetchedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + TTL_BY_PROVIDER.generic).toISOString(),
+      };
+    } catch (err) {
+      logger.debug(`Wikipedia summary lookup failed for ${url}:`, err);
       return null;
     }
   }

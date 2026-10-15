@@ -707,6 +707,7 @@ import {
   requestAttachmentRefresh,
 } from '@/services/attachmentRefresh';
 import { parseEmbedUrl, isHarmonyInviteUrl } from '@/utils/embedDetection';
+import { isWikimediaPage } from '@/utils/embedPreview';
 import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { gifService } from '@/services/GifService';
 import { debug } from '@/utils/debug';
@@ -1231,6 +1232,7 @@ export default defineComponent({
         return null;
       }
       const payload = resolveEmbedPayload(part);
+      if (payload && isWikimediaPage(payload.url)) return null;
       // The link answered with a video (embed-fixer sites): a player, not a looping GIF.
       if (payload?.mediaOnly && payload.video?.url) return { kind: 'clip', url: payload.video.url };
       const media = payload?.image;
