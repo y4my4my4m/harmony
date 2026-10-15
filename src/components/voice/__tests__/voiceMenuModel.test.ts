@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildVoiceMenu, placePopover, type VoiceMenuInput } from '../voiceMenuModel';
+import { buildModerationActions, buildVoiceMenu, placePopover, type VoiceMenuInput } from '../voiceMenuModel';
 
 const remote: VoiceMenuInput = {
   isSelf: false,
@@ -89,5 +89,30 @@ describe('placePopover', () => {
 
   it('keeps an oversized popover at the margin', () => {
     expect(placePopover({ x: 50, y: 50 }, { width: 2000, height: 2000 }, viewport)).toEqual({ x: 8, y: 8 });
+  });
+});
+
+describe('buildModerationActions', () => {
+  const none = { mute: false, deafen: false, move: false, kick: false, ban: false };
+  const all = { mute: true, deafen: true, move: true, kick: true, ban: true };
+
+  it('offers nothing without the permissions, and nothing on oneself', () => {
+    expect(buildModerationActions({ isSelf: false, can: none, inVoice: true, moveTargets: 2 })).toEqual([]);
+    expect(buildModerationActions({ isSelf: true, can: all, inVoice: true, moveTargets: 2 })).toEqual([]);
+  });
+
+  it('lists server mute, deafen, move, disconnect, kick and ban in that order', () => {
+    expect(buildModerationActions({ isSelf: false, can: all, inVoice: true, moveTargets: 2 }))
+      .toEqual(['server-mute', 'server-deafen', 'move', 'disconnect', 'kick', 'ban']);
+  });
+
+  it('offers move only with somewhere to go, and neither move nor disconnect out of voice', () => {
+    expect(buildModerationActions({ isSelf: false, can: { ...none, move: true }, inVoice: true, moveTargets: 0 })).toEqual(['disconnect']);
+    expect(buildModerationActions({ isSelf: false, can: { ...none, move: true }, inVoice: false, moveTargets: 3 })).toEqual([]);
+  });
+
+  it('follows each permission alone', () => {
+    expect(buildModerationActions({ isSelf: false, can: { ...none, deafen: true, ban: true }, inVoice: true, moveTargets: 1 }))
+      .toEqual(['server-deafen', 'ban']);
   });
 });

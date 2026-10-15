@@ -111,6 +111,8 @@ class WebRTCManagerService implements WebRTCManager {
       'live-reaction',
       'soundboard',
       'activity',
+      'local-grants-changed',
+      'moderation-flags',
     ];
     
     for (const event of eventsToForward) {
@@ -708,6 +710,12 @@ class WebRTCManagerService implements WebRTCManager {
   setMasterVolume(volume: number): void {
     remoteAudioMixer.setMasterVolume(volume);
     this.syncSpatialVolumes();
+  }
+
+  /** A server-muted participant's microphone, silenced for this listener (P2P has no server to). */
+  setUserSilenced(userId: string, silenced: boolean): void {
+    remoteAudioMixer.setSilenced(userId, silenced);
+    this.syncSpatialVolumes(userId);
   }
 
   /** Microphone volume of a remote user, 0-200 (100 = normal). */

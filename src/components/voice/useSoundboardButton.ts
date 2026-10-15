@@ -6,8 +6,8 @@ import { styleRect } from '@/utils/appZoom';
 
 /**
  * Soundboard button of a voice control bar: shown in a local server's voice
- * channel to members holding USE_SOUNDBOARD and SPEAK there; toggles the
- * popover anchored to the button.
+ * channel to members holding USE_SOUNDBOARD and SPEAK there, not server-muted
+ * or deafened; toggles the popover anchored to the button.
  */
 export function useSoundboardButton(buttonRef: Ref<HTMLElement | null>) {
   const voiceStore = useUnifiedVoiceChannelStore();
@@ -16,7 +16,8 @@ export function useSoundboardButton(buttonRef: Ref<HTMLElement | null>) {
   const visible = ref(false);
   const anchor = ref<Rect | null>(null);
 
-  const available = computed(() => !!soundboard.currentChannel() && soundboard.permitted);
+  // A server mute or deafen withholds the soundboard with the microphone.
+  const available = computed(() => !!soundboard.currentChannel() && soundboard.permitted && !voiceStore.speakLocked);
 
   watch(
     () => [voiceStore.isConnected, voiceStore.currentServerId, voiceStore.currentChannelId, voiceStore.localState.userId] as const,

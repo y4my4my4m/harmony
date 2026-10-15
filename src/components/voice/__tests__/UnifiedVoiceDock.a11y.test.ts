@@ -94,6 +94,10 @@ const member = (userId: string, extra: Record<string, unknown> = {}) => ({
 function makeStore(remote: ReturnType<typeof member>[], local = member('me')) {
   const store = reactive({
     isConnectedOrJoining: true,
+    canStream: true,
+    speakLocked: false,
+    deafenLocked: false,
+    speakLockReason: null as string | null,
     isConnecting: false,
     isConnected: true,
     connectionState: 'connected',

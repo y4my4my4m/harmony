@@ -515,7 +515,7 @@ export class VoiceActivityHandler {
    *
    * On a server hosted here: authorizeVoiceChannel (membership, ban, timeout,
    * VIEW_CHANNEL + CONNECT, federation_enabled), then a LiveKit token whose
-   * publish grant follows SPEAK, answered with VoiceChannelJoinAccept.
+   * grants follow it (voiceGrants.ts), answered with VoiceChannelJoinAccept.
    *
    * On a remote server's local copy: a presence notice. The sender must be on
    * the server's host and an accepted member of the copy.
@@ -589,8 +589,6 @@ export class VoiceActivityHandler {
         actorId: actorUrl,
         roomName,
         roomType: 'voice_channel',
-        canPublish: decision.canPublish,
-        canSubscribe: true,
       });
       const clientWsUrl = livekitService.getClientConfig().wsUrl;
       if (!clientWsUrl) {

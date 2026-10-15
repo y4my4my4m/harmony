@@ -43,6 +43,9 @@ type UserEventType =
   | 'federated_call:incoming' | 'federated_call:accepted' | 'federated_call:rejected' | 'federated_call:ended'
   // A DM partner's presence change (presence_publish).
   | 'presence:update'
+  // Server mute or deafen of this user, and a moderator's move or disconnect
+  // (20261017100002_voice_moderation.sql).
+  | 'voice:moderation' | 'voice:moved'
   | '_reconnected'
 type EventHandler = (payload: Record<string, any>) => void | Promise<void>
 

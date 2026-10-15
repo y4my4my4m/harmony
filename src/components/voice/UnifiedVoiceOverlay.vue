@@ -251,15 +251,20 @@
                 :class="{
                   active: !voiceStore.localState.isMuted && (!isPTTMode || isPTTActive),
                   muted: voiceStore.localState.isMuted,
+                  locked: voiceStore.speakLocked,
                   'ptt-mode': isPTTMode,
                   'ptt-active': isPTTActive && !voiceStore.localState.isMuted
                 }"
                 :title="micTitle"
                 :aria-label="t('voice.mute')"
                 :aria-pressed="voiceStore.localState.isMuted"
+                :aria-disabled="voiceStore.speakLocked || undefined"
+                :aria-description="voiceStore.speakLockReason ? t(voiceStore.speakLockReason) : undefined"
+                :data-locked="voiceStore.speakLocked ? 'true' : undefined"
                 data-testid="voice-mute"
               >
                 <Icon :name="voiceStore.localState.isMuted ? 'mic-off' : 'mic'" />
+                <Icon v-if="voiceStore.speakLocked" name="lock" :size="10" class="lock-badge" aria-hidden="true" />
                 <span v-if="isPTTMode && !voiceStore.localState.isMuted" class="ptt-badge" :class="{ active: isPTTActive }" aria-hidden="true">PTT</span>
               </button>
               <DeviceSelector type="input" @open-settings="showSettings = true" />
@@ -272,20 +277,24 @@
                 class="control-button"
                 :class="{
                   active: !voiceStore.localState.isDeafened,
-                  deafened: voiceStore.localState.isDeafened
+                  deafened: voiceStore.localState.isDeafened,
+                  locked: voiceStore.deafenLocked
                 }"
-                :title="withShortcut(t('voice.deafen'), 'toggle-deafen')"
+                :title="voiceStore.deafenLocked ? t('voice.moderation.serverDeafenedHint') : withShortcut(t('voice.deafen'), 'toggle-deafen')"
                 :aria-label="t('voice.deafen')"
                 :aria-pressed="voiceStore.localState.isDeafened"
+                :aria-disabled="voiceStore.deafenLocked || undefined"
+                :data-locked="voiceStore.deafenLocked ? 'true' : undefined"
                 data-testid="voice-deafen"
               >
                 <Icon :name="voiceStore.localState.isDeafened ? 'headphones-off' : 'headphones'" />
+                <Icon v-if="voiceStore.deafenLocked" name="lock" :size="10" class="lock-badge" aria-hidden="true" />
               </button>
               <DeviceSelector type="output" @open-settings="showSettings = true" />
             </div>
 
-            <!-- Camera with device selector (independent of screenshare) -->
-            <div class="control-group">
+            <!-- Camera with device selector (independent of screenshare); STREAM governs both -->
+            <div v-if="voiceStore.canStream" class="control-group">
               <button
                 @click="voiceStore.toggleVideo()"
                 class="control-button"
@@ -301,6 +310,7 @@
 
             <!-- Screen share: opens Go live (quality first); while live, stream settings and stop -->
             <button
+              v-if="voiceStore.canStream"
               ref="shareButtonRef"
               @click="openStreamPicker"
               class="control-button"
@@ -534,6 +544,7 @@ const gridEl = ref<HTMLElement | null>(null);
 const settingsButtonRef = ref<HTMLButtonElement | null>(null);
 
 const micTitle = computed(() => {
+  if (voiceStore.speakLockReason) return t(voiceStore.speakLockReason);
   if (!voiceStore.localState.isMuted && isPTTMode.value) {
     return isPTTActive.value
       ? t('voice.pttTransmitting', { key: pttKeyDisplay.value })
@@ -1552,6 +1563,18 @@ onUnmounted(() => {
   background: var(--success);
   color: var(--text-on-primary);
   border-color: var(--success);
+}
+
+.control-button.locked {
+  position: relative;
+  cursor: not-allowed;
+}
+
+.control-button .lock-badge {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  color: var(--text-danger);
 }
 
 .control-button.muted {

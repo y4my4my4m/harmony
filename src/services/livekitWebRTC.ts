@@ -52,6 +52,7 @@ import { getLiveKitToken } from './livekitTokens';
 import { LIVE_REACTION_TOPIC, MAX_LIVE_REACTION_BYTES } from './voice/liveReactions';
 import { SOUNDBOARD_MESSAGE_MAX_BYTES, SOUNDBOARD_TOPIC, soundboardExternalGrant, soundboardGrant } from './soundboard/protocol';
 import { ACTIVITY_MESSAGE_MAX_BYTES, ACTIVITY_TOPIC } from '@/services/activities/protocol';
+import { grantsFromPermission, moderationFromMetadata, type VoiceGrants } from './voice/voiceGrants';
 
 // FEDERATED IDENTITY HELPERS
 
@@ -540,6 +541,8 @@ export class LiveKitWebRTCService {
         }
       }
       
+      this.emitLocalGrants();
+
       // Publish local audio track
       await this.publishLocalAudio();
       
@@ -623,6 +626,7 @@ export class LiveKitWebRTCService {
       
       // Sync existing participants
       await this.syncExistingParticipants();
+      this.emitLocalGrants();
       
       // Publish local audio track
       await this.publishLocalAudio();
@@ -731,8 +735,17 @@ export class LiveKitWebRTCService {
   
   // MEDIA CONTROLS
   
+  /**
+   * Opens and publishes the microphone. Skipped while the grant withholds it
+   * (no SPEAK, server mute or deafen); a later grant republishes it
+   * (onLocalPermissionsChanged).
+   */
   private async publishLocalAudio(): Promise<void> {
     if (!this.room?.localParticipant) return;
+    if (!this.getLocalGrants().speak) {
+      debug.log('[LiveKit] Microphone not granted; joining without it');
+      return;
+    }
     const { createLocalAudioTrack } = lib();
 
     // Mic acquisition can hang (no device, or a stalled permission prompt,
@@ -789,6 +802,10 @@ export class LiveKitWebRTCService {
       return false;
     }
     const { Track, createLocalVideoTrack } = lib();
+    if (!this.localMediaState.isVideoEnabled && !this.getLocalGrants().stream) {
+      debug.warn('[LiveKit] Camera not granted');
+      return false;
+    }
     
     try {
       if (!this.localMediaState.isVideoEnabled) {
@@ -854,6 +871,11 @@ export class LiveKitWebRTCService {
   async toggleScreenShare(): Promise<boolean> {
     if (!this.room?.localParticipant) {
       debug.warn('[LiveKit] No room connected');
+      return false;
+    }
+
+    if (!this.localMediaState.isScreenSharing && !this.getLocalGrants().stream) {
+      debug.warn('[LiveKit] Screen share not granted');
       return false;
     }
 
@@ -1611,6 +1633,7 @@ export class LiveKitWebRTCService {
       this.setupParticipantListeners(participant);
 
       this.emit('user-joined', { userId, mediaState });
+      this.emitModerationFlags(participant);
 
       if (mediaState.isScreenSharing) {
         this.onRemoteStreamPublished(participant, userId);
@@ -1682,6 +1705,14 @@ export class LiveKitWebRTCService {
       }
     });
 
+    // A moderation change or a promotion: the server updated a participant's permission or metadata.
+    this.room.on(RoomEvent.ParticipantPermissionsChanged, (_previous: unknown, participant: RemoteParticipant | LocalParticipant) => {
+      if (participant === this.room?.localParticipant) void this.onLocalPermissionsChanged();
+    });
+    this.room.on(RoomEvent.ParticipantMetadataChanged, (_previous: string | undefined, participant: RemoteParticipant | LocalParticipant) => {
+      this.emitModerationFlags(participant);
+    });
+
     // Local voice activity indicator.
     this.room.localParticipant.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
       this.localMediaState.isSpeaking = speaking;
@@ -1711,6 +1742,7 @@ export class LiveKitWebRTCService {
 
       this.emit('user-joined', { userId, mediaState });
       this.emit('channel-state-synced', { users: this.getAllUsers() });
+      this.emitModerationFlags(participant);
 
       // sends explicit mute/deafen state to the newcomer; track mute alone cannot convey it
       this.broadcastMediaState();
@@ -2079,6 +2111,40 @@ export class LiveKitWebRTCService {
       granted: soundboardGrant(participant.metadata),
       externalGranted: soundboardExternalGrant(participant.metadata),
     });
+  }
+
+  // GRANTS
+
+  /** What the server lets this participant publish and receive now. Open while not connected. */
+  getLocalGrants(): VoiceGrants {
+    return grantsFromPermission(this.room?.localParticipant?.permissions as never);
+  }
+
+  private emitLocalGrants(): void {
+    if (!this.room?.localParticipant) return;
+    this.emit('local-grants-changed', this.getLocalGrants());
+    this.emitModerationFlags(this.room.localParticipant);
+  }
+
+  /** The microphone comes back when the grant returns; the server unpublished it when it went. */
+  private async onLocalPermissionsChanged(): Promise<void> {
+    const lp = this.room?.localParticipant;
+    if (!lp) return;
+    const grants = this.getLocalGrants();
+    debug.log('[LiveKit] Local permissions changed:', grants);
+    this.emit('local-grants-changed', grants);
+    if (grants.speak && !lp.getTrackPublication(lib().Track.Source.Microphone) && this.localMediaState.isAudioEnabled) {
+      await this.publishLocalAudio();
+    }
+  }
+
+  /** serverMuted / serverDeafened of a participant, keyed by its profile id. */
+  private emitModerationFlags(participant: RemoteParticipant | LocalParticipant): void {
+    const userId = participant === this.room?.localParticipant
+      ? this.currentUserId
+      : this.allUserStates.get(participant.identity)?.userId;
+    if (!userId) return;
+    this.emit('moderation-flags', { userId, ...moderationFromMetadata(participant.metadata) });
   }
 
   private broadcastMediaState(): void {

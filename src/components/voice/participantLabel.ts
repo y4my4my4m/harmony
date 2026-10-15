@@ -11,12 +11,20 @@ export interface ParticipantFlags {
   speaking?: boolean
   /** Silenced for this listener only. */
   mutedByYou?: boolean
+  /** A moderator's server mute or deafen. */
+  serverMuted?: boolean
+  serverDeafened?: boolean
 }
 
-/** State words in a fixed order: deafened implies muted, so muted is dropped then. */
+/**
+ * State words in a fixed order: deafened implies muted, so muted is dropped then; a server
+ * deafen or mute replaces the member's own.
+ */
 export function participantStates(t: Translate, flags: ParticipantFlags): string[] {
   const parts: string[] = []
-  if (flags.deafened) parts.push(t('voice.statusDeafened'))
+  if (flags.serverDeafened) parts.push(t('voice.moderation.serverDeafened'))
+  else if (flags.serverMuted) parts.push(t('voice.moderation.serverMuted'))
+  else if (flags.deafened) parts.push(t('voice.statusDeafened'))
   else if (flags.muted) parts.push(t('voice.statusMuted'))
   if (flags.mutedByYou) parts.push(t('voice.mutedByYou'))
   if (flags.camera) parts.push(t('voice.statusCameraOn'))

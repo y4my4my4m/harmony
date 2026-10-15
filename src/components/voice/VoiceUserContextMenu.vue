@@ -30,8 +30,8 @@
         </div>
       </div>
 
-      <!-- Listener controls for someone else -->
-      <template v-if="!isSelf">
+      <!-- Listener controls for someone else in this call -->
+      <template v-if="!isSelf && inCall">
         <section v-for="kind in model.volumes" :key="kind" class="vcm-section">
           <VolumeSlider
             :model-value="kind === 'mic' ? micVolume : streamVolume"
@@ -63,8 +63,8 @@
         <StreamQualityOptions />
       </section>
 
-      <div v-if="model.actions.length" class="vcm-divider" />
-      <div v-if="model.actions.length" class="vcm-actions">
+      <div v-if="inCall && model.actions.length" class="vcm-divider" />
+      <div v-if="inCall && model.actions.length" class="vcm-actions">
         <button
           v-for="action in model.actions"
           :key="action"
@@ -79,6 +79,72 @@
           <kbd v-if="actionShortcut(action)" class="vcm-kbd">{{ actionShortcut(action) }}</kbd>
         </button>
       </div>
+
+      <!-- Moderation: server mute and deafen, move, disconnect, kick, ban -->
+      <template v-if="moderationActions.length">
+        <div class="vcm-divider" />
+        <div class="vcm-actions" role="group" :aria-label="t('voice.moderation.section')" data-testid="voice-menu-moderation">
+          <template v-for="action in moderationActions" :key="action">
+            <button
+              v-if="action === 'server-mute' || action === 'server-deafen'"
+              type="button"
+              role="menuitemcheckbox"
+              class="vcm-check vcm-mod-check"
+              :aria-checked="action === 'server-mute' ? targetFlags.muted : targetFlags.deafened"
+              :disabled="pending"
+              :data-testid="`voice-menu-${action}`"
+              @click="runModeration(action)"
+            >
+              <span>{{ action === 'server-mute' ? t('voice.moderation.serverMute') : t('voice.moderation.serverDeafen') }}</span>
+              <span class="vcm-checkbox" :class="{ on: action === 'server-mute' ? targetFlags.muted : targetFlags.deafened }">
+                <Icon v-if="action === 'server-mute' ? targetFlags.muted : targetFlags.deafened" name="check" :size="12" />
+              </span>
+            </button>
+            <template v-else-if="action === 'move'">
+              <button
+                type="button"
+                role="menuitem"
+                class="vcm-action"
+                aria-haspopup="true"
+                :aria-expanded="moveOpen"
+                data-testid="voice-menu-move"
+                @click="moveOpen = !moveOpen"
+              >
+                <Icon name="arrow-right" :size="16" />
+                <span>{{ t('voice.moderation.moveTo') }}</span>
+                <Icon :name="moveOpen ? 'chevron-up' : 'chevron-down'" :size="14" class="vcm-trailing" />
+              </button>
+              <div v-if="moveOpen" class="vcm-move-list" role="group" :aria-label="t('voice.moderation.moveTo')">
+                <button
+                  v-for="channel in moveTargets"
+                  :key="channel.id"
+                  type="button"
+                  role="menuitem"
+                  class="vcm-action vcm-move-target"
+                  :disabled="pending"
+                  :data-testid="`voice-menu-move-${channel.id}`"
+                  @click="moveTo(channel.id)"
+                >
+                  <Icon name="volume-2" :size="14" />
+                  <span>{{ channel.name }}</span>
+                </button>
+              </div>
+            </template>
+            <button
+              v-else
+              type="button"
+              role="menuitem"
+              class="vcm-action danger"
+              :disabled="pending"
+              :data-testid="`voice-menu-${action}`"
+              @click="runModeration(action)"
+            >
+              <Icon :name="moderationIcon(action)" :size="16" />
+              <span>{{ moderationLabel(action) }}</span>
+            </button>
+          </template>
+        </div>
+      </template>
     </div>
   </Teleport>
 </template>
@@ -97,11 +163,15 @@ import VolumeSlider from './VolumeSlider.vue';
 import StreamQualityOptions from './StreamQualityOptions.vue';
 import {
   VOICE_POPOVER_DISMISS,
+  buildModerationActions,
   buildVoiceMenu,
   placePopover,
   type VoiceMenuAction,
+  type VoiceModerationAction,
   type VoiceVolumeSection,
 } from './voiceMenuModel';
+import { NO_VOICE_CAPABILITIES, useVoiceModerationStore, type VoiceModerationCapabilities } from '@/stores/voiceModeration';
+import { useServerChannelStore } from '@/stores/useServerChannel';
 import { styleRect, styleViewport } from '@/utils/appZoom';
 
 const props = withDefaults(defineProps<{
@@ -112,9 +182,17 @@ const props = withDefaults(defineProps<{
   source?: 'camera' | 'screen';
   /** The host handles request-fullscreen (the call overlay does). */
   canFullscreen?: boolean;
+  /** Server and voice channel the member is in; the call's when absent. */
+  serverId?: string | null;
+  channelId?: string | null;
+  /** The member is in this client's call: listener and view controls apply. */
+  inCall?: boolean;
 }>(), {
   source: 'camera',
   canFullscreen: false,
+  serverId: null,
+  channelId: null,
+  inCall: true,
 });
 
 const emit = defineEmits<{
@@ -151,8 +229,101 @@ const userProfile = computed(() => {
 const displayName = computed(() => userProfile.value.display_name || userProfile.value.username);
 const quality = computed(() => voiceStore.getConnectionQuality(userId.value));
 
+const moderation = useVoiceModerationStore();
+const serverChannelStore = useServerChannelStore();
+const menuServerId = computed(() => props.serverId ?? voiceStore.currentServerId);
+const menuChannelId = computed(() => props.channelId ?? (props.inCall ? voiceStore.currentChannelId : null));
+const targetFlags = computed(() => moderation.flagsOf(menuServerId.value, userId.value));
+const can = ref<VoiceModerationCapabilities>(NO_VOICE_CAPABILITIES);
+const pending = ref(false);
+const moveOpen = ref(false);
+
+const moveTargets = computed(() => serverChannelStore.channels
+  .filter((c: any) => Number(c.type) === 1 && c.id !== menuChannelId.value
+    && (!c.server_id || c.server_id === menuServerId.value))
+  .map((c: any) => ({ id: c.id as string, name: c.name as string })));
+
+const moderationActions = computed(() => buildModerationActions({
+  isSelf: isSelf.value,
+  can: can.value,
+  inVoice: !!menuChannelId.value,
+  moveTargets: moveTargets.value.length,
+}));
+
+async function loadCapabilities(): Promise<void> {
+  const target = userId.value;
+  can.value = NO_VOICE_CAPABILITIES;
+  if (isSelf.value) return;
+  const result = await moderation.capabilities(menuServerId.value, menuChannelId.value, target);
+  if (props.visible && userId.value === target) can.value = result;
+}
+
+function moderationTarget() {
+  const profile = getUserProfile(userId.value).value as { username?: string; display_name?: string; avatar_url?: string } | null;
+  return {
+    id: userId.value,
+    username: profile?.username ?? null,
+    display_name: profile?.display_name ?? null,
+    avatar_url: profile?.avatar_url ?? null,
+  };
+}
+
+function moderationIcon(action: VoiceModerationAction): string {
+  switch (action) {
+    case 'disconnect': return 'phone-off';
+    case 'kick': return 'user-x';
+    case 'ban': return 'ban';
+  }
+  return 'circle';
+}
+
+function moderationLabel(action: VoiceModerationAction): string {
+  switch (action) {
+    case 'disconnect': return t('voice.moderation.disconnect');
+    case 'kick': return t('voice.moderation.kick');
+    case 'ban': return t('voice.moderation.ban');
+  }
+  return '';
+}
+
+async function runModeration(action: VoiceModerationAction): Promise<void> {
+  const serverId = menuServerId.value;
+  if (!serverId || pending.value) return;
+  const target = moderationTarget();
+  if (action === 'kick' || action === 'ban') {
+    moderation.openKickBan(action, serverId, target);
+    close();
+    return;
+  }
+  pending.value = true;
+  try {
+    if (action === 'server-mute') await moderation.setFlags(serverId, target, { mute: !targetFlags.value.muted });
+    else if (action === 'server-deafen') await moderation.setFlags(serverId, target, { deafen: !targetFlags.value.deafened });
+    else if (action === 'disconnect') {
+      await moderation.move(serverId, target, menuChannelId.value, null);
+      close();
+    }
+  } finally {
+    pending.value = false;
+  }
+}
+
+async function moveTo(channelId: string): Promise<void> {
+  const serverId = menuServerId.value;
+  if (!serverId || pending.value) return;
+  pending.value = true;
+  try {
+    await moderation.move(serverId, moderationTarget(), menuChannelId.value, channelId);
+  } finally {
+    pending.value = false;
+  }
+  close();
+}
+
 const statusText = computed(() => {
   const s = live.value;
+  if (targetFlags.value.deafened) return t('voice.moderation.serverDeafened');
+  if (targetFlags.value.muted) return t('voice.moderation.serverMuted');
   if (s.isScreenSharing) return t('voice.statusStreaming');
   if (s.isVideoEnabled) return t('voice.statusCameraOn');
   if (s.isDeafened) return t('voice.statusDeafened');
@@ -306,6 +477,16 @@ async function place(): Promise<void> {
 watch(() => [props.visible, props.x, props.y] as const, ([visible]) => {
   if (visible) void place();
 }, { immediate: true });
+
+watch(() => [props.visible, userId.value, menuServerId.value, menuChannelId.value] as const, ([visible]) => {
+  moveOpen.value = false;
+  if (visible) void loadCapabilities();
+}, { immediate: true });
+
+// Content height changes (moderation items arrive).
+watch(moderationActions, () => {
+  if (props.visible) void place();
+});
 
 // Content height changes (stream starts, quality section appears).
 watch(() => model.value, () => {
@@ -507,6 +688,28 @@ onBeforeUnmount(() => {
 .vcm-action.danger:hover,
 .vcm-action.danger:focus-visible {
   background: color-mix(in srgb, var(--error) 15%, transparent);
+}
+
+.vcm-trailing {
+  margin-left: auto;
+}
+
+.vcm-mod-check {
+  margin: 0;
+  width: 100%;
+  padding: 8px 10px;
+}
+
+.vcm-move-list {
+  display: flex;
+  flex-direction: column;
+  padding-left: 18px;
+}
+
+.vcm-action:disabled,
+.vcm-check:disabled {
+  opacity: 0.6;
+  cursor: progress;
 }
 
 .vcm-kbd {

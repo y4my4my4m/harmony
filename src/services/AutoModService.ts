@@ -7,6 +7,7 @@
  * ANTISPAM_*. Nothing here decides whether a message may be sent.
  */
 import { supabase } from '@/supabase'
+import { syncVoiceMember } from '@/services/voice/voiceModerationApi'
 import { i18n } from '@/i18n'
 
 export type AutoModRuleType =
@@ -268,14 +269,14 @@ export async function setRaidLockdown(serverId: string, active: boolean): Promis
   return unwrap(await supabase.rpc('set_server_raid_lockdown', { p_server_id: serverId, p_active: active }))
 }
 
-/** seconds = 0 lifts the timeout. */
+/** seconds = 0 lifts the timeout. A timeout takes the member out of voice, LiveKit included. */
 export async function setMemberTimeout(
   serverId: string,
   userId: string,
   seconds: number,
   reason?: string,
 ): Promise<{ user_id: string; until: string | null }> {
-  return unwrap(
+  const result = unwrap<{ user_id: string; until: string | null }>(
     await supabase.rpc('set_server_member_timeout', {
       p_server_id: serverId,
       p_user_id: userId,
@@ -283,6 +284,8 @@ export async function setMemberTimeout(
       p_reason: reason ?? null,
     }),
   )
+  if (seconds > 0) void syncVoiceMember(serverId, userId).catch(() => {})
+  return result
 }
 
 export async function getMemberTimeouts(serverId: string): Promise<AutoModTimeout[]> {
