@@ -117,7 +117,7 @@ A watched stream can be focused, taken **Full screen**, or **Pop out** into a fl
 
 ## Watch or listen together
 
-An activity plays a video or music for everyone in a voice channel at the same moment. Activities work in voice channels of servers on your own instance, not in direct message calls or in servers hosted on other instances. Anyone in the voice channel can start one.
+An activity plays a video or music for everyone in a voice channel at the same moment. Activities work in voice channels of servers on your own instance, not in direct message calls or in servers hosted on other instances. Anyone in the voice channel can start one. Nothing plays for the others until they choose to: they see who started it and its title, with **Join** and **Not now**. **Not now** leaves a **Join** in the call bar.
 
 1. Click **Watch or listen together** in the call bar.
 2. Paste a link and click **Watch together** or **Listen together**. Or click **Choose from your Drive**, pick a video or audio file and click **Play together**.
@@ -130,7 +130,7 @@ An activity plays a video or music for everyone in a voice channel at the same m
 | A media file | An `https` link to a file ending in `.mp4`, `.m4v`, `.webm`, `.mov`, `.mkv`, `.ogv`, `.mp3`, `.m4a`, `.aac`, `.ogg`, `.oga`, `.opus`, `.wav` or `.flac`. |
 | Your Drive | A video or audio file of your own [Drive](/use/drive). Everyone who can see the voice channel can open the file while it plays. |
 
-While an activity runs, the call bar shows a small player with its title, **Play** or **Pause**, the position and **End the activity**. **Open the activity** opens the call view, where the player takes the main area and the participants move to a strip:
+While an activity runs, the call bar shows a small player with its title, **Play** or **Pause**, the position, **Leave** and, for those who may end it, **End the activity**. **Open the activity** opens the call view, where the player takes the main area and the participants move to a strip:
 
 | Control | What it does |
 |---|---|
@@ -139,8 +139,8 @@ While an activity runs, the call bar shows a small player with its title, **Play
 | **Queue** | Shows what plays next. |
 | **Next in queue** | Skips to the next item. |
 | **Only I control it**, **Let everyone control it** | Shown to the host. See [Who controls an activity](#who-controls-an-activity). |
-| **End the activity** | Ends it for everyone. |
-| **Stop for me** | Stops the player on your device only; the others keep playing. |
+| **End the activity**, **End for everyone** | Ends it for everyone. See [Who controls an activity](#who-controls-an-activity). |
+| **Leave** | Stops the player on your device only; the others keep playing. **Join** brings it back. |
 
 If your browser blocks autoplay, the player shows **Click to play**.
 
@@ -155,6 +155,8 @@ An activity ends when someone clicks **End the activity**, when the last item en
 ### Who controls an activity
 
 Everyone in the call controls an activity unless its host restricts it. The host is the person who started it. **Only I control it** leaves the host as the only one who can play, pause, seek, skip, change the queue, start something else or end it, as long as they are in the voice channel. **Let everyone control it** lifts the restriction. When the host leaves the call, everyone can control the activity again.
+
+Ending an activity, or replacing it by starting another, belongs to the host whatever the setting, and to server members with **Move Members**, the server owner, and instance admins and moderators. Once the host leaves the call, anyone in it can end the activity.
 
 ## Use spatial audio
 
@@ -213,7 +215,7 @@ The soundboard lists this server's sounds, then the **Default sounds** (Ding, Ta
 | Who can play | Members with **Use Soundboard** and **Speak** in the channel. Without them the button is hidden. |
 | Other servers' sounds | Need **Use External Sounds** in the channel; otherwise those sections show a lock. |
 | Where | Voice channels of servers on your own instance. Not in direct message calls or in servers on other instances. |
-| Cooldown | 3 seconds between your plays. |
+| Bursts | Play up to 3 sounds within 3 seconds; the third starts a 3-second wait, shown as a bar under the sounds. Playing slower never waits. Others' apps drop a fourth sound from one person within 2.5 seconds. |
 | Overlap | Up to 4 sounds play at once. |
 | Deafened | "You can't play sounds while deafened." |
 
