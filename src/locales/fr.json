@@ -145,6 +145,7 @@
     "verifying": "Vérification…",
     "sendingResetLink": "Envoi du lien de réinitialisation…",
     "poweredBy": "Propulsé par {name}",
+    "serviceStatus": "État du service",
     "reset": {
       "successTitle": "Mot de passe réinitialisé",
       "successBody": "Votre mot de passe a été mis à jour. Vous pouvez maintenant vous connecter avec le nouveau mot de passe.",
@@ -2088,6 +2089,7 @@
       }
     },
     "buildInfo": {
+      "status": "État du service",
       "copyHint": "Cliquez pour copier les informations de version pour les rapports de bug",
       "copied": "Informations de version copiées",
       "copyFailed": "Impossible de copier les informations de version",
@@ -6291,6 +6293,9 @@
     "region": "Activité",
     "open": "Ouvrir l'activité",
     "hideForMe": "Arrêter pour moi",
+    "endForEveryone": "Arrêter pour tout le monde",
+    "playerError": "Impossible de lire ce contenu ici.",
+    "openOn": "Ouvrir sur {service}",
     "clickToPlay": "Cliquez pour lire",
     "play": "Lire",
     "pause": "Pause",

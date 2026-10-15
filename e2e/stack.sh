@@ -85,6 +85,9 @@ VITE_SUPABASE_ANON_KEY=$anon
 # Bare usernames resolve against VITE_DOMAIN; profiles.domain and instance_config
 # default to 'localhost'. Unset, lookups use domain=undefined and find no profile.
 VITE_DOMAIN=localhost
+
+# The sign-in footer and Settings link here (auth-landing.spec.ts).
+VITE_STATUS_URL=https://status.example.test
 EOF
   ok "wrote e2e/stack.env"
 }

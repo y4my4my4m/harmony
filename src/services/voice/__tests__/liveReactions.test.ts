@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  ACTIVITY_REACTION_TARGET,
   LIVE_REACTION_LIFETIME_MS,
   LiveReactionController,
   MAX_LIVE_REACTION_BYTES,
@@ -142,6 +143,35 @@ describe('availability', () => {
     expect(liveReactionsAvailable('livekit', [p(false, false), p(false, false)])).toBe(false);
     expect(liveReactionsAvailable('p2p', [p(true, true)])).toBe(false);
     expect(liveReactionsAvailable(null, [p(true, true)])).toBe(false);
+  });
+
+  it('opens for a playing activity without video, still over LiveKit only', () => {
+    expect(liveReactionsAvailable('livekit', [p(false, false)], true)).toBe(true);
+    expect(liveReactionsAvailable('p2p', [p(false, false)], true)).toBe(false);
+  });
+});
+
+describe('activity target', () => {
+  it('sends no participant and floats on the one activity surface', () => {
+    const { controller, published } = harness();
+    expect(controller.send({ kind: 'unicode', value: '😂' }, ACTIVITY_REACTION_TARGET)).toBe('sent');
+    expect(decodeLiveReaction(published[0])).toEqual({
+      type: 'live_reaction',
+      emoji: { kind: 'unicode', value: '😂' },
+      targetSource: 'activity',
+    });
+    expect(controller.active.value.map(r => [r.key, r.senderId])).toEqual([['activity', 'me']]);
+  });
+
+  it('lands a received activity reaction on the same surface, ignoring any participant', () => {
+    const { controller } = harness();
+    controller.receive('bob', reaction({ targetSource: 'activity' }));
+    controller.receive('carol', reaction({ targetSource: 'activity', targetParticipant: 'id-bob' }));
+    expect(controller.active.value.map(r => [r.key, r.senderId])).toEqual([['activity', 'bob'], ['activity', 'carol']]);
+  });
+
+  it('rejects unknown target sources', () => {
+    expect(parseLiveReaction({ type: 'live_reaction', emoji: { kind: 'unicode', value: '🔥' }, targetSource: 'stage' })).toBeNull();
   });
 });
 

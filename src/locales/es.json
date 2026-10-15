@@ -145,6 +145,7 @@
     "verifying": "Verificando…",
     "sendingResetLink": "Enviando enlace de restablecimiento…",
     "poweredBy": "Funciona con {name}",
+    "serviceStatus": "Estado del servicio",
     "reset": {
       "successTitle": "Contraseña restablecida",
       "successBody": "Tu contraseña se ha actualizado. Ya puedes iniciar sesión con la nueva contraseña.",
@@ -2088,6 +2089,7 @@
       }
     },
     "buildInfo": {
+      "status": "Estado del servicio",
       "copyHint": "Haz clic para copiar la información de versión para informes de errores",
       "copied": "Información de versión copiada",
       "copyFailed": "No se pudo copiar la información de versión",
@@ -6291,6 +6293,9 @@
     "region": "Actividad",
     "open": "Abrir la actividad",
     "hideForMe": "Detener para mí",
+    "endForEveryone": "Terminar para todos",
+    "playerError": "Esto no se puede reproducir aquí.",
+    "openOn": "Abrir en {service}",
     "clickToPlay": "Haz clic para reproducir",
     "play": "Reproducir",
     "pause": "Pausa",

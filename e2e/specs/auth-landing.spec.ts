@@ -5,7 +5,7 @@
 // art becomes a banner above the form. The password reset page shares the shell.
 
 import { test, expect, type Page } from '@playwright/test'
-import { adminClient, createUser, deleteUser, type SpecUser } from './harness'
+import { adminClient, createUser, deleteUser, signIn, type SpecUser } from './harness'
 
 const admin = adminClient()
 let member: SpecUser
@@ -151,4 +151,25 @@ test('an invalid reset link gets the sorry mascot', async ({ page }) => {
   await page.goto('/reset-password')
   await expect(page.getByRole('heading', { level: 2, name: 'Invalid or expired link' })).toBeVisible({ timeout: 30000 })
   await expectPose(page, 'oops')
+})
+
+test.describe('short window', () => {
+  test.use({ viewport: { width: 1280, height: 600 } })
+
+  test('the footer sits under the card and links the service status page', async ({ page }) => {
+    await page.goto('/register')
+    await expect(page.getByTestId('auth-email')).toBeVisible({ timeout: 30000 })
+    const card = (await page.getByTestId('auth-form').locator('xpath=ancestor::div[contains(@class,"auth-card")]').boundingBox())!
+    const footer = (await page.locator('.auth-footer').boundingBox())!
+    expect(footer.y).toBeGreaterThanOrEqual(card.y + card.height)
+    // VITE_STATUS_URL from e2e/stack.env.
+    await expect(page.getByTestId('auth-status-link')).toHaveAttribute('href', 'https://status.example.test')
+    await expect(page.getByTestId('auth-status-link')).toHaveText('Service status')
+  })
+})
+
+test('Settings links the service status page', async ({ page }) => {
+  await signIn(page, member)
+  await page.goto('/settings/appearance')
+  await expect(page.getByTestId('settings-status-link')).toHaveAttribute('href', 'https://status.example.test', { timeout: 30000 })
 })

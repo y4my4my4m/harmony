@@ -318,7 +318,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     liveReactionsAvailable: (state): boolean =>
-      liveReactionsAvailable(state.connectionMode, [state.localState, ...state.allUsers]),
+      liveReactionsAvailable(state.connectionMode, [state.localState, ...state.allUsers], useActivitiesStore().playingHere),
 
     getConnectionQuality: (state) => (userId: string): VoiceConnectionQuality => {
       return state.connectionQuality[userId] ?? 'unknown';

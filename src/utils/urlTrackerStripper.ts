@@ -51,8 +51,16 @@ const UNIVERSAL_TRACKING_PREFIXES = [
 // functional params on other domains. Keys are the domain without `www.`.
 const DOMAIN_TRACKING_PARAMS: Record<string, string[]> = {
   // YouTube share-link extras
-  'youtube.com': ['si', 'feature'],
-  'youtu.be':    ['si', 'feature'],
+  'youtube.com':       ['si', 'feature'],
+  'm.youtube.com':     ['si', 'feature'],
+  'music.youtube.com': ['si', 'feature'],
+  'youtu.be':          ['si', 'feature'],
+
+  // Spotify and SoundCloud share-link ids. Spotify's `context` picks what plays
+  // next and stays.
+  'open.spotify.com': ['si', 'nd', 'dlsi'],
+  'soundcloud.com':   ['si'],
+  'm.soundcloud.com': ['si'],
 
   // X / Twitter share-link extras. `s` and `t` are post-share signature
   // tokens; the tweet still loads without them.

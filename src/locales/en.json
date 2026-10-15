@@ -145,6 +145,7 @@
     "verifying": "Verifying…",
     "sendingResetLink": "Sending reset link…",
     "poweredBy": "Powered by {name}",
+    "serviceStatus": "Service status",
     "reset": {
       "successTitle": "Password reset",
       "successBody": "Your password has been updated. You can now log in with your new password.",
@@ -2103,6 +2104,7 @@
       "reportBugDescription": "Open GitHub to report a bug or request a feature."
     },
     "buildInfo": {
+      "status": "Service status",
       "copyHint": "Click to copy version info for bug reports",
       "copied": "Version info copied",
       "copyFailed": "Could not copy version info",
@@ -6526,6 +6528,9 @@
     "region": "Activity",
     "open": "Open the activity",
     "hideForMe": "Stop for me",
+    "endForEveryone": "End for everyone",
+    "playerError": "This can't play here.",
+    "openOn": "Open on {service}",
     "clickToPlay": "Click to play",
     "play": "Play",
     "pause": "Pause",

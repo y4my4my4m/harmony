@@ -9,16 +9,46 @@
       <button type="button" class="activity-stage__ghost" data-testid="activity-hide" @click="actStore.hide(activity.channel_id, true)">
         {{ t('activities.hideForMe') }}
       </button>
+      <button
+        v-if="canControl"
+        type="button"
+        class="activity-stage__ghost activity-stage__ghost--end"
+        :disabled="actStore.busy"
+        data-testid="activity-end"
+        @click="actStore.stop()"
+      >
+        {{ t('activities.endForEveryone') }}
+      </button>
     </header>
 
     <div ref="slotEl" class="activity-stage__screen" :class="{ 'is-listen': listen }" data-testid="activity-slot">
       <p v-if="actStore.status.error === 'autoplay'" class="activity-stage__notice">
         <button type="button" class="activity-stage__resume" @click="resume">{{ t('activities.clickToPlay') }}</button>
       </p>
+      <p v-else-if="actStore.status.error" class="activity-stage__notice activity-stage__notice--error" role="status" data-testid="activity-error">
+        <span>{{ t('activities.playerError') }}</span>
+        <a v-if="sourceUrl" :href="sourceUrl" target="_blank" rel="noopener noreferrer" class="activity-stage__resume">
+          {{ t('activities.openOn', { service: sourceLabel }) }}
+        </a>
+      </p>
     </div>
 
     <ActivityControls :activity="activity">
       <template #extra>
+        <button
+          v-if="voice.liveReactionsAvailable"
+          ref="reactButton"
+          type="button"
+          class="activity-stage__queue-btn"
+          :aria-label="t('voice.react')"
+          :title="t('voice.react')"
+          aria-haspopup="dialog"
+          :aria-expanded="reactOpen"
+          data-testid="activity-react"
+          @click="reactOpen = !reactOpen"
+        >
+          <Icon name="smile-plus" :size="16" />
+        </button>
         <button
           type="button"
           class="activity-stage__queue-btn"
@@ -51,6 +81,13 @@
         <Icon name="plus" :size="15" />{{ t('activities.addToQueue') }}
       </button>
     </div>
+
+    <LiveReactionPopover
+      :visible="reactOpen && voice.liveReactionsAvailable"
+      :anchor="reactButton"
+      :target="ACTIVITY_REACTION_TARGET"
+      @close="reactOpen = false"
+    />
   </section>
 </template>
 
@@ -60,21 +97,30 @@ import Icon from '@/components/common/Icon.vue'
 import { useT } from '@/composables/useT'
 import { useActivitiesStore } from '@/stores/activities'
 import { isListenActivity, type ActivitySource, type VoiceActivity } from '@/services/activities/activityService'
+import LiveReactionPopover from '@/components/voice/LiveReactionPopover.vue'
+import { ACTIVITY_REACTION_TARGET } from '@/services/voice/liveReactions'
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import ActivityControls from './ActivityControls.vue'
-import { activitySourceIcon, activitySourceLabel } from './activitySources'
+import { activitySourceIcon, activitySourceLabel, activitySourceUrl } from './activitySources'
+import { useActivityControl } from './useActivityControl'
 
 const props = defineProps<{ activity: VoiceActivity }>()
 
 const { t } = useT()
 const actStore = useActivitiesStore()
+const voice = useUnifiedVoiceChannelStore()
+const { canControl } = useActivityControl(() => props.activity)
 const slotEl = ref<HTMLElement | null>(null)
 const queueOpen = ref(false)
+const reactOpen = ref(false)
+const reactButton = ref<HTMLButtonElement | null>(null)
 let release: (() => void) | null = null
 
 const listen = computed(() => isListenActivity(props.activity.source, props.activity.item))
 const sourceIcon = computed(() => activitySourceIcon(props.activity.source))
 const sourceLabel = computed(() => activitySourceLabel(props.activity.source, t))
 const title = computed(() => props.activity.item.title || fallbackTitle(props.activity.source))
+const sourceUrl = computed(() => activitySourceUrl(props.activity.source, props.activity.item))
 
 function fallbackTitle(source: ActivitySource): string {
   return activitySourceLabel(source, t)
@@ -156,6 +202,17 @@ onBeforeUnmount(() => release?.())
   border-color: var(--border-hover);
 }
 
+.activity-stage__ghost--end {
+  color: var(--text-danger);
+  border-color: color-mix(in srgb, var(--text-danger) 45%, transparent);
+}
+
+.activity-stage__ghost--end:hover:not(:disabled) {
+  color: var(--text-on-primary, #fff);
+  background: var(--error);
+  border-color: var(--error);
+}
+
 .activity-stage__screen {
   position: relative;
   width: 100%;
@@ -181,8 +238,20 @@ onBeforeUnmount(() => release?.())
   margin: 0;
 }
 
+.activity-stage__notice--error {
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  background: rgb(0 0 0 / 0.82);
+  border-radius: 10px;
+  color: #fff;
+  font-size: 14px;
+  text-align: center;
+}
+
 .activity-stage__resume {
   padding: 10px 18px;
+  text-decoration: none;
   background: var(--harmony-primary-fill, var(--harmony-primary));
   border: none;
   border-radius: var(--radius-full);

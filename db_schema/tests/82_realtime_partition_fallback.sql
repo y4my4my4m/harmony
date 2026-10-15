@@ -5,7 +5,7 @@
 -- so the scenarios after the first block run against a realtime.messages rebuilt here.
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(24);
+SELECT plan(25);
 
 CREATE TEMP TABLE rt82_days AS
 SELECT i, d, 'messages_' || to_char(d::timestamp, 'YYYY_MM_DD') AS relname,
@@ -69,12 +69,23 @@ SELECT CASE WHEN EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron')
 END;
 
 -- What the migration left. ----------------------------------------------------------------
+-- "Today" is the UTC day the migration ran, read back from its oldest partition: a suite
+-- that loads the schema before 00:00 UTC and reaches this file after it is one day later.
+CREATE TEMP TABLE rt82_migrated AS
+SELECT min(to_date(substr(relname, length('messages_') + 1), 'YYYY_MM_DD')) + 1 AS day FROM rt82_parts;
+
 SELECT is((SELECT relkind::text FROM pg_class WHERE oid = to_regclass('realtime.messages')), 'p',
   'realtime.messages is partitioned, as Realtime creates it');
+SELECT ok((SELECT day FROM rt82_migrated) BETWEEN (now() AT TIME ZONE 'UTC')::date - 1 AND (now() AT TIME ZONE 'UTC')::date,
+  'the migration ran today or yesterday (UTC)');
 SELECT set_eq($q$SELECT relname, bound FROM rt82_parts$q$,
-              $q$SELECT relname, bound FROM rt82_days$q$,
+              $q$SELECT 'messages_' || to_char(d::timestamp, 'YYYY_MM_DD'),
+                        format('FOR VALUES FROM (%L) TO (%L)', d::timestamp, (d + 1)::timestamp)
+                   FROM (SELECT (SELECT day FROM rt82_migrated) + i AS d FROM generate_series(-1, 3) i) s$q$,
   'the migration created yesterday through today+3 with day bounds');
-SELECT is(public.ensure_realtime_partitions(), 0, 'nothing missing: nothing created');
+SELECT is(public.ensure_realtime_partitions(),
+          ((now() AT TIME ZONE 'UTC')::date - (SELECT day FROM rt82_migrated))::int,
+  'only the days since the migration ran are created');
 
 -- Missing days are created; a present one is left alone. ----------------------------------
 SELECT pg_temp.rt82_rebuild();
