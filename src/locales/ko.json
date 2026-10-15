@@ -531,9 +531,14 @@
         "membership": "멤버십 권한",
         "text": "텍스트 권한",
         "threads": "스레드 권한",
-        "voice": "음성 권한"
+        "voice": "음성 권한",
+        "dangerous": "위험한 권한"
       },
       "perms": {
+        "ADMINISTRATOR": {
+          "label": "관리자",
+          "description": "모든 채널에서 모든 권한을 가집니다. 서버 삭제는 소유자만 할 수 있습니다"
+        },
         "VIEW_CHANNEL": {
           "label": "채널 보기",
           "description": "멤버가 기본적으로 채널을 볼 수 있습니다"
@@ -544,11 +549,11 @@
         },
         "MANAGE_ROLES": {
           "label": "역할 관리",
-          "description": "이 역할보다 낮은 역할을 만들고 편집하고 삭제합니다"
+          "description": "자신의 최상위 역할보다 낮은 역할을 만들고 편집하고 부여하고 삭제하며, 채널 권한을 편집합니다"
         },
         "MANAGE_SERVER": {
           "label": "서버 관리",
-          "description": "서버 설정을 편집하고 서버를 삭제합니다"
+          "description": "서버 설정, AutoMod, 환영 화면, 봇을 편집합니다. 서버 삭제는 소유자만 할 수 있습니다"
         },
         "CREATE_INVITE": {
           "label": "초대 만들기",
@@ -576,7 +581,7 @@
         },
         "TIMEOUT_MEMBERS": {
           "label": "멤버 타임아웃",
-          "description": "멤버를 일시적으로 음소거합니다"
+          "description": "멤버가 일시적으로 메시지를 보내거나 반응하거나 스레드를 시작하거나 음성 채널에 참가하지 못하게 합니다"
         },
         "SEND_MESSAGES": {
           "label": "메시지 보내기",
@@ -584,7 +589,7 @@
         },
         "EMBED_LINKS": {
           "label": "링크 임베드",
-          "description": "링크에 미리보기가 표시됩니다"
+          "description": "게시한 링크에 미리보기가 표시됩니다. 없으면 링크가 미리보기 없이 게시됩니다"
         },
         "ATTACH_FILES": {
           "label": "파일 첨부",
@@ -604,11 +609,11 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "메시지 기록 읽기",
-          "description": "메시지 기록을 봅니다"
+          "description": "참여 전에 보낸 메시지를 읽습니다. 없으면 채널이 참여한 시점부터 표시됩니다"
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "외부 이모지 사용",
-          "description": "다른 서버의 이모지를 사용합니다"
+          "description": "다른 서버, 인스턴스, 자신의 이모지를 사용합니다. 없으면 유니코드와 이 서버의 이모지만 사용합니다"
         },
         "PIN_MESSAGES": {
           "label": "메시지 고정",
@@ -620,7 +625,7 @@
         },
         "CREATE_PRIVATE_THREADS": {
           "label": "비공개 스레드 만들기",
-          "description": "초대 전용 스레드를 만듭니다"
+          "description": "효과가 없습니다. Harmony의 모든 스레드는 채널 전체에 공개됩니다"
         },
         "SEND_MESSAGES_IN_THREADS": {
           "label": "스레드에서 메시지 보내기",
@@ -648,7 +653,7 @@
         },
         "MOVE_MEMBERS": {
           "label": "멤버 이동",
-          "description": "음성 채널 간에 멤버를 이동합니다"
+          "description": "음성 채널 간에 멤버를 이동하거나 연결을 끊습니다"
         },
         "USE_SOUNDBOARD": {
           "label": "사운드보드 사용",
@@ -794,13 +799,25 @@
           "label": "채널 관리",
           "description": "이 채널의 이름을 바꾸거나 편집하거나 삭제합니다."
         },
+        "MANAGE_ROLES": {
+          "label": "권한 관리",
+          "description": "이 채널의 권한 재정의를 편집합니다."
+        },
+        "MANAGE_WEBHOOKS": {
+          "label": "웹후크 관리",
+          "description": "이 채널의 웹후크를 만들고 편집하고 삭제합니다."
+        },
+        "PIN_MESSAGES": {
+          "label": "메시지 고정",
+          "description": "이 채널에서 메시지를 고정하거나 해제합니다."
+        },
         "SEND_MESSAGES": {
           "label": "메시지 보내기",
           "description": "이 채널에 메시지를 게시합니다."
         },
         "EMBED_LINKS": {
           "label": "링크 임베드",
-          "description": "임베드와 링크 미리보기를 보냅니다."
+          "description": "여기에 게시한 링크에 미리보기가 표시됩니다."
         },
         "ATTACH_FILES": {
           "label": "파일 첨부",
@@ -812,7 +829,7 @@
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "외부 이모지 사용",
-          "description": "다른 서버의 이모지를 보냅니다."
+          "description": "메시지와 반응에서 이 서버 밖의 이모지를 사용합니다."
         },
         "MENTION_EVERYONE": {
           "label": "{'@'}everyone 멘션",
@@ -860,7 +877,7 @@
         },
         "MOVE_MEMBERS": {
           "label": "멤버 이동",
-          "description": "이 채널에서 멤버를 내보냅니다."
+          "description": "이 채널의 멤버를 이동하거나 연결을 끊습니다."
         },
         "USE_SOUNDBOARD": {
           "label": "사운드보드 사용",
@@ -922,6 +939,7 @@
     "conversationBeginningSubtitle": "채팅을 시작하고 기억에 남게 만드세요!",
     "channelWelcome": "#{name}에 오신 것을 환영합니다",
     "channelWelcomeSubtitle": "#{name} 채널의 시작입니다.",
+    "historyRestricted": "참여하기 전에 보낸 메시지는 숨겨집니다. 이 채널에서 '메시지 기록 읽기' 권한이 없습니다.",
     "dmBeginning": "{name}님과의 다이렉트 메시지의 시작입니다.",
     "groupBeginning": "{name} 그룹의 시작입니다.",
     "groupBeginningUnnamed": "이 그룹의 시작입니다.",
@@ -1323,7 +1341,37 @@
     "muteUserNamed": "{name}님 음소거",
     "muteStreamNamed": "{name}님의 방송 음소거",
     "userVolumeNamed": "{name}님의 볼륨",
-    "streamVolumeNamed": "{name}님의 방송 볼륨"
+    "streamVolumeNamed": "{name}님의 방송 볼륨",
+    "moderation": {
+      "section": "관리",
+      "serverMute": "서버 음소거",
+      "serverDeafen": "서버 소리 차단",
+      "serverMuted": "서버 음소거됨",
+      "serverDeafened": "서버 소리 차단됨",
+      "moveTo": "이동",
+      "disconnect": "연결 끊기",
+      "kick": "추방",
+      "ban": "차단",
+      "dragHint": "다른 음성 채널로 끌어서 이동합니다.",
+      "lockedTitle": "여기서는 허용되지 않음",
+      "serverMutedHint": "관리자가 서버 음소거했습니다. 해제될 때까지 음소거를 풀 수 없습니다.",
+      "serverDeafenedHint": "관리자가 서버 소리 차단했습니다. 해제될 때까지 다시 들을 수 없습니다.",
+      "noSpeakHint": "이 채널에서 말할 권한이 없습니다.",
+      "noStreamHint": "이 채널에서 비디오나 화면을 공유할 권한이 없습니다.",
+      "failedTitle": "음성 관리에 실패했습니다",
+      "mutedAnnounce": "{name}님을 서버 음소거했습니다",
+      "unmutedAnnounce": "{name}님의 서버 음소거를 해제했습니다",
+      "deafenedAnnounce": "{name}님의 소리를 서버 차단했습니다",
+      "undeafenedAnnounce": "{name}님의 서버 소리 차단을 해제했습니다",
+      "movedAnnounce": "{name}님을 {channel}(으)로 이동했습니다",
+      "disconnectedAnnounce": "{name}님의 음성 연결을 끊었습니다",
+      "youWereMovedTitle": "다른 채널로 이동됨",
+      "youWereMoved": "관리자가 {channel}(으)로 이동했습니다.",
+      "youWereDisconnectedTitle": "음성에서 나감",
+      "youWereDisconnected": "관리자가 음성 연결을 끊었습니다.",
+      "youWereRemoved": "더 이상 이 서버의 멤버가 아닙니다.",
+      "youWereTimedOut": "이 서버에서 타임아웃되었습니다."
+    }
   },
   "dm": {
     "directMessages": "다이렉트 메시지",
@@ -2793,6 +2841,7 @@
   "emoji": {
     "messageReactionLimit": "이 메시지에는 이미 {count}가지 반응이 있습니다. 기존 반응 중 하나에 추가하세요.",
     "reactionNotAllowed": "이 채널에서는 기존 반응에만 추가할 수 있습니다.",
+    "externalNotAllowed": "이 채널에서는 유니코드 이모지와 이 서버의 이모지만 사용할 수 있습니다.",
     "postReactionLimit": "이 게시물에 반응을 {count}개 남겼습니다. 다른 반응을 추가하려면 하나를 제거하세요.",
     "search": "이모지 검색...",
     "searchEmojis": "이모지 검색...",
@@ -4023,7 +4072,7 @@
       "generic": "이 서버의 AutoMod가 메시지를 차단했습니다.",
       "timedOutUntil": "{time}까지 타임아웃되었습니다."
     },
-    "timedOut": "이 서버에서 {time}까지 타임아웃되어 메시지를 보낼 수 없습니다.",
+    "timedOut": "이 서버에서 {time}까지 타임아웃되어 메시지를 보내거나 반응하거나 스레드를 시작할 수 없습니다.",
     "antispam": {
       "rateLimited": "새 계정은 한 번에 몇 개의 메시지만 보낼 수 있습니다. {seconds}초 후에 다시 시도하세요.",
       "linksBlocked": "새 계정은 아직 링크를 게시할 수 없습니다.",
@@ -4100,6 +4149,12 @@
       "member_unban": "{actor}님이 {target}님의 차단을 해제했습니다",
       "member_timeout": "{actor}님이 {target}님을 {until}까지 타임아웃했습니다",
       "member_timeout_remove": "{actor}님이 {target}님의 타임아웃을 해제했습니다",
+      "member_voice_mute": "{actor}님이 {target}님을 서버 음소거했습니다",
+      "member_voice_unmute": "{actor}님이 {target}님의 서버 음소거를 해제했습니다",
+      "member_voice_deafen": "{actor}님이 {target}님을 서버 헤드셋 음소거했습니다",
+      "member_voice_undeafen": "{actor}님이 {target}님의 서버 헤드셋 음소거를 해제했습니다",
+      "member_voice_move": "{actor}님이 {target}님을 다른 음성 채널로 옮겼습니다",
+      "member_voice_disconnect": "{actor}님이 {target}님의 음성 연결을 끊었습니다",
       "message_delete": "{actor}님이 {channel}에서 {target}님의 메시지 {count}개를 삭제했습니다",
       "server_update": "{actor}님이 서버를 수정했습니다",
       "settings_update": "{actor}님이 서버 설정을 변경했습니다",

@@ -531,9 +531,14 @@
         "membership": "Permisos de membresía",
         "text": "Permisos de texto",
         "threads": "Permisos de hilos",
-        "voice": "Permisos de voz"
+        "voice": "Permisos de voz",
+        "dangerous": "Permisos peligrosos"
       },
       "perms": {
+        "ADMINISTRATOR": {
+          "label": "Administrador",
+          "description": "Todos los permisos en todos los canales; solo el propietario puede eliminar el servidor"
+        },
         "VIEW_CHANNEL": {
           "label": "Ver canales",
           "description": "Permite a los miembros ver los canales de forma predeterminada"
@@ -544,11 +549,11 @@
         },
         "MANAGE_ROLES": {
           "label": "Gestionar roles",
-          "description": "Crear, editar y eliminar roles por debajo de este"
+          "description": "Crear, editar, asignar y eliminar roles por debajo de su rol más alto, y editar los permisos de los canales"
         },
         "MANAGE_SERVER": {
           "label": "Gestionar servidor",
-          "description": "Editar la configuración del servidor y eliminarlo"
+          "description": "Editar la configuración del servidor, AutoMod, la pantalla de bienvenida y los bots; solo el propietario puede eliminar el servidor"
         },
         "CREATE_INVITE": {
           "label": "Crear invitación",
@@ -576,7 +581,7 @@
         },
         "TIMEOUT_MEMBERS": {
           "label": "Aislar miembros",
-          "description": "Silenciar miembros temporalmente"
+          "description": "Impedir temporalmente que los miembros envíen mensajes, reaccionen, inicien hilos y se unan a canales de voz"
         },
         "SEND_MESSAGES": {
           "label": "Enviar mensajes",
@@ -584,7 +589,7 @@
         },
         "EMBED_LINKS": {
           "label": "Insertar enlaces",
-          "description": "Los enlaces mostrarán una vista previa"
+          "description": "Sus enlaces muestran vista previa; sin este permiso, los enlaces se publican sin ella"
         },
         "ATTACH_FILES": {
           "label": "Adjuntar archivos",
@@ -604,11 +609,11 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "Leer el historial de mensajes",
-          "description": "Ver el historial de mensajes"
+          "description": "Leer mensajes enviados antes de unirse; sin este permiso, los canales empiezan cuando se unieron"
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "Usar emojis externos",
-          "description": "Usar emojis de otros servidores"
+          "description": "Usar emojis de otros servidores, de la instancia y propios; sin este permiso, solo Unicode y los de este servidor"
         },
         "PIN_MESSAGES": {
           "label": "Fijar mensajes",
@@ -620,7 +625,7 @@
         },
         "CREATE_PRIVATE_THREADS": {
           "label": "Crear hilos privados",
-          "description": "Crear hilos solo por invitación"
+          "description": "No concede nada: en Harmony todos los hilos son visibles para todo el canal"
         },
         "SEND_MESSAGES_IN_THREADS": {
           "label": "Enviar mensajes en hilos",
@@ -648,7 +653,7 @@
         },
         "MOVE_MEMBERS": {
           "label": "Mover miembros",
-          "description": "Mover miembros entre canales de voz"
+          "description": "Mover miembros entre canales de voz o desconectarlos"
         },
         "USE_SOUNDBOARD": {
           "label": "Usar la caja de sonidos",
@@ -794,13 +799,25 @@
           "label": "Gestionar canal",
           "description": "Renombrar, editar o eliminar este canal."
         },
+        "MANAGE_ROLES": {
+          "label": "Gestionar permisos",
+          "description": "Editar las excepciones de permisos de este canal."
+        },
+        "MANAGE_WEBHOOKS": {
+          "label": "Gestionar webhooks",
+          "description": "Crear, editar y eliminar los webhooks de este canal."
+        },
+        "PIN_MESSAGES": {
+          "label": "Fijar mensajes",
+          "description": "Fijar y desfijar mensajes en este canal."
+        },
         "SEND_MESSAGES": {
           "label": "Enviar mensajes",
           "description": "Publicar mensajes en este canal."
         },
         "EMBED_LINKS": {
           "label": "Insertar enlaces",
-          "description": "Enviar contenido insertado y vistas previas de enlaces."
+          "description": "Los enlaces publicados aquí muestran vista previa."
         },
         "ATTACH_FILES": {
           "label": "Adjuntar archivos",
@@ -812,7 +829,7 @@
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "Usar emojis externos",
-          "description": "Enviar emojis de otros servidores."
+          "description": "Usar emojis de fuera de este servidor en mensajes y reacciones."
         },
         "MENTION_EVERYONE": {
           "label": "Mencionar {'@'}everyone",
@@ -860,7 +877,7 @@
         },
         "MOVE_MEMBERS": {
           "label": "Mover miembros",
-          "description": "Mover miembros fuera de este canal."
+          "description": "Mover o desconectar miembros de este canal."
         },
         "USE_SOUNDBOARD": {
           "label": "Usar la caja de sonidos",
@@ -922,6 +939,7 @@
     "conversationBeginningSubtitle": "¡Comienza a chatear y hazlo memorable!",
     "channelWelcome": "Bienvenido a #{name}",
     "channelWelcomeSubtitle": "Este es el comienzo del canal #{name}.",
+    "historyRestricted": "Los mensajes enviados antes de que te unieras están ocultos: no tienes «Leer el historial de mensajes» en este canal.",
     "dmBeginning": "Este es el comienzo de tus mensajes directos con {name}.",
     "groupBeginning": "Este es el comienzo del grupo {name}.",
     "groupBeginningUnnamed": "Este es el comienzo de este grupo.",
@@ -1323,7 +1341,37 @@
     "muteUserNamed": "Silenciar a {name}",
     "muteStreamNamed": "Silenciar la transmisión de {name}",
     "userVolumeNamed": "Volumen de {name}",
-    "streamVolumeNamed": "Volumen de la transmisión de {name}"
+    "streamVolumeNamed": "Volumen de la transmisión de {name}",
+    "moderation": {
+      "section": "Moderación",
+      "serverMute": "Silenciar en el servidor",
+      "serverDeafen": "Ensordecer en el servidor",
+      "serverMuted": "Silenciado en el servidor",
+      "serverDeafened": "Ensordecido en el servidor",
+      "moveTo": "Mover a",
+      "disconnect": "Desconectar",
+      "kick": "Expulsar",
+      "ban": "Banear",
+      "dragHint": "Arrastra a otro canal de voz para moverlo.",
+      "lockedTitle": "No permitido aquí",
+      "serverMutedHint": "Un moderador te silenció en el servidor. Podrás activar el micrófono cuando lo retire.",
+      "serverDeafenedHint": "Un moderador te ensordeció en el servidor. Podrás volver a oír cuando lo retire.",
+      "noSpeakHint": "No tienes permiso para hablar en este canal.",
+      "noStreamHint": "No tienes permiso para compartir vídeo ni tu pantalla en este canal.",
+      "failedTitle": "Falló la moderación de voz",
+      "mutedAnnounce": "{name} está silenciado en el servidor",
+      "unmutedAnnounce": "{name} ya no está silenciado en el servidor",
+      "deafenedAnnounce": "{name} está ensordecido en el servidor",
+      "undeafenedAnnounce": "{name} ya no está ensordecido en el servidor",
+      "movedAnnounce": "{name} movido a {channel}",
+      "disconnectedAnnounce": "{name} desconectado de la voz",
+      "youWereMovedTitle": "Movido a otro canal",
+      "youWereMoved": "Un moderador te movió a {channel}.",
+      "youWereDisconnectedTitle": "Fuera de la voz",
+      "youWereDisconnected": "Un moderador te desconectó de la voz.",
+      "youWereRemoved": "Ya no eres miembro de este servidor.",
+      "youWereTimedOut": "Te aislaron temporalmente en este servidor."
+    }
   },
   "dm": {
     "directMessages": "Mensajes directos",
@@ -2774,6 +2822,7 @@
   "emoji": {
     "messageReactionLimit": "Este mensaje tiene {count} reacciones distintas. Súmate a una de ellas.",
     "reactionNotAllowed": "En este canal solo puedes sumarte a reacciones existentes.",
+    "externalNotAllowed": "En este canal solo puedes usar emojis Unicode y los de este servidor.",
     "postReactionLimit": "Tienes {count} reacciones en esta publicación. Quita una para añadir otra.",
     "search": "Buscar emoji...",
     "recent": "Recientes",
@@ -4023,7 +4072,7 @@
       "generic": "El AutoMod de este servidor bloqueó tu mensaje.",
       "timedOutUntil": "Tienes tiempo fuera hasta {time}."
     },
-    "timedOut": "Tienes tiempo fuera en este servidor hasta {time} y no puedes enviar mensajes.",
+    "timedOut": "Tienes tiempo fuera en este servidor hasta {time} y no puedes enviar mensajes, reaccionar ni iniciar hilos.",
     "antispam": {
       "rateLimited": "Las cuentas nuevas solo pueden enviar unos pocos mensajes a la vez. Inténtalo de nuevo en {seconds} s.",
       "linksBlocked": "Las cuentas nuevas aún no pueden publicar enlaces.",
@@ -4100,6 +4149,12 @@
       "member_unban": "{actor} retiró el baneo de {target}",
       "member_timeout": "{actor} aisló temporalmente a {target} hasta {until}",
       "member_timeout_remove": "{actor} retiró el aislamiento temporal de {target}",
+      "member_voice_mute": "{actor} silenció a {target} en el servidor",
+      "member_voice_unmute": "{actor} quitó el silencio de servidor a {target}",
+      "member_voice_deafen": "{actor} ensordeció a {target} en el servidor",
+      "member_voice_undeafen": "{actor} quitó el ensordecimiento de servidor a {target}",
+      "member_voice_move": "{actor} movió a {target} a otro canal de voz",
+      "member_voice_disconnect": "{actor} desconectó a {target} de la voz",
       "message_delete": "{actor} eliminó un mensaje de {target} en {channel} | {actor} eliminó {count} mensajes de {target} en {channel}",
       "server_update": "{actor} editó el servidor",
       "settings_update": "{actor} cambió los ajustes del servidor",
