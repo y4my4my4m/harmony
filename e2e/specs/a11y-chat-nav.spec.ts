@@ -505,6 +505,12 @@ test('DM list: a row is a link, Enter opens it; dismiss is a separate button and
 
 test('member list: labelled search with a named clear button; rows name presence; headers expand', async ({ page }) => {
   test.setTimeout(120_000)
+  // The owner's tabs in earlier tests heartbeated under 150 s ago, which presence_sweep still
+  // counts as online: write the owner offline as the sweep leaves a closed tab.
+  const { error: devicesError } = await admin.from('presence_devices').delete().eq('profile_id', owner.id)
+  if (devicesError) throw new Error(`presence_devices: ${devicesError.message}`)
+  const { error: presenceError } = await admin.from('user_presence').update({ online: false, published_status: 0 }).eq('profile_id', owner.id)
+  if (presenceError) throw new Error(`user_presence: ${presenceError.message}`)
   await signIn(page, reader)
   await openChannel(page, server.id, server.generalChannelId)
   const members = page.getByRole('complementary', { name: 'Members' })
