@@ -33,6 +33,8 @@ pub enum Target {
   System,
   /// The application owning a window.
   Window(WindowRef),
+  /// An application named directly.
+  App(AppRef),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,6 +43,37 @@ pub enum WindowRef {
   Id(u64),
   /// Window title, for webviews whose labels carry no id.
   Title(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AppRef {
+  Pid(u32),
+  /// Bundle identifier on macOS, executable file name on Windows.
+  Bundle(String),
+}
+
+/// A shareable window, as capture resolves it.
+#[derive(Debug, Clone)]
+pub struct WindowInfo {
+  /// HWND on Windows, CGWindowID on macOS.
+  pub id: u64,
+  pub title: String,
+  /// Owning application's process.
+  pub pid: u32,
+  pub app: String,
+}
+
+/// A process capture can name, with what ties it to its application.
+#[derive(Debug, Clone)]
+pub struct AppInfo {
+  pub pid: u32,
+  pub name: String,
+  /// Bundle identifier on macOS, executable file name on Windows.
+  pub bundle: String,
+  /// macOS: the process TCC and the audio system attribute this one to.
+  pub responsible: Option<u32>,
+  /// Owns a shareable window.
+  pub windowed: bool,
 }
 
 impl Target {
@@ -146,6 +179,73 @@ pub fn permission_granted() -> Option<bool> {
   }
 }
 
+/// Shareable windows, on-screen ones first.
+pub fn windows() -> Result<Vec<WindowInfo>, Error> {
+  #[cfg(any(windows, target_os = "macos"))]
+  {
+    platform::windows()
+  }
+  #[cfg(not(any(windows, target_os = "macos")))]
+  {
+    Err(Error::Unsupported("no native program-audio capture on this OS".into()))
+  }
+}
+
+/// Applications capture can include. macOS: ScreenCaptureKit's list, which holds processes
+/// without windows as well. Windows: owners of visible top-level windows.
+pub fn applications() -> Result<Vec<AppInfo>, Error> {
+  #[cfg(any(windows, target_os = "macos"))]
+  {
+    platform::applications()
+  }
+  #[cfg(not(any(windows, target_os = "macos")))]
+  {
+    Err(Error::Unsupported("no native program-audio capture on this OS".into()))
+  }
+}
+
+/// Indices of the titles a picker label names. Exact matches win; failing those, titles that
+/// contain the label or are contained in it, compared without a leading unread counter and at
+/// least MIN_PARTIAL_TITLE characters on the shorter side. The label is the title at pick
+/// time; a page can retitle its window since (a counter such as YouTube's "(4) ", a browser's
+/// "Audio playing" suffix).
+#[cfg(any(windows, target_os = "macos", test))]
+pub(crate) fn titled(titles: &[String], label: &str) -> Vec<usize> {
+  let label = label.trim();
+  if label.is_empty() {
+    return Vec::new();
+  }
+  let exact: Vec<usize> = (0..titles.len()).filter(|&i| titles[i].trim() == label).collect();
+  if !exact.is_empty() {
+    return exact;
+  }
+  let label = without_counter(label);
+  (0..titles.len())
+    .filter(|&i| {
+      let title = without_counter(titles[i].trim());
+      let shorter = title.chars().count().min(label.chars().count());
+      shorter >= MIN_PARTIAL_TITLE && (title.contains(label) || label.contains(title))
+    })
+    .collect()
+}
+
+/// "(4) Title" and "(99+) Title" to "Title".
+#[cfg(any(windows, target_os = "macos", test))]
+fn without_counter(title: &str) -> &str {
+  let Some(rest) = title.strip_prefix('(') else { return title };
+  let Some((count, tail)) = rest.split_once(") ") else { return title };
+  let digits = count.strip_suffix('+').unwrap_or(count);
+  if !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()) {
+    tail.trim_start()
+  } else {
+    title
+  }
+}
+
+/// Shortest title or label a partial match accepts.
+#[cfg(any(windows, target_os = "macos", test))]
+const MIN_PARTIAL_TITLE: usize = 8;
+
 /// Starts capturing `target`. A window whose application cannot be resolved falls back to
 /// `Target::System`; `Started::scope` reports which one runs.
 pub fn start(target: Target, sink: Sink) -> Result<(Capture, Started), Error> {
@@ -202,6 +302,35 @@ mod tests {
       Target::from_surface(&surface("  Spotify Premium ", "window")),
       Target::Window(WindowRef::Title("Spotify Premium".into()))
     );
+  }
+
+  fn titles(list: &[&str]) -> Vec<String> {
+    list.iter().map(|s| s.to_string()).collect()
+  }
+
+  #[test]
+  fn exact_titles_win_over_partial_ones() {
+    let list = titles(&["Harmony probe tone - Google Chrome", "Harmony probe tone", "Other"]);
+    assert_eq!(titled(&list, "Harmony probe tone"), vec![1]);
+  }
+
+  #[test]
+  fn retitled_windows_match_partially() {
+    let list = titles(&["(5) Semifinals - ESL Pro League - YouTube", "Finder"]);
+    assert_eq!(titled(&list, "(4) Semifinals - ESL Pro League - YouTube"), vec![0]);
+    assert_eq!(titled(&list, "Semifinals - ESL Pro League - YouTube"), vec![0]);
+    assert_eq!(without_counter("(99+) Inbox"), "Inbox");
+    assert_eq!(without_counter("(draft) Notes"), "(draft) Notes");
+    let list = titles(&["Semifinals - ESL Pro League - YouTube - Audio playing"]);
+    assert_eq!(titled(&list, "Semifinals - ESL Pro League - YouTube"), vec![0]);
+  }
+
+  #[test]
+  fn short_partial_titles_do_not_match() {
+    let list = titles(&["Mail", "Mail - Inbox (3 messages)"]);
+    assert_eq!(titled(&list, "Mail - Inbox"), vec![1]);
+    assert_eq!(titled(&list, "Inbox"), Vec::<usize>::new());
+    assert_eq!(titled(&list, "  "), Vec::<usize>::new());
   }
 
   #[test]

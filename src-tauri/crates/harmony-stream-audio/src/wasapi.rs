@@ -36,7 +36,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
   EnumChildWindows, EnumWindows, GetWindowTextW, GetWindowThreadProcessId, IsWindow, IsWindowVisible,
 };
 
-use crate::{Error, Scope, Sink, Started, Target, WindowRef, CHANNELS, SAMPLE_RATE};
+use crate::{titled, AppInfo, AppRef, Error, Scope, Sink, Started, Target, WindowInfo, WindowRef, CHANNELS, SAMPLE_RATE};
 
 /// Windows 10 2004. Process loopback activation fails on earlier builds.
 const MIN_BUILD: u32 = 19041;
@@ -133,30 +133,65 @@ fn app_pid_for_window(hwnd: HWND) -> u32 {
   if search.found != 0 { search.found } else { pid }
 }
 
-struct TitleSearch {
-  title: Vec<u16>,
-  matches: Vec<HWND>,
-}
-
-unsafe extern "system" fn visible_window_with_title(hwnd: HWND, lparam: LPARAM) -> BOOL {
-  let search = unsafe { &mut *(lparam.0 as *mut TitleSearch) };
+unsafe extern "system" fn collect_titled_window(hwnd: HWND, lparam: LPARAM) -> BOOL {
+  let found = unsafe { &mut *(lparam.0 as *mut Vec<(HWND, String)>) };
   if unsafe { IsWindowVisible(hwnd) }.as_bool() {
     let mut buf = [0u16; 512];
     let len = unsafe { GetWindowTextW(hwnd, &mut buf) };
-    if len > 0 && buf[..len as usize] == search.title[..] {
-      search.matches.push(hwnd);
+    if len > 0 {
+      found.push((hwnd, String::from_utf16_lossy(&buf[..len as usize])));
     }
   }
   BOOL(1)
 }
 
-fn window_by_title(title: &str) -> Option<HWND> {
-  let mut search = TitleSearch { title: title.encode_utf16().collect(), matches: Vec::new() };
-  let _ = unsafe { EnumWindows(Some(visible_window_with_title), LPARAM(&mut search as *mut _ as isize)) };
-  match search.matches.as_slice() {
-    [only] => Some(*only),
-    _ => None,
+/// Visible top-level windows with a title, in Z order.
+fn titled_windows() -> Vec<(HWND, String)> {
+  let mut found: Vec<(HWND, String)> = Vec::new();
+  let _ = unsafe { EnumWindows(Some(collect_titled_window), LPARAM(&mut found as *mut _ as isize)) };
+  found
+}
+
+/// The one application process owning every window a title matches.
+fn app_by_title(title: &str) -> Option<HWND> {
+  let windows = titled_windows();
+  let titles: Vec<String> = windows.iter().map(|(_, t)| t.clone()).collect();
+  let matched = titled(&titles, title);
+  let first = windows[*matched.first()?].0;
+  let pid = app_pid_for_window(first);
+  matched.iter().all(|&i| app_pid_for_window(windows[i].0) == pid).then_some(first)
+}
+
+fn strip_exe(name: String) -> String {
+  match name.len().checked_sub(4) {
+    Some(cut) if name.get(cut..).is_some_and(|ext| ext.eq_ignore_ascii_case(".exe")) => name[..cut].to_string(),
+    _ => name,
   }
+}
+
+pub fn windows() -> Result<Vec<WindowInfo>, Error> {
+  Ok(
+    titled_windows()
+      .into_iter()
+      .map(|(hwnd, title)| {
+        let pid = app_pid_for_window(hwnd);
+        WindowInfo { id: hwnd.0 as usize as u64, title, pid, app: process_image(pid).map(strip_exe).unwrap_or_default() }
+      })
+      .collect(),
+  )
+}
+
+pub fn applications() -> Result<Vec<AppInfo>, Error> {
+  let mut apps: Vec<AppInfo> = Vec::new();
+  for (hwnd, _) in titled_windows() {
+    let pid = app_pid_for_window(hwnd);
+    if pid == 0 || apps.iter().any(|a| a.pid == pid) {
+      continue;
+    }
+    let image = process_image(pid).unwrap_or_default();
+    apps.push(AppInfo { pid, name: strip_exe(image.clone()), bundle: image, responsible: None, windowed: true });
+  }
+  Ok(apps)
 }
 
 /// (process id, loopback mode, what was resolved)
@@ -165,30 +200,39 @@ fn resolve(target: &Target) -> (u32, PROCESS_LOOPBACK_MODE, Started) {
   let system = |detail: String| {
     (own, PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE, Started { scope: Scope::System, app: None, detail })
   };
-  let hwnd = match target {
+  let (pid, from) = match target {
     Target::System => return system("system: every process but this tree".into()),
     Target::Window(WindowRef::Id(id)) => {
       let hwnd = HWND(*id as usize as *mut c_void);
       if !unsafe { IsWindow(Some(hwnd)) }.as_bool() {
         return system(format!("system: hwnd {id:#x} is not a window"));
       }
-      hwnd
+      (app_pid_for_window(hwnd), format!("window {:#x}", hwnd.0 as usize))
     }
-    Target::Window(WindowRef::Title(title)) => match window_by_title(title) {
-      Some(hwnd) => hwnd,
-      None => return system(format!("system: no single visible window titled {title:?}")),
+    Target::Window(WindowRef::Title(title)) => match app_by_title(title) {
+      Some(hwnd) => (app_pid_for_window(hwnd), format!("window {:#x}", hwnd.0 as usize)),
+      None => return system(format!("system: no single application has a visible window titled {title:?}")),
     },
+    Target::App(AppRef::Pid(pid)) => (*pid, "pid".into()),
+    Target::App(AppRef::Bundle(name)) => {
+      let owners: Vec<u32> = applications()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|a| a.bundle.eq_ignore_ascii_case(name))
+        .map(|a| a.pid)
+        .collect();
+      match owners.as_slice() {
+        [pid] => (*pid, format!("executable {name}")),
+        _ => return system(format!("system: {} windowed processes run {name}", owners.len())),
+      }
+    }
   };
-  let pid = app_pid_for_window(hwnd);
   if pid == 0 || pid == own {
-    return system(format!("system: window {:#x} belongs to pid {pid}", hwnd.0 as usize));
+    return system(format!("system: {from} belongs to pid {pid}"));
   }
   let image = process_image(pid);
-  let detail = format!("app: pid {pid} ({}) from window {:#x}", image.as_deref().unwrap_or("?"), hwnd.0 as usize);
-  let app = image.map(|name| match name.len().checked_sub(4) {
-    Some(cut) if name.get(cut..).is_some_and(|ext| ext.eq_ignore_ascii_case(".exe")) => name[..cut].to_string(),
-    _ => name,
-  });
+  let detail = format!("app: pid {pid} ({}) from {from}", image.as_deref().unwrap_or("?"));
+  let app = image.map(strip_exe);
   (pid, PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE, Started { scope: Scope::App, app, detail })
 }
 

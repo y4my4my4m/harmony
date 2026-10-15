@@ -34,7 +34,9 @@ use objc2_screen_capture_kit::{
   SCStreamOutput, SCStreamOutputType, SCWindow,
 };
 
-use crate::{f32_to_i16, Error, Scope, Sink, Started, Target, WindowRef, CHANNELS, SAMPLE_RATE};
+use crate::{
+  f32_to_i16, titled, AppInfo, AppRef, Error, Scope, Sink, Started, Target, WindowInfo, WindowRef, CHANNELS, SAMPLE_RATE,
+};
 
 /// SCStreamErrorUserDeclined: Screen Recording is not granted.
 const SC_USER_DECLINED: isize = -3801;
@@ -71,7 +73,8 @@ struct Content(Retained<SCShareableContent>);
 // SAFETY: SCShareableContent is an immutable value object.
 unsafe impl Send for Content {}
 
-fn shareable_content() -> Result<Retained<SCShareableContent>, Error> {
+/// `on_screen_only` limits windows to on-screen ones, desktop windows excluded.
+fn shareable_content(on_screen_only: bool) -> Result<Retained<SCShareableContent>, Error> {
   let (tx, rx) = mpsc::sync_channel::<Result<Content, Error>>(1);
   let tx = Mutex::new(Some(tx));
   let block = RcBlock::new(move |content: *mut SCShareableContent, error: *mut NSError| {
@@ -88,7 +91,9 @@ fn shareable_content() -> Result<Retained<SCShareableContent>, Error> {
   });
   unsafe {
     SCShareableContent::getShareableContentExcludingDesktopWindows_onScreenWindowsOnly_completionHandler(
-      true, true, &block,
+      on_screen_only,
+      on_screen_only,
+      &block,
     )
   };
   match rx.recv_timeout(Duration::from_secs(10)) {
@@ -114,12 +119,10 @@ fn is_own(app: &SCRunningApplication, own: libc::pid_t) -> bool {
   pid == own || responsible_pid(pid) == Some(own)
 }
 
-fn window_app(windows: &NSArray<SCWindow>, matches: impl Fn(&SCWindow) -> bool) -> Option<Retained<SCRunningApplication>> {
+/// The one application owning every window in `windows`; None when there are none or several.
+fn sole_owner<'a>(windows: impl IntoIterator<Item = &'a SCWindow>) -> Option<Retained<SCRunningApplication>> {
   let mut found: Option<Retained<SCRunningApplication>> = None;
-  for window in windows.iter() {
-    if !matches(&window) {
-      continue;
-    }
+  for window in windows {
     let app = unsafe { window.owningApplication() }?;
     match &found {
       Some(prev) if unsafe { prev.processID() != app.processID() } => return None,
@@ -130,25 +133,40 @@ fn window_app(windows: &NSArray<SCWindow>, matches: impl Fn(&SCWindow) -> bool) 
   found
 }
 
+/// The one element of `items`, if exactly one.
+fn only<T>(items: Vec<T>) -> Option<T> {
+  match <[T; 1]>::try_from(items) {
+    Ok([only]) => Some(only),
+    Err(_) => None,
+  }
+}
+
+fn text(s: Option<Retained<objc2_foundation::NSString>>) -> String {
+  s.map(|s| s.to_string()).unwrap_or_default()
+}
+
 enum Resolved {
   App(Retained<SCRunningApplication>, String),
   System(String),
 }
 
 fn resolve(content: &SCShareableContent, target: &Target, own: libc::pid_t) -> Resolved {
-  let windows = unsafe { content.windows() };
+  let windows: Vec<Retained<SCWindow>> = unsafe { content.windows() }.iter().collect();
+  let apps: Vec<Retained<SCRunningApplication>> = unsafe { content.applications() }.iter().collect();
   let app = match target {
     Target::System => return Resolved::System("system: every application but this one".into()),
-    Target::Window(WindowRef::Id(id)) => window_app(&windows, |w| unsafe { w.windowID() } as u64 == *id),
+    Target::Window(WindowRef::Id(id)) => sole_owner(windows.iter().filter(|w| unsafe { w.windowID() } as u64 == *id).map(|w| &**w)),
     Target::Window(WindowRef::Title(title)) => {
-      window_app(&windows, |w| unsafe { w.title() }.is_some_and(|t| t.to_string() == *title)).or_else(|| {
-        let apps = unsafe { content.applications() };
-        let named: Vec<_> = apps.iter().filter(|a| unsafe { a.applicationName() }.to_string() == *title).collect();
-        match <[_; 1]>::try_from(named) {
-          Ok([only]) => Some(only),
-          Err(_) => None,
-        }
+      let titles: Vec<String> = windows.iter().map(|w| text(unsafe { w.title() })).collect();
+      let matched = titled(&titles, title);
+      log::debug!("title {title:?}: {} of {} windows match", matched.len(), windows.len());
+      sole_owner(matched.iter().map(|&i| &*windows[i])).or_else(|| {
+        only(apps.iter().filter(|a| unsafe { a.applicationName() }.to_string() == *title).cloned().collect())
       })
+    }
+    Target::App(AppRef::Pid(pid)) => apps.iter().find(|a| unsafe { a.processID() } as u32 == *pid).cloned(),
+    Target::App(AppRef::Bundle(bundle)) => {
+      only(apps.iter().filter(|a| unsafe { a.bundleIdentifier() }.to_string() == *bundle).cloned().collect())
     }
   };
   match app {
@@ -160,6 +178,77 @@ fn resolve(content: &SCShareableContent, target: &Target, own: libc::pid_t) -> R
     Some(_) => Resolved::System(format!("system: {target:?} belongs to this application")),
     None => Resolved::System(format!("system: {target:?} matches no single application")),
   }
+}
+
+/// Processes in `apps` that play audio on behalf of `app`: its responsibility (WebKit's GPU
+/// and WebContent services, a child launched without LaunchServices) or its bundle identifier
+/// as a prefix (Chromium's "<bundle>.helper" utility, renderer and GPU processes).
+fn helpers_of(app: &SCRunningApplication, apps: &[Retained<SCRunningApplication>], own: libc::pid_t) -> Vec<Retained<SCRunningApplication>> {
+  let pid = unsafe { app.processID() };
+  let bundle = unsafe { app.bundleIdentifier() }.to_string();
+  let prefix = format!("{bundle}.");
+  apps
+    .iter()
+    .filter(|a| {
+      let p = unsafe { a.processID() };
+      p != pid
+        && !is_own(a, own)
+        && (responsible_pid(p) == Some(pid) || (!bundle.is_empty() && unsafe { a.bundleIdentifier() }.to_string().starts_with(&prefix)))
+    })
+    .cloned()
+    .collect()
+}
+
+fn describe(apps: &[Retained<SCRunningApplication>]) -> String {
+  apps
+    .iter()
+    .map(|a| unsafe { format!("{} {} ({})", a.processID(), a.applicationName(), a.bundleIdentifier()) })
+    .collect::<Vec<_>>()
+    .join(", ")
+}
+
+pub fn windows() -> Result<Vec<WindowInfo>, Error> {
+  support()?;
+  let content = shareable_content(false)?;
+  let mut list: Vec<(bool, WindowInfo)> = unsafe { content.windows() }
+    .iter()
+    .map(|w| {
+      let app = unsafe { w.owningApplication() };
+      let info = WindowInfo {
+        id: unsafe { w.windowID() } as u64,
+        title: text(unsafe { w.title() }),
+        pid: app.as_ref().map_or(0, |a| unsafe { a.processID() } as u32),
+        app: app.as_ref().map(|a| unsafe { a.applicationName() }.to_string()).unwrap_or_default(),
+      };
+      (unsafe { w.isOnScreen() }, info)
+    })
+    .collect();
+  list.sort_by_key(|(on_screen, _)| !on_screen);
+  Ok(list.into_iter().map(|(_, info)| info).collect())
+}
+
+pub fn applications() -> Result<Vec<AppInfo>, Error> {
+  support()?;
+  let content = shareable_content(false)?;
+  let owners: Vec<libc::pid_t> = unsafe { content.windows() }
+    .iter()
+    .filter_map(|w| unsafe { w.owningApplication() }.map(|a| unsafe { a.processID() }))
+    .collect();
+  Ok(
+    unsafe { content.applications() }
+      .iter()
+      .map(|a| {
+        let pid = unsafe { a.processID() };
+        AppInfo {
+          pid: pid as u32,
+          name: unsafe { a.applicationName() }.to_string(),
+          bundle: unsafe { a.bundleIdentifier() }.to_string(),
+          responsible: responsible_pid(pid).map(|p| p as u32),
+          windowed: owners.contains(&pid),
+        }
+      })
+      .collect(),
+  )
 }
 
 struct OutputIvars {
@@ -384,7 +473,7 @@ fn start_stream(stream: &SCStream) -> Result<(), Error> {
 
 pub fn start(target: Target, sink: Sink) -> Result<(Capture, Started), Error> {
   support()?;
-  let content = shareable_content()?;
+  let content = shareable_content(true)?;
   let own = std::process::id() as libc::pid_t;
   let display = unsafe { content.displays() }
     .firstObject()
@@ -394,6 +483,10 @@ pub fn start(target: Target, sink: Sink) -> Result<(Capture, Started), Error> {
   let (filter, started) = match resolve(&content, &target, own) {
     Resolved::App(app, detail) => {
       let name = unsafe { app.applicationName() }.to_string();
+      let listed: Vec<Retained<SCRunningApplication>> = unsafe { content.applications() }.iter().collect();
+      let helpers = helpers_of(&app, &listed, own);
+      log::debug!("helpers of {name} in content, not included: [{}]", describe(&helpers));
+      log::debug!("filter includes: [{}]", describe(std::slice::from_ref(&app)));
       let apps = NSArray::from_retained_slice(&[app]);
       let filter = unsafe {
         SCContentFilter::initWithDisplay_includingApplications_exceptingWindows(
@@ -408,6 +501,7 @@ pub fn start(target: Target, sink: Sink) -> Result<(Capture, Started), Error> {
     Resolved::System(detail) => {
       let own_apps: Vec<Retained<SCRunningApplication>> =
         unsafe { content.applications() }.iter().filter(|a| is_own(a, own)).collect();
+      log::debug!("filter excludes: [{}]", describe(&own_apps));
       let apps = NSArray::from_retained_slice(&own_apps);
       let filter = unsafe {
         SCContentFilter::initWithDisplay_excludingApplications_exceptingWindows(
