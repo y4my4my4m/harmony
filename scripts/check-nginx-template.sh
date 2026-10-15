@@ -89,6 +89,15 @@ for c in likes shares replies; do
   expect "$MASTODON" /posts/00000000-0000-0000-0000-000000000001/$c "backend /posts/00000000-0000-0000-0000-000000000001/$c"
 done
 expect "$MASTODON" /messages/00000000-0000-0000-0000-000000000003 'backend /messages/00000000-0000-0000-0000-000000000003'
+THREAD=/threads/00000000-0000-0000-0000-000000000004
+THREADS=/channels/00000000-0000-0000-0000-000000000005/threads
+for p in $THREAD $THREAD/members "$THREAD/members?page=1" $THREADS "$THREADS?page=1"; do
+  expect "$MASTODON" "$p" "backend $p"
+done
+expect "$FIREFOX" $THREAD "backend $THREAD"
+expect "$FIREFOX" /threads 'SPA'
+expect "$FIREFOX" /channels/00000000-0000-0000-0000-000000000005 'SPA'
+expect "$FIREFOX" $THREAD/messages 'SPA'
 
 # expect_accept <accept> <path> <first line of the body>
 expect_accept() {

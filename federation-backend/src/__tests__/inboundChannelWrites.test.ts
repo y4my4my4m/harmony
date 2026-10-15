@@ -425,6 +425,12 @@ describe('shared inbox: threads', () => {
     expect(r.success).toBe(false)
   })
 
+  it('refuses a member holding CREATE_PRIVATE_THREADS alone', async () => {
+    grant('eve', C1, ['VIEW_CHANNEL', 'SEND_MESSAGES', 'CREATE_PRIVATE_THREADS'])
+    const r = await threadCreate(EVE, 'https://peer.test/threads/00000000-0000-4000-8000-0000000000ae')
+    expect(r.success).toBe(false)
+  })
+
   it('refuses attributedTo naming someone other than the signer', async () => {
     const r = await threadCreate(EVE, 'https://peer.test/threads/00000000-0000-4000-8000-0000000000ac', {
       attributedTo: 'https://harmony.test/users/alice',
@@ -760,8 +766,12 @@ describe('server inbox', () => {
     ]
     await create(EVE, C1)
     const targets = vi.mocked(DeliveryQueue.enqueue).mock.calls.map((c) => c[1])
-    expect(targets).toEqual(['https://reader.test/inbox'])
-    expect(vi.mocked(DeliveryQueue.enqueue).mock.calls[0][0].to).toEqual(['https://reader.test/users/r'])
+    expect(targets).toEqual([`https://reader.test/servers/${S1}/inbox`])
+    const [announce, , signer] = vi.mocked(DeliveryQueue.enqueue).mock.calls[0]
+    expect(announce.type).toBe('Announce')
+    expect(announce.actor).toBe(`https://harmony.test/servers/${S1}`)
+    expect(announce.to).toEqual(['https://reader.test/users/r'])
+    expect(signer).toEqual({ serverId: S1 })
   })
 
   it('refuses a thread in a channel of another server', async () => {

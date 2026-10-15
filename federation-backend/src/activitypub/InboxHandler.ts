@@ -10,6 +10,7 @@ import { clientIp, inboxLimiter, instanceInboxLimit, signerInstanceKey } from '.
 import { pgrstEscape } from '../utils/postgrestFilter.js';
 import { isInstanceActorUsername } from './InstanceActor.js';
 import { syntheticFlagId } from './flag.js';
+import { relayedActivity } from './groupRelay.js';
 
 const router = Router();
 
@@ -350,11 +351,11 @@ async function handleInbox(
   // 4. activity.actor must match the signing key's owner.
 
   const signature = req.headers.signature as string;
-  // Flag creates moderation work attributed to the signer's domain and Move rewrites
-  // local follows, so both are refused unsigned or unverified whatever
-  // REQUIRE_VALID_SIGNATURES says.
+  // Flag creates moderation work attributed to the signer's domain, Move rewrites
+  // local follows, and a Group relay vouches for another actor's activity, so each
+  // is refused unsigned or unverified whatever REQUIRE_VALID_SIGNATURES says.
   const isFlag = activity.type === 'Flag';
-  const signerRequired = isFlag || activity.type === 'Move';
+  const signerRequired = isFlag || activity.type === 'Move' || relayedActivity(activity) !== null;
   let signatureVerified = false;
   let verifiedSigner: string | null = null;
 

@@ -101,7 +101,7 @@ function getJson(url: string): Promise<any> {
  * actor document, fetched from this instance, publishes that keyId owned by the actor; the
  * signature verifies against it. Otherwise the reason.
  */
-async function strictReceiverRefusal(c: Captured, localUrl: string, instanceDomain: string): Promise<string | null> {
+export async function strictReceiverRefusal(c: Captured, localUrl: string, instanceDomain: string): Promise<string | null> {
   const body = JSON.parse(c.raw.toString('utf-8'))
   const params = parseSignatureHeader(c.headers.signature ?? '')
   if (params.headers !== '(request-target) host date digest') return `signed headers ${params.headers}`

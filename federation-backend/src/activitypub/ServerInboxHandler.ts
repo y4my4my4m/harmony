@@ -17,7 +17,7 @@ import { noteToContent, parseAlsoKnownAs, parseMovedTo } from './converters/from
 import config from '../config/index.js';
 import { harmonyVoiceMessageFromObject } from '../utils/voiceMessageFederation.js';
 import { INVITE_REFUSALS } from '../utils/inviteRefusals.js';
-import { getChannelRecipientGroups } from '../utils/federationUtils.js';
+import { relayedActivity, relayToChannelReaders, type RelayServer } from './groupRelay.js';
 import {
   authorizeChannelWrite,
   federatedUploadUrls,
@@ -191,7 +191,8 @@ function normalizeMentionDomains(content: any[], senderUrl: unknown): any[] {
 
 export async function processServerInboxActivity(
   serverId: string,
-  activity: any
+  activity: any,
+  opts: { verifiedSigner?: string | null } = {},
 ): Promise<void> {
   const supabase = getSupabaseClient();
 
@@ -208,8 +209,18 @@ export async function processServerInboxActivity(
     return;
   }
 
+  // A remote server's copy takes only the relays of that server's Group (groupRelay.ts),
+  // signed with the Group's key.
   if (!server.is_local_server) {
-    logger.warn(`Server ${serverId} is not local, cannot process inbox`);
+    if (!relayedActivity(activity)) {
+      logger.warn(`Server ${serverId} is not local, cannot process inbox`);
+      return;
+    }
+    if (!opts.verifiedSigner || !server.ap_id || !SignatureService.verifyActorMatch(opts.verifiedSigner, server.ap_id)) {
+      logDenied('Group relay', opts.verifiedSigner ?? 'an unsigned sender', `the signer is not the Group of server ${serverId}`);
+      return;
+    }
+    await ActivityProcessor.processGroupRelay(server as RelayServer, activity);
     return;
   }
 
@@ -607,9 +618,31 @@ async function inServerChannel<T extends { channel_id: string | null }>(
   return channel ? (message as T & { channel_id: string }) : null;
 }
 
+/**
+ * Message a reaction names, in a channel of `serverId`: by the UUID of a /messages/ URL, then
+ * by ap_id.
+ */
+async function findReactedMessage(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  serverId: string,
+  objectUrl: string,
+): Promise<{ id: string; channel_id: string } | null> {
+  const messageIdMatch = objectUrl.match(/\/messages\/([a-f0-9-]{36})/);
+  if (messageIdMatch) {
+    const { data } = await supabase
+      .from('messages')
+      .select('id, channel_id')
+      .eq('id', messageIdMatch[1])
+      .maybeSingle();
+    const message = data ? await inServerChannel(supabase, serverId, data) : null;
+    if (message) return message;
+  }
+  return findServerMessageByApId(supabase, serverId, objectUrl);
+}
+
 async function processCreateActivity(
   serverId: string,
-  server: any,
+  _server: any,
   activity: any
 ): Promise<void> {
   const supabase = getSupabaseClient();
@@ -928,10 +961,7 @@ async function processCreateActivity(
     }
   }
 
-  // The host instance relays the message to the other member instances that may read it.
-  if (server.is_local_server) {
-    await relayToChannelReaders(activity, channel.id, actorUrl, server.owner, 'message', true);
-  }
+  await relayToChannelReaders(serverId, channel.id, activity, actorUrl, 'message');
 }
 
 // Update covers thread, category, channel, server metadata, and Note edits.
@@ -1200,10 +1230,7 @@ async function processUpdateActivity(
   
   logger.info(`Updated federated message: ${object.id}`);
 
-  // Re-broadcast edit to other remote instances
-  if (server.is_local_server) {
-    await relayToChannelReaders(activity, message.channel_id, editorUrl, server.owner, 'edit', false);
-  }
+  await relayToChannelReaders(serverId, message.channel_id, activity, editorUrl, 'edit');
 }
 
 async function processDeleteActivity(
@@ -1253,16 +1280,15 @@ async function processDeleteActivity(
 
   logger.info(`Deleted federated message: ${objectUrl}`);
 
-  // Re-broadcast delete to other remote instances
-  if (server.is_local_server) {
-    await relayToChannelReaders(activity, targetMsg.channel_id, actorUrlDel, server.owner, 'delete', false);
-  }
+  // The Group's own Delete (handleChannelMessageDelete, queued by the is_deleted trigger)
+  // follows through the worker; a receiver applies whichever arrives first.
+  await relayToChannelReaders(serverId, targetMsg.channel_id, activity, actorUrlDel, 'delete');
 }
 
 // Handles Like, EmojiReact and EmojiReaction.
 async function processReactionActivity(
   serverId: string,
-  server: any,
+  _server: any,
   activity: any
 ): Promise<void> {
   const supabase = getSupabaseClient();
@@ -1285,22 +1311,7 @@ async function processReactionActivity(
     return;
   }
 
-  const messageIdMatch = objectUrl.match(/\/messages\/([a-f0-9-]{36})/);
-  let message: { id: string; channel_id: string } | null = null;
-
-  if (messageIdMatch) {
-    const { data } = await supabase
-      .from('messages')
-      .select('id, channel_id')
-      .eq('id', messageIdMatch[1])
-      .maybeSingle();
-    message = data ? await inServerChannel(supabase, serverId, data) : null;
-  }
-
-  if (!message) {
-    // Fall back to metadata->>ap_id.
-    message = await findServerMessageByApId(supabase, serverId, objectUrl);
-  }
+  const message = await findReactedMessage(supabase, serverId, objectUrl);
 
   if (!message) {
     logger.warn(`Message not found in server ${serverId} for reaction: ${objectUrl}`);
@@ -1412,10 +1423,7 @@ async function processReactionActivity(
 
   logger.info(`Added reaction to message ${message.id}`);
 
-  // Re-broadcast reaction to other remote instances
-  if (server.is_local_server) {
-    await relayToChannelReaders(activity, message.channel_id, actorUrl, server.owner, 'reaction', false);
-  }
+  await relayToChannelReaders(serverId, message.channel_id, activity, actorUrl, 'reaction');
 }
 
 // Add creates a channel or a category.
@@ -1670,27 +1678,24 @@ async function processUndoActivity(
     case 'Like':
     case 'EmojiReact':
     case 'EmojiReaction': {
-      const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor.id;
-      const targetUrl = typeof object.object === 'string' ? object.object : object.object?.id;
-
-      const { data: user } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('federated_id', actorUrl)
-        .single();
-
-      if (user && targetUrl) {
-        const messageIdMatch = targetUrl.match(/\/messages\/([a-f0-9-]+)/);
-        if (messageIdMatch) {
-          await supabase
-            .from('reactions')
-            .delete()
-            .eq('message_id', messageIdMatch[1])
-            .eq('user_id', user.id);
-
-          logger.info(`Removed reaction from message ${messageIdMatch[1]}`);
-        }
+      // The undone reaction is the signer's own.
+      const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+      const likeActor = typeof object.actor === 'string' ? object.actor : object.actor?.id;
+      if (!actorUrl || (likeActor && !SignatureService.verifyActorMatch(actorUrl, likeActor))) {
+        logger.warn(`Rejecting Undo(${objectType}): ${actorUrl} cannot undo a reaction by ${likeActor}`);
+        return;
       }
+      const targetUrl = typeof object.object === 'string' ? object.object : object.object?.id;
+      const userId = await resolveActorProfileId(supabase, actorUrl);
+      const message = userId && typeof targetUrl === 'string'
+        ? await findReactedMessage(supabase, serverId, targetUrl)
+        : null;
+      if (!userId || !message) {
+        logger.warn(`Undo(${objectType}) names no reaction in server ${serverId}: ${targetUrl}`);
+        return;
+      }
+      await ActivityProcessor.removeMessageReactions(message.id, userId, object);
+      await relayToChannelReaders(serverId, message.channel_id, activity, actorUrl, 'reaction removal');
       break;
     }
 
@@ -1700,40 +1705,6 @@ async function processUndoActivity(
 }
 
 // HELPER FUNCTIONS
-
-/**
- * Relays an activity accepted on this server's inbox to the instances whose
- * members may view the channel (federation_channel_recipients: accepted,
- * unbanned, VIEW_CHANNEL), excluding the sender's instance. `readdress` sets
- * `to` to that instance's members.
- */
-async function relayToChannelReaders(
-  activity: any,
-  channelId: string,
-  senderUrl: string,
-  signerId: string,
-  label: string,
-  readdress: boolean,
-): Promise<void> {
-  let senderDomain: string;
-  try {
-    senderDomain = new URL(senderUrl).hostname.toLowerCase();
-  } catch {
-    return;
-  }
-  const groups = (await getChannelRecipientGroups(channelId)).filter(g => g.instance !== senderDomain);
-  for (const group of groups) {
-    const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
-    const outgoing = readdress ? { ...activity, to: group.member_ap_ids } : activity;
-    try {
-      await DeliveryQueue.enqueue(outgoing, inbox, signerId);
-      logger.info(`Re-broadcast ${label} to ${group.instance} (${group.member_count} members)`);
-    } catch (deliveryError) {
-      logger.error(`Failed to re-broadcast ${label} to ${group.instance}:`, deliveryError);
-    }
-  }
-}
-
 
 async function sendAcceptActivity(
   serverId: string,

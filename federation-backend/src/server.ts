@@ -39,6 +39,7 @@ import nodeInfoRouter from './activitypub/NodeInfoService.js';
 import inboxRouter from './activitypub/InboxHandler.js';
 import outboxRouter from './activitypub/OutboxHandler.js';
 import groupRouter from './activitypub/GroupService.js';
+import threadRouter from './activitypub/threadRoutes.js';
 import instanceActorRouter from './activitypub/InstanceActor.js';
 
 import serverDiscoveryRouter from './services/ServerDiscoveryService.js';
@@ -149,6 +150,7 @@ export function createApp(): Application {
   // with groupRouter's /servers/:serverId (which would match serverId='discover')
   app.use('/', serverDiscoveryRouter);
   app.use('/', groupRouter);
+  app.use('/', threadRouter);
   app.use('/', instanceProbeRouter);
   app.use('/', actorRouter);
   app.use('/', inboxRouter);

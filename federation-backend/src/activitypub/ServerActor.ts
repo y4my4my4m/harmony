@@ -2,8 +2,9 @@
  * Group actor of a local server: https://<domain>/servers/<id>, key <actor>#main-key.
  *
  * Activities whose actor is the Group (Accept and Reject of a Join, channel Add/Update/Remove,
- * server Update, message Delete) are signed with the Group's own key: every inbox requires the
- * signing key's owner to equal activity.actor (InboxHandler, GroupService).
+ * server Update, message Delete, the Announce relaying a member's activity) are signed with the
+ * Group's own key: every inbox requires the signing key's owner to equal activity.actor
+ * (InboxHandler, GroupService).
  *
  * The key pair is public.server_actor_keys, generated on first use. A remote server's local
  * copy has no key.
