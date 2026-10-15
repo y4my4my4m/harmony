@@ -2,7 +2,9 @@
 //! device "VAD\Process_Loopback" captures one process tree (INCLUDE) or every process but one
 //! tree (EXCLUDE). It has no mix format: the client asks for 48 kHz stereo s16 and the engine
 //! converts. WebView2's processes descend from this one, so EXCLUDE with this PID keeps the
-//! call's playback out of the stream.
+//! call's playback out of the stream. A browser plays from a child of the process owning its
+//! window (Chrome: the audio.mojom.AudioService utility), which INCLUDE of that tree takes in
+//! (CI probe, Chrome 155).
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicBool, Ordering};

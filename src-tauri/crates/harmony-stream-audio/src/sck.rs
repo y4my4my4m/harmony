@@ -1,9 +1,11 @@
 //! ScreenCaptureKit audio (macOS 13+). An SCStream with capturesAudio delivers the audio of the
 //! applications its content filter admits: one application for a window share, every
-//! application but this one otherwise. WKWebView plays the call from WebKit's GPU process;
-//! ScreenCaptureKit attributes that audio to its responsible process, this app, and
-//! excludesCurrentProcessAudio drops it. Applications whose responsible process is this one are
-//! excluded from the filter as well.
+//! application but this one otherwise. ScreenCaptureKit attributes a process's audio to its
+//! responsible process, and helpers are no SCRunningApplication of their own: a WKWebView page
+//! plays from WebKit's GPU process and a Chrome page from a Chrome helper process, and either
+//! is captured with only its app in the filter (CI probe, macOS 26.6, Chrome 152). The
+//! same attribution makes excludesCurrentProcessAudio drop this app's own WebKit playback.
+//! Applications whose responsible process is this one are excluded from the filter as well.
 //!
 //! The stream also produces video, which nothing reads: 2x2 at one frame per second.
 //! Audio arrives as f32, usually planar, at the configured 48 kHz.
@@ -200,25 +202,6 @@ fn resolve(content: &SCShareableContent, target: &Target, own: libc::pid_t) -> R
     Some(_) => Resolved::System(format!("system: {target:?} belongs to this application")),
     None => Resolved::System(format!("system: {target:?} matches no single application")),
   }
-}
-
-/// Processes in `apps` that play audio on behalf of `app`: its responsibility (WebKit's GPU
-/// and WebContent services, a child launched without LaunchServices) or its bundle identifier
-/// as a prefix (Chromium's "<bundle>.helper" utility, renderer and GPU processes).
-fn helpers_of(app: &SCRunningApplication, apps: &[Retained<SCRunningApplication>], own: libc::pid_t) -> Vec<Retained<SCRunningApplication>> {
-  let pid = unsafe { app.processID() };
-  let bundle = unsafe { app.bundleIdentifier() }.to_string();
-  let prefix = format!("{bundle}.");
-  apps
-    .iter()
-    .filter(|a| {
-      let p = unsafe { a.processID() };
-      p != pid
-        && !is_own(a, own)
-        && (responsible_pid(p) == Some(pid) || (!bundle.is_empty() && unsafe { a.bundleIdentifier() }.to_string().starts_with(&prefix)))
-    })
-    .cloned()
-    .collect()
 }
 
 fn describe(apps: &[Retained<SCRunningApplication>]) -> String {
@@ -505,9 +488,6 @@ pub fn start(target: Target, sink: Sink) -> Result<(Capture, Started), Error> {
   let (filter, started) = match resolve(&content, &target, own) {
     Resolved::App(app, detail) => {
       let name = unsafe { app.applicationName() }.to_string();
-      let listed: Vec<Retained<SCRunningApplication>> = unsafe { content.applications() }.iter().collect();
-      let helpers = helpers_of(&app, &listed, own);
-      log::debug!("helpers of {name} in content, not included: [{}]", describe(&helpers));
       log::debug!("filter includes: [{}]", describe(std::slice::from_ref(&app)));
       let apps = NSArray::from_retained_slice(&[app]);
       let filter = unsafe {
