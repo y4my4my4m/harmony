@@ -65,7 +65,13 @@ export const config = {
   },
   websocket: {
     heartbeatInterval: parseInt(process.env.WS_HEARTBEAT_INTERVAL || '30000'),
-    maxConnectionsPerBot: parseInt(process.env.WS_MAX_CONNECTIONS_PER_BOT || '5'),
+    // Identified connections one bot may hold in this process; at least 1.
+    maxConnectionsPerBot: Math.max(1, parseInt(process.env.WS_MAX_CONNECTIONS_PER_BOT || '5') || 5),
+    // ms from a socket opening to its successful IDENTIFY, clamped to 1-60 s.
+    identifyTimeoutMs: Math.min(
+      60_000,
+      Math.max(1_000, parseInt(process.env.WS_IDENTIFY_TIMEOUT_MS || '30000') || 30_000),
+    ),
     // ms between token/bot rechecks of open sessions, clamped to 1-60 s.
     revalidateIntervalMs: Math.min(
       60_000,

@@ -48,6 +48,8 @@ The service loads `.env` from its working directory. `.env.example` (development
 | `NODE_ENV` | `development` | In `development`, 500 responses from the error handler include the error message. |
 | `INSTANCE_DOMAIN` | `localhost:3000` | Harmony app origin, as a hostname or URL; `https://` is assumed without a scheme. `/bridge-setup` and `/bridge/v2` build their URLs from it, including the instance Discord bot's OAuth2 redirect `<origin>/bot-gateway/bridge/v2/discord/callback`, which must be registered on the Discord application exactly. |
 | `WS_HEARTBEAT_INTERVAL` | `30000` | Heartbeat interval in ms, sent to bots in READY. Connections without a heartbeat for twice this interval are closed. |
+| `WS_MAX_CONNECTIONS_PER_BOT` | `5` | Identified connections one bot may hold; the IDENTIFY past it closes with 4029 `Too many connections`. |
+| `WS_IDENTIFY_TIMEOUT_MS` | `30000` | Time in ms, clamped to 1000-60000, from a socket opening to its successful IDENTIFY; past it the socket closes with 4003 `Not authenticated`. |
 | `WS_REVALIDATE_INTERVAL_MS` | `30000` | Interval in ms, clamped to 1000-60000, at which open connections are rechecked against `bot_tokens` and `bots`. |
 | `RATE_LIMIT_WINDOW_MS` | `60000` | REST rate-limit window in ms. |
 | `RATE_LIMIT_MAX_REQUESTS` | `100` | REST requests allowed per bot, per route and channel or server it names, per window. |
@@ -118,6 +120,7 @@ Message and reaction events go to every bot with an active installation holding 
 - The dispatcher starts from the process start time. Messages and reactions created while the service is down are never dispatched.
 - Connections, bridge member lists and the attachment-refresh dedupe live in process memory. A second replica shares none of it; run one instance. Bridge presence updates (op 7) change the cached member lists in place; the web client reads them through `/bridged-users/*`.
 - Each connection may send 120 frames per sliding 60 s, op 1 heartbeats not counted; the next closes it with 4008 `rate limited`.
+- A heartbeat timeout sends close 1000 `Heartbeat timeout` and destroys the socket without waiting for the peer's close frame.
 - `MESSAGE_CREATE` and `MESSAGE_UPDATE` carry `author.nickname` from `user_servers`, cached per server and user for 60 s.
 - IDENTIFY writes `bot_presence` (status `online`, connection time) and `bots.last_online_at`. Heartbeats update `bot_presence.last_heartbeat_at` and `latency_ms`. Disconnects set `bot_presence.status` to `offline`. The web client treats a bot as online only while its last heartbeat is under 90 s old, so a process that exits without closing its sockets does not leave bots shown online.
 - REST writes `bot_audit_log` rows for message send, edit and delete; channel, category and role creation; role update and delete; and emoji creation.

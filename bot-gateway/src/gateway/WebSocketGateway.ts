@@ -143,6 +143,21 @@ export function parsePresenceDeltas(data: unknown): PresenceDelta[] {
 export const FRAME_LIMIT = 120
 export const FRAME_WINDOW_MS = 60_000
 
+// IDENTIFY of a bot already holding config.websocket.maxConnectionsPerBot connections.
+export const TOO_MANY_CONNECTIONS_CLOSE = 4029
+// No successful IDENTIFY within config.websocket.identifyTimeoutMs of the socket opening.
+export const NOT_AUTHENTICATED_CLOSE = 4003
+
+/**
+ * Sends the close frame, then destroys the socket in the same tick. ws.close() alone holds a
+ * peer that never answers it, and defers the close handler, for ws's 30 s closing-handshake
+ * timeout.
+ */
+function closeAtOnce(ws: WebSocket, code: number, reason: string) {
+  ws.close(code, reason)
+  ws.terminate()
+}
+
 /** Sliding-window frame count of one connection. */
 export class FrameRateLimiter {
   // Arrival times in ms, oldest first; at most `limit` entries.
@@ -194,6 +209,11 @@ export class WebSocketGateway {
     let botConnection: BotConnection | null = null
     const frames = new FrameRateLimiter()
     let rateLimited = false
+    const identifyDeadline = setTimeout(() => {
+      if (botConnection) return
+      console.warn(`Gateway connection sent no successful IDENTIFY in ${config.websocket.identifyTimeoutMs} ms; closing`)
+      closeAtOnce(ws, NOT_AUTHENTICATED_CLOSE, 'Not authenticated')
+    }, config.websocket.identifyTimeoutMs)
     
     console.log('New WebSocket connection')
     
@@ -216,6 +236,7 @@ export class WebSocketGateway {
         switch (payload.op) {
           case 2: // IDENTIFY
             botConnection = await this.handleIdentify(ws, payload.d)
+            if (botConnection) clearTimeout(identifyDeadline)
             break
             
           case 1: // HEARTBEAT
@@ -251,6 +272,7 @@ export class WebSocketGateway {
     })
     
     ws.on('close', () => {
+      clearTimeout(identifyDeadline)
       if (botConnection) {
         console.log(`Bot disconnected: ${botConnection.username}`)
         this.connections.delete(ws)
@@ -288,6 +310,18 @@ export class WebSocketGateway {
     if (!verification || !verification.valid) {
       console.warn('Invalid bot token attempt')
       ws.close(4004, identifyRefusalReason(verification))
+      return null
+    }
+
+    // Closed during verification (identify deadline, client gone): nothing is registered.
+    if (ws.readyState !== WebSocket.OPEN) return null
+
+    // No await between this count and connections.set: concurrent identifies of one bot in this
+    // process see each other.
+    const open = this.connectionCount(verification.bot_id, ws)
+    if (open >= config.websocket.maxConnectionsPerBot) {
+      console.warn(`Bot ${verification.bot_id} already holds ${open} connections; refusing another`)
+      ws.close(TOO_MANY_CONNECTIONS_CLOSE, 'Too many connections')
       return null
     }
     
@@ -374,8 +408,8 @@ export class WebSocketGateway {
       for (const [ws, conn] of this.connections) {
         if (now - conn.lastHeartbeat > timeout) {
           console.warn(`Bot heartbeat timeout: ${conn.username}`)
-          ws.close(1000, 'Heartbeat timeout')
           this.connections.delete(ws)
+          closeAtOnce(ws, 1000, 'Heartbeat timeout')
         }
       }
     }, config.websocket.heartbeatInterval)
@@ -491,6 +525,15 @@ export class WebSocketGateway {
     return Array.from(this.connections.values())
   }
   
+  /** Identified connections of a bot, `except` excluded. */
+  private connectionCount(botId: string, except?: WebSocket): number {
+    let count = 0
+    for (const [ws, conn] of this.connections) {
+      if (conn.botId === botId && ws !== except) count++
+    }
+    return count
+  }
+
   isBotConnected(botId: string): boolean {
     for (const conn of this.connections.values()) {
       if (conn.botId === botId) {

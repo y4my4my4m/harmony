@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
     port: 3002,
     nodeEnv: 'test',
     instanceDomain: 'harmony.test',
-    websocket: { heartbeatInterval: 30_000, maxConnectionsPerBot: 5, revalidateIntervalMs: 30_000 },
+    websocket: { heartbeatInterval: 30_000, maxConnectionsPerBot: 5, identifyTimeoutMs: 30_000, revalidateIntervalMs: 30_000 },
     rateLimit: { windowMs: 60_000, maxRequests: 100 },
   },
 }))
@@ -29,6 +29,8 @@ import {
   FRAME_LIMIT,
   FRAME_WINDOW_MS,
   FrameRateLimiter,
+  NOT_AUTHENTICATED_CLOSE,
+  TOO_MANY_CONNECTIONS_CLOSE,
   WebSocketGateway,
   parsePresenceDeltas,
   sessionRevocationReason,
@@ -124,6 +126,8 @@ beforeEach(async () => {
   mocks.rpc.mockReset()
   tableCalls.length = 0
   mocks.config.websocket.heartbeatInterval = 30_000
+  mocks.config.websocket.maxConnectionsPerBot = 5
+  mocks.config.websocket.identifyTimeoutMs = 30_000
   mocks.config.websocket.revalidateIntervalMs = 30_000
   stubTables()
   vi.spyOn(console, 'log').mockImplementation(() => {})
@@ -342,6 +346,178 @@ describe('gateway disconnect', () => {
     ws.close()
     await vi.waitFor(() => expect(offlineWrites()).toHaveLength(1))
     expect(offlineWrites()[0]).toContainEqual(['gateway_session_id', event.frame.d.session_id])
+  })
+})
+
+describe('connections per bot', () => {
+  function closeOf(ws: WebSocket): Promise<{ code: number; reason: string }> {
+    return new Promise((resolve) => ws.once('close', (code, raw) => resolve({ code, reason: raw.toString() })))
+  }
+
+  const presenceUpserts = () => tableCalls.filter((c) => c.table === 'bot_presence' && c.method === 'upsert')
+
+  it('refuses the identify past WS_MAX_CONNECTIONS_PER_BOT and admits one after a close', async () => {
+    mocks.config.websocket.maxConnectionsPerBot = 2
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+    const first = await identify(TOKEN)
+    const second = await identify(TOKEN)
+    expect(first.event.frame.t).toBe('READY')
+    expect(second.event.frame.t).toBe('READY')
+
+    const third = await connect()
+    const refused = closeOf(third)
+    third.send(JSON.stringify({ op: 2, d: { token: TOKEN } }))
+
+    expect(TOO_MANY_CONNECTIONS_CLOSE).toBe(4029)
+    expect(await refused).toEqual({ code: 4029, reason: 'Too many connections' })
+    expect(gateway.getTotalConnectionCount()).toBe(2)
+    expect(presenceUpserts()).toHaveLength(2)
+
+    first.ws.close()
+    await vi.waitFor(() => expect(gateway.getTotalConnectionCount()).toBe(1))
+    const fourth = await identify(TOKEN)
+    expect(fourth.event.frame.t).toBe('READY')
+    expect(gateway.getTotalConnectionCount()).toBe(2)
+  })
+
+  it('counts concurrent identifies of one bot', async () => {
+    mocks.config.websocket.maxConnectionsPerBot = 1
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+    const results = await Promise.all([identify(TOKEN), identify(TOKEN), identify(TOKEN)])
+
+    expect(results.filter((r) => r.event.frame?.t === 'READY')).toHaveLength(1)
+    expect(results.filter((r) => r.event.close === 4029)).toHaveLength(2)
+    expect(gateway.getTotalConnectionCount()).toBe(1)
+  })
+
+  it('limits each bot separately', async () => {
+    mocks.config.websocket.maxConnectionsPerBot = 1
+    const OTHER_BOT = '00000000-0000-0000-0000-0000000000b9'
+    mocks.rpc
+      .mockResolvedValueOnce({ data: VALID_VERIFICATION, error: null })
+      .mockResolvedValueOnce({ data: { ...VALID_VERIFICATION, bot_id: OTHER_BOT, username: 'otherbot' }, error: null })
+    const first = await identify(TOKEN)
+    const other = await identify('another-token')
+
+    expect(first.event.frame.t).toBe('READY')
+    expect(other.event.frame.t).toBe('READY')
+    expect(gateway.getConnectedBotCount()).toBe(2)
+  })
+})
+
+describe('identify deadline', () => {
+  const DEADLINE_MS = 100
+
+  function closeOf(ws: WebSocket, timeoutMs = 2000): Promise<{ code: number; reason: string }> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`no close within ${timeoutMs}ms`)), timeoutMs)
+      ws.once('close', (code, raw) => {
+        clearTimeout(timer)
+        resolve({ code, reason: raw.toString() })
+      })
+    })
+  }
+
+  beforeEach(() => {
+    mocks.config.websocket.identifyTimeoutMs = DEADLINE_MS
+  })
+
+  it('closes a socket that never identifies with 4003', async () => {
+    const ws = await connect()
+    const opened = Date.now()
+
+    expect(NOT_AUTHENTICATED_CLOSE).toBe(4003)
+    expect(await closeOf(ws)).toEqual({ code: 4003, reason: 'Not authenticated' })
+    expect(Date.now() - opened).toBeGreaterThanOrEqual(DEADLINE_MS - 10)
+  })
+
+  it('closes a socket that sends frames but never identifies', async () => {
+    const ws = await connect()
+    ws.send(JSON.stringify({ op: 1 }))
+    ws.send(JSON.stringify({ op: 7, d: { updates: [] } }))
+
+    expect(await closeOf(ws)).toEqual({ code: 4003, reason: 'Not authenticated' })
+  })
+
+  it('keeps a socket that identified in time', async () => {
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+    const { ws, event } = await identify(TOKEN)
+    expect(event.frame.t).toBe('READY')
+
+    await new Promise((resolve) => setTimeout(resolve, DEADLINE_MS * 3))
+    expect(ws.readyState).toBe(WebSocket.OPEN)
+    expect(gateway.isBotConnected(BOT_ID)).toBe(true)
+  })
+
+  it('registers nothing for an identify still verifying at the deadline', async () => {
+    mocks.rpc.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve({ data: VALID_VERIFICATION, error: null }), DEADLINE_MS * 3)),
+    )
+    const ws = await connect()
+    const closed = closeOf(ws)
+    ws.send(JSON.stringify({ op: 2, d: { token: TOKEN } }))
+
+    expect(await closed).toEqual({ code: 4003, reason: 'Not authenticated' })
+    await new Promise((resolve) => setTimeout(resolve, DEADLINE_MS * 4))
+    expect(mocks.rpc).toHaveBeenCalledTimes(1)
+    expect(gateway.getTotalConnectionCount()).toBe(0)
+    expect(tableCalls.filter((c) => c.table === 'bot_presence' && c.method === 'upsert')).toEqual([])
+  })
+})
+
+describe('heartbeat timeout', () => {
+  const HEARTBEAT_MS = 100
+
+  beforeEach(() => {
+    gateway.shutdown()
+    wss.removeAllListeners('connection')
+    mocks.config.websocket.heartbeatInterval = HEARTBEAT_MS
+    gateway = new WebSocketGateway(wss)
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+  })
+
+  /** Session ids the server-side close handler wrote offline. */
+  function offlineSessions(): unknown[] {
+    const sessions: unknown[] = []
+    let offline = false
+    for (const c of tableCalls) {
+      if (c.table !== 'bot_presence') continue
+      if (c.method === 'update') offline = c.args[0]?.status === 'offline'
+      else if (offline && c.method === 'eq' && c.args[0] === 'gateway_session_id') sessions.push(c.args[1])
+    }
+    return sessions
+  }
+
+  it('closes a live connection that stops heartbeating with 1000', async () => {
+    const { ws } = await identify(TOKEN)
+    const closed = new Promise<{ code: number; reason: string }>((resolve) =>
+      ws.once('close', (code, raw) => resolve({ code, reason: raw.toString() })),
+    )
+
+    expect(await closed).toEqual({ code: 1000, reason: 'Heartbeat timeout' })
+    expect(gateway.isBotConnected(BOT_ID)).toBe(false)
+  })
+
+  // A peer that never answers the close frame: with close() alone, ws holds the socket and
+  // defers the close handler for its 30 s closing-handshake timeout.
+  it('releases a dead peer at once', async () => {
+    const { ws, event } = await identify(TOKEN)
+    ;(ws as unknown as { _socket: { pause(): void } })._socket.pause()
+
+    await vi.waitFor(() => expect(offlineSessions()).toContain(event.frame.d.session_id), { timeout: 2_000 })
+    expect(gateway.isBotConnected(BOT_ID)).toBe(false)
+  })
+
+  it('keeps a connection that heartbeats', async () => {
+    const { ws } = await identify(TOKEN)
+    const beat = setInterval(() => ws.send(JSON.stringify({ op: 1 })), HEARTBEAT_MS / 2)
+    try {
+      await new Promise((resolve) => setTimeout(resolve, HEARTBEAT_MS * 6))
+      expect(ws.readyState).toBe(WebSocket.OPEN)
+      expect(gateway.isBotConnected(BOT_ID)).toBe(true)
+    } finally {
+      clearInterval(beat)
+    }
   })
 })
 
