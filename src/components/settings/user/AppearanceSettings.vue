@@ -1693,7 +1693,7 @@ onBeforeUnmount(() => {
   flex: 1;
   padding: 12px 16px;
   border: 2px solid var(--background-quaternary);
-  background-color: var(--background-senary);
+  background-color: var(--surface-inset);
   color: var(--text-secondary);
   border-radius: var(--radius-base);
   cursor: pointer;
@@ -1720,7 +1720,7 @@ onBeforeUnmount(() => {
   width: 44px;
   height: 44px;
   border: 2px solid var(--background-quaternary, var(--border-color));
-  background-color: var(--background-senary, var(--background-tertiary));
+  background-color: var(--surface-inset);
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: all 0.15s ease;
@@ -1754,7 +1754,7 @@ onBeforeUnmount(() => {
   gap: 8px;
   padding: 16px 20px;
   border: 2px solid var(--background-quaternary);
-  background-color: var(--background-senary);
+  background-color: var(--surface-inset);
   color: var(--text-secondary);
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -1837,7 +1837,7 @@ onBeforeUnmount(() => {
 .skin-card-preview {
   width: 100%;
   height: 140px;
-  background: var(--background-senary);
+  background: var(--surface-inset);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1854,17 +1854,20 @@ onBeforeUnmount(() => {
 .skin-card-preview-none {
   background: repeating-linear-gradient(
     45deg,
-    var(--background-senary),
-    var(--background-senary) 10px,
-    var(--background-secondary) 10px,
-    var(--background-secondary) 20px
+    var(--background-tertiary),
+    var(--background-tertiary) 10px,
+    var(--background-quaternary) 10px,
+    var(--background-quaternary) 20px
   );
 }
 
 .skin-card-none-label {
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  background: var(--background-secondary);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 .skin-card-info {
@@ -2291,7 +2294,7 @@ onBeforeUnmount(() => {
   width: 28px;
   height: 28px;
   border: 1px solid var(--background-quaternary);
-  background-color: var(--background-senary);
+  background-color: var(--surface-inset);
   color: var(--text-primary);
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -2320,7 +2323,7 @@ onBeforeUnmount(() => {
 
 .select-input {
   padding: 8px 12px;
-  background-color: var(--background-senary);
+  background-color: var(--surface-inset);
   border: 1px solid var(--background-quaternary);
   border-radius: var(--radius-sm);
   color: var(--text-primary);

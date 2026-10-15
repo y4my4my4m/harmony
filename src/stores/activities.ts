@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 import { supabase } from '@/supabase'
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
+import { useAuthStore } from '@/stores/auth'
 import {
   controlActivity,
   expectedPosition,
@@ -23,6 +24,10 @@ import {
  * data channel; a state replaces the held one only with a higher revision (an end, null, always
  * applies when it comes from the database). While in a call with an activity the row is read
  * again every POLL_MS (POLL_OFFLINE_MS while realtime is down), which settles missed events.
+ *
+ * Nothing plays without consent: a run (channel and started_at) plays for the member who
+ * started it and for members who chose Join; the others get an invite naming the source and
+ * title, never its picture.
  */
 
 /** Row re-read period in a call, ms. */
@@ -58,6 +63,8 @@ export const useActivitiesStore = defineStore('activities', () => {
   const muted = ref(false)
   /** Channels whose activity this client chose not to play. */
   const hidden = ref<Set<string>>(new Set())
+  /** Runs, `${channel_id}:${started_at}`, this client joined. */
+  const joined = ref<Set<string>>(new Set())
   /** Elements the player shows itself over, last registered first. */
   const slots = shallowRef<HTMLElement[]>([])
   const status = ref<ActivityPlayerStatus>({ ready: false, playing: false, buffering: false, positionMs: 0, durationMs: 0, error: null })
@@ -80,7 +87,14 @@ export const useActivitiesStore = defineStore('activities', () => {
     return id ? byChannel.value[id] ?? null : null
   })
 
-  const playingHere = computed(() => !!current.value && !hidden.value.has(current.value.channel_id))
+  const runKey = (a: VoiceActivity) => `${a.channel_id}:${a.started_at}`
+  const accepted = (a: VoiceActivity) => a.host_id === useAuthStore().session?.user?.id || joined.value.has(runKey(a))
+
+  const playingHere = computed(() => !!current.value && !hidden.value.has(current.value.channel_id) && accepted(current.value))
+  /** The call's activity while it does not play here: never joined, declined, or stopped for me. */
+  const waiting = computed(() => (current.value && !playingHere.value ? current.value : null))
+  /** waiting, and the member has not answered its invite yet. */
+  const invited = computed(() => !!waiting.value && !hidden.value.has(waiting.value.channel_id))
   const slot = computed(() => slots.value[0] ?? null)
 
   function serverTime(): number {
@@ -119,10 +133,15 @@ export const useActivitiesStore = defineStore('activities', () => {
       }
     }
     byChannel.value = { ...byChannel.value, [channelId]: activity }
-    if (!activity) {
+    if (!activity || (held && activity.started_at !== held.started_at)) {
       const next = new Set(hidden.value)
       next.delete(channelId)
       hidden.value = next
+      if (held) {
+        const runs = new Set(joined.value)
+        runs.delete(runKey(held))
+        joined.value = runs
+      }
     }
     return true
   }
@@ -234,6 +253,14 @@ export const useActivitiesStore = defineStore('activities', () => {
     hidden.value = next
   }
 
+  /** Plays the call's current run here. */
+  function join(): void {
+    const a = current.value
+    if (!a) return
+    joined.value = new Set(joined.value).add(runKey(a))
+    hide(a.channel_id, false)
+  }
+
   function setVolume(v: number): void {
     volume.value = Math.min(1, Math.max(0, v))
     muted.value = false
@@ -290,8 +317,8 @@ export const useActivitiesStore = defineStore('activities', () => {
   }
 
   return {
-    byChannel, offsetMs, volume, muted, hidden, slots, slot, status, busy, launcherOpen, launcherAnchor,
-    voiceChannelId, current, playingHere,
+    byChannel, offsetMs, volume, muted, hidden, joined, slots, slot, status, busy, launcherOpen, launcherAnchor,
+    voiceChannelId, current, playingHere, waiting, invited, join,
     serverTime, position, syncClock, apply, refresh, refreshServer, start, control, stop, togglePlay, seek,
     itemEnded, receiveBroadcast, receivePeer, hide, setVolume, registerSlot, setStatus, enterCall,
   }

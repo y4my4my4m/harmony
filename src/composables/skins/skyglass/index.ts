@@ -10,6 +10,8 @@
  *
  * Assets:
  *   public/assets/skins/skyglass-preview.svg   picker thumbnail
+ *   public/assets/skins/skyglass/meadow.webp   day wallpaper
+ *   public/assets/skins/skyglass/lagoon.webp   night wallpaper
  *   public/assets/sounds/skyglass/             linked audio theme
  *                                              (scripts/sound-packs/skyglass.mjs)
  */
@@ -20,19 +22,30 @@ export const skyglassSkin: Skin = {
   name: 'Skyglass',
   description:
     'Glossy, airy and bright: frosted-glass panels floating over a sky of ' +
-    'clouds, light rays and bubbles. Gel buttons, glass-orb servers and ' +
-    'avatars, chat bubbles and springy menus. Switch the theme to dark for a ' +
-    'night lagoon; primary and accent recolour the sky. Pairs with the ' +
-    'Skyglass sound pack of glass bells and water drops.',
+    'clouds, light rays and bubbles, or a painted meadow. Gel buttons, ' +
+    'glass-orb servers and avatars, chat bubbles and springy menus. Switch the ' +
+    'theme to dark for a night lagoon; primary and accent recolour the drawn ' +
+    'sky. Pairs with the Skyglass sound pack of glass bells and water drops.',
   isBeta: true,
   preview: '/assets/skins/skyglass-preview.svg',
   options: [
     {
       id: 'sky',
       label: 'Sky scene',
-      description: 'Clouds, sun glow and light rays behind the glass. Off leaves a plain gradient.',
+      description:
+        'Clouds, sun glow and light rays over the drawn sky, with the painted ' +
+        'wallpaper off. Off leaves a plain gradient.',
       type: 'boolean',
       default: true,
+    },
+    {
+      id: 'wallpaper',
+      label: 'Painted wallpaper',
+      description:
+        'A meadow of glossy grass, bubbles and light ribbons; an aurora lagoon in ' +
+        'dark theme. Off draws the sky from the theme colours.',
+      type: 'boolean',
+      default: false,
     },
     {
       id: 'bubbles',

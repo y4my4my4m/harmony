@@ -32,6 +32,7 @@
         />
         <SoundboardActivity class="dock-soundboard-activity" />
         <ActivityDockCard v-if="dockActivity" :activity="dockActivity" />
+        <ActivityInvite v-else-if="dockInvite" :activity="dockInvite" />
       </div>
       <!-- Tapping expands to overlay on viewports <= 480px -->
       <div 
@@ -523,6 +524,7 @@ import { useSoundboardButton } from './useSoundboardButton';
 import { useActivityButton } from '@/components/activities/useActivityButton';
 import { useActivitiesStore } from '@/stores/activities';
 import ActivityDockCard from '@/components/activities/ActivityDockCard.vue';
+import ActivityInvite from '@/components/activities/ActivityInvite.vue';
 import ActivityLauncher from '@/components/activities/ActivityLauncher.vue';
 import { showsMinimizedAudioControls } from './minimizedVoiceControls';
 import { userPanelDocked } from '@/composables/useUserPanelDock';
@@ -816,6 +818,7 @@ const activityButton = useActivityButton(dockActivityButtonRef);
 const activitiesStore = useActivitiesStore();
 // The dock card shows while the overlay is closed; the overlay shows the stage instead.
 const dockActivity = computed(() => (currentMode.value === 'dock' && activitiesStore.playingHere ? activitiesStore.current : null));
+const dockInvite = computed(() => (currentMode.value === 'dock' ? activitiesStore.waiting : null));
 
 const closeStreamPicker = () => {
   showStreamPicker.value = false;

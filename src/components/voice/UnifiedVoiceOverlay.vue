@@ -2,7 +2,6 @@
   <Teleport to="body">
     <!-- Overlay and its popovers: one root, so everything outside it is inert while the call view is open -->
     <div ref="layerEl" class="voice-overlay-layer">
-    <!-- Background blur -->
     <div class="overlay-backdrop" :class="{ 'overlay-entering': isEntering, 'overlay-leaving': isLeaving }"></div>
     <div
       v-if="voiceStore.isOverlayVisible"
@@ -141,6 +140,7 @@
         >
           <div class="stage-banner">
             <VoiceCallBanner />
+            <ActivityInvite v-if="activitiesStore.waiting" :activity="activitiesStore.waiting" class="stage-invite" @click.stop />
           </div>
           <!-- Activity: the shared player, the call as a filmstrip -->
           <template v-if="stageActivity">
@@ -148,7 +148,17 @@
               <ActivityStage :activity="stageActivity" />
             </div>
             <div v-if="tiles.length > 0" class="filmstrip-container" @click.stop>
-              <div class="filmstrip">
+              <button
+                type="button"
+                class="filmstrip-toggle"
+                :aria-expanded="!filmstripHidden"
+                data-testid="activity-filmstrip-toggle"
+                @click="toggleFilmstrip"
+              >
+                <Icon :name="filmstripHidden ? 'chevron-up' : 'chevron-down'" :size="14" />
+                {{ filmstripHidden ? t('voice.showParticipants', { count: tiles.length }) : t('voice.hideParticipants') }}
+              </button>
+              <div v-if="!filmstripHidden" class="filmstrip">
                 <VoiceTile
                   v-for="tile in tiles"
                   :key="tile.id"
@@ -304,8 +314,9 @@
               <Icon name="screen-share" />
             </button>
 
+            <!-- The activity view has its own react button, aimed at the player. -->
             <button
-              v-if="voiceStore.liveReactionsAvailable"
+              v-if="voiceStore.liveReactionsAvailable && !stageActivity"
               ref="reactButtonRef"
               @click="showReactions = !showReactions"
               class="control-button"
@@ -428,6 +439,7 @@ import { useSoundboardButton } from './useSoundboardButton';
 import { useActivityButton } from '@/components/activities/useActivityButton';
 import { useActivitiesStore } from '@/stores/activities';
 import ActivityStage from '@/components/activities/ActivityStage.vue';
+import ActivityInvite from '@/components/activities/ActivityInvite.vue';
 import ConfettiEffect from '../easteregg/ConfettiEffect.vue';
 import Icon from '@/components/common/Icon.vue';
 import DisplayName from '@/components/DisplayName.vue';
@@ -466,6 +478,15 @@ const activityButtonRef = ref<HTMLButtonElement | null>(null);
 const activityButton = useActivityButton(activityButtonRef);
 const activitiesStore = useActivitiesStore();
 const stageActivity = computed(() => (activitiesStore.playingHere ? activitiesStore.current : null));
+
+const FILMSTRIP_KEY = 'harmony:activity-filmstrip-hidden';
+const filmstripHidden = ref((() => {
+  try { return localStorage.getItem(FILMSTRIP_KEY) === '1'; } catch { return false; }
+})());
+function toggleFilmstrip(): void {
+  filmstripHidden.value = !filmstripHidden.value;
+  try { localStorage.setItem(FILMSTRIP_KEY, filmstripHidden.value ? '1' : '0'); } catch { /* private mode */ }
+}
 
 watch(showStreamPicker, (open) => {
   if (!open) void nextTick(() => restoreFocusIfLost(shareButtonRef.value));
@@ -1026,6 +1047,9 @@ onUnmounted(() => {
   animation: overlay-leave 0.3s cubic-bezier(0.55, 0.06, 0.68, 0.19);
 }
 
+/* Flat scrim, no backdrop blur: the call panel covers all but the margin, and a full-window
+   blur re-renders on every video frame (activity player, cameras): 1.1 s of CPU per second
+   against 0.07 s flat, measured in Chromium with a YouTube activity playing. */
 .overlay-backdrop {
   position: absolute;
   top: 0;
@@ -1033,8 +1057,8 @@ onUnmounted(() => {
   right: 0;
   bottom: 0;
   z-index: 1000;
-  backdrop-filter: blur(8px);
-  transition: all 0.3s ease;
+  background: rgba(0, 0, 0, 0.55);
+  transition: opacity 0.3s ease;
   opacity: 1;
 }
 .overlay-backdrop.overlay-entering {
@@ -1042,12 +1066,6 @@ onUnmounted(() => {
 }
 .overlay-backdrop.overlay-leaving {
   opacity: 0;
-}
-
-/* Appearance > blur off: a flat scrim instead of backdrop blur. */
-:root[data-disable-blur="true"] .overlay-backdrop {
-  backdrop-filter: none;
-  background: rgba(0, 0, 0, 0.55);
 }
 
 :root[data-disable-blur="true"] .settings-overlay-wrapper {
@@ -1078,6 +1096,9 @@ onUnmounted(() => {
   top: 12px;
   left: 50%;
   z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   transform: translateX(-50%);
   width: min(460px, calc(100% - 24px));
   pointer-events: none;
@@ -1086,6 +1107,10 @@ onUnmounted(() => {
 .stage-banner :deep(.vcb) {
   pointer-events: auto;
   box-shadow: var(--shadow-medium);
+}
+
+.stage-invite {
+  pointer-events: auto;
 }
 
 .voice-container {
@@ -1348,6 +1373,11 @@ onUnmounted(() => {
   background: color-mix(in srgb, #000 35%, transparent);
 }
 
+/* The 35% black over the light window is a flat #a0a0a0 between white chrome and tiles. */
+:root[data-theme-type="light"] .stage {
+  background: var(--background-quinary);
+}
+
 .voice-container.native-fullscreen .stage {
   padding: 0;
   background: #000;
@@ -1391,7 +1421,27 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   flex-shrink: 0;
+  gap: 6px;
   padding-top: 4px;
+}
+
+.filmstrip-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  background: none;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-full);
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.filmstrip-toggle:hover {
+  color: var(--text-primary);
+  border-color: var(--border-hover);
 }
 
 .filmstrip-collapse-btn {

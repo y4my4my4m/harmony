@@ -614,7 +614,8 @@ const closeForm = () => {
   border: 1px solid color-mix(in srgb, var(--harmony-primary) 30%, transparent);
   border-radius: 16px;
   font-size: 12px;
-  color: var(--text-link);
+  /* --text-link is checked against plain surfaces, not this tint. */
+  color: var(--text-primary);
   font-weight: 500;
 }
 

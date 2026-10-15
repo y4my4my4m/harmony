@@ -555,13 +555,13 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-full);
-  background: var(--error);
+  background: var(--error-fill, var(--error));
   box-shadow: 0 0 0 2px var(--background-tertiary);
   pointer-events: none;
 }
 
 .badge-text {
-  color: #fff;
+  color: var(--text-on-primary, #fff);
   font-size: 10px;
   font-weight: var(--font-weight-bold);
   line-height: 1;

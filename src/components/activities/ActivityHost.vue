@@ -95,6 +95,7 @@ import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import { isListenActivity } from '@/services/activities/activityService'
 import { mediaPartSource } from '@/services/privateMedia'
 import { embedRelayOrigin, EMBED_RELAY_PATH } from '@/utils/embedDetection'
+import { suspendGlass } from '@/composables/useVisualTheme'
 
 const TICK_MS = 250
 const SEEK_DRIFT_MS = 1500
@@ -307,7 +308,12 @@ onMounted(() => {
   trackSlot()
 })
 
+// Blurred panels re-render under every video frame; the skins' blur-off look stands in meanwhile.
+const showsVideo = computed(() => active.value && !listen.value && placement.value !== 'hidden')
+watch(showsVideo, (on) => suspendGlass('activity-video', on), { immediate: true })
+
 onBeforeUnmount(() => {
+  suspendGlass('activity-video', false)
   window.removeEventListener('message', onMessage)
   if (tickTimer) clearInterval(tickTimer)
   cancelAnimationFrame(rafId)

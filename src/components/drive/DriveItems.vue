@@ -415,6 +415,11 @@ defineExpose({ focusFirst: () => focusAt(0) })
   font-variant-numeric: tabular-nums;
 }
 
+/* Muted text on the selection tint is 4.4:1 in dark. */
+.drive-tile.is-selected .drive-tile__sub {
+  color: var(--text-secondary);
+}
+
 .drive-tile.drive-item--folder {
   padding: 0;
 }

@@ -94,7 +94,7 @@ const {
 
 <style scoped>
 .audio-theme-picker {
-  background: var(--background-senary);
+  background: var(--surface-inset);
   border-radius: 8px;
   padding: 16px;
 }

@@ -720,6 +720,14 @@ const copyRawData = async () => {
   cursor: inherit;
 }
 
+/* Icons are 16 to 20px wide; a fixed box keeps the labels in one column. */
+.context-menu-item > :deep(:is(.icon-component, .icon)) {
+  display: inline-flex;
+  flex: 0 0 20px;
+  justify-content: center;
+  width: 20px;
+}
+
 .context-menu-item:hover,
 .context-menu-item:focus {
   background-color: var(--harmony-primary-fill);

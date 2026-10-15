@@ -144,7 +144,7 @@ onBeforeUnmount(() => release?.())
   flex-direction: column;
   gap: 12px;
   width: 100%;
-  max-width: 1100px;
+  height: 100%;
   min-height: 0;
   margin: 0 auto;
 }
@@ -215,16 +215,15 @@ onBeforeUnmount(() => release?.())
 
 .activity-stage__screen {
   position: relative;
+  flex: 1 1 auto;
   width: 100%;
-  aspect-ratio: 16 / 9;
-  max-height: calc(100 * var(--app-vh) - 330px);
   min-height: 160px;
   background: #000;
   border-radius: 10px;
 }
 
 .activity-stage__screen.is-listen {
-  aspect-ratio: auto;
+  flex: 0 0 auto;
   height: clamp(180px, calc(36 * var(--app-vh)), 360px);
 }
 

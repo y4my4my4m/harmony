@@ -29,17 +29,23 @@
 
 :root[data-skin="sdr-001"] {
   --sdr-red: var(--harmony-primary, #dc143c);
+  /* Red as text on --sdr-ink: 6.3:1 for #dc143c. */
+  --sdr-red-glow: color-mix(in srgb, var(--sdr-red) 66%, #fff);
   /* 6:1 on the chat surface; --sdr-red itself is 4:1 and reserved for fills
      and rules. */
-  --sdr-red-text: color-mix(in srgb, var(--sdr-red) 66%, #fff);
+  --sdr-red-text: var(--sdr-red-glow);
   --sdr-red-line: color-mix(in srgb, var(--sdr-red) 55%, transparent);
   --sdr-red-wash: color-mix(in srgb, var(--sdr-red) 16%, transparent);
   --sdr-red-faint: color-mix(in srgb, var(--sdr-red) 7%, transparent);
-  /* Label grey from the preview art, 6.9:1 on --background-primary. */
-  --sdr-steel: #8f98aa;
+  /* Label grey from the preview art, lifted to 4.6:1 on the midnight
+     mention wash; 7.1:1 on --background-primary. */
+  --sdr-steel: #959eb0;
   --sdr-steel-line: rgb(143 152 170 / 0.24);
   --sdr-steel-faint: rgb(143 152 170 / 0.1);
   --sdr-ink: #05070c;
+  /* Recessed fill: code, chips, inset fields. */
+  --sdr-well: var(--sdr-ink);
+  --sdr-scan: rgb(0 0 0 / 0.14);
   --sdr-font: 'NoRe Sans Pixel Pro', 'Figtree', ui-monospace, monospace;
   --sdr-drop: 4px 4px 0 rgb(0 0 0 / 0.55);
 
@@ -62,17 +68,31 @@
   --background-modifier-hover: var(--sdr-steel-faint);
   --background-modifier-selected: var(--sdr-red-wash);
   --background-modifier-active: var(--sdr-red-wash);
-  --surface-inset: var(--sdr-ink);
+  --surface-inset: var(--sdr-well);
 
   color-scheme: dark;
   scrollbar-color: var(--sdr-steel-line) transparent;
 }
 
-/* Theme-written inline tokens. #6d6f78 muted text is 4:1 on these surfaces;
-   the replacements clear 6:1. */
+/* Light theme: surfaces, text and rail follow the theme; red, steel and the
+   hard frames stay. Red text and steel clear 4.5:1 from #ffffff down to the
+   #dfe0e1 hover surface and on the red wash (#dc143c 7.7:1, #0ea5e9 4.6:1;
+   steel 5.1:1). */
+:root[data-skin="sdr-001"][data-theme-type="light"] {
+  --sdr-red-text: color-mix(in srgb, var(--sdr-red) 60%, #000);
+  --sdr-steel: #535c6e;
+  --sdr-steel-line: rgb(83 92 110 / 0.3);
+  --sdr-steel-faint: rgb(83 92 110 / 0.1);
+  --sdr-well: var(--background-tertiary);
+  --sdr-scan: rgb(0 0 0 / 0.045);
+  --sdr-drop: 4px 4px 0 rgb(5 7 12 / 0.22);
+  --shadow-modal: 0 0 0 1px var(--sdr-ink), 6px 6px 0 rgb(5 7 12 / 0.28);
+
+  color-scheme: light;
+}
+
+/* Theme-written inline tokens. */
 :root[data-skin="sdr-001"] body {
-  --text-tertiary: #9aa1b0;
-  --text-muted: #8a92a3;
   --border-primary: var(--sdr-steel-line);
   --border-secondary: var(--sdr-steel-faint);
   --border-color: var(--sdr-steel-line);
@@ -80,6 +100,12 @@
   --input-border: var(--sdr-steel-line);
   --channel-item-hover-bg: var(--sdr-steel-faint);
   --channel-item-selected-bg: var(--sdr-red-wash);
+}
+/* #6d6f78 muted text is 4:1 on the dark surfaces; the replacements clear
+   6:1. The light theme keeps its own text and rail tokens. */
+:root[data-skin="sdr-001"]:not([data-theme-type="light"]) body {
+  --text-tertiary: #9aa1b0;
+  --text-muted: #8a92a3;
   --nav-rail-button-bg: var(--sdr-ink);
 }
 
@@ -172,7 +198,8 @@
   .visibility-chip-label,
   .secondary-links a,
   .powered-by a,
-  .unread-toggle.active
+  .unread-toggle.active,
+  .info-badge
 ) {
   color: var(--sdr-red-text);
 }
@@ -194,7 +221,9 @@
   .send-button,
   .settings-close,
   .close-btn,
-  .modal-close
+  .modal-close,
+  .rich-text-editor.bordered,
+  .info-badge
 ) {
   border-radius: 2px;
 }
@@ -216,7 +245,9 @@
   .search-result-avatar,
   .creator-avatar,
   .thread-avatar,
-  .toast-avatar
+  .toast-avatar,
+  .avatar-ring,
+  .participant-item .speaking
 ) {
   border-radius: 2px;
 }
@@ -300,14 +331,22 @@
 :root[data-skin="sdr-001"] .new-messages-line {
   background: var(--sdr-red);
 }
+/* The component fills the tag with --harmony-secondary; white on #38bdf8 is
+   2.1:1. The tag takes the line's red. */
+:root[data-skin="sdr-001"] .new-messages-label {
+  border-radius: 0;
+  background-color: var(--sdr-red);
+  font-family: var(--sdr-font);
+}
 :root[data-skin="sdr-001"] .message-avatar .avatar-image {
   box-shadow: 0 0 0 1px var(--sdr-steel-line);
 }
 
-/* 2.12 Code. Block frame is ink with a red gutter rule; inner <code> carries
-   no frame of its own. Syntax colours are untouched. */
+/* 2.12 Code. Block frame is the well with a red gutter rule: ink in dark
+   themes, the theme surface in light, where CodeBlock.vue switches to its
+   light syntax palette. Inner <code> carries no frame of its own. */
 :root[data-skin="sdr-001"] .code-block-wrapper {
-  background-color: var(--sdr-ink);
+  background-color: var(--sdr-well);
   border: 1px solid var(--sdr-steel-line);
   border-radius: 2px;
   box-shadow: inset 2px 0 0 var(--sdr-red);
@@ -325,8 +364,13 @@
 :root[data-skin="sdr-001"] .code-block-wrapper .code-block {
   background: transparent;
 }
+:root[data-skin="sdr-001"] .code-block-wrapper .copy-button:not(:hover, .copied) {
+  border-color: var(--sdr-red-line);
+  background-color: transparent;
+  color: var(--sdr-red-text);
+}
 :root[data-skin="sdr-001"] :is(.unified-content, .markdown-content) :not(pre) > code {
-  background: var(--sdr-ink);
+  background: var(--sdr-well);
   border: 1px solid var(--sdr-steel-line);
   border-radius: 0;
   color: var(--text-primary);
@@ -402,6 +446,12 @@
 :root[data-skin="sdr-001"] :is(.modal-header, .drawer-header, .thread-header, .sidebar-header) {
   border-bottom-color: var(--sdr-steel-line);
 }
+/* shared.css gives every .modal-content the modal shadow, BaseModal's inner
+   body included; here that draws a second ink frame and offset inside the
+   dialog. */
+:root[data-skin="sdr-001"] .modal-container .modal-content {
+  box-shadow: none;
+}
 
 /* 2.17 Menus, popovers and dropdowns. */
 :root[data-skin="sdr-001"] :is(
@@ -417,15 +467,25 @@
   .search-popover,
   .participants-dropdown,
   .notification-panel,
-  .sidebar-tooltip-content
+  .sidebar-tooltip-content,
+  .chat-menu
 ) {
   border: 1px solid var(--sdr-steel-line);
   border-radius: 2px;
   box-shadow: 0 0 0 1px var(--sdr-ink), var(--sdr-drop);
 }
-:root[data-skin="sdr-001"] :is(.context-menu-item, .menu-item, .status-option, .option-item):hover {
+:root[data-skin="sdr-001"] :is(.context-menu-item, .menu-item, .status-option, .option-item, .chat-menu-item):hover:not(:disabled) {
   background-color: var(--sdr-red-wash);
   box-shadow: inset 2px 0 0 var(--sdr-red);
+  color: var(--text-primary);
+}
+/* Components pair their hover fill with --text-on-primary; the wash keeps the
+   surface, so the row keeps surface text. */
+:root[data-skin="sdr-001"] :is(.context-menu-item.destructive-item, .menu-item.destructive, .chat-menu-item.danger):hover:not(:disabled) {
+  color: var(--text-danger);
+}
+:root[data-skin="sdr-001"] .menu-item:hover :is(.menu-item-subtitle, .menu-item-trailing) {
+  color: var(--sdr-steel);
 }
 :root[data-skin="sdr-001"] :is(.context-menu-label, .menu-item-subtitle) {
   color: var(--sdr-steel);
@@ -456,7 +516,7 @@
 :root[data-skin="sdr-001"] .search-chip {
   border: 1px solid var(--sdr-steel-line);
   border-radius: 0;
-  background: var(--sdr-ink);
+  background: var(--sdr-well);
 }
 :root[data-skin="sdr-001"] .search-chip-key {
   font-family: var(--sdr-font);
@@ -521,13 +581,33 @@
 :root[data-skin="sdr-001"] .skin-card.active {
   border-color: var(--sdr-red);
 }
+/* Social sidebar cards and the nav column's top corner. */
+:root[data-skin="sdr-001"] :is(
+  .user-profile-card,
+  .quick-stats,
+  .stat-item,
+  .stats-refresh,
+  .mode-toggle-btn,
+  .instance-info,
+  .sidebar-section
+) {
+  border-radius: 2px;
+}
+:root[data-skin="sdr-001"] .adaptive-channel-sidebar {
+  border-top-left-radius: 2px;
+}
 
 /* 2.25 Member list. */
 :root[data-skin="sdr-001"] .user-sidebar .user-item:hover {
   background-color: var(--sdr-steel-faint);
 }
 
-/* 2.26 User bar. */
+/* 2.26 DM list. The open row carries the channel list's red edge. */
+:root[data-skin="sdr-001"] .conversation-item.active {
+  box-shadow: inset 2px 0 0 var(--sdr-red);
+}
+
+/* 2.27 User bar. */
 :root[data-skin="sdr-001"] .user-profile {
   border-radius: 2px;
   border-color: var(--sdr-steel-line);
@@ -546,7 +626,7 @@
   color: var(--sdr-steel);
 }
 
-/* 2.27 Voice. Speaking is a red frame; the tile's own ::after draws it. */
+/* 2.28 Voice. Speaking is a red frame; the tile's own ::after draws it. */
 :root[data-skin="sdr-001"] .unified-voice-dock .dock-container {
   border: 1px solid var(--sdr-steel-line);
   border-top: 2px solid var(--sdr-red);
@@ -598,9 +678,29 @@
   letter-spacing: 0.1em;
 }
 
-/* 2.28 Sign-in. */
+/* 2.29 Sign-in. */
 :root[data-skin="sdr-001"] .auth-wrapper .input-line {
   background-color: var(--sdr-steel-line);
+}
+
+/* 2.30 Link and provider embeds. embed-previews.css hovers with a white
+   alpha that vanishes on light surfaces. */
+:root[data-skin="sdr-001"] :is(
+  .provider-embed,
+  .provider-embed__post,
+  .provider-embed__post .mony-post,
+  .link-embed-card--thumbnail,
+  .link-embed-card__media,
+  .embed-action
+) {
+  border-radius: 2px;
+}
+:root[data-skin="sdr-001"] .provider-embed__label {
+  font-family: var(--sdr-font);
+  color: var(--sdr-steel);
+}
+:root[data-skin="sdr-001"] .embed-action:hover {
+  background: var(--background-modifier-hover);
 }
 
 /* ============================================================================
@@ -621,7 +721,7 @@
   pointer-events: none;
   background: repeating-linear-gradient(
     to bottom,
-    rgb(0 0 0 / 0.14) 0 1px,
+    var(--sdr-scan) 0 1px,
     transparent 1px 3px
   );
 }
@@ -655,7 +755,7 @@
   padding: 1px 5px;
   font: 700 9px/1.2 var(--sdr-font);
   letter-spacing: 0.18em;
-  color: var(--sdr-red-text);
+  color: var(--sdr-red-glow);
   border: 1px solid var(--sdr-red-line);
   background: var(--sdr-ink);
 }

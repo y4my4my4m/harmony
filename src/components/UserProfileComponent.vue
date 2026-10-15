@@ -463,7 +463,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: 345px;
+  /* Rail 72px + nav 295px, inset 10px on each side. */
+  width: 347px;
   background: var(--background-quinary);
   padding: 10px;
   border-top: 1px solid var(--border-primary);
