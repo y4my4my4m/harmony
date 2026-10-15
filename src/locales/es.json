@@ -609,7 +609,7 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "Leer el historial de mensajes",
-          "description": "Leer mensajes enviados antes de unirse; sin este permiso, los canales empiezan cuando se unieron"
+          "description": "Leer mensajes enviados antes de abrir el canal; sin este permiso, solo ven los mensajes enviados desde que lo abrieron"
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "Usar emojis externos",
@@ -841,7 +841,7 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "Leer el historial de mensajes",
-          "description": "Ver los mensajes publicados antes de unirse."
+          "description": "Ver los mensajes publicados antes de abrir el canal."
         },
         "CREATE_PUBLIC_THREADS": {
           "label": "Crear hilos públicos",
@@ -935,15 +935,15 @@
     "unreadSince": "{count} mensaje nuevo desde {time} | {count} mensajes nuevos desde {time}",
     "markAsRead": "Marcar como leído",
     "jumpToPresent": "Ir al presente",
+    "viewingOlder": "Estás viendo mensajes antiguos",
     "conversationBeginning": "Este es el comienzo de tu conversación",
     "conversationBeginningSubtitle": "¡Comienza a chatear y hazlo memorable!",
     "channelWelcome": "Bienvenido a #{name}",
     "channelWelcomeSubtitle": "Este es el comienzo del canal #{name}.",
-    "historyRestricted": "Los mensajes enviados antes de que te unieras están ocultos: no tienes «Leer el historial de mensajes» en este canal.",
+    "historyRestricted": "Los mensajes enviados antes de que abrieras este canal están ocultos: no tienes «Leer el historial de mensajes» en este canal.",
     "dmBeginning": "Este es el comienzo de tus mensajes directos con {name}.",
     "groupBeginning": "Este es el comienzo del grupo {name}.",
     "groupBeginningUnnamed": "Este es el comienzo de este grupo.",
-    "jumpInConversation": "Saltar en la conversación",
     "reactions": {
       "add": "Añadir reacción",
       "remove": "Quitar reacción",
@@ -1370,6 +1370,7 @@
       "youWereDisconnectedTitle": "Fuera de la voz",
       "youWereDisconnected": "Un moderador te desconectó de la voz.",
       "youWereRemoved": "Ya no eres miembro de este servidor.",
+      "youLostAccess": "Ya no tienes acceso a ese canal de voz.",
       "youWereTimedOut": "Te aislaron temporalmente en este servidor."
     }
   },

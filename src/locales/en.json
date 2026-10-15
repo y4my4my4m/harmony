@@ -609,7 +609,7 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "Read Message History",
-          "description": "Read messages sent before they joined; without it, channels start when they joined"
+          "description": "Read messages sent before they opened the channel; without it, they see only messages sent since they opened it"
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "Use External Emojis",
@@ -841,7 +841,7 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "Read Message History",
-          "description": "See messages posted before they joined."
+          "description": "See messages posted before they opened the channel."
         },
         "CREATE_PUBLIC_THREADS": {
           "label": "Create Public Threads",
@@ -950,15 +950,15 @@
     "unreadSince": "{count} new message since {time} | {count} new messages since {time}",
     "markAsRead": "Mark as read",
     "jumpToPresent": "Jump to present",
+    "viewingOlder": "You're viewing older messages",
     "conversationBeginning": "This is the beginning of your conversation",
     "conversationBeginningSubtitle": "This is the start of your conversation.",
     "channelWelcome": "Welcome to #{name}",
     "channelWelcomeSubtitle": "This is the start of the #{name} channel.",
-    "historyRestricted": "Messages sent before you joined are hidden: you don't have Read Message History in this channel.",
+    "historyRestricted": "Messages sent before you opened this channel are hidden: you don't have Read Message History in this channel.",
     "dmBeginning": "This is the very beginning of your direct messages with {name}.",
     "groupBeginning": "This is the very beginning of the {name} group.",
     "groupBeginningUnnamed": "This is the very beginning of this group.",
-    "jumpInConversation": "Jump in conversation",
     "reactions": {
       "add": "Add reaction",
       "remove": "Remove reaction",
@@ -1379,6 +1379,7 @@
       "youWereDisconnectedTitle": "Removed from voice",
       "youWereDisconnected": "A moderator disconnected you from voice.",
       "youWereRemoved": "You are no longer a member of this server.",
+      "youLostAccess": "You no longer have access to that voice channel.",
       "youWereTimedOut": "You were timed out on this server."
     }
   },

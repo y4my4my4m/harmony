@@ -609,7 +609,7 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "메시지 기록 읽기",
-          "description": "참여 전에 보낸 메시지를 읽습니다. 없으면 채널이 참여한 시점부터 표시됩니다"
+          "description": "채널을 열기 전에 보낸 메시지를 읽습니다. 없으면 채널을 연 이후에 보낸 메시지만 표시됩니다"
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "외부 이모지 사용",
@@ -841,7 +841,7 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "메시지 기록 읽기",
-          "description": "참여하기 전에 게시된 메시지를 봅니다."
+          "description": "채널을 열기 전에 게시된 메시지를 봅니다."
         },
         "CREATE_PUBLIC_THREADS": {
           "label": "공개 스레드 만들기",
@@ -935,15 +935,15 @@
     "unreadSince": "{time} 이후 새 메시지 {count}개",
     "markAsRead": "읽음으로 표시",
     "jumpToPresent": "최신으로 이동",
+    "viewingOlder": "이전 메시지를 보고 있습니다",
     "conversationBeginning": "대화의 시작입니다",
     "conversationBeginningSubtitle": "채팅을 시작하고 기억에 남게 만드세요!",
     "channelWelcome": "#{name}에 오신 것을 환영합니다",
     "channelWelcomeSubtitle": "#{name} 채널의 시작입니다.",
-    "historyRestricted": "참여하기 전에 보낸 메시지는 숨겨집니다. 이 채널에서 '메시지 기록 읽기' 권한이 없습니다.",
+    "historyRestricted": "이 채널을 열기 전에 보낸 메시지는 숨겨집니다. 이 채널에서 '메시지 기록 읽기' 권한이 없습니다.",
     "dmBeginning": "{name}님과의 다이렉트 메시지의 시작입니다.",
     "groupBeginning": "{name} 그룹의 시작입니다.",
     "groupBeginningUnnamed": "이 그룹의 시작입니다.",
-    "jumpInConversation": "대화로 이동",
     "reactions": {
       "add": "반응 추가",
       "remove": "반응 제거",
@@ -1370,6 +1370,7 @@
       "youWereDisconnectedTitle": "음성에서 나감",
       "youWereDisconnected": "관리자가 음성 연결을 끊었습니다.",
       "youWereRemoved": "더 이상 이 서버의 멤버가 아닙니다.",
+      "youLostAccess": "더 이상 이 음성 채널에 접근할 수 없습니다.",
       "youWereTimedOut": "이 서버에서 타임아웃되었습니다."
     }
   },

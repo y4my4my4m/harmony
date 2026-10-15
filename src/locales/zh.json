@@ -609,7 +609,7 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "阅读消息历史",
-          "description": "阅读加入之前发送的消息；没有此权限时，频道从加入时开始显示"
+          "description": "阅读打开频道之前发送的消息；没有此权限时，只显示打开频道之后发送的消息"
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "使用外部表情符号",
@@ -841,7 +841,7 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "阅读消息历史",
-          "description": "查看加入之前发布的消息。"
+          "description": "查看打开频道之前发布的消息。"
         },
         "CREATE_PUBLIC_THREADS": {
           "label": "创建公开话题",
@@ -935,15 +935,15 @@
     "unreadSince": "自 {time} 以来有 {count} 条新消息",
     "markAsRead": "标记为已读",
     "jumpToPresent": "跳转到最新",
+    "viewingOlder": "你正在查看较早的消息",
     "conversationBeginning": "这是您对话的开始",
     "conversationBeginningSubtitle": "开始聊天，让它难忘！",
     "channelWelcome": "欢迎来到 #{name}",
     "channelWelcomeSubtitle": "这是 #{name} 频道的开端。",
-    "historyRestricted": "加入之前发送的消息已隐藏：你在此频道没有“阅读消息历史”权限。",
+    "historyRestricted": "打开此频道之前发送的消息已隐藏：你在此频道没有“阅读消息历史”权限。",
     "dmBeginning": "这是您与 {name} 私信的最开始。",
     "groupBeginning": "这是 {name} 群组的最开始。",
     "groupBeginningUnnamed": "这是本群组的最开始。",
-    "jumpInConversation": "跳转到对话",
     "reactions": {
       "add": "添加反应",
       "remove": "移除反应",
@@ -1370,6 +1370,7 @@
       "youWereDisconnectedTitle": "已离开语音",
       "youWereDisconnected": "管理员已断开你的语音连接。",
       "youWereRemoved": "你已不再是此服务器的成员。",
+      "youLostAccess": "你已无权访问该语音频道。",
       "youWereTimedOut": "你在此服务器被禁言。"
     }
   },

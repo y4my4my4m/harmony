@@ -609,7 +609,7 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "メッセージ履歴を読む",
-          "description": "参加前に送信されたメッセージを読めます。ない場合、チャンネルは参加した時点から表示されます"
+          "description": "チャンネルを開く前に送信されたメッセージを読めます。ない場合、開いた後に送信されたメッセージのみ表示されます"
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "外部の絵文字を使用",
@@ -841,7 +841,7 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "メッセージ履歴を読む",
-          "description": "参加前に投稿されたメッセージを表示します。"
+          "description": "チャンネルを開く前に投稿されたメッセージを表示します。"
         },
         "CREATE_PUBLIC_THREADS": {
           "label": "公開スレッドを作成",
@@ -935,15 +935,15 @@
     "unreadSince": "{time} 以降の新着メッセージ {count} 件",
     "markAsRead": "既読にする",
     "jumpToPresent": "最新に移動",
+    "viewingOlder": "過去のメッセージを表示中",
     "conversationBeginning": "これは会話の始まりです",
     "conversationBeginningSubtitle": "チャットを始めて、思い出に残るものにしましょう！",
     "channelWelcome": "#{name} へようこそ",
     "channelWelcomeSubtitle": "ここは #{name} チャンネルの始まりです。",
-    "historyRestricted": "参加前に送信されたメッセージは表示されません。このチャンネルでは「メッセージ履歴を読む」権限がありません。",
+    "historyRestricted": "このチャンネルを開く前に送信されたメッセージは表示されません。このチャンネルでは「メッセージ履歴を読む」権限がありません。",
     "dmBeginning": "ここが {name} とのダイレクトメッセージの始まりです。",
     "groupBeginning": "ここが {name} グループの始まりです。",
     "groupBeginningUnnamed": "ここがこのグループの始まりです。",
-    "jumpInConversation": "会話にジャンプ",
     "reactions": {
       "add": "リアクションを追加",
       "remove": "リアクションを削除",
@@ -1370,6 +1370,7 @@
       "youWereDisconnectedTitle": "ボイスから外されました",
       "youWereDisconnected": "モデレーターがあなたをボイスから切断しました。",
       "youWereRemoved": "このサーバーのメンバーではなくなりました。",
+      "youLostAccess": "そのボイスチャンネルへのアクセス権がなくなりました。",
       "youWereTimedOut": "このサーバーでタイムアウトされました。"
     }
   },

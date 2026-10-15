@@ -609,7 +609,7 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "Nachrichtenverlauf lesen",
-          "description": "Nachrichten von vor dem Beitritt lesen; ohne diese Berechtigung beginnen Kanäle beim Beitritt"
+          "description": "Nachrichten von vor dem Öffnen des Kanals lesen; ohne diese Berechtigung sehen sie nur Nachrichten seit dem Öffnen"
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "Externe Emojis verwenden",
@@ -841,7 +841,7 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "Nachrichtenverlauf lesen",
-          "description": "Nachrichten sehen, die vor dem Beitritt gepostet wurden."
+          "description": "Nachrichten sehen, die vor dem Öffnen des Kanals gepostet wurden."
         },
         "CREATE_PUBLIC_THREADS": {
           "label": "Öffentliche Threads erstellen",
@@ -935,15 +935,15 @@
     "unreadSince": "{count} neue Nachricht seit {time} | {count} neue Nachrichten seit {time}",
     "markAsRead": "Als gelesen markieren",
     "jumpToPresent": "Zur Gegenwart springen",
+    "viewingOlder": "Du siehst ältere Nachrichten",
     "conversationBeginning": "Dies ist der Beginn deiner Unterhaltung",
     "conversationBeginningSubtitle": "Beginne zu chatten und mache es unvergesslich!",
     "channelWelcome": "Willkommen in #{name}",
     "channelWelcomeSubtitle": "Dies ist der Anfang des Kanals #{name}.",
-    "historyRestricted": "Nachrichten von vor deinem Beitritt sind ausgeblendet: Dir fehlt in diesem Kanal „Nachrichtenverlauf lesen“.",
+    "historyRestricted": "Nachrichten von vor dem Öffnen dieses Kanals sind ausgeblendet: Dir fehlt in diesem Kanal „Nachrichtenverlauf lesen“.",
     "dmBeginning": "Dies ist der Anfang deiner Direktnachrichten mit {name}.",
     "groupBeginning": "Dies ist der Anfang der Gruppe {name}.",
     "groupBeginningUnnamed": "Dies ist der Anfang dieser Gruppe.",
-    "jumpInConversation": "Sprung in der Unterhaltung",
     "reactions": {
       "add": "Reaktion hinzufügen",
       "remove": "Reaktion entfernen",
@@ -1370,6 +1370,7 @@
       "youWereDisconnectedTitle": "Aus dem Sprachchat entfernt",
       "youWereDisconnected": "Ein Moderator hat dich vom Sprachchat getrennt.",
       "youWereRemoved": "Du bist kein Mitglied dieses Servers mehr.",
+      "youLostAccess": "Du hast keinen Zugriff mehr auf diesen Sprachkanal.",
       "youWereTimedOut": "Du wurdest auf diesem Server in ein Timeout geschickt."
     }
   },
