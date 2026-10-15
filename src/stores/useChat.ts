@@ -18,9 +18,15 @@ import { insertMessageSorted, evictOldestCacheEntry, trimCachedMessages, waitFor
 import { isModerationRejectionCode } from '@/services/AutoModService';
 import { releaseFloatingVideo } from '@/composables/useFloatingVideo';
 import { clearHistoryCutoffs } from '@/services/channelHistoryCutoff';
+import { useProfileStore } from '@/stores/useProfile';
+import { NEWER_PAGE, acceptsLiveRow, appendNewer, cursorOf, isPendingRow, mergeTail, newestPersisted } from '@/utils/messageWindow';
 
 // Newest-page loads started by prefetchChannelMessages, by channel id.
 const pendingPrefetch = new Map<string, Promise<void>>();
+
+// Bumped by every load that replaces the list (jump, newest page); a load
+// started under an older value is discarded.
+let windowSeq = 0;
 
 /** Rows a catch-up after the newest loaded message reads at once. */
 const CATCH_UP_LIMIT = 50;
@@ -44,8 +50,11 @@ export const useChatStore = defineStore('chat', {
     maxReplyCacheSize: 200,
     fetchingReplyMessages: new Set<string>(),
 
-    jumpedToMessages: new Map<string, Message>(),
-    messageGaps: new Set<string>(),
+    /** The list ends before the channel's newest message: a jump detached it from the present. */
+    hasNewerMessages: false,
+    loadingNewerMessages: false,
+    /** Messages from others that arrived while the list is detached. */
+    unseenWhileDetached: 0,
 
     connectionStatus: 'disconnected' as ConnectionStatus,
   }),
@@ -53,7 +62,12 @@ export const useChatStore = defineStore('chat', {
     clearMessages() {
       this.messages = [];
       this.allMessagesLoaded = false;
-      this.clearJumpedMessages();
+      this._resetDetached();
+    },
+
+    _resetDetached() {
+      this.hasNewerMessages = false;
+      this.unseenWhileDetached = 0;
     },
 
     async fetchReplyMessage(messageId: string): Promise<Message | null> {
@@ -112,6 +126,7 @@ export const useChatStore = defineStore('chat', {
         this.messages = [...cached.messages];
         this.allMessagesLoaded = cached.allMessagesLoaded;
         this.currentChannelId = channelId;
+        this._resetDetached();
       }
     },
 
@@ -339,8 +354,9 @@ export const useChatStore = defineStore('chat', {
         debug.log('Processing messages:', { count: olderMessages.length, allLoaded, isInitialLoad: oldestMessageId === '' });
 
         if (oldestMessageId === '') {
-          // Merge in messages realtime delivered during the fetch.
-          const realtimeOnly = this.messages.filter(
+          // Merge in messages realtime delivered during the fetch. A detached
+          // list holds history, not arrivals.
+          const realtimeOnly = this.hasNewerMessages ? [] : this.messages.filter(
             (m: Message) => m.channel_id === channelId && !olderMessages.some((om: Message) => om.id === m.id)
           );
           if (realtimeOnly.length > 0) {
@@ -352,6 +368,7 @@ export const useChatStore = defineStore('chat', {
           );
           this.messages = merged;
           this.allMessagesLoaded = allLoaded;
+          this._resetDetached();
           
           // Assigning currentChannelId unconditionally re-triggers watchers.
           if (this.currentChannelId !== channelId) {
@@ -373,7 +390,8 @@ export const useChatStore = defineStore('chat', {
           this.messages = [...olderMessages, ...this.messages];
           this.allMessagesLoaded = allLoaded;
 
-          const cached = this.messageCache.get(channelId);
+          // The cache holds the newest rows; a detached list is not a prefix of them.
+          const cached = this.hasNewerMessages ? undefined : this.messageCache.get(channelId);
           if (cached) {
             cached.messages = [...olderMessages, ...cached.messages];
             cached.oldestMessageId = olderMessages[0]?.id || cached.oldestMessageId;
@@ -408,6 +426,7 @@ export const useChatStore = defineStore('chat', {
       this.messages = [...cached.messages];
       this.allMessagesLoaded = cached.allMessagesLoaded;
       this.currentChannelId = channelId;
+      this._resetDetached();
       // Stale-while-revalidate: per-channel realtime only delivers to the
       // active subscription, so messages sent while another channel was
       // open never reached this cache. Show cache instantly, then catch up.
@@ -488,6 +507,7 @@ export const useChatStore = defineStore('chat', {
      */
     async revalidateRecentMessages(channelId: string) {
       try {
+        if (this.hasNewerMessages) return;
         const newest = this.messages.length ? this.messages[this.messages.length - 1] : null;
         if (!newest) return; // Empty channel; realtime populates it.
         const ts: unknown = newest.created_at;
@@ -500,8 +520,8 @@ export const useChatStore = defineStore('chat', {
           isRemote: this._knownIsRemote(channelId),
         });
         if (!messages || messages.length === 0) return;
-        // Discard if the active channel changed during the fetch.
-        if (this.currentChannelId !== channelId) return;
+        // Discard if the active channel changed or a jump detached the list during the fetch.
+        if (this.currentChannelId !== channelId || this.hasNewerMessages) return;
         // The page holds the newest rows after the cursor; a full one can leave
         // older missed rows between them and the list.
         if (messages.length >= CATCH_UP_LIMIT) {
@@ -520,7 +540,7 @@ export const useChatStore = defineStore('chat', {
           const serverUsersStore = useServerUsersStore();
           await serverUsersStore.fetchMultipleUserProfiles(userIds);
         }
-        if (this.currentChannelId !== channelId) return;
+        if (this.currentChannelId !== channelId || this.hasNewerMessages) return;
 
         const merged = [...this.messages, ...fresh].sort(
           (a: Message, b: Message) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -559,11 +579,13 @@ export const useChatStore = defineStore('chat', {
       });
 
       if (this.currentChannelId === message.channel_id) {
-        if (!this.messages.some(msg => msg.id === message.id)) {
+        if (this.messages.some(msg => msg.id === message.id)) {
+          debug.log('Message already exists in current messages:', message.id);
+        } else if (acceptsLiveRow(this.messages, message, this.hasNewerMessages)) {
           this._insertMessageSorted(this.messages, message);
           debug.log('Real-time message added to current messages:', message.id);
-        } else {
-          debug.log('Message already exists in current messages:', message.id);
+        } else if (message.user_id !== useProfileStore().profileId) {
+          this.unseenWhileDetached++;
         }
       } else {
         debug.log('Message not for current channel:', {
@@ -702,8 +724,6 @@ export const useChatStore = defineStore('chat', {
       this.messageCache.clear();
       this.replyMessageCache.clear();
       this.fetchingReplyMessages.clear();
-      this.jumpedToMessages.clear();
-      this.messageGaps.clear();
       clearHistoryCutoffs();
       debug.log('Cleared all message caches');
     },
@@ -1257,7 +1277,8 @@ export const useChatStore = defineStore('chat', {
         onReconnected: async () => {
           debug.log('Channel reconnected, gap-filling missed messages for:', channelId);
           try {
-            if (store.messages.length > 0) {
+            // A detached list holds history; pages toward the present fill it.
+            if (store.messages.length > 0 && !store.hasNewerMessages) {
               const newestMsg = store.messages[store.messages.length - 1];
               const { messages: recent } = await services.messages.loadChannelMessages(channelId, {
                 after: newestMsg.created_at instanceof Date
@@ -1302,59 +1323,38 @@ export const useChatStore = defineStore('chat', {
       return this.connectionStatus;
     },
 
+    /**
+     * Shows a message. One outside the list replaces it with the rows around the
+     * message, detached from the present when newer rows follow them.
+     */
     async jumpToMessage(messageId: string, channelId: string): Promise<boolean> {
-      const existingMessage = this.messages.find(msg => msg.id === messageId);
-      if (existingMessage) {
+      if (this.messages.some(msg => msg.id === messageId)) {
         this.highlightMessage(messageId);
         return true;
       }
 
-      if (this.jumpedToMessages.has(messageId)) {
-        this.highlightMessage(messageId);
-        return true;
-      }
-
+      const seq = ++windowSeq;
       try {
-        const { data: message, error } = await supabase
-          .from('messages')
-          .select('*')
-          .eq('id', messageId)
-          .eq('channel_id', channelId)
-          .single();
-
-        if (error || !message) {
-          debug.error('Message not found or error fetching:', error);
+        const window = await services.messages.loadMessageWindow(
+          { channelId },
+          messageId,
+          { isRemote: this._knownIsRemote(channelId) },
+        );
+        if (seq !== windowSeq || this.currentChannelId !== channelId) return false;
+        if (!window) {
+          debug.warn('Jump target is not a visible message of the channel:', messageId);
           return false;
         }
-
-        // Reactions load via MessageService batch fetch, not per-message here.
-
-        this.jumpedToMessages.set(messageId, message);
-        
-        const messageDate = new Date(message.created_at);
-        const currentMessages = [...this.messages];
-        
-        let insertIndex = 0;
-        for (let i = 0; i < currentMessages.length; i++) {
-          if (new Date(currentMessages[i].created_at) > messageDate) {
-            insertIndex = i;
-            break;
-          }
-          insertIndex = i + 1;
+        this._prepareRows(window.messages);
+        this.allMessagesLoaded = window.allOlderLoaded;
+        if (window.hasNewer) {
+          this.messages = window.messages;
+          this.hasNewerMessages = true;
+          this.unseenWhileDetached = 0;
+        } else {
+          this._attachList(channelId, window.messages);
         }
-
-        const shouldShowGap = this.shouldShowGapBefore(message, insertIndex);
-        
-        if (shouldShowGap) {
-          this.messageGaps.add(`gap-before-${messageId}`);
-        }
-
-        this.messages.splice(insertIndex, 0, message);
-        
-        setTimeout(() => {
-          this.highlightMessage(messageId);
-        }, 100);
-
+        setTimeout(() => this.highlightMessage(messageId), 100);
         return true;
       } catch (error) {
         debug.error('Error jumping to message:', error);
@@ -1363,71 +1363,88 @@ export const useChatStore = defineStore('chat', {
     },
 
     /**
-     * Replaces the loaded rows with the channel's newest page, the page a cold
-     * open loads, and drops jumped-to rows and their gaps. Rows newer than that
-     * page (realtime arrivals, sends in flight) stay.
+     * Appends the next page toward the present to a detached list. A short page
+     * reached the newest message and attaches the list again.
      */
-    async reloadNewestPage(channelId: string): Promise<void> {
-      const { messages, hasMore } = await services.messages.loadChannelMessages(channelId, {
-        limit: 20,
-        isRemote: this._knownIsRemote(channelId),
-      });
-      if (this.currentChannelId !== channelId || !messages || messages.length === 0) return;
-      try { ensureMessageEmbeds(messages); } catch (e) { debug.warn('Failed to prepare embeds for the newest page:', e); }
+    async fetchNewerMessages(channelId: string): Promise<void> {
+      if (!this.hasNewerMessages || this.loadingNewerMessages || this.currentChannelId !== channelId) return;
+      const cursorRow = newestPersisted(this.messages);
+      const from = cursorOf(cursorRow);
+      if (!cursorRow || !from) return;
 
-      const pageIds = new Set(messages.map((m: Message) => m.id));
-      const newestAt = new Date(messages[messages.length - 1].created_at).getTime();
-      const later = this.messages.filter((m: Message) =>
-        m.channel_id === channelId && !pageIds.has(m.id) && new Date(m.created_at).getTime() > newestAt
-      );
-      const merged = [...messages, ...later];
+      const seq = windowSeq;
+      this.loadingNewerMessages = true;
+      try {
+        const { messages: page } = await services.messages.loadMessagesFrom(
+          { channelId },
+          { from, limit: NEWER_PAGE },
+        );
+        if (seq !== windowSeq || this.currentChannelId !== channelId || !this.hasNewerMessages) return;
+        if (newestPersisted(this.messages)?.id !== cursorRow.id) return;
+        this._prepareRows(page);
+        const next = appendNewer(this.messages, page, NEWER_PAGE);
+        if (next.hasNewer) this.messages = next.messages;
+        else this._attachList(channelId, next.messages);
+      } catch (error) {
+        debug.error('Failed to load newer messages:', error);
+      } finally {
+        this.loadingNewerMessages = false;
+      }
+    },
+
+    /** Rows newer than any page loaded: the list itself, or the cache while detached. */
+    _liveTail(channelId: string): Message[] {
+      const rows = this.messages.filter((m: Message) => m.channel_id === channelId);
+      if (!this.hasNewerMessages) return rows;
+      return [...(this.messageCache.get(channelId)?.messages ?? []), ...rows.filter(isPendingRow)];
+    },
+
+    /**
+     * Shows `rows`, which end at the channel's newest message, followed by what
+     * arrived while they loaded. The cache mirrors the attached list.
+     */
+    _attachList(channelId: string, rows: Message[]) {
+      const merged = mergeTail(rows, this._liveTail(channelId));
       this.messages = merged;
-      this.allMessagesLoaded = !hasMore;
-      this.clearJumpedMessages();
+      this._resetDetached();
 
       this.evictOldestCache();
       this.messageCache.set(channelId, {
         messages: [...merged],
         lastFetchedAt: new Date(),
         oldestMessageId: merged[0]?.id || null,
-        allMessagesLoaded: !hasMore,
+        allMessagesLoaded: this.allMessagesLoaded,
         lastModified: new Date(),
       });
     },
 
-    shouldShowGapBefore(message: Message, insertIndex: number): boolean {
-      const messageDate = new Date(message.created_at);
-      
-      if (insertIndex > 0) {
-        const prevMessage = this.messages[insertIndex - 1];
-        const prevDate = new Date(prevMessage.created_at);
-        const timeDiff = messageDate.getTime() - prevDate.getTime();
-        
-        if (timeDiff > 60 * 60 * 1000) {
-          return true;
-        }
+    _prepareRows(rows: Message[]) {
+      try { ensureMessageEmbeds(rows); } catch (e) { debug.warn('Failed to prepare message embeds:', e); }
+      const userIds = [...new Set(rows.map((m: Message) => m.user_id).filter(Boolean))] as string[];
+      if (userIds.length > 0) {
+        void useServerUsersStore().fetchMultipleUserProfiles(userIds).catch(() => {});
       }
+    },
 
-      if (insertIndex < this.messages.length) {
-        const nextMessage = this.messages[insertIndex];
-        const nextDate = new Date(nextMessage.created_at);
-        const timeDiff = nextDate.getTime() - messageDate.getTime();
-        
-        if (timeDiff > 60 * 60 * 1000) {
-          return true;
-        }
-      }
-
-      return false;
+    /**
+     * Replaces the list with the channel's newest page, the page a cold open
+     * loads, and attaches it to the present. Rows newer than that page (realtime
+     * arrivals, sends in flight) stay.
+     */
+    async reloadNewestPage(channelId: string): Promise<void> {
+      const seq = ++windowSeq;
+      const { messages, hasMore } = await services.messages.loadChannelMessages(channelId, {
+        limit: 20,
+        isRemote: this._knownIsRemote(channelId),
+      });
+      if (seq !== windowSeq || this.currentChannelId !== channelId || !messages || messages.length === 0) return;
+      try { ensureMessageEmbeds(messages); } catch (e) { debug.warn('Failed to prepare embeds for the newest page:', e); }
+      this.allMessagesLoaded = !hasMore;
+      this._attachList(channelId, messages);
     },
 
     highlightMessage(_messageId: string) {
       // Scroll and highlight live in MessageDisplay; this hook is a no-op.
-    },
-
-    clearJumpedMessages() {
-      this.jumpedToMessages.clear();
-      this.messageGaps.clear();
     },
   },
 });

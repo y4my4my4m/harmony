@@ -946,7 +946,6 @@ export const useAuthStore = defineStore('auth', {
         chatStore.unsubscribeFromMessages()
         chatStore.clearAllCaches()
         chatStore.replyMessageCache.clear()
-        chatStore.jumpedToMessages.clear()
         chatStore.$reset()
       } catch (error) {
         debug.error('Error clearing chat store:', error)

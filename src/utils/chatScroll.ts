@@ -78,18 +78,18 @@ export interface JumpToPresentState {
   pinned: boolean
   /** Messages from others appended while not pinned. */
   unseen: number
-  /** The list holds rows loaded by a jump to an older message. */
-  jumped: boolean
+  /** A jump detached the list from the present; the history bar shows instead. */
+  detached: boolean
 }
 
 /**
- * Whether the jump-to-present control shows. Never on a pinned view. Otherwise
- * with unseen messages below, after a jump to an older message, or with more
- * than one viewport height between the view and the end.
+ * Whether the jump-to-present control shows. Never on a pinned view or a
+ * detached list. Otherwise with unseen messages below, or with more than one
+ * viewport height between the view and the end.
  */
 export function showJumpToPresent(s: JumpToPresentState): boolean {
-  if (s.pinned) return false
-  return s.unseen > 0 || s.jumped || s.distance > s.viewport
+  if (s.pinned || s.detached) return false
+  return s.unseen > 0 || s.distance > s.viewport
 }
 
 /**

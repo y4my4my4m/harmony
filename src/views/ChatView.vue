@@ -19,7 +19,8 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onUnmounted } from 'vue'
 import { debug } from '@/utils/debug'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { takeJumpTarget } from '@/utils/messageJumpQuery'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
 
 import { useChatStore } from '@/stores/useChat'
@@ -52,6 +53,7 @@ const dmStore = useDMStore()
 const serverChannelStore = useServerChannelStore()
 const authStore = useAuthStore()
 const route = useRoute()
+const router = useRouter()
 
 // State
 const isAtBottom = ref(true)
@@ -229,12 +231,11 @@ watch(
   { immediate: true }
 )
 
-// Watch for messageId query param to scroll and highlight
-watch(() => route.query.messageId, async (messageId) => {
-  if (messageId && typeof messageId === 'string') {
-    await nextTick()
-    await scrollToMessage(messageId)
-  }
+watch(() => route.query.messageId, async () => {
+  const target = takeJumpTarget(route, router)
+  if (!target) return
+  await nextTick()
+  await scrollToMessage(target.messageId, target.searchQuery)
 }, { immediate: true })
 
 const waitForMessages = async () => {
@@ -252,7 +253,7 @@ const waitForMessages = async () => {
 // The list is virtualized: an off-window row has no element, and offsetTop is relative to
 // its virtual row. The stores' jump loads the message when needed; MessageDisplay scrolls to
 // its index and highlights it. The first page lands first, since it replaces the list.
-const scrollToMessage = async (messageId: string) => {
+const scrollToMessage = async (messageId: string, searchQuery?: string) => {
   await waitForMessages()
   await nextTick()
 
@@ -273,7 +274,6 @@ const scrollToMessage = async (messageId: string) => {
     await notificationStore.markAsRead(notification.id)
   }
 
-  const searchQuery = route.query.searchQuery as string
   if (found && searchQuery) {
     // MessageDisplay scrolls 100 ms after the jump; the row renders once it is in view.
     await new Promise(resolve => setTimeout(resolve, 400))

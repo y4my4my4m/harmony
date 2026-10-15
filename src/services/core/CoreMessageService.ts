@@ -938,6 +938,45 @@ export class CoreMessageService {
     }
   }
 
+  /**
+   * Rows of a channel (thread replies excluded) or a conversation from `from` on,
+   * oldest first: created_at >= from when `inclusive`, > from otherwise. Read
+   * through RLS, which applies the READ_MESSAGE_HISTORY cutoff; a remote channel
+   * reads the rows federation stored locally.
+   */
+  async loadMessagesFrom(
+    scope: { channelId: string } | { conversationId: string },
+    options: { from: string; inclusive?: boolean; limit?: number; signal?: AbortSignal }
+  ): Promise<Message[]> {
+    const { from, inclusive = false, limit = 50, signal } = options
+    let query = supabase
+      .from('messages')
+      .select('*')
+      .or('is_deleted.is.null,is_deleted.eq.false')
+      .order('created_at', { ascending: true })
+      .limit(limit)
+    query = 'channelId' in scope
+      ? query.eq('channel_id', scope.channelId).is('thread_id', null)
+      : query.eq('conversation_id', scope.conversationId)
+    query = inclusive ? query.gte('created_at', from) : query.gt('created_at', from)
+
+    if (signal?.aborted) throw this.createError('ABORTED', 'Request was aborted')
+    const { data, error } = await query
+    if (error) throw this.createError('LOAD_MESSAGES_FAILED', error.message, error)
+
+    const rows = data || []
+    if (rows.length > 0) {
+      const reactionsByMessage = await this.getBatchMessageReactions(rows.map(m => m.id))
+      rows.forEach(message => {
+        message.reactions = reactionsByMessage[message.id] || []
+      })
+      await this.populateReactionsStoreCache(reactionsByMessage)
+    }
+
+    const { processMessageDecryption } = await import('@/utils/messageDecryption')
+    return await processMessageDecryption(rows)
+  }
+
   private async loadRemoteChannelMessages(
     channelId: string,
     options: {
