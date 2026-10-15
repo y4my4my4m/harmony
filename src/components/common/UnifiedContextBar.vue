@@ -18,6 +18,7 @@
             <ServerIcon 
               :id="currentServer.id"
               :src="currentServer.icon"
+              :name="currentServer.name"
               :class="'rounded'"
               size="xs"
               :fetch-size="RAIL_ICON_FETCH"

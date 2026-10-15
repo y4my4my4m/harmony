@@ -10,7 +10,7 @@
  */
 
 import { getSupabaseClient } from '../config/supabase.js';
-import { DeliveryQueue } from '../activitypub/DeliveryQueue.js';
+import { DeliveryQueue, type DeliverySigner } from '../activitypub/DeliveryQueue.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { convertContentToHTML, extractActivityPubTags, extractAttachments } from '../utils/contentUtils.js';
@@ -290,6 +290,14 @@ export async function handleChannelMessageUpdate(
       return;
     }
 
+    // A remote member's edit reaches the other instances as the Group's relay of it
+    // (ServerInboxHandler). Signing as a remote profile would generate a key pair for it
+    // and overwrite its published key.
+    if (message.author.is_local !== true) {
+      logger.info(`Edit of ${message_id} by a remote author is relayed by the server inbox`);
+      return;
+    }
+
     const remoteMemberGroups = await getChannelRecipientGroups(channel_id);
 
     if (remoteMemberGroups.length === 0) {
@@ -335,32 +343,48 @@ export async function handleChannelMessageDelete(
     }
 
     const hostDomain = config.INSTANCE_DOMAIN;
-    const serverUrl = `https://${hostDomain}/servers/${server_id}`;
     const messageUrl = ap_id || `https://${hostDomain}/messages/${message_id}`;
-
-    const activity = {
+    const deleteBy = (actor: string) => ({
       '@context': [
         'https://www.w3.org/ns/activitystreams',
         { 'harmony': 'https://harmonyapp.dev/ns#' },
       ],
-      id: `${serverUrl}/activities/${crypto.randomUUID()}`,
+      id: `https://${hostDomain}/activities/${crypto.randomUUID()}`,
       type: 'Delete',
-      actor: serverUrl,
+      actor,
       object: messageUrl,
       published: new Date().toISOString(),
-    };
+    });
 
-    // CASE 1: Non-local server - forward delete to the remote server's inbox
+    // CASE 1: Non-local server - the local author's own Delete goes to the remote server's
+    // inbox, which accepts it from the message's author.
     if (server.is_local_server === false && server.federation_inbox_url) {
-      logger.info(`Forwarding message delete to remote server: ${server.name}`);
+      const { data: message } = await supabase
+        .from('messages')
+        .select('user_id')
+        .eq('id', message_id)
+        .maybeSingle();
+      const { data: author } = message?.user_id
+        ? await supabase
+          .from('profiles')
+          .select('id, username, federated_id, is_local')
+          .eq('id', message.user_id)
+          .maybeSingle()
+        : { data: null };
+      if (!author?.is_local) {
+        logger.info(`Message ${message_id} has no local author; its delete stays on this instance`);
+        return;
+      }
 
-      await DeliveryQueue.enqueue(
-        activity, server.federation_inbox_url, server.owner, 5
-      );
+      const authorApId = author.federated_id || `https://${hostDomain}/users/${author.username}`;
+      await DeliveryQueue.enqueue(deleteBy(authorApId), server.federation_inbox_url, author.id, 5);
 
       logger.info(`Message delete forwarded to ${server.federation_inbox_url}`);
       return;
     }
+
+    // The Group of a local server is the actor; its own key signs.
+    const activity = deleteBy(`https://${hostDomain}/servers/${server_id}`);
 
     // CASE 2: Local server - broadcast delete to instances of members who can view the channel
     if (!server.federation_enabled) {
@@ -373,7 +397,7 @@ export async function handleChannelMessageDelete(
       return;
     }
 
-    await deliverToRemoteInstances(remoteMemberGroups, () => activity, server.owner);
+    await deliverToRemoteInstances(remoteMemberGroups, () => activity, { serverId: server_id });
 
     logger.info(`Message deletion federated to ${remoteMemberGroups.length} instances`);
   } catch (error) {
@@ -533,7 +557,7 @@ function createMessageActivity(
 async function deliverToRemoteInstances(
   groups: RemoteMemberGroup[],
   activityFor: (audience: string) => any,
-  senderId: string
+  signer: DeliverySigner
 ): Promise<void> {
   for (const group of groups) {
     // Use shared inbox for efficiency
@@ -546,7 +570,7 @@ async function deliverToRemoteInstances(
       cc: activity.cc,
     };
 
-    await DeliveryQueue.enqueue(activityWithRecipients, inbox, senderId);
+    await DeliveryQueue.enqueue(activityWithRecipients, inbox, signer);
 
     logger.info(`Queued delivery to ${group.instance} for ${group.member_count} members`);
   }

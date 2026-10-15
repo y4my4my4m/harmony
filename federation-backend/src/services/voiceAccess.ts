@@ -92,16 +92,43 @@ export function isLiveKitUrl(value: unknown): value is string {
   }
 }
 
+export interface VoiceGrants {
+  /** SPEAK, and neither server-muted nor server-deafened: the microphone. */
+  canSpeak: boolean;
+  /** STREAM: camera, screen share and its audio. */
+  canStream: boolean;
+  /** Not server-deafened: other participants' tracks. */
+  canHear: boolean;
+  /** USE_SOUNDBOARD on top of canSpeak. */
+  canSoundboard: boolean;
+  /** USE_EXTERNAL_SOUNDS on top of canSoundboard. */
+  canExternalSounds: boolean;
+  serverMuted: boolean;
+  serverDeafened: boolean;
+}
+
 export type VoiceDecision =
-  | { ok: true; serverId: string; canPublish: boolean; canSoundboard: boolean; canExternalSounds: boolean }
+  | ({ ok: true; serverId: string } & VoiceGrants)
   | { ok: false; reason: string };
+
+/** Grants of a participant who is not in a server channel: a DM call. */
+export const DM_CALL_GRANTS: VoiceGrants = {
+  canSpeak: true,
+  canStream: true,
+  canHear: true,
+  canSoundboard: false,
+  canExternalSounds: false,
+  serverMuted: false,
+  serverDeafened: false,
+};
 
 /**
  * Voice channel access for one profile: an accepted member (or the owner) of
  * the channel's server, not banned, not timed out, holding VIEW_CHANNEL and
- * CONNECT on the channel. SPEAK decides canPublish; canSoundboard also needs
- * USE_SOUNDBOARD on the channel, and canExternalSounds USE_EXTERNAL_SOUNDS on
- * top of that.
+ * either CONNECT or a live voice_move_grants row for the channel (a
+ * moderator's move, 20261017100002_voice_moderation.sql). The grants follow
+ * SPEAK, STREAM, USE_SOUNDBOARD and USE_EXTERNAL_SOUNDS on the channel and the
+ * member's row in server_voice_moderation.
  *
  * `remote`: the profile is a remote actor asking this instance for a token.
  * The server must then be hosted here with federation enabled.
@@ -162,15 +189,55 @@ export async function authorizeVoiceChannel(
     if (timeout) return { ok: false, reason: 'timed out' };
   }
 
-  if (!(await hasChannelPermissions(supabase, profileId, serverId, channelId, [['VIEW_CHANNEL'], ['CONNECT']]))) {
-    return { ok: false, reason: 'missing VIEW_CHANNEL or CONNECT' };
+  if (!(await hasChannelPermissions(supabase, profileId, serverId, channelId, [['VIEW_CHANNEL']]))) {
+    return { ok: false, reason: 'missing VIEW_CHANNEL' };
   }
-  const canPublish = await hasChannelPermissions(supabase, profileId, serverId, channelId, [['SPEAK']]);
-  const canSoundboard = canPublish
+  if (!(await hasChannelPermissions(supabase, profileId, serverId, channelId, [['CONNECT']]))
+      && !(await hasMoveGrant(supabase, serverId, profileId, channelId))) {
+    return { ok: false, reason: 'missing CONNECT' };
+  }
+
+  const { data: moderation, error: moderationError } = await supabase
+    .from('server_voice_moderation')
+    .select('muted, deafened')
+    .eq('server_id', serverId)
+    .eq('user_id', profileId)
+    .maybeSingle();
+  if (moderationError) return { ok: false, reason: 'voice moderation lookup failed' };
+  const serverMuted = moderation?.muted === true;
+  const serverDeafened = moderation?.deafened === true;
+
+  const speak = await hasChannelPermissions(supabase, profileId, serverId, channelId, [['SPEAK']]);
+  const canSpeak = speak && !serverMuted && !serverDeafened;
+  const canStream = await hasChannelPermissions(supabase, profileId, serverId, channelId, [['STREAM']]);
+  const canSoundboard = canSpeak
     && await hasChannelPermissions(supabase, profileId, serverId, channelId, [['USE_SOUNDBOARD']]);
   const canExternalSounds = canSoundboard
     && await hasChannelPermissions(supabase, profileId, serverId, channelId, [['USE_EXTERNAL_SOUNDS']]);
-  return { ok: true, serverId, canPublish, canSoundboard, canExternalSounds };
+  return {
+    ok: true,
+    serverId,
+    canSpeak,
+    canStream,
+    canHear: !serverDeafened,
+    canSoundboard,
+    canExternalSounds,
+    serverMuted,
+    serverDeafened,
+  };
+}
+
+/** A live voice_move_grants row admitting the profile to the channel. */
+async function hasMoveGrant(supabase: Supabase, serverId: string, profileId: string, channelId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('voice_move_grants')
+    .select('channel_id')
+    .eq('server_id', serverId)
+    .eq('user_id', profileId)
+    .eq('channel_id', channelId)
+    .gt('expires_at', new Date().toISOString())
+    .maybeSingle();
+  return !error && !!data;
 }
 
 /** Active participant of a direct or group conversation. */

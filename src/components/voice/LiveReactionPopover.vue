@@ -74,6 +74,7 @@ import {
   type LiveReactionTarget,
 } from '@/services/voice/liveReactions';
 import { VOICE_POPOVER_DISMISS, placePopover } from './voiceMenuModel';
+import { styleRect, styleViewport } from '@/utils/appZoom';
 
 const EmojiPopup = defineAsyncComponent(() => import('@/components/EmojiPopup.vue'));
 
@@ -190,9 +191,9 @@ async function place(): Promise<void> {
   await nextTick();
   const el = panelRef.value;
   if (!el) return;
-  const rect = el.getBoundingClientRect();
-  const viewport = { width: window.innerWidth, height: window.innerHeight };
-  const a = props.anchor?.getBoundingClientRect();
+  const rect = styleRect(el);
+  const viewport = styleViewport();
+  const a = props.anchor ? styleRect(props.anchor) : undefined;
   const anchor = a
     ? { left: a.left, top: a.top, width: a.width, height: a.height }
     : { left: viewport.width / 2, top: viewport.height / 2, width: 0, height: 0 };
@@ -240,7 +241,7 @@ onBeforeUnmount(() => {
 .lrp {
   position: fixed;
   z-index: 10006;
-  max-width: calc(100vw - 16px);
+  max-width: calc(100 * var(--app-vw) - 16px);
   padding: 6px;
   background: var(--background-floating);
   border: 1px solid var(--border-primary);

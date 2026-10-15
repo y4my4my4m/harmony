@@ -11,6 +11,13 @@ const { stub } = vi.hoisted(() => ({ stub: (name: string) => ({ __esModule: true
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/stores/unifiedVoiceChannel', () => ({ useUnifiedVoiceChannelStore: () => h.store }))
+vi.mock('@/stores/voiceModeration', () => ({
+  NO_VOICE_CAPABILITIES: { mute: false, deafen: false, move: false, kick: false, ban: false },
+  useVoiceModerationStore: () => ({
+    flagsOf: () => ({ muted: false, deafened: false }),
+    channelPowers: async () => ({ mute: false, deafen: false, move: false, kick: false, ban: false }),
+  }),
+}))
 vi.mock('@/composables/useUserData', () => ({ useUserData: () => ({ getUserProfile: () => ({ value: null }) }) }))
 vi.mock('@/utils/bannerUtils', () => ({ getBannerUrl: () => null }))
 vi.mock('@/utils/renderFallback', () => ({ withRenderFallback: (url: string | null) => url }))

@@ -2,7 +2,7 @@
 
 Node service that serves Harmony's Bot API: a WebSocket gateway that pushes events to bots and a REST API under `/api/v1` that bots call to act. Bots authenticate with tokens issued in the Harmony web client. The service talks to Supabase with the service-role key and produces events by polling the `messages` and `reactions` tables.
 
-Bot developers: the protocol reference is [docs/bot-api.md](../docs/bot-api.md).
+Bot developers: the protocol reference is [docs/build/](../docs/build/index.md) ([gateway](../docs/build/gateway.md), [REST](../docs/build/rest.md)).
 
 ## Routes
 
@@ -33,7 +33,7 @@ Bot developers: the protocol reference is [docs/bot-api.md](../docs/bot-api.md).
 | REST base | `https://<instance>/bot-gateway/api/v1` | `http://localhost:3002/api/v1` |
 | Health | `https://<instance>/bot-gateway/health` | `http://localhost:3002/health` |
 
-Any other reverse proxy must forward the whole `/bot-gateway/` prefix, strip it, and pass WebSocket upgrades on `/bot-gateway/gateway`. The web client calls `/bot-gateway/bridged-users/*` and `/bot-gateway/attachments/refresh` on the app origin. The nginx equivalent is in [BOT_GATEWAY_SETUP.md](../docs/BOT_GATEWAY_SETUP.md).
+Any other reverse proxy must forward the whole `/bot-gateway/` prefix, strip it, and pass WebSocket upgrades on `/bot-gateway/gateway`. The web client calls `/bot-gateway/bridged-users/*` and `/bot-gateway/attachments/refresh` on the app origin. The nginx equivalent is in [docs/self-host/docker-compose.md](../docs/self-host/docker-compose.md#route-harmony-with-your-own-proxy).
 
 ## Configuration
 
@@ -48,6 +48,8 @@ The service loads `.env` from its working directory. `.env.example` (development
 | `NODE_ENV` | `development` | In `development`, 500 responses from the error handler include the error message. |
 | `INSTANCE_DOMAIN` | `localhost:3000` | Harmony app origin, as a hostname or URL; `https://` is assumed without a scheme. `/bridge-setup` and `/bridge/v2` build their URLs from it, including the instance Discord bot's OAuth2 redirect `<origin>/bot-gateway/bridge/v2/discord/callback`, which must be registered on the Discord application exactly. |
 | `WS_HEARTBEAT_INTERVAL` | `30000` | Heartbeat interval in ms, sent to bots in READY. Connections without a heartbeat for twice this interval are closed. |
+| `WS_MAX_CONNECTIONS_PER_BOT` | `5` | Identified connections one bot may hold; the IDENTIFY past it closes with 4029 `Too many connections`. |
+| `WS_IDENTIFY_TIMEOUT_MS` | `30000` | Time in ms, clamped to 1000-60000, from a socket opening to its successful IDENTIFY; past it the socket closes with 4003 `Not authenticated`. |
 | `WS_REVALIDATE_INTERVAL_MS` | `30000` | Interval in ms, clamped to 1000-60000, at which open connections are rechecked against `bot_tokens` and `bots`. |
 | `RATE_LIMIT_WINDOW_MS` | `60000` | REST rate-limit window in ms. |
 | `RATE_LIMIT_MAX_REQUESTS` | `100` | REST requests allowed per bot, per route and channel or server it names, per window. |
@@ -97,7 +99,7 @@ Compose files start the service under the `bots` profile:
 
 Users create bots in the web client under **User Settings → My Bots → New bot**. The token is shown once, in a dialog after creation; Harmony stores its SHA-256 hash. Tokens have the form `harmony_bot_` followed by 64 hex characters. **Reset token** on the bot's page revokes the old token immediately and shows the new one once. The gateway verifies tokens at IDENTIFY and rechecks every open connection each `WS_REVALIDATE_INTERVAL_MS`: a connection whose token was revoked, rotated or expired, or whose bot was deactivated or deleted, closes with `4004`.
 
-Server owners add bots from the bot's page (**Add to server**) or under **Server Settings → Advanced → Server Bots**, where they also set the bot's permissions. The gateway enforces `read_messages`, `send_messages`, `manage_messages`, `add_reactions`, `manage_channels` and `manage_roles`; see [docs/bot-api.md](../docs/bot-api.md#permissions).
+Server owners add bots from the bot's page (**Add to server**) or under **Server Settings → Advanced → Server Bots**, where they also set the bot's permissions. The gateway enforces `read_messages`, `send_messages`, `manage_messages`, `add_reactions`, `manage_channels` and `manage_roles`; see [docs/build/permissions-rate-limits.md](../docs/build/permissions-rate-limits.md).
 
 ## Events
 
@@ -118,6 +120,7 @@ Message and reaction events go to every bot with an active installation holding 
 - The dispatcher starts from the process start time. Messages and reactions created while the service is down are never dispatched.
 - Connections, bridge member lists and the attachment-refresh dedupe live in process memory. A second replica shares none of it; run one instance. Bridge presence updates (op 7) change the cached member lists in place; the web client reads them through `/bridged-users/*`.
 - Each connection may send 120 frames per sliding 60 s, op 1 heartbeats not counted; the next closes it with 4008 `rate limited`.
+- A heartbeat timeout sends close 1000 `Heartbeat timeout` and destroys the socket without waiting for the peer's close frame.
 - `MESSAGE_CREATE` and `MESSAGE_UPDATE` carry `author.nickname` from `user_servers`, cached per server and user for 60 s.
 - IDENTIFY writes `bot_presence` (status `online`, connection time) and `bots.last_online_at`. Heartbeats update `bot_presence.last_heartbeat_at` and `latency_ms`. Disconnects set `bot_presence.status` to `offline`. The web client treats a bot as online only while its last heartbeat is under 90 s old, so a process that exits without closing its sockets does not leave bots shown online.
 - REST writes `bot_audit_log` rows for message send, edit and delete; channel, category and role creation; role update and delete; and emoji creation.

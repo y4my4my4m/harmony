@@ -92,6 +92,7 @@ services:
       ENABLED_OAUTH_PROVIDERS: ${ENABLED_OAUTH_PROVIDERS:-}
       TERMS_URL: ${TERMS_URL:-}
       PRIVACY_URL: ${PRIVACY_URL:-}
+      STATUS_URL: ${STATUS_URL:-}
     networks:
       - default
 

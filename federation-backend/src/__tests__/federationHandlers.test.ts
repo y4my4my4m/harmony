@@ -94,7 +94,8 @@ describe('FederationHandlers.createDeleteActivity', () => {
 
     expect(activity.type).toBe('Delete')
     expect(activity.actor).toBe('https://harmony.test/users/y4my4m')
-    expect(activity.object).toBe(post.ap_id)
+    expect(activity.object).toEqual({ id: post.ap_id, type: 'Tombstone' })
+    expect(activity.to).toEqual(['https://www.w3.org/ns/activitystreams#Public'])
   })
 
   it('regression: swapped (post, author) yields undefined actor (postHandler bug)', () => {

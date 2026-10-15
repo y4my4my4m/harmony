@@ -206,12 +206,20 @@ export const useServerChannelStore = defineStore('serverChannel', {
       return pickDefaultChannel(this.categories, this.categoryChannels, this.channels);
     },
 
-    /** getDefaultChannel for any server with a loaded or cached structure; null otherwise. */
-    defaultChannelFor(serverId: string): string | null {
-      if (serverId === this._loadedCategoriesServerId) return this.getDefaultChannel();
-      const snapshot = this._structureCacheByServer[serverId];
-      if (!snapshot) return null;
-      return pickDefaultChannel(snapshot.categories, snapshot.categoryChannels, snapshot.channels);
+    /**
+     * Channel a server opens on, as Discord's server switch: the last channel
+     * viewed there while it is still listed and not a voice channel, else the
+     * default channel. Null when the server has no loaded or cached structure.
+     */
+    landingChannelFor(serverId: string): string | null {
+      const structure = serverId === this._loadedCategoriesServerId
+        ? { categories: this.categories, categoryChannels: this.categoryChannels, channels: this.channels }
+        : this._structureCacheByServer[serverId];
+      if (!structure) return null;
+      const lastId = statePersistence.getLastChannel(serverId);
+      const last = lastId ? structure.channels.find(c => c.id === lastId) : undefined;
+      if (last && Number(last.type) !== 1) return last.id;
+      return pickDefaultChannel(structure.categories, structure.categoryChannels, structure.channels);
     },
 
     /** Background refresh of a server's structure unless its snapshot is fresh. */
@@ -258,10 +266,12 @@ export const useServerChannelStore = defineStore('serverChannel', {
       }
     },
 
-    setCurrentChannel(channelId: string | null): void {
+    /** `serverId` names the channel's server when the route carries it; currentServerId can lag a route change. */
+    setCurrentChannel(channelId: string | null, serverId?: string | null): void {
       this.currentChannelId = channelId;
-      if (channelId && this.currentServerId) {
-        statePersistence.setLastChannel(this.currentServerId, channelId).catch(debug.error);
+      const ownerServerId = serverId ?? this.currentServerId;
+      if (channelId && ownerServerId) {
+        statePersistence.setLastChannel(ownerServerId, channelId).catch(debug.error);
         const channel = this.channels.find(c => c.id === channelId);
         debug.log('Current channel set to:', channel?.name || channelId);
       }
@@ -325,6 +335,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
             name,
             description,
             icon,
+            banner,
+            sidebar_banner,
             owner,
             allow_cross_server_emojis,
             public,
@@ -366,6 +378,8 @@ export const useServerChannelStore = defineStore('serverChannel', {
             name,
             description,
             icon,
+            banner,
+            sidebar_banner,
             owner,
             allow_cross_server_emojis,
             public,

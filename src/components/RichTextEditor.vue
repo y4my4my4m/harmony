@@ -53,7 +53,9 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useUndoRedo, type UndoState } from '@/composables/useUndoRedo';
 import { findEmojiByName } from '@/services/emojiShortcodeResolver';
 import { applyInlineFormatToggle, type InlineFormatKind } from '@/utils/richTextFormatting';
-import { HANDLE_PATTERN, continuesHandle } from '@/utils/mentionGrammar';
+import { historyShortcut } from '@/utils/editorShortcuts';
+import { HANDLE_PATTERN } from '@/utils/mentionGrammar';
+import { linearize, offsetForPoint, plainTextOf, pointForOffset } from '@/utils/editorText';
 import { HERE_ROLE_ID } from '@/utils/hereMention';
 import { pastedText, writeTokenTextToClipboard } from '@/utils/emojiClipboard';
 import { focusFromNavigationKey, trackNavigationKeys } from '@/utils/a11y/focus';
@@ -149,209 +151,19 @@ const isSingleLine = computed(() => {
   return !props.modelValue.includes('\n');
 });
 
+// Text and caret offsets come from one walk of the DOM (utils/editorText): a separate
+// offset walk that skipped the line breaks of block elements put the caret and Ctrl+B
+// markers a line off inside fenced code and multi-line quotes.
 const getPlainText = (): string => {
   if (!editorRef.value) return '';
-  
-  let text = '';
-  let lastWasMention = false;
-
-  const processNode = (node: Node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const content = node.textContent || '';
-      // Browsers leave empty text nodes beside a non-editable pill; one separates nothing.
-      if (!content) return;
-      if (lastWasMention && continuesHandle(content)) {
-        text += ' ';
-      }
-      lastWasMention = false;
-      text += content;
-    } else if (node.nodeType === Node.ELEMENT_NODE) {
-      const el = node as HTMLElement;
-
-      if (el.classList.contains('editor-emoji')) {
-        lastWasMention = false;
-        const emojiName = el.getAttribute('data-emoji');
-        if (emojiName) {
-          text += `:${emojiName}:`;
-        }
-      } else if (el.classList.contains('editor-mention')) {
-        // Message parsing consumes the display form: @username or @username@domain.
-        const displayText = el.getAttribute('data-display-text') || el.textContent || '';
-        // Handle left boundary (mentionGrammar): a letter, digit, "_", "@" or "/"
-        // directly before the "@" voids the handle, as after a preceding pill.
-        if (/[\p{L}\p{N}_@/]$/u.test(text)) {
-          text += ' ';
-        }
-        text += displayText;
-        lastWasMention = true;
-      } else if (el.classList.contains('editor-blockquote')) {
-        lastWasMention = false;
-        const lineEls = el.querySelectorAll(':scope > .editor-blockquote-line');
-        lineEls.forEach((lineEl, index) => {
-          if (index > 0) text += '\n';
-          text += lineEl.getAttribute('data-prefix') || '';
-          const content = lineEl.querySelector('.editor-blockquote-content');
-          if (content) {
-            for (const child of Array.from(content.childNodes)) {
-              processNode(child);
-            }
-          }
-        });
-      } else if (el.classList.contains('editor-greentext')) {
-        // Greentext lines are verbatim; leading `>` is preserved.
-        for (const child of Array.from(node.childNodes)) {
-          processNode(child);
-        }
-      } else if (el.tagName === 'BR') {
-        lastWasMention = false;
-        text += '\n';
-      } else if (el.tagName === 'DIV' || el.tagName === 'P') {
-        lastWasMention = false;
-        // Browsers insert block elements on Enter; Chrome uses <div>.
-        if (text.length > 0 && !text.endsWith('\n')) {
-          text += '\n';
-        }
-        for (const child of Array.from(node.childNodes)) {
-          processNode(child);
-        }
-      } else {
-        for (const child of Array.from(node.childNodes)) {
-          processNode(child);
-        }
-      }
-    }
-  };
-  
-  for (const child of Array.from(editorRef.value.childNodes)) {
-    processNode(child);
-  }
-  
-  // processMentionsInText writes \u00A0 into the DOM; map back to space so it
-  // does not reach stored content.
-  text = text.replace(/\u00A0/g, ' ');
-  
-  // Deleting all content leaves a lone <br>, yielding '\n'; report empty.
-  const trimmed = text.trim();
-  if (trimmed.length === 0) {
-    return '';
-  }
-  
-  return text;
-};
-
-const createPlainTextWalker = (root: HTMLElement) =>
-  document.createTreeWalker(
-    root,
-    NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
-    {
-      acceptNode: (node) => {
-        let parent = node.parentElement;
-        while (parent && parent !== root) {
-          if (parent.getAttribute('contenteditable') === 'false') {
-            return NodeFilter.FILTER_SKIP;
-          }
-          parent = parent.parentElement;
-        }
-
-        if (node.nodeType === Node.TEXT_NODE) {
-          return NodeFilter.FILTER_ACCEPT;
-        }
-        if (node.nodeType === Node.ELEMENT_NODE) {
-          const el = node as HTMLElement;
-          if (
-            el.classList.contains('editor-emoji') ||
-            el.classList.contains('editor-mention') ||
-            el.tagName === 'BR'
-          ) {
-            return NodeFilter.FILTER_ACCEPT;
-          }
-        }
-        return NodeFilter.FILTER_SKIP;
-      },
-    },
-  );
-
-const getNodePlainTextLength = (node: Node): number => {
-  if (node.nodeType === Node.TEXT_NODE) {
-    return (node.textContent || '').length;
-  }
-  if (node.nodeType === Node.ELEMENT_NODE) {
-    const el = node as HTMLElement;
-    if (el.classList.contains('editor-emoji')) {
-      const emojiName = el.getAttribute('data-emoji');
-      return emojiName ? `:${emojiName}:`.length : 0;
-    }
-    if (el.classList.contains('editor-mention')) {
-      const displayText = el.getAttribute('data-display-text');
-      return displayText?.length ?? 0;
-    }
-    if (el.tagName === 'BR') {
-      return 1;
-    }
-  }
-  return 0;
+  return plainTextOf(linearize(editorRef.value));
 };
 
 const getPlainTextOffsetForPoint = (
   root: HTMLElement,
   targetContainer: Node,
   targetOffset: number,
-): number => {
-  let position = 0;
-  const walker = createPlainTextWalker(root);
-  let node = walker.nextNode();
-
-  while (node) {
-    if (node === targetContainer) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        position += targetOffset;
-      }
-      break;
-    }
-    if (
-      targetContainer.nodeType === Node.ELEMENT_NODE &&
-      targetContainer.contains(node)
-    ) {
-      const nodesBefore = Array.from(targetContainer.childNodes).slice(0, targetOffset);
-      if (!nodesBefore.some((n) => n === node || n.contains(node as Node))) {
-        break;
-      }
-    }
-
-    position += getNodePlainTextLength(node);
-    node = walker.nextNode();
-  }
-
-  return position;
-};
-
-const findDomPointAtPlainTextOffset = (
-  root: HTMLElement,
-  targetPosition: number,
-): { node: Node; offset: number } | null => {
-  let currentPos = 0;
-  const walker = createPlainTextWalker(root);
-  let node = walker.nextNode();
-
-  while (node) {
-    const nodeLength = getNodePlainTextLength(node);
-    if (currentPos + nodeLength >= targetPosition) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        return { node, offset: targetPosition - currentPos };
-      }
-      const parent = node.parentNode;
-      if (!parent) return null;
-      return {
-        node: parent,
-        offset: Array.from(parent.childNodes).indexOf(node as ChildNode) + 1,
-      };
-    }
-    currentPos += nodeLength;
-    node = walker.nextNode();
-  }
-
-  return null;
-};
+): number => offsetForPoint(linearize(root), root, targetContainer, targetOffset);
 
 const getSelectionOffsets = (): { start: number; end: number } => {
   if (!editorRef.value) return { start: 0, end: 0 };
@@ -360,16 +172,9 @@ const getSelectionOffsets = (): { start: number; end: number } => {
   if (!selection || selection.rangeCount === 0) return { start: 0, end: 0 };
 
   const range = selection.getRangeAt(0);
-  const start = getPlainTextOffsetForPoint(
-    editorRef.value,
-    range.startContainer,
-    range.startOffset,
-  );
-  const end = getPlainTextOffsetForPoint(
-    editorRef.value,
-    range.endContainer,
-    range.endOffset,
-  );
+  const lin = linearize(editorRef.value);
+  const start = offsetForPoint(lin, editorRef.value, range.startContainer, range.startOffset);
+  const end = offsetForPoint(lin, editorRef.value, range.endContainer, range.endOffset);
   return { start, end: Math.max(start, end) };
 };
 
@@ -379,9 +184,9 @@ const setSelectionOffsets = (selStart: number, selEnd: number) => {
   const selection = window.getSelection();
   if (!selection) return;
 
-  const startPoint = findDomPointAtPlainTextOffset(editorRef.value, selStart);
-  const endPoint = findDomPointAtPlainTextOffset(editorRef.value, selEnd);
-  if (!startPoint || !endPoint) return;
+  const lin = linearize(editorRef.value);
+  const startPoint = pointForOffset(lin, editorRef.value, selStart);
+  const endPoint = pointForOffset(lin, editorRef.value, selEnd);
 
   try {
     const range = document.createRange();
@@ -581,7 +386,13 @@ const appendTextWithBlockquotes = (text: string, target: DocumentFragment | HTML
 
   segments.forEach((segment, segmentIndex) => {
     if (segmentIndex > 0) {
-      target.appendChild(document.createElement('br'));
+      // A block ends its own line; a <br> after it renders as an empty line.
+      const last = target.lastChild as HTMLElement | null;
+      if (last?.classList?.contains('editor-codeblock-wrapper')) {
+        last.setAttribute('data-line-after', '1');
+      } else if (!last?.classList?.contains('editor-blockquote')) {
+        target.appendChild(document.createElement('br'));
+      }
     }
 
     if (segment.type === 'text') {
@@ -596,6 +407,12 @@ const appendTextWithBlockquotes = (text: string, target: DocumentFragment | HTML
       target.appendChild(inner);
     }
   });
+
+  // An empty last line takes height and holds the caret only with a <br> of its own.
+  const lastSegment = segments[segments.length - 1];
+  if (lastSegment?.type === 'text' && (lastSegment.content === '' || lastSegment.content.endsWith('\n'))) {
+    target.appendChild(document.createElement('br'));
+  }
 };
 
 const appendGreentext = (target: DocumentFragment | HTMLElement, lines: string[]) => {
@@ -610,9 +427,17 @@ const appendGreentext = (target: DocumentFragment | HTMLElement, lines: string[]
 
 const appendFormattedText = (text: string, target: DocumentFragment | HTMLElement) => {
   const tokens = parseMarkdownWithMarkers(text);
+  let codeBlock: HTMLElement | null = null;
   tokens.forEach((token) => {
     if (token.type === 'text') {
-      const lines = token.content.split('\n');
+      let content = token.content;
+      // A fenced block ends its own line; the line break after its closing fence renders as nothing.
+      if (codeBlock && content.startsWith('\n')) {
+        codeBlock.setAttribute('data-line-after', '1');
+        content = content.slice(1);
+      }
+      codeBlock = null;
+      const lines = content.split('\n');
       lines.forEach((line, index) => {
         if (line) {
           target.appendChild(processMentionsInText(line));
@@ -622,7 +447,9 @@ const appendFormattedText = (text: string, target: DocumentFragment | HTMLElemen
         }
       });
     } else {
-      target.appendChild(createElementFromToken(token));
+      const el = createElementFromToken(token);
+      target.appendChild(el);
+      codeBlock = token.type === 'codeblock' ? (el as HTMLElement) : null;
     }
   });
 };
@@ -652,6 +479,7 @@ const appendBlockquote = (
     const contentWrap = document.createElement('span');
     contentWrap.className = 'editor-blockquote-content';
     appendFormattedText(line, contentWrap);
+    if (!contentWrap.lastChild) contentWrap.appendChild(document.createElement('br'));
 
     lineEl.appendChild(contentWrap);
     block.appendChild(lineEl);
@@ -860,6 +688,14 @@ const createElementFromToken = (token: MarkdownToken): Node => {
     case 'codeblock': {
       const div = document.createElement('div');
       div.className = 'editor-codeblock-wrapper';
+      // The fence's line breaks, after "```lang" and before the closing "```", are the
+      // block's own; the content holds only the code's lines (utils/editorText).
+      const language = token.language || '';
+      let code = token.content;
+      const closeNewline = code.endsWith('\n');
+      if (closeNewline) code = code.slice(0, -1);
+      div.setAttribute('data-open-newline', (token.raw ?? '').startsWith('```' + language + '\n') ? '1' : '0');
+      div.setAttribute('data-close-newline', closeNewline ? '1' : '0');
       
       const startMarker = document.createElement('div');
       startMarker.className = 'editor-codeblock-start';
@@ -872,7 +708,7 @@ const createElementFromToken = (token: MarkdownToken): Node => {
       const content = document.createElement('div');
       content.className = 'editor-codeblock-content';
       
-      const tokens = highlightSyntax(token.content, token.language);
+      const tokens = highlightSyntax(code, token.language);
       tokens.forEach(syntaxToken => {
         if (syntaxToken.content.includes('\n')) {
           const lines = syntaxToken.content.split('\n');
@@ -894,6 +730,9 @@ const createElementFromToken = (token: MarkdownToken): Node => {
           content.appendChild(span);
         }
       });
+      if (!content.lastChild || content.lastChild.nodeName === 'BR') {
+        content.appendChild(document.createElement('br'));
+      }
       
       const endMarker = document.createElement('div');
       endMarker.className = 'editor-codeblock-end';
@@ -1018,6 +857,14 @@ const applyEditorTextChange = (newText: string, selStart: number, selEnd: number
 const toggleInlineFormat = (kind: InlineFormatKind) => {
   if (!editorRef.value) return;
 
+  // Code renders markers literally; a toggle there only splits the code.
+  const selection = window.getSelection();
+  const inCode = (node: Node | null) => {
+    const el = node?.nodeType === Node.ELEMENT_NODE ? (node as Element) : node?.parentElement;
+    return !!el?.closest('.editor-code-wrapper, .editor-codeblock-wrapper');
+  };
+  if (selection && (inCode(selection.anchorNode) || inCode(selection.focusNode))) return;
+
   const text = getPlainText();
   const { start, end } = getSelectionOffsets();
   const { text: newText, selectionStart, selectionEnd } = applyInlineFormatToggle(
@@ -1030,20 +877,14 @@ const toggleInlineFormat = (kind: InlineFormatKind) => {
 };
 
 const handleKeyDown = (event: KeyboardEvent) => {
-  // Undo/redo: Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z and Cmd equivalents.
+  const historyAction = historyShortcut(event);
+  if (historyAction) {
+    event.preventDefault();
+    const state = historyAction === 'undo' ? undoRedo.undo() : undoRedo.redo();
+    if (state) applyUndoState(state);
+    return;
+  }
   if ((event.ctrlKey || event.metaKey) && !event.altKey) {
-    if (event.key === 'z' && !event.shiftKey) {
-      event.preventDefault();
-      const state = undoRedo.undo();
-      if (state) applyUndoState(state);
-      return;
-    }
-    if (event.key === 'y' || (event.key === 'z' && event.shiftKey)) {
-      event.preventDefault();
-      const state = undoRedo.redo();
-      if (state) applyUndoState(state);
-      return;
-    }
     const formatKey = event.key.toLowerCase();
     if (formatKey === 'b') {
       event.preventDefault();
@@ -1438,7 +1279,7 @@ onMounted(async () => {
 
 .rich-text-editor :deep(.editor-code-content) {
   background: var(--background-tertiary);
-  color: #f8f8f2;
+  color: var(--text-primary);
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 0.875em;
   padding: 0.125em 0.25em;
@@ -1469,14 +1310,16 @@ onMounted(async () => {
   border-top: 1px solid #202225;
 }
 
+/* Dracula background: the token colors below are Dracula's, unreadable on a light theme. */
 .rich-text-editor :deep(.editor-codeblock-content) {
   padding: 8px;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 0.875em;
   line-height: 1.125rem;
+  background: #282a36;
   color: #f8f8f2;
   white-space: pre-wrap;
-  overflow-x: auto;
+  overflow-wrap: anywhere;
 }
 
 .rich-text-editor :deep(.editor-emoji) {

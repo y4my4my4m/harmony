@@ -121,7 +121,8 @@
                   class="role-badge"
                   :style="{ 
                     backgroundColor: role.color,
-                    borderColor: role.color + '33'
+                    borderColor: role.color + '33',
+                    color: roleLabelColor(role.color)
                   }"
                 >
                   {{ role.name }}
@@ -374,7 +375,7 @@
             >
               <Icon v-if="followBusy" name="spinner" :size="16" class="follow-spin" />
               <Icon v-else :name="getUserIsFollowing(user) || followRequested ? 'unfollow' : 'follow'" :size="16" />
-              {{ followRequested ? t('activitypub.cancelFollowRequest') : getUserIsFollowing(user) ? t('activitypub.unfollow') : t('activitypub.follow') }}
+              {{ followRequested ? t('activitypub.cancelFollowRequest') : getUserIsFollowing(user) ? t('activitypub.unfollow') : t(FOLLOW_ACTION_KEYS[followAction].text) }}
             </button>
             
             <!-- All Users: Mention -->
@@ -413,8 +414,8 @@
                   @click="inviteToServer(server)"
                 >
                   <img
-                    v-if="(server as any).icon_url || server.icon"
-                    :src="getServerIconUrl((server as any).icon_url || server.icon, 64)"
+                    v-if="(server as any).icon_url || server.icon || server.name"
+                    :src="getServerIconUrl((server as any).icon_url || server.icon, 64, server.name)"
                     :alt="server.name"
                     class="picker-server-icon"
                   />
@@ -454,7 +455,8 @@ import { supabase } from '@/supabase'
 import { useActivityPubStore } from '../stores/useActivityPub'
 import { useServerChannelStore } from '../stores/useServerChannel'
 import { showInstanceStaffBadge } from '@/utils/instanceBadge'
-import { useUserData } from '@/composables/useUserData'
+import { useUserData, DEFAULT_USER_COLOR } from '@/composables/useUserData'
+import { contrastRatio } from '@/utils/colorUtils'
 import { useLayoutState } from '@/composables/useLayoutState'
 import { getBannerUrl, getRawBannerUrl } from '@/utils/bannerUtils'
 import BannerImage from '@/components/common/BannerImage.vue'
@@ -473,6 +475,7 @@ import SupporterBadge from './common/SupporterBadge.vue'
 import DisplayName from './DisplayName.vue'
 import MovedAccountNotice from './activitypub/MovedAccountNotice.vue'
 import { useMovedAccount } from '@/composables/useMovedAccount'
+import { FOLLOW_ACTION_KEYS, useFollowAction } from '@/composables/useFollowAction'
 import { runtimeConfig } from '@/services/runtimeConfig'
 import { activityPubService } from '@/services/activityPubService'
 import { profileCount, remoteCountFields, type ProfileCountSource } from '@/utils/profileCounts'
@@ -956,10 +959,16 @@ const bannerStyle = computed(() => {
   if (isBridgedDiscord.value && bridgedProfile.value?.accent_color) {
     return { backgroundColor: bridgedProfile.value.accent_color }
   }
-  return {
-    background: userColor.value || 'var(--harmony-primary)'
-  }
+  // The default name colour is the text colour: a white banner on dark themes.
+  const colour = userColor.value && userColor.value !== DEFAULT_USER_COLOR ? userColor.value : 'var(--harmony-primary)'
+  return { background: colour }
 })
+
+/** White or near-black, whichever reads better on a role's colour; undefined keeps the theme text. */
+function roleLabelColor(color: string | null | undefined): string | undefined {
+  if (!color || !/^#[0-9a-f]{6}$/i.test(color)) return undefined
+  return contrastRatio(color, '#ffffff') >= contrastRatio(color, '#111214') ? '#ffffff' : '#111214'
+}
 
 // Methods
 const handleAvatarError = (event: Event) => {
@@ -1120,6 +1129,7 @@ const followRequested = ref(false)
 
 const isLockedAccount = computed(() =>
   fetchedLocked.value ?? ((props.user as FederatedUser | null)?.manually_approves_followers === true))
+const { action: followAction } = useFollowAction(() => (props.show ? props.user as FederatedUser | null : null), () => isLockedAccount.value)
 
 // The store tracks accepted follows only; a pending request is read from the follows row.
 async function loadFollowRequestState(userId: string) {
@@ -1602,7 +1612,8 @@ onMounted(() => {
   background: rgba(0, 0, 0, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-md);
-  color: var(--text-primary);
+  /* Fixed dark fill over the banner in every theme. */
+  color: #fff;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -2286,7 +2297,7 @@ onMounted(() => {
 }
 
 .primary-action-btn.following {
-  background: var(--success);
+  background: var(--success-fill);
 }
 
 .primary-action-btn:hover {

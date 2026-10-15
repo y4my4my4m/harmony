@@ -23,6 +23,9 @@ let messageContent: any[] = [{ type: 'text', text: 'hi' }]
 const rpc = vi.fn(async (name: string, _args: any) =>
   name === 'federation_channel_recipients' ? recipients : { data: null, error: { message: `unexpected ${name}` } })
 const messageUpdates: any[] = []
+const LOCAL_SERVER = { id: SERVER, name: 'S', is_local_server: true, federation_enabled: true, owner: 'alice' }
+let serverRow: any = LOCAL_SERVER
+const ALICE_ROW = { id: 'alice', username: 'alice', federated_id: 'https://harmony.test/users/alice', is_local: true }
 
 vi.mock('../config/supabase.js', () => ({
   getSupabaseClient: () => ({
@@ -31,7 +34,10 @@ vi.mock('../config/supabase.js', () => ({
       const q: any = {
         select: () => q,
         eq: () => q,
-        maybeSingle: () => Promise.resolve({ data: null, error: null }),
+        maybeSingle: () => Promise.resolve({
+          data: table === 'messages' ? { user_id: 'alice' } : table === 'profiles' ? ALICE_ROW : null,
+          error: null,
+        }),
         single: () => {
           if (table === 'messages') {
             return Promise.resolve({
@@ -50,7 +56,7 @@ vi.mock('../config/supabase.js', () => ({
             })
           }
           if (table === 'servers') {
-            return Promise.resolve({ data: { id: SERVER, name: 'S', is_local_server: true, federation_enabled: true, owner: 'alice' }, error: null })
+            return Promise.resolve({ data: serverRow, error: null })
           }
           return Promise.resolve({ data: null, error: null })
         },
@@ -76,6 +82,7 @@ beforeEach(() => {
   enqueue.mockClear()
   messageUpdates.length = 0
   messageContent = [{ type: 'text', text: 'hi' }]
+  serverRow = LOCAL_SERVER
   recipients = {
     data: [
       { instance: 'remote.test', member_ap_ids: ['https://remote.test/users/rm'], member_count: 1, shared_inbox: 'https://remote.test/inbox' },
@@ -141,6 +148,31 @@ describe('channel message fan-out', () => {
     expect(enqueue.mock.calls.map(c => c[1])).toEqual([
       'https://remote.test/inbox', 'https://other.test/inbox',
       'https://remote.test/inbox', 'https://other.test/inbox',
+    ])
+  })
+
+  it('deletes as the Group, signed with its key, and edits as the author', async () => {
+    await handleChannelMessageUpdate({ message_id: MESSAGE, channel_id: CHANNEL, server_id: SERVER })
+    await handleChannelMessageDelete({ message_id: MESSAGE, channel_id: CHANNEL, server_id: SERVER })
+
+    const sent = enqueue.mock.calls.map(c => [(c[0] as any).type, (c[0] as any).actor, c[2]])
+    expect(sent).toEqual([
+      ['Update', 'https://harmony.test/users/alice', 'alice'],
+      ['Update', 'https://harmony.test/users/alice', 'alice'],
+      ['Delete', `https://harmony.test/servers/${SERVER}`, { serverId: SERVER }],
+      ['Delete', `https://harmony.test/servers/${SERVER}`, { serverId: SERVER }],
+    ])
+  })
+
+  it('sends the local author\'s own Delete to a remote server copy', async () => {
+    serverRow = {
+      id: SERVER, name: 'R', is_local_server: false, federation_enabled: true, owner: 'alice',
+      federation_inbox_url: 'https://host.test/servers/r/inbox',
+    }
+    await handleChannelMessageDelete({ message_id: MESSAGE, channel_id: CHANNEL, server_id: SERVER })
+
+    expect(enqueue.mock.calls.map(c => [c[1], (c[0] as any).actor, (c[0] as any).object, c[2]])).toEqual([
+      ['https://host.test/servers/r/inbox', 'https://harmony.test/users/alice', `https://harmony.test/messages/${MESSAGE}`, 'alice'],
     ])
   })
 })

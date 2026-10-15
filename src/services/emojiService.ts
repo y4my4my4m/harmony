@@ -8,7 +8,7 @@ import { debug } from '@/utils/debug'
 import { removeFrequentEmoji } from '@/composables/useFrequentEmojis';
 import { EmojiFavoriteService } from '@/services/EmojiFavoriteService';
 import { invalidateEmojiResolverCache } from '@/services/emojiShortcodeResolver';
-import { immutableUploadOptions, isAnimatedImage, prepareImageUpload } from '@/utils/imageResize';
+import { immutableUploadOptions, isAnimatedImage, prepareImageUpload, type PreparedImage } from '@/utils/imageResize';
 import { UploadRejectedError, getBucketLimits, imageSourceError, validateImageUpload } from '@/utils/uploadValidation';
 
 const cleanFileName = (originalName: string) => {
@@ -218,24 +218,46 @@ async function upscalePixelArt(file: File): Promise<File> {
     return new File([blob], newName, { type: 'image/png' });
 }
 
-// Uploads an emoji and invalidates the cache. Throws UploadRejectedError when
-// the prepared file fails the emojis bucket limits.
+/** Default emoji name for an uploaded file: its stem, [\w.-] only, at most 20 characters. */
+function emojiNameFromFile(fileName: string): string {
+    return cleanFileName(fileName).name;
+}
+
+/**
+ * Emoji upload, steps 1-2: pixel-art upscale, downscale to the emojis bucket limits,
+ * validation. Throws UploadRejectedError with a user-facing message.
+ */
+async function prepareEmojiImage(file: File): Promise<PreparedImage> {
+    const sourceError = imageSourceError(file);
+    if (sourceError) throw new UploadRejectedError(sourceError);
+    // imgproxy only downscales; tiny pixel art is upscaled with nearest-neighbour first.
+    const upscaled = await upscalePixelArt(file).catch(() => file);
+    const prepared = await prepareImageUpload(upscaled, 'emoji', await getBucketLimits('emojis'));
+    const validationError = await validateImageUpload(prepared.file, 'emojis');
+    if (validationError) throw new UploadRejectedError(validationError);
+    return prepared;
+}
+
+/** Emoji upload, step 3: writes the object; returns its public URL. */
+async function storeEmojiImage(path: string, prepared: PreparedImage): Promise<string> {
+    const { error } = await supabase.storage
+        .from('emojis')
+        .upload(path, prepared.file, immutableUploadOptions(prepared));
+    if (error) throw error;
+    return supabase.storage.from('emojis').getPublicUrl(path).data.publicUrl;
+}
+
+// Uploads a server emoji at <server>/<uploader>/<uuid>.<ext> and invalidates the cache.
+// Throws UploadRejectedError when the prepared file fails the emojis bucket limits.
 async function uploadEmoji(serverId: string, userId: string, file: File): Promise<Emoji | null> {
     const emojiCache = useEmojiCacheStore();
 
-    const sourceError = imageSourceError(file);
-    if (sourceError) throw new UploadRejectedError(sourceError);
-    // Upscale tiny pixel art before upload so imgproxy only downscales
-    file = await upscalePixelArt(file).catch(() => file);
-    const prepared = await prepareImageUpload(file, 'emoji', await getBucketLimits('emojis'));
+    const prepared = await prepareEmojiImage(file);
     file = prepared.file;
-    const validationError = await validateImageUpload(file, 'emojis');
-    if (validationError) throw new UploadRejectedError(validationError);
 
     try {
+        const cleanedName = emojiNameFromFile(file.name);
 
-        const { name: cleanedName } = cleanFileName(file.name);
-        
         let uniqueName = cleanedName;
         let counter = 1;
         while (await doesEmojiNameExist(serverId, uniqueName)) {
@@ -243,24 +265,12 @@ async function uploadEmoji(serverId: string, userId: string, file: File): Promis
             counter++;
         }
 
-        const uniqueEmojiName = `${uuidv4()}.${prepared.extension}`;
-        const filePath = `${serverId}/${userId}/${uniqueEmojiName}`;
-        
-        const { error } = await supabase.storage
-            .from('emojis')
-            .upload(filePath, file, immutableUploadOptions(prepared));
-
-        if (error) throw error;
-
-        const { data } = await supabase.storage
-            .from('emojis')
-            .getPublicUrl(filePath);
-
-        debug.log("Emoji uploaded successfully");
+        const filePath = `${serverId}/${userId}/${uuidv4()}.${prepared.extension}`;
+        const publicUrl = await storeEmojiImage(filePath, prepared);
 
         const newEmoji = {
             name: uniqueName,
-            url: data.publicUrl,
+            url: publicUrl,
             server_id: serverId,
             uploader: userId,
             file_size: file.size,
@@ -472,53 +482,6 @@ async function doesEmojiNameExist(serverId: string, name: string): Promise<boole
     }
 }
 
-export interface BulkUploadProgress {
-    current: number;
-    completed: number;
-    failed: number;
-    total: number;
-    currentFile: string;
-}
-
-async function bulkUploadEmojis(
-    serverId: string,
-    userId: string,
-    files: File[],
-    onProgress?: (progress: BulkUploadProgress) => void
-): Promise<(Emoji | null)[]> {
-    const results: (Emoji | null)[] = [];
-    const emojiCache = useEmojiCacheStore();
-    let completed = 0;
-    let failed = 0;
-    
-    debug.log(`Starting bulk upload of ${files.length} emojis for server ${serverId}`);
-    
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        onProgress?.({ current: i + 1, completed, failed, total: files.length, currentFile: file.name });
-        
-        try {
-            const result = await uploadEmoji(serverId, userId, file);
-            results.push(result);
-            if (result) completed++; else failed++;
-            
-            await new Promise(resolve => setTimeout(resolve, 100));
-        } catch (error) {
-            debug.error(`Failed to upload ${file.name}:`, error);
-            results.push(null);
-            failed++;
-        }
-        
-        onProgress?.({ current: i + 1, completed, failed, total: files.length, currentFile: file.name });
-    }
-    
-    await emojiCache.invalidate({ serverId });
-    
-    debug.log(`Bulk upload completed: ${completed}/${files.length} successful`);
-    
-    return results;
-}
-
 // Search emojis with advanced filtering
 async function searchEmojis(query: string, options: {
     serverId?: string;
@@ -709,7 +672,9 @@ export {
     renameEmoji,
     bulkDeleteEmojis,
     doesEmojiNameExist,
-    bulkUploadEmojis,
+    emojiNameFromFile,
+    prepareEmojiImage,
+    storeEmojiImage,
     searchEmojis,
     getServerEmojiAnalytics,
     preloadFrequentEmojis,

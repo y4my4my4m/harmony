@@ -347,14 +347,11 @@ async function canPinMessages(userId: string, serverId: string, channelId?: stri
 }
 
 /**
- * Check if user can create threads
+ * CREATE_PUBLIC_THREADS, as create_thread. Harmony threads are public; CREATE_PRIVATE_THREADS
+ * starts none.
  */
 async function canCreateThreads(userId: string, serverId: string, channelId?: string): Promise<boolean> {
-  const [canPublic, canPrivate] = await Promise.all([
-    roleService.hasPermission(userId, serverId, Permission.CREATE_PUBLIC_THREADS, channelId),
-    roleService.hasPermission(userId, serverId, Permission.CREATE_PRIVATE_THREADS, channelId),
-  ])
-  return canPublic || canPrivate
+  return roleService.hasPermission(userId, serverId, Permission.CREATE_PUBLIC_THREADS, channelId)
 }
 
 /**

@@ -28,10 +28,22 @@
 export const SOUNDBOARD_TOPIC = 'harmony-soundboard';
 export const SOUNDBOARD_P2P_EVENT = 'soundboard';
 
-/** Sender cooldown between plays, ms. */
-export const SOUNDBOARD_COOLDOWN_MS = 3000;
-/** Receiver floor between plays of one sender, ms: the cooldown less delivery jitter. */
-export const SOUNDBOARD_RECEIVE_INTERVAL_MS = 2500;
+/**
+ * Sender rule: a play that makes SOUNDBOARD_BURST plays within SOUNDBOARD_BURST_WINDOW_MS
+ * locks the sender out for SOUNDBOARD_LOCKOUT_MS from that play. Slower playing never locks out.
+ */
+export const SOUNDBOARD_BURST = 3;
+/** ms. */
+export const SOUNDBOARD_BURST_WINDOW_MS = 3000;
+/** ms. */
+export const SOUNDBOARD_LOCKOUT_MS = 3000;
+/**
+ * Receiver rule: a sender's play is dropped while SOUNDBOARD_BURST of their accepted plays fall
+ * within this window, ms. Any SOUNDBOARD_BURST + 1 consecutive plays the sender rule allows span
+ * at least min(SOUNDBOARD_BURST_WINDOW_MS, SOUNDBOARD_LOCKOUT_MS) = 3000 ms, so they all pass
+ * with up to 500 ms of delivery jitter.
+ */
+export const SOUNDBOARD_RECEIVE_WINDOW_MS = 2500;
 /** Larger payloads are dropped unparsed; a play encodes to under 200 bytes. */
 export const SOUNDBOARD_MESSAGE_MAX_BYTES = 1024;
 
@@ -120,29 +132,62 @@ export function soundboardExternalGrant(metadata: string | undefined | null): bo
   return metadataFlag(metadata, 'soundboardExternal');
 }
 
-/** At most one event per key per interval. */
+export interface SenderPlays {
+  /** Times of the sender's recent plays, ms, oldest first; at most SOUNDBOARD_BURST - 1 kept. */
+  sentAt: number[];
+  /** End of the current lockout, ms; 0 or past when none. */
+  lockedUntil: number;
+}
+
+/** Milliseconds of lockout left at now; 0 when the sender may play. */
+export function senderLockoutRemaining(state: SenderPlays, now: number): number {
+  return Math.max(0, state.lockedUntil - now);
+}
+
+/**
+ * The sender state after a play at now, or null when the lockout refuses it. A play completing
+ * SOUNDBOARD_BURST plays within SOUNDBOARD_BURST_WINDOW_MS starts a lockout of
+ * SOUNDBOARD_LOCKOUT_MS from now.
+ */
+export function recordSenderPlay(state: SenderPlays, now: number): SenderPlays | null {
+  if (senderLockoutRemaining(state, now) > 0) return null;
+  const recent = [...state.sentAt.filter((t) => now - t < SOUNDBOARD_BURST_WINDOW_MS), now];
+  if (recent.length >= SOUNDBOARD_BURST) return { sentAt: [], lockedUntil: now + SOUNDBOARD_LOCKOUT_MS };
+  return { sentAt: recent, lockedUntil: state.lockedUntil };
+}
+
+/**
+ * At most `limit` accepted events per key within any window of `windowMs`. A refused event is
+ * not recorded.
+ */
 export class SoundboardRateLimiter {
-  private last = new Map<string, number>();
+  private accepted = new Map<string, number[]>();
 
-  constructor(private readonly intervalMs: number) {}
+  constructor(
+    private readonly limit: number,
+    private readonly windowMs: number,
+  ) {}
 
-  /** Records the event and returns true when the key's interval has passed. */
+  /** Records the event and returns true unless the key already holds `limit` events in the window. */
   allow(key: string, now: number): boolean {
-    if (this.remaining(key, now) > 0) return false;
-    this.last.set(key, now);
+    const recent = (this.accepted.get(key) ?? []).filter((t) => now - t < this.windowMs);
+    if (recent.length >= this.limit) {
+      this.accepted.set(key, recent);
+      return false;
+    }
+    recent.push(now);
+    this.accepted.set(key, recent);
     return true;
   }
 
-  /** Milliseconds until the key may fire again; 0 when it may now. */
-  remaining(key: string, now: number): number {
-    const previous = this.last.get(key);
-    if (previous === undefined) return 0;
-    return Math.max(0, previous + this.intervalMs - now);
-  }
-
   reset(): void {
-    this.last.clear();
+    this.accepted.clear();
   }
+}
+
+/** The receiver rule: SOUNDBOARD_BURST plays per sender within SOUNDBOARD_RECEIVE_WINDOW_MS. */
+export function createReceiveLimiter(): SoundboardRateLimiter {
+  return new SoundboardRateLimiter(SOUNDBOARD_BURST, SOUNDBOARD_RECEIVE_WINDOW_MS);
 }
 
 export interface ReceiveContext {

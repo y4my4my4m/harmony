@@ -1,16 +1,15 @@
 // Service worker: push notifications and PWA caching.
-// Version 3.7 - non-GET requests bypass the worker; notification dedupe by id,
-// pushsubscriptionchange renewal, click-through via the payload url, pending reads
-// for closed apps.
+// Version 3.8 - storage render images are fetched in CORS mode and kept in Cache Storage:
+// emoji renders cache-first, other renders revalidated once per worker lifetime.
 
 const CACHE_NAME = 'harmony-v5-mobile'
 const STATIC_CACHE = 'harmony-static-v3'
 const API_CACHE = 'harmony-api-v3'
 const EMOJI_CACHE = 'harmony-emoji-v2'
-const TRANSFORM_CACHE = 'harmony-transform-v1'
+const TRANSFORM_CACHE = 'harmony-transform-v2'
 // Notification bookkeeping, not HTTP responses. Keys encode their timestamp.
 const NOTIF_STATE_CACHE = 'harmony-notif-state-v1'
-const SW_VERSION = '3.7'
+const SW_VERSION = '3.8'
 
 const STATIC_RESOURCES = [
   '/',
@@ -547,10 +546,9 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Storage transform images: serve cached, refresh in background so
-  // re-uploads propagate.
+  // Storage transform images: served from Cache Storage; see transformImage.
   if (isStorageTransformRequest(requestUrl)) {
-    event.respondWith(transformImageStaleWhileRevalidate(event.request))
+    event.respondWith(transformImage(event.request, requestUrl))
     return
   }
 
@@ -702,30 +700,62 @@ async function staleWhileRevalidate(request, cacheName) {
   return networkResponse || new Response('Resource not available', { status: 503 })
 }
 
-// Stale-while-revalidate for imgproxy render URLs. Requires image/* so a 404
-// HTML page is never pinned in the cache.
-async function transformImageStaleWhileRevalidate(request) {
-  const cachedResponse = await caches.match(request)
+// imgproxy render URLs of storage images. An <img> request is no-cors and its response
+// opaque: Cache Storage pads those to megabytes each and their type cannot be checked. Storage
+// answers CORS (Access-Control-Allow-Origin: *), so the image is fetched in cors mode, which a
+// no-cors request accepts, and kept as a real response keyed by URL.
+//
+// Emoji paths are immutable (one object per emoji): cache-first. Avatars, icons and banners
+// may be re-uploaded in place on older paths: served from the cache and refetched once per
+// worker lifetime. The cache holds TRANSFORM_CACHE_MAX images, oldest dropped first.
+const TRANSFORM_CACHE_MAX = 3000
+const TRANSFORM_TRIM_EVERY = 50
+const revalidatedTransforms = new Set()
+let transformPuts = 0
 
-  const fetchPromise = fetch(request).then((response) => {
-    const contentType = response.headers.get('content-type') || ''
-    const isImage = contentType.startsWith('image/')
-    if (response.status === 200 && response.ok && isImage) {
-      const responseClone = response.clone()
-      caches.open(TRANSFORM_CACHE).then((cache) => {
-        cache.put(request, responseClone)
-      }).catch(() => {})
-    }
-    return response
-  }).catch(() => null)
-
-  if (cachedResponse) {
-    fetchPromise
-    return cachedResponse
+async function fetchImageCors(request) {
+  try {
+    return await fetch(request.url, { mode: 'cors', credentials: 'omit' })
+  } catch {
+    return fetch(request)
   }
+}
 
-  const networkResponse = await fetchPromise
-  return networkResponse || new Response('Image unavailable', { status: 503 })
+async function storeTransform(cache, url, response) {
+  const contentType = response.headers.get('content-type') || ''
+  if (!response.ok || response.type === 'opaque' || !contentType.startsWith('image/')) return
+  await cache.put(url, response.clone())
+  transformPuts++
+  if (transformPuts % TRANSFORM_TRIM_EVERY === 0) {
+    const keys = await cache.keys()
+    for (const key of keys.slice(0, Math.max(0, keys.length - TRANSFORM_CACHE_MAX))) await cache.delete(key)
+  }
+}
+
+async function transformImage(request, url) {
+  let cache
+  try {
+    cache = await caches.open(TRANSFORM_CACHE)
+  } catch {
+    return fetch(request)
+  }
+  const cached = await cache.match(request.url)
+  const immutable = url.pathname.includes('/render/image/public/emojis/')
+  if (cached) {
+    if (!immutable && !revalidatedTransforms.has(request.url)) {
+      revalidatedTransforms.add(request.url)
+      fetchImageCors(request).then((fresh) => storeTransform(cache, request.url, fresh)).catch(() => {})
+    }
+    return cached
+  }
+  try {
+    const response = await fetchImageCors(request)
+    revalidatedTransforms.add(request.url)
+    storeTransform(cache, request.url, response).catch(() => {})
+    return response
+  } catch {
+    return new Response('Image unavailable', { status: 503 })
+  }
 }
 
 // Cache-first for /assets/emojis/ SVG and JSON; these assets rarely change.

@@ -110,7 +110,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  width: min(360px, calc(100vw - 2 * var(--space-3)));
+  width: min(360px, calc(100 * var(--app-vw) - 2 * var(--space-3)));
   box-sizing: border-box;
   padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
   background: var(--background-floating);

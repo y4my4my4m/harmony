@@ -111,6 +111,17 @@ class PushPlugin(private val activity: Activity) : Plugin(activity) {
   }
 
   @Command
+  fun ringerMode(invoke: Invoke) {
+    invoke.resolve(JSObject().apply { put("mode", Ringer.mode(activity)) })
+  }
+
+  @Command
+  fun vibrate(invoke: Invoke) {
+    Ringer.buzz(activity)
+    invoke.resolve()
+  }
+
+  @Command
   fun openSettings(invoke: Invoke) {
     val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
       .putExtra(Settings.EXTRA_APP_PACKAGE, activity.packageName)

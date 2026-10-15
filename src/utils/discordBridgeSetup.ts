@@ -22,9 +22,15 @@ export const DISCORD_BRIDGE_PERMISSION_FLAGS = {
   attachFiles: 1n << 15n,
   readMessageHistory: 1n << 16n,
   manageWebhooks: 1n << 29n,
+  createPublicThreads: 1n << 35n,
+  sendMessagesInThreads: 1n << 38n,
 } as const
 
-/** View Channels, Send Messages, Manage Messages, Read Message History, Add Reactions, Embed Links, Attach Files, Manage Webhooks = 536996928. */
+/**
+ * View Channels, Send Messages, Manage Messages, Read Message History, Add Reactions, Embed
+ * Links, Attach Files, Manage Webhooks, Create Public Threads, Send Messages in Threads =
+ * 309774642240. The thread pair carries threads across the bridge (bridge 2.4.0).
+ */
 export const DISCORD_BRIDGE_PERMISSIONS_VALUE = Object.values(DISCORD_BRIDGE_PERMISSION_FLAGS)
   .reduce((acc, flag) => acc | flag, 0n)
   .toString()

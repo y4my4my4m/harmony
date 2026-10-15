@@ -143,7 +143,7 @@ const loadMessages = async () => {
     if (serverId && channelId) {
       dmStore.trimCachedConversation()
       if (serverChannelStore.currentChannelId !== channelId) {
-        serverChannelStore.setCurrentChannel(channelId)
+        serverChannelStore.setCurrentChannel(channelId, serverId)
       }
 
       if (chatStore.isMessageCached(channelId)) {

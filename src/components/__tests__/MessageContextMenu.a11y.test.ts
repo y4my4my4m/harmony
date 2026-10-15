@@ -14,6 +14,9 @@ vi.mock('@/composables/useFrequentEmojis', () => ({
 }))
 vi.mock('@/composables/useHapticSettings', () => ({ useHapticSettings: () => ({ triggerReaction: vi.fn() }) }))
 vi.mock('@/composables/useServerPermissions', () => ({ useServerPermissions: () => ({ canPinMessages: ref(false) }) }))
+vi.mock('@/composables/useChannelMessagePermissions', () => ({
+  useChannelMessagePermissions: () => ({ canPinMessages: ref(false), canManageMessages: ref(false), canCreateThreads: ref(true) }),
+}))
 vi.mock('@/composables/useDeveloperTools', () => ({ useDeveloperTools: () => ({ developerToolsEnabled: ref(false) }) }))
 vi.mock('@/composables/usePinActions', () => ({ usePinActions: () => ({ setPinned: vi.fn() }) }))
 vi.mock('@/services/privateMedia', () => ({ resolveMediaPartUrl: vi.fn(async () => null) }))

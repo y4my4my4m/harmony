@@ -18,6 +18,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from './useServerChannel';
 import { useSoundboardStore } from './soundboard';
+import { useActivitiesStore } from '@/stores/activities';
 import type { SoundboardTransportEvent } from '@/services/soundboard/protocol';
 import { setCallServiceActive } from '@/services/callForegroundService';
 import { syncOverlayForCall } from '@/services/overlayBridge';
@@ -32,6 +33,8 @@ import { userEventChannel } from '@/services/UserEventChannel';
 import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
 import type { StreamSettingsUpdate } from '@/services/voice/streamQuality';
+import { grantsFromRolePermissions, type VoiceGrants } from '@/services/voice/voiceGrants';
+import { useVoiceModerationStore } from './voiceModeration';
 
 let voiceSessionHeartbeat: ReturnType<typeof setInterval> | null = null;
 
@@ -144,6 +147,15 @@ interface VoiceChannelState {
   // Last-seen voice-channel user IDs; short-circuits
   // `ensureProfilesAvailable` when membership has not changed.
   previousUserIds: string[];
+
+  // What the server lets this client publish and hear in the call: the
+  // LiveKit grant, or the caller's channel permissions on P2P. Null: not
+  // known, nothing withheld.
+  voiceGrants: VoiceGrants | null;
+  // Mute and deafen this client applied for a server mute, deafen or missing
+  // SPEAK; lifted with it.
+  forcedMute: boolean;
+  forcedDeafen: boolean;
 }
 
 
@@ -218,6 +230,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     joinError: null,
 
     previousUserIds: [],
+
+    voiceGrants: null,
+    forcedMute: false,
+    forcedDeafen: false,
   }),
 
   
@@ -321,7 +337,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     liveReactionsAvailable: (state): boolean =>
-      liveReactionsAvailable(state.connectionMode, [state.localState, ...state.allUsers]),
+      liveReactionsAvailable(state.connectionMode, [state.localState, ...state.allUsers], useActivitiesStore().playingHere),
 
     getConnectionQuality: (state) => (userId: string): VoiceConnectionQuality => {
       return state.connectionQuality[userId] ?? 'unknown';
@@ -331,6 +347,33 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       return [...state.recentSpeakers]
         .sort((a, b) => b.lastSpokeAt - a.lastSpokeAt)
         .slice(0, 5);
+    },
+
+    /** Server mute and deafen of this client in its call's server. */
+    selfModeration: (state) => {
+      return useVoiceModerationStore().flagsOf(state.currentServerId, state.localState.userId);
+    },
+
+    /** The microphone is withheld: server mute, server deafen or no SPEAK. */
+    speakLocked(): boolean {
+      if (!this.isConnected) return false;
+      return this.selfModeration.muted || this.selfModeration.deafened || this.voiceGrants?.speak === false;
+    },
+
+    /** Server deafen: this client hears nothing and cannot undeafen. */
+    deafenLocked(): boolean {
+      return this.isConnected && this.selfModeration.deafened;
+    },
+
+    /** STREAM: camera and screen share. */
+    canStream: (state): boolean => state.voiceGrants?.stream !== false,
+
+    /** Why the microphone is withheld, as an i18n key; null when it is not. */
+    speakLockReason(): string | null {
+      if (!this.speakLocked) return null;
+      if (this.selfModeration.deafened) return 'voice.moderation.serverDeafenedHint';
+      if (this.selfModeration.muted) return 'voice.moderation.serverMutedHint';
+      return 'voice.moderation.noSpeakHint';
     },
 
     activelySpeakingUserIds: (state) => {
@@ -357,7 +400,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     async joinVoiceChannel(
       channelId: string,
       serverId: string,
-      opts: { livekit?: { wsUrl: string; token: string } } = {},
+      opts: { livekit?: { wsUrl: string; token: string }; local?: boolean } = {},
     ): Promise<boolean> {
       this.joinError = null;
       try {
@@ -448,7 +491,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         
         // DM calls never go through a remote server's voice join, whichever
         // server was viewed last.
-        const isRemoteServer = serverId !== 'dm'
+        const isRemoteServer = serverId !== 'dm' && !opts.local
           && serverChannelStore.currentServer?.is_local_server === false;
         this.isFederatedChannel = isRemoteServer;
         
@@ -1063,6 +1106,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     async toggleVideo(): Promise<boolean> {
+      if (!this.localState.isVideoEnabled && !this.canStream) {
+        void this.explainLock('voice.moderation.noStreamHint');
+        return false;
+      }
       const enabled = await webrtcManager.toggleVideo();
 
       this.localState = webrtcManager.getLocalState();
@@ -1081,6 +1128,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
 
     async toggleScreenShare(): Promise<boolean> {
+      if (!this.localState.isScreenSharing && !this.canStream) {
+        void this.explainLock('voice.moderation.noStreamHint');
+        return false;
+      }
       const enabled = await webrtcManager.toggleScreenShare();
 
       this.localState = webrtcManager.getLocalState();
@@ -1114,6 +1165,11 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     async toggleMute(): Promise<boolean> {
       const themeStore = useThemeStore();
 
+      if (this.speakLocked && this.localState.isMuted) {
+        void this.explainLock(this.speakLockReason);
+        return true;
+      }
+
       if (this.isConnected) {
         // eslint-disable-next-line unused-imports/no-unused-vars
         const muted = webrtcManager.toggleMute();
@@ -1137,6 +1193,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
     setMuted(muted: boolean, playSound: boolean = false): void {
       const themeStore = useThemeStore();
+      if (!muted && this.speakLocked) return;
 
       if (this.isConnected) {
         const currentMuted = this.localState.isMuted;
@@ -1161,6 +1218,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
     async toggleDeafen(): Promise<boolean> {
       const themeStore = useThemeStore();
+      if (this.deafenLocked && this.localState.isDeafened) {
+        void this.explainLock('voice.moderation.serverDeafenedHint');
+        return true;
+      }
       // Works while disconnected; the state is applied on the next join.
       if (this.isConnected) {
         const deafened = webrtcManager.toggleDeafen();
@@ -1180,6 +1241,79 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         themeStore.playAudio(this.localState.isDeafened ? 'deafen_on' : 'deafen_off');
         voiceAnnouncer.selfDeafened(this.localState.isDeafened);
         return this.localState.isDeafened;
+      }
+    },
+
+    /** Says why a control is locked: a toast and the screen reader. */
+    async explainLock(reasonKey: string | null): Promise<void> {
+      if (!reasonKey) return;
+      const [{ i18n }, { announce }] = await Promise.all([import('@/i18n'), import('@/composables/useAnnouncer')]);
+      const text = i18n.global.t(reasonKey);
+      useNotificationStore().showToast('server_update', i18n.global.t('voice.moderation.lockedTitle'), text, 5000);
+      announce(text, { key: 'voice-lock' });
+    },
+
+    /**
+     * The caller's SPEAK and STREAM in its call's channel, read from its role
+     * permissions. Only off LiveKit: there the server's grant is the answer.
+     */
+    async loadChannelGrants(serverId: string, channelId: string, userId: string): Promise<void> {
+      try {
+        const { roleService } = await import('@/services/RoleService');
+        const perms = await roleService.getUserPermissions(userId, serverId, channelId);
+        if (this.currentChannelId === channelId && this.connectionMode !== 'livekit') {
+          this.voiceGrants = grantsFromRolePermissions(perms);
+        }
+      } catch (error) {
+        debug.warn('[VoiceChannel] channel permissions unavailable:', error);
+      }
+    },
+
+    /**
+     * Applies the locks: a withheld microphone mutes, a server deafen
+     * deafens. Each is lifted with its cause, back to the member's own
+     * choice. Camera and screen share end when STREAM goes.
+     */
+    async enforceVoiceLocks(): Promise<void> {
+      if (!this.isConnected) {
+        this.forcedMute = false;
+        this.forcedDeafen = false;
+        return;
+      }
+      // The transport's state when it has one; a store set without one keeps its own.
+      const sync = (patch: Partial<UserMediaState>) => {
+        const next = webrtcManager.getLocalState();
+        if (next.userId) this.localState = next;
+        else Object.assign(this.localState, patch);
+      };
+      if (this.speakLocked && !this.localState.isMuted) {
+        this.forcedMute = true;
+        webrtcManager.setMuted(true);
+        sync({ isMuted: true });
+      }
+      if (this.deafenLocked && !this.localState.isDeafened) {
+        this.forcedDeafen = true;
+        webrtcManager.toggleDeafen();
+        sync({ isDeafened: true, isMuted: true });
+      } else if (!this.deafenLocked && this.forcedDeafen) {
+        this.forcedDeafen = false;
+        if (this.localState.isDeafened) {
+          webrtcManager.toggleDeafen();
+          sync({ isDeafened: false });
+        }
+      }
+      if (!this.speakLocked && this.forcedMute) {
+        this.forcedMute = false;
+        if (this.localState.isMuted && !this.localState.isDeafened) {
+          webrtcManager.setMuted(false);
+          sync({ isMuted: false });
+        }
+      }
+      if (!this.canStream) {
+        if (this.localState.isScreenSharing) await webrtcManager.toggleScreenShare();
+        if (this.localState.isVideoEnabled) await webrtcManager.toggleVideo();
+        sync({ isScreenSharing: false, isVideoEnabled: false });
+        this.localStream = webrtcManager.getLocalStream();
       }
     },
 
@@ -1751,6 +1885,19 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       webrtcManager.on('soundboard', (event: SoundboardTransportEvent) => {
         void useSoundboardStore().receive(event);
       });
+
+      webrtcManager.on('activity', (event: { userId: string; message: unknown }) => {
+        useActivitiesStore().receivePeer(event);
+      });
+
+      webrtcManager.on('local-grants-changed', (grants: VoiceGrants) => {
+        this.voiceGrants = grants;
+      });
+
+      webrtcManager.on('moderation-flags', (data: { userId: string; muted: boolean; deafened: boolean }) => {
+        if (!data?.userId) return;
+        useVoiceModerationStore().setRoomFlags(this.currentServerId ?? this.optimisticServerId, data.userId, data);
+      });
     },
 
     broadcastCallStartTime(): void {
@@ -2124,6 +2271,10 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.audioPlaybackBlocked = false;
       liveReactions.clear();
       useSoundboardStore().leaveCall();
+      this.voiceGrants = null;
+      this.forcedMute = false;
+      this.forcedDeafen = false;
+      useVoiceModerationStore().clearRoom();
     },
 
     getUserProfile(userId: string) {

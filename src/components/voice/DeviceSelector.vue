@@ -130,6 +130,7 @@ import Icon from '@/components/common/Icon.vue';
 import { useMenu } from '@/composables/useMenu';
 import { useT } from '@/composables/useT';
 import { uid } from '@/utils/a11y/focus';
+import { styleRect, styleViewport } from '@/utils/appZoom';
 
 interface Props {
   type?: 'input' | 'output' | 'video' | 'all';
@@ -242,7 +243,7 @@ const toggleDropdown = async (focus: 'first' | 'last' = 'first') => {
   if (!isOpen.value) {
     // Set initial position from trigger before showing (prevents flash at 0,0)
     if (selectorRef.value) {
-      const rect = selectorRef.value.getBoundingClientRect();
+      const rect = styleRect(selectorRef.value);
       dropdownPosition.value = { x: rect.left, y: rect.bottom + 8 };
     }
     initialFocus.value = focus;
@@ -281,20 +282,21 @@ const positionDropdown = () => {
     return;
   }
 
-  const triggerRect = selectorRef.value.getBoundingClientRect();
-  const dropdownRect = dropdownRef.value.getBoundingClientRect();
+  const triggerRect = styleRect(selectorRef.value);
+  const dropdownRect = styleRect(dropdownRef.value);
+  const viewport = styleViewport();
   const padding = 8;
 
   let x = triggerRect.left;
   let y = triggerRect.bottom + padding;
 
   // Adjust if dropdown goes off-screen right
-  if (x + dropdownRect.width > window.innerWidth - padding) {
-    x = window.innerWidth - dropdownRect.width - padding;
+  if (x + dropdownRect.width > viewport.width - padding) {
+    x = viewport.width - dropdownRect.width - padding;
   }
 
   // Adjust if dropdown goes off-screen bottom - show above instead
-  if (y + dropdownRect.height > window.innerHeight - padding) {
+  if (y + dropdownRect.height > viewport.height - padding) {
     y = triggerRect.top - dropdownRect.height - padding;
   }
 
@@ -613,7 +615,7 @@ watch(isOpen, (newVal) => {
   
   .device-dropdown {
     min-width: 300px;
-    max-width: 90vw;
+    max-width: calc(90 * var(--app-vw));
   }
   
   .section-header {
@@ -664,7 +666,7 @@ watch(isOpen, (newVal) => {
     top: auto !important;
     min-width: 100%;
     max-width: 100%;
-    max-height: 70vh;
+    max-height: calc(70 * var(--app-vh));
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     padding-bottom: env(safe-area-inset-bottom, 0px);
     transform: none !important;
@@ -742,7 +744,7 @@ watch(isOpen, (newVal) => {
 
 @media (max-width: 360px) {
   .device-dropdown {
-    max-height: 80vh;
+    max-height: calc(80 * var(--app-vh));
   }
   
   .section-header {

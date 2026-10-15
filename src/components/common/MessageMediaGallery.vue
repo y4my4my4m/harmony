@@ -18,12 +18,18 @@
           v-if="canRemove"
           @click="$emit('remove-attachment', item.url)"
         />
+        <DriveGoneFile
+          v-if="goneReason(item)"
+          :reason="goneReason(item)!"
+          :file-type="item.fileType"
+          compact
+        />
         <div
-          v-if="item.fileType === 'image' && !imageLoaded[loadKey(item)]"
+          v-else-if="item.fileType === 'image' && !imageLoaded[loadKey(item)]"
           class="media-skeleton image-skeleton"
         />
         <img
-          v-if="item.fileType === 'image'"
+          v-if="!goneReason(item) && item.fileType === 'image'"
           :src="thumbnailFor(item)"
           :alt="altFor(item)"
           class="content-image"
@@ -35,22 +41,23 @@
           @click="!item.isSticker && $emit('open-lightbox', item.url)"
         />
         <button
-          v-if="item.fileType === 'image' && !item.isSticker && !item.isAiEmoji"
+          v-if="!goneReason(item) && item.fileType === 'image' && !item.isSticker && !item.isAiEmoji"
           type="button"
           class="media-open"
           :aria-label="items.length > 1 ? t('messageA11y.image.openIndexed', { index: index + 1, total: items.length }) : t('messageA11y.image.open')"
           @click.stop="$emit('open-lightbox', item.url)"
         ></button>
         <video
-          v-else-if="item.fileType === 'video'"
+          v-else-if="!goneReason(item) && item.fileType === 'video'"
           :src="sourceFor(item)"
           class="content-video"
-          controls
+          :controls="nativeVideoControls"
           preload="metadata"
           :aria-label="item.altText || undefined"
           @play="onVideoPlay"
           @error="onItemError(item)"
         />
+        <VideoControls v-if="!goneReason(item) && item.fileType === 'video' && !nativeVideoControls" :label="item.altText || undefined" />
         <button
           v-if="item.fileType === 'video' && floatingVideos.canPopOut(videoKey(item, index))"
           type="button"
@@ -79,10 +86,13 @@ import {
 } from '@/utils/mediaGalleryUtils';
 import { stripKlipyAttributionFragment, isStickerMessageUrl, isAiEmojiMessageUrl } from '@/utils/klipyAttribution';
 import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
-import { isPrivateMediaPart, mediaPartSource, reportMediaPartError } from '@/services/privateMedia';
+import { isPrivateMediaPart, mediaPartGone, mediaPartSource, reportMediaPartError } from '@/services/privateMedia';
+import DriveGoneFile from '@/components/drive/DriveGoneFile.vue';
 import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.vue';
 import Icon from '@/components/common/Icon.vue';
 import MediaUploadProgress from '@/components/common/MediaUploadProgress.vue';
+import VideoControls from '@/components/common/VideoControls.vue';
+import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 import { useFloatingVideo, useFloatingVideoRefs } from '@/composables/useFloatingVideo';
 import { messageMediaUploadState } from '@/services/messageMediaUpload';
 import {
@@ -108,6 +118,8 @@ const props = defineProps<{
   canRemove?: boolean;
   messageId?: string;
 }>();
+
+const nativeVideoControls = useNativeVideoControls();
 
 const onItemError = (item: GalleryMediaItem, variant: 'original' | 'thumbnail' = 'original') => {
   if (isDiscordCdnUrl(item.url)) requestAttachmentRefresh(props.messageId);
@@ -182,6 +194,8 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+const goneReason = (item: { path?: string }) => mediaPartGone(item);
 const { notifyPlaybackStarted } = useFloatingVideo();
 const floatingVideos = useFloatingVideoRefs();
 
@@ -278,7 +292,7 @@ function sourceFor(item: GalleryMediaItem): string | undefined {
   display: block;
   width: auto;
   max-width: 100%;
-  max-height: min(350px, 50vh);
+  max-height: min(350px, 50 * var(--app-vh));
   object-fit: contain;
   background: #000;
   cursor: pointer;
@@ -335,7 +349,7 @@ function sourceFor(item: GalleryMediaItem): string | undefined {
 .message-media-gallery-count-2 {
   grid-template-columns: 1fr 1fr;
   aspect-ratio: 2 / 1;
-  max-height: min(300px, 50vh);
+  max-height: min(300px, 50 * var(--app-vh));
 }
 
 .message-media-gallery-count-2 .message-media-gallery__item:nth-child(1) {
@@ -351,7 +365,7 @@ function sourceFor(item: GalleryMediaItem): string | undefined {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
   aspect-ratio: 4 / 3;
-  max-height: min(300px, 50vh);
+  max-height: min(300px, 50 * var(--app-vh));
 }
 
 .message-media-gallery-count-3 .message-media-gallery__item:first-child {
@@ -372,7 +386,7 @@ function sourceFor(item: GalleryMediaItem): string | undefined {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
   aspect-ratio: 1 / 1;
-  max-height: min(400px, 60vh);
+  max-height: min(400px, 60 * var(--app-vh));
 }
 
 .message-media-gallery-count-4 .message-media-gallery__item:nth-child(1) {
@@ -396,7 +410,7 @@ function sourceFor(item: GalleryMediaItem): string | undefined {
   grid-template-columns: repeat(6, 1fr);
   grid-template-rows: 1fr 1fr;
   aspect-ratio: 3 / 2;
-  max-height: min(320px, 55vh);
+  max-height: min(320px, 55 * var(--app-vh));
 }
 
 .message-media-gallery-count-5 .message-media-gallery__item:nth-child(1) {
@@ -432,14 +446,14 @@ function sourceFor(item: GalleryMediaItem): string | undefined {
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: 1fr 1fr;
   aspect-ratio: 3 / 2;
-  max-height: min(320px, 55vh);
+  max-height: min(320px, 55 * var(--app-vh));
 }
 
 .message-media-gallery-count-7 {
   grid-template-columns: repeat(3, 1fr);
   grid-auto-rows: 1fr;
   aspect-ratio: 3 / 2;
-  max-height: min(360px, 60vh);
+  max-height: min(360px, 60 * var(--app-vh));
 }
 
 .message-media-gallery-count-7 .message-media-gallery__item:first-child {
@@ -452,7 +466,7 @@ function sourceFor(item: GalleryMediaItem): string | undefined {
   grid-template-columns: repeat(3, 1fr);
   grid-auto-rows: 1fr;
   aspect-ratio: 1 / 1;
-  max-height: min(400px, 60vh);
+  max-height: min(400px, 60 * var(--app-vh));
 }
 
 .message-media-gallery-count-8 .message-media-gallery__item:nth-child(1),

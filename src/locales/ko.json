@@ -54,7 +54,7 @@
     "displayName": "표시 이름",
     "welcomeBack": "다시 오신 것을 환영합니다!",
     "createAccount": "계정 만들기",
-    "welcomeBackSubtitle": "이메일과 비밀번호로 로그인하세요.",
+    "instanceLabel": "인스턴스",
     "createAccountSubtitle": "다음 단계에서 사용자 이름과 프로필을 설정합니다.",
     "confirmEmailSent": "{email}(으)로 확인 링크를 보냈습니다. 링크를 연 다음 로그인하세요.",
     "forgotPassword": "비밀번호를 잊으셨나요?",
@@ -145,8 +145,8 @@
     "verifying": "확인 중…",
     "sendingResetLink": "재설정 링크 보내는 중…",
     "poweredBy": "Powered by {name}",
+    "serviceStatus": "서비스 상태",
     "reset": {
-      "brandSubtitle": "비밀번호를 재설정하여 계정에 다시 접근하세요",
       "successTitle": "비밀번호 재설정 완료",
       "successBody": "비밀번호가 변경되었습니다. 이제 새 비밀번호로 로그인할 수 있습니다.",
       "goToLogin": "로그인으로 이동",
@@ -245,7 +245,7 @@
     "addFirstEmoji": "첫 번째 사용자 지정 이모지를 추가하여 서버를 고유하게 만드세요!",
     "allowCrossServer": "다른 서버의 이모지 허용",
     "allowCrossServerDesc": "멤버가 다른 서버의 이모지를 사용할 수 있도록 허용",
-    "emojiUploadRecommendation": "권장: 128×128px. 최대: 1 MB. 형식: PNG, GIF, WebP, APNG, SVG, JPEG.",
+    "emojiUploadRecommendation": "권장: 128×128px. 최대: 1 MB. 형식: PNG, GIF, WebP, APNG, JPEG.",
     "deleteEmoji": "이모지 삭제",
     "dangerZone": "위험 구역",
     "deleteServer": "서버 삭제",
@@ -399,7 +399,9 @@
       "change": "서버 배너 변경",
       "remove": "배너 제거",
       "hint": "권장: 1280×400px. 서버 상단에 표시됩니다.",
-      "none": "서버 배너가 설정되지 않았습니다"
+      "none": "서버 배너가 설정되지 않았습니다",
+      "sidebar": "채널 목록 위에 배너 표시",
+      "sidebarHint": "멤버는 채널 목록 상단에서 서버 배너를 볼 수 있습니다."
     },
     "emojiActions": {
       "copy": "{name} 복사",
@@ -529,9 +531,14 @@
         "membership": "멤버십 권한",
         "text": "텍스트 권한",
         "threads": "스레드 권한",
-        "voice": "음성 권한"
+        "voice": "음성 권한",
+        "dangerous": "위험한 권한"
       },
       "perms": {
+        "ADMINISTRATOR": {
+          "label": "관리자",
+          "description": "모든 채널에서 모든 권한을 가집니다. 서버 삭제는 소유자만 할 수 있습니다"
+        },
         "VIEW_CHANNEL": {
           "label": "채널 보기",
           "description": "멤버가 기본적으로 채널을 볼 수 있습니다"
@@ -542,11 +549,11 @@
         },
         "MANAGE_ROLES": {
           "label": "역할 관리",
-          "description": "이 역할보다 낮은 역할을 만들고 편집하고 삭제합니다"
+          "description": "자신의 최상위 역할보다 낮은 역할을 만들고 편집하고 부여하고 삭제하며, 채널 권한을 편집합니다"
         },
         "MANAGE_SERVER": {
           "label": "서버 관리",
-          "description": "서버 설정을 편집하고 서버를 삭제합니다"
+          "description": "서버 설정, AutoMod, 환영 화면, 봇을 편집합니다. 서버 삭제는 소유자만 할 수 있습니다"
         },
         "CREATE_INVITE": {
           "label": "초대 만들기",
@@ -574,7 +581,7 @@
         },
         "TIMEOUT_MEMBERS": {
           "label": "멤버 타임아웃",
-          "description": "멤버를 일시적으로 음소거합니다"
+          "description": "멤버가 일시적으로 메시지를 보내거나 반응하거나 스레드를 시작하거나 음성 채널에 참가하지 못하게 합니다"
         },
         "SEND_MESSAGES": {
           "label": "메시지 보내기",
@@ -582,7 +589,7 @@
         },
         "EMBED_LINKS": {
           "label": "링크 임베드",
-          "description": "링크에 미리보기가 표시됩니다"
+          "description": "게시한 링크에 미리보기가 표시됩니다. 없으면 링크가 미리보기 없이 게시됩니다"
         },
         "ATTACH_FILES": {
           "label": "파일 첨부",
@@ -602,11 +609,11 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "메시지 기록 읽기",
-          "description": "메시지 기록을 봅니다"
+          "description": "참여 전에 보낸 메시지를 읽습니다. 없으면 채널이 참여한 시점부터 표시됩니다"
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "외부 이모지 사용",
-          "description": "다른 서버의 이모지를 사용합니다"
+          "description": "다른 서버, 인스턴스, 자신의 이모지를 사용합니다. 없으면 유니코드와 이 서버의 이모지만 사용합니다"
         },
         "PIN_MESSAGES": {
           "label": "메시지 고정",
@@ -618,7 +625,7 @@
         },
         "CREATE_PRIVATE_THREADS": {
           "label": "비공개 스레드 만들기",
-          "description": "초대 전용 스레드를 만듭니다"
+          "description": "효과가 없습니다. Harmony의 모든 스레드는 채널 전체에 공개됩니다"
         },
         "SEND_MESSAGES_IN_THREADS": {
           "label": "스레드에서 메시지 보내기",
@@ -646,7 +653,7 @@
         },
         "MOVE_MEMBERS": {
           "label": "멤버 이동",
-          "description": "음성 채널 간에 멤버를 이동합니다"
+          "description": "음성 채널 간에 멤버를 이동하거나 연결을 끊습니다"
         },
         "USE_SOUNDBOARD": {
           "label": "사운드보드 사용",
@@ -792,13 +799,25 @@
           "label": "채널 관리",
           "description": "이 채널의 이름을 바꾸거나 편집하거나 삭제합니다."
         },
+        "MANAGE_ROLES": {
+          "label": "권한 관리",
+          "description": "이 채널의 권한 재정의를 편집합니다."
+        },
+        "MANAGE_WEBHOOKS": {
+          "label": "웹후크 관리",
+          "description": "이 채널의 웹후크를 만들고 편집하고 삭제합니다."
+        },
+        "PIN_MESSAGES": {
+          "label": "메시지 고정",
+          "description": "이 채널에서 메시지를 고정하거나 해제합니다."
+        },
         "SEND_MESSAGES": {
           "label": "메시지 보내기",
           "description": "이 채널에 메시지를 게시합니다."
         },
         "EMBED_LINKS": {
           "label": "링크 임베드",
-          "description": "임베드와 링크 미리보기를 보냅니다."
+          "description": "여기에 게시한 링크에 미리보기가 표시됩니다."
         },
         "ATTACH_FILES": {
           "label": "파일 첨부",
@@ -810,7 +829,7 @@
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "외부 이모지 사용",
-          "description": "다른 서버의 이모지를 보냅니다."
+          "description": "메시지와 반응에서 이 서버 밖의 이모지를 사용합니다."
         },
         "MENTION_EVERYONE": {
           "label": "{'@'}everyone 멘션",
@@ -858,7 +877,7 @@
         },
         "MOVE_MEMBERS": {
           "label": "멤버 이동",
-          "description": "이 채널에서 멤버를 내보냅니다."
+          "description": "이 채널의 멤버를 이동하거나 연결을 끊습니다."
         },
         "USE_SOUNDBOARD": {
           "label": "사운드보드 사용",
@@ -913,11 +932,14 @@
     "newMessages": "새 메시지",
     "loadingOlder": "이전 메시지 로딩 중...",
     "newMessagesBelow": "새 메시지 {count}개",
+    "unreadSince": "{time} 이후 새 메시지 {count}개",
+    "markAsRead": "읽음으로 표시",
     "jumpToPresent": "최신으로 이동",
     "conversationBeginning": "대화의 시작입니다",
     "conversationBeginningSubtitle": "채팅을 시작하고 기억에 남게 만드세요!",
     "channelWelcome": "#{name}에 오신 것을 환영합니다",
     "channelWelcomeSubtitle": "#{name} 채널의 시작입니다.",
+    "historyRestricted": "참여하기 전에 보낸 메시지는 숨겨집니다. 이 채널에서 '메시지 기록 읽기' 권한이 없습니다.",
     "dmBeginning": "{name}님과의 다이렉트 메시지의 시작입니다.",
     "groupBeginning": "{name} 그룹의 시작입니다.",
     "groupBeginningUnnamed": "이 그룹의 시작입니다.",
@@ -1240,6 +1262,8 @@
     "autoWatchStreams": "스트림 자동으로 보기",
     "autoWatchStreamsHint": "스트림 보기를 누르지 않아도 누군가 라이브를 시작하면 바로 스트림을 받습니다.",
     "react": "반응하기",
+    "hideParticipants": "참가자 숨기기",
+    "showParticipants": "참가자 표시 ({count})",
     "reactions": "반응",
     "moreReactions": "이모지 더 보기",
     "reactionSlowDown": "조금 천천히 보내 주세요",
@@ -1327,7 +1351,37 @@
     "streamVolumeNamed": "{name}님의 방송 볼륨",
     "copyStreamAudioLog": "스트림 오디오 로그 복사",
     "streamAudioLogCopied": "스트림 오디오 로그를 복사했습니다. 버그 보고서에 붙여 넣으세요.",
-    "streamAudioLogFailed": "스트림 오디오 로그를 복사할 수 없습니다: {reason}"
+    "streamAudioLogFailed": "스트림 오디오 로그를 복사할 수 없습니다: {reason}",
+    "moderation": {
+      "section": "관리",
+      "serverMute": "서버 음소거",
+      "serverDeafen": "서버 소리 차단",
+      "serverMuted": "서버 음소거됨",
+      "serverDeafened": "서버 소리 차단됨",
+      "moveTo": "이동",
+      "disconnect": "연결 끊기",
+      "kick": "추방",
+      "ban": "차단",
+      "dragHint": "다른 음성 채널로 끌어서 이동합니다.",
+      "lockedTitle": "여기서는 허용되지 않음",
+      "serverMutedHint": "관리자가 서버 음소거했습니다. 해제될 때까지 음소거를 풀 수 없습니다.",
+      "serverDeafenedHint": "관리자가 서버 소리 차단했습니다. 해제될 때까지 다시 들을 수 없습니다.",
+      "noSpeakHint": "이 채널에서 말할 권한이 없습니다.",
+      "noStreamHint": "이 채널에서 비디오나 화면을 공유할 권한이 없습니다.",
+      "failedTitle": "음성 관리에 실패했습니다",
+      "mutedAnnounce": "{name}님을 서버 음소거했습니다",
+      "unmutedAnnounce": "{name}님의 서버 음소거를 해제했습니다",
+      "deafenedAnnounce": "{name}님의 소리를 서버 차단했습니다",
+      "undeafenedAnnounce": "{name}님의 서버 소리 차단을 해제했습니다",
+      "movedAnnounce": "{name}님을 {channel}(으)로 이동했습니다",
+      "disconnectedAnnounce": "{name}님의 음성 연결을 끊었습니다",
+      "youWereMovedTitle": "다른 채널로 이동됨",
+      "youWereMoved": "관리자가 {channel}(으)로 이동했습니다.",
+      "youWereDisconnectedTitle": "음성에서 나감",
+      "youWereDisconnected": "관리자가 음성 연결을 끊었습니다.",
+      "youWereRemoved": "더 이상 이 서버의 멤버가 아닙니다.",
+      "youWereTimedOut": "이 서버에서 타임아웃되었습니다."
+    }
   },
   "dm": {
     "directMessages": "다이렉트 메시지",
@@ -1467,6 +1521,10 @@
       "theme": "테마",
       "customTheme": "사용자 지정 테마 색상",
       "customThemeHelp": "강조 색상을 선택하세요. 앱이 선택에 따라 완전한 테마를 자동으로 생성합니다.",
+      "communityPresets": "커뮤니티 프리셋",
+      "communityPresetsHelp": "커뮤니티가 고른 테마를 바로 적용하세요.",
+      "showMorePresets": "{count}개 더 보기",
+      "showFewerPresets": "간단히 보기",
       "themes": {
         "dark": "다크",
         "darkDesc": "눈에 편한 다크 테마.",
@@ -1497,6 +1555,10 @@
       "bridgeSourceBadgeText": "텍스트 라벨(DISCORD)",
       "floatingVideo": "플로팅 비디오 플레이어",
       "floatingVideoDesc": "스크롤하면 재생 중인 비디오가 모서리로 이동합니다. YouTube 및 기본 비디오에서 작동합니다.",
+      "videoPlayer": "동영상 플레이어",
+      "videoPlayerDesc": "Harmony 플레이어 또는 브라우저 기본 컨트롤.",
+      "videoPlayerHarmony": "Harmony",
+      "videoPlayerNative": "브라우저 기본값",
       "highContrast": "고대비",
       "highContrastDesc": "가시성을 높이기 위해 대비를 증가시킵니다.",
       "reduceMotion": "모션 줄이기",
@@ -2024,9 +2086,10 @@
     "myBotsDescription": "생성한 봇을 관리합니다",
     "myEmojis": {
       "title": "내 이모지",
-      "description": "내 개인 이모지입니다. 이모지 선택기에서 AI로 생성한 이모지도 포함됩니다. 메시지는 사용자 지정 이모지를 이름으로 참조하므로, 이름을 바꾸거나 삭제하면 이전 메시지에는 이미지 대신 :name: 텍스트가 표시됩니다.",
+      "description": "내 개인 이모지입니다. 여기에서 업로드한 이모지와 이모지 선택기에서 AI로 생성한 이모지가 포함됩니다. 모든 서버와 대화에서 사용할 수 있습니다. 메시지는 사용자 지정 이모지를 이름으로 참조하므로, 이름을 바꾸거나 삭제하면 이전 메시지에는 이미지 대신 :name: 텍스트가 표시됩니다.",
       "loading": "이모지를 불러오는 중…",
-      "empty": "아직 개인 이모지가 없습니다. 이모지 선택기에서 AI로 생성한 이모지가 여기에 표시됩니다.",
+      "empty": "아직 개인 이모지가 없습니다. 이모지를 업로드하거나 이모지 선택기에서 AI로 생성해 보세요.",
+      "uploadsOff": "이 인스턴스에서는 개인 이모지가 꺼져 있습니다.",
       "listLabel": "내 이모지 목록",
       "aiBadge": "AI",
       "aiGenerated": "AI 생성",
@@ -2091,6 +2154,7 @@
       }
     },
     "buildInfo": {
+      "status": "서비스 상태",
       "copyHint": "클릭하여 버그 신고용 버전 정보 복사",
       "copied": "버전 정보가 복사되었습니다",
       "copyFailed": "버전 정보를 복사할 수 없습니다",
@@ -2325,6 +2389,10 @@
     "openNavigation": "탐색 열기",
     "editProfile": "프로필 편집",
     "followUser": "{'@'}{handle} 팔로우",
+    "requestToFollow": "팔로우 요청",
+    "requestToFollowUser": "{'@'}{handle}에게 팔로우 요청",
+    "sendFriendRequest": "친구 요청 보내기",
+    "sendFriendRequestUser": "{'@'}{handle}에게 친구 요청 보내기",
     "unfollowUser": "{'@'}{handle} 언팔로우",
     "mentionUser": "{'@'}{handle} 멘션",
     "requested": "요청됨",
@@ -2350,6 +2418,7 @@
     "replyingTo": "답장 대상",
     "viewThread": "스레드 보기",
     "viewOriginalPost": "원본 게시물 보기",
+    "viewQuotedPost": "인용된 게시물 보기",
     "showMore": "더 보기",
     "showLess": "간략히 보기",
     "removeAttachment": "첨부 파일 제거",
@@ -2612,6 +2681,7 @@
       "searchToAdd": "추가할 사용자 검색",
       "searchResultsLabel": "추가할 사용자",
       "searchResults": "사용자 {count}명을 찾았습니다",
+      "searching": "검색 중…",
       "add": "추가",
       "addNamed": "{name} 추가",
       "added": "추가됨",
@@ -2780,6 +2850,8 @@
   },
   "emoji": {
     "messageReactionLimit": "이 메시지에는 이미 {count}가지 반응이 있습니다. 기존 반응 중 하나에 추가하세요.",
+    "reactionNotAllowed": "이 채널에서는 기존 반응에만 추가할 수 있습니다.",
+    "externalNotAllowed": "이 채널에서는 유니코드 이모지와 이 서버의 이모지만 사용할 수 있습니다.",
     "postReactionLimit": "이 게시물에 반응을 {count}개 남겼습니다. 다른 반응을 추가하려면 하나를 제거하세요.",
     "search": "이모지 검색...",
     "searchEmojis": "이모지 검색...",
@@ -3273,6 +3345,8 @@
     "listTitle": "봇({count})",
     "noDescription": "설명 없음",
     "serverCount": "참여한 서버 없음 | 서버 {count}개에 참여 | 서버 {count}개에 참여",
+    "inServers": "{servers}에 참여",
+    "inServersMore": "{servers} 외 서버 {count}개에 참여",
     "lastConnected": "마지막 연결: {time}",
     "neverConnected": "연결한 적 없음",
     "back": "모든 봇",
@@ -4008,7 +4082,7 @@
       "generic": "이 서버의 AutoMod가 메시지를 차단했습니다.",
       "timedOutUntil": "{time}까지 타임아웃되었습니다."
     },
-    "timedOut": "이 서버에서 {time}까지 타임아웃되어 메시지를 보낼 수 없습니다.",
+    "timedOut": "이 서버에서 {time}까지 타임아웃되어 메시지를 보내거나 반응하거나 스레드를 시작할 수 없습니다.",
     "antispam": {
       "rateLimited": "새 계정은 한 번에 몇 개의 메시지만 보낼 수 있습니다. {seconds}초 후에 다시 시도하세요.",
       "linksBlocked": "새 계정은 아직 링크를 게시할 수 없습니다.",
@@ -4085,6 +4159,12 @@
       "member_unban": "{actor}님이 {target}님의 차단을 해제했습니다",
       "member_timeout": "{actor}님이 {target}님을 {until}까지 타임아웃했습니다",
       "member_timeout_remove": "{actor}님이 {target}님의 타임아웃을 해제했습니다",
+      "member_voice_mute": "{actor}님이 {target}님을 서버 음소거했습니다",
+      "member_voice_unmute": "{actor}님이 {target}님의 서버 음소거를 해제했습니다",
+      "member_voice_deafen": "{actor}님이 {target}님을 서버 헤드셋 음소거했습니다",
+      "member_voice_undeafen": "{actor}님이 {target}님의 서버 헤드셋 음소거를 해제했습니다",
+      "member_voice_move": "{actor}님이 {target}님을 다른 음성 채널로 옮겼습니다",
+      "member_voice_disconnect": "{actor}님이 {target}님의 음성 연결을 끊었습니다",
       "message_delete": "{actor}님이 {channel}에서 {target}님의 메시지 {count}개를 삭제했습니다",
       "server_update": "{actor}님이 서버를 수정했습니다",
       "settings_update": "{actor}님이 서버 설정을 변경했습니다",
@@ -4113,6 +4193,7 @@
       "icon_url": "아이콘",
       "unicode_emoji": "이모지",
       "emoji": "이모지",
+      "emoji_id": "커스텀 이모지",
       "volume": "음량",
       "is_admin": "관리자 역할",
       "allow_permissions": "허용",
@@ -4192,7 +4273,9 @@
     },
     "profilePosts": {
       "self": "아직 게시한 내용이 없습니다.",
-      "other": "{name}님은 아직 아무것도 게시하지 않았습니다."
+      "other": "{name}님은 아직 아무것도 게시하지 않았습니다.",
+      "withheldTitle": "공개 게시물 없음",
+      "withheld": "{domain}은(는) 이 계정의 게시물을 공개하지 않습니다. 이 서버에 도달한 게시물만 여기에 표시됩니다."
     },
     "profileFollowing": {
       "other": "{name}님은 아직 아무도 팔로우하지 않습니다."
@@ -4777,11 +4860,14 @@
     },
     "instance": {
       "maxPostReactions": "게시물당 1인 최대 반응 수",
-      "maxPostReactionsHint": "한 사람이 게시물에 반응할 수 있는 서로 다른 이모지 수(1-100). 기본값: 10. 다른 서버에서 들어오는 한도 초과 반응은 버려집니다. 채팅 메시지는 최대 20가지 이모지까지 가능합니다."
+      "maxPostReactionsHint": "한 사람이 게시물에 반응할 수 있는 서로 다른 이모지 수(1-100). 기본값: 10. 다른 서버에서 들어오는 한도 초과 반응은 버려집니다. 채팅 메시지는 최대 20가지 이모지까지 가능합니다.",
+      "maxPersonalEmojis": "사용자당 개인 이모지 수",
+      "maxPersonalEmojisHint": "각 사용자가 설정 > 내 이모지에 보관할 수 있는 이모지 수로, 업로드한 이모지와 AI로 생성한 이모지를 합한 값입니다(0-1000). 기본값: 50. 0이면 개인 이모지가 꺼집니다. 한도를 낮춰도 이미 초과한 이모지는 유지됩니다."
     },
     "activityLog": {
       "configKeys": {
-        "maxPostReactionsPerUser": "게시물당 1인 최대 반응 수"
+        "maxPostReactionsPerUser": "게시물당 1인 최대 반응 수",
+        "maxPersonalEmojisPerUser": "사용자당 개인 이모지 수"
       }
     },
     "antiSpam": {
@@ -6023,7 +6109,9 @@
       "airhorn": "에어혼",
       "crickets": "귀뚜라미",
       "golf-clap": "골프 박수",
-      "quack": "꽥"
+      "quack": "꽥",
+      "pop": "뿅",
+      "stop-having-fun": "그만 즐겨"
     },
     "settings": {
       "navLabel": "사운드보드",
@@ -6038,6 +6126,9 @@
       "checking": "파일 확인 중…",
       "name": "이름",
       "emoji": "이모지",
+      "chooseEmoji": "이모지 선택",
+      "changeEmoji": "이모지 변경 ({emoji})",
+      "clearEmoji": "이모지 제거",
       "volume": "음량",
       "preview": "미리 듣기",
       "upload": "사운드 업로드",
@@ -6061,6 +6152,7 @@
       "full": "이 서버에는 최대치인 {max}개의 사운드가 있습니다. 새 사운드를 추가하려면 하나를 삭제하세요.",
       "permission": "이 서버의 사운드를 관리할 권한이 없습니다.",
       "invalid": "사운드가 거부되었습니다. 이름, 이모지, 음량을 확인하세요.",
+      "emojiUnavailable": "이 이모지는 사운드에 사용할 수 없습니다. 참여한 서버의 이모지, 인스턴스 이모지 또는 내 이모지를 선택하세요.",
       "load": "이 서버의 사운드를 불러오지 못했습니다.",
       "generic": "문제가 발생했습니다. 다시 시도하세요."
     }
@@ -6248,5 +6340,374 @@
       "white": "흰색",
       "black": "검정"
     }
+  },
+  "videoPlayer": {
+    "player": "동영상 플레이어",
+    "play": "재생",
+    "pause": "일시정지",
+    "replay": "다시 재생",
+    "mute": "음소거",
+    "unmute": "음소거 해제",
+    "volume": "볼륨",
+    "seek": "탐색",
+    "seekValue": "{total} 중 {current}",
+    "speed": "재생 속도 {rate}×",
+    "pip": "PIP 모드",
+    "exitPip": "PIP 모드 종료",
+    "fullscreen": "전체 화면",
+    "exitFullscreen": "전체 화면 종료"
+  },
+  "activities": {
+    "title": "함께 보기 또는 듣기",
+    "addTitle": "활동에 추가",
+    "lede": "통화 중인 모두가 같은 순간에 같은 콘텐츠를 재생합니다. YouTube, SoundCloud, Spotify 링크나 동영상 또는 오디오 파일 링크를 붙여넣거나 Drive에서 선택하세요.",
+    "linkPlaceholder": "링크 붙여넣기",
+    "badLink": "Harmony에서 함께 재생할 수 없는 링크입니다.",
+    "watchTogether": "함께 보기",
+    "listenTogether": "함께 듣기",
+    "playTogether": "함께 재생",
+    "playNow": "지금 재생",
+    "addToQueue": "대기열에 추가",
+    "or": "또는",
+    "fromDrive": "Drive에서 선택",
+    "pickTitle": "동영상 또는 오디오 파일 선택",
+    "spotifyHint": "Harmony에서 Spotify에 로그인한 사람은 전체 트랙을 듣고, 나머지는 미리 듣기를 듣습니다.",
+    "region": "활동",
+    "open": "활동 열기",
+    "hideForMe": "나가기",
+    "startedBy": "{name}님이 활동을 시작했습니다",
+    "join": "참여",
+    "notNow": "나중에",
+    "endForEveryone": "모두에게 종료",
+    "playerError": "여기서는 재생할 수 없습니다.",
+    "openOn": "{service}에서 열기",
+    "clickToPlay": "클릭하여 재생",
+    "play": "재생",
+    "pause": "일시정지",
+    "seek": "재생 위치",
+    "seekValue": "{duration} 중 {position}",
+    "mute": "활동 음소거",
+    "unmute": "활동 음소거 해제",
+    "volume": "활동 음량",
+    "next": "대기열의 다음 항목",
+    "stop": "활동 종료",
+    "queue": "대기열",
+    "queueEmpty": "대기열이 비어 있습니다.",
+    "removeFromQueue": "대기열에서 제거",
+    "controlsHost": "나만 제어",
+    "controlsEveryone": "모두가 제어할 수 있음",
+    "watching": "시청 중",
+    "listening": "듣는 중",
+    "source": {
+      "drive": "Drive 파일",
+      "link": "링크"
+    }
+  },
+  "driveAdmin": {
+    "settings": "Drive 저장 공간",
+    "quotaUser": "계정당 저장 공간",
+    "quotaModerator": "인스턴스 모더레이터당 저장 공간",
+    "quotaAdmin": "인스턴스 관리자당 저장 공간",
+    "ephemeralDays": "임시 파일 보관 기간",
+    "days": "일",
+    "ephemeralDaily": "Drive가 가득 찬 후 하루 임시 업로드 수",
+    "linkSharing": "링크로 파일 공유 허용",
+    "hint": "계정의 저장 공간을 넘는 업로드는 임시 파일이 되며 위에서 정한 기간이 지나면 삭제됩니다. 저장 공간을 넘은 계정이 하루 임시 업로드 한도를 모두 쓰면 다음 날이 되거나 공간을 확보할 때까지 업로드할 수 없습니다.",
+    "save": "저장",
+    "saved": "저장됨",
+    "usage": "계정별 저장 공간",
+    "account": "계정",
+    "used": "사용량",
+    "temporary": "임시",
+    "quota": "저장 공간",
+    "override": "{name}의 저장 공간(MB), 비워 두면 역할 기본값",
+    "noUsage": "아직 파일을 저장한 계정이 없습니다.",
+    "blocked": "차단된 파일",
+    "unblock": "차단 해제",
+    "noBlocked": "차단된 파일이 없습니다. 신고된 파일을 “삭제하고 재업로드 차단”으로 삭제하면 여기에 추가됩니다.",
+    "reportFiles": "첨부 파일",
+    "removeFile": "파일 삭제",
+    "removeAndBlock": "삭제하고 재업로드 차단",
+    "removed": "삭제됨"
+  },
+  "share": {
+    "title": "Harmony로 공유",
+    "nothing": "공유된 내용이 없습니다. 다른 앱에서 링크나 텍스트를 공유하면 여기에서 보낼 수 있습니다.",
+    "openHarmony": "Harmony 열기",
+    "preview": "공유할 내용",
+    "where": "어디로 보낼까요?",
+    "search": "대화 및 서버 검색",
+    "directMessages": "다이렉트 메시지",
+    "servers": "서버",
+    "loadingChannels": "채널을 불러오는 중…",
+    "channelsFailed": "채널을 불러오지 못했습니다.",
+    "noChannels": "게시할 수 있는 채널이 없습니다.",
+    "noMatches": "검색 결과가 없습니다."
+  },
+  "drive": {
+    "title": "Drive",
+    "actions": {
+      "upload": "업로드",
+      "newFolder": "새 폴더",
+      "open": "열기",
+      "download": "다운로드",
+      "rename": "이름 변경",
+      "share": "공유",
+      "move": "이동",
+      "keep": "Drive에 보관",
+      "trash": "휴지통으로 이동",
+      "restore": "복원",
+      "deleteForever": "영구 삭제",
+      "deleteFolder": "폴더 삭제",
+      "emptyTrash": "휴지통 비우기"
+    },
+    "nav": {
+      "myDrive": "내 Drive",
+      "recent": "최근",
+      "temporary": "임시",
+      "shared": "나와 공유됨",
+      "trash": "휴지통",
+      "whereSent": "보낸 곳",
+      "dms": "다이렉트 메시지",
+      "fediverse": "Fediverse 게시물",
+      "server": "서버",
+      "channel": "채널",
+      "conversation": "대화",
+      "open": "Drive 탐색 열기",
+      "path": "폴더 경로"
+    },
+    "tree": {
+      "expand": "폴더 펼치기",
+      "collapse": "폴더 접기"
+    },
+    "usage": {
+      "label": "Drive 저장 공간 사용량",
+      "summary": "{quota} 중 {used} 사용",
+      "temporary": "임시 파일 {size}",
+      "full": "Drive가 가득 찼습니다. 새 업로드는 임시 파일이 되며 {count}일 후 삭제됩니다. | Drive가 가득 찼습니다. 새 업로드는 임시 파일이 되며 {count}일 후 삭제됩니다."
+    },
+    "columns": {
+      "name": "이름",
+      "type": "유형",
+      "owner": "소유자",
+      "size": "크기",
+      "added": "추가일",
+      "trashed": "삭제일"
+    },
+    "kind": {
+      "image": "이미지",
+      "video": "동영상",
+      "audio": "오디오",
+      "document": "문서",
+      "other": "파일"
+    },
+    "filter": {
+      "label": "파일 유형",
+      "all": "전체",
+      "images": "이미지",
+      "videos": "동영상",
+      "audio": "오디오",
+      "documents": "문서"
+    },
+    "sort": {
+      "label": "정렬 기준",
+      "newest": "최신순",
+      "oldest": "오래된순",
+      "name": "이름",
+      "size": "큰 파일순"
+    },
+    "layout": {
+      "label": "레이아웃",
+      "grid": "그리드",
+      "list": "목록"
+    },
+    "search": {
+      "placeholder": "Drive 검색",
+      "results": "“{query}” 검색 결과"
+    },
+    "selection": {
+      "label": "선택한 파일",
+      "count": "{count}개 선택됨 | {count}개 선택됨",
+      "clear": "선택 해제"
+    },
+    "state": {
+      "expiresIn": "{count}일 후 삭제 | {count}일 후 삭제",
+      "daysShort": "{count}일"
+    },
+    "banner": {
+      "temporary": "임시 파일은 업로드 후 {count}일이 지나면 삭제됩니다. 필요한 파일은 Drive에 보관하세요. | 임시 파일은 업로드 후 {count}일이 지나면 삭제됩니다. 필요한 파일은 Drive에 보관하세요.",
+      "trash": "휴지통의 파일도 저장 공간을 차지하며 30일 후 삭제됩니다."
+    },
+    "empty": {
+      "folderTitle": "아직 아무것도 없습니다",
+      "folderText": "파일을 업로드하거나 여기에 끌어다 놓으세요. 채팅에서 보낸 파일도 모두 Drive에 저장됩니다.",
+      "temporaryTitle": "임시 파일 없음",
+      "temporaryText": "Drive가 가득 찬 상태에서 업로드했거나 임시로 보낸 파일이 여기에 표시됩니다.",
+      "sharedTitle": "공유받은 파일 없음",
+      "sharedText": "이 인스턴스의 사람들이 나, 내 서버 또는 내 채널과 공유한 파일이 여기에 표시됩니다.",
+      "trashTitle": "휴지통이 비어 있습니다",
+      "trashText": "삭제한 파일은 30일 동안 여기에 보관됩니다.",
+      "otherTitle": "파일 없음",
+      "otherText": "이곳에서 보낸 파일이 여기에 표시됩니다.",
+      "searchTitle": "일치하는 항목 없음",
+      "searchText": "검색어와 일치하는 파일 이름이 Drive에 없습니다."
+    },
+    "errors": {
+      "load": "Drive를 불러오지 못했습니다",
+      "temporary": "변경 사항을 저장하지 못했습니다: {reason}",
+      "blocked": "이 파일은 인스턴스 모더레이터가 삭제했습니다."
+    },
+    "details": {
+      "label": "파일 세부 정보",
+      "title": "세부 정보",
+      "name": "파일 이름",
+      "rename": "이름 변경",
+      "type": "유형",
+      "size": "크기",
+      "added": "추가일",
+      "owner": "소유자",
+      "used": "사용된 곳",
+      "unused": "아직 아무 곳에도 보내지 않았습니다.",
+      "post": "Fediverse 게시물",
+      "sharing": "공유"
+    },
+    "file": {
+      "renameTitle": "파일 이름 변경",
+      "unnamed": "이름 없는 파일"
+    },
+    "folder": {
+      "newTitle": "새 폴더",
+      "renameTitle": "폴더 이름 변경",
+      "name": "폴더 이름",
+      "create": "만들기",
+      "deleteTitle": "“{name}”을(를) 삭제할까요?",
+      "deleteText": "폴더 안의 파일은 휴지통으로 이동하고 하위 폴더는 삭제됩니다."
+    },
+    "delete": {
+      "title": "파일 {count}개를 영구 삭제할까요? | 파일 {count}개를 영구 삭제할까요?",
+      "text": "이 파일을 사용하는 메시지와 게시물에는 파일이 삭제된 것으로 표시됩니다. 되돌릴 수 없습니다."
+    },
+    "trash": {
+      "emptyTitle": "휴지통을 비울까요?"
+    },
+    "move": {
+      "title": "항목 {count}개 이동 | 항목 {count}개 이동",
+      "here": "여기로 이동"
+    },
+    "menu": {
+      "file": "파일 작업"
+    },
+    "drop": {
+      "title": "놓아서 {place}에 업로드"
+    },
+    "uploads": {
+      "label": "업로드",
+      "title": "파일 {count}개 업로드 중 | 파일 {count}개 업로드 중"
+    },
+    "toast": {
+      "trashed": "파일 {count}개를 휴지통으로 이동했습니다 | 파일 {count}개를 휴지통으로 이동했습니다",
+      "restored": "파일 {count}개를 복원했습니다 | 파일 {count}개를 복원했습니다",
+      "deleted": "파일 {count}개를 삭제했습니다 | 파일 {count}개를 삭제했습니다",
+      "moved": "파일 {count}개를 이동했습니다 | 파일 {count}개를 이동했습니다",
+      "kept": "파일 {count}개를 Drive에 보관했습니다 | 파일 {count}개를 Drive에 보관했습니다",
+      "keepPartial": "{total}개 중 {kept}개 보관됨: 나머지는 Drive에 공간이 부족합니다",
+      "folderDeleted": "폴더를 삭제했습니다. 파일 {count}개를 휴지통으로 이동했습니다 | 폴더를 삭제했습니다. 파일 {count}개를 휴지통으로 이동했습니다"
+    },
+    "share": {
+      "title": "공유",
+      "linkTitle": "링크가 있는 모든 사용자",
+      "linkOn": "링크가 있는 사람은 누구나 보고 다운로드할 수 있습니다.",
+      "linkOff": "아래 사용자와 파일을 보낸 곳에서만 볼 수 있습니다.",
+      "copy": "복사",
+      "copied": "복사됨",
+      "expires": "링크 만료",
+      "never": "만료 없음",
+      "days": "{count}일 후 | {count}일 후",
+      "people": "사용자 및 장소",
+      "searchPeople": "이 인스턴스의 사용자 추가",
+      "searching": "검색 중…",
+      "noPeople": "이 인스턴스에서 일치하는 사용자가 없습니다",
+      "searchFailed": "검색에 실패했습니다. 다시 시도하세요.",
+      "server": "서버",
+      "channel": "채널",
+      "pickServer": "서버 선택",
+      "wholeServer": "서버 전체",
+      "add": "공유",
+      "remove": "{name}과(와) 공유 중지",
+      "private": "나와 파일을 보낸 대화에서만 볼 수 있습니다.",
+      "summaryLink": "링크가 있는 모든 사용자",
+      "summaryPeople": "대상 {count}개와 공유됨 | 대상 {count}개와 공유됨",
+      "summaryBoth": "링크 켜짐, 대상 {count}개와 공유됨 | 링크 켜짐, 대상 {count}개와 공유됨",
+      "scope": {
+        "user": "사용자",
+        "server": "서버",
+        "channel": "채널",
+        "link": "링크"
+      }
+    },
+    "preview": {
+      "previous": "이전 파일",
+      "next": "다음 파일",
+      "none": "이 파일은 미리보기를 지원하지 않습니다."
+    },
+    "picker": {
+      "title": "Drive에서 선택",
+      "folder": "폴더",
+      "everything": "모든 파일",
+      "empty": "파일이 없습니다.",
+      "attach": "{count}개 첨부 | {count}개 첨부"
+    },
+    "composer": {
+      "fromDriveMenu": "Drive에서",
+      "fromDrive": "Drive에서",
+      "reused": "Drive에 있음",
+      "reusedHint": "이미 Drive에 있는 파일이라 다시 업로드하지 않았습니다.",
+      "temporaryDays": "임시, {count}일 | 임시, {count}일",
+      "makeTemporary": "임시로 설정: {count}일 후 삭제 | 임시로 설정: {count}일 후 삭제",
+      "keep": "Drive에 보관",
+      "makeTemporaryFile": "{name}을(를) 임시로 설정",
+      "keepFile": "{name}을(를) Drive에 보관",
+      "markedTemporary": "{name}은(는) 임시 파일입니다",
+      "markedKept": "{name}은(는) Drive에 보관됩니다",
+      "fullHint": "Drive가 가득 찼습니다: 업로드는 임시 파일이 됩니다"
+    },
+    "gone": {
+      "expired": "만료된 파일입니다",
+      "deleted": "삭제된 파일입니다",
+      "removed": "모더레이터가 삭제한 파일입니다",
+      "trashed": "이 파일을 사용할 수 없습니다"
+    },
+    "link": {
+      "title": "공유된 파일",
+      "missingTitle": "이 링크는 작동하지 않습니다",
+      "missingText": "링크가 만료되었거나 소유자가 파일 공유를 중지했습니다.",
+      "sharedBy": "{name}님이 공유함",
+      "expires": "링크 만료: {date}",
+      "footer": "{instance}에서 공유됨"
+    }
+  },
+  "support": {
+    "title": "이 인스턴스 후원하기",
+    "progress": "후원 진행률",
+    "raisedMonth": "모금 / 이번 달 목표 {goal}",
+    "raisedTotal": "모금 / 전체 목표 {goal}",
+    "funded": "달성",
+    "supporters": "명의 후원자 | 명의 후원자",
+    "heading": "후원",
+    "oneTime": "일회성",
+    "onPlatform": "{platform}에서 후원",
+    "credited": "계정에 자동으로 반영됩니다",
+    "badgeAuto": "후원자 배지를 자동으로 받습니다",
+    "handleTitle": "{platforms}에서 후원하시나요? 핸들을 추가하세요",
+    "handleText": "메시지 어디에든 핸들을 포함하세요. 등급은 이번 주기의 총 후원액에 따라 정해집니다.",
+    "handleHint": "핸들이 없는 결제는 관리자가 직접 연결하도록 대기열에 추가됩니다.",
+    "copy": "복사",
+    "copied": "복사됨",
+    "tiers": "후원 등급",
+    "from": "{amount}부터",
+    "yours": "내 후원",
+    "tierSupporter": "{tier} 후원자",
+    "active": "활성",
+    "history": "내 후원 기록"
   }
 }

@@ -51,7 +51,7 @@ services:
       - USE_BULLMQ_QUEUE=true
       # Least-privilege LISTEN role, password LISTENER_PASSWORD. Created by
       # self-host/bootstrap.sh; on this stack, by the SQL under "Listener role"
-      # in docs-source/guide/deployment/supabase.md. Without it the worker
+      # in docs/self-host/docker-compose.md. Without it the worker
       # picks jobs up through the 60 s sweep.
       - FEDERATION_LISTENER_URL=postgresql://harmony_listener:${LISTENER_PASSWORD:-}@supabase-db:5432/postgres
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379

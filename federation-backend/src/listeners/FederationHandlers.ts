@@ -12,7 +12,7 @@ import {
 } from '../activitypub/converters/toActivityPub.js';
 import config from '../config/index.js';
 import { getSupabaseClient } from '../config/supabase.js';
-import { logger } from '../utils/logger.js';
+import { createQuoteRequestActivity, ensureStamp, quotePermitted, stampUrl } from '../activitypub/quoteAuthorization.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -52,30 +52,108 @@ async function resolveInReplyTo(note: any, post: any): Promise<void> {
   note.inReplyTo = parentPost?.ap_id || `https://${config.INSTANCE_DOMAIN}/posts/${post.in_reply_to}`;
 }
 
+/** The quoted post of a local quote, and its author's actor and inbox when remote. */
+export interface QuoteTarget {
+  id: string;
+  apId: string;
+  authorId: string;
+  /** Null for a local author. */
+  authorActorUrl: string | null;
+  authorInbox: string | null;
+  authorUsername: string | null;
+  visibility: string;
+  isLocal: boolean;
+  isDeleted: boolean;
+}
+
+export async function loadQuoteTarget(post: any): Promise<QuoteTarget | null> {
+  const quotedId = post.metadata?.is_quote ? post.metadata?.reblog_of : null;
+  if (!quotedId) return null;
+  const { data: quoted } = await getSupabaseClient()
+    .from('posts')
+    .select('id, ap_id, author_id, visibility, is_local, is_deleted, author:profiles!posts_author_id_fkey ( username, federated_id, inbox_url, shared_inbox_url, is_local )')
+    .eq('id', quotedId)
+    .maybeSingle();
+  if (!quoted) return null;
+  const author: any = (quoted as any).author;
+  const remote = author?.is_local === false;
+  return {
+    id: quoted.id,
+    apId: quoted.ap_id || `https://${config.INSTANCE_DOMAIN}/posts/${quoted.id}`,
+    authorId: quoted.author_id,
+    authorActorUrl: remote ? author.federated_id || null : null,
+    authorInbox: remote ? author.shared_inbox_url || author.inbox_url || null : null,
+    authorUsername: author?.username ?? null,
+    visibility: quoted.visibility,
+    isLocal: quoted.is_local !== false,
+    isDeleted: quoted.is_deleted === true,
+  };
+}
+
+/**
+ * The FEP-044f stamp of a local quote: issued here when the quoted post is local and by
+ * someone else (within its policy), recorded from the quoted author's Accept when remote.
+ * A self-quote carries none.
+ */
+async function quoteAuthorizationFor(post: any, author: any, target: QuoteTarget, noteId: string): Promise<string | null> {
+  if (target.authorId === post.author_id) return null;
+  if (!target.isLocal) {
+    return typeof post.metadata?.quote_authorization === 'string' ? post.metadata.quote_authorization : null;
+  }
+  if (!target.authorUsername) return null;
+  const quoted = { id: target.id, ap_id: target.apId, author_id: target.authorId, visibility: target.visibility, is_deleted: target.isDeleted };
+  if (!(await quotePermitted(quoted, post.author_id))) return null;
+  const stampId = await ensureStamp(quoted, noteId, `https://${config.INSTANCE_DOMAIN}/users/${author.username}`, null);
+  return stampId ? stampUrl(target.authorUsername, stampId) : null;
+}
+
+function countOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+/**
+ * The Note of a local post, as every outbound path serves it: Create, Update, outbox,
+ * GET /posts/:id and featured. Mentions name the stored actor ids, inReplyTo the parent's
+ * AP id, a quote its target and stamp; likes and shares carry their counts. `updated` marks
+ * an edited post.
+ */
+export async function buildLocalNote(post: any, author: any): Promise<any> {
+  const noteId = post.ap_id || `https://${config.INSTANCE_DOMAIN}/posts/${post.id}`;
+  const target = await loadQuoteTarget(post);
+  const quoteAuthorization = target ? await quoteAuthorizationFor(post, author, target, noteId) : null;
+  const note = postToNote(post, author, target?.apId, await resolveMentionActorUrls(post.content), {
+    quoteAuthorization,
+    likesCount: countOrNull(post.favorites_count),
+    sharesCount: countOrNull(post.reblogs_count),
+  });
+  await resolveInReplyTo(note, post);
+  if (Array.isArray(post.edit_history) && post.edit_history.length > 0) {
+    const updatedAt = Date.parse(post.updated_at);
+    if (Number.isFinite(updatedAt)) note.updated = new Date(updatedAt).toISOString();
+  }
+  return note;
+}
+
+/**
+ * QuoteRequest for a local quote of another account's remote post, to that author's inbox.
+ * Null when the quote needs none (local or self quote) or was already approved.
+ */
+export async function quoteRequestFor(post: any, author: any, note: any): Promise<{ inbox: string; activity: any } | null> {
+  const target = await loadQuoteTarget(post);
+  if (!target || target.isLocal || target.authorId === post.author_id || !target.authorInbox) return null;
+  if (post.metadata?.quote_authorization) return null;
+  return { inbox: target.authorInbox, activity: createQuoteRequestActivity(author.username, target.apId, note) };
+}
+
 /**
  * Create a Create activity for a new post
- * Handles quote posts by adding quoteUrl to the Note
  */
 export async function createPostActivity(post: any, author: any): Promise<any> {
   const domain = config.INSTANCE_DOMAIN;
   const authorUrl = `https://${domain}/users/${author.username}`;
   const activityId = `${authorUrl}/activities/${post.id}`;
-  const supabase = getSupabaseClient();
 
-  let quoteUrl: string | undefined;
-  if (post.metadata?.is_quote && post.metadata?.reblog_of) {
-    const { data: quotedPost } = await supabase
-      .from('posts')
-      .select('ap_id')
-      .eq('id', post.metadata.reblog_of)
-      .single();
-    
-    quoteUrl = quotedPost?.ap_id || `https://${domain}/posts/${post.metadata.reblog_of}`;
-    logger.info(`Creating quote post with quoteUrl: ${quoteUrl}`);
-  }
-
-  const note = postToNote(post, author, quoteUrl, await resolveMentionActorUrls(post.content));
-  await resolveInReplyTo(note, post);
+  const note = await buildLocalNote(post, author);
 
   return {
     '@context': note['@context'] || 'https://www.w3.org/ns/activitystreams',
@@ -347,8 +425,7 @@ export async function createPostUpdateActivity(post: any, author: any): Promise<
   const authorUrl = `https://${domain}/users/${author.username}`;
   const activityId = `${authorUrl}/activities/update-${post.id}-${Date.now()}`;
 
-  const note = postToNote(post, author, undefined, await resolveMentionActorUrls(post.content));
-  await resolveInReplyTo(note, post);
+  const note = await buildLocalNote(post, author);
 
   // Mastodon applies an edit only when `updated` is later than the stored
   // edit time (ProcessStatusUpdateService#handle_explicit_update!); without

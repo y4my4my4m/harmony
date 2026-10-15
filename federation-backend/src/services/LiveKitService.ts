@@ -1,14 +1,17 @@
-import { AccessToken, RoomServiceClient, VideoGrant } from 'livekit-server-sdk';
+import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
+import { liveKitGrant, voiceMetadataFlags } from './voiceGrants.js';
 import config from '../config/index.js';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import {
   authorizeVoiceChannel,
+  DM_CALL_GRANTS,
   isConversationParticipant,
   isLiveOutboundCallFor,
   liveKitIdentity,
   parseRoomName,
   type RoomType,
+  type VoiceGrants,
 } from './voiceAccess.js';
 
 // TYPES
@@ -54,9 +57,7 @@ export interface LiveKitConfig {
   allowFederatedVoice: boolean;
 }
 
-type RoomAccess =
-  | { ok: true; canPublish: boolean; canSoundboard: boolean; canExternalSounds: boolean }
-  | { ok: false };
+type RoomAccess = ({ ok: true } & VoiceGrants) | { ok: false };
 
 /** An expected refusal of a token; `answer` is what the caller is told. */
 export class TokenRefused extends Error {
@@ -150,14 +151,12 @@ class LiveKitService {
         username: profile?.username,
         roomType: request.roomType,
         instanceDomain: config.INSTANCE_DOMAIN,
-        // USE_SOUNDBOARD and SPEAK on the channel; soundboardExternal adds USE_EXTERNAL_SOUNDS.
-        // Follow the request's metadata, which cannot claim them.
-        soundboard: access.canSoundboard,
-        soundboardExternal: access.canExternalSounds,
+        // Grant flags follow the room decision; the request's metadata cannot claim them.
+        ...voiceMetadataFlags(access),
       }),
     });
     
-    at.addGrant(this.videoGrant(request, access.canPublish));
+    at.addGrant(liveKitGrant(request, access));
     
     const token = await at.toJwt();
     logger.info(`Generated LiveKit token for profile ${profileId} in room ${request.roomName}`);
@@ -165,24 +164,6 @@ class LiveKitService {
     return { token, profileId };
   }
 
-  /**
-   * Requested grants narrowed by the room decision. Stage rooms default to
-   * listener; publishing in a channel room needs SPEAK.
-   */
-  private videoGrant(
-    request: { roomName: string; roomType: RoomType; canPublish?: boolean; canSubscribe?: boolean; canPublishData?: boolean },
-    mayPublish: boolean,
-  ): VideoGrant {
-    const wantsPublish = request.canPublish ?? request.roomType !== 'stage';
-    return {
-      roomJoin: true,
-      room: request.roomName,
-      canPublish: wantsPublish && mayPublish,
-      canSubscribe: request.canSubscribe ?? true,
-      canPublishData: request.canPublishData ?? true,
-    };
-  }
-  
   async generateFederatedToken(request: FederatedTokenRequest): Promise<string> {
     const cfg = this.getConfig();
     if (!cfg.isConfigured) {
@@ -235,12 +216,11 @@ class LiveKitService {
         remoteDomain,
         roomType: request.roomType,
         federated: true,
-        soundboard: access.canSoundboard,
-        soundboardExternal: access.canExternalSounds,
+        ...voiceMetadataFlags(access),
       }),
     });
     
-    at.addGrant(this.videoGrant(request, access.canPublish));
+    at.addGrant(liveKitGrant(request, access));
     
     const token = await at.toJwt();
     logger.info(`Generated federated LiveKit token for actor ${request.actorId} in room ${request.roomName}`);
@@ -280,13 +260,11 @@ class LiveKitService {
           profileId: profile.id, channelId: room.channelId, remote: false,
         });
         if (!decision.ok) logger.debug(`Room ${roomName} refused for ${profile.id}: ${decision.reason}`);
-        return decision.ok
-          ? { ok: true, canPublish: decision.canPublish, canSoundboard: decision.canSoundboard, canExternalSounds: decision.canExternalSounds }
-          : DENIED;
+        return decision.ok ? { ...decision, ok: true } : DENIED;
       }
 
       return (await isConversationParticipant(supabase, room.conversationId, profile.id))
-        ? { ok: true, canPublish: true, canSoundboard: false, canExternalSounds: false }
+        ? { ok: true, ...DM_CALL_GRANTS }
         : DENIED;
     } catch (error) {
       logger.warn(`Room permission check failed for ${authUserId} / ${roomName}:`, error);
@@ -326,9 +304,7 @@ class LiveKitService {
           profileId: profile.id, channelId: room.channelId, remote: true,
         });
         if (!decision.ok) logger.info(`Federated room ${roomName} refused for ${actorId}: ${decision.reason}`);
-        return decision.ok
-          ? { ok: true, canPublish: decision.canPublish, canSoundboard: decision.canSoundboard, canExternalSounds: decision.canExternalSounds }
-          : DENIED;
+        return decision.ok ? { ...decision, ok: true } : DENIED;
       }
 
       if (room.federated && !(await isLiveOutboundCallFor(supabase, roomName, profile.id))) {
@@ -336,7 +312,7 @@ class LiveKitService {
         return DENIED;
       }
       return (await isConversationParticipant(supabase, room.conversationId, profile.id))
-        ? { ok: true, canPublish: true, canSoundboard: false, canExternalSounds: false }
+        ? { ok: true, ...DM_CALL_GRANTS }
         : DENIED;
     } catch (error) {
       logger.warn(`Federated room access check failed for ${actorId} / ${roomName}:`, error);
@@ -443,18 +419,6 @@ class LiveKitService {
       return true;
     } catch (error) {
       logger.error(`Failed to remove participant ${identity} from ${roomName}:`, error);
-      return false;
-    }
-  }
-  
-  async muteParticipant(roomName: string, identity: string, trackSid: string, muted: boolean): Promise<boolean> {
-    try {
-      const roomService = this.getRoomService();
-      await roomService.mutePublishedTrack(roomName, identity, trackSid, muted);
-      logger.info(`${muted ? 'Muted' : 'Unmuted'} track ${trackSid} for ${identity} in ${roomName}`);
-      return true;
-    } catch (error) {
-      logger.error(`Failed to ${muted ? 'mute' : 'unmute'} participant:`, error);
       return false;
     }
   }

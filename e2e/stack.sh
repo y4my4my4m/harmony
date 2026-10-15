@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ephemeral Postgres + GoTrue + PostgREST stack for E2E runs. Credentials are
+# Ephemeral Postgres + GoTrue + PostgREST + storage stack for E2E runs. Credentials are
 # generated into e2e/stack.env.
 #
 #   up      tear down, raise containers, build the schema from init/
@@ -17,8 +17,8 @@
 # as supabase_admin, then init/init.sql as postgres. Added here: role passwords and
 # e2e/jwt-claims-compat.sql.
 #
-# No storage, realtime, imgproxy, postgres-meta, federation backend or Redis. The
-# gateway answers 501 on those paths.
+# No realtime, postgres-meta, federation backend or Redis. The gateway answers 501 on
+# the realtime and functions paths.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -85,6 +85,9 @@ VITE_SUPABASE_ANON_KEY=$anon
 # Bare usernames resolve against VITE_DOMAIN; profiles.domain and instance_config
 # default to 'localhost'. Unset, lookups use domain=undefined and find no profile.
 VITE_DOMAIN=localhost
+
+# The sign-in footer and Settings link here (auth-landing.spec.ts).
+VITE_STATUS_URL=https://status.example.test
 EOF
   ok "wrote e2e/stack.env"
 }
@@ -141,8 +144,22 @@ cmd_up() {
 \set qpw '''' :pw ''''
 ALTER ROLE authenticator WITH LOGIN PASSWORD :qpw;
 ALTER ROLE supabase_auth_admin WITH LOGIN PASSWORD :qpw;
+ALTER ROLE supabase_storage_admin WITH LOGIN PASSWORD :qpw;
 ALTER ROLE postgres WITH PASSWORD :qpw;
 SQL
+
+  # storage-api migrates the storage schema on start; the schema build after it
+  # adds policies and buckets to the finished tables.
+  log "starting storage"
+  compose up -d storage imgproxy
+  local scid; scid="$(compose ps -q storage)"
+  for _ in $(seq 1 90); do
+    docker exec "$scid" wget -q -O /dev/null http://127.0.0.1:5000/status 2>/dev/null && break
+    sleep 1
+  done
+  docker exec "$scid" wget -q -O /dev/null http://127.0.0.1:5000/status 2>/dev/null ||
+    { docker logs "$scid" 2>&1 | tail -20; die "storage never answered /status"; }
+  ok "storage up"
 
   log "starting auth, rest and gateway"
   compose up -d

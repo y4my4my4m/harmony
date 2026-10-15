@@ -4,7 +4,7 @@
  * message the bridge relayed out.
  */
 import { describe, it, expect } from 'vitest'
-import { getBridgeSource, getHarmonyProfileUserId, getWebhookAuthor, isBridgedAuthorMessage } from '@/utils/messageAuthor'
+import { getBridgeSource, getForeignAuthor, getHarmonyProfileUserId, getWebhookAuthor, isBridgedAuthorMessage } from '@/utils/messageAuthor'
 import type { Message } from '@/types'
 
 const message = (metadata: Record<string, unknown> | undefined, extra: Partial<Message> = {}) =>
@@ -40,5 +40,24 @@ describe('getWebhookAuthor', () => {
     expect(getWebhookAuthor(message({ webhook: { id: 'w1', name: 'CI' } }))).toBeNull()
     expect(getWebhookAuthor(message({ webhook: { id: 'w1' } }, { bot_id: 'b1' }))).toBeNull()
     expect(getWebhookAuthor(message(undefined, { bot_id: 'b1' }))).toBeNull()
+  })
+})
+
+describe('getForeignAuthor', () => {
+  it('names a Discord person, a webhook or a bot, in that order', () => {
+    const dana = { id: '1', username: 'dana', display_name: 'Dana', avatar_url: 'https://cdn.test/d.png' }
+    expect(getForeignAuthor(message({ discord_user: dana }, { user_id: null, bot_id: 'b1' })))
+      .toEqual({ name: 'Dana', avatar_url: 'https://cdn.test/d.png' })
+    expect(getForeignAuthor(message({ discord_user: { id: '1', username: 'dana' } }, { user_id: null, bot_id: 'b1' }))?.name).toBe('dana')
+    expect(getForeignAuthor(message({ webhook: { id: 'w1', name: 'CI' } }, { user_id: null, bot_id: 'b1' })))
+      .toEqual({ name: 'CI', avatar_url: null })
+    const bot = { id: 'b1', username: 'bridge', display_name: 'Discord Bridge', avatar_url: null }
+    expect(getForeignAuthor(message(undefined, { user_id: null, bot_id: 'b1', bot } as Partial<Message>))?.name).toBe('Discord Bridge')
+    expect(getForeignAuthor(message(undefined, { user_id: null, bot_id: 'b1' }))?.name).toBe('Bot')
+  })
+
+  it('is null for a message a profile wrote', () => {
+    expect(getForeignAuthor(message(undefined))).toBeNull()
+    expect(getForeignAuthor(null)).toBeNull()
   })
 })

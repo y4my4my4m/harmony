@@ -157,7 +157,7 @@ const save = async () => {
   border-radius: 8px;
   width: 100%;
   max-width: 440px;
-  max-height: 90vh;
+  max-height: calc(90 * var(--app-vh));
   overflow: hidden;
   display: flex;
   flex-direction: column;

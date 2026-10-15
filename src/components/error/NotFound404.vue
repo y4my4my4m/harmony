@@ -2,7 +2,7 @@
   <div class="not-found-404">
     <div class="error-container">
       <!-- 404 Image -->
-      <div class="error-image">
+      <div v-if="selectedImage && !imageError" class="error-image">
         <img 
           :src="selectedImage" 
           alt="404 - Page not found"
@@ -83,13 +83,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import Icon from '@/components/common/Icon.vue'
-import { getRandom404Image } from '@/utils/backgroundUtils'
+import { randomNotFoundImage } from '@/utils/backgroundUtils'
 
 interface Props {
   /** Override the default title */
@@ -115,7 +115,7 @@ const route = useRoute()
 const authStore = useAuthStore()
 
 // State
-const selectedImage = ref('')
+const selectedImage = ref(randomNotFoundImage())
 const imageError = ref(false)
 
 // Computed properties
@@ -177,28 +177,9 @@ const defaultRoute = computed(() => {
 })
 
 // Methods
-const selectRandomImage = async () => {
-  try {
-    selectedImage.value = await getRandom404Image()
-  } catch (error) {
-    debug.warn('Failed to load 404 image from manifest, using fallback:', error)
-    // Fallback to legacy images
-    const legacyImages = ['/backgrounds/404/1.webp', '/backgrounds/404/2.webp']
-    const randomIndex = Math.floor(Math.random() * legacyImages.length)
-    selectedImage.value = legacyImages[randomIndex]
-  }
-}
-
 const handleImageError = () => {
   debug.warn('Failed to load 404 image:', selectedImage.value)
   imageError.value = true
-  // Try fallback legacy images
-  const legacyImages = ['/backgrounds/404/1.webp', '/backgrounds/404/2.webp']
-  const currentIndex = legacyImages.indexOf(selectedImage.value)
-  const fallbackIndex = currentIndex === 0 ? 1 : 0
-  if (fallbackIndex !== currentIndex) {
-    selectedImage.value = legacyImages[fallbackIndex]
-  }
 }
 
 const goHome = () => {
@@ -212,11 +193,6 @@ const goBack = () => {
     goHome()
   }
 }
-
-// Lifecycle
-onMounted(() => {
-  selectRandomImage()
-})
 </script>
 
 <style scoped>
@@ -429,7 +405,7 @@ onMounted(() => {
 @media (max-width: 768px) {
   .not-found-404 {
     padding: 1rem;
-    min-height: 100vh;
+    min-height: calc(100 * var(--app-vh));
   }
   
   .error-container {

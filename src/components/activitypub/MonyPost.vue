@@ -130,8 +130,18 @@
             />
           </div>
           
-          <!-- Quoted post content -->
-          <div class="quoted-post">
+          <!-- Quoted post content; a quote whose post was never fetched links to it. -->
+          <a
+            v-if="!props.post.reblog && reblogReferenceUrl"
+            :href="safeHref(reblogReferenceUrl)"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="quoted-post quoted-post-link"
+          >
+            <Icon name="external-link" :size="14" />
+            {{ t('activitypub.viewQuotedPost') }}
+          </a>
+          <div v-else-if="props.post.reblog" class="quoted-post">
             <div v-if="quotedAuthor" class="quoted-post-header">
               <Avatar
                 :src="quotedAuthor.avatar_url"
@@ -207,6 +217,16 @@
             v-if="displayMediaAttachments?.length > 0"
             :media-attachments="displayMediaAttachments"
             :is-sensitive="displayIsSensitive"
+          />
+
+          <!-- Music services' own players. -->
+          <MusicEmbed
+            v-for="item in musicEmbeds"
+            :key="`music-${item.url}`"
+            class="post-music-embed"
+            :embed="item.embed"
+            :title="item.title || item.url"
+            :artwork="item.image || null"
           />
 
           <!-- Link preview cards. Variant is `thumbnail` (small horizontal
@@ -716,7 +736,8 @@ import { userDataService } from '@/services/userDataService';
 import { unicodeToShortcode } from '@/services/unifiedEmojiService';
 import { getEmojiUrl } from '@/utils/emojiUtils';
 import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
-import { getOriginalApId, getOriginalPost } from '@/utils/postReblog';
+import { styleRect } from '@/utils/appZoom';
+import { getOriginalApId, getOriginalPost, quoteTargetUrl, withoutQuoteFallback } from '@/utils/postReblog';
 import { isHeartEmoji } from '@/utils/heartReaction';
 import { remotePollFromMetadata } from '@/utils/remotePoll';
 import {
@@ -732,6 +753,8 @@ import type { TimelinePost, DisplayNamePart } from '@/types';
 // Components
 import MonyContent from './MonyContent.vue';
 import LinkEmbedCard from '@/components/embeds/LinkEmbedCard.vue';
+import MusicEmbed from '@/components/embeds/MusicEmbed.vue';
+import { musicEmbedFor } from '@/utils/musicEmbeds';
 import { parseEmbedUrl, isYouTubeUrl } from '@/utils/embedDetection';
 import Icon from '@/components/common/Icon.vue';
 import AppTimestamp from '@/components/a11y/AppTimestamp.vue';
@@ -986,7 +1009,7 @@ const isReblog = computed(() => {
 
 // Check if this is a remote reblog without hydrated data (needs to show placeholder)
 const isUnhydratedReblog = computed(() => {
-  return isReblog.value && !props.post.reblog && (
+  return isReblog.value && !props.post.reblog && !isQuotePost.value && (
     props.post.metadata?.reblog_of || 
     props.post.metadata?.reblog_of_ap_url
   );
@@ -1041,9 +1064,7 @@ const isQuotePost = computed(() => {
 const isPureReblog = computed(() => isReblog.value && !isQuotePost.value);
 
 const reblogReferenceUrl = computed(() => {
-  return props.post.metadata?.reblog_of_ap_url || 
-         props.post.metadata?.quote_url || 
-         null;
+  return props.post.metadata?.reblog_of_ap_url || quoteTargetUrl(props.post);
 });
 
 // eslint-disable-next-line unused-imports/no-unused-vars
@@ -1126,7 +1147,8 @@ const quoteOwnMedia = computed(() => isQuotePost.value ? galleryMedia(props.post
 
 // For quote posts, we show both the user's content AND the quoted content
 const userQuoteContent = computed(() => {
-  return isQuotePost.value ? withoutGalleryMedia(props.post.content, quoteOwnMedia.value) : null;
+  if (!isQuotePost.value) return null;
+  return withoutQuoteFallback(withoutGalleryMedia(props.post.content, quoteOwnMedia.value), quoteTargetUrl(props.post));
 });
 
 const displayContent = computed(() => {
@@ -1179,8 +1201,14 @@ const isInlineRichEmbed = (embed: { url: string; provider?: string }): boolean =
   return !!parsed && isYouTubeUrl(parsed);
 };
 
+const musicFor = (embed: { url: string; provider?: string; canonicalUrl?: string; player?: { url: string; height?: number } }) =>
+  embed?.url ? musicEmbedFor(embed.url, { provider: embed.provider, canonicalUrl: embed.canonicalUrl, player: embed.player }) : null;
+
 const inlineRichEmbeds = computed(() => postEmbeds.value.filter(isInlineRichEmbed));
-const cardEmbeds = computed(() => postEmbeds.value.filter((e) => !isInlineRichEmbed(e)));
+const musicEmbeds = computed(() => postEmbeds.value
+  .map((e: any) => ({ url: e.url as string, title: e.title as string | undefined, image: e.image as string | undefined, embed: musicFor(e) }))
+  .filter((e): e is { url: string; title: string | undefined; image: string | undefined; embed: NonNullable<ReturnType<typeof musicFor>> } => !!e.embed));
+const cardEmbeds = computed(() => postEmbeds.value.filter((e) => !isInlineRichEmbed(e) && !musicFor(e as any)));
 
 // When the post also has a media attachment, render link cards in the
 // `thumbnail` variant: a fixed-size horizontal card with a small image on
@@ -1808,7 +1836,7 @@ const handleShowReactionTooltip = (event: MouseEvent | FocusEvent, reaction: any
   const usersDetails = [...localUsers, ...remoteUsers];
   
   // Keyboard focus opens the same tooltip, anchored on the focused chip.
-  const chip = event.currentTarget instanceof HTMLElement ? event.currentTarget.getBoundingClientRect() : null;
+  const chip = event.currentTarget instanceof HTMLElement ? styleRect(event.currentTarget) : null;
   const anchor = event instanceof MouseEvent
     ? getReactionTooltipAnchor(event)
     : { x: chip ? chip.left + chip.width / 2 : 0, y: chip?.top ?? 0 };
@@ -2596,6 +2624,10 @@ const closeLightbox = () => {
   margin: 0 1px;
 }
 
+.post-music-embed {
+  margin-top: var(--space-3);
+}
+
 .post-link-preview {
   display: block;
   text-decoration: none;
@@ -2798,6 +2830,19 @@ const closeLightbox = () => {
 }
 
 /* Unhydrated boost (remote boost without loaded content) */
+.quoted-post-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-link);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+}
+
+.quoted-post-link:hover {
+  text-decoration: underline;
+}
+
 .unhydrated-reblog {
   display: flex;
   flex-direction: column;

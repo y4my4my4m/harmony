@@ -2,7 +2,7 @@
   <article
     class="link-embed-card"
     :class="{
-      'link-embed-card--has-image': !!payload.image && variant !== 'compact',
+      'link-embed-card--has-image': (!!payload.image || !!payload.video?.url) && variant !== 'compact',
       'link-embed-card--compact': variant === 'compact',
       'link-embed-card--thumbnail': variant === 'thumbnail',
       'link-embed-card--media': isMediaCard,
@@ -12,7 +12,18 @@
          the compact variant when an inline rich embed (e.g. YouTube iframe)
          already represents the URL. The thumbnail variant renders the image
          at a small fixed size beside the text. -->
-    <div v-if="payload.image && variant !== 'compact'" class="link-embed-card__media">
+    <div v-if="payload.video?.url && variant === 'default'" class="link-embed-card__media link-embed-card__media--video">
+      <video
+        :src="payload.video.url"
+        :poster="payload.image"
+        :controls="nativeVideoControls"
+        playsinline
+        preload="metadata"
+        @loadedmetadata="handleImageLoad"
+      ></video>
+      <VideoControls v-if="!nativeVideoControls" :label="payload.title || undefined" />
+    </div>
+    <div v-else-if="payload.image && variant !== 'compact'" class="link-embed-card__media">
       <img
         :src="payload.image"
         :alt="payload.title || payload.siteName || 'Link preview image'"
@@ -38,6 +49,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import type { EmbedPayload } from '@/types';
+import VideoControls from '@/components/common/VideoControls.vue';
+import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 
 const props = withDefaults(
   defineProps<{
@@ -68,13 +81,15 @@ const emit = defineEmits<{
 
 // Starts loaded when no image will paint (no payload image, or the compact
 // variant), so the parent's load listener fires without waiting.
-const imageLoaded = ref(!props.payload.image || props.variant === 'compact');
+const nativeVideoControls = useNativeVideoControls();
+const imageLoaded = ref((!props.payload.image && !props.payload.video?.url) || props.variant === 'compact');
 
-// Media-first layout (Discord-style): a preview carrying an image and no
-// description (e.g. a GIF page) is the content, so it renders at natural
+// Media-first layout (Discord-style): a playable video, or an image with no
+// description (e.g. a GIF page), is the content, so it renders at natural
 // size instead of a 100px cropped square thumbnail.
 const isMediaCard = computed(() =>
-  props.variant === 'default' && !!props.payload.image && !props.payload.description
+  props.variant === 'default'
+  && (!!props.payload.video?.url || (!!props.payload.image && !props.payload.description))
 );
 
 const displaySiteName = computed(() => {
@@ -97,7 +112,7 @@ const handleImageLoad = () => {
 };
 
 onMounted(() => {
-  if (!props.payload.image || props.variant === 'compact') {
+  if ((!props.payload.image && !props.payload.video?.url) || props.variant === 'compact') {
     emit('load');
   }
 });

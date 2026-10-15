@@ -350,14 +350,15 @@ SELECT is(jsonb_array_length(public.get_home_timeline_page(2, NULL)), 2,
           'p_limit caps the number of rows returned');
 
 -- get_message_page -----------------------------------------------------------
--- Exactly two top-level keys. Returning a row set instead leaves data.messages
--- undefined and the chat silently empty, with no error for the client to fall
--- back on.
+-- Exactly three top-level keys: messages, reactions and history_since (the
+-- READ_MESSAGE_HISTORY cutoff, null without one). Returning a row set instead
+-- leaves data.messages undefined and the chat silently empty, with no error for
+-- the client to fall back on.
 SELECT is((SELECT string_agg(k, ',' ORDER BY k)
              FROM jsonb_object_keys(
                public.get_message_page('66666666-0000-0000-0000-000000000006', NULL, 20, NULL)) k),
-          'messages,reactions',
-          'get_message_page returns an object keyed messages and reactions');
+          'history_since,messages,reactions',
+          'get_message_page returns an object keyed messages, reactions and history_since');
 
 SELECT is((SELECT string_agg(e->>'id', ',') FROM jsonb_array_elements(
              public.get_message_page('66666666-0000-0000-0000-000000000006', NULL, 20, NULL)

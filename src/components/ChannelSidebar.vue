@@ -5,7 +5,7 @@
       @showCategoryCreator="showCategoryCreator"
       @createCategory="createCategory"
     />
-    <div class="server-header">
+    <div class="server-header" :class="{ 'has-banner': showBanner, 'over-banner': showBanner && !bannerCovered }">
       <button
         type="button"
         class="server-name"
@@ -44,6 +44,11 @@
         @createChannel="emitCreateChannel"
         @openInviteModal="openInviteModal"
       />
+    </div>
+    <!-- Server banner, the owner's choice: scrolls under the sticky name bar. -->
+    <div v-if="showBanner" class="server-banner" data-testid="server-sidebar-banner">
+      <BannerImage :src="bannerSrc" :fallback-src="bannerFullSize" eager @failed="bannerFailed = true" />
+      <div ref="bannerEndEl" class="server-banner-end" aria-hidden="true"></div>
     </div>
 
     <!-- Descriptions for voice channel rows: what activating one does. -->
@@ -137,6 +142,10 @@
                 <ChatBubbleIcon aria-hidden="true" />
               </button>
             </div>
+            <VoiceActivityLine
+              v-if="isVoiceType(element.type) && activitiesStore.byChannel[element.id]"
+              :activity="activitiesStore.byChannel[element.id]!"
+            />
             <VoiceChannelParticipants
               v-if="isVoiceType(element.type) && isUserInVoiceChannel(element.id)"
               :participants="getVoiceChannelParticipants(element.id)"
@@ -147,6 +156,7 @@
               v-else-if="isVoiceType(element.type) && getUsersInVoiceChannel(element.id).length > 0"
               :user-ids="getUsersInVoiceChannel(element.id)"
               :call-start-time="getChannelCallStartTime(element.id)"
+              :channel-id="element.id"
             />
             <!-- Active threads nested under the channel -->
             <ul
@@ -314,6 +324,10 @@
                       <ChatBubbleIcon aria-hidden="true" />
                     </button>
                   </div>
+                  <VoiceActivityLine
+                    v-if="isVoiceType(channel.type) && activitiesStore.byChannel[channel.id]"
+                    :activity="activitiesStore.byChannel[channel.id]!"
+                  />
                   <VoiceChannelParticipants
                     v-if="isVoiceType(channel.type) && isUserInVoiceChannel(channel.id)"
                     :participants="getVoiceChannelParticipants(channel.id)"
@@ -324,6 +338,7 @@
                     v-else-if="isVoiceType(channel.type) && getUsersInVoiceChannel(channel.id).length > 0"
                     :user-ids="getUsersInVoiceChannel(channel.id)"
                     :call-start-time="getChannelCallStartTime(channel.id)"
+                    :channel-id="channel.id"
                   />
                   <!-- Active threads nested under the channel -->
                   <ul
@@ -490,14 +505,17 @@ import HashTagIcon from '@/components/icons/HashTag.vue';
 import SpeakerIcon from '@/components/icons/Speaker.vue';
 import ChatBubbleIcon from '@/components/icons/ChatBubble.vue';
 import Icon from '@/components/common/Icon.vue';
-import { remoteServerHost } from '@/utils/serverUtils';
+import { getRawServerBannerUrl, getServerBannerUrl, remoteServerHost } from '@/utils/serverUtils';
 import { useToast } from 'vue-toastification';
 import { useI18n } from 'vue-i18n';
 import ServerDropdown from './ServerDropdown.vue';
+import BannerImage from '@/components/common/BannerImage.vue';
 import CategoryCreator from './CategoryCreator.vue';
 import InviteModal from './InviteModal.vue';
 import VoiceChannelParticipants from '@/components/voice/VoiceChannelParticipants.vue';
 import VoiceChannelUserList from '@/components/voice/VoiceChannelUserList.vue';
+import VoiceActivityLine from '@/components/activities/VoiceActivityLine.vue';
+import { useActivitiesStore } from '@/stores/activities';
 import MobileVoiceChannelPreview from '@/components/voice/MobileVoiceChannelPreview.vue';
 import ChannelContextMenu from './ChannelContextMenu.vue';
 import CategoryContextMenu from './CategoryContextMenu.vue';
@@ -510,6 +528,7 @@ import { threadService, type ThreadWithDetails } from '@/services/ThreadService'
 import { useThreadsStore, isOptimisticThreadId } from '@/stores/useThreads';
 import { useUnreadCounts } from '@/composables/useUnreadCounts';
 import { supabase } from '@/supabase';
+import { stylePoint, styleRect } from '@/utils/appZoom';
 
 import draggable from "vuedraggable";
 
@@ -629,6 +648,10 @@ const frozenCategoryChannels = ref<Map<string, Channel[]>>(new Map());
 
 // Stores and Composables
 const serverChannelStore = useServerChannelStore();
+const activitiesStore = useActivitiesStore();
+watch(() => serverChannelStore.currentServerId, (id) => {
+  if (id && id !== 'dm') void activitiesStore.refreshServer(id);
+}, { immediate: true });
 const router = useRouter();
 const route = useRoute();
 const serverUsersStore = useServerUsersStore();
@@ -1158,7 +1181,7 @@ const openContextMenu = (event: MouseEvent, item: Channel | Category, type: 'cha
     selectedCategory.value = item as Category;
     showCategoryContextMenu.value = true;
   }
-  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
+  contextMenuPosition.value = stylePoint(event);
 };
 
 const openChannelContextMenu = (event: MouseEvent, channel: Channel) => openContextMenu(event, channel, 'channel');
@@ -1178,7 +1201,7 @@ const openThreadContextMenu = (event: MouseEvent, thread: ThreadWithDetails) => 
   contextMenuTrigger.value = event.currentTarget as HTMLElement | null;
   selectedThread.value = thread;
   showThreadContextMenu.value = true;
-  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
+  contextMenuPosition.value = stylePoint(event);
 };
 
 const handleInviteUsers = () => openInviteModal();
@@ -1500,7 +1523,7 @@ watch([() => props.currentChannelId, selectedThreadId], async () => {
 });
 
 const menuPointFor = (el: HTMLElement) => {
-  const r = el.getBoundingClientRect();
+  const r = styleRect(el);
   return { x: r.left + Math.min(24, r.width / 2), y: r.bottom };
 };
 
@@ -1647,6 +1670,44 @@ const moveCategory = async (category: Category, delta: -1 | 1) => {
   }
 };
 
+// --- SERVER BANNER ---
+// Stored banners are cropped to 16:5 (imageCrop server_banner); 640x200 covers the sidebar at 2x.
+const BANNER_BOX = { width: 640, height: 200 } as const;
+const bannerFailed = ref(false);
+const bannerSrc = computed(() => getServerBannerUrl(props.currentServer?.banner, BANNER_BOX));
+const bannerFullSize = computed(() => getRawServerBannerUrl(props.currentServer?.banner));
+const showBanner = computed(() => props.currentServer?.sidebar_banner === true && !!bannerSrc.value && !bannerFailed.value);
+watch(() => props.currentServer?.banner, () => { bannerFailed.value = false; });
+
+// The name bar is transparent over the banner and solid once the banner's end has
+// scrolled under it.
+const bannerEndEl = ref<HTMLElement | null>(null);
+const bannerCovered = ref(false);
+let bannerObserver: IntersectionObserver | null = null;
+
+const scrollParentOf = (el: HTMLElement): HTMLElement | null => {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const overflow = getComputedStyle(p).overflowY;
+    if (overflow === 'auto' || overflow === 'scroll') return p;
+  }
+  return null;
+};
+
+watch(bannerEndEl, (el) => {
+  bannerObserver?.disconnect();
+  bannerObserver = null;
+  bannerCovered.value = false;
+  if (!el || typeof IntersectionObserver === 'undefined') return;
+  const header = sidebarEl.value?.querySelector('.server-header') as HTMLElement | null;
+  const inset = header?.offsetHeight ?? 48;
+  bannerObserver = new IntersectionObserver(
+    // rootBounds is the scroll box less the name bar; above its top the banner has scrolled under the bar.
+    ([entry]) => { bannerCovered.value = !entry.isIntersecting && entry.boundingClientRect.top < (entry.rootBounds?.top ?? inset); },
+    { root: scrollParentOf(el), rootMargin: `-${inset}px 0px 0px 0px` },
+  );
+  bannerObserver.observe(el);
+}, { flush: 'post' });
+
 onMounted(() => {
   if (sidebarEl.value) rovingObserver?.observe(sidebarEl.value, { childList: true, subtree: true });
 });
@@ -1654,6 +1715,7 @@ onMounted(() => {
 onUnmounted(() => {
   cancelChannelPrefetch();
   rovingObserver?.disconnect();
+  bannerObserver?.disconnect();
 });
 
 
@@ -1679,6 +1741,46 @@ onUnmounted(() => {
   position: relative;
   z-index: 10;
   flex-shrink: 0;
+}
+
+/* With a banner the name bar stays at the top while the banner scrolls under it. */
+.server-header.has-banner {
+  position: sticky;
+  top: 0;
+}
+
+.server-header.over-banner .server-name {
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.55), rgb(0 0 0 / 0));
+  border-bottom-color: transparent;
+  color: #fff;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.6);
+}
+
+.server-header.over-banner .server-name:hover {
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.7), rgb(0 0 0 / 0.1));
+}
+
+.server-header.over-banner .server-name-chevron {
+  color: #fff;
+}
+
+/* 16:5, the stored crop; a 112px floor keeps it taller than the name bar on a narrow
+   sidebar, trimming the sides. 47px under the name bar, pulled up beneath it. */
+.server-banner {
+  position: relative;
+  aspect-ratio: 16 / 5;
+  min-height: 112px;
+  margin-top: -47px;
+  overflow: hidden;
+  background: var(--background-secondary);
+}
+
+.server-banner-end {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
 }
 
 .server-name {
@@ -1777,6 +1879,14 @@ onUnmounted(() => {
   position: relative;
 }
 
+/* Channel row inset, shared with the thread rows nested under a channel:
+   margin, left padding, and the space between the channel icon and name. */
+.channel-sidebar {
+  --channel-row-margin: 4px;
+  --channel-row-pad: 10px;
+  --channel-icon-gap: 8px;
+}
+
 .channel-item {
   box-sizing: border-box;
   border: none;
@@ -1784,18 +1894,18 @@ onUnmounted(() => {
   font-family: inherit;
   text-align: left;
   text-decoration: none;
-  padding: 6px 10px;
+  padding: 6px 10px 6px var(--channel-row-pad);
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
-  width: calc(100% - 8px);
+  width: calc(100% - 2 * var(--channel-row-margin));
   font-size: 14px;
   font-weight: 500;
   color: var(--text-secondary);
   position: relative;
   border-radius: 4px;
-  margin: 1px 4px;
+  margin: 1px var(--channel-row-margin);
 }
 
 .channel-item:hover {
@@ -1821,7 +1931,7 @@ onUnmounted(() => {
 .channel-item.selected {
   position: relative;
   background-color: var(--channel-item-selected-bg, var(--background-quaternary));
-  color: var(--text-primary);
+  color: var(--channel-item-selected-text, var(--text-primary));
 }
 
 .channel-item.voice-connected {
@@ -1915,8 +2025,11 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
+/* Shrinks for the ellipsis but does not grow: the lock and private marks follow the name,
+   and a mention badge at the row's end leaves them in place. */
 .channel-name {
-  flex: 1;
+  flex: 0 1 auto;
+  min-width: 0;
   text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1984,7 +2097,7 @@ onUnmounted(() => {
 .channel-item.in-collapsed-category.selected {
   opacity: 1;
   background-color: var(--channel-item-selected-bg, var(--background-quaternary));
-  color: var(--text-primary);
+  color: var(--channel-item-selected-text, var(--text-primary));
 }
 
 .category-name {
@@ -2115,15 +2228,16 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 0 2px 34px;
+  /* Label starts where the channel name does: icon is 16px wide. */
+  padding: 2px 0 2px calc(var(--channel-row-pad) + 16px + var(--channel-icon-gap));
   border-radius: 4px;
   cursor: pointer;
   color: var(--text-secondary);
   font-size: 14px;
   transition: all 0.1s ease;
   position: relative;
-  margin: 0 auto;
-  width: calc(100% - 8px);
+  margin: 0 var(--channel-row-margin);
+  width: calc(100% - 2 * var(--channel-row-margin));
 }
 .channel-thread-item .thread-name {
   padding: 6px;
@@ -2138,14 +2252,14 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 .channel-thread-item.selected .thread-name {
-  color: var(--text-primary);
+  color: var(--channel-item-selected-text, var(--text-primary));
   background: var(--channel-item-selected-bg, var(--background-quaternary));
 }
 
-/* Tree line joining a thread to its parent channel */
+/* Tree line joining a thread to its parent channel, under the icon's centre */
 .channel-thread-item .thread-branch {
   position: absolute;
-  left: 16px;
+  left: calc(var(--channel-row-pad) + 7px);
   width: 10px;
   height: 100%;
   pointer-events: none;
@@ -2170,7 +2284,8 @@ onUnmounted(() => {
   left: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 14px;
+  /* Ends 3px short of the label */
+  width: calc(var(--channel-icon-gap) + 6px);
   height: 2px;
   background: var(--text-muted);
   opacity: 0.5;
@@ -2225,6 +2340,13 @@ onUnmounted(() => {
   .server-header {
     width:100%;
   }
+  .channel-sidebar {
+    --channel-row-margin: 8px;
+    --channel-row-pad: 24px;
+    /* svg margin-right plus the .channel-content gap */
+    --channel-icon-gap: 20px;
+  }
+
   /* 48px minimum touch target */
   .channel-item,
   .category-header {
@@ -2301,6 +2423,10 @@ onUnmounted(() => {
 }
 
 @media (max-width: 1024px) and (min-width: 769px) {
+  .channel-sidebar {
+    --channel-row-pad: 14px;
+  }
+
   .channel-item,
   .category-header {
     min-height: 44px;

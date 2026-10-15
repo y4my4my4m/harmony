@@ -819,8 +819,8 @@ watch(refreshing, (value, previous) => {
 
 <style scoped>
 .today-view {
-  height: 100vh;
-  height: 100dvh;
+  height: calc(100 * var(--app-vh));
+  height: calc(100 * var(--app-dvh));
   display: flex;
   flex-direction: column;
   background: var(--background-primary);

@@ -1,7 +1,8 @@
 /**
  * Runs reconcileVoiceParticipants against this instance's LiveKit: every
  * VOICE_RECONCILE_INTERVAL_SECONDS in the worker, and for one room on a
- * LiveKit webhook in the server.
+ * LiveKit webhook in the server. The worker's run also applies
+ * enforceVoiceRooms (voiceModeration.ts).
  */
 
 import config from '../config/index.js';
@@ -13,6 +14,7 @@ import {
   type Departure,
   type ReconcileResult,
 } from './voiceParticipantReconciler.js';
+import { enforceVoiceRooms, type EnforceResult } from './voiceModeration.js';
 
 let timer: ReturnType<typeof setInterval> | null = null;
 let running = false;
@@ -34,6 +36,15 @@ export async function reconcileVoiceNow(
   });
 }
 
+export async function enforceVoiceNow(): Promise<EnforceResult | null> {
+  if (!voiceReconcileEnabled()) return null;
+  return enforceVoiceRooms({
+    roomService: livekitService.roomServiceClient(),
+    supabase: getSupabaseClient(),
+    instanceDomain: config.INSTANCE_DOMAIN,
+  });
+}
+
 async function tick(): Promise<void> {
   if (running) return;
   running = true;
@@ -43,6 +54,14 @@ async function tick(): Promise<void> {
     else if (result.removed > 0) logger.info(`Voice participant sweep removed ${result.removed} of ${result.checked} rows`);
   } catch (error) {
     logger.error('Voice participant sweep failed:', error);
+  }
+  try {
+    const enforced = await enforceVoiceNow();
+    if (enforced && (enforced.removed > 0 || enforced.updated > 0)) {
+      logger.info(`Voice enforcement removed ${enforced.removed} and updated ${enforced.updated} of ${enforced.checked} participants`);
+    }
+  } catch (error) {
+    logger.error('Voice enforcement failed:', error);
   } finally {
     running = false;
   }

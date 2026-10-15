@@ -9,6 +9,8 @@ export interface Server {
   owner: string;
   icon: string;
   banner?: string;
+  /** Show `banner` above the channel list; the owner's choice. */
+  sidebar_banner?: boolean;
   /** Rule titles shown in the invite accept flow; a copy of the welcome screen's rules when one exists. */
   rules?: string[];
   allow_cross_server_emojis: boolean;
@@ -260,7 +262,9 @@ export interface UrlContent {
   embedId?: string;
 }
 
-export type EmbedProvider = 'harmony-post' | 'harmony-invite' | 'fediverse-post' | 'youtube' | 'spotify' | 'generic';
+export type EmbedProvider =
+  | 'harmony-post' | 'harmony-invite' | 'fediverse-post' | 'youtube' | 'spotify' | 'generic'
+  | 'soundcloud' | 'apple-music' | 'bandcamp' | 'deezer' | 'tidal' | 'reddit';
 
 export interface FediverseEmbedSummary {
   authorName: string;
@@ -317,6 +321,14 @@ export interface EmbedPayload {
   /** Preview is media only (GIF page etc.); render the image, not a link
       card. */
   mediaOnly?: boolean;
+  /** A playable video (og:video, or the link answering with video). */
+  video?: { url: string; type?: string; width?: number; height?: number };
+  /** The page could not be read; no card renders. */
+  failed?: boolean;
+  /** Where a short link led (music services). */
+  canonicalUrl?: string;
+  /** The provider's player page, from the server's preview. */
+  player?: { url: string; height?: number };
   harmony?: HarmonyEmbedSummary;
   fediverse?: FediverseEmbedSummary;
   oEmbed?: Record<string, any>;

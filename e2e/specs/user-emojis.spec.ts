@@ -4,12 +4,13 @@
 // is_ai_generated, no server and no domain. Its owner opens the picker, which caches the
 // personal groups, then in Settings › My emojis renames it and deletes it by keyboard: Escape
 // cancels an inline rename without closing settings, results are announced, focus stays on
-// the row's controls, and the picker shows the new name and then nothing without a reload.
+// the row's controls (then the list heading once it empties), and the picker shows the new
+// name and then nothing without a reload.
 // An instance admin finds another user's AI emoji only under the User emojis source, deletes
 // it, and the deletion is audited as user_emoji_delete.
 //
-// The stack has no storage or AI backend: emoji images come from the dev server and no
-// generation runs. axe covers the settings section, its rename form and the admin list.
+// The stack has no AI backend: emoji images come from the dev server and no generation
+// runs. axe covers the settings section, its rename form and the admin list.
 
 import { test, expect, type Page } from '@playwright/test'
 import {
@@ -106,10 +107,10 @@ test('the owner renames and deletes an AI emoji by keyboard; the picker follows'
   await pickerShows(page, aiName, [])
 
   let section = await openMyEmojis(page)
-  const row = section.locator('.my-emoji-row')
+  const row = section.locator('.emoji-item')
   await expect(row).toHaveCount(1)
   await expect(row).toContainText(`:${aiName}:`)
-  await expect(row.locator('.my-emoji-badge')).toContainText('AI-generated')
+  await expect(row.locator('.emoji-badge')).toContainText('AI-generated')
   await expect(row).toContainText('not used yet')
   await expectNoAxeViolations(page, { include: '[data-testid="my-emojis"]', label: 'settings/emojis list' })
 
@@ -134,7 +135,7 @@ test('the owner renames and deletes an AI emoji by keyboard; the picker follows'
   await expect(input).toBeFocused()
   await page.keyboard.type(newName)
   await page.keyboard.press('Enter')
-  await expect(row.locator('.my-emoji-name')).toHaveText(`:${newName}:`)
+  await expect(row.locator('.emoji-name')).toHaveText(`:${newName}:`)
   await expect(live).toHaveText(`Renamed :${aiName}: to :${newName}:`, { timeout: 5000 })
   await expect(section.getByRole('button', { name: `Rename :${newName}:` })).toBeFocused()
   await expect
@@ -157,7 +158,7 @@ test('the owner renames and deletes an AI emoji by keyboard; the picker follows'
   await expect(dialog).toBeHidden()
   await expect(section).toContainText('You have no personal emojis yet.')
   await expect(live).toHaveText(`Deleted :${newName}:`, { timeout: 5000 })
-  await expect(section.getByRole('heading', { name: 'My emojis' })).toBeFocused()
+  await expect(section.getByRole('heading', { name: 'Your emojis' })).toBeFocused()
   await expect
     .poll(async () => (await admin.from('emojis').select('id').eq('id', ownerEmojiId)).data?.length)
     .toBe(0)

@@ -3,6 +3,7 @@ import { supabase } from '@/supabase';
 import { apiUrl } from '@/services/instanceConfig';
 import { debug } from '@/utils/debug'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { DEFAULT_PERSONAL_EMOJIS_PER_USER, parsePersonalEmojiLimit } from '@/utils/personalEmojiLimit'
 
 export interface SystemStats {
   total_users: number;
@@ -831,7 +832,8 @@ class AdminService {
       let gifAiEmojiGenerationEnabled = false
       let maxPostLength = 500
       let retryAttempts = 3
-      let maxCustomEmojisPerServer = 0
+      let maxCustomEmojisPerServer = 50
+      let maxPersonalEmojisPerUser = DEFAULT_PERSONAL_EMOJIS_PER_USER
       let customEmojiTransformQuality = 80
       let allowCustomEmojisInDisplayNames = true
       let maxPostReactionsPerUser = 10
@@ -842,7 +844,7 @@ class AdminService {
         const { data: configData } = await supabase
           .from('instance_config')
           .select('config_key, config_value')
-          .in('config_key', ['instance_name', 'instance_description', 'instance_rules', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'bridge_attachment_mode', 'gif_ads_enabled', 'gif_klipy_watermark_enabled', 'gif_clips_enabled', 'gif_memes_enabled', 'gif_ai_emojis_enabled', 'gif_ai_emoji_generation_enabled', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'custom_emoji_transform_quality', 'allow_custom_emojis_in_display_names', 'max_post_reactions_per_user', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email'])
+          .in('config_key', ['instance_name', 'instance_description', 'instance_rules', 'domain', 'open_registration', 'approval_required', 'oauth_providers', 'terms_url', 'privacy_url', 'max_server_size', 'max_message_length', 'max_media_attachments_per_post', 'allow_file_uploads', 'enable_voice_channels', 'bridge_attachment_mode', 'gif_ads_enabled', 'gif_klipy_watermark_enabled', 'gif_clips_enabled', 'gif_memes_enabled', 'gif_ai_emojis_enabled', 'gif_ai_emoji_generation_enabled', 'max_post_length', 'federation_retry_attempts', 'max_custom_emojis_per_server', 'max_personal_emojis_per_user', 'custom_emoji_transform_quality', 'allow_custom_emojis_in_display_names', 'max_post_reactions_per_user', 'instance_icon', 'instance_banner', 'theme_color', 'maintainer_name', 'maintainer_email'])
 
         if (configData) {
           configData.forEach((config) => {
@@ -944,6 +946,9 @@ class AdminService {
                 case 'max_custom_emojis_per_server':
                   maxCustomEmojisPerServer = typeof value === 'number' ? value : parseInt(String(value), 10) || 0
                   break
+                case 'max_personal_emojis_per_user':
+                  maxPersonalEmojisPerUser = parsePersonalEmojiLimit(value)
+                  break
                 case 'custom_emoji_transform_quality': {
                   const q = typeof value === 'number' ? value : parseInt(String(value), 10)
                   if (!Number.isNaN(q)) {
@@ -1005,6 +1010,7 @@ class AdminService {
           maxPostLength,
           retryAttempts,
           maxCustomEmojisPerServer,
+          maxPersonalEmojisPerUser,
           customEmojiTransformQuality,
           allowCustomEmojisInDisplayNames,
           maxPostReactionsPerUser,

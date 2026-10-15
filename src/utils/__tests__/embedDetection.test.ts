@@ -7,16 +7,7 @@ vi.mock('@/types', () => ({}))
 
 // embedDetection.ts reads import.meta.env at module load time, so the env is
 // mocked via the setup file.
-import {
-  isYouTubeOrigin,
-  normalizeEmbedUrl,
-  parseEmbedUrl,
-  isYouTubeUrl,
-  isSpotifyUrl,
-  extractYouTubeId,
-  buildYouTubeEmbedUrl,
-  buildSpotifyEmbedUrl,
-} from '@/utils/embedDetection'
+import { isYouTubeOrigin, normalizeEmbedUrl, parseEmbedUrl, isYouTubeUrl, isSpotifyUrl, extractYouTubeId, buildYouTubeEmbedUrl, buildSpotifyEmbedUrl, isYouTubeShort } from '@/utils/embedDetection'
 
 describe('embedDetection', () => {
   describe('normalizeEmbedUrl', () => {
@@ -184,5 +175,16 @@ describe('isYouTubeOrigin', () => {
     ]) {
       expect(isYouTubeOrigin(origin), origin).toBe(false)
     }
+  })
+})
+
+describe('isYouTubeShort', () => {
+  it('is true for a Shorts URL only', () => {
+    expect(isYouTubeShort('https://www.youtube.com/shorts/abc123')).toBe(true)
+    expect(isYouTubeShort('https://m.youtube.com/shorts/abc123?feature=share')).toBe(true)
+    expect(isYouTubeShort('https://www.youtube.com/watch?v=abc123')).toBe(false)
+    expect(isYouTubeShort('https://youtu.be/abc123')).toBe(false)
+    expect(isYouTubeShort('not a url')).toBe(false)
+    expect(isYouTubeShort(undefined)).toBe(false)
   })
 })

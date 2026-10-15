@@ -12,6 +12,18 @@ const h = vi.hoisted(() => ({ store: null as any, storage: new Map<string, strin
 // __esModule lets defineAsyncComponent unwrap the mocked module to its default.
 const { stub } = vi.hoisted(() => ({ stub: (name: string) => ({ __esModule: true, default: { name, render: () => null } }) }))
 
+vi.mock('@/stores/activities', () => ({
+  useActivitiesStore: () => ({ current: null, playingHere: false, launcherOpen: false, launcherAnchor: null }),
+}))
+vi.mock('@/components/activities/useActivityButton', () => ({
+  useActivityButton: () => ({
+    available: { value: false }, visible: { value: false }, running: { value: false },
+    anchor: { value: null }, toggle: () => {}, close: () => {},
+  }),
+}))
+vi.mock('@/components/activities/ActivityLauncher.vue', () => ({ default: { name: 'ActivityLauncher', render: () => null } }))
+vi.mock('@/components/activities/ActivityDockCard.vue', () => ({ default: { name: 'ActivityDockCard', render: () => null } }))
+vi.mock('@/components/activities/ActivityStage.vue', () => ({ default: { name: 'ActivityStage', render: () => null } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/stores/unifiedVoiceChannel', () => ({ useUnifiedVoiceChannelStore: () => h.store }))
 vi.mock('@/stores/spatialAudio', () => ({
@@ -82,6 +94,10 @@ const member = (userId: string, extra: Record<string, unknown> = {}) => ({
 function makeStore(remote: ReturnType<typeof member>[], local = member('me')) {
   const store = reactive({
     isConnectedOrJoining: true,
+    canStream: true,
+    speakLocked: false,
+    deafenLocked: false,
+    speakLockReason: null as string | null,
     isConnecting: false,
     isConnected: true,
     connectionState: 'connected',

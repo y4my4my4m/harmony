@@ -5,8 +5,8 @@ the federation backend, Redis and Supabase, plus LiveKit voice, the bot
 gateway and Discord bridge hosting when enabled. Harmony's services run
 prebuilt images from `ghcr.io/y4my4my4m`.
 
-The guide for operators is **[docs/self-hosting.md](../docs/self-hosting.md)**
-(also at <https://docs.mony.lol/self-hosting>). This file describes the
+The guide for operators is **[docs/self-host/](../docs/self-host/index.md)**
+(also at <https://docs.mony.lol/self-host/>). This file describes the
 directory.
 
 ## Install
@@ -86,7 +86,7 @@ environment of a command overrides it for that run.
 The web image carries no instance values: its entrypoint writes
 `/config.json` from the container environment (`SUPABASE_URL`,
 `SUPABASE_ANON_KEY`, `DOMAIN`, `INSTANCE_NAME`, `APP_URL`,
-`ENABLED_OAUTH_PROVIDERS`, `TERMS_URL`, `PRIVACY_URL`; the full list is in
+`ENABLED_OAUTH_PROVIDERS`, `TERMS_URL`, `PRIVACY_URL`, `STATUS_URL`; the full list is in
 `web-entrypoint.d/40-harmony-config.sh`). The backend images run Node 24 as
 uid 1000 (`node`).
 

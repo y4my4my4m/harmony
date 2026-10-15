@@ -101,6 +101,8 @@ export class RemoteAudioMixer {
   private slots = new Map<string, Slot>();
   private volumes: Record<RemoteAudioKind, Map<string, number>> = { mic: new Map(), screen: new Map() };
   private mutes: Record<RemoteAudioKind, Set<string>> = { mic: new Set(), screen: new Set() };
+  // Microphones of server-muted participants.
+  private silenced = new Set<string>();
   private deafened = false;
   private dryMuted: Record<RemoteAudioKind, boolean> = { mic: false, screen: false };
   private masterVolume = VOLUME_UNITY;
@@ -129,7 +131,15 @@ export class RemoteAudioMixer {
   }
 
   isLocalMuted(userId: string, kind: RemoteAudioKind): boolean {
-    return this.mutes[kind].has(userId);
+    return this.mutes[kind].has(userId) || (kind === 'mic' && this.silenced.has(userId));
+  }
+
+  /** A server mute: the microphone plays at 0 whatever the listener's own mute. */
+  setSilenced(userId: string, silenced: boolean): void {
+    if (silenced === this.silenced.has(userId)) return;
+    if (silenced) this.silenced.add(userId);
+    else this.silenced.delete(userId);
+    this.applyUser(userId, 'mic');
   }
 
   /**
@@ -206,6 +216,7 @@ export class RemoteAudioMixer {
       slot.element.volume = 1;
     }
     this.slots.clear();
+    this.silenced.clear();
     this.deafened = false;
     this.dryMuted = { mic: false, screen: false };
     this.teardownFallbackOut();

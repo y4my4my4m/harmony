@@ -864,13 +864,11 @@ function applyDerivedSurfaceSemanticTokens(palette: ThemePalette): void {
   }
 
   if (bgSidebarOklch) {
-    const channelBg = oklchToString(
-      bgSidebarOklch.l + 4,
-      bgSidebarOklch.c,
-      bgSidebarOklch.h,
-    )
-    root.style.setProperty('--channel-item-hover-bg', channelBg)
-    root.style.setProperty('--channel-item-selected-bg', channelBg)
+    // Hover one step from the sidebar, selected two, towards the text colour.
+    const step = palette.isLightTheme ? -4 : 4
+    const shade = (n: number) => oklchToString(bgSidebarOklch.l + step * n, bgSidebarOklch.c, bgSidebarOklch.h)
+    root.style.setProperty('--channel-item-hover-bg', shade(1))
+    root.style.setProperty('--channel-item-selected-bg', shade(2))
   }
 }
 
@@ -888,7 +886,7 @@ export function applySurfaceSemanticTokens(
     root.style.setProperty('--nav-rail-button-bg', '#0a0b0d')
     root.style.setProperty('--nav-rail-button-icon', '#ffffff')
     root.style.setProperty('--channel-item-hover-bg', '#1f2226')
-    root.style.setProperty('--channel-item-selected-bg', '#1f2226')
+    root.style.setProperty('--channel-item-selected-bg', '#2a2d32')
     return
   }
 
@@ -896,7 +894,7 @@ export function applySurfaceSemanticTokens(
     root.style.setProperty('--nav-rail-button-bg', '#d0d2d5')
     root.style.setProperty('--nav-rail-button-icon', '#5e6168')
     root.style.setProperty('--channel-item-hover-bg', '#e3e5e8')
-    root.style.setProperty('--channel-item-selected-bg', '#e3e5e8')
+    root.style.setProperty('--channel-item-selected-bg', '#d7d9dc')
     return
   }
 
@@ -904,6 +902,6 @@ export function applySurfaceSemanticTokens(
   root.style.setProperty('--nav-rail-button-bg', '#000000')
   root.style.setProperty('--nav-rail-button-icon', '#ffffff')
   root.style.setProperty('--channel-item-hover-bg', '#35373c')
-  root.style.setProperty('--channel-item-selected-bg', '#35373c')
+  root.style.setProperty('--channel-item-selected-bg', '#404249')
 }
 

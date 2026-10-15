@@ -63,22 +63,21 @@
             :aria-label="t('chatNav.thread.options')"
             v-click-outside="() => showOptions = false"
           >
-            <button type="button" role="menuitem" v-if="!isMember" @click="joinThread" class="option-item">
-              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <!-- One element for join and leave: membership resolves after the panel opens,
+                 and a swapped element would drop the focus a keyboard user holds on it. -->
+            <button type="button" role="menuitem" @click="isMember ? leaveThread() : joinThread()" class="option-item">
+              <svg v-if="!isMember" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                 <circle cx="8.5" cy="7" r="4"/>
                 <line x1="20" y1="8" x2="20" y2="14"/>
                 <line x1="23" y1="11" x2="17" y2="11"/>
               </svg>
-              {{ t('chatNav.thread.join') }}
-            </button>
-            <button type="button" role="menuitem" v-if="isMember" @click="leaveThread" class="option-item">
-              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg v-else aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
                 <polyline points="16 17 21 12 16 7"/>
                 <line x1="21" y1="12" x2="9" y2="12"/>
               </svg>
-              {{ t('chatNav.thread.leave') }}
+              {{ isMember ? t('chatNav.thread.leave') : t('chatNav.thread.join') }}
             </button>
 
             <div class="options-divider" role="separator"></div>
@@ -161,15 +160,16 @@
           <div class="parent-message" v-if="displayParentMessage">
             <div class="message-avatar">
               <Avatar 
-                :src="getAuthorAvatar(displayParentMessage.user_id)" 
-                :alt="getAuthorName(displayParentMessage.user_id)"
+                :src="parentForeignAuthor ? (parentForeignAuthor.avatar_url || '/default_avatar.webp') : getAuthorAvatar(displayParentMessage.user_id)" 
+                :alt="parentForeignAuthor ? parentForeignAuthor.name : getAuthorName(displayParentMessage.user_id)"
                 size="sm"
-                :interactive="true"
+                :interactive="!parentForeignAuthor"
               />
             </div>
             <div class="message-main">
               <div class="message-meta">
-                <span class="username" :style="{ color: getAuthorColor(displayParentMessage.user_id) }">
+                <span v-if="parentForeignAuthor" class="username">{{ parentForeignAuthor.name }}</span>
+                <span v-else class="username" :style="{ color: getAuthorColor(displayParentMessage.user_id) }">
                   <DisplayName :userId="displayParentMessage.user_id" />
                 </span>
                 <span class="timestamp">{{ formatTimestamp(displayParentMessage.created_at) }}</span>
@@ -242,6 +242,7 @@
             :giphy-open="giphyOpen"
             :emoji-list-open="emojiListOpen"
             :thread-id="effectiveThreadIdForTyping"
+            :thread-channel-id="threadChannelId"
             :media-room="threadMediaRoom"
             @send-message="handleSendMessage"
             @send-voice-message="handleSendVoiceMessage"
@@ -261,6 +262,7 @@
       @click.stop
       @sendEmoji="handleSendEmoji"
       :closeEmojiList="closeReactionEmoji"
+      :channelId="threadChannelId"
       :isEmojiBlocked="isReactionEmojiBlocked"
       :limitNotice="reactionLimitNotice"
       :emojiIconClicked="emojiIconClicked"
@@ -280,6 +282,7 @@
       :triggerElement="mediaPickerTriggerElement || undefined"
       :composerElement="composerElement || undefined"
       :initialTab="mediaPickerInitialTab"
+      :channelId="threadChannelId"
     />
   </Teleport>
 </template>
@@ -287,7 +290,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { supabase } from '@/supabase'
-import { isModerationRejectionCode } from '@/services/AutoModService'
+import { isModerationRejectionCode, moderationRejectionFromError } from '@/services/AutoModService'
 import { threadService, isThreadNoticeParent } from '@/services/ThreadService'
 import { useUserData } from '@/composables/useUserData'
 import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt'
@@ -329,6 +332,7 @@ import type { ThreadWithDetails } from '@/services/ThreadService'
 import type { FilePreviewData } from '@/components/FilePreview.vue'
 import { attachmentParts, mediaRoom } from '@/services/privateMedia'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { getForeignAuthor } from '@/utils/messageAuthor'
 import { useDialog } from '@/composables/useDialog'
 import { useMenu, useMenuButton } from '@/composables/useMenu'
 
@@ -489,6 +493,9 @@ const displayParentMessage = computed(() => {
   return isThreadNoticeParent(parent) ? null : parent
 })
 
+// A starter written by a bridged Discord person, a webhook or a bot has no profile to show.
+const parentForeignAuthor = computed(() => getForeignAuthor(displayParentMessage.value as Message | null | undefined))
+
 // Thread name (or generate from parent message in draft mode)
 const displayThreadName = computed(() => {
   if (thread.value?.name) return thread.value.name
@@ -504,9 +511,9 @@ const displayThreadName = computed(() => {
 
 
 // Thread replies name the thread's channel; so do their attachments.
-const threadMediaRoom = computed(() => mediaRoom({
-  channelId: thread.value?.channel_id || props.draftParentMessage?.channel_id || props.channelId,
-}))
+const threadChannelId = computed(() =>
+  thread.value?.channel_id || props.draftParentMessage?.channel_id || props.channelId)
+const threadMediaRoom = computed(() => mediaRoom({ channelId: threadChannelId.value }))
 
 // Drafts have no thread row; the channel list names the parent's channel.
 const displayChannelName = computed(() => {
@@ -646,7 +653,8 @@ const startDraftThread = (): DraftThreadStart | null => {
         thread.value = null
         messages.value = []
       }
-      toast.error(t('chat.threadCreateFailed'))
+      // A timeout refuses the thread with MEMBER_TIMED_OUT; its notice names the end.
+      toast.error(moderationRejectionFromError(error)?.message ?? t('chat.threadCreateFailed'))
       return null
     })
 

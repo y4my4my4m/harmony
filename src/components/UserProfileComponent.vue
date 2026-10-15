@@ -59,11 +59,15 @@
         @click="toggleMic"
         :class="{
           muted: !isMicActive,
-          'voice-active': isInVoiceChannel
+          'voice-active': isInVoiceChannel,
+          locked: voiceChannelStore.speakLocked
         }"
-        :title="t('voice.mute')"
+        :title="voiceChannelStore.speakLockReason ? t(voiceChannelStore.speakLockReason) : t('voice.mute')"
         :aria-label="t('voice.mute')"
         :aria-pressed="!isMicActive"
+        :aria-disabled="voiceChannelStore.speakLocked || undefined"
+        :aria-description="voiceChannelStore.speakLockReason ? t(voiceChannelStore.speakLockReason) : undefined"
+        :data-locked="voiceChannelStore.speakLocked ? 'true' : undefined"
       >
         <Icon :name="isMicActive ? 'mic' : 'mic-off'" aria-hidden="true" />
       </button>
@@ -74,11 +78,14 @@
         @click="toggleHeadphones"
         :class="{
           muted: !isHeadphonesActive,
-          'voice-active': isInVoiceChannel
+          'voice-active': isInVoiceChannel,
+          locked: voiceChannelStore.deafenLocked
         }"
-        :title="t('voice.deafen')"
+        :title="voiceChannelStore.deafenLocked ? t('voice.moderation.serverDeafenedHint') : t('voice.deafen')"
         :aria-label="t('voice.deafen')"
         :aria-pressed="!isHeadphonesActive"
+        :aria-disabled="voiceChannelStore.deafenLocked || undefined"
+        :data-locked="voiceChannelStore.deafenLocked ? 'true' : undefined"
       >
         <HeadphonesIcon :isHeadphonesActive="isHeadphonesActive" aria-hidden="true" />
       </button>
@@ -463,7 +470,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: 345px;
+  /* Rail 72px + nav 295px, inset 10px on each side. */
+  width: 347px;
   background: var(--background-quinary);
   padding: 10px;
   border-top: 1px solid var(--border-primary);
@@ -593,6 +601,11 @@ onBeforeUnmount(() => {
 .icon-button:hover {
   background-color: var(--background-modifier-hover);
   color: var(--text-secondary);
+}
+
+.icon-button.locked {
+  cursor: not-allowed;
+  box-shadow: inset 0 0 0 1px var(--text-danger);
 }
 
 .icon-button.muted {
@@ -909,7 +922,7 @@ onBeforeUnmount(() => {
   }
   .mobile-profile-overlay .status-dropdown {
     position: fixed;
-    width: 95vw;
+    width: calc(95 * var(--app-vw));
     bottom: 100px;
     margin-top: 8px;
     box-shadow: none;

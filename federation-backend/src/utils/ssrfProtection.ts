@@ -79,7 +79,7 @@ function isBlockedIPv4(ip: string): boolean {
  * Validate a URL is safe to fetch (not pointing at internal services).
  * Returns the validated URL or throws with a descriptive error.
  */
-export function validateExternalUrl(urlString: string): URL {
+export function validateExternalUrl(urlString: string, opts: { allowPlainHttp?: boolean } = {}): URL {
   let url: URL;
   try {
     url = new URL(urlString);
@@ -90,7 +90,9 @@ export function validateExternalUrl(urlString: string): URL {
   // BUGS.md L12: plain http is only acceptable for local development
   // (federating with a dockerized peer). In production it invites
   // downgrade/MITM of fetched actors and posts.
-  const allowHttp = process.env.NODE_ENV !== 'production';
+  // Link previews read public page metadata and pass `allowPlainHttp`; addresses are
+  // still checked per hop.
+  const allowHttp = opts.allowPlainHttp === true || process.env.NODE_ENV !== 'production';
   if (url.protocol !== 'https:' && !(allowHttp && url.protocol === 'http:')) {
     throw new Error(`Blocked protocol: ${url.protocol}`);
   }
@@ -255,6 +257,11 @@ export interface SafeFetchOptions extends Omit<RequestInit, 'redirect' | 'signal
    * signed again for each hop.
    */
   redirectHeaders?: (url: string) => Promise<Record<string, string>>;
+  /**
+   * Plain http targets and redirect hops are allowed in production too. Link previews only;
+   * federation fetches stay on https.
+   */
+  allowPlainHttp?: boolean;
 }
 
 /**
@@ -328,13 +335,14 @@ export async function safeFetch(urlString: string, options: SafeFetchOptions = {
     maxBodyBytes = 5_000_000,
     signal: externalSignal,
     redirectHeaders,
+    allowPlainHttp = false,
     ...fetchInit
   } = options;
 
   let currentUrl = urlString;
   let currentHeaders: HeadersInit | undefined = fetchInit.headers;
   for (let hop = 0; hop <= maxRedirects; hop++) {
-    const url = validateExternalUrl(currentUrl);
+    const url = validateExternalUrl(currentUrl, { allowPlainHttp });
     await validateResolvedAddress(url.hostname);
 
     const ac = new AbortController();

@@ -9,7 +9,7 @@ vi.mock('../../config/supabase.js', () => ({
   config: mocks.config,
 }))
 
-import { absoluteAvatarUrl } from '../avatarUrl.js'
+import { absoluteAvatarUrl, absoluteServerIconUrl } from '../avatarUrl.js'
 
 const env = { ...process.env }
 
@@ -42,5 +42,39 @@ describe('absoluteAvatarUrl', () => {
   it('omits a bundled image when no instance origin is configured', () => {
     mocks.config.bridge.instanceDomain = ''
     expect(absoluteAvatarUrl('/discord-bridge-bot.webp')).toBeUndefined()
+  })
+})
+
+describe('absoluteServerIconUrl', () => {
+  it('renders a server_icons storage path under PUBLIC_URL', () => {
+    expect(absoluteServerIconUrl('5a/icon.png')).toBe(
+      'https://db.harmony.test/storage/v1/render/image/public/server_icons/5a/icon.png?width=128&height=128&resize=contain&quality=80',
+    )
+  })
+
+  it('passes absolute URLs through, on the public origin', () => {
+    process.env.SUPABASE_URL = 'http://supabase-kong:8000'
+    expect(absoluteServerIconUrl('http://supabase-kong:8000/storage/v1/object/public/server_icons/5a/icon.png')).toBe(
+      'https://db.harmony.test/storage/v1/object/public/server_icons/5a/icon.png',
+    )
+    expect(absoluteServerIconUrl('https://remote.test/icon.png')).toBe('https://remote.test/icon.png')
+  })
+
+  it('reads the bundled default and an empty value as no icon', () => {
+    expect(absoluteServerIconUrl('/default_server.webp')).toBeNull()
+    expect(absoluteServerIconUrl('')).toBeNull()
+    expect(absoluteServerIconUrl(null)).toBeNull()
+  })
+
+  it('resolves another bundled image against the instance origin', () => {
+    expect(absoluteServerIconUrl('/discord-bridge-bot.webp')).toBe('https://chat.harmony.test/discord-bridge-bot.webp')
+    mocks.config.bridge.instanceDomain = ''
+    expect(absoluteServerIconUrl('/discord-bridge-bot.webp')).toBeNull()
+  })
+
+  it('is null for a storage path when no base is set', () => {
+    delete process.env.PUBLIC_URL
+    delete process.env.SUPABASE_URL
+    expect(absoluteServerIconUrl('5a/icon.png')).toBeNull()
   })
 })

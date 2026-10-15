@@ -25,6 +25,7 @@
 import { computed, nextTick, onUnmounted, reactive, ref, shallowRef } from 'vue'
 import { i18n } from '@/i18n'
 import { isYouTubePlayerOrigin } from '@/utils/embedDetection'
+import { cssZoom, styleRect, styleViewport } from '@/utils/appZoom'
 import {
   bottomCorner,
   clampAspect,
@@ -364,7 +365,7 @@ function maybeFloat(el: HTMLElement, reg: Registration): void {
 // reflow while the video floats.
 function createPlaceholder(el: HTMLElement): HTMLButtonElement {
   const t = i18n.global.t
-  const rect = el.getBoundingClientRect()
+  const rect = styleRect(el)
   const button = document.createElement('button')
   button.type = 'button'
   button.className = 'floating-video-placeholder'
@@ -412,6 +413,13 @@ function float(el: HTMLElement, reg: Registration, manual = false): void {
   el.classList.add('floating-video')
   getObserver()?.observe(placeholder)
   attachViewportListeners()
+  if (video && !(video.videoWidth > 0 && video.videoHeight > 0)) {
+    // Floated before its metadata: the frame took the chat box's shape until the video's own is known.
+    video.addEventListener('loadedmetadata', () => {
+      const now = current.value
+      if (now?.element === el) current.value = { ...now, aspect: mediaAspect(el) }
+    }, { once: true })
+  }
 }
 
 function canDock(cur: FloatingVideo): boolean {
@@ -639,11 +647,12 @@ function readSafeAreaInsets(): Insets {
 function measureSafeBounds(): Box {
   // The visual viewport excludes the on-screen keyboard.
   const vv = window.visualViewport
+  const z = cssZoom()
   const viewport: Box = vv
-    ? { left: vv.offsetLeft, top: vv.offsetTop, width: vv.width, height: vv.height }
-    : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }
+    ? { left: vv.offsetLeft / z, top: vv.offsetTop / z, width: vv.width / z, height: vv.height / z }
+    : { left: 0, top: 0, ...styleViewport() }
   const obstacles = Array.from(document.querySelectorAll<HTMLElement>('[data-floating-video-avoid]'), (el) => {
-    const r = el.getBoundingClientRect()
+    const r = styleRect(el)
     return { left: r.left, top: r.top, width: r.width, height: r.height }
   })
   return excludeBottomObstacles(insetBox(viewport, readSafeAreaInsets()), obstacles)

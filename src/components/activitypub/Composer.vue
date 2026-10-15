@@ -200,6 +200,19 @@
                 </button>
 
                 <button
+                  v-if="driveEnabled"
+                  type="button"
+                  class="option-button"
+                  :disabled="!canAddMedia"
+                  :title="t('drive.composer.fromDriveMenu')"
+                  :aria-label="t('drive.composer.fromDriveMenu')"
+                  data-testid="compose-from-drive"
+                  @click="drivePickerOpen = true"
+                >
+                  <Icon name="hard-drive" />
+                </button>
+
+                <button
                   ref="gifTriggerRef"
                   type="button"
                   class="option-button"
@@ -364,6 +377,14 @@
             :initialTab="mediaPickerInitialTab"
           />
         </Teleport>
+        <DrivePickerModal
+          v-if="drivePickerOpen"
+          :kinds="['image', 'video']"
+          :buckets="['message_media', 'user_media']"
+          multiple
+          @pick="attachFromDrive"
+          @close="drivePickerOpen = false"
+        />
       </div>
     </div>
   </component>
@@ -393,6 +414,8 @@ import MediaPickerPopup from '@/components/MediaPickerPopup.vue';
 import GifIcon from '@/components/icons/Gif.vue';
 import EmojiUI from '@/components/EmojiUI.vue';
 import Icon from '@/components/common/Icon.vue';
+import DrivePickerModal from '@/components/drive/DrivePickerModal.vue';
+import { driveAvailable, driveViewUrl, type DriveFile } from '@/services/drive/driveService';
 import Avatar from '../common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import AutoSuggest from '@/components/AutoSuggest.vue';
@@ -520,6 +543,28 @@ const canSubmit = computed(() => {
   return hasContent && remainingCharacters.value >= 0;
 });
 const canAddMedia = computed(() => mediaAttachments.value.length < maxMediaAttachments.value);
+
+const driveEnabled = ref(false);
+const drivePickerOpen = ref(false);
+void driveAvailable().then((ok) => { driveEnabled.value = ok; });
+
+/** Post media from Drive is reused as is; a chat file is copied into post media when the post is sent. */
+async function attachFromDrive(files: DriveFile[]): Promise<void> {
+  drivePickerOpen.value = false;
+  const room = Math.max(0, maxMediaAttachments.value - mediaAttachments.value.length);
+  for (const file of files.slice(0, room)) {
+    const url = await driveViewUrl(file).catch(() => null);
+    if (!url) continue;
+    const type = file.kind === 'video' ? 'video' : 'image';
+    const name = file.name ?? undefined;
+    mediaAttachments.value.push(file.bucket === 'user_media'
+      ? { id: `drive_${file.id}`, type, url, preview_url: url, filename: name, size: file.size_bytes,
+          mime_type: file.mime_type ?? undefined,
+          stored: { type: type === 'video' ? 'Video' : 'Image', url, mediaType: file.mime_type, name } } as any
+      : { id: `drive_${file.id}`, type, url, preview_url: url, filename: name, size: file.size_bytes,
+          mime_type: file.mime_type ?? undefined, drivePath: file.path });
+  }
+}
 
 const visibilityOptions = computed(() => [
   { value: 'public' as const, label: t('activitypub.public'), description: t('activitypub.visibleToEveryone'), icon: 'globe' },
@@ -929,7 +974,7 @@ onMounted(() => {
   } else if (props.type === 'reply' && props.replyToPost) {
     // Pure reblog → original author, quote → quoter, unhydrated reblog → no
     // prefill; then the post's other mentions (utils/postReblog.ts).
-    content.value = replyMentionPrefill(props.replyToPost, currentUser.value?.id);
+    content.value = replyMentionPrefill(props.replyToPost, currentUser.value);
     visibility.value = replyVisibility(props.replyToPost, props.defaultVisibility);
   } else if (props.type === 'post' && props.initialContent?.trim()) {
     content.value = props.initialContent;
@@ -972,7 +1017,7 @@ watch(() => props.initialContent, (val) => {
 watch(() => props.replyToPost, (replyPost) => {
   if (props.type === 'reply' && replyPost && content.value === '') {
     visibility.value = replyVisibility(replyPost, props.defaultVisibility);
-    const prefill = replyMentionPrefill(replyPost, currentUser.value?.id);
+    const prefill = replyMentionPrefill(replyPost, currentUser.value);
     if (!prefill) return;
     content.value = prefill;
 
@@ -1009,7 +1054,7 @@ watch(() => props.replyToPost, (replyPost) => {
   border-radius: 1rem;
   max-width: 600px;
   width: 100%;
-  max-height: 90vh;
+  max-height: calc(90 * var(--app-vh));
   overflow-y: auto;
   border: 1px solid var(--border-primary);
 }
@@ -1397,7 +1442,7 @@ watch(() => props.replyToPost, (replyPost) => {
 }
 
 :global(.composer-visibility-menu) {
-  width: min(280px, calc(100vw - 16px));
+  width: min(280px, calc(100 * var(--app-vw) - 16px));
 }
 
 .visibility-option {
@@ -1536,7 +1581,7 @@ watch(() => props.replyToPost, (replyPost) => {
   }
 
   .composer-modal {
-    max-height: 85vh;
+    max-height: calc(85 * var(--app-vh));
     height: auto;
     max-width: 100%;
     border-radius: 1rem;

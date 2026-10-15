@@ -260,12 +260,13 @@
             <div class="media-frame">
               <video
                 :src="part.url"
-                controls
+                :controls="nativeVideoControls"
                 class="content-video"
                 preload="metadata"
                 @play="handleVideoPlay"
                 @error="onAttachmentMediaError(part.url)"
               ></video>
+              <VideoControls v-if="!nativeVideoControls" />
               <button
                 v-if="floatingVideos.canPopOut(partIndex)"
                 type="button"
@@ -297,12 +298,12 @@
           <!-- sanitizeUrl rejects javascript:/data:/etc. and returns "". When empty,
                render as inert text (no <a>) so dangerous URLs can't execute on click. -->
           <a
-            v-else-if="sanitizeUrl(part.url)"
-            :href="sanitizeUrl(part.url)"
+            v-else-if="sanitizeUrl(shownUrl(part.url))"
+            :href="sanitizeUrl(shownUrl(part.url))"
             target="_blank"
             rel="noopener noreferrer"
             class="url-link"
-          >{{ part.url }}</a>
+          >{{ shownUrl(part.url) }}</a>
           <span
             v-else
             class="url-link url-link--unsafe"
@@ -350,6 +351,21 @@
               ></video>
             </div>
           </div>
+          <div
+            v-else-if="embedMedia(part)?.kind === 'clip'"
+            class="media-container video-container"
+          >
+            <div class="media-frame">
+              <video
+                :src="embedMedia(part)!.url"
+                :controls="nativeVideoControls"
+                playsinline
+                class="content-video"
+                preload="metadata"
+              ></video>
+              <VideoControls v-if="!nativeVideoControls" />
+            </div>
+          </div>
           <ProviderEmbedSwitch
             v-else-if="resolveEmbedPayload(part) && !isImageUrl(part.url) && !isVideoUrl(part.url) && !isAudioUrl(part.url)"
             :payload="resolveEmbedPayload(part)!"
@@ -371,6 +387,14 @@
           />
         </template>
         
+        <!-- A Drive file that expired or was deleted. -->
+        <DriveGoneFile
+          v-else-if="part && typeof part === 'object' && part.type === 'file' && mediaPartGone(part)"
+          :reason="mediaPartGone(part)!"
+          :name="part.fileName"
+          :file-type="part.fileType"
+        />
+
         <!-- Image files -->
         <div 
           v-else-if="part && typeof part === 'object' && part.type === 'file' && part.fileType === 'image'" 
@@ -465,7 +489,7 @@
             />
             <video
               :src="mediaSrc(part)"
-              controls
+              :controls="nativeVideoControls"
               class="content-video"
               preload="metadata"
               :aria-label="part.altText || undefined"
@@ -474,6 +498,7 @@
               @play="handleVideoPlay"
               @error="onAttachmentMediaError(part.url, part)"
             ></video>
+            <VideoControls v-if="!nativeVideoControls && !isHiddenSpoiler(part)" :label="part.altText || part.fileName || undefined" />
             <button
               v-if="isHiddenSpoiler(part)"
               type="button"
@@ -665,12 +690,16 @@ import MessageMediaGallery from '@/components/common/MessageMediaGallery.vue';
 import AttachmentRemoveButton from '@/components/common/AttachmentRemoveButton.vue';
 import MediaUploadProgress from '@/components/common/MediaUploadProgress.vue';
 import Icon from '@/components/common/Icon.vue';
+import VideoControls from '@/components/common/VideoControls.vue';
+import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import PollCard from '@/components/polls/PollCard.vue';
 import { groupMediaGalleryParts } from '@/utils/mediaGalleryUtils';
 import { undecryptedDisplayParts } from '@/utils/channelEncryption';
 import { getAttachmentThumbnailUrl } from '@/utils/storageImageUtils';
-import { isPrivateMediaPart, mediaLoadKey, mediaPartFileName, mediaPartSource, reportMediaPartError } from '@/services/privateMedia';
+import { isPrivateMediaPart, mediaLoadKey, mediaPartFileName, mediaPartGone, mediaPartSource, reportMediaPartError } from '@/services/privateMedia';
+import DriveGoneFile from '@/components/drive/DriveGoneFile.vue';
+import { musicEmbedFor } from '@/utils/musicEmbeds';
 import { messageMediaUploadState } from '@/services/messageMediaUpload';
 import {
   isDiscordCdnUrl,
@@ -682,6 +711,7 @@ import { useUnifiedEmoji } from '@/services/unifiedEmojiService';
 import { gifService } from '@/services/GifService';
 import { debug } from '@/utils/debug';
 import { sanitizeUrl } from '@/utils/sanitize';
+import { isUrlTrackingStrippingEnabled, stripTrackingParameters } from '@/utils/urlTrackerStripper';
 import { isSpoilerFileName } from '@/utils/spoiler';
 import { pollPartOf } from '@/utils/messagePoll';
 import { renderChatMessageText } from '@/utils/chatMessageTextRenderer';
@@ -711,12 +741,14 @@ export default defineComponent({
     RichTextEditor,
     VoiceMessagePlayer,
     MessageMediaGallery,
+    DriveGoneFile,
     AttachmentRemoveButton,
     MediaUploadProgress,
     ConfirmationModal,
     EncryptedGlyphPreview,
     Icon,
     PollCard,
+    VideoControls,
   },
   props: {
     content: {
@@ -794,6 +826,7 @@ export default defineComponent({
   },
   emits: ['update:message', 'update:content', 'cancel-edit', 'image-loaded', 'embed-loaded', 'open-lightbox', 'show-user-profile', 'hashtag-click', 'decrypt-message', 'remove-attachment'],
   setup(props, { emit }) {
+    const nativeVideoControls = useNativeVideoControls();
     const localEditableContent = ref(props.editableContent);
     // Attachments retained while editing. Seeded from the message's file parts
     // when edit mode opens, removable individually, merged back on save.
@@ -1091,6 +1124,9 @@ export default defineComponent({
     // metadata.suppress_embeds (set_message_embeds_suppressed) hides every preview and inline
     // media of the message; its links render as <url> parts do.
     const embedsSuppressed = computed(() => props.metadata?.suppress_embeds === true);
+    // The link as shown and opened; part.url keeps what the sender wrote.
+    const shownUrl = (url: string): string => (isUrlTrackingStrippingEnabled() ? stripTrackingParameters(url) : url);
+
     const showsPreview = (part: MessagePart): boolean => {
       const preview = (part as { preview?: unknown }).preview;
       return preview !== false && preview !== 'false';
@@ -1161,6 +1197,18 @@ export default defineComponent({
             expiresAt: new Date(Date.now() + 86400000).toISOString(),
           };
         }
+        // A music link the server never previewed still gets its player.
+        const music = part.type === 'url' ? musicEmbedFor(part.url) : null;
+        if (music) {
+          return {
+            cacheKey: `music-${part.url}`,
+            url: part.url,
+            normalizedUrl: part.url,
+            provider: music.provider,
+            fetchedAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 86400000).toISOString(),
+          };
+        }
       }
 
       return null;
@@ -1175,8 +1223,16 @@ export default defineComponent({
      * so already-stored payloads and hosts unknown to the backend heuristic
      * still upgrade to media rendering.
      */
-    const embedMedia = (part: MessagePart): { kind: 'image' | 'video'; url: string } | null => {
+    const embedMedia = (part: MessagePart): { kind: 'image' | 'video' | 'clip'; url: string } | null => {
+      // A link to a media file already plays or shows inline; its preview answers with the
+      // same file.
+      if (part && typeof part === 'object' && part.type === 'url' && showsPreview(part)
+          && (isImageUrl(part.url) || isVideoUrl(part.url) || isAudioUrl(part.url))) {
+        return null;
+      }
       const payload = resolveEmbedPayload(part);
+      // The link answered with a video (embed-fixer sites): a player, not a looping GIF.
+      if (payload?.mediaOnly && payload.video?.url) return { kind: 'clip', url: payload.video.url };
       const media = payload?.image;
       if (!media) return null;
 
@@ -1512,6 +1568,8 @@ export default defineComponent({
 
     return {
       rootRef,
+      nativeVideoControls,
+      mediaPartGone,
       onTextKeydown,
       imageAltText,
       channelMentionHref,
@@ -1547,6 +1605,7 @@ export default defineComponent({
       isImageUrl,
       isVideoUrl,
       showsPreview,
+      shownUrl,
       isAudioUrl,
       sanitizeUrl,
       formatFileSize,

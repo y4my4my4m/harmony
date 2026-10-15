@@ -4,18 +4,7 @@ import { logger } from '../utils/logger.js';
 import { stripIncomingMediaPaths } from '../utils/privateMedia.js';
 import { mergeQuestionPoll, questionPollMetadata, withoutPollParts } from '../utils/polls.js';
 import { normalizeInboundMentions, actorHostname } from '../utils/mentionParts.js';
-import {
-  actorToProfile,
-  noteToContent,
-  extractFollowData,
-  extractLikeData,
-  extractAnnounceData,
-  extractDeleteData,
-  extractMediaAttachments,
-  normalizeActor,
-  parseAlsoKnownAs,
-  parseMovedTo,
-} from './converters/fromActivityPub.js';
+import { actorToProfile, noteToContent, extractFollowData, extractLikeData, extractAnnounceData, extractDeleteData, extractMediaAttachments, normalizeActor, parseAlsoKnownAs, parseMovedTo, noteQuoteUrl, noteUrl } from './converters/fromActivityPub.js';
 import { VoiceActivityHandler } from './VoiceActivityHandler.js';
 import { SignatureService } from './SignatureService.js';
 import config from '../config/index.js';
@@ -30,9 +19,12 @@ import { noteEngagementColumns, refreshRemoteProfileCounts } from './remoteCount
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { flagComment, flagObjectUris, parseLocalObjectUri } from './flag.js';
 import { evaluateInboundCreate } from '../services/FederationSpamGuard.js';
+import { answersQuoteRequest, processQuoteAnswer, processQuoteRequest } from './quoteAuthorization.js';
 import { activityReference, movedColumns, MOVE_COOLDOWN_MS } from './accountMigration.js';
 import {
   authorizeChannelWrite,
+  federatedUploadUrls,
+  storedFileUrls,
   resolveThreadInChannel,
   resolveMessageInChannel,
   notAfterNow,
@@ -40,6 +32,14 @@ import {
   logDenied,
   THREAD_STUB_STATUS,
 } from './channelWriteAuthz.js';
+import {
+  messageInServer,
+  relayedActivity,
+  relayedMemberStanding,
+  relayRefusal,
+  relayTarget,
+  type RelayServer,
+} from './groupRelay.js';
 
 /**
  * Extract message UUID from a URL like https://domain/messages/{uuid}
@@ -267,6 +267,7 @@ export class ActivityProcessor {
         await this.processLike(activity);
         break;
       case 'Announce':
+        if (relayedActivity(activity) && await this.processSharedInboxRelay(activity)) break;
         await this.processAnnounce(activity);
         break;
       case 'Undo':
@@ -286,6 +287,16 @@ export class ActivityProcessor {
         break;
       case 'Move':
         await this.processMove(activity);
+        break;
+      case 'QuoteRequest':
+        await this.ensureRemoteUser(normalizeActor(activity.actor));
+        await processQuoteRequest(activity, {
+          resolveProfile: resolveProfileByActorUrl,
+          sendToInbox: async (inbox, answer, senderId) => {
+            const { DeliveryQueue } = await import('./DeliveryQueue.js');
+            return DeliveryQueue.sendToInbox(inbox, answer, senderId);
+          },
+        });
         break;
       default:
         if (VoiceActivityHandler.isVoiceActivity(activity)) {
@@ -460,10 +471,23 @@ export class ActivityProcessor {
     return byPair ?? null;
   }
 
+  /** Accept or Reject of a QuoteRequest sent for a local quote; an approval re-sends the Note. */
+  private static async processQuoteAnswerActivity(activity: any, accepted: boolean): Promise<void> {
+    const changed = await processQuoteAnswer(activity, accepted);
+    if (!changed || !accepted) return;
+    const { bullmqManager } = await import('../queue/BullMQManager.js');
+    await bullmqManager.addJob('federate-post', { type: 'update', post_id: changed.postId, author_id: changed.authorId });
+  }
+
   private static async processAccept(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
 
     if (!activity.object) return;
+
+    if (answersQuoteRequest(activity)) {
+      await this.processQuoteAnswerActivity(activity, true);
+      return;
+    }
 
     if (typeof activity.object === 'string' || activity.object.type === 'Follow') {
       const responderUrl = normalizeActor(activity.actor);
@@ -544,6 +568,11 @@ export class ActivityProcessor {
     const supabase = getSupabaseClient();
 
     if (!activity.object) return;
+
+    if (answersQuoteRequest(activity)) {
+      await this.processQuoteAnswerActivity(activity, false);
+      return;
+    }
 
     if (typeof activity.object === 'string' || activity.object.type === 'Follow') {
       const responderUrl = normalizeActor(activity.actor);
@@ -677,8 +706,7 @@ export class ActivityProcessor {
 
       const rawContent = noteToContent(object);
       
-      // Quote target: `quoteUrl` is the Fediverse form, `_misskey_quote` Misskey's.
-      const quoteUrl = object.quoteUrl || object._misskey_quote;
+      const quoteUrl = noteQuoteUrl(object);
       
       logger.info('Processing ActivityPub Note: ' + JSON.stringify({
         id: object.id,
@@ -730,6 +758,7 @@ export class ActivityProcessor {
         }
 
         let quotedPostData: any = null;
+        let quoteWithheld = false;
         if (quoteUrl) {
           logger.info(`Processing quote post, quoted URL: ${quoteUrl}`);
           quotedPostData = await this.resolveQuotedPost(quoteUrl);
@@ -737,6 +766,7 @@ export class ActivityProcessor {
           if (quotedPostData && (quotedPostData.is_deleted === true || !isBoostableVisibility(quotedPostData.visibility))) {
             logger.info(`Dropping quote of ${quotedPostData.id}: ${quotedPostData.is_deleted ? 'deleted' : quotedPostData.visibility}`);
             quotedPostData = null;
+            quoteWithheld = true;
           }
         }
 
@@ -744,15 +774,20 @@ export class ActivityProcessor {
         if (object.inReplyTo) {
           metadata.in_reply_to_ap_url = object.inReplyTo;
         }
-        if (quotedPostData) {
+        // A quote whose post could not be read keeps its target, shown as a link; one whose
+        // post is deleted or not public is a plain post.
+        if (quoteUrl && !quoteWithheld) {
           metadata.is_quote = true;
-          metadata.reblog_of = quotedPostData.id;
           metadata.quote_ap_url = quoteUrl;
+        }
+        if (quotedPostData) {
+          metadata.reblog_of = quotedPostData.id;
         }
 
         // `in_reply_to` is a UUID column holding the parent post id.
         const postData: any = {
           ap_id: object.id,
+          url: noteUrl(object),
           author_id: author.id,
           content,
           visibility,
@@ -1225,6 +1260,11 @@ export class ActivityProcessor {
       if (remoteObject.inReplyTo) {
         metadata.in_reply_to_ap_url = remoteObject.inReplyTo;
       }
+      const quoteUrl = noteQuoteUrl(remoteObject);
+      if (quoteUrl) {
+        metadata.is_quote = true;
+        metadata.quote_ap_url = quoteUrl;
+      }
 
       const insertPost = () => supabase
         .from('posts')
@@ -1364,9 +1404,11 @@ export class ActivityProcessor {
         .eq('federated_id', object.id);
 
       logger.info(`Updated profile: ${object.id}`);
+    } else if (object.type === 'Note' && typeof object['harmony:serverId'] === 'string') {
+      await this.processChannelMessageUpdate(activity, object);
     } else if (object.type === 'Note' || object.type === 'Article') {
       logger.info(`Processing post edit: ${object.id}`);
-      
+
       // Existing post plus author actor URL (joined via profiles.federated_id),
       // needed to verify the editor owns the post.
       const { data: existingPost } = await supabase
@@ -1529,14 +1571,18 @@ export class ActivityProcessor {
     // `messages.user_id` references `profiles(id)` (see db_schema/init/04_tables_servers.sql:130).
     const { data: existingMessage } = await supabase
       .from('messages')
-      .select('id, profiles:user_id(federated_id)')
+      .select('id, channel_id, profiles:user_id(federated_id)')
       .eq('metadata->>ap_id', objectUrl)
       .maybeSingle();
 
     let messageDeleted = false;
-    if (existingMessage) {
+    if (!existingMessage && !existingPost) {
+      messageDeleted = await this.processGroupMessageDelete(actorUrl, objectUrl);
+    } else if (existingMessage) {
       const ownerActorUrl = (existingMessage as any).profiles?.federated_id as string | null | undefined;
-      if (!ownerActorUrl || !SignatureService.verifyActorMatch(actorUrl, ownerActorUrl)) {
+      const byAuthor = !!ownerActorUrl && SignatureService.verifyActorMatch(actorUrl, ownerActorUrl);
+      const byGroup = !byAuthor && await this.groupHostsChannel(actorUrl, (existingMessage as any).channel_id);
+      if (!byAuthor && !byGroup) {
         logger.warn(
           `🚫 Delete message rejected: actor ${actorUrl} does not own ${objectUrl} (owner=${ownerActorUrl ?? 'unknown'})`,
         );
@@ -1552,6 +1598,48 @@ export class ActivityProcessor {
     if (postDeleted || messageDeleted) {
       logger.info(`Deleted object: ${objectUrl}`);
     }
+  }
+
+  /**
+   * True when `actorUrl` is the Group of the remote server whose local copy holds the
+   * channel. The host's Group speaks for its channels: a moderator's delete, or one by a
+   * member on a third instance, reaches here as the Group's Delete.
+   */
+  private static async groupHostsChannel(actorUrl: string, channelId: string | null | undefined): Promise<boolean> {
+    if (!channelId) return false;
+    const server = await this.resolveRemoteServer(actorUrl);
+    if (!server) return false;
+    const { data: channel } = await getSupabaseClient()
+      .from('channels')
+      .select('id')
+      .eq('id', channelId)
+      .eq('server_id', server.id)
+      .maybeSingle();
+    return !!channel;
+  }
+
+  /**
+   * Group Delete of a message this instance federated itself: its id is
+   * https://<this domain>/messages/<uuid> and no row stores it as metadata.ap_id.
+   */
+  private static async processGroupMessageDelete(actorUrl: string, objectUrl: string): Promise<boolean> {
+    const prefix = `https://${config.INSTANCE_DOMAIN}/messages/`;
+    const localId = objectUrl.startsWith(prefix) ? objectUrl.slice(prefix.length) : null;
+    if (!localId || !/^[0-9a-f-]{36}$/i.test(localId)) return false;
+
+    const supabase = getSupabaseClient();
+    const { data: message } = await supabase
+      .from('messages')
+      .select('id, channel_id')
+      .eq('id', localId)
+      .maybeSingle();
+    if (!message || !(await this.groupHostsChannel(actorUrl, message.channel_id))) return false;
+
+    const { error } = await supabase
+      .from('messages')
+      .update({ is_deleted: true })
+      .eq('id', message.id);
+    return !error;
   }
 
   /**
@@ -1661,73 +1749,7 @@ export class ActivityProcessor {
         return;
       }
 
-      const isCustomEmoji = !!(emojiUrl && emojiName);
-      const reactionData: any = {
-        message_id: message.id,
-        user_id: user.id,
-        metadata: { federated: true, from_domain: new URL(actorUrl).hostname },
-      };
-
-      if (isCustomEmoji) {
-        // Image-backed custom emoji resolve to a row in `emojis`.
-        const emojiId = await this.resolveInboundEmojiId(
-          supabase, emojiName, emojiUrl, user.id,
-        );
-        if (!emojiId) {
-          logger.error('Could not find or create emoji for message reaction');
-          return;
-        }
-        reactionData.emoji_id = emojiId;
-      } else {
-        // Unicode emoji: stored as custom_emoji_content with a null emoji_id,
-        // matching local reactions so grouping is consistent.
-        let normalizedEmoji = emoji || '❤️';
-        if (normalizedEmoji === '❤') normalizedEmoji = '❤️';
-        reactionData.emoji_id = null;
-        reactionData.custom_emoji_content = normalizedEmoji;
-      }
-
-      let dupQuery = supabase
-        .from('reactions')
-        .select('id')
-        .eq('message_id', message.id)
-        .eq('user_id', user.id);
-
-      if (reactionData.emoji_id) {
-        dupQuery = dupQuery.eq('emoji_id', reactionData.emoji_id);
-      } else {
-        dupQuery = dupQuery.is('emoji_id', null)
-          .eq('custom_emoji_content', reactionData.custom_emoji_content);
-      }
-
-      const { data: existing } = await dupQuery.maybeSingle();
-
-      if (existing) {
-        logger.info(`Reaction already exists for user ${user.id} on message ${message.id}`);
-        return;
-      }
-
-      // Store the AP activity ID for traceability
-      reactionData.metadata = { ...reactionData.metadata, ap_id: activity.id };
-
-      const { data: inserted, error: reactionError } = await supabase
-        .from('reactions')
-        .insert(reactionData)
-        .select('id');
-
-      if (reactionError) {
-        // 23505: unique violation from a concurrent insert.
-        if (reactionError.code === '23505') {
-          logger.info(`Reaction already exists (constraint): ${reactionError.message}`);
-        } else {
-          logger.error('Failed to insert message reaction:', reactionError);
-        }
-      } else if (!inserted?.length) {
-        // check_message_emoji_reaction_limit drops a federated 21st emoji.
-        logger.info(`Reaction on message ${message.id} dropped: the message holds 20 different emoji`);
-      } else {
-        logger.info(`Added reaction to message ${message.id}: ${emoji || ''}`);
-      }
+      await this.addMessageReaction(supabase, message.id, user.id, actorUrl, activity);
       return;
     }
 
@@ -1804,6 +1826,81 @@ export class ActivityProcessor {
       }
     } else {
       logger.warn(`Post or message not found for like: ${objectUrl}`);
+    }
+  }
+
+  /**
+   * Stores the reaction a Like or EmojiReact of `actorUrl` puts on a message, once per emoji.
+   * The caller has authorized it.
+   */
+  private static async addMessageReaction(
+    supabase: any,
+    messageId: string,
+    userId: string,
+    actorUrl: string,
+    activity: any,
+  ): Promise<void> {
+    const { emoji, emojiUrl, emojiName } = extractLikeData(activity);
+    const isCustomEmoji = !!(emojiUrl && emojiName);
+    const reactionData: any = {
+      message_id: messageId,
+      user_id: userId,
+      metadata: { federated: true, from_domain: new URL(actorUrl).hostname, ap_id: activity.id },
+    };
+
+    if (isCustomEmoji) {
+      // Image-backed custom emoji resolve to a row in `emojis`.
+      const emojiId = await this.resolveInboundEmojiId(supabase, emojiName, emojiUrl, userId);
+      if (!emojiId) {
+        logger.error('Could not find or create emoji for message reaction');
+        return;
+      }
+      reactionData.emoji_id = emojiId;
+    } else {
+      // Unicode emoji: stored as custom_emoji_content with a null emoji_id,
+      // matching local reactions so grouping is consistent.
+      let normalizedEmoji = emoji || '❤️';
+      if (normalizedEmoji === '❤') normalizedEmoji = '❤️';
+      reactionData.emoji_id = null;
+      reactionData.custom_emoji_content = normalizedEmoji;
+    }
+
+    let dupQuery = supabase
+      .from('reactions')
+      .select('id')
+      .eq('message_id', messageId)
+      .eq('user_id', userId);
+
+    if (reactionData.emoji_id) {
+      dupQuery = dupQuery.eq('emoji_id', reactionData.emoji_id);
+    } else {
+      dupQuery = dupQuery.is('emoji_id', null)
+        .eq('custom_emoji_content', reactionData.custom_emoji_content);
+    }
+
+    const { data: existing } = await dupQuery.maybeSingle();
+    if (existing) {
+      logger.info(`Reaction already exists for user ${userId} on message ${messageId}`);
+      return;
+    }
+
+    const { data: inserted, error: reactionError } = await supabase
+      .from('reactions')
+      .insert(reactionData)
+      .select('id');
+
+    if (reactionError) {
+      // 23505: unique violation from a concurrent insert.
+      if (reactionError.code === '23505') {
+        logger.info(`Reaction already exists (constraint): ${reactionError.message}`);
+      } else {
+        logger.error('Failed to insert message reaction:', reactionError);
+      }
+    } else if (!inserted?.length) {
+      // check_message_emoji_reaction_limit drops a federated 21st emoji.
+      logger.info(`Reaction on message ${messageId} dropped: the message holds 20 different emoji`);
+    } else {
+      logger.info(`Added reaction to message ${messageId}: ${emoji || ''}`);
     }
   }
 
@@ -2051,46 +2148,15 @@ export class ActivityProcessor {
       return;
     }
 
+    if (objectUrl.includes('/messages/')) {
+      const uuidMatch = objectUrl.match(/\/messages\/([a-f0-9-]{36})/);
+      if (uuidMatch) await this.removeMessageReactions(uuidMatch[1], user.id, { ...object, actor: actorUrl });
+      return;
+    }
+
     // An actor holds one row per distinct emoji, so the Undo removes only the
     // rows carrying the emoji it names.
     const matchesUndo = await this.buildReactionUndoMatcher(supabase, emoji, emojiUrl, emojiName);
-
-    if (objectUrl.includes('/messages/')) {
-      const uuidMatch = objectUrl.match(/\/messages\/([a-f0-9-]{36})/);
-      if (uuidMatch) {
-        const messageId = uuidMatch[1];
-        logger.info(`Undoing message reaction on ${messageId}`);
-
-        const { data: rows, error: readError } = await supabase
-          .from('reactions')
-          .select('id, emoji_id, custom_emoji_content')
-          .eq('user_id', user.id)
-          .eq('message_id', messageId);
-
-        if (readError) {
-          logger.error(`Failed to read message reactions for Undo:`, readError);
-          return;
-        }
-
-        const doomed = (rows ?? []).filter(matchesUndo).map((row: any) => row.id);
-        if (doomed.length === 0) {
-          logger.info(`No matching message reaction to undo on ${objectUrl}`);
-          return;
-        }
-
-        const { error } = await supabase
-          .from('reactions')
-          .delete()
-          .in('id', doomed);
-
-        if (error) {
-          logger.error(`Failed to delete message reaction:`, error);
-        } else {
-          logger.info(`Undid message reaction on ${objectUrl} (deleted ${doomed.length} records)`);
-        }
-      }
-      return;
-    }
 
     let post = null;
     
@@ -2178,6 +2244,38 @@ export class ActivityProcessor {
   }
 
   /**
+   * Removes the reactions of `userId` on a message that an undone Like or EmojiReact names:
+   * one row per distinct emoji, so only the rows carrying its emoji.
+   */
+  static async removeMessageReactions(messageId: string, userId: string, like: any): Promise<void> {
+    const supabase = getSupabaseClient();
+    const { emoji, emojiUrl, emojiName } = extractLikeData({ ...like, actor: like?.actor ?? '', object: like?.object ?? '' });
+    const matchesUndo = await this.buildReactionUndoMatcher(supabase, emoji, emojiUrl, emojiName);
+
+    const { data: rows, error: readError } = await supabase
+      .from('reactions')
+      .select('id, emoji_id, custom_emoji_content')
+      .eq('user_id', userId)
+      .eq('message_id', messageId);
+    if (readError) {
+      logger.error('Failed to read message reactions for Undo:', readError);
+      return;
+    }
+
+    const doomed = (rows ?? []).filter(matchesUndo).map((row: any) => row.id);
+    if (doomed.length === 0) {
+      logger.info(`No matching reaction to undo on message ${messageId}`);
+      return;
+    }
+    const { error } = await supabase.from('reactions').delete().in('id', doomed);
+    if (error) {
+      logger.error('Failed to delete message reaction:', error);
+    } else {
+      logger.info(`Undid reaction on message ${messageId} (deleted ${doomed.length} records)`);
+    }
+  }
+
+  /**
    * Predicate selecting the rows an Undo of Like/EmojiReaction removes: the
    * actor's rows carrying the emoji the Undo names. A Like naming no emoji or a
    * unicode heart is the favourite (isFavouriteLike); on a message, which has no
@@ -2253,9 +2351,30 @@ export class ActivityProcessor {
           await this.processUndoAnnounce(activityData.id, actorUrl);
         }
         break;
+      case 'Block':
+        if (activityData) {
+          await this.processUndoBlock(activityData, actorUrl);
+        }
+        break;
       default:
         logger.warn(`Unhandled Undo object type: ${activityType}`);
     }
+  }
+
+  /** Undo Block: lifts the signer's block of the target, as Mastodon's UnblockService. */
+  private static async processUndoBlock(blockActivity: any, actorUrl: string): Promise<void> {
+    const supabase = getSupabaseClient();
+    const blockedUrl = typeof blockActivity.object === 'string' ? blockActivity.object : blockActivity.object?.id;
+    if (!blockedUrl) return;
+    const blocker = await resolveProfileByActorUrl(actorUrl);
+    const blocked = await resolveProfileByActorUrl(normalizeActor(blockedUrl));
+    if (!blocker || !blocked) return;
+    await supabase
+      .from('user_blocks')
+      .delete()
+      .eq('blocker_id', blocker.id)
+      .eq('blocked_user_id', blocked.id);
+    logger.info(`Unblocked: ${actorUrl} → ${blockedUrl}`);
   }
 
   /** Undo Follow: removes the signer's follow of the target. */
@@ -2473,7 +2592,7 @@ export class ActivityProcessor {
 
     const { data: server } = await supabase
       .from('servers')
-      .select('id, federation_enabled, ap_id')
+      .select('id, federation_enabled, ap_id, federation_metadata')
       .eq('id', serverIdMatch[1])
       .eq('is_local_server', false)
       .maybeSingle();
@@ -2954,11 +3073,8 @@ export class ActivityProcessor {
       .eq('federated_id', actorUrl)
       .single();
 
-    const { data: blocked } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('federated_id', blockedUrl)
-      .maybeSingle();
+    // A local target may carry no federated_id.
+    const blocked = await resolveProfileByActorUrl(normalizeActor(blockedUrl));
 
     if (!blocker || !blocked) {
       logger.warn(`Could not find users for Block activity`);
@@ -3369,7 +3485,7 @@ export class ActivityProcessor {
   /**
    * Harmony server channel message, distinct from a regular post.
    */
-  private static async processChannelMessage(activity: any, object: any): Promise<void> {
+  private static async processChannelMessage(activity: any, object: any, relay?: { groupUrl: string }): Promise<void> {
     const supabase = getSupabaseClient();
     const actorUrl = normalizeActor(activity.actor);
     
@@ -3418,11 +3534,14 @@ export class ActivityProcessor {
       }
     }
 
+    const relayedBy = relay ? { relayedBy: relay.groupUrl } : {};
     const authz = await authorizeChannelWrite(supabase, {
       actorUrl,
       serverId,
       channelId,
       kind: threadApIdValue ? 'thread_message' : 'message',
+      newUploads: federatedUploadUrls(object).length,
+      ...relayedBy,
     });
     if (!authz.ok) {
       logDenied('channel message', actorUrl, authz.reason);
@@ -3430,7 +3549,7 @@ export class ActivityProcessor {
     }
     // A stub thread stands in for an unknown one; creating it is creating a thread.
     if (threadApIdValue && !resolvedThreadId) {
-      const stubAuthz = await authorizeChannelWrite(supabase, { actorUrl, serverId, channelId, kind: 'thread_create' });
+      const stubAuthz = await authorizeChannelWrite(supabase, { actorUrl, serverId, channelId, kind: 'thread_create', ...relayedBy });
       if (!stubAuthz.ok) {
         logDenied('channel message opening a thread', actorUrl, stubAuthz.reason);
         return;
@@ -3445,42 +3564,7 @@ export class ActivityProcessor {
       messageId = randomUUID();
     }
 
-    let content: any;
-    if (object['harmony:rawContent'] && Array.isArray(object['harmony:rawContent'])) {
-      content = normalizeInboundMentions(withoutPollParts(stripIncomingMediaPaths(object['harmony:rawContent'])), actorHostname(actorUrl));
-    } else if (typeof object.content === 'string') {
-      content = noteToContent(object);
-    } else if (Array.isArray(object.content)) {
-      content = object.content;
-    } else {
-      content = [{ type: 'text', text: String(object.content || '') }];
-    }
-
-    // Mention userIds arrive as origin-instance UUIDs; map to local profile UUIDs.
-    if (Array.isArray(content)) {
-      const { resolveMentionUserIds } = await import('../utils/mentionResolver.js');
-      content = await resolveMentionUserIds(content);
-    }
-    
-    // Remote emoji UUIDs do not exist locally, so emojis are rewritten to the
-    // URL-based form used by the Discord bridge.
-    const instanceDomain = new URL(actorUrl).hostname;
-    if (Array.isArray(content)) {
-      content = content.map((item: any) => {
-        if (item.type === 'emoji' && item.emoji) {
-          return {
-            type: 'emoji',
-            emoji: {
-              name: item.emoji.name || 'emoji',
-              url: item.emoji.url,
-              domain: instanceDomain,
-              is_remote: true,
-            }
-          };
-        }
-        return item;
-      });
-    }
+    const content = await this.channelMessageContent(object, actorUrl);
 
     const { data: existingMessage } = await supabase
       .from('messages')
@@ -3629,6 +3713,197 @@ export class ActivityProcessor {
         logger.warn('Link preview enrichment failed for federated channel message:', err)
       );
     }
+  }
+
+  /**
+   * An Announce relaying a channel activity, on the shared inbox. True when its actor is the
+   * Group of a remote server copied here; InboxHandler has matched the signature's key to it.
+   */
+  private static async processSharedInboxRelay(announce: any): Promise<boolean> {
+    const server = await this.resolveRemoteServer(normalizeActor(announce.actor));
+    if (!server) return false;
+    await this.processGroupRelay({ ...server, is_local_server: false }, announce);
+    return true;
+  }
+
+  /**
+   * A Group relay (groupRelay.ts) by the Group of `server`, a remote server copied here. The
+   * caller has matched the HTTP signature's key to that Group.
+   */
+  static async processGroupRelay(server: RelayServer, announce: any): Promise<void> {
+    const group = server.ap_id ?? `server ${server.id}`;
+    const refusal = relayRefusal(server, announce, config.INSTANCE_DOMAIN);
+    if (refusal) {
+      logDenied('Group relay', group, refusal);
+      return;
+    }
+
+    const inner = announce.object;
+    const actorUrl = normalizeActor(inner.actor);
+    const hosts = [group, actorUrl].map((url) => new URL(url).hostname.toLowerCase());
+    if (hosts.some((host) => BlockedInstancesCache.isBlocked(host))) {
+      logDenied('Group relay', group, `${actorUrl} or the Group is on a blocked instance`);
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    const profile = await this.ensureRemoteUser(actorUrl);
+    if (!profile) {
+      logDenied('Group relay', group, `${actorUrl} could not be resolved`);
+      return;
+    }
+    if (await this.isActorSuspended(actorUrl)) {
+      logDenied('Group relay', group, `${actorUrl} is suspended`);
+      return;
+    }
+    const standing = await relayedMemberStanding(supabase, server, profile.id, actorUrl);
+    if (standing !== 'member') {
+      logDenied('Group relay', group, `${actorUrl}: ${standing}`);
+      return;
+    }
+
+    const relay = { groupUrl: group };
+    if (inner.type === 'Create') {
+      await this.processChannelMessage(inner, inner.object, relay);
+      return;
+    }
+    if (inner.type === 'Update') {
+      await this.processChannelMessageUpdate(inner, inner.object, relay);
+      return;
+    }
+
+    const targetUrl = relayTarget(inner) as string;
+    const target = await messageInServer(supabase, server.id, targetUrl, config.INSTANCE_DOMAIN);
+    if (!target) {
+      logDenied('Group relay', group, `${targetUrl} is no message of the server`);
+      return;
+    }
+
+    if (inner.type === 'Delete') {
+      const { error } = await supabase.from('messages').update({ is_deleted: true }).eq('id', target.id);
+      if (error) logger.error(`Failed to delete message ${target.id} relayed by ${group}:`, error);
+      else logger.info(`Deleted message ${target.id}, relayed by ${group}`);
+      return;
+    }
+    if (inner.type === 'Undo') {
+      await this.removeMessageReactions(target.id, profile.id, inner.object);
+      return;
+    }
+
+    const authz = await authorizeChannelWrite(supabase, {
+      actorUrl, serverId: server.id, channelId: target.channel_id, kind: 'reaction', relayedBy: group,
+    });
+    if (!authz.ok) {
+      logDenied('relayed reaction', actorUrl, authz.reason);
+      return;
+    }
+    await this.addMessageReaction(supabase, target.id, profile.id, actorUrl, inner);
+  }
+
+  /**
+   * Edit of a message in a channel of a remote server copied here, by its author: sent by the
+   * author's instance when it hosts the server, or relayed by the server's Group. A local
+   * server takes edits on its own inbox (ServerInboxHandler).
+   */
+  private static async processChannelMessageUpdate(activity: any, object: any, relay?: { groupUrl: string }): Promise<void> {
+    const supabase = getSupabaseClient();
+    const actorUrl = normalizeActor(activity.actor);
+    const serverId = object['harmony:serverId'];
+    if (typeof object.id !== 'string' || typeof serverId !== 'string') return;
+
+    const message = await messageInServer(supabase, serverId, object.id, config.INSTANCE_DOMAIN);
+    if (!message) {
+      logger.warn(`Channel message not found for edit: ${object.id}`);
+      return;
+    }
+
+    const { data: stored } = await supabase
+      .from('messages')
+      .select('content, metadata, profiles:user_id(federated_id)')
+      .eq('id', message.id)
+      .maybeSingle();
+    const ownerUrl = (stored as any)?.profiles?.federated_id as string | null | undefined;
+    if (!ownerUrl || !SignatureService.verifyActorMatch(actorUrl, ownerUrl)) {
+      logDenied('channel message edit', actorUrl, `not the author of ${object.id}`);
+      return;
+    }
+
+    // As enforce_message_attach_files: an edit needs ATTACH_FILES only for uploads the row lacks.
+    const held = storedFileUrls(stored?.content);
+    const authz = await authorizeChannelWrite(supabase, {
+      actorUrl,
+      serverId,
+      channelId: message.channel_id,
+      kind: 'edit',
+      newUploads: federatedUploadUrls(object).filter((url) => !held.has(url)).length,
+      ...(relay ? { relayedBy: relay.groupUrl } : {}),
+    });
+    if (!authz.ok) {
+      logDenied('channel message edit', actorUrl, authz.reason);
+      return;
+    }
+    if (authz.server.is_local_server !== false) {
+      logDenied('channel message edit', actorUrl, 'a local server takes edits on its own inbox');
+      return;
+    }
+
+    const update: Record<string, unknown> = {
+      content: await this.channelMessageContent(object, actorUrl),
+      updated_at: notAfterNow(object.updated),
+    };
+    const voicePatch = harmonyVoiceMessageFromObject(object);
+    if (voicePatch) {
+      const metadata = stored?.metadata && typeof stored.metadata === 'object' ? stored.metadata : {};
+      update.metadata = { ...metadata, ...voicePatch };
+    }
+
+    const { error } = await supabase.from('messages').update(update).eq('id', message.id);
+    if (error) logger.error(`Failed to apply the edit of ${object.id}:`, error);
+    else logger.info(`Applied the edit of channel message ${object.id}`);
+  }
+
+  /**
+   * Content of a channel message Note as stored here: mention locality re-derived, file
+   * paths and polls dropped, mention ids mapped to local profiles, emoji in the URL form.
+   */
+  private static async channelMessageContent(object: any, actorUrl: string): Promise<any> {
+    let content: any;
+    if (object['harmony:rawContent'] && Array.isArray(object['harmony:rawContent'])) {
+      content = normalizeInboundMentions(withoutPollParts(stripIncomingMediaPaths(object['harmony:rawContent'])), actorHostname(actorUrl));
+    } else if (typeof object.content === 'string') {
+      content = noteToContent(object);
+    } else if (Array.isArray(object.content)) {
+      content = object.content;
+    } else {
+      content = [{ type: 'text', text: String(object.content || '') }];
+    }
+
+    // Mention userIds arrive as origin-instance UUIDs; map to local profile UUIDs.
+    if (Array.isArray(content)) {
+      const { resolveMentionUserIds } = await import('../utils/mentionResolver.js');
+      content = await resolveMentionUserIds(content);
+    }
+    
+    // Remote emoji UUIDs do not exist locally, so emojis are rewritten to the
+    // URL-based form used by the Discord bridge.
+    const instanceDomain = new URL(actorUrl).hostname;
+    if (Array.isArray(content)) {
+      content = content.map((item: any) => {
+        if (item.type === 'emoji' && item.emoji) {
+          return {
+            type: 'emoji',
+            emoji: {
+              name: item.emoji.name || 'emoji',
+              url: item.emoji.url,
+              domain: instanceDomain,
+              is_remote: true,
+            }
+          };
+        }
+        return item;
+      });
+    }
+    return content;
   }
 
   /**

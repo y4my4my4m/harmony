@@ -387,6 +387,7 @@ import { useServerBots } from '@/composables/useServerBots';
 import { groupServerBots, type ServerBot } from '@/services/serverBotsService';
 import { BOT_NAME_COLOR } from '@/utils/botUtils';
 import { runtimeConfig } from '@/services/runtimeConfig';
+import { stylePoint, styleRect } from '@/utils/appZoom';
 
 // Props
 interface Props {
@@ -540,7 +541,8 @@ function handleUserContextMenu(user: User, event: MouseEvent) {
   // avoid a second menu and text-selection callouts.
   event.preventDefault();
   if (isMobile.value) return;
-  openContextMenu(user, event.clientX, event.clientY);
+  const at = stylePoint(event);
+  openContextMenu(user, at.x, at.y);
 }
 
 function handleUserTouchStart(user: User, event: TouchEvent) {
@@ -548,12 +550,13 @@ function handleUserTouchStart(user: User, event: TouchEvent) {
   const touch = event.touches[0];
   if (!touch) return;
   longPressStartPos = { x: touch.clientX, y: touch.clientY };
+  const menuAt = stylePoint(touch);
   longPressFired = false;
   clearLongPressTimer();
   longPressTimer = setTimeout(() => {
     longPressFired = true;
     triggerInteraction();
-    openContextMenu(user, longPressStartPos!.x, longPressStartPos!.y);
+    openContextMenu(user, menuAt.x, menuAt.y);
     longPressTimer = null;
   }, LONG_PRESS_DURATION);
 }
@@ -1268,7 +1271,7 @@ const onMemberListKeydown = (event: KeyboardEvent) => {
     const user = sidebarDisplayItems.value[index]?.user;
     if (user) {
       event.preventDefault();
-      const r = target.getBoundingClientRect();
+      const r = styleRect(target);
       openContextMenu(user, r.left + 24, r.bottom);
     }
     return;

@@ -7,7 +7,7 @@ Harmony is a federated social app: Discord-style servers and chat with ActivityP
 
 - **Project home:** <https://mony.lol>
 - **Live instance:** <https://har.mony.lol>
-- **Docs:** <https://docs.mony.lol> (see [docs/README.md](docs/README.md))
+- **Docs:** <https://docs.mony.lol> (source in [docs/](docs/), see [docs style](docs/contribute/docs-style.md))
 
 <img width="1597" height="911" alt="image" src="https://github.com/user-attachments/assets/43a874fc-7af0-4056-ba3a-0472d70daaf5" />
 
@@ -43,7 +43,7 @@ nothing else; the installer offers to install Docker. From a checkout,
 `bash self-host/install.sh` does the same. Afterwards the `harmony` command
 updates, backs up and checks the instance.
 
-Guide: [docs/self-hosting.md](docs/self-hosting.md).
+Guide: [docs/self-host/install.md](docs/self-host/install.md).
 
 ## Quick start (development)
 
@@ -65,15 +65,15 @@ npm run dev
 ```
 
 App: http://localhost:5173. Federation backend health: http://localhost:3001/health.
-Details: [docs-source/guide/installation.md](docs-source/guide/installation.md).
+Details: [docs/contribute/index.md](docs/contribute/index.md).
 
 ## Documentation
 
 | Topic | Link |
 |--------|------|
-| Self-hosting: install, update, backup, manual setups | [docs/self-hosting.md](docs/self-hosting.md) |
+| Self-hosting: install, update, backup, manual setups | [docs/self-host/](docs/self-host/index.md) |
 | Self-host stack: compose, Caddy, scripts | [self-host/README.md](self-host/README.md) |
-| Federation / ActivityPub interop | [docs/FEDERATION.md](docs/FEDERATION.md) |
+| Federation / ActivityPub interop | [docs/federation/](docs/federation/index.md) |
 | Roadmap | [ROADMAP.md](ROADMAP.md) |
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Security policy | [SECURITY.md](SECURITY.md) |

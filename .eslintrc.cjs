@@ -39,7 +39,6 @@ module.exports = {
         'dev/**/*.{js,cjs,mjs,ts}',
         'docker/**/*.{js,cjs,mjs}',
         '*.{cjs,mjs}',
-        'vue-docgen.config.js',
         'vite.config.ts',
         'vite-plugin-selective-preload.ts',
         'vitest.*.ts',

@@ -73,8 +73,8 @@ function save() {
 <style>
 /* The dialog element is AppDialog's; scoped styles reach only the slot content. */
 .app-dialog-overlay > .alt-text-dialog {
-  width: min(520px, calc(100vw - 32px));
-  max-height: calc(100vh - 32px);
+  width: min(520px, calc(100 * var(--app-vw) - 32px));
+  max-height: calc(100 * var(--app-vh) - 32px);
   overflow: auto;
   padding: var(--space-4, 16px);
   border-radius: var(--radius-lg, 12px);

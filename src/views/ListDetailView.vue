@@ -61,10 +61,15 @@
             type="search"
             :aria-label="t('activitypub.listsA11y.searchToAdd')"
             :placeholder="t('activitypub.listsA11y.searchToAdd')"
-            @input="searchUsersToAdd"
+            :aria-busy="searching"
+            data-testid="list-member-search"
           />
         </div>
       </div>
+
+      <p v-if="searching && searchResults.length === 0" class="search-status" data-testid="list-member-searching">
+        {{ t('activitypub.listsA11y.searching') }}
+      </p>
 
       <!-- Search results -->
       <ul v-if="searchResults.length > 0" class="search-results" :aria-label="t('activitypub.listsA11y.searchResultsLabel')">
@@ -72,11 +77,12 @@
           v-for="user in searchResults"
           :key="user.id"
           class="user-row"
+          data-testid="list-member-result"
         >
-          <img :src="user.avatar_url || '/default_avatar.webp'" class="user-avatar" alt="" />
+          <Avatar :src="user.avatar_url" size="sm" class="user-avatar" />
           <div class="user-info">
             <span class="user-name">{{ user.display_name || user.username }}</span>
-            <span class="user-handle">@{{ user.username }}</span>
+            <span class="user-handle">@{{ user.is_local === false && user.handle ? user.handle : user.username }}</span>
           </div>
           <button
             type="button"
@@ -98,7 +104,7 @@
             :key="member.account_id"
             class="user-row"
           >
-            <img :src="member.account?.avatar_url || '/default_avatar.webp'" class="user-avatar" alt="" />
+            <Avatar :src="member.account?.avatar_url" size="sm" class="user-avatar" />
             <div class="user-info">
               <span class="user-name">{{ member.account?.display_name || member.account?.username }}</span>
               <span class="user-handle">@{{ member.account?.username }}</span>
@@ -146,16 +152,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAnnouncer } from '@/composables/useAnnouncer'
 import { plainDisplayName } from '@/utils/plainDisplayName'
 import { debug } from '@/utils/debug'
 import { useActivityPubStore, type UserListMember } from '@/stores/useActivityPub'
-import { supabase } from '@/supabase'
+import { useUserSearch } from '@/composables/useUserSearch'
 import PostsContainer from '@/components/common/PostsContainer.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import Avatar from '@/components/common/Avatar.vue'
 import type { TimelinePost } from '@/types'
 
 const router = useRouter()
@@ -171,8 +178,12 @@ const isLoading = ref(false)
 const isLoadingMore = ref(false)
 const hasMore = ref(false)
 const showMembersPanel = ref(false)
-const memberSearchQuery = ref('')
-const searchResults = ref<any[]>([])
+const {
+  query: memberSearchQuery,
+  results: searchResults,
+  searching,
+  error: searchError,
+} = useUserSearch({ limit: 10 })
 
 const listId = route.params.listId as string
 
@@ -235,33 +246,20 @@ const loadMore = async () => {
   }
 }
 
-const searchUsersToAdd = async () => {
-  const query = memberSearchQuery.value.trim()
-  if (!query) {
-    searchResults.value = []
+watch(searching, (busy) => {
+  if (busy || !memberSearchQuery.value.trim()) return
+  if (searchError.value) {
+    debug.error('Failed to search users:', searchError.value)
     return
   }
-
-  try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, username, display_name, avatar_url, domain')
-      .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
-      .limit(10)
-
-    if (error) throw error
-    searchResults.value = data || []
-    polite(t('activitypub.listsA11y.searchResults', { count: searchResults.value.length }, searchResults.value.length), { key: 'list-member-search' })
-  } catch (error) {
-    debug.error('Failed to search users:', error)
-  }
-}
+  const count = searchResults.value.length
+  polite(t('activitypub.listsA11y.searchResults', { count }, count), { key: 'list-member-search' })
+})
 
 const addMember = async (userId: string) => {
   try {
     await activityPubStore.addToList(listId, userId)
     await loadMembers()
-    searchResults.value = searchResults.value.filter(u => u.id !== userId)
   } catch (error: any) {
     debug.error('Failed to add member:', error)
   }
@@ -413,11 +411,16 @@ onMounted(async () => {
   background: var(--background-hover);
 }
 
-.user-avatar {
+/* Drawn at 32px from the "sm" (40px) variant the message list fetches. */
+.user-row .user-avatar {
   width: 32px;
   height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
+}
+
+.search-status {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .user-info {

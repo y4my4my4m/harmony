@@ -30,10 +30,14 @@ env:
 #
 # release -> desktop (Windows, macOS) -> latest-json
 #         -> linux                     ->
-#         -> android (after desktop)
+#         -> android
 # The draft release exists before any build uploads, so concurrent jobs cannot
 # each create one. latest.json has a single writer that runs after every
 # desktop build has uploaded.
+#
+# Caches: a tag run reads caches saved on the default branch and nothing saved
+# by another tag, so these jobs restore and never save. tauri.yml runs on master
+# (weekly, and on dependency changes) under the same cache keys and saves them.
 jobs:
   release:
     name: Draft release
@@ -155,9 +159,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.rust-targets }}
+      # shared-key matches tauri.yml's windows and macos job ids, the key its
+      # master runs save under.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          shared-key: ${{ matrix.name == 'macOS' && 'macos' || 'windows' }}
+          save-if: false
       - run: npm ci
       - name: Signing identity
         if: matrix.name == 'macOS'
@@ -220,7 +228,7 @@ jobs:
             ${LINUX:+--linux "$LINUX"}
 
   android:
-    needs: desktop
+    needs: release
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -263,6 +271,21 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          save-if: false
+      # Gradle distribution, dependencies and build cache. tauri.yml's android
+      # job saves one entry per master run under this key plus its run id; the
+      # restore keys take the newest.
+      - name: Enable the Gradle build cache
+        run: mkdir -p ~/.gradle && echo 'org.gradle.caching=true' >> ~/.gradle/gradle.properties
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-android-${{ hashFiles('src-tauri/gen/android/**/*.gradle.kts', 'src-tauri/gen/android/**/*.gradle', 'src-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties', 'src-tauri/Cargo.lock') }}
+          restore-keys: |
+            gradle-android-${{ hashFiles('src-tauri/gen/android/**/*.gradle.kts', 'src-tauri/gen/android/**/*.gradle', 'src-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties', 'src-tauri/Cargo.lock') }}-
+            gradle-android-
       - run: npm ci
 
       # Secrets are passed via env, not inline ${{ }}, so quoting in a password
@@ -318,14 +341,14 @@ jobs:
         if: env.HAS_KEYSTORE == 'true'
         run: |
           export NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
-          npx tauri android build --target aarch64
+          npx tauri android build --apk --target aarch64
 
       - name: Build debug APK (no keystore configured)
         if: env.HAS_KEYSTORE != 'true'
         run: |
           echo "::warning::No ANDROID_KEYSTORE_BASE64 secret - building a debug-signed APK. Add signing secrets for proper release builds."
           export NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
-          npx tauri android build --debug --target aarch64
+          npx tauri android build --apk --debug --target aarch64
 
       # Renamed in place, so the attach step's glob matches it.
       - name: Name APK
@@ -414,15 +437,14 @@ jobs:
           echo "CEF_PATH=$RUNNER_TEMP/cef" >> "$GITHUB_ENV"
           echo "CEF_TOOLS_DIR=$RUNNER_TEMP/linux-tools" >> "$GITHUB_ENV"
       # cef-dll-sys downloads the CEF distribution into CEF_PATH when missing.
-      # The key follows tauri-runtime-cef's pinned cef crate. Tag runs restore
-      # caches saved on the default branch, which a tauri.yml linux run dispatched
-      # on master fills; with none, cef-dll-sys downloads the distribution.
-      - uses: actions/cache@v4
+      # The key follows tauri-runtime-cef's pinned cef crate. tauri.yml's linux
+      # job saves it on master; with none, cef-dll-sys downloads the distribution.
+      - uses: actions/cache/restore@v4
         if: steps.tree.outputs.built == 'true'
         with:
           path: ${{ runner.temp }}/cef
           key: cef-152.3.0+152.0.6-linux-x86_64
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         if: steps.tree.outputs.built == 'true'
         with:
           path: ${{ runner.temp }}/linux-tools
@@ -433,6 +455,7 @@ jobs:
         if: steps.tree.outputs.built == 'true'
         with:
           workspaces: src-tauri
+          save-if: false
       - run: npm ci
         if: steps.tree.outputs.built == 'true'
       - name: Build deb

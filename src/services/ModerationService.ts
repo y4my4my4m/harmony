@@ -1,5 +1,11 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
+import { syncVoiceMember } from '@/services/voice/voiceModerationApi'
+
+/** The kicked or banned member leaves the server's LiveKit rooms; the database already removed their voice rows. */
+function leaveVoice(serverId: string, userId: string): void {
+  void syncVoiceMember(serverId, userId).catch((error) => debug.warn('Voice sync after removal failed:', error))
+}
 
 export interface ServerBan {
   id: string
@@ -42,6 +48,7 @@ class ModerationService {
         return { success: false, error: error.message }
       }
 
+      leaveVoice(serverId, userId)
       return { success: true, messagesDeleted: data?.messages_deleted || 0 }
     } catch (err: any) {
       debug.error('Kick member exception:', err)
@@ -68,6 +75,7 @@ class ModerationService {
         return { success: false, error: error.message }
       }
 
+      leaveVoice(serverId, userId)
       return { success: true, messagesDeleted: data?.messages_deleted || 0 }
     } catch (err: any) {
       debug.error('Ban member exception:', err)

@@ -185,6 +185,7 @@ import { useUserData } from '@/composables/useUserData';
 import { roleService, Permission } from '@/services/RoleService';
 import { authContextService } from '@/services/AuthContextService';
 import { debug } from '@/utils/debug';
+import { styleRect, styleViewport } from '@/utils/appZoom';
 import type { User } from '@/types';
 import Icon from '@/components/common/Icon.vue';
 
@@ -330,7 +331,7 @@ const menuStyle = computed(() => ({
 
 /**
  * Clamps the menu into the viewport. Runs after the menu is in the DOM;
- * size comes from `getBoundingClientRect()` since the item set is
+ * size comes from `styleRect()` since the item set is
  * conditional and cannot be hard-coded.
  */
 async function repositionMenu() {
@@ -339,9 +340,8 @@ async function repositionMenu() {
 
   if (!menuRef.value) return;
 
-  const rect = menuRef.value.getBoundingClientRect();
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
+  const rect = styleRect(menuRef.value);
+  const { width: vw, height: vh } = styleViewport();
   const padding = 8;
 
   let x = props.position.x;

@@ -24,7 +24,7 @@
     >
       <div class="server-icon-wrap">
         <img
-          :src="getServerIconUrl(server.icon)"
+          :src="getServerIconUrl(server.icon, 96, server.name)"
           :alt="server.name"
           class="server-icon"
         />

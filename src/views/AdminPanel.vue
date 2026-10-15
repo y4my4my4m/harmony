@@ -163,6 +163,10 @@
       <FundingSupporters />
     </div>
 
+    <div v-else-if="activeAdminTab === 'drive'" class="admin-grid single">
+      <DriveAdmin />
+    </div>
+
     <div v-else-if="activeAdminTab === 'emojis'" class="admin-grid single">
       <InstanceEmojiAdmin />
       <div class="admin-module emoji-module">
@@ -215,6 +219,7 @@ const FeaturedCommunities = defineAsyncComponent(() => import('@/components/admi
 const WelcomeServerAdmin = defineAsyncComponent(() => import('@/components/admin/WelcomeServerAdmin.vue'))
 const InstanceConfig = defineAsyncComponent(() => import('@/components/admin/InstanceConfig.vue'))
 const FundingSupporters = defineAsyncComponent(() => import('@/components/admin/FundingSupporters.vue'))
+const DriveAdmin = defineAsyncComponent(() => import('@/components/admin/DriveAdmin.vue'))
 import { adminService } from '@/services/AdminService'
 import { useProfileStore } from '@/stores/useProfile'
 
@@ -235,6 +240,7 @@ const adminTabs = [
   { key: 'emojis', label: t('admin.instanceEmojis.tab'), icon: 'emoji' },
   { key: 'config', label: 'Config', icon: 'settings' },
   { key: 'funding', label: 'Funding', icon: 'heart' },
+  { key: 'drive', label: t('drive.title'), icon: 'hard-drive' },
   { key: 'tools', label: 'Tools', icon: 'wrench' },
 ] as const
 type AdminTabKey = typeof adminTabs[number]['key']
@@ -408,7 +414,7 @@ const formatNumber = (num: number | undefined) => {
 .admin-panel {
   padding: 24px;
   background: var(--background-primary);
-  min-height: 100vh;
+  min-height: calc(100 * var(--app-vh));
   color: var(--text-primary);
   font-family: var(--font-family);
   overflow-y: auto;
@@ -2301,7 +2307,7 @@ const formatNumber = (num: number | undefined) => {
 
 
   .admin-module {
-    max-width: calc(100vw - 32px);
+    max-width: calc(100 * var(--app-vw) - 32px);
   }
 
 
@@ -2365,7 +2371,7 @@ const formatNumber = (num: number | undefined) => {
 
 
   .admin-module {
-    max-width: calc(100vw - 24px);
+    max-width: calc(100 * var(--app-vw) - 24px);
   }
 
 

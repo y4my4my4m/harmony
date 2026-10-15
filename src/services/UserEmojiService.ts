@@ -1,5 +1,11 @@
+import { v4 as uuidv4 } from 'uuid'
 import { supabase } from '@/supabase'
-import { cleanupEmojiReferences } from '@/services/emojiService'
+import {
+  cleanupEmojiReferences,
+  emojiNameFromFile,
+  prepareEmojiImage,
+  storeEmojiImage,
+} from '@/services/emojiService'
 import { invalidateEmojiResolverCache } from '@/services/emojiShortcodeResolver'
 import { useEmojiCacheStore } from '@/stores/useEmojiCache'
 
@@ -10,21 +16,55 @@ export interface MyEmoji {
   url: string | null
   is_ai_generated: boolean
   usage_count: number
+  file_size: number | null
   created_at: string
 }
 
-/** Mirrors the rename_my_emoji name check. */
-export const MY_EMOJI_NAME = /^[A-Za-z0-9_-]{2,64}$/
+const COLUMNS = 'id, name, url, is_ai_generated, usage_count, file_size, created_at'
+
+function toMyEmoji(row: Record<string, any>): MyEmoji {
+  return {
+    id: row.id,
+    name: row.name,
+    url: row.url ?? null,
+    is_ai_generated: row.is_ai_generated === true,
+    usage_count: row.usage_count ?? 0,
+    file_size: row.file_size ?? null,
+    created_at: row.created_at,
+  }
+}
 
 export async function listMyEmojis(profileId: string): Promise<MyEmoji[]> {
   const { data, error } = await supabase
     .from('emojis')
-    .select('id, name, url, is_ai_generated, usage_count, created_at')
+    .select(COLUMNS)
     .eq('scope', 'user')
     .eq('uploader', profileId)
     .order('created_at', { ascending: false })
   if (error) throw error
-  return ((data ?? []) as MyEmoji[]).map((row) => ({ ...row, usage_count: row.usage_count ?? 0 }))
+  return (data ?? []).map(toMyEmoji)
+}
+
+/**
+ * Personal upload: prepareEmojiImage and storeEmojiImage write <profile>/<uuid>.<ext> to the
+ * emojis bucket, then create_my_emoji records it. A refused record removes the object and rethrows:
+ * PERSONAL_EMOJI_LIMIT (23514), a bad path or url (22023), a file already recorded (23505).
+ * Throws UploadRejectedError for a file outside the bucket limits.
+ */
+export async function uploadMyEmoji(profileId: string, file: File): Promise<MyEmoji> {
+  const prepared = await prepareEmojiImage(file)
+  const path = `${profileId}/${uuidv4()}.${prepared.extension}`
+  const url = await storeEmojiImage(path, prepared)
+  const { data, error } = await supabase.rpc('create_my_emoji', {
+    p_name: emojiNameFromFile(file.name),
+    p_path: path,
+    p_url: url,
+  })
+  if (error || !data) {
+    await supabase.storage.from('emojis').remove([path])
+    throw error ?? new Error('create_my_emoji returned no row')
+  }
+  return toMyEmoji(data)
 }
 
 /** rename_my_emoji: 22023 invalid name, 23505 name taken, P0002 not the caller's. */
@@ -36,19 +76,34 @@ export async function renameMyEmoji(id: string, name: string): Promise<void> {
 /**
  * Deletes through the emojis_delete_user_scope policy. RLS filters a row the caller does
  * not own out of the delete, so an empty result raises P0002. The storage object stays,
- * as on admin_delete_instance_emoji.
+ * as on admin_delete_instance_emoji: federated copies of posts reference its URL.
  */
 export async function deleteMyEmoji(emoji: MyEmoji, profileId: string): Promise<void> {
+  const { success } = await deleteMyEmojis([emoji], profileId)
+  if (!success.length) throw Object.assign(new Error('Emoji not found'), { code: 'P0002' })
+}
+
+/** One delete for several of the caller's emojis; ids RLS filtered out land in failed. */
+export async function deleteMyEmojis(
+  emojis: MyEmoji[],
+  profileId: string,
+): Promise<{ success: string[]; failed: string[] }> {
+  const ids = emojis.map((e) => e.id)
   const { data, error } = await supabase
     .from('emojis')
     .delete()
-    .eq('id', emoji.id)
+    .in('id', ids)
     .eq('scope', 'user')
     .eq('uploader', profileId)
     .select('id')
   if (error) throw error
-  if (!data?.length) throw Object.assign(new Error('Emoji not found'), { code: 'P0002' })
-  await cleanupEmojiReferences({ id: emoji.id, name: emoji.name, url: emoji.url ?? '', scope: 'user' })
+  const deleted = new Set((data ?? []).map((row: { id: string }) => row.id))
+  for (const emoji of emojis) {
+    if (deleted.has(emoji.id)) {
+      await cleanupEmojiReferences({ id: emoji.id, name: emoji.name, url: emoji.url ?? '', scope: 'user' })
+    }
+  }
+  return { success: ids.filter((id) => deleted.has(id)), failed: ids.filter((id) => !deleted.has(id)) }
 }
 
 /** Refetches the picker's personal groups and drops resolved :name: lookups. */

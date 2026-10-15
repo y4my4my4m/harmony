@@ -171,6 +171,7 @@ import { debug } from '@/utils/debug'
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useServerPermissions } from '@/composables/useServerPermissions';
+import { useChannelMessagePermissions } from '@/composables/useChannelMessagePermissions';
 import { useDeveloperTools } from '@/composables/useDeveloperTools';
 import { usePinActions } from '@/composables/usePinActions';
 import { embedsSuppressed, hasEmbeddableParts, setEmbedsSuppressed } from '@/services/messageEmbeds';
@@ -242,7 +243,12 @@ const emit = defineEmits<{
 
 const { topEmojisForContextMenu, hasFrequentEmojis, recordEmojiUsage } = useFrequentEmojis();
 const { triggerReaction } = useHapticSettings();
-const { canPinMessages, canManageMessages } = useServerPermissions();
+const { canPinMessages: canPinServerWide } = useServerPermissions();
+// Channel-resolved, as pin_message and set_message_embeds_suppressed decide it.
+const { canPinMessages: canPinInChannel, canManageMessages, canCreateThreads, canEmbedLinks } = useChannelMessagePermissions(
+  () => props.serverId,
+  () => (props.conversationId ? null : props.channelId),
+);
 const { setPinned } = usePinActions();
 const { developerToolsEnabled } = useDeveloperTools();
 const reactionsStore = useReactionsStore();
@@ -251,16 +257,19 @@ const isPinned = computed(() => props.message?.is_pinned || false);
 const hasReactions = computed(() =>
   !!props.message && reactionsStore.getMessageReactions(props.message.id).length > 0
 );
-const canPin = computed(() => canPinMessages.value);
+const canPin = computed(() => (props.conversationId ? canPinServerWide.value : canPinInChannel.value));
 const toast = useToast();
 
-// The author, or MANAGE_MESSAGES in a server channel (set_message_embeds_suppressed).
+// The author, or MANAGE_MESSAGES in a server channel (set_message_embeds_suppressed). An author
+// without EMBED_LINKS in the channel cannot restore their message's embeds.
 const isEmbedsSuppressed = computed(() => embedsSuppressed(props.message));
 const canToggleEmbeds = computed(() => {
   const message = props.message;
   if (!message || (!hasEmbeddableParts(message) && !isEmbedsSuppressed.value)) return false;
   const authorId = message.user_id || (message as any).author_id;
-  if (authorId && authorId === props.currentUserId) return true;
+  if (authorId && authorId === props.currentUserId) {
+    return !isEmbedsSuppressed.value || !props.channelId || !!props.conversationId || canEmbedLinks.value !== false;
+  }
   return !!props.channelId && !props.conversationId && canManageMessages.value;
 });
 
@@ -284,8 +293,9 @@ const canReport = computed(() => {
 // - System messages: no reply/thread/edit rows
 // - Thread button: hidden when hideThreadActions is true
 const canReply = computed(() => !!props.message && !props.message.is_system);
+// create_thread needs CREATE_PUBLIC_THREADS in the message's channel.
 const canCreateThread = computed(
-  () => !!props.message && !props.message.is_system && !props.hideThreadActions
+  () => !!props.message && !props.message.is_system && !props.hideThreadActions && canCreateThreads.value
 );
 
 /**
@@ -718,6 +728,14 @@ const copyRawData = async () => {
 .context-menu-item :deep(.icon) {
   color: inherit !important;
   cursor: inherit;
+}
+
+/* Icons are 16 to 20px wide; a fixed box keeps the labels in one column. */
+.context-menu-item > :deep(:is(.icon-component, .icon)) {
+  display: inline-flex;
+  flex: 0 0 20px;
+  justify-content: center;
+  width: 20px;
 }
 
 .context-menu-item:hover,

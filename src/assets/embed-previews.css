@@ -19,13 +19,17 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.65rem 0.85rem;
+  padding: 0.25rem 0.3rem 0.25rem 0.75rem;
   background: var(--background-tertiary-alpha, #1c1f26aa);
   backdrop-filter: blur(10px);
 }
 
 .provider-embed__label {
-  font-size: 0.75rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.7rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-secondary, #9ca3af);
@@ -33,23 +37,28 @@
 
 .provider-embed__actions {
   display: flex;
-  gap: 0.35rem;
+  flex-shrink: 0;
+  gap: 0.15rem;
 }
 
 .embed-action {
-  font-size: 0.8rem;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 999px;
-  padding: 0.2rem 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
   background: transparent;
-  color: var(--text-primary, #fff);
+  color: var(--text-secondary, #9ca3af);
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .embed-action:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.25);
+  background: var(--background-modifier-hover);
+  color: var(--text-primary, #fff);
 }
 
 /* .provider-embed__content {
@@ -72,6 +81,15 @@
 
 .provider-embed__media--video {
   aspect-ratio: 16 / 9;
+}
+
+/* Portrait media (YouTube Shorts): the card narrows to the frame. */
+.provider-embed.provider-embed--portrait {
+  max-width: min(100%, 320px);
+}
+
+.provider-embed__media--portrait {
+  aspect-ratio: 9 / 16;
 }
 
 .provider-embed__media--spotify {
@@ -355,7 +373,7 @@
 a:hover > .link-embed-card--thumbnail,
 .link-embed-card--thumbnail:hover {
   background: var(--background-tertiary, rgba(28, 31, 38, 0.7));
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: var(--border-hover);
 }
 
 .link-embed-card--thumbnail .link-embed-card__media {
@@ -550,11 +568,22 @@ a:hover > .link-embed-card--thumbnail,
 }
 
 
-/* Media-first card (GIF pages etc.): the image IS the content, so it stacks
-   above the meta line at natural aspect instead of a cropped 100px square. */
+/* Media-first card (GIF pages, og:video): the media IS the content, so it
+   stacks above the meta line at natural aspect instead of a cropped 100px
+   square. The card narrows to the media; the text takes the media's width
+   and adds none of its own. */
+.provider-embed:has(.link-embed-card--media) {
+  width: fit-content;
+}
+
 .link-embed-card--media {
   flex-direction: column;
   align-items: flex-start;
+}
+
+.link-embed-card--media .link-embed-card__body {
+  width: 0;
+  min-width: 100%;
 }
 
 .link-embed-card--media .link-embed-card__media {
@@ -571,4 +600,21 @@ a:hover > .link-embed-card--thumbnail,
   max-width: 100%;
   max-height: 320px;
   object-fit: contain;
+}
+
+.link-embed-card__media--video {
+  position: relative;
+}
+
+.link-embed-card__media--video video {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  background: #000;
+}
+
+.link-embed-card--media .link-embed-card__media--video video {
+  width: auto;
+  max-width: 100%;
+  height: auto;
 }

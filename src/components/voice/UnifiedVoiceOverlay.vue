@@ -2,7 +2,6 @@
   <Teleport to="body">
     <!-- Overlay and its popovers: one root, so everything outside it is inert while the call view is open -->
     <div ref="layerEl" class="voice-overlay-layer">
-    <!-- Background blur -->
     <div class="overlay-backdrop" :class="{ 'overlay-entering': isEntering, 'overlay-leaving': isLeaving }"></div>
     <div
       v-if="voiceStore.isOverlayVisible"
@@ -141,9 +140,40 @@
         >
           <div class="stage-banner">
             <VoiceCallBanner />
+            <ActivityInvite v-if="activitiesStore.waiting" :activity="activitiesStore.waiting" class="stage-invite" @click.stop />
           </div>
+          <!-- Activity: the shared player, the call as a filmstrip -->
+          <template v-if="stageActivity">
+            <div class="focus-area activity-area" @click.stop>
+              <ActivityStage :activity="stageActivity" />
+            </div>
+            <div v-if="tiles.length > 0" class="filmstrip-container" @click.stop>
+              <button
+                type="button"
+                class="filmstrip-toggle"
+                :aria-expanded="!filmstripHidden"
+                data-testid="activity-filmstrip-toggle"
+                @click="toggleFilmstrip"
+              >
+                <Icon :name="filmstripHidden ? 'chevron-up' : 'chevron-down'" :size="14" />
+                {{ filmstripHidden ? t('voice.showParticipants', { count: tiles.length }) : t('voice.hideParticipants') }}
+              </button>
+              <div v-if="!filmstripHidden" class="filmstrip">
+                <VoiceTile
+                  v-for="tile in tiles"
+                  :key="tile.id"
+                  :user-state="tile.userState"
+                  :source="tile.source"
+                  class="filmstrip-tile"
+                  @expand="focusTile(tile)"
+                  @request-fullscreen="fullscreenTile(tile)"
+                />
+              </div>
+            </div>
+          </template>
+
           <!-- Grid view -->
-          <div v-if="!focusedTile" ref="gridEl" class="tile-grid">
+          <div v-else-if="!focusedTile" ref="gridEl" class="tile-grid">
             <VoiceTile
               v-for="tile in tiles"
               :key="tile.id"
@@ -221,15 +251,20 @@
                 :class="{
                   active: !voiceStore.localState.isMuted && (!isPTTMode || isPTTActive),
                   muted: voiceStore.localState.isMuted,
+                  locked: voiceStore.speakLocked,
                   'ptt-mode': isPTTMode,
                   'ptt-active': isPTTActive && !voiceStore.localState.isMuted
                 }"
                 :title="micTitle"
                 :aria-label="t('voice.mute')"
                 :aria-pressed="voiceStore.localState.isMuted"
+                :aria-disabled="voiceStore.speakLocked || undefined"
+                :aria-description="voiceStore.speakLockReason ? t(voiceStore.speakLockReason) : undefined"
+                :data-locked="voiceStore.speakLocked ? 'true' : undefined"
                 data-testid="voice-mute"
               >
                 <Icon :name="voiceStore.localState.isMuted ? 'mic-off' : 'mic'" />
+                <Icon v-if="voiceStore.speakLocked" name="lock" :size="10" class="lock-badge" aria-hidden="true" />
                 <span v-if="isPTTMode && !voiceStore.localState.isMuted" class="ptt-badge" :class="{ active: isPTTActive }" aria-hidden="true">PTT</span>
               </button>
               <DeviceSelector type="input" @open-settings="showSettings = true" />
@@ -242,20 +277,24 @@
                 class="control-button"
                 :class="{
                   active: !voiceStore.localState.isDeafened,
-                  deafened: voiceStore.localState.isDeafened
+                  deafened: voiceStore.localState.isDeafened,
+                  locked: voiceStore.deafenLocked
                 }"
-                :title="withShortcut(t('voice.deafen'), 'toggle-deafen')"
+                :title="voiceStore.deafenLocked ? t('voice.moderation.serverDeafenedHint') : withShortcut(t('voice.deafen'), 'toggle-deafen')"
                 :aria-label="t('voice.deafen')"
                 :aria-pressed="voiceStore.localState.isDeafened"
+                :aria-disabled="voiceStore.deafenLocked || undefined"
+                :data-locked="voiceStore.deafenLocked ? 'true' : undefined"
                 data-testid="voice-deafen"
               >
                 <Icon :name="voiceStore.localState.isDeafened ? 'headphones-off' : 'headphones'" />
+                <Icon v-if="voiceStore.deafenLocked" name="lock" :size="10" class="lock-badge" aria-hidden="true" />
               </button>
               <DeviceSelector type="output" @open-settings="showSettings = true" />
             </div>
 
-            <!-- Camera with device selector (independent of screenshare) -->
-            <div class="control-group">
+            <!-- Camera with device selector (independent of screenshare); STREAM governs both -->
+            <div v-if="voiceStore.canStream" class="control-group">
               <button
                 @click="voiceStore.toggleVideo()"
                 class="control-button"
@@ -271,6 +310,7 @@
 
             <!-- Screen share: opens Go live (quality first); while live, stream settings and stop -->
             <button
+              v-if="voiceStore.canStream"
               ref="shareButtonRef"
               @click="openStreamPicker"
               class="control-button"
@@ -284,8 +324,9 @@
               <Icon name="screen-share" />
             </button>
 
+            <!-- The activity view has its own react button, aimed at the player. -->
             <button
-              v-if="voiceStore.liveReactionsAvailable"
+              v-if="voiceStore.liveReactionsAvailable && !stageActivity"
               ref="reactButtonRef"
               @click="showReactions = !showReactions"
               class="control-button"
@@ -296,6 +337,21 @@
               :aria-expanded="showReactions"
             >
               <Icon name="smile-plus" />
+            </button>
+
+            <button
+              v-if="activityButton.available.value"
+              ref="activityButtonRef"
+              @click="activityButton.toggle"
+              class="control-button"
+              :class="{ active: activityButton.visible.value || activityButton.running.value }"
+              :title="t('activities.title')"
+              :aria-label="t('activities.title')"
+              aria-haspopup="dialog"
+              :aria-expanded="activityButton.visible.value"
+              data-testid="overlay-activity-button"
+            >
+              <Icon name="popcorn" />
             </button>
 
             <button
@@ -390,6 +446,10 @@ import StreamQualityPicker from './StreamQualityPicker.vue';
 import LiveReactionPopover from './LiveReactionPopover.vue';
 import SoundboardActivity from './SoundboardActivity.vue';
 import { useSoundboardButton } from './useSoundboardButton';
+import { useActivityButton } from '@/components/activities/useActivityButton';
+import { useActivitiesStore } from '@/stores/activities';
+import ActivityStage from '@/components/activities/ActivityStage.vue';
+import ActivityInvite from '@/components/activities/ActivityInvite.vue';
 import ConfettiEffect from '../easteregg/ConfettiEffect.vue';
 import Icon from '@/components/common/Icon.vue';
 import DisplayName from '@/components/DisplayName.vue';
@@ -399,6 +459,7 @@ import Avatar from '@/components/common/Avatar.vue';
 import { useUserData } from '@/composables/useUserData';
 import { dmCallSignaling } from '@/services/DMCallSignaling';
 import { dmConversationIdFromChannel } from '@/composables/useCallSwitch';
+import { styleRect } from '@/utils/appZoom';
 
 const SoundboardPopover = defineAsyncComponent(() => import('./SoundboardPopover.vue'));
 
@@ -423,6 +484,19 @@ const streamPickerAnchor = ref<Rect | null>(null);
 
 const soundboardButtonRef = ref<HTMLButtonElement | null>(null);
 const soundboardButton = useSoundboardButton(soundboardButtonRef);
+const activityButtonRef = ref<HTMLButtonElement | null>(null);
+const activityButton = useActivityButton(activityButtonRef);
+const activitiesStore = useActivitiesStore();
+const stageActivity = computed(() => (activitiesStore.playingHere ? activitiesStore.current : null));
+
+const FILMSTRIP_KEY = 'harmony:activity-filmstrip-hidden';
+const filmstripHidden = ref((() => {
+  try { return localStorage.getItem(FILMSTRIP_KEY) === '1'; } catch { return false; }
+})());
+function toggleFilmstrip(): void {
+  filmstripHidden.value = !filmstripHidden.value;
+  try { localStorage.setItem(FILMSTRIP_KEY, filmstripHidden.value ? '1' : '0'); } catch { /* private mode */ }
+}
 
 watch(showStreamPicker, (open) => {
   if (!open) void nextTick(() => restoreFocusIfLost(shareButtonRef.value));
@@ -433,7 +507,7 @@ const openStreamPicker = () => {
     showStreamPicker.value = false;
     return;
   }
-  const r = shareButtonRef.value?.getBoundingClientRect();
+  const r = shareButtonRef.value ? styleRect(shareButtonRef.value) : null;
   streamPickerAnchor.value = r ? { left: r.left, top: r.top, width: r.width, height: r.height } : null;
   showStreamPicker.value = true;
 };
@@ -470,6 +544,7 @@ const gridEl = ref<HTMLElement | null>(null);
 const settingsButtonRef = ref<HTMLButtonElement | null>(null);
 
 const micTitle = computed(() => {
+  if (voiceStore.speakLockReason) return t(voiceStore.speakLockReason);
   if (!voiceStore.localState.isMuted && isPTTMode.value) {
     return isPTTActive.value
       ? t('voice.pttTransmitting', { key: pttKeyDisplay.value })
@@ -719,7 +794,7 @@ watch(gridEl, (el) => {
       }
     });
     resizeObserver.observe(el);
-    const rect = el.getBoundingClientRect();
+    const rect = styleRect(el);
     stageSize.value = { width: rect.width, height: rect.height };
   }
 });
@@ -983,6 +1058,9 @@ onUnmounted(() => {
   animation: overlay-leave 0.3s cubic-bezier(0.55, 0.06, 0.68, 0.19);
 }
 
+/* Flat scrim, no backdrop blur: the call panel covers all but the margin, and a full-window
+   blur re-renders on every video frame (activity player, cameras): 1.1 s of CPU per second
+   against 0.07 s flat, measured in Chromium with a YouTube activity playing. */
 .overlay-backdrop {
   position: absolute;
   top: 0;
@@ -990,8 +1068,8 @@ onUnmounted(() => {
   right: 0;
   bottom: 0;
   z-index: 1000;
-  backdrop-filter: blur(8px);
-  transition: all 0.3s ease;
+  background: rgba(0, 0, 0, 0.55);
+  transition: opacity 0.3s ease;
   opacity: 1;
 }
 .overlay-backdrop.overlay-entering {
@@ -999,12 +1077,6 @@ onUnmounted(() => {
 }
 .overlay-backdrop.overlay-leaving {
   opacity: 0;
-}
-
-/* Appearance > blur off: a flat scrim instead of backdrop blur. */
-:root[data-disable-blur="true"] .overlay-backdrop {
-  backdrop-filter: none;
-  background: rgba(0, 0, 0, 0.55);
 }
 
 :root[data-disable-blur="true"] .settings-overlay-wrapper {
@@ -1035,6 +1107,9 @@ onUnmounted(() => {
   top: 12px;
   left: 50%;
   z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   transform: translateX(-50%);
   width: min(460px, calc(100% - 24px));
   pointer-events: none;
@@ -1043,6 +1118,10 @@ onUnmounted(() => {
 .stage-banner :deep(.vcb) {
   pointer-events: auto;
   box-shadow: var(--shadow-medium);
+}
+
+.stage-invite {
+  pointer-events: auto;
 }
 
 .voice-container {
@@ -1054,7 +1133,7 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   max-width: 1600px;
-  max-height: 94vh;
+  max-height: calc(94 * var(--app-vh));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1305,6 +1384,11 @@ onUnmounted(() => {
   background: color-mix(in srgb, #000 35%, transparent);
 }
 
+/* The 35% black over the light window is a flat #a0a0a0 between white chrome and tiles. */
+:root[data-theme-type="light"] .stage {
+  background: var(--background-quinary);
+}
+
 .voice-container.native-fullscreen .stage {
   padding: 0;
   background: #000;
@@ -1333,6 +1417,11 @@ onUnmounted(() => {
   display: flex;
 }
 
+.activity-area {
+  padding: 12px 16px;
+  overflow-y: auto;
+}
+
 .focus-tile {
   flex: 1;
   min-height: 0;
@@ -1343,7 +1432,27 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   flex-shrink: 0;
+  gap: 6px;
   padding-top: 4px;
+}
+
+.filmstrip-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  background: none;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-full);
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.filmstrip-toggle:hover {
+  color: var(--text-primary);
+  border-color: var(--border-hover);
 }
 
 .filmstrip-collapse-btn {
@@ -1454,6 +1563,18 @@ onUnmounted(() => {
   background: var(--success);
   color: var(--text-on-primary);
   border-color: var(--success);
+}
+
+.control-button.locked {
+  position: relative;
+  cursor: not-allowed;
+}
+
+.control-button .lock-badge {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  color: var(--text-danger);
 }
 
 .control-button.muted {
@@ -1638,7 +1759,7 @@ onUnmounted(() => {
 
   .voice-container {
     border-radius: 0;
-    max-height: 100vh;
+    max-height: calc(100 * var(--app-vh));
     height: 100%;
   }
 

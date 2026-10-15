@@ -112,11 +112,7 @@
                   @click="selectRecentSearch(search)"
                   class="recent-item"
                 >
-                  <img 
-                    :src="search.avatar_url || '/default_avatar.webp'" 
-                    alt=""
-                    class="recent-avatar"
-                  />
+                  <Avatar :src="search.avatar_url" size="sm" class="recent-avatar" />
                   <div class="recent-info">
                     <div class="recent-name"><DisplayName :userId="search.id" :fallback="search.display_name || search.username" /></div>
                     <div class="recent-handle">{{ search.handle }}</div>
@@ -178,6 +174,7 @@ import { debug } from '@/utils/debug'
 import { activityPubService } from '@/services/activityPubService';
 import type { FederatedUser } from '@/types';
 import Icon from '@/components/common/Icon.vue';
+import Avatar from '@/components/common/Avatar.vue';
 import EmptyState from '@/components/common/EmptyState.vue';
 import UserCard from './UserCard.vue';
 import DisplayName from '@/components/DisplayName.vue';
@@ -405,7 +402,7 @@ onUnmounted(() => {
 .search-modal {
   width: 100%;
   max-width: 600px;
-  height: 80vh;
+  height: calc(80 * var(--app-vh));
   background: var(--background-quaternary);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-modal);
@@ -633,11 +630,10 @@ onUnmounted(() => {
   background: var(--background-modifier-selected);
 }
 
-.recent-avatar {
+/* Drawn at 32px from the "sm" (40px) variant the message list fetches. */
+.recent-item .recent-avatar {
   width: 32px;
   height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
 }
 
 .recent-info {
@@ -707,7 +703,7 @@ onUnmounted(() => {
   }
   
   .search-modal {
-    height: 100vh;
+    height: calc(100 * var(--app-vh));
     border-radius: 0;
   }
   

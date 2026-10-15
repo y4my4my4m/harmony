@@ -501,7 +501,7 @@
 .sec-modal {
   width: 100%;
   max-width: 440px;
-  max-height: calc(100vh - 32px);
+  max-height: calc(100 * var(--app-vh) - 32px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;

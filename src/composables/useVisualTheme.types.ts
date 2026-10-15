@@ -103,4 +103,6 @@ export interface VisualThemeSettings {
   bridgeSourceBadge?: 'icon' | 'text'
   /** Blurred server banner behind the invite dialog. Default: true (opt-out). */
   inviteBannerBackground?: boolean
+  /** Video controls: Harmony's player (default) or the browser's own. */
+  videoPlayer?: 'harmony' | 'native'
 }

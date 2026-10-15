@@ -392,6 +392,26 @@ const router = createRouter({
       component: () => import('@/views/AdminPanel.vue'),
       meta: { requiresAuth: true, requiresStaff: true, titleKey: 'settings.administration' }
     },
+    {
+      path: '/drive/:section?/:id?',
+      name: 'Drive',
+      component: () => import('@/views/DriveView.vue'),
+      meta: { requiresAuth: true, titleKey: 'drive.title' }
+    },
+    // A Drive file shared by link; readable without an account.
+    {
+      path: '/d/:token',
+      name: 'DriveLink',
+      component: () => import('@/views/DriveLinkView.vue'),
+      meta: { requiresAuth: false, providesMain: true, titleKey: 'drive.link.title' }
+    },
+    // Web Share Target (manifest share_target): GET title, text, url.
+    {
+      path: '/share',
+      name: 'Share',
+      component: () => import('@/views/ShareView.vue'),
+      meta: { requiresAuth: true, titleKey: 'share.title' }
+    },
     // "Today" dashboard (beta, gated by a per-user setting)
     {
       path: '/today',
@@ -455,7 +475,7 @@ const router = createRouter({
 
 const PROFILE_EXEMPT_ROUTES = new Set([
   'NewProfile', 'Login', 'Register', 'Home', 'ResetPassword',
-  'AuthCallback', 'NotFoundPublic', 'NotFound', 'CatchAll'
+  'AuthCallback', 'NotFoundPublic', 'NotFound', 'CatchAll', 'DriveLink'
 ])
 
 router.beforeEach(async (to, from, next) => {

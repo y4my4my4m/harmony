@@ -1,14 +1,16 @@
 /**
- * Live reactions: emoji that float over a stream or video tile for everyone
- * in the call. Carried as lossy LiveKit data on LIVE_REACTION_TOPIC; nothing
+ * Live reactions: emoji that float over a stream or video tile, or over the
+ * call's activity player, for everyone in the call. Carried as lossy LiveKit data on LIVE_REACTION_TOPIC; nothing
  * is stored.
  *
  * Wire message, JSON in UTF-8, at most MAX_LIVE_REACTION_BYTES:
  *   { type: 'live_reaction',
  *     emoji: { kind: 'unicode' | 'custom', value: string },
  *     targetParticipant?: string,          room identity of the tile owner
- *     targetSource?: 'camera' | 'screen' } default 'camera'
+ *     targetSource?: 'camera' | 'screen' | 'activity' } default 'camera'
  * Without targetParticipant the reaction lands on the sender's camera tile.
+ * targetSource 'activity' lands on the activity player and carries no
+ * targetParticipant; clients before 1.8.1 drop it as invalid.
  * A custom emoji travels as its id; a receiver renders it only from its own
  * emoji cache, never from a URL in the message.
  */
@@ -35,7 +37,7 @@ export const MAX_ON_SCREEN = 40;
 /** Flight time, ms. */
 export const LIVE_REACTION_LIFETIME_MS = 3000;
 
-export type LiveReactionSource = 'camera' | 'screen';
+export type LiveReactionSource = 'camera' | 'screen' | 'activity';
 
 export type LiveReactionEmoji =
   | { kind: 'unicode'; value: string }
@@ -73,21 +75,26 @@ export interface LiveReaction {
 
 export type SendResult = 'sent' | 'rate_limited' | 'unavailable' | 'invalid';
 
-/** LiveKit carries the reactions, and they show only over video: audio-only calls get none. */
+/** LiveKit carries the reactions, and they show only over video or a playing activity. */
 export function liveReactionsAvailable(
   transport: 'livekit' | 'p2p' | null,
   participants: Iterable<{ isVideoEnabled: boolean; isScreenSharing: boolean }>,
+  activity = false,
 ): boolean {
   if (transport !== 'livekit') return false;
+  if (activity) return true;
   for (const p of participants) {
     if (p.isVideoEnabled || p.isScreenSharing) return true;
   }
   return false;
 }
 
+/** The activity player is one surface per call, whoever sent the reaction. */
 export function liveReactionKey(userId: string, source: LiveReactionSource): string {
-  return `${userId}:${source}`;
+  return source === 'activity' ? 'activity' : `${userId}:${source}`;
 }
+
+export const ACTIVITY_REACTION_TARGET: LiveReactionTarget = { userId: '', source: 'activity' };
 
 /** Refills continuously at capacity per windowMs. */
 export class TokenBucket {
@@ -154,7 +161,7 @@ export function parseLiveReaction(raw: unknown): LiveReactionMessage | null {
     message.targetParticipant = target;
   }
   if (m.targetSource !== undefined) {
-    if (m.targetSource !== 'camera' && m.targetSource !== 'screen') return null;
+    if (m.targetSource !== 'camera' && m.targetSource !== 'screen' && m.targetSource !== 'activity') return null;
     message.targetSource = m.targetSource;
   }
   return message;
@@ -247,7 +254,10 @@ export class LiveReactionController {
 
     const message: LiveReactionMessage = { type: LIVE_REACTION_TYPE, emoji: valid };
     let key = liveReactionKey(self, 'camera');
-    if (target) {
+    if (target?.source === 'activity') {
+      message.targetSource = 'activity';
+      key = liveReactionKey(self, 'activity');
+    } else if (target) {
       const wireId = deps.toWireId(target.userId);
       if (wireId) {
         message.targetParticipant = wireId;
@@ -286,7 +296,9 @@ export class LiveReactionController {
     if (!message || !display) return null;
 
     let key = liveReactionKey(senderId, 'camera');
-    if (message.targetParticipant) {
+    if (message.targetSource === 'activity') {
+      key = liveReactionKey(senderId, 'activity');
+    } else if (message.targetParticipant) {
       const targetId = deps.fromWireId(message.targetParticipant);
       if (!targetId) return null;
       key = liveReactionKey(targetId, message.targetSource ?? 'camera');

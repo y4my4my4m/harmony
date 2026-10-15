@@ -21,10 +21,12 @@ import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/useProfile'
 import { debug } from '@/utils/debug'
 import { userStorage } from '@/utils/userScopedStorage'
+import { applyAppZoom } from '@/utils/appZoom'
 import { audioThemeService } from '@/services/AudioThemeService'
 import { BUILTIN_SKINS, type SkinScene } from './skins'
 import { setVerboseAnnouncements } from '@/composables/useAnnouncer'
 import type { VisualThemeSettings } from './useVisualTheme.types'
+import { setVideoPlayerPreference } from './useVideoPlayerPreference'
 
 const AUDIO_THEME_WHEN_SKIN_CLEARED = 'default'
 
@@ -296,6 +298,7 @@ function createDefaultSettings(theme: VisualThemeSettings['theme'] = 'dark'): Vi
     renderEmoticonsAsEmoji: true,
     inviteBannerBackground: true,
     bridgeSourceBadge: 'icon',
+    videoPlayer: 'harmony',
     fontFamily: 'system',
     glassEffectsEnabled: true,
     activeSkinId: null,
@@ -305,6 +308,7 @@ function createDefaultSettings(theme: VisualThemeSettings['theme'] = 'dark'): Vi
 
 // Global state (singleton pattern)
 const settings = ref<VisualThemeSettings>(createDefaultSettings(systemPreset()))
+watch(() => settings.value.videoPlayer, setVideoPlayerPreference, { immediate: true })
 
 const isInitialized = ref(false)
 const isSaving = ref(false)
@@ -442,6 +446,27 @@ function applyPresetTheme(themeName: 'dark' | 'light' | 'midnight') {
 let appliedOverrideVars = new Set<string>()
 
 /** Stylesheet text of built-in skins whose chunk has loaded, by id. */
+/** Reasons glass is off regardless of the setting, e.g. a playing video under blurred panels. */
+const glassSuspensions = new Set<string>()
+let glassSetting = true
+
+function syncGlassAttribute(): void {
+  const root = document.documentElement
+  if (!glassSetting || glassSuspensions.size > 0) root.setAttribute('data-disable-blur', 'true')
+  else root.removeAttribute('data-disable-blur')
+}
+
+/**
+ * Turns backdrop blur off while `reason` holds, without touching the saved setting. A blur over
+ * a playing video re-renders on every frame: 1.1 s of CPU per second under Skyglass's panels,
+ * 0.06 s without, measured in Chromium with a YouTube activity.
+ */
+export function suspendGlass(reason: string, suspended: boolean): void {
+  if (suspended) glassSuspensions.add(reason)
+  else glassSuspensions.delete(reason)
+  syncGlassAttribute()
+}
+
 const skinCssCache = new Map<string, string>()
 const skinCssLoads = new Map<string, Promise<string | null>>()
 
@@ -624,11 +649,8 @@ function applySettings(settings: VisualThemeSettings) {
   // framing (`glassEffectsEnabled`), but the CSS hook stays
   // `data-disable-blur` because that's what the global rule in
   // `design-system.css` keys off - internal implementation detail.
-  if (!settings.glassEffectsEnabled) {
-    root.setAttribute('data-disable-blur', 'true')
-  } else {
-    root.removeAttribute('data-disable-blur')
-  }
+  glassSetting = !!settings.glassEffectsEnabled
+  syncGlassAttribute()
 
   // Apply active skin id (data attribute used by skin-scoped CSS rules)
   // and inject the skin's global CSS into a dedicated <style> tag so we
@@ -666,9 +688,7 @@ function applySettings(settings: VisualThemeSettings) {
   applySkinStyles(settings.activeSkinId, settings.customSkinCss)
   syncSkinScene(settings.activeSkinId, skinOptionValues)
   
-  // Apply zoom level. `zoom` is a non-standard CSS property not present on
-  // `CSSStyleDeclaration` in lib.dom, but every browser we target understands it.
-  ;(root.style as any).zoom = `${settings.zoomLevel}%`
+  applyAppZoom(settings.zoomLevel)
   
   if (settings.compactMode) {
     root.setAttribute('data-compact-mode', 'true')

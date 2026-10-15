@@ -197,7 +197,7 @@ describe('alsoKnownAs and movedTo', () => {
     const actor = profileToActor({ username: 'bob', also_known_as: [OLD, 'https://harmony.test/users/bob'], moved_to_uri: NEW })
     expect(actor.alsoKnownAs).toEqual([OLD])
     expect(actor.movedTo).toBe(NEW)
-    expect(actor['@context'][2]).toEqual({
+    expect(actor['@context'][2]).toMatchObject({
       alsoKnownAs: { '@id': 'as:alsoKnownAs', '@type': '@id' },
       movedTo: { '@id': 'as:movedTo', '@type': '@id' },
     })

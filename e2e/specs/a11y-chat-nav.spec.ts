@@ -83,6 +83,9 @@ async function directConversation(a: SpecUser, b: SpecUser, text: string): Promi
 test.describe.configure({ mode: 'serial' })
 
 test.beforeAll(async () => {
+  // Seeding runs again in each retry's fresh worker; on a loaded CI runner it outlasts the
+  // default 30 s and fails every test of the file.
+  test.setTimeout(120_000)
   owner = await createUser(admin, 'navo')
   reader = await createUser(admin, 'navr')
   friend = await createUser(admin, 'navf')
@@ -441,6 +444,13 @@ test('DM list: a row is a link, Enter opens it; dismiss is a separate button and
   })
 
   await test.step('dismissing leaves an Undo that takes focus; Enter on it restores the row', async () => {
+    // The dismiss request is held back so the Undo's request is sent while it is in flight:
+    // the server must still end up with the conversation shown.
+    const rpc = '**/rest/v1/rpc/set_conversation_hidden'
+    await page.route(rpc, async (route) => {
+      if (route.request().postDataJSON()?.p_hidden === true) await new Promise((r) => setTimeout(r, 1500))
+      await route.continue()
+    })
     await page.keyboard.press('Enter')
     await expect(ownerLink).toHaveCount(0)
     const undo = list.getByRole('button', { name: 'Undo' })
@@ -458,6 +468,15 @@ test('DM list: a row is a link, Enter opens it; dismiss is a separate button and
         .single()
       return data?.hidden_at ?? null
     }, { timeout: 15000 }).toBeNull()
+    await page.waitForTimeout(2000)
+    const { data: settled } = await admin
+      .from('conversation_participants')
+      .select('hidden_at')
+      .eq('conversation_id', conversation.owner)
+      .eq('user_id', reader.id)
+      .single()
+    expect(settled?.hidden_at ?? null).toBeNull()
+    await page.unroute(rpc)
   })
 
   await test.step('a dismissal left alone persists', async () => {
@@ -486,6 +505,12 @@ test('DM list: a row is a link, Enter opens it; dismiss is a separate button and
 
 test('member list: labelled search with a named clear button; rows name presence; headers expand', async ({ page }) => {
   test.setTimeout(120_000)
+  // The owner's tabs in earlier tests heartbeated under 150 s ago, which presence_sweep still
+  // counts as online: write the owner offline as the sweep leaves a closed tab.
+  const { error: devicesError } = await admin.from('presence_devices').delete().eq('profile_id', owner.id)
+  if (devicesError) throw new Error(`presence_devices: ${devicesError.message}`)
+  const { error: presenceError } = await admin.from('user_presence').update({ online: false, published_status: 0 }).eq('profile_id', owner.id)
+  if (presenceError) throw new Error(`user_presence: ${presenceError.message}`)
   await signIn(page, reader)
   await openChannel(page, server.id, server.generalChannelId)
   const members = page.getByRole('complementary', { name: 'Members' })
@@ -562,6 +587,14 @@ test('thread panel: a modal dialog; focus moves in, Escape closes and returns to
   test.setTimeout(150_000)
   await signIn(page, reader)
   await openChannel(page, server.id, server.generalChannelId)
+  // The panel reads the reader's membership after it opens. Held until the options menu
+  // holds focus, the answer must not replace the item focus sits on.
+  let releaseMembership!: () => void
+  const membershipHeld = new Promise<void>((resolve) => { releaseMembership = resolve })
+  await page.route('**/rest/v1/thread_members*', async (route) => {
+    await membershipHeld
+    await route.continue()
+  })
   const view = page.locator('[data-testid="message-list"]').getByRole('button', { name: /View Thread/ })
   await expect(view).toBeVisible({ timeout: 30000 })
   await view.focus()
@@ -581,6 +614,12 @@ test('thread panel: a modal dialog; focus moves in, Escape closes and returns to
     await page.keyboard.press('Enter')
     const menu = page.getByRole('menu', { name: 'Thread options' })
     await expect(menu).toBeVisible()
+    await expectFocused(menu.getByRole('menuitem').first())
+    const membership = page.waitForResponse((r) => r.url().includes('/rest/v1/thread_members'))
+    releaseMembership()
+    await membership
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+    await expect(menu.getByRole('menuitem', { name: /Join thread/ })).toBeVisible()
     await expectFocused(menu.getByRole('menuitem').first())
     await page.keyboard.press('Escape')
     await expect(menu).toBeHidden()

@@ -114,11 +114,11 @@
       <div v-if="settings.theme === 'custom'" class="custom-color-section">
         <!-- Community Presets -->
         <div class="community-presets-section">
-          <h4 class="section-subtitle">Community presets</h4>
-          <p class="section-help">Quick-apply curated themes from the community</p>
-          <div class="presets-grid">
+          <h4 class="section-subtitle">{{ $t('settings.appearance.communityPresets') }}</h4>
+          <p class="section-help">{{ $t('settings.appearance.communityPresetsHelp') }}</p>
+          <div :id="`${a11yId}-presets`" class="presets-grid">
             <button
-              v-for="preset in communityPresets"
+              v-for="preset in visiblePresets"
               :key="preset.name"
               class="preset-card"
               @click="applyPresetTheme(preset)"
@@ -130,6 +130,20 @@
               </div>
             </button>
           </div>
+          <button
+            v-if="communityPresets.length > PRESETS_SHOWN"
+            type="button"
+            class="presets-more"
+            :aria-expanded="showAllPresets ? 'true' : 'false'"
+            :aria-controls="`${a11yId}-presets`"
+            data-testid="presets-more"
+            @click="showAllPresets = !showAllPresets"
+          >
+            {{ showAllPresets
+              ? $t('settings.appearance.showFewerPresets')
+              : $t('settings.appearance.showMorePresets', { count: communityPresets.length - PRESETS_SHOWN }) }}
+            <Icon name="chevron-down" :size="14" class="presets-more-chevron" :class="{ open: showAllPresets }" />
+          </button>
         </div>
 
         <h4 class="section-subtitle">{{ $t('settings.appearance.customTheme') }}</h4>
@@ -646,6 +660,26 @@
         </div>
       </div>
 
+      <div class="setting-item">
+        <div class="setting-info">
+          <h4 :id="`${a11yId}-player`" class="setting-label">{{ $t('settings.appearance.videoPlayer') }}</h4>
+          <p :id="`${a11yId}-player-desc`" class="setting-description">{{ $t('settings.appearance.videoPlayerDesc') }}</p>
+        </div>
+        <div class="setting-control">
+          <select
+            :value="settings.videoPlayer === 'native' ? 'native' : 'harmony'"
+            :aria-labelledby="`${a11yId}-player`"
+            :aria-describedby="`${a11yId}-player-desc`"
+            class="form-select"
+            data-testid="video-player-setting"
+            @change="settings.videoPlayer = ($event.target as HTMLSelectElement).value === 'native' ? 'native' : 'harmony'"
+          >
+            <option value="harmony">{{ $t('settings.appearance.videoPlayerHarmony') }}</option>
+            <option value="native">{{ $t('settings.appearance.videoPlayerNative') }}</option>
+          </select>
+        </div>
+      </div>
+
       <div v-if="instanceSettings.settings.allowCustomEmojisInDisplayNames" class="setting-item">
         <div class="setting-info">
           <h4 class="setting-label" :id="`${a11yId}-t6`">{{ $t('settings.appearance.showCustomEmojisInDisplayNames') }}</h4>
@@ -1033,7 +1067,7 @@ const customPreviewColors = computed(() =>
 
 const showAdvancedCss = ref(false)
 const colorExpanded = reactive({
-  background: true,
+  background: false,
   primary: false,
   accent: false,
 })
@@ -1153,6 +1187,9 @@ function applySavedTheme(id: string) {
 }
 
 const communityPresets = COMMUNITY_PRESETS
+const PRESETS_SHOWN = 3
+const showAllPresets = ref(false)
+const visiblePresets = computed(() => (showAllPresets.value ? communityPresets : communityPresets.slice(0, PRESETS_SHOWN)))
 const builtinSkins = BUILTIN_SKINS
 const themableVariables = visualTheme.getThemableVariables()
 
@@ -1248,7 +1285,7 @@ const selectTheme = (themeId: string) => {
   setTheme(themeId as 'dark' | 'light' | 'midnight' | 'custom')
   activeSavedThemeId.value = null
   if (themeId === 'custom') {
-    colorExpanded.background = true
+    colorExpanded.background = false
     colorExpanded.primary = false
     colorExpanded.accent = false
   }
@@ -1673,7 +1710,7 @@ onBeforeUnmount(() => {
   flex: 1;
   padding: 12px 16px;
   border: 2px solid var(--background-quaternary);
-  background-color: var(--background-senary);
+  background-color: var(--surface-inset);
   color: var(--text-secondary);
   border-radius: var(--radius-base);
   cursor: pointer;
@@ -1700,7 +1737,7 @@ onBeforeUnmount(() => {
   width: 44px;
   height: 44px;
   border: 2px solid var(--background-quaternary, var(--border-color));
-  background-color: var(--background-senary, var(--background-tertiary));
+  background-color: var(--surface-inset);
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: all 0.15s ease;
@@ -1734,7 +1771,7 @@ onBeforeUnmount(() => {
   gap: 8px;
   padding: 16px 20px;
   border: 2px solid var(--background-quaternary);
-  background-color: var(--background-senary);
+  background-color: var(--surface-inset);
   color: var(--text-secondary);
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -1817,7 +1854,7 @@ onBeforeUnmount(() => {
 .skin-card-preview {
   width: 100%;
   height: 140px;
-  background: var(--background-senary);
+  background: var(--surface-inset);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1834,17 +1871,20 @@ onBeforeUnmount(() => {
 .skin-card-preview-none {
   background: repeating-linear-gradient(
     45deg,
-    var(--background-senary),
-    var(--background-senary) 10px,
-    var(--background-secondary) 10px,
-    var(--background-secondary) 20px
+    var(--background-tertiary),
+    var(--background-tertiary) 10px,
+    var(--background-quaternary) 10px,
+    var(--background-quaternary) 20px
   );
 }
 
 .skin-card-none-label {
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  background: var(--background-secondary);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 .skin-card-info {
@@ -2271,7 +2311,7 @@ onBeforeUnmount(() => {
   width: 28px;
   height: 28px;
   border: 1px solid var(--background-quaternary);
-  background-color: var(--background-senary);
+  background-color: var(--surface-inset);
   color: var(--text-primary);
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -2300,7 +2340,7 @@ onBeforeUnmount(() => {
 
 .select-input {
   padding: 8px 12px;
-  background-color: var(--background-senary);
+  background-color: var(--surface-inset);
   border: 1px solid var(--background-quaternary);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
@@ -2438,6 +2478,33 @@ onBeforeUnmount(() => {
 }
 
 /* Community Presets */
+.presets-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 6px 10px;
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.presets-more:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
+}
+
+.presets-more-chevron {
+  transition: transform 0.15s ease;
+}
+
+.presets-more-chevron.open {
+  transform: rotate(180deg);
+}
+
 .community-presets-section {
   margin-top: 24px;
   padding-top: 24px;

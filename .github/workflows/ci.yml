@@ -209,12 +209,14 @@ jobs:
   # Browser journeys against the same stack as e2e-stack, driving the built app.
   # Separate job: it needs a browser and a dev server, and a Playwright install
   # failure must not read as a schema failure. The webhook and account migration
-  # journeys run the federation backend's HTTP app (e2e/specs/backend.ts).
+  # journeys run the federation backend's HTTP app (e2e/specs/backend.ts); the bot
+  # gateway journeys run bot-gateway (e2e/specs/botGateway.ts).
   # ----------------------------------------------------------------
   e2e-journeys:
     name: E2E Journeys
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 144 journeys on one worker: 19 min on 2026-10-13, over 20 min since.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -225,11 +227,15 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             federation-backend/package-lock.json
+            bot-gateway/package-lock.json
 
       - run: npm ci
 
       - run: npm ci
         working-directory: federation-backend
+
+      - run: npm ci
+        working-directory: bot-gateway
 
       - run: google-chrome --version
       - run: npm run e2e:up
@@ -279,6 +285,25 @@ jobs:
         if: always()
         run: bash e2e/federation/stack.sh down
 
+  # ----------------------------------------------------------------
+  # docs.mony.lol: VitePress fails on dead links and template errors.
+  # ----------------------------------------------------------------
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run docs:build
+
   ci-verdict:
     name: CI verdict
     runs-on: ubuntu-latest
@@ -296,6 +321,7 @@ jobs:
       - e2e-stack
       - e2e-journeys
       - federation-roundtrip
+      - docs
     steps:
       - name: Require every job to have succeeded
         run: |
@@ -321,6 +347,7 @@ jobs:
           check "e2e-stack"              "${{ needs.e2e-stack.result }}"
           check "e2e-journeys"           "${{ needs.e2e-journeys.result }}"
           check "federation-roundtrip"   "${{ needs.federation-roundtrip.result }}"
+          check "docs"                   "${{ needs.docs.result }}"
 
           [ "$fail" -eq 0 ] || { echo "::error::one or more CI jobs failed"; exit 1; }
           echo "all CI jobs green"

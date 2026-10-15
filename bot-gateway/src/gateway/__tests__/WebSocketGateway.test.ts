@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
     port: 3002,
     nodeEnv: 'test',
     instanceDomain: 'harmony.test',
-    websocket: { heartbeatInterval: 30_000, maxConnectionsPerBot: 5, revalidateIntervalMs: 30_000 },
+    websocket: { heartbeatInterval: 30_000, maxConnectionsPerBot: 5, identifyTimeoutMs: 30_000, revalidateIntervalMs: 30_000 },
     rateLimit: { windowMs: 60_000, maxRequests: 100 },
   },
 }))
@@ -29,6 +29,8 @@ import {
   FRAME_LIMIT,
   FRAME_WINDOW_MS,
   FrameRateLimiter,
+  NOT_AUTHENTICATED_CLOSE,
+  TOO_MANY_CONNECTIONS_CLOSE,
   WebSocketGateway,
   parsePresenceDeltas,
   sessionRevocationReason,
@@ -124,6 +126,8 @@ beforeEach(async () => {
   mocks.rpc.mockReset()
   tableCalls.length = 0
   mocks.config.websocket.heartbeatInterval = 30_000
+  mocks.config.websocket.maxConnectionsPerBot = 5
+  mocks.config.websocket.identifyTimeoutMs = 30_000
   mocks.config.websocket.revalidateIntervalMs = 30_000
   stubTables()
   vi.spyOn(console, 'log').mockImplementation(() => {})
@@ -294,6 +298,388 @@ describe('gateway frames', () => {
 
     ws.close()
     await vi.waitFor(() => expect(gateway.getConnectedBotCount()).toBe(0))
+  })
+})
+
+describe('gateway disconnect', () => {
+  /** `.eq()` filters of each offline write to bot_presence, in call order. */
+  function offlineWrites(): [string, unknown][][] {
+    const writes: [string, unknown][][] = []
+    let current: [string, unknown][] | null = null
+    for (const c of tableCalls) {
+      if (c.table !== 'bot_presence') continue
+      if (c.method === 'update') {
+        current = c.args[0]?.status === 'offline' ? [] : null
+        if (current) writes.push(current)
+      } else if (c.method === 'eq' && current) {
+        current.push([c.args[0], c.args[1]])
+      } else {
+        current = null
+      }
+    }
+    return writes
+  }
+
+  it('leaves the bot online when an earlier socket closes after it reconnected', async () => {
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+    const first = await identify(TOKEN)
+    const second = await identify(TOKEN)
+    expect(gateway.getTotalConnectionCount()).toBe(2)
+
+    first.ws.close()
+    await vi.waitFor(() => expect(gateway.getTotalConnectionCount()).toBe(1))
+    expect(offlineWrites()).toEqual([])
+    expect(gateway.getConnectedBotCount()).toBe(1)
+
+    second.ws.close()
+    await vi.waitFor(() => expect(offlineWrites()).toHaveLength(1))
+    expect(offlineWrites()[0]).toEqual([
+      ['bot_id', BOT_ID],
+      ['gateway_session_id', second.event.frame.d.session_id],
+    ])
+  })
+
+  it('writes offline only for the session the presence row names', async () => {
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+    const { ws, event } = await identify(TOKEN)
+
+    ws.close()
+    await vi.waitFor(() => expect(offlineWrites()).toHaveLength(1))
+    expect(offlineWrites()[0]).toContainEqual(['gateway_session_id', event.frame.d.session_id])
+  })
+})
+
+describe('presence across connections', () => {
+  const OTHER_BOT = '00000000-0000-0000-0000-0000000000b9'
+  const OTHER_VERIFICATION = { ...VALID_VERIFICATION, bot_id: OTHER_BOT, username: 'otherbot' }
+  let db: FakeDb
+
+  beforeEach(() => {
+    db = new FakeDb({ bot_presence: [], bots: [{ id: BOT_ID }, { id: OTHER_BOT }] })
+    mocks.from.mockImplementation((table: string) => db.from(table))
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+  })
+
+  const row = (botId = BOT_ID) => db.rows('bot_presence').find((r) => r.bot_id === botId)
+
+  async function settled() {
+    await vi.waitFor(() => expect((gateway as any).presenceWrites.size).toBe(0))
+  }
+
+  /** Closes `ws` from the client and waits for the server's close handler and its writes. */
+  async function closeOne(ws: WebSocket) {
+    const before = gateway.getTotalConnectionCount()
+    ws.close()
+    await vi.waitFor(() => expect(gateway.getTotalConnectionCount()).toBe(before - 1))
+    await settled()
+  }
+
+  /** Holds the first bot_presence upsert until `release()`; `started` resolves as it is issued. */
+  function holdFirstUpsert() {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    let markStarted!: () => void
+    const started = new Promise<void>((resolve) => { markStarted = resolve })
+    let held = false
+    mocks.from.mockImplementation((table: string) => {
+      const query: any = db.from(table)
+      if (table !== 'bot_presence' || held) return query
+      const upsert = query.upsert.bind(query)
+      query.upsert = (...args: any[]) => {
+        held = true
+        upsert(...args)
+        const then = query.then.bind(query)
+        query.then = (onfulfilled: any, onrejected: any) => {
+          markStarted()
+          return gate.then(() => then(onfulfilled, onrejected))
+        }
+        return query
+      }
+      return query
+    })
+    return { started, release }
+  }
+
+  // Connections open in index order and close in the listed order.
+  it.each([
+    [0, 1], [1, 0],
+    [0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0],
+  ].map((order) => ({ order: order.join(','), indices: order })))(
+    'stays online until the last connection closes, closing in order $order',
+    async ({ indices }) => {
+      const open: Array<Awaited<ReturnType<typeof identify>>> = []
+      for (let i = 0; i < indices.length; i++) open.push(await identify(TOKEN))
+      await settled()
+      expect(row()).toMatchObject({ status: 'online', gateway_session_id: open.at(-1)!.event.frame.d.session_id })
+
+      for (const [step, index] of indices.entries()) {
+        await closeOne(open[index].ws)
+        expect(row()?.status).toBe(step === indices.length - 1 ? 'offline' : 'online')
+      }
+    },
+  )
+
+  it('ends at the latest IDENTIFY when an earlier presence write is slower', async () => {
+    const { started, release } = holdFirstUpsert()
+    const first = await connect()
+    const firstReady = nextEvent(first)
+    first.send(JSON.stringify({ op: 2, d: { token: TOKEN } }))
+    await started
+
+    const second = await connect()
+    const secondReady = nextEvent(second)
+    second.send(JSON.stringify({ op: 2, d: { token: TOKEN } }))
+    await vi.waitFor(() => expect(gateway.getTotalConnectionCount()).toBe(2))
+    release()
+    const latest = (await secondReady).frame.d.session_id
+    await firstReady
+    await settled()
+    expect(row()).toMatchObject({ status: 'online', gateway_session_id: latest })
+
+    await closeOne(second)
+    await closeOne(first)
+    expect(row()?.status).toBe('offline')
+  })
+
+  it('takes the bot offline when its connection closes during the IDENTIFY presence write', async () => {
+    const { started, release } = holdFirstUpsert()
+    const ws = await connect()
+    ws.send(JSON.stringify({ op: 2, d: { token: TOKEN } }))
+    await started
+
+    ws.terminate()
+    await vi.waitFor(() => expect(gateway.getTotalConnectionCount()).toBe(0))
+    release()
+    await settled()
+    expect(row()?.status).toBe('offline')
+  })
+
+  it('takes a bot offline when its socket identifies as another bot', async () => {
+    mocks.rpc
+      .mockResolvedValueOnce({ data: VALID_VERIFICATION, error: null })
+      .mockResolvedValueOnce({ data: OTHER_VERIFICATION, error: null })
+    const { ws } = await identify(TOKEN)
+    const next = nextEvent(ws)
+    ws.send(JSON.stringify({ op: 2, d: { token: 'another-token' } }))
+    expect((await next).frame?.d.bot.id).toBe(OTHER_BOT)
+    await settled()
+
+    expect(gateway.isBotConnected(BOT_ID)).toBe(false)
+    expect(row(BOT_ID)?.status).toBe('offline')
+    expect(row(OTHER_BOT)?.status).toBe('online')
+
+    await closeOne(ws)
+    expect(row(OTHER_BOT)?.status).toBe('offline')
+  })
+
+  it('keeps the row once another process identified the bot', async () => {
+    const { ws } = await identify(TOKEN)
+    await settled()
+    row()!.gateway_session_id = 'other-process'
+
+    await closeOne(ws)
+    expect(row()).toMatchObject({ status: 'online', gateway_session_id: 'other-process' })
+  })
+
+  it('takes over a row a crashed process left online', async () => {
+    db.rows('bot_presence').push({ id: db.nextId(), bot_id: BOT_ID, status: 'online', gateway_session_id: 'crashed' })
+    const { ws, event } = await identify(TOKEN)
+    await settled()
+    expect(db.rows('bot_presence')).toHaveLength(1)
+    expect(row()?.gateway_session_id).toBe(event.frame.d.session_id)
+
+    await closeOne(ws)
+    expect(row()?.status).toBe('offline')
+  })
+
+  it('writes every connected bot offline before shutdown resolves, and nothing after', async () => {
+    mocks.rpc
+      .mockResolvedValueOnce({ data: VALID_VERIFICATION, error: null })
+      .mockResolvedValueOnce({ data: VALID_VERIFICATION, error: null })
+      .mockResolvedValueOnce({ data: OTHER_VERIFICATION, error: null })
+    const open = [await identify(TOKEN), await identify(TOKEN), await identify('another-token')]
+    await settled()
+    const closed = Promise.all(open.map(({ ws }) => new Promise((resolve) => ws.once('close', resolve))))
+
+    await gateway.shutdown()
+    expect(row(BOT_ID)?.status).toBe('offline')
+    expect(row(OTHER_BOT)?.status).toBe('offline')
+
+    await closed
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(db.writesTo('bot_presence', 'update')).toHaveLength(2)
+  })
+})
+
+describe('connections per bot', () => {
+  function closeOf(ws: WebSocket): Promise<{ code: number; reason: string }> {
+    return new Promise((resolve) => ws.once('close', (code, raw) => resolve({ code, reason: raw.toString() })))
+  }
+
+  const presenceUpserts = () => tableCalls.filter((c) => c.table === 'bot_presence' && c.method === 'upsert')
+
+  it('refuses the identify past WS_MAX_CONNECTIONS_PER_BOT and admits one after a close', async () => {
+    mocks.config.websocket.maxConnectionsPerBot = 2
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+    const first = await identify(TOKEN)
+    const second = await identify(TOKEN)
+    expect(first.event.frame.t).toBe('READY')
+    expect(second.event.frame.t).toBe('READY')
+
+    const third = await connect()
+    const refused = closeOf(third)
+    third.send(JSON.stringify({ op: 2, d: { token: TOKEN } }))
+
+    expect(TOO_MANY_CONNECTIONS_CLOSE).toBe(4029)
+    expect(await refused).toEqual({ code: 4029, reason: 'Too many connections' })
+    expect(gateway.getTotalConnectionCount()).toBe(2)
+    expect(presenceUpserts()).toHaveLength(2)
+
+    first.ws.close()
+    await vi.waitFor(() => expect(gateway.getTotalConnectionCount()).toBe(1))
+    const fourth = await identify(TOKEN)
+    expect(fourth.event.frame.t).toBe('READY')
+    expect(gateway.getTotalConnectionCount()).toBe(2)
+  })
+
+  it('counts concurrent identifies of one bot', async () => {
+    mocks.config.websocket.maxConnectionsPerBot = 1
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+    const results = await Promise.all([identify(TOKEN), identify(TOKEN), identify(TOKEN)])
+
+    expect(results.filter((r) => r.event.frame?.t === 'READY')).toHaveLength(1)
+    expect(results.filter((r) => r.event.close === 4029)).toHaveLength(2)
+    expect(gateway.getTotalConnectionCount()).toBe(1)
+  })
+
+  it('limits each bot separately', async () => {
+    mocks.config.websocket.maxConnectionsPerBot = 1
+    const OTHER_BOT = '00000000-0000-0000-0000-0000000000b9'
+    mocks.rpc
+      .mockResolvedValueOnce({ data: VALID_VERIFICATION, error: null })
+      .mockResolvedValueOnce({ data: { ...VALID_VERIFICATION, bot_id: OTHER_BOT, username: 'otherbot' }, error: null })
+    const first = await identify(TOKEN)
+    const other = await identify('another-token')
+
+    expect(first.event.frame.t).toBe('READY')
+    expect(other.event.frame.t).toBe('READY')
+    expect(gateway.getConnectedBotCount()).toBe(2)
+  })
+})
+
+describe('identify deadline', () => {
+  const DEADLINE_MS = 100
+
+  function closeOf(ws: WebSocket, timeoutMs = 2000): Promise<{ code: number; reason: string }> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`no close within ${timeoutMs}ms`)), timeoutMs)
+      ws.once('close', (code, raw) => {
+        clearTimeout(timer)
+        resolve({ code, reason: raw.toString() })
+      })
+    })
+  }
+
+  beforeEach(() => {
+    mocks.config.websocket.identifyTimeoutMs = DEADLINE_MS
+  })
+
+  it('closes a socket that never identifies with 4003', async () => {
+    const ws = await connect()
+    const opened = Date.now()
+
+    expect(NOT_AUTHENTICATED_CLOSE).toBe(4003)
+    expect(await closeOf(ws)).toEqual({ code: 4003, reason: 'Not authenticated' })
+    expect(Date.now() - opened).toBeGreaterThanOrEqual(DEADLINE_MS - 10)
+  })
+
+  it('closes a socket that sends frames but never identifies', async () => {
+    const ws = await connect()
+    ws.send(JSON.stringify({ op: 1 }))
+    ws.send(JSON.stringify({ op: 7, d: { updates: [] } }))
+
+    expect(await closeOf(ws)).toEqual({ code: 4003, reason: 'Not authenticated' })
+  })
+
+  it('keeps a socket that identified in time', async () => {
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+    const { ws, event } = await identify(TOKEN)
+    expect(event.frame.t).toBe('READY')
+
+    await new Promise((resolve) => setTimeout(resolve, DEADLINE_MS * 3))
+    expect(ws.readyState).toBe(WebSocket.OPEN)
+    expect(gateway.isBotConnected(BOT_ID)).toBe(true)
+  })
+
+  it('registers nothing for an identify still verifying at the deadline', async () => {
+    mocks.rpc.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve({ data: VALID_VERIFICATION, error: null }), DEADLINE_MS * 3)),
+    )
+    const ws = await connect()
+    const closed = closeOf(ws)
+    ws.send(JSON.stringify({ op: 2, d: { token: TOKEN } }))
+
+    expect(await closed).toEqual({ code: 4003, reason: 'Not authenticated' })
+    await new Promise((resolve) => setTimeout(resolve, DEADLINE_MS * 4))
+    expect(mocks.rpc).toHaveBeenCalledTimes(1)
+    expect(gateway.getTotalConnectionCount()).toBe(0)
+    expect(tableCalls.filter((c) => c.table === 'bot_presence' && c.method === 'upsert')).toEqual([])
+  })
+})
+
+describe('heartbeat timeout', () => {
+  const HEARTBEAT_MS = 100
+
+  beforeEach(() => {
+    gateway.shutdown()
+    wss.removeAllListeners('connection')
+    mocks.config.websocket.heartbeatInterval = HEARTBEAT_MS
+    gateway = new WebSocketGateway(wss)
+    mocks.rpc.mockResolvedValue({ data: VALID_VERIFICATION, error: null })
+  })
+
+  /** Session ids the server-side close handler wrote offline. */
+  function offlineSessions(): unknown[] {
+    const sessions: unknown[] = []
+    let offline = false
+    for (const c of tableCalls) {
+      if (c.table !== 'bot_presence') continue
+      if (c.method === 'update') offline = c.args[0]?.status === 'offline'
+      else if (offline && c.method === 'eq' && c.args[0] === 'gateway_session_id') sessions.push(c.args[1])
+    }
+    return sessions
+  }
+
+  it('closes a live connection that stops heartbeating with 1000', async () => {
+    const { ws } = await identify(TOKEN)
+    const closed = new Promise<{ code: number; reason: string }>((resolve) =>
+      ws.once('close', (code, raw) => resolve({ code, reason: raw.toString() })),
+    )
+
+    expect(await closed).toEqual({ code: 1000, reason: 'Heartbeat timeout' })
+    expect(gateway.isBotConnected(BOT_ID)).toBe(false)
+  })
+
+  // A peer that never answers the close frame: with close() alone, ws holds the socket and
+  // defers the close handler for its 30 s closing-handshake timeout.
+  it('releases a dead peer at once', async () => {
+    const { ws, event } = await identify(TOKEN)
+    ;(ws as unknown as { _socket: { pause(): void } })._socket.pause()
+
+    await vi.waitFor(() => expect(offlineSessions()).toContain(event.frame.d.session_id), { timeout: 2_000 })
+    expect(gateway.isBotConnected(BOT_ID)).toBe(false)
+  })
+
+  it('keeps a connection that heartbeats', async () => {
+    const { ws } = await identify(TOKEN)
+    const beat = setInterval(() => ws.send(JSON.stringify({ op: 1 })), HEARTBEAT_MS / 2)
+    try {
+      await new Promise((resolve) => setTimeout(resolve, HEARTBEAT_MS * 6))
+      expect(ws.readyState).toBe(WebSocket.OPEN)
+      expect(gateway.isBotConnected(BOT_ID)).toBe(true)
+    } finally {
+      clearInterval(beat)
+    }
   })
 })
 
@@ -765,6 +1151,26 @@ describe('bridge presence deltas (op 7)', () => {
     // The server-side close handler writes bot_presence; it runs before the mocks are restored.
     ws.close()
     await vi.waitFor(() => expect(gateway.getConnectedBotCount()).toBe(0))
+  })
+
+  it('keeps the registration while another connection of the bot is open', async () => {
+    await register(BOT_ID, { channels: [{ harmonyChannelId: CHANNEL_A, members: [member(ALICE_ID, 'alice')] }] })
+    const live = new WebSocket('ws://127.0.0.1:1')
+    live.on('error', () => {})
+    ;(gateway as any).connections.set(live, { ...conn(BOT_ID), sessionId: 'newer' })
+
+    ;(gateway as any).handleBotDisconnect({ ...conn(BOT_ID), sessionId: 'older' })
+
+    expect(gateway.getBridgedUsers(CHANNEL_A).map((u) => u.id)).toEqual([ALICE_ID])
+    ;(gateway as any).connections.delete(live)
+  })
+
+  it('forgets the registration when the last connection of the bot closes', async () => {
+    await register(BOT_ID, { channels: [{ harmonyChannelId: CHANNEL_A, members: [member(ALICE_ID, 'alice')] }] })
+
+    ;(gateway as any).handleBotDisconnect(conn(BOT_ID))
+
+    expect(gateway.getBridgedUsers(CHANNEL_A)).toEqual([])
   })
 
   it('forgets the registration index when the bot disconnects', async () => {

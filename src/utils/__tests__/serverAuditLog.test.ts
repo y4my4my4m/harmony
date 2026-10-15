@@ -12,6 +12,8 @@ const TEMPLATES: Record<string, string> = {
   'serverAuditLog.actions.channel_delete': '{actor} deleted channel {target}',
   'serverAuditLog.actions.member_role_add': '{actor} gave {target} the role {subject}',
   'serverAuditLog.actions.member_timeout': '{actor} timed out {target} until {until}',
+  'serverAuditLog.actions.member_voice_mute': '{actor} server-muted {target}',
+  'serverAuditLog.actions.member_voice_disconnect': '{actor} disconnected {target} from voice',
   'serverAuditLog.actions.unknown': '{actor}: {action}',
   'serverAuditLog.value.seconds': '{n} s',
 }
@@ -81,6 +83,19 @@ describe('sound entries', () => {
       { field: 'serverAuditLog.fields.emoji', from: '📯', to: null },
     ])
   })
+
+  it('say that the custom emoji changed, not its id', () => {
+    const edit = entry({
+      action: 'sound.update',
+      target_type: 'sound',
+      target_name: 'Party',
+      changes: { emoji: { old: '🎉' }, emoji_id: { new: 'e1480000-0000-0000-0000-000000000001' } },
+    })
+    expect(auditChangeLines(edit, t, date)).toEqual([
+      { field: 'serverAuditLog.fields.emoji', from: '🎉', to: null },
+      { field: 'serverAuditLog.fields.emoji_id', from: null, to: 'serverAuditLog.value.changed' },
+    ])
+  })
 })
 
 describe('auditActorName', () => {
@@ -125,6 +140,13 @@ describe('describeAuditEntry', () => {
       details: { channel_name: 'general', count: 3 },
     }), counting, date)
     expect(plural).toBe(3)
+  })
+
+  it('describes voice moderation with its own sentences', () => {
+    const mute = describeAuditEntry(entry({ action: 'member.voice_mute', target_type: 'user', target_name: 'bob' }), t, date)
+    expect(mute.map(s => s.text).join('')).toBe('Alice server-muted bob')
+    const gone = describeAuditEntry(entry({ action: 'member.voice_disconnect', target_type: 'user', target_name: 'bob' }), t, date)
+    expect(gone.map(s => s.text).join('')).toBe('Alice disconnected bob from voice')
   })
 
   it('falls back for an action it does not know', () => {

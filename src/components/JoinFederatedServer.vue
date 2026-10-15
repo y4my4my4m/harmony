@@ -422,7 +422,7 @@ function formatExpiry(expiresAt: string): string {
   padding: var(--space-6);
   width: 100%;
   max-width: 520px;
-  max-height: 90vh;
+  max-height: calc(90 * var(--app-vh));
   overflow-y: auto;
 }
 
@@ -817,8 +817,8 @@ function formatExpiry(expiresAt: string): string {
   .modal-content {
     max-width: none;
     max-height: none;
-    height: 100vh;
-    height: 100dvh;
+    height: calc(100 * var(--app-vh));
+    height: calc(100 * var(--app-dvh));
     border: none;
     border-radius: 0;
     padding: calc(var(--space-4) + env(safe-area-inset-top, 0px)) var(--space-4)

@@ -25,7 +25,7 @@ import {
 } from '@/services/messageMediaUpload'
 import { createTempMessageId, getRandomId } from '@/stores/shared/optimisticMessages'
 import { sendToTarget, targetKey, targetMediaRoom, type MessageTarget } from '@/stores/shared/sendToTarget'
-import { classifySendFailure } from '@/utils/sendFailure'
+import { classifySendFailure, permissionRefusalMessage } from '@/utils/sendFailure'
 import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
 import { useServerWelcomeStore } from '@/stores/useServerWelcome'
@@ -64,6 +64,10 @@ export interface OutboxAttachment {
   /** Object name and compat URL of a completed composer upload. */
   uploadedPath?: string
   uploadedUrl?: string
+  /** Kept until drive_ephemeral_days rather than in Drive; for uploads the outbox starts. */
+  temporary?: boolean
+  /** Drive name of an upload the outbox starts; absent for encrypted rooms. */
+  driveName?: string
 }
 
 export interface OutboxRequest {
@@ -83,6 +87,9 @@ export interface OutboxRequest {
 export type OutboxFileStatus = 'pending' | 'uploading' | 'completed' | 'error'
 
 export interface OutboxFile {
+  /** Upload options of an upload the outbox starts. */
+  temporary?: boolean
+  driveName?: string
   name: string
   /** Name the object name's extension derives from. */
   sourceName: string
@@ -257,6 +264,8 @@ export const useOutboxStore = defineStore('outbox', () => {
       error: null,
       upload: null,
       ...(attachment.altText?.trim() ? { altText: attachment.altText.trim() } : {}),
+      ...(attachment.temporary ? { temporary: true } : {}),
+      ...(attachment.driveName ? { driveName: attachment.driveName } : {}),
     }
     const handle = attachment.upload
     if (attachment.uploadedPath && attachment.uploadedUrl) {
@@ -319,7 +328,11 @@ export const useOutboxStore = defineStore('outbox', () => {
   async function uploadFile(job: OutboxJob, file: OutboxFile): Promise<boolean> {
     if (file.status === 'completed') return true
     if (!file.upload) {
-      file.upload = markRaw(startMessageMediaUpload(file.path, file.file, { validate: true }))
+      file.upload = markRaw(startMessageMediaUpload(file.path, file.file, {
+        validate: true,
+        name: file.driveName,
+        ephemeral: file.temporary,
+      }))
       const id = job.id
       file.upload.state.cancel = () => discard(id)
     }
@@ -328,6 +341,12 @@ export const useOutboxStore = defineStore('outbox', () => {
     try {
       const uploaded = await upload.result
       if (file.upload !== upload) return false
+      if (uploaded.path !== file.path) {
+        // The bytes were in Drive already: the part names that object.
+        releaseLocalMediaSource(file.path)
+        file.path = uploaded.path
+        registerLocalMediaSource(file.path, file.previewUrl)
+      }
       file.url = uploaded.url
       file.status = 'completed'
       return true
@@ -415,6 +434,9 @@ export const useOutboxStore = defineStore('outbox', () => {
         break
       case 'slowmode':
         toast.info(msg)
+        break
+      case 'permission':
+        toast.error(permissionRefusalMessage(error))
         break
       case 'rules': {
         const details = (error as { details?: { serverId?: string } })?.details

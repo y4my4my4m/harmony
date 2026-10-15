@@ -799,9 +799,10 @@ export class ActivityPubService {
       .from('follows')
       .select(`
         follower:profiles!follows_follower_id_fkey (
-          id, username, display_name, domain, avatar_url, is_local, bio,
+          id, username, display_name, domain, avatar_url, banner_url, color, is_local, bio,
           followers_count, following_count, posts_count, remote_posts_count, remote_followers_count,
-          remote_following_count, remote_counts_fetched_at, created_at, updated_at, moved_to_uri
+          remote_following_count, remote_counts_fetched_at, created_at, updated_at, moved_to_uri,
+          manually_approves_followers, federated_id
         )
       `)
       .eq('following_id', userId)
@@ -828,9 +829,10 @@ export class ActivityPubService {
       .from('follows')
       .select(`
         follower:profiles!follows_follower_id_fkey (
-          id, username, display_name, domain, avatar_url, is_local, bio,
+          id, username, display_name, domain, avatar_url, banner_url, color, is_local, bio,
           followers_count, following_count, posts_count, remote_posts_count, remote_followers_count,
-          remote_following_count, remote_counts_fetched_at, created_at, updated_at, moved_to_uri
+          remote_following_count, remote_counts_fetched_at, created_at, updated_at, moved_to_uri,
+          manually_approves_followers, federated_id
         )
       `)
       .eq('following_id', userId)
@@ -867,9 +869,10 @@ export class ActivityPubService {
       .from('follows')
       .select(`
         following:profiles!follows_following_id_fkey (
-          id, username, display_name, domain, avatar_url, is_local, bio,
+          id, username, display_name, domain, avatar_url, banner_url, color, is_local, bio,
           followers_count, following_count, posts_count, remote_posts_count, remote_followers_count,
-          remote_following_count, remote_counts_fetched_at, created_at, updated_at, moved_to_uri
+          remote_following_count, remote_counts_fetched_at, created_at, updated_at, moved_to_uri,
+          manually_approves_followers, federated_id
         )
       `)
       .eq('follower_id', userId)

@@ -29,6 +29,8 @@
       class="no-messages"
       icon="message-circle"
       :title="$t('message.noMessagesHere')"
+      :description="historyRestricted ? $t('message.historyRestricted') : undefined"
+      :data-testid="historyRestricted ? 'history-restricted' : undefined"
     />
     <!-- Sentinel for auto-loading older messages when the top is visible -->
     <div ref="topSentinelRef" class="top-sentinel"></div>
@@ -39,6 +41,19 @@
       <div class="loading-older-messages">
         <LoadingSpinner :size="16" />
         <span>{{ $t('message.loadingOlder') }}</span>
+      </div>
+    </div>
+
+    <!-- The "New messages" line is above the view: Discord's "new messages since" bar.
+         Same zero-height sticky wrapper as the indicator above. -->
+    <div v-if="showUnreadBar" class="unread-bar-anchor">
+      <div class="unread-bar" data-testid="unread-bar">
+        <button type="button" class="unread-bar-jump" aria-keyshortcuts="Shift+PageUp" @click="jumpToDivider">
+          {{ $t('message.unreadSince', { count: unreadAfterDivider, time: dividerTime }, unreadAfterDivider) }}
+        </button>
+        <button type="button" class="unread-bar-dismiss" @click="clearReadDivider">
+          {{ $t('message.markAsRead') }}
+        </button>
       </div>
     </div>
     
@@ -119,6 +134,7 @@
           :kind="beginningInfo.kind"
           :name="beginningInfo.name"
           :user-id="beginningInfo.userId"
+          :history-restricted="historyRestricted"
         />
 
         <!-- Date separator -->
@@ -202,11 +218,14 @@
                   <Icon name="thread" :size="16" class="system-icon" />
                   <div class="system-text thread-created-text">
                     <button
+                      v-if="item.message.user_id && !item.message.bot_id && !hasDiscordUserMetadata(item.message)"
                       type="button"
                       class="system-user-mention"
                       @click="showUserProfile(item.message.user_id)"
                       :style="{ color: resolveChatUserColor(item.message.user_id) }"
                     ><DisplayName :userId="item.message.user_id" /></button>
+                    <!-- A bridged Discord person, a webhook or a bot: no Harmony profile to open. -->
+                    <span v-else class="system-user-name">{{ getAuthorDisplayName(item.message).value }}</span>
                     started a thread: 
                     <button
                       type="button"
@@ -595,7 +614,7 @@
         >
           <button type="button" class="action-btn" data-testid="msg-action-react" :aria-label="t('message.react')" :title="t('message.react')" aria-haspopup="dialog" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></button>
           <button type="button" class="action-btn" data-testid="msg-action-reply" :aria-label="t('message.reply')" :title="t('message.reply')" @click="replyTo(item.message)"><ReplyIcon/></button>
-          <button type="button" class="action-btn thread-btn" data-testid="msg-action-thread" v-if="!props.hideThreadActions" :aria-label="t('messageA11y.actions.thread')" :title="t('messageA11y.actions.thread')" @click="createThread(item.message)"><ThreadIcon/></button>
+          <button type="button" class="action-btn thread-btn" data-testid="msg-action-thread" v-if="!hideThreadCreate" :aria-label="t('messageA11y.actions.thread')" :title="t('messageA11y.actions.thread')" @click="createThread(item.message)"><ThreadIcon/></button>
           <button type="button" class="action-btn" data-testid="msg-action-edit" v-if="canEditMessage(item.message)" :aria-label="t('message.editMessage')" :title="t('message.editMessage')" @click="startEdit(item.message)"><EditIcon/></button>
           <button type="button" class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" :aria-label="t('message.deleteMessage')" :title="t('message.deleteMessage')" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></button>
           <button type="button" class="action-btn" data-testid="msg-action-more" :aria-label="t('message.moreActions')" :title="t('message.moreActions')" aria-haspopup="menu" :aria-expanded="isMenuOpenFor(item.message.id) ? 'true' : 'false'" @click="openContextMenu(item.message, $event)"><MoreIcon/></button>
@@ -705,7 +724,7 @@
     v-if="isMobile && hoveredMessageId && mobileActionTapPosition && hoveredMessageItem"
     :message="hoveredMessageItem.message"
     :style="floatingActionsStyle"
-    :hide-thread-actions="props.hideThreadActions"
+    :hide-thread-actions="hideThreadCreate"
     :is-shift-held="isShiftHeld"
     :can-edit="canEditMessage(hoveredMessageItem.message)"
     :can-delete="canDeleteMessage(hoveredMessageItem.message)"
@@ -771,6 +790,8 @@ defineOptions({ inheritAttrs: false })
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import Icon from '@/components/common/Icon.vue';
 import EmptyState from '@/components/common/EmptyState.vue';
+import { historyCutoff } from '@/services/channelHistoryCutoff';
+import { classifySendFailure, permissionRefusalMessage } from '@/utils/sendFailure';
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';
@@ -797,6 +818,7 @@ import { supabase } from '@/supabase';
 import { throttle } from '@/utils/throttle';
 import { getReactionTooltipAnchor } from '@/utils/reactionTooltipPosition';
 import { useServerPermissions } from '@/composables/useServerPermissions';
+import { useChannelMessagePermissions } from '@/composables/useChannelMessagePermissions';
 import { useUserData, DEFAULT_USER_COLOR } from '@/composables/useUserData';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useQuickReactSettings } from '@/composables/useQuickReactSettings';
@@ -844,6 +866,7 @@ import MessageReactions from '@/components/MessageReactions.vue';
 import MessageContextMenu from '@/components/MessageContextMenu.vue';
 import LightboxDownloadButton from '@/components/common/LightboxDownloadButton.vue';
 import { shouldAllowNativeContextMenu } from '@/utils/nativeContextMenu';
+import { stylePoint, styleRect, styleViewport } from '@/utils/appZoom';
 import ReportModal from '@/components/moderation/ReportModal.vue';
 import SupporterBadge from '@/components/common/SupporterBadge.vue';
 import { fundingService } from '@/services/FundingService';
@@ -1015,7 +1038,14 @@ const reactionsStore = useReactionsStore();
 const postReactionsStore = usePostReactionsStore();
 
 const isShiftHeld = ref(false);
-const onShiftDown = (e: KeyboardEvent) => { if (e.key === 'Shift') isShiftHeld.value = true; };
+const onShiftDown = (e: KeyboardEvent) => {
+  if (e.key === 'Shift') isShiftHeld.value = true;
+  // Discord's "jump to oldest unread". A row's own PageUp has already moved focus.
+  if (e.key === 'PageUp' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !e.defaultPrevented && dividerBeforeMessageId.value) {
+    e.preventDefault();
+    jumpToDivider();
+  }
+};
 const onShiftUp = (e: KeyboardEvent) => { if (e.key === 'Shift') isShiftHeld.value = false; };
 
 // Track which blocked message groups the user has chosen to reveal (by first message ID in group)
@@ -1276,16 +1306,21 @@ const THUMB_REACH_PX = 48;
 const floatingActionsStyle = computed((): Record<string, string> => {
   const pos = mobileActionTapPosition.value;
   if (!pos || typeof window === 'undefined') return {};
-  const bottomPx = Math.max(8, window.innerHeight - pos.y + THUMB_REACH_PX);
+  const viewport = styleViewport();
+  const bottomPx = Math.max(8, viewport.height - pos.y + THUMB_REACH_PX);
   const popupWidth = 220;
-  const leftPx = Math.max(popupWidth / 2, Math.min(pos.x, window.innerWidth - popupWidth / 2));
+  const leftPx = Math.max(popupWidth / 2, Math.min(pos.x, viewport.width - popupWidth / 2));
   return {
     left: `${leftPx}px`,
     bottom: `${bottomPx}px`,
     transform: 'translateX(-50%)',
   };
 });
-const { isCurrentUserServerOwner, canManageMessages, getCurrentUserRole } = useServerPermissions();
+const { isCurrentUserServerOwner, getCurrentUserRole } = useServerPermissions();
+// Channel-resolved, as messages_update_authorized and messages_delete_authorized decide it.
+const { canManageMessages, canCreateThreads } = useChannelMessagePermissions(() => serverChannelStore.currentServerId, () => props.channelId);
+// create_thread needs CREATE_PUBLIC_THREADS in the channel.
+const hideThreadCreate = computed(() => props.hideThreadActions || !canCreateThreads.value);
 const viewerRoleIds = computed(() => new Set((getCurrentUserRole.value?.roles ?? []).map(role => role.id)));
 // A conversation has no roles, @everyone or @here; its messages are not highlighted.
 const mentionsMe = (message: Message): boolean =>
@@ -1583,6 +1618,9 @@ const isAllMessagesLoaded = computed(() => {
 });
 
 // Context shown by the conversation-start line (channel vs DM vs group).
+// get_message_page reported a READ_MESSAGE_HISTORY cutoff: the channel starts at the viewer's join.
+const historyRestricted = computed(() => !!props.channelId && !props.conversationId && !!historyCutoff(props.channelId));
+
 const beginningInfo = computed((): { kind: 'channel' | 'dm' | 'group'; name: string; userId?: string } => {
   if (props.channelId) {
     const channel = serverChannelStore.channels.find(c => c.id === props.channelId);
@@ -1662,11 +1700,12 @@ const handleMessageTouchStart = (messageId: string, event: TouchEvent) => {
   if (outbox.has(messageId) || isReactionTouch(event)) return;
   const touch = event.touches[0];
   const tapPos = touch ? { x: touch.clientX, y: touch.clientY } : null;
+  const tapStylePos = touch ? stylePoint(touch) : null;
   longPressStartPos = tapPos;
   longPressTimer.value = setTimeout(() => {
     longPressTimer.value = null;
     hoveredMessageId.value = messageId;
-    mobileActionTapPosition.value = tapPos;
+    mobileActionTapPosition.value = tapStylePos;
     triggerInteraction();
   }, LONG_PRESS_DURATION);
 };
@@ -1833,6 +1872,72 @@ const measureEnd = () => {
   if (!el) return;
   distanceToEnd.value = distanceFromBottom(el);
   viewportHeight.value = el.clientHeight;
+  measureDivider(el);
+};
+
+// The "New messages" line is above the view: its row ends above the viewport, or
+// is not rendered and precedes the first rendered row.
+const dividerAbove = ref(false);
+const measureDivider = (el: HTMLElement) => {
+  const id = dividerBeforeMessageId.value;
+  if (!id) {
+    dividerAbove.value = false;
+    return;
+  }
+  const line = el.querySelector('.new-messages-divider');
+  if (line) {
+    dividerAbove.value = line.getBoundingClientRect().bottom <= el.getBoundingClientRect().top;
+    return;
+  }
+  const idx = displayItems.value.findIndex(it => it.type === 'message' && it.message.id === id);
+  const first = rowVirtualizer.value.getVirtualItems()[0]?.index;
+  dividerAbove.value = idx >= 0 && first !== undefined && idx < first;
+};
+
+const showUnreadBar = computed(() => !!dividerBeforeMessageId.value && dividerAbove.value);
+
+// Loaded messages from the divider on, other authors only: the ones the line marks.
+const unreadAfterDivider = computed(() => {
+  const id = dividerBeforeMessageId.value;
+  const start = id ? props.messages.findIndex(m => m.id === id) : -1;
+  if (start < 0) return 0;
+  return props.messages.slice(start).filter(m => m.user_id !== props.currentUserId).length;
+});
+
+const dividerTime = computed(() => {
+  const id = dividerBeforeMessageId.value;
+  const message = id ? props.messages.find(m => m.id === id) : undefined;
+  return message ? formatTimestamp(message.created_at) : '';
+});
+
+// Seats the "New messages" line near the top with read context above it; retries
+// while rows above it measure.
+const jumpToDivider = () => {
+  const id = dividerBeforeMessageId.value;
+  if (!id) return;
+  setPinned(false);
+  openFollowBottomUntil = 0;
+  const generation = ++seatGeneration;
+  let attempts = 0;
+  const seat = () => {
+    if (generation !== seatGeneration) return;
+    attempts++;
+    const idx = displayItems.value.findIndex(it => it.type === 'message' && it.message.id === id);
+    if (idx < 0) return;
+    rowVirtualizer.value.scrollToIndex(idx, { align: 'start' });
+    requestAnimationFrame(() => {
+      const c = messageDisplayContainer.value;
+      if (!c || generation !== seatGeneration) return;
+      const line = c.querySelector('.new-messages-divider');
+      if (line) {
+        const delta = styleRect(line).top - styleRect(c).top - CONTEXT_NUDGE_PX;
+        c.scrollTop = Math.max(0, c.scrollTop + delta);
+      }
+      if (attempts < 6) setTimeout(seat, attempts < 3 ? 50 : 150);
+      else measureEnd();
+    });
+  };
+  seat();
 };
 
 // The list holds rows a jump to an older message spliced in; the history
@@ -1868,15 +1973,16 @@ const updateActionBarShift = () => {
     return;
   }
   // Resting box: the shift moves the bar horizontally only.
-  const a = bar.getBoundingClientRect();
-  const right = item.getBoundingClientRect().right;
+  const a = styleRect(bar);
+  const right = styleRect(item).right;
   const left = right - a.width;
-  const b = btn.getBoundingClientRect();
+  const b = styleRect(btn);
   const overlaps = left < b.right && b.left < right && a.top < b.bottom && b.top < a.bottom;
   actionBarShift.value = overlaps ? Math.ceil(right - b.left + ACTION_BAR_GAP_PX) : 0;
 };
 
 watch([hoveredMessageId, focusMessageId, showJump], () => nextTick(updateActionBarShift));
+watch(dividerBeforeMessageId, () => nextTick(measureEnd));
 
 // Seats a pinned view at the end. Synchronous, so a call before paint leaves no
 // frame with the end uncovered.
@@ -1917,7 +2023,7 @@ const adjustForItemResize = (item: VirtualItem, delta: number): boolean => {
   const el = messageDisplayContainer.value;
   const list = virtualListRef.value;
   if (!el || !list || pinState.pinned) return false;
-  const listOffset = list.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
+  const listOffset = styleRect(list).top - styleRect(el).top + el.scrollTop;
   return correctForItemResize(el, listOffset, item.start, delta);
 };
 
@@ -2097,8 +2203,8 @@ const roving = useRovingTabindex(virtualListRef, {
 const revealRow = (el: HTMLElement) => {
   const c = messageDisplayContainer.value;
   if (!c) return;
-  const box = el.getBoundingClientRect();
-  const view = c.getBoundingClientRect();
+  const box = styleRect(el);
+  const view = styleRect(c);
   const margin = 8;
   if (box.top < view.top + margin || box.height > view.height - 2 * margin) c.scrollTop += box.top - view.top - margin;
   else if (box.bottom > view.bottom - margin) c.scrollTop += box.bottom - view.bottom + margin;
@@ -2153,7 +2259,7 @@ const activateRow = (item: DisplayItem, row: HTMLElement) => {
     return;
   }
   if (isOptimisticId(item.message.id)) return;
-  const box = row.getBoundingClientRect();
+  const box = styleRect(row);
   showContextMenu(item.message, box.left + 56, box.top + Math.min(box.height, 24), row);
 };
 
@@ -2567,12 +2673,9 @@ watch(() => props.messages, (newMessages) => {
           // server's messages from being briefly repainted during the switch.
           coloringServerId.value = serverChannelStore.currentServerId;
 
-          // Resolve the "New messages" divider against the freshly-loaded set.
-          const dividerMsgId = resolveDivider(newMessages, props.currentUserId);
-          const dividerIndex = dividerMsgId
-            ? displayItems.value.findIndex(it => it.type === 'message' && it.message.id === dividerMsgId)
-            : -1;
-          const hasDivider = dividerIndex >= 0;
+          // Marks the first unread message with the "New messages" line. The view
+          // opens at the end, as Discord's does; the unread bar jumps to the line.
+          resolveDivider(newMessages, props.currentUserId);
 
           // The floating player's return button navigated here: land on the
           // video's message, where its placeholder docks it.
@@ -2580,26 +2683,22 @@ watch(() => props.messages, (newMessages) => {
           const returnIndex = returnMsgId
             ? displayItems.value.findIndex(it => it.type === 'message' && it.message.id === returnMsgId)
             : -1;
-          const anchorIndex = returnIndex >= 0 ? returnIndex : dividerIndex;
-          const hasAnchor = anchorIndex >= 0;
+          const hasAnchor = returnIndex >= 0;
 
-          // Freezes the initial offset for this channel. With a divider the
-          // offset is seeded near it rather than at the bottom, so the
-          // virtualizer starts close to its final resting place.
+          // Freezes the initial offset for this channel, seeded near the landing
+          // so the virtualizer starts close to its final resting place.
           if (!hasSetInitialOffset) {
             hasSetInitialOffset = true;
-            frozenInitialOffset.value = (hasAnchor ? anchorIndex : displayItems.value.length) * 60;
+            frozenInitialOffset.value = (hasAnchor ? returnIndex : displayItems.value.length) * 60;
           }
-          debug.log(hasDivider ? 'Initial load - scrolling to NEW divider' : 'Initial load - scrolling to bottom');
 
-          // Landing on a divider or a floating video's message is not the bottom;
-          // size changes must not pull the view down. Scroll events re-pin it if
-          // the landing reaches the end.
+          // Landing on a floating video's message is not the bottom; size changes
+          // must not pull the view down. Scroll events re-pin it if the landing
+          // reaches the end.
           setPinned(!hasAnchor);
 
-          // No divider means the target is the bottom. Messages arriving in
-          // the next couple of seconds (revalidate catch-up / realtime) are
-          // followed so the view settles on the real end of the channel.
+          // Messages arriving in the next couple of seconds (the cache path's
+          // catch-up, realtime) are followed so the view settles on the real end.
           openFollowBottomUntil = hasAnchor ? 0 : Date.now() + 2500;
           
           const imageUrlsInMessages = new Set<string>();
@@ -2673,43 +2772,6 @@ watch(() => props.messages, (newMessages) => {
             });
           };
 
-          // Scroll so the "New messages" divider sits near the top with a little
-          // context above it (Discord behaviour). Retries while the virtualizer
-          // measures real row heights so it settles on the right spot.
-          let dividerScrollAttempts = 0;
-          const scrollToDivider = () => {
-            if (landing !== seatGeneration) return;
-            dividerScrollAttempts++;
-            const idx = displayItems.value.findIndex(
-              it => it.type === 'message' && it.message.id === dividerMsgId
-            );
-            if (idx < 0) {
-              // Divider message no longer present; fall back.
-              scrollToBottom();
-              return;
-            }
-            // Bring the divider row into the render window first.
-            rowVirtualizer.value.scrollToIndex(idx, { align: 'start' });
-            requestAnimationFrame(() => {
-              const c = messageDisplayContainer.value;
-              if (!c || landing !== seatGeneration) return;
-              // Positioned from the divider's REAL rendered position, not the
-              // virtualizer's height estimate, which lands above the divider
-              // when rows are taller than estimated. Measuring the DOM node
-              // keeps it in view with some read context above the line.
-              const dividerEl = c.querySelector('.new-messages-divider') as HTMLElement | null;
-              if (dividerEl) {
-                const delta = dividerEl.getBoundingClientRect().top - c.getBoundingClientRect().top - CONTEXT_NUDGE_PX;
-                c.scrollTop = Math.max(0, c.scrollTop + delta);
-              } else {
-                c.scrollTop = Math.max(0, c.scrollTop - CONTEXT_NUDGE_PX);
-              }
-              if (dividerScrollAttempts < 6) {
-                setTimeout(scrollToDivider, dividerScrollAttempts < 3 ? 50 : 150);
-              }
-            });
-          };
-
           // Centres the floating video's placeholder; retries while rows measure.
           let returnScrollAttempts = 0;
           const scrollToReturn = () => {
@@ -2728,17 +2790,15 @@ watch(() => props.messages, (newMessages) => {
               const c = messageDisplayContainer.value;
               const placeholder = c?.querySelector('.floating-video-placeholder') as HTMLElement | null;
               if (c && placeholder) {
-                const box = placeholder.getBoundingClientRect();
-                const view = c.getBoundingClientRect();
+                const box = styleRect(placeholder);
+                const view = styleRect(c);
                 c.scrollTop += box.top + box.height / 2 - (view.top + view.height / 2);
               }
               if (returnScrollAttempts < 6) setTimeout(scrollToReturn, returnScrollAttempts < 3 ? 50 : 150);
             });
           };
 
-          const scrollToTarget = () => (
-            returnIndex >= 0 ? scrollToReturn() : hasDivider ? scrollToDivider() : scrollToBottom()
-          );
+          const scrollToTarget = () => (returnIndex >= 0 ? scrollToReturn() : scrollToBottom());
 
           if (pendingImages.length === 0 && totalEmbeds === 0) {
             // Scroll immediately, then retry after virtualizer renders
@@ -2781,9 +2841,9 @@ watch(() => props.messages, (newMessages) => {
           // The bottom is followed when the view is pinned there, when one of
           // the new messages was just sent from this client, or while the
           // post-open grace window is active (catch-up messages from
-          // revalidate / realtime) and no divider anchors the view.
+          // revalidate / realtime).
           const followBottom = pinState.pinned || appendedOwnPending > 0 ||
-            (Date.now() < openFollowBottomUntil && !dividerBeforeMessageId.value);
+            Date.now() < openFollowBottomUntil;
           if (isAppend && followBottom) {
             debug.log('New messages - scrolling to bottom (pinned / own / open grace)');
             setPinned(true);
@@ -2802,7 +2862,7 @@ watch(() => props.messages, (newMessages) => {
           // second absolute write on the next frame would undo any scrolling
           // done in between. `scrollToIndex` is not used: it issues a new
           // scroll command and re-fires as rows re-measure.
-          else if (!isAppend) {
+          else if (!isAppend && newMessages.some(m => m.id === prevFirstId)) {
             const container = messageDisplayContainer.value;
             if (container) {
               const next = scrollTopAfterPrepend(oldScrollTopForPrepend, oldScrollHeight, container.scrollHeight);
@@ -2813,6 +2873,18 @@ watch(() => props.messages, (newMessages) => {
             // unused-var lint quiet.
             void prevDisplayItemCount;
           }
+        }
+
+        // The list was replaced: the newest page reloaded over a gap.
+        const replaced = prevFirstId !== null && !newMessages.some(m => m.id === prevFirstId);
+        // Rows the open's catch-up or a reload brought can hold the first unread
+        // message; the line is placed against the rows now loaded.
+        if (replaced || (!dividerBeforeMessageId.value && Date.now() < openFollowBottomUntil)) {
+          resolveDivider(newMessages, props.currentUserId);
+        }
+        if (replaced && pinState.pinned) {
+          stickToBottom();
+          requestAnimationFrame(stickToBottom);
         }
         
         checkScrollable();
@@ -3141,8 +3213,8 @@ const jumpToMessageRow = (messageId: string): boolean => {
       const c = messageDisplayContainer.value;
       const el = document.getElementById(`message-${messageId}`);
       if (c && el) {
-        const box = el.getBoundingClientRect();
-        const view = c.getBoundingClientRect();
+        const box = styleRect(el);
+        const view = styleRect(c);
         c.scrollTop += box.height > view.height - CONTEXT_NUDGE_PX
           ? box.top - view.top - CONTEXT_NUDGE_PX
           : box.top + box.height / 2 - (view.top + view.height / 2);
@@ -3434,7 +3506,7 @@ const canDeleteMessage = (message: Message) => {
   }
 
   if (isOwnMessage) return true;
-  if (isCurrentUserServerOwner.value) return true;
+  if (isCurrentUserServerOwner.value && !message.conversation_id) return true;
   if (profileStore.profile?.is_admin || profileStore.profile?.is_moderator) return true;
   if (canManageMessages.value) return true;
 
@@ -3495,6 +3567,8 @@ const saveEdit = async (messageId: string, newContent?: string, retainedFiles: F
     // An AutoMod block leaves the edit open with the reason; the text is kept.
     if (isModerationRejectionCode(error?.code) && error?.message) {
       toast.error(error.message);
+    } else if (classifySendFailure(error) === 'permission') {
+      toast.error(permissionRefusalMessage(error));
     }
   }
 };
@@ -3971,13 +4045,19 @@ const openContextMenu = (message: Message, event: MouseEvent) => {
   // Every menu action acts on the message's id, which an unsent row lacks.
   if (isOptimisticId(message.id)) return;
   const trigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
-  // A keyboard click on the More button carries no pointer position.
-  if (event.detail === 0 && trigger) {
-    const box = trigger.getBoundingClientRect();
+  // A keyboard click on the More button carries no pointer position: a click with detail 0.
+  // A pointer contextmenu also reports detail 0 in Chromium, with the pointer's coordinates;
+  // only a contextmenu at (0, 0) came from the keyboard.
+  const fromKeyboard = event.type === 'click'
+    ? event.detail === 0
+    : event.clientX === 0 && event.clientY === 0;
+  if (fromKeyboard && trigger) {
+    const box = styleRect(trigger);
     showContextMenu(message, box.left, box.bottom + 4, trigger);
     return;
   }
-  showContextMenu(message, event.clientX, event.clientY, trigger);
+  const point = stylePoint(event);
+  showContextMenu(message, point.x, point.y, trigger);
 };
 
 // Native right-click on a message row opens the same context menu as the
@@ -4322,13 +4402,25 @@ defineExpose({ editLastOwnMessage });
   background-color: var(--background-modifier-hover);
 }
 
+/* --mention-highlight: the warning colour unless the theme or a skin sets one. */
 .message-item.mentions-me {
-  background-color: color-mix(in srgb, var(--warning) 10%, transparent);
-  box-shadow: inset 2px 0 0 var(--warning);
+  background-color: color-mix(in srgb, var(--mention-highlight, var(--warning)) 10%, transparent);
+  box-shadow: inset 2px 0 0 var(--mention-highlight, var(--warning));
 }
 
 .message-item.mentions-me:hover {
-  background-color: color-mix(in srgb, var(--warning) 15%, transparent);
+  background-color: color-mix(in srgb, var(--mention-highlight, var(--warning)) 15%, transparent);
+}
+
+/* On the warning tint: the muted timestamp drops to 3.9:1 (midnight) and the brand-blue mention
+   pill to 3.6:1. The pill text lightens instead; the brand blue itself is unchanged. Paper paints
+   mentions on its yellow marker with ink and keeps its own colour. */
+.message-item.mentions-me .timestamp {
+  color: var(--text-secondary);
+}
+
+:root[data-theme-type="dark"]:not([data-skin="paper"]) .message-item.mentions-me :deep(.mention) {
+  color: color-mix(in srgb, var(--harmony-primary) 75%, #fff);
 }
 
 /* Message group - contains header and/or content */
@@ -4644,7 +4736,8 @@ defineExpose({ editLastOwnMessage });
   flex-shrink: 0;
   padding: 1px 10px;
   border-radius: 0 8px 8px 0;
-  background-color: var(--harmony-secondary);
+  /* White on --harmony-secondary #38bdf8 is 2.1:1; on the brand fill, the accepted 2.77:1. */
+  background-color: var(--harmony-primary-fill);
   color: var(--text-on-primary);
   font-size: 0.65rem;
   font-weight: 700;
@@ -4656,7 +4749,7 @@ defineExpose({ editLastOwnMessage });
 .new-messages-line {
   flex: 1;
   height: 1px;
-  background: var(--harmony-secondary);
+  background: var(--harmony-primary-fill);
 }
 
 /* Highlighted message */
@@ -4677,10 +4770,10 @@ defineExpose({ editLastOwnMessage });
 
 @keyframes highlight-fade {
   0% {
-    background-color: hsl(34, 100%, 50%, 0.3) !important;
+    background-color: hsl(34, 100%, 50%, 0.3);
   }
   100% {
-    background-color: hsl(34, 100%, 50%, 0.1) !important;
+    background-color: hsl(34, 100%, 50%, 0.1);
   }
 }
 
@@ -4803,7 +4896,7 @@ defineExpose({ editLastOwnMessage });
     /* inline-flex ignores text-overflow. */
     display: inline-block;
     vertical-align: bottom;
-    max-width: 40vw;
+    max-width: calc(40 * var(--app-vw));
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -4935,6 +5028,10 @@ defineExpose({ editLastOwnMessage });
 .system-user-mention {
   font-weight: 600;
   cursor: pointer;
+}
+
+.system-user-name {
+  font-weight: 600;
 }
 
 .system-user-mention:hover {
@@ -5105,6 +5202,57 @@ defineExpose({ editLastOwnMessage });
   .jump-present.has-count {
     height: 36px;
   }
+}
+
+/* Zero-height sticky wrapper, as .loading-older-anchor: toggling it moves no row. */
+.unread-bar-anchor {
+  position: sticky;
+  top: 0;
+  height: 0;
+  z-index: 3;
+}
+
+.unread-bar {
+  position: absolute;
+  top: 0;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  align-items: stretch;
+  border-radius: 0 0 8px 8px;
+  background: var(--harmony-primary-fill);
+  color: var(--text-on-primary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  overflow: hidden;
+}
+
+.unread-bar button {
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 6px 12px;
+}
+
+.unread-bar-jump {
+  flex: 1;
+  text-align: left;
+}
+
+.unread-bar-dismiss {
+  flex: none;
+  border-left: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+}
+
+.unread-bar button:hover {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.unread-bar button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -4px;
 }
 
 /* An in-flow row here shifts the list by its height whenever it toggles and

@@ -2,9 +2,10 @@ import { useRouter } from 'vue-router'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 
 /**
- * Routes to `channelId` in `serverId`, or to the server's default channel when
- * none is given. The server must already be in the user's server list; the bare
- * chat route is the fallback when it is not, or when it has no channels.
+ * Routes to `channelId` in `serverId`, or to the server's landing channel (last
+ * viewed, else default) when none is given. The server must already be in the
+ * user's server list; the bare chat route is the fallback when it is not, or
+ * when it has no channels.
  */
 export function useOpenServer() {
   const router = useRouter()
@@ -17,7 +18,7 @@ export function useOpenServer() {
     if (!targetChannelId && serverChannelStore.currentServerId === serverId) {
       await serverChannelStore.fetchCategoriesAndChannels(serverId)
       if (serverChannelStore.currentServerId !== serverId) return
-      targetChannelId = serverChannelStore.getDefaultChannel()
+      targetChannelId = serverChannelStore.landingChannelFor(serverId)
     }
 
     if (targetChannelId) {

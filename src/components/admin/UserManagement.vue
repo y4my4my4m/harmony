@@ -169,8 +169,8 @@
           >
             <div class="server-icon">
               <img 
-                v-if="server.icon_url" 
-                :src="getServerIconUrl(server.icon_url)" 
+                v-if="server.icon_url || server.name"
+                :src="getServerIconUrl(server.icon_url, 96, server.name)" 
                 :alt="server.name"
               />
               <div v-else class="server-icon-placeholder">
@@ -836,7 +836,7 @@ onUnmounted(() => window.removeEventListener('admin:users-changed', onUsersChang
   border-radius: var(--radius-lg);
   max-width: 600px;
   width: 90%;
-  max-height: 80vh;
+  max-height: calc(80 * var(--app-vh));
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow-large);

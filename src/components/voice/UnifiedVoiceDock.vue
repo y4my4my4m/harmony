@@ -31,6 +31,8 @@
           @open="openFocused"
         />
         <SoundboardActivity class="dock-soundboard-activity" />
+        <ActivityDockCard v-if="dockActivity" :activity="dockActivity" />
+        <ActivityInvite v-else-if="dockInvite" :activity="dockInvite" />
       </div>
       <!-- Tapping expands to overlay on viewports <= 480px -->
       <div 
@@ -89,15 +91,20 @@
           :class="['control-btn', 'mic-btn', {
             active: !voiceStore.localState.isMuted && !voiceStore.localState.isDeafened && (!isPTTMode || isPTTActive),
             muted: voiceStore.localState.isMuted,
+            locked: voiceStore.speakLocked,
             'ptt-mode': isPTTMode,
             'ptt-active': isPTTActive && !voiceStore.localState.isMuted
           }]"
           :title="micTitle"
           :aria-label="t('voice.mute')"
           :aria-pressed="voiceStore.localState.isMuted"
+          :aria-disabled="voiceStore.speakLocked || undefined"
+          :aria-describedby="voiceStore.speakLocked ? lockHintId : undefined"
+          :data-locked="voiceStore.speakLocked ? 'true' : undefined"
           data-testid="dock-mute"
         >
           <Icon :name="voiceStore.localState.isMuted || voiceStore.localState.isDeafened ? 'mic-off' : 'mic'" />
+          <Icon v-if="voiceStore.speakLocked" name="lock" :size="10" class="lock-badge" aria-hidden="true" />
           <span v-if="isPTTMode && !voiceStore.localState.isMuted" class="ptt-indicator" :class="{ active: isPTTActive }" aria-hidden="true">PTT</span>
         </button>
 
@@ -105,17 +112,23 @@
           @click="voiceStore.toggleDeafen()"
           :class="['control-btn', 'headphones-btn', { 
             active: !voiceStore.localState.isDeafened,
-            deafened: voiceStore.localState.isDeafened 
+            deafened: voiceStore.localState.isDeafened,
+            locked: voiceStore.deafenLocked
           }]"
-          :title="withShortcut(t('voice.deafen'), 'toggle-deafen')"
+          :title="voiceStore.deafenLocked ? t('voice.moderation.serverDeafenedHint') : withShortcut(t('voice.deafen'), 'toggle-deafen')"
           :aria-label="t('voice.deafen')"
           :aria-pressed="voiceStore.localState.isDeafened"
+          :aria-disabled="voiceStore.deafenLocked || undefined"
+          :data-locked="voiceStore.deafenLocked ? 'true' : undefined"
           data-testid="dock-deafen"
         >
           <Icon :name="voiceStore.localState.isDeafened ? 'headphones-off' : 'headphones'" />
+          <Icon v-if="voiceStore.deafenLocked" name="lock" :size="10" class="lock-badge" aria-hidden="true" />
         </button>
+        <span v-if="voiceStore.speakLockReason" :id="lockHintId" hidden>{{ t(voiceStore.speakLockReason) }}</span>
 
         <button
+          v-if="voiceStore.canStream"
           @click="voiceStore.toggleVideo()"
           :class="['control-btn', 'video-btn', {
             active: voiceStore.localState.isVideoEnabled
@@ -129,6 +142,7 @@
         </button>
 
         <button
+          v-if="voiceStore.canStream"
           ref="dockShareButtonRef"
           @click="onDockShareButton"
           :class="['control-btn', 'screen-btn', {
@@ -155,6 +169,20 @@
           :aria-expanded="showReactions"
         >
           <Icon name="smile-plus" />
+        </button>
+
+        <button
+          v-if="activityButton.available.value"
+          ref="dockActivityButtonRef"
+          @click="activityButton.toggle"
+          :class="['control-btn', 'activity-btn', { active: activityButton.visible.value || activityButton.running.value }]"
+          :title="t('activities.title')"
+          :aria-label="t('activities.title')"
+          aria-haspopup="dialog"
+          :aria-expanded="activityButton.visible.value"
+          data-testid="activity-button"
+        >
+          <Icon name="popcorn" />
         </button>
 
         <button
@@ -342,10 +370,12 @@
             <button
               @click.stop="voiceStore.toggleMute()"
               class="mini-control-btn mini-mic-btn"
-              :class="{ muted: voiceStore.localState.isMuted, 'ptt-active': isPTTActive && !voiceStore.localState.isMuted }"
+              :class="{ muted: voiceStore.localState.isMuted, locked: voiceStore.speakLocked, 'ptt-active': isPTTActive && !voiceStore.localState.isMuted }"
               :title="micTitle"
               :aria-label="t('voice.mute')"
               :aria-pressed="voiceStore.localState.isMuted"
+              :aria-disabled="voiceStore.speakLocked || undefined"
+              :data-locked="voiceStore.speakLocked ? 'true' : undefined"
               data-testid="mini-mute"
             >
               <Icon :name="voiceStore.localState.isMuted || voiceStore.localState.isDeafened ? 'mic-off' : 'mic'" />
@@ -354,10 +384,12 @@
             <button 
               @click.stop="voiceStore.toggleDeafen()"
               class="mini-control-btn mini-deafen-btn"
-              :class="{ deafened: voiceStore.localState.isDeafened }"
-              :title="withShortcut(t('voice.deafen'), 'toggle-deafen')"
+              :class="{ deafened: voiceStore.localState.isDeafened, locked: voiceStore.deafenLocked }"
+              :title="voiceStore.deafenLocked ? t('voice.moderation.serverDeafenedHint') : withShortcut(t('voice.deafen'), 'toggle-deafen')"
               :aria-label="t('voice.deafen')"
               :aria-pressed="voiceStore.localState.isDeafened"
+              :aria-disabled="voiceStore.deafenLocked || undefined"
+              :data-locked="voiceStore.deafenLocked ? 'true' : undefined"
               data-testid="mini-deafen"
             >
               <HeadphonesIcon :isHeadphonesActive="!voiceStore.localState.isDeafened" aria-hidden="true" />
@@ -444,6 +476,12 @@
       @close="showReactions = false"
     />
 
+    <ActivityLauncher
+      v-if="activityButton.visible.value"
+      :anchor="activityButton.anchor.value"
+      @close="activityButton.close"
+    />
+
     <SoundboardPopover
       v-if="currentMode !== 'overlay' && soundboardButton.visible.value"
       :visible="soundboardButton.visible.value"
@@ -499,6 +537,11 @@ import LiveReactionPopover from './LiveReactionPopover.vue';
 import type { LiveReactionTarget } from '@/services/voice/liveReactions';
 import { useDockVideoStrip } from './useDockVideoStrip';
 import { useSoundboardButton } from './useSoundboardButton';
+import { useActivityButton } from '@/components/activities/useActivityButton';
+import { useActivitiesStore } from '@/stores/activities';
+import ActivityDockCard from '@/components/activities/ActivityDockCard.vue';
+import ActivityInvite from '@/components/activities/ActivityInvite.vue';
+import ActivityLauncher from '@/components/activities/ActivityLauncher.vue';
 import { showsMinimizedAudioControls } from './minimizedVoiceControls';
 import { userPanelDocked } from '@/composables/useUserPanelDock';
 import type { Rect } from './voiceMenuModel';
@@ -506,6 +549,7 @@ import { isMobileUserAgent } from '@/utils/platform';
 import { uid } from '@/utils/a11y/focus';
 import { useI18n } from 'vue-i18n';
 import { focusAfterVoiceLeave, restoreFocusIfLost } from './voiceFocus';
+import { stylePoint, styleRect, styleViewport } from '@/utils/appZoom';
 
 const { t } = useI18n();
 
@@ -762,7 +806,10 @@ const activeVideoLabel = computed(() => {
   return t(key, { name: activeVideoUserName.value });
 });
 
+const lockHintId = uid('voice-lock-hint');
+
 const micTitle = computed(() => {
+  if (voiceStore.speakLockReason) return t(voiceStore.speakLockReason);
   if (!voiceStore.localState.isMuted && isPTTMode.value) {
     return isPTTActive.value
       ? t('voice.pttTransmitting', { key: pttKeyDisplay.value })
@@ -785,6 +832,12 @@ const streamPickerAnchor = ref<Rect | null>(null);
 
 const dockSoundboardButtonRef = ref<HTMLButtonElement | null>(null);
 const soundboardButton = useSoundboardButton(dockSoundboardButtonRef);
+const dockActivityButtonRef = ref<HTMLButtonElement | null>(null);
+const activityButton = useActivityButton(dockActivityButtonRef);
+const activitiesStore = useActivitiesStore();
+// The dock card shows while the overlay is closed; the overlay shows the stage instead.
+const dockActivity = computed(() => (currentMode.value === 'dock' && activitiesStore.playingHere ? activitiesStore.current : null));
+const dockInvite = computed(() => (currentMode.value === 'dock' ? activitiesStore.waiting : null));
 
 const closeStreamPicker = () => {
   showStreamPicker.value = false;
@@ -796,7 +849,7 @@ const onDockShareButton = () => {
     showStreamPicker.value = false;
     return;
   }
-  const r = dockShareButtonRef.value?.getBoundingClientRect();
+  const r = dockShareButtonRef.value ? styleRect(dockShareButtonRef.value) : null;
   streamPickerAnchor.value = r ? { left: r.left, top: r.top, width: r.width, height: r.height } : null;
   showStreamPicker.value = true;
 };
@@ -984,18 +1037,17 @@ const startDrag = (e: MouseEvent | TouchEvent) => {
   // Dimensions cached once; move handler must not hit the layout.
   const container = minimizedContainerRef.value;
   if (container) {
-    const rect = container.getBoundingClientRect();
+    const rect = styleRect(container);
     containerDimensions.value = { width: rect.width, height: rect.height };
   }
   
-  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+  const pointer = stylePoint('touches' in e ? e.touches[0] : e);
   
-  dragInitialMousePos.value = { x: clientX, y: clientY };
+  dragInitialMousePos.value = { x: pointer.x, y: pointer.y };
   
   dragStartPos.value = {
-    x: clientX - minimizedPosition.value.left,
-    y: window.innerHeight - clientY - minimizedPosition.value.bottom
+    x: pointer.x - minimizedPosition.value.left,
+    y: styleViewport().height - pointer.y - minimizedPosition.value.bottom
   };
   
   // passive: false is required for preventDefault in the move handler.
@@ -1018,11 +1070,10 @@ const handleDrag = (e: MouseEvent | TouchEvent) => {
   
   e.preventDefault();
   
-  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+  const pointer = stylePoint('touches' in e ? e.touches[0] : e);
   
-  const deltaX = Math.abs(clientX - dragInitialMousePos.value.x);
-  const deltaY = Math.abs(clientY - dragInitialMousePos.value.y);
+  const deltaX = Math.abs(pointer.x - dragInitialMousePos.value.x);
+  const deltaY = Math.abs(pointer.y - dragInitialMousePos.value.y);
   const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
   
   if (distance > CLICK_THRESHOLD) {
@@ -1036,12 +1087,12 @@ const handleDrag = (e: MouseEvent | TouchEvent) => {
   rafId = requestAnimationFrame(() => {
     if (!isDragging.value) return;
     
-    const newLeft = clientX - dragStartPos.value.x;
-    const newBottom = window.innerHeight - clientY - dragStartPos.value.y;
+    const newLeft = pointer.x - dragStartPos.value.x;
+    const newBottom = styleViewport().height - pointer.y - dragStartPos.value.y;
     
     // Clamp to viewport.
-    const maxLeft = window.innerWidth - containerDimensions.value.width;
-    const maxBottom = window.innerHeight - containerDimensions.value.height;
+    const maxLeft = styleViewport().width - containerDimensions.value.width;
+    const maxBottom = styleViewport().height - containerDimensions.value.height;
     
     minimizedPosition.value = {
       left: Math.max(0, Math.min(newLeft, maxLeft)),
@@ -1162,22 +1213,21 @@ const startDockDrag = (e: MouseEvent | TouchEvent) => {
   // Dimensions cached once; move handler must not hit the layout.
   const container = dockContainerRef.value;
   if (container) {
-    const rect = container.getBoundingClientRect();
+    const rect = styleRect(container);
     dockContainerDimensions.value = { width: rect.width, height: rect.height };
   }
   
-  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+  const pointer = stylePoint('touches' in e ? e.touches[0] : e);
   
-  dockDragInitialMousePos.value = { x: clientX, y: clientY };
+  dockDragInitialMousePos.value = { x: pointer.x, y: pointer.y };
   
   const currentLeft = dockPosition.value.left === 0 
-    ? window.innerWidth / 2 - (dockContainerDimensions.value.width / 2)
+    ? styleViewport().width / 2 - (dockContainerDimensions.value.width / 2)
     : dockPosition.value.left;
   
   dockDragStartPos.value = {
-    x: clientX - currentLeft,
-    y: window.innerHeight - clientY - dockPosition.value.bottom
+    x: pointer.x - currentLeft,
+    y: styleViewport().height - pointer.y - dockPosition.value.bottom
   };
   
   // passive: false is required for preventDefault in the move handler.
@@ -1200,11 +1250,10 @@ const handleDockDrag = (e: MouseEvent | TouchEvent) => {
   
   e.preventDefault();
   
-  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+  const pointer = stylePoint('touches' in e ? e.touches[0] : e);
   
-  const deltaX = Math.abs(clientX - dockDragInitialMousePos.value.x);
-  const deltaY = Math.abs(clientY - dockDragInitialMousePos.value.y);
+  const deltaX = Math.abs(pointer.x - dockDragInitialMousePos.value.x);
+  const deltaY = Math.abs(pointer.y - dockDragInitialMousePos.value.y);
   const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
   
   if (distance > CLICK_THRESHOLD) {
@@ -1218,12 +1267,12 @@ const handleDockDrag = (e: MouseEvent | TouchEvent) => {
   dockRafId = requestAnimationFrame(() => {
     if (!isDockDragging.value) return;
     
-    const newLeft = clientX - dockDragStartPos.value.x;
-    const newBottom = window.innerHeight - clientY - dockDragStartPos.value.y;
+    const newLeft = pointer.x - dockDragStartPos.value.x;
+    const newBottom = styleViewport().height - pointer.y - dockDragStartPos.value.y;
     
     // Clamp to viewport.
-    const maxLeft = window.innerWidth - dockContainerDimensions.value.width;
-    const maxBottom = window.innerHeight - dockContainerDimensions.value.height;
+    const maxLeft = styleViewport().width - dockContainerDimensions.value.width;
+    const maxBottom = styleViewport().height - dockContainerDimensions.value.height;
     
     dockPosition.value = {
       left: Math.max(0, Math.min(newLeft, maxLeft)),
@@ -1262,10 +1311,10 @@ const stopDockDrag = () => {
   // Snap to default on release, desktop only.
   if (isDesktop.value) {
     const currentLeft = dockPosition.value.left === 0 
-      ? window.innerWidth / 2 - (dockContainerDimensions.value.width / 2)
+      ? styleViewport().width / 2 - (dockContainerDimensions.value.width / 2)
       : dockPosition.value.left;
     
-    const centerX = window.innerWidth / 2 - dockContainerDimensions.value.width / 2;
+    const centerX = styleViewport().width / 2 - dockContainerDimensions.value.width / 2;
     const distanceToDefault = Math.sqrt(
       Math.pow(currentLeft - centerX, 2) + 
       Math.pow(dockPosition.value.bottom - DEFAULT_DOCK_POSITION.bottom, 2)
@@ -1647,6 +1696,19 @@ onUnmounted(() => {
   background: var(--success);
   color: var(--text-on-primary);
   border-color: var(--success);
+}
+
+.control-btn.locked,
+.mini-control-btn.locked {
+  position: relative;
+  cursor: not-allowed;
+}
+
+.lock-badge {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  color: var(--text-danger);
 }
 
 .control-btn.muted {
@@ -2299,7 +2361,7 @@ onUnmounted(() => {
 
 .dock-banner {
   width: max-content;
-  max-width: min(420px, calc(100vw - 16px));
+  max-width: min(420px, calc(100 * var(--app-vw) - 16px));
 }
 
 /* No banner: out of the layout, but the status region inside stays in the
@@ -2317,7 +2379,7 @@ onUnmounted(() => {
 }
 
 .dock-soundboard-activity {
-  max-width: min(420px, calc(100vw - 16px));
+  max-width: min(420px, calc(100 * var(--app-vw) - 16px));
 }
 
 .dock-quality-warn {

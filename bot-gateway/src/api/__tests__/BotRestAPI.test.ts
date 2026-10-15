@@ -495,3 +495,149 @@ describe('PUT /messages/:id/reactions/:emoji', () => {
     expect(res.body).toEqual({ error: 'Maximum number of reactions reached (20)', code: 30010 })
   })
 })
+
+/** Builder calls on `table`, as [method, args], in call order. */
+function recordCalls(table: string, tables: Record<string, Result>): Array<[string, unknown[]]> {
+  routeTables(tables)
+  const calls: Array<[string, unknown[]]> = []
+  const route = mocks.from.getMockImplementation()!
+  mocks.from.mockImplementation((name: string) => {
+    const builder = route(name)
+    if (name !== table) return builder
+    const recorder: any = new Proxy(builder, {
+      get(target, prop) {
+        const value = target[prop]
+        if (prop === 'then' || typeof value !== 'function') return value
+        return (...args: unknown[]) => {
+          calls.push([String(prop), args])
+          const result = value(...args)
+          return result === builder ? recorder : result
+        }
+      },
+    })
+    return recorder
+  })
+  return calls
+}
+
+describe('server routes', () => {
+  const SERVER_ID = '00000000-0000-0000-0000-00000000005a'
+  const INSTALLED = { bot_server_permissions: { data: { id: 'install' }, error: null } }
+  const env = { ...process.env }
+
+  afterEach(() => {
+    process.env = { ...env }
+  })
+
+  describe('GET /servers/:id/members', () => {
+    const ALICE = '00000000-0000-0000-0000-0000000000a1'
+    const membership = {
+      id: 'm1',
+      user_id: ALICE,
+      server_id: SERVER_ID,
+      nickname: 'Al',
+      created_at: '2026-10-01T09:00:00+00:00',
+      user: { id: ALICE, username: 'alice', display_name: 'Alice', avatar_url: null, domain: null, is_local: true },
+    }
+
+    it('reports joined_at from the membership row', async () => {
+      routeTables({ ...INSTALLED, user_servers: { data: [membership], error: null } })
+      const res = await supertest(makeApp()).get(`/api/v1/servers/${SERVER_ID}/members`)
+
+      expect(res.status).toBe(200)
+      expect(res.body).toEqual([{
+        user: { id: ALICE, username: 'alice', display_name: 'Alice', domain: null, is_local: true },
+        nick: 'Al',
+        roles: [],
+        joined_at: '2026-10-01T09:00:00+00:00',
+      }])
+    })
+
+    // user_servers has no joined_at column; the cursor is the last user.id of the previous page.
+    it('pages by user id', async () => {
+      const calls = recordCalls('user_servers', { ...INSTALLED, user_servers: { data: [], error: null } })
+      const res = await supertest(makeApp()).get(`/api/v1/guilds/${SERVER_ID}/members?limit=2&after=${ALICE}`)
+
+      expect(res.status).toBe(200)
+      expect(calls).toContainEqual(['order', ['user_id']])
+      expect(calls).toContainEqual(['gt', ['user_id', ALICE]])
+      expect(calls).toContainEqual(['limit', [2]])
+      expect(JSON.stringify(calls)).not.toContain('joined_at')
+    })
+
+    it('orders by user id without a cursor', async () => {
+      const calls = recordCalls('user_servers', { ...INSTALLED, user_servers: { data: [], error: null } })
+      await supertest(makeApp()).get(`/api/v1/servers/${SERVER_ID}/members`)
+
+      expect(calls).toContainEqual(['order', ['user_id']])
+      expect(calls.some(([method]) => method === 'gt')).toBe(false)
+    })
+
+    it('refuses a cursor that is not a user id', async () => {
+      routeTables({ ...INSTALLED, user_servers: { data: [], error: null } })
+      const res = await supertest(makeApp()).get(`/api/v1/servers/${SERVER_ID}/members?after=2026-10-01T00:00:00Z`)
+
+      expect(res.status).toBe(400)
+      expect(res.body).toEqual({ error: 'after must be a user id' })
+    })
+  })
+
+  describe('GET /servers/:id', () => {
+    const server = (icon: string | null) => ({
+      ...INSTALLED,
+      servers: {
+        data: { id: SERVER_ID, name: 'Lounge', icon, owner: 'o1', description: null, member_count: 3 },
+        error: null,
+      },
+    })
+
+    it('reports servers.icon as an absolute URL', async () => {
+      process.env.PUBLIC_URL = 'https://db.harmony.test'
+      routeTables(server(`${SERVER_ID}/icon.png`))
+      const res = await supertest(makeApp()).get(`/api/v1/servers/${SERVER_ID}`)
+
+      expect(res.status).toBe(200)
+      expect(res.body).toEqual({
+        id: SERVER_ID,
+        name: 'Lounge',
+        icon: `https://db.harmony.test/storage/v1/render/image/public/server_icons/${SERVER_ID}/icon.png?width=128&height=128&resize=contain&quality=80`,
+        owner_id: 'o1',
+        description: null,
+        member_count: 3,
+      })
+    })
+
+    it('reports a server without an icon as icon null', async () => {
+      routeTables(server(null))
+      const res = await supertest(makeApp()).get(`/api/v1/guilds/${SERVER_ID}`)
+
+      expect(res.body.icon).toBeNull()
+    })
+  })
+
+  describe('GET /servers/:id/channels', () => {
+    it('reports channels.type in Discord numbering', async () => {
+      routeTables({
+        ...INSTALLED,
+        channels: {
+          data: [
+            { id: 'text', server_id: SERVER_ID, name: 'general', type: 0, order: 0, category: null },
+            { id: 'voice', server_id: SERVER_ID, name: 'Lounge', type: 1, order: 1, category: null },
+            { id: 'category', server_id: SERVER_ID, name: 'Info', type: 2, order: 2, category: null },
+            { id: 'untyped', server_id: SERVER_ID, name: 'legacy', type: null, order: 3, category: null },
+          ],
+          error: null,
+        },
+      })
+      const res = await supertest(makeApp()).get(`/api/v1/servers/${SERVER_ID}/channels`)
+
+      expect(res.status).toBe(200)
+      expect(res.body.map((c: { id: string; type: number }) => [c.id, c.type])).toEqual([
+        ['text', 0],
+        ['voice', 2],
+        ['category', 4],
+        ['untyped', 0],
+      ])
+    })
+  })
+})

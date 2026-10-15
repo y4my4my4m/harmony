@@ -13,6 +13,24 @@ describe('urlTrackerStripper', () => {
       expect(stripTrackingParameters(url)).toBe('https://youtu.be/dQw4w9WgXcQ')
     })
 
+    it('strips Spotify share ids and keeps the playing context', () => {
+      expect(stripTrackingParameters('https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC?si=a1b2c3d4e5f6&nd=1&dlsi=0f9e'))
+        .toBe('https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC')
+      expect(stripTrackingParameters('https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC?context=spotify%3Aplaylist%3A37i9dQZF1DX&si=abc'))
+        .toBe('https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC?context=spotify%3Aplaylist%3A37i9dQZF1DX')
+    })
+
+    it('strips SoundCloud and YouTube Music share ids', () => {
+      expect(stripTrackingParameters('https://soundcloud.com/artist/track?si=0123abcd&utm_source=clipboard&utm_medium=text'))
+        .toBe('https://soundcloud.com/artist/track')
+      expect(stripTrackingParameters('https://music.youtube.com/watch?v=abcdefghijk&si=xyz'))
+        .toBe('https://music.youtube.com/watch?v=abcdefghijk')
+    })
+
+    it('leaves si on hosts that did not opt in', () => {
+      expect(stripTrackingParameters('https://example.com/page?si=1')).toBe('https://example.com/page?si=1')
+    })
+
     it('strips X/Twitter share signature (s, t)', () => {
       const url = 'https://x.com/user/status/123?s=20&t=abc'
       expect(stripTrackingParameters(url)).toBe('https://x.com/user/status/123')

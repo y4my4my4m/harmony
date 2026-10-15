@@ -18,6 +18,7 @@
 
     <!-- Emoji Content Area -->
     <div ref="contentRef" class="emoji-content" @keydown="onGridKeydown">
+      <p v-if="externalRestricted" class="emoji-external-note" role="note">{{ t('emoji.externalNotAllowed') }}</p>
       <!-- Favorite Emojis (always visible) -->
       <div v-if="!activeQuery" class="emoji-section">
         <h3 class="section-title">
@@ -33,9 +34,9 @@
           </button>
         </h3>
         <template v-if="!isSectionCollapsed('favorites')">
-          <div v-if="favoriteEmojis.length" class="emoji-list favorite-list">
+          <div v-if="shownFavorites.length" class="emoji-list favorite-list">
             <button
-              v-for="fav in favoriteEmojis"
+              v-for="fav in shownFavorites"
               :key="fav.emoji_id"
               class="emoji-item"
               :class="{ 'native-emoji-item': isNativePack && !fav.emoji_url, 'svg-emoji-item': !isNativePack || fav.emoji_url }"
@@ -72,7 +73,7 @@
       </div>
 
       <!-- Frequently Used Emojis -->
-      <div v-if="!activeQuery && hasFrequentEmojis" class="emoji-section">
+      <div v-if="!activeQuery && hasFrequentEmojis && shownFrequent.length" class="emoji-section">
         <h3 class="section-title">
           <button
             type="button"
@@ -87,7 +88,7 @@
         </h3>
         <div v-if="!isSectionCollapsed('frequent')" class="emoji-list frequent-list">
           <button
-            v-for="emoji in topEmojisForPicker"
+            v-for="emoji in shownFrequent"
             :key="emoji.id"
             class="emoji-item"
             :class="{ 'native-emoji-item': isNativePack, 'svg-emoji-item': !isNativePack }"
@@ -172,7 +173,7 @@
                 @click="toggleSection('server-' + group.serverId)"
               >
                 <span aria-hidden="true" class="section-chevron" :class="{ collapsed: isSectionCollapsed('server-' + group.serverId) }">&#9662;</span>
-                <ServerIcon :src="group.server_icon" size="mini" shape="rounded" :show-title="false" class="section-server-icon" />
+                <ServerIcon :src="group.server_icon" :name="group.server_name" size="mini" :shape="group.serverId === PERSONAL_EMOJI_GROUPS.user ? 'round' : 'rounded'" :show-title="false" class="section-server-icon" />
                 {{ group.server_name }}
               </button>
             </h3>
@@ -329,6 +330,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import Icon from '@/components/common/Icon.vue';
 import EmptyState from '@/components/common/EmptyState.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useExternalEmojiPolicy } from '@/composables/useExternalEmojiPolicy';
 import { customEmojiIndex, customEmojiUrlByName, customMatches } from '@/services/emojiSearchIndex';
 import { useEmojiSearchQuery } from '@/composables/useEmojiSearchQuery';
 import { useEmojiPickerA11y } from '@/composables/useEmojiPickerA11y';
@@ -336,6 +338,7 @@ import { useT } from '@/composables/useT';
 import { announce } from '@/composables/useAnnouncer';
 import { uid } from '@/utils/a11y/focus';
 import { customEmojiLabel, humanizeEmojiName } from '@/utils/a11y/emojiNames';
+import { stylePoint, styleViewport } from '@/utils/appZoom';
 
 // Types
 interface FilteredServerEmojiGroup {
@@ -354,8 +357,10 @@ interface DisplayCategory {
 }
 
 // Props
-defineProps<{
+const props = defineProps<{
   showFavorites?: boolean;
+  /** Server channel the picked emoji goes to; its USE_EXTERNAL_EMOJIS decides which custom emoji show. */
+  channelId?: string | null;
 }>();
 
 // Emits
@@ -370,6 +375,8 @@ const emojiCacheStore = useEmojiCacheStore();
 const serverChannelStore = useServerChannelStore();
 
 const { topEmojisForPicker, hasFrequentEmojis, recordEmojiUsage, removeFrequentEmoji, isFrequentEmoji } = useFrequentEmojis();
+const { restricted: externalRestricted, serverId: policyServerId, refuses: refusesEmoji } =
+  useExternalEmojiPolicy(() => props.channelId ?? null);
 const { triggerReaction } = useHapticSettings();
 const { 
   isNativePack, 
@@ -425,7 +432,9 @@ const filteredEmojiList = computed((): FilteredServerEmojiGroup[] => {
       ids.splice(ids.indexOf(currentId), 1);
       ids.unshift(currentId);
     }
-    return ids.map((serverId) => ({ serverId, ...resolved[serverId] }));
+    return ids
+      .filter((serverId) => !externalRestricted.value || serverId === policyServerId.value)
+      .map((serverId) => ({ serverId, ...resolved[serverId] }));
   }
 
   const groups = new Map<string, FilteredServerEmojiGroup>();
@@ -439,11 +448,18 @@ const filteredEmojiList = computed((): FilteredServerEmojiGroup[] => {
     }
     group.emojis.push(entry.emoji);
   }
-  return [...groups.values()];
+  return [...groups.values()].filter((g) => !externalRestricted.value || g.serverId === policyServerId.value);
 });
+
+// Favorites and frequent picks without the custom emoji this channel refuses.
+const shownFavorites = computed(() => favoriteEmojis.value.filter((fav) =>
+  !refusesEmoji({ id: fav.emoji_id, url: fav.emoji_url, server_id: fav.emoji_server_id })));
+const shownFrequent = computed(() => topEmojisForPicker.value.filter((emoji) =>
+  !refusesEmoji({ id: emoji.id, url: getFrequentEmojiDisplayUrl(emoji) })));
 
 // The viewer's AI-generated emoji (filtered by the active search query).
 const aiEmojis = computed((): ResolvedEmoji[] => {
+  if (externalRestricted.value) return [];
   const group = emojiCacheStore.resolvedEmojis[PERSONAL_EMOJI_GROUPS.ai];
   const list = group?.emojis ?? [];
   const query = activeQuery.value;
@@ -698,16 +714,16 @@ const emojiCtx = ref<EmojiCtxState>({
 
 function positionCtxMenu(event: MouseEvent | Touch): { x: number; y: number } {
   const menuW = 200, menuH = 120;
-  let x = event.clientX;
-  let y = event.clientY;
+  let { x, y } = stylePoint(event);
   // On touch: position menu well above finger so it's not hidden under the thumb
   const isTouch = !('button' in event);
   if (isTouch) {
     y = Math.max(8, y - menuH - 80);
   }
-  if (x + menuW > window.innerWidth - 8) x = window.innerWidth - menuW - 8;
+  const vp = styleViewport();
+  if (x + menuW > vp.width - 8) x = vp.width - menuW - 8;
   if (x < 8) x = 8;
-  if (y + menuH > window.innerHeight - 8) y = window.innerHeight - menuH - 8;
+  if (y + menuH > vp.height - 8) y = vp.height - menuH - 8;
   if (y < 8) y = 8;
   return { x, y };
 }
@@ -1165,6 +1181,16 @@ onUnmounted(() => {
 
 .no-favorites-hint p {
   margin: 0;
+}
+
+.emoji-external-note {
+  margin: 4px 8px 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--background-secondary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 /* Scrollbar styling */

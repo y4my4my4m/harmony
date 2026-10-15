@@ -64,6 +64,7 @@
       :channel-name="effectiveChannelName"
       :username="effectiveDMUsername"
       :allow-polls="pollsAllowed"
+      :encrypted-room="composerEncrypted"
       background-send
       @toggleGiphy="toggleGiphy"
       @toggleEmojiList="toggleEmojiList"
@@ -108,6 +109,7 @@
       :triggerElement="(mediaPickerTriggerElement as unknown as HTMLElement | null) || undefined"
       :composerElement="composerElement || undefined"
       :initialTab="mediaPickerInitialTab"
+      :channelId="pickerChannelId"
     />
 
     <!-- Emoji Popup for message reactions.
@@ -120,6 +122,7 @@
       @sendEmoji="handleSendEmoji"
       :closeEmojiList="closeReactionEmoji"
       is-reaction
+      :channelId="pickerChannelId"
       :isEmojiBlocked="isReactionEmojiBlocked"
       :limitNotice="reactionLimitNotice"
       :emojiIconClicked="emojiIconClicked"
@@ -191,7 +194,7 @@
   import { useThemeStore } from '@/stores/useTheme';
   import { useDraftsStore } from '@/stores/drafts';
   import type { Message, Gif, Emoji, MessagePart } from '@/types';
-  import { classifySendFailure } from '@/utils/sendFailure';
+  import { classifySendFailure, permissionRefusalMessage } from '@/utils/sendFailure';
   import { useOutboxStore, withPendingRows } from '@/stores/useOutbox';
   import { sendToTarget, targetKey, type MessageTarget } from '@/stores/shared/sendToTarget';
   import { recordEmojiUsage } from '@/services/emojiService';
@@ -360,6 +363,9 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   const selectedMessageId = ref('');
   const { isEmojiBlocked: isReactionEmojiBlocked, limitNotice: reactionLimitNotice } =
     useMessageReactionLimit(selectedMessageId);
+  // The server channel emoji pickers serve; USE_EXTERNAL_EMOJIS there decides their custom emoji.
+  const pickerChannelId = computed(() =>
+    props.isDM ? null : (props.channelId || serverChannelStore.currentChannelId || null));
   const replyToMessageId = ref('');
   const messageContent = ref('');
 
@@ -450,6 +456,9 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
       const showKeyRecoveryModal = ref(false)
 
       const encryptionStatus = computed(() => encryptionStatusData.value)
+      // Messages here are encrypted: attachments go to Drive without their names.
+      const composerEncrypted = computed(() =>
+        encryptionStatusData.value?.level === 'active' || encryptionStatusData.value?.level === 'locked')
 
       async function checkEncryptionStatus() {
         if (props.isDM) {
@@ -989,6 +998,8 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
                 upload: raw.upload,
                 uploadedPath: completed ? raw.uploadedPath : undefined,
                 uploadedUrl: completed ? raw.uploadedUrl : undefined,
+                temporary: raw.temporary,
+                driveName: composerEncrypted.value ? undefined : raw.name,
               };
             }),
             extraMetadata,
@@ -1107,6 +1118,13 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
             // AutoMod block, member timeout or new-account limit. The message
             // carries the server's reason; the draft comes back for editing.
             toast.error(msg)
+            messageInputRef.value?.flashRejection?.()
+            restoreDraft()
+            break
+          case 'permission':
+            // A channel permission refused the content, e.g. an emoji from outside
+            // the server without USE_EXTERNAL_EMOJIS.
+            toast.error(permissionRefusalMessage(error))
             messageInputRef.value?.flashRejection?.()
             restoreDraft()
             break

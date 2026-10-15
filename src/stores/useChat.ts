@@ -17,9 +17,13 @@ import { getRandomId, createTempMessageId, findOptimisticMatchIndex } from '@/st
 import { insertMessageSorted, evictOldestCacheEntry, trimCachedMessages, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils';
 import { isModerationRejectionCode } from '@/services/AutoModService';
 import { releaseFloatingVideo } from '@/composables/useFloatingVideo';
+import { clearHistoryCutoffs } from '@/services/channelHistoryCutoff';
 
 // Newest-page loads started by prefetchChannelMessages, by channel id.
 const pendingPrefetch = new Map<string, Promise<void>>();
+
+/** Rows a catch-up after the newest loaded message reads at once. */
+const CATCH_UP_LIMIT = 50;
 
 export const useChatStore = defineStore('chat', {
   state: () => ({
@@ -491,13 +495,19 @@ export const useChatStore = defineStore('chat', {
         if (!afterTs) return;
 
         const { messages } = await services.messages.loadChannelMessages(channelId, {
-          limit: 50,
+          limit: CATCH_UP_LIMIT,
           after: afterTs,
           isRemote: this._knownIsRemote(channelId),
         });
         if (!messages || messages.length === 0) return;
         // Discard if the active channel changed during the fetch.
         if (this.currentChannelId !== channelId) return;
+        // The page holds the newest rows after the cursor; a full one can leave
+        // older missed rows between them and the list.
+        if (messages.length >= CATCH_UP_LIMIT) {
+          await this.reloadNewestPage(channelId);
+          return;
+        }
 
         const existingIds = new Set(this.messages.map((m: Message) => m.id));
         const fresh = messages.filter((m: Message) => !existingIds.has(m.id));
@@ -694,6 +704,7 @@ export const useChatStore = defineStore('chat', {
       this.fetchingReplyMessages.clear();
       this.jumpedToMessages.clear();
       this.messageGaps.clear();
+      clearHistoryCutoffs();
       debug.log('Cleared all message caches');
     },
 
@@ -835,9 +846,10 @@ export const useChatStore = defineStore('chat', {
           });
         }
 
-        // AutoMod blocks, timeouts and anti-spam limits answer the same way on
-        // every retry.
-        if (isModerationRejectionCode(code)) {
+        // AutoMod blocks, timeouts, anti-spam limits and channel permissions
+        // (Missing permission: USE_EXTERNAL_EMOJIS, ATTACH_FILES) answer the same
+        // way on every retry.
+        if (isModerationRejectionCode(code) || code.includes('Missing permission:')) {
           this.removeMessageFromCache(tempId);
           throw error;
         }
@@ -1251,8 +1263,13 @@ export const useChatStore = defineStore('chat', {
                 after: newestMsg.created_at instanceof Date
                   ? newestMsg.created_at.toISOString()
                   : String(newestMsg.created_at),
-                limit: 50
+                limit: CATCH_UP_LIMIT
               });
+              // A full page can leave older missed rows between it and the list.
+              if (recent.length >= CATCH_UP_LIMIT) {
+                await store.reloadNewestPage(channelId);
+                return;
+              }
               let added = 0;
               for (const msg of recent) {
                 if (!store.messages.some((m: any) => m.id === msg.id)) {

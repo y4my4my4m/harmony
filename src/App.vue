@@ -73,6 +73,7 @@
   
   <!-- Persistent Voice Connection (only when authenticated) -->
   <PersistentVoiceConnection v-if="!isAuthRoute" />
+  <ActivityHost v-if="!isAuthRoute && inVoiceCall" />
 
   <!-- PWA Components. The install prompt waits for sign-in; on auth routes it
        covers the form on small screens. -->
@@ -107,15 +108,17 @@
     @joined="remoteInvitePrompt.close()"
   />
 
-  <!-- Floating live theme editor (Discord-style side panel over the app) -->
-  <ThemeCustomizerPanel v-if="!isAuthRoute" />
+  <!-- Floating live theme editor (Discord-style side panel over the app); loaded on first open -->
+  <ThemeCustomizerPanel v-if="!isAuthRoute && themePanelOpened" />
 
   <!-- Mini player for video embeds scrolled out of view -->
   <FloatingVideoPlayer v-if="!isAuthRoute" />
 </template>
 
 <script setup lang="ts">
-import { ref, computed, defineAsyncComponent } from 'vue'
+import { ref, computed, defineAsyncComponent, watch } from 'vue'
+import { useThemeEditorPanel } from '@/composables/useThemeEditorPanel'
+import { warmLazyUi } from '@/utils/warmLazyUi'
 import { debug } from '@/utils/debug'
 import { useRouter, useRoute } from 'vue-router'
 import { installInternalLinkInterceptor } from '@/utils/internalLinks'
@@ -134,13 +137,13 @@ import EncryptionFallbackModal from '@/components/EncryptionFallbackModal.vue'
 import EncryptionActionHost from '@/components/encryption/EncryptionActionHost.vue'
 import DeviceApprovalPrompt from '@/components/encryption/DeviceApprovalPrompt.vue'
 import PersistentVoiceConnection from '@/components/PersistentVoiceConnection.vue'
+import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel'
 import PWAInstallBanner from '@/components/PWAInstallBanner.vue'
 import PWAUpdateNotification from '@/components/PWAUpdateNotification.vue'
 import PushNotificationPrompt from '@/components/PushNotificationPrompt.vue'
 import RunOnLoginPrompt from '@/components/RunOnLoginPrompt.vue'
 import PublicServers from '@/components/PublicServers.vue'
 import AnnouncementPopup from '@/components/announcements/AnnouncementPopup.vue'
-import ThemeCustomizerPanel from '@/components/settings/user/ThemeCustomizerPanel.vue'
 import UnifiedConfirmationModal from '@/components/shared/UnifiedConfirmationModal.vue'
 import InstancePicker from '@/components/InstancePicker.vue'
 import FloatingVideoPlayer from '@/components/embeds/FloatingVideoPlayer.vue'
@@ -175,6 +178,12 @@ const {
 } = useConfirmDialog()
 
 const ImageCropDialog = defineAsyncComponent(() => import('@/components/common/ImageCropDialog.vue'))
+const ThemeCustomizerPanel = defineAsyncComponent(() => import('@/components/settings/user/ThemeCustomizerPanel.vue'))
+const ActivityHost = defineAsyncComponent(() => import('@/components/activities/ActivityHost.vue'))
+// Mounted from the first open on, so its close transition plays.
+const { isOpen: themePanelOpen } = useThemeEditorPanel()
+const themePanelOpened = ref(themePanelOpen.value)
+watch(themePanelOpen, (open) => { if (open) themePanelOpened.value = true })
 const { cropRequest, settle: settleCrop } = useImageCrop()
 import { onMounted, onUnmounted } from 'vue'
 import { hapticManager } from '@/utils/hapticFeedback'
@@ -192,11 +201,13 @@ setAnnouncerMoreLabel((count) => translate('a11y.announcer.more', { count }, cou
 const remoteInvitePrompt = useRemoteInvitePrompt()
 const remoteInviteUrl = remoteInvitePrompt.pendingUrl
 const route = useRoute()
+const voiceStore = useUnifiedVoiceChannelStore()
+const inVoiceCall = computed(() => voiceStore.isConnected)
 
 // Auth route detection
 const isAuthRoute = computed(() => {
   const authRoutes = ['/login', '/register', '/reset-password', '/new-profile', '/404-public', '/logout']
-  return authRoutes.includes(route.path) || route.name === 'NotFoundPublic'
+  return authRoutes.includes(route.path) || route.name === 'NotFoundPublic' || route.name === 'DriveLink'
 })
 
 // Global modal state
@@ -220,6 +231,7 @@ const handleSwitchToChat = () => {
 }
 
 onMounted(() => {
+  warmLazyUi()
   // Theme/language settings load in the background; rendering does not wait.
   initializeAppSettings().catch(err => {
     debug.error('Failed to initialize app settings:', err)

@@ -19,6 +19,8 @@ const KNOWN_ACTIONS = new Set([
   'role.create', 'role.update', 'role.delete', 'role.reorder',
   'member.role_add', 'member.role_remove', 'member.kick', 'member.ban', 'member.unban',
   'member.timeout', 'member.timeout_remove',
+  'member.voice_mute', 'member.voice_unmute', 'member.voice_deafen', 'member.voice_undeafen',
+  'member.voice_move', 'member.voice_disconnect',
   'message.delete',
   'server.update', 'settings.update',
   'invite.create', 'invite.delete',
@@ -29,9 +31,10 @@ const KNOWN_ACTIONS = new Set([
 
 const PERMISSION_FIELDS = new Set(['permissions', 'allow_permissions', 'deny_permissions'])
 
-/** Stored as paths or structured settings; the entry says that they changed, not how. */
+/** Stored as paths, ids or structured settings; the entry says that they changed, not how. */
 const OPAQUE_FIELDS = new Set([
   'icon', 'banner', 'icon_url', 'rules', 'invite_permissions', 'moderation_settings', 'allowed_channel_ids',
+  'emoji_id',
 ])
 
 const LABELLED_FIELDS = new Set([
@@ -42,7 +45,7 @@ const LABELLED_FIELDS = new Set([
   'system_messages_enabled', 'default_role', 'system_channel', 'read_messages', 'send_messages',
   'manage_messages', 'embed_links', 'attach_files', 'mention_everyone', 'add_reactions',
   'manage_channels', 'kick_members', 'ban_members', 'manage_roles', 'allowed_channel_ids',
-  'max_uses', 'expires_at', 'temporary', 'emoji', 'volume', 'allow_cross_server_sounds',
+  'max_uses', 'expires_at', 'temporary', 'emoji', 'emoji_id', 'volume', 'allow_cross_server_sounds',
 ])
 
 /** Shown in the sentence itself, or a channel type number with no user-facing meaning. */

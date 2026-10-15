@@ -107,6 +107,9 @@ class UserDataService extends EventTarget {
   private heartbeatFailures = 0
   private readonly MAX_HEARTBEAT_FAILURES = 3
   private customStatusExpiryTimer: ReturnType<typeof setTimeout> | null = null
+  // Statuses of other users expire on every client showing them, not only on the one that
+  // set them: the setter may be gone (a desktop app's activity lease).
+  private statusExpirySweep: ReturnType<typeof setInterval> | null = null
 
   async initialize(userId: string, username: string, avatarUrl?: string, existingProfile?: any): Promise<void> {
     if (this.initialized && this.currentUserId === userId) return
@@ -128,6 +131,7 @@ class UserDataService extends EventTarget {
     await this.setupGlobalPresence()
     
     this.startHeartbeat()
+    this.startStatusExpirySweep()
     
     this.initialized = true
     debug.log('User Data Service initialized')
@@ -1699,6 +1703,22 @@ class UserDataService extends EventTarget {
     debug.log('Unsubscribed from context:', contextId)
   }
   
+  /** Drops every cached status whose expiresAt has passed, announcing each. */
+  dropExpiredStatuses(now: number = Date.now()): void {
+    for (const [userId, data] of this.users) {
+      const expiresAt = data.customStatus?.expiresAt
+      if (expiresAt && Date.parse(expiresAt) <= now) {
+        data.customStatus = undefined
+        this.emitEvent('custom-status-changed', { userId, customStatus: undefined })
+      }
+    }
+  }
+
+  private startStatusExpirySweep(): void {
+    if (this.statusExpirySweep) return
+    this.statusExpirySweep = setInterval(() => this.dropExpiredStatuses(), 30_000)
+  }
+
   private emitEvent(type: string, data: any): void {
     this.dispatchEvent(new CustomEvent(type, { detail: data }))
   }
@@ -1849,6 +1869,10 @@ class UserDataService extends EventTarget {
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer)
       this.heartbeatTimer = null
+    }
+    if (this.statusExpirySweep) {
+      clearInterval(this.statusExpirySweep)
+      this.statusExpirySweep = null
     }
     realtimeApiService.goOffline().catch(() => {})
     realtimeApiService.cleanup()

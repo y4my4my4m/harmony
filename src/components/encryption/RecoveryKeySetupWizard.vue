@@ -480,7 +480,7 @@ onMounted(() => {
   border: 1px solid var(--border-color);
   max-width: 700px;
   width: 100%;
-  max-height: 90vh;
+  max-height: calc(90 * var(--app-vh));
   overflow-y: auto;
   box-shadow: var(--shadow-modal);
 }
@@ -998,7 +998,7 @@ onMounted(() => {
 /* Responsive */
 @media (max-width: 600px) {
   .wizard-modal {
-    max-height: 100vh;
+    max-height: calc(100 * var(--app-vh));
     border-radius: 0;
   }
 

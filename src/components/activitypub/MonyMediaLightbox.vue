@@ -264,8 +264,8 @@ function onVideoDblClick() {
 }
 
 .video-lightbox-player {
-  max-width: 80vw;
-  max-height: 80vh;
+  max-width: calc(80 * var(--app-vw));
+  max-height: calc(80 * var(--app-vh));
   background: #000;
   box-shadow: 0 5px 20px 2px rgba(0, 0, 0, 0.7);
   pointer-events: auto;
@@ -301,8 +301,8 @@ function onVideoDblClick() {
 
 @media (max-width: 768px) {
   .video-lightbox-player {
-    max-width: 95vw;
-    max-height: 85vh;
+    max-width: calc(95 * var(--app-vw));
+    max-height: calc(85 * var(--app-vh));
   }
 }
 

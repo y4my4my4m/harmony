@@ -26,10 +26,11 @@ export const REDIRECT_TTL_SECONDS = 300;
 /** Audience of content served to unsigned readers of a public server. */
 export const PUBLIC_AUDIENCE = '*';
 
-const PATH_PATTERN = /^[cd]\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[^?#\\]+$/i;
+// c/<channel>/..., d/<conversation>/..., u/<uploader>/... (Drive uploads reused in messages).
+const PATH_PATTERN = /^[cdu]\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[^?#\\]+$/i;
 const AUDIENCE_PATTERN = /^(\*|[a-z0-9.-]+(?::\d{1,5})?)$/;
 
-/** An object name of message_media: a room prefix, no query, no dot segments. */
+/** An object name of message_media: a room or Drive prefix, no query, no dot segments. */
 export function isPrivateMediaPath(path: unknown): path is string {
   return typeof path === 'string'
     && PATH_PATTERN.test(path)

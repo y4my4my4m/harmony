@@ -54,7 +54,7 @@
     "displayName": "显示名称",
     "welcomeBack": "欢迎回来！",
     "createAccount": "创建账户",
-    "welcomeBackSubtitle": "使用邮箱和密码登录。",
+    "instanceLabel": "实例",
     "createAccountSubtitle": "接下来你将设置用户名和个人资料。",
     "confirmEmailSent": "我们已向 {email} 发送确认链接。请打开该链接，然后登录。",
     "forgotPassword": "忘记密码？",
@@ -145,8 +145,8 @@
     "verifying": "正在验证…",
     "sendingResetLink": "正在发送重置链接…",
     "poweredBy": "由 {name} 驱动",
+    "serviceStatus": "服务状态",
     "reset": {
-      "brandSubtitle": "重置密码以重新访问你的账户",
       "successTitle": "密码已重置",
       "successBody": "你的密码已更新。现在可以使用新密码登录。",
       "goToLogin": "前往登录",
@@ -245,7 +245,7 @@
     "addFirstEmoji": "添加您的第一个自定义表情，让您的服务器独一无二！",
     "allowCrossServer": "允许跨服务器表情",
     "allowCrossServerDesc": "允许成员使用其他服务器的表情",
-    "emojiUploadRecommendation": "推荐：128×128px。最大：1 MB。格式：PNG、GIF、WebP、APNG、SVG、JPEG。",
+    "emojiUploadRecommendation": "推荐：128×128px。最大：1 MB。格式：PNG、GIF、WebP、APNG、JPEG。",
     "deleteEmoji": "删除表情",
     "dangerZone": "危险区域",
     "deleteServer": "删除服务器",
@@ -399,7 +399,9 @@
       "change": "更换服务器横幅",
       "remove": "移除横幅",
       "hint": "建议尺寸：1280×400 像素。显示在服务器顶部。",
-      "none": "未设置服务器横幅"
+      "none": "未设置服务器横幅",
+      "sidebar": "在频道列表上方显示横幅",
+      "sidebarHint": "成员会在频道列表顶部看到服务器横幅。"
     },
     "emojiActions": {
       "copy": "复制 {name}",
@@ -529,9 +531,14 @@
         "membership": "成员权限",
         "text": "文字权限",
         "threads": "话题权限",
-        "voice": "语音权限"
+        "voice": "语音权限",
+        "dangerous": "危险权限"
       },
       "perms": {
+        "ADMINISTRATOR": {
+          "label": "管理员",
+          "description": "在所有频道中拥有全部权限；只有所有者可以删除服务器"
+        },
         "VIEW_CHANNEL": {
           "label": "查看频道",
           "description": "允许成员默认查看频道"
@@ -542,11 +549,11 @@
         },
         "MANAGE_ROLES": {
           "label": "管理角色",
-          "description": "创建、编辑和删除低于此角色的角色"
+          "description": "创建、编辑、分配和删除低于自己最高角色的角色，并编辑频道权限"
         },
         "MANAGE_SERVER": {
           "label": "管理服务器",
-          "description": "编辑服务器设置并删除服务器"
+          "description": "编辑服务器设置、AutoMod、欢迎界面和机器人；只有所有者可以删除服务器"
         },
         "CREATE_INVITE": {
           "label": "创建邀请",
@@ -574,7 +581,7 @@
         },
         "TIMEOUT_MEMBERS": {
           "label": "禁言成员",
-          "description": "暂时禁言成员"
+          "description": "暂时禁止成员发送消息、添加反应、创建话题和加入语音"
         },
         "SEND_MESSAGES": {
           "label": "发送消息",
@@ -582,7 +589,7 @@
         },
         "EMBED_LINKS": {
           "label": "嵌入链接",
-          "description": "链接会显示预览"
+          "description": "发布的链接显示预览；没有此权限时，链接不显示预览"
         },
         "ATTACH_FILES": {
           "label": "附加文件",
@@ -602,11 +609,11 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "阅读消息历史",
-          "description": "查看消息历史"
+          "description": "阅读加入之前发送的消息；没有此权限时，频道从加入时开始显示"
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "使用外部表情符号",
-          "description": "使用其他服务器的表情符号"
+          "description": "使用其他服务器、实例和个人的表情符号；没有此权限时，只能使用 Unicode 和本服务器的表情符号"
         },
         "PIN_MESSAGES": {
           "label": "置顶消息",
@@ -618,7 +625,7 @@
         },
         "CREATE_PRIVATE_THREADS": {
           "label": "创建私密话题",
-          "description": "创建仅限邀请的话题"
+          "description": "无效果：Harmony 的所有话题对整个频道可见"
         },
         "SEND_MESSAGES_IN_THREADS": {
           "label": "在话题中发送消息",
@@ -646,7 +653,7 @@
         },
         "MOVE_MEMBERS": {
           "label": "移动成员",
-          "description": "在语音频道之间移动成员"
+          "description": "在语音频道之间移动成员或断开其连接"
         },
         "USE_SOUNDBOARD": {
           "label": "使用音效板",
@@ -792,13 +799,25 @@
           "label": "管理频道",
           "description": "重命名、编辑或删除此频道。"
         },
+        "MANAGE_ROLES": {
+          "label": "管理权限",
+          "description": "编辑此频道的权限覆盖。"
+        },
+        "MANAGE_WEBHOOKS": {
+          "label": "管理 Webhook",
+          "description": "创建、编辑和删除此频道的 Webhook。"
+        },
+        "PIN_MESSAGES": {
+          "label": "置顶消息",
+          "description": "在此频道中置顶和取消置顶消息。"
+        },
         "SEND_MESSAGES": {
           "label": "发送消息",
           "description": "在此频道中发布消息。"
         },
         "EMBED_LINKS": {
           "label": "嵌入链接",
-          "description": "发送嵌入内容和链接预览。"
+          "description": "在此发布的链接显示预览。"
         },
         "ATTACH_FILES": {
           "label": "附加文件",
@@ -810,7 +829,7 @@
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "使用外部表情符号",
-          "description": "发送其他服务器的表情符号。"
+          "description": "在消息和反应中使用本服务器以外的表情符号。"
         },
         "MENTION_EVERYONE": {
           "label": "提及 {'@'}everyone",
@@ -858,7 +877,7 @@
         },
         "MOVE_MEMBERS": {
           "label": "移动成员",
-          "description": "将成员移出此频道。"
+          "description": "移动或断开此频道中的成员。"
         },
         "USE_SOUNDBOARD": {
           "label": "使用音效板",
@@ -913,11 +932,14 @@
     "newMessages": "新消息",
     "loadingOlder": "加载更早的消息...",
     "newMessagesBelow": "{count} 条新消息",
+    "unreadSince": "自 {time} 以来有 {count} 条新消息",
+    "markAsRead": "标记为已读",
     "jumpToPresent": "跳转到最新",
     "conversationBeginning": "这是您对话的开始",
     "conversationBeginningSubtitle": "开始聊天，让它难忘！",
     "channelWelcome": "欢迎来到 #{name}",
     "channelWelcomeSubtitle": "这是 #{name} 频道的开端。",
+    "historyRestricted": "加入之前发送的消息已隐藏：你在此频道没有“阅读消息历史”权限。",
     "dmBeginning": "这是您与 {name} 私信的最开始。",
     "groupBeginning": "这是 {name} 群组的最开始。",
     "groupBeginningUnnamed": "这是本群组的最开始。",
@@ -1240,6 +1262,8 @@
     "autoWatchStreams": "自动观看直播",
     "autoWatchStreamsHint": "有人开始直播时立即接收直播画面，无需等待点击“观看直播”。",
     "react": "做出反应",
+    "hideParticipants": "隐藏参与者",
+    "showParticipants": "显示参与者（{count}）",
     "reactions": "反应",
     "moreReactions": "更多表情",
     "reactionSlowDown": "请稍慢一点",
@@ -1327,7 +1351,37 @@
     "streamVolumeNamed": "{name} 的直播音量",
     "copyStreamAudioLog": "复制直播音频日志",
     "streamAudioLogCopied": "已复制直播音频日志。请粘贴到你的错误报告中。",
-    "streamAudioLogFailed": "无法复制直播音频日志：{reason}"
+    "streamAudioLogFailed": "无法复制直播音频日志：{reason}",
+    "moderation": {
+      "section": "管理",
+      "serverMute": "服务器静音",
+      "serverDeafen": "服务器闭听",
+      "serverMuted": "已被服务器静音",
+      "serverDeafened": "已被服务器闭听",
+      "moveTo": "移动到",
+      "disconnect": "断开连接",
+      "kick": "踢出",
+      "ban": "封禁",
+      "dragHint": "拖到另一个语音频道即可移动。",
+      "lockedTitle": "此处不允许",
+      "serverMutedHint": "管理员已将你服务器静音。解除之前你无法取消静音。",
+      "serverDeafenedHint": "管理员已将你服务器闭听。解除之前你无法恢复收听。",
+      "noSpeakHint": "你没有在此频道说话的权限。",
+      "noStreamHint": "你没有在此频道共享视频或屏幕的权限。",
+      "failedTitle": "语音管理失败",
+      "mutedAnnounce": "已将 {name} 服务器静音",
+      "unmutedAnnounce": "已解除 {name} 的服务器静音",
+      "deafenedAnnounce": "已将 {name} 服务器闭听",
+      "undeafenedAnnounce": "已解除 {name} 的服务器闭听",
+      "movedAnnounce": "已将 {name} 移动到 {channel}",
+      "disconnectedAnnounce": "已将 {name} 断开语音",
+      "youWereMovedTitle": "已被移到另一个频道",
+      "youWereMoved": "管理员已将你移动到 {channel}。",
+      "youWereDisconnectedTitle": "已离开语音",
+      "youWereDisconnected": "管理员已断开你的语音连接。",
+      "youWereRemoved": "你已不再是此服务器的成员。",
+      "youWereTimedOut": "你在此服务器被禁言。"
+    }
   },
   "dm": {
     "directMessages": "私信",
@@ -1467,6 +1521,10 @@
       "theme": "主题",
       "customTheme": "自定义主题颜色",
       "customThemeHelp": "选择强调色。应用程序将根据您的选择自动生成完整的主题。",
+      "communityPresets": "社区预设",
+      "communityPresetsHelp": "一键应用社区精选主题。",
+      "showMorePresets": "再显示 {count} 个",
+      "showFewerPresets": "收起",
       "themes": {
         "dark": "深色",
         "darkDesc": "对眼睛更友好的深色主题。",
@@ -1497,6 +1555,10 @@
       "bridgeSourceBadgeText": "文字标签（DISCORD）",
       "floatingVideo": "浮动视频播放器",
       "floatingVideoDesc": "滚动时播放的视频会浮动到角落。适用于 YouTube 和原生视频。",
+      "videoPlayer": "视频播放器",
+      "videoPlayerDesc": "Harmony 播放器，或浏览器自带的控件。",
+      "videoPlayerHarmony": "Harmony",
+      "videoPlayerNative": "浏览器默认",
       "highContrast": "高对比度",
       "highContrastDesc": "增加对比度以提高可见性。",
       "reduceMotion": "减少动画",
@@ -2024,9 +2086,10 @@
     "myBotsDescription": "管理您创建的机器人",
     "myEmojis": {
       "title": "我的表情",
-      "description": "你的个人表情，包括你在表情选择器中用 AI 生成的表情。消息通过名称引用自定义表情，因此重命名或删除后，之前的消息会显示 :name: 文本而不是图片。",
+      "description": "你的个人表情：你在这里上传的表情，以及你在表情选择器中用 AI 生成的表情。你可以在任何服务器和对话中使用它们。消息通过名称引用自定义表情，因此重命名或删除后，之前的消息会显示 :name: 文本而不是图片。",
       "loading": "正在加载你的表情…",
-      "empty": "你还没有个人表情。你在表情选择器中用 AI 生成的表情会显示在这里。",
+      "empty": "你还没有个人表情。上传一个，或在表情选择器中用 AI 生成一个。",
+      "uploadsOff": "此实例已关闭个人表情。",
       "listLabel": "你的表情",
       "aiBadge": "AI",
       "aiGenerated": "AI 生成",
@@ -2091,6 +2154,7 @@
       }
     },
     "buildInfo": {
+      "status": "服务状态",
       "copyHint": "点击复制版本信息以用于错误报告",
       "copied": "已复制版本信息",
       "copyFailed": "无法复制版本信息",
@@ -2325,6 +2389,10 @@
     "openNavigation": "打开导航",
     "editProfile": "编辑个人资料",
     "followUser": "关注 {'@'}{handle}",
+    "requestToFollow": "请求关注",
+    "requestToFollowUser": "请求关注 {'@'}{handle}",
+    "sendFriendRequest": "发送好友请求",
+    "sendFriendRequestUser": "向 {'@'}{handle} 发送好友请求",
     "unfollowUser": "取消关注 {'@'}{handle}",
     "mentionUser": "提及 {'@'}{handle}",
     "requested": "已请求",
@@ -2350,6 +2418,7 @@
     "replyingTo": "正在回复",
     "viewThread": "查看对话串",
     "viewOriginalPost": "查看原帖",
+    "viewQuotedPost": "查看被引用的帖子",
     "showMore": "显示更多",
     "showLess": "收起",
     "removeAttachment": "移除附件",
@@ -2612,6 +2681,7 @@
       "searchToAdd": "搜索要添加的用户",
       "searchResultsLabel": "可添加的用户",
       "searchResults": "找到 {count} 位用户",
+      "searching": "正在搜索…",
       "add": "添加",
       "addNamed": "添加 {name}",
       "added": "已添加",
@@ -2780,6 +2850,8 @@
   },
   "emoji": {
     "messageReactionLimit": "此消息已有 {count} 种不同的反应。请在现有反应中选择一个。",
+    "reactionNotAllowed": "在此频道中只能加入已有的反应。",
+    "externalNotAllowed": "此频道只能使用 Unicode 表情符号和本服务器的表情符号。",
     "postReactionLimit": "您已对此帖子添加 {count} 个反应。请移除一个后再添加。",
     "search": "搜索表情...",
     "searchEmojis": "搜索表情...",
@@ -3273,6 +3345,8 @@
     "listTitle": "机器人（{count}）",
     "noDescription": "无描述",
     "serverCount": "未加入任何服务器 | 已加入 {count} 个服务器 | 已加入 {count} 个服务器",
+    "inServers": "已加入 {servers}",
+    "inServersMore": "已加入 {servers} 及另外 {count} 个服务器",
     "lastConnected": "上次连接：{time}",
     "neverConnected": "从未连接",
     "back": "所有机器人",
@@ -4008,7 +4082,7 @@
       "generic": "您的消息已被此服务器的 AutoMod 拦截。",
       "timedOutUntil": "您已被禁言至 {time}。"
     },
-    "timedOut": "您在此服务器中已被禁言至 {time}，无法发送消息。",
+    "timedOut": "您在此服务器中已被禁言至 {time}，无法发送消息、添加反应或创建话题。",
     "antispam": {
       "rateLimited": "新账户一次只能发送少量消息。请在 {seconds} 秒后重试。",
       "linksBlocked": "新账户暂时无法发布链接。",
@@ -4085,6 +4159,12 @@
       "member_unban": "{actor} 解除了对 {target} 的封禁",
       "member_timeout": "{actor} 将 {target} 禁言至 {until}",
       "member_timeout_remove": "{actor} 解除了 {target} 的禁言",
+      "member_voice_mute": "{actor} 将 {target} 设为服务器静音",
+      "member_voice_unmute": "{actor} 解除了 {target} 的服务器静音",
+      "member_voice_deafen": "{actor} 将 {target} 设为服务器拒听",
+      "member_voice_undeafen": "{actor} 解除了 {target} 的服务器拒听",
+      "member_voice_move": "{actor} 将 {target} 移到了另一个语音频道",
+      "member_voice_disconnect": "{actor} 断开了 {target} 的语音连接",
       "message_delete": "{actor} 在 {channel} 中删除了 {target} 的 {count} 条消息",
       "server_update": "{actor} 编辑了服务器",
       "settings_update": "{actor} 修改了服务器设置",
@@ -4113,6 +4193,7 @@
       "icon_url": "图标",
       "unicode_emoji": "表情",
       "emoji": "表情",
+      "emoji_id": "自定义表情",
       "volume": "音量",
       "is_admin": "管理员角色",
       "allow_permissions": "允许",
@@ -4192,7 +4273,9 @@
     },
     "profilePosts": {
       "self": "您还没有发布任何内容。",
-      "other": "{name} 还没有发布任何内容。"
+      "other": "{name} 还没有发布任何内容。",
+      "withheldTitle": "没有公开帖子",
+      "withheld": "{domain} 不公开此账号的帖子。这里只显示到达本服务器的帖子。"
     },
     "profileFollowing": {
       "other": "{name} 还没有关注任何人。"
@@ -4777,11 +4860,14 @@
     },
     "instance": {
       "maxPostReactions": "每人对一条帖子的最大反应数",
-      "maxPostReactionsHint": "每个人可对一条帖子使用的不同表情数量（1-100）。默认：10。来自其他服务器的超出上限的反应会被丢弃。聊天消息最多容纳 20 种不同的表情。"
+      "maxPostReactionsHint": "每个人可对一条帖子使用的不同表情数量（1-100）。默认：10。来自其他服务器的超出上限的反应会被丢弃。聊天消息最多容纳 20 种不同的表情。",
+      "maxPersonalEmojis": "每位用户的个人表情数",
+      "maxPersonalEmojisHint": "每个人可在“设置 > 我的表情”中保留的表情数，上传的和 AI 生成的合计（0-1000）。默认：50。设为 0 会关闭个人表情。降低上限后，已超出的表情会保留。"
     },
     "activityLog": {
       "configKeys": {
-        "maxPostReactionsPerUser": "每人对一条帖子的最大反应数"
+        "maxPostReactionsPerUser": "每人对一条帖子的最大反应数",
+        "maxPersonalEmojisPerUser": "每位用户的个人表情数"
       }
     },
     "antiSpam": {
@@ -6023,7 +6109,9 @@
       "airhorn": "气笛",
       "crickets": "蟋蟀",
       "golf-clap": "礼貌鼓掌",
-      "quack": "嘎嘎"
+      "quack": "嘎嘎",
+      "pop": "啵",
+      "stop-having-fun": "别玩了"
     },
     "settings": {
       "navLabel": "音效板",
@@ -6038,6 +6126,9 @@
       "checking": "正在检查文件…",
       "name": "名称",
       "emoji": "表情",
+      "chooseEmoji": "选择表情",
+      "changeEmoji": "更改表情（{emoji}）",
+      "clearEmoji": "移除表情",
       "volume": "音量",
       "preview": "试听",
       "upload": "上传音效",
@@ -6061,6 +6152,7 @@
       "full": "此服务器已有 {max} 个音效，已达上限。请删除一个后再添加。",
       "permission": "您没有管理此服务器音效的权限。",
       "invalid": "音效被拒绝。请检查名称、表情和音量。",
+      "emojiUnavailable": "该表情不能用于音效。请选择你所在服务器的表情、实例表情或你自己的表情。",
       "load": "无法加载此服务器的音效。",
       "generic": "出了点问题，请重试。"
     }
@@ -6248,5 +6340,374 @@
       "white": "白色",
       "black": "黑色"
     }
+  },
+  "videoPlayer": {
+    "player": "视频播放器",
+    "play": "播放",
+    "pause": "暂停",
+    "replay": "重新播放",
+    "mute": "静音",
+    "unmute": "取消静音",
+    "volume": "音量",
+    "seek": "进度",
+    "seekValue": "{current} / {total}",
+    "speed": "播放速度 {rate}×",
+    "pip": "画中画",
+    "exitPip": "退出画中画",
+    "fullscreen": "全屏",
+    "exitFullscreen": "退出全屏"
+  },
+  "activities": {
+    "title": "一起看或一起听",
+    "addTitle": "添加到活动",
+    "lede": "通话中的每个人会同时播放相同的内容。粘贴 YouTube、SoundCloud 或 Spotify 链接、视频或音频文件链接，或从你的 Drive 中选择。",
+    "linkPlaceholder": "粘贴链接",
+    "badLink": "Harmony 无法一起播放此链接。",
+    "watchTogether": "一起看",
+    "listenTogether": "一起听",
+    "playTogether": "一起播放",
+    "playNow": "立即播放",
+    "addToQueue": "加入队列",
+    "or": "或",
+    "fromDrive": "从你的 Drive 选择",
+    "pickTitle": "选择视频或音频文件",
+    "spotifyHint": "在 Harmony 中登录了 Spotify 的听众可播放完整曲目；其他人只能听到试听片段。",
+    "region": "活动",
+    "open": "打开活动",
+    "hideForMe": "退出",
+    "startedBy": "{name} 开始了一个活动",
+    "join": "加入",
+    "notNow": "以后再说",
+    "endForEveryone": "为所有人结束",
+    "playerError": "无法在此播放。",
+    "openOn": "在 {service} 中打开",
+    "clickToPlay": "点击播放",
+    "play": "播放",
+    "pause": "暂停",
+    "seek": "进度",
+    "seekValue": "{position} / {duration}",
+    "mute": "将活动静音",
+    "unmute": "取消活动静音",
+    "volume": "活动音量",
+    "next": "播放队列中的下一项",
+    "stop": "结束活动",
+    "queue": "队列",
+    "queueEmpty": "队列为空。",
+    "removeFromQueue": "从队列中移除",
+    "controlsHost": "仅我可控制",
+    "controlsEveryone": "允许所有人控制",
+    "watching": "正在观看",
+    "listening": "正在收听",
+    "source": {
+      "drive": "Drive 文件",
+      "link": "链接"
+    }
+  },
+  "driveAdmin": {
+    "settings": "Drive 存储",
+    "quotaUser": "每个账户的存储空间",
+    "quotaModerator": "每位实例版主的存储空间",
+    "quotaAdmin": "每位实例管理员的存储空间",
+    "ephemeralDays": "临时文件保留",
+    "days": "天",
+    "ephemeralDaily": "Drive 已满后每天可上传的临时文件数",
+    "linkSharing": "允许通过链接分享文件",
+    "hint": "超出账户存储空间的上传为临时文件，将在上述天数后删除。已超出存储空间且用完每日临时上传额度的账户，需等到次日或释放空间后才能继续上传。",
+    "save": "保存",
+    "saved": "已保存",
+    "usage": "各账户存储用量",
+    "account": "账户",
+    "used": "已用",
+    "temporary": "临时",
+    "quota": "存储空间",
+    "override": "{name} 的存储空间（MB）；留空则使用角色默认值",
+    "noUsage": "尚无账户存储文件。",
+    "blocked": "已屏蔽的文件",
+    "unblock": "解除屏蔽",
+    "noBlocked": "没有被屏蔽的文件。使用“移除并屏蔽重新上传”移除被举报的文件后，该文件会添加到这里。",
+    "reportFiles": "附件",
+    "removeFile": "移除文件",
+    "removeAndBlock": "移除并屏蔽重新上传",
+    "removed": "已移除"
+  },
+  "share": {
+    "title": "分享到 Harmony",
+    "nothing": "没有分享任何内容。从其他应用分享链接或文字即可在此发送。",
+    "openHarmony": "打开 Harmony",
+    "preview": "分享的内容",
+    "where": "要发送到哪里？",
+    "search": "搜索会话和服务器",
+    "directMessages": "私信",
+    "servers": "服务器",
+    "loadingChannels": "正在加载频道…",
+    "channelsFailed": "无法加载频道。",
+    "noChannels": "没有你可以发言的频道。",
+    "noMatches": "没有匹配的结果。"
+  },
+  "drive": {
+    "title": "Drive",
+    "actions": {
+      "upload": "上传",
+      "newFolder": "新建文件夹",
+      "open": "打开",
+      "download": "下载",
+      "rename": "重命名",
+      "share": "分享",
+      "move": "移动",
+      "keep": "保留在 Drive",
+      "trash": "移至回收站",
+      "restore": "恢复",
+      "deleteForever": "永久删除",
+      "deleteFolder": "删除文件夹",
+      "emptyTrash": "清空回收站"
+    },
+    "nav": {
+      "myDrive": "我的 Drive",
+      "recent": "最近",
+      "temporary": "临时",
+      "shared": "与我共享",
+      "trash": "回收站",
+      "whereSent": "发送位置",
+      "dms": "私信",
+      "fediverse": "联邦宇宙帖子",
+      "server": "服务器",
+      "channel": "频道",
+      "conversation": "对话",
+      "open": "打开 Drive 导航",
+      "path": "文件夹路径"
+    },
+    "tree": {
+      "expand": "展开文件夹",
+      "collapse": "折叠文件夹"
+    },
+    "usage": {
+      "label": "Drive 已用存储空间",
+      "summary": "已用 {used}，共 {quota}",
+      "temporary": "临时文件占用 {size}",
+      "full": "你的 Drive 已满。新上传的文件为临时文件，将在 {count} 天后删除。 | 你的 Drive 已满。新上传的文件为临时文件，将在 {count} 天后删除。"
+    },
+    "columns": {
+      "name": "名称",
+      "type": "类型",
+      "owner": "所有者",
+      "size": "大小",
+      "added": "添加时间",
+      "trashed": "删除时间"
+    },
+    "kind": {
+      "image": "图片",
+      "video": "视频",
+      "audio": "音频",
+      "document": "文档",
+      "other": "文件"
+    },
+    "filter": {
+      "label": "文件类型",
+      "all": "全部",
+      "images": "图片",
+      "videos": "视频",
+      "audio": "音频",
+      "documents": "文档"
+    },
+    "sort": {
+      "label": "排序方式",
+      "newest": "最新优先",
+      "oldest": "最早优先",
+      "name": "名称",
+      "size": "最大优先"
+    },
+    "layout": {
+      "label": "布局",
+      "grid": "网格",
+      "list": "列表"
+    },
+    "search": {
+      "placeholder": "搜索你的 Drive",
+      "results": "“{query}”的搜索结果"
+    },
+    "selection": {
+      "label": "已选文件",
+      "count": "已选 {count} 项 | 已选 {count} 项",
+      "clear": "清除选择"
+    },
+    "state": {
+      "expiresIn": "{count} 天后删除 | {count} 天后删除",
+      "daysShort": "{count}天"
+    },
+    "banner": {
+      "temporary": "临时文件会在上传 {count} 天后删除。请将需要的文件保留在 Drive 中。 | 临时文件会在上传 {count} 天后删除。请将需要的文件保留在 Drive 中。",
+      "trash": "回收站中的文件计入你的存储空间，并会在 30 天后删除。"
+    },
+    "empty": {
+      "folderTitle": "这里还没有内容",
+      "folderText": "上传文件或将文件拖放到这里。你在聊天中发送的所有文件也会存入你的 Drive。",
+      "temporaryTitle": "没有临时文件",
+      "temporaryText": "Drive 已满时上传的文件或作为临时文件发送的文件会显示在这里。",
+      "sharedTitle": "没有与你共享的内容",
+      "sharedText": "此实例上的用户与你、你的服务器或你的频道共享的文件会显示在这里。",
+      "trashTitle": "回收站为空",
+      "trashText": "已删除的文件会在这里保留 30 天。",
+      "otherTitle": "这里没有文件",
+      "otherText": "你在此处发送的文件会显示在这里。",
+      "searchTitle": "无匹配结果",
+      "searchText": "你的 Drive 中没有与该搜索匹配的文件名。"
+    },
+    "errors": {
+      "load": "无法加载 Drive",
+      "temporary": "更改未保存：{reason}",
+      "blocked": "此文件已被实例版主移除。"
+    },
+    "details": {
+      "label": "文件详情",
+      "title": "详情",
+      "name": "文件名",
+      "rename": "重命名",
+      "type": "类型",
+      "size": "大小",
+      "added": "添加时间",
+      "owner": "所有者",
+      "used": "使用位置",
+      "unused": "尚未发送到任何地方。",
+      "post": "联邦宇宙帖子",
+      "sharing": "分享"
+    },
+    "file": {
+      "renameTitle": "重命名文件",
+      "unnamed": "未命名文件"
+    },
+    "folder": {
+      "newTitle": "新建文件夹",
+      "renameTitle": "重命名文件夹",
+      "name": "文件夹名称",
+      "create": "创建",
+      "deleteTitle": "删除“{name}”？",
+      "deleteText": "其中的文件将移至回收站，子文件夹将被删除。"
+    },
+    "delete": {
+      "title": "永久删除 {count} 个文件？ | 永久删除 {count} 个文件？",
+      "text": "使用这些文件的消息和帖子将显示其已被移除。此操作无法撤销。"
+    },
+    "trash": {
+      "emptyTitle": "清空回收站？"
+    },
+    "move": {
+      "title": "移动 {count} 项 | 移动 {count} 项",
+      "here": "移到此处"
+    },
+    "menu": {
+      "file": "文件操作"
+    },
+    "drop": {
+      "title": "拖放以上传到 {place}"
+    },
+    "uploads": {
+      "label": "上传",
+      "title": "正在上传 {count} 个文件 | 正在上传 {count} 个文件"
+    },
+    "toast": {
+      "trashed": "{count} 个文件已移至回收站 | {count} 个文件已移至回收站",
+      "restored": "已恢复 {count} 个文件 | 已恢复 {count} 个文件",
+      "deleted": "已删除 {count} 个文件 | 已删除 {count} 个文件",
+      "moved": "已移动 {count} 个文件 | 已移动 {count} 个文件",
+      "kept": "已将 {count} 个文件保留在 Drive | 已将 {count} 个文件保留在 Drive",
+      "keepPartial": "已保留 {kept} 个（共 {total} 个）：其余文件超出你的 Drive 空间",
+      "folderDeleted": "文件夹已删除；{count} 个文件已移至回收站 | 文件夹已删除；{count} 个文件已移至回收站"
+    },
+    "share": {
+      "title": "分享",
+      "linkTitle": "任何拥有链接的人",
+      "linkOn": "任何拥有链接的人都可以查看和下载。",
+      "linkOff": "仅限下方的人员和你发送过的地方。",
+      "copy": "复制",
+      "copied": "已复制",
+      "expires": "链接过期时间",
+      "never": "永不",
+      "days": "{count} 天后 | {count} 天后",
+      "people": "人员和位置",
+      "searchPeople": "添加此实例上的用户",
+      "searching": "正在搜索…",
+      "noPeople": "此实例上没有匹配的用户",
+      "searchFailed": "搜索失败，请重试。",
+      "server": "服务器",
+      "channel": "频道",
+      "pickServer": "选择服务器",
+      "wholeServer": "整个服务器",
+      "add": "分享",
+      "remove": "停止与 {name} 分享",
+      "private": "仅你和你发送过它的对话。",
+      "summaryLink": "任何拥有链接的人",
+      "summaryPeople": "已与 {count} 个人员或位置分享 | 已与 {count} 个人员或位置分享",
+      "summaryBoth": "链接已开启，并与 {count} 个人员或位置分享 | 链接已开启，并与 {count} 个人员或位置分享",
+      "scope": {
+        "user": "用户",
+        "server": "服务器",
+        "channel": "频道",
+        "link": "链接"
+      }
+    },
+    "preview": {
+      "previous": "上一个文件",
+      "next": "下一个文件",
+      "none": "此文件无法预览。"
+    },
+    "picker": {
+      "title": "从 Drive 选择",
+      "folder": "文件夹",
+      "everything": "所有文件",
+      "empty": "这里没有文件。",
+      "attach": "附加 {count} 个 | 附加 {count} 个"
+    },
+    "composer": {
+      "fromDriveMenu": "从 Drive 选择",
+      "fromDrive": "从 Drive 选择",
+      "reused": "已在你的 Drive 中",
+      "reusedHint": "这些内容已在你的 Drive 中，未重复上传。",
+      "temporaryDays": "临时，{count} 天 | 临时，{count} 天",
+      "makeTemporary": "设为临时：{count} 天后删除 | 设为临时：{count} 天后删除",
+      "keep": "保留在 Drive",
+      "makeTemporaryFile": "将 {name} 设为临时",
+      "keepFile": "将 {name} 保留在 Drive",
+      "markedTemporary": "{name} 为临时文件",
+      "markedKept": "{name} 将保留在你的 Drive 中",
+      "fullHint": "你的 Drive 已满：上传的文件为临时文件"
+    },
+    "gone": {
+      "expired": "此文件已过期",
+      "deleted": "此文件已被删除",
+      "removed": "此文件已被版主移除",
+      "trashed": "此文件不可用"
+    },
+    "link": {
+      "title": "分享的文件",
+      "missingTitle": "此链接无效",
+      "missingText": "链接已过期，或文件所有者已停止分享。",
+      "sharedBy": "由 {name} 分享",
+      "expires": "链接将于 {date} 过期",
+      "footer": "分享自 {instance}"
+    }
+  },
+  "support": {
+    "title": "支持此实例",
+    "progress": "资助进度",
+    "raisedMonth": "本月已筹集，目标 {goal}",
+    "raisedTotal": "累计已筹集，目标 {goal}",
+    "funded": "已资助",
+    "supporters": "支持者 | 支持者",
+    "heading": "支持",
+    "oneTime": "一次性",
+    "onPlatform": "在 {platform} 上支持",
+    "credited": "自动计入你的账户",
+    "badgeAuto": "自动获得支持者徽章",
+    "handleTitle": "在 {platforms} 上支持？请附上你的用户名",
+    "handleText": "在留言中的任意位置附上你的用户名。你的等级取决于本周期内的累计支持金额。",
+    "handleHint": "未附用户名的付款会进入队列，由管理员手动归属。",
+    "copy": "复制",
+    "copied": "已复制",
+    "tiers": "支持者等级",
+    "from": "{amount} 起",
+    "yours": "你的支持",
+    "tierSupporter": "{tier} 支持者",
+    "active": "生效中",
+    "history": "你的支持记录"
   }
 }

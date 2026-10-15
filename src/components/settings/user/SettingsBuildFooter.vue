@@ -14,6 +14,7 @@
     <div class="legal-links">
       <a :href="termsUrl" target="_blank" rel="noopener noreferrer">{{ $t('settings.buildInfo.terms') }}</a>
       <a :href="privacyUrl" target="_blank" rel="noopener noreferrer">{{ $t('settings.buildInfo.privacy') }}</a>
+      <a v-if="statusUrl" :href="statusUrl" target="_blank" rel="noopener noreferrer" data-testid="settings-status-link">{{ $t('settings.buildInfo.status') }}</a>
     </div>
   </div>
 </template>
@@ -24,6 +25,7 @@ import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
 import { safeHref } from '@/utils/sanitize'
+import { runtimeConfig } from '@/services/runtimeConfig'
 import {
   collectSupportInfo,
   formatSupportText,
@@ -49,6 +51,7 @@ const nativeVersion = ref<string | null>(null)
 const versionLine = computed(() => formatVersionLine(build, platform, nativeVersion.value))
 const termsUrl = computed(() => safeHref(instanceSettings.settings.termsUrl) || DEFAULT_TERMS_URL)
 const privacyUrl = computed(() => safeHref(instanceSettings.settings.privacyUrl) || DEFAULT_PRIVACY_URL)
+const statusUrl = safeHref(runtimeConfig.statusUrl)
 
 onMounted(async () => {
   nativeVersion.value = await getNativeVersion()

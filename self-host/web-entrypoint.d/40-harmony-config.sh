@@ -16,6 +16,7 @@
 #   altDomains       HARMONY_ALT_DOMAINS
 #   termsUrl         TERMS_URL
 #   privacyUrl       PRIVACY_URL
+#   statusUrl        STATUS_URL
 #   oauthProviders   ENABLED_OAUTH_PROVIDERS
 #
 # Unset keys are omitted; the bundle then uses its build-time value, if any.
@@ -61,6 +62,7 @@ add storageDomain "$(first "${STORAGE_DOMAIN:-}" "${VITE_STORAGE_DOMAIN:-}")"
 add altDomains "$(first "${HARMONY_ALT_DOMAINS:-}" "${VITE_HARMONY_ALT_DOMAINS:-}")"
 add termsUrl "$(first "${TERMS_URL:-}" "${VITE_TERMS_URL:-}")"
 add privacyUrl "$(first "${PRIVACY_URL:-}" "${VITE_PRIVACY_URL:-}")"
+add statusUrl "$(first "${STATUS_URL:-}" "${VITE_STATUS_URL:-}")"
 add oauthProviders "$(first "${ENABLED_OAUTH_PROVIDERS:-}" "${VITE_ENABLED_OAUTH_PROVIDERS:-}")"
 
 tmp="$out.tmp.$$"

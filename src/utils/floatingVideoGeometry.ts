@@ -1,5 +1,5 @@
 // Geometry for the floating video player. All coordinates are CSS pixels in
-// the layout viewport (the space of position: fixed and getBoundingClientRect).
+// the layout viewport (the space of position: fixed; styleRect in utils/appZoom).
 
 export type Corner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
 

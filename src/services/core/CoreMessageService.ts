@@ -20,6 +20,7 @@ import {
 } from '@/services/core/channelMessageEncryption'
 import { blockedMessageRejection, moderationRejectionFromError } from '@/services/AutoModService'
 import { mediaRoom, messageMediaPathsIn } from '@/services/privateMedia'
+import { recordHistoryCutoff } from '@/services/channelHistoryCutoff'
 
 export interface SendMessageData {
   content: MessagePart[]
@@ -768,6 +769,9 @@ export class CoreMessageService {
       const messages: any[] = data?.messages || []
       const messageIds = messages.map((m: any) => m.id)
       const reactionsByMessage = this.groupReactionRows(messageIds, data?.reactions || [])
+      if (params.channelId && data && typeof data === 'object') {
+        recordHistoryCutoff(params.channelId, (data as { history_since?: unknown }).history_since)
+      }
       return { messages, reactionsByMessage }
     } catch (error) {
       debug.warn('Core: get_message_page RPC failed, using legacy multi-query load:', error)

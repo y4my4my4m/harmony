@@ -16,7 +16,7 @@
     :data-source="source"
     @click="onTileClick"
     @dblclick="emit('request-fullscreen')"
-    @contextmenu.prevent="openMenuAt($event.clientX, $event.clientY)"
+    @contextmenu.prevent="openMenuAtPointer($event)"
     @keydown.enter.self.prevent="onTileClick"
     @keydown.shift.f10.prevent="openMenuFromKeyboard"
     @keydown.context-menu.prevent="openMenuFromKeyboard"
@@ -73,6 +73,10 @@
     <!-- Bottom-left identity pill -->
     <div class="tile-pill">
       <span v-if="source === 'screen'" class="pill-live-badge" aria-hidden="true">{{ t('voice.live') }}</span>
+      <span v-else-if="serverFlags.deafened || serverFlags.muted" class="pill-server" :title="serverFlags.deafened ? t('voice.moderation.serverDeafened') : t('voice.moderation.serverMuted')" aria-hidden="true" :data-testid="serverFlags.deafened ? 'tile-server-deafened' : 'tile-server-muted'">
+        <Icon :name="serverFlags.deafened ? 'headphones-off' : 'mic-off'" class="pill-icon danger" />
+        <Icon name="shield" class="pill-icon danger pill-server-shield" :size="10" />
+      </span>
       <Icon v-else-if="effectiveDeafened" name="headphones-off" class="pill-icon danger" :title="t('voice.statusDeafened')" aria-hidden="true" />
       <Icon v-else-if="effectiveMuted" name="mic-off" class="pill-icon danger" :title="t('voice.statusMuted')" aria-hidden="true" />
       <span class="pill-name" aria-hidden="true">
@@ -194,6 +198,7 @@ import { debug } from '@/utils/debug';
 import type { UserMediaState } from '@/services/unifiedWebRTC';
 import type { RemoteAudioKind } from '@/services/voice/remoteAudioMixer';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
+import { useVoiceModerationStore } from '@/stores/voiceModeration';
 import { useUserData } from '@/composables/useUserData';
 import DisplayName from '@/components/DisplayName.vue';
 import Icon from '@/components/common/Icon.vue';
@@ -206,6 +211,7 @@ import { getBannerUrl } from '@/utils/bannerUtils';
 import { participantLabel, useHeldFlag } from './participantLabel';
 import { restoreFocusIfLost } from './voiceFocus';
 import { withRenderFallback } from '@/utils/renderFallback';
+import { stylePoint, styleRect } from '@/utils/appZoom';
 
 const props = withDefaults(defineProps<{
   userState: UserMediaState;
@@ -255,6 +261,8 @@ const liveState = computed(() => {
   return voiceStore.allUsers.find(u => u.userId === props.userState.userId) || props.userState;
 });
 
+const moderation = useVoiceModerationStore();
+const serverFlags = computed(() => moderation.flagsOf(voiceStore.currentServerId, props.userState.userId));
 const effectiveMuted = computed(() => liveState.value.isMuted);
 const effectiveDeafened = computed(() => liveState.value.isDeafened);
 
@@ -332,6 +340,8 @@ const tileLabel = computed(() => {
     streaming: liveState.value.isScreenSharing,
     speaking: speakingHeld.value,
     mutedByYou: locallyMuted.value,
+    serverMuted: serverFlags.value.muted,
+    serverDeafened: serverFlags.value.deafened,
   });
   return showQualityWarning.value ? `${label}, ${t(`voice.quality.${quality.value}`)}` : label;
 });
@@ -369,14 +379,19 @@ const openMenuFromButton = () => {
     showContextMenu.value = false;
     return;
   }
-  const rect = moreButton.value?.getBoundingClientRect();
-  if (!rect) return;
+  if (!moreButton.value) return;
+  const rect = styleRect(moreButton.value);
   openMenuAt(rect.left, rect.bottom + 4);
 };
 
 const openMenuFromKeyboard = (event: KeyboardEvent) => {
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  const rect = styleRect(event.currentTarget as HTMLElement);
   openMenuAt(rect.left + rect.width / 2, rect.top + rect.height / 2);
+};
+
+const openMenuAtPointer = (event: MouseEvent) => {
+  const p = stylePoint(event);
+  openMenuAt(p.x, p.y);
 };
 
 let menuOpener: HTMLElement | null = null;
@@ -552,6 +567,18 @@ onBeforeUnmount(detach);
 }
 
 /* Identity pill */
+.pill-server {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.pill-server-shield {
+  position: absolute;
+  right: -4px;
+  bottom: -3px;
+}
+
 .tile-pill {
   position: absolute;
   bottom: 8px;

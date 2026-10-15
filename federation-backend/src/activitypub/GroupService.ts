@@ -31,6 +31,7 @@ import {
   verifiedSigner,
   type GroupAccess,
 } from './groupAccess.js';
+import { getServerActorKeys, serverActorPublicKey } from './ServerActor.js';
 
 const router = Router();
 
@@ -46,7 +47,8 @@ function serverToGroup(
   channels: any[], 
   memberCount: number,
   ownerProfile: any | null,
-  hostDomain: string
+  hostDomain: string,
+  publicKeyPem: string | null
 ): any {
   const serverUrl = `https://${hostDomain}/servers/${server.id}`;
   
@@ -56,6 +58,7 @@ function serverToGroup(
   return {
     '@context': [
       'https://www.w3.org/ns/activitystreams',
+      'https://w3id.org/security/v1',
       {
         'harmony': 'https://harmonyapp.dev/ns#',
         'ChatServer': 'harmony:ChatServer',
@@ -129,12 +132,8 @@ function serverToGroup(
     discoverable: server.public === true,
     manuallyApprovesFollowers: false, // Auto-accept joins for public servers
     
-    // Public key for verification
-    publicKey: server.public_key ? {
-      id: `${serverUrl}#main-key`,
-      owner: serverUrl,
-      publicKeyPem: server.public_key,
-    } : undefined,
+    // Key of the Group's own activities (ServerActor.ts).
+    publicKey: publicKeyPem ? serverActorPublicKey(server.id, publicKeyPem) : undefined,
   };
 }
 
@@ -143,11 +142,12 @@ function serverToGroup(
  * Join by invite needs (id, inbox, key, and the name its reference row
  * stores) and no channels, member count or owner.
  */
-function serverToJoinStub(server: any, hostDomain: string): any {
+function serverToJoinStub(server: any, hostDomain: string, publicKeyPem: string | null): any {
   const serverUrl = `https://${hostDomain}/servers/${server.id}`;
   return {
     '@context': [
       'https://www.w3.org/ns/activitystreams',
+      'https://w3id.org/security/v1',
       {
         'harmony': 'https://harmonyapp.dev/ns#',
         'ChatServer': 'harmony:ChatServer',
@@ -160,12 +160,18 @@ function serverToJoinStub(server: any, hostDomain: string): any {
     inbox: `${serverUrl}/inbox`,
     discoverable: false,
     manuallyApprovesFollowers: true,
-    publicKey: server.public_key ? {
-      id: `${serverUrl}#main-key`,
-      owner: serverUrl,
-      publicKeyPem: server.public_key,
-    } : undefined,
+    publicKey: publicKeyPem ? serverActorPublicKey(server.id, publicKeyPem) : undefined,
   };
+}
+
+/** PEM of the Group's key, generated on first use; null when it cannot be read or stored. */
+async function groupPublicKey(serverId: string): Promise<string | null> {
+  try {
+    return (await getServerActorKeys(serverId)).publicKey;
+  } catch (error) {
+    logger.error(`Group key of server ${serverId} unavailable:`, error);
+    return null;
+  }
 }
 
 const PRIVATE_CACHE = 'private, no-store';
@@ -225,10 +231,12 @@ router.get(
       return;
     }
 
+    const publicKeyPem = await groupPublicKey(server.id);
+
     if (!canReadServer(access)) {
       res.setHeader('Content-Type', 'application/activity+json');
       res.setHeader('Cache-Control', PRIVATE_CACHE);
-      res.json(serverToJoinStub(server, config.INSTANCE_DOMAIN));
+      res.json(serverToJoinStub(server, config.INSTANCE_DOMAIN, publicKeyPem));
       return;
     }
 
@@ -293,7 +301,8 @@ router.get(
       channels,
       memberCount || 0,
       ownerProfile,
-      config.INSTANCE_DOMAIN
+      config.INSTANCE_DOMAIN,
+      publicKeyPem
     );
 
     res.setHeader('Content-Type', 'application/activity+json');
@@ -779,7 +788,7 @@ router.post(
 
     const { processServerInboxActivity } = await import('./ServerInboxHandler.js');
     try {
-      await processServerInboxActivity(serverId, activity);
+      await processServerInboxActivity(serverId, activity, { verifiedSigner });
     } catch (error) {
       if (claimedForProcessing) {
         await supabase.rpc('complete_ap_activity', {

@@ -18,12 +18,17 @@
         <button
           type="button"
           class="participant-item"
+          :class="{ dragging: drag.dragging.value === participant.userId }"
           :aria-label="rowLabel(participant)"
+          :aria-describedby="canDragRow(participant.userId) ? dragHintId : undefined"
           aria-haspopup="menu"
           :aria-expanded="menuUser?.userId === participant.userId"
           :data-testid="`voice-participant-${participant.userId}`"
-          @click="openMenuFromKeyboard(participant, $event)"
-          @contextmenu.prevent="openMenu(participant, $event.clientX, $event.clientY)"
+          @pointerdown="drag.onPointerDown($event, participant.userId)"
+          @mousedown="drag.shield($event, participant.userId)"
+          @touchstart="drag.shield($event, participant.userId)"
+          @click="onRowClick(participant, $event)"
+          @contextmenu.prevent="openMenuAtPointer(participant, $event)"
           @keydown.shift.f10.prevent="openMenuFromKeyboard(participant, $event)"
           @keydown.context-menu.prevent="openMenuFromKeyboard(participant, $event)"
         >
@@ -42,8 +47,29 @@
               size="xs"
               :title="t('voice.mutedByYou')"
             />
-            <Icon v-if="participant.isMuted" name="mic-off" class="status-icon muted" size="xs" :title="t('voice.statusMuted')" />
-            <Icon v-if="participant.isDeafened" name="headphones-off" class="status-icon deafened" size="xs" :title="t('voice.statusDeafened')" />
+            <template v-if="serverFlags(participant.userId).muted || serverFlags(participant.userId).deafened">
+              <Icon
+                v-if="serverFlags(participant.userId).muted"
+                name="mic-off"
+                class="status-icon server"
+                size="xs"
+                :title="t('voice.moderation.serverMuted')"
+                data-testid="voice-row-server-muted"
+              />
+              <Icon
+                v-if="serverFlags(participant.userId).deafened"
+                name="headphones-off"
+                class="status-icon server"
+                size="xs"
+                :title="t('voice.moderation.serverDeafened')"
+                data-testid="voice-row-server-deafened"
+              />
+              <Icon name="shield" class="status-icon server" :size="10" />
+            </template>
+            <template v-else>
+              <Icon v-if="participant.isMuted" name="mic-off" class="status-icon muted" size="xs" :title="t('voice.statusMuted')" />
+              <Icon v-if="participant.isDeafened" name="headphones-off" class="status-icon deafened" size="xs" :title="t('voice.statusDeafened')" />
+            </template>
             <Icon v-if="participant.isVideoEnabled" name="video" class="status-icon video" size="xs" :title="t('voice.statusCameraOn')" />
           </span>
         </button>
@@ -58,6 +84,7 @@
         <span v-else-if="participant.isScreenSharing" class="live-pill" aria-hidden="true">{{ t('voice.live') }}</span>
       </li>
     </ul>
+    <span v-if="powers.move" :id="dragHintId" hidden>{{ t('voice.moderation.dragHint') }}</span>
 
     <VoiceUserContextMenu
       v-if="menuUser"
@@ -72,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted, onUnmounted } from 'vue';
+import { computed, ref, nextTick, onMounted, onUnmounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
@@ -85,6 +112,10 @@ import type { UserMediaState } from '@/services/unifiedWebRTC';
 import { uid } from '@/utils/a11y/focus';
 import { participantLabel, useHeldIds } from './participantLabel';
 import { restoreFocusIfLost } from './voiceFocus';
+import { stylePoint, styleRect } from '@/utils/appZoom';
+import { NO_VOICE_CAPABILITIES, useVoiceModerationStore, type VoiceModerationCapabilities } from '@/stores/voiceModeration';
+import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useVoiceMemberDrag } from './useVoiceMemberDrag';
 
 interface Props {
   participants: UserMediaState[];
@@ -98,6 +129,45 @@ const { getUserDisplayName, getUserAvatarUrl } = useUserData();
 const voiceStore = useUnifiedVoiceChannelStore();
 
 const headerId = uid('voice-participants-header');
+const dragHintId = uid('voice-participants-drag');
+
+const moderation = useVoiceModerationStore();
+const serverChannelStore = useServerChannelStore();
+const serverFlags = (userId: string) => moderation.flagsOf(voiceStore.currentServerId, userId);
+
+// Moderation powers in the call's channel: drag to move, and the menu's moderation items.
+const powers = ref<VoiceModerationCapabilities>(NO_VOICE_CAPABILITIES);
+const callChannel = computed(() => (voiceStore.isConnected ? voiceStore.currentChannelId : null));
+watch(() => [voiceStore.currentServerId, callChannel.value] as const, async ([serverId, channelId]) => {
+  powers.value = NO_VOICE_CAPABILITIES;
+  const result = await moderation.channelPowers(serverId, channelId);
+  if (voiceStore.currentServerId === serverId && callChannel.value === channelId) powers.value = result;
+}, { immediate: true });
+
+const serverOwner = computed(() => {
+  const id = voiceStore.currentServerId;
+  return serverChannelStore.servers.find((s) => s.id === id)?.owner
+    ?? (serverChannelStore.currentServer?.id === id ? serverChannelStore.currentServer.owner : null);
+});
+
+const canDragRow = (userId: string) =>
+  powers.value.move && userId !== voiceStore.localState.userId && userId !== serverOwner.value;
+
+const drag = useVoiceMemberDrag({
+  channelId: () => callChannel.value,
+  canDrag: canDragRow,
+  label: (userId) => getUserDisplayName(userId).value,
+  drop: (userId, channelId) => {
+    const serverId = voiceStore.currentServerId;
+    if (!serverId) return;
+    void moderation.move(serverId, { id: userId, display_name: getUserDisplayName(userId).value }, callChannel.value, channelId);
+  },
+});
+
+const onRowClick = (participant: UserMediaState, event: Event) => {
+  if (drag.swallowsClick()) return;
+  openMenuFromKeyboard(participant, event);
+};
 
 // A row opens the member's voice menu (volume, local mute, watch), like
 // Discord's channel list; right-click and Shift+F10 open it in place.
@@ -117,8 +187,13 @@ const openMenu = (participant: UserMediaState, x: number, y: number, opener?: HT
 
 const openMenuFromKeyboard = (participant: UserMediaState, event: Event) => {
   const el = event.currentTarget as HTMLElement;
-  const rect = el.getBoundingClientRect();
+  const rect = styleRect(el);
   openMenu(participant, rect.left + 24, rect.bottom, el);
+};
+
+const openMenuAtPointer = (participant: UserMediaState, event: MouseEvent) => {
+  const p = stylePoint(event);
+  openMenu(participant, p.x, p.y);
 };
 
 const closeMenu = () => {
@@ -158,6 +233,8 @@ const rowLabel = (participant: UserMediaState) =>
     streaming: participant.isScreenSharing,
     speaking: speakingIds.value.has(participant.userId),
     mutedByYou: isLocallyMuted(participant.userId),
+    serverMuted: serverFlags(participant.userId).muted,
+    serverDeafened: serverFlags(participant.userId).deafened,
   });
 
 const sessionDuration = ref<string>('');
@@ -200,6 +277,14 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.status-icon.server {
+  color: var(--text-danger);
+}
+
+.participant-item.dragging {
+  opacity: 0.5;
+}
+
 .voice-participants {
   margin: 4px 8px;
   padding: 8px;

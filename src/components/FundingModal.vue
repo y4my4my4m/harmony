@@ -11,10 +11,10 @@
       >
         <div class="modal-header">
           <div class="header-titles">
-            <h2 id="funding-modal-title">Instance funding</h2>
+            <h2 id="funding-modal-title">{{ t('support.title') }}</h2>
             <p class="header-subtitle">{{ instanceDomain }}</p>
           </div>
-          <button type="button" class="close-btn" aria-label="Close" @click="close">
+          <button type="button" class="close-btn" :aria-label="t('common.close')" @click="close">
             <Icon name="x" :size="20" />
           </button>
         </div>
@@ -25,11 +25,11 @@
           </div>
 
           <template v-else-if="config">
-            <section v-if="config.goal_amount" class="progress-card" aria-label="Funding progress">
+            <section v-if="config.goal_amount" class="progress-card" :aria-label="t('support.progress')">
               <div class="progress-figures">
                 <span class="progress-raised">{{ formatCurrency(raisedAmount, config.goal_currency) }}</span>
                 <span class="progress-goal">
-                  raised of {{ formatCurrency(config.goal_amount, config.goal_currency) }} {{ periodLabel }}
+                  {{ t(config.funding_period === 'all' ? 'support.raisedTotal' : 'support.raisedMonth', { goal: formatCurrency(config.goal_amount, config.goal_currency) }) }}
                 </span>
               </div>
               <div
@@ -42,9 +42,9 @@
                 <div class="progress-bar-fill" :style="{ width: progressPercent + '%' }"></div>
               </div>
               <div class="progress-stats">
-                <span><strong>{{ progressPercent }}%</strong> funded</span>
+                <span><strong>{{ progressPercent }}%</strong> {{ t('support.funded') }}</span>
                 <span v-if="supporterCount > 0">
-                  <strong>{{ supporterCount }}</strong> {{ supporterCount === 1 ? 'supporter' : 'supporters' }}
+                  <strong>{{ supporterCount }}</strong> {{ t('support.supporters', supporterCount) }}
                 </span>
               </div>
             </section>
@@ -52,7 +52,7 @@
             <p v-if="config.goal_description" class="funding-description">{{ config.goal_description }}</p>
 
             <section v-if="config.funding_links && config.funding_links.length > 0" class="funding-links">
-              <h3>Donate</h3>
+              <h3>{{ t('support.heading') }}</h3>
               <div class="links-list">
                 <a
                   v-for="(link, i) in orderedLinks"
@@ -86,10 +86,7 @@
                   <Icon name="chevron-down" :size="14" class="donor-instructions-chevron" />
                 </summary>
                 <div class="donor-instructions-body">
-                  <p class="donor-instructions-text">
-                    Include your handle anywhere in the donation message. The tier follows your
-                    total donations this cycle.
-                  </p>
+                  <p class="donor-instructions-text">{{ t('support.handleText') }}</p>
                   <div class="donor-handle-row">
                     <code class="donor-handle">@{{ currentUserHandle || 'username' }}@{{ instanceDomain }}</code>
                     <button
@@ -99,18 +96,16 @@
                       @click="copyCurrentHandle"
                     >
                       <Icon :name="handleCopied ? 'check' : 'copy'" :size="12" />
-                      {{ handleCopied ? 'Copied' : 'Copy' }}
+                      {{ handleCopied ? t('support.copied') : t('support.copy') }}
                     </button>
                   </div>
-                  <p class="donor-instructions-hint">
-                    Donations without a handle are queued for the admins to attribute by hand.
-                  </p>
+                  <p class="donor-instructions-hint">{{ t('support.handleHint') }}</p>
                 </div>
               </details>
             </section>
 
             <section v-if="tiers.length > 0" class="tiers-section">
-              <h3>Supporter tiers</h3>
+              <h3>{{ t('support.tiers') }}</h3>
               <ul class="tier-list">
                 <li
                   v-for="tier in tiers"
@@ -129,7 +124,7 @@
                   <span class="tier-details">
                     <span class="tier-heading">
                       <span class="tier-name">{{ tier.name }}</span>
-                      <span class="tier-min">from {{ formatCurrency(tier.min_amount, config.goal_currency) }}</span>
+                      <span class="tier-min">{{ t('support.from', { amount: formatCurrency(tier.min_amount, config.goal_currency) }) }}</span>
                     </span>
                     <span v-if="tier.perks" class="tier-perks">{{ tier.perks }}</span>
                   </span>
@@ -138,20 +133,20 @@
             </section>
 
             <section v-if="myBadge" class="my-supporter-status">
-              <h3>Your support</h3>
+              <h3>{{ t('support.yours') }}</h3>
               <div class="my-badge-row">
                 <span class="tier-badge" :style="badgeStyle">
                   <SupporterBadgeIcon :icon="myBadge.badge_icon" />
                 </span>
                 <div class="my-badge-info">
-                  <span class="my-badge-tier">{{ myBadge.tier_name }} supporter</span>
-                  <span class="my-badge-active">Active</span>
+                  <span class="my-badge-tier">{{ t('support.tierSupporter', { tier: myBadge.tier_name }) }}</span>
+                  <span class="my-badge-active">{{ t('support.active') }}</span>
                 </div>
               </div>
             </section>
 
             <section v-if="myDonations.length > 0" class="my-donations">
-              <h3>Your donations</h3>
+              <h3>{{ t('support.history') }}</h3>
               <div class="donations-list">
                 <div v-for="donation in myDonations" :key="donation.id" class="donation-row">
                   <span class="donation-amount">{{ donation.currency }} {{ donation.amount }}</span>
@@ -197,9 +192,11 @@ import { supabase } from '@/supabase'
 import { useProfileStore } from '@/stores/useProfile'
 import { useAuthStore } from '@/stores/auth'
 import { getInstanceDomain } from '@/services/instanceConfig'
+import { useT } from '@/composables/useT'
 
 const profileStore = useProfileStore()
 const authStore = useAuthStore()
+const { t } = useT()
 
 const donor = computed(() => ({
   profileId: profileStore.profile?.id ?? null,
@@ -219,7 +216,7 @@ const PLATFORM_LABELS: Record<string, string> = {
   'paypal': 'PayPal',
   'buymeacoffee': 'Buy Me a Coffee',
   'stripe': 'Stripe',
-  'custom': 'Donate',
+  'custom': 'Support',
 }
 
 const linkPlatformKey = (platform: string): string => normalizeKey(platform)
@@ -254,7 +251,7 @@ const config = ref<FundingConfigWithProgress | null>(null)
 
 const orderedLinks = computed(() => orderDonationLinks(config.value?.funding_links ?? []))
 
-// A Stripe link reads as its admin label ("Donate", "Monthly"); others name their platform.
+// A Stripe link reads as its admin label ("One-time", "Monthly"); others name their platform.
 const ownLabel = (link: FundingLink): string | null => {
   const label = link.label?.trim()
   if (!label) return null
@@ -262,20 +259,20 @@ const ownLabel = (link: FundingLink): string | null => {
   return key === normalizeKey(link.platform) || key === normalizeKey(platformLabel(link.platform)) ? null : label
 }
 const linkTitle = (link: FundingLink, primary: boolean): string => {
-  if (isStripeLink(link)) return ownLabel(link) ?? 'Donate'
-  return primary ? `Support on ${platformLabel(link.platform)}` : platformLabel(link.platform)
+  if (isStripeLink(link)) return ownLabel(link) ?? t('support.oneTime')
+  return primary ? t('support.onPlatform', { platform: platformLabel(link.platform) }) : platformLabel(link.platform)
 }
 // Stated once, under the first Stripe link.
 const linkSubtitle = (link: FundingLink, index: number): string | null => {
   if (!isStripeLink(link)) return ownLabel(link)
-  return index === 0 ? 'Credited to your account automatically' : null
+  return index === 0 ? t('support.credited') : null
 }
 
 const handleInstructionsTitle = computed(() => {
   const links = config.value?.funding_links ?? []
-  if (!links.some(isStripeLink)) return 'Get your supporter badge automatically'
+  if (!links.some(isStripeLink)) return t('support.badgeAuto')
   const others = [...new Set(links.filter((link) => !isStripeLink(link)).map((link) => platformLabel(link.platform)))]
-  return `Donating on ${others.join(' or ')}? Add your handle`
+  return t('support.handleTitle', { platforms: others.join(' / ') })
 })
 
 const tiers = ref<SupporterTier[]>([])
@@ -290,7 +287,6 @@ const progressPercent = computed(() => {
   return Math.min(100, Math.round((raisedAmount.value / config.value.goal_amount) * 100))
 })
 
-const periodLabel = computed(() => (config.value?.funding_period === 'all' ? 'in total' : 'this month'))
 
 const badgeStyle = computed(() => {
   if (!myBadge.value?.badge_color) return {}
@@ -372,7 +368,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   width: 100%;
   max-width: 480px;
-  max-height: min(85vh, 760px);
+  max-height: min(85 * var(--app-vh), 760px);
   overflow: hidden;
   background: var(--background-primary);
   border: 1px solid var(--border-color);
@@ -842,7 +838,7 @@ onBeforeUnmount(() => {
 
   .funding-modal {
     max-width: none;
-    max-height: 92vh;
+    max-height: calc(92 * var(--app-vh));
     border-bottom: none;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }

@@ -113,6 +113,9 @@ class WebRTCManagerService implements WebRTCManager {
       'e2ee-status-changed',
       'live-reaction',
       'soundboard',
+      'activity',
+      'local-grants-changed',
+      'moderation-flags',
     ];
     
     for (const event of eventsToForward) {
@@ -638,6 +641,11 @@ class WebRTCManagerService implements WebRTCManager {
     return this.activeService === 'livekit' ? livekitWebRTC.liveReactionUserId(wireId) : null;
   }
 
+  /** Sends an activity state on the LiveKit data channel; P2P calls read the row instead. */
+  sendActivity(message: unknown): void {
+    if (this.activeService === 'livekit') livekitWebRTC.sendActivity(message);
+  }
+
   /** Sends a soundboard play to everyone in the call on the active transport. */
   sendSoundboard(message: unknown): void {
     if (this.activeService === 'livekit') {
@@ -714,6 +722,12 @@ class WebRTCManagerService implements WebRTCManager {
   setMasterVolume(volume: number): void {
     remoteAudioMixer.setMasterVolume(volume);
     this.syncSpatialVolumes();
+  }
+
+  /** A server-muted participant's microphone, silenced for this listener (P2P has no server to). */
+  setUserSilenced(userId: string, silenced: boolean): void {
+    remoteAudioMixer.setSilenced(userId, silenced);
+    this.syncSpatialVolumes(userId);
   }
 
   /** Microphone volume of a remote user, 0-200 (100 = normal). */

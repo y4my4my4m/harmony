@@ -22,7 +22,7 @@ import {
 } from '../auth/botPermissions.js'
 import { applyBridgeAttachmentPolicy } from '../utils/mirrorExternalMedia.js'
 import { stripBotSuppliedPaths } from '../utils/messageMedia.js'
-import { absoluteAvatarUrl } from '../utils/avatarUrl.js'
+import { absoluteAvatarUrl, absoluteServerIconUrl } from '../utils/avatarUrl.js'
 import { isDiscordCdnUrl } from '../utils/emojiUrl.js'
 import { DISCORD_EMOJI_ID, EMOJI_NAME, storeDiscordEmojiImage } from '../utils/discordEmojiImport.js'
 import { TTLCache } from '../utils/TTLCache.js'
@@ -44,6 +44,22 @@ function moderationErrorResponse(error: { message?: string; details?: string; hi
 }
 
 type ChannelAccess = { ok: true } | { ok: false; error: string }
+
+interface ThreadRow {
+  id: string
+  channel_id: string
+  parent_message_id: string
+  name: string
+  archived: boolean | null
+  locked: boolean | null
+  created_at: string
+}
+
+/** A Discord snowflake: 1 to 20 digits. */
+const SNOWFLAKE_RE = /^[0-9]{1,20}$/
+
+// channels.type (0 text, 1 voice, 2 category) as Discord's GUILD_TEXT, GUILD_VOICE, GUILD_CATEGORY.
+const DISCORD_CHANNEL_TYPE: Record<number, number> = { 0: 0, 1: 2, 2: 4 }
 
 export interface BotRequest extends Request {
   bot?: {
@@ -129,6 +145,18 @@ export function botContentParts(parts: unknown[]): any[] {
   return out
 }
 
+/** The string fields of a bridged thread's Discord starter, or null (bot_create_thread p_discord_user). */
+export function threadStarter(input: unknown): Record<string, string> | null {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return null
+  const user = input as Record<string, unknown>
+  if (typeof user.id !== 'string' || !SNOWFLAKE_RE.test(user.id)) return null
+  const out: Record<string, string> = { id: user.id }
+  for (const key of ['username', 'display_name', 'avatar_url']) {
+    if (typeof user[key] === 'string' && user[key]) out[key] = user[key] as string
+  }
+  return out
+}
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // role_mention roleId of @here (db_schema/migrations/20261011600001_here_mention.sql).
 const HERE_ROLE_ID = 'here'
@@ -145,7 +173,7 @@ export function reactionMetadata(input: unknown): unknown {
 
 /** Receives each row this API hard-deletes, for MESSAGE_DELETE dispatch. */
 export interface MessageDeleteSink {
-  messageHardDeleted(message: { id: string; channel_id: string | null; metadata: unknown }): Promise<void>
+  messageHardDeleted(message: { id: string; channel_id: string | null; thread_id: string | null; metadata: unknown }): Promise<void>
 }
 
 /** A bridge pairing removed keeps answering true for at most this long. */
@@ -189,6 +217,20 @@ export class BotRestAPI {
     this.route('delete', '/messages/:messageId/reactions/:emoji', this.removeReaction)
 
     this.route('post', '/channels/:channelId/typing', this.triggerTyping)
+
+    // THREAD ENDPOINTS
+    // A thread's messages carry its parent channel's channel_id plus thread_id; writes follow
+    // the parent channel's send_messages access (bot installs carry no thread flags).
+
+    this.route('post', '/channels/:channelId/threads', this.createThread)
+
+    // A Discord bridge's thread pair, by Discord thread id.
+    this.route('get', '/channels/:channelId/threads/lookup', this.lookupThreadByDiscordId)
+
+    this.route('get', '/threads/:threadId', this.getThread)
+
+    // Pairs a Harmony thread with the Discord thread a bridge created for it.
+    this.route('put', '/threads/:threadId/discord', this.pairThread)
 
     // SERVER ENDPOINTS (Harmony terminology)
 
@@ -305,12 +347,195 @@ export class BotRestAPI {
     }
   }
 
+  // THREAD ENDPOINTS
+
+  private async loadThread(threadId: string): Promise<ThreadRow | null> {
+    if (!UUID_PATTERN.test(threadId)) return null
+    const { data, error } = await supabase
+      .from('threads')
+      .select('id, channel_id, parent_message_id, name, archived, locked, created_at')
+      .eq('id', threadId)
+      .maybeSingle()
+    return error || !data ? null : (data as ThreadRow)
+  }
+
+  /** The bot's Discord bridge on the channel's server, when the bot runs one. */
+  private async bridgeIdFor(botId: string, channelId: string): Promise<string | null> {
+    const serverId = await this.channelServerId(channelId)
+    if (!serverId) return null
+    const { data } = await supabase
+      .from('discord_bridges')
+      .select('id')
+      .eq('server_id', serverId)
+      .eq('bot_id', botId)
+      .maybeSingle()
+    return (data as { id: string } | null)?.id ?? null
+  }
+
+  private async formatThread(thread: ThreadRow, botId: string) {
+    const bridgeId = await this.bridgeIdFor(botId, thread.channel_id)
+    let discordThreadId: string | null = null
+    if (bridgeId) {
+      const { data } = await supabase
+        .from('discord_bridge_threads')
+        .select('discord_thread_id')
+        .eq('thread_id', thread.id)
+        .eq('bridge_id', bridgeId)
+        .maybeSingle()
+      discordThreadId = (data as { discord_thread_id: string } | null)?.discord_thread_id ?? null
+    }
+    return {
+      id: thread.id,
+      channel_id: thread.channel_id,
+      parent_message_id: thread.parent_message_id,
+      name: thread.name,
+      archived: !!thread.archived,
+      locked: !!thread.locked,
+      created_at: thread.created_at,
+      discord_thread_id: discordThreadId,
+    }
+  }
+
+  /**
+   * Body { name, message_id?, discord_thread_id?, discord_user? }. On message_id the thread
+   * hangs off that message (an existing thread of it is returned); otherwise it is standalone.
+   * A Discord thread id pairs the thread with the bot's bridge and makes the call idempotent;
+   * with it, discord_user (the member who started the Discord thread) names the notice.
+   */
+  private async createThread(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      const { name, message_id, discord_thread_id, discord_user } = req.body ?? {}
+      const botId = req.bot!.id
+      if (typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({ error: 'name is required' })
+      }
+      if (message_id != null && (typeof message_id !== 'string' || !UUID_PATTERN.test(message_id))) {
+        return res.status(400).json({ error: 'message_id must be a message id' })
+      }
+      if (discord_thread_id != null && (typeof discord_thread_id !== 'string' || !SNOWFLAKE_RE.test(discord_thread_id))) {
+        return res.status(400).json({ error: 'discord_thread_id must be a Discord snowflake' })
+      }
+      const access = await this.channelWriteAccess(botId, channelId, 'send_messages')
+      if (!access.ok) return res.status(403).json({ error: access.error })
+      if (discord_thread_id != null && !(await this.bridgePairsChannel(botId, channelId))) {
+        return res.status(403).json({ error: 'The channel is not bridged by this bot' })
+      }
+
+      const { data: threadId, error } = await supabase.rpc('bot_create_thread', {
+        p_bot_id: botId,
+        p_channel_id: channelId,
+        p_name: name,
+        p_parent_message_id: message_id ?? null,
+        p_discord_thread_id: discord_thread_id ?? null,
+        p_discord_user: discord_thread_id != null ? threadStarter(discord_user) : null,
+      })
+      if (error) {
+        const status = error.code === 'P0002' ? 404 : error.code === '42501' ? 403 : error.code === '22023' ? 400 : 500
+        return res.status(status).json({ error: error.message })
+      }
+      const thread = await this.loadThread(threadId as string)
+      if (!thread) return res.status(500).json({ error: 'Thread not found after creation' })
+      await this.logBotAction(botId, 'thread_created', { channel_id: channelId, thread_id: thread.id })
+      res.status(201).json(await this.formatThread(thread, botId))
+    } catch (error: any) {
+      console.error('Create thread error:', error)
+      res.status(500).json({ error: error.message || 'Internal server error' })
+    }
+  }
+
+  private async lookupThreadByDiscordId(req: BotRequest, res: Response) {
+    try {
+      const { channelId } = req.params
+      const discordThreadId = typeof req.query.discord_thread_id === 'string' ? req.query.discord_thread_id : ''
+      const botId = req.bot!.id
+      if (!SNOWFLAKE_RE.test(discordThreadId)) {
+        return res.status(400).json({ error: 'discord_thread_id must be a Discord snowflake' })
+      }
+      if (!(await this.canReadChannel(botId, channelId))) {
+        return res.status(403).json({ error: 'Channel not visible to this bot' })
+      }
+      const bridgeId = await this.bridgeIdFor(botId, channelId)
+      if (!bridgeId) return res.status(404).json({ error: 'Thread not found' })
+      const { data } = await supabase
+        .from('discord_bridge_threads')
+        .select('thread_id')
+        .eq('bridge_id', bridgeId)
+        .eq('discord_thread_id', discordThreadId)
+        .maybeSingle()
+      const thread = data ? await this.loadThread((data as { thread_id: string }).thread_id) : null
+      if (!thread || thread.channel_id !== channelId) return res.status(404).json({ error: 'Thread not found' })
+      res.json(await this.formatThread(thread, botId))
+    } catch (error: any) {
+      console.error('Lookup thread error:', error)
+      res.status(500).json({ error: error.message || 'Internal server error' })
+    }
+  }
+
+  private async getThread(req: BotRequest, res: Response) {
+    try {
+      const botId = req.bot!.id
+      const thread = await this.loadThread(req.params.threadId)
+      if (!thread || !(await this.canReadChannel(botId, thread.channel_id))) {
+        return res.status(404).json({ error: 'Thread not found' })
+      }
+      res.json(await this.formatThread(thread, botId))
+    } catch (error: any) {
+      console.error('Get thread error:', error)
+      res.status(500).json({ error: error.message || 'Internal server error' })
+    }
+  }
+
+  /**
+   * Body { discord_thread_id }. Only the bridge bot of a paired channel. The first pair stands:
+   * the same id again answers the thread, another id 409 with the standing pair.
+   */
+  private async pairThread(req: BotRequest, res: Response) {
+    try {
+      const botId = req.bot!.id
+      const discordThreadId = req.body?.discord_thread_id
+      if (typeof discordThreadId !== 'string' || !SNOWFLAKE_RE.test(discordThreadId)) {
+        return res.status(400).json({ error: 'discord_thread_id must be a Discord snowflake' })
+      }
+      const thread = await this.loadThread(req.params.threadId)
+      if (!thread || !(await this.canReadChannel(botId, thread.channel_id))) {
+        return res.status(404).json({ error: 'Thread not found' })
+      }
+      const bridgeId = await this.bridgeIdFor(botId, thread.channel_id)
+      if (!bridgeId || !(await this.bridgePairsChannel(botId, thread.channel_id))) {
+        return res.status(403).json({ error: 'The channel is not bridged by this bot' })
+      }
+      const { data: existing } = await supabase
+        .from('discord_bridge_threads')
+        .select('discord_thread_id')
+        .eq('thread_id', thread.id)
+        .maybeSingle()
+      const current = (existing as { discord_thread_id: string } | null)?.discord_thread_id
+      if (current && current !== discordThreadId) {
+        return res.status(409).json({ error: 'Thread is already paired', discord_thread_id: current })
+      }
+      if (!current) {
+        const { error } = await supabase
+          .from('discord_bridge_threads')
+          .insert({ thread_id: thread.id, bridge_id: bridgeId, discord_thread_id: discordThreadId })
+        if (error) {
+          const status = error.code === '23505' ? 409 : 500
+          return res.status(status).json({ error: error.message })
+        }
+      }
+      res.json(await this.formatThread(thread, botId))
+    } catch (error: any) {
+      console.error('Pair thread error:', error)
+      res.status(500).json({ error: error.message || 'Internal server error' })
+    }
+  }
+
   // MESSAGE ENDPOINTS
   
   private async sendMessage(req: BotRequest, res: Response) {
     try {
       const { channelId } = req.params
-      const { content, embeds, reply_to, metadata } = req.body
+      const { content, embeds, reply_to, metadata, thread_id } = req.body
       const botId = req.bot!.id
       
       console.log(`Bot ${req.bot!.username} (${botId}) attempting to send message to channel ${channelId}`)
@@ -320,6 +545,16 @@ export class BotRestAPI {
       if (!access.ok) {
         console.log(`Permission denied for bot ${botId} in channel ${channelId}: ${access.error}`)
         return res.status(403).json({ error: access.error })
+      }
+
+      let threadId: string | null = null
+      if (thread_id !== undefined && thread_id !== null) {
+        const thread = typeof thread_id === 'string' ? await this.loadThread(thread_id) : null
+        if (!thread || thread.channel_id !== channelId) {
+          return res.status(400).json({ error: 'thread_id is not a thread of this channel' })
+        }
+        if (thread.locked) return res.status(403).json({ error: 'Thread is locked' })
+        threadId = thread.id
       }
       
       // Instance attachment policy (e.g. mirroring Discord CDN URLs into
@@ -347,6 +582,7 @@ export class BotRestAPI {
         .from('messages')
         .insert({
           channel_id: channelId,
+          thread_id: threadId,
           bot_id: botId,  // Use bot_id instead of user_id
           content: messageContent,
           reply_to: reply_to || null,
@@ -670,7 +906,7 @@ export class BotRestAPI {
       
       const { data: message } = await supabase
         .from('messages')
-        .select('user_id, bot_id, channel_id, metadata, is_deleted')
+        .select('user_id, bot_id, channel_id, thread_id, metadata, is_deleted')
         .eq('id', messageId)
         .single()
       
@@ -702,7 +938,12 @@ export class BotRestAPI {
       // A soft-deleted row was dispatched when is_deleted was set.
       if (this.deletes && message.is_deleted !== true) {
         this.deletes
-          .messageHardDeleted({ id: messageId, channel_id: message.channel_id, metadata: message.metadata ?? null })
+          .messageHardDeleted({
+            id: messageId,
+            channel_id: message.channel_id,
+            thread_id: message.thread_id ?? null,
+            metadata: message.metadata ?? null,
+          })
           .catch(err => console.error(`MESSAGE_DELETE dispatch failed for ${messageId}:`, err))
       }
       
@@ -882,6 +1123,11 @@ export class BotRestAPI {
       const serverId = req.params.serverId || req.params.guildId
       const { limit = 100, after } = req.query
       const botId = req.bot!.id
+
+      // Keyset cursor, as Discord's: the last user.id of the previous page.
+      if (after !== undefined && (typeof after !== 'string' || !UUID_PATTERN.test(after))) {
+        return res.status(400).json({ error: 'after must be a user id' })
+      }
       
       const hasAccess = await this.checkBotInGuild(botId, serverId)
       if (!hasAccess) {
@@ -895,10 +1141,11 @@ export class BotRestAPI {
           user:profiles!user_servers_user_id_fkey(id, username, display_name, avatar_url, status, domain, is_local)
         `)
         .eq('server_id', serverId)
+        .order('user_id')
         .limit(Number(limit))
       
       if (after) {
-        query = query.gt('joined_at', after as string)
+        query = query.gt('user_id', after)
       }
       
       const { data: members, error } = await query
@@ -1886,6 +2133,7 @@ export class BotRestAPI {
     return {
       id: message.id,
       channel_id: message.channel_id,
+      thread_id: message.thread_id ?? null,
       author: author ? {
         id: author.id,
         username: author.username,
@@ -1906,7 +2154,7 @@ export class BotRestAPI {
     return {
       id: guild.id,
       name: guild.name,
-      icon: guild.icon_url,
+      icon: absoluteServerIconUrl(guild.icon),
       owner_id: guild.owner,
       description: guild.description,
       member_count: guild.member_count || 0
@@ -1916,7 +2164,7 @@ export class BotRestAPI {
   private formatChannel(channel: any) {
     return {
       id: channel.id,
-      type: channel.type === 'text' ? 0 : channel.type === 'voice' ? 2 : 0,
+      type: DISCORD_CHANNEL_TYPE[channel.type as number] ?? 0,
       guild_id: channel.server_id,
       name: channel.name,
       position: channel.order ?? 0,
@@ -1938,7 +2186,7 @@ export class BotRestAPI {
       } : null,
       nick: member.nickname,
       roles: member.roles || [],
-      joined_at: member.joined_at
+      joined_at: member.created_at
     }
   }
   
@@ -2015,18 +2263,7 @@ export class BotRestAPI {
         .eq('status', 'accepted')
 
       const publicUrl = process.env.PUBLIC_URL || process.env.SUPABASE_URL || ''
-      let serverIconUrl: string | null = null
-      const icon = invite.server_icon as string | null | undefined
-      if (icon) {
-        if (icon.startsWith('http://') || icon.startsWith('https://')) {
-          serverIconUrl = icon
-        } else if (icon.startsWith('/')) {
-          serverIconUrl = publicUrl ? `${publicUrl}${icon}` : icon
-        } else if (publicUrl) {
-          serverIconUrl =
-            `${publicUrl}/storage/v1/render/image/public/server_icons/${icon}?width=128&height=128&resize=contain&quality=80`
-        }
-      }
+      const serverIconUrl = absoluteServerIconUrl(invite.server_icon)
 
       const { data: server } = await supabase
         .from('servers')

@@ -172,7 +172,7 @@ class ThreadService {
         ? supabase.from('profiles').select('username, display_name, avatar_url').eq('id', data.created_by).single()
         : null
       const parentRead = data.parent_message_id
-        ? supabase.from('messages').select('id, content, user_id, created_at, is_system, metadata').eq('id', data.parent_message_id).single()
+        ? supabase.from('messages').select('id, content, user_id, bot_id, created_at, is_system, metadata, bot:bots!messages_bot_id_fkey(id, username, display_name, avatar_url)').eq('id', data.parent_message_id).single()
         : null
       const membershipRead = (async () => {
         try {

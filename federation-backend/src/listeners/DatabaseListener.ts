@@ -706,16 +706,11 @@ export async function handleChannelCreated(channel: any): Promise<void> {
     
     const { data: server } = await supabase
       .from('servers')
-      .select('id, owner, federation_enabled, is_local_server')
+      .select('id, federation_enabled, is_local_server')
       .eq('id', channel.server_id)
       .single();
     
     if (!server?.federation_enabled || !server.is_local_server) {
-      return;
-    }
-    
-    if (!server.owner) {
-      logger.warn(`Server ${server.id} has no owner - cannot federate channel creation`);
       return;
     }
     
@@ -750,11 +745,11 @@ export async function handleChannelCreated(channel: any): Promise<void> {
       published: new Date().toISOString(),
     };
     
-    // server.owner is the signing key holder for the HTTP signature.
+    // The Group is the actor; its own key signs.
     const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
     for (const group of remoteMemberGroups) {
       const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
-      await DeliveryQueue.enqueue(activity, inbox, server.owner);
+      await DeliveryQueue.enqueue(activity, inbox, { serverId: server.id });
     }
     
     logger.info(`Channel creation federated to ${remoteMemberGroups.length} instances`);
@@ -771,16 +766,11 @@ export async function handleChannelUpdated(channel: any, _oldChannel: any): Prom
     
     const { data: server } = await supabase
       .from('servers')
-      .select('id, owner, federation_enabled, is_local_server')
+      .select('id, federation_enabled, is_local_server')
       .eq('id', channel.server_id)
       .single();
     
     if (!server?.federation_enabled || !server.is_local_server) {
-      return;
-    }
-    
-    if (!server.owner) {
-      logger.warn(`Server ${server.id} has no owner - cannot federate channel update`);
       return;
     }
     
@@ -812,11 +802,11 @@ export async function handleChannelUpdated(channel: any, _oldChannel: any): Prom
       published: new Date().toISOString(),
     };
     
-    // server.owner is the signing key holder for the HTTP signature.
+    // The Group is the actor; its own key signs.
     const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
     for (const group of remoteMemberGroups) {
       const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
-      await DeliveryQueue.enqueue(activity, inbox, server.owner);
+      await DeliveryQueue.enqueue(activity, inbox, { serverId: server.id });
     }
     
     logger.info(`Channel update federated to ${remoteMemberGroups.length} instances`);
@@ -833,16 +823,11 @@ export async function handleChannelDeleted(channel: any): Promise<void> {
     
     const { data: server } = await supabase
       .from('servers')
-      .select('id, owner, federation_enabled, is_local_server')
+      .select('id, federation_enabled, is_local_server')
       .eq('id', channel.server_id)
       .single();
     
     if (!server?.federation_enabled || !server.is_local_server) {
-      return;
-    }
-    
-    if (!server.owner) {
-      logger.warn(`Server ${server.id} has no owner - cannot federate channel deletion`);
       return;
     }
     
@@ -867,11 +852,11 @@ export async function handleChannelDeleted(channel: any): Promise<void> {
       published: new Date().toISOString(),
     };
     
-    // server.owner is the signing key holder for the HTTP signature.
+    // The Group is the actor; its own key signs.
     const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
     for (const group of remoteMemberGroups) {
       const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
-      await DeliveryQueue.enqueue(activity, inbox, server.owner);
+      await DeliveryQueue.enqueue(activity, inbox, { serverId: server.id });
     }
     
     logger.info(`Channel deletion federated to ${remoteMemberGroups.length} instances`);
@@ -885,11 +870,6 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
   try {
     const hostDomain = config.INSTANCE_DOMAIN;
 
-    if (!server.owner) {
-      logger.warn(`Server ${server.id} has no owner - cannot federate server update`);
-      return;
-    }
-    
     const remoteMemberGroups = await getRemoteMemberGroups(server.id);
     if (remoteMemberGroups.length === 0) {
       logger.info('No remote members to notify of server update');
@@ -923,11 +903,11 @@ export async function handleServerUpdated(server: any, _oldServer: any): Promise
       published: new Date().toISOString(),
     };
     
-    // server.owner is the signing key holder for the HTTP signature.
+    // The Group is the actor; its own key signs.
     const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
     for (const group of remoteMemberGroups) {
       const inbox = group.shared_inbox || `https://${group.instance}/inbox`;
-      await DeliveryQueue.enqueue(activity, inbox, server.owner);
+      await DeliveryQueue.enqueue(activity, inbox, { serverId: server.id });
     }
     
     logger.info(`Server update federated to ${remoteMemberGroups.length} instances`);
@@ -1502,7 +1482,8 @@ export async function enrichMessageLinkPreviews(message: any): Promise<void> {
     eligibleUrls.map(async (part: any) => {
       const url: string = part.url;
       const preview = await linkPreviewService.getPreview(url);
-      if (!preview) return null;
+      // A page that could not be read leaves no card; the next edit or re-run tries again.
+      if (!preview || preview.failed) return null;
 
       if (preview.provider === 'fediverse-post' && preview.fediverse?.postUrl) {
         try {
@@ -1586,7 +1567,7 @@ export async function enrichPostLinkPreviews(post: any): Promise<boolean> {
     eligibleUrls.map(async (part: any) => {
       const url: string = part.url;
       const preview = await linkPreviewService.getPreview(url);
-      if (!preview) return null;
+      if (!preview || preview.failed) return null;
       return { url, preview };
     })
   );

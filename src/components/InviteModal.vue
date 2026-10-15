@@ -128,6 +128,7 @@ import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import { supabase } from '@/supabase'
+import { serverMonogramUrl } from '@/utils/serverMonogram';
 import { getServerIconUrl, getServerBannerUrl } from '@/utils/serverUtils'
 import { devicePixels } from '@/utils/imageTransformUtils'
 import { durationParts, timeUntil } from '@/utils/inviteLink'
@@ -195,7 +196,7 @@ const memberCount = computed(() => liveMemberCount.value ?? props.serverData?.me
 
 const resolvedIcon = computed(() => {
   const raw = props.serverData?.icon ?? props.serverData?.icon_url ?? null
-  return raw ? getServerIconUrl(raw, devicePixels(44)) : null
+  return raw ? getServerIconUrl(raw, devicePixels(44)) : serverMonogramUrl(props.serverData?.name)
 })
 
 // Appearance setting gates the blurred banner behind the dialog (default on).

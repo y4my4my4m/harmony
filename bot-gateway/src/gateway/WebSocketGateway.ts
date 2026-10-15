@@ -143,6 +143,21 @@ export function parsePresenceDeltas(data: unknown): PresenceDelta[] {
 export const FRAME_LIMIT = 120
 export const FRAME_WINDOW_MS = 60_000
 
+// IDENTIFY of a bot already holding config.websocket.maxConnectionsPerBot connections.
+export const TOO_MANY_CONNECTIONS_CLOSE = 4029
+// No successful IDENTIFY within config.websocket.identifyTimeoutMs of the socket opening.
+export const NOT_AUTHENTICATED_CLOSE = 4003
+
+/**
+ * Sends the close frame, then destroys the socket in the same tick. ws.close() alone holds a
+ * peer that never answers it, and defers the close handler, for ws's 30 s closing-handshake
+ * timeout.
+ */
+function closeAtOnce(ws: WebSocket, code: number, reason: string) {
+  ws.close(code, reason)
+  ws.terminate()
+}
+
 /** Sliding-window frame count of one connection. */
 export class FrameRateLimiter {
   // Arrival times in ms, oldest first; at most `limit` entries.
@@ -183,6 +198,14 @@ export class WebSocketGateway {
   // list holding the user. op 7 updates these objects in place.
   private usersByBot = new Map<string, Map<string, BridgedUser[]>>()
   
+  // Bot ID -> session of the bot's latest IDENTIFY in this process, while the bot holds a
+  // connection here. bot_presence.gateway_session_id names it unless another process identified
+  // the bot since.
+  private presenceSessions = new Map<string, string>()
+  // Bot ID -> the bot's last queued bot_presence status write. Each write starts once the previous
+  // one settles, so the row ends at the last write issued.
+  private presenceWrites = new Map<string, Promise<void>>()
+  
   constructor(private wss: WebSocketServer) {
     this.wss.on('connection', this.handleConnection.bind(this))
     this.startHeartbeatCheck()
@@ -194,6 +217,11 @@ export class WebSocketGateway {
     let botConnection: BotConnection | null = null
     const frames = new FrameRateLimiter()
     let rateLimited = false
+    const identifyDeadline = setTimeout(() => {
+      if (botConnection) return
+      console.warn(`Gateway connection sent no successful IDENTIFY in ${config.websocket.identifyTimeoutMs} ms; closing`)
+      closeAtOnce(ws, NOT_AUTHENTICATED_CLOSE, 'Not authenticated')
+    }, config.websocket.identifyTimeoutMs)
     
     console.log('New WebSocket connection')
     
@@ -215,7 +243,10 @@ export class WebSocketGateway {
         
         switch (payload.op) {
           case 2: // IDENTIFY
-            botConnection = await this.handleIdentify(ws, payload.d)
+            await this.handleIdentify(ws, payload.d, (conn) => {
+              botConnection = conn
+              clearTimeout(identifyDeadline)
+            })
             break
             
           case 1: // HEARTBEAT
@@ -251,23 +282,11 @@ export class WebSocketGateway {
     })
     
     ws.on('close', () => {
+      clearTimeout(identifyDeadline)
       if (botConnection) {
         console.log(`Bot disconnected: ${botConnection.username}`)
         this.connections.delete(ws)
-        
-        this.cleanupBotBridgeData(botConnection.botId)
-        
-        supabase
-          .from('bot_presence')
-          .update({
-            status: 'offline',
-            last_heartbeat_at: new Date().toISOString()
-          })
-          .eq('bot_id', botConnection.botId)
-          .then(
-            ({ error }) => logPresenceError('offline update', error),
-            (err) => logPresenceError('offline update', err)
-          )
+        this.handleBotDisconnect(botConnection)
       }
     })
     
@@ -276,12 +295,20 @@ export class WebSocketGateway {
     })
   }
   
-  private async handleIdentify(ws: WebSocket, data: any): Promise<BotConnection | null> {
+  /**
+   * `registered` runs once the connection is in the connected set, before the presence and READY
+   * writes: a close from then on is a disconnect of the bot.
+   */
+  private async handleIdentify(
+    ws: WebSocket,
+    data: any,
+    registered: (conn: BotConnection) => void,
+  ): Promise<void> {
     const token = data?.token
     
     if (!token) {
       ws.close(4001, 'Missing token')
-      return null
+      return
     }
     
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
@@ -295,13 +322,25 @@ export class WebSocketGateway {
     if (error) {
       console.error('verify_bot_token failed:', error.code, error.message, error.details)
       ws.close(4004, 'Token verification unavailable')
-      return null
+      return
     }
 
     if (!verification || !verification.valid) {
       console.warn('Invalid bot token attempt')
       ws.close(4004, identifyRefusalReason(verification))
-      return null
+      return
+    }
+
+    // Closed during verification (identify deadline, client gone): nothing is registered.
+    if (ws.readyState !== WebSocket.OPEN) return
+
+    // No await between this count and connections.set: concurrent identifies of one bot in this
+    // process see each other.
+    const open = this.connectionCount(verification.bot_id, ws)
+    if (open >= config.websocket.maxConnectionsPerBot) {
+      console.warn(`Bot ${verification.bot_id} already holds ${open} connections; refusing another`)
+      ws.close(TOO_MANY_CONNECTIONS_CLOSE, 'Too many connections')
+      return
     }
     
     const botConnection: BotConnection = {
@@ -313,21 +352,26 @@ export class WebSocketGateway {
       tokenHash
     }
     
+    // A second IDENTIFY on the socket replaces the identity it carried.
+    const previous = this.connections.get(ws)
     this.connections.set(ws, botConnection)
+    this.presenceSessions.set(botConnection.botId, botConnection.sessionId)
+    registered(botConnection)
+    if (previous) this.handleBotDisconnect(previous)
     
     // Arbiter is explicit; PostgREST otherwise derives ON CONFLICT from the
     // primary key, which is the surrogate id rather than bot_id.
-    const { error: presenceError } = await supabase
-      .from('bot_presence')
-      .upsert({
-        bot_id: botConnection.botId,
-        status: 'online',
-        connected_at: new Date().toISOString(),
-        last_heartbeat_at: new Date().toISOString(),
-        gateway_session_id: botConnection.sessionId
-      }, { onConflict: 'bot_id' })
-
-    logPresenceError('identify upsert', presenceError)
+    await this.queuePresenceWrite(botConnection.botId, 'identify upsert', () =>
+      supabase
+        .from('bot_presence')
+        .upsert({
+          bot_id: botConnection.botId,
+          status: 'online',
+          connected_at: new Date().toISOString(),
+          last_heartbeat_at: new Date().toISOString(),
+          gateway_session_id: botConnection.sessionId
+        }, { onConflict: 'bot_id' }),
+    )
 
     const { error: botUpdateError } = await supabase
       .from('bots')
@@ -352,7 +396,6 @@ export class WebSocketGateway {
     }))
     
     console.log(`Bot authenticated: ${botConnection.username} (${botConnection.botId})`)
-    return botConnection
   }
   
   private handleHeartbeat(ws: WebSocket, botConnection: BotConnection) {
@@ -387,8 +430,8 @@ export class WebSocketGateway {
       for (const [ws, conn] of this.connections) {
         if (now - conn.lastHeartbeat > timeout) {
           console.warn(`Bot heartbeat timeout: ${conn.username}`)
-          ws.close(1000, 'Heartbeat timeout')
           this.connections.delete(ws)
+          closeAtOnce(ws, 1000, 'Heartbeat timeout')
         }
       }
     }, config.websocket.heartbeatInterval)
@@ -504,6 +547,15 @@ export class WebSocketGateway {
     return Array.from(this.connections.values())
   }
   
+  /** Identified connections of a bot, `except` excluded. */
+  private connectionCount(botId: string, except?: WebSocket): number {
+    let count = 0
+    for (const [ws, conn] of this.connections) {
+      if (conn.botId === botId && ws !== except) count++
+    }
+    return count
+  }
+
   isBotConnected(botId: string): boolean {
     for (const conn of this.connections.values()) {
       if (conn.botId === botId) {
@@ -678,7 +730,56 @@ export class WebSocketGateway {
     this.bridgedUsersByChannel.delete(channelId)
   }
 
-  // Called on bot disconnect.
+  // A bot's connections close in any order, and a client that sees its socket drop (1006) can
+  // identify again before the server sees the old socket close. The bridge registration and the
+  // presence row stay while any connection of the bot is open in this process. The last close
+  // writes the row offline only while it names the bot's latest IDENTIFY here: an IDENTIFY in
+  // another process since keeps it.
+  private handleBotDisconnect(conn: BotConnection) {
+    for (const other of this.connections.values()) {
+      if (other.botId === conn.botId) return
+    }
+
+    this.cleanupBotBridgeData(conn.botId)
+
+    const sessionId = this.presenceSessions.get(conn.botId)
+    if (sessionId === undefined) return
+    this.presenceSessions.delete(conn.botId)
+    this.writeOffline(conn.botId, sessionId)
+  }
+
+  private writeOffline(botId: string, sessionId: string): Promise<void> {
+    return this.queuePresenceWrite(botId, 'offline update', () =>
+      supabase
+        .from('bot_presence')
+        .update({
+          status: 'offline',
+          last_heartbeat_at: new Date().toISOString()
+        })
+        .eq('bot_id', botId)
+        .eq('gateway_session_id', sessionId),
+    )
+  }
+
+  /** Runs `write` once the bot's previous status write settles; resolves when it settles. */
+  private queuePresenceWrite(
+    botId: string,
+    op: string,
+    write: () => PromiseLike<{ error: unknown }>,
+  ): Promise<void> {
+    const next = (this.presenceWrites.get(botId) ?? Promise.resolve())
+      .then(write)
+      .then(
+        ({ error }) => logPresenceError(op, error),
+        (err) => logPresenceError(op, err),
+      )
+    this.presenceWrites.set(botId, next)
+    next.then(() => {
+      if (this.presenceWrites.get(botId) === next) this.presenceWrites.delete(botId)
+    })
+    return next
+  }
+
   private cleanupBotBridgeData(botId: string) {
     this.usersByBot.delete(botId)
     const botChannels = this.channelsByBot.get(botId)
@@ -717,7 +818,11 @@ export class WebSocketGateway {
     return (this.bridgedUsersByChannel.get(channelId)?.length ?? 0) > 0
   }
   
-  shutdown() {
+  /**
+   * Writes every bot connected here offline and closes its connections. Resolves once the
+   * bot_presence writes settle; the close handlers that follow write nothing.
+   */
+  shutdown(): Promise<void> {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval)
     }
@@ -725,6 +830,10 @@ export class WebSocketGateway {
       clearInterval(this.revalidateInterval)
       this.revalidateInterval = null
     }
+    
+    for (const [botId, sessionId] of this.presenceSessions) this.writeOffline(botId, sessionId)
+    this.presenceSessions.clear()
+    const writes = Array.from(this.presenceWrites.values())
     
     for (const [ws] of this.connections) {
       ws.close(1000, 'Server shutting down')
@@ -735,6 +844,7 @@ export class WebSocketGateway {
     this.channelsByBot.clear()
     this.usersByBot.clear()
     console.log('WebSocket Gateway shut down')
+    return Promise.all(writes).then(() => undefined)
   }
 }
 

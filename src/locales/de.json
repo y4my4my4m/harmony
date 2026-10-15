@@ -54,7 +54,7 @@
     "displayName": "Anzeigename",
     "welcomeBack": "Willkommen zurück!",
     "createAccount": "Konto erstellen",
-    "welcomeBackSubtitle": "Melde dich mit E-Mail und Passwort an.",
+    "instanceLabel": "Instanz",
     "createAccountSubtitle": "Als Nächstes wählst du einen Benutzernamen und dein Profil.",
     "confirmEmailSent": "Wir haben einen Bestätigungslink an {email} gesendet. Öffne ihn und melde dich dann an.",
     "forgotPassword": "Passwort vergessen?",
@@ -145,8 +145,8 @@
     "verifying": "Wird überprüft…",
     "sendingResetLink": "Link zum Zurücksetzen wird gesendet…",
     "poweredBy": "Betrieben mit {name}",
+    "serviceStatus": "Dienststatus",
     "reset": {
-      "brandSubtitle": "Setze dein Passwort zurück, um wieder Zugriff auf dein Konto zu erhalten",
       "successTitle": "Passwort zurückgesetzt",
       "successBody": "Dein Passwort wurde geändert. Du kannst dich jetzt mit dem neuen Passwort anmelden.",
       "goToLogin": "Zur Anmeldung",
@@ -245,7 +245,7 @@
     "addFirstEmoji": "Fügen Sie Ihr erstes benutzerdefiniertes Emoji hinzu, um Ihren Server einzigartig zu machen!",
     "allowCrossServer": "Emojis von anderen Servern erlauben",
     "allowCrossServerDesc": "Mitgliedern erlauben, Emojis von anderen Servern zu verwenden",
-    "emojiUploadRecommendation": "Empfohlen: 128×128px. Max: 1 MB. Formate: PNG, GIF, WebP, APNG, SVG, JPEG.",
+    "emojiUploadRecommendation": "Empfohlen: 128×128px. Max: 1 MB. Formate: PNG, GIF, WebP, APNG, JPEG.",
     "deleteEmoji": "Emoji löschen",
     "dangerZone": "Gefahrenzone",
     "deleteServer": "Server löschen",
@@ -399,7 +399,9 @@
       "change": "Server-Banner ändern",
       "remove": "Banner entfernen",
       "hint": "Empfohlen: 1280×400 px. Wird oben auf deinem Server angezeigt.",
-      "none": "Kein Server-Banner festgelegt"
+      "none": "Kein Server-Banner festgelegt",
+      "sidebar": "Banner über der Kanalliste anzeigen",
+      "sidebarHint": "Mitglieder sehen das Serverbanner oben in der Kanalliste."
     },
     "emojiActions": {
       "copy": "{name} kopieren",
@@ -529,9 +531,14 @@
         "membership": "Mitgliedschaftsberechtigungen",
         "text": "Textberechtigungen",
         "threads": "Thread-Berechtigungen",
-        "voice": "Sprachberechtigungen"
+        "voice": "Sprachberechtigungen",
+        "dangerous": "Gefährliche Berechtigungen"
       },
       "perms": {
+        "ADMINISTRATOR": {
+          "label": "Administrator",
+          "description": "Jede Berechtigung in jedem Kanal; nur der Eigentümer kann den Server löschen"
+        },
         "VIEW_CHANNEL": {
           "label": "Kanäle ansehen",
           "description": "Erlaubt Mitgliedern standardmäßig, Kanäle zu sehen"
@@ -542,11 +549,11 @@
         },
         "MANAGE_ROLES": {
           "label": "Rollen verwalten",
-          "description": "Rollen unterhalb dieser Rolle erstellen, bearbeiten und löschen"
+          "description": "Rollen unterhalb der eigenen höchsten Rolle erstellen, bearbeiten, zuweisen und löschen sowie Kanalberechtigungen bearbeiten"
         },
         "MANAGE_SERVER": {
           "label": "Server verwalten",
-          "description": "Servereinstellungen bearbeiten und den Server löschen"
+          "description": "Servereinstellungen, AutoMod, Willkommensbildschirm und Bots bearbeiten; nur der Eigentümer kann den Server löschen"
         },
         "CREATE_INVITE": {
           "label": "Einladung erstellen",
@@ -574,7 +581,7 @@
         },
         "TIMEOUT_MEMBERS": {
           "label": "Mitglieder stummschalten (Timeout)",
-          "description": "Mitglieder vorübergehend stummschalten"
+          "description": "Mitglieder vorübergehend am Senden von Nachrichten, Reagieren, Starten von Threads und Beitreten zu Sprachkanälen hindern"
         },
         "SEND_MESSAGES": {
           "label": "Nachrichten senden",
@@ -582,7 +589,7 @@
         },
         "EMBED_LINKS": {
           "label": "Links einbetten",
-          "description": "Links zeigen eine Vorschau"
+          "description": "Ihre Links zeigen eine Vorschau; ohne diese Berechtigung erscheinen Links ohne Vorschau"
         },
         "ATTACH_FILES": {
           "label": "Dateien anhängen",
@@ -602,11 +609,11 @@
         },
         "READ_MESSAGE_HISTORY": {
           "label": "Nachrichtenverlauf lesen",
-          "description": "Den Nachrichtenverlauf ansehen"
+          "description": "Nachrichten von vor dem Beitritt lesen; ohne diese Berechtigung beginnen Kanäle beim Beitritt"
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "Externe Emojis verwenden",
-          "description": "Emojis von anderen Servern verwenden"
+          "description": "Emojis anderer Server, der Instanz und eigene verwenden; ohne diese Berechtigung nur Unicode und Emojis dieses Servers"
         },
         "PIN_MESSAGES": {
           "label": "Nachrichten anheften",
@@ -618,7 +625,7 @@
         },
         "CREATE_PRIVATE_THREADS": {
           "label": "Private Threads erstellen",
-          "description": "Threads nur auf Einladung erstellen"
+          "description": "Gewährt nichts: Jeder Thread in Harmony ist für den ganzen Kanal sichtbar"
         },
         "SEND_MESSAGES_IN_THREADS": {
           "label": "Nachrichten in Threads senden",
@@ -646,7 +653,7 @@
         },
         "MOVE_MEMBERS": {
           "label": "Mitglieder verschieben",
-          "description": "Mitglieder zwischen Sprachkanälen verschieben"
+          "description": "Mitglieder zwischen Sprachkanälen verschieben oder trennen"
         },
         "USE_SOUNDBOARD": {
           "label": "Soundboard verwenden",
@@ -792,13 +799,25 @@
           "label": "Kanal verwalten",
           "description": "Diesen Kanal umbenennen, bearbeiten oder löschen."
         },
+        "MANAGE_ROLES": {
+          "label": "Berechtigungen verwalten",
+          "description": "Die Berechtigungsüberschreibungen dieses Kanals bearbeiten."
+        },
+        "MANAGE_WEBHOOKS": {
+          "label": "Webhooks verwalten",
+          "description": "Webhooks dieses Kanals erstellen, bearbeiten und löschen."
+        },
+        "PIN_MESSAGES": {
+          "label": "Nachrichten anheften",
+          "description": "Nachrichten in diesem Kanal anheften und lösen."
+        },
         "SEND_MESSAGES": {
           "label": "Nachrichten senden",
           "description": "Nachrichten in diesem Kanal posten."
         },
         "EMBED_LINKS": {
           "label": "Links einbetten",
-          "description": "Einbettungen und Linkvorschauen senden."
+          "description": "Hier gepostete Links zeigen eine Vorschau."
         },
         "ATTACH_FILES": {
           "label": "Dateien anhängen",
@@ -810,7 +829,7 @@
         },
         "USE_EXTERNAL_EMOJIS": {
           "label": "Externe Emojis verwenden",
-          "description": "Emojis von anderen Servern senden."
+          "description": "Emojis von außerhalb dieses Servers in Nachrichten und Reaktionen verwenden."
         },
         "MENTION_EVERYONE": {
           "label": "{'@'}everyone erwähnen",
@@ -858,7 +877,7 @@
         },
         "MOVE_MEMBERS": {
           "label": "Mitglieder verschieben",
-          "description": "Mitglieder aus diesem Kanal verschieben."
+          "description": "Mitglieder in diesem Kanal verschieben oder trennen."
         },
         "USE_SOUNDBOARD": {
           "label": "Soundboard verwenden",
@@ -913,11 +932,14 @@
     "newMessages": "Neu",
     "loadingOlder": "Lade ältere Nachrichten...",
     "newMessagesBelow": "{count} neue Nachricht | {count} neue Nachrichten",
+    "unreadSince": "{count} neue Nachricht seit {time} | {count} neue Nachrichten seit {time}",
+    "markAsRead": "Als gelesen markieren",
     "jumpToPresent": "Zur Gegenwart springen",
     "conversationBeginning": "Dies ist der Beginn deiner Unterhaltung",
     "conversationBeginningSubtitle": "Beginne zu chatten und mache es unvergesslich!",
     "channelWelcome": "Willkommen in #{name}",
     "channelWelcomeSubtitle": "Dies ist der Anfang des Kanals #{name}.",
+    "historyRestricted": "Nachrichten von vor deinem Beitritt sind ausgeblendet: Dir fehlt in diesem Kanal „Nachrichtenverlauf lesen“.",
     "dmBeginning": "Dies ist der Anfang deiner Direktnachrichten mit {name}.",
     "groupBeginning": "Dies ist der Anfang der Gruppe {name}.",
     "groupBeginningUnnamed": "Dies ist der Anfang dieser Gruppe.",
@@ -1240,6 +1262,8 @@
     "autoWatchStreams": "Streams automatisch ansehen",
     "autoWatchStreamsHint": "Einen Stream empfangen, sobald jemand live geht, statt auf „Stream ansehen“ zu warten.",
     "react": "Reagieren",
+    "hideParticipants": "Teilnehmer ausblenden",
+    "showParticipants": "Teilnehmer anzeigen ({count})",
     "reactions": "Reaktionen",
     "moreReactions": "Weitere Emojis",
     "reactionSlowDown": "Etwas langsamer",
@@ -1327,7 +1351,37 @@
     "streamVolumeNamed": "Stream-Lautstärke von {name}",
     "copyStreamAudioLog": "Stream-Audio-Protokoll kopieren",
     "streamAudioLogCopied": "Stream-Audio-Protokoll kopiert. Füge es in deinen Fehlerbericht ein.",
-    "streamAudioLogFailed": "Stream-Audio-Protokoll konnte nicht kopiert werden: {reason}"
+    "streamAudioLogFailed": "Stream-Audio-Protokoll konnte nicht kopiert werden: {reason}",
+    "moderation": {
+      "section": "Moderation",
+      "serverMute": "Serverweit stummschalten",
+      "serverDeafen": "Serverweit taub schalten",
+      "serverMuted": "Serverweit stummgeschaltet",
+      "serverDeafened": "Serverweit taub geschaltet",
+      "moveTo": "Verschieben nach",
+      "disconnect": "Trennen",
+      "kick": "Kicken",
+      "ban": "Bannen",
+      "dragHint": "Zum Verschieben in einen anderen Sprachkanal ziehen.",
+      "lockedTitle": "Hier nicht erlaubt",
+      "serverMutedHint": "Ein Moderator hat dich serverweit stummgeschaltet. Du kannst die Stummschaltung erst aufheben, wenn er sie zurücknimmt.",
+      "serverDeafenedHint": "Ein Moderator hat dich serverweit taub geschaltet. Du kannst erst wieder hören, wenn er es zurücknimmt.",
+      "noSpeakHint": "Du darfst in diesem Kanal nicht sprechen.",
+      "noStreamHint": "Du darfst in diesem Kanal weder Video noch deinen Bildschirm teilen.",
+      "failedTitle": "Sprachmoderation fehlgeschlagen",
+      "mutedAnnounce": "{name} ist serverweit stummgeschaltet",
+      "unmutedAnnounce": "{name} ist nicht mehr serverweit stummgeschaltet",
+      "deafenedAnnounce": "{name} ist serverweit taub geschaltet",
+      "undeafenedAnnounce": "{name} ist nicht mehr serverweit taub geschaltet",
+      "movedAnnounce": "{name} nach {channel} verschoben",
+      "disconnectedAnnounce": "{name} vom Sprachchat getrennt",
+      "youWereMovedTitle": "In einen anderen Kanal verschoben",
+      "youWereMoved": "Ein Moderator hat dich nach {channel} verschoben.",
+      "youWereDisconnectedTitle": "Aus dem Sprachchat entfernt",
+      "youWereDisconnected": "Ein Moderator hat dich vom Sprachchat getrennt.",
+      "youWereRemoved": "Du bist kein Mitglied dieses Servers mehr.",
+      "youWereTimedOut": "Du wurdest auf diesem Server in ein Timeout geschickt."
+    }
   },
   "dm": {
     "directMessages": "Direktnachrichten",
@@ -1467,6 +1521,10 @@
       "theme": "Design",
       "customTheme": "Benutzerdefinierte Designfarbe",
       "customThemeHelp": "Wähle eine Akzentfarbe. Die App generiert automatisch ein vollständiges Design basierend auf deiner Wahl.",
+      "communityPresets": "Community-Vorlagen",
+      "communityPresetsHelp": "Kuratierte Themes aus der Community mit einem Klick anwenden.",
+      "showMorePresets": "{count} weitere anzeigen",
+      "showFewerPresets": "Weniger anzeigen",
       "themes": {
         "dark": "Dunkel",
         "darkDesc": "Ein dunkles Design, das schonender für die Augen ist.",
@@ -1497,6 +1555,10 @@
       "bridgeSourceBadgeText": "Textlabel (DISCORD)",
       "floatingVideo": "Schwebendes Video-Player",
       "floatingVideoDesc": "Abgespielte Videos schweben in die Ecke, wenn wegscrollt wird. Funktioniert mit YouTube und nativen Videos.",
+      "videoPlayer": "Videoplayer",
+      "videoPlayerDesc": "Der Player von Harmony oder die Steuerung des Browsers.",
+      "videoPlayerHarmony": "Harmony",
+      "videoPlayerNative": "Browser-Standard",
       "highContrast": "Hoher Kontrast",
       "highContrastDesc": "Kontrast für bessere Sichtbarkeit erhöhen.",
       "reduceMotion": "Bewegung reduzieren",
@@ -2024,9 +2086,10 @@
     "myBotsDescription": "Verwalten Sie die von Ihnen erstellten Bots",
     "myEmojis": {
       "title": "Meine Emojis",
-      "description": "Deine persönlichen Emojis, auch die, die du in der Emoji-Auswahl mit KI erzeugst. Nachrichten verweisen über den Namen auf eigene Emojis; nach dem Umbenennen oder Löschen zeigen ältere Nachrichten den Text :name: statt des Bildes.",
+      "description": "Deine persönlichen Emojis: die, die du hier hochlädst, und die, die du in der Emoji-Auswahl mit KI erzeugst. Du kannst sie auf jedem Server und in jeder Unterhaltung verwenden. Nachrichten verweisen über den Namen auf eigene Emojis; nach dem Umbenennen oder Löschen zeigen ältere Nachrichten den Text :name: statt des Bildes.",
       "loading": "Deine Emojis werden geladen…",
-      "empty": "Du hast noch keine persönlichen Emojis. Emojis, die du in der Emoji-Auswahl mit KI erzeugst, erscheinen hier.",
+      "empty": "Du hast noch keine persönlichen Emojis. Lade eines hoch oder erzeuge eines mit KI in der Emoji-Auswahl.",
+      "uploadsOff": "Persönliche Emojis sind auf dieser Instanz deaktiviert.",
       "listLabel": "Deine Emojis",
       "aiBadge": "KI",
       "aiGenerated": "Mit KI erzeugt",
@@ -2091,6 +2154,7 @@
       }
     },
     "buildInfo": {
+      "status": "Dienststatus",
       "copyHint": "Klicken, um Versionsinfos für Fehlerberichte zu kopieren",
       "copied": "Versionsinfos kopiert",
       "copyFailed": "Versionsinfos konnten nicht kopiert werden",
@@ -2325,6 +2389,10 @@
     "openNavigation": "Navigation öffnen",
     "editProfile": "Profil bearbeiten",
     "followUser": "{'@'}{handle} folgen",
+    "requestToFollow": "Folgen anfragen",
+    "requestToFollowUser": "Folgen anfragen: {'@'}{handle}",
+    "sendFriendRequest": "Freundschaftsanfrage senden",
+    "sendFriendRequestUser": "Freundschaftsanfrage an {'@'}{handle} senden",
     "unfollowUser": "{'@'}{handle} entfolgen",
     "mentionUser": "{'@'}{handle} erwähnen",
     "requested": "Angefragt",
@@ -2350,6 +2418,7 @@
     "replyingTo": "Antwort an",
     "viewThread": "Thread anzeigen",
     "viewOriginalPost": "Originalbeitrag anzeigen",
+    "viewQuotedPost": "Zitierten Beitrag anzeigen",
     "showMore": "Mehr anzeigen",
     "showLess": "Weniger anzeigen",
     "removeAttachment": "Anhang entfernen",
@@ -2612,6 +2681,7 @@
       "searchToAdd": "Personen zum Hinzufügen suchen",
       "searchResultsLabel": "Personen zum Hinzufügen",
       "searchResults": "{count} Person gefunden | {count} Personen gefunden",
+      "searching": "Suche…",
       "add": "Hinzufügen",
       "addNamed": "{name} hinzufügen",
       "added": "Hinzugefügt",
@@ -2780,6 +2850,8 @@
   },
   "emoji": {
     "messageReactionLimit": "Diese Nachricht hat {count} verschiedene Reaktionen. Schließe dich einer davon an.",
+    "reactionNotAllowed": "In diesem Kanal kannst du dich nur bestehenden Reaktionen anschließen.",
+    "externalNotAllowed": "In diesem Kanal kannst du nur Unicode-Emojis und die Emojis dieses Servers verwenden.",
     "postReactionLimit": "Du hast {count} Reaktionen auf diesen Beitrag. Entferne eine, um eine weitere hinzuzufügen.",
     "search": "Emoji suchen...",
     "searchEmojis": "Emojis suchen...",
@@ -3273,6 +3345,8 @@
     "listTitle": "Bots ({count})",
     "noDescription": "Keine Beschreibung",
     "serverCount": "Auf keinem Server | Auf {count} Server | Auf {count} Servern",
+    "inServers": "Auf {servers}",
+    "inServersMore": "Auf {servers} und {count} weiteren",
     "lastConnected": "Zuletzt verbunden {time}",
     "neverConnected": "Nie verbunden",
     "back": "Alle Bots",
@@ -4008,7 +4082,7 @@
       "generic": "Deine Nachricht wurde vom AutoMod dieses Servers blockiert.",
       "timedOutUntil": "Du bist bis {time} im Timeout."
     },
-    "timedOut": "Du bist auf diesem Server bis {time} im Timeout und kannst keine Nachrichten senden.",
+    "timedOut": "Du bist auf diesem Server bis {time} im Timeout und kannst keine Nachrichten senden, nicht reagieren und keine Threads starten.",
     "antispam": {
       "rateLimited": "Neue Konten können nur wenige Nachrichten auf einmal senden. Versuche es in {seconds} s erneut.",
       "linksBlocked": "Neue Konten können noch keine Links posten.",
@@ -4085,6 +4159,12 @@
       "member_unban": "{actor} hat den Bann von {target} aufgehoben",
       "member_timeout": "{actor} hat {target} bis {until} in den Timeout versetzt",
       "member_timeout_remove": "{actor} hat den Timeout von {target} aufgehoben",
+      "member_voice_mute": "{actor} hat {target} serverweit stummgeschaltet",
+      "member_voice_unmute": "{actor} hat die serverweite Stummschaltung von {target} aufgehoben",
+      "member_voice_deafen": "{actor} hat {target} serverweit taub geschaltet",
+      "member_voice_undeafen": "{actor} hat die serverweite Taubschaltung von {target} aufgehoben",
+      "member_voice_move": "{actor} hat {target} in einen anderen Sprachkanal verschoben",
+      "member_voice_disconnect": "{actor} hat {target} aus dem Sprachkanal getrennt",
       "message_delete": "{actor} hat eine Nachricht von {target} in {channel} gelöscht | {actor} hat {count} Nachrichten von {target} in {channel} gelöscht",
       "server_update": "{actor} hat den Server bearbeitet",
       "settings_update": "{actor} hat die Servereinstellungen geändert",
@@ -4113,6 +4193,7 @@
       "icon_url": "Symbol",
       "unicode_emoji": "Emoji",
       "emoji": "Emoji",
+      "emoji_id": "Eigenes Emoji",
       "volume": "Lautstärke",
       "is_admin": "Administratorrolle",
       "allow_permissions": "Erlaubt",
@@ -4192,7 +4273,9 @@
     },
     "profilePosts": {
       "self": "Du hast noch nichts gepostet.",
-      "other": "{name} hat noch nichts gepostet."
+      "other": "{name} hat noch nichts gepostet.",
+      "withheldTitle": "Keine öffentlichen Beiträge",
+      "withheld": "{domain} veröffentlicht die Beiträge dieses Kontos nicht. Hier erscheinen nur Beiträge, die diesen Server erreichen."
     },
     "profileFollowing": {
       "other": "{name} folgt noch niemandem."
@@ -4777,11 +4860,14 @@
     },
     "instance": {
       "maxPostReactions": "Max. Reaktionen pro Person auf einen Beitrag",
-      "maxPostReactionsHint": "Verschiedene Emojis, mit denen eine Person auf einen Beitrag reagieren kann (1-100). Standard: 10. Reaktionen von anderen Servern über dem Limit werden verworfen. Chatnachrichten haben höchstens 20 verschiedene Emojis."
+      "maxPostReactionsHint": "Verschiedene Emojis, mit denen eine Person auf einen Beitrag reagieren kann (1-100). Standard: 10. Reaktionen von anderen Servern über dem Limit werden verworfen. Chatnachrichten haben höchstens 20 verschiedene Emojis.",
+      "maxPersonalEmojis": "Persönliche Emojis pro Person",
+      "maxPersonalEmojisHint": "Emojis, die jede Person unter Einstellungen > Meine Emojis behalten kann, hochgeladene und mit KI erzeugte zusammen (0-1000). Standard: 50. 0 deaktiviert persönliche Emojis. Emojis über einem gesenkten Limit bleiben erhalten."
     },
     "activityLog": {
       "configKeys": {
-        "maxPostReactionsPerUser": "Max. Reaktionen pro Person auf einen Beitrag"
+        "maxPostReactionsPerUser": "Max. Reaktionen pro Person auf einen Beitrag",
+        "maxPersonalEmojisPerUser": "Persönliche Emojis pro Person"
       }
     },
     "antiSpam": {
@@ -6023,7 +6109,9 @@
       "airhorn": "Drucklufthorn",
       "crickets": "Grillen",
       "golf-clap": "Höflicher Applaus",
-      "quack": "Quak"
+      "quack": "Quak",
+      "pop": "Plopp",
+      "stop-having-fun": "Hört auf, Spaß zu haben"
     },
     "settings": {
       "navLabel": "Soundboard",
@@ -6038,6 +6126,9 @@
       "checking": "Datei wird geprüft …",
       "name": "Name",
       "emoji": "Emoji",
+      "chooseEmoji": "Emoji auswählen",
+      "changeEmoji": "Emoji ändern ({emoji})",
+      "clearEmoji": "Emoji entfernen",
       "volume": "Lautstärke",
       "preview": "Vorschau",
       "upload": "Sound hochladen",
@@ -6061,6 +6152,7 @@
       "full": "Dieser Server hat bereits {max} Sounds, das Maximum. Lösche einen, um einen neuen hinzuzufügen.",
       "permission": "Du darfst die Sounds dieses Servers nicht verwalten.",
       "invalid": "Der Sound wurde abgelehnt. Prüfe Name, Emoji und Lautstärke.",
+      "emojiUnavailable": "Dieses Emoji kann nicht für einen Sound verwendet werden. Wähle ein Emoji eines deiner Server, ein Instanz-Emoji oder ein eigenes.",
       "load": "Die Sounds dieses Servers konnten nicht geladen werden.",
       "generic": "Etwas ist schiefgelaufen. Versuche es erneut."
     }
@@ -6248,5 +6340,374 @@
       "white": "Weiß",
       "black": "Schwarz"
     }
+  },
+  "videoPlayer": {
+    "player": "Videoplayer",
+    "play": "Abspielen",
+    "pause": "Pause",
+    "replay": "Erneut abspielen",
+    "mute": "Stummschalten",
+    "unmute": "Ton an",
+    "volume": "Lautstärke",
+    "seek": "Suchen",
+    "seekValue": "{current} von {total}",
+    "speed": "Wiedergabegeschwindigkeit {rate}×",
+    "pip": "Bild im Bild",
+    "exitPip": "Bild im Bild beenden",
+    "fullscreen": "Vollbild",
+    "exitFullscreen": "Vollbild beenden"
+  },
+  "activities": {
+    "title": "Gemeinsam schauen oder hören",
+    "addTitle": "Zur Aktivität hinzufügen",
+    "lede": "Bei allen im Anruf läuft dasselbe im selben Moment. Füge einen YouTube-, SoundCloud- oder Spotify-Link oder einen Link zu einer Video- oder Audiodatei ein, oder wähle aus deinem Drive.",
+    "linkPlaceholder": "Link einfügen",
+    "badLink": "Diesen Link kann Harmony nicht gemeinsam abspielen.",
+    "watchTogether": "Gemeinsam schauen",
+    "listenTogether": "Gemeinsam hören",
+    "playTogether": "Gemeinsam abspielen",
+    "playNow": "Jetzt abspielen",
+    "addToQueue": "Zur Warteschlange hinzufügen",
+    "or": "oder",
+    "fromDrive": "Aus deinem Drive wählen",
+    "pickTitle": "Video- oder Audiodatei auswählen",
+    "spotifyHint": "Spotify spielt ganze Titel für alle ab, die in Harmony bei Spotify angemeldet sind; alle anderen hören Vorschauen.",
+    "region": "Aktivität",
+    "open": "Aktivität öffnen",
+    "hideForMe": "Verlassen",
+    "startedBy": "{name} hat eine Aktivität gestartet",
+    "join": "Beitreten",
+    "notNow": "Nicht jetzt",
+    "endForEveryone": "Für alle beenden",
+    "playerError": "Das lässt sich hier nicht abspielen.",
+    "openOn": "Auf {service} öffnen",
+    "clickToPlay": "Zum Abspielen klicken",
+    "play": "Abspielen",
+    "pause": "Pause",
+    "seek": "Wiedergabeposition",
+    "seekValue": "{position} von {duration}",
+    "mute": "Aktivität stummschalten",
+    "unmute": "Stummschaltung der Aktivität aufheben",
+    "volume": "Lautstärke der Aktivität",
+    "next": "Nächstes in der Warteschlange",
+    "stop": "Aktivität beenden",
+    "queue": "Warteschlange",
+    "queueEmpty": "Nichts in der Warteschlange.",
+    "removeFromQueue": "Aus der Warteschlange entfernen",
+    "controlsHost": "Nur ich steuere",
+    "controlsEveryone": "Alle steuern lassen",
+    "watching": "Schaut gerade",
+    "listening": "Hört gerade",
+    "source": {
+      "drive": "Drive-Datei",
+      "link": "Link"
+    }
+  },
+  "driveAdmin": {
+    "settings": "Drive-Speicher",
+    "quotaUser": "Speicher pro Konto",
+    "quotaModerator": "Speicher pro Instanz-Moderator",
+    "quotaAdmin": "Speicher pro Instanz-Admin",
+    "ephemeralDays": "Temporäre Dateien werden aufbewahrt",
+    "days": "Tage",
+    "ephemeralDaily": "Temporäre Uploads pro Tag bei vollem Drive",
+    "linkSharing": "Dateien können per Link geteilt werden",
+    "hint": "Uploads über den Speicher eines Kontos hinaus sind temporär und werden nach den oben angegebenen Tagen gelöscht. Ein Konto über seinem Speicher, das sein tägliches Kontingent an temporären Uploads aufgebraucht hat, kann erst am nächsten Tag oder nach dem Freigeben von Speicher wieder hochladen.",
+    "save": "Speichern",
+    "saved": "Gespeichert",
+    "usage": "Speicher nach Konto",
+    "account": "Konto",
+    "used": "Belegt",
+    "temporary": "Temporär",
+    "quota": "Speicher",
+    "override": "Speicher für {name} in MB; leer für den Rollenstandard",
+    "noUsage": "Noch kein Konto speichert Dateien.",
+    "blocked": "Blockierte Dateien",
+    "unblock": "Blockierung aufheben",
+    "noBlocked": "Keine Datei ist blockiert. Eine gemeldete Datei, die mit „Entfernen und erneutes Hochladen blockieren“ entfernt wird, erscheint hier.",
+    "reportFiles": "Angehängte Dateien",
+    "removeFile": "Datei entfernen",
+    "removeAndBlock": "Entfernen und erneutes Hochladen blockieren",
+    "removed": "Entfernt"
+  },
+  "share": {
+    "title": "In Harmony teilen",
+    "nothing": "Nichts wurde geteilt. Teile einen Link oder Text aus einer anderen App, um ihn hier zu senden.",
+    "openHarmony": "Harmony öffnen",
+    "preview": "Geteilter Inhalt",
+    "where": "Wohin soll es gehen?",
+    "search": "Unterhaltungen und Server durchsuchen",
+    "directMessages": "Direktnachrichten",
+    "servers": "Server",
+    "loadingChannels": "Kanäle werden geladen…",
+    "channelsFailed": "Kanäle konnten nicht geladen werden.",
+    "noChannels": "Keine Kanäle, in denen du schreiben kannst.",
+    "noMatches": "Nichts passt zu deiner Suche."
+  },
+  "drive": {
+    "title": "Drive",
+    "actions": {
+      "upload": "Hochladen",
+      "newFolder": "Neuer Ordner",
+      "open": "Öffnen",
+      "download": "Herunterladen",
+      "rename": "Umbenennen",
+      "share": "Teilen",
+      "move": "Verschieben",
+      "keep": "Im Drive behalten",
+      "trash": "In den Papierkorb",
+      "restore": "Wiederherstellen",
+      "deleteForever": "Endgültig löschen",
+      "deleteFolder": "Ordner löschen",
+      "emptyTrash": "Papierkorb leeren"
+    },
+    "nav": {
+      "myDrive": "Mein Drive",
+      "recent": "Neueste",
+      "temporary": "Temporär",
+      "shared": "Für mich freigegeben",
+      "trash": "Papierkorb",
+      "whereSent": "Wohin du sie gesendet hast",
+      "dms": "Direktnachrichten",
+      "fediverse": "Fediverse-Beiträge",
+      "server": "Server",
+      "channel": "Kanal",
+      "conversation": "Unterhaltung",
+      "open": "Drive-Navigation öffnen",
+      "path": "Ordnerpfad"
+    },
+    "tree": {
+      "expand": "Ordner aufklappen",
+      "collapse": "Ordner zuklappen"
+    },
+    "usage": {
+      "label": "Belegter Drive-Speicher",
+      "summary": "{used} von {quota} belegt",
+      "temporary": "{size} in temporären Dateien",
+      "full": "Dein Drive ist voll. Neue Uploads sind temporär und werden nach {count} Tag gelöscht. | Dein Drive ist voll. Neue Uploads sind temporär und werden nach {count} Tagen gelöscht."
+    },
+    "columns": {
+      "name": "Name",
+      "type": "Typ",
+      "owner": "Besitzer",
+      "size": "Größe",
+      "added": "Hinzugefügt",
+      "trashed": "Gelöscht"
+    },
+    "kind": {
+      "image": "Bild",
+      "video": "Video",
+      "audio": "Audio",
+      "document": "Dokument",
+      "other": "Datei"
+    },
+    "filter": {
+      "label": "Dateityp",
+      "all": "Alle",
+      "images": "Bilder",
+      "videos": "Videos",
+      "audio": "Audio",
+      "documents": "Dokumente"
+    },
+    "sort": {
+      "label": "Sortieren nach",
+      "newest": "Neueste zuerst",
+      "oldest": "Älteste zuerst",
+      "name": "Name",
+      "size": "Größte zuerst"
+    },
+    "layout": {
+      "label": "Ansicht",
+      "grid": "Raster",
+      "list": "Liste"
+    },
+    "search": {
+      "placeholder": "In deinem Drive suchen",
+      "results": "Ergebnisse für „{query}“"
+    },
+    "selection": {
+      "label": "Ausgewählte Dateien",
+      "count": "{count} ausgewählt | {count} ausgewählt",
+      "clear": "Auswahl aufheben"
+    },
+    "state": {
+      "expiresIn": "Wird in {count} Tag gelöscht | Wird in {count} Tagen gelöscht",
+      "daysShort": "{count} T"
+    },
+    "banner": {
+      "temporary": "Temporäre Dateien werden {count} Tag nach dem Hochladen gelöscht. Behalte die, die du brauchst, im Drive. | Temporäre Dateien werden {count} Tage nach dem Hochladen gelöscht. Behalte die, die du brauchst, im Drive.",
+      "trash": "Dateien im Papierkorb zählen zu deinem Speicher und werden nach 30 Tagen gelöscht."
+    },
+    "empty": {
+      "folderTitle": "Noch nichts hier",
+      "folderText": "Lade Dateien hoch oder ziehe sie hierher. Alles, was du in Chats sendest, landet auch in deinem Drive.",
+      "temporaryTitle": "Keine temporären Dateien",
+      "temporaryText": "Hier erscheinen Dateien, die hochgeladen wurden, während dein Drive voll war, oder die als temporär gesendet wurden.",
+      "sharedTitle": "Nichts für dich freigegeben",
+      "sharedText": "Hier erscheinen Dateien, die Leute auf dieser Instanz mit dir, deinen Servern oder deinen Kanälen teilen.",
+      "trashTitle": "Der Papierkorb ist leer",
+      "trashText": "Gelöschte Dateien bleiben hier 30 Tage lang.",
+      "otherTitle": "Keine Dateien hier",
+      "otherText": "Hier erscheinen Dateien, die du an diesem Ort sendest.",
+      "searchTitle": "Keine Treffer",
+      "searchText": "Kein Dateiname in deinem Drive passt zu dieser Suche."
+    },
+    "errors": {
+      "load": "Drive konnte nicht geladen werden",
+      "temporary": "Die Änderung wurde nicht gespeichert: {reason}",
+      "blocked": "Diese Datei wurde von den Moderatoren der Instanz entfernt."
+    },
+    "details": {
+      "label": "Dateidetails",
+      "title": "Details",
+      "name": "Dateiname",
+      "rename": "Umbenennen",
+      "type": "Typ",
+      "size": "Größe",
+      "added": "Hinzugefügt",
+      "owner": "Besitzer",
+      "used": "Verwendet in",
+      "unused": "Noch nirgends gesendet.",
+      "post": "Fediverse-Beitrag",
+      "sharing": "Freigabe"
+    },
+    "file": {
+      "renameTitle": "Datei umbenennen",
+      "unnamed": "Unbenannte Datei"
+    },
+    "folder": {
+      "newTitle": "Neuer Ordner",
+      "renameTitle": "Ordner umbenennen",
+      "name": "Ordnername",
+      "create": "Erstellen",
+      "deleteTitle": "„{name}“ löschen?",
+      "deleteText": "Die Dateien darin kommen in den Papierkorb, die Unterordner werden gelöscht."
+    },
+    "delete": {
+      "title": "{count} Datei endgültig löschen? | {count} Dateien endgültig löschen?",
+      "text": "Nachrichten und Beiträge, die diese Dateien verwenden, zeigen sie als entfernt an. Dies kann nicht rückgängig gemacht werden."
+    },
+    "trash": {
+      "emptyTitle": "Papierkorb leeren?"
+    },
+    "move": {
+      "title": "{count} Element verschieben | {count} Elemente verschieben",
+      "here": "Hierher verschieben"
+    },
+    "menu": {
+      "file": "Dateiaktionen"
+    },
+    "drop": {
+      "title": "Ablegen, um in {place} hochzuladen"
+    },
+    "uploads": {
+      "label": "Uploads",
+      "title": "{count} Datei wird hochgeladen | {count} Dateien werden hochgeladen"
+    },
+    "toast": {
+      "trashed": "{count} Datei in den Papierkorb verschoben | {count} Dateien in den Papierkorb verschoben",
+      "restored": "{count} Datei wiederhergestellt | {count} Dateien wiederhergestellt",
+      "deleted": "{count} Datei gelöscht | {count} Dateien gelöscht",
+      "moved": "{count} Datei verschoben | {count} Dateien verschoben",
+      "kept": "{count} Datei im Drive behalten | {count} Dateien im Drive behalten",
+      "keepPartial": "{kept} von {total} behalten: Für den Rest ist in deinem Drive kein Platz",
+      "folderDeleted": "Ordner gelöscht; {count} Datei in den Papierkorb verschoben | Ordner gelöscht; {count} Dateien in den Papierkorb verschoben"
+    },
+    "share": {
+      "title": "Teilen",
+      "linkTitle": "Alle mit dem Link",
+      "linkOn": "Alle mit dem Link können ansehen und herunterladen.",
+      "linkOff": "Nur die Personen unten und die Orte, an die du sie gesendet hast.",
+      "copy": "Kopieren",
+      "copied": "Kopiert",
+      "expires": "Link läuft ab",
+      "never": "Nie",
+      "days": "In {count} Tag | In {count} Tagen",
+      "people": "Personen und Orte",
+      "searchPeople": "Personen auf dieser Instanz hinzufügen",
+      "searching": "Suche…",
+      "noPeople": "Niemand auf dieser Instanz passt",
+      "searchFailed": "Suche fehlgeschlagen. Bitte erneut versuchen.",
+      "server": "Server",
+      "channel": "Kanal",
+      "pickServer": "Server auswählen",
+      "wholeServer": "Ganzer Server",
+      "add": "Teilen",
+      "remove": "Nicht mehr mit {name} teilen",
+      "private": "Nur du und die Unterhaltungen, in denen du sie gesendet hast.",
+      "summaryLink": "Alle mit dem Link",
+      "summaryPeople": "Mit {count} Person oder Ort geteilt | Mit {count} Personen oder Orten geteilt",
+      "summaryBoth": "Link aktiv und {count} Person oder Ort | Link aktiv und {count} Personen oder Orte",
+      "scope": {
+        "user": "Person",
+        "server": "Server",
+        "channel": "Kanal",
+        "link": "Link"
+      }
+    },
+    "preview": {
+      "previous": "Vorherige Datei",
+      "next": "Nächste Datei",
+      "none": "Keine Vorschau für diese Datei."
+    },
+    "picker": {
+      "title": "Aus Drive auswählen",
+      "folder": "Ordner",
+      "everything": "Alle Dateien",
+      "empty": "Keine Dateien hier.",
+      "attach": "{count} anhängen | {count} anhängen"
+    },
+    "composer": {
+      "fromDriveMenu": "Aus Drive",
+      "fromDrive": "Aus Drive",
+      "reused": "In deinem Drive",
+      "reusedHint": "Diese Daten lagen bereits in deinem Drive: Es wurde nichts erneut hochgeladen.",
+      "temporaryDays": "Temporär, {count} Tag | Temporär, {count} Tage",
+      "makeTemporary": "Temporär machen: nach {count} Tag gelöscht | Temporär machen: nach {count} Tagen gelöscht",
+      "keep": "Im Drive behalten",
+      "makeTemporaryFile": "{name} temporär machen",
+      "keepFile": "{name} im Drive behalten",
+      "markedTemporary": "{name} ist temporär",
+      "markedKept": "{name} bleibt in deinem Drive",
+      "fullHint": "Dein Drive ist voll: Uploads sind temporär"
+    },
+    "gone": {
+      "expired": "Diese Datei ist abgelaufen",
+      "deleted": "Diese Datei wurde gelöscht",
+      "removed": "Diese Datei wurde von der Moderation entfernt",
+      "trashed": "Diese Datei ist nicht verfügbar"
+    },
+    "link": {
+      "title": "Geteilte Datei",
+      "missingTitle": "Dieser Link funktioniert nicht",
+      "missingText": "Er ist abgelaufen, oder der Besitzer teilt die Datei nicht mehr.",
+      "sharedBy": "Geteilt von {name}",
+      "expires": "Link läuft ab: {date}",
+      "footer": "Geteilt über {instance}"
+    }
+  },
+  "support": {
+    "title": "Diese Instanz unterstützen",
+    "progress": "Finanzierungsfortschritt",
+    "raisedMonth": "von {goal} diesen Monat gesammelt",
+    "raisedTotal": "von {goal} insgesamt gesammelt",
+    "funded": "finanziert",
+    "supporters": "Unterstützer | Unterstützer",
+    "heading": "Unterstützen",
+    "oneTime": "Einmalig",
+    "onPlatform": "Auf {platform} unterstützen",
+    "credited": "Wird deinem Konto automatisch gutgeschrieben",
+    "badgeAuto": "Erhalte dein Unterstützer-Abzeichen automatisch",
+    "handleTitle": "Du unterstützt über {platforms}? Gib dein Handle an",
+    "handleText": "Schreib dein Handle irgendwo in die Nachricht. Deine Stufe richtet sich nach deiner gesamten Unterstützung in diesem Zyklus.",
+    "handleHint": "Zahlungen ohne Handle landen in einer Warteschlange, damit die Administration sie von Hand zuordnet.",
+    "copy": "Kopieren",
+    "copied": "Kopiert",
+    "tiers": "Unterstützerstufen",
+    "from": "ab {amount}",
+    "yours": "Deine Unterstützung",
+    "tierSupporter": "{tier}-Unterstützer",
+    "active": "Aktiv",
+    "history": "Dein Unterstützungsverlauf"
   }
 }

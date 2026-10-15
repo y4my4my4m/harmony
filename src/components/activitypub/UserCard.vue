@@ -1,6 +1,9 @@
 <!-- UserCard - Display federated user information with actions -->
 <template>
-  <div class="user-card" :class="{ compact: isCompact, 'has-corner-badge': showRemoteInstanceBadge }">
+  <div class="user-card" :class="{ compact: isCompact, 'has-corner-badge': showRemoteInstanceBadge, 'has-banner': hasBanner }">
+    <div v-if="hasBanner" class="card-banner" :style="bannerStyle" aria-hidden="true">
+      <img v-if="bannerSrc" :src="bannerSrc" alt="" loading="lazy" @error="bannerFailed = true" />
+    </div>
     <!-- The name button is the keyboard and screen-reader way in; the rest of the
          block is a larger pointer target for the same action. Bio links stay
          outside any interactive role. -->
@@ -130,6 +133,7 @@
 import { computed, ref } from 'vue';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
+import { FOLLOW_ACTION_KEYS, useFollowAction } from '@/composables/useFollowAction';
 import { useActivityPubStore } from '@/stores/useActivityPub';
 import { useAuthStore } from '@/stores/auth';
 import { usePostInteractions } from '@/composables/usePostInteractions';
@@ -145,6 +149,7 @@ import { parseDisplayNameOrBioForDisplay } from '@/utils/mentionUtils';
 import { plainDisplayName } from '@/utils/plainDisplayName';
 import { useMenuButton } from '@/composables/useMenu';
 import SocialMenu from './SocialMenu.vue';
+import { getBannerUrl } from '@/utils/bannerUtils';
 
 const { t } = useI18n();
 // Props
@@ -155,6 +160,8 @@ interface Props {
   showMoreActions?: boolean;
   showInstanceBadge?: boolean;
   showActions?: boolean;
+  /** Header strip: the profile banner, else the profile colour. Not in the compact layout. */
+  showBanner?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -162,8 +169,14 @@ const props = withDefaults(defineProps<Props>(), {
   showFollowBtn: true,
   showMoreActions: true,
   showInstanceBadge: true,
-  showActions: true
+  showActions: true,
+  showBanner: false
 });
+
+const bannerFailed = ref(false);
+const hasBanner = computed(() => props.showBanner && !props.isCompact);
+const bannerSrc = computed(() => bannerFailed.value ? null : getBannerUrl(props.user.banner_url, { width: 640, height: 112 }));
+const bannerStyle = computed(() => (props.user.color ? { backgroundColor: props.user.color } : {}));
 
 // Emits
 const emit = defineEmits<{
@@ -192,6 +205,7 @@ const { menuId, onTriggerKeydown: onMenuTriggerKeydown, initialFocus: menuInitia
 const followInProgress = ref(false);
 // Pending request to a locked or remote account, set from the answer to a follow sent here.
 const followRequested = ref(false);
+const { action: followAction } = useFollowAction(() => props.user);
 
 // Computed
 
@@ -218,7 +232,7 @@ const isBlocked = computed(() => {
 const followButtonText = computed(() => {
   if (getLoadingState().follow) return t('common.loading');
   if (isFollowing.value) return t('activitypub.following');
-  return followRequested.value ? t('activitypub.requested') : t('activitypub.follow');
+  return followRequested.value ? t('activitypub.requested') : t(FOLLOW_ACTION_KEYS[followAction.value].text);
 });
 
 const personName = computed(() => plainDisplayName(props.user.display_name, props.user.username));
@@ -228,7 +242,7 @@ const followButtonLabel = computed(() => {
   if (getLoadingState().follow) return t('common.loading');
   if (isFollowing.value) return t('activitypub.profileA11y.followingUnfollow', { handle: handle.value });
   if (followRequested.value) return t('activitypub.profileA11y.requestedCancel', { handle: handle.value });
-  return t('activitypub.followUser', { handle: handle.value });
+  return t(FOLLOW_ACTION_KEYS[followAction.value].label, { handle: handle.value });
 });
 
 const bioHtml = computed(() => parseDisplayNameOrBioForDisplay(props.user.bio, ''));
@@ -332,6 +346,31 @@ const handleReport = () => {
 
 .user-card:hover {
   border-color: var(--border-hover);
+}
+
+/* Bleeds to the card's edges; the avatar sits over its lower edge. */
+.card-banner {
+  height: 56px;
+  margin: -1rem -1rem 0.5rem;
+  /* The card's top corners. */
+  border-radius: inherit;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  overflow: hidden;
+  background: var(--background-secondary);
+}
+
+.card-banner img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-card.has-banner .user-avatar {
+  margin-top: -32px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px var(--background-tertiary);
 }
 
 .user-card.compact {
@@ -558,6 +597,10 @@ const handleReport = () => {
 @media (max-width: 768px) {
   .user-card {
     padding: 0.75rem;
+  }
+
+  .card-banner {
+    margin: -0.75rem -0.75rem 0.5rem;
   }
   
   .user-avatar {

@@ -142,11 +142,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, h } from 'vue'
+import { ref, computed, watch, h, defineAsyncComponent } from 'vue'
 import { userDataService } from '@/services/userDataService'
 import { getEmojiUrl } from '@/utils/emojiUtils'
 import { formatCustomStatusDisplay } from '@/utils/customStatusDisplay'
-import EmojiPopup from '@/components/EmojiPopup.vue'
+const EmojiPopup = defineAsyncComponent(() => import('@/components/EmojiPopup.vue'))
 import { useT } from '@/composables/useT'
 import { useDialog } from '@/composables/useDialog'
 import type { CustomUserStatus, Emoji } from '@/types'
@@ -373,7 +373,7 @@ watch(() => props.isVisible, (visible) => {
   border-radius: var(--radius-lg);
   width: 100%;
   max-width: 480px;
-  max-height: 90vh;
+  max-height: calc(90 * var(--app-vh));
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -667,7 +667,7 @@ watch(() => props.isVisible, (visible) => {
 @media (max-width: 520px) {
   .status-modal {
     margin: 16px;
-    max-height: calc(100vh - 32px);
+    max-height: calc(100 * var(--app-vh) - 32px);
   }
   
   .activity-selector {

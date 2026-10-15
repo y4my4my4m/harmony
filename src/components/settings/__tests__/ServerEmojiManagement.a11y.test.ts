@@ -17,20 +17,21 @@ vi.mock('vue-i18n', async (importOriginal) => {
 const h = vi.hoisted(() => ({
   uploadEmoji: vi.fn(),
   renameEmoji: vi.fn(),
+  deleteEmoji: vi.fn(),
+  bulkDeleteEmojis: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+  settings: { maxCustomEmojisPerServer: 50 },
 }))
 
 vi.mock('vue-toastification', () => ({ useToast: () => h.toast }))
 vi.mock('@/supabase', () => ({ supabase: {} }))
 vi.mock('@/services/emojiService', () => ({
   uploadEmoji: h.uploadEmoji,
-  deleteEmoji: vi.fn(),
+  deleteEmoji: h.deleteEmoji,
   renameEmoji: h.renameEmoji,
-  bulkUploadEmojis: vi.fn(),
-  bulkDeleteEmojis: vi.fn(),
+  bulkDeleteEmojis: h.bulkDeleteEmojis,
 }))
-vi.mock('@/stores/useEmojiCache', () => ({ useEmojiCacheStore: () => ({ getCacheStats: {}, getServerEmojis: () => [] }) }))
-vi.mock('@/stores/useInstanceSettings', () => ({ useInstanceSettingsStore: () => ({ settings: { maxCustomEmojisPerServer: 50 } }) }))
+vi.mock('@/stores/useInstanceSettings', () => ({ useInstanceSettingsStore: () => ({ settings: h.settings }) }))
 vi.mock('@/stores/useProfile', () => ({ useProfileStore: () => ({ profile: { id: 'me' } }) }))
 vi.mock('@/composables/useConfirmDialog', () => ({ useConfirmDialog: () => ({ confirm: vi.fn(async () => true) }) }))
 vi.mock('@/utils/emojiUtils', () => ({ getEmojiUrl: (url: string) => url }))
@@ -70,10 +71,10 @@ const nameOf = (el: Element) =>
 
 beforeEach(() => {
   document.body.innerHTML = ''
+  vi.clearAllMocks()
   h.uploadEmoji.mockReset()
   h.renameEmoji.mockReset()
-  h.toast.success.mockReset()
-  h.toast.error.mockReset()
+  h.settings.maxCustomEmojisPerServer = 50
 })
 
 describe('ServerEmojiManagement accessibility', () => {
@@ -89,6 +90,8 @@ describe('ServerEmojiManagement accessibility', () => {
     expect(el.disabled).toBe(false)
     expect(nameOf(el)).toBe('Upload emoji')
     expect(document.getElementById(el.getAttribute('aria-describedby')!)?.textContent).toContain('128×128px')
+    expect(document.getElementById(el.getAttribute('aria-describedby')!)?.textContent).not.toContain('SVG')
+    expect(el.accept).not.toContain('svg')
 
     el.focus()
     expect(document.activeElement).toBe(el)
@@ -162,5 +165,41 @@ describe('ServerEmojiManagement accessibility', () => {
     const toggle = wrapper.get('.toggle-switch input').element
     expect(toggle.getAttribute('role')).toBe('switch')
     expect(nameOf(toggle)).toBe('Allow cross-server emojis')
+  })
+
+  it('counts against the per-server limit; 0 is no limit', () => {
+    expect(mountManager().get('[data-testid="emoji-count"]').text()).toBe('2 / 50')
+    h.settings.maxCustomEmojisPerServer = 0
+    expect(mountManager().get('[data-testid="emoji-count"]').text()).toBe('2')
+  })
+
+  it('emits a rename as an updated list', async () => {
+    h.renameEmoji.mockResolvedValue(true)
+    const wrapper = mountManager()
+    await wrapper.findAll('.rename-btn')[0].trigger('click')
+    await flushPromises()
+    const field = wrapper.get('[data-testid="emoji-rename-input"]')
+    await field.setValue('fiesta')
+    await field.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(wrapper.emitted('update:emojis')?.[0]?.[0]).toMatchObject([{ id: 'e1', name: 'fiesta' }, { id: 'e2', name: 'wave' }])
+  })
+
+  it('deletes one emoji through deleteEmoji and several through bulkDeleteEmojis', async () => {
+    h.deleteEmoji.mockResolvedValue(true)
+    h.bulkDeleteEmojis.mockResolvedValue({ success: ['e1', 'e2'], failed: [] })
+    const wrapper = mountManager()
+    await wrapper.findAll('.delete-btn')[1].trigger('click')
+    await flushPromises()
+    expect(h.deleteEmoji).toHaveBeenCalledWith('e2')
+    expect(wrapper.emitted('emoji-deleted')?.[0]).toEqual(['e2'])
+
+    await wrapper.get('.header-right button').trigger('click')
+    await flushPromises()
+    for (const box of wrapper.findAll('[role="checkbox"]')) await box.trigger('click')
+    await wrapper.get('[data-testid="emoji-bulk-delete"]').trigger('click')
+    await flushPromises()
+    expect(h.bulkDeleteEmojis).toHaveBeenCalledWith(['e1', 'e2'])
+    expect(wrapper.emitted('emojis-bulk-deleted')?.[0]).toEqual([['e1', 'e2']])
   })
 })

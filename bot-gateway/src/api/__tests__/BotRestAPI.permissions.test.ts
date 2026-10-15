@@ -18,6 +18,7 @@ const PUBLIC_MESSAGE = '00000000-0000-0000-0000-0000000000d1'
 const HIDDEN_MESSAGE = '00000000-0000-0000-0000-0000000000d2'
 const BOT_PUBLIC_MESSAGE = '00000000-0000-0000-0000-0000000000d3'
 const BOT_HIDDEN_MESSAGE = '00000000-0000-0000-0000-0000000000d4'
+const THREAD_ID = '00000000-0000-0000-0000-0000000000f1'
 
 const bit = (n: number) => 1n << BigInt(n)
 const VIEW_CHANNEL = bit(1)
@@ -584,7 +585,18 @@ describe('a hard delete reaches the MESSAGE_DELETE sink', () => {
       .delete(`/api/v1/messages/${BOT_PUBLIC_MESSAGE}`)
 
     expect(res.status).toBe(204)
-    expect(deleted).toEqual([{ id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, metadata: { bot: true } }])
+    expect(deleted).toEqual([{ id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, thread_id: null, metadata: { bot: true } }])
+  })
+
+  it('reports the thread of a deleted thread message', async () => {
+    seedWithBotMessages(install())
+    db.rows('messages').find((m) => m.id === BOT_PUBLIC_MESSAGE)!.thread_id = THREAD_ID
+    const deleted: any[] = []
+    const res = await supertest(appWith({ messageHardDeleted: async (m) => { deleted.push(m) } }))
+      .delete(`/api/v1/messages/${BOT_PUBLIC_MESSAGE}`)
+
+    expect(res.status).toBe(204)
+    expect(deleted).toEqual([{ id: BOT_PUBLIC_MESSAGE, channel_id: PUBLIC_CHANNEL, thread_id: THREAD_ID, metadata: { bot: true } }])
   })
 
   it('reports nothing for a refused delete or an already soft-deleted row', async () => {

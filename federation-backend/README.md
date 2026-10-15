@@ -4,7 +4,7 @@ Node service (Express, TypeScript) that speaks ActivityPub for Harmony and serve
 
 - **ActivityPub**: WebFinger, NodeInfo, actors, inboxes and outboxes, HTTP Signatures, delivery with retries; Harmony servers federate as ActivityPub Groups
 - **Queue worker**: BullMQ jobs fed by Postgres `LISTEN federation_jobs`, delivery, maintenance
-- **Push**: Web Push, UnifiedPush and FCM ([docs/PUSH_NOTIFICATIONS.md](../docs/PUSH_NOTIFICATIONS.md))
+- **Push**: Web Push, UnifiedPush and FCM ([docs/self-host/push.md](../docs/self-host/push.md))
 - **Link previews**, the **GIF proxy** (Klipy), **LiveKit** tokens and webhook, **presence and typing**, signed **attachment URLs** for other instances, and the **Ko-fi** and **Stripe** donation webhooks
 
 ## Process modes
@@ -39,13 +39,13 @@ npm run dev             # unified, tsx watch
 | `npm test` | Vitest |
 | `npm run backfill-posts` | Re-fetch remote posts or their link previews (`--dry-run`, `--limit N`, `--link-previews-only`) |
 
-`src/config/index.ts` validates the environment at start and stops on an invalid value, naming it. `env.template` documents the variables; the [environment reference](../docs-source/guide/environment.md) lists every one the code reads. `.env` is ignored by git.
+`src/config/index.ts` validates the environment at start and stops on an invalid value, naming it. `env.template` documents the variables; the [configuration reference](../docs/self-host/configuration.md) lists every one the code reads. `.env` is ignored by git.
 
 Logs go to the console at `LOG_LEVEL`, and to `logs/error.log` and `logs/combined.log` under the working directory.
 
 ## Docker
 
-`Dockerfile` builds the image published as `ghcr.io/y4my4my4m/harmony-federation`: Node 24 Alpine, multi-stage, running `node dist/index.js` as uid 1000 (`node`). Its health check probes `GET /health` on `PORT`; the worker serves no HTTP, so compose files disable the check for it. The self-host stack runs this image as `harmony-federation-server` and `harmony-federation-worker` ([docs/self-hosting.md](../docs/self-hosting.md)).
+`Dockerfile` builds the image published as `ghcr.io/y4my4my4m/harmony-federation`: Node 24 Alpine, multi-stage, running `node dist/index.js` as uid 1000 (`node`). Its health check probes `GET /health` on `PORT`; the worker serves no HTTP, so compose files disable the check for it. The self-host stack runs this image as `harmony-federation-server` and `harmony-federation-worker` ([docs/self-host/](../docs/self-host/index.md)).
 
 `docker-compose.yml` in this directory runs one unified container (`harmony-federation-backend`) from `.env`:
 
@@ -59,7 +59,7 @@ It publishes `${PORT:-3001}`, joins the external `supabase_default` network (an 
 
 ## Endpoints
 
-The service mounts most routes at the root. Behind the reverse proxy they are reached under `/api/federation/` with the prefix stripped, except the ActivityPub paths, `/health`, `/link-preview`, `/api/livekit/` and `/webhooks/`, which keep their path ([routing](../docs-source/guide/deployment/federation.md)).
+The service mounts most routes at the root. Behind the reverse proxy they are reached under `/api/federation/` with the prefix stripped, except the ActivityPub paths, `/health`, `/link-preview`, `/api/livekit/` and `/webhooks/`, which keep their path ([routing](../docs/self-host/docker-compose.md#route-harmony-with-your-own-proxy)).
 
 ### ActivityPub
 
@@ -76,7 +76,7 @@ The service mounts most routes at the root. Behind the reverse proxy they are re
 | `GET /servers/:serverId/channels/:channelId[/messages\|/outbox]` | Channel and its messages |
 | `POST /servers/:serverId/inbox` | Group inbox |
 
-Private servers, and channels `@everyone` cannot view, are served only to a GET signed by a remote member who can view them; see [docs/FEDERATION.md](../docs/FEDERATION.md), "Who can read a server".
+Private servers, and channels `@everyone` cannot view, are served only to a GET signed by a remote member who can view them; see [docs/federation/reference.md](../docs/federation/reference.md), "Reads and access".
 
 ### Client API
 

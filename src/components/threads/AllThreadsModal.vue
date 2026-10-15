@@ -165,6 +165,7 @@
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { useDialog } from '@/composables/useDialog'
 import { useI18n } from 'vue-i18n'
+import { moderationRejectionFromError } from '@/services/AutoModService'
 import { useThreadsStore, isOptimisticThreadId } from '@/stores/useThreads'
 import { threadService } from '@/services/ThreadService'
 import { useServerPermissions } from '@/composables/useServerPermissions'
@@ -296,7 +297,8 @@ const submitNewThread = async () => {
     close()
   } catch (error) {
     console.error('Failed to create thread:', error)
-    createError.value = t('threadCreate.failed')
+    // A timeout refuses the thread with MEMBER_TIMED_OUT; its notice names the end.
+    createError.value = moderationRejectionFromError(error)?.message ?? t('threadCreate.failed')
   } finally {
     submitting.value = false
   }
@@ -348,7 +350,7 @@ onMounted(() => {
 .threads-modal {
   width: 100%;
   max-width: 540px;
-  max-height: 80vh;
+  max-height: calc(80 * var(--app-vh));
   background: var(--background-primary);
   border-radius: 8px;
   display: flex;

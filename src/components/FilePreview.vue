@@ -58,8 +58,11 @@
           <div class="file-size-status">
             <span class="file-size">{{ formatFileSize(file.size) }}</span>
             <span v-if="file.uploadStatus === 'uploading'" class="status-text uploading">• Uploading</span>
+            <span v-else-if="file.fromDrive" class="status-text completed" data-testid="file-from-drive">• {{ t('drive.composer.fromDrive') }}</span>
+            <span v-else-if="file.uploadStatus === 'completed' && file.reused" class="status-text completed" data-testid="file-reused" :title="t('drive.composer.reusedHint')">• {{ t('drive.composer.reused') }}</span>
             <span v-else-if="file.uploadStatus === 'completed'" class="status-text completed">• Uploaded</span>
             <span v-else-if="file.uploadStatus === 'error'" class="status-text error">• Failed</span>
+            <span v-if="file.temporary || forceTemporary" class="status-text temporary" data-testid="file-temporary">• {{ t('drive.composer.temporaryDays', { count: temporaryDays }, temporaryDays) }}</span>
           </div>
           <div v-if="file.uploadError" class="error-message">{{ file.uploadError }}</div>
           <div v-if="isImage(file) && file.altText" class="file-alt-text">{{ file.altText }}</div>
@@ -91,6 +94,20 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M3 3l18 18M10.6 5.1A10.9 10.9 0 0 1 12 5c5 0 9 4.5 10 7a13.2 13.2 0 0 1-3.2 4.2M6.6 6.6C4.4 8 2.8 10.1 2 12c1 2.5 5 7 10 7 1.7 0 3.3-.5 4.6-1.3M9.9 9.9a3 3 0 0 0 4.2 4.2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
+        </button>
+        <button
+          v-if="driveEnabled && !file.reused && !file.fromDrive"
+          type="button"
+          class="temporary-file-btn"
+          :class="{ active: file.temporary || forceTemporary }"
+          :aria-pressed="!!(file.temporary || forceTemporary)"
+          :disabled="forceTemporary"
+          :title="forceTemporary ? t('drive.composer.fullHint') : (file.temporary ? t('drive.composer.keep') : t('drive.composer.makeTemporary', { count: temporaryDays }, temporaryDays))"
+          :aria-label="file.temporary ? t('drive.composer.keepFile', { name: file.name }) : t('drive.composer.makeTemporaryFile', { name: file.name })"
+          data-testid="temporary-file-button"
+          @click="emit('toggle-temporary', index)"
+        >
+          <Icon name="clock" :size="16" />
         </button>
         <button
           type="button"
@@ -141,16 +158,28 @@ export interface FilePreviewData {
   upload?: MessageMediaUpload;
   /** Image description, sent as the file part's altText. */
   altText?: string;
+  /** Kept until drive_ephemeral_days instead of in Drive. */
+  temporary?: boolean;
+  /** The bytes were in Drive already; nothing was uploaded. */
+  reused?: boolean;
+  /** Attached from Drive; uploadedPath names the Drive object. */
+  fromDrive?: boolean;
 }
 
 interface Props {
   files: FilePreviewData[];
+  /** The instance has Drive: uploads can be temporary. */
+  driveEnabled?: boolean;
+  /** Drive is full: new uploads are temporary whatever the toggle says. */
+  forceTemporary?: boolean;
+  temporaryDays?: number;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), { driveEnabled: false, forceTemporary: false, temporaryDays: 30 });
 
 interface Emits {
   (e: 'remove-file', index: number): void;
+  (e: 'toggle-temporary', index: number): void;
   (e: 'toggle-spoiler', index: number): void;
   (e: 'update-alt', index: number, altText: string): void;
 }
@@ -427,7 +456,8 @@ const hasUploading = computed(() => {
 }
 
 .alt-file-btn,
-.spoiler-file-btn {
+.spoiler-file-btn,
+.temporary-file-btn {
   background: none;
   border: none;
   color: var(--text-muted);
@@ -440,6 +470,8 @@ const hasUploading = computed(() => {
   flex-shrink: 0;
 }
 
+.temporary-file-btn:hover:not(:disabled),
+.temporary-file-btn.active,
 .spoiler-file-btn:hover,
 .spoiler-file-btn.active {
   color: var(--text-primary);
@@ -457,8 +489,21 @@ const hasUploading = computed(() => {
   color: var(--text-primary);
 }
 
+.temporary-file-btn.active {
+  color: var(--warning);
+}
+
+.temporary-file-btn:disabled {
+  cursor: default;
+}
+
+.status-text.temporary {
+  color: var(--warning);
+}
+
 .alt-file-btn:focus-visible,
 .spoiler-file-btn:focus-visible,
+.temporary-file-btn:focus-visible,
 .remove-file-btn:focus-visible {
   outline: 2px solid var(--border-focus);
   outline-offset: 1px;

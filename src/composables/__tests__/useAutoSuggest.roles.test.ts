@@ -36,10 +36,15 @@ vi.mock('@/services/RoleService', () => ({
   },
 }))
 
+// MENTION_EVERYONE resolves in the channel; the server-wide check must not decide it.
+vi.mock('@/composables/useChannelMessagePermissions', () => ({
+  useChannelMessagePermissions: () => ({ canMentionEveryone: canMentionAll }),
+}))
+
 vi.mock('@/composables/useServerPermissions', () => ({
   useServerPermissions: () => ({
     hasCurrentUserPermission: (permission: string) =>
-      permission === 'MENTION_EVERYONE' ? canMentionAll.value : true,
+      permission === 'MENTION_EVERYONE' ? false : true,
     Permission: { MENTION_EVERYONE: 'MENTION_EVERYONE' },
     isCurrentUserServerOwner: () => false,
   }),

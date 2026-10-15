@@ -100,6 +100,7 @@ import { getInviteInfo, type InviteInfo } from '@/services/inviteService';
 import { useAuthStore } from '@/stores/auth';
 import { useInstanceSettingsStore } from '@/stores/useInstanceSettings';
 import { useInviteJoin } from '@/composables/useInviteJoin';
+import { serverMonogramUrl } from '@/utils/serverMonogram';
 import { getServerIconUrl, getServerBannerUrl } from '@/utils/serverUtils';
 import { withRenderFallback } from '@/utils/renderFallback';
 import { devicePixels } from '@/utils/imageTransformUtils';
@@ -164,7 +165,7 @@ function decline() {
   void router.push('/chat');
 }
 const serverInitial = computed(() => info.value?.serverName?.charAt(0).toUpperCase() || 'S');
-const iconUrl = computed(() => (info.value?.icon ? getServerIconUrl(info.value.icon, devicePixels(80)) : null));
+const iconUrl = computed(() => (info.value?.icon ? getServerIconUrl(info.value.icon, devicePixels(80)) : serverMonogramUrl(info.value?.serverName)));
 
 // Backdrop under an 8px blur.
 const backdropStyle = computed(() => {
@@ -205,7 +206,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
+  min-height: calc(100 * var(--app-vh));
   padding: 24px;
   background: var(--background-primary);
   background-size: cover;

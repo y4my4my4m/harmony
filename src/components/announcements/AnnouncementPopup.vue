@@ -179,9 +179,9 @@ onMounted(async () => {
   background: var(--background-primary);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
-  width: 90vw;
+  width: calc(90 * var(--app-vw));
   max-width: 600px;
-  max-height: 80vh;
+  max-height: calc(80 * var(--app-vh));
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow-large);

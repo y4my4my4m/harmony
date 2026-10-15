@@ -41,6 +41,9 @@
     <div v-if="limitNotice" class="emoji-limit-notice" role="status" data-testid="emoji-limit-notice">
       {{ limitNotice }}
     </div>
+    <div v-if="externalRestricted" class="emoji-limit-notice" role="note">
+      {{ t('emoji.externalNotAllowed') }}
+    </div>
 
     <!-- Emoji Content Area -->
     <div ref="contentRef" class="emoji-content" @keydown="onGridKeydown">
@@ -59,9 +62,9 @@
           </button>
         </h3>
         <template v-if="!isSectionCollapsed('favorites')">
-          <div v-if="favoriteEmojis.length" class="emoji-list frequent-list">
+          <div v-if="shownFavorites.length" class="emoji-list frequent-list">
             <button
-              v-for="fav in favoriteEmojis"
+              v-for="fav in shownFavorites"
               :key="fav.emoji_id"
               class="emoji-item"
               :class="{ 'native-emoji-item': isNativePack && !fav.emoji_url, 'svg-emoji-item': !isNativePack || fav.emoji_url, 'emoji-item--blocked': isBlocked(favoriteAsEmoji(fav)) }"
@@ -97,7 +100,7 @@
       </div>
 
       <!-- Frequently Used Emojis -->
-      <div v-if="!activeQuery && hasFrequentEmojis" class="emoji-section">
+      <div v-if="!activeQuery && hasFrequentEmojis && shownFrequent.length" class="emoji-section">
         <h3 class="section-title">
           <button
             type="button"
@@ -112,7 +115,7 @@
         </h3>
         <div v-if="!isSectionCollapsed('frequent')" class="emoji-list frequent-list">
           <button
-            v-for="emoji in topEmojisForPicker"
+            v-for="emoji in shownFrequent"
             :key="emoji.id"
             class="emoji-item"
             :class="{ 'native-emoji-item': isNativePack, 'svg-emoji-item': !isNativePack, 'emoji-item--blocked': isBlocked(frequentAsEmoji(emoji)) }"
@@ -160,7 +163,7 @@
                 @click="toggleSection('server-' + group.serverId)"
               >
                 <span aria-hidden="true" class="section-chevron" :class="{ collapsed: isSectionCollapsed('server-' + group.serverId) }">&#9662;</span>
-                <ServerIcon :src="group.server_icon" size="mini" shape="rounded" :show-title="false" class="section-server-icon" />
+                <ServerIcon :src="group.server_icon" :name="group.server_name" size="mini" :shape="group.serverId === PERSONAL_EMOJI_GROUPS.user ? 'round' : 'rounded'" :show-title="false" class="section-server-icon" />
                 {{ group.server_name }}
               </button>
             </h3>
@@ -304,7 +307,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, nextTick, watch, toRaw } from 'vue';
-import { useEmojiCacheStore } from '@/stores/useEmojiCache';
+import { useEmojiCacheStore, PERSONAL_EMOJI_GROUPS } from '@/stores/useEmojiCache';
 import { usePopupPositioning } from '@/composables/usePopupPositioning';
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useHapticSettings } from '@/composables/useHapticSettings';
@@ -320,6 +323,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import Icon from '@/components/common/Icon.vue';
 import EmptyState from '@/components/common/EmptyState.vue';
 import { useServerChannelStore } from '@/stores/useServerChannel';
+import { useExternalEmojiPolicy } from '@/composables/useExternalEmojiPolicy';
 import { customEmojiIndex, customEmojiUrlByName, customMatches } from '@/services/emojiSearchIndex';
 import { useEmojiSearchQuery } from '@/composables/useEmojiSearchQuery';
 import type { PickedEmoji } from '@/utils/reactionLimits';
@@ -328,6 +332,7 @@ import { useEmojiPickerA11y } from '@/composables/useEmojiPickerA11y';
 import { useT } from '@/composables/useT';
 import { announce } from '@/composables/useAnnouncer';
 import { uid } from '@/utils/a11y/focus';
+import { stylePoint, styleViewport } from '@/utils/appZoom';
 import { customEmojiLabel, humanizeEmojiName } from '@/utils/a11y/emojiNames';
 
 // --- Types ---
@@ -370,6 +375,8 @@ const props = withDefaults(
     limitNotice?: string | null;
     /** Mount point; an element in browser full screen keeps the popup visible there. */
     teleportTo?: string | HTMLElement;
+    /** Server channel the picked emoji goes to; its USE_EXTERNAL_EMOJIS decides which custom emoji show. */
+    channelId?: string | null;
   }>(),
   {
     emojiIconClicked: false,
@@ -380,6 +387,7 @@ const props = withDefaults(
     isEmojiBlocked: undefined,
     limitNotice: null,
     teleportTo: 'body',
+    channelId: null,
   },
 );
 
@@ -396,6 +404,8 @@ const brokenEmojiUrls = ref(new Set<string>());
 const emojiCacheStore = useEmojiCacheStore();
 const serverChannelStore = useServerChannelStore();
 const { topEmojisForPicker, hasFrequentEmojis, recordEmojiUsage, removeFrequentEmoji, isFrequentEmoji } = useFrequentEmojis();
+const { restricted: externalRestricted, serverId: policyServerId, refuses: refusesEmoji } =
+  useExternalEmojiPolicy(() => props.channelId);
 const { triggerReaction } = useHapticSettings();
 const { 
   isNativePack, 
@@ -491,8 +501,14 @@ const filteredEmojiList = computed((): FilteredServerEmojiGroup[] => {
     }
     group.emojis.push(entry.emoji);
   }
-  return [...groups.values()];
+  return [...groups.values()].filter((g) => !externalRestricted.value || g.serverId === policyServerId.value);
 });
+
+// Favorites and frequent picks without the custom emoji this channel refuses.
+const shownFavorites = computed(() => favoriteEmojis.value.filter((fav) =>
+  !refusesEmoji({ id: fav.emoji_id, url: fav.emoji_url, server_id: fav.emoji_server_id })));
+const shownFrequent = computed(() => topEmojisForPicker.value.filter((emoji) =>
+  !refusesEmoji({ id: emoji.id, url: getFrequentEmojiDisplayUrl(emoji) })));
 
 /** Unicode categories in Unicode order; a query keeps only search-index matches. */
 const displayedCategories = computed((): DisplayCategory[] => {
@@ -808,16 +824,16 @@ const emojiCtx = ref<EmojiCtxState>({
 
 function positionCtxMenu(event: MouseEvent | Touch): { x: number; y: number } {
   const menuW = 200, menuH = 120;
-  let x = event.clientX;
-  let y = event.clientY;
+  let { x, y } = stylePoint(event);
   // On touch: position menu well above finger so it's not hidden under the thumb
   const isTouch = !('button' in event);
   if (isTouch) {
     y = Math.max(8, y - menuH - 120);
   }
-  if (x + menuW > window.innerWidth - 8) x = window.innerWidth - menuW - 8;
+  const vp = styleViewport();
+  if (x + menuW > vp.width - 8) x = vp.width - menuW - 8;
   if (x < 8) x = 8;
-  if (y + menuH > window.innerHeight - 8) y = window.innerHeight - menuH - 8;
+  if (y + menuH > vp.height - 8) y = vp.height - menuH - 8;
   if (y < 8) y = 8;
   return { x, y };
 }
@@ -964,8 +980,10 @@ let isUnmounted = false;
 let outsideListenerTimeout: ReturnType<typeof setTimeout> | null = null;
 
 onMounted(async () => {
-  // Show popup immediately, load emojis in background (non-blocking)
-  
+  // Positioned against the trigger as it is now: the first open loads the emoji data below,
+  // and by then a hover toolbar trigger may have hidden.
+  updatePosition();
+
   const { triggerEmojiDataLoad } = await import('@/composables/useEmojiLoader')
   triggerEmojiDataLoad()
   

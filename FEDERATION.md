@@ -1,7 +1,8 @@
 # Federation
 
-Moved to [`docs/FEDERATION.md`](docs/FEDERATION.md) (published at
-<https://docs.mony.lol/FEDERATION>).
+Moved to [`docs/federation/index.md`](docs/federation/index.md) (published at
+<https://docs.mony.lol/federation/>).
 
-The property-by-property wire-format reference is
-[`docs/ACTIVITYPUB_EXTENSIONS.md`](docs/ACTIVITYPUB_EXTENSIONS.md).
+The wire-format reference for implementers (endpoints, signatures, activities,
+extension properties) is
+[`docs/federation/reference.md`](docs/federation/reference.md).

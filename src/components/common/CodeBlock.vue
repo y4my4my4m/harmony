@@ -426,7 +426,9 @@ export default defineComponent({
   font-size: 0.875rem;
   line-height: 1.125rem;
   overflow-x: auto;
-  white-space: pre;
+  /* Long lines wrap, unbroken runs at any character: Discord's code blocks. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   user-select: text;
   -webkit-user-select: text;
   -moz-user-select: text;
@@ -440,7 +442,7 @@ export default defineComponent({
   border-radius: 0;
   color: inherit;
   display: block;
-  white-space: pre;
+  white-space: inherit;
   user-select: text;
   -webkit-user-select: text;
   -moz-user-select: text;
@@ -507,6 +509,20 @@ export default defineComponent({
 .code-block :deep(.hl-selector) {
   color: #d7ba7d;
 }
+
+/* Light themes: the colours above are VS Code's dark palette (keyword 2.7:1, number 1.7:1 on
+   the light block). These are 4.5:1 or better on #fdfdfe and on skins' #e8e6e2 code wells.
+   Paper draws code as a dark screen in both themes and keeps the dark palette. */
+:root[data-theme-type="light"]:not([data-skin="paper"]) .code-block :deep(.hl-keyword) { color: #8c1f8a; }
+:root[data-theme-type="light"]:not([data-skin="paper"]) .code-block :deep(:is(.hl-string, .hl-value)) { color: #a31515; }
+:root[data-theme-type="light"]:not([data-skin="paper"]) .code-block :deep(.hl-number) { color: #0b7a50; }
+:root[data-theme-type="light"]:not([data-skin="paper"]) .code-block :deep(.hl-comment) { color: #2f6f2f; }
+:root[data-theme-type="light"]:not([data-skin="paper"]) .code-block :deep(.hl-function) { color: #795e26; }
+:root[data-theme-type="light"]:not([data-skin="paper"]) .code-block :deep(:is(.hl-variable, .hl-property)) { color: #001080; }
+:root[data-theme-type="light"]:not([data-skin="paper"]) .code-block :deep(:is(.hl-tag, .hl-selector)) { color: #800000; }
+:root[data-theme-type="light"]:not([data-skin="paper"]) .code-block :deep(.hl-tag-name) { color: #1f6f87; }
+:root[data-theme-type="light"]:not([data-skin="paper"]) .code-block :deep(:is(.hl-attr, .hl-attr-name)) { color: #c50f1f; }
+:root[data-theme-type="light"]:not([data-skin="paper"]) .code-block :deep(.hl-operator) { color: #383a42; }
 
 /* Scrollbar styling for code blocks */
 .code-block::-webkit-scrollbar {

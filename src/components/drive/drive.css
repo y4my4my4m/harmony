@@ -1,0 +1,139 @@
+/* Controls shared by the Drive page, its dialogs and the Drive picker. */
+
+.drive-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease, opacity 0.12s ease;
+}
+
+.drive-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.drive-btn:focus-visible,
+.drive-icon-btn:focus-visible,
+.drive-link-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.drive-btn--primary {
+  background: var(--harmony-primary-fill, var(--harmony-primary));
+  color: var(--text-on-primary, #fff);
+}
+
+.drive-btn--primary:hover:not(:disabled) {
+  background: var(--harmony-primary-fill-hover, var(--harmony-primary-hover));
+}
+
+.drive-btn--secondary {
+  background: var(--background-modifier-hover);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.drive-btn--secondary:hover:not(:disabled) {
+  background: var(--background-modifier-active);
+}
+
+.drive-btn--danger {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  color: var(--text-danger);
+}
+
+.drive-btn--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.drive-btn--ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.drive-btn--ghost:hover:not(:disabled) {
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
+}
+
+.drive-btn--block {
+  width: 100%;
+}
+
+.drive-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.drive-icon-btn:hover,
+.drive-icon-btn[aria-pressed='true'] {
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
+}
+
+.drive-link-btn {
+  padding: 0;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-link);
+  cursor: pointer;
+}
+
+.drive-link-btn:hover {
+  text-decoration: underline;
+}
+
+.drive-input {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 var(--space-3);
+  background: var(--surface-inset, var(--background-tertiary));
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+
+.drive-input:focus {
+  border-color: var(--harmony-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--harmony-primary) 22%, transparent);
+}
+
+.drive-select {
+  min-height: 34px;
+  padding: 0 28px 0 var(--space-3);
+  background: var(--surface-inset, var(--background-tertiary));
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}

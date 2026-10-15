@@ -170,7 +170,7 @@ const handleOverlayClick = () => {
   box-shadow: var(--shadow-modal);
   width: 100%;
   max-width: 540px;
-  max-height: 90vh;
+  max-height: calc(90 * var(--app-vh));
   display: flex;
   flex-direction: column;
   position: relative;
@@ -315,7 +315,11 @@ const handleOverlayClick = () => {
   color: var(--text-primary);
 }
 
+/* shared.css styles a legacy .modal-content card (translucent fill, modal shadow); here it is
+   only the body, and that shadow fell across the footer. */
 .modal-content {
+  background: transparent;
+  box-shadow: none;
   padding: 24px 32px;
   overflow-y: auto;
   flex: 1;

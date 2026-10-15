@@ -47,8 +47,9 @@
 	}
 
 	# nginx adds these on every response; `?` keeps a value the upstream set.
-	# The YouTube relay is framed by the native apps and carries frame-ancestors instead.
-	@notYouTubeRelay not path /youtube-embed.html
+	# The YouTube relay and the player page are framed by the native apps and carry
+	# frame-ancestors instead.
+	@notYouTubeRelay not path /youtube-embed.html /embed-player.html
 	header @notYouTubeRelay {
 		?X-Frame-Options SAMEORIGIN
 		?X-Content-Type-Options nosniff
@@ -76,8 +77,9 @@
 		import federation_upstream
 	}
 
-	# Shared inbox, oEmbed, actor collections, Group actors, post collections:
-	# always ActivityPub. Outboxes are per actor; no shared outbox exists.
+	# Shared inbox, oEmbed, actor collections, FEP-044f quote authorizations,
+	# Group actors, post collections: always ActivityPub. Outboxes are per actor;
+	# no shared outbox exists.
 	@fedExact path_regexp ^/(inbox|oembed)$
 	handle @fedExact {
 		import federation_upstream
@@ -86,12 +88,26 @@
 	handle @fedActorCollections {
 		import federation_upstream
 	}
+	@fedQuoteAuthorizations path_regexp ^/users/[^/]+/quote_authorizations/[^/]+$
+	handle @fedQuoteAuthorizations {
+		import federation_upstream
+	}
 	@fedServers path_regexp ^/servers/
 	handle @fedServers {
 		import federation_upstream
 	}
-	@fedPostCollections path_regexp ^/posts/[0-9a-f-]+/(likes|replies)
+	@fedPostCollections path_regexp ^/posts/[0-9a-f-]+/(likes|shares|replies)
 	handle @fedPostCollections {
+		import federation_upstream
+	}
+	# Chat and direct message Notes; the backend answers 406 to any other Accept.
+	@fedMessages path_regexp ^/messages/[0-9a-f-]+$
+	handle @fedMessages {
+		import federation_upstream
+	}
+	# Threads, their members and a channel's threads; 406 to any other Accept, as messages.
+	@fedThreads path_regexp ^/(threads/[0-9a-f-]+(/members)?|channels/[0-9a-f-]+/threads)$
+	handle @fedThreads {
 		import federation_upstream
 	}
 
@@ -243,7 +259,7 @@
 	# in the source format otherwise, under one ETag and without Vary. A cache
 	# in front (Cloudflare) would serve one client's format to all; the pinned
 	# Accept makes every render WebP. Every Harmony client decodes WebP. Same
-	# rule as the nginx Accept pin in docs/self-hosting.md.
+	# rule as the nginx Accept pin in docs/self-host/docker-compose.md.
 	@publicRender path /storage/v1/render/image/public/*
 	request_header @publicRender Accept "image/webp,*/*;q=0.8"
 

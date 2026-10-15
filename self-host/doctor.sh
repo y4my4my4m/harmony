@@ -520,7 +520,7 @@ check_security() {
 	done <<<"$rows"
 	if [[ ${#bad[@]} -gt 0 ]]; then
 		report FAIL "event triggers" "not Supabase's: ${bad[*]}" \
-			"unless you made them: DROP EVENT TRIGGER <name>; DROP FUNCTION <function>; then check roles below and restore from a backup older than them (docs: self-hosting#security)"
+			"unless you made them: DROP EVENT TRIGGER <name>; DROP FUNCTION <function>; then check roles below and restore from a backup older than them (docs: https://docs.mony.lol/self-host/troubleshooting#security)"
 	else
 		report OK "event triggers" "only Supabase's"
 	fi

@@ -197,7 +197,56 @@ describe('toActivityPub converters', () => {
     it('leaves the context alone without focal points', () => {
       const note = postToNote({ id: 'p1', visibility: 'public', created_at: '', content: [{ type: 'text', text: 'hi' }] }, author)
       expect(note['@context'][1]).not.toHaveProperty('focalPoint')
-      expect(note['@context'][1]).not.toHaveProperty('toot')
+    })
+
+    it('writes paragraphs and line breaks as Mastodon does', () => {
+      const note = postToNote({ id: 'p1', visibility: 'public', created_at: '', content: [{ type: 'text', text: '\nfirst line\nsecond <b>\n\n\nnext para\n' }] }, author)
+      expect(note.content).toBe('<p>first line<br>second &lt;b&gt;</p><p>next para</p>')
+      expect(postToNote({ id: 'p2', visibility: 'public', created_at: '', content: [] }, author).content).toBe('')
+    })
+
+    it('marks mentions as h-cards and links hashtags to their page', () => {
+      const note = postToNote({
+        id: 'p1', visibility: 'public', created_at: '',
+        content: [
+          { type: 'mention', username: 'bob', domain: 'mastodon.social', isLocal: false },
+          { type: 'text', text: ' ' },
+          { type: 'hashtag', name: 'café' },
+        ],
+      }, author)
+      expect(note.content).toContain('<span class="h-card" translate="no"><a href="https://mastodon.social/users/bob" class="u-url mention">@bob@mastodon.social</a></span>')
+      expect(note.content).toContain('<a href="https://harmony.test/social/hashtag/caf%C3%A9" class="mention hashtag" rel="tag">#<span>café</span></a>')
+      expect(note.tag).toContainEqual({ type: 'Hashtag', href: 'https://harmony.test/social/hashtag/caf%C3%A9', name: '#café' })
+    })
+
+    it('advertises a FEP-044f quote policy by visibility', () => {
+      const policy = (visibility: string) =>
+        postToNote({ id: 'p1', visibility, created_at: '', content: [] }, author).interactionPolicy.canQuote.automaticApproval
+      expect(policy('public')).toEqual(['https://www.w3.org/ns/activitystreams#Public'])
+      expect(policy('unlisted')).toEqual(['https://www.w3.org/ns/activitystreams#Public'])
+      expect(policy('followers')).toEqual([`https://harmony.test/users/${author.username}/followers`])
+      expect(policy('direct')).toEqual([`https://harmony.test/users/${author.username}`])
+    })
+
+    it('carries counts, the page url, language and sensitivity', () => {
+      const note = postToNote(
+        { id: 'p1', visibility: 'public', created_at: '', language: 'en', content: [{ type: 'text', text: 'hi' }] },
+        author, undefined, undefined, { likesCount: 3, sharesCount: 0 },
+      )
+      expect(note.likes).toEqual({ id: 'https://harmony.test/posts/p1/likes', type: 'Collection', totalItems: 3 })
+      expect(note.shares).toEqual({ id: 'https://harmony.test/posts/p1/shares', type: 'Collection', totalItems: 0 })
+      expect(note.url).toBe('https://harmony.test/social/post/p1')
+      expect(note.contentMap).toEqual({ en: '<p>hi</p>' })
+      expect(note.sensitive).toBe(false)
+      expect(postToNote({ id: 'p2', visibility: 'public', created_at: '', content: [] }, author).likes).toBe('https://harmony.test/posts/p2/likes')
+    })
+
+    it('writes a quote with FEP-044f and its aliases, a fallback line and the approval stamp', () => {
+      const q = 'https://remote.example/users/a/statuses/1'
+      const note = postToNote({ id: 'p1', visibility: 'public', created_at: '', content: [{ type: 'text', text: 'look' }] },
+        author, q, undefined, { quoteAuthorization: 'https://remote.example/users/a/stamps/9' })
+      expect(note).toMatchObject({ quote: q, quoteUrl: q, quoteUri: q, _misskey_quote: q, quoteAuthorization: 'https://remote.example/users/a/stamps/9' })
+      expect(note.content).toBe(`<p>look</p><p class="quote-inline">RE: <a href="${q}">${q}</a></p>`)
     })
 
     it('does not duplicate an attachment present in both content and media_attachments', () => {
@@ -568,7 +617,8 @@ describe('toActivityPub converters', () => {
       const activity = createDeleteActivity(user, 'https://harmony.test/posts/1')
       expect(activity.type).toBe('Delete')
       expect(activity.actor).toBe('https://harmony.test/users/alice')
-      expect(activity.object).toBe('https://harmony.test/posts/1')
+      expect(activity.object).toEqual({ id: 'https://harmony.test/posts/1', type: 'Tombstone' })
+      expect(activity.to).toEqual(['https://www.w3.org/ns/activitystreams#Public'])
     })
   })
 })
@@ -958,5 +1008,66 @@ describe('fromActivityPub converters', () => {
     it('normalizeActor extracts id from object', () => {
       expect(normalizeActor({ id: 'https://example.com/users/alice' })).toBe('https://example.com/users/alice')
     })
+  })
+})
+
+describe('inbound quotes', async () => {
+  const { noteQuoteUrl, noteUrl, noteToContent, stripQuoteInline } = await import('../activitypub/converters/fromActivityPub.js')
+  const Q = 'https://holos.test/users/doesnm/statuses/1'
+
+  it('reads FEP-044f quote before the older aliases, as a string or an object', () => {
+    expect(noteQuoteUrl({ quote: Q, _misskey_quote: 'https://x.test/1' })).toBe(Q)
+    expect(noteQuoteUrl({ quoteUri: Q })).toBe(Q)
+    expect(noteQuoteUrl({ _misskey_quote: { id: Q } })).toBe(Q)
+    expect(noteQuoteUrl({ quote: 'javascript:alert(1)' })).toBeNull()
+    expect(noteQuoteUrl({})).toBeNull()
+  })
+
+  it('drops the quote-inline fallback of a quote, nested markup included', () => {
+    const html = `<p class="quote-inline">RE: <a href="${Q}"><span class="invisible">https://</span><span>holos.test/x</span></a></p><p>Thanks</p>`
+    expect(stripQuoteInline(html)).toBe('<p>Thanks</p>')
+    expect(stripQuoteInline('<p>no fallback</p>')).toBe('<p>no fallback</p>')
+    const parts = noteToContent({ content: html, quote: Q })
+    expect(parts).toEqual([{ type: 'text', text: 'Thanks' }])
+    expect(noteToContent({ content: html }).some((p: any) => p.type === 'text' && p.text.includes('RE:'))).toBe(true)
+  })
+
+  it('reads the human url of a note', () => {
+    expect(noteUrl({ url: 'https://mastodon.test/@bob/1' })).toBe('https://mastodon.test/@bob/1')
+    expect(noteUrl({ url: [{ type: 'Link', mediaType: 'text/html', href: 'https://a.test/p/1' }] })).toBe('https://a.test/p/1')
+    expect(noteUrl({})).toBeNull()
+  })
+})
+
+describe('actor documents', async () => {
+  const { profileToActor, textToHtml } = await import('../activitypub/converters/toActivityPub.js')
+
+  it('writes the bio as escaped, linked paragraphs', () => {
+    expect(textToHtml('hi <b>\nsee https://har.mony.lol/x\n\nbye')).toBe(
+      '<p>hi &lt;b&gt;<br>see <a href="https://har.mony.lol/x" rel="nofollow noopener noreferrer" target="_blank">https://har.mony.lol/x</a></p><p>bye</p>')
+    expect(profileToActor({ username: 'alice', bio: '' }).summary).toBe('')
+  })
+
+  it('declares the harmony prefix its extension keys use', () => {
+    const actor = profileToActor({ username: 'alice', color: '#81FF00' })
+    expect(actor['@context'][2]).toMatchObject({ harmony: expect.stringMatching(/^https:\/\//) })
+    expect(actor['harmony:profileColor']).toBe('#81FF00')
+  })
+})
+
+describe('inbound emoji and hashtags', async () => {
+  const { noteToContent } = await import('../activitypub/converters/fromActivityPub.js')
+  const blob = { type: 'Emoji', name: ':blob:', icon: { url: 'https://m.test/blob.png' } }
+
+  it('turns every use of a custom emoji into the emoji', () => {
+    const parts = noteToContent({ content: '<p>:blob: and :blob:</p>', tag: [blob] })
+    expect(parts.filter((p: any) => p.type === 'emoji')).toHaveLength(2)
+    expect(parts.some((p: any) => p.type === 'text' && p.text.includes(':blob:'))).toBe(false)
+  })
+
+  it('links every use of a hashtag, never a longer tag it prefixes', () => {
+    const parts = noteToContent({ content: '<p>#cat then #catfood then #cat</p>', tag: [{ type: 'Hashtag', name: '#cat' }] })
+    expect(parts.filter((p: any) => p.type === 'hashtag')).toHaveLength(2)
+    expect(parts.some((p: any) => p.type === 'text' && p.text.includes('#catfood'))).toBe(true)
   })
 })

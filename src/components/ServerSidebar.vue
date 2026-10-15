@@ -111,6 +111,32 @@
         </div>
       </div>
 
+      <div
+        class="header-item-wrapper"
+        @mouseenter="showSidebarTooltip($event, t('drive.title'))"
+        @focusin="showSidebarTooltip($event, t('drive.title'))"
+        @focusout="hideSidebarTooltip"
+        @mouseleave="hideSidebarTooltip"
+      >
+        <div class="server-pill" :class="{ 'visible': isDriveSelected }" aria-hidden="true"></div>
+        <div
+          class="dm-button drive-button"
+          :class="{ 'selected': isDriveSelected }"
+          role="button"
+          tabindex="0"
+          :aria-label="t('drive.title')"
+          :aria-current="isDriveSelected ? 'page' : undefined"
+          data-testid="rail-drive"
+          @click="goToDrive"
+          @keydown.enter.prevent="goToDrive"
+          @keydown.space.prevent="goToDrive"
+        >
+          <svg viewBox="0 0 24 24" class="dm-icon" aria-hidden="true">
+            <path d="M6.5 20A4.5 4.5 0 0 1 2 15.5a4.5 4.5 0 0 1 3.37-4.36A6.5 6.5 0 0 1 18 9.5a5 5 0 0 1 .63 9.96L18.5 19.5H6.5Zm0-2h12a3 3 0 0 0 0-6h-1.36l-.16-1.15a4.5 4.5 0 0 0-8.9.48L7.9 12.8l-1.22.15A2.5 2.5 0 0 0 6.5 18Z" fill="currentColor"/>
+          </svg>
+        </div>
+      </div>
+
       <div class="separator"></div>
     </div>
 
@@ -216,6 +242,9 @@ import FundingModal from '@/components/FundingModal.vue';
 import { useFundingStore } from '@/stores/useFunding';
 import { useTodayDashboard } from '@/composables/useTodayDashboard';
 import { useViewport } from '@/composables/useViewport';
+import { useDMStore } from '@/stores/useDM';
+import { useProfileStore } from '@/stores/useProfile';
+import { dmButtonTarget, lastDm, rememberLastDm } from '@/utils/lastDm';
 import { useAnchoredTooltip } from '@/composables/useAnchoredTooltip';
 import { useDesktopUpdater } from '@/composables/useDesktopUpdater';
 import { useI18n } from 'vue-i18n';
@@ -235,6 +264,8 @@ const showFundingModal = ref(false);
 
 const fundingStore = useFundingStore();
 const { isMobileViewport, isTouchOnly } = useViewport();
+const dmStore = useDMStore();
+const profileStore = useProfileStore();
 const showFundingButton = computed(() => !!fundingStore.config?.enabled && isMobileViewport.value);
 
 const { t } = useI18n();
@@ -275,6 +306,7 @@ const isDMSelected = computed(() => {
 });
 
 const isTodaySelected = computed(() => route.name === 'Today');
+const isDriveSelected = computed(() => route.name === 'Drive');
 
 const isFediverseSelected = computed(() => {
   return isActivityPubRoute(route.name as string);
@@ -296,7 +328,7 @@ const fediverseButtonLabel = computed(() => unreadCount.value > 0
   : t('a11y.rail.fediverse'));
 
 const activeServerId = computed(() => {
-  if (isDMSelected.value || isFediverseSelected.value || isTodaySelected.value) return null;
+  if (isDMSelected.value || isFediverseSelected.value || isTodaySelected.value || isDriveSelected.value) return null;
   return serverChannelStore.currentServerId;
 });
 
@@ -316,11 +348,11 @@ const openPublicServers = () => {
 const SERVER_PREFETCH_DELAY_MS = 100;
 let serverPrefetchTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** Warms the structure and the default channel's newest page for a hovered or focused server. */
+/** Warms the structure and the landing channel's newest page for a hovered or focused server. */
 const prefetchServer = async (serverId: string) => {
   if (serverId === serverChannelStore.currentServerId) return;
   await serverChannelStore.prefetchServerStructure(serverId);
-  const channelId = serverChannelStore.defaultChannelFor(serverId);
+  const channelId = serverChannelStore.landingChannelFor(serverId);
   if (!channelId) return;
   const { useChatStore } = await import('@/stores/useChat');
   void useChatStore().prefetchChannelMessages(channelId);
@@ -356,6 +388,9 @@ const selectServer = async (serverId?: string) => {
   cancelServerPrefetch();
   if (!serverId) return;
 
+  // The open server stays where it is, channel or thread.
+  if ((route.name === 'ChatChannel' || route.name === 'ThreadView') && route.params.serverId === serverId) return;
+
   emit('switch-to-chat');
 
   // setCurrentServer synchronously swaps in this server's cached channel
@@ -368,9 +403,9 @@ const selectServer = async (serverId?: string) => {
 
   if (hasCachedStructure) {
     // Instant path: navigate immediately off the snapshot, refresh behind it.
-    const defaultChannelId = serverChannelStore.getDefaultChannel();
-    if (defaultChannelId) {
-      router.push({ name: 'ChatChannel', params: { serverId, channelId: defaultChannelId } });
+    const channelId = serverChannelStore.landingChannelFor(serverId);
+    if (channelId) {
+      router.push({ name: 'ChatChannel', params: { serverId, channelId } });
     } else {
       router.push({ name: 'Chat' });
     }
@@ -389,25 +424,39 @@ const selectServer = async (serverId?: string) => {
   // The user may have clicked another server while this one loaded.
   if (serverChannelStore.currentServerId !== serverId) return;
 
-  const defaultChannelId = serverChannelStore.getDefaultChannel();
-  if (defaultChannelId) {
-    router.push({
-      name: 'ChatChannel',
-      params: {
-        serverId: serverId,
-        channelId: defaultChannelId
-      }
-    });
+  const channelId = serverChannelStore.landingChannelFor(serverId);
+  if (channelId) {
+    router.push({ name: 'ChatChannel', params: { serverId, channelId } });
   }
 };
 
 const goToDMs = () => {
   emit('switch-to-chat');
-  router.push({ name: 'DMHome' });
+  const conversations = dmStore.conversations;
+  const target = dmButtonTarget({
+    inDms: route.name === 'DMHome' || route.name === 'DMConversation',
+    mobile: isMobileViewport.value,
+    last: lastDm(profileStore.profile?.id),
+    known: conversations.length > 0 ? conversations.map((c) => c.id) : null,
+  });
+  if (target === 'list') router.push({ name: 'DMHome' });
+  else router.push({ name: 'DMConversation', params: { conversationId: target.conversationId } });
 };
+
+watch(
+  () => (route.name === 'DMConversation' ? (route.params.conversationId as string) : null),
+  (conversationId) => {
+    if (conversationId) rememberLastDm(profileStore.profile?.id, conversationId);
+  },
+  { immediate: true },
+);
 
 const goToToday = () => {
   router.push({ name: 'Today' });
+};
+
+const goToDrive = () => {
+  router.push({ name: 'Drive' });
 };
 
 const goToFediverse = () => {
@@ -456,6 +505,10 @@ const closeFolderModal = () => {
   flex-direction: column;
   align-items: center;
   width: 100%;
+}
+
+.fixed-footer .separator {
+  margin-bottom: 5px;
 }
 
 .fixed-footer {
@@ -695,7 +748,8 @@ const closeFolderModal = () => {
   width: 80%;
   border-top: 1px solid var(--border-secondary);
   border-bottom: 1px solid var(--border-color);
-  margin-bottom: 5px;
+  /* The rail list below adds 8px, room for a badge above the first server. */
+  margin-bottom: 1px;
 }
 
 .server-pill {
@@ -741,7 +795,7 @@ const closeFolderModal = () => {
   z-index: 1001;
   pointer-events: none;
   /* Long names wrap inside the viewport instead of running off its edge. */
-  max-width: min(320px, calc(100vw - 96px));
+  max-width: min(320px, calc(100 * var(--app-vw) - 96px));
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -814,7 +868,7 @@ const closeFolderModal = () => {
   z-index: 10001;
   pointer-events: none;
   /* Long names wrap inside the viewport instead of running off its edge. */
-  max-width: min(320px, calc(100vw - 96px));
+  max-width: min(320px, calc(100 * var(--app-vw) - 96px));
   white-space: normal;
   overflow-wrap: anywhere;
 }

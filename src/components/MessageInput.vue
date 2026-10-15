@@ -10,9 +10,20 @@
     />
     <FilePreview
       :files="attachedFiles"
+      :drive-enabled="driveEnabled"
+      :force-temporary="driveEnabled && driveFull"
+      :temporary-days="driveUsage?.ephemeral_days ?? 30"
       @remove-file="removeFile"
       @toggle-spoiler="toggleFileSpoiler"
       @update-alt="setFileAltText"
+      @toggle-temporary="toggleFileTemporary"
+    />
+    <DrivePickerModal
+      v-if="showDrivePicker"
+      :kinds="null"
+      multiple
+      @pick="attachFromDrive"
+      @close="showDrivePicker = false"
     />
     <!-- Live media results for /gif, /sticker, /clip, /meme, /aiemoji -->
     <InlineGifPicker
@@ -40,7 +51,8 @@
         </svg>
       </button>
     </div>
-    <!-- Read-only state: user lacks SEND_MESSAGES on this channel.
+    <!-- Read-only state: user lacks SEND_MESSAGES on this channel, or
+         SEND_MESSAGES_IN_THREADS on a thread's channel.
          Backend RLS and triggers enforce it; this is UX, not security. -->
     <div v-if="!canSendMessages" class="message-readonly-banner" role="status">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
@@ -104,7 +116,9 @@
               :anchor="attachButtonRef"
               :menu-id="attachMenuId"
               :initial-focus="attachInitialFocus"
+              :allow-drive="driveEnabled"
               @files-selected="handleFilesSelected"
+              @pick-drive="openDrivePicker"
               @create-poll="handleCreatePoll"
               @close="closeUploadMenu"
             />
@@ -270,6 +284,10 @@ import PlusIcon from '@/components/icons/Plus.vue'
 import EmojiUI from '@/components/EmojiUI.vue'
 import MessageReply from '@/components/MessageReply.vue';
 import FilePreview from '@/components/FilePreview.vue';
+import DrivePickerModal from '@/components/drive/DrivePickerModal.vue';
+import { driveAvailable, setDriveTemporary, type DriveFile } from '@/services/drive/driveService';
+import { useDriveUsage } from '@/composables/useDriveUsage';
+import { compatUrlFor } from '@/services/privateMedia';
 import FileUploadMenu from '@/components/FileUploadMenu.vue';
 import AutoSuggest from '@/components/AutoSuggest.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
@@ -309,6 +327,8 @@ interface Props {
   username?: string;
   channelId?: string;
   threadId?: string;
+  /** The thread's channel; SEND_MESSAGES_IN_THREADS there gates the thread composer. */
+  threadChannelId?: string;
   conversationId?: string;
   /** Room of uploaded attachments ('c/<channel id>' or 'd/<conversation id>'); derived from
       channelId or conversationId when absent. */
@@ -323,6 +343,8 @@ interface Props {
   backgroundSend?: boolean;
   /** The + menu offers Create poll; the parent handles `createPoll`. */
   allowPolls?: boolean;
+  /** Messages of this room are encrypted: uploads carry no file name to Drive. */
+  encryptedRoom?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -333,6 +355,7 @@ const props = withDefaults(defineProps<Props>(), {
   serverId: undefined,
   backgroundSend: false,
   allowPolls: false,
+  encryptedRoom: false,
 });
 
 // Placeholder target: DM username or channel name.
@@ -467,7 +490,10 @@ watch(() => props.channelId, () => {
 });
 
 async function refreshSendPermission() {
-  if (!props.channelId || props.conversationId) {
+  // A thread message needs SEND_MESSAGES_IN_THREADS, as messages_insert_member.
+  const channelId = props.threadId ? props.threadChannelId : props.channelId;
+  const sendPermission = props.threadId ? Permission.SEND_MESSAGES_IN_THREADS : Permission.SEND_MESSAGES;
+  if (!channelId || props.conversationId) {
     canSendMessages.value = true;
     slowmodeExempt.value = true;
     return;
@@ -481,8 +507,8 @@ async function refreshSendPermission() {
   isResolvingPermissions.value = true;
   try {
     const [allowed, canManage] = await Promise.all([
-      roleService.hasPermission(userId, serverId, Permission.SEND_MESSAGES, props.channelId),
-      roleService.hasPermission(userId, serverId, Permission.MANAGE_MESSAGES, props.channelId),
+      roleService.hasPermission(userId, serverId, sendPermission, channelId),
+      roleService.hasPermission(userId, serverId, Permission.MANAGE_MESSAGES, channelId),
     ]);
     canSendMessages.value = allowed;
     slowmodeExempt.value = canManage;
@@ -496,13 +522,14 @@ async function refreshSendPermission() {
 }
 
 watch(
-  () => [props.channelId, authStore.session?.user?.id, serverChannelStore.currentServerId],
+  () => [props.channelId, props.threadId, props.threadChannelId, authStore.session?.user?.id, serverChannelStore.currentServerId],
   () => { void refreshSendPermission(); },
   { immediate: true },
 );
 
 const readOnlyPlaceholder = computed(() => {
   if (isResolvingPermissions.value) return 'Checking permissions...';
+  if (props.threadId) return 'You do not have permission to send messages in this thread.';
   return 'You do not have permission to send messages in this channel.';
 });
 
@@ -717,6 +744,7 @@ const autoSuggest = useAutoSuggest(richEditorRef, getCurrentText, updateText, {
   mode: 'chat',
   enableChannels: !!props.channelId && !props.conversationId,
   pollsEnabled: () => props.allowPolls,
+  channelId: () => (props.conversationId ? null : props.channelId),
 });
 
 // The editor carries no aria-expanded (role=textbox); the list opening and its
@@ -1053,11 +1081,14 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
         return;
       }
 
+      const sentTemporary = !!fileData.temporary;
       const upload = markRaw(startMessageMediaUpload(
         messageMediaPath(room, uploaderId, fileData.file.name),
         fileData.file,
         {
           validate: true,
+          name: props.encryptedRoom ? undefined : fileData.name,
+          ephemeral: sentTemporary,
           onProgress: (fraction) => {
             if (!isAttached(fileData)) return;
             const before = Math.floor((fileData.uploadProgress ?? 0) / 25);
@@ -1080,6 +1111,11 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
           fileData.uploadedUrl = uploaded.url;
           fileData.uploadedPath = uploaded.path;
           fileData.uploadProgress = 100;
+          fileData.reused = !!uploaded.reused;
+          if (uploaded.reused) fileData.temporary = false;
+          // The toggle moved while the bytes were on their way.
+          else if (!!fileData.temporary !== sentTemporary) void applyTemporary(fileData);
+          void refreshDriveUsage(true);
           if (isAttached(fileData)) polite(t('messageA11y.upload.done', { name: fileData.name }));
         },
         (error: unknown) => {
@@ -1125,6 +1161,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       const newFiles = await Promise.all(filesToAdd.map(createFilePreview));
 
       attachedFiles.value.push(...newFiles);
+      void refreshDriveUsage();
       emit('files-attached', attachedFiles.value);
       if (newFiles.length > 0) polite(t('messageA11y.upload.attached', { count: newFiles.length }, newFiles.length));
       
@@ -1140,6 +1177,66 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
       if (file) file.name = toggleSpoilerFileName(file.name);
     };
 
+    const driveEnabled = ref(false);
+    const { usage: driveUsage, full: driveFull, refresh: refreshDriveUsage } = useDriveUsage();
+    const showDrivePicker = ref(false);
+
+    const applyTemporary = async (fileData: FilePreviewData) => {
+      if (!fileData.uploadedPath) return;
+      try {
+        await setDriveTemporary([fileData.uploadedPath], !!fileData.temporary);
+      } catch (error) {
+        fileData.temporary = !fileData.temporary;
+        assertive(t('drive.errors.temporary', { reason: error instanceof Error ? error.message : '' }));
+      }
+    };
+
+    const toggleFileTemporary = (index: number) => {
+      const file = attachedFiles.value[index];
+      if (!file || file.reused || file.fromDrive) return;
+      file.temporary = !file.temporary;
+      polite(file.temporary ? t('drive.composer.markedTemporary', { name: file.name }) : t('drive.composer.markedKept', { name: file.name }));
+      if (file.uploadStatus === 'completed') void applyTemporary(file);
+    };
+
+    const openDrivePicker = () => {
+      closeUploadMenu();
+      showDrivePicker.value = true;
+    };
+
+    const attachFromDrive = async (files: DriveFile[]) => {
+      showDrivePicker.value = false;
+      const capacity = Math.max(0, maxMediaAttachments.value - attachedFiles.value.length);
+      const picked = files.filter((f) => f.bucket === 'message_media').slice(0, capacity);
+      const entries = await Promise.all(picked.map(async (f): Promise<FilePreviewData> => {
+        const name = f.name || f.path.split('/').pop() || 'file';
+        const type = f.mime_type || 'application/octet-stream';
+        const url = await compatUrlFor(f.path);
+        return {
+          file: new File([], name, { type }),
+          name,
+          size: f.size_bytes,
+          type,
+          preview: type.startsWith('image/') || type.startsWith('video/') ? url : undefined,
+          uploadStatus: 'completed',
+          uploadProgress: 100,
+          uploadedUrl: url,
+          uploadedPath: f.path,
+          fromDrive: true,
+        };
+      }));
+      if (entries.length === 0) return;
+      attachedFiles.value.push(...entries);
+      emit('files-attached', attachedFiles.value);
+      polite(t('messageA11y.upload.attached', { count: entries.length }, entries.length));
+    };
+
+    onMounted(() => {
+      void driveAvailable().then((ok) => {
+        driveEnabled.value = ok;
+      });
+    });
+
     const setFileAltText = (index: number, altText: string) => {
       const file = attachedFiles.value[index];
       if (!file) return;
@@ -1150,7 +1247,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     const removeFile = (index: number) => {
       const removedFile = attachedFiles.value[index];
 
-      if (removedFile.preview) {
+      if (removedFile.preview && !removedFile.fromDrive) {
         URL.revokeObjectURL(removedFile.preview);
       }
       removedFile.upload?.abort();

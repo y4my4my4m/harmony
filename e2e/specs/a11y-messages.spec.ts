@@ -9,11 +9,11 @@
 // alt text and open by keyboard. Arriving messages are announced through the
 // polite live region. axe runs on each of these screens.
 //
-// The stack has no storage and no realtime:
+// The stack has no realtime:
 // - image descriptions are rendered from message rows written as the member
 //   (proving the message guards accept `altText` on a file part); the composer
-//   half is checked up to the attachment's description, uploads fail there and
-//   the send path is covered by unit tests (MessageInput.altText, useOutbox.altText);
+//   half is checked up to the attachment's description, and the send path is
+//   covered by unit tests (MessageInput.altText, useOutbox.altText);
 // - an arriving message is inserted with the admin client and handed to the chat
 //   store through addMessageToCache, the entry point the realtime INSERT handler
 //   calls.
@@ -34,6 +34,7 @@ import {
   type SpecUser,
 } from './harness'
 import { expectNoAxeViolations } from './a11y'
+import { announced, recordAnnouncements } from './a11y-keyboard'
 
 const admin = adminClient()
 let owner: SpecUser
@@ -197,6 +198,22 @@ test('messages read in order with author and time; arrows move between them', as
     await page.keyboard.press('Escape')
     await expect(menu).toBeHidden()
     await expect(row).toBeFocused()
+  })
+
+  await test.step('a right-click opens the message menu at the pointer', async () => {
+    const text = rowOf(page, 'Coffee is ready').getByText('Coffee is ready')
+    const box = (await text.boundingBox())!
+    const x = Math.round(box.x + box.width - 4)
+    const y = Math.round(box.y + box.height / 2)
+    await page.mouse.click(x, y, { button: 'right' })
+    const menu = page.getByRole('menu', { name: 'Message options' })
+    await expect(menu).toBeVisible()
+    // Placed at the pointer, unless the viewport edge pushes it back.
+    const placed = (await menu.boundingBox())!
+    expect(Math.abs(placed.x - x)).toBeLessThanOrEqual(24)
+    expect(Math.abs(placed.y - y)).toBeLessThanOrEqual(24)
+    await page.keyboard.press('Escape')
+    await expect(menu).toBeHidden()
   })
 
   await test.step('a pointer click leaves the action bar to hover', async () => {
@@ -443,6 +460,7 @@ test('image descriptions: rendered as alt text, kept on attachments, lightbox by
   })
 
   await test.step('an attached image takes a description in a labelled field', async () => {
+    await recordAnnouncements(page)
     await page.locator('[data-testid="composer-file-input"]').setInputFiles({
       name: 'holiday.png',
       mimeType: 'image/png',
@@ -450,9 +468,10 @@ test('image descriptions: rendered as alt text, kept on attachments, lightbox by
     })
     const item = page.locator('[data-testid="file-preview-item"]').filter({ hasText: 'holiday.png' })
     await expect(item).toBeVisible()
-    await expect(announcer(page)).toHaveText(/1 file attached/)
-    // No storage on the stack: the upload fails, and says so.
-    await expect(page.getByTestId('live-announcer-assertive')).toHaveText(/holiday.png failed to upload/, { timeout: 15000 })
+    await expect(item).toContainText('Uploaded', { timeout: 15000 })
+    await expect.poll(() => announced(page)).toEqual(
+      expect.arrayContaining([expect.stringMatching(/1 file attached/), expect.stringMatching(/holiday\.png uploaded/)]),
+    )
     const describe = item.getByRole('button', { name: 'Add a description to holiday.png' })
     await describe.focus()
     await page.keyboard.press('Enter')

@@ -47,6 +47,8 @@ vi.mock('@/stores/useServerChannel', () => ({
   useServerChannelStore: () => serverChannelStore,
 }))
 vi.mock('@/stores/useActivityPub', () => ({ useActivityPubStore: () => ({}) }))
+vi.mock('@/stores/useDM', () => ({ useDMStore: () => ({ conversations: [] }) }))
+vi.mock('@/stores/useProfile', () => ({ useProfileStore: () => ({ profile: { id: 'me' } }) }))
 vi.mock('@/stores/usePublicServers', () => ({
   usePublicServersStore: () => ({ fetchPublicServers: vi.fn() }),
 }))
