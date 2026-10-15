@@ -2,9 +2,11 @@ name: Stream audio capture
 
 # harmony-stream-audio's probe on real macOS and Windows runners with a virtual sound card. Each
 # case plays a 440 Hz tone from the source under test and, for app and window scope, a 1 kHz
-# distractor from an unrelated process; the probe must hear the tone at its pitch. Window cases
-# go through the label the app gets from getDisplayMedia (WebKit: the title; WebView2: the HWND).
-# Every case runs; the job fails when any did.
+# distractor from an unrelated app; the probe must hear the tone at its pitch, and a check
+# proves the distractor audible. Window cases go through the label the app gets from
+# getDisplayMedia (WebKit: the title; WebView2: the HWND). Every case runs; the job fails when
+# any did. macOS sources are app bundles launched through LaunchServices, so each is its own
+# responsible process, as an app the user opens is; afplay playing a WAV reads as silence there.
 on:
   pull_request:
     paths:
@@ -45,10 +47,8 @@ jobs:
           sw_vers
           system_profiler SPAudioDataType | grep -E '^ {8}[^ ]|Default Output' || true
           ls /Applications
-          for hz in 440 1000; do
-            python3 "$CI_DIR/tone.py" $hz 1 "$RUNNER_TEMP/tone-$hz.wav"
-            python3 "$CI_DIR/tone.py" $hz 40 "$RUNNER_TEMP/tone-$hz-long.wav"
-          done
+          for hz in 440 1000; do python3 "$CI_DIR/tone.py" $hz 1 "$RUNNER_TEMP/tone-$hz.wav"; done
+          python3 "$CI_DIR/tone.py" 440 10 "$RUNNER_TEMP/tone-440-long.wav"
           cp "$CI_DIR/tone.html" "$RUNNER_TEMP/"
           app="$RUNNER_TEMP/ToneWindow.app"
           mkdir -p "$app/Contents/MacOS"
@@ -65,9 +65,13 @@ jobs:
           </dict></plist>
           PLIST
           codesign --force -s - "$app"
+          dist="$RUNNER_TEMP/Distractor.app"
+          mkdir -p "$dist/Contents/MacOS"
+          cp "$app/Contents/MacOS/ToneWindow" "$dist/Contents/MacOS/Distractor"
+          sed -e 's/probe\.tonewindow/probe.distractor/' -e 's/>ToneWindow</>Distractor</g' \
+            "$app/Contents/Info.plist" > "$dist/Contents/Info.plist"
+          codesign --force -s - "$dist"
 
-      # ToneWindow is launched through LaunchServices, so it is its own responsible process, as
-      # an app the user opens is. afplay and the probe share the runner's responsibility.
       - name: System scope (macOS)
         if: ${{ !cancelled() && runner.os == 'macOS' }}
         working-directory: src-tauri
@@ -78,16 +82,14 @@ jobs:
           pkill -x ToneWindow || true
           echo "probe exit $code"; exit $code
 
-      - name: System scope, afplay (macOS, diagnostic)
+      - name: Distractor audible (macOS)
         if: ${{ !cancelled() && runner.os == 'macOS' }}
-        continue-on-error: true
         working-directory: src-tauri
         run: |
-          afplay "$RUNNER_TEMP/tone-440-long.wav" & player=$!
-          ( for _ in $(seq 1 10); do afplay /System/Library/Sounds/Submarine.aiff || true; done ) & loop=$!
-          sleep 1
-          code=0; target/debug/examples/probe system || code=$?
-          kill $player $loop 2>/dev/null || true; pkill -x afplay || true
+          open -n "$RUNNER_TEMP/Distractor.app" --args native "Harmony probe distractor" "$RUNNER_TEMP/tone-1000.wav"
+          sleep 4
+          code=0; target/debug/examples/probe --expect-hz 1000 window "Harmony probe distractor" || code=$?
+          pkill -x Distractor || true
           echo "probe exit $code"; exit $code
 
       - name: App scope by pid (macOS)
@@ -95,36 +97,35 @@ jobs:
         working-directory: src-tauri
         run: |
           open -n "$RUNNER_TEMP/ToneWindow.app" --args native "Harmony probe app" "$RUNNER_TEMP/tone-440.wav"
-          afplay "$RUNNER_TEMP/tone-1000-long.wav" & distractor=$!
+          open -n "$RUNNER_TEMP/Distractor.app" --args native "Harmony probe distractor" "$RUNNER_TEMP/tone-1000.wav"
           sleep 4
           pid=$(pgrep -n -x ToneWindow)
           code=0; target/debug/examples/probe --expect-hz 440 app "$pid" || code=$?
-          pkill -x ToneWindow || true; kill $distractor 2>/dev/null || true
+          pkill -x ToneWindow || true; pkill -x Distractor || true
           echo "probe exit $code"; exit $code
 
-      # A process without a window-server connection is no SCRunningApplication, so an
-      # including content filter cannot name it.
-      - name: App scope, afplay by pid (macOS, diagnostic)
+      # A process without a window-server connection is no SCRunningApplication, so an including
+      # content filter cannot name it: the target falls back to the whole system (exit 3).
+      - name: App scope, afplay by pid falls back (macOS)
         if: ${{ !cancelled() && runner.os == 'macOS' }}
-        continue-on-error: true
         working-directory: src-tauri
         run: |
           afplay "$RUNNER_TEMP/tone-440-long.wav" & player=$!
           sleep 1
           target/debug/examples/probe list afplay
-          code=0; target/debug/examples/probe --seconds 3 app $player || code=$?
+          code=0; target/debug/examples/probe --seconds 2 app $player || code=$?
           kill $player 2>/dev/null || true
-          echo "probe exit $code"; exit $code
+          echo "probe exit $code"; test $code = 3
 
       - name: Window scope, native player (macOS)
         if: ${{ !cancelled() && runner.os == 'macOS' }}
         working-directory: src-tauri
         run: |
           open -n "$RUNNER_TEMP/ToneWindow.app" --args native "Harmony probe window" "$RUNNER_TEMP/tone-440.wav"
-          afplay "$RUNNER_TEMP/tone-1000-long.wav" & distractor=$!
+          open -n "$RUNNER_TEMP/Distractor.app" --args native "Harmony probe distractor" "$RUNNER_TEMP/tone-1000.wav"
           sleep 4
           code=0; target/debug/examples/probe --expect-hz 440 window "Harmony probe window" || code=$?
-          pkill -x ToneWindow || true; kill $distractor 2>/dev/null || true
+          pkill -x ToneWindow || true; pkill -x Distractor || true
           echo "probe exit $code"; exit $code
 
       # WebKit renders the page's audio in its GPU process, an XPC service of the host app.
@@ -133,11 +134,11 @@ jobs:
         working-directory: src-tauri
         run: |
           open -n "$RUNNER_TEMP/ToneWindow.app" --args webkit "Harmony probe webkit" "$RUNNER_TEMP/tone.html"
-          afplay "$RUNNER_TEMP/tone-1000-long.wav" & distractor=$!
+          open -n "$RUNNER_TEMP/Distractor.app" --args native "Harmony probe distractor" "$RUNNER_TEMP/tone-1000.wav"
           sleep 6
           target/debug/examples/probe list WebKit
           code=0; target/debug/examples/probe --expect-hz 440 window "Harmony probe webkit" || code=$?
-          pkill -x ToneWindow || true; kill $distractor 2>/dev/null || true
+          pkill -x ToneWindow || true; pkill -x Distractor || true
           echo "probe exit $code"; exit $code
 
       # The tester's case: a browser window whose page plays audio. Chrome renders it in its
@@ -165,11 +166,11 @@ jobs:
             ps -axo pid,ppid,etime,comm | grep -iE 'chrome|/open$|CoreServicesUIAgent|syspolicyd' | grep -v grep || true
             echo "::error::no Chrome window titled Harmony probe tone"; exit 1
           fi
-          afplay "$RUNNER_TEMP/tone-1000-long.wav" & distractor=$!
-          sleep 3
+          open -n "$RUNNER_TEMP/Distractor.app" --args native "Harmony probe distractor" "$RUNNER_TEMP/tone-1000.wav"
+          sleep 4
           target/debug/examples/probe list Chrome
           code=0; target/debug/examples/probe --expect-hz 440 window "Harmony probe tone" || code=$?
-          pkill -x "Google Chrome" || true; kill $distractor 2>/dev/null || true
+          pkill -x "Google Chrome" || true; pkill -x Distractor || true
           echo "probe exit $code"; exit $code
 
       - name: Screen at failure (macOS)
@@ -200,10 +201,25 @@ jobs:
           $play = "`$p = New-Object Media.SoundPlayer '$wav'; `$p.PlayLooping(); Start-Sleep 30"
           $player = Start-Process powershell -PassThru -WindowStyle Hidden -ArgumentList '-NoProfile', '-Command', $play
           Start-Sleep 2
-          target\debug\examples\probe.exe system
+          target\debug\examples\probe.exe --expect-hz 440 system
           $code = $LASTEXITCODE
           Write-Host ("probe exit {0} (0x{0:X8})" -f $code)
           Stop-Process -Id $player.Id -ErrorAction SilentlyContinue
+          exit $code
+
+      - name: Distractor audible (Windows)
+        if: ${{ !cancelled() && runner.os == 'Windows' }}
+        working-directory: src-tauri
+        shell: pwsh
+        run: |
+          $other = Join-Path $env:RUNNER_TEMP 'tone-1000.wav'
+          $play = "`$p = New-Object Media.SoundPlayer '$other'; `$p.PlayLooping(); Start-Sleep 30"
+          $distractor = Start-Process powershell -PassThru -WindowStyle Hidden -ArgumentList '-NoProfile', '-Command', $play
+          Start-Sleep 2
+          target\debug\examples\probe.exe --expect-hz 1000 app $distractor.Id
+          $code = $LASTEXITCODE
+          Write-Host ("probe exit {0} (0x{0:X8})" -f $code)
+          Stop-Process -Id $distractor.Id -ErrorAction SilentlyContinue
           exit $code
 
       - name: Window scope, native player (Windows)
