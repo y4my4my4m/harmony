@@ -444,6 +444,13 @@ test('DM list: a row is a link, Enter opens it; dismiss is a separate button and
   })
 
   await test.step('dismissing leaves an Undo that takes focus; Enter on it restores the row', async () => {
+    // The dismiss request is held back so the Undo's request is sent while it is in flight:
+    // the server must still end up with the conversation shown.
+    const rpc = '**/rest/v1/rpc/set_conversation_hidden'
+    await page.route(rpc, async (route) => {
+      if (route.request().postDataJSON()?.p_hidden === true) await new Promise((r) => setTimeout(r, 1500))
+      await route.continue()
+    })
     await page.keyboard.press('Enter')
     await expect(ownerLink).toHaveCount(0)
     const undo = list.getByRole('button', { name: 'Undo' })
@@ -461,6 +468,15 @@ test('DM list: a row is a link, Enter opens it; dismiss is a separate button and
         .single()
       return data?.hidden_at ?? null
     }, { timeout: 15000 }).toBeNull()
+    await page.waitForTimeout(2000)
+    const { data: settled } = await admin
+      .from('conversation_participants')
+      .select('hidden_at')
+      .eq('conversation_id', conversation.owner)
+      .eq('user_id', reader.id)
+      .single()
+    expect(settled?.hidden_at ?? null).toBeNull()
+    await page.unroute(rpc)
   })
 
   await test.step('a dismissal left alone persists', async () => {

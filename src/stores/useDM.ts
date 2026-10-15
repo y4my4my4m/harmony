@@ -1798,10 +1798,7 @@ export const useDMStore = defineStore('dm', () => {
         // no-op when the conversation is not hidden.
         const existing = conversations.value.find(c => c.id === conversationId)
         if (existing?.hidden_at) existing.hidden_at = null
-        void supabase.rpc('set_conversation_hidden', {
-          p_conversation_id: conversationId,
-          p_hidden: false,
-        }).then(({ error }) => {
+        void setConversationHidden(conversationId, false).then(({ error }) => {
           if (error) debug.warn('Failed to clear hidden flag on reopen:', error)
         })
 
@@ -1832,6 +1829,22 @@ export const useDMStore = defineStore('dm', () => {
     }
   }
 
+  // set_conversation_hidden per conversation, in call order: an Undo sent while its
+  // dismiss is in flight would otherwise reach the server first and be overwritten.
+  const hiddenWrites = new Map<string, Promise<unknown>>()
+  const setConversationHidden = (conversationId: string, hidden: boolean) => {
+    const previous = hiddenWrites.get(conversationId) ?? Promise.resolve()
+    const write = previous
+      .catch(() => undefined)
+      .then(() => supabase.rpc('set_conversation_hidden', { p_conversation_id: conversationId, p_hidden: hidden }))
+    hiddenWrites.set(conversationId, write)
+    const forget = () => {
+      if (hiddenWrites.get(conversationId) === write) hiddenWrites.delete(conversationId)
+    }
+    write.then(forget, forget)
+    return write
+  }
+
   /**
    * Hides a conversation from the current user's DM list without deleting it or
    * leaving. It stays hidden until reopened or a newer message arrives. Removal
@@ -1845,10 +1858,7 @@ export const useDMStore = defineStore('dm', () => {
     }
 
     try {
-      const { error } = await supabase.rpc('set_conversation_hidden', {
-        p_conversation_id: conversationId,
-        p_hidden: true,
-      })
+      const { error } = await setConversationHidden(conversationId, true)
       if (error) throw error
       return true
     } catch (error) {
@@ -1870,10 +1880,7 @@ export const useDMStore = defineStore('dm', () => {
       conversations.value.push({ ...conversation, hidden_at: null })
     }
     try {
-      const { error } = await supabase.rpc('set_conversation_hidden', {
-        p_conversation_id: conversation.id,
-        p_hidden: false,
-      })
+      const { error } = await setConversationHidden(conversation.id, false)
       if (error) throw error
       return true
     } catch (error) {
