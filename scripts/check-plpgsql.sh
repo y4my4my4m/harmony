@@ -24,6 +24,10 @@
 # `record "new" has no field "message_id"` - true of follows and post_interactions, and
 # irrelevant, because the reference sits inside its `TG_TABLE_NAME = 'reactions'` arm.
 #
+# A statement trigger's transition tables (REFERENCING OLD/NEW TABLE) are passed by name;
+# each distinct pair counts as one more variant under the every-variant rule, so a body that
+# reads old_rows only in its UPDATE and DELETE arms passes for the INSERT trigger.
+#
 # A trigger function with no trigger attached cannot be checked at all and is reported as
 # skipped rather than passed.
 set -euo pipefail
@@ -81,23 +85,23 @@ WITH fns AS (
    WHERE n.nspname = 'public' AND l.lanname = 'plpgsql'
 ),
 rel AS (
-  SELECT f.oid, t.tgrelid
+  SELECT f.oid, t.tgrelid, t.tgoldtable, t.tgnewtable
     FROM fns f
     JOIN pg_trigger t ON t.tgfoid = f.oid AND NOT t.tgisinternal
    WHERE f.is_trig
-   GROUP BY f.oid, t.tgrelid
+   GROUP BY f.oid, t.tgrelid, t.tgoldtable, t.tgnewtable
 ),
 nrel AS (SELECT oid, count(*) AS n FROM rel GROUP BY oid),
 checks AS (
-  SELECT f.oid, 0::oid AS relid, 1::bigint AS n FROM fns f WHERE NOT f.is_trig
+  SELECT f.oid, 0::oid AS relid, NULL::name AS oldt, NULL::name AS newt, 1::bigint AS n FROM fns f WHERE NOT f.is_trig
   UNION ALL
-  SELECT r.oid, r.tgrelid, nr.n FROM rel r JOIN nrel nr ON nr.oid = r.oid
+  SELECT r.oid, r.tgrelid, r.tgoldtable, r.tgnewtable, nr.n FROM rel r JOIN nrel nr ON nr.oid = r.oid
 ),
 res AS (
   SELECT c.oid, c.n, k.sqlstate, k.message,
          count(*) OVER (PARTITION BY c.oid, k.sqlstate, k.message) AS hits
     FROM checks c
-    CROSS JOIN LATERAL plpgsql_check_function_tb(c.oid, c.relid) k
+    CROSS JOIN LATERAL plpgsql_check_function_tb(c.oid, c.relid, oldtable => c.oldt, newtable => c.newt) k
    WHERE k.level = 'error'
 )
 SELECT DISTINCT oid::regprocedure::text, sqlstate, message
@@ -124,7 +128,8 @@ log "$checked plpgsql functions; $skipped trigger function(s) carry no trigger a
 
 sort -o /tmp/plpgsql_found.tsv /tmp/plpgsql_found.tsv
 if [ -r "$EXPECTED" ]; then
-  grep -v '^#' "$EXPECTED" | grep -v '^[[:space:]]*$' | sort > /tmp/plpgsql_expected.tsv
+  # grep exits 1 on a census with no entries; pipefail would end the script there.
+  { grep -v '^#' "$EXPECTED" | grep -v '^[[:space:]]*$' || true; } | sort > /tmp/plpgsql_expected.tsv
 else
   : > /tmp/plpgsql_expected.tsv
 fi
