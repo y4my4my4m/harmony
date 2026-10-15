@@ -189,6 +189,7 @@ create_federated_profile	p_username text, p_display_name text, p_domain text, p_
 create_federated_report	p_ap_id text, p_actor text, p_source_domain text, p_reported_user_id uuid, p_post_ids uuid[], p_comment text, p_object_uris text[]	jsonb	definer	public, pg_temp	service_role	client
 create_group_conversation	p_creator_user_id uuid, p_participant_ids uuid[], p_conversation_name text, p_is_private boolean	uuid	definer	public, extensions, pg_temp	anon+authenticated+service_role	client
 create_message_poll	p_channel_id uuid, p_conversation_id uuid, p_question text, p_options text[], p_allow_multiple boolean, p_duration_hours integer, p_reply_to uuid	jsonb	invoker	public, pg_temp	authenticated+service_role	client
+create_my_emoji	p_name text, p_path text, p_url text	emojis	definer	public, pg_temp	authenticated+service_role	client
 create_notification_preferences		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 create_notification_structured	p_user_id uuid, p_type character varying, p_data jsonb	uuid	definer	public, pg_temp	service_role	unreferenced
 create_notification_with_spam_prevention	p_user_id uuid, p_type text, p_source_user_id uuid, p_title text, p_message text, p_data jsonb, p_server_id uuid, p_channel_id uuid, p_conversation_id uuid	uuid	definer	public, extensions, pg_temp	service_role	unreferenced
@@ -313,9 +314,12 @@ enforce_channel_category_scope		trigger	definer	public, pg_temp	service_role	tri
 enforce_channel_message_encryption		trigger	invoker	public, extensions, pg_temp	service_role	trigger
 enforce_channel_slowmode		trigger	definer	public, pg_temp	anon+authenticated+service_role	client
 enforce_force_sensitive		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
+enforce_message_attach_files		trigger	invoker	public, pg_temp	service_role	trigger
 enforce_message_length		trigger	invoker	public, pg_temp	anon+authenticated+service_role	client
 enforce_message_reply_scope		trigger	definer	public, pg_temp	service_role	trigger
+enforce_personal_emoji_limit		trigger	definer	public, pg_temp	service_role	trigger
 enforce_post_length		trigger	invoker	public, pg_temp	service_role	client
+enforce_reaction_add_permission		trigger	invoker	public, pg_temp	service_role	trigger
 enforce_request_assurance		void	definer	pg_catalog, public, pg_temp	anon+authenticated+service_role	unreferenced
 enforce_server_rules_acceptance		trigger	definer	public, pg_temp	service_role	trigger
 enforce_server_sound_limit		trigger	definer	public, pg_temp	service_role	trigger
@@ -514,7 +518,7 @@ kick_server_member	p_server_id uuid, p_user_id uuid, p_reason text, p_delete_mes
 list_channel_webhooks	p_channel_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	client
 list_my_sessions		TABLE(id uuid, created_at timestamp with time zone, last_active_at timestamp with time zone, user_agent text, ip text, aal text, is_current boolean, push_transports text[])	definer	pg_catalog, public, pg_temp	authenticated+service_role	client
 list_server_webhooks	p_server_id uuid	jsonb	definer	public, pg_temp	authenticated+service_role	unreferenced
-list_soundboard_library		TABLE(id uuid, server_id uuid, server_name text, server_icon text, name text, emoji text, volume numeric, duration_ms integer, storage_path text, created_at timestamp with time zone)	definer	public, pg_temp	authenticated+service_role	client
+list_soundboard_library		TABLE(id uuid, server_id uuid, server_name text, server_icon text, name text, emoji text, emoji_id uuid, emoji_name text, emoji_url text, volume numeric, duration_ms integer, storage_path text, created_at timestamp with time zone)	definer	public, pg_temp	authenticated+service_role	client
 lock_managed_channel_webhook	p_id uuid	channel_webhooks	invoker	public, pg_temp	service_role	unreferenced
 log_admin_action	p_admin_id uuid, p_action_type text, p_target_type text, p_target_id text, p_action_details jsonb, p_ip_address inet, p_user_agent text	uuid	definer	public, pg_temp	service_role	unreferenced
 log_key_generation		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
@@ -536,10 +540,12 @@ message_media_reported	p_name text	boolean	definer	public, pg_temp	authenticated
 message_notification_sender_json	p_user_id uuid, p_bot_id uuid, p_metadata jsonb, p_sender_profile profiles	jsonb	invoker	public, pg_temp	anon+authenticated+service_role	unreferenced
 message_poll_target_encrypted	p_channel_id uuid, p_conversation_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	unreferenced
 message_search_flags	p_message messages, OUT has_media boolean, OUT has_url boolean, OUT has_image boolean, OUT has_video boolean, OUT has_audio boolean, OUT has_embed boolean, OUT is_pinned boolean, OUT mentioned_user_ids uuid[]	record	invoker	public, extensions, pg_temp	service_role	unreferenced
+message_upload_paths	p_content jsonb, p_media_paths text[]	text[]	invoker	public, pg_temp	authenticated+service_role	unreferenced
 mfa_enabled_for	p_auth_user_id uuid	boolean	definer	pg_catalog, public, pg_temp	service_role	unreferenced
 migrate_account_followers	p_migration_id uuid, p_limit integer	integer	definer	pg_catalog, public, pg_temp	service_role	client
 moderate_report	p_report_id uuid, p_action text, p_note text, p_reason text, p_show_resolver boolean	jsonb	definer	public, pg_temp	authenticated+service_role	client
 moderate_user	p_admin_id uuid, p_target_user_id uuid, p_action text, p_reason text	boolean	definer	public, pg_temp	authenticated+service_role	client
+nodeinfo_active_users	p_since timestamp with time zone	bigint	definer	pg_catalog, public, pg_temp	service_role	client
 normalize_embed_url	p_url text	text	invoker	public, extensions, pg_temp	anon+authenticated+service_role	unreferenced
 normalize_recovery_code	p_code text	text	invoker	pg_catalog, pg_temp	service_role	unreferenced
 notification_actor_json	p profiles	jsonb	invoker	public, pg_temp	anon+authenticated+service_role	unreferenced
@@ -556,6 +562,7 @@ on_auth_password_changed		trigger	definer	pg_catalog, public, pg_temp	service_ro
 on_auth_session_created		trigger	definer	pg_catalog, public, pg_temp	service_role	trigger
 on_auth_session_deleted		trigger	definer	pg_catalog, public, pg_temp	service_role	trigger
 permission_bit_names		text[]	invoker	public, pg_temp	authenticated+service_role	unreferenced
+personal_emoji_limit		integer	invoker	public, pg_temp	authenticated+service_role	client
 pin_message	p_message_id uuid, p_user_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	client
 populate_reaction_context		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 post_group_conversation_notice	p_conversation_id uuid, p_added_user_ids uuid[]	uuid	definer	public, pg_temp	authenticated+service_role	client
@@ -623,7 +630,7 @@ reset_my_encryption_identity		void	definer	public, pg_temp	anon+authenticated+se
 reset_unread_on_join		trigger	definer	public, pg_temp	service_role	trigger
 reset_user_encryption	p_user_id uuid, p_device_id text	jsonb	definer	public, pg_temp	service_role	unreferenced
 resolve_mention_profile_id	p_part jsonb, p_sender_user_id uuid, p_current_domain text	uuid	invoker	public, pg_temp	anon+authenticated+service_role	unreferenced
-resolve_soundboard_sound	p_sound_id uuid, p_server_id uuid	TABLE(id uuid, server_id uuid, name text, emoji text, volume numeric, duration_ms integer, storage_path text)	definer	public, pg_temp	authenticated+service_role	client
+resolve_soundboard_sound	p_sound_id uuid, p_server_id uuid	TABLE(id uuid, server_id uuid, name text, emoji text, emoji_id uuid, emoji_name text, emoji_url text, volume numeric, duration_ms integer, storage_path text)	definer	public, pg_temp	authenticated+service_role	client
 review_suspicious_activity	p_id uuid, p_decision text, p_note text	jsonb	definer	public, pg_temp	authenticated+service_role	client
 revoke_device	p_device_id text	boolean	definer	public, pg_temp	authenticated+service_role	client
 revoke_my_session	p_session_id uuid	boolean	definer	public, pg_temp	authenticated+service_role	client
@@ -647,6 +654,7 @@ sanitize_server_text		trigger	invoker	public, extensions, pg_temp	anon+authentic
 sanitize_user_list_text		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 save_recovery_codes	p_user_id uuid, p_codes text[]	void	definer	pg_catalog, public, pg_temp	authenticated+service_role	unreferenced
 search_federated_users	p_query text, p_limit integer	TABLE(user_id uuid, username text, display_name text, domain text, avatar_url text, handle text, is_local boolean)	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client
+search_local_users	p_query text, p_limit integer	TABLE(id uuid, username text, display_name text, avatar_url text)	definer	public, pg_temp	authenticated+service_role	client
 search_messages	p_query text, p_channel_id uuid, p_channel_ids uuid[], p_user_id uuid, p_conversation_id uuid, p_server_id uuid, p_has_media boolean, p_has_url boolean, p_from_date timestamp with time zone, p_to_date timestamp with time zone, p_limit integer, p_offset integer, p_user_ids uuid[], p_mentioned_user_ids uuid[], p_has_image boolean, p_has_video boolean, p_has_audio boolean, p_has_embed boolean, p_pinned boolean, p_sort text, p_with_total boolean	TABLE(message_id uuid, relevance real, content_text text, channel_id uuid, conversation_id uuid, user_id uuid, created_at timestamp with time zone, server_id uuid, total_count bigint)	definer	public, pg_temp	authenticated+service_role	client
 seed_channel_encryption_on_insert		trigger	definer	public, extensions, pg_temp	service_role	trigger
 seed_channel_encryption_settings	p_channel_ids uuid[]	void	definer	public, extensions, pg_temp	service_role	unreferenced
@@ -799,6 +807,7 @@ voice_activity_control	p_channel uuid, p_action text, p_value jsonb	jsonb	define
 voice_activity_drop_share	p_share uuid	void	definer	public, pg_temp	service_role	unreferenced
 voice_activity_item	p_source text, p_item jsonb, p_profile uuid	jsonb	definer	public, pg_temp	service_role	unreferenced
 voice_activity_json	a voice_activities	jsonb	definer	public, pg_temp	service_role	unreferenced
+voice_activity_may_end	p_row voice_activities, p_profile uuid	boolean	definer	public, pg_temp	service_role	unreferenced
 voice_activity_participant	p_channel uuid	uuid	definer	public, pg_temp	service_role	unreferenced
 voice_activity_share	p_source text, p_item jsonb, p_channel uuid	uuid	definer	public, pg_temp	service_role	unreferenced
 voice_activity_start	p_channel uuid, p_source text, p_item jsonb	jsonb	definer	public, pg_temp	authenticated+service_role	client
