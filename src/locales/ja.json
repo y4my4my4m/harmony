@@ -306,7 +306,7 @@
     "addFirstEmoji": "最初のカスタム絵文字を追加して、サーバーをユニークにしましょう！",
     "allowCrossServer": "クロスサーバー絵文字を許可",
     "allowCrossServerDesc": "メンバーが他のサーバーの絵文字を使用できるようにする",
-    "emojiUploadRecommendation": "推奨：128×128px。最大：1 MB。形式：PNG、GIF、WebP、APNG、SVG、JPEG。",
+    "emojiUploadRecommendation": "推奨：128×128px。最大：1 MB。形式：PNG、GIF、WebP、APNG、JPEG。",
     "deleteEmoji": "絵文字を削除",
     "dangerZone": "危険ゾーン",
     "deleteServer": "サーバーを削除",
@@ -1463,6 +1463,10 @@
       "theme": "テーマ",
       "customTheme": "カスタムテーマカラー",
       "customThemeHelp": "アクセントカラーを選択してください。アプリは選択に基づいて完全なテーマを自動生成します。",
+      "communityPresets": "コミュニティのプリセット",
+      "communityPresetsHelp": "コミュニティが選んだテーマをすぐに適用できます。",
+      "showMorePresets": "さらに {count} 件表示",
+      "showFewerPresets": "表示を減らす",
       "themes": {
         "dark": "ダーク",
         "darkDesc": "目に優しいダークテーマ。",
@@ -2024,9 +2028,10 @@
     "myBotsDescription": "作成したボットを管理します",
     "myEmojis": {
       "title": "マイ絵文字",
-      "description": "あなたの個人絵文字です。絵文字ピッカーで AI 生成した絵文字も含まれます。メッセージはカスタム絵文字を名前で参照するため、名前の変更や削除の後、以前のメッセージには画像ではなく :name: のテキストが表示されます。",
+      "description": "あなたの個人絵文字です。ここでアップロードした絵文字と、絵文字ピッカーで AI 生成した絵文字が含まれます。どのサーバーや会話でも使えます。メッセージはカスタム絵文字を名前で参照するため、名前の変更や削除の後、以前のメッセージには画像ではなく :name: のテキストが表示されます。",
       "loading": "絵文字を読み込んでいます…",
-      "empty": "個人絵文字はまだありません。絵文字ピッカーで AI 生成した絵文字がここに表示されます。",
+      "empty": "個人絵文字はまだありません。アップロードするか、絵文字ピッカーで AI 生成してください。",
+      "uploadsOff": "このインスタンスでは個人絵文字が無効になっています。",
       "listLabel": "あなたの絵文字",
       "aiBadge": "AI",
       "aiGenerated": "AI 生成",
@@ -2618,6 +2623,7 @@
       "searchToAdd": "追加するユーザーを検索",
       "searchResultsLabel": "追加できるユーザー",
       "searchResults": "{count} 人のユーザーが見つかりました",
+      "searching": "検索中…",
       "add": "追加",
       "addNamed": "{name} を追加",
       "added": "追加済み",
@@ -2767,6 +2773,7 @@
   },
   "emoji": {
     "messageReactionLimit": "このメッセージには {count} 種類のリアクションがあります。既存のリアクションに追加してください。",
+    "reactionNotAllowed": "このチャンネルでは既存のリアクションにのみ追加できます。",
     "postReactionLimit": "この投稿に {count} 件のリアクションを付けています。追加するには1つ削除してください。",
     "search": "絵文字を検索...",
     "recent": "最近使った絵文字",
@@ -4121,6 +4128,7 @@
       "icon_url": "アイコン",
       "unicode_emoji": "絵文字",
       "emoji": "絵文字",
+      "emoji_id": "カスタム絵文字",
       "volume": "音量",
       "is_admin": "管理者ロール",
       "allow_permissions": "許可",
@@ -4787,11 +4795,14 @@
     },
     "instance": {
       "maxPostReactions": "投稿1件あたりの1人の最大リアクション数",
-      "maxPostReactionsHint": "1人が1つの投稿にリアクションできる絵文字の種類数（1〜100）。デフォルト：10。上限を超えて他のサーバーから届いたリアクションは破棄されます。チャットメッセージの絵文字は最大20種類です。"
+      "maxPostReactionsHint": "1人が1つの投稿にリアクションできる絵文字の種類数（1〜100）。デフォルト：10。上限を超えて他のサーバーから届いたリアクションは破棄されます。チャットメッセージの絵文字は最大20種類です。",
+      "maxPersonalEmojis": "ユーザーごとの個人絵文字数",
+      "maxPersonalEmojisHint": "各ユーザーが「設定 > マイ絵文字」に保持できる絵文字の数。アップロードと AI 生成の合計です（0〜1000）。デフォルト：50。0 にすると個人絵文字は無効になります。上限を下げても、既に超えている絵文字は残ります。"
     },
     "activityLog": {
       "configKeys": {
-        "maxPostReactionsPerUser": "投稿1件あたりの1人の最大リアクション数"
+        "maxPostReactionsPerUser": "投稿1件あたりの1人の最大リアクション数",
+        "maxPersonalEmojisPerUser": "ユーザーごとの個人絵文字数"
       }
     },
     "antiSpam": {
@@ -6050,6 +6061,9 @@
       "checking": "ファイルを確認しています…",
       "name": "名前",
       "emoji": "絵文字",
+      "chooseEmoji": "絵文字を選択",
+      "changeEmoji": "絵文字を変更（{emoji}）",
+      "clearEmoji": "絵文字を削除",
       "volume": "音量",
       "preview": "試聴",
       "upload": "サウンドをアップロード",
@@ -6073,6 +6087,7 @@
       "full": "このサーバーには上限の {max} 個のサウンドがあります。追加するには 1 つ削除してください。",
       "permission": "このサーバーのサウンドを管理する権限がありません。",
       "invalid": "サウンドが拒否されました。名前、絵文字、音量を確認してください。",
+      "emojiUnavailable": "この絵文字はサウンドに使えません。参加しているサーバーの絵文字、インスタンスの絵文字、または自分の絵文字を選んでください。",
       "load": "このサーバーのサウンドを読み込めませんでした。",
       "generic": "問題が発生しました。もう一度お試しください。"
     }
@@ -6294,7 +6309,7 @@
     "spotifyHint": "Harmony で Spotify にサインインしているリスナーはフルで再生され、それ以外の人にはプレビューが流れます。",
     "region": "アクティビティ",
     "open": "アクティビティを開く",
-    "hideForMe": "自分だけ停止",
+    "hideForMe": "退出",
     "startedBy": "{name} がアクティビティを開始しました",
     "join": "参加",
     "notNow": "あとで",
@@ -6349,6 +6364,20 @@
     "removeFile": "ファイルを削除",
     "removeAndBlock": "削除して再アップロードをブロック",
     "removed": "削除しました"
+  },
+  "share": {
+    "title": "Harmonyで共有",
+    "nothing": "共有されたものはありません。ほかのアプリからリンクやテキストを共有すると、ここから送信できます。",
+    "openHarmony": "Harmonyを開く",
+    "preview": "共有する内容",
+    "where": "送信先を選んでください",
+    "search": "会話とサーバーを検索",
+    "directMessages": "ダイレクトメッセージ",
+    "servers": "サーバー",
+    "loadingChannels": "チャンネルを読み込み中…",
+    "channelsFailed": "チャンネルを読み込めませんでした。",
+    "noChannels": "投稿できるチャンネルがありません。",
+    "noMatches": "検索に一致するものはありません。"
   },
   "drive": {
     "title": "Drive",
@@ -6531,6 +6560,9 @@
       "days": "{count} 日後 | {count} 日後",
       "people": "ユーザーと場所",
       "searchPeople": "このインスタンスのユーザーを追加",
+      "searching": "検索中…",
+      "noPeople": "このインスタンスに一致するユーザーはいません",
+      "searchFailed": "検索に失敗しました。もう一度お試しください。",
       "server": "サーバー",
       "channel": "チャンネル",
       "pickServer": "サーバーを選択",

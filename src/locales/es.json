@@ -266,7 +266,7 @@
     "addFirstEmoji": "¡Añade tu primer emoji personalizado para hacer único tu servidor!",
     "allowCrossServer": "Permitir emojis entre servidores",
     "allowCrossServerDesc": "Permite a los miembros usar emojis de otros servidores",
-    "emojiUploadRecommendation": "Recomendado: 128×128 px. Máx: 1 MB. Formatos: PNG, GIF, WebP, APNG, SVG, JPEG.",
+    "emojiUploadRecommendation": "Recomendado: 128×128 px. Máx: 1 MB. Formatos: PNG, GIF, WebP, APNG, JPEG.",
     "deleteEmoji": "Eliminar emoji",
     "advancedSettings": "Configuración avanzada",
     "dangerZone": "Zona de peligro",
@@ -1463,6 +1463,10 @@
       "theme": "Tema",
       "customTheme": "Color del tema personalizado",
       "customThemeHelp": "Elige un color de acento. La aplicación generará automáticamente un tema completo basado en tu elección.",
+      "communityPresets": "Ajustes de la comunidad",
+      "communityPresetsHelp": "Aplica al instante temas seleccionados por la comunidad.",
+      "showMorePresets": "Mostrar {count} más",
+      "showFewerPresets": "Mostrar menos",
       "themes": {
         "dark": "Oscuro",
         "darkDesc": "Un tema oscuro más suave para los ojos.",
@@ -2024,9 +2028,10 @@
     "myBotsDescription": "Gestiona los bots que has creado",
     "myEmojis": {
       "title": "Mis emojis",
-      "description": "Tus emojis personales, incluidos los que generas con IA en el selector de emojis. Los mensajes hacen referencia a los emojis personalizados por su nombre; tras renombrarlos o eliminarlos, los mensajes anteriores muestran el texto :nombre: en lugar de la imagen.",
+      "description": "Tus emojis personales: los que subes aquí y los que generas con IA en el selector de emojis. Puedes usarlos en cualquier servidor y conversación. Los mensajes hacen referencia a los emojis personalizados por su nombre; tras renombrarlos o eliminarlos, los mensajes anteriores muestran el texto :nombre: en lugar de la imagen.",
       "loading": "Cargando tus emojis…",
-      "empty": "Todavía no tienes emojis personales. Los emojis que generas con IA en el selector de emojis aparecen aquí.",
+      "empty": "Todavía no tienes emojis personales. Sube uno o genera uno con IA en el selector de emojis.",
+      "uploadsOff": "Los emojis personales están desactivados en esta instancia.",
       "listLabel": "Tus emojis",
       "aiBadge": "IA",
       "aiGenerated": "Generado con IA",
@@ -2618,6 +2623,7 @@
       "searchToAdd": "Buscar usuarios para añadir",
       "searchResultsLabel": "Usuarios para añadir",
       "searchResults": "{count} usuario encontrado | {count} usuarios encontrados",
+      "searching": "Buscando…",
       "add": "Añadir",
       "addNamed": "Añadir a {name}",
       "added": "Añadido",
@@ -2767,6 +2773,7 @@
   },
   "emoji": {
     "messageReactionLimit": "Este mensaje tiene {count} reacciones distintas. Súmate a una de ellas.",
+    "reactionNotAllowed": "En este canal solo puedes sumarte a reacciones existentes.",
     "postReactionLimit": "Tienes {count} reacciones en esta publicación. Quita una para añadir otra.",
     "search": "Buscar emoji...",
     "recent": "Recientes",
@@ -4121,6 +4128,7 @@
       "icon_url": "Icono",
       "unicode_emoji": "Emoji",
       "emoji": "Emoji",
+      "emoji_id": "Emoji personalizado",
       "volume": "Volumen",
       "is_admin": "Rol de administrador",
       "allow_permissions": "Permitido",
@@ -4787,11 +4795,14 @@
     },
     "instance": {
       "maxPostReactions": "Máximo de reacciones por persona en una publicación",
-      "maxPostReactionsHint": "Emojis distintos con los que una persona puede reaccionar a una publicación (1-100). Predeterminado: 10. Las reacciones de otros servidores que superen el límite se descartan. Los mensajes de chat admiten como máximo 20 emojis distintos."
+      "maxPostReactionsHint": "Emojis distintos con los que una persona puede reaccionar a una publicación (1-100). Predeterminado: 10. Las reacciones de otros servidores que superen el límite se descartan. Los mensajes de chat admiten como máximo 20 emojis distintos.",
+      "maxPersonalEmojis": "Emojis personales por usuario",
+      "maxPersonalEmojisHint": "Emojis que cada persona puede conservar en Ajustes > Mis emojis, subidos y generados con IA en conjunto (0-1000). Predeterminado: 50. 0 desactiva los emojis personales. Los emojis que ya superan un límite reducido se conservan."
     },
     "activityLog": {
       "configKeys": {
-        "maxPostReactionsPerUser": "Máximo de reacciones por persona en una publicación"
+        "maxPostReactionsPerUser": "Máximo de reacciones por persona en una publicación",
+        "maxPersonalEmojisPerUser": "Emojis personales por usuario"
       }
     },
     "antiSpam": {
@@ -6050,6 +6061,9 @@
       "checking": "Comprobando el archivo…",
       "name": "Nombre",
       "emoji": "Emoji",
+      "chooseEmoji": "Elegir un emoji",
+      "changeEmoji": "Cambiar emoji ({emoji})",
+      "clearEmoji": "Quitar emoji",
       "volume": "Volumen",
       "preview": "Escuchar",
       "upload": "Subir sonido",
@@ -6073,6 +6087,7 @@
       "full": "Este servidor ya tiene {max} sonidos, el máximo. Elimina uno para añadir otro.",
       "permission": "No tienes permiso para gestionar los sonidos de este servidor.",
       "invalid": "Se rechazó el sonido. Revisa su nombre, emoji y volumen.",
+      "emojiUnavailable": "Ese emoji no se puede usar para un sonido. Elige un emoji de uno de tus servidores, de la instancia o uno propio.",
       "load": "No se pudieron cargar los sonidos de este servidor.",
       "generic": "Algo salió mal. Inténtalo de nuevo."
     }
@@ -6294,7 +6309,7 @@
     "spotifyHint": "Spotify reproduce las canciones completas para quienes iniciaron sesión en Spotify en Harmony; los demás oyen un fragmento.",
     "region": "Actividad",
     "open": "Abrir la actividad",
-    "hideForMe": "Detener para mí",
+    "hideForMe": "Salir",
     "startedBy": "{name} inició una actividad",
     "join": "Unirse",
     "notNow": "Ahora no",
@@ -6349,6 +6364,20 @@
     "removeFile": "Eliminar archivo",
     "removeAndBlock": "Eliminar y bloquear nuevas subidas",
     "removed": "Eliminado"
+  },
+  "share": {
+    "title": "Compartir en Harmony",
+    "nothing": "No se compartió nada. Comparte un enlace o un texto desde otra app para enviarlo aquí.",
+    "openHarmony": "Abrir Harmony",
+    "preview": "Contenido compartido",
+    "where": "¿Dónde quieres enviarlo?",
+    "search": "Buscar conversaciones y servidores",
+    "directMessages": "Mensajes directos",
+    "servers": "Servidores",
+    "loadingChannels": "Cargando canales…",
+    "channelsFailed": "No se pudieron cargar los canales.",
+    "noChannels": "No hay canales en los que puedas publicar.",
+    "noMatches": "Nada coincide con tu búsqueda."
   },
   "drive": {
     "title": "Drive",
@@ -6531,6 +6560,9 @@
       "days": "En {count} día | En {count} días",
       "people": "Personas y lugares",
       "searchPeople": "Añadir personas de esta instancia",
+      "searching": "Buscando…",
+      "noPeople": "Nadie de esta instancia coincide",
+      "searchFailed": "La búsqueda falló. Inténtalo de nuevo.",
       "server": "Servidor",
       "channel": "Canal",
       "pickServer": "Elige un servidor",

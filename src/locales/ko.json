@@ -245,7 +245,7 @@
     "addFirstEmoji": "첫 번째 사용자 지정 이모지를 추가하여 서버를 고유하게 만드세요!",
     "allowCrossServer": "다른 서버의 이모지 허용",
     "allowCrossServerDesc": "멤버가 다른 서버의 이모지를 사용할 수 있도록 허용",
-    "emojiUploadRecommendation": "권장: 128×128px. 최대: 1 MB. 형식: PNG, GIF, WebP, APNG, SVG, JPEG.",
+    "emojiUploadRecommendation": "권장: 128×128px. 최대: 1 MB. 형식: PNG, GIF, WebP, APNG, JPEG.",
     "deleteEmoji": "이모지 삭제",
     "dangerZone": "위험 구역",
     "deleteServer": "서버 삭제",
@@ -1463,6 +1463,10 @@
       "theme": "테마",
       "customTheme": "사용자 지정 테마 색상",
       "customThemeHelp": "강조 색상을 선택하세요. 앱이 선택에 따라 완전한 테마를 자동으로 생성합니다.",
+      "communityPresets": "커뮤니티 프리셋",
+      "communityPresetsHelp": "커뮤니티가 고른 테마를 바로 적용하세요.",
+      "showMorePresets": "{count}개 더 보기",
+      "showFewerPresets": "간단히 보기",
       "themes": {
         "dark": "다크",
         "darkDesc": "눈에 편한 다크 테마.",
@@ -2024,9 +2028,10 @@
     "myBotsDescription": "생성한 봇을 관리합니다",
     "myEmojis": {
       "title": "내 이모지",
-      "description": "내 개인 이모지입니다. 이모지 선택기에서 AI로 생성한 이모지도 포함됩니다. 메시지는 사용자 지정 이모지를 이름으로 참조하므로, 이름을 바꾸거나 삭제하면 이전 메시지에는 이미지 대신 :name: 텍스트가 표시됩니다.",
+      "description": "내 개인 이모지입니다. 여기에서 업로드한 이모지와 이모지 선택기에서 AI로 생성한 이모지가 포함됩니다. 모든 서버와 대화에서 사용할 수 있습니다. 메시지는 사용자 지정 이모지를 이름으로 참조하므로, 이름을 바꾸거나 삭제하면 이전 메시지에는 이미지 대신 :name: 텍스트가 표시됩니다.",
       "loading": "이모지를 불러오는 중…",
-      "empty": "아직 개인 이모지가 없습니다. 이모지 선택기에서 AI로 생성한 이모지가 여기에 표시됩니다.",
+      "empty": "아직 개인 이모지가 없습니다. 이모지를 업로드하거나 이모지 선택기에서 AI로 생성해 보세요.",
+      "uploadsOff": "이 인스턴스에서는 개인 이모지가 꺼져 있습니다.",
       "listLabel": "내 이모지 목록",
       "aiBadge": "AI",
       "aiGenerated": "AI 생성",
@@ -2618,6 +2623,7 @@
       "searchToAdd": "추가할 사용자 검색",
       "searchResultsLabel": "추가할 사용자",
       "searchResults": "사용자 {count}명을 찾았습니다",
+      "searching": "검색 중…",
       "add": "추가",
       "addNamed": "{name} 추가",
       "added": "추가됨",
@@ -2786,6 +2792,7 @@
   },
   "emoji": {
     "messageReactionLimit": "이 메시지에는 이미 {count}가지 반응이 있습니다. 기존 반응 중 하나에 추가하세요.",
+    "reactionNotAllowed": "이 채널에서는 기존 반응에만 추가할 수 있습니다.",
     "postReactionLimit": "이 게시물에 반응을 {count}개 남겼습니다. 다른 반응을 추가하려면 하나를 제거하세요.",
     "search": "이모지 검색...",
     "searchEmojis": "이모지 검색...",
@@ -4121,6 +4128,7 @@
       "icon_url": "아이콘",
       "unicode_emoji": "이모지",
       "emoji": "이모지",
+      "emoji_id": "커스텀 이모지",
       "volume": "음량",
       "is_admin": "관리자 역할",
       "allow_permissions": "허용",
@@ -4787,11 +4795,14 @@
     },
     "instance": {
       "maxPostReactions": "게시물당 1인 최대 반응 수",
-      "maxPostReactionsHint": "한 사람이 게시물에 반응할 수 있는 서로 다른 이모지 수(1-100). 기본값: 10. 다른 서버에서 들어오는 한도 초과 반응은 버려집니다. 채팅 메시지는 최대 20가지 이모지까지 가능합니다."
+      "maxPostReactionsHint": "한 사람이 게시물에 반응할 수 있는 서로 다른 이모지 수(1-100). 기본값: 10. 다른 서버에서 들어오는 한도 초과 반응은 버려집니다. 채팅 메시지는 최대 20가지 이모지까지 가능합니다.",
+      "maxPersonalEmojis": "사용자당 개인 이모지 수",
+      "maxPersonalEmojisHint": "각 사용자가 설정 > 내 이모지에 보관할 수 있는 이모지 수로, 업로드한 이모지와 AI로 생성한 이모지를 합한 값입니다(0-1000). 기본값: 50. 0이면 개인 이모지가 꺼집니다. 한도를 낮춰도 이미 초과한 이모지는 유지됩니다."
     },
     "activityLog": {
       "configKeys": {
-        "maxPostReactionsPerUser": "게시물당 1인 최대 반응 수"
+        "maxPostReactionsPerUser": "게시물당 1인 최대 반응 수",
+        "maxPersonalEmojisPerUser": "사용자당 개인 이모지 수"
       }
     },
     "antiSpam": {
@@ -6050,6 +6061,9 @@
       "checking": "파일 확인 중…",
       "name": "이름",
       "emoji": "이모지",
+      "chooseEmoji": "이모지 선택",
+      "changeEmoji": "이모지 변경 ({emoji})",
+      "clearEmoji": "이모지 제거",
       "volume": "음량",
       "preview": "미리 듣기",
       "upload": "사운드 업로드",
@@ -6073,6 +6087,7 @@
       "full": "이 서버에는 최대치인 {max}개의 사운드가 있습니다. 새 사운드를 추가하려면 하나를 삭제하세요.",
       "permission": "이 서버의 사운드를 관리할 권한이 없습니다.",
       "invalid": "사운드가 거부되었습니다. 이름, 이모지, 음량을 확인하세요.",
+      "emojiUnavailable": "이 이모지는 사운드에 사용할 수 없습니다. 참여한 서버의 이모지, 인스턴스 이모지 또는 내 이모지를 선택하세요.",
       "load": "이 서버의 사운드를 불러오지 못했습니다.",
       "generic": "문제가 발생했습니다. 다시 시도하세요."
     }
@@ -6294,7 +6309,7 @@
     "spotifyHint": "Harmony에서 Spotify에 로그인한 사람은 전체 트랙을 듣고, 나머지는 미리 듣기를 듣습니다.",
     "region": "활동",
     "open": "활동 열기",
-    "hideForMe": "나만 중지",
+    "hideForMe": "나가기",
     "startedBy": "{name}님이 활동을 시작했습니다",
     "join": "참여",
     "notNow": "나중에",
@@ -6349,6 +6364,20 @@
     "removeFile": "파일 삭제",
     "removeAndBlock": "삭제하고 재업로드 차단",
     "removed": "삭제됨"
+  },
+  "share": {
+    "title": "Harmony로 공유",
+    "nothing": "공유된 내용이 없습니다. 다른 앱에서 링크나 텍스트를 공유하면 여기에서 보낼 수 있습니다.",
+    "openHarmony": "Harmony 열기",
+    "preview": "공유할 내용",
+    "where": "어디로 보낼까요?",
+    "search": "대화 및 서버 검색",
+    "directMessages": "다이렉트 메시지",
+    "servers": "서버",
+    "loadingChannels": "채널을 불러오는 중…",
+    "channelsFailed": "채널을 불러오지 못했습니다.",
+    "noChannels": "게시할 수 있는 채널이 없습니다.",
+    "noMatches": "검색 결과가 없습니다."
   },
   "drive": {
     "title": "Drive",
@@ -6531,6 +6560,9 @@
       "days": "{count}일 후 | {count}일 후",
       "people": "사용자 및 장소",
       "searchPeople": "이 인스턴스의 사용자 추가",
+      "searching": "검색 중…",
+      "noPeople": "이 인스턴스에서 일치하는 사용자가 없습니다",
+      "searchFailed": "검색에 실패했습니다. 다시 시도하세요.",
       "server": "서버",
       "channel": "채널",
       "pickServer": "서버 선택",
