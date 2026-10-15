@@ -157,7 +157,7 @@ Bots, bridges and other instances receive a poll as plain text: the question fol
 - Hover a reaction to see who reacted. Right-click it, press and hold it, or focus it and press the context menu key or Shift+F10 for the full list. **View reactions** in the message's right-click menu shows all of them.
 - A message holds at most 20 different emoji. Once it has 20, you can still add yourself to one of them.
 
-The emoji picker has a **Search emojis...** field, then **Frequently used**, then custom emoji grouped by server with the current server first, then the standard categories from **People** to **Flags**. Emoji you uploaded yourself are grouped under **My Emoji**; manage them in **User settings** → **My emojis**.
+The emoji picker has a **Search emojis...** field, then **Frequently used**, then custom emoji grouped by server with the current server first, then the standard categories from **People** to **Flags**. Emoji you uploaded yourself are grouped under **My Emoji**; manage them in **User settings** → **My emojis**. Upload them there (PNG, GIF, WebP, APNG or JPEG, up to 1 MB) and use them in any server or conversation. The instance sets how many personal emoji each person keeps, AI-generated ones included; the count beside the list shows yours against that limit.
 
 ### Quick react
 

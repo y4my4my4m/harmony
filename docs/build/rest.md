@@ -57,7 +57,7 @@ Where [Permissions and rate limits](/build/permissions-rate-limits#channel-acces
 
 ## Pagination
 
-Only [`GET /channels/{channel.id}/messages`](#get-channel-messages) and [`GET /servers/{server.id}/members`](#list-members) take a `limit`. Messages page by time with `before` and `after`; members have no cursor. Other list routes return every row.
+Only [`GET /channels/{channel.id}/messages`](#get-channel-messages) and [`GET /servers/{server.id}/members`](#list-members) take a `limit`. Messages page by time with `before` and `after`; members page by user ID with `after`. Other list routes return every row.
 
 ## Route index
 
@@ -396,6 +396,7 @@ Only the bridge bot of a channel its bridge relays. The first pair stands: the s
 |---|---|---|
 | `id` | UUID | |
 | `name` | string | |
+| `icon` | string or `null` | Absolute URL of the server's icon; `null` when it has none. |
 | `owner_id` | UUID or `null` | The server's owner; `null` when the owner's account was deleted. |
 | `description` | string or `null` | |
 | `member_count` | integer | |
@@ -406,9 +407,10 @@ Only the bridge bot of a channel its bridge relays. The first pair stands: the s
 
 | Query | Default | Description |
 |---|---|---|
-| `limit` | 100 | Number of members. There is no cursor; raise `limit` to read more. |
+| `limit` | 100 | Number of members. |
+| `after` | | User ID. Only members whose user ID sorts after it. |
 
-Returns member objects, in no defined order. Memberships are not filtered by status, so pending and banned members appear.
+Returns member objects ordered by user ID. To read every member, request again with `after` set to the last `user.id` you received, until a page holds fewer than `limit` members. Memberships are not filtered by status, so pending and banned members appear.
 
 | Field | Type | Description |
 |---|---|---|
@@ -420,8 +422,9 @@ Returns member objects, in no defined order. Memberships are not filtered by sta
 | `user.avatar` | string | Absolute URL; omitted when unset. |
 | `nick` | string or `null` | Nickname in this server. |
 | `roles` | array | Always empty; role assignments are not exposed. |
+| `joined_at` | timestamp | When the membership was created. |
 
-A bot without an installation gets `403` `Bot not in guild`.
+`400` `after must be a user id` when `after` is not a UUID. A bot without an installation gets `403` `Bot not in guild`.
 
 ### List channels
 
@@ -432,7 +435,7 @@ Returns every channel of the server, ordered by `order`, including channels the 
 | Field | Type | Description |
 |---|---|---|
 | `id` | UUID | |
-| `type` | integer | Always `0`, for voice channels too. |
+| `type` | integer | In Discord's numbering: `0` text, `2` voice, `4` category. |
 | `guild_id` | UUID | Server ID. |
 | `name` | string | |
 | `position` | integer | Same value as `order`. |
@@ -452,7 +455,7 @@ Returns every channel of the server, ordered by `order`, including channels the 
 | `description` | string | Cut to 1024 characters. |
 | `order` | integer | Default `0`. |
 
-Returns `201` with the [channel object](#list-channels); its `type` is `0` whatever the channel's type. `400` `name is required`; `403` `Missing permission: manage_channels`.
+Returns `201` with the [channel object](#list-channels), whose `type` is in Discord's numbering: `2` for a voice channel. `400` `name is required`; `403` `Missing permission: manage_channels`.
 
 ### Edit channel
 

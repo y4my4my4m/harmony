@@ -23,6 +23,7 @@ import { answersQuoteRequest, processQuoteAnswer, processQuoteRequest } from './
 import { activityReference, movedColumns, MOVE_COOLDOWN_MS } from './accountMigration.js';
 import {
   authorizeChannelWrite,
+  federatedUploadUrls,
   resolveThreadInChannel,
   resolveMessageInChannel,
   notAfterNow,
@@ -1558,14 +1559,18 @@ export class ActivityProcessor {
     // `messages.user_id` references `profiles(id)` (see db_schema/init/04_tables_servers.sql:130).
     const { data: existingMessage } = await supabase
       .from('messages')
-      .select('id, profiles:user_id(federated_id)')
+      .select('id, channel_id, profiles:user_id(federated_id)')
       .eq('metadata->>ap_id', objectUrl)
       .maybeSingle();
 
     let messageDeleted = false;
-    if (existingMessage) {
+    if (!existingMessage && !existingPost) {
+      messageDeleted = await this.processGroupMessageDelete(actorUrl, objectUrl);
+    } else if (existingMessage) {
       const ownerActorUrl = (existingMessage as any).profiles?.federated_id as string | null | undefined;
-      if (!ownerActorUrl || !SignatureService.verifyActorMatch(actorUrl, ownerActorUrl)) {
+      const byAuthor = !!ownerActorUrl && SignatureService.verifyActorMatch(actorUrl, ownerActorUrl);
+      const byGroup = !byAuthor && await this.groupHostsChannel(actorUrl, (existingMessage as any).channel_id);
+      if (!byAuthor && !byGroup) {
         logger.warn(
           `🚫 Delete message rejected: actor ${actorUrl} does not own ${objectUrl} (owner=${ownerActorUrl ?? 'unknown'})`,
         );
@@ -1581,6 +1586,48 @@ export class ActivityProcessor {
     if (postDeleted || messageDeleted) {
       logger.info(`Deleted object: ${objectUrl}`);
     }
+  }
+
+  /**
+   * True when `actorUrl` is the Group of the remote server whose local copy holds the
+   * channel. The host's Group speaks for its channels: a moderator's delete, or one by a
+   * member on a third instance, reaches here as the Group's Delete.
+   */
+  private static async groupHostsChannel(actorUrl: string, channelId: string | null | undefined): Promise<boolean> {
+    if (!channelId) return false;
+    const server = await this.resolveRemoteServer(actorUrl);
+    if (!server) return false;
+    const { data: channel } = await getSupabaseClient()
+      .from('channels')
+      .select('id')
+      .eq('id', channelId)
+      .eq('server_id', server.id)
+      .maybeSingle();
+    return !!channel;
+  }
+
+  /**
+   * Group Delete of a message this instance federated itself: its id is
+   * https://<this domain>/messages/<uuid> and no row stores it as metadata.ap_id.
+   */
+  private static async processGroupMessageDelete(actorUrl: string, objectUrl: string): Promise<boolean> {
+    const prefix = `https://${config.INSTANCE_DOMAIN}/messages/`;
+    const localId = objectUrl.startsWith(prefix) ? objectUrl.slice(prefix.length) : null;
+    if (!localId || !/^[0-9a-f-]{36}$/i.test(localId)) return false;
+
+    const supabase = getSupabaseClient();
+    const { data: message } = await supabase
+      .from('messages')
+      .select('id, channel_id')
+      .eq('id', localId)
+      .maybeSingle();
+    if (!message || !(await this.groupHostsChannel(actorUrl, message.channel_id))) return false;
+
+    const { error } = await supabase
+      .from('messages')
+      .update({ is_deleted: true })
+      .eq('id', message.id);
+    return !error;
   }
 
   /**
@@ -3470,6 +3517,7 @@ export class ActivityProcessor {
       serverId,
       channelId,
       kind: threadApIdValue ? 'thread_message' : 'message',
+      newUploads: federatedUploadUrls(object).length,
     });
     if (!authz.ok) {
       logDenied('channel message', actorUrl, authz.reason);

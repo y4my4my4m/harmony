@@ -79,10 +79,9 @@
     </button>
     <!-- The stage names this in its header; the dock card has room for the icon only. -->
     <button
-      v-if="compact"
+      v-if="compact && canEnd"
       type="button"
       class="activity-controls__btn activity-controls__btn--stop"
-      :disabled="!canControl"
       :title="t('activities.stop')"
       :aria-label="t('activities.stop')"
       data-testid="activity-stop"
@@ -110,7 +109,7 @@ const now = ref(Date.now())
 const scrubMs = ref<number | null>(null)
 let timer: ReturnType<typeof setInterval> | null = null
 
-const { isHost, canControl } = useActivityControl(() => props.activity)
+const { isHost, canControl, canEnd } = useActivityControl(() => props.activity)
 
 const duration = computed(() => actStore.status.durationMs || props.activity.item.duration_ms || 0)
 const position = computed(() => {

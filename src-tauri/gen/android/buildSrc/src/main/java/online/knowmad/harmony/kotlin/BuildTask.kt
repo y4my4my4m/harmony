@@ -16,6 +16,7 @@ open class BuildTask : DefaultTask() {
 
     @TaskAction
     fun assemble() {
+        settleGeneratedKotlin()
         val executable = """npm""";
         try {
             runTauriCli(executable)
@@ -44,6 +45,21 @@ open class BuildTask : DefaultTask() {
         }
     }
 
+    // Deviation from the generated task. The wry and tauri build scripts write the Kotlin glue
+    // in src/main/java/<package>/generated and list each file as rerun-if-changed. Cargo dates
+    // a build script run from its start, so a file written during the run reads as changed to
+    // the next cargo run. `tauri android build` runs cargo before Gradle; without this, the
+    // cargo run below reruns both scripts and recompiles wry, tauri, every plugin and the app.
+    // Only those scripts write the files: a fixed old mtime removes the false change, and a
+    // missing file still reruns them.
+    private fun settleGeneratedKotlin() {
+        File(project.projectDir, "src/main/java").walkTopDown()
+            .filter { it.isDirectory && it.name == "generated" }
+            .flatMap { it.listFiles()?.asSequence() ?: emptySequence() }
+            .filter { it.isFile }
+            .forEach { it.setLastModified(GENERATED_MTIME_MS) }
+    }
+
     fun runTauriCli(executable: String) {
         val rootDirRel = rootDirRel ?: throw GradleException("rootDirRel cannot be null")
         val target = target ?: throw GradleException("target cannot be null")
@@ -66,3 +82,6 @@ open class BuildTask : DefaultTask() {
         }.assertNormalExitValue()
     }
 }
+
+// 2000-01-01T00:00:00Z. Older than any build script run; ZIP timestamps start at 1980.
+private const val GENERATED_MTIME_MS = 946_684_800_000L

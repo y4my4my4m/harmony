@@ -14,7 +14,7 @@ The gateway is the WebSocket a bot keeps open to receive events. This page lists
 | Behind the instance's reverse proxy | `wss://<instance>/bot-gateway/gateway` |
 | Directly, as in local development | `ws://localhost:3002/gateway` |
 
-A bot may open several connections. The gateway sets no limit, and every open connection of the bot receives every event, so a bot connected twice handles each event twice.
+A bot may hold up to 5 identified connections, unless the instance sets `WS_MAX_CONNECTIONS_PER_BOT`; an identify past the limit closes that connection with `4029`. Every open connection of the bot receives every event, so a bot connected twice handles each event twice.
 
 ## Payloads
 
@@ -41,7 +41,7 @@ The gateway ignores opcodes it does not know, and ignores op 1, 6 and 7 on a con
 
 ## Identify
 
-Send opcode 2 once the socket is open:
+Send opcode 2 once the socket is open. A connection that has not identified successfully 30 seconds after opening, unless the instance sets `WS_IDENTIFY_TIMEOUT_MS` (1 to 60 seconds), closes with `4003`.
 
 ```json
 { "op": 2, "d": { "token": "harmony_bot_…" } }
@@ -70,13 +70,13 @@ On success the gateway answers with a `READY` event:
 
 The connection starts receiving events before the gateway writes `READY`, so an event can arrive ahead of it. Handle `READY` in the same loop as other events rather than reading it as the first frame.
 
-A refused token closes the connection with `4001` or `4004`; see [Close codes](#close-codes).
+A refused token closes the connection with `4001` or `4004`, and an identify past the bot's connection limit with `4029`; see [Close codes](#close-codes).
 
 ## Heartbeat
 
 Send `{ "op": 1 }` every `heartbeat_interval` milliseconds after `READY`. The gateway answers each with `{ "op": 11 }`.
 
-Once per interval the gateway closes, with `1000` `Heartbeat timeout`, every connection whose last heartbeat, or whose identify when it has sent none, is more than twice the interval old. With the default interval, a bot that stops heartbeating is disconnected 60 to 90 seconds after its last heartbeat.
+Once per interval the gateway closes, with `1000` `Heartbeat timeout`, every connection whose last heartbeat, or whose identify when it has sent none, is more than twice the interval old. With the default interval, a bot that stops heartbeating is disconnected 60 to 90 seconds after its last heartbeat. The gateway sends the close frame and drops the connection without waiting for the bot's answer.
 
 Heartbeats also keep the bot shown as **Online** in the app, which shows a bot offline once its last heartbeat is more than 90 seconds old.
 
@@ -92,11 +92,13 @@ A connection may send 120 frames in any 60-second window. Heartbeats (op 1) are 
 | `1000` | `Server shutting down` | The gateway process is stopping. | Yes, with a backoff |
 | `1008` | `Invalid payload` | A frame was not valid JSON or could not be handled. | Yes, after fixing the frame |
 | `4001` | `Missing token` | Identify without `d.token`. | No |
+| `4003` | `Not authenticated` | No successful identify within 30 seconds of the connection opening, or `WS_IDENTIFY_TIMEOUT_MS`. | Yes, and identify right after the socket opens |
 | `4004` | `Invalid or expired token` | The token is unknown, revoked or past its expiry. | No |
 | `4004` | `Bot not found or inactive` | The token is valid but its bot is deleted or deactivated. | No |
 | `4004` | `Token verification unavailable` | The gateway could not look the token up. | Yes, with a backoff |
 | `4004` | `Token revoked`, `Token expired`, `Bot inactive` | An open connection's token was reset, deleted or expired, or its bot was deactivated or deleted. The gateway rechecks open connections every 30 seconds unless the instance sets `WS_REVALIDATE_INTERVAL_MS` (1 to 60 seconds). | No |
 | `4008` | `rate limited` | More than 120 frames other than op 1 within 60 seconds. | Yes, with a backoff |
+| `4029` | `Too many connections` | The bot already holds 5 identified connections, or `WS_MAX_CONNECTIONS_PER_BOT`. | Yes, with a backoff, after closing a connection |
 
 ## Reconnect
 
@@ -210,7 +212,7 @@ Sent once per message, when the message is deleted in the app or through the RES
 |---|---|---|
 | `id` | UUID | Message ID. |
 | `channel_id` | UUID | Channel ID. |
-| `thread_id` | `null` | Always `null`. Look the ID up in your own records to find a thread. |
+| `thread_id` | UUID or `null` | Thread the message was in. |
 | `metadata` | object or `null` | The message's last metadata. |
 
 A message removed from the database by other means, such as deleting its channel, produces no event.

@@ -63,15 +63,32 @@
             />
           </div>
           <div class="form-group emoji-field">
-            <label class="form-label" :for="`${uid}-emoji`">{{ t('soundboard.settings.emoji') }}</label>
-            <input
-              :id="`${uid}-emoji`"
-              v-model="draft.emoji"
-              type="text"
-              class="form-input"
-              :maxlength="SOUNDBOARD_LIMITS.emoji"
-              placeholder="🔊"
-            />
+            <span class="form-label">{{ t('soundboard.settings.emoji') }}</span>
+            <div class="emoji-choice">
+              <button
+                type="button"
+                class="emoji-btn"
+                :aria-label="emojiButtonLabel(draft)"
+                :title="emojiButtonLabel(draft)"
+                aria-haspopup="dialog"
+                :aria-expanded="picker?.target === 'draft'"
+                data-testid="soundboard-emoji-button"
+                @click="openPicker('draft', $event)"
+              >
+                <SoundboardEmoji :emoji="draft.emoji || null" :custom-emoji="draft.customEmoji" :size="22" />
+              </button>
+              <button
+                v-if="draft.emoji || draft.customEmoji"
+                type="button"
+                class="icon-btn"
+                :aria-label="t('soundboard.settings.clearEmoji')"
+                :title="t('soundboard.settings.clearEmoji')"
+                data-testid="soundboard-emoji-clear"
+                @click="clearEmoji(draft)"
+              >
+                <Icon name="x" :size="14" />
+              </button>
+            </div>
           </div>
           <div class="form-group volume-field">
             <label class="form-label" :for="`${uid}-volume`">
@@ -119,14 +136,31 @@
       <ul v-else class="sound-list">
         <li v-for="sound in sounds" :key="sound.id" class="sound-row" data-testid="soundboard-row">
           <template v-if="editing?.id === sound.id">
-            <input
-              v-model="editing.emoji"
-              type="text"
-              class="form-input emoji-input"
-              :maxlength="SOUNDBOARD_LIMITS.emoji"
-              :aria-label="t('soundboard.settings.emoji')"
-              placeholder="🔊"
-            />
+            <div class="emoji-choice">
+              <button
+                type="button"
+                class="emoji-btn"
+                :aria-label="emojiButtonLabel(editing)"
+                :title="emojiButtonLabel(editing)"
+                aria-haspopup="dialog"
+                :aria-expanded="picker?.target === 'edit'"
+                data-testid="soundboard-edit-emoji"
+                @click="openPicker('edit', $event)"
+              >
+                <SoundboardEmoji :emoji="editing.emoji || null" :custom-emoji="editing.customEmoji" :size="20" />
+              </button>
+              <button
+                v-if="editing.emoji || editing.customEmoji"
+                type="button"
+                class="icon-btn"
+                :aria-label="t('soundboard.settings.clearEmoji')"
+                :title="t('soundboard.settings.clearEmoji')"
+                data-testid="soundboard-edit-emoji-clear"
+                @click="clearEmoji(editing)"
+              >
+                <Icon name="x" :size="14" />
+              </button>
+            </div>
             <input
               v-model="editing.name"
               type="text"
@@ -168,7 +202,9 @@
             </div>
           </template>
           <template v-else>
-            <span class="sound-emoji" aria-hidden="true">{{ sound.emoji || '🔊' }}</span>
+            <span class="sound-emoji" aria-hidden="true">
+              <SoundboardEmoji :emoji="sound.emoji" :custom-emoji="sound.customEmoji" :size="20" />
+            </span>
             <span class="sound-name">{{ sound.name }}</span>
             <span class="sound-meta">{{ formatDuration(sound.durationMs) }} · {{ Math.round(sound.volume * 100) }}%</span>
             <div class="row-actions">
@@ -208,16 +244,27 @@
         </li>
       </ul>
     </div>
+
+    <EmojiPopup
+      v-if="picker"
+      :close-emoji-list="closePicker"
+      :emoji-icon-clicked="true"
+      position="below"
+      :trigger-element="picker.trigger ?? undefined"
+      @send-emoji="pickEmoji"
+      @reset-emoji-icon-clicked="() => {}"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, useId, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, reactive, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from 'vue-toastification'
 import Icon from '@/components/common/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
+import SoundboardEmoji from '@/components/voice/SoundboardEmoji.vue'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useSoundboardStore } from '@/stores/soundboard'
 import { soundboardPlayer } from '@/services/soundboard/player'
@@ -229,12 +276,17 @@ import {
   getServerSoundSharing,
   listServerSounds,
   setServerSoundSharing,
+  soundEmojiFromPick,
   soundboardErrorKey,
   updateServerSound,
   type CheckedSoundFile,
+  type SoundboardCustomEmoji,
   type SoundboardFileProblem,
   type SoundboardSound,
 } from '@/services/soundboard/sounds'
+import type { Emoji } from '@/types'
+
+const EmojiPopup = defineAsyncComponent(() => import('@/components/EmojiPopup.vue'))
 
 const props = defineProps<{
   serverId: string
@@ -266,10 +318,18 @@ const draft = reactive({
   url: '',
   name: '',
   emoji: '',
+  customEmoji: null as SoundboardCustomEmoji | null,
   volume: 100,
 })
 
-const editing = ref<{ id: string; name: string; emoji: string; volume: number } | null>(null)
+interface EmojiTarget {
+  emoji: string
+  customEmoji: SoundboardCustomEmoji | null
+}
+
+const editing = ref<{ id: string; name: string; emoji: string; customEmoji: SoundboardCustomEmoji | null; volume: number } | null>(null)
+/** The open emoji picker: which form it fills, and the button it is placed against. */
+const picker = ref<{ target: 'draft' | 'edit'; trigger: HTMLElement | null } | null>(null)
 
 const full = computed(() => sounds.value.length >= SOUNDBOARD_LIMITS.perServer)
 const draftNameValid = computed(() => {
@@ -334,6 +394,7 @@ function clearDraft(): void {
   draft.url = ''
   draft.name = ''
   draft.emoji = ''
+  draft.customEmoji = null
   draft.volume = 100
   if (fileInputRef.value) fileInputRef.value.value = ''
 }
@@ -376,6 +437,42 @@ async function onFileChange(event: Event): Promise<void> {
   }
 }
 
+function emojiButtonLabel(target: EmojiTarget): string {
+  if (target.customEmoji) return t('soundboard.settings.changeEmoji', { emoji: `:${target.customEmoji.name}:` })
+  if (target.emoji) return t('soundboard.settings.changeEmoji', { emoji: target.emoji })
+  return t('soundboard.settings.chooseEmoji')
+}
+
+function openPicker(target: 'draft' | 'edit', event: MouseEvent): void {
+  if (picker.value?.target === target) {
+    picker.value = null
+    return
+  }
+  picker.value = { target, trigger: event.currentTarget as HTMLElement | null }
+}
+
+function closePicker(): void {
+  picker.value = null
+}
+
+function pickEmoji(pick: Emoji): void {
+  const target = picker.value?.target === 'edit' ? editing.value : picker.value?.target === 'draft' ? draft : null
+  closePicker()
+  if (!target) return
+  const choice = soundEmojiFromPick(pick)
+  if (!choice) {
+    toast.error(t('soundboard.errors.emojiUnavailable'))
+    return
+  }
+  target.emoji = choice.emoji ?? ''
+  target.customEmoji = choice.customEmoji
+}
+
+function clearEmoji(target: EmojiTarget): void {
+  target.emoji = ''
+  target.customEmoji = null
+}
+
 function previewDraft(): void {
   if (draft.url) soundboardPlayer.play(draft.url, draft.volume / 100)
 }
@@ -399,6 +496,7 @@ async function upload(): Promise<void> {
     const sound = await createServerSound(props.serverId, draft.file, draft.checked, {
       name: draft.name,
       emoji: draft.emoji,
+      emojiId: draft.customEmoji?.id ?? null,
       volume: draft.volume / 100,
     })
     publish([...sounds.value, sound])
@@ -416,6 +514,7 @@ function startEdit(sound: SoundboardSound): void {
     id: sound.id,
     name: sound.name,
     emoji: sound.emoji ?? '',
+    customEmoji: sound.customEmoji ?? null,
     volume: Math.round(sound.volume * 100),
   }
 }
@@ -428,6 +527,7 @@ async function saveEdit(): Promise<void> {
     const updated = await updateServerSound(edit.id, {
       name: edit.name,
       emoji: edit.emoji,
+      emojiId: edit.customEmoji?.id ?? null,
       volume: edit.volume / 100,
     })
     publish(sounds.value.map((s) => (s.id === updated.id ? updated : s)))
@@ -456,8 +556,13 @@ async function remove(sound: SoundboardSound): Promise<void> {
   }
 }
 
+watch(() => editing.value?.id, () => {
+  if (picker.value?.target === 'edit') closePicker()
+})
+
 watch(() => props.serverId, () => {
   clearDraft()
+  closePicker()
   editing.value = null
   shared.value = true
   void load()
@@ -668,10 +773,12 @@ onBeforeUnmount(() => {
 }
 
 .sound-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
   width: 24px;
   font-size: 18px;
-  text-align: center;
 }
 
 .sound-name {
@@ -691,10 +798,36 @@ onBeforeUnmount(() => {
   font-variant-numeric: tabular-nums;
 }
 
-.emoji-input {
-  width: 56px;
+.emoji-choice {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   flex-shrink: 0;
-  text-align: center;
+}
+
+.emoji-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 38px;
+  padding: 0;
+  background: var(--input-bg, var(--background-tertiary));
+  border: 1px solid var(--input-border, var(--border-primary));
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.emoji-btn:hover {
+  border-color: var(--harmony-primary);
+}
+
+.emoji-btn:focus-visible {
+  outline: 2px solid var(--harmony-primary);
+  outline-offset: 1px;
 }
 
 .name-input {

@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 import { setBaseFavicon } from '@/utils/faviconBadge'
+import { DEFAULT_PERSONAL_EMOJIS_PER_USER, parsePersonalEmojiLimit } from '@/utils/personalEmojiLimit'
 import { DEFAULT_POST_REACTIONS_PER_USER } from '@/utils/reactionLimits'
 import { runtimeConfig } from '@/services/runtimeConfig'
 
@@ -41,7 +42,10 @@ interface InstanceSettings {
   maxPostLength: number
   maxMessageLength: number
   maxServerSize: number
+  /** instance_config max_custom_emojis_per_server; 0 is no limit. */
   maxCustomEmojisPerServer: number
+  /** User-scope emojis one person holds (enforce_personal_emoji_limit); 0 turns personal emojis off. */
+  maxPersonalEmojisPerUser: number
   maxMediaAttachmentsPerPost: number
   /** Different emoji one person can react with on a post (check_emoji_reaction_limit). */
   maxPostReactionsPerUser: number
@@ -93,6 +97,7 @@ const DEFAULT_SETTINGS: InstanceSettings = {
   maxMessageLength: 2000,
   maxServerSize: 1000,
   maxCustomEmojisPerServer: 50,
+  maxPersonalEmojisPerUser: DEFAULT_PERSONAL_EMOJIS_PER_USER,
   maxMediaAttachmentsPerPost: 20,
   maxPostReactionsPerUser: DEFAULT_POST_REACTIONS_PER_USER,
   allowCustomEmojisInDisplayNames: true,
@@ -267,6 +272,9 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
             if (!isNaN(num) && num >= 0) this.settings.maxCustomEmojisPerServer = num
             break
           }
+          case 'max_personal_emojis_per_user':
+            this.settings.maxPersonalEmojisPerUser = parsePersonalEmojiLimit(value)
+            break
           case 'max_media_attachments_per_post': {
             const num = typeof value === 'number' ? value : parseInt(String(value), 10)
             if (!isNaN(num) && num >= 1) this.settings.maxMediaAttachmentsPerPost = num

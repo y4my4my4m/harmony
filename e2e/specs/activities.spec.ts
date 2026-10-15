@@ -2,11 +2,14 @@
 // the call dock; a second member in the call gets an invite naming the host and the title,
 // with no picture and nothing playing. Not now keeps it off with a Join left in the dock; Join
 // gives the same video at the host's position, following play and pause, until the host
-// stops. The voice channel row shows what is playing.
+// stops. Only the host is offered the end, and the database refuses the guest's end and
+// replacement; the guest leaves from the dock and joins again. The voice channel row shows
+// what is playing.
 //
 // The stack has no LiveKit and no realtime: the voice store is set as a joined call leaves it
-// (soundboard-instant-play.spec.ts does the same), participant rows are written directly, and
-// the guest follows by the store's polling fallback, every 3 s while realtime is down.
+// (soundboard-instant-play.spec.ts does the same), participant rows are written directly and
+// the channel roster realtime presence would deliver is set on each page, and the guest follows
+// by the store's polling fallback, every 3 s while realtime is down.
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -21,6 +24,7 @@ import {
   openChannel,
   seedServer,
   signIn,
+  userClient,
   type SeededServer,
   type SpecUser,
 } from './harness'
@@ -53,12 +57,13 @@ test.afterAll(async () => {
 })
 
 async function enterVoice(page: Page, user: SpecUser) {
-  await page.evaluate(({ serverId, channelId, userId }) => {
+  await page.evaluate(({ serverId, channelId, userId, roster }) => {
     type Store = { $patch: (fn: (state: Record<string, any>) => void) => void }
     const root = document.querySelector('#app') as unknown as {
       __vue_app__: { config: { globalProperties: { $pinia: { _s: Map<string, Store> } } } }
     }
-    const voice = root.__vue_app__.config.globalProperties.$pinia._s.get('unifiedVoiceChannel')
+    const stores = root.__vue_app__.config.globalProperties.$pinia._s
+    const voice = stores.get('unifiedVoiceChannel')
     if (!voice) throw new Error('voice store not created')
     voice.$patch((state) => {
       state.isConnected = true
@@ -67,7 +72,10 @@ async function enterVoice(page: Page, user: SpecUser) {
       state.currentChannelName = 'cinema'
       state.localState.userId = userId
     })
-  }, { serverId: server.id, channelId: voiceId, userId: user.id })
+    stores.get('serverUsers')?.$patch((state) => {
+      state.usersInVoiceChannels = { ...state.usersInVoiceChannels, [channelId]: roster }
+    })
+  }, { serverId: server.id, channelId: voiceId, userId: user.id, roster: [host.id, guest.id] })
 }
 
 const media = (page: Page) => page.getByTestId('activity-media')
@@ -139,6 +147,27 @@ test('a Drive video plays for everyone in the call and follows the host', async 
     await test.step('play from the host plays for the guest', async () => {
       await page.getByTestId('activity-dock-card').getByTestId('activity-play').click()
       await expect.poll(async () => (await mediaState(other)).paused, { timeout: 10000 }).toBe(false)
+    })
+
+    await test.step('only the host is offered the end; the database refuses the guest', async () => {
+      await expect(page.getByTestId('activity-dock-card').getByTestId('activity-stop')).toBeVisible()
+      await expect(other.getByTestId('activity-dock-card').getByTestId('activity-stop')).toHaveCount(0)
+      const guestDb = await userClient(guest)
+      const stop = await guestDb.rpc('voice_activity_stop', { p_channel: voiceId })
+      expect(stop.error?.code).toBe('42501')
+      const replace = await guestDb.rpc('voice_activity_start', { p_channel: voiceId, p_source: 'youtube', p_item: { video_id: 'rFrPz1WkBvk' } })
+      expect(replace.error?.code).toBe('42501')
+      await expect(other.getByTestId('activity-dock-card')).toContainText('clip-6s.webm')
+    })
+
+    await test.step('the guest leaves from the dock, the host plays on, and the guest joins again', async () => {
+      await other.getByTestId('activity-dock-leave').click()
+      await expect(other.getByTestId('activity-dock-card')).toHaveCount(0)
+      await expect(other.getByTestId('activity-host')).toHaveCount(0)
+      await expect(other.getByTestId('activity-join')).toBeVisible()
+      expect((await mediaState(page)).paused).toBe(false)
+      await other.getByTestId('activity-join').click()
+      await expect(other.getByTestId('activity-dock-card')).toContainText('clip-6s.webm', { timeout: 15000 })
     })
 
     await test.step('stop from the host ends it for the guest', async () => {
@@ -216,6 +245,36 @@ test('a YouTube link plays in the shared player; the stage takes reactions and e
     // Skin glass panels too: blur is suspended while the video shows, the saved setting untouched.
     await expect(page.locator('html')).toHaveAttribute('data-disable-blur', 'true')
     await expect(page.getByTestId('voice-overlay').getByRole('button', { name: 'React', exact: true })).toHaveCount(1)
+  })
+
+  await test.step('the voice settings panel covers the video', async () => {
+    await page.getByTestId('voice-overlay').getByRole('button', { name: 'Voice settings' }).click()
+    const panel = page.locator('.settings-overlay-wrapper .settings-panel')
+    await expect(panel).toBeVisible()
+    const box = (await panel.boundingBox())!
+    const hostBox = (await page.getByTestId('activity-host').boundingBox())!
+    // A point inside both the panel and the player.
+    const x = Math.max(box.x, hostBox.x) + 20
+    const y = Math.max(box.y, hostBox.y) + 20
+    expect(x < Math.min(box.x + box.width, hostBox.x + hostBox.width) && y < Math.min(box.y + box.height, hostBox.y + hostBox.height)).toBe(true)
+    const onTop = await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('.settings-overlay-wrapper'), { x, y })
+    expect(onTop).toBe(true)
+    await page.keyboard.press('Escape')
+    await expect(panel).toHaveCount(0)
+  })
+
+  await test.step('tile action icons sit centred in their buttons', async () => {
+    const tile = page.getByTestId('voice-overlay').locator('.voice-tile').first()
+    await tile.hover()
+    const buttons = tile.locator('.tile-action-btn')
+    await expect(buttons.first()).toBeVisible()
+    const offsets = await buttons.evaluateAll((els) => els.map((b) => {
+      const r = b.getBoundingClientRect()
+      const i = b.querySelector('svg')!.getBoundingClientRect()
+      return Math.max(Math.abs(r.left + r.width / 2 - (i.left + i.width / 2)), Math.abs(r.top + r.height / 2 - (i.top + i.height / 2)))
+    }))
+    expect(offsets.length).toBeGreaterThan(0)
+    for (const o of offsets) expect(o).toBeLessThanOrEqual(0.5)
   })
 
   await test.step('the stage has a react button with the reaction picker', async () => {

@@ -37,7 +37,7 @@
           data-testid="activity-link"
         />
         <div class="act-launch__actions">
-          <button v-if="running" type="button" class="act-launch__btn" :disabled="!parsed || busy" data-testid="activity-play-now" @click="submit('start')">
+          <button v-if="running && canEnd" type="button" class="act-launch__btn" :disabled="!parsed || busy" data-testid="activity-play-now" @click="submit('start')">
             {{ t('activities.playNow') }}
           </button>
           <button type="submit" class="act-launch__btn act-launch__btn--primary" :disabled="!parsed || busy" data-testid="activity-start">
@@ -76,6 +76,7 @@ import { fetchLinkDetails, parseActivityLink, type ActivityItem, type ActivitySo
 import type { DriveFile } from '@/services/drive/driveService'
 import { placePopover, type Rect } from '@/components/voice/voiceMenuModel'
 import { styleRect, styleViewport } from '@/utils/appZoom'
+import { useActivityControl } from './useActivityControl'
 
 const props = defineProps<{ anchor: Rect | null }>()
 const emit = defineEmits<{ close: [] }>()
@@ -91,6 +92,7 @@ const pickerOpen = ref(false)
 const position = ref({ x: -9999, y: -9999 })
 
 const running = computed(() => !!actStore.current)
+const { canEnd } = useActivityControl(() => actStore.current)
 const parsed = computed(() => (link.value.trim() ? parseActivityLink(link.value) : null))
 const startLabel = computed(() => (parsed.value && (parsed.value.source === 'spotify' || parsed.value.source === 'soundcloud' || parsed.value.item.mime_type === 'audio/*')
   ? t('activities.listenTogether')

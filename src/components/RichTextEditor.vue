@@ -53,6 +53,7 @@ import { useServerChannelStore } from '@/stores/useServerChannel';
 import { useUndoRedo, type UndoState } from '@/composables/useUndoRedo';
 import { findEmojiByName } from '@/services/emojiShortcodeResolver';
 import { applyInlineFormatToggle, type InlineFormatKind } from '@/utils/richTextFormatting';
+import { historyShortcut } from '@/utils/editorShortcuts';
 import { HANDLE_PATTERN } from '@/utils/mentionGrammar';
 import { linearize, offsetForPoint, plainTextOf, pointForOffset } from '@/utils/editorText';
 import { HERE_ROLE_ID } from '@/utils/hereMention';
@@ -876,20 +877,14 @@ const toggleInlineFormat = (kind: InlineFormatKind) => {
 };
 
 const handleKeyDown = (event: KeyboardEvent) => {
-  // Undo/redo: Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z and Cmd equivalents.
+  const historyAction = historyShortcut(event);
+  if (historyAction) {
+    event.preventDefault();
+    const state = historyAction === 'undo' ? undoRedo.undo() : undoRedo.redo();
+    if (state) applyUndoState(state);
+    return;
+  }
   if ((event.ctrlKey || event.metaKey) && !event.altKey) {
-    if (event.key === 'z' && !event.shiftKey) {
-      event.preventDefault();
-      const state = undoRedo.undo();
-      if (state) applyUndoState(state);
-      return;
-    }
-    if (event.key === 'y' || (event.key === 'z' && event.shiftKey)) {
-      event.preventDefault();
-      const state = undoRedo.redo();
-      if (state) applyUndoState(state);
-      return;
-    }
     const formatKey = event.key.toLowerCase();
     if (formatKey === 'b') {
       event.preventDefault();

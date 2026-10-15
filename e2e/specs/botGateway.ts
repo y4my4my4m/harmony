@@ -37,7 +37,8 @@ function freePort(): Promise<number> {
   })
 }
 
-export async function startBotGateway(): Promise<BotGateway> {
+/** `extraEnv` adds to or overrides the gateway's environment, e.g. WS_IDENTIFY_TIMEOUT_MS. */
+export async function startBotGateway(extraEnv: Record<string, string> = {}): Promise<BotGateway> {
   if (!fs.existsSync(TSX)) throw new Error(`${TSX} missing - run npm ci in bot-gateway/`)
 
   const port = await freePort()
@@ -53,6 +54,7 @@ export async function startBotGateway(): Promise<BotGateway> {
       SUPABASE_ANON_KEY: env('E2E_SUPABASE_ANON_KEY', 'TEST_SUPABASE_ANON_KEY'),
       SUPABASE_SERVICE_ROLE_KEY: env('E2E_SUPABASE_SERVICE_ROLE_KEY', 'TEST_SUPABASE_SERVICE_ROLE_KEY'),
       INSTANCE_DOMAIN: 'localhost',
+      ...extraEnv,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })

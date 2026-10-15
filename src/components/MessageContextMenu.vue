@@ -171,6 +171,7 @@ import { debug } from '@/utils/debug'
 import { useFrequentEmojis } from '@/composables/useFrequentEmojis';
 import { useHapticSettings } from '@/composables/useHapticSettings';
 import { useServerPermissions } from '@/composables/useServerPermissions';
+import { useChannelMessagePermissions } from '@/composables/useChannelMessagePermissions';
 import { useDeveloperTools } from '@/composables/useDeveloperTools';
 import { usePinActions } from '@/composables/usePinActions';
 import { embedsSuppressed, hasEmbeddableParts, setEmbedsSuppressed } from '@/services/messageEmbeds';
@@ -242,7 +243,12 @@ const emit = defineEmits<{
 
 const { topEmojisForContextMenu, hasFrequentEmojis, recordEmojiUsage } = useFrequentEmojis();
 const { triggerReaction } = useHapticSettings();
-const { canPinMessages, canManageMessages } = useServerPermissions();
+const { canPinMessages: canPinServerWide } = useServerPermissions();
+// Channel-resolved, as pin_message and set_message_embeds_suppressed decide it.
+const { canPinMessages: canPinInChannel, canManageMessages } = useChannelMessagePermissions(
+  () => props.serverId,
+  () => (props.conversationId ? null : props.channelId),
+);
 const { setPinned } = usePinActions();
 const { developerToolsEnabled } = useDeveloperTools();
 const reactionsStore = useReactionsStore();
@@ -251,7 +257,7 @@ const isPinned = computed(() => props.message?.is_pinned || false);
 const hasReactions = computed(() =>
   !!props.message && reactionsStore.getMessageReactions(props.message.id).length > 0
 );
-const canPin = computed(() => canPinMessages.value);
+const canPin = computed(() => (props.conversationId ? canPinServerWide.value : canPinInChannel.value));
 const toast = useToast();
 
 // The author, or MANAGE_MESSAGES in a server channel (set_message_embeds_suppressed).

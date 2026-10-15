@@ -22,7 +22,7 @@ import {
 } from '../auth/botPermissions.js'
 import { applyBridgeAttachmentPolicy } from '../utils/mirrorExternalMedia.js'
 import { stripBotSuppliedPaths } from '../utils/messageMedia.js'
-import { absoluteAvatarUrl } from '../utils/avatarUrl.js'
+import { absoluteAvatarUrl, absoluteServerIconUrl } from '../utils/avatarUrl.js'
 import { isDiscordCdnUrl } from '../utils/emojiUrl.js'
 import { DISCORD_EMOJI_ID, EMOJI_NAME, storeDiscordEmojiImage } from '../utils/discordEmojiImport.js'
 import { TTLCache } from '../utils/TTLCache.js'
@@ -57,6 +57,9 @@ interface ThreadRow {
 
 /** A Discord snowflake: 1 to 20 digits. */
 const SNOWFLAKE_RE = /^[0-9]{1,20}$/
+
+// channels.type (0 text, 1 voice, 2 category) as Discord's GUILD_TEXT, GUILD_VOICE, GUILD_CATEGORY.
+const DISCORD_CHANNEL_TYPE: Record<number, number> = { 0: 0, 1: 2, 2: 4 }
 
 export interface BotRequest extends Request {
   bot?: {
@@ -170,7 +173,7 @@ export function reactionMetadata(input: unknown): unknown {
 
 /** Receives each row this API hard-deletes, for MESSAGE_DELETE dispatch. */
 export interface MessageDeleteSink {
-  messageHardDeleted(message: { id: string; channel_id: string | null; metadata: unknown }): Promise<void>
+  messageHardDeleted(message: { id: string; channel_id: string | null; thread_id: string | null; metadata: unknown }): Promise<void>
 }
 
 /** A bridge pairing removed keeps answering true for at most this long. */
@@ -903,7 +906,7 @@ export class BotRestAPI {
       
       const { data: message } = await supabase
         .from('messages')
-        .select('user_id, bot_id, channel_id, metadata, is_deleted')
+        .select('user_id, bot_id, channel_id, thread_id, metadata, is_deleted')
         .eq('id', messageId)
         .single()
       
@@ -935,7 +938,12 @@ export class BotRestAPI {
       // A soft-deleted row was dispatched when is_deleted was set.
       if (this.deletes && message.is_deleted !== true) {
         this.deletes
-          .messageHardDeleted({ id: messageId, channel_id: message.channel_id, metadata: message.metadata ?? null })
+          .messageHardDeleted({
+            id: messageId,
+            channel_id: message.channel_id,
+            thread_id: message.thread_id ?? null,
+            metadata: message.metadata ?? null,
+          })
           .catch(err => console.error(`MESSAGE_DELETE dispatch failed for ${messageId}:`, err))
       }
       
@@ -1115,6 +1123,11 @@ export class BotRestAPI {
       const serverId = req.params.serverId || req.params.guildId
       const { limit = 100, after } = req.query
       const botId = req.bot!.id
+
+      // Keyset cursor, as Discord's: the last user.id of the previous page.
+      if (after !== undefined && (typeof after !== 'string' || !UUID_PATTERN.test(after))) {
+        return res.status(400).json({ error: 'after must be a user id' })
+      }
       
       const hasAccess = await this.checkBotInGuild(botId, serverId)
       if (!hasAccess) {
@@ -1128,10 +1141,11 @@ export class BotRestAPI {
           user:profiles!user_servers_user_id_fkey(id, username, display_name, avatar_url, status, domain, is_local)
         `)
         .eq('server_id', serverId)
+        .order('user_id')
         .limit(Number(limit))
       
       if (after) {
-        query = query.gt('joined_at', after as string)
+        query = query.gt('user_id', after)
       }
       
       const { data: members, error } = await query
@@ -2140,7 +2154,7 @@ export class BotRestAPI {
     return {
       id: guild.id,
       name: guild.name,
-      icon: guild.icon_url,
+      icon: absoluteServerIconUrl(guild.icon),
       owner_id: guild.owner,
       description: guild.description,
       member_count: guild.member_count || 0
@@ -2150,7 +2164,7 @@ export class BotRestAPI {
   private formatChannel(channel: any) {
     return {
       id: channel.id,
-      type: channel.type === 'text' ? 0 : channel.type === 'voice' ? 2 : 0,
+      type: DISCORD_CHANNEL_TYPE[channel.type as number] ?? 0,
       guild_id: channel.server_id,
       name: channel.name,
       position: channel.order ?? 0,
@@ -2172,7 +2186,7 @@ export class BotRestAPI {
       } : null,
       nick: member.nickname,
       roles: member.roles || [],
-      joined_at: member.joined_at
+      joined_at: member.created_at
     }
   }
   
@@ -2249,18 +2263,7 @@ export class BotRestAPI {
         .eq('status', 'accepted')
 
       const publicUrl = process.env.PUBLIC_URL || process.env.SUPABASE_URL || ''
-      let serverIconUrl: string | null = null
-      const icon = invite.server_icon as string | null | undefined
-      if (icon) {
-        if (icon.startsWith('http://') || icon.startsWith('https://')) {
-          serverIconUrl = icon
-        } else if (icon.startsWith('/')) {
-          serverIconUrl = publicUrl ? `${publicUrl}${icon}` : icon
-        } else if (publicUrl) {
-          serverIconUrl =
-            `${publicUrl}/storage/v1/render/image/public/server_icons/${icon}?width=128&height=128&resize=contain&quality=80`
-        }
-      }
+      const serverIconUrl = absoluteServerIconUrl(invite.server_icon)
 
       const { data: server } = await supabase
         .from('servers')

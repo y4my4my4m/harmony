@@ -520,6 +520,158 @@ describe('shared inbox: remote structure and featured posts', () => {
   })
 })
 
+describe('ATTACH_FILES on inbound uploads', () => {
+  // A file part pointing into the sender's media store is an upload; any other url is a link.
+  const upload = (n: number) => ({
+    type: 'file', fileType: 'image', fileName: `cat${n}.png`,
+    url: `https://peer.test/api/federation/media/c/${C1}/00000000-0000-4000-8000-00000000aa0${n}/cat${n}.png?to=harmony.test&sig=s${n}`,
+  })
+  const gif = { type: 'file', fileType: 'image', url: 'https://static.klipy.com/ii/abc/cat.gif' }
+  const raw = (...parts: Row[]) => ({ 'harmony:rawContent': [{ type: 'text', text: 'look' }, ...parts] })
+  const create = (extra: Row) =>
+    processServerInboxActivity(S1, {
+      type: 'Create',
+      actor: EVE,
+      object: {
+        type: 'Note',
+        id: `https://peer.test/messages/${++seq}`,
+        content: '<p>look</p>',
+        context: `https://harmony.test/servers/${S1}/channels/${C1}`,
+        ...extra,
+      },
+    })
+
+  it('refuses an upload without ATTACH_FILES in the channel and stores it with it', async () => {
+    await create(raw(upload(1)))
+    expect(newMessages()).toHaveLength(0)
+    grant('eve', C1, [...SEND, 'ATTACH_FILES'])
+    await create(raw(upload(1)))
+    expect(newMessages()).toHaveLength(1)
+  })
+
+  it('takes a linked GIF without ATTACH_FILES', async () => {
+    await create(raw(gif))
+    expect(newMessages()).toHaveLength(1)
+  })
+
+  it('counts every attachment of a Note without Harmony content', async () => {
+    await create({ attachment: [{ type: 'Document', mediaType: 'image/png', url: 'https://social.test/media/cat.png' }] })
+    expect(newMessages()).toHaveLength(0)
+  })
+
+  it('applies to the shared inbox route too', async () => {
+    await P.processCreate(note(EVE, S1, C1, raw(upload(2))))
+    expect(newMessages()).toHaveLength(0)
+  })
+
+  it('does not apply to a remote server copy, whose host decides', async () => {
+    await P.processCreate(note(HOSTU, R, CR, raw(upload(3))))
+    expect(newMessages()).toHaveLength(1)
+  })
+
+  it('lets an edit keep its uploads and refuses one adding an upload', async () => {
+    tables.messages!.push({
+      id: 'mu', channel_id: C1, user_id: 'eve', content: [{ type: 'text', text: 'old' }, upload(4)],
+      metadata: { ap_id: 'https://peer.test/messages/mu' },
+    })
+    const edit = (text: string, ...parts: Row[]) => processServerInboxActivity(S1, {
+      type: 'Update',
+      actor: EVE,
+      object: { type: 'Note', id: 'https://peer.test/messages/mu', 'harmony:rawContent': [{ type: 'text', text }, ...parts] },
+    })
+    const text = () => tables.messages!.find((m) => m.id === 'mu')!.content[0].text
+
+    await edit('kept', upload(4))
+    expect(text()).toBe('kept')
+    await edit('added', upload(4), upload(5))
+    expect(text()).toBe('kept')
+  })
+})
+
+describe('server inbox: moderator deletes', () => {
+  const MOD = 'https://peer.test/users/mod'
+  const del = (actor: string) =>
+    processServerInboxActivity(S1, { type: 'Delete', actor, object: `https://peer.test/messages/${M1}` })
+  const deleted = () => tables.messages!.find((m) => m.id === M1)!.is_deleted === true
+
+  beforeEach(() => {
+    tables.profiles!.push({ id: 'mod', username: 'mod', federated_id: MOD, is_local: false, updated_at: FRESH })
+    tables.user_servers!.push({ server_id: S1, user_id: 'mod', status: 'accepted' })
+    // A server-wide role with MANAGE_MESSAGES (bit 21): the channel decides, not the role.
+    tables.user_roles = [{ user_id: 'mod', server_id: S1, server_roles: { is_admin: false, permissions: String(1n << 21n) } }]
+  })
+
+  it('takes a delete from a member holding MANAGE_MESSAGES in the message\'s channel', async () => {
+    grant('mod', C1, ['VIEW_CHANNEL', 'MANAGE_MESSAGES'])
+    await del(MOD)
+    expect(deleted()).toBe(true)
+    expect(rpcCalls.filter((c) => c.fn === 'has_permission').map((c) => [c.args.p_permission, c.args.p_channel_id]))
+      .toEqual([['MANAGE_MESSAGES', C1]])
+  })
+
+  it('refuses one whose MANAGE_MESSAGES the channel denies, whatever the role grants', async () => {
+    grant('mod', C1B, ['MANAGE_MESSAGES'])
+    await del(MOD)
+    expect(deleted()).toBe(false)
+  })
+
+  it('refuses a banned or departed holder', async () => {
+    grant('ban', C1, ['MANAGE_MESSAGES'])
+    await del(BAN)
+    grant('out', C1, ['MANAGE_MESSAGES'])
+    await del(OUT)
+    expect(deleted()).toBe(false)
+  })
+})
+
+describe('shared inbox: message deletes', () => {
+  const GROUP_R = `https://remote.test/servers/${R}`
+  const MIRRORED = '00000000-0000-4000-8000-0000000000f4'
+  const OWN_IN_MIRROR = '00000000-0000-4000-8000-0000000000f5'
+  const OWN_IN_S1 = '00000000-0000-4000-8000-0000000000f6'
+  const del = (actor: string, object: string) => P.processDelete({ type: 'Delete', actor, object })
+  const deleted = (id: string) => tables.messages!.find((m) => m.id === id)!.is_deleted === true
+
+  beforeEach(() => {
+    tables.messages!.push(
+      { id: MIRRORED, channel_id: CR, user_id: 'stray', metadata: { ap_id: `https://peer.test/messages/${MIRRORED}` } },
+      { id: OWN_IN_MIRROR, channel_id: CR, user_id: 'alice', metadata: {} },
+      { id: OWN_IN_S1, channel_id: C1, user_id: 'alice', metadata: {} },
+    )
+  })
+
+  it('takes the Group\'s Delete of a message in its own channel, whoever wrote it', async () => {
+    await del(GROUP_R, `https://peer.test/messages/${MIRRORED}`)
+    expect(deleted(MIRRORED)).toBe(true)
+  })
+
+  it('takes the Group\'s Delete of a message this instance federated into its channel', async () => {
+    await del(GROUP_R, `https://harmony.test/messages/${OWN_IN_MIRROR}`)
+    expect(deleted(OWN_IN_MIRROR)).toBe(true)
+  })
+
+  it('refuses the Group\'s Delete of a message in another server\'s channel', async () => {
+    await del(GROUP_R, `https://peer.test/messages/${M1}`)
+    await del(GROUP_R, `https://harmony.test/messages/${OWN_IN_S1}`)
+    expect(deleted(M1)).toBe(false)
+    expect(deleted(OWN_IN_S1)).toBe(false)
+  })
+
+  it('refuses a Group on another host naming the server\'s UUID', async () => {
+    await del(`https://evil.test/servers/${R}`, `https://peer.test/messages/${MIRRORED}`)
+    await del(`https://evil.test/servers/${R}`, `https://harmony.test/messages/${OWN_IN_MIRROR}`)
+    expect(deleted(MIRRORED)).toBe(false)
+    expect(deleted(OWN_IN_MIRROR)).toBe(false)
+  })
+
+  it('takes the author\'s Delete and refuses another member\'s', async () => {
+    await del(HOSTU, `https://peer.test/messages/${MIRRORED}`)
+    expect(deleted(MIRRORED)).toBe(false)
+    await del(STRAY, `https://peer.test/messages/${MIRRORED}`)
+    expect(deleted(MIRRORED)).toBe(true)
+  })
+})
+
 describe('server inbox', () => {
   const create = (actor: string, channelId: string, extra: Row = {}) =>
     processServerInboxActivity(S1, {
@@ -667,6 +819,16 @@ describe('server inbox: Join of a private server', () => {
     await join(OUT, 'GOOD')
     expect(membership('out')?.status).toBe('accepted')
     expect(answer()).toEqual([['Accept', undefined]])
+  })
+
+  it('answers as the Group, signed with the Group key', async () => {
+    await join(OUT)
+    inviteRefusals.GOOD = null
+    await join(OUT, 'GOOD')
+    expect(vi.mocked(DeliveryQueue.sendToInbox).mock.calls.map((c) => [c[1].type, c[1].actor, c[2]])).toEqual([
+      ['Reject', `https://harmony.test/servers/${S1}`, { serverId: S1 }],
+      ['Accept', `https://harmony.test/servers/${S1}`, { serverId: S1 }],
+    ])
   })
 
   it('spends no invite on an accepted member', async () => {

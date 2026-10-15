@@ -9,6 +9,9 @@
         <button type="button" class="activity-dock__open" :aria-label="t('activities.open')" :title="t('activities.open')" data-testid="activity-open" @click="voice.isOverlayVisible = true">
           <Icon name="maximize-2" :size="14" />
         </button>
+        <button type="button" class="activity-dock__open" :aria-label="t('activities.hideForMe')" :title="t('activities.hideForMe')" data-testid="activity-dock-leave" @click="actStore.hide(activity.channel_id, true)">
+          <Icon name="log-out" :size="14" />
+        </button>
       </div>
       <ActivityControls :activity="activity" compact />
     </div>

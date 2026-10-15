@@ -1,7 +1,7 @@
 <template>
   <TransitionGroup v-if="plays.length > 0" tag="ul" name="sba" class="sba" aria-live="polite">
     <li v-for="play in plays" :key="play.key" class="sba-item">
-      <span class="sba-emoji" aria-hidden="true">{{ play.emoji || '🔊' }}</span>
+      <span class="sba-emoji" aria-hidden="true"><SoundboardEmoji :emoji="play.emoji" :custom-emoji="play.customEmoji" :size="14" /></span>
       <i18n-t keypath="soundboard.played" tag="span" class="sba-text">
         <template #user>
           <DisplayName class="sba-user" :user-id="play.userId" :truncate="true" />
@@ -18,6 +18,7 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import DisplayName from '@/components/DisplayName.vue';
+import SoundboardEmoji from './SoundboardEmoji.vue';
 import { useSoundboardStore } from '@/stores/soundboard';
 
 const { t } = useI18n();
@@ -52,6 +53,8 @@ const plays = computed(() => soundboard.recentPlays);
 }
 
 .sba-emoji {
+  display: inline-flex;
+  align-items: center;
   font-size: 14px;
   line-height: 1;
 }

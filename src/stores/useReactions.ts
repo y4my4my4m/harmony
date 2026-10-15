@@ -227,6 +227,9 @@ export const useReactionsStore = defineStore('reactions', () => {
       // check_message_emoji_reaction_limit refused a 21st emoji.
       if (!result.success && isReactionLimitError(result.reason)) {
         useToast().info(i18n.global.t('emoji.messageReactionLimit', { count: MESSAGE_REACTION_KINDS }))
+      } else if (!result.success && result.reason?.includes('Missing permission: ADD_REACTIONS')) {
+        // enforce_reaction_add_permission: a new emoji without ADD_REACTIONS in the channel.
+        useToast().info(i18n.global.t('emoji.reactionNotAllowed'))
       }
       return result
     },

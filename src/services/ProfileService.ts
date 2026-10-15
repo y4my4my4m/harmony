@@ -229,51 +229,6 @@ export class ProfileService {
   }
 
   /**
-   * Search profiles
-   */
-  async searchProfiles(
-    query: string,
-    options: {
-      limit?: number;
-      offset?: number;
-      includeFederated?: boolean;
-    } = {}
-  ): Promise<{
-    profiles: Profile[];
-    hasMore: boolean;
-    total: number;
-  }> {
-    try {
-      const { limit = 20, offset = 0, includeFederated = true } = options
-
-      let searchQuery = supabase
-        .from('profiles')
-        .select('*', { count: 'exact' })
-        .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
-        .range(offset, offset + limit - 1)
-
-      if (!includeFederated) {
-        searchQuery = searchQuery.is('domain', null)
-      }
-
-      const { data: profiles, error, count } = await searchQuery
-
-      if (error) {
-        throw this.createError('SEARCH_FAILED', 'Failed to search profiles', error)
-      }
-
-      return {
-        profiles: profiles || [],
-        hasMore: (count || 0) > offset + limit,
-        total: count || 0
-      }
-    } catch (error) {
-      debug.error('Failed to search profiles:', error)
-      throw error
-    }
-  }
-
-  /**
    * Check username availability
    */
   async checkUsernameAvailability(username: string): Promise<{

@@ -587,7 +587,9 @@ export class EventDispatcher {
       if (row.is_deleted) {
         if (this.deletedIds.get(row.id)) return
         this.deletedIds.set(row.id, true)
-        await this.handleMessageDelete({ old: { id: row.id, channel_id: row.channel_id, metadata: row.metadata } })
+        await this.handleMessageDelete({
+          old: { id: row.id, channel_id: row.channel_id, thread_id: row.thread_id ?? null, metadata: row.metadata },
+        })
       } else {
         await this.handleMessageUpdate({ new: row, old: { id: row.id } })
       }
@@ -611,7 +613,7 @@ export class EventDispatcher {
    * MESSAGE_DELETE for a row removed through the bot REST API. A hard-deleted row leaves nothing
    * in the change feed, so the caller passes what it read before the delete.
    */
-  async messageHardDeleted(message: { id: string; channel_id: string | null; metadata: unknown }) {
+  async messageHardDeleted(message: { id: string; channel_id: string | null; thread_id: string | null; metadata: unknown }) {
     if (this.deletedIds.get(message.id)) return
     this.deletedIds.set(message.id, true)
     await this.handleMessageDelete({ old: message })

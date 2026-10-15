@@ -24,7 +24,8 @@
             type="text"
             placeholder="Search users or @user@domain.com"
             class="search-input"
-            @input="handleSearch"
+            data-testid="group-invite-search"
+            :aria-busy="isSearching"
             @keydown.escape="clearSearch"
             @keydown.enter.prevent="selectFirstResult"
           />
@@ -39,7 +40,7 @@
 
         <!-- Search Results -->
         <div v-if="searchQuery" class="search-results">
-          <div v-if="isSearching" class="search-loading">
+          <div v-if="isSearching && searchResults.length === 0" class="search-loading" role="status">
             <Icon name="loader" class="spinning" />
             <span>Searching...</span>
           </div>
@@ -54,6 +55,7 @@
             v-for="user in searchResults"
             :key="user.id"
             class="search-result-item"
+            data-testid="group-invite-result"
             @click="toggleUserSelection(user)"
             :class="{ selected: isUserSelected(user.id) }"
           >
@@ -205,6 +207,7 @@ import { debug } from '@/utils/debug'
 import { useToast } from 'vue-toastification'
 import { useDMStore } from '@/stores/useDM'
 import { useAuthStore } from '@/stores/auth'
+import { useUserSearch, type UserSearchResult } from '@/composables/useUserSearch'
 import BaseModal from '@/components/common/BaseModal.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
@@ -230,13 +233,9 @@ const dmStore = useDMStore()
 const authStore = useAuthStore()
 
 // State
-const searchQuery = ref('')
-const searchResults = ref<DMUser[]>([])
 const selectedUsers = ref<DMUser[]>([])
-const isSearching = ref(false)
 const isProcessing = ref(false)
 const searchInput = ref<HTMLInputElement>()
-const searchTimeout = ref<NodeJS.Timeout>()
 
 // Group settings (for new groups)
 const groupName = ref('')
@@ -245,6 +244,27 @@ const isPrivateGroup = ref(false)
 // Computed
 const isNewGroup = computed(() => !props.conversationId)
 const currentUserId = computed(() => authStore.session?.user?.id)
+
+const {
+  query: searchQuery,
+  results: searchResults,
+  searching: isSearching,
+  error: searchError,
+  clear: clearSearch,
+} = useUserSearch({
+  limit: 10,
+  exclude: () => [
+    currentUserId.value,
+    ...(props.existingParticipants ?? []).map((p) => p.id),
+    ...selectedUsers.value.map((u) => u.id),
+  ],
+})
+
+watch(searchError, (message) => {
+  if (!message) return
+  debug.error('Search failed:', message)
+  toast.error('Failed to search users')
+})
 
 const modalTitle = computed(() => {
   return isNewGroup.value ? 'Create group chat' : 'Add people'
@@ -274,99 +294,30 @@ const hasExternalUsers = computed(() => {
 })
 
 // Methods
-const handleSearch = () => {
-  if (searchTimeout.value) {
-    clearTimeout(searchTimeout.value)
-  }
-
-  searchTimeout.value = setTimeout(async () => {
-    let query = searchQuery.value.trim()
-    if (!query || !currentUserId.value) {
-      searchResults.value = []
-      return
-    }
-    // Allow @ prefix: strip leading @ so "y4my4m" and "@y4my4m" both work
-    if (query.startsWith('@')) {
-      query = query.slice(1).trim()
-    }
-
-    isSearching.value = true
-    try {
-      await dmStore.searchUsers(query, currentUserId.value)
-      debug.log('Search completed, raw results:', dmStore.searchResults.length)
-      debug.log('Selected users before filtering:', selectedUsers.value.map(u => ({ id: u.id, username: u.username })))
-      
-      searchResults.value = dmStore.searchResults.filter(user => {
-        if (user.id === currentUserId.value) return false
-        if (props.existingParticipants?.some(p => p.id === user.id)) return false
-        if (selectedUsers.value.some(s => s.id === user.id)) return false
-        return true
-      })
-      
-      debug.log('Filtered search results:', searchResults.value.length)
-    } catch (error) {
-      debug.error('Search failed:', error)
-      toast.error('Failed to search users')
-    } finally {
-      isSearching.value = false
-    }
-  }, 300)
-}
-
-const clearSearch = () => {
-  searchQuery.value = ''
-  searchResults.value = []
-}
-
-const refreshSearchResults = () => {
-  // Re-filter the current dmStore.searchResults with updated selected users
-  if (dmStore.searchResults.length > 0) {
-    debug.log('Refreshing search results:', {
-      totalResults: dmStore.searchResults.length,
-      selectedUsers: selectedUsers.value.map(u => ({ id: u.id, username: u.username, hasId: !!u.id })),
-      existingParticipants: props.existingParticipants?.map(p => p.id) || []
-    })
-    
-    searchResults.value = dmStore.searchResults.filter(user => {
-      if (user.id === currentUserId.value) {
-        debug.log('Filtering out current user:', user.id)
-        return false
-      }
-      if (props.existingParticipants?.some(p => p.id === user.id)) {
-        debug.log('Filtering out existing participant:', user.id)
-        return false
-      }
-      if (selectedUsers.value.some(s => s.id === user.id)) {
-        debug.log('Filtering out already selected user:', user.id, 'comparing with selected:', selectedUsers.value.map(s => s.id))
-        return false
-      }
-      debug.log('Keeping user in results:', user.id)
-      return true
-    })
-    
-    debug.log('Final search results count:', searchResults.value.length)
-  }
-}
-
 const selectFirstResult = () => {
   if (searchResults.value.length > 0) {
     toggleUserSelection(searchResults.value[0])
   }
 }
 
-const toggleUserSelection = (user: DMUser) => {
-  debug.log('Toggling user selection:', { user, hasId: !!user.id })
-  
+const toDMUser = (user: UserSearchResult): DMUser => ({
+  id: user.id,
+  username: user.username,
+  display_name: user.display_name ?? undefined,
+  avatar_url: user.avatar_url ?? undefined,
+  domain: user.domain ?? undefined,
+  is_local: user.is_local,
+  handle: user.handle ?? undefined,
+  is_online: false,
+})
+
+const toggleUserSelection = (user: UserSearchResult) => {
   const index = selectedUsers.value.findIndex(u => u.id === user.id)
   if (index > -1) {
     selectedUsers.value.splice(index, 1)
   } else {
-    selectedUsers.value.push(user)
+    selectedUsers.value.push(toDMUser(user))
   }
-  
-  debug.log('Selected users after toggle:', selectedUsers.value.map(u => ({ id: u.id, username: u.username })))
-  
-  refreshSearchResults()
 }
 
 const isUserSelected = (userId: string): boolean => {
@@ -377,16 +328,14 @@ const removeUserFromSelection = (userId: string) => {
   const index = selectedUsers.value.findIndex(u => u.id === userId)
   if (index > -1) {
     selectedUsers.value.splice(index, 1)
-    refreshSearchResults()
   }
 }
 
 const clearAllSelections = () => {
   selectedUsers.value = []
-  refreshSearchResults()
 }
 
-const formatUserHandle = (user: DMUser): string => {
+const formatUserHandle = (user: Pick<DMUser, 'username'> & { handle?: string | null; domain?: string | null; is_local?: boolean }): string => {
   if (!user.is_local && user.handle) {
     return user.handle
   }

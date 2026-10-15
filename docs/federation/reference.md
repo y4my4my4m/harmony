@@ -51,7 +51,7 @@ Throughout, `<domain>` is the instance's `INSTANCE_DOMAIN`. Every id is an `http
 | `software.version` | The backend version |
 | `software.repository` | `https://github.com/y4my4my4m/harmony` (2.1 only) |
 | `protocols` | `["activitypub"]` |
-| `usage` | `users.total`, `users.activeMonth`, `users.activeHalfyear`, `localPosts` |
+| `usage` | `users.total`, `users.activeMonth`, `users.activeHalfyear`, `localPosts`. Active users are local accounts with a sign-in, a session refresh, a post or a message in the past 30 or 180 days; suspended and deleted accounts and bots are not counted. Recomputed at most every 10 minutes. |
 | `openRegistrations` | The instance's registration setting |
 | `metadata` | `nodeName`, `nodeDescription`; `icon`, `banner`, `themeColor` and `maintainer` (`name`, `email`) when set |
 | `metadata.features` (2.1 only) | `discord_like_servers`, `voice_chat`, `video_chat`, `emoji_reactions`, `mastodon_compatible`, `misskey_compatible` |
@@ -62,9 +62,9 @@ Throughout, `<domain>` is the instance's `INSTANCE_DOMAIN`. Every id is an `http
 |---|---|---|---|---|
 | Account | `/users/<username>` | `Person` | `/users/<username>/inbox`; shared inbox `/inbox` | `/users/<username>#main-key` |
 | Instance actor | `/users/instance.actor` | `Application` | `/users/instance.actor/inbox`, which is the shared inbox | `/users/instance.actor#main-key` |
-| Chat server | `/servers/<uuid>` | `Group` | `/servers/<uuid>/inbox`; no shared inbox | None |
+| Chat server | `/servers/<uuid>` | `Group` | `/servers/<uuid>/inbox`; no shared inbox | `/servers/<uuid>#main-key` |
 
-Keys are 2048-bit RSA, published as PEM in `publicKey.publicKeyPem` with `owner` set to the actor id. A key pair is generated on an account's first signed request or first actor fetch.
+Keys are 2048-bit RSA, published as PEM in `publicKey.publicKeyPem` with `owner` set to the actor id. A key pair is generated on an account's first signed request or first actor fetch, and on a chat server's first activity or first `Group` fetch.
 
 Usernames match `[a-zA-Z0-9_]`, so no account can take `instance.actor`. The instance actor signs forwarded reports and the instance's own fetches. Its outbox is an empty collection, and it has `manuallyApprovesFollowers: true` and `discoverable: false`.
 
@@ -93,7 +93,7 @@ A deleted account answers its actor URL with 410 and a `Tombstone` (`id`, `forme
 
 ### Group (chat server)
 
-A server is served under the read rules in [Reads and access](#reads-and-access). A caller that may not read it gets a stub with `id`, `type`, `harmony:type`, `name`, `inbox`, `discoverable: false` and `manuallyApprovesFollowers: true`, which is what a `Join` by invite needs. A reader gets the full document:
+A server is served under the read rules in [Reads and access](#reads-and-access). A caller that may not read it gets a stub with `id`, `type`, `harmony:type`, `name`, `inbox`, `publicKey`, `discoverable: false` and `manuallyApprovesFollowers: true`, which is what a `Join` by invite and a check of the Group's signature need. A reader gets the full document:
 
 | Property | Value |
 |---|---|
@@ -109,6 +109,7 @@ A server is served under the read rules in [Reads and access](#reads-and-access)
 | `harmony:channels` | The categories and channels the caller may view |
 | `discoverable` | `true` for a public server |
 | `manuallyApprovesFollowers` | `false` |
+| `publicKey` | The Group's key, `/servers/<uuid>#main-key` |
 
 Each `harmony:channels` entry has `type` (`harmony:TextChannel`, `harmony:VoiceChannel` or `harmony:Category`), `id` (`/servers/<uuid>/channels/<channel uuid>`), `localId`, `name`, `position`, `order`, `category` and `categoryId` (the parent category's id and UUID, or null), `description` and `channelType` (`text`, `voice` or `category`). A category is listed when it holds a channel the caller may view, or no channel at all.
 
@@ -161,7 +162,7 @@ Harmony does not send RFC 9421 signatures.
 | Request | Signed by |
 |---|---|
 | Activities of an account: posts, follows, reactions, blocks, profile updates, `Move`, direct messages, its chat messages and threads, voice | The account |
-| Activities whose `actor` is a chat server `Group` (`Accept` and `Reject` of a `Join`, channel `Add`, `Update` and `Remove`, `Update` of the Group, `Delete` of a channel message) | The server owner's account key |
+| Activities whose `actor` is a chat server `Group` (`Accept` and `Reject` of a `Join`, channel `Add`, `Update` and `Remove`, `Update` of the Group, `Delete` of a channel message) | The `Group`'s own key |
 | A member's channel message, edit, deletion or reaction relayed by the host to other member instances | The server owner's account key |
 | `harmony:VoiceChannelJoinAccept` | The server owner, who is also its `actor` |
 | `Flag` | The instance actor |
@@ -294,7 +295,7 @@ Shared and personal inboxes:
 | `Update` | `Person`, `Service`, `Application`, `Organization` | Profile refreshed. The signer must be the actor. |
 | `Update` | `Note`, `Article`, `Question` | Post edited or poll counts refreshed, by its author only |
 | `Update` | `Group`, channel types, `ChatThread`, group conversation | Mirrored server, channel, thread or group conversation updated |
-| `Delete` | Post or message id, or a `ChatThread` | Soft-deleted, by its author only. A `Delete` of an actor removes nothing. |
+| `Delete` | Post or message id, or a `ChatThread` | Soft-deleted, by its author. A channel message of a mirrored server is also deleted by that server's `Group`. A `Delete` of an actor removes nothing. |
 | `Like`, `EmojiReact`, `EmojiReaction` | Post or message | A `Like` with no emoji or a heart (❤, ♥) is a favourite. A `Like` with `_misskey_reaction` or `content`, and an `EmojiReact`, is a reaction and implies the favourite. |
 | `Announce` | Post | Boost; the original is fetched when unknown |
 | `Undo` | `Like`, `EmojiReact`, `EmojiReaction`, `Follow`, `Announce`, `Block`, embedded or by id | Reverted. The undone activity's actor must be the signer. |

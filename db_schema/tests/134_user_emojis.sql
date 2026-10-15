@@ -11,6 +11,7 @@
 --   03 owl            scope user, mallory, AI-generated
 --   04 inst_one       scope instance, local
 --   05 srv_one        scope server on server_1, uploaded by bob
+--   06 bob_new        scope user, bob (20261016100004: clients insert through create_my_emoji)
 BEGIN;
 SET LOCAL search_path = tests, public;
 SELECT plan(41);
@@ -28,7 +29,9 @@ INSERT INTO public.emojis (id, name, url, server_id, uploader, domain, scope, is
    NULL, NULL, 'instance', false, now() - interval '2 minutes'),
   ('134e0000-0000-0000-0000-000000000005', 'srv_one', 'https://cdn.test/5.png',
    '55555555-0000-0000-0000-000000000005', '22222222-0000-0000-0000-000000000002', NULL, 'server', false,
-   now() - interval '1 minute');
+   now() - interval '1 minute'),
+  ('134e0000-0000-0000-0000-000000000006', 'bob_new', 'https://cdn.test/new.png', NULL,
+   '22222222-0000-0000-0000-000000000002', NULL, 'user', false, now());
 
 CREATE FUNCTION pg_temp.listed(p_search text, p_source text)
 RETURNS text[] LANGUAGE sql AS
@@ -94,10 +97,10 @@ SELECT throws_ok($q$INSERT INTO public.emojis (name, url, server_id, uploader, s
                     VALUES ('inject', 'https://evil.test/y.png', '55555555-0000-0000-0000-000000000005',
                             '22222222-0000-0000-0000-000000000002', 'user')$q$,
                  '42501', NULL, 'a user-scope emoji cannot be inserted into a server');
-SELECT lives_ok($q$INSERT INTO public.emojis (name, url, server_id, uploader, scope)
-                   VALUES ('bob_new', 'https://cdn.test/new.png', NULL,
-                           '22222222-0000-0000-0000-000000000002', 'user')$q$,
-                'a personal user-scope emoji is still inserted');
+SELECT throws_ok($q$INSERT INTO public.emojis (name, url, server_id, uploader, scope)
+                    VALUES ('bob_direct', 'https://evil.test/z.png', NULL,
+                            '22222222-0000-0000-0000-000000000002', 'user')$q$,
+                 '42501', NULL, 'a personal emoji is not inserted directly');
 
 WITH d AS (DELETE FROM public.emojis WHERE id = '134e0000-0000-0000-0000-000000000003' RETURNING 1)
 SELECT is(count(*)::int, 0, 'another user''s emoji cannot be deleted') FROM d;

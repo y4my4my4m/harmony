@@ -9,6 +9,7 @@ const GENERAL = '00000000-0000-0000-0000-0000000000c1'
 const BRIDGED = '00000000-0000-0000-0000-0000000000c3'
 const MODS_ONLY = '00000000-0000-0000-0000-0000000000c2'
 const EVERYONE_ROLE = '00000000-0000-0000-0000-0000000000e0'
+const THREAD_ID = '00000000-0000-0000-0000-0000000000d1'
 const VIEW_CHANNEL = 2
 
 const mocks = vi.hoisted(() => ({
@@ -393,11 +394,33 @@ describe('message change feed', () => {
     seedMessage('m-hard', T0 - 1_000, { metadata: BRIDGE_METADATA })
     await startFeed()
     db.rows('messages').splice(0)
-    await dispatcher.messageHardDeleted({ id: 'm-hard', channel_id: GENERAL, metadata: BRIDGE_METADATA })
-    await dispatcher.messageHardDeleted({ id: 'm-hard', channel_id: GENERAL, metadata: BRIDGE_METADATA })
+    await dispatcher.messageHardDeleted({ id: 'm-hard', channel_id: GENERAL, thread_id: null, metadata: BRIDGE_METADATA })
+    await dispatcher.messageHardDeleted({ id: 'm-hard', channel_id: GENERAL, thread_id: null, metadata: BRIDGE_METADATA })
     await poll()
 
     expect(events('MESSAGE_DELETE')).toEqual([{ id: 'm-hard', channel_id: GENERAL, thread_id: null, metadata: BRIDGE_METADATA }])
+  })
+
+  // A thread's messages carry the parent channel's channel_id plus thread_id.
+  it('names the thread of a soft-deleted thread message', async () => {
+    seedMessage('m-in-thread', T0 - 1_000, { thread_id: THREAD_ID, metadata: BRIDGE_METADATA })
+    await startFeed()
+    dbClock += 1_000
+    softDelete('m-in-thread')
+    await poll()
+
+    expect(events('MESSAGE_DELETE')).toEqual([
+      { id: 'm-in-thread', channel_id: GENERAL, thread_id: THREAD_ID, metadata: BRIDGE_METADATA },
+    ])
+  })
+
+  it('names the thread of a thread message hard-deleted through the REST API', async () => {
+    await startFeed()
+    await dispatcher.messageHardDeleted({ id: 'm-hard-thread', channel_id: GENERAL, thread_id: THREAD_ID, metadata: null })
+
+    expect(events('MESSAGE_DELETE')).toEqual([
+      { id: 'm-hard-thread', channel_id: GENERAL, thread_id: THREAD_ID, metadata: null },
+    ])
   })
 
   it('withholds edits and deletes of a channel hidden from @everyone', async () => {

@@ -38,6 +38,8 @@
 //   - reading: the peer hosts a private Group; the local proxy and sync fetch
 //     it signed as the requesting local member, which the peer verifies
 //     against that member's published key.
+// Activities whose actor is a Group (Join answers, channel Update, message
+// Delete) are signed with that Group's own key, each way (cases/groupActor.ts).
 // The proxy authenticates its caller with a Supabase JWT; roundtrip.ts signs
 // those itself and gateway.conf answers /auth/v1/user (auth-user-shim.sql).
 //
@@ -77,6 +79,8 @@ import { caseInboundPosts } from './cases/inbound-posts.ts'
 import { caseRemoteReplies } from './cases/remoteReplies.ts'
 import { caseQuotes } from './cases/quotes.ts'
 import { caseSoundboardTokenGrants } from './cases/soundboardTokens.ts'
+import { caseGroupActor } from './cases/groupActor.ts'
+import { caseChannelPermissions } from './cases/channelPermissions.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -195,6 +199,8 @@ class Peer {
   // A user whose actor document, like every object of an instance in
   // authorized fetch mode, is served only to a signed GET.
   readonly secureKey = rsaKeyPair()
+  // The private Group's own key, published in its document to every caller.
+  readonly groupKey = rsaKeyPair()
 
   readonly captured: Captured[] = []
   // GETs to the authorized-fetch object and actor, in arrival order.
@@ -512,6 +518,7 @@ class Peer {
         name: 'Peer private',
         inbox: `${this.groupUrl}/inbox`,
         discoverable: false,
+        publicKey: { id: `${this.groupUrl}#main-key`, owner: this.groupUrl, publicKeyPem: this.groupKey.publicKey },
       }
       if (member) {
         group.members = `${this.groupUrl}/members`
@@ -2514,6 +2521,17 @@ async function main() {
     await caseSoundboardTokenGrants({
       db, assert, eq, localUrl, serverId: PRIV_SERVER, channelId: PRIV_VOICE,
       member: { id: CAROL, auth: CAROL_AUTH }, bearer: (auth) => userToken(auth, env.HMFED_JWT_SECRET),
+    })
+    await caseGroupActor({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq,
+      ids: {
+        alice: ALICE, bob: BOB, carol: CAROL, remote: REMOTE,
+        hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, remoteRef: REMOTE_REF, remoteChannel: REMOTE_CHANNEL,
+      },
+    })
+    await caseChannelPermissions({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, post, signedHeaders, assert, eq,
+      ids: { alice: ALICE, remote: REMOTE, hostedServer: PRIV_SERVER, hostedChannel: PRIV_GENERAL, otherChannel: PRIV_VOICE },
     })
   } finally {
     await new Promise<void>((resolve) => local.close(() => resolve()))

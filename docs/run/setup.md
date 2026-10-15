@@ -134,6 +134,8 @@ Open **Server settings** → **Soundboard** (servers hosted on your own instance
 2. Set a **Name** (1 to 32 characters), an optional **Emoji**, and the **Volume**. Use **Preview** to listen.
 3. Select **Upload sound**.
 
+The emoji button opens the emoji picker: pick a standard emoji, or a custom emoji of one of your servers, of the instance, or one of your own. **Remove emoji** clears it; a sound without one shows 🔊. To change a sound later, select its pencil. A custom emoji that is deleted is removed from the sounds using it.
+
 A server holds at most 48 sounds. **Allow use in other servers** (on by default) lets members play this server's sounds in other servers they belong to, where they hold **Use External Sounds**.
 
 ## Server settings

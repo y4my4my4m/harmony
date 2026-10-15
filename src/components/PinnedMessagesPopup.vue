@@ -108,6 +108,8 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDialog } from '@/composables/useDialog'
 import { useServerPermissions } from '@/composables/useServerPermissions'
+import { useChannelMessagePermissions } from '@/composables/useChannelMessagePermissions'
+import { useServerChannelStore } from '@/stores/useServerChannel'
 import { usePinActions } from '@/composables/usePinActions'
 import { usePinsStore, pinScopeKey } from '@/stores/usePins'
 import { useUserData } from '@/composables/useUserData'
@@ -133,7 +135,13 @@ const emit = defineEmits<{
   'jump-to-message': [messageId: string]
 }>()
 
-const { canPinMessages } = useServerPermissions()
+const { canPinMessages: canPinServerWide } = useServerPermissions()
+// Channel-resolved, as unpin_message decides it.
+const serverChannelStore = useServerChannelStore()
+const { canPinMessages: canPinInChannel } = useChannelMessagePermissions(
+  () => serverChannelStore.currentServerId,
+  () => (props.conversationId ? null : props.channelId),
+)
 const { 
   getUserDisplayName: getDisplayName, 
   getUserColor: getColor,
@@ -163,7 +171,7 @@ const loadFailed = ref(false)
 // Spinner only before the first fetch; later opens render the cached list.
 const loading = computed(() => cachedMessages.value === null && !loadFailed.value)
 const pinnedCount = computed(() => pinnedMessages.value.length)
-const canUnpin = computed(() => canPinMessages.value)
+const canUnpin = computed(() => (props.conversationId ? canPinServerWide.value : canPinInChannel.value))
 
 const loadPinnedMessages = async () => {
   if (!scope.value) return

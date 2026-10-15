@@ -77,8 +77,9 @@
 		import federation_upstream
 	}
 
-	# Shared inbox, oEmbed, actor collections, Group actors, post collections:
-	# always ActivityPub. Outboxes are per actor; no shared outbox exists.
+	# Shared inbox, oEmbed, actor collections, FEP-044f quote authorizations,
+	# Group actors, post collections: always ActivityPub. Outboxes are per actor;
+	# no shared outbox exists.
 	@fedExact path_regexp ^/(inbox|oembed)$
 	handle @fedExact {
 		import federation_upstream
@@ -87,12 +88,21 @@
 	handle @fedActorCollections {
 		import federation_upstream
 	}
+	@fedQuoteAuthorizations path_regexp ^/users/[^/]+/quote_authorizations/[^/]+$
+	handle @fedQuoteAuthorizations {
+		import federation_upstream
+	}
 	@fedServers path_regexp ^/servers/
 	handle @fedServers {
 		import federation_upstream
 	}
-	@fedPostCollections path_regexp ^/posts/[0-9a-f-]+/(likes|replies)
+	@fedPostCollections path_regexp ^/posts/[0-9a-f-]+/(likes|shares|replies)
 	handle @fedPostCollections {
+		import federation_upstream
+	}
+	# Chat and direct message Notes; the backend answers 406 to any other Accept.
+	@fedMessages path_regexp ^/messages/[0-9a-f-]+$
+	handle @fedMessages {
 		import federation_upstream
 	}
 

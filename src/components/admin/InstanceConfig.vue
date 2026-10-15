@@ -226,6 +226,20 @@
         <span class="setting-hint">Maximum custom emojis allowed per server. 0 = unlimited.</span>
       </div>
       <div class="setting-group">
+        <label for="max-personal-emojis">{{ $t('admin.instance.maxPersonalEmojis') }}</label>
+        <input
+          id="max-personal-emojis"
+          v-model.number="config.federation.maxPersonalEmojisPerUser"
+          type="number"
+          class="cyber-input"
+          min="0"
+          max="1000"
+          aria-describedby="max-personal-emojis-hint"
+          data-testid="max-personal-emojis-input"
+        />
+        <span id="max-personal-emojis-hint" class="setting-hint">{{ $t('admin.instance.maxPersonalEmojisHint') }}</span>
+      </div>
+      <div class="setting-group">
         <label>Custom emoji image quality</label>
         <input
           v-model.number="config.federation.customEmojiTransformQuality"
@@ -632,6 +646,7 @@ import { supabase } from '@/supabase'
 import { humanizeUploadError, imageSourceError } from '@/utils/uploadValidation'
 import { uploadImageObject } from '@/utils/fileUpload'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { DEFAULT_PERSONAL_EMOJIS_PER_USER, parsePersonalEmojiLimit } from '@/utils/personalEmojiLimit'
 
 const authStore = useAuthStore()
 const toast = useToast()
@@ -703,7 +718,8 @@ const config = ref({
   federation: {
     maxPostLength: 500,
     retryAttempts: 3,
-    maxCustomEmojisPerServer: 0,
+    maxCustomEmojisPerServer: 50,
+    maxPersonalEmojisPerUser: DEFAULT_PERSONAL_EMOJIS_PER_USER,
     customEmojiTransformQuality: 80,
     allowCustomEmojisInDisplayNames: true,
     maxPostReactionsPerUser: 10,
@@ -826,6 +842,7 @@ const saveConfig = async () => {
       max_post_length: config.value.federation.maxPostLength,
       federation_retry_attempts: config.value.federation.retryAttempts,
       max_custom_emojis_per_server: config.value.federation.maxCustomEmojisPerServer ?? 0,
+      max_personal_emojis_per_user: parsePersonalEmojiLimit(config.value.federation.maxPersonalEmojisPerUser),
       custom_emoji_transform_quality: Math.min(
         100,
         Math.max(1, Math.round(Number(config.value.federation.customEmojiTransformQuality) || 100))

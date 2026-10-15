@@ -45,14 +45,16 @@
             class="drive-input drive-share__search-input"
             :placeholder="t('drive.share.searchPeople')"
             :aria-label="t('drive.share.searchPeople')"
+            :aria-busy="searching"
             data-testid="drive-share-search"
-            @input="searchPeople"
           />
+          <LoadingSpinner v-if="searching" :size="14" class="drive-share__search-busy" data-testid="drive-share-searching" />
         </div>
-        <ul v-if="results.length" class="drive-share__results" role="listbox" :aria-label="t('drive.share.people')">
-          <li v-for="person in results" :key="person.id">
-            <button type="button" class="drive-share__result" role="option" :aria-selected="false" data-testid="drive-share-person" @click="addShare('user', person.id)">
-              <img :src="person.avatar_url || '/default_avatar.webp'" alt="" class="drive-share__avatar" />
+        <p v-if="peopleStatus" class="drive-share__status" role="status" data-testid="drive-share-status">{{ peopleStatus }}</p>
+        <ul v-if="people.length" class="drive-share__results" role="listbox" :aria-label="t('drive.share.people')">
+          <li v-for="person in people" :key="person.id">
+            <button type="button" class="drive-share__result" role="option" :aria-selected="false" :disabled="busy" data-testid="drive-share-person" @click="addShare('user', person.id)">
+              <Avatar :src="person.avatar_url" size="sm" class="drive-share__avatar" data-testid="drive-share-person-avatar" />
               <span class="drive-share__person">{{ person.display_name || person.username }}</span>
               <span class="drive-share__handle">@{{ person.username }}</span>
             </button>
@@ -95,11 +97,13 @@ import { computed, onMounted, ref, useId, watch } from 'vue'
 import UnifiedModal from '@/components/shared/UnifiedModal.vue'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import Icon from '@/components/common/Icon.vue'
+import Avatar from '@/components/common/Avatar.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { supabase } from '@/supabase'
 import { useT } from '@/composables/useT'
+import { normalizeUserQuery, useUserSearch } from '@/composables/useUserSearch'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { apiUrl } from '@/services/instanceConfig'
-import { escapeLikePattern, normalizeSearchTerm } from '@/utils/serverDiscovery'
 import {
   createDriveLink,
   getDriveFileUsage,
@@ -119,15 +123,28 @@ const allShares = ref<DriveShare[]>([])
 const busy = ref(false)
 const error = ref<string | null>(null)
 const copied = ref(false)
-const query = ref('')
-const results = ref<Array<{ id: string; username: string; display_name: string | null; avatar_url: string | null }>>([])
 const serverId = ref('')
 const channelId = ref('')
 const channels = ref<Array<{ id: string; name: string }>>([])
-let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 const link = computed(() => allShares.value.find((s) => s.scope === 'link') ?? null)
 const shares = computed(() => allShares.value.filter((s) => s.scope !== 'link'))
+const {
+  query,
+  results: people,
+  searching,
+  error: searchError,
+  clear: clearPeople,
+} = useUserSearch({
+  localOnly: true,
+  exclude: () => [props.file.owner_id, ...shares.value.filter((s) => s.scope === 'user').map((s) => s.target_id)],
+})
+const peopleStatus = computed(() => {
+  if (!normalizeUserQuery(query.value)) return ''
+  if (searchError.value) return t('drive.share.searchFailed')
+  if (searching.value) return people.value.length ? '' : t('drive.share.searching')
+  return people.value.length ? '' : t('drive.share.noPeople')
+})
 const servers = computed(() => serverStore.servers.filter((s) => s.is_local_server !== false))
 const linkUrl = computed(() => (link.value?.token
   ? new URL(apiUrl(`/d/${link.value.token}`), window.location.href).toString()
@@ -175,8 +192,7 @@ const setExpiry = (choice: string) => run(() => createDriveLink(props.file.id, e
 
 const addShare = (scope: 'user' | 'server' | 'channel', target: string) => run(async () => {
   await shareDriveFile(props.file.id, scope, target)
-  query.value = ''
-  results.value = []
+  if (scope === 'user') clearPeople()
 })
 
 const removeShare = (id: string) => run(() => unshareDriveFile(id))
@@ -189,28 +205,6 @@ async function copyLink(): Promise<void> {
   } catch {
     /* clipboard refused; the field stays selectable */
   }
-}
-
-function searchPeople(): void {
-  if (searchTimer) clearTimeout(searchTimer)
-  const q = query.value.trim().replace(/^@/, '')
-  if (q.length < 2) {
-    results.value = []
-    return
-  }
-  // Quoted as in buildServerSearchFilter: `,` `.` `:` `(` `)` in the query stay data.
-  const pattern = `${escapeLikePattern(normalizeSearchTerm(q)).replace(/\*/g, '_')}%`
-  const prefix = `"${pattern.replace(/["\\]/g, (c) => `\\${c}`)}"`
-  searchTimer = setTimeout(async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, username, display_name, avatar_url')
-      .eq('is_local', true)
-      .neq('id', props.file.owner_id)
-      .or(`username.ilike.${prefix},display_name.ilike.${prefix}`)
-      .limit(8)
-    results.value = data ?? []
-  }, 180)
 }
 
 watch(serverId, async (id) => {
@@ -310,7 +304,21 @@ onMounted(load)
 }
 
 .drive-share__search-input {
+  padding-right: 32px;
   padding-left: 32px;
+}
+
+.drive-share__search-busy {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+}
+
+.drive-share__status {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
 }
 
 .drive-share__results,
@@ -339,15 +347,18 @@ onMounted(load)
   cursor: pointer;
 }
 
-.drive-share__result:hover {
+.drive-share__result:hover:not(:disabled) {
   background: var(--background-modifier-hover);
 }
 
-.drive-share__avatar {
+.drive-share__result:disabled {
+  cursor: progress;
+}
+
+/* Drawn at 26px from the "sm" (40px) variant the message list fetches. */
+.drive-share__result .drive-share__avatar {
   width: 26px;
   height: 26px;
-  object-fit: cover;
-  border-radius: var(--radius-full);
 }
 
 .drive-share__person {

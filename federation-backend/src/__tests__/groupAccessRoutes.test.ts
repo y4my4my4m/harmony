@@ -102,6 +102,7 @@ const db: Record<string, any[]> = {
     { server_id: PUB, status: 'accepted', user_id: 'profile-nop', profile: { federated_id: ACTORS.nop } },
     { server_id: PRIV, status: 'accepted', user_id: 'profile-vip', profile: { federated_id: ACTORS.vip } },
   ],
+  server_actor_keys: [PUB, PRIV].map(id => ({ server_id: id, public_key: `PUBLIC-${id}`, private_key: `PRIVATE-${id}` })),
 }
 
 const rpc = vi.fn(async (name: string, args: any) => {
@@ -266,6 +267,13 @@ describe('Group document', () => {
     expect(res.body.id).toBe(`https://harmony.test/servers/${serverId}`)
     expect(res.body.type).toBe('Group')
     expect(res.body.inbox).toBe(`https://harmony.test/servers/${serverId}/inbox`)
+    // Full document and join stub alike carry the key of the Group's own activities.
+    expect(res.body.publicKey).toEqual({
+      id: `https://harmony.test/servers/${serverId}#main-key`,
+      owner: `https://harmony.test/servers/${serverId}`,
+      publicKeyPem: `PUBLIC-${serverId}`,
+    })
+    expect(JSON.stringify(res.body)).not.toContain('PRIVATE')
 
     if (!canReadServer(serverId, caller)) {
       expect(res.body['harmony:channels']).toBeUndefined()

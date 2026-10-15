@@ -11,7 +11,8 @@
  *   - the channel belongs to the server named by the activity or the route;
  *   - an accepted user_servers row and no server_bans row;
  *   - on a local server, VIEW_CHANNEL and the kind's permission through
- *     has_permission;
+ *     has_permission, and ATTACH_FILES for a message or edit carrying new
+ *     uploads (federatedUploadUrls);
  *   - on a remote server's local copy, a signer on the server's host. The host
  *     enforces permissions; the copy's roles and overrides are incomplete, so
  *     has_permission is not consulted there.
@@ -43,6 +44,56 @@ const KIND_PERMISSIONS: Record<ChannelWriteKind, string[][]> = {
   reaction: [['ADD_REACTIONS']],
   edit: [],
 };
+
+// Capability URL path of an object in a Harmony instance's media store (privateMedia.ts):
+// .../media/<c|d|u>/<uuid>/<name>, with to= and sig= in the query.
+const CAPABILITY_PATH = /\/media\/[cdu]\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\//i;
+
+function isCapabilityUrl(url: unknown): url is string {
+  if (typeof url !== 'string') return false;
+  try {
+    const u = new URL(url);
+    return CAPABILITY_PATH.test(u.pathname) && u.searchParams.has('sig');
+  } catch {
+    return false;
+  }
+}
+
+function attachmentUrl(attachment: any): string | null {
+  const url = attachment?.url;
+  if (typeof url === 'string') return url;
+  const first = Array.isArray(url) ? url[0] : url;
+  return typeof first?.href === 'string' ? first.href : null;
+}
+
+/**
+ * Objects a federated Note uploaded: file parts of its Harmony content whose url is a media
+ * capability URL of the sending instance. A file part with any other url (a picker GIF,
+ * remote media) is a link, as message_upload_paths treats a part without path. A Note
+ * without Harmony content counts every attachment.
+ */
+export function federatedUploadUrls(object: any): string[] {
+  const parts = Array.isArray(object?.['harmony:rawContent'])
+    ? object['harmony:rawContent']
+    : Array.isArray(object?.content) ? object.content : null;
+  if (parts) {
+    return parts
+      .filter((p: any) => p && typeof p === 'object' && p.type === 'file' && isCapabilityUrl(p.url))
+      .map((p: any) => p.url as string);
+  }
+  const attachments = Array.isArray(object?.attachment) ? object.attachment : object?.attachment ? [object.attachment] : [];
+  return attachments.map(attachmentUrl).filter((u: string | null): u is string => !!u);
+}
+
+/** URLs of the file parts of stored message content. */
+export function storedFileUrls(content: unknown): Set<string> {
+  const urls = new Set<string>();
+  if (!Array.isArray(content)) return urls;
+  for (const part of content) {
+    if (part && typeof part === 'object' && part.type === 'file' && typeof part.url === 'string') urls.add(part.url);
+  }
+  return urls;
+}
 
 export interface ChannelWriteServer {
   id: string;
@@ -106,7 +157,14 @@ export async function hasChannelPermissions(
 
 export async function authorizeChannelWrite(
   supabase: Supabase,
-  target: { actorUrl: string; serverId: string; channelId: string; kind: ChannelWriteKind },
+  target: {
+    actorUrl: string;
+    serverId: string;
+    channelId: string;
+    kind: ChannelWriteKind;
+    /** Objects the write uploads that the row does not hold yet. */
+    newUploads?: number;
+  },
 ): Promise<ChannelWriteDecision> {
   const { actorUrl, serverId, channelId, kind } = target;
   if (!actorUrl || !serverId || !channelId) return { ok: false, reason: 'incomplete target' };
@@ -174,6 +232,10 @@ export async function authorizeChannelWrite(
     const groups = [['VIEW_CHANNEL'], ...KIND_PERMISSIONS[kind]];
     if (!(await hasChannelPermissions(supabase, author.id, serverId, channelId, groups))) {
       return { ok: false, reason: `missing permission for ${kind}` };
+    }
+    if ((target.newUploads ?? 0) > 0
+      && !(await hasChannelPermissions(supabase, author.id, serverId, channelId, [['ATTACH_FILES']]))) {
+      return { ok: false, reason: 'missing ATTACH_FILES for uploads' };
     }
   }
 

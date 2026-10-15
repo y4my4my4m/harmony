@@ -245,7 +245,7 @@
     "addFirstEmoji": "Fügen Sie Ihr erstes benutzerdefiniertes Emoji hinzu, um Ihren Server einzigartig zu machen!",
     "allowCrossServer": "Emojis von anderen Servern erlauben",
     "allowCrossServerDesc": "Mitgliedern erlauben, Emojis von anderen Servern zu verwenden",
-    "emojiUploadRecommendation": "Empfohlen: 128×128px. Max: 1 MB. Formate: PNG, GIF, WebP, APNG, SVG, JPEG.",
+    "emojiUploadRecommendation": "Empfohlen: 128×128px. Max: 1 MB. Formate: PNG, GIF, WebP, APNG, JPEG.",
     "deleteEmoji": "Emoji löschen",
     "dangerZone": "Gefahrenzone",
     "deleteServer": "Server löschen",
@@ -1463,6 +1463,10 @@
       "theme": "Design",
       "customTheme": "Benutzerdefinierte Designfarbe",
       "customThemeHelp": "Wähle eine Akzentfarbe. Die App generiert automatisch ein vollständiges Design basierend auf deiner Wahl.",
+      "communityPresets": "Community-Vorlagen",
+      "communityPresetsHelp": "Kuratierte Themes aus der Community mit einem Klick anwenden.",
+      "showMorePresets": "{count} weitere anzeigen",
+      "showFewerPresets": "Weniger anzeigen",
       "themes": {
         "dark": "Dunkel",
         "darkDesc": "Ein dunkles Design, das schonender für die Augen ist.",
@@ -2024,9 +2028,10 @@
     "myBotsDescription": "Verwalten Sie die von Ihnen erstellten Bots",
     "myEmojis": {
       "title": "Meine Emojis",
-      "description": "Deine persönlichen Emojis, auch die, die du in der Emoji-Auswahl mit KI erzeugst. Nachrichten verweisen über den Namen auf eigene Emojis; nach dem Umbenennen oder Löschen zeigen ältere Nachrichten den Text :name: statt des Bildes.",
+      "description": "Deine persönlichen Emojis: die, die du hier hochlädst, und die, die du in der Emoji-Auswahl mit KI erzeugst. Du kannst sie auf jedem Server und in jeder Unterhaltung verwenden. Nachrichten verweisen über den Namen auf eigene Emojis; nach dem Umbenennen oder Löschen zeigen ältere Nachrichten den Text :name: statt des Bildes.",
       "loading": "Deine Emojis werden geladen…",
-      "empty": "Du hast noch keine persönlichen Emojis. Emojis, die du in der Emoji-Auswahl mit KI erzeugst, erscheinen hier.",
+      "empty": "Du hast noch keine persönlichen Emojis. Lade eines hoch oder erzeuge eines mit KI in der Emoji-Auswahl.",
+      "uploadsOff": "Persönliche Emojis sind auf dieser Instanz deaktiviert.",
       "listLabel": "Deine Emojis",
       "aiBadge": "KI",
       "aiGenerated": "Mit KI erzeugt",
@@ -2618,6 +2623,7 @@
       "searchToAdd": "Personen zum Hinzufügen suchen",
       "searchResultsLabel": "Personen zum Hinzufügen",
       "searchResults": "{count} Person gefunden | {count} Personen gefunden",
+      "searching": "Suche…",
       "add": "Hinzufügen",
       "addNamed": "{name} hinzufügen",
       "added": "Hinzugefügt",
@@ -2786,6 +2792,7 @@
   },
   "emoji": {
     "messageReactionLimit": "Diese Nachricht hat {count} verschiedene Reaktionen. Schließe dich einer davon an.",
+    "reactionNotAllowed": "In diesem Kanal kannst du dich nur bestehenden Reaktionen anschließen.",
     "postReactionLimit": "Du hast {count} Reaktionen auf diesen Beitrag. Entferne eine, um eine weitere hinzuzufügen.",
     "search": "Emoji suchen...",
     "searchEmojis": "Emojis suchen...",
@@ -4121,6 +4128,7 @@
       "icon_url": "Symbol",
       "unicode_emoji": "Emoji",
       "emoji": "Emoji",
+      "emoji_id": "Eigenes Emoji",
       "volume": "Lautstärke",
       "is_admin": "Administratorrolle",
       "allow_permissions": "Erlaubt",
@@ -4787,11 +4795,14 @@
     },
     "instance": {
       "maxPostReactions": "Max. Reaktionen pro Person auf einen Beitrag",
-      "maxPostReactionsHint": "Verschiedene Emojis, mit denen eine Person auf einen Beitrag reagieren kann (1-100). Standard: 10. Reaktionen von anderen Servern über dem Limit werden verworfen. Chatnachrichten haben höchstens 20 verschiedene Emojis."
+      "maxPostReactionsHint": "Verschiedene Emojis, mit denen eine Person auf einen Beitrag reagieren kann (1-100). Standard: 10. Reaktionen von anderen Servern über dem Limit werden verworfen. Chatnachrichten haben höchstens 20 verschiedene Emojis.",
+      "maxPersonalEmojis": "Persönliche Emojis pro Person",
+      "maxPersonalEmojisHint": "Emojis, die jede Person unter Einstellungen > Meine Emojis behalten kann, hochgeladene und mit KI erzeugte zusammen (0-1000). Standard: 50. 0 deaktiviert persönliche Emojis. Emojis über einem gesenkten Limit bleiben erhalten."
     },
     "activityLog": {
       "configKeys": {
-        "maxPostReactionsPerUser": "Max. Reaktionen pro Person auf einen Beitrag"
+        "maxPostReactionsPerUser": "Max. Reaktionen pro Person auf einen Beitrag",
+        "maxPersonalEmojisPerUser": "Persönliche Emojis pro Person"
       }
     },
     "antiSpam": {
@@ -6050,6 +6061,9 @@
       "checking": "Datei wird geprüft …",
       "name": "Name",
       "emoji": "Emoji",
+      "chooseEmoji": "Emoji auswählen",
+      "changeEmoji": "Emoji ändern ({emoji})",
+      "clearEmoji": "Emoji entfernen",
       "volume": "Lautstärke",
       "preview": "Vorschau",
       "upload": "Sound hochladen",
@@ -6073,6 +6087,7 @@
       "full": "Dieser Server hat bereits {max} Sounds, das Maximum. Lösche einen, um einen neuen hinzuzufügen.",
       "permission": "Du darfst die Sounds dieses Servers nicht verwalten.",
       "invalid": "Der Sound wurde abgelehnt. Prüfe Name, Emoji und Lautstärke.",
+      "emojiUnavailable": "Dieses Emoji kann nicht für einen Sound verwendet werden. Wähle ein Emoji eines deiner Server, ein Instanz-Emoji oder ein eigenes.",
       "load": "Die Sounds dieses Servers konnten nicht geladen werden.",
       "generic": "Etwas ist schiefgelaufen. Versuche es erneut."
     }
@@ -6294,7 +6309,7 @@
     "spotifyHint": "Spotify spielt ganze Titel für alle ab, die in Harmony bei Spotify angemeldet sind; alle anderen hören Vorschauen.",
     "region": "Aktivität",
     "open": "Aktivität öffnen",
-    "hideForMe": "Für mich beenden",
+    "hideForMe": "Verlassen",
     "startedBy": "{name} hat eine Aktivität gestartet",
     "join": "Beitreten",
     "notNow": "Nicht jetzt",
@@ -6349,6 +6364,20 @@
     "removeFile": "Datei entfernen",
     "removeAndBlock": "Entfernen und erneutes Hochladen blockieren",
     "removed": "Entfernt"
+  },
+  "share": {
+    "title": "In Harmony teilen",
+    "nothing": "Nichts wurde geteilt. Teile einen Link oder Text aus einer anderen App, um ihn hier zu senden.",
+    "openHarmony": "Harmony öffnen",
+    "preview": "Geteilter Inhalt",
+    "where": "Wohin soll es gehen?",
+    "search": "Unterhaltungen und Server durchsuchen",
+    "directMessages": "Direktnachrichten",
+    "servers": "Server",
+    "loadingChannels": "Kanäle werden geladen…",
+    "channelsFailed": "Kanäle konnten nicht geladen werden.",
+    "noChannels": "Keine Kanäle, in denen du schreiben kannst.",
+    "noMatches": "Nichts passt zu deiner Suche."
   },
   "drive": {
     "title": "Drive",
@@ -6531,6 +6560,9 @@
       "days": "In {count} Tag | In {count} Tagen",
       "people": "Personen und Orte",
       "searchPeople": "Personen auf dieser Instanz hinzufügen",
+      "searching": "Suche…",
+      "noPeople": "Niemand auf dieser Instanz passt",
+      "searchFailed": "Suche fehlgeschlagen. Bitte erneut versuchen.",
       "server": "Server",
       "channel": "Kanal",
       "pickServer": "Server auswählen",

@@ -249,7 +249,7 @@
     "addFirstEmoji": "Upload custom emoji for members to use in this server.",
     "allowCrossServer": "Allow cross-server emojis",
     "allowCrossServerDesc": "Let members use emojis from other servers",
-    "emojiUploadRecommendation": "Recommended: 128×128px. Max: 1 MB. Formats: PNG, GIF, WebP, APNG, SVG, JPEG.",
+    "emojiUploadRecommendation": "Recommended: 128×128px. Max: 1 MB. Formats: PNG, GIF, WebP, APNG, JPEG.",
     "deleteEmoji": "Delete emoji",
     "advancedSettings": "Advanced settings",
     "dangerZone": "Danger zone",
@@ -1473,9 +1473,10 @@
     "myBotsDescription": "Manage bots you have created",
     "myEmojis": {
       "title": "My emojis",
-      "description": "Your personal emojis, including the ones you generate with AI in the emoji picker. Messages reference custom emojis by name, so after a rename or delete, earlier messages show the :name: text instead of the image.",
+      "description": "Your personal emojis: the ones you upload here and the ones you generate with AI in the emoji picker. You can use them in every server and conversation. Messages reference custom emojis by name, so after a rename or delete, earlier messages show the :name: text instead of the image.",
       "loading": "Loading your emojis…",
-      "empty": "You have no personal emojis yet. Emojis you generate with AI in the emoji picker appear here.",
+      "empty": "You have no personal emojis yet. Upload one, or generate one with AI in the emoji picker.",
+      "uploadsOff": "Personal emojis are turned off on this instance.",
       "listLabel": "Your emojis",
       "aiBadge": "AI",
       "aiGenerated": "AI-generated",
@@ -1509,6 +1510,10 @@
       "theme": "Theme",
       "customTheme": "Custom theme color",
       "customThemeHelp": "Choose an accent color. The app will automatically generate a complete theme based on your choice.",
+      "communityPresets": "Community presets",
+      "communityPresetsHelp": "Quick-apply curated themes from the community.",
+      "showMorePresets": "Show {count} more",
+      "showFewerPresets": "Show fewer",
       "themes": {
         "dark": "Dark",
         "darkDesc": "A dark theme that's easier on the eyes.",
@@ -2633,6 +2638,7 @@
       "searchToAdd": "Search users to add",
       "searchResultsLabel": "Users to add",
       "searchResults": "{count} user found | {count} users found",
+      "searching": "Searching…",
       "add": "Add",
       "addNamed": "Add {name}",
       "added": "Added",
@@ -2801,6 +2807,7 @@
   },
   "emoji": {
     "messageReactionLimit": "This message has {count} different reactions. Add to one of them.",
+    "reactionNotAllowed": "You can only join existing reactions in this channel.",
     "postReactionLimit": "You have {count} reactions on this post. Remove one to add another.",
     "search": "Search emoji...",
     "searchEmojis": "Search emojis...",
@@ -4121,6 +4128,7 @@
       "icon_url": "Icon",
       "unicode_emoji": "Emoji",
       "emoji": "Emoji",
+      "emoji_id": "Custom emoji",
       "volume": "Volume",
       "is_admin": "Administrator role",
       "allow_permissions": "Allowed",
@@ -4783,11 +4791,14 @@
     },
     "instance": {
       "maxPostReactions": "Max reactions per person on a post",
-      "maxPostReactionsHint": "Different emoji one person can react with on a post (1-100). Default: 10. Reactions arriving from other servers past the limit are dropped. Chat messages hold at most 20 different emoji."
+      "maxPostReactionsHint": "Different emoji one person can react with on a post (1-100). Default: 10. Reactions arriving from other servers past the limit are dropped. Chat messages hold at most 20 different emoji.",
+      "maxPersonalEmojis": "Personal emojis per user",
+      "maxPersonalEmojisHint": "Emojis each person can keep in Settings > My emojis, uploads and AI-generated together (0-1000). Default: 50. 0 turns personal emojis off. Emojis already past a lowered limit stay."
     },
     "activityLog": {
       "configKeys": {
-        "maxPostReactionsPerUser": "Max reactions per person on a post"
+        "maxPostReactionsPerUser": "Max reactions per person on a post",
+        "maxPersonalEmojisPerUser": "Personal emojis per user"
       }
     },
     "antiSpam": {
@@ -6046,6 +6057,9 @@
       "checking": "Checking file…",
       "name": "Name",
       "emoji": "Emoji",
+      "chooseEmoji": "Choose an emoji",
+      "changeEmoji": "Change emoji ({emoji})",
+      "clearEmoji": "Remove emoji",
       "volume": "Volume",
       "preview": "Preview",
       "upload": "Upload sound",
@@ -6069,6 +6083,7 @@
       "full": "This server has {max} sounds, the most it can hold. Delete one to add another.",
       "permission": "You don't have permission to manage this server's sounds.",
       "invalid": "That sound was refused. Check its name, emoji and volume.",
+      "emojiUnavailable": "That emoji can't be used for a sound. Pick an emoji of one of your servers, an instance emoji or one of your own.",
       "load": "Couldn't load this server's sounds.",
       "generic": "Something went wrong. Try again."
     }
@@ -6273,6 +6288,20 @@
     "fullscreen": "Full screen",
     "exitFullscreen": "Exit full screen"
   },
+  "share": {
+    "title": "Share to Harmony",
+    "nothing": "Nothing was shared. Share a link or some text from another app to send it here.",
+    "openHarmony": "Open Harmony",
+    "preview": "Shared content",
+    "where": "Where should it go?",
+    "search": "Search conversations and servers",
+    "directMessages": "Direct messages",
+    "servers": "Servers",
+    "loadingChannels": "Loading channels…",
+    "channelsFailed": "Channels could not be loaded.",
+    "noChannels": "No channels you can post in.",
+    "noMatches": "Nothing matches your search."
+  },
   "drive": {
     "title": "Drive",
     "actions": {
@@ -6454,6 +6483,9 @@
       "days": "In {count} day | In {count} days",
       "people": "People and places",
       "searchPeople": "Add people on this instance",
+      "searching": "Searching…",
+      "noPeople": "Nobody on this instance matches",
+      "searchFailed": "Search failed. Try again.",
       "server": "Server",
       "channel": "Channel",
       "pickServer": "Choose a server",
@@ -6529,7 +6561,7 @@
     "spotifyHint": "Spotify plays full tracks for listeners signed in to Spotify in Harmony; others hear previews.",
     "region": "Activity",
     "open": "Open the activity",
-    "hideForMe": "Stop for me",
+    "hideForMe": "Leave",
     "startedBy": "{name} started an activity",
     "join": "Join",
     "notNow": "Not now",

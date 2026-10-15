@@ -10,7 +10,7 @@
         {{ t('activities.hideForMe') }}
       </button>
       <button
-        v-if="canControl"
+        v-if="canEnd"
         type="button"
         class="activity-stage__ghost activity-stage__ghost--end"
         :disabled="actStore.busy"
@@ -109,7 +109,7 @@ const props = defineProps<{ activity: VoiceActivity }>()
 const { t } = useT()
 const actStore = useActivitiesStore()
 const voice = useUnifiedVoiceChannelStore()
-const { canControl } = useActivityControl(() => props.activity)
+const { canEnd } = useActivityControl(() => props.activity)
 const slotEl = ref<HTMLElement | null>(null)
 const queueOpen = ref(false)
 const reactOpen = ref(false)

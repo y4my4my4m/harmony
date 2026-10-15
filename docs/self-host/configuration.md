@@ -91,6 +91,16 @@ The federation worker hashes new files, deletes temporary files whose days
 have passed and trash older than 30 days, and removes the stored bytes of
 deleted files. It sweeps every 10 minutes.
 
+### Emoji limits
+
+**Config** → **Federation** holds the emoji limits. They live in
+`public.instance_config` and apply when you click **Save changes**.
+
+| Setting | Key | Default | Meaning |
+|---|---|---|---|
+| **Max custom emojis per server** | `max_custom_emojis_per_server` | `50` | Custom emoji a server holds, checked by the web app. `0` is no limit |
+| **Personal emojis per user** | `max_personal_emojis_per_user` | `50` | Emoji each person keeps in **User settings** → **My emojis**, uploads and AI-generated together, `0` to `1000`. `0` turns personal emoji off. The database refuses an emoji past the limit; emoji already past a lowered limit stay |
+
 ## Change a setting
 
 ### With harmony config
@@ -421,6 +431,8 @@ The gateway stops at start without `SUPABASE_URL` and
 | `RATE_LIMIT_WINDOW_MS` | `60000` | Window of the bot REST API rate limit, in milliseconds |
 | `RATE_LIMIT_MAX_REQUESTS` | `100` | Requests per bot, route and channel or server per window |
 | `WS_HEARTBEAT_INTERVAL` | `30000` | Heartbeat interval sent to bots, in milliseconds |
+| `WS_MAX_CONNECTIONS_PER_BOT` | `5` | Gateway connections one bot may hold; the identify past it closes with `4029` |
+| `WS_IDENTIFY_TIMEOUT_MS` | `30000` | Time a new gateway connection has to identify, clamped to 1000-60000 ms; past it the connection closes with `4003` |
 | `WS_REVALIDATE_INTERVAL_MS` | `30000` | Interval at which open connections are checked against their bot and token, clamped to 1000-60000 ms |
 | `BRIDGE_HOST_SECRET` | unset | Shared secret of the Discord bridge host; under 32 characters, hosting stays off. Must equal the one in `discord-bridge.env` |
 | `BRIDGE_CONFIG_POLL_MS` | `5000` | Interval of the bridge configuration poll, clamped to 1000-60000 ms |

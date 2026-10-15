@@ -5,6 +5,10 @@
   and sound-only activities keep playing unseen. Moving between slots never moves the player
   in the DOM, so frames keep their state.
 
+  Stacking: the player takes the z-index of the slot's root-level stacking ancestor (the voice
+  layer, .persistent-voice) and paints after it in tree order (App.vue mounts it next). Panels
+  and pickers teleported above that layer cover the player as they cover the call.
+
   Sync: every TICK_MS the player is brought to the position the row implies at database time
   (position_ms + (now + offset - position_at) * rate). Files drift back through playbackRate
   (±MAX_NUDGE) and seek beyond SEEK_DRIFT_MS; embedded players only seek, past
@@ -73,15 +77,21 @@
       source="activity"
       :compact="placement === 'corner'"
     />
-    <button
-      v-if="placement === 'corner'"
-      type="button"
-      class="activity-host__expand"
-      :aria-label="t('activities.open')"
-      @click="openStage"
-    >
-      <Icon name="maximize-2" :size="15" />
-    </button>
+    <div v-if="placement === 'corner'" class="activity-host__corner-actions">
+      <button type="button" class="activity-host__expand" :aria-label="t('activities.open')" :title="t('activities.open')" @click="openStage">
+        <Icon name="maximize-2" :size="15" />
+      </button>
+      <button
+        type="button"
+        class="activity-host__expand"
+        :aria-label="t('activities.hideForMe')"
+        :title="t('activities.hideForMe')"
+        data-testid="activity-corner-leave"
+        @click="actStore.hide(activity!.channel_id, true)"
+      >
+        <Icon name="log-out" :size="15" />
+      </button>
+    </div>
   </div>
 </template>
 
@@ -111,6 +121,8 @@ const voice = useUnifiedVoiceChannelStore()
 const mediaEl = ref<HTMLMediaElement | null>(null)
 const frameEl = ref<HTMLIFrameElement | null>(null)
 const rect = ref<{ left: number; top: number; width: number; height: number } | null>(null)
+const layer = ref<number | null>(null)
+let layerFor: Element | null = null
 let tickTimer: ReturnType<typeof setInterval> | null = null
 let rafId = 0
 let lastEmbedSeek = 0
@@ -149,14 +161,34 @@ const placement = computed<'slot' | 'corner' | 'hidden'>(() => {
 const boxStyle = computed(() => {
   if (placement.value !== 'slot' || !rect.value) return undefined
   const r = rect.value
-  return { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` }
+  return {
+    left: `${r.left}px`,
+    top: `${r.top}px`,
+    width: `${r.width}px`,
+    height: `${r.height}px`,
+    ...(layer.value !== null ? { zIndex: String(layer.value) } : {}),
+  }
 })
+
+/** z-index of the outermost positioned ancestor with one; null when none sets it. */
+function rootLayer(el: Element): number | null {
+  let z: number | null = null
+  for (let n: Element | null = el; n && n !== document.body; n = n.parentElement) {
+    const s = getComputedStyle(n)
+    if (s.position !== 'static' && s.zIndex !== 'auto') z = Number(s.zIndex) || 0
+  }
+  return z
+}
 
 function trackSlot(): void {
   cancelAnimationFrame(rafId)
   const follow = () => {
     const el = actStore.slot
     if (el && el.isConnected) {
+      if (el !== layerFor) {
+        layerFor = el
+        layer.value = rootLayer(el)
+      }
       const r = el.getBoundingClientRect()
       const prev = rect.value
       if (!prev || prev.left !== r.left || prev.top !== r.top || prev.width !== r.width || prev.height !== r.height) {
@@ -323,7 +355,8 @@ onBeforeUnmount(() => {
 <style scoped>
 .activity-host {
   position: fixed;
-  z-index: 10004;
+  /* The voice layer (.persistent-voice); a slot's own root layer overrides it inline. */
+  z-index: 9998;
   overflow: hidden;
   background: #000;
   border-radius: 12px;
@@ -415,10 +448,15 @@ onBeforeUnmount(() => {
 .activity-host__bars.is-playing i:nth-child(4) { animation-delay: -0.1s; }
 .activity-host__bars.is-playing i:nth-child(5) { animation-delay: -0.6s; }
 
-.activity-host__expand {
+.activity-host__corner-actions {
   position: absolute;
   top: 8px;
   right: 8px;
+  display: flex;
+  gap: 6px;
+}
+
+.activity-host__expand {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -434,7 +472,7 @@ onBeforeUnmount(() => {
 }
 
 .activity-host:hover .activity-host__expand,
-.activity-host__expand:focus-visible {
+.activity-host__corner-actions:focus-within .activity-host__expand {
   opacity: 1;
 }
 

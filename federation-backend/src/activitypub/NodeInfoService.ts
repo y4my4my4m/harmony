@@ -2,8 +2,55 @@ import { Router, Request, Response } from 'express';
 import { getSupabaseClient } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import config from '../config/index.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+// usage.users windows: activeMonth is the past 30 days, activeHalfyear the past 180.
+const ACTIVE_MONTH_DAYS = 30;
+const ACTIVE_HALFYEAR_DAYS = 180;
+const USAGE_TTL_MS = 10 * 60 * 1000;
+
+export interface NodeInfoUsage {
+  users: { total: number; activeMonth: number; activeHalfyear: number };
+  localPosts: number;
+}
+
+let usageCache: { at: number; usage: NodeInfoUsage } | null = null;
+
+export function __resetNodeInfoUsageCache(): void {
+  usageCache = null;
+}
+
+/** Local accounts active since `since` (public.nodeinfo_active_users); 0 when unavailable. */
+async function activeUsersSince(supabase: any, since: Date): Promise<number> {
+  const { data, error } = await supabase.rpc('nodeinfo_active_users', { p_since: since.toISOString() });
+  if (error) {
+    logger.warn(`nodeinfo_active_users failed: ${error.message}`);
+    return 0;
+  }
+  return Number(data) || 0;
+}
+
+/** usage of NodeInfo 2.0 and 2.1, computed at most once per USAGE_TTL_MS. */
+export async function nodeInfoUsage(supabase: any, now = Date.now()): Promise<NodeInfoUsage> {
+  if (usageCache && now - usageCache.at < USAGE_TTL_MS) return usageCache.usage;
+
+  const [{ count: userCount }, { count: postCount }, activeMonth, activeHalfyear] = await Promise.all([
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_local', true),
+    supabase.from('posts').select('*', { count: 'exact', head: true }).eq('is_local', true),
+    activeUsersSince(supabase, new Date(now - ACTIVE_MONTH_DAYS * DAY_MS)),
+    activeUsersSince(supabase, new Date(now - ACTIVE_HALFYEAR_DAYS * DAY_MS)),
+  ]);
+
+  const usage: NodeInfoUsage = {
+    users: { total: userCount || 0, activeMonth, activeHalfyear },
+    localPosts: postCount || 0,
+  };
+  usageCache = { at: now, usage };
+  return usage;
+}
 
 /**
  * NodeInfo discovery endpoint
@@ -69,20 +116,10 @@ router.get(
   asyncHandler(async (_req: Request, res: Response) => {
     const supabase = getSupabaseClient();
 
-    const [instanceCfg, { count: userCount }, { count: postCount }] = await Promise.all([
+    const [instanceCfg, usage] = await Promise.all([
       getInstanceConfig(supabase),
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_local', true),
-      supabase.from('posts').select('*', { count: 'exact', head: true }).eq('is_local', true),
+      nodeInfoUsage(supabase),
     ]);
-
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-
-    const { count: activeUsers } = await supabase
-      .from('posts')
-      .select('author_id', { count: 'exact', head: true })
-      .eq('is_local', true)
-      .gte('created_at', sixMonthsAgo.toISOString());
 
     res.json({
       version: '2.0',
@@ -95,14 +132,7 @@ router.get(
         outbound: [],
         inbound: [],
       },
-      usage: {
-        users: {
-          total: userCount || 0,
-          activeMonth: activeUsers || 0,
-          activeHalfyear: activeUsers || 0,
-        },
-        localPosts: postCount || 0,
-      },
+      usage,
       openRegistrations: instanceCfg.openRegistrations,
       metadata: {
         nodeName: instanceCfg.name,
@@ -132,20 +162,10 @@ router.get(
   asyncHandler(async (_req: Request, res: Response) => {
     const supabase = getSupabaseClient();
 
-    const [instanceCfg, { count: userCount }, { count: postCount }] = await Promise.all([
+    const [instanceCfg, usage] = await Promise.all([
       getInstanceConfig(supabase),
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_local', true),
-      supabase.from('posts').select('*', { count: 'exact', head: true }).eq('is_local', true),
+      nodeInfoUsage(supabase),
     ]);
-
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-
-    const { count: activeUsers } = await supabase
-      .from('posts')
-      .select('author_id', { count: 'exact', head: true })
-      .eq('is_local', true)
-      .gte('created_at', sixMonthsAgo.toISOString());
 
     res.json({
       version: '2.1',
@@ -159,14 +179,7 @@ router.get(
         outbound: [],
         inbound: [],
       },
-      usage: {
-        users: {
-          total: userCount || 0,
-          activeMonth: activeUsers || 0,
-          activeHalfyear: activeUsers || 0,
-        },
-        localPosts: postCount || 0,
-      },
+      usage,
       openRegistrations: instanceCfg.openRegistrations,
       metadata: {
         nodeName: instanceCfg.name,
