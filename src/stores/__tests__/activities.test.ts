@@ -6,6 +6,7 @@ vi.mock('@/services/instanceConfig', () => ({ apiUrl: (p: string) => p, getStore
 const voice = { isConnected: true, effectiveChannelId: 'ch-1', currentChannelId: 'ch-1' }
 vi.mock('@/stores/unifiedVoiceChannel', () => ({ useUnifiedVoiceChannelStore: () => voice }))
 vi.mock('@/services/webrtcManager', () => ({ webrtcManager: { sendActivity: vi.fn() } }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: { user: { id: 'me' } } }) }))
 
 const { useActivitiesStore } = await import('@/stores/activities')
 
@@ -55,11 +56,59 @@ describe('activities store', () => {
 
   it('hides an activity for this client until it ends', () => {
     const store = useActivitiesStore()
-    store.apply('ch-1', state(), true)
+    store.apply('ch-1', state({ host_id: 'me' }), true)
     store.hide('ch-1', true)
     expect(store.playingHere).toBe(false)
     store.apply('ch-1', null, true)
-    store.apply('ch-1', state({ started_at: '2026-10-14T12:00:00Z' }), true)
+    store.apply('ch-1', state({ host_id: 'me', started_at: '2026-10-14T12:00:00Z' }), true)
     expect(store.playingHere).toBe(true)
+  })
+})
+
+describe('consent', () => {
+  it('plays a run this member started', () => {
+    const store = useActivitiesStore()
+    store.apply('ch-1', state({ host_id: 'me' }), true)
+    expect(store.playingHere).toBe(true)
+    expect(store.waiting).toBeNull()
+  })
+
+  it("waits for Join on someone else's run, and Join plays it", () => {
+    const store = useActivitiesStore()
+    store.apply('ch-1', state(), true)
+    expect(store.playingHere).toBe(false)
+    expect(store.invited).toBe(true)
+    store.join()
+    expect(store.playingHere).toBe(true)
+    expect(store.waiting).toBeNull()
+  })
+
+  it('keeps a joined run through its next items, and asks again for a new run', () => {
+    const store = useActivitiesStore()
+    store.apply('ch-1', state(), true)
+    store.join()
+    store.apply('ch-1', state({ revision: 2, item: { video_id: 'aaaaaaaaaaa' } }), true)
+    expect(store.playingHere).toBe(true)
+    store.apply('ch-1', state({ revision: 1, started_at: '2026-10-14T12:00:00Z' }), true)
+    expect(store.playingHere).toBe(false)
+    expect(store.invited).toBe(true)
+  })
+
+  it('Not now keeps it off and leaves it joinable', () => {
+    const store = useActivitiesStore()
+    store.apply('ch-1', state(), true)
+    store.hide('ch-1', true)
+    expect(store.invited).toBe(false)
+    expect(store.waiting?.channel_id).toBe('ch-1')
+    store.join()
+    expect(store.playingHere).toBe(true)
+  })
+
+  it('a new run asks again after Not now on the previous one', () => {
+    const store = useActivitiesStore()
+    store.apply('ch-1', state(), true)
+    store.hide('ch-1', true)
+    store.apply('ch-1', state({ started_at: '2026-10-14T12:00:00Z' }), true)
+    expect(store.invited).toBe(true)
   })
 })

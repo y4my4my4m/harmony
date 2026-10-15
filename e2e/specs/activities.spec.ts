@@ -1,7 +1,8 @@
 // Journey: watch together. In a voice call, the host starts a video from their Drive through
-// the call dock; a second member in the call gets the same video at the host's position,
-// follows play and pause, and loses it when the host stops. The voice channel row shows what
-// is playing.
+// the call dock; a second member in the call gets an invite naming the host and the title,
+// with no picture and nothing playing. Not now keeps it off with a Join left in the dock; Join
+// gives the same video at the host's position, following play and pause, until the host
+// stops. The voice channel row shows what is playing.
 //
 // The stack has no LiveKit and no realtime: the voice store is set as a joined call leaves it
 // (soundboard-instant-play.spec.ts does the same), participant rows are written directly, and
@@ -108,7 +109,24 @@ test('a Drive video plays for everyone in the call and follows the host', async 
       await expect.poll(async () => (await mediaState(page)).paused).toBe(true)
     })
 
-    await test.step('the guest gets it paused at the host position, and the channel row says so', async () => {
+    await test.step('the guest is asked first: an invite with the host and the title, no picture, nothing playing', async () => {
+      const invite = other.getByTestId('activity-invite')
+      await expect(invite).toContainText('clip-6s.webm', { timeout: 15000 })
+      await expect(invite).toContainText(`${host.displayName} started an activity`)
+      await expect(invite.locator('img')).toHaveCount(0)
+      await expect(other.getByTestId('activity-host')).toHaveCount(0)
+      await expect(other.getByTestId('activity-dock-card')).toHaveCount(0)
+    })
+
+    await test.step('Not now plays nothing and leaves a Join', async () => {
+      await other.getByTestId('activity-not-now').click()
+      await expect(other.getByTestId('activity-not-now')).toHaveCount(0)
+      await expect(other.getByTestId('activity-join')).toBeVisible()
+      await expect(other.getByTestId('activity-host')).toHaveCount(0)
+    })
+
+    await test.step('after Join the guest gets it paused at the host position, and the channel row says so', async () => {
+      await other.getByTestId('activity-join').click()
       await expect(other.getByTestId('activity-dock-card')).toContainText('clip-6s.webm', { timeout: 15000 })
       await expect(other.getByTestId('voice-activity-line')).toBeVisible()
       const hostAt = (await mediaState(page)).time
@@ -192,6 +210,14 @@ test('a YouTube link plays in the shared player; the stage takes reactions and e
     await expect(page.getByTestId('activity-error')).toHaveCount(0)
   })
 
+  await test.step('the call view stays light: no backdrop blur behind it, one react button', async () => {
+    // A full-window backdrop blur re-rendered with every video frame (1.1 s of CPU per second).
+    await expect.poll(() => page.locator('.overlay-backdrop').evaluate((el) => getComputedStyle(el).backdropFilter)).toBe('none')
+    // Skin glass panels too: blur is suspended while the video shows, the saved setting untouched.
+    await expect(page.locator('html')).toHaveAttribute('data-disable-blur', 'true')
+    await expect(page.getByTestId('voice-overlay').getByRole('button', { name: 'React', exact: true })).toHaveCount(1)
+  })
+
   await test.step('the stage has a react button with the reaction picker', async () => {
     await page.getByTestId('activity-react').click()
     await expect(page.getByRole('dialog', { name: 'Reactions' })).toBeVisible()
@@ -212,5 +238,6 @@ test('a YouTube link plays in the shared player; the stage takes reactions and e
     await page.getByTestId('activity-stage').getByRole('button', { name: 'End for everyone' }).click()
     await expect(page.getByTestId('activity-stage')).toHaveCount(0)
     await expect(page.getByTestId('activity-dock-card')).toHaveCount(0)
+    await expect(page.locator('html')).not.toHaveAttribute('data-disable-blur', 'true')
   })
 })

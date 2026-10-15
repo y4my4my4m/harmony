@@ -62,6 +62,7 @@ vi.mock('@/supabase', () => {
 })
 vi.mock('@/services/ProfileService', () => ({ updateUserStatus: vi.fn() }))
 vi.mock('@/services/userDataService', () => ({ userDataService: { getAllUsers: () => [], ensureUsersLoaded: vi.fn(async () => undefined) } }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ session: { user: { id: 'me' } } }) }))
 vi.mock('@/stores/unifiedVoiceChannel', () => ({ useUnifiedVoiceChannelStore: () => voice }))
 vi.mock('@/utils/debug', () => ({ debug: { log: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 
