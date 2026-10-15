@@ -96,6 +96,11 @@ test('theme cards and the colour picker by keyboard; saving is announced and kee
     await expect(custom).toBeFocused()
   })
 
+  // The Background editor starts collapsed.
+  const backgroundHeader = page.locator('.theme-collapse-header').first()
+  await expect(backgroundHeader).toHaveAttribute('aria-expanded', 'false')
+  await backgroundHeader.click()
+  await expect(backgroundHeader).toHaveAttribute('aria-expanded', 'true')
   const picker = page.getByRole('group', { name: 'Background color' })
 
   await test.step('the saturation and brightness field is a slider with a spoken value', async () => {

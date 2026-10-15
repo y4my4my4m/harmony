@@ -114,11 +114,11 @@
       <div v-if="settings.theme === 'custom'" class="custom-color-section">
         <!-- Community Presets -->
         <div class="community-presets-section">
-          <h4 class="section-subtitle">Community presets</h4>
-          <p class="section-help">Quick-apply curated themes from the community</p>
-          <div class="presets-grid">
+          <h4 class="section-subtitle">{{ $t('settings.appearance.communityPresets') }}</h4>
+          <p class="section-help">{{ $t('settings.appearance.communityPresetsHelp') }}</p>
+          <div :id="`${a11yId}-presets`" class="presets-grid">
             <button
-              v-for="preset in communityPresets"
+              v-for="preset in visiblePresets"
               :key="preset.name"
               class="preset-card"
               @click="applyPresetTheme(preset)"
@@ -130,6 +130,20 @@
               </div>
             </button>
           </div>
+          <button
+            v-if="communityPresets.length > PRESETS_SHOWN"
+            type="button"
+            class="presets-more"
+            :aria-expanded="showAllPresets ? 'true' : 'false'"
+            :aria-controls="`${a11yId}-presets`"
+            data-testid="presets-more"
+            @click="showAllPresets = !showAllPresets"
+          >
+            {{ showAllPresets
+              ? $t('settings.appearance.showFewerPresets')
+              : $t('settings.appearance.showMorePresets', { count: communityPresets.length - PRESETS_SHOWN }) }}
+            <Icon name="chevron-down" :size="14" class="presets-more-chevron" :class="{ open: showAllPresets }" />
+          </button>
         </div>
 
         <h4 class="section-subtitle">{{ $t('settings.appearance.customTheme') }}</h4>
@@ -1053,7 +1067,7 @@ const customPreviewColors = computed(() =>
 
 const showAdvancedCss = ref(false)
 const colorExpanded = reactive({
-  background: true,
+  background: false,
   primary: false,
   accent: false,
 })
@@ -1173,6 +1187,9 @@ function applySavedTheme(id: string) {
 }
 
 const communityPresets = COMMUNITY_PRESETS
+const PRESETS_SHOWN = 3
+const showAllPresets = ref(false)
+const visiblePresets = computed(() => (showAllPresets.value ? communityPresets : communityPresets.slice(0, PRESETS_SHOWN)))
 const builtinSkins = BUILTIN_SKINS
 const themableVariables = visualTheme.getThemableVariables()
 
@@ -1268,7 +1285,7 @@ const selectTheme = (themeId: string) => {
   setTheme(themeId as 'dark' | 'light' | 'midnight' | 'custom')
   activeSavedThemeId.value = null
   if (themeId === 'custom') {
-    colorExpanded.background = true
+    colorExpanded.background = false
     colorExpanded.primary = false
     colorExpanded.accent = false
   }
@@ -2461,6 +2478,33 @@ onBeforeUnmount(() => {
 }
 
 /* Community Presets */
+.presets-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 6px 10px;
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.presets-more:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-primary);
+}
+
+.presets-more-chevron {
+  transition: transform 0.15s ease;
+}
+
+.presets-more-chevron.open {
+  transform: rotate(180deg);
+}
+
 .community-presets-section {
   margin-top: 24px;
   padding-top: 24px;

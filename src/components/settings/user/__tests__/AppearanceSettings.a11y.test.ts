@@ -230,9 +230,9 @@ describe('AppearanceSettings controls', () => {
       const controls = h.attributes('aria-controls')!
       expect(document.getElementById(controls)).not.toBeNull()
     }
-    expect(headers.map((h) => h.attributes('aria-expanded'))).toEqual(['true', 'false', 'false', 'false'])
-    await headers[1].trigger('click')
-    expect(headers[1].attributes('aria-expanded')).toBe('true')
+    expect(headers.map((h) => h.attributes('aria-expanded'))).toEqual(['false', 'false', 'false', 'false'])
+    await headers[0].trigger('click')
+    expect(headers[0].attributes('aria-expanded')).toBe('true')
 
     const modes = w.findAll('.mode-btn')
     expect(modes.map((b) => [b.text(), b.attributes('aria-pressed')])).toEqual([

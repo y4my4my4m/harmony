@@ -1,7 +1,17 @@
 <template>
   <div class="palette-ideas">
     <div class="pi-head">
-      <span class="pi-title">Palette ideas</span>
+      <button
+        type="button"
+        class="pi-toggle"
+        :aria-expanded="open ? 'true' : 'false'"
+        :aria-controls="bodyId"
+        data-testid="palette-ideas-toggle"
+        @click="open = !open"
+      >
+        <Icon name="chevron-right" :size="14" class="pi-chevron" :class="{ open }" />
+        <span class="pi-title">Palette ideas</span>
+      </button>
       <div class="pi-actions">
         <button type="button" class="pi-action" title="Random palette" @click="surprise">
           <Icon name="shuffle" :size="14" />
@@ -23,6 +33,7 @@
       </div>
     </div>
 
+    <div v-show="open" :id="bodyId" class="pi-body">
     <div class="pi-moods" role="radiogroup" aria-label="Palette mood">
       <button
         v-for="(m, id) in PALETTE_MOODS"
@@ -69,6 +80,7 @@
       />
     </div>
     <p v-if="imageError" class="pi-error">{{ imageError }}</p>
+    </div>
   </div>
 </template>
 
@@ -96,6 +108,9 @@ const props = defineProps<{
 const emit = defineEmits<{ apply: [colors: ThemeColors] }>()
 
 const mood = ref<PaletteMood>('balanced')
+/** Collapsed until asked for; the header's actions stay usable while closed. */
+const open = ref(false)
+const bodyId = `palette-ideas-${Math.random().toString(36).slice(2, 9)}`
 const fileInput = ref<HTMLInputElement | null>(null)
 const imageSwatches = ref<ImageSwatch[]>([])
 const imageUrl = ref<string | null>(null)
@@ -131,6 +146,7 @@ async function onImagePicked(event: Event) {
   const file = input.files?.[0]
   input.value = ''
   if (!file) return
+  open.value = true
   imageError.value = null
   try {
     const swatches = extractImageSwatches(await readPixels(file))
@@ -166,6 +182,38 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 6px 8px;
+}
+
+.pi-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 2px 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  cursor: pointer;
+}
+
+.pi-toggle:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.pi-chevron {
+  color: var(--text-secondary);
+  transition: transform 0.15s ease;
+}
+
+.pi-chevron.open {
+  transform: rotate(90deg);
+}
+
+.pi-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .pi-title {
