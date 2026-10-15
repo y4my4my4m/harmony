@@ -81,6 +81,19 @@ describe('sound entries', () => {
       { field: 'serverAuditLog.fields.emoji', from: '📯', to: null },
     ])
   })
+
+  it('say that the custom emoji changed, not its id', () => {
+    const edit = entry({
+      action: 'sound.update',
+      target_type: 'sound',
+      target_name: 'Party',
+      changes: { emoji: { old: '🎉' }, emoji_id: { new: 'e1480000-0000-0000-0000-000000000001' } },
+    })
+    expect(auditChangeLines(edit, t, date)).toEqual([
+      { field: 'serverAuditLog.fields.emoji', from: '🎉', to: null },
+      { field: 'serverAuditLog.fields.emoji_id', from: null, to: 'serverAuditLog.value.changed' },
+    ])
+  })
 })
 
 describe('auditActorName', () => {

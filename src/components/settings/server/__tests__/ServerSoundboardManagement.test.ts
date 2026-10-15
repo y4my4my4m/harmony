@@ -44,6 +44,24 @@ vi.mock('@/services/soundboard/sounds', async (importOriginal) => ({
 vi.mock('@/composables/useHapticSettings', () => ({ useHapticSettings: () => ({ triggerToggle: () => {} }) }))
 vi.mock('@/components/common/Icon.vue', () => stub('Icon'))
 vi.mock('@/components/common/LoadingSpinner.vue', () => stub('LoadingSpinner'))
+vi.mock('@/utils/emojiUtils', () => ({ getEmojiUrl: (url: string, size: number) => `${url}?size=${size}` }))
+vi.mock('@/components/EmojiPopup.vue', () => ({
+  __esModule: true,
+  default: { name: 'EmojiPopup', props: ['closeEmojiList', 'triggerElement'], emits: ['sendEmoji'], render: () => null },
+}))
+
+const PARTY = 'e1480000-0000-0000-0000-000000000001'
+const partyPick = { id: PARTY, name: 'party', url: 'https://cdn.test/emojis/party.png' }
+const party = { id: PARTY, name: 'party', url: 'https://cdn.test/emojis/party.png' }
+
+async function pickFromPopup(wrapper: VueWrapper, buttonTestId: string, pick: Record<string, unknown>) {
+  await wrapper.find(`[data-testid="${buttonTestId}"]`).trigger('click')
+  await flushPromises()
+  const popup = wrapper.findComponent({ name: 'EmojiPopup' })
+  expect(popup.exists()).toBe(true)
+  popup.vm.$emit('sendEmoji', pick)
+  await flushPromises()
+}
 
 async function mountManager(canManage: boolean) {
   const wrapper = mount(ServerSoundboardManagement, { props: { serverId: SERVER, canManage } })
@@ -104,9 +122,98 @@ describe('ServerSoundboardManagement', () => {
     await wrapper.find('[data-testid="soundboard-upload-submit"]').trigger('click')
     await flushPromises()
 
-    expect(h.create).toHaveBeenCalledWith(SERVER, file, checked, { name: 'Air horn', emoji: '', volume: 1 })
+    expect(h.create).toHaveBeenCalledWith(SERVER, file, checked, { name: 'Air horn', emoji: '', emojiId: null, volume: 1 })
     expect(wrapper.findAll('[data-testid="soundboard-row"]')).toHaveLength(3)
     expect(h.toast.success).toHaveBeenCalled()
+  })
+
+  it('uploads with a custom emoji picked from the emoji picker', async () => {
+    const checked = { type: { mime: 'audio/mpeg', ext: 'mp3' }, durationMs: 1800 }
+    h.check.mockResolvedValue({ ok: true, file: checked })
+    h.create.mockResolvedValue({ ...sound('c', 'Party'), emoji: null, customEmoji: party })
+    const wrapper = await mountManager(true)
+    const file = new File(['ID3'], 'party.mp3', { type: 'audio/mpeg' })
+    await pickFile(wrapper, file)
+
+    const button = wrapper.find('[data-testid="soundboard-emoji-button"]')
+    expect(button.text()).toBe('🔊')
+    expect(button.attributes('aria-label')).toBe('soundboard.settings.chooseEmoji')
+    await pickFromPopup(wrapper, 'soundboard-emoji-button', partyPick)
+    expect(wrapper.findComponent({ name: 'EmojiPopup' }).exists()).toBe(false)
+    const img = button.find('img')
+    expect(img.attributes('src')).toBe('https://cdn.test/emojis/party.png?size=44')
+    expect(img.attributes('alt')).toBe(':party:')
+    expect(button.attributes('aria-label')).toBe('soundboard.settings.changeEmoji:{"emoji":":party:"}')
+
+    await wrapper.find('[data-testid="soundboard-upload-submit"]').trigger('click')
+    await flushPromises()
+    expect(h.create).toHaveBeenCalledWith(SERVER, file, checked, { name: 'party', emoji: '', emojiId: PARTY, volume: 1 })
+    const row = wrapper.findAll('[data-testid="soundboard-row"]')[2]
+    expect(row.find('.sound-emoji img').attributes('alt')).toBe(':party:')
+  })
+
+  it('takes a unicode pick as text, and clears the choice', async () => {
+    h.check.mockResolvedValue({ ok: true, file: { type: { mime: 'audio/mpeg', ext: 'mp3' }, durationMs: 1800 } })
+    const wrapper = await mountManager(true)
+    await pickFile(wrapper, new File(['ID3'], 'x.mp3'))
+    await pickFromPopup(wrapper, 'soundboard-emoji-button', { id: '🎉', name: 'tada', url: '' })
+    expect(wrapper.find('[data-testid="soundboard-emoji-button"]').text()).toBe('🎉')
+
+    await wrapper.find('[data-testid="soundboard-emoji-clear"]').trigger('click')
+    expect(wrapper.find('[data-testid="soundboard-emoji-button"]').text()).toBe('🔊')
+    expect(wrapper.find('[data-testid="soundboard-emoji-clear"]').exists()).toBe(false)
+  })
+
+  it('refuses a custom pick that is not an emoji of this instance', async () => {
+    h.check.mockResolvedValue({ ok: true, file: { type: { mime: 'audio/mpeg', ext: 'mp3' }, durationMs: 1800 } })
+    const wrapper = await mountManager(true)
+    await pickFile(wrapper, new File(['ID3'], 'x.mp3'))
+    await pickFromPopup(wrapper, 'soundboard-emoji-button', { id: 'discord:party:1', name: 'party', url: 'https://cdn.test/p.png' })
+    expect(h.toast.error).toHaveBeenCalledWith('soundboard.errors.emojiUnavailable')
+    expect(wrapper.find('[data-testid="soundboard-emoji-button"]').text()).toBe('🔊')
+  })
+
+  it('shows each sound\'s custom emoji as an image', async () => {
+    h.list.mockResolvedValue([{ ...sound('a', 'Horn'), emoji: null, customEmoji: party }, sound('b', 'Bell'), { ...sound('c', 'Hush'), emoji: null }])
+    const wrapper = await mountManager(false)
+    const rows = wrapper.findAll('[data-testid="soundboard-row"]')
+    expect(rows[0].find('.sound-emoji img').attributes('alt')).toBe(':party:')
+    expect(rows[1].find('.sound-emoji').text()).toBe('📯')
+    expect(rows[1].find('.sound-emoji img').exists()).toBe(false)
+    expect(rows[2].find('.sound-emoji').text()).toBe('🔊')
+  })
+
+  it('swaps a sound\'s unicode emoji for a custom one, and back', async () => {
+    h.update.mockResolvedValueOnce({ ...sound('a', 'Horn'), emoji: null, customEmoji: party })
+    const wrapper = await mountManager(true)
+    await wrapper.find('[data-testid="soundboard-edit"]').trigger('click')
+    expect(wrapper.find('[data-testid="soundboard-edit-emoji"]').text()).toBe('📯')
+    await pickFromPopup(wrapper, 'soundboard-edit-emoji', partyPick)
+    expect(wrapper.find('[data-testid="soundboard-edit-emoji"] img').attributes('alt')).toBe(':party:')
+    await wrapper.find('[data-testid="soundboard-edit-save"]').trigger('click')
+    await flushPromises()
+    expect(h.update).toHaveBeenLastCalledWith('a', { name: 'Horn', emoji: '', emojiId: PARTY, volume: 0.8 })
+    expect(wrapper.findAll('[data-testid="soundboard-row"]')[0].find('.sound-emoji img').attributes('alt')).toBe(':party:')
+
+    h.update.mockResolvedValueOnce({ ...sound('a', 'Horn'), emoji: null, customEmoji: null })
+    await wrapper.find('[data-testid="soundboard-edit"]').trigger('click')
+    expect(wrapper.find('[data-testid="soundboard-edit-emoji"] img').exists()).toBe(true)
+    await wrapper.find('[data-testid="soundboard-edit-emoji-clear"]').trigger('click')
+    await wrapper.find('[data-testid="soundboard-edit-save"]').trigger('click')
+    await flushPromises()
+    expect(h.update).toHaveBeenLastCalledWith('a', { name: 'Horn', emoji: '', emojiId: null, volume: 0.8 })
+    expect(wrapper.findAll('[data-testid="soundboard-row"]')[0].find('.sound-emoji').text()).toBe('🔊')
+  })
+
+  it('closes the picker when the edit it fills ends', async () => {
+    const wrapper = await mountManager(true)
+    await wrapper.find('[data-testid="soundboard-edit"]').trigger('click')
+    await wrapper.find('[data-testid="soundboard-edit-emoji"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'EmojiPopup' }).exists()).toBe(true)
+    await wrapper.find('[aria-label="soundboard.settings.cancel"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'EmojiPopup' }).exists()).toBe(false)
   })
 
   it('reports a refused upload', async () => {
@@ -126,7 +233,7 @@ describe('ServerSoundboardManagement', () => {
     await wrapper.find('[data-testid="soundboard-edit-name"]').setValue('Big horn')
     await wrapper.find('[data-testid="soundboard-edit-save"]').trigger('click')
     await flushPromises()
-    expect(h.update).toHaveBeenCalledWith('a', { name: 'Big horn', emoji: '📯', volume: 0.8 })
+    expect(h.update).toHaveBeenCalledWith('a', { name: 'Big horn', emoji: '📯', emojiId: null, volume: 0.8 })
     expect(wrapper.findAll('.sound-name').map((n) => n.text())).toEqual(['Big horn', 'Bell'])
   })
 

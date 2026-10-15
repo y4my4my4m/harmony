@@ -166,27 +166,59 @@ describe('loadLibrary', () => {
 })
 
 describe('play', () => {
-  it('sends the play, plays it locally and starts the cooldown', async () => {
+  it('sends the play and plays it locally, with no lockout for one play', async () => {
     const store = useSoundboardStore()
     await store.refreshPermission()
     expect(store.play(horn)).toBe(true)
     expect(webrtc.sendSoundboard).toHaveBeenCalledWith(buildSoundboardMessage(SOUND, SERVER, ME))
     expect(player.play).toHaveBeenCalledWith(horn.url, 0.5)
-    expect(store.cooldownRemaining()).toBeGreaterThan(2900)
+    expect(store.cooldownRemaining()).toBe(0)
     expect(store.recentPlays.map((p) => p.userId)).toEqual([ME])
-
-    expect(store.play(horn)).toBe(false)
-    expect(webrtc.sendSoundboard).toHaveBeenCalledTimes(1)
   })
 
-  it('plays again once the cooldown passes', async () => {
+  it('allows three quick plays, then locks out for three seconds', async () => {
     vi.useFakeTimers()
     const store = useSoundboardStore()
     await store.refreshPermission()
-    store.play(horn)
-    vi.advanceTimersByTime(3000)
     expect(store.play(horn)).toBe(true)
-    expect(webrtc.sendSoundboard).toHaveBeenCalledTimes(2)
+    vi.advanceTimersByTime(300)
+    expect(store.play(horn)).toBe(true)
+    vi.advanceTimersByTime(300)
+    expect(store.play(horn)).toBe(true)
+    expect(store.cooldownRemaining()).toBe(3000)
+
+    vi.advanceTimersByTime(1000)
+    expect(store.play(horn)).toBe(false)
+    expect(store.cooldownRemaining()).toBe(2000)
+    expect(webrtc.sendSoundboard).toHaveBeenCalledTimes(3)
+
+    vi.advanceTimersByTime(2000)
+    expect(store.cooldownRemaining()).toBe(0)
+    expect(store.play(horn)).toBe(true)
+    expect(webrtc.sendSoundboard).toHaveBeenCalledTimes(4)
+  })
+
+  it('never locks out plays spaced a second and a half apart', async () => {
+    vi.useFakeTimers()
+    const store = useSoundboardStore()
+    await store.refreshPermission()
+    for (let i = 0; i < 6; i++) {
+      expect(store.play(horn)).toBe(true)
+      expect(store.cooldownRemaining()).toBe(0)
+      vi.advanceTimersByTime(1500)
+    }
+  })
+
+  it('counts only plays that went out', async () => {
+    vi.useFakeTimers()
+    const store = useSoundboardStore()
+    await store.refreshPermission()
+    voice.state.localState.isDeafened = true
+    for (let i = 0; i < 3; i++) store.play(horn)
+    voice.state.localState.isDeafened = false
+    expect(store.cooldownRemaining()).toBe(0)
+    expect(store.play(horn)).toBe(true)
+    expect(store.cooldownRemaining()).toBe(0)
   })
 
   it('is refused without the permission, while deafened, or for another server\'s sound', async () => {
@@ -273,12 +305,31 @@ describe('receive', () => {
     expect(player.play).not.toHaveBeenCalled()
   })
 
-  it('drops a flood from one sender', async () => {
+  it('plays a burst of three from one sender and drops the rest of a flood', async () => {
     const store = useSoundboardStore()
-    await store.receive(fromBob())
+    for (let i = 0; i < 3; i++) await store.receive(fromBob())
+    expect(player.play).toHaveBeenCalledTimes(3)
     await store.receive(fromBob())
     await store.receive(fromBob('default:ding'))
-    expect(player.play).toHaveBeenCalledTimes(1)
+    expect(player.play).toHaveBeenCalledTimes(3)
+  })
+
+  it('plays a sender again once the receive window passes', async () => {
+    vi.useFakeTimers()
+    const store = useSoundboardStore()
+    for (let i = 0; i < 4; i++) await store.receive(fromBob('default:ding'))
+    expect(player.play).toHaveBeenCalledTimes(3)
+    vi.advanceTimersByTime(2500)
+    await store.receive(fromBob('default:ding'))
+    expect(player.play).toHaveBeenCalledTimes(4)
+  })
+
+  it('carries a sound\'s custom emoji into the indicator', async () => {
+    const party = { id: 'e1480000-0000-0000-0000-000000000001', name: 'party', url: 'https://cdn.test/party.png' }
+    listSounds.mockResolvedValue([{ ...horn, emoji: null, customEmoji: party }])
+    const store = useSoundboardStore()
+    await store.receive(fromBob())
+    expect(store.recentPlays).toMatchObject([{ userId: BOB, emoji: null, customEmoji: party }])
   })
 
   it('shows but does not play while deafened, muted, or with the sender muted', async () => {
@@ -374,12 +425,12 @@ describe('leaveCall', () => {
   it('stops playback and resets the per-call state', async () => {
     const store = useSoundboardStore()
     await store.refreshPermission()
-    await store.receive(fromBob())
+    for (let i = 0; i < 3; i++) await store.receive(fromBob())
     store.leaveCall()
     expect(player.stopAll).toHaveBeenCalled()
     expect(store.permitted).toBe(false)
     expect(store.recentPlays).toEqual([])
     await store.receive(fromBob())
-    expect(player.play).toHaveBeenCalledTimes(2)
+    expect(player.play).toHaveBeenCalledTimes(4)
   })
 })

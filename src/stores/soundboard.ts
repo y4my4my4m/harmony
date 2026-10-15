@@ -11,16 +11,17 @@ import {
   listServerSounds,
   listSoundboardLibrary,
   resolveSoundboardSound,
+  type SoundboardCustomEmoji,
   type SoundboardLibraryServer,
   type SoundboardSound,
 } from '@/services/soundboard/sounds'
 import {
-  SOUNDBOARD_COOLDOWN_MS,
-  SOUNDBOARD_RECEIVE_INTERVAL_MS,
-  SoundboardRateLimiter,
   buildSoundboardMessage,
   checkIncomingPlay,
+  createReceiveLimiter,
   isExternalPlay,
+  recordSenderPlay,
+  senderLockoutRemaining,
   type SoundboardTransportEvent,
 } from '@/services/soundboard/protocol'
 import { useUnifiedVoiceChannelStore } from './unifiedVoiceChannel'
@@ -28,7 +29,7 @@ import { useUnifiedVoiceChannelStore } from './unifiedVoiceChannel'
 /**
  * Soundboard of the voice channel this client is in: the server's sounds, the
  * sounds of the caller's other servers that share them, the caller's right to
- * play each, the send cooldown, and plays from others.
+ * play each, the send lockout after a burst, and plays from others.
  *
  * Server voice channels of local servers only. DM calls have no server, and a
  * remote server's sounds live on its own instance.
@@ -55,9 +56,10 @@ export interface SoundboardPlay {
   name: string
   builtinKey?: string
   emoji: string | null
+  customEmoji: SoundboardCustomEmoji | null
 }
 
-const receiveLimiter = new SoundboardRateLimiter(SOUNDBOARD_RECEIVE_INTERVAL_MS)
+const receiveLimiter = createReceiveLimiter()
 const pendingLoads = new Map<string, Promise<SoundboardSound[]>>()
 /** Keyed `${channel server}:${sound id}`; null for a sound that did not resolve. */
 const externalSounds = new Map<string, { sound: SoundboardSound | null; at: number }>()
@@ -98,7 +100,10 @@ export const useSoundboardStore = defineStore('soundboard', {
     permitted: false,
     /** permitted, and USE_EXTERNAL_SOUNDS in the current channel. */
     externalPermitted: false,
+    /** End of the send lockout, ms; 0 or past when none. */
     cooldownUntil: 0,
+    /** Times of the caller's recent plays, ms, for the burst rule. */
+    sentAt: [] as number[],
     recentPlays: [] as SoundboardPlay[],
   }),
 
@@ -194,7 +199,7 @@ export const useSoundboardStore = defineStore('soundboard', {
       return !!sound.serverId && !!channel && sound.serverId !== channel.serverId
     },
 
-    /** The caller may play the sound in the current channel, cooldown aside. */
+    /** The caller may play the sound in the current channel, lockout aside. */
     mayPlay(sound: SoundboardSound): boolean {
       return this.permitted && (!this.isExternal(sound) || this.externalPermitted)
     },
@@ -231,9 +236,9 @@ export const useSoundboardStore = defineStore('soundboard', {
       return sounds.find((s) => s.id === soundId) ?? null
     },
 
-    /** Milliseconds until the caller may play again. */
+    /** Milliseconds of send lockout left; 0 when the caller may play. */
     cooldownRemaining(now = Date.now()): number {
-      return Math.max(0, this.cooldownUntil - now)
+      return senderLockoutRemaining({ sentAt: this.sentAt, lockedUntil: this.cooldownUntil }, now)
     },
 
     /** Plays a sound for everyone in the channel. False when refused locally. */
@@ -241,10 +246,11 @@ export const useSoundboardStore = defineStore('soundboard', {
       const voice = useUnifiedVoiceChannelStore()
       const channel = this.currentChannel()
       if (!channel || !this.mayPlay(sound) || voice.localState.isDeafened) return false
-      const now = Date.now()
-      if (this.cooldownRemaining(now) > 0) return false
+      const next = recordSenderPlay({ sentAt: this.sentAt, lockedUntil: this.cooldownUntil }, Date.now())
+      if (!next) return false
 
-      this.cooldownUntil = now + SOUNDBOARD_COOLDOWN_MS
+      this.sentAt = next.sentAt
+      this.cooldownUntil = next.lockedUntil
       webrtcManager.sendSoundboard(buildSoundboardMessage(sound.id, channel.serverId, channel.selfId, sound.serverId))
       this.notePlay(channel.selfId, sound)
       const { muted, gain } = listenerLevels(sound)
@@ -316,6 +322,7 @@ export const useSoundboardStore = defineStore('soundboard', {
         name: sound.name,
         builtinKey: sound.builtinKey,
         emoji: sound.emoji,
+        customEmoji: sound.customEmoji ?? null,
       }
       this.recentPlays = [...this.recentPlays, play].slice(-RECENT_PLAY_MAX)
       setTimeout(() => {

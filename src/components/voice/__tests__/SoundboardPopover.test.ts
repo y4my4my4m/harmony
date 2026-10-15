@@ -34,6 +34,7 @@ vi.mock('@/stores/useServerChannel', () => ({ useServerChannelStore: () => ({ se
 vi.mock('@/services/VoiceSettingsService', () => ({ VoiceSettingsService: { getAll: () => ({ soundboardMuted: h.muted }) } }))
 vi.mock('@/components/common/Icon.vue', () => stub('Icon'))
 vi.mock('@/components/common/LoadingSpinner.vue', () => stub('LoadingSpinner'))
+vi.mock('@/utils/emojiUtils', () => ({ getEmojiUrl: (url: string, size: number) => `${url}?size=${size}` }))
 vi.mock('@/components/common/ServerIcon.vue', () => ({
   __esModule: true,
   default: { name: 'ServerIcon', props: ['src', 'alt'], render: () => null },
@@ -93,12 +94,39 @@ describe('SoundboardPopover', () => {
     expect(wrapper.findAll('[data-testid="soundboard-tile"]').every((t) => t.attributes('disabled') !== undefined)).toBe(true)
   })
 
-  it('disables the tiles during the cooldown', async () => {
-    h.store.cooldownUntil = Date.now() + 2000
+  it('disables the tiles during a lockout, with the bar showing what is left of it', async () => {
+    h.store.cooldownUntil = Date.now() + 1500
     const wrapper = mountPopover()
     await flushPromises()
     expect(wrapper.find('[data-testid="soundboard-tile"]').attributes('disabled')).toBeDefined()
-    expect(wrapper.find('.sbp-cooldown').classes()).toContain('active')
+    const bar = wrapper.find('.sbp-cooldown')
+    expect(bar.classes()).toContain('active')
+    expect(Number(bar.attributes('aria-valuenow'))).toBeGreaterThan(40)
+    expect(Number(bar.attributes('aria-valuenow'))).toBeLessThanOrEqual(50)
+  })
+
+  it('keeps the tiles playable after a play that starts no lockout', async () => {
+    const wrapper = mountPopover()
+    await flushPromises()
+    const tile = wrapper.find('[data-testid="soundboard-tile"]')
+    await tile.trigger('click')
+    await tile.trigger('click')
+    expect(h.store.play).toHaveBeenCalledTimes(2)
+    expect(tile.attributes('disabled')).toBeUndefined()
+    expect(wrapper.find('.sbp-cooldown').classes()).not.toContain('active')
+  })
+
+  it('shows a custom emoji as an image and a unicode one as text', async () => {
+    const party = { id: 'e1480000-0000-0000-0000-000000000001', name: 'party', url: 'https://cdn.test/party.png' }
+    h.store.soundsByServer = { [SERVER]: [{ ...horn, emoji: null, customEmoji: party }, { ...horn, id: 'b2', emoji: null }] }
+    const wrapper = mountPopover()
+    await flushPromises()
+    const tiles = wrapper.findAll('[data-testid="soundboard-tile"]')
+    const img = tiles[0].find('.sbp-emoji img')
+    expect(img.attributes('alt')).toBe(':party:')
+    expect(img.attributes('src')).toBe('https://cdn.test/party.png?size=36')
+    expect(tiles[1].find('.sbp-emoji').text()).toBe('🔊')
+    expect(tiles[2].find('.sbp-emoji').text()).toBe('🔔')
   })
 
   it('says so when the listener muted the soundboard', async () => {

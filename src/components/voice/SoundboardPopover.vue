@@ -76,7 +76,7 @@
                 data-testid="soundboard-tile"
                 @click="play(sound)"
               >
-                <span class="sbp-emoji" aria-hidden="true">{{ sound.emoji || '🔊' }}</span>
+                <span class="sbp-emoji" aria-hidden="true"><SoundboardEmoji :emoji="sound.emoji" :custom-emoji="sound.customEmoji" :size="18" /></span>
                 <span class="sbp-name">{{ label(sound) }}</span>
               </button>
               <button
@@ -117,12 +117,13 @@ import { useI18n } from 'vue-i18n';
 import Icon from '@/components/common/Icon.vue';
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import ServerIcon from '@/components/common/ServerIcon.vue';
+import SoundboardEmoji from './SoundboardEmoji.vue';
 import { useSoundboardStore } from '@/stores/soundboard';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { VoiceSettingsService } from '@/services/VoiceSettingsService';
 import { DEFAULT_SOUNDS, type SoundboardSound } from '@/services/soundboard/sounds';
-import { SOUNDBOARD_COOLDOWN_MS } from '@/services/soundboard/protocol';
+import { SOUNDBOARD_LOCKOUT_MS } from '@/services/soundboard/protocol';
 import { soundboardPlayer } from '@/services/soundboard/player';
 import { VOICE_POPOVER_DISMISS, placePopover, type Rect } from './voiceMenuModel';
 import { styleRect, styleViewport } from '@/utils/appZoom';
@@ -228,7 +229,7 @@ const visibleSections = computed<SoundSection[]>(() => {
 });
 
 const cooldown = computed(() => Math.max(0, soundboard.cooldownUntil - now.value));
-const cooldownFraction = computed(() => Math.min(1, cooldown.value / SOUNDBOARD_COOLDOWN_MS));
+const cooldownFraction = computed(() => Math.min(1, cooldown.value / SOUNDBOARD_LOCKOUT_MS));
 const canPlay = computed(() => soundboard.permitted && !deafened.value && cooldown.value === 0);
 
 function label(sound: SoundboardSound): string {
@@ -500,6 +501,8 @@ onBeforeUnmount(() => {
 }
 
 .sbp-emoji {
+  display: inline-flex;
+  align-items: center;
   flex-shrink: 0;
   font-size: 18px;
   line-height: 1;
