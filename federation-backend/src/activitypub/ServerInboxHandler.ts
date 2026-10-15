@@ -20,6 +20,9 @@ import { INVITE_REFUSALS } from '../utils/inviteRefusals.js';
 import { getChannelRecipientGroups } from '../utils/federationUtils.js';
 import {
   authorizeChannelWrite,
+  federatedUploadUrls,
+  hasChannelPermissions,
+  storedFileUrls,
   resolveThreadInChannel,
   resolveMessageInChannel,
   notAfterNow,
@@ -31,7 +34,6 @@ import {
 const PERM_ADMINISTRATOR = 0n;
 const PERM_MANAGE_CHANNELS = 2n;
 const PERM_KICK_MEMBERS = 9n;
-const PERM_MANAGE_MESSAGES = 21n;
 
 // The server inbox authenticates the sender but permits same-domain delegation.
 // Each mutating handler gates on the actor's own standing: owner, member, role,
@@ -105,6 +107,35 @@ export async function actorIsServerModerator(
       return false;
     }
   });
+}
+
+/**
+ * MANAGE_MESSAGES in one channel: the host Group actor (strict match), or an accepted,
+ * unbanned member holding it through has_permission with the channel's overrides applied,
+ * as can_current_user_manage_messages_in_channel resolves it for local users. The owner and
+ * ADMINISTRATOR holders hold it everywhere.
+ */
+export async function actorManagesMessagesIn(
+  supabase: any,
+  serverId: string,
+  server: any,
+  actorUrl: string,
+  channelId: string | null,
+): Promise<boolean> {
+  if (!actorUrl || !channelId) return false;
+  if (server.ap_id && SignatureService.verifyActorMatch(actorUrl, server.ap_id)) return true;
+
+  const { ok, userId } = await actorIsAcceptedMember(supabase, serverId, actorUrl);
+  if (!ok || !userId) return false;
+  const { data: ban, error: banError } = await supabase
+    .from('server_bans')
+    .select('id')
+    .eq('server_id', serverId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (banError || ban) return false;
+
+  return hasChannelPermissions(supabase, userId, serverId, channelId, [['MANAGE_MESSAGES']]);
 }
 
 /**
@@ -232,7 +263,7 @@ export async function processServerInboxActivity(
         logger.info(`Federation not enabled for server ${serverId}, rejecting Join`);
         const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
         const derivedInbox = `${actorUrl}/inbox`;
-        await sendRejectActivity(serverId, server, activity, derivedInbox, 'Federation is disabled on this server');
+        await sendRejectActivity(serverId, activity, derivedInbox, 'Federation is disabled on this server');
         return;
       }
       await processJoinServer(serverId, server, activity);
@@ -397,13 +428,13 @@ async function processJoinServer(
     logger.error('Failed to find/create remote user for Join activity');
     // ActivityPub convention: inbox is {actorUrl}/inbox.
     const derivedInbox = `${actorUrl}/inbox`;
-    await sendRejectActivity(serverId, server, activity, derivedInbox, 'User not found');
+    await sendRejectActivity(serverId, activity, derivedInbox, 'User not found');
     return;
   }
 
   if (user.is_suspended) {
     logger.warn(`Rejecting join from suspended user: ${actorUrl}`);
-    await sendRejectActivity(serverId, server, activity, user.inbox_url, 'User is suspended');
+    await sendRejectActivity(serverId, activity, user.inbox_url, 'User is suspended');
     return;
   }
 
@@ -416,7 +447,7 @@ async function processJoinServer(
 
   if (ban) {
     logger.warn(`Rejecting join from banned user: ${actorUrl}`);
-    await sendRejectActivity(serverId, server, activity, user.inbox_url, 'User is banned from this server');
+    await sendRejectActivity(serverId, activity, user.inbox_url, 'User is banned from this server');
     return;
   }
 
@@ -432,7 +463,7 @@ async function processJoinServer(
   const carried = existing?.status === 'accepted' ? null : await findMovedMembership(supabase, serverId, user);
   if (carried?.banned) {
     logger.warn(`Rejecting join from ${actorUrl}: the account it moved from is banned`);
-    await sendRejectActivity(serverId, server, activity, user.inbox_url, 'User is banned from this server');
+    await sendRejectActivity(serverId, activity, user.inbox_url, 'User is banned from this server');
     return;
   }
 
@@ -443,7 +474,7 @@ async function processJoinServer(
 
     if (typeof inviteCode !== 'string' || !inviteCode) {
       logger.warn(`Rejecting join to private server without invite code: ${actorUrl}`);
-      await sendRejectActivity(serverId, server, activity, user.inbox_url, 'Private server requires invite code');
+      await sendRejectActivity(serverId, activity, user.inbox_url, 'Private server requires invite code');
       return;
     }
 
@@ -455,7 +486,7 @@ async function processJoinServer(
     if (inviteError || refusal) {
       const reason = inviteError ? 'Invalid invite code' : INVITE_REFUSALS[refusal as string] ?? 'Invalid invite code';
       logger.warn(`Rejecting join with invite ${inviteCode}: ${inviteError?.message ?? refusal}`);
-      await sendRejectActivity(serverId, server, activity, user.inbox_url, reason);
+      await sendRejectActivity(serverId, activity, user.inbox_url, reason);
       return;
     }
 
@@ -483,7 +514,7 @@ async function processJoinServer(
 
     if (error) {
       logger.error('Failed to add user to server:', error);
-      await sendRejectActivity(serverId, server, activity, user.inbox_url, 'Internal error');
+      await sendRejectActivity(serverId, activity, user.inbox_url, 'Internal error');
       return;
     }
 
@@ -503,7 +534,7 @@ async function processJoinServer(
     }
   }
 
-  await sendAcceptActivity(serverId, server, activity, user.inbox_url);
+  await sendAcceptActivity(serverId, activity, user.inbox_url);
   logger.info(`Sent Accept to ${user.username}`);
 }
 
@@ -728,8 +759,9 @@ async function processCreateActivity(
     : resolvedThreadId
       ? (['thread_message'] as const)
       : (['thread_message', 'thread_create'] as const);
+  const newUploads = federatedUploadUrls(object).length;
   for (const kind of kinds) {
-    const authz = await authorizeChannelWrite(supabase, { actorUrl, serverId, channelId: channel.id, kind });
+    const authz = await authorizeChannelWrite(supabase, { actorUrl, serverId, channelId: channel.id, kind, newUploads });
     if (!authz.ok) {
       logDenied('Create(Note)', actorUrl, authz.reason);
       return;
@@ -1113,8 +1145,16 @@ async function processUpdateActivity(
     logger.warn(`Rejecting Update: ${editorUrl} does not own message ${object.id}`);
     return;
   }
+  // As enforce_message_attach_files: an edit needs ATTACH_FILES only for uploads the row lacks.
+  const { data: stored } = await supabase
+    .from('messages')
+    .select('content')
+    .eq('id', message.id)
+    .maybeSingle();
+  const held = storedFileUrls(stored?.content);
   const editAuthz = await authorizeChannelWrite(supabase, {
     actorUrl: editorUrl, serverId, channelId: message.channel_id, kind: 'edit',
+    newUploads: federatedUploadUrls(object).filter((url) => !held.has(url)).length,
   });
   if (!editAuthz.ok) {
     logDenied('Update(Note)', editorUrl, editAuthz.reason);
@@ -1191,11 +1231,11 @@ async function processDeleteActivity(
     return;
   }
 
-  // AUTHZ: deleter must own the message or hold MANAGE_MESSAGES / host authority.
+  // AUTHZ: deleter must own the message, or hold MANAGE_MESSAGES in its channel or host authority.
   const ownsMsg = await actorOwnsMessage(supabase, targetMsg.id, actorUrlDel);
   const canModerate = ownsMsg
     ? true
-    : await actorIsServerModerator(supabase, serverId, server, actorUrlDel, PERM_MANAGE_MESSAGES);
+    : await actorManagesMessagesIn(supabase, serverId, server, actorUrlDel, targetMsg.channel_id);
   if (!canModerate) {
     logger.warn(`Rejecting Delete: ${actorUrlDel} may not delete message ${objectUrl} in server ${serverId}`);
     return;
@@ -1697,7 +1737,6 @@ async function relayToChannelReaders(
 
 async function sendAcceptActivity(
   serverId: string,
-  server: any,
   originalActivity: any,
   targetInbox: string
 ): Promise<void> {
@@ -1715,12 +1754,11 @@ async function sendAcceptActivity(
     published: new Date().toISOString(),
   };
 
-  await DeliveryQueue.sendToInbox(targetInbox, acceptActivity, server.owner);
+  await DeliveryQueue.sendToInbox(targetInbox, acceptActivity, { serverId });
 }
 
 async function sendRejectActivity(
   serverId: string,
-  server: any,
   originalActivity: any,
   targetInbox: string,
   reason: string
@@ -1740,5 +1778,5 @@ async function sendRejectActivity(
     published: new Date().toISOString(),
   };
 
-  await DeliveryQueue.sendToInbox(targetInbox, rejectActivity, server.owner);
+  await DeliveryQueue.sendToInbox(targetInbox, rejectActivity, { serverId });
 }

@@ -12,6 +12,28 @@ type RequestSigner = (
   body: unknown,
 ) => Promise<{ headers: Record<string, string>; digest?: string }>;
 
+/**
+ * Whose key signs a delivery: a local profile id, or the Group actor of a local server for
+ * an activity whose actor is that Group.
+ */
+export type DeliverySigner = string | { serverId: string };
+
+function requestSigner(signer: DeliverySigner): RequestSigner {
+  if (typeof signer === 'string') {
+    return (url, method, body) => SignatureService.signRequest(url, method, body, signer);
+  }
+  return async (url, method, body) => {
+    // Loaded on use: ServerActor reads config, which validates the environment on import.
+    const { signAsServer } = await import('./ServerActor.js');
+    return signAsServer(signer.serverId, url, method, body);
+  };
+}
+
+/** federation_delivery_queue sender columns of a signer. */
+function senderColumns(signer: DeliverySigner): Record<string, string> {
+  return typeof signer === 'string' ? { sender_id: signer } : { sender_server_id: signer.serverId };
+}
+
 const MAX_CONCURRENT_DOMAINS = 10;
 
 /**
@@ -71,6 +93,7 @@ interface QueueItem {
   activity_data: any;
   target_inbox_url: string;  // Database uses target_inbox_url (not target_inbox)
   sender_id: string | null;  // May be NULL for legacy items
+  sender_server_id?: string | null;  // Group signer; sender_id is NULL
   actor_username: string | null;  // Fallback for resolving sender
   attempts: number;
   max_attempts: number;
@@ -96,7 +119,7 @@ export class DeliveryQueue {
   static async enqueue(
     activityData: any,
     targetInbox: string,
-    senderId: string,
+    signer: DeliverySigner,
     priority: number = 5
   ): Promise<void> {
     logger.info(`Attempting immediate delivery to ${targetInbox}`);
@@ -106,7 +129,7 @@ export class DeliveryQueue {
       const result = await this.deliverActivityDirect(
         activityData,
         targetInbox,
-        senderId
+        signer
       );
 
       if (result.delivered) {
@@ -134,7 +157,7 @@ export class DeliveryQueue {
       activity_data: activityData,
       target_inbox_url: targetInbox,  // Database uses target_inbox_url
       target_domain: targetDomain,
-      sender_id: senderId,
+      ...senderColumns(signer),
       priority,
       status: 'pending',
       attempts: 1, // Already tried once
@@ -354,20 +377,19 @@ export class DeliveryQueue {
   private static async deliverActivityDirect(
     activityData: any,
     targetInbox: string,
-    senderId: string
+    signer: DeliverySigner
   ): Promise<DirectDeliveryResult> {
-    return this.deliverSigned(activityData, targetInbox, (url, method, body) =>
-      SignatureService.signRequest(url, method, body, senderId));
+    return this.deliverSigned(activityData, targetInbox, requestSigner(signer));
   }
 
-  /** One delivery signed by a local profile. Nothing is queued; a retry is the caller's. */
+  /** One delivery signed by a local profile or Group. Nothing is queued; a retry is the caller's. */
   static async deliverOnce(
     activityData: any,
     targetInbox: string,
-    senderId: string
+    signer: DeliverySigner
   ): Promise<DirectDeliveryResult> {
     try {
-      return await this.deliverActivityDirect(activityData, targetInbox, senderId);
+      return await this.deliverActivityDirect(activityData, targetInbox, signer);
     } catch (error) {
       logger.warn(`Delivery to ${targetInbox} failed:`, error);
       return { delivered: false, retry: false };
@@ -533,7 +555,7 @@ export class DeliveryQueue {
     try {
       // Resolve sender_id if missing (legacy items don't have it)
       let senderId = item.sender_id;
-      if (!senderId && item.actor_username) {
+      if (!senderId && !item.sender_server_id && item.actor_username) {
         logger.info(`Resolving sender_id from actor_username: ${item.actor_username}`);
         const { data: profile } = await supabase
           .from('profiles')
@@ -552,8 +574,11 @@ export class DeliveryQueue {
         }
       }
 
-      if (!senderId) {
-        throw new Error(`Cannot resolve sender for delivery - no sender_id or actor_username`);
+      const signer: DeliverySigner | null = senderId
+        ? senderId
+        : item.sender_server_id ? { serverId: item.sender_server_id } : null;
+      if (!signer) {
+        throw new Error(`Cannot resolve sender for delivery - no sender_id, sender_server_id or actor_username`);
       }
 
       // SSRF protection: validate inbox URL before fetching
@@ -590,12 +615,7 @@ export class DeliveryQueue {
 
       // Sign the request
       const startedAt = process.hrtime.bigint();
-      const { headers } = await SignatureService.signRequest(
-        item.target_inbox_url,
-        'POST',
-        payload,
-        senderId
-      );
+      const { headers } = await requestSigner(signer)(item.target_inbox_url, 'POST', payload);
 
       headers['Content-Type'] = 'application/activity+json';
 
@@ -789,17 +809,17 @@ export class DeliveryQueue {
   }
 
   /**
-   * Delivers each activity to its inbox, signed by `senderId`, up to
+   * Delivers each activity to its inbox, signed by `signer`, up to
    * MAX_CONCURRENT_DOMAINS at once. A failed attempt is queued for retry by enqueue.
    */
   static async deliverEach(
     items: Array<{ inbox: string; activity: any; priority?: number }>,
-    senderId: string,
+    signer: DeliverySigner,
   ): Promise<void> {
     if (items.length === 0) return;
 
     const results = await runWithConcurrencyLimit(
-      items.map((item) => () => this.enqueue(item.activity, item.inbox, senderId, item.priority ?? 5)),
+      items.map((item) => () => this.enqueue(item.activity, item.inbox, signer, item.priority ?? 5)),
       MAX_CONCURRENT_DOMAINS,
     );
 
@@ -814,9 +834,9 @@ export class DeliveryQueue {
   static async sendToInbox(
     inboxUrl: string,
     activityData: any,
-    senderId: string
+    signer: DeliverySigner
   ): Promise<void> {
-    await this.enqueue(activityData, inboxUrl, senderId, 1); // High priority
+    await this.enqueue(activityData, inboxUrl, signer, 1); // High priority
   }
 
   /**

@@ -81,6 +81,15 @@ expect "$DISCORD"  /invite/ab                'SPA'
 expect "$DISCORD"  /invite/ABCD1234/extra    'SPA'
 expect "$FIREFOX"  /posts/00000000-0000-0000-0000-000000000001 'backend /posts/00000000-0000-0000-0000-000000000001'
 
+log "ActivityPub-only paths"
+STAMP=/users/fx_alice/quote_authorizations/00000000-0000-0000-0000-000000000002
+expect "$MASTODON" $STAMP "backend $STAMP"
+expect "$FIREFOX"  $STAMP "backend $STAMP"
+for c in likes shares replies; do
+  expect "$MASTODON" /posts/00000000-0000-0000-0000-000000000001/$c "backend /posts/00000000-0000-0000-0000-000000000001/$c"
+done
+expect "$MASTODON" /messages/00000000-0000-0000-0000-000000000003 'backend /messages/00000000-0000-0000-0000-000000000003'
+
 # expect_accept <accept> <path> <first line of the body>
 expect_accept() {
   local got
@@ -115,4 +124,4 @@ for h in 'Vary: User-Agent' 'X-Frame-Options: SAMEORIGIN' 'X-Content-Type-Option
 done
 
 [ "$FAILED" -eq 0 ] || { err "$FAILED routing check(s) failed"; exit 1; }
-log "dev/nginx-harmony.template.conf parses and routes /invite/<code> and /social/post/<id>"
+log "dev/nginx-harmony.template.conf parses and routes /invite/<code>, /social/post/<id> and the ActivityPub-only paths"

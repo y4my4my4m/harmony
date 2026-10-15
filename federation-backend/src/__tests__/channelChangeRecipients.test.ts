@@ -68,6 +68,13 @@ describe('channel structure fan-out', () => {
     expect(enqueue.mock.calls.map(c => c[1])).toEqual(['https://viewer.test/inbox'])
   })
 
+  it('is the Group\'s activity, signed with the Group key', async () => {
+    await handleChannelUpdated({ id: 'c1', server_id: 's1', name: 'secret', type: 0 }, {})
+    expect(enqueue.mock.calls.map(c => [(c[0] as any).actor, c[2]])).toEqual([
+      ['https://harmony.test/servers/s1', { serverId: 's1' }],
+    ])
+  })
+
   it('a category reaches every accepted remote member', async () => {
     await handleChannelCreated({ id: 'cat1', server_id: 's1', name: 'cat', type: 2 })
     expect(rpc.mock.calls.map(c => c[0])).toEqual(['get_server_members_by_instance'])
