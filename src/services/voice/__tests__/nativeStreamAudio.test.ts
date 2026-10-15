@@ -11,8 +11,20 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 const warning = vi.fn();
 vi.mock('vue-toastification', () => ({ useToast: () => ({ warning }) }));
+const platform = vi.hoisted(() => ({ desktop: false }));
+vi.mock(import('@/utils/platform'), async (original) => ({ ...(await original()), isTauriDesktop: () => platform.desktop }));
 
-import { PreparedStreamAudio, StreamAudioError, activeStreamAudio, notifyStreamAudioFailed } from '../nativeStreamAudio';
+import {
+  PreparedStreamAudio,
+  StreamAudioError,
+  activeStreamAudio,
+  lastStreamSurface,
+  notifyStreamAudioFailed,
+  openScreenRecordingSettings,
+  resetScreenRecordingPermission,
+  streamAudioFailure,
+  testStreamAudio,
+} from '../nativeStreamAudio';
 
 const posted: unknown[] = [];
 let contexts: FakeAudioContext[] = [];
@@ -54,6 +66,9 @@ beforeEach(() => {
   posted.length = 0;
   contexts = [];
   warning.mockReset();
+  platform.desktop = false;
+  streamAudioFailure.value = null;
+  lastStreamSurface.value = null;
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -104,6 +119,16 @@ describe('PreparedStreamAudio', () => {
     expect(error).toBeInstanceOf(StreamAudioError);
     expect(error.kind).toBe('permission');
     expect(contexts[0].closed).toBe(true);
+    expect(streamAudioFailure.value).toEqual({ kind: 'permission', message: 'Screen Recording not granted' });
+    expect(lastStreamSurface.value).toEqual({ label: '', displaySurface: 'monitor' });
+  });
+
+  it('a start that succeeds clears the last failure and records its surface', async () => {
+    streamAudioFailure.value = { kind: 'permission', message: 'declined' };
+    invoke.mockResolvedValueOnce(STARTED);
+    await new PreparedStreamAudio().start({ label: 'Harmony probe tone', displaySurface: 'window' });
+    expect(streamAudioFailure.value).toBeNull();
+    expect(lastStreamSurface.value).toEqual({ label: 'Harmony probe tone', displaySurface: 'window' });
   });
 
   it('does not wait on a context WebKit holds suspended; the next press resumes it', async () => {
@@ -163,5 +188,52 @@ describe('notifyStreamAudioFailed', () => {
     notifyStreamAudioFailed('failed: device lost');
     expect(warning).toHaveBeenNthCalledWith(1, expect.stringContaining('Screen'));
     expect(warning).toHaveBeenNthCalledWith(2, expect.stringContaining('without sound'));
+  });
+});
+
+describe('testStreamAudio', () => {
+  const RESULT = { live: false, scope: 'system', app: null, detail: 'system: every application but this one', blocks: 250, peakDbfs: -12.2 };
+
+  it('meters through a level channel and returns what the native side measured', async () => {
+    platform.desktop = true;
+    invoke.mockImplementation(async (command: string) => (command === 'stream_audio_test' ? RESULT : undefined));
+    const levels: number[] = [];
+    const pending = testStreamAudio(null, dbfs => levels.push(dbfs));
+    const call = invoke.mock.calls.find(c => c[0] === 'stream_audio_test');
+    expect(call?.[1]).toEqual({ surface: null, seconds: 5, onLevel: channels[0] });
+    const level = channels[0].onmessage as unknown as (dbfs: number) => void;
+    level(-30);
+    level(-12.5);
+    await expect(pending).resolves.toEqual(RESULT);
+    expect(levels).toEqual([-30, -12.5]);
+    (channels[0].onmessage as unknown as (dbfs: number) => void)(-1);
+    expect(levels).toHaveLength(2);
+  });
+
+  it('passes the surface and reports a permission failure', async () => {
+    platform.desktop = true;
+    invoke.mockImplementation(async (command: string) => {
+      if (command === 'stream_audio_test') throw 'permission: shareable content: declined';
+    });
+    const surface = { label: 'Harmony probe tone', displaySurface: 'window' };
+    const error = await testStreamAudio(surface, () => {}).catch(e => e);
+    expect(error).toMatchObject({ kind: 'permission', message: 'shareable content: declined' });
+    expect(invoke).toHaveBeenCalledWith('stream_audio_test', expect.objectContaining({ surface }));
+    expect(streamAudioFailure.value).toEqual({ kind: 'permission', message: 'shareable content: declined' });
+  });
+
+  it('rejects off the desktop app without a command', async () => {
+    await expect(testStreamAudio(null, () => {})).rejects.toMatchObject({ kind: 'unsupported' });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+});
+
+describe('Screen Recording permission', () => {
+  it('reset and settings run their commands; errors carry their kind', async () => {
+    invoke.mockResolvedValueOnce(undefined).mockRejectedValueOnce('unsupported: only macOS asks for Screen Recording');
+    await resetScreenRecordingPermission();
+    expect(invoke).toHaveBeenCalledWith('stream_audio_reset_permission');
+    await expect(openScreenRecordingSettings()).rejects.toMatchObject({ kind: 'unsupported' });
+    expect(invoke).toHaveBeenLastCalledWith('stream_audio_open_settings');
   });
 });

@@ -128,6 +128,21 @@ export interface NativeStreamAudio extends StreamAudioSource {
 /** Source of the running native capture; null when none runs. Shallow: stop compares identity. */
 export const activeStreamAudio = shallowRef<StreamAudioSource | null>(null);
 
+/** Surface of the last native start or retarget, whether it succeeded or not. */
+export const lastStreamSurface = shallowRef<SharedSurface | null>(null);
+
+export interface StreamAudioFailure {
+  kind: StreamAudioErrorKind;
+  message: string;
+}
+
+/** Why the last native start or retarget failed; null once one succeeds. */
+export const streamAudioFailure = shallowRef<StreamAudioFailure | null>(null);
+
+function noteFailure(failure: StreamAudioError): void {
+  streamAudioFailure.value = { kind: failure.kind, message: failure.message };
+}
+
 /**
  * WebKit settles resume() only once the context runs, which without user activation waits for
  * the next gesture; the picker has consumed the click's activation. The context resumes on the
@@ -196,7 +211,9 @@ export class PreparedStreamAudio {
       channel = audioChannel;
       audioChannel.onmessage = feed;
       traceStreamAudio('native start', { ...surface, context: context.state });
+      lastStreamSurface.value = surface;
       const started = await invoke<Started>('stream_audio_start', { surface, onAudio: audioChannel });
+      streamAudioFailure.value = null;
       if (context.state !== 'running') resumeOnNextGesture(context);
       const track = destination.stream.getAudioTracks()[0];
       debug.log('[StreamAudio] native capture started', { ...started, surface, context: context.state });
@@ -213,8 +230,10 @@ export class PreparedStreamAudio {
           nextChannel.onmessage = feed;
           audioChannel.onmessage = () => {};
           traceStreamAudio('native retarget', { ...next });
+          lastStreamSurface.value = next;
           try {
             const restarted = await invoke<Started>('stream_audio_start', { surface: next, onAudio: nextChannel });
+            streamAudioFailure.value = null;
             audioChannel = nextChannel;
             session = restarted.session;
             source = { scope: restarted.scope, app: restarted.app, detail: restarted.detail };
@@ -225,6 +244,7 @@ export class PreparedStreamAudio {
             nextChannel.onmessage = () => {};
             if (activeStreamAudio.value === source) activeStreamAudio.value = null;
             const failure = StreamAudioError.from(error);
+            noteFailure(failure);
             traceStreamAudio('native retarget failed', { kind: failure.kind, message: failure.message });
             throw failure;
           }
@@ -247,6 +267,7 @@ export class PreparedStreamAudio {
       node?.disconnect();
       await context.close().catch(() => {});
       const failure = StreamAudioError.from(error);
+      noteFailure(failure);
       traceStreamAudio('native failed', { kind: failure.kind, message: failure.message });
       throw failure;
     }
@@ -257,6 +278,64 @@ export class PreparedStreamAudio {
     if (this.used) return;
     this.used = true;
     void this.context.close().catch(() => {});
+  }
+}
+
+/** A test's peak at or above this is audio flowing, dBFS. */
+export const AUDIBLE_DBFS = -50;
+
+export interface StreamAudioTestResult extends StreamAudioSource {
+  /** The test metered the capture of a running stream. */
+  live: boolean;
+  /** 20 ms blocks that arrived. */
+  blocks: number;
+  /** Highest block peak; -100 for digital silence or no blocks. */
+  peakDbfs: number;
+}
+
+/**
+ * Captures for `seconds` without going live and reports the level: the running stream's
+ * capture when there is one, else `surface`, else every app but Harmony. `onLevel` receives
+ * the peak of every 100 ms, dBFS. Rejects with a StreamAudioError when capture cannot start.
+ */
+export async function testStreamAudio(
+  surface: SharedSurface | null,
+  onLevel: (dbfs: number) => void,
+  seconds = 5,
+): Promise<StreamAudioTestResult> {
+  if (!isTauriDesktop()) throw new StreamAudioError('unsupported', 'not the desktop app');
+  const levels = new Channel<number>();
+  levels.onmessage = onLevel;
+  traceStreamAudio('test', { surface, seconds });
+  try {
+    return await invoke<StreamAudioTestResult>('stream_audio_test', { surface, seconds, onLevel: levels });
+  } catch (error) {
+    const failure = StreamAudioError.from(error);
+    noteFailure(failure);
+    throw failure;
+  } finally {
+    levels.onmessage = () => {};
+  }
+}
+
+/**
+ * macOS: clears Harmony's Screen Recording decision so the next capture asks again. A grant
+ * made to another build stays listed as allowed in System Settings while TCC denies this one.
+ */
+export async function resetScreenRecordingPermission(): Promise<void> {
+  try {
+    await invoke('stream_audio_reset_permission');
+  } catch (error) {
+    throw StreamAudioError.from(error);
+  }
+}
+
+/** macOS: System Settings at Screen & System Audio Recording. */
+export async function openScreenRecordingSettings(): Promise<void> {
+  try {
+    await invoke('stream_audio_open_settings');
+  } catch (error) {
+    throw StreamAudioError.from(error);
   }
 }
 

@@ -51,6 +51,28 @@ pub fn permission_granted() -> bool {
   unsafe { CGPreflightScreenCaptureAccess() }
 }
 
+fn sysctl_string(name: &std::ffi::CStr) -> Option<String> {
+  let mut len: libc::size_t = 0;
+  if unsafe { libc::sysctlbyname(name.as_ptr(), std::ptr::null_mut(), &mut len, std::ptr::null_mut(), 0) } != 0 || len == 0 {
+    return None;
+  }
+  let mut buf = vec![0u8; len];
+  if unsafe { libc::sysctlbyname(name.as_ptr(), buf.as_mut_ptr() as *mut c_void, &mut len, std::ptr::null_mut(), 0) } != 0 {
+    return None;
+  }
+  buf.truncate(len);
+  let text = String::from_utf8_lossy(&buf).trim_end_matches('\0').to_string();
+  (!text.is_empty()).then_some(text)
+}
+
+pub fn os_version() -> Option<String> {
+  let release = sysctl_string(c"kern.osproductversion")?;
+  Some(match sysctl_string(c"kern.osversion") {
+    Some(build) => format!("macOS {release} ({build})"),
+    None => format!("macOS {release}"),
+  })
+}
+
 pub fn support() -> Result<(), Error> {
   if available!(macos = 13.0) {
     Ok(())

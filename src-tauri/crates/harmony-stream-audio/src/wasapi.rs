@@ -57,14 +57,15 @@ impl Drop for Capture {
   }
 }
 
-fn os_build() -> Option<u32> {
-  let mut buf = [0u16; 32];
+/// A REG_SZ under HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion.
+fn current_version(value: PCWSTR) -> Option<String> {
+  let mut buf = [0u16; 64];
   let mut size = (buf.len() * 2) as u32;
   let status = unsafe {
     RegGetValueW(
       HKEY_LOCAL_MACHINE,
       w!("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"),
-      w!("CurrentBuildNumber"),
+      value,
       RRF_RT_REG_SZ,
       None,
       Some(buf.as_mut_ptr() as *mut c_void),
@@ -75,7 +76,19 @@ fn os_build() -> Option<u32> {
     return None;
   }
   let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
-  String::from_utf16_lossy(&buf[..len]).trim().parse().ok()
+  Some(String::from_utf16_lossy(&buf[..len]).trim().to_string())
+}
+
+fn os_build() -> Option<u32> {
+  current_version(w!("CurrentBuildNumber"))?.parse().ok()
+}
+
+pub fn os_version() -> Option<String> {
+  let build = os_build()?;
+  Some(match current_version(w!("DisplayVersion")) {
+    Some(release) if !release.is_empty() => format!("Windows {release} (build {build})"),
+    _ => format!("Windows build {build}"),
+  })
 }
 
 pub fn support() -> Result<(), Error> {

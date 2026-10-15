@@ -179,6 +179,18 @@ pub fn permission_granted() -> Option<bool> {
   }
 }
 
+/// The OS release, for logs: "macOS 15.3.1 (24D70)", "Windows 24H2 (build 26100)".
+pub fn os_version() -> Option<String> {
+  #[cfg(any(windows, target_os = "macos"))]
+  {
+    platform::os_version()
+  }
+  #[cfg(not(any(windows, target_os = "macos")))]
+  {
+    None
+  }
+}
+
 /// Shareable windows, on-screen ones first.
 pub fn windows() -> Result<Vec<WindowInfo>, Error> {
   #[cfg(any(windows, target_os = "macos"))]

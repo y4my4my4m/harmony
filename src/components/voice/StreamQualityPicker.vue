@@ -45,6 +45,46 @@
         <Icon name="volume-2" :size="14" />
         <span>{{ t('voice.streamAudioHint') }}</span>
       </p>
+      <section v-if="desktop && nativeAudio" class="sqp-diag" :aria-label="t('voice.testStreamAudio')">
+        <button type="button" class="sqp-log-btn" :disabled="testing" @click="runTest">
+          <Icon name="audio-lines" :size="14" />
+          <span>{{ testing ? t('voice.testingStreamAudio') : t('voice.testStreamAudio') }}</span>
+        </button>
+        <template v-if="testing">
+          <div
+            class="sqp-meter"
+            role="meter"
+            :aria-label="t('voice.streamAudioLevel')"
+            :aria-valuemin="METER_FLOOR_DBFS"
+            aria-valuemax="0"
+            :aria-valuenow="Math.round(Math.max(meterDbfs, METER_FLOOR_DBFS))"
+          >
+            <div class="sqp-meter-fill" :style="{ width: `${meterPercent}%` }" />
+          </div>
+          <p class="sqp-audio-hint">{{ t('voice.streamAudioTestHint') }}</p>
+        </template>
+        <p v-else-if="verdict" class="sqp-verdict" :class="verdict.tone" role="status" :title="verdict.detail">
+          {{ verdict.text }}
+        </p>
+        <template v-if="mac">
+          <p v-if="permissionDenied" class="sqp-verdict warn">{{ t('voice.streamAudioPermissionHelp') }}</p>
+          <button type="button" class="sqp-log-btn" :disabled="resetting" @click="resetPermission">
+            <Icon name="rotate-ccw" :size="14" />
+            <span>{{ t('voice.resetScreenRecording') }}</span>
+          </button>
+          <p v-if="resetDone" class="sqp-verdict" role="status">
+            <span>{{ t('voice.screenRecordingResetDone') }}</span>
+            <button type="button" class="sqp-log-btn" @click="restart">
+              <Icon name="refresh-cw" :size="14" />
+              <span>{{ t('voice.restartHarmony') }}</span>
+            </button>
+          </p>
+          <button type="button" class="sqp-log-btn" @click="openSettings">
+            <Icon name="settings" :size="14" />
+            <span>{{ t('voice.openScreenRecordingSettings') }}</span>
+          </button>
+        </template>
+      </section>
       <button v-if="desktop" type="button" class="sqp-log-btn" @click="copyLog">
         <Icon name="copy" :size="14" />
         <span>{{ t('voice.copyStreamAudioLog') }}</span>
@@ -87,14 +127,28 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
 import Icon from '@/components/common/Icon.vue';
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue';
 import { uid } from '@/utils/a11y/focus';
-import { activeStreamAudio, copyStreamAudioLog, nativeStreamAudioSupport, probeNativeStreamAudio } from '@/services/voice/nativeStreamAudio';
+import {
+  AUDIBLE_DBFS,
+  StreamAudioError,
+  activeStreamAudio,
+  copyStreamAudioLog,
+  lastStreamSurface,
+  nativeStreamAudioSupport,
+  openScreenRecordingSettings,
+  probeNativeStreamAudio,
+  resetScreenRecordingPermission,
+  streamAudioFailure,
+  testStreamAudio,
+  type StreamAudioTestResult,
+} from '@/services/voice/nativeStreamAudio';
 import { isTauriDesktop } from '@/utils/platform';
+import { detectDesktopOs } from '@/utils/buildInfo';
 import { useToast } from 'vue-toastification';
 import StreamQualityOptions from './StreamQualityOptions.vue';
 import { VOICE_POPOVER_DISMISS, placePopover, type Rect } from './voiceMenuModel';
@@ -126,6 +180,95 @@ const copyLog = async () => {
   }
 };
 const voiceStore = useUnifiedVoiceChannelStore();
+
+// Diagnostics: "Test audio capture" and, on macOS, the Screen Recording permission.
+const mac = desktop && detectDesktopOs() === 'macos';
+/** Meter scale bottom, dBFS. */
+const METER_FLOOR_DBFS = -60;
+const testing = ref(false);
+const meterDbfs = ref(METER_FLOOR_DBFS);
+const testResult = shallowRef<StreamAudioTestResult | null>(null);
+const testError = shallowRef<StreamAudioError | null>(null);
+const resetting = ref(false);
+const resetDone = ref(false);
+
+const meterPercent = computed(() =>
+  Math.max(0, Math.min(100, ((meterDbfs.value - METER_FLOOR_DBFS) / -METER_FLOOR_DBFS) * 100)),
+);
+const permissionDenied = computed(() =>
+  testError.value?.kind === 'permission' || streamAudioFailure.value?.kind === 'permission',
+);
+
+interface Verdict {
+  tone: 'ok' | 'warn';
+  text: string;
+  detail: string;
+}
+
+const verdict = computed<Verdict | null>(() => {
+  const error = testError.value;
+  if (error) {
+    const text = error.kind === 'permission'
+      ? t('voice.streamAudioTestPermission')
+      : t('voice.streamAudioTestFailed', { reason: error.message });
+    return { tone: 'warn', text, detail: error.message };
+  }
+  const result = testResult.value;
+  if (!result) return null;
+  const app = result.scope === 'app' ? result.app : null;
+  if (result.peakDbfs >= AUDIBLE_DBFS) {
+    const peak = result.peakDbfs.toFixed(1);
+    const text = app ? t('voice.streamAudioFlowingApp', { app, peak }) : t('voice.streamAudioFlowingSystem', { peak });
+    return { tone: 'ok', text, detail: result.detail };
+  }
+  const text = app ? t('voice.streamAudioSilenceApp', { app }) : t('voice.streamAudioSilenceSystem');
+  return { tone: 'warn', text, detail: result.detail };
+});
+
+// While live, the stream's surface; the native side meters the stream's capture when one runs.
+async function runTest(): Promise<void> {
+  if (testing.value) return;
+  testing.value = true;
+  testResult.value = null;
+  testError.value = null;
+  meterDbfs.value = METER_FLOOR_DBFS;
+  try {
+    const surface = isLive.value ? lastStreamSurface.value : null;
+    testResult.value = await testStreamAudio(surface, (dbfs) => {
+      meterDbfs.value = dbfs;
+    });
+  } catch (error) {
+    testError.value = StreamAudioError.from(error);
+  } finally {
+    testing.value = false;
+  }
+}
+
+async function resetPermission(): Promise<void> {
+  if (resetting.value) return;
+  resetting.value = true;
+  try {
+    await resetScreenRecordingPermission();
+    resetDone.value = true;
+  } catch (error) {
+    toast.error(t('voice.screenRecordingResetFailed', { reason: StreamAudioError.from(error).message }));
+  } finally {
+    resetting.value = false;
+  }
+}
+
+async function openSettings(): Promise<void> {
+  try {
+    await openScreenRecordingSettings();
+  } catch (error) {
+    toast.error(StreamAudioError.from(error).message);
+  }
+}
+
+async function restart(): Promise<void> {
+  const { relaunch } = await import('@tauri-apps/plugin-process');
+  await relaunch();
+}
 
 const panelRef = ref<HTMLElement | null>(null);
 const goLiveRef = ref<HTMLButtonElement | null>(null);
@@ -402,5 +545,46 @@ onBeforeUnmount(() => {
   outline: 2px solid var(--border-focus);
   outline-offset: 2px;
   border-radius: 4px;
+}
+.sqp-log-btn:disabled {
+  color: var(--text-secondary);
+  cursor: progress;
+  text-decoration: none;
+}
+
+.sqp-diag {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.sqp-meter {
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--background-secondary);
+}
+
+.sqp-meter-fill {
+  height: 100%;
+  background: var(--success-fill);
+  transition: width 0.08s linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sqp-meter-fill { transition: none; }
+}
+
+.sqp-verdict {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-primary);
+}
+
+.sqp-verdict.warn {
+  padding-left: 6px;
+  border-left: 2px solid var(--warning);
 }
 </style>
