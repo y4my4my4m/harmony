@@ -193,12 +193,13 @@ SELECT is((SELECT everyone_channel_ids FROM public.federation_group_access('f382
                 'f3830000-0000-0000-0000-000000000006']::uuid[],
           'ADMINISTRATOR on @everyone outranks every channel deny, as in get_user_permissions');
 
--- @everyone visibility agrees with get_user_permissions for a caller holding nothing.
+-- @everyone visibility agrees with get_user_permissions for a member holding no role (ro). A
+-- profile without membership holds no permission.
 SELECT is((SELECT everyone_channel_ids FROM acc WHERE actor = 'none'),
           (SELECT array_agg(c.id ORDER BY c.id) FROM public.channels c
             WHERE c.server_id = 'f3820000-0000-0000-0000-000000000001'
-              AND public.has_permission(NULL, c.server_id, 'VIEW_CHANNEL', c.id)),
-          '@everyone channels match has_permission for a caller with no roles');
+              AND public.has_permission('f3810000-0000-0000-0000-000000000002', c.server_id, 'VIEW_CHANNEL', c.id)),
+          '@everyone channels match has_permission for a member with no roles');
 
 -- Recipients ----------------------------------------------------------------------------
 SELECT set_eq(

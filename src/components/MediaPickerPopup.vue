@@ -84,6 +84,7 @@
       :id="panelId"
       role="tabpanel"
       :aria-labelledby="tabId(activeTab)"
+      :channel-id="channelId ?? null"
       @send-emoji="handleSendEmoji"
     />
   </div>
@@ -119,6 +120,8 @@ interface Props {
   composerElement?: HTMLElement;
   initialTab?: PickerTab;
   initialSearchQuery?: string;
+  /** Server channel the picked emoji goes to; null in a DM or post composer. */
+  channelId?: string | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {

@@ -561,6 +561,10 @@ const PERMISSION_SECTIONS: Array<{ id: string; keys: string[] }> = [
     id: 'voice',
     keys: ['CONNECT', 'SPEAK', 'STREAM', 'MUTE_MEMBERS', 'DEAFEN_MEMBERS', 'MOVE_MEMBERS', 'USE_SOUNDBOARD', 'USE_EXTERNAL_SOUNDS'],
   },
+  {
+    id: 'dangerous',
+    keys: ['ADMINISTRATOR'],
+  },
 ]
 
 const permissionSections = computed(() =>

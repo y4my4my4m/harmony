@@ -8,6 +8,7 @@ import { useUnifiedEmoji } from '@/services/unifiedEmojiService'
 import { discordCustomEmojiUrlFromIdentifier, remoteReactionEmojiUrl } from '@/utils/emojiUtils'
 import { createReactionEngine } from '@/stores/shared/reactionEngine'
 import { isReactionLimitError, MESSAGE_REACTION_KINDS } from '@/utils/reactionLimits'
+import { moderationRejectionFromError } from '@/services/AutoModService'
 import { i18n } from '@/i18n'
 import { useToast } from 'vue-toastification'
 
@@ -227,9 +228,16 @@ export const useReactionsStore = defineStore('reactions', () => {
       // check_message_emoji_reaction_limit refused a 21st emoji.
       if (!result.success && isReactionLimitError(result.reason)) {
         useToast().info(i18n.global.t('emoji.messageReactionLimit', { count: MESSAGE_REACTION_KINDS }))
+      } else if (!result.success && result.reason?.startsWith('MEMBER_TIMED_OUT')) {
+        // enforce_reaction_add_permission: the reactor is timed out in the server.
+        const rejection = moderationRejectionFromError({ message: result.reason })
+        if (rejection) useToast().info(rejection.message)
       } else if (!result.success && result.reason?.includes('Missing permission: ADD_REACTIONS')) {
         // enforce_reaction_add_permission: a new emoji without ADD_REACTIONS in the channel.
         useToast().info(i18n.global.t('emoji.reactionNotAllowed'))
+      } else if (!result.success && result.reason?.includes('Missing permission: USE_EXTERNAL_EMOJIS')) {
+        // enforce_reaction_external_emoji: another server's emoji without USE_EXTERNAL_EMOJIS.
+        useToast().info(i18n.global.t('emoji.externalNotAllowed'))
       }
       return result
     },

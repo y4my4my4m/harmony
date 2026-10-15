@@ -13,6 +13,8 @@ vi.mock('@/services/RoleService', () => ({
     ADMINISTRATOR: 'ADMINISTRATOR',
     MANAGE_MESSAGES: 'MANAGE_MESSAGES',
     PIN_MESSAGES: 'PIN_MESSAGES',
+    CREATE_PUBLIC_THREADS: 'CREATE_PUBLIC_THREADS',
+    CREATE_PRIVATE_THREADS: 'CREATE_PRIVATE_THREADS',
   },
   roleService: { getUserPermissions },
 }))
@@ -61,6 +63,19 @@ describe('useChannelMessagePermissions', () => {
     await flush()
     expect(perms.canPinMessages.value).toBe(true)
     expect(perms.canManageMessages.value).toBe(false)
+    perms.stop()
+  })
+
+  it('CREATE_PUBLIC_THREADS starts threads; CREATE_PRIVATE_THREADS alone does not', async () => {
+    getUserPermissions.mockImplementation(async (_u: string, _s: string, c: string) =>
+      c === 'public' ? { CREATE_PUBLIC_THREADS: true } : { CREATE_PRIVATE_THREADS: true })
+    const channel = ref<string | null>('public')
+    const perms = run('s1', channel)
+    await flush()
+    expect(perms.canCreateThreads.value).toBe(true)
+    channel.value = 'private'
+    await flush()
+    expect(perms.canCreateThreads.value).toBe(false)
     perms.stop()
   })
 

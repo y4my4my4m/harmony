@@ -1,7 +1,11 @@
 <template>
   <div v-if="kind === 'channel'" class="beginning-indicator">
     <h2 class="beginning-title">{{ $t('message.channelWelcome', { name }) }}</h2>
-    <p class="beginning-subtitle">{{ $t('message.channelWelcomeSubtitle', { name }) }}</p>
+    <p v-if="historyRestricted" class="beginning-subtitle history-restricted" role="note" data-testid="history-restricted">
+      <Icon name="lock" :size="14" aria-hidden="true" />
+      <span>{{ $t('message.historyRestricted') }}</span>
+    </p>
+    <p v-else class="beginning-subtitle">{{ $t('message.channelWelcomeSubtitle', { name }) }}</p>
   </div>
   <!-- DM and group: the conversation header shows avatar and name. -->
   <div v-else class="beginning-indicator compact">
@@ -14,11 +18,14 @@
 
 <script setup lang="ts">
 import DisplayName from '@/components/DisplayName.vue'
+import Icon from '@/components/common/Icon.vue'
 
 defineProps<{
   kind: 'channel' | 'dm' | 'group'
   name: string
   userId?: string
+  /** The channel withholds READ_MESSAGE_HISTORY: this is where the viewer joined, not the start. */
+  historyRestricted?: boolean
 }>()
 </script>
 
@@ -52,6 +59,13 @@ defineProps<{
   margin: 2px 0 0;
   line-height: 1.45;
   max-width: 640px;
+}
+
+.history-restricted {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
 }
 
 .beginning-name {

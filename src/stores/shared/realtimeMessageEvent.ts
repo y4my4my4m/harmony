@@ -14,12 +14,38 @@ export interface MessageEventHandlers {
   onInsert: (payload: { new: any }) => void | Promise<void>
   onUpdate: (payload: { new: any; old: any }) => void | Promise<void>
   onDelete: (payload: { old: any }) => void | Promise<void>
+  /** Reads one row through messages RLS; null when the viewer cannot see it. */
+  refetch?: (id: string) => Promise<any | null>
 }
 
 export interface BroadcastMessageEvent {
   op?: 'INSERT' | 'UPDATE' | 'DELETE' | string
   new?: any
   old?: any
+}
+
+/**
+ * broadcast_message_event sends ids and `restricted: true` instead of the row when the row
+ * predates the server's newest membership in a channel that withholds READ_MESSAGE_HISTORY
+ * from someone. The subscriber re-reads it; RLS decides whether it exists for them.
+ */
+async function readMessage(id: string): Promise<any | null> {
+  const { supabase } = await import('@/supabase')
+  const { data } = await supabase.from('messages').select('*').eq('id', id).maybeSingle()
+  return data ?? null
+}
+
+function routeRestricted(
+  op: 'INSERT' | 'UPDATE',
+  row: any,
+  old: any,
+  handlers: MessageEventHandlers,
+): Promise<void> | void {
+  if (typeof row?.id !== 'string') return
+  return (handlers.refetch ?? readMessage)(row.id).then((full) => {
+    if (!full) return
+    return op === 'INSERT' ? handlers.onInsert({ new: full }) : handlers.onUpdate({ new: full, old: old ?? null })
+  })
 }
 
 /** Routes a broadcast_message_event payload to the matching CDC handler. */
@@ -34,10 +60,12 @@ export function routeMessageEvent(
   if (!op) return
 
   if (op === 'INSERT') {
+    if (payload?.new?.restricted === true) return routeRestricted('INSERT', payload.new, null, handlers)
     if (payload?.new) return handlers.onInsert({ new: payload.new })
     return
   }
   if (op === 'UPDATE') {
+    if (payload?.new?.restricted === true) return routeRestricted('UPDATE', payload.new, payload.old, handlers)
     if (payload?.new) return handlers.onUpdate({ new: payload.new, old: payload.old ?? null })
     return
   }

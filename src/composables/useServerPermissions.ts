@@ -354,9 +354,8 @@ export function useServerPermissions(serverId?: MaybeRefOrGetter<string | null |
     hasCurrentUserPermission(Permission.PIN_MESSAGES) || hasCurrentUserPermission(Permission.MANAGE_MESSAGES)
   )
 
-  const canCreateThreads = computed(() =>
-    hasCurrentUserPermission(Permission.CREATE_PUBLIC_THREADS) || hasCurrentUserPermission(Permission.CREATE_PRIVATE_THREADS)
-  )
+  // Harmony threads are public; CREATE_PRIVATE_THREADS starts none, as create_thread.
+  const canCreateThreads = computed(() => hasCurrentUserPermission(Permission.CREATE_PUBLIC_THREADS))
 
   const canModerateMembers = computed(() =>
     hasCurrentUserPermission(Permission.KICK_MEMBERS) || 

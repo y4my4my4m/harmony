@@ -59,23 +59,33 @@ for f in "$ROOT"/db_schema/tests/*.sql; do
   name="$(basename "$f")"
   case "$name" in 00_*|01_*) continue ;; esac
   log "$name"
-  out="$(docker exec "$CONTAINER" psql -U postgres -d postgres -tA -f "/db_schema/tests/$name" 2>&1)"
-  echo "$out" | grep -E '^(ok|not ok|# )' || true
-  if echo "$out" | grep -q '^not ok'; then
+  # Output is read through here-strings, never `echo | grep -q` or `| head`: under pipefail a
+  # reader that exits early leaves the writer with SIGPIPE (141), which turns a match into a
+  # miss inside `if` and ends the script outside it.
+  status=0
+  out="$(docker exec "$CONTAINER" psql -U postgres -d postgres -tA -f "/db_schema/tests/$name" 2>&1)" || status=$?
+  grep -E '^(ok|not ok|# )' <<<"$out" || true
+  if [ "$status" -ne 0 ]; then
+    FAILED=$((FAILED + 1))
+    err "$name: psql exited $status"
+    awk 'NR <= 10' <<<"$out" >&2
+    continue
+  fi
+  if grep -q '^not ok' <<<"$out"; then
     FAILED=$((FAILED + 1))
     err "$name has failing assertions"
   fi
   # psql prefixes diagnostics: "psql:/db_schema/tests/NN_x.sql:LINE: ERROR:  ...".
   # ERROR never appears at column 0. A raise aborts the transaction, so every
   # assertion after it is skipped rather than failed: fewer ok lines, no not ok.
-  if echo "$out" | grep -qE '(^|:[[:space:]])ERROR:'; then
+  if grep -qE '(^|:[[:space:]])ERROR:' <<<"$out"; then
     FAILED=$((FAILED + 1))
     err "$name raised an error"
-    echo "$out" | grep -E -A2 '(^|:[[:space:]])ERROR:' | head -10 >&2
+    grep -E -A2 '(^|:[[:space:]])ERROR:' <<<"$out" | awk 'NR <= 10' >&2
   fi
   # finish() reports a short run only when reached. Separate from the error
   # check: a plan can be miscounted with nothing raised.
-  if echo "$out" | grep -q '^# Looks like you planned'; then
+  if grep -q '^# Looks like you planned' <<<"$out"; then
     FAILED=$((FAILED + 1))
     err "$name ran a different number of assertions than it planned"
   fi

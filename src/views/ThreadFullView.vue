@@ -196,6 +196,7 @@
       :giphy-open="giphyOpen"
       :emoji-list-open="emojiListOpen"
       :thread-id="props.threadId"
+      :thread-channel-id="thread?.channel_id"
       :media-room="threadMediaRoom"
       @send-message="handleSendMessage"
       @send-voice-message="handleSendVoiceMessage"
@@ -211,6 +212,7 @@
       @click.stop
       @sendEmoji="handleSendEmoji"
       :closeEmojiList="closeReactionEmoji"
+      :channelId="thread?.channel_id ?? null"
       :isEmojiBlocked="isReactionEmojiBlocked"
       :limitNotice="reactionLimitNotice"
       :emojiIconClicked="emojiIconClicked"
@@ -230,6 +232,7 @@
       :triggerElement="mediaPickerTriggerElement || undefined"
       :composerElement="composerElement || undefined"
       :initialTab="mediaPickerInitialTab"
+      :channelId="thread?.channel_id ?? null"
     />
   </div>
 </template>

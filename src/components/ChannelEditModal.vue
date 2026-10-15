@@ -314,14 +314,24 @@ import {
 import type { Channel } from '@/types'
 
 // Permissions are grouped Discord-style rather than as one flat toggle list.
-// Editing another user's messages is owner/admin-only and lives outside the
-// channel-override surface, so it is absent here. MANAGE_MESSAGES covers
-// delete and pin only. Group names are channel.edit.groups.<id>; labels and
-// descriptions channel.edit.perms.<KEY>.{label,description}.
+// Only permissions the server resolves per channel are offered. Server-scoped
+// ones are absent: MANAGE_SERVER, MANAGE_EMOJIS, VIEW_AUDIT_LOG, the member
+// moderation bits, and CREATE_INVITE (an invite names no channel).
+// CREATE_PRIVATE_THREADS grants nothing and is absent. MANAGE_ROLES here is
+// Discord's Manage Permissions: this channel's overrides. MANAGE_WEBHOOKS
+// applies to text channels alone. Editing another user's messages is
+// owner/admin-only and lives outside the channel-override surface.
+// Group names are channel.edit.groups.<id>; labels and descriptions
+// channel.edit.perms.<KEY>.{label,description}.
 const PERMISSION_GROUPS: Array<{ id: string; permissions: Array<{ key: Permission }> }> = [
   {
     id: 'general',
-    permissions: [{ key: Permission.VIEW_CHANNEL }, { key: Permission.MANAGE_CHANNELS }],
+    permissions: [
+      { key: Permission.VIEW_CHANNEL },
+      { key: Permission.MANAGE_CHANNELS },
+      { key: Permission.MANAGE_ROLES },
+      { key: Permission.MANAGE_WEBHOOKS },
+    ],
   },
   {
     id: 'messages',
@@ -333,6 +343,7 @@ const PERMISSION_GROUPS: Array<{ id: string; permissions: Array<{ key: Permissio
       { key: Permission.USE_EXTERNAL_EMOJIS },
       { key: Permission.MENTION_EVERYONE },
       { key: Permission.MANAGE_MESSAGES },
+      { key: Permission.PIN_MESSAGES },
       { key: Permission.READ_MESSAGE_HISTORY },
     ],
   },
@@ -340,11 +351,13 @@ const PERMISSION_GROUPS: Array<{ id: string; permissions: Array<{ key: Permissio
     id: 'threads',
     permissions: [
       { key: Permission.CREATE_PUBLIC_THREADS },
-      { key: Permission.CREATE_PRIVATE_THREADS },
       { key: Permission.SEND_MESSAGES_IN_THREADS },
     ],
   },
 ]
+
+// Webhooks post to text channels (assert_webhook_channel).
+const TEXT_ONLY: ReadonlySet<Permission> = new Set([Permission.MANAGE_WEBHOOKS])
 
 const VOICE_GROUP = {
   id: 'voice',
@@ -593,9 +606,13 @@ const selectedRole = computed(() =>
   serverRoles.value.find(r => r.id === selectedRoleId.value) || null,
 )
 
-// Voice channels add the voice group. Saves touch only these bits; the rest of an override stays.
-const permissionGroups = computed(() =>
-  props.channel?.type === 1 ? [...PERMISSION_GROUPS, VOICE_GROUP] : PERMISSION_GROUPS)
+// Voice channels add the voice group and drop text-only bits. Saves touch only these bits; the
+// rest of an override stays.
+const permissionGroups = computed(() => {
+  if (props.channel?.type !== 1) return PERMISSION_GROUPS
+  const shared = PERMISSION_GROUPS.map(g => ({ ...g, permissions: g.permissions.filter(p => !TEXT_ONLY.has(p.key)) }))
+  return [...shared, VOICE_GROUP]
+})
 const editablePermissions = computed(() => permissionGroups.value.flatMap(g => g.permissions))
 
 const everyoneRole = computed(() => serverRoles.value.find(r => r.is_default) || null)

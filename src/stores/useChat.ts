@@ -17,6 +17,7 @@ import { getRandomId, createTempMessageId, findOptimisticMatchIndex } from '@/st
 import { insertMessageSorted, evictOldestCacheEntry, trimCachedMessages, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils';
 import { isModerationRejectionCode } from '@/services/AutoModService';
 import { releaseFloatingVideo } from '@/composables/useFloatingVideo';
+import { clearHistoryCutoffs } from '@/services/channelHistoryCutoff';
 
 // Newest-page loads started by prefetchChannelMessages, by channel id.
 const pendingPrefetch = new Map<string, Promise<void>>();
@@ -703,6 +704,7 @@ export const useChatStore = defineStore('chat', {
       this.fetchingReplyMessages.clear();
       this.jumpedToMessages.clear();
       this.messageGaps.clear();
+      clearHistoryCutoffs();
       debug.log('Cleared all message caches');
     },
 
@@ -844,9 +846,10 @@ export const useChatStore = defineStore('chat', {
           });
         }
 
-        // AutoMod blocks, timeouts and anti-spam limits answer the same way on
-        // every retry.
-        if (isModerationRejectionCode(code)) {
+        // AutoMod blocks, timeouts, anti-spam limits and channel permissions
+        // (Missing permission: USE_EXTERNAL_EMOJIS, ATTACH_FILES) answer the same
+        // way on every retry.
+        if (isModerationRejectionCode(code) || code.includes('Missing permission:')) {
           this.removeMessageFromCache(tempId);
           throw error;
         }

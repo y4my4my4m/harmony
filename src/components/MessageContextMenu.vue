@@ -245,7 +245,7 @@ const { topEmojisForContextMenu, hasFrequentEmojis, recordEmojiUsage } = useFreq
 const { triggerReaction } = useHapticSettings();
 const { canPinMessages: canPinServerWide } = useServerPermissions();
 // Channel-resolved, as pin_message and set_message_embeds_suppressed decide it.
-const { canPinMessages: canPinInChannel, canManageMessages } = useChannelMessagePermissions(
+const { canPinMessages: canPinInChannel, canManageMessages, canCreateThreads, canEmbedLinks } = useChannelMessagePermissions(
   () => props.serverId,
   () => (props.conversationId ? null : props.channelId),
 );
@@ -260,13 +260,16 @@ const hasReactions = computed(() =>
 const canPin = computed(() => (props.conversationId ? canPinServerWide.value : canPinInChannel.value));
 const toast = useToast();
 
-// The author, or MANAGE_MESSAGES in a server channel (set_message_embeds_suppressed).
+// The author, or MANAGE_MESSAGES in a server channel (set_message_embeds_suppressed). An author
+// without EMBED_LINKS in the channel cannot restore their message's embeds.
 const isEmbedsSuppressed = computed(() => embedsSuppressed(props.message));
 const canToggleEmbeds = computed(() => {
   const message = props.message;
   if (!message || (!hasEmbeddableParts(message) && !isEmbedsSuppressed.value)) return false;
   const authorId = message.user_id || (message as any).author_id;
-  if (authorId && authorId === props.currentUserId) return true;
+  if (authorId && authorId === props.currentUserId) {
+    return !isEmbedsSuppressed.value || !props.channelId || !!props.conversationId || canEmbedLinks.value !== false;
+  }
   return !!props.channelId && !props.conversationId && canManageMessages.value;
 });
 
@@ -290,8 +293,9 @@ const canReport = computed(() => {
 // - System messages: no reply/thread/edit rows
 // - Thread button: hidden when hideThreadActions is true
 const canReply = computed(() => !!props.message && !props.message.is_system);
+// create_thread needs CREATE_PUBLIC_THREADS in the message's channel.
 const canCreateThread = computed(
-  () => !!props.message && !props.message.is_system && !props.hideThreadActions
+  () => !!props.message && !props.message.is_system && !props.hideThreadActions && canCreateThreads.value
 );
 
 /**

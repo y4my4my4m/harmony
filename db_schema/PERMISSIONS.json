@@ -1,0 +1,862 @@
+{
+  "_about": [
+    "Server permissions in bit order of permission_bit_names(); tests/unit/permissionCoverage.test.ts checks this file.",
+    "scope: server (no channel override), channel (offered in channel overrides), reserved (grants nothing).",
+    "sql: function:<name> | policy:[<schema>.]<table>:<name> | trigger:<table>:<name>, each present in db_schema/migrations.",
+    "Every permission outside reserved has an sql entry whose latest definition names it in quotes, or a backend file.",
+    "A reserved permission is named by none of its sql entries.",
+    "backend, client, pgtap, e2e, unit: files that exist and name the permission. pgtap and e2e are never empty."
+  ],
+  "permissions": {
+    "ADMINISTRATOR": {
+      "scope": "server",
+      "sql": [
+        "function:get_user_permissions",
+        "function:assert_grantable_bits",
+        "function:assert_grantable_bot_flags",
+        "function:set_server_member_timeout",
+        "function:guard_server_role_hierarchy",
+        "function:guard_override_grants",
+        "trigger:server_roles:a_server_roles_hierarchy_guard",
+        "trigger:channel_permission_overrides:a_channel_overrides_grant_guard",
+        "function:current_user_viewable_channel_ids",
+        "function:channel_viewer_ids"
+      ],
+      "backend": [
+        "federation-backend/src/activitypub/ServerInboxHandler.ts",
+        "bot-gateway/src/auth/botPermissions.ts",
+        "bot-gateway/src/api/BotRestAPI.ts"
+      ],
+      "client": [
+        "src/composables/useChannelMessagePermissions.ts",
+        "src/components/settings/RoleManagement.vue"
+      ],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql",
+        "db_schema/tests/151_permission_fixes.sql",
+        "db_schema/tests/40_rls_convergence_and_channel_view.sql",
+        "db_schema/tests/108_server_manager_writes.sql"
+      ],
+      "e2e": [
+        "e2e/specs/permission-audit.spec.ts"
+      ],
+      "unit": [
+        "bot-gateway/src/auth/__tests__/botPermissions.test.ts",
+        "src/composables/__tests__/useChannelMessagePermissions.test.ts"
+      ]
+    },
+    "VIEW_CHANNEL": {
+      "scope": "channel",
+      "sql": [
+        "function:get_user_permissions",
+        "function:can_view_channel",
+        "function:channel_is_restricted",
+        "function:current_user_viewable_channel_ids",
+        "function:channel_viewer_ids",
+        "function:federation_channel_recipients",
+        "function:federation_group_access",
+        "policy:messages:messages_select_channel_member",
+        "policy:messages:messages_insert_member",
+        "policy:channels:channels_select_member",
+        "policy:threads:threads_select_member",
+        "policy:reactions:reactions_select_visible"
+      ],
+      "backend": [
+        "federation-backend/src/activitypub/channelWriteAuthz.ts",
+        "federation-backend/src/activitypub/ServerInboxHandler.ts",
+        "federation-backend/src/services/voiceAccess.ts",
+        "bot-gateway/src/auth/botPermissions.ts",
+        "bot-gateway/src/gateway/EventDispatcher.ts"
+      ],
+      "client": [
+        "src/views/ShareView.vue"
+      ],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql",
+        "db_schema/tests/40_rls_convergence_and_channel_view.sql",
+        "db_schema/tests/103_private_channels.sql",
+        "db_schema/tests/38_federation_channel_access.sql"
+      ],
+      "e2e": [
+        "e2e/specs/permission-audit.spec.ts"
+      ],
+      "unit": [
+        "federation-backend/src/__tests__/inboundChannelWrites.test.ts",
+        "federation-backend/src/__tests__/serverInboxAuthz.test.ts",
+        "bot-gateway/src/auth/__tests__/botPermissions.test.ts",
+        "src/services/__tests__/RoleService.channelOverride.test.ts"
+      ]
+    },
+    "MANAGE_CHANNELS": {
+      "scope": "channel",
+      "sql": [
+        "policy:channels:channels_insert_manager",
+        "policy:channels:channels_update_manager",
+        "policy:channels:channels_delete_manager",
+        "policy:channel_categories:channel_categories_insert_manager",
+        "policy:channel_categories:channel_categories_update_manager",
+        "policy:channel_categories:channel_categories_delete_manager",
+        "policy:channel_permission_overrides:channel_permission_overrides_insert_manager",
+        "policy:channel_permission_overrides:channel_permission_overrides_update_manager",
+        "policy:channel_permission_overrides:channel_permission_overrides_delete_manager",
+        "policy:threads:threads_update_authorized",
+        "policy:threads:threads_delete_authorized",
+        "function:set_channel_encryption"
+      ],
+      "backend": [
+        "federation-backend/src/activitypub/ServerInboxHandler.ts",
+        "bot-gateway/src/auth/botPermissions.ts"
+      ],
+      "client": [
+        "src/composables/useServerPermissions.ts"
+      ],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql",
+        "db_schema/tests/107_channel_manager_writes.sql",
+        "db_schema/tests/133_create_channel_managers.sql"
+      ],
+      "e2e": [
+        "e2e/specs/permission-audit.spec.ts",
+        "e2e/specs/channel-manager-delete.spec.ts"
+      ],
+      "unit": [
+        "federation-backend/src/__tests__/serverInboxAuthz.test.ts",
+        "bot-gateway/src/auth/__tests__/botPermissions.test.ts"
+      ]
+    },
+    "MANAGE_ROLES": {
+      "scope": "channel",
+      "sql": [
+        "policy:server_roles:server_roles_insert_manager",
+        "policy:server_roles:server_roles_update_manager",
+        "policy:server_roles:server_roles_delete_manager",
+        "policy:user_roles:user_roles_insert_manager",
+        "policy:user_roles:user_roles_delete_manager",
+        "policy:channel_permission_overrides:channel_permission_overrides_insert_manager",
+        "policy:channel_permission_overrides:channel_permission_overrides_update_manager",
+        "policy:channel_permission_overrides:channel_permission_overrides_delete_manager",
+        "function:guard_server_settings_default_role",
+        "trigger:server_settings:a_server_settings_default_role_guard",
+        "function:guard_server_role_hierarchy",
+        "function:guard_user_role_hierarchy",
+        "trigger:user_roles:a_user_roles_hierarchy_guard"
+      ],
+      "backend": [
+        "bot-gateway/src/auth/botPermissions.ts"
+      ],
+      "client": [
+        "src/composables/useServerPermissions.ts",
+        "src/components/settings/RoleManagement.vue"
+      ],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql",
+        "db_schema/tests/108_server_manager_writes.sql"
+      ],
+      "e2e": [
+        "e2e/specs/permission-audit.spec.ts",
+        "e2e/specs/role-management.spec.ts"
+      ],
+      "unit": [
+        "bot-gateway/src/auth/__tests__/botPermissions.test.ts",
+        "src/components/settings/__tests__/RoleManagement.a11y.test.ts"
+      ]
+    },
+    "MANAGE_EMOJIS": {
+      "scope": "server",
+      "sql": [
+        "policy:emojis:emojis_insert_server_manager",
+        "policy:emojis:emojis_update_server_manager",
+        "policy:emojis:emojis_delete_server_manager",
+        "policy:storage.objects:Users can upload emojis",
+        "policy:storage.objects:Users can delete emojis",
+        "function:can_manage_server_sounds",
+        "policy:server_sounds:server_sounds_insert_manager",
+        "policy:server_sounds:server_sounds_update_manager",
+        "policy:server_sounds:server_sounds_delete_manager"
+      ],
+      "backend": [
+        "bot-gateway/src/auth/botPermissions.ts"
+      ],
+      "client": [
+        "src/composables/useServerPermissions.ts"
+      ],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql",
+        "db_schema/tests/108_server_manager_writes.sql",
+        "db_schema/tests/116_soundboard.sql",
+        "db_schema/tests/148_soundboard_custom_emoji.sql"
+      ],
+      "e2e": [
+        "e2e/specs/permission-audit.spec.ts"
+      ],
+      "unit": []
+    },
+    "VIEW_AUDIT_LOG": {
+      "scope": "server",
+      "sql": [
+        "function:get_server_audit_log",
+        "function:get_server_automod_events",
+        "policy:server_membership_events:server_membership_events_select_member"
+      ],
+      "backend": [
+        "bot-gateway/src/auth/botPermissions.ts"
+      ],
+      "client": [
+        "src/composables/useServerPermissions.ts",
+        "src/services/ServerAuditLogService.ts"
+      ],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql",
+        "db_schema/tests/109_server_audit_log.sql"
+      ],
+      "e2e": [
+        "e2e/specs/permission-audit.spec.ts"
+      ],
+      "unit": [
+        "src/components/settings/server/__tests__/ServerAuditLog.test.ts"
+      ]
+    },
+    "MANAGE_WEBHOOKS": {
+      "scope": "channel",
+      "sql": [
+        "function:can_manage_channel_webhooks",
+        "function:create_channel_webhook",
+        "function:list_channel_webhooks",
+        "function:lock_managed_channel_webhook"
+      ],
+      "backend": [
+        "bot-gateway/src/auth/botPermissions.ts"
+      ],
+      "client": [
+        "src/composables/useServerPermissions.ts"
+      ],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql",
+        "db_schema/tests/111_channel_webhooks.sql"
+      ],
+      "e2e": [
+        "e2e/specs/permission-audit.spec.ts"
+      ],
+      "unit": [
+        "src/components/__tests__/ChannelWebhooksSection.test.ts"
+      ]
+    },
+    "MANAGE_SERVER": {
+      "scope": "server",
+      "sql": [
+        "function:update_server",
+        "function:add_bot_to_server",
+        "function:set_bot_allowed_channels",
+        "function:get_bot_channel_access",
+        "function:can_manage_discord_bridge",
+        "function:get_or_create_discord_bridge_pairing",
+        "function:regenerate_discord_bridge_pairing",
+        "function:get_server_automod",
+        "function:update_server_automod_settings",
+        "function:upsert_server_automod_rule",
+        "function:delete_server_automod_rule",
+        "function:enable_server_automod_preset",
+        "function:dismiss_server_automod_prompt",
+        "function:get_server_automod_events",
+        "function:get_server_member_timeouts",
+        "function:get_server_newcomer_alerts",
+        "function:set_server_newcomer_alerts",
+        "function:set_server_raid_lockdown",
+        "function:set_server_system_channel",
+        "function:get_server_welcome",
+        "function:set_server_welcome",
+        "function:export_server_template",
+        "function:enforce_server_rules_acceptance",
+        "trigger:messages:a_messages_rules_acceptance",
+        "policy:server_settings:server_settings_insert_manager",
+        "policy:server_settings:server_settings_update_manager",
+        "policy:server_settings:server_settings_delete_manager",
+        "policy:bot_server_permissions:bot_server_permissions_insert_manager",
+        "policy:bot_server_permissions:bot_server_permissions_update_manager",
+        "policy:bot_server_permissions:bot_server_permissions_delete_manager",
+        "policy:storage.objects:Server owners can upload server icons",
+        "policy:storage.objects:Server owners can update server icons",
+        "policy:storage.objects:Server owners can delete server icons",
+        "policy:storage.objects:Server owners can upload server banners",
+        "policy:storage.objects:Server owners can update server banners",
+        "policy:storage.objects:Server owners can delete server banners"
+      ],
+      "backend": [
+        "bot-gateway/src/auth/botPermissions.ts"
+      ],
+      "client": [
+        "src/composables/useServerPermissions.ts"
+      ],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql",
+        "db_schema/tests/108_server_manager_writes.sql",
+        "db_schema/tests/52_automod.sql",
+        "db_schema/tests/63_welcome_server_and_rules.sql"
+      ],
+      "e2e": [
+        "e2e/specs/permission-audit.spec.ts"
+      ],
+      "unit": [
+        "src/stores/__tests__/serverSettingsWrites.test.ts",
+        "src/components/settings/server/__tests__/ServerAutoMod.test.ts"
+      ]
+    },
+    "CREATE_INVITE": {
+      "scope": "server",
+      "sql": [
+        "policy:invites:invites_insert_member"
+      ],
+      "backend": [
+        "bot-gateway/src/auth/botPermissions.ts"
+      ],
+      "client": [
+        "src/services/permissionsService.ts",
+        "src/components/ChannelContextMenu.vue"
+      ],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql"
+      ],
+      "e2e": [
+        "e2e/specs/permission-audit.spec.ts",
+        "e2e/specs/role-management.spec.ts"
+      ],
+      "unit": [
+        "src/components/__tests__/chatContextMenus.test.ts",
+        "bot-gateway/src/auth/__tests__/botPermissions.test.ts"
+      ]
+    },
+    "KICK_MEMBERS": {
+      "scope": "server",
+      "sql": [
+        "function:kick_server_member",
+        "policy:server_membership_events:server_membership_events_select_member"
+      ],
+      "backend": [
+        "federation-backend/src/activitypub/ServerInboxHandler.ts",
+        "bot-gateway/src/auth/botPermissions.ts"
+      ],
+      "client": [
+        "src/composables/useServerPermissions.ts",
+        "src/components/UserContextMenu.vue"
+      ],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql"
+      ],
+      "e2e": [
+        "e2e/specs/permission-audit.spec.ts"
+      ],
+      "unit": [
+        "bot-gateway/src/auth/__tests__/botPermissions.test.ts"
+      ]
+    },
+    "BAN_MEMBERS": {
+      "scope": "server",
+      "sql": [
+        "function:ban_server_member",
+        "function:unban_server_member",
+        "function:get_server_bans",
+        "policy:server_bans:server_bans_select_moderator",
+        "policy:server_membership_events:server_membership_events_select_member",
+        "function:refuse_banned_membership",
+        "trigger:user_servers:a_user_servers_ban_guard"
+      ],
+      "backend": [
+        "bot-gateway/src/auth/botPermissions.ts"
+      ],
+      "client": [
+        "src/composables/useServerPermissions.ts",
+        "src/components/UserContextMenu.vue"
+      ],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql"
+      ],
+      "e2e": [
+        "e2e/specs/permission-audit.spec.ts"
+      ],
+      "unit": [
+        "src/composables/__tests__/useServerPermissions.scope.test.ts",
+        "bot-gateway/src/api/__tests__/BotRestAPI.permissions.test.ts"
+      ]
+    },
+    "TIMEOUT_MEMBERS": {
+      "scope": "server",
+      "sql": [
+        "function:set_server_member_timeout",
+        "function:get_server_member_timeouts",
+        "function:automod_check_message",
+        "trigger:messages:trg_moderate_message",
+        "function:refuse_timed_out_caller",
+        "function:enforce_reaction_add_permission",
+        "function:create_thread",
+        "function:create_channel_thread",
+        "policy:threads:threads_insert_member",
+        "function:voice_channel_admits",
+        "function:voice_leave_on_timeout"
+      ],
+      "backend": [
+        "bot-gateway/src/auth/botPermissions.ts"
+      ],
+      "client": [
+        "src/composables/useServerPermissions.ts"
+      ],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql",
+        "db_schema/tests/151_permission_fixes.sql",
+        "db_schema/tests/52_automod.sql"
+      ],
+      "e2e": [
+        "e2e/specs/permission-audit.spec.ts",
+        "e2e/specs/channel-moderation-overrides.spec.ts"
+      ],
+      "unit": []
+    },
+    "SEND_MESSAGES": {
+      "scope": "channel",
+      "sql": [
+        "policy:messages:messages_insert_member",
+        "function:automod_check_message"
+      ],
+      "backend": [
+        "federation-backend/src/activitypub/channelWriteAuthz.ts",
+        "federation-backend/src/activitypub/ActivityProcessor.ts",
+        "bot-gateway/src/auth/botPermissions.ts"
+      ],
+      "client": [
+        "src/components/MessageInput.vue",
+        "src/views/ShareView.vue"
+      ],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql",
+        "db_schema/tests/40_rls_convergence_and_channel_view.sql"
+      ],
+      "e2e": [
+        "e2e/specs/permission-audit.spec.ts"
+      ],
+      "unit": [
+        "federation-backend/src/__tests__/inboundChannelWrites.test.ts",
+        "src/components/__tests__/MessageInput.a11y.test.ts"
+      ]
+    },
+    "SEND_MESSAGES_IN_THREADS": {
+      "scope": "channel",
+      "sql": [
+        "policy:messages:messages_insert_member",
+        "function:automod_check_message"
+      ],
+      "backend": [
+        "federation-backend/src/activitypub/channelWriteAuthz.ts",
+        "federation-backend/src/activitypub/ActivityProcessor.ts",
+        "federation-backend/src/activitypub/ServerInboxHandler.ts"
+      ],
+      "client": [
+        "src/components/MessageInput.vue"
+      ],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql"
+      ],
+      "e2e": [
+        "e2e/specs/permission-audit.spec.ts"
+      ],
+      "unit": [
+        "federation-backend/src/__tests__/inboundChannelWrites.test.ts"
+      ]
+    },
+    "CREATE_PUBLIC_THREADS": {
+      "scope": "channel",
+      "sql": [
+        "function:create_thread",
+        "function:create_channel_thread",
+        "policy:threads:threads_insert_member"
+      ],
+      "backend": [
+        "federation-backend/src/activitypub/channelWriteAuthz.ts"
+      ],
+      "client": [
+        "src/composables/useChannelMessagePermissions.ts",
+        "src/composables/useServerPermissions.ts",
+        "src/services/permissionsService.ts"
+      ],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql",
+        "db_schema/tests/40_rls_convergence_and_channel_view.sql"
+      ],
+      "e2e": [
+        "e2e/specs/permission-audit.spec.ts"
+      ],
+      "unit": [
+        "federation-backend/src/__tests__/inboundChannelWrites.test.ts",
+        "src/composables/__tests__/useChannelMessagePermissions.test.ts"
+      ]
+    },
+    "CREATE_PRIVATE_THREADS": {
+      "scope": "reserved",
+      "reserved": "Harmony threads are visible to every viewer of their channel; no private thread exists. The listed thread writers do not accept it.",
+      "sql": [
+        "function:create_thread",
+        "function:create_channel_thread",
+        "policy:threads:threads_insert_member"
+      ],
+      "backend": [],
+      "client": [],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql"
+      ],
+      "e2e": [
+        "e2e/specs/permission-audit.spec.ts"
+      ],
+      "unit": [
+        "federation-backend/src/__tests__/inboundChannelWrites.test.ts",
+        "src/composables/__tests__/useChannelMessagePermissions.test.ts"
+      ]
+    },
+    "EMBED_LINKS": {
+      "scope": "channel",
+      "sql": [
+        "function:enforce_message_content_permissions",
+        "trigger:messages:a_messages_content_permissions",
+        "function:set_message_embeds_suppressed"
+      ],
+      "backend": [
+        "bot-gateway/src/auth/botPermissions.ts"
+      ],
+      "client": [],
+      "pgtap": [
+        "db_schema/tests/153_message_content_permissions.sql"
+      ],
+      "e2e": [
+        "e2e/specs/message-content-permissions.spec.ts"
+      ],
+      "unit": []
+    },
+    "ATTACH_FILES": {
+      "scope": "channel",
+      "sql": [
+        "function:enforce_message_attach_files",
+        "trigger:messages:a_messages_attach_files",
+        "function:message_upload_paths"
+      ],
+      "backend": [
+        "federation-backend/src/activitypub/channelWriteAuthz.ts",
+        "federation-backend/src/activitypub/ServerInboxHandler.ts",
+        "bot-gateway/src/auth/botPermissions.ts"
+      ],
+      "client": [],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql",
+        "db_schema/tests/151_permission_fixes.sql"
+      ],
+      "e2e": [
+        "e2e/specs/channel-moderation-overrides.spec.ts"
+      ],
+      "unit": [
+        "federation-backend/src/__tests__/inboundChannelWrites.test.ts"
+      ]
+    },
+    "ADD_REACTIONS": {
+      "scope": "channel",
+      "sql": [
+        "function:enforce_reaction_add_permission",
+        "trigger:reactions:a_reactions_add_permission"
+      ],
+      "backend": [
+        "federation-backend/src/activitypub/channelWriteAuthz.ts",
+        "federation-backend/src/activitypub/ServerInboxHandler.ts",
+        "bot-gateway/src/auth/botPermissions.ts"
+      ],
+      "client": [
+        "src/stores/useReactions.ts"
+      ],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql",
+        "db_schema/tests/151_permission_fixes.sql"
+      ],
+      "e2e": [
+        "e2e/specs/channel-moderation-overrides.spec.ts"
+      ],
+      "unit": [
+        "federation-backend/src/__tests__/inboundChannelWrites.test.ts",
+        "bot-gateway/src/auth/__tests__/botPermissions.test.ts"
+      ]
+    },
+    "USE_EXTERNAL_EMOJIS": {
+      "scope": "channel",
+      "sql": [
+        "function:enforce_message_content_permissions",
+        "trigger:messages:a_messages_content_permissions",
+        "function:enforce_reaction_external_emoji",
+        "trigger:reactions:a_reactions_external_emoji"
+      ],
+      "backend": [
+        "bot-gateway/src/auth/botPermissions.ts"
+      ],
+      "client": [],
+      "pgtap": [
+        "db_schema/tests/153_message_content_permissions.sql"
+      ],
+      "e2e": [
+        "e2e/specs/message-content-permissions.spec.ts"
+      ],
+      "unit": []
+    },
+    "MENTION_EVERYONE": {
+      "scope": "channel",
+      "sql": [
+        "function:handle_role_mention_notifications",
+        "trigger:messages:trigger_role_mention_notifications",
+        "function:automod_check_message"
+      ],
+      "backend": [
+        "bot-gateway/src/gateway/EventDispatcher.ts",
+        "bot-gateway/src/api/BotRestAPI.ts"
+      ],
+      "client": [
+        "src/composables/useAutoSuggest.ts"
+      ],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql",
+        "db_schema/tests/47_mention_permissions.sql",
+        "db_schema/tests/119_here_mention.sql"
+      ],
+      "e2e": [
+        "e2e/specs/permission-audit.spec.ts",
+        "e2e/specs/mention-everyone-channel.spec.ts"
+      ],
+      "unit": [
+        "src/composables/__tests__/useAutoSuggest.roles.test.ts",
+        "bot-gateway/src/gateway/__tests__/EventDispatcher.test.ts"
+      ]
+    },
+    "MANAGE_MESSAGES": {
+      "scope": "channel",
+      "sql": [
+        "function:can_current_user_manage_messages_in_channel",
+        "policy:messages:messages_update_authorized",
+        "policy:messages:messages_delete_authorized",
+        "function:pin_message",
+        "function:unpin_message",
+        "function:set_message_embeds_suppressed",
+        "function:enforce_channel_slowmode",
+        "function:guard_system_message_removal",
+        "function:moderate_report",
+        "function:can_current_user_moderate_server_reports"
+      ],
+      "backend": [
+        "federation-backend/src/activitypub/ServerInboxHandler.ts",
+        "bot-gateway/src/auth/botPermissions.ts"
+      ],
+      "client": [
+        "src/composables/useChannelMessagePermissions.ts",
+        "src/components/MessageInput.vue"
+      ],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql",
+        "db_schema/tests/151_permission_fixes.sql"
+      ],
+      "e2e": [
+        "e2e/specs/permission-audit.spec.ts",
+        "e2e/specs/channel-moderation-overrides.spec.ts"
+      ],
+      "unit": [
+        "src/composables/__tests__/useChannelMessagePermissions.test.ts",
+        "federation-backend/src/__tests__/inboundChannelWrites.test.ts"
+      ]
+    },
+    "READ_MESSAGE_HISTORY": {
+      "scope": "channel",
+      "sql": [
+        "function:current_user_history_cutoffs",
+        "function:get_message_page",
+        "function:search_messages",
+        "function:broadcast_message_event"
+      ],
+      "backend": [
+        "bot-gateway/src/auth/botPermissions.ts"
+      ],
+      "client": [],
+      "pgtap": [
+        "db_schema/tests/153_message_content_permissions.sql"
+      ],
+      "e2e": [
+        "e2e/specs/message-content-permissions.spec.ts"
+      ],
+      "unit": []
+    },
+    "PIN_MESSAGES": {
+      "scope": "channel",
+      "sql": [
+        "function:pin_message",
+        "function:unpin_message"
+      ],
+      "backend": [],
+      "client": [
+        "src/composables/useChannelMessagePermissions.ts"
+      ],
+      "pgtap": [
+        "db_schema/tests/155_permission_audit.sql"
+      ],
+      "e2e": [
+        "e2e/specs/permission-audit.spec.ts"
+      ],
+      "unit": [
+        "src/composables/__tests__/useChannelMessagePermissions.test.ts"
+      ]
+    },
+    "CONNECT": {
+      "scope": "channel",
+      "sql": [
+        "function:voice_channel_admits",
+        "function:current_user_may_connect_voice",
+        "function:move_voice_member",
+        "policy:voice_channel_participants:voice_participants_insert_self"
+      ],
+      "backend": [
+        "federation-backend/src/services/voiceAccess.ts"
+      ],
+      "client": [],
+      "pgtap": [
+        "db_schema/tests/154_voice_moderation.sql"
+      ],
+      "e2e": [
+        "e2e/specs/voice-moderation.spec.ts"
+      ],
+      "unit": [
+        "federation-backend/src/__tests__/voiceModeration.test.ts"
+      ]
+    },
+    "SPEAK": {
+      "scope": "channel",
+      "sql": [],
+      "backend": [
+        "federation-backend/src/services/voiceAccess.ts",
+        "federation-backend/src/services/voiceGrants.ts"
+      ],
+      "client": [
+        "src/services/voice/voiceGrants.ts"
+      ],
+      "pgtap": [
+        "db_schema/tests/154_voice_moderation.sql"
+      ],
+      "e2e": [
+        "e2e/specs/voice-moderation.spec.ts"
+      ],
+      "unit": [
+        "federation-backend/src/__tests__/voiceModeration.test.ts"
+      ]
+    },
+    "STREAM": {
+      "scope": "channel",
+      "sql": [],
+      "backend": [
+        "federation-backend/src/services/voiceAccess.ts",
+        "federation-backend/src/services/voiceGrants.ts"
+      ],
+      "client": [
+        "src/services/voice/voiceGrants.ts"
+      ],
+      "pgtap": [
+        "db_schema/tests/154_voice_moderation.sql"
+      ],
+      "e2e": [
+        "e2e/specs/voice-moderation.spec.ts"
+      ],
+      "unit": [
+        "federation-backend/src/__tests__/voiceModeration.test.ts"
+      ]
+    },
+    "MUTE_MEMBERS": {
+      "scope": "channel",
+      "sql": [
+        "function:set_server_voice_state"
+      ],
+      "backend": [],
+      "client": [
+        "src/stores/voiceModeration.ts"
+      ],
+      "pgtap": [
+        "db_schema/tests/154_voice_moderation.sql"
+      ],
+      "e2e": [
+        "e2e/specs/voice-moderation.spec.ts"
+      ],
+      "unit": [
+        "federation-backend/src/__tests__/voiceModeration.test.ts"
+      ]
+    },
+    "DEAFEN_MEMBERS": {
+      "scope": "channel",
+      "sql": [
+        "function:set_server_voice_state"
+      ],
+      "backend": [],
+      "client": [
+        "src/stores/voiceModeration.ts"
+      ],
+      "pgtap": [
+        "db_schema/tests/154_voice_moderation.sql"
+      ],
+      "e2e": [
+        "e2e/specs/voice-moderation.spec.ts"
+      ],
+      "unit": []
+    },
+    "MOVE_MEMBERS": {
+      "scope": "channel",
+      "sql": [
+        "function:move_voice_member",
+        "function:voice_activity_may_end"
+      ],
+      "backend": [],
+      "client": [
+        "src/stores/voiceModeration.ts"
+      ],
+      "pgtap": [
+        "db_schema/tests/154_voice_moderation.sql"
+      ],
+      "e2e": [
+        "e2e/specs/voice-moderation.spec.ts"
+      ],
+      "unit": []
+    },
+    "USE_SOUNDBOARD": {
+      "scope": "channel",
+      "sql": [],
+      "backend": [
+        "federation-backend/src/services/voiceAccess.ts"
+      ],
+      "client": [
+        "src/stores/soundboard.ts"
+      ],
+      "pgtap": [
+        "db_schema/tests/154_voice_moderation.sql",
+        "db_schema/tests/116_soundboard.sql"
+      ],
+      "e2e": [
+        "e2e/specs/voice-moderation.spec.ts"
+      ],
+      "unit": [
+        "src/stores/__tests__/soundboard.test.ts"
+      ]
+    },
+    "USE_EXTERNAL_SOUNDS": {
+      "scope": "channel",
+      "sql": [],
+      "backend": [
+        "federation-backend/src/services/voiceAccess.ts"
+      ],
+      "client": [
+        "src/stores/soundboard.ts"
+      ],
+      "pgtap": [
+        "db_schema/tests/154_voice_moderation.sql",
+        "db_schema/tests/126_soundboard_external_sounds.sql"
+      ],
+      "e2e": [
+        "e2e/specs/voice-moderation.spec.ts",
+        "e2e/specs/soundboard-external-sounds.spec.ts"
+      ],
+      "unit": [
+        "src/stores/__tests__/soundboard.test.ts"
+      ]
+    }
+  }
+}

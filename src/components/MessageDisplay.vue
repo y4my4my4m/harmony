@@ -29,6 +29,8 @@
       class="no-messages"
       icon="message-circle"
       :title="$t('message.noMessagesHere')"
+      :description="historyRestricted ? $t('message.historyRestricted') : undefined"
+      :data-testid="historyRestricted ? 'history-restricted' : undefined"
     />
     <!-- Sentinel for auto-loading older messages when the top is visible -->
     <div ref="topSentinelRef" class="top-sentinel"></div>
@@ -132,6 +134,7 @@
           :kind="beginningInfo.kind"
           :name="beginningInfo.name"
           :user-id="beginningInfo.userId"
+          :history-restricted="historyRestricted"
         />
 
         <!-- Date separator -->
@@ -611,7 +614,7 @@
         >
           <button type="button" class="action-btn" data-testid="msg-action-react" :aria-label="t('message.react')" :title="t('message.react')" aria-haspopup="dialog" @click="openEmojiReactor(item.message, $event)"><ReactionIcon/></button>
           <button type="button" class="action-btn" data-testid="msg-action-reply" :aria-label="t('message.reply')" :title="t('message.reply')" @click="replyTo(item.message)"><ReplyIcon/></button>
-          <button type="button" class="action-btn thread-btn" data-testid="msg-action-thread" v-if="!props.hideThreadActions" :aria-label="t('messageA11y.actions.thread')" :title="t('messageA11y.actions.thread')" @click="createThread(item.message)"><ThreadIcon/></button>
+          <button type="button" class="action-btn thread-btn" data-testid="msg-action-thread" v-if="!hideThreadCreate" :aria-label="t('messageA11y.actions.thread')" :title="t('messageA11y.actions.thread')" @click="createThread(item.message)"><ThreadIcon/></button>
           <button type="button" class="action-btn" data-testid="msg-action-edit" v-if="canEditMessage(item.message)" :aria-label="t('message.editMessage')" :title="t('message.editMessage')" @click="startEdit(item.message)"><EditIcon/></button>
           <button type="button" class="action-btn" data-testid="msg-action-delete" :class="{ 'delete-danger': isShiftHeld }" v-if="canDeleteMessage(item.message)" :aria-label="t('message.deleteMessage')" :title="t('message.deleteMessage')" @click="deleteMessage(item.message.id, $event)"><DeleteIcon/></button>
           <button type="button" class="action-btn" data-testid="msg-action-more" :aria-label="t('message.moreActions')" :title="t('message.moreActions')" aria-haspopup="menu" :aria-expanded="isMenuOpenFor(item.message.id) ? 'true' : 'false'" @click="openContextMenu(item.message, $event)"><MoreIcon/></button>
@@ -721,7 +724,7 @@
     v-if="isMobile && hoveredMessageId && mobileActionTapPosition && hoveredMessageItem"
     :message="hoveredMessageItem.message"
     :style="floatingActionsStyle"
-    :hide-thread-actions="props.hideThreadActions"
+    :hide-thread-actions="hideThreadCreate"
     :is-shift-held="isShiftHeld"
     :can-edit="canEditMessage(hoveredMessageItem.message)"
     :can-delete="canDeleteMessage(hoveredMessageItem.message)"
@@ -787,6 +790,8 @@ defineOptions({ inheritAttrs: false })
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
 import Icon from '@/components/common/Icon.vue';
 import EmptyState from '@/components/common/EmptyState.vue';
+import { historyCutoff } from '@/services/channelHistoryCutoff';
+import { classifySendFailure, permissionRefusalMessage } from '@/utils/sendFailure';
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { debug } from '@/utils/debug'
 import type { PropType, Ref, ComputedRef } from 'vue';
@@ -1313,7 +1318,9 @@ const floatingActionsStyle = computed((): Record<string, string> => {
 });
 const { isCurrentUserServerOwner, getCurrentUserRole } = useServerPermissions();
 // Channel-resolved, as messages_update_authorized and messages_delete_authorized decide it.
-const { canManageMessages } = useChannelMessagePermissions(() => serverChannelStore.currentServerId, () => props.channelId);
+const { canManageMessages, canCreateThreads } = useChannelMessagePermissions(() => serverChannelStore.currentServerId, () => props.channelId);
+// create_thread needs CREATE_PUBLIC_THREADS in the channel.
+const hideThreadCreate = computed(() => props.hideThreadActions || !canCreateThreads.value);
 const viewerRoleIds = computed(() => new Set((getCurrentUserRole.value?.roles ?? []).map(role => role.id)));
 // A conversation has no roles, @everyone or @here; its messages are not highlighted.
 const mentionsMe = (message: Message): boolean =>
@@ -1611,6 +1618,9 @@ const isAllMessagesLoaded = computed(() => {
 });
 
 // Context shown by the conversation-start line (channel vs DM vs group).
+// get_message_page reported a READ_MESSAGE_HISTORY cutoff: the channel starts at the viewer's join.
+const historyRestricted = computed(() => !!props.channelId && !props.conversationId && !!historyCutoff(props.channelId));
+
 const beginningInfo = computed((): { kind: 'channel' | 'dm' | 'group'; name: string; userId?: string } => {
   if (props.channelId) {
     const channel = serverChannelStore.channels.find(c => c.id === props.channelId);
@@ -3557,6 +3567,8 @@ const saveEdit = async (messageId: string, newContent?: string, retainedFiles: F
     // An AutoMod block leaves the edit open with the reason; the text is kept.
     if (isModerationRejectionCode(error?.code) && error?.message) {
       toast.error(error.message);
+    } else if (classifySendFailure(error) === 'permission') {
+      toast.error(permissionRefusalMessage(error));
     }
   }
 };

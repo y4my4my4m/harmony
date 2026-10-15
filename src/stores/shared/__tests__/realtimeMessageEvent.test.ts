@@ -87,3 +87,29 @@ describe('routeMessageEvent - handler promise', () => {
     expect(seen).toEqual(['u', 'd'])
   })
 })
+
+describe('routeMessageEvent - restricted rows', () => {
+  const restricted = { id: 'm1', channel_id: 'c1', restricted: true }
+
+  it('re-reads a restricted UPDATE and routes the row RLS returns', async () => {
+    const h = { ...handlers(), refetch: vi.fn(async () => ({ id: 'm1', content: [{ type: 'text', text: 'hi' }] })) }
+    await routeMessageEvent({ op: 'UPDATE', new: restricted, old: null }, h)
+    expect(h.refetch).toHaveBeenCalledWith('m1')
+    expect(h.onUpdate).toHaveBeenCalledWith({ new: { id: 'm1', content: [{ type: 'text', text: 'hi' }] }, old: null })
+  })
+
+  it('drops a restricted event the viewer cannot read', async () => {
+    const h = { ...handlers(), refetch: vi.fn(async () => null) }
+    await routeMessageEvent({ op: 'INSERT', new: restricted }, h)
+    await routeMessageEvent({ op: 'UPDATE', new: restricted }, h)
+    expect(h.onInsert).not.toHaveBeenCalled()
+    expect(h.onUpdate).not.toHaveBeenCalled()
+  })
+
+  it('routes a restricted DELETE off its id without a read', () => {
+    const h = { ...handlers(), refetch: vi.fn(async () => null) }
+    routeMessageEvent({ op: 'DELETE', new: null, old: restricted }, h)
+    expect(h.refetch).not.toHaveBeenCalled()
+    expect(h.onDelete).toHaveBeenCalledWith({ old: restricted })
+  })
+})

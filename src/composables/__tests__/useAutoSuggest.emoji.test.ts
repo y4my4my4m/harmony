@@ -57,6 +57,10 @@ vi.mock('@/services/RoleService', () => ({
   },
 }))
 
+vi.mock('@/composables/useChannelMessagePermissions', () => ({
+  useChannelMessagePermissions: () => ({ canMentionEveryone: { value: false } }),
+}))
+
 vi.mock('@/composables/useServerPermissions', () => ({
   useServerPermissions: () => ({
     hasCurrentUserPermission: () => true,
