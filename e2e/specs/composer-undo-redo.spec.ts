@@ -25,7 +25,9 @@ async function lastMessageText(): Promise<string | null> {
   return (data.content as Array<{ type: string; text?: string }>).map((p) => p.type === 'text' ? p.text : `[${p.type}]`).join('')
 }
 
-const type = (page: Page, text: string) => page.keyboard.type(text, { delay: 25 })
+// One input event per word: useUndoRedo groups keystrokes less than 300 ms apart, so per-key
+// typing splits a word wherever the page stalls for longer, and the undo steps vary by run.
+const type = (page: Page, text: string) => page.keyboard.insertText(text)
 
 async function sendAndRead(page: Page, expected: string) {
   await page.keyboard.press('Enter')
