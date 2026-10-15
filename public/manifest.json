@@ -14,18 +14,6 @@
   "edge_side_panel": {
     "preferred_width": 480
   },
-  "file_handlers": [
-    {
-      "action": "/share",
-      "accept": {
-        "image/*": [".jpg", ".jpeg", ".png", ".gif", ".webp"],
-        "video/*": [".mp4", ".webm", ".mov"],
-        "audio/*": [".mp3", ".wav", ".ogg"],
-        "text/plain": [".txt"],
-        "application/pdf": [".pdf"]
-      }
-    }
-  ],
   "launch_handler": {
     "client_mode": "focus-existing"
   },
@@ -83,18 +71,11 @@
   ],
   "share_target": {
     "action": "/share",
-    "method": "POST",
-    "enctype": "multipart/form-data",
+    "method": "GET",
     "params": {
       "title": "title",
       "text": "text",
-      "url": "url",
-      "files": [
-        {
-          "name": "files",
-          "accept": ["image/*", "video/*", "audio/*", ".pdf", ".doc", ".docx"]
-        }
-      ]
+      "url": "url"
     }
   },
   "icons": [

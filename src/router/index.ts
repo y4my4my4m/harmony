@@ -405,6 +405,13 @@ const router = createRouter({
       component: () => import('@/views/DriveLinkView.vue'),
       meta: { requiresAuth: false, providesMain: true, titleKey: 'drive.link.title' }
     },
+    // Web Share Target (manifest share_target): GET title, text, url.
+    {
+      path: '/share',
+      name: 'Share',
+      component: () => import('@/views/ShareView.vue'),
+      meta: { requiresAuth: true, titleKey: 'share.title' }
+    },
     // "Today" dashboard (beta, gated by a per-user setting)
     {
       path: '/today',
