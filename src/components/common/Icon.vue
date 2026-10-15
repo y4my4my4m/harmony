@@ -506,7 +506,9 @@ export default defineComponent({
   display: block;
 }
 
-.icon {
+/* The wrapper carries .icon too; it stays inline-flex so an SVG sized down by a caller's
+   CSS sits centred in it rather than at its top-left. */
+.icon:not(.icon-wrap) {
   display: inline-block;
   vertical-align: middle;
   transition: all 0.2s ease;
