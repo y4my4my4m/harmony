@@ -203,8 +203,9 @@ pub fn windows() -> Result<Vec<WindowInfo>, Error> {
   }
 }
 
-/// Applications capture can include. macOS: ScreenCaptureKit's list, which holds processes
-/// without windows as well. Windows: owners of visible top-level windows.
+/// Applications capture can include. macOS: ScreenCaptureKit's list, processes with a
+/// window-server connection; helpers and command-line players are absent. Windows: owners of
+/// visible top-level windows.
 pub fn applications() -> Result<Vec<AppInfo>, Error> {
   #[cfg(any(windows, target_os = "macos"))]
   {
