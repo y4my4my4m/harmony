@@ -53,12 +53,14 @@
      from reading through. */
   --sg-glass: rgb(255 255 255 / 0.52);
   --sg-glass-deep: rgb(255 255 255 / 0.84);
-  --sg-glass-thin: rgb(255 255 255 / 0.3);
+  /* Sidebars: 40% white keeps secondary ink 4.5:1 over the deep zenith. */
+  --sg-glass-thin: rgb(255 255 255 / 0.4);
   --sg-window: rgb(246 251 255 / 0.95);
   --sg-glass-edge: rgb(255 255 255 / 0.95);
   --sg-glass-line: rgb(255 255 255 / 0.7);
   --sg-hairline: color-mix(in oklab, var(--sg-primary) 18%, rgb(0 40 90 / 0.14));
-  --sg-sheen: linear-gradient(180deg, rgb(255 255 255 / 0.6), rgb(255 255 255 / 0.12));
+  /* Split gloss: bright upper half, hard stop at 50%, a lift at the base. */
+  --sg-sheen: linear-gradient(180deg, rgb(255 255 255 / 0.72) 0%, rgb(255 255 255 / 0.42) 50%, rgb(255 255 255 / 0.18) 50%, rgb(255 255 255 / 0.32) 100%);
   --sg-on-sky: #ffffff;
   --sg-on-sky-shadow: 0 1px 2px rgb(0 30 80 / 0.45);
   --sg-shadow: 0 10px 30px rgb(0 45 110 / 0.16), 0 1px 3px rgb(0 45 110 / 0.12);
@@ -66,22 +68,34 @@
   --sg-blur: blur(18px) saturate(170%);
   --sg-emboss: drop-shadow(0 1px 0 rgb(255 255 255 / 0.7));
 
-  /* Gel. The hard stop at 50% is the split highlight. */
-  --sg-gel: linear-gradient(180deg,
+  /* Gel. The hard stop at 50% is the split highlight; the radial layer is
+     the glow pooled at the base. */
+  --sg-gel-glow: radial-gradient(ellipse 80% 45% at 50% 100%, rgb(170 245 255 / 0.32), transparent 80%);
+  --sg-gel: var(--sg-gel-glow), linear-gradient(180deg,
     color-mix(in oklab, var(--sg-primary) 45%, #fff) 0%,
     color-mix(in oklab, var(--sg-primary) 72%, #fff) 49%,
     var(--sg-primary) 50%,
     color-mix(in oklab, var(--sg-primary) 78%, #bff) 100%);
-  --sg-gel-hover: linear-gradient(180deg,
+  /* White ink on gel carries a dark halo over the pale upper half, as Aero
+     title text carries a light one. The fill stays the primary: brand blue
+     is not darkened for contrast (High contrast covers that). */
+  --sg-gel-ink-shadow: 0 -1px 0 rgb(0 30 80 / 0.35), 0 0 4px rgb(0 30 80 / 0.6), 0 1px 2px rgb(0 30 80 / 0.5);
+  --sg-gel-hover: var(--sg-gel-glow), linear-gradient(180deg,
     color-mix(in oklab, var(--sg-primary) 35%, #fff) 0%,
     color-mix(in oklab, var(--sg-primary) 62%, #fff) 49%,
     color-mix(in oklab, var(--sg-primary) 92%, #fff) 50%,
     color-mix(in oklab, var(--sg-primary) 65%, #dff) 100%);
   --sg-gel-edge: color-mix(in oklab, var(--sg-primary) 70%, #001a40);
-  --sg-gel-red: linear-gradient(180deg, #ff9a9a 0%, #ff5a5a 49%, #e8202a 50%, #ff6b5e 100%);
+  /* Red jelly: a thin gloss band, then fills that hold white ink at 5.0:1 (#d42a2a) and 5.4:1 (#c8141e). */
+  --sg-gel-red: radial-gradient(ellipse 80% 40% at 50% 100%, rgb(255 190 170 / 0.25), transparent 80%), linear-gradient(180deg, #ff8f8f 0%, #e03838 16%, #d42a2a 49%, #c8141e 50%, #d02420 100%);
   --sg-glass-button: linear-gradient(180deg, rgb(255 255 255 / 0.95) 0%, rgb(240 248 255 / 0.85) 49%, rgb(222 238 252 / 0.85) 50%, rgb(246 252 255 / 0.95) 100%);
   --sg-wash: color-mix(in oklab, var(--sg-primary) 14%, transparent);
   --sg-wash-strong: color-mix(in oklab, var(--sg-primary) 26%, transparent);
+  /* Selection on text rows (menus, settings nav, pressed chips): pale split
+     gloss under dark ink, as Vista and 7 menus and Explorer drew it. Gel
+     with white ink stays on buttons and orbs. */
+  --sg-select: linear-gradient(180deg, color-mix(in oklab, var(--sg-primary) 12%, #fff) 0 50%, color-mix(in oklab, var(--sg-primary) 26%, #fff) 50% 100%);
+  --sg-select-edge: color-mix(in oklab, var(--sg-primary) 50%, transparent);
   --sg-ring: color-mix(in oklab, var(--sg-primary) 40%, transparent);
   --sg-glow: 0 0 0 3px color-mix(in oklab, var(--sg-primary) 28%, transparent), 0 0 18px color-mix(in oklab, var(--sg-primary) 40%, transparent);
 
@@ -128,19 +142,19 @@
   --sg-glass-edge: rgb(170 225 255 / 0.3);
   --sg-glass-line: rgb(150 210 255 / 0.16);
   --sg-hairline: rgb(150 210 255 / 0.14);
-  --sg-sheen: linear-gradient(180deg, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.02));
+  --sg-sheen: linear-gradient(180deg, rgb(255 255 255 / 0.12) 0%, rgb(255 255 255 / 0.06) 50%, rgb(255 255 255 / 0.02) 50%, rgb(255 255 255 / 0.05) 100%);
   --sg-on-sky-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
   --sg-shadow: 0 10px 30px rgb(0 0 0 / 0.35), 0 1px 3px rgb(0 0 0 / 0.3);
   --sg-shadow-pop: 0 18px 48px rgb(0 0 0 / 0.5), 0 2px 6px rgb(0 0 0 / 0.35);
   --sg-emboss: drop-shadow(0 1px 0 rgb(0 0 0 / 0.35));
 
   --sg-glass-button: linear-gradient(180deg, rgb(255 255 255 / 0.16) 0%, rgb(255 255 255 / 0.08) 49%, rgb(255 255 255 / 0.03) 50%, rgb(255 255 255 / 0.07) 100%);
-  --sg-gel: linear-gradient(180deg,
+  --sg-gel: var(--sg-gel-glow), linear-gradient(180deg,
     color-mix(in oklab, var(--sg-primary) 60%, #fff) 0%,
     color-mix(in oklab, var(--sg-primary) 85%, #fff) 49%,
     color-mix(in oklab, var(--sg-primary) 88%, #000) 50%,
     var(--sg-primary) 100%);
-  --sg-gel-hover: linear-gradient(180deg,
+  --sg-gel-hover: var(--sg-gel-glow), linear-gradient(180deg,
     color-mix(in oklab, var(--sg-primary) 50%, #fff) 0%,
     color-mix(in oklab, var(--sg-primary) 75%, #fff) 49%,
     var(--sg-primary) 50%,
@@ -148,6 +162,7 @@
   --sg-gel-edge: color-mix(in oklab, var(--sg-primary) 55%, #000);
   --sg-wash: color-mix(in oklab, var(--sg-primary) 20%, transparent);
   --sg-wash-strong: color-mix(in oklab, var(--sg-primary) 34%, transparent);
+  --sg-select: linear-gradient(180deg, color-mix(in oklab, var(--sg-primary) 36%, rgb(255 255 255 / 0.06)) 0 50%, var(--sg-wash) 50% 100%);
 
   --tooltip-bg: rgb(10 24 48 / 0.96);
   --tooltip-text: #e8f6ff;
@@ -155,6 +170,25 @@
   --background-modifier-hover: rgb(160 220 255 / 0.08);
 
   color-scheme: dark;
+}
+
+/* Glass blur off: panels sit over a sharp sky, so glass alphas rise and the
+   window tones go opaque, as design-system.css does for the alpha tokens. */
+:root[data-skin="skyglass"][data-disable-blur="true"] {
+  --sg-glass: rgb(255 255 255 / 0.8);
+  --sg-glass-deep: rgb(255 255 255 / 0.94);
+  --sg-glass-thin: rgb(255 255 255 / 0.62);
+  --sg-window: rgb(246 251 255);
+  --tooltip-bg: rgb(250 253 255);
+  --tooltip-arrow: rgb(250 253 255);
+}
+:root[data-skin="skyglass"][data-disable-blur="true"][data-theme-type="dark"] {
+  --sg-glass: rgb(12 26 52 / 0.9);
+  --sg-glass-deep: rgb(10 22 46 / 0.96);
+  --sg-glass-thin: rgb(13 30 60 / 0.8);
+  --sg-window: rgb(9 20 42);
+  --tooltip-bg: rgb(10 24 48);
+  --tooltip-arrow: rgb(10 24 48);
 }
 
 /* Theme-written inline tokens. */
@@ -169,10 +203,78 @@
   --channel-item-selected-bg: var(--sg-wash-strong);
   --nav-rail-button-bg: var(--sg-glass-button);
   --nav-rail-button-icon: var(--sg-gel-edge);
+  --sg-label: color-mix(in oklab, var(--sg-primary) 30%, #102033);
+  /* Links and mentions take the primary darkened to 4.5:1 on day glass;
+     the bare primary (#0ea5e9, #0a7cff) reads 2.8-3.9:1 on white. */
+  --sg-link: color-mix(in oklab, var(--sg-primary) 50%, #001a40);
+  --text-link: var(--sg-link);
+  /* Focus rings: #0ea5e9 on day glass (L 0.45-0.55) is 1.5:1; the link ink
+     is 3.4:1 or better. */
+  --border-focus: var(--sg-link);
+}
+/* Secondary text over day glass: the sky under the panels measures
+   Y 0.40-0.55, where the preset's #4e5058 and #5c5f66 read 3.3-4.3:1.
+   These hold 4.6:1 or better there. */
+:root[data-skin="skyglass"]:not([data-theme-type="dark"]) body {
+  --text-secondary: #43464d;
+  --text-tertiary: #44474e;
+  --text-muted: #45484f;
+  /* The selected row's pale gloss over the meadow measures Y 0.55-0.6. */
+  --channel-item-selected-text-muted: #383b42;
 }
 :root[data-skin="skyglass"][data-theme-type="dark"] body {
   --channel-item-hover-bg: rgb(160 220 255 / 0.08);
   --nav-rail-button-icon: #d8f0ff;
+  /* Preset #8e9199 reads 4.2:1 over night glass; these read 5.4:1. */
+  --text-tertiary: #a2a6af;
+  --text-muted: #9fa3ac;
+  --sg-label: color-mix(in oklab, var(--sg-primary) 45%, var(--text-secondary));
+  --sg-link: color-mix(in oklab, var(--sg-primary) 70%, #fff);
+  --border-focus: var(--sg-primary);
+}
+
+/* Preset surfaces tinted to the sky. Relative luminance stays within 0.02 of
+   the preset value (dark and midnight within 0.001), so the preset text
+   tokens keep their 4.5:1 floors. The custom theme keeps its own palette. */
+:root[data-skin="skyglass"][data-theme="light"] body {
+  --background-primary: #fbfdff;
+  --background-secondary: #f2f7fc;
+  --background-tertiary: #edf3fa;
+  --background-quaternary: #e5eef8;
+  --background-quinary: #dde8f4;
+  --background-primary-alpha: rgb(251 253 255 / 0.85);
+  --background-secondary-alpha: rgb(242 247 252 / 0.85);
+  --background-tertiary-alpha: rgb(237 243 250 / 0.85);
+}
+:root[data-skin="skyglass"][data-theme="dark"] body {
+  --background-primary: #0e1b31;
+  --background-secondary: #0c182c;
+  --background-tertiary: #091325;
+  --background-quaternary: #14233c;
+  --background-quinary: #122139;
+  --background-senary: #050b16;
+  --background-primary-alpha: #0e1b31aa;
+  --background-secondary-alpha: #0c182caa;
+  --background-tertiary-alpha: #091325aa;
+  --background-senary-alpha: #050b16c7;
+}
+:root[data-skin="skyglass"][data-theme="midnight"] body {
+  --background-primary: #10203a;
+  --background-secondary: #0a1628;
+  --background-tertiary: #08111f;
+  --background-quaternary: #182a46;
+  --background-quinary: #0a1628;
+  --background-senary: #050b16;
+  --background-primary-alpha: #10203aaa;
+  --background-secondary-alpha: #0a1628aa;
+  --background-tertiary-alpha: #08111faa;
+  --background-senary-alpha: #050b16c7;
+}
+:root[data-skin="skyglass"][data-disable-blur="true"] body {
+  --background-primary-alpha: var(--background-primary);
+  --background-secondary-alpha: var(--background-secondary);
+  --background-tertiary-alpha: var(--background-tertiary);
+  --background-senary-alpha: var(--background-senary);
 }
 
 /* ============================================================================
@@ -212,18 +314,40 @@
   border-right: 1px solid var(--sg-glass-line);
 }
 
-/* Channel and social columns. */
+/* The window: the column and the main pane share one rounded corner where
+   the rail meets the title bar, clipped by the row (overflow: hidden in the
+   layout). The base column draws its own 10px corner and a 1px top and left
+   border inside the cleared container; the border puts its header 1px below
+   the chat header. */
+:root[data-skin="skyglass"] :is(.chat-layout-content, .social-layout-content) {
+  border-top-left-radius: 18px;
+  box-shadow: 0 0 0 1px rgb(0 40 100 / 0.2), var(--sg-shadow);
+}
+:root[data-skin="skyglass"][data-theme-type="dark"] :is(.chat-layout-content, .social-layout-content) {
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.45), var(--sg-shadow);
+}
+:root[data-skin="skyglass"] .adaptive-channel-sidebar {
+  border: 0;
+  border-radius: 0;
+}
+
+/* Channel and social columns. The inset shadow follows the corner. */
 :root[data-skin="skyglass"] :is(.channel-sidebar-container, .social-sidebar-container) {
   background: var(--sg-glass-thin);
   border-right: 1px solid var(--sg-glass-line);
-  box-shadow: inset -1px 0 0 rgb(255 255 255 / 0.25);
+  border-top-left-radius: 18px;
+  box-shadow: inset -1px 0 0 rgb(255 255 255 / 0.25), inset 0 1px 0 var(--sg-glass-edge), inset 1px 0 0 var(--sg-glass-line);
 }
 
-/* Main window: the brightest glass, rounded where it meets the sky. */
+/* Main window: the brightest glass, casting onto the column. */
 :root[data-skin="skyglass"] .main-and-right-container {
   background: var(--sg-glass);
-  border-top-left-radius: 18px;
-  box-shadow: var(--sg-shadow), inset 0 1px 0 var(--sg-glass-edge), inset 1px 0 0 var(--sg-glass-line);
+  box-shadow: var(--sg-shadow), inset 0 1px 0 var(--sg-glass-edge);
+}
+@media (max-width: 768px) {
+  :root[data-skin="skyglass"] :is(.chat-layout-content, .social-layout-content, .channel-sidebar-container, .social-sidebar-container) {
+    border-top-left-radius: 0;
+  }
 }
 :root[data-skin="skyglass"] .right-sidebar-container {
   background: var(--sg-glass-thin);
@@ -237,24 +361,57 @@
 :root[data-skin="skyglass"]:not([data-disable-blur="true"]) :is(
   .channel-sidebar-container,
   .social-sidebar-container,
-  .main-and-right-container,
   .server-sidebar-container
 ) {
   -webkit-backdrop-filter: var(--sg-blur);
           backdrop-filter: var(--sg-blur);
 }
+/* backdrop-filter makes an element the containing block of its fixed descendants: on the
+   main window, the composer's media picker (position: fixed, viewport coordinates) is offset
+   by the window's top and clipped. The window blurs through a layer behind its content. */
+:root[data-skin="skyglass"]:not([data-disable-blur="true"]) .main-and-right-container {
+  position: relative;
+  isolation: isolate;
+}
+:root[data-skin="skyglass"]:not([data-disable-blur="true"]) .main-and-right-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  -webkit-backdrop-filter: var(--sg-blur);
+          backdrop-filter: var(--sg-blur);
+  pointer-events: none;
+}
 
-/* Window title bar over the sky. */
+/* Window title bar over the sky. Two diagonal glints toward the sun corner,
+   clear of the centred title. */
 :root[data-skin="skyglass"] .unified-context-bar {
-  background: transparent;
+  --sg-glint: linear-gradient(100deg, transparent 0 74%, rgb(255 255 255 / 0.14) 74% 76%, transparent 76% 78.5%, rgb(255 255 255 / 0.09) 78.5% 83%, transparent 83%);
+  background: var(--sg-glint);
   border-bottom: none;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3);
   color: var(--sg-on-sky);
+}
+:root[data-skin="skyglass"][data-theme-type="dark"] .unified-context-bar {
+  --sg-glint: linear-gradient(100deg, transparent 0 74%, rgb(170 225 255 / 0.06) 74% 76%, transparent 76% 78.5%, rgb(170 225 255 / 0.04) 78.5% 83%, transparent 83%);
+  box-shadow: inset 0 1px 0 rgb(170 225 255 / 0.08);
 }
 :root[data-skin="skyglass"] .unified-context-bar :is(.context-title, .context-title *) {
   color: var(--sg-on-sky);
   text-shadow: var(--sg-on-sky-shadow);
   font-weight: 600;
   letter-spacing: 0.01em;
+}
+/* The day zenith under white title text measures 3.8:1; 20% navy takes it
+   past 4.5:1. */
+:root[data-skin="skyglass"]:not([data-theme-type="dark"]) .unified-context-bar {
+  background: var(--sg-glint), linear-gradient(180deg, rgb(0 30 80 / 0.2), rgb(0 30 80 / 0.14));
+}
+/* The meadow's sky under the title measures Y 0.20-0.23 with the 20% tint
+   (4.2:1); 32% holds 4.5:1. */
+:root[data-skin="skyglass"][data-skin-wallpaper="on"]:not([data-theme-type="dark"], [data-high-contrast="true"]) .unified-context-bar {
+  background: var(--sg-glint), linear-gradient(180deg, rgb(0 30 80 / 0.34), rgb(0 30 80 / 0.28));
 }
 
 /* Header bars: a sheen across the top of each pane. */
@@ -266,8 +423,14 @@
 :root[data-skin="skyglass"][data-theme-type="dark"] :is(.chat-header, .dm-header, .view-header, .server-header, .sidebar-header) {
   box-shadow: inset 0 -1px 0 rgb(255 255 255 / 0.04);
 }
-:root[data-skin="skyglass"] .chat-header {
-  border-top-left-radius: 18px;
+/* The server name button paints --background-tertiary over the header sheen.
+   A banner keeps its own scrim. */
+:root[data-skin="skyglass"] .server-header:not(.over-banner) .server-name {
+  background: transparent;
+  border-bottom-color: transparent;
+}
+:root[data-skin="skyglass"] .server-header:not(.over-banner) .server-name:hover {
+  background: var(--channel-item-hover-bg);
 }
 :root[data-skin="skyglass"] :is(.chat-header .channel-name, .server-name-text, .dm-header .header-title, .view-header .header-title) {
   color: var(--text-primary);
@@ -310,26 +473,26 @@
    ============================================================================ */
 
 /* Primary actions: gel capsules. */
-:root[data-skin="skyglass"] :is(.btn-primary, .submit-btn, .search-button, .tp-btn-primary, .join-btn, .primary-button, .btn.primary, button.primary) {
+:root[data-skin="skyglass"] :is(.btn-primary, .submit-btn, .search-button, .tp-btn-primary, .join-btn, .primary-button, .btn.primary, button.primary, .drive-btn--primary) {
   background: var(--sg-gel);
   border: 1px solid var(--sg-gel-edge);
   border-radius: 999px;
   color: #fff;
-  text-shadow: 0 -1px 0 rgb(0 30 80 / 0.35);
+  text-shadow: var(--sg-gel-ink-shadow);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.7),
     0 2px 6px color-mix(in oklab, var(--sg-primary) 45%, transparent),
     0 1px 1px rgb(0 0 0 / 0.12);
   transition: background 0.15s ease, box-shadow 0.15s ease, translate 0.08s ease;
 }
-:root[data-skin="skyglass"] :is(.btn-primary, .submit-btn, .search-button, .tp-btn-primary, .join-btn, .primary-button, .btn.primary, button.primary):hover:not(:disabled) {
+:root[data-skin="skyglass"] :is(.btn-primary, .submit-btn, .search-button, .tp-btn-primary, .join-btn, .primary-button, .btn.primary, button.primary, .drive-btn--primary):hover:not(:disabled) {
   background: var(--sg-gel-hover);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.8),
     0 3px 12px color-mix(in oklab, var(--sg-primary) 60%, transparent),
     0 1px 1px rgb(0 0 0 / 0.12);
 }
-:root[data-skin="skyglass"] :is(.btn-primary, .submit-btn, .search-button, .tp-btn-primary, .join-btn, .primary-button, .btn.primary, button.primary):active:not(:disabled) {
+:root[data-skin="skyglass"] :is(.btn-primary, .submit-btn, .search-button, .tp-btn-primary, .join-btn, .primary-button, .btn.primary, button.primary, .drive-btn--primary):active:not(:disabled) {
   translate: 0 1px;
   box-shadow: inset 0 2px 4px rgb(0 30 80 / 0.3);
 }
@@ -345,20 +508,20 @@
 }
 
 /* Secondary actions: clear glass pills. */
-:root[data-skin="skyglass"] :is(.btn-secondary, .secondary-button, .cancel-btn, .btn.secondary, .tp-btn-ghost, .live-editor-btn, .pi-action) {
+:root[data-skin="skyglass"] :is(.btn-secondary, .secondary-button, .cancel-btn, .btn.secondary, .tp-btn-ghost, .live-editor-btn, .pi-action, .drive-btn--secondary, .drive-chip, .drive-segmented) {
   background: var(--sg-glass-button);
   border: 1px solid var(--sg-hairline);
   border-radius: 999px;
   box-shadow: inset 0 1px 0 var(--sg-glass-edge), 0 1px 3px rgb(0 40 100 / 0.12);
   color: var(--text-primary);
 }
-:root[data-skin="skyglass"] :is(.btn-secondary, .secondary-button, .cancel-btn, .btn.secondary, .tp-btn-ghost, .live-editor-btn, .pi-action):hover {
+:root[data-skin="skyglass"] :is(.btn-secondary, .secondary-button, .cancel-btn, .btn.secondary, .tp-btn-ghost, .live-editor-btn, .pi-action, .drive-btn--secondary, .drive-chip, .drive-segmented):hover {
   border-color: var(--sg-ring);
   box-shadow: inset 0 1px 0 var(--sg-glass-edge), 0 0 0 3px var(--sg-wash);
 }
 
 /* Icon buttons: round glass on hover. */
-:root[data-skin="skyglass"] :is(.icon-button, .action-btn, .header-icon-btn, .control-btn, .control-button, .mini-control-btn, .settings-close, .close-btn, .modal-close, .theme-panel-close) {
+:root[data-skin="skyglass"] :is(.icon-button, .action-btn, .header-icon-btn, .control-btn, .control-button, .mini-control-btn, .settings-close, .close-btn, .modal-close, .theme-panel-close, .drive-btn, .drive-icon-btn) {
   border-radius: 999px;
   transition: background 0.15s ease, box-shadow 0.15s ease;
 }
@@ -369,6 +532,12 @@
 :root[data-skin="skyglass"] :is(.action-btn.active, .chat-header .pinned-btn.has-pins, .icon-button.active) {
   color: var(--sg-primary);
 }
+/* Pressed filters and view switches: a pale aqua gloss, dark ink. */
+:root[data-skin="skyglass"] :is(.drive-chip.active, .drive-segmented [aria-pressed="true"]) {
+  background: var(--sg-select);
+  border-color: var(--sg-select-edge);
+  color: var(--text-primary);
+}
 :root[data-skin="skyglass"] .icon-wrap svg {
   filter: var(--sg-emboss);
 }
@@ -377,7 +546,7 @@
 :root[data-skin="skyglass"] :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), textarea, select):not(.rich-text-editor *) {
   border-radius: 10px;
 }
-:root[data-skin="skyglass"] :is(.search-bar, .search-container input, .form-input, .text-input, .settings-input, .input-field, .tp-var-text-input) {
+:root[data-skin="skyglass"] :is(.search-bar, .search-container input, .form-input, .text-input, .settings-input, .input-field, .tp-var-text-input, .drive-input, .drive-select) {
   background: var(--sg-glass-deep);
   border: 1px solid var(--sg-hairline);
   box-shadow: inset 0 1px 3px rgb(0 40 100 / 0.12);
@@ -413,7 +582,7 @@
 }
 
 /* Badges and counters: glossy jelly. */
-:root[data-skin="skyglass"] :is(.unread-badge, .notification-badge, .nav-badge, .unread-count, .mention-badge, .sidebar-tooltip-count) {
+:root[data-skin="skyglass"] :is(.unread-badge, .notification-badge, .nav-badge, .unread-count, .mention-badge, .sidebar-tooltip-count, .mobile-avatar-badge) {
   background: var(--sg-gel-red);
   border: 1px solid rgb(176 16 26 / 0.8);
   border-radius: 999px;
@@ -451,22 +620,36 @@
 :root[data-skin="skyglass"] :is(.portal, .dm-button, .fediverse-button, .today-button, .funding-button) {
   border-radius: 999px;
 }
+/* Rail buttons: glass orbs, gel on hover and for the open view. The base
+   paints them with background-color: var(--nav-rail-button-bg), where a
+   gradient token computes to transparent. */
+:root[data-skin="skyglass"] :is(.dm-button, .fediverse-button, .funding-button) {
+  background-image: var(--sg-glass-button);
+  box-shadow: 0 0 0 1px var(--sg-hairline), 0 2px 6px rgb(0 40 100 / 0.18), inset 0 1px 0 var(--sg-glass-edge);
+}
+:root[data-skin="skyglass"] :is(.dm-button, .fediverse-button, .funding-button):is(:hover, :focus-visible, .selected) {
+  background-image: var(--sg-gel);
+  box-shadow: 0 0 0 1px var(--sg-gel-edge), 0 3px 10px color-mix(in oklab, var(--sg-primary) 45%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.6);
+}
+:root[data-skin="skyglass"] :is(.dm-button, .fediverse-button).selected {
+  box-shadow: 0 0 0 1px var(--sg-gel-edge), 0 0 0 4px var(--sg-ring), 0 0 16px color-mix(in oklab, var(--sg-primary) 55%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.6);
+}
 :root[data-skin="skyglass"] .server-sidebar .separator {
   background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.8), transparent);
   height: 1px;
 }
 
-/* Channels. */
-:root[data-skin="skyglass"] .channel-item {
+/* Channel, direct message and Drive rows. */
+:root[data-skin="skyglass"] :is(.channel-item, .conversation-item, .drive-nav-item) {
   border-radius: 10px;
   border: 1px solid transparent;
   transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
-:root[data-skin="skyglass"] .channel-item:hover:not(.selected) {
+:root[data-skin="skyglass"] :is(.channel-item:hover:not(.selected), .conversation-item:hover:not(.active), .drive-nav-item:hover:not(.active)) {
   background: var(--channel-item-hover-bg);
   border-color: var(--sg-glass-line);
 }
-:root[data-skin="skyglass"] .channel-item.selected {
+:root[data-skin="skyglass"] :is(.channel-item.selected, .conversation-item.active, .drive-nav-item.active) {
   background: linear-gradient(180deg, color-mix(in oklab, var(--sg-primary) 22%, rgb(255 255 255 / 0.6)), var(--sg-wash-strong));
   border-color: color-mix(in oklab, var(--sg-primary) 45%, transparent);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.65), 0 2px 8px color-mix(in oklab, var(--sg-primary) 25%, transparent);
@@ -474,10 +657,15 @@
 :root[data-skin="skyglass"] .channel-item.selected :is(.channel-name, svg) {
   color: var(--text-primary);
 }
+/* Night: the day gradient's 60% white top puts light text at 3.0:1. */
+:root[data-skin="skyglass"][data-theme-type="dark"] :is(.channel-item.selected, .conversation-item.active, .drive-nav-item.active) {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--sg-primary) 36%, rgb(255 255 255 / 0.06)), var(--sg-wash));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14), 0 2px 8px color-mix(in oklab, var(--sg-primary) 22%, transparent);
+}
 :root[data-skin="skyglass"] .category-name {
   font-weight: 700;
   letter-spacing: 0.06em;
-  color: color-mix(in oklab, var(--sg-primary) 45%, var(--text-secondary));
+  color: var(--sg-label);
 }
 
 /* Member list and other rows. */
@@ -490,7 +678,7 @@
 :root[data-skin="skyglass"] :is(.group-title, .member-count) {
   font-weight: 700;
   letter-spacing: 0.06em;
-  color: color-mix(in oklab, var(--sg-primary) 45%, var(--text-secondary));
+  color: var(--sg-label);
 }
 
 /* Avatars: glass orbs. */
@@ -517,6 +705,15 @@
 :root[data-skin="skyglass"] .message-item .username {
   font-weight: 700;
 }
+/* Day: the app's 10% --warning wash (#a16207, a text amber) over blue glass
+   mixes to olive. A light amber over white glass stays warm. */
+:root[data-skin="skyglass"]:not([data-theme-type="dark"]) .message-item.mentions-me {
+  background-color: color-mix(in oklab, #ffc94a 30%, rgb(255 255 255 / 0.78));
+  box-shadow: inset 3px 0 0 var(--warning);
+}
+:root[data-skin="skyglass"]:not([data-theme-type="dark"]) .message-item.mentions-me:hover {
+  background-color: color-mix(in oklab, #ffc94a 40%, rgb(255 255 255 / 0.82));
+}
 :root[data-skin="skyglass"] :is(.message-item .timestamp, .system-timestamp, .message-gutter) {
   color: var(--text-tertiary);
 }
@@ -531,14 +728,30 @@
   box-shadow: inset 0 1px 0 var(--sg-glass-edge);
   font-weight: 600;
 }
-:root[data-skin="skyglass"] .new-messages-line {
-  background: var(--sg-gel-red);
+/* The unread divider's tag: pale aqua gloss, link ink. */
+:root[data-skin="skyglass"] .new-messages-label {
+  background: var(--sg-select);
+  border: 1px solid var(--sg-select-edge);
+  border-radius: 999px;
+  color: var(--sg-link);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.8), 0 1px 4px color-mix(in oklab, var(--sg-primary) 30%, transparent);
 }
-:root[data-skin="skyglass"] .system-message-content {
-  border-radius: 12px;
+:root[data-skin="skyglass"][data-theme-type="dark"] .new-messages-label {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14);
+}
+:root[data-skin="skyglass"] .new-messages-line {
+  background: linear-gradient(90deg, var(--sg-primary), color-mix(in oklab, var(--sg-primary) 15%, transparent));
+}
+/* Join and leave notices: glass capsules with an aqua edge. */
+:root[data-skin="skyglass"] .system-content {
+  background: var(--sg-glass-button);
+  border: 1px solid var(--sg-hairline);
+  border-left: 3px solid var(--sg-primary);
+  border-radius: 4px 14px 14px 4px;
+  box-shadow: inset 0 1px 0 var(--sg-glass-edge), 0 1px 4px rgb(0 40 100 / 0.08);
 }
 :root[data-skin="skyglass"] :is(.unified-content, .unified-content-renderer, .markdown-content, .mony-post) :is(a:not([class]), a.url-link) {
-  color: var(--sg-primary);
+  color: var(--sg-link);
   text-decoration-color: var(--sg-ring);
 }
 
@@ -655,11 +868,18 @@
           backdrop-filter: var(--sg-blur);
 }
 :root[data-skin="skyglass"] :is(.context-menu-item, .menu-item, .status-option, .option-item):hover {
-  background: var(--sg-gel);
-  color: #fff;
+  background: var(--sg-select);
+  box-shadow: inset 0 0 0 1px var(--sg-select-edge), inset 0 2px 0 rgb(255 255 255 / 0.5);
+  color: var(--text-primary);
 }
-:root[data-skin="skyglass"] :is(.context-menu-item, .menu-item, .status-option, .option-item):hover :is(svg, .icon-wrap, span) {
-  color: #fff;
+:root[data-skin="skyglass"] :is(.context-menu-item, .menu-item).danger:hover {
+  background: linear-gradient(180deg, #fff1f1 0 50%, #ffdcdc 50% 100%);
+  box-shadow: inset 0 0 0 1px rgb(220 40 50 / 0.45), inset 0 2px 0 rgb(255 255 255 / 0.5);
+  color: var(--text-danger);
+}
+:root[data-skin="skyglass"][data-theme-type="dark"] :is(.context-menu-item, .menu-item).danger:hover {
+  background: rgb(255 80 90 / 0.16);
+  box-shadow: inset 0 0 0 1px rgb(255 110 120 / 0.4);
 }
 
 /* Dialogs: glass windows with a sheen title bar. */
@@ -752,12 +972,12 @@
   border-right: 1px solid var(--sg-glass-line);
 }
 :root[data-skin="skyglass"] :is(.settings-nav, .social-nav, .settings-sidebar) .nav-item.active {
-  background: var(--sg-gel);
-  color: #fff;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.6), 0 2px 8px color-mix(in oklab, var(--sg-primary) 35%, transparent);
+  background: var(--sg-select);
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px var(--sg-select-edge), inset 0 2px 0 rgb(255 255 255 / 0.55), 0 2px 8px color-mix(in oklab, var(--sg-primary) 22%, transparent);
 }
 :root[data-skin="skyglass"] :is(.settings-nav, .social-nav, .settings-sidebar) .nav-item.active :is(svg, .icon-wrap, span) {
-  color: #fff;
+  color: var(--text-primary);
 }
 :root[data-skin="skyglass"] .settings-section {
   border-radius: 18px;
@@ -786,11 +1006,16 @@
   background: transparent;
 }
 
+/* The dock floats over the message list, so it takes the window tone. */
 :root[data-skin="skyglass"] .unified-voice-dock .dock-container {
-  background: var(--sg-glass-deep);
+  background: var(--sg-window);
   border: 1px solid var(--sg-glass-line);
   border-radius: 18px;
   box-shadow: var(--sg-shadow-pop), inset 0 1px 0 var(--sg-glass-edge);
+}
+:root[data-skin="skyglass"]:not([data-disable-blur="true"]) .unified-voice-dock .dock-container {
+  -webkit-backdrop-filter: var(--sg-blur);
+          backdrop-filter: var(--sg-blur);
 }
 :root[data-skin="skyglass"] .unified-voice-dock .minimized-container {
   border-radius: 999px;
@@ -818,14 +1043,67 @@
   color: #fff;
 }
 
+/* Drive: the navigation column and the main window are glass like the chat
+   columns. Below 760px the navigation is a drawer over the files and takes
+   the window tone. */
+:root[data-skin="skyglass"] .drive-view {
+  background: transparent;
+  border-top-left-radius: 18px;
+  box-shadow: 0 0 0 1px rgb(0 40 100 / 0.2), var(--sg-shadow);
+}
+:root[data-skin="skyglass"][data-theme-type="dark"] .drive-view {
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.45), var(--sg-shadow);
+}
+/* The navigation has no header bar; a sheen fading out over 200px stands in
+   for one over the deep zenith (secondary ink 4.1:1 without it under #0a7cff). */
+:root[data-skin="skyglass"] .drive-view__nav {
+  background: linear-gradient(180deg, var(--sg-glass-line), transparent 200px), var(--sg-glass-thin);
+  border-right: 1px solid var(--sg-glass-line);
+  border-top-left-radius: 18px;
+  box-shadow: inset 0 1px 0 var(--sg-glass-edge), inset 1px 0 0 var(--sg-glass-line);
+}
+:root[data-skin="skyglass"] .drive-view__main {
+  background: var(--sg-glass);
+  box-shadow: var(--sg-shadow), inset 0 1px 0 var(--sg-glass-edge);
+}
+/* The usage line sits over the wallpaper's ground; muted ink reads 4.0:1
+   through 40% glass there. */
+:root[data-skin="skyglass"]:not([data-theme-type="dark"]) .drive-sidebar__footer {
+  background: linear-gradient(0deg, rgb(255 255 255 / 0.5), rgb(255 255 255 / 0.3));
+  border-top-color: var(--sg-glass-line);
+}
+:root[data-skin="skyglass"]:not([data-disable-blur="true"]) :is(.drive-view__nav, .drive-view__main) {
+  -webkit-backdrop-filter: var(--sg-blur);
+          backdrop-filter: var(--sg-blur);
+}
+@media (max-width: 760px) {
+  :root[data-skin="skyglass"] .drive-view__nav {
+    background: var(--sg-window);
+  }
+  :root[data-skin="skyglass"] :is(.drive-view, .drive-view__nav) {
+    border-top-left-radius: 0;
+  }
+}
+
 /* ============================================================================
    8. OPTIONS
    ============================================================================
    Backdrop layers are fixed and sit at z-index -1, so they paint over the
    canvas and under the app. They drop out with high contrast. */
 
+/* 8.0 Painted wallpaper: a meadow by day, an aurora lagoon by night,
+   anchored to the sun corner and the ground line. 1920x1080 WebP. Replaces
+   the drawn sky of 8.1, which follows the theme colours. */
+:root[data-skin="skyglass"][data-skin-wallpaper="on"]:not([data-high-contrast="true"]) body {
+  background: url('/assets/skins/skyglass/meadow.webp') 100% 100% / cover no-repeat fixed, var(--sg-sky-mid);
+}
+:root[data-skin="skyglass"][data-skin-wallpaper="on"][data-theme-type="dark"]:not([data-high-contrast="true"]) body {
+  background-image: url('/assets/skins/skyglass/lagoon.webp');
+  background-color: var(--sg-sky-top);
+}
+
 /* 8.1 Sky scene: sun glow, light rays from the sun, clouds. */
-:root[data-skin="skyglass"][data-skin-sky="on"]:not([data-high-contrast="true"]) body::before {
+:root[data-skin="skyglass"][data-skin-sky="on"]:not([data-skin-wallpaper="on"], [data-high-contrast="true"]) body::before {
   content: '';
   position: fixed;
   inset: 0;
@@ -841,7 +1119,7 @@
     radial-gradient(ellipse calc(22 * var(--app-vmax)) calc(5 * var(--app-vmax)) at 40% 78%, color-mix(in srgb, var(--sg-cloud) 55%, transparent), transparent 70%),
     radial-gradient(ellipse calc(14 * var(--app-vmax)) calc(4 * var(--app-vmax)) at 88% 64%, color-mix(in srgb, var(--sg-cloud) 60%, transparent), transparent 70%);
 }
-:root[data-skin="skyglass"][data-skin-sky="on"]:not([data-high-contrast="true"]) #app::before {
+:root[data-skin="skyglass"][data-skin-sky="on"]:not([data-skin-wallpaper="on"], [data-high-contrast="true"]) #app::before {
   content: '';
   position: fixed;
   inset: 0;
