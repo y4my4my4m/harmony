@@ -14,7 +14,7 @@
 -- READ_MESSAGE_HISTORY 1 << 22 = 4194304; default @everyone mask 3343872258.
 BEGIN;
 SET LOCAL search_path = tests, public;
-SELECT plan(72);
+SELECT plan(82);
 
 UPDATE public.server_automod_settings SET enabled = false WHERE server_id = '55555555-0000-0000-0000-000000000005';
 UPDATE public.user_servers SET created_at = now() - interval '30 days'
@@ -140,12 +140,37 @@ BEGIN
 END $fn$;
 
 -- READ_MESSAGE_HISTORY ----------------------------------------------------------------------
+-- mallory has not opened history.
+SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
+SELECT is(pg_temp.ids($q$SELECT id FROM public.messages WHERE channel_id = 'f1530000-0000-0000-0000-0000000000a1' AND thread_id IS NULL$q$),
+          ARRAY['f1532000-0000-0000-0000-0000000000a2']::uuid[],
+          'without READ_MESSAGE_HISTORY a member who has not opened the channel reads only their own messages');
+SELECT is(public.current_user_history_cutoffs() ->> 'f1530000-0000-0000-0000-0000000000a1', 'infinity',
+          'the cutoff is infinity until the view starts');
+SELECT is(public.get_message_page('f1530000-0000-0000-0000-0000000000a1', NULL, 50, NULL) -> 'messages', '[]'::jsonb,
+          'and a page is empty');
+SELECT is(public.begin_channel_history_view('66666666-0000-0000-0000-000000000006'), NULL::timestamptz,
+          'begin_channel_history_view stores nothing where the member reads history');
+SELECT is(public.begin_channel_history_view('f1530000-0000-0000-0000-0000000000a1'), now(),
+          'and starts the view now where they do not');
+SELECT is((public.current_user_history_cutoffs() ->> 'f1530000-0000-0000-0000-0000000000a1')::timestamptz, now(),
+          'the cutoff is the view start');
+SELECT is(pg_temp.ids($q$SELECT id FROM public.messages WHERE channel_id = 'f1530000-0000-0000-0000-0000000000a1' AND thread_id IS NULL$q$),
+          ARRAY['f1532000-0000-0000-0000-0000000000a2']::uuid[], 'messages from before it stay hidden');
+SELECT tests.clear_authentication();
+SELECT is((SELECT array_agg(channel_id) FROM public.channel_history_views WHERE user_id = '33333333-0000-0000-0000-000000000003'),
+          ARRAY['f1530000-0000-0000-0000-0000000000a1']::uuid[], 'one view row, for the restricted channel');
+SELECT ok(NOT has_table_privilege('authenticated', 'public.channel_history_views', 'SELECT')
+          AND NOT has_table_privilege('authenticated', 'public.channel_history_views', 'UPDATE'),
+          'members cannot read or move a view start');
+
+-- The view started 30 minutes ago.
+UPDATE public.channel_history_views SET since = now() - interval '30 minutes'
+ WHERE user_id = '33333333-0000-0000-0000-000000000003';
 SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
 SELECT is(pg_temp.ids($q$SELECT id FROM public.messages WHERE channel_id = 'f1530000-0000-0000-0000-0000000000a1' AND thread_id IS NULL$q$),
           ARRAY['f1532000-0000-0000-0000-0000000000a2', 'f1532000-0000-0000-0000-0000000000a3']::uuid[],
-          'without READ_MESSAGE_HISTORY a member reads messages from after joining and their own');
-SELECT is((public.current_user_history_cutoffs() ->> 'f1530000-0000-0000-0000-0000000000a1')::timestamptz, now() - interval '1 hour',
-          'the cutoff is the membership''s created_at');
+          'messages created since the view start read, with their own');
 SELECT is(public.current_user_history_cutoffs() ? '66666666-0000-0000-0000-000000000006', false,
           'a channel with the permission has no cutoff');
 SELECT is(pg_temp.ids($q$SELECT id FROM public.messages WHERE channel_id = '66666666-0000-0000-0000-000000000006' AND id = 'f1532000-0000-0000-0000-0000000000b1'$q$),
@@ -159,7 +184,7 @@ SELECT is(pg_temp.ids($q$SELECT (m ->> 'id')::uuid FROM jsonb_array_elements(pub
           ARRAY['f1532000-0000-0000-0000-0000000000a3']::uuid[],
           'a get_message_page page starts at the cutoff');
 SELECT is((public.get_message_page('f1530000-0000-0000-0000-0000000000a1', NULL, 50, NULL) ->> 'history_since')::timestamptz,
-          now() - interval '1 hour', 'and reports where it starts');
+          now() - interval '30 minutes', 'and reports where it starts');
 SELECT is(pg_temp.ids($q$SELECT message_id FROM public.search_messages(p_channel_id => 'f1530000-0000-0000-0000-0000000000a1')$q$),
           ARRAY['f1532000-0000-0000-0000-0000000000a2', 'f1532000-0000-0000-0000-0000000000a3', 'f1532000-0000-0000-0000-0000000000a6']::uuid[],
           'search_messages follows the cutoff');
@@ -180,18 +205,29 @@ SELECT is(pg_temp.ids($q$SELECT id FROM public.messages WHERE id = 'f1532000-000
 SELECT is((SELECT count(*)::int FROM public.messages WHERE conversation_id = '77777777-0000-0000-0000-000000000007'), 0,
           'a non-participant still reads no DM');
 
+-- A view start from an earlier membership counts from the current one.
+SELECT tests.clear_authentication();
+UPDATE public.channel_history_views SET since = now() - interval '2 days'
+ WHERE user_id = '33333333-0000-0000-0000-000000000003';
+SELECT tests.authenticate_as('cccccccc-0000-0000-0000-000000000003');
+SELECT is((public.current_user_history_cutoffs() ->> 'f1530000-0000-0000-0000-0000000000a1')::timestamptz, now() - interval '1 hour',
+          'a view start before the membership counts from the membership');
+SELECT tests.clear_authentication();
+UPDATE public.channel_history_views SET since = now() - interval '30 minutes'
+ WHERE user_id = '33333333-0000-0000-0000-000000000003';
+
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
 SELECT is(pg_temp.ids($q$SELECT id FROM public.messages WHERE channel_id = 'f1530000-0000-0000-0000-0000000000a1' AND thread_id IS NULL$q$),
-          ARRAY['f1532000-0000-0000-0000-0000000000a1', 'f1532000-0000-0000-0000-0000000000a3', 'f1532000-0000-0000-0000-0000000000a4']::uuid[],
-          'each member''s cutoff is their own join');
+          '{}'::uuid[], 'each member''s view is their own');
 SELECT is(pg_temp.ids($q$SELECT id FROM public.messages WHERE conversation_id = '77777777-0000-0000-0000-000000000007'$q$),
           ARRAY['99999999-0000-0000-0000-000000000009']::uuid[], 'DMs are untouched');
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
 SELECT is((SELECT count(*)::int FROM public.messages WHERE channel_id = 'f1530000-0000-0000-0000-0000000000a1'), 6,
           'the owner reads everything');
 SELECT is(public.current_user_history_cutoffs(), NULL::jsonb, 'and has no cutoffs');
+SELECT is(public.begin_channel_history_view('f1530000-0000-0000-0000-0000000000a1'), NULL::timestamptz, 'nor a view to start');
 
--- The broadcast of an edit.
+-- The broadcast of an edit, and of a new message.
 SELECT tests.clear_authentication();
 DELETE FROM realtime.messages;
 SELECT tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000001');
@@ -201,23 +237,29 @@ UPDATE public.messages SET content = '[{"type":"text","text":"after mallory join
  WHERE id = 'f1532000-0000-0000-0000-0000000000a3';
 UPDATE public.messages SET content = '[{"type":"text","text":"old general message, edited"}]'
  WHERE id = 'f1532000-0000-0000-0000-0000000000b1';
+INSERT INTO public.messages (id, channel_id, user_id, content)
+VALUES ('f1532000-0000-0000-0000-0000000000a7', 'f1530000-0000-0000-0000-0000000000a1', '11111111-0000-0000-0000-000000000001',
+        '[{"type":"text","text":"arriving now"}]');
 SELECT tests.clear_authentication();
-SELECT ok((SELECT (payload -> 'new' ->> 'restricted')::boolean AND NOT (payload -> 'new' ? 'content') AND NOT (payload -> 'new' ? 'user_id')
+SELECT is((SELECT count(*)::int
              FROM realtime.messages
             WHERE topic = 'channel-messages-f1530000-0000-0000-0000-0000000000a1'
-              AND payload -> 'new' ->> 'id' = 'f1532000-0000-0000-0000-0000000000a1'),
-          'an edit to a message older than the newest join broadcasts ids only');
-SELECT ok((SELECT payload -> 'new' -> 'content' -> 0 ->> 'text' = 'after mallory joined, edited'
+              AND payload -> 'new' ->> 'id' IN ('f1532000-0000-0000-0000-0000000000a1', 'f1532000-0000-0000-0000-0000000000a3')
+              AND (payload -> 'new' ->> 'restricted')::boolean
+              AND NOT (payload -> 'new' ? 'content') AND NOT (payload -> 'new' ? 'user_id')), 2,
+          'an edit to an earlier message, in a channel that withholds the permission, broadcasts ids only');
+SELECT ok((SELECT payload -> 'new' -> 'content' -> 0 ->> 'text' = 'arriving now'
                   AND NOT (payload -> 'new' ? 'restricted')
              FROM realtime.messages
             WHERE topic = 'channel-messages-f1530000-0000-0000-0000-0000000000a1'
-              AND payload -> 'new' ->> 'id' = 'f1532000-0000-0000-0000-0000000000a3'),
-          'one newer than every join carries its content');
+              AND payload -> 'new' ->> 'id' = 'f1532000-0000-0000-0000-0000000000a7'),
+          'a new message carries its content');
 SELECT ok((SELECT payload -> 'new' ? 'content'
              FROM realtime.messages
             WHERE topic = 'channel-messages-66666666-0000-0000-0000-000000000006'
               AND payload -> 'new' ->> 'id' = 'f1532000-0000-0000-0000-0000000000b1'),
           'and so does any edit where everyone reads history');
+DELETE FROM public.messages WHERE id = 'f1532000-0000-0000-0000-0000000000a7';
 
 -- A channel Allow on a role, then on the member, restores the history.
 SELECT tests.clear_authentication();

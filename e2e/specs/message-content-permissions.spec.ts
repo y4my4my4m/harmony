@@ -6,8 +6,10 @@
 // - #emoji denies USE_EXTERNAL_EMOJIS: the picker shows this server's emoji only and says so,
 //   this server's emoji posts, another server's is refused with a notice, and so is a reaction
 //   with it.
-// - #history denies READ_MESSAGE_HISTORY: a member who joined after a message does not see it,
-//   sees the one posted after joining, and a note says why.
+// - #history denies READ_MESSAGE_HISTORY: as on Discord, a member sees only messages sent since
+//   they opened the channel in this session of the app, and a note says why. Earlier messages,
+//   from before or after joining, stay hidden; one sent while the channel is open shows; after a
+//   reload it is earlier than the new view and hides again.
 // - A second member holds a role whose channel overrides Allow all three: the preview card
 //   shows, the other server's emoji is offered and posts, and the whole history reads.
 
@@ -41,7 +43,7 @@ const PNG = Buffer.from(
   'base64',
 )
 const EXTERNAL_NOTICE = "Only unicode and this server's emoji can be used in this channel."
-const HISTORY_NOTE = "Messages sent before you joined are hidden: you don't have Read Message History in this channel."
+const HISTORY_NOTE = "Messages sent before you opened this channel are hidden: you don't have Read Message History in this channel."
 
 let owner: SpecUser
 let member: SpecUser
@@ -55,6 +57,7 @@ let localEmoji: { id: string; name: string }
 let farEmoji: { id: string; name: string }
 let reactTargetId: string
 let beforeId: string
+let afterId: string
 const stored: string[] = []
 
 async function override(channelId: string, roleId: string, allow: number, deny: number): Promise<void> {
@@ -121,6 +124,13 @@ async function linkMessage(author: SpecUser, channelId: string, url: string) {
 }
 
 const rowOf = (page: Page, text: string) => messageList(page).getByRole('article').filter({ hasText: text })
+const channelItem = (page: Page, id: string) => page.locator(`.channel-sidebar .channel-wrapper[data-channel-id="${id}"] .channel-item`)
+
+/** Where the member's view of the channel starts, as begin_channel_history_view stored it. */
+async function viewStart(user: SpecUser, channelId: string): Promise<string | null> {
+  const { data } = await admin.from('channel_history_views').select('since').eq('user_id', user.id).eq('channel_id', channelId).maybeSingle()
+  return data?.since ?? null
+}
 const emojiTrigger = (page: Page) => page.locator('[data-testid="message-input"]').getByRole('button', { name: 'Emoji picker' })
 const picker = (page: Page) => page.locator('[data-testid="media-picker"]')
 
@@ -154,7 +164,7 @@ test.beforeAll(async () => {
     await addMember(admin, user, server.id)
     await addMember(admin, user, elsewhere.id)
   }
-  await seedMessage(historyId, 'History from after you joined')
+  afterId = await seedMessage(historyId, 'History from after you joined')
   reactTargetId = await seedMessage(emojiId, 'React to this')
 
   const { data: role, error: roleError } = await admin
@@ -235,15 +245,37 @@ test('a member without the three permissions', async ({ page }) => {
     expect(local.error).toBeNull()
   })
 
-  await test.step('#history: messages from before joining are hidden, later ones show, and a note says why', async () => {
+  await test.step('#history: only messages sent since opening the channel show, and a note says why', async () => {
     await openChannel(page, server.id, historyId)
-    await expect(rowOf(page, 'History from after you joined')).toBeVisible({ timeout: 30000 })
+    await expect(messageList(page).getByTestId('history-restricted')).toContainText(HISTORY_NOTE, { timeout: 30000 })
+    await expect.poll(() => viewStart(member, historyId), { timeout: 15000 }).not.toBeNull()
+    await expect(rowOf(page, 'History from after you joined')).toHaveCount(0)
     await expect(rowOf(page, 'History from before you joined')).toHaveCount(0)
-    await expect(messageList(page).getByTestId('history-restricted')).toHaveText(HISTORY_NOTE)
 
     const client = await userClient(member)
-    const { data } = await client.from('messages').select('id').eq('id', beforeId)
+    const { data } = await client.from('messages').select('id').in('id', [beforeId, afterId])
     expect(data).toEqual([])
+  })
+
+  await test.step('#history: a message sent while it is open shows, until a reload starts a new view', async () => {
+    const whileOpenId = await seedMessage(historyId, 'Sent while you were here')
+    const client = await userClient(member)
+    const { data } = await client.from('messages').select('id').eq('id', whileOpenId)
+    expect(data).toEqual([{ id: whileOpenId }])
+    // No realtime in the stack: the message loads when the member comes back to the channel.
+    await channelItem(page, server.generalChannelId).click()
+    await expect(page).toHaveURL(new RegExp(server.generalChannelId))
+    await channelItem(page, historyId).click()
+    await expect(rowOf(page, 'Sent while you were here')).toBeVisible({ timeout: 30000 })
+    await expect(rowOf(page, 'History from after you joined')).toHaveCount(0)
+
+    const firstView = await viewStart(member, historyId)
+    await page.reload()
+    await expect(messageList(page).getByTestId('history-restricted')).toContainText(HISTORY_NOTE, { timeout: 30000 })
+    await expect.poll(() => viewStart(member, historyId), { timeout: 15000 }).not.toBe(firstView)
+    await expect(rowOf(page, 'Sent while you were here')).toHaveCount(0)
+    const after = await client.from('messages').select('id').eq('id', whileOpenId)
+    expect(after.data).toEqual([])
   })
 })
 
@@ -286,5 +318,6 @@ test('a role\'s channel Allow restores all three', async ({ page }) => {
     await expect(rowOf(page, 'History from after you joined')).toBeVisible({ timeout: 30000 })
     await expect(rowOf(page, 'History from before you joined')).toBeVisible()
     await expect(messageList(page).getByTestId('history-restricted')).toHaveCount(0)
+    expect(await viewStart(trusted, historyId)).toBeNull()
   })
 })

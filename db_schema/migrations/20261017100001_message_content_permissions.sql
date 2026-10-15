@@ -14,13 +14,15 @@
 -- emojis row only when its url is the row's url or empty. An edit is checked for the emoji it
 -- adds. Joining an existing reaction is no exemption.
 --
--- READ_MESSAGE_HISTORY (bit 22): without it in a local server channel, a member reads the
--- channel's messages created at or after their user_servers.created_at, and their own. Applies
--- to messages and message_search_index RLS (and through them get_message_page, pins, threads,
--- polls, postgres_changes delivery), search_messages and get_message_polls. A message event
--- broadcast for a row older than the server's newest membership, in a channel that withholds
--- the bit from anyone, carries ids and restricted: true; subscribers re-read the row through
--- RLS.
+-- READ_MESSAGE_HISTORY (bit 22), as Discord: without it in a local server channel, a member
+-- reads the channel's messages created since they opened it in the current app session.
+-- begin_channel_history_view records that start in channel_history_views; until it runs the
+-- member reads none, and the start is never earlier than the membership. Own messages stay
+-- readable, unlike Discord: they disclose nothing. Applies to messages and
+-- message_search_index RLS (and through them get_message_page, pins, threads, polls,
+-- postgres_changes delivery), search_messages and get_message_polls. A message event broadcast
+-- for a row created before the transaction, in a channel that withholds the bit from anyone,
+-- carries ids and restricted: true; subscribers re-read the row through RLS.
 --
 -- Converges by state: rerunning changes nothing.
 
@@ -357,8 +359,24 @@ CREATE INDEX IF NOT EXISTS idx_server_roles_default_without_history
     ON public.server_roles (server_id)
     WHERE is_default = true AND (permissions & 4194305) = 0;
 
--- {"<channel uuid>": "<joined at>"} for the local server channels where the current profile
--- lacks READ_MESSAGE_HISTORY; NULL when there are none. Only servers whose @everyone lacks the
+-- Start of a member's view of a channel that withholds READ_MESSAGE_HISTORY from them.
+CREATE TABLE IF NOT EXISTS public.channel_history_views (
+    user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    channel_id uuid NOT NULL REFERENCES public.channels(id) ON DELETE CASCADE,
+    since timestamptz NOT NULL,
+    PRIMARY KEY (user_id, channel_id)
+);
+CREATE INDEX IF NOT EXISTS idx_channel_history_views_channel ON public.channel_history_views (channel_id);
+ALTER TABLE public.channel_history_views ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS channel_history_views_service_role ON public.channel_history_views;
+CREATE POLICY channel_history_views_service_role ON public.channel_history_views
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+REVOKE ALL ON public.channel_history_views FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.channel_history_views TO service_role;
+
+-- {"<channel uuid>": "<view start>"} for the local server channels where the current profile
+-- lacks READ_MESSAGE_HISTORY; NULL when there are none. The start is the later of the
+-- channel_history_views row and the membership, 'infinity' without a row. Only servers whose @everyone lacks the
 -- bit, or that carry an override denying it, are resolved per channel, layered as
 -- get_user_permissions: @everyone, then role, then member overrides.
 CREATE OR REPLACE FUNCTION public.current_user_history_cutoffs()
@@ -428,8 +446,9 @@ BEGIN
          WHERE sr.id = ANY (v_roles);
         CONTINUE WHEN (v_mask & 1) <> 0;
 
-        SELECT jsonb_object_agg(c.id, r.joined_at) INTO v_part
+        SELECT jsonb_object_agg(c.id, GREATEST(COALESCE(v.since, 'infinity'::timestamptz), r.joined_at)) INTO v_part
           FROM public.channels c
+          LEFT JOIN public.channel_history_views v ON v.user_id = v_me AND v.channel_id = c.id
           CROSS JOIN LATERAL (
               SELECT COALESCE(bit_or(COALESCE(o.allow_permissions, 0)) FILTER (WHERE o.role_id = r.everyone_id), 0) AS ea,
                      COALESCE(bit_or(COALESCE(o.deny_permissions, 0))  FILTER (WHERE o.role_id = r.everyone_id), 0) AS ed,
@@ -455,6 +474,32 @@ $$;
 
 REVOKE ALL ON FUNCTION public.current_user_history_cutoffs() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.current_user_history_cutoffs() TO anon, authenticated, service_role;
+
+-- Starts the caller's view of a channel that withholds READ_MESSAGE_HISTORY from them: messages
+-- created from now on read, earlier ones do not. Returns the start; NULL, storing nothing, where
+-- the caller reads the whole history.
+CREATE OR REPLACE FUNCTION public.begin_channel_history_view(p_channel_id uuid)
+RETURNS timestamptz
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_me uuid;
+BEGIN
+    IF p_channel_id IS NULL OR NOT COALESCE(public.current_user_history_cutoffs() ? p_channel_id::text, false) THEN
+        RETURN NULL;
+    END IF;
+    SELECT p.id INTO v_me FROM public.profiles p WHERE p.auth_user_id = auth.uid() LIMIT 1;
+    INSERT INTO public.channel_history_views (user_id, channel_id, since)
+    VALUES (v_me, p_channel_id, now())
+    ON CONFLICT (user_id, channel_id) DO UPDATE SET since = EXCLUDED.since;
+    RETURN now();
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.begin_channel_history_view(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.begin_channel_history_view(uuid) TO authenticated, service_role;
 
 -- InitPlans run on first reference: without cutoffs the first (SELECT ...) answers NULL, the OR
 -- stops there, and the second never runs. A cutoff map evaluates the function twice.
@@ -806,9 +851,9 @@ BEGIN
 END;
 $$;
 
--- As 20260101000000 (broadcast_message_event). A row created before the transaction began,
--- older than the server's newest accepted membership, in a channel that withholds
--- READ_MESSAGE_HISTORY from anyone, broadcasts ids only.
+-- As 20260101000000 (broadcast_message_event). A row created before the transaction began, in a
+-- local channel that withholds READ_MESSAGE_HISTORY from anyone, broadcasts ids only: a
+-- subscriber's view may start after it.
 CREATE OR REPLACE FUNCTION public.broadcast_message_event()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -832,7 +877,7 @@ BEGIN
     v_topic := 'dm-conversation-' || v_rec.conversation_id::text;
   ELSIF v_rec.channel_id IS NOT NULL THEN
     v_topic := 'channel-messages-' || v_rec.channel_id::text;
-    -- A subscriber joined no later than now(); a row created since is visible to all of them.
+    -- A row created in this transaction postdates every subscriber's view start.
     IF v_rec.created_at < now() THEN
       SELECT c.server_id INTO v_server
         FROM public.channels c
@@ -840,10 +885,6 @@ BEGIN
        WHERE c.id = v_rec.channel_id
          AND s.is_local_server IS NOT FALSE;
       v_redact := v_server IS NOT NULL
-                  AND v_rec.created_at < (SELECT max(us.created_at)
-                                            FROM public.user_servers us
-                                           WHERE us.server_id = v_server
-                                             AND us.status = 'accepted')
                   AND NOT public.channel_grants_everyone(v_rec.channel_id, 4194304);
     END IF;
   ELSE

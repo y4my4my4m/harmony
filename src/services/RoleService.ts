@@ -203,7 +203,7 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   [Permission.USE_EXTERNAL_EMOJIS]: 'Allows members to use emojis from other servers, instance emojis and their own in messages and reactions. Without it, only unicode and this server\'s emojis.',
   [Permission.MENTION_EVERYONE]: 'Allows members to use @everyone and @here mentions.',
   [Permission.MANAGE_MESSAGES]: 'Allows members to delete and pin messages from other members.',
-  [Permission.READ_MESSAGE_HISTORY]: 'Allows members to read messages sent before they joined the server. Without it, a channel shows messages from their join onward.',
+  [Permission.READ_MESSAGE_HISTORY]: 'Allows members to read messages sent before they opened the channel. Without it, they see only the messages sent since they opened it, as on Discord.',
   [Permission.PIN_MESSAGES]: 'Allows members to pin messages in channels.',
   [Permission.CONNECT]: 'Allows members to connect to voice channels.',
   [Permission.SPEAK]: 'Allows members to speak in voice channels.',

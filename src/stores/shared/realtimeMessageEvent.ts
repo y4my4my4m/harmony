@@ -26,8 +26,8 @@ export interface BroadcastMessageEvent {
 
 /**
  * broadcast_message_event sends ids and `restricted: true` instead of the row when the row
- * predates the server's newest membership in a channel that withholds READ_MESSAGE_HISTORY
- * from someone. The subscriber re-reads it; RLS decides whether it exists for them.
+ * predates the event's transaction in a channel that withholds READ_MESSAGE_HISTORY from
+ * someone. The subscriber re-reads it; RLS decides whether it exists for them.
  */
 async function readMessage(id: string): Promise<any | null> {
   const { supabase } = await import('@/supabase')

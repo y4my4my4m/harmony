@@ -24,7 +24,7 @@ defineProps<{
   kind: 'channel' | 'dm' | 'group'
   name: string
   userId?: string
-  /** The channel withholds READ_MESSAGE_HISTORY: this is where the viewer joined, not the start. */
+  /** The channel withholds READ_MESSAGE_HISTORY: this is where the viewer opened it, not the start. */
   historyRestricted?: boolean
 }>()
 </script>

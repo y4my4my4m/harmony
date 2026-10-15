@@ -666,6 +666,7 @@
       "scope": "channel",
       "sql": [
         "function:current_user_history_cutoffs",
+        "function:begin_channel_history_view",
         "function:get_message_page",
         "function:search_messages",
         "function:broadcast_message_event"
@@ -673,14 +674,18 @@
       "backend": [
         "bot-gateway/src/auth/botPermissions.ts"
       ],
-      "client": [],
+      "client": [
+        "src/services/channelHistoryCutoff.ts"
+      ],
       "pgtap": [
         "db_schema/tests/153_message_content_permissions.sql"
       ],
       "e2e": [
         "e2e/specs/message-content-permissions.spec.ts"
       ],
-      "unit": []
+      "unit": [
+        "src/services/core/__tests__/CoreMessageService.historyView.test.ts"
+      ]
     },
     "PIN_MESSAGES": {
       "scope": "channel",

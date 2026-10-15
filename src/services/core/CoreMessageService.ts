@@ -20,7 +20,7 @@ import {
 } from '@/services/core/channelMessageEncryption'
 import { blockedMessageRejection, moderationRejectionFromError } from '@/services/AutoModService'
 import { mediaRoom, messageMediaPathsIn } from '@/services/privateMedia'
-import { recordHistoryCutoff } from '@/services/channelHistoryCutoff'
+import { beginHistoryView, historyCutoff, historyViewBegun, recordHistoryCutoff } from '@/services/channelHistoryCutoff'
 
 export interface SendMessageData {
   content: MessagePart[]
@@ -754,12 +754,20 @@ export class CoreMessageService {
     before?: string
   }): Promise<{ messages: any[]; reactionsByMessage: Record<string, any[]> } | null> {
     try {
-      const { data, error } = await supabase.rpc('get_message_page', {
+      const fetchPage = () => supabase.rpc('get_message_page', {
         p_channel_id: params.channelId ?? null,
         p_conversation_id: params.conversationId ?? null,
         p_limit: params.limit,
         p_before: params.before ?? null
       })
+      // The newest page of a channel that withholds READ_MESSAGE_HISTORY starts this session's
+      // view first. A page reporting a cutoff the session has not started reads again after it.
+      const channelId = !params.before ? params.channelId : undefined
+      if (channelId && historyCutoff(channelId) && !historyViewBegun(channelId)) await beginHistoryView(channelId)
+      let { data, error } = await fetchPage()
+      if (!error && channelId && (data as { history_since?: unknown } | null)?.history_since && !historyViewBegun(channelId)) {
+        if (await beginHistoryView(channelId)) ({ data, error } = await fetchPage())
+      }
 
       if (error) {
         debug.warn('Core: get_message_page RPC unavailable, using legacy multi-query load:', error.message)

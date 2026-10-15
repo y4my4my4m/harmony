@@ -1648,7 +1648,7 @@ const detachedUnseen = computed(() => {
 });
 
 // Context shown by the conversation-start line (channel vs DM vs group).
-// get_message_page reported a READ_MESSAGE_HISTORY cutoff: the channel starts at the viewer's join.
+// get_message_page reported a READ_MESSAGE_HISTORY cutoff: the channel starts where the viewer opened it.
 const historyRestricted = computed(() => !!props.channelId && !props.conversationId && !!historyCutoff(props.channelId));
 
 const beginningInfo = computed((): { kind: 'channel' | 'dm' | 'group'; name: string; userId?: string } => {
