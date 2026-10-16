@@ -99,7 +99,7 @@ broadcast_follow_event		trigger	definer	public, extensions, pg_temp	anon+authent
 broadcast_home_feed_entry		trigger	definer	public, pg_temp	anon+authenticated+service_role	client
 broadcast_key_request_event		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 broadcast_membership_event		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
-broadcast_message_event		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
+broadcast_message_event		trigger	definer	public, pg_temp	service_role	trigger
 broadcast_message_poll_event	p_poll_id uuid, p_type text	void	definer	public, pg_temp	service_role	unreferenced
 broadcast_message_reaction_event		trigger	definer	public, pg_temp	anon+authenticated+service_role	trigger
 broadcast_notification_delete		trigger	definer	public, extensions, pg_temp	service_role	trigger

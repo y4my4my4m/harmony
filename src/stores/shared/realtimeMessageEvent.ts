@@ -1,13 +1,10 @@
 /**
  * Envelope adapter for message realtime.
  *
- * Messages arrive over two transports during the Broadcast rollout:
- * postgres_changes delivers `{ new, old }`, and `broadcast_message_event()`
- * mirrors that shape with an added `op`. Both feed the same store handlers, so
- * the only difference is unwrapping.
- *
- * Deduplication is the handlers' job: they key on message id, so a message
- * delivered over both transports is applied once.
+ * `broadcast_message_event()` sends `{ op, new, old }` on 'channel-messages-<id>',
+ * 'dm-conversation-<id>' and, for thread replies, 'thread-messages-<id>'. Views subscribe
+ * to Broadcast only (no postgres_changes on messages since 1.8.6); handlers key on message
+ * id, so a row also applied from an insert response is applied once.
  */
 
 export interface MessageEventHandlers {

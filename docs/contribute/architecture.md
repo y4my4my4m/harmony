@@ -69,7 +69,7 @@ flowchart TB
 | Postgres | [`db_schema/migrations/`](https://github.com/y4my4my4m/harmony/tree/master/db_schema/migrations) | All data and most of the logic: tables, row level security policies, functions and triggers. |
 | PostgREST | Supabase | HTTP API over the `public` schema: tables, and functions as RPC endpoints. |
 | GoTrue | Supabase | Accounts, sessions, OAuth sign-in and two-factor authentication; issues the JWTs that row level security reads. |
-| Realtime | Supabase | WebSocket delivery of row changes (`postgres_changes`) and of Broadcast messages that triggers send with `realtime.send`. |
+| Realtime | Supabase | WebSocket delivery of the Broadcast messages that triggers send with `realtime.send`. Message views use no `postgres_changes`; `messages` stays in the `supabase_realtime` publication for clients older than 1.8.6 and the legacy federation listener (`USE_BULLMQ_QUEUE=false`). |
 | Storage | Supabase | Uploaded files; imgproxy transforms images. |
 | federation-server | [`federation-backend/`](https://github.com/y4my4my4m/harmony/tree/master/federation-backend), `FEDERATION_MODE=server` | ActivityPub endpoints (WebFinger, NodeInfo, actors, inboxes, outboxes), push subscriptions, link previews, the GIF proxy, LiveKit tokens and webhook, presence and typing, signed media URLs, channel webhooks. |
 | federation-worker | `federation-backend/`, `FEDERATION_MODE=worker` | BullMQ workers fed by `LISTEN federation_jobs`, outbound delivery with retries, push sending, maintenance jobs, voice participant reconciliation. |
@@ -97,14 +97,14 @@ sequenceDiagram
   DB-->>A: the inserted row
   Note over DB: AFTER triggers - unread counts, notifications, Broadcast
   DB->>RT: realtime.send on channel-messages-ID
-  RT->>B: message_event and postgres_changes
+  RT->>B: message_event
   DB->>W: pg_notify federation_jobs
   W->>R: signed Create to each instance with a member who can view the channel
 ```
 
 1. **Send.** The composer calls the chat store ([`src/stores/useChat.ts`](https://github.com/y4my4my4m/harmony/blob/master/src/stores/useChat.ts)), which shows an optimistic copy and calls `services.messages.sendChannelMessage`. That delegates to [`src/services/core/CoreMessageService.ts`](https://github.com/y4my4my4m/harmony/blob/master/src/services/core/CoreMessageService.ts), which checks length and attachment limits, encrypts the content when the channel requires it, and inserts the row with `supabase.from('messages').insert(...)`.
 2. **Checks in the database.** Row level security decides whether the sender may post. `BEFORE INSERT` triggers enforce message length, slowmode, the channel's encryption setting (`trg_enforce_channel_encryption`) and AutoMod (`trg_moderate_message`). AutoMod can drop the row, in which case the insert returns no rows and the client reports the block.
-3. **Fan-out to local clients.** `AFTER INSERT` triggers update unread counts, create notifications and call `broadcast_message_event()`, which sends the row with `realtime.send` to the private Broadcast topic `channel-messages-<channel id>` (`dm-conversation-<conversation id>` for DMs). Clients subscribed to that channel receive it as `message_event`, and also as a `postgres_changes` insert; the store's handlers key on the message id, so a message arriving over both is applied once. On reconnect the store fetches messages newer than the last one it holds. A new notification row queues a `send-push-notification` job, which the worker sends through Web Push, UnifiedPush or FCM.
+3. **Fan-out to local clients.** `AFTER INSERT` triggers update unread counts, create notifications and call `broadcast_message_event()`, which sends the row with `realtime.send` to the private Broadcast topic `channel-messages-<channel id>` (`dm-conversation-<conversation id>` for DMs), and a thread reply also to `thread-messages-<thread id>`. Clients subscribed to that topic receive it as `message_event`; the store's handlers key on the message id, so a row already applied from the insert response is applied once. On reconnect the store fetches messages newer than the last one it holds. A new notification row queues a `send-push-notification` job, which the worker sends through Web Push, UnifiedPush or FCM.
 4. **Federation.** `trigger_queue_channel_message_federation()` runs `BEFORE INSERT`. It marks the message `skipped` when the author is not local, the message already came from another instance (`metadata.federated`), or the channel is encrypted. Otherwise it marks it `queued` and calls `queue_federation_job('federate-channel-message', ...)`, which publishes the job on `pg_notify('federation_jobs')`. The notification is delivered when the transaction commits.
 5. **Delivery.** In the worker, `NotificationListener` turns the notification into a BullMQ job, and [`ChannelMessageHandler.ts`](https://github.com/y4my4my4m/harmony/blob/master/federation-backend/src/listeners/ChannelMessageHandler.ts) builds the ActivityPub `Create`:
    - When the server is hosted on another instance, the activity goes to that server's inbox, and the hosting instance fans it out.

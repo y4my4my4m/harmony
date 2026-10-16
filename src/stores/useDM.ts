@@ -2604,10 +2604,8 @@ export const useDMStore = defineStore('dm', () => {
 
       let joinedOnce = false
 
-      const unsubscribe = realtimeConnectionManager.subscribeToTable({
+      const unsubscribe = realtimeConnectionManager.subscribeBroadcast({
         channelName,
-        table: 'messages',
-        filter: `conversation_id=eq.${conversationId}`,
         // Private: reaction broadcasts (realtime.send) land on this channel.
         private: true,
         broadcasts: [
@@ -2616,10 +2614,6 @@ export const useDMStore = defineStore('dm', () => {
           { event: 'poll_event', handler: (payload) => useMessagePollsStore().applyRealtime(payload) },
         ],
 
-        onInsert: handleMessageInsert,
-        onUpdate: handleMessageUpdate,
-        onDelete: handleMessageDelete,
-        
         // Every SUBSCRIBED, the first included, pulls rows newer than the
         // newest held: rows inserted between the page fetch and the join, or
         // during a drop, reach no transport. An empty list is the page fetch's

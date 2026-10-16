@@ -1259,10 +1259,8 @@ export const useChatStore = defineStore('chat', {
         onDelete: handleMessageDelete,
       });
 
-      this.currentSubscription = realtimeConnectionManager.subscribeToTable({
+      this.currentSubscription = realtimeConnectionManager.subscribeBroadcast({
         channelName,
-        table: 'messages',
-        filter: `channel_id=eq.${channelId}`,
         // Private so reaction broadcasts (realtime.send) land on this same channel.
         private: true,
         broadcasts: [
@@ -1271,11 +1269,6 @@ export const useChatStore = defineStore('chat', {
           { event: 'poll_event', handler: (payload) => useMessagePollsStore().applyRealtime(payload) },
         ],
 
-        onInsert: handleMessageInsert,
-        onUpdate: handleMessageUpdate,
-        onDelete: handleMessageDelete,
-        
-        
         onStatusChange: (status, name) => {
           debug.log(`${name} status: ${status}`);
           store.connectionStatus = status;
