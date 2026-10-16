@@ -923,6 +923,8 @@
     "cancel": "取消",
     "save": "保存",
     "edited": "已编辑",
+    "editNotSaved": "你的编辑未保存。{reason}",
+    "editSaving": "正在保存编辑",
     "deleted": "消息已删除",
     "system": "系统",
     "pinned": "置顶消息",

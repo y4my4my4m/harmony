@@ -923,6 +923,8 @@
     "cancel": "annuler",
     "save": "enregistrer",
     "edited": "modifié",
+    "editNotSaved": "Votre modification n'a pas été enregistrée. {reason}",
+    "editSaving": "Enregistrement de la modification",
     "deleted": "Message supprimé",
     "system": "Système",
     "pinned": "Messages épinglés",

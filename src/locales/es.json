@@ -923,6 +923,8 @@
     "cancel": "cancelar",
     "save": "guardar",
     "edited": "editado",
+    "editNotSaved": "Tu edición no se guardó. {reason}",
+    "editSaving": "Guardando edición",
     "deleted": "Mensaje eliminado",
     "system": "Sistema",
     "pinned": "Mensajes fijados",
