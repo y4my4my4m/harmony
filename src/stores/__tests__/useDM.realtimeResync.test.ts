@@ -43,7 +43,7 @@ const h = vi.hoisted(() => {
     hasSubscription: vi.fn(() => false),
     getSubscriptionStatus: vi.fn(() => null),
     unsubscribe: vi.fn(),
-    subscribeToTable: vi.fn((cfg: any) => { subs.push(cfg); return vi.fn() }),
+    subscribeBroadcast: vi.fn((cfg: any) => { subs.push(cfg); return vi.fn() }),
   }
   return {
     handlers, userEventChannel, emit, queries, from, subs, realtimeConnectionManager,
@@ -304,7 +304,7 @@ describe('open conversation channel join', () => {
     const dm = useDMStore()
     dm.conversations = [conversation('c1')] as any
     dm.setCurrentConversation('c1')
-    const unsubscribe = h.realtimeConnectionManager.subscribeToTable.mock.results.at(-1)!.value as ReturnType<typeof vi.fn>
+    const unsubscribe = h.realtimeConnectionManager.subscribeBroadcast.mock.results.at(-1)!.value as ReturnType<typeof vi.fn>
 
     await dm.initializeDMEnvironment('me', true, true, 'immediate')
 

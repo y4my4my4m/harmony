@@ -99,7 +99,7 @@ broadcast_follow_event	definer	trigger	anon+authenticated+service_role	trigger	t
 broadcast_home_feed_entry	definer	trigger	anon+authenticated+service_role	client, trigger	named in src/composables/useFeedRealtime.ts, src/services/UserEventChannel.ts, src/stores/useActivityPub.ts; trigger public.timeline_entries AFTER INSERT (trg_broadcast_home_feed_entry)
 broadcast_key_request_event	definer	trigger	anon+authenticated+service_role	trigger	trigger public.megolm_key_requests AFTER INSERT/UPDATE (trg_broadcast_key_request_event)
 broadcast_membership_event	definer	trigger	anon+authenticated+service_role	trigger	trigger public.server_membership_events AFTER INSERT (trg_broadcast_membership_event)
-broadcast_message_event	definer	trigger	anon+authenticated+service_role	trigger	trigger public.messages AFTER DELETE (trigger_broadcast_message_delete), public.messages AFTER INSERT (trigger_broadcast_message_insert), public.messages AFTER UPDATE (trigger_broadcast_message_update)
+broadcast_message_event	definer	trigger	service_role	trigger	trigger public.messages AFTER DELETE (trigger_broadcast_message_delete), public.messages AFTER INSERT (trigger_broadcast_message_insert), public.messages AFTER UPDATE (trigger_broadcast_message_update)
 broadcast_message_poll_event	definer	void	service_role	client	called by end_message_poll, vote_message_poll
 broadcast_message_reaction_event	definer	trigger	anon+authenticated+service_role	trigger	trigger public.reactions AFTER DELETE (trigger_broadcast_reaction_delete), public.reactions AFTER INSERT (trigger_broadcast_reaction_insert)
 broadcast_notification_delete	definer	trigger	service_role	trigger	trigger public.notifications AFTER DELETE STATEMENT (trg_broadcast_notification_delete)

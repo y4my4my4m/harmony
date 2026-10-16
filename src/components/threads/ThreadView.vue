@@ -317,6 +317,7 @@ import { debug } from '@/utils/debug'
 import { resolveHarmonyBaseUrl } from '@/utils/discordBridgeSetup'
 import { isVideoMessageUrl } from '@/utils/klipyAttribution'
 import { realtimeConnectionManager } from '@/services/RealtimeConnectionManager'
+import { routeMessageEvent, type MessageEventHandlers } from '@/stores/shared/realtimeMessageEvent'
 import {
   useThreadsStore,
   isOptimisticThreadId,
@@ -1328,11 +1329,7 @@ const setupRealtimeSubscription = () => {
 
   const channelName = `thread-messages-${thread.value.id}`
   
-  threadSubscription.value = realtimeConnectionManager.subscribeToTable({
-    channelName,
-    table: 'messages',
-    filter: `thread_id=eq.${thread.value.id}`,
-    
+  const handlers: MessageEventHandlers = {
     onInsert: async (payload) => {
       const payloadNew = payload.new as any
       
@@ -1428,8 +1425,14 @@ const setupRealtimeSubscription = () => {
         debug.log('Thread message deleted via realtime:', payloadOld.id)
       }
     },
+  }
+
+  // broadcast_message_event sends each reply to its thread's topic.
+  threadSubscription.value = realtimeConnectionManager.subscribeBroadcast({
+    channelName,
+    broadcasts: [{ event: 'message_event', handler: (payload) => routeMessageEvent(payload, handlers) }],
   })
-  
+
   debug.log(`Subscribed to thread messages: ${channelName}`)
 }
 

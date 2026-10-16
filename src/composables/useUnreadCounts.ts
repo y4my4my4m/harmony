@@ -226,13 +226,9 @@ export function useUnreadCounts() {
   }
 
   /**
-   * Dual-mode subscription for unread count changes:
-   *
-   * 1. Broadcast - via UserEventChannel (realtime.send() from DB triggers).
-   * 2. postgres_changes fallback - classic CDC, always works.
-   *
-   * Both paths call applyUnreadChange which is naturally idempotent
-   * (same key → same value overwrite), so dedup is implicit.
+   * Unread count changes arrive as 'unread:change' on the user's UserEventChannel
+   * (realtime.send() from DB triggers); a reconnect, focus, visibility change or the
+   * poll refetches. applyUnreadChange is idempotent (same key, same value).
    */
   const setupRealtimeSubscription = async (): Promise<void> => {
     if (sharedUnsubscribe) return
