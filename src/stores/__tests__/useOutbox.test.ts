@@ -617,3 +617,30 @@ describe('outbox image descriptions', () => {
     expect(sent.find((part) => part.fileName === 'plain.png')).not.toHaveProperty('altText')
   })
 })
+
+describe('outbox uploads on an instance with Drive', () => {
+  afterEach(async () => {
+    const { resetDriveAvailability } = await import('@/services/drive/driveService')
+    resetDriveAvailability()
+    vi.mocked(supabase.rpc).mockReset()
+  })
+
+  it('a recording skips the Drive hash lookup; a picked file does not', async () => {
+    const { resetDriveAvailability } = await import('@/services/drive/driveService')
+    resetDriveAvailability()
+    vi.mocked(supabase.rpc).mockImplementation((async (fn: string) =>
+      ({ data: fn === 'drive_find_by_hash' ? [] : {}, error: null })) as never)
+    const outbox = useOutboxStore()
+
+    outbox.enqueue({
+      target: channelTarget, authorId: PROFILE, uploaderId: UID, textParts: [],
+      attachments: [{ ...attachment('voice.webm', 'audio/webm'), reuse: false }],
+    })
+    await vi.waitFor(() => expect(FakeXHR.instances).toHaveLength(1))
+    expect(vi.mocked(supabase.rpc).mock.calls.map(([fn]) => fn)).not.toContain('drive_find_by_hash')
+
+    outbox.enqueue({ target: channelTarget, authorId: PROFILE, uploaderId: UID, textParts: [], attachments: [attachment('k.png')] })
+    await vi.waitFor(() => expect(FakeXHR.instances).toHaveLength(2))
+    expect(vi.mocked(supabase.rpc).mock.calls.map(([fn]) => fn)).toContain('drive_find_by_hash')
+  })
+})

@@ -3,6 +3,7 @@ import { mediaRoom } from '@/services/privateMedia'
 import { useEncryptionFallbackPrompt } from '@/composables/useEncryptionFallbackPrompt'
 import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
+import { sendKeyForChannel, sendKeyForConversation, type SendTurn } from '@/stores/shared/sendOrder'
 
 /** Where a message goes, fixed when the user sends it. */
 export type MessageTarget =
@@ -28,6 +29,15 @@ export interface SendToTargetOptions {
   /** client_nonce of the optimistic row and of the persisted message. */
   clientNonce?: string
   extraMetadata?: Record<string, unknown>
+  /** The target's send turn, taken at Enter (sendOrder.ts); a fresh one when absent. */
+  turn?: SendTurn
+}
+
+/** The send order key of a target. */
+export function targetOrderKey(target: MessageTarget): string {
+  return target.kind === 'channel'
+    ? sendKeyForChannel(target.channelId)
+    : sendKeyForConversation(target.conversationId)
 }
 
 /**
@@ -59,6 +69,7 @@ export async function sendToTarget(
         tempId: options.tempId,
         clientNonce: options.clientNonce,
         extraMetadata: options.extraMetadata,
+        turn: options.turn,
       })
       failed = !sent
       return
@@ -70,7 +81,7 @@ export async function sendToTarget(
       parts,
       replyTo || '',
       options.extraMetadata,
-      { allowPlaintextFallback, tempId: options.tempId, clientNonce: options.clientNonce },
+      { allowPlaintextFallback, tempId: options.tempId, clientNonce: options.clientNonce, turn: options.turn },
     )
     failed = !sent
   }

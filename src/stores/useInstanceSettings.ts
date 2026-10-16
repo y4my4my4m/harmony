@@ -113,6 +113,9 @@ const DEFAULT_SETTINGS: InstanceSettings = {
 
 const CACHE_DURATION = 5 * 60 * 1000
 
+/** The running load; outside state, which must stay serializable. */
+let inflightLoad: Promise<void> | null = null
+
 export const useInstanceSettingsStore = defineStore('instanceSettings', {
   state: (): InstanceSettingsState => ({
     settings: { ...DEFAULT_SETTINGS },
@@ -148,19 +151,26 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
   },
 
   actions: {
-    async fetchSettings(force = false): Promise<void> {
+    /** Resolves when the load settles; a call during a load joins it. */
+    fetchSettings(force = false): Promise<void> {
       if (!force && this.isCacheValid && this.isLoaded) {
         debug.log('Using cached instance settings')
-        return
+        return Promise.resolve()
       }
+      if (this.isLoading && inflightLoad) return inflightLoad
+      inflightLoad = this.loadSettings().finally(() => { inflightLoad = null })
+      return inflightLoad
+    },
 
-      if (this.isLoading) return
-
+    async loadSettings(): Promise<void> {
       this.isLoading = true
 
       try {
         // RLS on instance_config filters to public_instance_config_keys() for
         // regular users; instance admins see all rows (admin panel).
+        // The federation RPC is independent of the table read; both go out at once.
+        const fedRequest = (async () => supabase.rpc('get_public_federation_settings'))()
+        fedRequest.catch(() => {})
         const { data, error } = await supabase
           .from('instance_config')
           .select('config_key, config_value')
@@ -175,7 +185,7 @@ export const useInstanceSettingsStore = defineStore('instanceSettings', {
         }
 
         try {
-          const { data: fedSettings } = await supabase.rpc('get_public_federation_settings')
+          const { data: fedSettings } = await fedRequest
           if (fedSettings) {
             this.settings.federationEnabled = fedSettings.federation_enabled ?? true
             if (fedSettings.enable_inbound_federation !== undefined) {

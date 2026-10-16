@@ -1063,6 +1063,15 @@ export const useAuthStore = defineStore('auth', {
           debug.error('Error resetting view context:', error);
         });
 
+        // Send-path answers and signed media URLs belong to the account that read them.
+        Promise.all([
+          import('@/services/ChannelEncryptionService').then(({ forgetChannelEncryption }) => forgetChannelEncryption()),
+          import('@/services/conversationEncryption').then(({ forgetConversationEncryption }) => forgetConversationEncryption()),
+          import('@/services/privateMedia').then(({ forgetSignedMediaUrls }) => forgetSignedMediaUrls()),
+        ]).catch(error => {
+          debug.error('Error clearing account caches:', error);
+        });
+
         // Lock encryption and clear stored session keys from IndexedDB
         import('@/services/encryption/MegolmMessageEncryptionService').then(async ({ megolmMessageEncryptionService }) => {
           await megolmMessageEncryptionService.lockEncryption();

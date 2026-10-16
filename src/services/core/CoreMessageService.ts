@@ -7,17 +7,18 @@ import { authContextService } from '@/services/AuthContextService'
 import { debug } from '@/utils/debug'
 import { i18n } from '@/i18n'
 import { discordCustomEmojiUrlFromIdentifier, remoteReactionEmojiUrl } from '@/utils/emojiUtils'
-import {
-  DEFAULT_MAX_MESSAGE_TEXT_LENGTH,
-  MESSAGE_TEXT_HARD_CEILING,
-  messageTextLength,
-} from '@/utils/messageContentUtils'
+import { messageTextLength } from '@/utils/messageContentUtils'
+import { messageLimits, type MessageLimits } from '@/services/core/messageLimits'
 import {
   channelEncryptionError,
   channelRequiresEncryption,
+  encryptAfterPlaintextRefusal,
   encryptChannelContent,
   getEncryptionService,
+  isChannelEncryptedRefusal,
+  type EncryptedChannelPayload,
 } from '@/services/core/channelMessageEncryption'
+import { conversationEncryptionEnabled } from '@/services/conversationEncryption'
 import { blockedMessageRejection, moderationRejectionFromError } from '@/services/AutoModService'
 import { mediaRoom, messageMediaPathsIn } from '@/services/privateMedia'
 import { beginHistoryView, historyCutoff, historyViewBegun, recordHistoryCutoff } from '@/services/channelHistoryCutoff'
@@ -69,73 +70,41 @@ export class CoreMessageService {
   // MESSAGE CREATION (PURE LOCAL)
 
   /**
-   * Reads `instance_config.max_message_length`. Falls back to
-   * `DEFAULT_MAX_MESSAGE_TEXT_LENGTH` when the row is missing or
-   * unparseable. Clamped to `[1, MESSAGE_TEXT_HARD_CEILING]`: 0 would
-   * disable the limit, and anything above the ceiling would be rejected by
-   * the DB constraint with a less informative error.
-   */
-  private async getMaxMessageLength(): Promise<number> {
-    const { data } = await supabase
-      .from('instance_config')
-      .select('config_value')
-      .eq('config_key', 'max_message_length')
-      .maybeSingle()
-    const raw = data?.config_value
-    const parsed =
-      typeof raw === 'number'
-        ? raw
-        : typeof raw === 'string'
-          ? parseInt(raw, 10)
-          : NaN
-    const value = !Number.isNaN(parsed) && parsed >= 1
-      ? parsed
-      : DEFAULT_MAX_MESSAGE_TEXT_LENGTH
-    return Math.min(value, MESSAGE_TEXT_HARD_CEILING)
-  }
-
-  /**
-   * Rejects payloads whose combined text length exceeds the soft limit
-   * `instance_config.max_message_length`. Mirrors the check in
-   * `MessageInput.vue`.
+   * Rejects payloads over the soft limits: combined text length over
+   * `instance_config.max_message_length` (mirrors the check in `MessageInput.vue`), and more
+   * file parts than `max_media_attachments_per_post`.
    *
-   * Runs on plaintext content, before encryption, so a modified client
-   * cannot bypass it by re-encrypting an over-limit payload. The DB CHECK
-   * constraint bounds paths that skip this code (direct PostgREST insert,
-   * bot gateway, federation backend) at `MESSAGE_TEXT_HARD_CEILING`.
+   * Runs on plaintext content, before encryption, so a modified client cannot bypass it by
+   * re-encrypting an over-limit payload. enforce_message_length applies the length limit to
+   * plaintext rows at the storage boundary; the DB CHECK constraint bounds every path at
+   * `MESSAGE_TEXT_HARD_CEILING`.
    */
-  private async assertContentWithinLimit(content: MessagePart[]): Promise<void> {
-    const limit = await this.getMaxMessageLength()
+  private assertWithinLimits(content: MessagePart[], limits: MessageLimits): void {
     const len = messageTextLength(content)
-    if (len > limit) {
+    if (len > limits.maxLength) {
       throw this.createError(
         'MESSAGE_TOO_LONG',
-        `Message is too long (${len.toLocaleString()} / ${limit.toLocaleString()} characters).`,
+        `Message is too long (${len.toLocaleString()} / ${limits.maxLength.toLocaleString()} characters).`,
       )
     }
-  }
-
-  // instance_config.max_media_attachments_per_post; defaults to 20.
-  private async getMaxMediaAttachments(): Promise<number> {
-    const { data } = await supabase
-      .from('instance_config')
-      .select('config_value')
-      .eq('config_key', 'max_media_attachments_per_post')
-      .maybeSingle()
-    const v = data?.config_value
-    if (typeof v === 'number' && v >= 1) return v
-    const parsed = typeof v === 'string' ? parseInt(String(v), 10) : NaN
-    return !isNaN(parsed) && parsed >= 1 ? parsed : 20
+    const fileParts = content.filter((p: any) => p?.type === 'file')
+    if (fileParts.length > limits.maxMedia) {
+      throw this.createError('TOO_MANY_ATTACHMENTS', `Maximum ${limits.maxMedia} media attachments per message`)
+    }
   }
 
   /**
    * Inserts a channel message locally. No federation side effects.
    *
-   * The channel's effective encryption (effective_channel_encryption) decides
-   * the payload: an encrypted channel gets ciphertext plus plaintext mention
-   * parts or the send is rejected with ENCRYPTION_REQUIRED and a `reason`
-   * ('setup', 'unlock', 'failed', 'unavailable'); any other channel gets
-   * plaintext. `_options.allowPlaintextFallback` does not apply to channels.
+   * The channel's effective encryption (effective_channel_encryption, as last read) decides
+   * the payload: an encrypted channel gets ciphertext plus plaintext mention parts or the send
+   * is rejected with ENCRYPTION_REQUIRED and a `reason` ('setup', 'unlock', 'failed',
+   * 'unavailable'); any other channel gets plaintext. When the database refuses plaintext
+   * (CHANNEL_ENCRYPTED: the channel was encrypted after the last read), the state is read
+   * again and the message inserted once more, encrypted; a sender who cannot encrypt gets
+   * 'changed'. `_options.allowPlaintextFallback` does not apply to channels.
+   *
+   * A warm send is one request: limits and channel state come from caches.
    */
   async sendChannelMessage(
     serverId: string,
@@ -146,63 +115,48 @@ export class CoreMessageService {
     _options?: SendOptions
   ): Promise<Message> {
     try {
-      // Length check runs BEFORE encryption; otherwise the failure surfaces
-      // as a downstream ciphertext-size error.
-      await this.assertContentWithinLimit(content)
-
-      const fileParts = content.filter((p: any) => p?.type === 'file')
-      const maxMedia = await this.getMaxMediaAttachments()
-      if (fileParts.length > maxMedia) {
-        throw this.createError('TOO_MANY_ATTACHMENTS', `Maximum ${maxMedia} media attachments per message`)
-      }
+      // Both reads start together; the limits are checked first, on plaintext, so an
+      // over-limit message fails as such rather than as a ciphertext-size error.
+      const requiresEncryption = channelRequiresEncryption(channelId)
+      requiresEncryption.catch(() => {})
+      this.assertWithinLimits(content, await messageLimits())
 
       const currentUser = userDataService.getCurrentUser()
       if (!currentUser?.id) {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
-      let finalContent = content
-      let encrypted = false
-      let encryptionMetadata = null
-      let mediaPaths: string[] | null = null
-
-      if (await channelRequiresEncryption(channelId)) {
-        const payload = await encryptChannelContent({
-          serverId,
-          channelId,
-          senderId: currentUser.id,
-          content,
-        })
-        finalContent = payload.content
-        encrypted = true
-        encryptionMetadata = payload.encryption_metadata
-        mediaPaths = payload.media_paths
-      }
-
-      const messageData = {
+      const encryptionParams = { serverId, channelId, senderId: currentUser.id, content }
+      const row = (payload: EncryptedChannelPayload | null) => ({
         user_id: currentUser.id,
         channel_id: channelId,
-        content: finalContent,
+        content: payload ? payload.content : content,
         reply_to: replyTo || null,
-        encrypted,
-        encryption_metadata: encryptionMetadata,
-        ...(mediaPaths ? { media_paths: mediaPaths } : {}),
+        encrypted: !!payload,
+        encryption_metadata: payload ? payload.encryption_metadata : null,
+        ...(payload ? { media_paths: payload.media_paths } : {}),
         metadata: { created_via: 'harmony_client', ...extraMetadata }
-      }
+      })
 
-      debug.log('Inserting message to database:', { ...messageData, content: encrypted ? '[encrypted]' : messageData.content })
-      
+      const encrypt = await requiresEncryption
+      let messageData = row(encrypt ? await encryptChannelContent(encryptionParams) : null)
+
+      debug.log('Inserting message to database:', { ...messageData, content: messageData.encrypted ? '[encrypted]' : messageData.content })
+
       // Array response, not .single(): AutoMod drops a blocked row and the
       // statement returns zero rows. PostgREST rolls a zero-row singular
       // request back, which would discard the AutoMod event and timeout.
-      const { data: rows, error } = await supabase
-        .from('messages')
-        .insert(messageData)
-        .select('*')
+      const insert = () => supabase.from('messages').insert(messageData).select('*')
+      let { data: rows, error } = await insert()
+
+      if (error && !encrypt && isChannelEncryptedRefusal(error)) {
+        messageData = row(await encryptAfterPlaintextRefusal(encryptionParams, error))
+        ;({ data: rows, error } = await insert())
+      }
 
       if (error) {
         debug.error('DATABASE INSERT FAILED:', error)
-        if ((error.message || '').includes('CHANNEL_ENCRYPTED')) {
+        if (isChannelEncryptedRefusal(error)) {
           throw channelEncryptionError('changed', error)
         }
         const rejection = moderationRejectionFromError(error)
@@ -244,13 +198,9 @@ export class CoreMessageService {
   ): Promise<Message> {
     try {
       const allowFallback = options?.allowPlaintextFallback === true
-      await this.assertContentWithinLimit(content)
-
-      const fileParts = content.filter((p: any) => p?.type === 'file')
-      const maxMedia = await this.getMaxMediaAttachments()
-      if (fileParts.length > maxMedia) {
-        throw this.createError('TOO_MANY_ATTACHMENTS', `Maximum ${maxMedia} media attachments per message`)
-      }
+      // Both reads start together; the limits are checked first.
+      const encryptionEnabled = conversationEncryptionEnabled(conversationId)
+      this.assertWithinLimits(content, await messageLimits())
 
       const currentUser = userDataService.getCurrentUser()
       if (!currentUser?.id) {
@@ -262,18 +212,19 @@ export class CoreMessageService {
       let encryptionMetadata = null
       let mediaPaths: string[] | null = null
 
-      const { data: convSettings } = await supabase
-        .from('conversation_encryption_settings')
-        .select('encryption_enabled')
-        .eq('conversation_id', conversationId)
-        .maybeSingle()
+      const conversationEncrypted = await encryptionEnabled
+      debug.log(`Conversation encryption setting: ${conversationEncrypted ? 'enabled' : 'disabled'}`)
 
-      const conversationEncryptionEnabled = convSettings?.encryption_enabled === true
-      debug.log(`Conversation encryption setting: ${conversationEncryptionEnabled ? 'enabled' : 'disabled'}`)
-
-      if (conversationEncryptionEnabled) {
+      if (conversationEncrypted) {
         const encryptionService = await getEncryptionService()
         if (encryptionService && encryptionService.isInitialized()) {
+          // Megolm encrypts to the current room membership; the read runs beside the key check.
+          const participantsRead = Promise.resolve(supabase
+            .from('conversation_participants')
+            .select('user_id')
+            .eq('conversation_id', conversationId)
+            .is('left_at', null))
+          participantsRead.catch(() => {})
           const hasRecoveryKey = await encryptionService.hasRecoveryKey()
           const isUnlocked = encryptionService.isUnlocked()
 
@@ -282,13 +233,9 @@ export class CoreMessageService {
               debug.log('Megolm encryption active - encrypting DM')
               debug.log(`Conversation (room): ${conversationId}`)
 
-              const { data: participants } = await supabase
-                .from('conversation_participants')
-                .select('user_id')
-                .eq('conversation_id', conversationId)
-                .is('left_at', null)
+              const { data: participants } = await participantsRead
 
-              const recipientIds = participants?.map(p => p.user_id) || []
+              const recipientIds: string[] = participants?.map((p: { user_id: string }) => p.user_id) || []
               if (!recipientIds.includes(currentUser.id)) {
                 recipientIds.push(currentUser.id)
               }
@@ -379,13 +326,7 @@ export class CoreMessageService {
     try {
       // Edits are length-checked too; otherwise a short message could be
       // grown past the limit by successive edits.
-      await this.assertContentWithinLimit(newContent)
-
-      const fileParts = newContent.filter((p: any) => p?.type === 'file')
-      const maxMedia = await this.getMaxMediaAttachments()
-      if (fileParts.length > maxMedia) {
-        throw this.createError('TOO_MANY_ATTACHMENTS', `Maximum ${maxMedia} media attachments per message`)
-      }
+      this.assertWithinLimits(newContent, await messageLimits())
 
       const currentUser = userDataService.getCurrentUser()
       if (!currentUser?.id) {
@@ -412,7 +353,7 @@ export class CoreMessageService {
       if (originalMessage.channel_id) {
         // An edit in an encrypted channel is encrypted even when the original
         // predates the channel's encryption.
-        if (wasEncrypted || await channelRequiresEncryption(originalMessage.channel_id)) {
+        if (wasEncrypted || await channelRequiresEncryption(originalMessage.channel_id, { fresh: true })) {
           const { data: channel } = await supabase
             .from('channels')
             .select('server_id')

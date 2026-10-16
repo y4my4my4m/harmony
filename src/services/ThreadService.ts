@@ -6,13 +6,13 @@ import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils'
 import {
   channelEncryptionError,
   channelRequiresEncryption,
+  encryptAfterPlaintextRefusal,
   encryptChannelContent,
+  isChannelEncryptedRefusal,
+  type EncryptedChannelPayload,
 } from '@/services/core/channelMessageEncryption'
-import {
-  DEFAULT_MAX_MESSAGE_TEXT_LENGTH,
-  MESSAGE_TEXT_HARD_CEILING,
-  messageTextLength,
-} from '@/utils/messageContentUtils'
+import { messageTextLength } from '@/utils/messageContentUtils'
+import { messageLimits } from '@/services/core/messageLimits'
 import { blockedMessageRejection, moderationRejectionFromError } from '@/services/AutoModService'
 
 // Thread Types
@@ -819,52 +819,13 @@ class ThreadService {
   }
 
   /**
-   * Fetch max media attachments limit from instance config (default 20)
-   */
-  private async getMaxMediaAttachments(): Promise<number> {
-    const { data } = await supabase
-      .from('instance_config')
-      .select('config_value')
-      .eq('config_key', 'max_media_attachments_per_post')
-      .maybeSingle()
-    const v = data?.config_value
-    if (typeof v === 'number' && v >= 1) return v
-    const parsed = typeof v === 'string' ? parseInt(String(v), 10) : NaN
-    return !isNaN(parsed) && parsed >= 1 ? parsed : 20
-  }
-
-  /**
-   * Fetch the admin-configured max message length from `instance_config`.
-   * Same semantics as `CoreMessageService.getMaxMessageLength` (clamped to
-   * the DB-side hard ceiling so a misconfigured admin value can't push a
-   * row into a state the CHECK constraint will reject).
-   */
-  private async getMaxMessageLength(): Promise<number> {
-    const { data } = await supabase
-      .from('instance_config')
-      .select('config_value')
-      .eq('config_key', 'max_message_length')
-      .maybeSingle()
-    const raw = data?.config_value
-    const parsed =
-      typeof raw === 'number'
-        ? raw
-        : typeof raw === 'string'
-          ? parseInt(raw, 10)
-          : NaN
-    const value = !Number.isNaN(parsed) && parsed >= 1
-      ? parsed
-      : DEFAULT_MAX_MESSAGE_TEXT_LENGTH
-    return Math.min(value, MESSAGE_TEXT_HARD_CEILING)
-  }
-
-  /**
    * Send a message to a thread.
    *
    * Threads inherit their channel's encryption: the parent channel id is the
-   * Megolm room and effective_channel_encryption decides the payload, as in
-   * CoreMessageService.sendChannelMessage. A failure inside an encrypted
-   * channel throws ENCRYPTION_REQUIRED with a `reason`;
+   * Megolm room and effective_channel_encryption, as last read, decides the
+   * payload, as in CoreMessageService.sendChannelMessage, including the
+   * encrypted second insert after a CHANNEL_ENCRYPTED refusal. A failure
+   * inside an encrypted channel throws ENCRYPTION_REQUIRED with a `reason`;
    * `_options.allowPlaintextFallback` does not apply.
    *
    * Returns null when the thread cannot be loaded.
@@ -876,84 +837,80 @@ class ThreadService {
     extraMetadata?: Record<string, any>,
     _options?: { allowPlaintextFallback?: boolean }
   ): Promise<Message | null> {
-    // Limits, identity and thread metadata are independent reads; one round
-    // trip covers them. Limits are checked before encryption and the insert.
-    // `instance_config.max_message_length` is clamped at the DB-side ceiling.
-    const [maxLength, maxMedia, profileId, thread] = await Promise.all([
-      this.getMaxMessageLength(),
-      this.getMaxMediaAttachments(),
+    // Limits, identity and thread metadata are independent reads; a warm send has all three
+    // cached. Limits are checked before encryption and the insert.
+    const [limits, profileId, thread] = await Promise.all([
+      messageLimits(),
       authContextService.getCurrentProfileId(),
       this.getThread(threadId),
     ])
 
     const textLen = messageTextLength(content as any)
-    if (textLen > maxLength) {
+    if (textLen > limits.maxLength) {
       const err: any = new Error(
-        `Message is too long (${textLen.toLocaleString()} / ${maxLength.toLocaleString()} characters).`,
+        `Message is too long (${textLen.toLocaleString()} / ${limits.maxLength.toLocaleString()} characters).`,
       )
       err.code = 'MESSAGE_TOO_LONG'
       throw err
     }
 
     const fileParts = content.filter((p: any) => p?.type === 'file')
-    if (fileParts.length > maxMedia) {
-      throw new Error(`Maximum ${maxMedia} media attachments per message`)
+    if (fileParts.length > limits.maxMedia) {
+      throw new Error(`Maximum ${limits.maxMedia} media attachments per message`)
     }
 
     if (!thread) return null
 
-    let finalContent: any[] = content
-    let encrypted = false
-    let encryptionMetadata: any = null
-    const insertExtra: { media_paths?: string[] } = {}
+    // getThread carries the server id; the channel read covers entries cached without it.
+    const serverIdOf = async (): Promise<string | null> => {
+      const cached: string | null = (thread as any).server_id ?? null
+      if (cached) return cached
+      const { data: channelRow } = await supabase
+        .from('channels')
+        .select('server_id')
+        .eq('id', thread.channel_id)
+        .maybeSingle()
+      return (channelRow as any)?.server_id ?? null
+    }
+    const encryptionParams = async () => ({
+      serverId: await serverIdOf(),
+      channelId: thread.channel_id,
+      senderId: profileId,
+      content,
+    })
+
     const extra: Record<string, any> = { ...(extraMetadata || {}) }
-
-    if (await channelRequiresEncryption(thread.channel_id)) {
-      // getThread carries the server id; the channel read covers entries cached without it.
-      let serverId: string | null = (thread as any).server_id ?? null
-      if (!serverId) {
-        const { data: channelRow } = await supabase
-          .from('channels')
-          .select('server_id')
-          .eq('id', thread.channel_id)
-          .maybeSingle()
-        serverId = (channelRow as any)?.server_id ?? null
+    const row = (payload: EncryptedChannelPayload | null) => {
+      const insertData: any = {
+        thread_id: threadId,
+        channel_id: thread.channel_id,
+        user_id: profileId,
+        content: payload ? payload.content : content,
+        encrypted: !!payload,
+        encryption_metadata: payload ? payload.encryption_metadata : null,
+        ...(payload ? { media_paths: payload.media_paths } : {}),
       }
-
-      const payload = await encryptChannelContent({
-        serverId,
-        channelId: thread.channel_id,
-        senderId: profileId,
-        content,
-      })
-      finalContent = payload.content
-      encrypted = true
-      encryptionMetadata = payload.encryption_metadata
-      insertExtra.media_paths = payload.media_paths
+      if (replyTo) insertData.reply_to = replyTo
+      insertData.metadata = { created_via: 'harmony_client', ...extra }
+      return insertData
     }
 
-    const insertData: any = {
-      thread_id: threadId,
-      channel_id: thread.channel_id,
-      user_id: profileId,
-      content: finalContent,
-      encrypted,
-      encryption_metadata: encryptionMetadata,
-      ...insertExtra,
-    }
-
-    if (replyTo) insertData.reply_to = replyTo
-    insertData.metadata = { created_via: 'harmony_client', ...extra }
+    const encrypt = await channelRequiresEncryption(thread.channel_id)
+    let insertData = row(encrypt ? await encryptChannelContent(await encryptionParams()) : null)
 
     // Array response: AutoMod drops a blocked row (zero rows), and PostgREST
     // rolls a zero-row .single() request back with the AutoMod event in it.
-    const { data: rows, error } = await supabase
-      .from('messages')
-      .insert(insertData)
-      .select()
+    const insert = () => supabase.from('messages').insert(insertData).select()
+    let { data: rows, error } = await insert()
+
+    // The channel was encrypted after the last read of its state.
+    if (error && !encrypt && isChannelEncryptedRefusal(error)) {
+      insertData = row(await encryptAfterPlaintextRefusal(await encryptionParams(), error))
+      ;({ data: rows, error } = await insert())
+    }
 
     if (error) {
-      if ((error.message || '').includes('CHANNEL_ENCRYPTED')) {
+      if (isChannelEncryptedRefusal(error)) {
         throw channelEncryptionError('changed', error)
       }
       const rejection = moderationRejectionFromError(error)

@@ -302,6 +302,7 @@ import { dmCallPermissions } from '@/services/DMCallPermissions'
 import { dmCallRoute, localCallReceivers } from '@/services/dmCallRouting'
 import { authContextService } from '@/services/AuthContextService'
 import { supabase } from '@/supabase'
+import { fetchConversationEncryption } from '@/services/conversationEncryption'
 import { debug } from '@/utils/debug'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { dmConversationIdFromChannel, useCallSwitch } from '@/composables/useCallSwitch'
@@ -435,13 +436,7 @@ async function loadEncryptionStatus() {
     userHasEncryption.value = megolmMessageEncryptionService.isUnlocked()
     debug.log('User has encryption:', userHasEncryption.value)
     
-    const { data } = await supabase
-      .from('conversation_encryption_settings')
-      .select('encryption_enabled')
-      .eq('conversation_id', props.conversation.id)
-      .maybeSingle()
-    
-    encryptionEnabled.value = data?.encryption_enabled === true
+    encryptionEnabled.value = await fetchConversationEncryption(props.conversation.id)
     debug.log('Conversation encryption enabled:', encryptionEnabled.value)
   } catch (error) {
     debug.warn('Failed to load encryption status:', error)

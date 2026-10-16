@@ -164,6 +164,8 @@ export interface FilePreviewData {
   reused?: boolean;
   /** Attached from Drive; uploadedPath names the Drive object. */
   fromDrive?: boolean;
+  /** Recorded in the composer: new bytes, so Drive holds no copy to look up. */
+  recorded?: boolean;
 }
 
 interface Props {

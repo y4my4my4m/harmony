@@ -1,7 +1,7 @@
 import { reactive, shallowReactive } from 'vue'
 import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from '@/supabase'
 import { i18n } from '@/i18n'
-import { humanizeUploadError, validateImageUpload } from '@/utils/uploadValidation'
+import { getBucketLimits, humanizeUploadError, validateImageUpload } from '@/utils/uploadValidation'
 import {
   MESSAGE_MEDIA_BUCKET,
   compatUrlFor,
@@ -97,6 +97,15 @@ export function forgetMessageMediaUpload(path: string | null | undefined): void 
   if (path) states.delete(path)
 }
 
+/**
+ * Starts the once-per-session reads an upload makes before its bytes (bucket limits, the Drive
+ * probe), so the first attachment waits on neither.
+ */
+export function prepareMessageMediaUploads(): void {
+  void getBucketLimits(MESSAGE_MEDIA_BUCKET).catch(() => {})
+  void driveAvailable()
+}
+
 /** Drops every upload state; sign-out. Running requests are aborted by their owners. */
 export function resetMessageMediaUploads(): void {
   states.clear()
@@ -169,9 +178,11 @@ export function startMessageMediaUpload(
 
   const transfer = async (): Promise<string | null> => {
     if (!isMessageMediaPath(path)) throw new Error('Attachments need a channel or conversation')
+    // Validation (bucket limits) and the Drive probe are independent reads, once per session each.
+    const drive = driveAvailable()
     if (options.validate) await validateChatUpload(file)
     const metadata: DriveUploadMetadata = {}
-    if (await driveAvailable()) {
+    if (await drive) {
       metadata.sha256 = await sha256OfBlob(file)
       if (options.name) metadata.name = options.name
       if (options.ephemeral) metadata.ephemeral = true

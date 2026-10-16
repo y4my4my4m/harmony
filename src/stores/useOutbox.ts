@@ -68,6 +68,8 @@ export interface OutboxAttachment {
   temporary?: boolean
   /** Drive name of an upload the outbox starts; absent for encrypted rooms. */
   driveName?: string
+  /** False for new bytes (a recording): the upload skips the Drive hash lookup. */
+  reuse?: boolean
 }
 
 export interface OutboxRequest {
@@ -90,6 +92,7 @@ export interface OutboxFile {
   /** Upload options of an upload the outbox starts. */
   temporary?: boolean
   driveName?: string
+  reuse?: boolean
   name: string
   /** Name the object name's extension derives from. */
   sourceName: string
@@ -266,6 +269,7 @@ export const useOutboxStore = defineStore('outbox', () => {
       ...(attachment.altText?.trim() ? { altText: attachment.altText.trim() } : {}),
       ...(attachment.temporary ? { temporary: true } : {}),
       ...(attachment.driveName ? { driveName: attachment.driveName } : {}),
+      ...(attachment.reuse === false ? { reuse: false } : {}),
     }
     const handle = attachment.upload
     if (attachment.uploadedPath && attachment.uploadedUrl) {
@@ -332,6 +336,7 @@ export const useOutboxStore = defineStore('outbox', () => {
         validate: true,
         name: file.driveName,
         ephemeral: file.temporary,
+        reuse: file.reuse,
       }))
       const id = job.id
       file.upload.state.cancel = () => discard(id)

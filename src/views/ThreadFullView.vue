@@ -275,6 +275,8 @@ import type { Message, MessagePart, Emoji, Gif } from '@/types'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 import type { FilePreviewData } from '@/components/FilePreview.vue'
 import { attachmentParts, mediaRoom } from '@/services/privateMedia'
+import { insertMessageSorted } from '@/stores/shared/messageCacheUtils'
+import { sendKeyForThread, takeSendTurn } from '@/stores/shared/sendOrder'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 
 // Props
@@ -351,7 +353,6 @@ const isMember = ref(true)
 const isMuted = ref(false)
 const showOptions = ref(false)
 const messageText = ref('')
-const sending = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
 const threadSubscription = ref<(() => void) | null>(null)
 const reactionsSubscription = ref<(() => void) | null>(null)
@@ -625,7 +626,7 @@ const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
 
 const handleSendMessage = async (content: string, files: FilePreviewData[] = [], replyMessageId?: string) => {
   // Allow sending if we have content OR files
-  if ((!content.trim() && files.length === 0) || sending.value || !thread.value) return
+  if ((!content.trim() && files.length === 0) || !thread.value) return
   
   // MessageInput emits only once every upload finished; an unfinished attachment
   // is refused here rather than left out of the message.
@@ -634,7 +635,8 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
     return
   }
   
-  sending.value = true
+  // Taken before parsing: replies leave in the order they were typed.
+  const turn = takeSendTurn(threadOrderKey())
   
   try {
     const messageParts: MessagePart[] = []
@@ -652,19 +654,19 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
       const targetThreadId = thread.value.id
       const sendResult = await runWithEncryptionFallback(
         ({ allowPlaintextFallback }) =>
-          threadService.sendThreadMessage(
+          turn.run(() => threadService.sendThreadMessage(
             targetThreadId,
             messageParts,
             replyMessageId || replyingToMessageId.value || undefined,
             undefined,
             { allowPlaintextFallback },
-          ),
+          )),
         { scope: 'thread', contextKey: `thread:${targetThreadId}` },
       )
 
       if (sendResult.status === 'ok' && sendResult.result) {
         const newMessage = sendResult.result
-        messages.value.push(newMessage)
+        addSentReply(newMessage)
         threadService.addMessageToCache(targetThreadId, newMessage)
         messageText.value = ''
         replyingToMessageId.value = ''
@@ -679,8 +681,17 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
   } catch (error) {
     debug.error('Failed to send message:', error)
   } finally {
-    sending.value = false
+    turn.release()
   }
+}
+
+/** Send order key of the thread: its parent message, as in ThreadView. */
+const threadOrderKey = (): string =>
+  sendKeyForThread(thread.value?.parent_message_id || thread.value?.id || '')
+
+/** A reply this client sent, by the server's created_at; realtime may have added it already. */
+const addSentReply = (message: Message) => {
+  if (!messages.value.some(m => m.id === message.id)) insertMessageSorted(messages.value, message)
 }
 
 const scrollToBottom = () => {
@@ -765,7 +776,7 @@ watch(mediaPickerOpen, () => {
 const handleSendVoiceMessage = async (data: { url: string, path: string, duration: number, waveform: number[], mimeType: string }) => {
   if (!thread.value) return
 
-  sending.value = true
+  const turn = takeSendTurn(threadOrderKey())
   try {
     const messageParts: MessagePart[] = [{
       type: 'file',
@@ -785,15 +796,15 @@ const handleSendVoiceMessage = async (data: { url: string, path: string, duratio
     const targetThreadId = thread.value.id
     const sendResult = await runWithEncryptionFallback(
       ({ allowPlaintextFallback }) =>
-        threadService.sendThreadMessage(targetThreadId, messageParts, undefined, voiceMetadata, {
+        turn.run(() => threadService.sendThreadMessage(targetThreadId, messageParts, undefined, voiceMetadata, {
           allowPlaintextFallback,
-        }),
+        })),
       { scope: 'thread', contextKey: `thread:${targetThreadId}` },
     )
 
     if (sendResult.status === 'ok' && sendResult.result) {
       const newMessage = sendResult.result
-      messages.value.push(newMessage)
+      addSentReply(newMessage)
       threadService.addMessageToCache(targetThreadId, newMessage)
       await nextTick()
       scrollToBottom()
@@ -803,7 +814,7 @@ const handleSendVoiceMessage = async (data: { url: string, path: string, duratio
   } catch (error) {
     debug.error('Error sending voice message in thread:', error)
   } finally {
-    sending.value = false
+    turn.release()
   }
 }
 
@@ -813,7 +824,7 @@ const handleSendGif = async (gif: Gif) => {
   
   if (!thread.value) return
   
-  sending.value = true
+  const turn = takeSendTurn(threadOrderKey())
   try {
     const messageParts: MessagePart[] = [{
       type: 'file',
@@ -824,15 +835,15 @@ const handleSendGif = async (gif: Gif) => {
     const targetThreadId = thread.value.id
     const sendResult = await runWithEncryptionFallback(
       ({ allowPlaintextFallback }) =>
-        threadService.sendThreadMessage(targetThreadId, messageParts, replyingToMessageId.value || undefined, undefined, {
+        turn.run(() => threadService.sendThreadMessage(targetThreadId, messageParts, replyingToMessageId.value || undefined, undefined, {
           allowPlaintextFallback,
-        }),
+        })),
       { scope: 'thread', contextKey: `thread:${targetThreadId}` },
     )
 
     if (sendResult.status === 'ok' && sendResult.result) {
       const newMessage = sendResult.result
-      messages.value.push(newMessage)
+      addSentReply(newMessage)
       threadService.addMessageToCache(targetThreadId, newMessage)
       replyingToMessageId.value = ''
       replyingToUserName.value = ''
@@ -845,7 +856,7 @@ const handleSendGif = async (gif: Gif) => {
   } catch (error) {
     debug.error('Failed to send GIF:', error)
   } finally {
-    sending.value = false
+    turn.release()
   }
 }
 

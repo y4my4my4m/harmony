@@ -19,7 +19,12 @@ import { driveAvailable, getDriveFileStatus } from '@/services/drive/driveServic
  * Viewers sign paths through storage RLS (room membership) and cache the result
  * here. Resolution is lazy: a render that reads an unresolved path queues it, one
  * createSignedUrls call per tick signs the queue, and the reactive cache
- * re-renders the reader.
+ * re-renders the reader. A thumbnail is signed on its own: storage-api's bulk sign
+ * takes no transform, and the render endpoint reads the transformation from the token.
+ *
+ * Signed URLs are also kept in localStorage until shortly before they expire, so a
+ * reload or a restart neither signs again nor misses the browser's cache of the
+ * image under its URL. Sign-out drops them.
  */
 
 export const MESSAGE_MEDIA_BUCKET = 'message_media'
@@ -168,12 +173,71 @@ interface CacheEntry {
 }
 
 const entries = shallowReactive(new Map<string, CacheEntry>())
+
+const PERSIST_KEY = 'harmony.signedMediaUrls'
+/** Entries kept across reloads; about 0.5 KB each. */
+const PERSIST_MAX = 2000
+/** Writes coalesce for this long, ms. */
+const PERSIST_DELAY_MS = 2000
+let persistTimer: ReturnType<typeof setTimeout> | null = null
+
+/** [cache key, URL, expiresAt ms] */
+type PersistedEntry = [string, string, number]
+
+function loadPersisted(): void {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(PERSIST_KEY) : null
+    if (!raw) return
+    const now = Date.now()
+    for (const [key, url, expiresAt] of JSON.parse(raw) as PersistedEntry[]) {
+      if (typeof key === 'string' && typeof url === 'string' && expiresAt - now >= REFRESH_MARGIN_MS) {
+        entries.set(key, { url, expiresAt })
+      }
+    }
+  } catch {
+    /* storage blocked or corrupt; signing starts empty */
+  }
+}
+
+function writePersisted(): void {
+  persistTimer = null
+  try {
+    const now = Date.now()
+    const kept: PersistedEntry[] = []
+    for (const [key, entry] of entries) {
+      if (entry.url && entry.expiresAt - now >= REFRESH_MARGIN_MS) kept.push([key, entry.url, entry.expiresAt])
+    }
+    kept.sort((a, b) => b[2] - a[2])
+    localStorage.setItem(PERSIST_KEY, JSON.stringify(kept.slice(0, PERSIST_MAX)))
+  } catch {
+    /* quota or blocked storage: the in-memory cache still serves this session */
+  }
+}
+
+function schedulePersist(): void {
+  if (persistTimer || typeof localStorage === 'undefined') return
+  persistTimer = setTimeout(writePersisted, PERSIST_DELAY_MS)
+}
+
+/** Sign-out: forgets every signed URL, in memory and in localStorage. */
+export function forgetSignedMediaUrls(): void {
+  entries.clear()
+  if (persistTimer) clearTimeout(persistTimer)
+  persistTimer = null
+  try {
+    localStorage.removeItem(PERSIST_KEY)
+  } catch {
+    /* blocked storage holds nothing */
+  }
+}
 const queued: Record<MediaVariant, Set<string>> = { original: new Set(), thumbnail: new Set() }
 const inflight = new Set<string>()
 const waiters = new Map<string, Array<() => void>>()
 let flushScheduled = false
 
 const cacheKey = (variant: MediaVariant, path: string) => `${variant}:${path}`
+
+loadPersisted()
 
 /** 'trashed' is in its owner's trash: unreadable to others until restored. */
 export type GoneReason = 'expired' | 'deleted' | 'removed' | 'trashed'
@@ -207,6 +271,7 @@ function effectiveVariant(path: string, variant: MediaVariant): MediaVariant {
 
 function settle(key: string, entry: CacheEntry): void {
   entries.set(key, entry)
+  if (entry.url) schedulePersist()
   inflight.delete(key)
   const pending = waiters.get(key)
   if (pending) {
@@ -468,11 +533,12 @@ export function reportMediaPartError(part: MediaPartLike | null | undefined, var
 /** Records a URL signed elsewhere (the uploader's compat URL). */
 export function primeMediaPartSource(path: string, url: string, ttlSeconds: number): void {
   entries.set(cacheKey('original', path), { url, expiresAt: Date.now() + ttlSeconds * 1000 })
+  schedulePersist()
 }
 
 /** Test hook: drops every cached and queued entry. */
 export function resetMediaPartSources(): void {
-  entries.clear()
+  forgetSignedMediaUrls()
   queued.original.clear()
   queued.thumbnail.clear()
   inflight.clear()
