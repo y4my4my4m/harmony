@@ -84,12 +84,14 @@ async function attachAndSend(page: Page, log: Logged[], name: string, text: stri
 }
 
 const isUsageMeter = (r: Logged) => r.url.includes('/rpc/get_my_drive_usage')
+// The list's read marker for the row just shown; not on the upload or send path.
+const isReadMarker = (r: Logged) => /\/rpc\/mark_(channel|conversation)_as_read/.test(r.url)
 const isObjectPost = (r: Logged) => r.method === 'POST' && /\/storage\/v1\/object\/message_media\//.test(r.url)
 const isSign = (r: Logged) => r.method === 'POST' && r.url.includes('/storage/v1/object/sign/message_media/')
 const isMessageInsert = (r: Logged) => r.method === 'POST' && /\/rest\/v1\/messages(\?|$)/.test(r.url)
 
 function expectUploadChain(upload: Logged[]) {
-  const chain = upload.filter((r) => !isUsageMeter(r))
+  const chain = upload.filter((r) => !isUsageMeter(r) && !isReadMarker(r))
   expect(chain.map((r) => isObjectPost(r) ? 'upload' : isSign(r) ? 'sign' : r.url.replace(/^.*\/v1\//, '')),
     describe(upload)).toEqual(['rpc/drive_find_by_hash', 'upload', 'sign'])
 }
@@ -97,7 +99,7 @@ function expectUploadChain(upload: Logged[]) {
 function expectSendIsTheInsert(send: Logged[]) {
   const inserts = send.filter(isMessageInsert)
   expect(inserts, describe(send)).toHaveLength(1)
-  expect(send.slice(0, send.indexOf(inserts[0])), describe(send)).toEqual([])
+  expect(send.slice(0, send.indexOf(inserts[0])).filter((r) => !isReadMarker(r)), describe(send)).toEqual([])
 }
 
 test('an attachment uploads and sends with the fewest serial requests', async ({ page }) => {
