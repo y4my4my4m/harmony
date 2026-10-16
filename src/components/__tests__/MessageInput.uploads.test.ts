@@ -65,6 +65,7 @@ vi.mock('@/services/messageMediaUpload', async () => {
   return {
     UploadAbortedError: class extends Error {},
     forgetMessageMediaUpload: vi.fn(),
+    prepareMessageMediaUploads: vi.fn(),
     startMessageMediaUpload: vi.fn((path: string) => {
       let resolve!: (value: { path: string; url: string }) => void
       let reject!: (error: Error) => void

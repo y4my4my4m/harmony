@@ -62,7 +62,18 @@ vi.mock('@/services/encryption/MegolmMessageEncryptionService', () => ({
   },
 }))
 
+const limits = { maxLength: 2000, maxMedia: 20 }
+vi.mock('@/services/core/messageLimits', () => ({
+  messageLimits: vi.fn(async () => ({ ...limits })),
+}))
+
 import { CoreMessageService } from '@/services/core/CoreMessageService'
+import { forgetChannelEncryption } from '@/services/ChannelEncryptionService'
+import { forgetConversationEncryption } from '@/services/conversationEncryption'
+
+const CHANNEL_ENCRYPTED = {
+  message: 'CHANNEL_ENCRYPTED: this channel is end-to-end encrypted and rejects plaintext messages',
+}
 
 // Tiny chainable mock for supabase.from(...).select(...).eq(...).maybeSingle()
 // and supabase.from('messages').insert(...).select('*'), awaited as an array
@@ -71,23 +82,36 @@ function setupSupabase({
   channelEncrypted,
   rpcError,
   conversationEnabled,
-  maxMediaConfig,
   insertedMessage,
   insertError,
   insertDropped,
   blockNotice,
+  refusePlaintext,
 }: {
   channelEncrypted?: boolean
   rpcError?: boolean
   conversationEnabled?: boolean
-  maxMediaConfig?: number
   insertedMessage?: any
   insertError?: { message: string }
   /** Channel insert returns no row, as when AutoMod drops it. */
   insertDropped?: boolean
   blockNotice?: any
+  /** A plaintext channel row fails as enforce_channel_message_encryption() fails it. */
+  refusePlaintext?: boolean
 } = {}) {
+  /** enforce_conversation_message_encryption(): unconsented plaintext into an encrypted conversation. */
+  const conversationRefusal = (row: any) =>
+    row.conversation_id && state.conversationEnabled && !row.encrypted
+      && row.metadata?.plaintext_override?.authorized !== true
+      ? { message: 'CONVERSATION_ENCRYPTED: this conversation is end-to-end encrypted and rejects plaintext messages' }
+      : undefined
   const insertedRows: any[] = []
+  /** Mutable after setup: what the database answers from then on. */
+  const state = {
+    channelEncrypted: channelEncrypted === true,
+    conversationEnabled: conversationEnabled === true,
+    refusePlaintext: refusePlaintext === true,
+  }
 
   ;(supabase.rpc as any).mockImplementation((fn: string, args: any) => {
     if (fn === 'get_automod_block_notice') return Promise.resolve({ data: blockNotice ?? null, error: null })
@@ -97,11 +121,11 @@ function setupSupabase({
       data: {
         channel_id: args.p_channel_id,
         server_id: SERVER_ID,
-        server_mode: channelEncrypted ? 'optional' : 'disabled',
+        server_mode: state.channelEncrypted ? 'optional' : 'disabled',
         voice_mode: 'disabled',
-        messages_encrypted: channelEncrypted === true,
+        messages_encrypted: state.channelEncrypted,
         voice_encrypted: false,
-        messages_locked: !channelEncrypted,
+        messages_locked: !state.channelEncrypted,
         voice_locked: true,
         history_visibility: 'joined',
         bot_count: 0,
@@ -112,24 +136,12 @@ function setupSupabase({
   })
 
   ;(supabase.from as any).mockImplementation((table: string) => {
-    if (table === 'instance_config') {
-      return {
-        select: () => ({
-          eq: () => ({
-            maybeSingle: () => Promise.resolve({
-              data: { config_value: maxMediaConfig ?? 20 },
-              error: null,
-            }),
-          }),
-        }),
-      }
-    }
     if (table === 'conversation_encryption_settings') {
       return {
         select: () => ({
           eq: () => ({
             maybeSingle: () => Promise.resolve({
-              data: conversationEnabled ? { encryption_enabled: true } : null,
+              data: state.conversationEnabled ? { encryption_enabled: true } : null,
               error: null,
             }),
           }),
@@ -155,13 +167,16 @@ function setupSupabase({
         insert: (row: any) => {
           insertedRows.push(row)
           const one = insertedMessage ?? { id: 'msg-1', ...row }
+          const error = insertError ?? (state.refusePlaintext && row.channel_id && !row.encrypted
+            ? CHANNEL_ENCRYPTED
+            : conversationRefusal(row))
           return {
             select: () => ({
-              single: () => Promise.resolve(insertError
-                ? { data: null, error: insertError }
+              single: () => Promise.resolve(error
+                ? { data: null, error }
                 : { data: one, error: null }),
-              then: (resolve: any) => resolve(insertError
-                ? { data: null, error: insertError }
+              then: (resolve: any) => resolve(error
+                ? { data: null, error }
                 : { data: insertDropped ? [] : [one], error: null }),
             }),
           }
@@ -171,7 +186,15 @@ function setupSupabase({
     throw new Error(`Unhandled table in test mock: ${table}`)
   })
 
-  return { insertedRows }
+  return { insertedRows, state }
+}
+
+/** Calls the send made of PostgREST, other than the insert itself. */
+function readsBesideInsert(): string[] {
+  const tables = (supabase.from as any).mock.calls.map(([table]: [string]) => table)
+    .filter((table: string) => table !== 'messages')
+  const rpcs = (supabase.rpc as any).mock.calls.map(([fn]: [string]) => `rpc:${fn}`)
+  return [...tables, ...rpcs]
 }
 
 describe('CoreMessageService - encryption policy (fail-closed by default)', () => {
@@ -179,6 +202,10 @@ describe('CoreMessageService - encryption policy (fail-closed by default)', () =
 
   beforeEach(() => {
     vi.clearAllMocks()
+    forgetChannelEncryption()
+    forgetConversationEncryption()
+    limits.maxLength = 2000
+    limits.maxMedia = 20
     service = CoreMessageService.getInstance()
     encState = {
       hasService: true,
@@ -363,6 +390,7 @@ describe('CoreMessageService - encryption policy (fail-closed by default)', () =
       await service.sendDMMessage(CONVERSATION_ID, parts)
       expect(insertedRows[0].media_paths).toEqual([path])
 
+      forgetConversationEncryption()
       const plain = setupSupabase({ conversationEnabled: false })
       await service.sendDMMessage(CONVERSATION_ID, parts)
       expect(plain.insertedRows[0]).not.toHaveProperty('media_paths')
@@ -409,6 +437,174 @@ describe('CoreMessageService - encryption policy (fail-closed by default)', () =
       await expect(
         service.sendDMMessage(CONVERSATION_ID, [{ type: 'text', text: 'hello?' }] as any),
       ).rejects.toMatchObject({ code: 'RECIPIENT_DELETED' })
+    })
+  })
+
+  describe('round trips', () => {
+    const hi = [{ type: 'text', text: 'hi' }] as any
+
+    it('a second channel send reads nothing before the insert', async () => {
+      const { insertedRows } = setupSupabase({ channelEncrypted: false })
+      await service.sendChannelMessage(SERVER_ID, CHANNEL_ID, hi)
+      vi.clearAllMocks()
+
+      await service.sendChannelMessage(SERVER_ID, CHANNEL_ID, hi)
+
+      expect(insertedRows).toHaveLength(2)
+      expect(readsBesideInsert()).toEqual([])
+    })
+
+    it('a channel the server-structure broadcast reports changed is read again', async () => {
+      setupSupabase({ channelEncrypted: false })
+      await service.sendChannelMessage(SERVER_ID, CHANNEL_ID, hi)
+      window.dispatchEvent(new CustomEvent('server-structure:settings-change', {
+        detail: { table: 'channel_encryption_settings', new: { channel_id: CHANNEL_ID, messages_encrypted: true } },
+      }))
+      vi.clearAllMocks()
+
+      await service.sendChannelMessage(SERVER_ID, CHANNEL_ID, hi)
+
+      expect(readsBesideInsert()).toEqual(['rpc:effective_channel_encryption'])
+    })
+
+    it('re-sends encrypted once when the database refuses plaintext into a channel encrypted since the last read', async () => {
+      const { insertedRows, state } = setupSupabase({ channelEncrypted: false })
+      await service.sendChannelMessage(SERVER_ID, CHANNEL_ID, hi)
+      insertedRows.length = 0
+      state.channelEncrypted = true
+      state.refusePlaintext = true
+
+      const sent = await service.sendChannelMessage(SERVER_ID, CHANNEL_ID, hi)
+
+      expect(insertedRows.map((row) => row.encrypted)).toEqual([false, true])
+      expect(insertedRows[1].content).toEqual([{ type: 'text', text: 'CIPHERTEXT' }])
+      expect(sent).toMatchObject({ encrypted: true })
+
+      // The re-read answer is kept: the next send encrypts without a refusal.
+      insertedRows.length = 0
+      await service.sendChannelMessage(SERVER_ID, CHANNEL_ID, hi)
+      expect(insertedRows.map((row) => row.encrypted)).toEqual([true])
+    })
+
+    it('keeps the changed refusal when the sender cannot encrypt the re-send', async () => {
+      const { insertedRows, state } = setupSupabase({ channelEncrypted: false })
+      await service.sendChannelMessage(SERVER_ID, CHANNEL_ID, hi)
+      insertedRows.length = 0
+      state.channelEncrypted = true
+      state.refusePlaintext = true
+      encState.isUnlocked = false
+
+      await expect(service.sendChannelMessage(SERVER_ID, CHANNEL_ID, hi))
+        .rejects.toMatchObject({ code: 'ENCRYPTION_REQUIRED', reason: 'changed' })
+      expect(insertedRows.map((row) => row.encrypted)).toEqual([false])
+    })
+
+    it('checks the limits before the channel state, with the limits read from the store', async () => {
+      setupSupabase({ rpcError: true })
+      limits.maxLength = 3
+
+      await expect(service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [{ type: 'text', text: 'four' }] as any))
+        .rejects.toMatchObject({ code: 'MESSAGE_TOO_LONG' })
+
+      limits.maxLength = 2000
+      limits.maxMedia = 1
+      const file = { type: 'file', fileType: 'image', url: 'https://example.test/a.png' }
+      await expect(service.sendChannelMessage(SERVER_ID, CHANNEL_ID, [file, file] as any))
+        .rejects.toMatchObject({ code: 'TOO_MANY_ATTACHMENTS' })
+    })
+
+    it('a second DM send reads nothing before the insert', async () => {
+      const { insertedRows } = setupSupabase({ conversationEnabled: false })
+      await service.sendDMMessage(CONVERSATION_ID, hi)
+      vi.clearAllMocks()
+
+      await service.sendDMMessage(CONVERSATION_ID, hi)
+
+      expect(insertedRows).toHaveLength(2)
+      expect(readsBesideInsert()).toEqual([])
+    })
+
+    it('re-sends encrypted once when the database refuses plaintext into a conversation encrypted since the last read', async () => {
+      const { insertedRows, state } = setupSupabase({ conversationEnabled: false })
+      await service.sendDMMessage(CONVERSATION_ID, hi)
+      state.conversationEnabled = true
+      insertedRows.length = 0
+      vi.clearAllMocks()
+
+      const sent = await service.sendDMMessage(CONVERSATION_ID, hi)
+
+      expect(insertedRows.map((row) => row.encrypted)).toEqual([false, true])
+      expect(sent).toMatchObject({ encrypted: true })
+      expect(readsBesideInsert()).toEqual(['conversation_encryption_settings', 'conversation_participants'])
+
+      // The re-read answer is kept: the next send encrypts without a refusal.
+      insertedRows.length = 0
+      await service.sendDMMessage(CONVERSATION_ID, hi)
+      expect(insertedRows.map((row) => row.encrypted)).toEqual([true])
+    })
+
+    it('a sender who cannot encrypt the re-send gets the encryption-required refusal', async () => {
+      const { insertedRows, state } = setupSupabase({ conversationEnabled: false })
+      await service.sendDMMessage(CONVERSATION_ID, hi)
+      state.conversationEnabled = true
+      encState.isUnlocked = false
+      insertedRows.length = 0
+
+      await expect(service.sendDMMessage(CONVERSATION_ID, hi)).rejects.toMatchObject({ code: 'ENCRYPTION_LOCKED' })
+      expect(insertedRows.map((row) => row.encrypted)).toEqual([false])
+    })
+
+    it('a consented plaintext re-send carries the override the database accepts', async () => {
+      const { insertedRows, state } = setupSupabase({ conversationEnabled: false })
+      await service.sendDMMessage(CONVERSATION_ID, hi)
+      state.conversationEnabled = true
+      encState.isUnlocked = false
+      insertedRows.length = 0
+
+      await service.sendDMMessage(CONVERSATION_ID, hi, undefined, { allowPlaintextFallback: true })
+      expect(insertedRows.map((row) => row.metadata?.plaintext_override?.authorized ?? false)).toEqual([false, true])
+    })
+
+    it('a conversation:encryption notice answers the next DM send', async () => {
+      const { insertedRows, state } = setupSupabase({ conversationEnabled: false })
+      await service.sendDMMessage(CONVERSATION_ID, hi)
+      state.conversationEnabled = true
+      window.dispatchEvent(new CustomEvent('dm-encryption-toggled', {
+        detail: { conversationId: CONVERSATION_ID, enabled: true },
+      }))
+      insertedRows.length = 0
+
+      await service.sendDMMessage(CONVERSATION_ID, hi)
+      expect(insertedRows.map((row) => row.encrypted)).toEqual([true])
+    })
+
+    it('this client\'s toggle answers the next DM send', async () => {
+      const { insertedRows } = setupSupabase({ conversationEnabled: false })
+      await service.sendDMMessage(CONVERSATION_ID, hi)
+      window.dispatchEvent(new CustomEvent('dm-encryption-toggled', {
+        detail: { conversationId: CONVERSATION_ID, enabled: true },
+      }))
+      vi.clearAllMocks()
+      insertedRows.length = 0
+
+      await service.sendDMMessage(CONVERSATION_ID, hi)
+
+      expect(insertedRows.map((row) => row.encrypted)).toEqual([true])
+      expect(readsBesideInsert()).toEqual(['conversation_participants'])
+    })
+
+    it('sign-out drops the answers', async () => {
+      setupSupabase({ channelEncrypted: false, conversationEnabled: false })
+      await service.sendChannelMessage(SERVER_ID, CHANNEL_ID, hi)
+      await service.sendDMMessage(CONVERSATION_ID, hi)
+      forgetChannelEncryption()
+      forgetConversationEncryption()
+      vi.clearAllMocks()
+
+      await service.sendChannelMessage(SERVER_ID, CHANNEL_ID, hi)
+      await service.sendDMMessage(CONVERSATION_ID, hi)
+
+      expect(readsBesideInsert()).toEqual(['conversation_encryption_settings', 'rpc:effective_channel_encryption'])
     })
   })
 

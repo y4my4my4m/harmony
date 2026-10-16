@@ -548,6 +548,7 @@ export interface Message {
   }; // for federated messages and other metadata
   sending?: boolean; // local state: true while message is being sent to server
   failed?: boolean; // local state: true when message failed to send after retries
+  edit_pending?: boolean; // local state: true while an edit shown on screen is being saved
   // Pinning
   is_pinned?: boolean;
   pinned_at?: string;

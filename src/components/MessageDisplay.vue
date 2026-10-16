@@ -542,9 +542,11 @@
             />
             <!-- Edited indicator for messages with headers -->
             <span 
-              v-if="isMessageEdited(item.message)" 
+              v-if="isMessageEdited(item.message) || item.message.edit_pending" 
               class="edited-indicator inline"
-              :title="item.message.updated_at ? `Edited at ${formatTimestamp(item.message.updated_at)}` : 'Edited'"
+              :class="{ 'edit-pending': item.message.edit_pending }"
+              :data-testid="item.message.edit_pending ? 'edit-pending' : undefined"
+              :title="item.message.edit_pending ? t('message.editSaving') : item.message.updated_at ? `Edited at ${formatTimestamp(item.message.updated_at)}` : 'Edited'"
             >({{ $t('message.edited') }})</span>
           </div>
         </div>
@@ -583,9 +585,11 @@
             />
             <!-- Edited indicator for compact messages -->
             <span 
-              v-if="isMessageEdited(item.message)" 
+              v-if="isMessageEdited(item.message) || item.message.edit_pending" 
               class="edited-indicator compact"
-              :title="item.message.updated_at ? `Edited at ${formatTimestamp(item.message.updated_at)}` : 'Edited'"
+              :class="{ 'edit-pending': item.message.edit_pending }"
+              :data-testid="item.message.edit_pending ? 'edit-pending' : undefined"
+              :title="item.message.edit_pending ? t('message.editSaving') : item.message.updated_at ? `Edited at ${formatTimestamp(item.message.updated_at)}` : 'Edited'"
             >({{ $t('message.edited') }})</span>
           </div>
         </div>
@@ -812,6 +816,9 @@ import { ensureMediaPartSources, isPrivateMediaPart, mediaLoadKey, mediaPartSour
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useChatStore } from '@/stores/useChat';
 import { useDMStore } from '@/stores/useDM';
+import { saveEditOptimistically } from '@/stores/shared/optimisticEdit';
+import { services } from '@/services';
+import { ensureMessageEmbeds } from '@/utils/messageEmbedUtils';
 import { useOutboxStore } from '@/stores/useOutbox';
 import { isOptimisticId } from '@/stores/shared/optimisticMessages';
 import { useAuthStore } from '@/stores/auth';
@@ -894,7 +901,7 @@ import { messageSpeechText } from '@/utils/a11y/messageSpeech';
 import { currentFocusOrigin, focusElement } from '@/utils/a11y/focus';
 import { hasOpenLayer, resolveFocusOrigin } from '@/utils/a11y/layers';
 import { useThreadsStore } from '@/stores/useThreads';
-import type { ThreadWithDetails } from '@/services/ThreadService';
+import { threadService, type ThreadWithDetails } from '@/services/ThreadService';
 import { messagePartsToMarkdown, isSingleEmojiMessage as checkSingleEmoji, stripLeadingSelfMention } from '@/utils/messageContentUtils';
 import { mentionsViewer } from '@/utils/hereMention';
 import { parseContentToMessageParts, resolveMentionsUserData, resolveEmojisData, resolveRoleMentionsData } from '@/utils/unifiedContentProcessing';
@@ -3623,6 +3630,39 @@ const startEdit = (message: Message) => {
   });
 };
 
+/**
+ * Saves an edit through the list's owner, shown at once (optimisticEdit.ts). Thread replies live
+ * in the thread view's own list, which this view renders.
+ */
+const saveStoredEdit = (messageId: string, content: MessagePart[]): Promise<unknown> => {
+  if (props.threadId) {
+    const message = props.messages.find((m) => m.id === messageId);
+    if (!message) return Promise.resolve();
+    return saveEditOptimistically({
+      message,
+      content,
+      // By id: a realtime update replaces the row object in the thread's list.
+      patch: (fields) => {
+        const shown = props.messages.find((m) => m.id === messageId);
+        if (!shown) return;
+        Object.assign(shown, fields);
+        try { ensureMessageEmbeds(shown); } catch { /* embeds are best-effort */ }
+        threadService.updateMessageInCache(props.threadId!, messageId, shown);
+      },
+      save: () => services.messages.editMessage(messageId, content),
+    });
+  }
+  if (props.channelId) return chatStore.editMessage(messageId, content);
+  if (props.conversationId) return dmStore.editMessage(messageId, content);
+  return Promise.resolve();
+};
+
+const editFailureMessage = (error: any): string => {
+  if (isModerationRejectionCode(error?.code) && error?.message) return error.message;
+  if (classifySendFailure(error) === 'permission') return permissionRefusalMessage(error);
+  return t('message.editNotSaved', { reason: error?.message || '' });
+};
+
 const saveEdit = async (messageId: string, newContent?: string, retainedFiles: FileContent[] = []) => {
   if (!editableMessageId.value) return;
   const textContent = newContent ?? editableMessageContent.value;
@@ -3633,28 +3673,27 @@ const saveEdit = async (messageId: string, newContent?: string, retainedFiles: F
     cancelEdit();
     return;
   }
+  // The editor closes at once; the row shows the edit while it is saved.
+  cancelEdit();
   try {
-    const userDataMap = await resolveMentionsUserData(textContent);
-    const emojiDataMap = await resolveEmojisData(textContent);
-    const roleDataMap = await resolveRoleMentionsData(textContent, serverChannelStore.currentServerId || undefined);
+    const [userDataMap, emojiDataMap, roleDataMap] = await Promise.all([
+      resolveMentionsUserData(textContent),
+      resolveEmojisData(textContent),
+      resolveRoleMentionsData(textContent, serverChannelStore.currentServerId || undefined),
+    ]);
     const parsedContent = await parseContentToMessageParts(textContent, userDataMap, emojiDataMap, {}, roleDataMap, buildChatParseOptions(!!props.conversationId));
     // Re-append the attachments the user kept, so editing text never drops media.
-    const finalContent = [...parsedContent, ...retainedFiles];
-
-    if (props.channelId) {
-      await chatStore.editMessage(messageId, finalContent);
-    } else if (props.conversationId) {
-      await dmStore.editMessage(messageId, finalContent);
-    }
-    cancelEdit();
+    await saveStoredEdit(messageId, [...parsedContent, ...retainedFiles]);
   } catch (error: any) {
     debug.error('Error saving message edit:', error);
-    // An AutoMod block leaves the edit open with the reason; the text is kept.
-    if (isModerationRejectionCode(error?.code) && error?.message) {
-      toast.error(error.message);
-    } else if (classifySendFailure(error) === 'permission') {
-      toast.error(permissionRefusalMessage(error));
+    // The row is back to what the server holds; the attempted text returns to the editor
+    // unless another edit is open.
+    const message = props.messages.find((m) => m.id === messageId);
+    if (message && !editableMessageId.value) {
+      startEdit(message);
+      editableMessageContent.value = textContent;
     }
+    toast.error(editFailureMessage(error));
   }
 };
 
@@ -3694,13 +3733,10 @@ const removeAttachment = async (messageId: string, url: string) => {
   }
 
   try {
-    if (props.channelId) {
-      await chatStore.editMessage(messageId, newContent);
-    } else if (props.conversationId) {
-      await dmStore.editMessage(messageId, newContent);
-    }
+    await saveStoredEdit(messageId, newContent);
   } catch (error) {
     debug.error('Error removing attachment:', error);
+    toast.error(editFailureMessage(error));
   }
 };
 
@@ -4652,6 +4688,11 @@ defineExpose({ editLastOwnMessage });
   opacity: 1;
 }
 
+/* The edit shows while it is saved. */
+.edited-indicator.edit-pending {
+  opacity: 0.5;
+}
+
 /* Inline variant appears after message content */
 .edited-indicator.inline,
 .edited-indicator.compact {
@@ -5353,7 +5394,8 @@ defineExpose({ editLastOwnMessage });
 
 .unread-bar {
   position: absolute;
-  top: 0;
+  /* The sticky anchor rests below .message-display's 20px top padding; the bar sits on the edge. */
+  top: -20px;
   left: 8px;
   right: 8px;
   display: flex;

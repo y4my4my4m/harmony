@@ -331,6 +331,9 @@ import type { Message, MessagePart, Emoji, Gif } from '@/types'
 import type { ThreadWithDetails } from '@/services/ThreadService'
 import type { FilePreviewData } from '@/components/FilePreview.vue'
 import { attachmentParts, mediaRoom } from '@/services/privateMedia'
+import { insertMessageSorted, placeStoredRow } from '@/stores/shared/messageCacheUtils'
+import { sendKeyForThread, takeSendTurn } from '@/stores/shared/sendOrder'
+import { keepPendingEdit } from '@/stores/shared/optimisticEdit'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { getForeignAuthor } from '@/utils/messageAuthor'
 import { useDialog } from '@/composables/useDialog'
@@ -456,7 +459,6 @@ useMenu(optionsMenuEl, {
   closeOnOutsidePointer: false,
 })
 const messageText = ref('')
-const sending = ref(false)
 
 // Draft persistence for threads
 const threadDraftKey = computed(() => {
@@ -658,8 +660,22 @@ const startDraftThread = (): DraftThreadStart | null => {
       return null
     })
 
-  return { tempId, created }
+  const start = { tempId, created }
+  pendingDraft = start
+  void created.finally(() => { if (pendingDraft === start) pendingDraft = null })
+  return start
 }
+
+/** The draft a send made while create_thread runs waits for, so it reaches the created thread. */
+let pendingDraft: DraftThreadStart | null = null
+
+/** The draft a send attaches to: a new one in draft mode, else the one still being created. */
+const draftForSend = (): DraftThreadStart | null =>
+  isDraftMode.value ? startDraftThread() : pendingDraft
+
+/** Send order key of the thread: its parent message, the same before and after create_thread. */
+const threadOrderKey = (): string =>
+  sendKeyForThread(thread.value?.parent_message_id || props.draftParentMessage?.id || thread.value?.id || '')
 
 /** Counts a local reply on the shown thread; the returned function settles it. */
 const countLocalReply = (): ((delivered: boolean) => void) => {
@@ -885,7 +901,7 @@ const parseMessageInput = async (input: string): Promise<MessagePart[]> => {
 }
 
 const handleSendMessage = async (content: string, files: FilePreviewData[] = [], replyMessageId?: string) => {
-  if ((!content.trim() && files.length === 0) || sending.value) return
+  if (!content.trim() && files.length === 0) return
   if (isDraftMode.value && !props.draftParentMessage) return
   if (!isDraftMode.value && !thread.value) return
   
@@ -895,9 +911,9 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
     toast.error(t('message.upload.removeFailed'))
     return
   }
-  
-  sending.value = true
-  
+
+  // Taken before parsing: replies leave in the order they were typed.
+  const turn = takeSendTurn(threadOrderKey())
   const savedContent = content
   messageText.value = ''
   if (threadDraftKey.value) draftsStore.clearDraft(threadDraftKey.value)
@@ -908,14 +924,12 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
   
   try {
     let targetThreadId = thread.value?.id
-    let draft: DraftThreadStart | null = null
-
-    // Draft mode: the thread is created optimistically alongside this send.
-    if (isDraftMode.value) {
-      draft = startDraftThread()
-      if (!draft) throw new Error('Draft thread has no channel')
-      targetThreadId = draft.tempId
-    }
+    const inDraftMode = isDraftMode.value
+    // Draft mode: the thread is created optimistically alongside this send. A send made while
+    // it is being created follows it.
+    const draft = draftForSend()
+    if (inDraftMode && !draft) throw new Error('Draft thread has no channel')
+    if (draft) targetThreadId = draft.tempId
 
     if (!targetThreadId) {
       throw new Error('No thread ID')
@@ -972,19 +986,16 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
 
     const sendResult = await runWithEncryptionFallback(
       ({ allowPlaintextFallback }) =>
-        threadService.sendThreadMessage(targetThreadId!, messageParts, savedReplyTo, undefined, {
+        turn.run(() => threadService.sendThreadMessage(targetThreadId!, messageParts, savedReplyTo, undefined, {
           allowPlaintextFallback,
-        }),
+        })),
       { scope: 'thread' },
     )
 
     if (sendResult.status === 'ok' && sendResult.result) {
       const newMessage = sendResult.result
-      // Replace optimistic message with real one
-      const tempIndex = messages.value.findIndex(m => m.id === tempId)
-      if (tempIndex !== -1) {
-        messages.value[tempIndex] = newMessage
-      }
+      // The optimistic row gives way to the stored one, placed by the server's created_at.
+      placeStoredRow(messages.value, tempId, newMessage)
       threadService.addMessageToCache(targetThreadId, newMessage)
       settleReply(true)
     } else {
@@ -1000,7 +1011,7 @@ const handleSendMessage = async (content: string, files: FilePreviewData[] = [],
     debug.error('Failed to send message:', error)
     notifySendFailure(error)
   } finally {
-    sending.value = false
+    turn.release()
   }
 }
 
@@ -1120,16 +1131,13 @@ watch(mediaPickerOpen, () => {
 const handleSendVoiceMessage = async (data: { url: string, path: string, duration: number, waveform: number[], mimeType: string }) => {
   if (!thread.value && !isDraftMode.value) return
 
-  sending.value = true
+  const turn = takeSendTurn(threadOrderKey())
   try {
     let targetThreadId = thread.value?.id
-    let draft: DraftThreadStart | null = null
-
-    if (isDraftMode.value) {
-      draft = startDraftThread()
-      if (!draft) throw new Error('Draft thread has no channel')
-      targetThreadId = draft.tempId
-    }
+    const inDraftMode = isDraftMode.value
+    const draft = draftForSend()
+    if (inDraftMode && !draft) throw new Error('Draft thread has no channel')
+    if (draft) targetThreadId = draft.tempId
 
     if (!targetThreadId) {
       throw new Error('No thread ID')
@@ -1183,18 +1191,15 @@ const handleSendVoiceMessage = async (data: { url: string, path: string, duratio
 
     const sendResult = await runWithEncryptionFallback(
       ({ allowPlaintextFallback }) =>
-        threadService.sendThreadMessage(targetThreadId!, messageParts, undefined, voiceMetadata, {
+        turn.run(() => threadService.sendThreadMessage(targetThreadId!, messageParts, undefined, voiceMetadata, {
           allowPlaintextFallback,
-        }),
+        })),
       { scope: 'thread' },
     )
 
     if (sendResult.status === 'ok' && sendResult.result) {
       const newMessage = sendResult.result
-      const tempIndex = messages.value.findIndex(m => m.id === tempId)
-      if (tempIndex !== -1) {
-        messages.value[tempIndex] = newMessage
-      }
+      placeStoredRow(messages.value, tempId, newMessage)
       threadService.addMessageToCache(targetThreadId, newMessage)
       settleReply(true)
     } else {
@@ -1209,7 +1214,7 @@ const handleSendVoiceMessage = async (data: { url: string, path: string, duratio
     debug.error('Error sending voice message in thread:', error)
     notifySendFailure(error)
   } finally {
-    sending.value = false
+    turn.release()
   }
 }
 
@@ -1219,14 +1224,15 @@ const handleSendGif = async (gif: Gif) => {
   
   if (!thread.value && !isDraftMode.value) return
   
-  sending.value = true
+  const turn = takeSendTurn(threadOrderKey())
   try {
     let targetThreadId = thread.value?.id
 
     // Draft mode: the thread shows at once; the GIF follows the server id.
-    if (isDraftMode.value) {
-      const draft = startDraftThread()
-      if (!draft) throw new Error('Draft thread has no channel')
+    const inDraftMode = isDraftMode.value
+    const draft = draftForSend()
+    if (inDraftMode && !draft) throw new Error('Draft thread has no channel')
+    if (draft) {
       const bound = await draft.created
       if (!bound) return
       targetThreadId = bound.id
@@ -1244,15 +1250,15 @@ const handleSendGif = async (gif: Gif) => {
     
     const sendResult = await runWithEncryptionFallback(
       ({ allowPlaintextFallback }) =>
-        threadService.sendThreadMessage(targetThreadId!, messageParts, replyingToMessageId.value || undefined, undefined, {
+        turn.run(() => threadService.sendThreadMessage(targetThreadId!, messageParts, replyingToMessageId.value || undefined, undefined, {
           allowPlaintextFallback,
-        }),
+        })),
       { scope: 'thread' },
     )
 
     if (sendResult.status === 'ok' && sendResult.result) {
       const newMessage = sendResult.result
-      messages.value.push(newMessage)
+      if (!messages.value.some(m => m.id === newMessage.id)) insertMessageSorted(messages.value, newMessage)
       threadService.addMessageToCache(targetThreadId, newMessage)
       replyingToMessageId.value = ''
       replyingToUserName.value = ''
@@ -1267,7 +1273,7 @@ const handleSendGif = async (gif: Gif) => {
     debug.error('Failed to send GIF:', error)
     notifySendFailure(error)
   } finally {
-    sending.value = false
+    turn.release()
   }
 }
 
@@ -1360,7 +1366,7 @@ const setupRealtimeSubscription = () => {
             && JSON.stringify(m.content) === JSON.stringify(payloadNew.content)
         )
         if (tempIndex !== -1) {
-          messages.value[tempIndex] = newMessage
+          placeStoredRow(messages.value, messages.value[tempIndex].id, newMessage)
         } else {
           messages.value.push(newMessage)
         }
@@ -1403,7 +1409,7 @@ const setupRealtimeSubscription = () => {
           metadata: payloadNew.metadata || null,
           is_pinned: pinsStore.pending[payloadNew.id]?.pinned ?? payloadNew.is_pinned,
         }
-        messages.value[index] = updatedMessage
+        messages.value[index] = keepPendingEdit(messages.value[index], updatedMessage)
         if (thread.value?.id) {
           threadService.updateMessageInCache(thread.value.id, payloadNew.id, updatedMessage)
         }

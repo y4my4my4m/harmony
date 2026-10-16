@@ -49,6 +49,8 @@ const FRIENDLY_MIME: Record<string, string> = {
 // Live limits fetched from the bucket metadata (authoritative for this instance).
 const liveLimits = new Map<string, BucketLimitConfig>()
 const liveBuckets = new Set<string>()
+/** Reads in flight; concurrent callers share one. */
+const pendingLimits = new Map<string, Promise<BucketLimitConfig>>()
 
 export function formatBytes(bytes: number): string {
   if (!bytes || bytes < 0) return '0 MB'
@@ -69,9 +71,18 @@ function describeMimeList(mimes: string[]): string {
  * Live bucket metadata (per-instance dashboard overrides) wins over the
  * bundled defaults. Result is cached per session.
  */
-export async function getBucketLimits(bucket: string): Promise<BucketLimitConfig> {
+export function getBucketLimits(bucket: string): Promise<BucketLimitConfig> {
+  if (liveLimits.has(bucket)) return Promise.resolve(liveLimits.get(bucket)!)
+  let read = pendingLimits.get(bucket)
+  if (!read) {
+    read = readBucketLimits(bucket).finally(() => pendingLimits.delete(bucket))
+    pendingLimits.set(bucket, read)
+  }
+  return read
+}
+
+async function readBucketLimits(bucket: string): Promise<BucketLimitConfig> {
   const fallback = BUCKET_LIMITS[bucket] || { maxBytes: 0, allowedMime: null, label: 'file' }
-  if (liveLimits.has(bucket)) return liveLimits.get(bucket)!
 
   try {
     const { data, error } = await supabase.storage.getBucket(bucket)

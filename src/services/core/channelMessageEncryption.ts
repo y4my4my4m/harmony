@@ -9,7 +9,11 @@ import { supabase } from '@/supabase'
 import type { MessagePart } from '@/types'
 import { debug } from '@/utils/debug'
 import { withPlaintextMentions } from '@/utils/channelEncryption'
-import { fetchEffectiveChannelEncryption } from '@/services/ChannelEncryptionService'
+import {
+  cachedEffectiveChannelEncryption,
+  fetchEffectiveChannelEncryption,
+  forgetChannelEncryption,
+} from '@/services/ChannelEncryptionService'
 import { mediaRoom, messageMediaPathsIn } from '@/services/privateMedia'
 
 /**
@@ -71,13 +75,45 @@ export async function getEncryptionService(): Promise<any> {
   return megolmEncryptionService
 }
 
-/** Whether the channel's messages must be encrypted. Throws ENCRYPTION_REQUIRED/unavailable on lookup failure. */
-export async function channelRequiresEncryption(channelId: string): Promise<boolean> {
+/**
+ * Whether the channel's messages must be encrypted, from the last read of the channel's state
+ * unless `fresh`. Throws ENCRYPTION_REQUIRED/unavailable on lookup failure.
+ */
+export async function channelRequiresEncryption(
+  channelId: string,
+  options: { fresh?: boolean } = {},
+): Promise<boolean> {
   try {
-    const state = await fetchEffectiveChannelEncryption(channelId)
+    const state = options.fresh
+      ? await fetchEffectiveChannelEncryption(channelId)
+      : await cachedEffectiveChannelEncryption(channelId)
     return state?.messagesEncrypted === true
   } catch (error) {
     throw channelEncryptionError('unavailable', error)
+  }
+}
+
+/** The database refused plaintext: enforce_channel_message_encryption() found the channel encrypted. */
+export function isChannelEncryptedRefusal(error: { message?: string } | null | undefined): boolean {
+  return (error?.message || '').includes('CHANNEL_ENCRYPTED')
+}
+
+/**
+ * The payload for a second insert after the database refused a plaintext one: the channel's
+ * state is read again and the content encrypted. When the channel still reads as plaintext or
+ * the sender cannot encrypt, throws the 'changed' refusal with the database error.
+ */
+export async function encryptAfterPlaintextRefusal(
+  params: Parameters<typeof encryptChannelContent>[0],
+  refusal: unknown,
+): Promise<EncryptedChannelPayload> {
+  forgetChannelEncryption(params.channelId)
+  const encrypted = await channelRequiresEncryption(params.channelId).catch(() => false)
+  if (!encrypted) throw channelEncryptionError('changed', refusal)
+  try {
+    return await encryptChannelContent(params)
+  } catch {
+    throw channelEncryptionError('changed', refusal)
   }
 }
 
@@ -102,6 +138,11 @@ export async function encryptChannelContent(params: {
   if (!service || !service.isInitialized()) {
     throw channelEncryptionError('setup')
   }
+  // The member read does not depend on the key checks; it runs beside them.
+  const members = params.serverId
+    ? Promise.resolve(supabase.from('user_servers').select('user_id').eq('server_id', params.serverId))
+    : Promise.resolve({ data: [] as Array<{ user_id: string }> })
+  members.catch(() => {})
   if (!(await service.hasRecoveryKey())) {
     throw channelEncryptionError('setup')
   }
@@ -110,14 +151,8 @@ export async function encryptChannelContent(params: {
   }
 
   try {
-    let recipientIds: string[] = []
-    if (params.serverId) {
-      const { data: members } = await supabase
-        .from('user_servers')
-        .select('user_id')
-        .eq('server_id', params.serverId)
-      recipientIds = members?.map((m: { user_id: string }) => m.user_id) || []
-    }
+    const { data: memberRows } = await members
+    const recipientIds: string[] = memberRows?.map((m: { user_id: string }) => m.user_id) || []
     if (!recipientIds.includes(params.senderId)) recipientIds.push(params.senderId)
 
     const encrypted = await service.encryptMessage(params.content, params.channelId, recipientIds)

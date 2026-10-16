@@ -7,20 +7,28 @@ import { supabase } from '@/supabase'
 // blocked says so.
 
 vi.mock('@/i18n', () => ({ i18n: { global: { t: (key: string) => key } } }))
+const validateImageUpload = vi.fn(async (_file: File, _bucket: string): Promise<string | null> => null)
+const getBucketLimits = vi.fn(async () => ({ maxBytes: 0, allowedMime: null, label: 'file' }))
 vi.mock('@/utils/uploadValidation', () => ({
-  validateImageUpload: vi.fn(async () => null),
+  validateImageUpload: (file: File, bucket: string) => validateImageUpload(file, bucket),
+  getBucketLimits: () => getBucketLimits(),
   humanizeUploadError: (error: { message?: string }) => error?.message ?? 'error',
 }))
 const findDriveFilesByHash = vi.fn()
 const isDriveHashBlocked = vi.fn()
+const driveAvailable = vi.fn(async () => true)
 vi.mock('@/services/drive/driveService', () => ({
-  driveAvailable: async () => true,
+  driveAvailable: () => driveAvailable(),
   findDriveFilesByHash: (...args: unknown[]) => findDriveFilesByHash(...args),
   isDriveHashBlocked: (...args: unknown[]) => isDriveHashBlocked(...args),
   sha256OfBlob: async () => 'ab'.repeat(32),
 }))
 
-import { forgetMessageMediaUpload, startMessageMediaUpload } from '@/services/messageMediaUpload'
+import {
+  forgetMessageMediaUpload,
+  prepareMessageMediaUploads,
+  startMessageMediaUpload,
+} from '@/services/messageMediaUpload'
 
 const PATH = 'c/66666666-0000-4000-8000-000000000006/aaaaaaaa-0000-4000-8000-000000000001/x.png'
 const KEPT = 'c/77777777-0000-4000-8000-000000000007/aaaaaaaa-0000-4000-8000-000000000001/old.png'
@@ -45,6 +53,9 @@ beforeEach(() => {
   FakeXHR.last = null
   findDriveFilesByHash.mockReset()
   isDriveHashBlocked.mockReset()
+  driveAvailable.mockClear()
+  validateImageUpload.mockClear()
+  getBucketLimits.mockClear()
   vi.stubGlobal('XMLHttpRequest', FakeXHR)
   vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: { access_token: 't' } }, error: null } as never)
   vi.mocked(supabase.storage.from).mockReturnValue({
@@ -113,5 +124,28 @@ describe('Drive uploads', () => {
     xhr.responseText = JSON.stringify({ statusCode: '403', message: 'new row violates row-level security policy' })
     xhr.onload!()
     await expect(upload.result).rejects.toThrow('new row violates row-level security policy')
+  })
+
+  it('asks for the bucket limits and the Drive probe at once, not one after the other', async () => {
+    let releaseValidation!: () => void
+    validateImageUpload.mockImplementationOnce(() => new Promise((resolve) => {
+      releaseValidation = () => resolve(null)
+    }))
+    findDriveFilesByHash.mockResolvedValue([])
+    startMessageMediaUpload(PATH, new File(['png'], 'x.png', { type: 'image/png' }), { validate: true })
+    await flushPromises()
+    expect(validateImageUpload).toHaveBeenCalled()
+    expect(driveAvailable).toHaveBeenCalled()
+    expect(FakeXHR.last).toBeNull()
+
+    releaseValidation()
+    await flushPromises()
+    expect(FakeXHR.last).not.toBeNull()
+  })
+
+  it('the composer starts both once-per-session reads before any file is attached', () => {
+    prepareMessageMediaUploads()
+    expect(getBucketLimits).toHaveBeenCalledTimes(1)
+    expect(driveAvailable).toHaveBeenCalledTimes(1)
   })
 })

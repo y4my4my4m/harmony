@@ -196,7 +196,8 @@
   import type { Message, Gif, Emoji, MessagePart } from '@/types';
   import { classifySendFailure, permissionRefusalMessage } from '@/utils/sendFailure';
   import { useOutboxStore, withPendingRows } from '@/stores/useOutbox';
-  import { sendToTarget, targetKey, type MessageTarget } from '@/stores/shared/sendToTarget';
+  import { sendToTarget, targetKey, targetOrderKey, type MessageTarget } from '@/stores/shared/sendToTarget';
+  import { takeSendTurn, type SendTurn } from '@/stores/shared/sendOrder';
   import { recordEmojiUsage } from '@/services/emojiService';
   import { getEmojiShortcodeForInsert } from '@/services/emojiShortcodeResolver';
   import { mediaRoom } from '@/services/privateMedia';
@@ -214,6 +215,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   import { coreMessageService } from '@/services/core/CoreMessageService';
   import { ENCRYPTION_STATE_CHANGED_EVENT } from '@/composables/useEncryptionAction';
   import { fetchEffectiveChannelEncryption, fetchServerForceKeySetup, invalidateServerForceKeySetup } from '@/services/ChannelEncryptionService';
+  import { fetchConversationEncryption } from '@/services/conversationEncryption';
   import { getEncryptionService } from '@/services/core/channelMessageEncryption';
   import { useChannelEncryptionStore } from '@/stores/useChannelEncryption';
   import { supabase } from '@/supabase';
@@ -529,13 +531,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
           return
         }
         try {
-          const { data } = await supabase
-            .from('conversation_encryption_settings')
-            .select('encryption_enabled')
-            .eq('conversation_id', conversationId)
-            .maybeSingle()
-
-          const enabled = data?.encryption_enabled === true
+          const enabled = await fetchConversationEncryption(conversationId)
           dmEncryptionEnabled.value = enabled
           if (!enabled) {
             encryptionStatusData.value = null
@@ -915,9 +911,12 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
       const parseMessageInput = async (input: string, serverId?: string): Promise<MessagePart[]> => {
         debug.log('Using unified content parsing for:', input);
 
-        const userDataMap = await resolveMentionsUserData(input);
-        const emojiDataMap = await resolveEmojisData(input);
-        const roleDataMap = await resolveRoleMentionsData(input, serverId);
+        // Independent lookups; each issues a request only when the text names its kind.
+        const [userDataMap, emojiDataMap, roleDataMap] = await Promise.all([
+          resolveMentionsUserData(input),
+          resolveEmojisData(input),
+          resolveRoleMentionsData(input, serverId),
+        ]);
 
         const result = await parseContentToMessageParts(
           input, userDataMap, emojiDataMap, {}, roleDataMap, buildChatParseOptions(props.isDM));
@@ -1000,6 +999,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
                 uploadedUrl: completed ? raw.uploadedUrl : undefined,
                 temporary: raw.temporary,
                 driveName: composerEncrypted.value ? undefined : raw.name,
+                ...(raw.recorded ? { reuse: false } : {}),
               };
             }),
             extraMetadata,
@@ -1037,6 +1037,9 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         }
 
         let savedReply: ReplyTargetSnapshot | null = null;
+        // Taken before parsing: a message whose mentions need a lookup still leaves before the
+        // one typed after it.
+        const turn = takeSendTurn(targetOrderKey(target));
         try {
           const messageParts: MessagePart[] = content.trim()
             ? await parseMessageInput(content, targetServerId(target))
@@ -1048,7 +1051,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
             // it if the send does not go through.
             savedReply = consumeReplyTarget();
 
-            const sendOutcome = await sendChannelOrDMWithEncryptionPolicy(target, messageParts, replyMessageId)
+            const sendOutcome = await sendChannelOrDMWithEncryptionPolicy(target, messageParts, replyMessageId, turn)
 
             // NOTE: `messageContent.value` is not touched here. MessageInput
             // cleared the input synchronously on Enter via `update:modelValue`.
@@ -1070,6 +1073,8 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
           restoreReplyTarget(savedReply);
           debug.error('Error sending message:', error);
           handleSendFailure(error, target, content);
+        } finally {
+          turn.release();
         }
       };
 
@@ -1149,6 +1154,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
         target: MessageTarget,
         messageParts: MessagePart[],
         replyMessageId?: string,
+        turn?: SendTurn,
       ): Promise<'ok' | 'declined' | 'no-context'> => {
         const authorId = currentUserId.value;
         if (!authorId) {
@@ -1156,7 +1162,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
           return 'no-context'
         }
 
-        const outcome = await sendToTarget(target, authorId, messageParts, replyMessageId)
+        const outcome = await sendToTarget(target, authorId, messageParts, replyMessageId, { turn })
         if (outcome === 'declined') {
           sendError.value = 'Message was not sent.'
           setTimeout(() => { sendError.value = null }, 6000)
@@ -1183,6 +1189,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
           size: data.file.size,
           type: data.mimeType,
           uploadStatus: 'pending',
+          recorded: true,
         } as FilePreviewData
         const voiceMetadata = {
           voice_message: {

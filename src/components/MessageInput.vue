@@ -308,7 +308,7 @@ import {
   MESSAGE_TEXT_HARD_CEILING,
 } from '@/utils/messageContentUtils';
 import { mediaRoom as roomOf, messageMediaPath, uploadMessageMedia } from '@/services/privateMedia';
-import { forgetMessageMediaUpload, startMessageMediaUpload, UploadAbortedError } from '@/services/messageMediaUpload';
+import { forgetMessageMediaUpload, prepareMessageMediaUploads, startMessageMediaUpload, UploadAbortedError } from '@/services/messageMediaUpload';
 import type { VoiceRecordingResult } from '@/services/voiceRecordingService';
 import { useAuthStore } from '@/stores/auth';
 import { useServerChannelStore } from '@/stores/useServerChannel';
@@ -1232,6 +1232,7 @@ const inlineMediaType = computed<GifMediaType | null>(() => {
     };
 
     onMounted(() => {
+      prepareMessageMediaUploads();
       void driveAvailable().then((ok) => {
         driveEnabled.value = ok;
       });

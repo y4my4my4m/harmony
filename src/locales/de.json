@@ -923,6 +923,8 @@
     "cancel": "Abbrechen",
     "save": "Speichern",
     "edited": "bearbeitet",
+    "editNotSaved": "Deine Änderung wurde nicht gespeichert. {reason}",
+    "editSaving": "Änderung wird gespeichert",
     "deleted": "Nachricht gelöscht",
     "system": "System",
     "pinned": "Angeheftete Nachrichten",

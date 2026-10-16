@@ -938,6 +938,8 @@
     "cancel": "cancel",
     "save": "save",
     "edited": "edited",
+    "editNotSaved": "Your edit was not saved. {reason}",
+    "editSaving": "Saving edit",
     "deleted": "Message deleted",
     "system": "System",
     "pinned": "Pinned messages",

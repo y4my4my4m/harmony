@@ -12,14 +12,101 @@ export interface ChannelEncryptionChange {
   historyVisibility?: HistoryVisibility
 }
 
+// Every read of effective_channel_encryption is kept per channel for the send path. A
+// server-structure broadcast of either settings table drops the entries it touches. A stale
+// plaintext answer costs one refused insert: enforce_channel_message_encryption() rejects
+// plaintext with CHANNEL_ENCRYPTED and the sender re-reads. A stale encrypted answer
+// encrypts into a plaintext channel; the TTL bounds it, refreshing behind the answer.
+const EFFECTIVE_TTL_MS = 5 * 60_000
+
+interface EffectiveEntry {
+  state: EffectiveChannelEncryption
+  at: number
+}
+
+const effectiveByChannel = new Map<string, EffectiveEntry>()
+const effectiveReads = new Map<string, Promise<EffectiveChannelEncryption | null>>()
+let broadcastListenerInstalled = false
+
+function installBroadcastListener(): void {
+  if (broadcastListenerInstalled || typeof window === 'undefined') return
+  broadcastListenerInstalled = true
+  window.addEventListener('server-structure:settings-change', (event: Event) => {
+    const detail = (event as CustomEvent).detail as { table?: string; new?: Record<string, unknown> | null } | null
+    if (detail?.table === 'channel_encryption_settings') {
+      const channelId = detail.new?.channel_id
+      forgetChannelEncryption(typeof channelId === 'string' ? channelId : null)
+    } else if (detail?.table === 'server_encryption_settings') {
+      const serverId = detail.new?.server_id
+      forgetServerChannelEncryption(typeof serverId === 'string' ? serverId : null)
+    }
+  })
+}
+
+/** Reads still running when an entry is dropped do not write it back. */
+function readEffective(channelId: string): Promise<EffectiveChannelEncryption | null> {
+  const running = effectiveReads.get(channelId)
+  if (running) return running
+  installBroadcastListener()
+  const read = (async () => {
+    const { data, error } = await supabase.rpc('effective_channel_encryption', { p_channel_id: channelId })
+    if (error) throw error
+    return parseEffectiveChannelEncryption(data)
+  })()
+  effectiveReads.set(channelId, read)
+  read.then(
+    (state) => {
+      if (effectiveReads.get(channelId) !== read) return
+      effectiveReads.delete(channelId)
+      if (state) effectiveByChannel.set(channelId, { state, at: Date.now() })
+      else effectiveByChannel.delete(channelId)
+    },
+    () => {
+      if (effectiveReads.get(channelId) === read) effectiveReads.delete(channelId)
+    },
+  )
+  return read
+}
+
 /**
  * The channel's effective state, or null when the caller cannot see the channel. Throws on a
- * transport or database error so callers fail closed.
+ * transport or database error so callers fail closed. Always asks the database; a read already
+ * running for the channel is shared.
  */
-export async function fetchEffectiveChannelEncryption(channelId: string): Promise<EffectiveChannelEncryption | null> {
-  const { data, error } = await supabase.rpc('effective_channel_encryption', { p_channel_id: channelId })
-  if (error) throw error
-  return parseEffectiveChannelEncryption(data)
+export function fetchEffectiveChannelEncryption(channelId: string): Promise<EffectiveChannelEncryption | null> {
+  return readEffective(channelId)
+}
+
+/** As fetchEffectiveChannelEncryption, answered from the last read when there is one. */
+export async function cachedEffectiveChannelEncryption(channelId: string): Promise<EffectiveChannelEncryption | null> {
+  const entry = effectiveByChannel.get(channelId)
+  if (!entry) return readEffective(channelId)
+  if (Date.now() - entry.at >= EFFECTIVE_TTL_MS) readEffective(channelId).catch(() => {})
+  return entry.state
+}
+
+/** Drops the channel's entry, or every entry without an id. */
+export function forgetChannelEncryption(channelId?: string | null): void {
+  if (!channelId) {
+    effectiveByChannel.clear()
+    effectiveReads.clear()
+    return
+  }
+  effectiveByChannel.delete(channelId)
+  effectiveReads.delete(channelId)
+}
+
+/** Drops the entries of the server's channels; every entry without an id. */
+export function forgetServerChannelEncryption(serverId?: string | null): void {
+  if (!serverId) {
+    forgetChannelEncryption()
+    return
+  }
+  for (const [channelId, entry] of effectiveByChannel) {
+    if (entry.state.serverId === serverId || !entry.state.serverId) effectiveByChannel.delete(channelId)
+  }
+  // A running read names no server until it settles.
+  effectiveReads.clear()
 }
 
 /** Omitted fields are left unchanged. Returns the effective state after the change. */
@@ -27,6 +114,8 @@ export async function setChannelEncryption(
   channelId: string,
   change: ChannelEncryptionChange,
 ): Promise<EffectiveChannelEncryption | null> {
+  effectiveReads.delete(channelId)
+  effectiveByChannel.delete(channelId)
   const { data, error } = await supabase.rpc('set_channel_encryption', {
     p_channel_id: channelId,
     p_messages_encrypted: change.messagesEncrypted ?? null,
@@ -34,7 +123,11 @@ export async function setChannelEncryption(
     p_history_visibility: change.historyVisibility ?? null,
   })
   if (error) throw error
-  return parseEffectiveChannelEncryption(data)
+  const state = parseEffectiveChannelEncryption(data)
+  // A read that overlapped the change may hold the state before it.
+  effectiveReads.delete(channelId)
+  if (state) effectiveByChannel.set(channelId, { state, at: Date.now() })
+  return state
 }
 
 // force_key_setup only drives the key-setup recommendation in the chat header.

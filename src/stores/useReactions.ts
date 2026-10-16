@@ -248,3 +248,10 @@ export const useReactionsStore = defineStore('reactions', () => {
     $dispose: engine.dispose,
   }
 })
+
+/** A message this client inserted a moment ago has no reactions; its row skips the reaction read. */
+export function seedNoReactions(messageId: string | null | undefined): void {
+  if (!messageId) return
+  const store = useReactionsStore()
+  if (store.getMessageReactions(messageId).length === 0) store.bulkSetReactions({ [messageId]: [] })
+}

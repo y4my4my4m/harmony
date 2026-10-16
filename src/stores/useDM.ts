@@ -5,7 +5,7 @@ import { services } from '@/services'
 import { coreMessageService } from '@/services/core/CoreMessageService'
 import type { Message, MessagePart } from '@/types'
 import { useServerUsersStore } from './useServerUsers'
-import { useReactionsStore } from './useReactions'
+import { seedNoReactions, useReactionsStore } from './useReactions'
 import { usePinsStore } from './usePins'
 import { userDataService } from '@/services/userDataService'
 import { extractMentionsFromMessageParts } from '@/utils/unifiedContentProcessing'
@@ -17,7 +17,10 @@ import { userEventChannel } from '@/services/UserEventChannel'
 import { fetchUnreadCounts, markConversationRead } from '@/services/readState'
 import { getRandomId, createTempMessageId, findOptimisticMatchIndex } from '@/stores/shared/optimisticMessages'
 import { routeMessageEvent } from '@/stores/shared/realtimeMessageEvent'
-import { insertMessageSorted, evictOldestCacheEntry, trimCachedMessages, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils'
+import { insertMessageSorted, evictOldestCacheEntry, placeStoredRow, trimCachedMessages, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils'
+import { inSendOrder, sendKeyForConversation, takeSendTurn, type SendTurn } from '@/stores/shared/sendOrder'
+import { keepPendingEdit, saveEditOptimistically } from '@/stores/shared/optimisticEdit'
+import { forgetConversationEncryption } from '@/services/conversationEncryption'
 import { isModerationRejectionCode } from '@/services/AutoModService'
 import { releaseFloatingVideo } from '@/composables/useFloatingVideo'
 import { useMessagePollsStore } from '@/stores/useMessagePolls'
@@ -409,18 +412,20 @@ export const useDMStore = defineStore('dm', () => {
         return
       }
 
-      const updatedMessage = await services.messages.editMessage(messageId, content)
-
-      const messageWithReactions = {
-        ...updatedMessage,
-        reactions: currentMessage.reactions || [],
-      }
-
-      updateMessageInCache(messageId, messageWithReactions)
+      // Shown at once and saved behind (optimisticEdit.ts); a refusal restores the row and throws.
+      await saveEditOptimistically({
+        message: currentMessage,
+        content,
+        patch: (fields) => {
+          patchMessageFields(messageId, fields)
+          try { ensureMessageEmbeds(currentMessage) } catch { /* embeds are best-effort */ }
+        },
+        save: () => services.messages.editMessage(messageId, content),
+      })
       debug.log('DM message edited via service layer')
     } catch (error: any) {
       debug.error('Error editing DM message:', error)
-      throw new Error(error.message || 'Failed to edit message')
+      throw Object.assign(new Error(error.message || 'Failed to edit message'), { code: error?.code })
     }
   }
 
@@ -1976,6 +1981,8 @@ export const useDMStore = defineStore('dm', () => {
       tempId?: string
       clientNonce?: string
       extraMetadata?: Record<string, unknown>
+      /** The conversation's send turn, taken at Enter; a fresh one when absent. */
+      turn?: SendTurn
     }
   ): Promise<boolean> => {
     // The temp ID carries a random suffix on top of the timestamp: two sends in
@@ -2000,17 +2007,20 @@ export const useDMStore = defineStore('dm', () => {
     };
     
     addMessageToCache(optimisticMessage as any);
-    
+    // The optimistic row shows at once; the insert waits for the conversation's earlier ones.
+    const orderKey = sendKeyForConversation(conversationId)
+    const turn = options?.turn ?? takeSendTurn(orderKey)
+
     try {
       debug.log('Sending DM message via MessageService:', { conversationId, userId })
       
-      const message = await services.messages.sendDMMessage(
+      const message = await turn.run(() => services.messages.sendDMMessage(
         conversationId,
         content,
         replyTo,
         options ? { allowPlaintextFallback: options.allowPlaintextFallback } : undefined,
         sendMetadata
-      )
+      ))
 
       debug.log('DM message saved to database:', message.id)
       debug.log('DM message data from server:', message)
@@ -2074,13 +2084,14 @@ export const useDMStore = defineStore('dm', () => {
         }
 
         try {
-          const retryResult = await services.messages.sendDMMessage(
+          // A retry queues behind the sends made since; it lands at its new created_at.
+          const retryResult = await inSendOrder(orderKey, () => services.messages.sendDMMessage(
             conversationId,
             content,
             replyTo,
             options ? { allowPlaintextFallback: options.allowPlaintextFallback } : undefined,
             sendMetadata
-          )
+          ))
           _replaceDMTempWithReal(tempId, retryResult, userId, conversationId, content)
           return true
         } catch (retryError) {
@@ -2109,6 +2120,7 @@ export const useDMStore = defineStore('dm', () => {
   }
 
   const _replaceDMTempWithReal = (tempId: string, message: any, userId: string, conversationId: string, content: MessagePart[]) => {
+    seedNoReactions(message.id)
     // The live list and the cache are reconciled independently - realtime may
     // already have replaced the temp row in `currentDMMessages`. Bail only when
     // neither copy holds it, otherwise the cache keeps a `sending: true` temp
@@ -2133,13 +2145,14 @@ export const useDMStore = defineStore('dm', () => {
 
     try { ensureMessageEmbeds(realMessage) } catch { /* embeds are best-effort */ }
 
+    // Placed by the server's created_at: the sender's list matches what everyone else reads.
     if (tempIndex !== -1) {
-      currentDMMessages.value.splice(tempIndex, 1, realMessage)
+      placeStoredRow(currentDMMessages.value, tempId, realMessage)
     }
     debug.log('Replaced temp DM message with real message:', { tempId, realId: message.id })
 
     if (cached && cacheIndex !== -1) {
-      cached.messages.splice(cacheIndex, 1, realMessage)
+      placeStoredRow(cached.messages, tempId, realMessage)
       cached.lastModified = new Date()
     }
   }
@@ -2154,7 +2167,8 @@ export const useDMStore = defineStore('dm', () => {
     currentDMMessages.value[idx] = { ...currentDMMessages.value[idx], sending: true, failed: false } as any
 
     try {
-      const message = await services.messages.sendDMMessage(conversationId, content, replyTo, undefined, metadata)
+      const message = await inSendOrder(sendKeyForConversation(conversationId),
+        () => services.messages.sendDMMessage(conversationId, content, replyTo, undefined, metadata))
       _replaceDMTempWithReal(tempId, message, userId, conversationId, content)
     } catch (error) {
       debug.error('DM retry failed:', error)
@@ -2488,17 +2502,13 @@ export const useDMStore = defineStore('dm', () => {
             return
           }
           const replacedTempId = currentDMMessages.value[targetIndex].id
-          currentDMMessages.value.splice(targetIndex, 1, resolvedMessage)
+          placeStoredRow(currentDMMessages.value, replacedTempId, resolvedMessage)
 
           // Cache holds its own copy of the temp row; leaving it stale makes
           // the message render grayed out again on conversation re-entry.
           const tempCache = messageCache.value.get(message.conversation_id)
-          if (tempCache) {
-            const tempCacheIndex = tempCache.messages.findIndex(m => m.id === replacedTempId)
-            if (tempCacheIndex !== -1) {
-              tempCache.messages.splice(tempCacheIndex, 1, resolvedMessage)
-              tempCache.lastModified = new Date()
-            }
+          if (tempCache && placeStoredRow(tempCache.messages, replacedTempId, resolvedMessage)) {
+            tempCache.lastModified = new Date()
           }
           return
         }
@@ -2573,6 +2583,7 @@ export const useDMStore = defineStore('dm', () => {
           debug.warn('Failed to decrypt updated DM message:', error)
         }
         
+        updatedMessage = keepPendingEdit(currentDMMessages.value.find(m => m.id === message.id), updatedMessage)
         updateMessageInCache(message.id, updatedMessage)
       }
       
@@ -2818,9 +2829,20 @@ export const useDMStore = defineStore('dm', () => {
     const unsubReconnect = userEventChannel.on('_reconnected', () => {
       debug.log('UserEventChannel reconnected - resyncing conversation list')
       fetchUserConversations(userId).catch(err => debug.warn('reconnect refetch failed:', err))
+      // Encryption notices sent while disconnected are lost.
+      forgetConversationEncryption()
     })
 
-    _globalBroadcastUnsubs = [unsubNew, unsubUpdated, unsubUnread, unsubReconnect]
+    // A participant turned the conversation's encryption on or off. The window event updates
+    // the send path's answer (conversationEncryption.ts) and the open headers.
+    const unsubEncryption = userEventChannel.on('conversation:encryption', (data) => {
+      if (typeof data?.conversation_id !== 'string') return
+      window.dispatchEvent(new CustomEvent('dm-encryption-toggled', {
+        detail: { conversationId: data.conversation_id, enabled: data.encryption_enabled === true },
+      }))
+    })
+
+    _globalBroadcastUnsubs = [unsubNew, unsubUpdated, unsubUnread, unsubReconnect, unsubEncryption]
     _globalBroadcastRegistered = true
     debug.log('Global conversation broadcast handlers registered')
   }

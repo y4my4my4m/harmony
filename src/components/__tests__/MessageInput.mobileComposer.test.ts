@@ -63,6 +63,7 @@ vi.mock('@/services/RoleService', () => ({
 vi.mock('@/services/messageMediaUpload', () => ({
   startMessageMediaUpload: vi.fn(),
   forgetMessageMediaUpload: vi.fn(),
+    prepareMessageMediaUploads: vi.fn(),
   UploadAbortedError: class extends Error {},
 }))
 vi.mock('@/services/privateMedia', () => ({

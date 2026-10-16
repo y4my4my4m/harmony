@@ -112,6 +112,9 @@ test('a channel opens at its newest message when its unread messages load after 
     const divider = list(page).locator('.new-messages-divider')
     await expect(bar).toBeVisible()
     await expect(bar).toContainText('new messages since')
+    // Attached to the list's top edge: no message text shows above it.
+    const gap = await bar.evaluate((el) => el.getBoundingClientRect().top - el.closest('.message-display')!.getBoundingClientRect().top)
+    expect(Math.abs(gap)).toBeLessThanOrEqual(1)
     await bar.getByRole('button', { name: /new messages since/ }).click()
     await expect(divider).toBeInViewport({ timeout: 10000 })
     await expect(bar).toBeHidden()

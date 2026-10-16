@@ -923,6 +923,8 @@
     "cancel": "キャンセル",
     "save": "保存",
     "edited": "編集済み",
+    "editNotSaved": "編集は保存されませんでした。{reason}",
+    "editSaving": "編集を保存中",
     "deleted": "メッセージが削除されました",
     "system": "システム",
     "pinned": "ピン留めされたメッセージ",

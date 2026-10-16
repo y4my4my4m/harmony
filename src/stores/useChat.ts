@@ -3,7 +3,7 @@ import { routeMessageEvent } from '@/stores/shared/realtimeMessageEvent';
 import { supabase } from '@/supabase';
 import { services } from '@/services';
 import type { Message, ChannelCache, CacheMetadata, Emoji, MessagePart } from '@/types';
-import { useReactionsStore } from '@/stores/useReactions';
+import { seedNoReactions, useReactionsStore } from '@/stores/useReactions';
 import { useServerUsersStore } from '@/stores/useServerUsers';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { usePinsStore } from '@/stores/usePins';
@@ -14,7 +14,9 @@ import { reportChannelEncryptionError } from '@/composables/useEncryptionAction'
 import { debug } from '@/utils/debug';
 import { realtimeConnectionManager, type ConnectionStatus } from '@/services/RealtimeConnectionManager';
 import { getRandomId, createTempMessageId, findOptimisticMatchIndex } from '@/stores/shared/optimisticMessages';
-import { insertMessageSorted, evictOldestCacheEntry, trimCachedMessages, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils';
+import { insertMessageSorted, evictOldestCacheEntry, placeStoredRow, trimCachedMessages, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils';
+import { inSendOrder, sendKeyForChannel, takeSendTurn, type SendTurn } from '@/stores/shared/sendOrder';
+import { keepPendingEdit, saveEditOptimistically } from '@/stores/shared/optimisticEdit';
 import { isModerationRejectionCode } from '@/services/AutoModService';
 import { releaseFloatingVideo } from '@/composables/useFloatingVideo';
 import { clearHistoryCutoffs } from '@/services/channelHistoryCutoff';
@@ -728,6 +730,7 @@ export const useChatStore = defineStore('chat', {
       debug.log('Cleared all message caches');
     },
 
+    /** Shows the edit at once and saves it behind (optimisticEdit.ts); a refusal restores the row and throws. */
     async editMessage(messageId: string, content: MessagePart[]) {
       try {
         debug.log('Editing message via MessageService:', messageId);
@@ -737,16 +740,16 @@ export const useChatStore = defineStore('chat', {
           debug.error('Message not found in current messages:', messageId);
           return;
         }
-        
-        const updatedMessage = await services.messages.editMessage(messageId, content);
-        
-        // The service response omits reactions; carry them over.
-        const messageWithReactions = {
-          ...updatedMessage,
-          reactions: currentMessage.reactions || [],
-        };
-        
-        this.updateMessageInCache(messageId, messageWithReactions);
+
+        await saveEditOptimistically({
+          message: currentMessage,
+          content,
+          patch: (fields) => {
+            this.patchMessageFields(messageId, fields);
+            try { ensureMessageEmbeds(currentMessage); } catch { /* embeds are best-effort */ }
+          },
+          save: () => services.messages.editMessage(messageId, content),
+        });
         debug.log('Message edited via service layer');
         
       } catch (error: any) {
@@ -781,6 +784,8 @@ export const useChatStore = defineStore('chat', {
         /** Id of the optimistic row; the outbox passes the id of its pending row. */
         tempId?: string;
         clientNonce?: string;
+        /** The channel's send turn, taken at Enter; a fresh one when absent. */
+        turn?: SendTurn;
       }
     ) {
       // Temp ID = timestamp plus random suffix. Without the suffix two sends in
@@ -806,18 +811,21 @@ export const useChatStore = defineStore('chat', {
       };
       
       this.addMessageToCache(optimisticMessage as any);
-      
+      // The optimistic row shows at once; the insert waits for the channel's earlier ones.
+      const orderKey = sendKeyForChannel(channelId);
+      const turn = options?.turn ?? takeSendTurn(orderKey);
+
       try {
         debug.log('Sending message via MessageService:', { channelId, userId });
         
-        const message = await services.messages.sendChannelMessage(
+        const message = await turn.run(() => services.messages.sendChannelMessage(
           serverId,
           channelId, 
           content as any, // MessagePart[]
           replyTo || undefined,
           sendMetadata,
           serviceOptions
-        );
+        ));
 
         debug.log('Message saved to database:', message.id);
         debug.log('Message data from server:', message);
@@ -908,9 +916,10 @@ export const useChatStore = defineStore('chat', {
           }
 
           try {
-            const retryResult = await services.messages.sendChannelMessage(
+            // A retry queues behind the sends made since; it lands at its new created_at.
+            const retryResult = await inSendOrder(orderKey, () => services.messages.sendChannelMessage(
               serverId, channelId, content as any, replyTo || undefined, sendMetadata, serviceOptions
-            );
+            ));
             this._replaceTempWithReal(tempId, retryResult, userId, channelId, content);
             return retryResult;
           } catch (retryError) {
@@ -938,6 +947,7 @@ export const useChatStore = defineStore('chat', {
     },
 
     _replaceTempWithReal(tempId: string, message: any, userId: string, channelId: string, content: any) {
+      seedNoReactions(message.id);
       // The live list and the cache are reconciled independently - realtime
       // `onInsert` may already have replaced the temp row in `messages`. Bail
       // only when neither copy holds it, otherwise the cache keeps a
@@ -965,13 +975,14 @@ export const useChatStore = defineStore('chat', {
 
       try { ensureMessageEmbeds(realMessage); } catch { /* embeds are best-effort */ }
 
+      // Placed by the server's created_at: the sender's list matches what everyone else reads.
       if (tempIndex !== -1) {
-        this.messages.splice(tempIndex, 1, realMessage as any);
+        placeStoredRow(this.messages, tempId, realMessage as any);
       }
       debug.log('Replaced temp message with real message:', { tempId, realId: message.id });
 
       if (cached && cacheIndex !== -1) {
-        cached.messages.splice(cacheIndex, 1, realMessage as any);
+        placeStoredRow(cached.messages, tempId, realMessage as any);
         cached.lastModified = new Date();
       }
     },
@@ -986,9 +997,9 @@ export const useChatStore = defineStore('chat', {
       this.messages[idx] = { ...this.messages[idx], sending: true, failed: false } as any;
 
       try {
-        const message = await services.messages.sendChannelMessage(
+        const message = await inSendOrder(sendKeyForChannel(channelId), () => services.messages.sendChannelMessage(
           serverId, channelId, content as any, replyTo || undefined, metadata
-        );
+        ));
         this._replaceTempWithReal(tempId, message, userId, channelId, content);
       } catch (error) {
         debug.error('Retry failed:', error);
@@ -1124,17 +1135,13 @@ export const useChatStore = defineStore('chat', {
             return;
           }
           const replacedTempId = (store.messages[targetIndex] as any).id;
-          store.messages.splice(targetIndex, 1, resolvedMessage);
+          placeStoredRow(store.messages, replacedTempId, resolvedMessage);
 
           // Cache holds its own copy of the temp row; leaving it stale makes
           // the message render grayed out again on channel re-entry.
           const tempCache = store.messageCache.get(payloadNew.channel_id);
-          if (tempCache) {
-            const tempCacheIndex = tempCache.messages.findIndex((m: any) => m.id === replacedTempId);
-            if (tempCacheIndex !== -1) {
-              tempCache.messages.splice(tempCacheIndex, 1, resolvedMessage);
-              tempCache.lastModified = new Date();
-            }
+          if (tempCache && placeStoredRow(tempCache.messages, replacedTempId, resolvedMessage)) {
+            tempCache.lastModified = new Date();
           }
           return;
         }
@@ -1233,6 +1240,7 @@ export const useChatStore = defineStore('chat', {
           }
         }
 
+        updatedMessage = keepPendingEdit(store.messages.find(m => m.id === updatedMessage.id), updatedMessage);
         store.updateMessageInCache(updatedMessage.id, updatedMessage);
         debug.log('Message updated via real-time:', updatedMessage.id);
       }
