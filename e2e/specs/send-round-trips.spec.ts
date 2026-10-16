@@ -201,3 +201,55 @@ test('a channel encrypted while open sends the next message encrypted, on the fi
     expect(inserts.map((r) => r.status), describe(again)).toEqual([201])
   })
 })
+
+test('a DM encrypted while open sends the next message encrypted, on the first Enter', async ({ page }) => {
+  test.setTimeout(150_000)
+  const { data, error } = await admin
+    .from('conversations')
+    .insert({ type: 'direct', created_by: owner.id })
+    .select('id')
+    .single()
+  if (error || !data) throw new Error(`conversation: ${error?.message}`)
+  const later = data.id as string
+  await admin.from('conversation_participants').insert([
+    { conversation_id: later, user_id: owner.id },
+    { conversation_id: later, user_id: partner.id },
+  ])
+
+  await signIn(page, owner)
+  await page.goto(`/dm/${later}`)
+  await expect(messageList(page)).toBeVisible({ timeout: 30000 })
+  await setUpEncryption(page, owner)
+  await sendMessage(page, `dm plain before ${owner.username}`)
+
+  await test.step('the partner turns encryption on; the open client is not told', async () => {
+    const { error: toggleError } = await admin
+      .from('conversation_encryption_settings')
+      .upsert({ conversation_id: later, encryption_enabled: true }, { onConflict: 'conversation_id' })
+    if (toggleError) throw new Error(`encryption: ${toggleError.message}`)
+  })
+
+  const secret = `dm secret after ${owner.username}`
+  const log = recordBackendRequests(page)
+  const window = await measuredSend(page, log, secret)
+  console.log(`DM encrypted-since send window:\n${describe(window)}`)
+
+  await test.step('the refused plaintext insert is followed by one encrypted insert', async () => {
+    await expect.poll(() => window.filter(isMessageInsert).every((r) => r.status !== undefined)).toBe(true)
+    expect(window.filter(isMessageInsert).map((r) => r.status), describe(window)).toEqual([400, 201])
+  })
+
+  await test.step('the stored row is ciphertext; the sender reads the text', async () => {
+    const { data: stored, error: readError } = await admin
+      .from('messages')
+      .select('encrypted, content')
+      .eq('conversation_id', later)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+    if (readError || !stored) throw new Error(`stored row: ${readError?.message}`)
+    expect(stored.encrypted).toBe(true)
+    expect(JSON.stringify(stored.content)).not.toContain(secret)
+    await expect(messageList(page).locator('.message-item').filter({ hasText: secret })).toHaveCount(1)
+  })
+})

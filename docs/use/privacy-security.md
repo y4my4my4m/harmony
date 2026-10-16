@@ -117,6 +117,8 @@ For encrypted voice and video, see [Voice, video and calls](/use/voice-video#enc
 
 Any participant can switch it, once encryption is set up and unlocked on their device. Encrypted messages are not sent to other instances, so a person on another instance does not receive them; Harmony warns you before you enable it in such a conversation.
 
+Once a conversation is encrypted, Harmony refuses to store an unencrypted message in it. If your keys are locked or not set up, Harmony asks before sending one unencrypted.
+
 ### What is and isn't encrypted
 
 | Encrypted | Not encrypted |

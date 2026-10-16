@@ -18,7 +18,12 @@ import {
   isChannelEncryptedRefusal,
   type EncryptedChannelPayload,
 } from '@/services/core/channelMessageEncryption'
-import { conversationEncryptionEnabled } from '@/services/conversationEncryption'
+import {
+  conversationEncryptionEnabled,
+  fetchConversationEncryption,
+  forgetConversationEncryption,
+  isConversationEncryptedRefusal,
+} from '@/services/conversationEncryption'
 import { blockedMessageRejection, moderationRejectionFromError } from '@/services/AutoModService'
 import { mediaRoom, messageMediaPathsIn } from '@/services/privateMedia'
 import { beginHistoryView, historyCutoff, historyViewBegun, recordHistoryCutoff } from '@/services/channelHistoryCutoff'
@@ -207,101 +212,38 @@ export class CoreMessageService {
         throw this.createError('AUTH_REQUIRED', 'User not authenticated')
       }
 
-      let finalContent = content
-      let encrypted = false
-      let encryptionMetadata = null
-      let mediaPaths: string[] | null = null
-
       const conversationEncrypted = await encryptionEnabled
       debug.log(`Conversation encryption setting: ${conversationEncrypted ? 'enabled' : 'disabled'}`)
 
-      if (conversationEncrypted) {
-        const encryptionService = await getEncryptionService()
-        if (encryptionService && encryptionService.isInitialized()) {
-          // Megolm encrypts to the current room membership; the read runs beside the key check.
-          const participantsRead = Promise.resolve(supabase
-            .from('conversation_participants')
-            .select('user_id')
-            .eq('conversation_id', conversationId)
-            .is('left_at', null))
-          participantsRead.catch(() => {})
-          const hasRecoveryKey = await encryptionService.hasRecoveryKey()
-          const isUnlocked = encryptionService.isUnlocked()
+      const metadata: Record<string, any> = { ...extraMetadata }
+      let payload = conversationEncrypted
+        ? await this.dmPayload(conversationId, currentUser.id, content, allowFallback, metadata)
+        : { content, encrypted: false, encryption_metadata: null, media_paths: null }
 
-          if (hasRecoveryKey && isUnlocked) {
-            try {
-              debug.log('Megolm encryption active - encrypting DM')
-              debug.log(`Conversation (room): ${conversationId}`)
-
-              const { data: participants } = await participantsRead
-
-              const recipientIds: string[] = participants?.map((p: { user_id: string }) => p.user_id) || []
-              if (!recipientIds.includes(currentUser.id)) {
-                recipientIds.push(currentUser.id)
-              }
-
-              debug.log(`Encrypting DM for ${recipientIds.length} participants`)
-
-              // Megolm session key is conversation-wide; room id is the conversation id.
-              const encryptedData = await encryptionService.encryptMessage(content, conversationId, recipientIds)
-              finalContent = encryptedData.content
-              encrypted = true
-              encryptionMetadata = encryptedData.encryption_metadata
-              mediaPaths = messageMediaPathsIn(content, mediaRoom({ conversationId }))
-              debug.log(`DM encrypted with Megolm (session: ${encryptionMetadata.session_id?.substring(0, 8)}...)`)
-            } catch (error) {
-              debug.error('DM encryption failed:', error)
-              if (!allowFallback) {
-                window.dispatchEvent(new CustomEvent('encryption-fallback', {
-                  detail: { type: 'dm', conversationId, error: String(error), failClosed: true }
-                }))
-                throw this.createError('ENCRYPTION_FAILED_NO_FALLBACK',
-                  'DM encryption failed and plaintext fallback was not authorized', error)
-              }
-              debug.warn('User-authorized plaintext fallback - sending DM unencrypted')
-              this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'dm_encrypt_failed')
-            }
-          } else if (hasRecoveryKey && !isUnlocked) {
-            if (!allowFallback) {
-              throw this.createError('ENCRYPTION_LOCKED',
-                'This conversation is encrypted but your keys are locked. Unlock encryption to send encrypted, or confirm an unencrypted send.')
-            }
-            debug.warn('User-authorized plaintext fallback - DM keys locked')
-            this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'dm_encryption_locked')
-          } else {
-            if (!allowFallback) {
-              throw this.createError('ENCRYPTION_UNAVAILABLE',
-                'This conversation is encrypted but you have not set up a recovery key. Set up encryption to send encrypted, or confirm an unencrypted send.')
-            }
-            debug.warn('User-authorized plaintext fallback - DM no recovery key')
-            this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'dm_no_recovery_key')
-          }
-        } else {
-          if (!allowFallback) {
-            throw this.createError('ENCRYPTION_UNAVAILABLE',
-              'This conversation is encrypted but the encryption service is unavailable. Confirm an unencrypted send to continue.')
-          }
-          debug.warn('User-authorized plaintext fallback - DM encryption service unavailable')
-          this.markPlaintextOverride(extraMetadata = extraMetadata || {}, 'dm_service_unavailable')
-        }
-      }
-
-      const messageData = {
+      const row = () => ({
         user_id: currentUser.id,
         conversation_id: conversationId,
-        content: finalContent,
+        content: payload.content,
         reply_to: replyTo || null,
-        encrypted,
-        encryption_metadata: encryptionMetadata,
-        ...(mediaPaths ? { media_paths: mediaPaths } : {}),
-        metadata: { created_via: 'harmony_client', ...extraMetadata }
-      }
+        encrypted: payload.encrypted,
+        encryption_metadata: payload.encryption_metadata,
+        ...(payload.media_paths ? { media_paths: payload.media_paths } : {}),
+        metadata: { created_via: 'harmony_client', ...metadata }
+      })
+      const insert = () => supabase.from('messages').insert(row()).select('*').single()
 
-      const { data: message, error } = await supabase
-        .from('messages')
-        .insert(messageData)
-        .select('*')
-        .single()
+      let { data: message, error } = await insert()
+
+      // The conversation was encrypted after the last read of its setting: read it again and
+      // send once more through the encryption policy.
+      if (error && !conversationEncrypted && isConversationEncryptedRefusal(error)) {
+        forgetConversationEncryption(conversationId)
+        if (!(await fetchConversationEncryption(conversationId))) {
+          throw this.createError('INSERT_FAILED', error.message, error)
+        }
+        payload = await this.dmPayload(conversationId, currentUser.id, content, allowFallback, metadata)
+        ;({ data: message, error } = await insert())
+      }
 
       if (error) {
         const rejection = moderationRejectionFromError(error)
@@ -318,6 +260,89 @@ export class CoreMessageService {
       debug.error('Failed to send DM message:', error)
       throw error
     }
+  }
+
+  /**
+   * The payload for an encrypted conversation: ciphertext, or plaintext with a
+   * `plaintext_override` marker written into `metadata` when `allowFallback`. Without consent
+   * a sender who cannot encrypt gets ENCRYPTION_LOCKED, ENCRYPTION_UNAVAILABLE or
+   * ENCRYPTION_FAILED_NO_FALLBACK.
+   */
+  private async dmPayload(
+    conversationId: string,
+    senderId: string,
+    content: MessagePart[],
+    allowFallback: boolean,
+    metadata: Record<string, any>,
+  ): Promise<{ content: MessagePart[]; encrypted: boolean; encryption_metadata: any; media_paths: string[] | null }> {
+    const plain = { content, encrypted: false, encryption_metadata: null, media_paths: null }
+    const encryptionService = await getEncryptionService()
+    if (!encryptionService || !encryptionService.isInitialized()) {
+      if (!allowFallback) {
+        throw this.createError('ENCRYPTION_UNAVAILABLE',
+          'This conversation is encrypted but the encryption service is unavailable. Confirm an unencrypted send to continue.')
+      }
+      debug.warn('User-authorized plaintext fallback - DM encryption service unavailable')
+      this.markPlaintextOverride(metadata, 'dm_service_unavailable')
+      return plain
+    }
+
+    // Megolm encrypts to the current room membership; the read runs beside the key check.
+    const participantsRead = Promise.resolve(supabase
+      .from('conversation_participants')
+      .select('user_id')
+      .eq('conversation_id', conversationId)
+      .is('left_at', null))
+    participantsRead.catch(() => {})
+    const hasRecoveryKey = await encryptionService.hasRecoveryKey()
+    const isUnlocked = encryptionService.isUnlocked()
+
+    if (hasRecoveryKey && isUnlocked) {
+      try {
+        debug.log('Megolm encryption active - encrypting DM')
+        const { data: participants } = await participantsRead
+        const recipientIds: string[] = participants?.map((p: { user_id: string }) => p.user_id) || []
+        if (!recipientIds.includes(senderId)) recipientIds.push(senderId)
+
+        // Megolm session key is conversation-wide; room id is the conversation id.
+        const encryptedData = await encryptionService.encryptMessage(content, conversationId, recipientIds)
+        debug.log(`DM encrypted with Megolm (session: ${encryptedData.encryption_metadata.session_id?.substring(0, 8)}...)`)
+        return {
+          content: encryptedData.content,
+          encrypted: true,
+          encryption_metadata: encryptedData.encryption_metadata,
+          media_paths: messageMediaPathsIn(content, mediaRoom({ conversationId })),
+        }
+      } catch (error) {
+        debug.error('DM encryption failed:', error)
+        if (!allowFallback) {
+          window.dispatchEvent(new CustomEvent('encryption-fallback', {
+            detail: { type: 'dm', conversationId, error: String(error), failClosed: true }
+          }))
+          throw this.createError('ENCRYPTION_FAILED_NO_FALLBACK',
+            'DM encryption failed and plaintext fallback was not authorized', error)
+        }
+        debug.warn('User-authorized plaintext fallback - sending DM unencrypted')
+        this.markPlaintextOverride(metadata, 'dm_encrypt_failed')
+        return plain
+      }
+    }
+    if (hasRecoveryKey) {
+      if (!allowFallback) {
+        throw this.createError('ENCRYPTION_LOCKED',
+          'This conversation is encrypted but your keys are locked. Unlock encryption to send encrypted, or confirm an unencrypted send.')
+      }
+      debug.warn('User-authorized plaintext fallback - DM keys locked')
+      this.markPlaintextOverride(metadata, 'dm_encryption_locked')
+      return plain
+    }
+    if (!allowFallback) {
+      throw this.createError('ENCRYPTION_UNAVAILABLE',
+        'This conversation is encrypted but you have not set up a recovery key. Set up encryption to send encrypted, or confirm an unencrypted send.')
+    }
+    debug.warn('User-authorized plaintext fallback - DM no recovery key')
+    this.markPlaintextOverride(metadata, 'dm_no_recovery_key')
+    return plain
   }
 
   // MESSAGE EDITING (PURE LOCAL)

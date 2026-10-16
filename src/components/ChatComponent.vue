@@ -215,7 +215,7 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   import { coreMessageService } from '@/services/core/CoreMessageService';
   import { ENCRYPTION_STATE_CHANGED_EVENT } from '@/composables/useEncryptionAction';
   import { fetchEffectiveChannelEncryption, fetchServerForceKeySetup, invalidateServerForceKeySetup } from '@/services/ChannelEncryptionService';
-  import { fetchConversationEncryption, refreshConversationEncryption } from '@/services/conversationEncryption';
+  import { fetchConversationEncryption } from '@/services/conversationEncryption';
   import { getEncryptionService } from '@/services/core/channelMessageEncryption';
   import { useChannelEncryptionStore } from '@/stores/useChannelEncryption';
   import { supabase } from '@/supabase';
@@ -394,8 +394,6 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
     if (draftKey.value) {
       draftsStore.saveDraft(draftKey.value, val);
     }
-    // Typing keeps the conversation's encryption answer fresh, so the send reads none.
-    if (props.isDM && val) refreshConversationEncryption(props.conversationId);
   });
   
   // Legacy compatibility

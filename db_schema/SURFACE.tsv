@@ -90,6 +90,7 @@ broadcast_bot_presence_change		trigger	definer	public, pg_temp	service_role	trig
 broadcast_category_change		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 broadcast_channel_change		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 broadcast_channel_encryption_change		trigger	definer	public, extensions, pg_temp	service_role	trigger
+broadcast_conversation_encryption_change		trigger	definer	public, extensions, pg_temp	service_role	trigger
 broadcast_conversation_participant_event		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 broadcast_conversation_updated		trigger	definer	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 broadcast_device_approval_event		trigger	definer	public, pg_temp	anon+authenticated+service_role	client
@@ -175,6 +176,7 @@ compute_supporter_tier_for_amount	p_amount numeric, p_currency text	uuid	invoker
 consume_device_sync_bundle	p_request_id uuid, p_device_id text	boolean	definer	public, pg_temp	authenticated+service_role	client
 consume_invite	p_server_id uuid, p_code text	text	definer	public, pg_temp	service_role	client
 content_has_system_part	p_content jsonb	boolean	invoker	pg_catalog, pg_temp	service_role	unreferenced
+conversation_messages_encrypted	p_conversation_id uuid	boolean	definer	public, extensions, pg_temp	authenticated+service_role	unreferenced
 convert_jsonb_to_ap	content jsonb	text	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client
 count_pinned_messages	p_channel_id uuid, p_conversation_id uuid	integer	invoker	public, extensions, pg_temp	anon+authenticated+service_role	client
 count_profile_media	p_author_id uuid	integer	invoker	public, pg_temp	anon+authenticated+service_role	client
@@ -318,6 +320,7 @@ end_voice_activity_when_empty		trigger	definer	public, pg_temp	service_role	trig
 enforce_channel_category_scope		trigger	definer	public, pg_temp	service_role	trigger
 enforce_channel_message_encryption		trigger	invoker	public, extensions, pg_temp	service_role	trigger
 enforce_channel_slowmode		trigger	definer	public, pg_temp	anon+authenticated+service_role	client
+enforce_conversation_message_encryption		trigger	invoker	public, extensions, pg_temp	service_role	trigger
 enforce_force_sensitive		trigger	invoker	public, extensions, pg_temp	anon+authenticated+service_role	trigger
 enforce_message_attach_files		trigger	invoker	public, pg_temp	service_role	trigger
 enforce_message_content_permissions		trigger	definer	public, pg_temp	service_role	trigger

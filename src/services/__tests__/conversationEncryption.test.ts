@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { supabase } from '@/supabase'
 import {
-  CONVERSATION_ENCRYPTION_FRESH_MS,
   conversationEncryptionEnabled,
   fetchConversationEncryption,
   forgetConversationEncryption,
-  refreshConversationEncryption,
+  isConversationEncryptedRefusal,
 } from '@/services/conversationEncryption'
 
 const CONVERSATION = 'cccccccc-cccc-cccc-cccc-cccccccccccc'
@@ -53,30 +52,19 @@ describe('conversation encryption answers', () => {
     expect(settingsReads()).toBe(1)
   })
 
-  it('an answer past its freshness is read again before the send', async () => {
+  it('an answer stands until something says it changed', async () => {
     await conversationEncryptionEnabled(CONVERSATION)
     db.enabled = true
-    vi.advanceTimersByTime(CONVERSATION_ENCRYPTION_FRESH_MS)
+    vi.advanceTimersByTime(60 * 60 * 1000)
+    expect(await conversationEncryptionEnabled(CONVERSATION)).toBe(false)
+    expect(settingsReads()).toBe(1)
+    expect(await fetchConversationEncryption(CONVERSATION)).toBe(true)
     expect(await conversationEncryptionEnabled(CONVERSATION)).toBe(true)
-    expect(settingsReads()).toBe(2)
   })
 
-  it('typing refreshes an answer past half its freshness, so the send reads none', async () => {
-    await conversationEncryptionEnabled(CONVERSATION)
-    vi.advanceTimersByTime(CONVERSATION_ENCRYPTION_FRESH_MS / 2 - 1)
-    refreshConversationEncryption(CONVERSATION)
-    expect(settingsReads()).toBe(1)
-
-    db.enabled = true
-    vi.advanceTimersByTime(1)
-    refreshConversationEncryption(CONVERSATION)
-    refreshConversationEncryption(CONVERSATION)
-    expect(settingsReads()).toBe(2)
-    await vi.advanceTimersByTimeAsync(0)
-
-    vi.advanceTimersByTime(CONVERSATION_ENCRYPTION_FRESH_MS / 2)
-    expect(await conversationEncryptionEnabled(CONVERSATION)).toBe(true)
-    expect(settingsReads()).toBe(2)
+  it('tells the database refusal of plaintext from other errors', () => {
+    expect(isConversationEncryptedRefusal({ message: 'CONVERSATION_ENCRYPTED: this conversation is end-to-end encrypted' })).toBe(true)
+    expect(isConversationEncryptedRefusal({ message: 'RECIPIENT_DELETED' })).toBe(false)
   })
 
   it('this client\'s toggle writes the answer', async () => {
@@ -92,10 +80,9 @@ describe('conversation encryption answers', () => {
     db.enabled = true
     await conversationEncryptionEnabled(CONVERSATION)
     db.fail = true
-    vi.advanceTimersByTime(CONVERSATION_ENCRYPTION_FRESH_MS)
+    expect(await fetchConversationEncryption(CONVERSATION)).toBe(true)
     expect(await conversationEncryptionEnabled(CONVERSATION)).toBe(true)
-    expect(await conversationEncryptionEnabled(CONVERSATION)).toBe(true)
-    expect(settingsReads()).toBe(3)
+    expect(settingsReads()).toBe(2)
   })
 
   it('a failed first read answers not encrypted, as the uncached read did', async () => {

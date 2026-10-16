@@ -99,6 +99,12 @@ function setupSupabase({
   /** A plaintext channel row fails as enforce_channel_message_encryption() fails it. */
   refusePlaintext?: boolean
 } = {}) {
+  /** enforce_conversation_message_encryption(): unconsented plaintext into an encrypted conversation. */
+  const conversationRefusal = (row: any) =>
+    row.conversation_id && state.conversationEnabled && !row.encrypted
+      && row.metadata?.plaintext_override?.authorized !== true
+      ? { message: 'CONVERSATION_ENCRYPTED: this conversation is end-to-end encrypted and rejects plaintext messages' }
+      : undefined
   const insertedRows: any[] = []
   /** Mutable after setup: what the database answers from then on. */
   const state = {
@@ -163,7 +169,7 @@ function setupSupabase({
           const one = insertedMessage ?? { id: 'msg-1', ...row }
           const error = insertError ?? (state.refusePlaintext && row.channel_id && !row.encrypted
             ? CHANNEL_ENCRYPTED
-            : undefined)
+            : conversationRefusal(row))
           return {
             select: () => ({
               single: () => Promise.resolve(error
@@ -518,21 +524,58 @@ describe('CoreMessageService - encryption policy (fail-closed by default)', () =
       expect(readsBesideInsert()).toEqual([])
     })
 
-    it('a DM answer past its freshness is read again before the send', async () => {
-      vi.useFakeTimers()
-      try {
-        const { insertedRows, state } = setupSupabase({ conversationEnabled: false })
-        await service.sendDMMessage(CONVERSATION_ID, hi)
-        state.conversationEnabled = true
-        vi.advanceTimersByTime(61_000)
-        insertedRows.length = 0
+    it('re-sends encrypted once when the database refuses plaintext into a conversation encrypted since the last read', async () => {
+      const { insertedRows, state } = setupSupabase({ conversationEnabled: false })
+      await service.sendDMMessage(CONVERSATION_ID, hi)
+      state.conversationEnabled = true
+      insertedRows.length = 0
+      vi.clearAllMocks()
 
-        await service.sendDMMessage(CONVERSATION_ID, hi)
+      const sent = await service.sendDMMessage(CONVERSATION_ID, hi)
 
-        expect(insertedRows.map((row) => row.encrypted)).toEqual([true])
-      } finally {
-        vi.useRealTimers()
-      }
+      expect(insertedRows.map((row) => row.encrypted)).toEqual([false, true])
+      expect(sent).toMatchObject({ encrypted: true })
+      expect(readsBesideInsert()).toEqual(['conversation_encryption_settings', 'conversation_participants'])
+
+      // The re-read answer is kept: the next send encrypts without a refusal.
+      insertedRows.length = 0
+      await service.sendDMMessage(CONVERSATION_ID, hi)
+      expect(insertedRows.map((row) => row.encrypted)).toEqual([true])
+    })
+
+    it('a sender who cannot encrypt the re-send gets the encryption-required refusal', async () => {
+      const { insertedRows, state } = setupSupabase({ conversationEnabled: false })
+      await service.sendDMMessage(CONVERSATION_ID, hi)
+      state.conversationEnabled = true
+      encState.isUnlocked = false
+      insertedRows.length = 0
+
+      await expect(service.sendDMMessage(CONVERSATION_ID, hi)).rejects.toMatchObject({ code: 'ENCRYPTION_LOCKED' })
+      expect(insertedRows.map((row) => row.encrypted)).toEqual([false])
+    })
+
+    it('a consented plaintext re-send carries the override the database accepts', async () => {
+      const { insertedRows, state } = setupSupabase({ conversationEnabled: false })
+      await service.sendDMMessage(CONVERSATION_ID, hi)
+      state.conversationEnabled = true
+      encState.isUnlocked = false
+      insertedRows.length = 0
+
+      await service.sendDMMessage(CONVERSATION_ID, hi, undefined, { allowPlaintextFallback: true })
+      expect(insertedRows.map((row) => row.metadata?.plaintext_override?.authorized ?? false)).toEqual([false, true])
+    })
+
+    it('a conversation:encryption notice answers the next DM send', async () => {
+      const { insertedRows, state } = setupSupabase({ conversationEnabled: false })
+      await service.sendDMMessage(CONVERSATION_ID, hi)
+      state.conversationEnabled = true
+      window.dispatchEvent(new CustomEvent('dm-encryption-toggled', {
+        detail: { conversationId: CONVERSATION_ID, enabled: true },
+      }))
+      insertedRows.length = 0
+
+      await service.sendDMMessage(CONVERSATION_ID, hi)
+      expect(insertedRows.map((row) => row.encrypted)).toEqual([true])
     })
 
     it('this client\'s toggle answers the next DM send', async () => {

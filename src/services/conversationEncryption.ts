@@ -2,10 +2,13 @@
  * conversation_encryption_settings.encryption_enabled per DM conversation, shared by the send
  * path, the chat header and the conversation header.
  *
- * Unlike a channel, a conversation has no database refusal of plaintext and no event for a
- * participant's toggle, so an answer is trusted for FRESH_MS after its read. The composer
- * refreshes an entry past half that age while the user types; a send that finds it stale reads
- * again before the insert. This client's own toggle ('dm-encryption-toggled') writes the entry.
+ * An entry stands until something says it changed: the conversation:encryption notice every
+ * participant gets on their user channel, this client's own toggle ('dm-encryption-toggled'),
+ * a user channel reconnect (notices may have been missed), a fresh read when a header opens the
+ * conversation, and sign-out. A stale "not encrypted" costs one refused insert:
+ * enforce_conversation_message_encryption() rejects plaintext with CONVERSATION_ENCRYPTED and the
+ * sender reads again. A stale "encrypted" encrypts, or asks a locked sender, until the notice or
+ * the next open.
  *
  * A failed read answers with the previous entry, else "not encrypted" as the uncached read
  * did, and is not kept.
@@ -13,12 +16,8 @@
 import { supabase } from '@/supabase'
 import { debug } from '@/utils/debug'
 
-/** How long a read answers for a send, ms. */
-export const CONVERSATION_ENCRYPTION_FRESH_MS = 60_000
-
 interface Entry {
   enabled: boolean
-  at: number
 }
 
 const entries = new Map<string, Entry>()
@@ -41,7 +40,7 @@ function read(conversationId: string): Promise<boolean> {
     (enabled) => {
       if (reads.get(conversationId) === settled) {
         reads.delete(conversationId)
-        entries.set(conversationId, { enabled, at: Date.now() })
+        entries.set(conversationId, { enabled })
       }
       return enabled
     },
@@ -60,26 +59,22 @@ export function fetchConversationEncryption(conversationId: string): Promise<boo
   return read(conversationId)
 }
 
-/** From an entry younger than CONVERSATION_ENCRYPTION_FRESH_MS, else read. */
+/** From the entry, else read. A read already running answers instead. */
 export async function conversationEncryptionEnabled(conversationId: string): Promise<boolean> {
+  const running = reads.get(conversationId)
+  if (running) return running
   const entry = entries.get(conversationId)
-  if (entry && Date.now() - entry.at < CONVERSATION_ENCRYPTION_FRESH_MS && !reads.has(conversationId)) {
-    return entry.enabled
-  }
-  return read(conversationId)
+  return entry ? entry.enabled : read(conversationId)
 }
 
-/** Starts a read when the entry is absent or past half its freshness. */
-export function refreshConversationEncryption(conversationId: string | null | undefined): void {
-  if (!conversationId || reads.has(conversationId)) return
-  const entry = entries.get(conversationId)
-  if (entry && Date.now() - entry.at < CONVERSATION_ENCRYPTION_FRESH_MS / 2) return
-  void read(conversationId)
+/** The database refused plaintext: enforce_conversation_message_encryption() found the conversation encrypted. */
+export function isConversationEncryptedRefusal(error: { message?: string } | null | undefined): boolean {
+  return (error?.message || '').includes('CONVERSATION_ENCRYPTED')
 }
 
 export function recordConversationEncryption(conversationId: string, enabled: boolean): void {
   reads.delete(conversationId)
-  entries.set(conversationId, { enabled, at: Date.now() })
+  entries.set(conversationId, { enabled })
 }
 
 /** Drops the conversation's entry, or every entry without an id; sign-out. */

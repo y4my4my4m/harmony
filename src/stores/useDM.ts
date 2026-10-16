@@ -20,6 +20,7 @@ import { routeMessageEvent } from '@/stores/shared/realtimeMessageEvent'
 import { insertMessageSorted, evictOldestCacheEntry, placeStoredRow, trimCachedMessages, waitForPendingReplyFetch } from '@/stores/shared/messageCacheUtils'
 import { inSendOrder, sendKeyForConversation, takeSendTurn, type SendTurn } from '@/stores/shared/sendOrder'
 import { keepPendingEdit, saveEditOptimistically } from '@/stores/shared/optimisticEdit'
+import { forgetConversationEncryption } from '@/services/conversationEncryption'
 import { isModerationRejectionCode } from '@/services/AutoModService'
 import { releaseFloatingVideo } from '@/composables/useFloatingVideo'
 import { useMessagePollsStore } from '@/stores/useMessagePolls'
@@ -2828,9 +2829,20 @@ export const useDMStore = defineStore('dm', () => {
     const unsubReconnect = userEventChannel.on('_reconnected', () => {
       debug.log('UserEventChannel reconnected - resyncing conversation list')
       fetchUserConversations(userId).catch(err => debug.warn('reconnect refetch failed:', err))
+      // Encryption notices sent while disconnected are lost.
+      forgetConversationEncryption()
     })
 
-    _globalBroadcastUnsubs = [unsubNew, unsubUpdated, unsubUnread, unsubReconnect]
+    // A participant turned the conversation's encryption on or off. The window event updates
+    // the send path's answer (conversationEncryption.ts) and the open headers.
+    const unsubEncryption = userEventChannel.on('conversation:encryption', (data) => {
+      if (typeof data?.conversation_id !== 'string') return
+      window.dispatchEvent(new CustomEvent('dm-encryption-toggled', {
+        detail: { conversationId: data.conversation_id, enabled: data.encryption_enabled === true },
+      }))
+    })
+
+    _globalBroadcastUnsubs = [unsubNew, unsubUpdated, unsubUnread, unsubReconnect, unsubEncryption]
     _globalBroadcastRegistered = true
     debug.log('Global conversation broadcast handlers registered')
   }

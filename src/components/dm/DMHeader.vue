@@ -676,12 +676,21 @@ const handleStartCallRequest = (e: Event) => {
   }
 }
 
+// A participant's toggle (conversation:encryption) or this client's own.
+const handleEncryptionToggled = (event: Event) => {
+  const detail = (event as CustomEvent).detail as { conversationId?: string; enabled?: boolean } | null
+  if (detail?.conversationId === props.conversation.id && typeof detail.enabled === 'boolean') {
+    encryptionEnabled.value = detail.enabled
+  }
+}
+
 onMounted(() => {
   initializePresenceTracking()
   subscribeToCallSignals()
   loadEncryptionStatus()
   loadConversationMuteState()
   window.addEventListener('harmony-dm-start-call', handleStartCallRequest)
+  window.addEventListener('dm-encryption-toggled', handleEncryptionToggled)
 })
 
 watch(
@@ -734,6 +743,7 @@ onUnmounted(() => {
   unsubscribeFromCallSignals()
   stopCallerRinging()
   window.removeEventListener('harmony-dm-start-call', handleStartCallRequest)
+  window.removeEventListener('dm-encryption-toggled', handleEncryptionToggled)
 })
 
 const otherUserStatus = computed(() => {
