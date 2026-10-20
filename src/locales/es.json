@@ -1730,7 +1730,16 @@
       "audioSettings": "Ajustes de audio",
       "selectMicrophone": "Elegir micrófono",
       "selectSpeaker": "Elegir altavoz",
-      "selectCamera": "Elegir cámara"
+      "selectCamera": "Elegir cámara",
+      "inputSensitivity": "Sensibilidad de entrada",
+      "inputSensitivityDesc": "Envía tu micrófono solo mientras hablas, para que el ruido del teclado y de la sala no llegue a la llamada.",
+      "inputSensitivityOff": "Enviar siempre",
+      "inputSensitivityAuto": "Automática",
+      "inputSensitivityManual": "Manual",
+      "inputThreshold": "Umbral",
+      "decibels": "{db} dB",
+      "inputMeterHint": "La barra se pone verde mientras se envía tu micrófono.",
+      "inputMeterIdle": "Únete a un canal de voz para ver aquí tu nivel."
     },
     "notifications": {
       "title": "Notificaciones",

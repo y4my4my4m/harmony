@@ -1,7 +1,7 @@
 // The federation backend for specs that need its routes (channel webhooks, account
-// migration). e2e/backend-server.ts runs as a child process against the stack in
-// e2e/stack.env; a page reaches it through route(), which forwards the page's
-// /api/federation/* requests to it.
+// migration, LiveKit tokens). e2e/backend-server.ts runs as a child process against the
+// stack in e2e/stack.env; a page reaches it through route(), which forwards the page's
+// /api/federation/* requests to it, and /api/livekit/* when started with LiveKit keys.
 //
 // The dev server proxies /api/federation to localhost:3001, which is absent in CI and
 // on a developer machine is whatever instance runs there; route() replaces that hop.
@@ -14,7 +14,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Page } from '@playwright/test'
+import type { Page, Route } from '@playwright/test'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const TSX = path.join(ROOT, 'federation-backend/node_modules/.bin/tsx')
@@ -38,7 +38,8 @@ function env(name: string, fallback: string): string {
   return value
 }
 
-export async function startBackend(): Promise<Backend> {
+/** `extraEnv` adds to the backend's environment, e.g. the LIVEKIT_* keys from startLiveKit(). */
+export async function startBackend(extraEnv: Record<string, string> = {}): Promise<Backend> {
   if (!fs.existsSync(TSX)) throw new Error(`${TSX} missing - run npm ci in federation-backend/`)
 
   // winston writes logs/ and config/index.ts reads .env from the working directory.
@@ -59,6 +60,7 @@ export async function startBackend(): Promise<Backend> {
       // createApp() opens no Redis connection; a closed port keeps any path off a local Redis.
       REDIS_URL: 'redis://127.0.0.1:9',
       LOG_LEVEL: 'error',
+      ...extraEnv,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -85,11 +87,13 @@ export async function startBackend(): Promise<Backend> {
   return {
     url,
     async route(page: Page) {
-      await page.route('**/api/federation/**', async (route) => {
+      const forward = async (route: Route) => {
         const target = new URL(route.request().url())
         const response = await route.fetch({ url: `${url}${target.pathname}${target.search}` })
         await route.fulfill({ response })
-      })
+      }
+      await page.route('**/api/federation/**', forward)
+      if (extraEnv.LIVEKIT_URL) await page.route('**/api/livekit/**', forward)
     },
     async stop() {
       if (child.exitCode === null) {

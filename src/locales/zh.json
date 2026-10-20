@@ -1730,7 +1730,16 @@
       "audioSettings": "音频设置",
       "selectMicrophone": "选择麦克风",
       "selectSpeaker": "选择扬声器",
-      "selectCamera": "选择摄像头"
+      "selectCamera": "选择摄像头",
+      "inputSensitivity": "输入灵敏度",
+      "inputSensitivityDesc": "仅在你说话时发送麦克风声音，键盘声和环境噪音不会进入通话。",
+      "inputSensitivityOff": "始终发送",
+      "inputSensitivityAuto": "自动",
+      "inputSensitivityManual": "手动",
+      "inputThreshold": "阈值",
+      "decibels": "{db} dB",
+      "inputMeterHint": "麦克风声音发送时，进度条变为绿色。",
+      "inputMeterIdle": "加入语音频道后可在此查看输入电平。"
     },
     "notifications": {
       "title": "通知",

@@ -1730,7 +1730,16 @@
       "audioSettings": "오디오 설정",
       "selectMicrophone": "마이크 선택",
       "selectSpeaker": "스피커 선택",
-      "selectCamera": "카메라 선택"
+      "selectCamera": "카메라 선택",
+      "inputSensitivity": "입력 감도",
+      "inputSensitivityDesc": "말하는 동안에만 마이크를 전송해 키보드와 주변 소음이 통화에 들어가지 않게 합니다.",
+      "inputSensitivityOff": "항상 전송",
+      "inputSensitivityAuto": "자동",
+      "inputSensitivityManual": "수동",
+      "inputThreshold": "임계값",
+      "decibels": "{db} dB",
+      "inputMeterHint": "마이크가 전송되는 동안 막대가 초록색으로 바뀝니다.",
+      "inputMeterIdle": "음성 채널에 참여하면 여기에서 입력 레벨을 볼 수 있습니다."
     },
     "notifications": {
       "title": "알림",

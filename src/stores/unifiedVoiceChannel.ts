@@ -7,6 +7,7 @@ import type { VideoSource, VoiceConnectionQuality } from '@/services/livekitWebR
 import { clampVolume, remoteAudioMixer, type RemoteAudioKind } from '@/services/voice/remoteAudioMixer';
 import { loadAudioPrefs as readAudioPrefs, saveMutes, saveVolumes } from '@/services/voice/voiceAudioPrefs';
 import { closeVoiceAudioContext } from '@/services/voice/voiceAudioContext';
+import { SPEAKING_LEVEL } from '@/services/voice/speakingDetector';
 import { liveReactions, liveReactionsAvailable } from '@/services/voice/liveReactions';
 import { voiceAnnouncer } from '@/services/voice/voiceAnnouncements';
 import { connectLiveReactions } from '@/services/voice/liveReactionBridge';
@@ -1755,9 +1756,18 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
         const wasSharing = this.localState.isScreenSharing;
         const hadVideo = this.localState.isVideoEnabled;
+        if (!this.isConnected) {
+          // Mute or deafen chosen while connecting is applied once the join completes;
+          // the transport's join-time state must not clear it first.
+          this.localState = {
+            ...state,
+            isMuted: state.isMuted || this.localState.isMuted,
+            isDeafened: state.isDeafened || this.localState.isDeafened,
+          };
+          return;
+        }
         this.localState = state;
 
-        if (!this.isConnected) return;
         const themeStore = useThemeStore();
         if (wasSharing !== state.isScreenSharing) {
           themeStore.playAudio(state.isScreenSharing ? 'screenshare_on' : 'screenshare_off');
@@ -1785,9 +1795,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
       });
 
-      // Also drives the speaking indicator; threshold is level > 20.
+      // Also drives the speaking indicator: speakingDetector's contract, level > SPEAKING_LEVEL.
       webrtcManager.on('audio-level', (data: any) => {
-        const speaking = data.level > 20;
+        const speaking = data.level > SPEAKING_LEVEL;
         if (data.userId === this.localState.userId) {
           this.localState.audioLevel = data.level;
           if (speaking && !this.localState.isMuted) {
@@ -2176,6 +2186,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      */
     syncTransmitGate(): void {
       const keybinds = useKeybinds();
+      webrtcManager.setVoiceActivityMode(!keybinds.isPTTMode.value);
       webrtcManager.setTransmitGate(!keybinds.isPTTMode.value || keybinds.isPTTActive.value);
     },
 

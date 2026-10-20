@@ -288,6 +288,7 @@ Open **User settings** → **Voice & video**, or click **Voice settings** in the
 | Section | Setting | Default |
 |---|---|---|
 | **Input mode** | **Voice activity** (transmit when you speak) or **Push to talk** (hold a key) | Voice activity |
+| | **Input sensitivity** (voice activity only): **Always send**, **Automatic** or **Manual** | Always send |
 | **Audio devices** | **Input device**, **Output device** | System default |
 | | **Input volume**, **Output volume**, 0 to 200% | 100% |
 | | **Test microphone** shows a live level meter | |
@@ -303,6 +304,18 @@ Open **User settings** → **Voice & video**, or click **Voice settings** in the
 | | **Frame rate**: 15, 30 or 60 FPS | 30 FPS |
 
 Double-click a volume slider to reset it.
+
+### Keep background noise out of the call
+
+With **Voice activity**, **Input sensitivity** decides when your microphone is sent:
+
+- **Always send** sends everything the microphone picks up.
+- **Automatic** sends only while Harmony hears speech above the room's background level, so typing and fan noise between sentences stay out.
+- **Manual** sends only while your input is louder than the **Threshold** slider, -60 to -10 dB.
+
+During a call, the bar under the setting shows your microphone level and turns green while it is sent. In calls without a voice server (peer-to-peer), the microphone is always sent.
+
+The speaking ring around each person in a call is worked out on your device from the audio itself, so it lights up as soon as someone starts talking.
 
 ### Use push to talk
 

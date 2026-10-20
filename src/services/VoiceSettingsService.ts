@@ -28,6 +28,11 @@ export interface VoiceSettings {
   noiseSuppression: boolean;
   autoGainControl: boolean;
 
+  // Voice activity gate: 'off' always transmits, 'auto' transmits while speech is detected
+  // over the tracked noise floor, 'manual' while the input exceeds inputThresholdDb (dBFS RMS).
+  inputSensitivity: InputSensitivity;
+  inputThresholdDb: number;
+
   // Video settings
   videoQuality: '480p' | '720p' | '1080p';
   frameRate: string;
@@ -47,6 +52,11 @@ export interface VoiceSettings {
   settingsVersion: number;
 }
 
+export type InputSensitivity = 'off' | 'auto' | 'manual';
+
+export const INPUT_THRESHOLD_MIN_DB = -60;
+export const INPUT_THRESHOLD_MAX_DB = -10;
+
 export const SETTINGS_VERSION = 2;
 
 // Version 1 defaults, used to recognise untouched values during migration.
@@ -62,6 +72,8 @@ const DEFAULT_SETTINGS: VoiceSettings = {
   echoCancellation: true,
   noiseSuppression: true,
   autoGainControl: true,
+  inputSensitivity: 'off',
+  inputThresholdDb: -50,
   videoQuality: '720p',
   frameRate: '30',
   audioBitrate: '128',
@@ -108,6 +120,17 @@ export function normalizeOutputVolume(value: unknown): number {
 
 /** Input volume percent, same scale and clamping as the master output. */
 export const normalizeInputVolume = normalizeOutputVolume;
+
+export function normalizeInputSensitivity(value: unknown): InputSensitivity {
+  return value === 'auto' || value === 'manual' ? value : 'off';
+}
+
+/** Manual gate threshold, dBFS, clamped to [-60, -10] (the input meter's scale); non-numeric reads as -50. */
+export function normalizeInputThreshold(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return -50;
+  return Math.round(Math.min(INPUT_THRESHOLD_MAX_DB, Math.max(INPUT_THRESHOLD_MIN_DB, n)));
+}
 
 /** Soundboard volume percent, clamped to 0-100; non-numeric reads as 100. */
 export function normalizeSoundboardVolume(value: unknown): number {
@@ -198,7 +221,14 @@ class VoiceSettingsServiceClass {
       autoGainControl: this.settings.autoGainControl,
     };
   }
-  
+
+  getInputSensitivity(): { mode: InputSensitivity; thresholdDb: number } {
+    return {
+      mode: normalizeInputSensitivity(this.settings.inputSensitivity),
+      thresholdDb: normalizeInputThreshold(this.settings.inputThresholdDb),
+    };
+  }
+
   /**
    * Update a single setting
    */

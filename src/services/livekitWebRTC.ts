@@ -24,8 +24,9 @@ import type {
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
-import { VoiceSettingsService } from './VoiceSettingsService';
+import { VoiceSettingsService, type InputSensitivity } from './VoiceSettingsService';
 import { remoteAudioMixer } from './voice/remoteAudioMixer';
+import { SPEAKING_LEVEL, speakingDetector } from './voice/speakingDetector';
 import { spatialAudioService } from './spatialAudio';
 import { getVoiceAudioContext } from './voice/voiceAudioContext';
 import {
@@ -64,6 +65,9 @@ const federatedIdToUuidCache = new Map<string, string>();
 // Retry delays, ms, for a key envelope whose Megolm session is not here yet. They sum to
 // 11.5 s, inside the 12 s initVoiceE2EE waits for a key.
 const ENVELOPE_RETRY_MS = [500, 1000, 2000, 2000, 3000, 3000];
+
+// speakingDetector key for the local mic; remote keys are user ids or identities.
+const LOCAL_SPEAKER_KEY = 'local:mic';
 
 // Reverse cache: UUID to LiveKit identity (for looking up participants by UUID)
 const uuidToIdentityCache = new Map<string, string>();
@@ -337,6 +341,10 @@ export class LiveKitWebRTCService {
   // Input volume, percent. Off unity, the mic carries a MicGainProcessor;
   // attach/detach is serialized through micGainChain.
   private inputVolume = INPUT_VOLUME_UNITY;
+  private inputSensitivity: InputSensitivity = 'off';
+  private inputThresholdDb = -50;
+  // False in push-to-talk mode, where the PTT key is the transmit gate.
+  private voiceActivityMode = true;
   private micGain: MicGainProcessor | null = null;
   private micGainChain: Promise<void> = Promise.resolve();
   private micGainReleaseTimer: ReturnType<typeof setTimeout> | null = null;
@@ -453,7 +461,9 @@ export class LiveKitWebRTCService {
   
   async joinChannel(channelId: string, userId: string, roomType: 'voice_channel' | 'dm_call' | 'stage' = 'voice_channel', abortSignal?: AbortSignal, requireE2EE = false): Promise<boolean> {
     debug.log('[LiveKit] Joining voice channel:', channelId, 'as user:', userId, 'E2EE:', requireE2EE);
-    
+    // Mic capture opens in parallel with the signalling connect and is published once connected.
+    let earlyMic: Promise<LocalAudioTrack> | null = null;
+
     try {
       // Check for cancellation
       if (abortSignal?.aborted) {
@@ -510,6 +520,11 @@ export class LiveKitWebRTCService {
       this.setupRoomListeners();
       this.e2eeEnabled = false;
       this.e2eeKeyReady = false;
+
+      // After prepareRoomOptions(), which loads the input device and constraints.
+      earlyMic = this.captureMicrophone();
+      // A join that fails before publishing must not raise an unhandled rejection.
+      earlyMic.catch(() => {});
       
       // Relay-only ICE avoids the browser "local network" prompt at no
       // latency cost, since traffic passes through the SFU regardless.
@@ -551,8 +566,9 @@ export class LiveKitWebRTCService {
       
       this.emitLocalGrants();
 
-      // Publish local audio track
-      await this.publishLocalAudio();
+      const captured = earlyMic;
+      earlyMic = null;
+      await this.publishLocalAudio(captured);
       
       // Final cancellation check
       if (abortSignal?.aborted) {
@@ -568,6 +584,8 @@ export class LiveKitWebRTCService {
       
       return true;
     } catch (error) {
+      // Captured but never published: release the device.
+      earlyMic?.then(t => t.stop()).catch(() => {});
       if (error instanceof DOMException && error.name === 'AbortError') {
         debug.log('[LiveKit] Connection cancelled');
         // BUGS.md H23: cancellation paths call `leaveChannel()` inline, so
@@ -658,18 +676,42 @@ export class LiveKitWebRTCService {
     }
   }
   
-  // continuous local mic level (0-100); LiveKit's IsSpeaking VAD is binary/insensitive
+  private emitLocalLevel(level: number): void {
+    if (!this.currentUserId) return;
+    if (Math.abs(level - this.localMediaState.audioLevel) >= 3 || (level === 0) !== (this.localMediaState.audioLevel === 0)
+      || (level > SPEAKING_LEVEL) !== (this.localMediaState.audioLevel > SPEAKING_LEVEL)) {
+      this.localMediaState.audioLevel = level;
+      this.emit('audio-level', { userId: this.currentUserId, level });
+    }
+  }
+
+  // Local level from speakingDetector on the capture track. participant.audioLevel
+  // is SFU-reported and polled only while the detector cannot run (no running AudioContext).
   private startLevelPolling(): void {
     if (this.levelPollTimer) return;
+    speakingDetector.watch(
+      LOCAL_SPEAKER_KEY,
+      () => {
+        const track = this.micTrack();
+        if (!track) return null;
+        // With a processor attached, LocalTrack.mediaStreamTrack is the processor's output.
+        // The capture is analysed instead, so a closed gate never silences its own detector.
+        const capture = this.micGain && track.getProcessor() === this.micGain ? this.micGain.stage.inputTrack : null;
+        return capture ?? track.mediaStreamTrack ?? null;
+      },
+      (level, speaking) => {
+        this.micGain?.stage.setGateOpen(!this.inputGateEnabled() || speaking);
+        this.emitLocalLevel(this.isMicGated() ? 0 : level);
+      },
+    );
+    this.applyManualThreshold();
     this.levelPollTimer = setInterval(() => {
       try {
         const lp = this.room?.localParticipant;
-        if (!lp || !this.currentUserId) return;
-        const level = this.isMicGated() ? 0 : Math.round((lp.audioLevel ?? 0) * 100);
-        if (Math.abs(level - this.localMediaState.audioLevel) >= 3 || (level === 0) !== (this.localMediaState.audioLevel === 0)) {
-          this.localMediaState.audioLevel = level;
-          this.emit('audio-level', { userId: this.currentUserId, level });
-        }
+        if (!lp || speakingDetector.covers(LOCAL_SPEAKER_KEY)) return;
+        // Without client-side analysis the gate fails open.
+        this.micGain?.stage.setGateOpen(true);
+        this.emitLocalLevel(this.isMicGated() ? 0 : Math.round((lp.audioLevel ?? 0) * 100));
       } catch {
         /* non-critical */
       }
@@ -677,10 +719,27 @@ export class LiveKitWebRTCService {
   }
 
   private stopLevelPolling(): void {
+    speakingDetector.clear();
     if (this.levelPollTimer) {
       clearInterval(this.levelPollTimer);
       this.levelPollTimer = null;
     }
+  }
+
+  /** Remote speaking state from client-side analysis of the subscribed mic track. */
+  private watchRemoteSpeaker(key: string, track: RemoteTrack): void {
+    speakingDetector.watch(key, () => track.mediaStreamTrack ?? null, (level) => {
+      const state = this.allUserStates.get(key);
+      if (!state) return;
+      state.audioLevel = level;
+      state.isSpeaking = level > SPEAKING_LEVEL;
+      this.emit('audio-level', { userId: state.userId, level });
+    }, track);
+  }
+
+  /** True when speakingDetector owns this participant's speaking state. */
+  private detectsSpeaker(...keys: Array<string | null | undefined>): boolean {
+    return keys.some((key) => !!key && speakingDetector.covers(key));
   }
 
   async leaveChannel(): Promise<void> {
@@ -744,28 +803,32 @@ export class LiveKitWebRTCService {
   
   // MEDIA CONTROLS
   
-  /**
-   * Opens and publishes the microphone. Skipped while the grant withholds it
-   * (no SPEAK, server mute or deafen); a later grant republishes it
-   * (onLocalPermissionsChanged).
-   */
-  private async publishLocalAudio(): Promise<void> {
-    if (!this.room?.localParticipant) return;
-    if (!this.getLocalGrants().speak) {
-      debug.log('[LiveKit] Microphone not granted; joining without it');
-      return;
-    }
-    const { createLocalAudioTrack } = lib();
-
-    // Mic acquisition can hang (no device, or a stalled permission prompt,
-    // common on Android). The timeout keeps the join completing, listen-only
-    // if the mic never comes up.
-    const trackPromise = createLocalAudioTrack({
+  private captureMicrophone(): Promise<LocalAudioTrack> {
+    return lib().createLocalAudioTrack({
       echoCancellation: this.audioConstraints.echoCancellation,
       noiseSuppression: this.audioConstraints.noiseSuppression,
       autoGainControl: this.audioConstraints.autoGainControl,
       deviceId: this.selectedInputDevice || undefined,
     });
+  }
+
+  /**
+   * Opens and publishes the microphone. Skipped while the grant withholds it
+   * (no SPEAK, server mute or deafen); a later grant republishes it
+   * (onLocalPermissionsChanged). `captured` is a capture started before
+   * connect, stopped when the grant withholds the microphone.
+   */
+  private async publishLocalAudio(captured?: Promise<LocalAudioTrack> | null): Promise<void> {
+    if (!this.room?.localParticipant || !this.getLocalGrants().speak) {
+      if (this.room?.localParticipant) debug.log('[LiveKit] Microphone not granted; joining without it');
+      captured?.then(t => t.stop()).catch(() => {});
+      return;
+    }
+
+    // Mic acquisition can hang (no device, or a stalled permission prompt,
+    // common on Android). The timeout keeps the join completing, listen-only
+    // if the mic never comes up.
+    const trackPromise = captured ?? this.captureMicrophone();
     try {
       const audioTrack = await Promise.race([
         trackPromise,
@@ -1063,6 +1126,44 @@ export class LiveKitWebRTCService {
     return this.inputVolume;
   }
 
+  /** Voice activity gate settings. Applied live; 'off' removes the gate. */
+  setInputSensitivity(mode: InputSensitivity, thresholdDb: number): void {
+    this.inputSensitivity = mode;
+    this.inputThresholdDb = thresholdDb;
+    this.applyManualThreshold();
+    if (!this.inputGateEnabled()) this.micGain?.stage.setGateOpen(true);
+    void this.enqueueMicGainSync();
+  }
+
+  /** False in push-to-talk mode: the gate then stays open and the PTT key decides. */
+  setVoiceActivityMode(on: boolean): void {
+    if (this.voiceActivityMode === on) return;
+    this.voiceActivityMode = on;
+    if (!this.inputGateEnabled()) this.micGain?.stage.setGateOpen(true);
+    void this.enqueueMicGainSync();
+  }
+
+  /** Unclamped local input level, 0-100, from client-side analysis; 0 when unavailable. */
+  getLocalInputLevel(): number {
+    return speakingDetector.rawLevel(LOCAL_SPEAKER_KEY);
+  }
+
+  private inputGateEnabled(): boolean {
+    return this.voiceActivityMode && this.inputSensitivity !== 'off';
+  }
+
+  private applyManualThreshold(): void {
+    speakingDetector.setManualThreshold(
+      LOCAL_SPEAKER_KEY,
+      this.inputSensitivity === 'manual' ? this.inputThresholdDb : null,
+    );
+  }
+
+  /** The processor stage carries input gain and the voice activity gate. */
+  private needsMicStage(): boolean {
+    return needsGainStage(this.inputVolume) || this.inputGateEnabled();
+  }
+
   private micTrack(): LocalAudioTrack | undefined {
     const publication = this.room?.localParticipant.getTrackPublication(lib().Track.Source.Microphone);
     return publication?.track as LocalAudioTrack | undefined;
@@ -1080,9 +1181,10 @@ export class LiveKitWebRTCService {
     if (!track) return;
     const attached = this.micGain && track.getProcessor() === this.micGain ? this.micGain : null;
 
-    if (!needsGainStage(this.inputVolume)) {
+    if (!this.needsMicStage()) {
       if (!attached) return;
       attached.stage.setGain(1);
+      attached.stage.setGateOpen(true);
       if (!this.micGainReleaseTimer) {
         this.micGainReleaseTimer = setTimeout(() => {
           this.micGainReleaseTimer = null;
@@ -1129,7 +1231,7 @@ export class LiveKitWebRTCService {
    * and the unscaled mic beats a silent one.
    */
   private async releaseMicGain(onlyAtUnity: boolean): Promise<void> {
-    if (onlyAtUnity && needsGainStage(this.inputVolume)) return;
+    if (onlyAtUnity && this.needsMicStage()) return;
     const processor = this.micGain;
     if (!processor) return;
     this.micGain = null;
@@ -1769,6 +1871,7 @@ export class LiveKitWebRTCService {
       for (const key of new Set([participant.identity, userId].filter(Boolean) as string[])) {
         remoteAudioMixer.detach(key, 'mic');
         remoteAudioMixer.detach(key, 'screen');
+        speakingDetector.unwatch(key);
         if (this.watchedStreams.delete(key)) {
           this.emit('stream-watch-changed', { userId: key, watching: false });
         }
@@ -1848,6 +1951,7 @@ export class LiveKitWebRTCService {
           state.hasScreenShareAudio = true;
         } else {
           state.isAudioEnabled = true;
+          this.watchRemoteSpeaker(lookupId, track);
         }
         debug.log('[LiveKit] Audio attached for:', lookupId, isScreenShareAudio ? '(stream)' : '(mic)');
       } else if (track.kind === Track.Kind.Video) {
@@ -1887,6 +1991,8 @@ export class LiveKitWebRTCService {
       for (const element of detached) {
         remoteAudioMixer.detach(lookupId, isScreenShareAudio ? 'screen' : 'mic', element);
       }
+      // Owner-scoped: a resubscription during the await above keeps its own watch.
+      if (track.kind === Track.Kind.Audio && !isScreenShareAudio) speakingDetector.unwatch(lookupId, track);
 
       const state = this.allUserStates.get(lookupId) || this.allUserStates.get(participant.identity);
       if (state) {
@@ -1931,6 +2037,8 @@ export class LiveKitWebRTCService {
           continue;
         }
         processedUserIds.add(state.userId);
+
+        if (this.detectsSpeaker(key, state.userId)) continue;
 
         const identity = uuidToIdentityCache.get(state.userId) || state.userId;
         const isSpeaking = speakerIdentities.has(identity) || speakerIdentities.has(key);
@@ -2037,7 +2145,7 @@ export class LiveKitWebRTCService {
 
     participant.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
       const state = this.allUserStates.get(participant.identity);
-      if (state) {
+      if (state && !this.detectsSpeaker(participant.identity, state.userId)) {
         state.isSpeaking = speaking;
         state.audioLevel = speaking ? 50 : 0;
         this.allUserStates.set(participant.identity, state);
@@ -2237,6 +2345,9 @@ export class LiveKitWebRTCService {
       this.audioConstraints.noiseSuppression = constraints.noiseSuppression;
       this.audioConstraints.autoGainControl = constraints.autoGainControl;
       this.inputVolume = clampInputVolume(settings.inputVolume);
+      const sensitivity = VoiceSettingsService.getInputSensitivity();
+      this.inputSensitivity = sensitivity.mode;
+      this.inputThresholdDb = sensitivity.thresholdDb;
       
       debug.log('[LiveKit] Loaded audio settings from VoiceSettingsService:', {
         devices,

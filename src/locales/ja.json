@@ -1730,7 +1730,16 @@
       "audioSettings": "オーディオ設定",
       "selectMicrophone": "マイクを選択",
       "selectSpeaker": "スピーカーを選択",
-      "selectCamera": "カメラを選択"
+      "selectCamera": "カメラを選択",
+      "inputSensitivity": "入力感度",
+      "inputSensitivityDesc": "話している間だけマイクの音声を送信し、キーボードや部屋の雑音を通話に入れません。",
+      "inputSensitivityOff": "常に送信",
+      "inputSensitivityAuto": "自動",
+      "inputSensitivityManual": "手動",
+      "inputThreshold": "しきい値",
+      "decibels": "{db} dB",
+      "inputMeterHint": "マイクの音声が送信されている間、バーが緑色になります。",
+      "inputMeterIdle": "ボイスチャンネルに参加すると、ここに入力レベルが表示されます。"
     },
     "notifications": {
       "title": "通知",

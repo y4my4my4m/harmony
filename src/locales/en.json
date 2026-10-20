@@ -1818,7 +1818,16 @@
       "audioSettings": "Audio settings",
       "selectMicrophone": "Select microphone",
       "selectSpeaker": "Select speaker",
-      "selectCamera": "Select camera"
+      "selectCamera": "Select camera",
+      "inputSensitivity": "Input sensitivity",
+      "inputSensitivityDesc": "Sends your microphone only while you speak, so keyboard and room noise stay out of the call.",
+      "inputSensitivityOff": "Always send",
+      "inputSensitivityAuto": "Automatic",
+      "inputSensitivityManual": "Manual",
+      "inputThreshold": "Threshold",
+      "decibels": "{db} dB",
+      "inputMeterHint": "The bar turns green while your microphone is sent.",
+      "inputMeterIdle": "Join a voice channel to see your level here."
     },
     "notifications": {
       "title": "Notifications",

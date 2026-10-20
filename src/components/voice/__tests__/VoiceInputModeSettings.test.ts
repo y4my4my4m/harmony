@@ -3,20 +3,33 @@ import { mount, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
 // Input mode is a native radio group in a fieldset with a legend; push to talk
-// shows a recorder for its key and a labelled release-delay slider.
+// shows a recorder for its key and a labelled release-delay slider. Voice activity
+// offers the input sensitivity gate: off, automatic, or a manual threshold.
 
 vi.mock('@/services/nativePtt', () => ({ armNativePtt: vi.fn(), disarmNativePtt: vi.fn() }))
 vi.mock('@/utils/platform', () => ({ isTauriDesktop: () => false, isMobileUserAgent: () => false }))
 vi.mock('@/components/common/Icon.vue', () => ({ __esModule: true, default: { name: 'Icon', render: () => null } }))
 
+const h = vi.hoisted(() => ({
+  setInputSensitivity: vi.fn(),
+  voice: { isConnected: false, connectionMode: null as string | null, localState: { audioLevel: 0, isMuted: false } },
+}))
+vi.mock('@/services/webrtcManager', () => ({
+  webrtcManager: { setInputSensitivity: h.setInputSensitivity, getLocalInputLevel: () => 0 },
+}))
+vi.mock('@/stores/unifiedVoiceChannel', () => ({ useUnifiedVoiceChannelStore: () => h.voice }))
+
 import VoiceInputModeSettings from '../VoiceInputModeSettings.vue'
 import { resetKeybindsForTests, useKeybinds } from '@/composables/useKeybinds'
+import { VoiceSettingsService } from '@/services/VoiceSettingsService'
 
 let wrapper: VueWrapper | null = null
 
 beforeEach(() => {
   localStorage.clear()
   resetKeybindsForTests()
+  VoiceSettingsService.reset()
+  h.setInputSensitivity.mockClear()
 })
 
 afterEach(() => {
@@ -53,5 +66,38 @@ describe('VoiceInputModeSettings', () => {
     const label = wrapper.find(`label[for="${slider.attributes('id')}"]`)
     expect(label.text()).toContain('settings.voice.releaseDelay')
     expect(slider.attributes('aria-valuetext')).toBe('settings.voice.millisecondsLong')
+  })
+
+  it('offers input sensitivity under voice activity and applies a manual threshold', async () => {
+    wrapper = mount(VoiceInputModeSettings, { attachTo: document.body })
+    const section = wrapper.find('[data-testid="input-sensitivity"]')
+    expect(section.exists()).toBe(true)
+    expect(section.find('legend').text()).toBe('settings.voice.inputSensitivity')
+    expect((wrapper.find('[data-testid="input-sensitivity-off"]').element as HTMLInputElement).checked).toBe(true)
+    expect(wrapper.find('[data-testid="input-threshold"]').exists()).toBe(false)
+
+    const manual = wrapper.find('[data-testid="input-sensitivity-manual"]')
+    ;(manual.element as HTMLInputElement).checked = true
+    await manual.trigger('change')
+    expect(h.setInputSensitivity).toHaveBeenLastCalledWith('manual', -50)
+    expect(VoiceSettingsService.getInputSensitivity()).toEqual({ mode: 'manual', thresholdDb: -50 })
+
+    const slider = wrapper.find('[data-testid="input-threshold"]')
+    expect(wrapper.find(`label[for="${slider.attributes('id')}"]`).text()).toContain('settings.voice.inputThreshold')
+    ;(slider.element as HTMLInputElement).value = '-35'
+    await slider.trigger('input')
+    expect(h.setInputSensitivity).toHaveBeenLastCalledWith('manual', -35)
+    expect(VoiceSettingsService.getInputSensitivity().thresholdDb).toBe(-35)
+    expect(wrapper.find('[data-testid="input-sensitivity-meter"]').attributes('role')).toBe('meter')
+    expect(wrapper.text()).toContain('settings.voice.inputMeterIdle')
+  })
+
+  it('hides input sensitivity in push to talk', async () => {
+    wrapper = mount(VoiceInputModeSettings, { attachTo: document.body })
+    const ptt = wrapper.find('[data-testid="input-mode-push-to-talk"]')
+    ;(ptt.element as HTMLInputElement).checked = true
+    await ptt.trigger('change')
+    await nextTick()
+    expect(wrapper.find('[data-testid="input-sensitivity"]').exists()).toBe(false)
   })
 })

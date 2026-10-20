@@ -1730,7 +1730,16 @@
       "audioSettings": "Audioeinstellungen",
       "selectMicrophone": "Mikrofon wählen",
       "selectSpeaker": "Lautsprecher wählen",
-      "selectCamera": "Kamera wählen"
+      "selectCamera": "Kamera wählen",
+      "inputSensitivity": "Eingabeempfindlichkeit",
+      "inputSensitivityDesc": "Sendet dein Mikrofon nur, während du sprichst, damit Tastatur- und Raumgeräusche nicht im Anruf landen.",
+      "inputSensitivityOff": "Immer senden",
+      "inputSensitivityAuto": "Automatisch",
+      "inputSensitivityManual": "Manuell",
+      "inputThreshold": "Schwellenwert",
+      "decibels": "{db} dB",
+      "inputMeterHint": "Der Balken wird grün, solange dein Mikrofon gesendet wird.",
+      "inputMeterIdle": "Tritt einem Sprachkanal bei, um hier deinen Pegel zu sehen."
     },
     "notifications": {
       "title": "Benachrichtigungen",

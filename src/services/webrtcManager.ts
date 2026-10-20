@@ -12,7 +12,7 @@ import { livekitWebRTC, preloadLiveKit, type UserMediaState, type VideoSource } 
 import { unifiedWebRTC } from './unifiedWebRTC';
 import { fetchLiveKitConfig, lastLiveKitConfig, type LiveKitConfig } from './livekitTokens';
 import { selectCallTransport } from './voice/transportPolicy';
-import { VoiceSettingsService } from './VoiceSettingsService';
+import { VoiceSettingsService, type InputSensitivity } from './VoiceSettingsService';
 import { remoteAudioMixer, type RemoteAudioKind } from './voice/remoteAudioMixer';
 import { debug } from '@/utils/debug';
 
@@ -375,6 +375,11 @@ class WebRTCManagerService implements WebRTCManager {
   /**
    * PTT transmit gate — cached so joins pick it up before the mic is published
    */
+  /** False in push-to-talk mode; the voice activity gate applies only otherwise. */
+  setVoiceActivityMode(on: boolean): void {
+    livekitWebRTC.setVoiceActivityMode(on);
+  }
+
   setTransmitGate(open: boolean): void {
     this.transmitGateOpen = open;
     if (this.activeService === 'livekit') {
@@ -704,6 +709,16 @@ class WebRTCManagerService implements WebRTCManager {
   setInputVolume(volume: number): void {
     livekitWebRTC.setInputVolume(volume);
     unifiedWebRTC.setInputVolume(volume);
+  }
+
+  /** Voice activity gate (input sensitivity). The SFU transport applies it; P2P always transmits. */
+  setInputSensitivity(mode: InputSensitivity, thresholdDb: number): void {
+    livekitWebRTC.setInputSensitivity(mode, thresholdDb);
+  }
+
+  /** Unclamped local input level, 0-100, for the sensitivity meter; 0 outside an SFU call. */
+  getLocalInputLevel(): number {
+    return this.activeService === 'livekit' ? livekitWebRTC.getLocalInputLevel() : 0;
   }
 
   /** Master output level, percent 0-200, over every remote track. */
