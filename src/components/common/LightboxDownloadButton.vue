@@ -1,5 +1,5 @@
 <template>
-  <Teleport to="body" :disabled="!teleport">
+  <Teleport :to="portalTarget" :disabled="!teleport">
     <button
       v-if="visible && url"
       type="button"
@@ -16,6 +16,9 @@
 <script setup lang="ts">
 import Icon from '@/components/common/Icon.vue';
 import { downloadMediaFromUrl } from '@/utils/downloadMedia';
+import { usePortalTarget } from '@/composables/usePortalTarget';
+
+const portalTarget = usePortalTarget();
 
 const props = withDefaults(defineProps<{
   visible: boolean;

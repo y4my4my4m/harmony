@@ -16,7 +16,7 @@
       <Icon name="chevron-down" class="chevron" aria-hidden="true" />
     </button>
 
-    <Teleport to="body">
+    <Teleport :to="portalTarget">
       <!-- Invisible backdrop to catch clicks outside -->
       <div 
         v-if="isOpen"
@@ -131,6 +131,9 @@ import { useMenu } from '@/composables/useMenu';
 import { useT } from '@/composables/useT';
 import { uid } from '@/utils/a11y/focus';
 import { styleRect, styleViewport } from '@/utils/appZoom';
+import { usePortalTarget } from '@/composables/usePortalTarget';
+
+const portalTarget = usePortalTarget();
 
 interface Props {
   type?: 'input' | 'output' | 'video' | 'all';
@@ -277,14 +280,14 @@ const positionDropdown = () => {
   if (!selectorRef.value || !dropdownRef.value) return;
 
   // On mobile (< 480px), use bottom sheet style - CSS handles positioning
-  if (window.innerWidth <= 480) {
+  if ((selectorRef.value.ownerDocument.defaultView ?? window).innerWidth <= 480) {
     dropdownPosition.value = { x: 0, y: 0 };
     return;
   }
 
   const triggerRect = styleRect(selectorRef.value);
   const dropdownRect = styleRect(dropdownRef.value);
-  const viewport = styleViewport();
+  const viewport = styleViewport(dropdownRef.value);
   const padding = 8;
 
   let x = triggerRect.left;

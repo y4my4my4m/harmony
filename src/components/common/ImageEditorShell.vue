@@ -1,6 +1,6 @@
 <!-- ImageEditorShell - Modal chrome for the image editors: labelled dialog, focus trap, Escape cancels, Enter confirms -->
 <template>
-  <Teleport to="body">
+  <Teleport :to="portalTarget">
     <div class="image-editor-overlay">
       <div
         ref="dialogRef"
@@ -42,6 +42,9 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/common/Icon.vue'
+import { usePortalTarget } from '@/composables/usePortalTarget'
+
+const portalTarget = usePortalTarget()
 
 interface Props {
   title: string

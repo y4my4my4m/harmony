@@ -2,7 +2,7 @@
   <!-- Teleported: a transformed or paint-contained ancestor (virtual list
        rows, `.message-display`) becomes the containing block of a fixed
        element, offsets its viewport coordinates and clips it. -->
-  <Teleport to="body">
+  <Teleport :to="portalTarget">
   <div
     v-if="props.isVisible && props.suggestions.length > 0"
     ref="suggestContainer"
@@ -114,6 +114,9 @@
 import { ref, computed, watch, nextTick } from 'vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
+import { usePortalTarget } from '@/composables/usePortalTarget';
+
+const portalTarget = usePortalTarget();
 
 // TYPE DEFINITIONS
 // These interfaces can be exported directly from <script setup>

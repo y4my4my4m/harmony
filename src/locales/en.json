@@ -1391,6 +1391,24 @@
       "youWereRemoved": "You are no longer a member of this server.",
       "youLostAccess": "You no longer have access to that voice channel.",
       "youWereTimedOut": "You were timed out on this server."
+    },
+    "callChat": {
+      "toggle": "Chat",
+      "toggleUnread": "Chat, new messages",
+      "region": "{name} chat",
+      "close": "Close chat",
+      "resize": "Resize chat",
+      "awayText": "The main window shows another chat.",
+      "awayAction": "Show the call's chat",
+      "elsewhereText": "This chat is open beside the call.",
+      "elsewhereAction": "Show chat here"
+    },
+    "popout": {
+      "open": "Pop out call",
+      "return": "Return call to the app",
+      "focus": "Show call window",
+      "blocked": "The call window could not open. Allow pop-ups for this site and try again.",
+      "windowTitle": "Harmony — {name}"
     }
   },
   "dm": {

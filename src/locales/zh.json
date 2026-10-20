@@ -1382,6 +1382,24 @@
       "youWereRemoved": "你已不再是此服务器的成员。",
       "youLostAccess": "你已无权访问该语音频道。",
       "youWereTimedOut": "你在此服务器被禁言。"
+    },
+    "callChat": {
+      "toggle": "聊天",
+      "toggleUnread": "聊天，有新消息",
+      "region": "{name} 的聊天",
+      "close": "关闭聊天",
+      "resize": "调整聊天宽度",
+      "awayText": "主窗口正在显示其他聊天。",
+      "awayAction": "显示通话的聊天",
+      "elsewhereText": "此聊天已在通话旁打开。",
+      "elsewhereAction": "在此处显示聊天"
+    },
+    "popout": {
+      "open": "在单独窗口中打开通话",
+      "return": "将通话移回应用",
+      "focus": "显示通话窗口",
+      "blocked": "无法打开通话窗口。请允许此网站的弹出窗口后重试。",
+      "windowTitle": "Harmony — {name}"
     }
   },
   "dm": {

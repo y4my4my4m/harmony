@@ -1,6 +1,6 @@
 <!-- Starts an activity in the call, or queues to the running one: a pasted link or a Drive file. -->
 <template>
-  <Teleport to="body">
+  <Teleport :to="portalTarget">
     <div v-show="!pickerOpen" class="act-launch-backdrop" @click="emit('close')" />
     <div
       v-show="!pickerOpen"
@@ -77,6 +77,9 @@ import type { DriveFile } from '@/services/drive/driveService'
 import { placePopover, type Rect } from '@/components/voice/voiceMenuModel'
 import { styleRect, styleViewport } from '@/utils/appZoom'
 import { useActivityControl } from './useActivityControl'
+import { usePortalTarget } from '@/composables/usePortalTarget'
+
+const portalTarget = usePortalTarget()
 
 const props = defineProps<{ anchor: Rect | null }>()
 const emit = defineEmits<{ close: [] }>()
@@ -139,7 +142,7 @@ onMounted(async () => {
   const el = panel.value
   if (!el) return
   const r = styleRect(el)
-  const viewport = styleViewport()
+  const viewport = styleViewport(el)
   const anchor = props.anchor ?? { left: viewport.width / 2, top: viewport.height / 2, width: 0, height: 0 }
   position.value = placePopover(anchor, { width: r.width, height: r.height }, viewport)
   input.value?.focus()

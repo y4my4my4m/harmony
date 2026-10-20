@@ -223,6 +223,17 @@
         >
           <Icon name="settings" />
         </button>
+
+        <button
+          v-if="popoutAvailable"
+          @click="popoutActive ? closeCallPopout() : popOutCall()"
+          :class="['control-btn', 'popout-btn', { active: popoutActive }]"
+          :title="popoutActive ? t('voice.popout.return') : t('voice.popout.open')"
+          :aria-label="popoutActive ? t('voice.popout.return') : t('voice.popout.open')"
+          data-testid="dock-popout"
+        >
+          <Icon :name="popoutActive ? 'log-in' : 'external-link'" />
+        </button>
       </div>
 
       <!-- On-screen PTT for touch devices -->
@@ -396,6 +407,27 @@
             </button>
           </div>
 
+          <template v-if="popoutActive">
+            <button
+              @click.stop="focusCallPopout"
+              class="mini-control-btn mini-popout-focus"
+              :title="t('voice.popout.focus')"
+              :aria-label="t('voice.popout.focus')"
+              data-testid="mini-popout-focus"
+            >
+              <Icon name="picture-in-picture" />
+            </button>
+            <button
+              @click.stop="closeCallPopout"
+              class="mini-control-btn mini-popout-return"
+              :title="t('voice.popout.return')"
+              :aria-label="t('voice.popout.return')"
+              data-testid="mini-popout-return"
+            >
+              <Icon name="log-in" />
+            </button>
+          </template>
+
           <button
             ref="miniExpandButtonRef"
             @click.stop="expandToDock"
@@ -477,7 +509,7 @@
     />
 
     <ActivityLauncher
-      v-if="activityButton.visible.value"
+      v-if="activityButton.visible.value && !popoutActive"
       :anchor="activityButton.anchor.value"
       @close="activityButton.close"
     />
@@ -496,12 +528,13 @@
 
     <!-- Overlay mode renders its own spatial audio panel -->
     <SpatialAudioPanel 
-      v-if="currentMode !== 'overlay'"
+      v-if="currentMode !== 'overlay' && !popoutActive"
       :is-under-dock="currentMode === 'dock'"
     />
 
+    <!-- Popped out, the call view stays mounted in its own window -->
     <UnifiedVoiceOverlay
-      v-if="currentMode === 'overlay'"
+      v-if="currentMode === 'overlay' || popoutActive"
       :channel-name="channelName"
       :return-focus="overlayReturnFocus"
       @close="handleOverlayClosed"
@@ -550,6 +583,14 @@ import { uid } from '@/utils/a11y/focus';
 import { useI18n } from 'vue-i18n';
 import { focusAfterVoiceLeave, restoreFocusIfLost } from './voiceFocus';
 import { stylePoint, styleRect, styleViewport } from '@/utils/appZoom';
+import { useToast } from 'vue-toastification';
+import {
+  callPopoutActive as popoutActive,
+  callPopoutSupported,
+  closeCallPopout,
+  focusCallPopout,
+  openCallPopout,
+} from './callPopout';
 
 const { t } = useI18n();
 
@@ -836,7 +877,7 @@ const dockActivityButtonRef = ref<HTMLButtonElement | null>(null);
 const activityButton = useActivityButton(dockActivityButtonRef);
 const activitiesStore = useActivitiesStore();
 // The dock card shows while the overlay is closed; the overlay shows the stage instead.
-const dockActivity = computed(() => (currentMode.value === 'dock' && activitiesStore.playingHere ? activitiesStore.current : null));
+const dockActivity = computed(() => (currentMode.value === 'dock' && !popoutActive.value && activitiesStore.playingHere ? activitiesStore.current : null));
 const dockInvite = computed(() => (currentMode.value === 'dock' ? activitiesStore.waiting : null));
 
 const closeStreamPicker = () => {
@@ -869,9 +910,33 @@ watch([() => voiceStore.liveReactionsAvailable, currentMode], () => {
 
 // METHODS
 const expandToOverlay = () => {
+  if (popoutActive.value) {
+    focusCallPopout();
+    return;
+  }
   currentMode.value = 'overlay';
   voiceStore.isOverlayVisible = true;
 };
+
+// POP-OUT
+const toast = useToast();
+const popoutAvailable = callPopoutSupported();
+
+const popOutCall = async () => {
+  const opened = await openCallPopout({ title: t('voice.popout.windowTitle', { name: channelName.value }) });
+  if (!opened) toast.error(t('voice.popout.blocked'));
+};
+
+// Sync: the overlay must stay mounted across the switch, or it would remount in the other window.
+watch(popoutActive, (active) => {
+  if (active) {
+    currentMode.value = 'minimized';
+    return;
+  }
+  if (!voiceStore.isConnectedOrJoining) return;
+  currentMode.value = 'overlay';
+  voiceStore.isOverlayVisible = true;
+}, { flush: 'sync' });
 
 const openFocused = (userId: string, source: 'camera' | 'screen') => {
   voiceStore.enterFullscreen(userId, source);
@@ -1418,11 +1483,11 @@ watch(
   }
 );
 
-// Store's isOverlayVisible drives currentMode.
+// Store's isOverlayVisible drives currentMode; popped out, the view is already shown.
 watch(
   () => voiceStore.isOverlayVisible,
   (shouldShowOverlay) => {
-    if (shouldShowOverlay && currentMode.value !== 'overlay') {
+    if (shouldShowOverlay && currentMode.value !== 'overlay' && !popoutActive.value) {
       currentMode.value = 'overlay';
       debug.log('[Dock] Auto-switching to overlay mode from store');
     }
@@ -1436,7 +1501,9 @@ let handleClickOutside: ((e: MouseEvent) => void) | null = null;
 
 onMounted(() => {
   // Store's isOverlayVisible wins over the default dock mode.
-  if (!voiceStore.isOverlayVisible) {
+  if (popoutActive.value) {
+    currentMode.value = 'minimized';
+  } else if (!voiceStore.isOverlayVisible) {
     currentMode.value = 'dock';
   } else {
     currentMode.value = 'overlay';
@@ -1462,6 +1529,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  // The dock goes with the call; so does a popped-out call view.
+  closeCallPopout();
   stopDrag();
   stopDockDrag();
   minimizedThumbnail.detach();

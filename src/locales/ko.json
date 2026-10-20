@@ -1382,6 +1382,24 @@
       "youWereRemoved": "더 이상 이 서버의 멤버가 아닙니다.",
       "youLostAccess": "더 이상 이 음성 채널에 접근할 수 없습니다.",
       "youWereTimedOut": "이 서버에서 타임아웃되었습니다."
+    },
+    "callChat": {
+      "toggle": "채팅",
+      "toggleUnread": "채팅, 새 메시지",
+      "region": "{name} 채팅",
+      "close": "채팅 닫기",
+      "resize": "채팅 너비 조절",
+      "awayText": "기본 창에 다른 채팅이 표시되어 있습니다.",
+      "awayAction": "통화 채팅 보기",
+      "elsewhereText": "이 채팅은 통화 옆에 열려 있습니다.",
+      "elsewhereAction": "여기에 채팅 표시"
+    },
+    "popout": {
+      "open": "통화를 별도 창으로 열기",
+      "return": "통화를 앱으로 되돌리기",
+      "focus": "통화 창 보기",
+      "blocked": "통화 창을 열 수 없습니다. 이 사이트의 팝업을 허용한 후 다시 시도하세요.",
+      "windowTitle": "Harmony — {name}"
     }
   },
   "dm": {

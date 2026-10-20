@@ -5,7 +5,7 @@
   Name: `title`, else `ariaLabel`, else the first heading inside the modal.
 -->
 <template>
-  <Teleport to="body">
+  <Teleport :to="portalTarget">
     <Transition
       name="modal"
       enter-active-class="modal-enter-active"
@@ -116,6 +116,9 @@ import { useT } from '@/composables/useT'
 import { useToast } from 'vue-toastification'
 import { debug } from '@/utils/debug'
 import { useDialog, type InitialFocus } from '@/composables/useDialog'
+import { usePortalTarget } from '@/composables/usePortalTarget'
+
+const portalTarget = usePortalTarget()
 
 export interface ModalAction {
   key: string

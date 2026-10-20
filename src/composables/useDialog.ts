@@ -100,11 +100,15 @@ export function focusDialogStart(root: HTMLElement, initial: InitialFocus = 'aut
   focusProgrammatically(root)
 }
 
-/** Tab/Shift+Tab wrap for `root`; focus in a popover outside it is left alone. */
+/**
+ * Tab/Shift+Tab wrap for `root`; focus in a popover outside it is left alone.
+ * Focus is read from root's document: a dialog can sit in the call pop-out window.
+ */
 export function trapTab(event: KeyboardEvent, root: HTMLElement): void {
-  const active = document.activeElement
+  const doc = root.ownerDocument
+  const active = doc.activeElement
   const inside = active instanceof Node && root.contains(active)
-  const lost = !active || active === document.body || active === document.documentElement
+  const lost = !active || active === doc.body || active === doc.documentElement
   if (!inside && !lost) return
   const items = tabbables(root)
   if (items.length === 0) {
@@ -179,7 +183,7 @@ export function useDialog(options: UseDialogOptions) {
       document.removeEventListener('focusin', onFocusIn, true)
     })
     if (isVisibleForFocus(el)) {
-      if (!el.contains(document.activeElement)) focusDialogStart(el, toValue(options.initialFocus))
+      if (!el.contains(el.ownerDocument.activeElement)) focusDialogStart(el, toValue(options.initialFocus))
     } else {
       focusWhenShown(el, SHOW_WAIT_FRAMES)
     }
@@ -192,7 +196,7 @@ export function useDialog(options: UseDialogOptions) {
       showFrame = requestAnimationFrame(() => focusWhenShown(el, framesLeft - 1))
       return
     }
-    const focus = document.activeElement
+    const focus = el.ownerDocument.activeElement
     if (!focus || focus === el || !el.contains(focus)) focusDialogStart(el, toValue(options.initialFocus))
   }
 
@@ -206,8 +210,9 @@ export function useDialog(options: UseDialogOptions) {
     cleanups = []
     const fallback = toValue(options.returnFocus)
     if (!restore || fallback === false) return
-    const focus = document.activeElement
-    const lost = !focus || focus === document.body || focus === document.documentElement || !!el?.contains(focus)
+    const doc = el?.ownerDocument ?? document
+    const focus = doc.activeElement
+    const lost = !focus || focus === doc.body || focus === doc.documentElement || !!el?.contains(focus)
     if (!lost) return
     const target = [opener, fallbackOpener, fallback || null].find(usable)
     if (target) focusElement(target)

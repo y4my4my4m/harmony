@@ -1,6 +1,8 @@
 mod commands;
 #[cfg(desktop)]
 mod overlay;
+#[cfg(any(windows, target_os = "macos"))]
+mod popout;
 #[cfg(target_os = "linux")]
 mod runtime;
 #[cfg(desktop)]
@@ -86,6 +88,22 @@ fn setup_desktop(app: &tauri::AppHandle) -> tauri::Result<()> {
   Ok(())
 }
 
+/// tauri.conf.json declares the main window with `create: false`: a new-window
+/// handler can only be set while a webview is built (popout.rs).
+fn build_main_window(app: &tauri::App) -> tauri::Result<()> {
+  let Some(config) = app.config().app.windows.iter().find(|w| w.label == "main" && !w.create).cloned() else {
+    return Ok(());
+  };
+  let builder = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?;
+  #[cfg(any(windows, target_os = "macos"))]
+  let builder = {
+    let handle = app.handle().clone();
+    builder.on_new_window(move |url, features| popout::on_new_window(&handle, url, features))
+  };
+  builder.build()?;
+  Ok(())
+}
+
 #[cfg(desktop)]
 fn reveal_main(app: &tauri::AppHandle) {
   use tauri::Manager;
@@ -146,6 +164,7 @@ pub fn run() {
     .plugin(tauri_plugin_opener::init())
     .plugin(tauri_plugin_notification::init())
     .setup(|app| {
+      build_main_window(app)?;
       #[cfg(desktop)]
       {
         use tauri::Manager;

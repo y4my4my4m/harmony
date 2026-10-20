@@ -1382,6 +1382,24 @@
       "youWereRemoved": "Vous n'êtes plus membre de ce serveur.",
       "youLostAccess": "Vous n'avez plus accès à ce salon vocal.",
       "youWereTimedOut": "Vous avez été exclu temporairement de ce serveur."
+    },
+    "callChat": {
+      "toggle": "Chat",
+      "toggleUnread": "Chat, nouveaux messages",
+      "region": "Chat de {name}",
+      "close": "Fermer le chat",
+      "resize": "Redimensionner le chat",
+      "awayText": "La fenêtre principale affiche une autre discussion.",
+      "awayAction": "Afficher le chat de l'appel",
+      "elsewhereText": "Ce chat est ouvert à côté de l'appel.",
+      "elsewhereAction": "Afficher le chat ici"
+    },
+    "popout": {
+      "open": "Ouvrir l'appel dans une fenêtre séparée",
+      "return": "Ramener l'appel dans l'application",
+      "focus": "Afficher la fenêtre de l'appel",
+      "blocked": "La fenêtre de l'appel n'a pas pu s'ouvrir. Autorisez les fenêtres pop-up pour ce site et réessayez.",
+      "windowTitle": "Harmony — {name}"
     }
   },
   "dm": {

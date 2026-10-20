@@ -1,5 +1,5 @@
 <template>
-  <Teleport to="body">
+  <Teleport :to="portalTarget">
     <div
       class="message-actions message-actions-floating"
       role="group"
@@ -32,6 +32,9 @@ import EditIcon from '@/components/icons/Edit.vue';
 import DeleteIcon from '@/components/icons/Delete.vue';
 import MoreIcon from '@/components/icons/More.vue';
 import { useT } from '@/composables/useT';
+import { usePortalTarget } from '@/composables/usePortalTarget';
+
+const portalTarget = usePortalTarget();
 
 interface Props {
   message: Message;

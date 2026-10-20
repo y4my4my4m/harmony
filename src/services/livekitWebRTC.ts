@@ -19,6 +19,7 @@ import type {
   LocalTrack,
   RemoteTrack,
   ExternalE2EEKeyProvider,
+  AdaptiveStreamSettings,
 } from 'livekit-client';
 import { supabase } from '@/supabase';
 import { debug } from '@/utils/debug';
@@ -49,6 +50,7 @@ import {
   type VoiceKeyEnvelope,
 } from './encryption/VoiceE2EEService';
 import { getLiveKitToken } from './livekitTokens';
+import { adaptiveStreamSettings } from './voice/adaptiveStreamSettings';
 import { LIVE_REACTION_TOPIC, MAX_LIVE_REACTION_BYTES } from './voice/liveReactions';
 import { SOUNDBOARD_MESSAGE_MAX_BYTES, SOUNDBOARD_TOPIC, soundboardExternalGrant, soundboardGrant } from './soundboard/protocol';
 import { ACTIVITY_MESSAGE_MAX_BYTES, ACTIVITY_TOPIC } from '@/services/activities/protocol';
@@ -424,12 +426,12 @@ export class LiveKitWebRTCService {
    * Room options shared by local and federated joins. Settings are re-read
    * so device and processing changes made while disconnected apply.
    */
-  private prepareRoomOptions(): { adaptiveStream: boolean; dynacast: boolean; audioOutput?: { deviceId: string } } {
+  private prepareRoomOptions(): { adaptiveStream: AdaptiveStreamSettings; dynacast: boolean; audioOutput?: { deviceId: string } } {
     this.loadAudioSettings();
     this.loadStreamQualitySettings();
     void remoteAudioMixer.setOutputDevice(this.selectedOutputDevice);
     return {
-      adaptiveStream: true,
+      adaptiveStream: adaptiveStreamSettings,
       dynacast: true,
       ...(this.selectedOutputDevice ? { audioOutput: { deviceId: this.selectedOutputDevice } } : {}),
     };

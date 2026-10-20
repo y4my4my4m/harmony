@@ -65,6 +65,7 @@ The call bar holds the controls for the call you are in. Hover a button to see i
 | **Soundboard** | Opens the soundboard. Shown only where you may play sounds. |
 | **Spatial audio** | Opens the spatial audio panel. |
 | **Voice settings** | Opens **Voice & video settings** for devices and audio processing. |
+| **Pop out call** | Moves the call view into its own window. See [Chat beside the call and pop it out](#chat-beside-the-call-and-pop-it-out). |
 | **Participants** | Lists everyone in the call. |
 | **Open call view** | Expands the call to the full call view with video tiles. |
 | **Minimize voice panel** | Shrinks the call bar to a small panel you can drag. |
@@ -75,6 +76,14 @@ The full call view adds **Grid view** and **Focus view** layouts, **Full screen*
 The **Mute** and **Deafen** buttons in your user panel at the bottom of the sidebar work outside calls too. A state set before you join applies when you connect.
 
 A shield next to the channel name shows whether the call is end-to-end encrypted. See [Encrypted voice channels](#encrypted-voice-channels).
+
+### Chat beside the call and pop it out
+
+Click **Chat** at the top of the full call view to open the call's text chat on the right: the voice channel's messages, or the conversation in a direct message call. Drag its edge, or use the arrow keys on it, to change its width. A dot on **Chat** shows new messages while it is closed. Harmony remembers whether you left it open. On a narrow screen the chat covers the call until you close it.
+
+Opening the chat shows the call's channel in the main window too. When the main window shows another chat, the panel offers **Show the call's chat**.
+
+**Pop out call** moves the whole call view, chat included, into its own window, so you can keep the call and its chat beside other windows while you browse Harmony. The call stays connected while it moves. In Chrome and Edge the window stays on top of other windows; elsewhere it is a normal window, a native one in the desktop app. While the call is popped out, the call bar in the main window offers **Show call window** and **Return call to the app**. Closing the window also returns the call. Leaving the call closes it. If your browser blocks pop-ups, allow them for Harmony. Popping out is not available on phones.
 
 ## Change how loud someone is
 

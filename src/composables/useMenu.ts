@@ -206,8 +206,9 @@ export function useMenu(menuEl: Ref<HTMLElement | null | undefined>, options: Us
     cleanups.forEach((fn) => fn())
     cleanups = []
     if (closing === 'outside') return
-    const focus = document.activeElement
-    const lost = !focus || focus === document.body || !!el?.contains(focus)
+    const doc = el?.ownerDocument ?? document
+    const focus = doc.activeElement
+    const lost = !focus || focus === doc.body || !!el?.contains(focus)
     if (lost && trigger?.isConnected) focusElement(trigger)
   }
 

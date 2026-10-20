@@ -5,7 +5,7 @@
   heading inside the content. `subtitle` describes the dialog.
 -->
 <template>
-  <Teleport to="body">
+  <Teleport :to="portalTarget">
     <div v-if="show" :class="['modal-overlay', overlayClass]" @click="handleOverlayClick">
       <div
         ref="dialogEl"
@@ -69,6 +69,9 @@ import { useT } from '@/composables/useT'
 import Icon from '@/components/common/Icon.vue'
 import { withRenderFallback } from '@/utils/renderFallback'
 import { useDialog, type InitialFocus } from '@/composables/useDialog'
+import { usePortalTarget } from '@/composables/usePortalTarget'
+
+const portalTarget = usePortalTarget()
 
 interface Props {
   show: boolean

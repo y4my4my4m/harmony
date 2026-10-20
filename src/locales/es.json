@@ -1382,6 +1382,24 @@
       "youWereRemoved": "Ya no eres miembro de este servidor.",
       "youLostAccess": "Ya no tienes acceso a ese canal de voz.",
       "youWereTimedOut": "Te aislaron temporalmente en este servidor."
+    },
+    "callChat": {
+      "toggle": "Chat",
+      "toggleUnread": "Chat, mensajes nuevos",
+      "region": "Chat de {name}",
+      "close": "Cerrar chat",
+      "resize": "Cambiar el ancho del chat",
+      "awayText": "La ventana principal muestra otro chat.",
+      "awayAction": "Mostrar el chat de la llamada",
+      "elsewhereText": "Este chat está abierto junto a la llamada.",
+      "elsewhereAction": "Mostrar el chat aquí"
+    },
+    "popout": {
+      "open": "Abrir la llamada en otra ventana",
+      "return": "Devolver la llamada a la app",
+      "focus": "Mostrar la ventana de la llamada",
+      "blocked": "No se pudo abrir la ventana de la llamada. Permite las ventanas emergentes para este sitio e inténtalo de nuevo.",
+      "windowTitle": "Harmony — {name}"
     }
   },
   "dm": {

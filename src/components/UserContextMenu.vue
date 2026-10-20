@@ -5,7 +5,7 @@
     owns the flows (UserProfileModal, KickBanModal, InviteModal,
     activityPub store).
   -->
-  <Teleport to="body">
+  <Teleport :to="portalTarget">
     <div
       v-if="visible"
       class="user-context-menu-backdrop"
@@ -188,6 +188,9 @@ import { debug } from '@/utils/debug';
 import { styleRect, styleViewport } from '@/utils/appZoom';
 import type { User } from '@/types';
 import Icon from '@/components/common/Icon.vue';
+import { usePortalTarget } from '@/composables/usePortalTarget';
+
+const portalTarget = usePortalTarget();
 
 interface Props {
   visible: boolean;
@@ -341,7 +344,7 @@ async function repositionMenu() {
   if (!menuRef.value) return;
 
   const rect = styleRect(menuRef.value);
-  const { width: vw, height: vh } = styleViewport();
+  const { width: vw, height: vh } = styleViewport(menuRef.value);
   const padding = 8;
 
   let x = props.position.x;

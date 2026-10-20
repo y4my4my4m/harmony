@@ -71,9 +71,10 @@ export function styleRect(el: Element): StyleRect {
   }
 }
 
-/** innerWidth/innerHeight in CSS pixels. */
-export function styleViewport(): { width: number; height: number } {
-  return { width: window.innerWidth / cssFactor, height: window.innerHeight / cssFactor }
+/** innerWidth/innerHeight in CSS pixels, of the window showing `within`, else of the main window. */
+export function styleViewport(within?: Node | null): { width: number; height: number } {
+  const view = within?.ownerDocument?.defaultView ?? window
+  return { width: view.innerWidth / cssFactor, height: view.innerHeight / cssFactor }
 }
 
 /** A pointer event's clientX/clientY in CSS pixels. */

@@ -75,6 +75,9 @@ import {
 } from '@/services/voice/liveReactions';
 import { VOICE_POPOVER_DISMISS, placePopover } from './voiceMenuModel';
 import { styleRect, styleViewport } from '@/utils/appZoom';
+import { usePortalTarget } from '@/composables/usePortalTarget';
+
+const portalTarget = usePortalTarget();
 
 const EmojiPopup = defineAsyncComponent(() => import('@/components/EmojiPopup.vue'));
 
@@ -108,7 +111,7 @@ const panelRef = ref<HTMLElement | null>(null);
 const rowRef = ref<HTMLElement | null>(null);
 const moreRef = ref<HTMLButtonElement | null>(null);
 const position = ref({ x: -9999, y: -9999 });
-const host = ref<string | HTMLElement>('body');
+const host = ref<string | HTMLElement>(portalTarget.value);
 const quick = ref<QuickEntry[]>([]);
 const pickerOpen = ref(false);
 const slowDown = ref(false);
@@ -192,7 +195,7 @@ async function place(): Promise<void> {
   const el = panelRef.value;
   if (!el) return;
   const rect = styleRect(el);
-  const viewport = styleViewport();
+  const viewport = styleViewport(el);
   const a = props.anchor ? styleRect(props.anchor) : undefined;
   const anchor = a
     ? { left: a.left, top: a.top, width: a.width, height: a.height }
@@ -207,7 +210,7 @@ watch(() => props.visible, visible => {
     pickerOpen.value = false;
     return;
   }
-  host.value = (document.fullscreenElement as HTMLElement | null) ?? 'body';
+  host.value = (document.fullscreenElement as HTMLElement | null) ?? portalTarget.value;
   quick.value = buildQuick();
   position.value = { x: -9999, y: -9999 };
   void place();

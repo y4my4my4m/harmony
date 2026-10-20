@@ -25,11 +25,23 @@ body.activity { background: #000; }
 //   commands  load {source: youtube|soundcloud|spotify, item, startMs, autoplay}, play, pause,
 //             seek {ms}, volume {value 0..1}, rate {value}
 //   events    ready, state {playing, buffering, positionMs, durationMs}, ended, error {message}
-// Commands are taken from window.parent only.
+// Commands are taken from window.parent only, or from the app that runs the call pop-out
+// framing this page: that window's script runs in its opener's realm, so its messages carry the
+// opener as source and the app's origin.
 (function () {
   'use strict';
   var params = new URLSearchParams(location.search);
   var root = document.getElementById('root');
+  var hostOrigin = location.ancestorOrigins && location.ancestorOrigins.length ? location.ancestorOrigins[0] : null;
+
+  function fromHost(event) {
+    if (event.source === window.parent) return true;
+    if (!event.source) return false;
+    try {
+      if (event.source === window.parent.opener) return true;
+    } catch (e) { /* opener unreadable */ }
+    return hostOrigin !== null && event.origin === hostOrigin;
+  }
   var PLAYER_HOSTS = {
     'open.spotify.com': '/embed',
     'embed.music.apple.com': '/',
@@ -73,7 +85,7 @@ body.activity { background: #000; }
     window.addEventListener('message', function (event) {
       if (event.source === frame.contentWindow && event.origin === target.origin) {
         window.parent.postMessage(event.data, '*');
-      } else if (event.source === window.parent && frame.contentWindow) {
+      } else if (fromHost(event) && frame.contentWindow) {
         frame.contentWindow.postMessage(event.data, target.origin);
       }
     });
@@ -237,7 +249,7 @@ body.activity { background: #000; }
   var SOURCES = { youtube: youtube, soundcloud: soundcloud, spotify: spotify };
 
   window.addEventListener('message', function (event) {
-    if (event.source !== window.parent) return;
+    if (!fromHost(event)) return;
     var d = event.data;
     if (!d || d.harmonyPlayer !== 1 || typeof d.cmd !== 'string') return;
     try {

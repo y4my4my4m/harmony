@@ -19,7 +19,7 @@
   restyles it. `@close` carries 'escape' or 'overlay'.
 -->
 <template>
-  <Teleport to="body" :disabled="!teleport">
+  <Teleport :to="portalTarget" :disabled="!teleport">
     <div
       v-if="open"
       class="app-dialog-overlay"
@@ -47,6 +47,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useDialog, type InitialFocus } from '@/composables/useDialog'
+import { usePortalTarget } from '@/composables/usePortalTarget'
+
+const portalTarget = usePortalTarget()
 
 defineOptions({ inheritAttrs: false })
 

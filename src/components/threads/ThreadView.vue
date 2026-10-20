@@ -1,5 +1,5 @@
 <template>
-  <Teleport to="body">
+  <Teleport :to="portalTarget">
     <Transition name="slide-panel">
       <div v-if="isVisible" class="thread-overlay" @click.self="close">
         <div
@@ -339,6 +339,9 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { getForeignAuthor } from '@/utils/messageAuthor'
 import { useDialog } from '@/composables/useDialog'
 import { useMenu, useMenuButton } from '@/composables/useMenu'
+import { usePortalTarget } from '@/composables/usePortalTarget'
+
+const portalTarget = usePortalTarget()
 
 interface Props {
   isVisible: boolean

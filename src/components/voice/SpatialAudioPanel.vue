@@ -369,7 +369,7 @@ function handlePanelDragStart(e: MouseEvent) {
   
   const rect = styleRect(panelEl);
   const currentX = rect.left;
-  const currentY = styleViewport().height - rect.bottom;
+  const currentY = styleViewport(panelEl).height - rect.bottom;
   
   panelDragStartPos = stylePoint(e);
   panelDragInitialPos = { x: currentX, y: currentY };
@@ -413,7 +413,7 @@ function handlePanelTouchStart(e: TouchEvent) {
   
   const rect = styleRect(panelEl);
   const currentX = rect.left;
-  const currentY = styleViewport().height - rect.bottom;
+  const currentY = styleViewport(panelEl).height - rect.bottom;
   
   panelDragStartPos = stylePoint(touch);
   panelDragInitialPos = { x: currentX, y: currentY };

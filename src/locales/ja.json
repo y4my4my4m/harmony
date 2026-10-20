@@ -1382,6 +1382,24 @@
       "youWereRemoved": "このサーバーのメンバーではなくなりました。",
       "youLostAccess": "そのボイスチャンネルへのアクセス権がなくなりました。",
       "youWereTimedOut": "このサーバーでタイムアウトされました。"
+    },
+    "callChat": {
+      "toggle": "チャット",
+      "toggleUnread": "チャット、新着メッセージあり",
+      "region": "{name} のチャット",
+      "close": "チャットを閉じる",
+      "resize": "チャットの幅を変更",
+      "awayText": "メインウィンドウには別のチャットが表示されています。",
+      "awayAction": "通話のチャットを表示",
+      "elsewhereText": "このチャットは通話の横に開いています。",
+      "elsewhereAction": "ここにチャットを表示"
+    },
+    "popout": {
+      "open": "通話を別ウィンドウで開く",
+      "return": "通話をアプリに戻す",
+      "focus": "通話ウィンドウを表示",
+      "blocked": "通話ウィンドウを開けませんでした。このサイトのポップアップを許可して、もう一度お試しください。",
+      "windowTitle": "Harmony — {name}"
     }
   },
   "dm": {
