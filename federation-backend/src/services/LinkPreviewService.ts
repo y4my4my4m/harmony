@@ -6,7 +6,6 @@ import { SignatureService } from '../activitypub/SignatureService.js';
 import { validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 import { decodeHtmlEntities } from '../utils/contentUtils.js';
 import { fetchKlipyMediaBySlug } from './KlipyService.js';
-import { previewImageStore } from './previewImages.js';
 
 export type EmbedProvider =
   | 'harmony-post' | 'fediverse-post' | 'youtube' | 'spotify' | 'reddit' | 'generic'
@@ -311,12 +310,6 @@ class LinkPreviewService {
           payload.mediaOnly = true;
         }
       } catch { /* keep card rendering */ }
-    }
-
-    // A card's image is served from the instance (services/previewImages.ts). Media-only
-    // previews and video posters stay with the site: the media is the content and may be large.
-    if (payload.provider === 'generic' && payload.image && !payload.mediaOnly && !payload.video && !payload.failed) {
-      payload.image = (await previewImageStore.host(payload.image)) ?? payload.image;
     }
 
     const effectiveProvider = payload.provider;

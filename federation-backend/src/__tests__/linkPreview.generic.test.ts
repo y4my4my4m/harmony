@@ -12,9 +12,6 @@ vi.mock('../utils/logger.js', () => ({
 }))
 vi.mock('../config/supabase.js', () => ({ getSupabaseClient: () => ({}) }))
 vi.mock('../services/KlipyService.js', () => ({ fetchKlipyMediaBySlug: vi.fn(async () => null) }))
-// Image hosting has its own tests (previewImages.test.ts); here the site's URL stays.
-const hostImage = vi.hoisted(() => vi.fn(async (_url: string): Promise<string | null> => null))
-vi.mock('../services/previewImages.js', () => ({ previewImageStore: { host: hostImage } }))
 vi.mock('../activitypub/SignatureService.js', () => ({
   SignatureService: { signedApFetch: vi.fn(async () => { throw new Error('not ActivityPub') }) },
 }))
@@ -141,34 +138,12 @@ describe('generic previews', () => {
     expect(pulled).toBeLessThanOrEqual(2)
   })
 
-  it("names the instance's copy of a card's image, or the site's when no copy could be made", async () => {
+  it("names the site's card image", async () => {
     const github = fresh('/AjncSystem/ShadowOfTheColossus-PC')
     const og = 'https://opengraph.githubassets.com/f04c/AjncSystem/ShadowOfTheColossus-PC'
-    const copy = 'https://harmony.test/storage/v1/object/public/link-preview-images/ab/abc.png'
-    const githubPage = () => page(`<head><meta property="og:title" content="GitHub - repo">
-      <meta property="og:description" content="A port"><meta property="og:image" content="${og}"></head>`, github)
-    hostImage.mockResolvedValueOnce(copy)
-    safeFetch.mockResolvedValue(githubPage())
-    expect((await linkPreviewService.getPreview(github)).image).toBe(copy)
-    expect(hostImage).toHaveBeenLastCalledWith(og)
-
-    const other = fresh('/b')
-    hostImage.mockResolvedValueOnce(null)
-    safeFetch.mockResolvedValue(page(`<head><meta property="og:title" content="t">
-      <meta property="og:description" content="d"><meta property="og:image" content="https://img.example/b.png"></head>`, other))
-    expect((await linkPreviewService.getPreview(other)).image).toBe('https://img.example/b.png')
-  })
-
-  it('leaves media-only and video previews with the site', async () => {
-    hostImage.mockClear()
-    safeFetch.mockResolvedValue(page('', 'https://cdn.example/b.png', 'image/png'))
-    expect((await linkPreviewService.getPreview(fresh('/i/2'))).image).toBe('https://cdn.example/b.png')
-    const url = fresh('/v')
-    safeFetch.mockResolvedValue(page(`<head><meta property="og:title" content="t">
-      <meta property="og:image" content="https://img.example/poster.jpg">
-      <meta property="og:video" content="https://cdn.example/v.mp4"><meta property="og:video:type" content="video/mp4"></head>`, url))
-    expect((await linkPreviewService.getPreview(url)).image).toBe('https://img.example/poster.jpg')
-    expect(hostImage).not.toHaveBeenCalled()
+    safeFetch.mockResolvedValue(page(`<head><meta property="og:title" content="GitHub - repo">
+      <meta property="og:description" content="A port"><meta property="og:image" content="${og}"></head>`, github))
+    expect((await linkPreviewService.getPreview(github)).image).toBe(og)
   })
 })
 
