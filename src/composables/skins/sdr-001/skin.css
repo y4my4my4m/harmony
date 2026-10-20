@@ -686,7 +686,8 @@
 /* 2.30 Link and provider embeds. embed-previews.css hovers with a white
    alpha that vanishes on light surfaces. */
 :root[data-skin="sdr-001"] :is(
-  .provider-embed,
+  .provider-embed__frame,
+  .provider-embed__actions,
   .provider-embed__post,
   .provider-embed__post .mony-post,
   .link-embed-card--thumbnail,

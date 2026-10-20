@@ -6,112 +6,112 @@
     :invite-url="payload.url"
   />
   
-  <!-- Regular embed with header/collapse -->
+  <!-- Regular embed: the card, and its actions on a rail beside it -->
   <div
     v-else-if="!emptyPreview"
     class="provider-embed"
     ref="embedWrapper"
-    :class="[`provider-${payload.provider}`, { 'is-collapsed': collapsed, 'provider-embed--portrait': youtubeShort && !collapsed }]"
+    role="group"
+    :aria-label="providerLabel"
+    :class="[`provider-${payload.provider}`, { 'is-collapsed': collapsed, 'provider-embed--portrait': youtubeShort && !collapsed, 'provider-embed--railed': hasActions }]"
   >
-    <div class="provider-embed__header" v-if="payload.provider !== 'harmony-post' && payload.provider !== 'fediverse-post'">
-      <div class="provider-embed__label">
-        {{ providerLabel }}
-      </div>
-      <div class="provider-embed__actions">
-        <button
-          v-if="poppable && !collapsed"
-          class="embed-action"
-          type="button"
-          :title="t('embeds.popOut')"
-          :aria-label="t('embeds.popOut')"
-          @click="popOutEmbed"
-        >
-          <Icon name="picture-in-picture" :size="15" />
-        </button>
-        <button
-          class="embed-action"
-          type="button"
-          :title="t('embeds.open')"
-          :aria-label="t('embeds.open')"
-          @click="openLink"
-        >
-          <Icon name="external-link" :size="15" />
-        </button>
-        <button
-          class="embed-action"
-          type="button"
-          :title="collapsed ? t('embeds.show') : t('embeds.hide')"
-          :aria-label="collapsed ? t('embeds.show') : t('embeds.hide')"
-          :aria-expanded="!collapsed"
-          @click="toggleCollapse"
-        >
-          <Icon :name="collapsed ? 'chevron-down' : 'x'" :size="16" />
-        </button>
-      </div>
+    <div v-if="hasActions" class="provider-embed__actions" :class="{ 'is-inline': collapsed }">
+      <span v-if="collapsed" class="provider-embed__label">{{ providerLabel }}</span>
+      <button
+        v-if="poppable && !collapsed"
+        class="embed-action"
+        type="button"
+        :title="t('embeds.popOut')"
+        :aria-label="t('embeds.popOut')"
+        @click="popOutEmbed"
+      >
+        <Icon name="picture-in-picture" :size="15" />
+      </button>
+      <button
+        class="embed-action"
+        type="button"
+        :title="t('embeds.open')"
+        :aria-label="t('embeds.open')"
+        @click="openLink"
+      >
+        <Icon name="external-link" :size="15" />
+      </button>
+      <button
+        class="embed-action"
+        type="button"
+        :title="collapsed ? t('embeds.show') : t('embeds.hide')"
+        :aria-label="collapsed ? t('embeds.show') : t('embeds.hide')"
+        :aria-expanded="!collapsed"
+        @click="toggleCollapse"
+      >
+        <Icon :name="collapsed ? 'chevron-down' : 'x'" :size="16" />
+      </button>
     </div>
-    <div v-if="!collapsed" class="provider-embed__content">
-      <template v-if="isHarmony">
-        <div v-if="harmonyPost" class="provider-embed__post">
-          <MonyPost :post="harmonyPost" :embedded="true" @open-lightbox="$emit('open-lightbox', $event)" />
-        </div>
-        <div v-else class="provider-embed__skeleton">
-          <span v-if="harmonyError">{{ harmonyError }}</span>
-          <span v-else>Loading Harmony post...</span>
-        </div>
-      </template>
-      <template v-else-if="isFediverse">
-        <template v-if="payload.fediverse">
-          <div v-if="fediversePost" class="provider-embed__post provider-embed__fediverse-wrap">
-            <MonyPost :post="fediversePost" :embedded="true" @open-lightbox="$emit('open-lightbox', $event)" @refresh="handleEmbedLoad" />
-            <div v-if="fediverseSourceUrl" class="fedi-source-link">
-              <span class="fedi-source-badge" :title="fediversePlatformLabel">
-                <Icon name="globe" :size="12" class="fedi-badge-icon" />
-                <span class="fedi-badge-label">{{ fediversePlatformLabel }}</span>
-              </span>
-              <a :href="safeHref(fediverseSourceUrl)" target="_blank" rel="noopener noreferrer" class="fedi-source-link__right">
-                View on {{ fediverseSourceDomain }}
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                  <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-                </svg>
-              </a>
-            </div>
-          </div>
-          <div v-else-if="fediverseError" class="provider-embed__skeleton">
-            <span>{{ fediverseError }}</span>
+    <div v-if="!collapsed" class="provider-embed__frame">
+      <div class="provider-embed__content">
+        <template v-if="isHarmony">
+          <div v-if="harmonyPost" class="provider-embed__post">
+            <MonyPost :post="harmonyPost" :embedded="true" @open-lightbox="$emit('open-lightbox', $event)" />
           </div>
           <div v-else class="provider-embed__skeleton">
-            <span>Loading fediverse post...</span>
+            <span v-if="harmonyError">{{ harmonyError }}</span>
+            <span v-else>Loading Harmony post...</span>
           </div>
         </template>
-        <LinkEmbedCard v-else :payload="payload" @load="handleEmbedLoad" />
-      </template>
-      <MusicEmbed
-        v-else-if="music"
-        :embed="music"
-        :title="iframeTitle"
-        :artwork="payload.image || null"
-        @load="handleEmbedLoad"
-      />
-      <div
-        v-else-if="youtubeEmbedUrl"
-        class="provider-embed__media provider-embed__media--video"
-        :class="{ 'provider-embed__media--portrait': youtubeShort }"
-        ref="youtubeContainer"
-      >
-        <iframe
-          ref="youtubeIframe"
-          :id="`youtube-player-${messageId}`"
-          :src="youtubeEmbedUrl"
+        <template v-else-if="isFediverse">
+          <template v-if="payload.fediverse">
+            <div v-if="fediversePost" class="provider-embed__post provider-embed__fediverse-wrap">
+              <MonyPost :post="fediversePost" :embedded="true" @open-lightbox="$emit('open-lightbox', $event)" @refresh="handleEmbedLoad" />
+              <div v-if="fediverseSourceUrl" class="fedi-source-link">
+                <span class="fedi-source-badge" :title="fediversePlatformLabel">
+                  <Icon name="globe" :size="12" class="fedi-badge-icon" />
+                  <span class="fedi-badge-label">{{ fediversePlatformLabel }}</span>
+                </span>
+                <a :href="safeHref(fediverseSourceUrl)" target="_blank" rel="noopener noreferrer" class="fedi-source-link__right">
+                  View on {{ fediverseSourceDomain }}
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                    <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                  </svg>
+                </a>
+              </div>
+            </div>
+            <div v-else-if="fediverseError" class="provider-embed__skeleton">
+              <span>{{ fediverseError }}</span>
+            </div>
+            <div v-else class="provider-embed__skeleton">
+              <span>Loading fediverse post...</span>
+            </div>
+          </template>
+          <LinkEmbedCard v-else :payload="payload" @load="handleEmbedLoad" />
+        </template>
+        <MusicEmbed
+          v-else-if="music"
+          :embed="music"
           :title="iframeTitle"
-          frameborder="0"
-          allowfullscreen
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          loading="lazy"
+          :artwork="payload.image || null"
           @load="handleEmbedLoad"
-        ></iframe>
+        />
+        <div
+          v-else-if="youtubeEmbedUrl"
+          class="provider-embed__media provider-embed__media--video"
+          :class="{ 'provider-embed__media--portrait': youtubeShort }"
+          ref="youtubeContainer"
+        >
+          <iframe
+            ref="youtubeIframe"
+            :id="`youtube-player-${messageId}`"
+            :src="youtubeEmbedUrl"
+            :title="iframeTitle"
+            frameborder="0"
+            allowfullscreen
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            loading="lazy"
+            @load="handleEmbedLoad"
+          ></iframe>
+        </div>
+        <LinkEmbedCard v-else :payload="payload" @load="handleEmbedLoad" />
       </div>
-      <LinkEmbedCard v-else :payload="payload" @load="handleEmbedLoad" />
     </div>
   </div>
 </template>
@@ -251,6 +251,8 @@ const music = computed(() => musicEmbedFor(props.payload.url, {
 const emptyPreview = computed(() => !music.value && isEmptyPreview(props.payload));
 const isHarmony = computed(() => props.payload.provider === 'harmony-post');
 const isFediverse = computed(() => props.payload.provider === 'fediverse-post');
+// Posts carry their own actions.
+const hasActions = computed(() => !isHarmony.value && !isFediverse.value);
 const providerLabel = computed(() => {
   switch (props.payload.provider) {
     case 'harmony-post':

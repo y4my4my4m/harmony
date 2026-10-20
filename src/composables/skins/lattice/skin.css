@@ -711,14 +711,10 @@
 :root[data-skin="lattice"] :is(.embed, .link-embed, .embed-container, .attachment, .file-attachment) {
   border-radius: 0;
 }
-:root[data-skin="lattice"] .provider-embed {
+:root[data-skin="lattice"] :is(.provider-embed__frame, .provider-embed__actions) {
   border-radius: 0;
   border-color: var(--lt-line-strong);
   background: var(--lt-raise);
-}
-:root[data-skin="lattice"] .provider-embed__header {
-  background: transparent;
-  border-bottom: 1px solid var(--lt-line);
 }
 
 /* Composer: a prompt bar. */

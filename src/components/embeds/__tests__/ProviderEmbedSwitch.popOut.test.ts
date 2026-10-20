@@ -1,6 +1,7 @@
 /**
- * A YouTube embed's header carries a Pop out action that floats the embed;
- * the action is absent while the embed is collapsed and on non-video embeds.
+ * An embed's actions sit on a rail beside the card, not in a header above it. A YouTube
+ * embed's rail carries Pop out, which floats the embed; the action is absent while the
+ * embed is hidden and on non-video embeds. Hidden, the embed is one row naming the provider.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
@@ -76,9 +77,15 @@ describe('ProviderEmbedSwitch pop out', () => {
     happyDOM.settings.disableIframePageLoading = false
   })
 
-  it('floats a YouTube embed from the header', async () => {
+  it('floats a YouTube embed from its rail', async () => {
     const { wrapper, slot } = await setup(YOUTUBE)
     expect(actionLabels(wrapper)).toEqual(['embeds.popOut', 'embeds.open', 'embeds.hide'])
+    // No header row: the rail and the card are side by side, the label only shows hidden.
+    expect(wrapper.find('.provider-embed__header').exists()).toBe(false)
+    expect(wrapper.find('.provider-embed').classes()).toContain('provider-embed--railed')
+    expect(wrapper.find('.provider-embed__frame').exists()).toBe(true)
+    expect(wrapper.find('.provider-embed__label').exists()).toBe(false)
+    expect(wrapper.find('.provider-embed').attributes('aria-label')).toBe('YouTube')
 
     const embed = wrapper.find('.provider-embed').element
     await wrapper.findAll('.embed-action')[0].trigger('click')
@@ -86,10 +93,13 @@ describe('ProviderEmbedSwitch pop out', () => {
     wrapper.unmount()
   })
 
-  it('hides the action while collapsed', async () => {
+  it('hides the action while collapsed, leaving one row that names the provider', async () => {
     const { wrapper } = await setup(YOUTUBE)
     await wrapper.findAll('.embed-action')[2].trigger('click')
     expect(actionLabels(wrapper)).toEqual(['embeds.open', 'embeds.show'])
+    expect(wrapper.find('.provider-embed__frame').exists()).toBe(false)
+    expect(wrapper.find('.provider-embed__actions').classes()).toContain('is-inline')
+    expect(wrapper.find('.provider-embed__label').text()).toBe('YouTube')
     wrapper.unmount()
   })
 
