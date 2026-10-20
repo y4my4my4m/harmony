@@ -82,7 +82,12 @@ export async function startWorker(): Promise<void> {
       logger.error('Failed to initialize push notification service:', error);
     }
   } else {
-    logger.info('Starting legacy DatabaseListener...');
+    // supabase_realtime publishes no table since 20261021100001.
+    logger.warn(
+      'USE_BULLMQ_QUEUE=false: the legacy DatabaseListener subscribes to postgres_changes, ' +
+      'but the supabase_realtime publication carries no table, so it receives no events and ' +
+      'nothing federates. Set USE_BULLMQ_QUEUE=true.',
+    );
     await startDatabaseListener();
     await startPushNotificationListener();
   }

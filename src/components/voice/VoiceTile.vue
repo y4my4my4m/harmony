@@ -212,6 +212,7 @@ import { participantLabel, useHeldFlag } from './participantLabel';
 import { restoreFocusIfLost } from './voiceFocus';
 import { withRenderFallback } from '@/utils/renderFallback';
 import { stylePoint, styleRect } from '@/utils/appZoom';
+import { SPEAKING_LEVEL } from '@/services/voice/speakingDetector';
 
 const props = withDefaults(defineProps<{
   userState: UserMediaState;
@@ -268,7 +269,7 @@ const effectiveDeafened = computed(() => liveState.value.isDeafened);
 
 const isSpeaking = computed(() => {
   if (isSelf.value) {
-    return liveState.value.audioLevel > 6 && !effectiveMuted.value;
+    return liveState.value.audioLevel > SPEAKING_LEVEL && !effectiveMuted.value;
   }
   return liveState.value.isSpeaking;
 });

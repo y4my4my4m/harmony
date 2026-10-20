@@ -103,30 +103,49 @@
       <!-- Voice / Video E2EE -->
       <div class="setting-group">
         <div class="setting-label">
-          <h3 class="setting-heading">{{ t('server.encryptionPolicy.voiceTitle') }}</h3>
-          <span class="setting-hint">{{ t('server.encryptionPolicy.voiceHint') }}</span>
+          <h3 :id="`${uid}-voice-label`" class="setting-heading">{{ t('server.encryptionPolicy.voiceTitle') }}</h3>
+          <span :id="`${uid}-voice-hint`" class="setting-hint">{{ t('server.encryptionPolicy.voiceHint') }}</span>
         </div>
 
-        <div class="checkbox-option">
-          <input
-            type="checkbox"
-            :id="`${uid}-voice-e2ee`"
-            :checked="voiceEncryptionMode === 'required'"
-            :disabled="!canModify"
-            :aria-describedby="voiceEncryptionMode === 'required'
-              ? `${uid}-voice-e2ee-hint ${uid}-voice-e2ee-warning`
-              : `${uid}-voice-e2ee-hint`"
-            @change="voiceEncryptionMode = ($event.target as HTMLInputElement).checked ? 'required' : 'disabled'"
-          />
-          <label :for="`${uid}-voice-e2ee`">
-            <span class="option-name">{{ t('server.encryptionPolicy.voiceRequire') }}</span>
-            <span :id="`${uid}-voice-e2ee-hint`" class="option-hint">{{ t('server.encryptionPolicy.voiceRequireHint') }}</span>
-          </label>
-        </div>
+        <div
+          class="mode-options"
+          role="radiogroup"
+          :aria-labelledby="`${uid}-voice-label`"
+          :aria-describedby="`${uid}-voice-hint`"
+          data-testid="voice-encryption-mode-group"
+        >
+          <div
+            v-for="mode in voiceModes"
+            :key="mode.value"
+            class="mode-option"
+            :class="{ selected: voiceEncryptionMode === mode.value }"
+            @click="selectVoiceMode(mode.value)"
+          >
+            <div class="mode-header">
+              <input
+                type="radio"
+                :id="`${uid}-voice-${mode.value}`"
+                :name="`${uid}-voice`"
+                :value="mode.value"
+                :checked="voiceEncryptionMode === mode.value"
+                :disabled="!canModify"
+                :aria-describedby="mode.value === 'required'
+                  ? `${uid}-voice-${mode.value}-desc ${uid}-voice-required-warning`
+                  : `${uid}-voice-${mode.value}-desc`"
+                @change="selectVoiceMode(mode.value)"
+              />
+              <label :for="`${uid}-voice-${mode.value}`">
+                <span class="mode-icon" aria-hidden="true"><Icon :name="mode.icon" :size="18" /></span>
+                <span class="mode-name">{{ mode.name }}</span>
+              </label>
+            </div>
+            <p :id="`${uid}-voice-${mode.value}-desc`" class="mode-description">{{ mode.description }}</p>
 
-        <div v-if="voiceEncryptionMode === 'required'" :id="`${uid}-voice-e2ee-warning`" class="mode-warning">
-          <span class="warning-icon" aria-hidden="true"><Icon name="alert-triangle" :size="16" /></span>
-          <span>{{ t('server.encryptionPolicy.voiceWarning') }}</span>
+            <div v-if="mode.value === 'required'" :id="`${uid}-voice-required-warning`" class="mode-warning">
+              <span class="warning-icon" aria-hidden="true"><Icon name="alert-triangle" :size="16" /></span>
+              <span>{{ t('server.encryptionPolicy.voiceWarning') }}</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -209,6 +228,7 @@ import { supabase } from '@/supabase'
 import { userDataService } from '@/services/userDataService'
 import { useServerChannelStore } from '@/stores/useServerChannel'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
+import { normalizeVoiceMode, type VoiceEncryptionMode } from '@/utils/channelEncryption'
 
 interface Props {
   serverId: string
@@ -236,10 +256,10 @@ const originalMode = ref<'disabled' | 'optional' | 'required'>('disabled')
 const storedRequiredMode = ref<'required' | 'required_local_only'>('required')
 const forceKeySetup = ref(false)
 const originalForceKeySetup = ref(false)
-// Voice/video E2EE: disabled | required (no per-call "optional" - LiveKit E2EE
-// is room-wide, so a call is either fully encrypted or not).
-const voiceEncryptionMode = ref<'disabled' | 'required'>('disabled')
-const originalVoiceEncryptionMode = ref<'disabled' | 'required'>('disabled')
+// Voice/video E2EE: 'disabled' leaves it to each voice channel, 'required' fixes it on in every
+// one. Independent of the message encryption mode.
+const voiceEncryptionMode = ref<VoiceEncryptionMode>('disabled')
+const originalVoiceEncryptionMode = ref<VoiceEncryptionMode>('disabled')
 
 const memberStats = ref({
   total: 0,
@@ -248,6 +268,7 @@ const memberStats = ref({
 })
 
 const MODE_ICONS: Record<EncryptionMode, string> = { disabled: 'unlock', optional: 'lock', required: 'shield-check' }
+const VOICE_MODE_ICONS: Record<VoiceEncryptionMode, string> = { disabled: 'toggle-right', required: 'shield-check' }
 
 const encryptionModes = computed(() =>
   (['disabled', 'optional', 'required'] as const).map((value) => ({
@@ -255,6 +276,15 @@ const encryptionModes = computed(() =>
     name: t(`server.encryptionPolicy.modes.${value}.name`),
     icon: MODE_ICONS[value],
     description: t(`server.encryptionPolicy.modes.${value}.description`),
+  })),
+)
+
+const voiceModes = computed(() =>
+  (['disabled', 'required'] as const).map((value) => ({
+    value,
+    name: t(`server.encryptionPolicy.voiceModes.${value}.name`),
+    icon: VOICE_MODE_ICONS[value],
+    description: t(`server.encryptionPolicy.voiceModes.${value}.description`),
   })),
 )
 
@@ -314,7 +344,7 @@ async function loadSettings() {
       ? 'optional'
       : mode === 'required' || mode === 'required_local_only' ? 'required' : 'disabled'
     forceKeySetup.value = policy?.force_key_setup === true
-    voiceEncryptionMode.value = policy?.voice_encryption_mode === 'required' ? 'required' : 'disabled'
+    voiceEncryptionMode.value = normalizeVoiceMode(policy?.voice_encryption_mode)
 
     originalMode.value = currentMode.value
     originalForceKeySetup.value = forceKeySetup.value
@@ -361,6 +391,11 @@ function selectMode(mode: EncryptionMode) {
   if (mode === 'disabled') {
     forceKeySetup.value = false
   }
+}
+
+function selectVoiceMode(mode: VoiceEncryptionMode) {
+  if (!canModify.value) return
+  voiceEncryptionMode.value = mode
 }
 
 async function saveSettings() {

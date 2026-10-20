@@ -469,9 +469,7 @@
       "forceKeySetupHint": "Afficher l’assistant de configuration aux utilisateurs sans clés",
       "attachmentNote": "Dans les salons chiffrés, les liens, noms et types de fichiers sont chiffrés avec le message. Les fichiers eux-mêmes sont stockés sans chiffrement.",
       "voiceTitle": "Chiffrement de la voix et de la vidéo",
-      "voiceHint": "Chiffrer de bout en bout les médias des appels pour que le serveur multimédia ne puisse pas y accéder",
-      "voiceRequire": "Exiger une voix et une vidéo chiffrées de bout en bout",
-      "voiceRequireHint": "Chaque salon vocal chiffre les appels avant qu’ils n’atteignent le serveur multimédia. Sans cette option, les gestionnaires de salons choisissent pour chaque salon vocal.",
+      "voiceHint": "Chiffrer de bout en bout les médias des appels pour que le serveur multimédia ne puisse pas y accéder. Ce réglage ne dépend pas du mode de chiffrement des messages.",
       "voiceWarning": "Les participants qui n’ont pas configuré le chiffrement (ainsi que les clients fédérés ou anciens) ne pourront pas rejoindre les appels chiffrés.",
       "statsTitle": "Statistiques du serveur",
       "statsTotal": "Membres au total",
@@ -497,7 +495,17 @@
       },
       "saved": "Paramètres de chiffrement enregistrés",
       "loadFailed": "Impossible de charger les paramètres",
-      "saveFailed": "Impossible d’enregistrer les paramètres"
+      "saveFailed": "Impossible d’enregistrer les paramètres",
+      "voiceModes": {
+        "disabled": {
+          "name": "Par salon",
+          "description": "Les gestionnaires de salons activent le chiffrement pour chaque salon vocal. Les nouveaux salons vocaux démarrent sans chiffrement."
+        },
+        "required": {
+          "name": "Exigé dans chaque salon vocal",
+          "description": "Chaque salon vocal chiffre les appels avant qu’ils n’atteignent le serveur multimédia, et les salons ne peuvent pas le désactiver."
+        }
+      }
     },
     "roleManagement": {
       "intro": "Créez et gérez les rôles de votre serveur. Faites-les glisser pour changer leur priorité, ou utilisez Monter et Descendre.",
@@ -1374,6 +1382,29 @@
       "youWereRemoved": "Vous n'êtes plus membre de ce serveur.",
       "youLostAccess": "Vous n'avez plus accès à ce salon vocal.",
       "youWereTimedOut": "Vous avez été exclu temporairement de ce serveur."
+    },
+    "callChat": {
+      "toggle": "Chat",
+      "toggleUnread": "Chat, nouveaux messages",
+      "region": "Chat de {name}",
+      "close": "Fermer le chat",
+      "resize": "Redimensionner le chat",
+      "awayText": "La fenêtre principale affiche une autre discussion.",
+      "awayAction": "Afficher le chat de l'appel",
+      "elsewhereText": "Ce chat est ouvert à côté de l'appel.",
+      "elsewhereAction": "Afficher le chat ici"
+    },
+    "popout": {
+      "open": "Ouvrir l'appel dans une fenêtre séparée",
+      "return": "Ramener l'appel dans l'application",
+      "focus": "Afficher la fenêtre de l'appel",
+      "blocked": "La fenêtre de l'appel n'a pas pu s'ouvrir. Autorisez les fenêtres pop-up pour ce site et réessayez.",
+      "windowTitle": "Harmony — {name}"
+    },
+    "floatingDock": {
+      "float": "Flotter au-dessus des autres fenêtres",
+      "backToApp": "Revenir dans l'application",
+      "dragHint": "Fais glisser pour le déplacer. Dépose-le sur Harmony pour le remettre en place."
     }
   },
   "dm": {
@@ -1704,7 +1735,16 @@
       "audioSettings": "Réglages audio",
       "selectMicrophone": "Choisir le micro",
       "selectSpeaker": "Choisir le haut-parleur",
-      "selectCamera": "Choisir la caméra"
+      "selectCamera": "Choisir la caméra",
+      "inputSensitivity": "Sensibilité d'entrée",
+      "inputSensitivityDesc": "N'envoie ton micro que lorsque tu parles, pour que les bruits de clavier et de la pièce restent hors de l'appel.",
+      "inputSensitivityOff": "Toujours envoyer",
+      "inputSensitivityAuto": "Automatique",
+      "inputSensitivityManual": "Manuelle",
+      "inputThreshold": "Seuil",
+      "decibels": "{db} dB",
+      "inputMeterHint": "La barre devient verte tant que ton micro est envoyé.",
+      "inputMeterIdle": "Rejoins un salon vocal pour voir ton niveau ici."
     },
     "notifications": {
       "title": "Notifications",
@@ -3676,7 +3716,15 @@
       "label": "Chiffrement de bout en bout",
       "hint": "Chiffrer les messages de ce canal pour que le serveur ne puisse pas les lire.",
       "integrationWarning": "Les bots et passerelles de ce serveur ne peuvent pas lire les messages chiffrés ni publier dans ce canal.",
-      "failed": "Le canal a été créé, mais le chiffrement n'a pas pu être activé. Activez-le dans les paramètres du canal."
+      "failed": "Le canal a été créé, mais le chiffrement n'a pas pu être activé. Activez-le dans les paramètres du canal.",
+      "voiceLabel": "Chiffrer la voix et la vidéo",
+      "voiceHint": "Chiffrer les appels de ce canal avant qu'ils n'atteignent le serveur média. Les membres doivent avoir configuré le chiffrement pour rejoindre."
+    },
+    "voiceJoin": {
+      "setup": "Ce canal vocal est chiffré de bout en bout. Configurez le chiffrement pour le rejoindre.",
+      "unlock": "Ce canal vocal est chiffré de bout en bout. Déverrouillez le chiffrement avec votre clé de récupération pour le rejoindre.",
+      "dmSetup": "Les appels de cette conversation sont chiffrés de bout en bout. Configurez le chiffrement pour appeler ou répondre.",
+      "dmUnlock": "Les appels de cette conversation sont chiffrés de bout en bout. Déverrouillez le chiffrement avec votre clé de récupération pour appeler ou répondre."
     }
   },
   "today": {
@@ -5987,12 +6035,15 @@
       "createFailed": "Le sondage n'a pas été publié.",
       "voteFailed": "Votre vote n'a pas été enregistré.",
       "closed": "Ce sondage est terminé.",
-      "endFailed": "Impossible de terminer le sondage."
+      "endFailed": "Impossible de terminer le sondage.",
+      "alreadyVoted": "Vous avez déjà voté à ce sondage."
     },
     "remote": {
       "voters": "{count} personne a voté | {count} personnes ont voté",
       "voteOnOriginal": "Voter sur la publication d'origine",
-      "label": "Sondage"
+      "label": "Sondage",
+      "vote": "Voter",
+      "yourAnswer": "votre réponse"
     }
   },
   "serverTemplate": {
@@ -6702,5 +6753,15 @@
     "tierSupporter": "Soutien {tier}",
     "active": "Actif",
     "history": "Historique de votre soutien"
+  },
+  "authorizeInteraction": {
+    "title": "Interaction à distance",
+    "resolving": "Recherche de {uri}…",
+    "notFound": "Rien n'a été trouvé à cette adresse.",
+    "invalid": "Ce n'est ni un identifiant ni un lien.",
+    "openPost": "Ouvrir la publication",
+    "openProfile": "Ouvrir le profil",
+    "home": "Aller à l'accueil",
+    "followFailed": "L'abonnement n'a pas été enregistré."
   }
 }

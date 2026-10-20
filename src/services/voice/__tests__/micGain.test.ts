@@ -124,6 +124,34 @@ describe('MicGainStage wiring', () => {
     expect(ctx.dests[0].channelCountMode).toBe('explicit');
   });
 
+  it('gates to silence and reopens at the set gain, fast open and slow close', async () => {
+    const stage = makeStage();
+    stage.setGain(1.5);
+    await stage.connect(asTrack(new FakeTrack('mic-1')));
+    const gain = ctx.gains[0].gain;
+
+    stage.setGateOpen(false);
+    expect(stage.isGateOpen).toBe(false);
+    expect(gain.value).toBe(0);
+    const closeConstant = gain.setTargetAtTime.mock.lastCall![2];
+
+    // The input volume moves while closed: still silent.
+    stage.setGain(0.5);
+    expect(gain.value).toBe(0);
+
+    stage.setGateOpen(true);
+    expect(gain.value).toBe(0.5);
+    const openConstant = gain.setTargetAtTime.mock.lastCall![2];
+    expect(openConstant).toBeLessThan(closeConstant);
+  });
+
+  it('starts silent when the gate closed before the stage was built', async () => {
+    const stage = makeStage();
+    stage.setGateOpen(false);
+    await stage.connect(asTrack(new FakeTrack('mic-1')));
+    expect(ctx.gains[0].gain.value).toBe(0);
+  });
+
   it('keeps the same output track when the capture is swapped', async () => {
     const stage = makeStage();
     const first = await stage.connect(asTrack(new FakeTrack('mic-1')));

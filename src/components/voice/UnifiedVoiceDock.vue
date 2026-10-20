@@ -223,6 +223,17 @@
         >
           <Icon name="settings" />
         </button>
+
+        <button
+          v-if="popoutAvailable"
+          @click="popoutActive ? closeCallPopout() : popOutCall()"
+          :class="['control-btn', 'popout-btn', { active: popoutActive }]"
+          :title="popoutActive ? t('voice.popout.return') : t('voice.popout.open')"
+          :aria-label="popoutActive ? t('voice.popout.return') : t('voice.popout.open')"
+          data-testid="dock-popout"
+        >
+          <Icon :name="popoutActive ? 'log-in' : 'external-link'" />
+        </button>
       </div>
 
       <!-- On-screen PTT for touch devices -->
@@ -309,10 +320,10 @@
 
     <!-- Minimized mode: tiny dock in channel sidebar -->
     <div 
-      v-else-if="currentMode === 'minimized'" 
+      v-else-if="currentMode === 'minimized' && !floatingDockActive" 
       ref="minimizedContainerRef"
       class="minimized-container" 
-      :class="{ 'is-dragging': isDragging }"
+      :class="{ 'is-dragging': isDragging, 'tear-off-ready': tearOffReady }"
       :style="minimizedPositionStyle"
       @mousedown="handleMinimizedMouseDown"
       @click="handleMinimizedClick"
@@ -396,6 +407,38 @@
             </button>
           </div>
 
+          <template v-if="popoutActive">
+            <button
+              @click.stop="focusCallPopout"
+              class="mini-control-btn mini-popout-focus"
+              :title="t('voice.popout.focus')"
+              :aria-label="t('voice.popout.focus')"
+              data-testid="mini-popout-focus"
+            >
+              <Icon name="picture-in-picture" />
+            </button>
+            <button
+              @click.stop="closeCallPopout"
+              class="mini-control-btn mini-popout-return"
+              :title="t('voice.popout.return')"
+              :aria-label="t('voice.popout.return')"
+              data-testid="mini-popout-return"
+            >
+              <Icon name="log-in" />
+            </button>
+          </template>
+
+          <button
+            v-if="canFloat && !popoutActive"
+            @click.stop="floatFromButton"
+            class="mini-control-btn mini-float"
+            :title="t('voice.floatingDock.float')"
+            :aria-label="t('voice.floatingDock.float')"
+            data-testid="mini-float"
+          >
+            <Icon name="external-link" />
+          </button>
+
           <button
             ref="miniExpandButtonRef"
             @click.stop="expandToDock"
@@ -421,30 +464,36 @@
     
     <!-- Rendered outside .minimized-container so dragging does not clip it -->
     <div 
-      v-if="currentMode === 'minimized' && !isAtDefaultPosition" 
+      v-if="currentMode === 'minimized' && !isAtDefaultPosition && !floatingDockActive" 
       class="participants-dropdown-container"
       :style="participantsDropdownStyle"
     >
-      <button 
-        @click.stop="toggleParticipantsDropdown"
-        class="participants-dropdown-btn"
-        :class="{ active: showParticipantsDropdown }"
-        :title="t('voice.participants')"
-        :aria-label="t('voice.participants')"
-        :aria-expanded="showParticipantsDropdown"
-        :aria-controls="showParticipantsDropdown ? participantsPanelId : undefined"
-      >
-        <Icon name="chevron-down" :class="{ rotated: showParticipantsDropdown }" />
-      </button>
-      
-      <Transition name="participants-dropdown">
-        <div v-if="showParticipantsDropdown" :id="participantsPanelId" class="participants-dropdown">
-          <VoiceChannelParticipants 
-            :participants="voiceStore.allParticipants"
-            :session-start-time="voiceStore.callStartTime ? new Date(voiceStore.callStartTime) : null"
-          />
-        </div>
-      </Transition>
+      <!-- List opens between the dock and the tab; the tab rides its bottom edge -->
+      <div class="participants-dropdown-stack" data-testid="mini-participants-stack">
+        <Transition name="participants-reveal">
+          <div v-if="showParticipantsDropdown" class="participants-reveal">
+            <div :id="participantsPanelId" class="participants-dropdown" data-testid="mini-participants-list">
+              <VoiceChannelParticipants
+                :participants="voiceStore.allParticipants"
+                :session-start-time="voiceStore.callStartTime ? new Date(voiceStore.callStartTime) : null"
+              />
+            </div>
+          </div>
+        </Transition>
+
+        <button
+          @click.stop="toggleParticipantsDropdown"
+          class="participants-dropdown-btn"
+          :class="{ active: showParticipantsDropdown }"
+          :title="t('voice.participants')"
+          :aria-label="t('voice.participants')"
+          :aria-expanded="showParticipantsDropdown"
+          :aria-controls="showParticipantsDropdown ? participantsPanelId : undefined"
+          data-testid="mini-participants-toggle"
+        >
+          <Icon name="chevron-down" :class="{ rotated: showParticipantsDropdown }" />
+        </button>
+      </div>
     </div>
 
     <!-- Positioned above the dock -->
@@ -477,7 +526,7 @@
     />
 
     <ActivityLauncher
-      v-if="activityButton.visible.value"
+      v-if="activityButton.visible.value && !popoutActive"
       :anchor="activityButton.anchor.value"
       @close="activityButton.close"
     />
@@ -496,12 +545,13 @@
 
     <!-- Overlay mode renders its own spatial audio panel -->
     <SpatialAudioPanel 
-      v-if="currentMode !== 'overlay'"
+      v-if="currentMode !== 'overlay' && !popoutActive"
       :is-under-dock="currentMode === 'dock'"
     />
 
+    <!-- Popped out, the call view stays mounted in its own window -->
     <UnifiedVoiceOverlay
-      v-if="currentMode === 'overlay'"
+      v-if="currentMode === 'overlay' || popoutActive"
       :channel-name="channelName"
       :return-focus="overlayReturnFocus"
       @close="handleOverlayClosed"
@@ -549,7 +599,25 @@ import { isMobileUserAgent } from '@/utils/platform';
 import { uid } from '@/utils/a11y/focus';
 import { useI18n } from 'vue-i18n';
 import { focusAfterVoiceLeave, restoreFocusIfLost } from './voiceFocus';
-import { stylePoint, styleRect, styleViewport } from '@/utils/appZoom';
+import { stylePoint, styleRect, styleViewport, toStylePx } from '@/utils/appZoom';
+import {
+  clientPointFromLogical,
+  closeFloatingDock,
+  floatDock,
+  floatingDockActive,
+  floatingDockSupported,
+  onFloatingDockCommand,
+  screenPointFromClient,
+} from '@/services/floatingDock';
+import { releasedOutside, type Point } from '@/overlay/floatingDockProtocol';
+import { useToast } from 'vue-toastification';
+import {
+  callPopoutActive as popoutActive,
+  callPopoutSupported,
+  closeCallPopout,
+  focusCallPopout,
+  openCallPopout,
+} from './callPopout';
 
 const { t } = useI18n();
 
@@ -606,6 +674,12 @@ const {
 // Drag state for minimized dock
 const isDragging = ref(false);
 const dragStartPos = ref({ x: 0, y: 0 });
+// Floating dock (desktop): a mouse drag released outside the window tears the dock off.
+const canFloat = floatingDockSupported();
+const tearOffReady = ref(false);
+// Pointer offset inside the dock at mousedown, client px.
+let grabOffset: Point = { x: 0, y: 0 };
+let preDragPosition = { left: 0, bottom: 0 };
 const dragInitialMousePos = ref({ x: 0, y: 0 });
 const hasMoved = ref(false);
 const minimizedPosition = ref({ left: 10, bottom: 90 });
@@ -836,7 +910,7 @@ const dockActivityButtonRef = ref<HTMLButtonElement | null>(null);
 const activityButton = useActivityButton(dockActivityButtonRef);
 const activitiesStore = useActivitiesStore();
 // The dock card shows while the overlay is closed; the overlay shows the stage instead.
-const dockActivity = computed(() => (currentMode.value === 'dock' && activitiesStore.playingHere ? activitiesStore.current : null));
+const dockActivity = computed(() => (currentMode.value === 'dock' && !popoutActive.value && activitiesStore.playingHere ? activitiesStore.current : null));
 const dockInvite = computed(() => (currentMode.value === 'dock' ? activitiesStore.waiting : null));
 
 const closeStreamPicker = () => {
@@ -869,9 +943,33 @@ watch([() => voiceStore.liveReactionsAvailable, currentMode], () => {
 
 // METHODS
 const expandToOverlay = () => {
+  if (popoutActive.value) {
+    focusCallPopout();
+    return;
+  }
   currentMode.value = 'overlay';
   voiceStore.isOverlayVisible = true;
 };
+
+// POP-OUT
+const toast = useToast();
+const popoutAvailable = callPopoutSupported();
+
+const popOutCall = async () => {
+  const opened = await openCallPopout({ title: t('voice.popout.windowTitle', { name: channelName.value }) });
+  if (!opened) toast.error(t('voice.popout.blocked'));
+};
+
+// Sync: the overlay must stay mounted across the switch, or it would remount in the other window.
+watch(popoutActive, (active) => {
+  if (active) {
+    currentMode.value = 'minimized';
+    return;
+  }
+  if (!voiceStore.isConnectedOrJoining) return;
+  currentMode.value = 'overlay';
+  voiceStore.isOverlayVisible = true;
+}, { flush: 'sync' });
 
 const openFocused = (userId: string, source: 'camera' | 'screen') => {
   voiceStore.enterFullscreen(userId, source);
@@ -918,6 +1016,7 @@ const toggleParticipantsDropdown = () => {
   showParticipantsDropdown.value = !showParticipantsDropdown.value;
 };
 
+
 const toggleSpatialPanel = () => {
   spatialStore.togglePanel();
 };
@@ -953,6 +1052,9 @@ const STORAGE_KEY_DOCK_POSITION = 'voice-dock-position';
 
 // Default position (matches CSS default)
 const DEFAULT_POSITION = { left: 10, bottom: 90 };
+// Minimized dock size, px, before it has been measured.
+const MINIMIZED_WIDTH_FALLBACK = 343;
+const MINIMIZED_HEIGHT_FALLBACK = 52;
 // Magnetic snap radius, px.
 const SNAP_THRESHOLD = 80;
 // Snap is desktop-only.
@@ -1043,6 +1145,13 @@ const startDrag = (e: MouseEvent | TouchEvent) => {
   
   const pointer = stylePoint('touches' in e ? e.touches[0] : e);
   
+  preDragPosition = { ...minimizedPosition.value };
+  tearOffReady.value = false;
+  if (container && !('touches' in e)) {
+    const box = container.getBoundingClientRect();
+    grabOffset = { x: e.clientX - box.left, y: e.clientY - box.top };
+  }
+
   dragInitialMousePos.value = { x: pointer.x, y: pointer.y };
   
   dragStartPos.value = {
@@ -1079,6 +1188,9 @@ const handleDrag = (e: MouseEvent | TouchEvent) => {
   if (distance > CLICK_THRESHOLD) {
     hasMoved.value = true;
   }
+
+  tearOffReady.value = canFloat && !('touches' in e)
+    && releasedOutside(e.clientX, e.clientY, window.innerWidth, window.innerHeight);
   
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
@@ -1103,8 +1215,12 @@ const handleDrag = (e: MouseEvent | TouchEvent) => {
   });
 };
 
-const stopDrag = () => {
+const stopDrag = (e?: MouseEvent | TouchEvent) => {
   if (!isDragging.value) return;
+  const tearOffAt = tearOffReady.value && e && !('touches' in e)
+    ? { x: e.clientX - grabOffset.x, y: e.clientY - grabOffset.y }
+    : null;
+  tearOffReady.value = false;
   
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
@@ -1159,6 +1275,12 @@ const stopDrag = () => {
     }
   }
   
+  if (tearOffAt) {
+    // Torn off: the in-app dock keeps the place it was dragged from.
+    minimizedPosition.value = preDragPosition;
+    void tearOff(tearOffAt);
+  }
+
   saveMinimizedPosition();
   
   document.removeEventListener('mousemove', handleDrag);
@@ -1168,6 +1290,36 @@ const stopDrag = () => {
   
   document.body.style.userSelect = '';
   document.body.style.cursor = '';
+};
+
+/** Opens the floating dock with its top-left at `client` (main window client px). */
+const tearOff = async (client: Point) => {
+  try {
+    await floatDock(await screenPointFromClient(client));
+  } catch {
+    /* the in-app dock stays */
+  }
+};
+
+const floatFromButton = () => {
+  const container = minimizedContainerRef.value;
+  if (!container) return;
+  const box = container.getBoundingClientRect();
+  void tearOff({ x: box.left, y: box.top });
+};
+
+/** Back from the floating window: the in-app dock takes the place it was dropped, or its own. */
+const redockAt = (at?: Point) => {
+  currentMode.value = 'minimized';
+  if (!at) return;
+  const client = clientPointFromLogical(at);
+  const viewport = styleViewport();
+  const height = containerDimensions.value.height || MINIMIZED_HEIGHT_FALLBACK;
+  const width = containerDimensions.value.width || MINIMIZED_WIDTH_FALLBACK;
+  const left = Math.max(0, Math.min(toStylePx(client.x), viewport.width - width));
+  const top = Math.max(0, Math.min(toStylePx(client.y), viewport.height - height));
+  minimizedPosition.value = { left, bottom: viewport.height - top - height };
+  saveMinimizedPosition();
 };
 
 let shouldPreventClick = false;
@@ -1418,11 +1570,11 @@ watch(
   }
 );
 
-// Store's isOverlayVisible drives currentMode.
+// Store's isOverlayVisible drives currentMode; popped out, the view is already shown.
 watch(
   () => voiceStore.isOverlayVisible,
   (shouldShowOverlay) => {
-    if (shouldShowOverlay && currentMode.value !== 'overlay') {
+    if (shouldShowOverlay && currentMode.value !== 'overlay' && !popoutActive.value) {
       currentMode.value = 'overlay';
       debug.log('[Dock] Auto-switching to overlay mode from store');
     }
@@ -1433,10 +1585,13 @@ watch(
 // LIFECYCLE & EVENT LISTENERS
 // Close participants dropdown when clicking outside
 let handleClickOutside: ((e: MouseEvent) => void) | null = null;
+let stopFloatingDockCommands: (() => void) | null = null;
 
 onMounted(() => {
   // Store's isOverlayVisible wins over the default dock mode.
-  if (!voiceStore.isOverlayVisible) {
+  if (popoutActive.value) {
+    currentMode.value = 'minimized';
+  } else if (!voiceStore.isOverlayVisible) {
     currentMode.value = 'dock';
   } else {
     currentMode.value = 'overlay';
@@ -1444,6 +1599,11 @@ onMounted(() => {
   
   loadMinimizedPosition();
   loadDockPosition();
+  if (floatingDockActive.value) currentMode.value = 'minimized';
+  stopFloatingDockCommands = onFloatingDockCommand((command) => {
+    if (command.type === 'redock') redockAt(command.at);
+    else if (command.type === 'expand') expandToOverlay();
+  });
   
   handleClickOutside = (e: MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -1462,6 +1622,11 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  // The dock goes with the call; so does a popped-out call view, and a floating dock.
+  closeCallPopout();
+  void closeFloatingDock();
+  stopFloatingDockCommands?.();
+  stopFloatingDockCommands = null;
   stopDrag();
   stopDockDrag();
   minimizedThumbnail.detach();
@@ -1852,6 +2017,13 @@ onUnmounted(() => {
   margin-bottom: 0;
 }
 
+/* Released here, the dock tears off into its own window. */
+.minimized-container.tear-off-ready {
+  outline: 2px dashed var(--harmony-primary);
+  outline-offset: 3px;
+  opacity: 0.85;
+}
+
 .minimized-container.is-dragging {
   cursor: grabbing !important;
   transition: none !important;
@@ -2059,7 +2231,19 @@ onUnmounted(() => {
 /* Participants dropdown: sits outside and below the container */
 .participants-dropdown-container {
   z-index: 100;
+  height: 20px;
   pointer-events: none; /* Container is inert; button and dropdown re-enable */
+}
+
+/* Top edge pinned to the container: the list grows downward and pushes the tab with it */
+.participants-dropdown-stack {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .participants-dropdown-btn {
@@ -2098,10 +2282,8 @@ onUnmounted(() => {
 }
 
 .participants-dropdown {
-  position: absolute;
-  top: 20px; /* Below the button */
-  left: 50%;
-  transform: translateX(-50%);
+  position: relative;
+  box-sizing: border-box;
   width: 300px;
   max-height: 400px;
   overflow-y: auto;
@@ -2111,7 +2293,27 @@ onUnmounted(() => {
   box-shadow: var(--shadow-large);
   z-index: 101;
   pointer-events: auto;
-  margin-top: 4px;
+}
+
+/* One grid row animates 0fr -> 1fr: the height follows the list's content as it renders,
+   with no measuring. Grid track interpolation needs Safari 16 / WebKitGTK 2.38. */
+.participants-reveal {
+  display: grid;
+  grid-template-rows: 1fr;
+  margin-top: 8px; /* Container top is 4px above the dock's bottom edge */
+  position: relative;
+  z-index: 101;
+}
+
+.participants-reveal > .participants-dropdown {
+  min-height: 0;
+}
+
+/* Tab hangs from the list's bottom border while open */
+.participants-reveal + .participants-dropdown-btn {
+  margin-top: -1px;
+  position: relative;
+  z-index: 102;
 }
 
 /* Dock mode: dropdown sits above the dock */
@@ -2132,41 +2334,41 @@ onUnmounted(() => {
   background: none;
 }
 
-/* Dropdown slides down from under the button */
-.participants-dropdown-enter-active {
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+/* Minimized: the list grows downward and the tab below follows it */
+.participants-reveal-enter-active {
+  transition: grid-template-rows 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.3s ease, margin-top 0.3s ease;
 }
 
+.participants-reveal-leave-active {
+  transition: grid-template-rows 0.2s ease, opacity 0.2s ease, margin-top 0.2s ease;
+}
+
+.participants-reveal-enter-from,
+.participants-reveal-leave-to {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  margin-top: 0;
+}
+
+/* Dock mode: fade-and-slide above the dock */
+.participants-dropdown-enter-active,
 .participants-dropdown-leave-active {
-  transition: all 0.2s ease;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-.participants-dropdown-enter-from {
+.dock-participants-dropdown .participants-dropdown-enter-from,
+.dock-participants-dropdown .participants-dropdown-leave-to {
   opacity: 0;
-  transform: translateX(-50%) translateY(-20px);
-  max-height: 0;
-  margin-top: 0;
+  transform: translateX(-50%) translateY(8px);
 }
 
-.participants-dropdown-enter-to {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-  max-height: 400px;
-  margin-top: 4px;
-}
-
-.participants-dropdown-leave-from {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-  max-height: 400px;
-  margin-top: 4px;
-}
-
-.participants-dropdown-leave-to {
-  opacity: 0;
-  transform: translateX(-50%) translateY(-20px);
-  max-height: 0;
-  margin-top: 0;
+@media (prefers-reduced-motion: reduce) {
+  .participants-reveal-enter-active,
+  .participants-reveal-leave-active,
+  .participants-dropdown-enter-active,
+  .participants-dropdown-leave-active {
+    transition: none;
+  }
 }
 
 /* =============================================================================

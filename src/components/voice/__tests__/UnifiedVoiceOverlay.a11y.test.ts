@@ -52,6 +52,25 @@ vi.mock('../../easteregg/ConfettiEffect.vue', () => stub('ConfettiEffect'))
 vi.mock('@/components/common/Icon.vue', () => stub('Icon'))
 vi.mock('@/components/common/Avatar.vue', () => stub('Avatar'))
 vi.mock('@/components/DisplayName.vue', () => stub('DisplayName'))
+vi.mock('vue-toastification', () => ({ useToast: () => ({ error: vi.fn() }) }))
+vi.mock('../callChat', async () => {
+  const { computed, ref } = await import('vue')
+  const open = ref(false)
+  return {
+    setCallChatOpen: (next: boolean) => { open.value = next },
+    useCallChat: () => ({
+      target: computed(() => null),
+      available: computed(() => false),
+      open,
+      width: ref(360),
+      shown: computed(() => false),
+      routed: computed(() => false),
+      showTarget: () => {},
+      hosts: () => false,
+    }),
+    useCallChatUnread: () => computed(() => false),
+  }
+})
 
 import UnifiedVoiceOverlay from '../UnifiedVoiceOverlay.vue'
 import { resetKeybindsForTests, useKeybinds } from '@/composables/useKeybinds'

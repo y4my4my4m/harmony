@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { buildLocalNote } from '../listeners/FederationHandlers.js';
+import { announceActivityId, buildLocalNote, createPostActivity, createReblogActivity, loadReblogTarget } from '../listeners/FederationHandlers.js';
 import { renderPostPage, renderOEmbed } from './postPageRenderer.js';
 import config from '../config/index.js';
 import { isPublicView, loadGroupAccess, readableChannelIds, verifiedSigner } from './groupAccess.js';
@@ -10,8 +10,75 @@ import { inviteCodeFromUrl, loadInvitePreview } from '../services/invitePreview.
 import { renderInviteOEmbed } from '../services/invitePageRenderer.js';
 import { isBoostPost } from '../utils/boostPost.js';
 import { quoteAuthorizationObject } from './quoteAuthorization.js';
+import { threadContextUrl } from './converters/toActivityPub.js';
 
 const router = Router();
+
+/** A deleted post's object: an AS2 Tombstone with its `formerType` and `deleted` time. */
+function postTombstone(post: any): Record<string, unknown> {
+  return {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: post.ap_id || `https://${config.INSTANCE_DOMAIN}/posts/${post.id}`,
+    type: 'Tombstone',
+    formerType: post.ap_type === 'Question' ? 'Question' : 'Note',
+    ...(post.deleted_at ? { deleted: new Date(post.deleted_at).toISOString() } : {}),
+  };
+}
+
+/**
+ * The public or unlisted local post behind an activity id this instance assigned, with its
+ * author; null for anything else. A boost when `boost`, else an original.
+ */
+async function activityPost(postId: string, boost: boolean): Promise<{ post: any; author: any } | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(postId)) return null;
+  const { data: post } = await getSupabaseClient()
+    .from('posts')
+    .select('*, author:profiles!posts_author_id_fkey (*)')
+    .eq('id', postId)
+    .eq('is_local', true)
+    .eq('is_deleted', false)
+    .in('visibility', [...PUBLIC_VISIBILITIES])
+    .maybeSingle();
+  if (!post?.author || post.author.deleted_at || isBoostPost(post) !== boost) return null;
+  return { post, author: post.author };
+}
+
+/**
+ * GET /users/:username/activities/:postId - the Create of a public or unlisted post, at the id
+ * its deliveries and the outbox carry. Anything else answers 404.
+ */
+router.get(
+  '/users/:username/activities/:postId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const found = await activityPost(req.params.postId, false);
+    if (!found || found.author.username !== req.params.username) {
+      res.status(404).json({ error: 'Activity not found' });
+      return;
+    }
+    res.setHeader('Content-Type', 'application/activity+json');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.json(await createPostActivity(found.post, found.author));
+  })
+);
+
+/**
+ * GET /activities/:postId - the Announce of a public or unlisted boost, at the id its
+ * deliveries and the outbox carry. Anything else answers 404.
+ */
+router.get(
+  '/activities/:postId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const found = await activityPost(req.params.postId, true);
+    const target = found ? await loadReblogTarget(found.post) : null;
+    if (!found || !target) {
+      res.status(404).json({ error: 'Activity not found' });
+      return;
+    }
+    res.setHeader('Content-Type', 'application/activity+json');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.json(createReblogActivity(found.author, found.post, target));
+  })
+);
 
 /**
  * User outbox endpoint with cursor-based pagination. Public and unlisted posts only;
@@ -143,7 +210,7 @@ router.get(
         // Announce (reblog)
         return {
           '@context': 'https://www.w3.org/ns/activitystreams',
-          id: post.ap_id || `${baseUrl}/activities/${post.id}`,
+          id: announceActivityId(post),
           type: 'Announce',
           actor: `${baseUrl}/users/${username}`,
           published: post.created_at,
@@ -156,17 +223,7 @@ router.get(
           object: originalApIds.get(post.metadata.reblog_of) || `${baseUrl}/posts/${post.metadata.reblog_of}`,
         };
       } else {
-        const note = await buildLocalNote(post, user);
-        return {
-          '@context': 'https://www.w3.org/ns/activitystreams',
-          id: `${baseUrl}/activities/${post.id}`,
-          type: 'Create',
-          actor: `${baseUrl}/users/${username}`,
-          published: post.created_at,
-          to: note.to,
-          cc: note.cc,
-          object: note,
-        };
+        return createPostActivity(post, user);
       }
     }));
 
@@ -242,9 +299,9 @@ router.get(
     if (post.is_deleted) {
       const wasPublic = post.visibility === 'public' || post.visibility === 'unlisted';
       if (wantsActivityPub) {
-        return wasPublic && post.author.is_local !== false
-          ? res.status(410).json({ id: post.ap_id || `https://${config.INSTANCE_DOMAIN}/posts/${post.id}`, type: 'Tombstone' })
-          : res.status(404).json({ error: 'Post not found' });
+        if (!wasPublic || post.author.is_local === false) return res.status(404).json({ error: 'Post not found' });
+        res.setHeader('Content-Type', 'application/activity+json');
+        return res.status(410).json(postTombstone(post));
       }
       return res.status(404).send(render404Page());
     }
@@ -654,6 +711,83 @@ router.get(
     }
 
     res.setHeader('Content-Type', 'application/activity+json');
+    return res.json(result);
+  })
+);
+
+const CONTEXT_PAGE_SIZE = 20;
+const UUID_PATH = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * FEP-7888 context of the thread rooted at a post (toActivityPub.threadContextUrl)
+ * GET /posts/:postId/context
+ *
+ * An OrderedCollection of the root and the thread's public and unlisted posts, oldest first,
+ * as ids, 20 to a page; `attributedTo` is the root's author. Served when the root is a root
+ * (no conversation_root_id), not deleted, and readable by the request (canReadPost).
+ */
+router.get(
+  '/posts/:postId/context',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { postId } = req.params;
+    if (!UUID_PATH.test(postId)) return res.status(404).json({ error: 'Post not found' });
+    const supabase = getSupabaseClient();
+
+    const { data: root } = await supabase
+      .from('posts')
+      .select('id, ap_id, visibility, conversation_root_id, author:profiles!posts_author_id_fkey ( federated_id )')
+      .eq('id', postId)
+      .eq('is_deleted', false)
+      .maybeSingle();
+
+    if (!root || root.conversation_root_id || !(await canReadPost(req, root))) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    if (root.visibility !== 'public' && root.visibility !== 'unlisted') {
+      res.setHeader('Cache-Control', PRIVATE_CACHE);
+    }
+
+    const thread = (head = false) => supabase
+      .from('posts')
+      .select('id, ap_id', { count: 'exact', head })
+      .or(`id.eq.${root.id},and(conversation_root_id.eq.${root.id},visibility.in.(${PUBLIC_VISIBILITIES.join(',')}))`)
+      .eq('is_deleted', false);
+
+    const collectionUrl = threadContextUrl(root.id);
+    const owner = (root as any).author?.federated_id;
+    const page = req.query.page as string | undefined;
+    res.setHeader('Content-Type', 'application/activity+json');
+
+    if (!page) {
+      const { count } = await thread(true);
+      return res.json({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: collectionUrl,
+        type: 'OrderedCollection',
+        ...(owner ? { attributedTo: owner } : {}),
+        totalItems: count || 0,
+        first: `${collectionUrl}?page=1`,
+      });
+    }
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const offset = (pageNum - 1) * CONTEXT_PAGE_SIZE;
+    const { data: posts, count } = await thread()
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(offset, offset + CONTEXT_PAGE_SIZE - 1);
+
+    const totalItems = count || 0;
+    const result: any = {
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: `${collectionUrl}?page=${pageNum}`,
+      type: 'OrderedCollectionPage',
+      partOf: collectionUrl,
+      totalItems,
+      orderedItems: (posts || []).map((p: any) => p.ap_id || `https://${config.INSTANCE_DOMAIN}/posts/${p.id}`),
+    };
+    if (offset + CONTEXT_PAGE_SIZE < totalItems) result.next = `${collectionUrl}?page=${pageNum + 1}`;
+    if (pageNum > 1) result.prev = `${collectionUrl}?page=${pageNum - 1}`;
     return res.json(result);
   })
 );

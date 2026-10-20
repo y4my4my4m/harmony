@@ -192,6 +192,7 @@ case-sensitively.
 | `/inbox`, `/oembed` | federation server | The shared inbox |
 | `/users/NAME/inbox`, `/outbox`, `/followers`, `/following`, `/featured` | federation server | |
 | `/users/NAME/quote_authorizations/ID` | federation server | FEP-044f quote approvals |
+| `/users/NAME/activities/UUID`, `/activities/UUID` | federation server | A post's `Create`, a boost's `Announce` |
 | `/users/NAME` with `Accept` naming `application/activity+json`, `application/ld+json` or `application/json` | federation server | Any other request: 302 to `/social/profile/NAME` |
 | `/servers/...` | federation server | Servers as ActivityPub Groups |
 | `/posts/ID`, `/posts/ID/likes`, `/posts/ID/shares`, `/posts/ID/replies` | federation server | `/posts/ID` answers ActivityPub JSON or an HTML page with OpenGraph tags |
@@ -199,6 +200,7 @@ case-sensitively.
 | `/threads/UUID`, `/threads/UUID/members`, `/channels/UUID/threads` | federation server | Chat threads as `ChatThread`s; 406 without an ActivityPub `Accept` |
 | `/invite/CODE` from a link-preview crawler | federation server | Decided by `User-Agent`; everyone else gets the web app |
 | `/social/post/UUID` with an ActivityPub `Accept`, or from a link-preview crawler | federation server, rewritten to `/posts/UUID` | Everyone else gets the web app |
+| `/social/profile/NAME` with an ActivityPub `Accept`, NAME of `[A-Za-z0-9_]` | federation server, rewritten to `/users/NAME` | An account's `url`; everyone else gets the web app |
 | `/health...`, `/link-preview...` | federation server | Prefixes without a trailing slash |
 | `/api/livekit/...` | federation server, path unchanged | |
 | `/api/federation/...` | federation server, prefix stripped | `/api/federation/push/vapid-key` reaches `/push/vapid-key` |

@@ -276,7 +276,7 @@
     </Transition>
 
     <!-- Emoji right-click context menu -->
-    <Teleport to="body">
+    <Teleport :to="portalTarget">
       <div
         v-if="emojiCtx.visible"
         ref="emojiCtxBackdropRef"
@@ -339,6 +339,9 @@ import { announce } from '@/composables/useAnnouncer';
 import { uid } from '@/utils/a11y/focus';
 import { customEmojiLabel, humanizeEmojiName } from '@/utils/a11y/emojiNames';
 import { stylePoint, styleViewport } from '@/utils/appZoom';
+import { usePortalTarget } from '@/composables/usePortalTarget';
+
+const portalTarget = usePortalTarget();
 
 // Types
 interface FilteredServerEmojiGroup {
@@ -720,7 +723,7 @@ function positionCtxMenu(event: MouseEvent | Touch): { x: number; y: number } {
   if (isTouch) {
     y = Math.max(8, y - menuH - 80);
   }
-  const vp = styleViewport();
+  const vp = styleViewport(event.target as Node | null);
   if (x + menuW > vp.width - 8) x = vp.width - menuW - 8;
   if (x < 8) x = 8;
   if (y + menuH > vp.height - 8) y = vp.height - menuH - 8;

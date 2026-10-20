@@ -119,6 +119,28 @@ describe('voice roster and transport state', () => {
     expect(s.connectionStats.total).toBe(2)
   })
 
+  it('keeps a mute chosen while connecting through the join', async () => {
+    const s = await store()
+    const local = member('me')
+    webrtc.getLocalState.mockImplementation(() => ({ ...local }))
+    const toggleMute = vi.fn(() => { local.isMuted = !local.isMuted; return local.isMuted })
+    ;(webrtc as any).toggleMute = toggleMute
+    webrtc.joinChannel.mockImplementation(async () => {
+      await s.toggleMute()
+      // The transport reports its join-time state, still unmuted, before the join resolves.
+      handlers['local-state-changed']?.({ ...local })
+      expect(s.localState.isMuted).toBe(true)
+      handlers['channel-joined']?.({ channelId: 'chan', userId: 'me' })
+      return true
+    })
+
+    await s.joinVoiceChannel('chan', 'server')
+    expect(toggleMute).toHaveBeenCalledTimes(1)
+    expect(local.isMuted).toBe(true)
+    expect(s.localState.isMuted).toBe(true)
+    webrtc.getLocalState.mockReset().mockReturnValue({ userId: 'me' })
+  })
+
   it('reports why the transport refused the join', async () => {
     const s = await store()
     webrtc.joinChannel.mockResolvedValue(false)

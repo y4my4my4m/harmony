@@ -1,5 +1,5 @@
 <template>
-  <Teleport to="body">
+  <Teleport :to="portalTarget">
     <div
       v-if="visible"
       class="vcm-backdrop"
@@ -173,6 +173,9 @@ import {
 import { NO_VOICE_CAPABILITIES, useVoiceModerationStore, type VoiceModerationCapabilities } from '@/stores/voiceModeration';
 import { useServerChannelStore } from '@/stores/useServerChannel';
 import { styleRect, styleViewport } from '@/utils/appZoom';
+import { usePortalTarget } from '@/composables/usePortalTarget';
+
+const portalTarget = usePortalTarget();
 
 const props = withDefaults(defineProps<{
   userState: UserMediaState;
@@ -468,7 +471,7 @@ async function place(): Promise<void> {
   position.value = placePopover(
     { x: props.x, y: props.y },
     { width: rect.width, height: rect.height },
-    styleViewport(),
+    styleViewport(el),
   );
   el.focus({ preventScroll: true });
 }

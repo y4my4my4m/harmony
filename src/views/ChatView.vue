@@ -1,6 +1,9 @@
 <template>
+  <!-- The call's side chat shows this list while it is open -->
+  <CallChatElsewhere v-if="callChatHere" />
   <!-- Chat Messages -->
   <UnifiedContentArea
+    v-else
     mode="chat"
     :chat-messages="chatMessages"
     :is-loading="isLoading"
@@ -22,6 +25,9 @@ import { debug } from '@/utils/debug'
 import { useRoute, useRouter } from 'vue-router'
 import { takeJumpTarget } from '@/utils/messageJumpQuery'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
+import CallChatElsewhere from '@/components/voice/CallChatElsewhere.vue'
+import { useCallChat } from '@/components/voice/callChat'
+import { channelListLoading, loadOlderChannelMessages, loadOlderConversationMessages } from '@/composables/chatPaging'
 
 import { useChatStore } from '@/stores/useChat'
 import { useDMStore } from '@/stores/useDM'
@@ -57,7 +63,7 @@ const router = useRouter()
 
 // State
 const isAtBottom = ref(true)
-const isLoading = ref(false)
+const isLoading = channelListLoading
 let fetchAbortController: AbortController | null = null
 let lastSeenServerId: string | null = null
 
@@ -71,6 +77,11 @@ const currentChannelName = computed(() => {
   if (props.isDM) return undefined
   return props.currentChannel?.name
 })
+
+const callChat = useCallChat()
+const callChatHere = computed(() => props.isDM
+  ? callChat.hosts({ conversationId: route.params.conversationId as string })
+  : callChat.hosts({ channelId: route.params.channelId as string }))
 
 const loadMessages = async () => {
   // Abort any in-flight fetch from a previous channel/conversation
@@ -180,44 +191,13 @@ onUnmounted(() => {
     fetchAbortController.abort()
     fetchAbortController = null
   }
+  isLoading.value = false
 })
 
 const fetchMoreMessages = async () => {
   debug.log('fetchMoreMessages called, isDM:', props.isDM)
-  
-  if (props.isDM) {
-    const conversationId = route.params.conversationId as string
-    if (conversationId && dmStore.currentDMMessages.length > 0) {
-      const oldestMessage = dmStore.currentDMMessages[0]
-      debug.log('Fetching older DM messages before:', oldestMessage.id)
-      await dmStore.fetchConversationMessages(conversationId, oldestMessage.id)
-    } else {
-      debug.log('Cannot fetch DM messages: no conversation or no messages yet')
-    }
-  } else {
-    const channelId = route.params.channelId as string
-    debug.log('Current channel:', channelId, 'Message count:', chatStore.messages.length)
-    debug.log('allMessagesLoaded:', chatStore.allMessagesLoaded)
-    debug.log('loadingOlderMessages:', chatStore.loadingOlderMessages)
-    
-    if (chatStore.allMessagesLoaded) {
-      debug.log('All messages already loaded, not fetching more')
-      return
-    }
-    
-    if (chatStore.loadingOlderMessages) {
-      debug.log('Already loading older messages, skipping')
-      return
-    }
-    
-    if (channelId && chatStore.messages.length > 0) {
-      const oldestMessage = chatStore.messages[0]
-      debug.log('Fetching older messages before message:', oldestMessage.id, oldestMessage.created_at)
-      await chatStore.fetchMessages(channelId, oldestMessage.id)
-    } else {
-      debug.log('Cannot fetch messages: no channel or no messages yet')
-    }
-  }
+  if (props.isDM) await loadOlderConversationMessages(route.params.conversationId as string)
+  else await loadOlderChannelMessages(route.params.channelId as string)
 }
 
 const handleShowAllThreads = () => {

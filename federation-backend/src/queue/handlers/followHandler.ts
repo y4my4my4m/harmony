@@ -9,6 +9,7 @@ import { DeliveryQueue } from '../../activitypub/DeliveryQueue.js';
 import { logger } from '../../utils/logger.js';
 import config from '../../config/index.js';
 import type { FederationJobData } from '../BullMQManager.js';
+import { followActivityId } from '../../activitypub/converters/toActivityPub.js';
 
 export async function handleFollowJob(data: FederationJobData): Promise<void> {
   const supabase = getSupabaseClient();
@@ -81,7 +82,7 @@ export async function handleFollowJob(data: FederationJobData): Promise<void> {
     if (type === 'create') {
       const followActivity = {
         '@context': 'https://www.w3.org/ns/activitystreams',
-        id: `${baseUrl}/activities/follow/${follow_id}`,
+        id: followActivityId(follow_id),
         type: 'Follow',
         actor: followerActorUrl,
         object: following.federated_id || following.ap_id
@@ -100,7 +101,7 @@ export async function handleFollowJob(data: FederationJobData): Promise<void> {
         // Same id as the Follow sent on create; Pleroma and GoToSocial
         // resolve the undone activity by id.
         object: {
-          id: `${baseUrl}/activities/follow/${follow_id}`,
+          id: followActivityId(follow_id),
           type: 'Follow',
           actor: followerActorUrl,
           object: following.federated_id || following.ap_id

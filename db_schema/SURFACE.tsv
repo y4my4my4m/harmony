@@ -846,6 +846,7 @@ voice_participant_grants	p_channels uuid[], p_users uuid[]	TABLE(channel_id uuid
 voice_participant_joined_at		trigger	invoker	public, pg_temp	service_role	trigger
 voice_remove_member	p_server_id uuid, p_user_id uuid, p_reason text, p_to_channel uuid	uuid	definer	public, pg_temp	service_role	client
 vote_message_poll	p_poll_id uuid, p_option_ids uuid[]	TABLE(poll_id uuid, message_id uuid, question text, allow_multiple boolean, expires_at timestamp with time zone, closed boolean, total_voters integer, options jsonb, my_option_ids uuid[], is_author boolean)	definer	public, pg_temp	authenticated+service_role	client
+vote_remote_poll	p_post_id uuid, p_choices integer[]	jsonb	definer	public, pg_temp	authenticated+service_role	client
 webhook_message_parts	p_text text	jsonb	invoker	public, pg_temp	service_role	unreferenced
 webhook_normalize_avatar_url	p_url text	text	invoker	public, pg_temp	service_role	unreferenced
 webhook_normalize_name	p_name text	text	invoker	public, pg_temp	service_role	unreferenced

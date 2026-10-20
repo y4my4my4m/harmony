@@ -469,9 +469,7 @@
       "forceKeySetupHint": "키가 없는 사용자에게 설정 마법사를 표시합니다",
       "attachmentNote": "암호화된 채널에서는 파일 링크, 이름, 형식이 메시지와 함께 암호화됩니다. 파일 자체는 암호화되지 않은 채로 저장됩니다.",
       "voiceTitle": "음성 및 영상 암호화",
-      "voiceHint": "통화 미디어를 종단 간 암호화하여 미디어 서버가 접근할 수 없게 합니다",
-      "voiceRequire": "음성 및 영상 종단 간 암호화 필수",
-      "voiceRequireHint": "모든 음성 채널이 통화를 미디어 서버에 도달하기 전에 암호화합니다. 끄면 채널 관리자가 음성 채널별로 선택합니다.",
+      "voiceHint": "통화 미디어를 종단 간 암호화하여 미디어 서버가 접근할 수 없게 합니다. 이 설정은 메시지 암호화 모드와 관계없이 적용됩니다.",
       "voiceWarning": "암호화를 설정하지 않은 참가자(및 연합 또는 구형 클라이언트)는 암호화된 통화에 참여할 수 없습니다.",
       "statsTitle": "서버 통계",
       "statsTotal": "전체 멤버",
@@ -497,7 +495,17 @@
       },
       "saved": "암호화 설정이 저장되었습니다",
       "loadFailed": "설정을 불러오지 못했습니다",
-      "saveFailed": "설정을 저장하지 못했습니다"
+      "saveFailed": "설정을 저장하지 못했습니다",
+      "voiceModes": {
+        "disabled": {
+          "name": "채널별",
+          "description": "채널 관리자가 음성 채널마다 암호화를 켭니다. 새 음성 채널은 암호화 없이 시작됩니다."
+        },
+        "required": {
+          "name": "모든 음성 채널에서 필수",
+          "description": "모든 음성 채널이 통화를 미디어 서버에 도달하기 전에 암호화하며, 채널에서 끌 수 없습니다."
+        }
+      }
     },
     "roleManagement": {
       "intro": "서버의 역할을 만들고 관리합니다. 드래그하거나 위로 이동/아래로 이동으로 우선순위를 바꿀 수 있습니다.",
@@ -1374,6 +1382,29 @@
       "youWereRemoved": "더 이상 이 서버의 멤버가 아닙니다.",
       "youLostAccess": "더 이상 이 음성 채널에 접근할 수 없습니다.",
       "youWereTimedOut": "이 서버에서 타임아웃되었습니다."
+    },
+    "callChat": {
+      "toggle": "채팅",
+      "toggleUnread": "채팅, 새 메시지",
+      "region": "{name} 채팅",
+      "close": "채팅 닫기",
+      "resize": "채팅 너비 조절",
+      "awayText": "기본 창에 다른 채팅이 표시되어 있습니다.",
+      "awayAction": "통화 채팅 보기",
+      "elsewhereText": "이 채팅은 통화 옆에 열려 있습니다.",
+      "elsewhereAction": "여기에 채팅 표시"
+    },
+    "popout": {
+      "open": "통화를 별도 창으로 열기",
+      "return": "통화를 앱으로 되돌리기",
+      "focus": "통화 창 보기",
+      "blocked": "통화 창을 열 수 없습니다. 이 사이트의 팝업을 허용한 후 다시 시도하세요.",
+      "windowTitle": "Harmony — {name}"
+    },
+    "floatingDock": {
+      "float": "다른 창 위에 띄우기",
+      "backToApp": "앱으로 돌아가기",
+      "dragHint": "드래그해서 옮기세요. Harmony 위에 놓으면 다시 들어갑니다."
     }
   },
   "dm": {
@@ -1704,7 +1735,16 @@
       "audioSettings": "오디오 설정",
       "selectMicrophone": "마이크 선택",
       "selectSpeaker": "스피커 선택",
-      "selectCamera": "카메라 선택"
+      "selectCamera": "카메라 선택",
+      "inputSensitivity": "입력 감도",
+      "inputSensitivityDesc": "말하는 동안에만 마이크를 전송해 키보드와 주변 소음이 통화에 들어가지 않게 합니다.",
+      "inputSensitivityOff": "항상 전송",
+      "inputSensitivityAuto": "자동",
+      "inputSensitivityManual": "수동",
+      "inputThreshold": "임계값",
+      "decibels": "{db} dB",
+      "inputMeterHint": "마이크가 전송되는 동안 막대가 초록색으로 바뀝니다.",
+      "inputMeterIdle": "음성 채널에 참여하면 여기에서 입력 레벨을 볼 수 있습니다."
     },
     "notifications": {
       "title": "알림",
@@ -3676,7 +3716,15 @@
       "label": "종단 간 암호화",
       "hint": "서버가 읽을 수 없도록 이 채널의 메시지를 암호화합니다.",
       "integrationWarning": "이 서버의 봇과 브리지는 암호화된 메시지를 읽거나 이 채널에 게시할 수 없습니다.",
-      "failed": "채널은 만들어졌지만 암호화를 켜지 못했습니다. 채널 설정에서 켜세요."
+      "failed": "채널은 만들어졌지만 암호화를 켜지 못했습니다. 채널 설정에서 켜세요.",
+      "voiceLabel": "음성 및 영상 암호화",
+      "voiceHint": "이 채널의 통화를 미디어 서버에 도달하기 전에 암호화합니다. 참여하려면 멤버가 암호화를 설정해야 합니다."
+    },
+    "voiceJoin": {
+      "setup": "이 음성 채널은 종단 간 암호화되어 있습니다. 참여하려면 암호화를 설정하세요.",
+      "unlock": "이 음성 채널은 종단 간 암호화되어 있습니다. 참여하려면 복구 키로 암호화 잠금을 해제하세요.",
+      "dmSetup": "이 대화의 통화는 종단 간 암호화되어 있습니다. 전화를 걸거나 받으려면 암호화를 설정하세요.",
+      "dmUnlock": "이 대화의 통화는 종단 간 암호화되어 있습니다. 전화를 걸거나 받으려면 복구 키로 암호화 잠금을 해제하세요."
     }
   },
   "today": {
@@ -5987,12 +6035,15 @@
       "createFailed": "투표를 게시하지 못했습니다.",
       "voteFailed": "투표를 저장하지 못했습니다.",
       "closed": "이 투표는 종료되었습니다.",
-      "endFailed": "투표를 종료하지 못했습니다."
+      "endFailed": "투표를 종료하지 못했습니다.",
+      "alreadyVoted": "이미 이 투표에 참여했습니다."
     },
     "remote": {
       "voters": "{count}명 투표함",
       "voteOnOriginal": "원본 게시물에서 투표하기",
-      "label": "투표"
+      "label": "투표",
+      "vote": "투표",
+      "yourAnswer": "내 답변"
     }
   },
   "serverTemplate": {
@@ -6702,5 +6753,15 @@
     "tierSupporter": "{tier} 후원자",
     "active": "활성",
     "history": "내 후원 기록"
+  },
+  "authorizeInteraction": {
+    "title": "원격 상호작용",
+    "resolving": "{uri} 찾는 중…",
+    "notFound": "이 주소에서 아무것도 찾을 수 없습니다.",
+    "invalid": "핸들이나 링크가 아닙니다.",
+    "openPost": "게시물 열기",
+    "openProfile": "프로필 열기",
+    "home": "홈으로",
+    "followFailed": "팔로우를 저장하지 못했습니다."
   }
 }

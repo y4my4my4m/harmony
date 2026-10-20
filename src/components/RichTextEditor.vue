@@ -99,6 +99,9 @@ const emit = defineEmits<Emits>();
 const { isMobileViewport, isTouchOnly } = useViewport();
 
 const editorRef = ref<HTMLDivElement>();
+// The editor can sit in the call pop-out window: selection and focus are its document's.
+const editorDocument = (): Document => editorRef.value?.ownerDocument ?? document;
+const editorSelection = (): Selection | null => editorDocument().getSelection();
 const isFocused = ref(false);
 const keyboardFocused = ref(false);
 trackNavigationKeys();
@@ -168,7 +171,7 @@ const getPlainTextOffsetForPoint = (
 const getSelectionOffsets = (): { start: number; end: number } => {
   if (!editorRef.value) return { start: 0, end: 0 };
 
-  const selection = window.getSelection();
+  const selection = editorSelection();
   if (!selection || selection.rangeCount === 0) return { start: 0, end: 0 };
 
   const range = selection.getRangeAt(0);
@@ -181,7 +184,7 @@ const getSelectionOffsets = (): { start: number; end: number } => {
 const setSelectionOffsets = (selStart: number, selEnd: number) => {
   if (!editorRef.value) return;
 
-  const selection = window.getSelection();
+  const selection = editorSelection();
   if (!selection) return;
 
   const lin = linearize(editorRef.value);
@@ -189,7 +192,7 @@ const setSelectionOffsets = (selStart: number, selEnd: number) => {
   const endPoint = pointForOffset(lin, editorRef.value, selEnd);
 
   try {
-    const range = document.createRange();
+    const range = editorDocument().createRange();
     if (startPoint.node.nodeType === Node.TEXT_NODE) {
       range.setStart(
         startPoint.node,
@@ -216,7 +219,7 @@ const setSelectionOffsets = (selStart: number, selEnd: number) => {
 const getCursorPosition = (): number => {
   if (!editorRef.value) return 0;
 
-  const selection = window.getSelection();
+  const selection = editorSelection();
   if (!selection || selection.rangeCount === 0) return 0;
 
   const range = selection.getRangeAt(0);
@@ -531,8 +534,8 @@ const renderContent = (text: string, skipCursorRestore = false) => {
   
   if (!skipCursorRestore) {
     nextTick(() => {
-      if (editorRef.value && (document.activeElement === editorRef.value || 
-          editorRef.value.contains(document.activeElement))) {
+      if (editorRef.value && (editorDocument().activeElement === editorRef.value ||
+          editorRef.value.contains(editorDocument().activeElement))) {
         debug.log('Restoring cursor position to:', currentCursorPos);
         setCursorPosition(currentCursorPos);
       }
@@ -858,7 +861,7 @@ const toggleInlineFormat = (kind: InlineFormatKind) => {
   if (!editorRef.value) return;
 
   // Code renders markers literally; a toggle there only splits the code.
-  const selection = window.getSelection();
+  const selection = editorSelection();
   const inCode = (node: Node | null) => {
     const el = node?.nodeType === Node.ELEMENT_NODE ? (node as Element) : node?.parentElement;
     return !!el?.closest('.editor-code-wrapper, .editor-codeblock-wrapper');
@@ -911,7 +914,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
     if (!event.defaultPrevented) {
       event.preventDefault();
       
-      const selection = window.getSelection();
+      const selection = editorSelection();
       if (selection && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0);
         range.deleteContents();
@@ -939,7 +942,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
   if (isTriggerChar && !event.ctrlKey && !event.metaKey && !event.altKey) {
     nextTick(() => {
       if (!isRendering.value && editorRef.value) {
-        const sel = window.getSelection();
+        const sel = editorSelection();
         if (sel?.rangeCount && editorRef.value.contains(sel.getRangeAt(0).startContainer)) {
           const pos = getCursorPosition();
           emit('cursor-position-changed', pos);
@@ -992,7 +995,7 @@ const handlePaste = (event: ClipboardEvent) => {
 // that copy keeps the browser's default.
 const selectedPlainText = (): { text: string; start: number; end: number } | null => {
   if (!editorRef.value) return null;
-  const selection = window.getSelection();
+  const selection = editorSelection();
   if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return null;
   const range = selection.getRangeAt(0);
   if (!editorRef.value.contains(range.commonAncestorContainer)) return null;
@@ -1017,7 +1020,7 @@ const handleCut = (event: ClipboardEvent) => {
 const insertTextAtCursor = (text: string) => {
   if (!editorRef.value) return;
   
-  const selection = window.getSelection();
+  const selection = editorSelection();
   if (
     !selection ||
     selection.rangeCount === 0 ||
@@ -1066,7 +1069,7 @@ const focus = () => {
     debug.log('focus() called, editor exists:', !!editorRef.value);
     
     // Blur first for a clean focus state.
-    if (document.activeElement === editorRef.value) {
+    if (editorDocument().activeElement === editorRef.value) {
       debug.log('Editor already focused, blurring first');
       editorRef.value.blur();
     }
@@ -1075,12 +1078,12 @@ const focus = () => {
     
     // Focus can fail silently; retry after a frame.
     requestAnimationFrame(() => {
-      if (editorRef.value && document.activeElement !== editorRef.value) {
+      if (editorRef.value && editorDocument().activeElement !== editorRef.value) {
         debug.warn('Focus attempt failed, trying again');
         editorRef.value.focus();
       }
-      debug.log('After focus(), activeElement:', document.activeElement === editorRef.value);
-      debug.log('Has selection:', !!window.getSelection()?.rangeCount);
+      debug.log('After focus(), activeElement:', editorDocument().activeElement === editorRef.value);
+      debug.log('Has selection:', !!editorSelection()?.rangeCount);
     });
   } else {
     debug.warn('focus() called but editorRef is null');

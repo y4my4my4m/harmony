@@ -1,5 +1,5 @@
 <template>
-  <Teleport to="body">
+  <Teleport :to="portalTarget">
     <div class="report-overlay" @click.self="$emit('close')">
       <div
         ref="dialogRef"
@@ -131,6 +131,9 @@ import Avatar from '@/components/common/Avatar.vue'
 import Icon from '@/components/common/Icon.vue'
 import DisplayName from '@/components/DisplayName.vue'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { usePortalTarget } from '@/composables/usePortalTarget'
+
+const portalTarget = usePortalTarget()
 
 interface Props {
   reportType: 'user' | 'post' | 'message' | 'server'

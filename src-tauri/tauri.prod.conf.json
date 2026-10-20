@@ -13,6 +13,7 @@
       "windows": [
         {
           "label": "main",
+          "create": false,
           "title": "Harmony",
           "width": 1280,
           "height": 720,

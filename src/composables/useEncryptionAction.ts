@@ -1,5 +1,5 @@
 /**
- * Channel encryption send failures as a window event: a setup or unlock prompt for a sender who
+ * Encryption failures as a window event: a setup or unlock prompt for a sender or caller who
  * cannot encrypt, a toast otherwise.
  */
 import { isChannelEncryptionError } from '@/services/core/channelMessageEncryption'
@@ -11,6 +11,8 @@ export const ENCRYPTION_STATE_CHANGED_EVENT = 'harmony:encryption-state-changed'
 export interface EncryptionActionDetail {
   reason: string
   message: string
+  /** False when the sender shows the message itself. Default true. */
+  toast?: boolean
 }
 
 /** Returns true when `error` was a channel encryption failure and has been reported. */

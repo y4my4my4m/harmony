@@ -1,5 +1,5 @@
 <template>
-  <Teleport to="body">
+  <Teleport :to="portalTarget">
     <div v-if="show" class="modal-overlay" @click="$emit('close')">
       <div
         ref="dialogEl"
@@ -153,6 +153,9 @@ import Avatar from '@/components/common/Avatar.vue'
 import { useT } from '@/composables/useT'
 import { useDialog } from '@/composables/useDialog'
 import { useAnnouncer } from '@/composables/useAnnouncer'
+import { usePortalTarget } from '@/composables/usePortalTarget'
+
+const portalTarget = usePortalTarget()
 
 interface MemberInfo {
   id: string

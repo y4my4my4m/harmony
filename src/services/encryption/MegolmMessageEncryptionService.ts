@@ -33,6 +33,10 @@ import { roomEpochService } from './RoomEpochService'
 import type { MessagePart } from '@/types'
 import { debug } from '@/utils/debug'
 
+// Session recovery result reuse, ms (see sessionRecoveryAttempts).
+const RECOVERY_HIT_TTL_MS = 30_000
+const RECOVERY_MISS_TTL_MS = 2_000
+
 export interface MegolmEncryptionStatus {
   enabled: boolean
   hasRecoveryKey: boolean
@@ -1548,7 +1552,9 @@ export class MegolmMessageEncryptionService {
 
   // In-flight recovery attempts keyed by roomId:sessionId. Entries are kept
   // for a short TTL after settling so a burst (page decrypt) shares one
-  // attempt, while a user-triggered retry a moment later can try again.
+  // attempt. A miss expires sooner than a hit: the sender's share row can land
+  // a moment after its message (a voice key envelope races it), and a retry
+  // then must reach the server.
   private sessionRecoveryAttempts = new Map<string, Promise<boolean>>()
 
   /**
@@ -1580,9 +1586,12 @@ export class MegolmMessageEncryptionService {
     })()
 
     this.sessionRecoveryAttempts.set(key, attempt)
-    void attempt.finally(() => {
-      setTimeout(() => this.sessionRecoveryAttempts.delete(key), 30_000)
-    })
+    void attempt.then(
+      (recovered) => {
+        setTimeout(() => this.sessionRecoveryAttempts.delete(key), recovered ? RECOVERY_HIT_TTL_MS : RECOVERY_MISS_TTL_MS)
+      },
+      () => this.sessionRecoveryAttempts.delete(key),
+    )
     return attempt
   }
 

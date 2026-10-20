@@ -5,6 +5,7 @@
 import { 
   postToNote, 
   createFollowActivity as createFollow,
+  followActivityId,
   createAnnounceActivity as createAnnounce,
   createUpdateActivity,
   createDeleteActivity as createDelete,
@@ -50,6 +51,22 @@ async function resolveInReplyTo(note: any, post: any): Promise<void> {
     .eq('id', post.in_reply_to)
     .single();
   note.inReplyTo = parentPost?.ap_id || `https://${config.INSTANCE_DOMAIN}/posts/${post.in_reply_to}`;
+}
+
+/**
+ * A reply in a thread rooted at a remote post carries the context that root named, when it
+ * named one (posts.metadata.ap_context); postToNote's own context otherwise.
+ */
+async function resolveContext(note: any, post: any): Promise<void> {
+  const rootId = post.conversation_root_id;
+  if (!note.context || !rootId || rootId === post.id) return;
+  const { data: root } = await getSupabaseClient()
+    .from('posts')
+    .select('is_local, metadata')
+    .eq('id', rootId)
+    .maybeSingle();
+  const named = root?.is_local === false ? root.metadata?.ap_context : null;
+  if (typeof named === 'string' && /^https?:\/\//.test(named)) note.context = named;
 }
 
 /** The quoted post of a local quote, and its author's actor and inbox when remote. */
@@ -127,6 +144,7 @@ export async function buildLocalNote(post: any, author: any): Promise<any> {
     sharesCount: countOrNull(post.reblogs_count),
   });
   await resolveInReplyTo(note, post);
+  await resolveContext(note, post);
   if (Array.isArray(post.edit_history) && post.edit_history.length > 0) {
     const updatedAt = Date.parse(post.updated_at);
     if (Number.isFinite(updatedAt)) note.updated = new Date(updatedAt).toISOString();
@@ -168,10 +186,10 @@ export async function createPostActivity(post: any, author: any): Promise<any> {
 }
 
 /**
- * Create a Follow activity
+ * Create a Follow activity for the follows row `followId`.
  */
-export function createFollowActivity(follower: any, following: any): any {
-  return createFollow(follower, following);
+export function createFollowActivity(follower: any, following: any, followId: string): any {
+  return createFollow(follower, following, followId);
 }
 
 /**
@@ -286,15 +304,15 @@ export function createUndoFollowActivity(follower: any, following: any, followRe
   
   const followActivity = {
     '@context': 'https://www.w3.org/ns/activitystreams',
-    id: followRecord.ap_id || `${followerUrl}/follows/${following.id}`,
+    id: followRecord.ap_id || followActivityId(followRecord.id),
     type: 'Follow',
     actor: followerUrl,
     object: following.federated_id || following.id,
   };
-  
+
   return {
     '@context': 'https://www.w3.org/ns/activitystreams',
-    id: `${followerUrl}/undo/${Date.now()}`,
+    id: `https://${domain}/activities/undo-follow/${followRecord.id}`,
     type: 'Undo',
     actor: followerUrl,
     object: followActivity,

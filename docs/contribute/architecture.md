@@ -69,7 +69,7 @@ flowchart TB
 | Postgres | [`db_schema/migrations/`](https://github.com/y4my4my4m/harmony/tree/master/db_schema/migrations) | All data and most of the logic: tables, row level security policies, functions and triggers. |
 | PostgREST | Supabase | HTTP API over the `public` schema: tables, and functions as RPC endpoints. |
 | GoTrue | Supabase | Accounts, sessions, OAuth sign-in and two-factor authentication; issues the JWTs that row level security reads. |
-| Realtime | Supabase | WebSocket delivery of the Broadcast messages that triggers send with `realtime.send`. Message views use no `postgres_changes`; `messages` stays in the `supabase_realtime` publication for clients older than 1.8.6 and the legacy federation listener (`USE_BULLMQ_QUEUE=false`). |
+| Realtime | Supabase | WebSocket delivery of the Broadcast messages that triggers send with `realtime.send`. Nothing uses `postgres_changes`: the `supabase_realtime` publication carries no table since 1.8.7. |
 | Storage | Supabase | Uploaded files; imgproxy transforms images. |
 | federation-server | [`federation-backend/`](https://github.com/y4my4my4m/harmony/tree/master/federation-backend), `FEDERATION_MODE=server` | ActivityPub endpoints (WebFinger, NodeInfo, actors, inboxes, outboxes), push subscriptions, link previews, the GIF proxy, LiveKit tokens and webhook, presence and typing, signed media URLs, channel webhooks. |
 | federation-worker | `federation-backend/`, `FEDERATION_MODE=worker` | BullMQ workers fed by `LISTEN federation_jobs`, outbound delivery with retries, push sending, maintenance jobs, voice participant reconciliation. |

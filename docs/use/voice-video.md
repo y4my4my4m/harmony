@@ -65,9 +65,11 @@ The call bar holds the controls for the call you are in. Hover a button to see i
 | **Soundboard** | Opens the soundboard. Shown only where you may play sounds. |
 | **Spatial audio** | Opens the spatial audio panel. |
 | **Voice settings** | Opens **Voice & video settings** for devices and audio processing. |
+| **Pop out call** | Moves the call view into its own window. See [Chat beside the call and pop it out](#chat-beside-the-call-and-pop-it-out). |
 | **Participants** | Lists everyone in the call. |
 | **Open call view** | Expands the call to the full call view with video tiles. |
 | **Minimize voice panel** | Shrinks the call bar to a small panel you can drag. |
+| **Float over other windows** | Desktop app, in the small panel: moves it out of Harmony into its own window that stays on top of other apps. See [Keep the call on top of other apps](#keep-the-call-on-top-of-other-apps). |
 | **Leave voice** | Hangs up. |
 
 The full call view adds **Grid view** and **Focus view** layouts, **Full screen**, **Minimize call view** and **Close call view**, and shows the call duration.
@@ -75,6 +77,22 @@ The full call view adds **Grid view** and **Focus view** layouts, **Full screen*
 The **Mute** and **Deafen** buttons in your user panel at the bottom of the sidebar work outside calls too. A state set before you join applies when you connect.
 
 A shield next to the channel name shows whether the call is end-to-end encrypted. See [Encrypted voice channels](#encrypted-voice-channels).
+
+### Keep the call on top of other apps
+
+In the desktop app, the small call panel can leave Harmony's window and float over everything else, so you can mute, deafen or see who is talking while you are in a game or another app. Shrink the call bar with **Minimize voice panel**, then either click **Float over other windows** or drag the panel out past the edge of Harmony's window and let go.
+
+The floating panel has **Mute**, **Deafen**, **Participants**, **Back to the app** and **Leave voice**. Drag its name to move it. To put it back, drop it anywhere on Harmony's window, double-click its name, or click **Back to the app**, which also opens the call view. It closes when the call ends.
+
+On Linux the floating panel is a plain rectangle, since the window cannot be see-through there. Under Wayland most desktops do not let an app keep a window on top or choose where it goes, so there it behaves like a small normal window.
+
+### Chat beside the call and pop it out
+
+Click **Chat** at the top of the full call view to open the call's text chat on the right: the voice channel's messages, or the conversation in a direct message call. Drag its edge, or use the arrow keys on it, to change its width. A dot on **Chat** shows new messages while it is closed. Harmony remembers whether you left it open. On a narrow screen the chat covers the call until you close it.
+
+Opening the chat shows the call's channel in the main window too. When the main window shows another chat, the panel offers **Show the call's chat**.
+
+**Pop out call** moves the whole call view, chat included, into its own window, so you can keep the call and its chat beside other windows while you browse Harmony. The call stays connected while it moves. In Chrome and Edge the window stays on top of other windows; elsewhere it is a normal window, a native one in the desktop app. While the call is popped out, the call bar in the main window offers **Show call window** and **Return call to the app**. Closing the window also returns the call. Leaving the call closes it. If your browser blocks pop-ups, allow them for Harmony. Popping out is not available on phones.
 
 ## Change how loud someone is
 
@@ -260,11 +278,17 @@ The player shows the length and a waveform. Its speed button cycles 1x, 1.5x and
 
 ## Encrypted voice channels
 
-A voice channel can encrypt its calls end to end, so audio and video are encrypted before they reach the voice server. The server owner or someone with **Manage Channels** turns this on: right-click the channel → **Edit channel** → **General** → **Encryption** → **End-to-end encrypt voice and video**. A server can also require it for every voice channel.
+A voice channel can encrypt its calls end to end, so audio and video are encrypted before they reach the voice server. The server owner or someone with **Manage Channels** turns this on: right-click the channel → **Edit channel** → **General** → **Encryption** → **End-to-end encrypt voice and video**, or with **Encrypt voice and video** when creating the channel. Each voice channel decides for itself, whatever the server's message encryption mode. The server owner can instead require it for every voice channel: **Server settings** → **Privacy settings** → **Voice & video encryption** → **Required for every voice channel**. Switching back to **Per channel** leaves every voice channel encrypted until someone turns it off.
 
-To join such a channel you need encryption set up and unlocked on your device. Without it Harmony refuses the join with **End-to-end encryption required**. See [Privacy and security](/use/privacy-security). Encrypted voice needs the SFU transport.
+To join such a channel you need encryption set up and unlocked on your device. Without it Harmony refuses the join and opens **Set up message encryption**, or the **Restore encryption** window when your keys are locked. See [Privacy and security](/use/privacy-security). Encrypted voice needs the SFU transport.
 
-Direct message calls are not end-to-end encrypted. The shield in the call bar reads "End-to-end encrypted" or "Not end-to-end encrypted" when you hover it.
+People joining from another instance cannot take part in an encrypted call: their client holds no encryption keys for the channel, so they connect but cannot hear or be heard.
+
+### Direct message calls
+
+A call in an encrypted direct message conversation is end-to-end encrypted too, for every participant on your instance, group conversations included. Calling or answering needs encryption set up and unlocked, as above. A call with someone on another instance is never end-to-end encrypted, even when the conversation is.
+
+The shield in the call bar reads "End-to-end encrypted" or "Not end-to-end encrypted" when you hover it.
 
 ## Set up your microphone, speakers and camera
 
@@ -273,6 +297,7 @@ Open **User settings** → **Voice & video**, or click **Voice settings** in the
 | Section | Setting | Default |
 |---|---|---|
 | **Input mode** | **Voice activity** (transmit when you speak) or **Push to talk** (hold a key) | Voice activity |
+| | **Input sensitivity** (voice activity only): **Always send**, **Automatic** or **Manual** | Always send |
 | **Audio devices** | **Input device**, **Output device** | System default |
 | | **Input volume**, **Output volume**, 0 to 200% | 100% |
 | | **Test microphone** shows a live level meter | |
@@ -288,6 +313,18 @@ Open **User settings** → **Voice & video**, or click **Voice settings** in the
 | | **Frame rate**: 15, 30 or 60 FPS | 30 FPS |
 
 Double-click a volume slider to reset it.
+
+### Keep background noise out of the call
+
+With **Voice activity**, **Input sensitivity** decides when your microphone is sent:
+
+- **Always send** sends everything the microphone picks up.
+- **Automatic** sends only while Harmony hears speech above the room's background level, so typing and fan noise between sentences stay out.
+- **Manual** sends only while your input is louder than the **Threshold** slider, -60 to -10 dB.
+
+During a call, the bar under the setting shows your microphone level and turns green while it is sent. In calls without a voice server (peer-to-peer), the microphone is always sent.
+
+The speaking ring around each person in a call is worked out on your device from the audio itself, so it lights up as soon as someone starts talking.
 
 ### Use push to talk
 

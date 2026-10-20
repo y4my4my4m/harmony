@@ -358,7 +358,7 @@ process and names the variable.
 | Variable | Default | What it does |
 |---|---|---|
 | `REDIS_URL` | `redis://localhost:6379` | Redis for the job queues, cache, presence and rate limits. Self-host: `redis://:PASSWORD@redis:6379` |
-| `USE_BULLMQ_QUEUE` | `true` | `false` processes database events through a Supabase Realtime subscription instead of the queue, without job persistence. `USE_PGBOSS_QUEUE` is read when this is unset |
+| `USE_BULLMQ_QUEUE` | `true` | Keep `true`. `false` starts the legacy Supabase Realtime listener, which receives no events since 1.8.7 (the `supabase_realtime` publication carries no table). `USE_PGBOSS_QUEUE` is read when this is unset |
 | `FEDERATION_LISTENER_URL` | unset | Direct, session-mode Postgres URL (port 5432) on which the worker listens for new jobs. Self-host uses the least-privilege `harmony_listener` role. Unset, jobs wait for the 60-second sweep |
 | `DATABASE_URL` | unset | Read when `FEDERATION_LISTENER_URL` is unset |
 

@@ -23,7 +23,8 @@ Harmony has a social side and a chat side, and they federate differently.
 | Pinned posts (up to 10, public and unlisted) | Yes | Any ActivityPub software |
 | Favourites and emoji reactions on posts | Yes, encoded for the receiving software (see [Reactions](#reactions)) | Any ActivityPub software |
 | Quote posts | Yes, with quote approvals ([FEP-044f](#quote-posts-and-quote-approvals)) | Any software that reads FEP-044f or the older quote properties |
-| Polls in posts | Received and shown; voting happens on the original post | Inbound only |
+| Polls in posts | Received and shown; a vote cast here reaches the poll's author, as Mastodon sends one | Software that sends polls (`Question`): Mastodon, Misskey and others |
+| Communities (Lemmy, PieFed, Mbin) | Followed like accounts; their posts arrive as the community's boosts, their comments as replies | Inbound only |
 | Follows and follow requests | Yes | Any ActivityPub software |
 | Blocks | Yes, a `Block` goes to the blocked account's instance | Any ActivityPub software |
 | Reports | When the reporter forwards them, as an anonymous `Flag` | Any software that accepts `Flag` |
@@ -92,7 +93,9 @@ A Harmony post is a `Note` written the way Mastodon writes one:
 - The post's language goes in `contentMap` when it is set.
 - Favourite and boost counts are included, and the post advertises who may quote it.
 
-Visibility maps to Mastodon's addressing: public, unlisted, followers only and direct.
+Visibility maps to Mastodon's addressing: public, unlisted, followers only and direct. A post names its thread as its `context` (FEP-7888), which other software can read to fetch the whole conversation.
+
+On another server's web page, a Harmony user who presses that server's remote follow button and enters their Harmony handle is sent to their own instance's `/authorize_interaction` page, which shows the account or post and offers **Follow** or **Open post**.
 
 ### What Harmony shows of other software
 
@@ -113,7 +116,8 @@ Harmony works out the software from the instance's NodeInfo, read again weekly. 
 ### Known limitations
 
 - Chat servers, channels, threads, voice and Harmony's chat extensions only work between Harmony instances. Following a Harmony server from Mastodon does nothing: the server's inbox answers only Harmony membership activities.
-- Harmony posts cannot contain polls. Polls from other software are shown with their answers, vote shares, voter count and closing time, and **Vote on the original post** opens the poll on its home instance.
+- Harmony posts cannot contain polls. Polls from other software show their answers, vote shares, voter count and closing time, and take votes. A vote is final, as on Mastodon, and the shares update when the poll's instance next reports its counts.
+- A Lemmy, PieFed or Mbin community can be followed, by its handle (`community@instance`, or `!community@instance`) or its URL. Its posts and comments arrive; its votes and moderation do not, and a reply written in Harmony reaches the post's author, not the community.
 - Markdown in a Harmony post reaches other software as plain text.
 - Quote approvals are automatic. There is no queue for approving quotes by hand.
 

@@ -21,12 +21,28 @@
  *
  * Capability requirement: to participate a user must have message E2EE unlocked
  * (recovery key set up + keys loaded this session). Callers gate on
- * `canParticipate()` before joining a `required` voice channel.
+ * `canParticipate()` before joining an encrypted call.
+ *
+ * Megolm room: the call room id, except a local DM call (dm-{conversationId}),
+ * whose key travels in the conversation's room. get_room_member_ids admits no
+ * one to 'dm-…', so a key wrapped there reaches no recipient.
  */
 
 import { megolmMessageEncryptionService, type MegolmEncryptedMessageData } from './MegolmMessageEncryptionService'
 import type { MessagePart } from '@/types'
 import { debug } from '@/utils/debug'
+import { localDMCallConversationId } from '@/utils/callRooms'
+
+/** 'setup': the account has no encryption keys. 'unlock': its keys are not loaded on this device. */
+export type VoiceE2EEBlocker = 'setup' | 'unlock'
+
+// Upper bound on waiting for a sign-in's initialize() and its stored-key unlock.
+const INIT_SETTLE_MS = 5000
+
+/** The Megolm room that carries a call room's voice key. */
+export function voiceKeyRoomId(roomId: string): string {
+  return localDMCallConversationId(roomId) ?? roomId
+}
 
 /**
  * Deterministically pick the participant responsible for minting/distributing
@@ -82,6 +98,21 @@ class VoiceE2EEService {
     )
   }
 
+  /**
+   * Why this client cannot take part in an encrypted call, or null when it can. Waits for an
+   * initialize() in flight, and starts one for the signed-in user when none ran, before
+   * answering; the order of checks is encryptChannelContent's.
+   */
+  async participationBlocker(): Promise<VoiceE2EEBlocker | null> {
+    if (this.canParticipate()) return null
+    await megolmMessageEncryptionService.whenInitSettled(INIT_SETTLE_MS)
+    const { getEncryptionService } = await import('@/services/core/channelMessageEncryption')
+    const service = await getEncryptionService()
+    if (!service?.isInitialized()) return 'setup'
+    if (service.isUnlocked()) return null
+    return (await service.hasRecoveryKey()) ? 'unlock' : 'setup'
+  }
+
   /** Generate a fresh random shared room key. */
   generateRoomKey(): Uint8Array {
     return crypto.getRandomValues(new Uint8Array(VOICE_KEY_BYTES))
@@ -102,7 +133,7 @@ class VoiceE2EEService {
     recipientIds: string[]
   ): Promise<MegolmEncryptedMessageData> {
     const part: MessagePart = { type: 'text', text: bytesToBase64(key) }
-    return megolmMessageEncryptionService.encryptMessage([part], roomId, recipientIds)
+    return megolmMessageEncryptionService.encryptMessage([part], voiceKeyRoomId(roomId), recipientIds)
   }
 
   /**
@@ -117,7 +148,7 @@ class VoiceE2EEService {
     try {
       const { content } = await megolmMessageEncryptionService.decryptMessage({
         content: cipher.content,
-        channel_id: roomId,
+        channel_id: voiceKeyRoomId(roomId),
         encryption_metadata: cipher.encryption_metadata,
       })
       const textPart = content.find((p): p is { type: 'text'; text: string } => p.type === 'text')

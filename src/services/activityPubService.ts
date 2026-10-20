@@ -2136,6 +2136,24 @@ export class ActivityPubService {
       return null;
     }
   }
+
+  /** The account an actor URL names, as /lookup-user stores it; null when the URL serves no actor. */
+  async lookupUserByUrl(url: string): Promise<FederatedUser | null> {
+    try {
+      const response = await fetch(`${await this.getFederationApiUrl()}/lookup-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      if (!response.ok) return null;
+      const result = await response.json();
+      if (!result?.success || !result.user) return null;
+      return { ...result.user, handle: this.formatUserHandle(result.user.username, result.user.domain) } as FederatedUser;
+    } catch (error) {
+      debug.warn('Actor lookup by URL failed:', error);
+      return null;
+    }
+  }
 }
 
 /** One reply crawl as the federation backend reports it. */

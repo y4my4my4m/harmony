@@ -1,5 +1,5 @@
 <template>
-  <Teleport to="body">
+  <Teleport :to="portalTarget">
     <div v-if="visible" class="sbp-backdrop" @click="close" @contextmenu.prevent="close" />
     <div
       v-if="visible"
@@ -127,6 +127,9 @@ import { SOUNDBOARD_LOCKOUT_MS } from '@/services/soundboard/protocol';
 import { soundboardPlayer } from '@/services/soundboard/player';
 import { VOICE_POPOVER_DISMISS, placePopover, type Rect } from './voiceMenuModel';
 import { styleRect, styleViewport } from '@/utils/appZoom';
+import { usePortalTarget } from '@/composables/usePortalTarget';
+
+const portalTarget = usePortalTarget();
 
 const props = defineProps<{
   visible: boolean;
@@ -261,7 +264,7 @@ async function place(): Promise<void> {
   const el = panelRef.value;
   if (!el) return;
   const rect = styleRect(el);
-  const viewport = styleViewport();
+  const viewport = styleViewport(el);
   const anchor = props.anchor ?? { left: viewport.width / 2, top: viewport.height / 2, width: 0, height: 0 };
   position.value = placePopover(anchor, { width: rect.width, height: rect.height }, viewport);
   el.focus({ preventScroll: true });

@@ -106,7 +106,7 @@ export function suggestionAnchorRect(el: HTMLElement): SuggestionAnchorRect {
     return { left: Math.max(box.left, box.left + before.length * 8 - 100), top: box.top, bottom: box.bottom };
   }
 
-  const selection = typeof window !== 'undefined' ? window.getSelection() : null;
+  const selection = el.ownerDocument.getSelection();
   if (selection && selection.rangeCount > 0) {
     const range = selection.getRangeAt(0);
     if (el.contains(range.startContainer)) {
@@ -818,7 +818,7 @@ export function useAutoSuggest(
     return placeSuggestionPopup(
       suggestionAnchorRect(el),
       { width: popupWidth, height: popupHeight },
-      styleViewport(),
+      styleViewport(el),
     );
   };
 

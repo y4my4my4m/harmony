@@ -303,6 +303,7 @@ import { dmCallRoute, localCallReceivers } from '@/services/dmCallRouting'
 import { authContextService } from '@/services/AuthContextService'
 import { supabase } from '@/supabase'
 import { fetchConversationEncryption } from '@/services/conversationEncryption'
+import { ensureCanJoinCall } from '@/services/voice/voiceEncryptionGate'
 import { debug } from '@/utils/debug'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { dmConversationIdFromChannel, useCallSwitch } from '@/composables/useCallSwitch'
@@ -984,6 +985,8 @@ const startCall = async (profileId: string, callType: 'voice' | 'video') => {
       return
     }
   }
+  // An encrypted conversation's call this device cannot join rings no one.
+  if (!(await ensureCanJoinCall('dm', `dm-${props.conversation.id}`))) return
   if (!(await leaveCurrentCallFor())) return
   await startLocalCall(profileId, callType, receiverIds)
 }

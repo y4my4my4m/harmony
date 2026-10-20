@@ -1,10 +1,14 @@
 /**
  * Per-channel encryption: floor resolution and the wire shape of encrypted channel content.
  *
- * resolveChannelEncryption mirrors public.channel_messages_encrypted() and the voice branch of
- * public.effective_channel_encryption() in
- * db_schema/migrations/20261001000001_channel_encryption_settings.sql. The database is
+ * resolveChannelEncryption mirrors public.channel_messages_encrypted()
+ * (db_schema/migrations/20261001000001_channel_encryption_settings.sql) and the voice branch of
+ * public.effective_channel_encryption()
+ * (db_schema/migrations/20261021300001_voice_encryption_per_channel.sql). The database is
  * authoritative; this copy renders the channel list from table rows and broadcasts.
+ *
+ * Voice does not follow the message mode: voice_encryption_mode 'required' fixes it on in every
+ * channel, 'disabled' leaves it to the channel row.
  *
  * Encrypted channel content is [ciphertext text part, ...plaintext mention parts]. The server
  * reads the mention parts for notifications. Clients render mentions only from the decrypted
@@ -68,7 +72,7 @@ export function isRequiredMode(mode: ServerEncryptionMode): boolean {
   return mode === 'required' || mode === 'required_local_only'
 }
 
-/** A missing policy row is 'disabled'; a missing channel row is off. */
+/** A missing policy row is 'disabled' for messages and voice; a missing channel row is off. */
 export function resolveChannelEncryption(
   policy: ServerEncryptionPolicy | null | undefined,
   row: Pick<ChannelEncryptionRow, 'messages_encrypted' | 'voice_encrypted' | 'history_visibility'> | null | undefined,
@@ -78,8 +82,7 @@ export function resolveChannelEncryption(
 
   const messagesEncrypted = isRequiredMode(serverMode)
     || (serverMode === 'optional' && row?.messages_encrypted === true)
-  const voiceEncrypted = voiceMode === 'required'
-    || (serverMode !== 'disabled' && row?.voice_encrypted === true)
+  const voiceEncrypted = voiceMode === 'required' || row?.voice_encrypted === true
 
   return {
     serverMode,
@@ -87,7 +90,7 @@ export function resolveChannelEncryption(
     messagesEncrypted,
     voiceEncrypted,
     messagesLocked: serverMode !== 'optional',
-    voiceLocked: voiceMode === 'required' || serverMode === 'disabled',
+    voiceLocked: voiceMode === 'required',
     historyVisibility: row?.history_visibility === 'shared' ? 'shared' : 'joined',
   }
 }

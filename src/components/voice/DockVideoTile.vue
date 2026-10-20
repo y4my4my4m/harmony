@@ -54,6 +54,7 @@ import Icon from '@/components/common/Icon.vue';
 import Avatar from '@/components/common/Avatar.vue';
 import DisplayName from '@/components/DisplayName.vue';
 import LiveReactionLayer from './LiveReactionLayer.vue';
+import { SPEAKING_LEVEL } from '@/services/voice/speakingDetector';
 
 const props = defineProps<{
   userState: UserMediaState;
@@ -81,10 +82,10 @@ const tileLabel = computed(() =>
 
 const isSelf = computed(() => props.userState.userId === voiceStore.localState.userId);
 
-// Thresholds match VoiceTile: local level is raw, remote carries the transport's flag.
+// Matches VoiceTile: the local level crosses SPEAKING_LEVEL while speaking; remote users carry the flag.
 const isSpeaking = computed(() => {
   if (props.source !== 'camera') return false;
-  if (isSelf.value) return voiceStore.localState.audioLevel > 6 && !voiceStore.localState.isMuted;
+  if (isSelf.value) return voiceStore.localState.audioLevel > SPEAKING_LEVEL && !voiceStore.localState.isMuted;
   return !!props.userState.isSpeaking;
 });
 

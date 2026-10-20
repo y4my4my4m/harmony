@@ -58,6 +58,9 @@
         v-if="!currentConversation"
         @conversation-started="handleConversationStarted"
       />
+
+      <!-- The call's side chat shows this conversation while it is open -->
+      <CallChatElsewhere v-else-if="callChatHere" />
       
       <UnifiedContentArea
         v-else
@@ -104,6 +107,9 @@ import { useT } from '@/composables/useT'
 import { useAppDrawers } from '@/composables/useLayoutState'
 import { useToast } from 'vue-toastification'
 import UnifiedContentArea from '@/components/common/UnifiedContentArea.vue'
+import CallChatElsewhere from '@/components/voice/CallChatElsewhere.vue'
+import { useCallChat } from '@/components/voice/callChat'
+import { conversationListLoading, loadOlderConversationMessages } from '@/composables/chatPaging'
 import Icon from '@/components/common/Icon.vue'
 import DMHeader from '@/components/dm/DMHeader.vue'
 import Avatar from '@/components/common/Avatar.vue'
@@ -149,7 +155,7 @@ const { getCurrentUser, getUserDisplayName, getUserAvatarUrl } = useUserData()
 
 const { isMobile } = useLayoutState()
 
-const isLoading = ref(false)
+const isLoading = conversationListLoading
 const isAtBottom = ref(true)
 const showAddUserModal = ref(false)
 
@@ -182,6 +188,9 @@ const joinCallFromBanner = async () => {
 
 const chatMessages = computed(() => dmStore.currentDMMessages)
 const currentConversation = computed(() => dmStore.getCurrentConversation)
+
+const callChat = useCallChat()
+const callChatHere = computed(() => callChat.hosts({ conversationId: currentConversation.value?.id }))
 
 // The placeholder is plain text; shortcodes are stripped.
 const stripShortcodes = (text: string): string => {
@@ -276,13 +285,7 @@ const loadMessages = async () => {
   }
 }
 
-const fetchMoreMessages = async () => {
-  const conversationId = route.params.conversationId as string
-  if (conversationId && dmStore.currentDMMessages.length > 0) {
-    const oldestMessage = dmStore.currentDMMessages[0]
-    await dmStore.fetchConversationMessages(conversationId, oldestMessage.id)
-  }
-}
+const fetchMoreMessages = () => loadOlderConversationMessages(route.params.conversationId as string)
 
 
 const handleUsersAdded = async (conversationId: string, _userIds: string[]) => {

@@ -203,7 +203,7 @@ create_report	definer	uuid	authenticated+service_role	client	rpc in src/services
 create_server_from_template	definer	uuid	authenticated+service_role	client	rpc in src/services/serverTemplateService.ts
 create_thread	definer	uuid	anon+authenticated+service_role	client	rpc in src/services/ThreadService.ts
 current_jwt_claims	invoker	jsonb	service_role	client, policy	called by begin_account_move, delete_my_account, enforce_request_assurance, +6
-current_profile_username	definer	text	anon+authenticated+service_role	policy	policy public.posts SELECT on posts_select_public
+current_profile_username	definer	text	anon+authenticated+service_role	client, policy	policy public.posts SELECT on posts_select_public
 current_user_block_peer_ids	definer	SETOF uuid	anon+authenticated+service_role	client, policy	policy public.posts SELECT on posts_select_public
 current_user_history_cutoffs	definer	jsonb	anon+authenticated+service_role	client, policy	policy public.message_search_index SELECT on message_search_index_channel_access, public.messages SELECT on messages_select_channel_member
 current_user_is_member_of_server	definer	boolean	anon+authenticated+service_role	http anon	nothing references it
@@ -369,7 +369,7 @@ get_conversation_context	invoker	jsonb	anon+authenticated+service_role	http anon
 get_conversation_encryption_status	invoker	jsonb	service_role	service key	nothing references it
 get_conversation_participants	invoker	TABLE(user_id uuid, role text, joined_at timestamp with time zone, is_muted boolean, last_read_at timestamp with time zone)	service_role	service key	nothing references it
 get_conversation_thread	invoker	jsonb	service_role	service key	nothing references it
-get_current_profile_id	definer	uuid	anon+authenticated+service_role	client, policy, trigger	policy public.ap_activities INSERT on Users can create their own activities, public.ap_activities SELECT on Users can view their own activities, public.ap_activities UPDATE on Users can update their own activities, +197
+get_current_profile_id	definer	uuid	anon+authenticated+service_role	client, policy, trigger	policy public.ap_activities INSERT on Users can create their own activities, public.ap_activities SELECT on Users can view their own activities, public.ap_activities UPDATE on Users can update their own activities, +198
 get_current_user_profile_id	definer	uuid	anon+authenticated+service_role	client	called by search_messages
 get_custom_status	definer	jsonb	service_role	service key	nothing references it
 get_db_connection_count	definer	integer	anon+authenticated+service_role	client	rpc in src/services/AdminService.ts
@@ -604,7 +604,7 @@ protect_profile_deleted_at	invoker	trigger	service_role	trigger	trigger public.p
 public_instance_config_keys	invoker	text[]	anon+authenticated+service_role	policy	policy public.instance_config SELECT on Public can read instance settings
 purge_processed_ap_activities	definer	integer	service_role	cron	cron 0 3 * * * (activitypub-cleanup-old-activities)
 purge_stale_invites	definer	integer	service_role	cron	cron 20 4 * * * (purge-stale-invites)
-queue_federation_job	definer	uuid	service_role	client, trigger	called by admin_drive_remove_file, apply_account_move, delete_my_account, +36
+queue_federation_job	definer	uuid	service_role	client, trigger	called by admin_drive_remove_file, apply_account_move, delete_my_account, +37
 queue_message_media_cleanup	definer	trigger	service_role	trigger	trigger public.messages AFTER DELETE/UPDATE (z_messages_media_cleanup)
 queue_push_dismissal	definer	void	service_role	trigger	called by queue_push_dismissal_on_delete, queue_push_dismissal_on_read
 queue_push_dismissal_on_delete	definer	trigger	service_role	trigger	trigger public.notifications AFTER DELETE STATEMENT (trg_queue_push_dismissal_on_delete)
@@ -846,6 +846,7 @@ voice_participant_grants	definer	TABLE(channel_id uuid, user_id uuid, reason tex
 voice_participant_joined_at	invoker	trigger	service_role	trigger	trigger public.voice_channel_participants BEFORE INSERT/UPDATE (a_voice_participants_joined_at)
 voice_remove_member	definer	uuid	service_role	client, trigger	rpc in federation-backend/src/services/voiceGrantSync.ts
 vote_message_poll	definer	TABLE(poll_id uuid, message_id uuid, question text, allow_multiple boolean, expires_at timestamp with time zone, closed boolean, total_voters integer, options jsonb, my_option_ids uuid[], is_author boolean)	authenticated+service_role	client	rpc in src/services/MessagePollService.ts
+vote_remote_poll	definer	jsonb	authenticated+service_role	client	rpc in src/services/RemotePollService.ts
 webhook_message_parts	invoker	jsonb	service_role	client	called by execute_channel_webhook
 webhook_normalize_avatar_url	invoker	text	service_role	client	called by create_channel_webhook, execute_channel_webhook, update_channel_webhook
 webhook_normalize_name	invoker	text	service_role	client	called by create_channel_webhook, execute_channel_webhook, update_channel_webhook

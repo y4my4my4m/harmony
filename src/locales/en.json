@@ -469,9 +469,7 @@
       "forceKeySetupHint": "Show setup wizard for users without keys",
       "attachmentNote": "In encrypted channels, file links, names and types are encrypted with the message. The files themselves are stored unencrypted.",
       "voiceTitle": "Voice & video encryption",
-      "voiceHint": "End-to-end encrypt call media so the media server can't access it",
-      "voiceRequire": "Require end-to-end encrypted voice and video",
-      "voiceRequireHint": "Every voice channel encrypts calls before they reach the media server. Without this, channel managers choose per voice channel.",
+      "voiceHint": "End-to-end encrypt call media so the media server can't access it. This setting doesn't depend on the message encryption mode.",
       "voiceWarning": "Participants who haven't set up encryption (and federated or legacy clients) will be unable to join encrypted calls.",
       "statsTitle": "Server statistics",
       "statsTotal": "Total members",
@@ -497,7 +495,17 @@
       },
       "saved": "Encryption settings saved",
       "loadFailed": "Failed to load settings",
-      "saveFailed": "Failed to save settings"
+      "saveFailed": "Failed to save settings",
+      "voiceModes": {
+        "disabled": {
+          "name": "Per channel",
+          "description": "Channel managers turn encryption on for each voice channel. New voice channels start unencrypted."
+        },
+        "required": {
+          "name": "Required for every voice channel",
+          "description": "Every voice channel encrypts calls before they reach the media server, and channels can't turn it off."
+        }
+      }
     },
     "roleManagement": {
       "intro": "Create and manage roles for your server. Drag to reorder priority, or use Move up and Move down.",
@@ -1383,6 +1391,29 @@
       "youWereRemoved": "You are no longer a member of this server.",
       "youLostAccess": "You no longer have access to that voice channel.",
       "youWereTimedOut": "You were timed out on this server."
+    },
+    "callChat": {
+      "toggle": "Chat",
+      "toggleUnread": "Chat, new messages",
+      "region": "{name} chat",
+      "close": "Close chat",
+      "resize": "Resize chat",
+      "awayText": "The main window shows another chat.",
+      "awayAction": "Show the call's chat",
+      "elsewhereText": "This chat is open beside the call.",
+      "elsewhereAction": "Show chat here"
+    },
+    "popout": {
+      "open": "Pop out call",
+      "return": "Return call to the app",
+      "focus": "Show call window",
+      "blocked": "The call window could not open. Allow pop-ups for this site and try again.",
+      "windowTitle": "Harmony — {name}"
+    },
+    "floatingDock": {
+      "float": "Float over other windows",
+      "backToApp": "Back to the app",
+      "dragHint": "Drag to move. Drop it on Harmony to put it back."
     }
   },
   "dm": {
@@ -1792,7 +1823,16 @@
       "audioSettings": "Audio settings",
       "selectMicrophone": "Select microphone",
       "selectSpeaker": "Select speaker",
-      "selectCamera": "Select camera"
+      "selectCamera": "Select camera",
+      "inputSensitivity": "Input sensitivity",
+      "inputSensitivityDesc": "Sends your microphone only while you speak, so keyboard and room noise stay out of the call.",
+      "inputSensitivityOff": "Always send",
+      "inputSensitivityAuto": "Automatic",
+      "inputSensitivityManual": "Manual",
+      "inputThreshold": "Threshold",
+      "decibels": "{db} dB",
+      "inputMeterHint": "The bar turns green while your microphone is sent.",
+      "inputMeterIdle": "Join a voice channel to see your level here."
     },
     "notifications": {
       "title": "Notifications",
@@ -3676,7 +3716,15 @@
       "label": "End-to-end encryption",
       "hint": "Encrypt messages in this channel so the server can't read them.",
       "integrationWarning": "Bots and bridges in this server can't read encrypted messages or post in this channel.",
-      "failed": "The channel was created, but encryption couldn't be turned on. Turn it on in the channel settings."
+      "failed": "The channel was created, but encryption couldn't be turned on. Turn it on in the channel settings.",
+      "voiceLabel": "Encrypt voice and video",
+      "voiceHint": "Encrypt calls in this channel before they reach the media server. Members need encryption set up to join."
+    },
+    "voiceJoin": {
+      "setup": "This voice channel is end-to-end encrypted. Set up encryption to join.",
+      "unlock": "This voice channel is end-to-end encrypted. Unlock encryption with your recovery key to join.",
+      "dmSetup": "Calls in this conversation are end-to-end encrypted. Set up encryption to call or answer.",
+      "dmUnlock": "Calls in this conversation are end-to-end encrypted. Unlock encryption with your recovery key to call or answer."
     }
   },
   "today": {
@@ -5983,12 +6031,15 @@
       "createFailed": "The poll was not posted.",
       "voteFailed": "Your vote was not saved.",
       "closed": "This poll has ended.",
-      "endFailed": "The poll could not be ended."
+      "endFailed": "The poll could not be ended.",
+      "alreadyVoted": "You already voted on this poll."
     },
     "remote": {
       "voters": "{count} person voted | {count} people voted",
       "voteOnOriginal": "Vote on the original post",
-      "label": "Poll"
+      "label": "Poll",
+      "vote": "Vote",
+      "yourAnswer": "your answer"
     }
   },
   "serverTemplate": {
@@ -6698,5 +6749,15 @@
     "removeFile": "Remove file",
     "removeAndBlock": "Remove and block re-uploads",
     "removed": "Removed"
+  },
+  "authorizeInteraction": {
+    "title": "Remote interaction",
+    "resolving": "Looking up {uri}…",
+    "notFound": "Nothing could be found at this address.",
+    "invalid": "This is not a handle or a link.",
+    "openPost": "Open post",
+    "openProfile": "Open profile",
+    "home": "Go to home",
+    "followFailed": "The follow was not saved."
   }
 }

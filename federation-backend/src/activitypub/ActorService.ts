@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { profileToActor, NOTE_CONTEXT } from './converters/toActivityPub.js';
-import { actorToProfile, extractMediaAttachments, noteToContent, noteQuoteUrl } from './converters/fromActivityPub.js';
+import { actorToProfile, asNoteObject, extractMediaAttachments, isPostObjectType, noteContext, noteToContent, noteQuoteUrl, objectLanguage } from './converters/fromActivityPub.js';
 import { misskeyDisplayNameEmojis } from '../utils/misskeyEmojis.js';
 import { resolveLocalProfileEmojis } from './emojiResolver.js';
 import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
@@ -26,6 +26,7 @@ import {
   collectionTotal, engagementColumns, fetchProfileCounts, misskeyNoteTotals, noteEngagementColumns,
   noteEngagementTotals, profileCountColumns, profileCountsStale, refreshRemoteProfileCounts,
 } from './remoteCounts.js';
+import { federationUserAgent } from '../utils/userAgent.js';
 
 const router = Router();
 
@@ -143,7 +144,7 @@ export async function resolveRemoteAccount(username: string, domain: string): Pr
       const response = await SignatureService.signedApFetch(url, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
-          'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+          'User-Agent': federationUserAgent()
         },
         timeoutMs: 10000,
       });
@@ -346,10 +347,64 @@ export async function resolveRemoteAccount(username: string, domain: string): Pr
   }
 }
 
+const URL_ACTOR_TYPES = new Set(['Person', 'Service', 'Application', 'Organization', 'Group']);
+
+/**
+ * The account an actor URL names: a stored row by actor id, a local account by its actor or
+ * profile page URL, else the document fetched from the URL, resolved through its account
+ * (resolveRemoteAccount) and required to be that same actor. 404 `not_actor` when the URL
+ * serves something else, a post among them.
+ */
+export async function resolveAccountByUrl(url: string): Promise<RemoteAccountResolution> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { ok: false, status: 400, body: { error: 'Invalid url' } };
+  }
+  const supabase = getSupabaseClient();
+
+  if (parsed.host.toLowerCase() === config.INSTANCE_DOMAIN.toLowerCase()) {
+    const name = parsed.pathname.replace(/\/+$/, '').match(/^\/(?:users|social\/profile|@)\/?([A-Za-z0-9_]+)$/)?.[1];
+    if (!name) return { ok: false, status: 404, body: { error: 'No account at this URL', kind: 'not_actor' } };
+    const { data: local } = await supabase
+      .from('profiles').select('*').eq('username', name).eq('is_local', true).is('deleted_at', null).maybeSingle();
+    return local
+      ? { ok: true, user: local, actor: null }
+      : { ok: false, status: 404, body: { error: 'Account not found' } };
+  }
+
+  try {
+    validateExternalUrl(url);
+  } catch {
+    return { ok: false, status: 400, body: { error: 'Invalid or disallowed url' } };
+  }
+
+  const { data: stored } = await supabase.from('profiles').select('*').eq('federated_id', url).maybeSingle();
+  if (stored) return { ok: true, user: stored, actor: null };
+
+  const fetched = await ActivityProcessor.fetchApDocument(url);
+  const doc = fetched?.doc;
+  if (!doc || typeof doc.id !== 'string' || !URL_ACTOR_TYPES.has(doc.type)) {
+    return { ok: false, status: 404, body: { error: 'No account at this URL', kind: 'not_actor' } };
+  }
+  const acct = await confirmActorAcct(doc, 10_000);
+  const username = acct?.username ?? (typeof doc.preferredUsername === 'string' ? doc.preferredUsername : null);
+  const domain = acct?.domain ?? urlHost(doc.id)?.replace(/:\d+$/, '') ?? null;
+  if (!username || !domain) return { ok: false, status: 404, body: { error: 'No account at this URL', kind: 'not_actor' } };
+
+  const resolved = await resolveRemoteAccount(username, domain);
+  if (resolved.ok && resolved.user?.federated_id !== doc.id) {
+    logger.warn(`${username}@${domain} is ${resolved.user?.federated_id}, not the actor ${doc.id} served at ${url}`);
+    return { ok: false, status: 502, body: { error: 'Remote actor does not match its account' } };
+  }
+  return resolved;
+}
+
 /**
  * Lookup remote user via WebFinger.
  * POST /lookup-user (proxied via /api/federation/lookup-user)
- * Body: { handle: "username@domain" }
+ * Body: { handle: "username@domain" } or { url: "<actor URL>" }
  *
  * Server-side proxy; browsers cannot fetch WebFinger cross-origin.
  */
@@ -357,7 +412,13 @@ router.post(
   '/lookup-user',
   discoveryLimiter,
   asyncHandler(async (req: Request, res: Response) => {
-    const { handle, forceRefresh } = req.body;
+    const { handle, forceRefresh, url } = req.body;
+
+    if (typeof url === 'string' && url && !handle) {
+      const resolved = await resolveAccountByUrl(url);
+      if (!resolved.ok) return res.status(resolved.status).json(resolved.body);
+      return res.json({ success: true, user: resolved.user, cached: resolved.actor === null });
+    }
 
     if (!handle || typeof handle !== 'string') {
       return res.status(400).json({ error: 'Missing or invalid handle parameter' });
@@ -945,7 +1006,7 @@ async function fetchMisskeyReactions(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+        'User-Agent': federationUserAgent()
       },
       body: JSON.stringify({
         noteId: noteId,
@@ -978,7 +1039,7 @@ async function fetchMisskeyReactions(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+          'User-Agent': federationUserAgent()
         },
         body: JSON.stringify({ noteId }),
         signal: AbortSignal.timeout(10000)
@@ -1019,7 +1080,7 @@ async function fetchMisskeyReactions(
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+            'User-Agent': federationUserAgent()
           },
           body: JSON.stringify({}),
           signal: AbortSignal.timeout(10000)
@@ -1320,7 +1381,7 @@ async function _fetchRemotePostReactionsImpl(
     // every outbound call goes through safeFetch for SSRF protection.
     const apHeaders = {
       'Accept': 'application/activity+json, application/ld+json',
-      'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`,
+      'User-Agent': federationUserAgent(),
     } as const;
 
     const postResponse = await SignatureService.signedApFetch(postApId, {
@@ -1902,7 +1963,7 @@ async function misskeyReplyIds(domain: string, noteId: string, limit: number): P
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+        'User-Agent': federationUserAgent()
       },
       body: JSON.stringify({ noteId, limit: Math.min(limit, 100) }),
       signal: AbortSignal.timeout(10000)
@@ -2503,7 +2564,7 @@ function collectionItems(doc: any): any[] | null {
 
 async function fetchApJson(url: string): Promise<any | null> {
   const response = await SignatureService.signedApFetch(url, {
-    headers: { 'Accept': AP_ACCEPT, 'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}` },
+    headers: { 'Accept': AP_ACCEPT, 'User-Agent': federationUserAgent() },
     timeoutMs: 15000,
   });
   if (!response.ok) {
@@ -2769,10 +2830,10 @@ async function importOutboxItem(
     }
 
     // Outboxes contain Create wrappers or bare objects.
-    const note = activityType === 'Create' ? item.object : item;
+    const note = asNoteObject(activityType === 'Create' ? item.object : item);
 
     // Question is a poll and is kept.
-    if (!note || (note.type !== 'Note' && note.type !== 'Article' && note.type !== 'Question')) {
+    if (!note || !isPostObjectType(note.type)) {
       return { saved: false };
     }
     if (!sameOrigin(note.id, outboxUrl)) {
@@ -2809,6 +2870,8 @@ async function importOutboxItem(
     if (note.type === 'Question') {
       Object.assign(metadata, questionPollMetadata(note));
     }
+    const context = noteContext(note);
+    if (context) metadata.ap_context = context;
 
     const quoteUrl = noteQuoteUrl(note);
     if (quoteUrl) {
@@ -2837,9 +2900,11 @@ async function importOutboxItem(
       }
     }
 
+    const language = objectLanguage(note);
     const postData: any = {
       ap_id: note.id,
       ap_type: note.type,
+      ...(language ? { language } : {}),
       author_id: authorId,
       content,
       visibility,
@@ -2941,7 +3006,7 @@ export async function syncFeaturedCollection(
     const objectId = linkUrl(item);
     if (!objectId || !sameOrigin(objectId, actorUrl)) continue;
     // An embedded object is authoritative when served by its own host.
-    const embedded = typeof item === 'object' && ['Note', 'Article', 'Question'].includes(item.type)
+    const embedded = typeof item === 'object' && isPostObjectType(item.type)
       && sameOrigin(objectId, servedFrom);
     const stored = embedded
       ? await ActivityProcessor.storeRemotePost(item)

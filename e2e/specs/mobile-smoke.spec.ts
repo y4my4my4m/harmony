@@ -107,3 +107,21 @@ test('a reply on a phone keeps the post visibility and mentions its author', asy
     .poll(async () => (await page.locator('[data-testid="compose-post"] .rich-text-editor').last().innerText()).replace(/ /g, ' '))
     .toBe(`@${author.username} `)
 })
+
+test('sending on a phone keeps the keyboard up: the composer keeps focus after Send', async ({ page }) => {
+  test.setTimeout(90_000)
+  await signIn(page, me)
+  await page.goto(`/chat/${server.id}/${server.generalChannelId}`)
+  await dismissAnnouncements(page)
+  await expect(list(page)).toBeVisible({ timeout: 30000 })
+
+  for (const text of ['first from the phone', 'second without reopening the keyboard']) {
+    await editor(page).tap()
+    await page.keyboard.type(text)
+    await page.getByTestId('message-send-btn').tap()
+    await expect(list(page).locator('.message-item').filter({ hasText: text })).toBeVisible({ timeout: 15000 })
+    // The soft keyboard stays up while the field it types into keeps focus, as in Discord.
+    await expect(editor(page)).toBeFocused()
+  }
+})
+

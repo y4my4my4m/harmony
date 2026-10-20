@@ -120,6 +120,25 @@
           @keydown.space.prevent="toggleEncryptOnCreate"
         />
       </div>
+      <div v-if="channelType === 1" class="encryption-option" data-testid="create-voice-encryption">
+        <div class="encryption-option-text">
+          <span class="section-label">{{ $t('channelEncryption.create.voiceLabel') }}</span>
+          <span class="encryption-option-hint">
+            {{ voiceEncryptionRequired ? $t('channelEncryption.settings.voiceRequired') : $t('channelEncryption.create.voiceHint') }}
+          </span>
+        </div>
+        <ToggleSwitch
+          :model-value="encryptVoiceOnCreate"
+          :disabled="voiceEncryptionRequired"
+          :class="{ disabled: voiceEncryptionRequired }"
+          :label="$t('channelEncryption.create.voiceLabel')"
+          :aria-disabled="voiceEncryptionRequired"
+          :tabindex="voiceEncryptionRequired ? -1 : 0"
+          @change="(value: boolean) => { encryptVoiceOnCreate = value }"
+          @keydown.enter.prevent="toggleEncryptVoiceOnCreate"
+          @keydown.space.prevent="toggleEncryptVoiceOnCreate"
+        />
+      </div>
       <div v-if="encryptOnCreate && botCount > 0" class="encryption-warning" role="note">
         <Icon name="alert-triangle" :size="14" />
         <span>{{ $t('channelEncryption.create.integrationWarning') }}</span>
@@ -165,10 +184,16 @@ import Icon from '@/components/common/Icon.vue'
 import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
 import { supabase } from '@/supabase'
 import { useToast } from 'vue-toastification'
-import { setChannelEncryption } from '@/services/ChannelEncryptionService'
+import { setChannelEncryption, type ChannelEncryptionChange } from '@/services/ChannelEncryptionService'
 import { roleService, type ServerRole } from '@/services/RoleService'
 import { useServerChannelStore } from '@/stores/useServerChannel'
-import { isRequiredMode, normalizeServerMode, type ServerEncryptionMode } from '@/utils/channelEncryption'
+import {
+  isRequiredMode,
+  normalizeServerMode,
+  normalizeVoiceMode,
+  type ServerEncryptionMode,
+  type VoiceEncryptionMode,
+} from '@/utils/channelEncryption'
 import { formatChannelNameInput, finalizeChannelName } from '@/utils/channelName'
 import { uid } from '@/utils/a11y/focus'
 
@@ -214,8 +239,17 @@ const encryptOnCreate = ref(false)
 const botCount = ref(0)
 const encryptionRequired = computed(() => isRequiredMode(encryptionPolicy.value))
 
+// Voice channels: 'required' fixes voice on; otherwise the channel decides.
+const voiceEncryptionMode = ref<VoiceEncryptionMode>('disabled')
+const encryptVoiceOnCreate = ref(false)
+const voiceEncryptionRequired = computed(() => voiceEncryptionMode.value === 'required')
+
 const toggleEncryptOnCreate = () => {
   if (!encryptionRequired.value) encryptOnCreate.value = !encryptOnCreate.value
+}
+
+const toggleEncryptVoiceOnCreate = () => {
+  if (!voiceEncryptionRequired.value) encryptVoiceOnCreate.value = !encryptVoiceOnCreate.value
 }
 
 const loadEncryptionPolicy = async () => {
@@ -223,7 +257,7 @@ const loadEncryptionPolicy = async () => {
   const [{ data: policy }, { count }] = await Promise.all([
     supabase
       .from('server_encryption_settings')
-      .select('encryption_mode')
+      .select('encryption_mode, voice_encryption_mode')
       .eq('server_id', props.serverId)
       .maybeSingle(),
     supabase
@@ -234,6 +268,8 @@ const loadEncryptionPolicy = async () => {
   ])
   encryptionPolicy.value = normalizeServerMode(policy?.encryption_mode)
   encryptOnCreate.value = isRequiredMode(encryptionPolicy.value)
+  voiceEncryptionMode.value = normalizeVoiceMode(policy?.voice_encryption_mode)
+  encryptVoiceOnCreate.value = voiceEncryptionRequired.value
   botCount.value = count || 0
 }
 const channelNameError = ref('')
@@ -378,10 +414,16 @@ const createChannel = async () => {
 
     if (error) throw error
 
-    // A new channel starts at the server floor; 'optional' starts off.
-    if (encryptOnCreate.value && encryptionPolicy.value === 'optional') {
+    // A new channel starts at the server floor: messages off under 'optional', voice off unless
+    // the server requires it.
+    const encryption: ChannelEncryptionChange = {}
+    if (encryptOnCreate.value && encryptionPolicy.value === 'optional') encryption.messagesEncrypted = true
+    if (channelType.value === 1 && encryptVoiceOnCreate.value && !voiceEncryptionRequired.value) {
+      encryption.voiceEncrypted = true
+    }
+    if (Object.keys(encryption).length > 0) {
       try {
-        await setChannelEncryption(data.id, { messagesEncrypted: true })
+        await setChannelEncryption(data.id, encryption)
       } catch (encryptionError: any) {
         debug.error('Error turning on channel encryption:', encryptionError)
         toast.error(t('channelEncryption.create.failed'))
@@ -406,6 +448,7 @@ const closeForm = () => {
   isPrivate.value = false
   allowedRoleIds.value = []
   encryptOnCreate.value = isRequiredMode(encryptionPolicy.value)
+  encryptVoiceOnCreate.value = voiceEncryptionRequired.value
   emit('close')
 }
 </script>

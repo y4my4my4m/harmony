@@ -458,7 +458,7 @@ async function handleNewFollow(follow: any): Promise<void> {
 
     // Imported inside the function; module-level import is circular.
     const { createFollowActivity } = await import('./FederationHandlers.js');
-    const activity = createFollowActivity(follower, following);
+    const activity = createFollowActivity(follower, following, follow.id);
 
     if (following.inbox_url) {
       await DeliveryQueue.sendToInbox(following.inbox_url, activity, follower.id);

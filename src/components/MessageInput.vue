@@ -235,6 +235,7 @@
           <Transition name="composer-send">
             <button
               v-if="isMobile && hasContent"
+              @mousedown.prevent
               @click.stop="send"
               class="icon-button send-button"
               :aria-label="$t('common.send')"

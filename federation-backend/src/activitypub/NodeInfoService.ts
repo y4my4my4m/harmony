@@ -33,12 +33,20 @@ async function activeUsersSince(supabase: any, since: Date): Promise<number> {
   return Number(data) || 0;
 }
 
-/** usage of NodeInfo 2.0 and 2.1, computed at most once per USAGE_TTL_MS. */
+/**
+ * usage of NodeInfo 2.0 and 2.1, computed at most once per USAGE_TTL_MS. users.total counts
+ * the accounts nodeinfo_active_users can count: local, signed up (bots have no auth user),
+ * not suspended, not deleted.
+ */
 export async function nodeInfoUsage(supabase: any, now = Date.now()): Promise<NodeInfoUsage> {
   if (usageCache && now - usageCache.at < USAGE_TTL_MS) return usageCache.usage;
 
   const [{ count: userCount }, { count: postCount }, activeMonth, activeHalfyear] = await Promise.all([
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_local', true),
+    supabase.from('profiles').select('*', { count: 'exact', head: true })
+      .eq('is_local', true)
+      .not('auth_user_id', 'is', null)
+      .not('is_suspended', 'is', true)
+      .is('deleted_at', null),
     supabase.from('posts').select('*', { count: 'exact', head: true }).eq('is_local', true),
     activeUsersSince(supabase, new Date(now - ACTIVE_MONTH_DAYS * DAY_MS)),
     activeUsersSince(supabase, new Date(now - ACTIVE_HALFYEAR_DAYS * DAY_MS)),
@@ -173,6 +181,7 @@ router.get(
         name: 'harmony',
         version: config.VERSION,
         repository: 'https://github.com/y4my4my4m/harmony',
+        homepage: 'https://mony.lol',
       },
       protocols: ['activitypub'],
       services: {

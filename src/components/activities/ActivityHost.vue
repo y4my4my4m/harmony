@@ -9,12 +9,17 @@
   layer, .persistent-voice) and paints after it in tree order (App.vue mounts it next). Panels
   and pickers teleported above that layer cover the player as they cover the call.
 
+  A slot in the call pop-out window takes the player into that window's activity container
+  (components/voice/callPopout.ts). A frame reloads on a move between documents; the relay
+  page then reports host-ready and the item loads again at the synced position.
+
   Sync: every TICK_MS the player is brought to the position the row implies at database time
   (position_ms + (now + offset - position_at) * rate). Files drift back through playbackRate
   (±MAX_NUDGE) and seek beyond SEEK_DRIFT_MS; embedded players only seek, past
   EMBED_SEEK_DRIFT_MS and at most once per EMBED_SEEK_COOLDOWN_MS.
 -->
 <template>
+  <Teleport :to="callPopout.activity ?? 'body'" :disabled="!slotInPopout || !callPopout.activity">
   <div
     v-if="active"
     class="activity-host"
@@ -93,6 +98,7 @@
       </button>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -106,6 +112,7 @@ import { isListenActivity } from '@/services/activities/activityService'
 import { mediaPartSource } from '@/services/privateMedia'
 import { embedRelayOrigin, EMBED_RELAY_PATH } from '@/utils/embedDetection'
 import { suspendGlass } from '@/composables/useVisualTheme'
+import { callPopout } from '@/components/voice/callPopout'
 
 const TICK_MS = 250
 const SEEK_DRIFT_MS = 1500
@@ -122,9 +129,12 @@ const mediaEl = ref<HTMLMediaElement | null>(null)
 const frameEl = ref<HTMLIFrameElement | null>(null)
 const rect = ref<{ left: number; top: number; width: number; height: number } | null>(null)
 const layer = ref<number | null>(null)
+const slotInPopout = ref(false)
 let layerFor: Element | null = null
 let tickTimer: ReturnType<typeof setInterval> | null = null
 let rafId = 0
+// Frames of the window that shows the slot: a hidden main window runs none.
+let rafView: Window = window
 let lastEmbedSeek = 0
 let embedReady = false
 let embedLoadedFor = ''
@@ -173,17 +183,29 @@ const boxStyle = computed(() => {
 /** z-index of the outermost positioned ancestor with one; null when none sets it. */
 function rootLayer(el: Element): number | null {
   let z: number | null = null
-  for (let n: Element | null = el; n && n !== document.body; n = n.parentElement) {
+  for (let n: Element | null = el; n && n !== el.ownerDocument.body; n = n.parentElement) {
     const s = getComputedStyle(n)
     if (s.position !== 'static' && s.zIndex !== 'auto') z = Number(s.zIndex) || 0
   }
   return z
 }
 
+function stopTracking(): void {
+  try {
+    rafView.cancelAnimationFrame(rafId)
+  } catch {
+    // The pop-out window that ran the frame has closed.
+  }
+  rafView = window
+}
+
 function trackSlot(): void {
-  cancelAnimationFrame(rafId)
+  stopTracking()
   const follow = () => {
     const el = actStore.slot
+    const shown = !!el && el.isConnected
+    slotInPopout.value = shown && el!.ownerDocument !== document
+    rafView = (shown && el!.ownerDocument.defaultView) || window
     if (el && el.isConnected) {
       if (el !== layerFor) {
         layerFor = el
@@ -197,10 +219,19 @@ function trackSlot(): void {
     } else if (rect.value) {
       rect.value = null
     }
-    rafId = requestAnimationFrame(follow)
+    rafId = rafView.requestAnimationFrame(follow)
   }
-  rafId = requestAnimationFrame(follow)
+  rafId = rafView.requestAnimationFrame(follow)
 }
+
+// The frame loop restarts in the main window when the pop-out opens or closes.
+watch(() => callPopout.generation, () => trackSlot())
+
+// The frame's parent is the pop-out window while the player is there.
+watch(() => callPopout.window, (win, previous) => {
+  previous?.removeEventListener('message', onMessage)
+  win?.addEventListener('message', onMessage)
+}, { immediate: true })
 
 function openStage(): void {
   voice.isOverlayVisible = true
@@ -347,8 +378,9 @@ watch(showsVideo, (on) => suspendGlass('activity-video', on), { immediate: true 
 onBeforeUnmount(() => {
   suspendGlass('activity-video', false)
   window.removeEventListener('message', onMessage)
+  callPopout.window?.removeEventListener('message', onMessage)
   if (tickTimer) clearInterval(tickTimer)
-  cancelAnimationFrame(rafId)
+  stopTracking()
 })
 </script>
 

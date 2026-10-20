@@ -24,6 +24,7 @@ import {
   getFullServerIconUrl,
   isDefaultServerIcon,
 } from '../utils/urlUtils.js';
+import { federationUserAgent } from '../utils/userAgent.js';
 
 const router = Router();
 
@@ -120,7 +121,7 @@ router.post(
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'User-Agent': `Harmony/${config.VERSION} (+https://${config.INSTANCE_DOMAIN})`,
+          'User-Agent': federationUserAgent(),
         },
       });
 
@@ -765,7 +766,7 @@ router.get(
       const response = await SignatureService.signedApFetch(fetchUrl, {
         headers: {
           'Accept': 'application/activity+json, application/json',
-          'User-Agent': `Harmony/${config.VERSION} (+https://${config.INSTANCE_DOMAIN})`,
+          'User-Agent': federationUserAgent(),
         },
         timeoutMs: 10000,
         signAs: requesterId,
@@ -1633,7 +1634,7 @@ export class ServerDiscoveryService {
       // BUGS.md H15: membersUrl is from remote AP response.
       const headers = {
         'Accept': 'application/activity+json, application/json',
-        'User-Agent': `Harmony/${config.VERSION} (+https://${config.INSTANCE_DOMAIN})`,
+        'User-Agent': federationUserAgent(),
       };
       const response = await SignatureService.signedApFetch(membersUrl + '?page=1', {
         headers,

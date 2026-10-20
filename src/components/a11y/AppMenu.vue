@@ -18,7 +18,7 @@
   ('escape' | 'tab' | 'outside' | 'dismiss').
 -->
 <template>
-  <Teleport to="body" :disabled="!teleport">
+  <Teleport :to="portalTarget" :disabled="!teleport">
     <div
       ref="menuEl"
       v-bind="$attrs"
@@ -38,6 +38,9 @@
 import { onMounted, ref } from 'vue'
 import { useMenu, type MenuCloseReason } from '@/composables/useMenu'
 import { styleRect, styleViewport } from '@/utils/appZoom'
+import { usePortalTarget } from '@/composables/usePortalTarget'
+
+const portalTarget = usePortalTarget()
 
 defineOptions({ inheritAttrs: false })
 
@@ -77,7 +80,7 @@ onMounted(() => {
   const el = menuEl.value
   if (!el || !props.teleport) return
   const r = styleRect(el)
-  const viewport = styleViewport()
+  const viewport = styleViewport(el)
   let x = props.x
   let y = props.y
   if (props.anchor) {

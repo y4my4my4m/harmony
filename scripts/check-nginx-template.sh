@@ -85,7 +85,7 @@ log "ActivityPub-only paths"
 STAMP=/users/fx_alice/quote_authorizations/00000000-0000-0000-0000-000000000002
 expect "$MASTODON" $STAMP "backend $STAMP"
 expect "$FIREFOX"  $STAMP "backend $STAMP"
-for c in likes shares replies; do
+for c in likes shares replies context; do
   expect "$MASTODON" /posts/00000000-0000-0000-0000-000000000001/$c "backend /posts/00000000-0000-0000-0000-000000000001/$c"
 done
 expect "$MASTODON" /messages/00000000-0000-0000-0000-000000000003 'backend /messages/00000000-0000-0000-0000-000000000003'
@@ -95,6 +95,11 @@ for p in $THREAD $THREAD/members "$THREAD/members?page=1" $THREADS "$THREADS?pag
   expect "$MASTODON" "$p" "backend $p"
 done
 expect "$FIREFOX" $THREAD "backend $THREAD"
+CREATE=/users/fx_alice/activities/00000000-0000-0000-0000-000000000006
+ANNOUNCE=/activities/00000000-0000-0000-0000-000000000007
+expect "$MASTODON" $CREATE "backend $CREATE"
+expect "$MASTODON" $ANNOUNCE "backend $ANNOUNCE"
+expect "$FIREFOX" /activities 'SPA'
 expect "$FIREFOX" /threads 'SPA'
 expect "$FIREFOX" /channels/00000000-0000-0000-0000-000000000005 'SPA'
 expect "$FIREFOX" $THREAD/messages 'SPA'
@@ -121,6 +126,13 @@ expect "$DISCORD" $POST 'backend /posts/00000000-0000-0000-0000-000000000001'
 expect "$FIREFOX" $POST 'SPA'
 expect "$DISCORD" /social/post/not-a-post-id 'SPA'
 
+PROFILE=/social/profile/fx_alice
+log "/social/profile/<name> routing"
+expect_accept "$AP_MASTODON"         $PROFILE 'backend /users/fx_alice'
+expect_accept 'application/ld+json'  $PROFILE 'backend /users/fx_alice'
+expect_accept 'text/html,*/*;q=0.8'  $PROFILE 'SPA'
+expect_accept "$AP_MASTODON"         /social/profile/fx_alice@remote.example 'SPA'
+
 # The SPA answer varies by User-Agent and keeps the server-level headers.
 headers="$(docker exec "$CONTAINER" wget -q -S -O /dev/null -U "$FIREFOX" http://127.0.0.1:8443/invite/ABCD1234 2>&1 || true)"
 for h in 'Vary: User-Agent' 'X-Frame-Options: SAMEORIGIN' 'X-Content-Type-Options: nosniff'; do
@@ -133,4 +145,4 @@ for h in 'Vary: User-Agent' 'X-Frame-Options: SAMEORIGIN' 'X-Content-Type-Option
 done
 
 [ "$FAILED" -eq 0 ] || { err "$FAILED routing check(s) failed"; exit 1; }
-log "dev/nginx-harmony.template.conf parses and routes /invite/<code>, /social/post/<id> and the ActivityPub-only paths"
+log "dev/nginx-harmony.template.conf parses and routes /invite/<code>, /social/post/<id>, /social/profile/<name> and the ActivityPub-only paths"

@@ -4,7 +4,7 @@ import { logger } from '../utils/logger.js';
 import { stripIncomingMediaPaths } from '../utils/privateMedia.js';
 import { mergeQuestionPoll, questionPollMetadata, withoutPollParts } from '../utils/polls.js';
 import { normalizeInboundMentions, actorHostname } from '../utils/mentionParts.js';
-import { actorToProfile, noteToContent, extractFollowData, extractLikeData, extractAnnounceData, extractDeleteData, extractMediaAttachments, normalizeActor, parseAlsoKnownAs, parseMovedTo, noteQuoteUrl, noteUrl } from './converters/fromActivityPub.js';
+import { actorToProfile, asNoteObject, isPostObjectType, objectLanguage, noteToContent, extractFollowData, extractLikeData, extractAnnounceData, extractDeleteData, extractMediaAttachments, normalizeActor, parseAlsoKnownAs, parseMovedTo, noteQuoteUrl, noteUrl, noteContext } from './converters/fromActivityPub.js';
 import { VoiceActivityHandler } from './VoiceActivityHandler.js';
 import { SignatureService } from './SignatureService.js';
 import config from '../config/index.js';
@@ -14,7 +14,9 @@ import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
 import { isFavouriteLike, isHeartReaction, storeFavourite } from '../utils/heartReaction.js';
 import { noteDocumentSoftware } from './instanceSoftware.js';
 import { confirmActorAcct, withCanonicalAcct } from './webfingerClient.js';
-import { fetchActorById, fetchAuthoritativeDocument, readApDocument, sameOrigin, urlHost, type FetchedDocument } from '../utils/apOrigin.js';
+import { fetchActorById, fetchAuthoritativeDocument, readApDocument, sameOrigin, sameUrl, urlHost, type FetchedDocument } from '../utils/apOrigin.js';
+import { boostedTopLevelPost, unwrapGroupAnnounce } from './groupAnnounce.js';
+import { storedPostVisibility } from './postAccess.js';
 import { noteEngagementColumns, refreshRemoteProfileCounts } from './remoteCounts.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { flagComment, flagObjectUris, parseLocalObjectUri } from './flag.js';
@@ -176,15 +178,16 @@ export class ActivityProcessor {
    */
   private static readonly MAX_REPLY_CHAIN_DEPTH = 10;
 
+  /** True for a suspended account, and for a remote account its own Delete removed. */
   private static async isActorSuspended(actorUrl: string): Promise<boolean> {
     const supabase = getSupabaseClient();
     const { data } = await supabase
       .from('profiles')
-      .select('is_suspended')
+      .select('is_suspended, is_local, deleted_at')
       .eq('federated_id', actorUrl)
       .maybeSingle();
-    
-    return data?.is_suspended === true;
+
+    return data?.is_suspended === true || (data?.is_local === false && !!data?.deleted_at);
   }
 
   /**
@@ -238,7 +241,7 @@ export class ActivityProcessor {
   static async processIncomingActivity(activity: any, options: { skipSpamGuard?: boolean } = {}): Promise<void> {
     const actorUrl = normalizeActor(activity.actor);
     if (actorUrl && await this.isActorSuspended(actorUrl)) {
-      logger.info(`Ignoring activity from suspended user: ${actorUrl}`);
+      logger.info(`Ignoring activity from suspended or deleted user: ${actorUrl}`);
       return;
     }
 
@@ -267,7 +270,10 @@ export class ActivityProcessor {
         await this.processLike(activity);
         break;
       case 'Announce':
-        if (relayedActivity(activity) && await this.processSharedInboxRelay(activity)) break;
+        if (relayedActivity(activity)) {
+          if (!(await this.processSharedInboxRelay(activity))) await this.processGroupAnnounce(activity);
+          break;
+        }
         await this.processAnnounce(activity);
         break;
       case 'Undo':
@@ -639,7 +645,7 @@ export class ActivityProcessor {
    * Create activity: post, DM, channel message, or poll.
    */
   private static async processCreate(activity: any, options: { skipSpamGuard?: boolean } = {}): Promise<void> {
-    const object = activity.object;
+    const object = asNoteObject(activity.object);
     const supabase = getSupabaseClient();
 
     logger.info(`processCreate: object.type=${object?.type}, id=${object?.id?.substring?.(0, 80)}`);
@@ -665,7 +671,7 @@ export class ActivityProcessor {
       return;
     }
 
-    if (object.type === 'Note' || object.type === 'Article') {
+    if (isPostObjectType(object.type)) {
       // Drop posts originating from this instance echoed back by a peer.
       const ownDomain = config.INSTANCE_DOMAIN;
       if (object.id && typeof object.id === 'string') {
@@ -774,6 +780,8 @@ export class ActivityProcessor {
         if (object.inReplyTo) {
           metadata.in_reply_to_ap_url = object.inReplyTo;
         }
+        const context = noteContext(object);
+        if (context) metadata.ap_context = context;
         // A quote whose post could not be read keeps its target, shown as a link; one whose
         // post is deleted or not public is a plain post.
         if (quoteUrl && !quoteWithheld) {
@@ -785,8 +793,11 @@ export class ActivityProcessor {
         }
 
         // `in_reply_to` is a UUID column holding the parent post id.
+        const language = objectLanguage(object);
         const postData: any = {
           ap_id: object.id,
+          ...(object.type !== 'Note' ? { ap_type: object.type } : {}),
+          ...(language ? { language } : {}),
           url: noteUrl(object),
           author_id: author.id,
           content,
@@ -1165,12 +1176,12 @@ export class ActivityProcessor {
   }
 
   /**
-   * Store a Note, Article or Question held as authoritative for its own id: fetched from
-   * that id, or embedded in a document served by its host. `checkedUrl` is a URL already
-   * looked up as absent. Refused when its host is blocked, or its author is on another host
-   * or suspended.
+   * Store a Note, Article, Page, Video or Question held as authoritative for its own id:
+   * fetched from that id, or embedded in a document served by its host. `checkedUrl` is a
+   * URL already looked up as absent. Refused when its host is blocked, or its author is on
+   * another host or suspended.
    */
-  public static async storeRemotePost(remoteObject: any, depth = 0, checkedUrl?: string): Promise<{
+  public static async storeRemotePost(fetchedObject: any, depth = 0, checkedUrl?: string): Promise<{
     id: string;
     in_reply_to: string | null;
     conversation_root_id: string | null;
@@ -1179,10 +1190,11 @@ export class ActivityProcessor {
 
     try {
       // Question is a poll and is kept.
-      if (remoteObject?.type !== 'Note' && remoteObject?.type !== 'Article' && remoteObject?.type !== 'Question') {
-        logger.warn(`Remote object is not a Note/Article/Question: ${remoteObject?.type}`);
+      if (!isPostObjectType(fetchedObject?.type)) {
+        logger.warn(`Remote object is not a post type: ${fetchedObject?.type}`);
         return null;
       }
+      const remoteObject = asNoteObject(fetchedObject);
       const isQuestion = remoteObject.type === 'Question';
 
       const apId = remoteObject.id;
@@ -1194,7 +1206,7 @@ export class ActivityProcessor {
       }
 
       // Deduplicate by the canonical AP id; it may differ from the fetched URL.
-      const apUrl = remoteObject.url || apId;
+      const apUrl = noteUrl(remoteObject) || apId;
       if (apId !== checkedUrl || apUrl !== checkedUrl) {
         const { data: existingByApId } = await supabase
           .from('posts')
@@ -1260,17 +1272,21 @@ export class ActivityProcessor {
       if (remoteObject.inReplyTo) {
         metadata.in_reply_to_ap_url = remoteObject.inReplyTo;
       }
+      const context = noteContext(remoteObject);
+      if (context) metadata.ap_context = context;
       const quoteUrl = noteQuoteUrl(remoteObject);
       if (quoteUrl) {
         metadata.is_quote = true;
         metadata.quote_ap_url = quoteUrl;
       }
 
+      const language = objectLanguage(remoteObject);
       const insertPost = () => supabase
         .from('posts')
         .insert({
           ap_id: apId,
-          ...(isQuestion ? { ap_type: 'Question' } : {}),
+          ...(remoteObject.type !== 'Note' ? { ap_type: remoteObject.type } : {}),
+          ...(language ? { language } : {}),
           url: apUrl,
           author_id: author.id,
           content,
@@ -1330,7 +1346,7 @@ export class ActivityProcessor {
 
       return newPost;
     } catch (error) {
-      logger.warn(`Error storing remote post ${remoteObject?.id}:`, error);
+      logger.warn(`Error storing remote post ${fetchedObject?.id}:`, error);
       return null;
     }
   }
@@ -1406,7 +1422,7 @@ export class ActivityProcessor {
       logger.info(`Updated profile: ${object.id}`);
     } else if (object.type === 'Note' && typeof object['harmony:serverId'] === 'string') {
       await this.processChannelMessageUpdate(activity, object);
-    } else if (object.type === 'Note' || object.type === 'Article') {
+    } else if (isPostObjectType(object.type) && object.type !== 'Question') {
       logger.info(`Processing post edit: ${object.id}`);
 
       // Existing post plus author actor URL (joined via profiles.federated_id),
@@ -1430,15 +1446,18 @@ export class ActivityProcessor {
         return;
       }
 
-      const content = noteToContent(object);
-      
+      const edited = asNoteObject(object);
+      const content = noteToContent(edited);
+      const language = objectLanguage(edited);
+
       const { error: updateError } = await supabase
         .from('posts')
         .update({
           content,
-          content_warning: object.summary || null,
-          is_sensitive: object.sensitive === true,
-          media_attachments: extractMediaAttachments(object.attachment),
+          content_warning: edited.summary || null,
+          is_sensitive: edited.sensitive === true,
+          media_attachments: extractMediaAttachments(edited.attachment),
+          ...(language ? { language } : {}),
           updated_at: new Date().toISOString(),
         })
         .eq('id', existingPost.id);
@@ -1542,6 +1561,11 @@ export class ActivityProcessor {
     const supabase = getSupabaseClient();
     const actorUrl = normalizeActor(activity.actor);
 
+    if (sameUrl(objectUrl, actorUrl)) {
+      await this.processActorDelete(actorUrl);
+      return;
+    }
+
     // Look up the post and check the deleting actor is the author. Post and
     // message are handled independently so a Delete targeting one does not
     // fail open on the other.
@@ -1598,6 +1622,45 @@ export class ActivityProcessor {
     if (postDeleted || messageDeleted) {
       logger.info(`Deleted object: ${objectUrl}`);
     }
+  }
+
+  /**
+   * Delete of an actor by itself: the remote account is marked deleted, follows in both
+   * directions go and its posts are soft-deleted. Mirrors Mastodon
+   * ActivityPub::Activity::Delete#delete_person, which removes the account's statuses and
+   * follows. A follow of it from a local account is marked rejected before its removal, so
+   * no Undo is sent to the gone actor. A local account is never touched.
+   */
+  private static async processActorDelete(actorUrl: string): Promise<void> {
+    const supabase = getSupabaseClient();
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, is_local, deleted_at')
+      .eq('federated_id', actorUrl)
+      .maybeSingle();
+    if (!profile || profile.is_local !== false) {
+      logger.info(`Delete of actor ${actorUrl}: no remote account stored`);
+      return;
+    }
+
+    const now = new Date().toISOString();
+    if (!profile.deleted_at) {
+      await supabase.from('profiles').update({ deleted_at: now }).eq('id', profile.id);
+    }
+    await supabase
+      .from('follows')
+      .update({ status: 'rejected', accepted_at: null })
+      .eq('following_id', profile.id);
+    await supabase.from('follows').delete().eq('following_id', profile.id);
+    await supabase.from('follows').delete().eq('follower_id', profile.id);
+    const { error: postsError } = await supabase
+      .from('posts')
+      .update({ is_deleted: true, deleted_at: now })
+      .eq('author_id', profile.id)
+      .eq('is_deleted', false);
+    if (postsError) logger.warn(`Delete of actor ${actorUrl}: posts not deleted: ${postsError.message}`);
+
+    logger.info(`Deleted remote account ${actorUrl}`);
   }
 
   /**
@@ -2003,6 +2066,21 @@ export class ActivityProcessor {
     
     if (existingReblog) {
       logger.info(`Reblog already exists: ${activity.id}`);
+      return;
+    }
+
+    // One boost per account and post: a Lemmy community announces a new post twice, as
+    // Announce{Create{Page}} and as Announce{Page}.
+    const { data: existingBoost } = await supabase
+      .from('post_interactions')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('post_id', originalPost.id)
+      .eq('interaction_type', 'reblog')
+      .maybeSingle();
+
+    if (existingBoost) {
+      logger.info(`${actorUrl} already boosted ${originalPost.id}; ${activity.id} adds nothing`);
       return;
     }
 
@@ -2488,6 +2566,7 @@ export class ActivityProcessor {
 
     const content = noteToContent(object);
     const visibility = this.determineVisibility(object);
+    const context = noteContext(object);
 
     // A repeated Create refreshes the poll keys; the post's other metadata stays.
     const { data: existingPoll } = await supabase
@@ -2521,7 +2600,7 @@ export class ActivityProcessor {
         content_warning: object.summary || null,
         is_sensitive: object.sensitive === true,
         media_attachments: extractMediaAttachments(object.attachment),
-        metadata: questionPollMetadata(object),
+        metadata: { ...questionPollMetadata(object), ...(context ? { ap_context: context } : {}) },
         ...noteEngagementColumns(object),
       });
 
@@ -3712,6 +3791,64 @@ export class ActivityProcessor {
       enrichMessageLinkPreviews(insertedMsg).catch(err =>
         logger.warn('Link preview enrichment failed for federated channel message:', err)
       );
+    }
+  }
+
+  /** A Group's FEP-1b12 relay of a member's activity, from a Group that is no Harmony server (groupAnnounce.ts). */
+  private static async processGroupAnnounce(announce: any): Promise<void> {
+    const groupUrl = normalizeActor(announce.actor);
+    const group = await this.ensureRemoteUser(groupUrl);
+    if (!group?.id) {
+      logDenied('Group Announce', groupUrl, 'the Group could not be resolved');
+      return;
+    }
+    const { data: followers } = await getSupabaseClient()
+      .from('follows')
+      .select('id, follower:profiles!follows_follower_id_fkey!inner(is_local)')
+      .eq('following_id', group.id)
+      .eq('status', 'accepted')
+      .eq('follower.is_local', true)
+      .limit(1);
+    if (!followers?.length) {
+      logDenied('Group Announce', groupUrl, 'no local account follows the Group');
+      return;
+    }
+
+    const outcome = await unwrapGroupAnnounce(announce, groupUrl, {
+      fetchDoc: (url, onStatus) => this.fetchApDocument(url, onStatus),
+      storedPostVisibility,
+      isBlockedHost: (host) => BlockedInstancesCache.isBlocked(host),
+    });
+    if ('ignored' in outcome) {
+      logger.info(`Group Announce from ${groupUrl}: ${outcome.ignored}`);
+      return;
+    }
+    if ('refused' in outcome) {
+      logDenied('Group Announce', groupUrl, outcome.refused);
+      return;
+    }
+
+    const activity = outcome.activity;
+    const actorUrl = normalizeActor(activity.actor);
+    if (await this.isActorSuspended(actorUrl)) {
+      logDenied('Group Announce', groupUrl, `${actorUrl} is suspended`);
+      return;
+    }
+    // Channel messages travel in Harmony relays, direct posts to their recipients only.
+    const object = activity.type === 'Delete' ? null : asNoteObject(activity.object);
+    if (object && isPostObjectType(object.type)
+        && (object['harmony:serverId'] || ['direct', 'private'].includes(this.determineVisibility(object)))) {
+      logDenied('Group Announce', groupUrl, `${object.id} is a channel message or a direct post`);
+      return;
+    }
+    logger.info(`Group ${groupUrl} relays ${activity.type} of ${actorUrl}`);
+    if (activity.type === 'Create') await this.processCreate(activity);
+    else if (activity.type === 'Update') await this.processUpdate(activity);
+    else await this.processDelete(activity);
+
+    const boosted = boostedTopLevelPost(activity);
+    if (boosted) {
+      await this.processAnnounce({ id: announce.id, type: 'Announce', actor: groupUrl, object: boosted, published: announce.published });
     }
   }
 

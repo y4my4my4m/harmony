@@ -16,7 +16,7 @@ import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { isActivityPubContentType, sameOrigin, urlHost } from '../utils/apOrigin.js';
 import { logger } from '../utils/logger.js';
 import { isHeartReaction } from '../utils/heartReaction.js';
-import config from '../config/index.js';
+import { federationUserAgent } from '../utils/userAgent.js';
 
 /** Largest value of the integer columns the figures are stored in. */
 const MAX_COUNT = 2_147_483_647;
@@ -108,7 +108,7 @@ export type SignedGet = (url: string, timeoutMs: number) => Promise<Response>;
 const signedGet: SignedGet = (url, timeoutMs) => SignatureService.signedApFetch(url, {
   headers: {
     'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
-    'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`,
+    'User-Agent': federationUserAgent(),
   },
   timeoutMs,
 });

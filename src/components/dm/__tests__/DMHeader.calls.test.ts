@@ -134,6 +134,8 @@ vi.mock('vue-router', async (importOriginal) => ({
 vi.mock('@/services/encryption/MegolmMessageEncryptionService', () => ({
   megolmMessageEncryptionService: { isUnlocked: () => false },
 }))
+const gate = vi.hoisted(() => ({ ensureCanJoinCall: vi.fn(async (_serverId: string, _room: string) => true) }))
+vi.mock('@/services/voice/voiceEncryptionGate', () => gate)
 const stub = vi.hoisted(() => (name: string) => ({ default: { name, render: () => null } }))
 vi.mock('@/components/common/Avatar.vue', () => stub('Avatar'))
 vi.mock('@/components/common/Icon.vue', () => stub('Icon'))
@@ -185,6 +187,7 @@ beforeEach(() => {
   Object.values(toast).forEach((fn) => fn.mockClear())
   permissions.canPlaceCall.mockReset().mockResolvedValue({ allowed: true })
   callSwitch.leaveCurrentCallFor.mockReset().mockResolvedValue(true)
+  gate.ensureCanJoinCall.mockReset().mockResolvedValue(true)
   join.release = null
   join.aborted = false
   const voice = useUnifiedVoiceChannelStore() as any
@@ -224,6 +227,21 @@ describe('DMHeader outgoing call', () => {
     expect(useUnifiedVoiceChannelStore().joinVoiceChannel).not.toHaveBeenCalled()
     expect(rt.rpc).not.toHaveBeenCalledWith('ring_dm_call', expect.anything())
     expect(rang()).toBe(false)
+  })
+
+  it('an encrypted call this device cannot join rings no one and keeps the current call', async () => {
+    gate.ensureCanJoinCall.mockResolvedValue(false)
+    const header = mountHeader()
+    await settle()
+    await header.find('.voice-btn').trigger('click')
+    await settle()
+
+    expect(gate.ensureCanJoinCall).toHaveBeenCalledWith('dm', `dm-${CONV}`)
+    expect(callSwitch.leaveCurrentCallFor).not.toHaveBeenCalled()
+    expect(useUnifiedVoiceChannelStore().joinVoiceChannel).not.toHaveBeenCalled()
+    expect(rt.rpc).not.toHaveBeenCalledWith('start_dm_call_message', expect.anything())
+    expect(rang()).toBe(false)
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('a refused call never asks to switch calls or leaves the current channel', async () => {

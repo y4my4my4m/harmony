@@ -11,6 +11,8 @@
  * capture track is published untouched: no resampling, no added latency.
  * The output track object survives source swaps (device change, processing
  * change), so the RTCRtpSender, and any E2EE transform on it, never changes.
+ *
+ * The same GainNode carries the voice activity gate: closed, it ramps to 0.
  */
 
 import { debug } from '@/utils/debug';
@@ -22,6 +24,9 @@ export const INPUT_VOLUME_UNITY = 100;
 
 // setTargetAtTime time constant, seconds: tracks a dragged slider without zipper noise.
 const GAIN_SMOOTHING_S = 0.02;
+// Gate time constants, seconds: opens within a few ms so onsets survive, closes over ~150 ms.
+const GATE_OPEN_S = 0.003;
+const GATE_CLOSE_S = 0.05;
 
 // A suspended context yields silence; resume() stays pending without a user
 // activation, so the wait is bounded.
@@ -84,6 +89,7 @@ export class MicGainStage {
   private dest: MediaStreamAudioDestinationNode | null = null;
   private input: MediaStreamTrack | null = null;
   private gainValue = 1;
+  private gateOpen = true;
   private destroyed = false;
   private readonly getContext: () => AudioContext | null;
   private readonly resume: () => Promise<boolean>;
@@ -109,10 +115,25 @@ export class MicGainStage {
     return this.input;
   }
 
+  get isGateOpen(): boolean {
+    return this.gateOpen;
+  }
+
   setGain(value: number): void {
     this.gainValue = Math.max(0, value);
+    this.applyGain(GAIN_SMOOTHING_S);
+  }
+
+  /** Voice activity gate; open passes the signal at the set gain, closed sends silence. */
+  setGateOpen(open: boolean): void {
+    if (this.gateOpen === open) return;
+    this.gateOpen = open;
+    this.applyGain(open ? GATE_OPEN_S : GATE_CLOSE_S);
+  }
+
+  private applyGain(timeConstant: number): void {
     if (this.gainNode && this.ctx) {
-      this.gainNode.gain.setTargetAtTime(this.gainValue, this.ctx.currentTime, GAIN_SMOOTHING_S);
+      this.gainNode.gain.setTargetAtTime(this.gateOpen ? this.gainValue : 0, this.ctx.currentTime, timeConstant);
     }
   }
 
@@ -137,7 +158,7 @@ export class MicGainStage {
     if (!this.dest || !this.gainNode) {
       this.ctx = ctx;
       this.gainNode = ctx.createGain();
-      this.gainNode.gain.value = this.gainValue;
+      this.gainNode.gain.value = this.gateOpen ? this.gainValue : 0;
       this.gainNode.channelCount = 1;
       this.gainNode.channelCountMode = 'explicit';
       this.dest = ctx.createMediaStreamDestination();

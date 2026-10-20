@@ -65,7 +65,7 @@ export function calculatePopupPosition(
 
   const triggerRect = styleRect(triggerElement);
   const { width: popupWidth, height: popupHeight } = popupDimensions;
-  const { width: viewportWidth, height: viewportHeight } = styleViewport();
+  const { width: viewportWidth, height: viewportHeight } = styleViewport(triggerElement);
   
   const positions = {
     above: {

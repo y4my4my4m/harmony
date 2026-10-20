@@ -31,7 +31,7 @@ const activeModal = ref<'setup' | 'unlock' | null>(null)
 function handleAction(event: Event) {
   const detail = (event as CustomEvent<EncryptionActionDetail>).detail
   if (!detail) return
-  toast.error(detail.message)
+  if (detail.toast !== false) toast.error(detail.message)
   if (detail.reason === 'setup' || detail.reason === 'unlock') {
     activeModal.value = detail.reason
   }

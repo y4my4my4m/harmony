@@ -23,7 +23,7 @@
     />
     
     <!-- Encryption setup wizard (launched from status bar prompt) -->
-    <Teleport to="body">
+    <Teleport :to="portalTarget">
       <RecoveryKeySetupWizard
         v-if="showEncryptionSetupWizard"
         @close="showEncryptionSetupWizard = false"
@@ -31,7 +31,7 @@
       />
     </Teleport>
 
-    <Teleport to="body">
+    <Teleport :to="portalTarget">
       <KeyRecoveryModal
         v-if="showKeyRecoveryModal"
         @close="showKeyRecoveryModal = false"
@@ -164,7 +164,7 @@
     />
 
     <!-- File-drop overlay: full-viewport dim, below toasts, above chat content. -->
-    <Teleport to="body">
+    <Teleport :to="portalTarget">
       <div v-if="showDragDropArea" class="drag-drop-area">
         <div class="drag-drop-inner">
           <div v-if="uploading" class="upload-status">{{ t('chat.uploading') }}</div>
@@ -225,6 +225,9 @@ import { useFileDragOverlay } from '@/composables/useFileDragOverlay';
   import { useI18n } from 'vue-i18n';
   import { useToast } from 'vue-toastification';
   import { useAnnouncer } from '@/composables/useAnnouncer';
+  import { usePortalTarget } from '@/composables/usePortalTarget';
+
+  const portalTarget = usePortalTarget();
 
   interface Props {
     messages: Message[];

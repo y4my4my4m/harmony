@@ -499,7 +499,7 @@ describe('toActivityPub converters', () => {
     it('creates valid Follow activity', () => {
       const follower = { username: 'alice' }
       const following = { id: 'user-123', federated_id: 'https://mastodon.social/users/bob' }
-      const activity = createFollowActivity(follower, following)
+      const activity = createFollowActivity(follower, following, 'f0110000-0000-0000-0000-000000000001')
       expect(activity.type).toBe('Follow')
       expect(activity.actor).toBe('https://harmony.test/users/alice')
       expect(activity.object).toBe('https://mastodon.social/users/bob')
@@ -508,8 +508,17 @@ describe('toActivityPub converters', () => {
     it('falls back to internal ID when no federated_id', () => {
       const follower = { username: 'alice' }
       const following = { id: 'user-123' }
-      const activity = createFollowActivity(follower, following)
+      const activity = createFollowActivity(follower, following, 'f0110000-0000-0000-0000-000000000001')
       expect(activity.object).toBe('user-123')
+    })
+
+    it('names each follows row by its own id, so a re-follow is a new activity', () => {
+      const follower = { username: 'alice' }
+      const following = { id: 'user-123', federated_id: 'https://akkoma.test/users/bob' }
+      const first = createFollowActivity(follower, following, 'f0110000-0000-0000-0000-000000000001')
+      const again = createFollowActivity(follower, following, 'f0110000-0000-0000-0000-000000000002')
+      expect(first.id).toBe('https://harmony.test/activities/follow/f0110000-0000-0000-0000-000000000001')
+      expect(again.id).not.toBe(first.id)
     })
   })
 

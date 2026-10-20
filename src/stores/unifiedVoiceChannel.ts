@@ -7,6 +7,7 @@ import type { VideoSource, VoiceConnectionQuality } from '@/services/livekitWebR
 import { clampVolume, remoteAudioMixer, type RemoteAudioKind } from '@/services/voice/remoteAudioMixer';
 import { loadAudioPrefs as readAudioPrefs, saveMutes, saveVolumes } from '@/services/voice/voiceAudioPrefs';
 import { closeVoiceAudioContext } from '@/services/voice/voiceAudioContext';
+import { SPEAKING_LEVEL } from '@/services/voice/speakingDetector';
 import { liveReactions, liveReactionsAvailable } from '@/services/voice/liveReactions';
 import { voiceAnnouncer } from '@/services/voice/voiceAnnouncements';
 import { connectLiveReactions } from '@/services/voice/liveReactionBridge';
@@ -27,13 +28,16 @@ import { useNotificationStore } from '@/stores/useNotification';
 import { useUserData } from '@/composables/useUserData';
 import { useKeybinds } from '@/composables/useKeybinds';
 import { voiceE2EEService } from '@/services/encryption/VoiceE2EEService';
-import { fetchEffectiveChannelEncryption } from '@/services/ChannelEncryptionService';
+import { callRequiresE2EE, promptCallEncryptionSetup } from '@/services/voice/voiceEncryptionGate';
 import { supabase } from '@/supabase';
 import { userEventChannel } from '@/services/UserEventChannel';
 import { debug } from '@/utils/debug';
 import { userStorage } from '@/utils/userScopedStorage';
 import { grantsFromRolePermissions, type VoiceGrants } from '@/services/voice/voiceGrants';
 import { useVoiceModerationStore } from './voiceModeration';
+
+// Upper bound, ms, on waiting for DM call presence before the call counts as connected.
+const DM_PRESENCE_WAIT_MS = 5000;
 
 let voiceSessionHeartbeat: ReturnType<typeof setInterval> | null = null;
 
@@ -517,17 +521,15 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
     
     /**
-     * The channel's effective voice encryption (effective_channel_encryption
-     * voice_encrypted). DM calls (serverId === 'dm') have no channel policy
-     * and return false.
+     * Whether the room's calls are end-to-end encrypted (callRequiresE2EE): a
+     * voice channel's effective voice encryption, a local DM call's
+     * conversation encryption. A read failure answers false.
      */
     async resolveVoiceE2EERequired(serverId: string, channelId: string): Promise<boolean> {
-      if (!serverId || serverId === 'dm' || !channelId) return false;
       try {
-        const state = await fetchEffectiveChannelEncryption(channelId);
-        return state?.voiceEncrypted === true;
+        return await callRequiresE2EE(serverId, channelId);
       } catch (err) {
-        debug.warn('[VoiceChannel] Failed to read channel voice encryption:', err);
+        debug.warn('[VoiceChannel] Failed to read call encryption:', err);
         return false;
       }
     },
@@ -542,6 +544,17 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       const serverUsersStore = useServerUsersStore();
       const serverChannelStore = useServerChannelStore();
       
+      // Fail closed: a client that cannot encrypt is refused rather than
+      // joined into a plaintext call, before presence announces it. A token
+      // join never encrypts.
+      const requireE2EE = livekit ? false : await this.resolveVoiceE2EERequired(serverId, channelId);
+      if (requireE2EE && !voiceE2EEService.canParticipate()) {
+        const blocker = await voiceE2EEService.participationBlocker();
+        if (blocker) {
+          throw new Error(await promptCallEncryptionSetup(blocker, serverId === 'dm' ? 'dm' : 'channel', { toast: false }));
+        }
+      }
+      
       const presenceSuccess = await serverUsersStore.joinVoiceChannel(serverId, channelId, userId, true);
       if (!presenceSuccess) {
         throw new Error('Failed to update server presence');
@@ -555,20 +568,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.setupWebRTCListeners();
       
       const roomType = serverId === 'dm' ? 'dm_call' : 'voice_channel';
-      
-      // Fail closed: a client that cannot encrypt is refused rather than
-      // joined into a plaintext call.
-      const requireE2EE = await this.resolveVoiceE2EERequired(serverId, channelId);
-      if (requireE2EE && !voiceE2EEService.canParticipate()) {
-        await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
-        useNotificationStore().showToast(
-          'server_update',
-          'End-to-end encryption required',
-          'This channel requires encrypted voice. Set up encryption (and unlock it) to join.',
-          6000
-        );
-        throw new Error('Voice E2EE required but not available on this device');
-      }
       
       // Gate must be current before the mic publishes; a PTT join must not go out hot.
       this.syncTransmitGate();
@@ -633,11 +632,16 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             const profileId = await authContextService.getCurrentProfileId();
             if (profileId) {
               const activeCall = dmCallSignaling.getActiveCall(conversationId);
-              await dmCallSignaling.trackCallPresence(conversationId, {
-                callType: activeCall?.callType ?? 'voice',
-                isCaller: activeCall?.callerId === profileId,
-                systemMessageId: activeCall?.systemMessageId ?? null,
-              });
+              // Bounded: an unreachable realtime service would otherwise hold a connected
+              // call in "connecting". Tracking carries on in the background.
+              await Promise.race([
+                dmCallSignaling.trackCallPresence(conversationId, {
+                  callType: activeCall?.callType ?? 'voice',
+                  isCaller: activeCall?.callerId === profileId,
+                  systemMessageId: activeCall?.systemMessageId ?? null,
+                }),
+                new Promise<void>((resolve) => setTimeout(resolve, DM_PRESENCE_WAIT_MS)),
+              ]);
             }
           } catch (e) {
             debug.warn('Failed to track DM call presence:', e);
@@ -1752,9 +1756,18 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
 
         const wasSharing = this.localState.isScreenSharing;
         const hadVideo = this.localState.isVideoEnabled;
+        if (!this.isConnected) {
+          // Mute or deafen chosen while connecting is applied once the join completes;
+          // the transport's join-time state must not clear it first.
+          this.localState = {
+            ...state,
+            isMuted: state.isMuted || this.localState.isMuted,
+            isDeafened: state.isDeafened || this.localState.isDeafened,
+          };
+          return;
+        }
         this.localState = state;
 
-        if (!this.isConnected) return;
         const themeStore = useThemeStore();
         if (wasSharing !== state.isScreenSharing) {
           themeStore.playAudio(state.isScreenSharing ? 'screenshare_on' : 'screenshare_off');
@@ -1782,9 +1795,9 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
         }
       });
 
-      // Also drives the speaking indicator; threshold is level > 20.
+      // Also drives the speaking indicator: speakingDetector's contract, level > SPEAKING_LEVEL.
       webrtcManager.on('audio-level', (data: any) => {
-        const speaking = data.level > 20;
+        const speaking = data.level > SPEAKING_LEVEL;
         if (data.userId === this.localState.userId) {
           this.localState.audioLevel = data.level;
           if (speaking && !this.localState.isMuted) {
@@ -2173,6 +2186,7 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
      */
     syncTransmitGate(): void {
       const keybinds = useKeybinds();
+      webrtcManager.setVoiceActivityMode(!keybinds.isPTTMode.value);
       webrtcManager.setTransmitGate(!keybinds.isPTTMode.value || keybinds.isPTTActive.value);
     },
 

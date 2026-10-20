@@ -34,6 +34,11 @@ function setCssFactor(factor: number): void {
   cssFactorRef.value = factor
 }
 
+/** Native webview zoom (desktop): screen logical px per client px. 1 unless native zoom is on. */
+export function nativeZoomFactor(): number {
+  return appliedMode === 'native' ? appliedPercent / 100 : 1
+}
+
 /** Divisor from viewport pixels (client rects, innerWidth) to style pixels. 1 unless CSS zoom is on. */
 export function cssZoom(): number {
   return cssFactor
@@ -71,9 +76,10 @@ export function styleRect(el: Element): StyleRect {
   }
 }
 
-/** innerWidth/innerHeight in CSS pixels. */
-export function styleViewport(): { width: number; height: number } {
-  return { width: window.innerWidth / cssFactor, height: window.innerHeight / cssFactor }
+/** innerWidth/innerHeight in CSS pixels, of the window showing `within`, else of the main window. */
+export function styleViewport(within?: Node | null): { width: number; height: number } {
+  const view = within?.ownerDocument?.defaultView ?? window
+  return { width: view.innerWidth / cssFactor, height: view.innerHeight / cssFactor }
 }
 
 /** A pointer event's clientX/clientY in CSS pixels. */

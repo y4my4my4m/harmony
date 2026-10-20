@@ -27,6 +27,7 @@ import {
   type SeededServer,
   type SpecUser,
 } from './harness'
+import { setUpEncryption } from './encryption'
 
 const admin = adminClient()
 let owner: SpecUser
@@ -108,22 +109,6 @@ function expectOnlyTheInsert(window: Logged[]) {
   expect(inserts, describe(window)).toHaveLength(1)
   const beforeInsert = window.slice(0, window.indexOf(inserts[0])).filter((r) => !isReadMarker(r))
   expect(beforeInsert, describe(window)).toEqual([])
-}
-
-/**
- * Sets up end-to-end encryption for the signed-in user as the setup wizard does, through the
- * Megolm service module the app loaded (by the URL Vite served it under).
- */
-async function setUpEncryption(page: Page, user: SpecUser): Promise<void> {
-  await page.evaluate(async (authUserId) => {
-    const served = performance.getEntriesByType('resource').map((e) => e.name)
-      .find((name) => name.includes('/src/services/encryption/MegolmMessageEncryptionService.ts'))
-    const url = served ?? '/src/services/encryption/MegolmMessageEncryptionService.ts'
-    const service = (await import(/* @vite-ignore */ url)).megolmMessageEncryptionService as any
-    if (!service.isInitialized()) await service.initialize(authUserId)
-    await service.setupNewEncryption()
-    if (!service.isUnlocked()) throw new Error('encryption setup left the keys locked')
-  }, user.id)
 }
 
 test('a warm channel send issues the insert and nothing before it', async ({ page }) => {

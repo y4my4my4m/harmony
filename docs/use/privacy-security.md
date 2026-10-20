@@ -99,12 +99,12 @@ Encryption is set per channel, within limits the server owner chooses.
 | **Optional** | Channel managers turn encryption on per channel. New channels start unencrypted. |
 | **Required** | Every channel is encrypted and can't be turned off. |
 
-Only the server owner changes the mode, in **Server settings** → **Privacy settings** → **Server encryption policy**. The same page has **Require end-to-end encrypted voice and video** for every voice channel.
+Only the server owner changes the mode, in **Server settings** → **Privacy settings** → **Server encryption policy**. The same page sets **Voice & video encryption**: **Per channel**, where each voice channel decides whatever the message mode, or **Required for every voice channel**.
 
 In **Optional** mode, the server owner and anyone with **Manage Channels** can turn encryption on or off for a channel:
 
 1. Right-click the channel and choose **Edit channel**.
-2. On **General**, under **Encryption**, turn on **End-to-end encrypt messages**. Voice channels also have **End-to-end encrypt voice and video**.
+2. On **General**, under **Encryption**, turn on **End-to-end encrypt messages**. Voice channels also have **End-to-end encrypt voice and video**, available in every mode unless the server requires it.
 
 New channels can start encrypted with **End-to-end encryption** in the create channel dialog. Encryption applies to messages sent after it is turned on. Turning it off keeps earlier messages encrypted, sends new ones as plaintext, and posts a notice in the channel naming who turned it off. Encryption settings exist only for servers on your own instance.
 
@@ -118,6 +118,8 @@ For encrypted voice and video, see [Voice, video and calls](/use/voice-video#enc
 Any participant can switch it, once encryption is set up and unlocked on their device. Encrypted messages are not sent to other instances, so a person on another instance does not receive them; Harmony warns you before you enable it in such a conversation.
 
 Once a conversation is encrypted, Harmony refuses to store an unencrypted message in it. If your keys are locked or not set up, Harmony asks before sending one unencrypted.
+
+Calls in an encrypted conversation are end-to-end encrypted as well, except with people on another instance. See [Direct message calls](/use/voice-video#direct-message-calls).
 
 ### What is and isn't encrypted
 

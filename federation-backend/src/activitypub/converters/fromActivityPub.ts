@@ -1,5 +1,5 @@
 import { config } from '../../config/index.js';
-import { decodeHtmlEntities } from '../../utils/contentUtils.js';
+import { decodeHtmlEntities, escapeHtml } from '../../utils/contentUtils.js';
 import { findHandles } from '../../utils/mentionGrammar.js';
 import { parseFocalPoint } from '../../utils/focalPoint.js';
 
@@ -59,12 +59,122 @@ export function noteQuoteUrl(note: any): string | null {
   return null;
 }
 
+/** Long-form object types stored as posts: blog posts (Article), Lemmy, Mbin and PieFed posts (Page), PeerTube videos (Video). */
+const LONG_FORM_TYPES = new Set(['Article', 'Page', 'Video']);
+
+/** Object types an inbox Create or a fetch stores as a post. Question is a poll. */
+export function isPostObjectType(type: unknown): boolean {
+  return type === 'Note' || type === 'Question' || (typeof type === 'string' && LONG_FORM_TYPES.has(type));
+}
+
+const LANGUAGE_TAG = /^[a-z]{2,3}(?:-[a-z0-9]{1,8})*$/i;
+
+/** A BCP 47 tag, primary subtag lowercased; null for anything else. */
+function languageTag(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length > 35 || !LANGUAGE_TAG.test(value)) return null;
+  const [primary, ...rest] = value.split('-');
+  return [primary.toLowerCase(), ...rest].join('-');
+}
+
+/**
+ * Language of an object: the first BCP 47 key of `contentMap`, else `language` as a tag or
+ * as Lemmy's `{ identifier }`. `und` is no language.
+ */
+export function objectLanguage(object: any): string | null {
+  const map = object?.contentMap;
+  if (map && typeof map === 'object' && !Array.isArray(map)) {
+    for (const key of Object.keys(map)) {
+      const tag = languageTag(key);
+      if (tag && tag !== 'und') return tag;
+    }
+  }
+  const declared = typeof object?.language === 'string' ? object.language : object?.language?.identifier;
+  const tag = languageTag(declared);
+  return tag && tag !== 'und' ? tag : null;
+}
+
+/** `content`, else the contentMap entry of the object's language, else its first non-empty entry. */
+function contentOf(object: any): string {
+  if (typeof object?.content === 'string' && object.content) return object.content;
+  const map = object?.contentMap;
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return '';
+  const language = objectLanguage(object);
+  const keyed = language ? Object.entries(map).find(([key]) => languageTag(key) === language)?.[1] : undefined;
+  if (typeof keyed === 'string' && keyed) return keyed;
+  const first = Object.values(map).find((value) => typeof value === 'string' && value);
+  return typeof first === 'string' ? first : '';
+}
+
+/** Largest `icon` image of an object (PeerTube lists thumbnails by size); null without one. */
+function largestIcon(object: any): any | null {
+  const icons = (Array.isArray(object?.icon) ? object.icon : [object?.icon])
+    .filter((icon: any) => icon && typeof icon === 'object' && attachmentUrl(icon));
+  if (icons.length === 0) return null;
+  return icons.reduce((best: any, icon: any) => (Number(icon.width) || 0) > (Number(best.width) || 0) ? icon : best);
+}
+
+/**
+ * An object as the Note a post is built from. `content` falls back to `contentMap`. An
+ * Article, Page or Video leads with its `name` as a paragraph; a Page's Link attachments
+ * (a Lemmy link post) and a Video's page follow the body, and a Video's largest `icon` is
+ * its image attachment, with the title as alt text. On those types `summary` is an excerpt,
+ * kept as the content warning only with `sensitive: true`. `type` is kept. Objects of other
+ * types are returned as given.
+ */
+export function asNoteObject(object: any): any {
+  if (!object || typeof object !== 'object' || !isPostObjectType(object.type)) return object;
+  const content = contentOf(object);
+  if (!LONG_FORM_TYPES.has(object.type)) {
+    return !content || content === object.content ? object : { ...object, content };
+  }
+
+  const blocks: string[] = [];
+  if (typeof object.name === 'string' && object.name.trim()) blocks.push(`<p>${escapeHtml(object.name.trim())}</p>`);
+  // PeerTube marks its description text/markdown; it is shown as text.
+  const plain = object.mediaType === 'text/markdown' || object.mediaType === 'text/plain';
+  if (content) blocks.push(`<div>${plain ? escapeHtml(content).replace(/\r?\n/g, '<br>') : content}</div>`);
+  const links = new Set<string>();
+  if (object.type === 'Page') {
+    for (const item of attachmentList(object.attachment)) {
+      if (item.type === 'Link' && typeof item.href === 'string' && /^https?:\/\//i.test(item.href)) links.add(item.href);
+    }
+  }
+  if (object.type === 'Video') {
+    const page = noteUrl(object);
+    if (page) links.add(page);
+  }
+  for (const link of links) blocks.push(`<p>${escapeHtml(link)}</p>`);
+
+  const attachment = attachmentList(object.attachment).filter((item) => item.type !== 'Link');
+  const thumbnail = object.type === 'Video' ? largestIcon(object) : null;
+  if (thumbnail) {
+    attachment.push({
+      type: 'Image',
+      mediaType: typeof thumbnail.mediaType === 'string' ? thumbnail.mediaType : 'image/jpeg',
+      url: attachmentUrl(thumbnail),
+      name: typeof object.name === 'string' ? object.name.trim() : undefined,
+      width: thumbnail.width,
+      height: thumbnail.height,
+    });
+  }
+
+  const note = { ...object, content: blocks.join(''), attachment };
+  if (object.sensitive !== true) delete note.summary;
+  return note;
+}
+
 /** Human page of a Note: `url` as a string, a Link's href, or the first text/html entry of an array. */
 export function noteUrl(note: any): string | null {
   const url = note?.url;
   const candidates = Array.isArray(url) ? url : [url];
   const html = candidates.find((u: any) => u && typeof u === 'object' && u.mediaType === 'text/html') ?? candidates[0];
   const iri = iriOf(html);
+  return iri && /^https?:\/\//i.test(iri) ? iri : null;
+}
+
+/** FEP-7888 `context` of a Note, as a reference or an embedded collection's id; http(s) only. */
+export function noteContext(note: any): string | null {
+  const iri = iriOf(note?.context);
   return iri && /^https?:\/\//i.test(iri) ? iri : null;
 }
 

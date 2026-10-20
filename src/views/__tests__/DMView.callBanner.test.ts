@@ -64,6 +64,14 @@ vi.mock('vue-router', () => ({
   useRoute: () => ({ params: { conversationId: CONV }, query: {} }),
   useRouter: () => ({ push: vi.fn() }),
 }))
+vi.mock('@/components/voice/callChat', () => ({
+  useCallChat: () => ({ hosts: () => false }),
+  setCallChatOpen: vi.fn(),
+}))
+vi.mock('@/composables/chatPaging', async () => {
+  const { ref } = await import('vue')
+  return { conversationListLoading: ref(false), loadOlderConversationMessages: vi.fn(async () => {}) }
+})
 vi.mock('@/composables/useLayoutState', async () => {
   const { ref } = await import('vue')
   return {

@@ -469,9 +469,7 @@
       "forceKeySetupHint": "Einrichtungsassistent für Benutzer ohne Schlüssel anzeigen",
       "attachmentNote": "In verschlüsselten Kanälen werden Dateilinks, -namen und -typen mit der Nachricht verschlüsselt. Die Dateien selbst werden unverschlüsselt gespeichert.",
       "voiceTitle": "Sprach- und Videoverschlüsselung",
-      "voiceHint": "Anrufmedien Ende-zu-Ende verschlüsseln, damit der Medienserver nicht darauf zugreifen kann",
-      "voiceRequire": "Ende-zu-Ende-verschlüsselte Sprache und Video verlangen",
-      "voiceRequireHint": "Jeder Sprachkanal verschlüsselt Anrufe, bevor sie den Medienserver erreichen. Ohne diese Option entscheiden Kanalverwalter pro Sprachkanal.",
+      "voiceHint": "Anrufmedien Ende-zu-Ende verschlüsseln, damit der Medienserver nicht darauf zugreifen kann. Diese Einstellung hängt nicht vom Verschlüsselungsmodus für Nachrichten ab.",
       "voiceWarning": "Teilnehmende ohne eingerichtete Verschlüsselung (sowie föderierte oder ältere Clients) können verschlüsselten Anrufen nicht beitreten.",
       "statsTitle": "Serverstatistik",
       "statsTotal": "Mitglieder insgesamt",
@@ -497,7 +495,17 @@
       },
       "saved": "Verschlüsselungseinstellungen gespeichert",
       "loadFailed": "Einstellungen konnten nicht geladen werden",
-      "saveFailed": "Einstellungen konnten nicht gespeichert werden"
+      "saveFailed": "Einstellungen konnten nicht gespeichert werden",
+      "voiceModes": {
+        "disabled": {
+          "name": "Pro Kanal",
+          "description": "Kanalverwalter aktivieren die Verschlüsselung für jeden Sprachkanal. Neue Sprachkanäle starten unverschlüsselt."
+        },
+        "required": {
+          "name": "Für jeden Sprachkanal verlangt",
+          "description": "Jeder Sprachkanal verschlüsselt Anrufe, bevor sie den Medienserver erreichen, und Kanäle können das nicht ausschalten."
+        }
+      }
     },
     "roleManagement": {
       "intro": "Erstelle und verwalte Rollen für deinen Server. Ziehe sie, um die Rangfolge zu ändern, oder nutze Nach oben und Nach unten.",
@@ -1374,6 +1382,29 @@
       "youWereRemoved": "Du bist kein Mitglied dieses Servers mehr.",
       "youLostAccess": "Du hast keinen Zugriff mehr auf diesen Sprachkanal.",
       "youWereTimedOut": "Du wurdest auf diesem Server in ein Timeout geschickt."
+    },
+    "callChat": {
+      "toggle": "Chat",
+      "toggleUnread": "Chat, neue Nachrichten",
+      "region": "Chat von {name}",
+      "close": "Chat schließen",
+      "resize": "Chatbreite ändern",
+      "awayText": "Das Hauptfenster zeigt einen anderen Chat.",
+      "awayAction": "Chat des Anrufs anzeigen",
+      "elsewhereText": "Dieser Chat ist neben dem Anruf geöffnet.",
+      "elsewhereAction": "Chat hier anzeigen"
+    },
+    "popout": {
+      "open": "Anruf in eigenem Fenster öffnen",
+      "return": "Anruf in die App zurückholen",
+      "focus": "Anruffenster anzeigen",
+      "blocked": "Das Anruffenster konnte nicht geöffnet werden. Erlaube Pop-ups für diese Seite und versuche es erneut.",
+      "windowTitle": "Harmony — {name}"
+    },
+    "floatingDock": {
+      "float": "Über anderen Fenstern schweben lassen",
+      "backToApp": "Zurück in die App",
+      "dragHint": "Zum Verschieben ziehen. Auf Harmony ablegen, um es zurückzusetzen."
     }
   },
   "dm": {
@@ -1704,7 +1735,16 @@
       "audioSettings": "Audioeinstellungen",
       "selectMicrophone": "Mikrofon wählen",
       "selectSpeaker": "Lautsprecher wählen",
-      "selectCamera": "Kamera wählen"
+      "selectCamera": "Kamera wählen",
+      "inputSensitivity": "Eingabeempfindlichkeit",
+      "inputSensitivityDesc": "Sendet dein Mikrofon nur, während du sprichst, damit Tastatur- und Raumgeräusche nicht im Anruf landen.",
+      "inputSensitivityOff": "Immer senden",
+      "inputSensitivityAuto": "Automatisch",
+      "inputSensitivityManual": "Manuell",
+      "inputThreshold": "Schwellenwert",
+      "decibels": "{db} dB",
+      "inputMeterHint": "Der Balken wird grün, solange dein Mikrofon gesendet wird.",
+      "inputMeterIdle": "Tritt einem Sprachkanal bei, um hier deinen Pegel zu sehen."
     },
     "notifications": {
       "title": "Benachrichtigungen",
@@ -3676,7 +3716,15 @@
       "label": "Ende-zu-Ende-Verschlüsselung",
       "hint": "Nachrichten in diesem Kanal verschlüsseln, damit der Server sie nicht lesen kann.",
       "integrationWarning": "Bots und Bridges auf diesem Server können verschlüsselte Nachrichten nicht lesen und in diesem Kanal nicht posten.",
-      "failed": "Der Kanal wurde erstellt, aber die Verschlüsselung konnte nicht aktiviert werden. Aktiviere sie in den Kanaleinstellungen."
+      "failed": "Der Kanal wurde erstellt, aber die Verschlüsselung konnte nicht aktiviert werden. Aktiviere sie in den Kanaleinstellungen.",
+      "voiceLabel": "Sprache und Video verschlüsseln",
+      "voiceHint": "Anrufe in diesem Kanal verschlüsseln, bevor sie den Medienserver erreichen. Mitglieder brauchen eingerichtete Verschlüsselung, um beizutreten."
+    },
+    "voiceJoin": {
+      "setup": "Dieser Sprachkanal ist Ende-zu-Ende-verschlüsselt. Richte die Verschlüsselung ein, um beizutreten.",
+      "unlock": "Dieser Sprachkanal ist Ende-zu-Ende-verschlüsselt. Entsperre die Verschlüsselung mit deinem Wiederherstellungsschlüssel, um beizutreten.",
+      "dmSetup": "Anrufe in dieser Unterhaltung sind Ende-zu-Ende-verschlüsselt. Richte die Verschlüsselung ein, um anzurufen oder Anrufe anzunehmen.",
+      "dmUnlock": "Anrufe in dieser Unterhaltung sind Ende-zu-Ende-verschlüsselt. Entsperre die Verschlüsselung mit deinem Wiederherstellungsschlüssel, um anzurufen oder Anrufe anzunehmen."
     }
   },
   "today": {
@@ -5987,12 +6035,15 @@
       "createFailed": "Die Umfrage wurde nicht gepostet.",
       "voteFailed": "Deine Stimme wurde nicht gespeichert.",
       "closed": "Diese Umfrage ist beendet.",
-      "endFailed": "Die Umfrage konnte nicht beendet werden."
+      "endFailed": "Die Umfrage konnte nicht beendet werden.",
+      "alreadyVoted": "Du hast bei dieser Umfrage bereits abgestimmt."
     },
     "remote": {
       "voters": "{count} Person hat abgestimmt | {count} Personen haben abgestimmt",
       "voteOnOriginal": "Im Originalbeitrag abstimmen",
-      "label": "Umfrage"
+      "label": "Umfrage",
+      "vote": "Abstimmen",
+      "yourAnswer": "deine Antwort"
     }
   },
   "serverTemplate": {
@@ -6702,5 +6753,15 @@
     "tierSupporter": "{tier}-Unterstützer",
     "active": "Aktiv",
     "history": "Dein Unterstützungsverlauf"
+  },
+  "authorizeInteraction": {
+    "title": "Externe Interaktion",
+    "resolving": "{uri} wird gesucht…",
+    "notFound": "Unter dieser Adresse wurde nichts gefunden.",
+    "invalid": "Das ist weder ein Handle noch ein Link.",
+    "openPost": "Beitrag öffnen",
+    "openProfile": "Profil öffnen",
+    "home": "Zur Startseite",
+    "followFailed": "Das Folgen wurde nicht gespeichert."
   }
 }

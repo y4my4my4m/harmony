@@ -1,6 +1,6 @@
 <!-- MediaLightbox - Custom image + video lightbox (no node_modules patching) -->
 <template>
-  <Teleport to="body">
+  <Teleport :to="portalTarget">
     <Transition name="lightbox-fade">
       <div
         v-if="visible"
@@ -96,6 +96,9 @@ import VideoControls from '@/components/common/VideoControls.vue';
 import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 import { useDialog } from '@/composables/useDialog';
 import { isTopLayerElement } from '@/utils/a11y/layers';
+import { usePortalTarget } from '@/composables/usePortalTarget';
+
+const portalTarget = usePortalTarget();
 
 const STORAGE_KEY = 'harmony-media-lightbox-video-muted';
 

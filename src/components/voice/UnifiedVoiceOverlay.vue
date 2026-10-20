@@ -1,10 +1,11 @@
 <template>
-  <Teleport to="body">
+  <!-- Popped out: the same nodes move into the pop-out window (callPopout.ts) -->
+  <Teleport :to="callPopout.root ?? 'body'">
     <!-- Overlay and its popovers: one root, so everything outside it is inert while the call view is open -->
-    <div ref="layerEl" class="voice-overlay-layer">
-    <div class="overlay-backdrop" :class="{ 'overlay-entering': isEntering, 'overlay-leaving': isLeaving }"></div>
+    <div ref="layerEl" class="voice-overlay-layer" :class="{ 'popped-out': poppedOut }">
+    <div v-if="!poppedOut" class="overlay-backdrop" :class="{ 'overlay-entering': isEntering, 'overlay-leaving': isLeaving }"></div>
     <div
-      v-if="voiceStore.isOverlayVisible"
+      v-if="callViewShown"
       class="voice-overlay"
       :class="{ 'overlay-entering': isEntering, 'overlay-leaving': isLeaving }"
       @click.self="handleBackdropClick"
@@ -13,7 +14,7 @@
       <div
         ref="containerEl"
         role="dialog"
-        aria-modal="true"
+        :aria-modal="poppedOut ? undefined : 'true'"
         :aria-labelledby="titleId"
         :aria-describedby="descriptionId"
         tabindex="-1"
@@ -22,13 +23,15 @@
         :class="{
           'native-fullscreen': isNativeFullscreen,
           'controls-hidden': isNativeFullscreen && !controlsVisible,
+          'with-chat': chatShown,
           'rainbow-party': easterEggState.isActive && easterEggState.type === 'rainbow-party',
           'screen-shake': easterEggState.isActive && easterEggState.type === 'rainbow-party',
         }"
+        :style="chatShown ? { '--call-chat-width': `${callChat.width.value}px` } : undefined"
         @mousemove="pokeControls"
       >
         <!-- Header -->
-        <div class="voice-header">
+        <div class="voice-header" :inert="chatSheet || undefined">
           <div class="channel-info">
             <div class="channel-icon">
               <Icon name="volume" />
@@ -104,6 +107,32 @@
               <Icon name="settings" />
             </button>
             <button
+              v-if="callChat.available.value"
+              ref="chatButtonRef"
+              @click="toggleChat"
+              class="layout-btn chat-btn"
+              :class="{ active: chatShown }"
+              :title="t('voice.callChat.toggle')"
+              :aria-label="chatUnread ? t('voice.callChat.toggleUnread') : t('voice.callChat.toggle')"
+              :aria-expanded="chatShown"
+              :aria-controls="chatShown ? chatPanelId : undefined"
+              data-testid="call-chat-toggle"
+            >
+              <Icon name="message-square" />
+              <span v-if="chatUnread" class="chat-unread-dot" aria-hidden="true" data-testid="call-chat-unread"></span>
+            </button>
+            <button
+              v-if="popoutAvailable"
+              @click="poppedOut ? closeCallPopout() : popOut()"
+              class="layout-btn popout-btn"
+              :title="poppedOut ? t('voice.popout.return') : t('voice.popout.open')"
+              :aria-label="poppedOut ? t('voice.popout.return') : t('voice.popout.open')"
+              data-testid="call-popout-toggle"
+            >
+              <Icon :name="poppedOut ? 'log-in' : 'external-link'" />
+            </button>
+            <button
+              v-if="!poppedOut"
               @click="toggleNativeFullscreen"
               class="layout-btn"
               :class="{ active: isNativeFullscreen }"
@@ -114,6 +143,7 @@
               <Icon :name="isNativeFullscreen ? 'minimize' : 'maximize'" />
             </button>
             <button
+              v-if="!poppedOut"
               @click="minimizeOverlay"
               class="minimize-btn"
               :title="t('voice.minimizeCallView')"
@@ -122,6 +152,7 @@
               <Icon name="minimize-2" />
             </button>
             <button
+              v-if="!poppedOut"
               @click="closeOverlay"
               class="close-btn"
               :title="t('voice.closeCallView')"
@@ -132,6 +163,7 @@
           </div>
         </div>
 
+        <div class="call-main" :inert="chatSheet || undefined">
         <!-- Stage -->
         <div
           class="stage"
@@ -376,11 +408,25 @@
             </button>
           </div>
         </div>
+        </div>
+
+        <!-- Keyed by document: its virtual list measures through its window's observers -->
+        <CallSideChat
+          v-if="chatShown"
+          :id="chatPanelId"
+          :key="`chat:${callPopout.generation}`"
+          class="overlay-side-chat"
+          :autofocus="chatAutofocus"
+          @close="closeChat"
+        />
       </div>
     </div>
 
+    <!-- Popups of the call view and its chat (usePortalTarget): above the view, in its window -->
+    <div ref="portalsEl" class="call-portals"></div>
+
     <!-- Voice Settings Panel - Teleported separately for proper z-index -->
-    <Teleport to="body">
+    <Teleport :to="portalTarget">
       <div
         v-if="showSettings"
         class="settings-overlay-wrapper"
@@ -415,6 +461,13 @@
 
     <!-- Spatial Audio Panel -->
     <SpatialAudioPanel :is-under-overlay="true" />
+
+    <!-- The dock renders the launcher while the call view is in this window -->
+    <ActivityLauncher
+      v-if="poppedOut && activityButton.visible.value"
+      :anchor="activityButton.anchor.value"
+      @close="activityButton.close"
+    />
 
     <!-- Confetti Effect -->
     <ConfettiEffect :is-active="easterEggState.isActive && easterEggState.type === 'rainbow-party'" />
@@ -460,8 +513,24 @@ import { useUserData } from '@/composables/useUserData';
 import { dmCallSignaling } from '@/services/DMCallSignaling';
 import { dmConversationIdFromChannel } from '@/composables/useCallSwitch';
 import { styleRect } from '@/utils/appZoom';
+import { uid } from '@/utils/a11y/focus';
+import { providePortalTarget } from '@/composables/usePortalTarget';
+import { useToast } from 'vue-toastification';
+import {
+  callPopout,
+  callPopoutActive,
+  callPopoutSupported,
+  closeCallPopout,
+  focusCallPopout,
+  observeResize,
+  openCallPopout,
+  setCallPopoutTitle,
+} from './callPopout';
+import { setCallChatOpen, useCallChat, useCallChatUnread } from './callChat';
 
 const SoundboardPopover = defineAsyncComponent(() => import('./SoundboardPopover.vue'));
+const CallSideChat = defineAsyncComponent(() => import('./CallSideChat.vue'));
+const ActivityLauncher = defineAsyncComponent(() => import('@/components/activities/ActivityLauncher.vue'));
 
 const { t } = useI18n();
 
@@ -533,6 +602,19 @@ const emit = defineEmits<Emits>();
 const voiceStore = useUnifiedVoiceChannelStore();
 const spatialStore = useSpatialAudioStore();
 const authStore = useAuthStore();
+const toast = useToast();
+
+// POP-OUT
+// Popped out, the view lives in its own window: no backdrop, not modal.
+const poppedOut = callPopoutActive;
+const callViewShown = computed(() => voiceStore.isOverlayVisible || poppedOut.value);
+const popoutAvailable = callPopoutSupported();
+
+// Popups mount in the layer: above the view, and in its window when popped out.
+const portalsEl = ref<HTMLElement | null>(null);
+const portalTarget = computed(() => portalsEl.value ?? 'body');
+providePortalTarget(() => portalsEl.value);
+
 const isEntering = ref(false);
 const isLeaving = ref(false);
 const showSettings = ref(false);
@@ -542,6 +624,9 @@ const containerEl = ref<HTMLElement | null>(null);
 const layerEl = ref<HTMLElement | null>(null);
 const gridEl = ref<HTMLElement | null>(null);
 const settingsButtonRef = ref<HTMLButtonElement | null>(null);
+
+/** The document the call view is in: the main one, or the pop-out's. */
+const viewDocument = (): Document => containerEl.value?.ownerDocument ?? document;
 
 const micTitle = computed(() => {
   if (voiceStore.speakLockReason) return t(voiceStore.speakLockReason);
@@ -556,7 +641,7 @@ const micTitle = computed(() => {
 // Background inertness covers everything outside layerEl, so the overlay's own
 // popovers (spatial panel, pickers) stay usable; useDialog owns focus and Escape.
 const { titleId, descriptionId, isActive: dialogActive } = useDialog({
-  open: () => voiceStore.isOverlayVisible,
+  open: () => voiceStore.isOverlayVisible && !poppedOut.value,
   element: containerEl,
   onClose: () => runEscape(),
   initialFocus: 'dialog',
@@ -731,6 +816,7 @@ watch(
 const isNativeFullscreen = ref(false);
 
 const toggleNativeFullscreen = async () => {
+  if (poppedOut.value) return;
   try {
     if (document.fullscreenElement) {
       await document.exitFullscreen();
@@ -782,22 +868,20 @@ const isFullWindowActive = computed(() => voiceStore.isFullWindowMode && !!focus
 // within the observed stage dimensions.
 
 const stageSize = ref({ width: 0, height: 0 });
-let resizeObserver: ResizeObserver | null = null;
+let stopStageResize: (() => void) | null = null;
 
-watch(gridEl, (el) => {
-  resizeObserver?.disconnect();
+// Re-observed after a move between windows: the observer is the window's own.
+watch([gridEl, () => callPopout.generation], ([el]) => {
+  stopStageResize?.();
+  stopStageResize = null;
   if (el) {
-    resizeObserver = new ResizeObserver((entries) => {
-      const rect = entries[0]?.contentRect;
-      if (rect) {
-        stageSize.value = { width: rect.width, height: rect.height };
-      }
-    });
-    resizeObserver.observe(el);
-    const rect = styleRect(el);
-    stageSize.value = { width: rect.width, height: rect.height };
+    const measure = () => {
+      stageSize.value = { width: el.clientWidth, height: el.clientHeight };
+    };
+    stopStageResize = observeResize(el, measure);
+    measure();
   }
-});
+}, { flush: 'post' });
 
 const GRID_GAP = 8;
 const TILE_ASPECT = 16 / 9;
@@ -833,6 +917,7 @@ const tileStyle = computed(() => {
 // METHODS
 
 const handleBackdropClick = () => {
+  if (poppedOut.value) return;
   minimizeOverlay();
 };
 
@@ -869,10 +954,11 @@ const closeSettings = () => {
 };
 
 // Escape order: popover > native fullscreen > full window > focus view > settings > minimize.
+// Popped out, the view has no minimized state to fall back to.
 const runEscape = () => {
   if (voicePopoverOpen()) {
     dismissVoicePopovers();
-  } else if (document.fullscreenElement) {
+  } else if (!poppedOut.value && document.fullscreenElement) {
     void document.exitFullscreen();
   } else if (Date.now() - lastNativeFullscreenExit < 300) {
     // Browser already consumed this Esc to leave native fullscreen
@@ -882,7 +968,7 @@ const runEscape = () => {
     voiceStore.exitFullscreen();
   } else if (showSettings.value) {
     closeSettings();
-  } else {
+  } else if (!poppedOut.value) {
     minimizeOverlay();
   }
 };
@@ -890,7 +976,7 @@ const runEscape = () => {
 // The exit keybind acts only with focus in the call view and outside text
 // fields and composite widgets; elsewhere the key is left to its target.
 const focusInsideOverlay = (): boolean => {
-  const active = document.activeElement;
+  const active = viewDocument().activeElement;
   const root = containerEl.value;
   if (!root || !active || !root.contains(active)) return false;
   return !isTypingTarget({ target: active } as unknown as Event);
@@ -924,6 +1010,70 @@ const handleSettingsUpdate = (event: { type: string; value: any }) => {
 const toggleSpatialPanel = () => {
   spatialStore.togglePanel();
 };
+
+// SIDE CHAT
+
+const callChat = useCallChat();
+const chatUnread = useCallChatUnread(callChat);
+const chatShown = callChat.shown;
+const chatPanelId = uid('call-chat');
+const chatButtonRef = ref<HTMLButtonElement | null>(null);
+const chatAutofocus = ref(false);
+
+const toggleChat = () => {
+  if (chatShown.value) {
+    setCallChatOpen(false);
+    return;
+  }
+  chatAutofocus.value = true;
+  setCallChatOpen(true);
+  callChat.showTarget();
+};
+
+const closeChat = () => {
+  setCallChatOpen(false);
+  void nextTick(() => restoreFocusIfLost(chatButtonRef.value));
+};
+
+watch(chatShown, (shown) => {
+  if (!shown) chatAutofocus.value = false;
+});
+
+// At 768px and below the chat is a sheet over the call; what it covers leaves the tab order.
+const narrowView = ref(false);
+let stopNarrowWatch: (() => void) | null = null;
+watch([containerEl, () => callPopout.generation], ([el]) => {
+  stopNarrowWatch?.();
+  stopNarrowWatch = null;
+  const view = el?.ownerDocument.defaultView;
+  if (!view?.matchMedia) return;
+  const query = view.matchMedia('(max-width: 768px)');
+  const update = () => { narrowView.value = query.matches; };
+  update();
+  query.addEventListener?.('change', update);
+  stopNarrowWatch = () => query.removeEventListener?.('change', update);
+}, { flush: 'post' });
+const chatSheet = computed(() => chatShown.value && narrowView.value);
+
+// POP-OUT CONTROL
+
+const popoutTitle = computed(() => t('voice.popout.windowTitle', { name: props.channelName }));
+
+const popOut = async () => {
+  const opened = await openCallPopout({ title: popoutTitle.value });
+  if (!opened) toast.error(t('voice.popout.blocked'));
+};
+
+watch(popoutTitle, (title) => setCallPopoutTitle(title));
+
+// The moved view takes focus in its window; returned, useDialog moves focus in.
+watch(poppedOut, (popped) => {
+  if (!popped) return;
+  void nextTick(() => {
+    focusCallPopout();
+    containerEl.value?.focus();
+  });
+}, { flush: 'post' });
 
 // LIFECYCLE
 
@@ -1026,7 +1176,10 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('fullscreenchange', onFullscreenChange);
   if (durationTimer) clearInterval(durationTimer);
-  resizeObserver?.disconnect();
+  stopStageResize?.();
+  stopNarrowWatch?.();
+  // Unmounting while popped out means the call ended: the window goes too.
+  if (poppedOut.value) closeCallPopout();
   if (controlsHideTimer) clearTimeout(controlsHideTimer);
 
   keybinds.deactivateContext('voice-overlay');
@@ -1134,10 +1287,76 @@ onUnmounted(() => {
   height: 100%;
   max-width: 1600px;
   max-height: calc(94 * var(--app-vh));
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
   z-index: 10000;
+}
+
+/* The chat column never takes more than half the view. */
+.voice-container.with-chat {
+  grid-template-columns: minmax(0, 1fr) min(var(--call-chat-width, 360px), 50%);
+}
+
+.voice-header {
+  grid-column: 1 / -1;
+}
+
+.call-main {
+  grid-column: 1;
+  grid-row: 2;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.overlay-side-chat {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+/* Above the call view and the activity player; empty, it takes no input. */
+.call-portals {
+  position: fixed;
+  inset: 0;
+  z-index: 10004;
+  pointer-events: none;
+}
+
+.call-portals > :deep(*) {
+  pointer-events: auto;
+}
+
+/* Popped out: the view is the whole window. */
+.voice-overlay-layer.popped-out .voice-overlay {
+  padding: 0;
+  animation: none;
+}
+
+.voice-overlay-layer.popped-out .voice-container {
+  max-width: none;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.chat-btn {
+  position: relative;
+}
+
+.chat-unread-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--error-hover);
+  box-shadow: 0 0 0 2px var(--background-secondary);
 }
 
 /* Native fullscreen: stage is everything, chrome floats over it */
@@ -1747,6 +1966,21 @@ onUnmounted(() => {
   .filmstrip-tile {
     width: 142px;
     height: 80px;
+  }
+
+  /* The chat is a sheet over the whole call view. */
+  .voice-container.with-chat {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Auto placement: an absolutely positioned grid item with a grid area is
+     positioned in that area, here the empty second column. */
+  .voice-container .overlay-side-chat {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    grid-column: auto;
+    grid-row: auto;
   }
 }
 

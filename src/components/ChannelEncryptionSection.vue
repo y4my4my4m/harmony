@@ -20,6 +20,7 @@
           :class="{ disabled: !canToggleMessages }"
           :label="t('channelEncryption.settings.messagesLabel')"
           :aria-disabled="!canToggleMessages"
+          data-testid="channel-messages-encryption"
           :tabindex="canToggleMessages ? 0 : -1"
           @change="toggleMessages"
           @keydown.enter.prevent="toggleMessages(!state.messagesEncrypted)"
@@ -41,6 +42,7 @@
           :class="{ disabled: !canToggleVoice }"
           :label="t('channelEncryption.settings.voiceLabel')"
           :aria-disabled="!canToggleVoice"
+          data-testid="channel-voice-encryption"
           :tabindex="canToggleVoice ? 0 : -1"
           @change="toggleVoice"
           @keydown.enter.prevent="toggleVoice(!state.voiceEncrypted)"
@@ -106,7 +108,6 @@ const voiceHint = computed(() => {
   const s = state.value
   if (!s) return ''
   if (s.voiceMode === 'required') return t('channelEncryption.settings.voiceRequired')
-  if (s.serverMode === 'disabled') return t('channelEncryption.settings.serverDisabled')
   return t('channelEncryption.settings.voiceHint')
 })
 
