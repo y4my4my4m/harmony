@@ -457,26 +457,32 @@
       class="participants-dropdown-container"
       :style="participantsDropdownStyle"
     >
-      <button 
-        @click.stop="toggleParticipantsDropdown"
-        class="participants-dropdown-btn"
-        :class="{ active: showParticipantsDropdown }"
-        :title="t('voice.participants')"
-        :aria-label="t('voice.participants')"
-        :aria-expanded="showParticipantsDropdown"
-        :aria-controls="showParticipantsDropdown ? participantsPanelId : undefined"
-      >
-        <Icon name="chevron-down" :class="{ rotated: showParticipantsDropdown }" />
-      </button>
-      
-      <Transition name="participants-dropdown">
-        <div v-if="showParticipantsDropdown" :id="participantsPanelId" class="participants-dropdown">
-          <VoiceChannelParticipants 
-            :participants="voiceStore.allParticipants"
-            :session-start-time="voiceStore.callStartTime ? new Date(voiceStore.callStartTime) : null"
-          />
-        </div>
-      </Transition>
+      <!-- List opens between the dock and the tab; the tab rides its bottom edge -->
+      <div class="participants-dropdown-stack" data-testid="mini-participants-stack">
+        <Transition name="participants-reveal">
+          <div v-if="showParticipantsDropdown" class="participants-reveal">
+            <div :id="participantsPanelId" class="participants-dropdown" data-testid="mini-participants-list">
+              <VoiceChannelParticipants
+                :participants="voiceStore.allParticipants"
+                :session-start-time="voiceStore.callStartTime ? new Date(voiceStore.callStartTime) : null"
+              />
+            </div>
+          </div>
+        </Transition>
+
+        <button
+          @click.stop="toggleParticipantsDropdown"
+          class="participants-dropdown-btn"
+          :class="{ active: showParticipantsDropdown }"
+          :title="t('voice.participants')"
+          :aria-label="t('voice.participants')"
+          :aria-expanded="showParticipantsDropdown"
+          :aria-controls="showParticipantsDropdown ? participantsPanelId : undefined"
+          data-testid="mini-participants-toggle"
+        >
+          <Icon name="chevron-down" :class="{ rotated: showParticipantsDropdown }" />
+        </button>
+      </div>
     </div>
 
     <!-- Positioned above the dock -->
@@ -982,6 +988,7 @@ const closeSettings = () => {
 const toggleParticipantsDropdown = () => {
   showParticipantsDropdown.value = !showParticipantsDropdown.value;
 };
+
 
 const toggleSpatialPanel = () => {
   spatialStore.togglePanel();
@@ -2128,7 +2135,19 @@ onUnmounted(() => {
 /* Participants dropdown: sits outside and below the container */
 .participants-dropdown-container {
   z-index: 100;
+  height: 20px;
   pointer-events: none; /* Container is inert; button and dropdown re-enable */
+}
+
+/* Top edge pinned to the container: the list grows downward and pushes the tab with it */
+.participants-dropdown-stack {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .participants-dropdown-btn {
@@ -2167,10 +2186,8 @@ onUnmounted(() => {
 }
 
 .participants-dropdown {
-  position: absolute;
-  top: 20px; /* Below the button */
-  left: 50%;
-  transform: translateX(-50%);
+  position: relative;
+  box-sizing: border-box;
   width: 300px;
   max-height: 400px;
   overflow-y: auto;
@@ -2180,7 +2197,27 @@ onUnmounted(() => {
   box-shadow: var(--shadow-large);
   z-index: 101;
   pointer-events: auto;
-  margin-top: 4px;
+}
+
+/* One grid row animates 0fr -> 1fr: the height follows the list's content as it renders,
+   with no measuring. Grid track interpolation needs Safari 16 / WebKitGTK 2.38. */
+.participants-reveal {
+  display: grid;
+  grid-template-rows: 1fr;
+  margin-top: 8px; /* Container top is 4px above the dock's bottom edge */
+  position: relative;
+  z-index: 101;
+}
+
+.participants-reveal > .participants-dropdown {
+  min-height: 0;
+}
+
+/* Tab hangs from the list's bottom border while open */
+.participants-reveal + .participants-dropdown-btn {
+  margin-top: -1px;
+  position: relative;
+  z-index: 102;
 }
 
 /* Dock mode: dropdown sits above the dock */
@@ -2201,41 +2238,41 @@ onUnmounted(() => {
   background: none;
 }
 
-/* Dropdown slides down from under the button */
-.participants-dropdown-enter-active {
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+/* Minimized: the list grows downward and the tab below follows it */
+.participants-reveal-enter-active {
+  transition: grid-template-rows 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.3s ease, margin-top 0.3s ease;
 }
 
+.participants-reveal-leave-active {
+  transition: grid-template-rows 0.2s ease, opacity 0.2s ease, margin-top 0.2s ease;
+}
+
+.participants-reveal-enter-from,
+.participants-reveal-leave-to {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  margin-top: 0;
+}
+
+/* Dock mode: fade-and-slide above the dock */
+.participants-dropdown-enter-active,
 .participants-dropdown-leave-active {
-  transition: all 0.2s ease;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-.participants-dropdown-enter-from {
+.dock-participants-dropdown .participants-dropdown-enter-from,
+.dock-participants-dropdown .participants-dropdown-leave-to {
   opacity: 0;
-  transform: translateX(-50%) translateY(-20px);
-  max-height: 0;
-  margin-top: 0;
+  transform: translateX(-50%) translateY(8px);
 }
 
-.participants-dropdown-enter-to {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-  max-height: 400px;
-  margin-top: 4px;
-}
-
-.participants-dropdown-leave-from {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-  max-height: 400px;
-  margin-top: 4px;
-}
-
-.participants-dropdown-leave-to {
-  opacity: 0;
-  transform: translateX(-50%) translateY(-20px);
-  max-height: 0;
-  margin-top: 0;
+@media (prefers-reduced-motion: reduce) {
+  .participants-reveal-enter-active,
+  .participants-reveal-leave-active,
+  .participants-dropdown-enter-active,
+  .participants-dropdown-leave-active {
+    transition: none;
+  }
 }
 
 /* =============================================================================
