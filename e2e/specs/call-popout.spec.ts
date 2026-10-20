@@ -320,6 +320,131 @@ test('pop-out: the call view moves to its own window and back without rejoining'
   })
 })
 
+interface Box { name: string; x: number; y: number; width: number; height: number }
+
+/** The minimized dock's container, the parts of its label and its visible controls. */
+async function miniDockLayout(page: Page) {
+  return page.evaluate(() => {
+    const root = document.querySelector('.minimized-container')
+    if (!root) throw new Error('no minimized dock')
+    const box = (name: string, el: Element): Box => {
+      const r = el.getBoundingClientRect()
+      return { name, x: r.x, y: r.y, width: r.width, height: r.height }
+    }
+    const parts: Box[] = []
+    const info = root.querySelector('.minimized-info')!
+    for (const [name, sel] of [
+      ['icon', '.channel-icon'],
+      ['name', '.dock-channel-text'],
+      ['count', '.participant-count'],
+      ['shield', '.voice-encryption-badge'],
+      ['speakers', '.recent-speakers'],
+    ] as const) {
+      const el = info.querySelector(sel)
+      if (el && el.getBoundingClientRect().width > 0) parts.push(box(name, el))
+    }
+    for (const button of root.querySelectorAll<HTMLElement>('.minimized-controls button')) {
+      if (button.getBoundingClientRect().width > 1) parts.push(box(button.getAttribute('aria-label') ?? '?', button))
+    }
+    const text = (sel: string) => {
+      const el = info.querySelector<HTMLElement>(sel)!
+      return { clipped: el.scrollWidth > el.clientWidth + 1, width: el.clientWidth }
+    }
+    return { container: box('container', root), parts, name: text('.dock-channel-text'), count: text('.participant-count') }
+  })
+}
+
+function expectTidy(layout: Awaited<ReturnType<typeof miniDockLayout>>, label: string) {
+  const { container, parts } = layout
+  for (const p of parts) {
+    expect(p.x, `${label}: ${p.name} starts inside the dock`).toBeGreaterThanOrEqual(container.x)
+    expect(p.x + p.width, `${label}: ${p.name} ends inside the dock`).toBeLessThanOrEqual(container.x + container.width + 0.5)
+  }
+  for (let i = 0; i < parts.length; i++) {
+    for (let j = i + 1; j < parts.length; j++) {
+      const a = parts[i]
+      const b = parts[j]
+      const overlap = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)
+      const vertical = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y)
+      expect(overlap > 0.5 && vertical > 0.5, `${label}: ${a.name} overlaps ${b.name}`).toBe(false)
+    }
+  }
+  expect(layout.count.clipped, `${label}: participant count clipped`).toBe(false)
+}
+
+test('the minimized dock keeps its label and its controls apart, popped out or not', async ({ page }) => {
+  test.setTimeout(180_000)
+  await withoutDocumentPip(page)
+  await signIn(page, owner)
+  await openChannel(page, server.id, server.generalChannelId)
+  await enterVoice(page, { selfId: owner.id, others: [member.id] })
+  await page.evaluate(({ ids }) => {
+    const root = document.querySelector('#app') as unknown as {
+      __vue_app__: { config: { globalProperties: { $pinia: { _s: Map<string, StoreHandle> } } } }
+    }
+    const voice = root.__vue_app__.config.globalProperties.$pinia._s.get('unifiedVoiceChannel')!
+    voice.$patch((s) => {
+      s.connectionMode = 'livekit'
+      s.isEncrypted = true
+      s.recentSpeakers = ids.map((userId: string, i: number) => ({ userId, lastSpokeAt: Date.now() - i }))
+    })
+  }, { ids: [member.id, owner.id] })
+
+  await dock(page).getByTestId('dock-minimize').click()
+  const info = page.locator('.minimized-info')
+  await expect(info).toBeVisible()
+  // Away from the default corner the dock carries mute and deafen.
+  const start = (await info.boundingBox())!
+  await page.mouse.move(start.x + 20, start.y + start.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(start.x + 320, start.y - 260, { steps: 12 })
+  await page.mouse.up()
+  await expect(page.getByTestId('mini-mute')).toBeVisible()
+
+  await test.step('in the app', async () => {
+    const layout = await miniDockLayout(page)
+    expectTidy(layout, 'in the app')
+    expect(layout.name.clipped).toBe(false)
+  })
+
+  const setChannelName = (name: string) => page.evaluate((name) => {
+    const root = document.querySelector('#app') as unknown as {
+      __vue_app__: { config: { globalProperties: { $pinia: { _s: Map<string, StoreHandle> } } } }
+    }
+    root.__vue_app__.config.globalProperties.$pinia._s.get('unifiedVoiceChannel')!.$patch((s) => {
+      s.currentChannelName = name
+    })
+  }, name)
+
+  await test.step('a long channel name gives way to the count and the controls', async () => {
+    await setChannelName('the very long name of a voice channel that never fits')
+    await expect(page.locator('.dock-channel-text')).toHaveText(/very long/)
+    const layout = await miniDockLayout(page)
+    expectTidy(layout, 'long name')
+    expect(layout.name.clipped).toBe(true)
+    expect(layout.name.width).toBeGreaterThan(40)
+    await setChannelName('lounge')
+  })
+
+  await test.step('popped out: Show and Return replace Open, nothing overlaps', async () => {
+    await page.getByTestId('mini-expand').click()
+    await openCallView(page)
+    const popup = await popOut(page)
+    await expect(dock(page).getByRole('button', { name: 'Return call to the app' })).toBeVisible()
+    await expect(dock(page).getByRole('button', { name: 'Show call window' })).toBeVisible()
+    await expect(page.getByTestId('mini-mute')).toBeVisible()
+    const layout = await miniDockLayout(page)
+    expectTidy(layout, 'popped out')
+    expect(layout.name.clipped).toBe(false)
+    await expect(page.locator('.minimized-controls button:visible')).toHaveCount(5)
+
+    await dock(page).getByRole('button', { name: 'Show call window' }).click()
+    const closed = popup.waitForEvent('close')
+    await dock(page).getByRole('button', { name: 'Return call to the app' }).click()
+    await closed
+  })
+})
+
 test('pop-out: the watch-together player follows the stage into the pop-out and back', async ({ page }) => {
   test.setTimeout(180_000)
   // A plain media server: Playwright's request routing does not serve media requests made from

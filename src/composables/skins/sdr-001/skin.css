@@ -1042,12 +1042,17 @@
 :root[data-skin="sdr-001"] .control-btn.minimize-btn              { --sdr-icon: url('/assets/skins/sdr-001/icons/minus.svg'); }
 :root[data-skin="sdr-001"] .control-btn.leave-btn                 { --sdr-icon: url('/assets/skins/sdr-001/icons/phone.svg'); }
 
-/* Minimized dock: mic, headphones, leave. Only .leave has its own class. */
-:root[data-skin="sdr-001"] .minimized-controls .mini-control-btn:nth-child(1)          { --sdr-icon: url('/assets/skins/sdr-001/icons/mic.svg'); }
-:root[data-skin="sdr-001"] .minimized-controls .mini-control-btn:nth-child(1).muted    { --sdr-icon: url('/assets/skins/sdr-001/icons/mic-off.svg'); }
-:root[data-skin="sdr-001"] .minimized-controls .mini-control-btn:nth-child(2)          { --sdr-icon: url('/assets/skins/sdr-001/icons/volume-3.svg'); }
-:root[data-skin="sdr-001"] .minimized-controls .mini-control-btn:nth-child(2).deafened { --sdr-icon: url('/assets/skins/sdr-001/icons/volume.svg'); }
+/* Minimized dock. */
+:root[data-skin="sdr-001"] .minimized-controls .mini-control-btn.mini-mic-btn          { --sdr-icon: url('/assets/skins/sdr-001/icons/mic.svg'); }
+:root[data-skin="sdr-001"] .minimized-controls .mini-control-btn.mini-mic-btn.muted    { --sdr-icon: url('/assets/skins/sdr-001/icons/mic-off.svg'); }
+:root[data-skin="sdr-001"] .minimized-controls .mini-control-btn.mini-deafen-btn       { --sdr-icon: url('/assets/skins/sdr-001/icons/volume-3.svg'); }
+:root[data-skin="sdr-001"] .minimized-controls .mini-control-btn.mini-deafen-btn.deafened { --sdr-icon: url('/assets/skins/sdr-001/icons/volume.svg'); }
+:root[data-skin="sdr-001"] .minimized-controls .mini-control-btn.mini-expand           { --sdr-icon: url('/assets/skins/sdr-001/icons/expand.svg'); }
+:root[data-skin="sdr-001"] .minimized-controls .mini-control-btn.mini-float            { --sdr-icon: url('/assets/skins/sdr-001/icons/external-link.svg'); }
 :root[data-skin="sdr-001"] .minimized-controls .mini-control-btn.leave                 { --sdr-icon: url('/assets/skins/sdr-001/icons/phone.svg'); }
+/* Buttons with no bespoke glyph keep their own icon. */
+:root[data-skin="sdr-001"] .minimized-controls .mini-control-btn:is(.mini-popout-focus, .mini-popout-return)::after { content: none; }
+:root[data-skin="sdr-001"] .minimized-controls .mini-control-btn:is(.mini-popout-focus, .mini-popout-return) > * { visibility: visible; }
 
 :root[data-skin="sdr-001"] .profile-bar-buttons .icon-button[data-action="mic"]           { --sdr-icon: url('/assets/skins/sdr-001/icons/mic.svg'); }
 :root[data-skin="sdr-001"] .profile-bar-buttons .icon-button[data-action="mic"].muted     { --sdr-icon: url('/assets/skins/sdr-001/icons/mic-off.svg'); }

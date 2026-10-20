@@ -193,13 +193,17 @@ describe('UnifiedVoiceDock pop-out', () => {
     expect(openCallPopout).toHaveBeenCalledWith({ title: 'voice.popout.windowTitle' })
   })
 
-  it('popped out, keeps the call view mounted and a minimized dock with Show and Return', async () => {
+  it('popped out, keeps the call view mounted and a minimized dock with Return and Show in place of Expand', async () => {
     h.store = makeStore([member('bob')])
     wrapper = await mountDock()
     h.popout.active = true
     await flushPromises()
     expect(wrapper.find('.minimized-container').exists()).toBe(true)
     expect(wrapper.findComponent({ name: 'UnifiedVoiceOverlay' }).exists()).toBe(true)
+    expect(wrapper.find('[data-testid="mini-expand"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="mini-float"]').exists()).toBe(false)
+    const order = wrapper.findAll('.minimized-controls > button').map((b) => b.attributes('data-testid') ?? b.classes().join(' '))
+    expect(order).toEqual(['mini-popout-return', 'mini-popout-focus', 'mini-control-btn leave'])
 
     const show = button(wrapper, 'mini-popout-focus')
     expect(show.attributes('aria-label')).toBe('voice.popout.focus')
@@ -230,18 +234,6 @@ describe('UnifiedVoiceDock pop-out', () => {
     expect(wrapper.find('.minimized-container').exists()).toBe(false)
     expect(wrapper.find('.dock-container').exists()).toBe(false)
     expect(wrapper.findComponent({ name: 'UnifiedVoiceOverlay' }).exists()).toBe(true)
-  })
-
-  it('Open call view focuses the pop-out while popped out', async () => {
-    h.store = makeStore([member('bob')])
-    wrapper = await mountDock()
-    h.popout.active = true
-    await flushPromises()
-    await button(wrapper, 'mini-expand').trigger('click')
-    await flushPromises()
-    await wrapper.find('[data-voice-expand]').trigger('click')
-    expect(focusCallPopout).toHaveBeenCalledTimes(1)
-    expect(wrapper.find('.dock-container').exists()).toBe(true)
   })
 
   it('closes the pop-out when the call ends', async () => {

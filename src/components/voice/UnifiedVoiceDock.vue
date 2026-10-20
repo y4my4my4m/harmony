@@ -363,16 +363,23 @@
           @touchstart="startDrag"
         >
           <Icon name="volume" class="channel-icon" aria-hidden="true" />
-          <span class="channel-name">
-            <DisplayName v-if="voiceStore.dmOtherUserId" :user-id="voiceStore.dmOtherUserId" :fallback="channelName" :truncate="true" />
-            <span v-else class="dock-channel-text">{{ channelName }}</span>
-          </span>
-          <span class="participant-count" :title="participantCountLabel">
-            <span aria-hidden="true">{{ voiceStore.connectionStats.total }}</span>
-            <span class="sr-only">{{ participantCountLabel }}</span>
-          </span>
-          <VoiceEncryptionBadge v-if="voiceStore.connectionMode" :encrypted="voiceStore.isEncrypted" />
-          <RecentSpeakers class="recent-speakers-container" :max-speakers="4" />
+          <div class="minimized-label">
+            <div class="minimized-title">
+              <span class="channel-name">
+                <DisplayName v-if="voiceStore.dmOtherUserId" :user-id="voiceStore.dmOtherUserId" :fallback="channelName" :truncate="true" />
+                <span v-else class="dock-channel-text">{{ channelName }}</span>
+              </span>
+              <VoiceEncryptionBadge v-if="voiceStore.connectionMode" :encrypted="voiceStore.isEncrypted" />
+            </div>
+            <div class="minimized-meta">
+              <span class="participant-count" :title="participantCountLabel">
+                <Icon name="users" aria-hidden="true" />
+                <span aria-hidden="true">{{ voiceStore.connectionStats.total }}</span>
+                <span class="sr-only">{{ participantCountLabel }}</span>
+              </span>
+              <RecentSpeakers class="recent-speakers-container" :max-speakers="3" />
+            </div>
+          </div>
         </div>
         
         <div class="minimized-controls">
@@ -407,29 +414,19 @@
             </button>
           </div>
 
-          <template v-if="popoutActive">
-            <button
-              @click.stop="focusCallPopout"
-              class="mini-control-btn mini-popout-focus"
-              :title="t('voice.popout.focus')"
-              :aria-label="t('voice.popout.focus')"
-              data-testid="mini-popout-focus"
-            >
-              <Icon name="picture-in-picture" />
-            </button>
-            <button
-              @click.stop="closeCallPopout"
-              class="mini-control-btn mini-popout-return"
-              :title="t('voice.popout.return')"
-              :aria-label="t('voice.popout.return')"
-              data-testid="mini-popout-return"
-            >
-              <Icon name="log-in" />
-            </button>
-          </template>
-
+          <!-- One slot between the audio pair and Expand: Return while popped out, else Float. -->
           <button
-            v-if="canFloat && !popoutActive"
+            v-if="popoutActive"
+            @click.stop="closeCallPopout"
+            class="mini-control-btn mini-popout-return"
+            :title="t('voice.popout.return')"
+            :aria-label="t('voice.popout.return')"
+            data-testid="mini-popout-return"
+          >
+            <Icon name="log-in" />
+          </button>
+          <button
+            v-else-if="canFloat"
             @click.stop="floatFromButton"
             class="mini-control-btn mini-float"
             :title="t('voice.floatingDock.float')"
@@ -439,7 +436,19 @@
             <Icon name="external-link" />
           </button>
 
+          <!-- Popped out, the call view lives in the other window: Expand raises it. -->
           <button
+            v-if="popoutActive"
+            @click.stop="focusCallPopout"
+            class="mini-control-btn mini-popout-focus"
+            :title="t('voice.popout.focus')"
+            :aria-label="t('voice.popout.focus')"
+            data-testid="mini-popout-focus"
+          >
+            <Icon name="picture-in-picture" />
+          </button>
+          <button
+            v-else
             ref="miniExpandButtonRef"
             @click.stop="expandToDock"
             class="mini-control-btn mini-expand"
@@ -2008,7 +2017,7 @@ onUnmounted(() => {
   background: var(--background-floating);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
-  padding: 12px 16px;
+  padding: 8px 10px 8px 12px;
   cursor: pointer;
   transition: all 0.3s ease;
   width: 343px; /* Channel sidebar width */
@@ -2089,7 +2098,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 
 .minimized-info {
@@ -2122,38 +2131,82 @@ onUnmounted(() => {
   background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
   border-radius: var(--radius-md);
   color: var(--text-link);
-  width: 24px;
-  height: 24px;
-  padding: 4px;
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+  flex-shrink: 0;
   font-size: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
+/* Name and shield over the count and recent speakers; only the name gives way. */
+.minimized-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.minimized-title,
+.minimized-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.minimized-meta {
+  height: 18px;
+}
+
 .minimized-info .channel-name {
   color: var(--text-primary);
   font-weight: 600;
   font-size: 14px;
+  line-height: 18px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+  flex: 0 1 auto;
 }
 
 .participant-count {
-  background: color-mix(in srgb, var(--harmony-primary) 20%, transparent);
-  color: var(--text-link);
-  padding: 2px 6px;
-  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 600;
-  min-width: 20px;
-  text-align: center;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.participant-count :deep(svg) {
+  width: 12px;
+  height: 12px;
 }
 
 .recent-speakers-container {
-  margin-left: 4px;
   flex-shrink: 0;
+}
+
+.recent-speakers-container :deep(.speaker-item) {
+  width: 18px;
+  height: 18px;
+}
+
+.recent-speakers-container :deep(.speakers-list) {
+  gap: 3px;
+}
+
+.recent-speakers-container :deep(.speaking-indicator) {
+  bottom: -3px;
+  height: 6px;
 }
 
 .minimized-controls,
