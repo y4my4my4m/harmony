@@ -120,11 +120,18 @@ describe('built-in sounds', () => {
   it('have wire-valid ids and ship as files', () => {
     for (const sound of DEFAULT_SOUNDS) {
       expect(isSoundId(sound.id)).toBe(true);
-      const file = resolve(__dirname, '../../../../public', `.${sound.url}`);
+      const file = resolve(__dirname, '../../../../public', `.${sound.url.split('?')[0]}`);
       expect(existsSync(file)).toBe(true);
       expect(sniffAudioType(new Uint8Array(readFileSync(file).subarray(0, 12)))?.ext).toBe('mp3');
       expect(sound.durationMs).toBeLessThanOrEqual(SOUNDBOARD_LIMITS.durationMs);
     }
+  });
+
+  it('give a re-encoded clip a new URL so a cached copy is not replayed', () => {
+    expect(DEFAULT_SOUNDS.find((s) => s.builtinKey === 'stop-having-fun')?.url)
+      .toBe('/assets/sounds/soundboard/stop-having-fun.mp3?v=2');
+    expect(DEFAULT_SOUNDS.find((s) => s.builtinKey === 'ding')?.url)
+      .toBe('/assets/sounds/soundboard/ding.mp3');
   });
 });
 
