@@ -4,6 +4,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { SignatureService } from './SignatureService.js';
 import { ActivityProcessor } from './ActivityProcessor.js';
 import { FederatedInstanceService } from '../services/FederatedInstanceService.js';
+import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { logger } from '../utils/logger.js';
 import config from '../config/index.js';
 import { clientIp, inboxLimiter, instanceInboxLimit, signerInstanceKey } from '../middleware/rateLimit.js';
@@ -12,6 +13,9 @@ import { isInstanceActorUsername } from './InstanceActor.js';
 import { syntheticFlagId } from './flag.js';
 import { relayedActivity } from './groupRelay.js';
 import { isVoiceMemberActivity } from './voiceModerationFederation.js';
+import { isStoredActivityType } from './activityTypes.js';
+import { confirmForwardedActivity, FORWARDABLE_TYPES } from './forwardedActivity.js';
+import { sameUrl } from '../utils/apOrigin.js';
 
 const router = Router();
 
@@ -309,12 +313,34 @@ async function addressedViaFollowers(
   return !!follow;
 }
 
+/**
+ * A Delete of an actor by itself whose key cannot be fetched because the actor is gone (404,
+ * 410): Mastodon signs it with the deleted account's key, which an instance that never
+ * stored the account cannot read. Nothing is stored here to delete.
+ */
+function deleteOfGoneActor(activity: any, actorUrl: string, keyStatus: number | undefined): boolean {
+  if (activity.type !== 'Delete' || (keyStatus !== 404 && keyStatus !== 410)) return false;
+  const objectId = typeof activity.object === 'string' ? activity.object : activity.object?.id;
+  return sameUrl(objectId, actorUrl);
+}
+
+/** Visibility of the stored post with this ap_id; null when none is stored. */
+async function storedPostVisibility(apId: string): Promise<string | null> {
+  const { data } = await getSupabaseClient()
+    .from('posts')
+    .select('visibility')
+    .eq('ap_id', apId)
+    .eq('is_deleted', false)
+    .maybeSingle();
+  return data?.visibility ?? null;
+}
+
 async function handleInbox(
   req: Request,
   res: Response,
   username: string | null
 ): Promise<void> {
-  const activity = req.body;
+  let activity = req.body;
 
   logger.debug(`handleInbox called for user: ${username || 'shared inbox'}`);
   logger.debug(`Raw body type: ${typeof activity}, is null: ${activity === null}`);
@@ -338,7 +364,6 @@ async function handleInbox(
 
   logger.info(`Received ${activity.type} activity from ${actorUrl}`);
 
-  const { BlockedInstancesCache } = await import('../services/BlockedInstancesCache.js');
   if (BlockedInstancesCache.isBlocked(actorDomain)) {
     logger.info(`Rejecting activity from blocked instance: ${actorDomain}`);
     res.status(403).json({ error: 'Instance is blocked' });
@@ -361,6 +386,8 @@ async function handleInbox(
     || isVoiceMemberActivity(activity);
   let signatureVerified = false;
   let verifiedSigner: string | null = null;
+  // Signer of a Create, Update, Announce or Delete whose actor is another account.
+  let forwardedBy: string | null = null;
 
   if (!signature) {
     if (signerRequired) {
@@ -390,6 +417,11 @@ async function handleInbox(
     );
 
     if (!verification.verified) {
+      if (deleteOfGoneActor(activity, actorUrl as string, verification.keyStatus)) {
+        logger.info(`Ignoring Delete of ${actorUrl}: its key answers ${verification.keyStatus}`);
+        res.status(202).json({ status: 'ignored', reason: 'actor is gone' });
+        return;
+      }
       if (config.REQUIRE_VALID_SIGNATURES || signerRequired) {
         logger.warn(`Rejecting activity with invalid signature from ${actorUrl}: ${verification.error}`);
         res.status(401).json({ error: `Invalid HTTP Signature: ${verification.error}` });
@@ -401,7 +433,9 @@ async function handleInbox(
       if (verification.actorUrl && actorUrl) {
         const actorMatch = SignatureService.verifyActorMatch(actorUrl, verification.actorUrl);
         if (!actorMatch) {
-          if (config.REQUIRE_VALID_SIGNATURES || signerRequired) {
+          if (!signerRequired && FORWARDABLE_TYPES.has(activity.type)) {
+            forwardedBy = verification.actorUrl;
+          } else if (config.REQUIRE_VALID_SIGNATURES || signerRequired) {
             logger.warn(`Rejecting activity: actor mismatch. Activity actor: ${actorUrl}, Signing key: ${verification.actorUrl}`);
             res.status(403).json({ error: 'Actor mismatch - activity.actor must match the signing key owner' });
             return;
@@ -430,9 +464,43 @@ async function handleInbox(
     activity.id = syntheticFlagId(actorUrl as string, rawBody ?? JSON.stringify(activity));
   }
 
+  if (forwardedBy) {
+    let signerDomain = '';
+    try {
+      signerDomain = new URL(forwardedBy).hostname.toLowerCase();
+    } catch { /* verified signers are URLs */ }
+    if (!signerDomain || BlockedInstancesCache.isBlocked(signerDomain)) {
+      logger.info(`Rejecting ${activity.type} forwarded by ${forwardedBy}: instance is blocked`);
+      res.status(403).json({ error: 'Instance is blocked' });
+      return;
+    }
+  }
+
+  // Types outside the stored set are acknowledged and dropped; a 5xx would have the sender
+  // retry them for days. They spend no inbox budget.
+  if (!isStoredActivityType(activity.type)) {
+    logger.info(`Ignoring unsupported ${String(activity.type).substring(0, 64)} activity from ${actorUrl}`);
+    res.status(202).json({ status: 'ignored', reason: 'unsupported activity type' });
+    return;
+  }
+
   // Per-instance budget, keyed on the verified signer, never on the body.
   if (!(await instanceInboxLimit(res, signerInstanceKey(verifiedSigner, clientIp(req))))) {
     return;
+  }
+
+  if (forwardedBy) {
+    const confirmed = await confirmForwardedActivity(activity, actorUrl as string, {
+      fetchDoc: (url, onStatus) => ActivityProcessor.fetchApDocument(url, onStatus),
+      storedPostVisibility,
+    });
+    if ('refused' in confirmed) {
+      logger.warn(`Rejecting ${activity.type} of ${actorUrl} forwarded by ${forwardedBy}: ${confirmed.refused}`);
+      res.status(403).json({ error: 'Actor mismatch - the forwarded activity is not confirmed by its origin' });
+      return;
+    }
+    logger.info(`${activity.type} of ${actorUrl} forwarded by ${forwardedBy}, confirmed by its origin`);
+    activity = confirmed.activity;
   }
 
   if (actorUrl) {
@@ -491,6 +559,18 @@ async function handleInbox(
         }
       }
     }
+  }
+
+  // A forwarded activity is not recorded: its id comes from the forwarder's body, and a
+  // stored id would turn away the actor's own delivery of that id as a duplicate.
+  if (forwardedBy) {
+    try {
+      await ActivityProcessor.processIncomingActivity(activity);
+    } catch (error) {
+      logger.error('Failed to process forwarded activity:', error);
+    }
+    res.status(202).json({ message: 'Activity accepted' });
+    return;
   }
 
   const supabase = getSupabaseClient();

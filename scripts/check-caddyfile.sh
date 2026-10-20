@@ -73,6 +73,22 @@ expect() {
   fi
 }
 
+# expect_ua <user agent> <path> <first line of the body>
+expect_ua() {
+  local got=''
+  for _ in $(seq 1 20); do
+    got="$(docker exec "$PREFIX" wget -q -O - --no-check-certificate -U "$1" \
+      "https://$DOMAIN$2" 2>/dev/null | head -1)" && [ -n "$got" ] && break
+    sleep 0.5
+  done
+  if [ "$got" = "$3" ]; then
+    printf 'ok   %-28.28s %s -> %s\n' "$1" "$2" "$got"
+  else
+    err "User-Agent $1 $2: expected '$3', got '$got'"
+    FAILED=$((FAILED + 1))
+  fi
+}
+
 AP='application/activity+json'
 HTML='text/html'
 POST=/posts/00000000-0000-0000-0000-000000000001
@@ -96,6 +112,22 @@ expect "$AP"   $THREAD/members        "backend $THREAD/members"
 expect "$AP"   "$THREAD/members?page=1" "backend $THREAD/members?page=1"
 expect "$AP"   $THREADS               "backend $THREADS"
 expect "$AP"   "$THREADS?page=1"      "backend $THREADS?page=1"
+CREATE=/users/fx_alice/activities/00000000-0000-0000-0000-000000000006
+ANNOUNCE=/activities/00000000-0000-0000-0000-000000000007
+expect "$AP"   $CREATE                "backend $CREATE"
+expect "$AP"   $ANNOUNCE              "backend $ANNOUNCE"
+
+log "/social/post/<id>"
+SOCIAL_POST=/social/post/00000000-0000-0000-0000-000000000001
+expect "$AP"   $SOCIAL_POST           "backend $POST"
+expect "$HTML" $SOCIAL_POST           'SPA'
+expect_ua 'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)' $SOCIAL_POST "backend $POST"
+
+log "/social/profile/<name>"
+expect "$AP"   /social/profile/fx_alice 'backend /users/fx_alice'
+expect 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"' /social/profile/fx_alice 'backend /users/fx_alice'
+expect "$HTML" /social/profile/fx_alice 'SPA'
+expect "$AP"   /social/profile/fx_alice@remote.example 'SPA'
 
 log "everything else"
 expect "$HTML" /                      'SPA'
@@ -104,6 +136,7 @@ expect "$HTML" /servers               'SPA'
 expect "$HTML" /threads               'SPA'
 expect "$HTML" /channels/00000000-0000-0000-0000-000000000005 'SPA'
 expect "$HTML" $THREAD/messages       'SPA'
+expect "$HTML" /activities            'SPA'
 
 [ "$FAILED" -eq 0 ] || { err "$FAILED routing check(s) failed"; exit 1; }
 log "self-host/Caddyfile routes the ActivityPub-only paths to the federation backend"

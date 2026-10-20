@@ -68,10 +68,19 @@ class BlockedInstancesCacheService {
   }
 
   /**
-   * Check if a domain is blocked - O(1) lookup
+   * A block covers the domain and every subdomain of it, as Mastodon's
+   * DomainBlock.rule_for matches a.example.com against a block of example.com.
+   * A trailing root dot is ignored.
    */
   isBlocked(domain: string): boolean {
-    return this.blockedDomains.has(domain.toLowerCase());
+    let host = domain.toLowerCase().replace(/\.$/, '');
+    if (this.blockedDomains.size === 0 || !host) return false;
+    for (;;) {
+      if (this.blockedDomains.has(host)) return true;
+      const dot = host.indexOf('.');
+      if (dot < 0) return false;
+      host = host.slice(dot + 1);
+    }
   }
 
   /**

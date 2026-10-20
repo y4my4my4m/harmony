@@ -12,7 +12,8 @@
 import { sameOrigin, urlHost, type FetchedDocument } from '../utils/apOrigin.js';
 import { logger } from '../utils/logger.js';
 
-const NOTE_TYPES = new Set(['Note', 'Article', 'Question']);
+// Post object types, as isPostObjectType (converters/fromActivityPub.ts).
+const NOTE_TYPES = new Set(['Note', 'Article', 'Page', 'Video', 'Question']);
 const PAGE_TYPES = new Set(['CollectionPage', 'OrderedCollectionPage']);
 
 export interface ReplyCrawlLimits {

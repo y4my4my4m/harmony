@@ -7,6 +7,7 @@
  */
 
 import { logger } from './logger.js';
+import { federationUserAgent } from './userAgent.js';
 import dns from 'dns';
 
 // Keep-alive dispatcher for federation outbound HTTP.
@@ -340,7 +341,7 @@ export async function safeFetch(urlString: string, options: SafeFetchOptions = {
   } = options;
 
   let currentUrl = urlString;
-  let currentHeaders: HeadersInit | undefined = fetchInit.headers;
+  let currentHeaders: HeadersInit | undefined = withUserAgent(fetchInit.headers);
   for (let hop = 0; hop <= maxRedirects; hop++) {
     const url = validateExternalUrl(currentUrl, { allowPlainHttp });
     await validateResolvedAddress(url.hostname);
@@ -406,6 +407,12 @@ function withUrl(response: Response, finalUrl: string): Response {
   if (response.url) return response;
   Object.defineProperty(response, 'url', { value: new URL(finalUrl).href, enumerable: true });
   return response;
+}
+
+/** `headers` with the instance User-Agent added when they carry none. */
+function withUserAgent(headers: HeadersInit | undefined): HeadersInit {
+  if (headers && new Headers(headers).has('user-agent')) return headers;
+  return mergeHeaders(headers, { 'User-Agent': federationUserAgent() });
 }
 
 /** `base` with `over` applied; names compare case-insensitively. */

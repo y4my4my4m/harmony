@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { buildLocalNote } from '../listeners/FederationHandlers.js';
+import { announceActivityId, buildLocalNote, createPostActivity, createReblogActivity, loadReblogTarget } from '../listeners/FederationHandlers.js';
 import { renderPostPage, renderOEmbed } from './postPageRenderer.js';
 import config from '../config/index.js';
 import { isPublicView, loadGroupAccess, readableChannelIds, verifiedSigner } from './groupAccess.js';
@@ -12,6 +12,72 @@ import { isBoostPost } from '../utils/boostPost.js';
 import { quoteAuthorizationObject } from './quoteAuthorization.js';
 
 const router = Router();
+
+/** A deleted post's object: an AS2 Tombstone with its `formerType` and `deleted` time. */
+function postTombstone(post: any): Record<string, unknown> {
+  return {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: post.ap_id || `https://${config.INSTANCE_DOMAIN}/posts/${post.id}`,
+    type: 'Tombstone',
+    formerType: post.ap_type === 'Question' ? 'Question' : 'Note',
+    ...(post.deleted_at ? { deleted: new Date(post.deleted_at).toISOString() } : {}),
+  };
+}
+
+/**
+ * The public or unlisted local post behind an activity id this instance assigned, with its
+ * author; null for anything else. A boost when `boost`, else an original.
+ */
+async function activityPost(postId: string, boost: boolean): Promise<{ post: any; author: any } | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(postId)) return null;
+  const { data: post } = await getSupabaseClient()
+    .from('posts')
+    .select('*, author:profiles!posts_author_id_fkey (*)')
+    .eq('id', postId)
+    .eq('is_local', true)
+    .eq('is_deleted', false)
+    .in('visibility', [...PUBLIC_VISIBILITIES])
+    .maybeSingle();
+  if (!post?.author || post.author.deleted_at || isBoostPost(post) !== boost) return null;
+  return { post, author: post.author };
+}
+
+/**
+ * GET /users/:username/activities/:postId - the Create of a public or unlisted post, at the id
+ * its deliveries and the outbox carry. Anything else answers 404.
+ */
+router.get(
+  '/users/:username/activities/:postId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const found = await activityPost(req.params.postId, false);
+    if (!found || found.author.username !== req.params.username) {
+      res.status(404).json({ error: 'Activity not found' });
+      return;
+    }
+    res.setHeader('Content-Type', 'application/activity+json');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.json(await createPostActivity(found.post, found.author));
+  })
+);
+
+/**
+ * GET /activities/:postId - the Announce of a public or unlisted boost, at the id its
+ * deliveries and the outbox carry. Anything else answers 404.
+ */
+router.get(
+  '/activities/:postId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const found = await activityPost(req.params.postId, true);
+    const target = found ? await loadReblogTarget(found.post) : null;
+    if (!found || !target) {
+      res.status(404).json({ error: 'Activity not found' });
+      return;
+    }
+    res.setHeader('Content-Type', 'application/activity+json');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.json(createReblogActivity(found.author, found.post, target));
+  })
+);
 
 /**
  * User outbox endpoint with cursor-based pagination. Public and unlisted posts only;
@@ -143,7 +209,7 @@ router.get(
         // Announce (reblog)
         return {
           '@context': 'https://www.w3.org/ns/activitystreams',
-          id: post.ap_id || `${baseUrl}/activities/${post.id}`,
+          id: announceActivityId(post),
           type: 'Announce',
           actor: `${baseUrl}/users/${username}`,
           published: post.created_at,
@@ -156,17 +222,7 @@ router.get(
           object: originalApIds.get(post.metadata.reblog_of) || `${baseUrl}/posts/${post.metadata.reblog_of}`,
         };
       } else {
-        const note = await buildLocalNote(post, user);
-        return {
-          '@context': 'https://www.w3.org/ns/activitystreams',
-          id: `${baseUrl}/activities/${post.id}`,
-          type: 'Create',
-          actor: `${baseUrl}/users/${username}`,
-          published: post.created_at,
-          to: note.to,
-          cc: note.cc,
-          object: note,
-        };
+        return createPostActivity(post, user);
       }
     }));
 
@@ -242,9 +298,9 @@ router.get(
     if (post.is_deleted) {
       const wasPublic = post.visibility === 'public' || post.visibility === 'unlisted';
       if (wantsActivityPub) {
-        return wasPublic && post.author.is_local !== false
-          ? res.status(410).json({ id: post.ap_id || `https://${config.INSTANCE_DOMAIN}/posts/${post.id}`, type: 'Tombstone' })
-          : res.status(404).json({ error: 'Post not found' });
+        if (!wasPublic || post.author.is_local === false) return res.status(404).json({ error: 'Post not found' });
+        res.setHeader('Content-Type', 'application/activity+json');
+        return res.status(410).json(postTombstone(post));
       }
       return res.status(404).send(render404Page());
     }

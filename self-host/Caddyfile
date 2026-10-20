@@ -130,10 +130,12 @@
 	}
 
 	# The SPA's post page, the URL people copy from the address bar: ActivityPub clients and
-	# link-preview crawlers get /posts/<id> from the backend, browsers the SPA.
+	# link-preview crawlers get /posts/<id> from the backend, browsers the SPA. The header
+	# regexps capture nothing: a header_regexp in the same matcher fills {re.<matcher>.1}
+	# too, and the rewrite would name the Accept or User-Agent match.
 	@socialPostAp {
 		path_regexp socialPostAp ^/social/post/([0-9a-f-]{36})/?$
-		header_regexp Accept (?i)application/(activity|ld)\+json
+		header_regexp Accept (?i)application/(?:activity|ld)\+json
 	}
 	handle @socialPostAp {
 		rewrite * /posts/{re.socialPostAp.1}
@@ -141,10 +143,27 @@
 	}
 	@socialPostUnfurl {
 		path_regexp socialPostUnfurl ^/social/post/([0-9a-f-]{36})/?$
-		header_regexp User-Agent (?i)(discordbot|slackbot|twitterbot|facebookexternalhit|facebot|telegrambot|whatsapp|linkedinbot|mastodon|pleroma|akkoma|misskey|summalybot|gotosocial|friendica|lemmy|cardyb|synapse|mattermost-bot|zulipurlpreview|discourse|embedly|iframely|redditbot|skypeuripreview|microsoftpreview|vkshare|viber|kakaotalk-scrap)
+		header_regexp User-Agent (?i)(?:discordbot|slackbot|twitterbot|facebookexternalhit|facebot|telegrambot|whatsapp|linkedinbot|mastodon|pleroma|akkoma|misskey|summalybot|gotosocial|friendica|lemmy|cardyb|synapse|mattermost-bot|zulipurlpreview|discourse|embedly|iframely|redditbot|skypeuripreview|microsoftpreview|vkshare|viber|kakaotalk-scrap)
 	}
 	handle @socialPostUnfurl {
 		rewrite * /posts/{re.socialPostUnfurl.1}
+		import federation_upstream
+	}
+
+	# The SPA's profile page, an account's `url` and WebFinger profile page: ActivityPub
+	# clients get the actor from /users/<name>, browsers the SPA.
+	@socialProfileAp {
+		path_regexp socialProfileAp ^/social/profile/([A-Za-z0-9_]+)/?$
+		header_regexp Accept (?i)application/(?:activity|ld)\+json
+	}
+	handle @socialProfileAp {
+		rewrite * /users/{re.socialProfileAp.1}
+		import federation_upstream
+	}
+
+	# Create and Announce activities at the ids deliveries and outboxes carry.
+	@fedActivities path_regexp ^/(users/[^/]+/)?activities/[0-9a-f-]+$
+	handle @fedActivities {
 		import federation_upstream
 	}
 

@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getSupabaseClient, getSupabaseClientWithAuth } from '../config/supabase.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { profileToActor, NOTE_CONTEXT } from './converters/toActivityPub.js';
-import { actorToProfile, extractMediaAttachments, noteToContent, noteQuoteUrl } from './converters/fromActivityPub.js';
+import { actorToProfile, asNoteObject, extractMediaAttachments, isPostObjectType, noteToContent, noteQuoteUrl, objectLanguage } from './converters/fromActivityPub.js';
 import { misskeyDisplayNameEmojis } from '../utils/misskeyEmojis.js';
 import { resolveLocalProfileEmojis } from './emojiResolver.js';
 import { stripOwnEmojiDomain } from '../utils/emojiResolvers.js';
@@ -26,6 +26,7 @@ import {
   collectionTotal, engagementColumns, fetchProfileCounts, misskeyNoteTotals, noteEngagementColumns,
   noteEngagementTotals, profileCountColumns, profileCountsStale, refreshRemoteProfileCounts,
 } from './remoteCounts.js';
+import { federationUserAgent } from '../utils/userAgent.js';
 
 const router = Router();
 
@@ -143,7 +144,7 @@ export async function resolveRemoteAccount(username: string, domain: string): Pr
       const response = await SignatureService.signedApFetch(url, {
         headers: {
           'Accept': 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
-          'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+          'User-Agent': federationUserAgent()
         },
         timeoutMs: 10000,
       });
@@ -945,7 +946,7 @@ async function fetchMisskeyReactions(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+        'User-Agent': federationUserAgent()
       },
       body: JSON.stringify({
         noteId: noteId,
@@ -978,7 +979,7 @@ async function fetchMisskeyReactions(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+          'User-Agent': federationUserAgent()
         },
         body: JSON.stringify({ noteId }),
         signal: AbortSignal.timeout(10000)
@@ -1019,7 +1020,7 @@ async function fetchMisskeyReactions(
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+            'User-Agent': federationUserAgent()
           },
           body: JSON.stringify({}),
           signal: AbortSignal.timeout(10000)
@@ -1320,7 +1321,7 @@ async function _fetchRemotePostReactionsImpl(
     // every outbound call goes through safeFetch for SSRF protection.
     const apHeaders = {
       'Accept': 'application/activity+json, application/ld+json',
-      'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`,
+      'User-Agent': federationUserAgent(),
     } as const;
 
     const postResponse = await SignatureService.signedApFetch(postApId, {
@@ -1902,7 +1903,7 @@ async function misskeyReplyIds(domain: string, noteId: string, limit: number): P
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}`
+        'User-Agent': federationUserAgent()
       },
       body: JSON.stringify({ noteId, limit: Math.min(limit, 100) }),
       signal: AbortSignal.timeout(10000)
@@ -2503,7 +2504,7 @@ function collectionItems(doc: any): any[] | null {
 
 async function fetchApJson(url: string): Promise<any | null> {
   const response = await SignatureService.signedApFetch(url, {
-    headers: { 'Accept': AP_ACCEPT, 'User-Agent': `Harmony/${config.INSTANCE_DOMAIN}` },
+    headers: { 'Accept': AP_ACCEPT, 'User-Agent': federationUserAgent() },
     timeoutMs: 15000,
   });
   if (!response.ok) {
@@ -2769,10 +2770,10 @@ async function importOutboxItem(
     }
 
     // Outboxes contain Create wrappers or bare objects.
-    const note = activityType === 'Create' ? item.object : item;
+    const note = asNoteObject(activityType === 'Create' ? item.object : item);
 
     // Question is a poll and is kept.
-    if (!note || (note.type !== 'Note' && note.type !== 'Article' && note.type !== 'Question')) {
+    if (!note || !isPostObjectType(note.type)) {
       return { saved: false };
     }
     if (!sameOrigin(note.id, outboxUrl)) {
@@ -2837,9 +2838,11 @@ async function importOutboxItem(
       }
     }
 
+    const language = objectLanguage(note);
     const postData: any = {
       ap_id: note.id,
       ap_type: note.type,
+      ...(language ? { language } : {}),
       author_id: authorId,
       content,
       visibility,
@@ -2941,7 +2944,7 @@ export async function syncFeaturedCollection(
     const objectId = linkUrl(item);
     if (!objectId || !sameOrigin(objectId, actorUrl)) continue;
     // An embedded object is authoritative when served by its own host.
-    const embedded = typeof item === 'object' && ['Note', 'Article', 'Question'].includes(item.type)
+    const embedded = typeof item === 'object' && isPostObjectType(item.type)
       && sameOrigin(objectId, servedFrom);
     const stored = embedded
       ? await ActivityProcessor.storeRemotePost(item)

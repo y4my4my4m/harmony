@@ -37,6 +37,20 @@ function senderColumns(signer: DeliverySigner): Record<string, string> {
 const MAX_CONCURRENT_DOMAINS = 10;
 
 /**
+ * Attempts per queued delivery: the immediate one and 16 retries, as Mastodon's
+ * DeliveryWorker (retry: 16). With retryDelayMs they span about 4.9 days, inside the 7 days
+ * after which update_endpoint_health marks a failing endpoint dead.
+ */
+export const DELIVERY_MAX_ATTEMPTS = 17;
+const RETRY_BASE_MS = 5 * 60 * 1000;
+const RETRY_CAP_MS = 12 * 60 * 60 * 1000;
+
+/** Delay before the next attempt once `attempts` have failed: 5 minutes, doubling, at most 12 hours. */
+export function retryDelayMs(attempts: number): number {
+  return Math.min(RETRY_BASE_MS * 2 ** Math.max(0, attempts - 1), RETRY_CAP_MS);
+}
+
+/**
  * HTTP statuses a redelivery cannot fix: 4xx except 401, 408 and 429.
  * Mirrors Mastodon DeliveryWorker#response_error_unsalvageable?.
  */
@@ -161,8 +175,8 @@ export class DeliveryQueue {
       priority,
       status: 'pending',
       attempts: 1, // Already tried once
-      max_attempts: 5,
-      next_attempt_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // Retry in 5 minutes
+      max_attempts: DELIVERY_MAX_ATTEMPTS,
+      next_attempt_at: new Date(Date.now() + retryDelayMs(1)).toISOString(),
       last_attempt_at: new Date().toISOString(),
     });
 
@@ -171,7 +185,7 @@ export class DeliveryQueue {
       throw error;
     }
 
-    logger.info(`Queued for retry: ${targetInbox} (will retry in 5 minutes)`);
+    logger.info(`Queued for retry: ${targetInbox} (will retry in ${retryDelayMs(1) / 60000} minutes)`);
   }
 
   /**
@@ -714,10 +728,8 @@ export class DeliveryQueue {
 
       logger.warn(`Max attempts reached for delivery to ${item.target_inbox_url}`);
     } else {
-      // Schedule retry with exponential backoff (5, 10, 20, 40, 80 minutes after first queued attempt)
-      const backoffMinutes = Math.pow(2, newAttempts - 1) * 5;
-      const nextRetry = new Date();
-      nextRetry.setMinutes(nextRetry.getMinutes() + backoffMinutes);
+      const backoffMinutes = retryDelayMs(newAttempts) / 60000;
+      const nextRetry = new Date(Date.now() + retryDelayMs(newAttempts));
 
       await supabase
         .from('federation_delivery_queue')

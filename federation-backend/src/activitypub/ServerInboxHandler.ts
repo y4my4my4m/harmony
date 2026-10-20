@@ -3,6 +3,7 @@
  * Join/Leave (membership), Accept/Reject (membership responses),
  * Create/Update/Delete (channel messages and structure),
  * Like/EmojiReaction (reactions), Add/Remove (channels, moderation), Undo.
+ * A Follow of the Group is answered with Reject.
  */
 
 import { getSupabaseClient } from '../config/supabase.js';
@@ -264,6 +265,10 @@ export async function processServerInboxActivity(
   // Leave is always allowed so members can leave gracefully. Every other
   // type requires federation_enabled on the server.
   switch (activity.type) {
+    case 'Follow':
+      await rejectFollow(serverId, server, activity);
+      break;
+
     case 'Leave':
       await processLeaveServer(serverId, server, activity);
       break;
@@ -357,6 +362,37 @@ export async function processServerInboxActivity(
         logger.info(`Unhandled server activity type: ${activity.type}`);
       }
   }
+}
+
+/**
+ * A chat server has members, not followers: a Follow of its Group (Mastodon, Lemmy and
+ * Misskey users following a group by handle) is answered with the Group's Reject, so the
+ * follower's instance drops its pending request.
+ */
+async function rejectFollow(serverId: string, server: any, activity: any): Promise<void> {
+  const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+  const objectUrl = typeof activity.object === 'string' ? activity.object : activity.object?.id;
+  const groupUrl = server.ap_id || `https://${config.INSTANCE_DOMAIN}/servers/${serverId}`;
+  if (typeof actorUrl !== 'string' || !objectUrl || !SignatureService.verifyActorMatch(objectUrl, groupUrl)) {
+    logger.warn(`Ignoring Follow on server inbox ${serverId}: it names ${objectUrl}, not the Group`);
+    return;
+  }
+  const follower = await ActivityProcessor['ensureRemoteUser'](actorUrl);
+  if (!follower?.id) {
+    logger.warn(`Follow of server ${serverId}: ${actorUrl} could not be resolved, no Reject sent`);
+    return;
+  }
+  const { data: profile } = await getSupabaseClient()
+    .from('profiles')
+    .select('inbox_url, shared_inbox_url')
+    .eq('id', follower.id)
+    .maybeSingle();
+  const inbox = profile?.inbox_url || profile?.shared_inbox_url;
+  if (!inbox) {
+    logger.warn(`Follow of server ${serverId}: ${actorUrl} has no inbox, no Reject sent`);
+    return;
+  }
+  await sendRejectActivity(serverId, activity, inbox, 'A chat server is joined, not followed');
 }
 
 // JOIN / LEAVE HANDLERS

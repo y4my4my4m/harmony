@@ -14,10 +14,10 @@
  * same subject and the same actor.
  */
 
-import config from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import { safeFetch } from '../utils/ssrfProtection.js';
 import { sameUrl, urlHost } from '../utils/apOrigin.js';
+import { federationUserAgent } from '../utils/userAgent.js';
 
 export interface Acct {
   username: string;
@@ -33,10 +33,6 @@ export interface WebFingerDocument {
 
 const WEBFINGER_MAX_BYTES = 256 * 1024;
 const AS_PROFILE = 'https://www.w3.org/ns/activitystreams';
-
-function userAgent(): string {
-  return `Harmony/${config.VERSION} (+https://${config.INSTANCE_DOMAIN})`;
-}
 
 /** `acct:user@domain`, `user@domain` or `@user@domain`; null for anything else. */
 export function parseAcct(value: unknown): Acct | null {
@@ -129,7 +125,7 @@ export function parseHostMetaTemplate(body: string, contentType: string): string
 
 async function getText(url: string, accept: string, timeoutMs: number): Promise<{ status: number; body: string; contentType: string }> {
   const response = await safeFetch(url, {
-    headers: { 'Accept': accept, 'User-Agent': userAgent() },
+    headers: { 'Accept': accept, 'User-Agent': federationUserAgent() },
     timeoutMs,
     maxBodyBytes: WEBFINGER_MAX_BYTES,
   });

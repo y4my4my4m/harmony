@@ -5,6 +5,7 @@
 import { 
   postToNote, 
   createFollowActivity as createFollow,
+  followActivityId,
   createAnnounceActivity as createAnnounce,
   createUpdateActivity,
   createDeleteActivity as createDelete,
@@ -168,10 +169,10 @@ export async function createPostActivity(post: any, author: any): Promise<any> {
 }
 
 /**
- * Create a Follow activity
+ * Create a Follow activity for the follows row `followId`.
  */
-export function createFollowActivity(follower: any, following: any): any {
-  return createFollow(follower, following);
+export function createFollowActivity(follower: any, following: any, followId: string): any {
+  return createFollow(follower, following, followId);
 }
 
 /**
@@ -286,15 +287,15 @@ export function createUndoFollowActivity(follower: any, following: any, followRe
   
   const followActivity = {
     '@context': 'https://www.w3.org/ns/activitystreams',
-    id: followRecord.ap_id || `${followerUrl}/follows/${following.id}`,
+    id: followRecord.ap_id || followActivityId(followRecord.id),
     type: 'Follow',
     actor: followerUrl,
     object: following.federated_id || following.id,
   };
-  
+
   return {
     '@context': 'https://www.w3.org/ns/activitystreams',
-    id: `${followerUrl}/undo/${Date.now()}`,
+    id: `https://${domain}/activities/undo-follow/${followRecord.id}`,
     type: 'Undo',
     actor: followerUrl,
     object: followActivity,

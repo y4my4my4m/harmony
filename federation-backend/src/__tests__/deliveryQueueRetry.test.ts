@@ -79,6 +79,38 @@ describe('DeliveryQueue.enqueue', () => {
     expect(inserted[0].target_inbox_url).toBe('https://busy.test/inbox')
   })
 
+  it('queues a retry for 17 attempts, the next in 5 minutes', async () => {
+    vi.mocked(safeFetch).mockResolvedValue(new Response('', { status: 503 }))
+    const before = Date.now()
+
+    await DeliveryQueue.enqueue({ type: 'Create' }, 'https://busy.test/inbox', 'sender')
+
+    expect(inserted[0]).toMatchObject({ attempts: 1, max_attempts: 17 })
+    const next = Date.parse(inserted[0].next_attempt_at) - before
+    expect(next).toBeGreaterThanOrEqual(5 * 60_000 - 1000)
+    expect(next).toBeLessThanOrEqual(5 * 60_000 + 1000)
+  })
+
+  it('reschedules a failed retry by the doubling schedule, capped at 12 hours, and gives up after the last attempt', async () => {
+    vi.mocked(safeFetch).mockResolvedValue(new Response('', { status: 503 }))
+    const item = (attempts: number) => ({
+      id: `q${attempts}`, activity_data: { type: 'Create' }, target_inbox_url: 'https://busy.test/inbox',
+      sender_id: 'sender', actor_username: null, attempts, max_attempts: 17, next_attempt_at: new Date().toISOString(),
+    })
+    const delayAfter = async (attempts: number) => {
+      updated.length = 0
+      const before = Date.now()
+      await (DeliveryQueue as any).deliverActivity(item(attempts))
+      const row = updated.find((u) => u.attempts !== undefined)
+      return row.next_attempt_at ? Math.round((Date.parse(row.next_attempt_at) - before) / 60_000) : row.status
+    }
+    expect(await delayAfter(1)).toBe(10)
+    expect(await delayAfter(7)).toBe(640)
+    expect(await delayAfter(8)).toBe(720)
+    expect(await delayAfter(15)).toBe(720)
+    expect(await delayAfter(16)).toBe('failed')
+  })
+
   it('queues a retry after a network error', async () => {
     vi.mocked(safeFetch).mockRejectedValue(new Error('ECONNRESET'))
 

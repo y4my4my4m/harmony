@@ -252,6 +252,28 @@ export const ACCOUNT_MIGRATION_CONTEXT = {
 };
 
 /**
+ * JSON-LD terms of a Person beyond ActivityStreams and the security vocabulary, as
+ * Mastodon's ActivityPub::ActorSerializer context names them.
+ */
+export const ACTOR_CONTEXT = {
+  manuallyApprovesFollowers: 'as:manuallyApprovesFollowers',
+  toot: 'http://joinmastodon.org/ns#',
+  featured: { '@id': 'toot:featured', '@type': '@id' },
+  discoverable: 'toot:discoverable',
+  indexable: 'toot:indexable',
+  Emoji: 'toot:Emoji',
+  schema: 'http://schema.org#',
+  PropertyValue: 'schema:PropertyValue',
+  value: 'schema:value',
+  ...ACCOUNT_MIGRATION_CONTEXT,
+};
+
+/** The account's page in the web app, its actor `url` and WebFinger profile page. */
+export function profilePageUrl(username: string): string {
+  return `https://${config.INSTANCE_DOMAIN}/social/profile/${username}`;
+}
+
+/**
  * Convert user profile to ActivityPub Actor
  */
 export function profileToActor(profile: any): any {
@@ -273,7 +295,7 @@ export function profileToActor(profile: any): any {
     '@context': [
       'https://www.w3.org/ns/activitystreams',
       'https://w3id.org/security/v1',
-      { ...ACCOUNT_MIGRATION_CONTEXT, harmony: HARMONY_NS },
+      { ...ACTOR_CONTEXT, harmony: HARMONY_NS },
     ],
     id: userUrl,
     type: 'Person',
@@ -284,7 +306,7 @@ export function profileToActor(profile: any): any {
     outbox: `${userUrl}/outbox`,
     followers: `${userUrl}/followers`,
     following: `${userUrl}/following`,
-    url: userUrl,
+    url: profilePageUrl(profile.username),
     published: profile.created_at,
     endpoints: {
       sharedInbox: `https://${domain}/inbox`,
@@ -322,8 +344,8 @@ export function profileToActor(profile: any): any {
   if (profile.profile_fields && Array.isArray(profile.profile_fields)) {
     actor.attachment = profile.profile_fields.map((field: any) => ({
       type: 'PropertyValue',
-      name: field.name,
-      value: field.value,
+      name: field?.name,
+      value: fieldValueToHtml(field?.value),
     }));
   }
 
@@ -340,8 +362,10 @@ export function profileToActor(profile: any): any {
     actor.movedTo = profile.moved_to_uri;
   }
 
+  // Mastodon's indexable (full-text search of posts) follows the same opt-in.
   if (profile.federation_discoverable !== undefined) {
-    actor.discoverable = profile.federation_discoverable;
+    actor.discoverable = profile.federation_discoverable !== false;
+    actor.indexable = actor.discoverable;
   }
 
   // Custom emojis in display name and bio (AP Emoji tags + Misskey-style emojis object)
@@ -416,16 +440,24 @@ export function profileToActor(profile: any): any {
 }
 
 /**
- * Create a Follow activity
+ * Id of the Follow a follows row federates as. The row id makes each follow distinct: a
+ * re-follow after an unfollow is a new row, so Pleroma and Akkoma, which drop an activity id
+ * they have seen, accept it. The Undo names the same id.
  */
-export function createFollowActivity(follower: any, following: any): any {
+export function followActivityId(followId: string): string {
+  return `https://${config.INSTANCE_DOMAIN}/activities/follow/${followId}`;
+}
+
+/**
+ * Create a Follow activity for the follows row `followId`.
+ */
+export function createFollowActivity(follower: any, following: any, followId: string): any {
   const domain = config.INSTANCE_DOMAIN;
   const followerUrl = `https://${domain}/users/${follower.username}`;
-  const activityId = `${followerUrl}/follows/${following.id}`;
 
   return {
     '@context': 'https://www.w3.org/ns/activitystreams',
-    id: activityId,
+    id: followActivityId(followId),
     type: 'Follow',
     actor: followerUrl,
     object: following.federated_id || following.id,
@@ -780,17 +812,49 @@ function extractContentAsHtml(content: any, mentionActorUrls?: Map<string, strin
   return paragraphs(inline);
 }
 
-/** Plain text as HTML: escaped, http(s) URLs linked, paragraphs and line breaks kept. */
-export function textToHtml(text: string): string {
-  const linked = String(text ?? '')
+/** Plain text escaped, http(s) URLs linked with `rel`. */
+function linkify(text: string, rel: string): string {
+  return String(text ?? '')
     .split(/(https?:\/\/[^\s<>"']+)/)
     .map((piece, i) => {
       if (i % 2 === 0) return escapeHtmlAttr(piece);
       const href = escapeHtmlAttr(safeAttrUrlOutbound(piece));
-      return href ? `<a href="${href}" rel="nofollow noopener noreferrer" target="_blank">${href}</a>` : escapeHtmlAttr(piece);
+      return href ? `<a href="${href}" rel="${rel}" target="_blank">${href}</a>` : escapeHtmlAttr(piece);
     })
     .join('');
-  return paragraphs(linked);
+}
+
+/** Plain text as HTML: escaped, http(s) URLs linked, paragraphs and line breaks kept. */
+export function textToHtml(text: string): string {
+  return paragraphs(linkify(text, 'nofollow noopener noreferrer'));
+}
+
+/**
+ * Text of stored profile HTML: an anchor becomes its href, other tags are dropped, entities
+ * decoded, whitespace collapsed. Code points outside Unicode stay encoded.
+ */
+function htmlToPlainText(value: unknown): string {
+  const decodePoint = (match: string, cp: number) =>
+    Number.isInteger(cp) && cp > 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : match;
+  return String(value ?? '')
+    .replace(/<a\b[^>]*?\bhref\s*=\s*(["'])(.*?)\1[^>]*>[\s\S]*?<\/a\s*>/gi, (_m, _q, href) => ` ${href} `)
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&#x([0-9a-f]+);/gi, (m, hex) => decodePoint(m, parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (m, dec) => decodePoint(m, parseInt(dec, 10)))
+    .replace(/&(lt|gt|quot|apos|nbsp);/g, (_m, name) => ({ lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' } as Record<string, string>)[name])
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * A profile field value as Mastodon sends one: inline HTML, no paragraph, http(s) URLs
+ * linked with rel="me" for link verification. The stored value, written by the client as
+ * escaped text or a single anchor, is reduced to text first, so no stored markup is sent.
+ */
+export function fieldValueToHtml(value: unknown): string {
+  return linkify(htmlToPlainText(value), 'me nofollow noopener noreferrer');
 }
 
 /**

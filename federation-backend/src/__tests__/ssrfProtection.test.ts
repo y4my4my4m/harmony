@@ -289,8 +289,28 @@ describe('safeFetch', () => {
     expect(signedFor).toEqual(['https://first.example/b', 'https://second.example/c?d=1']);
     const hop2 = fetchSpy.mock.calls[1][1] as any;
     const hop3 = fetchSpy.mock.calls[2][1] as any;
-    expect(hop2.headers).toEqual({ Accept: 'application/activity+json', Host: 'first.example', Signature: 'sig-for https://first.example/b' });
-    expect(hop3.headers).toEqual({ Accept: 'application/activity+json', Host: 'second.example', Signature: 'sig-for https://second.example/c?d=1' });
+    expect(hop2.headers).toEqual({ Accept: 'application/activity+json', Host: 'first.example', Signature: 'sig-for https://first.example/b', 'User-Agent': 'Harmony' });
+    expect(hop3.headers).toEqual({ Accept: 'application/activity+json', Host: 'second.example', Signature: 'sig-for https://second.example/c?d=1', 'User-Agent': 'Harmony' });
+  });
+
+  it('sends the instance User-Agent on every hop unless the caller names one', async () => {
+    const { federationUserAgent, formatUserAgent, setFederationUserAgent } = await import('../utils/userAgent.js');
+    const before = federationUserAgent();
+    setFederationUserAgent(formatUserAgent('9.9.9', 'harmony.example'));
+    try {
+      fetchSpy
+        .mockResolvedValueOnce(mockResponse({ status: 302, headers: { location: 'https://second.example/x' } }) as any)
+        .mockResolvedValueOnce(mockResponse({ status: 200 }) as any)
+        .mockResolvedValueOnce(mockResponse({ status: 200 }) as any);
+      await safeFetch('https://first.example/a', { method: 'POST', headers: { Accept: 'application/activity+json' } });
+      const sent = fetchSpy.mock.calls.slice(0, 2).map((c: any[]) => new Headers(c[1].headers).get('user-agent'));
+      expect(sent).toEqual(['Harmony/9.9.9 (+https://harmony.example/)', 'Harmony/9.9.9 (+https://harmony.example/)']);
+
+      await safeFetch('https://first.example/a', { headers: new Headers({ 'user-agent': 'LinkPreview/1' }) });
+      expect(new Headers((fetchSpy.mock.calls[2][1] as any).headers).get('user-agent')).toBe('LinkPreview/1');
+    } finally {
+      setFederationUserAgent(before);
+    }
   });
 
   it('rejects a redirect to a private IP literal', async () => {

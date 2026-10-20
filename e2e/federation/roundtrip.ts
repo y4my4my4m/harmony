@@ -90,6 +90,8 @@ import { caseGroupActor } from './cases/groupActor.ts'
 import { caseChannelPermissions } from './cases/channelPermissions.ts'
 import { caseGroupRelay } from './cases/groupRelay.ts'
 import { caseThreadRoutes } from './cases/threadRoutes.ts'
+import { caseApConformance } from './cases/apConformance.ts'
+import { caseApInbound } from './cases/apInbound.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -2576,6 +2578,11 @@ async function main() {
         pubServer: PUB_SERVER, pubGeneral: PUB_GENERAL,
       },
     })
+    await caseApConformance({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, post, signedHeaders, get, assert, eq,
+      ids: { alice: ALICE, carol: CAROL, remote: REMOTE, pubServer: PUB_SERVER },
+    })
+    await caseApInbound({ db, peer, localUrl, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq, ids: { alice: ALICE, remote: REMOTE } })
   } finally {
     await new Promise<void>((resolve) => local.close(() => resolve()))
     await peer.stop()

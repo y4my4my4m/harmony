@@ -91,6 +91,20 @@ export const __publicKeyCache = {
   invalidate: invalidatePublicKey,
 };
 
+/** Outcome of an inbound signature check. */
+export interface SignatureVerification {
+  verified: boolean;
+  actorUrl?: string;
+  error?: string;
+  /** HTTP status of a failed fetch of the signing key or its actor. */
+  keyStatus?: number;
+}
+
+/** Out-parameter: HTTP status of a failed key fetch. */
+interface KeyFetch {
+  status?: number;
+}
+
 export interface SignedApFetchOptions extends SafeFetchOptions {
   /** Local profile id whose key signs the request. */
   signAs?: string;
@@ -293,7 +307,7 @@ export class SignatureService {
     path: string,
     body?: any,
     scheme = 'https',
-  ): Promise<{ verified: boolean; actorUrl?: string; error?: string }> {
+  ): Promise<SignatureVerification> {
     const signatureInput = headers['signature-input'];
     if (typeof signatureInput === 'string' && signatureInput) {
       return this.verifyMessageSignature(signatureInput, signature, headers, method, path, body, scheme);
@@ -330,17 +344,18 @@ export class SignatureService {
         return { verified: false, error: 'Request Date outside allowed clock skew (possible replay)' };
       }
 
-      const actorUrl = await this.resolveKeyOwner(keyId);
+      const keyFetch: KeyFetch = {};
+      const actorUrl = await this.resolveKeyOwner(keyId, keyFetch);
       if (!actorUrl) {
         logger.warn(`Could not resolve owner of key ${keyId}`);
-        return { verified: false, error: 'Could not resolve key owner' };
+        return { verified: false, error: 'Could not resolve key owner', keyStatus: keyFetch.status };
       }
 
-      const publicKey = await this.fetchActorPublicKey(actorUrl);
+      const publicKey = await this.fetchActorPublicKey(actorUrl, false, keyFetch);
 
       if (!publicKey) {
         logger.warn(`Could not fetch public key for ${actorUrl}`);
-        return { verified: false, actorUrl, error: 'Could not fetch public key' };
+        return { verified: false, actorUrl, error: 'Could not fetch public key', keyStatus: keyFetch.status };
       }
 
       // Body integrity (BUGS.md H19). A request with a body requires a Digest
@@ -448,7 +463,7 @@ export class SignatureService {
     path: string,
     body: any,
     scheme: string,
-  ): Promise<{ verified: boolean; actorUrl?: string; error?: string }> {
+  ): Promise<SignatureVerification> {
     try {
       const sig = parseMessageSignature(signatureInput, signature ?? '');
       if ('error' in sig) return { verified: false, error: sig.error };
@@ -483,10 +498,11 @@ export class SignatureService {
       const base = signatureBase(sig, { method, scheme, target: path, headers });
       if (typeof base !== 'string') return { verified: false, error: base.error };
 
-      const actorUrl = await this.resolveKeyOwner(sig.keyId);
-      if (!actorUrl) return { verified: false, error: 'Could not resolve key owner' };
-      const publicKey = await this.fetchActorPublicKey(actorUrl);
-      if (!publicKey) return { verified: false, actorUrl, error: 'Could not fetch public key' };
+      const keyFetch: KeyFetch = {};
+      const actorUrl = await this.resolveKeyOwner(sig.keyId, keyFetch);
+      if (!actorUrl) return { verified: false, error: 'Could not resolve key owner', keyStatus: keyFetch.status };
+      const publicKey = await this.fetchActorPublicKey(actorUrl, false, keyFetch);
+      if (!publicKey) return { verified: false, actorUrl, error: 'Could not fetch public key', keyStatus: keyFetch.status };
 
       if (verifyRsaV15Sha256(base, sig.signature, publicKey)) return { verified: true, actorUrl };
 
@@ -574,7 +590,7 @@ export class SignatureService {
    * keyId under `publicKey` (GoToSocial `<actor>/main-key`). The owner must
    * be on the keyId's host.
    */
-  private static async resolveKeyOwner(keyId: string): Promise<string | null> {
+  private static async resolveKeyOwner(keyId: string, keyFetch: KeyFetch = {}): Promise<string | null> {
     const hashAt = keyId.indexOf('#');
     if (hashAt >= 0) return keyId.slice(0, hashAt);
 
@@ -599,6 +615,7 @@ export class SignatureService {
         },
         timeoutMs: 10_000,
       });
+      if (!response.ok) keyFetch.status = response.status;
       const fetched = await readApDocument(response, keyId);
       if (!fetched || !sameUrl(fetched.finalUrl, keyId)) {
         logger.warn(`Key document fetch failed: ${response.status} ${response.headers.get('content-type') ?? ''} for ${keyId}`);
@@ -631,7 +648,7 @@ export class SignatureService {
    * ap_actor_cache, remote fetch.
    * @param forceRefresh Skip every cache tier and fetch from the remote server.
    */
-  private static async fetchActorPublicKey(actorUrl: string, forceRefresh = false): Promise<string | null> {
+  private static async fetchActorPublicKey(actorUrl: string, forceRefresh = false, keyFetch: KeyFetch = {}): Promise<string | null> {
     const supabase = getSupabaseClient();
     
     // Declared here to stay in scope for the expired-cache fallback below.
@@ -691,6 +708,7 @@ export class SignatureService {
       });
 
       if (!response.ok) {
+        keyFetch.status = response.status;
         logger.warn(`Failed to fetch actor: ${response.status} for ${actorUrl}`);
         // Fall back to the cached key even when expired.
         if (cachedActorData?.publicKey?.publicKeyPem) {

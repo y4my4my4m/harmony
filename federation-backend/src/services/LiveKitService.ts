@@ -3,6 +3,7 @@ import { liveKitGrant, voiceMetadataFlags } from './voiceGrants.js';
 import config from '../config/index.js';
 import { getSupabaseClient } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
+import { BlockedInstancesCache } from './BlockedInstancesCache.js';
 import {
   authorizeVoiceChannel,
   DM_CALL_GRANTS,
@@ -191,7 +192,7 @@ class LiveKitService {
       .eq('domain', remoteDomain)
       .single();
     
-    if (blocked) {
+    if (blocked || BlockedInstancesCache.isBlocked(remoteDomain)) {
       throw new TokenRefused(`Instance ${remoteDomain} is blocked`, 'Instance is blocked');
     }
 

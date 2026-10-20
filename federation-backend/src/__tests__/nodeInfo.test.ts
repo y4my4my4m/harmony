@@ -28,15 +28,20 @@ const rpc = vi.fn(async (name: string, args: { p_since: string }) => {
   return { data: lastActiveDaysAgo.filter((d) => NOW - d * DAY >= since).length, error: null }
 })
 const counts: Record<string, number> = { profiles: 9, posts: 1234 }
+// Filters each table was counted with, as `<method>:<column>:<value>`.
+const filters: Record<string, string[]> = {}
 
 vi.mock('../config/supabase.js', () => ({
   getSupabaseClient: () => ({
     rpc,
     from: (table: string) => {
+      const seen = (filters[table] = [] as string[])
       const q: any = {
         select: () => q,
-        eq: () => q,
+        eq: (c: string, v: unknown) => (seen.push(`eq:${c}:${v}`), q),
         in: () => q,
+        not: (c: string, op: string, v: unknown) => (seen.push(`not.${op}:${c}:${v}`), q),
+        is: (c: string, v: unknown) => (seen.push(`is:${c}:${v}`), q),
         then: (resolve: any) =>
           resolve(table === 'instance_config' ? { data: [], error: null } : { count: counts[table], data: null, error: null }),
       }
@@ -87,6 +92,26 @@ describe('NodeInfo usage', () => {
     const res = await supertest(app()).get('/nodeinfo/2.0')
     expect(res.body.usage.users).toEqual({ total: 9, activeMonth: 0, activeHalfyear: 0 })
     expect(res.body.usage.localPosts).toBe(1234)
+  })
+
+  it('counts as users only signed-up local accounts neither suspended nor deleted', async () => {
+    await supertest(app()).get('/nodeinfo/2.0')
+    expect(filters.profiles.sort()).toEqual([
+      'eq:is_local:true',
+      'is:deleted_at:null',
+      'not.is:auth_user_id:null',
+      'not.is:is_suspended:true',
+    ])
+  })
+
+  it('2.1 names the software homepage and repository', async () => {
+    const res = await supertest(app()).get('/nodeinfo/2.1')
+    expect(res.body.software).toEqual({
+      name: 'harmony',
+      version: '1.8.3',
+      repository: 'https://github.com/y4my4my4m/harmony',
+      homepage: 'https://mony.lol',
+    })
   })
 
   it('computes the usage once per 10 minutes', async () => {

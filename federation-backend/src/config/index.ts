@@ -1,5 +1,6 @@
 import { config as dotenvConfig } from 'dotenv';
 import { z } from 'zod';
+import { formatUserAgent, setFederationUserAgent } from '../utils/userAgent.js';
 
 dotenvConfig();
 
@@ -192,6 +193,7 @@ const parseEnv = () => {
 };
 
 export const config = parseEnv();
+setFederationUserAgent(formatUserAgent(config.VERSION, config.INSTANCE_DOMAIN));
 
 export default config;
 
