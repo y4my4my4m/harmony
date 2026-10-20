@@ -139,6 +139,7 @@ dependencies = [
  "log",
  "minisign-verify",
  "ndk-context",
+ "objc2 0.6.4",
  "rdev",
  "serde",
  "serde_json",
