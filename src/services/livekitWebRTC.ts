@@ -2478,8 +2478,13 @@ export class LiveKitWebRTCService {
     await this.applyRoomKey(key, env.keyId);
   }
 
-  /** Handle a key-distribution envelope received over the data channel. */
+  /**
+   * Handle a key-distribution envelope received over the data channel. A
+   * participant joined without E2EE ignores them: its Room has no E2EE worker
+   * to take a key.
+   */
   private async handleE2EEData(payload: Uint8Array): Promise<void> {
+    if (!this.e2eeRequired) return;
     let env: VoiceKeyEnvelope;
     try {
       env = JSON.parse(new TextDecoder().decode(payload)) as VoiceKeyEnvelope;

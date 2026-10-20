@@ -260,11 +260,17 @@ The player shows the length and a waveform. Its speed button cycles 1x, 1.5x and
 
 ## Encrypted voice channels
 
-A voice channel can encrypt its calls end to end, so audio and video are encrypted before they reach the voice server. The server owner or someone with **Manage Channels** turns this on: right-click the channel → **Edit channel** → **General** → **Encryption** → **End-to-end encrypt voice and video**. A server can also require it for every voice channel.
+A voice channel can encrypt its calls end to end, so audio and video are encrypted before they reach the voice server. The server owner or someone with **Manage Channels** turns this on: right-click the channel → **Edit channel** → **General** → **Encryption** → **End-to-end encrypt voice and video**, or with **Encrypt voice and video** when creating the channel. Each voice channel decides for itself, whatever the server's message encryption mode. The server owner can instead require it for every voice channel: **Server settings** → **Privacy settings** → **Voice & video encryption** → **Required for every voice channel**. Switching back to **Per channel** leaves every voice channel encrypted until someone turns it off.
 
-To join such a channel you need encryption set up and unlocked on your device. Without it Harmony refuses the join with **End-to-end encryption required**. See [Privacy and security](/use/privacy-security). Encrypted voice needs the SFU transport.
+To join such a channel you need encryption set up and unlocked on your device. Without it Harmony refuses the join and opens **Set up message encryption**, or the **Restore encryption** window when your keys are locked. See [Privacy and security](/use/privacy-security). Encrypted voice needs the SFU transport.
 
-Direct message calls are not end-to-end encrypted. The shield in the call bar reads "End-to-end encrypted" or "Not end-to-end encrypted" when you hover it.
+People joining from another instance cannot take part in an encrypted call: their client holds no encryption keys for the channel, so they connect but cannot hear or be heard.
+
+### Direct message calls
+
+A call in an encrypted direct message conversation is end-to-end encrypted too, for every participant on your instance, group conversations included. Calling or answering needs encryption set up and unlocked, as above. A call with someone on another instance is never end-to-end encrypted, even when the conversation is.
+
+The shield in the call bar reads "End-to-end encrypted" or "Not end-to-end encrypted" when you hover it.
 
 ## Set up your microphone, speakers and camera
 

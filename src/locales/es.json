@@ -469,9 +469,7 @@
       "forceKeySetupHint": "Mostrar el asistente de configuración a usuarios sin claves",
       "attachmentNote": "En los canales cifrados, los enlaces, nombres y tipos de archivo se cifran con el mensaje. Los archivos en sí se guardan sin cifrar.",
       "voiceTitle": "Cifrado de voz y vídeo",
-      "voiceHint": "Cifra de extremo a extremo el contenido de las llamadas para que el servidor de medios no pueda acceder a él",
-      "voiceRequire": "Exigir voz y vídeo con cifrado de extremo a extremo",
-      "voiceRequireHint": "Cada canal de voz cifra las llamadas antes de que lleguen al servidor de medios. Sin esto, los administradores de canales eligen en cada canal de voz.",
+      "voiceHint": "Cifra de extremo a extremo el contenido de las llamadas para que el servidor de medios no pueda acceder a él. Este ajuste no depende del modo de cifrado de los mensajes.",
       "voiceWarning": "Los participantes que no hayan configurado el cifrado (y los clientes federados o antiguos) no podrán unirse a llamadas cifradas.",
       "statsTitle": "Estadísticas del servidor",
       "statsTotal": "Miembros en total",
@@ -497,7 +495,17 @@
       },
       "saved": "Configuración de cifrado guardada",
       "loadFailed": "No se pudo cargar la configuración",
-      "saveFailed": "No se pudo guardar la configuración"
+      "saveFailed": "No se pudo guardar la configuración",
+      "voiceModes": {
+        "disabled": {
+          "name": "Por canal",
+          "description": "Los administradores de canales activan el cifrado en cada canal de voz. Los canales de voz nuevos empiezan sin cifrar."
+        },
+        "required": {
+          "name": "Obligatorio en todos los canales de voz",
+          "description": "Cada canal de voz cifra las llamadas antes de que lleguen al servidor de medios, y los canales no pueden desactivarlo."
+        }
+      }
     },
     "roleManagement": {
       "intro": "Crea y gestiona los roles de tu servidor. Arrástralos para cambiar su prioridad o usa Subir y Bajar.",
@@ -3676,7 +3684,15 @@
       "label": "Cifrado de extremo a extremo",
       "hint": "Cifra los mensajes de este canal para que el servidor no pueda leerlos.",
       "integrationWarning": "Los bots y puentes de este servidor no pueden leer mensajes cifrados ni publicar en este canal.",
-      "failed": "El canal se creó, pero no se pudo activar el cifrado. Actívalo en la configuración del canal."
+      "failed": "El canal se creó, pero no se pudo activar el cifrado. Actívalo en la configuración del canal.",
+      "voiceLabel": "Cifrar voz y video",
+      "voiceHint": "Cifra las llamadas de este canal antes de que lleguen al servidor multimedia. Los miembros necesitan configurar el cifrado para unirse."
+    },
+    "voiceJoin": {
+      "setup": "Este canal de voz está cifrado de extremo a extremo. Configura el cifrado para unirte.",
+      "unlock": "Este canal de voz está cifrado de extremo a extremo. Desbloquea el cifrado con tu clave de recuperación para unirte.",
+      "dmSetup": "Las llamadas de esta conversación están cifradas de extremo a extremo. Configura el cifrado para llamar o responder.",
+      "dmUnlock": "Las llamadas de esta conversación están cifradas de extremo a extremo. Desbloquea el cifrado con tu clave de recuperación para llamar o responder."
     }
   },
   "today": {

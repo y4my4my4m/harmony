@@ -27,7 +27,7 @@ import { useNotificationStore } from '@/stores/useNotification';
 import { useUserData } from '@/composables/useUserData';
 import { useKeybinds } from '@/composables/useKeybinds';
 import { voiceE2EEService } from '@/services/encryption/VoiceE2EEService';
-import { fetchEffectiveChannelEncryption } from '@/services/ChannelEncryptionService';
+import { callRequiresE2EE, promptCallEncryptionSetup } from '@/services/voice/voiceEncryptionGate';
 import { supabase } from '@/supabase';
 import { userEventChannel } from '@/services/UserEventChannel';
 import { debug } from '@/utils/debug';
@@ -517,17 +517,15 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
     },
     
     /**
-     * The channel's effective voice encryption (effective_channel_encryption
-     * voice_encrypted). DM calls (serverId === 'dm') have no channel policy
-     * and return false.
+     * Whether the room's calls are end-to-end encrypted (callRequiresE2EE): a
+     * voice channel's effective voice encryption, a local DM call's
+     * conversation encryption. A read failure answers false.
      */
     async resolveVoiceE2EERequired(serverId: string, channelId: string): Promise<boolean> {
-      if (!serverId || serverId === 'dm' || !channelId) return false;
       try {
-        const state = await fetchEffectiveChannelEncryption(channelId);
-        return state?.voiceEncrypted === true;
+        return await callRequiresE2EE(serverId, channelId);
       } catch (err) {
-        debug.warn('[VoiceChannel] Failed to read channel voice encryption:', err);
+        debug.warn('[VoiceChannel] Failed to read call encryption:', err);
         return false;
       }
     },
@@ -542,6 +540,17 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       const serverUsersStore = useServerUsersStore();
       const serverChannelStore = useServerChannelStore();
       
+      // Fail closed: a client that cannot encrypt is refused rather than
+      // joined into a plaintext call, before presence announces it. A token
+      // join never encrypts.
+      const requireE2EE = livekit ? false : await this.resolveVoiceE2EERequired(serverId, channelId);
+      if (requireE2EE && !voiceE2EEService.canParticipate()) {
+        const blocker = await voiceE2EEService.participationBlocker();
+        if (blocker) {
+          throw new Error(await promptCallEncryptionSetup(blocker, serverId === 'dm' ? 'dm' : 'channel', { toast: false }));
+        }
+      }
+      
       const presenceSuccess = await serverUsersStore.joinVoiceChannel(serverId, channelId, userId, true);
       if (!presenceSuccess) {
         throw new Error('Failed to update server presence');
@@ -555,20 +564,6 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
       this.setupWebRTCListeners();
       
       const roomType = serverId === 'dm' ? 'dm_call' : 'voice_channel';
-      
-      // Fail closed: a client that cannot encrypt is refused rather than
-      // joined into a plaintext call.
-      const requireE2EE = await this.resolveVoiceE2EERequired(serverId, channelId);
-      if (requireE2EE && !voiceE2EEService.canParticipate()) {
-        await serverUsersStore.leaveVoiceChannel(serverId, channelId, userId);
-        useNotificationStore().showToast(
-          'server_update',
-          'End-to-end encryption required',
-          'This channel requires encrypted voice. Set up encryption (and unlock it) to join.',
-          6000
-        );
-        throw new Error('Voice E2EE required but not available on this device');
-      }
       
       // Gate must be current before the mic publishes; a PTT join must not go out hot.
       this.syncTransmitGate();

@@ -46,7 +46,7 @@ export function selectCallTransport(
   }
 
   if (transport === 'p2p' && opts.requireE2EE) {
-    return { ok: false, reason: 'This channel requires end-to-end encrypted voice, which needs the voice server (SFU).' };
+    return { ok: false, reason: 'This call is end-to-end encrypted, which needs the voice server (SFU).' };
   }
   return { ok: true, transport };
 }

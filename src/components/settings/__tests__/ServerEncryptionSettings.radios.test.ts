@@ -14,11 +14,14 @@ vi.mock('vue-i18n', async (importOriginal) => {
 
 const SERVER = 'srv-enc'
 
+const upsert = vi.hoisted(() => vi.fn(async (_row: Record<string, unknown>, _options?: unknown) => ({ error: null })))
+
 vi.mock('@/supabase', () => {
   const query = {
     select: () => query,
     eq: () => query,
-    maybeSingle: async () => ({ data: { encryption_mode: 'optional', force_key_setup: false, voice_encryption_mode: 'disabled' }, error: null }),
+    maybeSingle: async () => ({ data: { encryption_mode: 'disabled', force_key_setup: false, voice_encryption_mode: 'disabled' }, error: null }),
+    upsert,
   }
   return {
     supabase: {
@@ -67,7 +70,7 @@ describe('ServerEncryptionSettings encryption mode', () => {
 
     const labels = radios.map((r) => document.querySelector(`label[for="${r.attributes('id')}"]`)?.textContent?.trim())
     expect(labels).toEqual(['Disabled', 'Optional', 'Required'])
-    expect(radios.map((r) => (r.element as HTMLInputElement).checked)).toEqual([false, true, false])
+    expect(radios.map((r) => (r.element as HTMLInputElement).checked)).toEqual([true, false, false])
 
     const required = radios[2]
     const described = required.attributes('aria-describedby')!.split(' ').map((id) => document.getElementById(id)?.textContent?.trim())
@@ -94,12 +97,50 @@ describe('ServerEncryptionSettings encryption mode', () => {
     expect(forceKeySetup().disabled).toBe(true)
   })
 
-  it('names the section headings and checkbox hints', async () => {
+  it('names the section headings', async () => {
     const wrapper = await mountSettings()
     expect(wrapper.findAll('h3').map((h) => h.text())).toEqual([
       'Encryption mode', 'Additional options', 'Voice & video encryption', 'Server statistics', 'About end-to-end encryption',
     ])
-    const voice = wrapper.findAll('input[type="checkbox"]')[1]
-    expect(document.getElementById(voice.attributes('aria-describedby')!)?.textContent).toContain('Every voice channel encrypts calls')
+  })
+})
+
+describe('ServerEncryptionSettings voice encryption mode', () => {
+  it('offers per channel and required for every voice channel in a labelled radiogroup', async () => {
+    const wrapper = await mountSettings()
+    const group = wrapper.get('[data-testid="voice-encryption-mode-group"]')
+
+    expect(group.attributes('role')).toBe('radiogroup')
+    expect(document.getElementById(group.attributes('aria-labelledby')!)?.textContent).toBe('Voice & video encryption')
+    expect(document.getElementById(group.attributes('aria-describedby')!)?.textContent)
+      .toContain("doesn't depend on the message encryption mode")
+
+    const radios = group.findAll('input[type="radio"]')
+    expect(radios).toHaveLength(2)
+    expect(new Set(radios.map((r) => r.attributes('name'))).size).toBe(1)
+    expect(radios[0].attributes('name')).not.toBe(wrapper.get('[data-testid="encryption-mode-group"] input').attributes('name'))
+    const labels = radios.map((r) => document.querySelector(`label[for="${r.attributes('id')}"]`)?.textContent?.trim())
+    expect(labels).toEqual(['Per channel', 'Required for every voice channel'])
+    expect(radios.map((r) => (r.element as HTMLInputElement).checked)).toEqual([true, false])
+    expect(radios.every((r) => !(r.element as HTMLInputElement).disabled)).toBe(true)
+
+    const described = radios[1].attributes('aria-describedby')!.split(' ').map((id) => document.getElementById(id)?.textContent?.trim())
+    expect(described[0]).toContain('Every voice channel encrypts calls')
+    expect(described[1]).toContain('unable to join encrypted calls')
+  })
+
+  it('saves the voice mode apart from a disabled message mode', async () => {
+    const wrapper = await mountSettings()
+    const radios = wrapper.findAll('[data-testid="voice-encryption-mode-group"] input[type="radio"]')
+    ;(radios[1].element as HTMLInputElement).checked = true
+    await radios[1].trigger('change')
+    expect((wrapper.vm as any).hasChanges).toBe(true)
+
+    await (wrapper.vm as any).saveSettings()
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ server_id: SERVER, encryption_mode: 'disabled', voice_encryption_mode: 'required' }),
+      { onConflict: 'server_id' },
+    )
+    expect((wrapper.vm as any).hasChanges).toBe(false)
   })
 })

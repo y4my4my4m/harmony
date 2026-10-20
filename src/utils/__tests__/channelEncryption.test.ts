@@ -14,13 +14,16 @@ describe('resolveChannelEncryption', () => {
   const on = { messages_encrypted: true, voice_encrypted: true }
   const off = { messages_encrypted: false, voice_encrypted: false }
 
-  it('treats a server without a policy row as disabled', () => {
+  it('treats a server without a policy row as disabled for messages and per channel for voice', () => {
     const r = resolveChannelEncryption(null, on)
     expect(r.serverMode).toBe('disabled')
+    expect(r.voiceMode).toBe('disabled')
     expect(r.messagesEncrypted).toBe(false)
-    expect(r.voiceEncrypted).toBe(false)
     expect(r.messagesLocked).toBe(true)
-    expect(r.voiceLocked).toBe(true)
+    expect(r.voiceEncrypted).toBe(true)
+    expect(r.voiceLocked).toBe(false)
+    expect(resolveChannelEncryption(null, off).voiceEncrypted).toBe(false)
+    expect(resolveChannelEncryption(null, null).voiceEncrypted).toBe(false)
   })
 
   it('lets the channel row decide under optional', () => {
@@ -45,10 +48,32 @@ describe('resolveChannelEncryption', () => {
     expect(r.messagesEncrypted).toBe(false)
   })
 
-  it('lets the channel row decide voice unless messages are disabled or voice is required', () => {
-    expect(resolveChannelEncryption({ encryption_mode: 'optional' }, on).voiceEncrypted).toBe(true)
-    expect(resolveChannelEncryption({ encryption_mode: 'required' }, off).voiceEncrypted).toBe(false)
-    expect(resolveChannelEncryption({ encryption_mode: 'required' }, off).voiceLocked).toBe(false)
+  it('lets the channel row decide voice under every message mode unless voice is required', () => {
+    for (const mode of ['disabled', 'optional', 'required', 'required_local_only']) {
+      const policy = { encryption_mode: mode, voice_encryption_mode: 'disabled' }
+      expect(resolveChannelEncryption(policy, on).voiceEncrypted).toBe(true)
+      expect(resolveChannelEncryption(policy, off).voiceEncrypted).toBe(false)
+      expect(resolveChannelEncryption(policy, off).voiceLocked).toBe(false)
+    }
+  })
+
+  it('keeps voice on and locked under required voice whatever the row says', () => {
+    for (const mode of ['disabled', 'optional', 'required']) {
+      const r = resolveChannelEncryption({ encryption_mode: mode, voice_encryption_mode: 'required' }, off)
+      expect(r.voiceEncrypted).toBe(true)
+      expect(r.voiceLocked).toBe(true)
+    }
+  })
+
+  it('resolves voice apart from messages', () => {
+    const r = resolveChannelEncryption(
+      { encryption_mode: 'disabled', voice_encryption_mode: 'disabled' },
+      { messages_encrypted: false, voice_encrypted: true },
+    )
+    expect(r.messagesEncrypted).toBe(false)
+    expect(r.messagesLocked).toBe(true)
+    expect(r.voiceEncrypted).toBe(true)
+    expect(r.voiceLocked).toBe(false)
   })
 
   it('defaults history visibility to joined', () => {

@@ -364,6 +364,7 @@ const handleGlobalCallAccept = async (acceptWithVideo: boolean) => {
         debug.log('Joined call with maximized voice overlay')
       } else {
         voiceStore.isOverlayVisible = false
+        useToast().error(voiceStore.joinError || t('voice.joinCallFailed'))
       }
     }
   } catch (error) {

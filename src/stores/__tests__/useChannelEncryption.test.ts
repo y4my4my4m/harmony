@@ -65,12 +65,35 @@ describe('useChannelEncryptionStore', () => {
 
     store.applyEffective({
       channelId: 'c1', serverId: SERVER_ID, serverMode: 'disabled', voiceMode: 'disabled',
-      messagesEncrypted: false, voiceEncrypted: false, messagesLocked: true, voiceLocked: true,
+      messagesEncrypted: false, voiceEncrypted: false, messagesLocked: true, voiceLocked: false,
       historyVisibility: 'joined', enabledAt: null, enabledBy: null, botCount: 0, bridgeCount: 0,
     })
     expect(store.isMessagesEncrypted('c1')).toBe(false)
 
     store.applyBroadcast({ table: 'server_encryption_settings', new: { server_id: SERVER_ID, encryption_mode: 'optional' } })
     expect(store.isMessagesEncrypted('c1')).toBe(true)
+  })
+
+  it('keeps channel voice encryption on a server whose message encryption is disabled', async () => {
+    mockTables({ encryption_mode: 'disabled', voice_encryption_mode: 'disabled' }, [
+      { channel_id: 'v1', messages_encrypted: false, voice_encrypted: false },
+    ])
+    const store = useChannelEncryptionStore()
+    await store.loadServer(SERVER_ID, ['v1'])
+    expect(store.isVoiceEncrypted('v1')).toBe(false)
+
+    store.applyEffective({
+      channelId: 'v1', serverId: SERVER_ID, serverMode: 'disabled', voiceMode: 'disabled',
+      messagesEncrypted: false, voiceEncrypted: true, messagesLocked: true, voiceLocked: false,
+      historyVisibility: 'joined', enabledAt: null, enabledBy: null, botCount: 0, bridgeCount: 0,
+    })
+    expect(store.isVoiceEncrypted('v1')).toBe(true)
+    expect(store.isMessagesEncrypted('v1')).toBe(false)
+    expect(store.stateFor('v1')?.voiceLocked).toBe(false)
+
+    store.applyBroadcast({ table: 'server_encryption_settings', new: { server_id: SERVER_ID, encryption_mode: 'disabled', voice_encryption_mode: 'required' } })
+    expect(store.stateFor('v1')?.voiceLocked).toBe(true)
+    store.applyBroadcast({ table: 'channel_encryption_settings', new: { channel_id: 'v1', messages_encrypted: false, voice_encrypted: false } })
+    expect(store.isVoiceEncrypted('v1')).toBe(true)
   })
 })

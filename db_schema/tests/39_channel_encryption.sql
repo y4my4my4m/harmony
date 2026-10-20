@@ -213,9 +213,8 @@ SELECT tests.authenticate_as('e3900000-0000-0000-0000-0000000000a1');
 SELECT throws_ok(
     $q$SELECT public.set_channel_encryption('e3930000-0000-0000-0000-000000000006', true)$q$,
     '22023', NULL, 'a disabled server refuses to turn a channel on');
-SELECT throws_ok(
-    $q$SELECT public.set_channel_encryption('e3930000-0000-0000-0000-000000000006', NULL, true)$q$,
-    '22023', NULL, 'a disabled server refuses to turn channel voice on');
+SELECT is(public.set_channel_encryption('e3930000-0000-0000-0000-000000000006', NULL, true)->>'voice_encrypted',
+          'true', 'a disabled server lets the owner turn channel voice on');
 SELECT throws_ok(
     $q$SELECT public.set_channel_encryption('e3930000-0000-0000-0000-000000000005', false)$q$,
     '22023', NULL, 'a required server refuses to turn a channel off');

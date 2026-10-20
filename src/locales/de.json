@@ -469,9 +469,7 @@
       "forceKeySetupHint": "Einrichtungsassistent für Benutzer ohne Schlüssel anzeigen",
       "attachmentNote": "In verschlüsselten Kanälen werden Dateilinks, -namen und -typen mit der Nachricht verschlüsselt. Die Dateien selbst werden unverschlüsselt gespeichert.",
       "voiceTitle": "Sprach- und Videoverschlüsselung",
-      "voiceHint": "Anrufmedien Ende-zu-Ende verschlüsseln, damit der Medienserver nicht darauf zugreifen kann",
-      "voiceRequire": "Ende-zu-Ende-verschlüsselte Sprache und Video verlangen",
-      "voiceRequireHint": "Jeder Sprachkanal verschlüsselt Anrufe, bevor sie den Medienserver erreichen. Ohne diese Option entscheiden Kanalverwalter pro Sprachkanal.",
+      "voiceHint": "Anrufmedien Ende-zu-Ende verschlüsseln, damit der Medienserver nicht darauf zugreifen kann. Diese Einstellung hängt nicht vom Verschlüsselungsmodus für Nachrichten ab.",
       "voiceWarning": "Teilnehmende ohne eingerichtete Verschlüsselung (sowie föderierte oder ältere Clients) können verschlüsselten Anrufen nicht beitreten.",
       "statsTitle": "Serverstatistik",
       "statsTotal": "Mitglieder insgesamt",
@@ -497,7 +495,17 @@
       },
       "saved": "Verschlüsselungseinstellungen gespeichert",
       "loadFailed": "Einstellungen konnten nicht geladen werden",
-      "saveFailed": "Einstellungen konnten nicht gespeichert werden"
+      "saveFailed": "Einstellungen konnten nicht gespeichert werden",
+      "voiceModes": {
+        "disabled": {
+          "name": "Pro Kanal",
+          "description": "Kanalverwalter aktivieren die Verschlüsselung für jeden Sprachkanal. Neue Sprachkanäle starten unverschlüsselt."
+        },
+        "required": {
+          "name": "Für jeden Sprachkanal verlangt",
+          "description": "Jeder Sprachkanal verschlüsselt Anrufe, bevor sie den Medienserver erreichen, und Kanäle können das nicht ausschalten."
+        }
+      }
     },
     "roleManagement": {
       "intro": "Erstelle und verwalte Rollen für deinen Server. Ziehe sie, um die Rangfolge zu ändern, oder nutze Nach oben und Nach unten.",
@@ -3676,7 +3684,15 @@
       "label": "Ende-zu-Ende-Verschlüsselung",
       "hint": "Nachrichten in diesem Kanal verschlüsseln, damit der Server sie nicht lesen kann.",
       "integrationWarning": "Bots und Bridges auf diesem Server können verschlüsselte Nachrichten nicht lesen und in diesem Kanal nicht posten.",
-      "failed": "Der Kanal wurde erstellt, aber die Verschlüsselung konnte nicht aktiviert werden. Aktiviere sie in den Kanaleinstellungen."
+      "failed": "Der Kanal wurde erstellt, aber die Verschlüsselung konnte nicht aktiviert werden. Aktiviere sie in den Kanaleinstellungen.",
+      "voiceLabel": "Sprache und Video verschlüsseln",
+      "voiceHint": "Anrufe in diesem Kanal verschlüsseln, bevor sie den Medienserver erreichen. Mitglieder brauchen eingerichtete Verschlüsselung, um beizutreten."
+    },
+    "voiceJoin": {
+      "setup": "Dieser Sprachkanal ist Ende-zu-Ende-verschlüsselt. Richte die Verschlüsselung ein, um beizutreten.",
+      "unlock": "Dieser Sprachkanal ist Ende-zu-Ende-verschlüsselt. Entsperre die Verschlüsselung mit deinem Wiederherstellungsschlüssel, um beizutreten.",
+      "dmSetup": "Anrufe in dieser Unterhaltung sind Ende-zu-Ende-verschlüsselt. Richte die Verschlüsselung ein, um anzurufen oder Anrufe anzunehmen.",
+      "dmUnlock": "Anrufe in dieser Unterhaltung sind Ende-zu-Ende-verschlüsselt. Entsperre die Verschlüsselung mit deinem Wiederherstellungsschlüssel, um anzurufen oder Anrufe anzunehmen."
     }
   },
   "today": {
