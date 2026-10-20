@@ -212,11 +212,16 @@ jobs:
   # journeys run the federation backend's HTTP app (e2e/specs/backend.ts); the bot
   # gateway journeys run bot-gateway (e2e/specs/botGateway.ts).
   # ----------------------------------------------------------------
+  # Two shards on their own runners and stacks: 239 journeys on one worker took 31-33 min of
+  # a 40 min limit on 2026-10-20. Each shard runs about half, whole serial groups together.
   e2e-journeys:
-    name: E2E Journeys
+    name: E2E Journeys (${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
-    # 144 journeys on one worker: 19 min on 2026-10-13, over 20 min since.
-    timeout-minutes: 40
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v4
 
@@ -241,7 +246,7 @@ jobs:
       - run: npm run e2e:up
       - run: npm run e2e:seed
 
-      - run: npx playwright test --project=journeys
+      - run: npx playwright test --project=journeys --shard=${{ matrix.shard }}/2
         env:
           CI: true
 
@@ -249,7 +254,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: |
             playwright-report/
             test-results/

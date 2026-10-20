@@ -20,7 +20,9 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: 1,
   workers: process.env.CI ? 1 : undefined,
-  reporter: 'html',
+  // CI: one line per finished test, so a running job's log shows progress (the dot reporter's
+  // dots share one unterminated line, which GitHub's live log does not draw until it ends).
+  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'html',
   globalSetup: './tests/e2e/global-setup.ts',
   globalTeardown: './tests/e2e/global-teardown.ts',
   use: {
