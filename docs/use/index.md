@@ -17,6 +17,7 @@ Harmony is a chat app you reach through an instance: a Harmony deployment at its
 | [Drive](/use/drive) | The files you send and upload: folders, temporary files, storage limits, attaching from Drive and sharing. |
 | [Voice and video](/use/voice-video) | Voice channels, direct message calls, screen sharing, watching or listening together, the soundboard and voice messages. |
 | [Notifications and apps](/use/notifications-apps) | Notification levels for servers, categories and channels; the desktop app, the Android app and the installable web app. |
+| [iPhone and iPad](/use/ios) | The sideloaded iOS app and the Home Screen web app. |
 | [Social](/use/social) | Posts, quote posts, follow requests, locked accounts and moving your account. |
 | [Privacy and security](/use/privacy-security) | Two-factor authentication, end-to-end encryption and device pairing. |
 | [Accessibility](/use/accessibility) | Keyboard use, screen readers, high contrast and zoom. |

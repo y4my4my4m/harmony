@@ -28,6 +28,7 @@ const sidebar: DefaultTheme.Sidebar = {
         { text: 'Drive', link: '/use/drive' },
         { text: 'Voice and video', link: '/use/voice-video' },
         { text: 'Notifications and apps', link: '/use/notifications-apps' },
+        { text: 'iPhone and iPad', link: '/use/ios' },
         { text: 'Social', link: '/use/social' },
         { text: 'Privacy and security', link: '/use/privacy-security' },
         { text: 'Accessibility', link: '/use/accessibility' },
