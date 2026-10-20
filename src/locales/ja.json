@@ -6030,12 +6030,15 @@
       "createFailed": "投票を投稿できませんでした。",
       "voteFailed": "投票を保存できませんでした。",
       "closed": "この投票は終了しています。",
-      "endFailed": "投票を終了できませんでした。"
+      "endFailed": "投票を終了できませんでした。",
+      "alreadyVoted": "このアンケートにはすでに投票しています。"
     },
     "remote": {
       "voters": "{count} 人が投票",
       "voteOnOriginal": "元の投稿で投票する",
-      "label": "アンケート"
+      "label": "アンケート",
+      "vote": "投票",
+      "yourAnswer": "あなたの回答"
     }
   },
   "serverTemplate": {
@@ -6745,5 +6748,15 @@
     "tierSupporter": "{tier} サポーター",
     "active": "有効",
     "history": "支援履歴"
+  },
+  "authorizeInteraction": {
+    "title": "リモート操作",
+    "resolving": "{uri} を検索中…",
+    "notFound": "このアドレスでは何も見つかりませんでした。",
+    "invalid": "ハンドルまたはリンクではありません。",
+    "openPost": "投稿を開く",
+    "openProfile": "プロフィールを開く",
+    "home": "ホームへ",
+    "followFailed": "フォローを保存できませんでした。"
   }
 }

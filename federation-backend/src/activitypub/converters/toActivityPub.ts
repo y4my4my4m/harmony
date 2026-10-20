@@ -107,6 +107,14 @@ export function postPageUrl(postId: string): string {
   return `https://${config.INSTANCE_DOMAIN}/social/post/${postId}`;
 }
 
+/**
+ * FEP-7888 context of a thread rooted at the post `rootId`: an OrderedCollection of the
+ * thread's public and unlisted posts (OutboxHandler GET /posts/:postId/context).
+ */
+export function threadContextUrl(rootId: string): string {
+  return `https://${config.INSTANCE_DOMAIN}/posts/${rootId}/context`;
+}
+
 /** Hashtag page on this instance; the SPA route, which also serves crawlers. */
 function hashtagUrl(name: string): string {
   return `https://${config.INSTANCE_DOMAIN}/social/hashtag/${encodeURIComponent(name)}`;
@@ -172,6 +180,11 @@ export function postToNote(
     replies: `${postUrl}/replies`,
     interactionPolicy: quotePolicy(post.visibility, authorUrl),
   };
+
+  // A root post's conversation_root_id is null. A direct post carries no context: an inbound
+  // direct post to several local accounts joins the group conversation its context names.
+  const rootId = post.conversation_root_id || post.id;
+  if (rootId && post.visibility !== 'direct' && post.visibility !== 'private') note.context = threadContextUrl(rootId);
 
   if (typeof post.language === 'string' && /^[a-z]{2,3}(?:-[A-Za-z0-9]+)*$/.test(post.language)) {
     note.contentMap = { [post.language]: content };

@@ -6030,12 +6030,15 @@
       "createFailed": "No se publicó la encuesta.",
       "voteFailed": "No se guardó tu voto.",
       "closed": "Esta encuesta ha terminado.",
-      "endFailed": "No se pudo terminar la encuesta."
+      "endFailed": "No se pudo terminar la encuesta.",
+      "alreadyVoted": "Ya votaste en esta encuesta."
     },
     "remote": {
       "voters": "{count} persona votó | {count} personas votaron",
       "voteOnOriginal": "Votar en la publicación original",
-      "label": "Encuesta"
+      "label": "Encuesta",
+      "vote": "Votar",
+      "yourAnswer": "tu respuesta"
     }
   },
   "serverTemplate": {
@@ -6745,5 +6748,15 @@
     "tierSupporter": "Patrocinador {tier}",
     "active": "Activo",
     "history": "Tu historial de apoyo"
+  },
+  "authorizeInteraction": {
+    "title": "Interacción remota",
+    "resolving": "Buscando {uri}…",
+    "notFound": "No se encontró nada en esta dirección.",
+    "invalid": "No es un identificador ni un enlace.",
+    "openPost": "Abrir publicación",
+    "openProfile": "Abrir perfil",
+    "home": "Ir al inicio",
+    "followFailed": "No se guardó el seguimiento."
   }
 }

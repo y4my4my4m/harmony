@@ -4,7 +4,7 @@ import { logger } from '../utils/logger.js';
 import { stripIncomingMediaPaths } from '../utils/privateMedia.js';
 import { mergeQuestionPoll, questionPollMetadata, withoutPollParts } from '../utils/polls.js';
 import { normalizeInboundMentions, actorHostname } from '../utils/mentionParts.js';
-import { actorToProfile, asNoteObject, isPostObjectType, objectLanguage, noteToContent, extractFollowData, extractLikeData, extractAnnounceData, extractDeleteData, extractMediaAttachments, normalizeActor, parseAlsoKnownAs, parseMovedTo, noteQuoteUrl, noteUrl } from './converters/fromActivityPub.js';
+import { actorToProfile, asNoteObject, isPostObjectType, objectLanguage, noteToContent, extractFollowData, extractLikeData, extractAnnounceData, extractDeleteData, extractMediaAttachments, normalizeActor, parseAlsoKnownAs, parseMovedTo, noteQuoteUrl, noteUrl, noteContext } from './converters/fromActivityPub.js';
 import { VoiceActivityHandler } from './VoiceActivityHandler.js';
 import { SignatureService } from './SignatureService.js';
 import config from '../config/index.js';
@@ -15,6 +15,8 @@ import { isFavouriteLike, isHeartReaction, storeFavourite } from '../utils/heart
 import { noteDocumentSoftware } from './instanceSoftware.js';
 import { confirmActorAcct, withCanonicalAcct } from './webfingerClient.js';
 import { fetchActorById, fetchAuthoritativeDocument, readApDocument, sameOrigin, sameUrl, urlHost, type FetchedDocument } from '../utils/apOrigin.js';
+import { boostedTopLevelPost, unwrapGroupAnnounce } from './groupAnnounce.js';
+import { storedPostVisibility } from './postAccess.js';
 import { noteEngagementColumns, refreshRemoteProfileCounts } from './remoteCounts.js';
 import { BlockedInstancesCache } from '../services/BlockedInstancesCache.js';
 import { flagComment, flagObjectUris, parseLocalObjectUri } from './flag.js';
@@ -268,7 +270,10 @@ export class ActivityProcessor {
         await this.processLike(activity);
         break;
       case 'Announce':
-        if (relayedActivity(activity) && await this.processSharedInboxRelay(activity)) break;
+        if (relayedActivity(activity)) {
+          if (!(await this.processSharedInboxRelay(activity))) await this.processGroupAnnounce(activity);
+          break;
+        }
         await this.processAnnounce(activity);
         break;
       case 'Undo':
@@ -775,6 +780,8 @@ export class ActivityProcessor {
         if (object.inReplyTo) {
           metadata.in_reply_to_ap_url = object.inReplyTo;
         }
+        const context = noteContext(object);
+        if (context) metadata.ap_context = context;
         // A quote whose post could not be read keeps its target, shown as a link; one whose
         // post is deleted or not public is a plain post.
         if (quoteUrl && !quoteWithheld) {
@@ -1265,6 +1272,8 @@ export class ActivityProcessor {
       if (remoteObject.inReplyTo) {
         metadata.in_reply_to_ap_url = remoteObject.inReplyTo;
       }
+      const context = noteContext(remoteObject);
+      if (context) metadata.ap_context = context;
       const quoteUrl = noteQuoteUrl(remoteObject);
       if (quoteUrl) {
         metadata.is_quote = true;
@@ -2060,6 +2069,21 @@ export class ActivityProcessor {
       return;
     }
 
+    // One boost per account and post: a Lemmy community announces a new post twice, as
+    // Announce{Create{Page}} and as Announce{Page}.
+    const { data: existingBoost } = await supabase
+      .from('post_interactions')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('post_id', originalPost.id)
+      .eq('interaction_type', 'reblog')
+      .maybeSingle();
+
+    if (existingBoost) {
+      logger.info(`${actorUrl} already boosted ${originalPost.id}; ${activity.id} adds nothing`);
+      return;
+    }
+
     const { data: originalAuthor } = await supabase
       .from('profiles')
       .select('id, username, display_name, avatar_url, domain, is_local')
@@ -2542,6 +2566,7 @@ export class ActivityProcessor {
 
     const content = noteToContent(object);
     const visibility = this.determineVisibility(object);
+    const context = noteContext(object);
 
     // A repeated Create refreshes the poll keys; the post's other metadata stays.
     const { data: existingPoll } = await supabase
@@ -2575,7 +2600,7 @@ export class ActivityProcessor {
         content_warning: object.summary || null,
         is_sensitive: object.sensitive === true,
         media_attachments: extractMediaAttachments(object.attachment),
-        metadata: questionPollMetadata(object),
+        metadata: { ...questionPollMetadata(object), ...(context ? { ap_context: context } : {}) },
         ...noteEngagementColumns(object),
       });
 
@@ -3766,6 +3791,64 @@ export class ActivityProcessor {
       enrichMessageLinkPreviews(insertedMsg).catch(err =>
         logger.warn('Link preview enrichment failed for federated channel message:', err)
       );
+    }
+  }
+
+  /** A Group's FEP-1b12 relay of a member's activity, from a Group that is no Harmony server (groupAnnounce.ts). */
+  private static async processGroupAnnounce(announce: any): Promise<void> {
+    const groupUrl = normalizeActor(announce.actor);
+    const group = await this.ensureRemoteUser(groupUrl);
+    if (!group?.id) {
+      logDenied('Group Announce', groupUrl, 'the Group could not be resolved');
+      return;
+    }
+    const { data: followers } = await getSupabaseClient()
+      .from('follows')
+      .select('id, follower:profiles!follows_follower_id_fkey!inner(is_local)')
+      .eq('following_id', group.id)
+      .eq('status', 'accepted')
+      .eq('follower.is_local', true)
+      .limit(1);
+    if (!followers?.length) {
+      logDenied('Group Announce', groupUrl, 'no local account follows the Group');
+      return;
+    }
+
+    const outcome = await unwrapGroupAnnounce(announce, groupUrl, {
+      fetchDoc: (url, onStatus) => this.fetchApDocument(url, onStatus),
+      storedPostVisibility,
+      isBlockedHost: (host) => BlockedInstancesCache.isBlocked(host),
+    });
+    if ('ignored' in outcome) {
+      logger.info(`Group Announce from ${groupUrl}: ${outcome.ignored}`);
+      return;
+    }
+    if ('refused' in outcome) {
+      logDenied('Group Announce', groupUrl, outcome.refused);
+      return;
+    }
+
+    const activity = outcome.activity;
+    const actorUrl = normalizeActor(activity.actor);
+    if (await this.isActorSuspended(actorUrl)) {
+      logDenied('Group Announce', groupUrl, `${actorUrl} is suspended`);
+      return;
+    }
+    // Channel messages travel in Harmony relays, direct posts to their recipients only.
+    const object = activity.type === 'Delete' ? null : asNoteObject(activity.object);
+    if (object && isPostObjectType(object.type)
+        && (object['harmony:serverId'] || ['direct', 'private'].includes(this.determineVisibility(object)))) {
+      logDenied('Group Announce', groupUrl, `${object.id} is a channel message or a direct post`);
+      return;
+    }
+    logger.info(`Group ${groupUrl} relays ${activity.type} of ${actorUrl}`);
+    if (activity.type === 'Create') await this.processCreate(activity);
+    else if (activity.type === 'Update') await this.processUpdate(activity);
+    else await this.processDelete(activity);
+
+    const boosted = boostedTopLevelPost(activity);
+    if (boosted) {
+      await this.processAnnounce({ id: announce.id, type: 'Announce', actor: groupUrl, object: boosted, published: announce.published });
     }
   }
 

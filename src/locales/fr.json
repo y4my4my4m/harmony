@@ -6030,12 +6030,15 @@
       "createFailed": "Le sondage n'a pas été publié.",
       "voteFailed": "Votre vote n'a pas été enregistré.",
       "closed": "Ce sondage est terminé.",
-      "endFailed": "Impossible de terminer le sondage."
+      "endFailed": "Impossible de terminer le sondage.",
+      "alreadyVoted": "Vous avez déjà voté à ce sondage."
     },
     "remote": {
       "voters": "{count} personne a voté | {count} personnes ont voté",
       "voteOnOriginal": "Voter sur la publication d'origine",
-      "label": "Sondage"
+      "label": "Sondage",
+      "vote": "Voter",
+      "yourAnswer": "votre réponse"
     }
   },
   "serverTemplate": {
@@ -6745,5 +6748,15 @@
     "tierSupporter": "Soutien {tier}",
     "active": "Actif",
     "history": "Historique de votre soutien"
+  },
+  "authorizeInteraction": {
+    "title": "Interaction à distance",
+    "resolving": "Recherche de {uri}…",
+    "notFound": "Rien n'a été trouvé à cette adresse.",
+    "invalid": "Ce n'est ni un identifiant ni un lien.",
+    "openPost": "Ouvrir la publication",
+    "openProfile": "Ouvrir le profil",
+    "home": "Aller à l'accueil",
+    "followFailed": "L'abonnement n'a pas été enregistré."
   }
 }

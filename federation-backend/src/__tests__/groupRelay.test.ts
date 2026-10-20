@@ -499,12 +499,12 @@ describe('receiver: a relay on the shared inbox', () => {
     expect(stored(20)?.user_id).toBe('bee')
   })
 
-  it('reads an Announce from any other actor as a boost', async () => {
-    const boost = vi.spyOn(ActivityProcessor as any, 'processAnnounce').mockResolvedValue(undefined)
+  it('reads an Announce of an activity from any other actor as a FEP-1b12 relay, never a channel relay', async () => {
+    const fep1b12 = vi.spyOn(ActivityProcessor as any, 'processGroupAnnounce').mockResolvedValue(undefined)
     await ActivityProcessor.processIncomingActivity(announce('https://b.test/users/bee', create(BEE, 21)))
-    expect(boost).toHaveBeenCalledTimes(1)
+    expect(fep1b12).toHaveBeenCalledTimes(1)
     expect(stored(21)).toBeUndefined()
-    boost.mockRestore()
+    fep1b12.mockRestore()
   })
 })
 

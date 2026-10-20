@@ -185,11 +185,12 @@
             />
           </div>
 
-          <!-- Fediverse poll: counts as last reported by the origin; votes are cast there. -->
+          <!-- Fediverse poll: counts as last reported by the origin; votes reach its author. -->
           <RemotePollCard
             v-if="remotePollMetadata"
             :metadata="remotePollMetadata"
             :original-url="remotePollUrl"
+            :post-id="remotePollSource?.id ?? null"
           />
 
           <!--

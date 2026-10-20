@@ -28,6 +28,7 @@ import { handlePushNotificationJob } from './handlers/pushNotificationHandler.js
 import { handlePushDismissalJob } from './handlers/pushDismissalHandler.js';
 import { handleVoiceJoinJob, handleVoiceLeaveJob } from './handlers/voiceHandler.js';
 import { handleMaintenanceJob } from './handlers/maintenanceHandler.js';
+import { handlePollVoteJob } from './handlers/pollVoteHandler.js';
 import { handleAccountDeletedJob } from './handlers/accountDeletedHandler.js';
 import { handleAccountMovedJob } from './handlers/accountMovedHandler.js';
 import { handleGroupInviteJob } from './handlers/groupInviteHandler.js';
@@ -53,6 +54,7 @@ export type JobType =
   | 'federate-server-update'
   | 'federate-block'
   | 'federate-report'
+  | 'federate-poll-vote'
   | 'federate-profile'
   | 'federate-thread'
   | 'federate-voice-join'
@@ -96,6 +98,7 @@ const JOB_TYPES: JobType[] = [
   'federate-server-update',
   'federate-block',
   'federate-report',
+  'federate-poll-vote',
   'federate-profile',
   'federate-thread',
   'federate-voice-join',
@@ -219,6 +222,7 @@ class BullMQManagerService {
     this.handlerMap.set('federate-server-update', handleServerUpdateJob);
     this.handlerMap.set('federate-block', handleBlockJob);
     this.handlerMap.set('federate-report', handleReportJob);
+    this.handlerMap.set('federate-poll-vote', handlePollVoteJob);
     this.handlerMap.set('federate-profile', handleProfileJob);
     this.handlerMap.set('federate-thread', handleThreadJob);
     this.handlerMap.set('federate-voice-join', handleVoiceJoinJob);
@@ -428,6 +432,19 @@ class BullMQManagerService {
       .limit(20);
     for (const row of unmigrated ?? []) {
       await this.addJob('account-moved', { type: 'create', migration_id: row.id });
+    }
+
+    // Poll votes whose notify was lost or whose job gave up; same five-minute margin.
+    const { data: undeliveredVotes } = await supabase
+      .from('post_poll_votes')
+      .select('post_id, user_id')
+      .is('delivered_at', null)
+      .lt('created_at', new Date(Date.now() - 5 * 60_000).toISOString())
+      .limit(50);
+    const votePairs = new Set((undeliveredVotes ?? []).map((v: any) => `${v.post_id}/${v.user_id}`));
+    for (const pair of votePairs) {
+      const [post_id, user_id] = pair.split('/');
+      await this.addJob('federate-poll-vote', { type: 'create', post_id, user_id });
     }
 
     // Sweep posts

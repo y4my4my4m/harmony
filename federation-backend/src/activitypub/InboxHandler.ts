@@ -16,6 +16,7 @@ import { isVoiceMemberActivity } from './voiceModerationFederation.js';
 import { isStoredActivityType } from './activityTypes.js';
 import { confirmForwardedActivity, FORWARDABLE_TYPES } from './forwardedActivity.js';
 import { sameUrl } from '../utils/apOrigin.js';
+import { storedPostVisibility } from './postAccess.js';
 
 const router = Router();
 
@@ -322,17 +323,6 @@ function deleteOfGoneActor(activity: any, actorUrl: string, keyStatus: number | 
   if (activity.type !== 'Delete' || (keyStatus !== 404 && keyStatus !== 410)) return false;
   const objectId = typeof activity.object === 'string' ? activity.object : activity.object?.id;
   return sameUrl(objectId, actorUrl);
-}
-
-/** Visibility of the stored post with this ap_id; null when none is stored. */
-async function storedPostVisibility(apId: string): Promise<string | null> {
-  const { data } = await getSupabaseClient()
-    .from('posts')
-    .select('visibility')
-    .eq('ap_id', apId)
-    .eq('is_deleted', false)
-    .maybeSingle();
-  return data?.visibility ?? null;
 }
 
 async function handleInbox(

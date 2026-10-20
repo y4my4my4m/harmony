@@ -6030,12 +6030,15 @@
       "createFailed": "투표를 게시하지 못했습니다.",
       "voteFailed": "투표를 저장하지 못했습니다.",
       "closed": "이 투표는 종료되었습니다.",
-      "endFailed": "투표를 종료하지 못했습니다."
+      "endFailed": "투표를 종료하지 못했습니다.",
+      "alreadyVoted": "이미 이 투표에 참여했습니다."
     },
     "remote": {
       "voters": "{count}명 투표함",
       "voteOnOriginal": "원본 게시물에서 투표하기",
-      "label": "투표"
+      "label": "투표",
+      "vote": "투표",
+      "yourAnswer": "내 답변"
     }
   },
   "serverTemplate": {
@@ -6745,5 +6748,15 @@
     "tierSupporter": "{tier} 후원자",
     "active": "활성",
     "history": "내 후원 기록"
+  },
+  "authorizeInteraction": {
+    "title": "원격 상호작용",
+    "resolving": "{uri} 찾는 중…",
+    "notFound": "이 주소에서 아무것도 찾을 수 없습니다.",
+    "invalid": "핸들이나 링크가 아닙니다.",
+    "openPost": "게시물 열기",
+    "openProfile": "프로필 열기",
+    "home": "홈으로",
+    "followFailed": "팔로우를 저장하지 못했습니다."
   }
 }

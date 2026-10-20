@@ -405,6 +405,14 @@ const router = createRouter({
       component: () => import('@/views/DriveLinkView.vue'),
       meta: { requiresAuth: false, providesMain: true, titleKey: 'drive.link.title' }
     },
+    // OStatus remote follow (WebFinger http://ostatus.org/schema/1.0/subscribe): an actor or
+    // a post named by ?uri=, offered to follow or open.
+    {
+      path: '/authorize_interaction',
+      name: 'AuthorizeInteraction',
+      component: () => import('@/views/AuthorizeInteractionView.vue'),
+      meta: { requiresAuth: true, titleKey: 'authorizeInteraction.title' }
+    },
     // Web Share Target (manifest share_target): GET title, text, url.
     {
       path: '/share',

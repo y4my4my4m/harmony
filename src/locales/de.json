@@ -6030,12 +6030,15 @@
       "createFailed": "Die Umfrage wurde nicht gepostet.",
       "voteFailed": "Deine Stimme wurde nicht gespeichert.",
       "closed": "Diese Umfrage ist beendet.",
-      "endFailed": "Die Umfrage konnte nicht beendet werden."
+      "endFailed": "Die Umfrage konnte nicht beendet werden.",
+      "alreadyVoted": "Du hast bei dieser Umfrage bereits abgestimmt."
     },
     "remote": {
       "voters": "{count} Person hat abgestimmt | {count} Personen haben abgestimmt",
       "voteOnOriginal": "Im Originalbeitrag abstimmen",
-      "label": "Umfrage"
+      "label": "Umfrage",
+      "vote": "Abstimmen",
+      "yourAnswer": "deine Antwort"
     }
   },
   "serverTemplate": {
@@ -6745,5 +6748,15 @@
     "tierSupporter": "{tier}-Unterstützer",
     "active": "Aktiv",
     "history": "Dein Unterstützungsverlauf"
+  },
+  "authorizeInteraction": {
+    "title": "Externe Interaktion",
+    "resolving": "{uri} wird gesucht…",
+    "notFound": "Unter dieser Adresse wurde nichts gefunden.",
+    "invalid": "Das ist weder ein Handle noch ein Link.",
+    "openPost": "Beitrag öffnen",
+    "openProfile": "Profil öffnen",
+    "home": "Zur Startseite",
+    "followFailed": "Das Folgen wurde nicht gespeichert."
   }
 }

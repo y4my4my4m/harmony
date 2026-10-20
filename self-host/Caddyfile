@@ -96,7 +96,7 @@
 	handle @fedServers {
 		import federation_upstream
 	}
-	@fedPostCollections path_regexp ^/posts/[0-9a-f-]+/(likes|shares|replies)
+	@fedPostCollections path_regexp ^/posts/[0-9a-f-]+/(likes|shares|replies|context)
 	handle @fedPostCollections {
 		import federation_upstream
 	}

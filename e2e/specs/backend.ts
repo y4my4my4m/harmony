@@ -1,7 +1,8 @@
 // The federation backend for specs that need its routes (channel webhooks, account
 // migration, LiveKit tokens). e2e/backend-server.ts runs as a child process against the
 // stack in e2e/stack.env; a page reaches it through route(), which forwards the page's
-// /api/federation/* requests to it, and /api/livekit/* when started with LiveKit keys.
+// /api/federation/<path> requests to the backend's /<path>, as nginx proxies them, and
+// /api/livekit/* when started with LiveKit keys.
 //
 // The dev server proxies /api/federation to localhost:3001, which is absent in CI and
 // on a developer machine is whatever instance runs there; route() replaces that hop.
@@ -89,7 +90,8 @@ export async function startBackend(extraEnv: Record<string, string> = {}): Promi
     async route(page: Page) {
       const forward = async (route: Route) => {
         const target = new URL(route.request().url())
-        const response = await route.fetch({ url: `${url}${target.pathname}${target.search}` })
+        const path = target.pathname.replace(/^\/api\/federation(?=\/)/, '')
+        const response = await route.fetch({ url: `${url}${path}${target.search}` })
         await route.fulfill({ response })
       }
       await page.route('**/api/federation/**', forward)

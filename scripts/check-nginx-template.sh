@@ -85,7 +85,7 @@ log "ActivityPub-only paths"
 STAMP=/users/fx_alice/quote_authorizations/00000000-0000-0000-0000-000000000002
 expect "$MASTODON" $STAMP "backend $STAMP"
 expect "$FIREFOX"  $STAMP "backend $STAMP"
-for c in likes shares replies; do
+for c in likes shares replies context; do
   expect "$MASTODON" /posts/00000000-0000-0000-0000-000000000001/$c "backend /posts/00000000-0000-0000-0000-000000000001/$c"
 done
 expect "$MASTODON" /messages/00000000-0000-0000-0000-000000000003 'backend /messages/00000000-0000-0000-0000-000000000003'

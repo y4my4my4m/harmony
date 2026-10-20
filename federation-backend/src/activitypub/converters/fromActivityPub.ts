@@ -172,6 +172,12 @@ export function noteUrl(note: any): string | null {
   return iri && /^https?:\/\//i.test(iri) ? iri : null;
 }
 
+/** FEP-7888 `context` of a Note, as a reference or an embedded collection's id; http(s) only. */
+export function noteContext(note: any): string | null {
+  const iri = iriOf(note?.context);
+  return iri && /^https?:\/\//i.test(iri) ? iri : null;
+}
+
 /**
  * HTML without its FEP-044f fallback element: the first <p> or <span> of class quote-inline
  * and everything nested in it. Applied only to a Note that carries a quote.

@@ -59,3 +59,14 @@ export async function canReadConversation(req: Request, conversationId: string):
   if (!host) return false;
   return accessRpc('federation_conversation_access', { p_conversation_id: conversationId, p_domain: host });
 }
+
+/** Visibility of the stored post with this ap_id; null when none is stored. */
+export async function storedPostVisibility(apId: string): Promise<string | null> {
+  const { data } = await getSupabaseClient()
+    .from('posts')
+    .select('visibility')
+    .eq('ap_id', apId)
+    .eq('is_deleted', false)
+    .maybeSingle();
+  return data?.visibility ?? null;
+}

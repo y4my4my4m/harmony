@@ -6030,12 +6030,15 @@
       "createFailed": "投票未能发布。",
       "voteFailed": "你的投票未能保存。",
       "closed": "此投票已结束。",
-      "endFailed": "无法结束投票。"
+      "endFailed": "无法结束投票。",
+      "alreadyVoted": "你已经在这个投票中投过票了。"
     },
     "remote": {
       "voters": "{count} 人已投票",
       "voteOnOriginal": "在原帖中投票",
-      "label": "投票"
+      "label": "投票",
+      "vote": "投票",
+      "yourAnswer": "你的回答"
     }
   },
   "serverTemplate": {
@@ -6745,5 +6748,15 @@
     "tierSupporter": "{tier} 支持者",
     "active": "生效中",
     "history": "你的支持记录"
+  },
+  "authorizeInteraction": {
+    "title": "远程互动",
+    "resolving": "正在查找 {uri}…",
+    "notFound": "在此地址未找到任何内容。",
+    "invalid": "这不是用户名或链接。",
+    "openPost": "打开帖子",
+    "openProfile": "打开个人资料",
+    "home": "前往主页",
+    "followFailed": "关注未保存。"
   }
 }

@@ -79,7 +79,7 @@ interface Job {
 }
 
 /** LISTEN federation_jobs in the stack's database; every notification is kept. */
-class JobTap {
+export class JobTap {
   private readonly jobs: Job[] = []
   private out = ''
   private markers = new Set<string>()
@@ -391,7 +391,7 @@ async function caseDeleteReachesMentionee(ctx: OutboundContext, alice: SupabaseC
 }
 
 /** A TLS reverse proxy to the peer on `ip`, port 443, labelled into the compose project. */
-function startWebFingerProxy(project: string, ip: string, peerBase: string): { stop: () => void } {
+export function startWebFingerProxy(project: string, ip: string, peerBase: string): { stop: () => void } {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hmfed-wf-'))
   execFileSync('openssl', [
     'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',

@@ -17,6 +17,7 @@ Throughout, `<domain>` is the instance's `INSTANCE_DOMAIN`. Every id is an `http
 - `resource` is `acct:<name>@<domain>`, or a URL on this instance's domain: an account's actor id `https://<domain>/users/<name>` or its profile page `https://<domain>/social/profile/<name>`, or a chat server's Group `https://<domain>/servers/<uuid>`. A missing or malformed `resource` answers 400, an unknown name, another domain or another path 404, and a deleted account 410.
 - An `acct:` name can match a local account and a local chat server at once. The answer then carries one `rel="self"` link per actor, each tagged with its type in `properties["https://www.w3.org/ns/activitystreams#type"]` (`Person` or `Group`). A URL names one actor. Only public, federation-enabled servers resolve, by their slug or Group URL.
 - An account's `aliases` are its actor id and its profile page, and it gets a `http://webfinger.net/rel/profile-page` link to the page. A chat server has no page of its own and gets neither.
+- An account also gets the OStatus remote-follow link, `rel` `http://ostatus.org/schema/1.0/subscribe` with `template` `https://<domain>/authorize_interaction?uri={uri}`. Software that sends a user of this instance to act on an account or a post fills `{uri}` with the account's or the post's URI. The page also takes `acct:user@domain`, `@user@domain` and Lemmy's `!community@domain`. It resolves the URI (a stored row first, else WebFinger for a handle, the post or the actor fetched for a URL), shows the account with **Follow** or the post with **Open post**, and asks a signed-out visitor to sign in first. Chat servers and the instance actor get no such link.
 - `acct:instance.actor@<domain>` and the instance actor's id resolve to the instance actor, typed `Application`.
 
 ```json
@@ -34,6 +35,10 @@ Throughout, `<domain>` is the instance's `INSTANCE_DOMAIN`. Every id is an `http
       "rel": "http://webfinger.net/rel/profile-page",
       "type": "text/html",
       "href": "https://chat.example.com/social/profile/alice"
+    },
+    {
+      "rel": "http://ostatus.org/schema/1.0/subscribe",
+      "template": "https://chat.example.com/authorize_interaction?uri={uri}"
     }
   ]
 }
@@ -152,6 +157,7 @@ Each `harmony:channels` entry has `type` (`harmony:TextChannel`, `harmony:VoiceC
 | `GET /posts/<uuid>/likes` | `OrderedCollection` of `Like` objects, 50 per page |
 | `GET /posts/<uuid>/shares` | `OrderedCollection` of the post's public and unlisted boosts, as `Announce` ids, 50 per page |
 | `GET /posts/<uuid>/replies` | `OrderedCollection` of public and unlisted reply ids, 20 per page |
+| `GET /posts/<uuid>/context` | FEP-7888 context of the thread rooted at the post: `OrderedCollection` of the root and the thread's public and unlisted posts, as ids, oldest first, 20 per page, `attributedTo` the root's author (see [Note (post)](#note-post)). 404 for a reply, a deleted root and a root the caller may not read |
 | `GET /messages/<uuid>` | `Note` of a federated chat or direct message; only with an ActivityPub `Accept`, else 406 |
 | `GET /servers/<uuid>` | `Group` actor |
 | `GET /servers/<uuid>/members` | `OrderedCollection` of member actor ids, 50 per page |
@@ -280,7 +286,7 @@ Social activities:
 | `Like` | Post id | A favourite; for Misskey-family receivers also a reaction, with `_misskey_reaction` | The post's author when remote, and the shared inboxes of the author's remote followers |
 | `EmojiReact` | Post id | An emoji reaction, to software outside the Mastodon and Misskey families | As `Like` |
 | `Undo` | The `Like` or `EmojiReact`, same id | A favourite or reaction is removed | As `Like` |
-| `Follow` / `Undo` | Account | A follow is made or withdrawn. The `Follow` id is `https://<domain>/activities/follow/<follow uuid>`, new for each follow; the `Undo` embeds the same id. | Followed account |
+| `Follow` / `Undo` | Account, or a community's `Group` (Lemmy, PieFed, Mbin) | A follow is made or withdrawn. The `Follow` id is `https://<domain>/activities/follow/<follow uuid>`, new for each follow; the `Undo` embeds the same id. | Followed account |
 | `Accept` / `Reject` | The received `Follow` | A follow is accepted or declined | Follower |
 | `Block` / `Undo` | Account | A block is made or lifted | Blocked account |
 | `Add` / `Remove` | Post id, `target` the `featured` collection | A post is pinned or unpinned | Followers |
@@ -290,6 +296,7 @@ Social activities:
 | `QuoteRequest` | Quoted post id, `instrument` the quoting `Note` | A post quotes another account's remote post | Quoted author |
 | `Accept` / `Reject` | The received `QuoteRequest` | Answer to a quote request; an `Accept` has `result`, the `QuoteAuthorization` id | Requester |
 | `Flag` | `[account, post...]`, `content` the comment | A local report is forwarded | The account's instance, shared inbox preferred |
+| `Create` | `Note` with `name` the chosen answer and `inReplyTo` the `Question`, no `content`; one per answer. Ids `https://<domain>/users/<username>#votes/<post uuid>/<answer index>`, the `Create` that id plus `/activity`, as Mastodon's votes | A vote on a remote poll; final, never retracted | The poll's author alone, at its own inbox (shared inbox when it has none) |
 | `Create` | `Note`, `directMessage: true` | A direct message | Each remote participant |
 | `Create` | `Note` with `metadata.type: "group_invite"` | A remote account is added to a group direct message | That account |
 | `Update` / `Remove` | Group conversation | A group direct message is renamed or its icon changes / a participant leaves | Remote participants |
@@ -353,7 +360,7 @@ Shared and personal inboxes:
 | `Accept` | `Join` | Pending membership of a remote server accepted; the server is synced as the member |
 | `Reject` | `Follow`, `QuoteRequest`, `Join` | Follow removed, quote marked refused, pending membership removed |
 | `Create` | `Note`, `Article`, `Page`, `Video` | A post (public, unlisted, followers-only). A direct `Note` becomes a direct message; with several local recipients or `harmony:conversationType: "group"`, a group conversation. A `Note` with `harmony:serverId` is a channel message. The object id must be on the actor's host. See [Inbound posts](#inbound-posts). |
-| `Create` | `Question` | A post with a read-only poll (`oneOf` or `anyOf`, `votersCount`, `endTime`, `closed`) |
+| `Create` | `Question` | A post with a poll (`oneOf` or `anyOf`, `votersCount`, `endTime`, `closed`) local accounts vote on (see [Activities sent](#activities-sent)); a vote counts in the stored counts at once, until the author's next `Update` replaces them |
 | `Create` | `ChatThread` | A thread in a channel of a server this instance mirrors |
 | `Update` | `Person`, `Service`, `Application`, `Organization` | Profile refreshed. The signer must be the actor. |
 | `Update` | `Note`, `Article`, `Page`, `Video`, `Question` | Post edited or poll counts refreshed, by its author only. A `Note` with `harmony:serverId` edits a channel message of a mirrored server, by its author on the server's host. |
@@ -363,6 +370,7 @@ Shared and personal inboxes:
 | `Like`, `EmojiReact`, `EmojiReaction` | Post or message | A `Like` with no emoji or a heart (❤, ♥) is a favourite. A `Like` with `_misskey_reaction` or `content`, and an `EmojiReact`, is a reaction and implies the favourite. |
 | `Announce` | Post | Boost; the original is fetched when unknown |
 | `Announce` | An embedded channel activity, from the `Group` of a mirrored server | See [Group relay](#group-relay) |
+| `Announce` | An embedded `Create`, `Update` or `Delete`, from any other `Group` (FEP-1b12: Lemmy, PieFed, Mbin communities) | See [Community relays](#community-relays) |
 | `Undo` | `Like`, `EmojiReact`, `EmojiReaction`, `Follow`, `Announce`, `Block`, embedded or by id | Reverted. The undone activity's actor must be the signer. |
 | `Add` / `Remove` | Post, `target` a `featured` collection | Pin or unpin, by the post's author |
 | `Add` / `Remove` | Channel types, `target` a Group | Channel or category of a mirrored server added or removed |
@@ -391,12 +399,29 @@ A chat server inbox (`/servers/<uuid>/inbox`) accepts:
 
 With federation off for the server, everything except `Leave` is dropped, and a `Join` is answered with `Reject`. `Accept` and `Reject` sent to a server inbox are ignored. Accepted messages, edits, deletions, reactions and their removals are relayed to the other member instances (see [Group relay](#group-relay)). The inbox of a remote server's copy takes only that server's Group's relays and voice moderation activities.
 
+### Community relays
+
+A community on Lemmy, PieFed or Mbin is a `Group` a local account follows like any account (`Follow`, answered by the Group's `Accept`). The community relays what its members post, comment and edit as FEP-1b12 `Announce` activities, signed by the Group:
+
+```json
+{
+  "type": "Announce",
+  "actor": "https://lemmy.example/c/tech",
+  "object": { "type": "Create", "actor": "https://lemmy.example/u/ann", "object": { "type": "Page", "id": "https://lemmy.example/post/7", "...": "..." } }
+}
+```
+
+The Group's signature covers the `Announce`, not the member's activity, so the inner activity is processed as its origin serves it, as a [forwarded activity](#inbound-deliveries) is: a `Create` or `Update` with the object fetched from its id on the member's host and attributed to the member, a `Delete` once that host answers 404 or 410. An inner activity whose actor is the Group itself is taken as sent. A top-level post is also stored as the Group's boost, which puts it on its followers' home timelines; a comment is a reply under its post. Lemmy additionally sends a new or edited post as `Announce` of the `Page` itself, which is a boost: one account boosts one post once, so the post is boosted once either way.
+
+Refused or dropped: relays from a Group no local account follows (accepted); votes (`Like`, `Dislike`), `Undo` and moderation (`Remove`, `Block`, `Lock`); a `Delete` by a moderator, whose object its host still serves; a channel message (`harmony:serverId`) or a direct post; a member on a blocked instance or suspended here. Replies written on this instance reach the post's author and the replier's followers, not the community.
+
 ## Objects
 
 ### Inbound posts
 
 - `content` is HTML; without it, the `contentMap` entry of the object's language is read, else its first non-empty entry.
 - `posts.language` is the first BCP 47 key of `contentMap`, else `language` as a tag or as Lemmy's `{ "identifier": "<tag>" }`; `und` names no language.
+- An http(s) `context` (FEP-7888), a URL or an embedded collection's id, is kept as `posts.metadata.ap_context`; a local reply in a thread whose root named one carries it.
 - `Article`, `Page` (Lemmy, Mbin, PieFed) and `Video` (PeerTube) lead with their `name` as a paragraph. A `Page`'s `Link` attachments (a link post) and a `Video`'s `text/html` `url` follow the body, and a `Video`'s largest `icon` is stored as its image, with the title as alt text. Their `summary` is an excerpt, kept as the content warning only with `sensitive: true`. Content marked `mediaType: "text/markdown"` or `"text/plain"` is read as text. The post's `ap_type` is the object type.
 
 ### Note (post)
@@ -441,6 +466,7 @@ With a focal point on an attachment, the context also maps `focalPoint` to `toot
 | `attachment` | `Document` with `mediaType`, `url`, `name` (alt text, never the file name), `blurhash`, `focalPoint` |
 | `likes`, `shares` | Collection with `totalItems` when the count is known, else its URL |
 | `replies` | `/posts/<uuid>/replies` |
+| `context` | FEP-7888: `https://<domain>/posts/<root uuid>/context`, the root being the post itself or its thread's root. A reply in a thread rooted at a remote post that named a `context` carries that one. Absent on a direct post: an inbound direct post to several accounts joins the group conversation its `context` names. |
 | `interactionPolicy` | `{ "canQuote": { "automaticApproval": [...] } }`: Public for public and unlisted posts, the author's followers collection for followers-only posts, the author alone for direct posts |
 | `quote`, `quoteUrl`, `quoteUri`, `_misskey_quote` | The quoted post's id, on a quote |
 | `quoteAuthorization` | The stamp approving the quote, once there is one |
@@ -648,4 +674,6 @@ Harmony also writes and reads terms from other software: Mastodon's `Emoji`, `bl
 |---|---|
 | [FEP-044f](https://codeberg.org/fediverse/fep/src/branch/main/fep/044f/fep-044f.md) | Quote posts and quote approvals, sent and received: `quote`, `quoteAuthorization`, `QuoteRequest`, `QuoteAuthorization`, `interactionPolicy.canQuote` |
 | [FEP-c0e0](https://codeberg.org/fediverse/fep/src/branch/main/fep/c0e0/fep-c0e0.md) | Emoji reactions as `EmojiReact`, sent to software outside the Mastodon and Misskey families and received from any |
+| [FEP-1b12](https://codeberg.org/fediverse/fep/src/branch/main/fep/1b12/fep-1b12.md) | Group federation: chat servers relay their members' channel activities ([Group relay](#group-relay)); communities of other software are followed and their relays received ([Community relays](#community-relays)) |
+| [FEP-7888](https://codeberg.org/fediverse/fep/src/branch/main/fep/7888/fep-7888.md) | `context` on local posts, served as the thread's `OrderedCollection`; a remote root's `context` kept and carried by local replies |
 | [FEP-2c59](https://codeberg.org/fediverse/fep/src/branch/main/fep/2c59/fep-2c59.md) | Received only: a remote actor's `webfinger` property starts the check that confirms its canonical handle. Harmony's own actors do not publish it. |

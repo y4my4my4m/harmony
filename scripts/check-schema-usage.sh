@@ -481,6 +481,8 @@ def parse_select(expr, tables, where, C):
             alias, head = [x.strip() for x in head.split(':', 1)]
         head = head.lstrip('.')                       # ...spread(embed)
         rel, _, hint = head.partition('!')
+        # rel!hint!inner: the join type follows the hint.
+        hint = hint.partition('!')[0]
         rel, hint = rel.strip(), hint.strip()
         if not COLNAME.match(rel):
             C.skip('select-embed', where, item)

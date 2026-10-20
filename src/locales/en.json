@@ -6026,12 +6026,15 @@
       "createFailed": "The poll was not posted.",
       "voteFailed": "Your vote was not saved.",
       "closed": "This poll has ended.",
-      "endFailed": "The poll could not be ended."
+      "endFailed": "The poll could not be ended.",
+      "alreadyVoted": "You already voted on this poll."
     },
     "remote": {
       "voters": "{count} person voted | {count} people voted",
       "voteOnOriginal": "Vote on the original post",
-      "label": "Poll"
+      "label": "Poll",
+      "vote": "Vote",
+      "yourAnswer": "your answer"
     }
   },
   "serverTemplate": {
@@ -6741,5 +6744,15 @@
     "removeFile": "Remove file",
     "removeAndBlock": "Remove and block re-uploads",
     "removed": "Removed"
+  },
+  "authorizeInteraction": {
+    "title": "Remote interaction",
+    "resolving": "Looking up {uri}…",
+    "notFound": "Nothing could be found at this address.",
+    "invalid": "This is not a handle or a link.",
+    "openPost": "Open post",
+    "openProfile": "Open profile",
+    "home": "Go to home",
+    "followFailed": "The follow was not saved."
   }
 }

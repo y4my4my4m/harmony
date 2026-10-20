@@ -8,6 +8,14 @@ import { profilePageUrl } from './converters/toActivityPub.js';
 
 const router = Router();
 
+/** OStatus remote follow: where a remote page sends this account's user to act on `{uri}`. */
+export const SUBSCRIBE_REL = 'http://ostatus.org/schema/1.0/subscribe';
+
+/** The SPA route that resolves `{uri}` (an actor or a post) and offers Follow or Open. */
+export function subscribeTemplate(): string {
+  return `https://${config.INSTANCE_DOMAIN}/authorize_interaction?uri={uri}`;
+}
+
 /** What a WebFinger `resource` names on this instance. */
 type Resource =
   | { kind: 'handle'; name: string }
@@ -162,6 +170,7 @@ router.get(
         type: 'text/html',
         href: profilePageUrl(user.username),
       });
+      links.push({ rel: SUBSCRIBE_REL, template: subscribeTemplate() });
     }
 
     if (server) {

@@ -99,7 +99,7 @@ expect "$AP"   /inbox                 'backend /inbox'
 expect "$AP"   /users/fx_alice/outbox 'backend /users/fx_alice/outbox'
 expect "$AP"   $STAMP                 "backend $STAMP"
 expect "$HTML" $STAMP                 "backend $STAMP"
-for c in likes shares replies; do
+for c in likes shares replies context; do
   expect "$AP" $POST/$c "backend $POST/$c"
 done
 expect "$AP"   $POST                  "backend $POST"

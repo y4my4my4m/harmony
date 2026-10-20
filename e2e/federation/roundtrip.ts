@@ -38,6 +38,8 @@
 //   - reading: the peer hosts a private Group; the local proxy and sync fetch
 //     it signed as the requesting local member, which the peer verifies
 //     against that member's published key.
+// Remote follow, votes on remote polls, follows of Lemmy communities (FEP-1b12) and thread
+// contexts (FEP-7888) run against a community host of their own (cases/remoteInteractions.ts).
 // Activities whose actor is a Group (Join answers, channel Update, message
 // Delete) are signed with that Group's own key, each way (cases/groupActor.ts).
 // A member's activities reach the other member instances as the Group's
@@ -92,6 +94,7 @@ import { caseGroupRelay } from './cases/groupRelay.ts'
 import { caseThreadRoutes } from './cases/threadRoutes.ts'
 import { caseApConformance } from './cases/apConformance.ts'
 import { caseApInbound } from './cases/apInbound.ts'
+import { caseRemoteInteractions } from './cases/remoteInteractions.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const BACKEND_ROOT = process.env.HMFED_BACKEND_ROOT ?? path.resolve(__dirname, '../../federation-backend')
@@ -2583,6 +2586,15 @@ async function main() {
       ids: { alice: ALICE, carol: CAROL, remote: REMOTE, pubServer: PUB_SERVER },
     })
     await caseApInbound({ db, peer, localUrl, backendRoot: BACKEND_ROOT, post, signedHeaders, assert, eq, ids: { alice: ALICE, remote: REMOTE } })
+    await caseRemoteInteractions({
+      db, peer, localUrl, instanceDomain: INSTANCE_DOMAIN, backendRoot: BACKEND_ROOT, env, post, get, signedHeaders,
+      verifySignature: backend.verifySignature, assert, eq, fail,
+      ids: { alice: ALICE, aliceAuth: ALICE_AUTH, bob: BOB, bobAuth: BOB_AUTH, remote: REMOTE },
+      asUser: (auth) => createClient(env.HMFED_SUPABASE_URL, env.HMFED_SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: { Authorization: `Bearer ${userToken(auth, env.HMFED_JWT_SECRET)}` } },
+      }),
+    })
   } finally {
     await new Promise<void>((resolve) => local.close(() => resolve()))
     await peer.stop()
