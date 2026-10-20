@@ -261,7 +261,10 @@ jobs:
 
   # iPhone, iPad and foldable layouts (e2e/specs/ios-*.spec.ts) in WebKit, the engine of the
   # iOS app and every iOS browser. A job of its own: after the Chrome journeys (31 min on
-  # 2026-10-20) the WebKit install alone ran E2E Journeys past its 40 min limit.
+  # 2026-10-20) the WebKit install ran E2E Journeys past its 40 min limit.
+  # The journeys run in the Playwright image, which carries WebKit: on the runner
+  # `playwright install --with-deps webkit` hung after the download reached 100% (twice on
+  # 2026-10-20). The image tag must equal the @playwright/test version in package-lock.json.
   e2e-webkit:
     name: E2E WebKit
     runs-on: ubuntu-latest
@@ -275,16 +278,18 @@ jobs:
           cache: npm
 
       - run: npm ci
-
-      # The global setup signs the seed users in with the runner's Chrome.
-      - run: google-chrome --version
-      - run: npx playwright install --with-deps webkit
       - run: npm run e2e:up
       - run: npm run e2e:seed
 
-      - run: npx playwright test --project=journeys-webkit
-        env:
-          CI: true
+      # Host network: the stack's ports and the dev server the config starts. PW_BUNDLED: the
+      # global setup signs in with the image's Chromium instead of a Chrome channel.
+      - name: WebKit journeys
+        run: >-
+          docker run --rm --network host --ipc=host
+          -v "$PWD:$PWD" -w "$PWD" -u "$(id -u):$(id -g)"
+          -e HOME=/tmp/pwhome -e CI=true -e PW_BUNDLED=1
+          mcr.microsoft.com/playwright:v1.58.2-noble
+          npx playwright test --project=journeys-webkit
 
       - name: Keep the report when a journey fails
         if: failure()
