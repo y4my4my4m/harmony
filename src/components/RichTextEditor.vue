@@ -38,7 +38,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch, nextTick, computed } from 'vue';
 import { debug } from '@/utils/debug'
 import { parseMarkdownWithMarkers, type MarkdownToken } from '@/utils/markdownParser';
 import { splitIntoBlockSegments } from '@/utils/chatBlockquotes';
@@ -59,6 +59,7 @@ import { linearize, offsetForPoint, plainTextOf, pointForOffset } from '@/utils/
 import { HERE_ROLE_ID } from '@/utils/hereMention';
 import { pastedText, writeTokenTextToClipboard } from '@/utils/emojiClipboard';
 import { focusFromNavigationKey, trackNavigationKeys } from '@/utils/a11y/focus';
+import { attachTapToCaret, isAndroidUserAgent } from '@/utils/tapToCaret';
 
 interface Props {
   modelValue: string;
@@ -1161,6 +1162,12 @@ watch(() => props.modelValue, (newValue) => {
     }
   }
 });
+
+let detachTapToCaret: (() => void) | null = null;
+onMounted(() => {
+  if (editorRef.value && isAndroidUserAgent()) detachTapToCaret = attachTapToCaret(editorRef.value);
+});
+onBeforeUnmount(() => detachTapToCaret?.());
 
 onMounted(async () => {
   // Pre-warm the role cache so mentions render without a resolve round-trip.

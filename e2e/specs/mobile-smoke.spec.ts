@@ -4,6 +4,10 @@
 //   follows does not open the full message menu at the row's edge.
 // - The composer's emoji picker opens as a dialog and closes.
 // - Reply prefills the thread's accounts and keeps a narrower parent visibility.
+// - With the keyboard up, tapping back into an earlier word only moves the caret: Chromium's
+//   handling of the tap, which opens its spelling menu on a misspelled word, is held back
+//   until a second tap in the same word (utils/tapToCaret.ts). The keyboard is stood in for by
+//   shrinking the visual viewport as Gboard does; the menu itself needs a device.
 
 import { test, expect, devices, type Page } from '@playwright/test'
 import {
@@ -125,3 +129,55 @@ test('sending on a phone keeps the keyboard up: the composer keeps focus after S
   }
 })
 
+test('with the keyboard up, a tap in an earlier word moves the caret; a second tap there is the platform\'s', async ({ page }) => {
+  test.setTimeout(90_000)
+  await signIn(page, me)
+  await page.goto(`/chat/${server.id}/${server.generalChannelId}`)
+  await dismissAnnouncements(page)
+  await expect(list(page)).toBeVisible({ timeout: 30000 })
+
+  await editor(page).tap()
+  await page.keyboard.type('this is a misspeled word')
+  // Gboard up on a Pixel 7: 388 CSS px of the screen are not in the visual viewport.
+  await page.evaluate(() => {
+    Object.defineProperty(window.visualViewport!, 'height', { configurable: true, get: () => screen.availHeight - 388 })
+    const w = window as unknown as { __clicks: number }
+    w.__clicks = 0
+    document.querySelector('[data-testid="message-input"] .rich-text-editor')!.addEventListener('click', () => { w.__clicks++ })
+  })
+  const point = (from: number, to: number) => editor(page).evaluate((el, [a, b]) => {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+    const node = walker.nextNode()!
+    const range = document.createRange()
+    range.setStart(node, a)
+    range.setEnd(node, b)
+    const box = range.getBoundingClientRect()
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+  }, [from, to])
+  const caret = () => page.evaluate(() => getSelection()!.anchorOffset)
+  const clicks = () => page.evaluate(() => (window as unknown as { __clicks: number }).__clicks)
+
+  const inWord = await point(13, 15)
+  await page.touchscreen.tap(inWord.x, inWord.y)
+  await expect.poll(caret).toBeGreaterThanOrEqual(13)
+  expect(await caret()).toBeLessThanOrEqual(15)
+  expect(await clicks()).toBe(0)
+  await expect(editor(page)).toBeFocused()
+
+  await page.keyboard.type('X')
+  // Typing lands at the tapped point, inside the word.
+  await expect(editor(page)).toContainText(/misXspeled|missXpeled|misspXeled/)
+
+  // The caret is in that word now: the next tap there is the platform's own.
+  const again = await point(11, 12)
+  await page.touchscreen.tap(again.x, again.y)
+  await expect.poll(clicks).toBe(1)
+
+  // Keyboard down: every tap is the platform's, so the one that brings the keyboard back does.
+  await page.evaluate(() => {
+    Object.defineProperty(window.visualViewport!, 'height', { configurable: true, get: () => screen.availHeight - 76 })
+  })
+  const first = await point(1, 2)
+  await page.touchscreen.tap(first.x, first.y)
+  await expect.poll(clicks).toBe(2)
+})
