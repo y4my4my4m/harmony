@@ -6,7 +6,6 @@ import { SignatureService } from '../activitypub/SignatureService.js';
 import { validateExternalUrl, safeFetch } from '../utils/ssrfProtection.js';
 import { decodeHtmlEntities } from '../utils/contentUtils.js';
 import { fetchKlipyMediaBySlug } from './KlipyService.js';
-import { previewImageStore } from './previewImages.js';
 
 export type EmbedProvider =
   | 'harmony-post' | 'fediverse-post' | 'youtube' | 'spotify' | 'reddit' | 'generic'
@@ -128,18 +127,45 @@ const FAILED_PREVIEW_TTL_MS = 5 * 60 * 1000;
  * Every <meta> tag's property, name or itemprop and its content, attributes in any order and
  * either quote style; the first occurrence of a key wins. Keys are lower-cased.
  */
+/** A tag's attributes by lower-case name, in any order and quote style. */
+function tagAttributes(raw: string): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  for (const a of raw.matchAll(/([a-z:_-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/gi)) {
+    attrs[a[1].toLowerCase()] = a[2] ?? a[3] ?? a[4] ?? '';
+  }
+  return attrs;
+}
+
 export function parseMetaTags(html: string): Map<string, string> {
   const tags = new Map<string, string>();
   const tagPattern = /<meta\b([^>]*)>/gi;
-  const attrPattern = /([a-z:_-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/gi;
   for (const tag of html.matchAll(tagPattern)) {
-    const attrs: Record<string, string> = {};
-    for (const a of tag[1].matchAll(attrPattern)) attrs[a[1].toLowerCase()] = a[2] ?? a[3] ?? a[4] ?? '';
+    const attrs = tagAttributes(tag[1]);
     const key = (attrs.property || attrs.name || attrs.itemprop || '').toLowerCase();
     const content = attrs.content
     if (key && content !== undefined && content !== '' && !tags.has(key)) tags.set(key, decodeHtmlEntities(content));
   }
   return tags;
+}
+
+/**
+ * The page's icon: the first <link> whose rel lists `icon` (`icon`, `shortcut icon`,
+ * `alternate icon`), else an apple-touch-icon. href is read by name: GitHub's icon link
+ * carries data-base-href after it, which a pattern ending in `href=` took instead (a 404).
+ */
+export function parseIconHref(html: string): string | undefined {
+  let touch: string | undefined;
+  for (const tag of html.matchAll(/<link\b([^>]*)>/gi)) {
+    const attrs = tagAttributes(tag[1]);
+    const href = attrs.href?.trim();
+    if (!href) continue;
+    const rel = (attrs.rel ?? '').toLowerCase().split(/\s+/);
+    if (rel.includes('icon')) return decodeHtmlEntities(href);
+    if (!touch && (rel.includes('apple-touch-icon') || rel.includes('apple-touch-icon-precomposed'))) {
+      touch = decodeHtmlEntities(href);
+    }
+  }
+  return touch;
 }
 
 /** The response body up to the end of <head>, at most `limit` bytes; the rest is not read. */
@@ -311,12 +337,6 @@ class LinkPreviewService {
           payload.mediaOnly = true;
         }
       } catch { /* keep card rendering */ }
-    }
-
-    // A card's image is served from the instance (services/previewImages.ts). Media-only
-    // previews and video posters stay with the site: the media is the content and may be large.
-    if (payload.provider === 'generic' && payload.image && !payload.mediaOnly && !payload.video && !payload.failed) {
-      payload.image = (await previewImageStore.host(payload.image)) ?? payload.image;
     }
 
     const effectiveProvider = payload.provider;
@@ -990,9 +1010,7 @@ class LinkPreviewService {
       const description = first('og:description', 'twitter:description', 'description');
       const image = first('og:image:secure_url', 'og:image', 'og:image:url', 'twitter:image', 'twitter:image:src');
       const siteName = first('og:site_name', 'application-name');
-      const icon = this.extractMeta(html, [
-        /<link[^>]+rel=["'](?:shortcut )?icon["'][^>]+href=["']([^"']+)["']/i,
-      ]);
+      const icon = parseIconHref(html);
 
       const videoUrl = first('og:video:secure_url', 'og:video:url', 'og:video', 'twitter:player:stream');
       const videoType = first('og:video:type', 'twitter:player:stream:content_type');

@@ -108,7 +108,7 @@ test('a reply on a phone keeps the post visibility and mentions its author', asy
   await post.getByRole('button', { name: /^Reply to / }).first().tap()
   await expect(page.locator('[data-testid="compose-visibility"]').last()).toHaveAccessibleName('Visibility: Unlisted', { timeout: 15000 })
   await expect
-    .poll(async () => (await page.locator('[data-testid="compose-post"] .rich-text-editor').last().innerText()).replace(/ /g, ' '))
+    .poll(async () => (await page.locator('[data-testid="compose-post"] .rich-text-editor').last().innerText()).replace(/\u00a0/g, ' '))
     .toBe(`@${author.username} `)
 })
 
