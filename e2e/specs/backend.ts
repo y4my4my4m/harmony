@@ -98,7 +98,16 @@ export async function startBackend(extraEnv: Record<string, string> = {}): Promi
       const forward = async (route: Route) => {
         const target = new URL(route.request().url())
         const path = target.pathname.replace(/^\/api\/federation(?=\/)/, '')
-        const response = await route.fetch({ url: `${url}${path}${target.search}` })
+        let response
+        try {
+          response = await route.fetch({ url: `${url}${path}${target.search}` })
+        } catch (error) {
+          // voice-moderation.spec.ts saw `socket hang up` here in CI with no exit report: whether
+          // the backend was still running tells a dropped connection from a dead process.
+          const state = child.exitCode === null && child.signalCode === null ? 'still running' : `exited (${child.exitCode ?? child.signalCode})`
+          console.error(`[backend] ${route.request().method()} ${path} failed: ${(error as Error).message.split('\n')[0]}; backend ${state}; last output:\n${output.slice(-4000)}`)
+          throw error
+        }
         await route.fulfill({ response })
       }
       await page.route('**/api/federation/**', forward)
