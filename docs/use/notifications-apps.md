@@ -4,7 +4,7 @@ description: Choose what notifies you per server, category, channel and conversa
 ---
 # Notifications and apps
 
-This page is for people using Harmony. The first half explains how notification levels and mutes work and where to change them. The second half covers the desktop app, the Android app and installing Harmony from the browser as a web app. Instance operators who need to set up push delivery should read [Push notifications](/self-host/push).
+This page is for people using Harmony. The first half explains how notification levels and mutes work and where to change them. The second half covers the desktop app, the Android app and installing Harmony from the browser as a web app; iPhone and iPad have their own page, [iPhone and iPad](/use/ios). Instance operators who need to set up push delivery should read [Push notifications](/self-host/push).
 
 ## How notification levels work
 
@@ -210,7 +210,7 @@ In a browser that supports installing web apps, Harmony can run in its own windo
 
 - A banner offers **Install Harmony** with an **Install** button. Closing it hides it for 30 days.
 - **User settings** → **Advanced** → **Install app** has the same button, with instructions when the browser offers no install prompt.
-- On iPhone and iPad, tap Share, then **Add to Home Screen**.
+- On iPhone and iPad, tap Share, then **Add to Home Screen**. [iPhone and iPad](/use/ios) compares this with the iOS app.
 
 The installed app opens in its own window, with shortcuts to **Direct Messages** and **Notifications** where the system shows app shortcuts. Installed from a Chromium-based desktop browser, its **Install app** section also offers **Start Harmony when you sign in**.
 
