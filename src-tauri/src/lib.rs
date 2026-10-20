@@ -1,6 +1,8 @@
 mod commands;
 #[cfg(desktop)]
 mod float_dock;
+#[cfg(target_os = "ios")]
+mod ios;
 #[cfg(desktop)]
 mod overlay;
 #[cfg(any(windows, target_os = "macos"))]
@@ -173,6 +175,13 @@ pub fn run() {
         app.manage(commands::presence::PresenceState::default());
         app.manage(overlay::OverlayInteractive::default());
         setup_desktop(&app.handle().clone())?;
+      }
+      #[cfg(target_os = "ios")]
+      {
+        use tauri::Manager;
+        if let Some(main) = app.get_webview_window("main") {
+          ios::fill_safe_area(&main);
+        }
       }
       #[cfg(target_os = "linux")]
       {

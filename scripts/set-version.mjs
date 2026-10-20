@@ -88,4 +88,17 @@ editJson('src-tauri/tauri.conf.json', (j) => { j.version = version; });
   }
 }
 
+// iOS project spec. tauri ios build stamps the generated Info.plist from
+// tauri.conf.json as well; absent at tags cut before the iOS target.
+{
+  const path = 'src-tauri/gen/apple/project.yml';
+  if (existsSync(path)) {
+    const out = readFileSync(path, 'utf8')
+      .replace(/^(\s*CFBundleShortVersionString: ).*$/m, `$1${version}`)
+      .replace(/^(\s*CFBundleVersion: ).*$/m, `$1"${version}"`);
+    writeFileSync(path, out);
+    console.log(`${path}`);
+  }
+}
+
 console.log(`\nVersion set to ${version} (versionCode ${versionCode}).`);
