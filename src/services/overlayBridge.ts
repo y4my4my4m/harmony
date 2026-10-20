@@ -1,4 +1,4 @@
-import { isTauriRuntime } from '@/services/instanceConfig';
+import { isTauriDesktop } from '@/utils/platform';
 import { userDataService } from '@/services/userDataService';
 import { getAvatarUrl } from '@/utils/avatarUtils';
 import { useUnifiedVoiceChannelStore } from '@/stores/unifiedVoiceChannel';
@@ -6,12 +6,11 @@ import { debug } from '@/utils/debug';
 import { i18n } from '@/i18n';
 import { participantStates } from '@/components/voice/participantLabel';
 
-const isAndroid = /Android/i.test(navigator.userAgent);
 const KEY = 'harmony.gameOverlay';
 let timer: ReturnType<typeof setInterval> | null = null;
 
 function desktop(): boolean {
-  return isTauriRuntime() && !isAndroid;
+  return isTauriDesktop();
 }
 
 export function isOverlayEnabled(): boolean {

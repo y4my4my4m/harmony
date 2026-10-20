@@ -1,9 +1,8 @@
-import { isTauriRuntime } from '@/services/instanceConfig';
+import { isTauriDesktop } from '@/utils/platform';
 import { userDataService } from '@/services/userDataService';
 import { debug } from '@/utils/debug';
 import type { CustomUserStatus } from '@/types/chat';
 
-const isAndroid = /Android/i.test(navigator.userAgent);
 const KEY = 'harmony.richPresence';
 
 type Activity = { name: string; kind: string } | null;
@@ -25,7 +24,7 @@ function stopRenewing(): void {
 }
 
 function desktop(): boolean {
-  return isTauriRuntime() && !isAndroid;
+  return isTauriDesktop();
 }
 
 export function isRichPresenceEnabled(): boolean {

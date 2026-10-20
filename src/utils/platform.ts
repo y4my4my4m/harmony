@@ -2,11 +2,11 @@
 // Matrix: web | pwa (installed) | tauri-desktop | tauri-mobile.
 
 import { isTauriRuntime } from '@/services/instanceConfig'
-import { isPWA, isMobileUserAgent } from '@/utils/pwaUtils'
+import { isPWA, isMobileUserAgent, isIOSDevice } from '@/utils/pwaUtils'
 
 export type AppPlatform = 'web' | 'pwa' | 'tauri-desktop' | 'tauri-mobile'
 
-export { isTauriRuntime as isTauri, isPWA, isMobileUserAgent }
+export { isTauriRuntime as isTauri, isPWA, isMobileUserAgent, isIOSDevice }
 
 export function isMobileDevice(): boolean {
   return isMobileUserAgent()

@@ -25,10 +25,21 @@ export function isPWA(): boolean {
 }
 
 /**
+ * iPhone, iPad or iPod: Safari, a Home Screen web app or the iOS app's WKWebView.
+ * iPadOS reports a Macintosh user agent by default; touch points tell an iPad
+ * from a Mac, whose maxTouchPoints is 0.
+ */
+export function isIOSDevice(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent
+  return /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1)
+}
+
+/**
  * Coarse mobile UA check (install deferral, touch UX).
  */
 export function isMobileUserAgent(): boolean {
-  return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || isIOSDevice()
 }
 
 /**

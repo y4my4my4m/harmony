@@ -58,7 +58,15 @@ export default defineConfig({
     {
       name: 'journeys',
       testDir: './e2e/specs',
+      testIgnore: 'ios-*.spec.ts',
       use: { ...devices['Desktop Chrome'], ...browserChannel },
+    },
+    // WebKit, the engine of the iOS app and every iOS browser; each spec sets its devices.
+    {
+      name: 'journeys-webkit',
+      testDir: './e2e/specs',
+      testMatch: 'ios-*.spec.ts',
+      use: { browserName: 'webkit' },
     },
     // {
     //   name: 'firefox',
