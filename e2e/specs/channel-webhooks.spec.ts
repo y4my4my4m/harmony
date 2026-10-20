@@ -27,6 +27,8 @@ let server: SeededServer
 let backend: Backend
 
 test.beforeAll(async () => {
+  // Starts the federation backend under tsx: past 30 s on a loaded CI runner.
+  test.setTimeout(120_000)
   owner = await createUser(admin, 'whk')
   server = await seedServer(admin, owner, `Webhooks ${owner.username}`)
   backend = await startBackend()

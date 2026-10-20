@@ -31,6 +31,8 @@ const remoteActor = `https://${remoteDomain}/users/${remote.username}`
 const remotePost = { id: crypto.randomUUID(), apId: `https://${remoteDomain}/notes/auth-${marker}`, text: `remote post to open ${marker}` }
 
 test.beforeAll(async () => {
+  // Starts the federation backend under tsx: past 30 s on a loaded CI runner.
+  test.setTimeout(120_000)
   reader = await createUser(admin, 'authz')
   target = await createUser(admin, 'autht')
   const { error: profileError } = await admin.from('profiles').insert({

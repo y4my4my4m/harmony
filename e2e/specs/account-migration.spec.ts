@@ -32,6 +32,8 @@ let backend: Backend
 const actorUri = (user: SpecUser) => `https://${INSTANCE_DOMAIN}/users/${user.username}`
 
 test.beforeAll(async () => {
+  // Starts the federation backend under tsx: past 30 s on a loaded CI runner.
+  test.setTimeout(120_000)
   oldAccount = await createUser(admin, 'mvold')
   newAccount = await createUser(admin, 'mvnew')
   fan = await createUser(admin, 'mvfan')
