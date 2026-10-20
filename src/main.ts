@@ -206,4 +206,5 @@ if (windowRole?.get('overlay') === '1') {
   import('@/utils/shareTarget').then(m => m.installShareLaunchConsumer(router)).catch(() => {})
   import('@/services/desktopUpdater').then(m => m.initDesktopUpdater()).catch(() => {})
   import('@/utils/videoPoster').then(m => m.installVideoPosters()).catch(() => {})
+  import('@/utils/iosKeyboard').then(m => m.installIOSKeyboardInset()).catch(() => {})
 }

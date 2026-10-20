@@ -245,6 +245,13 @@ jobs:
         env:
           CI: true
 
+      # iPhone, iPad and foldable layouts (e2e/specs/ios-*.spec.ts) in WebKit, the
+      # engine of the iOS app and every iOS browser.
+      - run: npx playwright install --with-deps webkit
+      - run: npx playwright test --project=journeys-webkit
+        env:
+          CI: true
+
       - name: Keep the report when a journey fails
         if: failure()
         uses: actions/upload-artifact@v4
