@@ -21,7 +21,7 @@ vi.mock('../utils/ssrfProtection.js', () => ({
   validateExternalUrl: (u: string) => new URL(u),
 }))
 
-const { parseMetaTags, linkPreviewService } = await import('../services/LinkPreviewService.js')
+const { parseMetaTags, parseIconHref, linkPreviewService } = await import('../services/LinkPreviewService.js')
 
 function page(html: string, url: string, type = 'text/html; charset=utf-8'): Response {
   const res = new Response(html, { status: 200, headers: { 'content-type': type } })
@@ -48,6 +48,31 @@ describe('parseMetaTags', () => {
     expect(tags.get('og:description')).toBe('just setting up my twttr')
     expect(tags.get('image')).toBe('https://pbs.example/a.jpg')
     expect(tags.get('og:site_name')).toBe('vxTwitter & friends')
+  })
+})
+
+// GitHub's head, 2026-10-20, in its order.
+const GITHUB_ICON_LINKS = `
+  <link rel="fluid-icon" href="https://github.com/fluidicon.png" title="GitHub">
+  <link rel="mask-icon" href="https://github.githubassets.com/assets/pinned-octocat-093da3e6fa40.svg" color="#000000">
+  <link rel="alternate icon" class="js-site-favicon" type="image/png" href="https://github.githubassets.com/favicons/favicon.png">
+  <link rel="icon" class="js-site-favicon" type="image/svg+xml" href="https://github.githubassets.com/favicons/favicon.svg" data-base-href="https://github.githubassets.com/favicons/favicon">`
+
+describe('parseIconHref', () => {
+  it("reads href by name, not GitHub's data-base-href, and takes the first rel listing icon", () => {
+    expect(parseIconHref(GITHUB_ICON_LINKS)).toBe('https://github.githubassets.com/favicons/favicon.png')
+    expect(parseIconHref(`<link rel="icon" type="image/svg+xml" href="/favicons/favicon.svg" data-base-href="/favicons/favicon">`))
+      .toBe('/favicons/favicon.svg')
+  })
+
+  it('reads attributes in any order and quote style, and decodes entities', () => {
+    expect(parseIconHref(`<link href='/static/fav.ico?v=1&amp;x=2' rel='shortcut icon'>`)).toBe('/static/fav.ico?v=1&x=2')
+    expect(parseIconHref(`<LINK HREF=/i.png REL=ICON>`)).toBe('/i.png')
+  })
+
+  it('falls back to an apple-touch-icon, and ignores mask, fluid and empty icons', () => {
+    expect(parseIconHref(`<link rel="mask-icon" href="/m.svg"><link rel="icon" href=""><link rel="apple-touch-icon" href="/t.png">`)).toBe('/t.png')
+    expect(parseIconHref(`<link rel="fluid-icon" href="/f.png"><link rel="stylesheet" href="/s.css">`)).toBeUndefined()
   })
 })
 
@@ -138,12 +163,14 @@ describe('generic previews', () => {
     expect(pulled).toBeLessThanOrEqual(2)
   })
 
-  it("names the site's card image", async () => {
+  it("names the site's card image and its icon, as GitHub's head gives them", async () => {
     const github = fresh('/AjncSystem/ShadowOfTheColossus-PC')
     const og = 'https://opengraph.githubassets.com/f04c/AjncSystem/ShadowOfTheColossus-PC'
-    safeFetch.mockResolvedValue(page(`<head><meta property="og:title" content="GitHub - repo">
+    safeFetch.mockResolvedValue(page(`<head><meta property="og:title" content="GitHub - repo">${GITHUB_ICON_LINKS}
       <meta property="og:description" content="A port"><meta property="og:image" content="${og}"></head>`, github))
-    expect((await linkPreviewService.getPreview(github)).image).toBe(og)
+    const preview = await linkPreviewService.getPreview(github)
+    expect(preview.image).toBe(og)
+    expect(preview.icon).toBe('https://github.githubassets.com/favicons/favicon.png')
   })
 })
 
