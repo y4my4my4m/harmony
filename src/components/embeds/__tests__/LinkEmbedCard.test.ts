@@ -51,7 +51,8 @@ describe('LinkEmbedCard', () => {
     const img = media.find('img')
     expect(img.exists()).toBe(true)
     expect(img.attributes('src')).toBe(basePayload.image)
-    expect(img.attributes('alt')).toBe(basePayload.title)
+    // Beside the title it repeats, the thumbnail is decorative.
+    expect(img.attributes('alt')).toBe('')
   })
 
   it('renders title + description text in the body', () => {
@@ -95,5 +96,32 @@ describe('LinkEmbedCard', () => {
 
     expect(wrapper.find('.link-embed-card__description').exists()).toBe(false)
     expect(wrapper.find('.link-embed-card__title').text()).toBe(basePayload.title)
+  })
+  it("puts the site's icon in place of an image that does not load, and the link glyph when the icon fails too", async () => {
+    const icon = 'https://github.githubassets.com/favicons/favicon.svg'
+    const wrapper = mount(LinkEmbedCard, { props: { payload: { ...basePayload, icon } } })
+    expect(wrapper.find('[data-testid="link-embed-placeholder"]').exists()).toBe(false)
+
+    await wrapper.find('.link-embed-card__media img').trigger('error')
+    expect(wrapper.emitted('load')).toHaveLength(1)
+    const tile = wrapper.find('[data-testid="link-embed-placeholder"]')
+    expect(tile.exists()).toBe(true)
+    expect(tile.find('img').attributes('src')).toBe(icon)
+    // The card keeps its thumbnail column.
+    expect(wrapper.find('.link-embed-card').classes()).toContain('link-embed-card--has-image')
+
+    await tile.find('img').trigger('error')
+    expect(wrapper.find('[data-testid="link-embed-placeholder"] img').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="link-embed-placeholder"] svg').exists()).toBe(true)
+    expect(wrapper.find('.link-embed-card__icon').exists()).toBe(false)
+  })
+
+  it('a media card whose image fails becomes a card with the stand-in', async () => {
+    const wrapper = mount(LinkEmbedCard, { props: { payload: { ...basePayload, description: undefined } } })
+    expect(wrapper.find('.link-embed-card').classes()).toContain('link-embed-card--media')
+    expect(wrapper.find('.link-embed-card__media img').attributes('alt')).toBe(basePayload.title)
+    await wrapper.find('.link-embed-card__media img').trigger('error')
+    expect(wrapper.find('.link-embed-card').classes()).not.toContain('link-embed-card--media')
+    expect(wrapper.find('[data-testid="link-embed-placeholder"]').exists()).toBe(true)
   })
 })

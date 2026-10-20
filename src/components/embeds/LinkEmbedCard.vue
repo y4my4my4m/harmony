@@ -25,15 +25,22 @@
     </div>
     <div v-else-if="payload.image && variant !== 'compact'" class="link-embed-card__media">
       <img
+        v-if="!imageFailed"
         :src="payload.image"
-        :alt="payload.title || payload.siteName || 'Link preview image'"
+        :alt="isMediaCard ? (payload.title || payload.siteName || '') : ''"
         loading="lazy"
         @load="handleImageLoad"
+        @error="handleImageError"
       />
+      <!-- The image would not load (removed, hotlink-blocked, rate-limited): the site's icon stands in. -->
+      <div v-else class="link-embed-card__placeholder" data-testid="link-embed-placeholder" aria-hidden="true">
+        <img v-if="showIcon" :src="payload.icon" alt="" class="link-embed-card__placeholder-icon" @error="iconFailed = true" />
+        <Icon v-else name="link" :size="22" />
+      </div>
     </div>
     <div class="link-embed-card__body">
       <div class="link-embed-card__meta">
-        <img v-if="payload.icon" :src="payload.icon" alt="" class="link-embed-card__icon" />
+        <img v-if="showIcon" :src="payload.icon" alt="" class="link-embed-card__icon" @error="iconFailed = true" />
         <span class="link-embed-card__site">{{ displaySiteName }}</span>
       </div>
       <h5 class="link-embed-card__title">
@@ -50,6 +57,7 @@
 import { computed, onMounted, ref } from 'vue';
 import type { EmbedPayload } from '@/types';
 import VideoControls from '@/components/common/VideoControls.vue';
+import Icon from '@/components/common/Icon.vue';
 import { useNativeVideoControls } from '@/composables/useVideoPlayerPreference';
 
 const props = withDefaults(
@@ -83,13 +91,16 @@ const emit = defineEmits<{
 // variant), so the parent's load listener fires without waiting.
 const nativeVideoControls = useNativeVideoControls();
 const imageLoaded = ref((!props.payload.image && !props.payload.video?.url) || props.variant === 'compact');
+const imageFailed = ref(false);
+const iconFailed = ref(false);
+const showIcon = computed(() => !!props.payload.icon && !iconFailed.value);
 
 // Media-first layout (Discord-style): a playable video, or an image with no
 // description (e.g. a GIF page), is the content, so it renders at natural
 // size instead of a 100px cropped square thumbnail.
 const isMediaCard = computed(() =>
   props.variant === 'default'
-  && (!!props.payload.video?.url || (!!props.payload.image && !props.payload.description))
+  && (!!props.payload.video?.url || (!!props.payload.image && !imageFailed.value && !props.payload.description))
 );
 
 const displaySiteName = computed(() => {
@@ -109,6 +120,11 @@ const handleImageLoad = () => {
     imageLoaded.value = true;
     emit('load');
   }
+};
+
+const handleImageError = () => {
+  imageFailed.value = true;
+  handleImageLoad();
 };
 
 onMounted(() => {
