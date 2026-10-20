@@ -192,10 +192,13 @@ async function initializeApp() {
   }
 }
 
-// The transparent game overlay loads this same bundle at index.html?overlay=1;
-// mount the lightweight overlay app instead of the full client.
-if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('overlay') === '1') {
+// The transparent game overlay loads this same bundle at index.html?overlay=1, the floating
+// voice dock at index.html?dock=1; each mounts its lightweight app instead of the full client.
+const windowRole = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
+if (windowRole?.get('overlay') === '1') {
   import('./overlay/mountOverlay').then(m => m.mountOverlay()).catch(err => debug.error('overlay mount failed', err))
+} else if (windowRole?.get('dock') === '1') {
+  import('./overlay/mountFloatingDock').then(m => m.mountFloatingDock()).catch(err => debug.error('dock mount failed', err))
 } else {
   initializeApp()
   import('@/services/nativePresence').then(m => m.initRichPresence()).catch(() => {})

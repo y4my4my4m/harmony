@@ -1400,6 +1400,11 @@
       "focus": "Anruffenster anzeigen",
       "blocked": "Das Anruffenster konnte nicht geöffnet werden. Erlaube Pop-ups für diese Seite und versuche es erneut.",
       "windowTitle": "Harmony — {name}"
+    },
+    "floatingDock": {
+      "float": "Über anderen Fenstern schweben lassen",
+      "backToApp": "Zurück in die App",
+      "dragHint": "Zum Verschieben ziehen. Auf Harmony ablegen, um es zurückzusetzen."
     }
   },
   "dm": {

@@ -1400,6 +1400,11 @@
       "focus": "통화 창 보기",
       "blocked": "통화 창을 열 수 없습니다. 이 사이트의 팝업을 허용한 후 다시 시도하세요.",
       "windowTitle": "Harmony — {name}"
+    },
+    "floatingDock": {
+      "float": "다른 창 위에 띄우기",
+      "backToApp": "앱으로 돌아가기",
+      "dragHint": "드래그해서 옮기세요. Harmony 위에 놓으면 다시 들어갑니다."
     }
   },
   "dm": {

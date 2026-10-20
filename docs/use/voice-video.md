@@ -69,6 +69,7 @@ The call bar holds the controls for the call you are in. Hover a button to see i
 | **Participants** | Lists everyone in the call. |
 | **Open call view** | Expands the call to the full call view with video tiles. |
 | **Minimize voice panel** | Shrinks the call bar to a small panel you can drag. |
+| **Float over other windows** | Desktop app, in the small panel: moves it out of Harmony into its own window that stays on top of other apps. See [Keep the call on top of other apps](#keep-the-call-on-top-of-other-apps). |
 | **Leave voice** | Hangs up. |
 
 The full call view adds **Grid view** and **Focus view** layouts, **Full screen**, **Minimize call view** and **Close call view**, and shows the call duration.
@@ -76,6 +77,14 @@ The full call view adds **Grid view** and **Focus view** layouts, **Full screen*
 The **Mute** and **Deafen** buttons in your user panel at the bottom of the sidebar work outside calls too. A state set before you join applies when you connect.
 
 A shield next to the channel name shows whether the call is end-to-end encrypted. See [Encrypted voice channels](#encrypted-voice-channels).
+
+### Keep the call on top of other apps
+
+In the desktop app, the small call panel can leave Harmony's window and float over everything else, so you can mute, deafen or see who is talking while you are in a game or another app. Shrink the call bar with **Minimize voice panel**, then either click **Float over other windows** or drag the panel out past the edge of Harmony's window and let go.
+
+The floating panel has **Mute**, **Deafen**, **Participants**, **Back to the app** and **Leave voice**. Drag its name to move it. To put it back, drop it anywhere on Harmony's window, double-click its name, or click **Back to the app**, which also opens the call view. It closes when the call ends.
+
+On Linux the floating panel is a plain rectangle, since the window cannot be see-through there. Under Wayland most desktops do not let an app keep a window on top or choose where it goes, so there it behaves like a small normal window.
 
 ### Chat beside the call and pop it out
 

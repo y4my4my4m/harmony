@@ -34,6 +34,11 @@ function setCssFactor(factor: number): void {
   cssFactorRef.value = factor
 }
 
+/** Native webview zoom (desktop): screen logical px per client px. 1 unless native zoom is on. */
+export function nativeZoomFactor(): number {
+  return appliedMode === 'native' ? appliedPercent / 100 : 1
+}
+
 /** Divisor from viewport pixels (client rects, innerWidth) to style pixels. 1 unless CSS zoom is on. */
 export function cssZoom(): number {
   return cssFactor

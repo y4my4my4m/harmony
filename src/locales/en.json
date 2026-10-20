@@ -1409,6 +1409,11 @@
       "focus": "Show call window",
       "blocked": "The call window could not open. Allow pop-ups for this site and try again.",
       "windowTitle": "Harmony — {name}"
+    },
+    "floatingDock": {
+      "float": "Float over other windows",
+      "backToApp": "Back to the app",
+      "dragHint": "Drag to move. Drop it on Harmony to put it back."
     }
   },
   "dm": {

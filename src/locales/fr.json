@@ -1400,6 +1400,11 @@
       "focus": "Afficher la fenêtre de l'appel",
       "blocked": "La fenêtre de l'appel n'a pas pu s'ouvrir. Autorisez les fenêtres pop-up pour ce site et réessayez.",
       "windowTitle": "Harmony — {name}"
+    },
+    "floatingDock": {
+      "float": "Flotter au-dessus des autres fenêtres",
+      "backToApp": "Revenir dans l'application",
+      "dragHint": "Fais glisser pour le déplacer. Dépose-le sur Harmony pour le remettre en place."
     }
   },
   "dm": {

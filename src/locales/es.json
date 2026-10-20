@@ -1400,6 +1400,11 @@
       "focus": "Mostrar la ventana de la llamada",
       "blocked": "No se pudo abrir la ventana de la llamada. Permite las ventanas emergentes para este sitio e inténtalo de nuevo.",
       "windowTitle": "Harmony — {name}"
+    },
+    "floatingDock": {
+      "float": "Flotar sobre otras ventanas",
+      "backToApp": "Volver a la aplicación",
+      "dragHint": "Arrastra para moverlo. Suéltalo sobre Harmony para devolverlo."
     }
   },
   "dm": {

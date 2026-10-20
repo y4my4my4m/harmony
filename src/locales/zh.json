@@ -1400,6 +1400,11 @@
       "focus": "显示通话窗口",
       "blocked": "无法打开通话窗口。请允许此网站的弹出窗口后重试。",
       "windowTitle": "Harmony — {name}"
+    },
+    "floatingDock": {
+      "float": "悬浮于其他窗口之上",
+      "backToApp": "返回应用",
+      "dragHint": "拖动以移动。拖回 Harmony 上即可放回。"
     }
   },
   "dm": {

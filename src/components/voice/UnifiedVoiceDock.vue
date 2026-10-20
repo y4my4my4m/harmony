@@ -320,10 +320,10 @@
 
     <!-- Minimized mode: tiny dock in channel sidebar -->
     <div 
-      v-else-if="currentMode === 'minimized'" 
+      v-else-if="currentMode === 'minimized' && !floatingDockActive" 
       ref="minimizedContainerRef"
       class="minimized-container" 
-      :class="{ 'is-dragging': isDragging }"
+      :class="{ 'is-dragging': isDragging, 'tear-off-ready': tearOffReady }"
       :style="minimizedPositionStyle"
       @mousedown="handleMinimizedMouseDown"
       @click="handleMinimizedClick"
@@ -429,6 +429,17 @@
           </template>
 
           <button
+            v-if="canFloat && !popoutActive"
+            @click.stop="floatFromButton"
+            class="mini-control-btn mini-float"
+            :title="t('voice.floatingDock.float')"
+            :aria-label="t('voice.floatingDock.float')"
+            data-testid="mini-float"
+          >
+            <Icon name="external-link" />
+          </button>
+
+          <button
             ref="miniExpandButtonRef"
             @click.stop="expandToDock"
             class="mini-control-btn mini-expand"
@@ -453,7 +464,7 @@
     
     <!-- Rendered outside .minimized-container so dragging does not clip it -->
     <div 
-      v-if="currentMode === 'minimized' && !isAtDefaultPosition" 
+      v-if="currentMode === 'minimized' && !isAtDefaultPosition && !floatingDockActive" 
       class="participants-dropdown-container"
       :style="participantsDropdownStyle"
     >
@@ -588,7 +599,17 @@ import { isMobileUserAgent } from '@/utils/platform';
 import { uid } from '@/utils/a11y/focus';
 import { useI18n } from 'vue-i18n';
 import { focusAfterVoiceLeave, restoreFocusIfLost } from './voiceFocus';
-import { stylePoint, styleRect, styleViewport } from '@/utils/appZoom';
+import { stylePoint, styleRect, styleViewport, toStylePx } from '@/utils/appZoom';
+import {
+  clientPointFromLogical,
+  closeFloatingDock,
+  floatDock,
+  floatingDockActive,
+  floatingDockSupported,
+  onFloatingDockCommand,
+  screenPointFromClient,
+} from '@/services/floatingDock';
+import { releasedOutside, type Point } from '@/overlay/floatingDockProtocol';
 import { useToast } from 'vue-toastification';
 import {
   callPopoutActive as popoutActive,
@@ -653,6 +674,12 @@ const {
 // Drag state for minimized dock
 const isDragging = ref(false);
 const dragStartPos = ref({ x: 0, y: 0 });
+// Floating dock (desktop): a mouse drag released outside the window tears the dock off.
+const canFloat = floatingDockSupported();
+const tearOffReady = ref(false);
+// Pointer offset inside the dock at mousedown, client px.
+let grabOffset: Point = { x: 0, y: 0 };
+let preDragPosition = { left: 0, bottom: 0 };
 const dragInitialMousePos = ref({ x: 0, y: 0 });
 const hasMoved = ref(false);
 const minimizedPosition = ref({ left: 10, bottom: 90 });
@@ -1025,6 +1052,9 @@ const STORAGE_KEY_DOCK_POSITION = 'voice-dock-position';
 
 // Default position (matches CSS default)
 const DEFAULT_POSITION = { left: 10, bottom: 90 };
+// Minimized dock size, px, before it has been measured.
+const MINIMIZED_WIDTH_FALLBACK = 343;
+const MINIMIZED_HEIGHT_FALLBACK = 52;
 // Magnetic snap radius, px.
 const SNAP_THRESHOLD = 80;
 // Snap is desktop-only.
@@ -1115,6 +1145,13 @@ const startDrag = (e: MouseEvent | TouchEvent) => {
   
   const pointer = stylePoint('touches' in e ? e.touches[0] : e);
   
+  preDragPosition = { ...minimizedPosition.value };
+  tearOffReady.value = false;
+  if (container && !('touches' in e)) {
+    const box = container.getBoundingClientRect();
+    grabOffset = { x: e.clientX - box.left, y: e.clientY - box.top };
+  }
+
   dragInitialMousePos.value = { x: pointer.x, y: pointer.y };
   
   dragStartPos.value = {
@@ -1151,6 +1188,9 @@ const handleDrag = (e: MouseEvent | TouchEvent) => {
   if (distance > CLICK_THRESHOLD) {
     hasMoved.value = true;
   }
+
+  tearOffReady.value = canFloat && !('touches' in e)
+    && releasedOutside(e.clientX, e.clientY, window.innerWidth, window.innerHeight);
   
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
@@ -1175,8 +1215,12 @@ const handleDrag = (e: MouseEvent | TouchEvent) => {
   });
 };
 
-const stopDrag = () => {
+const stopDrag = (e?: MouseEvent | TouchEvent) => {
   if (!isDragging.value) return;
+  const tearOffAt = tearOffReady.value && e && !('touches' in e)
+    ? { x: e.clientX - grabOffset.x, y: e.clientY - grabOffset.y }
+    : null;
+  tearOffReady.value = false;
   
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
@@ -1231,6 +1275,12 @@ const stopDrag = () => {
     }
   }
   
+  if (tearOffAt) {
+    // Torn off: the in-app dock keeps the place it was dragged from.
+    minimizedPosition.value = preDragPosition;
+    void tearOff(tearOffAt);
+  }
+
   saveMinimizedPosition();
   
   document.removeEventListener('mousemove', handleDrag);
@@ -1240,6 +1290,36 @@ const stopDrag = () => {
   
   document.body.style.userSelect = '';
   document.body.style.cursor = '';
+};
+
+/** Opens the floating dock with its top-left at `client` (main window client px). */
+const tearOff = async (client: Point) => {
+  try {
+    await floatDock(await screenPointFromClient(client));
+  } catch {
+    /* the in-app dock stays */
+  }
+};
+
+const floatFromButton = () => {
+  const container = minimizedContainerRef.value;
+  if (!container) return;
+  const box = container.getBoundingClientRect();
+  void tearOff({ x: box.left, y: box.top });
+};
+
+/** Back from the floating window: the in-app dock takes the place it was dropped, or its own. */
+const redockAt = (at?: Point) => {
+  currentMode.value = 'minimized';
+  if (!at) return;
+  const client = clientPointFromLogical(at);
+  const viewport = styleViewport();
+  const height = containerDimensions.value.height || MINIMIZED_HEIGHT_FALLBACK;
+  const width = containerDimensions.value.width || MINIMIZED_WIDTH_FALLBACK;
+  const left = Math.max(0, Math.min(toStylePx(client.x), viewport.width - width));
+  const top = Math.max(0, Math.min(toStylePx(client.y), viewport.height - height));
+  minimizedPosition.value = { left, bottom: viewport.height - top - height };
+  saveMinimizedPosition();
 };
 
 let shouldPreventClick = false;
@@ -1505,6 +1585,7 @@ watch(
 // LIFECYCLE & EVENT LISTENERS
 // Close participants dropdown when clicking outside
 let handleClickOutside: ((e: MouseEvent) => void) | null = null;
+let stopFloatingDockCommands: (() => void) | null = null;
 
 onMounted(() => {
   // Store's isOverlayVisible wins over the default dock mode.
@@ -1518,6 +1599,11 @@ onMounted(() => {
   
   loadMinimizedPosition();
   loadDockPosition();
+  if (floatingDockActive.value) currentMode.value = 'minimized';
+  stopFloatingDockCommands = onFloatingDockCommand((command) => {
+    if (command.type === 'redock') redockAt(command.at);
+    else if (command.type === 'expand') expandToOverlay();
+  });
   
   handleClickOutside = (e: MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -1536,8 +1622,11 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  // The dock goes with the call; so does a popped-out call view.
+  // The dock goes with the call; so does a popped-out call view, and a floating dock.
   closeCallPopout();
+  void closeFloatingDock();
+  stopFloatingDockCommands?.();
+  stopFloatingDockCommands = null;
   stopDrag();
   stopDockDrag();
   minimizedThumbnail.detach();
@@ -1926,6 +2015,13 @@ onUnmounted(() => {
   box-sizing: border-box;
   box-shadow: var(--shadow-medium);
   margin-bottom: 0;
+}
+
+/* Released here, the dock tears off into its own window. */
+.minimized-container.tear-off-ready {
+  outline: 2px dashed var(--harmony-primary);
+  outline-offset: 3px;
+  opacity: 0.85;
 }
 
 .minimized-container.is-dragging {

@@ -1,5 +1,7 @@
 mod commands;
 #[cfg(desktop)]
+mod float_dock;
+#[cfg(desktop)]
 mod overlay;
 #[cfg(any(windows, target_os = "macos"))]
 mod popout;
@@ -196,6 +198,9 @@ pub fn run() {
     overlay::overlay_open,
     overlay::overlay_close,
     overlay::overlay_set_interactive,
+    float_dock::float_dock_open,
+    float_dock::float_dock_close,
+    float_dock::float_dock_focus_main,
     updater::updater_status
   ]);
   // mobile (android/ios) — no desktop-only commands
