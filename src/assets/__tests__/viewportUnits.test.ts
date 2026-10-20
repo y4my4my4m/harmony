@@ -38,7 +38,13 @@ describe('viewport units', () => {
 
   it('defines a variable for every unit', () => {
     const css = readFileSync(join(SRC, 'assets', 'design-system.css'), 'utf8')
-    for (const unit of ['vh', 'dvh', 'svh', 'lvh', 'vw', 'vmin', 'vmax']) {
+    // Heights that end at the iOS keyboard (utils/iosKeyboard.ts).
+    for (const unit of ['vh', 'dvh', 'svh']) {
+      expect(css).toContain(
+        `--app-${unit}: calc((1${unit} - var(--keyboard-inset, 0px) / 100) / var(--viewport-zoom, 1));`,
+      )
+    }
+    for (const unit of ['lvh', 'vw', 'vmin', 'vmax']) {
       expect(css).toContain(`--app-${unit}: calc(1${unit} / var(--viewport-zoom, 1));`)
     }
   })

@@ -381,7 +381,8 @@ test('name-artifact.sh: release and dev names', async (t) => {
   await assert.rejects(nameArtifact(dir, ['Windows', 'release']), /GITHUB_REF_NAME and GITHUB_SHA must be set/);
   assert.equal(await nameArtifact(dir, ['--release', 'Linux', 'release']), `Harmony_Linux_V${VERSION}`);
   assert.equal(await nameArtifact(dir, ['Linux', 'release'], dev), `Harmony_Linux_V${VERSION}_dev-feat-push-v2-1a2b3c4`);
-  await assert.rejects(nameArtifact(dir, ['iOS', 'release']), /usage/);
+  assert.equal(await nameArtifact(dir, ['iOS', 'release'], dev), `Harmony_iOS_V${VERSION}_dev-feat-push-v2-1a2b3c4`);
+  await assert.rejects(nameArtifact(dir, ['Fuchsia', 'release']), /usage/);
 
   mkdirSync(join(dir, 'apk'));
   writeFileSync(join(dir, 'apk/app-universal-release.apk'), 'apk');

@@ -59,6 +59,8 @@ async function seat(user: SpecUser, channelId: string, serverId = server.id): Pr
 }
 
 test.beforeAll(async () => {
+  // Starts the federation backend under tsx: past 30 s on a loaded CI runner.
+  test.setTimeout(120_000)
   backend = await startBackend()
   owner = await createUser(admin, 'vfo')
   mod = await createUser(admin, 'vfm')

@@ -1,20 +1,77 @@
 package online.knowmad.harmony
 
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import androidx.activity.OnBackPressedCallback
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 
 class MainActivity : TauriActivity() {
+  private val fullscreen by lazy {
+    FullscreenVideo(window.decorView as ViewGroup) { active -> showFullscreen(active) }
+  }
+
+  private val leaveFullscreenOnBack = object : OnBackPressedCallback(false) {
+    override fun handleOnBackPressed() {
+      fullscreen.leave()
+    }
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     (application as HarmonyApplication).attach(this)
     WindowCompat.setDecorFitsSystemWindows(window, false)
     fitContentToInsets()
     restoreBars()
+  }
+
+  override fun onWebViewCreate(webView: WebView) {
+    super.onWebViewCreate(webView)
+    // wry sets its chrome client after this hook, in the same main-thread task.
+    webView.post { wrapChromeClient(webView) }
+  }
+
+  private fun wrapChromeClient(webView: WebView) {
+    val current: WebChromeClient? = when {
+      Build.VERSION.SDK_INT >= Build.VERSION_CODES.O -> webView.webChromeClient
+      WebViewFeature.isFeatureSupported(WebViewFeature.GET_WEB_CHROME_CLIENT) -> WebViewCompat.getWebChromeClient(webView)
+      else -> null
+    }
+    if (current == null || current is FullscreenChromeClient) return
+    webView.webChromeClient = FullscreenChromeClient(current, fullscreen)
+  }
+
+  private fun showFullscreen(active: Boolean) {
+    // The last callback added runs first: added on entry, it precedes Tauri's back handler.
+    leaveFullscreenOnBack.remove()
+    if (active) onBackPressedDispatcher.addCallback(this, leaveFullscreenOnBack)
+    leaveFullscreenOnBack.isEnabled = active
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+      window.attributes = window.attributes.apply {
+        layoutInDisplayCutoutMode = if (active) {
+          WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        } else {
+          WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+        }
+      }
+    }
+    val controller = WindowInsetsControllerCompat(window, window.decorView)
+    if (active) {
+      controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+      controller.hide(WindowInsetsCompat.Type.systemBars())
+    } else {
+      controller.show(WindowInsetsCompat.Type.systemBars())
+    }
   }
 
   // targetSdk 35+ is edge-to-edge on Android 15+: decorFitsSystemWindows(true)

@@ -85,6 +85,13 @@ export async function startBackend(extraEnv: Record<string, string> = {}): Promi
     })
   })
 
+  // A backend that dies mid-spec shows up only as `socket hang up` on the page's next request:
+  // its exit and last output go to the runner's log.
+  let stopping = false
+  child.once('exit', (code, signal) => {
+    if (!stopping) console.error(`[backend] ${url} exited (code ${code}, signal ${signal}); last output:\n${output.slice(-4000)}`)
+  })
+
   return {
     url,
     async route(page: Page) {
@@ -98,6 +105,7 @@ export async function startBackend(extraEnv: Record<string, string> = {}): Promi
       if (extraEnv.LIVEKIT_URL) await page.route('**/api/livekit/**', forward)
     },
     async stop() {
+      stopping = true
       if (child.exitCode === null) {
         const exited = new Promise((resolve) => child.once('exit', resolve))
         child.kill('SIGTERM')

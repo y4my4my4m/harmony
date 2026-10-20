@@ -432,6 +432,7 @@ onBeforeUnmount(() => {
 
 /* The moved embed fills the body; its in-chat sizing rules are overridden. */
 .mini-player__body :deep(.floating-video) {
+  display: block;
   position: absolute;
   inset: 0;
   width: 100%;
@@ -444,12 +445,19 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-.mini-player__body :deep(.floating-video .provider-embed__header),
+.mini-player__body :deep(.floating-video .provider-embed__frame) {
+  border: 0;
+  border-radius: 0;
+  background: #000;
+}
+
+.mini-player__body :deep(.floating-video .provider-embed__actions),
 .mini-player__body :deep(.floating-video .attachment-remove-btn),
 .mini-player__body :deep(.floating-video .floating-video-popout) {
   display: none;
 }
 
+.mini-player__body :deep(.floating-video .provider-embed__frame),
 .mini-player__body :deep(.floating-video .provider-embed__content),
 .mini-player__body :deep(.floating-video .provider-embed__media),
 .mini-player__body :deep(.floating-video .media-frame) {

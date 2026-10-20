@@ -1,0 +1,10 @@
+xcuserdata/
+build/
+Externals/
+# Bundle resources; tauri ios build copies them in.
+assets/
+# xcodegen output, generated from project.yml.
+app.xcodeproj/project.pbxproj
+app.xcodeproj/xcshareddata/
+app.xcodeproj/project.xcworkspace/contents.xcworkspacedata
+app_iOS/Info.plist

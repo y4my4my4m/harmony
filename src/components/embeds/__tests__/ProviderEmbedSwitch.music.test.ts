@@ -27,7 +27,7 @@ describe('music players', () => {
     const music = wrapper.findComponent({ name: 'MusicEmbed' })
     expect(music.exists()).toBe(true)
     expect(music.props('embed')).toMatchObject({ provider: 'soundcloud', height: 166 })
-    expect(wrapper.find('.provider-embed__label').text()).toBe('SoundCloud')
+    expect(wrapper.find('.provider-embed').attributes('aria-label')).toBe('SoundCloud')
   })
 
   it('plays a Spotify track in its player', async () => {

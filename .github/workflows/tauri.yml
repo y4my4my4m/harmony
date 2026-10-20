@@ -35,6 +35,10 @@ on:
         description: Linux AppImage and deb
         type: boolean
         default: true
+      ios:
+        description: iOS IPA, unsigned (sideload)
+        type: boolean
+        default: false
       profile:
         description: Build profile. An Android release build without the signing secrets falls back to debug.
         type: choice
@@ -113,6 +117,70 @@ jobs:
       - name: Name dmg
         id: artifact
         run: bash scripts/name-artifact.sh macOS "$BUILD_PROFILE" src-tauri/target/universal-apple-darwin/"$BUILD_PROFILE"/bundle/dmg/*.dmg
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ steps.artifact.outputs.path }}
+          archive: false
+          if-no-files-found: error
+
+  # Dispatch only: no release consumes its caches. Unsigned, as no Apple
+  # Developer Program membership exists; users re-sign the IPA with their own
+  # Apple ID when sideloading (docs/use/ios.md).
+  #
+  # Signing secrets, unset. With a membership: APPLE_DEVELOPMENT_TEAM,
+  # IOS_CERTIFICATE (base64 .p12), IOS_CERTIFICATE_PASSWORD and
+  # IOS_MOBILE_PROVISION (base64 profile) as env of the build step, which then
+  # drops --no-sign and --archive-only and passes --export-method
+  # (release-testing for TestFlight, app-store-connect for the App Store).
+  # Uploads authenticate with APPLE_API_KEY, APPLE_API_ISSUER and
+  # APPLE_API_KEY_PATH (App Store Connect API key file).
+  ios:
+    name: iOS IPA (unsigned)
+    if: github.event_name == 'workflow_dispatch' && inputs.ios
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      # src-tauri/gen/apple carries project.yml, not the Xcode project generated
+      # from it. xcodegen rejects a missing source path; both directories are
+      # gitignored.
+      - name: Generate Xcode project
+        run: |
+          command -v xcodegen >/dev/null || brew install xcodegen
+          mkdir -p src-tauri/gen/apple/assets src-tauri/gen/apple/Externals
+          xcodegen generate --spec src-tauri/gen/apple/project.yml
+      # --no-sign archives with CODE_SIGNING_ALLOWED=NO; --archive-only stops
+      # before the export, which needs a signing identity.
+      - name: Build unsigned archive
+        run: npx tauri ios build --no-sign --archive-only --target aarch64 ${{ env.BUILD_PROFILE == 'debug' && '--debug' || '' }}
+      - name: Package IPA
+        id: artifact
+        run: |
+          app=src-tauri/gen/apple/build/app_iOS.xcarchive/Products/Applications/Harmony.app
+          lipo -info "$app/Harmony"
+          family=$(plutil -extract UIDeviceFamily json -o - "$app/Info.plist" | tr -d '[:space:]')
+          [ "$family" = '[1,2]' ] || { echo "::error::UIDeviceFamily is $family, expected [1,2]"; exit 1; }
+          for key in NSCameraUsageDescription NSMicrophoneUsageDescription NSPhotoLibraryUsageDescription \
+            NSPhotoLibraryAddUsageDescription NSLocalNetworkUsageDescription UILaunchStoryboardName; do
+            plutil -extract "$key" raw -o - "$app/Info.plist" >/dev/null || { echo "::error::Info.plist lacks $key"; exit 1; }
+          done
+          stem=$(bash scripts/name-artifact.sh iOS "$BUILD_PROFILE")
+          out="$RUNNER_TEMP/ipa"
+          mkdir -p "$out/Payload"
+          cp -R "$app" "$out/Payload/"
+          (cd "$out" && zip -qry "$stem.ipa" Payload)
+          echo "path=$out/$stem.ipa" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v7
         with:
           path: ${{ steps.artifact.outputs.path }}

@@ -24,6 +24,8 @@ let user: SpecUser
 let backend: Backend
 
 test.beforeAll(async () => {
+  // Starts the federation backend under tsx: past 30 s on a loaded CI runner.
+  test.setTimeout(120_000)
   user = await createUser(admin, 'drive')
   backend = await startBackend()
 })

@@ -1,31 +1,85 @@
+/* .provider-embed holds the card (__frame) and, beside its top edge, the action rail. */
 .provider-embed {
+  --embed-card-max: 480px;
+  --embed-rail: 30px;
+  margin-top: 0.85rem;
+  max-width: var(--embed-card-max);
+}
+
+.provider-embed__frame {
+  min-width: 0;
   border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
   border-radius: 14px;
   background: var(--background-quaternary, #14161c);
-  margin-top: 0.85rem;
   overflow: hidden;
-  max-width: 480px;
 }
 
 .provider-embed.provider-harmony-post,
 .provider-embed.provider-fediverse-post {
-  overflow: visible;
-  max-width: 550px;
+  --embed-card-max: 550px;
   margin-bottom: 2px;
 }
 
-.provider-embed__header {
+.provider-embed.provider-harmony-post .provider-embed__frame,
+.provider-embed.provider-fediverse-post .provider-embed__frame {
+  overflow: visible;
+}
+
+.provider-embed--railed:not(.is-collapsed) {
+  display: grid;
+  grid-template-columns: minmax(0, var(--embed-card-max)) var(--embed-rail);
+  column-gap: 4px;
+  align-items: start;
+  max-width: calc(var(--embed-card-max) + var(--embed-rail) + 4px);
+}
+
+.provider-embed--railed:not(.is-collapsed) .provider-embed__frame {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.provider-embed__actions {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  border-radius: 10px;
+  background: var(--background-floating, var(--background-quaternary, #14161c));
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+/* Shown on pointing at or focusing the embed; always on touch screens. */
+.provider-embed:hover > .provider-embed__actions,
+.provider-embed:focus-within > .provider-embed__actions,
+.provider-embed__actions.is-inline {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .provider-embed__actions {
+    opacity: 1;
+  }
+}
+
+/* Hidden: one slim row naming the provider, with Open and Show. */
+.provider-embed__actions.is-inline {
+  flex-direction: row;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.25rem 0.3rem 0.25rem 0.75rem;
-  background: var(--background-tertiary-alpha, #1c1f26aa);
-  backdrop-filter: blur(10px);
+  width: fit-content;
+  max-width: 100%;
+  padding: 2px 2px 2px 0.7rem;
+  gap: 0.15rem;
+  border-radius: 12px;
+  background: var(--background-quaternary, #14161c);
 }
 
 .provider-embed__label {
   min-width: 0;
+  margin-right: 0.35rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -35,21 +89,16 @@
   color: var(--text-secondary, #9ca3af);
 }
 
-.provider-embed__actions {
-  display: flex;
-  flex-shrink: 0;
-  gap: 0.15rem;
-}
-
 .embed-action {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: 7px;
   background: transparent;
   color: var(--text-secondary, #9ca3af);
   cursor: pointer;
@@ -85,7 +134,7 @@
 
 /* Portrait media (YouTube Shorts): the card narrows to the frame. */
 .provider-embed.provider-embed--portrait {
-  max-width: min(100%, 320px);
+  --embed-card-max: 320px;
 }
 
 .provider-embed__media--portrait {
@@ -98,7 +147,7 @@
 
 .provider-embed__post {
   max-width: 100%;
-  border-radius: 0 0 14px 14px;
+  border-radius: 14px;
 }
 
 .provider-embed__post .mony-post {
@@ -242,10 +291,39 @@
   font-size: 0.8rem;
 }
 
-.link-embed-card__icon {
+/* Favicons are often a dark glyph on transparency (GitHub's octocat): a light chip keeps
+   them visible on dark themes. */
+.link-embed-card__icon,
+.link-embed-card__placeholder-icon {
+  flex-shrink: 0;
+  box-sizing: border-box;
   width: 16px;
   height: 16px;
+  padding: 1px;
   border-radius: 4px;
+  background: #fff;
+  object-fit: contain;
+}
+
+.link-embed-card__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 64px;
+  color: var(--text-tertiary, var(--text-secondary, #9ca3af));
+  background:
+    radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--harmony-primary, #0ea5e9) 22%, transparent), transparent 70%),
+    var(--background-modifier-hover, rgba(255, 255, 255, 0.05));
+}
+
+/* Outranks .link-embed-card__media img, which fills the media slot. */
+.link-embed-card__placeholder .link-embed-card__placeholder-icon {
+  width: 32px;
+  height: 32px;
+  padding: 3px;
+  border-radius: 8px;
 }
 
 .link-embed-card__title {
@@ -574,6 +652,10 @@ a:hover > .link-embed-card--thumbnail,
    and adds none of its own. */
 .provider-embed:has(.link-embed-card--media) {
   width: fit-content;
+}
+
+.provider-embed--railed:not(.is-collapsed):has(.link-embed-card--media) {
+  grid-template-columns: fit-content(var(--embed-card-max)) var(--embed-rail);
 }
 
 .link-embed-card--media {

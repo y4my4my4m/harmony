@@ -1136,6 +1136,9 @@ onBeforeUnmount(() => {
   width: 100%;
   height: calc(100 * var(--app-vh));
   height: calc(100 * var(--app-dvh)); /* mobile: exclude browser chrome so content isn't clipped */
+  /* At every width: iPad, and iPhone in landscape, are wider than the mobile
+     breakpoint. Fixed drawers pad themselves. */
+  padding: var(--safe-top) var(--safe-right) var(--shell-safe-bottom) var(--safe-left);
   display: flex;
   background: var(--background-primary);
   position: relative;
@@ -1210,29 +1213,22 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
+/* Offsets are from the padding box, which spans the shell's safe-area padding. */
 .user-profile-section {
   position: absolute;
-  left: 10px;
-  bottom: 10px;
+  left: calc(10px + var(--safe-left));
+  bottom: calc(10px + var(--shell-safe-bottom));
   width: 72px;
   z-index: 101;
 }
 
 /* Docked: the 64px avatar centred in the 72px rail. */
 .user-profile-section.docked {
-  left: 4px;
+  left: calc(4px + var(--safe-left));
 }
 
 /* Mobile responsiveness */
 @media (max-width: 768px) {
-  /* Safe-area insets (status bar, notch, home indicator) are non-zero only
-     where the page draws under them: iOS with viewport-fit=cover. The Android
-     shell consumes them natively. Fixed drawers pad themselves. */
-  .base-layout {
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
-
   .base-layout.sidebar-open .server-sidebar-container {
     transform: translateX(0);
   }
@@ -1245,8 +1241,8 @@ onBeforeUnmount(() => {
     height: calc(100 * var(--app-dvh));
     z-index: 200;
     transform: translateX(-100%);
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+    padding-top: var(--safe-top);
+    padding-bottom: calc(92px + var(--shell-safe-bottom));
     /* Spring settle on release */
     transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
   }
@@ -1272,7 +1268,7 @@ onBeforeUnmount(() => {
   .user-profile-section {
     position: absolute;
     left: 6px;
-    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(10px + var(--shell-safe-bottom));
     width: 64px;
     z-index: 101;
     margin: 0 auto;

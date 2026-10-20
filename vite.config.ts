@@ -1,5 +1,5 @@
 import { fileURLToPath, URL } from 'node:url'
-import { defineConfig, type DepOptimizationOptions, type Plugin } from 'vite'
+import { createLogger, defineConfig, type DepOptimizationOptions, type Logger, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { selectivePreload } from './vite-plugin-selective-preload'
 import { backgrounds } from './vite-plugin-backgrounds'
@@ -87,8 +87,28 @@ function skipAppRequires(): EsbuildPlugin {
   }
 }
 
+// The proxy target, the federation backend on :3001, is absent from the e2e stack and often
+// from local dev. Vite logs each refused request with its stack: presence beacons and push
+// setup made 7,348 of the 10,930 lines of a CI journeys log. A refused connection is logged
+// once per path, in one line; every other error as Vite writes it.
+function proxyRefusalsOnce(): Logger {
+  const logger = createLogger()
+  const error = logger.error.bind(logger)
+  const refused = new Set<string>()
+  logger.error = (msg, options) => {
+    const code = (options?.error as { code?: string } | null | undefined)?.code
+    const path = /http proxy error: (\S+)/.exec(msg.replace(/\x1b\[[0-9;]*m/g, ''))?.[1]?.split('?')[0]
+    if (!path || code !== 'ECONNREFUSED') return error(msg, options)
+    if (refused.has(path)) return
+    refused.add(path)
+    error(`http proxy error: ${path}: connection refused; further refusals for it are not logged`, { timestamp: true })
+  }
+  return logger
+}
+
 export default defineConfig({
   clearScreen: false,
+  customLogger: proxyRefusalsOnce(),
   server: ({
     strictPort: true,
     port: 5173,

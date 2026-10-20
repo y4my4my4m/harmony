@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSPhotoLibraryUsageDescription</key>
+  <string>Harmony uses your photo library when you attach photos and videos to messages.</string>
+  <key>NSPhotoLibraryAddUsageDescription</key>
+  <string>Harmony saves images and videos you choose to keep to your photo library.</string>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>Harmony uses your local network to connect voice and video calls and to reach Harmony servers on your network.</string>
+</dict>
+</plist>
