@@ -245,9 +245,43 @@ jobs:
         env:
           CI: true
 
-      # iPhone, iPad and foldable layouts (e2e/specs/ios-*.spec.ts) in WebKit, the
-      # engine of the iOS app and every iOS browser.
+      - name: Keep the report when a journey fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+      - name: Tear the stack down
+        if: always()
+        run: npm run e2e:down
+
+  # iPhone, iPad and foldable layouts (e2e/specs/ios-*.spec.ts) in WebKit, the engine of the
+  # iOS app and every iOS browser. A job of its own: after the Chrome journeys (31 min on
+  # 2026-10-20) the WebKit install alone ran E2E Journeys past its 40 min limit.
+  e2e-webkit:
+    name: E2E WebKit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - run: npm ci
+
+      # The global setup signs the seed users in with the runner's Chrome.
+      - run: google-chrome --version
       - run: npx playwright install --with-deps webkit
+      - run: npm run e2e:up
+      - run: npm run e2e:seed
+
       - run: npx playwright test --project=journeys-webkit
         env:
           CI: true
@@ -256,7 +290,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-webkit
           path: |
             playwright-report/
             test-results/
@@ -327,6 +361,7 @@ jobs:
       - build
       - e2e-stack
       - e2e-journeys
+      - e2e-webkit
       - federation-roundtrip
       - docs
     steps:
@@ -353,6 +388,7 @@ jobs:
           check "build"                  "${{ needs.build.result }}"
           check "e2e-stack"              "${{ needs.e2e-stack.result }}"
           check "e2e-journeys"           "${{ needs.e2e-journeys.result }}"
+          check "e2e-webkit"             "${{ needs.e2e-webkit.result }}"
           check "federation-roundtrip"   "${{ needs.federation-roundtrip.result }}"
           check "docs"                   "${{ needs.docs.result }}"
 
