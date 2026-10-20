@@ -31,6 +31,7 @@ env:
 # release -> desktop (Windows, macOS) -> latest-json
 #         -> linux                     ->
 #         -> android
+#         -> ios
 # The draft release exists before any build uploads, so concurrent jobs cannot
 # each create one. latest.json has a single writer that runs after every
 # desktop build has uploaded.
@@ -504,3 +505,91 @@ jobs:
           [ $# -eq 1 ] && [ -f "$1" ] || { echo "::error::Expected one deb, found: $*"; exit 1; }
           cp "$1" "linux-release/$STEM.deb"
           node .ci/scripts/github-release.mjs upload --release-id "$RELEASE_ID" linux-release/*
+
+  # Unsigned: without an Apple Developer membership the IPA is sideloaded with AltStore,
+  # SideStore or Sideloadly (docs/use/ios.md), and does not update itself. The build is
+  # tauri.yml's ios job with the tag's version; tags cut before the iOS target have none.
+  ios:
+    needs: release
+    runs-on: macos-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .ci
+          sparse-checkout: scripts
+      - name: Check for the iOS target
+        id: tree
+        run: |
+          if [ -f src-tauri/gen/apple/project.yml ]; then
+            echo "built=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::src-tauri/gen/apple/project.yml absent at this tag; no iOS build."
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.tree.outputs.built == 'true'
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+      - name: Stamp version from tag
+        if: steps.tree.outputs.built == 'true'
+        env:
+          EXPECTED: ${{ needs.release.outputs.version }}
+        run: |
+          node scripts/set-version.mjs "$RELEASE_TAG"
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          if [ "$version" != "$EXPECTED" ]; then
+            echo "::error::Tree version $version differs from the release job's $EXPECTED."
+            exit 1
+          fi
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.tree.outputs.built == 'true'
+        with:
+          targets: aarch64-apple-ios
+      - uses: Swatinem/rust-cache@v2
+        if: steps.tree.outputs.built == 'true'
+        with:
+          workspaces: src-tauri
+          save-if: false
+      - run: npm ci
+        if: steps.tree.outputs.built == 'true'
+      # src-tauri/gen/apple carries project.yml, not the Xcode project generated from it.
+      - name: Generate Xcode project
+        if: steps.tree.outputs.built == 'true'
+        run: |
+          command -v xcodegen >/dev/null || brew install xcodegen
+          mkdir -p src-tauri/gen/apple/assets src-tauri/gen/apple/Externals
+          xcodegen generate --spec src-tauri/gen/apple/project.yml
+      - name: Build unsigned archive
+        if: steps.tree.outputs.built == 'true'
+        run: npx tauri ios build --no-sign --archive-only --target aarch64
+      # The checks of tauri.yml's Package IPA, plus the version the app reports.
+      - name: Name and upload
+        if: steps.tree.outputs.built == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.release.outputs.id }}
+          EXPECTED: ${{ needs.release.outputs.version }}
+        run: |
+          app=src-tauri/gen/apple/build/app_iOS.xcarchive/Products/Applications/Harmony.app
+          lipo -info "$app/Harmony"
+          family=$(plutil -extract UIDeviceFamily json -o - "$app/Info.plist" | tr -d '[:space:]')
+          [ "$family" = '[1,2]' ] || { echo "::error::UIDeviceFamily is $family, expected [1,2]"; exit 1; }
+          for key in NSCameraUsageDescription NSMicrophoneUsageDescription NSPhotoLibraryUsageDescription \
+            NSPhotoLibraryAddUsageDescription NSLocalNetworkUsageDescription UILaunchStoryboardName; do
+            plutil -extract "$key" raw -o - "$app/Info.plist" >/dev/null || { echo "::error::Info.plist lacks $key"; exit 1; }
+          done
+          shown=$(plutil -extract CFBundleShortVersionString raw -o - "$app/Info.plist")
+          [ "$shown" = "$EXPECTED" ] || { echo "::error::The app reports $shown, expected $EXPECTED"; exit 1; }
+          stem=$(bash .ci/scripts/name-artifact.sh --release iOS release)
+          out="$RUNNER_TEMP/ipa"
+          mkdir -p "$out/Payload"
+          cp -R "$app" "$out/Payload/"
+          (cd "$out" && zip -qry "$stem.ipa" Payload)
+          node .ci/scripts/github-release.mjs upload --release-id "$RELEASE_ID" "$out/$stem.ipa"

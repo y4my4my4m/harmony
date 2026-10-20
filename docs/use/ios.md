@@ -31,7 +31,9 @@ The iOS app is the same client as the desktop and Android apps, built for iPhone
 
 ### Get the file
 
-The app is a file named `Harmony_iOS_V<version>_dev-<branch>-<commit>.ipa`. GitHub releases do not include it. Builds are attached to runs of the [Tauri workflow](https://github.com/y4my4my4m/harmony/actions/workflows/tauri.yml) that built iOS: open a run and download the file under **Artifacts**. Downloading artifacts needs a GitHub account.
+The app is the file `Harmony_iOS_V<version>.ipa` on Harmony's [GitHub releases](https://github.com/y4my4my4m/harmony/releases), from 1.8.9 on. Open the [latest release](https://github.com/y4my4my4m/harmony/releases/latest), expand **Assets** and download it; on the device, Safari saves it to **Downloads** in Files.
+
+Test builds of unreleased changes are attached to runs of the [Tauri workflow](https://github.com/y4my4my4m/harmony/actions/workflows/tauri.yml) that built iOS, as `Harmony_iOS_V<version>_dev-<branch>-<commit>.ipa` under **Artifacts**. Downloading artifacts needs a GitHub account.
 
 The file is unsigned. A sideloading tool signs it with your Apple ID when it installs it; iOS does not run it otherwise.
 
@@ -65,4 +67,4 @@ Use one of these. Each has its own setup guide; follow it, then install the Harm
 
 ### Update the app
 
-Harmony does not check for new iOS builds. Install the newer `.ipa` with the same tool and Apple ID; it replaces the installed app.
+Harmony does not check for new iOS builds. Each release carries a new `.ipa`: install it with the same tool and Apple ID, and it replaces the installed app.
