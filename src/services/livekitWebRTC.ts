@@ -61,6 +61,10 @@ import { grantsFromPermission, moderationFromMetadata, type VoiceGrants } from '
 // Cache for federated ID to profile UUID mappings
 const federatedIdToUuidCache = new Map<string, string>();
 
+// Retry delays, ms, for a key envelope whose Megolm session is not here yet. They sum to
+// 11.5 s, inside the 12 s initVoiceE2EE waits for a key.
+const ENVELOPE_RETRY_MS = [500, 1000, 2000, 2000, 3000, 3000];
+
 // Reverse cache: UUID to LiveKit identity (for looking up participants by UUID)
 const uuidToIdentityCache = new Map<string, string>();
 
@@ -385,6 +389,8 @@ export class LiveKitWebRTCService {
   private e2eeKeyReady = false;
   private lastKeyEnvelope: VoiceKeyEnvelope | null = null;
   private megolmKeyRetryHandler: (() => void) | null = null;
+  private envelopeRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private envelopeRetryCount = 0;
   private readonly E2EE_DATA_TOPIC = 'harmony-e2ee';
   
   // LiveKit config cache
@@ -706,6 +712,7 @@ export class LiveKitWebRTCService {
       window.removeEventListener('megolm-key-received', this.megolmKeyRetryHandler);
       this.megolmKeyRetryHandler = null;
     }
+    this.clearEnvelopeRetry();
     this.e2eeRequired = false;
     this.e2eeRoomKey = null;
     this.e2eeKeyId = null;
@@ -2470,14 +2477,37 @@ export class LiveKitWebRTCService {
     debug.log(`[LiveKit] Coordinator broadcast key ${keyId} to ${recipients.length} member(s)`);
   }
 
-  /** Try to apply the most recently received key envelope (retried as Megolm sessions arrive). */
+  /**
+   * Try to apply the most recently received key envelope. A miss is retried on
+   * megolm-key-received and on ENVELOPE_RETRY_MS: the coordinator's Megolm
+   * share row can land after its envelope, and no realtime event announces it.
+   */
   private async tryApplyPendingEnvelope(): Promise<void> {
     const env = this.lastKeyEnvelope;
     if (!env || env.t !== 'voice-key' || !this.channelId) return;
     if (this.e2eeKeyId === env.keyId) return; // already applied
     const key = await voiceE2EEService.unwrapKey(env.cipher, this.channelId);
-    if (!key) return; // session not here yet; megolm-key-received will retry
+    if (!key) {
+      this.scheduleEnvelopeRetry();
+      return;
+    }
+    this.clearEnvelopeRetry();
     await this.applyRoomKey(key, env.keyId);
+  }
+
+  private scheduleEnvelopeRetry(): void {
+    if (this.envelopeRetryTimer || this.envelopeRetryCount >= ENVELOPE_RETRY_MS.length) return;
+    const delay = ENVELOPE_RETRY_MS[this.envelopeRetryCount++];
+    this.envelopeRetryTimer = setTimeout(() => {
+      this.envelopeRetryTimer = null;
+      void this.tryApplyPendingEnvelope();
+    }, delay);
+  }
+
+  private clearEnvelopeRetry(): void {
+    if (this.envelopeRetryTimer) clearTimeout(this.envelopeRetryTimer);
+    this.envelopeRetryTimer = null;
+    this.envelopeRetryCount = 0;
   }
 
   /**
@@ -2502,6 +2532,7 @@ export class LiveKitWebRTCService {
     if (env.t === 'voice-key') {
       if (this.e2eeKeyId === env.keyId) return;
       this.lastKeyEnvelope = env;
+      this.clearEnvelopeRetry();
       await this.tryApplyPendingEnvelope();
     }
   }

@@ -35,6 +35,9 @@ import { userStorage } from '@/utils/userScopedStorage';
 import { grantsFromRolePermissions, type VoiceGrants } from '@/services/voice/voiceGrants';
 import { useVoiceModerationStore } from './voiceModeration';
 
+// Upper bound, ms, on waiting for DM call presence before the call counts as connected.
+const DM_PRESENCE_WAIT_MS = 5000;
+
 let voiceSessionHeartbeat: ReturnType<typeof setInterval> | null = null;
 
 let keybindListenersSetup = false;
@@ -628,11 +631,16 @@ export const useUnifiedVoiceChannelStore = defineStore('unifiedVoiceChannel', {
             const profileId = await authContextService.getCurrentProfileId();
             if (profileId) {
               const activeCall = dmCallSignaling.getActiveCall(conversationId);
-              await dmCallSignaling.trackCallPresence(conversationId, {
-                callType: activeCall?.callType ?? 'voice',
-                isCaller: activeCall?.callerId === profileId,
-                systemMessageId: activeCall?.systemMessageId ?? null,
-              });
+              // Bounded: an unreachable realtime service would otherwise hold a connected
+              // call in "connecting". Tracking carries on in the background.
+              await Promise.race([
+                dmCallSignaling.trackCallPresence(conversationId, {
+                  callType: activeCall?.callType ?? 'voice',
+                  isCaller: activeCall?.callerId === profileId,
+                  systemMessageId: activeCall?.systemMessageId ?? null,
+                }),
+                new Promise<void>((resolve) => setTimeout(resolve, DM_PRESENCE_WAIT_MS)),
+              ]);
             }
           } catch (e) {
             debug.warn('Failed to track DM call presence:', e);
