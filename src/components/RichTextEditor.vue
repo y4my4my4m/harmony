@@ -914,7 +914,12 @@ const handleKeyDown = (event: KeyboardEvent) => {
     // Unconsumed: insert the line break here.
     if (!event.defaultPrevented) {
       event.preventDefault();
-      
+
+      // The browser's insertLineBreak adds the placeholder <br> a break at the end of the text
+      // needs, and drops it again once text follows; a lone trailing <br> is no caret position,
+      // so the next character would land before it. Its input event runs handleInput.
+      if (editorDocument().execCommand('insertLineBreak')) return;
+
       const selection = editorSelection();
       if (selection && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0);
@@ -1182,7 +1187,10 @@ onMounted(async () => {
   }
 
   if (props.modelValue) {
-    renderContent(props.modelValue);
+    // A value set after mount (a reply's mentions) is already rendered by the modelValue
+    // watcher. Rendering it again here restores a caret captured before the parent placed it,
+    // which puts typing in front of the mentions.
+    if (getPlainText() !== props.modelValue) renderContent(props.modelValue);
     undoRedo.reset(props.modelValue, props.modelValue.length);
   }
   autoExpand();

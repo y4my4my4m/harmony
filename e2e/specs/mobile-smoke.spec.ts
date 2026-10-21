@@ -8,6 +8,8 @@
 //   handling of the tap, which opens its spelling menu on a misspelled word, is held back
 //   until a second tap in the same word (utils/tapToCaret.ts). The keyboard is stood in for by
 //   shrinking the visual viewport as Gboard does; the menu itself needs a device.
+// - Enter inserts a line break at the caret, at the end of the text too (the browser's
+//   insertLineBreak keeps the placeholder <br> a trailing break needs).
 
 import { test, expect, devices, type Page } from '@playwright/test'
 import {
@@ -129,7 +131,36 @@ test('sending on a phone keeps the keyboard up: the composer keeps focus after S
   }
 })
 
-test('with the keyboard up, a tap in an earlier word moves the caret; a second tap there is the platform\'s', async ({ page }) => {
+test('Enter on a phone breaks the line where the caret is, at the end of the text too', async ({ page }) => {
+  test.setTimeout(90_000)
+  await signIn(page, me)
+  await page.goto(`/chat/${server.id}/${server.generalChannelId}`)
+  await dismissAnnouncements(page)
+  await expect(list(page)).toBeVisible({ timeout: 30000 })
+
+  await editor(page).tap()
+  for (const [i, ch] of ['a', 'b', 'c', 'd'].entries()) {
+    if (i > 0) await page.keyboard.press('Enter')
+    await page.keyboard.type(ch)
+  }
+  await expect.poll(() => editor(page).innerText()).toBe('a\nb\nc\nd')
+
+  const written = page.waitForResponse((r) => r.url().includes('/rest/v1/messages') && r.request().method() === 'POST')
+  await page.getByTestId('message-send-btn').tap()
+  await written
+  const { data, error } = await admin
+    .from('messages')
+    .select('content')
+    .eq('channel_id', server.generalChannelId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+  expect(error).toBeNull()
+  const text = (data!.content as Array<{ type: string; text?: string }>).filter((p) => p.type === 'text').map((p) => p.text).join('')
+  expect(text).toBe('a\nb\nc\nd')
+})
+
+test('with the keyboard up, a tap in an earlier word moves the caret; only a double tap is the platform\'s', async ({ page }) => {
   test.setTimeout(90_000)
   await signIn(page, me)
   await page.goto(`/chat/${server.id}/${server.generalChannelId}`)
@@ -141,9 +172,12 @@ test('with the keyboard up, a tap in an earlier word moves the caret; a second t
   // Gboard up on a Pixel 7: 388 CSS px of the screen are not in the visual viewport.
   await page.evaluate(() => {
     Object.defineProperty(window.visualViewport!, 'height', { configurable: true, get: () => screen.availHeight - 388 })
-    const w = window as unknown as { __clicks: number }
+    const w = window as unknown as { __clicks: number; __lastDefaultPrevented?: boolean }
     w.__clicks = 0
-    document.querySelector('[data-testid="message-input"] .rich-text-editor')!.addEventListener('click', () => { w.__clicks++ })
+    const editorEl = document.querySelector('[data-testid="message-input"] .rich-text-editor')!
+    editorEl.addEventListener('click', () => { w.__clicks++ })
+    // Whether the last touchend reached the platform: read after the editor's own handler.
+    editorEl.addEventListener('touchend', (e) => { setTimeout(() => { w.__lastDefaultPrevented = e.defaultPrevented }) })
   })
   const point = (from: number, to: number) => editor(page).evaluate((el, [a, b]) => {
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
@@ -159,25 +193,49 @@ test('with the keyboard up, a tap in an earlier word moves the caret; a second t
 
   const inWord = await point(13, 15)
   await page.touchscreen.tap(inWord.x, inWord.y)
-  await expect.poll(caret).toBeGreaterThanOrEqual(13)
-  expect(await caret()).toBeLessThanOrEqual(15)
+  // The caret was at the end (24) before the tap: wait for it to land in "misspeled" (10-19). The
+  // text can reflow between measuring and tapping (the web font), so the exact offset varies.
+  await expect.poll(caret).toBeLessThanOrEqual(19)
+  expect(await caret()).toBeGreaterThanOrEqual(10)
   expect(await clicks()).toBe(0)
   await expect(editor(page)).toBeFocused()
 
   await page.keyboard.type('X')
   // Typing lands at the tapped point, inside the word.
-  await expect(editor(page)).toContainText(/misXspeled|missXpeled|misspXeled/)
+  await expect(editor(page)).toContainText(/ mi[a-z]*X[a-z]*d word/)
 
-  // The caret is in that word now: the next tap there is the platform's own.
+  // A second single tap in the same word still only moves the caret: on some phones the spelling
+  // menu took the keyboard down with it.
   const again = await point(11, 12)
+  await page.waitForTimeout(500)
   await page.touchscreen.tap(again.x, again.y)
-  await expect.poll(clicks).toBe(1)
+  await expect.poll(caret).toBeLessThanOrEqual(13)
+  expect(await caret()).toBeGreaterThanOrEqual(10)
+  expect(await clicks()).toBe(0)
+
+  // A double tap: its second tap is the platform's, which opens the menu on a misspelling.
+  await page.waitForTimeout(500)
+  await page.evaluate(([x, y]) => {
+    const target = document.querySelector('[data-testid="message-input"] .rich-text-editor')!
+    const at = (type: string) => {
+      const touch = new Touch({ identifier: 1, target, clientX: x, clientY: y })
+      target.dispatchEvent(new TouchEvent(type, {
+        bubbles: true, cancelable: true, touches: type === 'touchstart' ? [touch] : [], changedTouches: [touch],
+      }))
+    }
+    // Two taps 150 ms apart, as touchscreen.tap() cannot space them reliably.
+    at('touchstart'); at('touchend')
+    return new Promise<void>((done) => setTimeout(() => { at('touchstart'); at('touchend'); done() }, 150))
+  }, [again.x, again.y])
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __lastDefaultPrevented?: boolean }).__lastDefaultPrevented)).toBe(false)
 
   // Keyboard down: every tap is the platform's, so the one that brings the keyboard back does.
   await page.evaluate(() => {
     Object.defineProperty(window.visualViewport!, 'height', { configurable: true, get: () => screen.availHeight - 76 })
   })
   const first = await point(1, 2)
+  const before = await clicks()
+  await page.waitForTimeout(500)
   await page.touchscreen.tap(first.x, first.y)
-  await expect.poll(clicks).toBe(2)
+  await expect.poll(clicks).toBe(before + 1)
 })

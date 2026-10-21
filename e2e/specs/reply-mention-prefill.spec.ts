@@ -3,9 +3,11 @@
 // Typing straight away and publishing stores the mentions followed by the text with a
 // single separating space. The reply starts at the more restrictive of the replier's
 // visibility and the post's: unlisted stays unlisted, direct stays direct.
+// Opened after a server channel, where the composer warms that server's roles on mount, the
+// caret still lands after the mentions (RichTextEditor.vue's mount render).
 
 import { test, expect } from '@playwright/test'
-import { adminClient, createUser, deleteUser, signIn, type SpecUser } from './harness'
+import { adminClient, createUser, deleteUser, dismissAnnouncements, seedServer, signIn, type SpecUser } from './harness'
 
 const admin = adminClient()
 let reader: SpecUser
@@ -67,7 +69,7 @@ test('Reply prefills the author and the other mentioned accounts, then one space
   await expect(editor).toBeFocused({ timeout: 15000 })
   // Author first, the post's other mention next, the replier left out.
   await expect
-    .poll(async () => (await editor.innerText()).replace(/ /g, ' '))
+    .poll(async () => (await editor.innerText()).replace(/\u00a0/g, ' '))
     .toBe(`@${author.username} @${third.username} `)
 
   await page.keyboard.type('thanks', { delay: 20 })
@@ -91,6 +93,33 @@ test('Reply prefills the author and the other mentioned accounts, then one space
   expect(parts.filter((p) => p.type === 'mention').map((p) => p.username)).toEqual([author.username, third.username])
   const text = parts.filter((p) => p.type === 'text').map((p) => p.text).join('|')
   expect(text).toBe(' | thanks')
+})
+
+test('a reply opened from a server channel types after the mentions', async ({ page }) => {
+  test.setTimeout(180_000)
+  const server = await seedServer(admin, reader, `Replies ${reader.username}`)
+  await signIn(page, reader)
+  await page.goto(`/chat/${server.id}/${server.generalChannelId}`)
+  await dismissAnnouncements(page)
+  await expect(page.locator('[data-testid="message-input"] .rich-text-editor')).toBeVisible({ timeout: 30000 })
+  // In the app, as following a link does: the server's roles stay cached.
+  await page.evaluate((id) => {
+    const root = document.querySelector('#app') as unknown as { __vue_app__: { config: { globalProperties: { $router: { push: (to: string) => Promise<unknown> } } } } }
+    return root.__vue_app__.config.globalProperties.$router.push(`/social/post/${id}`)
+  }, postId)
+  const post = page.locator('article[aria-current="true"]')
+  await expect(post).toBeVisible({ timeout: 90_000 })
+
+  await post.getByRole('button', { name: /^Reply to / }).first().click()
+  const editor = page.locator('[data-testid="compose-post"] .rich-text-editor').last()
+  await expect(editor).toBeFocused({ timeout: 15000 })
+  await expect
+    .poll(async () => (await editor.innerText()).replace(/\u00a0/g, ' '))
+    .toBe(`@${author.username} @${third.username} `)
+  await page.keyboard.type('after', { delay: 20 })
+  await expect
+    .poll(async () => (await editor.innerText()).replace(/\u00a0/g, ' '))
+    .toBe(`@${author.username} @${third.username} after`)
 })
 
 for (const [visibility, label] of [['unlisted', 'Unlisted'], ['direct', 'Mentioned people only']] as const) {
