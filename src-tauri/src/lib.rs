@@ -221,10 +221,25 @@ pub fn run() {
     commands::media::android_video_thumbnail
   ]);
 
-  if let Err(e) = builder.run(context) {
-    // Linux: CEF also fails here when its process singleton handed the launch to a
-    // running instance that the D-Bus hand-off above could not reach.
-    eprintln!("Harmony failed to start: {e}");
-    std::process::exit(1);
-  }
+  let app = match builder.build(context) {
+    Ok(app) => app,
+    Err(e) => {
+      // Linux: CEF also fails here when its process singleton handed the launch to a
+      // running instance that the D-Bus hand-off above could not reach.
+      eprintln!("Harmony failed to start: {e}");
+      std::process::exit(1);
+    }
+  };
+  app.run(|app, event| {
+    // macOS: the close button hides the window to the tray (setup_desktop); a Dock icon
+    // click (applicationShouldHandleReopen) brings it back, as for any macOS app.
+    #[cfg(target_os = "macos")]
+    {
+      if let tauri::RunEvent::Reopen { .. } = event {
+        reveal_main(app);
+      }
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = (app, event);
+  });
 }
