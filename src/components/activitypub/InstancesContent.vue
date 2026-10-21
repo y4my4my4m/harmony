@@ -132,6 +132,7 @@
 </template>
 
 <script setup lang="ts">
+import { openLink } from '@/services/tauriLinks';
 import { ref, computed, onMounted } from 'vue';
 import { debug } from '@/utils/debug'
 import { useI18n } from 'vue-i18n';
@@ -272,11 +273,11 @@ const showInstanceDetails = async (instance: any) => {
 };
 
 const visitInstance = (instance: any) => {
-  window.open(`https://${instance.domain}`, '_blank');
+  openLink(`https://${instance.domain}`);
 };
 
 const viewInstancePosts = (instance: any) => {
-  window.open(`https://${instance.domain}/public`, '_blank');
+  openLink(`https://${instance.domain}/public`);
 };
 
 const searchInstances = async (searchTerm: string) => {

@@ -73,6 +73,7 @@
 </template>
 
 <script setup lang="ts">
+import { openLink } from '@/services/tauriLinks'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -125,7 +126,7 @@ function returnToSource(): void {
 
 function openSource(): void {
   const url = video.value?.registration.sourceUrl
-  if (url) window.open(url, '_blank', 'noopener,noreferrer')
+  if (url) openLink(url)
 }
 
 // Tracks one pointer on `target` with capture until release or cancel.

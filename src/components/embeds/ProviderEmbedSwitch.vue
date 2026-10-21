@@ -32,7 +32,7 @@
         type="button"
         :title="t('embeds.open')"
         :aria-label="t('embeds.open')"
-        @click="openLink"
+        @click="openPage"
       >
         <Icon name="external-link" :size="15" />
       </button>
@@ -161,6 +161,7 @@ const fediversePostCache = {
 </script>
 
 <script setup lang="ts">
+import { openLink } from '@/services/tauriLinks';
 import { isEmbedHidden, setEmbedHidden } from '@/utils/hiddenEmbeds';
 import { safeHref } from '@/utils/sanitize';
 import Icon from '@/components/common/Icon.vue';
@@ -549,8 +550,8 @@ function toggleCollapse() {
   setEmbedHidden(props.messageId, props.payload?.url, collapsed.value);
 }
 
-function openLink() {
-  window.open(props.payload.url, '_blank', 'noopener,noreferrer');
+function openPage() {
+  openLink(props.payload.url);
 }
 </script>
 

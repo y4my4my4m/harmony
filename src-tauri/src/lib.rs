@@ -1,4 +1,7 @@
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+mod apple_navigation;
 mod commands;
+mod external_links;
 #[cfg(desktop)]
 mod float_dock;
 #[cfg(target_os = "ios")]
@@ -99,12 +102,52 @@ fn build_main_window(app: &tauri::App) -> tauri::Result<()> {
     return Ok(());
   };
   let builder = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?;
+  let navigator = external_links::Navigator::default();
+  let on_load = navigator.clone();
+  let builder = builder.on_page_load(move |_window, payload| {
+    if matches!(payload.event(), tauri::webview::PageLoadEvent::Started) {
+      on_load.on_page_started(payload.url());
+    }
+  });
+  // WKWebView reports subframe loads to the navigation handler without their frame; Apple
+  // judges navigations in its own delegate once the webview exists (apple_navigation.rs).
+  #[cfg(not(any(target_os = "macos", target_os = "ios")))]
+  let builder = {
+    let handle = app.handle().clone();
+    builder.on_navigation(move |url| external_links::navigate(&handle, &navigator, external_links::Frame::Main, url))
+  };
   #[cfg(any(windows, target_os = "macos"))]
   let builder = {
     let handle = app.handle().clone();
     builder.on_new_window(move |url, features| popout::on_new_window(&handle, url, features))
   };
+  // CEF opens window.open('about:blank') as its own popup, linked to the opener (the call
+  // pop-out); a popup inherits the main window's navigation handler, which would cancel an
+  // http(s) one and leave it empty, so that one opens outside instead.
+  #[cfg(target_os = "linux")]
+  let builder = {
+    let handle = app.handle().clone();
+    builder.on_new_window(move |url, _features| {
+      if url.as_str() == "about:blank" {
+        tauri::webview::NewWindowResponse::Allow
+      } else {
+        if matches!(url.scheme(), "http" | "https") {
+          external_links::open_outside(&handle, &url);
+        }
+        tauri::webview::NewWindowResponse::Deny
+      }
+    })
+  };
+  #[cfg(not(any(target_os = "macos", target_os = "ios")))]
   builder.build()?;
+  #[cfg(any(target_os = "macos", target_os = "ios"))]
+  {
+    let window = builder.build()?;
+    let handle = app.handle().clone();
+    apple_navigation::judge_navigations(&window, move |frame, url| {
+      external_links::navigate(&handle, &navigator, frame, url)
+    });
+  }
   Ok(())
 }
 

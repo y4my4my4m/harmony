@@ -2,6 +2,7 @@
  * An embed's actions sit on a rail beside the card, not in a header above it. A YouTube
  * embed's rail carries Pop out, which floats the embed; the action is absent while the
  * embed is hidden and on non-video embeds. Hidden, the embed is one row naming the provider.
+ * Open hands the page to openLink (services/tauriLinks), which leaves the app on mobile.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
@@ -11,6 +12,10 @@ vi.mock('vue-i18n', async (importOriginal) => ({
   useI18n: () => ({ t: (key: string) => key, locale: { value: 'en' } }),
 }))
 vi.mock('@/i18n', () => ({ i18n: { global: { t: (key: string) => key } } }))
+vi.mock('@/services/tauriLinks', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/tauriLinks')>()),
+  openLink: vi.fn(),
+}))
 
 class FakeIntersectionObserver {
   observe() {}
@@ -100,6 +105,15 @@ describe('ProviderEmbedSwitch pop out', () => {
     expect(wrapper.find('.provider-embed__frame').exists()).toBe(false)
     expect(wrapper.find('.provider-embed__actions').classes()).toContain('is-inline')
     expect(wrapper.find('.provider-embed__label').text()).toBe('YouTube')
+    wrapper.unmount()
+  })
+
+  it('opens the page through openLink', async () => {
+    const { wrapper } = await setup(YOUTUBE)
+    const { openLink } = await import('@/services/tauriLinks')
+    await wrapper.find('.embed-action[aria-label="embeds.open"]').trigger('click')
+    expect(openLink).toHaveBeenCalledTimes(1)
+    expect(openLink).toHaveBeenCalledWith(YOUTUBE.url)
     wrapper.unmount()
   })
 
