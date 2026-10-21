@@ -73,6 +73,23 @@ function onKeydown(event: KeyboardEvent): void {
   top.onEscape()
 }
 
+/**
+ * Back-button history for open layers (utils/overlayHistory.ts). Called for every pushed
+ * layer; returns the release run when the layer is removed, or nothing.
+ */
+export type LayerHistory = (layer: {
+  kind: LayerKind
+  /** The layer's Escape handler. */
+  close: () => void
+  isOpen: () => boolean
+}) => (() => void) | undefined
+
+let layerHistory: LayerHistory | null = null
+
+export function setLayerHistory(history: LayerHistory | null): void {
+  layerHistory = history
+}
+
 /** Registers an open overlay; returns its removal. */
 export function pushLayer(options: LayerOptions): () => void {
   if (!listening && typeof window !== 'undefined') {
@@ -82,9 +99,15 @@ export function pushLayer(options: LayerOptions): () => void {
   }
   const layer: Layer = { ...options, id: nextId++ }
   layers.push(layer)
+  const releaseHistory = layerHistory?.({
+    kind: layer.kind,
+    close: () => layer.onEscape(),
+    isOpen: () => layers.includes(layer),
+  })
   return () => {
     const i = layers.indexOf(layer)
     if (i >= 0) layers.splice(i, 1)
+    releaseHistory?.()
   }
 }
 

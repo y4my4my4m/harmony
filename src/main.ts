@@ -34,6 +34,8 @@ import { livekitWebRTC } from '@/services/livekitWebRTC';
 import { detectAvailablePacks } from '@/services/emojiPackService';
 import { installRenderFallback } from '@/utils/renderFallback';
 import { toastRole } from '@/utils/a11y/toastRole';
+import { installOverlayHistory } from '@/utils/overlayHistory';
+import { isMobileLayout } from '@/composables/useLayoutState';
 
 // Expose for debugging in browser console
 if (typeof window !== 'undefined') {
@@ -142,6 +144,7 @@ async function initializeApp() {
   let mounted = false
   const mountApp = () => {
     if (mounted) return
+    installOverlayHistory(router, isMobileLayout)
     app.use(router).mount('#app')
     mounted = true
   }

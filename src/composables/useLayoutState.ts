@@ -17,6 +17,11 @@ const profileOpen = ref(false)
 const mobileProfileOpen = ref(false)
 const isMobile = ref(false)
 
+/** The mobile layout (viewport ≤ 768 px) is active. */
+export function isMobileLayout(): boolean {
+  return isMobile.value
+}
+
 // Mobile drag gesture state
 const isDragging = ref(false)
 const dragDirection = ref<'left' | 'right' | null>(null)
