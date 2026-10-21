@@ -41,6 +41,9 @@ export type NotificationType =
   | 'newcomer_message'
   | 'security'
   | 'move'
+  | 'server_join_rejected'
+  | 'server_federation_closed'
+  | 'server_member_removed'
   | 'error'
   // Generic UI feedback toasts (also valid AudioActions for themed sounds)
   | 'ui_success'

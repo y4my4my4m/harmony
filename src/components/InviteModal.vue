@@ -71,6 +71,10 @@
             </button>
           </div>
         </div>
+        <p v-if="federation" class="federation-note" data-testid="invite-federation">
+          <Icon :name="federation === 'on' ? 'globe' : 'lock'" :size="14" />
+          <span>{{ federationNote }}</span>
+        </p>
       </section>
 
       <section v-if="editing && canCreate" :id="settingsId" class="settings">
@@ -135,6 +139,9 @@ import { durationParts, timeUntil } from '@/utils/inviteLink'
 import type { Invite } from '@/services/inviteService'
 import { useServerInvites } from '@/composables/useServerInvites'
 import { useVisualTheme } from '@/composables/useVisualTheme'
+import { useServerChannelStore } from '@/stores/useServerChannel'
+import { useInstanceSettingsStore } from '@/stores/useInstanceSettings'
+import { getInstanceDomain } from '@/services/instanceConfig'
 import BaseModal from '@/components/common/BaseModal.vue'
 import Icon from '@/components/common/Icon.vue'
 import InviteIcon from '@/components/icons/ServerInviteIcon.vue'
@@ -179,6 +186,27 @@ const {
   revoke,
   show: showInvite,
 } = useServerInvites(toRef(props, 'serverId'))
+
+const serverChannelStore = useServerChannelStore()
+const instanceSettings = useInstanceSettingsStore()
+const instanceDomain = getInstanceDomain()
+// Whether accounts on other instances can join with the link: 'on', or off for this server or for
+// the whole instance; null for a server this instance does not host.
+const federation = computed<'on' | 'server-off' | 'instance-off' | null>(() => {
+  const id = props.serverId || props.serverData?.id
+  const server = serverChannelStore.servers.find((s) => s.id === id)
+  if (!server || server.is_local_server === false) return null
+  if (!instanceSettings.isFederationEnabled) return 'instance-off'
+  return server.federation_enabled === true ? 'on' : 'server-off'
+})
+const federationNote = computed(() => {
+  switch (federation.value) {
+    case 'on': return t('invite.modal.federationOn')
+    case 'server-off': return t('invite.modal.federationOff', { instance: instanceDomain })
+    case 'instance-off': return t('invite.modal.federationOffInstance', { instance: instanceDomain })
+    default: return ''
+  }
+})
 
 const uid = Math.random().toString(36).slice(2, 8)
 const inputId = `invite-link-${uid}`
@@ -446,6 +474,21 @@ onBeforeUnmount(() => {
   margin: 0;
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
+}
+
+.federation-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.federation-note > .icon-wrap {
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .link-actions {

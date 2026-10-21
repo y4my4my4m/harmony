@@ -716,7 +716,8 @@
       "disableConsequence1": "원격 사용자의 새 가입 요청이 모두 차단됩니다",
       "disableConsequence2": "원격 멤버와 주고받는 메시지 전달이 중단됩니다",
       "disableConsequence3": "원격 사용자의 반응과 음성 참여가 막힙니다",
-      "disableConsequence4": "기존 연합 멤버는 멤버 목록에 남지만 상호작용할 수 없습니다",
+      "disableConsequence4": "이 서버에서 제거하고 각자에게 이유를 알립니다",
+      "disableConsequence5": "연합을 다시 켜도 돌아오지 않으며, 초대로 다시 가입해야 합니다",
       "disableConfirm": "연합 비활성화"
     }
   },
@@ -3127,6 +3128,9 @@
     "openServer": "서버 열기",
     "alreadyJoined": "이미 이 서버의 멤버입니다.",
     "joinPending": "참여 요청을 보냈습니다. 서버가 수락하면 이용할 수 있습니다.",
+    "joinRefused": "{name}에서 참가를 거부했습니다.",
+    "joinRefusedReason": "{name}에서 참가를 거부했습니다: {reason}",
+    "federationOff": "이 서버는 다른 인스턴스의 멤버를 받지 않습니다: 페더레이션이 꺼져 있습니다.",
     "federatedNotice": "이것은 다른 Harmony 인스턴스에서 호스팅되는 연합 서버입니다. 메시지는 네트워크를 통해 전송됩니다.",
     "joinByUrl": "URL로 참여",
     "haveInviteLink": "초대 링크가 있나요? 여기에 붙여넣으세요",
@@ -3136,7 +3140,29 @@
     "remoteServer": "원격 서버",
     "hosted": "호스팅 위치",
     "federatedUser": "연합 사용자",
-    "federatedBadge": "연합"
+    "federatedBadge": "연합",
+    "joinRejectedNotice": {
+      "title": "{name}에서 참가 요청을 거부했습니다",
+      "reason": "사유: {reason}",
+      "noReason": "사유가 제공되지 않았습니다.",
+      "short": "참가 거부됨"
+    },
+    "federationClosedNotice": {
+      "title": "{name}이(가) 다른 인스턴스의 멤버를 더 이상 받지 않아 서버에서 제거되었습니다.",
+      "message": "다시 열리면 다시 가입할 수 있습니다.",
+      "short": "다른 인스턴스에 닫힌 서버"
+    },
+    "memberRemovedNotice": {
+      "kickTitle": "{name}에서 제거되었습니다",
+      "banTitle": "{name}에서 차단되었습니다",
+      "reason": "사유: {reason}",
+      "noReason": "사유가 제공되지 않았습니다.",
+      "short": "서버에서 제거됨"
+    },
+    "closedBanner": {
+      "title": "{name}이(가) 다른 인스턴스의 멤버를 더 이상 받지 않습니다",
+      "body": "채널이 내 인스턴스에 닫혀 있어 새 내용이 오지 않습니다. 차단된 것이 아니며, 다시 열리면 다시 가입할 수 있습니다."
+    }
   },
   "offline": {
     "banner": "오프라인 상태입니다. 일부 기능을 사용할 수 없을 수 있습니다."
@@ -3208,7 +3234,10 @@
       "created": "새 초대 링크를 만들었습니다",
       "createFailed": "초대 링크를 만들지 못했습니다",
       "otherLinks": "내 다른 활성 링크({count})",
-      "showLink": "이 링크 보기"
+      "showLink": "이 링크 보기",
+      "federationOn": "다른 Harmony 인스턴스의 사용자도 참가할 수 있습니다: 이 서버는 페더레이션이 켜져 있습니다.",
+      "federationOff": "이 링크로는 {instance} 계정만 참가할 수 있습니다: 이 서버는 페더레이션이 꺼져 있습니다.",
+      "federationOffInstance": "이 링크로는 {instance} 계정만 참가할 수 있습니다: 이 인스턴스는 페더레이션이 꺼져 있습니다."
     },
     "bannedFromServer": "이 서버에서 차단되었습니다",
     "a11y": {

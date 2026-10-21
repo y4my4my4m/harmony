@@ -21,6 +21,8 @@ export interface GroupAccess {
   everyoneChannelIds: Set<string>;
   /** Local channels the member can view; empty without a member. */
   memberChannelIds: Set<string>;
+  /** False: the server is closed to other instances, members from them included. */
+  federationEnabled: boolean;
 }
 
 /**
@@ -83,11 +85,35 @@ export async function loadGroupAccess(serverId: string, actorUrl: string | null)
   const row = Array.isArray(data) ? data[0] : data;
   if (!row) return null;
 
+  // A server with federation off reads as private to every other instance and names no member,
+  // so its Group, channels, messages, outbox and member list stay on this instance. The database
+  // decides the same (federation_group_access, 20261025100002); this holds where that migration
+  // has not run yet.
+  const { data: server, error: serverError } = await supabase
+    .from('servers')
+    .select('federation_enabled')
+    .eq('id', serverId)
+    .maybeSingle();
+  if (serverError) {
+    logger.error(`federation_enabled of server ${serverId} unreadable: ${serverError.message}`);
+    return null;
+  }
+  if (server?.federation_enabled !== true) {
+    return {
+      isPublic: false,
+      memberId: null,
+      everyoneChannelIds: new Set<string>(),
+      memberChannelIds: new Set<string>(),
+      federationEnabled: false,
+    };
+  }
+
   return {
     isPublic: row.is_public === true,
     memberId: row.member_id ?? null,
     everyoneChannelIds: new Set<string>(row.everyone_channel_ids ?? []),
     memberChannelIds: new Set<string>(row.member_channel_ids ?? []),
+    federationEnabled: true,
   };
 }
 

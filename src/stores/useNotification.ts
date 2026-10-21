@@ -1,4 +1,5 @@
 import { setTitleInstance, setTitleUnread } from '@/utils/a11y/documentTitle'
+import { forgetRejectedServer } from '@/utils/joinRejected'
 import { announce } from '@/composables/useAnnouncer'
 import { defineStore } from 'pinia'
 import { supabase } from '@/supabase'
@@ -95,6 +96,9 @@ const NOTIFICATION_SOUND_MAPPING: Record<NotificationType, AudioAction> = {
   activitypub_follow_request: 'friend_request',
   activitypub_follow_accepted: 'friend_request',
   move: 'friend_request',
+  server_join_rejected: 'server_update',
+  server_federation_closed: 'server_update',
+  server_member_removed: 'server_update',
   report_update: 'server_update',
   moderation_warning: 'server_update',
   newcomer_message: 'server_update',
@@ -203,6 +207,8 @@ function setRead(n: Notification, isRead: boolean): void {
 }
 
 const DM_TYPES = new Set(['dm', 'chat_message'])
+// A server on another instance refused a join or removed the user: it leaves the list.
+const SERVER_GONE_TYPES = new Set(['server_join_rejected', 'server_federation_closed', 'server_member_removed'])
 
 type DismissCriteria = {
   notificationIds?: string[]
@@ -984,6 +990,10 @@ export const useNotificationStore = defineStore('notification', {
       setTimeout(() => _recentlyProcessedIds.delete(newNotification.id), DEDUP_TTL_MS)
 
       if (isFromHiddenUser(newNotification)) return
+
+      if (SERVER_GONE_TYPES.has(newNotification.type)) {
+        void forgetRejectedServer(newNotification.data?.server?.id)
+      }
 
       const notifData = newNotification.data || {}
       const notificationContext = {

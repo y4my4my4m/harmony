@@ -35,6 +35,9 @@ vi.mock('../services/BlockedInstancesCache.js', () => ({
 const PUB = '00000000-0000-4000-8000-00000000a001'
 const PRIV = '00000000-0000-4000-8000-00000000a002'
 const UNKNOWN_SERVER = '00000000-0000-4000-8000-00000000a0ff'
+// Public, federation off, with a remote member who joined while it was on.
+const CLOSED = '00000000-0000-4000-8000-00000000a003'
+const CLOSED_OPEN = '00000000-0000-4000-8000-00000000c005'
 const PUB_OPEN = '00000000-0000-4000-8000-00000000c001'
 const PUB_RESTRICTED = '00000000-0000-4000-8000-00000000c002'
 const PRIV_OPEN = '00000000-0000-4000-8000-00000000c003'
@@ -55,12 +58,12 @@ type Caller = 'unsigned' | 'badsig' | keyof typeof ACTORS
 const SERVER_OF: Record<string, string> = {
   [PUB_OPEN]: PUB, [PUB_RESTRICTED]: PUB, [PRIV_OPEN]: PRIV, [PRIV_RESTRICTED]: PRIV,
 }
-const EVERYONE: Record<string, string[]> = { [PUB]: [PUB_OPEN], [PRIV]: [PRIV_OPEN] }
+const EVERYONE: Record<string, string[]> = { [PUB]: [PUB_OPEN], [PRIV]: [PRIV_OPEN], [CLOSED]: [CLOSED_OPEN] }
 const MEMBERS: Record<string, { id: string; channels: Record<string, string[]> }> = {
   [ACTORS.nop]: { id: 'profile-nop', channels: { [PUB]: [PUB_OPEN], [PRIV]: [PRIV_OPEN] } },
   [ACTORS.vip]: {
     id: 'profile-vip',
-    channels: { [PUB]: [PUB_OPEN, PUB_RESTRICTED], [PRIV]: [PRIV_OPEN, PRIV_RESTRICTED] },
+    channels: { [PUB]: [PUB_OPEN, PUB_RESTRICTED], [PRIV]: [PRIV_OPEN, PRIV_RESTRICTED], [CLOSED]: [CLOSED_OPEN] },
   },
   // Membership exists; the blocked host still reads as anonymous.
   [ACTORS.blocked]: {
@@ -71,8 +74,9 @@ const MEMBERS: Record<string, { id: string; channels: Record<string, string[]> }
 
 const db: Record<string, any[]> = {
   servers: [
-    { id: PUB, name: 'Pub', public: true, is_local_server: true, owner: null, created_at: '2026-01-01T00:00:00Z' },
-    { id: PRIV, name: 'Priv', public: false, is_local_server: true, owner: null, created_at: '2026-01-01T00:00:00Z' },
+    { id: PUB, name: 'Pub', public: true, is_local_server: true, federation_enabled: true, owner: null, created_at: '2026-01-01T00:00:00Z' },
+    { id: PRIV, name: 'Priv', public: false, is_local_server: true, federation_enabled: true, owner: null, created_at: '2026-01-01T00:00:00Z' },
+    { id: CLOSED, name: 'Closed Hall', public: true, is_local_server: true, federation_enabled: false, owner: null, created_at: '2026-01-01T00:00:00Z' },
   ],
   channel_categories: [
     { id: CAT_SECRET, server_id: PRIV, name: 'secret-cat', order: 0 },
@@ -84,6 +88,7 @@ const db: Record<string, any[]> = {
     { id: PUB_RESTRICTED, server_id: PUB, name: 'pub-restricted', type: 0, order: 1, category: null, is_remote: false },
     { id: PRIV_OPEN, server_id: PRIV, name: 'priv-open', type: 0, order: 0, category: null, is_remote: false },
     { id: PRIV_RESTRICTED, server_id: PRIV, name: 'priv-restricted', type: 0, order: 1, category: CAT_SECRET, is_remote: false },
+    { id: CLOSED_OPEN, server_id: CLOSED, name: 'closed-open', type: 0, order: 0, category: null, is_remote: false },
   ],
   messages: [PUB_OPEN, PUB_RESTRICTED, PRIV_OPEN, PRIV_RESTRICTED].map((channelId, i) => ({
     id: `00000000-0000-4000-8000-00000000e00${i}`,
@@ -101,8 +106,9 @@ const db: Record<string, any[]> = {
   user_servers: [
     { server_id: PUB, status: 'accepted', user_id: 'profile-nop', profile: { federated_id: ACTORS.nop } },
     { server_id: PRIV, status: 'accepted', user_id: 'profile-vip', profile: { federated_id: ACTORS.vip } },
+    { server_id: CLOSED, status: 'accepted', user_id: 'profile-vip', profile: { federated_id: ACTORS.vip } },
   ],
-  server_actor_keys: [PUB, PRIV].map(id => ({ server_id: id, public_key: `PUBLIC-${id}`, private_key: `PRIVATE-${id}` })),
+  server_actor_keys: [PUB, PRIV, CLOSED].map(id => ({ server_id: id, public_key: `PUBLIC-${id}`, private_key: `PRIVATE-${id}` })),
 }
 
 const rpc = vi.fn(async (name: string, args: any) => {
@@ -274,6 +280,8 @@ describe('Group document', () => {
       publicKeyPem: `PUBLIC-${serverId}`,
     })
     expect(JSON.stringify(res.body)).not.toContain('PRIVATE')
+    // Whether a Join from another instance is accepted, in the stub as in the full document.
+    expect(res.body['harmony:federationEnabled']).toBe(true)
 
     if (!canReadServer(serverId, caller)) {
       expect(res.body['harmony:channels']).toBeUndefined()
@@ -354,6 +362,43 @@ describe('server collections', () => {
       expect(hidden.status).toBe(404)
       expect(hidden.body).toEqual(unknown.body)
       expect(hidden.headers['cache-control']).toEqual(unknown.headers['cache-control'])
+    }
+  })
+})
+
+describe('a server with federation off', () => {
+  it.each(['unsigned', 'stranger', 'vip'] as const)('serves %s only the key stub, without its name', async (caller) => {
+    const res = await get(`/servers/${CLOSED}`, caller)
+    expect(res.status).toBe(200)
+    expect(res.body).toMatchObject({
+      id: `https://harmony.test/servers/${CLOSED}`,
+      type: 'Group',
+      inbox: `https://harmony.test/servers/${CLOSED}/inbox`,
+      'harmony:federationEnabled': false,
+      publicKey: { publicKeyPem: `PUBLIC-${CLOSED}` },
+    })
+    expect(res.body.name).toBeUndefined()
+    expect(res.body['harmony:channels']).toBeUndefined()
+    expect(res.body['harmony:memberCount']).toBeUndefined()
+    expect(res.headers['cache-control']).toBe('private, no-store')
+  })
+
+  it.each([
+    `/servers/${CLOSED}/members?page=1`,
+    `/servers/${CLOSED}/outbox?page=1`,
+  ])('refuses %s, to a remote member too', async (path) => {
+    for (const caller of ['unsigned', 'vip'] as const) {
+      const res = await get(path, caller)
+      expect(res.status).toBe(404)
+    }
+  })
+
+  it('serves none of its channels, to a remote member too', async () => {
+    for (const caller of ['unsigned', 'vip'] as const) {
+      const doc = await get(`/servers/${CLOSED}/channels/${CLOSED_OPEN}`, caller)
+      const messages = await get(`/servers/${CLOSED}/channels/${CLOSED_OPEN}/messages?page=1`, caller)
+      expect(doc.status).toBe(404)
+      expect(messages.status).toBe(404)
     }
   })
 })

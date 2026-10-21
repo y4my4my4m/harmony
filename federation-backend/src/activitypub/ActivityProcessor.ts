@@ -15,6 +15,8 @@ import { isFavouriteLike, isHeartReaction, storeFavourite } from '../utils/heart
 import { noteDocumentSoftware } from './instanceSoftware.js';
 import { confirmActorAcct, withCanonicalAcct } from './webfingerClient.js';
 import { fetchActorById, fetchAuthoritativeDocument, readApDocument, sameOrigin, sameUrl, urlHost, type FetchedDocument } from '../utils/apOrigin.js';
+import { isJoinInFlight } from './joinsInFlight.js';
+import { membershipOutlivesRemove, removalReason } from './memberRemoval.js';
 import { boostedTopLevelPost, unwrapGroupAnnounce } from './groupAnnounce.js';
 import { storedPostVisibility } from './postAccess.js';
 import { noteEngagementColumns, refreshRemoteProfileCounts } from './remoteCounts.js';
@@ -612,7 +614,7 @@ export class ActivityProcessor {
 
       const { data: server } = await supabase
         .from('servers')
-        .select('id')
+        .select('id, name')
         .eq('ap_id', serverApId)
         .maybeSingle();
 
@@ -627,16 +629,50 @@ export class ActivityProcessor {
         return;
       }
 
-      const { error } = await supabase
+      // Only the membership the rejected Join made: a stale or replayed Reject leaves a later
+      // Join's membership alone. A membership from before join_activity_id was stored has no
+      // Join to match and goes only while still pending.
+      const joinId = typeof activity.object.id === 'string' ? activity.object.id : null;
+      const { data: membership } = await supabase
+        .from('user_servers')
+        .select('id, status, join_activity_id')
+        .eq('server_id', server.id)
+        .eq('user_id', userProfile.id)
+        .maybeSingle();
+      const named = !!membership && (membership.join_activity_id
+        ? !!joinId && membership.join_activity_id === joinId
+        : membership.status === 'pending');
+      if (!membership || !named) {
+        logger.warn(`Reject(Join) from ${serverApId}: ${joinId ?? 'no id'} is not the Join of a membership of ${userProfile.id}`);
+        return;
+      }
+
+      const { data: removed, error } = await supabase
         .from('user_servers')
         .delete()
-        .eq('server_id', server.id)
-        .eq('user_id', userProfile.id);
+        .eq('id', membership.id)
+        .select('id');
 
       if (error) {
         logger.error('Reject(Join): failed to remove membership:', error);
-      } else {
-        logger.info(`Join rejected for user ${userProfile.id} in server ${server.id}`);
+        return;
+      }
+      logger.info(`Join rejected for user ${userProfile.id} in server ${server.id}`);
+
+      // A Reject after the join answered removes a server the user already sees; the
+      // notification says so, with the reason. One inside the join request is reported by it.
+      const isLocalUser = urlHost(userActorUrl) === config.INSTANCE_DOMAIN.toLowerCase();
+      if (removed?.length && isLocalUser && !(joinId && isJoinInFlight(joinId))) {
+        const summary = typeof activity.summary === 'string' ? activity.summary.trim().slice(0, 300) : '';
+        const { error: notifyError } = await supabase.from('notifications').insert({
+          user_id: userProfile.id,
+          type: 'server_join_rejected',
+          data: {
+            server: { id: server.id, name: server.name ?? null, ap_id: serverApId },
+            reason: summary || null,
+          },
+        });
+        if (notifyError) logger.error('Reject(Join): failed to notify the user:', notifyError);
       }
     }
   }
@@ -2979,8 +3015,75 @@ export class ActivityProcessor {
   }
 
   /**
-   * Remove activity: unpins a post, removes a Harmony channel/category, or
-   * drops a group conversation participant.
+   * Remove of a local user from the members of a remote server's Group, signed by that Group
+   * (activitypub/memberRemoval.ts): the server turned federation off, kicked or banned them.
+   * The membership goes, unless it was made after the Remove was published, and the user is
+   * told why: 'server_federation_closed', else 'server_member_removed' with the action.
+   */
+  private static async processGroupMemberRemove(activity: any, groupUrl: string, memberUrl: string | undefined): Promise<void> {
+    const supabase = getSupabaseClient();
+    if (!memberUrl || urlHost(memberUrl) !== config.INSTANCE_DOMAIN.toLowerCase()) {
+      logger.warn(`Remove(member) from ${groupUrl}: ${memberUrl ?? 'no object'} is not a local user`);
+      return;
+    }
+
+    const { data: server } = await supabase
+      .from('servers')
+      .select('id, name, is_local_server')
+      .eq('ap_id', groupUrl)
+      .maybeSingle();
+    if (!server || server.is_local_server !== false) {
+      logger.warn(`Remove(member): no remote server reference for ${groupUrl}`);
+      return;
+    }
+
+    const member = await resolveProfileByActorUrl(memberUrl);
+    if (!member) {
+      logger.warn(`Remove(member) from ${groupUrl}: could not resolve ${memberUrl}`);
+      return;
+    }
+
+    const { data: membership } = await supabase
+      .from('user_servers')
+      .select('id, created_at')
+      .eq('server_id', server.id)
+      .eq('user_id', member.id)
+      .maybeSingle();
+    if (!membership) return;
+    if (membershipOutlivesRemove(membership.created_at, activity.published)) {
+      logger.info(`Remove(member) from ${groupUrl} predates the membership of ${member.id}; kept`);
+      return;
+    }
+
+    const { data: removed, error } = await supabase
+      .from('user_servers')
+      .delete()
+      .eq('id', membership.id)
+      .select('id');
+    if (error) {
+      logger.error('Remove(member): failed to remove membership:', error);
+      return;
+    }
+    if (!removed?.length) return;
+
+    const reason = removalReason(activity);
+    const serverRef = { id: server.id, name: server.name ?? null, ap_id: groupUrl };
+    const summary = typeof activity.summary === 'string' ? activity.summary.trim().slice(0, 300) : '';
+    const { error: notifyError } = await supabase.from('notifications').insert(reason === 'federation_closed'
+      ? { user_id: member.id, type: 'server_federation_closed', data: { server: serverRef } }
+      : {
+          user_id: member.id,
+          type: 'server_member_removed',
+          data: { server: serverRef, action: reason, reason: summary || null },
+        });
+    if (notifyError) logger.error('Remove(member): failed to notify the user:', notifyError);
+    logger.info(`Removed ${member.id} from server ${server.id} by its Group (${reason ?? 'no reason'})`);
+  }
+
+  /**
+   * Remove activity: unpins a post, removes a Harmony channel/category, drops
+   * a group conversation participant, or removes a local member from a remote
+   * server.
    */
   private static async processRemove(activity: any): Promise<void> {
     const supabase = getSupabaseClient();
@@ -2991,6 +3094,12 @@ export class ActivityProcessor {
     const targetType = typeof target === 'object' ? target?.['harmony:type'] : null;
     if (targetType === 'harmony:GroupConversation') {
       await this.handleGroupConversationParticipantRemove(activity, target);
+      return;
+    }
+
+    const groupUrl = normalizeActor(activity.actor);
+    if (groupUrl && targetUrl && sameUrl(targetUrl, `${groupUrl}/members`)) {
+      await this.processGroupMemberRemove(activity, groupUrl, objectUrl);
       return;
     }
 

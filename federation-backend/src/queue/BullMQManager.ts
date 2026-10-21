@@ -29,6 +29,7 @@ import { handlePushDismissalJob } from './handlers/pushDismissalHandler.js';
 import { handleVoiceJoinJob, handleVoiceLeaveJob } from './handlers/voiceHandler.js';
 import { handleMaintenanceJob } from './handlers/maintenanceHandler.js';
 import { handlePollVoteJob } from './handlers/pollVoteHandler.js';
+import { handleMemberRemovalJob } from './handlers/memberRemovalHandler.js';
 import { handleAccountDeletedJob } from './handlers/accountDeletedHandler.js';
 import { handleAccountMovedJob } from './handlers/accountMovedHandler.js';
 import { handleGroupInviteJob } from './handlers/groupInviteHandler.js';
@@ -55,6 +56,7 @@ export type JobType =
   | 'federate-block'
   | 'federate-report'
   | 'federate-poll-vote'
+  | 'federate-member-removal'
   | 'federate-profile'
   | 'federate-thread'
   | 'federate-voice-join'
@@ -99,6 +101,7 @@ const JOB_TYPES: JobType[] = [
   'federate-block',
   'federate-report',
   'federate-poll-vote',
+  'federate-member-removal',
   'federate-profile',
   'federate-thread',
   'federate-voice-join',
@@ -223,6 +226,7 @@ class BullMQManagerService {
     this.handlerMap.set('federate-block', handleBlockJob);
     this.handlerMap.set('federate-report', handleReportJob);
     this.handlerMap.set('federate-poll-vote', handlePollVoteJob);
+    this.handlerMap.set('federate-member-removal', handleMemberRemovalJob);
     this.handlerMap.set('federate-profile', handleProfileJob);
     this.handlerMap.set('federate-thread', handleThreadJob);
     this.handlerMap.set('federate-voice-join', handleVoiceJoinJob);
@@ -445,6 +449,17 @@ class BullMQManagerService {
     for (const pair of votePairs) {
       const [post_id, user_id] = pair.split('/');
       await this.addJob('federate-poll-vote', { type: 'create', post_id, user_id });
+    }
+
+    // Removals of remote members whose notify was lost or whose job gave up; same five-minute margin.
+    const { data: undeliveredRemovals } = await supabase
+      .from('federation_member_removals')
+      .select('id')
+      .is('delivered_at', null)
+      .lt('created_at', new Date(Date.now() - 5 * 60_000).toISOString())
+      .limit(50);
+    for (const row of undeliveredRemovals ?? []) {
+      await this.addJob('federate-member-removal', { type: 'delete', removal_id: row.id });
     }
 
     // Sweep posts

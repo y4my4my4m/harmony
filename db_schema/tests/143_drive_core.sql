@@ -8,6 +8,9 @@
 BEGIN;
 SET LOCAL search_path = tests, public;
 SELECT plan(35);
+
+-- Remote instances read a server's media only with federation on (166_federation_off_closes_group.sql).
+UPDATE public.servers SET federation_enabled = true WHERE id = '55555555-0000-0000-0000-000000000005';
 SELECT set_config('storage.allow_delete_query', 'true', true);
 
 CREATE TABLE tests.jobs143 (name text, data jsonb);

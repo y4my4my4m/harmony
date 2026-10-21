@@ -604,7 +604,7 @@ protect_profile_deleted_at	invoker	trigger	service_role	trigger	trigger public.p
 public_instance_config_keys	invoker	text[]	anon+authenticated+service_role	policy	policy public.instance_config SELECT on Public can read instance settings
 purge_processed_ap_activities	definer	integer	service_role	cron	cron 0 3 * * * (activitypub-cleanup-old-activities)
 purge_stale_invites	definer	integer	service_role	cron	cron 20 4 * * * (purge-stale-invites)
-queue_federation_job	definer	uuid	service_role	client, trigger	called by admin_drive_remove_file, apply_account_move, delete_my_account, +37
+queue_federation_job	definer	uuid	service_role	client, trigger	called by admin_drive_remove_file, apply_account_move, delete_my_account, +38
 queue_message_media_cleanup	definer	trigger	service_role	trigger	trigger public.messages AFTER DELETE/UPDATE (z_messages_media_cleanup)
 queue_push_dismissal	definer	void	service_role	trigger	called by queue_push_dismissal_on_delete, queue_push_dismissal_on_read
 queue_push_dismissal_on_delete	definer	trigger	service_role	trigger	trigger public.notifications AFTER DELETE STATEMENT (trg_queue_push_dismissal_on_delete)
@@ -634,6 +634,7 @@ regenerate_discord_bridge_pairing	definer	text	anon+authenticated+service_role	c
 register_recovery_key	definer	recovery_key_metadata	authenticated+service_role	client	rpc in src/services/encryption/MegolmMessageEncryptionService.ts
 remote_engagement_figure	invoker	integer	service_role	trigger	called by apply_remote_engagement_counts, update_post_reaction_counts, update_post_reblog_count, +1
 remove_group_icon	definer	jsonb	authenticated+service_role	client	rpc in src/utils/groupIconUtils.ts
+remove_members_from_other_instances	definer	integer	service_role	trigger	called by trigger_federation_closed_removals
 remove_message_from_index	definer	trigger	anon+authenticated+service_role	trigger	trigger public.messages AFTER DELETE (trigger_remove_message_index)
 remove_post_emoji_reaction	definer	boolean	anon+authenticated+service_role	client	named in src/stores/postReactions.ts
 remove_timeline_on_unfollow	definer	trigger	anon+authenticated+service_role	trigger	trigger public.follows BEFORE DELETE (remove_timeline_on_unfollow_trigger)
@@ -758,6 +759,7 @@ trg_server_epoch_bump	definer	trigger	anon+authenticated+service_role	trigger	tr
 trigger_cleanup_dead_endpoint	definer	trigger	anon+authenticated+service_role	trigger	trigger public.federation_endpoint_health AFTER UPDATE (federation_endpoint_health_cleanup_trigger)
 trigger_create_default_server_structure	definer	trigger	anon+authenticated+service_role	trigger	trigger public.servers AFTER INSERT (auto_create_default_server_structure)
 trigger_extract_post_hashtags	definer	trigger	anon+authenticated+service_role	trigger	trigger public.posts AFTER INSERT (extract_hashtags_on_post_insert)
+trigger_federation_closed_removals	definer	trigger	service_role	trigger	trigger public.servers AFTER UPDATE (z_servers_federation_closed_removals)
 trigger_queue_block_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.user_blocks AFTER DELETE (trigger_federate_block_delete), public.user_blocks BEFORE INSERT (trigger_federate_block)
 trigger_queue_category_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.channel_categories AFTER DELETE (trigger_federate_category_delete), public.channel_categories BEFORE INSERT/UPDATE (trigger_federate_category)
 trigger_queue_channel_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.channels AFTER DELETE (trigger_federate_channel_delete), public.channels BEFORE INSERT/UPDATE (trigger_federate_channel)
@@ -770,6 +772,7 @@ trigger_queue_dm_federation	definer	trigger	anon+authenticated+service_role	trig
 trigger_queue_follow_federation	definer	trigger	service_role	trigger	trigger public.follows AFTER DELETE (trigger_federate_follow_delete), public.follows BEFORE INSERT (trigger_federate_follow)
 trigger_queue_follow_response_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.follows BEFORE UPDATE (trigger_federate_follow_response)
 trigger_queue_interaction_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.post_interactions AFTER DELETE (trigger_federate_post_interaction_delete), public.post_interactions BEFORE INSERT (trigger_federate_post_interaction)
+trigger_queue_member_removal	definer	trigger	service_role	trigger	trigger public.federation_member_removals AFTER INSERT (trigger_federate_member_removal)
 trigger_queue_message_reaction_delete_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.reactions AFTER DELETE (trigger_federate_message_reaction_delete)
 trigger_queue_message_reaction_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.reactions BEFORE INSERT (trigger_federate_message_reaction)
 trigger_queue_post_federation	definer	trigger	anon+authenticated+service_role	client, trigger	named in federation-backend/src/listeners/DatabaseListener.ts; trigger public.posts BEFORE INSERT/UPDATE (trigger_federate_post)
@@ -780,6 +783,7 @@ trigger_queue_server_update_federation	definer	trigger	anon+authenticated+servic
 trigger_queue_thread_federation	definer	trigger	service_role	trigger	trigger public.threads BEFORE INSERT/UPDATE (trigger_federate_thread)
 trigger_queue_voice_channel_join_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.voice_channel_participants BEFORE INSERT (trigger_federate_voice_channel_join)
 trigger_queue_voice_channel_leave_federation	definer	trigger	anon+authenticated+service_role	trigger	trigger public.voice_channel_participants AFTER DELETE (trigger_federate_voice_channel_leave)
+trigger_remote_member_removal	definer	trigger	service_role	trigger	trigger public.server_membership_events AFTER INSERT (z_membership_events_remote_removal)
 unban_server_member	definer	jsonb	anon+authenticated+service_role	client	rpc in src/services/ModerationService.ts
 unpin_message	definer	boolean	authenticated+service_role	client	rpc in src/services/MessageService.ts
 unread_change_payload	invoker	jsonb	service_role	trigger	called by broadcast_unread_count_event, handle_new_dm_unread, handle_new_message_unread

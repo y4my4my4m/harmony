@@ -14,6 +14,7 @@ import config from '../config/index.js';
 import { validateExternalHostname, safeFetch } from '../utils/ssrfProtection.js';
 import { discoveryLimiter } from '../middleware/rateLimit.js';
 import { sameOrigin, urlHost } from '../utils/apOrigin.js';
+import { clearJoinInFlight, markJoinInFlight } from '../activitypub/joinsInFlight.js';
 import { SignatureService } from '../activitypub/SignatureService.js';
 import { loadGroupAccess } from '../activitypub/groupAccess.js';
 import { localProfileIdFromBearer } from '../middleware/auth.js';
@@ -58,11 +59,23 @@ router.get(
       return res.status(404).json({ error: 'Server not found' });
     }
 
+    // A Group of this instance joins locally whatever its federation setting; its stub may name
+    // nothing, so the name comes from the row.
+    const ownInstance = urlHost(serverData.id) === config.INSTANCE_DOMAIN.toLowerCase();
+    let ownName: string | null = null;
+    if (ownInstance && !serverData.name) {
+      const ownId = serverData.id.match(/\/servers\/([a-f0-9-]{36})$/i)?.[1];
+      if (ownId) {
+        const { data: row } = await getSupabaseClient().from('servers').select('name').eq('id', ownId).maybeSingle();
+        ownName = row?.name ?? null;
+      }
+    }
+
     return res.json({
       success: true,
       server: {
         id: serverData.id,
-        name: serverData.name,
+        name: serverData.name || ownName,
         description: serverData.summary || '',
         icon: serverData.icon?.url ?? null,
         banner: serverData.image?.url || null,
@@ -86,6 +99,10 @@ router.get(
         }),
         inbox: serverData.inbox,
         discoverable: serverData.discoverable !== false,
+        // Null when the Group does not say (instances before 1.8.10) or is this instance's own.
+        federationEnabled: !ownInstance && typeof serverData['harmony:federationEnabled'] === 'boolean'
+          ? serverData['harmony:federationEnabled']
+          : null,
       },
     });
   })
@@ -131,6 +148,16 @@ router.post(
         }
         if (remoteResponse.status === 410) {
           return res.status(410).json({ error: 'Invite has expired or reached max uses' });
+        }
+        if (remoteResponse.status === 403) {
+          const refusal = await remoteResponse.json().catch(() => null) as { code?: unknown } | null;
+          if (refusal?.code === 'federation_disabled') {
+            return res.status(403).json({
+              error: 'This server does not accept members from other instances',
+              code: 'federation_disabled',
+              federationEnabled: false,
+            });
+          }
         }
         return res.status(remoteResponse.status).json({ 
           error: `Remote instance returned ${remoteResponse.status}` 
@@ -223,7 +250,7 @@ router.get(
       .select(`
         *,
         server:servers!invites_server_id_fkey(
-          id, name, description, icon, banner, public, rules,
+          id, name, description, icon, banner, public, rules, federation_enabled,
           owner:profiles!servers_owner_fkey(username, display_name, avatar_url)
         ),
         creator:profiles!invites_created_by_fkey(username, display_name, avatar_url)
@@ -250,6 +277,17 @@ router.get(
 
     const server = invite.server;
     const hostDomain = config.INSTANCE_DOMAIN;
+
+    // This endpoint answers other instances (local previews read get_invite_preview, which shows
+    // the same card to anyone holding the code). A server closed to other instances refuses here,
+    // so their join dialog says so instead of offering a Join that is always rejected.
+    if (server?.federation_enabled !== true) {
+      return res.status(403).json({
+        error: 'This server does not accept members from other instances',
+        code: 'federation_disabled',
+        federationEnabled: false,
+      });
+    }
 
     const { count: memberCount } = await supabase
       .from('user_servers')
@@ -346,6 +384,8 @@ router.get(
         rules: serverRules,
         channels: allChannels,
         inbox: `${serverApId}/inbox`,
+        // Members from other instances: a server with federation off refuses their Join.
+        federationEnabled: server.federation_enabled === true,
       },
     });
   })
@@ -392,6 +432,17 @@ router.post(
     const remoteServer = await ServerDiscoveryService.fetchServerByUrl(serverUrl);
     if (!remoteServer) {
       return res.status(404).json({ error: 'Remote server not found' });
+    }
+
+    // A Group with federation off answers every Join with a Reject, and its stub names nothing to
+    // build a reference from. Nothing is created or sent. A Group on this instance joins locally.
+    if (remoteServer['harmony:federationEnabled'] === false
+      && urlHost(remoteServer.id) !== config.INSTANCE_DOMAIN.toLowerCase()) {
+      return res.status(403).json({
+        error: 'This server does not accept members from other instances',
+        code: 'join_rejected',
+        reason: 'This server does not accept members from other instances',
+      });
     }
 
     // Check if we already have a local reference (by ap_id or by UUID extracted from URL)
@@ -496,6 +547,13 @@ router.post(
     const isPublicServer = localServer.public !== false && remoteServer.discoverable !== false;
     const initialStatus = isPublicServer ? 'accepted' : 'pending';
 
+    const joinActivity = ServerDiscoveryService.createJoinActivity(
+      user.federated_id || `https://${config.INSTANCE_DOMAIN}/users/${user.username}`,
+      remoteServer.id,
+      inviteCode as string | undefined
+    );
+
+    // join_activity_id: a Reject removes this membership only when it names this Join.
     const { error: membershipError } = await supabase
       .from('user_servers')
       .insert({
@@ -503,6 +561,7 @@ router.post(
         user_id: userId,
         status: initialStatus,
         member_instance: config.INSTANCE_DOMAIN,
+        join_activity_id: joinActivity.id,
       });
 
     if (membershipError) {
@@ -510,18 +569,45 @@ router.post(
       return res.status(500).json({ error: 'Failed to create membership' });
     }
 
-    const joinActivity = ServerDiscoveryService.createJoinActivity(
-      user.federated_id || `https://${config.INSTANCE_DOMAIN}/users/${user.username}`,
-      remoteServer.id,
-      inviteCode as string | undefined
-    );
-
+    markJoinInFlight(joinActivity.id);
     try {
       await ServerDiscoveryService.sendJoinRequest(
         remoteServer.inbox,
         joinActivity,
         userId
       );
+
+      // A Harmony Group refuses a Join before it answers the delivery, so its Reject is stored
+      // and has removed the membership by now (ActivityProcessor, Reject of a Join).
+      const rejection = await ServerDiscoveryService.findJoinRejection(remoteServer.id, joinActivity.id);
+      if (rejection) {
+        await supabase
+          .from('user_servers')
+          .delete()
+          .eq('server_id', localServer.id)
+          .eq('user_id', userId);
+        logger.info(`Join refused: server=${localServer.id}, reason=${rejection.reason ?? 'none given'}`);
+        return res.status(403).json({
+          error: rejection.reason || 'The server refused the join',
+          code: 'join_rejected',
+          reason: rejection.reason,
+        });
+      }
+      // The membership can also go during the Join by the Group's Remove (a kick, a ban,
+      // federation turned off); the host may still have admitted this Join.
+      const { data: stillMember, error: memberReadError } = await supabase
+        .from('user_servers')
+        .select('id')
+        .eq('server_id', localServer.id)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!memberReadError && !stillMember) {
+        logger.warn(`Join unconfirmed: server=${localServer.id}, membership removed during the Join`);
+        return res.status(409).json({
+          error: 'The membership changed while joining; try again',
+          code: 'join_unconfirmed',
+        });
+      }
 
       // A private Group lists channels only to members, and the reference
       // was built from what a non-member sees. Delivery is attempted inline,
@@ -565,6 +651,8 @@ router.post(
 
       logger.error('Failed to send join request:', error);
       return res.status(500).json({ error: 'Failed to send join request' });
+    } finally {
+      clearJoinInFlight(joinActivity.id);
     }
   })
 );
@@ -667,6 +755,39 @@ router.get(
     await ServerDiscoveryService.syncRemoteServer(serverId, { asUserId });
 
     return res.json({ success: true, message: 'Server synced' });
+  })
+);
+
+/**
+ * GET /servers/:serverId/status
+ * Whether a remote server still takes members from this instance: its Group, fetched signed as
+ * the requesting member, reports harmony:federationEnabled. A Group that cannot be fetched is not
+ * reported closed. Nothing is written.
+ */
+router.get(
+  '/servers/:serverId/status',
+  discoveryLimiter,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { serverId } = req.params;
+
+    const requesterId = await localProfileIdFromBearer(req.headers.authorization);
+    if (!requesterId) {
+      return res.status(401).json({ error: 'Authorization required' });
+    }
+
+    const { data: server } = await getSupabaseClient()
+      .from('servers')
+      .select('id, ap_id, is_local_server')
+      .eq('id', serverId)
+      .maybeSingle();
+    if (!server || server.is_local_server !== false || !server.ap_id
+      || !(await ServerDiscoveryService.isAcceptedMember(serverId, requesterId))) {
+      return res.status(404).json({ error: 'Server not found' });
+    }
+
+    const group = await ServerDiscoveryService.fetchServerByUrl(server.ap_id, { signAs: requesterId });
+    const federationClosed = !!group && group.id === server.ap_id && group['harmony:federationEnabled'] === false;
+    return res.json({ federationClosed });
   })
 );
 
@@ -1190,7 +1311,8 @@ export class ServerDiscoveryService {
 
       // Create server reference (use remote UUID if available to maintain consistency)
       const serverInsertData: any = {
-        name: remoteServer.name,
+        // servers.name is NOT NULL; a Group may serve no name.
+        name: remoteServer.name || remoteServer.preferredUsername || hostDomain,
         description: remoteServer.summary || '',
         icon: remoteServer.icon?.url ?? null,
         banner: remoteServer.image?.url || null,
@@ -1397,6 +1519,28 @@ export class ServerDiscoveryService {
     const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js');
     await DeliveryQueue.sendToInbox(inboxUrl, activity, senderId);
     logger.info(`Sent Join request to ${inboxUrl}`);
+  }
+
+  /**
+   * The Reject a Group sent for the Join `joinId`, with its summary trimmed to 300 characters;
+   * null when none is stored.
+   */
+  static async findJoinRejection(groupId: string, joinId: string): Promise<{ reason: string | null } | null> {
+    const supabase = getSupabaseClient();
+    const { data } = await supabase
+      .from('ap_activities')
+      .select('activity_data')
+      .eq('ap_type', 'Reject')
+      .eq('actor_ap_id', groupId)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    const match = (data ?? []).find((row: { activity_data?: any }) => {
+      const object = row.activity_data?.object;
+      return (typeof object === 'string' ? object : object?.id) === joinId;
+    });
+    if (!match) return null;
+    const summary = match.activity_data?.summary;
+    return { reason: typeof summary === 'string' && summary.trim() ? summary.trim().slice(0, 300) : null };
   }
 
   /**

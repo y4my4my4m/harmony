@@ -716,7 +716,8 @@
       "disableConsequence1": "Block all new join requests from remote users",
       "disableConsequence2": "Stop delivering messages to and from remote members",
       "disableConsequence3": "Prevent reactions and voice participation from remote users",
-      "disableConsequence4": "Keep existing federated members in the member list, unable to interact",
+      "disableConsequence4": "Remove them from this server and tell each of them why",
+      "disableConsequence5": "Keep them out if you turn federation back on, until they rejoin with an invite",
       "disableConfirm": "Disable federation"
     }
   },
@@ -3118,6 +3119,9 @@
     "openServer": "Open server",
     "alreadyJoined": "You're already a member of this server.",
     "joinPending": "Join request sent. You'll get access once the server accepts it.",
+    "joinRefused": "{name} refused the join.",
+    "joinRefusedReason": "{name} refused the join: {reason}",
+    "federationOff": "This server doesn't accept members from other instances: federation is off for it.",
     "federatedNotice": "This is a federated server hosted on another Harmony instance. Your messages will be sent across the network.",
     "joinByUrl": "Join by URL",
     "haveInviteLink": "Have an invite link? Paste it here",
@@ -3127,7 +3131,29 @@
     "remoteServer": "Remote server",
     "hosted": "Hosted on",
     "federatedUser": "Federated user",
-    "federatedBadge": "Federated"
+    "federatedBadge": "Federated",
+    "joinRejectedNotice": {
+      "title": "{name} refused your join request",
+      "reason": "Reason given: {reason}",
+      "noReason": "No reason was given.",
+      "short": "Join refused"
+    },
+    "federationClosedNotice": {
+      "title": "{name} stopped taking members from other instances, so you were removed.",
+      "message": "You can rejoin if it opens again.",
+      "short": "Server closed to other instances"
+    },
+    "memberRemovedNotice": {
+      "kickTitle": "You were removed from {name}",
+      "banTitle": "You were banned from {name}",
+      "reason": "Reason given: {reason}",
+      "noReason": "No reason was given.",
+      "short": "Removed from server"
+    },
+    "closedBanner": {
+      "title": "{name} stopped taking members from other instances",
+      "body": "Its channels are closed to your instance, so nothing new arrives here. This is not a ban: you can rejoin if it opens again."
+    }
   },
   "offline": {
     "banner": "You are offline. Some features may be unavailable."
@@ -3199,7 +3225,10 @@
       "created": "New invite link created",
       "createFailed": "Couldn't create an invite link",
       "otherLinks": "Your other active links ({count})",
-      "showLink": "Show this link"
+      "showLink": "Show this link",
+      "federationOn": "People on other Harmony instances can join too: federation is on for this server.",
+      "federationOff": "Only accounts on {instance} can join with this link: federation is off for this server.",
+      "federationOffInstance": "Only accounts on {instance} can join with this link: federation is off for this instance."
     },
     "bannedFromServer": "You are banned from this server",
     "a11y": {

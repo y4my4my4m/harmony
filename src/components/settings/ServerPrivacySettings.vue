@@ -111,6 +111,7 @@
             <li>{{ $t('server.privacy.disableConsequence2') }}</li>
             <li>{{ $t('server.privacy.disableConsequence3') }}</li>
             <li>{{ $t('server.privacy.disableConsequence4') }}</li>
+            <li>{{ $t('server.privacy.disableConsequence5') }}</li>
           </ul>
           <div class="warning-actions">
             <button type="button" class="btn-cancel" data-autofocus @click="cancelDisableFederation">{{ $t('common.cancel') }}</button>
@@ -289,15 +290,15 @@ const { titleId: warningTitleId, descriptionId: warningDescriptionId } = useDial
   returnFocus: () => federationToggle.value,
 })
 
+// The members public.remove_members_from_other_instances removes when federation goes off.
 async function fetchFederatedMemberCount() {
   if (!props.serverId) return
   const { count, error } = await supabase
     .from('user_servers')
-    .select('id', { count: 'exact', head: true })
+    .select('id, profile:profiles!user_servers_user_id_fkey!inner(is_local)', { count: 'exact', head: true })
     .eq('server_id', props.serverId)
-    .eq('status', 'accepted')
-    .not('member_instance', 'is', null)
-    .neq('member_instance', window.location.hostname)
+    .in('status', ['accepted', 'pending'])
+    .eq('profile.is_local', false)
 
   if (!error && count !== null) {
     federatedMemberCount.value = count

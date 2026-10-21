@@ -60,6 +60,8 @@ vi.mock('@/services/ViewContextTracker', () => ({
 
 vi.mock('@/services/ServiceWorkerManager', () => ({ serviceWorkerManager: sw }))
 vi.mock('@/router', () => ({ default: { push: routerPush } }))
+const forgetServer = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+vi.mock('@/utils/joinRejected', () => ({ forgetRejectedServer: forgetServer }))
 vi.mock('@/utils/faviconBadge', () => ({ updateFaviconBadge: vi.fn() }))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: vi.fn(() => ({ session: { user: { id: '11111111-1111-1111-1111-111111111111' } } })),
@@ -356,6 +358,18 @@ describe('silence and sign-out', () => {
     expect(store.isInitialized).toBe(false)
     expect(document.title).not.toMatch(/^\(/)
     await vi.waitFor(() => expect(sw.dismissNotifications).toHaveBeenCalledWith({ all: true }))
+  })
+})
+
+describe('a server on another instance gone', () => {
+  it('forgets the server named by a refusal or a removal, and nothing for other notices', async () => {
+    const store = useNotificationStore()
+    forgetServer.mockClear()
+    await store._processIncomingNotification(mk('r1', false, 0, 'server_join_rejected', { server: { id: 'ref-a' } }))
+    await store._processIncomingNotification(mk('r2', false, 0, 'server_federation_closed', { server: { id: 'ref-b' } }))
+    await store._processIncomingNotification(mk('r3', false, 0, 'server_member_removed', { server: { id: 'ref-c' }, action: 'kick' }))
+    await store._processIncomingNotification(mk('r4', false, 0, 'mention', { server_id: 'ref-d' }))
+    expect(forgetServer.mock.calls.map(([id]) => id)).toEqual(['ref-a', 'ref-b', 'ref-c'])
   })
 })
 

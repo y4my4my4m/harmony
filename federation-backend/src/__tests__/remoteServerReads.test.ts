@@ -89,12 +89,18 @@ function freshDb(): Record<string, any[]> {
 function query(table: string) {
   const filters: Array<(r: any) => boolean> = []
   const eqs: Record<string, unknown> = {}
-  let op: 'select' | 'update' = 'select'
+  let op: 'select' | 'update' | 'delete' = 'select'
   let updateRows: any
   const rows = () => (db[table] || []).filter(r => filters.every(f => f(r)))
   const settle = () => {
     if (op === 'update') {
       writes.push({ table, op: 'update', rows: updateRows, filters: { ...eqs } })
+      return { data: null, error: null }
+    }
+    if (op === 'delete') {
+      writes.push({ table, op: 'delete', rows: null, filters: { ...eqs } })
+      const gone = new Set(rows())
+      db[table] = (db[table] || []).filter(r => !gone.has(r))
       return { data: null, error: null }
     }
     return { data: rows(), error: null }
@@ -110,7 +116,12 @@ function query(table: string) {
     maybeSingle: () => Promise.resolve({ data: rows()[0] ?? null, error: null }),
     single: () => Promise.resolve(rows()[0] ? { data: rows()[0], error: null } : { data: null, error: { message: 'none' } }),
     update: (r: any) => { op = 'update'; updateRows = r; return q },
-    insert: (r: any) => { writes.push({ table, op: 'insert', rows: r }); return Promise.resolve({ error: null }) },
+    delete: () => { op = 'delete'; return q },
+    insert: (r: any) => {
+      writes.push({ table, op: 'insert', rows: r })
+      ;(db[table] ??= []).push(...(Array.isArray(r) ? r : [r]))
+      return Promise.resolve({ error: null })
+    },
     upsert: (r: any) => {
       writes.push({ table, op: 'upsert', rows: r })
       const u: any = { select: () => u, maybeSingle: () => Promise.resolve({ data: { id: r.id ?? 'cached' }, error: null }) }
@@ -138,6 +149,7 @@ vi.mock('../config/supabase.js', () => ({
 const { default: discoveryRouter, ServerDiscoveryService } = await import('../services/ServerDiscoveryService.js')
 const { SignatureService } = await import('../activitypub/SignatureService.js')
 const { safeFetch } = await import('../utils/ssrfProtection.js')
+const { DeliveryQueue } = await import('../activitypub/DeliveryQueue.js')
 
 const signedApFetch = vi.mocked(SignatureService.signedApFetch)
 const json = (doc: unknown, status = 200) => new Response(JSON.stringify(doc), { status })
@@ -327,6 +339,215 @@ describe('POST /servers/join', () => {
     expect(signedApFetch.mock.calls[1][0]).toBe(GROUP)
     expect(signedApFetch.mock.calls[1][1]?.signAs).toBe('dan')
   })
+
+  it('stores the id of the Join it sends on the membership', async () => {
+    signedApFetch.mockResolvedValue(json({ type: 'Group', id: GROUP, inbox: `${GROUP}/inbox`, name: 'Open' }))
+    vi.mocked(DeliveryQueue.sendToInbox).mockClear()
+
+    const res = await supertest(app())
+      .post('/servers/join')
+      .set('Authorization', 'Bearer dan-token')
+      .send({ serverUrl: GROUP, userId: 'dan', inviteCode: 'CODE' })
+
+    expect(res.status).toBe(200)
+    const sent: any = vi.mocked(DeliveryQueue.sendToInbox).mock.calls[0][1]
+    expect(sent.type).toBe('Join')
+    const inserted = writes.find(w => w.table === 'user_servers' && w.op === 'insert')
+    expect(inserted?.rows).toMatchObject({ server_id: REF, user_id: 'dan', join_activity_id: sent.id })
+  })
+})
+
+describe('POST /servers/join, refused', () => {
+  const REJECT = 'Federation is disabled on this server'
+
+  // The host answers inside the delivery: the inbox stores its Reject, and processing it deletes
+  // the membership, before the Join's POST returns.
+  function rejectOnDelivery(summary?: string) {
+    vi.mocked(DeliveryQueue.sendToInbox).mockImplementationOnce(async (_inbox: string, activity: any) => {
+      db.ap_activities = [{
+        ap_type: 'Reject',
+        actor_ap_id: GROUP,
+        activity_data: { type: 'Reject', actor: GROUP, object: activity, ...(summary ? { summary } : {}) },
+      }]
+      db.user_servers = db.user_servers.filter(r => !(r.server_id === REF && r.user_id === 'dan'))
+    })
+  }
+
+  it("fails with the Reject's summary and leaves no membership", async () => {
+    signedApFetch.mockResolvedValue(json({ type: 'Group', id: GROUP, inbox: `${GROUP}/inbox`, name: 'Closed' }))
+    rejectOnDelivery(REJECT)
+
+    const res = await supertest(app())
+      .post('/servers/join')
+      .set('Authorization', 'Bearer dan-token')
+      .send({ serverUrl: GROUP, userId: 'dan', inviteCode: 'CODE' })
+
+    expect(res.status).toBe(403)
+    expect(res.body).toMatchObject({ code: 'join_rejected', reason: REJECT, error: REJECT })
+    expect(db.user_servers.some(r => r.user_id === 'dan')).toBe(false)
+  })
+
+  it('fails without a reason when the Reject gives none', async () => {
+    signedApFetch.mockResolvedValue(json({ type: 'Group', id: GROUP, inbox: `${GROUP}/inbox`, name: 'Closed' }))
+    rejectOnDelivery()
+
+    const res = await supertest(app())
+      .post('/servers/join')
+      .set('Authorization', 'Bearer dan-token')
+      .send({ serverUrl: GROUP, userId: 'dan', inviteCode: 'CODE' })
+
+    expect(res.status).toBe(403)
+    expect(res.body).toMatchObject({ code: 'join_rejected', reason: null })
+  })
+
+  it('refuses a Group that says it takes no members from other instances, before creating or sending anything', async () => {
+    // A 1.8.10 host's stub for a server with federation off: no name.
+    signedApFetch.mockResolvedValue(json({ type: 'Group', id: GROUP, inbox: `${GROUP}/inbox`, 'harmony:federationEnabled': false }))
+    db.servers = db.servers.filter(r => r.ap_id !== GROUP)
+    vi.mocked(DeliveryQueue.sendToInbox).mockClear()
+
+    const res = await supertest(app())
+      .post('/servers/join')
+      .set('Authorization', 'Bearer dan-token')
+      .send({ serverUrl: GROUP, userId: 'dan', inviteCode: 'CODE' })
+
+    expect(res.status).toBe(403)
+    expect(res.body).toMatchObject({ code: 'join_rejected' })
+    expect(writes.filter(w => w.table === 'servers' && w.op === 'insert')).toEqual([])
+    expect(DeliveryQueue.sendToInbox).not.toHaveBeenCalled()
+  })
+
+  it('does not report a refusal for a membership removed without a Reject of this Join', async () => {
+    signedApFetch.mockResolvedValue(json({ type: 'Group', id: GROUP, inbox: `${GROUP}/inbox`, name: 'Open' }))
+    // The Group's Remove, processed during this Join, removes the row.
+    vi.mocked(DeliveryQueue.sendToInbox).mockImplementationOnce(async () => {
+      db.user_servers = db.user_servers.filter(r => !(r.server_id === REF && r.user_id === 'dan'))
+    })
+
+    const res = await supertest(app())
+      .post('/servers/join')
+      .set('Authorization', 'Bearer dan-token')
+      .send({ serverUrl: GROUP, userId: 'dan', inviteCode: 'CODE' })
+
+    expect(res.status).toBe(409)
+    expect(res.body).toMatchObject({ code: 'join_unconfirmed' })
+    expect(writes.some(w => w.table === 'user_servers' && w.op === 'delete')).toBe(false)
+  })
+
+  it("ignores another Join's Reject", async () => {
+    signedApFetch.mockResolvedValue(json({ type: 'Group', id: GROUP, inbox: `${GROUP}/inbox`, name: 'Open' }))
+    db.ap_activities = [{
+      ap_type: 'Reject', actor_ap_id: GROUP,
+      activity_data: { type: 'Reject', summary: REJECT, object: { id: 'https://harmony.test/users/dan/activities/earlier' } },
+    }]
+
+    const res = await supertest(app())
+      .post('/servers/join')
+      .set('Authorization', 'Bearer dan-token')
+      .send({ serverUrl: GROUP, userId: 'dan', inviteCode: 'CODE' })
+
+    expect(res.status).toBe(200)
+  })
+})
+
+describe('GET /servers/:id/status', () => {
+  const closedStub = { type: 'Group', id: GROUP, inbox: `${GROUP}/inbox`, 'harmony:federationEnabled': false }
+  const open = { type: 'Group', id: GROUP, inbox: `${GROUP}/inbox`, name: 'Open', 'harmony:federationEnabled': true, 'harmony:channels': [] }
+
+  it('requires a bearer token and fetches nothing without one', async () => {
+    const res = await supertest(app()).get(`/servers/${REF}/status`)
+    expect(res.status).toBe(401)
+    expect(signedApFetch).not.toHaveBeenCalled()
+  })
+
+  it('reports a Group closed to other instances, read signed as the member', async () => {
+    signedApFetch.mockResolvedValue(json(closedStub))
+    const res = await supertest(app()).get(`/servers/${REF}/status`).set('Authorization', 'Bearer bob')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ federationClosed: true })
+    expect(signedApFetch.mock.calls[0][0]).toBe(GROUP)
+    expect(signedApFetch.mock.calls[0][1]?.signAs).toBe('bob')
+    expect(writes).toEqual([])
+  })
+
+  it('reports an open Group as open', async () => {
+    signedApFetch.mockResolvedValue(json(open))
+    const res = await supertest(app()).get(`/servers/${REF}/status`).set('Authorization', 'Bearer bob')
+    expect(res.body).toEqual({ federationClosed: false })
+  })
+
+  it('does not report a Group it cannot read as closed', async () => {
+    signedApFetch.mockResolvedValue(json({ error: 'gone' }, 503))
+    const res = await supertest(app()).get(`/servers/${REF}/status`).set('Authorization', 'Bearer bob')
+    expect(res.body).toEqual({ federationClosed: false })
+  })
+
+  it('answers 404 to a non-member and for a local server, fetching nothing', async () => {
+    const stranger = await supertest(app()).get(`/servers/${REF}/status`).set('Authorization', 'Bearer alice')
+    expect(stranger.status).toBe(404)
+    const pending = await supertest(app()).get(`/servers/${REF}/status`).set('Authorization', 'Bearer pat')
+    expect(pending.status).toBe(404)
+    const local = await supertest(app()).get('/servers/local-server/status').set('Authorization', 'Bearer bob')
+    expect(local.status).toBe(404)
+    expect(signedApFetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('invites of a server with federation off', () => {
+  const invite = (federation_enabled: boolean) => ({
+    code: 'HALL', expires_at: null, max_uses: null, uses: 0, used: false,
+    server: { id: 'hall', name: 'Town Hall', description: 'd', icon: null, banner: null, public: true, rules: [], federation_enabled },
+    creator: null,
+  })
+
+  it('names nothing of the server to another instance', async () => {
+    db.invites = [invite(false)]
+    const res = await supertest(app()).get('/invites/HALL')
+    expect(res.status).toBe(403)
+    expect(res.body).toEqual({
+      error: 'This server does not accept members from other instances',
+      code: 'federation_disabled',
+      federationEnabled: false,
+    })
+  })
+
+  it('relays the refusal to the joining user', async () => {
+    vi.mocked(safeFetch).mockResolvedValueOnce(json({
+      error: 'This server does not accept members from other instances',
+      code: 'federation_disabled',
+      federationEnabled: false,
+    }, 403))
+    const res = await supertest(app()).post('/invites/resolve').send({ instance: 'remote.test', code: 'HALL' })
+    expect(res.status).toBe(403)
+    expect(res.body).toMatchObject({ code: 'federation_disabled', federationEnabled: false })
+  })
+})
+
+describe('GET /servers/discover, own instance', () => {
+  const OWN = '99999999-9999-4999-8999-999999999999'
+  it('names a Group of this instance from its row and leaves federationEnabled unsaid', async () => {
+    db.servers.push({ id: OWN, name: 'Town Hall', ap_id: null, is_local_server: true })
+    const id = `https://harmony.test/servers/${OWN}`
+    signedApFetch.mockResolvedValue(json({ type: 'Group', id, inbox: `${id}/inbox`, 'harmony:federationEnabled': false }))
+    const res = await supertest(app()).get('/servers/discover').query({ url: id })
+    expect(res.status).toBe(200)
+    expect(res.body.server).toMatchObject({ name: 'Town Hall', federationEnabled: null })
+  })
+})
+
+describe('GET /servers/discover', () => {
+  it.each([[true, true], [false, false], [undefined, null]])(
+    'reports harmony:federationEnabled %s as federationEnabled %s',
+    async (flag, expected) => {
+      signedApFetch.mockResolvedValue(json({
+        type: 'Group', id: GROUP, inbox: `${GROUP}/inbox`, name: 'G',
+        ...(flag === undefined ? {} : { 'harmony:federationEnabled': flag }),
+      }))
+      const res = await supertest(app()).get('/servers/discover').query({ url: GROUP })
+      expect(res.status).toBe(200)
+      expect(res.body.server.federationEnabled).toBe(expected)
+    },
+  )
 })
 
 describe('syncRemoteStructure', () => {

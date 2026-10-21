@@ -30,6 +30,9 @@ import {
   pushAllowedForType,
   securityNoticeText,
   moveNoticeText,
+  joinRejectedNoticeText,
+  federationClosedNoticeText,
+  memberRemovedNoticeText,
 } from './pushPolicy.js';
 
 /** Web Push titles and bodies are plain text (utils/plainDisplayName.ts). */
@@ -1125,6 +1128,27 @@ class PushNotificationServiceClass {
 
       case 'move': {
         const notice = moveNoticeText(data);
+        title = notice.title;
+        message = notice.body;
+        break;
+      }
+
+      case 'server_join_rejected': {
+        const notice = joinRejectedNoticeText(data);
+        title = notice.title;
+        message = notice.body;
+        break;
+      }
+
+      case 'server_federation_closed': {
+        const notice = federationClosedNoticeText(data);
+        title = notice.title;
+        message = notice.body;
+        break;
+      }
+
+      case 'server_member_removed': {
+        const notice = memberRemovedNoticeText(data);
         title = notice.title;
         message = notice.body;
         break;

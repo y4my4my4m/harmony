@@ -716,7 +716,8 @@
       "disableConsequence1": "リモートユーザーからの新しい参加リクエストをすべてブロックします",
       "disableConsequence2": "リモートメンバーとのメッセージの配信を停止します",
       "disableConsequence3": "リモートユーザーのリアクションと音声参加を防ぎます",
-      "disableConsequence4": "既存の連合メンバーはメンバー一覧に残りますが、操作はできなくなります",
+      "disableConsequence4": "このサーバーから削除し、それぞれに理由を通知します",
+      "disableConsequence5": "連合を再び有効にしても戻りません。招待から再参加する必要があります",
       "disableConfirm": "連合を無効にする"
     }
   },
@@ -3127,6 +3128,9 @@
     "openServer": "サーバーを開く",
     "alreadyJoined": "すでにこのサーバーのメンバーです。",
     "joinPending": "参加リクエストを送信しました。サーバーが承認するとアクセスできるようになります。",
+    "joinRefused": "{name} は参加を拒否しました。",
+    "joinRefusedReason": "{name} は参加を拒否しました：{reason}",
+    "federationOff": "このサーバーは他のインスタンスのメンバーを受け付けていません（フェデレーションがオフです）。",
     "federatedNotice": "これは別の Harmony インスタンスでホストされている連合サーバーです。メッセージはネットワーク経由で送信されます。",
     "joinByUrl": "URL で参加",
     "haveInviteLink": "招待リンクをお持ちですか?ここに貼り付けてください",
@@ -3136,7 +3140,29 @@
     "remoteServer": "リモートサーバー",
     "hosted": "ホスト先",
     "federatedUser": "連合ユーザー",
-    "federatedBadge": "連合"
+    "federatedBadge": "連合",
+    "joinRejectedNotice": {
+      "title": "{name} が参加リクエストを拒否しました",
+      "reason": "理由：{reason}",
+      "noReason": "理由は示されていません。",
+      "short": "参加が拒否されました"
+    },
+    "federationClosedNotice": {
+      "title": "{name} は他のインスタンスからのメンバー受け入れを停止したため、あなたは削除されました。",
+      "message": "再び開かれたら、もう一度参加できます。",
+      "short": "他のインスタンスの受け入れ停止"
+    },
+    "memberRemovedNotice": {
+      "kickTitle": "{name} から削除されました",
+      "banTitle": "{name} からBANされました",
+      "reason": "理由：{reason}",
+      "noReason": "理由は示されていません。",
+      "short": "サーバーから削除"
+    },
+    "closedBanner": {
+      "title": "{name} は他のインスタンスからのメンバー受け入れを停止しました",
+      "body": "チャンネルがあなたのインスタンスに閉じられているため、新しいものは届きません。BANではありません。再び開かれたら、もう一度参加できます。"
+    }
   },
   "offline": {
     "banner": "オフラインです。一部の機能が利用できない場合があります。"
@@ -3208,7 +3234,10 @@
       "created": "新しい招待リンクを作成しました",
       "createFailed": "招待リンクを作成できませんでした",
       "otherLinks": "その他の有効なリンク（{count}）",
-      "showLink": "このリンクを表示"
+      "showLink": "このリンクを表示",
+      "federationOn": "他の Harmony インスタンスの人も参加できます（このサーバーはフェデレーションがオンです）。",
+      "federationOff": "このリンクで参加できるのは {instance} のアカウントだけです（このサーバーはフェデレーションがオフです）。",
+      "federationOffInstance": "このリンクで参加できるのは {instance} のアカウントだけです（このインスタンスはフェデレーションがオフです）。"
     },
     "bannedFromServer": "このサーバーから BAN されています",
     "a11y": {

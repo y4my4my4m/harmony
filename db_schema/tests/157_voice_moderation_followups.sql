@@ -343,6 +343,11 @@ SELECT is(public.set_server_voice_state('f1571000-0000-0000-0000-000000000001', 
 SELECT tests.clear_authentication();
 SELECT is((SELECT count(*)::int FROM pg_temp.queued WHERE name = 'federate-voice-moderation'), 0, 'queues nothing');
 UPDATE public.servers SET federation_enabled = false WHERE id = 'f1571000-0000-0000-0000-000000000001';
+-- Federation off removes rita (20261025200001); her row is put back as on a server closed
+-- before that migration.
+INSERT INTO public.user_servers (user_id, server_id, status)
+VALUES ('f1570000-0000-0000-0000-000000000001', 'f1571000-0000-0000-0000-000000000001', 'accepted')
+ON CONFLICT DO NOTHING;
 SELECT tests.authenticate_as('bbbbbbbb-0000-0000-0000-000000000002');
 SELECT is(public.set_server_voice_state('f1571000-0000-0000-0000-000000000001', 'f1570000-0000-0000-0000-000000000001', false)
             ->> 'muted', 'false', 'nor does a change while the server does not federate');

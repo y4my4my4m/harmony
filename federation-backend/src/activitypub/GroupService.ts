@@ -66,6 +66,7 @@ function serverToGroup(
         'VoiceChannel': 'harmony:VoiceChannel',
         'channels': 'harmony:channels',
         'memberCount': 'harmony:memberCount',
+        'federationEnabled': 'harmony:federationEnabled',
       },
     ],
     id: serverUrl,
@@ -89,6 +90,8 @@ function serverToGroup(
     
     // Member count for discovery
     'harmony:memberCount': memberCount,
+    // False: a Join from another instance is refused.
+    'harmony:federationEnabled': server.federation_enabled === true,
     
     // Icon - omit default so remote instances use their own fallback
     icon: (() => {
@@ -151,13 +154,16 @@ function serverToJoinStub(server: any, hostDomain: string, publicKeyPem: string 
       {
         'harmony': 'https://harmonyapp.dev/ns#',
         'ChatServer': 'harmony:ChatServer',
+        'federationEnabled': 'harmony:federationEnabled',
       },
     ],
     id: serverUrl,
     type: 'Group',
     'harmony:type': 'ChatServer',
-    name: server.name,
+    // A server closed to other instances keeps only what verifies its Reject: id, inbox, key.
+    ...(server.federation_enabled === true ? { name: server.name } : {}),
     inbox: `${serverUrl}/inbox`,
+    'harmony:federationEnabled': server.federation_enabled === true,
     discoverable: false,
     manuallyApprovesFollowers: true,
     publicKey: publicKeyPem ? serverActorPublicKey(server.id, publicKeyPem) : undefined,

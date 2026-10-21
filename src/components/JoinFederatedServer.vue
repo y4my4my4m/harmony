@@ -151,6 +151,11 @@
         {{ $t('federation.alreadyJoined') }}
       </p>
 
+      <p v-if="refusesRemoteMembers" id="join-federated-closed" class="closed-notice" data-testid="join-federated-closed">
+        <Icon name="lock" :size="14" />
+        <span>{{ $t('federation.federationOff') }}</span>
+      </p>
+
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" :disabled="isJoining" @click="close">
           {{ $t('common.cancel') }}
@@ -169,7 +174,9 @@
           v-else
           type="button"
           class="btn btn-primary"
-          :disabled="!discoveredServer || isJoining"
+          data-testid="join-federated-submit"
+          :disabled="!discoveredServer || isJoining || refusesRemoteMembers"
+          :aria-describedby="refusesRemoteMembers ? 'join-federated-closed' : undefined"
           @click="joinServer"
         >
           <Icon v-if="isJoining" name="spinner" :size="16" class="spin" />
@@ -241,6 +248,10 @@ function channelKind(channel: RemoteServer['channels'][number]): ChannelKind | u
   const raw = (channel as { channelType?: string }).channelType ?? channel.type
   return raw === 'text' || raw === 'voice' || raw === 'category' ? raw : undefined
 }
+
+// The server says it refuses members from other instances: a Join would be rejected. Shown to a
+// member too, whose Join button is replaced by Open server.
+const refusesRemoteMembers = computed(() => discoveredServer.value?.federationEnabled === false)
 
 const previewChannels = computed(() =>
   (discoveredServer.value?.channels ?? []).filter(channel => channelKind(channel) !== 'category'),
@@ -324,7 +335,9 @@ async function discoverServer() {
         inviteInfo.value = result.invite
       }
     } else {
-      error.value = result.error || 'Could not find server'
+      error.value = result.federationDisabled
+        ? t('federation.federationOff')
+        : result.error || 'Could not find server'
     }
   } catch (err: any) {
     error.value = err.message || 'Failed to discover server'
@@ -349,7 +362,11 @@ async function joinServer() {
     )
 
     if (!result.success || !result.serverId) {
-      error.value = result.error || 'Failed to join server'
+      error.value = result.rejected
+        ? (result.reason
+          ? t('federation.joinRefusedReason', { name: remote.name, reason: result.reason })
+          : t('federation.joinRefused', { name: remote.name }))
+        : result.error || 'Failed to join server'
       return
     }
 
@@ -786,6 +803,21 @@ function formatExpiry(expiresAt: string): string {
 .federated-notice > .icon-wrap {
   flex-shrink: 0;
   margin-top: 1px;
+}
+
+.closed-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.closed-notice > .icon-wrap {
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .error-fallback-link {

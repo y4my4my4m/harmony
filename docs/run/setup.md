@@ -188,7 +188,7 @@ Select **Save**.
 
 ### Privacy settings
 
-- **Enable federation**: "Allow users from other Harmony instances to join and interact with this server." Shown when the instance federates and you hold **Manage Server**. It is off for new servers. With it on, the server's **Server handle** is shown.
+- **Enable federation**: "Allow users from other Harmony instances to join and interact with this server." Shown when the instance federates and you hold **Manage Server**. It is off for new servers. With it on, the server's **Server handle** is shown. Turning it off removes the members from other instances, after a confirmation that names how many (see [Turning federation off for a server](/federation/#turning-federation-off-for-a-server)).
 - **Server discovery**: **Invite only** or **Public directory** ("Anyone can discover and join your server through the public server list"), and the **Category** used in Discover.
 - **Server encryption policy**: **Disabled**, **Optional** or **Required**, plus **Require end-to-end encrypted voice and video**. Only the owner can change it. See [Privacy and security](/use/privacy-security).
 
