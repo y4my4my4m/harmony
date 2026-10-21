@@ -743,6 +743,27 @@ describe('useAuthStore', () => {
       vi.doUnmock('@/composables/usePushNotifications')
       vi.doUnmock('@/composables/useViewContext')
     })
+
+    // clear() also voids a funding read still running; $reset() would not.
+    it('clears the funding store', async () => {
+      const clear = vi.fn()
+      vi.doMock('@/router', () => ({ default: { push: vi.fn().mockResolvedValue(undefined) } }))
+      vi.doMock('@/composables/usePushNotifications', () => ({
+        usePushNotifications: () => ({ detachForLogout: vi.fn().mockResolvedValue(undefined) }),
+      }))
+      vi.doMock('@/composables/useViewContext', () => ({ markDeviceAway: vi.fn().mockResolvedValue(undefined) }))
+      vi.doMock('@/stores/useFunding', () => ({ useFundingStore: () => ({ clear }) }))
+      const store = useAuthStore()
+      store.session = { access_token: jwtWithAAL('aal2'), user: {} } as any
+
+      await store.logout()
+
+      expect(clear).toHaveBeenCalledTimes(1)
+      vi.doUnmock('@/router')
+      vi.doUnmock('@/composables/usePushNotifications')
+      vi.doUnmock('@/composables/useViewContext')
+      vi.doUnmock('@/stores/useFunding')
+    })
   })
 
   describe('suspended account', () => {
