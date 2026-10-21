@@ -3148,7 +3148,8 @@
     "unpinFailed": "메시지 고정을 해제하지 못했습니다. 다시 시도하세요.",
     "pinLimitReached": "고정 한도에 도달했습니다. 다른 메시지를 고정하려면 하나를 고정 해제하세요.",
     "threadCreateFailed": "스레드를 시작하지 못했습니다. 다시 시도하세요.",
-    "threadReplyFailed": "답장을 보내지 못했습니다. 다시 시도하세요."
+    "threadReplyFailed": "답장을 보내지 못했습니다. 다시 시도하세요.",
+    "replyOutOfScope": "답장한 메시지가 다른 채널에 있습니다. 다시 시도하면 답장 없이 보냅니다."
   },
   "invite": {
     "accepting": "초대 수락 중...",

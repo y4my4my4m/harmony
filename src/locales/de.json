@@ -3148,7 +3148,8 @@
     "unpinFailed": "Die Nachricht konnte nicht gelöst werden. Versuche es erneut.",
     "pinLimitReached": "Limit für angeheftete Nachrichten erreicht. Löse eine Nachricht, um eine andere anzuheften.",
     "threadCreateFailed": "Der Thread konnte nicht gestartet werden. Versuche es erneut.",
-    "threadReplyFailed": "Die Antwort konnte nicht gesendet werden. Versuche es erneut."
+    "threadReplyFailed": "Die Antwort konnte nicht gesendet werden. Versuche es erneut.",
+    "replyOutOfScope": "Die Nachricht, auf die du antwortest, ist in einem anderen Kanal. Erneut senden schickt diese ohne die Antwort."
   },
   "invite": {
     "accepting": "Einladung wird angenommen...",

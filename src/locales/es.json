@@ -3148,7 +3148,8 @@
     "unpinFailed": "No se pudo desfijar el mensaje. Inténtalo de nuevo.",
     "pinLimitReached": "Se alcanzó el límite de mensajes fijados. Desfija un mensaje para fijar otro.",
     "threadCreateFailed": "No se pudo iniciar el hilo. Inténtalo de nuevo.",
-    "threadReplyFailed": "No se pudo enviar la respuesta. Inténtalo de nuevo."
+    "threadReplyFailed": "No se pudo enviar la respuesta. Inténtalo de nuevo.",
+    "replyOutOfScope": "El mensaje al que respondes está en otro canal. Reintentar envía este sin la respuesta."
   },
   "invite": {
     "accepting": "Aceptando invitación...",

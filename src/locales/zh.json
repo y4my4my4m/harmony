@@ -3148,7 +3148,8 @@
     "unpinFailed": "无法取消置顶消息。请重试。",
     "pinLimitReached": "已达到置顶上限。请先取消置顶一条消息。",
     "threadCreateFailed": "无法创建子区。请重试。",
-    "threadReplyFailed": "无法发送回复。请重试。"
+    "threadReplyFailed": "无法发送回复。请重试。",
+    "replyOutOfScope": "你回复的消息在另一个频道中。重试会不带回复地发送此消息。"
   },
   "invite": {
     "accepting": "正在接受邀请...",

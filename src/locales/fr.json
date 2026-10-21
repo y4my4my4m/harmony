@@ -3148,7 +3148,8 @@
     "unpinFailed": "Impossible de désépingler le message. Réessayez.",
     "pinLimitReached": "Limite d'épingles atteinte. Désépinglez un message pour en épingler un autre.",
     "threadCreateFailed": "Impossible de démarrer le fil. Réessayez.",
-    "threadReplyFailed": "Impossible d'envoyer la réponse. Réessayez."
+    "threadReplyFailed": "Impossible d'envoyer la réponse. Réessayez.",
+    "replyOutOfScope": "Le message auquel tu réponds est dans un autre salon. Réessayer envoie celui-ci sans la réponse."
   },
   "invite": {
     "accepting": "Acceptation de l'invitation...",

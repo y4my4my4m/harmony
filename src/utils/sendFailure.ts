@@ -10,6 +10,7 @@ import { i18n } from '@/i18n'
  *   rules                the server requires rules acceptance
  *   moderation           AutoMod block, member timeout, new-account limit
  *   permission           a channel permission refused the content ("Missing permission: NAME")
+ *   reply-out-of-scope   the reply target is in another channel or conversation (REPLY_OUT_OF_SCOPE)
  */
 export type SendFailureKind =
   | 'encryption-required'
@@ -19,6 +20,7 @@ export type SendFailureKind =
   | 'rules'
   | 'moderation'
   | 'permission'
+  | 'reply-out-of-scope'
   | 'other'
 
 export function classifySendFailure(error: unknown): SendFailureKind {
@@ -32,6 +34,7 @@ export function classifySendFailure(error: unknown): SendFailureKind {
   if (code === 'RULES_NOT_ACCEPTED' || msg.includes('RULES_NOT_ACCEPTED')) return 'rules'
   if (isModerationRejectionCode(code)) return 'moderation'
   if (msg.includes('Missing permission:')) return 'permission'
+  if (code === 'REPLY_OUT_OF_SCOPE' || msg.includes('REPLY_OUT_OF_SCOPE')) return 'reply-out-of-scope'
   return 'other'
 }
 

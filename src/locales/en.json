@@ -3139,7 +3139,8 @@
     "unpinFailed": "Couldn't unpin the message. Try again.",
     "pinLimitReached": "Pin limit reached. Unpin a message to pin another.",
     "threadCreateFailed": "Couldn't start the thread. Try again.",
-    "threadReplyFailed": "Couldn't send the reply. Try again."
+    "threadReplyFailed": "Couldn't send the reply. Try again.",
+    "replyOutOfScope": "The message you replied to is in another channel. Retry sends this one without the reply."
   },
   "invite": {
     "accepting": "Accepting invite...",
