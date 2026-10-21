@@ -143,6 +143,72 @@ ask_secret() {
 
 gen_password() { openssl rand -base64 18 | tr -d '\n/+=' | cut -c1-20; }
 
+# A generated secret stays out of the scripts' output (pipes, logs) and off the terminal's normal
+# screen and scrollback. With a terminal (interactive, /dev/tty writable) reveal_secret draws it
+# on /dev/tty's alternate screen (DEC 1049) until Enter. Without one it goes to SECRET_FILE, a file
+# only this user can read, and only the path is printed: self-host/.secret-<date>-<time>-<pid>,
+# else $HOME/harmony-secret-XXXXXX when self-host/ is not writable.
+SECRET_FILE=""
+reveal_on_tty() { interactive && [[ -w /dev/tty ]]; }
+
+# secret_ready: status 0 when reveal_secret has a place for a secret, 1 when it has none. Without
+# a terminal it creates SECRET_FILE, empty, now. Run it before the secret takes effect.
+secret_ready() {
+	reveal_on_tty && return 0
+	[[ -n "$SECRET_FILE" && -f "$SECRET_FILE" ]] && return 0
+	SECRET_FILE="$SELF_HOST_DIR/.secret-$(date +%Y%m%d-%H%M%S)-$$"
+	( umask 077 && set -C && : > "$SECRET_FILE" ) 2>/dev/null && return 0
+	SECRET_FILE="$(mktemp "${HOME:-/nonexistent}/harmony-secret-XXXXXX" 2>/dev/null)" && return 0
+	SECRET_FILE=""
+	return 1
+}
+
+# secret_discard: removes SECRET_FILE while it is still empty (the secret never took effect).
+secret_discard() {
+	if [[ -n "$SECRET_FILE" && -f "$SECRET_FILE" && ! -s "$SECRET_FILE" ]]; then rm -f "$SECRET_FILE"; fi
+	SECRET_FILE=""
+}
+
+# The Linux console and GNU screen without altscreen ignore 1049 and draw on the normal screen,
+# so the screen is cleared before the switch back.
+reveal_leave_screen() { printf '\033[H\033[2J\033[?1049l' > /dev/tty; }
+
+# INT or TERM while the secret is on screen: clear it, restore the caller's traps, re-raise.
+reveal_interrupted() {
+	reveal_leave_screen
+	eval "${REVEAL_TRAP_INT:-trap - INT}"
+	eval "${REVEAL_TRAP_TERM:-trap - TERM}"
+	kill -s "$1" "$$"
+	exit $((128 + $(kill -l "$1")))
+}
+
+# reveal_secret LABEL VALUE: shows a generated secret once (see SECRET_FILE above).
+reveal_secret() {
+	local label="$1" value="$2"
+	if reveal_on_tty; then
+		# Lines typed earlier (an Enter during a long pull) would end the wait at once.
+		while read -r -t 0 _ < /dev/tty; do read -r _ < /dev/tty || break; done
+		REVEAL_TRAP_INT="$(trap -p INT)"; REVEAL_TRAP_TERM="$(trap -p TERM)"
+		trap 'reveal_interrupted INT' INT
+		trap 'reveal_interrupted TERM' TERM
+		{
+			printf '\033[?1049h\033[H\033[2J'
+			printf '\n   %s\n\n      %s%s%s\n\n   Store it now. Enter clears it from the screen.' \
+				"$label" "$c_bold" "$value" "$c_reset"
+		} > /dev/tty
+		read -r _ < /dev/tty || true
+		reveal_leave_screen
+		eval "${REVEAL_TRAP_INT:-trap - INT}"
+		eval "${REVEAL_TRAP_TERM:-trap - TERM}"
+		ok "$label shown once and cleared from the screen"
+	else
+		secret_ready || die "nowhere to store the generated secret: no terminal, and neither $SELF_HOST_DIR nor ${HOME:-\$HOME} is writable"
+		printf '%s\n' "$value" > "$SECRET_FILE"
+		ok "$label written to $SECRET_FILE (readable by $(id -un) only; delete it once stored)"
+		SECRET_FILE=""
+	fi
+}
+
 # Release tag (vX.Y.Z) of the newest published release; empty when unknown.
 latest_release() {
 	command -v curl >/dev/null || return 0
@@ -174,6 +240,70 @@ public_ip6() {
 # the AAAA records.
 resolve4() { { getent ahostsv4 "$1" 2>/dev/null || true; } | awk '{print $1}' | sort -u; }
 resolve6() { { getent ahostsv6 "$1" 2>/dev/null || true; } | awk '$1 ~ /:/ && $1 !~ /^::ffff:/ {print $1}' | sort -u; }
+
+# is_private_addr ADDR: an address the internet cannot reach. IPv4: RFC 1918, loopback,
+# link-local, CGNAT (100.64/10). IPv6: loopback, unique-local fc00::/7, link-local fe80::/10.
+is_private_addr() {
+	case "$1" in
+		10.*|127.*|169.254.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*) return 0 ;;
+		100.6[4-9].*|100.[7-9][0-9].*|100.1[01][0-9].*|100.12[0-7].*) return 0 ;;
+		::1|[fF][cCdD]*:*|[fF][eE][89aAbB]*:*) return 0 ;;
+	esac
+	return 1
+}
+is_loopback_addr() { case "$1" in 127.*|::1) return 0 ;; esac; return 1; }
+
+# doh_records NAME TYPE: NAME's records of TYPE (A, AAAA or CNAME) from Cloudflare's
+# DNS-over-HTTPS resolver (JSON API), one per line, trailing dot removed; empty without curl or
+# an answer. Answers of other types (a CNAME before the A records, the SOA of an empty answer)
+# are skipped by their numeric type.
+doh_records() {
+	local num
+	case "$2" in A) num=1 ;; AAAA) num=28 ;; CNAME) num=5 ;; *) return 0 ;; esac
+	command -v curl >/dev/null || return 0
+	{ curl -fsS --max-time 6 -H 'accept: application/dns-json' \
+		"https://cloudflare-dns.com/dns-query?name=$1&type=$2" 2>/dev/null || true; } |
+		{ grep -o "\"type\": *$num,[^}]*\"data\": *\"[^\"]*\"" || true; } |
+		sed 's/.*"\([^"]*\)"$/\1/; s/\.$//'
+}
+
+# dns_addrs NAME [doh]: sets DNS4 and DNS6, NAME's IPv4 and IPv6 addresses (space-separated),
+# and DNS_LOCAL. Loopback answers come from this host's /etc/hosts (cloud-init writes
+# 127.0.1.1 <fqdn>) and hide the public records: they are left out and listed in DNS_LOCAL, and
+# when nothing else answers and the second argument is doh, DNS4 and DNS6 come from doh_records.
+dns_addrs() {
+	local name="$1" addr
+	DNS4=""; DNS6=""; DNS_LOCAL=""
+	for addr in $(resolve4 "$name") $(resolve6 "$name"); do
+		if is_loopback_addr "$addr"; then DNS_LOCAL+="${DNS_LOCAL:+ }$addr"
+		elif [[ "$addr" == *:* ]]; then DNS6+="${DNS6:+ }$addr"
+		else DNS4+="${DNS4:+ }$addr"
+		fi
+	done
+	if [[ -z "$DNS4$DNS6" && -n "$DNS_LOCAL" && "${2:-}" == doh ]]; then
+		DNS4="$(doh_records "$name" A | tr '\n' ' ' | sed 's/ $//')"
+		DNS6="$(doh_records "$name" AAAA | tr '\n' ' ' | sed 's/ $//')"
+	fi
+}
+
+# canonical_name NAME [doh]: where NAME's CNAME chain ends, as the first line of `getent ahosts`
+# names it (AI_CANONNAME); NAME itself without a CNAME. When nothing resolves (glibc skips AAAA
+# lookups on a host without IPv6: AI_ADDRCONFIG) and the second argument is doh, the first CNAME
+# from doh_records. Empty when neither knows NAME.
+canonical_name() {
+	local cn
+	cn="$({ getent ahosts "$1" 2>/dev/null || true; } | awk 'NR == 1 {print $3}')"
+	[[ -n "$cn" || "${2:-}" != doh ]] || cn="$(doh_records "$1" CNAME | head -1)"
+	printf '%s' "${cn%.}" | lower
+}
+
+# tunnel_dns_only NAME [doh]: NAME is a Cloudflare Tunnel record set to DNS only. Such a record
+# shows its CNAME, <tunnel id>.cfargotunnel.com, whose only address is AAAA fd10:aec2:5dae::. A
+# proxied record answers with Cloudflare's own addresses and hides the target.
+tunnel_dns_only() {
+	[[ "$(canonical_name "$1" "${2:-}")" == *.cfargotunnel.com ]] && return 0
+	[[ " $(resolve6 "$1" | tr '\n' ' ') " == *" fd10:aec2:5dae:: "* ]]
+}
 
 # DNS names the instance serves: DOMAIN, DB_DOMAIN and, with voice, LIVEKIT_DOMAIN.
 instance_names() {

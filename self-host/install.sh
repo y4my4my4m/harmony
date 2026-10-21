@@ -22,7 +22,7 @@
 #   HARMONY_DOMAIN            required: chat.example.com
 #   HARMONY_ADMIN_EMAIL       required: admin login, Let's Encrypt and push contact
 #   HARMONY_ADMIN_USERNAME    default: the email's local part
-#   HARMONY_ADMIN_PASSWORD    default: generated and printed once
+#   HARMONY_ADMIN_PASSWORD    default: generated, shown once (reveal_secret, lib.sh)
 #   HARMONY_INSTANCE_NAME     default: Harmony
 #   HARMONY_VOICE             y|n, default y (LiveKit; live.DOMAIN, 7881/tcp, 7882/udp)
 #   HARMONY_BOTS              y|n, default n (bot gateway)
@@ -392,18 +392,27 @@ questions() {
 }
 
 check_dns() {
-	local names=("$DOMAIN" "db.$DOMAIN") name a4 bad=() pub
+	local names=("$DOMAIN" "db.$DOMAIN") name a4 bad=() tunnel=() pub via what
 	truthy "$VOICE" && names+=("live.$DOMAIN")
 	echo
 	info "Checking DNS..."
 	pub="$(public_ip4)"
 	while :; do
-		bad=()
+		bad=(); tunnel=(); via=false
 		for name in "${names[@]}"; do
-			a4="$(resolve4 "$name" | tr '\n' ' ' | sed 's/ $//')"
-			if [[ -z "$a4" ]]; then
+			dns_addrs "$name" doh
+			a4="$DNS4"
+			if tunnel_dns_only "$name" doh; then
+				tunnel+=("$name")
+				printf '   %-32s %s\n' "$name" "Cloudflare Tunnel record set to DNS only"
+			elif [[ -z "$a4" ]]; then
 				bad+=("$name")
 				printf '   %-32s %s\n' "$name" "no A record"
+			elif [[ -n "$pub" && " $a4 " != *" $pub "* && "$TLS" == internal ]]; then
+				# Internal TLS needs no record pointing here: a LAN name, or a proxy or tunnel in front.
+				via=true
+				what="a proxy or tunnel"; is_private_addr "${a4%% *}" && what="a local address"
+				printf '   %-32s %s\n' "$name" "-> $a4 ($what, not $pub) ✓"
 			elif [[ -n "$pub" && " $a4 " != *" $pub "* ]]; then
 				bad+=("$name")
 				printf '   %-32s %s\n' "$name" "-> $a4 (this server is $pub)"
@@ -414,14 +423,23 @@ check_dns() {
 		if [[ -z "$pub" ]]; then
 			warn "could not determine this server's public IP (set HARMONY_PUBLIC_IP to check DNS against it)"
 		fi
-		[[ ${#bad[@]} -eq 0 ]] && { ok "DNS points at this server"; return; }
+		if [[ ${#bad[@]} -eq 0 && ${#tunnel[@]} -eq 0 ]]; then
+			if $via; then ok "DNS resolves every name"; else ok "DNS points at this server"; fi
+			return
+		fi
 
 		echo
-		warn "Create these records at your DNS provider (type A; with Cloudflare: 'DNS only', grey cloud):"
-		for name in "${bad[@]}"; do printf '      A    %-32s %s\n' "$name" "${pub:-<this server public IPv4>}"; done
+		if [[ ${#bad[@]} -gt 0 ]]; then
+			warn "Create these records at your DNS provider (type A; with Cloudflare: 'DNS only', grey cloud; behind a Cloudflare Tunnel: Proxied CNAMEs instead, see docs/self-host/install.md#cloudflare-tunnel):"
+			for name in "${bad[@]}"; do printf '      A    %-32s %s\n' "$name" "${pub:-<this server public IPv4>}"; done
+		fi
+		if [[ ${#tunnel[@]} -gt 0 ]]; then
+			warn "Set these Cloudflare Tunnel records to Proxied (orange cloud); set to DNS only they resolve to fd10:aec2:5dae::, which nothing reaches:"
+			for name in "${tunnel[@]}"; do printf '      CNAME %-31s %s\n' "$name" "<tunnel id>.cfargotunnel.com, Proxied"; done
+		fi
 		echo
 		if [[ "$TLS" == internal ]]; then
-			warn "Internal TLS: continuing; devices on your network must resolve these names to this server."
+			warn "Internal TLS: continuing. On a LAN, devices must resolve these names to this server; behind a Cloudflare Tunnel, each is a Proxied CNAME to the tunnel."
 			return
 		fi
 		if ! interactive; then
@@ -429,7 +447,7 @@ check_dns() {
 			return
 		fi
 		echo "   1) I've created the records, check again (DNS can take a few minutes)"
-		echo "   2) This is a LAN / internal server: use Caddy's own certificates (no Let's Encrypt)"
+		echo "   2) LAN server, or behind a Cloudflare Tunnel: use Caddy's own certificates (no Let's Encrypt)"
 		echo "   3) Continue anyway; certificates follow once DNS is right"
 		echo "   4) Quit"
 		local choice; ask choice "Choice" 1
@@ -499,7 +517,11 @@ create_admin() {
 		wait_healthy auth || die "auth did not restart: harmony logs auth"
 	fi
 	local generated=false result
-	if [[ -z "${ADMIN_PASSWORD:-}" ]]; then ADMIN_PASSWORD="$(gen_password)"; generated=true; fi
+	if [[ -z "${ADMIN_PASSWORD:-}" ]]; then
+		secret_ready || die "nowhere to show a generated admin password: no terminal, and neither $SELF_HOST_DIR nor ${HOME:-\$HOME} is writable. Set HARMONY_ADMIN_PASSWORD"
+		trap secret_discard EXIT
+		ADMIN_PASSWORD="$(gen_password)"; generated=true
+	fi
 	result="$(mktemp)"
 	HARMONY_ADMIN_RESULT="$result" HARMONY_ADMIN_PASSWORD="$ADMIN_PASSWORD" \
 		bash "$SELF_HOST_DIR/admin.sh" create --email "$ADMIN_EMAIL" --username "$ADMIN_USERNAME" </dev/null
@@ -529,8 +551,11 @@ final_summary() {
 	printf '   %-16s %s\n' "Open" "https://$DOMAIN"
 	if [[ -n "$ADMIN_RESULT_USER" ]]; then
 		printf '   %-16s %s  (or @%s)\n' "Admin login" "$ADMIN_EMAIL" "$ADMIN_RESULT_USER"
-		printf '   %-16s %s%s%s\n' "Password" "$c_bold" "$ADMIN_PASSWORD_SHOWN" "$c_reset"
-		[[ "$ADMIN_PASSWORD_SHOWN" == "("* ]] || printf '   %-16s %s\n' "" "shown once: store it now. New one: $CLI admin reset-password"
+		if [[ "$ADMIN_PASSWORD_SHOWN" == "("* ]]; then
+			printf '   %-16s %s\n' "Password" "$ADMIN_PASSWORD_SHOWN"
+		else
+			printf '   %-16s %s\n' "Password" "generated, shown once below. New one: $CLI admin reset-password"
+		fi
 	else
 		printf '   %-16s %s\n' "Admin login" "the existing admin account (new password: $CLI admin reset-password)"
 	fi
@@ -542,7 +567,9 @@ final_summary() {
 	printf '   %-16s %s\n' "" "the only copy; '$CLI backup' saves them with the database"
 	printf '   %-16s %s\n' "Firewall" "allow 80/tcp, 443/tcp, 443/udp$(truthy "$VOICE" && echo ", 7881/tcp, 7882/udp")"
 	if [[ "$TLS" == internal ]]; then
-		printf '   %-16s %s\n' "Certificates" "Caddy's own CA: trust its root on each device:"
+		printf '   %-16s %s\n' "Certificates" "Caddy's own CA. Its root: on a LAN, trust it on each device; behind a"
+		printf '   %-16s %s\n' "" "Cloudflare Tunnel, browsers get Cloudflare's certificate and cloudflared"
+		printf '   %-16s %s\n' "" "takes the root as its CA pool (or No TLS Verify)."
 		printf '   %-16s %s\n' "" "docker compose -f $SELF_HOST_DIR/docker-compose.yml cp caddy:/data/caddy/pki/authorities/local/root.crt ."
 	fi
 	echo
@@ -550,6 +577,9 @@ final_summary() {
 		"Restore" "$CLI restore <backup>" "Logs" "$CLI logs [service]" "Change answers" "$CLI config"
 	echo
 	[[ "$CLI" == harmony ]] || info "harmony is $CLI (no /usr/local/bin link without root)"
+	if [[ -n "$ADMIN_RESULT_USER" && "$ADMIN_PASSWORD_SHOWN" != "("* ]]; then
+		reveal_secret "Admin password for $ADMIN_EMAIL" "$ADMIN_PASSWORD_SHOWN"
+	fi
 	if ! truthy "${HARMONY_SKIP_DOCTOR:-}"; then
 		info "Running harmony doctor..."
 		bash "$SELF_HOST_DIR/doctor.sh" || true

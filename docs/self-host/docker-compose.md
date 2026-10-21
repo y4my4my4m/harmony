@@ -354,6 +354,12 @@ printf '__LISTENER_PW=%s\n' "$(openssl rand -hex 24)" > self-host/federation.env
 SUPABASE_DB_CONTAINER=supabase-db bash self-host/bootstrap.sh
 ```
 
+Start the whole Supabase stack first. Realtime and storage-api create part
+of their schemas after Postgres starts, and migrations depend on them:
+`bootstrap.sh` waits up to 300 s for Realtime to report healthy (when it is
+in the database container's Compose project) and for those objects, then
+stops with `still missing after 300 s: …`.
+
 For Postgres outside a container, the Supabase CLI applies the same files
 through the `supabase/migrations` link and keeps the same ledger:
 `npx supabase db push --db-url "$DATABASE_URL"`. A database whose migrations

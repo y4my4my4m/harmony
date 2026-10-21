@@ -30,7 +30,8 @@ the server). The examples use `chat.example.com` as the domain:
   Let's Encrypt tries IPv6 first, so an AAAA record that points elsewhere, or
   exists while the server has no public IPv6, makes certificate issuance fail.
 - With Cloudflare, set the records to **DNS only** (grey cloud) while the
-  certificates are issued.
+  certificates are issued. Behind a Cloudflare Tunnel the records are
+  different: see [Behind a Cloudflare Tunnel](#cloudflare-tunnel).
 - DNS changes take minutes to an hour to propagate. The installer checks the
   A records and shows what is still missing.
 
@@ -96,7 +97,7 @@ In order:
 | Domain for your instance | The domain from the DNS records, such as `chat.example.com`. Handles look like `@you@chat.example.com`, and other servers keep it in your ids: choose it once | the current one on a re-run |
 | Admin email | Your login. Also the contact Let's Encrypt and push services see | the current one on a re-run |
 | Admin username | Your handle: 3 to 24 characters of `a-z`, `0-9` and `_`. Not asked when an admin exists | the email's local part, reduced to those characters; `admin` when that leaves fewer than 3 |
-| Admin password | 8 characters or more, asked twice. Not asked when an admin exists | Enter generates one, shown once in the summary |
+| Admin password | 8 characters or more, asked twice. Not asked when an admin exists | Enter generates one, shown once after the summary |
 | Instance name | Shown in the app. It cannot contain `$`, `#`, `"`, `\` or a backtick, or start with a quote; the admin panel accepts any name later | `Harmony` |
 | Enable voice and video? | Voice channels, calls and screen sharing (LiveKit). Needs the `live.` record and ports 7881/tcp and 7882/udp | `y` |
 | Enable bots? | The bot gateway, for bots and Discord bridges | `n` |
@@ -115,21 +116,31 @@ records to create and offers:
 
 ```text
    1) I've created the records, check again (DNS can take a few minutes)
-   2) This is a LAN / internal server: use Caddy's own certificates (no Let's Encrypt)
+   2) LAN server, or behind a Cloudflare Tunnel: use Caddy's own certificates (no Let's Encrypt)
    3) Continue anyway; certificates follow once DNS is right
    4) Quit
 ```
 
 Option 3 installs anyway; Caddy obtains the certificates once the records
 point at the server, and `harmony doctor` shows when they do. Without a
-terminal, the installer continues as with option 3. Option 2 switches to a
-[LAN install](#install-on-a-lan).
+terminal, the installer continues as with option 3. Option 2 switches to
+Caddy's own certificates: a [LAN install](#install-on-a-lan) or one
+[behind a Cloudflare Tunnel](#cloudflare-tunnel).
+
+With `HARMONY_TLS=internal` a name pointing at another address is no error:
+the installer marks it as a local address, or a proxy or tunnel in front of
+the server, and continues.
 
 ## After the installer finishes
 
-The summary shows the URL, the admin login and password, the registration
-policy and where the secrets live. **Store the password now**: it is shown
-once. `harmony admin reset-password` sets a new one if it is lost.
+The summary shows the URL, the admin login, the registration policy and where
+the secrets live. A generated admin password follows on a separate screen
+that Enter clears. Without a terminal, or with `--non-interactive`
+(`HARMONY_NONINTERACTIVE=1`), it goes to a file readable by your user only,
+`self-host/.secret-<date>-<time>-<pid>` (`~/harmony-secret-XXXXXX` when
+`self-host/` is not writable), and the summary prints that path. **Store the
+password now**: it is shown once; delete the file once it is stored.
+`harmony admin reset-password` sets a new one if it is lost.
 
 Open the firewall, if the server has one. The installer does not touch it:
 
@@ -232,7 +243,7 @@ Answers:
 | `HARMONY_DOMAIN` | The instance's domain | required |
 | `HARMONY_ADMIN_EMAIL` | Admin login, Let's Encrypt and push contact | required |
 | `HARMONY_ADMIN_USERNAME` | Admin handle | the email's local part |
-| `HARMONY_ADMIN_PASSWORD` | Admin password, 8 characters or more | generated, printed in the summary |
+| `HARMONY_ADMIN_PASSWORD` | Admin password, 8 characters or more | generated, shown once after the summary or written to a file ([After the installer finishes](#after-the-installer-finishes)) |
 | `HARMONY_INSTANCE_NAME` | Instance name | `Harmony` |
 | `HARMONY_VOICE` | `y` or `n`: voice and video | `y` |
 | `HARMONY_BOTS` | `y` or `n`: bot gateway | `n` |
@@ -303,6 +314,46 @@ own certificate authority instead of Let's Encrypt (`CADDY_TLS=internal` in
   the federation endpoints through the server's own port.
 - Voice on a LAN needs LiveKit's address set by hand; see
   [Voice and video](/self-host/voice).
+
+## Behind a Cloudflare Tunnel {#cloudflare-tunnel}
+
+A server without a public address can be reached through a Cloudflare Tunnel
+(`cloudflared`). Cloudflare then holds the public certificates and the
+server uses Caddy's own ones: install with `HARMONY_TLS=internal`.
+
+- Route **every** name through the tunnel: `chat.example.com` and
+  `db.example.com`. The app calls `db.` for sign-in, data, uploads and the
+  live connection (`wss://db.example.com/realtime/v1/websocket`).
+- Each name is a CNAME to `<tunnel id>.cfargotunnel.com` set to **Proxied**
+  (orange cloud). A tunnel record set to DNS only resolves to
+  `fd10:aec2:5dae::`, which nothing can reach: the site may load while
+  sign-in, messages and live updates hang. `harmony doctor` reports it.
+- Point each public hostname at `https://localhost:443`, the port being
+  `HARMONY_HTTPS_PORT` (default 443), and set its **Origin Server Name** to
+  that same hostname. cloudflared otherwise sends `localhost` as the TLS
+  server name, for which Caddy has no site and no certificate: the handshake
+  fails, **No TLS Verify** or not. Caddy's certificates are signed by its own
+  CA, so also turn **No TLS Verify** on, or give cloudflared Caddy's root
+  certificate as its CA pool (`caPool`).
+- When cloudflared runs in its own container, `localhost` is that container.
+  Point the hostnames at the server's address instead, as the container
+  reaches it (for example `host.docker.internal`, with
+  `--add-host=host.docker.internal:host-gateway`), and keep
+  `HARMONY_HTTPS_PORT` bound to an address that container can reach.
+- Every request then arrives over the tunnel's connection, and the Caddyfile
+  names no trusted proxies, so Caddy takes that connection's address as every
+  visitor's and forwards it as `X-Real-IP` and `X-Forwarded-For`. The
+  federation backend and the bot gateway key their rate limits on it: all
+  visitors share one limit. Logs behind Caddy show that one address for
+  everyone.
+- Voice and video run through LiveKit in two parts. Signaling is a WebSocket to
+  `wss://live.example.com`, which the tunnel carries like the other names. Media
+  goes from each browser straight to the address LiveKit advertises, on 7882/udp
+  or 7881/tcp, which neither a tunnel nor Cloudflare's proxy carries: calls then
+  connect but stay silent. With a public address, forward 7881/tcp and 7882/udp
+  to the server and set `rtc.node_ip` in `self-host/livekit.yaml` to that
+  address (or `use_external_ip: true`). Without one (CGNAT), media needs a TURN
+  relay it can reach, listed under `rtc.turn_servers`. Otherwise leave voice off.
 
 ## Re-run the installer
 

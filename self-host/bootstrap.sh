@@ -113,6 +113,66 @@ psql_exec() {
 pick_db_role || die "no role can modify the schema: tried postgres and supabase_admin"
 info "Applying as $DB_USER"
 
+# Realtime and storage-api build their schemas through their own migrations, after Postgres
+# answers. Realtime runs them when its tenant is first used, which its compose health check
+# does: realtime.messages, realtime.send, then MessagesPartitioning replaces the table with a
+# partitioned one. The supabase/postgres image ships storage.buckets without the columns
+# storage-api adds at start (public, file_size_limit, allowed_mime_types), which the migrations
+# write. GoTrue creates auth.sessions and auth.mfa_factors, which carry the security-notice
+# triggers. Blocks guarded on these objects skip without them and are still recorded as applied,
+# and the bucket inserts fail, so the chain waits for the three services' objects.
+SCHEMA_WAIT=300
+schema_missing() {
+	psql_exec -tA <<'SQL' 2>/dev/null | tr -d '\n'
+SELECT concat_ws(', ',
+	CASE WHEN to_regclass('realtime.messages') IS NULL THEN 'realtime.messages'
+	     WHEN (SELECT relkind FROM pg_class WHERE oid = to_regclass('realtime.messages')) <> 'p'
+	     THEN 'partitioned realtime.messages' END,
+	CASE WHEN to_regprocedure('realtime.send(jsonb,text,text,boolean)') IS NULL THEN 'realtime.send' END,
+	CASE WHEN NOT EXISTS (SELECT 1 FROM pg_attribute
+	                       WHERE attrelid = to_regclass('storage.buckets')
+	                         AND attname = 'allowed_mime_types' AND NOT attisdropped)
+	     THEN 'storage.buckets.allowed_mime_types' END,
+	CASE WHEN to_regclass('auth.sessions') IS NULL THEN 'auth.sessions' END,
+	CASE WHEN to_regclass('auth.mfa_factors') IS NULL THEN 'auth.mfa_factors' END);
+SQL
+}
+
+# Realtime service of the Postgres container's compose project; none for a database outside
+# compose (scripts/check-fresh-install.sh).
+RT_CONTAINER=""
+db_project="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$DB_CONTAINER" 2>/dev/null || true)"
+if [[ -n "$db_project" ]]; then
+	RT_CONTAINER="$(docker ps -a --format '{{.Names}}' --filter "label=com.docker.compose.project=$db_project" \
+		--filter label=com.docker.compose.service=realtime 2>/dev/null | head -1 || true)"
+fi
+# State/health of RT_CONTAINER: running/healthy, running/starting, running (no health check), exited/...
+rt_state() {
+	docker inspect -f '{{.State.Status}}{{if .State.Health}}/{{.State.Health.Status}}{{end}}' "$RT_CONTAINER" 2>/dev/null || echo gone
+}
+
+deadline=$((SECONDS + SCHEMA_WAIT))
+missing="$(schema_missing)" || missing="?"
+if [[ -n "$missing" ]]; then
+	info "Waiting for the Realtime and Storage schemas (up to $SCHEMA_WAIT s)..."
+	if [[ -n "$RT_CONTAINER" ]]; then
+		state="$(rt_state)"
+		until [[ "$state" == running/healthy || "$state" == running ]]; do
+			(( SECONDS < deadline )) ||
+				die "Realtime ($RT_CONTAINER) is $state after $SCHEMA_WAIT s; its schema appears once its health check passes. Check: docker logs $RT_CONTAINER"
+			sleep 2
+			state="$(rt_state)"
+		done
+		missing="$(schema_missing)" || missing="?"
+	fi
+	while [[ -n "$missing" ]]; do
+		(( SECONDS < deadline )) ||
+			die "still missing after $SCHEMA_WAIT s: ${missing}. Realtime creates realtime.* once its health check passes, storage-api adds the bucket columns when it starts; check: docker compose ps realtime storage, docker compose logs realtime storage"
+		sleep 2
+		missing="$(schema_missing)" || missing="?"
+	done
+fi
+
 # --- migrations --------------------------------------------------------------
 # The migration chain builds an empty database: 20260101000000_baseline.sql
 # creates every table and the files after it are deltas. An empty instance and

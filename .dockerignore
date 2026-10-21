@@ -37,6 +37,7 @@ self-host/supabase
 self-host/.supabase-src
 self-host/backups
 self-host/livekit.yaml
+self-host/.secret-*
 
 # Test and tooling artifacts
 **/coverage

@@ -81,6 +81,8 @@ harmony logs SERVICE      # one service's log; federation, supabase for groups
 | `docker compose rejects the configuration above (Compose …)` | An edited file Compose cannot parse, or an old Compose | Read the error above it; check hand edits to the `.env` files |
 | `… failed. It was not recorded; later migrations were skipped.` then `migration failed - database is at the last migration that succeeded` | A migration hit an SQL error; the lines after it show the `ERROR` | Read the error, `harmony logs db`; re-run once fixed. Report it if the error comes from the migration itself |
 | `Postgres in … did not become ready within 180 s…` | The database container is not starting | `harmony logs db`; disk space and memory |
+| `still missing after 300 s: …` | Realtime or storage-api has not created the named objects (`realtime.*`: Realtime, `storage.buckets.*`: storage-api). They create them after Postgres starts; a service that is stopped, unhealthy or cannot reach the database never does | `docker compose ps realtime storage`; `harmony logs realtime`, `harmony logs storage`; once both run, `bash bootstrap.sh` in `self-host/` |
+| `Realtime (…) is … after 300 s; its schema appears once its health check passes…` | Realtime's health check did not pass | `harmony logs realtime`; then `bash bootstrap.sh` in `self-host/` |
 | `no role can modify the schema: tried postgres and supabase_admin` | Neither role can connect inside the container | `harmony logs db` |
 | `app.settings.jwt_secret kept: read by …` (warning) | A function reads the JWT secret from the database settings | Read the named functions; the `jwt secret` check stays WARN while it is kept |
 
