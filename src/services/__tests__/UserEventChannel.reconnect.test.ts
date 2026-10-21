@@ -8,13 +8,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 type Status = 'SUBSCRIBED' | 'CHANNEL_ERROR' | 'TIMED_OUT' | 'CLOSED'
 
 const rt = vi.hoisted(() => {
-  const channels: Array<{ topic: string; emit: (s: string) => void; removed: boolean }> = []
+  const channels: Array<{ topic: string; emit: (s: string, err?: Error) => void; removed: boolean }> = []
   const supabase = {
     channel: vi.fn((topic: string) => {
-      const entry = { topic, emit: (_s: string) => {}, removed: false }
+      const entry = { topic, emit: (_s: string, _err?: Error) => {}, removed: false }
       const ch: any = {
         on: () => ch,
-        subscribe: (cb: (s: string) => void) => {
+        subscribe: (cb: (s: string, err?: Error) => void) => {
           entry.emit = cb
           return ch
         },
@@ -38,7 +38,8 @@ vi.mock('@/utils/debug', () => ({ debug: { log: vi.fn(), warn: vi.fn(), error: v
 import { userEventChannel } from '@/services/UserEventChannel'
 
 const live = () => rt.channels[rt.channels.length - 1]
-const emit = (s: Status) => live().emit(s)
+const emit = (s: Status, err?: Error) => live().emit(s, err)
+const REFUSAL = 'Unauthorized: You do not have permissions to read from this Channel topic: user:p1'
 
 let visibility: DocumentVisibilityState = 'visible'
 
@@ -159,5 +160,31 @@ describe('UserEventChannel reconnect', () => {
 
     document.dispatchEvent(new Event('visibilitychange'))
     expect(rt.supabase.channel).toHaveBeenCalledTimes(2)
+  })
+
+  it('removes a refused channel and stops retrying, so realtime-js stops rejoining it', async () => {
+    userEventChannel.connect('p1')
+    const refused = live()
+    emit('CHANNEL_ERROR', new Error(REFUSAL))
+    expect(refused.removed).toBe(true)
+    expect(userEventChannel.isConnected).toBe(false)
+
+    refused.emit('CHANNEL_ERROR', new Error(REFUSAL))
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    expect(rt.supabase.channel).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens a refused channel again on connect, and resyncs once it joins', async () => {
+    const resync = vi.fn()
+    userEventChannel.on('_reconnected', resync)
+    userEventChannel.connect('p1')
+    emit('SUBSCRIBED')
+    emit('CHANNEL_ERROR', new Error(REFUSAL))
+
+    userEventChannel.connect('p1')
+    expect(rt.supabase.channel).toHaveBeenCalledTimes(2)
+    emit('SUBSCRIBED')
+    expect(userEventChannel.isConnected).toBe(true)
+    expect(resync).toHaveBeenCalledTimes(1)
   })
 })

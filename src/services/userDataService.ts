@@ -33,6 +33,7 @@ import {
   resolveUnifiedEmojiDisplay,
 } from '@/services/emojiShortcodeResolver'
 import { runtimeConfig } from '@/services/runtimeConfig'
+import { channelRetryDelay, isChannelRefusal } from '@/utils/realtimeRefusal'
 
 const EMOJI_SHORTCODE_TEST_REGEX = createShortcodeRegex()
 
@@ -761,7 +762,14 @@ class UserDataService extends EventTarget {
   }
   
   async subscribeToContext(contextId: string, type: 'server' | 'dm' | 'profile' | 'friends', userIds: string[]): Promise<void> {
-    if (this.contexts.has(contextId)) {
+    const existing = this.contexts.get(contextId)
+    if (existing) {
+      // A refused server channel is tried again when the user comes back to the server.
+      if (type === 'server' && !existing.channel && (existing as any)._presenceRefused) {
+        ;(existing as any)._presenceRefused = false
+        await this.setupServerPresence(contextId, userIds, true)
+        return
+      }
       debug.log(`Already subscribed to ${type} context:`, contextId, '- skipping duplicate subscription')
       return
     }
@@ -875,20 +883,25 @@ class UserDataService extends EventTarget {
     debug.log('Subscribing to server broadcast channel:', serverId, 'with', userIds.length, 'users')
 
     // Prior channel + retry timer on this context are torn down before a new
-    // subscribe; otherwise duplicates accumulate.
-    const existingContext = this.contexts.get(serverId)
-    if (existingContext?.channel) {
+    // subscribe; otherwise duplicates accumulate. The prior channel is detached
+    // first, so its callbacks during removal are ignored.
+    const prior = this.contexts.get(serverId)
+    if (prior && (prior as any)._presenceRetryTimer) {
+      clearTimeout((prior as any)._presenceRetryTimer)
+      ;(prior as any)._presenceRetryTimer = null
+    }
+    const priorChannel = prior?.channel
+    if (prior && priorChannel) {
+      prior.channel = undefined
       try {
-        await supabase.removeChannel(existingContext.channel)
+        await supabase.removeChannel(priorChannel)
       } catch (err) {
         debug.warn(`[Realtime] failed to remove previous server-presence:${serverId} channel:`, err)
       }
-      existingContext.channel = undefined
     }
-    if (existingContext && (existingContext as any)._presenceRetryTimer) {
-      clearTimeout((existingContext as any)._presenceRetryTimer)
-      ;(existingContext as any)._presenceRetryTimer = null
-    }
+    const context = this.contexts.get(serverId)
+    // Torn down meanwhile (logout, leave server).
+    if (!context) return
 
     const channel = supabase.channel(channelName, { config: { private: true } })
       .on('broadcast', { event: 'profile_update' }, (payload) => this.handleProfileUpdateBroadcast(serverId, payload))
@@ -908,40 +921,64 @@ class UserDataService extends EventTarget {
           this.handleEmojiBroadcast(data)
         }
       })
-      .subscribe(async (status: string) => {
-        if (status === 'SUBSCRIBED') {
-          console.log(`[Realtime] server-presence:${serverId} → SUBSCRIBED`)
-          // A resubscribe after an error re-reads what it missed.
-          if (isRetry) void this.fetchPresence(userIds)
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error(`[Realtime] server-presence:${serverId} → CHANNEL_ERROR`)
-          // The timer lives on the context so unsubscribing cancels it.
-          // A missing context (logout / leave server) skips the retry.
-          const ctx = this.contexts.get(serverId)
-          if (!ctx) {
-            debug.log(`[Realtime] server-presence:${serverId} dropped - no context, skipping retry`)
-            return
-          }
-          if ((ctx as any)._presenceRetryTimer) {
-            clearTimeout((ctx as any)._presenceRetryTimer)
-          }
-          ;(ctx as any)._presenceRetryTimer = setTimeout(() => {
-            ;(ctx as any)._presenceRetryTimer = null
-            // Re-check context still exists when timer fires.
-            if (!this.contexts.has(serverId)) return
-            this.setupServerPresence(serverId, userIds, true).catch(err => {
-              debug.error(`[Realtime] server-presence:${serverId} retry failed:`, err)
-            })
-          }, 5000)
-        } else {
-          console.log(`[Realtime] server-presence:${serverId} →`, status)
-        }
-      })
 
-    const context = this.contexts.get(serverId)
-    if (context) {
-      context.channel = channel
-    }
+    // Registered before subscribe: the status callback checks it is the context's current channel.
+    context.channel = channel
+
+    // Set by an error; the next SUBSCRIBED re-reads what the channel missed.
+    let missed = isRetry
+    // realtime-js rejoins an errored channel on its own timer and calls this again for each
+    // attempt, until the channel is removed.
+    channel.subscribe((status: string, err?: Error) => {
+      const ctx = this.contexts.get(serverId)
+      // A removed or replaced channel, or a context torn down (logout, leave server).
+      if (!ctx || ctx.channel !== channel) return
+      const state = ctx as any
+      if (status === 'SUBSCRIBED') {
+        console.log(`[Realtime] server-presence:${serverId} → SUBSCRIBED`)
+        state._presenceRetryAttempt = 0
+        if (state._presenceRetryTimer) {
+          clearTimeout(state._presenceRetryTimer)
+          state._presenceRetryTimer = null
+        }
+        if (missed) {
+          missed = false
+          void this.fetchPresence(userIds)
+        }
+      } else if (status === 'CHANNEL_ERROR') {
+        // Refused: not a member of the server, or the instance lacks the read policy.
+        if (isChannelRefusal(err)) {
+          console.warn(`[Realtime] server-presence:${serverId} refused; not retrying`, err?.message)
+          ctx.channel = undefined
+          if (state._presenceRetryTimer) {
+            clearTimeout(state._presenceRetryTimer)
+            state._presenceRetryTimer = null
+          }
+          state._presenceRetryAttempt = 0
+          state._presenceRefused = true
+          supabase.removeChannel(channel).catch((removeErr) => {
+            debug.warn(`[Realtime] failed to remove refused server-presence:${serverId} channel:`, removeErr)
+          })
+          return
+        }
+        missed = true
+        // One app retry at a time; the rejoins realtime-js makes meanwhile neither re-arm nor count.
+        if (state._presenceRetryTimer) return
+        console.error(`[Realtime] server-presence:${serverId} → CHANNEL_ERROR`, err?.message)
+        const attempt = state._presenceRetryAttempt ?? 0
+        state._presenceRetryAttempt = attempt + 1
+        // The timer lives on the context so unsubscribing cancels it.
+        state._presenceRetryTimer = setTimeout(() => {
+          state._presenceRetryTimer = null
+          if (!this.contexts.has(serverId)) return
+          this.setupServerPresence(serverId, userIds, true).catch(retryErr => {
+            debug.error(`[Realtime] server-presence:${serverId} retry failed:`, retryErr)
+          })
+        }, channelRetryDelay(attempt))
+      } else {
+        console.log(`[Realtime] server-presence:${serverId} →`, status)
+      }
+    })
   }
   
   private async handleServerMemberJoin(serverId: string, payload: any): Promise<void> {

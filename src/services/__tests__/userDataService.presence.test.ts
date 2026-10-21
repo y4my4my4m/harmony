@@ -13,7 +13,13 @@ const { ME, FRIEND, STRANGER } = vi.hoisted(() => ({
 const db = vi.hoisted(() => {
   const calls: Array<{ fn: string; args: any }> = []
   const updates: any[] = []
-  const channels: Array<{ topic: string; handlers: Record<string, (p: any) => void> }> = []
+  const channels: Array<{
+    topic: string
+    handlers: Record<string, (p: any) => void>
+    /** The subscribe callback; realtime-js calls it again on each of its own rejoins. */
+    status?: (status: string, err?: Error) => void
+    removed: boolean
+  }> = []
   let presenceRows: any[] = []
   return {
     calls, updates, channels,
@@ -51,16 +57,22 @@ vi.mock('@/supabase', () => {
         { id: STRANGER, username: 'stranger', status: 1 },
       ]),
       channel: (topic: string) => {
-        const record = { topic, handlers: {} as Record<string, (p: any) => void> }
+        const record: (typeof db.channels)[number] = { topic, handlers: {}, removed: false }
         db.channels.push(record)
         const ch: any = {
           on: (_t: string, f: { event: string }, cb: (p: any) => void) => { record.handlers[f.event] = cb; return ch },
-          subscribe: () => ch,
+          subscribe: (cb?: (status: string, err?: Error) => void) => { record.status = cb; return ch },
           unsubscribe: async () => 'ok',
+          __record: record,
         }
         return ch
       },
-      removeChannel: async () => 'ok',
+      // realtime-js closes an unjoined channel inline.
+      removeChannel: vi.fn(async (ch: any) => {
+        ch.__record.removed = true
+        ch.__record.status?.('CLOSED')
+        return 'ok'
+      }),
       auth: {
         getSession: async () => ({ data: { session: { access_token: 'jwt' } } }),
         onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
@@ -133,6 +145,131 @@ describe('presence', () => {
     expect(db.updates).toEqual([])
     await userDataService.updateCurrentUserStatus(UserStatus.Offline, false)
     expect(db.calls.at(-1)).toEqual({ fn: 'presence_offline', args: { p_device_id: 'tab-1' } })
+  })
+})
+
+describe('server presence channel errors', () => {
+  const REFUSAL = 'Unauthorized: You do not have permissions to read from this Channel topic: server-presence:server-1'
+  const opened = () => db.channels.filter((c) => c.topic === 'server-presence:server-1')
+  const fail = (message: string) => opened().at(-1)!.status!('CHANNEL_ERROR', new Error(message))
+
+  it('stops on a refusal: a server the user is not a member of is not retried', async () => {
+    vi.useFakeTimers()
+    try {
+      await userDataService.subscribeToContext('server-1', 'server', [FRIEND])
+      fail(REFUSAL)
+      await vi.advanceTimersByTimeAsync(10 * 60_000)
+      expect(opened()).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('removes a refused channel, so realtime-js stops rejoining it, and ignores what it reports after', async () => {
+    vi.useFakeTimers()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      await userDataService.subscribeToContext('server-1', 'server', [FRIEND])
+      const refused = opened()[0]
+      fail(REFUSAL)
+      expect(refused.removed).toBe(true)
+
+      refused.status!('CHANNEL_ERROR', new Error(REFUSAL))
+      refused.status!('CHANNEL_ERROR', new Error('timeout'))
+      await vi.advanceTimersByTimeAsync(10 * 60_000)
+      expect(opened()).toHaveLength(1)
+      expect(warn.mock.calls.filter((c) => String(c[0]).includes('refused'))).toHaveLength(1)
+      expect(error).not.toHaveBeenCalled()
+    } finally {
+      warn.mockRestore()
+      error.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('opens the channel again when the user comes back to a refused server', async () => {
+    vi.useFakeTimers()
+    try {
+      await userDataService.subscribeToContext('server-1', 'server', [FRIEND])
+      await userDataService.subscribeToContext('server-1', 'server', [FRIEND])
+      expect(opened()).toHaveLength(1)
+
+      fail(REFUSAL)
+      await userDataService.subscribeToContext('server-1', 'server', [FRIEND])
+      expect(opened()).toHaveLength(2)
+      expect(opened()[1].removed).toBe(false)
+
+      // The new channel is live: its errors are retried.
+      fail('timeout')
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(opened()).toHaveLength(3)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("keeps one retry pending: realtime-js's own rejoin errors neither push it out nor count", async () => {
+    vi.useFakeTimers()
+    try {
+      await userDataService.subscribeToContext('server-1', 'server', [FRIEND])
+      fail('timeout')
+      await vi.advanceTimersByTimeAsync(3_000)
+      fail('timeout')
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(opened()).toHaveLength(2)
+
+      // Second app retry: 10 s, the first doubling.
+      fail('timeout')
+      await vi.advanceTimersByTimeAsync(9_999)
+      expect(opened()).toHaveLength(2)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(opened()).toHaveLength(3)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a rejoin by realtime-js cancels the pending retry, re-reads presence and starts the backoff over', async () => {
+    vi.useFakeTimers()
+    try {
+      await userDataService.subscribeToContext('server-1', 'server', [FRIEND])
+      fail('timeout')
+      db.calls.length = 0
+      opened()[0].status!('SUBSCRIBED')
+      expect(db.calls.some((c) => c.fn === 'get_presence')).toBe(true)
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(opened()).toHaveLength(1)
+
+      fail('timeout')
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(opened()).toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('retries any other error, 5 s doubling, and starts over once subscribed', async () => {
+    vi.useFakeTimers()
+    try {
+      await userDataService.subscribeToContext('server-1', 'server', [FRIEND])
+      fail('timeout')
+      await vi.advanceTimersByTimeAsync(4_999)
+      expect(opened()).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(opened()).toHaveLength(2)
+      fail('timeout')
+      await vi.advanceTimersByTimeAsync(9_999)
+      expect(opened()).toHaveLength(2)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(opened()).toHaveLength(3)
+      opened().at(-1)!.status!('SUBSCRIBED')
+      fail('timeout')
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(opened()).toHaveLength(4)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
