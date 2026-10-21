@@ -2571,6 +2571,8 @@
     },
     "postMenu": {
       "copyLink": "Link kopieren",
+      "copyOriginalLink": "Originallink kopieren",
+      "openOriginal": "Original öffnen",
       "edit": "Bearbeiten",
       "pin": "Im Profil anheften",
       "unpin": "Vom Profil lösen",

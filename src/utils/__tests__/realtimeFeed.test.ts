@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { insertRealtimePost, flushPendingPosts } from '@/utils/realtimeFeed'
+import { insertRealtimePost, flushPendingPosts, placeByDate } from '@/utils/realtimeFeed'
 
 const p = (id: string) => ({ id })
 const ids = (list: Array<{ id: string }>) => list.map(x => x.id)
@@ -48,5 +48,38 @@ describe('flushPendingPosts', () => {
   it('returns the same list when nothing is queued', () => {
     const posts = [p('a')]
     expect(flushPendingPosts(posts, [])).toBe(posts)
+  })
+})
+
+describe('placeByDate', () => {
+  const d = (id: string, minute: number) => ({ id, created_at: `2026-10-21T10:${String(minute).padStart(2, '0')}:00.000000+00:00` })
+
+  it('puts a new post first', () => {
+    expect(ids(placeByDate([d('b', 20), d('a', 10)], d('c', 30), false))).toEqual(['c', 'b', 'a'])
+  })
+
+  it('fills an outbox backfill in date order: the top stays put as older posts arrive', () => {
+    let posts: Array<ReturnType<typeof d>> = []
+    for (const post of [d('e', 50), d('d', 40), d('c', 30), d('b', 20), d('a', 10)]) {
+      posts = placeByDate(posts, post, false)
+      expect(posts[0].id).toBe('e')
+    }
+    expect(ids(posts)).toEqual(['e', 'd', 'c', 'b', 'a'])
+  })
+
+  it('places a post between two by date, and breaks a tie by id as the feed query does', () => {
+    expect(ids(placeByDate([d('c', 30), d('a', 10)], d('b', 20), true))).toEqual(['c', 'b', 'a'])
+    expect(ids(placeByDate([d('b', 20), d('a', 20)], d('ab', 20), true))).toEqual(['b', 'ab', 'a'])
+  })
+
+  it('leaves a post older than a full page to the next page', () => {
+    const posts = [d('c', 30), d('b', 20)]
+    expect(placeByDate(posts, d('a', 10), true)).toBe(posts)
+    expect(ids(placeByDate(posts, d('a', 10), false))).toEqual(['c', 'b', 'a'])
+  })
+
+  it('returns the same list for a post already listed', () => {
+    const posts = [d('b', 20), d('a', 10)]
+    expect(placeByDate(posts, d('a', 10), false)).toBe(posts)
   })
 })

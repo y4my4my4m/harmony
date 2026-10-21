@@ -2571,6 +2571,8 @@
     },
     "postMenu": {
       "copyLink": "Copier le lien",
+      "copyOriginalLink": "Copier le lien d'origine",
+      "openOriginal": "Ouvrir l'original",
       "edit": "Modifier",
       "pin": "Épingler sur le profil",
       "unpin": "Désépingler du profil",

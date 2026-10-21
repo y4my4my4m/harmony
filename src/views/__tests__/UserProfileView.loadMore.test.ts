@@ -6,6 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { shallowMount, type VueWrapper } from '@vue/test-utils'
+import { useFeedRealtime } from '@/composables/useFeedRealtime'
 
 const HANDLE = 'alice@mastodon.test'
 
@@ -17,6 +18,7 @@ const service = vi.hoisted(() => ({
   countProfileMedia: vi.fn(async () => 0),
   getFollowing: vi.fn(async () => []),
   getFollowers: vi.fn(async () => []),
+  loadPostWithAuthor: vi.fn(),
 }))
 vi.mock('@/services/activityPubService', () => ({ activityPubService: service }))
 const getPinnedPosts = vi.hoisted(() => vi.fn(async () => [] as any[]))
@@ -135,6 +137,7 @@ beforeEach(() => {
   service.getUserByHandle.mockResolvedValue({ ...remoteRow })
   service.getUserPosts.mockImplementation(keysetRead)
   service.importRemoteOutboxPage.mockReset()
+  getPinnedPosts.mockResolvedValue([])
 })
 
 afterEach(() => {
@@ -224,5 +227,42 @@ describe('UserProfileView load more', () => {
     const pinned = wrapper!.findAllComponents({ name: 'MonyPost' })
     expect(pinned.map((c) => c.props('post').id)).toEqual([stored[5].id])
     expect(listed().map((p) => p.id)).not.toContain(stored[5].id)
+  })
+
+  describe('a realtime post older than the last one listed', () => {
+    type Handlers = {
+      onCreate: (e: { id: string; author_id: string }) => Promise<void>
+      onDelete: (e: { id: string; author_id: string }) => void
+    }
+    const handlers = () => vi.mocked(useFeedRealtime).mock.calls.at(-1)![1] as unknown as Handlers
+    const arrive = async (p: any) => {
+      service.loadPostWithAuthor.mockResolvedValue(p)
+      await handlers().onCreate({ id: p.id, author_id: remoteRow.id })
+      await settle()
+    }
+    const backfilled = { id: 'p0000', created_at: '2000-01-01T00:00:00.000Z', content: [] }
+
+    it('lists it once the database has no older posts, however many are listed', async () => {
+      service.getUserByHandle.mockResolvedValue({ ...remoteRow, is_local: true, domain: 'harmony.test', outbox_url: null })
+      seed(0, 25)
+      await mountView()
+      await loadMore()
+      expect(listed()).toHaveLength(25)
+
+      await arrive(backfilled)
+      expect(listed().map((p) => p.id).at(-1)).toBe(backfilled.id)
+    })
+
+    it('leaves it to the next page after a full page, though deletes shortened the list', async () => {
+      seed(0, 30)
+      await mountView()
+      expect(listed()).toHaveLength(20)
+      for (const p of listed().slice(0, 2)) handlers().onDelete({ id: p.id, author_id: remoteRow.id })
+      await settle()
+      expect(listed()).toHaveLength(18)
+
+      await arrive(backfilled)
+      expect(listed().map((p) => p.id)).not.toContain(backfilled.id)
+    })
   })
 })

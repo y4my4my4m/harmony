@@ -2571,6 +2571,8 @@
     },
     "postMenu": {
       "copyLink": "复制链接",
+      "copyOriginalLink": "复制原始链接",
+      "openOriginal": "打开原文",
       "edit": "编辑",
       "pin": "置顶到个人资料",
       "unpin": "从个人资料取消置顶",

@@ -2571,6 +2571,8 @@
     },
     "postMenu": {
       "copyLink": "リンクをコピー",
+      "copyOriginalLink": "元のリンクをコピー",
+      "openOriginal": "元の投稿を開く",
       "edit": "編集",
       "pin": "プロフィールに固定",
       "unpin": "プロフィールの固定を解除",

@@ -2571,6 +2571,8 @@
     },
     "postMenu": {
       "copyLink": "링크 복사",
+      "copyOriginalLink": "원본 링크 복사",
+      "openOriginal": "원본 열기",
       "edit": "편집",
       "pin": "프로필에 고정",
       "unpin": "프로필 고정 해제",

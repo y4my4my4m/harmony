@@ -151,6 +151,21 @@ defineExpose({ element: menuEl })
   cursor: pointer;
 }
 
+/* A label over the host or account it acts on. */
+.social-menu-item-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.social-menu-item-hint {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .social-menu-item:hover:not([aria-disabled='true']),
 .social-menu-item:focus-visible {
   background-color: var(--background-modifier-hover);

@@ -411,6 +411,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/useProfile';
 import { useUserData } from '@/composables/useUserData'
 import { useFeedRealtime, type FeedKind } from '@/composables/useFeedRealtime'
+import { placeByDate } from '@/utils/realtimeFeed'
 import { useMovedAccount } from '@/composables/useMovedAccount'
 import { FOLLOW_ACTION_KEYS, useFollowAction } from '@/composables/useFollowAction'
 import { runtimeConfig } from '@/services/runtimeConfig'
@@ -544,6 +545,9 @@ const POSTS_PAGE_SIZE = 20;
 // Outbox imports in a row that surface nothing older before "load more" stops.
 const MAX_EMPTY_OUTBOX_IMPORTS = 3;
 let emptyOutboxImports = 0;
+// The last database read of posts returned a full page: stored posts older than the last listed
+// one may exist. Deletes leave it as it is.
+const olderMayBeStored = ref(false);
 
 // Realtime: prepends/edits/deletes arrive on `feed:user:{profile_id}`, where
 // a DB trigger publishes every post event for this author. The kind ref
@@ -553,13 +557,17 @@ const feedKind = computed<FeedKind>(
 )
 useFeedRealtime(feedKind, {
   onCreate: async (event) => {
-    if (event.author_id !== user.value?.id) return
+    const target = user.value
+    if (event.author_id !== target?.id) return
     if (userPosts.value.some(p => p.id === event.id)) return
     const fullPost = await activityPubService.loadPostWithAuthor(event.id)
-    if (!fullPost) return
-    userPosts.value = [fullPost as TimelinePost, ...userPosts.value]
-    // A remote account's figure is its origin's; an outbox backfill also lands here.
-    if (user.value && !isRemoteUser.value) user.value.posts_count = (user.value.posts_count ?? 0) + 1
+    if (!fullPost || user.value?.id !== target.id) return
+    // An outbox backfill or "load more" import arrives here older than what is listed.
+    const placed = placeByDate(userPosts.value, fullPost as TimelinePost, olderMayBeStored.value)
+    if (placed === userPosts.value) return
+    userPosts.value = placed
+    // A remote account's figure is its origin's.
+    if (!isRemoteUser.value) target.posts_count = (target.posts_count ?? 0) + 1
     void loadMediaCount()
   },
   onUpdate: (event) => {
@@ -923,6 +931,7 @@ const loadUserPosts = async (retryCount = 0) => {
     
     // Same path for local and remote users.
     const posts = (await activityPubService.getUserPosts(user.value.id, { limit: POSTS_PAGE_SIZE })) as TimelinePost[] || [];
+    olderMayBeStored.value = posts.length >= POSTS_PAGE_SIZE;
 
     // Retries poll while the backend backfills a freshly-imported remote
     // profile. The array is swapped, and reactions refetched, only when the
@@ -981,6 +990,7 @@ const loadUserPosts = async (retryCount = 0) => {
     debug.error('Failed to load user posts:', error);
     userPosts.value = [];
     hasMorePostsRef.value = false;
+    olderMayBeStored.value = false;
   } finally {
     // Loading indicator stays on while retries are pending.
     if (retryCount >= 3 || userPosts.value.length > 0 || user.value?.is_local) {
@@ -1057,12 +1067,13 @@ const loadPinnedPosts = async () => {
 const readOlderPosts = async (): Promise<TimelinePost[]> => {
   const oldest = userPosts.value[userPosts.value.length - 1];
   if (!user.value || !oldest) return [];
-  const posts = await activityPubService.getUserPosts(user.value.id, {
+  const posts = ((await activityPubService.getUserPosts(user.value.id, {
     limit: POSTS_PAGE_SIZE,
     before: oldest.created_at,
     beforeId: oldest.id,
-  });
-  return (posts as TimelinePost[]) || [];
+  })) as TimelinePost[]) || [];
+  olderMayBeStored.value = posts.length >= POSTS_PAGE_SIZE;
+  return posts;
 };
 
 /** Appends the posts not yet listed; returns how many were. */
